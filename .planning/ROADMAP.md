@@ -31,7 +31,13 @@ Decimal phases appear between their surrounding integers in numeric order.
   3. Documented zero-config defaults (mode=lean, cadence=kanban, autonomy=pr) are stated as the lean baseline a reader can rely on with no config file present
   4. `plans/board.md` exists with the spec's columns and per-column WIP-limit format sourced from config, and the sizing/priority/Blocked-escalation conventions are defined once for both cadences
   5. The stable ID scheme (EPIC/FEAT/<prefix>/ADR/NFR/RISK/REL/INC, configurable prefix) is defined, and `plans/traceability.md`, `plans/nfr-catalog.md`, and `plans/metrics.md` exist as seeded skeletons ready for roles to append to
-**Plans**: TBD
+**Plans**: 5 plans
+Plans:
+- [ ] 01-01-PLAN.md — Repository scaffold per spec §3 (additive-only directory tree + .gitkeep)
+- [ ] 01-02-PLAN.md — Config dial: factory.config.json (§15 lean defaults) + factory.config.md twin
+- [ ] 01-03-PLAN.md — plans/board.md: 13 columns + WIP format from config + sizing/priority/Blocked conventions
+- [ ] 01-04-PLAN.md — State-plane skeletons: traceability.md, nfr-catalog.md, metrics.md (headers, zero rows)
+- [ ] 01-05-PLAN.md — agent-factory/VERSION (0.1.0) + full agent-factory/README.md
 
 ### Phase 2: Shared Contracts
 **Goal**: Provide the I/O contracts — handoff packet templates, gate checklists, and the memory-bank seed — as real files, so role and workflow files written later reference actual filenames and a stable universal header rather than placeholders.
@@ -105,7 +111,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Substrate, Config & State Skeleton | 0/TBD | Not started | - |
+| 1. Substrate, Config & State Skeleton | 0/5 | Planned | - |
 | 2. Shared Contracts | 0/TBD | Not started | - |
 | 3. Roles & AGENTS.md Substrate | 0/TBD | Not started | - |
 | 4. Workflows, Cadence & Backpressure | 0/TBD | Not started | - |
