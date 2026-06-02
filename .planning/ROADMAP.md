@@ -38,7 +38,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 **Plans**: 5 plansPlans:
 **Wave 1**
 
-- [ ] 01-01-PLAN.md — Repository scaffold per spec §3 (additive-only directory tree + .gitkeep)
+- [x] 01-01-PLAN.md — Repository scaffold per spec §3 (additive-only directory tree + .gitkeep)
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
@@ -138,7 +138,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Substrate, Config & State Skeleton | 0/5 | Planned | - |
+| 1. Substrate, Config & State Skeleton | 1/5 | In Progress|  |
 | 2. Shared Contracts | 0/TBD | Not started | - |
 | 3. Roles & AGENTS.md Substrate | 0/TBD | Not started | - |
 | 4. Workflows, Cadence & Backpressure | 0/TBD | Not started | - |
