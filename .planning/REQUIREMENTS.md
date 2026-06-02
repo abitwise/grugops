@@ -51,13 +51,13 @@
 
 ### Traceability & IDs
 
-- [ ] **TRACE-01**: Stable ID schemes are defined and used (EPIC-/FEAT-/`<prefix>`-/ADR-/NFR-/RISK-/REL-/INC-) with the project prefix configurable
-- [ ] **TRACE-02**: `plans/traceability.md` carries one row per ticket linking requirement→ticket→code→test→UAT→release; each role appends its link as it completes work; enterprise DoD is not met until the relevant row is complete
+- [x] **TRACE-01**: Stable ID schemes are defined and used (EPIC-/FEAT-/`<prefix>`-/ADR-/NFR-/RISK-/REL-/INC-) with the project prefix configurable
+- [x] **TRACE-02**: `plans/traceability.md` carries one row per ticket linking requirement→ticket→code→test→UAT→release; each role appends its link as it completes work; enterprise DoD is not met until the relevant row is complete
 
 ### NFR & Metrics
 
-- [ ] **NFR-01**: `plans/nfr-catalog.md` lists non-functional targets (category / target / applies-to / verified-by); the Architect seeds it, Security/NFR checks against it, the Release Manager attaches evidence
-- [ ] **METRIC-01**: `plans/metrics.md` tracks throughput, cycle time, lead time, WIP, blocked time, rework rate, gate pass rate, escaped defects, and (scrum) velocity; updated by the daily sweep and retro; consumed by the Factory Coach
+- [x] **NFR-01**: `plans/nfr-catalog.md` lists non-functional targets (category / target / applies-to / verified-by); the Architect seeds it, Security/NFR checks against it, the Release Manager attaches evidence
+- [x] **METRIC-01**: `plans/metrics.md` tracks throughput, cycle time, lead time, WIP, blocked time, rework rate, gate pass rate, escaped defects, and (scrum) velocity; updated by the daily sweep and retro; consumed by the Factory Coach
 
 ### Backpressure & Safety
 
@@ -149,10 +149,10 @@ Each requirement maps to exactly one phase. See `.planning/ROADMAP.md` for phase
 | CONFIG-03 | Phase 1 | Complete |
 | BOARD-01 | Phase 1 | Pending |
 | BOARD-04 | Phase 1 | Pending |
-| TRACE-01 | Phase 1 | Pending |
-| TRACE-02 | Phase 1 | Pending |
-| NFR-01 | Phase 1 | Pending |
-| METRIC-01 | Phase 1 | Pending |
+| TRACE-01 | Phase 1 | Complete |
+| TRACE-02 | Phase 1 | Complete |
+| NFR-01 | Phase 1 | Complete |
+| METRIC-01 | Phase 1 | Complete |
 | HAND-01 | Phase 2 | Pending |
 | HAND-02 | Phase 2 | Pending |
 | CHECK-01 | Phase 2 | Pending |
