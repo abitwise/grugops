@@ -44,10 +44,10 @@
 
 ### Delivery OS — Board & Cadence
 
-- [ ] **BOARD-01**: `plans/board.md` is the single WIP source of truth with the spec's columns, per-column WIP limits sourced from config, and a format where each ticket's front-matter status matches its board column
+- [x] **BOARD-01**: `plans/board.md` is the single WIP source of truth with the spec's columns, per-column WIP limits sourced from config, and a format where each ticket's front-matter status matches its board column
 - [ ] **BOARD-02**: Kanban (flow) cadence works — continuous pull, WIP limits as the throttle, daily-sweep reconciliation, cycle-time focus
 - [ ] **BOARD-03**: Scrum (sprint) cadence works — time-boxed sprints with `plans/sprints/SPRINT-xx.md` (goal, committed, velocity, burndown) and the full ceremony set, selectable by config
-- [ ] **BOARD-04**: Sizing (t-shirt→points, XL must be split) and priority (P0–P3) are shared by both cadences; the Blocked policy records `blocked-by` + date and escalates past the config threshold
+- [x] **BOARD-04**: Sizing (t-shirt→points, XL must be split) and priority (P0–P3) are shared by both cadences; the Blocked policy records `blocked-by` + date and escalates past the config threshold
 
 ### Traceability & IDs
 
@@ -147,8 +147,8 @@ Each requirement maps to exactly one phase. See `.planning/ROADMAP.md` for phase
 | CONFIG-01 | Phase 1 | Complete |
 | CONFIG-02 | Phase 1 | Complete |
 | CONFIG-03 | Phase 1 | Complete |
-| BOARD-01 | Phase 1 | Pending |
-| BOARD-04 | Phase 1 | Pending |
+| BOARD-01 | Phase 1 | Complete |
+| BOARD-04 | Phase 1 | Complete |
 | TRACE-01 | Phase 1 | Complete |
 | TRACE-02 | Phase 1 | Complete |
 | NFR-01 | Phase 1 | Complete |
