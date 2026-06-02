@@ -39,8 +39,8 @@
 
 ### Checklists
 
-- [ ] **CHECK-01**: Lean checklists exist (definition-of-ready, definition-of-done, pr-review-checklist, security-nfr-checklist, uat-checklist)
-- [ ] **CHECK-02**: Enterprise + new-gate checklists exist (definition-of-done-enterprise superset, compliance, accessibility, observability-slo, release-readiness); the Orchestrator applies lean DoD in lean mode and enterprise DoD in enterprise mode
+- [x] **CHECK-01**: Lean checklists exist (definition-of-ready, definition-of-done, pr-review-checklist, security-nfr-checklist, uat-checklist)
+- [x] **CHECK-02**: Enterprise + new-gate checklists exist (definition-of-done-enterprise superset, compliance, accessibility, observability-slo, release-readiness); the Orchestrator applies lean DoD in lean mode and enterprise DoD in enterprise mode
 
 ### Delivery OS — Board & Cadence
 
@@ -155,8 +155,8 @@ Each requirement maps to exactly one phase. See `.planning/ROADMAP.md` for phase
 | METRIC-01 | Phase 1 | Complete |
 | HAND-01 | Phase 2 | Complete |
 | HAND-02 | Phase 2 | Complete |
-| CHECK-01 | Phase 2 | Pending |
-| CHECK-02 | Phase 2 | Pending |
+| CHECK-01 | Phase 2 | Complete |
+| CHECK-02 | Phase 2 | Complete |
 | MEM-01 | Phase 2 | Pending |
 | MEM-02 | Phase 2 | Pending |
 | ROLE-01 | Phase 3 | Pending |
