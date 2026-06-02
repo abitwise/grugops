@@ -63,7 +63,13 @@ Decimal phases appear between their surrounding integers in numeric order.
   4. A minimal memory-bank exists (00-index through 80-glossary plus 50-decisions/ ADR convention), each file short, single-purpose, and small — never a document dump
   5. The memory-bank seed states the working-memory contract: roles read it on start, 60-progress.md is the running plan-of-record kept current by the daily sweep, and 50-decisions/ captures ADRs as they are made
 
-**Plans**: TBD
+**Plans**: 4 plans
+**Wave 1** *(all 4 plans parallel — disjoint file sets, no inter-plan dependencies)*
+
+- [ ] 02-01-PLAN.md — Handoffs: universal header + 11 core templates (HAND-01)
+- [ ] 02-02-PLAN.md — Handoffs: 5 v2 templates — release/incident/retro/refinement/sprint-plan (HAND-02)
+- [ ] 02-03-PLAN.md — Checklists: 10 verbatim §9 bodies + 00-index tier grouping (CHECK-01, CHECK-02)
+- [ ] 02-04-PLAN.md — Memory-bank seed: 8 generic seed files + 50-decisions/ADR-template (MEM-01, MEM-02)
 
 ### Phase 3: Roles & AGENTS.md Substrate
 
@@ -139,7 +145,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Substrate, Config & State Skeleton | 5/5 | Complete    | 2026-06-02 |
-| 2. Shared Contracts | 0/TBD | Not started | - |
+| 2. Shared Contracts | 0/4 | Planned | - |
 | 3. Roles & AGENTS.md Substrate | 0/TBD | Not started | - |
 | 4. Workflows, Cadence & Backpressure | 0/TBD | Not started | - |
 | 5. Packaging, Adapters, Install & Distribution | 0/TBD | Not started | - |
