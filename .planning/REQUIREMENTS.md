@@ -34,7 +34,7 @@
 
 ### Handoff Templates
 
-- [ ] **HAND-01**: All core handoff templates exist and are copy-paste usable (universal, business, product, system, architecture, implementation, qe, security-nfr, uat, ticket-ready-packet, implementation-ready-packet); the universal header carries Ticket ID and Trace updates fields
+- [x] **HAND-01**: All core handoff templates exist and are copy-paste usable (universal, business, product, system, architecture, implementation, qe, security-nfr, uat, ticket-ready-packet, implementation-ready-packet); the universal header carries Ticket ID and Trace updates fields
 - [ ] **HAND-02**: All v2 handoff templates exist (release-handoff, incident-postmortem [blameless], retro-notes, refinement-notes, sprint-plan)
 
 ### Checklists
@@ -153,7 +153,7 @@ Each requirement maps to exactly one phase. See `.planning/ROADMAP.md` for phase
 | TRACE-02 | Phase 1 | Complete |
 | NFR-01 | Phase 1 | Complete |
 | METRIC-01 | Phase 1 | Complete |
-| HAND-01 | Phase 2 | Pending |
+| HAND-01 | Phase 2 | Complete |
 | HAND-02 | Phase 2 | Pending |
 | CHECK-01 | Phase 2 | Pending |
 | CHECK-02 | Phase 2 | Pending |
