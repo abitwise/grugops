@@ -67,7 +67,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 **Wave 1** *(all 4 plans parallel — disjoint file sets, no inter-plan dependencies)*
 
 - [x] 02-01-PLAN.md — Handoffs: universal header + 11 core templates (HAND-01)
-- [ ] 02-02-PLAN.md — Handoffs: 5 v2 templates — release/incident/retro/refinement/sprint-plan (HAND-02)
+- [x] 02-02-PLAN.md — Handoffs: 5 v2 templates — release/incident/retro/refinement/sprint-plan (HAND-02)
 - [ ] 02-03-PLAN.md — Checklists: 10 verbatim §9 bodies + 00-index tier grouping (CHECK-01, CHECK-02)
 - [ ] 02-04-PLAN.md — Memory-bank seed: 8 generic seed files + 50-decisions/ADR-template (MEM-01, MEM-02)
 
@@ -145,7 +145,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Substrate, Config & State Skeleton | 5/5 | Complete    | 2026-06-02 |
-| 2. Shared Contracts | 1/4 | In Progress|  |
+| 2. Shared Contracts | 2/4 | In Progress|  |
 | 3. Roles & AGENTS.md Substrate | 0/TBD | Not started | - |
 | 4. Workflows, Cadence & Backpressure | 0/TBD | Not started | - |
 | 5. Packaging, Adapters, Install & Distribution | 0/TBD | Not started | - |
