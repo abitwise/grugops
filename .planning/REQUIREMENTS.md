@@ -9,7 +9,7 @@
 
 ### Structure & Scaffolding
 
-- [ ] **STRUCT-01**: Repository is scaffolded per spec §3 — `agent-factory/{roles,workflows,handoffs,checklists,examples,packaging,config}`, `plans/{board,traceability,nfr-catalog,metrics,sprints,releases,epics,features,tickets}`, `memory-bank/*`, `install/*`, `.claude-plugin/`, and root `AGENTS.md` — without deleting or overwriting existing user content (e.g. `docs/`)
+- [x] **STRUCT-01**: Repository is scaffolded per spec §3 — `agent-factory/{roles,workflows,handoffs,checklists,examples,packaging,config}`, `plans/{board,traceability,nfr-catalog,metrics,sprints,releases,epics,features,tickets}`, `memory-bank/*`, `install/*`, `.claude-plugin/`, and root `AGENTS.md` — without deleting or overwriting existing user content (e.g. `docs/`)
 - [x] **STRUCT-02**: `agent-factory/VERSION` and `agent-factory/README.md` exist; the README explains usage across all five tools (the dispatch difference) and gives copy-paste Orchestrator prompts for bootstrap, refine, plan, sweep, ticket→PR, gate, UAT, and release
 
 ### Config Dial
@@ -142,7 +142,7 @@ Each requirement maps to exactly one phase. See `.planning/ROADMAP.md` for phase
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| STRUCT-01 | Phase 1 | Pending |
+| STRUCT-01 | Phase 1 | Complete |
 | STRUCT-02 | Phase 1 | Complete |
 | CONFIG-01 | Phase 1 | Complete |
 | CONFIG-02 | Phase 1 | Complete |
