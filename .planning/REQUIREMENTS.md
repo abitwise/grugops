@@ -138,17 +138,62 @@ To be resolved at the **packaging phase** (`/gsd-discuss-phase`), with research 
 
 ## Traceability
 
-Populated during roadmap creation — each requirement maps to exactly one phase.
+Each requirement maps to exactly one phase. See `.planning/ROADMAP.md` for phase goals and success criteria.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| (filled by roadmapper) | — | Pending |
+| STRUCT-01 | Phase 1 | Pending |
+| STRUCT-02 | Phase 1 | Pending |
+| CONFIG-01 | Phase 1 | Pending |
+| CONFIG-02 | Phase 1 | Pending |
+| CONFIG-03 | Phase 1 | Pending |
+| BOARD-01 | Phase 1 | Pending |
+| BOARD-04 | Phase 1 | Pending |
+| TRACE-01 | Phase 1 | Pending |
+| TRACE-02 | Phase 1 | Pending |
+| NFR-01 | Phase 1 | Pending |
+| METRIC-01 | Phase 1 | Pending |
+| HAND-01 | Phase 2 | Pending |
+| HAND-02 | Phase 2 | Pending |
+| CHECK-01 | Phase 2 | Pending |
+| CHECK-02 | Phase 2 | Pending |
+| MEM-01 | Phase 2 | Pending |
+| MEM-02 | Phase 2 | Pending |
+| ROLE-01 | Phase 3 | Pending |
+| ROLE-02 | Phase 3 | Pending |
+| ROLE-03 | Phase 3 | Pending |
+| AGENTS-01 | Phase 3 | Pending |
+| AGENTS-02 | Phase 3 | Pending |
+| FLOW-01 | Phase 4 | Pending |
+| FLOW-02 | Phase 4 | Pending |
+| FLOW-03 | Phase 4 | Pending |
+| FLOW-04 | Phase 4 | Pending |
+| FLOW-05 | Phase 4 | Pending |
+| BOARD-02 | Phase 4 | Pending |
+| BOARD-03 | Phase 4 | Pending |
+| GATE-01 | Phase 4 | Pending |
+| SAFE-01 | Phase 4 | Pending |
+| PKG-01 | Phase 5 | Pending |
+| PKG-02 | Phase 5 | Pending |
+| CLAUDE-01 | Phase 5 | Pending |
+| CLAUDE-02 | Phase 5 | Pending |
+| CLAUDE-03 | Phase 5 | Pending |
+| INSTALL-01 | Phase 5 | Pending |
+| INSTALL-02 | Phase 5 | Pending |
+| SAFE-02 | Phase 5 | Pending |
+| VAL-01 | Phase 6 | Pending |
+| EX-01 | Phase 6 | Pending |
+| BRAND-01 | Phase 6 | Pending |
+| BRAND-02 | Phase 6 | Pending |
+| BRAND-03 | Phase 6 | Pending |
+| DOG-01 | Phase 6 | Pending |
+| DOG-02 | Phase 6 | Pending |
 
 **Coverage:**
-- v1 requirements: 37 total
-- Mapped to phases: 0 (pending roadmap)
-- Unmapped: 37 ⚠️
+- v1 requirements: 46 total
+- Mapped to phases: 46
+- Unmapped: 0 ✓
 
 ---
 *Requirements defined: 2026-06-02*
-*Last updated: 2026-06-02 after initial definition*
+*Last updated: 2026-06-02 after roadmap creation (traceability populated)*
