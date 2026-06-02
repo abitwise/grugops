@@ -98,3 +98,27 @@ WIP limits come from config (`wip_limits`); the numbers above are the lean defau
 ## Done (WIP unlimited)
 
 ## Blocked (visible, time-tracked)
+
+## Conventions
+
+These sizing, priority, and Blocked conventions are defined ONCE here and apply to BOTH
+cadences (kanban and scrum) — BOARD-04. The Phase-4 scrum cadence references this same block;
+it is not redefined per cadence.
+
+### Sizing (spec §6.3)
+
+T-shirt size maps to points: `XS=1, S=2, M=3, L=5, XL=8`. **XL must be split** — the
+Orchestrator enforces "no XL into dev". BA/PM sizes (and prioritizes) at refinement. The
+sizing scheme is set in config (`sizing`, default `tshirt`).
+
+### Priority (spec §6.3)
+
+`P0` (drop everything) `..` `P3` (someday). Use WSJF instead if config says so
+(`priority_scheme`, default `P0-P3`).
+
+### Blocked policy (spec §6.4)
+
+- Any agent can move a ticket to Blocked with a `blocked-by` reason and a date.
+- The daily sweep counts blocked time and escalates anything blocked past the config
+  threshold `blocked_escalation_days` (default 2).
+- A blocker is a decision, a dependency, or a missing input. Name it. Assign a human if needed.
