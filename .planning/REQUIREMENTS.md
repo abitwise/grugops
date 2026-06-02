@@ -88,8 +88,8 @@
 
 ### Memory-Bank
 
-- [ ] **MEM-01**: A **minimal** memory-bank exists (00-index, 10-project-brief, 20-product, 30-architecture, 40-contributing, 50-decisions/ with ADR convention, 60-progress, 70-runbook, 80-glossary); it is the kit's persistent store for project state, plans, and durable info, with each file short, high-signal, and scoped to one kind of content — kept as small as possible (same anti-bloat rule as AGENTS.md), never a sprawling document dump
-- [ ] **MEM-02**: Roles use the memory-bank as working memory — they **read it on start and update it as work progresses**: `60-progress.md` is the running state / plan-of-record (kept current by the daily sweep), `50-decisions/` captures ADRs as they are made, and `00-index.md` maps the bank so an agent (or human) can orient in one read; no role lets the bank go stale or bloat
+- [x] **MEM-01**: A **minimal** memory-bank exists (00-index, 10-project-brief, 20-product, 30-architecture, 40-contributing, 50-decisions/ with ADR convention, 60-progress, 70-runbook, 80-glossary); it is the kit's persistent store for project state, plans, and durable info, with each file short, high-signal, and scoped to one kind of content — kept as small as possible (same anti-bloat rule as AGENTS.md), never a sprawling document dump
+- [x] **MEM-02**: Roles use the memory-bank as working memory — they **read it on start and update it as work progresses**: `60-progress.md` is the running state / plan-of-record (kept current by the daily sweep), `50-decisions/` captures ADRs as they are made, and `00-index.md` maps the bank so an agent (or human) can orient in one read; no role lets the bank go stale or bloat
 
 ### Examples
 
@@ -157,8 +157,8 @@ Each requirement maps to exactly one phase. See `.planning/ROADMAP.md` for phase
 | HAND-02 | Phase 2 | Complete |
 | CHECK-01 | Phase 2 | Complete |
 | CHECK-02 | Phase 2 | Complete |
-| MEM-01 | Phase 2 | Pending |
-| MEM-02 | Phase 2 | Pending |
+| MEM-01 | Phase 2 | Complete |
+| MEM-02 | Phase 2 | Complete |
 | ROLE-01 | Phase 3 | Pending |
 | ROLE-02 | Phase 3 | Pending |
 | ROLE-03 | Phase 3 | Pending |

@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: executing
-last_updated: "2026-06-02T21:19:45.003Z"
+status: verifying
+last_updated: "2026-06-02T21:23:34.841Z"
 last_activity: 2026-06-02
 progress:
   total_phases: 6
-  completed_phases: 1
+  completed_phases: 2
   total_plans: 9
-  completed_plans: 8
-  percent: 17
+  completed_plans: 9
+  percent: 33
 ---
 
 # Project State
@@ -26,10 +26,10 @@ See: .planning/PROJECT.md (updated 2026-06-02)
 
 Phase: 02 (shared-contracts) — EXECUTING
 Plan: 4 of 4
-Status: Ready to execute
+Status: Phase complete — ready for verification
 Last activity: 2026-06-02
 
-Progress: [█████████░] 89%
+Progress: [██████████] 100%
 
 ## Performance Metrics
 
@@ -58,6 +58,7 @@ Progress: [█████████░] 89%
 | Phase 02 P01 | 8m | 2 tasks | 11 files |
 | Phase 02 P02 | 1m | 2 tasks | 5 files |
 | Phase 02 P03 | 3m | 3 tasks | 11 files |
+| Phase 02 P04 | 4m | 2 tasks | 9 files |
 
 ## Accumulated Context
 
@@ -81,6 +82,8 @@ Recent decisions affecting current work:
 - [Phase 02]: [02-02] retro-notes Metrics snapshot cites frozen plans/metrics.md names; sprint-plan uses literal SPRINT-xx placeholder faithful to §8.5 prose
 - [Phase ?]: [02-03] All 10 gate checklists reproduced byte-identically from spec 9.1-9.10 (diff-verified); kind: checklist + tier: lean|enterprise per LOCKED D-14; security/compliance content is clear voice with no fabricated control
 - [Phase ?]: [02-03] Index frontmatter convention LOCKED to 'kind: index' (no tier:) -- same choice reused for memory-bank/00-index.md in Plan 04 per D-14 'decide once'
+- [Phase ?]: [02-04] memory-bank seed ships 8 generic empty-but-shaped files + 50-decisions/ADR-template.md; index uses kind: index (no tier:) reused from 02-03 per D-14; _Updated: <date>_ opener applied to all 9 (D-03/D-04/D-10)
+- [Phase ?]: [02-04] 00-index.md states the working-memory contract (read-on-start, 60-progress = plan-of-record kept by daily sweep, 50-decisions = ADRs); ADR-template.md is non-numeric so it never trips the Phase-6 ADR-NNNN validator (MEM-01/MEM-02, D-11/D-12)
 
 ### Pending Todos
 
@@ -106,6 +109,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-06-02T21:19:44.996Z
+Last session: 2026-06-02T21:23:12.205Z
 Stopped at: Completed 02-03-PLAN.md
 Resume file: None
