@@ -34,12 +34,12 @@ A user installs grugops on top of the coding-agent CLI they already run, types `
 - [ ] Delivery OS state files: `plans/board.md` (WIP-limited columns), `plans/traceability.md` (requirement→ticket→code→test→UAT→release), `plans/nfr-catalog.md`, `plans/metrics.md`, sprint + release file formats
 - [ ] Stable ID schemes (EPIC/FEAT/ABC/ADR/NFR/RISK/REL/INC) with configurable prefix
 - [ ] CI/CD backpressure model: deterministic prefetch → implement on branch → gate (install/lint/typecheck/unit/build/e2e) → bounded self-fix (default 2) → result (READY_FOR_HUMAN_REVIEW | BLOCKED_NEEDS_FIX | SPLIT_REQUIRED)
-- [ ] Root `AGENTS.md` substrate: minimal, high-signal, points to roles/workflows/handoffs/checklists; commands marked UNKNOWN - verify when unknown
+- [ ] Root `AGENTS.md` substrate: minimal, high-signal, points to roles/workflows/handoffs/checklists; embeds **Andrej Karpathy's 12 coding-agent rules** (Think Before Coding / Simplicity First / Surgical Changes / Goal-Driven Execution) as default behavioral guardrails; Commands section uses real commands with flags, preferring fast file-scoped variants; unknown commands marked `UNKNOWN - verify`, never faked
 - [ ] Per-tool adapters + `agent-factory/packaging/` (adapters.md map, subagent frontmatter template, slash-command template) for Claude Code, Codex, Gemini, OpenCode, Copilot — only dispatch differs, never content
 - [ ] Standalone `.claude/` form: thin sub-agent wrappers, `/grug` command(s), one-line CLAUDE.md pointer
 - [ ] Claude Code plugin form: `.claude-plugin/plugin.json` + `marketplace.json`, `agents/`, `commands/`, optional hooks (e.g. PreToolUse guard blocking prod deploy)
 - [ ] Install scripts: `install/install.sh` (POSIX) + `install/install.mjs` (Node) — idempotent, additive, dry-run-capable, reversible; `uninstall.sh`; "just install the markdown" minimal path documented
-- [ ] memory-bank seed files (index, project-brief, product, architecture, contributing, decisions/, progress, runbook, glossary)
+- [ ] **Minimal** memory-bank that is the kit's persistent agent-maintained store for state, plans, and project info (index, project-brief, product, architecture, contributing, decisions/ ADRs, progress, runbook, glossary) — kept as small as possible; roles read it on start and update `60-progress.md`/`50-decisions/` as work progresses
 - [ ] Example runs (5): greenfield bootstrap, brownfield bootstrap, ticket→PR, sprint cycle, release run
 - [ ] Validator script (`scripts/validate-agent-factory.mjs`): structure check for required files, role/workflow section presence, config parse, board/ticket status match, traceability completeness, packaging presence
 - [ ] Brand & docs collateral: README (hero + acknowledgements + non-affiliation footer), NOTICE, CONTRIBUTING (contributor art/legal rules), `brand/wordmark*.svg` + `brand/icon.svg`, `docs/faq.md`
@@ -90,6 +90,8 @@ A user installs grugops on top of the coding-agent CLI they already run, types `
 | Default recommended stack: TS / Node-Fastify / Vue / Postgres / Playwright / Docker / K8s-ready | Spec greenfield-mapper default for grugops's *users* | — Pending |
 | Enforce prod-safety mechanically where possible (Claude Code hook blocks deploy) | "Humans decide, agents execute" must be a guardrail, not a hope | — Pending |
 | Markdown-only kit; no runtime, DB, or queue | Boring on purpose; intelligence lives in the host agent | — Pending |
+| Memory-bank is the minimal agent-maintained state/plans store | User-requested completeness; same anti-bloat rule as AGENTS.md | — Pending |
+| Best-practices AGENTS.md embeds Karpathy's 12 coding-agent rules + agents.md-standard commands (file-scoped) | User-requested; the 12 rules operationalize the grug philosophy (simple, surgical, think-first, goal-driven) | — Pending |
 
 ## Evolution
 
