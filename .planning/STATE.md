@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-last_updated: "2026-06-02T19:01:55.146Z"
-last_activity: 2026-06-02 -- Phase 01 execution started
+last_updated: "2026-06-02T19:14:30.814Z"
+last_activity: 2026-06-02
 progress:
   total_phases: 6
   completed_phases: 0
   total_plans: 5
-  completed_plans: 0
+  completed_plans: 2
   percent: 0
 ---
 
@@ -25,11 +25,11 @@ See: .planning/PROJECT.md (updated 2026-06-02)
 ## Current Position
 
 Phase: 01 (substrate-config-state-skeleton) — EXECUTING
-Plan: 1 of 5
-Status: Executing Phase 01
-Last activity: 2026-06-02 -- Phase 01 execution started
+Plan: 2 of 5
+Status: Ready to execute
+Last activity: 2026-06-02
 
-Progress: [░░░░░░░░░░] 0%
+Progress: [████░░░░░░] 40%
 
 ## Performance Metrics
 
@@ -51,6 +51,7 @@ Progress: [░░░░░░░░░░] 0%
 - Trend: -
 
 *Updated after each plan completion*
+| Phase 01 P02 | 2m | 2 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -63,6 +64,8 @@ Recent decisions affecting current work:
 - [Init]: Ship both distribution forms — standalone `.claude/` and plugin + marketplace
 - [Init]: Enforce prod-safety mechanically via a plugin-level PreToolUse hook (not subagent frontmatter)
 - [Roadmap]: Phase order follows the research dependency chain — config/IDs/board → contracts → roles → workflows → packaging → validation/dogfood; never place a consumer before its dependency
+- [Phase ?]: [01-02] version seeded to 0.1.0 (D-02 divergence from spec 2.0.0; final string is a Phase-5 decision)
+- [Phase ?]: [01-02] config dial ships populated with lean defaults; zero-config holds because defaults are documented (CONFIG-03)
 
 ### Pending Todos
 
@@ -88,6 +91,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-06-02T14:39:59.380Z
-Stopped at: Phase 1 context gathered
-Resume file: .planning/phases/01-substrate-config-state-skeleton/01-CONTEXT.md
+Last session: 2026-06-02T19:14:30.809Z
+Stopped at: Completed 01-02-PLAN.md (config dial)
+Resume file: None

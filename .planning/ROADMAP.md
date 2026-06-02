@@ -42,7 +42,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
-- [ ] 01-02-PLAN.md — Config dial: factory.config.json (§15 lean defaults) + factory.config.md twin
+- [x] 01-02-PLAN.md — Config dial: factory.config.json (§15 lean defaults) + factory.config.md twin
 - [ ] 01-04-PLAN.md — State-plane skeletons: traceability.md, nfr-catalog.md, metrics.md (headers, zero rows)
 - [ ] 01-05-PLAN.md — agent-factory/VERSION (0.1.0) + full agent-factory/README.md
 
@@ -138,7 +138,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Substrate, Config & State Skeleton | 1/5 | In Progress|  |
+| 1. Substrate, Config & State Skeleton | 2/5 | In Progress|  |
 | 2. Shared Contracts | 0/TBD | Not started | - |
 | 3. Roles & AGENTS.md Substrate | 0/TBD | Not started | - |
 | 4. Workflows, Cadence & Backpressure | 0/TBD | Not started | - |

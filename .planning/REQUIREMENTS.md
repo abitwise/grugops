@@ -14,9 +14,9 @@
 
 ### Config Dial
 
-- [ ] **CONFIG-01**: `agent-factory/config/factory.config.json` exists with `mode`, `cadence`, `autonomy`, `id_prefix`, `repo_strategy`, `default_stack`, `wip_limits`, `sprint_length_days`, `sizing`, `priority_scheme`, `quality`, `nfr`, `compliance_regime`, `environments`, `production_requires_human_confirmation`, `blocked_escalation_days`
-- [ ] **CONFIG-02**: A human-readable `factory.config.md` twin documents the meaning of every config field
-- [ ] **CONFIG-03**: The factory runs with ZERO config using documented defaults (`mode=lean`, `cadence=kanban`, `autonomy=pr`); every role reads the config first and honors it when present
+- [x] **CONFIG-01**: `agent-factory/config/factory.config.json` exists with `mode`, `cadence`, `autonomy`, `id_prefix`, `repo_strategy`, `default_stack`, `wip_limits`, `sprint_length_days`, `sizing`, `priority_scheme`, `quality`, `nfr`, `compliance_regime`, `environments`, `production_requires_human_confirmation`, `blocked_escalation_days`
+- [x] **CONFIG-02**: A human-readable `factory.config.md` twin documents the meaning of every config field
+- [x] **CONFIG-03**: The factory runs with ZERO config using documented defaults (`mode=lean`, `cadence=kanban`, `autonomy=pr`); every role reads the config first and honors it when present
 
 ### Roles
 
@@ -144,9 +144,9 @@ Each requirement maps to exactly one phase. See `.planning/ROADMAP.md` for phase
 |-------------|-------|--------|
 | STRUCT-01 | Phase 1 | Pending |
 | STRUCT-02 | Phase 1 | Pending |
-| CONFIG-01 | Phase 1 | Pending |
-| CONFIG-02 | Phase 1 | Pending |
-| CONFIG-03 | Phase 1 | Pending |
+| CONFIG-01 | Phase 1 | Complete |
+| CONFIG-02 | Phase 1 | Complete |
+| CONFIG-03 | Phase 1 | Complete |
 | BOARD-01 | Phase 1 | Pending |
 | BOARD-04 | Phase 1 | Pending |
 | TRACE-01 | Phase 1 | Pending |
