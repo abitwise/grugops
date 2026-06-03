@@ -226,7 +226,16 @@ _agents="$TARGET/AGENTS.md"
 if is_protected "$_agents"; then
   : # never
 elif [ -L "$_agents" ]; then
-  remove_file "$_agents" "AGENTS.md (grugops symlink)"
+  # A symlink is removed ONLY if it resolves to the grugops source AGENTS.md. `cmp -s` follows
+  # the symlink, so comparing the link against the source compares resolved content — exactly
+  # the byte-identical test used for the copy branch below. A user's own AGENTS.md symlink (e.g.
+  # AGENTS.md -> docs/agents.md, a common monorepo pattern) resolves to other content, fails the
+  # compare, and is left untouched. Reject any symlink that does not resolve to the source.
+  if [ -f "$GRUGOPS_SRC/AGENTS.md" ] && cmp -s -- "$_agents" "$GRUGOPS_SRC/AGENTS.md" 2>/dev/null; then
+    remove_file "$_agents" "AGENTS.md (grugops symlink into source)"
+  else
+    report skipped "AGENTS.md (user-owned symlink — left untouched)"
+  fi
 elif [ -f "$_agents" ] && [ -f "$GRUGOPS_SRC/AGENTS.md" ] && cmp -s -- "$GRUGOPS_SRC/AGENTS.md" "$_agents" 2>/dev/null; then
   remove_file "$_agents" "AGENTS.md (grugops copy, byte-identical to source)"
 else

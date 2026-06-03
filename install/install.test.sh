@@ -140,6 +140,32 @@ else
 fi
 
 # ---------------------------------------------------------------------------
+# Check 5 — INSTALL-02 / CR-01: uninstall must NEVER delete a user-owned AGENTS.md that
+#            happens to be a symlink into the user's own content. Only a symlink that resolves
+#            to the grugops source AGENTS.md is grugops-owned and removable.
+# ---------------------------------------------------------------------------
+printf '\n[5] uninstall preserves a user-owned AGENTS.md symlink (CR-01)\n'
+T5="$WORK/usersymlink"; make_fixture "$T5"
+# User's own AGENTS.md is a symlink into their own content (common monorepo pattern).
+printf 'USER-OWNED AGENTS — uninstall must never delete this.\n' > "$T5/my-real-agents.md"
+( cd "$T5" && ln -s my-real-agents.md AGENTS.md )
+INSTALL_MODE=copy GRUGOPS_SRC="$REPO_ROOT" TARGET="$T5" sh "$SCRIPT_DIR/uninstall.sh" >/dev/null 2>&1
+if [ -L "$T5/AGENTS.md" ] && grep -qF 'USER-OWNED AGENTS' "$T5/AGENTS.md" 2>/dev/null; then
+  pass "user-owned AGENTS.md symlink survived uninstall (not grugops-owned)"
+else
+  fail "uninstall DELETED a user-owned AGENTS.md symlink — DATA LOSS / CONTRACT VIOLATION"
+fi
+# Conversely: a symlink that resolves to the grugops source IS grugops-owned and is removed.
+T5b="$WORK/grugopssymlink"; make_fixture "$T5b"
+( cd "$T5b" && ln -s "$REPO_ROOT/AGENTS.md" AGENTS.md )
+INSTALL_MODE=copy GRUGOPS_SRC="$REPO_ROOT" TARGET="$T5b" sh "$SCRIPT_DIR/uninstall.sh" >/dev/null 2>&1
+if [ ! -e "$T5b/AGENTS.md" ] && [ ! -L "$T5b/AGENTS.md" ]; then
+  pass "grugops-source AGENTS.md symlink removed by uninstall (correctly grugops-owned)"
+else
+  fail "uninstall left a grugops-owned AGENTS.md symlink behind"
+fi
+
+# ---------------------------------------------------------------------------
 # Result
 # ---------------------------------------------------------------------------
 printf '\n== Result ==\n'
