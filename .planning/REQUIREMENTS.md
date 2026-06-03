@@ -28,7 +28,7 @@
 
 - [x] **FLOW-01**: Bootstrap workflows (`00-bootstrap-greenfield`, `01-bootstrap-brownfield`) exist and seed AGENTS.md, memory-bank, the repo map/plan, the board, config, and safe first tickets
 - [x] **FLOW-02**: Lifecycle workflows exist (`02-idea-to-epics`, `03-epic-to-tickets`, `04-ticket-to-pr`, `05-pr-quality-gate`, `06-uat-pack`), each with board moves, handoffs produced, trace updates, and stop/done conditions
-- [ ] **FLOW-03**: Ceremony workflows exist (`07-backlog-refinement`, `08-sprint-planning`, `09-daily-sweep`, `10-sprint-review`, `11-retro`); the daily sweep and refinement/retro work in Kanban flow, and planning/review/retro work in Scrum cadence — cadence selected by config
+- [x] **FLOW-03**: Ceremony workflows exist (`07-backlog-refinement`, `08-sprint-planning`, `09-daily-sweep`, `10-sprint-review`, `11-retro`); the daily sweep and refinement/retro work in Kanban flow, and planning/review/retro work in Scrum cadence — cadence selected by config
 - [ ] **FLOW-04**: Enterprise workflows exist (`12-release`, `13-incident`) with the release approval gate and the blameless incident path
 - [x] **FLOW-05**: Every workflow file follows the v2 workflow template (When / Agents / Inputs / Steps / Board moves / Handoffs / Trace updates / Metrics emitted / Stop / Done)
 
@@ -46,7 +46,7 @@
 
 - [x] **BOARD-01**: `plans/board.md` is the single WIP source of truth with the spec's columns, per-column WIP limits sourced from config, and a format where each ticket's front-matter status matches its board column
 - [ ] **BOARD-02**: Kanban (flow) cadence works — continuous pull, WIP limits as the throttle, daily-sweep reconciliation, cycle-time focus
-- [ ] **BOARD-03**: Scrum (sprint) cadence works — time-boxed sprints with `plans/sprints/SPRINT-xx.md` (goal, committed, velocity, burndown) and the full ceremony set, selectable by config
+- [x] **BOARD-03**: Scrum (sprint) cadence works — time-boxed sprints with `plans/sprints/SPRINT-xx.md` (goal, committed, velocity, burndown) and the full ceremony set, selectable by config
 - [x] **BOARD-04**: Sizing (t-shirt→points, XL must be split) and priority (P0–P3) are shared by both cadences; the Blocked policy records `blocked-by` + date and escalates past the config threshold
 
 ### Traceability & IDs
@@ -166,11 +166,11 @@ Each requirement maps to exactly one phase. See `.planning/ROADMAP.md` for phase
 | AGENTS-02 | Phase 3 | Complete |
 | FLOW-01 | Phase 4 | Complete |
 | FLOW-02 | Phase 4 | Complete |
-| FLOW-03 | Phase 4 | Pending |
+| FLOW-03 | Phase 4 | Complete |
 | FLOW-04 | Phase 4 | Pending |
 | FLOW-05 | Phase 4 | Complete |
 | BOARD-02 | Phase 4 | Pending |
-| BOARD-03 | Phase 4 | Pending |
+| BOARD-03 | Phase 4 | Complete |
 | GATE-01 | Phase 4 | Complete |
 | SAFE-01 | Phase 4 | Complete |
 | PKG-01 | Phase 5 | Pending |
