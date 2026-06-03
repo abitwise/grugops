@@ -147,7 +147,21 @@ Decimal phases appear between their surrounding integers in numeric order.
   4. `install/install.sh` (POSIX) and `install/install.mjs` (Node) are functionally identical, idempotent, additive, dry-run-capable (DRY_RUN=1), and reversible — they detect the host tool, lay down the right adapter, print an install report, and never overwrite user content; `uninstall.sh` removes only what the installer added
   5. The Claude-only nature of the mechanical guard, the autonomy=pr prompt-level fallback for the other four tools, the chosen version string, and the "just install the markdown" minimal path are all documented
 
-**Plans**: TBD
+**Plans**: 5 plans
+
+**Wave 1** *(parallel — disjoint file sets, no inter-plan dependencies)*
+
+- [ ] 05-01-PLAN.md — Packaging decisions: adapters.md (5-tool map) + 2 templates (Agent/model:inherit/skills) + Wave-0 structural harness (PKG-01, PKG-02)
+- [ ] 05-04-PLAN.md — SAFE-02 mechanical prod-deploy guard: hooks.json PreToolUse + pure-Node guard.mjs (fail-closed, no self-approve) + behavioral triad test (SAFE-02)
+
+**Wave 2** *(blocked on Wave 1; disjoint file sets)*
+
+- [ ] 05-02-PLAN.md — Standalone .claude/ form: 7 dash skills + subagent wrapper + CLAUDE.md pointer + Gemini wiring (CLAUDE-01)
+- [ ] 05-03-PLAN.md — Plugin form: plugin.json + marketplace.json + 7 plugin-root colon skills + claude plugin validate --strict (CLAUDE-02, CLAUDE-03)
+
+**Wave 3** *(blocked on Waves 1+2; installer wires the full artifact set)*
+
+- [ ] 05-05-PLAN.md — Installers: install.sh + install.mjs (idempotent/DRY_RUN/reversible) + uninstall.sh + install/README.md (SAFE-02 docs) (INSTALL-01, INSTALL-02, SAFE-02)
 **UI hint**: yes
 
 ### Phase 6: Validation, Brand & Dogfood
