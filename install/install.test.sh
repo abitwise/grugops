@@ -140,6 +140,39 @@ else
 fi
 
 # ---------------------------------------------------------------------------
+# Check 4b — WR-03 parity: with a PRE-EXISTING .gemini/settings.json (no AGENTS.md entry),
+#             install.sh and install.mjs must produce an IDENTICAL tree — i.e. install.sh now
+#             delegates the JSON merge to Node and matches install.mjs byte-for-byte, instead
+#             of deferring (the case the old Check 4 never exercised). Skipped if node absent.
+# ---------------------------------------------------------------------------
+printf '\n[4b] pre-existing .gemini/settings.json → install.sh tree == install.mjs tree (WR-03)\n'
+if command -v node >/dev/null 2>&1; then
+  PSH="$WORK/gemsh"; PMJ="$WORK/gemmj"; make_fixture "$PSH"; make_fixture "$PMJ"
+  for d in "$PSH" "$PMJ"; do
+    mkdir -p "$d/.gemini"
+    printf '{\n  "theme": "dark"\n}\n' > "$d/.gemini/settings.json"
+  done
+  INSTALL_MODE=copy GRUGOPS_SRC="$REPO_ROOT" TARGET="$PSH" sh "$SCRIPT_DIR/install.sh" >/dev/null 2>&1
+  INSTALL_MODE=copy GRUGOPS_SRC="$REPO_ROOT" TARGET="$PMJ" node "$SCRIPT_DIR/install.mjs" >/dev/null 2>&1
+  snapshot "$PSH" "$WORK/snap4bsh"; snapshot "$PMJ" "$WORK/snap4bmj"
+  if "$DIFF" "$WORK/snap4bsh" "$WORK/snap4bmj" >/dev/null 2>&1; then
+    pass "pre-existing settings.json: install.sh and install.mjs merged AGENTS.md identically"
+  else
+    printf '    (sh vs mjs tree diff:)\n'
+    "$DIFF" "$WORK/snap4bsh" "$WORK/snap4bmj" 2>&1 | sed 's/^/    /'
+    fail "pre-existing settings.json: installers diverge (WR-03 parity broken)"
+  fi
+  # The merged file must preserve the user's own key AND gain AGENTS.md (additive, not clobbered).
+  if grep -qF '"theme"' "$PSH/.gemini/settings.json" && grep -qF 'AGENTS.md' "$PSH/.gemini/settings.json"; then
+    pass "pre-existing settings.json: user's own key preserved + AGENTS.md merged (additive)"
+  else
+    fail "pre-existing settings.json: install.sh clobbered the user key or skipped the merge"
+  fi
+else
+  pass "node not found — pre-existing-settings parity check skipped (UNKNOWN - verify with node present)"
+fi
+
+# ---------------------------------------------------------------------------
 # Check 5 — INSTALL-02 / CR-01: uninstall must NEVER delete a user-owned AGENTS.md that
 #            happens to be a symlink into the user's own content. Only a symlink that resolves
 #            to the grugops source AGENTS.md is grugops-owned and removable.

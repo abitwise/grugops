@@ -136,8 +136,14 @@ link_or_copy() {
 
 # merge_gemini: additively wire .gemini/settings.json context.fileName to include AGENTS.md.
 # Read-modify-write, never `>` the whole file blindly. If the key already lists AGENTS.md it
-# is a no-op. If the file is absent it is created with just the grugops key. If the file
-# exists but is not parseable here, we DO NOT touch it (fail safe) and flag verify.
+# is a no-op. If the file is absent it is created with just the grugops key.
+#
+# WR-03 parity: when the file EXISTS WITHOUT the key, pure sh cannot safely merge arbitrary
+# JSON, so it delegates the merge to Node — running the SAME merge logic install.mjs uses, which
+# produces a byte-identical result. This is the same Node-delegation pattern uninstall.sh's
+# unmerge_gemini uses. Only when Node is unavailable does it defer with a `verify` message
+# (pure sh must never blind-edit JSON). So install.sh and install.mjs now behave identically on
+# a pre-existing settings.json wherever Node is present.
 merge_gemini() {
   _f="$TARGET/.gemini/settings.json"
   if [ -f "$_f" ] && grep -qF 'AGENTS.md' "$_f" 2>/dev/null && grep -qF 'fileName' "$_f" 2>/dev/null; then
@@ -145,9 +151,42 @@ merge_gemini() {
     return 0
   fi
   if [ -f "$_f" ]; then
-    # File exists without our key. Pure-sh cannot safely merge arbitrary JSON; flag it for the
-    # user/Node installer rather than risk clobbering. install.mjs does the real JSON merge.
-    report "verify" ".gemini/settings.json exists — add \"AGENTS.md\" to context.fileName manually (or run install.mjs for a safe JSON merge)"
+    # File exists without our key. Delegate the JSON merge to Node for parity with install.mjs.
+    if [ "$DRY_RUN" = "1" ]; then
+      report "would-add" ".gemini/settings.json (merge AGENTS.md into context.fileName)"
+      return 0
+    fi
+    if command -v node >/dev/null 2>&1; then
+      # Mirror install.mjs mergeGemini() exactly: parse, ensure context, push "AGENTS.md" onto
+      # context.fileName (coercing a scalar to an array), write JSON.stringify(json,null,2)+"\n".
+      # A parse failure leaves the file untouched and flags verify (fail safe).
+      GEMINI_FILE="$_f" node -e '
+        const fs = require("node:fs");
+        const f = process.env.GEMINI_FILE;
+        const want = "AGENTS.md";
+        let json;
+        try { json = JSON.parse(fs.readFileSync(f, "utf8")); }
+        catch { process.stderr.write("verify: settings.json not valid JSON; left untouched\n"); process.exit(3); }
+        json.context = json.context || {};
+        const list = Array.isArray(json.context.fileName)
+          ? json.context.fileName
+          : json.context.fileName ? [json.context.fileName] : [];
+        if (list.includes(want)) { process.exit(2); } // already present → caller reports skipped
+        list.push(want);
+        json.context.fileName = list;
+        fs.writeFileSync(f, JSON.stringify(json, null, 2) + "\n");
+      ' && _gem_rc=0 || _gem_rc=$?
+      if [ "${_gem_rc:-0}" = "0" ]; then
+        report created ".gemini/settings.json (merged AGENTS.md into context.fileName)"
+      elif [ "${_gem_rc:-0}" = "2" ]; then
+        report skipped ".gemini/settings.json (context.fileName already lists AGENTS.md)"
+      else
+        report "verify" ".gemini/settings.json is not valid JSON — left untouched; add \"AGENTS.md\" to context.fileName manually"
+      fi
+      return 0
+    fi
+    # No Node: pure sh cannot safely merge arbitrary JSON. Defer to the user / install.mjs.
+    report "verify" ".gemini/settings.json exists — add \"AGENTS.md\" to context.fileName manually (Node not found for a safe JSON merge; or run install.mjs)"
     return 0
   fi
   if [ "$DRY_RUN" = "1" ]; then
@@ -173,11 +212,19 @@ merge_gemini() {
 # Host-tool detection (heuristic; informational — the adapter set is laid down
 # regardless because adapters are additive and tool-agnostic). Never fabricate a
 # tool-specific install command we cannot confirm: those are marked UNKNOWN - verify.
+#
+# Detection is TARGET-LOCAL ONLY: it reports tools whose marker exists IN THE TARGET REPO,
+# never from a binary on $PATH or a file under $HOME. This matches install.mjs's detectTools()
+# exactly, so the two installers print the same "tools detected" line on the same machine. The
+# earlier `|| command -v claude` / `|| [ -f "$HOME/.codex/AGENTS.md" ]` fallbacks parsed (POSIX
+# left-associative) as `( <dir test> || <global test> ) && _found=...`, so a target with no
+# `.claude` still reported claude whenever the `claude` binary was anywhere on PATH — a parity
+# break and a misreport. Each line below is a single, target-local `&& append` (WR-04).
 # ---------------------------------------------------------------------------
 detect_tools() {
   _found=""
-  [ -d "$TARGET/.claude" ] || command -v claude >/dev/null 2>&1 && _found="$_found claude"
-  [ -d "$TARGET/.codex" ] || [ -f "$HOME/.codex/AGENTS.md" ] && _found="$_found codex"
+  [ -d "$TARGET/.claude" ] && _found="$_found claude"
+  [ -d "$TARGET/.codex" ] && _found="$_found codex"
   [ -d "$TARGET/.gemini" ] && _found="$_found gemini"
   [ -f "$TARGET/opencode.json" ] && _found="$_found opencode"
   [ -d "$TARGET/.github" ] && _found="$_found copilot"
