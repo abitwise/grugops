@@ -1,0 +1,58 @@
+---
+kind: packaging
+tier: core
+---
+# Template: Claude Code sub-agent wrapper
+
+grug keep wrapper thin. wrapper point at role file, role file do the thinking. one copy,
+no drift.
+
+This is the copy-ready template for a standalone Claude Code sub-agent wrapper
+(`.claude/agents/<name>.md`). It is **pointer-text only** — it tells the agent to read the
+frozen role file and act as that role. It never copies the role body. Fix one role, fix it
+in one place.
+
+The wrapper uses the current spawning tool **`Agent`** (the older spelling was renamed in
+Claude Code v2.1.63; the legacy alias still works but must not be used in new wrappers) and
+`model: inherit` so the wrapper keeps the user's session model choice.
+
+## Copy-ready template
+
+```markdown
+---
+name: grugops-orchestrator
+description: Single entry point for the grugops software factory. Use for any SDLC delivery request — bootstrap a repo, turn ideas into tickets, implement a ticket, run a quality gate, plan UAT, cut a release. Routes to the specialist factory roles.
+tools: Read, Grep, Glob, Bash, Edit, Write, Agent
+model: inherit
+---
+You follow `agent-factory/roles/orchestrator.md` exactly. Read it now, then read
+`agent-factory/config/factory.config.json`, the root `AGENTS.md`, and `plans/board.md`
+(respect every column's WIP limit). Then act as the Orchestrator: classify the request,
+activate the right specialist role(s), demand a handoff packet from each, update the board
+and traceability, and produce the next action.
+
+Never merge to a protected branch. Never deploy to prod. Humans always hold merge and
+deploy.
+```
+
+## Why each field is shaped this way
+
+- **`name`, `description`** — the only required frontmatter. `description` drives
+  auto-routing, so write it as a clear "use for / use when" sentence.
+- **`tools: Read, Grep, Glob, Bash, Edit, Write, Agent`** — `Agent` is the spawning tool.
+  Listing it lets the Orchestrator wrapper spawn specialist role sub-agents; omit it and all
+  spawning is blocked. **Use `Agent`, never the legacy spelling.** Spawning only works when
+  the agent runs as the main thread (sub-agents cannot nest), which is why the plugin form
+  makes the Orchestrator the main-thread agent.
+- **`model: inherit`** — the documented default; keeps the user's session model rather than
+  pinning cost/capability.
+- **Body** — repo-relative pointer-text. It cites `agent-factory/roles/orchestrator.md` (the
+  frozen role) and the read order, then hands off to that role. It echoes the hard limit in
+  clear voice. It contains **no copied role instructions**.
+
+The hard-limit line ("Never merge to a protected branch. Never deploy to prod.") is repeated
+in clear professional English, not caveman voice — safety lines are always plain.
+
+> Adapt this template per role (e.g. a `grugops-software-engineer` wrapper points at
+> `agent-factory/roles/software-engineer.md`), but keep it pointer-only: read the frozen
+> role file, then act as that role. Reference: `code.claude.com/docs/en/sub-agents`.
