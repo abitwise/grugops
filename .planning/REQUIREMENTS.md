@@ -160,7 +160,7 @@ Each requirement maps to exactly one phase. See `.planning/ROADMAP.md` for phase
 | MEM-01 | Phase 2 | Complete |
 | MEM-02 | Phase 2 | Complete |
 | ROLE-01 | Phase 3 | Complete |
-| ROLE-02 | Phase 3 | Pending |
+| ROLE-02 | Phase 3 | In Progress (3/5 roles — release/compliance/incident done in 03-06; factory-coach/installer in 03-07) |
 | ROLE-03 | Phase 3 | Complete |
 | AGENTS-01 | Phase 3 | Pending |
 | AGENTS-02 | Phase 3 | Pending |
