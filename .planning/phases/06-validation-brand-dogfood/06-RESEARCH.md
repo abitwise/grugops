@@ -641,7 +641,7 @@ printf '%s CHECK(S) FAILED\n' "$FAILS"; exit 1
 
 **If a planner needs a hard answer on A1/A2:** treat handoff/checklist checks as **existence-only** (the literal §18 text), and reuse the Phase-4 harness's frozen name lists for the exact file sets. This is the safest, drift-free reading.
 
-## Open Questions
+## Open Questions (RESOLVED)
 
 1. **Which sample-app shape and which single ticket for the dogfood?**
    - What we know: D-39 fixes the stack (small TS/Node+Fastify *or* Vue, fresh sibling dir) and scope (one small real ticket idea→PR); the exact endpoint/component is Claude's discretion.
