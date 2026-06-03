@@ -84,7 +84,24 @@ Decimal phases appear between their surrounding integers in numeric order.
   4. Root AGENTS.md follows the §17.1 shape, is minimal and high-signal, stays under Codex's 32 KiB cap, lists real commands with flags preferring fast file-scoped variants, and marks unknown commands `UNKNOWN - verify`
   5. The AGENTS.md (and the AGENTS.md Scribe role) embed Karpathy's 12 coding-agent rules under the four principles, in clear voice (grug voice may echo them), as the default behavioral guardrails
 
-**Plans**: TBD
+**Plans**: 8 plans
+
+**Wave 1**
+
+- [ ] 03-01-PLAN.md — Orchestrator role (routing contract, ROLE-03) + Wave-0 structural test harness
+
+**Wave 2** *(blocked on Wave 1; all 6 plans parallel — disjoint role files)*
+
+- [ ] 03-02-PLAN.md — Core roles: agents-md-scribe, brownfield-mapper, greenfield-mapper (ROLE-01)
+- [ ] 03-03-PLAN.md — Core roles: ba-pm, system-analyst (ROLE-01)
+- [ ] 03-04-PLAN.md — Core roles: architect-design, software-engineer (ROLE-01)
+- [ ] 03-05-PLAN.md — Core roles: qe-e2e, security-nfr, uat-planner (ROLE-01)
+- [ ] 03-06-PLAN.md — Enterprise roles: release-manager, compliance-officer, incident-responder (ROLE-02)
+- [ ] 03-07-PLAN.md — Enterprise roles: factory-coach, installer (ROLE-02)
+
+**Wave 3** *(blocked on Wave 1+2; AGENTS.md points at all roles)*
+
+- [ ] 03-08-PLAN.md — Root AGENTS.md: §17.1 substrate + 12 Karpathy rules (AGENTS-01, AGENTS-02)
 
 ### Phase 4: Workflows, Cadence & Backpressure
 
