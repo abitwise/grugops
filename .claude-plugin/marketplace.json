@@ -1,5 +1,6 @@
 {
   "name": "grugops",
+  "description": "grugops marketplace — the file-based agent factory for disciplined, auditable software delivery on the coding-agent CLI you already use.",
   "owner": {
     "name": "Olger Oeselg",
     "email": "abitwise@gmail.com"
