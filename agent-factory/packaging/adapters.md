@@ -67,8 +67,19 @@ the host tool allows it.
   perform the merge and the production deploy. This is the procedural rendering of the same
   rule the Claude Code hook enforces mechanically.
 
-Both facts must stay documented together: the mechanical guard is Claude-Code-only; the
-`autonomy=pr` procedural fallback is what protects production on the other four tools.
+**Known limitation (clear voice): the Claude Code guard only inspects `Bash` commands.** Its
+`hooks.json` matcher is `"Bash"`, so it evaluates the command of a `Bash` tool call and nothing
+else. A deploy that does not transit the Bash tool — for example a command written into a script
+via the `Write`/`Edit` tool and then triggered through a non-Bash mechanism — is outside the
+matcher's view. Trivial shell indirection such as `K=kubectl; $K apply -f x` also defeats the
+literal tool-name patterns, because the guard does not expand variables; that case is out of
+scope by design, not a bug to be fixed in the default pattern set. The mechanical guard is a
+strong, prompt-proof backstop for deploys that run through the Bash tool, not a complete sandbox.
+The tool-independent backstop on every tool remains the `autonomy=pr` posture (stop at a pull
+request; a named human merges and deploys).
+
+Both facts must stay documented together: the mechanical guard is Claude-Code-only and
+Bash-scoped; the `autonomy=pr` procedural fallback is what protects production everywhere else.
 Verify the hook schema and the per-tool autonomy behavior against current tool docs.
 
 ## What this file is not

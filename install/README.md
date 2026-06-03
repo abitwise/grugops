@@ -150,6 +150,21 @@ Be clear with yourself about this asymmetry: **the mechanical guard protects Cla
 On the other four tools, production safety rests on the `autonomy=pr` fallback and your own
 discipline. Do not assume the guard is watching where it is not.
 
+**Known limitation — the guard only sees Bash commands.** The hook's matcher is `"Bash"`, so the
+guard inspects the command of a `Bash` tool call and nothing else. A deploy command that does not
+transit the Bash tool is not seen by it. Two concrete gaps to be honest about:
+
+- An agent that writes a deploy command into a script with the `Write`/`Edit` tool and then runs
+  it through some non-Bash mechanism is outside the matcher's view.
+- Trivial shell indirection such as `K=kubectl; $K apply -f x` defeats the literal tool-name
+  patterns — the guard does not expand variables. This is documented as out of scope, not fixed.
+
+So the mechanical guard is a strong, prompt-proof backstop **for deploys that run through the Bash
+tool**, not a complete sandbox. The real, tool-independent backstop is the **`autonomy=pr`** posture:
+the agent stops at a pull request and a named human performs the merge and the production deploy.
+Treat the Bash guard as defense-in-depth on top of `autonomy=pr`, never as the only thing standing
+between an agent and production.
+
 The installer **never** sets the approval environment variable — only a human may. And the
 `grugops-release` skill ships with `disable-model-invocation: true`, so the agent can never
 auto-fire a release on any tool.
