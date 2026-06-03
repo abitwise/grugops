@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-last_updated: "2026-06-03T16:50:05.922Z"
+last_updated: "2026-06-03T16:55:32.255Z"
 last_activity: 2026-06-03
 progress:
   total_phases: 6
   completed_phases: 4
   total_plans: 29
-  completed_plans: 27
+  completed_plans: 28
   percent: 67
 ---
 
@@ -25,11 +25,11 @@ See: .planning/PROJECT.md (updated 2026-06-02)
 ## Current Position
 
 Phase: 05 (packaging-adapters-install-distribution) — EXECUTING
-Plan: 4 of 5
+Plan: 5 of 5
 Status: Ready to execute
 Last activity: 2026-06-03
 
-Progress: [█████████░] 93%
+Progress: [██████████] 97%
 
 ## Performance Metrics
 
@@ -80,6 +80,7 @@ Progress: [█████████░] 93%
 | Phase 05 P01 | 3m | 3 tasks | 4 files |
 | Phase 05 P04 | 7m | 2 tasks | 3 files |
 | Phase 05 P02 | 16m | 2 tasks | 10 files |
+| Phase 05 P03 | 6m | 2 tasks | 9 files |
 
 ## Accumulated Context
 
@@ -139,6 +140,9 @@ Recent decisions affecting current work:
 - [Phase ?]: [05-02] CLAUDE-01 shipped: 7 standalone dash skills (/grugops-<op>) + grugops-orchestrator subagent (Agent + model: inherit) + additive idempotent CLAUDE.md pointer + .gemini context.fileName wiring — all pointer-only, single-source (dup-check 0 hits)
 - [Phase ?]: [05-02] grugops-release carries disable-model-invocation: true (T-05-02-EoP-1) — agent can never auto-fire a release; complements the SAFE-02 mechanical deploy guard
 - [Phase ?]: [05-02] repo-root CLAUDE.md pointer appended via GSD:grugops-start-here sentinel block (T-05-02-Tamper-2) — existing dev-instructions preserved, idempotent re-run adds no duplicate
+- [Phase ?]: [05-03] CLAUDE-02/03 shipped: .claude-plugin/plugin.json (name grugops, version 0.1.0 == VERSION per D-28, no component keys) + marketplace.json (entry source ./, no entry version) + 7 plugin-root colon-form skills (/grugops:<op>) — dirs omit grugops- prefix (D-29/Pitfall 5)
+- [Phase ?]: [05-03] plugin skill bodies are repo-relative pointer-text reused verbatim from the 05-02 standalone bodies (D-31, no ../agent-factory cache landmine, dup-check 0 hits); skills/release carries disable-model-invocation: true (T-05-03-EoP-1)
+- [Phase ?]: [05-03] claude plugin validate ./ --strict is the authoritative structural gate — it flagged the missing top-level marketplace description (Open Question 2 / #38480), so one was added; validator then exits 0 (pass not fabricated)
 
 ### Pending Todos
 
@@ -164,6 +168,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-06-03T16:49:24.318Z
+Last session: 2026-06-03T16:55:02.043Z
 Stopped at: Phase 5 context gathered
 Resume file: None
