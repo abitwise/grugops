@@ -26,7 +26,7 @@
 
 ### Workflows
 
-- [ ] **FLOW-01**: Bootstrap workflows (`00-bootstrap-greenfield`, `01-bootstrap-brownfield`) exist and seed AGENTS.md, memory-bank, the repo map/plan, the board, config, and safe first tickets
+- [x] **FLOW-01**: Bootstrap workflows (`00-bootstrap-greenfield`, `01-bootstrap-brownfield`) exist and seed AGENTS.md, memory-bank, the repo map/plan, the board, config, and safe first tickets
 - [x] **FLOW-02**: Lifecycle workflows exist (`02-idea-to-epics`, `03-epic-to-tickets`, `04-ticket-to-pr`, `05-pr-quality-gate`, `06-uat-pack`), each with board moves, handoffs produced, trace updates, and stop/done conditions
 - [ ] **FLOW-03**: Ceremony workflows exist (`07-backlog-refinement`, `08-sprint-planning`, `09-daily-sweep`, `10-sprint-review`, `11-retro`); the daily sweep and refinement/retro work in Kanban flow, and planning/review/retro work in Scrum cadence — cadence selected by config
 - [ ] **FLOW-04**: Enterprise workflows exist (`12-release`, `13-incident`) with the release approval gate and the blameless incident path
@@ -164,7 +164,7 @@ Each requirement maps to exactly one phase. See `.planning/ROADMAP.md` for phase
 | ROLE-03 | Phase 3 | Complete |
 | AGENTS-01 | Phase 3 | Complete |
 | AGENTS-02 | Phase 3 | Complete |
-| FLOW-01 | Phase 4 | Pending |
+| FLOW-01 | Phase 4 | Complete |
 | FLOW-02 | Phase 4 | Complete |
 | FLOW-03 | Phase 4 | Pending |
 | FLOW-04 | Phase 4 | Pending |
