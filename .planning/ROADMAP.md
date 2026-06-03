@@ -93,7 +93,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 **Wave 2** *(blocked on Wave 1; all 6 plans parallel — disjoint role files)*
 
 - [x] 03-02-PLAN.md — Core roles: agents-md-scribe, brownfield-mapper, greenfield-mapper (ROLE-01)
-- [ ] 03-03-PLAN.md — Core roles: ba-pm, system-analyst (ROLE-01)
+- [x] 03-03-PLAN.md — Core roles: ba-pm, system-analyst (ROLE-01)
 - [ ] 03-04-PLAN.md — Core roles: architect-design, software-engineer (ROLE-01)
 - [ ] 03-05-PLAN.md — Core roles: qe-e2e, security-nfr, uat-planner (ROLE-01)
 - [ ] 03-06-PLAN.md — Enterprise roles: release-manager, compliance-officer, incident-responder (ROLE-02)
@@ -163,7 +163,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6
 |-------|----------------|--------|-----------|
 | 1. Substrate, Config & State Skeleton | 5/5 | Complete    | 2026-06-02 |
 | 2. Shared Contracts | 4/4 | Complete    | 2026-06-03 |
-| 3. Roles & AGENTS.md Substrate | 2/8 | In Progress|  |
+| 3. Roles & AGENTS.md Substrate | 3/8 | In Progress|  |
 | 4. Workflows, Cadence & Backpressure | 0/TBD | Not started | - |
 | 5. Packaging, Adapters, Install & Distribution | 0/TBD | Not started | - |
 | 6. Validation, Brand & Dogfood | 0/TBD | Not started | - |

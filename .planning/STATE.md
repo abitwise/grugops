@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-last_updated: "2026-06-03T09:21:18.618Z"
+last_updated: "2026-06-03T09:25:26.934Z"
 last_activity: 2026-06-03
 progress:
   total_phases: 6
   completed_phases: 2
   total_plans: 17
-  completed_plans: 11
+  completed_plans: 12
   percent: 33
 ---
 
@@ -25,11 +25,11 @@ See: .planning/PROJECT.md (updated 2026-06-02)
 ## Current Position
 
 Phase: 03 (roles-agents-md-substrate) — EXECUTING
-Plan: 3 of 8
+Plan: 4 of 8
 Status: Ready to execute
 Last activity: 2026-06-03
 
-Progress: [███████░░░] 65%
+Progress: [███████░░░] 71%
 
 ## Performance Metrics
 
@@ -62,6 +62,7 @@ Progress: [███████░░░] 65%
 | Phase 02 P04 | 4m | 2 tasks | 9 files |
 | Phase 03 P01 | 2m | 2 tasks | 2 files |
 | Phase 03 P02 | 2m | 3 tasks | 3 files |
+| Phase 03 P03 | 4m | 2 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -91,6 +92,8 @@ Recent decisions affecting current work:
 - [Phase ?]: [03-01] orchestrator.md authored FIRST (D-20): byte-exact caveman prompt, 13-arrow routing matrix, 15-item classification, WIP/DoR gate, SPLIT_REQUIRED, 10-section Decision output naming (not inlining) Phase-4 workflows, verbatim clear-voice hard limit
 - [Phase ?]: [03-02] agents-md-scribe is the single OWNER of the 12 rules (D-19) — carries NO generic pointer; authors them in AGENTS.md and states ownership in its Output section
 - [Phase ?]: [03-02] both mappers state 'no board transition' explicitly (D-23) and NAME their Phase-4 runtime outputs (memory-bank/brownfield-map.md, greenfield-plan.md) without seeding them
+- [Phase ?]: [03-03] ba-pm.md + system-analyst.md cite the REAL agent-factory/handoffs/ paths — resolving the HIGH-impact §5 plans/-prefix drift (D-15)
+- [Phase ?]: [03-03] ba-pm.md owns Backlog → Ready (names plans/epics|features|tickets); system-analyst.md owns the In Analysis exit
 
 ### Pending Todos
 
@@ -116,6 +119,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-06-03T09:20:49.911Z
-Stopped at: Phase 3 context gathered
+Last session: 2026-06-03T09:25:12.647Z
+Stopped at: Completed 03-03-PLAN.md
 Resume file: None
