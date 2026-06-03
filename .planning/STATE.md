@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-last_updated: "2026-06-03T11:19:23.534Z"
-last_activity: 2026-06-03 -- Phase 04 planning complete
+last_updated: "2026-06-03T11:34:10.173Z"
+last_activity: 2026-06-03
 progress:
   total_phases: 6
   completed_phases: 3
   total_plans: 24
-  completed_plans: 17
+  completed_plans: 18
   percent: 50
 ---
 
@@ -20,16 +20,16 @@ progress:
 See: .planning/PROJECT.md (updated 2026-06-02)
 
 **Core value:** A user installs grugops on top of the coding-agent CLI they already run, types `/grug`, and gets a disciplined delivery team — a visible board, strict handoffs, and an auditable requirement→code→test→release trail — entirely as readable markdown, with humans always holding merge and deploy.
-**Current focus:** Phase 4 — workflows, cadence & backpressure
+**Current focus:** Phase 04 — workflows-cadence-backpressure
 
 ## Current Position
 
-Phase: 4
-Plan: Not started
+Phase: 04 (workflows-cadence-backpressure) — EXECUTING
+Plan: 2 of 7
 Status: Ready to execute
-Last activity: 2026-06-03 -- Phase 04 planning complete
+Last activity: 2026-06-03
 
-Progress: [██████████] 100%
+Progress: [████████░░] 75%
 
 ## Performance Metrics
 
@@ -69,6 +69,7 @@ Progress: [██████████] 100%
 | Phase 03 P06 | 6m | 3 tasks | 3 files |
 | Phase 03 P07 | 4m | 2 tasks | 2 files |
 | Phase 03 P08 | 4 | 2 tasks | 1 files |
+| Phase 04 P01 | 1m | 1 tasks | 1 files |
 
 ## Accumulated Context
 
@@ -110,6 +111,7 @@ Recent decisions affecting current work:
 - [Phase ?]: [03-07] installer.md stays dispatch-neutral (D-20) — names adapter/entry-file + install-report outputs but inlines NO Phase-5 mechanics; additive/never-overwrite/dry-run/uninstall hard limit in CLEAR voice (T-03-Tamper, D-21)
 - [Phase ?]: [03-08] root AGENTS.md authored to the §17.1 9-heading shape, 5064 bytes (under 32 KiB Codex cap); Commands ship 13 UNKNOWN - verify slots, no fabricated command (D-18); Safety rules verbatim clear voice (AGENTS-01)
 - [Phase ?]: [03-08] Karpathy's 4 principles / 12 rules reproduced verbatim, single-source in AGENTS.md, clear voice (D-19/D-21); no non-Scribe role restates them; full phase structural suite now GREEN (AGENTS-02)
+- [Phase ?]: [04-01] check-structure.sh encodes V-01..V-13 from 04-VALIDATION.md and ships RED — the phase's running acceptance gate; V-04 matches the explicit frozen 14-name list (not a loose regex) so memory-bank/00-index.md is excluded
 
 ### Pending Todos
 
@@ -135,6 +137,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-06-03T10:39:29.242Z
+Last session: 2026-06-03T11:33:50.937Z
 Stopped at: Phase 4 context gathered
-Resume file: .planning/phases/04-workflows-cadence-backpressure/04-CONTEXT.md
+Resume file: None
