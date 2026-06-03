@@ -1,0 +1,231 @@
+#!/usr/bin/env sh
+# install.sh — grugops POSIX installer (INSTALL-01).
+#
+# Lays the grugops per-tool adapters onto a host repo: thin standalone Claude skills,
+# the Orchestrator subagent wrapper, a CLAUDE.md "start here" pointer, and the Gemini
+# context.fileName wiring. It is:
+#   - additive    — never overwrites or deletes user content; appends via unique sentinels
+#   - idempotent  — running twice produces ZERO diff
+#   - DRY_RUN=1   — prints the plan and changes NOTHING on the filesystem
+#   - reversible  — install/uninstall.sh removes exactly what this added (and only that)
+#
+# It NEVER touches agent-factory/, plans/, .planning/, docs/, or any user file beyond the
+# additive sentinel append to CLAUDE.md / read-modify-write of .gemini/settings.json. It
+# NEVER sets the production deploy-approval env var — only a human may approve a deploy.
+#
+# install.mjs (Node) is functionally identical; this file is its behavioral spec.
+#
+# Usage:
+#   sh install/install.sh                 # install into the current repo
+#   DRY_RUN=1 sh install/install.sh       # preview only, change nothing
+#   INSTALL_MODE=copy sh install/install.sh   # force copy instead of symlink (D-30)
+#   GRUGOPS_SRC=/path/to/grugops TARGET=/path/to/repo sh install/install.sh
+#
+# House style mirrors agent-factory/ scripts: #!/usr/bin/env sh, set -eu, printf not echo -e,
+# grep -qF, small named helpers.
+
+set -eu
+
+# ---------------------------------------------------------------------------
+# Resolve the grugops source checkout (where the adapter files live) and the
+# target repo (where they get laid down). Both default sensibly; both overridable.
+# ---------------------------------------------------------------------------
+# SRC defaults to the repo that contains this script (install/ -> repo root).
+SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+GRUGOPS_SRC=${GRUGOPS_SRC:-$(CDPATH= cd -- "$SCRIPT_DIR/.." && pwd)}
+TARGET=${TARGET:-$(pwd)}
+DRY_RUN=${DRY_RUN:-0}
+# D-30: default to symlink, fall back to copy. INSTALL_MODE=copy forces copy (e.g. Windows
+# without symlink privilege, or the deterministic-diff test harness).
+INSTALL_MODE=${INSTALL_MODE:-symlink}
+
+# The grugops adapter set this installer manages (single source: the standalone Wave-2 form).
+SKILLS="grugops grugops-map grugops-plan grugops-ticket grugops-gate grugops-uat grugops-release"
+AGENT_REL=".claude/agents/grugops-orchestrator.md"
+
+# CLAUDE.md sentinel block (must match 05-02's GSD:grugops-start-here block exactly so a
+# repo that already has it is left untouched, and uninstall removes precisely these markers).
+CLAUDE_OPEN='<!-- GSD:grugops-start-here -->'
+CLAUDE_PTR='**grugops — start here:** read `AGENTS.md`, then `agent-factory/roles/orchestrator.md`, and act as the Orchestrator.'
+CLAUDE_CLOSE='<!-- GSD:grugops-start-here-end -->'
+
+# Copilot pointer (optional convenience; additive single line under a sentinel).
+COPILOT_REL=".github/copilot-instructions.md"
+COPILOT_OPEN='<!-- GSD:grugops-start-here -->'
+COPILOT_PTR='grugops: read `AGENTS.md`, then `agent-factory/roles/orchestrator.md`, and act as the Orchestrator.'
+COPILOT_CLOSE='<!-- GSD:grugops-start-here-end -->'
+
+# ---------------------------------------------------------------------------
+# Report accounting — every line is created / linked / copied(verify) / skipped.
+# ---------------------------------------------------------------------------
+report() { printf '  %-14s %s\n' "$1" "$2"; }
+
+# do_run: execute a command unless DRY_RUN; in DRY_RUN, only narrate.
+# Filesystem mutations MUST go through do_run so DRY_RUN=1 changes nothing.
+do_run() {
+  if [ "$DRY_RUN" = "1" ]; then
+    return 0
+  fi
+  "$@"
+}
+
+# mkdirp: ensure a directory exists (no-op if present).
+mkdirp() { [ -d "$1" ] || do_run mkdir -p -- "$1"; }
+
+# ensure_block: idempotent append-if-missing of a sentinel-delimited block to a user file.
+# Never overwrites; if the open sentinel is already present, it skips. Creates the file if
+# absent. This is the only way this installer writes CLAUDE.md / the Copilot pointer.
+# args: $1=file  $2=open-sentinel  $3=body-line  $4=close-sentinel  $5=report-label
+ensure_block() {
+  _f=$1; _open=$2; _body=$3; _close=$4; _label=$5
+  if [ -f "$_f" ] && grep -qF -- "$_open" "$_f" 2>/dev/null; then
+    report skipped "$_label (sentinel already present)"
+    return 0
+  fi
+  if [ "$DRY_RUN" = "1" ]; then
+    report "would-add" "$_label"
+    return 0
+  fi
+  mkdirp "$(dirname -- "$_f")"
+  [ -f "$_f" ] || : > "$_f"
+  # Append the sentinel block. Never truncate the user's file.
+  {
+    printf '\n%s\n' "$_open"
+    printf '%s\n' "$_body"
+    printf '%s\n' "$_close"
+  } >> "$_f"
+  report created "$_label"
+}
+
+# link_or_copy: D-30 symlink-with-copy-fallback. Symlink by default; copy when symlink fails
+# or INSTALL_MODE=copy. Existing identical link/copy is left as-is (idempotent). Never
+# clobbers a NON-grugops user file at the destination — the destinations here are all
+# grugops-owned paths (.claude/skills/grugops*, .claude/agents/grugops-orchestrator.md).
+# args: $1=src-abs  $2=dest  $3=report-label
+link_or_copy() {
+  _src=$1; _dest=$2; _label=$3
+  if [ ! -f "$_src" ]; then
+    report "skipped" "$_label (source missing: $_src)"
+    return 0
+  fi
+  # Idempotency: an existing correct symlink or an existing identical copy is a no-op.
+  if [ -L "$_dest" ]; then
+    report skipped "$_label (symlink present)"
+    return 0
+  fi
+  if [ -f "$_dest" ] && cmp -s -- "$_src" "$_dest" 2>/dev/null; then
+    report skipped "$_label (identical copy present)"
+    return 0
+  fi
+  if [ "$DRY_RUN" = "1" ]; then
+    if [ "$INSTALL_MODE" = "copy" ]; then
+      report "would-copy" "$_label"
+    else
+      report "would-link" "$_label"
+    fi
+    return 0
+  fi
+  mkdirp "$(dirname -- "$_dest")"
+  if [ "$INSTALL_MODE" != "copy" ] && ln -sf -- "$_src" "$_dest" 2>/dev/null && [ -L "$_dest" ]; then
+    report linked "$_label"
+  else
+    cp -f -- "$_src" "$_dest"
+    report "copied(verify)" "$_label"
+  fi
+}
+
+# merge_gemini: additively wire .gemini/settings.json context.fileName to include AGENTS.md.
+# Read-modify-write, never `>` the whole file blindly. If the key already lists AGENTS.md it
+# is a no-op. If the file is absent it is created with just the grugops key. If the file
+# exists but is not parseable here, we DO NOT touch it (fail safe) and flag verify.
+merge_gemini() {
+  _f="$TARGET/.gemini/settings.json"
+  if [ -f "$_f" ] && grep -qF 'AGENTS.md' "$_f" 2>/dev/null && grep -qF 'fileName' "$_f" 2>/dev/null; then
+    report skipped ".gemini/settings.json (context.fileName already lists AGENTS.md)"
+    return 0
+  fi
+  if [ -f "$_f" ]; then
+    # File exists without our key. Pure-sh cannot safely merge arbitrary JSON; flag it for the
+    # user/Node installer rather than risk clobbering. install.mjs does the real JSON merge.
+    report "verify" ".gemini/settings.json exists — add \"AGENTS.md\" to context.fileName manually (or run install.mjs for a safe JSON merge)"
+    return 0
+  fi
+  if [ "$DRY_RUN" = "1" ]; then
+    report "would-add" ".gemini/settings.json (context.fileName: [AGENTS.md, GEMINI.md])"
+    return 0
+  fi
+  mkdirp "$TARGET/.gemini"
+  # Layout matches install.mjs's JSON.stringify(obj, null, 2) byte-for-byte so the two
+  # installers produce an identical .gemini/settings.json (true functional parity, D — both
+  # are the same installer in two languages).
+  printf '%s\n' '{
+  "context": {
+    "fileName": [
+      "AGENTS.md",
+      "GEMINI.md"
+    ]
+  }
+}' > "$_f"
+  report created ".gemini/settings.json (context.fileName wiring)"
+}
+
+# ---------------------------------------------------------------------------
+# Host-tool detection (heuristic; informational — the adapter set is laid down
+# regardless because adapters are additive and tool-agnostic). Never fabricate a
+# tool-specific install command we cannot confirm: those are marked UNKNOWN - verify.
+# ---------------------------------------------------------------------------
+detect_tools() {
+  _found=""
+  [ -d "$TARGET/.claude" ] || command -v claude >/dev/null 2>&1 && _found="$_found claude"
+  [ -d "$TARGET/.codex" ] || [ -f "$HOME/.codex/AGENTS.md" ] && _found="$_found codex"
+  [ -d "$TARGET/.gemini" ] && _found="$_found gemini"
+  [ -f "$TARGET/opencode.json" ] && _found="$_found opencode"
+  [ -d "$TARGET/.github" ] && _found="$_found copilot"
+  [ -n "$_found" ] && printf '%s' "$_found" || printf ' none-detected'
+}
+
+# ---------------------------------------------------------------------------
+# Run
+# ---------------------------------------------------------------------------
+printf '== grugops install ==\n'
+printf 'source: %s\n' "$GRUGOPS_SRC"
+printf 'target: %s\n' "$TARGET"
+[ "$DRY_RUN" = "1" ] && printf 'mode:   DRY_RUN (no filesystem changes)\n'
+printf 'tools detected:%s\n' "$(detect_tools)"
+printf '\n-- adapters --\n'
+
+# 1. Standalone Claude skills (symlink-with-copy-fallback). AGENTS.md is the portable
+#    substrate every tool reads; ensure the target has it (link/copy if the source has one).
+for s in $SKILLS; do
+  link_or_copy "$GRUGOPS_SRC/.claude/skills/$s/SKILL.md" "$TARGET/.claude/skills/$s/SKILL.md" ".claude/skills/$s/SKILL.md"
+done
+
+# 2. Orchestrator subagent wrapper.
+link_or_copy "$GRUGOPS_SRC/$AGENT_REL" "$TARGET/$AGENT_REL" "$AGENT_REL"
+
+# 3. Portable AGENTS.md (the substrate Codex/Gemini/OpenCode/Copilot read). Only laid down
+#    if the target does not already have one — never overwrite a user's AGENTS.md.
+if [ -f "$TARGET/AGENTS.md" ]; then
+  report skipped "AGENTS.md (target already has one — left untouched)"
+else
+  link_or_copy "$GRUGOPS_SRC/AGENTS.md" "$TARGET/AGENTS.md" "AGENTS.md"
+fi
+
+# 4. CLAUDE.md start-here pointer (additive sentinel block).
+ensure_block "$TARGET/CLAUDE.md" "$CLAUDE_OPEN" "$CLAUDE_PTR" "$CLAUDE_CLOSE" "CLAUDE.md start-here pointer"
+
+# 5. Gemini settings wiring (additive).
+merge_gemini
+
+# 6. Optional Copilot pointer (additive sentinel block; convenience only).
+ensure_block "$TARGET/$COPILOT_REL" "$COPILOT_OPEN" "$COPILOT_PTR" "$COPILOT_CLOSE" "$COPILOT_REL (optional Copilot pointer)"
+
+printf '\n-- notes --\n'
+printf '  Claude Code plugin form (colon commands /grugops:plan) installs separately:\n'
+printf '    /plugin marketplace add <owner>/grugops   (UNKNOWN - verify against current tool docs)\n'
+printf '    /plugin install grugops@grugops           (UNKNOWN - verify against current tool docs)\n'
+printf '  Safety: the mechanical prod-deploy guard is Claude-Code-only (plugin hooks/hooks.json).\n'
+printf '          The other four tools rely on the autonomy=pr procedural fallback. See install/README.md.\n'
+printf '  This installer NEVER sets the deploy-approval env var — only a human may approve a deploy.\n'
+
+printf '\n== install complete%s ==\n' "$([ "$DRY_RUN" = "1" ] && printf ' (DRY_RUN — nothing changed)')"
