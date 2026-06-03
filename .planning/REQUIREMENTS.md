@@ -83,8 +83,8 @@
 
 ### Install Scripts
 
-- [ ] **INSTALL-01**: `install/install.sh` (POSIX) and `install/install.mjs` (Node) are functionally identical, idempotent, additive, dry-run-capable (`DRY_RUN=1`), and reversible; they never overwrite user content, detect the host tool, lay down the right adapter/entry file, and print an install report (created / linked / skipped / verify)
-- [ ] **INSTALL-02**: `install/uninstall.sh` removes only the symlinks and entry-pointer lines the installer added (never `agent-factory/`, `plans/`, or user files); `install/README.md` documents the "just install the markdown" minimal path and the `/factory:install` self-bootstrap
+- [x] **INSTALL-01**: `install/install.sh` (POSIX) and `install/install.mjs` (Node) are functionally identical, idempotent, additive, dry-run-capable (`DRY_RUN=1`), and reversible; they never overwrite user content, detect the host tool, lay down the right adapter/entry file, and print an install report (created / linked / skipped / verify)
+- [x] **INSTALL-02**: `install/uninstall.sh` removes only the symlinks and entry-pointer lines the installer added (never `agent-factory/`, `plans/`, or user files); `install/README.md` documents the "just install the markdown" minimal path and the `/factory:install` self-bootstrap
 
 ### Memory-Bank
 
@@ -178,8 +178,8 @@ Each requirement maps to exactly one phase. See `.planning/ROADMAP.md` for phase
 | CLAUDE-01 | Phase 5 | Complete |
 | CLAUDE-02 | Phase 5 | Complete |
 | CLAUDE-03 | Phase 5 | Complete |
-| INSTALL-01 | Phase 5 | Pending |
-| INSTALL-02 | Phase 5 | Pending |
+| INSTALL-01 | Phase 5 | Complete |
+| INSTALL-02 | Phase 5 | Complete |
 | SAFE-02 | Phase 5 | Complete |
 | VAL-01 | Phase 6 | Pending |
 | EX-01 | Phase 6 | Pending |

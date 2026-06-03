@@ -17,7 +17,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 2: Shared Contracts** - Build the handoff templates, checklists, and memory-bank seed that roles and workflows reference as their I/O contracts (completed 2026-06-02)
 - [x] **Phase 3: Roles & AGENTS.md Substrate** - Write all 16 role prompts (Orchestrator first) and the minimal Karpathy-grounded AGENTS.md that points at them (completed 2026-06-03)
 - [x] **Phase 4: Workflows, Cadence & Backpressure** - Compose roles into the full lifecycle, ceremonies, enterprise workflows, dual cadence, and the bounded quality gate (completed 2026-06-03)
-- [ ] **Phase 5: Packaging, Adapters, Install & Distribution** - Ship thin per-tool adapters, both Claude forms, idempotent installers, and the mechanical plugin-level prod-deploy guard
+- [x] **Phase 5: Packaging, Adapters, Install & Distribution** - Ship thin per-tool adapters, both Claude forms, idempotent installers, and the mechanical plugin-level prod-deploy guard (completed 2026-06-03)
 - [ ] **Phase 6: Validation, Brand & Dogfood** - Ship the validator, examples, brand/legal collateral, and prove the kit end-to-end via a real idea-to-PR dogfood run
 
 ## Phase Details
@@ -161,7 +161,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 
 **Wave 3** *(blocked on Waves 1+2; installer wires the full artifact set)*
 
-- [ ] 05-05-PLAN.md — Installers: install.sh + install.mjs (idempotent/DRY_RUN/reversible) + uninstall.sh + install/README.md (SAFE-02 docs) (INSTALL-01, INSTALL-02, SAFE-02)
+- [x] 05-05-PLAN.md — Installers: install.sh + install.mjs (idempotent/DRY_RUN/reversible) + uninstall.sh + install/README.md (SAFE-02 docs) (INSTALL-01, INSTALL-02, SAFE-02)
 **UI hint**: yes
 
 ### Phase 6: Validation, Brand & Dogfood
@@ -195,5 +195,5 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6
 | 2. Shared Contracts | 4/4 | Complete    | 2026-06-03 |
 | 3. Roles & AGENTS.md Substrate | 8/8 | Complete    | 2026-06-03 |
 | 4. Workflows, Cadence & Backpressure | 7/7 | Complete    | 2026-06-03 |
-| 5. Packaging, Adapters, Install & Distribution | 4/5 | In Progress|  |
+| 5. Packaging, Adapters, Install & Distribution | 5/5 | Complete   | 2026-06-03 |
 | 6. Validation, Brand & Dogfood | 0/TBD | Not started | - |

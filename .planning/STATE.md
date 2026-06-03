@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: executing
-last_updated: "2026-06-03T16:55:32.255Z"
+status: verifying
+last_updated: "2026-06-03T17:09:32.899Z"
 last_activity: 2026-06-03
 progress:
   total_phases: 6
-  completed_phases: 4
+  completed_phases: 5
   total_plans: 29
-  completed_plans: 28
-  percent: 67
+  completed_plans: 29
+  percent: 83
 ---
 
 # Project State
@@ -26,10 +26,10 @@ See: .planning/PROJECT.md (updated 2026-06-02)
 
 Phase: 05 (packaging-adapters-install-distribution) — EXECUTING
 Plan: 5 of 5
-Status: Ready to execute
+Status: Phase complete — ready for verification
 Last activity: 2026-06-03
 
-Progress: [██████████] 97%
+Progress: [██████████] 100%
 
 ## Performance Metrics
 
@@ -81,6 +81,7 @@ Progress: [██████████] 97%
 | Phase 05 P04 | 7m | 2 tasks | 3 files |
 | Phase 05 P02 | 16m | 2 tasks | 10 files |
 | Phase 05 P03 | 6m | 2 tasks | 9 files |
+| Phase 05 P05 | 25m | 3 tasks | 5 files |
 
 ## Accumulated Context
 
@@ -143,6 +144,9 @@ Recent decisions affecting current work:
 - [Phase ?]: [05-03] CLAUDE-02/03 shipped: .claude-plugin/plugin.json (name grugops, version 0.1.0 == VERSION per D-28, no component keys) + marketplace.json (entry source ./, no entry version) + 7 plugin-root colon-form skills (/grugops:<op>) — dirs omit grugops- prefix (D-29/Pitfall 5)
 - [Phase ?]: [05-03] plugin skill bodies are repo-relative pointer-text reused verbatim from the 05-02 standalone bodies (D-31, no ../agent-factory cache landmine, dup-check 0 hits); skills/release carries disable-model-invocation: true (T-05-03-EoP-1)
 - [Phase ?]: [05-03] claude plugin validate ./ --strict is the authoritative structural gate — it flagged the missing top-level marketplace description (Open Question 2 / #38480), so one was added; validator then exits 0 (pass not fabricated)
+- [Phase ?]: [05-05] install.sh + install.mjs functionally identical with byte-identical target tree; GRUGOPS_SRC/TARGET env-overridable for hermetic test harness (INSTALL-01)
+- [Phase ?]: [05-05] uninstall fully reverses both .gemini install paths (grugops-created default removed wholesale; user-customised file trimmed of only AGENTS.md, other keys preserved); is_protected denylist guards agent-factory/ plans/ .planning/ docs/ src/ on every removal (INSTALL-02)
+- [Phase ?]: [05-05] SAFE-02 docs clear voice: mechanical guard Claude-Code-only, other 4 tools use autonomy=pr procedural fallback; README states 0.1.0 with VERSION+plugin.json synced-bump; full Phase-5 check-structure.sh now GREEN (all 8 reqs)
 
 ### Pending Todos
 
@@ -168,6 +172,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-06-03T16:55:02.043Z
+Last session: 2026-06-03T17:09:08.323Z
 Stopped at: Phase 5 context gathered
 Resume file: None
