@@ -122,7 +122,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 
 - [x] 04-01-PLAN.md — Wave-0 structural harness check-structure.sh (V-01..V-13, ships RED)
 - [x] 04-02-PLAN.md — 05-pr-quality-gate (single-source §14 loop) + 04-ticket-to-pr (references 05)
-- [ ] 04-03-PLAN.md — Lifecycle: 02-idea-to-epics, 03-epic-to-tickets, 06-uat-pack
+- [x] 04-03-PLAN.md — Lifecycle: 02-idea-to-epics, 03-epic-to-tickets, 06-uat-pack
 
 **Wave 2** *(blocked on Wave 1; disjoint files)*
 
@@ -180,6 +180,6 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6
 | 1. Substrate, Config & State Skeleton | 5/5 | Complete    | 2026-06-02 |
 | 2. Shared Contracts | 4/4 | Complete    | 2026-06-03 |
 | 3. Roles & AGENTS.md Substrate | 8/8 | Complete    | 2026-06-03 |
-| 4. Workflows, Cadence & Backpressure | 2/7 | In Progress|  |
+| 4. Workflows, Cadence & Backpressure | 3/7 | In Progress|  |
 | 5. Packaging, Adapters, Install & Distribution | 0/TBD | Not started | - |
 | 6. Validation, Brand & Dogfood | 0/TBD | Not started | - |
