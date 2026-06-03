@@ -72,8 +72,8 @@
 
 ### Packaging & Adapters
 
-- [ ] **PKG-01**: `agent-factory/packaging/adapters.md` maps each tool (Claude Code, Codex CLI, Gemini CLI, OpenCode, GitHub Copilot CLI) to its entry file + dispatch mode + adapter, enforces the single rule "all work starts at `orchestrator.md`," states "only the dispatch differs, never the content," and flags every tool row "verify against current tool docs"
-- [ ] **PKG-02** **[research]**: Packaging templates (`subagent.frontmatter.md`, `slash-command.template.md`) use current Claude Code conventions — the `Agent` tool (not the legacy `Task` alias), single-source thin wrappers, and a recorded `commands/` vs `skills/` choice
+- [x] **PKG-01**: `agent-factory/packaging/adapters.md` maps each tool (Claude Code, Codex CLI, Gemini CLI, OpenCode, GitHub Copilot CLI) to its entry file + dispatch mode + adapter, enforces the single rule "all work starts at `orchestrator.md`," states "only the dispatch differs, never the content," and flags every tool row "verify against current tool docs"
+- [x] **PKG-02** **[research]**: Packaging templates (`subagent.frontmatter.md`, `slash-command.template.md`) use current Claude Code conventions — the `Agent` tool (not the legacy `Task` alias), single-source thin wrappers, and a recorded `commands/` vs `skills/` choice
 
 ### Claude Code Distribution Forms
 
@@ -173,8 +173,8 @@ Each requirement maps to exactly one phase. See `.planning/ROADMAP.md` for phase
 | BOARD-03 | Phase 4 | Complete |
 | GATE-01 | Phase 4 | Complete |
 | SAFE-01 | Phase 4 | Complete |
-| PKG-01 | Phase 5 | Pending |
-| PKG-02 | Phase 5 | Pending |
+| PKG-01 | Phase 5 | Complete |
+| PKG-02 | Phase 5 | Complete |
 | CLAUDE-01 | Phase 5 | Pending |
 | CLAUDE-02 | Phase 5 | Pending |
 | CLAUDE-03 | Phase 5 | Pending |

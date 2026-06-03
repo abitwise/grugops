@@ -151,7 +151,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 
 **Wave 1** *(parallel — disjoint file sets, no inter-plan dependencies)*
 
-- [ ] 05-01-PLAN.md — Packaging decisions: adapters.md (5-tool map) + 2 templates (Agent/model:inherit/skills) + Wave-0 structural harness (PKG-01, PKG-02)
+- [x] 05-01-PLAN.md — Packaging decisions: adapters.md (5-tool map) + 2 templates (Agent/model:inherit/skills) + Wave-0 structural harness (PKG-01, PKG-02)
 - [ ] 05-04-PLAN.md — SAFE-02 mechanical prod-deploy guard: hooks.json PreToolUse + pure-Node guard.mjs (fail-closed, no self-approve) + behavioral triad test (SAFE-02)
 
 **Wave 2** *(blocked on Wave 1; disjoint file sets)*
@@ -195,5 +195,5 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6
 | 2. Shared Contracts | 4/4 | Complete    | 2026-06-03 |
 | 3. Roles & AGENTS.md Substrate | 8/8 | Complete    | 2026-06-03 |
 | 4. Workflows, Cadence & Backpressure | 7/7 | Complete    | 2026-06-03 |
-| 5. Packaging, Adapters, Install & Distribution | 0/TBD | Not started | - |
+| 5. Packaging, Adapters, Install & Distribution | 1/5 | In Progress|  |
 | 6. Validation, Brand & Dogfood | 0/TBD | Not started | - |

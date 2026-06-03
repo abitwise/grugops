@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-last_updated: "2026-06-03T15:31:36.407Z"
-last_activity: 2026-06-03 -- Phase 05 planning complete
+last_updated: "2026-06-03T16:22:04.290Z"
+last_activity: 2026-06-03
 progress:
   total_phases: 6
   completed_phases: 4
   total_plans: 29
-  completed_plans: 24
+  completed_plans: 25
   percent: 67
 ---
 
@@ -20,16 +20,16 @@ progress:
 See: .planning/PROJECT.md (updated 2026-06-02)
 
 **Core value:** A user installs grugops on top of the coding-agent CLI they already run, types `/grug`, and gets a disciplined delivery team — a visible board, strict handoffs, and an auditable requirement→code→test→release trail — entirely as readable markdown, with humans always holding merge and deploy.
-**Current focus:** Phase 5 — packaging, adapters, install & distribution
+**Current focus:** Phase 05 — packaging-adapters-install-distribution
 
 ## Current Position
 
-Phase: 5
-Plan: Not started
+Phase: 05 (packaging-adapters-install-distribution) — EXECUTING
+Plan: 2 of 5
 Status: Ready to execute
-Last activity: 2026-06-03 -- Phase 05 planning complete
+Last activity: 2026-06-03
 
-Progress: [██████████] 100%
+Progress: [█████████░] 86%
 
 ## Performance Metrics
 
@@ -77,6 +77,7 @@ Progress: [██████████] 100%
 | Phase 04 P05 | 3m | 2 tasks | 2 files |
 | Phase 04 P06 | 6m | 3 tasks | 3 files |
 | Phase 04 P07 | 6m | 3 tasks | 2 files |
+| Phase 05 P01 | 3m | 3 tasks | 4 files |
 
 ## Accumulated Context
 
@@ -128,6 +129,9 @@ Recent decisions affecting current work:
 - [Phase ?]: [04-06] 07/09/11 both-cadence ceremonies authored on the 10-section v2 template; all carry cadence: both and declare both-cadence applicability in When to use (D-25), single config-gated set
 - [Phase ?]: [04-06] 09-daily-sweep is the BOARD-02 reconciliation engine — board<->ticket-status reconciliation across all 13 frozen columns, WIP throttle, escalation past blocked_escalation_days, emits Cycle time/WIP/Blocked time; V-09/V-10 green
 - [Phase ?]: [04-07] 12-release + 13-incident authored on the 10-section v2 template, completing the 14-workflow suite; 12 renders the named-human deploy gate (SAFE-01) keyed to production_requires_human_confirmation, dispatch-neutral (mechanical hook deferred to Phase 5); 13 renders the blameless postmortem (FLOW-04). Full check-structure.sh harness now GREEN (V-01..V-13, exit 0) — Phase-4 acceptance gate met.
+- [Phase ?]: [05-01] adapters.md is the authoritative current 5-tool dispatch map (supersedes README pre-D-29 CC row); every row flagged 'verify against current tool docs'; Claude-only mechanical guard + autonomy=pr fallback documented (PKG-01)
+- [Phase ?]: [05-01] PKG-02 templates fix Agent (not Task) + model: inherit + skills/ form (D-29) + dash-standalone/colon-plugin naming asymmetry once; pointer-only, no copied role text
+- [Phase ?]: [05-01] Phase-5 check-structure.sh encodes PKG-01/02 + CLAUDE-01/02/03 + SAFE-02 + INSTALL-01/02 and ships RED — PKG checks green now, the rest fail cleanly until Waves 2-3 land
 
 ### Pending Todos
 
@@ -153,6 +157,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-06-03T14:53:04.955Z
+Last session: 2026-06-03T16:21:43.689Z
 Stopped at: Phase 5 context gathered
-Resume file: .planning/phases/05-packaging-adapters-install-distribution/05-CONTEXT.md
+Resume file: None
