@@ -195,5 +195,5 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6
 | 2. Shared Contracts | 4/4 | Complete    | 2026-06-03 |
 | 3. Roles & AGENTS.md Substrate | 8/8 | Complete    | 2026-06-03 |
 | 4. Workflows, Cadence & Backpressure | 7/7 | Complete    | 2026-06-03 |
-| 5. Packaging, Adapters, Install & Distribution | 5/5 | Complete   | 2026-06-03 |
+| 5. Packaging, Adapters, Install & Distribution | 5/5 | Complete    | 2026-06-03 |
 | 6. Validation, Brand & Dogfood | 0/TBD | Not started | - |
