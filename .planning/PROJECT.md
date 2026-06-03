@@ -112,4 +112,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-06-02 — Phase 1 (Substrate, Config & State Skeleton) complete: repo tree scaffolded, `factory.config.json` + `.md` twin, `plans/board.md` (13-column WIP board), traceability/nfr-catalog/metrics skeletons, and the stable ID scheme are in place. Requirements remain hypotheses pending the Phase 6 dogfood.*
+*Last updated: 2026-06-03 — Phase 2 (Shared Contracts) complete: the I/O contracts now exist as real files — 16 handoff templates (11 core + 5 v2) with a single byte-identical universal header, 10 gate checklists (lean/enterprise split) + index, and an 8-file memory-bank seed + ADR template. Verified 5/5 success criteria; HAND-01/02, CHECK-01/02, MEM-01/02 satisfied. One design decision recorded (Key Decisions): duplicate `## Scope`/`## Risks` headers in the two spec-verbatim handoffs are accepted as-is, business-handoff fixed. Requirements remain hypotheses pending the Phase 6 dogfood.*
