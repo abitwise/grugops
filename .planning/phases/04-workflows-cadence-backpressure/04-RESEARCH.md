@@ -420,7 +420,9 @@ No moving-target dependencies. This phase consumes only frozen in-repo files and
 
 **All other claims are VERIFIED on disk this session or CITED from the spec/CONTEXT.** No package installs, no external sources — Package Legitimacy Audit and Environment Availability sections are not applicable (code/markdown-only, no dependencies).
 
-## Open Questions
+## Open Questions (RESOLVED)
+
+Both questions are non-blocking and self-resolved inline below; the planner implemented the recommendations (Phase-4 plan 04-04 names `memory-bank/greenfield-plan.md` and echoes README bootstrap phrasing). Kept for traceability.
 
 1. **`plans/initial-plan.md` stub population**
    - What we know: Phase-1 D deferred this to the bootstrap workflow / planner's call (CONTEXT discretion).
