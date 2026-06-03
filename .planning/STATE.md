@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-last_updated: "2026-06-03T09:16:05.468Z"
+last_updated: "2026-06-03T09:21:18.618Z"
 last_activity: 2026-06-03
 progress:
   total_phases: 6
   completed_phases: 2
   total_plans: 17
-  completed_plans: 10
+  completed_plans: 11
   percent: 33
 ---
 
@@ -25,11 +25,11 @@ See: .planning/PROJECT.md (updated 2026-06-02)
 ## Current Position
 
 Phase: 03 (roles-agents-md-substrate) — EXECUTING
-Plan: 2 of 8
+Plan: 3 of 8
 Status: Ready to execute
 Last activity: 2026-06-03
 
-Progress: [██████░░░░] 59%
+Progress: [███████░░░] 65%
 
 ## Performance Metrics
 
@@ -61,6 +61,7 @@ Progress: [██████░░░░] 59%
 | Phase 02 P03 | 3m | 3 tasks | 11 files |
 | Phase 02 P04 | 4m | 2 tasks | 9 files |
 | Phase 03 P01 | 2m | 2 tasks | 2 files |
+| Phase 03 P02 | 2m | 3 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -88,6 +89,8 @@ Recent decisions affecting current work:
 - [Phase ?]: [02-04] 00-index.md states the working-memory contract (read-on-start, 60-progress = plan-of-record kept by daily sweep, 50-decisions = ADRs); ADR-template.md is non-numeric so it never trips the Phase-6 ADR-NNNN validator (MEM-01/MEM-02, D-11/D-12)
 - [Phase ?]: [03-01] check-structure.sh encodes the full VALIDATION.md suite (checks a-g) and ships RED — the phase's running acceptance gate, green as Waves 2-3 land
 - [Phase ?]: [03-01] orchestrator.md authored FIRST (D-20): byte-exact caveman prompt, 13-arrow routing matrix, 15-item classification, WIP/DoR gate, SPLIT_REQUIRED, 10-section Decision output naming (not inlining) Phase-4 workflows, verbatim clear-voice hard limit
+- [Phase ?]: [03-02] agents-md-scribe is the single OWNER of the 12 rules (D-19) — carries NO generic pointer; authors them in AGENTS.md and states ownership in its Output section
+- [Phase ?]: [03-02] both mappers state 'no board transition' explicitly (D-23) and NAME their Phase-4 runtime outputs (memory-bank/brownfield-map.md, greenfield-plan.md) without seeding them
 
 ### Pending Todos
 
@@ -113,6 +116,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-06-03T09:15:42.831Z
+Last session: 2026-06-03T09:20:49.911Z
 Stopped at: Phase 3 context gathered
 Resume file: None
