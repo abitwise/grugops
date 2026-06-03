@@ -21,7 +21,7 @@
 ### Roles
 
 - [x] **ROLE-01**: All 11 core role prompts exist (orchestrator, agents-md-scribe, brownfield-mapper, greenfield-mapper, ba-pm, system-analyst, architect-design, software-engineer, qe-e2e, security-nfr, uat-planner), each following the standard role skeleton (One job / Caveman prompt / Reads / Activates when / Responsibilities / Output / Board moves / Trace updates / Hard limits) in caveman voice; each reads config first, updates the board on column change, and appends to traceability
-- [ ] **ROLE-02**: All 5 enterprise-pack role prompts exist (release-manager, compliance-officer, incident-responder, factory-coach, installer), activating only when `mode=enterprise` or their trigger fires, in the same skeleton and voice
+- [x] **ROLE-02**: All 5 enterprise-pack role prompts exist (release-manager, compliance-officer, incident-responder, factory-coach, installer), activating only when `mode=enterprise` or their trigger fires, in the same skeleton and voice
 - [x] **ROLE-03**: The Orchestrator role encodes the full routing matrix and request-type classification, enforces WIP limits and Definition of Ready before pulling work, splits XL work, and carries the hard limit that it never merges a protected branch or deploys prod
 
 ### Workflows
