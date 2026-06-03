@@ -1,0 +1,20 @@
+{
+  "name": "grugops",
+  "version": "0.1.0",
+  "description": "grugops — a file-based agent factory for disciplined software delivery. The Orchestrator routes work through the full lifecycle; humans always hold merge and deploy.",
+  "author": {
+    "name": "Olger Oeselg",
+    "email": "abitwise@gmail.com"
+  },
+  "homepage": "https://github.com/olgeroeselg/grugops",
+  "repository": "https://github.com/olgeroeselg/grugops",
+  "license": "MIT",
+  "keywords": [
+    "agent-factory",
+    "orchestrator",
+    "software-delivery",
+    "agents-md",
+    "grug",
+    "claude-code"
+  ]
+}

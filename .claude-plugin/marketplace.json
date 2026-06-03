@@ -1,0 +1,14 @@
+{
+  "name": "grugops",
+  "owner": {
+    "name": "Olger Oeselg",
+    "email": "abitwise@gmail.com"
+  },
+  "plugins": [
+    {
+      "name": "grugops",
+      "source": "./",
+      "description": "grugops — a file-based agent factory for disciplined software delivery. Installs the /grugops:<op> command surface; the brain lives in agent-factory/."
+    }
+  ]
+}
