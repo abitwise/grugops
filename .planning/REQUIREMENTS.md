@@ -77,7 +77,7 @@
 
 ### Claude Code Distribution Forms
 
-- [ ] **CLAUDE-01**: Standalone `.claude/` form exists — thin sub-agent wrappers per role (single-source pointers to `agent-factory/roles/*.md`), command file(s) giving literal `/grug` + `/grug-<operation>` shortcuts, and a one-line `CLAUDE.md` pointer to AGENTS.md/orchestrator
+- [x] **CLAUDE-01**: Standalone `.claude/` form exists — thin sub-agent wrappers per role (single-source pointers to `agent-factory/roles/*.md`), command file(s) giving literal `/grug` + `/grug-<operation>` shortcuts, and a one-line `CLAUDE.md` pointer to AGENTS.md/orchestrator
 - [ ] **CLAUDE-02** **[research]**: Plugin form exists — `.claude-plugin/plugin.json` + `marketplace.json`, `agents/`, `commands/`, and `hooks/` (the SAFE-02 guard); the Orchestrator is the spawner (sub-agents can't nest, so it runs as main thread via plugin `settings.json` `agent:` where spawning is used); both standalone and plugin forms coexist
 - [ ] **CLAUDE-03**: Optional `settings.json` and any bundled hook scripts use `${CLAUDE_PLUGIN_ROOT}` for paths; the plugin name is chosen so command shapes match the brand (`grug` → `/grug:*`)
 
@@ -175,7 +175,7 @@ Each requirement maps to exactly one phase. See `.planning/ROADMAP.md` for phase
 | SAFE-01 | Phase 4 | Complete |
 | PKG-01 | Phase 5 | Complete |
 | PKG-02 | Phase 5 | Complete |
-| CLAUDE-01 | Phase 5 | Pending |
+| CLAUDE-01 | Phase 5 | Complete |
 | CLAUDE-02 | Phase 5 | Pending |
 | CLAUDE-03 | Phase 5 | Pending |
 | INSTALL-01 | Phase 5 | Pending |

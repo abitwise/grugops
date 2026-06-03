@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-last_updated: "2026-06-03T16:29:07.775Z"
+last_updated: "2026-06-03T16:50:05.922Z"
 last_activity: 2026-06-03
 progress:
   total_phases: 6
   completed_phases: 4
   total_plans: 29
-  completed_plans: 26
+  completed_plans: 27
   percent: 67
 ---
 
@@ -25,11 +25,11 @@ See: .planning/PROJECT.md (updated 2026-06-02)
 ## Current Position
 
 Phase: 05 (packaging-adapters-install-distribution) — EXECUTING
-Plan: 3 of 5
+Plan: 4 of 5
 Status: Ready to execute
 Last activity: 2026-06-03
 
-Progress: [█████████░] 90%
+Progress: [█████████░] 93%
 
 ## Performance Metrics
 
@@ -79,6 +79,7 @@ Progress: [█████████░] 90%
 | Phase 04 P07 | 6m | 3 tasks | 2 files |
 | Phase 05 P01 | 3m | 3 tasks | 4 files |
 | Phase 05 P04 | 7m | 2 tasks | 3 files |
+| Phase 05 P02 | 16m | 2 tasks | 10 files |
 
 ## Accumulated Context
 
@@ -135,6 +136,9 @@ Recent decisions affecting current work:
 - [Phase ?]: [05-01] Phase-5 check-structure.sh encodes PKG-01/02 + CLAUDE-01/02/03 + SAFE-02 + INSTALL-01/02 and ships RED — PKG checks green now, the rest fail cleanly until Waves 2-3 land
 - [Phase 05]: [05-04] SAFE-02 guard is code, not prose: pure-Node PreToolUse deny-JSON hook (hooks/guard.mjs) wired plugin-level via ${CLAUDE_PLUGIN_ROOT} (hooks/hooks.json); denies config-matched prod-deploys unless human-set GRUGOPS_PROD_DEPLOY_APPROVED is in process env, refuses inline self-set, fails closed (D-32/33/34)
 - [Phase 05]: [05-04] guard deny reason is clear professional English naming the env var (no caveman voice, Pitfall 6); hooks/guard.test.sh runs the deny/allow/refuse-self-set triad + fail-closed and exits 0 ALL CHECKS PASSED
+- [Phase ?]: [05-02] CLAUDE-01 shipped: 7 standalone dash skills (/grugops-<op>) + grugops-orchestrator subagent (Agent + model: inherit) + additive idempotent CLAUDE.md pointer + .gemini context.fileName wiring — all pointer-only, single-source (dup-check 0 hits)
+- [Phase ?]: [05-02] grugops-release carries disable-model-invocation: true (T-05-02-EoP-1) — agent can never auto-fire a release; complements the SAFE-02 mechanical deploy guard
+- [Phase ?]: [05-02] repo-root CLAUDE.md pointer appended via GSD:grugops-start-here sentinel block (T-05-02-Tamper-2) — existing dev-instructions preserved, idempotent re-run adds no duplicate
 
 ### Pending Todos
 
@@ -160,6 +164,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-06-03T16:27:25.985Z
+Last session: 2026-06-03T16:49:24.318Z
 Stopped at: Phase 5 context gathered
 Resume file: None

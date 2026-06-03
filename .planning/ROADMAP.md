@@ -156,7 +156,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 
 **Wave 2** *(blocked on Wave 1; disjoint file sets)*
 
-- [ ] 05-02-PLAN.md — Standalone .claude/ form: 7 dash skills + subagent wrapper + CLAUDE.md pointer + Gemini wiring (CLAUDE-01)
+- [x] 05-02-PLAN.md — Standalone .claude/ form: 7 dash skills + subagent wrapper + CLAUDE.md pointer + Gemini wiring (CLAUDE-01)
 - [ ] 05-03-PLAN.md — Plugin form: plugin.json + marketplace.json + 7 plugin-root colon skills + claude plugin validate --strict (CLAUDE-02, CLAUDE-03)
 
 **Wave 3** *(blocked on Waves 1+2; installer wires the full artifact set)*
@@ -195,5 +195,5 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6
 | 2. Shared Contracts | 4/4 | Complete    | 2026-06-03 |
 | 3. Roles & AGENTS.md Substrate | 8/8 | Complete    | 2026-06-03 |
 | 4. Workflows, Cadence & Backpressure | 7/7 | Complete    | 2026-06-03 |
-| 5. Packaging, Adapters, Install & Distribution | 2/5 | In Progress|  |
+| 5. Packaging, Adapters, Install & Distribution | 3/5 | In Progress|  |
 | 6. Validation, Brand & Dogfood | 0/TBD | Not started | - |
