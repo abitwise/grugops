@@ -27,6 +27,8 @@ Date:
 <!--
   Business-framing intake. Feeds BA/PM (product-handoff.md). Clear voice; no fake data.
   Fills the "business analysis" lifecycle stage that precedes the product handoff.
+  Scope (in/out) lives once, in the universal header's ## Scope section above —
+  do not re-add ## In scope / ## Out of scope here (WR-03, 02-REVIEW.md).
 -->
 
 ## Problem
@@ -34,5 +36,3 @@ Date:
 ## Business value/outcome
 ## Constraints
 ## Success measure
-## In scope
-## Out of scope
