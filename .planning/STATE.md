@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-last_updated: "2026-06-03T09:25:26.934Z"
+last_updated: "2026-06-03T09:28:38.720Z"
 last_activity: 2026-06-03
 progress:
   total_phases: 6
   completed_phases: 2
   total_plans: 17
-  completed_plans: 12
+  completed_plans: 13
   percent: 33
 ---
 
@@ -25,11 +25,11 @@ See: .planning/PROJECT.md (updated 2026-06-02)
 ## Current Position
 
 Phase: 03 (roles-agents-md-substrate) — EXECUTING
-Plan: 4 of 8
+Plan: 5 of 8
 Status: Ready to execute
 Last activity: 2026-06-03
 
-Progress: [███████░░░] 71%
+Progress: [████████░░] 76%
 
 ## Performance Metrics
 
@@ -63,6 +63,7 @@ Progress: [███████░░░] 71%
 | Phase 03 P01 | 2m | 2 tasks | 2 files |
 | Phase 03 P02 | 2m | 3 tasks | 3 files |
 | Phase 03 P03 | 4m | 2 tasks | 2 files |
+| Phase 03 P04 | 4m | 2 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -94,6 +95,8 @@ Recent decisions affecting current work:
 - [Phase ?]: [03-02] both mappers state 'no board transition' explicitly (D-23) and NAME their Phase-4 runtime outputs (memory-bank/brownfield-map.md, greenfield-plan.md) without seeding them
 - [Phase ?]: [03-03] ba-pm.md + system-analyst.md cite the REAL agent-factory/handoffs/ paths — resolving the HIGH-impact §5 plans/-prefix drift (D-15)
 - [Phase ?]: [03-03] ba-pm.md owns Backlog → Ready (names plans/epics|features|tickets); system-analyst.md owns the In Analysis exit
+- [Phase ?]: [03-04] architect-design.md emits architecture-handoff.md + ADRs (from frozen ADR-template into 50-decisions/ADR-000X) and seeds plans/nfr-catalog.md; owns the In Design exit
+- [Phase ?]: [03-04] software-engineer.md reads implementation-ready-packet first, emits implementation-handoff.md, owns In Development -> In Review; the no-fake-results hard limit (spec L468) is in CLEAR voice (D-21)
 
 ### Pending Todos
 
@@ -119,6 +122,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-06-03T09:25:12.647Z
-Stopped at: Completed 03-03-PLAN.md
+Last session: 2026-06-03T09:28:38.715Z
+Stopped at: Completed 03-04-PLAN.md
 Resume file: None
