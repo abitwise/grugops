@@ -67,8 +67,8 @@
 
 ### AGENTS.md Substrate
 
-- [ ] **AGENTS-01** **[research]**: Root `AGENTS.md` follows the §17.1 shape (mission, how-to-work, file pointers, commands with `UNKNOWN - verify`, delivery, safety rules, DoR/DoD links, memory/plans, when-uncertain), is minimal and high-signal, stays under Codex's 32 KiB cap, and pushes detail into the files it points to; its Commands section lists real commands **with flags** (not just tool names) and prefers fast **file-scoped** variants (single-file typecheck / lint / format / test) per agents.md best practice
-- [ ] **AGENTS-02** **[research]**: The best-practices AGENTS.md (and the AGENTS.md Scribe role) embeds **Andrej Karpathy's 12 coding-agent rules** as the default behavioral guardrails, grouped under four principles — **Think Before Coding** (1 state assumptions / ask when uncertain, 2 present multiple interpretations rather than pick silently, 3 push back with a simpler approach when one exists, 4 stop and name what's confusing), **Simplicity First** (5 only requested features, 6 no single-use abstractions, 7 no unrequested flexibility/configurability, 8 no impossible-scenario error handling), **Surgical Changes** (9 don't "improve" adjacent code/comments/formatting, 10 don't refactor working code, 11 match existing style even if you'd differ, 12 flag — don't delete — pre-existing dead code), and **Goal-Driven Execution** (turn tasks into verifiable success criteria and loop). Rendered consistently with grugops's voice rules (clear voice for the rules; grug voice may echo them). Source captured verbatim in `.planning/research/AGENTS-MD-BEST-PRACTICES.md`
+- [x] **AGENTS-01** **[research]**: Root `AGENTS.md` follows the §17.1 shape (mission, how-to-work, file pointers, commands with `UNKNOWN - verify`, delivery, safety rules, DoR/DoD links, memory/plans, when-uncertain), is minimal and high-signal, stays under Codex's 32 KiB cap, and pushes detail into the files it points to; its Commands section lists real commands **with flags** (not just tool names) and prefers fast **file-scoped** variants (single-file typecheck / lint / format / test) per agents.md best practice
+- [x] **AGENTS-02** **[research]**: The best-practices AGENTS.md (and the AGENTS.md Scribe role) embeds **Andrej Karpathy's 12 coding-agent rules** as the default behavioral guardrails, grouped under four principles — **Think Before Coding** (1 state assumptions / ask when uncertain, 2 present multiple interpretations rather than pick silently, 3 push back with a simpler approach when one exists, 4 stop and name what's confusing), **Simplicity First** (5 only requested features, 6 no single-use abstractions, 7 no unrequested flexibility/configurability, 8 no impossible-scenario error handling), **Surgical Changes** (9 don't "improve" adjacent code/comments/formatting, 10 don't refactor working code, 11 match existing style even if you'd differ, 12 flag — don't delete — pre-existing dead code), and **Goal-Driven Execution** (turn tasks into verifiable success criteria and loop). Rendered consistently with grugops's voice rules (clear voice for the rules; grug voice may echo them). Source captured verbatim in `.planning/research/AGENTS-MD-BEST-PRACTICES.md`
 
 ### Packaging & Adapters
 
@@ -162,8 +162,8 @@ Each requirement maps to exactly one phase. See `.planning/ROADMAP.md` for phase
 | ROLE-01 | Phase 3 | Complete |
 | ROLE-02 | Phase 3 | In Progress (3/5 roles — release/compliance/incident done in 03-06; factory-coach/installer in 03-07) |
 | ROLE-03 | Phase 3 | Complete |
-| AGENTS-01 | Phase 3 | Pending |
-| AGENTS-02 | Phase 3 | Pending |
+| AGENTS-01 | Phase 3 | Complete |
+| AGENTS-02 | Phase 3 | Complete |
 | FLOW-01 | Phase 4 | Pending |
 | FLOW-02 | Phase 4 | Pending |
 | FLOW-03 | Phase 4 | Pending |

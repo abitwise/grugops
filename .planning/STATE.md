@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: executing
-last_updated: "2026-06-03T09:42:00.578Z"
+status: verifying
+last_updated: "2026-06-03T09:46:25.462Z"
 last_activity: 2026-06-03
 progress:
   total_phases: 6
-  completed_phases: 2
+  completed_phases: 3
   total_plans: 17
-  completed_plans: 16
-  percent: 33
+  completed_plans: 17
+  percent: 50
 ---
 
 # Project State
@@ -26,10 +26,10 @@ See: .planning/PROJECT.md (updated 2026-06-02)
 
 Phase: 03 (roles-agents-md-substrate) — EXECUTING
 Plan: 8 of 8
-Status: Ready to execute
+Status: Phase complete — ready for verification
 Last activity: 2026-06-03
 
-Progress: [█████████░] 94%
+Progress: [██████████] 100%
 
 ## Performance Metrics
 
@@ -67,6 +67,7 @@ Progress: [█████████░] 94%
 | Phase 03 P05 | 4m | 3 tasks | 3 files |
 | Phase 03 P06 | 6m | 3 tasks | 3 files |
 | Phase 03 P07 | 4m | 2 tasks | 2 files |
+| Phase 03 P08 | 4 | 2 tasks | 1 files |
 
 ## Accumulated Context
 
@@ -106,6 +107,8 @@ Recent decisions affecting current work:
 - [Phase ?]: [03-06] Release Manager human deploy-gate reproduced VERBATIM in CLEAR voice (T-03-EoP/SAFE-01); compliance explanation text CLEAR voice with grug confined to the caveman prompt (D-21)
 - [Phase ?]: [03-07] factory-coach.md + installer.md authored — completes ROLE-02 (5/5 enterprise roles, all 16 role files now exist); each tier: enterprise with a D-22 trigger, verbatim §5.B caveman prompt (byte-exact), real frozen-path outputs
 - [Phase ?]: [03-07] installer.md stays dispatch-neutral (D-20) — names adapter/entry-file + install-report outputs but inlines NO Phase-5 mechanics; additive/never-overwrite/dry-run/uninstall hard limit in CLEAR voice (T-03-Tamper, D-21)
+- [Phase ?]: [03-08] root AGENTS.md authored to the §17.1 9-heading shape, 5064 bytes (under 32 KiB Codex cap); Commands ship 13 UNKNOWN - verify slots, no fabricated command (D-18); Safety rules verbatim clear voice (AGENTS-01)
+- [Phase ?]: [03-08] Karpathy's 4 principles / 12 rules reproduced verbatim, single-source in AGENTS.md, clear voice (D-19/D-21); no non-Scribe role restates them; full phase structural suite now GREEN (AGENTS-02)
 
 ### Pending Todos
 
@@ -131,6 +134,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-06-03T09:42:00.572Z
+Last session: 2026-06-03T09:45:57.634Z
 Stopped at: Completed 03-07-PLAN.md
 Resume file: None

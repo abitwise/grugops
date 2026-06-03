@@ -114,3 +114,11 @@ No new security-relevant surface was introduced beyond the threat model.
 ---
 *Phase: 03-roles-agents-md-substrate*
 *Completed: 2026-06-03*
+
+## Self-Check: PASSED
+
+- FOUND: AGENTS.md
+- FOUND: .planning/phases/03-roles-agents-md-substrate/03-08-SUMMARY.md
+- FOUND commit: b093d91 (Task 1)
+- FOUND commit: 6e15b7c (Task 2)
+- FOUND commit: 32dbf19 (Summary)
