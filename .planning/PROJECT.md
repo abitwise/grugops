@@ -92,6 +92,7 @@ A user installs grugops on top of the coding-agent CLI they already run, types `
 | Markdown-only kit; no runtime, DB, or queue | Boring on purpose; intelligence lives in the host agent | — Pending |
 | Memory-bank is the minimal agent-maintained state/plans store | User-requested completeness; same anti-bloat rule as AGENTS.md | — Pending |
 | Best-practices AGENTS.md embeds Karpathy's 12 coding-agent rules + agents.md-standard commands (file-scoped) | User-requested; the 12 rules operationalize the grug philosophy (simple, surgical, think-first, goal-driven) | — Pending |
+| **[Phase 2]** Handoff duplicate headers: fix derived `business-handoff.md`; accept `product-handoff.md` + `implementation-handoff.md` as-is | A2 (inline universal header) + D-08 (verbatim §5.A body) intentionally collide on `## Scope`/`## Risks`; the two spec-verbatim files cannot be disambiguated without breaking a locked decision. **Phase 3 role authors and the Phase 6 validator must treat the universal-header `## Scope`/`## Risks` as authoritative and tolerate the duplicate §5.A body sections in those two files.** | ✓ Resolved (Phase 2) |
 
 ## Evolution
 
