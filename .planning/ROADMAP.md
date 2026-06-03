@@ -116,7 +116,23 @@ Decimal phases appear between their surrounding integers in numeric order.
   4. Ceremony workflows (07-backlog-refinement through 11-retro) and enterprise workflows (12-release with its approval gate, 13-incident with the blameless path) exist and route through the correct roles
   5. "Humans decide, agents execute" holds across every workflow: autonomy=pr is the default and no workflow step ever merges a protected branch or deploys to production without named human confirmation
 
-**Plans**: TBD
+**Plans**: 7 plans
+
+**Wave 1** *(harness ships RED; gate single-sourced before its consumer; disjoint files)*
+
+- [ ] 04-01-PLAN.md — Wave-0 structural harness check-structure.sh (V-01..V-13, ships RED)
+- [ ] 04-02-PLAN.md — 05-pr-quality-gate (single-source §14 loop) + 04-ticket-to-pr (references 05)
+- [ ] 04-03-PLAN.md — Lifecycle: 02-idea-to-epics, 03-epic-to-tickets, 06-uat-pack
+
+**Wave 2** *(blocked on Wave 1; disjoint files)*
+
+- [ ] 04-04-PLAN.md — Bootstrap: 00-bootstrap-greenfield, 01-bootstrap-brownfield
+- [ ] 04-05-PLAN.md — Scrum ceremonies: 08-sprint-planning, 10-sprint-review (cadence=scrum)
+- [ ] 04-06-PLAN.md — Both-cadence ceremonies: 07-backlog-refinement, 09-daily-sweep, 11-retro
+
+**Wave 3** *(blocked on Waves 1+2; full-suite green gate)*
+
+- [ ] 04-07-PLAN.md — Enterprise: 12-release (named-human gate), 13-incident (blameless) + all-14 harness gate
 
 ### Phase 5: Packaging, Adapters, Install & Distribution
 
@@ -164,6 +180,6 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6
 | 1. Substrate, Config & State Skeleton | 5/5 | Complete    | 2026-06-02 |
 | 2. Shared Contracts | 4/4 | Complete    | 2026-06-03 |
 | 3. Roles & AGENTS.md Substrate | 8/8 | Complete    | 2026-06-03 |
-| 4. Workflows, Cadence & Backpressure | 0/TBD | Not started | - |
+| 4. Workflows, Cadence & Backpressure | 0/7 | Not started | - |
 | 5. Packaging, Adapters, Install & Distribution | 0/TBD | Not started | - |
 | 6. Validation, Brand & Dogfood | 0/TBD | Not started | - |
