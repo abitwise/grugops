@@ -668,14 +668,14 @@ Not applicable in the usual sense — this is reproduce-from-spec, not an evolvi
 
 **All other claims are `[VERIFIED: on-disk]`** — read directly from the spec, the best-practices file, or the frozen Phase-1/2 files this session.
 
-## Open Questions
+## Open Questions (RESOLVED)
 
-1. **Where do the 12 rules slot inside AGENTS.md?**
+1. **Where do the 12 rules slot inside AGENTS.md?** — **RESOLVED:** add a minimal new `## Coding rules (the 12)` section in clear voice, adjacent to Safety rules. Adopted by Plan 03-08.
    - What we know: D-19 says they live once in AGENTS.md (clear voice); the §17.1 skeleton has no explicit "12 rules" heading.
    - What's unclear: the exact heading/placement (a new `## Coding rules` section vs folding near `## Safety rules`).
    - Recommendation: add a minimal new `## Coding rules (the 12)` section in clear voice (the agents.md standard explicitly permits any headings). Keep it adjacent to Safety rules. Flag for the planner as a small, deliberate addition beyond the literal skeleton — not an invention of behavior, just a placement. (Claude's discretion per CONTEXT.md allows the exact pointer wording; this placement is the parallel AGENTS.md-side choice.)
 
-2. **Does the Orchestrator's `Board moves` enumerate every column it touches, or only the exits it owns?**
+2. **Does the Orchestrator's `Board moves` enumerate every column it touches, or only the exits it owns?** — **RESOLVED:** state the two exits it owns plus a one-line WIP-enforcement note. Adopted by Plan 03-01.
    - What we know: §6.1 names the Orchestrator as exit owner for `Ready for Dev` and `Done`; it also enforces WIP across all columns.
    - What's unclear: D-23 says "transitions IT causes" — the Orchestrator causes the pull into In Development (from Ready for Dev) and the close to Done; it gates (not transitions) the others.
    - Recommendation: state the two exits it owns (`Ready for Dev → In Development`, `… → Done`) plus a one-line note that it enforces WIP on all columns. Lower-invention than enumerating every transition. Planner confirms.
