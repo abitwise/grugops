@@ -88,7 +88,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 
 **Wave 1**
 
-- [ ] 03-01-PLAN.md — Orchestrator role (routing contract, ROLE-03) + Wave-0 structural test harness
+- [x] 03-01-PLAN.md — Orchestrator role (routing contract, ROLE-03) + Wave-0 structural test harness
 
 **Wave 2** *(blocked on Wave 1; all 6 plans parallel — disjoint role files)*
 
@@ -163,7 +163,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6
 |-------|----------------|--------|-----------|
 | 1. Substrate, Config & State Skeleton | 5/5 | Complete    | 2026-06-02 |
 | 2. Shared Contracts | 4/4 | Complete    | 2026-06-03 |
-| 3. Roles & AGENTS.md Substrate | 0/TBD | Not started | - |
+| 3. Roles & AGENTS.md Substrate | 1/8 | In Progress|  |
 | 4. Workflows, Cadence & Backpressure | 0/TBD | Not started | - |
 | 5. Packaging, Adapters, Install & Distribution | 0/TBD | Not started | - |
 | 6. Validation, Brand & Dogfood | 0/TBD | Not started | - |

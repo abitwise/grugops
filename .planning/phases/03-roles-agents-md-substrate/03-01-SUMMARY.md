@@ -104,6 +104,13 @@ None - no external service configuration required.
 - The structural harness is in place and will turn progressively green as each subsequent role file and the root `AGENTS.md` land; before `/gsd-verify-work` the full suite should be green.
 - No blockers. The two phase-5 open decisions (version string, commands/-vs-skills/ form) remain untouched and out of scope here.
 
+## Self-Check: PASSED
+
+- FOUND: `.planning/phases/03-roles-agents-md-substrate/check-structure.sh`
+- FOUND: `agent-factory/roles/orchestrator.md`
+- FOUND: `.planning/phases/03-roles-agents-md-substrate/03-01-SUMMARY.md`
+- FOUND commit `8e8c979` (Task 1), `f39a944` (Task 2), `b11d6e5` (summary)
+
 ---
 *Phase: 03-roles-agents-md-substrate*
 *Completed: 2026-06-03*

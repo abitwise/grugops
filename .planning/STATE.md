@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-last_updated: "2026-06-03T09:05:39.019Z"
-last_activity: 2026-06-03 -- Phase 03 planning complete
+last_updated: "2026-06-03T09:16:05.468Z"
+last_activity: 2026-06-03
 progress:
   total_phases: 6
   completed_phases: 2
   total_plans: 17
-  completed_plans: 9
+  completed_plans: 10
   percent: 33
 ---
 
@@ -20,16 +20,16 @@ progress:
 See: .planning/PROJECT.md (updated 2026-06-02)
 
 **Core value:** A user installs grugops on top of the coding-agent CLI they already run, types `/grug`, and gets a disciplined delivery team — a visible board, strict handoffs, and an auditable requirement→code→test→release trail — entirely as readable markdown, with humans always holding merge and deploy.
-**Current focus:** Phase 3 — roles & agents.md substrate
+**Current focus:** Phase 03 — roles-agents-md-substrate
 
 ## Current Position
 
-Phase: 3
-Plan: Not started
+Phase: 03 (roles-agents-md-substrate) — EXECUTING
+Plan: 2 of 8
 Status: Ready to execute
-Last activity: 2026-06-03 -- Phase 03 planning complete
+Last activity: 2026-06-03
 
-Progress: [██████████] 100%
+Progress: [██████░░░░] 59%
 
 ## Performance Metrics
 
@@ -60,6 +60,7 @@ Progress: [██████████] 100%
 | Phase 02 P02 | 1m | 2 tasks | 5 files |
 | Phase 02 P03 | 3m | 3 tasks | 11 files |
 | Phase 02 P04 | 4m | 2 tasks | 9 files |
+| Phase 03 P01 | 2m | 2 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -85,6 +86,8 @@ Recent decisions affecting current work:
 - [Phase ?]: [02-03] Index frontmatter convention LOCKED to 'kind: index' (no tier:) -- same choice reused for memory-bank/00-index.md in Plan 04 per D-14 'decide once'
 - [Phase ?]: [02-04] memory-bank seed ships 8 generic empty-but-shaped files + 50-decisions/ADR-template.md; index uses kind: index (no tier:) reused from 02-03 per D-14; _Updated: <date>_ opener applied to all 9 (D-03/D-04/D-10)
 - [Phase ?]: [02-04] 00-index.md states the working-memory contract (read-on-start, 60-progress = plan-of-record kept by daily sweep, 50-decisions = ADRs); ADR-template.md is non-numeric so it never trips the Phase-6 ADR-NNNN validator (MEM-01/MEM-02, D-11/D-12)
+- [Phase ?]: [03-01] check-structure.sh encodes the full VALIDATION.md suite (checks a-g) and ships RED — the phase's running acceptance gate, green as Waves 2-3 land
+- [Phase ?]: [03-01] orchestrator.md authored FIRST (D-20): byte-exact caveman prompt, 13-arrow routing matrix, 15-item classification, WIP/DoR gate, SPLIT_REQUIRED, 10-section Decision output naming (not inlining) Phase-4 workflows, verbatim clear-voice hard limit
 
 ### Pending Todos
 
@@ -110,6 +113,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-06-03T08:32:39.439Z
+Last session: 2026-06-03T09:15:42.831Z
 Stopped at: Phase 3 context gathered
-Resume file: .planning/phases/03-roles-agents-md-substrate/03-CONTEXT.md
+Resume file: None
