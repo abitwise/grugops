@@ -2,8 +2,8 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: verifying
-last_updated: "2026-06-03T12:00:23.597Z"
+status: ready_to_plan
+last_updated: 2026-06-03T12:10:10.743Z
 last_activity: 2026-06-03
 progress:
   total_phases: 6
@@ -11,6 +11,7 @@ progress:
   total_plans: 24
   completed_plans: 24
   percent: 67
+stopped_at: Phase 04 complete (7/7) — ready to discuss Phase 5
 ---
 
 # Project State
@@ -20,13 +21,13 @@ progress:
 See: .planning/PROJECT.md (updated 2026-06-02)
 
 **Core value:** A user installs grugops on top of the coding-agent CLI they already run, types `/grug`, and gets a disciplined delivery team — a visible board, strict handoffs, and an auditable requirement→code→test→release trail — entirely as readable markdown, with humans always holding merge and deploy.
-**Current focus:** Phase 04 — workflows-cadence-backpressure
+**Current focus:** Phase 5 — packaging, adapters, install & distribution
 
 ## Current Position
 
-Phase: 04 (workflows-cadence-backpressure) — EXECUTING
-Plan: 7 of 7
-Status: Phase complete — ready for verification
+Phase: 5
+Plan: Not started
+Status: Ready to plan
 Last activity: 2026-06-03
 
 Progress: [██████████] 100%
@@ -35,7 +36,7 @@ Progress: [██████████] 100%
 
 **Velocity:**
 
-- Total plans completed: 17
+- Total plans completed: 24
 - Average duration: -
 - Total execution time: 0 hours
 
@@ -46,6 +47,7 @@ Progress: [██████████] 100%
 | 01 | 5 | - | - |
 | 02 | 4 | - | - |
 | 03 | 8 | - | - |
+| 04 | 7 | - | - |
 
 **Recent Trend:**
 
