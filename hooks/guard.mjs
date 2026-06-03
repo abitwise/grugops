@@ -30,19 +30,50 @@ const APPROVAL = "GRUGOPS_PROD_DEPLOY_APPROVED";
 // patterns are extended at build/bootstrap and never hardcoded to a single stack. The guard
 // pairs with factory.config.json `production_requires_human_confirmation: true` and the
 // `environments` list (dev/staging/prod); production is the gated environment.
+//
+// Two design rules govern this set, both clear-voice (no caveman voice in safety output):
+//   1. FAIL CLOSED on ambiguity. A pattern that could be a production mutation is denied; a
+//      human can always re-run after exporting the approval var. We would rather over-block a
+//      borderline command than miss a real deploy.
+//   2. Match the SUBCOMMAND VERB, not a substring anywhere in the line. The tool-name patterns
+//      (gcloud/aws) are anchored to the verb position so a benign read-only command that merely
+//      mentions "deploy" in a path or a comment (e.g. `cat ./deploy/notes.txt`,
+//      `gcloud config list # see deploy docs`) is NOT denied. Over-broad patterns train users to
+//      disable the guard, which is the opposite of safe.
 const DEPLOY = [
-  /\bkubectl\s+(apply|rollout)\b/,
+  // kubernetes: apply/rollout push state; delete is a destructive prod mutation.
+  /\bkubectl\s+(apply|rollout|delete)\b/,
   /\bhelm\s+(upgrade|install)\b/,
   /\bterraform\s+apply\b/,
-  /\bgcloud\b[\s\S]*\bdeploy\b/,
-  /\baws\b[\s\S]*\bdeploy\b/,
+  // gcloud: deny only `gcloud <group> deploy` (app/run/functions/builds/...), the actual deploy
+  // verb — not any command that happens to contain the word "deploy" later on the line.
+  /\bgcloud\s+\w+\s+deploy\b/,
+  // aws: the CodeDeploy service (`aws deploy ...`) and an S3 sync, which is the common static-site
+  // / asset production deploy that carries no literal "deploy" token.
+  /\baws\s+deploy\b/,
+  /\baws\s+s3\s+sync\b/,
   /\bserverless\s+deploy\b/,
   /\bsls\s+deploy\b/,
   /\bflyctl\s+deploy\b/,
   /\bfly\s+deploy\b/,
   /\bvercel\b[\s\S]*--prod\b/,
-  /\bnpm\s+publish\b/,
+  // registry publishes: the JS family (npm/yarn/pnpm). cargo/gem/twine/docker push are
+  // intentionally out of the default set (IN-01) and expected to be added per-project.
+  /\b(npm|yarn|pnpm)\s+publish\b/,
+  // protected-branch pushes are the OTHER half of the hard rule ("never merge a protected
+  // branch"). Deny a force push (any branch — a force push is destructive enough to gate) and any
+  // push that names a protected branch. `\bmain\b`/`\bmaster\b` will also match a branch whose
+  // name merely contains that word — that is deliberate fail-closed behavior, not a bug.
+  /\bgit\s+push\b[\s\S]*\s(--force|-f|--force-with-lease)\b/,
+  /\bgit\s+push\b[\s\S]*\b(main|master)\b/,
+  /\bgit\s+push\b[\s\S]*\brelease\//,
 ];
+
+// NOTE (residual surface, documented honestly): env-var indirection such as
+// `K=kubectl; $K apply -f x` defeats the literal tool-name patterns above and is OUT OF SCOPE for
+// this default set — the guard does not normalize variable expansion. The real backstop on every
+// tool is the `autonomy=pr` posture (stop at a pull request; a named human merges and deploys).
+// See install/README.md §5 and agent-factory/packaging/adapters.md.
 
 // Detects any attempt to set or export the approval variable inline (e.g.
 // `GRUGOPS_PROD_DEPLOY_APPROVED=1 ...`, `export GRUGOPS_PROD_DEPLOY_APPROVED=1`,

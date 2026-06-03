@@ -81,6 +81,40 @@ expect_deny  "deny: terraform apply"  '{"tool_input":{"command":"terraform apply
 expect_deny  "deny: npm publish"      '{"tool_input":{"command":"npm publish"}}'
 expect_deny  "deny: vercel --prod"    '{"tool_input":{"command":"vercel deploy --prod"}}'
 
+# ── WR-01: newly-covered production-mutating commands (each must deny absent approval) ──────
+expect_deny  "deny: kubectl delete (destructive prod mutation)" \
+  '{"tool_input":{"command":"kubectl delete namespace prod"}}'
+expect_deny  "deny: aws s3 sync (static-site/asset deploy, no literal deploy token)" \
+  '{"tool_input":{"command":"aws s3 sync ./build s3://prod-bucket"}}'
+expect_deny  "deny: aws deploy (CodeDeploy service)" \
+  '{"tool_input":{"command":"aws deploy create-deployment --application-name x"}}'
+expect_deny  "deny: yarn publish" '{"tool_input":{"command":"yarn publish"}}'
+expect_deny  "deny: pnpm publish" '{"tool_input":{"command":"pnpm publish"}}'
+expect_deny  "deny: gcloud run deploy (verb-anchored)" \
+  '{"tool_input":{"command":"gcloud run deploy my-svc --region us"}}'
+expect_deny  "deny: gcloud app deploy (verb-anchored)" \
+  '{"tool_input":{"command":"gcloud app deploy"}}'
+expect_deny  "deny: git push --force (protected/destructive)" \
+  '{"tool_input":{"command":"git push origin main --force"}}'
+expect_deny  "deny: git push -f" \
+  '{"tool_input":{"command":"git push -f origin main"}}'
+expect_deny  "deny: git push to protected branch main (no force)" \
+  '{"tool_input":{"command":"git push origin main"}}'
+expect_deny  "deny: git push to protected branch master" \
+  '{"tool_input":{"command":"git push origin master"}}'
+expect_deny  "deny: git push to release/* branch" \
+  '{"tool_input":{"command":"git push origin release/1.2"}}'
+
+# ── WR-02: benign read-only commands that merely MENTION "deploy" must ALLOW (no false-pos) ──
+expect_allow "allow: aws s3 ls + path component named deploy (not a deploy)" \
+  '{"tool_input":{"command":"aws s3 ls && cat ./deploy/notes.txt"}}'
+expect_allow "allow: gcloud config list with deploy in a comment" \
+  '{"tool_input":{"command":"gcloud config list # see deploy docs"}}'
+expect_allow "allow: git push to a feature branch (not protected, not forced)" \
+  '{"tool_input":{"command":"git push origin feature/my-branch"}}'
+expect_allow "allow: kubectl get (read-only)" \
+  '{"tool_input":{"command":"kubectl get pods"}}'
+
 # Fail-closed on malformed / empty stdin: never throws, never errors, allows only non-deploys.
 _out=$(printf 'not json at all' | node "$GUARD" 2>&1); _rc=$?
 if [ "$_rc" -eq 0 ] && ! printf '%s' "$_out" | grep -qi error; then
