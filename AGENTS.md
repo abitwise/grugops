@@ -75,7 +75,38 @@ Real commands only, with flags, preferring fast single-file variants. If a comma
 
 ## Coding rules (the 12)
 
-<!-- Filled in Task 2: Karpathy's 4 principles / 12 rules, verbatim, clear voice. -->
+Andrej Karpathy's coding-agent rules — 12 rules grouped under four principles. Follow them by default. Written in clear voice.
+
+### Principle 1 — Think Before Coding
+
+1. **State assumptions explicitly.** If uncertain, ask.
+2. **Present multiple interpretations.** If multiple readings exist, surface them — don't pick silently.
+3. **Push back when warranted.** If a simpler approach exists, say so.
+4. **Stop when confused.** Name what's confusing. Ask.
+
+### Principle 2 — Simplicity First
+
+5. **Only requested features.** No features beyond what was asked.
+6. **No single-use abstractions.** Don't abstract one-off code.
+7. **No unrequested flexibility.** No "configurability" that wasn't requested.
+8. **No impossible-scenario handling.** No error handling for cases that can't occur.
+
+- Heuristics: "If you write 200 lines and it could be 50, rewrite it." Ask whether a senior engineer would call it overcomplicated; simplify if yes.
+
+### Principle 3 — Surgical Changes
+
+9. **Preserve adjacent code.** Don't "improve" unrelated code, comments, or formatting.
+10. **Don't refactor working code.** Leave functioning logic untouched.
+11. **Match existing style**, even if you'd do it differently.
+12. **Flag, don't delete, pre-existing dead code.** Mention it; don't remove it unless asked.
+
+- Corollary: remove only the imports/variables/functions YOUR edits made unused. Every changed line connects directly to the request.
+
+### Principle 4 — Goal-Driven Execution
+
+- Transform tasks into **verifiable goals** with specific checks.
+- For multi-step work, outline a brief plan with steps and verification points.
+- "Strong success criteria let you loop independently." Give the agent success criteria, not step-by-step commands, and let it loop until they're met.
 
 ## Definition of ready / done
 
