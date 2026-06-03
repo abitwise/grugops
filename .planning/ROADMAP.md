@@ -16,7 +16,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 1: Substrate, Config & State Skeleton** - Freeze the config schema, board columns, and ID scheme, and lay down the empty state plane every later file cites by name (completed 2026-06-02)
 - [x] **Phase 2: Shared Contracts** - Build the handoff templates, checklists, and memory-bank seed that roles and workflows reference as their I/O contracts (completed 2026-06-02)
 - [x] **Phase 3: Roles & AGENTS.md Substrate** - Write all 16 role prompts (Orchestrator first) and the minimal Karpathy-grounded AGENTS.md that points at them (completed 2026-06-03)
-- [ ] **Phase 4: Workflows, Cadence & Backpressure** - Compose roles into the full lifecycle, ceremonies, enterprise workflows, dual cadence, and the bounded quality gate
+- [x] **Phase 4: Workflows, Cadence & Backpressure** - Compose roles into the full lifecycle, ceremonies, enterprise workflows, dual cadence, and the bounded quality gate (completed 2026-06-03)
 - [ ] **Phase 5: Packaging, Adapters, Install & Distribution** - Ship thin per-tool adapters, both Claude forms, idempotent installers, and the mechanical plugin-level prod-deploy guard
 - [ ] **Phase 6: Validation, Brand & Dogfood** - Ship the validator, examples, brand/legal collateral, and prove the kit end-to-end via a real idea-to-PR dogfood run
 
@@ -132,7 +132,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 
 **Wave 3** *(blocked on Waves 1+2; full-suite green gate)*
 
-- [ ] 04-07-PLAN.md — Enterprise: 12-release (named-human gate), 13-incident (blameless) + all-14 harness gate
+- [x] 04-07-PLAN.md — Enterprise: 12-release (named-human gate), 13-incident (blameless) + all-14 harness gate
 
 ### Phase 5: Packaging, Adapters, Install & Distribution
 
@@ -180,6 +180,6 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6
 | 1. Substrate, Config & State Skeleton | 5/5 | Complete    | 2026-06-02 |
 | 2. Shared Contracts | 4/4 | Complete    | 2026-06-03 |
 | 3. Roles & AGENTS.md Substrate | 8/8 | Complete    | 2026-06-03 |
-| 4. Workflows, Cadence & Backpressure | 6/7 | In Progress|  |
+| 4. Workflows, Cadence & Backpressure | 7/7 | Complete   | 2026-06-03 |
 | 5. Packaging, Adapters, Install & Distribution | 0/TBD | Not started | - |
 | 6. Validation, Brand & Dogfood | 0/TBD | Not started | - |
