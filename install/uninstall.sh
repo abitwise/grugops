@@ -35,6 +35,11 @@ AGENT_REL=".claude/agents/grugops-orchestrator.md"
 CLAUDE_OPEN='<!-- GSD:grugops-start-here -->'
 CLAUDE_CLOSE='<!-- GSD:grugops-start-here-end -->'
 COPILOT_REL=".github/copilot-instructions.md"
+# WR-05: the Copilot block has its OWN distinct sentinel (must match install.sh exactly). The
+# CLAUDE.md and Copilot blocks are removed by their own markers, so a future change to one
+# sentinel cannot silently stop the other from being removed.
+COPILOT_OPEN='<!-- GSD:grugops-copilot-start-here -->'
+COPILOT_CLOSE='<!-- GSD:grugops-copilot-start-here-end -->'
 
 report() { printf '  %-14s %s\n' "$1" "$2"; }
 
@@ -249,8 +254,9 @@ remove_sentinel_block "$TARGET/CLAUDE.md" "$CLAUDE_OPEN" "$CLAUDE_CLOSE" "CLAUDE
 unmerge_gemini
 rmdir_if_empty "$TARGET/.gemini"
 
-# 6. Copilot pointer block (and remove the file if grugops created it and it is now empty).
-remove_sentinel_block "$TARGET/$COPILOT_REL" "$CLAUDE_OPEN" "$CLAUDE_CLOSE" "$COPILOT_REL pointer"
+# 6. Copilot pointer block (and remove the file if grugops created it and it is now empty). Uses
+#    the Copilot-specific sentinel (WR-05), not the CLAUDE.md one.
+remove_sentinel_block "$TARGET/$COPILOT_REL" "$COPILOT_OPEN" "$COPILOT_CLOSE" "$COPILOT_REL pointer"
 remove_if_empty "$TARGET/$COPILOT_REL" "$COPILOT_REL"
 rmdir_if_empty "$TARGET/.github"
 

@@ -199,6 +199,39 @@ else
 fi
 
 # ---------------------------------------------------------------------------
+# Check 6 — WR-05: the Copilot pointer block uses its OWN distinct sentinel and is removed
+#            independently of the CLAUDE.md block. Seed a pre-existing .github/copilot-instructions.md
+#            with user content, install, then uninstall, and assert: the user content survives,
+#            the grugops Copilot block is gone, and exactly one grugops Copilot sentinel was added.
+# ---------------------------------------------------------------------------
+printf '\n[6] Copilot pointer block round-trip with a distinct sentinel (WR-05)\n'
+T6="$WORK/copilot"; make_fixture "$T6"
+mkdir -p "$T6/.github"
+printf '# Copilot Instructions\n\nUser-owned Copilot guidance — must be preserved.\n' > "$T6/.github/copilot-instructions.md"
+INSTALL_MODE=copy GRUGOPS_SRC="$REPO_ROOT" TARGET="$T6" sh "$SCRIPT_DIR/install.sh" >/dev/null 2>&1
+# Count occurrences with a set -e-safe pipeline: `grep | wc -l` always exits 0 (the count is on
+# stdout), avoiding both grep -c's non-zero-on-zero exit (which set -e would treat as fatal) and
+# the double-0 artifact a `|| printf 0` fallback produces.
+cblk=$(grep -cF '<!-- GSD:grugops-copilot-start-here -->' "$T6/.github/copilot-instructions.md" 2>/dev/null | head -n1 || true)
+cblk=${cblk:-0}
+# The Copilot block's sentinel must be DISTINCT from the CLAUDE.md sentinel (no collision). Match
+# the CLAUDE.md sentinel as a whole line so the copilot sentinel (a superstring) is not counted.
+collide=$(grep -c '^<!-- GSD:grugops-start-here -->$' "$T6/.github/copilot-instructions.md" 2>/dev/null | head -n1 || true)
+collide=${collide:-0}
+if [ "$cblk" = "1" ] && [ "$collide" = "0" ]; then
+  pass "Copilot block added with its own distinct sentinel (no CLAUDE.md sentinel collision)"
+else
+  fail "Copilot sentinel wrong (copilot-start-here=$cblk, claude-start-here=$collide)"
+fi
+INSTALL_MODE=copy GRUGOPS_SRC="$REPO_ROOT" TARGET="$T6" sh "$SCRIPT_DIR/uninstall.sh" >/dev/null 2>&1
+if grep -qF 'User-owned Copilot guidance' "$T6/.github/copilot-instructions.md" 2>/dev/null \
+   && ! grep -qF 'GSD:grugops-copilot-start-here' "$T6/.github/copilot-instructions.md" 2>/dev/null; then
+  pass "uninstall removed the Copilot block by its distinct sentinel; user content preserved"
+else
+  fail "uninstall did not cleanly strip the Copilot block (distinct-sentinel removal broken)"
+fi
+
+# ---------------------------------------------------------------------------
 # Result
 # ---------------------------------------------------------------------------
 printf '\n== Result ==\n'

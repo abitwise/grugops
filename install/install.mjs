@@ -59,11 +59,13 @@ const CLAUDE_PTR =
   "**grugops — start here:** read `AGENTS.md`, then `agent-factory/roles/orchestrator.md`, and act as the Orchestrator.";
 const CLAUDE_CLOSE = "<!-- GSD:grugops-start-here-end -->";
 
+// WR-05: the Copilot block has its OWN distinct sentinel (not the CLAUDE.md one), so the two
+// blocks are removed independently by uninstall.sh — must match install.sh exactly.
 const COPILOT_REL = ".github/copilot-instructions.md";
-const COPILOT_OPEN = "<!-- GSD:grugops-start-here -->";
+const COPILOT_OPEN = "<!-- GSD:grugops-copilot-start-here -->";
 const COPILOT_PTR =
   "grugops: read `AGENTS.md`, then `agent-factory/roles/orchestrator.md`, and act as the Orchestrator.";
-const COPILOT_CLOSE = "<!-- GSD:grugops-start-here-end -->";
+const COPILOT_CLOSE = "<!-- GSD:grugops-copilot-start-here-end -->";
 
 const report = (label, msg) => console.log(`  ${label.padEnd(14)} ${msg}`);
 

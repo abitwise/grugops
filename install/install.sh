@@ -49,11 +49,14 @@ CLAUDE_OPEN='<!-- GSD:grugops-start-here -->'
 CLAUDE_PTR='**grugops — start here:** read `AGENTS.md`, then `agent-factory/roles/orchestrator.md`, and act as the Orchestrator.'
 CLAUDE_CLOSE='<!-- GSD:grugops-start-here-end -->'
 
-# Copilot pointer (optional convenience; additive single line under a sentinel).
+# Copilot pointer (optional convenience; additive single line under a sentinel). WR-05: the
+# Copilot block has its OWN distinct sentinel, never the CLAUDE.md one. uninstall.sh strips the
+# Copilot block by these exact markers, so the two blocks are removed independently and a future
+# change to one sentinel cannot silently break removal of the other.
 COPILOT_REL=".github/copilot-instructions.md"
-COPILOT_OPEN='<!-- GSD:grugops-start-here -->'
+COPILOT_OPEN='<!-- GSD:grugops-copilot-start-here -->'
 COPILOT_PTR='grugops: read `AGENTS.md`, then `agent-factory/roles/orchestrator.md`, and act as the Orchestrator.'
-COPILOT_CLOSE='<!-- GSD:grugops-start-here-end -->'
+COPILOT_CLOSE='<!-- GSD:grugops-copilot-start-here-end -->'
 
 # ---------------------------------------------------------------------------
 # Report accounting — every line is created / linked / copied(verify) / skipped.
