@@ -27,10 +27,10 @@
 ### Workflows
 
 - [ ] **FLOW-01**: Bootstrap workflows (`00-bootstrap-greenfield`, `01-bootstrap-brownfield`) exist and seed AGENTS.md, memory-bank, the repo map/plan, the board, config, and safe first tickets
-- [ ] **FLOW-02**: Lifecycle workflows exist (`02-idea-to-epics`, `03-epic-to-tickets`, `04-ticket-to-pr`, `05-pr-quality-gate`, `06-uat-pack`), each with board moves, handoffs produced, trace updates, and stop/done conditions
+- [x] **FLOW-02**: Lifecycle workflows exist (`02-idea-to-epics`, `03-epic-to-tickets`, `04-ticket-to-pr`, `05-pr-quality-gate`, `06-uat-pack`), each with board moves, handoffs produced, trace updates, and stop/done conditions
 - [ ] **FLOW-03**: Ceremony workflows exist (`07-backlog-refinement`, `08-sprint-planning`, `09-daily-sweep`, `10-sprint-review`, `11-retro`); the daily sweep and refinement/retro work in Kanban flow, and planning/review/retro work in Scrum cadence — cadence selected by config
 - [ ] **FLOW-04**: Enterprise workflows exist (`12-release`, `13-incident`) with the release approval gate and the blameless incident path
-- [ ] **FLOW-05**: Every workflow file follows the v2 workflow template (When / Agents / Inputs / Steps / Board moves / Handoffs / Trace updates / Metrics emitted / Stop / Done)
+- [x] **FLOW-05**: Every workflow file follows the v2 workflow template (When / Agents / Inputs / Steps / Board moves / Handoffs / Trace updates / Metrics emitted / Stop / Done)
 
 ### Handoff Templates
 
@@ -61,8 +61,8 @@
 
 ### Backpressure & Safety
 
-- [ ] **GATE-01**: The quality-gate workflow encodes the backpressure loop — deterministic prefetch → implement on branch → gate (install/lint/typecheck/unit/build/e2e, commands from AGENTS.md) → bounded self-fix (config, default 2) → result (`READY_FOR_HUMAN_REVIEW | BLOCKED_NEEDS_FIX | SPLIT_REQUIRED`); unknown commands are recorded `UNKNOWN - verify`, never faked
-- [ ] **SAFE-01**: "Humans decide, agents execute" holds throughout — `autonomy=pr` default; no role ever merges a protected branch or deploys to production without named human confirmation
+- [x] **GATE-01**: The quality-gate workflow encodes the backpressure loop — deterministic prefetch → implement on branch → gate (install/lint/typecheck/unit/build/e2e, commands from AGENTS.md) → bounded self-fix (config, default 2) → result (`READY_FOR_HUMAN_REVIEW | BLOCKED_NEEDS_FIX | SPLIT_REQUIRED`); unknown commands are recorded `UNKNOWN - verify`, never faked
+- [x] **SAFE-01**: "Humans decide, agents execute" holds throughout — `autonomy=pr` default; no role ever merges a protected branch or deploys to production without named human confirmation
 - [ ] **SAFE-02** **[research]**: The prod-deploy guard is mechanical — a plugin-level `hooks/hooks.json` `PreToolUse` Bash matcher denies deploy commands absent a human-confirm flag (NOT subagent frontmatter, which plugin subagents silently ignore); the Claude-only nature of this guard and the `autonomy=pr` fallback for the other four tools are documented
 
 ### AGENTS.md Substrate
@@ -165,14 +165,14 @@ Each requirement maps to exactly one phase. See `.planning/ROADMAP.md` for phase
 | AGENTS-01 | Phase 3 | Complete |
 | AGENTS-02 | Phase 3 | Complete |
 | FLOW-01 | Phase 4 | Pending |
-| FLOW-02 | Phase 4 | Pending |
+| FLOW-02 | Phase 4 | Complete |
 | FLOW-03 | Phase 4 | Pending |
 | FLOW-04 | Phase 4 | Pending |
-| FLOW-05 | Phase 4 | Pending |
+| FLOW-05 | Phase 4 | Complete |
 | BOARD-02 | Phase 4 | Pending |
 | BOARD-03 | Phase 4 | Pending |
-| GATE-01 | Phase 4 | Pending |
-| SAFE-01 | Phase 4 | Pending |
+| GATE-01 | Phase 4 | Complete |
+| SAFE-01 | Phase 4 | Complete |
 | PKG-01 | Phase 5 | Pending |
 | PKG-02 | Phase 5 | Pending |
 | CLAUDE-01 | Phase 5 | Pending |
