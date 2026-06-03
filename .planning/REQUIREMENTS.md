@@ -45,7 +45,7 @@
 ### Delivery OS — Board & Cadence
 
 - [x] **BOARD-01**: `plans/board.md` is the single WIP source of truth with the spec's columns, per-column WIP limits sourced from config, and a format where each ticket's front-matter status matches its board column
-- [ ] **BOARD-02**: Kanban (flow) cadence works — continuous pull, WIP limits as the throttle, daily-sweep reconciliation, cycle-time focus
+- [x] **BOARD-02**: Kanban (flow) cadence works — continuous pull, WIP limits as the throttle, daily-sweep reconciliation, cycle-time focus
 - [x] **BOARD-03**: Scrum (sprint) cadence works — time-boxed sprints with `plans/sprints/SPRINT-xx.md` (goal, committed, velocity, burndown) and the full ceremony set, selectable by config
 - [x] **BOARD-04**: Sizing (t-shirt→points, XL must be split) and priority (P0–P3) are shared by both cadences; the Blocked policy records `blocked-by` + date and escalates past the config threshold
 
@@ -169,7 +169,7 @@ Each requirement maps to exactly one phase. See `.planning/ROADMAP.md` for phase
 | FLOW-03 | Phase 4 | Complete |
 | FLOW-04 | Phase 4 | Pending |
 | FLOW-05 | Phase 4 | Complete |
-| BOARD-02 | Phase 4 | Pending |
+| BOARD-02 | Phase 4 | Complete |
 | BOARD-03 | Phase 4 | Complete |
 | GATE-01 | Phase 4 | Complete |
 | SAFE-01 | Phase 4 | Complete |

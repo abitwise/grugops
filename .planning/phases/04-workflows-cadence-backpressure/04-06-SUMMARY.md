@@ -108,6 +108,10 @@ None - no external service configuration required.
 - Remaining harness RED is exactly Wave-3: `12-release.md` and `13-incident.md` (plan 04-07). No other check is red.
 - threat_model T-04-06-01 (reconciliation/escalation) and T-04-06-02 (cadence mis-tag) both mitigated and verified green by the harness V-09/V-10.
 
+## Self-Check: PASSED
+
+All three workflow files and the SUMMARY exist on disk; all four commit hashes (00aaaa6, 64942ae, 8edcfb3, 4b6c7fe) are present in git history.
+
 ---
 *Phase: 04-workflows-cadence-backpressure*
 *Completed: 2026-06-03*

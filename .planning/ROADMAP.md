@@ -128,7 +128,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 
 - [x] 04-04-PLAN.md — Bootstrap: 00-bootstrap-greenfield, 01-bootstrap-brownfield
 - [x] 04-05-PLAN.md — Scrum ceremonies: 08-sprint-planning, 10-sprint-review (cadence=scrum)
-- [ ] 04-06-PLAN.md — Both-cadence ceremonies: 07-backlog-refinement, 09-daily-sweep, 11-retro
+- [x] 04-06-PLAN.md — Both-cadence ceremonies: 07-backlog-refinement, 09-daily-sweep, 11-retro
 
 **Wave 3** *(blocked on Waves 1+2; full-suite green gate)*
 
@@ -180,6 +180,6 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6
 | 1. Substrate, Config & State Skeleton | 5/5 | Complete    | 2026-06-02 |
 | 2. Shared Contracts | 4/4 | Complete    | 2026-06-03 |
 | 3. Roles & AGENTS.md Substrate | 8/8 | Complete    | 2026-06-03 |
-| 4. Workflows, Cadence & Backpressure | 5/7 | In Progress|  |
+| 4. Workflows, Cadence & Backpressure | 6/7 | In Progress|  |
 | 5. Packaging, Adapters, Install & Distribution | 0/TBD | Not started | - |
 | 6. Validation, Brand & Dogfood | 0/TBD | Not started | - |
