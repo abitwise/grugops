@@ -63,7 +63,7 @@
 
 - [x] **GATE-01**: The quality-gate workflow encodes the backpressure loop — deterministic prefetch → implement on branch → gate (install/lint/typecheck/unit/build/e2e, commands from AGENTS.md) → bounded self-fix (config, default 2) → result (`READY_FOR_HUMAN_REVIEW | BLOCKED_NEEDS_FIX | SPLIT_REQUIRED`); unknown commands are recorded `UNKNOWN - verify`, never faked
 - [x] **SAFE-01**: "Humans decide, agents execute" holds throughout — `autonomy=pr` default; no role ever merges a protected branch or deploys to production without named human confirmation
-- [ ] **SAFE-02** **[research]**: The prod-deploy guard is mechanical — a plugin-level `hooks/hooks.json` `PreToolUse` Bash matcher denies deploy commands absent a human-confirm flag (NOT subagent frontmatter, which plugin subagents silently ignore); the Claude-only nature of this guard and the `autonomy=pr` fallback for the other four tools are documented
+- [x] **SAFE-02** **[research]**: The prod-deploy guard is mechanical — a plugin-level `hooks/hooks.json` `PreToolUse` Bash matcher denies deploy commands absent a human-confirm flag (NOT subagent frontmatter, which plugin subagents silently ignore); the Claude-only nature of this guard and the `autonomy=pr` fallback for the other four tools are documented
 
 ### AGENTS.md Substrate
 
@@ -180,7 +180,7 @@ Each requirement maps to exactly one phase. See `.planning/ROADMAP.md` for phase
 | CLAUDE-03 | Phase 5 | Pending |
 | INSTALL-01 | Phase 5 | Pending |
 | INSTALL-02 | Phase 5 | Pending |
-| SAFE-02 | Phase 5 | Pending |
+| SAFE-02 | Phase 5 | Complete |
 | VAL-01 | Phase 6 | Pending |
 | EX-01 | Phase 6 | Pending |
 | BRAND-01 | Phase 6 | Pending |

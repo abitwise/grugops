@@ -105,6 +105,11 @@ None for the kit itself. At runtime, a human who wants to authorize a production
 - The guard is Claude-Code-only (plugin hooks); the other four tools rely on the `autonomy=pr` + `production_requires_human_confirmation` procedural fallback — both facts must be documented in `adapters.md` / `install/README.md` (other Phase-5 plans).
 - **Phase-6 dogfood (DOG-01/02):** confirm the guard actually blocks a sample `kubectl apply` when installed as a plugin, and that the `${CLAUDE_PLUGIN_ROOT}` path resolves from the plugin cache.
 
+## Self-Check: PASSED
+
+- Files verified present: `hooks/guard.mjs`, `hooks/hooks.json`, `hooks/guard.test.sh`, `.planning/phases/05-packaging-adapters-install-distribution/05-04-SUMMARY.md`
+- Commits verified in history: `b74e627` (guard), `878a97c` (hooks.json + harness), `35fd99e` (summary)
+
 ---
 *Phase: 05-packaging-adapters-install-distribution*
 *Completed: 2026-06-03*
