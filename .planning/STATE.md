@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-last_updated: "2026-06-03T20:06:12.853Z"
-last_activity: 2026-06-03 -- Phase 06 planning complete
+last_updated: "2026-06-04T05:30:41.894Z"
+last_activity: 2026-06-04
 progress:
   total_phases: 6
   completed_phases: 5
   total_plans: 34
-  completed_plans: 29
+  completed_plans: 30
   percent: 83
 ---
 
@@ -20,16 +20,16 @@ progress:
 See: .planning/PROJECT.md (updated 2026-06-02)
 
 **Core value:** A user installs grugops on top of the coding-agent CLI they already run, types `/grug`, and gets a disciplined delivery team — a visible board, strict handoffs, and an auditable requirement→code→test→release trail — entirely as readable markdown, with humans always holding merge and deploy.
-**Current focus:** Phase 6 — validation, brand & dogfood
+**Current focus:** Phase 06 — validation-brand-dogfood
 
 ## Current Position
 
-Phase: 6
-Plan: Not started
+Phase: 06 (validation-brand-dogfood) — EXECUTING
+Plan: 2 of 5
 Status: Ready to execute
-Last activity: 2026-06-03 -- Phase 06 planning complete
+Last activity: 2026-06-04
 
-Progress: [██████████] 100%
+Progress: [█████████░] 88%
 
 ## Performance Metrics
 
@@ -83,6 +83,7 @@ Progress: [██████████] 100%
 | Phase 05 P02 | 16m | 2 tasks | 10 files |
 | Phase 05 P03 | 6m | 2 tasks | 9 files |
 | Phase 05 P05 | 25m | 3 tasks | 5 files |
+| Phase 06 P06-01 | 7m | 2 tasks | 408 files |
 
 ## Accumulated Context
 
@@ -148,6 +149,8 @@ Recent decisions affecting current work:
 - [Phase ?]: [05-05] install.sh + install.mjs functionally identical with byte-identical target tree; GRUGOPS_SRC/TARGET env-overridable for hermetic test harness (INSTALL-01)
 - [Phase ?]: [05-05] uninstall fully reverses both .gemini install paths (grugops-created default removed wholesale; user-customised file trimmed of only AGENTS.md, other keys preserved); is_protected denylist guards agent-factory/ plans/ .planning/ docs/ src/ on every removal (INSTALL-02)
 - [Phase ?]: [05-05] SAFE-02 docs clear voice: mechanical guard Claude-Code-only, other 4 tools use autonomy=pr procedural fallback; README states 0.1.0 with VERSION+plugin.json synced-bump; full Phase-5 check-structure.sh now GREEN (all 8 reqs)
+- [Phase ?]: [06-01] VAL-01 validator is stdlib-only Node ESM (node:fs/path/url), zero npm deps, no package.json (D-45); VALIDATE_ROOT env-override self-validates the own tree; two-tier errors[]/warnings[] + --strict promotion (D-44); prefix-match section presence (never exact/unique, Pitfall 1/2); vacuous-on-zero-tickets board<->ticket + traceability (D-43); read-only by construction, every read/JSON.parse try/catch fail-closed
+- [Phase ?]: [06-01] validate.test.sh in the guard.test.sh idiom proves pass AND fail (D-45): own tree GREEN bare+--strict, GOOD fixture exit 0, four one-mutation BAD trees each caught with its finding token (Hard limits/mode/name/status+column), warn-only-no-trace proves --strict warning-promotion; fixtures committed static (67-file complete-named GOOD set), frozen harnesses untouched
 
 ### Pending Todos
 
@@ -173,6 +176,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-06-03T18:31:13.966Z
+Last session: 2026-06-04T05:30:06.218Z
 Stopped at: Phase 6 context gathered
-Resume file: .planning/phases/06-validation-brand-dogfood/06-CONTEXT.md
+Resume file: None

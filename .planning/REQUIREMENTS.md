@@ -97,7 +97,7 @@
 
 ### Validator
 
-- [ ] **VAL-01**: `scripts/validate-agent-factory.mjs` checks structure (all required role/workflow/handoff/checklist files exist; role/workflow files contain their required sections; config parses and has mode/cadence/autonomy; `board.md` exists and every ticket's status matches its column; every ticket has a traceability row and rows missing tests/UAT are flagged; packaging present and any `plugin.json` has a `name`); it never fabricates results and does not create `package.json` if absent
+- [x] **VAL-01**: `scripts/validate-agent-factory.mjs` checks structure (all required role/workflow/handoff/checklist files exist; role/workflow files contain their required sections; config parses and has mode/cadence/autonomy; `board.md` exists and every ticket's status matches its column; every ticket has a traceability row and rows missing tests/UAT are flagged; packaging present and any `plugin.json` has a `name`); it never fabricates results and does not create `package.json` if absent
 
 ### Brand & Docs Collateral
 
@@ -181,7 +181,7 @@ Each requirement maps to exactly one phase. See `.planning/ROADMAP.md` for phase
 | INSTALL-01 | Phase 5 | Complete |
 | INSTALL-02 | Phase 5 | Complete |
 | SAFE-02 | Phase 5 | Complete |
-| VAL-01 | Phase 6 | Pending |
+| VAL-01 | Phase 6 | Complete |
 | EX-01 | Phase 6 | Pending |
 | BRAND-01 | Phase 6 | Pending |
 | BRAND-02 | Phase 6 | Pending |
