@@ -301,6 +301,14 @@ function checkPackaging() {
   const rel = ".claude-plugin/plugin.json";
   if (exists(rel)) {
     const raw = safeRead(rel);
+    if (raw === null) {
+      // Present but unreadable (EACCES, transient I/O error, or path is a directory).
+      // JSON.parse(null) returns null (it does NOT throw), so without this guard the
+      // manifest.name deref below crashes with an uncaught TypeError — violating the
+      // file's fail-closed invariant. Mirror checkConfig's early return (line 239).
+      err(`${rel}: present but unreadable`);
+      return;
+    }
     let manifest;
     try {
       manifest = JSON.parse(raw);
