@@ -80,8 +80,12 @@ The bootstrap produced these REAL files on the sample tree:
 
 - `memory-bank/greenfield-plan.md` — the shaped idea / plan of record (Greenfield Mapper).
 - `AGENTS.md` — command slots filled with the sample's **real verified** commands by the Scribe
-  (`npm install`, `tsc --noEmit`, `npm test`, …); the unverifiable ones (eslint/prettier/e2e)
-  honestly left `UNKNOWN - verify`, never fabricated.
+  (`npm install`, `npm run lint`, `npm run typecheck`, `npm test`, `npm run build`). In this
+  minimal sample `lint`, `typecheck`, and `build` are all wired to `tsc --noEmit -p tsconfig.json`
+  (the only static check present — there is no separate linter or build step), and the Scribe
+  recorded that honestly rather than inventing an `eslint`/build command. The genuinely
+  unverifiable slots — single-file eslint/prettier autofix, the formatter, and e2e — were honestly
+  left `UNKNOWN - verify`, never fabricated.
 - `agent-factory/handoffs/product-handoff.md` (BA/PM) — user value, acceptance criteria, size XS,
   priority P2.
 - `agent-factory/handoffs/system-handoff.md` (System Analyst) — the `GET /version` request/response

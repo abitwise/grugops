@@ -103,12 +103,19 @@ with the commands pulled from the sample's `AGENTS.md` slots (filled with the sa
 verified commands at bootstrap, never fabricated):
 
 ```text
-install    npm install                 -> rc 0
-lint       tsc --noEmit                 -> rc 0
-typecheck  tsc --noEmit -p tsconfig     -> rc 0
-unit       node --test src/**/*.test.ts -> tests 2 / pass 2 / fail 0, rc 0
-build      tsc --noEmit -p tsconfig     -> rc 0
+install    npm install                          -> rc 0
+lint       npm run lint   (tsc --noEmit -p tsconfig.json)  -> rc 0
+typecheck  npm run typecheck (tsc --noEmit -p tsconfig.json) -> rc 0
+unit       npm test       (node --test 'src/**/*.test.ts')   -> tests 2 / pass 2 / fail 0, rc 0
+build      npm run build  (tsc --noEmit -p tsconfig.json)  -> rc 0
 ```
+
+Honest note (no fabricated verdict): this minimal sample has **no separate linter or build step** —
+its `package.json` wires `lint`, `typecheck`, and `build` all to the same `tsc --noEmit -p tsconfig.json`.
+So the `lint` and `build` gate rows here genuinely ran `tsc --noEmit`, not eslint and not an emitting
+build; they degenerate to the typecheck for this sample. They are reported as exactly what ran. (This
+matches `examples/01`, where the Scribe recorded these slots as `tsc --noEmit` and left only the
+absent eslint/prettier/e2e slots `UNKNOWN - verify`.)
 
 All four `mandatory_gates` (`lint, typecheck, unit, build`) passed; no self-fix round was needed.
 
