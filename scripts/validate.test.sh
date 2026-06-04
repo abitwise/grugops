@@ -74,7 +74,13 @@ expect_fail "BAD bad-role-missing-section → nonzero + 'Hard limits'" "$FIX/bad
 expect_fail "BAD bad-config-no-mode → nonzero + 'mode'"               "$FIX/bad-config-no-mode"        "mode"
 expect_fail "BAD bad-plugin-noname → nonzero + 'name'"                "$FIX/bad-plugin-noname"         "name"
 expect_fail "BAD bad-ticket-mismatch → nonzero + 'status'"            "$FIX/bad-ticket-mismatch"       "status"
-expect_fail "BAD bad-ticket-mismatch → nonzero + 'column'"            "$FIX/bad-ticket-mismatch"       "column"
+# WR-02: the column-membership branch (boardHasColumn === false) needs its OWN fixture.
+# bad-ticket-mismatch uses a VALID column ("In Development"), so it only ever fires the
+# status-mismatch finding — greping its output for the substring "column" was a false
+# positive (that word lives inside the status message, not a distinct column error).
+# bad-ticket-bad-column carries a ticket whose column is NOT a board heading and asserts
+# the distinct "not a board column" finding, genuinely exercising the branch.
+expect_fail "BAD bad-ticket-bad-column → nonzero + 'not a board column'" "$FIX/bad-ticket-bad-column" "not a board column"
 
 # (d) warn-only-no-trace → exit 0 bare, nonzero under --strict (proves D-44 promotion).
 expect_pass "WARN warn-only-no-trace bare → exit 0" "$FIX/warn-only-no-trace"
