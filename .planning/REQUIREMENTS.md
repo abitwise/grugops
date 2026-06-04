@@ -108,7 +108,7 @@
 ### Dogfood Validation
 
 - [x] **DOG-01**: grugops is installed via `/grug` onto a throwaway sample repo, the repo is bootstrapped, and one ticket is driven from idea to a PR end-to-end — the acceptance gate; the validator passes on the resulting structure
-- [x] **DOG-02**: The same roles/handoffs/gates are exercised over at least the portable AGENTS.md path (sequential role-load) and the Claude Code native path (sub-agent spawn), confirming "only the dispatch differs, never the content"
+- [~] **DOG-02** (PARTIAL — sequential AGENTS.md path proven; Claude Code native sub-agent-spawn half deferred to milestone-close UAT, see `phases/06-validation-brand-dogfood/06-HUMAN-UAT.md`): The same roles/handoffs/gates are exercised over at least the portable AGENTS.md path (sequential role-load) and the Claude Code native path (sub-agent spawn), confirming "only the dispatch differs, never the content"
 
 ## v2 Requirements
 
@@ -187,7 +187,7 @@ Each requirement maps to exactly one phase. See `.planning/ROADMAP.md` for phase
 | BRAND-02 | Phase 6 | Complete |
 | BRAND-03 | Phase 6 | Complete |
 | DOG-01 | Phase 6 | Complete |
-| DOG-02 | Phase 6 | Complete |
+| DOG-02 | Phase 6 | Partial (sequential proven; CC-native half deferred → 06-HUMAN-UAT.md) |
 
 **Coverage:**
 - v1 requirements: 46 total
