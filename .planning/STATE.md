@@ -25,11 +25,11 @@ See: .planning/PROJECT.md (updated 2026-06-02)
 ## Current Position
 
 Phase: 06 (validation-brand-dogfood) — EXECUTING
-Plan: 4 of 5
-Status: Ready to execute
+Plan: 5 of 5
+Status: 06-04 complete (illustrative examples) — ready for Plan 05
 Last activity: 2026-06-04
 
-Progress: [█████████░] 94%
+Progress: [█████████░] 97%
 
 ## Performance Metrics
 
@@ -86,6 +86,7 @@ Progress: [█████████░] 94%
 | Phase 06 P06-01 | 7m | 2 tasks | 408 files |
 | Phase 06 P06-02 | 2m | 1 tasks | 5 files |
 | Phase 06 P06-03 | 4m | 2 tasks | 4 files |
+| Phase 06 P06-04 | 6m | 2 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -154,6 +155,7 @@ Recent decisions affecting current work:
 - [Phase ?]: [06-01] VAL-01 validator is stdlib-only Node ESM (node:fs/path/url), zero npm deps, no package.json (D-45); VALIDATE_ROOT env-override self-validates the own tree; two-tier errors[]/warnings[] + --strict promotion (D-44); prefix-match section presence (never exact/unique, Pitfall 1/2); vacuous-on-zero-tickets board<->ticket + traceability (D-43); read-only by construction, every read/JSON.parse try/catch fail-closed
 - [Phase ?]: [06-01] validate.test.sh in the guard.test.sh idiom proves pass AND fail (D-45): own tree GREEN bare+--strict, GOOD fixture exit 0, four one-mutation BAD trees each caught with its finding token (Hard limits/mode/name/status+column), warn-only-no-trace proves --strict warning-promotion; fixtures committed static (67-file complete-named GOOD set), frozen harnesses untouched
 - [Phase ?]: [06-02] BRAND-03 five SVGs shipped: §6.3 color wordmark + §6.4 icon as-given (light cleanup only — dropped wordmark's redundant transparent rect, added aria-label); three D-50 mechanical derivations (mono-dark all-Charcoal #2C2A28, mono-light/reverse all-Bone #F3ECE0, lockup icon scale(0.625) left of wordmark in 472x96); palette locked to the four BRAND-03 hex (Moss/Ember excluded), lowercase grugops, no children's-book resemblance, palette-clean grep passes
+- [Phase 06]: [06-04] EX-01 illustrative half shipped: examples/02-brownfield-bootstrap, 04-sprint-cycle, 05-release-run — medium-depth narration of frozen §7 spines (input → inline # Orchestrator Decision → real board (WIP n/m) headings → REAL handoff filenames → trace/metrics line); each opens with the exact D-47 honesty banner + placeholder IDs (ABC-001/REL-0007/<PR-link>); 04 has 2 board snapshots + a velocity line from the frozen §6.5 set; 05 renders the named-human deploy gate in CLEAR voice + completed | … | Done | traceability rows; /grugops only (D-49), agent-factory/ + plans/ untouched; #1/#3 REAL captures fall out of the Plan 05 dogfood
 
 ### Pending Todos
 
@@ -179,6 +181,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-06-04T05:38:52.189Z
-Stopped at: Phase 6 context gathered
+Last session: 2026-06-04
+Stopped at: Completed 06-04-PLAN.md (illustrative example runs — EX-01 illustrative half)
 Resume file: None
