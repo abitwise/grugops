@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128" role="img" aria-label="grugops icon">
+  <!-- grugops icon (brand manual §6.4, as-given + light cleanup). Caveman "complexity club" on a rounded stone square. -->
+  <rect x="4" y="4" width="120" height="120" rx="26" fill="#2C2A28"/>
+  <g transform="rotate(38 64 64)">
+    <rect x="58" y="20" width="12" height="58" rx="6" fill="#F3ECE0"/>
+    <circle cx="64" cy="92" r="26" fill="#C8642D"/>
+    <circle cx="55" cy="86" r="4" fill="#2C2A28" opacity="0.35"/>
+    <circle cx="71" cy="95" r="3.4" fill="#2C2A28" opacity="0.35"/>
+    <circle cx="62" cy="100" r="3" fill="#2C2A28" opacity="0.35"/>
+  </g>
+</svg>

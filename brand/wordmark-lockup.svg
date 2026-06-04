@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 472 96" width="472" height="96" role="img" aria-label="grugops">
+  <!-- grugops horizontal lockup (derived, D-50): icon.svg scaled to ~the wordmark cap-height, placed LEFT of the wordmark in one horizontal viewBox. No concept change. -->
+  <!-- icon (brand manual §6.4) scaled 128->80 and inset 8px so it sits centered in the 96-tall band -->
+  <g transform="translate(8 8) scale(0.625)">
+    <rect x="4" y="4" width="120" height="120" rx="26" fill="#2C2A28"/>
+    <g transform="rotate(38 64 64)">
+      <rect x="58" y="20" width="12" height="58" rx="6" fill="#F3ECE0"/>
+      <circle cx="64" cy="92" r="26" fill="#C8642D"/>
+      <circle cx="55" cy="86" r="4" fill="#2C2A28" opacity="0.35"/>
+      <circle cx="71" cy="95" r="3.4" fill="#2C2A28" opacity="0.35"/>
+      <circle cx="62" cy="100" r="3" fill="#2C2A28" opacity="0.35"/>
+    </g>
+  </g>
+  <!-- wordmark (brand manual §6.3) shifted right by 112px to clear the icon + gap -->
+  <g transform="translate(112 0)">
+    <text x="16" y="64" font-family="'JetBrains Mono','IBM Plex Mono',monospace" font-size="56" font-weight="800" fill="#C8642D">/</text>
+    <text x="50" y="64" font-family="'JetBrains Mono','IBM Plex Mono',monospace" font-size="56" font-weight="800" fill="#2C2A28">grug</text>
+    <text x="214" y="64" font-family="'JetBrains Mono','IBM Plex Mono',monospace" font-size="56" font-weight="500" fill="#6B6B6B">ops</text>
+  </g>
+</svg>
