@@ -182,7 +182,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 **Wave 1** *(parallel — disjoint file sets, no inter-plan dependencies)*
 
 - [x] 06-01-PLAN.md — Validator: scripts/validate-agent-factory.mjs (structure-only, two-tier, --strict) + GOOD/BAD fixture self-test (VAL-01)
-- [ ] 06-02-PLAN.md — Brand SVGs: color/mono-dark/mono-light/lockup wordmarks + icon, palette-locked original art (BRAND-03)
+- [x] 06-02-PLAN.md — Brand SVGs: color/mono-dark/mono-light/lockup wordmarks + icon, palette-locked original art (BRAND-03)
 - [ ] 06-03-PLAN.md — Brand/legal docs: root README + NOTICE + CONTRIBUTING + docs/faq.md from the manual's blocks (BRAND-01, BRAND-02)
 - [ ] 06-04-PLAN.md — Illustrative examples: 02-brownfield, 04-sprint-cycle, 05-release-run (banner-labeled) (EX-01)
 
@@ -208,4 +208,4 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6
 | 3. Roles & AGENTS.md Substrate | 8/8 | Complete    | 2026-06-03 |
 | 4. Workflows, Cadence & Backpressure | 7/7 | Complete    | 2026-06-03 |
 | 5. Packaging, Adapters, Install & Distribution | 5/5 | Complete    | 2026-06-03 |
-| 6. Validation, Brand & Dogfood | 1/5 | In Progress|  |
+| 6. Validation, Brand & Dogfood | 2/5 | In Progress|  |
