@@ -1,0 +1,3 @@
+# Metrics (fixture)
+
+Empty fixture.

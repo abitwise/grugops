@@ -281,7 +281,9 @@ function checkTickets() {
       err(`${rel}: column "${column}" is not a board column`);
     }
     if (column && status && kebab(column) !== status) {
-      err(`${rel}: status "${status}" != kebab("${column}") ("${kebab(column)}")`);
+      err(
+        `${rel}: status "${status}" does not match column "${column}" (expected kebab "${kebab(column)}")`,
+      );
     }
     // Traceability completeness — WARNING (D-44). Ticket id = filename without extension.
     const id = f.replace(/\.md$/, "");
