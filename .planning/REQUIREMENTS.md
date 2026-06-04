@@ -101,8 +101,8 @@
 
 ### Brand & Docs Collateral
 
-- [ ] **BRAND-01**: `README.md` opens in clear voice (plain-English first sentence describing what grugops does) then the grug wink, includes the hero block, an Acknowledgements section crediting grugbrain.dev (Carson Gross), and the non-affiliation footer
-- [ ] **BRAND-02**: `NOTICE` (repo root), `CONTRIBUTING.md` (contributor original-art + no-affiliation rules), and `docs/faq.md` exist, using the brand manual's ready-to-paste blocks
+- [x] **BRAND-01**: `README.md` opens in clear voice (plain-English first sentence describing what grugops does) then the grug wink, includes the hero block, an Acknowledgements section crediting grugbrain.dev (Carson Gross), and the non-affiliation footer
+- [x] **BRAND-02**: `NOTICE` (repo root), `CONTRIBUTING.md` (contributor original-art + no-affiliation rules), and `docs/faq.md` exist, using the brand manual's ready-to-paste blocks
 - [x] **BRAND-03**: `brand/wordmark*.svg` (color, mono-dark, mono-light/reverse, and icon lockup) and `brand/icon.svg` exist as original art (never resembling the "Grug" children's-book character), lowercase `grugops`, using the Charcoal/Bone/Granite palette with a single Ochre accent
 
 ### Dogfood Validation
@@ -183,8 +183,8 @@ Each requirement maps to exactly one phase. See `.planning/ROADMAP.md` for phase
 | SAFE-02 | Phase 5 | Complete |
 | VAL-01 | Phase 6 | Complete |
 | EX-01 | Phase 6 | Pending |
-| BRAND-01 | Phase 6 | Pending |
-| BRAND-02 | Phase 6 | Pending |
+| BRAND-01 | Phase 6 | Complete |
+| BRAND-02 | Phase 6 | Complete |
 | BRAND-03 | Phase 6 | Complete |
 | DOG-01 | Phase 6 | Pending |
 | DOG-02 | Phase 6 | Pending |
