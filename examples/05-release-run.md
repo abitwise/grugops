@@ -113,8 +113,8 @@ The approval record in `REL-0007.md` captures who approved and who confirmed:
 
 ```markdown
 ## Approval record
-- Approved by:  Olger Oeselg (release lead) — 2026-06-20
-- Confirmed by: Olger Oeselg (named human, production action) — 2026-06-20
+- Approved by:  <release-lead name> (release lead) — <approval-date>
+- Confirmed by: <named human> (production action) — <confirmation-date>
 ## Status
 RELEASED
 ```
