@@ -26,7 +26,11 @@ findings:
   warning: 4
   info: 4
   total: 9
-status: issues_found
+status: resolved
+resolution:
+  fixed: [CR-01, WR-01, WR-02, WR-03, WR-04]
+  deferred: [IN-01, IN-02, IN-03, IN-04]
+  note: "All Critical + Warning findings fixed atomically (commits 015787a, a8507c5, e3256d9, 6c7dfee, 5b2843f). Validator self-test ALL CHECKS PASSED; validator exits 0 bare + --strict. Info findings left for follow-up."
 ---
 
 # Phase 06: Code Review Report
