@@ -93,7 +93,7 @@
 
 ### Examples
 
-- [ ] **EX-01**: Five example runs exist — greenfield bootstrap, brownfield bootstrap, and ticket→PR (each showing input, Orchestrator decision, and expected files/handoffs); a sprint cycle (refinement→planning→2 tickets through ticket→PR→daily sweeps→review→retro, with board snapshots and a velocity/metrics line); and a release run (feature → REL-0007 with SemVer/changelog/rollback/approval → human-confirmed deploy → Done, with traceability rows completed)
+- [x] **EX-01**: Five example runs exist — greenfield bootstrap, brownfield bootstrap, and ticket→PR (each showing input, Orchestrator decision, and expected files/handoffs); a sprint cycle (refinement→planning→2 tickets through ticket→PR→daily sweeps→review→retro, with board snapshots and a velocity/metrics line); and a release run (feature → REL-0007 with SemVer/changelog/rollback/approval → human-confirmed deploy → Done, with traceability rows completed)
 
 ### Validator
 
@@ -107,7 +107,7 @@
 
 ### Dogfood Validation
 
-- [ ] **DOG-01**: grugops is installed via `/grug` onto a throwaway sample repo, the repo is bootstrapped, and one ticket is driven from idea to a PR end-to-end — the acceptance gate; the validator passes on the resulting structure
+- [x] **DOG-01**: grugops is installed via `/grug` onto a throwaway sample repo, the repo is bootstrapped, and one ticket is driven from idea to a PR end-to-end — the acceptance gate; the validator passes on the resulting structure
 - [ ] **DOG-02**: The same roles/handoffs/gates are exercised over at least the portable AGENTS.md path (sequential role-load) and the Claude Code native path (sub-agent spawn), confirming "only the dispatch differs, never the content"
 
 ## v2 Requirements
@@ -182,11 +182,11 @@ Each requirement maps to exactly one phase. See `.planning/ROADMAP.md` for phase
 | INSTALL-02 | Phase 5 | Complete |
 | SAFE-02 | Phase 5 | Complete |
 | VAL-01 | Phase 6 | Complete |
-| EX-01 | Phase 6 | Pending |
+| EX-01 | Phase 6 | Complete |
 | BRAND-01 | Phase 6 | Complete |
 | BRAND-02 | Phase 6 | Complete |
 | BRAND-03 | Phase 6 | Complete |
-| DOG-01 | Phase 6 | Pending |
+| DOG-01 | Phase 6 | Complete |
 | DOG-02 | Phase 6 | Pending |
 
 **Coverage:**

@@ -18,7 +18,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 3: Roles & AGENTS.md Substrate** - Write all 16 role prompts (Orchestrator first) and the minimal Karpathy-grounded AGENTS.md that points at them (completed 2026-06-03)
 - [x] **Phase 4: Workflows, Cadence & Backpressure** - Compose roles into the full lifecycle, ceremonies, enterprise workflows, dual cadence, and the bounded quality gate (completed 2026-06-03)
 - [x] **Phase 5: Packaging, Adapters, Install & Distribution** - Ship thin per-tool adapters, both Claude forms, idempotent installers, and the mechanical plugin-level prod-deploy guard (completed 2026-06-03)
-- [ ] **Phase 6: Validation, Brand & Dogfood** - Ship the validator, examples, brand/legal collateral, and prove the kit end-to-end via a real idea-to-PR dogfood run
+- [x] **Phase 6: Validation, Brand & Dogfood** - Ship the validator, examples, brand/legal collateral, and prove the kit end-to-end via a real idea-to-PR dogfood run (completed 2026-06-04)
 
 ## Phase Details
 
@@ -188,7 +188,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 
 **Wave 2** *(blocked on Wave 1; produces the REAL examples + runs the validator on the sample)*
 
-- [ ] 06-05-PLAN.md — Dogfood: out-of-repo sample idea→PR + validator pass + REAL examples 01/03 + human runbook + dual-path parity (DOG-01, DOG-02, EX-01)
+- [x] 06-05-PLAN.md — Dogfood: out-of-repo sample idea→PR + validator pass + REAL examples 01/03 + human runbook + dual-path parity (DOG-01, DOG-02, EX-01)
 
 **UI hint**: yes
 
@@ -208,4 +208,4 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6
 | 3. Roles & AGENTS.md Substrate | 8/8 | Complete    | 2026-06-03 |
 | 4. Workflows, Cadence & Backpressure | 7/7 | Complete    | 2026-06-03 |
 | 5. Packaging, Adapters, Install & Distribution | 5/5 | Complete    | 2026-06-03 |
-| 6. Validation, Brand & Dogfood | 4/5 | In Progress|  |
+| 6. Validation, Brand & Dogfood | 5/5 | Complete   | 2026-06-04 |
