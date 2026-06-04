@@ -269,8 +269,19 @@ function checkTickets() {
   const boardLines = board.split("\n");
   const trace = safeRead("plans/traceability.md") || "";
 
+  // Full-segment column match (WR-03): a board heading "## <name> (WIP …)" names the
+  // column <name>; we compare <name> for EQUALITY with the ticket column, never by bare
+  // prefix. The old `startsWith("## " + col + " ")` accepted word-prefixes — col "In"
+  // wrongly matched "## In Development (WIP 0/3)" — letting a genuinely wrong column slip
+  // the membership check. We normalize each `## ` line by dropping a trailing ` (WIP …)`
+  // marker and trimming, then require an exact match.
+  const boardColumnName = (line) =>
+    line
+      .replace(/^##\s+/, "")
+      .replace(/\s*\(WIP[^)]*\)\s*$/, "")
+      .trim();
   const boardHasColumn = (col) =>
-    boardLines.some((l) => l.startsWith(`## ${col} `) || l.trim() === `## ${col}`);
+    boardLines.some((l) => l.startsWith("## ") && boardColumnName(l) === col.trim());
 
   for (const f of ticketFiles) {
     const rel = `plans/tickets/${f}`;
