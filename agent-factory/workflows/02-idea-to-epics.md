@@ -21,14 +21,14 @@ Roles activate via the role-switch protocol (`agent-factory/roles/_role-switch-p
 ## Steps
 1. BA/PM clarifies the idea — who is the user, what is the pain, what is the value worth building.
 2. BA/PM defines the MVP scope plus the explicit non-goals and the known risks; says no to bloat.
-3. BA/PM writes `agent-factory/handoffs/product-handoff.md` with the user value, scope, non-goals, and risks.
+3. BA/PM fills the `product-handoff.md` template from `agent-factory/handoffs/` into the instance `plans/handoffs/<TICKET-ID>-product.md` with the user value, scope, non-goals, and risks.
 4. BA/PM breaks the idea into epics and adds them to `Backlog` (epics written to `plans/epics/`).
 
 ## Board moves
 On `plans/board.md`, the new epics enter `Backlog`. BA/PM owns the `Backlog -> Ready` exit and moves an item to `Ready` once it meets the Definition of Ready.
 
 ## Handoffs produced
-Under `agent-factory/handoffs/`: `product-handoff.md` (BA/PM).
+Under `plans/handoffs/` (filled from the templates in `agent-factory/handoffs/`): `<TICKET-ID>-product.md` (BA/PM).
 
 ## Trace updates
 Append to `plans/traceability.md`: the `Epic` and `Feature` rows for the new epics, and set `Status`, so every downstream ticket traces back to a product epic.
@@ -40,7 +40,7 @@ Record `Throughput` and `Lead time` in `plans/metrics.md` as epics land in `Back
 - The idea is too vague to scope — stop and request the missing clarity from the requester; do not invent the user, the pain, or the value.
 
 ## Done condition
-The MVP scope is clear; the epics, the non-goals, and the risks are written; the epics are added to `Backlog`. The `product-handoff.md` is filled and the trace rows are appended.
+The MVP scope is clear; the epics, the non-goals, and the risks are written; the epics are added to `Backlog`. The `plans/handoffs/<TICKET-ID>-product.md` instance is filled and the trace rows are appended.
 
 ## Commit
 Commit the artifacts this workflow wrote (the epics, the board update, the `product-handoff.md`, and the traceability rows) per `agent-factory/_commit-convention.md` — branch guard first (never a protected branch; switch to `grugops/idea-to-epics-<id>`), then `type(scope): summary`. Never merge, never deploy; humans hold both.

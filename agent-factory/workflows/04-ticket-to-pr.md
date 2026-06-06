@@ -10,9 +10,9 @@ When a ready ticket needs to become a pull request a human can review. grug no r
 
 ## Agents involved
 - Orchestrator — checks readiness against the Definition of Ready and pulls the ticket into development.
-- Software Engineer — implements the one ticket on a branch (`implementation-handoff.md`).
-- QE/E2E — breaks the feature and reports gaps (`qe-handoff.md`).
-- Security/NFR — reviews risk if the change is triggered (`security-nfr-handoff.md`).
+- Software Engineer — implements the one ticket on a branch (writes `plans/handoffs/<TICKET-ID>-implementation.md`).
+- QE/E2E — breaks the feature and reports gaps (writes `plans/handoffs/<TICKET-ID>-qe.md`).
+- Security/NFR — reviews risk if the change is triggered (writes `plans/handoffs/<TICKET-ID>-security-nfr.md`).
 
 Roles activate via the role-switch protocol (`agent-factory/roles/_role-switch-protocol.md`): one window, drop prior context, the handoff is the only memory.
 
@@ -33,7 +33,7 @@ Roles activate via the role-switch protocol (`agent-factory/roles/_role-switch-p
 On `plans/board.md`, the full path is `Ready for Dev -> In Development -> In Review (-> In Security/NFR)`. The Orchestrator owns `Ready for Dev -> In Development`; the Software Engineer owns `In Development -> In Review`; QE/E2E owns the `In Review` exit; Security/NFR owns the `In Security/NFR` exit when triggered.
 
 ## Handoffs produced
-Under `agent-factory/handoffs/`: `implementation-handoff.md` (Software Engineer), `qe-handoff.md` (QE/E2E), and `security-nfr-handoff.md` (Security/NFR, if triggered).
+Under `plans/handoffs/` (filled from the templates in `agent-factory/handoffs/`): `<TICKET-ID>-implementation.md` (Software Engineer), `<TICKET-ID>-qe.md` (QE/E2E), and `<TICKET-ID>-security-nfr.md` (Security/NFR, if triggered).
 
 ## Trace updates
 Append to `plans/traceability.md`: the `Code (PR/files)` link and the `Tests` link against the ticket row, and update `Status`.

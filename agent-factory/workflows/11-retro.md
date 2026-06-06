@@ -6,7 +6,7 @@ cadence: both
 # Workflow: Retro
 
 ## When to use
-Run this to learn from the metrics and improve the factory itself. It applies to **both** cadences — at the end of a sprint in scrum, and monthly (light) in kanban; the Orchestrator selects when it fires based on `config.cadence` and `mode`. grug look at numbers, not vibes — find the waste, fix the factory. The flow: `plans/metrics.md` + board history -> Factory Coach -> the top 1–3 wastes -> `retro-notes.md` + 1–3 improvement tickets tagged `factory`.
+Run this to learn from the metrics and improve the factory itself. It applies to **both** cadences — at the end of a sprint in scrum, and monthly (light) in kanban; the Orchestrator selects when it fires based on `config.cadence` and `mode`. grug look at numbers, not vibes — find the waste, fix the factory. The flow: `plans/metrics.md` + board history -> Factory Coach -> the top 1–3 wastes -> `plans/handoffs/<SPRINT-ID>-retro.md` + 1–3 improvement tickets tagged `factory`.
 
 ## Agents involved
 - Factory Coach — reads the metrics, runs the retro from the values (not opinion), names the top wastes, writes the retro notes, and creates the improvement tickets for the factory itself.
@@ -21,14 +21,14 @@ Roles activate via the role-switch protocol (`agent-factory/roles/_role-switch-p
 ## Steps
 1. Read `plans/metrics.md` and the board history (Factory Coach) — run the retro from the values, not the vibes.
 2. Identify the top 1–3 wastes — rework, escaped defects, slow gates, or where flow stalled — each tied to a metric value.
-3. Write `agent-factory/handoffs/retro-notes.md`: the metrics snapshot (citing the frozen `plans/metrics.md` names), the top wastes, and Keep / Stop / Start.
+3. Fill the `retro-notes.md` template from `agent-factory/handoffs/` into the instance `plans/handoffs/<SPRINT-ID>-retro.md`: the metrics snapshot (citing the frozen `plans/metrics.md` names), the top wastes, and Keep / Stop / Start.
 4. Create 1–3 improvement tickets for the factory itself, written to `plans/tickets/` and tagged `factory`, each one tied to a waste the data showed.
 
 ## Board moves
 None — the Factory Coach causes no column transition of its own on `plans/board.md`. The improvement tickets it creates enter the `Backlog` like any other captured work, to be refined and pulled later.
 
 ## Handoffs produced
-Under `agent-factory/handoffs/`: `retro-notes.md` (Factory Coach) — the metrics snapshot, the top 1–3 wastes, Keep / Stop / Start, and the improvement ticket IDs created.
+Under `plans/handoffs/` (filled from the templates in `agent-factory/handoffs/`): `<SPRINT-ID>-retro.md` (Factory Coach) — the metrics snapshot, the top 1–3 wastes, Keep / Stop / Start, and the improvement ticket IDs created.
 
 ## Trace updates
 In `plans/traceability.md`, record the `factory`-tagged improvement ticket IDs the retro created and their `Status`, so each factory improvement traces back to the metric or waste that prompted it.
@@ -37,10 +37,10 @@ In `plans/traceability.md`, record the `factory`-tagged improvement ticket IDs t
 The retro reads `plans/metrics.md` rather than closing work; it surfaces a subset of the frozen 9 to ground its findings — for example `Throughput`, `Cycle time`, and `Rework rate`. Report the values exactly as they stand; never fake a count or a trend, and do not invent a metric.
 
 ## Stop conditions
-- There is not enough metric history to identify a real waste — note that in `retro-notes.md` and defer the finding; do not invent waste the data does not show or gold-plate the factory.
+- There is not enough metric history to identify a real waste — note that in `plans/handoffs/<SPRINT-ID>-retro.md` and defer the finding; do not invent waste the data does not show or gold-plate the factory.
 
 ## Done condition
-`retro-notes.md` is written — the metrics snapshot, the top 1–3 wastes, and Keep / Stop / Start — and 1–3 improvement tickets tagged `factory` are created in `plans/tickets/`. Every finding cites a value in `plans/metrics.md`; in lean mode the retro is kept light.
+`plans/handoffs/<SPRINT-ID>-retro.md` is written — the metrics snapshot, the top 1–3 wastes, and Keep / Stop / Start — and 1–3 improvement tickets tagged `factory` are created in `plans/tickets/`. Every finding cites a value in `plans/metrics.md`; in lean mode the retro is kept light.
 
 ## Commit
-Commit the artifacts this workflow wrote (the `retro-notes.md`, the `factory`-tagged improvement tickets, and the traceability rows linking them to their waste) per `agent-factory/_commit-convention.md` — branch guard first (never a protected branch; switch to `grugops/retro-<id>`), then `type(scope): summary`. Never merge, never deploy; humans hold both.
+Commit the artifacts this workflow wrote (the `plans/handoffs/<SPRINT-ID>-retro.md`, the `factory`-tagged improvement tickets, and the traceability rows linking them to their waste) per `agent-factory/_commit-convention.md` — branch guard first (never a protected branch; switch to `grugops/retro-<id>`), then `type(scope): summary`. Never merge, never deploy; humans hold both.

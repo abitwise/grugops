@@ -26,13 +26,13 @@ Roles activate via the role-switch protocol (`agent-factory/roles/_role-switch-p
 3. Split `XL` work into smaller tickets — the Orchestrator enforces `SPLIT_REQUIRED`; no `XL` ticket enters dev.
 4. Size each item (`XS`–`XL`) and prioritize it (`P0`–`P3`).
 5. Mark any security/NFR triggers on the ticket so the gate fires later.
-6. Promote items that meet `agent-factory/checklists/definition-of-ready.md` into the `Ready` column; record the refinement in `agent-factory/handoffs/refinement-notes.md`.
+6. Promote items that meet `agent-factory/checklists/definition-of-ready.md` into the `Ready` column; record the refinement by filling the `refinement-notes.md` template from `agent-factory/handoffs/` into the instance `plans/handoffs/<SPRINT-ID>-refinement.md`.
 
 ## Board moves
 On `plans/board.md`, BA/PM owns the `Backlog -> Ready` exit: items that meet the Definition of Ready move from `Backlog` to `Ready`. `XL` items do not advance — they are split back into the `Backlog` as smaller tickets via `SPLIT_REQUIRED`. The `Ready` column WIP limit (from `factory.config.json#wip_limits`) caps how many items sit ready at once.
 
 ## Handoffs produced
-Under `agent-factory/handoffs/`: `refinement-notes.md` (BA/PM) — items reviewed, split decisions, sizes and priorities assigned, the IDs promoted to `Ready`, and anything still blocked.
+Under `plans/handoffs/` (filled from the templates in `agent-factory/handoffs/`): `<SPRINT-ID>-refinement.md` (BA/PM) — items reviewed, split decisions, sizes and priorities assigned, the IDs promoted to `Ready`, and anything still blocked.
 
 ## Trace updates
 In `plans/traceability.md`, confirm or extend the rows for the refined tickets — the requirement→epic→feature→ticket linkage and `Status` — so every promoted ticket already traces back to a product requirement before dev pulls it.
@@ -41,10 +41,10 @@ In `plans/traceability.md`, confirm or extend the rows for the refined tickets �
 None new — refinement stocks the `Ready` column and does not close work. Surfacing the `WIP` of `Ready` against its limit (from the frozen `plans/metrics.md` set) is enough to show whether the larder is full; do not invent a refinement metric.
 
 ## Stop conditions
-- An item cannot be made Ready because an input is missing (unclear value, undefined behavior, an unanswered spike) — leave it in `Backlog` with the named gap recorded in `refinement-notes.md`; never fake readiness or promote an item that fails the Definition of Ready.
+- An item cannot be made Ready because an input is missing (unclear value, undefined behavior, an unanswered spike) — leave it in `Backlog` with the named gap recorded in `plans/handoffs/<SPRINT-ID>-refinement.md`; never fake readiness or promote an item that fails the Definition of Ready.
 
 ## Done condition
-`refinement-notes.md` is written and the `Ready` column is stocked — enough sized, prioritized, DoR-met work that dev (continuous pull in kanban, the next sprint in scrum) never starves. Every `XL` item was split, and no item was promoted that did not meet the Definition of Ready.
+`plans/handoffs/<SPRINT-ID>-refinement.md` is written and the `Ready` column is stocked — enough sized, prioritized, DoR-met work that dev (continuous pull in kanban, the next sprint in scrum) never starves. Every `XL` item was split, and no item was promoted that did not meet the Definition of Ready.
 
 ## Commit
-Commit the artifacts this workflow wrote (the `refinement-notes.md`, the re-sized/re-prioritized tickets, the `Backlog -> Ready` board moves, and the confirmed traceability rows) per `agent-factory/_commit-convention.md` — branch guard first (never a protected branch; switch to `grugops/backlog-refinement-<id>`), then `type(scope): summary`. Never merge, never deploy; humans hold both.
+Commit the artifacts this workflow wrote (the `plans/handoffs/<SPRINT-ID>-refinement.md`, the re-sized/re-prioritized tickets, the `Backlog -> Ready` board moves, and the confirmed traceability rows) per `agent-factory/_commit-convention.md` — branch guard first (never a protected branch; switch to `grugops/backlog-refinement-<id>`), then `type(scope): summary`. Never merge, never deploy; humans hold both.

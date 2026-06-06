@@ -15,11 +15,11 @@ Roles activate via the role-switch protocol (`agent-factory/roles/_role-switch-p
 
 ## Inputs required
 - `plans/board.md` — the current column state and per-column WIP.
-- The open handoffs in `agent-factory/handoffs/` — each in-flight ticket's latest packet, so the board can be checked against the real state of the work.
+- The open handoff instances in `plans/handoffs/` — each in-flight ticket's latest packet, so the board can be checked against the real state of the work.
 - `.grugops/factory.config.json` — `wip_limits` (the throttle) and `blocked_escalation_days` (the escalation threshold, default 2).
 
 ## Steps
-1. Read `plans/board.md` and the open handoffs in `agent-factory/handoffs/` to see where every in-flight ticket actually stands.
+1. Read `plans/board.md` and the open handoff instances in `plans/handoffs/` to see where every in-flight ticket actually stands.
 2. For each in-flight ticket, note its progress or its blocker — what moved since the last sweep, and what is in the way.
 3. Reconcile each ticket's front-matter status against the column it sits in on `plans/board.md` — if a handoff says a ticket exited `In Review` but the board still shows it there, fix the board so the column matches the work. The board never lies after a sweep.
 4. Update `plans/board.md` (columns reconciled), `plans/metrics.md` (the flow metrics below), and `memory-bank/60-progress.md` (the plan-of-record kept current).
