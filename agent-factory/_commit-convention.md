@@ -20,7 +20,7 @@ git rev-parse --abbrev-ref HEAD
 ```
 
 Compare it to the **protected list**. There is no `protected_branches` key in
-`agent-factory/config/factory.config.json` today, so the DEFAULT protected set is
+`.grugops/factory.config.json` today, so the DEFAULT protected set is
 `{ main, master }`. If a project adds a `protected_branches` array to that config, union
 those names into the default set.
 

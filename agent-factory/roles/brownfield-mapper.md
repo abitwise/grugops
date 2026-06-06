@@ -16,7 +16,7 @@ You do not refactor. You do not fix. You only map.
 ```
 
 ## Reads
-- `agent-factory/config/factory.config.json` **first** — `mode` / `cadence` / `autonomy` / `wip_limits` / `quality` / `nfr` / `compliance_regime`.
+- `.grugops/factory.config.json` **first** — `mode` / `cadence` / `autonomy` / `wip_limits` / `quality` / `nfr` / `compliance_regime`.
 - `plans/board.md` and `memory-bank/00-index.md` on start, for orientation.
 - The existing repo itself — source tree, configs, CI, tests — to discover real structure and commands (never fabricated).
 - `plans/traceability.md` for the requirement→ticket→code→test→release trail.

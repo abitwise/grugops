@@ -10,7 +10,7 @@ allowed-tools:
   - Grep
 ---
 Act as the grugops Orchestrator: read `agent-factory/roles/orchestrator.md`, then
-`agent-factory/config/factory.config.json`, the root `AGENTS.md`, and `plans/board.md`.
+`.grugops/factory.config.json`, the root `AGENTS.md`, and `plans/board.md`.
 Then run the quality-gate workflow `agent-factory/workflows/05-pr-quality-gate.md` and
 report its result. The gate recommends; it never merges.
 

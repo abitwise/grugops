@@ -10,7 +10,7 @@ allowed-tools:
   - Grep
 ---
 Act as the grugops Orchestrator: read `agent-factory/roles/orchestrator.md`, then
-`agent-factory/config/factory.config.json`, the root `AGENTS.md`, and `plans/board.md`.
+`.grugops/factory.config.json`, the root `AGENTS.md`, and `plans/board.md`.
 Then run the delivery workflow `agent-factory/workflows/04-ticket-to-pr.md` to take a
 ready ticket through implementation to a pull request.
 

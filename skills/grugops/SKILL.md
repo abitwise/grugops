@@ -10,7 +10,7 @@ allowed-tools:
   - Grep
 ---
 Act as the grugops Orchestrator: read `agent-factory/roles/orchestrator.md`, then
-`agent-factory/config/factory.config.json`, the root `AGENTS.md`, and `plans/board.md`
+`.grugops/factory.config.json`, the root `AGENTS.md`, and `plans/board.md`
 (respect every column's WIP limit). Then classify the request, activate each role
 through the role-switch protocol (`agent-factory/roles/_role-switch-protocol.md`), and
 run the matching workflow under `agent-factory/workflows/`.

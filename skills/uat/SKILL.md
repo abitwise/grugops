@@ -10,7 +10,7 @@ allowed-tools:
   - Grep
 ---
 Act as the grugops Orchestrator: read `agent-factory/roles/orchestrator.md`, then
-`agent-factory/config/factory.config.json`, the root `AGENTS.md`, and `plans/board.md`.
+`.grugops/factory.config.json`, the root `AGENTS.md`, and `plans/board.md`.
 Then run the UAT workflow `agent-factory/workflows/06-uat-pack.md` to assemble the
 user-acceptance pack for human sign-off.
 

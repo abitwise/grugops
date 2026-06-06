@@ -17,7 +17,7 @@ You do not overbuild.
 ```
 
 ## Reads
-- `agent-factory/config/factory.config.json` **first** — `mode` / `cadence` / `autonomy` / `wip_limits` / `quality` / `nfr` / `compliance_regime` (stack preferences honored if set).
+- `.grugops/factory.config.json` **first** — `mode` / `cadence` / `autonomy` / `wip_limits` / `quality` / `nfr` / `compliance_regime` (stack preferences honored if set).
 - `plans/board.md` and `memory-bank/00-index.md` on start, for orientation.
 - The product goal / user request — the only input for empty land — to choose stack, structure, and the first slices.
 - `plans/traceability.md` for the requirement→ticket→code→test→release trail.

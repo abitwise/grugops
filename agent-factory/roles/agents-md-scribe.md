@@ -19,7 +19,7 @@ You do not invent fake commands.
 ```
 
 ## Reads
-- `agent-factory/config/factory.config.json` **first** — `mode` / `cadence` / `autonomy` / `wip_limits` / `quality` / `nfr` / `compliance_regime`.
+- `.grugops/factory.config.json` **first** — `mode` / `cadence` / `autonomy` / `wip_limits` / `quality` / `nfr` / `compliance_regime`.
 - `plans/board.md` and `memory-bank/00-index.md` on start, for orientation on the current factory state.
 - The repo itself (and any mapper output) for the real commands, repo map, and done definition that go into `AGENTS.md`.
 - `plans/traceability.md` for the requirement→ticket→code→test→release trail.
