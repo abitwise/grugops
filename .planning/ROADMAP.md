@@ -220,7 +220,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 **Wave 2** *(blocked on 07-01; disjoint file sets — roles vs workflows — run parallel)*
 
 - [x] 07-02-PLAN.md — Roles + op-skills rewrite: config refs → `.grugops/`, handoff template-read/instance-write split, `_role-switch-protocol.md` step-4 once-here edit, 13 op-skill invariants (SHOME-02/03/04)
-- [ ] 07-03-PLAN.md — Workflows rewrite: config refs → `.grugops/`, 14 "Handoffs produced" sections → `plans/handoffs/` instances, `04-ticket-to-pr.md` read side (SHOME-02/03)
+- [x] 07-03-PLAN.md — Workflows rewrite: config refs → `.grugops/`, 14 "Handoffs produced" sections → `plans/handoffs/` instances, `04-ticket-to-pr.md` read side (SHOME-02/03)
 
 **Wave 3** *(blocked on Waves 1+2; the grep-to-zero gate ships GREEN as the phase acceptance proof)*
 
@@ -275,6 +275,6 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8 →
 | 4. Workflows, Cadence & Backpressure | 7/7 | Complete    | 2026-06-03 |
 | 5. Packaging, Adapters, Install & Distribution | 5/5 | Complete    | 2026-06-03 |
 | 6. Validation, Brand & Dogfood | 5/5 | Complete    | 2026-06-04 |
-| 7. Shared-Home Foundation & Path Rewrite | 2/4 | In Progress|  |
+| 7. Shared-Home Foundation & Path Rewrite | 3/4 | In Progress|  |
 | 8. Two-Root Installer | 0/? | Not started | - |
 | 9. Doctor & Two-Root Validator | 0/? | Not started | - |
