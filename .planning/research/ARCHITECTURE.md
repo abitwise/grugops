@@ -1,446 +1,287 @@
 # Architecture Research
 
-**Domain:** Portable, file-based, multi-agent SDLC factory (markdown role prompts + workflows + handoffs + state files + per-tool adapters, installed on top of a host coding-agent CLI)
-**Researched:** 2026-06-02
-**Confidence:** HIGH for Claude Code sub-agent/plugin mechanics (verified against current code.claude.com docs) and the file-based architecture (derived directly from the spec). MEDIUM for cross-tool AGENTS.md status (web sources, dated Feb–May 2026, consistent). The architecture below is opinionated synthesis of the spec + verified tool mechanics.
+**Domain:** grugops v1.1 — kit/state split runtime path resolution for an LLM-read markdown agent factory
+**Researched:** 2026-06-06
+**Confidence:** HIGH (core resolution mechanism verified against current Claude Code plugin docs; standalone behavior verified against the existing repo)
+
+> NOTE: This file was regenerated for the **v1.1 Install & Distribution** milestone. The prior contents documented the v1.0 (build-the-kit) architecture; that work shipped. The question now is the *runtime path-resolution* design for the kit/state split locked in `docs/design/shared-install.md`.
 
 ---
 
-## The One Big Idea
+## TL;DR — the load-bearing fact
 
-There is **no runtime to architect.** grugops is data, not a program. The "system" is a set of markdown files laid out so a host coding agent (Claude Code, Codex, Gemini, OpenCode, Copilot) reads them in a disciplined order. The architecture is therefore about **information layout and read-order contracts**, not about services, processes, or APIs.
+`$GRUGOPS_HOME` is **not** expanded inside markdown prose by any host coding agent. The "agent" is an LLM reading text — it has no CWD-aware loader and does not run a shell over the role file. So the resolution mechanism cannot rely on the agent expanding a shell variable in prose.
 
-Three load-bearing inversions follow from that:
+Two verified facts make the design tractable:
 
-1. **The intelligence is rented, not built.** The LLM in the host tool is the CPU. grugops supplies role (program), workflow (control flow), handoff (call stack / message passing), board + traceability (mutable state), config (feature flags), and gate (assertions). Architecting grugops = designing a *file protocol* the host agent will follow.
-2. **Portability is a content/dispatch split, not a build target.** One canonical core is read byte-for-byte identically by every tool. Only the *entry mechanism* and *whether roles run as spawned sub-agents or sequential context-loads* differ. This is the central architectural constraint and the thing most likely to be violated by accident (see Anti-Pattern 1).
-3. **Consistency is enforced by convention + a validator, not by a database.** "board.md agrees with ticket front-matter" is an invariant maintained by role discipline and checkable by a stateless Node script — there is no transaction, no lock, no source of truth except the files in git.
+1. **Standalone form (`.claude/skills/*`, `.claude/agents/*`, plain `AGENTS.md`):** nothing is auto-expanded in the markdown body. The agent reads the literal string. → The kit's absolute path must be **materialized into the adapter at install time** (the installer writes the resolved path), OR the agent must be **instructed to discover it via a Bash call** before reading kit files.
+2. **Plugin form:** Claude Code **does** substitute `${CLAUDE_PLUGIN_ROOT}`, `${CLAUDE_PLUGIN_DATA}`, `${CLAUDE_PROJECT_DIR}` inline "anywhere they appear in skill content [and] agent content" (code.claude.com/docs/en/plugins-reference, Environment variables section, HIGH). So in plugin form a `${CLAUDE_PLUGIN_ROOT}/agent-factory/...` reference in SKILL.md **does** resolve to the absolute install path before the LLM ever sees it. **But** arbitrary `${ENV_VAR}` (e.g. `${GRUGOPS_HOME}`) is documented as substituted only in hook/monitor/MCP **command** strings — NOT in skill/agent content. So `$GRUGOPS_HOME` written into a SKILL body is a dead string in BOTH forms.
+
+The single resolution rule is therefore: **the *adapter* resolves the kit root to an absolute path; the *kit prose* and *adapter* both address state strictly repo-relative.** The two kit homes (`$GRUGOPS_HOME`, `${CLAUDE_PLUGIN_ROOT}`) differ only in *who* does the resolving — the installer (standalone) or Claude Code's substitution engine (plugin).
 
 ---
 
 ## Standard Architecture
 
-### System Overview
+### System Overview — two roots, one resolution rule
 
 ```
 ┌──────────────────────────────────────────────────────────────────────┐
-│  HOST CODING AGENT (the runtime — NOT shipped by grugops)              │
-│  Claude Code | Codex CLI | Gemini CLI | OpenCode | Copilot CLI         │
-└───────────────────────────────┬──────────────────────────────────────┘
-                                 │ reads (dispatch layer — THIN, per-tool)
-        ┌────────────────────────┼─────────────────────────┐
-        ▼                        ▼                          ▼
-  .claude/agents/*          AGENTS.md (native)        GEMINI.md pointer
-  .claude/commands/        ~/.codex, .github, etc.    .github/copilot-instr
-  .claude-plugin/          (Codex/OpenCode/Copilot    (one-line "read
-   (spawn sub-agents)       read AGENTS.md directly)    AGENTS.md")
-        └────────────────────────┼─────────────────────────┘
-                                 │ all point at ONE canonical core
-                                 ▼
-┌──────────────────────────────────────────────────────────────────────┐
-│  PORTABLE CORE  (single-source markdown — identical for every tool)    │
+│  ENTRY: host coding agent reads the ADAPTER (the only place a path     │
+│         root is resolved to an absolute string)                        │
 │                                                                        │
-│  AGENTS.md ──────────► substrate / index (minimal, high-signal)        │
-│                                                                        │
-│  ┌──────────────┐  ┌───────────────┐  ┌──────────────┐  ┌───────────┐ │
-│  │ roles/*.md   │  │ workflows/*.md│  │ handoffs/*.md│  │checklists/│ │
-│  │ THE PROGRAM  │  │ CONTROL FLOW  │  │ THE MESSAGES │  │ THE GATES │ │
-│  └──────┬───────┘  └───────┬───────┘  └──────┬───────┘  └─────┬─────┘ │
-│         │   read by host    │   followed by   │   produced by  │       │
-│  ┌──────┴───────────────────┴─────────────────┴────────────────┴────┐ │
-│  │ config/factory.config.json  ── THE DIAL (read first, every run)   │ │
-│  └───────────────────────────────────────────────────────────────────┘│
-└───────────────────────────────────┬────────────────────────────────────┘
-                                     │ writes / reconciles
-                                     ▼
-┌──────────────────────────────────────────────────────────────────────┐
-│  STATE PLANE  (mutable, git-tracked — the audit trail)                 │
-│                                                                        │
-│  plans/board.md        ◄── single source of WIP truth (columns+limits) │
-│  plans/tickets/*.md    ◄── per-ticket front-matter (MUST match board)  │
-│  plans/traceability.md ◄── req → ticket → code → test → UAT → release  │
-│  plans/nfr-catalog.md  ◄── NFR/SLO targets (IDs referenced by trace)   │
-│  plans/metrics.md      ◄── throughput/cycle/rework/escaped defects     │
-│  plans/sprints/*  releases/*  epics/*  features/*                      │
-│                                                                        │
-│  memory-bank/*         ◄── long-term memory + ADRs (50-decisions/)     │
-└──────────────────────────────────────────────────────────────────────┘
-        ▲                                          │
-        │ checked (structure only, no behavior)    │ guarded (mechanical)
-   scripts/validate-agent-factory.mjs       .claude-plugin hooks/ (PreToolUse
-   (board↔ticket match, trace completeness)  blocks prod deploy / protected merge)
+│   standalone .claude/skills/grugops/SKILL.md   (installer-materialized)│
+│   standalone .claude/agents/grugops-orchestrator.md                    │
+│   plugin     skills/<op>/SKILL.md              (${CLAUDE_PLUGIN_ROOT}) │
+└───────────────┬───────────────────────────────────┬──────────────────┘
+                │ KIT ROOT (absolute, read-only)     │ STATE ROOT (repo-relative)
+                ▼                                     ▼
+┌───────────────────────────────────┐   ┌──────────────────────────────────┐
+│  KIT HOME  (one of two)            │   │  TARGET REPO  (cwd / project dir) │
+│  ─ $GRUGOPS_HOME (~/.grugops)      │   │  plans/board.md                   │
+│    standalone install              │   │  plans/traceability.md            │
+│  ─ ${CLAUDE_PLUGIN_ROOT}           │   │  plans/tickets/ …                 │
+│    plugin install (CC-substituted) │   │  plans/handoffs/   ← RUNTIME write│
+│                                    │   │  memory-bank/*                    │
+│  agent-factory/roles/              │   │  factory.config.json  (repo root) │
+│  agent-factory/workflows/          │   └──────────────────────────────────┘
+│  agent-factory/checklists/         │
+│  agent-factory/packaging/          │   The agent NEVER expands a shell var
+│  agent-factory/handoffs/ (TEMPLATES│   in prose. Kit paths arrive already
+│     only — read, never write)      │   absolute (adapter/CC). State paths
+│  agent-factory/config/             │   are plain repo-relative literals.
+│     factory.config.json (DEFAULT)  │
+│  VERSION                           │
+└───────────────────────────────────┘
 ```
 
 ### Component Responsibilities
 
-| Component | Responsibility (what it owns) | Form |
-|-----------|-------------------------------|------|
-| **AGENTS.md** (root) | The substrate/index. Names the read-order contract ("start at orchestrator, read config, then board"), real commands, safety rules. Deliberately minimal — long machine-written context *lowers* agent success. | One markdown file |
-| **roles/*.md** | The program. One job, hard limits, defined Reads/Output/Board-moves/Trace-updates per role. The intelligence. | 16 markdown files (11 core + 5 enterprise) |
-| **workflows/*.md** | Control flow. Ordered steps wiring roles into a lifecycle/ceremony, declaring board moves, handoffs produced, trace + metrics emitted, stop/done conditions. | 14 markdown files |
-| **handoffs/*.md** | The messages / inter-role memory. Copy-paste packet templates; a completed packet is the call-return value between roles. | 16 templates |
-| **checklists/*.md** | The gates. DoR/DoD/PR/security/compliance/a11y/observability/release-readiness criteria, applied by mode. | 10 checklists |
-| **config/factory.config.json** (+ `.md` twin) | The dial. mode/cadence/autonomy/WIP/thresholds/regime. Read first, every run. Zero-config defaults baked into the orchestrator role. | 1 JSON + 1 MD |
-| **plans/board.md** | Single source of WIP truth. Columns, WIP limits, ticket placement. | 1 markdown file |
-| **plans/tickets/*.md** | Per-ticket detail + status front-matter that **must agree** with the board. | N markdown files |
-| **plans/traceability.md** | The proof. One row per ticket linking requirement→ticket→code→test→UAT→release. | 1 markdown table |
-| **plans/nfr-catalog.md / metrics.md** | NFR/SLO targets (IDs); flow metrics counts. | 2 markdown files |
-| **memory-bank/*** | Long-term memory: brief, product, architecture, progress, runbook, glossary; ADRs as individual files in `50-decisions/`. | Seed files + ADR dir |
-| **Dispatch adapters** (`packaging/` + per-tool entry files) | THIN bridge: entry file each tool reads + spawn-vs-sequential mapping + slash-command mechanism. Never copies role content. | Templates + generated pointers/symlinks |
-| **install/** | Idempotent, additive, dry-run, reversible installers (`install.sh` + `install.mjs`) that lay down only the adapters. | 2 scripts + uninstall |
-| **scripts/validate-agent-factory.mjs** | Structure + consistency checker (board↔ticket, trace completeness, required sections). No behavior, never fakes. | 1 optional Node script |
-| **.claude-plugin/ hooks/** | Mechanical safety (PreToolUse guard blocks prod deploy / protected-branch merge). | Plugin manifest + hooks |
+| Component | Responsibility | Implementation |
+|-----------|----------------|----------------|
+| **Adapter (standalone)** | Hold the *only* absolute kit-root reference; point at repo-relative state | `.claude/skills/*/SKILL.md` + `.claude/agents/grugops-orchestrator.md`, kit root materialized at install time |
+| **Adapter (plugin)** | Same job; kit root written `${CLAUDE_PLUGIN_ROOT}/agent-factory/...`, resolved by CC inline substitution | plugin `skills/<op>/SKILL.md`, plugin `agents/*.md` |
+| **Kit prose (roles/workflows)** | Address state strictly repo-relative; reference *other kit files* under the kit root via the single disambiguation rule | the ~31 role/workflow files, rewritten |
+| **`$GRUGOPS_HOME` / `${CLAUDE_PLUGIN_ROOT}`** | Name the kit home; never appear un-resolved in front of the LLM | env default `~/.grugops`; CC-managed plugin cache dir |
+| **Repo state** | All runtime writes (handoffs, board, trace, memory-bank) + per-repo config | `plans/`, `memory-bank/`, repo `factory.config.json` |
+| **Installer** | Resolve `$GRUGOPS_HOME`, copy kit there, materialize the absolute kit root into the standalone adapters, seed repo state, run the `--check` doctor | `install.sh` / `install.mjs` |
+| **`--check` doctor** | Verify every adapter/role-referenced path resolves (kit at home, state in repo) | new installer mode |
+| **Validator** | Two-root structure check (kit at KIT_ROOT, state in STATE_ROOT) | `scripts/validate-agent-factory.mjs` |
 
 ---
 
-## Recommended Project Structure
+## The runtime path-resolution mechanism (the core question)
 
-The spec §3 layout is correct and should be followed. The architecture annotations below mark **dependency direction** (what reads/depends on what) — this drives build order.
+### Why the agent cannot resolve `$GRUGOPS_HOME` itself
+
+The host agent reads markdown. When a role file says "read `$GRUGOPS_HOME/agent-factory/roles/ba-pm.md`", the LLM sees the literal `$GRUGOPS_HOME/...`. It is not a shell; it does not perform parameter expansion. It *might* helpfully guess `~/.grugops`, but "might guess" is exactly the dangling-path failure mode the dogfood (DOG-02) surfaced. The design must remove the guess.
+
+### Decision: the ADAPTER injects the resolved absolute kit root (primary), with a one-line bash-discovery self-heal (secondary)
+
+Two viable mechanisms; recommend a hybrid that defaults to injection.
+
+**Mechanism A — adapter materializes the absolute path (RECOMMENDED, primary).**
+At install, the installer resolves `$GRUGOPS_HOME` (env > default `~/.grugops`) to an absolute path and writes it *into* the standalone adapter text. The adapter the agent reads contains, literally:
 
 ```
-/
-  AGENTS.md                         # SUBSTRATE — points to everything below; depends on roles existing
-  CLAUDE.md / GEMINI.md (generated) # DISPATCH pointers — one line, "read AGENTS.md"
-
-  agent-factory/
-    config/
-      factory.config.json           # DIAL — foundational; roles read it first
-      factory.config.md             # human twin of the dial
-    roles/*.md                      # PROGRAM — depends on: config schema, handoff names, board columns
-    workflows/*.md                  # CONTROL FLOW — depends on: roles + handoffs + checklists existing
-    handoffs/*.md                   # MESSAGES — shared dep of roles AND workflows; build early
-    checklists/*.md                 # GATES — shared dep; build early
-    examples/*.md                   # depends on: everything (illustrative, build late)
-    packaging/                      # DISPATCH templates — depends on roles existing
-      adapters.md                   #   per-tool map + entry-file templates
-      subagent.frontmatter.md       #   Claude Code wrapper template
-      slash-command.template.md
-      claude-agents/*.md            #   (generated) thin wrappers, one per role
-      claude-commands/factory.md
-
-  install/                          # depends on: packaging templates
-    install.sh  install.mjs  uninstall.sh  README.md
-
-  .claude-plugin/                   # DISTRIBUTION — depends on agents/commands existing
-    plugin.json                     #   ONLY this file lives here
-    marketplace.json                #   single-plugin catalog (also in .claude-plugin/)
-
-  agents/  commands/  hooks/  skills/   # plugin-root components (NOT inside .claude-plugin/)
-
-  memory-bank/                      # MEMORY — substrate dep; seed early, ADRs accrete
-    00-index.md ... 80-glossary.md
-    50-decisions/ADR-000X-*.md
-
-  plans/                            # STATE PLANE — board first, others reference it
-    board.md  traceability.md  nfr-catalog.md  metrics.md
-    sprints/  releases/  epics/  features/  tickets/
-
-  scripts/validate-agent-factory.mjs   # depends on: all of the above (build last)
+Act as the grugops Orchestrator. The grugops kit lives at the KIT ROOT:
+  /Users/<user>/.grugops/agent-factory/
+Read /Users/<user>/.grugops/agent-factory/roles/orchestrator.md, then the project
+config at ./factory.config.json (repo root) and ./plans/board.md.
 ```
 
-### Structure Rationale
+- **Pro:** zero ambiguity — the LLM reads a real absolute path; no shell, no guess, no extra tool call. Mirrors what Claude Code already does for the plugin form (CC writes the absolute `${CLAUDE_PLUGIN_ROOT}` in). Parity between the two forms is structural, not accidental.
+- **Pro:** the `--check` doctor can verify the exact string in the adapter resolves on disk.
+- **Con:** the absolute path is now baked into a per-repo file. If the user moves `~/.grugops` or installs for another user, the adapter is stale → **re-running the installer re-materializes it** (idempotent rewrite of the grugops-owned adapter). The doctor catches a stale path loudly. Acceptable because the adapter is grugops-owned and installer-managed, not user-authored.
 
-- **`config/` is foundational** — every role reads it first. Its *schema* (field names, defaults) must be frozen before role files are written, because roles reference `mode`/`cadence`/`autonomy`/`wip_limits` by name. Treat the config schema as the API contract roles code against.
-- **`handoffs/` and `checklists/` are shared dependencies** of both roles and workflows. A role's "Output" section names a handoff template; a workflow's "Handoffs produced" lists them; checklists are the gate criteria roles apply. Build these *before* roles so role files can reference real filenames, not placeholders.
-- **`roles/` before `workflows/`** — a workflow is an ordered composition of roles; it cannot be written coherently until the roles it sequences exist and their I/O contracts are fixed.
-- **`packaging/` and `install/` after `roles/`** — adapters are thin pointers *to role files*. They cannot be generated correctly until the role filenames and the orchestrator's read-order contract are final.
-- **`plans/board.md` before other state files** — traceability, sprints, and metrics all reference ticket IDs that live on the board; the board's column vocabulary is also referenced by every role's "Board moves" section.
-- **`scripts/validate-*` and `examples/` last** — the validator asserts the *finished* structure (board↔ticket match, required sections); examples narrate the *finished* flow. Both are verification artifacts, not building blocks.
+**Mechanism B — adapter instructs a bash discovery call (self-heal / tools without injection).**
+The adapter layers a deterministic fallback under the injected path:
+
+```
+The grugops kit lives at: /Users/<user>/.grugops/agent-factory/
+If that path does not exist, resolve the kit root by running:
+  echo "${GRUGOPS_HOME:-$HOME/.grugops}"
+and use the printed absolute path as KIT ROOT for every kit read below.
+```
+
+- **Pro:** survives a moved `~/.grugops` without re-install; honors a per-session `GRUGOPS_HOME` override.
+- **Con:** depends on the agent actually making the bash call; spends a tool call; an agent that skips it dangles again. Less deterministic than injection — so it is the *fallback*, not the primary.
+
+**Recommendation:** ship **A as primary** (installer materializes the absolute kit root into every standalone adapter), with **B's bash line as the documented self-heal fallback** inside the adapter. The kit *prose* (roles/workflows) never names `$GRUGOPS_HOME` at all (next section).
+
+### The kit-internal cross-reference convention (the ~55 kit refs)
+
+Roles and workflows reference *each other* (orchestrator → `_role-switch-protocol.md`; a workflow → a role file). These must NOT bake an absolute path (the kit is relocatable and shared) and must NOT use `$GRUGOPS_HOME` (dead string). The convention keeps the edit small:
+
+- The **adapter** binds KIT ROOT to an absolute path once, then states the disambiguation rule.
+- The **kit prose** keeps writing bare `agent-factory/roles/<role>.md`, but its *meaning* is now fixed by the rule: "`agent-factory/...` = under KIT ROOT (read-only)."
+
+This is **the single disambiguation rule**, stated once in the adapter and once in `AGENTS.md`:
+
+> **Path rule.** Anything under `agent-factory/` is **kit** — read it from the KIT ROOT (the absolute path named above), never write it. Anything under `plans/`, `memory-bank/`, or the repo-root `factory.config.json` is **state** — read and write it in THIS repository. `plans/handoffs/` is where roles WRITE their handoff packets at runtime; `agent-factory/handoffs/` holds the blank TEMPLATES only.
+
+So the kit-to-kit refs (~55) keep their `agent-factory/...` prefix (now meaning "under KIT ROOT"); the only *semantic* rewrites are the 50 handoff refs (`agent-factory/handoffs/` → `plans/handoffs/` for **writes**; template **reads** stay `agent-factory/handoffs/`) and the 32 config refs (`agent-factory/config/factory.config.json` → repo `factory.config.json`).
+
+### Handoff split (the 50 refs) — read template vs write instance
+
+The role-switch protocol step 4 today says "write the role's handoff file under `agent-factory/handoffs/`." Under the split:
+
+- **TEMPLATE read** (blank packet shape): `agent-factory/handoffs/<name>.md` → KIT ROOT, read-only.
+- **INSTANCE write** (filled packet for this request): `plans/handoffs/<name>.md` → repo, writable.
+
+`_role-switch-protocol.md` step 4 becomes: "read the template from `agent-factory/handoffs/<name>.md` (kit), fill it, and **write the instance under `plans/handoffs/`** (repo)." This is the single highest-value prose edit — it is where the read/write root split is most error-prone and where the dogfood would dangle. (Sequence note from the design: merge/rebase `grugops/quick-harden-role-switch-autocommit` first so the protocol text is edited once.)
 
 ---
 
-## Architectural Patterns
+## Per-repo config location decision
 
-### Pattern 1: Single-source content, thin generated/symlinked dispatch
+**Decision: repo-root `factory.config.json` (NOT `.grugops/factory.config.json`).** Confidence: MEDIUM-HIGH.
 
-**What:** Role text lives exactly once in `agent-factory/roles/*.md`. Per-tool adapters are *pointers* (a symlink, or a 3-line wrapper that says "follow `agent-factory/roles/orchestrator.md` exactly"), never copies. The canonical rule from the brand manual and spec §16: **"only the dispatch differs, never the content."**
+| Option | For | Against |
+|--------|-----|---------|
+| **Repo root `factory.config.json`** (RECOMMENDED) | Visible, greppable; matches how every role already references the dial conceptually; one fewer dir level across 32 refs; mirrors `package.json`/`tsconfig.json` ergonomics; a human reviewer sees the dial immediately | Adds a top-level file to the user's repo (but it is small, human-readable, and per-repo config is the whole point) |
+| `.grugops/factory.config.json` | Groups state under one dot-dir; tidy root | Hidden by default; longer path in 32 refs; competes with `plans/` as "where grugops state lives" — two state roots is worse than one |
 
-**When to use:** Always, for every piece of role/workflow/handoff/checklist text. This is the project's defining constraint.
-
-**Trade-offs:** Symlinks are zero-drift (the adapter *is* the source) but break on Windows checkouts without symlink support and are not copied into the Claude Code plugin cache (plugins copy their directory; `../` references won't resolve — verified in current docs). Generated 3-line pointer wrappers work everywhere and survive the plugin cache, but they duplicate the *pointer* (not the content) and need regeneration if filenames change. **Recommendation: ship pointer-wrappers as the portable default** (a wrapper whose entire body is "read and obey `<canonical path>`"), and offer symlinks as an install-time optimization on POSIX. The content still lives once; only an indirection line is repeated.
-
-**Example (Claude Code thin sub-agent wrapper — verified frontmatter fields):**
-```markdown
----
-name: factory-engineer
-description: Implements one ticket from a complete handoff. Use to take a Ready-for-Dev
-  ticket through code + tests on a branch. Routes back to the Orchestrator for the gate.
-tools: Read, Grep, Glob, Bash, Edit, Write
-model: inherit
----
-You follow `agent-factory/roles/software-engineer.md` exactly. Read it now, then the config,
-the ticket, and the implementation-ready packet. Produce plans/implementation-handoff.md and
-update the board + traceability. Never merge a protected branch. Never deploy prod.
-```
-The role *intelligence* is in `software-engineer.md`; the wrapper only bridges Claude Code's spawn mechanism. The `description` field is load-bearing — it is exactly how Claude Code auto-routes work to this sub-agent (verified: "Claude uses each subagent's description to decide when to delegate").
-
-### Pattern 2: Read-order contract as the universal interface
-
-**What:** Every entry file, in every tool, enforces one sentence: *"All work starts with `agent-factory/roles/orchestrator.md`. Read `AGENTS.md`, then the orchestrator role, then `config/factory.config.json`, then `plans/board.md`."* This single contract is what makes five different dispatch mechanisms behave identically.
-
-**When to use:** It is the seam between the (varying) dispatch layer and the (identical) core. Bake it into AGENTS.md, every generated pointer, the orchestrator wrapper, and the slash command.
-
-**Trade-offs:** Relies on the host agent honoring instructions (no hard enforcement outside Claude Code hooks). Mitigation: keep it short and put it first; long substrates lower compliance.
-
-### Pattern 3: Orchestrator-as-dispatcher with two physical realizations
-
-**What:** The same logical workflow is realized two ways depending on tool capability:
-- **Spawn mode (Claude Code):** Orchestrator runs as the main thread (via the plugin `settings.json` `agent` key, or `claude --agent factory-orchestrator`) and **spawns** role sub-agents through the Agent tool (renamed from `Task` in v2.1.63; `Task` still works as an alias — verified). Each sub-agent gets a fresh isolated context and returns a summary (the handoff).
-- **Sequential mode (Codex/Gemini/OpenCode/Copilot):** Orchestrator is a single agent that **loads the relevant role file into its own context** when it would otherwise "wake" that role, then continues.
-
-Crucially, **both produce the same handoff packets, hit the same gates, and write the same board/trace updates.** The handoff file is the interface; spawn-vs-sequential is an implementation detail beneath it.
-
-**When to use:** Spawn mode whenever the host supports real sub-agents (currently only Claude Code among the five). Sequential everywhere else.
-
-**Trade-offs:** Spawn mode preserves the main context (verbose work stays in the sub-agent) but **sub-agents cannot spawn sub-agents** (verified) — so the orchestrator must be the *only* spawner; roles are leaves. This maps perfectly to grugops's "head grug routes, single-job grugs execute" design. Sequential mode pollutes one context with all role text but needs zero spawn machinery and is the lowest common denominator. Designing handoffs as the contract means a workflow author never has to know which mode is in play.
-
-**Example (the equivalence that must hold):**
-```
-WORKFLOW 04-ticket-to-pr  ── identical steps & outputs in both modes ──
-  spawn mode:        Orchestrator --Agent--> factory-engineer --> implementation-handoff.md
-                     Orchestrator --Agent--> factory-qe        --> qe-handoff.md
-  sequential mode:   Orchestrator reads software-engineer.md   --> implementation-handoff.md
-                     Orchestrator reads qe-e2e.md              --> qe-handoff.md
-  BOTH:  board: Ready for Dev -> In Development -> In Review; trace row updated; same gate result
-```
-
-### Pattern 4: Backpressure loop encoded as a deterministic workflow (no runtime)
-
-**What:** The §14 loop — *deterministic prefetch → implement on branch → gate (install/lint/typecheck/unit/build/e2e, commands sourced from AGENTS.md) → bounded self-fix (default 2 from config) → result* — is encoded purely as ordered, numbered steps in `workflows/05-pr-quality-gate.md`, with the orchestrator role enforcing the loop bound. There is no scheduler; the "loop" is a workflow instruction the agent follows: *"if the gate fails and attempts < self_fix_attempts, fix and re-run; else STOP and emit BLOCKED_NEEDS_FIX."*
-
-**When to use:** Every code-producing path (04→05). It is the mechanism that lets humans review architecture instead of typos.
-
-**Trade-offs:** Bounded by the host agent's willingness to count attempts and stop — markdown can't force a hard stop. Two mitigations make it robust: (a) make the bound explicit and small in config (`self_fix_attempts: 2`) and restate it in the workflow's Stop conditions; (b) require the gate to record `UNKNOWN - verify` rather than fabricate a pass when a command is missing from AGENTS.md (a no-fabrication invariant, not a runtime check). The three terminal results — `READY_FOR_HUMAN_REVIEW | BLOCKED_NEEDS_FIX | SPLIT_REQUIRED` — are the workflow's return type.
-
-**Example (workflow step encoding):**
-```markdown
-## Steps
-1. Prefetch: read ticket, handoffs, AGENTS.md Commands section, prior ADRs, touched files.
-2. Implement on branch (autonomy=branch|pr).
-3. Run gate in order: install -> lint -> typecheck -> unit -> build -> e2e
-   (commands ONLY from AGENTS.md; unknown -> record "UNKNOWN - verify", never fake a pass).
-4. If gate fails AND fix_attempts < config.quality.self_fix_attempts: fix, fix_attempts++, goto 3.
-5. Else emit result: READY_FOR_HUMAN_REVIEW | BLOCKED_NEEDS_FIX | SPLIT_REQUIRED.
-## Stop conditions
-- fix_attempts == self_fix_attempts and gate still red -> STOP, hand to human.
-```
-
-### Pattern 5: Mechanical safety via host hooks, not prompts
-
-**What:** "Agents never merge a protected branch or deploy prod without human confirmation" is enforced by a Claude Code `PreToolUse` hook (a matcher on Bash that blocks `kubectl ... apply`, `git push` to protected refs, deploy commands) — exit code 2 blocks the call. The prompt-level rule remains as defense-in-depth, but the hook is the guarantee.
-
-**When to use:** Wherever the host supports hooks (Claude Code). On tools without hooks, the rule degrades to prompt-only — document this honestly as a portability limitation.
-
-**Trade-offs:** Only Claude Code among the five has the hook mechanism, so mechanical enforcement is tool-specific (acceptable: it's the recommended/native tool, and the brand promise "humans decide, agents execute" is strongest there). Plugin sub-agents **cannot** declare `hooks`/`mcpServers`/`permissionMode` in frontmatter (verified) — so the prod-deploy guard must live in the plugin's `hooks/hooks.json` (session-level), not in a sub-agent file.
+**Deterministic discovery rule for roles:** the project config is **always** at the repo root as `factory.config.json` (a single fixed repo-relative literal). **Fallback (zero-config-first constraint):** if absent in the repo, roles fall back to the **kit default** at `<KIT ROOT>/agent-factory/config/factory.config.json`, and if that too is unreadable, to documented lean defaults (`mode=lean`, `cadence=kanban`, `autonomy=pr`). The installer seeds the repo `factory.config.json` from the kit default at install, so the common path is "repo config present." Keep all *other* per-repo state under `plans/`/`memory-bank/` — do **not** introduce a `.grugops/` dir; two state roots multiplies the resolution surface the dogfood proved fragile.
 
 ---
 
-## Data Flow
+## The single resolution rule across both kit homes
 
-### State write/reconcile flow (how board, tickets, and trace stay consistent)
-
-```
-[Role completes a unit of work]
-        │
-        ├─► writes its handoff packet            (handoffs/*.md — the message)
-        │
-        ├─► moves the ticket on plans/board.md   (column transition it OWNS, per role's "Board moves")
-        │       └─ updates ticket front-matter:  status: + column:  (MUST equal board column)
-        │
-        ├─► appends its link to traceability.md   (Architect→ADR/NFR; Engineer→PR/files;
-        │                                           QE→tests; UAT→result; Release→REL id)
-        │
-        └─► (daily-sweep / retro) updates metrics.md and memory-bank/60-progress.md
-        ▼
-[Orchestrator daily-sweep reconciles]  ── reads board + open handoffs, fixes drift, escalates blocked
-        ▼
-[validate-agent-factory.mjs]  ── stateless check: every ticket file's column == its board column;
-                                  every ticket has a trace row; flags rows missing tests/UAT
-```
-
-### The consistency model (explicit)
-
-This is the crux of the downstream question. There is **no database and no transaction**, so consistency rests on three layers:
-
-1. **Single-writer-per-transition convention.** Each board column has exactly one *exit owner* role (spec §6.1: Backlog/Ready→BA/PM, In Development→Software Engineer, In Review→QE/E2E, etc.). Only the exit owner moves a ticket out of its column. This makes concurrent contradictory edits a role-discipline violation, not a race condition — and in spawn mode the orchestrator serializes role activation anyway.
-
-2. **Redundant-but-mirrored state with a designated source of truth.** `plans/board.md` is the **single source of WIP truth**; each `plans/tickets/<ID>.md` carries `status:` + `column:` front-matter that must *mirror* it. Mirroring (not normalizing) is deliberate — both humans and agents read tickets and the board independently. The invariant "ticket.column == board column" is what the validator checks. The board is authoritative on conflict.
-
-3. **Append-mostly, monotonic traceability.** Each role *appends* its link to the trace row as work progresses (BA/PM creates the row at ticket birth; later roles fill cells left→right). A row is "complete through the relevant stage" as a DoD criterion — enterprise DoD is *not met* until the row reaches the required stage. The validator flags incomplete rows. Because cells only fill forward, there's no update-conflict surface.
-
-**ID schemes are the join keys** (spec §10): `EPIC/FEAT/ABC/ADR/NFR/RISK/REL/INC`, prefix from config (`id_prefix`, default `ABC`). These stable IDs are the only thing linking board ↔ ticket ↔ trace ↔ NFR catalog ↔ release — they function as foreign keys across the markdown "tables." Getting the ID scheme right early is load-bearing for every downstream consistency check.
-
-### Handoff / memory model (three time horizons)
+One rule, two bindings of `KIT ROOT`:
 
 ```
-SHORT-TERM (this unit of work):   handoffs/*.md          ── inter-role message, the "call return value"
-MEDIUM-TERM (this project):       plans/* (board, trace) ── live state + audit trail
-LONG-TERM (institutional):        memory-bank/*          ── brief, product, arch, progress, runbook, glossary
-                                  memory-bank/50-decisions/ADR-000X-*.md  ── one ADR per file, immutable-ish
+KIT ROOT (read-only kit) :=
+    standalone  → the absolute path the installer materialized
+                  (resolved from $GRUGOPS_HOME, default ~/.grugops),
+                  optionally self-healed via `echo "${GRUGOPS_HOME:-$HOME/.grugops}"`
+    plugin      → ${CLAUDE_PLUGIN_ROOT}   (Claude Code substitutes this inline in
+                  skill/agent content before the LLM reads it — verified HIGH)
+
+STATE ROOT (read/write state) :=
+    always      → THIS repository (cwd / project dir). Plain repo-relative literals:
+                  plans/…, memory-bank/…, factory.config.json. (Plugin form MAY write
+                  ${CLAUDE_PROJECT_DIR} for an absolute repo anchor, but bare
+                  repo-relative is enough — the agent's working dir is the repo.)
+
+DISAMBIGUATION (stated in the adapter + AGENTS.md):
+    agent-factory/…  ⇒ under KIT ROOT, read-only
+    plans/… memory-bank/… factory.config.json ⇒ in THIS repo, read/write
+    agent-factory/handoffs/…  ⇒ TEMPLATE (kit, read)
+    plans/handoffs/…          ⇒ INSTANCE (repo, write)
 ```
-- **Handoffs are the working memory between roles.** A completed packet (universal header + per-role body) is what one role hands the next; in spawn mode it is literally the sub-agent's returned summary. Designing the universal handoff header (with the v2 `Ticket ID` and `Trace updates` fields) first lets every role and workflow reference a stable contract.
-- **memory-bank is the seed + long memory.** Seed structure (`00-index` → `80-glossary`) is written at bootstrap; it persists across all work. ADRs are **individual files** (not one growing log) so each decision is independently linkable from a trace row (`ADR-000x`) and diff-friendly. Note: Claude Code sub-agents also support an optional native `memory:` directory — but grugops should keep its memory in `memory-bank/*` so it stays portable across all five tools, not tool-specific.
+
+**Why this is one rule, not two:** the 31 kit files are written once and shared verbatim by both distribution forms (honoring the single-source constraint). The kit prose always says "kit = `agent-factory/...` under KIT ROOT; state = repo-relative." Only the **adapter line that binds KIT ROOT** differs — installer-injected absolute path (standalone) vs `${CLAUDE_PLUGIN_ROOT}` (plugin). The plugin's inline self-expansion means the plugin adapter needs no installer materialization step, but it still obeys the same disambiguation rule.
+
+**Plugin-cache caveat (the open D-31 item):** plugins are copied to a cache; files referenced via `../` outside the plugin dir are NOT copied (verified). Therefore the plugin form must **bundle `agent-factory/` inside the plugin directory** so `${CLAUDE_PLUGIN_ROOT}/agent-factory/...` resolves inside the cached copy. It must NOT point at a repo-relative `agent-factory/` (won't exist in the target) nor at `$GRUGOPS_HOME` (a plugin install has no step to populate it). This is the verification the dogfood must close.
 
 ---
 
-## Build Order (dependency-aware sequence)
+## Migration (already-installed repo → split layout)
 
-Derived from the read/depend arrows above. Each stage's outputs are the next stage's inputs. This is the recommended phase backbone for the roadmap.
+**Goal:** move a repo with in-repo `agent-factory/` + symlinked adapters to the split layout, idempotently, never deleting user state. Recommend a dedicated `install.sh --migrate` mode (mirrored in `install.mjs`), distinct from a fresh install.
 
-```
-STAGE 0  SUBSTRATE + DIAL + STATE SKELETON   (everything else references these)
-  - config/factory.config.json schema + .md twin (FREEZE field names + zero-config defaults)
-  - ID scheme + prefix convention (join keys for all state)
-  - plans/board.md (column vocabulary + WIP-limit format)  ← referenced by every role's "Board moves"
-  - empty state files: traceability.md, nfr-catalog.md, metrics.md; sprints/ releases/ epics/ features/ tickets/
-  - root AGENTS.md substrate (read-order contract, safety rules) — minimal
-  WHY FIRST: config schema, board columns, and IDs are the vocabulary every later file cites by name.
+**Algorithm (idempotent, additive, reversible, DRY_RUN-capable):**
 
-STAGE 1  SHARED DEPENDENCIES   (referenced by both roles and workflows)
-  - handoffs/*.md (universal header FIRST, then per-role + packets)
-  - checklists/*.md (DoR, DoD lean, DoD enterprise, PR, security/NFR, compliance, a11y, observability, release-readiness, UAT)
-  - memory-bank/* seed files + 50-decisions/ ADR convention
-  WHY HERE: roles name their Output handoff and apply checklists; build the targets before the referencers.
+1. **Detect prior layout.** In-repo `./agent-factory/` present AND it is the grugops kit (heuristic: `agent-factory/VERSION` + `agent-factory/roles/orchestrator.md`). If absent → no-op, exit clean.
+2. **Ensure kit at `$GRUGOPS_HOME`.** Copy the kit from the installer's `GRUGOPS_SRC` to `$GRUGOPS_HOME` if not already current (idempotent — skip identical files). Use the shipped kit as source of truth, not the user's possibly-edited in-repo copy.
+3. **Rescue filled handoff INSTANCES.** The old layout wrote runtime handoffs to `agent-factory/handoffs/`. Move any `agent-factory/handoffs/*.md` that **differs from the kit template** to `plans/handoffs/` — never overwrite an existing `plans/handoffs/` file (on collision, leave both and report `verify`). Blank templates matching the kit are ignored (they live in the shared kit now). `plans/`, `memory-bank/` are already repo-local — untouched.
+4. **Seed repo config if missing.** If the user kept config at `agent-factory/config/factory.config.json`, copy it to repo-root `factory.config.json` only if the repo root has none (never overwrite). Report the move.
+5. **Re-materialize adapters.** Remove the old symlinked adapters that point into the in-repo clone (grugops-owned paths only: `.claude/skills/grugops*`, `.claude/agents/grugops-orchestrator.md`); lay down the new copy-form adapters with the absolute KIT ROOT materialized. Update the `CLAUDE.md` sentinel block's pointer text (repo-relative → KIT ROOT form) — idempotent via the existing sentinel.
+6. **Quarantine, do not delete, the old in-repo kit.** Do NOT `rm -rf ./agent-factory/`. Report: "the in-repo `agent-factory/` is now superseded by `$GRUGOPS_HOME`; safe to `git rm` once you confirm — grugops will not delete it for you." Optionally offer a separate, explicit, non-default `--prune-old-kit` that removes only unmodified kit files and refuses if any file differs.
+7. **Run the `--check` doctor.** Verify the new layout resolves end to end; fail loudly listing any unresolved path.
 
-STAGE 2  ROLES   (the program)
-  - core 11: orchestrator FIRST (defines routing + read-order it enforces), then mappers, ba-pm,
-    system-analyst, architect-design, software-engineer, qe-e2e, security-nfr, uat-planner, agents-md-scribe
-  - enterprise 5: release-manager, compliance-officer, incident-responder, factory-coach, installer
-  WHY HERE: each role references config fields, board columns, handoff names, checklist names (Stages 0–1).
-            Orchestrator must come first; it is the contract the others slot into.
-
-STAGE 3  WORKFLOWS   (control flow composing roles)
-  - lifecycle/bootstrap: 00-bootstrap-greenfield ... 06-uat-pack
-  - ceremonies: 07-refinement ... 11-retro
-  - enterprise: 12-release, 13-incident
-  WHY HERE: a workflow is an ordered composition of existing roles + handoffs + board moves + gates.
-
-STAGE 4  DISPATCH / PACKAGING / INSTALL   (thin adapters pointing at finished roles)
-  - packaging/: adapters.md, subagent.frontmatter.md, slash-command.template.md, generated claude-agents/*, claude-commands/factory.md
-  - .claude/ standalone form (thin wrappers + /grug command + one-line CLAUDE.md)
-  - .claude-plugin/ form (plugin.json + marketplace.json + agents/ commands/ hooks/), incl. PreToolUse prod-deploy guard
-  - per-tool pointers (GEMINI.md, .github/copilot-instructions.md); Codex/OpenCode read AGENTS.md natively
-  - install/install.sh + install.mjs + uninstall.sh (idempotent, additive, dry-run, reversible)
-  WHY HERE: adapters are pointers to role files; their content can't be finalized until role paths + the
-            orchestrator read-order are frozen (Stage 2). Safety hook lives at plugin/session level, not in sub-agent frontmatter.
-
-STAGE 5  VERIFICATION + COLLATERAL + DOGFOOD   (asserts the finished system)
-  - scripts/validate-agent-factory.mjs (structure + board↔ticket + trace completeness + packaging presence)
-  - examples/* (narrate finished flows: greenfield, brownfield, ticket→PR, sprint cycle, release run)
-  - brand/docs collateral (README hero, NOTICE, CONTRIBUTING, wordmark/icon SVGs, FAQ)
-  - DOGFOOD: install via /grug on a throwaway repo, bootstrap, take one ticket idea→PR end-to-end
-  WHY LAST: the validator and examples describe a complete structure; dogfood exercises the whole chain.
-```
-
-**Ordering rationale in one line each:**
-- *Config + IDs + board before roles* — roles cite them by name; changing them later forces a rewrite of every role.
-- *Handoffs + checklists before roles* — they are the I/O contracts roles declare.
-- *Roles before workflows* — workflows sequence roles; orchestrator before all (it is the routing contract).
-- *Adapters after roles* — adapters are pointers to role files and the read-order contract.
-- *Validator + examples + dogfood last* — they assert and exercise the finished whole.
+**Idempotency:** re-running `--migrate` after success is a no-op (kit current, adapters materialized, handoffs moved, sentinel present). DRY_RUN=1 narrates every step and changes nothing. Honors the installer contract: additive, idempotent, reversible, never deletes user content.
 
 ---
 
-## Scaling Considerations
+## Validator / test impact
 
-"Scale" here is **file/repo growth and multi-tool/multi-package reach**, not user load (there is no server).
+### `scripts/validate-agent-factory.mjs` (single-tree assumption to break)
 
-| Scale | Architecture adjustments |
-|-------|--------------------------|
-| Solo founder, single repo (lean, kanban) | Zero config; core 11 roles; board + light DoD only; skip Security/NFR + Release columns unless a trigger fires. Markdown-only is plenty. |
-| Small team, one repo, enterprise flag on | Enterprise pack active; full DoD; traceability completeness enforced; NFR catalog + compliance/a11y/observability gates; scrum cadence optional with `sprints/` files. |
-| Monorepo, many packages (`repo_strategy: mono`) | Nested `AGENTS.md` per package pointing back to the root factory; one board or per-area boards; IDs still global. Watch board.md size — split by area if a single board file gets unwieldy. |
-| Polyrepo / mixed-CLI org (`repo_strategy: poly`) | One AGENTS.md per repo + a root index; the *same* portable core copied (or git-subtree'd) per repo; plugin/marketplace distribution becomes the update channel so every repo tracks one version. |
+Today `ROOT` is one tree and every check is `join(ROOT, <fixed rel>)` mixing kit and state literals (lines 30-35, 183-213). Split into **two roots**:
 
-### Scaling priorities (what strains first)
+- **`KIT_ROOT`** (env `GRUGOPS_VALIDATE_KIT` > default `$GRUGOPS_HOME` > legacy `VALIDATE_ROOT` for back-compat): validates `agent-factory/{roles,workflows,checklists,packaging,handoffs,config}`, `VERSION`. The role/workflow section checks, role-switch-protocol reference, commit-convention, and per-workflow `## Commit` checks all move under `KIT_ROOT`.
+- **`STATE_ROOT`** (env `VALIDATE_ROOT` > cwd): validates `plans/board.md`, `plans/traceability.md`, `plans/nfr-catalog.md`, `plans/metrics.md`, repo `factory.config.json`, the board↔ticket↔trace checks, and the new **`plans/handoffs/`** existence.
+- **Config check moves to STATE_ROOT** (`factory.config.json` at repo root), with the kit-default fallback as a separate KIT_ROOT check.
+- **New cross-root check (the doctor's structural half):** every `agent-factory/...` path the adapters reference exists under KIT_ROOT; every `plans/...` path exists under STATE_ROOT.
+- **Back-compat:** when only `VALIDATE_ROOT` is set (the v1.0 single-tree fixture self-test), default `KIT_ROOT := STATE_ROOT := VALIDATE_ROOT` so the existing GOOD/BAD fixtures still pass against a combined tree. Add new split-layout fixtures.
 
-1. **First strain — board.md and traceability.md as single files.** Hundreds of tickets make these large to read/diff. Fix: archive Done tickets to a `plans/archive/`, keep the live board lean; the validator should ignore archived rows. WIP limits naturally cap In-flight rows.
-2. **Second strain — content drift across tools.** As tools add features, the temptation to special-case role *content* per tool grows. Fix: hold the line — any per-tool difference goes in the dispatch layer or is documented as a known limitation; the validator can assert adapters are pointers (no large bodies) by size/heuristic.
-3. **Third strain — Claude Code feature churn.** Sub-agent/plugin conventions move fast (Task→Agent rename, skills/ superseding commands/, AGENTS.md support still pending). Fix: isolate every tool-version-specific assumption in `packaging/adapters.md` marked "verify against current tool docs," so updates touch one file.
+Keep the file's invariants: stdlib-only, read-only, never fabricates a pass, never creates `package.json`, two-tier ERROR/WARNING with `--strict`, every read wrapped in try/catch.
+
+### `install/install.test.sh` (+ `validate.test.sh`)
+
+- The fixture's "frozen core" file currently lives at `agent-factory/roles/orchestrator.md` in the *target* (proving uninstall never deletes it). Under the split, the kit is not in the target — update the fixture to place the frozen-core sentinel where the new installer touches, and add a **separate `$GRUGOPS_HOME` fixture** the installer copies the kit into.
+- New tests: (a) fresh split install lays kit at `GRUGOPS_HOME` + materializes the absolute KIT ROOT into the adapter + seeds repo `factory.config.json` + `plans/handoffs/`; (b) `--check` doctor passes on a good split, fails loudly on a missing kit; (c) `--migrate` on an old-layout fixture moves filled handoffs to `plans/handoffs/`, seeds repo config, re-materializes adapters, never deletes the old in-repo `agent-factory/`; (d) double-`--migrate` is zero-diff; (e) `install.sh` vs `install.mjs` parity on the split tree (extend the existing parity check).
+- `INSTALL_MODE`: **copy becomes the default** (drop the D-30 symlink default — the dogfood disliked symlinks); keep `INSTALL_MODE=symlink` as opt-in. Tests already force copy for deterministic diffs — keep that.
 
 ---
 
 ## Anti-Patterns
 
-### Anti-Pattern 1: Copying role text into per-tool adapters
+### Anti-Pattern 1: writing `$GRUGOPS_HOME` into role/skill prose and hoping the agent expands it
+**What people do:** put `read $GRUGOPS_HOME/agent-factory/roles/x.md` in a SKILL body.
+**Why it's wrong:** the LLM does not run a shell over prose; standalone expands nothing, and plugin form expands only `${CLAUDE_PLUGIN_ROOT|DATA}`/`${CLAUDE_PROJECT_DIR}` (not arbitrary env vars) in skill/agent content. Dead string in both forms → dangling read (the DOG-02 failure).
+**Do this instead:** the installer materializes the absolute KIT ROOT into the standalone adapter; the plugin adapter uses `${CLAUDE_PLUGIN_ROOT}`. Kit prose never names the env var.
 
-**What people do:** Paste the orchestrator/engineer prompt into `.claude/agents/*.md`, `GEMINI.md`, Codex config, etc., "so each tool has what it needs."
-**Why it's wrong:** Five copies drift the moment one is edited. This violates the single hardest constraint in the spec and the brand promise ("only the dispatch differs, never the content"). It also makes the validator's job impossible and turns a content edit into a five-file change.
-**Do this instead:** Adapter bodies are pointers only — *"follow `agent-factory/roles/<role>.md` exactly; read it now."* Content lives once. Use symlinks where supported, pointer-wrappers everywhere else (and inside the plugin cache, since plugins copy their dir and can't reach `../`).
+### Anti-Pattern 2: two per-repo state roots (`.grugops/` AND `plans/`)
+**What people do:** put config under `.grugops/` while state stays under `plans/`.
+**Why it's wrong:** doubles the resolution surface the dogfood proved fragile; a role must now know which dot-dir vs which plain dir.
+**Do this instead:** repo-root `factory.config.json`; everything else under `plans/`/`memory-bank/`. One config file, one state-dir family.
 
-### Anti-Pattern 2: A fat, machine-generated AGENTS.md
+### Anti-Pattern 3: plugin adapter pointing at `$GRUGOPS_HOME` or a repo-relative `agent-factory/`
+**What people do:** reuse the standalone path form in the plugin.
+**Why it's wrong:** the plugin is copied to a cache; `../`/repo-relative kit refs aren't copied and `$GRUGOPS_HOME` is never populated by a plugin install.
+**Do this instead:** bundle `agent-factory/` inside the plugin dir and address it as `${CLAUDE_PLUGIN_ROOT}/agent-factory/...`.
 
-**What people do:** Auto-dump every command, every rule, every role summary into AGENTS.md "to be thorough."
-**Why it's wrong:** Long machine-written context files measurably *lower* agent success and raise cost (spec §5.A.2, §17.1). It also duplicates content that belongs in role/workflow files — re-introducing drift.
-**Do this instead:** Keep AGENTS.md minimal and high-signal: mission, the read-order contract, real commands (unknown → `UNKNOWN - verify`), safety rules, and pointers. Push all detail into the files it references. The AGENTS.md Scribe's job is *removal* as much as authoring.
-
-### Anti-Pattern 3: Letting board.md and ticket front-matter diverge
-
-**What people do:** Move a ticket on the board but forget the ticket file's `status:`/`column:` (or vice versa); or let two roles edit the same ticket's column.
-**Why it's wrong:** The board is the single source of WIP truth; divergence breaks the audit trail and the validator, and makes the daily sweep lie.
-**Do this instead:** Enforce single-writer-per-transition (only the column's exit owner moves it), mirror status in both places on every move, run the daily-sweep reconciliation, and let the validator hard-fail on `ticket.column != board column`.
-
-### Anti-Pattern 4: An unbounded self-fix loop ("just keep trying until green")
-
-**What people do:** Tell the agent to fix-and-rerun the gate until it passes.
-**Why it's wrong:** Burns tokens, hides real blockers, and can fabricate a pass on a missing command. Defeats backpressure (the point is to hand *architecture* to humans, not loop on typos forever).
-**Do this instead:** Bound the loop in config (`self_fix_attempts: 2`), restate the bound in the workflow Stop conditions, emit `BLOCKED_NEEDS_FIX`/`SPLIT_REQUIRED` on exhaustion, and record `UNKNOWN - verify` rather than faking a pass.
-
-### Anti-Pattern 5: Enforcing prod safety by prompt only
-
-**What people do:** Rely on "never deploy prod" in the role text.
-**Why it's wrong:** A prompt is a hope, not a guarantee; "humans decide, agents execute" must be mechanical to mean anything (PROJECT.md constraint).
-**Do this instead:** Ship a Claude Code `PreToolUse` hook (plugin `hooks/hooks.json`, session-level — sub-agent frontmatter can't carry hooks in plugins) that blocks prod-deploy / protected-branch commands by exit code 2. Keep the prompt rule as backup. Document honestly that non-hook tools degrade to prompt-only.
-
-### Anti-Pattern 6: Building workflows before roles (or roles before the config schema)
-
-**What people do:** Write the lifecycle workflows first because they feel like "the product."
-**Why it's wrong:** A workflow references roles, handoffs, board columns, and config fields that don't yet exist; you end up rewriting against placeholders and inviting inconsistency.
-**Do this instead:** Follow the dependency order — config schema + board + IDs → handoffs + checklists → roles (orchestrator first) → workflows → adapters → validator/examples/dogfood.
+### Anti-Pattern 4: migration that deletes the old in-repo `agent-factory/`
+**What people do:** `rm -rf ./agent-factory` to "clean up."
+**Why it's wrong:** violates "never delete user content"; the user may have edited the kit in place.
+**Do this instead:** quarantine + report; offer deletion only behind an explicit non-default `--prune-old-kit` that refuses on any diff.
 
 ---
 
 ## Integration Points
 
-### External "services" (host tools — the runtime)
+### Files that bind a root (the only places resolution happens)
 
-| Tool | Integration pattern | Notes / gotchas (verified mid-2026) |
-|------|---------------------|--------------------------------------|
-| **Claude Code** | Native sub-agents (spawn via Agent tool) + plugin + hooks | `Task` tool renamed `Agent` in v2.1.63 (`Task` still aliases). Sub-agents **cannot spawn sub-agents** → orchestrator is sole spawner, roles are leaves. Auto-routing is driven by the sub-agent `description` field. Plugin commands/skills namespace as `/<plugin>:<cmd>`; bare `/grug` requires standalone `.claude/commands/grug.md` OR naming the plugin `grug` (→ `/grug:plan`). Plugin sub-agents can't declare `hooks`/`mcpServers`/`permissionMode`. AGENTS.md support still pending → use one-line CLAUDE.md pointer. `settings.json` `agent` key can make the orchestrator the default main thread. `${CLAUDE_PLUGIN_ROOT}` for bundled script paths. Plugins are copied to a cache — no `../` references; use symlinks if sharing files. |
-| **Codex CLI** | Reads `AGENTS.md` natively (root + nested; `~/.codex/AGENTS.md` global) | No adapter needed; AGENTS.md must point to roles. Sequential role-load (no spawn). |
-| **Gemini CLI** | `GEMINI.md` pointer | One-line "read AGENTS.md and orchestrator role." Sequential. |
-| **OpenCode** | Reads `AGENTS.md` (+ its own agent config) | Native AGENTS.md; optional native-agent mapping. Sequential or its own agents. |
-| **GitHub Copilot CLI** | `AGENTS.md` + optional `.github/copilot-instructions.md` | Reads AGENTS.md; optional instructions pointer. Sequential. |
+| Boundary | Binds | Notes |
+|----------|-------|-------|
+| `.claude/skills/*/SKILL.md` (standalone) | KIT ROOT (installer-materialized absolute) | grugops-owned; re-materialized on every install/migrate |
+| `.claude/agents/grugops-orchestrator.md` (standalone) | KIT ROOT (absolute) | same |
+| plugin `skills/<op>/SKILL.md`, plugin `agents/*.md` | KIT ROOT = `${CLAUDE_PLUGIN_ROOT}` | CC substitutes inline; bundle `agent-factory/` in the plugin dir |
+| `AGENTS.md` (lines 9-23, 66, 113-120) | states the disambiguation rule; kit refs become KIT-ROOT-relative `agent-factory/...`, state refs stay repo-relative | minimal, high-signal — push detail to roles |
+| `CLAUDE.md` sentinel pointer | KIT ROOT form of `agent-factory/roles/orchestrator.md` | updated by installer/migrate, idempotent via sentinel |
 
-**AGENTS.md status (MEDIUM confidence, web sources Feb–May 2026):** AGENTS.md is now stewarded by the Linux Foundation's Agentic AI Foundation and is the de-facto cross-tool standard; Codex, Copilot, Cursor, OpenCode, Gemini (configurable) read it. **Claude Code still uses CLAUDE.md** (native AGENTS.md support pending) — so the spec's "one-line CLAUDE.md → read AGENTS.md" bridge remains the correct approach today.
+### What's NEW vs MODIFIED
 
-### Internal boundaries
+**New:** `install --migrate` mode; `install --check` doctor; `plans/handoffs/` as the runtime write dir + its seeding; `$GRUGOPS_HOME` resolution + kit-copy step in the installer; two-root awareness + cross-root resolution check in the validator; split-layout fixtures; `--target`/prompt + copy-default.
 
-| Boundary | Communication | Considerations |
-|----------|---------------|----------------|
-| Dispatch layer ↔ Portable core | The read-order contract (one sentence) | The only seam where tools differ; keep it thin and identical in wording everywhere. |
-| Role ↔ Role | Handoff packet (file) | The packet is the interface; spawn-vs-sequential is invisible below it. Universal header is the shared schema. |
-| Role ↔ State plane | board.md / traceability.md / tickets via stable IDs | Single-writer-per-transition; IDs are the join keys; mirror status in board + ticket. |
-| Workflow ↔ Gate | Checklist criteria + config thresholds | DoD lean vs enterprise selected by `mode`; gate commands sourced only from AGENTS.md. |
-| Core ↔ Safety | PreToolUse hook (Claude Code) | Mechanical block for prod/merge; degrades to prompt on non-hook tools (document it). |
+**Modified:** all ~31 role/workflow files (handoff writes → `plans/handoffs/`; config refs → repo `factory.config.json`; kit-to-kit refs keep `agent-factory/` now meaning "under KIT ROOT"); `_role-switch-protocol.md` step 4 (template-read vs instance-write split); 7 standalone skill adapters + the agent wrapper (materialized KIT ROOT + disambiguation rule); `AGENTS.md` (disambiguation rule, config-at-repo-root); `install.sh`/`install.mjs` (kit-copy + materialize + seed + check + migrate); `uninstall.sh` (two-root aware); validator + tests.
+
+### Suggested build order (respects the dependency chain)
+
+1. **Land the split convention first.** Define + document the single disambiguation rule + KIT ROOT binding (in `AGENTS.md` and a short kit-internal note); confirm config location (repo root — done here). No code yet; this is the contract every later step targets. *Also: merge/rebase `grugops/quick-harden-role-switch-autocommit` first so the protocol text is edited once.*
+2. **Rewrite the ~31 kit refs** against the convention: handoff writes → `plans/handoffs/`, template reads stay `agent-factory/handoffs/`; config → repo `factory.config.json`; `_role-switch-protocol.md` step 4 split. Pure prose edit; verifiable by grep + the (soon-updated) validator.
+3. **Installer:** `$GRUGOPS_HOME` resolution + copy kit there + materialize absolute KIT ROOT into standalone adapters + seed repo `factory.config.json` + `plans/handoffs/` skeleton + copy-default + `--target`/prompt. `install.mjs` mirrors.
+4. **`--check` doctor:** verify every adapter/role-referenced path resolves (kit at home, state in repo); fail loudly with the missing path.
+5. **Two-root validator:** split `ROOT` into `KIT_ROOT`/`STATE_ROOT` with back-compat collapse; add the cross-root resolution check; update fixtures + `validate.test.sh`.
+6. **Migration (`--migrate`):** built last because it reuses the adapter-materialization + repo-config seeding (steps 3-4) and the doctor (step 4) to self-verify.
+7. **Tests last/continuous:** extend `install.test.sh` (split install, doctor pass/fail, migrate idempotency, parity) and re-prove the existing harnesses.
+
+Rationale: convention → refs → installer → doctor → validator → migration. Each step's output is the next step's input; migration and the doctor both consume the materialization logic, so they follow it; the gate is the parity + idempotency proof at the end.
 
 ---
-
-## Confidence Notes & Open Questions
-
-- **HIGH:** Claude Code sub-agent frontmatter fields, auto-routing via `description`, Agent-tool rename, sub-agents-can't-spawn, plugin directory layout (components at plugin root, only `plugin.json` in `.claude-plugin/`), `marketplace.json` at `.claude-plugin/marketplace.json`, plugin command namespacing, `settings.json` `agent` key, plugin caching (no `../`). All verified against current code.claude.com docs (2026).
-- **MEDIUM:** Cross-tool AGENTS.md adoption and Claude Code's "still pending" status — consistent across multiple dated web sources but not from a single canonical registry. Re-verify per-tool before finalizing each adapter (mark adapters.md "verify against current tool docs," as the spec already instructs).
-- **Open question for the roadmap:** the `/grug` vs `/grug:plan` command-shape decision (standalone `.claude/commands/` for the literal `/grug` vs plugin form that namespaces) is a packaging-layer choice with brand implications; the spec already flags shipping *both* forms. This belongs in the Stage 4 packaging phase, not earlier.
-- **Open question:** symlink vs pointer-wrapper default for non-Claude tools on Windows — recommend pointer-wrappers as the portable default; confirm during dogfood.
 
 ## Sources
 
-- Claude Code — Create custom subagents: https://code.claude.com/docs/en/sub-agents (HIGH; frontmatter fields, auto-routing, Agent-tool rename v2.1.63, no nested spawning)
-- Claude Code — Create plugins: https://code.claude.com/docs/en/plugins (HIGH; plugin structure, components at root not in `.claude-plugin/`, `settings.json` agent key, skills vs commands)
-- Claude Code — Create and distribute a plugin marketplace: https://code.claude.com/docs/en/plugin-marketplaces (HIGH; `.claude-plugin/marketplace.json` schema, add/install commands, plugin caching no `../`)
-- AGENTS.md cross-tool status: https://vibecoding.app/blog/agents-md-guide and https://www.deployhq.com/blog/ai-coding-config-files-guide (MEDIUM; AAIF stewardship, Claude Code AGENTS.md pending → CLAUDE.md)
-- grugops spec v2 §3/§6/§10/§11/§14/§16/§17 (project contract) and PROJECT.md / brand manual §7.2 (single-source + "only dispatch differs" framing) — primary design source
+- code.claude.com/docs/en/plugins-reference — Environment variables: `${CLAUDE_PLUGIN_ROOT}`/`${CLAUDE_PLUGIN_DATA}`/`${CLAUDE_PROJECT_DIR}` "substituted inline anywhere they appear in skill content, agent content, hook commands, monitor commands, and MCP or LSP server configs"; arbitrary `${ENV_VAR}` documented for hook/monitor/MCP *command* strings only; `${CLAUDE_PLUGIN_ROOT}` changes on update / plugin-cache-copy behavior (HIGH)
+- `docs/design/shared-install.md` — locked split decision, blast radius (50 handoff / 32 config / ~55 kit refs across 31 files), installer/validator/migration open items (HIGH, in-repo)
+- `agent-factory/roles/orchestrator.md`, `agent-factory/roles/_role-switch-protocol.md` — current repo-relative reference patterns; protocol step 4 handoff-write path (HIGH, in-repo)
+- `.claude/skills/grugops/SKILL.md`, `.claude/agents/grugops-orchestrator.md` — adapters that bind the kit root today (HIGH, in-repo)
+- `scripts/validate-agent-factory.mjs`, `install/install.sh`, `install/install.mjs`, `install/install.test.sh` — single-tree validator + installer machinery to make two-root-aware (HIGH, in-repo)
+- `AGENTS.md` — current substrate kit/state references (lines 9-23, 66, 113-120) (HIGH, in-repo)
 
 ---
-*Architecture research for: portable file-based multi-agent SDLC factory (grugops)*
-*Researched: 2026-06-02*
+*Architecture research for: grugops v1.1 shared-location install — kit/state split runtime path resolution*
+*Researched: 2026-06-06*

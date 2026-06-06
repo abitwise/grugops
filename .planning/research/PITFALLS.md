@@ -1,469 +1,266 @@
 # Pitfalls Research
 
-**Domain:** File-based multi-agent SDLC factory (markdown roles/workflows + per-tool installers + Claude Code plugin) layered on top of 5 coding-agent CLIs
-**Researched:** 2026-06-02
-**Confidence:** HIGH on tool-format facts (verified against current Claude Code docs, 2026), MEDIUM-HIGH on the rest (spec-derived + corroborating research)
+**Domain:** Shared-home (`$GRUGOPS_HOME`) + per-repo-state refactor of a previously fully-in-repo markdown agent kit
+**Researched:** 2026-06-06
+**Confidence:** HIGH (grounded in the actual install contract, the verified blast radius, and the v1.0 dangling-reference bug; external patterns from XDG, asdf, Kubernetes version-skew, and idempotent-migration practice)
 
-> This file is domain-specific. The generic-advice sections of the template (Performance Traps at scale, generic Integration Gotchas, UX) are folded into domain pitfalls where relevant — a markdown kit has no runtime scale curve, so "performance" here means *agent token cost and success rate*, not RPS.
+> Scope note: these pitfalls are specific to splitting grugops into a shared read-only kit at `$GRUGOPS_HOME` and writable per-repo state. They are NOT generic "installing software is hard" advice. The three the roadmap must treat as gating: **(C1) the dangling-reference reincarnation**, **(C2) migration data-loss**, and **(C3) the false-green two-root validator**. Each maps to a named constraint in `.planning/PROJECT.md` (never overwrite/delete user content; no fabrication; single-source).
 
 ---
 
 ## Critical Pitfalls
 
-### Pitfall 1: Bloated, machine-written context files (AGENTS.md / role files)
+### Pitfall C1: Dangling-reference reincarnation — the agent silently reads the wrong root
 
 **What goes wrong:**
-The AGENTS.md substrate and role files grow long, exhaustive, and machine-generated. They restate what a linter/CI already enforces, dump full architecture prose into the substrate, and repeat boilerplate across 16 role files. The result is the exact opposite of the goal: agent success *drops* and token cost *rises* on every single run, because every role reads the substrate first.
+Every kit reference in the shipped artifacts is still a bare repo-relative string. Verified live:
+- `AGENTS.md:9` → "read `agent-factory/roles/orchestrator.md`"
+- `AGENTS.md:13,21-24` → `agent-factory/config/…`, `agent-factory/roles/`, `agent-factory/workflows/`, `agent-factory/handoffs/`, `agent-factory/checklists/`
+- `.claude/skills/grugops/SKILL.md` → "read `agent-factory/roles/orchestrator.md`, then `agent-factory/config/factory.config.json`… role-switch protocol (`agent-factory/roles/_role-switch-protocol.md`)… `agent-factory/workflows/`"
+- `orchestrator.md:26-68` → ~9 bare `agent-factory/…` reads
+- `install.sh:49` + the CLAUDE.md pointer body → literal `agent-factory/roles/orchestrator.md`
+
+Under the new design the target repo has **no** `agent-factory/`. The LLM, told to "read `agent-factory/roles/orchestrator.md`", does not error like a compiler — it *improvises*: globs for the nearest `agent-factory/`, reads a stale in-repo copy if one survives migration, hallucinates the file's contents, or wanders into `~/.grugops` by luck on some runs and not others. This is the exact v1.0 failure (`docs/design/shared-install.md` §Problem item 3: "the adapters dangle → Claude hunts in the clone"), reincarnated one layer up: the bug moves from the installer into the prose the agent obeys.
 
 **Why it happens:**
-The natural instinct when building a "factory" is to be thorough — add every rule, every edge case, every command. A coding agent generating these files (the AGENTS.md Scribe is itself an agent) tends to pad. The spec explicitly warns about this (§5.A.2, §19.10, PROJECT.md constraint "Minimal AGENTS.md") precisely because it is the default failure mode.
+A path rewrite across 31 files (~55 kit refs + 50 handoff refs + 32 config refs) is mechanical and boring, so it gets done with find/replace and a couple get missed — and a missed ref doesn't fail loudly, it degrades silently because the consumer is a probabilistic agent, not a parser. Worse: the *design itself* never states the agent-side resolution rule. `$GRUGOPS_HOME` is an env var the shell expands; an LLM reading a markdown file does not run a shell. If role text literally contains `$GRUGOPS_HOME/agent-factory/roles/…`, the agent must be *told, in prose it reads first,* how to turn that token into a real absolute path — otherwise it guesses.
 
 **How to avoid:**
-- Make the AGENTS.md Scribe role a *removal* role, not just an authoring role — its prompt must say "delete what a linter or CI already enforces" and "push detail into the file it points to" (spec §5.A.2 says exactly this; enforce it).
-- Hard target: root AGENTS.md fits on roughly one screen. It points to roles/workflows/handoffs/checklists; it does not inline them.
-- Substrate is an *index + safety rules + real commands*, not a manual.
-- Roles use the fixed 9-section skeleton (§5) and stay terse caveman voice — the voice constraint doubles as a length constraint.
-- Single-source everything (see Pitfall 2) so the same paragraph is not copied 5×.
+1. **Define the agent-side resolution rule once, in `AGENTS.md` and the orchestrator preamble, in plain prose** (not just an env var). e.g.: "The kit lives at `$GRUGOPS_HOME` (default `~/.grugops`). Before reading any `$GRUGOPS_HOME/…` path, resolve it via the Bash tool — `printf '%s' \"${GRUGOPS_HOME:-$HOME/.grugops}\"` — and state the resolved absolute path before your first kit read. If the resolved kit dir does not exist, STOP — do not hunt." This makes resolution an explicit, verifiable first step, mirroring XDG's `${VAR:-$HOME/.default}` convention and the orchestrator's existing "When uncertain: Stop" discipline (`AGENTS.md:122`).
+2. **Pick ONE token spelling and grep the whole tree to zero un-rewritten bare refs** as a build gate. The acceptance test: `grep -rn 'agent-factory/' <shipped artifacts>` returns only intended `$GRUGOPS_HOME/agent-factory/` (or `${GRUGOPS_HOME}`) kit refs and `plans/handoffs/` writes — never a bare `agent-factory/`.
+3. **The `--check` doctor (already in the design) must resolve and stat every path the artifacts reference** — kit paths under the resolved `$GRUGOPS_HOME`, state paths in the repo. This is the mechanical net the design calls "the guard that would have caught all three pains" (`shared-install.md` §Installer changes).
 
 **Warning signs:**
-- AGENTS.md exceeds ~1 screen / ~150 lines, or restates lint rules.
-- Role files balloon past the skeleton with prose paragraphs.
-- The same guidance text appears verbatim in multiple files.
-- Token-per-run climbs in dogfooding; first-pass gate success dips.
+- `grep -rn 'agent-factory/'` over the shipped kit/adapters returns any bare ref (no `$GRUGOPS_HOME` / `${GRUGOPS_HOME}` prefix and not a `plans/handoffs/` write).
+- The agent transcript says "I'll look for the orchestrator role" / "searching for agent-factory" instead of stating a single resolved absolute path up front.
+- Behavior differs run-to-run for the same repo (the signature of silent guessing).
 
-**Evidence this is real (not just spec opinion):**
-Recent research found **LLM-generated context files reduce task success by ~2–3% vs. no context file at all, while human-written context files *improve* it by ~4%** (InfoQ, Mar 2026 review; Morph "context rot"). "Context rot" — degradation as input grows even below the window limit — is measurable. This validates the spec's claim and raises the stakes: a sloppy auto-generated AGENTS.md is worse than none.
-
-**Phase to address:**
-The phase that builds the AGENTS.md Scribe role + root AGENTS.md substrate. Add a length/no-duplication check to the validator (Pitfall 14). Re-verify in the dogfood phase by inspecting the generated AGENTS.md on the sample repo.
+**Phase to address:** The path-rewrite phase (owns token spelling + resolution-rule prose) AND the installer/doctor phase (owns `--check`). Both must land before any dogfood — dogfood is how this bug surfaced the first time.
 
 ---
 
-### Pitfall 2: Adapter drift — role content copied per tool
+### Pitfall C2: Migration deletes or strands user state on upgrade (violates never-delete)
 
 **What goes wrong:**
-To "support 5 tools," role text gets copied into per-tool adapter files (a Claude version, a Codex version, a Gemini version…). Over time the copies diverge: a fix lands in the Claude copy but not the Gemini copy, and the 5 tools quietly behave differently. The single-source promise — "only the dispatch differs, never the content" (spec §16.1, brand §3.3) — is broken.
+An already-installed repo has an **in-repo `agent-factory/`** that today mixes static kit with user-runtime content — crucially `agent-factory/handoffs/*` (the 50 refs the design moves to `plans/handoffs/`), and possibly a customized in-repo `factory.config.json`. A migration that "moves the kit out to `$GRUGOPS_HOME` and removes the in-repo `agent-factory/`" will, if naive, `rm -rf agent-factory/` and take the user's filled-in handoffs — their actual work product and "the memory" (`PROJECT.md` core value) — with it. This directly violates the hardest constraint in the repo, asserted in five places: `PROJECT.md:89` ("never overwrite or delete user content"), `install.sh:12`, `uninstall.sh:17`, and the test's `CONTRACT VIOLATION` assertions (`install.test.sh:113,118`). A quieter variant: migration moves the static kit out but *leaves* the user's filled handoffs under `agent-factory/handoffs/`, while all role text now reads/writes `plans/handoffs/` — the old work is silently **stranded** (not deleted, but orphaned and never read again).
 
 **Why it happens:**
-Copying is the path of least resistance, especially because the tools genuinely differ (Claude Code spawns real sub-agents via the Task tool; Codex/Gemini/OpenCode/Copilot load roles sequentially into one context). It *feels* like each tool needs its own role. It does not — only the dispatch wrapper does.
+"Clean up the old layout" feels like good hygiene, and `rm -rf` on a directory you "own" feels safe — but `agent-factory/` is exactly the directory the v1.0 installer swore it would *never touch* (`install.sh:12`), so users were told their content there is safe. The split now reclassifies *part* of that tree as "kit" (safe to remove) and *part* as "state" (must be preserved) — and a directory-level operation can't tell them apart. The existing `is_protected()` guard (`uninstall.sh:54`) denylists the entire `agent-factory/` tree; a migration that must remove the kit subtree but keep `agent-factory/handoffs/` has to be *more* surgical than any code that exists today.
 
 **How to avoid:**
-- Canonical role text lives once in `agent-factory/roles/*.md`. Period.
-- Adapters are *thin pointers*: a Claude `.claude/agents/<role>.md` wrapper says "You follow `agent-factory/roles/orchestrator.md` exactly. Read it now." (spec §16.3) — frontmatter + a one-line pointer, never the role body.
-- For sequential tools (Codex/Gemini/OpenCode/Copilot), the adapter is just an entry-file pointer into the same role files; no role copies at all.
-- The validator checks `adapters.md` exists and that wrappers point at canonical files; add a check that no role body text is duplicated into adapters.
+1. **Migration is additive-then-relocate, never delete-first.** Order: (a) copy/seed the kit into `$GRUGOPS_HOME`; (b) **move** user-writable content (`agent-factory/handoffs/*` → `plans/handoffs/`, in-repo `factory.config.json` → its new per-repo home) preserving it; (c) only *after* (a)+(b) verify, optionally rename the now-kit-only `agent-factory/` to `agent-factory.grugops-bak/` and tell the user — **never delete it in the same run**. Apply the DDL migration rule: migrations ADD and COPY; humans DELETE. ("Idempotent scripts generally do not cause destructive side effects.")
+2. **Detect the old layout with a marker, refuse to guess.** Check a marker (e.g. in-repo `agent-factory/VERSION` + presence of `agent-factory/handoffs/`) before acting. If the layout is ambiguous (partially migrated, unknown version), STOP and print what was found — do not "best-effort" migrate. ("The simplest approach is to check for a marker file before running one-time initialization.")
+3. **Preserve the reversibility + DRY_RUN contract.** Migration honors `DRY_RUN=1` (print the move plan, change nothing) and is re-runnable to a no-op once migrated. Reuse the `is_protected()` philosophy: anything under `plans/`, `memory-bank/`, `.planning/`, `docs/`, `src/` is off-limits; migration *only* relocates the two known user-content paths inside `agent-factory/` and never recurses destructively.
+4. **Add a test mirroring `install.test.sh` Check 3:** seed a fixture with a filled `agent-factory/handoffs/foo-handoff.md` containing a known sentinel, run migration, assert the sentinel now exists under `plans/handoffs/` AND no user file was deleted. A `CONTRACT VIOLATION` fail string (like the existing harness) makes the data-loss case un-ignorable.
 
 **Warning signs:**
-- An adapter file contains role *instructions* rather than a pointer.
-- A grep for a distinctive role sentence returns more than one file.
-- Fixing a role requires editing more than one place.
-- Tools produce different behavior for the same `/grug` request.
+- Any `rm -rf`, `rm -r`, or recursive delete touching `agent-factory/` in the migration path.
+- Post-migration `plans/handoffs/` is empty but the user had filled handoffs before (stranding).
+- The migration script has no `DRY_RUN` branch, or running it twice is not a no-op.
+- No fixture test asserts a filled handoff survives the move.
 
-**Phase to address:**
-The packaging/adapters phase. Lock the "pointer, not copy" rule before any second-tool adapter is written. The first adapter sets the pattern every later one follows.
+**Phase to address:** The migration phase. Gating — ship no migration without the survival test. Recovery cost if shipped wrong is HIGH (lost user work product, the thing the whole tool exists to preserve).
 
 ---
 
-### Pitfall 3: Over-engineering — building a platform when the point is boring markdown
+### Pitfall C3: The two-root validator/self-test gives a false green
 
 **What goes wrong:**
-The "factory" framing tempts the builder toward a runtime: a status DB to hold the board, a queue to dispatch agents, a daemon to run the daily sweep, a metrics service, an orchestration engine. Each one violates the core identity ("not a platform, runtime, database, queue, or hosted service" — PROJECT.md, spec §4) and creates something to operate, defeating "boring on purpose."
+`scripts/validate-agent-factory.mjs` today "assumes a single in-repo tree" (`shared-install.md` §Validator). Split into two roots, the obvious-but-wrong fixes each produce a confident PASS on a broken install:
+- **Validates the source checkout, not the installed reality.** Run inside the grugops repo (which still has a full `agent-factory/`), the validator finds everything and prints green — while a *target* repo with dangling refs and no resolved `$GRUGOPS_HOME` is actually broken. The validator proved the wrong tree.
+- **Defaults `$GRUGOPS_HOME` to the repo it's run from.** If resolution falls back to "look in `.`" when the env var is unset, the validator (and the agent) "find" the kit in the dev checkout and pass — masking exactly the C1 unset-var failure in CI.
+- **Cross-root refs unchecked.** A role under `$GRUGOPS_HOME` references `plans/handoffs/x` (a repo path) — the validator must know which refs are kit-relative vs repo-relative and check each against the correct root. A single-root validator checks both against one root and either false-passes or false-fails.
+
+This violates the no-fabrication constraint operationally: a green that doesn't reflect a working install is a fabricated pass (`PROJECT.md:90`, VAL-01's "never fabricates a pass"). The v1.0 validator earned trust precisely via a GOOD/BAD fixture self-test proving both paths; the two-root version must do the same or it silently regresses the kit's central proof.
 
 **Why it happens:**
-Two pulls. (1) Markdown feels too simple to be "real," so the builder reaches for infrastructure to feel legitimate. (2) Enterprise features (traceability, NFR catalog, release control, compliance gates) *sound* like they need machinery — but they are all just more markdown files plus agent discipline.
+The validator author runs it in the grugops dev repo where both roots happen to collapse into one tree, so every test is green and looks done — the split is invisible until someone runs it against a real target with a real separate `$GRUGOPS_HOME`. "Looks done but isn't": the self-test only exercises the happy single-tree case.
 
 **How to avoid:**
-- Treat the constraint as inviolable: markdown for everything except `install.sh`, `install.mjs`, and one optional Node validator (PROJECT.md). If a feature seems to need a runtime, it is the wrong design — the host coding agent *is* the runtime.
-- Board = `plans/board.md` (a markdown file). Metrics = markdown counts, not a metrics platform (spec §6.5 says this explicitly). Traceability = one markdown table. Daily sweep = an on-demand agent pass, not a cron daemon.
-- Enterprise = a *flag*, not a tax (spec §0, §21). Lean mode with zero config must stay fast; enterprise gates only activate on `mode=enterprise` or a trigger.
-- Reject any dependency beyond Node's stdlib for the installer/validator.
+1. **Two explicit roots, no silent fallback to `.`.** Take a kit root (resolve `$GRUGOPS_HOME` with the SAME `${GRUGOPS_HOME:-$HOME/.grugops}` rule the agent uses, or an explicit `VALIDATE_KIT_ROOT`) and a repo root, separately. If the kit root is unset AND undefaultable, FAIL with the missing path — never fall back to the cwd (that is the false-green trap).
+2. **Classify every ref by root.** The validator needs a table: kit-relative tokens (`$GRUGOPS_HOME/agent-factory/{roles,workflows,checklists,packaging}`, templates, VERSION) vs repo-relative (`plans/…`, `plans/handoffs/…`, the repo `factory.config.json`, `memory-bank/…`). Resolve each ref against its declared root; a ref that only resolves against the wrong root is itself a finding.
+3. **Extend the GOOD/BAD fixture self-test to the split.** Add fixtures: a BAD one with a kit ref that only resolves against the repo root (the C1 footgun), and a BAD one where `$GRUGOPS_HOME` is unset with no kit present — both MUST fail. Mirror `install.test.sh`'s style: prove the fail path, not just the pass path. Without a BAD-split fixture the self-test cannot prove it catches the split-specific bug.
+4. **The doctor (`--check`) and the validator should share the resolution rule** so "doctor passes" and "validator passes" can't disagree about where the kit is.
 
 **Warning signs:**
-- A `package.json` with runtime dependencies appears (validator should not create one — spec §18).
-- Anyone proposes a server, daemon, DB, queue, or background worker.
-- Lean-mode users are forced through enterprise ceremonies/gates.
-- The installer does more than lay down markdown + thin entry pointers.
+- Validator passes when run in the grugops checkout but no one has run it against a separate-`$GRUGOPS_HOME` target.
+- The self-test has no fixture where `$GRUGOPS_HOME` is unset / the kit is absent.
+- Validator and `--check` doctor resolve `$GRUGOPS_HOME` differently.
+- A green validator coexists with an agent that can't find a role file (the tell-tale of validating the wrong tree).
 
-**Phase to address:**
-Architecture/scaffold phase (set the no-runtime boundary in stone) and every feature phase thereafter (each new capability must be expressible as markdown + agent prompt). The enterprise-pack phase specifically must verify lean users are not taxed.
+**Phase to address:** The validator/test phase, after the path-rewrite token is fixed (the validator must key off the final token spelling). Gating for dogfood sign-off.
 
 ---
 
-### Pitfall 4: Safety enforced by prompt only, not mechanically
+### Pitfall C4: Single-source erosion — kit text drifts between `$GRUGOPS_HOME` and stale per-repo copies
 
 **What goes wrong:**
-"Never merge a protected branch / never deploy prod" is written into prompts and AGENTS.md — and that is *all*. A prompt is a request, not a guard; an agent can ignore, misread, or be talked out of it (prompt injection, Pitfall 5b). The PROJECT.md "Safety (hard)" constraint demands this be **mechanical** where possible (a Claude Code PreToolUse hook), "not just by prompt … an agent cannot be held accountable."
+The design default is **copy, not symlink** (`shared-install.md`: "Install/update the kit to `$GRUGOPS_HOME` (copy, no symlinks)"). Copy is right for symlink fragility (C5) — but it reintroduces the single-source-of-truth risk the project exists to guard against (`PROJECT.md:86`: "Role text lives once… avoid drift across five tools"). Failure shapes:
+- A user edits a role under `~/.grugops/agent-factory/roles/` to tweak behavior; the next `install --update` copies the shipped kit over it (overwrite of user content — also a never-overwrite violation) OR refuses to overwrite and the user silently runs a fork that drifts from upstream forever.
+- A repo migrated from v1.0 keeps a stale in-repo `agent-factory/` copy (see C2 stranding); the agent, hunting (C1), reads the stale copy instead of the updated `$GRUGOPS_HOME` kit. Two kits, silently divergent, agent picks the wrong one.
+- Multiple `$GRUGOPS_HOME` installs exist (dev, CI, a container image baked at a different time) and "the kit" means different text on each.
 
 **Why it happens:**
-Writing a sentence is easy; wiring a hook requires knowing the current hook format (which "moves fast" per the spec). Builders default to the prompt and call it done. Also: hooks only exist on Claude Code, so it feels inconsistent to add a guard that only covers one of five tools — leading to skipping it everywhere.
-
-**How to avoid (VERIFIED against current Claude Code hooks docs, 2026):**
-- Ship a `hooks/hooks.json` in the plugin (and/or `.claude/settings.json`) with a **PreToolUse** hook matching the `Bash` tool. The hook script reads JSON on stdin (`tool_input.command`), greps for prod-deploy / protected-branch-merge patterns (`kubectl … apply`, `deploy.*prod`, `git push.*main`, `git merge` into protected, etc.), and **denies**.
-- Two valid block mechanisms: exit code `2` with reason on stderr, OR exit `0` with JSON `{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"deny","permissionDecisionReason":"..."}}`. Both verified current.
-- Use `${CLAUDE_PLUGIN_ROOT}` (plugin) or `${CLAUDE_PROJECT_DIR}` (project) for the script path — do not hardcode absolute paths.
-- For the 4 tools without hooks: keep the prompt rule AND set `autonomy=pr` as default (agents open a PR, never merge) AND require `production_requires_human_confirmation: true` in config. Defense in depth, not hook-or-nothing.
-- Document clearly that the *mechanical* guard is Claude-Code-only today; on other tools the guard is procedural (PR-only + human confirm). Honesty beats a false sense of safety.
-
-**CAUTION — verified gotcha:** Plugin subagents do **NOT** support the `hooks`, `mcpServers`, or `permissionMode` frontmatter fields (current docs, security restriction — they are silently ignored). So a per-subagent hook bundled in the plugin will not fire. The prod-deploy guard must be a **plugin-level `hooks/hooks.json`** (or live in `.claude/settings.json`), not a subagent-frontmatter hook. Getting this wrong yields a guard that silently does nothing — the worst outcome.
-
-**Warning signs:**
-- The only place "never deploy prod" appears is prose.
-- The hook is defined in a subagent's frontmatter (silently ignored).
-- The hook script path is hardcoded, not `${CLAUDE_PLUGIN_ROOT}`-relative.
-- No test that the hook actually blocks a sample `kubectl apply`.
-
-**Phase to address:**
-The Claude Code plugin phase (build + *test* the PreToolUse hook against sample deploy commands). The config/defaults phase (lock `autonomy=pr` default and `production_requires_human_confirmation: true`). The dogfood phase must confirm the guard fires.
-
----
-
-### Pitfall 5: Faked results — agents reporting gates/tests/citations that never ran
-
-**What goes wrong:**
-An agent writes "lint ✓ typecheck ✓ unit ✓ build ✓ — READY_FOR_HUMAN_REVIEW" without running anything, invents a plausible repo command (`npm test`) that does not exist, or cites a file/line it never read. This is catastrophic for grugops specifically because **"the trace is the proof"** (spec §2, PROJECT.md). A fabricated trace is worse than no trace — it launders a lie into an audit record.
-
-**Why it happens:**
-LLMs pattern-complete. Asked to "run the gate and report," a model will happily produce the *shape* of a passing report. If AGENTS.md lists a command that doesn't exist, the agent runs it, sees failure, and may "fix" by reporting success. Confident fabrication is the model's path of least resistance.
+Copy trades freshness for robustness; nobody notices drift until behavior differs and there's no version stamp to compare. The kit was *born* single-tree (one `agent-factory/` per repo, edited in place), so "edit the role file" was always safe; the shared copy turns an in-place edit into a fork.
 
 **How to avoid:**
-- Encode "no fabrication" as a hard limit in *every* role prompt and in AGENTS.md safety rules (spec §17.1, §19.9): "Mark unknown commands `UNKNOWN - verify`. Never fake a passing gate, a test result, or a citation."
-- Gate commands come *from AGENTS.md only* — never invented (spec §14). If a command is unknown, the gate records `UNKNOWN - verify`, not a pass.
-- DoD (both lean and enterprise) includes a literal line "no fake command results" (spec §9.2) — make it a checklist item the agent must tick against real output.
-- The backpressure loop must capture *actual* command output into the implementation handoff ("commands run" field), so a human can see real exit codes.
-- Validator forbids faked results structurally where it can (spec §18: "Faking results is forbidden anywhere") — at minimum it flags a `READY` result with no recorded command output.
+1. **One canonical source; `$GRUGOPS_HOME` is a derived cache, never the source of truth.** Treat `~/.grugops/agent-factory/` like a package cache: replaceable, stamped, not hand-edited. Document this loudly ("do not edit files under `$GRUGOPS_HOME`; they are overwritten on update").
+2. **Stamp the install with `VERSION` + provenance.** `$GRUGOPS_HOME/agent-factory/VERSION` already exists in the kit (`0.1.0`); on install, also record where it came from. The doctor/validator can then report "kit at `$GRUGOPS_HOME` is 0.1.0" (feeds C6).
+3. **Update must refuse to clobber a hand-modified kit, and SAY so.** If a file under `$GRUGOPS_HOME` differs from the shipped bytes (`cmp` — the same byte-identity test `install.sh:119`/`uninstall.sh:239` already use for AGENTS.md), do not overwrite silently — report `verify: $GRUGOPS_HOME/…/role.md was modified locally; not overwritten` so the user chooses. This preserves never-overwrite without silently freezing them on a fork.
+4. **Migration must eliminate the stale in-repo copy as a *read source*** — once relocated, the C1 resolution rule points only at `$GRUGOPS_HOME`, and the backup is renamed out of the `agent-factory/` glob path so the agent can never hunt-and-read it.
 
 **Warning signs:**
-- A handoff says "tests pass" but has no command output / exit codes.
-- AGENTS.md commands are suspiciously generic and never marked `UNKNOWN - verify` even on a fresh/brownfield repo.
-- A traceability row claims tests exist but the test files don't.
-- Citations reference files/lines that don't exist.
-
-**Phase to address:**
-Every role-authoring phase (bake the no-fabrication hard limit into the skeleton). The CI/backpressure-gate phase (capture real output, `UNKNOWN - verify` on unknown commands). The validator phase (flag READY-without-evidence). Confirm in dogfood by checking the generated handoffs contain real command output.
-
----
-
-### Pitfall 6: Tool-format mistakes (plugin.json / marketplace.json / subagent frontmatter / slash-command namespacing)
-
-**What goes wrong:**
-The plugin doesn't load, commands don't appear, or they appear under an unexpected name. The spec itself flags these conventions as fast-moving and says "verify against current tool docs" — and indeed several of the spec's own examples are **stale or imprecise** against the current (2026) Claude Code docs. Shipping them as-is produces a broken plugin.
-
-**Why it happens:**
-Plugin/marketplace/subagent formats changed since the spec was written. The spec's examples were "best effort, verify later." If the build phase copies them verbatim without verification, it ships bugs.
-
-**How to avoid — VERIFIED facts against current Claude Code docs (code.claude.com, 2026):**
-
-| Topic | Verified current rule | Spec discrepancy to fix |
-|-------|----------------------|--------------------------|
-| `plugin.json` location | MUST be at `<plugin>/.claude-plugin/plugin.json`. Only `plugin.json` goes in `.claude-plugin/`. | Spec is correct here — keep it. |
-| `plugin.json` directory keys | Components (`commands/`, `agents/`, `skills/`, `hooks/`) live at **plugin root**, auto-discovered. Explicit `"commands"/"agents"/"skills"` path keys are **not required** when using default locations. | Spec's plugin.json lists `"commands": "./commands"` etc. — harmless but unnecessary; default discovery works. Do not put these dirs *inside* `.claude-plugin/` (docs call this the "common mistake"). |
-| `commands/` vs `skills/` | Docs now say **`commands/` = flat markdown files (legacy)**; **"Use `skills/` for new plugins"** (skills are `<name>/SKILL.md` folders, model-invoked). | Spec only mentions `commands/`. Decide deliberately: commands give the explicit `/grug` slash-command shape the brand wants; skills are model-invoked. The brand's `/grug` UX argues for `commands/`. Document the choice. |
-| Slash-command namespacing | Plugin commands are **always** namespaced `/<plugin-name>:<command>`. Namespace = the `name` field in plugin.json. | **This is the key brand gotcha.** A plugin named `agent-factory` yields `/agent-factory:factory`, NOT `/grug`. Brand §5.2 already caught this: to get literal `/grug` + `/grug-x`, ship standalone `.claude/commands/grug.md` form, OR name the plugin `grug` so commands read `/grug:plan`. You cannot get a bare `/grug` from a plugin. |
-| `marketplace.json` location | MUST be `.claude-plugin/marketplace.json` at the marketplace repo root. | Spec is consistent. |
-| `marketplace.json` required fields | `name` (kebab-case), `owner` (object), `plugins` (array). Each plugin entry needs at minimum `name` + `source`. | Spec example is valid. Note: certain marketplace names are **reserved** (e.g. `claude-plugins-official`, `anthropic-*`); do not use one. `agent-factory-marketplace` is fine. |
-| Subagent frontmatter | Only `name` + `description` are **required**. `name` = lowercase + hyphens, must be unique across the scope (duplicates silently discarded). `model` accepts `sonnet`/`opus`/`haiku`/full-id/`inherit` (defaults to `inherit`). `tools` is a comma-separated list (omit to inherit all). | Spec's `model: inherit` and `tools: Read, Grep, Glob, Bash, Edit, Write` are valid. The `description` drives auto-routing — write it as "Use when…". |
-| Plugin subagent restrictions | Plugin subagents **ignore** `hooks`, `mcpServers`, `permissionMode` (security). | Not mentioned in spec. Critical for the safety hook (see Pitfall 4) — the guard must be a plugin-level hook, not subagent frontmatter. |
-| Testing | `claude --plugin-dir ./plugin` loads locally; `claude plugin validate` checks structure; `/reload-plugins` hot-reloads. | Spec doesn't mention these — use them in the dogfood/validation phase. |
-
-**Warning signs:**
-- `/grug` doesn't appear but `/agent-factory:factory` does (namespacing surprise).
-- `claude plugin validate` errors, or the plugin silently doesn't load.
-- `commands/` or `agents/` placed inside `.claude-plugin/`.
-- Subagent files have duplicate `name` values (one silently dropped).
-- A reserved marketplace name was chosen.
-
-**Phase to address:**
-The packaging/plugin phase. Open the current docs and `claude plugin validate` before writing any manifest. Resolve the `/grug` namespacing decision (standalone `.claude/` form vs. plugin named `grug`) at the start of this phase — it cascades through the brand collateral.
-
----
-
-### Pitfall 7: Installer that overwrites, isn't idempotent, or isn't reversible
-
-**What goes wrong:**
-`install.sh`/`install.mjs` clobbers a user's existing `CLAUDE.md`, appends duplicate lines on re-run, or leaves no way to undo. This violates the PROJECT.md "Installers" constraint (idempotent, additive, dry-run-capable, reversible; never overwrite/delete user content) — and breaks trust on first contact, the worst moment.
-
-**Why it happens:**
-Naive file writes (`>` instead of append-if-missing) overwrite. Re-running an installer that blindly appends produces duplicate pointer lines. Dry-run and uninstall are extra work that gets skipped under time pressure.
-
-**How to avoid:**
-- Use the spec's `ensure_line` pattern (§16.5): create the file if missing, append the pointer line *only if absent* (`grep -qF`), never rewrite existing content.
-- Symlinks for adapter wrappers (`ln -sf`) so updates flow without copies (reinforces single-source, Pitfall 2).
-- Honor `DRY_RUN=1` in both installers — every mutating action prints instead of executing.
-- Ship `uninstall.sh` that removes *only* the symlinks/pointer lines it added; never touches `agent-factory/`, `plans/`, or user files.
-- The two installers (POSIX + Node) must be behavior-identical; test both. Node path covers Windows.
-- Test the idempotency property explicitly: run twice, diff the tree — second run produces zero changes.
-
-**Warning signs:**
-- Re-running the installer changes files / adds duplicate lines.
-- Any use of `>` (truncate) on a file that might be user-owned.
-- No `DRY_RUN` branch; no `uninstall.sh`.
-- POSIX and Node installers drift in behavior.
-
-**Phase to address:**
-The installer phase. Make "run twice, expect no diff" and "dry-run prints only" explicit success criteria. Verify in dogfood (install onto the sample repo, re-run, uninstall, confirm clean).
-
----
-
-### Pitfall 8: Caveman voice leaking into safety / security / compliance / legal / money text
-
-**What goes wrong:**
-The grug voice ("grug not deploy prod. human say yes.") is charming in role prompts — but it bleeds into a security finding, a compliance control description, a release approval, a disclaimer, or the README opener. Now a serious topic reads as a joke, undermining trust exactly where trust matters, and a legal disclaimer in caveman-speak may not even be legally meaningful.
-
-**Why it happens:**
-The voice is fun and the builder is in "grug mode" across the whole repo. The two-register rule (brand §4: grug voice for roles/mascot/playful; clear professional English for pitch/docs/security/compliance/money/legal) is easy to forget mid-flow.
-
-**How to avoid:**
-- Encode the register map explicitly (brand §4.3, §11): grug voice ONLY in role prompts, mascot, playful collateral, error/empty-state copy. Clear voice in: README first sentence, security findings, compliance text, release/money topics, ALL legal (NOTICE, disclaimers, attribution).
-- Security/NFR and Compliance Officer role *outputs* (findings, control mappings) are clear-voice even though the role *prompt* is grug-voice. Make that distinction in the role files: "you think in grug, you write findings in plain professional English."
-- README pattern: plain-English description FIRST, then the wink (brand §4.2).
-- Add to CONTRIBUTING and the validator/review: scan disclaimers, NOTICE, compliance/security checklists for lowercase-grug tells.
-
-**Warning signs:**
-- A disclaimer, NOTICE, or compliance control reads in lowercase third-person grug.
-- A security finding says "danger bad, grug fix."
-- The README opens with a joke instead of a plain description.
-
-**Phase to address:**
-The brand/collateral phase (README/NOTICE/disclaimer in clear voice) and every role-authoring phase that produces *findings* (Security/NFR, Compliance, Release, UAT, Incident) — those role outputs must be clear-voice. Spot-check in the validation phase.
-
----
-
-### Pitfall 9: Art / mascot resembling the "Grug" children's-book IP, or missing non-affiliation
-
-**What goes wrong:**
-A mascot is created that resembles the "Grug" children's-book character (a haystack / grass-tree creature by Ted Prior), or the README/NOTICE ships without the non-affiliation disclaimer and grugbrain.dev attribution. This is the one pitfall with *legal* (not just quality) consequences — copyright protects the character's expression; imitating it touches that.
-
-**Why it happens:**
-"Grug has a mascot" → someone searches "grug" → finds the children's-book art → unconsciously imitates it. Or the disclaimer is treated as boilerplate and dropped to save time.
-
-**How to avoid (brand §6.5, §10):**
-- Original art only. The grugops mascot is an original caveman-developer figure (club / stone tablet = AGENTS.md), geometric and minimal. NEVER based on or resembling the children's-book character.
-- Ship the non-affiliation disclaimer in README footer AND NOTICE, plus grugbrain.dev / Carson Gross attribution in Acknowledgements (ready-to-paste blocks exist in brand §10.4 — use them verbatim).
-- CONTRIBUTING rule (brand §10.3): art PRs must be original and not resemble the book character; maintainers reject otherwise; no copy implying a tie to the books.
-- Brand as "grugops" (lowercase), never bare "Grug" or "Grug™".
-
-**Warning signs:**
-- Mascot art looks like a haystack/grass creature or any existing "Grug" character.
-- README/NOTICE missing the disclaimer or attribution.
-- Copy uses "Grug" standalone or implies a book tie.
-
-**Phase to address:**
-The brand/collateral phase (README, NOTICE, CONTRIBUTING, wordmark/icon SVGs). The provided SVGs (brand §6.3/§6.4) are already original — use those; do not freelance new character art without the original-only rule front of mind.
-
----
-
-### Pitfall 10: Board ↔ ticket status drift
-
-**What goes wrong:**
-`plans/board.md` says a ticket is "In Review" but the ticket file's `status:`/`column:` front matter says "In Development." Now "the board is the state" (spec §2) is a lie, the daily sweep reports wrong info, and metrics are garbage.
-
-**Why it happens:**
-Two sources of truth (board file + per-ticket front matter) updated by different roles at different times. An agent moves a ticket on the board but forgets the ticket file, or vice versa. No automated reconciliation.
-
-**How to avoid:**
-- Every role that moves work declares its "Board moves" in its role file (spec §5 skeleton) AND updates the ticket front matter in the same step — make it one atomic responsibility, not two.
-- The ticket front matter carries `status` + `column` precisely so "board and ticket never disagree" (spec §6.1) — both must be updated together.
-- The daily-sweep workflow (§7.10) is the reconciliation pass — it reads board + ticket files and flags mismatches.
-- The validator (§18) checks "every ticket file's status matches its board column" — make this a hard validator failure, not a warning.
-
-**Warning signs:**
-- A ticket's `column:` field disagrees with the board section it's listed under.
-- A ticket appears in two columns, or in none.
-- Daily-sweep reports surprises ("this was supposed to be done").
-
-**Phase to address:**
-The Delivery-OS / board phase (define the dual-update-in-one-step rule) and the validator phase (board↔ticket match check). Exercise it in the dogfood ticket→PR run.
-
----
-
-### Pitfall 11: Incomplete traceability rows
-
-**What goes wrong:**
-A ticket has a traceability row, but the Tests / UAT / Release columns stay blank because each role didn't append its link as it finished. "The trace is the proof" collapses — an auditor can't answer "is this tested and accepted?"
-
-**Why it happens:**
-Traceability is append-as-you-go across many roles (BA creates the row; Architect adds ADR/NFR; Engineer adds PR/files; QE adds tests; UAT adds result; Release adds REL id — spec §10). Any role skipping its append leaves a hole, and the hole is invisible unless something checks.
-
-**How to avoid:**
-- Each role's "Trace updates" section (spec §5 skeleton) names exactly what it must append. Non-optional.
-- Enterprise DoD (§9.3) is "not met until the row is complete through the relevant stage."
-- The validator (§18) flags "rows missing tests/UAT." Make completeness a gate in enterprise mode.
-- Lean mode tolerates a shorter row (no release/UAT) — don't force enterprise completeness on lean users (ties to Pitfall 3).
-
-**Warning signs:**
-- A "Done" ticket has empty Tests or UAT cells.
-- The validator reports rows missing tests.
-- A role completes without touching traceability.md.
-
-**Phase to address:**
-The traceability phase and each role-authoring phase (every role gets a concrete "Trace updates" line). Validator phase adds the completeness check. Dogfood verifies a row fills end-to-end.
-
----
-
-### Pitfall 12: WIP limits ignored / self-fix loops running forever
-
-**What goes wrong:**
-(a) The Orchestrator pulls new work past a column's WIP limit, so "finish before you start" breaks and the board floods. (b) The backpressure self-fix loop never terminates — the agent keeps "fixing" a failing gate forever, burning tokens and never escalating to a human.
-
-**Why it happens:**
-(a) WIP enforcement is a *judgment* the Orchestrator must make every pull; easy to skip when "just one more" feels fine. (b) "Try to fix it" is open-ended; without a hard counter, an LLM will loop, each round confident the next will pass.
-
-**How to avoid:**
-- WIP limits come from config (`wip_limits`); the Orchestrator "refuses to pull new work past a WIP limit without a written reason" (spec §6.1). Encode this as an Orchestrator hard limit, and have the daily sweep flag over-WIP columns.
-- Self-fix is **bounded**: a fixed, small number of attempts (default 2 from config `self_fix_attempts`), then STOP and hand to a human — "Do not loop forever" (spec §14). The result is one of `READY_FOR_HUMAN_REVIEW | BLOCKED_NEEDS_FIX | SPLIT_REQUIRED`; there is no "keep trying" outcome.
-- The gate workflow (§7.6, §14) must reference the attempt counter explicitly and emit a terminal result.
-
-**Warning signs:**
-- A column exceeds its WIP limit with no written reason.
-- The gate transcript shows >2 fix rounds, or no terminal result.
-- Token cost on a single ticket balloons.
-
-**Phase to address:**
-The Delivery-OS phase (WIP enforcement in Orchestrator). The CI/backpressure phase (bounded self-fix with config counter + terminal result). Verify the loop terminates in the dogfood gate run.
-
----
-
-### Pitfall 13: Claiming "done" without dogfooding
-
-**What goes wrong:**
-The kit is declared complete because all files exist and the validator passes — but nobody actually ran `/grug` on a real repo to take a ticket idea→PR. Files existing ≠ the factory working. The spec's acceptance criteria (§20) and PROJECT.md explicitly require a dogfood run; skipping it ships a kit that looks done and isn't.
-
-**Why it happens:**
-Structure-complete feels like done. Dogfooding is slow, requires a throwaway repo and a real coding-agent CLI session, and surfaces embarrassing bugs late — so it's tempting to defer or skip.
-
-**How to avoid:**
-- Make dogfooding a required acceptance gate (PROJECT.md: "install grugops via `/grug` on a throwaway sample repo, bootstrap it, take one ticket idea→PR end-to-end").
-- The dogfood run exercises the integration points the validator can't: does the AGENTS.md the Scribe generates actually help (Pitfall 1)? Do adapters dispatch correctly (Pitfall 2)? Does the hook block a deploy (Pitfall 4)? Are handoffs real (Pitfall 5)? Does `/grug` resolve to the expected command (Pitfall 6)?
-- Test on at least Claude Code (plugin form) plus one sequential tool (Codex or Gemini) to prove "only dispatch differs."
-
-**Warning signs:**
-- "Done" claimed with no transcript of a real `/grug` run.
-- The validator is the only evidence of correctness.
-- No throwaway sample repo was created.
-
-**Phase to address:**
-A dedicated dogfood/validation phase, last. It is the only phase that tests behavior end-to-end. Treat its failures as release-blocking.
-
----
-
-### Pitfall 14: Validator checks structure but misses inconsistency
-
-**What goes wrong:**
-`validate-agent-factory.mjs` confirms files exist and have the right sections, then declares the kit valid — while board↔ticket status drift (Pitfall 10), incomplete traceability (Pitfall 11), duplicated adapter content (Pitfall 2), and a bloated AGENTS.md (Pitfall 1) all pass unnoticed. A green validator gives false confidence.
-
-**Why it happens:**
-File-existence and section-presence checks are easy to write; cross-file consistency checks are harder. The spec's validator scope (§18) leans toward structure — but it *does* call for board/ticket match and traceability completeness, which must not be dropped.
-
-**How to avoid (extend the spec §18 scope deliberately):**
-- Beyond "files exist + sections present": (a) board↔ticket status match (Pitfall 10), (b) traceability row per ticket + flag missing tests/UAT (Pitfall 11), (c) config parses with mode/cadence/autonomy, (d) `plugin.json` has a `name` if present.
-- Add consistency checks that catch this file's pitfalls: AGENTS.md length/duplication sanity (Pitfall 1), no role-body text duplicated into adapters (Pitfall 2), `READY` results that lack recorded command output (Pitfall 5).
-- The validator checks structure; **it is not a substitute for dogfooding** (Pitfall 13). State this in its output so a green run isn't mistaken for "behaves correctly."
-- Never let the validator itself fake a pass (spec §18: "Faking results is forbidden anywhere").
-
-**Warning signs:**
-- Validator passes but a manual read finds drift/holes.
-- The validator only does `existsSync` checks.
-- A green validator is cited as proof the factory *works* (vs. *is structurally present*).
-
-**Phase to address:**
-The validator phase. Scope it to consistency, not just presence. The dogfood phase confirms the validator's green actually corresponds to a working kit.
+- Two `agent-factory/roles/orchestrator.md` files exist on disk with different bytes.
+- `install --update` either overwrote a file the user changed, or left a years-old kit because it "didn't want to overwrite."
+- No VERSION/provenance stamp at `$GRUGOPS_HOME`; "which kit am I running" is unanswerable.
+
+**Phase to address:** Installer/update phase (stamp + no-clobber-with-report) and migration phase (kill the stale copy as a read source). Single-source is a named constraint, so high priority.
 
 ---
 
 ## Technical Debt Patterns
 
+Shortcuts that look reasonable for this refactor but create long-term problems.
+
 | Shortcut | Immediate Benefit | Long-term Cost | When Acceptable |
 |----------|-------------------|----------------|-----------------|
-| Copy role text into a per-tool adapter "just for now" | One tool works fast | 5 tools drift; every fix is 5 edits (Pitfall 2) | **Never** — pointer from day one |
-| Skip the PreToolUse hook, rely on prompt | Ship plugin sooner | Prod-safety is a hope, not a guard (Pitfall 4) | **Never** for the safety guard; OK to *also* keep prompt as defense-in-depth |
-| Auto-generate AGENTS.md and don't trim | Substrate written fast | Measurable ~2–3% success drop + token cost on every run (Pitfall 1) | **Never** — trimming is the Scribe's job |
-| Validator does existence checks only | Validator ships fast | False-green hides drift/holes (Pitfall 14) | MVP only if dogfooding is mandatory and consistency checks are a tracked follow-up |
-| Inline architecture prose into AGENTS.md | One file to read | Bloat (Pitfall 1); duplicates memory-bank | **Never** — point to memory-bank/30-architecture.md |
-| Hardcode hook script path | Works on your machine | Breaks on install elsewhere (Pitfall 4) | **Never** — use `${CLAUDE_PLUGIN_ROOT}` |
-| Defer dogfooding to "after launch" | Feels done sooner | Ships a kit that looks done and isn't (Pitfall 13) | **Never** — dogfood is the acceptance gate |
+| Leave kit refs as bare `agent-factory/…` and "rely on cwd" | Zero rewrite of 31 files | Reincarnates the v1.0 dangling bug (C1); agent guesses; behavior non-deterministic | **Never** — this is the exact bug being fixed |
+| Default `$GRUGOPS_HOME` resolution to "look in `.` if unset" | Works in the dev checkout with no env var | Masks the unset-var failure in CI/containers; false-green validator (C3); silent wrong-root reads (C1, C5) | **Never** — fall back to `$HOME/.grugops` and FAIL loud if even that is absent |
+| Migration does `rm -rf agent-factory/` after relocating the kit | Clean tree, no leftover backup dir | Deletes user handoffs if relocation missed any (C2); irreversible; violates never-delete | **Never** — rename to a backup, let the human delete |
+| Validate the source checkout and call it "validated" | Always green; easy CI | Proves the wrong tree; real targets stay broken (C3) | Only as an *additional* check, never the only one |
+| Symlink the kit into the target (the v1.0 default `INSTALL_MODE=symlink`) | Near-zero footprint; auto-fresh kit | The exact dogfood pain — breaks if the clone moves/deletes (C5); the user "disliked symlinks" (`shared-install.md`) | **Never as default** for the kit; copy is the chosen design |
+| Skip `DRY_RUN` support on the new migration path | Less code | Loses the install contract's preview guarantee; users can't see the move plan before it runs | **Never** — the contract is repo-wide (`install.sh:9`) |
+| Ship the rewrite without a `grep`-for-bare-refs build gate | Faster to "done" | One missed ref out of 137 dangles silently in production | **Never** — the count is too high for eyeballs |
+
+---
 
 ## Integration Gotchas
 
-The "external services" here are the 5 host coding-agent CLIs and the Claude Code plugin system.
+`$HOME` / `$GRUGOPS_HOME` resolution across the environments grugops actually runs in. Each row is a concrete way the kit root resolves wrong and the agent reads nothing (or the wrong thing).
 
-| Integration | Common Mistake | Correct Approach |
+| Environment | Common Mistake | Correct Approach |
 |-------------|----------------|------------------|
-| Claude Code plugin | Putting `commands/`/`agents/`/`hooks/` inside `.claude-plugin/` | Only `plugin.json` in `.claude-plugin/`; everything else at plugin root (verified docs) |
-| Claude Code commands | Expecting bare `/grug` from a plugin | Plugin commands namespace as `/<name>:<cmd>`; for literal `/grug` use standalone `.claude/commands/` OR name the plugin `grug` |
-| Claude Code subagents | Bundling the safety hook in subagent frontmatter | Plugin subagents ignore `hooks`/`mcpServers`/`permissionMode`; use plugin-level `hooks/hooks.json` |
-| Claude Code subagents | Duplicate `name` across files | `name` must be unique per scope; duplicates silently discarded |
-| Marketplace | Using a reserved marketplace name | Avoid `claude-plugins-official`, `anthropic-*`, etc.; `name` is kebab-case |
-| Codex / Gemini / OpenCode / Copilot | Writing per-tool role copies | They read `AGENTS.md` natively (nested supported); adapter is just an entry pointer into the same roles |
-| AGENTS.md standard | Treating it as a config DSL with built-in scoping | It's plain markdown the agent reads; "scoping" is just nearest-file-wins via nested AGENTS.md |
-| All tools | Assuming sub-agent spawning everywhere | Only Claude Code spawns sub-agents (Task tool); others load roles sequentially — "only dispatch differs" |
+| **CI runners** | Assume `$HOME` is set; it often isn't, or points at a scratch dir wiped between steps; `~/.grugops` never got installed | Resolve `${GRUGOPS_HOME:-$HOME/.grugops}`; if the dir doesn't exist, the doctor FAILS with the path. Document setting `GRUGOPS_HOME` explicitly in CI, or installing the kit as a CI step. Never silently fall back to cwd. |
+| **Containers** | `$HOME` unset or `/` for an arbitrary UID (OpenShift assigns random UIDs with no `/etc/passwd` home); `~` expands to nothing | Fall back to `getent passwd "$(id -u)"` to find the real home when `$HOME` is unset (the canonical container pattern); else require `GRUGOPS_HOME` and fail loud if neither resolves. Bake the kit into the image at a known `GRUGOPS_HOME` for reproducibility. |
+| **`sudo` / privilege change** | `sudo` resets or preserves `$HOME` depending on `env_reset`/`always_set_home`; a kit under the user's `~/.grugops` is invisible to root, or vice versa | Resolve at run time, not install time; never cache an absolute home into the artifacts. Document that the kit must be installed for the same user/home that runs the agent. |
+| **Multi-user / shared CI cache** | One `$GRUGOPS_HOME` under a shared home; concurrent installs/updates race; user A's update changes the kit out from under user B mid-run (C6) | Per-user `~/.grugops` default is correct. If a shared kit is forced, treat it strictly read-only and pin the version per repo (C6). |
+| **Windows** | `$HOME` is unreliable (`%USERPROFILE%` vs `%HOMEDRIVE%%HOMEPATH%`); symlink creation needs privilege (already why `INSTALL_MODE=copy` exists, D-30); POSIX `install.sh` doesn't run | `install.mjs` (Node) is the Windows path and must resolve home via `os.homedir()`, not `$HOME`. Copy-default (already chosen) sidesteps symlink privilege. Keep sh/mjs parity (existing `install.test.sh` Check 4) extended to home-resolution. |
+| **`~` vs `$HOME` in markdown the agent reads** | Writing `~/.grugops` in role prose — the shell expands `~`, but an LLM reading the file does not, and the Read tool may not | Always have the agent resolve via the Bash tool (`printf '%s' "${GRUGOPS_HOME:-$HOME/.grugops}"`) and substitute the absolute result before reading (C1). Never put an unexpanded `~` in a path the agent is told to read directly. |
+
+---
+
+## Performance / Scale Traps
+
+"Scale" here = number of repos sharing one `$GRUGOPS_HOME` and concurrency, not user load.
+
+| Trap | Symptoms | Prevention | When It Breaks |
+|------|----------|------------|----------------|
+| **Runtime handoffs leak into the shared kit dir** | Two projects' agents both write `…/handoffs/system-handoff.md`; second clobbers first; cross-project bleed | The design already moves runtime handoffs to **repo-relative `plans/handoffs/`** precisely because they "cannot live in a shared read-only dir, would collide across projects" (`shared-install.md`). The trap is a *missed* rewrite (one of the 50 refs) still writing to `$GRUGOPS_HOME/agent-factory/handoffs/`. Make the kit dir read-only on install so a stray write *fails loudly* instead of silently colliding. | The moment ≥2 repos share one `$GRUGOPS_HOME` and any handoff write wasn't rewritten |
+| **Concurrent kit update during an active run** | Repo A's agent is mid-run reading `$GRUGOPS_HOME` role files; repo B runs `install --update` and rewrites them; A reads a half-written / version-skewed kit | Make kit updates atomic (write to a temp dir, then rename into place) so a reader never sees a partial kit. Stamp VERSION so a run can detect the kit changed under it. Per-repo version pin (C6) bounds the blast radius. | Multi-repo workflows / CI fan-out hitting one home |
+| **Two installers (sh + mjs) drift on home resolution** | `install.sh` resolves `$GRUGOPS_HOME` one way, `install.mjs` another; Windows vs POSIX users get different kit roots | Extend the existing parity test (`install.test.sh` Check 4/4b) to assert both installers resolve the SAME kit root given the same env. Resolution rule lives once, mirrored exactly (the file already calls itself "the same installer in two languages"). | Cross-platform teams; first Windows user |
+
+---
+
+## Security / Safety Mistakes
+
+Domain-specific to the two-root split and the hard prod-deploy guard.
+
+| Mistake | Risk | Prevention |
+|---------|------|------------|
+| Migration or installer touches the prod-deploy approval env var while "setting up the environment" | Crosses the hardest safety line: "only a human may approve a deploy" (`install.sh:14,279`) | Carry the explicit prohibition into the migration + doctor code verbatim; never read/write/seed `GRUGOPS_PROD_DEPLOY_APPROVED`. |
+| World-writable `$GRUGOPS_HOME` on a multi-user box | Another user edits the kit every project reads → arbitrary instruction injection into every agent run | Install the kit `0755` dirs / `0644` files owned by the installing user; per-user `~/.grugops` default avoids the shared-write surface entirely. |
+| Agent "hunts" for a missing kit and reads an attacker-planted `agent-factory/` higher in the tree (C1 consequence) | Untrusted role text executed as the Orchestrator | The C1 resolution rule + "STOP if the resolved kit dir is absent, do not hunt" closes this. Never glob for `agent-factory/` outside the resolved root. |
+| Doctor/validator follows symlinks out of the kit/repo and validates attacker content | False-green over a path that escapes both roots | Resolve and assert each path stays under its declared root; do not follow symlinks outside it. |
+
+---
 
 ## "Looks Done But Isn't" Checklist
 
-- [ ] **AGENTS.md substrate:** Often bloated — verify it's ~1 screen, real commands only (or `UNKNOWN - verify`), no inlined architecture, no lint-rule restating.
-- [ ] **Per-tool adapters:** Often contain copied role text — verify each is a thin pointer; grep a distinctive role sentence, expect one hit.
-- [ ] **Prod-safety hook:** Often prompt-only — verify a plugin-level `hooks/hooks.json` PreToolUse hook actually blocks a sample `kubectl apply` / `git push main`.
-- [ ] **`/grug` command:** Often namespaced unexpectedly — verify the literal command shape matches the brand (`/grug` standalone vs `/grug:plan` plugin) and is documented.
-- [ ] **plugin.json:** Often misplaced — verify it's in `.claude-plugin/` and components are at root; `claude plugin validate` passes.
-- [ ] **Installer:** Often non-idempotent — verify run-twice produces no diff, dry-run prints only, uninstall reverts cleanly, no user file overwritten.
-- [ ] **Handoffs/gates:** Often fabricated — verify "commands run" contains real output/exit codes, not just a ✓.
-- [ ] **Board ↔ tickets:** Often drift — verify every ticket's `column:` matches its board section.
-- [ ] **Traceability:** Often holey — verify a Done ticket's row is complete through the relevant stage.
-- [ ] **Disclaimers/NOTICE:** Often missing or in grug voice — verify non-affiliation + grugbrain.dev attribution present and in clear professional English.
-- [ ] **Lean mode:** Often taxed — verify zero-config run skips enterprise gates and ceremonies.
-- [ ] **Dogfood:** Often skipped — verify a real `/grug` idea→PR transcript exists on a throwaway repo.
+Things that appear complete after this refactor but are missing the split-specific piece. Verify each before dogfood sign-off.
+
+- [ ] **Path rewrite:** `grep -rn 'agent-factory/' <shipped kit + adapters + AGENTS.md + SKILL.md + install scripts>` returns ZERO bare refs — every hit is `$GRUGOPS_HOME/…` (kit) or `plans/handoffs/` (writes). Current count: 31 files / ~55+50+32 refs; one miss dangles.
+- [ ] **Agent resolution rule:** `AGENTS.md` and the orchestrator preamble tell the agent, in prose, how to turn `$GRUGOPS_HOME` into an absolute path and to STOP (not hunt) if the kit dir is absent — and the agent transcript shows it stating the resolved path before its first kit read.
+- [ ] **Unset `$HOME`/`$GRUGOPS_HOME`:** install + doctor tested with both unset (CI/container shape) — they fall back to `$HOME/.grugops`, then `getent passwd`, then FAIL loud; never to cwd.
+- [ ] **Migration survival:** a fixture with a *filled* `agent-factory/handoffs/*` survives migration (now under `plans/handoffs/`) with content intact; nothing under `agent-factory/` deleted (renamed-to-backup at most); `DRY_RUN=1` previews; re-run is a no-op. (Mirror `install.test.sh` Check 3.)
+- [ ] **Validator two-root:** self-test includes a BAD fixture where a kit ref only resolves against the repo (C1 footgun) and a BAD fixture where `$GRUGOPS_HOME` is unset/absent — both FAIL. Validator and `--check` doctor resolve `$GRUGOPS_HOME` identically.
+- [ ] **No stale read source:** post-migration the agent cannot reach a leftover in-repo `agent-factory/` (renamed out of the glob path); only `$GRUGOPS_HOME` is reachable.
+- [ ] **Installer parity:** `install.sh` and `install.mjs` resolve the same kit root and produce the same target tree (extend Check 4/4b to home-resolution).
+- [ ] **Reversibility intact:** `uninstall.sh` updated for the two-root layout still restores a fixture to pristine and still refuses every protected path; it does NOT remove the kit at `$GRUGOPS_HOME` for other repos that share it.
+- [ ] **Version stamp:** `$GRUGOPS_HOME/agent-factory/VERSION` present; doctor reports kit-version vs repo-expected-version.
+
+---
 
 ## Recovery Strategies
 
+When a pitfall ships despite prevention, how to recover.
+
 | Pitfall | Recovery Cost | Recovery Steps |
 |---------|---------------|----------------|
-| Bloated AGENTS.md (1) | LOW | Run the Scribe in removal mode; move detail into pointed-to files; re-dogfood |
-| Adapter drift (2) | MEDIUM | Pick the canonical role text, delete copies, replace adapters with pointers; add validator check |
-| Over-engineering (3) | HIGH | Rip out runtime; re-express feature as markdown + prompt; the longer it lives, the costlier |
-| Prompt-only safety (4) | LOW | Add plugin-level PreToolUse hook + `autonomy=pr` default; test the block |
-| Faked results (5) | MEDIUM | Add no-fabrication hard limits + `UNKNOWN - verify` + validator evidence check; audit existing traces |
-| Tool-format bug (6) | LOW–MEDIUM | Fix against current docs; `claude plugin validate`; re-resolve `/grug` namespacing |
-| Bad installer (7) | LOW | Switch to ensure_line/append-if-missing; add dry-run + uninstall; test idempotency |
-| Voice leak (8) | LOW | Rewrite findings/legal in clear voice; add reviewer/validator scan |
-| IP-resembling art (9) | LOW–MEDIUM (HIGH if shipped/promoted) | Replace with original art; add disclaimer/NOTICE; the cost rises sharply once public |
-| Board drift (10) | LOW | Daily-sweep reconcile; validator board↔ticket check |
-| Incomplete trace (11) | LOW | Back-fill rows; enforce per-role Trace updates + validator completeness |
-| Runaway self-fix (12) | LOW | Wire the config attempt counter + terminal result into the gate |
-| No dogfood (13) | MEDIUM | Run the idea→PR dogfood now; fix what it surfaces before claiming done |
-| Weak validator (14) | LOW | Add consistency checks; label green as "structure present, not behavior verified" |
+| C1 dangling ref (agent reads wrong root) | MEDIUM | Grep-fix the missed token; ship the resolution-rule prose; re-run doctor `--check`; the doctor's "missing path" output names the exact dangling ref to fix. |
+| C2 migration deleted user handoffs | HIGH | Restore from the rename-to-backup dir if migration used it (the whole reason to rename not delete); else from git history / backup. **This is why migration must never delete in the same run** — the backup IS the recovery path. |
+| C2 handoffs stranded (orphaned not deleted) | LOW | Re-run a (now-fixed) migration that finds and moves the stranded `agent-factory/handoffs/*`; idempotent move makes this safe. |
+| C3 false-green validator | MEDIUM | Add the missing BAD-split fixture; the regression is "validator passed but agent couldn't find a role" — that pairing is the detection signal; fix resolution + re-validate against a real target. |
+| C4 kit drift / fork | LOW–MEDIUM | `cmp` `$GRUGOPS_HOME` against shipped bytes to find drifted files; re-install with the no-clobber-report path so the user reconciles their edits intentionally. |
+| C6 version skew | LOW | Pin the repo to a kit version; doctor reports the mismatch; user updates the kit or the pin deliberately. |
+
+---
+
+## Additional Pitfalls (Moderate)
+
+### Pitfall C5: Symlink fragility vs copy drift — the two-horned tradeoff
+
+**What goes wrong:** The v1.0 default `INSTALL_MODE=symlink` (`install.sh:40`, D-30) symlinks adapters back into the clone; if the clone moves or is deleted, every symlink dangles and the agent reads nothing — the exact dogfood pain (`shared-install.md` §Problem item 2). The alternative, copy (the new default), avoids dangling but reintroduces drift (C4). You cannot escape both; you choose which failure.
+
+**How to avoid:** The design already chose **copy for the kit** (robust against clone-move) and accepts the drift risk, mitigated by C4's stamp + no-clobber-report. Do NOT symlink the kit from the target into `$GRUGOPS_HOME` (that re-adds dangling-if-moved). Keep the adapter set small so copy footprint stays trivial. If symlinks are ever offered as opt-in (`INSTALL_MODE=symlink`), the doctor must detect a dangling symlink and report it.
+
+**Warning signs:** `find . -type l ! -exec test -e {} \;` finds a dangling link; agent reads empty/old content after the source repo moved.
+
+**Phase to address:** Installer phase (copy-default + dangling-symlink detection in doctor).
+
+### Pitfall C6: Version skew — central kit updated under a repo that expected an older kit
+
+**What goes wrong:** Repo A was bootstrapped against kit `0.1.0` (its `plans/`, filled handoff templates, board format assume `0.1.0`). A later `install --update` bumps `$GRUGOPS_HOME` to a kit with a changed handoff template or board schema. Repo A's existing state no longer matches the kit the agent now reads — silent skew. There is no per-repo record of "which kit version this repo expects," so nothing detects the mismatch. This is the shared-home analogue of the Kubernetes version-skew problem and the asdf local-vs-global pin.
+
+**How to avoid:**
+1. **Record the expected kit version per repo** (e.g. a one-line `plans/.grugops-kit-version` or a field in the repo's `factory.config.json`) at install/bootstrap. This is the asdf `.tool-versions`-local model: global kit at `$GRUGOPS_HOME`, expected version pinned per project.
+2. **Doctor compares them:** "repo expects kit `0.1.0`; `$GRUGOPS_HOME` is `0.2.0`" → warn (or fail under `mode=enterprise`) with what changed. Express *compatibility windows*, not exact locks ("kit ≥ X, < Y") so patch updates don't trip every repo — "express compatibility, not lock environments."
+3. **Since grugops is pre-1.0**, lean on SemVer's `0.y.z` "anything may change" latitude but still surface the mismatch; once ≥1.0 a MAJOR bump should be the loud signal.
+
+**Warning signs:** A repo's filled handoffs/board don't match the templates the agent now reads; no per-repo version pin exists; updating the kit silently changes behavior in unrelated repos.
+
+**Phase to address:** Installer/doctor phase (write the pin + compare). Lower priority than C1–C4 but cheap to add alongside the VERSION stamp (C4).
+
+---
 
 ## Pitfall-to-Phase Mapping
 
-> Phase names are indicative — the roadmap will name them. Mapping shows *which kind of phase* prevents each pitfall.
+Phase names are indicative; the roadmap owns final naming. Ordering rationale: the path-rewrite token must be fixed first (validator, doctor, migration all key off the final spelling), and nothing dogfoods until C1+C2+C3 are closed.
 
 | Pitfall | Prevention Phase | Verification |
 |---------|------------------|--------------|
-| 1 Bloated context files | AGENTS.md Scribe + substrate phase | Validator length/dup check; dogfood inspects generated AGENTS.md |
-| 2 Adapter drift | Packaging/adapters phase (first adapter sets pattern) | Grep distinctive role sentence → one hit; validator no-dup check |
-| 3 Over-engineering | Scaffold/architecture phase + every feature phase | No runtime deps; lean zero-config run skips gates |
-| 4 Prompt-only safety | Plugin phase + config/defaults phase | Hook blocks sample deploy; `autonomy=pr` default set |
-| 5 Faked results | Every role phase + CI/backpressure phase + validator phase | Handoffs contain real command output; validator flags READY-without-evidence |
-| 6 Tool-format mistakes | Packaging/plugin phase | `claude plugin validate` passes; `/grug` shape confirmed |
-| 7 Bad installer | Installer phase | Run-twice no diff; dry-run prints; uninstall reverts |
-| 8 Voice leak | Brand/collateral phase + finding-producing role phases | Reviewer/validator scan of legal+findings for grug tells |
-| 9 IP/art + disclaimer | Brand/collateral phase | Original art; disclaimer + attribution present |
-| 10 Board drift | Delivery-OS/board phase + validator phase | Validator board↔ticket match |
-| 11 Incomplete trace | Traceability phase + role phases | Validator flags rows missing tests/UAT |
-| 12 WIP / self-fix loop | Delivery-OS phase + CI/backpressure phase | Over-WIP flagged; gate emits terminal result ≤2 rounds |
-| 13 No dogfooding | Final dogfood/validation phase | Real `/grug` idea→PR transcript on sample repo |
-| 14 Weak validator | Validator phase | Validator catches a deliberately-introduced drift/hole |
+| **C1 dangling-reference reincarnation** (GATING) | Path-rewrite phase + Installer/doctor phase | `grep -rn 'agent-factory/'` → zero bare refs; agent states resolved abs path before first read; `--check` resolves every ref |
+| **C2 migration data-loss** (GATING) | Migration phase | Fixture with a filled handoff survives migration with content intact; nothing under `agent-factory/` deleted; `DRY_RUN` previews; re-run is no-op |
+| **C3 false-green validator** (GATING) | Validator/test phase (after token fixed) | GOOD/BAD split fixtures both behave; unset-`$GRUGOPS_HOME` fixture FAILS; validator + doctor resolve home identically |
+| **C4 single-source erosion** | Installer/update phase + Migration phase | Two divergent `agent-factory/` copies cannot both be read; update reports (never silently clobbers) a locally-modified kit; VERSION + provenance stamped |
+| **C5 symlink fragility / copy drift** | Installer phase | Copy is the kit default; doctor detects dangling symlinks; agent reads correct content after clone moves |
+| **C6 version skew** | Installer/doctor phase | Per-repo kit-version pin written; doctor reports kit-vs-repo mismatch as a compatibility window |
+| Unset `$HOME`/`$GRUGOPS_HOME` (CI/container/sudo/multi-user/Windows) | Installer phase + agent-resolution prose | Both-unset test falls back `$HOME/.grugops` → `getent passwd` → FAIL loud, never cwd; `install.mjs` uses `os.homedir()`; sh/mjs parity extended |
+| Prod-deploy safety preserved through migration | Migration + doctor phase | Migration/doctor never read/write the deploy-approval env var (carry `install.sh:14` prohibition forward) |
+
+---
 
 ## Sources
 
-- `/Users/olgeroeselg/Projects/public/grugops/docs/initial/agent_factory_builder_spec_v2.md` — §5.A.2 (AGENTS.md minimalism), §13–14 (safety/backpressure), §16 (packaging/installers, verified against current docs), §17–18 (substrate/validator), §19 (quality rules), §20 (acceptance) — HIGH (project's own contract)
-- `/Users/olgeroeselg/Projects/public/grugops/docs/initial/grugops_brand_manual.md` — §4 (two voices), §5.2 (command/namespacing), §6.5 (mascot), §10 (legal/non-affiliation) — HIGH (project's own brand contract)
-- [Claude Code — Create plugins](https://code.claude.com/docs/en/plugins) — plugin.json location, root-level component dirs, namespacing, `commands/` vs `skills/`, `--plugin-dir`/`claude plugin validate`/`/reload-plugins` — HIGH (current official docs, 2026)
-- [Claude Code — Create custom subagents](https://code.claude.com/docs/en/sub-agents) — required frontmatter (`name`+`description`), `model: inherit` default, tools list, unique-name rule, plugin subagents ignore `hooks`/`mcpServers`/`permissionMode` — HIGH (current official docs)
-- [Claude Code — Plugin marketplaces](https://code.claude.com/docs/en/plugin-marketplaces) — marketplace.json location + required `name`/`owner`/`plugins`, entry `name`+`source`, reserved names, install commands — HIGH (current official docs)
-- [Claude Code — Hooks](https://code.claude.com/docs/en/hooks) — PreToolUse matcher/stdin JSON/exit-2-or-permissionDecision-deny, `${CLAUDE_PLUGIN_ROOT}` — HIGH (current official docs)
-- [agents.md standard](https://agents.md) — plain-markdown, native readers (Codex/Cursor/Copilot/+20), nested-file precedence, no built-in mechanism — HIGH (official spec site)
-- [New Research Reassesses the Value of AGENTS.md Files for AI Coding — InfoQ (Mar 2026)](https://www.infoq.com/news/2026/03/agents-context-file-value-review/) — LLM-generated context files reduce success ~2–3% vs none; human-written improve ~4% — MEDIUM-HIGH (corroborates spec's empirical claim)
-- [Context Rot: Why LLMs Degrade as Context Grows — Morph](https://www.morphllm.com/context-rot) — measurable degradation as input grows below window limit — MEDIUM (secondary source, consistent with primary research)
+- `.planning/PROJECT.md` — the five-place never-overwrite/delete constraint, no-fabrication, single-source, v1.1 milestone goal (HIGH — repo authority)
+- `docs/design/shared-install.md` — the kit/state split, copy-not-symlink decision, blast radius (31 files / 55+50+32 refs), the doctor as "the guard that would have caught all three pains," explicitly-rejected vendor-into-repo and symlink-overlay (HIGH — design contract)
+- `install/install.sh`, `install/uninstall.sh`, `install/install.test.sh` — the additive/idempotent/DRY_RUN/reversible contract, `is_protected()` denylist, byte-identity `cmp` test, sh/mjs parity checks, the `CONTRACT VIOLATION` assertions (HIGH — current behavioral spec)
+- `AGENTS.md:9-24`, `.claude/skills/grugops/SKILL.md`, `agent-factory/roles/orchestrator.md:26-68` — the live bare `agent-factory/…` refs that reincarnate the dangling bug; verified by grep (137 refs across 31 files) (HIGH — measured in this repo)
+- [XDG Base Directory Specification — ArchWiki](https://wiki.archlinux.org/title/XDG_Base_Directory) — `${VAR:-$HOME/.default}` fallback + project-first-then-global resolution order (HIGH — the convention `$GRUGOPS_HOME` resolution should follow)
+- [Fall back to `getent passwd` when SHELL/HOME is unset — AlmaLinux toolbox commit](https://git.almalinux.org/rpms/toolbox/commit/119592cbc54a0368e8521d9edcdc01cfdf10853d) and [Use `getent passwd` to resolve UID/GID in containers — Linux Bash](https://www.linuxbash.sh/post/use-getent-passwd-to-resolve-uidgid-mappings-in-containers) — the canonical unset-`$HOME` fallback for CI/containers/arbitrary-UID (HIGH)
+- [Version Skew Policy — Kubernetes](https://kubernetes.io/releases/version-skew-policy/) and [asdf .tool-versions local-vs-global — DEV](https://dev.to/eedygreen/tool-version-manager-1afe) — the compatibility-window framing + per-project pin model for C6 (MEDIUM — analogous-domain practice)
+- [Pinning exact versions breaks downstream consumers — litellm #26154](https://github.com/BerriAI/litellm/issues/26154) — "express compatibility, not lock environments" for C6 windows (MEDIUM)
+- [Making content migration idempotent — Sanity](https://www.sanity.io/learn/course/handling-schema-changes-confidently/making-the-content-migration-more-idempotent), [Database migration tips — Jonathan Hall](https://jhall.io/archive/2022/05/12/database-migration-tips-tricks/), [Idempotent Docker entrypoint scripts — OneUptime](https://oneuptime.com/blog/post/2026-02-08-how-to-write-idempotent-docker-entrypoint-scripts/view) — marker-file detection, "ADD/COPY never DROP," convergence/idempotency for C2 (MEDIUM)
 
 ---
-*Pitfalls research for: file-based multi-agent SDLC factory*
-*Researched: 2026-06-02*
+*Pitfalls research for: grugops v1.1 shared-home + per-repo-state install refactor*
+*Researched: 2026-06-06*

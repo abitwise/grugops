@@ -1,242 +1,85 @@
-# Stack Research
+# Stack Research — v1.1 Shared-Location Install Conventions
 
-**Domain:** Multi-agent SDLC delivery kit shipped as markdown + per-tool installers + a Claude Code plugin (no app runtime)
-**Researched:** 2026-06-02
-**Confidence:** HIGH (all six dimensions verified against current official docs at code.claude.com, agents.md, developers.openai.com, geminicli.com, opencode.ai, docs.github.com, keepachangelog.com, semver.org — Jan/Feb 2026 doc state)
+**Domain:** Install/path-resolution mechanics for a markdown "agent factory" kit that moves to a shared home (`$GRUGOPS_HOME`, default `~/.grugops`) with per-repo state, resolved identically in POSIX `sh` (`install.sh`) and Node stdlib (`install.mjs`).
+**Researched:** 2026-06-06
+**Confidence:** HIGH (XDG spec, Node `os`/`path` APIs, and tool-home conventions all verified against primary sources)
 
-> "Stack" here means the **host-tool integration formats and packaging conventions** grugops must conform to, NOT an application framework. The build artifact is markdown plus two installers (`install.sh` POSIX + `install.mjs` Node) and one optional Node validator. The host coding agent is the runtime.
+> Scope note: this is **not** a library-shopping exercise. The hard constraints forbid new deps, `package.json`, or anything non-markdown beyond the two installers + one validator. So "stack" here = **conventions and stdlib mechanisms** the refactor must adopt. Every recommendation below is dep-free and stdlib-only by construction.
+>
+> This file supersedes the v1.0 STACK.md (distribution-format research, now mirrored in CLAUDE.md) and is scoped to the v1.1 install redesign only.
 
 ---
 
-## TL;DR — what changed vs the spec's assumptions
+## TL;DR — the locked answers this milestone needs
 
-The v2 spec was written against an older snapshot of the Claude Code docs. Five things have moved and the roadmap must account for them:
-
-1. **Claude Code docs moved host:** `docs.claude.com/en/docs/claude-code/*` now 301-redirects to **`code.claude.com/docs/en/*`**. Update every link in generated docs/README. (HIGH)
-2. **Commands merged into Skills.** "Custom commands have been merged into skills." `.claude/commands/grug.md` and `.claude/skills/grug/SKILL.md` both create `/grug` and work identically. `commands/` still works and is fine to use; `skills/` is the recommended forward path for new plugins. (HIGH)
-3. **The Task tool is now `Agent`** (renamed in v2.1.63). `Task(...)` still works as an alias. Use `Agent` in new agent frontmatter `tools:` lists. (HIGH)
-4. **Subagents cannot spawn subagents** (no nesting). This directly constrains the Orchestrator design — see ARCHITECTURE implications below. (HIGH)
-5. **The PreToolUse hook now has a first-class `if:` matcher using permission-rule syntax** (e.g. `if: "Bash(kubectl apply*)"`). This makes the "humans decide" prod-deploy guard genuinely mechanical and clean. (HIGH)
-
-The spec's core bet — one portable AGENTS.md core + thin per-tool adapters — is **fully validated**: AGENTS.md is now a Linux Foundation standard with 60k+ projects and 20+ tools, and all five target CLIs consume it (Gemini needs one settings line; the rest read it natively).
+1. **Keep `~/.grugops` (a `$TOOL_HOME` dotdir). Do NOT move under XDG (`~/.local/share`, `~/.config`).** Every comparable cross-platform dev tool — rustup, cargo, nvm, pyenv, volta — uses `$TOOL_HOME → ~/.tool`, not XDG. XDG is Linux-desktop-centric, splits one logical home across 3+ dirs, and is widely ignored by exactly grugops's peer class. A single `$GRUGOPS_HOME` is simpler, cross-platform, and matches user expectation. **(HIGH)**
+2. **Precedence rule: `$GRUGOPS_HOME` if set-and-non-empty, else `$HOME/.grugops`.** Use `${GRUGOPS_HOME:-"$HOME/.grugops"}` in sh (colon form) and the explicit empty-check in Node. **(HIGH)**
+3. **Resolve `$HOME` via the OS, never store a literal `~`.** sh: `$HOME` (Git Bash maps it from `%USERPROFILE%`). Node: `os.homedir()` (POSIX `$HOME`, Windows `USERPROFILE`). A baked-in `~/.grugops` string that is *not* shell-expanded is a known failure mode (nvm #2074). **(HIGH)**
+4. **Copy, not symlink — the dogfood was right and Windows proves it.** Git Bash `ln -s` silently deep-copies by default; Windows symlinks need Developer Mode or admin. Copy is the only mode that behaves identically on all platforms. Keep symlink only as an opt-in (`INSTALL_MODE=symlink`). **(HIGH)**
+5. **Drift detection = stamp the installed `VERSION` into the target; `--check` compares.** The kit already ships `agent-factory/VERSION` (`0.1.0`). Write the installed version into a small per-repo marker; the doctor reports stale/missing/mismatch. No checksums, no manifest format, no deps. **(MEDIUM — convention choice, not a spec)**
 
 ---
 
 ## Recommended Stack
 
-### Core Technologies (the formats grugops must emit)
+### Core Technologies (conventions + stdlib only)
 
-| Technology | Version | Purpose | Why Recommended |
-|------------|---------|---------|-----------------|
-| **Markdown (CommonMark + YAML frontmatter)** | n/a | All roles, workflows, handoffs, checklists, AGENTS.md, agent/skill files | The whole kit is readable, diffable, git-native artifacts. Every target tool parses markdown + YAML frontmatter. Boring on purpose. |
-| **AGENTS.md open standard** | LF-stewarded, plain markdown (no schema) | The single portable substrate every tool reads | "Just standard Markdown. Use any headings you like." 60k+ projects, 20+ tools, Agentic AI Foundation (Linux Foundation) governance. Closest-file-wins nesting. This is the linchpin of "write once, run everywhere." |
-| **Claude Code plugin manifest** | `.claude-plugin/plugin.json`, schema as of CC v2.1.x (2026) | Versioned, shareable distribution form | Only `name` is required. Components live at plugin **root** (`agents/`, `commands/` or `skills/`, `hooks/`), never inside `.claude-plugin/`. |
-| **Claude Code marketplace catalog** | `.claude-plugin/marketplace.json` | Single-plugin catalog users add with `/plugin marketplace add` | Required fields: `name`, `owner` (object, `name` required), `plugins` (array). Each plugin entry needs `name` + `source`. |
-| **POSIX sh** | `install.sh` (`#!/usr/bin/env sh`, `set -eu`) | Idempotent, additive, dry-run installer for Unix | Maximum portability, no Node dependency on the install path. |
-| **Node.js (ESM)** | `install.mjs` + optional `scripts/validate-agent-factory.mjs`, Node 18+ LTS | Cross-platform installer (Windows/no-POSIX) + structure validator | Node 18+ ships `node:fs`/`node:path` and ESM by default; matches the spec's `import` syntax. Only add `package.json` if one already exists (spec §18). |
-| **SemVer 2.0.0** | 2.0.0 | Version scheme for `VERSION`, `plugin.json`, release IDs | `MAJOR.MINOR.PATCH`. Note: grugops itself is pre-1.0 territory; if you ship as `2.0.0` (matching the spec's VERSION) you accept SemVer's "MAJOR bump on breaking change" contract from day one. |
-| **Keep a Changelog 1.1.0** | 1.1.0 | `CHANGELOG.md` format; Release Manager role output | Sections: Added / Changed / Deprecated / Removed / Fixed / Security, plus an `Unreleased` block. "Changelogs are for humans." |
+| Technology / Convention | Version | Purpose | Why Recommended |
+|------------------------|---------|---------|-----------------|
+| **`$GRUGOPS_HOME` env var → `~/.grugops` default** | n/a | The single shared kit root | Matches the dominant cross-platform dev-tool convention (rustup `RUSTUP_HOME→~/.rustup`, cargo `CARGO_HOME→~/.cargo`, nvm `NVM_DIR→$HOME/.nvm`, pyenv `PYENV_ROOT→$HOME/.pyenv`, volta `VOLTA_HOME→~/.volta`). One env var, one home, overridable. (HIGH) |
+| **POSIX `${GRUGOPS_HOME:-"$HOME/.grugops"}`** | POSIX.1 | sh-side resolution | The `:-` (colon) operator treats empty-string the same as unset — the safe choice so `GRUGOPS_HOME=` (exported blank in CI) still falls back. (HIGH — POSIX spec) |
+| **Node `os.homedir()`** | Node 18+ (stable since v2.3) | Node-side `$HOME` equivalent | "On POSIX, uses `$HOME`…; on Windows, uses `USERPROFILE`." Identical resolution to Git Bash's `$HOME`, so both installers land in the same place. Stdlib `node:os`. (HIGH — Node v24 API docs) |
+| **Node `path.resolve()` / `path.join()`** | Node 18+ | Build absolute kit/state paths | `path.resolve(homedir, ".grugops")` normalizes + absolutizes cross-platform (handles `\` vs `/`). Stdlib `node:path`. Already used in `install.mjs`. (HIGH) |
+| **Node `fileURLToPath(import.meta.url)`** | Node 18+ | Locate the installer's own dir (the kit source) | Already in `install.mjs:34-39`; the ESM-correct way to get `__dirname`. Keep. (HIGH) |
+| **`agent-factory/VERSION` (SemVer string)** | 0.1.0 | Drift signal | Already exists. Stamp it into the target on install; `--check` compares installed-vs-current. The cheapest possible drift detector — no manifest, no hashing. (MEDIUM) |
 
-### Supporting Libraries / Conventions
+### Supporting Mechanisms
 
-| Library / Convention | Version | Purpose | When to Use |
-|---------|---------|---------|-------------|
-| **`${CLAUDE_PLUGIN_ROOT}`** | CC v2.1.x | Absolute path to the installed plugin dir | Any bundled script path inside hooks/MCP/monitor configs. Path changes on update — treat as ephemeral, never write state there. |
-| **`${CLAUDE_PLUGIN_DATA}`** | CC v2.1.x | Persistent per-plugin state dir (survives updates) | Only if grugops ever bundles installed deps; not needed for a markdown kit. |
-| **`${CLAUDE_PROJECT_DIR}`** | CC v2.1.x | Project root, also passed to hook subprocesses | Reference project-local scripts from standalone (non-plugin) hooks. |
-| **`$ARGUMENTS` / `$0` `$1` / `$name`** | CC v2.1.x | Pass the user request into the `/grug` command | `$ARGUMENTS` = full request string; `$ARGUMENTS[N]`/`$N` = indexed (shell-quoted); `$name` = named via `arguments:` frontmatter. |
-| **`jq`** | any | Parse hook stdin JSON inside the prod-deploy guard | `jq -r '.tool_input.command'` to read the Bash command in a PreToolUse hook. Document as a guard dependency (or do the check in Node). |
-| **Gemini `settings.json` `context.fileName`** | Gemini CLI 2026 | Make Gemini CLI read AGENTS.md directly | `{ "context": { "fileName": ["AGENTS.md", "GEMINI.md"] } }` — cleaner than a `GEMINI.md` pointer. |
+| Mechanism | Where | Purpose | When to Use |
+|-----------|-------|---------|-------------|
+| **`--check` / doctor subcommand** | both installers | Verify every kit ref resolves under `$GRUGOPS_HOME` and every state ref resolves in the target; exit non-zero + name the first missing path | Run after install, and as the standalone diagnostic the design calls for (the guard that catches all three dogfood pains). Mirrors `brew doctor` / `flutter doctor` / `npm doctor`. (MEDIUM) |
+| **`--target <repo>` flag + interactive prompt** | both installers | Stop defaulting the *kit* target to `$(pwd)`/clone | Replaces the obscure `TARGET=` env var as the primary UX. Keep `TARGET=` honored for non-interactive/CI parity. (HIGH — design §Installer changes) |
+| **Per-repo install marker** (e.g. `plans/.grugops-install.json` or a line in an existing state file) | target repo | Record installed kit version + resolved `$GRUGOPS_HOME` at install time | Enables `--check` to detect drift and to re-resolve the home the adapters were written against. Keep it tiny and additive. (LOW — exact filename is an open decision below) |
+| **`command -v node`** | `install.sh` | Detect Node for the JSON-merge delegation | Already used (`install.sh:162`). The same fail-safe pattern (defer when Node absent) applies to any JSON the doctor must read. (HIGH) |
 
-### Development Tools
+### Development / Verification Tools
 
 | Tool | Purpose | Notes |
 |------|---------|-------|
-| **`claude plugin validate <dir>`** (or `/plugin validate`) | Validate `plugin.json` + `marketplace.json` + agent/skill/command/hook frontmatter | Run in CI before publishing. `--strict` turns warnings (e.g. misspelled fields, non-kebab-case names) into errors. Use it; it is the authoritative gate. |
-| **`claude --plugin-dir ./grugops-plugin`** | Local plugin testing without install | Fastest dev loop. Also accepts a `.zip` (CC v2.1.128+). |
-| **`/reload-plugins`** | Hot-reload plugin changes mid-session | Picks up skills, agents, hooks, MCP, LSP without restart. |
-| **`scripts/validate-agent-factory.mjs`** | grugops's own structure validator (spec §18) | Checks required files exist, role/workflow sections present, config parses, board↔ticket status match, traceability completeness, packaging presence. Structure not behavior. Never fakes results. |
-
-## Installation (what users run)
-
-```bash
-# Minimal path (any tool) — "just install the markdown":
-#   copy AGENTS.md + agent-factory/ into the repo, then tell the agent:
-#   "start at agent-factory/roles/orchestrator.md"
-
-# Scripted, per-tool conveniences (idempotent, additive, dry-run, reversible):
-sh install/install.sh                 # POSIX
-DRY_RUN=1 sh install/install.sh       # preview, change nothing
-node install/install.mjs              # cross-platform equivalent
-sh install/uninstall.sh               # removes only what the installer added
-
-# Claude Code plugin form (versioned, shareable):
-#   in Claude Code:
-/plugin marketplace add <owner>/grugops      # add the catalog (git repo)
-/plugin install grug@grugops                 # install the plugin
-```
+| **`install/install.test.sh`** | Regression harness for the two-root layout | Already exists (13/13). Must grow cases: env-override precedence, empty-`GRUGOPS_HOME` fallback, copy-default, `--check` pass/fail, idempotent re-run = zero diff. (HIGH) |
+| **`scripts/validate-agent-factory.mjs`** | Structure validator, now two-root aware | Per design §Validator: validate kit at `$GRUGOPS_HOME`/`VALIDATE_ROOT` and a target independently. Stays stdlib-only, never fabricates a pass, never writes `package.json`. (HIGH) |
+| **`DRY_RUN=1`** | Preview every mutation | Existing contract; extend to cover kit-copy-to-`$GRUGOPS_HOME` and the new marker write. (HIGH) |
 
 ---
 
-## Format Schemas (verified, copy-paste correct)
+## Installation (how resolution is wired — stdlib only, copy-paste shape)
 
-### 1. `.claude-plugin/plugin.json` (manifest)
+The single rule, expressed identically in both languages:
 
-Only `name` is required. Components live at the **plugin root**, never in `.claude-plugin/`.
+```sh
+# install.sh — POSIX. Colon form: empty string falls back like unset.
+# NEVER write a literal "~/.grugops" as the default — the tilde is not
+# expanded when it lands in an env-var value (nvm #2074). Use $HOME.
+GRUGOPS_HOME=${GRUGOPS_HOME:-"$HOME/.grugops"}
 
-```json
-{
-  "name": "grug",
-  "version": "2.0.0",
-  "description": "File-based SDLC agent factory: orchestrator + lean role agents, Kanban/Sprint delivery, enterprise gates, brownfield/greenfield mapping.",
-  "author": { "name": "Olger Oeselg", "email": "abitwise@gmail.com" },
-  "homepage": "https://github.com/<owner>/grugops",
-  "repository": "https://github.com/<owner>/grugops",
-  "license": "MIT",
-  "keywords": ["sdlc", "agents", "kanban", "delivery", "agents-md"]
-}
+# $HOME is correct on Windows too: Git Bash/MSYS map it from %USERPROFILE%
+# when $HOME is unset, so this matches Node's os.homedir() on the same box.
 ```
 
-- **`name`** (string, REQUIRED): kebab-case, no spaces. **This is the command namespace.** Naming the plugin `grug` makes commands read `/grug:<command>`; naming it `grugops` makes them `/grugops:<command>`. To get the brand's literal `/grug` (no colon), you cannot do it in plugin form — see decision below.
-- **`version`** (string, optional but STRONGLY recommended): SemVer string. **If set, users only get updates when you bump it** — bump on every release. If omitted on a git-hosted plugin, every commit is a new version (the simpler-but-noisier option). Avoid setting `version` in both `plugin.json` and the marketplace entry; `plugin.json` wins silently.
-- **`description`** (optional): shown in the plugin manager.
-- **`author`** (optional object): `name` (+ optional `email`, `url`).
-- **`displayName`** (optional, CC v2.1.143+): human-readable UI label; may contain spaces/casing. NOT used for namespacing — so it cannot give you literal `/grug`.
-- **`homepage`, `repository`, `license`, `keywords`** (optional): standard metadata. `license` is an SPDX id.
-- **Component path fields** (optional; only when overriding defaults): `agents`, `commands`, `skills`, `hooks`, `mcpServers`, `lspServers`, `outputStyles`, `experimental.themes`, `experimental.monitors`, `userConfig`, `dependencies`. Default discovery means you usually omit all of these.
-- **Path behavior:** `commands`/`agents` override the default folder; `skills` adds to the default `skills/`. Unrecognized top-level fields are ignored (warned by validate). Wrong-type fields fail to load.
+```js
+// install.mjs — Node stdlib (node:os, node:path). Empty string must also fall back,
+// so test truthiness, not just `process.env.X ? ...`.
+import { homedir } from "node:os";
+import { resolve } from "node:path";
 
-**What NOT to do:** Do not put `agents/`, `commands/`, `skills/`, or `hooks/` inside `.claude-plugin/`. Only `plugin.json` (and `marketplace.json`) live there. This is the single most common plugin mistake and the docs call it out explicitly.
-
-### 2. `.claude-plugin/marketplace.json` (single-plugin catalog)
-
-```json
-{
-  "name": "grugops",
-  "owner": { "name": "Olger Oeselg", "email": "abitwise@gmail.com" },
-  "description": "The simple software factory — a full SDLC as a few simple agents.",
-  "plugins": [
-    {
-      "name": "grug",
-      "source": "./",
-      "description": "SDLC agent factory v2 (lean by default, enterprise on a flag)."
-    }
-  ]
-}
+const GRUGOPS_HOME = process.env.GRUGOPS_HOME && process.env.GRUGOPS_HOME.trim()
+  ? resolve(process.env.GRUGOPS_HOME)
+  : resolve(homedir(), ".grugops");
 ```
 
-- **REQUIRED:** `name` (kebab-case, public-facing, unique per user), `owner` (object; `name` required, `email` optional), `plugins` (array).
-- **Each plugin entry REQUIRED:** `name` + `source`. `source` can be a relative path (`"./"`, must start with `./`, resolved from the marketplace **root** = the dir containing `.claude-plugin/`, never `..`), or an object: `{ "source": "github", "repo": "owner/repo", "ref": "v2.0.0", "sha": "..." }`, or `url` / `git-subdir` / `npm` forms.
-- **Optional entry fields:** any `plugin.json` field plus `category`, `tags`, `strict` (default `true`), `displayName`, `defaultEnabled`.
-- **Reserved names** (cannot use): `claude-plugins-official`, `anthropic-plugins`, `agent-skills`, etc. `grugops` is clear (confirmed available in brand manual §10.6).
-- **Install flow:** `/plugin marketplace add <owner>/repo` (or local `./path`, or git URL) → `/plugin install grug@grugops`. CLI equivalents: `claude plugin marketplace add ...` / `claude plugin install grug@grugops`, with `--scope user|project|local`.
-- **Caching gotcha:** plugins are **copied to a cache** on install. Files referenced via `../` outside the plugin dir are NOT copied. Keep everything the plugin needs inside the plugin directory (or symlink). This matters because grugops's canonical role text lives in `agent-factory/roles/` — see decision below.
+Parity check the two must satisfy: on the same machine, with the same `GRUGOPS_HOME` (set, unset, or empty), both print the same absolute kit root. Add that to `install.test.sh`.
 
-### 3. Subagent: `.claude/agents/<role>.md` (standalone) or plugin `agents/<role>.md`
-
-```markdown
----
-name: grug-orchestrator
-description: Single entry point for the software factory. Use for any SDLC delivery request — bootstrapping a repo, turning ideas into tickets, implementing a ticket, running a quality gate, planning UAT, or cutting a release. Routes to specialist factory agents.
-tools: Read, Grep, Glob, Bash, Edit, Write, Agent
-model: inherit
----
-You follow `agent-factory/roles/orchestrator.md` exactly. Read it now, then read
-`agent-factory/config/factory.config.json`, `AGENTS.md`, and `plans/board.md`.
-Then act as the Orchestrator: classify the request, respect WIP limits and config,
-demand handoff packets, update the board and traceability, produce the next action.
-Never merge a protected branch. Never deploy prod.
-```
-
-- **REQUIRED:** `name`, `description`. Everything else optional.
-- **`description` drives auto-routing:** Claude reads it to decide when to delegate. Write it as a clear "Use for / Use when ..." with "use proactively" if you want eager routing.
-- **`model`** (optional): `sonnet` | `opus` | `haiku` | full model id | **`inherit`** (the default). The spec's `model: inherit` is correct and matches the documented default.
-- **`tools`** (optional): comma-separated allow-list. Omit to inherit all main-conversation tools. Use **`Agent`** (formerly `Task`) for spawning sub-agents; `Agent(worker, researcher)` restricts which.
-- **`disallowedTools`** (optional): subtract from the inherited set (e.g. inherit everything except Write/Edit).
-- **File locations + precedence (highest→lowest):** managed settings → `--agents` CLI flag → `.claude/agents/` (project, check into git) → `~/.claude/agents/` (user) → plugin `agents/` (lowest). Scanned recursively; identity comes only from frontmatter `name` (keep names unique).
-- **Plugin-agent restriction:** plugin-shipped agents IGNORE `hooks`, `mcpServers`, `permissionMode` for security. If grugops needs those, ship them in standalone `.claude/agents/` or via settings, not the plugin.
-- **Subagent vs single-agent sequential load — the key architectural fact:** Each subagent runs in its **own context window** with its own system prompt; the parent gets back only a summary. BUT **subagents cannot spawn subagents (no nesting).** So the grugops Orchestrator, when run as a Claude Code subagent, cannot itself spawn role subagents. Two valid designs:
-  - **(A) Orchestrator is the main thread** (set `agent: "grug-orchestrator"` in plugin `settings.json`) and spawns role subagents via the `Agent` tool. This is the "native sub-agents" path the spec wants — but it requires the Orchestrator to be the main thread, not a spawned subagent.
-  - **(B) Orchestrator is a single agent that sequentially loads each role file into its own context** when it would "wake" that role. This is the portable model used by Codex/Gemini/OpenCode/Copilot anyway. Same roles, same handoffs, same gates — only dispatch differs. This is the spec's stated fallback (§16.1) and is the safer default.
-  - Recommendation: design for **(B) as the baseline** (works in all five tools and avoids the nesting limit) and offer **(A)** as a Claude-Code-native enhancement via `settings.json agent:`.
-
-### 4. Slash command — two forms
-
-**Standalone (gets literal `/grug`):** `.claude/commands/grug.md` → `/grug`. Filename (sans `.md`) = command name. No namespace.
-
-```markdown
----
-description: Run the software factory. Pass a request, e.g. /grug "implement ticket ABC-014".
-argument-hint: "<request>"
----
-Act as the factory Orchestrator (agent-factory/roles/orchestrator.md).
-Request: $ARGUMENTS
-Read config, AGENTS.md, and the board first. Then route and execute per the workflows.
-```
-
-**Plugin form (always namespaced):** a command in a plugin named `grug` becomes `/grug:<command>`. The plugin root command file or `skills/<name>/SKILL.md` → `/grug:<name>`. You **cannot** get a bare `/grug` (no colon) from a plugin.
-
-- Command frontmatter fields (all optional): `description`, `argument-hint`, `allowed-tools`, `disallowed-tools`, `model`, `disable-model-invocation`, `user-invocable`, `arguments`.
-- **Skills equivalence:** `.claude/skills/grug/SKILL.md` also yields `/grug` and supports the same frontmatter plus supporting files. For a destructive action you never want Claude to auto-trigger (e.g. `/grug-release`), set `disable-model-invocation: true`.
-
-### 5. Hooks — the mechanical prod-deploy guard
-
-This is how "humans decide, agents execute" becomes a guardrail, not a hope. Plugin hooks live in `hooks/hooks.json` (or inline in `plugin.json`); standalone hooks live in `.claude/settings.json`.
-
-```json
-{
-  "hooks": {
-    "PreToolUse": [
-      {
-        "matcher": "Bash",
-        "hooks": [
-          {
-            "type": "command",
-            "if": "Bash(kubectl apply*)",
-            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/block-prod-deploy.sh"
-          }
-        ]
-      }
-    ]
-  }
-}
-```
-
-`block-prod-deploy.sh` (deny with a reason; recommended JSON method):
-
-```bash
-#!/usr/bin/env bash
-cmd=$(jq -r '.tool_input.command' < /dev/stdin)
-case "$cmd" in
-  *"kubectl"*"apply"*|*"helm"*"upgrade"*|*"--context prod"*|*"deploy"*"prod"*)
-    jq -n '{ hookSpecificOutput: {
-      hookEventName: "PreToolUse",
-      permissionDecision: "deny",
-      permissionDecisionReason: "Prod deploy blocked: humans decide. Get named human confirmation, then run outside the agent."
-    }}' ;;
-  *) exit 0 ;;
-esac
-```
-
-- **`PreToolUse` can block; `PostToolUse` cannot** (the tool already ran — use it for lint/log only).
-- **Two block methods:** exit code **2** (stderr message, simple) OR exit 0 + JSON `permissionDecision: "deny"` with a reason (recommended — gives the agent a message). Any other non-zero code is non-blocking.
-- **`matcher`** filters by tool name (`"Bash"`, `"Edit|Write"`, or regex). **`if`** narrows further using permission-rule syntax — `if: "Bash(kubectl apply*)"` runs the hook only when the command matches. This pairing is the clean, deterministic guard.
-- **Exec form vs shell form:** with `args` = exec form (no shell, no quoting needed for `${CLAUDE_PLUGIN_ROOT}`); without `args` = shell form (wrap `"${CLAUDE_PLUGIN_ROOT}"` in quotes). Prefer exec form for bundled scripts.
-- Hook input on stdin includes `tool_name`, `tool_input.command`, `cwd`, `permission_mode`, `hook_event_name`. (Hooks-in-own-session behavior: CC v2.1.139+.)
-
-### 6. AGENTS.md + per-tool entry files
-
-| Tool | Entry file it reads | Adapter the installer lays down | Verified |
-|------|---------------------|---------------------------------|----------|
-| **Claude Code** | `AGENTS.md` is read; plus `CLAUDE.md` / `.claude/rules/*.md`. | Standalone: `.claude/agents/*.md` (thin wrappers) + `.claude/commands/grug.md` (literal `/grug`). OR plugin form (§16.4). One-line `CLAUDE.md` pointer optional. | HIGH |
-| **Codex CLI** | `AGENTS.md` (root + nested) + global `~/.codex/AGENTS.md`. | None needed. Optional `~/.codex/AGENTS.override.md`. | HIGH |
-| **Gemini CLI** | `GEMINI.md` by default; **configurable to read `AGENTS.md`** via `settings.json` `context.fileName`. | Either a one-line `GEMINI.md` pointer, or (cleaner) set `context.fileName: ["AGENTS.md","GEMINI.md"]`. Supports `@file.md` imports. | HIGH |
-| **OpenCode** | `AGENTS.md` (project root + global `~/.config/opencode/AGENTS.md`) + `opencode.json` config. | None needed. Optional native-agent mapping (markdown agent files: `review.md` → `review` agent). | HIGH |
-| **GitHub Copilot CLI** | `AGENTS.md` (root + nested) + `.github/copilot-instructions.md` (+ CLAUDE.md/GEMINI.md). **All combine — no priority fallback.** | Ensure `AGENTS.md` present; optional `.github/copilot-instructions.md` pointer. `COPILOT_CUSTOM_INSTRUCTIONS_DIRS` env var can add dirs. | HIGH |
-
-**Codex precedence (verified):** global `~/.codex/AGENTS.md` first, then walk Git-root→cwd concatenating each level's `AGENTS.md`; closer files override earlier ones (they appear later in the combined prompt). Default `project_doc_max_bytes` = 32 KiB — **another reason to keep AGENTS.md minimal** (the spec's instinct is correct and now has a hard byte cap behind it).
-
-**The one rule every entry file enforces:** "All work starts with `agent-factory/roles/orchestrator.md`. Read AGENTS.md, then the orchestrator role, then the config, then the board."
+Kit paths then read `"$GRUGOPS_HOME/agent-factory/…"`; state paths stay repo-relative (`plans/…`, `plans/handoffs/…`, the repo `factory.config.json`, `memory-bank/…`) — exactly the split in the design doc.
 
 ---
 
@@ -244,82 +87,91 @@ esac
 
 | Recommended | Alternative | When to Use Alternative |
 |-------------|-------------|-------------------------|
-| Ship **both** standalone `.claude/` AND plugin form | Plugin-only | Never for grugops — the brand requires literal `/grug` (only standalone delivers it) AND wants versioned distribution (only the plugin delivers that). Ship both; they coexist. |
-| Plugin `commands/` (flat `.md`) for `/grug` | Plugin `skills/<name>/SKILL.md` | Use `skills/` if you want supporting files, auto model-invocation, or `disable-model-invocation` control on destructive commands like release. Both produce the same `/grug:<name>`. Commands are simpler and still fully supported. |
-| `version` pinned in `plugin.json`, bumped per release | Omit `version` (git SHA = version) | Omit only for a fast internal dev loop where every commit-as-release is acceptable. For a public, shareable kit, pin and bump — predictable updates. |
-| Set `version: "2.0.0"` to match spec | Start at `0.x` / `1.0.0` | Consider `0.x` if you want SemVer's "anything may change" latitude during dogfooding. The spec says `2.0.0` (continuity with the v2 spec); if you adopt it you commit to MAJOR-bump-on-break immediately. Flag for the human to decide. |
-| Symlink role files in standalone install | Copy role files | Copy when targeting Windows without symlink privilege, or when shipping the **plugin** (plugins are copied to cache — symlinks to `../agent-factory/` will break). See "What NOT to use." |
-| `jq` in the deploy-guard hook | Pure-Node guard script | Use Node if you don't want a `jq` dependency; read stdin and `JSON.parse`. Either is fine; document the dependency. |
+| `~/.grugops` (single `$TOOL_HOME` dotdir) | **XDG dirs** (`$XDG_DATA_HOME/grugops`, `$XDG_CONFIG_HOME/grugops`, `$XDG_STATE_HOME/grugops`) | Only if grugops were a Linux-desktop app that wanted OS backup/sync policies to treat config vs cache vs state differently. It is not: it is a cross-platform CLI kit, the kit is read-only (no real config/cache/state distinction at the home), and XDG would scatter one logical kit across three dirs *and* still need a Windows story. The peer tools (rustup/cargo/nvm/pyenv/volta) all rejected XDG for the same reasons. **Recommendation: do not adopt XDG.** |
+| Single `$GRUGOPS_HOME` env var | Per-project override env/flag | A per-project `$GRUGOPS_HOME` override is essentially free (env wins, always) — document it but do not build extra machinery. A *file*-based per-repo override is an open question (below); default answer: not needed. |
+| Copy the kit into `$GRUGOPS_HOME` | Symlink the kit | Symlink only as opt-in `INSTALL_MODE=symlink` for a Unix dev who is actively hacking on the kit and wants live edits. Never the default. |
+| Stamp `VERSION` + `--check` for drift | Per-file checksum manifest | A checksum manifest is justified only if grugops ever needs to detect *tampering* of the read-only kit. For "is the installed kit stale vs current?" a single VERSION compare is enough and dep-free. |
+| `--check` doctor (named first failure) | Full self-healing auto-repair | Auto-repair (re-copy on drift) can be a *follow-up* `--check --fix`. Ship detect-and-report first; repair is additive later. |
+
+---
 
 ## What NOT to Use
 
 | Avoid | Why | Use Instead |
 |-------|-----|-------------|
-| **Putting `agents/`, `commands/`, `skills/`, `hooks/` inside `.claude-plugin/`** | Documented #1 plugin mistake; components won't load. | Only `plugin.json` + `marketplace.json` in `.claude-plugin/`; all component dirs at plugin **root**. |
-| **`Task` in new agent `tools:` lists** | Renamed to `Agent` in CC v2.1.63 (alias still works but is legacy). | `Agent` (or `Agent(role1, role2)` to scope). |
-| **A plugin that symlinks/`../`-references `agent-factory/roles/`** | Plugins are copied to a cache on install; files outside the plugin dir are NOT copied → broken role references for installed users. | For the plugin form, either bundle the canonical role files inside the plugin dir, or have the wrappers read repo-relative paths that exist in the user's repo (the kit is in-repo anyway). Verify during dogfood. |
-| **`docs.claude.com/en/docs/claude-code/*` links** | 301-redirect to `code.claude.com/docs/en/*`. | `code.claude.com/docs/en/*` in all generated docs. |
-| **Long, machine-written AGENTS.md** | Measurably lowers agent success AND now hits Codex's 32 KiB `project_doc_max_bytes` cap. | Minimal, high-signal AGENTS.md that points to role/workflow files (spec §5.A.2, §17.1). |
-| **`model:` other than `inherit` in role wrappers without reason** | Pins cost/capability; loses the user's session choice. | `model: inherit` (the documented default) unless a role genuinely needs a cheaper/stronger model. |
-| **Relative-path plugin sources behind a raw-URL marketplace** | URL-served `marketplace.json` doesn't fetch plugin files; `./` sources 404. | Use a git-hosted marketplace (GitHub `owner/repo`), or `github`/`npm` plugin sources. |
-| **Faking a gate/test/citation; inventing repo commands** | Destroys the trace, which is the entire value prop. | `UNKNOWN - verify`. Never fabricate (spec §19.9). |
+| **XDG Base Directory dirs for the kit home** | Linux-desktop spec (v0.8, 2021); splits one read-only kit across data/config/state; ignored by the entire peer class; no native Windows mapping | Single `$GRUGOPS_HOME` → `~/.grugops` |
+| **A literal `~` baked into a default or written into a marker** | `~` is shell *interactive/assignment* sugar; it does NOT expand inside an env-var value or a JSON string (root cause of nvm #2074: `NVM_DIR="~/.nvm"` → "directory does not exist") | `$HOME` in sh, `os.homedir()` in Node — always resolve to an absolute path before storing |
+| **`${GRUGOPS_HOME-default}` (no colon)** | Without the colon, an exported-but-empty `GRUGOPS_HOME=` is treated as "set" and you get an empty kit root | `${GRUGOPS_HOME:-"$HOME/.grugops"}` (colon form) |
+| **Default `INSTALL_MODE=symlink` (current `install.sh:40`, `install.mjs:43`)** | Dogfood disliked symlinks; Git Bash `ln -s` silently deep-copies; Windows symlinks need Developer Mode/admin → non-deterministic across platforms | Flip the default to `copy`; keep `symlink` as explicit opt-in |
+| **Kit target defaulting to `$(pwd)` / clone (current `install.sh:36`)** | The original "installs into the clone" bug; the kit must go to `$GRUGOPS_HOME`, only *state* seeds into the chosen repo | `--target <repo>` for state; `$GRUGOPS_HOME` (env/default) for the kit |
+| **Any new npm dependency, `package.json`, or non-stdlib Node module** | Hard project constraint (zero deps, threat T-05-05-SC accepted on that basis) | `node:fs`, `node:path`, `node:os`, `node:url` only — all already imported |
+| **`fs.realpathSync`/symlink-following to "guess" the kit when `$GRUGOPS_HOME` is wrong** | Hides misconfiguration; the doctor should fail loudly with the missing path, not silently hunt (that hunting *is* the original bug) | `--check` names the first unresolved path and exits non-zero |
+| **`os.userInfo().homedir` as the primary home source** | Reads `/etc/passwd`/registry and can diverge from `$HOME`/`USERPROFILE` that the user actually set; less predictable for "respect the user's env" | `os.homedir()` (env-first), matching sh `$HOME` |
+
+---
 
 ## Stack Patterns by Variant
 
-**If the user wants literal `/grug` (brand default):**
-- Use the **standalone `.claude/` form**: `.claude/commands/grug.md` (+ `grug-map.md`, `grug-plan.md`, `grug-ticket.md`, `grug-gate.md`, `grug-uat`, `grug-release`) → `/grug`, `/grug-map`, ...
-- Because: only standalone command/skill files give an un-namespaced command name.
+**If running under Git Bash / MSYS2 on Windows (the `install.sh` path on Windows):**
+- `$HOME` resolves from `%USERPROFILE%` automatically when unset → `~/.grugops` lands in the Windows user profile, same place `install.mjs`'s `os.homedir()` picks. No special-casing needed.
+- Force `INSTALL_MODE=copy` (the new default already does this); do not rely on `ln -s`.
+- Because: MSYS deep-copies symlinks by default and native Windows symlinks need elevated/Developer-Mode privileges — copy is the only deterministic mode.
 
-**If the user wants versioned, shareable distribution:**
-- Use the **plugin form**, name the plugin `grug` → commands read `/grug:plan`, `/grug:ticket`, etc.
-- Keep `grugops` as the repo / marketplace / package name regardless (brand §5.2).
-- Because: plugins always namespace `/<plugin>:<command>`; `/grug:plan` is the acceptable branded shape.
+**If running `install.mjs` natively on Windows (no POSIX shell):**
+- `os.homedir()` → `%USERPROFILE%` (e.g. `C:\Users\me`), `path.resolve(homedir(), ".grugops")` → `C:\Users\me\.grugops`. `path.join`/`resolve` emit `\` correctly.
+- Because: this is the whole reason `install.mjs` exists — the Windows/no-POSIX sibling of `install.sh` (design + file header).
 
-**If targeting Claude-Code-native multi-agent dispatch:**
-- Orchestrator = main thread via plugin `settings.json` `{ "agent": "grug-orchestrator" }`; it spawns role subagents with the `Agent` tool.
-- Because: subagents cannot nest, so the Orchestrator must be the main thread to spawn others.
+**If the host is a Claude Code *plugin* install (future, flagged open in design):**
+- The kit root becomes `${CLAUDE_PLUGIN_ROOT}` instead of `$GRUGOPS_HOME` — "one resolution rule, two homes." Have a single `resolve_kit_root()` that prefers `$GRUGOPS_HOME` when set, else `${CLAUDE_PLUGIN_ROOT}` when present (plugin context), else `~/.grugops`.
+- Because: plugins are copied to a cache; the adapters must point at whichever home actually contains `agent-factory/`. Resolve, don't hardcode.
 
-**If targeting any of Codex / Gemini / OpenCode / Copilot:**
-- Single-agent sequential role-load model (Orchestrator loads each role file into its own context in turn).
-- Because: these tools read AGENTS.md and don't have Claude's spawnable-subagent model; this is the portable baseline anyway.
+**If `$GRUGOPS_HOME` is set to a relative path:**
+- Reject or absolutize it. POSIX XDG precedent: "If an implementation encounters a relative path… it should consider the path invalid and ignore it." Cheapest safe behavior: `path.resolve()` it (Node) / `cd -- "$dir" && pwd` it (sh) so everything downstream is absolute.
+- Because: relative kit roots break the moment any role runs from a different cwd.
 
-**If enterprise governance (mode=enterprise):**
-- Add the PreToolUse deploy-guard hook (plugin `hooks/hooks.json`); enforce the `production_requires_human_confirmation` config flag mechanically.
-- Because: regulated teams need the guard to be code, not prose.
+---
 
 ## Version Compatibility
 
 | Item | Compatible With | Notes |
 |------|-----------------|-------|
-| Plugin manifest schema as documented | Claude Code v2.1.x (2026) | `displayName` needs v2.1.143+; `defaultEnabled` needs v2.1.154+; `--plugin-dir` zip needs v2.1.128+; hooks-own-session v2.1.139+. grugops uses none of the bleeding-edge fields, so it works on older v2.1.x too. |
-| `Agent` tool name | CC v2.1.63+ | `Task` alias still works on newer versions for backward compat. |
-| AGENTS.md | All 5 target CLIs (2026) | Gemini needs `context.fileName` set; others native. |
-| Codex AGENTS.md | 32 KiB default `project_doc_max_bytes` | Keep AGENTS.md well under this. |
-| `install.mjs` | Node 18+ LTS | Uses `node:fs`/`node:path` + ESM. |
-| SemVer 2.0.0 / Keep a Changelog 1.1.0 | Stable, no compat concerns | Both are mature, stable specs. |
+| `os.homedir()`, `path.resolve()`, `path.join()`, `fileURLToPath()` | Node 18+ LTS (all stable well before 18) | Verified against Node v24 API docs; no version risk. Matches the project's stated Node 18+ baseline. |
+| `${VAR:-default}` colon expansion | POSIX.1 / any `sh` | Universal; works in dash, bash, busybox, MSYS. |
+| `$HOME` mapped from `%USERPROFILE%` | Git for Windows / MSYS2 (current) | Cygwin/MSYS resolution order: existing `$HOME` → `/etc/passwd` → `HOMEDRIVE`/`HOMEPATH` → `/`. For grugops, `$HOME` is set in a normal Git Bash session, so it matches `os.homedir()`. |
+| XDG Base Directory Spec | v0.8 (2021-05-08), still current | Confirmed latest. Relevant only as the *rejected* alternative + the absolute-path rule we borrow. |
+| `agent-factory/VERSION` (0.1.0) + `plugin.json` version (0.1.0) | SemVer 2.0.0 | Already in sync; the drift stamp reuses this string — no new versioning surface. |
 
-## Open Questions / Flags for Roadmap
+---
 
-- **`UNKNOWN - verify` (LOW):** Exact behavior of the standalone-`/grug` command when grugops is *also* installed as the `grug` plugin in the same session (potential `/grug` vs `/grug:...` confusion). Resolve during dogfood (spec acceptance §20).
-- **Decision needed (human):** Ship as `2.0.0` (spec continuity, SemVer break-contract from day one) vs `0.x` (dogfooding latitude). Default to spec's `2.0.0` unless the human prefers `0.x`.
-- **Verify during dogfood:** Whether plugin-cache copying breaks the wrappers' `agent-factory/roles/*.md` references (they should resolve against the user's repo, not the plugin cache — confirm).
+## Open Decisions to Flag for Requirements/Roadmap
+
+These are *choices*, not unknowns — each has a recommended default but the human/roadmap should ratify:
+
+1. **Per-repo config location** (design open item): repo-root `factory.config.json` vs `.grugops/factory.config.json`. **Recommendation: repo-root** (matches the 32 existing refs; least rewrite; visible). LOW friction either way.
+2. **Install-marker file** for drift/`--check`: filename + location (e.g. `plans/.grugops-install.json` holding `{version, grugopsHome, installedAt}`). **Recommendation: a single small JSON under `plans/`** so it travels with per-repo state and stays out of the kit. Must be additive + gitignorable-or-committable at the user's choice.
+3. **Plugin home resolution** (`$GRUGOPS_HOME` vs `${CLAUDE_PLUGIN_ROOT}`): one `resolve_kit_root()` with documented precedence. Defer the *implementation* until the plugin phase, but design the resolver signature now so the rewrite lands once.
+4. **`--check --fix` (auto re-copy on drift):** defer to a follow-up; ship detect-and-report first.
+
+## Conflicts With Project Constraints — checked, none
+
+- Zero-dep / no `package.json`: ✅ every mechanism is `node:` stdlib or POSIX builtin.
+- Single-source (role text lives once): ✅ shared `$GRUGOPS_HOME` *strengthens* this — the kit exists in exactly one place instead of vendored per-repo.
+- Idempotent/additive/dry-run/reversible, never delete user state: ✅ copy-to-home is idempotent (re-copy = same bytes), the marker is additive, `--check` is read-only, migration must preserve `plans/`+`memory-bank/`.
+- No fabrication: ✅ `--check` reports real resolved paths; the plugin install lines stay `UNKNOWN - verify`.
+
+---
 
 ## Sources
 
-- code.claude.com/docs/en/plugins — plugin creation, commands-merged-into-skills, structure rules (HIGH)
-- code.claude.com/docs/en/plugins-reference — full plugin.json schema, `${CLAUDE_PLUGIN_ROOT}`/`${CLAUDE_PLUGIN_DATA}`, version management, scopes, caching (HIGH)
-- code.claude.com/docs/en/plugin-marketplaces — marketplace.json schema, sources, `/plugin marketplace add` + `/plugin install` (HIGH)
-- code.claude.com/docs/en/sub-agents — subagent frontmatter (name/description/tools/model:inherit), file locations + precedence, no-nesting rule, `Agent` (ex-`Task`) tool (HIGH)
-- code.claude.com/docs/en/skills — commands-merged-into-skills, frontmatter, `$ARGUMENTS`/`$N`/`$name`, command-name-from-location table, `disable-model-invocation` (HIGH)
-- code.claude.com/docs/en/hooks — PreToolUse/PostToolUse, `matcher` + `if:` permission-rule syntax, exit-2 vs JSON deny, exec/shell form (HIGH)
-- agents.md — open standard, plain-markdown/no-schema, 60k+ projects, 20+ tools, Linux Foundation governance, closest-wins nesting (HIGH)
-- developers.openai.com/codex/guides/agents-md — global `~/.codex/AGENTS.md`, root→cwd concatenation, closer-overrides, 32 KiB cap (HIGH)
-- geminicli.com/docs/cli/gemini-md + google-gemini/gemini-cli docs — GEMINI.md default, `context.fileName` to read AGENTS.md, `@file.md` imports (HIGH)
-- opencode.ai/docs/rules + /docs/agents — AGENTS.md project + `~/.config/opencode/AGENTS.md` global, opencode.json instructions, markdown agent files (HIGH)
-- docs.github.com/en/copilot/how-tos/copilot-cli/customize-copilot + github.blog changelog 2025-08-28 — AGENTS.md (root+nested) + `.github/copilot-instructions.md`, all-combine behavior, `COPILOT_CUSTOM_INSTRUCTIONS_DIRS` (HIGH)
-- keepachangelog.com/en/1.1.0 — changelog sections + Unreleased convention (HIGH)
-- semver.org — SemVer 2.0.0 MAJOR/MINOR/PATCH + 0.y.z rule (HIGH)
+- **freedesktop.org — XDG Base Directory Specification v0.8 (2021-05-08)** — confirmed current version/status, exact variable defaults (`$XDG_DATA_HOME→$HOME/.local/share`, `$XDG_CONFIG_HOME→$HOME/.config`, `$XDG_STATE_HOME→$HOME/.local/state`, `$XDG_CACHE_HOME→$HOME/.cache`), and the absolute-path-or-ignore rule. (HIGH)
+- **Node.js v24 API docs (`os.homedir`, `path.resolve`) via Context7 `/websites/nodejs_latest-v24_x_api`** — `os.homedir()` POSIX `$HOME` / Windows `USERPROFILE` behavior; `path.resolve` right-to-left absolutization. (HIGH)
+- **The Cargo Book — Cargo Home + Environment Variables; rust-lang/rustup installation docs** — `CARGO_HOME→$HOME/.cargo` (`%USERPROFILE%\.cargo` on Windows), `RUSTUP_HOME→~/.rustup`, env-overrides-default precedence. (HIGH)
+- **nvm-sh/nvm env-var docs + issue #2074** — `NVM_DIR→$HOME/.nvm`; the tilde-not-expanded-in-env-var gotcha and the "use `$HOME`, not `~`" fix. (HIGH)
+- **pyenv/pyenv README; Volta docs (docs.volta.sh)** — `PYENV_ROOT→$HOME/.pyenv`; `VOLTA_HOME→$HOME/.volta` Unix / `%LOCALAPPDATA%\Volta` Windows — confirming the `$TOOL_HOME` dotdir convention over XDG. (HIGH)
+- **msys2.org configuration + gitforwindows.org symbolic-links; Windows Dev Blog "Symlinks in Windows 10"** — Git Bash `ln -s` deep-copies by default; native Windows symlinks need admin/Developer Mode → copy-default justification. (HIGH)
+- **POSIX parameter-expansion reference (`${VAR:-word}` vs `${VAR-word}`)** — colon treats empty == unset. (HIGH)
+- **npm-doctor / flutter doctor / brew doctor** — the `doctor`/`--check` "verify environment, report status, name fixes, exit non-zero on failure" convention. (MEDIUM)
 
 ---
-*Stack research for: multi-agent SDLC delivery kit (host-tool integration + packaging conventions)*
-*Researched: 2026-06-02*
+*Stack research for: v1.1 shared-location install ($GRUGOPS_HOME + per-repo state) — conventions & stdlib mechanisms, zero-dep.*
+*Researched: 2026-06-06*
