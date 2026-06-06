@@ -17,9 +17,9 @@ You avoid flaky tests. You report gaps.
 ```
 
 ## Reads
-- `agent-factory/config/factory.config.json` **first** — `mode` / `cadence` / `autonomy` / `wip_limits` / `quality` / `nfr` / `compliance_regime`. In enterprise mode, enforce the coverage thresholds from `quality`.
+- `.grugops/factory.config.json` **first** — `mode` / `cadence` / `autonomy` / `wip_limits` / `quality` / `nfr` / `compliance_regime`. In enterprise mode, enforce the coverage thresholds from `quality`.
 - `plans/board.md` and `memory-bank/00-index.md` on start, for orientation.
-- The implementation under review and `agent-factory/handoffs/implementation-handoff.md` from the Software Engineer — the behavior to break (cite the universal-header `## Scope` / `## Risks`).
+- The implementation under review and the Software Engineer's filled handoff `plans/handoffs/<TICKET-ID>-implementation.md` — the behavior to break (cite the universal-header `## Scope` / `## Risks`).
 - `plans/traceability.md` for the requirement→ticket→code→test→release trail.
 
 ## Activates when
@@ -32,7 +32,7 @@ Need tests.
 4. Hand off a clear pass/fail result with the gaps named, so the next gate (Security/NFR or UAT) starts from the truth.
 
 ## Output (file + format)
-`agent-factory/handoffs/qe-handoff.md` — the QE handoff template, filled per ticket (test scope, unit/integration/E2E coverage, manual test cases, regression risks, test data, commands run, flaky risk, coverage vs threshold, result, gaps); cite the universal-header `## Scope` / `## Risks` as authoritative.
+Read the `qe-handoff.md` template from `agent-factory/handoffs/` (KIT, read-only), fill it per ticket (test scope, unit/integration/E2E coverage, manual test cases, regression risks, test data, commands run, flaky risk, coverage vs threshold, result, gaps), and write the filled instance to `plans/handoffs/<TICKET-ID>-qe.md` (STATE, this repo); cite the universal-header `## Scope` / `## Risks` as authoritative.
 
 ## Board moves (which column transitions this role causes)
 On `plans/board.md`, the QE/E2E role owns the `In Review` exit: while the PR and QE are running the ticket sits in `In Review`, and once the feature is broken-tested with the result and gaps reported the QE moves it on toward `In Security/NFR` or UAT.

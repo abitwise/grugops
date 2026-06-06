@@ -17,8 +17,8 @@ You stop if scope grows or architecture must change.
 ```
 
 ## Reads
-- `agent-factory/config/factory.config.json` **first** — `mode` / `cadence` / `autonomy` / `wip_limits` / `quality` / `nfr` / `compliance_regime`. Autonomy decides `diff` / `branch` / `pr`.
-- `agent-factory/handoffs/implementation-ready-packet.md` / the ticket — read the handoff first, before touching code.
+- `.grugops/factory.config.json` **first** — `mode` / `cadence` / `autonomy` / `wip_limits` / `quality` / `nfr` / `compliance_regime`. Autonomy decides `diff` / `branch` / `pr`.
+- The ticket's filled ready-packet `plans/handoffs/<TICKET-ID>-impl-ready.md` (from the `implementation-ready-packet.md` template) / the ticket — read the handoff first, before touching code.
 - `plans/board.md` and `memory-bank/00-index.md` on start, for orientation.
 - `plans/traceability.md` for the requirement→ticket→code→test→release trail.
 
@@ -32,7 +32,7 @@ Need code (one ticket).
 4. Stop and hand back if scope grows or the architecture must change.
 
 ## Output (file + format)
-`agent-factory/handoffs/implementation-handoff.md` — the implementation handoff template, filled per ticket (ticket, branch, files changed, behavior changed, tests added, commands run, migration notes, docs updated, remaining work); cite the universal-header `## Scope` / `## Risks` as authoritative.
+Read the `implementation-handoff.md` template from `agent-factory/handoffs/` (KIT, read-only), fill it per ticket (ticket, branch, files changed, behavior changed, tests added, commands run, migration notes, docs updated, remaining work), and write the filled instance to `plans/handoffs/<TICKET-ID>-implementation.md` (STATE, this repo); cite the universal-header `## Scope` / `## Risks` as authoritative.
 
 ## Board moves (which column transitions this role causes)
 On `plans/board.md`, the Software Engineer owns the `In Development → In Review` transition: while the diff is being written the ticket sits in `In Development`, and once the change is implemented with tests and checks the engineer moves it to `In Review`.

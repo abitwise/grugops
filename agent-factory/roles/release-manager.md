@@ -17,8 +17,8 @@ You require approval. You never deploy prod yourself.
 ```
 
 ## Reads
-- `agent-factory/config/factory.config.json` **first** — `mode` / `cadence` / `autonomy` / `wip_limits` / `quality` / `nfr` / `compliance_regime`.
-- The implementation, QE, security/NFR, and UAT handoffs in `agent-factory/handoffs/` — the gate results for the tickets going into this release (cite the universal-header `## Scope` / `## Risks`).
+- `.grugops/factory.config.json` **first** — `mode` / `cadence` / `autonomy` / `wip_limits` / `quality` / `nfr` / `compliance_regime`.
+- The implementation, QE, security/NFR, and UAT filled handoffs in `plans/handoffs/` (the `<TICKET-ID>-implementation.md` / `-qe.md` / `-security-nfr.md` / `-uat.md` instances) — the gate results for the tickets going into this release (cite the universal-header `## Scope` / `## Risks`).
 - `plans/nfr-catalog.md` — the NFR budgets and evidence to attach; `memory-bank/70-runbook.md` — the deploy and rollback runbook.
 - `plans/board.md` and `memory-bank/00-index.md` on start, for orientation.
 - `plans/traceability.md` for the requirement→ticket→code→test→UAT→release trail.
@@ -35,7 +35,7 @@ You require approval. You never deploy prod yourself.
 ## Output (file + format)
 Two files:
 - `plans/releases/REL-xxxx.md` — the release record (version (SemVer), scope/tickets included, changelog, release notes, environments path `dev → staging → prod`, feature-flag plan, migration/rollback plan, DR notes RTO/RPO, approval/CAB record, status). Status is one of `READY_TO_RELEASE`, `BLOCKED`, or `RELEASED`.
-- `agent-factory/handoffs/release-handoff.md` — the release handoff template, filled per release.
+- Read the `release-handoff.md` template from `agent-factory/handoffs/` (KIT, read-only), fill it per release, and write the filled instance to `plans/handoffs/<REL-ID>-release.md` (STATE, this repo).
 
 This role attaches NFR evidence to `plans/nfr-catalog.md` and may cite `agent-factory/checklists/release-readiness-checklist.md`. Cite the universal-header `## Scope` / `## Risks` as authoritative.
 

@@ -16,9 +16,9 @@ You do not code.
 ```
 
 ## Reads
-- `agent-factory/config/factory.config.json` **first** — `mode` / `cadence` / `autonomy` / `wip_limits` / `quality` / `nfr` / `compliance_regime`.
+- `.grugops/factory.config.json` **first** — `mode` / `cadence` / `autonomy` / `wip_limits` / `quality` / `nfr` / `compliance_regime`.
 - `plans/board.md` and `memory-bank/00-index.md` on start, for orientation.
-- The gated change and `agent-factory/handoffs/security-nfr-handoff.md` — the work ready for business acceptance (cite the universal-header `## Scope` / `## Risks`).
+- The gated change and the Security/NFR filled handoff `plans/handoffs/<TICKET-ID>-security-nfr.md` — the work ready for business acceptance (cite the universal-header `## Scope` / `## Risks`).
 - `agent-factory/checklists/uat-checklist.md` — the UAT gate checklist this role works through.
 - `plans/traceability.md` for the requirement→ticket→code→test→release trail.
 
@@ -32,7 +32,7 @@ Need business acceptance.
 4. Hand off the UAT pack and capture the human signoff — without writing code.
 
 ## Output (file + format)
-`agent-factory/handoffs/uat-handoff.md` — the UAT handoff template, filled per ticket (UAT goal, entry criteria, test users/roles, test data, business scenarios, expected results, known limitations, rollback plan, signoff checklist with named human role, exit criteria); this role works through `agent-factory/checklists/uat-checklist.md`. Cite the universal-header `## Scope` / `## Risks` as authoritative.
+Read the `uat-handoff.md` template from `agent-factory/handoffs/` (KIT, read-only), fill it per ticket (UAT goal, entry criteria, test users/roles, test data, business scenarios, expected results, known limitations, rollback plan, signoff checklist with named human role, exit criteria), and write the filled instance to `plans/handoffs/<TICKET-ID>-uat.md` (STATE, this repo); this role works through `agent-factory/checklists/uat-checklist.md`. Cite the universal-header `## Scope` / `## Risks` as authoritative.
 
 ## Board moves (which column transitions this role causes)
 On `plans/board.md`, the UAT Planner moves the ticket `Ready for UAT → In UAT` to begin business acceptance, and owns the `In UAT` exit: once the named human signs off the scenarios the role moves it on to `Ready to Release`.

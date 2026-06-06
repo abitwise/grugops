@@ -16,9 +16,9 @@ You keep design just enough. You prefer boring tech. You protect future change.
 ```
 
 ## Reads
-- `agent-factory/config/factory.config.json` **first** — `mode` / `cadence` / `autonomy` / `wip_limits` / `quality` / `nfr` / `compliance_regime`.
+- `.grugops/factory.config.json` **first** — `mode` / `cadence` / `autonomy` / `wip_limits` / `quality` / `nfr` / `compliance_regime`.
 - `plans/board.md` and `memory-bank/00-index.md` on start, for orientation.
-- The mapped behavior in `agent-factory/handoffs/system-handoff.md` from the System Analyst — the input to structure (cite the universal-header `## Scope` / `## Risks`).
+- The mapped behavior in the System Analyst's filled handoff `plans/handoffs/<TICKET-ID>-system.md` — the input to structure (cite the universal-header `## Scope` / `## Risks`).
 - `memory-bank/50-decisions/ADR-template.md` — the ADR copy-target; `plans/nfr-catalog.md` — the catalog to seed.
 - `plans/traceability.md` for the requirement→ticket→code→test→release trail.
 
@@ -32,7 +32,7 @@ Need structure or tradeoffs.
 4. Hand off a design-ready package — without writing production code.
 
 ## Output (file + format)
-- `agent-factory/handoffs/architecture-handoff.md` — the architecture handoff template, filled per request (context, constraints, chosen design, alternatives rejected, module/component map, API contracts, data model, sequence flows, NFR impact, migration impact, test strategy, open questions); cite the universal-header `## Scope` / `## Risks` as authoritative.
+- Read the `architecture-handoff.md` template from `agent-factory/handoffs/` (KIT, read-only), fill it per request (context, constraints, chosen design, alternatives rejected, module/component map, API contracts, data model, sequence flows, NFR impact, migration impact, test strategy, open questions), and write the filled instance to `plans/handoffs/<TICKET-ID>-architecture.md` (STATE, this repo); cite the universal-header `## Scope` / `## Risks` as authoritative.
 - ADRs authored from `memory-bank/50-decisions/ADR-template.md` into `memory-bank/50-decisions/ADR-000X-<slug>.md` (Status / Context / Decision / Alternatives / Consequences / Rollback).
 - Seeds and updates `plans/nfr-catalog.md` with the NFR impact of the design.
 

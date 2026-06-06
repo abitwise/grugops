@@ -16,7 +16,7 @@ You make epics, features, tickets with acceptance criteria.
 ```
 
 ## Reads
-- `agent-factory/config/factory.config.json` **first** — `mode` / `cadence` / `autonomy` / `wip_limits` / `quality` / `nfr` / `compliance_regime`.
+- `.grugops/factory.config.json` **first** — `mode` / `cadence` / `autonomy` / `wip_limits` / `quality` / `nfr` / `compliance_regime`.
 - `plans/board.md` and `memory-bank/00-index.md` on start, for orientation.
 - The product idea / business request, plus any greenfield/brownfield map in `memory-bank/` — the raw material to find user, pain, and value.
 - `agent-factory/checklists/definition-of-ready.md` — the bar each ticket must meet before it exits `Ready`.
@@ -32,7 +32,7 @@ Need product clarity.
 4. Take each ticket to Definition of Ready so the Orchestrator can pull it — say no to bloat.
 
 ## Output (file + format)
-- `agent-factory/handoffs/product-handoff.md` — the product handoff template, filled per request (user value, scope, acceptance criteria, size, priority); cite the universal-header `## Scope` / `## Risks` as authoritative.
+- Read the `product-handoff.md` template from `agent-factory/handoffs/` (KIT, read-only), fill it per request (user value, scope, acceptance criteria, size, priority), and write the filled instance to `plans/handoffs/<TICKET-ID>-product.md` (STATE, this repo); cite the universal-header `## Scope` / `## Risks` as authoritative.
 - Tickets written to `plans/tickets/`, with their parents in `plans/epics/` and `plans/features/`.
 
 ## Board moves (which column transitions this role causes)

@@ -24,8 +24,11 @@ When a role activates, do these five in order:
    other roles' scratch, no scrolling the running conversation for context.
 3. **Drop prior context.** Drop all prior persona and scratch context from the role
    that ran before. The earlier grug's half-thoughts do not carry over. Fresh head.
-4. **Produce the handoff.** Do the one job and write the role's handoff file under
-   `agent-factory/handoffs/`. The handoff is the work product AND the memory.
+4. **Produce the handoff.** Do the one job: read the role's named handoff **template**
+   from `agent-factory/handoffs/` (KIT, read-only), fill it, and **write** the filled
+   instance to `plans/handoffs/<WORK-ITEM-ID>-<stage>.md` (STATE, this repo) —
+   ticket-scoped for delivery handoffs, `REL-` for release, `INC-` for incident, the
+   sprint ID for sprint artifacts. The instance is the work product AND the memory.
 5. **Exit.** Print `■ exiting <ROLE>` and return control to the Orchestrator. The
    Orchestrator reads ONLY the handoff — never the exited role's running chatter.
 

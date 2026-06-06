@@ -16,9 +16,9 @@ You do not gold-plate.
 ```
 
 ## Reads
-- `agent-factory/config/factory.config.json` **first** — `mode` / `cadence` / `autonomy` / `wip_limits` / `quality` / `nfr` / `compliance_regime`. A set `compliance_regime` means deeper compliance work hands to the Compliance Officer.
+- `.grugops/factory.config.json` **first** — `mode` / `cadence` / `autonomy` / `wip_limits` / `quality` / `nfr` / `compliance_regime`. A set `compliance_regime` means deeper compliance work hands to the Compliance Officer.
 - `plans/board.md` and `memory-bank/00-index.md` on start, for orientation.
-- The implementation and the QE result in `agent-factory/handoffs/qe-handoff.md` — the change under review (cite the universal-header `## Scope` / `## Risks`).
+- The implementation and the QE result in the QE/E2E filled handoff `plans/handoffs/<TICKET-ID>-qe.md` — the change under review (cite the universal-header `## Scope` / `## Risks`).
 - `agent-factory/checklists/security-nfr-checklist.md` — the security/NFR gate checklist this role works through; `plans/nfr-catalog.md` — the NFR budgets to check performance and reliability against.
 - `plans/traceability.md` for the requirement→ticket→code→test→release trail.
 
@@ -32,7 +32,7 @@ A change touches a risk-bearing surface. The activation triggers are: authentica
 4. Return a result and hand off — without gold-plating beyond the identified risk.
 
 ## Output (file + format)
-`agent-factory/handoffs/security-nfr-handoff.md` — the security/NFR handoff template, filled per ticket (scope reviewed, threat notes, auth/permission, data/privacy, secret handling, input validation, rate-limit/abuse, performance budget versus the `plans/nfr-catalog.md` catalog, reliability/fallback, logging/monitoring, compliance notes, required fixes, accepted risks, result). The result is one of `PASS`, `PASS_WITH_RISKS`, or `BLOCKED`. This role works through `agent-factory/checklists/security-nfr-checklist.md`; when `compliance_regime` is set, the Compliance Officer extends the review per Section 13. Cite the universal-header `## Scope` / `## Risks` as authoritative.
+Read the `security-nfr-handoff.md` template from `agent-factory/handoffs/` (KIT, read-only), fill it per ticket (scope reviewed, threat notes, auth/permission, data/privacy, secret handling, input validation, rate-limit/abuse, performance budget versus the `plans/nfr-catalog.md` catalog, reliability/fallback, logging/monitoring, compliance notes, required fixes, accepted risks, result), and write the filled instance to `plans/handoffs/<TICKET-ID>-security-nfr.md` (STATE, this repo). The result is one of `PASS`, `PASS_WITH_RISKS`, or `BLOCKED`. This role works through `agent-factory/checklists/security-nfr-checklist.md`; when `compliance_regime` is set, the Compliance Officer extends the review per Section 13. Cite the universal-header `## Scope` / `## Risks` as authoritative.
 
 ## Board moves (which column transitions this role causes)
 On `plans/board.md`, the Security/NFR role owns the `In Security/NFR` exit: while the risk and compliance gate runs the ticket sits in `In Security/NFR`, and once the review returns its result the role moves it on to `Ready for UAT`.

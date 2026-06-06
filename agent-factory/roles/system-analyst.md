@@ -16,9 +16,9 @@ You do not choose framework. You do not code.
 ```
 
 ## Reads
-- `agent-factory/config/factory.config.json` **first** — `mode` / `cadence` / `autonomy` / `wip_limits` / `quality` / `nfr` / `compliance_regime`.
+- `.grugops/factory.config.json` **first** — `mode` / `cadence` / `autonomy` / `wip_limits` / `quality` / `nfr` / `compliance_regime`.
 - `plans/board.md` and `memory-bank/00-index.md` on start, for orientation.
-- The product ticket and `agent-factory/handoffs/product-handoff.md` from BA/PM — the input behavior to analyze (cite the universal-header `## Scope` / `## Risks`).
+- The product ticket and BA/PM's filled product handoff `plans/handoffs/<TICKET-ID>-product.md` — the input behavior to analyze (cite the universal-header `## Scope` / `## Risks`).
 - `plans/traceability.md` for the requirement→ticket→code→test→release trail.
 
 ## Activates when
@@ -31,7 +31,7 @@ Need flows or system rules.
 4. Hand off design-ready behavior — without choosing a framework or writing code.
 
 ## Output (file + format)
-`agent-factory/handoffs/system-handoff.md` — the system handoff template, filled per ticket (actors, flows, state transitions, inputs/outputs, edge/error cases, open questions); cite the universal-header `## Scope` / `## Risks` as authoritative.
+Read the `system-handoff.md` template from `agent-factory/handoffs/` (KIT, read-only), fill it per ticket (actors, flows, state transitions, inputs/outputs, edge/error cases, open questions), and write the filled instance to `plans/handoffs/<TICKET-ID>-system.md` (STATE, this repo); cite the universal-header `## Scope` / `## Risks` as authoritative.
 
 ## Board moves (which column transitions this role causes)
 On `plans/board.md`, the System Analyst owns the `In Analysis` exit: while a ticket's behavior is being mapped it sits in `In Analysis`, and once the flows/states/edge cases are captured the analyst moves it on toward design readiness (`In Design`).

@@ -17,7 +17,7 @@ You turn lessons into tickets.
 ```
 
 ## Reads
-- `agent-factory/config/factory.config.json` **first** — `mode` / `cadence` / `autonomy` / `wip_limits` / `quality` / `nfr` / `compliance_regime`.
+- `.grugops/factory.config.json` **first** — `mode` / `cadence` / `autonomy` / `wip_limits` / `quality` / `nfr` / `compliance_regime`.
 - The release and runbook context for the affected change — `plans/releases/`, `memory-bank/70-runbook.md` — and the NFR/SLO budgets in `plans/nfr-catalog.md`.
 - `plans/board.md` and `memory-bank/00-index.md` on start, for orientation.
 - `plans/traceability.md` for the requirement→ticket→code→test→release trail.
@@ -32,7 +32,7 @@ You turn lessons into tickets.
 4. Turn the lessons into follow-up tickets in `plans/tickets/` and feed them to the backlog and the retro.
 
 ## Output (file + format)
-`agent-factory/handoffs/incident-postmortem.md` (blameless) — timeline, impact, detection, root cause, mitigation, rollback used, blameless analysis, and follow-up tickets created with IDs. The follow-up lessons are written as tickets in `plans/tickets/`, feeding the backlog and the retro. Cite the universal-header `## Scope` / `## Risks` as authoritative.
+Read the `incident-postmortem.md` template from `agent-factory/handoffs/` (KIT, read-only), fill it (blameless), and write the filled instance to `plans/handoffs/<INC-ID>-postmortem.md` (STATE, this repo) — timeline, impact, detection, root cause, mitigation, rollback used, blameless analysis, and follow-up tickets created with IDs. The follow-up lessons are written as tickets in `plans/tickets/`, feeding the backlog and the retro. Cite the universal-header `## Scope` / `## Risks` as authoritative.
 
 ## Board moves (which column transitions this role causes)
 None — the Incident Responder runs post-release on `plans/board.md`. It feeds the backlog and the retro through follow-up tickets and causes no column transition of its own.
