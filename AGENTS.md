@@ -10,7 +10,7 @@ All work starts with the Orchestrator: `agent-factory/roles/orchestrator.md`.
 
 Read in this order:
 
-1. `agent-factory/config/factory.config.json` — the dial (mode, cadence, autonomy, WIP limits). Runs lean with documented defaults when absent.
+1. `.grugops/factory.config.json` — the dial (mode, cadence, autonomy, WIP limits). Runs lean with documented defaults when absent.
 2. `agent-factory/roles/orchestrator.md` — the routing contract; act as the Orchestrator.
 3. `plans/board.md` — the visible state; respect every column's WIP limit before pulling new work.
 
@@ -20,8 +20,19 @@ The Orchestrator classifies the request, activates the right specialist role(s),
 
 - Roles:      `agent-factory/roles/`
 - Workflows:  `agent-factory/workflows/`
-- Handoffs:   `agent-factory/handoffs/`
+- Handoffs:   `agent-factory/handoffs/` (TEMPLATES you read; filled runtime instances are written to `plans/handoffs/`)
 - Checklists: `agent-factory/checklists/`
+
+## Kit vs state
+
+Clear voice — this is a resolution and safety rule, not a joke.
+
+- `agent-factory/…` = **KIT** — read-only, resolved from the kit root; NEVER written.
+- `plans/`, `memory-bank/`, `.grugops/` = **STATE** — read/write in THIS repo.
+- `agent-factory/handoffs/<template>.md` is the **TEMPLATE** you read; `plans/handoffs/<WORK-ITEM-ID>-<stage>.md` is the runtime **INSTANCE** you write.
+- The kit root is resolved by the adapter only. If the resolved kit dir is absent: **STOP — do not hunt** the repo for `agent-factory/…`. Re-run the installer (`install.sh` or `install.sh --check`).
+
+> **Kit vs state invariant:** `agent-factory/…` = read-only KIT (from the kit root, never written); `plans/`, `memory-bank/`, `.grugops/` = STATE in this repo. Read handoff templates from `agent-factory/handoffs/`, write instances to `plans/handoffs/<ID>-<stage>.md`. If the kit dir is absent, STOP — do not hunt.
 
 ## Commands
 
@@ -63,7 +74,7 @@ Real commands only, with flags, preferring fast single-file variants. If a comma
 ## Delivery
 
 - Board: `plans/board.md`
-- Cadence + WIP: `agent-factory/config/factory.config.json`
+- Cadence + WIP: `.grugops/factory.config.json`
 - Traceability: `plans/traceability.md`
 
 ## Safety rules
