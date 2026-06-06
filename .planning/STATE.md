@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: Install & Distribution
-status: executing
-last_updated: "2026-06-06T18:02:15.419Z"
+status: verifying
+last_updated: "2026-06-06T18:11:02.064Z"
 last_activity: 2026-06-06
 progress:
   total_phases: 9
-  completed_phases: 6
+  completed_phases: 7
   total_plans: 38
-  completed_plans: 37
-  percent: 67
+  completed_plans: 38
+  percent: 78
 ---
 
 # Project State
@@ -26,7 +26,7 @@ See: .planning/PROJECT.md (updated 2026-06-02)
 
 Phase: 07 (shared-home-foundation-path-rewrite) — EXECUTING
 Plan: 4 of 4
-Status: Ready to execute
+Status: Phase complete — ready for verification
 Last activity: 2026-06-06
 
 ## Performance Metrics
@@ -90,6 +90,7 @@ Last activity: 2026-06-06
 | Phase 07 P01 | 4m | 4 tasks | 6 files |
 | Phase 07 P02 | 9m | 3 tasks | 30 files |
 | Phase 07 P03 | 11m | 2 tasks | 13 files |
+| Phase 07 P04 | 6m | 2 tasks | 1 files |
 
 ## Accumulated Context
 
@@ -166,6 +167,7 @@ Recent decisions affecting current work:
 - [v1.1 Roadmap]: Gating pitfalls in success criteria — C1 grep-to-zero-bare-refs build gate (Phase 7 SC#5); C3 no-fallback-to-`.` / unset-`$GRUGOPS_HOME` BAD fixture (Phase 9 SC#3-4). C2/migration is DEFERRED to v1.2 (MIGR-01), not phased here.
 - [Phase ?]: [07-02] handoff instance <stage> tokens FROZEN (product/system/architecture/impl-ready/implementation/qe/security-nfr/uat/ticket-ready/release/postmortem/retro/refinement/sprint-plan); Plan 03 workflows MUST reuse byte-identically. Step-4 split + all 13 op-skill invariants landed; zero config refs in role/skill set.
 - [Phase ?]: [07-03] Workflow tier rewritten: 13 workflows read .grugops/factory.config.json (D-02, #quality preserved); all 14 'Handoffs produced' sections + 04/05 read sides (D-06) + 09/12 collective inputs name ticket-scoped plans/handoffs/<ID>-<stage>.md instances; <stage> tokens reused byte-identically from Plan 02; 10-sprint-review untouched
+- [Phase ?]: [07-04] Build gate scripts/check-kit-refs.sh ships GREEN (proves a completed rewrite); 3 assertions + SC2 marker over an explicit SCAN set; Assertion 3 scoped to exclude the 3 legal GRUGOPS_HOME sites; O3 included, O2 docs/README pointers deferred to Phase 8
 
 ### Pending Todos
 
@@ -199,6 +201,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-06-06T18:01:56.528Z
-Stopped at: Completed 07-02-PLAN.md
+Last session: 2026-06-06T18:11:02.060Z
+Stopped at: Completed 07-04-PLAN.md
 Resume file: None
