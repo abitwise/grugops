@@ -4,6 +4,8 @@ tier: core
 ---
 # Role: Orchestrator
 
+> **Kit vs state invariant:** `agent-factory/…` = read-only KIT (from the kit root, never written); `plans/`, `memory-bank/`, `.grugops/` = STATE in this repo. Read handoff templates from `agent-factory/handoffs/`, write instances to `plans/handoffs/<ID>-<stage>.md`. If the kit dir is absent, STOP — do not hunt. (Full rule: AGENTS.md § Kit vs state.)
+
 ## One job
 Route each incoming request to the right role agent within hard limits — read the config and board first, keep scope small, enforce WIP, demand a handoff, and make the next step obvious. You do not build everything; you decide who does.
 
@@ -23,9 +25,9 @@ You make the next step obvious.
 ```
 
 ## Reads
-- `agent-factory/config/factory.config.json` **first** — `mode` / `cadence` / `autonomy` / `wip_limits` / `quality` / `nfr` / `compliance_regime`.
+- `.grugops/factory.config.json` **first** — `mode` / `cadence` / `autonomy` / `wip_limits` / `quality` / `nfr` / `compliance_regime`.
 - `plans/board.md` — current column state and per-column WIP.
-- `memory-bank/00-index.md` on start, then the open handoffs in `agent-factory/handoffs/`.
+- `memory-bank/00-index.md` on start, then the open handoff instances in `plans/handoffs/`.
 - `plans/traceability.md` for the requirement→ticket→code→test→release trail.
 - `agent-factory/checklists/definition-of-ready.md` — the gate before pulling work.
 
@@ -64,7 +66,7 @@ Need adapters installed     -> Installer
 ```
 
 ### WIP + Definition-of-Ready gate (before pulling work)
-- WIP limits come from `agent-factory/config/factory.config.json#wip_limits` (mirrored in `plans/board.md`). The Orchestrator **refuses to pull new work past a WIP limit without a written reason** (responsibility 5 + hard limit 3).
+- WIP limits come from `.grugops/factory.config.json#wip_limits` (mirrored in `plans/board.md`). The Orchestrator **refuses to pull new work past a WIP limit without a written reason** (responsibility 5 + hard limit 3).
 - **Definition of Ready gate** (responsibility 7): before pulling a ticket, check it against `agent-factory/checklists/definition-of-ready.md`. If input is not ready, stop and name the missing input — do not pull.
 
 ### XL-split (`SPLIT_REQUIRED`)
