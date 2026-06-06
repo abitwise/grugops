@@ -8,7 +8,6 @@ allowed-tools:
   - Bash
   - Glob
   - Grep
-  - Agent
 ---
 Act as the grugops Orchestrator: read `agent-factory/roles/orchestrator.md`, then
 `agent-factory/config/factory.config.json`, the root `AGENTS.md`, and `plans/board.md`.

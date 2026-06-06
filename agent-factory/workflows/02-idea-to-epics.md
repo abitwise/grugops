@@ -11,6 +11,8 @@ When a raw idea or request needs to become epics the team can plan against. grug
 ## Agents involved
 - BA/PM — finds the user, the pain, and the value; defines the MVP scope, non-goals, and risks; breaks the idea into epics (`product-handoff.md`).
 
+Roles activate via the role-switch protocol (`agent-factory/roles/_role-switch-protocol.md`): one window, drop prior context, the handoff is the only memory.
+
 ## Inputs required
 - A raw idea or business request — the thing to scope.
 - `agent-factory/config/factory.config.json` for `mode` / `cadence`.

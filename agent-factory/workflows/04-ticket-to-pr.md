@@ -14,6 +14,8 @@ When a ready ticket needs to become a pull request a human can review. grug no r
 - QE/E2E — breaks the feature and reports gaps (`qe-handoff.md`).
 - Security/NFR — reviews risk if the change is triggered (`security-nfr-handoff.md`).
 
+Roles activate via the role-switch protocol (`agent-factory/roles/_role-switch-protocol.md`): one window, drop prior context, the handoff is the only memory.
+
 ## Inputs required
 - A ticket with acceptance criteria, size, and priority.
 - `agent-factory/checklists/definition-of-ready.md` — the readiness gate.

@@ -13,6 +13,8 @@ At the end of a sprint, when the box closes and the team accepts what got done. 
 - BA/PM — validates the delivered work against the original acceptance criteria, value, and scope.
 - QE/E2E — confirms the tests back what is being accepted and names any remaining gaps.
 
+Roles activate via the role-switch protocol (`agent-factory/roles/_role-switch-protocol.md`): one window, drop prior context, the handoff is the only memory.
+
 ## Inputs required
 - The active `plans/sprints/SPRINT-xx.md` written at `08-sprint-planning.md` — the committed goal and items.
 - The items that reached the `Done` column on `plans/board.md`.

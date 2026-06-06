@@ -40,7 +40,7 @@ Any incoming request. The Orchestrator is the entry point for all 15 request typ
    `ticket-to-pr` | `quality-gate` | `uat` | `refinement` | `sprint-planning` | `daily-sweep` |
    `sprint-review` | `retro` | `release` | `incident` | `install`
 4. Check context: AGENTS.md, memory-bank, plans, board, traceability.
-5. Activate only needed agents. Respect WIP limits before pulling new work.
+5. Activate each needed role through the role-switch protocol in `agent-factory/roles/_role-switch-protocol.md` — one window, drop prior context, the handoff is the only memory. Respect WIP limits before pulling new work.
 6. Require handoff output from each agent. Require trace updates.
 7. Stop work if input is not ready (Definition of Ready).
 8. Split big work into smaller tickets (`SPLIT_REQUIRED`).

@@ -15,6 +15,8 @@ When you have a new idea and an empty (or near-empty) repo and want the factory 
 - System Analyst — clarifies behavior where the design is unclear (`system-handoff.md`).
 - Architect/Design — sets the structure, records ADRs, seeds the NFR catalog (`architecture-handoff.md`).
 
+Roles activate via the role-switch protocol (`agent-factory/roles/_role-switch-protocol.md`): one window, drop prior context, the handoff is the only memory.
+
 ## Inputs required
 - A raw idea or business request — the thing to stand up.
 - `agent-factory/config/factory.config.json` for `mode` / `cadence` / `default_stack` (present after bootstrap; the kit ships it).

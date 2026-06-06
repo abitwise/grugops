@@ -12,6 +12,8 @@ When an epic needs to become small, ready, traceable tickets. grug make tickets 
 - BA/PM — breaks the epic into tickets, sizes them (`XS`/`S`/`M`/`L`/`XL`), and prioritizes them (`P0`-`P3`).
 - System Analyst — clarifies flows and system rules when the behavior is unclear (`system-handoff.md`).
 
+Roles activate via the role-switch protocol (`agent-factory/roles/_role-switch-protocol.md`): one window, drop prior context, the handoff is the only memory.
+
 ## Inputs required
 - An epic from `Backlog` and the `product-handoff.md` that scoped it.
 - `agent-factory/checklists/definition-of-ready.md` — the gate each ticket must meet.

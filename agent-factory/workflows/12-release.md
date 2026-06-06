@@ -11,6 +11,8 @@ Run this when a ticket reaches `Ready to Release` and a release must be cut. Thi
 ## Agents involved
 - Release Manager — sets the version, compiles the changelog and release notes, confirms the deploy/rollback/DR plans, attaches the evidence, works the readiness checklist, records the named approval, and writes both the release record and the release handoff. The Release Manager prepares the release and requires approval; it never deploys prod itself.
 
+Roles activate via the role-switch protocol (`agent-factory/roles/_role-switch-protocol.md`): one window, drop prior context, the handoff is the only memory.
+
 ## Inputs required
 - The implementation, QE, security/NFR, and UAT handoffs in `agent-factory/handoffs/` for the tickets going into the release — the gate results that prove the work is ready.
 - `plans/nfr-catalog.md` — the NFR budgets and evidence to attach.

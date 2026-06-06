@@ -11,6 +11,8 @@ Run this when a production incident is detected or an SLO is failing after relea
 ## Agents involved
 - Incident Responder — assesses the blast radius, proposes the mitigation and rollback, captures the timeline, writes the blameless postmortem, and creates the follow-up tickets. The Incident Responder feeds the lessons to the Factory Coach for the retro.
 
+Roles activate via the role-switch protocol (`agent-factory/roles/_role-switch-protocol.md`): one window, drop prior context, the handoff is the only memory.
+
 ## Inputs required
 - The release and runbook context for the affected change — `plans/releases/` and `memory-bank/70-runbook.md`.
 - The NFR/SLO budgets in `plans/nfr-catalog.md`.

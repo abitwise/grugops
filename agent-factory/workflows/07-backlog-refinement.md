@@ -13,6 +13,8 @@ Run this regularly to keep the `Ready` column stocked, or right before planning.
 - System Analyst — clarifies behavior when a ticket's acceptance is unclear.
 - Architect/Design — investigates spikes when an item needs a technical answer before it can be sized.
 
+Roles activate via the role-switch protocol (`agent-factory/roles/_role-switch-protocol.md`): one window, drop prior context, the handoff is the only memory.
+
 ## Inputs required
 - The top of the `Backlog` column on `plans/board.md` — the captured ideas to refine.
 - `agent-factory/config/factory.config.json` for `mode`, `cadence`, sizing (tshirt), and `priority_scheme` (`P0`–`P3`).

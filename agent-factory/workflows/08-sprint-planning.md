@@ -12,6 +12,8 @@ At the start of a sprint, when the team works in time-boxed iterations. This is 
 - Orchestrator — reads `config.cadence` and capacity, pulls committed items from `Ready` by priority up to capacity, enforces the Definition of Ready before each pull.
 - BA/PM — frames the one-sentence sprint goal and confirms each pulled item is Ready (value, scope, acceptance, size, priority).
 
+Roles activate via the role-switch protocol (`agent-factory/roles/_role-switch-protocol.md`): one window, drop prior context, the handoff is the only memory.
+
 ## Inputs required
 - A stocked `Ready` column on `plans/board.md` — enough sized, prioritized, DoR-met work to fill the box.
 - `agent-factory/config/factory.config.json` for `cadence` and capacity (`sprint_length_days`, default 10).

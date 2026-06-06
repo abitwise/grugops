@@ -14,6 +14,8 @@ When you drop the factory onto an existing repo and want it mapped, documented, 
 - Architect/Design — reviews the existing structure and notes risks and constraints.
 - Security/NFR — runs a high-risk scan of the unknown repo (`security-nfr-handoff.md`), returning `PASS | PASS_WITH_RISKS | BLOCKED`.
 
+Roles activate via the role-switch protocol (`agent-factory/roles/_role-switch-protocol.md`): one window, drop prior context, the handoff is the only memory.
+
 ## Inputs required
 - An existing repository — the codebase to adopt.
 - `agent-factory/config/factory.config.json` for `mode` / `cadence` / `compliance_regime` (present after bootstrap; the kit ships it).

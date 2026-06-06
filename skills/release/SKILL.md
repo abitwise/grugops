@@ -9,7 +9,6 @@ allowed-tools:
   - Bash
   - Glob
   - Grep
-  - Agent
 ---
 Act as the grugops Orchestrator and hand off to the Release Manager: read
 `agent-factory/roles/orchestrator.md`, then `agent-factory/roles/release-manager.md`,

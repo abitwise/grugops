@@ -11,6 +11,8 @@ Run this to learn from the metrics and improve the factory itself. It applies to
 ## Agents involved
 - Factory Coach — reads the metrics, runs the retro from the values (not opinion), names the top wastes, writes the retro notes, and creates the improvement tickets for the factory itself.
 
+Roles activate via the role-switch protocol (`agent-factory/roles/_role-switch-protocol.md`): one window, drop prior context, the handoff is the only memory.
+
 ## Inputs required
 - `plans/metrics.md` — the delivery metrics the retro acts on (the frozen 9, e.g. `Throughput`, `Cycle time`, `Rework rate`).
 - The board history on `plans/board.md` — where flow stalled, what sat blocked, what was reworked.

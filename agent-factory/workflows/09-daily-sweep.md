@@ -11,6 +11,8 @@ Run this on demand or on a schedule to reconcile the board and surface what is s
 ## Agents involved
 - Orchestrator — reads the board and the open handoffs, reconciles each ticket against its column, updates the state files, escalates blockers, and recommends the next pull within WIP. No other role is activated; the sweep is the Orchestrator's WIP-and-throttle pass.
 
+Roles activate via the role-switch protocol (`agent-factory/roles/_role-switch-protocol.md`): one window, drop prior context, the handoff is the only memory.
+
 ## Inputs required
 - `plans/board.md` — the current column state and per-column WIP.
 - The open handoffs in `agent-factory/handoffs/` — each in-flight ticket's latest packet, so the board can be checked against the real state of the work.

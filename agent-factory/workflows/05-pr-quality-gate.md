@@ -14,6 +14,8 @@ When a change is implemented and needs to pass the gate before a human reviews i
 - Architect/Design — only if the change altered structure (`architecture-handoff.md`).
 - Orchestrator — runs the deterministic prefetch and emits the recommendation. The Orchestrator recommends; it never auto-merges.
 
+Roles activate via the role-switch protocol (`agent-factory/roles/_role-switch-protocol.md`): one window, drop prior context, the handoff is the only memory.
+
 ## Inputs required
 - The implemented change on a branch and `agent-factory/handoffs/implementation-handoff.md`.
 - The ticket and its acceptance criteria; relevant prior ADRs in `memory-bank/50-decisions/`.

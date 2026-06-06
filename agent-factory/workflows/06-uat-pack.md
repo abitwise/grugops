@@ -13,6 +13,8 @@ When a feature is complete and a named human must accept it before release. grug
 - BA/PM — validates the business acceptance against the original value and scope.
 - QE/E2E — validates that the test coverage backs the scenarios.
 
+Roles activate via the role-switch protocol (`agent-factory/roles/_role-switch-protocol.md`): one window, drop prior context, the handoff is the only memory.
+
 ## Inputs required
 - The completed feature and the `security-nfr-handoff.md` that gated it.
 - The ticket's acceptance criteria.
