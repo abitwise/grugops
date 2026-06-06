@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: Install & Distribution
 status: executing
-last_updated: "2026-06-06T17:39:35.114Z"
+last_updated: "2026-06-06T17:52:01.927Z"
 last_activity: 2026-06-06
 progress:
   total_phases: 9
   completed_phases: 6
   total_plans: 38
-  completed_plans: 35
+  completed_plans: 36
   percent: 67
 ---
 
@@ -25,7 +25,7 @@ See: .planning/PROJECT.md (updated 2026-06-02)
 ## Current Position
 
 Phase: 07 (shared-home-foundation-path-rewrite) — EXECUTING
-Plan: 2 of 4
+Plan: 3 of 4
 Status: Ready to execute
 Last activity: 2026-06-06
 
@@ -88,6 +88,7 @@ Last activity: 2026-06-06
 | Phase 06 P06-04 | 6m | 2 tasks | 3 files |
 | Phase 06 P06-05 | 5m | 2 tasks | 3 files |
 | Phase 07 P01 | 4m | 4 tasks | 6 files |
+| Phase 07 P02 | 9m | 3 tasks | 30 files |
 
 ## Accumulated Context
 
@@ -162,6 +163,7 @@ Recent decisions affecting current work:
 - [v1.1 Roadmap]: Phase order honors the research FORCED build order — split convention + resolution mechanism + ~31-file rewrite (P7) → installer (resolve `$GRUGOPS_HOME`, copy, materialize abs kit path, `--target`/`--yes`, seed `.grugops/`+`plans/handoffs/`) (P8) → `--check` doctor + two-root validator + `install.test.sh` (P9). Rewrite + materialize-mechanism kept together so doctor and validator key off the final ref spelling.
 - [v1.1 Roadmap]: LOCKED decisions baked into phase goals — kit home `${GRUGOPS_HOME:-$HOME/.grugops}` (NOT XDG, NOT literal `~`); default COPY not symlink; per-repo config at **`.grugops/factory.config.json`** with install marker/version stamp in `.grugops/` (per SHOME-02 — overrides the older ARCHITECTURE.md repo-root recommendation); installer MATERIALIZES the absolute kit path into standalone adapters (LLM cannot expand `$GRUGOPS_HOME` in prose) + one-line bash self-heal fallback; zero-dep (sh + Node stdlib, no package.json); never overwrite/delete user content.
 - [v1.1 Roadmap]: Gating pitfalls in success criteria — C1 grep-to-zero-bare-refs build gate (Phase 7 SC#5); C3 no-fallback-to-`.` / unset-`$GRUGOPS_HOME` BAD fixture (Phase 9 SC#3-4). C2/migration is DEFERRED to v1.2 (MIGR-01), not phased here.
+- [Phase ?]: [07-02] handoff instance <stage> tokens FROZEN (product/system/architecture/impl-ready/implementation/qe/security-nfr/uat/ticket-ready/release/postmortem/retro/refinement/sprint-plan); Plan 03 workflows MUST reuse byte-identically. Step-4 split + all 13 op-skill invariants landed; zero config refs in role/skill set.
 
 ### Pending Todos
 
@@ -195,6 +197,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-06-06T17:39:28.622Z
-Stopped at: Phase 7 context gathered
+Last session: 2026-06-06T17:52:01.921Z
+Stopped at: Completed 07-02-PLAN.md
 Resume file: None
