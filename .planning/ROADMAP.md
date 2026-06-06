@@ -275,6 +275,6 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8 →
 | 4. Workflows, Cadence & Backpressure | 7/7 | Complete    | 2026-06-03 |
 | 5. Packaging, Adapters, Install & Distribution | 5/5 | Complete    | 2026-06-03 |
 | 6. Validation, Brand & Dogfood | 5/5 | Complete    | 2026-06-04 |
-| 7. Shared-Home Foundation & Path Rewrite | 4/4 | Complete   | 2026-06-06 |
+| 7. Shared-Home Foundation & Path Rewrite | 4/4 | Complete    | 2026-06-06 |
 | 8. Two-Root Installer | 0/? | Not started | - |
 | 9. Doctor & Two-Root Validator | 0/? | Not started | - |

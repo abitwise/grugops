@@ -2,8 +2,8 @@
 gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: Install & Distribution
-status: verifying
-last_updated: "2026-06-06T18:11:02.064Z"
+status: ready_to_plan
+last_updated: 2026-06-06T18:27:39.278Z
 last_activity: 2026-06-06
 progress:
   total_phases: 9
@@ -11,6 +11,7 @@ progress:
   total_plans: 38
   completed_plans: 38
   percent: 78
+stopped_at: Phase 07 complete (4/4) — ready to discuss Phase 8
 ---
 
 # Project State
@@ -20,20 +21,20 @@ progress:
 See: .planning/PROJECT.md (updated 2026-06-02)
 
 **Core value:** A user installs grugops on top of the coding-agent CLI they already run, types `/grug`, and gets a disciplined delivery team — a visible board, strict handoffs, and an auditable requirement→code→test→release trail — entirely as readable markdown, with humans always holding merge and deploy.
-**Current focus:** Phase 07 — shared-home-foundation-path-rewrite
+**Current focus:** Phase 8 — two root installer
 
 ## Current Position
 
-Phase: 07 (shared-home-foundation-path-rewrite) — EXECUTING
-Plan: 4 of 4
-Status: Phase complete — ready for verification
+Phase: 8
+Plan: Not started
+Status: Ready to plan
 Last activity: 2026-06-06
 
 ## Performance Metrics
 
 **Velocity:**
 
-- Total plans completed: 34
+- Total plans completed: 38
 - Average duration: -
 - Total execution time: 0 hours
 
@@ -47,6 +48,7 @@ Last activity: 2026-06-06
 | 04 | 7 | - | - |
 | 05 | 5 | - | - |
 | 06 | 5 | - | - |
+| 07 | 4 | - | - |
 
 **Recent Trend:**
 
