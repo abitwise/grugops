@@ -116,10 +116,10 @@
 
 ### Shared-Home Architecture
 
-- [ ] **SHOME-01**: The kit installs once to `$GRUGOPS_HOME` (default `~/.grugops`, env-overridable as `${GRUGOPS_HOME:-$HOME/.grugops}`, resolved identically in POSIX `sh` and Node stdlib); the kit there is read-only/central and `~/.grugops` is used (not XDG split)
-- [ ] **SHOME-02**: Per-repo state lives in the target repo — `plans/` (including runtime handoffs at `plans/handoffs/`), `memory-bank/`, and the project's `factory.config.json` under a per-repo **`.grugops/`** directory (which also holds the install marker / kit-version stamp); nothing an agent writes at runtime lands in the shared kit. The 32 config references resolve to `.grugops/factory.config.json`
-- [ ] **SHOME-03**: The ~31 role/workflow/adapter files are rewritten so kit references resolve to the kit root and state references resolve repo-relative; a build gate proves **zero** bare `agent-factory/…` references remain that should point at the kit (grep-to-zero)
-- [ ] **SHOME-04**: The kit root resolves by ONE rule with two homes — an installer-**materialized absolute path** (standalone) or `${CLAUDE_PLUGIN_ROOT}` (plugin). Because an LLM does not expand `$GRUGOPS_HOME` in prose, the installer writes the resolved absolute kit path into the standalone adapters, with a documented one-line bash self-heal fallback
+- [x] **SHOME-01**: The kit installs once to `$GRUGOPS_HOME` (default `~/.grugops`, env-overridable as `${GRUGOPS_HOME:-$HOME/.grugops}`, resolved identically in POSIX `sh` and Node stdlib); the kit there is read-only/central and `~/.grugops` is used (not XDG split)
+- [x] **SHOME-02**: Per-repo state lives in the target repo — `plans/` (including runtime handoffs at `plans/handoffs/`), `memory-bank/`, and the project's `factory.config.json` under a per-repo **`.grugops/`** directory (which also holds the install marker / kit-version stamp); nothing an agent writes at runtime lands in the shared kit. The 32 config references resolve to `.grugops/factory.config.json`
+- [x] **SHOME-03**: The ~31 role/workflow/adapter files are rewritten so kit references resolve to the kit root and state references resolve repo-relative; a build gate proves **zero** bare `agent-factory/…` references remain that should point at the kit (grep-to-zero)
+- [x] **SHOME-04**: The kit root resolves by ONE rule with two homes — an installer-**materialized absolute path** (standalone) or `${CLAUDE_PLUGIN_ROOT}` (plugin). Because an LLM does not expand `$GRUGOPS_HOME` in prose, the installer writes the resolved absolute kit path into the standalone adapters, with a documented one-line bash self-heal fallback
 
 ### Install Experience
 
@@ -220,10 +220,10 @@ Each requirement maps to exactly one phase. See `.planning/ROADMAP.md` for phase
 | BRAND-03 | Phase 6 | Complete |
 | DOG-01 | Phase 6 | Complete |
 | DOG-02 | Phase 6 | Partial (sequential proven; CC-native half deferred → 06-HUMAN-UAT.md) |
-| SHOME-01 | Phase 7 | Pending |
-| SHOME-02 | Phase 7 | Pending |
-| SHOME-03 | Phase 7 | Pending |
-| SHOME-04 | Phase 7 | Pending |
+| SHOME-01 | Phase 7 | Complete |
+| SHOME-02 | Phase 7 | Complete |
+| SHOME-03 | Phase 7 | Complete |
+| SHOME-04 | Phase 7 | Complete |
 | INSTALL-03 | Phase 8 | Pending |
 | INSTALL-04 | Phase 8 | Pending |
 | INSTALL-05 | Phase 9 | Pending |

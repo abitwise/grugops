@@ -215,7 +215,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 
 **Wave 1** *(freeze the convention first — canonical rule + invariant marker + sole-resolver adapters)*
 
-- [ ] 07-01-PLAN.md — Convention foundation: AGENTS.md canonical kit-vs-state rule + byte-identical invariant marker, orchestrator preamble, the two resolver adapters' self-heal/STOP, packaging source templates (SHOME-01/02/03/04)
+- [x] 07-01-PLAN.md — Convention foundation: AGENTS.md canonical kit-vs-state rule + byte-identical invariant marker, orchestrator preamble, the two resolver adapters' self-heal/STOP, packaging source templates (SHOME-01/02/03/04)
 
 **Wave 2** *(blocked on 07-01; disjoint file sets — roles vs workflows — run parallel)*
 
@@ -275,6 +275,6 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8 →
 | 4. Workflows, Cadence & Backpressure | 7/7 | Complete    | 2026-06-03 |
 | 5. Packaging, Adapters, Install & Distribution | 5/5 | Complete    | 2026-06-03 |
 | 6. Validation, Brand & Dogfood | 5/5 | Complete    | 2026-06-04 |
-| 7. Shared-Home Foundation & Path Rewrite | 0/4 | Planned     | - |
+| 7. Shared-Home Foundation & Path Rewrite | 1/4 | In Progress|  |
 | 8. Two-Root Installer | 0/? | Not started | - |
 | 9. Doctor & Two-Root Validator | 0/? | Not started | - |
