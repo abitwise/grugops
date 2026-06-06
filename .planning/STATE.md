@@ -1,17 +1,16 @@
 ---
 gsd_state_version: 1.0
-milestone: v1.0
-milestone_name: milestone
-status: milestone_complete
-last_updated: 2026-06-04T06:35:22.784Z
-last_activity: 2026-06-04
+milestone: v1.1
+milestone_name: Install & Distribution
+status: planning
+last_updated: "2026-06-06T12:59:17.373Z"
+last_activity: 2026-06-06
 progress:
-  total_phases: 6
-  completed_phases: 6
-  total_plans: 34
-  completed_plans: 34
-  percent: 100
-stopped_at: Milestone complete (Phase 06 was final phase)
+  total_phases: 0
+  completed_phases: 0
+  total_plans: 0
+  completed_plans: 0
+  percent: 0
 ---
 
 # Project State
@@ -25,12 +24,10 @@ See: .planning/PROJECT.md (updated 2026-06-02)
 
 ## Current Position
 
-Phase: 06
-Plan: Not started
-Status: Milestone complete
-Last activity: 2026-06-06 - Completed quick task 260606-0my: Harden grugops role-switch protocol + auto-commit (DOG-02 dogfood fixes)
-
-Progress: [██████████] 100%
+Phase: Not started (defining requirements)
+Plan: —
+Status: Defining requirements
+Last activity: 2026-06-06 — Milestone v1.1 started
 
 ## Performance Metrics
 
