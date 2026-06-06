@@ -17,7 +17,7 @@ Roles activate via the role-switch protocol (`agent-factory/roles/_role-switch-p
 
 ## Inputs required
 - The top of the `Backlog` column on `plans/board.md` — the captured ideas to refine.
-- `agent-factory/config/factory.config.json` for `mode`, `cadence`, sizing (tshirt), and `priority_scheme` (`P0`–`P3`).
+- `.grugops/factory.config.json` for `mode`, `cadence`, sizing (tshirt), and `priority_scheme` (`P0`–`P3`).
 - `agent-factory/checklists/definition-of-ready.md` — the bar each item must meet before it can be promoted.
 
 ## Steps

@@ -17,7 +17,7 @@ Roles activate via the role-switch protocol (`agent-factory/roles/_role-switch-p
 - The implementation, QE, security/NFR, and UAT handoffs in `agent-factory/handoffs/` for the tickets going into the release — the gate results that prove the work is ready.
 - `plans/nfr-catalog.md` — the NFR budgets and evidence to attach.
 - `agent-factory/checklists/release-readiness-checklist.md` — the enterprise readiness gate this workflow works through.
-- `agent-factory/config/factory.config.json` for `mode`, `environments`, and `production_requires_human_confirmation`.
+- `.grugops/factory.config.json` for `mode`, `environments`, and `production_requires_human_confirmation`.
 
 ## Steps
 1. Set the version (SemVer) and pick the scope — the tickets included in this release.

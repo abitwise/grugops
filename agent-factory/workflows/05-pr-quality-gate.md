@@ -20,7 +20,7 @@ Roles activate via the role-switch protocol (`agent-factory/roles/_role-switch-p
 - The implemented change on a branch and `agent-factory/handoffs/implementation-handoff.md`.
 - The ticket and its acceptance criteria; relevant prior ADRs in `memory-bank/50-decisions/`.
 - Gate commands pulled from the root `AGENTS.md` command slots at runtime.
-- Quality knobs from `agent-factory/config/factory.config.json#quality`.
+- Quality knobs from `.grugops/factory.config.json#quality`.
 - `agent-factory/checklists/pr-review-checklist.md`.
 
 ## Steps

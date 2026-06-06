@@ -19,7 +19,7 @@ Roles activate via the role-switch protocol (`agent-factory/roles/_role-switch-p
 ## Inputs required
 - A ticket with acceptance criteria, size, and priority.
 - `agent-factory/checklists/definition-of-ready.md` — the readiness gate.
-- The `autonomy` setting from `agent-factory/config/factory.config.json`.
+- The `autonomy` setting from `.grugops/factory.config.json`.
 
 ## Steps
 1. The Orchestrator checks the ticket against `agent-factory/checklists/definition-of-ready.md`. If it is not ready, stop and name the missing input.

@@ -16,7 +16,7 @@ Roles activate via the role-switch protocol (`agent-factory/roles/_role-switch-p
 ## Inputs required
 - `plans/board.md` — the current column state and per-column WIP.
 - The open handoffs in `agent-factory/handoffs/` — each in-flight ticket's latest packet, so the board can be checked against the real state of the work.
-- `agent-factory/config/factory.config.json` — `wip_limits` (the throttle) and `blocked_escalation_days` (the escalation threshold, default 2).
+- `.grugops/factory.config.json` — `wip_limits` (the throttle) and `blocked_escalation_days` (the escalation threshold, default 2).
 
 ## Steps
 1. Read `plans/board.md` and the open handoffs in `agent-factory/handoffs/` to see where every in-flight ticket actually stands.

@@ -17,7 +17,7 @@ Roles activate via the role-switch protocol (`agent-factory/roles/_role-switch-p
 ## Inputs required
 - An epic from `Backlog` and the `product-handoff.md` that scoped it.
 - `agent-factory/checklists/definition-of-ready.md` — the gate each ticket must meet.
-- `agent-factory/config/factory.config.json` for `sizing` / `priority_scheme`.
+- `.grugops/factory.config.json` for `sizing` / `priority_scheme`.
 
 ## Steps
 1. BA/PM breaks the epic into tickets, each with user value, scope, and Given/When/Then acceptance criteria.

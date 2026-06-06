@@ -19,7 +19,7 @@ Roles activate via the role-switch protocol (`agent-factory/roles/_role-switch-p
 
 ## Inputs required
 - A raw idea or business request — the thing to stand up.
-- `agent-factory/config/factory.config.json` for `mode` / `cadence` / `default_stack` (present after bootstrap; the kit ships it).
+- `.grugops/factory.config.json` for `mode` / `cadence` / `default_stack` (present after bootstrap; the kit ships it).
 - An empty (or near-empty) repo and `memory-bank/00-index.md` for orientation.
 
 ## Steps
@@ -28,7 +28,7 @@ Roles activate via the role-switch protocol (`agent-factory/roles/_role-switch-p
 3. BA/PM defines the product into `agent-factory/handoffs/product-handoff.md`, breaks the idea into epics, and writes the first tickets (epics/features/tickets to `plans/epics/`, `plans/features/`, `plans/tickets/`).
 4. The System Analyst clarifies behavior where it is unclear and writes `agent-factory/handoffs/system-handoff.md`.
 5. Architect/Design sets the structure, writes `agent-factory/handoffs/architecture-handoff.md`, records ADRs into `memory-bank/50-decisions/`, and seeds `plans/nfr-catalog.md`.
-6. Seed `plans/board.md` with the standard columns and WIP limits, and confirm `agent-factory/config/factory.config.json` is present.
+6. Seed `plans/board.md` with the standard columns and WIP limits, and confirm `.grugops/factory.config.json` is present.
 
 ## Board moves
 On `plans/board.md`, seed the board with its columns and per-column WIP limits. BA/PM owns the `Backlog -> Ready` exit for the first epics. The System Analyst owns the `In Analysis` exit and Architect/Design owns the `In Design` exit as the first tickets walk the early columns.
@@ -46,7 +46,7 @@ None beyond seeding. The board and metrics counters start empty; `plans/metrics.
 - The idea is too vague to map — stop and request the missing clarity from the requester; do not invent the user, the pain, or the value.
 
 ## Done condition
-The root `AGENTS.md`, the memory-bank, `memory-bank/greenfield-plan.md`, the `product-handoff.md` / `system-handoff.md` / `architecture-handoff.md`, and the first tickets all exist; `plans/board.md` is seeded; `agent-factory/config/factory.config.json` is present. The `AGENTS.md` command slots remain `UNKNOWN - verify` until verified per-project.
+The root `AGENTS.md`, the memory-bank, `memory-bank/greenfield-plan.md`, the `product-handoff.md` / `system-handoff.md` / `architecture-handoff.md`, and the first tickets all exist; `plans/board.md` is seeded; `.grugops/factory.config.json` is present. The `AGENTS.md` command slots remain `UNKNOWN - verify` until verified per-project.
 
 ## Commit
 Commit the artifacts this workflow wrote (the seeded board, the first tickets, the handoffs, the memory-bank, and the traceability rows) per `agent-factory/_commit-convention.md` — branch guard first (never a protected branch; switch to `grugops/bootstrap-greenfield-<id>`), then `type(scope): summary`. Never merge, never deploy; humans hold both.

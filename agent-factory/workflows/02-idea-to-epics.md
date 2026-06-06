@@ -15,7 +15,7 @@ Roles activate via the role-switch protocol (`agent-factory/roles/_role-switch-p
 
 ## Inputs required
 - A raw idea or business request — the thing to scope.
-- `agent-factory/config/factory.config.json` for `mode` / `cadence`.
+- `.grugops/factory.config.json` for `mode` / `cadence`.
 - `plans/board.md` and `memory-bank/00-index.md` for orientation.
 
 ## Steps

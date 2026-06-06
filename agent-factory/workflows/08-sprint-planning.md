@@ -16,7 +16,7 @@ Roles activate via the role-switch protocol (`agent-factory/roles/_role-switch-p
 
 ## Inputs required
 - A stocked `Ready` column on `plans/board.md` — enough sized, prioritized, DoR-met work to fill the box.
-- `agent-factory/config/factory.config.json` for `cadence` and capacity (`sprint_length_days`, default 10).
+- `.grugops/factory.config.json` for `cadence` and capacity (`sprint_length_days`, default 10).
 - `agent-factory/checklists/definition-of-ready.md` — the gate each committed item must meet.
 
 ## Steps

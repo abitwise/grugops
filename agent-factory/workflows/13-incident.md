@@ -16,7 +16,7 @@ Roles activate via the role-switch protocol (`agent-factory/roles/_role-switch-p
 ## Inputs required
 - The release and runbook context for the affected change — `plans/releases/` and `memory-bank/70-runbook.md`.
 - The NFR/SLO budgets in `plans/nfr-catalog.md`.
-- `agent-factory/config/factory.config.json` for `mode` and `environments`.
+- `.grugops/factory.config.json` for `mode` and `environments`.
 
 ## Steps
 1. Assess the blast radius — what is affected, who is affected, and how widely.

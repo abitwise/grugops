@@ -16,7 +16,7 @@ Roles activate via the role-switch protocol (`agent-factory/roles/_role-switch-p
 ## Inputs required
 - `plans/metrics.md` — the delivery metrics the retro acts on (the frozen 9, e.g. `Throughput`, `Cycle time`, `Rework rate`).
 - The board history on `plans/board.md` — where flow stalled, what sat blocked, what was reworked.
-- `agent-factory/config/factory.config.json` for `mode` (the retro is light in lean) and `cadence`.
+- `.grugops/factory.config.json` for `mode` (the retro is light in lean) and `cadence`.
 
 ## Steps
 1. Read `plans/metrics.md` and the board history (Factory Coach) — run the retro from the values, not the vibes.
