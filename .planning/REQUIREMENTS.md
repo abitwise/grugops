@@ -110,6 +110,33 @@
 - [x] **DOG-01**: grugops is installed via `/grug` onto a throwaway sample repo, the repo is bootstrapped, and one ticket is driven from idea to a PR end-to-end — the acceptance gate; the validator passes on the resulting structure
 - [~] **DOG-02** (PARTIAL — sequential AGENTS.md path proven; Claude Code native sub-agent-spawn half deferred to milestone-close UAT, see `phases/06-validation-brand-dogfood/06-HUMAN-UAT.md`): The same roles/handoffs/gates are exercised over at least the portable AGENTS.md path (sequential role-load) and the Claude Code native path (sub-agent spawn), confirming "only the dispatch differs, never the content"
 
+## Milestone v1.1 Requirements — Install & Distribution
+
+**Defined:** 2026-06-06 · **Goal:** shared-location install (`$GRUGOPS_HOME` kit + per-repo state). Design: `docs/design/shared-install.md`; research: `.planning/research/SUMMARY.md`. These supersede the in-repo assumptions of INSTALL-01/02.
+
+### Shared-Home Architecture
+
+- [ ] **SHOME-01**: The kit installs once to `$GRUGOPS_HOME` (default `~/.grugops`, env-overridable as `${GRUGOPS_HOME:-$HOME/.grugops}`, resolved identically in POSIX `sh` and Node stdlib); the kit there is read-only/central and `~/.grugops` is used (not XDG split)
+- [ ] **SHOME-02**: Per-repo state lives in the target repo — `plans/` (including runtime handoffs at `plans/handoffs/`), `memory-bank/`, and the project's `factory.config.json` under a per-repo **`.grugops/`** directory (which also holds the install marker / kit-version stamp); nothing an agent writes at runtime lands in the shared kit. The 32 config references resolve to `.grugops/factory.config.json`
+- [ ] **SHOME-03**: The ~31 role/workflow/adapter files are rewritten so kit references resolve to the kit root and state references resolve repo-relative; a build gate proves **zero** bare `agent-factory/…` references remain that should point at the kit (grep-to-zero)
+- [ ] **SHOME-04**: The kit root resolves by ONE rule with two homes — an installer-**materialized absolute path** (standalone) or `${CLAUDE_PLUGIN_ROOT}` (plugin). Because an LLM does not expand `$GRUGOPS_HOME` in prose, the installer writes the resolved absolute kit path into the standalone adapters, with a documented one-line bash self-heal fallback
+
+### Install Experience
+
+- [ ] **INSTALL-03**: `install.sh` and `install.mjs` accept `--target <repo>` plus an interactive prompt (default CWD, confirm) and a `--yes`/non-TTY bypass for CI; the installer runs correctly from any working directory
+- [ ] **INSTALL-04**: The installer seeds per-repo state into the target (`.grugops/factory.config.json` from the kit default + the install marker/version stamp + a `plans/` skeleton including `plans/handoffs/`) without clobbering existing files; default mode is **copy** (symlink opt-in); idempotent / additive / `DRY_RUN=1` / reversible preserved and `install.mjs` stays byte-parity with `install.sh` (Windows home via `os.homedir()`)
+- [ ] **INSTALL-05**: `install.sh --check` (and `install.mjs`) is a doctor that verifies every referenced path resolves (kit at the kit root, state in the repo), names the first failure with its referencing file, and uses clear exit codes (0 pass / nonzero fail; WARN→0; `--strict` gates WARN)
+
+### Validation (two-root)
+
+- [ ] **VAL-02**: The structure validator is two-root aware (explicit kit root + repo root, with **no fallback to `.`**) so it cannot return a false green in the dev checkout or with `$GRUGOPS_HOME` unset; a BAD fixture for a missing/unset kit root must fail. `install.test.sh` is updated for the split (fresh install + seed + doctor; idempotency / dry-run / reversibility preserved)
+
+### Deferred to v1.2+ (researched, intentionally out of this milestone)
+
+- **MIGR-01** (v1.2): `install.sh --migrate` converts an already-installed repo (in-repo `agent-factory/` + symlinks) to the split layout — additive-then-relocate, **never delete-first** (rename-to-backup; deletion only behind explicit `--prune-old-kit`); a fixture test proves a filled handoff survives. *(C2 gating pitfall applies to this work, not P1.)*
+- **UPD-01** (v1.2): `install.sh --update` refreshes the central kit in place; two-stage uninstall; doctor names the specific unresolved path.
+- **SKEW-01 / FIX-01 / PLUGIN-01** (v2+): per-repo kit-version pin + skew warning; doctor `--fix`; plugin-form path resolution (`${CLAUDE_PLUGIN_ROOT}`) and publishing grugops as a Claude Code plugin.
+
 ## v2 Requirements
 
 (None deferred — the full Agent Factory v2 spec is committed to this milestone.)
@@ -126,6 +153,11 @@ Explicitly excluded. Documented to prevent scope creep.
 | Agent marketplace beyond the single-plugin catalog | Avoids becoming a platform |
 | Auto-merge to protected branches / auto-deploy to prod | Safety must stay mechanical and human-gated |
 | Mascot/art resembling the "Grug" children's-book character | Separate IP; original art + non-affiliation only |
+| *(v1.1)* Background auto-update of the central kit | Surprise mutation; `--update` is explicit and human-run |
+| *(v1.1)* Symlink-overlay install / vendoring the kit per repo | Both were the rejected alternatives; copy to `$GRUGOPS_HOME` is the chosen model |
+| *(v1.1)* TUI/wizard installer, global `$PATH` binary, telemetry | Keep it boring — sh + Node stdlib, no daemon, no data collection |
+| *(v1.1)* Doctor that auto-fixes user content | `--check` reports and names; it never edits the user's repo |
+| *(v1.1)* XDG base-dir split (`$XDG_DATA_HOME` etc.) | Peer tools (rustup/cargo/nvm) reject it; one `$GRUGOPS_HOME` is simpler and cross-platform |
 
 ## Open Decisions
 
