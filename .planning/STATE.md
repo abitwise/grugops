@@ -28,7 +28,7 @@ See: .planning/PROJECT.md (updated 2026-06-02)
 Phase: 06
 Plan: Not started
 Status: Milestone complete
-Last activity: 2026-06-04
+Last activity: 2026-06-06 - Completed quick task 260606-0my: Harden grugops role-switch protocol + auto-commit (DOG-02 dogfood fixes)
 
 Progress: [██████████] 100%
 
@@ -174,6 +174,12 @@ None yet.
 - Two open decisions must be resolved at the START of Phase 5: version string (2.0.0 vs 0.x) and command form (commands/ vs skills/). Research has gathered options; resolve via `/gsd-discuss-phase` before adapters are written.
 - Phase 5 is research-flagged: Claude Code plugin format and per-tool AGENTS.md conventions move fast — verify against current tool docs at build time.
 - Safety-critical reminder for Phase 5: the prod-deploy guard MUST live in plugin-level `hooks/hooks.json`; subagent frontmatter `hooks`/`mcpServers`/`permissionMode` are silently ignored.
+
+### Quick Tasks Completed
+
+| # | Description | Date | Commit | Directory |
+|---|-------------|------|--------|-----------|
+| 260606-0my | Harden grugops role-switch protocol + auto-commit to working branch (DOG-02 dogfood fixes) | 2026-06-06 | 6a66994 | [260606-0my-harden-grugops-role-switch-protocol-auto](./quick/260606-0my-harden-grugops-role-switch-protocol-auto/) |
 
 ## Deferred Items
 
