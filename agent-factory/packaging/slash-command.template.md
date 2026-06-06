@@ -30,8 +30,10 @@ allowed-tools:
   - Grep
   - Agent
 ---
+> **Kit vs state invariant:** `agent-factory/…` = read-only KIT (from the kit root, never written); `plans/`, `memory-bank/`, `.grugops/` = STATE in this repo. Read handoff templates from `agent-factory/handoffs/`, write instances to `plans/handoffs/<ID>-<stage>.md`. If the kit dir is absent, STOP — do not hunt. (Full rule: AGENTS.md § Kit vs state.)
+
 Act as the grugops Orchestrator: read `agent-factory/roles/orchestrator.md`, then
-`agent-factory/config/factory.config.json`, the root `AGENTS.md`, and `plans/board.md`.
+`.grugops/factory.config.json`, the root `AGENTS.md`, and `plans/board.md`.
 Then run the planning workflow `agent-factory/workflows/03-epic-to-tickets.md`.
 Request: $ARGUMENTS
 ```
@@ -83,6 +85,15 @@ Do not carry the `grugops-` prefix into the plugin directory names, or you get t
 - **Body is repo-relative pointer-text.** It names `agent-factory/roles/orchestrator.md`
   and the workflow file, resolved against the user's repo — never a `../` filesystem path
   (broken in the plugin cache) and never a copy of the role or workflow body.
+- **Kit-root resolution is single-sourced.** Every skill body opens with the compressed
+  kit-vs-state invariant (above), but the full sole-resolver self-heal/STOP block lives in
+  ONLY two adapters — `.claude/skills/grugops/SKILL.md` (the dispatcher) and
+  `.claude/agents/grugops-orchestrator.md` (and the matching `subagent.frontmatter.md`
+  resolver template). The other op-skills carry the invariant only and defer kit-root
+  resolution to the Orchestrator. The kit-home env var is named ONLY in those resolver
+  adapters/templates — never in an op-skill, a role, a workflow, or `AGENTS.md`. The
+  installer materializes the absolute kit path into the resolver adapters' slot [1]; the
+  one-line self-heal is the fallback below it.
 - **`disable-model-invocation: true` belongs on `grugops-release`** — the destructive,
   deploy-touching command — so the model can never auto-trigger it; only a human invokes it.
   This pairs with the mechanical prod-deploy guard (see `adapters.md`).
