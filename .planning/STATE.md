@@ -2,11 +2,11 @@
 gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: Install & Distribution
-status: planning
-last_updated: "2026-06-06T12:59:17.373Z"
+status: roadmapped
+last_updated: "2026-06-06T17:00:00.000Z"
 last_activity: 2026-06-06
 progress:
-  total_phases: 0
+  total_phases: 3
   completed_phases: 0
   total_plans: 0
   completed_plans: 0
@@ -20,14 +20,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-06-02)
 
 **Core value:** A user installs grugops on top of the coding-agent CLI they already run, types `/grug`, and gets a disciplined delivery team — a visible board, strict handoffs, and an auditable requirement→code→test→release trail — entirely as readable markdown, with humans always holding merge and deploy.
-**Current focus:** Milestone complete
+**Current focus:** v1.1 Install & Distribution — shared-location install (`$GRUGOPS_HOME` kit + per-repo `.grugops/` state)
 
 ## Current Position
 
-Phase: Not started (defining requirements)
+Phase: 7 (Shared-Home Foundation & Path Rewrite) — not yet planned
 Plan: —
-Status: Defining requirements
-Last activity: 2026-06-06 — Milestone v1.1 started
+Status: Roadmapped — ready for `/gsd-plan-phase 7`
+Last activity: 2026-06-06 — v1.1 roadmap created (3 phases: 7 Foundation+Rewrite, 8 Installer, 9 Doctor+Validator; 8/8 requirements mapped)
 
 ## Performance Metrics
 
@@ -157,6 +157,10 @@ Recent decisions affecting current work:
 - [Phase ?]: [06-02] BRAND-03 five SVGs shipped: §6.3 color wordmark + §6.4 icon as-given (light cleanup only — dropped wordmark's redundant transparent rect, added aria-label); three D-50 mechanical derivations (mono-dark all-Charcoal #2C2A28, mono-light/reverse all-Bone #F3ECE0, lockup icon scale(0.625) left of wordmark in 472x96); palette locked to the four BRAND-03 hex (Moss/Ember excluded), lowercase grugops, no children's-book resemblance, palette-clean grep passes
 - [Phase 06]: [06-04] EX-01 illustrative half shipped: examples/02-brownfield-bootstrap, 04-sprint-cycle, 05-release-run — medium-depth narration of frozen §7 spines (input → inline # Orchestrator Decision → real board (WIP n/m) headings → REAL handoff filenames → trace/metrics line); each opens with the exact D-47 honesty banner + placeholder IDs (ABC-001/REL-0007/<PR-link>); 04 has 2 board snapshots + a velocity line from the frozen §6.5 set; 05 renders the named-human deploy gate in CLEAR voice + completed | … | Done | traceability rows; /grugops only (D-49), agent-factory/ + plans/ untouched; #1/#3 REAL captures fall out of the Plan 05 dogfood
 - [Phase 06]: [06-05] Hybrid dogfood: agent-proven REAL half complete (out-of-repo TS/Node+Fastify sample, ABC-001 idea->PR, gate READY_FOR_HUMAN_REVIEW, validator exit 0 on sample + own tree -- DOG-01 met, EX-01 #1/#3 captured); the three live-CC items (D-31 plugin-cache pointer resolution, SAFE-02 live hook firing, CC sub-agent spawn + CC-native parity column) DEFERRED to milestone-close UAT at the user checkpoint (resume=deferred), cells stay pending human, never fabricated -- DOG-02 partial (sequential done, CC-native deferred)
+- [v1.1 Roadmap]: 3 phases, numbering CONTINUED from v1.0 (Phase 7-9, not reset to 1); 8 requirements mapped — SHOME-01..04 → Phase 7, INSTALL-03/04 → Phase 8, INSTALL-05 + VAL-02 → Phase 9
+- [v1.1 Roadmap]: Phase order honors the research FORCED build order — split convention + resolution mechanism + ~31-file rewrite (P7) → installer (resolve `$GRUGOPS_HOME`, copy, materialize abs kit path, `--target`/`--yes`, seed `.grugops/`+`plans/handoffs/`) (P8) → `--check` doctor + two-root validator + `install.test.sh` (P9). Rewrite + materialize-mechanism kept together so doctor and validator key off the final ref spelling.
+- [v1.1 Roadmap]: LOCKED decisions baked into phase goals — kit home `${GRUGOPS_HOME:-$HOME/.grugops}` (NOT XDG, NOT literal `~`); default COPY not symlink; per-repo config at **`.grugops/factory.config.json`** with install marker/version stamp in `.grugops/` (per SHOME-02 — overrides the older ARCHITECTURE.md repo-root recommendation); installer MATERIALIZES the absolute kit path into standalone adapters (LLM cannot expand `$GRUGOPS_HOME` in prose) + one-line bash self-heal fallback; zero-dep (sh + Node stdlib, no package.json); never overwrite/delete user content.
+- [v1.1 Roadmap]: Gating pitfalls in success criteria — C1 grep-to-zero-bare-refs build gate (Phase 7 SC#5); C3 no-fallback-to-`.` / unset-`$GRUGOPS_HOME` BAD fixture (Phase 9 SC#3-4). C2/migration is DEFERRED to v1.2 (MIGR-01), not phased here.
 
 ### Pending Todos
 
@@ -168,9 +172,11 @@ None yet.
 
 [Issues that affect future work]
 
-- Two open decisions must be resolved at the START of Phase 5: version string (2.0.0 vs 0.x) and command form (commands/ vs skills/). Research has gathered options; resolve via `/gsd-discuss-phase` before adapters are written.
-- Phase 5 is research-flagged: Claude Code plugin format and per-tool AGENTS.md conventions move fast — verify against current tool docs at build time.
-- Safety-critical reminder for Phase 5: the prod-deploy guard MUST live in plugin-level `hooks/hooks.json`; subagent frontmatter `hooks`/`mcpServers`/`permissionMode` are silently ignored.
+- C1 (GATING, Phase 7): a single missed ref out of ~137 across 31 files dangles silently — the grep-to-zero build gate is the only mechanical net; eyeballs are not enough.
+- LLM-in-prose anti-pattern (cross-cutting): NO role/workflow/SKILL body/AGENTS.md may name `$GRUGOPS_HOME` — only `${CLAUDE_PLUGIN_ROOT}` is expanded inline (plugin), and arbitrary env vars are dead strings in both forms. The adapter holds the only env-var reference; the installer materializes the absolute path.
+- Config location: SHOME-02 LOCKS per-repo config to `.grugops/factory.config.json` (with the install marker/version stamp in `.grugops/`). The older `.planning/research/ARCHITECTURE.md` recommended repo-root `factory.config.json` — that recommendation is SUPERSEDED by the requirement; use `.grugops/`.
+- C3 (GATING, Phase 9): the validator must NOT fall back to `.` and MUST fail an unset-`$GRUGOPS_HOME` BAD fixture, or it false-greens in the dev checkout. Doctor and validator must resolve the kit home identically.
+- v1.1 needs no further phase-level research — patterns are fully specified in the research files.
 
 ### Quick Tasks Completed
 
@@ -188,6 +194,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-06-04T06:14:14.040Z
-Stopped at: Completed 06-05-PLAN.md (hybrid dogfood; live-CC verification deferred to milestone-close UAT)
-Resume file: None
+Last session: 2026-06-06T17:00:00.000Z
+Stopped at: v1.1 roadmap created (Phases 7-9, 8/8 requirements mapped, traceability populated)
+Resume file: None — next step `/gsd-plan-phase 7`

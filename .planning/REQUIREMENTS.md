@@ -220,12 +220,20 @@ Each requirement maps to exactly one phase. See `.planning/ROADMAP.md` for phase
 | BRAND-03 | Phase 6 | Complete |
 | DOG-01 | Phase 6 | Complete |
 | DOG-02 | Phase 6 | Partial (sequential proven; CC-native half deferred → 06-HUMAN-UAT.md) |
+| SHOME-01 | Phase 7 | Pending |
+| SHOME-02 | Phase 7 | Pending |
+| SHOME-03 | Phase 7 | Pending |
+| SHOME-04 | Phase 7 | Pending |
+| INSTALL-03 | Phase 8 | Pending |
+| INSTALL-04 | Phase 8 | Pending |
+| INSTALL-05 | Phase 9 | Pending |
+| VAL-02 | Phase 9 | Pending |
 
 **Coverage:**
-- v1 requirements: 46 total
-- Mapped to phases: 46
-- Unmapped: 0 ✓
+- v1 requirements: 46 total — mapped to Phases 1-6 ✓
+- v1.1 requirements: 8 total (SHOME-01..04, INSTALL-03..05, VAL-02) — mapped to Phases 7-9 ✓
+- Unmapped: 0 ✓ (the deferred MIGR-01 / UPD-01 / SKEW-01 / FIX-01 / PLUGIN-01 items are v1.2+, intentionally not phased this milestone)
 
 ---
 *Requirements defined: 2026-06-02*
-*Last updated: 2026-06-02 after roadmap creation (traceability populated)*
+*Last updated: 2026-06-06 — v1.1 roadmap created; SHOME-01..04 → Phase 7, INSTALL-03/04 → Phase 8, INSTALL-05 + VAL-02 → Phase 9*

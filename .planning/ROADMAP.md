@@ -20,6 +20,12 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 5: Packaging, Adapters, Install & Distribution** - Ship thin per-tool adapters, both Claude forms, idempotent installers, and the mechanical plugin-level prod-deploy guard (completed 2026-06-03)
 - [x] **Phase 6: Validation, Brand & Dogfood** - Ship the validator, examples, brand/legal collateral, and prove the kit end-to-end via a real idea-to-PR dogfood run (completed 2026-06-04)
 
+**Milestone v1.1 — Install & Distribution** *(shared-location install; phases continue the numbering)*
+
+- [ ] **Phase 7: Shared-Home Foundation & Path Rewrite** - Lock the kit/state split convention + single resolution rule, rewrite the ~31 kit/handoff/config refs, and prove zero bare `agent-factory/` refs remain (grep-to-zero gate)
+- [ ] **Phase 8: Two-Root Installer** - Resolve `$GRUGOPS_HOME`, copy the kit there, materialize the absolute kit path into the standalone adapters, and seed per-repo state with `--target`/`--yes`/copy-default at sh+Node parity
+- [ ] **Phase 9: Doctor & Two-Root Validator** - Ship the `--check` doctor that resolves every referenced path and the two-root validator with no fallback to `.` and an unset-`$GRUGOPS_HOME` BAD fixture
+
 ## Phase Details
 
 ### Phase 1: Substrate, Config & State Skeleton
@@ -192,14 +198,61 @@ Decimal phases appear between their surrounding integers in numeric order.
 
 **UI hint**: yes
 
+### Phase 7: Shared-Home Foundation & Path Rewrite
+
+**Goal**: Lock the kit/state split convention and the single "one rule, two homes" resolution mechanism, then rewrite the ~31 role/workflow/adapter files so every reference resolves to the correct root — kit refs under the KIT ROOT (read-only), state refs repo-relative — leaving zero bare `agent-factory/` references that should point at the kit. This is the linchpin: nothing downstream (installer, doctor, validator) resolves correctly until the final ref spelling is frozen here.
+**Depends on**: Phase 6 (v1.0 kit complete). The `grugops/quick-harden-role-switch-autocommit` branch is already merged to main, so the role-switch protocol's handoff-path edit happens once inside this phase's rewrite.
+**Requirements**: SHOME-01, SHOME-02, SHOME-03, SHOME-04
+**Success Criteria** (what must be TRUE):
+
+  1. The kit-home convention is stated once and used everywhere: `${GRUGOPS_HOME:-$HOME/.grugops}` (env-overridable, default `~/.grugops`, NOT XDG, NOT a literal `~`), resolved identically by the rule POSIX `sh` and Node stdlib will both implement, and documented as read-only/central
+  2. The disambiguation rule is stated once in `AGENTS.md` and the orchestrator/adapter preamble: anything under `agent-factory/` is KIT (read from KIT ROOT, never write); `plans/`, `memory-bank/`, and `.grugops/factory.config.json` are STATE (read/write in THIS repo); `agent-factory/handoffs/` is the TEMPLATE read while `plans/handoffs/` is the runtime INSTANCE write — and the agent is told to STOP, not hunt, if the resolved kit dir is absent
+  3. The ~31 role/workflow/adapter files are rewritten so the ~50 handoff writes land in `plans/handoffs/`, the ~32 config refs resolve to `.grugops/factory.config.json`, and kit-to-kit refs keep their `agent-factory/…` prefix meaning "under KIT ROOT"; the `_role-switch-protocol.md` step-4 template-read-vs-instance-write split is in place
+  4. The kit root resolves by ONE rule with two homes — an installer-materialized absolute path (standalone) or `${CLAUDE_PLUGIN_ROOT}` (plugin) — and because an LLM cannot expand `$GRUGOPS_HOME` in prose, no role, workflow, SKILL body, or `AGENTS.md` ever names `$GRUGOPS_HOME`; the only env-var reference is the documented one-line bash self-heal fallback inside the adapter
+  5. A build gate proves the rewrite is complete: `grep -rn 'agent-factory/'` over the shipped kit + adapters + `AGENTS.md` returns ZERO bare refs — every hit is an intended KIT-ROOT kit ref or a `plans/handoffs/` write (C1 grep-to-zero)
+
+**Plans**: TBD
+
+### Phase 8: Two-Root Installer
+
+**Goal**: Make the installer fix all three dogfood pains — kit never arrives, wrong target, symlink fragility — by resolving `$GRUGOPS_HOME`, copying the read-only kit there, materializing the resolved absolute kit path into each standalone adapter (the only place a kit root binds to an absolute string), and seeding per-repo state into the target without clobbering user content. Must follow Phase 7 because the installer materializes paths that match the rewritten token spelling, and `install.sh` + `install.mjs` land together because byte-parity is an existing contract.
+**Depends on**: Phase 7
+**Requirements**: INSTALL-03, INSTALL-04
+**Success Criteria** (what must be TRUE):
+
+  1. Running `install.sh --target ../app` (and `install.mjs`) from any working directory lays the kit under the resolved `${GRUGOPS_HOME:-$HOME/.grugops}` and writes the resolved absolute kit path into `../app`'s standalone adapters, so the target resolves the orchestrator with no path error and no hunting
+  2. The installer accepts `--target <repo>` plus an interactive confirm-the-default prompt, and a `--yes`/non-TTY bypass installs unattended in CI without blocking on the prompt
+  3. The installer seeds per-repo state into the target — `.grugops/factory.config.json` from the kit default, the install marker / kit-version stamp under `.grugops/`, and a `plans/` skeleton including `plans/handoffs/` — skipping any file that already exists and never overwriting or deleting user content
+  4. Default install mode is COPY (symlink is opt-in only); the additive / idempotent / `DRY_RUN=1` / reversible contract is preserved end to end across both roots
+  5. `install.mjs` stays byte-parity with `install.sh` (same kit root, same seeded target tree) and resolves the Windows home via `os.homedir()` rather than `$HOME`
+
+**Plans**: TBD
+
+### Phase 9: Doctor & Two-Root Validator
+
+**Goal**: Ship the verification layer that would have caught all three dogfood pains and that proves the split cannot silently regress — the `--check` doctor that resolves and stats every referenced path, and the two-root-aware validator that refuses to false-green in the dev checkout or with `$GRUGOPS_HOME` unset. Built after the installer because both reuse its resolution logic and key off the final ref spelling, and the validator matches the doctor's resolution rule so the two can never disagree about where the kit is.
+**Depends on**: Phase 8
+**Requirements**: INSTALL-05, VAL-02
+**Success Criteria** (what must be TRUE):
+
+  1. `install.sh --check` (and `install.mjs`) verifies every referenced path resolves — kit at the kit root, state in the repo, no dangling symlinks — and on failure names the FIRST unresolved path together with the file that references it
+  2. The doctor uses clear exit codes: pass exits 0, FAIL exits nonzero, a WARN exits 0 by default, and `--check --strict` promotes WARN to a nonzero gate
+  3. The structure validator is two-root aware — an explicit KIT_ROOT and STATE_ROOT, with NO silent fallback to `.` — so it cannot return a false green when run inside the dev checkout or with `$GRUGOPS_HOME` unset
+  4. A BAD fixture for a missing / unset kit root (the C3 footgun) MUST fail the validator, and the doctor and validator resolve the kit home identically so "doctor passes" and "validator passes" can never disagree
+  5. `install.test.sh` is updated for the split — fresh install lays the kit + materializes the adapter + seeds `.grugops/factory.config.json` and `plans/handoffs/`, the doctor passes on a good split and fails loudly on a missing kit — with idempotency, dry-run, and reversibility preserved
+
+**Plans**: TBD
+
+
 ## Progress
 
 **Execution Order:**
-Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6
+Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8 → 9
 
 **Research flags:**
 
 - Phase 5 (Packaging/Distribution) warrants phase-level research — per-tool conventions and Claude Code plugin format move fast; verify `claude plugin validate` output, commands/ vs skills/ behavior, and plugin-cache path resolution against current tool docs at build time. Phases 1-4 and 6 use standard, internally-defined patterns and need no additional research.
+- v1.1 (Phases 7-9): all three use standard, internally-defined patterns — the disambiguation rule, token spellings, `${GRUGOPS_HOME:-$HOME/.grugops}` resolution snippets, doctor exit-code convention, and two-root validator split are fully specified in `.planning/research/{ARCHITECTURE,PITFALLS,STACK}.md`. No additional phase-level research needed; the gating checks are C1 (grep-to-zero in Phase 7) and C3 (unset-`$GRUGOPS_HOME` BAD fixture in Phase 9). C2/migration is deferred to v1.2 (not in this milestone).
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
@@ -209,3 +262,6 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6
 | 4. Workflows, Cadence & Backpressure | 7/7 | Complete    | 2026-06-03 |
 | 5. Packaging, Adapters, Install & Distribution | 5/5 | Complete    | 2026-06-03 |
 | 6. Validation, Brand & Dogfood | 5/5 | Complete    | 2026-06-04 |
+| 7. Shared-Home Foundation & Path Rewrite | 0/? | Not started | - |
+| 8. Two-Root Installer | 0/? | Not started | - |
+| 9. Doctor & Two-Root Validator | 0/? | Not started | - |
