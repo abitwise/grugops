@@ -41,3 +41,6 @@ The retro reads `plans/metrics.md` rather than closing work; it surfaces a subse
 
 ## Done condition
 `retro-notes.md` is written — the metrics snapshot, the top 1–3 wastes, and Keep / Stop / Start — and 1–3 improvement tickets tagged `factory` are created in `plans/tickets/`. Every finding cites a value in `plans/metrics.md`; in lean mode the retro is kept light.
+
+## Commit
+Commit the artifacts this workflow wrote (the `retro-notes.md`, the `factory`-tagged improvement tickets, and the traceability rows linking them to their waste) per `agent-factory/_commit-convention.md` — branch guard first (never a protected branch; switch to `grugops/retro-<id>`), then `type(scope): summary`. Never merge, never deploy; humans hold both.

@@ -43,3 +43,6 @@ Record `Lead time` in `plans/metrics.md` as the ticket clears acceptance.
 
 ## Done condition
 The scenarios, test data, pass/fail criteria, signoff checklist, and known limitations exist; the named human has signed off; the ticket moves to `Ready to Release` (or to `Done` in lean mode).
+
+## Commit
+Commit the artifacts this workflow wrote (the `uat-handoff.md` pack, the recorded human signoff, the board move, the metrics, and the updated traceability rows) per `agent-factory/_commit-convention.md` — branch guard first (never a protected branch; switch to `grugops/uat-pack-<id>`), then `type(scope): summary`. Never merge, never deploy; humans hold both.

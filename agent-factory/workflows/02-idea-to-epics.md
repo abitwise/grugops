@@ -41,3 +41,6 @@ Record `Throughput` and `Lead time` in `plans/metrics.md` as epics land in `Back
 
 ## Done condition
 The MVP scope is clear; the epics, the non-goals, and the risks are written; the epics are added to `Backlog`. The `product-handoff.md` is filled and the trace rows are appended.
+
+## Commit
+Commit the artifacts this workflow wrote (the epics, the board update, the `product-handoff.md`, and the traceability rows) per `agent-factory/_commit-convention.md` — branch guard first (never a protected branch; switch to `grugops/idea-to-epics-<id>`), then `type(scope): summary`. Never merge, never deploy; humans hold both.

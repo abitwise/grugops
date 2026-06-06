@@ -44,3 +44,6 @@ Record `Lead time` in `plans/metrics.md` as the release clears. Report the value
 
 ## Done condition
 The release handoff `agent-factory/handoffs/release-handoff.md` and the release record `plans/releases/REL-xxxx.md` are written, and the status is one of `READY_TO_RELEASE | BLOCKED | RELEASED`. A release reaches `RELEASED` only after a named human approves and confirms the production action.
+
+## Commit
+Commit the artifacts this workflow wrote (the `release-handoff.md`, the `plans/releases/REL-xxxx.md` record with its approval entry, the board move, the metric, and the release-linked traceability rows) per `agent-factory/_commit-convention.md` — branch guard first (never a protected branch; switch to `grugops/release-<id>`), then `type(scope): summary`. The commit records the release; it does not deploy it — never merge, never deploy; the production action stays human-confirmed and humans hold both.

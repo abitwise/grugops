@@ -51,3 +51,6 @@ Record `Gate pass rate` in `plans/metrics.md`.
 
 ## Done condition
 The gate produces one of the three terminal results — `READY_FOR_HUMAN_REVIEW`, `BLOCKED_NEEDS_FIX`, or `SPLIT_REQUIRED`. This workflow emits a recommendation that a human reviews; it never auto-merges and never deploys. Humans hold merge and deploy.
+
+## Commit
+Commit the artifacts this workflow wrote (the gate result and recommendation, the QE / security-nfr handoffs, the gate-pass-rate metric, the board move, and the updated traceability rows) per `agent-factory/_commit-convention.md` — branch guard first (never a protected branch; switch to `grugops/pr-quality-gate-<id>`), then `type(scope): summary`. The gate recommends only — never merge, never deploy; humans hold both.

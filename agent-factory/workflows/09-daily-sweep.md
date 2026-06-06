@@ -45,3 +45,6 @@ Update `plans/metrics.md` with the flow metrics from the frozen set: `Cycle time
 
 ## Done condition
 A sweep report (done / next / blocked) is produced, and `plans/board.md`, `plans/metrics.md`, and `memory-bank/60-progress.md` are current — every column matches the real ticket status, blockers past `blocked_escalation_days` are escalated, and the next pull respects `wip_limits`.
+
+## Commit
+Commit the artifacts this workflow wrote (the reconciled `plans/board.md`, the flow metrics in `plans/metrics.md`, the `memory-bank/60-progress.md` record, and the kept-current traceability statuses) per `agent-factory/_commit-convention.md` — branch guard first (never a protected branch; switch to `grugops/daily-sweep-<id>`), then `type(scope): summary`. Never merge, never deploy; humans hold both.

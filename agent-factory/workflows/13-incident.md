@@ -42,3 +42,6 @@ Record `Escaped defects` in `plans/metrics.md` for the incident, if applicable. 
 
 ## Done condition
 The blameless postmortem `agent-factory/handoffs/incident-postmortem.md` is written, and the follow-up tickets are created in `plans/tickets/` so they enter the `Backlog`. The postmortem never blames a person; it examines the system and the process.
+
+## Commit
+Commit the artifacts this workflow wrote (the `incident-postmortem.md`, the follow-up tickets, the escaped-defects metric, and the incident-linked traceability rows) per `agent-factory/_commit-convention.md` — branch guard first (never a protected branch; switch to `grugops/incident-<id>`), then `type(scope): summary`. The mitigation/rollback production action stays human-confirmed — never merge, never deploy; humans hold both.

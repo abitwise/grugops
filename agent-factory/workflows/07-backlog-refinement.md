@@ -45,3 +45,6 @@ None new — refinement stocks the `Ready` column and does not close work. Surfa
 
 ## Done condition
 `refinement-notes.md` is written and the `Ready` column is stocked — enough sized, prioritized, DoR-met work that dev (continuous pull in kanban, the next sprint in scrum) never starves. Every `XL` item was split, and no item was promoted that did not meet the Definition of Ready.
+
+## Commit
+Commit the artifacts this workflow wrote (the `refinement-notes.md`, the re-sized/re-prioritized tickets, the `Backlog -> Ready` board moves, and the confirmed traceability rows) per `agent-factory/_commit-convention.md` — branch guard first (never a protected branch; switch to `grugops/backlog-refinement-<id>`), then `type(scope): summary`. Never merge, never deploy; humans hold both.

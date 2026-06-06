@@ -44,3 +44,6 @@ Record `Velocity` in `plans/metrics.md` — the scrum size points completed in t
 
 ## Done condition
 The review notes are appended to `plans/sprints/SPRINT-xx.md`: Velocity is filled, the Carried out items carry reasons, and the demo / release notes and Notes-for-retro are captured. Every accepted item genuinely met its acceptance criteria.
+
+## Commit
+Commit the artifacts this workflow wrote (the review notes appended to `plans/sprints/SPRINT-xx.md`, the velocity metric, and the confirmed traceability rows) per `agent-factory/_commit-convention.md` — branch guard first (never a protected branch; switch to `grugops/sprint-review-<id>`), then `type(scope): summary`. Never merge, never deploy; humans hold both.

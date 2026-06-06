@@ -44,3 +44,6 @@ Record `Throughput` in `plans/metrics.md` as tickets are created.
 
 ## Done condition
 Each ticket has user value, scope, acceptance criteria, test notes, security/NFR triggers, a size, a priority, and a traceability row. Tickets are written to `plans/tickets/`.
+
+## Commit
+Commit the artifacts this workflow wrote (the tickets, the board moves, the `system-handoff.md` when produced, and the traceability rows) per `agent-factory/_commit-convention.md` — branch guard first (never a protected branch; switch to `grugops/epic-to-tickets-<id>`), then `type(scope): summary`. Never merge, never deploy; humans hold both.

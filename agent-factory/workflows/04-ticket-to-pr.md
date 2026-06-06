@@ -47,3 +47,6 @@ Record `Cycle time` and `WIP` in `plans/metrics.md`.
 
 ## Done condition
 Code is changed per the `autonomy` setting, tests are added, the gate commands have run, the implementation and QE (and, when triggered, security-nfr) handoffs are written, and the trace is updated. This workflow honors `autonomy=pr` — the agent opens a branch and a PR; it never merges. Humans hold merge and deploy.
+
+## Commit
+Commit the artifacts this workflow wrote (the board moves, the implementation / QE / security-nfr handoffs, the metrics, and the updated traceability rows) per `agent-factory/_commit-convention.md` — branch guard first (never a protected branch; the implementation already lives on a `grugops/ticket-to-pr-<id>` working branch per `autonomy=pr`), then `type(scope): summary`. Never merge, never deploy; humans hold both.

@@ -52,3 +52,6 @@ Record `Velocity` in `plans/metrics.md` — the scrum size points per sprint, me
 
 ## Done condition
 `plans/sprints/SPRINT-xx.md` is written with the Goal, Dates, Capacity, and the Committed list (each item sized), and the Velocity / Burndown / Notes-for-retro fields are present to be filled as the box runs. The sprint goal is one sentence and every committed item met the Definition of Ready.
+
+## Commit
+Commit the artifacts this workflow wrote (the `plans/sprints/SPRINT-xx.md` file, the optional `sprint-plan.md` packet, the board moves, and the velocity metric) per `agent-factory/_commit-convention.md` — branch guard first (never a protected branch; switch to `grugops/sprint-planning-<id>`), then `type(scope): summary`. Never merge, never deploy; humans hold both.

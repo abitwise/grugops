@@ -47,3 +47,6 @@ None beyond seeding. The board and metrics counters start empty; `plans/metrics.
 
 ## Done condition
 The root `AGENTS.md`, the memory-bank, `memory-bank/greenfield-plan.md`, the `product-handoff.md` / `system-handoff.md` / `architecture-handoff.md`, and the first tickets all exist; `plans/board.md` is seeded; `agent-factory/config/factory.config.json` is present. The `AGENTS.md` command slots remain `UNKNOWN - verify` until verified per-project.
+
+## Commit
+Commit the artifacts this workflow wrote (the seeded board, the first tickets, the handoffs, the memory-bank, and the traceability rows) per `agent-factory/_commit-convention.md` — branch guard first (never a protected branch; switch to `grugops/bootstrap-greenfield-<id>`), then `type(scope): summary`. Never merge, never deploy; humans hold both.

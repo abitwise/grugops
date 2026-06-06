@@ -46,3 +46,6 @@ None beyond seeding. The board and metrics counters start empty; `plans/metrics.
 
 ## Done condition
 The root `AGENTS.md`, `memory-bank/brownfield-map.md`, and the updated memory-bank exist; the known commands and the risks are documented (with the `security-nfr-handoff.md` result); the safe first tickets exist; `plans/board.md` is seeded; `agent-factory/config/factory.config.json` is present. The `AGENTS.md` command slots remain `UNKNOWN - verify` until verified per-project.
+
+## Commit
+Commit the artifacts this workflow wrote (the brownfield map, the seeded board, the safe first tickets, the security-nfr handoff, and the traceability rows) per `agent-factory/_commit-convention.md` — branch guard first (never a protected branch; switch to `grugops/bootstrap-brownfield-<id>`), then `type(scope): summary`. Never merge, never deploy; humans hold both.
