@@ -211,7 +211,20 @@ Decimal phases appear between their surrounding integers in numeric order.
   4. The kit root resolves by ONE rule with two homes — an installer-materialized absolute path (standalone) or `${CLAUDE_PLUGIN_ROOT}` (plugin) — and because an LLM cannot expand `$GRUGOPS_HOME` in prose, no role, workflow, SKILL body, or `AGENTS.md` ever names `$GRUGOPS_HOME`; the only env-var reference is the documented one-line bash self-heal fallback inside the adapter
   5. A build gate proves the rewrite is complete: `grep -rn 'agent-factory/'` over the shipped kit + adapters + `AGENTS.md` returns ZERO bare refs — every hit is an intended KIT-ROOT kit ref or a `plans/handoffs/` write (C1 grep-to-zero)
 
-**Plans**: TBD
+**Plans**: 4 plans
+
+**Wave 1** *(freeze the convention first — canonical rule + invariant marker + sole-resolver adapters)*
+
+- [ ] 07-01-PLAN.md — Convention foundation: AGENTS.md canonical kit-vs-state rule + byte-identical invariant marker, orchestrator preamble, the two resolver adapters' self-heal/STOP, packaging source templates (SHOME-01/02/03/04)
+
+**Wave 2** *(blocked on 07-01; disjoint file sets — roles vs workflows — run parallel)*
+
+- [ ] 07-02-PLAN.md — Roles + op-skills rewrite: config refs → `.grugops/`, handoff template-read/instance-write split, `_role-switch-protocol.md` step-4 once-here edit, 13 op-skill invariants (SHOME-02/03/04)
+- [ ] 07-03-PLAN.md — Workflows rewrite: config refs → `.grugops/`, 14 "Handoffs produced" sections → `plans/handoffs/` instances, `04-ticket-to-pr.md` read side (SHOME-02/03)
+
+**Wave 3** *(blocked on Waves 1+2; the grep-to-zero gate ships GREEN as the phase acceptance proof)*
+
+- [ ] 07-04-PLAN.md — Build gate `scripts/check-kit-refs.sh`: 3 assertions (zero config / handoff-allowlist / no `$GRUGOPS_HOME` in prose) + SC2 marker check + fail-on-mutation proof (SHOME-03/04)
 
 ### Phase 8: Two-Root Installer
 
@@ -262,6 +275,6 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8 →
 | 4. Workflows, Cadence & Backpressure | 7/7 | Complete    | 2026-06-03 |
 | 5. Packaging, Adapters, Install & Distribution | 5/5 | Complete    | 2026-06-03 |
 | 6. Validation, Brand & Dogfood | 5/5 | Complete    | 2026-06-04 |
-| 7. Shared-Home Foundation & Path Rewrite | 0/? | Not started | - |
+| 7. Shared-Home Foundation & Path Rewrite | 0/4 | Planned     | - |
 | 8. Two-Root Installer | 0/? | Not started | - |
 | 9. Doctor & Two-Root Validator | 0/? | Not started | - |
