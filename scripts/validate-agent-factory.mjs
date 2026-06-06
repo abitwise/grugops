@@ -333,6 +333,45 @@ function checkPackaging() {
   }
 }
 
+// ── Check 8: role-switch protocol exists + is referenced by the Orchestrator ──────────────────
+// Structural only: the protocol file is present AND orchestrator.md points at it by path. We
+// assert the reference (a substring), never the protocol's prose — presence, not behavior.
+function checkRoleSwitchProtocol() {
+  const protocolRel = "agent-factory/roles/_role-switch-protocol.md";
+  if (!exists(protocolRel)) {
+    err(`missing required file: ${protocolRel}`);
+  }
+  const orchRel = "agent-factory/roles/orchestrator.md";
+  const orch = safeRead(orchRel);
+  if (orch === null) return; // missing-file already reported by checkRequiredFiles
+  if (!orch.includes("_role-switch-protocol")) {
+    err(`${orchRel}: does not reference the role-switch protocol (_role-switch-protocol)`);
+  }
+}
+
+// ── Check 9: commit-convention file exists ────────────────────────────────────────────────────
+function checkCommitConvention() {
+  const rel = "agent-factory/_commit-convention.md";
+  if (!exists(rel)) {
+    err(`missing required file: ${rel}`);
+  }
+}
+
+// ── Check 10: every workflow has a "## Commit" section ────────────────────────────────────────
+// Prefix-match (a line that startsWith "## Commit"), consistent with checkSections — tolerates a
+// parenthetical suffix. Structural presence only.
+function checkWorkflowCommit() {
+  for (const w of WORKFLOWS) {
+    const rel = `agent-factory/workflows/${w}.md`;
+    const text = safeRead(rel);
+    if (text === null) continue; // missing-file already reported by checkRequiredFiles
+    const hasCommit = text.split("\n").some((l) => l.startsWith("## Commit"));
+    if (!hasCommit) {
+      err(`${rel}: missing required "## Commit" section`);
+    }
+  }
+}
+
 // ── Run all checks ───────────────────────────────────────────────────────────────────────────
 checkRequiredFiles();
 checkRoleSections();
@@ -340,6 +379,9 @@ checkWorkflowSections();
 checkConfig();
 checkTickets();
 checkPackaging();
+checkRoleSwitchProtocol();
+checkCommitConvention();
+checkWorkflowCommit();
 
 // ── Render + exit ──────────────────────────────────────────────────────────────────────────────
 for (const e of errors) console.error(`  ERROR    ${e}`);

@@ -14,6 +14,7 @@ grug do thing. grug not do other thing.
 
 ## Responsibilities
 - a fixture responsibility
+- activate roles via the role-switch protocol (`agent-factory/roles/_role-switch-protocol.md`)
 
 ## Output (file + format)
 - a fixture output

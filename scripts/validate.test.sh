@@ -5,7 +5,8 @@
 # §19.9) demands a gate that can actually fail. It runs the validator against:
 #   (a) grugops's OWN tree (D-42 self-test)        → must be GREEN
 #   (b) a minimal GOOD fixture tree                  → exit 0
-#   (c) five one-mutation BAD/WARN fixture trees     → nonzero + the finding naming the defect
+#   (c) six one-mutation BAD/WARN fixture trees      → nonzero + the finding naming the defect
+#       (incl. bad-workflow-no-commit, which proves the per-workflow "## Commit" check fails)
 #   (d) the warn-only fixture under --strict          → exit 0 bare, nonzero under --strict
 #       (proves the D-44 warning-promotion path)
 #
@@ -81,6 +82,10 @@ expect_fail "BAD bad-ticket-mismatch → nonzero + 'status'"            "$FIX/ba
 # bad-ticket-bad-column carries a ticket whose column is NOT a board heading and asserts
 # the distinct "not a board column" finding, genuinely exercising the branch.
 expect_fail "BAD bad-ticket-bad-column → nonzero + 'not a board column'" "$FIX/bad-ticket-bad-column" "not a board column"
+# The role-switch / commit-convention hardening adds a per-workflow "## Commit" check. A check
+# that can only pass is fabricated green — bad-workflow-no-commit is the GOOD tree minus the
+# "## Commit" section in ONE workflow (04-ticket-to-pr), proving the new check can actually fail.
+expect_fail "BAD bad-workflow-no-commit → nonzero + 'Commit'" "$FIX/bad-workflow-no-commit" "Commit"
 
 # (d) warn-only-no-trace → exit 0 bare, nonzero under --strict (proves D-44 promotion).
 expect_pass "WARN warn-only-no-trace bare → exit 0" "$FIX/warn-only-no-trace"

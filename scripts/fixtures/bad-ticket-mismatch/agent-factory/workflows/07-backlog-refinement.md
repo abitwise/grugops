@@ -31,3 +31,6 @@ when the fixture says so.
 
 ## Done condition
 - the fixture step is done
+
+## Commit
+- commit the fixture artifacts per `agent-factory/_commit-convention.md`
