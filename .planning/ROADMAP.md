@@ -239,7 +239,20 @@ Decimal phases appear between their surrounding integers in numeric order.
   4. Default install mode is COPY (symlink is opt-in only); the additive / idempotent / `DRY_RUN=1` / reversible contract is preserved end to end across both roots
   5. `install.mjs` stays byte-parity with `install.sh` (same kit root, same seeded target tree) and resolves the Windows home via `os.homedir()` rather than `$HOME`
 
-**Plans**: TBD
+**Plans**: 4 plans
+
+**Wave 1** *(parallel — disjoint file sets, no inter-plan dependencies; carry-forward cleanups + seed bundle + the new test harness)*
+
+- [ ] 08-01-PLAN.md — Carry-forward cleanups + seed bundle: drop `Agent` grant from packaging templates (D-08), fix stale config-path prose in agent-factory README/factory.config.md (D-09), bundle `agent-factory/seed/**` state-plane seed (D-01/D-02), exclude it from `check-kit-refs.sh` (D-03)
+- [ ] 08-02-PLAN.md — Wave-0 test harness `install/install.two-root.test.sh`: kit-copy + materialization + seed + never-clobber + two-root idempotency + DRY_RUN + copy-default + `--target`/`--yes`/non-TTY + D-07 self-checkout-guard fixture + two-root uninstall + sh/Node parity (ships RED; does NOT edit `install.test.sh`)
+
+**Wave 2** *(blocked on Wave 1; the byte-parity installer twins land together)*
+
+- [ ] 08-03-PLAN.md — Two-root installer core (`install.sh` + `install.mjs`): home-resolve `${GRUGOPS_HOME:-$HOME/.grugops}` (Node `os.homedir()`), `--target`/`--yes`/non-TTY prompt + always-on D-07 self-checkout guard, copy-default flip, atomic `copy_kit`, content-idempotent adapter materialization (2 resolver adapters), full state seed incl. `plans/handoffs/`, byte-parity install marker (INSTALL-03, INSTALL-04)
+
+**Wave 3** *(blocked on Wave 2; reversal + docs match the frozen installer behavior)*
+
+- [ ] 08-04-PLAN.md — Two-root uninstall (D-06: marker + adapters + wiring only; never the shared kit or seeded state) + `install/README.md` two-root docs (`--target`, copy-default, `$GRUGOPS_HOME`, self-checkout guard)
 
 ### Phase 9: Doctor & Two-Root Validator
 

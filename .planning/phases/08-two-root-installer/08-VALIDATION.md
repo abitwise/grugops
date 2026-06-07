@@ -1,8 +1,8 @@
 ---
 phase: 8
 slug: two-root-installer
-status: draft
-nyquist_compliant: false
+status: planned
+nyquist_compliant: true
 wave_0_complete: false
 created: 2026-06-07
 ---
@@ -41,22 +41,22 @@ created: 2026-06-07
 
 | Task ID | Plan | Wave | Requirement | Threat Ref | Secure Behavior | Test Type | Automated Command | File Exists | Status |
 |---------|------|------|-------------|------------|-----------------|-----------|-------------------|-------------|--------|
-| TBD | TBD | TBD | INSTALL-04 | — | Kit copied to `$GRUGOPS_HOME/agent-factory/` | integration | `GRUGOPS_HOME=$tmp/home GRUGOPS_SRC=$REPO TARGET=$tmp/app sh install/install.sh --yes` then `[ -f $tmp/home/agent-factory/roles/orchestrator.md ]` | ❌ W0 | ⬜ pending |
-| TBD | TBD | TBD | INSTALL-04 | — | Adapters materialized with resolved absolute kit path | integration | grep materialized `KIT=` in `$tmp/app/.claude/agents/grugops-orchestrator.md` == `$tmp/home/agent-factory` | ❌ W0 | ⬜ pending |
-| TBD | TBD | TBD | INSTALL-04 | — | State seeded (`.grugops/factory.config.json`, marker, `plans/**` incl. `handoffs/`, `memory-bank/**`) | integration | assert each seeded path exists in `$tmp/app` after install | ❌ W0 | ⬜ pending |
-| TBD | TBD | TBD | INSTALL-04 | SAFE/never-clobber | Pre-existing seeded file untouched | integration | pre-write `$tmp/app/.grugops/factory.config.json` sentinel, install, assert sentinel survives | ❌ W0 | ⬜ pending |
-| TBD | TBD | TBD | INSTALL-04 | — | Idempotent: double-install (adapters + kit + marker) → zero diff | integration | `snapshot` `$tmp/app`+`$tmp/home`, install twice, diff both = empty | ❌ W0 | ⬜ pending |
-| TBD | TBD | TBD | INSTALL-04 | — | `DRY_RUN=1` mutates neither root | integration | `snapshot` both roots pre/post `DRY_RUN=1 … install.sh`, diff empty | ❌ W0 | ⬜ pending |
-| TBD | TBD | TBD | INSTALL-04 | — | Default mode copy (no symlinks) | integration | `find $tmp/app $tmp/home -type l` is empty | ❌ W0 | ⬜ pending |
-| TBD | TBD | TBD | INSTALL-04 | — | sh/Node byte-parity (kit root + seeded tree + marker) | integration | install sh→$A, node→$B identical env; `snapshot` + diff both roots = empty | ❌ W0 | ⬜ pending |
-| TBD | TBD | TBD | INSTALL-03 | — | `--target ../app` from arbitrary CWD lands right | integration | `cd /tmp && sh $REPO/install/install.sh --target $tmp/app --yes`; assert adapters in `$tmp/app` | ❌ W0 | ⬜ pending |
-| TBD | TBD | TBD | INSTALL-03 | — | `--yes`/non-TTY installs unattended (no prompt block) | integration | run with stdin `/dev/null` + `--yes`; assert exit 0, no hang | ❌ W0 | ⬜ pending |
-| TBD | TBD | TBD | INSTALL-03 | SAFE/self-guard | Self-checkout guard refuses by default; `--allow-self` overrides | integration | `TARGET=$REPO sh install/install.sh --yes` exits nonzero w/ refuse msg; `--allow-self` proceeds (throwaway clone) | ❌ W0 | ⬜ pending |
-| TBD | TBD | TBD | INSTALL-04 (D-06) | SAFE | Two-root uninstall removes marker + adapters, NOT kit or seeded config | integration | install, uninstall, assert `$tmp/home/agent-factory` + `.grugops/factory.config.json` survive, `.grugops/install.json` gone | ❌ W0 | ⬜ pending |
-| TBD | TBD | TBD | INSTALL-04 (D-03) | — | Seed subtree excluded from `check-kit-refs.sh` | smoke | `sh scripts/check-kit-refs.sh` exits 0 after seeds bundled | ✅ | ⬜ pending |
-| TBD | TBD | TBD | INSTALL-04 (D-08) | — | Packaging templates no longer grant `Agent` | smoke | `! grep -q 'Agent' agent-factory/packaging/subagent.frontmatter.md agent-factory/packaging/slash-command.template.md` | ✅ | ⬜ pending |
-| TBD | TBD | TBD | INSTALL-04 (D-09) | — | No stale `agent-factory/config/` config-path prose in the two docs | smoke | `! grep -q 'agent-factory/config/factory' agent-factory/README.md agent-factory/config/factory.config.md` (allow legit file-location mention) | ✅ | ⬜ pending |
-| TBD | TBD | TBD | regression | — | Existing 7-check harness stays green | integration | `sh install/install.test.sh` exits 0 | ✅ | ⬜ pending |
+| T-08-INSTALL04-kitcopy | 08-03 | 2 | INSTALL-04 | — | Kit copied to `$GRUGOPS_HOME/agent-factory/` | integration | `GRUGOPS_HOME=$tmp/home GRUGOPS_SRC=$REPO TARGET=$tmp/app sh install/install.sh --yes` then `[ -f $tmp/home/agent-factory/roles/orchestrator.md ]` | ❌ W0 | ⬜ pending |
+| T-08-INSTALL04-mat | 08-03 | 2 | INSTALL-04 | — | Adapters materialized with resolved absolute kit path | integration | grep materialized `KIT=` in `$tmp/app/.claude/agents/grugops-orchestrator.md` == `$tmp/home/agent-factory` | ❌ W0 | ⬜ pending |
+| T-08-INSTALL04-seed | 08-03 | 2 | INSTALL-04 | — | State seeded (`.grugops/factory.config.json`, marker, `plans/**` incl. `handoffs/`, `memory-bank/**`) | integration | assert each seeded path exists in `$tmp/app` after install | ❌ W0 | ⬜ pending |
+| T-08-INSTALL04-noclobber | 08-03 | 2 | INSTALL-04 | SAFE/never-clobber | Pre-existing seeded file untouched | integration | pre-write `$tmp/app/.grugops/factory.config.json` sentinel, install, assert sentinel survives | ❌ W0 | ⬜ pending |
+| T-08-INSTALL04-idem | 08-03 | 2 | INSTALL-04 | — | Idempotent: double-install (adapters + kit + marker) → zero diff | integration | `snapshot` `$tmp/app`+`$tmp/home`, install twice, diff both = empty | ❌ W0 | ⬜ pending |
+| T-08-INSTALL04-dryrun | 08-03 | 2 | INSTALL-04 | — | `DRY_RUN=1` mutates neither root | integration | `snapshot` both roots pre/post `DRY_RUN=1 … install.sh`, diff empty | ❌ W0 | ⬜ pending |
+| T-08-INSTALL04-copydef | 08-03 | 2 | INSTALL-04 | — | Default mode copy (no symlinks) | integration | `find $tmp/app $tmp/home -type l` is empty | ❌ W0 | ⬜ pending |
+| T-08-INSTALL04-parity | 08-03 | 2 | INSTALL-04 | — | sh/Node byte-parity (kit root + seeded tree + marker) | integration | install sh→$A, node→$B identical env; `snapshot` + diff both roots = empty | ❌ W0 | ⬜ pending |
+| T-08-INSTALL03-target | 08-03 | 2 | INSTALL-03 | — | `--target ../app` from arbitrary CWD lands right | integration | `cd /tmp && sh $REPO/install/install.sh --target $tmp/app --yes`; assert adapters in `$tmp/app` | ❌ W0 | ⬜ pending |
+| T-08-INSTALL03-yes | 08-03 | 2 | INSTALL-03 | — | `--yes`/non-TTY installs unattended (no prompt block) | integration | run with stdin `/dev/null` + `--yes`; assert exit 0, no hang | ❌ W0 | ⬜ pending |
+| T-08-INSTALL03-guard | 08-03 | 2 | INSTALL-03 | SAFE/self-guard | Self-checkout guard refuses by default; `--allow-self` overrides | integration | `TARGET=$REPO sh install/install.sh --yes` exits nonzero w/ refuse msg; `--allow-self` proceeds (throwaway clone) | ❌ W0 | ⬜ pending |
+| T-08-D06-uninstall | 08-04 | 3 | INSTALL-04 (D-06) | SAFE | Two-root uninstall removes marker + adapters, NOT kit or seeded config | integration | install, uninstall, assert `$tmp/home/agent-factory` + `.grugops/factory.config.json` survive, `.grugops/install.json` gone | ❌ W0 | ⬜ pending |
+| T-08-D03-gate | 08-01 | 1 | INSTALL-04 (D-03) | — | Seed subtree excluded from `check-kit-refs.sh` | smoke | `sh scripts/check-kit-refs.sh` exits 0 after seeds bundled | ✅ | ⬜ pending |
+| T-08-D08-agent | 08-01 | 1 | INSTALL-04 (D-08) | — | Packaging templates no longer grant `Agent` | smoke | `! grep -q 'Agent' agent-factory/packaging/subagent.frontmatter.md agent-factory/packaging/slash-command.template.md` | ✅ | ⬜ pending |
+| T-08-D09-docprose | 08-01 | 1 | INSTALL-04 (D-09) | — | No stale `agent-factory/config/` config-path prose in the two docs | smoke | `! grep -q 'agent-factory/config/factory' agent-factory/README.md agent-factory/config/factory.config.md` (allow legit file-location mention) | ✅ | ⬜ pending |
+| T-08-REG-harness | 08-02 | 1 | regression | — | Existing 7-check harness stays green | integration | `sh install/install.test.sh` exits 0 | ✅ | ⬜ pending |
 
 *Status: ⬜ pending · ✅ green · ❌ red · ⚠️ flaky. Task IDs / Plan / Wave to be assigned by the planner.*
 
