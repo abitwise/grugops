@@ -27,66 +27,129 @@ runtime, no service, no database.
 
 ## 2. The scripted path — per-tool conveniences
 
-For thin per-tool adapters (the standalone Claude skills, the Orchestrator subagent wrapper,
-the `CLAUDE.md` start-here pointer, and the Gemini `context.fileName` wiring), grugops ships
-two functionally identical installers. They are **idempotent** (run them twice, nothing
-changes), **additive** (they only ever append behind unique sentinels), and **reversible**.
+grugops ships two functionally identical installers — `install.sh` (POSIX) and `install.mjs`
+(Node, zero deps). They are **idempotent** (run them twice, nothing changes), **additive**
+(they only ever append behind unique sentinels), and **reversible**. `install.sh` is the
+behavioral spec and `install.mjs` mirrors it byte-for-byte.
+
+The installer uses a **two-root** layout, so the kit and your per-repo state stay cleanly
+separated:
+
+- **Shared, read-only kit** → copied once to `${GRUGOPS_HOME:-$HOME/.grugops}` (default
+  `~/.grugops`). One kit, shared across every repo you install into.
+- **Per-repo, writable state** → seeded into the target repo (`.grugops/factory.config.json`,
+  the install marker, `plans/` incl. `plans/handoffs/`, and `memory-bank/`).
 
 ```sh
-# POSIX shells (macOS, Linux, WSL, Git Bash):
+# Install into a chosen repo (run from anywhere):
+sh install/install.sh --target /path/to/repo
+
+# Install into the current repo (prompts to confirm the target first):
 sh install/install.sh
 
-# Preview first — prints the plan, changes NOTHING on disk:
+# Unattended / CI (take the default target, no prompt):
+sh install/install.sh --yes
+
+# Preview first — prints the plan, changes NOTHING on disk (in either root):
 DRY_RUN=1 sh install/install.sh
 
 # Cross-platform (Windows / anywhere Node runs) — same behavior, Node stdlib only, zero deps:
-node install/install.mjs
+node install/install.mjs --target /path/to/repo
 
-# Force copy instead of symlink (e.g. Windows without symlink privilege):
-INSTALL_MODE=copy sh install/install.sh
+# Put the shared kit somewhere other than ~/.grugops:
+GRUGOPS_HOME=/opt/grugops sh install/install.sh --target /path/to/repo
 ```
 
-Each installer detects the host tool(s), lays down the right adapter, and prints an install
-**report** marking every item `created` / `linked` / `copied(verify)` / `skipped`. Where it
-falls back from a symlink to a copy, that row is flagged `verify` so you know a copy may drift
-from the source over time. The two installers produce a byte-identical result; `install.sh` is
-the behavioral spec and `install.mjs` mirrors it.
+### Choosing the target (`--target`, the prompt, `--yes`)
 
-What the installer touches, and only this:
+Where the install lands is resolved in this precedence: **`--target <repo>`** wins, then the
+**`TARGET=` env var**, then a **prompt** (defaulting to the current directory). The `--target`
+flag means you can install into any repo from any working directory — you no longer have to
+`cd` into the repo first.
 
-- `.claude/skills/grugops*/SKILL.md` — the seven standalone skills (symlink, copy fallback)
+When run interactively without `--target`, the installer asks *"Install grugops into which
+repo? [<default>]"* and waits for confirmation. For unattended runs (CI, scripts), pass
+**`--yes`** (or `-y`) to take the default target without prompting; a non-TTY stdin is treated
+the same way, so a piped or redirected invocation never hangs on the prompt.
+
+### Copy by default (symlink is opt-in)
+
+The kit and adapters are **copied** by default. Copy is the only mode that behaves identically
+on every platform; the previous symlink default was fragile (links broke when the source clone
+moved). Symlinks are still available as an opt-in:
+
+```sh
+sh install/install.sh --symlink --target /path/to/repo
+# or:
+INSTALL_MODE=symlink sh install/install.sh --target /path/to/repo
+```
+
+### The self-checkout guard (`--allow-self`)
+
+By default the installer **refuses** to install into the grugops source checkout itself — if
+the target is the grugops repo (or carries its source markers), it stops and tells you that you
+probably meant `--target <your-repo>`. This guard always runs, even under `--yes` or a non-TTY,
+because it is a mechanical safety check, not a prompt. If you really do mean to install into the
+source checkout, pass **`--allow-self`** (or `--force`) to override it.
+
+### What the installer touches (per-repo), and only this
+
+In the **target repo**:
+
+- `.claude/skills/grugops*/SKILL.md` — the seven standalone skills
 - `.claude/agents/grugops-orchestrator.md` — the Orchestrator subagent wrapper
+- the two **resolver adapters** (`.claude/skills/grugops/SKILL.md` and the orchestrator
+  wrapper) have the resolved absolute kit path **materialized** into them, so `/grugops`
+  resolves the shared kit on first run with no path error
 - a one-line **start-here** pointer block in `CLAUDE.md` (appended behind a sentinel; your
   existing content is preserved)
 - `.gemini/settings.json` — `context.fileName` gains `"AGENTS.md"` (read-modify-write; other
   keys are preserved, never clobbered)
 - an optional `.github/copilot-instructions.md` pointer
+- **seeded per-repo state** (skip-if-exists, never clobbered): `.grugops/factory.config.json`,
+  the `.grugops/install.json` marker, `plans/` (incl. `plans/handoffs/`), and `memory-bank/`
 
-It never touches `agent-factory/`, `plans/`, `.planning/`, `docs/`, or any file you own beyond
-those additive edits.
+In the **shared kit root** (`${GRUGOPS_HOME:-$HOME/.grugops}`):
+
+- `agent-factory/` — the read-only kit, copied once and shared across repos
+
+It never overwrites or deletes any file you own. Existing seeded state is left byte-untouched on
+re-install (skip-if-exists), and `agent-factory/`, `plans/`, `.planning/`, `docs/`, and `src/`
+in your target are never modified beyond the additive edits above.
 
 ### Undo
 
 ```sh
-sh install/uninstall.sh
+sh install/uninstall.sh --target /path/to/repo
 # preview the reversal first:
-DRY_RUN=1 sh install/uninstall.sh
+DRY_RUN=1 sh install/uninstall.sh --target /path/to/repo
 ```
 
-`uninstall.sh` removes **only** what `install.sh` added — the skills, the wrapper, the
-sentinel-delimited pointer block (the rest of your `CLAUDE.md` stays exactly as it was), and
-the `AGENTS.md` entry it added to the Gemini settings. It explicitly refuses to delete
-`agent-factory/`, `plans/`, `.planning/`, `docs/`, `src/`, or any user file.
+`uninstall.sh` removes **only** the grugops-owned wiring it added to the target: the skills, the
+Orchestrator wrapper, the materialized resolver adapters, the sentinel-delimited `CLAUDE.md` and
+Copilot pointer blocks (the rest of those files stays exactly as it was), the `AGENTS.md` entry
+it added to the Gemini settings, and the `.grugops/install.json` marker.
+
+It deliberately does **not** touch:
+
+- the **shared kit** at `${GRUGOPS_HOME:-$HOME/.grugops}` — other repos depend on it, so
+  removing it is a manual `rm -rf ~/.grugops` you run yourself when you want it gone everywhere
+- your **seeded per-repo state** — `.grugops/factory.config.json`, `plans/`, and `memory-bank/`
+  become your content once seeded (they may hold real work), so they survive uninstall
+- `agent-factory/`, `.planning/`, `docs/`, `src/`, or any file you own
 
 ### Prove it yourself
 
 ```sh
-sh install/install.test.sh
+sh install/install.test.sh            # the single-root behavioral gate
+sh install/install.two-root.test.sh   # the two-root behavioral gate
 ```
 
-The test harness runs against throwaway temporary fixtures (it never mutates your repo) and
-asserts the contract: a double install produces zero diff, `DRY_RUN=1` changes nothing, and
-install-then-uninstall restores the fixture while `agent-factory/` survives untouched.
+Both harnesses run against throwaway temporary fixtures (they never mutate your repo, `$HOME`,
+or a real `$GRUGOPS_HOME`) and assert the contract: a double install produces zero diff,
+`DRY_RUN=1` changes nothing in either root, `install.sh` and `install.mjs` produce identical
+trees, and install-then-uninstall removes the grugops-owned wiring + the install marker while
+the shared kit, the seeded state, and `agent-factory/` all survive untouched.
 
 ---
 
