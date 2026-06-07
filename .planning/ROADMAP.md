@@ -248,7 +248,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 
 **Wave 2** *(blocked on Wave 1; the byte-parity installer twins land together)*
 
-- [ ] 08-03-PLAN.md — Two-root installer core (`install.sh` + `install.mjs`): home-resolve `${GRUGOPS_HOME:-$HOME/.grugops}` (Node `os.homedir()`), `--target`/`--yes`/non-TTY prompt + always-on D-07 self-checkout guard, copy-default flip, atomic `copy_kit`, content-idempotent adapter materialization (2 resolver adapters), full state seed incl. `plans/handoffs/`, byte-parity install marker (INSTALL-03, INSTALL-04)
+- [x] 08-03-PLAN.md — Two-root installer core (`install.sh` + `install.mjs`): home-resolve `${GRUGOPS_HOME:-$HOME/.grugops}` (Node `os.homedir()`), `--target`/`--yes`/non-TTY prompt + always-on D-07 self-checkout guard, copy-default flip, atomic `copy_kit`, content-idempotent adapter materialization (2 resolver adapters), full state seed incl. `plans/handoffs/`, byte-parity install marker (INSTALL-03, INSTALL-04)
 
 **Wave 3** *(blocked on Wave 2; reversal + docs match the frozen installer behavior)*
 
@@ -289,5 +289,5 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8 →
 | 5. Packaging, Adapters, Install & Distribution | 5/5 | Complete    | 2026-06-03 |
 | 6. Validation, Brand & Dogfood | 5/5 | Complete    | 2026-06-04 |
 | 7. Shared-Home Foundation & Path Rewrite | 4/4 | Complete    | 2026-06-06 |
-| 8. Two-Root Installer | 2/4 | In Progress|  |
+| 8. Two-Root Installer | 3/4 | In Progress|  |
 | 9. Doctor & Two-Root Validator | 0/? | Not started | - |

@@ -123,8 +123,8 @@
 
 ### Install Experience
 
-- [ ] **INSTALL-03**: `install.sh` and `install.mjs` accept `--target <repo>` plus an interactive prompt (default CWD, confirm) and a `--yes`/non-TTY bypass for CI; the installer runs correctly from any working directory
-- [ ] **INSTALL-04**: The installer seeds per-repo state into the target (`.grugops/factory.config.json` from the kit default + the install marker/version stamp + a `plans/` skeleton including `plans/handoffs/`) without clobbering existing files; default mode is **copy** (symlink opt-in); idempotent / additive / `DRY_RUN=1` / reversible preserved and `install.mjs` stays byte-parity with `install.sh` (Windows home via `os.homedir()`)
+- [x] **INSTALL-03**: `install.sh` and `install.mjs` accept `--target <repo>` plus an interactive prompt (default CWD, confirm) and a `--yes`/non-TTY bypass for CI; the installer runs correctly from any working directory
+- [x] **INSTALL-04**: The installer seeds per-repo state into the target (`.grugops/factory.config.json` from the kit default + the install marker/version stamp + a `plans/` skeleton including `plans/handoffs/`) without clobbering existing files; default mode is **copy** (symlink opt-in); idempotent / additive / `DRY_RUN=1` / reversible preserved and `install.mjs` stays byte-parity with `install.sh` (Windows home via `os.homedir()`)
 - [ ] **INSTALL-05**: `install.sh --check` (and `install.mjs`) is a doctor that verifies every referenced path resolves (kit at the kit root, state in the repo), names the first failure with its referencing file, and uses clear exit codes (0 pass / nonzero fail; WARN→0; `--strict` gates WARN)
 
 ### Validation (two-root)
@@ -224,8 +224,8 @@ Each requirement maps to exactly one phase. See `.planning/ROADMAP.md` for phase
 | SHOME-02 | Phase 7 | Complete |
 | SHOME-03 | Phase 7 | Complete |
 | SHOME-04 | Phase 7 | Complete |
-| INSTALL-03 | Phase 8 | Pending |
-| INSTALL-04 | Phase 8 | Pending |
+| INSTALL-03 | Phase 8 | Complete |
+| INSTALL-04 | Phase 8 | Complete |
 | INSTALL-05 | Phase 9 | Pending |
 | VAL-02 | Phase 9 | Pending |
 

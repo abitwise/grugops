@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: Install & Distribution
 status: executing
-last_updated: "2026-06-07T15:33:45.502Z"
+last_updated: "2026-06-07T19:15:21.393Z"
 last_activity: 2026-06-07
 progress:
   total_phases: 9
   completed_phases: 7
   total_plans: 42
-  completed_plans: 40
+  completed_plans: 41
   percent: 78
 ---
 
@@ -25,7 +25,7 @@ See: .planning/PROJECT.md (updated 2026-06-02)
 ## Current Position
 
 Phase: 08 (two-root-installer) — EXECUTING
-Plan: 3 of 4
+Plan: 4 of 4
 Status: Ready to execute
 Last activity: 2026-06-07
 
@@ -94,6 +94,7 @@ Last activity: 2026-06-07
 | Phase 07 P04 | 6m | 2 tasks | 1 files |
 | Phase 08 P01 | 3m | 2 tasks | 24 files |
 | Phase 08 P02 | 8m | 2 tasks | 1 files |
+| Phase 08 P08-03 | 214m | 2 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -174,6 +175,8 @@ Recent decisions affecting current work:
 - [Phase ?]: [Phase 08]: [08-01] packaging templates grant NO spawn tool (D-08/WR-05) — single-window sequential role-load via _role-switch-protocol.md is the design, not sub-agent spawning; both packaging templates drop the Agent grant
 - [Phase ?]: [Phase 08]: [08-01] runtime config read points at .grugops/factory.config.json in README + factory.config.md (D-09/IN-01); agent-factory/config/factory.config.json preserved as the named SEED SOURCE the installer seeds
 - [Phase ?]: [Phase 08]: [08-01] self-contained agent-factory/seed/** bundles config + plans/** + memory-bank/** as faithful copies (config seed byte-identical to kit default, D-01/D-02); check-kit-refs.sh excludes the seed by NOT listing it with a header comment recording why (D-03); kit-ref gate + install.test.sh stay GREEN
+- [Phase ?]: [Phase 08]: [08-03] two-root installer landed at sh/Node byte-parity — ${GRUGOPS_HOME:-$HOME/.grugops} resolve, --target/--yes/non-TTY prompt, always-on D-07 self-checkout guard, copy-default flip, atomic copy_kit, content-idempotent materialization of the 2 resolver adapters (strip-then-reinject), seed_state incl. plans/handoffs/, byte-parity install marker (installedAt omitted → byte-zero-diff re-install)
+- [Phase ?]: [Phase 08]: [08-03] HUMAN-APPROVED Option A — reconcile ONLY install.test.sh Check 3 to the two-root D-06 contract (grugops-owned adapters+sentinel removed; seeded user state survives); a deliberate pull-forward of a Phase-9/VAL-02 slice. uninstall.sh untouched; two-root harness [11] marker-removal stays RED for 08-04
 
 ### Pending Todos
 
@@ -207,6 +210,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-06-07T15:33:41.413Z
+Last session: 2026-06-07T19:14:59.263Z
 Stopped at: Phase 8 context gathered
 Resume file: None
