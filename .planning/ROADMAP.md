@@ -267,7 +267,20 @@ Decimal phases appear between their surrounding integers in numeric order.
   4. A BAD fixture for a missing / unset kit root (the C3 footgun) MUST fail the validator, and the doctor and validator resolve the kit home identically so "doctor passes" and "validator passes" can never disagree
   5. `install.test.sh` is updated for the split — fresh install lays the kit + materializes the adapter + seeds `.grugops/factory.config.json` and `plans/handoffs/`, the doctor passes on a good split and fails loudly on a missing kit — with idempotency, dry-run, and reversibility preserved
 
-**Plans**: TBD
+**Plans**: 4 plans
+
+**Wave 1** *(parallel — disjoint files: the sh doctor and the validator split are independent)*
+
+- [ ] 09-01-PLAN.md — sh `install.sh --check` doctor (three-source cross-check, ordered first-failure, WARN tier, exit-code matrix) (INSTALL-05)
+- [ ] 09-02-PLAN.md — Two-root validator split: `VALIDATE_KIT_ROOT` (no default) + `VALIDATE_ROOT`, classification-routed checks (VAL-02)
+
+**Wave 2** *(blocked on 09-01; the byte-parity Node doctor twin keys off the sh doctor)*
+
+- [ ] 09-03-PLAN.md — Node `install.mjs --check` doctor (byte-parity twin of the sh doctor) (INSTALL-05)
+
+**Wave 3** *(blocked on 09-01/02/03; the harness verifies all three programs)*
+
+- [ ] 09-04-PLAN.md — Test harness + split fixtures + three-way resolution-parity assertion (`install.test.sh` doctor checks + `validate.test.sh` two-root C3 fixtures) (INSTALL-05, VAL-02)
 
 
 ## Progress
