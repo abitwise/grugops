@@ -23,7 +23,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 **Milestone v1.1 — Install & Distribution** *(shared-location install; phases continue the numbering)*
 
 - [x] **Phase 7: Shared-Home Foundation & Path Rewrite** - Lock the kit/state split convention + single resolution rule, rewrite the ~31 kit/handoff/config refs, and prove zero bare `agent-factory/` refs remain (grep-to-zero gate) (completed 2026-06-06)
-- [ ] **Phase 8: Two-Root Installer** - Resolve `$GRUGOPS_HOME`, copy the kit there, materialize the absolute kit path into the standalone adapters, and seed per-repo state with `--target`/`--yes`/copy-default at sh+Node parity
+- [x] **Phase 8: Two-Root Installer** - Resolve `$GRUGOPS_HOME`, copy the kit there, materialize the absolute kit path into the standalone adapters, and seed per-repo state with `--target`/`--yes`/copy-default at sh+Node parity (completed 2026-06-07)
 - [ ] **Phase 9: Doctor & Two-Root Validator** - Ship the `--check` doctor that resolves every referenced path and the two-root validator with no fallback to `.` and an unset-`$GRUGOPS_HOME` BAD fixture
 
 ## Phase Details
@@ -252,7 +252,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 
 **Wave 3** *(blocked on Wave 2; reversal + docs match the frozen installer behavior)*
 
-- [ ] 08-04-PLAN.md — Two-root uninstall (D-06: marker + adapters + wiring only; never the shared kit or seeded state) + `install/README.md` two-root docs (`--target`, copy-default, `$GRUGOPS_HOME`, self-checkout guard)
+- [x] 08-04-PLAN.md — Two-root uninstall (D-06: marker + adapters + wiring only; never the shared kit or seeded state) + `install/README.md` two-root docs (`--target`, copy-default, `$GRUGOPS_HOME`, self-checkout guard)
 
 ### Phase 9: Doctor & Two-Root Validator
 
@@ -289,5 +289,5 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8 →
 | 5. Packaging, Adapters, Install & Distribution | 5/5 | Complete    | 2026-06-03 |
 | 6. Validation, Brand & Dogfood | 5/5 | Complete    | 2026-06-04 |
 | 7. Shared-Home Foundation & Path Rewrite | 4/4 | Complete    | 2026-06-06 |
-| 8. Two-Root Installer | 3/4 | In Progress|  |
+| 8. Two-Root Installer | 4/4 | Complete   | 2026-06-07 |
 | 9. Doctor & Two-Root Validator | 0/? | Not started | - |

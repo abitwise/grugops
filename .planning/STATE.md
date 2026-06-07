@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: Install & Distribution
-status: executing
-last_updated: "2026-06-07T19:15:21.393Z"
+status: verifying
+last_updated: "2026-06-07T19:23:04.033Z"
 last_activity: 2026-06-07
 progress:
   total_phases: 9
-  completed_phases: 7
+  completed_phases: 8
   total_plans: 42
-  completed_plans: 41
-  percent: 78
+  completed_plans: 42
+  percent: 89
 ---
 
 # Project State
@@ -26,7 +26,7 @@ See: .planning/PROJECT.md (updated 2026-06-02)
 
 Phase: 08 (two-root-installer) — EXECUTING
 Plan: 4 of 4
-Status: Ready to execute
+Status: Phase complete — ready for verification
 Last activity: 2026-06-07
 
 ## Performance Metrics
@@ -95,6 +95,8 @@ Last activity: 2026-06-07
 | Phase 08 P01 | 3m | 2 tasks | 24 files |
 | Phase 08 P02 | 8m | 2 tasks | 1 files |
 | Phase 08 P08-03 | 214m | 2 tasks | 3 files |
+| Phase 08 P04 | 10 | 2 tasks | 2 files |
+| Phase 08 P08-04 | 10 | 2 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -177,6 +179,8 @@ Recent decisions affecting current work:
 - [Phase ?]: [Phase 08]: [08-01] self-contained agent-factory/seed/** bundles config + plans/** + memory-bank/** as faithful copies (config seed byte-identical to kit default, D-01/D-02); check-kit-refs.sh excludes the seed by NOT listing it with a header comment recording why (D-03); kit-ref gate + install.test.sh stay GREEN
 - [Phase ?]: [Phase 08]: [08-03] two-root installer landed at sh/Node byte-parity — ${GRUGOPS_HOME:-$HOME/.grugops} resolve, --target/--yes/non-TTY prompt, always-on D-07 self-checkout guard, copy-default flip, atomic copy_kit, content-idempotent materialization of the 2 resolver adapters (strip-then-reinject), seed_state incl. plans/handoffs/, byte-parity install marker (installedAt omitted → byte-zero-diff re-install)
 - [Phase ?]: [Phase 08]: [08-03] HUMAN-APPROVED Option A — reconcile ONLY install.test.sh Check 3 to the two-root D-06 contract (grugops-owned adapters+sentinel removed; seeded user state survives); a deliberate pull-forward of a Phase-9/VAL-02 slice. uninstall.sh untouched; two-root harness [11] marker-removal stays RED for 08-04
+- [Phase ?]: [08-04] Two-root uninstall: is_protected() guards .grugops/; only .grugops/install.json removed via a dedicated remove_marker() narrow exception; shared GRUGOPS_HOME kit + seeded plans/memory-bank survive (D-06)
+- [Phase ?]: [08-04] install/README.md documents the two-root installer (--target/prompt/--yes/copy-default/GRUGOPS_HOME/materialization/D-07 guard/D-06 uninstall scope); no fabricated/deferred claims
 
 ### Pending Todos
 
@@ -210,6 +214,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-06-07T19:14:59.263Z
-Stopped at: Phase 8 context gathered
+Last session: 2026-06-07T19:23:04.024Z
+Stopped at: Completed 08-04-PLAN.md
 Resume file: None
