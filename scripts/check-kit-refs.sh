@@ -41,6 +41,13 @@ set -eu
 # repo-wide grep. By NOT listing them, this excludes scripts/fixtures/, agent-factory/
 # examples/, agent-factory/README.md, install/, root README.md, CLAUDE.md, docs/,
 # .planning/, and this script itself — all of which legitimately carry `agent-factory/`.
+#
+# D-03 exclusion: agent-factory/seed/ is INTENTIONALLY NOT listed below. Its bundled
+# files are STATE TEMPLATES (the .grugops/factory.config.json config seed, plans/**,
+# memory-bank/**) whose `.grugops/…` and `plans/…` refs resolve in the TARGET repo the
+# installer seeds them into, NOT against the kit root. Holding them to this kit-resolution
+# gate would false-fail; the explicit-allowlist design means the exclusion IS the
+# not-listing, and this comment records why.
 # ---------------------------------------------------------------------------
 SCAN="agent-factory/roles agent-factory/workflows agent-factory/checklists agent-factory/packaging agent-factory/_commit-convention.md .claude/skills .claude/agents/grugops-orchestrator.md skills AGENTS.md"
 
