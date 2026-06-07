@@ -12,9 +12,13 @@
 #     array; the file and any other keys are preserved; the file is deleted only if grugops
 #     created it and it is now back to its empty-default shape)
 #   - the .github/copilot-instructions.md sentinel block (only that block)
+#   - the .grugops/install.json marker (the one grugops-owned file under .grugops/ — D-06)
 #
-# It NEVER deletes agent-factory/, plans/, .planning/, docs/, src/, or any user file. Those
-# paths are guarded explicitly. Honors DRY_RUN=1 (prints the plan, changes nothing).
+# It NEVER deletes agent-factory/, plans/, .planning/, docs/, src/, the seeded per-repo state
+# (.grugops/factory.config.json, plans/, memory-bank/), the shared kit at $GRUGOPS_HOME, or any
+# user file. Those paths are guarded explicitly; only the install.json marker is removed from
+# under the otherwise-protected .grugops/, via a narrow named exception. Removing the shared
+# $GRUGOPS_HOME kit is a manual `rm` (no --purge-kit flag this phase). Honors DRY_RUN=1.
 #
 # House style matches install.sh: #!/usr/bin/env sh, set -eu, printf not echo -e, small helpers.
 #
@@ -51,11 +55,19 @@ do_run() {
 # SAFETY GUARD: refuse to ever operate on a frozen-core or user-data path. Every removal
 # target is checked against this denylist before it is touched. agent-factory/, plans/,
 # .planning/, docs/, src/ — and the repo root itself — are off-limits, always.
+#
+# Two-root (D-06): .grugops/ is now PROTECTED too. Once the installer seeds per-repo state
+# (.grugops/factory.config.json) it becomes the user's content and survives uninstall. The ONE
+# grugops-owned file under .grugops/ — the install.json marker — is removed via a dedicated,
+# explicitly-named exception below (NOT through this generic guard). The shared kit at
+# $GRUGOPS_HOME is never named in any removal path: it is shared across repos, and removing it
+# is a manual `rm` (no --purge-kit this phase).
 is_protected() {
   case "$1" in
     "$TARGET"/agent-factory/*|"$TARGET"/agent-factory \
     |"$TARGET"/plans/*|"$TARGET"/plans \
     |"$TARGET"/.planning/*|"$TARGET"/.planning \
+    |"$TARGET"/.grugops/*|"$TARGET"/.grugops \
     |"$TARGET"/docs/*|"$TARGET"/docs \
     |"$TARGET"/src/*|"$TARGET"/src \
     |"$TARGET"|"$TARGET"/) return 0 ;;
@@ -208,6 +220,30 @@ unmerge_gemini() {
   fi
 }
 
+# remove_marker: remove ONLY the grugops-owned install marker .grugops/install.json (D-06). This
+# is the single narrow exception to the .grugops/ protection just added to is_protected: the
+# marker is the one grugops-owned file under .grugops/, while everything ELSE there
+# (factory.config.json and anything the user adds) is seeded user state that must survive. So we
+# do NOT route this through remove_file (which would — correctly — refuse a protected .grugops/
+# path); we remove this exact file by name, mirroring the "grugops-owned only" AGENTS.md shape.
+#
+# Never remove $GRUGOPS_HOME — the shared kit is depended on by other repos; removing it is a
+# manual `rm` only (no --purge-kit this phase). Never remove .grugops/factory.config.json,
+# plans/, or memory-bank/ — those are seeded user state. This touches exactly one named file.
+remove_marker() {
+  _m="$TARGET/.grugops/install.json"
+  if [ ! -e "$_m" ]; then
+    report skipped ".grugops/install.json (marker not present)"
+    return 0
+  fi
+  if [ "$DRY_RUN" = "1" ]; then
+    report "would-remove" ".grugops/install.json (grugops-owned marker)"
+    return 0
+  fi
+  do_run rm -f -- "$_m"
+  report removed ".grugops/install.json (grugops-owned marker; seeded .grugops/ state preserved)"
+}
+
 printf '== grugops uninstall ==\n'
 printf 'target: %s\n' "$TARGET"
 [ "$DRY_RUN" = "1" ] && printf 'mode:   DRY_RUN (no filesystem changes)\n'
@@ -260,6 +296,14 @@ remove_sentinel_block "$TARGET/$COPILOT_REL" "$COPILOT_OPEN" "$COPILOT_CLOSE" "$
 remove_if_empty "$TARGET/$COPILOT_REL" "$COPILOT_REL"
 rmdir_if_empty "$TARGET/.github"
 
+# 7. The grugops-owned install marker (D-06). Removes ONLY .grugops/install.json via the narrow
+#    named exception; the rest of .grugops/ (seeded user state) is protected and survives. The
+#    .grugops/ dir is intentionally NOT rmdir'd — the seeded factory.config.json keeps it
+#    populated, and even an empty .grugops/ is the user's state dir, not grugops' to remove.
+#    Never remove $GRUGOPS_HOME — the shared kit is shared across repos; manual rm only.
+remove_marker
+
 printf '\n-- preserved (never touched) --\n'
-printf '  agent-factory/  plans/  .planning/  docs/  src/  and every user file.\n'
+printf '  agent-factory/  plans/  .planning/  docs/  src/  .grugops/ (seeded state; only the\n'
+printf '  install.json marker is removed)  the shared kit at $GRUGOPS_HOME  and every user file.\n'
 printf '\n== uninstall complete%s ==\n' "$([ "$DRY_RUN" = "1" ] && printf ' (DRY_RUN — nothing changed)')"
