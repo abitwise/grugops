@@ -296,8 +296,14 @@ merge_gemini() {
 # ---------------------------------------------------------------------------
 # copy_kit: atomic install of the read-only kit to $GRUGOPS_HOME (INSTALL-04, D-05). Always
 # re-copies from the running checkout (no version negotiation, SKEW-01 → v1.2). The kit is
-# grugops-owned read-only, so overwriting it is NOT user content. Writes to a temp then renames
-# so a concurrent reader never sees a partial kit (T-08-03-04). DRY_RUN mutates nothing.
+# grugops-owned read-only, so overwriting it is NOT user content. DRY_RUN mutates nothing.
+#
+# WR-02 (true atomicity): build the new kit in a temp dir, move any existing kit ASIDE, then a
+# single atomic rename puts the new kit in place; the old copy is removed afterward. There is no
+# longer a window in which $KIT_ROOT is absent (the previous "rm -rf $KIT_ROOT then mv" exposed
+# such a window, during which a concurrent /grugops reader in another repo would resolve
+# "kit not found" and stop). The rename is atomic on the same filesystem under $GRUGOPS_HOME.
+# install.mjs mirrors this exactly.
 # ---------------------------------------------------------------------------
 copy_kit() {
   if [ "$DRY_RUN" = "1" ]; then
@@ -306,10 +312,15 @@ copy_kit() {
   fi
   mkdirp "$GRUGOPS_HOME"
   _tmp="$GRUGOPS_HOME/.agent-factory.tmp.$$"
+  _old="$KIT_ROOT.old.$$"
   rm -rf -- "$_tmp"
   cp -R -- "$GRUGOPS_SRC/agent-factory" "$_tmp"
-  rm -rf -- "$KIT_ROOT"
+  # Move the existing kit aside (if any), put the new kit in place via a single atomic rename,
+  # then clean up the old copy. A concurrent reader sees either the old kit or the new — never
+  # an absent one.
+  [ -e "$KIT_ROOT" ] && mv -- "$KIT_ROOT" "$_old"
   mv -- "$_tmp" "$KIT_ROOT"
+  rm -rf -- "$_old" 2>/dev/null || true
   report copied "kit → $KIT_ROOT"
 }
 

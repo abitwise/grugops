@@ -297,8 +297,13 @@ function detectTools() {
 }
 
 // copyKit: atomic install of the read-only kit to $GRUGOPS_HOME (INSTALL-04, D-05). Mirrors
-// copy_kit: always re-copy from the running checkout (no version negotiation), write to a temp
-// then rename so a concurrent reader never sees a partial kit. DRY_RUN mutates nothing.
+// copy_kit exactly: always re-copy from the running checkout (no version negotiation).
+//
+// WR-02 (true atomicity): build the new kit in a temp dir, move any existing kit ASIDE, then a
+// single atomic rename puts the new kit in place; the old copy is removed afterward. There is no
+// longer a window in which KIT_ROOT is absent (the previous "rmSync(KIT_ROOT) then rename" exposed
+// such a window, during which a concurrent /grugops reader in another repo would resolve
+// "kit not found" and stop). DRY_RUN mutates nothing.
 function copyKit() {
   if (DRY_RUN) {
     report("would-copy", `kit → ${KIT_ROOT}`);
@@ -306,10 +311,15 @@ function copyKit() {
   }
   mkdirp(GRUGOPS_HOME);
   const tmp = `${GRUGOPS_HOME}/.agent-factory.tmp.${process.pid}`;
+  const old = `${KIT_ROOT}.old.${process.pid}`;
   rmSync(tmp, { recursive: true, force: true });
   cpSync(join(GRUGOPS_SRC, "agent-factory"), tmp, { recursive: true });
-  rmSync(KIT_ROOT, { recursive: true, force: true });
+  // Move the existing kit aside (if any), put the new kit in place via a single atomic rename,
+  // then clean up the old copy. A concurrent reader sees either the old kit or the new — never
+  // an absent one.
+  if (existsSync(KIT_ROOT)) renameSync(KIT_ROOT, old);
   renameSync(tmp, KIT_ROOT);
+  rmSync(old, { recursive: true, force: true });
   report("copied", `kit → ${KIT_ROOT}`);
 }
 
