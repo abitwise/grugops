@@ -55,10 +55,11 @@ the usage overview; the adapters are the mechanical conveniences layered on top.
 ## Configuration
 
 At runtime the Orchestrator reads the per-repo config dial at `.grugops/factory.config.json`.
-The kit ships the lean default as the **seed source** at `agent-factory/config/factory.config.json`
-(the installer seeds it into `.grugops/`), and it is documented field by field in
-`agent-factory/config/factory.config.md`. The config is visible and editable — change a
-value, change the factory's behavior.
+The kit ships the lean default as the **seed source** at `agent-factory/seed/.grugops/factory.config.json`
+(the installer walks `seed/**` and seeds it into the target's `.grugops/`; D-01/D-02). A
+byte-identical copy lives at `agent-factory/config/factory.config.json` as the field-reference
+companion to `agent-factory/config/factory.config.md`. The config is visible and editable —
+change a value, change the factory's behavior.
 
 The **zero-config baseline** is `mode=lean`, `cadence=kanban`, `autonomy=pr`. grugops runs
 lean with no config at all, because every role falls back to these same documented defaults

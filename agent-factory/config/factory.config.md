@@ -1,6 +1,6 @@
 # factory.config.json — field reference
 
-`.grugops/factory.config.json` is the per-repo configuration dial for grugops. The Orchestrator reads it first on every run, and every role honors it when it is present. The file is visible and editable: change a value here and the whole factory adjusts. This document is the field-by-field reference for that config; the kit ships the lean default as the seed source at `agent-factory/config/factory.config.json`, which the installer seeds into `.grugops/`.
+`.grugops/factory.config.json` is the per-repo configuration dial for grugops. The Orchestrator reads it first on every run, and every role honors it when it is present. The file is visible and editable: change a value here and the whole factory adjusts. This document is the field-by-field reference for that config; the kit ships the lean default as the seed source at `agent-factory/seed/.grugops/factory.config.json` (the installer walks `seed/**` and seeds it into `.grugops/`; D-01/D-02). The copy beside this reference at `agent-factory/config/factory.config.json` is a byte-identical companion to this document.
 
 This document is the human-readable twin of the JSON. Each top-level field has one row below: its allowed values, its lean default, and a one-line meaning.
 
