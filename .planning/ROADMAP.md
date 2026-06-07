@@ -243,7 +243,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 
 **Wave 1** *(parallel — disjoint file sets, no inter-plan dependencies; carry-forward cleanups + seed bundle + the new test harness)*
 
-- [ ] 08-01-PLAN.md — Carry-forward cleanups + seed bundle: drop `Agent` grant from packaging templates (D-08), fix stale config-path prose in agent-factory README/factory.config.md (D-09), bundle `agent-factory/seed/**` state-plane seed (D-01/D-02), exclude it from `check-kit-refs.sh` (D-03)
+- [x] 08-01-PLAN.md — Carry-forward cleanups + seed bundle: drop `Agent` grant from packaging templates (D-08), fix stale config-path prose in agent-factory README/factory.config.md (D-09), bundle `agent-factory/seed/**` state-plane seed (D-01/D-02), exclude it from `check-kit-refs.sh` (D-03)
 - [ ] 08-02-PLAN.md — Wave-0 test harness `install/install.two-root.test.sh`: kit-copy + materialization + seed + never-clobber + two-root idempotency + DRY_RUN + copy-default + `--target`/`--yes`/non-TTY + D-07 self-checkout-guard fixture + two-root uninstall + sh/Node parity (ships RED; does NOT edit `install.test.sh`)
 
 **Wave 2** *(blocked on Wave 1; the byte-parity installer twins land together)*
@@ -289,5 +289,5 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8 →
 | 5. Packaging, Adapters, Install & Distribution | 5/5 | Complete    | 2026-06-03 |
 | 6. Validation, Brand & Dogfood | 5/5 | Complete    | 2026-06-04 |
 | 7. Shared-Home Foundation & Path Rewrite | 4/4 | Complete    | 2026-06-06 |
-| 8. Two-Root Installer | 0/? | Not started | - |
+| 8. Two-Root Installer | 1/4 | In Progress|  |
 | 9. Doctor & Two-Root Validator | 0/? | Not started | - |

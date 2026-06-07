@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: Install & Distribution
 status: executing
-last_updated: "2026-06-07T15:02:32.665Z"
-last_activity: 2026-06-07 -- Phase 08 planning complete
+last_updated: "2026-06-07T15:28:47.785Z"
+last_activity: 2026-06-07 -- Completed 08-01 (packaging/docs/seed pre-work)
 progress:
   total_phases: 9
   completed_phases: 7
   total_plans: 42
-  completed_plans: 38
+  completed_plans: 39
   percent: 78
 ---
 
@@ -20,14 +20,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-06-02)
 
 **Core value:** A user installs grugops on top of the coding-agent CLI they already run, types `/grug`, and gets a disciplined delivery team — a visible board, strict handoffs, and an auditable requirement→code→test→release trail — entirely as readable markdown, with humans always holding merge and deploy.
-**Current focus:** Phase 8 — two root installer
+**Current focus:** Phase 08 — two-root-installer
 
 ## Current Position
 
-Phase: 8
-Plan: Not started
-Status: Ready to execute
-Last activity: 2026-06-07 -- Phase 08 planning complete
+Phase: 08 (two-root-installer) — EXECUTING
+Plan: 2 of 4
+Status: Executing Phase 08 — completed 08-01
+Last activity: 2026-06-07 -- Completed 08-01 (packaging/docs/seed pre-work)
 
 ## Performance Metrics
 
@@ -92,6 +92,7 @@ Last activity: 2026-06-07 -- Phase 08 planning complete
 | Phase 07 P02 | 9m | 3 tasks | 30 files |
 | Phase 07 P03 | 11m | 2 tasks | 13 files |
 | Phase 07 P04 | 6m | 2 tasks | 1 files |
+| Phase 08 P01 | 3m | 2 tasks | 24 files |
 
 ## Accumulated Context
 
@@ -169,6 +170,9 @@ Recent decisions affecting current work:
 - [Phase ?]: [07-02] handoff instance <stage> tokens FROZEN (product/system/architecture/impl-ready/implementation/qe/security-nfr/uat/ticket-ready/release/postmortem/retro/refinement/sprint-plan); Plan 03 workflows MUST reuse byte-identically. Step-4 split + all 13 op-skill invariants landed; zero config refs in role/skill set.
 - [Phase ?]: [07-03] Workflow tier rewritten: 13 workflows read .grugops/factory.config.json (D-02, #quality preserved); all 14 'Handoffs produced' sections + 04/05 read sides (D-06) + 09/12 collective inputs name ticket-scoped plans/handoffs/<ID>-<stage>.md instances; <stage> tokens reused byte-identically from Plan 02; 10-sprint-review untouched
 - [Phase ?]: [07-04] Build gate scripts/check-kit-refs.sh ships GREEN (proves a completed rewrite); 3 assertions + SC2 marker over an explicit SCAN set; Assertion 3 scoped to exclude the 3 legal GRUGOPS_HOME sites; O3 included, O2 docs/README pointers deferred to Phase 8
+- [Phase ?]: [Phase 08]: [08-01] packaging templates grant NO spawn tool (D-08/WR-05) — single-window sequential role-load via _role-switch-protocol.md is the design, not sub-agent spawning; both packaging templates drop the Agent grant
+- [Phase ?]: [Phase 08]: [08-01] runtime config read points at .grugops/factory.config.json in README + factory.config.md (D-09/IN-01); agent-factory/config/factory.config.json preserved as the named SEED SOURCE the installer seeds
+- [Phase ?]: [Phase 08]: [08-01] self-contained agent-factory/seed/** bundles config + plans/** + memory-bank/** as faithful copies (config seed byte-identical to kit default, D-01/D-02); check-kit-refs.sh excludes the seed by NOT listing it with a header comment recording why (D-03); kit-ref gate + install.test.sh stay GREEN
 
 ### Pending Todos
 
@@ -202,6 +206,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-06-07T14:23:38.589Z
+Last session: 2026-06-07T15:28:09.405Z
 Stopped at: Phase 8 context gathered
-Resume file: .planning/phases/08-two-root-installer/08-CONTEXT.md
+Resume file: None
