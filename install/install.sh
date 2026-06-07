@@ -380,7 +380,11 @@ materialize_adapter() {
     }
   ' "$_src" > "$_tmp"
   mv -- "$_tmp" "$_dest"
-  [ -f "$_tmp" ] && rm -f -- "$_tmp"
+  # WR-03: self-neutralize the cleanup so its exit status is always 0. After the mv consumes
+  # $_tmp, `[ -f "$_tmp" ]` is false and the bare `&&` compound returns 1 — which would abort the
+  # script under `set -e` if this were ever the last statement of the function. The trailing
+  # `|| true` makes the safety explicit instead of incidental on the following report line.
+  [ -f "$_tmp" ] && rm -f -- "$_tmp" || true
   report materialized "$_label (KIT=$KIT_ROOT)"
 }
 
