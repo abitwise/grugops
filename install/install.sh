@@ -16,10 +16,19 @@
 # install.mjs (Node) is functionally identical; this file is its behavioral spec.
 #
 # Usage:
-#   sh install/install.sh                 # install into the current repo
-#   DRY_RUN=1 sh install/install.sh       # preview only, change nothing
-#   INSTALL_MODE=copy sh install/install.sh   # force copy instead of symlink (D-30)
+#   sh install/install.sh --target /path/to/repo   # install into a chosen repo
+#   sh install/install.sh                           # prompt (default: current repo)
+#   sh install/install.sh --yes                     # unattended (default target, no prompt)
+#   DRY_RUN=1 sh install/install.sh                 # preview only, change nothing
+#   INSTALL_MODE=symlink sh install/install.sh      # opt in to symlink (copy is the default, D-05)
+#   sh install/install.sh --symlink                 # same opt-in via flag
+#   sh install/install.sh --allow-self              # override the D-07 self-checkout guard
+#   GRUGOPS_HOME=/path sh install/install.sh        # override the shared kit home (default ~/.grugops)
 #   GRUGOPS_SRC=/path/to/grugops TARGET=/path/to/repo sh install/install.sh
+#
+# Two-root layout (INSTALL-03/04): the read-only kit is copied to ${GRUGOPS_HOME:-$HOME/.grugops}
+# and the resolved absolute kit path is materialized into the target's two resolver adapters; the
+# per-repo state plane (.grugops/ + plans/ + memory-bank/) is seeded into the target (skip-if-exists).
 #
 # House style mirrors agent-factory/ scripts: #!/usr/bin/env sh, set -eu, printf not echo -e,
 # grep -qF, small named helpers.
@@ -27,17 +36,90 @@
 set -eu
 
 # ---------------------------------------------------------------------------
-# Resolve the grugops source checkout (where the adapter files live) and the
-# target repo (where they get laid down). Both default sensibly; both overridable.
+# Argument parsing (INSTALL-03). Layers over the TARGET/INSTALL_MODE env overrides.
+#   --target <repo>   the repo to install into (precedence: flag > TARGET env > prompt)
+#   --yes             unattended: take the default target without prompting (CI-safe)
+#   --allow-self      override the D-07 self-checkout guard
+#   --force           alias for --allow-self
+#   --symlink         opt in to symlink mode (copy is now the default, D-05)
+# ---------------------------------------------------------------------------
+ARG_TARGET=""
+YES=0
+ALLOW_SELF=0
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --target) ARG_TARGET=${2:-}; shift 2 ;;
+    --target=*) ARG_TARGET=${1#--target=}; shift ;;
+    --yes|-y) YES=1; shift ;;
+    --allow-self|--force) ALLOW_SELF=1; shift ;;
+    --symlink) INSTALL_MODE=symlink; shift ;;
+    *) printf 'install.sh: unknown argument: %s\n' "$1" >&2; exit 2 ;;
+  esac
+done
+
+# ---------------------------------------------------------------------------
+# Resolve the grugops source checkout (where the adapter files live), the shared kit
+# home, and the target repo. All default sensibly; all overridable.
 # ---------------------------------------------------------------------------
 # SRC defaults to the repo that contains this script (install/ -> repo root).
 SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 GRUGOPS_SRC=${GRUGOPS_SRC:-$(CDPATH= cd -- "$SCRIPT_DIR/.." && pwd)}
-TARGET=${TARGET:-$(pwd)}
 DRY_RUN=${DRY_RUN:-0}
-# D-30: default to symlink, fall back to copy. INSTALL_MODE=copy forces copy (e.g. Windows
-# without symlink privilege, or the deterministic-diff test harness).
-INSTALL_MODE=${INSTALL_MODE:-symlink}
+# D-05: default to COPY (symlink is opt-in via --symlink / INSTALL_MODE=symlink). Copy is the
+# only mode that behaves identically on every platform; symlinks broke the dogfood.
+INSTALL_MODE=${INSTALL_MODE:-copy}
+
+# abspath: resolve a (possibly not-yet-existing) path to an absolute, normalized one without
+# requiring the leaf to exist — cd into the nearest existing parent and append the rest. Used so
+# the materialized kit path is always absolute (Security V5: validate to absolute before use).
+abspath() {
+  case "$1" in
+    /*) printf '%s' "$1" ;;
+    *)  printf '%s' "$(CDPATH= cd -- "$(pwd)" && pwd)/$1" ;;
+  esac
+}
+
+# resolve_grugops_home: compute the absolute shared kit home and kit root. The :- colon form
+# treats an exported-blank GRUGOPS_HOME= (e.g. in CI) as unset, so it still falls back. Assigned
+# BEFORE the run banner and BEFORE any code path references them (so set -eu never trips and no
+# blank line is ever printed). install.mjs mirrors this with os.homedir().
+resolve_grugops_home() {
+  GRUGOPS_HOME=${GRUGOPS_HOME:-"$HOME/.grugops"}
+  GRUGOPS_HOME=$(abspath "$GRUGOPS_HOME")
+  KIT_ROOT="$GRUGOPS_HOME/agent-factory"
+}
+resolve_grugops_home
+
+# ---------------------------------------------------------------------------
+# Resolve TARGET (INSTALL-03). Precedence: --target flag > TARGET env > prompt(default CWD).
+# Non-interactive (--yes OR not a TTY) takes the default WITHOUT prompting (CI-safe). The result
+# is resolved to an ABSOLUTE path before any comparison or write (Security V5 — validate first,
+# never glob/hunt). Done BEFORE the D-07 guard and before any write.
+# ---------------------------------------------------------------------------
+_default_target=${ARG_TARGET:-${TARGET:-$(pwd)}}
+if [ -n "$ARG_TARGET" ]; then
+  TARGET="$ARG_TARGET"
+elif [ "$YES" = "1" ] || [ ! -t 0 ]; then
+  TARGET="${TARGET:-$(pwd)}"
+else
+  printf 'Install grugops into which repo? [%s] ' "$_default_target"
+  read -r _ans || _ans=""
+  TARGET="${_ans:-$_default_target}"
+fi
+TARGET=$(abspath "$TARGET")
+
+# ---------------------------------------------------------------------------
+# D-07 self-checkout guard (ALWAYS-ON). Runs unconditionally after TARGET resolution, before any
+# write, independent of TTY / --yes (Pitfall 3: safety is mechanical, not prose). Refuse when
+# EITHER the resolved TARGET == resolved GRUGOPS_SRC, OR the target carries grugops SOURCE markers
+# (install/install.sh AND agent-factory/VERSION both present). --allow-self / --force overrides.
+# ---------------------------------------------------------------------------
+if [ "$ALLOW_SELF" != "1" ]; then
+  if [ "$TARGET" = "$GRUGOPS_SRC" ] || { [ -f "$TARGET/install/install.sh" ] && [ -f "$TARGET/agent-factory/VERSION" ]; }; then
+    printf 'refusing: target looks like the grugops source checkout — you probably meant --target <your-repo>. Pass --allow-self to override.\n' >&2
+    exit 1
+  fi
+fi
 
 # The grugops adapter set this installer manages (single source: the standalone Wave-2 form).
 SKILLS="grugops grugops-map grugops-plan grugops-ticket grugops-gate grugops-uat grugops-release"
@@ -239,6 +321,8 @@ detect_tools() {
 # ---------------------------------------------------------------------------
 printf '== grugops install ==\n'
 printf 'source: %s\n' "$GRUGOPS_SRC"
+printf 'home:   %s\n' "$GRUGOPS_HOME"
+printf 'kit:    %s\n' "$KIT_ROOT"
 printf 'target: %s\n' "$TARGET"
 [ "$DRY_RUN" = "1" ] && printf 'mode:   DRY_RUN (no filesystem changes)\n'
 printf 'tools detected:%s\n' "$(detect_tools)"

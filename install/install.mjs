@@ -15,10 +15,17 @@
 // install.sh is the behavioral spec; this mirrors it.
 //
 // Usage:
-//   node install/install.mjs
+//   node install/install.mjs --target /path/to/repo
+//   node install/install.mjs --yes
 //   DRY_RUN=1 node install/install.mjs
-//   INSTALL_MODE=copy node install/install.mjs
+//   INSTALL_MODE=symlink node install/install.mjs   (copy is the default, D-05; --symlink also opts in)
+//   node install/install.mjs --allow-self            (override the D-07 self-checkout guard)
+//   GRUGOPS_HOME=/path node install/install.mjs      (override the shared kit home; default ~/.grugops)
 //   GRUGOPS_SRC=/path/to/grugops TARGET=/path/to/repo node install/install.mjs
+//
+// Two-root layout (INSTALL-03/04): the read-only kit is copied to resolve(os.homedir(),".grugops")
+// (or $GRUGOPS_HOME), the resolved absolute kit path is materialized into the target's two
+// resolver adapters, and the per-repo state plane is seeded into the target (skip-if-exists).
 
 import {
   existsSync,
@@ -28,19 +35,110 @@ import {
   appendFileSync,
   symlinkSync,
   copyFileSync,
+  cpSync,
+  rmSync,
+  renameSync,
+  readSync,
   lstatSync,
 } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { homedir } from "node:os";
+
+// --- argument parsing (INSTALL-03), layered over the TARGET/INSTALL_MODE env overrides ---
+let ARG_TARGET = "";
+let YES = false;
+let ALLOW_SELF = false;
+let ARG_SYMLINK = false;
+const argv = process.argv.slice(2);
+for (let i = 0; i < argv.length; i++) {
+  const a = argv[i];
+  if (a === "--target") {
+    ARG_TARGET = argv[++i] ?? "";
+  } else if (a.startsWith("--target=")) {
+    ARG_TARGET = a.slice("--target=".length);
+  } else if (a === "--yes" || a === "-y") {
+    YES = true;
+  } else if (a === "--allow-self" || a === "--force") {
+    ALLOW_SELF = true;
+  } else if (a === "--symlink") {
+    ARG_SYMLINK = true;
+  } else {
+    process.stderr.write(`install.mjs: unknown argument: ${a}\n`);
+    process.exit(2);
+  }
+}
 
 const SCRIPT_DIR = dirname(fileURLToPath(import.meta.url));
 const GRUGOPS_SRC = process.env.GRUGOPS_SRC
   ? resolve(process.env.GRUGOPS_SRC)
   : resolve(SCRIPT_DIR, "..");
-const TARGET = process.env.TARGET ? resolve(process.env.TARGET) : process.cwd();
 const DRY_RUN = process.env.DRY_RUN === "1";
-// D-30: default symlink, fall back to copy; INSTALL_MODE=copy forces copy.
-const INSTALL_MODE = process.env.INSTALL_MODE || "symlink";
+// D-05: default to COPY (symlink is opt-in via --symlink / INSTALL_MODE=symlink). Copy is the
+// only mode that behaves identically on every platform; symlinks broke the dogfood.
+const INSTALL_MODE = ARG_SYMLINK ? "symlink" : process.env.INSTALL_MODE || "copy";
+
+// resolveGrugopsHome: mirror install.sh's resolve_grugops_home. Empty-string GRUGOPS_HOME must
+// also fall back (the sh :- colon form). Resolve via os.homedir() so the Windows home (USERPROFILE)
+// matches Git Bash $HOME. Normalize to POSIX forward-slash so the materialized KIT= line is
+// byte-identical to the sh side (Pitfall 2; full Windows parity is UNKNOWN - verify).
+const toPosix = (p) => p.replace(/\\/g, "/");
+const GRUGOPS_HOME = toPosix(
+  process.env.GRUGOPS_HOME && process.env.GRUGOPS_HOME.trim()
+    ? resolve(process.env.GRUGOPS_HOME)
+    : resolve(homedir(), ".grugops"),
+);
+const KIT_ROOT = toPosix(resolve(GRUGOPS_HOME, "agent-factory"));
+
+// readlineSync: read a single line from stdin (fd 0) synchronously, byte by byte until newline or
+// EOF. Used only for the interactive prompt; --yes / non-TTY never reach it.
+function readlineSync() {
+  const chunks = [];
+  const buf = Buffer.alloc(1);
+  for (;;) {
+    let n;
+    try {
+      n = readSync(0, buf, 0, 1, null);
+    } catch {
+      break;
+    }
+    if (n <= 0) break;
+    if (buf[0] === 0x0a) break; // newline
+    chunks.push(buf[0]);
+  }
+  return Buffer.from(chunks).toString("utf8");
+}
+
+// --- resolve TARGET (INSTALL-03): --target flag > TARGET env > prompt(default CWD). Non-TTY or
+// --yes takes the default without prompting (CI-safe). Resolved to absolute before any write. ---
+function resolveTarget() {
+  if (ARG_TARGET) return toPosix(resolve(ARG_TARGET));
+  const def = process.env.TARGET ? resolve(process.env.TARGET) : process.cwd();
+  if (YES || !process.stdin.isTTY) return toPosix(def);
+  // Interactive confirm-the-default prompt (synchronous one-line read of stdin).
+  process.stdout.write(`Install grugops into which repo? [${toPosix(def)}] `);
+  const ans = readlineSync().trim();
+  return toPosix(ans ? resolve(ans) : def);
+}
+const TARGET = resolveTarget();
+
+// --- D-07 self-checkout guard (ALWAYS-ON): runs unconditionally after TARGET resolution, before
+// any write, independent of TTY / --yes (Pitfall 3). Refuse when EITHER resolved TARGET ==
+// resolved GRUGOPS_SRC, OR the target carries grugops SOURCE markers (install/install.sh AND
+// agent-factory/VERSION both present). --allow-self / --force overrides. Message byte-identical
+// to install.sh. ---
+if (!ALLOW_SELF) {
+  const looksLikeSource =
+    TARGET === toPosix(GRUGOPS_SRC) ||
+    (existsSync(join(TARGET, "install", "install.sh")) &&
+      existsSync(join(TARGET, "agent-factory", "VERSION")));
+  if (looksLikeSource) {
+    process.stderr.write(
+      "refusing: target looks like the grugops source checkout — you probably meant --target <your-repo>. Pass --allow-self to override.\n",
+    );
+    process.exit(1);
+  }
+}
 
 const SKILLS = [
   "grugops",
@@ -200,6 +298,8 @@ function detectTools() {
 // --- run -------------------------------------------------------------------
 console.log("== grugops install ==");
 console.log(`source: ${GRUGOPS_SRC}`);
+console.log(`home:   ${GRUGOPS_HOME}`);
+console.log(`kit:    ${KIT_ROOT}`);
 console.log(`target: ${TARGET}`);
 if (DRY_RUN) console.log("mode:   DRY_RUN (no filesystem changes)");
 console.log(`tools detected: ${detectTools()}`);
