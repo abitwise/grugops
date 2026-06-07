@@ -91,22 +91,50 @@ else
 fi
 
 # ---------------------------------------------------------------------------
-# Check 3 — INSTALL-02: install → uninstall restores the fixture AND never deletes the
-#            frozen core (agent-factory/ survives).
+# Check 3 — INSTALL-02 (two-root contract, Phase-8 D-06): install → uninstall removes ONLY the
+#            grugops-OWNED artifacts (the .claude adapters, the CLAUDE.md / Copilot sentinel
+#            wiring, the .grugops/install.json marker) while the SEEDED user state plane
+#            (.grugops/factory.config.json, plans/**, memory-bank/**) SURVIVES — because once
+#            grugops seeds per-repo state into the target it becomes the user's content, and
+#            uninstall must never delete user content (D-06).
+#
+#            This is the deliberate, human-approved (Option A) reconciliation of the FORMER
+#            byte-restore round-trip assertion with two-root reality: under the two-root seed
+#            model the fixture can no longer return to its exact pre-install bytes, because
+#            seeded user state is meant to persist. It is an approved pull-forward of a slice of
+#            Phase 9 / VAL-02 (the broader install.test.sh split-rewrite remains Phase 9). The
+#            marker (.grugops/install.json) removal is Plan 08-04's deliverable; this check does
+#            NOT assert on the marker.
 # ---------------------------------------------------------------------------
-printf '\n[3] install → uninstall → fixture restored AND agent-factory/ survives\n'
+printf '\n[3] install → uninstall: grugops-owned wiring removed; seeded user state + frozen core survive (D-06)\n'
 T3="$WORK/cycle"; make_fixture "$T3"
-snapshot "$T3" "$WORK/snap3pre"
 INSTALL_MODE=copy GRUGOPS_SRC="$REPO_ROOT" TARGET="$T3" sh "$SCRIPT_DIR/install.sh" >/dev/null 2>&1
 INSTALL_MODE=copy GRUGOPS_SRC="$REPO_ROOT" TARGET="$T3" sh "$SCRIPT_DIR/uninstall.sh" >/dev/null 2>&1
-snapshot "$T3" "$WORK/snap3post"
-if "$DIFF" "$WORK/snap3pre" "$WORK/snap3post" >/dev/null 2>&1; then
-  pass "fixture restored to its exact pre-install state after uninstall"
+# --- ASSERT REMOVED: grugops-owned adapters + sentinel wiring the installer added ---
+if [ ! -e "$T3/.claude/agents/grugops-orchestrator.md" ] && [ ! -e "$T3/.claude/skills/grugops/SKILL.md" ]; then
+  pass "grugops-owned .claude adapters removed by uninstall"
 else
-  printf '    (diff pre vs post-uninstall:)\n'
-  "$DIFF" "$WORK/snap3pre" "$WORK/snap3post" 2>&1 | sed 's/^/    /'
-  fail "uninstall did not cleanly restore the fixture"
+  fail "uninstall left grugops-owned .claude adapters behind"
 fi
+# The CLAUDE.md grugops sentinel block is gone, but the user's own CLAUDE.md content survives.
+if grep -qF 'My own dev instructions' "$T3/CLAUDE.md" 2>/dev/null \
+   && ! grep -qF '<!-- GSD:grugops-start-here -->' "$T3/CLAUDE.md" 2>/dev/null; then
+  pass "CLAUDE.md grugops sentinel block removed; user content preserved"
+else
+  fail "uninstall did not cleanly strip the CLAUDE.md grugops sentinel block (or lost user content)"
+fi
+# --- ASSERT SURVIVES: the SEEDED user state plane (D-06 — seeded state is user content) ---
+if [ -f "$T3/.grugops/factory.config.json" ]; then
+  pass "seeded .grugops/factory.config.json survived uninstall (user state — D-06)"
+else
+  fail "uninstall DELETED seeded .grugops/factory.config.json — D-06 CONTRACT VIOLATION"
+fi
+if [ -f "$T3/memory-bank/00-index.md" ]; then
+  pass "seeded memory-bank/** survived uninstall (user state — D-06)"
+else
+  fail "uninstall DELETED seeded memory-bank/** — D-06 CONTRACT VIOLATION"
+fi
+# --- ASSERT SURVIVES: the frozen core + the user's own plans/ data (unchanged contract) ---
 if [ -f "$T3/agent-factory/roles/orchestrator.md" ] && grep -qF 'FROZEN CORE' "$T3/agent-factory/roles/orchestrator.md"; then
   pass "agent-factory/ frozen core survived uninstall (never deleted)"
 else
