@@ -29,10 +29,41 @@
 
 set -eu
 
+# ---------------------------------------------------------------------------
+# Argument parsing (CR-02). Mirrors install.sh's loop so uninstall honors the surface its own
+# README advertises (`sh install/uninstall.sh --target /path/to/repo`). Without this loop the
+# documented --target flag was silently discarded and the reversal ran against $(pwd) — wiping
+# grugops wiring from the WRONG repo while leaving the intended target fully installed.
+#   --target <repo> / --target=<repo>   the repo to reverse (precedence: flag > TARGET env > CWD)
+# Scope is unchanged (D-06): still removes only adapters + wiring + the .grugops/install.json
+# marker; never the shared $GRUGOPS_HOME kit nor seeded per-repo state.
+# ---------------------------------------------------------------------------
+ARG_TARGET=""
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --target) ARG_TARGET=${2:-}; shift 2 ;;
+    --target=*) ARG_TARGET=${1#--target=}; shift ;;
+    *) printf 'uninstall.sh: unknown argument: %s\n' "$1" >&2; exit 2 ;;
+  esac
+done
+
 SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 GRUGOPS_SRC=${GRUGOPS_SRC:-$(CDPATH= cd -- "$SCRIPT_DIR/.." && pwd)}
-TARGET=${TARGET:-$(pwd)}
 DRY_RUN=${DRY_RUN:-0}
+
+# abspath: resolve a (possibly not-yet-existing) path to an absolute, normalized one without
+# requiring the leaf to exist (mirrors install.sh — Security V5: validate to absolute before use).
+abspath() {
+  case "$1" in
+    /*) printf '%s' "$1" ;;
+    *)  printf '%s' "$(CDPATH= cd -- "$(pwd)" && pwd)/$1" ;;
+  esac
+}
+
+# Precedence: --target flag > TARGET env > current working directory. Resolved to an ABSOLUTE
+# path before any removal so the reversal operates on the named target, not the CWD.
+TARGET=${ARG_TARGET:-${TARGET:-$(pwd)}}
+TARGET=$(abspath "$TARGET")
 
 SKILLS="grugops grugops-map grugops-plan grugops-ticket grugops-gate grugops-uat grugops-release"
 AGENT_REL=".claude/agents/grugops-orchestrator.md"
