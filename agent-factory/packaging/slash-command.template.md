@@ -28,7 +28,6 @@ allowed-tools:
   - Bash
   - Glob
   - Grep
-  - Agent
 ---
 > **Kit vs state invariant:** `agent-factory/…` = read-only KIT (from the kit root, never written); `plans/`, `memory-bank/`, `.grugops/` = STATE in this repo. Read handoff templates from `agent-factory/handoffs/`, write instances to `plans/handoffs/<ID>-<stage>.md`. If the kit dir is absent, STOP — do not hunt. (Full rule: AGENTS.md § Kit vs state.)
 
@@ -53,7 +52,6 @@ allowed-tools:
   - Bash
   - Glob
   - Grep
-  - Agent
 ---
 Act as the grugops Orchestrator and hand off to the Release Manager: read
 `agent-factory/roles/orchestrator.md`, then `agent-factory/roles/release-manager.md`, then
@@ -97,7 +95,10 @@ Do not carry the `grugops-` prefix into the plugin directory names, or you get t
 - **`disable-model-invocation: true` belongs on `grugops-release`** — the destructive,
   deploy-touching command — so the model can never auto-trigger it; only a human invokes it.
   This pairs with the mechanical prod-deploy guard (see `adapters.md`).
-- **`Agent`** is included in `allowed-tools` so the skill can spawn specialist role
-  sub-agents on Claude Code (main-thread dispatch). Reference:
+- **No spawn tool in `allowed-tools`.** grugops activates each role via single-window
+  sequential role-load (`agent-factory/roles/_role-switch-protocol.md`: one window, drop
+  prior context between roles, the handoff packet is the only memory), NOT sub-agent
+  spawning — so the skill grants only the file/shell tools it uses and never a spawn tool.
+  This keeps role activation identical across all five host CLIs. Reference:
   `code.claude.com/docs/en/skills`.
 - Clear voice for the safety line (named-human-approval); light grug wink only in framing.

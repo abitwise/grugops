@@ -12,9 +12,11 @@ This is the copy-ready template for a standalone Claude Code sub-agent wrapper
 frozen role file and act as that role. It never copies the role body. Fix one role, fix it
 in one place.
 
-The wrapper uses the current spawning tool **`Agent`** (the older spelling was renamed in
-Claude Code v2.1.63; the legacy alias still works but must not be used in new wrappers) and
-`model: inherit` so the wrapper keeps the user's session model choice.
+The wrapper grants **no spawn tool**. grugops uses single-window sequential role-load via
+`agent-factory/roles/_role-switch-protocol.md` — one window, drop prior context between
+roles, the handoff packet is the only memory — NOT sub-agent spawning. So the `tools:` list
+carries only the file/shell tools the Orchestrator actually uses, never a spawn tool. The
+wrapper sets `model: inherit` so it keeps the user's session model choice.
 
 ## Copy-ready template
 
@@ -22,7 +24,7 @@ Claude Code v2.1.63; the legacy alias still works but must not be used in new wr
 ---
 name: grugops-orchestrator
 description: Single entry point for the grugops software factory. Use for any SDLC delivery request — bootstrap a repo, turn ideas into tickets, implement a ticket, run a quality gate, plan UAT, cut a release. Routes to the specialist factory roles.
-tools: Read, Grep, Glob, Bash, Edit, Write, Agent
+tools: Read, Grep, Glob, Bash, Edit, Write
 model: inherit
 ---
 > **Kit vs state invariant:** `agent-factory/…` = read-only KIT (from the kit root, never written); `plans/`, `memory-bank/`, `.grugops/` = STATE in this repo. Read handoff templates from `agent-factory/handoffs/`, write instances to `plans/handoffs/<ID>-<stage>.md`. If the kit dir is absent, STOP — do not hunt. (Full rule: AGENTS.md § Kit vs state.)
@@ -41,8 +43,9 @@ KIT="${GRUGOPS_HOME:-$HOME/.grugops}/agent-factory"
 You follow `agent-factory/roles/orchestrator.md` exactly. Read it now, then read
 `.grugops/factory.config.json`, the root `AGENTS.md`, and `plans/board.md`
 (respect every column's WIP limit). Then act as the Orchestrator: classify the request,
-activate the right specialist role(s), demand a handoff packet from each, update the board
-and traceability, and produce the next action.
+activate each role through the role-switch protocol (`agent-factory/roles/_role-switch-protocol.md`)
+— one window, drop prior context, the handoff is the only memory — demand a handoff packet from
+each, update the board and traceability, and produce the next action.
 
 Never merge to a protected branch. Never deploy to prod. Humans always hold merge and
 deploy.
@@ -52,11 +55,12 @@ deploy.
 
 - **`name`, `description`** — the only required frontmatter. `description` drives
   auto-routing, so write it as a clear "use for / use when" sentence.
-- **`tools: Read, Grep, Glob, Bash, Edit, Write, Agent`** — `Agent` is the spawning tool.
-  Listing it lets the Orchestrator wrapper spawn specialist role sub-agents; omit it and all
-  spawning is blocked. **Use `Agent`, never the legacy spelling.** Spawning only works when
-  the agent runs as the main thread (sub-agents cannot nest), which is why the plugin form
-  makes the Orchestrator the main-thread agent.
+- **`tools: Read, Grep, Glob, Bash, Edit, Write`** — file and shell tools only, **no spawn
+  tool**. grugops activates each role via single-window sequential role-load
+  (`agent-factory/roles/_role-switch-protocol.md`: one window, drop prior context between
+  roles, the handoff packet is the only memory), NOT sub-agent spawning — so no spawn tool is
+  granted. This keeps the same role-activation behavior portable across all five host CLIs,
+  whether or not the host can spawn sub-agents.
 - **`model: inherit`** — the documented default; keeps the user's session model rather than
   pinning cost/capability.
 - **Body** — repo-relative pointer-text. It cites `agent-factory/roles/orchestrator.md` (the
