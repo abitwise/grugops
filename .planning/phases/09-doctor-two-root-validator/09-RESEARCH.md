@@ -408,7 +408,7 @@ These are the Claude's-Discretion items CONTEXT.md delegated, resolved against t
 ### 6. Doctor output format → human-readable, one finding per line, FAIL line names path + referencing file
 **Decision:** `report`-style lines (reuse install.sh:146 `report()` / install.mjs:169). FAIL: `FAIL  <resolved-path>  (referenced by <file>)`. WARN: `WARN  <message>`. Final line: `ALL CHECKS PASSED` / `N FAILURE(S)` mirroring the harnesses. Keep it greppable for the tests.
 
-## Open Questions
+## Open Questions (RESOLVED)
 
 1. **Should the doctor also run inside the orchestrator's first-run path?**
    - What we know: CONTEXT integration point notes "if the doctor passes, `/grugops` works on first run." The adapters' self-heal block already tells the agent to STOP if the kit is absent.
