@@ -335,13 +335,23 @@ function materializeAdapter(src, dest, label) {
   const lines = readFileSync(src, "utf8").split("\n");
   const out = [];
   let inblk = false;
+  // CR-01 (bounded removal): mirror install.sh's awk — an UNTERMINATED prior block (close marker
+  // missing) must NOT swallow every following line. Buffer the block and only drop it once a
+  // matching close is seen; if still inblk at EOF, the block never closed, so restore the
+  // buffered lines verbatim (lose nothing). Byte-identical output to install.sh's awk pass.
+  let buf = [];
   for (const line of lines) {
     if (line === MAT_OPEN) {
       inblk = true;
+      buf = [];
       continue;
     }
     if (inblk) {
-      if (line === MAT_CLOSE) inblk = false;
+      if (line === MAT_CLOSE) {
+        inblk = false; // terminated block → drop the buffer
+      } else {
+        buf.push(line); // buffer until we know it terminates
+      }
       continue;
     }
     if (line === MAT_SLOT) {
@@ -352,6 +362,10 @@ function materializeAdapter(src, dest, label) {
       continue;
     }
     out.push(line);
+  }
+  // Unterminated open at EOF: the block never closed → restore what we buffered (lose nothing).
+  if (inblk && buf.length > 0) {
+    for (const line of buf) out.push(line);
   }
   writeFileSync(dest, out.join("\n"));
   report("materialized", `${label} (KIT=${KIT_ROOT})`);

@@ -339,19 +339,34 @@ materialize_adapter() {
   # Strip any existing materialized-kit block from the SOURCE content while injecting the fresh
   # one above the slot, in a single awk pass. The 'op'/'cl' names dodge BSD/macOS awk reserved
   # words (same workaround as uninstall.sh). The injected block is byte-stable for a given path.
+  #
+  # CR-01 (bounded removal): mirror uninstall.sh — an UNTERMINATED prior block (close marker
+  # missing) must NOT swallow every following line. Buffer the block and only drop it when a
+  # matching close is seen; if inblk is still set at END, restore the buffered lines verbatim.
+  # The blast radius here is grugops-owned regenerated adapters (smaller than the user-file case
+  # in uninstall.sh), but the defect is identical and must not be left to rot. KIT_ROOT is passed
+  # via the environment and read with ENVIRON[] (WR-01) so backslash/escape sequences in the path
+  # are NOT processed by awk -v — byte-parity with install.mjs's template literal.
   _tmp="$_dest.grugops.tmp.$$"
-  awk -v op="$MAT_OPEN" -v cl="$MAT_CLOSE" -v slot="$MAT_SLOT" -v kit="$KIT_ROOT" '
+  KIT_ROOT="$KIT_ROOT" awk -v op="$MAT_OPEN" -v cl="$MAT_CLOSE" -v slot="$MAT_SLOT" '
     BEGIN { inblk=0 }
-    $0 == op { inblk=1; next }
-    inblk { if ($0 == cl) inblk=0; next }
+    $0 == op { inblk=1; buf=""; nbuf=0; next }
+    inblk {
+      if ($0 == cl) { inblk=0; next }       # terminated block → drop the buffer
+      buf = buf $0 "\n"; nbuf++; next        # buffer until we know it terminates
+    }
     $0 == slot {
       print op
-      printf "KIT=\"%s\"\n", kit
+      printf "KIT=\"%s\"\n", ENVIRON["KIT_ROOT"]
       print cl
       print
       next
     }
     { print }
+    END {
+      # Unterminated open at EOF: the block never closed → restore what we buffered (lose nothing).
+      if (inblk && nbuf>0) printf "%s", buf
+    }
   ' "$_src" > "$_tmp"
   mv -- "$_tmp" "$_dest"
   [ -f "$_tmp" ] && rm -f -- "$_tmp"

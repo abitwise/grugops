@@ -127,14 +127,26 @@ remove_sentinel_block() {
   # (BSD/macOS), so use neutral names. install.sh prepends one blank line before the block;
   # we buffer pending blank lines and emit them only when a real line follows, which trims
   # that separator blank when the block is at end-of-file.
+  #
+  # CR-01 (bounded removal): an UNTERMINATED open marker (close sentinel missing because the
+  # file was hand-edited or a prior run was interrupted) must NEVER cause every line after the
+  # open marker to be deleted — that is silent loss of user content. We buffer the block lines
+  # and only commit the deletion when a matching close is actually seen; if inblk is still set
+  # at END, the block never closed, so we emit the buffered lines unchanged (remove nothing).
   _tmp="$_f.grugops.tmp.$$"
   awk -v op="$_open" -v cl="$_close" '
     BEGIN { inblk=0; pend=0 }
-    $0 == op { inblk=1; next }
-    inblk { if ($0 == cl) inblk=0; next }
+    $0 == op { inblk=1; buf=""; nbuf=0; next }
+    inblk {
+      if ($0 == cl) { inblk=0; next }       # terminated block → drop the buffer
+      buf = buf $0 "\n"; nbuf++; next        # buffer until we know it terminates
+    }
     $0 == "" { pend=pend+1; next }
     { while (pend>0) { print ""; pend=pend-1 } print }
-    END { }
+    END {
+      # Unterminated open at EOF: the block never closed → restore what we buffered (lose nothing).
+      if (inblk && nbuf>0) printf "%s", buf
+    }
   ' "$_f" > "$_tmp"
   do_run mv -- "$_tmp" "$_f"
   [ -f "$_tmp" ] && rm -f -- "$_tmp"
