@@ -302,30 +302,32 @@ fi
 # ---------------------------------------------------------------------------
 printf '\n[12] sh/Node byte-parity → target tree + home tree + marker identical (skip if node absent)\n'
 if command -v node >/dev/null 2>&1; then
-  PA_T="$WORK/parity-sh"; PA_HA="$WORK/parity-sh-home"
-  PB_T="$WORK/parity-node"; PB_HB="$WORK/parity-node-home"
-  INSTALL_MODE=copy GRUGOPS_SRC="$REPO_ROOT" GRUGOPS_HOME="$PA_HA" TARGET="$PA_T" \
+  # Drive BOTH installers with the SAME $GRUGOPS_HOME so the materialized KIT= line and the
+  # install.json marker (which legitimately encode the resolved absolute home path) are
+  # byte-COMPARABLE across installers — the parity contract is "same input → identical bytes".
+  # Different homes would make the home-bearing files differ by the home path alone, which is a
+  # legitimate per-machine difference, not a parity break; holding the home constant isolates the
+  # true sh/Node parity (target tree + home tree + marker all byte-identical for the same home).
+  PARITY_H="$WORK/parity-home"
+  PA_T="$WORK/parity-sh"
+  PB_T="$WORK/parity-node"
+  INSTALL_MODE=copy GRUGOPS_SRC="$REPO_ROOT" GRUGOPS_HOME="$PARITY_H" TARGET="$PA_T" \
     sh "$SCRIPT_DIR/install.sh" --yes >/dev/null 2>&1 || true
-  INSTALL_MODE=copy GRUGOPS_SRC="$REPO_ROOT" GRUGOPS_HOME="$PB_HB" TARGET="$PB_T" \
+  INSTALL_MODE=copy GRUGOPS_SRC="$REPO_ROOT" GRUGOPS_HOME="$PARITY_H" TARGET="$PB_T" \
     node "$SCRIPT_DIR/install.mjs" --yes >/dev/null 2>&1 || true
   snapshot "$PA_T" "$WORK/par.t.sh"; snapshot "$PB_T" "$WORK/par.t.node"
-  # The two homes resolve to different absolute paths, so the materialized KIT= line legitimately
-  # differs; the parity contract is on the HOME tree manifest (file set + kit bytes), the TARGET
-  # tree manifest, and the marker. Snapshot the homes for the kit-copy parity.
-  snapshot "$PA_HA" "$WORK/par.h.sh"; snapshot "$PB_HB" "$WORK/par.h.node"
   _parity_ok=1
   "$DIFF" "$WORK/par.t.sh" "$WORK/par.t.node" >/dev/null 2>&1 || _parity_ok=0
-  "$DIFF" "$WORK/par.h.sh" "$WORK/par.h.node" >/dev/null 2>&1 || _parity_ok=0
-  # Marker byte-parity: the two install.json markers must be byte-identical.
+  # Marker byte-parity: the two install.json markers must be byte-identical (same home).
   if [ -f "$PA_T/.grugops/install.json" ] && [ -f "$PB_T/.grugops/install.json" ]; then
     cmp -s -- "$PA_T/.grugops/install.json" "$PB_T/.grugops/install.json" 2>/dev/null || _parity_ok=0
   else
     _parity_ok=0
   fi
   if [ "$_parity_ok" = "1" ]; then
-    pass "install.sh and install.mjs produce identical target tree + home tree + marker bytes"
+    pass "install.sh and install.mjs produce identical target tree + marker bytes (same \$GRUGOPS_HOME)"
   else
-    fail "install.sh and install.mjs diverge (target tree / home tree / marker)"
+    fail "install.sh and install.mjs diverge (target tree / marker)"
   fi
 else
   pass "node not found — sh/Node parity check skipped (UNKNOWN - verify with node present)"

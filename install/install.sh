@@ -294,6 +294,129 @@ merge_gemini() {
 }
 
 # ---------------------------------------------------------------------------
+# copy_kit: atomic install of the read-only kit to $GRUGOPS_HOME (INSTALL-04, D-05). Always
+# re-copies from the running checkout (no version negotiation, SKEW-01 → v1.2). The kit is
+# grugops-owned read-only, so overwriting it is NOT user content. Writes to a temp then renames
+# so a concurrent reader never sees a partial kit (T-08-03-04). DRY_RUN mutates nothing.
+# ---------------------------------------------------------------------------
+copy_kit() {
+  if [ "$DRY_RUN" = "1" ]; then
+    report would-copy "kit → $KIT_ROOT"
+    return 0
+  fi
+  mkdirp "$GRUGOPS_HOME"
+  _tmp="$GRUGOPS_HOME/.agent-factory.tmp.$$"
+  rm -rf -- "$_tmp"
+  cp -R -- "$GRUGOPS_SRC/agent-factory" "$_tmp"
+  rm -rf -- "$KIT_ROOT"
+  mv -- "$_tmp" "$KIT_ROOT"
+  report copied "kit → $KIT_ROOT"
+}
+
+# Materialization sentinels (Pattern 2). The injected block carries the resolved absolute KIT
+# path and sits immediately ABOVE the "# 1. (installed)…" slot in the 2 resolver adapters.
+MAT_OPEN='# <!-- grugops:materialized-kit -->'
+MAT_CLOSE='# <!-- /grugops:materialized-kit -->'
+MAT_SLOT='# 1. (installed) the absolute kit path the installer wrote above this line.'
+
+# materialize_adapter: lay an adapter down from $GRUGOPS_SRC, then strip any prior
+# grugops:materialized-kit block and inject the freshly-resolved KIT line above the slot
+# (strip-then-inject — content-idempotent, NOT cmp-idempotent; the link_or_copy cmp check is
+# false once a line is injected, Pitfall 1). Same $GRUGOPS_HOME → byte-identical → zero diff;
+# changed → correct update. Preserves the kit-vs-state blockquote (SC2) and the self-heal line
+# (gate Assertion 3) untouched — only inserts above the slot. args: $1=src $2=dest $3=label
+materialize_adapter() {
+  _src=$1; _dest=$2; _label=$3
+  if [ ! -f "$_src" ]; then
+    report skipped "$_label (source missing: $_src)"
+    return 0
+  fi
+  if [ "$DRY_RUN" = "1" ]; then
+    report "would-materialize" "$_label (KIT=$KIT_ROOT)"
+    return 0
+  fi
+  mkdirp "$(dirname -- "$_dest")"
+  # Strip any existing materialized-kit block from the SOURCE content while injecting the fresh
+  # one above the slot, in a single awk pass. The 'op'/'cl' names dodge BSD/macOS awk reserved
+  # words (same workaround as uninstall.sh). The injected block is byte-stable for a given path.
+  _tmp="$_dest.grugops.tmp.$$"
+  awk -v op="$MAT_OPEN" -v cl="$MAT_CLOSE" -v slot="$MAT_SLOT" -v kit="$KIT_ROOT" '
+    BEGIN { inblk=0 }
+    $0 == op { inblk=1; next }
+    inblk { if ($0 == cl) inblk=0; next }
+    $0 == slot {
+      print op
+      printf "KIT=\"%s\"\n", kit
+      print cl
+      print
+      next
+    }
+    { print }
+  ' "$_src" > "$_tmp"
+  mv -- "$_tmp" "$_dest"
+  [ -f "$_tmp" ] && rm -f -- "$_tmp"
+  report materialized "$_label (KIT=$KIT_ROOT)"
+}
+
+# seed_file: copy ONE bundled seed file into the target, skip-if-exists (D-04 never-clobber).
+# args: $1=src(under $KIT_ROOT/seed) $2=dest(under $TARGET) $3=label
+seed_file() {
+  if [ -f "$2" ]; then report skipped "$3 (target already has it — D-04)"; return 0; fi
+  if [ "$DRY_RUN" = "1" ]; then report would-add "$3"; return 0; fi
+  mkdirp "$(dirname -- "$2")"; cp -- "$1" "$2"; report created "$3"
+}
+
+# seed_state: seed the full per-repo state plane from $KIT_ROOT/seed/** into $TARGET, per-file
+# skip-if-exists (INSTALL-04, D-01/D-04). The seed travels with the kit copy (self-contained,
+# D-02). Explicitly mkdirp's plans/handoffs/ — a runtime dir ABSENT from the bundled skeleton
+# (Pitfall 4). DRY_RUN narrates and mutates nothing.
+seed_state() {
+  _seed="$KIT_ROOT/seed"
+  if [ ! -d "$_seed" ]; then
+    report skipped "state seed (no seed subtree at $_seed)"
+    return 0
+  fi
+  # Walk every file in the bundled seed; map seed/<rel> → $TARGET/<rel>, skip-if-exists.
+  ( cd "$_seed" && find . -type f | LC_ALL=C sort ) | while IFS= read -r _rel; do
+    _rel=${_rel#./}
+    seed_file "$_seed/$_rel" "$TARGET/$_rel" "$_rel"
+  done
+  # plans/handoffs/ is a runtime dir not present in the seed skeleton — create it explicitly.
+  if [ -d "$TARGET/plans/handoffs" ]; then
+    report skipped "plans/handoffs/ (target already has it — D-04)"
+  elif [ "$DRY_RUN" = "1" ]; then
+    report would-add "plans/handoffs/"
+  else
+    mkdirp "$TARGET/plans/handoffs"
+    report created "plans/handoffs/"
+  fi
+}
+
+# write_marker: write the .grugops/install.json install marker, byte-identically in sh + Node.
+# Exactly four stable fields in fixed order: kitVersion, grugopsHome, kitRoot, installMode. The
+# install-time timestamp is deliberately OMITTED (RESOLVED Q1, Option b) so re-install is
+# byte-zero-diff when $GRUGOPS_HOME is unchanged and updates correctly when it changes — OVERWRITE
+# unconditionally, no skip branch. 2-space indent + trailing newline matches Node's
+# JSON.stringify(obj,null,2)+"\n" exactly.
+write_marker() {
+  # kitVersion ← $KIT_ROOT/VERSION (copied there by copy_kit), fall back to the source VERSION.
+  _ver=""
+  if [ -f "$KIT_ROOT/VERSION" ]; then
+    _ver=$(head -n 1 -- "$KIT_ROOT/VERSION" 2>/dev/null || printf '')
+  elif [ -f "$GRUGOPS_SRC/agent-factory/VERSION" ]; then
+    _ver=$(head -n 1 -- "$GRUGOPS_SRC/agent-factory/VERSION" 2>/dev/null || printf '')
+  fi
+  if [ "$DRY_RUN" = "1" ]; then
+    report would-add ".grugops/install.json (marker)"
+    return 0
+  fi
+  mkdirp "$TARGET/.grugops"
+  printf '{\n  "kitVersion": "%s",\n  "grugopsHome": "%s",\n  "kitRoot": "%s",\n  "installMode": "%s"\n}\n' \
+    "$_ver" "$GRUGOPS_HOME" "$KIT_ROOT" "$INSTALL_MODE" > "$TARGET/.grugops/install.json"
+  report created ".grugops/install.json (marker)"
+}
+
+# ---------------------------------------------------------------------------
 # Host-tool detection (heuristic; informational — the adapter set is laid down
 # regardless because adapters are additive and tool-agnostic). Never fabricate a
 # tool-specific install command we cannot confirm: those are marked UNKNOWN - verify.
@@ -326,16 +449,25 @@ printf 'kit:    %s\n' "$KIT_ROOT"
 printf 'target: %s\n' "$TARGET"
 [ "$DRY_RUN" = "1" ] && printf 'mode:   DRY_RUN (no filesystem changes)\n'
 printf 'tools detected:%s\n' "$(detect_tools)"
+
+# 0. Copy the read-only kit to $GRUGOPS_HOME (atomic). Done first so the seed source and the
+#    VERSION stamp exist at $KIT_ROOT for the steps below.
+printf '\n-- kit --\n'
+copy_kit
+
 printf '\n-- adapters --\n'
 
-# 1. Standalone Claude skills (symlink-with-copy-fallback). AGENTS.md is the portable
-#    substrate every tool reads; ensure the target has it (link/copy if the source has one).
+# 1a. The 6 delegating dash skills (carry only the blockquote, no resolver block) — plain copy.
 for s in $SKILLS; do
+  [ "$s" = "grugops" ] && continue
   link_or_copy "$GRUGOPS_SRC/.claude/skills/$s/SKILL.md" "$TARGET/.claude/skills/$s/SKILL.md" ".claude/skills/$s/SKILL.md"
 done
 
-# 2. Orchestrator subagent wrapper.
-link_or_copy "$GRUGOPS_SRC/$AGENT_REL" "$TARGET/$AGENT_REL" "$AGENT_REL"
+# 1b. The 2 resolver adapters carry the materialized absolute KIT path (strip-then-inject,
+#     content-idempotent). NOT laid down via link_or_copy (its cmp idempotency breaks once a
+#     line is injected — Pitfall 1).
+materialize_adapter "$GRUGOPS_SRC/.claude/skills/grugops/SKILL.md" "$TARGET/.claude/skills/grugops/SKILL.md" ".claude/skills/grugops/SKILL.md"
+materialize_adapter "$GRUGOPS_SRC/$AGENT_REL" "$TARGET/$AGENT_REL" "$AGENT_REL"
 
 # 3. Portable AGENTS.md (the substrate Codex/Gemini/OpenCode/Copilot read). Only laid down
 #    if the target does not already have one — never overwrite a user's AGENTS.md.
@@ -353,6 +485,13 @@ merge_gemini
 
 # 6. Optional Copilot pointer (additive sentinel block; convenience only).
 ensure_block "$TARGET/$COPILOT_REL" "$COPILOT_OPEN" "$COPILOT_PTR" "$COPILOT_CLOSE" "$COPILOT_REL (optional Copilot pointer)"
+
+# 7. Seed the per-repo state plane into the target (skip-if-exists) so /grugops works on first run.
+printf '\n-- state seed --\n'
+seed_state
+
+# 8. Write the byte-parity install marker (grugops-owned; overwritten unconditionally, idempotent).
+write_marker
 
 printf '\n-- notes --\n'
 printf '  Claude Code plugin form (colon commands /grugops:plan) installs separately:\n'

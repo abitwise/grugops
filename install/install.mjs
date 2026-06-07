@@ -39,6 +39,7 @@ import {
   rmSync,
   renameSync,
   readSync,
+  readdirSync,
   lstatSync,
 } from "node:fs";
 import { dirname, join, resolve } from "node:path";
@@ -295,6 +296,142 @@ function detectTools() {
   return found.length ? found.join(" ") : "none-detected";
 }
 
+// copyKit: atomic install of the read-only kit to $GRUGOPS_HOME (INSTALL-04, D-05). Mirrors
+// copy_kit: always re-copy from the running checkout (no version negotiation), write to a temp
+// then rename so a concurrent reader never sees a partial kit. DRY_RUN mutates nothing.
+function copyKit() {
+  if (DRY_RUN) {
+    report("would-copy", `kit → ${KIT_ROOT}`);
+    return;
+  }
+  mkdirp(GRUGOPS_HOME);
+  const tmp = `${GRUGOPS_HOME}/.agent-factory.tmp.${process.pid}`;
+  rmSync(tmp, { recursive: true, force: true });
+  cpSync(join(GRUGOPS_SRC, "agent-factory"), tmp, { recursive: true });
+  rmSync(KIT_ROOT, { recursive: true, force: true });
+  renameSync(tmp, KIT_ROOT);
+  report("copied", `kit → ${KIT_ROOT}`);
+}
+
+// Materialization sentinels — byte-identical to install.sh.
+const MAT_OPEN = "# <!-- grugops:materialized-kit -->";
+const MAT_CLOSE = "# <!-- /grugops:materialized-kit -->";
+const MAT_SLOT = "# 1. (installed) the absolute kit path the installer wrote above this line.";
+
+// materializeAdapter: lay an adapter down from $GRUGOPS_SRC and inject the resolved KIT line
+// above the slot, stripping any prior grugops:materialized-kit block first (strip-then-inject,
+// content-idempotent — Pitfall 1). Byte-identical output to install.sh's awk pass. Preserves the
+// blockquote (SC2) and self-heal line (gate Assertion 3). args mirror materialize_adapter.
+function materializeAdapter(src, dest, label) {
+  if (!existsSync(src)) {
+    report("skipped", `${label} (source missing: ${src})`);
+    return;
+  }
+  if (DRY_RUN) {
+    report("would-materialize", `${label} (KIT=${KIT_ROOT})`);
+    return;
+  }
+  mkdirp(dirname(dest));
+  const lines = readFileSync(src, "utf8").split("\n");
+  const out = [];
+  let inblk = false;
+  for (const line of lines) {
+    if (line === MAT_OPEN) {
+      inblk = true;
+      continue;
+    }
+    if (inblk) {
+      if (line === MAT_CLOSE) inblk = false;
+      continue;
+    }
+    if (line === MAT_SLOT) {
+      out.push(MAT_OPEN);
+      out.push(`KIT="${KIT_ROOT}"`);
+      out.push(MAT_CLOSE);
+      out.push(line);
+      continue;
+    }
+    out.push(line);
+  }
+  writeFileSync(dest, out.join("\n"));
+  report("materialized", `${label} (KIT=${KIT_ROOT})`);
+}
+
+// seedFile: copy ONE bundled seed file into the target, skip-if-exists (D-04). Mirrors seed_file.
+function seedFile(src, dest, label) {
+  if (existsSync(dest)) {
+    report("skipped", `${label} (target already has it — D-04)`);
+    return;
+  }
+  if (DRY_RUN) {
+    report("would-add", label);
+    return;
+  }
+  mkdirp(dirname(dest));
+  copyFileSync(src, dest);
+  report("created", label);
+}
+
+// listSeedFiles: every file under the seed subtree, relative + sorted (LC_ALL=C byte order) to
+// match the sh `find … | LC_ALL=C sort` walk for identical report ordering.
+function listSeedFiles(root, base = "") {
+  const out = [];
+  for (const ent of readdirSync(join(root, base), { withFileTypes: true })) {
+    const rel = base ? `${base}/${ent.name}` : ent.name;
+    if (ent.isDirectory()) out.push(...listSeedFiles(root, rel));
+    else if (ent.isFile()) out.push(rel);
+  }
+  return out.sort();
+}
+
+// seedState: seed the full per-repo state plane from $KIT_ROOT/seed/** into $TARGET, per-file
+// skip-if-exists (INSTALL-04, D-01/D-04). Explicitly creates plans/handoffs/ (a runtime dir
+// absent from the seed skeleton — Pitfall 4). Mirrors seed_state. DRY_RUN mutates nothing.
+function seedState() {
+  const seed = join(KIT_ROOT, "seed");
+  if (!existsSync(seed)) {
+    report("skipped", `state seed (no seed subtree at ${seed})`);
+    return;
+  }
+  for (const rel of listSeedFiles(seed)) {
+    seedFile(join(seed, rel), join(TARGET, rel), rel);
+  }
+  const handoffs = join(TARGET, "plans", "handoffs");
+  if (existsSync(handoffs)) {
+    report("skipped", "plans/handoffs/ (target already has it — D-04)");
+  } else if (DRY_RUN) {
+    report("would-add", "plans/handoffs/");
+  } else {
+    mkdirp(handoffs);
+    report("created", "plans/handoffs/");
+  }
+}
+
+// writeMarker: write .grugops/install.json byte-identically to install.sh. Exactly four stable
+// fields in fixed order; the install-time timestamp is deliberately OMITTED (RESOLVED Q1, Option
+// b) — overwrite unconditionally, idempotent.
+function writeMarker() {
+  let ver = "";
+  if (existsSync(join(KIT_ROOT, "VERSION"))) {
+    ver = readFileSync(join(KIT_ROOT, "VERSION"), "utf8").split("\n")[0];
+  } else if (existsSync(join(GRUGOPS_SRC, "agent-factory", "VERSION"))) {
+    ver = readFileSync(join(GRUGOPS_SRC, "agent-factory", "VERSION"), "utf8").split("\n")[0];
+  }
+  if (DRY_RUN) {
+    report("would-add", ".grugops/install.json (marker)");
+    return;
+  }
+  mkdirp(join(TARGET, ".grugops"));
+  const marker = {
+    kitVersion: ver,
+    grugopsHome: GRUGOPS_HOME,
+    kitRoot: KIT_ROOT,
+    installMode: INSTALL_MODE,
+  };
+  writeFileSync(join(TARGET, ".grugops", "install.json"), JSON.stringify(marker, null, 2) + "\n");
+  report("created", ".grugops/install.json (marker)");
+}
+
 // --- run -------------------------------------------------------------------
 console.log("== grugops install ==");
 console.log(`source: ${GRUGOPS_SRC}`);
@@ -303,9 +440,16 @@ console.log(`kit:    ${KIT_ROOT}`);
 console.log(`target: ${TARGET}`);
 if (DRY_RUN) console.log("mode:   DRY_RUN (no filesystem changes)");
 console.log(`tools detected: ${detectTools()}`);
+
+// 0. Copy the read-only kit to $GRUGOPS_HOME (atomic) — first so the seed source + VERSION exist.
+console.log("\n-- kit --");
+copyKit();
+
 console.log("\n-- adapters --");
 
+// 1a. The 6 delegating dash skills (blockquote only, no resolver block) — plain copy.
 for (const s of SKILLS) {
+  if (s === "grugops") continue;
   linkOrCopy(
     join(GRUGOPS_SRC, ".claude", "skills", s, "SKILL.md"),
     join(TARGET, ".claude", "skills", s, "SKILL.md"),
@@ -313,7 +457,13 @@ for (const s of SKILLS) {
   );
 }
 
-linkOrCopy(join(GRUGOPS_SRC, AGENT_REL), join(TARGET, AGENT_REL), AGENT_REL);
+// 1b. The 2 resolver adapters carry the materialized absolute KIT path (strip-then-inject).
+materializeAdapter(
+  join(GRUGOPS_SRC, ".claude", "skills", "grugops", "SKILL.md"),
+  join(TARGET, ".claude", "skills", "grugops", "SKILL.md"),
+  ".claude/skills/grugops/SKILL.md",
+);
+materializeAdapter(join(GRUGOPS_SRC, AGENT_REL), join(TARGET, AGENT_REL), AGENT_REL);
 
 if (existsSync(join(TARGET, "AGENTS.md"))) {
   report("skipped", "AGENTS.md (target already has one — left untouched)");
@@ -330,6 +480,13 @@ ensureBlock(
   COPILOT_CLOSE,
   `${COPILOT_REL} (optional Copilot pointer)`,
 );
+
+// 7. Seed the per-repo state plane into the target (skip-if-exists) so /grugops works first run.
+console.log("\n-- state seed --");
+seedState();
+
+// 8. Write the byte-parity install marker (grugops-owned; overwritten unconditionally).
+writeMarker();
 
 console.log("\n-- notes --");
 console.log("  Claude Code plugin form (colon commands /grugops:plan) installs separately:");
