@@ -289,6 +289,14 @@ function checkConfig() {
     err(`${rel}: not valid JSON`);
     return;
   }
+  // JSON.parse("null") returns null WITHOUT throwing (so does a bare array / primitive),
+  // slipping past the try/catch above; the cfg[key] deref below would then crash with an
+  // uncaught TypeError, violating the file-header fail-closed invariant. Reject any
+  // non-object parse result as a greppable finding before dereferencing (CR-03 / GAP-3).
+  if (cfg === null || typeof cfg !== "object" || Array.isArray(cfg)) {
+    err(`${rel}: not a JSON object`);
+    return;
+  }
   for (const key of ["mode", "cadence", "autonomy"]) {
     if (typeof cfg[key] !== "string" || cfg[key].trim() === "") {
       err(`${rel}: missing or empty required key "${key}"`);
@@ -370,6 +378,13 @@ function checkPackaging() {
       manifest = JSON.parse(raw);
     } catch {
       err(`${rel}: not valid JSON`);
+      return;
+    }
+    // Twin of checkConfig's guard: JSON.parse("null") returns null without throwing (so does
+    // an array / primitive), and the manifest.name deref below would crash with an uncaught
+    // TypeError. Reject any non-object parse result as a greppable finding (CR-03 / GAP-3).
+    if (manifest === null || typeof manifest !== "object" || Array.isArray(manifest)) {
+      err(`${rel}: not a JSON object`);
       return;
     }
     if (typeof manifest.name !== "string" || manifest.name.trim() === "") {
