@@ -259,6 +259,166 @@ else
   fail "uninstall did not cleanly strip the Copilot block (distinct-sentinel removal broken)"
 fi
 
+# ===========================================================================
+# Checks 7-12 — INSTALL-05 doctor (`--check`). Added in Plan 09-04 (SC1/SC2/SC5).
+#
+# These EXTEND install.test.sh with the doctor surface while install.two-root.test.sh stays the
+# deep two-root harness (D-09 / D-10: two harnesses, some overlap accepted, neither edits the
+# other or the Phase-7 grep gate). Every check runs under a hermetic mktemp -d kit-home + target
+# (the real repo and $HOME are never mutated) and uses the capture-rc idiom
+# (`_out=$(... --check 2>&1) && _rc=0 || _rc=$?`) so `set -eu` never aborts on the doctor's
+# nonzero exit. The hermetic two-root install driver is borrowed from install.two-root.test.sh.
+# ---------------------------------------------------------------------------
+
+# run_install <target> <home> [extra args…] — drive install.sh hermetically into an isolated
+# target + kit-home with INSTALL_MODE=copy (deterministic bytes). Always --yes (unattended).
+run_install() {
+  _t=$1; _h=$2; shift 2
+  INSTALL_MODE=copy GRUGOPS_SRC="$REPO_ROOT" GRUGOPS_HOME="$_h" TARGET="$_t" \
+    sh "$SCRIPT_DIR/install.sh" --yes "$@" >/dev/null 2>&1
+}
+
+# doctor <target> <home> [extra args…] — run the non-mutating doctor on a target+home, capture
+# the combined output in DOC_OUT and the exit status in DOC_RC (capture-rc idiom; survives set -e).
+doctor() {
+  _t=$1; _h=$2; shift 2
+  DOC_OUT=$(GRUGOPS_HOME="$_h" TARGET="$_t" sh "$SCRIPT_DIR/install.sh" --check "$@" 2>&1) \
+    && DOC_RC=0 || DOC_RC=$?
+}
+
+# ---------------------------------------------------------------------------
+# Check 7 — INSTALL-05 (SC5): a good split install → doctor exits 0 with ALL CHECKS PASSED.
+# ---------------------------------------------------------------------------
+printf '\n[7] doctor: good split install → --check exits 0 (ALL CHECKS PASSED)\n'
+D7_T="$WORK/doc-good"; D7_H="$WORK/doc-good-home"
+run_install "$D7_T" "$D7_H" || true
+doctor "$D7_T" "$D7_H"
+if [ "$DOC_RC" -eq 0 ] && printf '%s' "$DOC_OUT" | grep -qF 'ALL CHECKS PASSED'; then
+  pass "good split → --check exits 0 with ALL CHECKS PASSED"
+else
+  fail "good split --check did not pass cleanly (rc=$DOC_RC: $DOC_OUT)"
+fi
+
+# ---------------------------------------------------------------------------
+# Check 8 — INSTALL-05 (SC5): missing kit → loud FAIL naming the kit. After a good install,
+#            `rm -rf "$GRUGOPS_HOME/agent-factory"` (RESEARCH Discretion 3) → --check exits
+#            nonzero AND the first-failure line names the missing kit (agent-factory) + the
+#            referencing artifact the installer wrote (.grugops/install.json).
+# ---------------------------------------------------------------------------
+printf '\n[8] doctor: missing kit (rm -rf $GRUGOPS_HOME/agent-factory) → --check FAILS naming the kit\n'
+D8_T="$WORK/doc-nokit"; D8_H="$WORK/doc-nokit-home"
+run_install "$D8_T" "$D8_H" || true
+rm -rf -- "$D8_H/agent-factory"
+doctor "$D8_T" "$D8_H"
+if [ "$DOC_RC" -ne 0 ] \
+   && printf '%s' "$DOC_OUT" | grep -qF 'agent-factory' \
+   && printf '%s' "$DOC_OUT" | grep -qF 'referenced by'; then
+  pass "missing kit → --check nonzero, names the missing kit + its referencing file"
+else
+  fail "missing-kit --check did not fail loudly naming the kit (rc=$DOC_RC: $DOC_OUT)"
+fi
+
+# ---------------------------------------------------------------------------
+# Check 9 — SC1: deterministic first-failure. Two --check runs on the SAME broken target produce
+#            a BYTE-IDENTICAL first-failure line (the ordered stat set is deterministic).
+# ---------------------------------------------------------------------------
+printf '\n[9] doctor: first-failure line is byte-identical across two runs (deterministic order)\n'
+# Reuse the broken (missing-kit) target from Check 8 — its first failure is stable.
+doctor "$D8_T" "$D8_H"; _ff1=$(printf '%s\n' "$DOC_OUT" | grep -F 'FAIL' | head -n1)
+doctor "$D8_T" "$D8_H"; _ff2=$(printf '%s\n' "$DOC_OUT" | grep -F 'FAIL' | head -n1)
+if [ -n "$_ff1" ] && [ "$_ff1" = "$_ff2" ]; then
+  pass "first-failure line identical across runs (deterministic): $_ff1"
+else
+  fail "first-failure line differs across runs (ff1='$_ff1' ff2='$_ff2')"
+fi
+
+# ---------------------------------------------------------------------------
+# Check 10 — SC2: the full exit-code matrix. pass=0 (Check 7), FAIL≠0 (Check 8), and the two
+#             WARN arms here: a WARN-only condition exits 0 bare, nonzero under --strict. The WARN
+#             is induced by bumping $GRUGOPS_HOME/agent-factory/VERSION (kit-version skew vs the
+#             marker) — a detect-only WARN, not a FAIL.
+# ---------------------------------------------------------------------------
+printf '\n[10] doctor: exit-code matrix — pass=0, FAIL!=0, WARN-only->0, WARN+--strict->!=0\n'
+D10_T="$WORK/doc-warn"; D10_H="$WORK/doc-warn-home"
+run_install "$D10_T" "$D10_H" || true
+printf '9.9.9-skew\n' > "$D10_H/agent-factory/VERSION"   # kit-version skew → a WARN finding
+# pass=0 (re-assert from a fresh good install for completeness of the matrix in ONE place).
+doctor "$D7_T" "$D7_H"; _rc_pass=$DOC_RC
+# FAIL≠0 (the missing-kit target).
+doctor "$D8_T" "$D8_H"; _rc_fail=$DOC_RC
+# WARN-only → 0 bare.
+doctor "$D10_T" "$D10_H"; _rc_warn=$DOC_RC; _warn_out=$DOC_OUT
+# WARN + --strict → nonzero.
+doctor "$D10_T" "$D10_H" --strict; _rc_warn_strict=$DOC_RC
+if [ "$_rc_pass" -eq 0 ] \
+   && [ "$_rc_fail" -ne 0 ] \
+   && [ "$_rc_warn" -eq 0 ] && printf '%s' "$_warn_out" | grep -qiF 'WARN' \
+   && [ "$_rc_warn_strict" -ne 0 ]; then
+  pass "exit-code matrix holds: pass=$_rc_pass FAIL=$_rc_fail WARN=$_rc_warn WARN+strict=$_rc_warn_strict"
+else
+  fail "exit-code matrix broken (pass=$_rc_pass FAIL=$_rc_fail WARN=$_rc_warn WARN+strict=$_rc_warn_strict; warn-out=$_warn_out)"
+fi
+
+# ---------------------------------------------------------------------------
+# Check 11 — SC1: dangling symlink → FAIL with a symlink-specific line. Replace a load-bearing
+#             resolved path (plans/handoffs) with a symlink whose target does not exist; the
+#             doctor's `[ -L ] && [ ! -e ]` branch fires a distinct "dangling symlink:" finding.
+# ---------------------------------------------------------------------------
+printf '\n[11] doctor: dangling symlink in the resolved set → FAIL (symlink-specific message)\n'
+D11_T="$WORK/doc-dangling"; D11_H="$WORK/doc-dangling-home"
+run_install "$D11_T" "$D11_H" || true
+rm -rf -- "$D11_T/plans/handoffs"
+( cd "$D11_T" && ln -s "$D11_T/this-target-does-not-exist" "plans/handoffs" )
+doctor "$D11_T" "$D11_H"
+if [ "$DOC_RC" -ne 0 ] && printf '%s' "$DOC_OUT" | grep -qiF 'dangling symlink'; then
+  pass "dangling symlink → --check FAILS with a symlink-specific message"
+else
+  fail "dangling symlink not caught with a symlink-specific FAIL (rc=$DOC_RC: $DOC_OUT)"
+fi
+
+# ---------------------------------------------------------------------------
+# Check 12 — SC5 (read-only by construction, T-09-02): a DOUBLE --check mutates NOTHING. Snapshot
+#             the target before and after two consecutive --check runs and assert zero diff.
+# ---------------------------------------------------------------------------
+printf '\n[12] doctor: double --check is read-only (target snapshot unchanged)\n'
+D12_T="$WORK/doc-ro"; D12_H="$WORK/doc-ro-home"
+run_install "$D12_T" "$D12_H" || true
+snapshot "$D12_T" "$WORK/doc-ro.pre"
+doctor "$D12_T" "$D12_H"
+doctor "$D12_T" "$D12_H"
+snapshot "$D12_T" "$WORK/doc-ro.post"
+if "$DIFF" "$WORK/doc-ro.pre" "$WORK/doc-ro.post" >/dev/null 2>&1; then
+  pass "double --check left the target byte-for-byte unchanged (doctor mutates nothing)"
+else
+  printf '    (pre vs post diff:)\n'
+  "$DIFF" "$WORK/doc-ro.pre" "$WORK/doc-ro.post" 2>&1 | sed 's/^/    /'
+  fail "--check mutated the target (NOT read-only) — T-09-02 VIOLATION"
+fi
+
+# ---------------------------------------------------------------------------
+# Check 13 — sh<->Node doctor parity. install.sh --check and install.mjs --check on the SAME
+#             target+home must agree on the exit code AND the first-failure line. Gated on
+#             `command -v node` with a skip-with-note pass when node is absent (mirror Check 4).
+# ---------------------------------------------------------------------------
+printf '\n[13] doctor parity: install.sh --check == install.mjs --check (rc + first-failure)\n'
+if command -v node >/dev/null 2>&1; then
+  P_T="$WORK/doc-parity"; P_H="$WORK/doc-parity-home"
+  run_install "$P_T" "$P_H" || true
+  rm -rf -- "$P_H/agent-factory"   # induce a FAIL so the first-failure line is non-empty + comparable
+  _sh_out=$(GRUGOPS_HOME="$P_H" TARGET="$P_T" sh "$SCRIPT_DIR/install.sh" --check 2>&1) && _sh_rc=0 || _sh_rc=$?
+  _mj_out=$(GRUGOPS_HOME="$P_H" TARGET="$P_T" node "$SCRIPT_DIR/install.mjs" --check 2>&1) && _mj_rc=0 || _mj_rc=$?
+  _sh_ff=$(printf '%s\n' "$_sh_out" | grep -F 'FAIL' | head -n1)
+  _mj_ff=$(printf '%s\n' "$_mj_out" | grep -F 'FAIL' | head -n1)
+  if [ "$_sh_rc" = "$_mj_rc" ] && [ -n "$_sh_ff" ] && [ "$_sh_ff" = "$_mj_ff" ]; then
+    pass "sh and Node doctors agree (rc=$_sh_rc, first-failure identical)"
+  else
+    printf '    sh : rc=%s ff=%s\n    mjs: rc=%s ff=%s\n' "$_sh_rc" "$_sh_ff" "$_mj_rc" "$_mj_ff"
+    fail "sh and Node doctors diverge (rc or first-failure line)"
+  fi
+else
+  pass "node not found — sh/Node doctor parity skipped (UNKNOWN - verify with node present)"
+fi
+
 # ---------------------------------------------------------------------------
 # Result
 # ---------------------------------------------------------------------------
