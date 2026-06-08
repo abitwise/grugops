@@ -488,6 +488,120 @@ else
   pass "node not found — garbled-marker parity check skipped (UNKNOWN - verify with node present)"
 fi
 
+# ===========================================================================
+# Checks 16-18 — the parity-CLASS regression gates (gap-closure remediation of 09-REVIEW
+# CR-01/CR-02). Checks 14/15 closed only the EXACT reported spellings: a trailing-slash home and
+# a fully-unparseable marker with no surviving kitRoot line. Code review proved the underlying
+# CLASS was still open — a `.`/`..` segment in GRUGOPS_HOME flips the sh exit code under --strict
+# (lexical slash-collapse does not collapse dot segments like Node resolve() does), and a marker
+# with a VALID kitRoot LINE plus trailing non-JSON garbage false-greens the sh doctor (the
+# line-grep fold extracts the kitRoot and proceeds to rc=0 while the Node oracle JSON.parse-throws
+# → rc=1). These three checks feed the divergent CLASS inputs and assert sh agrees with the Node
+# oracle on rc (and, for the garbled case, the byte-identical first-failure line). Each is a genuine
+# RED-without-fix / GREEN-with-fix gate (proven by reverting install.sh). Hermetic ($WORK/... kit +
+# target; the real repo and $HOME are never touched) and node-gated with a skip-with-note pass
+# (mirror Checks 13-15). Placed after Check 15, before the Result block.
+# ---------------------------------------------------------------------------
+
+# ---------------------------------------------------------------------------
+# Check 16 — CR-01 CLASS: a `.`-containing GRUGOPS_HOME under --strict → IDENTICAL rc from both
+#             doctors. Install with the NORMAL home (no dot segment), then CHECK with the SAME home
+#             spelled with a `/./` segment inserted — Node resolve() collapses it (rc=0); before the
+#             fix the sh side kept the literal `/./` → a textually-different KIT_ROOT → cosmetic
+#             WARN → --strict → sh rc=1 while Node rc=0. After the fix both → rc=0.
+# ---------------------------------------------------------------------------
+printf '\n[16] doctor parity: dot-segment (/./) GRUGOPS_HOME + --strict → identical rc (CR-01 class)\n'
+if command -v node >/dev/null 2>&1; then
+  # Install at $WORK/dot/x/home so the dot-spelling $WORK/dot/x/./home collapses to the SAME home.
+  D16_T="$WORK/doc-dot"; D16_H="$WORK/dot/x/home"
+  mkdir -p "$(dirname "$D16_H")"
+  run_install "$D16_T" "$D16_H" || true            # install with the normal (no-dot) home
+  _H_DOT="$WORK/dot/x/./home"                       # check with a literal /./ segment
+  _sh_out=$(GRUGOPS_HOME="$_H_DOT" TARGET="$D16_T" sh "$SCRIPT_DIR/install.sh" --check --strict 2>&1) && _sh_rc=0 || _sh_rc=$?
+  _mj_out=$(GRUGOPS_HOME="$_H_DOT" TARGET="$D16_T" node "$SCRIPT_DIR/install.mjs" --check --strict 2>&1) && _mj_rc=0 || _mj_rc=$?
+  if [ "$_sh_rc" = "$_mj_rc" ] && [ "$_sh_rc" -eq 0 ]; then
+    pass "dot-segment home + --strict: sh and Node doctors agree (rc=$_sh_rc)"
+  else
+    printf '    sh rc=%s\n    mjs rc=%s\n' "$_sh_rc" "$_mj_rc"
+    fail "dot-segment home + --strict: doctors diverge (sh rc=$_sh_rc mjs rc=$_mj_rc)"
+  fi
+else
+  pass "node not found — dot-segment parity check skipped (UNKNOWN - verify with node present)"
+fi
+
+# ---------------------------------------------------------------------------
+# Check 17 — CR-01 CLASS: a `..`-containing GRUGOPS_HOME under --strict → IDENTICAL rc. Install at
+#             $WORK/dotdot/x/sub/home, then CHECK with $WORK/dotdot/x/sub/foo/../home — the `foo/..`
+#             collapses BACK to the install home (Node resolve()), so a correct sh normalizer
+#             resolves to the same kit identity and both → rc=0. Before the fix the sh side kept the
+#             literal `/../` → cosmetic WARN → --strict → sh rc=1 while Node rc=0.
+# ---------------------------------------------------------------------------
+printf '\n[17] doctor parity: dotdot-segment (/../) GRUGOPS_HOME + --strict → identical rc (CR-01 class)\n'
+if command -v node >/dev/null 2>&1; then
+  D17_T="$WORK/doc-dotdot"; D17_H="$WORK/dotdot/x/sub/home"
+  mkdir -p "$(dirname "$D17_H")"
+  run_install "$D17_T" "$D17_H" || true            # install with the normal (no-dotdot) home
+  _H_DD="$WORK/dotdot/x/sub/foo/../home"            # check with a /../ that collapses back to home
+  _sh_out=$(GRUGOPS_HOME="$_H_DD" TARGET="$D17_T" sh "$SCRIPT_DIR/install.sh" --check --strict 2>&1) && _sh_rc=0 || _sh_rc=$?
+  _mj_out=$(GRUGOPS_HOME="$_H_DD" TARGET="$D17_T" node "$SCRIPT_DIR/install.mjs" --check --strict 2>&1) && _mj_rc=0 || _mj_rc=$?
+  if [ "$_sh_rc" = "$_mj_rc" ] && [ "$_sh_rc" -eq 0 ]; then
+    pass "dotdot-segment home + --strict: sh and Node doctors agree (rc=$_sh_rc)"
+  else
+    printf '    sh rc=%s\n    mjs rc=%s\n' "$_sh_rc" "$_mj_rc"
+    fail "dotdot-segment home + --strict: doctors diverge (sh rc=$_sh_rc mjs rc=$_mj_rc)"
+  fi
+else
+  pass "node not found — dotdot-segment parity check skipped (UNKNOWN - verify with node present)"
+fi
+
+# ---------------------------------------------------------------------------
+# Check 18 — CR-02 CLASS: a garbled marker that KEEPS an extractable `"kitRoot": "<real>"` LINE but
+#             appends trailing non-JSON garbage → the sh doctor must now FAIL (rc=1) with the SAME
+#             not-installed first-failure line the Node oracle emits — no longer a FALSE-GREEN.
+#             Before the fix the sh line-grep extracted the surviving kitRoot, skipped the fold, and
+#             reached rc=0 (ALL CHECKS PASSED) while Node JSON.parse-threw → rc=1. This is the worst
+#             of the CR-02 class (a corrupt install passing the doctor that exists to catch it).
+#             Also re-assert the happy path: a genuinely valid marker still PASSES on both sides
+#             (guard against the structural validator over-rejecting and regressing the good case).
+# ---------------------------------------------------------------------------
+printf '\n[18] doctor parity: garbled-marker-with-surviving-kitRoot-line → sh FAILS identically (CR-02 class)\n'
+if command -v node >/dev/null 2>&1; then
+  D18_T="$WORK/doc-garbled-line"; D18_H="$WORK/doc-garbled-line-home"
+  run_install "$D18_T" "$D18_H" || true
+  # Extract the real kitRoot the installer wrote, then corrupt the marker in place so it KEEPS a
+  # valid `"kitRoot": "<real>"` line but appends trailing non-JSON garbage (the canonical truncated/
+  # partial-write corruption a doctor exists to catch). This is the exact shape the line-grep fold
+  # could not see — distinct from Check 15's fully-unparseable no-kitRoot-line marker.
+  _real_kit=$(grep -F 'kitRoot' "$D18_T/.grugops/install.json" | sed 's/.*: *"\(.*\)".*/\1/')
+  printf '{\n  "kitRoot": "%s" GARBAGE NOT JSON {{{\n' "$_real_kit" > "$D18_T/.grugops/install.json"
+  _sh_out=$(GRUGOPS_HOME="$D18_H" TARGET="$D18_T" sh "$SCRIPT_DIR/install.sh" --check 2>&1) && _sh_rc=0 || _sh_rc=$?
+  _mj_out=$(GRUGOPS_HOME="$D18_H" TARGET="$D18_T" node "$SCRIPT_DIR/install.mjs" --check 2>&1) && _mj_rc=0 || _mj_rc=$?
+  _sh_ff=$(printf '%s\n' "$_sh_out" | grep -F 'FAIL' | head -n1)
+  _mj_ff=$(printf '%s\n' "$_mj_out" | grep -F 'FAIL' | head -n1)
+  if [ "$_sh_rc" = "$_mj_rc" ] && [ "$_sh_rc" -ne 0 ] \
+     && [ -n "$_sh_ff" ] && [ "$_sh_ff" = "$_mj_ff" ] \
+     && printf '%s' "$_sh_ff" | grep -qF 'not installed in'; then
+    pass "garbled-with-kitRoot-line: sh no longer false-greens; sh and Node agree (rc=$_sh_rc, not-installed first-failure identical)"
+  else
+    printf '    sh : rc=%s ff=%s\n    mjs: rc=%s ff=%s\n' "$_sh_rc" "$_sh_ff" "$_mj_rc" "$_mj_ff"
+    fail "garbled-with-kitRoot-line: sh false-greens or doctors diverge (rc or first-failure line, or not folded to not-installed)"
+  fi
+  # Happy-path guard: a fresh, GENUINELY valid marker still passes on both sides (no over-rejection).
+  D18b_T="$WORK/doc-valid-guard"; D18b_H="$WORK/doc-valid-guard-home"
+  run_install "$D18b_T" "$D18b_H" || true
+  _sh_out=$(GRUGOPS_HOME="$D18b_H" TARGET="$D18b_T" sh "$SCRIPT_DIR/install.sh" --check 2>&1) && _sh_rc=0 || _sh_rc=$?
+  _mj_out=$(GRUGOPS_HOME="$D18b_H" TARGET="$D18b_T" node "$SCRIPT_DIR/install.mjs" --check 2>&1) && _mj_rc=0 || _mj_rc=$?
+  if [ "$_sh_rc" -eq 0 ] && [ "$_mj_rc" -eq 0 ] \
+     && printf '%s' "$_sh_out" | grep -qF 'ALL CHECKS PASSED'; then
+    pass "valid marker still PASSES on both sides (structural validator does not over-reject)"
+  else
+    printf '    sh rc=%s mjs rc=%s\n' "$_sh_rc" "$_mj_rc"
+    fail "valid marker no longer passes — structural validator OVER-REJECTS the happy path (sh rc=$_sh_rc mjs rc=$_mj_rc)"
+  fi
+else
+  pass "node not found — garbled-with-kitRoot-line parity check skipped (UNKNOWN - verify with node present)"
+fi
+
 # ---------------------------------------------------------------------------
 # Result
 # ---------------------------------------------------------------------------
