@@ -236,6 +236,52 @@ else
   pass "node not found — three-way resolution parity skipped (UNKNOWN - verify with node present)"
 fi
 
+# (g) NULL-LITERAL FAIL-CLOSED REGRESSION (CR-03 / GAP-3 / VAL-02). JSON.parse("null") is valid
+# ECMAScript that returns null WITHOUT throwing, so the validator's try/catch passes silently —
+# then the cfg[key] / manifest.name deref crashed with an uncaught TypeError (a Node stack trace,
+# NOT the documented greppable finding), violating the file-header fail-closed invariant and
+# skipping every check after the crash. These two checks feed the EXACT crashing input
+# (`printf 'null' > …`) and assert the validator now degrades it to a finding: nonzero exit + a
+# 'not a JSON object' finding + NO TypeError / stack trace. RED before the Task-1 guards, GREEN
+# after. Hermetic: each kit tree is built under $WORK from $FIX/good (cp -R), so the real repo is
+# never mutated; $WORK is already trapped for cleanup.
+printf '\n-- null-literal fail-closed regression (CR-03 / GAP-3) --\n'
+
+# (g.1) null-literal factory.config.json → finding, not a TypeError.
+NULLCFG_KIT="$WORK/null-config-kit"
+mkdir -p "$NULLCFG_KIT"
+cp -R -- "$FIX/good/agent-factory" "$NULLCFG_KIT/agent-factory"
+cp -- "$FIX/good/AGENTS.md" "$NULLCFG_KIT/AGENTS.md"
+[ -d "$FIX/good/.claude-plugin" ] && cp -R -- "$FIX/good/.claude-plugin" "$NULLCFG_KIT/.claude-plugin"
+printf 'null' > "$NULLCFG_KIT/agent-factory/config/factory.config.json"
+OUT=$(VALIDATE_KIT_ROOT="$NULLCFG_KIT" VALIDATE_ROOT="$NULLCFG_KIT" node "$VALIDATOR" 2>&1) && RC=0 || RC=$?
+if [ "$RC" -ne 0 ] \
+   && printf '%s' "$OUT" | grep -qiF 'not a JSON object' \
+   && ! printf '%s' "$OUT" | grep -qF 'TypeError' \
+   && ! printf '%s' "$OUT" | grep -qiF 'at Object.<anonymous>'; then
+  pass "null-literal factory.config.json → finding, not a TypeError"
+else
+  fail "null-literal factory.config.json should be a finding, not a crash (rc=$RC: $OUT)"
+fi
+
+# (g.2) null-literal plugin.json → finding, not a TypeError.
+NULLPLG_KIT="$WORK/null-plugin-kit"
+mkdir -p "$NULLPLG_KIT"
+cp -R -- "$FIX/good/agent-factory" "$NULLPLG_KIT/agent-factory"
+cp -- "$FIX/good/AGENTS.md" "$NULLPLG_KIT/AGENTS.md"
+[ -d "$FIX/good/.claude-plugin" ] && cp -R -- "$FIX/good/.claude-plugin" "$NULLPLG_KIT/.claude-plugin"
+mkdir -p "$NULLPLG_KIT/.claude-plugin"
+printf 'null' > "$NULLPLG_KIT/.claude-plugin/plugin.json"
+OUT=$(VALIDATE_KIT_ROOT="$NULLPLG_KIT" VALIDATE_ROOT="$NULLPLG_KIT" node "$VALIDATOR" 2>&1) && RC=0 || RC=$?
+if [ "$RC" -ne 0 ] \
+   && printf '%s' "$OUT" | grep -qiF 'not a JSON object' \
+   && ! printf '%s' "$OUT" | grep -qF 'TypeError' \
+   && ! printf '%s' "$OUT" | grep -qiF 'at Object.<anonymous>'; then
+  pass "null-literal plugin.json → finding, not a TypeError"
+else
+  fail "null-literal plugin.json should be a finding, not a crash (rc=$RC: $OUT)"
+fi
+
 # ── Result ───────────────────────────────────────────────────────────────────────────────────
 printf '\n'
 if [ "$FAILS" -eq 0 ]; then
