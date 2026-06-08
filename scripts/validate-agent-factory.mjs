@@ -222,31 +222,38 @@ function checkSections(rel, text, sections, kind) {
 function checkRequiredFiles() {
   for (const r of ROLES) {
     const rel = `agent-factory/roles/${r}.md`;
-    if (!exists(rel)) err(`missing required role file: ${rel}`);
+    if (!kitExists(rel)) err(`missing required role file: ${rel}`);
   }
   for (const w of WORKFLOWS) {
     const rel = `agent-factory/workflows/${w}.md`;
-    if (!exists(rel)) err(`missing required workflow file: ${rel}`);
+    if (!kitExists(rel)) err(`missing required workflow file: ${rel}`);
   }
   for (const h of FROZEN_HANDOFFS) {
     const rel = `agent-factory/handoffs/${h}.md`;
-    if (!exists(rel)) err(`missing required handoff file: ${rel}`);
+    if (!kitExists(rel)) err(`missing required handoff file: ${rel}`);
   }
   for (const c of CHECKLISTS) {
     const rel = `agent-factory/checklists/${c}.md`;
-    if (!exists(rel)) err(`missing required checklist file: ${rel}`);
+    if (!kitExists(rel)) err(`missing required checklist file: ${rel}`);
   }
+  // The former single mixed loop (lines ~201-211) is split by Phase-7 classification:
+  // KIT refs (agent-factory/… + AGENTS.md) resolve under KIT_ROOT…
   for (const rel of [
     "agent-factory/config/factory.config.json",
     "agent-factory/config/factory.config.md",
+    "agent-factory/packaging/adapters.md",
+    "AGENTS.md",
+  ]) {
+    if (!kitExists(rel)) err(`missing required file: ${rel}`);
+  }
+  // …and STATE refs (plans/…) resolve under STATE_ROOT.
+  for (const rel of [
     "plans/board.md",
     "plans/traceability.md",
     "plans/nfr-catalog.md",
     "plans/metrics.md",
-    "agent-factory/packaging/adapters.md",
-    "AGENTS.md",
   ]) {
-    if (!exists(rel)) err(`missing required file: ${rel}`);
+    if (!stateExists(rel)) err(`missing required file: ${rel}`);
   }
 }
 
@@ -254,7 +261,7 @@ function checkRequiredFiles() {
 function checkRoleSections() {
   for (const r of ROLES) {
     const rel = `agent-factory/roles/${r}.md`;
-    const text = safeRead(rel);
+    const text = kitRead(rel);
     if (text === null) continue; // missing-file already reported by checkRequiredFiles
     checkSections(rel, text, ROLE_SECTIONS, "role");
   }
@@ -264,7 +271,7 @@ function checkRoleSections() {
 function checkWorkflowSections() {
   for (const w of WORKFLOWS) {
     const rel = `agent-factory/workflows/${w}.md`;
-    const text = safeRead(rel);
+    const text = kitRead(rel);
     if (text === null) continue;
     checkSections(rel, text, WORKFLOW_SECTIONS, "workflow");
   }
@@ -273,7 +280,7 @@ function checkWorkflowSections() {
 // ── Check 4: config parses + has mode/cadence/autonomy ────────────────────────────────────────
 function checkConfig() {
   const rel = "agent-factory/config/factory.config.json";
-  const raw = safeRead(rel);
+  const raw = kitRead(rel);
   if (raw === null) return; // missing-file already reported
   let cfg;
   try {
@@ -300,12 +307,12 @@ function frontMatter(text) {
 }
 
 function checkTickets() {
-  const ticketFiles = listDir("plans/tickets").filter((f) => f.endsWith(".md"));
+  const ticketFiles = stateListDir("plans/tickets").filter((f) => f.endsWith(".md"));
   if (ticketFiles.length === 0) return; // D-43 vacuity: zero tickets → green
 
-  const board = safeRead("plans/board.md") || "";
+  const board = stateRead("plans/board.md") || "";
   const boardLines = board.split("\n");
-  const trace = safeRead("plans/traceability.md") || "";
+  const trace = stateRead("plans/traceability.md") || "";
 
   // Full-segment column match (WR-03): a board heading "## <name> (WIP …)" names the
   // column <name>; we compare <name> for EQUALITY with the ticket column, never by bare
@@ -323,7 +330,7 @@ function checkTickets() {
 
   for (const f of ticketFiles) {
     const rel = `plans/tickets/${f}`;
-    const text = safeRead(rel);
+    const text = stateRead(rel);
     if (text === null) continue;
     const { column, status } = frontMatter(text);
     if (column && !boardHasColumn(column)) {
@@ -344,12 +351,12 @@ function checkTickets() {
 
 // ── Check 7: packaging present + plugin.json has a name ───────────────────────────────────────
 function checkPackaging() {
-  if (!exists("agent-factory/packaging/adapters.md")) {
+  if (!kitExists("agent-factory/packaging/adapters.md")) {
     err("missing required packaging file: agent-factory/packaging/adapters.md");
   }
   const rel = ".claude-plugin/plugin.json";
-  if (exists(rel)) {
-    const raw = safeRead(rel);
+  if (kitExists(rel)) {
+    const raw = kitRead(rel);
     if (raw === null) {
       // Present but unreadable (EACCES, transient I/O error, or path is a directory).
       // JSON.parse(null) returns null (it does NOT throw), so without this guard the
@@ -376,11 +383,11 @@ function checkPackaging() {
 // assert the reference (a substring), never the protocol's prose — presence, not behavior.
 function checkRoleSwitchProtocol() {
   const protocolRel = "agent-factory/roles/_role-switch-protocol.md";
-  if (!exists(protocolRel)) {
+  if (!kitExists(protocolRel)) {
     err(`missing required file: ${protocolRel}`);
   }
   const orchRel = "agent-factory/roles/orchestrator.md";
-  const orch = safeRead(orchRel);
+  const orch = kitRead(orchRel);
   if (orch === null) return; // missing-file already reported by checkRequiredFiles
   if (!orch.includes("_role-switch-protocol")) {
     err(`${orchRel}: does not reference the role-switch protocol (_role-switch-protocol)`);
@@ -390,7 +397,7 @@ function checkRoleSwitchProtocol() {
 // ── Check 9: commit-convention file exists ────────────────────────────────────────────────────
 function checkCommitConvention() {
   const rel = "agent-factory/_commit-convention.md";
-  if (!exists(rel)) {
+  if (!kitExists(rel)) {
     err(`missing required file: ${rel}`);
   }
 }
@@ -401,7 +408,7 @@ function checkCommitConvention() {
 function checkWorkflowCommit() {
   for (const w of WORKFLOWS) {
     const rel = `agent-factory/workflows/${w}.md`;
-    const text = safeRead(rel);
+    const text = kitRead(rel);
     if (text === null) continue; // missing-file already reported by checkRequiredFiles
     const hasCommit = text.split("\n").some((l) => l.startsWith("## Commit"));
     if (!hasCommit) {
