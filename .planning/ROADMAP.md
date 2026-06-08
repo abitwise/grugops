@@ -267,7 +267,7 @@ Decimal phases appear between their surrounding integers in numeric order.
   4. A BAD fixture for a missing / unset kit root (the C3 footgun) MUST fail the validator, and the doctor and validator resolve the kit home identically so "doctor passes" and "validator passes" can never disagree
   5. `install.test.sh` is updated for the split — fresh install lays the kit + materializes the adapter + seeds `.grugops/factory.config.json` and `plans/handoffs/`, the doctor passes on a good split and fails loudly on a missing kit — with idempotency, dry-run, and reversibility preserved
 
-**Plans**: 4 plans
+**Plans**: 6 plans (4 original + 2 gap-closure)
 
 **Wave 1** *(parallel — disjoint files: the sh doctor and the validator split are independent)*
 
@@ -281,6 +281,11 @@ Decimal phases appear between their surrounding integers in numeric order.
 **Wave 3** *(blocked on 09-01/02/03; the harness verifies all three programs)*
 
 - [x] 09-04-PLAN.md — Test harness + split fixtures + three-way resolution-parity assertion (`install.test.sh` doctor checks + `validate.test.sh` two-root C3 fixtures) (INSTALL-05, VAL-02)
+
+**Wave 4** *(gap closure — verification found 3 blocker gaps; disjoint files: install/* vs scripts/* run parallel)*
+
+- [ ] 09-05-PLAN.md — Doctor sh/Node parity fixes: normalize `resolve_grugops_home` (CR-01 trailing-slash) + fold a garbled marker into the not-installed FAIL (CR-02), with two new install.test.sh parity sub-cases (INSTALL-05)
+- [ ] 09-06-PLAN.md — Validator fail-closed null-guard: reject null/non-object JSON in `checkConfig`/`checkPackaging` (CR-03) + null-literal regression fixtures in validate.test.sh (VAL-02)
 
 
 ## Progress
