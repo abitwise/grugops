@@ -1,5 +1,5 @@
 #!/usr/bin/env sh
-# validate.test.sh — VAL-01 / D-45 self-test for scripts/validate-agent-factory.mjs.
+# validate.test.sh — VAL-01 / VAL-02 / D-45 self-test for scripts/validate-agent-factory.mjs.
 #
 # Proves the structure validator both PASSES and FAILS — the no-fabrication contract (spec §18/
 # §19.9) demands a gate that can actually fail. It runs the validator against:
@@ -9,10 +9,19 @@
 #       (incl. bad-workflow-no-commit, which proves the per-workflow "## Commit" check fails)
 #   (d) the warn-only fixture under --strict          → exit 0 bare, nonzero under --strict
 #       (proves the D-44 warning-promotion path)
+#   (e) TWO-ROOT split (VAL-02 / Plan 09-04): a GOOD split (separate kit + state roots) passes; a
+#       BAD missing-kit (VALIDATE_KIT_ROOT → nonexistent) fails naming a missing role file; a BAD
+#       unset-kit (VALIDATE_KIT_ROOT UNSET) errors with the (C3) message — the no-`.`-fallback
+#       proof that the validator cannot false-green in the dev checkout (SC4).
+#   (f) a three-way resolution-parity assertion (Task 3) that sh doctor = Node doctor = Node
+#       validator resolve the SAME kit root for one GRUGOPS_HOME (SC4 / D-04).
 #
-# Each fixture is a committed tree under scripts/fixtures/ pointed at via VALIDATE_ROOT — the
-# env-override idiom that lets one validator script run against many trees (mirrors
-# install.test.sh's GRUGOPS_SRC/TARGET). No package.json is created; invocation is bare node.
+# Two-root resolution (VAL-02 / D-08): KIT_ROOT comes ONLY from VALIDATE_KIT_ROOT (no default);
+# STATE_ROOT from VALIDATE_ROOT (else repo root, back-compat). The existing single-tree fixtures
+# are reused AS-IS — run_fixture now points BOTH roots at the same tree, so each fixture is both
+# its kit and its state (Discretion 4). The split fixtures are built hermetically via mktemp -d
+# from scripts/fixtures/good (the kit subtree vs the state subtree), so no duplicate fixture trees
+# are committed. No package.json is created; invocation is bare node.
 #
 # House style mirrors hooks/guard.test.sh + install/install.test.sh: #!/usr/bin/env sh, set -eu,
 # pass()/fail()/FAILS, printf (not echo -e), ALL CHECKS PASSED / N CHECK(S) FAILED, exit 0/1.
@@ -32,14 +41,55 @@ fail() { printf '  FAIL  %s\n' "$1"; FAILS=$((FAILS + 1)); }
 [ -f "$VALIDATOR" ] || { fail "validator present at $VALIDATOR"; printf '1 CHECK(S) FAILED\n'; exit 1; }
 command -v node >/dev/null 2>&1 || { fail "node available on PATH"; printf '1 CHECK(S) FAILED\n'; exit 1; }
 
+# A throwaway temp area cleaned on exit (success or failure). The split fixtures + the parity
+# scratch areas live here; NOTHING outside $WORK is ever written (the real repo / $HOME are never
+# mutated — T-09-09). Absolute paths so a probe run from an unrelated CWD still resolves them.
+WORK=$(mktemp -d)
+cleanup() { rm -rf -- "$WORK"; }
+trap cleanup EXIT INT TERM
+
+# Absolute path to the validator + the repo root (the parity check drives the installer doctors
+# by absolute path, possibly from an unrelated CWD).
+REPO_ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
+VALIDATOR_ABS="$REPO_ROOT/$VALIDATOR"
+
 # run_fixture <root> [--strict] — run the validator against a fixture tree, print combined
-# stdout+stderr, set RC. The `out=$(cmd) && rc=0 || rc=$?` idiom survives `set -eu`
-# (cf. guard.test.sh:119, install.test.sh capture style).
+# stdout+stderr, set RC. VAL-02: the validator now REQUIRES VALIDATE_KIT_ROOT (no default), so
+# point BOTH roots at the same fixture tree — the single-tree fixtures are simultaneously their
+# kit and their state (Discretion 4, back-compat). The `out=$(cmd) && rc=0 || rc=$?` idiom
+# survives `set -eu` (cf. guard.test.sh:119, install.test.sh capture style).
 run_fixture() { # run_fixture <root> [flag]
   if [ "$#" -ge 2 ] && [ -n "$2" ]; then
-    OUT=$(VALIDATE_ROOT="$1" node "$VALIDATOR" "$2" 2>&1) && RC=0 || RC=$?
+    OUT=$(VALIDATE_KIT_ROOT="$1" VALIDATE_ROOT="$1" node "$VALIDATOR" "$2" 2>&1) && RC=0 || RC=$?
   else
-    OUT=$(VALIDATE_ROOT="$1" node "$VALIDATOR" 2>&1) && RC=0 || RC=$?
+    OUT=$(VALIDATE_KIT_ROOT="$1" VALIDATE_ROOT="$1" node "$VALIDATOR" 2>&1) && RC=0 || RC=$?
+  fi
+}
+
+# run_fixture_split <kit_root> <state_root> [flag] — VAL-02 two-root driver: export the kit root
+# and the state root SEPARATELY, then capture rc. This is the genuine split surface (kit refs
+# resolve under VALIDATE_KIT_ROOT, state refs under VALIDATE_ROOT).
+run_fixture_split() { # run_fixture_split <kit_root> <state_root> [flag]
+  if [ "$#" -ge 3 ] && [ -n "$3" ]; then
+    OUT=$(VALIDATE_KIT_ROOT="$1" VALIDATE_ROOT="$2" node "$VALIDATOR" "$3" 2>&1) && RC=0 || RC=$?
+  else
+    OUT=$(VALIDATE_KIT_ROOT="$1" VALIDATE_ROOT="$2" node "$VALIDATOR" 2>&1) && RC=0 || RC=$?
+  fi
+}
+
+# expect_pass_split <label> <kit_root> <state_root> — split fixture must exit 0.
+expect_pass_split() {
+  run_fixture_split "$2" "$3"
+  if [ "$RC" -eq 0 ]; then pass "$1"; else fail "$1 (expected exit 0, got rc=$RC: $OUT)"; fi
+}
+
+# expect_fail_split <label> <kit_root> <state_root> <finding-token> — must exit nonzero + name it.
+expect_fail_split() {
+  run_fixture_split "$2" "$3"
+  if [ "$RC" -ne 0 ] && printf '%s' "$OUT" | grep -qi "$4"; then
+    pass "$1"
+  else
+    fail "$1 (expected nonzero + '$4', got rc=$RC: $OUT)"
   fi
 }
 
@@ -61,10 +111,12 @@ expect_fail() {
 
 printf '== grugops validator self-test (GOOD/BAD fixtures + own-tree) ==\n\n'
 
-# (a) D-42 — the validator is GREEN on grugops's own tree (bare AND --strict; zero tickets).
-if node "$VALIDATOR" >/dev/null 2>&1; then pass "validator GREEN on grugops's own tree"
+# (a) D-42 — the validator is GREEN on grugops's own tree (bare AND --strict; zero tickets). VAL-02:
+# the kit root IS the repo root here (agent-factory/ + AGENTS.md + .claude-plugin/ live there);
+# the state root defaults to the repo root. Supply VALIDATE_KIT_ROOT explicitly (no default).
+if VALIDATE_KIT_ROOT="$REPO_ROOT" node "$VALIDATOR" >/dev/null 2>&1; then pass "validator GREEN on grugops's own tree"
 else fail "validator RED on own tree (should be green)"; fi
-if node "$VALIDATOR" --strict >/dev/null 2>&1; then pass "validator GREEN on own tree --strict"
+if VALIDATE_KIT_ROOT="$REPO_ROOT" node "$VALIDATOR" --strict >/dev/null 2>&1; then pass "validator GREEN on own tree --strict"
 else fail "validator RED on own tree --strict (zero tickets → zero warnings)"; fi
 
 # (b) GOOD fixture → exit 0.
@@ -92,6 +144,42 @@ expect_pass "WARN warn-only-no-trace bare → exit 0" "$FIX/warn-only-no-trace"
 run_fixture "$FIX/warn-only-no-trace" "--strict"
 if [ "$RC" -ne 0 ]; then pass "WARN warn-only-no-trace --strict → nonzero (promotion proven)"
 else fail "WARN warn-only-no-trace --strict should be nonzero (rc=$RC: $OUT)"; fi
+
+# (e) TWO-ROOT split (VAL-02 / Plan 09-04). Build the split fixtures hermetically from the
+# existing GOOD fixture: KIT subtree (agent-factory/… + AGENTS.md + .claude-plugin/) vs STATE
+# subtree (plans/…). No new fixture trees are committed — the split is derived (mktemp -d) so the
+# kit/state classification is exercised from the SAME bytes the combined GOOD fixture proves.
+printf '\n-- two-root split (VAL-02 / D-08, SC3/SC4) --\n'
+GOOD_KIT="$WORK/good-split-kit"
+GOOD_STATE="$WORK/good-split-state"
+mkdir -p "$GOOD_KIT" "$GOOD_STATE"
+# KIT root: everything the validator classifies as kit (Phase-7: agent-factory/, AGENTS.md,
+# .claude-plugin/). STATE root: plans/. cp -R the relevant subtrees only.
+cp -R -- "$FIX/good/agent-factory" "$GOOD_KIT/agent-factory"
+cp -- "$FIX/good/AGENTS.md" "$GOOD_KIT/AGENTS.md"
+[ -d "$FIX/good/.claude-plugin" ] && cp -R -- "$FIX/good/.claude-plugin" "$GOOD_KIT/.claude-plugin"
+cp -R -- "$FIX/good/plans" "$GOOD_STATE/plans"
+
+# (e.1) GOOD split — separate kit + state roots → exit 0.
+expect_pass_split "SPLIT good (kit + state separate) → exit 0" "$GOOD_KIT" "$GOOD_STATE"
+
+# (e.2) BAD missing-kit — VALIDATE_KIT_ROOT → a nonexistent dir, with a valid state root → fail
+# naming a missing required role file (the kit refs all resolve under the absent kit root).
+expect_fail_split "SPLIT bad-missing-kit (VALIDATE_KIT_ROOT→nonexistent) → nonzero + 'missing required'" \
+  "$WORK/no-such-kit-dir" "$GOOD_STATE" "missing required"
+
+# (e.3) BAD unset-kit (SC4 / the C3 no-`.`-fallback proof). Invoke the validator DIRECTLY with
+# VALIDATE_KIT_ROOT UNSET — NOT via a driver that would set it. The `unset` subshell guarantees
+# the env var is genuinely absent. The validator must exit nonzero AND name both the unset
+# condition and the literal (C3) tag, proving it refuses to default the kit root to '.'.
+OUT=$( ( unset VALIDATE_KIT_ROOT; node "$VALIDATOR" 2>&1 ) ) && RC=0 || RC=$?
+if [ "$RC" -ne 0 ] \
+   && printf '%s' "$OUT" | grep -qF 'VALIDATE_KIT_ROOT is unset' \
+   && printf '%s' "$OUT" | grep -qF '(C3)'; then
+  pass "SPLIT bad-unset-kit → nonzero + 'VALIDATE_KIT_ROOT is unset' + '(C3)' (no '.'-fallback)"
+else
+  fail "SPLIT bad-unset-kit should error with the (C3) message (rc=$RC: $OUT)"
+fi
 
 # ── Result ───────────────────────────────────────────────────────────────────────────────────
 printf '\n'
