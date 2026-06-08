@@ -419,6 +419,75 @@ else
   pass "node not found — sh/Node doctor parity skipped (UNKNOWN - verify with node present)"
 fi
 
+# ===========================================================================
+# Checks 14-15 — the two doctor-parity regression gates that catch CR-01 and CR-02 (Plan 09-05).
+#
+# These are the gaps phase verification found Check 13 could not see: Check 13 only drives both
+# doctors on a normalized happy/missing-kit path. CR-01 (a non-normalized GRUGOPS_HOME with a
+# trailing slash, under --strict) and CR-02 (a present-but-garbled marker) are the two divergent
+# inputs the suite never exercised. Both checks MUST be RED before the Task-1 fix and GREEN after —
+# a gate that can actually fail (no-fabrication contract). Both are hermetic (own $WORK/... kit +
+# target; the real repo and $HOME are never touched) and node-gated with a skip-with-note pass
+# when node is absent (mirror Check 13). Placed after Check 13, before the Result block.
+# ---------------------------------------------------------------------------
+
+# ---------------------------------------------------------------------------
+# Check 14 — CR-01 / SC2: a trailing-slash GRUGOPS_HOME under --strict → IDENTICAL rc from both
+#             doctors. Install with the NORMAL (no-slash) home so the marker's kitRoot is the
+#             normalized single-slash path, then CHECK with the SAME home spelled WITH a trailing
+#             slash — exactly the CR-01 scenario (a non-normalized GRUGOPS_HOME at check time).
+#             Before the fix the trailing slash made the sh doctor's KIT_ROOT a double-slash that
+#             textually disagreed with the marker → cosmetic WARN → --strict → sh rc=1 while
+#             Node (which normalizes) → rc=0. After the fix both → rc=0.
+# ---------------------------------------------------------------------------
+printf '\n[14] doctor parity: trailing-slash GRUGOPS_HOME + --strict → identical rc (CR-01)\n'
+if command -v node >/dev/null 2>&1; then
+  D14_T="$WORK/doc-slash"; D14_H="$WORK/doc-slash-home"
+  run_install "$D14_T" "$D14_H" || true            # install with the normal (no-slash) home
+  _H_SLASH="$D14_H/"                                # check with a literal trailing slash
+  _sh_out=$(GRUGOPS_HOME="$_H_SLASH" TARGET="$D14_T" sh "$SCRIPT_DIR/install.sh" --check --strict 2>&1) && _sh_rc=0 || _sh_rc=$?
+  _mj_out=$(GRUGOPS_HOME="$_H_SLASH" TARGET="$D14_T" node "$SCRIPT_DIR/install.mjs" --check --strict 2>&1) && _mj_rc=0 || _mj_rc=$?
+  if [ "$_sh_rc" = "$_mj_rc" ] && [ "$_sh_rc" -eq 0 ]; then
+    pass "trailing-slash home + --strict: sh and Node doctors agree (rc=$_sh_rc)"
+  else
+    printf '    sh rc=%s\n    mjs rc=%s\n' "$_sh_rc" "$_mj_rc"
+    fail "trailing-slash home + --strict: doctors diverge (sh rc=$_sh_rc mjs rc=$_mj_rc)"
+  fi
+else
+  pass "node not found — trailing-slash parity check skipped (UNKNOWN - verify with node present)"
+fi
+
+# ---------------------------------------------------------------------------
+# Check 15 — CR-02 / SC4: a present-but-garbled .grugops/install.json → IDENTICAL rc AND
+#             byte-identical first-failure line from both doctors. Corrupt the marker in place,
+#             drive both doctors (no --strict needed), extract each first-failure line the way
+#             Check 13 does (grep -F 'FAIL' | head -n1), and assert: same rc (both nonzero),
+#             non-empty sh first-failure, byte-equal first-failure lines, AND that the line is the
+#             not-installed token (not the old DISAGREE line) — proving the fold landed on the
+#             right branch. Before the GAP-2 fix the sh doctor printed the DISAGREE line while
+#             Node printed the not-installed line (both rc=1, different message).
+# ---------------------------------------------------------------------------
+printf '\n[15] doctor parity: garbled marker → identical rc + first-failure line (CR-02)\n'
+if command -v node >/dev/null 2>&1; then
+  D15_T="$WORK/doc-garbled"; D15_H="$WORK/doc-garbled-home"
+  run_install "$D15_T" "$D15_H" || true
+  printf 'this is not valid json {{{' > "$D15_T/.grugops/install.json"   # corrupt the marker in place
+  _sh_out=$(GRUGOPS_HOME="$D15_H" TARGET="$D15_T" sh "$SCRIPT_DIR/install.sh" --check 2>&1) && _sh_rc=0 || _sh_rc=$?
+  _mj_out=$(GRUGOPS_HOME="$D15_H" TARGET="$D15_T" node "$SCRIPT_DIR/install.mjs" --check 2>&1) && _mj_rc=0 || _mj_rc=$?
+  _sh_ff=$(printf '%s\n' "$_sh_out" | grep -F 'FAIL' | head -n1)
+  _mj_ff=$(printf '%s\n' "$_mj_out" | grep -F 'FAIL' | head -n1)
+  if [ "$_sh_rc" = "$_mj_rc" ] && [ "$_sh_rc" -ne 0 ] \
+     && [ -n "$_sh_ff" ] && [ "$_sh_ff" = "$_mj_ff" ] \
+     && printf '%s' "$_sh_ff" | grep -qF 'not installed in'; then
+    pass "garbled marker: sh and Node doctors agree (rc=$_sh_rc, not-installed first-failure identical)"
+  else
+    printf '    sh : rc=%s ff=%s\n    mjs: rc=%s ff=%s\n' "$_sh_rc" "$_sh_ff" "$_mj_rc" "$_mj_ff"
+    fail "garbled marker: doctors diverge (rc or first-failure line, or not folded to not-installed)"
+  fi
+else
+  pass "node not found — garbled-marker parity check skipped (UNKNOWN - verify with node present)"
+fi
+
 # ---------------------------------------------------------------------------
 # Result
 # ---------------------------------------------------------------------------
