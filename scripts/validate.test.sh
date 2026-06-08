@@ -181,6 +181,61 @@ else
   fail "SPLIT bad-unset-kit should error with the (C3) message (rc=$RC: $OUT)"
 fi
 
+# (f) THREE-WAY RESOLUTION PARITY (Task 3 / SC4 / D-04). For ONE GRUGOPS_HOME the sh doctor, the
+# Node doctor, and the Node validator must all resolve the SAME kit root — the mechanical guarantee
+# that "doctor passes" and "validator passes" can never disagree about WHICH kit they validated.
+# Gated on `command -v node` with a skip-with-note pass when node is absent (mirror the existing
+# Node-presence pattern + install.two-root.test.sh Check 12). Hermetic: a mktemp -d GRUGOPS_HOME
+# with a real kit installed; the real repo / $HOME are never mutated.
+printf '\n-- three-way resolution parity (sh doctor = Node doctor = Node validator, SC4/D-04) --\n'
+if command -v node >/dev/null 2>&1; then
+  PARITY_H="$WORK/parity-home"
+  PARITY_T="$WORK/parity-target"
+  # Install a real two-root kit into the scratch GRUGOPS_HOME + target so all three programs have a
+  # genuine kit to resolve (the installer is the source of truth for the one resolution rule).
+  INSTALL_MODE=copy GRUGOPS_SRC="$REPO_ROOT" GRUGOPS_HOME="$PARITY_H" TARGET="$PARITY_T" \
+    sh "$REPO_ROOT/install/install.sh" --yes >/dev/null 2>&1 || true
+
+  # The one rule (installer): the kit lives at ${GRUGOPS_HOME}/agent-factory. Capture each
+  # doctor's resolved kit DIR (the agent-factory directory itself) from its `kit:` line.
+  # (1) sh doctor — the `kit:` line of `install.sh --check`.
+  _sh_kit=$(GRUGOPS_HOME="$PARITY_H" TARGET="$PARITY_T" sh "$REPO_ROOT/install/install.sh" --check 2>&1 \
+              | grep -F 'kit:' | head -n1 | sed 's/^kit:[[:space:]]*//')
+  # (2) Node doctor — the `kit:` line of `install.mjs --check`.
+  _mj_kit=$(GRUGOPS_HOME="$PARITY_H" TARGET="$PARITY_T" node "$REPO_ROOT/install/install.mjs" --check 2>&1 \
+              | grep -F 'kit:' | head -n1 | sed 's/^kit:[[:space:]]*//')
+  # (3) Node validator — it resolves kit refs as join(VALIDATE_KIT_ROOT, "agent-factory/…"), so
+  #     its kit root is the PARENT that CONTAINS agent-factory/ (a deliberately different SPELLING
+  #     of the same kit dir). Feed it VALIDATE_KIT_ROOT=${GRUGOPS_HOME} and it resolves the kit's
+  #     agent-factory subtree to EXACTLY ${GRUGOPS_HOME}/agent-factory — the SAME directory the two
+  #     doctors named. We prove that resolution AGREEMENT, not the home's full structural validity:
+  #     the installer copies only agent-factory/ into the shared home (AGENTS.md/.claude-plugin/
+  #     stay in the source checkout, by design), so a bare VALIDATE_KIT_ROOT=${GRUGOPS_HOME} run
+  #     legitimately flags those two top-level files as missing — that is NOT a kit-root drift. The
+  #     drift this guard forbids is the validator resolving agent-factory/ to a DIFFERENT path: if
+  #     it resolved correctly to ${GRUGOPS_HOME}/agent-factory it finds every role/workflow/handoff
+  #     there and emits NO "missing required role file" finding. So agreement = the doctors' kit dir
+  #     equals ${VALIDATE_KIT_ROOT}/agent-factory AND the validator found the role tree at that path.
+  _val_home="$PARITY_H"
+  _val_kit_dir="$_val_home/agent-factory"   # the agent-factory subtree VALIDATE_KIT_ROOT=$_val_home resolves
+  _val_out=$(VALIDATE_KIT_ROOT="$_val_home" VALIDATE_ROOT="$PARITY_T" node "$VALIDATOR" 2>&1) && _val_rc=0 || _val_rc=$?
+
+  # All three must name the SAME kit dir (${GRUGOPS_HOME}/agent-factory) AND the validator must have
+  # resolved the role tree to that path (no "missing required role file" finding) — otherwise a
+  # program silently disagreed about WHICH agent-factory it validated (the SC4 false-green forbidden).
+  if [ -n "$_sh_kit" ] \
+     && [ "$_sh_kit" = "$_mj_kit" ] \
+     && [ "$_sh_kit" = "$_val_kit_dir" ] \
+     && ! printf '%s' "$_val_out" | grep -qiF 'missing required role file' \
+     && ! printf '%s' "$_val_out" | grep -qiF 'missing required workflow file'; then
+    pass "sh doctor = Node doctor = Node validator resolve the SAME kit ($_sh_kit)"
+  else
+    fail "resolution drift: sh-doctor=$_sh_kit node-doctor=$_mj_kit validator-kit-dir=$_val_kit_dir (validator rc=$_val_rc: $_val_out)"
+  fi
+else
+  pass "node not found — three-way resolution parity skipped (UNKNOWN - verify with node present)"
+fi
+
 # ── Result ───────────────────────────────────────────────────────────────────────────────────
 printf '\n'
 if [ "$FAILS" -eq 0 ]; then
