@@ -2,15 +2,16 @@
 gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: Install & Distribution
-status: verifying
-last_updated: "2026-06-08T08:43:14.912Z"
-last_activity: 2026-06-08 -- 09-05 parity CLASS closed (./.. lexical collapse + fail-closed structural marker validation per code review); Phase 09 ready for re-verification
+status: milestone_complete
+last_updated: 2026-06-08T09:14:00.769Z
+last_activity: 2026-06-08 -- Phase 09 re-verified PASSED (5/5); milestone v1.1 complete
 progress:
   total_phases: 9
-  completed_phases: 8
+  completed_phases: 9
   total_plans: 48
   completed_plans: 48
-  percent: 89
+  percent: 100
+stopped_at: Milestone complete (Phase 09 was final phase)
 ---
 
 # Project State
@@ -20,20 +21,20 @@ progress:
 See: .planning/PROJECT.md (updated 2026-06-02)
 
 **Core value:** A user installs grugops on top of the coding-agent CLI they already run, types `/grug`, and gets a disciplined delivery team — a visible board, strict handoffs, and an auditable requirement→code→test→release trail — entirely as readable markdown, with humans always holding merge and deploy.
-**Current focus:** Phase 09 — doctor-two-root-validator
+**Current focus:** Milestone complete
 
 ## Current Position
 
-Phase: 09 (doctor-two-root-validator) — READY FOR VERIFICATION
-Plan: 6 of 6 (all plans + both gap-closure plans complete: 09-05 CR-01/CR-02, 09-06 CR-03)
-Status: All 6 plans executed; the 3 verification blockers AND the code-review parity CLASS (CR-01 ./.. segments, CR-02 garbled-marker-with-kitRoot-line false-green) are closed — re-run /gsd-verify-phase 9 before marking the phase complete. Phase is NOT yet complete; re-verification is the next gate.
-Last activity: 2026-06-08 -- 09-05 code-review parity-class remediation (./.. lexical collapse + fail-closed structural marker validation); suites green
+Phase: 09 (doctor-two-root-validator) — COMPLETE, verified PASSED 5/5
+Plan: 6 of 6 complete (incl. gap-closure 09-05/09-06 + code-review parity-class remediation)
+Status: Milestone v1.1 complete (Phase 09 was the final phase)
+Last activity: 2026-06-08
 
 ## Performance Metrics
 
 **Velocity:**
 
-- Total plans completed: 42
+- Total plans completed: 48
 - Average duration: -
 - Total execution time: 0 hours
 
@@ -49,6 +50,7 @@ Last activity: 2026-06-08 -- 09-05 code-review parity-class remediation (./.. le
 | 06 | 5 | - | - |
 | 07 | 4 | - | - |
 | 08 | 4 | - | - |
+| 09 | 6 | - | - |
 
 **Recent Trend:**
 
