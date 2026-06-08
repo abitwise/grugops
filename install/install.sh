@@ -23,6 +23,8 @@
 #   INSTALL_MODE=symlink sh install/install.sh      # opt in to symlink (copy is the default, D-05)
 #   sh install/install.sh --symlink                 # same opt-in via flag
 #   sh install/install.sh --allow-self              # override the D-07 self-checkout guard
+#   sh install/install.sh --check                   # doctor: verify a target install, mutate nothing
+#   sh install/install.sh --check --strict          # doctor: promote warnings to a nonzero exit
 #   GRUGOPS_HOME=/path sh install/install.sh        # override the shared kit home (default ~/.grugops)
 #   GRUGOPS_SRC=/path/to/grugops TARGET=/path/to/repo sh install/install.sh
 #
@@ -42,10 +44,15 @@ set -eu
 #   --allow-self      override the D-07 self-checkout guard
 #   --force           alias for --allow-self
 #   --symlink         opt in to symlink mode (copy is now the default, D-05)
+#   --check           run the non-mutating doctor (INSTALL-05): verify every referenced path
+#                     resolves, name the FIRST failure with its referencing file, mutate nothing
+#   --strict          (with --check) promote WARN findings to a nonzero exit
 # ---------------------------------------------------------------------------
 ARG_TARGET=""
 YES=0
 ALLOW_SELF=0
+CHECK=0
+STRICT=0
 while [ $# -gt 0 ]; do
   case "$1" in
     --target) ARG_TARGET=${2:-}; shift 2 ;;
@@ -53,6 +60,8 @@ while [ $# -gt 0 ]; do
     --yes|-y) YES=1; shift ;;
     --allow-self|--force) ALLOW_SELF=1; shift ;;
     --symlink) INSTALL_MODE=symlink; shift ;;
+    --check) CHECK=1; shift ;;
+    --strict) STRICT=1; shift ;;
     *) printf 'install.sh: unknown argument: %s\n' "$1" >&2; exit 2 ;;
   esac
 done
@@ -107,6 +116,183 @@ else
   TARGET="${_ans:-$_default_target}"
 fi
 TARGET=$(abspath "$TARGET")
+
+# ---------------------------------------------------------------------------
+# Doctor (INSTALL-05). A non-mutating verifier — reads only, stats only, mutates NOTHING (never
+# copy_kit / materialize_adapter / seed_state / write_marker; never reads or writes the prod
+# deploy-approval env var, carried prohibition from INSTALL-02 / SAFE-02). It reuses the one
+# resolution rule (resolve_grugops_home, source (a) of the D-03 cross-check) and abspath verbatim.
+#
+# The doctor sentinels match write_marker / materialize_adapter so it parses what the installer
+# wrote. Findings are greppable lines via doc_report; FAIL names the path + referencing file.
+# ---------------------------------------------------------------------------
+
+# Materialization sentinels (Pattern 2). The injected block carries the resolved absolute KIT
+# path and sits immediately ABOVE the "# 1. (installed)…" slot in the 2 resolver adapters. Defined
+# HERE (before the doctor) so read_adapter_kit can reference them under --check, and reused verbatim
+# by materialize_adapter on the install path below.
+MAT_OPEN='# <!-- grugops:materialized-kit -->'
+MAT_CLOSE='# <!-- /grugops:materialized-kit -->'
+MAT_SLOT='# 1. (installed) the absolute kit path the installer wrote above this line.'
+
+DOC_FAILS=0
+DOC_WARNS=0
+doc_report() { printf '  %-14s %s\n' "$1" "$2"; }
+doc_fail() { doc_report "FAIL" "$1"; DOC_FAILS=$((DOC_FAILS + 1)); }
+doc_warn() { doc_report "WARN" "$1"; DOC_WARNS=$((DOC_WARNS + 1)); }
+
+# read_marker_field: deterministic first-match read of one quoted field from the byte-stable
+# 2-space-indented .grugops/install.json (the schema write_marker emits). Test-before-read so an
+# absent marker is a fail-closed return 1, never a set -e abort (source (b) of D-03).
+read_marker_field() {  # $1=marker-file  $2=field
+  [ -f "$1" ] || return 1
+  grep -m1 "\"$2\"" "$1" 2>/dev/null | sed 's/.*: *"\(.*\)".*/\1/'
+}
+
+# read_adapter_kit: extract the materialized KIT="…" line from the grugops:materialized-kit
+# sentinel block (source (c) of D-03). The op/cl neutral names dodge BSD/macOS awk reserved words,
+# the same workaround materialize_adapter uses. Test-before-read; empty output if no KIT line.
+read_adapter_kit() {  # $1=adapter-file
+  [ -f "$1" ] || return 1
+  awk -v op="$MAT_OPEN" -v cl="$MAT_CLOSE" '
+    $0 == op { inblk=1; next }
+    $0 == cl { inblk=0; next }
+    inblk && $0 ~ /^KIT=/ { line=$0 }
+    END { if (line != "") { sub(/^KIT="/, "", line); sub(/"$/, "", line); print line } }
+  ' "$1"
+}
+
+# kit_real: a path resolves to a REAL kit iff agent-factory/roles/orchestrator.md exists under it.
+# Used by the D-03 cross-check to distinguish a cosmetic diff (all real) from a true divergence.
+kit_real() { [ -n "$1" ] && [ -f "$1/roles/orchestrator.md" ]; }
+
+# doctor: the INSTALL-05 verifier. Read-only by construction. Returns 0 on pass / WARN-only,
+# nonzero on any FAIL (or WARN + --strict). NEVER mutates and NEVER names the deploy-approval var.
+doctor() {
+  DOC_FAILS=0
+  DOC_WARNS=0
+  printf '== grugops doctor (--check) ==\n'
+  printf 'home:   %s\n' "$GRUGOPS_HOME"
+  printf 'kit:    %s\n' "$KIT_ROOT"
+  printf 'target: %s\n' "$TARGET"
+  printf '\n'
+
+  _marker="$TARGET/.grugops/install.json"
+  _adapter="$TARGET/.claude/agents/grugops-orchestrator.md"
+
+  # --- not-installed fold-into-FAIL (RESEARCH Discretion §5) ----------------------------------
+  # Absent marker = a dev/uninstalled checkout. Fail-closed BEFORE touching adapters: print a
+  # distinct, greppable "not installed" line and return nonzero. Never crash, never false-green.
+  if [ ! -f "$_marker" ]; then
+    doc_report "FAIL" "grugops not installed in $TARGET — run install.sh (then install.sh --check)"
+    printf '\n1 FAILURE(S)\n'
+    return 1
+  fi
+
+  # --- D-03 three-source kit-root cross-check -------------------------------------------------
+  # (a) the freshly re-resolved rule, (b) the marker kitRoot, (c) the adapter KIT=. Normalize all
+  # three via abspath; all-equal → pass; differ-but-all-real-and-cosmetic → WARN; any unresolvable
+  # or genuinely different real kits → FAIL (name all three). Bias to FAIL when unsure.
+  _a="$KIT_ROOT"
+  _b=$(read_marker_field "$_marker" kitRoot || printf '')
+  _c=$(read_adapter_kit "$_adapter" || printf '')
+  _na=$(abspath "$_a")
+  [ -n "$_b" ] && _nb=$(abspath "$_b") || _nb=""
+  [ -n "$_c" ] && _nc=$(abspath "$_c") || _nc=""
+  if [ "$_na" = "$_nb" ] && [ "$_nb" = "$_nc" ]; then
+    doc_report "ok" "kit-root sources agree ($_na)"
+  elif kit_real "$_na" && kit_real "$_nb" && kit_real "$_nc"; then
+    doc_warn "kit-root sources differ cosmetically: rule=$_na marker=$_nb adapter=$_nc"
+  else
+    doc_fail "kit-root sources DISAGREE (stale/moved install): rule=$_na marker=${_nb:-<unset>} adapter=${_nc:-<unset>}  (referenced by $_marker + $_adapter)"
+  fi
+
+  # --- deterministic ordered first-failure stat set (D-02 / D-05, RESEARCH Pattern 3) ---------
+  # Fixed order, most-load-bearing first. Kit refs resolve under KIT_ROOT; state refs resolve
+  # repo-relative (Phase-7 classification). A dangling symlink ([ -L ] && [ ! -e ]) is a FAIL with
+  # a symlink-specific message. On the FIRST stat failure, name path + referencing file and STOP.
+  # Tuple stream: <path>|<referencing-file>  (referencing file is the artifact the installer wrote)
+  _refs="$KIT_ROOT|$_marker
+$KIT_ROOT/roles/orchestrator.md|$_adapter
+$KIT_ROOT/roles/_role-switch-protocol.md|$_adapter
+$KIT_ROOT/workflows|$_adapter
+$TARGET/.grugops/factory.config.json|$_adapter
+$TARGET/plans/board.md|$_adapter
+$TARGET/plans/handoffs|$_adapter"
+
+  if [ "$DOC_FAILS" = "0" ]; then
+    # Iterate WITHOUT a pipe (a pipe spawns a subshell that would swallow DOC_FAILS) and WITHOUT
+    # writing any temp file (the doctor is read-only by construction — T-09-02). Split the tuple
+    # stream on newlines via IFS, restore IFS after. Each entry is "<path>|<referencing-file>".
+    _oldifs=$IFS
+    IFS='
+'
+    for _entry in $_refs; do
+      IFS=$_oldifs
+      _p=${_entry%%|*}
+      _ref=${_entry#*|}
+      [ -n "$_p" ] || { IFS='
+'; continue; }
+      if [ -L "$_p" ] && [ ! -e "$_p" ]; then
+        doc_fail "dangling symlink: $_p  (referenced by $_ref)"
+        break
+      fi
+      if [ ! -e "$_p" ]; then
+        doc_fail "$_p  (referenced by $_ref)"
+        break
+      fi
+      doc_report "ok" "$_p"
+      IFS='
+'
+    done
+    IFS=$_oldifs
+  fi
+
+  # --- WARN tier (D-06, detect-only per D-07): only when the cross-check + stats are clean ------
+  if [ "$DOC_FAILS" = "0" ]; then
+    # kit-version skew: marker kitVersion vs the installed kit's VERSION (read the way write_marker
+    # reads it — head -n 1). Unequal → warn (no negotiation; SKEW-01 is v1.2).
+    _mver=$(read_marker_field "$_marker" kitVersion || printf '')
+    _kver=""
+    [ -f "$KIT_ROOT/VERSION" ] && _kver=$(head -n 1 -- "$KIT_ROOT/VERSION" 2>/dev/null || printf '')
+    if [ -n "$_mver" ] && [ -n "$_kver" ] && [ "$_mver" != "$_kver" ]; then
+      doc_warn "kit-version skew: marker=$_mver kit VERSION=$_kver"
+    fi
+    # missing optional seed: a seed file the user may have pruned (e.g. memory-bank/00-index.md).
+    if [ ! -e "$TARGET/memory-bank/00-index.md" ]; then
+      doc_warn "missing optional seed: $TARGET/memory-bank/00-index.md (run install.sh to re-seed)"
+    fi
+  fi
+
+  # --- exit-code matrix (SC2) -----------------------------------------------------------------
+  printf '\n'
+  if [ "$DOC_FAILS" -gt 0 ]; then
+    printf '%d FAILURE(S)\n' "$DOC_FAILS"
+    return 1
+  fi
+  if [ "$DOC_WARNS" -gt 0 ] && [ "$STRICT" = "1" ]; then
+    printf '%d WARNING(S) (--strict: promoted to failure)\n' "$DOC_WARNS"
+    return 1
+  fi
+  if [ "$DOC_WARNS" -gt 0 ]; then
+    printf 'ALL CHECKS PASSED (%d warning(s))\n' "$DOC_WARNS"
+    return 0
+  fi
+  printf 'ALL CHECKS PASSED\n'
+  return 0
+}
+
+# ---------------------------------------------------------------------------
+# Doctor early-exit (INSTALL-05). The --check arm is a NON-MUTATING reader: it re-resolves the
+# kit root, reads what the installer wrote (the two materialized adapters + the .grugops marker),
+# cross-checks the three kit-root sources, stats the start-up load-bearing path set, and reports.
+# It branches HERE — after GRUGOPS_HOME/KIT_ROOT (resolve_grugops_home, above) and TARGET are
+# resolved, but BEFORE the D-07 self-checkout guard's exit, the run banner, and every mutation
+# (copy_kit / materialize_adapter / seed_state / write_marker). So `--check` never writes, and it
+# still runs on a dev/uninstalled checkout (folding the absent-marker case into a clean FAIL
+# rather than tripping the self-checkout guard). doctor() + its readers are defined just above.
+# ---------------------------------------------------------------------------
+if [ "$CHECK" = "1" ]; then doctor; exit $?; fi
 
 # ---------------------------------------------------------------------------
 # D-07 self-checkout guard (ALWAYS-ON). Runs unconditionally after TARGET resolution, before any
@@ -323,12 +509,6 @@ copy_kit() {
   rm -rf -- "$_old" 2>/dev/null || true
   report copied "kit → $KIT_ROOT"
 }
-
-# Materialization sentinels (Pattern 2). The injected block carries the resolved absolute KIT
-# path and sits immediately ABOVE the "# 1. (installed)…" slot in the 2 resolver adapters.
-MAT_OPEN='# <!-- grugops:materialized-kit -->'
-MAT_CLOSE='# <!-- /grugops:materialized-kit -->'
-MAT_SLOT='# 1. (installed) the absolute kit path the installer wrote above this line.'
 
 # materialize_adapter: lay an adapter down from $GRUGOPS_SRC, then strip any prior
 # grugops:materialized-kit block and inject the freshly-resolved KIT line above the slot
