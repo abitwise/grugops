@@ -7,45 +7,83 @@
 // packaging is present with a named plugin.json.
 //
 // Node stdlib ONLY — node:fs + node:path + node:url. ZERO npm dependencies. NO package.json
-// is created or required (D-45, spec §18). Invocation is bare:
+// is created or required (D-45, spec §18). Invocation requires the kit root explicitly:
 //
-//   node scripts/validate-agent-factory.mjs            # exit 0 = green, 1 = errors
-//   node scripts/validate-agent-factory.mjs --strict   # warnings promoted to errors
-//   VALIDATE_ROOT=/path/to/tree node scripts/validate-agent-factory.mjs   # validate another tree
+//   VALIDATE_KIT_ROOT=/path/to/kit node scripts/validate-agent-factory.mjs           # exit 0/1
+//   VALIDATE_KIT_ROOT=/path/to/kit node scripts/validate-agent-factory.mjs --strict  # warns→errors
+//   VALIDATE_KIT_ROOT=/kit VALIDATE_ROOT=/state node scripts/validate-agent-factory.mjs
+//
+// Two roots (VAL-02 / D-08), resolved separately so the validator cannot false-green in the dev
+// checkout (the C3 footgun):
+//   VALIDATE_KIT_ROOT  REQUIRED — NO DEFAULT. Holds the read-only kit (agent-factory/…, AGENTS.md,
+//                      .claude-plugin/). Unset is a HARD ERROR (process.exit(1) with a "(C3)"
+//                      message) — it never silently falls back to "." / the dev checkout.
+//   VALIDATE_ROOT      The STATE root (plans/…). Optional; defaults to the repo root (back-compat
+//                      for the existing single-tree fixtures and self-validation).
+// kit-classified checks resolve under KIT_ROOT; state-classified checks under STATE_ROOT
+// (Phase-7 classification: agent-factory/… + AGENTS.md + .claude-plugin/ = KIT; plans/… = STATE).
 //
 // Two-tier findings (D-44): ERRORS (missing file/section; config doesn't parse or lacks
 // mode/cadence/autonomy; plugin.json missing name; board/ticket status mismatch) → exit 1.
 // WARNINGS (ticket missing a traceability row, or a row missing Tests/UAT) → reported, exit 0
 // bare; --strict promotes them to the nonzero exit.
 //
-// Read-only by construction (T-06-02): every path is join(ROOT, <fixed literal rel>); no write
-// path is ever derived from file content. Every read/JSON.parse is wrapped in try/catch so a
-// missing or garbled file becomes a finding, never an unhandled throw (T-06-01/T-06-03,
-// mirrors hooks/guard.mjs + install.mjs fail-closed posture).
+// Read-only by construction (T-06-02): every path is join(KIT_ROOT|STATE_ROOT, <fixed literal
+// rel>); no write path is ever derived from file content. Every read/JSON.parse is wrapped in
+// try/catch so a missing or garbled file becomes a finding, never an unhandled throw
+// (T-06-01/T-06-03, mirrors hooks/guard.mjs + install.mjs fail-closed posture).
 
 import { readFileSync, existsSync, readdirSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
-// ── Repo-root resolution (env-overridable; self-validates regardless of cwd) ────────────────
-// Mirrors install.mjs:33-40 — VALIDATE_ROOT lets the self-test point at a fixture tree.
+// ── Two-root resolution (VAL-02 / D-08 — kit root + state root, resolved separately) ─────────
+// STATE_ROOT keeps the install.mjs:33-40 back-compat shape: VALIDATE_ROOT, else the repo root.
+// KIT_ROOT comes ONLY from VALIDATE_KIT_ROOT and has NO default — the deliberate C3 override
+// ("no fallback" beats "sensible default" here, and ONLY here). Unset → hard error, never a
+// silent "." / dev-checkout fallback that would false-green.
 const SCRIPT_DIR = dirname(fileURLToPath(import.meta.url));
-const ROOT = process.env.VALIDATE_ROOT
+const STATE_ROOT = process.env.VALIDATE_ROOT
   ? resolve(process.env.VALIDATE_ROOT)
-  : resolve(SCRIPT_DIR, "..");
+  : resolve(SCRIPT_DIR, ".."); // back-compat repo root for STATE only
+if (!process.env.VALIDATE_KIT_ROOT) {
+  console.error(
+    "  ERROR    VALIDATE_KIT_ROOT is unset — refusing to default the kit root to '.' (C3)",
+  );
+  process.exit(1); // the no-false-green guard (NO DEFAULT)
+}
+const KIT_ROOT = resolve(process.env.VALIDATE_KIT_ROOT);
 
-// ── Safe filesystem helpers (try/catch → null/false/[]; never throw) ────────────────────────
-const exists = (rel) => existsSync(join(ROOT, rel));
-const safeRead = (rel) => {
+// ── Safe filesystem helpers, forked per root (try/catch → null/false/[]; never throw) ────────
+// kit* resolve under KIT_ROOT; state* resolve under STATE_ROOT. Each keeps the fail-closed
+// posture verbatim so a missing/garbled file becomes a finding, never an unhandled throw.
+const kitExists = (rel) => existsSync(join(KIT_ROOT, rel));
+const kitRead = (rel) => {
   try {
-    return readFileSync(join(ROOT, rel), "utf8");
+    return readFileSync(join(KIT_ROOT, rel), "utf8");
   } catch {
     return null;
   }
 };
-const listDir = (rel) => {
+const kitListDir = (rel) => {
   try {
-    return existsSync(join(ROOT, rel)) ? readdirSync(join(ROOT, rel)) : [];
+    return existsSync(join(KIT_ROOT, rel)) ? readdirSync(join(KIT_ROOT, rel)) : [];
+  } catch {
+    return [];
+  }
+};
+
+const stateExists = (rel) => existsSync(join(STATE_ROOT, rel));
+const stateRead = (rel) => {
+  try {
+    return readFileSync(join(STATE_ROOT, rel), "utf8");
+  } catch {
+    return null;
+  }
+};
+const stateListDir = (rel) => {
+  try {
+    return existsSync(join(STATE_ROOT, rel)) ? readdirSync(join(STATE_ROOT, rel)) : [];
   } catch {
     return [];
   }
