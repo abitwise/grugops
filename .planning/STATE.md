@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: Install & Distribution
-status: executing
-last_updated: "2026-06-08T07:17:14.992Z"
+status: verifying
+last_updated: "2026-06-08T07:27:21.673Z"
 last_activity: 2026-06-08
 progress:
   total_phases: 9
-  completed_phases: 8
+  completed_phases: 9
   total_plans: 46
-  completed_plans: 45
-  percent: 89
+  completed_plans: 46
+  percent: 100
 ---
 
 # Project State
@@ -26,7 +26,7 @@ See: .planning/PROJECT.md (updated 2026-06-02)
 
 Phase: 09 (doctor-two-root-validator) — EXECUTING
 Plan: 4 of 4
-Status: Ready to execute
+Status: Phase complete — ready for verification
 Last activity: 2026-06-08
 
 ## Performance Metrics
@@ -101,6 +101,7 @@ Last activity: 2026-06-08
 | Phase 09 P01 | 4m | 2 tasks | 1 files |
 | Phase 09 P02 | 7m | 2 tasks | 1 files |
 | Phase 09 P03 | 5m | 2 tasks | 1 files |
+| Phase 09 P09-04 | 12m | 3 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -193,6 +194,9 @@ Recent decisions affecting current work:
 - [Phase ?]: [09-02] validate.test.sh is RED-by-design until Plan 09-04 adds the run_fixture_split driver + split fixtures + resolution-parity assertion — the C3 guard firing on the old harness is correct, not a regression
 - [Phase ?]: [09-03] install.mjs --check is the byte-parity Node twin of install.sh --check: same D-03 three-source cross-check, ordered first-failure, WARN tier, exit-code matrix, not-installed fold-into-FAIL; proven byte-identical across 12 cases
 - [Phase ?]: [09-03] docAbspath (non-normalizing, mirrors sh abspath) replaces node:path resolve() in the cross-check so cosmetic /. segments classify as WARN identically across the sh boundary; MAT_* sentinels relocated above the doctor for the readAdapterKit TDZ under --check
+- [Phase 09]: [09-04] Verification layer GREEN: install.test.sh Checks 7-13 (doctor good-split/missing-kit/first-failure/exit-matrix/dangling-symlink/read-only/sh-vs-Node parity) + validate.test.sh two-root (GOOD split / BAD missing-kit / BAD unset-kit C3) + the three-way resolution-parity assertion (sh doctor = Node doctor = Node validator)
+- [Phase 09]: [09-04] Resolution-parity proven as spelling-aware path agreement: doctor KIT_ROOT = GRUGOPS_HOME/agent-factory (the dir), validator KIT_ROOT = its PARENT (resolves join(VALIDATE_KIT_ROOT,'agent-factory/...')); assertion compares doctors' kit: line to VALIDATE_KIT_ROOT/agent-factory + asserts no missing-required drift; the half-populated-home AGENTS.md miss is expected installer behavior, not drift
+- [Phase 09]: [09-04] RED-by-design 09-02 hand-off discharged: run_fixture now sets BOTH VALIDATE_KIT_ROOT + VALIDATE_ROOT (same tree, Discretion 4 back-compat) + own-tree self-test supplies VALIDATE_KIT_ROOT=REPO_ROOT; the 8 single-tree fixtures + D-42 self-test pass under the no-default kit-root contract; C3 unset-kit BAD check fires on the literal (C3) message
 
 ### Pending Todos
 
@@ -226,6 +230,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-06-08T07:17:09.263Z
+Last session: 2026-06-08T07:26:28.537Z
 Stopped at: Phase 9 context gathered
 Resume file: None

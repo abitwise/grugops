@@ -24,7 +24,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 
 - [x] **Phase 7: Shared-Home Foundation & Path Rewrite** - Lock the kit/state split convention + single resolution rule, rewrite the ~31 kit/handoff/config refs, and prove zero bare `agent-factory/` refs remain (grep-to-zero gate) (completed 2026-06-06)
 - [x] **Phase 8: Two-Root Installer** - Resolve `$GRUGOPS_HOME`, copy the kit there, materialize the absolute kit path into the standalone adapters, and seed per-repo state with `--target`/`--yes`/copy-default at sh+Node parity (completed 2026-06-07)
-- [ ] **Phase 9: Doctor & Two-Root Validator** - Ship the `--check` doctor that resolves every referenced path and the two-root validator with no fallback to `.` and an unset-`$GRUGOPS_HOME` BAD fixture
+- [x] **Phase 9: Doctor & Two-Root Validator** - Ship the `--check` doctor that resolves every referenced path and the two-root validator with no fallback to `.` and an unset-`$GRUGOPS_HOME` BAD fixture (completed 2026-06-08)
 
 ## Phase Details
 
@@ -280,7 +280,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 
 **Wave 3** *(blocked on 09-01/02/03; the harness verifies all three programs)*
 
-- [ ] 09-04-PLAN.md — Test harness + split fixtures + three-way resolution-parity assertion (`install.test.sh` doctor checks + `validate.test.sh` two-root C3 fixtures) (INSTALL-05, VAL-02)
+- [x] 09-04-PLAN.md — Test harness + split fixtures + three-way resolution-parity assertion (`install.test.sh` doctor checks + `validate.test.sh` two-root C3 fixtures) (INSTALL-05, VAL-02)
 
 
 ## Progress
@@ -303,4 +303,4 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8 →
 | 6. Validation, Brand & Dogfood | 5/5 | Complete    | 2026-06-04 |
 | 7. Shared-Home Foundation & Path Rewrite | 4/4 | Complete    | 2026-06-06 |
 | 8. Two-Root Installer | 4/4 | Complete    | 2026-06-07 |
-| 9. Doctor & Two-Root Validator | 3/4 | In Progress|  |
+| 9. Doctor & Two-Root Validator | 4/4 | Complete   | 2026-06-08 |
