@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: Install & Distribution
 status: executing
-last_updated: "2026-06-08T06:54:57.782Z"
-last_activity: 2026-06-08 -- Phase 09 execution started
+last_updated: "2026-06-08T07:02:56.966Z"
+last_activity: 2026-06-08
 progress:
   total_phases: 9
   completed_phases: 8
   total_plans: 46
-  completed_plans: 42
+  completed_plans: 43
   percent: 89
 ---
 
@@ -25,9 +25,9 @@ See: .planning/PROJECT.md (updated 2026-06-02)
 ## Current Position
 
 Phase: 09 (doctor-two-root-validator) — EXECUTING
-Plan: 1 of 4
-Status: Executing Phase 09
-Last activity: 2026-06-08 -- Phase 09 execution started
+Plan: 2 of 4
+Status: Completed 09-01 (install.sh --check doctor) — ready to execute 09-02
+Last activity: 2026-06-08 -- 09-01 complete (INSTALL-05 sh side)
 
 ## Performance Metrics
 
@@ -98,6 +98,7 @@ Last activity: 2026-06-08 -- Phase 09 execution started
 | Phase 08 P08-03 | 214m | 2 tasks | 3 files |
 | Phase 08 P04 | 10 | 2 tasks | 2 files |
 | Phase 08 P08-04 | 10 | 2 tasks | 2 files |
+| Phase 09 P01 | 4m | 2 tasks | 1 files |
 
 ## Accumulated Context
 
@@ -182,6 +183,9 @@ Recent decisions affecting current work:
 - [Phase ?]: [Phase 08]: [08-03] HUMAN-APPROVED Option A — reconcile ONLY install.test.sh Check 3 to the two-root D-06 contract (grugops-owned adapters+sentinel removed; seeded user state survives); a deliberate pull-forward of a Phase-9/VAL-02 slice. uninstall.sh untouched; two-root harness [11] marker-removal stays RED for 08-04
 - [Phase ?]: [08-04] Two-root uninstall: is_protected() guards .grugops/; only .grugops/install.json removed via a dedicated remove_marker() narrow exception; shared GRUGOPS_HOME kit + seeded plans/memory-bank survive (D-06)
 - [Phase ?]: [08-04] install/README.md documents the two-root installer (--target/prompt/--yes/copy-default/GRUGOPS_HOME/materialization/D-07 guard/D-06 uninstall scope); no fabricated/deferred claims
+- [Phase 09]: [09-01] install.sh --check doctor (INSTALL-05): non-mutating early-exit arm; D-03 three-source kit-root cross-check (rule/marker/adapter); deterministic ordered first-failure stat set with dangling-symlink FAIL; non-empty WARN tier (skew + missing seed); exit matrix 0/nonzero/WARN->0/--strict->nonzero; first reader of .grugops/install.json
+- [Phase 09]: [09-01] MAT_OPEN/MAT_CLOSE/MAT_SLOT sentinels moved above the doctor so read_adapter_kit can reference them under --check; materialize_adapter on the install path reuses the same definitions verbatim (zero install behavior change)
+- [Phase 09]: [09-01] doctor stat loop iterates without a pipe (IFS-newline for-loop) and writes no temp file - preserves read-only-by-construction (T-09-02) and keeps DOC_FAILS in the current shell scope
 
 ### Pending Todos
 
@@ -215,6 +219,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-06-07T20:58:49.509Z
+Last session: 2026-06-08T07:01:43.603Z
 Stopped at: Phase 9 context gathered
-Resume file: .planning/phases/09-doctor-two-root-validator/09-CONTEXT.md
+Resume file: None
