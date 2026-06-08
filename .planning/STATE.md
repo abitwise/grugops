@@ -4,7 +4,7 @@ milestone: v1.1
 milestone_name: Install & Distribution
 status: verifying
 last_updated: "2026-06-08T08:43:14.912Z"
-last_activity: 2026-06-08 -- 09-06 gap closure complete (CR-03 validator fail-closed null-guard); Phase 09 ready for re-verification
+last_activity: 2026-06-08 -- 09-05 parity CLASS closed (./.. lexical collapse + fail-closed structural marker validation per code review); Phase 09 ready for re-verification
 progress:
   total_phases: 9
   completed_phases: 8
@@ -26,8 +26,8 @@ See: .planning/PROJECT.md (updated 2026-06-02)
 
 Phase: 09 (doctor-two-root-validator) — READY FOR VERIFICATION
 Plan: 6 of 6 (all plans + both gap-closure plans complete: 09-05 CR-01/CR-02, 09-06 CR-03)
-Status: All 6 plans executed; the 3 verification blockers (CR-01/CR-02/CR-03) are closed — re-run /gsd-verify-phase 9 before marking the phase complete
-Last activity: 2026-06-08 -- 09-06 gap closure complete (CR-03 validator fail-closed null-guard)
+Status: All 6 plans executed; the 3 verification blockers AND the code-review parity CLASS (CR-01 ./.. segments, CR-02 garbled-marker-with-kitRoot-line false-green) are closed — re-run /gsd-verify-phase 9 before marking the phase complete. Phase is NOT yet complete; re-verification is the next gate.
+Last activity: 2026-06-08 -- 09-05 code-review parity-class remediation (./.. lexical collapse + fail-closed structural marker validation); suites green
 
 ## Performance Metrics
 
@@ -201,6 +201,7 @@ Recent decisions affecting current work:
 - [Phase 09]: [09-04] RED-by-design 09-02 hand-off discharged: run_fixture now sets BOTH VALIDATE_KIT_ROOT + VALIDATE_ROOT (same tree, Discretion 4 back-compat) + own-tree self-test supplies VALIDATE_KIT_ROOT=REPO_ROOT; the 8 single-tree fixtures + D-42 self-test pass under the no-default kit-root contract; C3 unset-kit BAD check fires on the literal (C3) message
 - [Phase ?]: [09-05] doctor parity gap closure (CR-01/CR-02): resolve_grugops_home lexically collapses repeated/trailing slashes to match Node resolve() so --strict exits 0 like Node; a garbled .grugops/install.json folds into the byte-identical not-installed FAIL the Node oracle emits; install.mjs (oracle) untouched; Check 14 + Check 15 are RED-before/GREEN-after parity gates
 - [Phase ?]: [09-06] CR-03 fail-closed null-guard: checkConfig + checkPackaging reject a null/array/primitive JSON.parse result with a greppable 'not a JSON object' finding before dereferencing — JSON.parse('null') returns null without throwing, so try/catch alone was not fail-closed; two RED-before/GREEN-after null-literal regression cases (config + plugin) lock the crash path
+- [Phase 09]: [09-05 remediation] code-review found 09-05 closed only the exact reported spellings; the parity CLASS is now closed: resolve_grugops_home collapses ./.. segments lexically (awk, no cd/pwd) to match Node path.resolve() (Check 14 trailing-slash stays green); marker_structurally_valid is a pragmatic pure-POSIX (no jq) gate that rejects a marker with a valid kitRoot line + trailing non-JSON garbage (the sh false-green) and folds it into the byte-identical not-installed FAIL the Node oracle emits. New Checks 16/17/18 are RED-before/GREEN-after gates (proven by reverting install.sh). install.mjs (oracle) untouched; install/validate/two-root/check-kit-refs suites all green
 
 ### Pending Todos
 

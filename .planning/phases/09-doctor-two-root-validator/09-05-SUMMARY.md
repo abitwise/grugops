@@ -117,3 +117,96 @@ None - no external service configuration required.
 - FOUND: `install/install.test.sh`
 - FOUND: commit `f2a4aeb` (Task 1 — fix)
 - FOUND: commit `2021876` (Task 2 — test)
+
+---
+
+## Remediation (code-review parity blockers)
+
+**Date:** 2026-06-08 · **Commits:** `f4ba884` (fix), `b9e8236` (test)
+
+The Phase-9 code review (`09-REVIEW.md`) found that 09-05's original two fixes closed only
+the *exact reported spellings*, leaving the underlying sh↔Node doctor-parity CLASS open. Two
+confirmed blockers were reproduced empirically against the `install.mjs` ORACLE and are now
+closed. **`install.mjs` was NOT modified — the sh side was brought into agreement with Node.**
+
+### Blocker 1 — `.`/`..` path divergence (CR-01's class)
+
+The original `resolve_grugops_home` did only a lexical slash-collapse + trailing-slash strip;
+it did **not** collapse `.`/`..` segments, while the Node side uses `path.resolve()` which does.
+So `GRUGOPS_HOME=…/x/./home` kept the literal `/./` on the sh side → a textually-different
+`KIT_ROOT` → spurious cosmetic WARN in the D-03 cross-check → under `--strict`, **sh rc=1 while
+Node rc=0** (same install, same flag, two exit codes).
+
+- **Reproduced (before):** `…/x/./home --check --strict` → sh rc=1 (`1 WARNING(S) (--strict: promoted to failure)`), node rc=0 (`ALL CHECKS PASSED`).
+- **Fix:** extended `resolve_grugops_home` with a PURELY LEXICAL `.`/`..` collapse (pure `awk`
+  string work — **no `cd && pwd`**, since the home may not exist yet at install time): drop `.`
+  and empty segments, pop the previous segment on `..` but never below root, and `/..` at root
+  stays `/` (matching `resolve('/..') === '/'`). The pre-existing slash-collapse + trailing-slash
+  behavior is preserved (Check 14 stays green).
+- **Verified equivalence:** the normalizer was diffed against `node -e path.resolve(...)` across a
+  case battery (`/./`, `/../`, over-popping past root, trailing `..`, mixed) — byte-equal on every case.
+- **After:** `…/x/./home` and a `…/x/sub/foo/../home` that collapses back to the install home →
+  both doctors rc=0 (PARITY).
+
+### Blocker 2 — garbled-marker false-green (CR-02's class)
+
+The sh doctor read the marker's `kitRoot` with `read_marker_field` (a line-grep). A marker with a
+VALID `"kitRoot": "<real>"` line plus trailing non-JSON garbage (e.g.
+`{ "kitRoot": "<real>" GARBAGE NOT JSON {{{`) extracted a non-empty kitRoot, so the fold was
+skipped and the doctor reached **rc=0 (ALL CHECKS PASSED) — a FALSE-GREEN on a corrupt install** —
+while the Node oracle's `JSON.parse` threw → `notInstalled()` → rc=1. This is the exact failure
+the doctor exists to catch.
+
+- **Reproduced (before):** garbled-with-surviving-kitRoot-line → **sh rc=0 (ALL CHECKS PASSED)**, node rc=1 (not-installed).
+- **Fix:** added `marker_structurally_valid` — a PRAGMATIC, pure-POSIX (no `jq`; it is not a base
+  dependency) structural gate that accepts only the well-formed flat all-string JSON object
+  `write_marker` emits and rejects: trailing garbage after the value, garbage after the closing
+  brace, a missing/duplicated brace, a missing comma between members, a trailing comma on the last
+  member, an empty object, and a fully non-JSON file. The doctor's not-installed gate now folds
+  when the marker is absent OR not structurally valid OR has an empty kitRoot — into the
+  byte-identical not-installed FAIL the Node oracle emits. The structural check's limits (flat
+  all-string objects only; no nested/number/boolean/escaped-quote support — the conservative
+  fail-closed choice, since such a marker is not one this installer ever wrote) are documented in
+  the code comment.
+- **After:** garbled-with-surviving-kitRoot-line → both doctors rc=1 with the byte-identical
+  `grugops not installed in <target> — run install.sh (then install.sh --check)` first-failure line.
+- **No over-rejection:** a genuinely valid marker (sh-written AND node-written) still PASSES on
+  both sides — asserted by a happy-path guard and by 9 direct unit cases of the validator.
+
+### New regression gates (proven RED-without-fix / GREEN-with-fix)
+
+Appended to `install/install.test.sh` after Check 15, before the Result block — hermetic
+(`$WORK/...` kit + target; the real repo and `$HOME` are never touched), node-gated with a
+skip-with-note pass (mirroring Checks 13-15):
+
+- **Check 16** — `/./`-containing `GRUGOPS_HOME` under `--strict` → identical sh/Node rc (both 0).
+- **Check 17** — `/../`-containing `GRUGOPS_HOME` (collapsing back to the install home) under
+  `--strict` → identical sh/Node rc (both 0).
+- **Check 18** — garbled marker with a surviving `kitRoot` line → sh FAILS (rc=1) with the
+  byte-identical not-installed first-failure line as Node (no longer a false-green); plus a
+  happy-path guard that a genuinely valid marker still PASSES on both sides.
+
+**RED proof (no fabrication):** reverting `install/install.sh` to its pre-fix state and re-running
+the suite drove **Checks 16, 17, and 18 all RED** (16/17: sh rc=1 vs Node rc=0; 18: sh false-greens
+/ diverges), while Checks 14/15 stayed green (confirming their original narrow scope). Restoring the
+fix returns all to GREEN.
+
+### Verification proof (all run; none fabricated)
+
+| Gate | Result |
+|------|--------|
+| `sh install/install.test.sh` | ALL CHECKS PASSED (rc=0) — incl. new Checks 16/17/18 |
+| `sh scripts/validate.test.sh` | ALL CHECKS PASSED (rc=0) |
+| `sh install/install.two-root.test.sh` | ALL CHECKS PASSED (rc=0) — D-09, untouched |
+| `sh scripts/check-kit-refs.sh` | ALL CHECKS PASSED (rc=0) — D-09 grep gate, untouched |
+| `sh -n install/install.sh` | clean (rc=0) |
+| `node --check install/install.mjs` | clean (rc=0) |
+| `git diff` (changeset) | only `install/install.sh` + `install/install.test.sh`; `install.mjs` untouched |
+| `git status` after the suite | clean (tests are hermetic — no real-repo/`$HOME` mutation) |
+
+### Remediation Self-Check: PASSED
+
+- FOUND: commit `f4ba884` (remediation fix — `install/install.sh`)
+- FOUND: commit `b9e8236` (remediation tests — `install/install.test.sh`)
+- CONFIRMED: `install/install.mjs` not in the remediation changeset (oracle untouched)
+- CONFIRMED: parity CLASS closed for both `.`/`..` paths and garbled-with-kitRoot-line markers
