@@ -284,7 +284,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 
 **Wave 4** *(gap closure — verification found 3 blocker gaps; disjoint files: install/* vs scripts/* run parallel)*
 
-- [ ] 09-05-PLAN.md — Doctor sh/Node parity fixes: normalize `resolve_grugops_home` (CR-01 trailing-slash) + fold a garbled marker into the not-installed FAIL (CR-02), with two new install.test.sh parity sub-cases (INSTALL-05)
+- [x] 09-05-PLAN.md — Doctor sh/Node parity fixes: normalize `resolve_grugops_home` (CR-01 trailing-slash) + fold a garbled marker into the not-installed FAIL (CR-02), with two new install.test.sh parity sub-cases (INSTALL-05)
 - [ ] 09-06-PLAN.md — Validator fail-closed null-guard: reject null/non-object JSON in `checkConfig`/`checkPackaging` (CR-03) + null-literal regression fixtures in validate.test.sh (VAL-02)
 
 
@@ -308,4 +308,4 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8 →
 | 6. Validation, Brand & Dogfood | 5/5 | Complete    | 2026-06-04 |
 | 7. Shared-Home Foundation & Path Rewrite | 4/4 | Complete    | 2026-06-06 |
 | 8. Two-Root Installer | 4/4 | Complete    | 2026-06-07 |
-| 9. Doctor & Two-Root Validator | 4/4 | Gaps (3/5) | —          |
+| 9. Doctor & Two-Root Validator | 5/6 | In Progress|  |

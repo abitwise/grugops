@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: Install & Distribution
 status: executing
-last_updated: "2026-06-08T08:21:45.278Z"
-last_activity: 2026-06-08 -- Phase 09 planning complete
+last_updated: "2026-06-08T08:37:20.659Z"
+last_activity: 2026-06-08 -- 09-05 gap closure complete (CR-01 + CR-02 doctor parity restored)
 progress:
   total_phases: 9
   completed_phases: 8
   total_plans: 48
-  completed_plans: 46
+  completed_plans: 47
   percent: 89
 ---
 
@@ -24,10 +24,10 @@ See: .planning/PROJECT.md (updated 2026-06-02)
 
 ## Current Position
 
-Phase: 09 (doctor-two-root-validator) — GAPS FOUND (3/5 must-haves verified)
-Plan: 4 of 4 executed; verification found 3 blocker gaps
-Status: Ready to execute
-Last activity: 2026-06-08 -- Phase 09 planning complete
+Phase: 09 (doctor-two-root-validator) — EXECUTING
+Plan: 6 of 6 (gap-closure 09-05 complete; 09-06 remaining)
+Status: Executing Phase 09 — 09-05 done, 09-06 next
+Last activity: 2026-06-08 -- 09-05 gap closure complete (CR-01 + CR-02 doctor parity restored)
 
 ## Performance Metrics
 
@@ -102,6 +102,7 @@ Last activity: 2026-06-08 -- Phase 09 planning complete
 | Phase 09 P02 | 7m | 2 tasks | 1 files |
 | Phase 09 P03 | 5m | 2 tasks | 1 files |
 | Phase 09 P09-04 | 12m | 3 tasks | 2 files |
+| Phase 09 P05 | 11m | 2 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -197,6 +198,7 @@ Recent decisions affecting current work:
 - [Phase 09]: [09-04] Verification layer GREEN: install.test.sh Checks 7-13 (doctor good-split/missing-kit/first-failure/exit-matrix/dangling-symlink/read-only/sh-vs-Node parity) + validate.test.sh two-root (GOOD split / BAD missing-kit / BAD unset-kit C3) + the three-way resolution-parity assertion (sh doctor = Node doctor = Node validator)
 - [Phase 09]: [09-04] Resolution-parity proven as spelling-aware path agreement: doctor KIT_ROOT = GRUGOPS_HOME/agent-factory (the dir), validator KIT_ROOT = its PARENT (resolves join(VALIDATE_KIT_ROOT,'agent-factory/...')); assertion compares doctors' kit: line to VALIDATE_KIT_ROOT/agent-factory + asserts no missing-required drift; the half-populated-home AGENTS.md miss is expected installer behavior, not drift
 - [Phase 09]: [09-04] RED-by-design 09-02 hand-off discharged: run_fixture now sets BOTH VALIDATE_KIT_ROOT + VALIDATE_ROOT (same tree, Discretion 4 back-compat) + own-tree self-test supplies VALIDATE_KIT_ROOT=REPO_ROOT; the 8 single-tree fixtures + D-42 self-test pass under the no-default kit-root contract; C3 unset-kit BAD check fires on the literal (C3) message
+- [Phase ?]: [09-05] doctor parity gap closure (CR-01/CR-02): resolve_grugops_home lexically collapses repeated/trailing slashes to match Node resolve() so --strict exits 0 like Node; a garbled .grugops/install.json folds into the byte-identical not-installed FAIL the Node oracle emits; install.mjs (oracle) untouched; Check 14 + Check 15 are RED-before/GREEN-after parity gates
 
 ### Pending Todos
 
@@ -230,6 +232,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-06-08T07:26:28.537Z
+Last session: 2026-06-08T08:36:34.651Z
 Stopped at: Phase 9 context gathered
 Resume file: None
