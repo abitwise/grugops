@@ -95,6 +95,19 @@ abspath() {
 resolve_grugops_home() {
   GRUGOPS_HOME=${GRUGOPS_HOME:-"$HOME/.grugops"}
   GRUGOPS_HOME=$(abspath "$GRUGOPS_HOME")
+  # CR-01 (GAP 1): normalize like Node resolve() — a LEXICAL slash-collapse so a non-normalized
+  # GRUGOPS_HOME (trailing slash, doubled slashes) resolves to the SAME kit identity the Node
+  # oracle wrote into the marker/adapter. abspath() above does NOT normalize, so without this a
+  # trailing-slash home yields `…//agent-factory` (double slash) → a spurious cosmetic WARN in the
+  # D-03 cross-check → under --strict, exit 1 while Node (which normalizes) exits 0 (same install,
+  # same flag, two exit codes). The transform is PURELY lexical — it must NOT `cd && pwd` (that
+  # fails on a not-yet-existent home and would break install where the home is created later).
+  # Collapse runs of `/` to one, then strip a single trailing `/` (except the bare root `/`).
+  GRUGOPS_HOME=$(printf '%s' "$GRUGOPS_HOME" | sed 's://*:/:g')
+  case "$GRUGOPS_HOME" in
+    /) ;;
+    */) GRUGOPS_HOME=${GRUGOPS_HOME%/} ;;
+  esac
   KIT_ROOT="$GRUGOPS_HOME/agent-factory"
 }
 resolve_grugops_home
@@ -181,9 +194,19 @@ doctor() {
   _adapter="$TARGET/.claude/agents/grugops-orchestrator.md"
 
   # --- not-installed fold-into-FAIL (RESEARCH Discretion §5) ----------------------------------
-  # Absent marker = a dev/uninstalled checkout. Fail-closed BEFORE touching adapters: print a
-  # distinct, greppable "not installed" line and return nonzero. Never crash, never false-green.
-  if [ ! -f "$_marker" ]; then
+  # Absent OR present-but-garbled marker = a dev/uninstalled/corrupt checkout. Fail-closed BEFORE
+  # touching adapters: print a distinct, greppable "not installed" line and return nonzero. Never
+  # crash, never false-green.
+  #
+  # CR-02 (GAP 2): a present-but-unparseable .grugops/install.json must fold into the SAME FAIL an
+  # absent one does. The Node oracle's readMarker() (try/catch JSON.parse) returns null for a
+  # garbled file → notInstalled(); the sh side must match. read_marker_field for kitRoot returns
+  # empty when the marker is present but has no extractable kitRoot (the garbled case), so an empty
+  # result takes the SAME branch with the SAME message + flow. Without this, a garbled marker slips
+  # past `[ ! -f ]`, the D-03 cross-check fires the "kit-root sources DISAGREE … marker=<unset>"
+  # line, and the two doctors diverge on the FIRST-failure line (both exit 1, different message).
+  _mk_kitroot=$(read_marker_field "$_marker" kitRoot 2>/dev/null || printf '')
+  if [ ! -f "$_marker" ] || [ -z "$_mk_kitroot" ]; then
     doc_report "FAIL" "grugops not installed in $TARGET — run install.sh (then install.sh --check)"
     printf '\n1 FAILURE(S)\n'
     return 1
