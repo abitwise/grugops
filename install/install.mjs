@@ -20,6 +20,8 @@
 //   DRY_RUN=1 node install/install.mjs
 //   INSTALL_MODE=symlink node install/install.mjs   (copy is the default, D-05; --symlink also opts in)
 //   node install/install.mjs --allow-self            (override the D-07 self-checkout guard)
+//   node install/install.mjs --check                 (doctor: verify a target install, mutate nothing)
+//   node install/install.mjs --check --strict        (doctor: promote warnings to a nonzero exit)
 //   GRUGOPS_HOME=/path node install/install.mjs      (override the shared kit home; default ~/.grugops)
 //   GRUGOPS_SRC=/path/to/grugops TARGET=/path/to/repo node install/install.mjs
 //
@@ -47,10 +49,15 @@ import { fileURLToPath } from "node:url";
 import { homedir } from "node:os";
 
 // --- argument parsing (INSTALL-03), layered over the TARGET/INSTALL_MODE env overrides ---
+//   --check    run the non-mutating doctor (INSTALL-05): verify every referenced path resolves,
+//              name the FIRST failure with its referencing file, mutate nothing
+//   --strict   (with --check) promote WARN findings to a nonzero exit
 let ARG_TARGET = "";
 let YES = false;
 let ALLOW_SELF = false;
 let ARG_SYMLINK = false;
+let CHECK = false;
+let STRICT = false;
 const argv = process.argv.slice(2);
 for (let i = 0; i < argv.length; i++) {
   const a = argv[i];
@@ -64,6 +71,10 @@ for (let i = 0; i < argv.length; i++) {
     ALLOW_SELF = true;
   } else if (a === "--symlink") {
     ARG_SYMLINK = true;
+  } else if (a === "--check") {
+    CHECK = true;
+  } else if (a === "--strict") {
+    STRICT = true;
   } else {
     process.stderr.write(`install.mjs: unknown argument: ${a}\n`);
     process.exit(2);
@@ -122,6 +133,230 @@ function resolveTarget() {
   return toPosix(ans ? resolve(ans) : def);
 }
 const TARGET = resolveTarget();
+
+// Materialization sentinels — byte-identical to install.sh. Declared HERE (before the doctor) so
+// the doctor's adapter KIT= parser can reference them under --check; materializeAdapter on the
+// install path below reuses these same definitions verbatim (mirrors install.sh's relocation).
+const MAT_OPEN = "# <!-- grugops:materialized-kit -->";
+const MAT_CLOSE = "# <!-- /grugops:materialized-kit -->";
+const MAT_SLOT = "# 1. (installed) the absolute kit path the installer wrote above this line.";
+
+// ---------------------------------------------------------------------------
+// Doctor (INSTALL-05) — the Node byte-parity twin of install.sh's doctor(). A non-mutating
+// verifier: reads only, stats only, mutates NOTHING (never copyKit / materializeAdapter /
+// seedState / writeMarker; never reads or writes the prod deploy-approval env var, carried
+// prohibition from INSTALL-02 / SAFE-02). It reuses the one resolution rule (GRUGOPS_HOME /
+// KIT_ROOT, source (a) of the D-03 cross-check, resolved above). Fail-closed parsing: a garbled
+// or absent marker/adapter becomes a finding, never an unhandled throw. Findings are greppable
+// lines; FAIL names the path + referencing file. Message strings are byte-identical to the sh
+// doctor so the Plan-04 sh↔Node parity check agrees on pass/fail AND the first-failure path.
+// ---------------------------------------------------------------------------
+
+// docReport / docFail / docWarn: greppable finding lines, byte-identical to install.sh's
+// doc_report (printf '  %-14s %s\n'). The counters live in the closure the doctor reads back.
+let DOC_FAILS = 0;
+let DOC_WARNS = 0;
+const docReport = (label, msg) => console.log(`  ${label.padEnd(14)} ${msg}`);
+const docFail = (msg) => {
+  docReport("FAIL", msg);
+  DOC_FAILS += 1;
+};
+const docWarn = (msg) => {
+  docReport("WARN", msg);
+  DOC_WARNS += 1;
+};
+
+// readMarkerField: fail-closed read of one field from the byte-stable .grugops/install.json the
+// installer wrote (writeMarker schema). JSON.parse in try/catch — an absent/garbled marker
+// returns null (never throws), source (b) of D-03.
+function readMarker(markerFile) {
+  try {
+    return JSON.parse(readFileSync(markerFile, "utf8"));
+  } catch {
+    return null;
+  }
+}
+
+// readAdapterKit: extract the materialized KIT="…" line from the grugops:materialized-kit
+// sentinel block (source (c) of D-03). Split on "\n", track inblk between MAT_OPEN/MAT_CLOSE,
+// capture the KIT= line, strip the quotes. Fail-closed: absent file / no KIT line → "".
+function readAdapterKit(adapterFile) {
+  let text;
+  try {
+    text = readFileSync(adapterFile, "utf8");
+  } catch {
+    return "";
+  }
+  let inblk = false;
+  let line = "";
+  for (const l of text.split("\n")) {
+    if (l === MAT_OPEN) {
+      inblk = true;
+      continue;
+    }
+    if (l === MAT_CLOSE) {
+      inblk = false;
+      continue;
+    }
+    if (inblk && /^KIT=/.test(l)) line = l;
+  }
+  if (line === "") return "";
+  return line.replace(/^KIT="/, "").replace(/"$/, "");
+}
+
+// docAbspath: byte-parity twin of install.sh's abspath() — an absolute path is returned VERBATIM
+// (no `.`/`..` collapsing, no trailing-slash trimming, unlike node:path resolve()); a relative
+// path is prefixed with cwd. Used by the D-03 cross-check so the sh and Node doctors classify a
+// cosmetic-but-textually-different kitRoot identically (sh abspath does NOT normalize, so neither
+// may we — using resolve() here would over-normalize `…/agent-factory/.` to `…/agent-factory` and
+// turn a sh-WARN into a Node-pass, breaking parity).
+const docAbspath = (p) => (p.startsWith("/") ? p : `${toPosix(process.cwd())}/${p}`);
+
+// kitReal: a path resolves to a REAL kit iff agent-factory/roles/orchestrator.md exists under it.
+// Used by the D-03 cross-check to distinguish a cosmetic diff (all real) from a true divergence.
+const kitReal = (p) => p !== "" && existsSync(join(p, "roles", "orchestrator.md"));
+
+// isDangling: link present but its target is gone — mirror install.sh's [ -L ] && [ ! -e ]. lstat
+// tests the link itself; existsSync follows it (false for a dangling link).
+const isDangling = (p) => {
+  try {
+    return lstatSync(p).isSymbolicLink() && !existsSync(p);
+  } catch {
+    return false;
+  }
+};
+
+// notInstalled: the distinct, greppable "not installed" line — byte-identical to the sh doctor.
+function notInstalled() {
+  docReport("FAIL", `grugops not installed in ${TARGET} — run install.sh (then install.sh --check)`);
+  console.log("\n1 FAILURE(S)");
+}
+
+// doctor: the INSTALL-05 verifier. Read-only by construction. Returns 0 on pass / WARN-only,
+// nonzero on any FAIL (or WARN + --strict). Mirrors install.sh's doctor() function-for-function.
+function doctor() {
+  DOC_FAILS = 0;
+  DOC_WARNS = 0;
+  console.log("== grugops doctor (--check) ==");
+  console.log(`home:   ${GRUGOPS_HOME}`);
+  console.log(`kit:    ${KIT_ROOT}`);
+  console.log(`target: ${TARGET}`);
+  console.log("");
+
+  const markerFile = join(TARGET, ".grugops", "install.json");
+  const adapterFile = join(TARGET, ".claude", "agents", "grugops-orchestrator.md");
+
+  // --- not-installed fold-into-FAIL (RESEARCH Discretion §5) --------------------------------
+  // Absent/garbled marker = a dev/uninstalled checkout. Fail-closed BEFORE touching adapters:
+  // print a distinct greppable "not installed" line and return nonzero. Never crash, never
+  // false-green (ties to C3 — the dev checkout has agent-factory/ but no marker).
+  const marker = readMarker(markerFile);
+  if (!marker) {
+    notInstalled();
+    return 1;
+  }
+
+  // --- D-03 three-source kit-root cross-check ------------------------------------------------
+  // (a) the freshly re-resolved rule, (b) the marker kitRoot, (c) the adapter KIT=. Normalize all
+  // three via resolve+toPosix (mirrors the sh abspath); all-equal → pass; differ-but-all-real-and-
+  // cosmetic → WARN; any unresolvable or genuinely different real kits → FAIL (name all three).
+  // Bias to FAIL when unsure.
+  const a = KIT_ROOT;
+  const b = marker.kitRoot ? String(marker.kitRoot) : "";
+  const c = readAdapterKit(adapterFile);
+  const na = docAbspath(a);
+  const nb = b ? docAbspath(b) : "";
+  const nc = c ? docAbspath(c) : "";
+  if (na === nb && nb === nc) {
+    docReport("ok", `kit-root sources agree (${na})`);
+  } else if (kitReal(na) && kitReal(nb) && kitReal(nc)) {
+    docWarn(`kit-root sources differ cosmetically: rule=${na} marker=${nb} adapter=${nc}`);
+  } else {
+    docFail(
+      `kit-root sources DISAGREE (stale/moved install): rule=${na} marker=${nb || "<unset>"} adapter=${nc || "<unset>"}  (referenced by ${markerFile} + ${adapterFile})`,
+    );
+  }
+
+  // --- deterministic ordered first-failure stat set (D-02 / D-05) ----------------------------
+  // Fixed order, most-load-bearing first — the SAME tuple order as install.sh. Kit refs resolve
+  // under KIT_ROOT; state refs resolve repo-relative (Phase-7 classification). A dangling symlink
+  // is a FAIL with a symlink-specific message. On the FIRST stat failure, name path + referencing
+  // file and STOP. Each entry is [path, referencing-file].
+  const refs = [
+    [KIT_ROOT, markerFile],
+    [join(KIT_ROOT, "roles", "orchestrator.md"), adapterFile],
+    [join(KIT_ROOT, "roles", "_role-switch-protocol.md"), adapterFile],
+    [join(KIT_ROOT, "workflows"), adapterFile],
+    [join(TARGET, ".grugops", "factory.config.json"), adapterFile],
+    [join(TARGET, "plans", "board.md"), adapterFile],
+    [join(TARGET, "plans", "handoffs"), adapterFile],
+  ];
+
+  if (DOC_FAILS === 0) {
+    for (const [p, ref] of refs) {
+      if (!p) continue;
+      if (isDangling(p)) {
+        docFail(`dangling symlink: ${p}  (referenced by ${ref})`);
+        break;
+      }
+      if (!existsSync(p)) {
+        docFail(`${p}  (referenced by ${ref})`);
+        break;
+      }
+      docReport("ok", p);
+    }
+  }
+
+  // --- WARN tier (D-06, detect-only per D-07): only when the cross-check + stats are clean -----
+  if (DOC_FAILS === 0) {
+    // kit-version skew: marker kitVersion vs the installed kit's VERSION (read head -n 1 the way
+    // writeMarker reads it). Unequal → warn (no negotiation; SKEW-01 is v1.2).
+    const mver = marker.kitVersion ? String(marker.kitVersion) : "";
+    let kver = "";
+    const verFile = join(KIT_ROOT, "VERSION");
+    if (existsSync(verFile)) {
+      try {
+        kver = readFileSync(verFile, "utf8").split("\n")[0];
+      } catch {
+        kver = "";
+      }
+    }
+    if (mver !== "" && kver !== "" && mver !== kver) {
+      docWarn(`kit-version skew: marker=${mver} kit VERSION=${kver}`);
+    }
+    // missing optional seed: a seed file the user may have pruned (e.g. memory-bank/00-index.md).
+    if (!existsSync(join(TARGET, "memory-bank", "00-index.md"))) {
+      docWarn(`missing optional seed: ${join(TARGET, "memory-bank", "00-index.md")} (run install.sh to re-seed)`);
+    }
+  }
+
+  // --- exit-code matrix (SC2) ----------------------------------------------------------------
+  console.log("");
+  if (DOC_FAILS > 0) {
+    console.log(`${DOC_FAILS} FAILURE(S)`);
+    return 1;
+  }
+  if (DOC_WARNS > 0 && STRICT) {
+    console.log(`${DOC_WARNS} WARNING(S) (--strict: promoted to failure)`);
+    return 1;
+  }
+  if (DOC_WARNS > 0) {
+    console.log(`ALL CHECKS PASSED (${DOC_WARNS} warning(s))`);
+    return 0;
+  }
+  console.log("ALL CHECKS PASSED");
+  return 0;
+}
+
+// --- Doctor early-exit (INSTALL-05) — the --check arm is a NON-MUTATING reader. It branches HERE,
+// after GRUGOPS_HOME/KIT_ROOT and TARGET are resolved, but BEFORE the D-07 self-checkout guard's
+// exit, the run banner, and every mutation (copyKit / materializeAdapter / seedState / writeMarker).
+// So `--check` never writes, and it still runs on a dev/uninstalled checkout (folding the absent-
+// marker case into a clean FAIL rather than tripping the self-checkout guard). Mirrors install.sh's
+// `if [ "$CHECK" = "1" ]; then doctor; exit $?; fi`. ---
+if (CHECK) {
+  process.exit(doctor());
+}
 
 // --- D-07 self-checkout guard (ALWAYS-ON): runs unconditionally after TARGET resolution, before
 // any write, independent of TTY / --yes (Pitfall 3). Refuse when EITHER resolved TARGET ==
@@ -322,11 +557,6 @@ function copyKit() {
   rmSync(old, { recursive: true, force: true });
   report("copied", `kit → ${KIT_ROOT}`);
 }
-
-// Materialization sentinels — byte-identical to install.sh.
-const MAT_OPEN = "# <!-- grugops:materialized-kit -->";
-const MAT_CLOSE = "# <!-- /grugops:materialized-kit -->";
-const MAT_SLOT = "# 1. (installed) the absolute kit path the installer wrote above this line.";
 
 // materializeAdapter: lay an adapter down from $GRUGOPS_SRC and inject the resolved KIT line
 // above the slot, stripping any prior grugops:materialized-kit block first (strip-then-inject,
