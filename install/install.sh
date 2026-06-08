@@ -95,18 +95,44 @@ abspath() {
 resolve_grugops_home() {
   GRUGOPS_HOME=${GRUGOPS_HOME:-"$HOME/.grugops"}
   GRUGOPS_HOME=$(abspath "$GRUGOPS_HOME")
-  # CR-01 (GAP 1): normalize like Node resolve() — a LEXICAL slash-collapse so a non-normalized
-  # GRUGOPS_HOME (trailing slash, doubled slashes) resolves to the SAME kit identity the Node
-  # oracle wrote into the marker/adapter. abspath() above does NOT normalize, so without this a
-  # trailing-slash home yields `…//agent-factory` (double slash) → a spurious cosmetic WARN in the
-  # D-03 cross-check → under --strict, exit 1 while Node (which normalizes) exits 0 (same install,
-  # same flag, two exit codes). The transform is PURELY lexical — it must NOT `cd && pwd` (that
-  # fails on a not-yet-existent home and would break install where the home is created later).
-  # Collapse runs of `/` to one, then strip a single trailing `/` (except the bare root `/`).
+  # CR-01 (GAP 1 + parity-class closure): normalize like Node resolve() — a PURELY LEXICAL
+  # transform so a non-normalized GRUGOPS_HOME (trailing slash, doubled slashes, AND `.`/`..`
+  # segments) resolves to the SAME kit identity the Node oracle wrote into the marker/adapter.
+  # abspath() above does NOT normalize, so without this a trailing-slash home yields
+  # `…//agent-factory` (double slash) and a `/./` or `/../` home keeps the literal dot segment →
+  # a spurious cosmetic WARN in the D-03 cross-check → under --strict, exit 1 while Node (which
+  # collapses all of these via path.resolve()) exits 0 (same install, same flag, two exit codes).
+  # The transform must NOT `cd && pwd` (that fails on a not-yet-existent home and would break
+  # install where the home is created later), so it is done as string manipulation only.
+  #
+  # Step 1 — collapse runs of `/` to one, then strip a single trailing `/` (except the bare root).
   GRUGOPS_HOME=$(printf '%s' "$GRUGOPS_HOME" | sed 's://*:/:g')
   case "$GRUGOPS_HOME" in
     /) ;;
     */) GRUGOPS_HOME=${GRUGOPS_HOME%/} ;;
+  esac
+  # Step 2 — collapse `.` and `..` segments lexically, matching Node path.resolve(): drop `.` and
+  # empty segments, POP the previous segment on `..` but NEVER pop past root, and a `/..` at root
+  # stays `/` (Node: resolve('/..') === '/'). GRUGOPS_HOME is always absolute here (abspath above),
+  # so the result always begins at `/`. Pure awk string work — no fs access, works on a home that
+  # does not exist yet. Verified equivalence vs `node -e path.resolve(...)` for /./, /../, and
+  # trailing-.. cases; only runs when a `.` or `..` segment is actually present (fast no-op path).
+  case "$GRUGOPS_HOME" in
+    */./*|*/.|*/../*|*/..|./*|../*|.|..)
+      GRUGOPS_HOME=$(printf '%s' "$GRUGOPS_HOME" | awk -F/ '
+        {
+          n = 0
+          for (i = 1; i <= NF; i++) {
+            s = $i
+            if (s == "." || s == "") continue          # drop "." and empty (already slash-collapsed)
+            if (s == "..") { if (n > 0) n--; continue }  # pop previous; never below root
+            a[++n] = s
+          }
+          out = "/"
+          for (j = 1; j <= n; j++) out = out a[j] (j < n ? "/" : "")
+          print out                                      # bare root → "/" (n==0), matches resolve("/..")
+        }')
+      ;;
   esac
   KIT_ROOT="$GRUGOPS_HOME/agent-factory"
 }
@@ -162,6 +188,62 @@ read_marker_field() {  # $1=marker-file  $2=field
   grep -m1 "\"$2\"" "$1" 2>/dev/null | sed 's/.*: *"\(.*\)".*/\1/'
 }
 
+# marker_structurally_valid: a PRAGMATIC, pure-POSIX structural gate that mirrors the Node oracle's
+# `JSON.parse()` for the ONE shape this installer ever writes — the flat, all-string JSON object
+# write_marker emits. Returns 0 only when the file is a well-formed JSON object of that shape;
+# nonzero otherwise. It is NOT a general JSON parser (the user accepted that pure-POSIX sh has none,
+# and jq is NOT a base dependency, so we do not add it), but it MUST reject what the line-grep
+# read_marker_field cannot: a marker that has an extractable `"kitRoot": "…"` line but trailing
+# non-JSON garbage (e.g. `… "kitRoot": "<real>" GARBAGE NOT JSON {{{`). Without this the sh doctor
+# false-greens a corrupt install while the Node oracle JSON.parse()-throws → notInstalled() → rc=1.
+#
+# The structural contract (matching write_marker's output exactly):
+#   - the first non-blank line is exactly `{`
+#   - the last non-blank line is exactly `}` (nothing follows it — rejects trailing garbage)
+#   - every line BETWEEN them is a single member: optional indent, `"key"` (key has no `"`),
+#     `:`, optional space, a complete `"value"` string (value has no bare `"`), optional trailing
+#     comma, optional trailing space — and NOTHING after the value/comma (rejects the GARBAGE case)
+#   - the LAST member line has no trailing comma; every earlier member line does (valid JSON)
+#   - at least one member is present
+# LIMITS (documented): only flat all-string objects are accepted — the exact write_marker schema.
+# Nested objects/arrays, numbers, booleans, or escaped quotes inside a value are rejected (the
+# installer never emits them; rejecting them is the conservative fail-closed choice, parity-safe
+# because such a marker is not one this installer wrote).
+marker_structurally_valid() {  # $1=marker-file
+  [ -f "$1" ] || return 1
+  awk '
+    # Strip a trailing \r so a CRLF marker is judged on content, not line endings.
+    { sub(/\r$/, "") }
+    /^[[:space:]]*$/ { next }                 # ignore blank lines anywhere
+    {
+      seen++
+      if (seen == 1) { if ($0 != "{") { bad=1; exit } ; next }   # must open with a bare {
+      if (closed) { bad=1; exit }             # anything after the closing } is trailing garbage
+      if ($0 == "}") {
+        if (members > 0 && last_had_comma) { bad=1; exit }  # last member must NOT end with a comma
+        closed=1; next
+      }
+      # Otherwise this must be a member line. Match: indent "key" : "value" optional-comma.
+      # Key: "([^"]*)"  Value: "([^"]*)"  — no bare double-quote inside either (no escapes).
+      if ($0 ~ /^[[:space:]]*"[^"]*"[[:space:]]*:[[:space:]]*"[^"]*"[[:space:]]*,?[[:space:]]*$/) {
+        # A member that follows a comma-less member is invalid (the prior line was missing its comma).
+        if (members > 0 && !last_had_comma) { bad=1; exit }
+        members++
+        last_had_comma = ($0 ~ /,[[:space:]]*$/) ? 1 : 0
+        next
+      }
+      bad=1; exit                             # not a recognized member line → reject
+    }
+    END {
+      if (bad) exit 1
+      if (seen == 0) exit 1                   # empty file
+      if (!closed) exit 1                     # never closed the object
+      if (members < 1) exit 1                 # {} with no members is not a valid install marker
+      exit 0
+    }
+  ' "$1"
+}
+
 # read_adapter_kit: extract the materialized KIT="…" line from the grugops:materialized-kit
 # sentinel block (source (c) of D-03). The op/cl neutral names dodge BSD/macOS awk reserved words,
 # the same workaround materialize_adapter uses. Test-before-read; empty output if no KIT line.
@@ -198,15 +280,22 @@ doctor() {
   # touching adapters: print a distinct, greppable "not installed" line and return nonzero. Never
   # crash, never false-green.
   #
-  # CR-02 (GAP 2): a present-but-unparseable .grugops/install.json must fold into the SAME FAIL an
-  # absent one does. The Node oracle's readMarker() (try/catch JSON.parse) returns null for a
-  # garbled file → notInstalled(); the sh side must match. read_marker_field for kitRoot returns
-  # empty when the marker is present but has no extractable kitRoot (the garbled case), so an empty
-  # result takes the SAME branch with the SAME message + flow. Without this, a garbled marker slips
-  # past `[ ! -f ]`, the D-03 cross-check fires the "kit-root sources DISAGREE … marker=<unset>"
-  # line, and the two doctors diverge on the FIRST-failure line (both exit 1, different message).
+  # CR-02 (GAP 2 + parity-class closure): a present-but-unparseable .grugops/install.json must fold
+  # into the SAME FAIL an absent one does. The Node oracle's readMarker() (try/catch JSON.parse)
+  # returns null for ANY file that is not valid JSON → notInstalled(); the sh side must match. The
+  # original gate only tested an EMPTY kitRoot via read_marker_field (a line-grep), so a marker that
+  # kept a valid `"kitRoot": "<real>"` LINE but appended trailing non-JSON garbage (e.g.
+  # `… "kitRoot": "<real>" GARBAGE NOT JSON {{{`) extracted a non-empty kitRoot, slipped the fold,
+  # and let the doctor reach rc=0 PASS — a FALSE-GREEN on a corrupt install while the Node oracle
+  # JSON.parse()-throws → rc=1. The fix is a structural fail-closed gate: a marker must be a
+  # well-formed JSON object of the write_marker shape (marker_structurally_valid, a pragmatic
+  # pure-POSIX validator — jq is NOT a base dependency) AND yield a non-empty kitRoot. Any of
+  # absent / structurally-malformed / empty-kitRoot folds into the byte-identical not-installed FAIL
+  # the Node oracle emits, so the two doctors agree on rc AND first-failure line. Without this, the
+  # two doctors diverge (sh false-greens; or the D-03 cross-check fires "DISAGREE … marker=<unset>"
+  # — both exit 1 with different messages).
   _mk_kitroot=$(read_marker_field "$_marker" kitRoot 2>/dev/null || printf '')
-  if [ ! -f "$_marker" ] || [ -z "$_mk_kitroot" ]; then
+  if [ ! -f "$_marker" ] || ! marker_structurally_valid "$_marker" || [ -z "$_mk_kitroot" ]; then
     doc_report "FAIL" "grugops not installed in $TARGET — run install.sh (then install.sh --check)"
     printf '\n1 FAILURE(S)\n'
     return 1
