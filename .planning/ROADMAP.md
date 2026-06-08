@@ -272,7 +272,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 **Wave 1** *(parallel — disjoint files: the sh doctor and the validator split are independent)*
 
 - [x] 09-01-PLAN.md — sh `install.sh --check` doctor (three-source cross-check, ordered first-failure, WARN tier, exit-code matrix) (INSTALL-05)
-- [ ] 09-02-PLAN.md — Two-root validator split: `VALIDATE_KIT_ROOT` (no default) + `VALIDATE_ROOT`, classification-routed checks (VAL-02)
+- [x] 09-02-PLAN.md — Two-root validator split: `VALIDATE_KIT_ROOT` (no default) + `VALIDATE_ROOT`, classification-routed checks (VAL-02)
 
 **Wave 2** *(blocked on 09-01; the byte-parity Node doctor twin keys off the sh doctor)*
 
@@ -303,4 +303,4 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8 →
 | 6. Validation, Brand & Dogfood | 5/5 | Complete    | 2026-06-04 |
 | 7. Shared-Home Foundation & Path Rewrite | 4/4 | Complete    | 2026-06-06 |
 | 8. Two-Root Installer | 4/4 | Complete    | 2026-06-07 |
-| 9. Doctor & Two-Root Validator | 1/4 | In Progress|  |
+| 9. Doctor & Two-Root Validator | 2/4 | In Progress|  |

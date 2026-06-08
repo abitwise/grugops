@@ -129,7 +129,7 @@
 
 ### Validation (two-root)
 
-- [ ] **VAL-02**: The structure validator is two-root aware (explicit kit root + repo root, with **no fallback to `.`**) so it cannot return a false green in the dev checkout or with `$GRUGOPS_HOME` unset; a BAD fixture for a missing/unset kit root must fail. `install.test.sh` is updated for the split (fresh install + seed + doctor; idempotency / dry-run / reversibility preserved)
+- [x] **VAL-02**: The structure validator is two-root aware (explicit kit root + repo root, with **no fallback to `.`**) so it cannot return a false green in the dev checkout or with `$GRUGOPS_HOME` unset; a BAD fixture for a missing/unset kit root must fail. `install.test.sh` is updated for the split (fresh install + seed + doctor; idempotency / dry-run / reversibility preserved)
 
 ### Deferred to v1.2+ (researched, intentionally out of this milestone)
 
@@ -227,7 +227,7 @@ Each requirement maps to exactly one phase. See `.planning/ROADMAP.md` for phase
 | INSTALL-03 | Phase 8 | Complete |
 | INSTALL-04 | Phase 8 | Complete |
 | INSTALL-05 | Phase 9 | Pending |
-| VAL-02 | Phase 9 | Pending |
+| VAL-02 | Phase 9 | Complete |
 
 **Coverage:**
 - v1 requirements: 46 total — mapped to Phases 1-6 ✓

@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: Install & Distribution
 status: executing
-last_updated: "2026-06-08T07:02:56.966Z"
+last_updated: "2026-06-08T07:09:46.609Z"
 last_activity: 2026-06-08
 progress:
   total_phases: 9
   completed_phases: 8
   total_plans: 46
-  completed_plans: 43
+  completed_plans: 44
   percent: 89
 ---
 
@@ -25,9 +25,9 @@ See: .planning/PROJECT.md (updated 2026-06-02)
 ## Current Position
 
 Phase: 09 (doctor-two-root-validator) — EXECUTING
-Plan: 2 of 4
-Status: Completed 09-01 (install.sh --check doctor) — ready to execute 09-02
-Last activity: 2026-06-08 -- 09-01 complete (INSTALL-05 sh side)
+Plan: 3 of 4
+Status: Ready to execute
+Last activity: 2026-06-08
 
 ## Performance Metrics
 
@@ -99,6 +99,7 @@ Last activity: 2026-06-08 -- 09-01 complete (INSTALL-05 sh side)
 | Phase 08 P04 | 10 | 2 tasks | 2 files |
 | Phase 08 P08-04 | 10 | 2 tasks | 2 files |
 | Phase 09 P01 | 4m | 2 tasks | 1 files |
+| Phase 09 P02 | 7m | 2 tasks | 1 files |
 
 ## Accumulated Context
 
@@ -186,6 +187,9 @@ Recent decisions affecting current work:
 - [Phase 09]: [09-01] install.sh --check doctor (INSTALL-05): non-mutating early-exit arm; D-03 three-source kit-root cross-check (rule/marker/adapter); deterministic ordered first-failure stat set with dangling-symlink FAIL; non-empty WARN tier (skew + missing seed); exit matrix 0/nonzero/WARN->0/--strict->nonzero; first reader of .grugops/install.json
 - [Phase 09]: [09-01] MAT_OPEN/MAT_CLOSE/MAT_SLOT sentinels moved above the doctor so read_adapter_kit can reference them under --check; materialize_adapter on the install path reuses the same definitions verbatim (zero install behavior change)
 - [Phase 09]: [09-01] doctor stat loop iterates without a pipe (IFS-newline for-loop) and writes no temp file - preserves read-only-by-construction (T-09-02) and keeps DOC_FAILS in the current shell scope
+- [Phase ?]: [09-02] validator split: VALIDATE_KIT_ROOT no default → unset is a hard exit(1) with a literal (C3) tag (D-08); STATE_ROOT reuses VALIDATE_ROOT (else repo root) so the 8 single-tree fixtures stay valid as state fixtures
+- [Phase ?]: [09-02] bare exists/safeRead/listDir helpers REMOVED (not aliased), forked into kit*/state* — every call site is explicitly kit/state-scoped; mixed required-files loop split by Phase-7 classification
+- [Phase ?]: [09-02] validate.test.sh is RED-by-design until Plan 09-04 adds the run_fixture_split driver + split fixtures + resolution-parity assertion — the C3 guard firing on the old harness is correct, not a regression
 
 ### Pending Todos
 
@@ -219,6 +223,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-06-08T07:01:43.603Z
+Last session: 2026-06-08T07:09:22.058Z
 Stopped at: Phase 9 context gathered
 Resume file: None
