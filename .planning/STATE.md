@@ -2,33 +2,33 @@
 gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: Install & Distribution
-status: milestone_complete
-last_updated: 2026-06-08T09:14:00.769Z
-last_activity: 2026-06-08 -- Phase 09 re-verified PASSED (5/5); milestone v1.1 complete
+status: v1.1 milestone complete
+last_updated: 2026-06-08T15:00:00.000Z
+last_activity: 2026-06-08 -- v1.1 milestone completed and archived (v1.0 also archived retroactively); tags v1.0 + v1.1
 progress:
   total_phases: 9
   completed_phases: 9
   total_plans: 48
   completed_plans: 48
   percent: 100
-stopped_at: Milestone complete (Phase 09 was final phase)
+stopped_at: Awaiting next milestone (v1.2 — run /gsd-new-milestone)
 ---
 
 # Project State
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-06-02)
+See: .planning/PROJECT.md (updated 2026-06-08 after v1.1 milestone)
 
 **Core value:** A user installs grugops on top of the coding-agent CLI they already run, types `/grug`, and gets a disciplined delivery team — a visible board, strict handoffs, and an auditable requirement→code→test→release trail — entirely as readable markdown, with humans always holding merge and deploy.
-**Current focus:** Milestone complete
+**Current focus:** v1.1 shipped & archived (with v1.0). Planning the next milestone (v1.2 — Migration & Update).
 
 ## Current Position
 
-Phase: 09 (doctor-two-root-validator) — COMPLETE, verified PASSED 5/5
-Plan: 6 of 6 complete (incl. gap-closure 09-05/09-06 + code-review parity-class remediation)
-Status: Milestone v1.1 complete (Phase 09 was the final phase)
-Last activity: 2026-06-08
+Phase: Milestone v1.1 complete and archived
+Plan: —
+Status: Awaiting next milestone (run /gsd-new-milestone for v1.2)
+Last activity: 2026-06-08 — v1.0 + v1.1 archived to .planning/milestones/; ROADMAP collapsed; REQUIREMENTS.md reset; tags v1.0 + v1.1
 
 ## Performance Metrics
 
@@ -229,11 +229,17 @@ None yet.
 
 ## Deferred Items
 
-Items acknowledged and carried forward from previous milestone close:
+Items acknowledged and deferred at the v1.1 milestone close on 2026-06-08. All are v1.0-era (phases 02/05/06); the v1.1 phases (07–09) carry no open artifacts. None are blockers — they are either human-only live-Claude-Code dogfood (DOG-02, genuinely not agent-runnable) or a stale tracking marker for already-completed work.
 
-| Category | Item | Status | Deferred At |
-|----------|------|--------|-------------|
-| *(none)* | | | |
+| Category | Item | Status | Deferred At | Note |
+|----------|------|--------|-------------|------|
+| quick_task | 260606-0my-harden-grugops-role-switch-protocol-auto | missing marker | 2026-06-08 | Stale marker only — the work shipped at commit 6a66994 (see Quick Tasks Completed) |
+| verification | Phase 05 — 05-VERIFICATION.md | human_needed | 2026-06-08 | DOG-02 live-CC half: plugin-cache pointer resolution (D-31) + live SAFE-02 hook firing |
+| verification | Phase 06 — 06-VERIFICATION.md | human_needed | 2026-06-08 | DOG-02 live-CC half: CC sub-agent spawn + dual-path parity column |
+| uat | Phase 05 — 05-HUMAN-UAT.md | partial (2 open) | 2026-06-08 | Live-Claude-Code dogfood scenarios; tracked honestly, never fabricated |
+| uat | Phase 06 — 06-HUMAN-UAT.md | partial (3 open) | 2026-06-08 | Live-Claude-Code dogfood scenarios; runbook in docs/dogfood-human-runbook.md |
+| uat | Phase 06 — 06-UAT.md | partial (0 open) | 2026-06-08 | No open scenarios; status string only |
+| uat | Phase 02 — 02-HUMAN-UAT.md | resolved (0 open) | 2026-06-08 | Already resolved; listed for completeness |
 
 ## Session Continuity
 

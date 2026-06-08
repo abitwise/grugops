@@ -1,311 +1,63 @@
 # Roadmap: grugops
 
+## Milestones
+
+- ✅ **v1.0 MVP — Full Agent Factory v2** — Phases 1–6 (shipped 2026-06-04)
+- ✅ **v1.1 Install & Distribution** — Phases 7–9 (shipped 2026-06-08)
+- 📋 **v1.2 Migration & Update** — Phases 10+ (planned — define with `/gsd-new-milestone`)
+
 ## Overview
 
-grugops is built bottom-up as a file protocol, not a runtime. The journey starts by freezing the shared vocabulary every later file cites by name (config field names, board column vocabulary, stable ID scheme) and laying down the empty state plane. Next come the shared I/O contracts — handoff templates, checklists, and the memory-bank seed — that roles and workflows reference. Then the roles themselves (Orchestrator first, defining the routing contract, then the core 11, then the enterprise 5) plus the minimal AGENTS.md substrate that points at them. With roles in place, the workflows compose them into the full lifecycle, ceremonies, and the backpressure quality gate. Only then are the thin per-tool adapters, both Claude distribution forms, install scripts, and the plugin-level safety hook built against finished, frozen role paths. Finally the validator, brand/docs collateral, and a real dogfood run (idea to PR on a throwaway repo, dual-dispatch parity) assert and exercise the complete whole. Each phase's outputs are the next phase's inputs; never place a consumer before its dependency.
+grugops is built bottom-up as a file protocol, not a runtime. v1.0 froze the shared vocabulary, built the 16 roles + 14 workflows + contracts + adapters + both Claude forms + installers + validator + brand collateral, and proved the chain with a dogfood. v1.1 redesigned the install to a shared-location two-root model (read-only kit at `${GRUGOPS_HOME:-$HOME/.grugops}`, per-repo state in the target) with a path rewrite, a two-root installer, a `--check` doctor, and a false-green-proof validator. Each phase's outputs are the next phase's inputs.
 
 ## Phases
 
-**Phase Numbering:**
+<details>
+<summary>✅ v1.0 MVP — Full Agent Factory v2 (Phases 1–6) — SHIPPED 2026-06-04</summary>
 
-- Integer phases (1, 2, 3): Planned milestone work
-- Decimal phases (2.1, 2.2): Urgent insertions (marked with INSERTED)
+- [x] Phase 1: Substrate, Config & State Skeleton (5/5 plans) — completed 2026-06-02
+- [x] Phase 2: Shared Contracts (4/4 plans) — completed 2026-06-03
+- [x] Phase 3: Roles & AGENTS.md Substrate (8/8 plans) — completed 2026-06-03
+- [x] Phase 4: Workflows, Cadence & Backpressure (7/7 plans) — completed 2026-06-03
+- [x] Phase 5: Packaging, Adapters, Install & Distribution (5/5 plans) — completed 2026-06-03
+- [x] Phase 6: Validation, Brand & Dogfood (5/5 plans) — completed 2026-06-04
 
-Decimal phases appear between their surrounding integers in numeric order.
+Full phase details + milestone summary: `milestones/v1.0-ROADMAP.md` · requirements: `milestones/v1.0-REQUIREMENTS.md`
 
-- [x] **Phase 1: Substrate, Config & State Skeleton** - Freeze the config schema, board columns, and ID scheme, and lay down the empty state plane every later file cites by name (completed 2026-06-02)
-- [x] **Phase 2: Shared Contracts** - Build the handoff templates, checklists, and memory-bank seed that roles and workflows reference as their I/O contracts (completed 2026-06-02)
-- [x] **Phase 3: Roles & AGENTS.md Substrate** - Write all 16 role prompts (Orchestrator first) and the minimal Karpathy-grounded AGENTS.md that points at them (completed 2026-06-03)
-- [x] **Phase 4: Workflows, Cadence & Backpressure** - Compose roles into the full lifecycle, ceremonies, enterprise workflows, dual cadence, and the bounded quality gate (completed 2026-06-03)
-- [x] **Phase 5: Packaging, Adapters, Install & Distribution** - Ship thin per-tool adapters, both Claude forms, idempotent installers, and the mechanical plugin-level prod-deploy guard (completed 2026-06-03)
-- [x] **Phase 6: Validation, Brand & Dogfood** - Ship the validator, examples, brand/legal collateral, and prove the kit end-to-end via a real idea-to-PR dogfood run (completed 2026-06-04)
+</details>
 
-**Milestone v1.1 — Install & Distribution** *(shared-location install; phases continue the numbering)*
+<details>
+<summary>✅ v1.1 Install & Distribution (Phases 7–9) — SHIPPED 2026-06-08</summary>
 
-- [x] **Phase 7: Shared-Home Foundation & Path Rewrite** - Lock the kit/state split convention + single resolution rule, rewrite the ~31 kit/handoff/config refs, and prove zero bare `agent-factory/` refs remain (grep-to-zero gate) (completed 2026-06-06)
-- [x] **Phase 8: Two-Root Installer** - Resolve `$GRUGOPS_HOME`, copy the kit there, materialize the absolute kit path into the standalone adapters, and seed per-repo state with `--target`/`--yes`/copy-default at sh+Node parity (completed 2026-06-07)
-- [x] **Phase 9: Doctor & Two-Root Validator** - Ship the `--check` doctor that resolves every referenced path and the two-root validator with no fallback to `.` and an unset-`$GRUGOPS_HOME` BAD fixture (re-verified PASSED 5/5 on 2026-06-08 after gap closure 09-05/09-06 closed CR-01/CR-02/CR-03, plus code-review parity-CLASS remediation: lexical ./.. collapse + fail-closed marker validation) (completed 2026-06-08)
+- [x] Phase 7: Shared-Home Foundation & Path Rewrite (4/4 plans) — completed 2026-06-06
+- [x] Phase 8: Two-Root Installer (4/4 plans) — completed 2026-06-07
+- [x] Phase 9: Doctor & Two-Root Validator (6/6 plans) — completed 2026-06-08
 
-## Phase Details
+Full phase details + milestone summary: `milestones/v1.1-ROADMAP.md` · requirements: `milestones/v1.1-REQUIREMENTS.md` · audit: `milestones/v1.1-MILESTONE-AUDIT.md`
 
-### Phase 1: Substrate, Config & State Skeleton
+</details>
 
-**Goal**: Freeze the project's shared vocabulary (config field names, board column vocabulary, stable ID scheme) and scaffold the repository plus empty state plane, so every later file can cite names that will never move.
-**Depends on**: Nothing (first phase)
-**Requirements**: STRUCT-01, STRUCT-02, CONFIG-01, CONFIG-02, CONFIG-03, BOARD-01, BOARD-04, TRACE-01, TRACE-02, NFR-01, METRIC-01
-**Success Criteria** (what must be TRUE):
+### 📋 v1.2 Migration & Update (Planned)
 
-  1. The repo is scaffolded per spec §3 (agent-factory/, plans/, memory-bank/, install/, .claude-plugin/, root AGENTS.md) without deleting or overwriting existing user content such as docs/
-  2. `factory.config.json` carries every required field (mode, cadence, autonomy, id_prefix, wip_limits, quality, nfr, compliance_regime, environments, production_requires_human_confirmation, and the rest) and its human-readable `factory.config.md` twin documents the meaning of each one
-  3. Documented zero-config defaults (mode=lean, cadence=kanban, autonomy=pr) are stated as the lean baseline a reader can rely on with no config file present
-  4. `plans/board.md` exists with the spec's columns and per-column WIP-limit format sourced from config, and the sizing/priority/Blocked-escalation conventions are defined once for both cadences
-  5. The stable ID scheme (EPIC/FEAT/<prefix>/ADR/NFR/RISK/REL/INC, configurable prefix) is defined, and `plans/traceability.md`, `plans/nfr-catalog.md`, and `plans/metrics.md` exist as seeded skeletons ready for roles to append to
+Researched and deferred from v1.1 — define via `/gsd-new-milestone`:
 
-**Plans**: 5 plansPlans:
-**Wave 1**
+- [ ] Phase 10+: `install.sh --migrate` — convert an already-installed repo to the split layout (additive-then-relocate, never delete-first) (MIGR-01)
+- [ ] Phase 10+: `install.sh --update` — refresh the central kit in place; two-stage uninstall; doctor names the specific unresolved path (UPD-01)
 
-- [x] 01-01-PLAN.md — Repository scaffold per spec §3 (additive-only directory tree + .gitkeep)
-
-**Wave 2** *(blocked on Wave 1 completion)*
-
-- [x] 01-02-PLAN.md — Config dial: factory.config.json (§15 lean defaults) + factory.config.md twin
-- [x] 01-04-PLAN.md — State-plane skeletons: traceability.md, nfr-catalog.md, metrics.md (headers, zero rows)
-- [x] 01-05-PLAN.md — agent-factory/VERSION (0.1.0) + full agent-factory/README.md
-
-**Wave 3** *(blocked on Wave 2 completion)*
-
-- [x] 01-03-PLAN.md — plans/board.md: 13 columns + WIP format from config + sizing/priority/Blocked conventions
-
-### Phase 2: Shared Contracts
-
-**Goal**: Provide the I/O contracts — handoff packet templates, gate checklists, and the memory-bank seed — as real files, so role and workflow files written later reference actual filenames and a stable universal header rather than placeholders.
-**Depends on**: Phase 1
-**Requirements**: HAND-01, HAND-02, CHECK-01, CHECK-02, MEM-01, MEM-02
-**Success Criteria** (what must be TRUE):
-
-  1. All core handoff templates are copy-paste usable (universal, business, product, system, architecture, implementation, qe, security-nfr, uat, ticket-ready-packet, implementation-ready-packet) and the universal header carries the Ticket ID and Trace updates fields
-  2. All v2 handoff templates exist (release-handoff, incident-postmortem blameless, retro-notes, refinement-notes, sprint-plan)
-  3. All ten checklists exist (definition-of-ready, definition-of-done lean, definition-of-done-enterprise superset, pr-review, security-nfr, compliance, accessibility, observability-slo, release-readiness, uat), with the lean/enterprise split clearly distinguished
-  4. A minimal memory-bank exists (00-index through 80-glossary plus 50-decisions/ ADR convention), each file short, single-purpose, and small — never a document dump
-  5. The memory-bank seed states the working-memory contract: roles read it on start, 60-progress.md is the running plan-of-record kept current by the daily sweep, and 50-decisions/ captures ADRs as they are made
-
-**Plans**: 4 plans
-**Wave 1** *(all 4 plans parallel — disjoint file sets, no inter-plan dependencies)*
-
-- [x] 02-01-PLAN.md — Handoffs: universal header + 11 core templates (HAND-01)
-- [x] 02-02-PLAN.md — Handoffs: 5 v2 templates — release/incident/retro/refinement/sprint-plan (HAND-02)
-- [x] 02-03-PLAN.md — Checklists: 10 verbatim §9 bodies + 00-index tier grouping (CHECK-01, CHECK-02)
-- [x] 02-04-PLAN.md — Memory-bank seed: 8 generic seed files + 50-decisions/ADR-template (MEM-01, MEM-02)
-
-### Phase 3: Roles & AGENTS.md Substrate
-
-**Goal**: Write all 16 role prompts to the fixed skeleton (Orchestrator first, defining the routing contract the others slot into) and the minimal AGENTS.md substrate that points at them, so the program and its read-order contract exist before any workflow sequences them.
-**Depends on**: Phase 2
-**Requirements**: ROLE-01, ROLE-02, ROLE-03, AGENTS-01, AGENTS-02
-**Success Criteria** (what must be TRUE):
-
-  1. The Orchestrator role encodes the full routing matrix and request-type classification, enforces WIP limits and Definition of Ready before pulling work, splits XL work, and carries the hard limit that it never merges a protected branch or deploys prod
-  2. All 11 core role prompts exist following the standard 9-section skeleton in caveman voice, each reading config first, moving the board on column change, and appending to traceability
-  3. All 5 enterprise-pack role prompts exist (release-manager, compliance-officer, incident-responder, factory-coach, installer), activating only when mode=enterprise or their trigger fires, in the same skeleton and voice
-  4. Root AGENTS.md follows the §17.1 shape, is minimal and high-signal, stays under Codex's 32 KiB cap, lists real commands with flags preferring fast file-scoped variants, and marks unknown commands `UNKNOWN - verify`
-  5. The AGENTS.md (and the AGENTS.md Scribe role) embed Karpathy's 12 coding-agent rules under the four principles, in clear voice (grug voice may echo them), as the default behavioral guardrails
-
-**Plans**: 8 plans
-
-**Wave 1**
-
-- [x] 03-01-PLAN.md — Orchestrator role (routing contract, ROLE-03) + Wave-0 structural test harness
-
-**Wave 2** *(blocked on Wave 1; all 6 plans parallel — disjoint role files)*
-
-- [x] 03-02-PLAN.md — Core roles: agents-md-scribe, brownfield-mapper, greenfield-mapper (ROLE-01)
-- [x] 03-03-PLAN.md — Core roles: ba-pm, system-analyst (ROLE-01)
-- [x] 03-04-PLAN.md — Core roles: architect-design, software-engineer (ROLE-01)
-- [x] 03-05-PLAN.md — Core roles: qe-e2e, security-nfr, uat-planner (ROLE-01)
-- [x] 03-06-PLAN.md — Enterprise roles: release-manager, compliance-officer, incident-responder (ROLE-02)
-- [x] 03-07-PLAN.md — Enterprise roles: factory-coach, installer (ROLE-02)
-
-**Wave 3** *(blocked on Wave 1+2; AGENTS.md points at all roles)*
-
-- [x] 03-08-PLAN.md — Root AGENTS.md: §17.1 substrate + 12 Karpathy rules (AGENTS-01, AGENTS-02)
-
-### Phase 4: Workflows, Cadence & Backpressure
-
-**Goal**: Compose the finished roles into the full lifecycle, ceremony, and enterprise workflows, make both Kanban and Scrum cadences selectable by config, and encode the bounded backpressure quality gate as deterministic steps — turning the program into a runnable delivery flow.
-**Depends on**: Phase 3
-**Requirements**: FLOW-01, FLOW-02, FLOW-03, FLOW-04, FLOW-05, BOARD-02, BOARD-03, GATE-01, SAFE-01
-**Success Criteria** (what must be TRUE):
-
-  1. Bootstrap and lifecycle workflows exist (00-bootstrap-greenfield, 01-bootstrap-brownfield, 02-idea-to-epics, 03-epic-to-tickets, 04-ticket-to-pr, 05-pr-quality-gate, 06-uat-pack), each producing the right board moves, handoffs, trace updates, and stop/done conditions, and every workflow file follows the v2 template
-  2. The quality-gate workflow encodes the backpressure loop — prefetch → implement on branch → gate (install/lint/typecheck/unit/build/e2e from AGENTS.md) → bounded self-fix (config, default 2) → terminal result READY_FOR_HUMAN_REVIEW | BLOCKED_NEEDS_FIX | SPLIT_REQUIRED — and records missing commands `UNKNOWN - verify`, never faking a pass
-  3. Kanban flow works (continuous pull, WIP limits as throttle, daily-sweep reconciliation, cycle-time focus) and Scrum cadence works (time-boxed sprints with SPRINT-xx.md goal/committed/velocity/burndown and the full ceremony set), with cadence selected by config
-  4. Ceremony workflows (07-backlog-refinement through 11-retro) and enterprise workflows (12-release with its approval gate, 13-incident with the blameless path) exist and route through the correct roles
-  5. "Humans decide, agents execute" holds across every workflow: autonomy=pr is the default and no workflow step ever merges a protected branch or deploys to production without named human confirmation
-
-**Plans**: 7 plans
-
-**Wave 1** *(harness ships RED; gate single-sourced before its consumer; disjoint files)*
-
-- [x] 04-01-PLAN.md — Wave-0 structural harness check-structure.sh (V-01..V-13, ships RED)
-- [x] 04-02-PLAN.md — 05-pr-quality-gate (single-source §14 loop) + 04-ticket-to-pr (references 05)
-- [x] 04-03-PLAN.md — Lifecycle: 02-idea-to-epics, 03-epic-to-tickets, 06-uat-pack
-
-**Wave 2** *(blocked on Wave 1; disjoint files)*
-
-- [x] 04-04-PLAN.md — Bootstrap: 00-bootstrap-greenfield, 01-bootstrap-brownfield
-- [x] 04-05-PLAN.md — Scrum ceremonies: 08-sprint-planning, 10-sprint-review (cadence=scrum)
-- [x] 04-06-PLAN.md — Both-cadence ceremonies: 07-backlog-refinement, 09-daily-sweep, 11-retro
-
-**Wave 3** *(blocked on Waves 1+2; full-suite green gate)*
-
-- [x] 04-07-PLAN.md — Enterprise: 12-release (named-human gate), 13-incident (blameless) + all-14 harness gate
-
-### Phase 5: Packaging, Adapters, Install & Distribution
-
-**Goal**: Bridge the finished single-source core to all five host tools via thin pointer-only adapters, ship both the standalone `.claude/` form and the versioned plugin form, provide idempotent reversible installers, and enforce prod safety mechanically with a plugin-level PreToolUse hook — resolving the two open decisions (version string; commands/ vs skills/) at the start of the phase.
-**Depends on**: Phase 4
-**Requirements**: PKG-01, PKG-02, CLAUDE-01, CLAUDE-02, CLAUDE-03, INSTALL-01, INSTALL-02, SAFE-02
-**Success Criteria** (what must be TRUE):
-
-  1. `packaging/adapters.md` maps each of the five tools to its entry file + dispatch mode + adapter, enforces "all work starts at orchestrator.md," states "only the dispatch differs, never the content," and flags every tool row "verify against current tool docs"; templates use the current `Agent` tool name (not the legacy `Task` alias) and a recorded commands/ vs skills/ choice
-  2. The standalone `.claude/` form exists (thin per-role pointer wrappers, literal `/grug` + `/grug-<operation>` shortcuts, one-line CLAUDE.md pointer) and the plugin form exists (`.claude-plugin/plugin.json` + `marketplace.json`, `agents/`, `commands/`, `hooks/`), with both forms coexisting and component dirs at plugin root
-  3. The prod-deploy guard is mechanical: a plugin-level `hooks/hooks.json` PreToolUse Bash matcher denies deploy commands absent a human-confirm flag (never subagent frontmatter, which plugin subagents silently ignore), uses `${CLAUDE_PLUGIN_ROOT}` for script paths, and blocks a sample deploy command in testing
-  4. `install/install.sh` (POSIX) and `install/install.mjs` (Node) are functionally identical, idempotent, additive, dry-run-capable (DRY_RUN=1), and reversible — they detect the host tool, lay down the right adapter, print an install report, and never overwrite user content; `uninstall.sh` removes only what the installer added
-  5. The Claude-only nature of the mechanical guard, the autonomy=pr prompt-level fallback for the other four tools, the chosen version string, and the "just install the markdown" minimal path are all documented
-
-**Plans**: 5 plans
-
-**Wave 1** *(parallel — disjoint file sets, no inter-plan dependencies)*
-
-- [x] 05-01-PLAN.md — Packaging decisions: adapters.md (5-tool map) + 2 templates (Agent/model:inherit/skills) + Wave-0 structural harness (PKG-01, PKG-02)
-- [x] 05-04-PLAN.md — SAFE-02 mechanical prod-deploy guard: hooks.json PreToolUse + pure-Node guard.mjs (fail-closed, no self-approve) + behavioral triad test (SAFE-02)
-
-**Wave 2** *(blocked on Wave 1; disjoint file sets)*
-
-- [x] 05-02-PLAN.md — Standalone .claude/ form: 7 dash skills + subagent wrapper + CLAUDE.md pointer + Gemini wiring (CLAUDE-01)
-- [x] 05-03-PLAN.md — Plugin form: plugin.json + marketplace.json + 7 plugin-root colon skills + claude plugin validate --strict (CLAUDE-02, CLAUDE-03)
-
-**Wave 3** *(blocked on Waves 1+2; installer wires the full artifact set)*
-
-- [x] 05-05-PLAN.md — Installers: install.sh + install.mjs (idempotent/DRY_RUN/reversible) + uninstall.sh + install/README.md (SAFE-02 docs) (INSTALL-01, INSTALL-02, SAFE-02)
-**UI hint**: yes
-
-### Phase 6: Validation, Brand & Dogfood
-
-**Goal**: Assert the finished structure with a validator, narrate the finished flows with examples, ship the public-facing brand and legal collateral, and prove the whole chain works by driving one ticket from idea to PR on a throwaway sample repo across both dispatch paths — the acceptance gate.
-**Depends on**: Phase 5
-**Requirements**: VAL-01, EX-01, BRAND-01, BRAND-02, BRAND-03, DOG-01, DOG-02
-**Success Criteria** (what must be TRUE):
-
-  1. `scripts/validate-agent-factory.mjs` checks structure (required role/workflow/handoff/checklist files and their sections), config parse (mode/cadence/autonomy), board-ticket status match, traceability completeness (flagging rows missing tests/UAT), and packaging presence — never fabricating results and never creating package.json if absent
-  2. Five example runs exist (greenfield bootstrap, brownfield bootstrap, ticket→PR, a full sprint cycle with board snapshots and a velocity/metrics line, and a release run with completed traceability rows), each showing input, Orchestrator decision, and expected files/handoffs
-  3. README opens in clear voice then the grug wink with the hero block, Acknowledgements crediting grugbrain.dev (Carson Gross), and the non-affiliation footer; NOTICE, CONTRIBUTING, and docs/faq.md exist from the brand manual's ready-to-paste blocks
-  4. Original-art brand assets exist (brand/wordmark*.svg color/mono-dark/mono-light/icon-lockup + brand/icon.svg) using the Charcoal/Bone/Granite palette with a single Ochre accent, lowercase grugops, never resembling the children's-book character
-  5. grugops is installed via `/grug` on a throwaway sample repo, bootstrapped, and one ticket is driven idea→PR end-to-end with the validator passing; the same roles/handoffs/gates are exercised over both the portable AGENTS.md sequential path and the Claude Code sub-agent spawn path, confirming "only the dispatch differs, never the content"
-
-**Plans**: 5 plans
-
-**Wave 1** *(parallel — disjoint file sets, no inter-plan dependencies)*
-
-- [x] 06-01-PLAN.md — Validator: scripts/validate-agent-factory.mjs (structure-only, two-tier, --strict) + GOOD/BAD fixture self-test (VAL-01)
-- [x] 06-02-PLAN.md — Brand SVGs: color/mono-dark/mono-light/lockup wordmarks + icon, palette-locked original art (BRAND-03)
-- [x] 06-03-PLAN.md — Brand/legal docs: root README + NOTICE + CONTRIBUTING + docs/faq.md from the manual's blocks (BRAND-01, BRAND-02)
-- [x] 06-04-PLAN.md — Illustrative examples: 02-brownfield, 04-sprint-cycle, 05-release-run (banner-labeled) (EX-01)
-
-**Wave 2** *(blocked on Wave 1; produces the REAL examples + runs the validator on the sample)*
-
-- [x] 06-05-PLAN.md — Dogfood: out-of-repo sample idea→PR + validator pass + REAL examples 01/03 + human runbook + dual-path parity (DOG-01, DOG-02, EX-01)
-
-**UI hint**: yes
-
-### Phase 7: Shared-Home Foundation & Path Rewrite
-
-**Goal**: Lock the kit/state split convention and the single "one rule, two homes" resolution mechanism, then rewrite the ~31 role/workflow/adapter files so every reference resolves to the correct root — kit refs under the KIT ROOT (read-only), state refs repo-relative — leaving zero bare `agent-factory/` references that should point at the kit. This is the linchpin: nothing downstream (installer, doctor, validator) resolves correctly until the final ref spelling is frozen here.
-**Depends on**: Phase 6 (v1.0 kit complete). The `grugops/quick-harden-role-switch-autocommit` branch is already merged to main, so the role-switch protocol's handoff-path edit happens once inside this phase's rewrite.
-**Requirements**: SHOME-01, SHOME-02, SHOME-03, SHOME-04
-**Success Criteria** (what must be TRUE):
-
-  1. The kit-home convention is stated once and used everywhere: `${GRUGOPS_HOME:-$HOME/.grugops}` (env-overridable, default `~/.grugops`, NOT XDG, NOT a literal `~`), resolved identically by the rule POSIX `sh` and Node stdlib will both implement, and documented as read-only/central
-  2. The disambiguation rule is stated once in `AGENTS.md` and the orchestrator/adapter preamble: anything under `agent-factory/` is KIT (read from KIT ROOT, never write); `plans/`, `memory-bank/`, and `.grugops/factory.config.json` are STATE (read/write in THIS repo); `agent-factory/handoffs/` is the TEMPLATE read while `plans/handoffs/` is the runtime INSTANCE write — and the agent is told to STOP, not hunt, if the resolved kit dir is absent
-  3. The ~31 role/workflow/adapter files are rewritten so the ~50 handoff writes land in `plans/handoffs/`, the ~32 config refs resolve to `.grugops/factory.config.json`, and kit-to-kit refs keep their `agent-factory/…` prefix meaning "under KIT ROOT"; the `_role-switch-protocol.md` step-4 template-read-vs-instance-write split is in place
-  4. The kit root resolves by ONE rule with two homes — an installer-materialized absolute path (standalone) or `${CLAUDE_PLUGIN_ROOT}` (plugin) — and because an LLM cannot expand `$GRUGOPS_HOME` in prose, no role, workflow, SKILL body, or `AGENTS.md` ever names `$GRUGOPS_HOME`; the only env-var reference is the documented one-line bash self-heal fallback inside the adapter
-  5. A build gate proves the rewrite is complete: `grep -rn 'agent-factory/'` over the shipped kit + adapters + `AGENTS.md` returns ZERO bare refs — every hit is an intended KIT-ROOT kit ref or a `plans/handoffs/` write (C1 grep-to-zero)
-
-**Plans**: 4 plans
-
-**Wave 1** *(freeze the convention first — canonical rule + invariant marker + sole-resolver adapters)*
-
-- [x] 07-01-PLAN.md — Convention foundation: AGENTS.md canonical kit-vs-state rule + byte-identical invariant marker, orchestrator preamble, the two resolver adapters' self-heal/STOP, packaging source templates (SHOME-01/02/03/04)
-
-**Wave 2** *(blocked on 07-01; disjoint file sets — roles vs workflows — run parallel)*
-
-- [x] 07-02-PLAN.md — Roles + op-skills rewrite: config refs → `.grugops/`, handoff template-read/instance-write split, `_role-switch-protocol.md` step-4 once-here edit, 13 op-skill invariants (SHOME-02/03/04)
-- [x] 07-03-PLAN.md — Workflows rewrite: config refs → `.grugops/`, 14 "Handoffs produced" sections → `plans/handoffs/` instances, `04-ticket-to-pr.md` read side (SHOME-02/03)
-
-**Wave 3** *(blocked on Waves 1+2; the grep-to-zero gate ships GREEN as the phase acceptance proof)*
-
-- [x] 07-04-PLAN.md — Build gate `scripts/check-kit-refs.sh`: 3 assertions (zero config / handoff-allowlist / no `$GRUGOPS_HOME` in prose) + SC2 marker check + fail-on-mutation proof (SHOME-03/04)
-
-### Phase 8: Two-Root Installer
-
-**Goal**: Make the installer fix all three dogfood pains — kit never arrives, wrong target, symlink fragility — by resolving `$GRUGOPS_HOME`, copying the read-only kit there, materializing the resolved absolute kit path into each standalone adapter (the only place a kit root binds to an absolute string), and seeding per-repo state into the target without clobbering user content. Must follow Phase 7 because the installer materializes paths that match the rewritten token spelling, and `install.sh` + `install.mjs` land together because byte-parity is an existing contract.
-**Depends on**: Phase 7
-**Requirements**: INSTALL-03, INSTALL-04
-**Success Criteria** (what must be TRUE):
-
-  1. Running `install.sh --target ../app` (and `install.mjs`) from any working directory lays the kit under the resolved `${GRUGOPS_HOME:-$HOME/.grugops}` and writes the resolved absolute kit path into `../app`'s standalone adapters, so the target resolves the orchestrator with no path error and no hunting
-  2. The installer accepts `--target <repo>` plus an interactive confirm-the-default prompt, and a `--yes`/non-TTY bypass installs unattended in CI without blocking on the prompt
-  3. The installer seeds per-repo state into the target — `.grugops/factory.config.json` from the kit default, the install marker / kit-version stamp under `.grugops/`, and a `plans/` skeleton including `plans/handoffs/` — skipping any file that already exists and never overwriting or deleting user content
-  4. Default install mode is COPY (symlink is opt-in only); the additive / idempotent / `DRY_RUN=1` / reversible contract is preserved end to end across both roots
-  5. `install.mjs` stays byte-parity with `install.sh` (same kit root, same seeded target tree) and resolves the Windows home via `os.homedir()` rather than `$HOME`
-
-**Plans**: 4 plans
-
-**Wave 1** *(parallel — disjoint file sets, no inter-plan dependencies; carry-forward cleanups + seed bundle + the new test harness)*
-
-- [x] 08-01-PLAN.md — Carry-forward cleanups + seed bundle: drop `Agent` grant from packaging templates (D-08), fix stale config-path prose in agent-factory README/factory.config.md (D-09), bundle `agent-factory/seed/**` state-plane seed (D-01/D-02), exclude it from `check-kit-refs.sh` (D-03)
-- [x] 08-02-PLAN.md — Wave-0 test harness `install/install.two-root.test.sh`: kit-copy + materialization + seed + never-clobber + two-root idempotency + DRY_RUN + copy-default + `--target`/`--yes`/non-TTY + D-07 self-checkout-guard fixture + two-root uninstall + sh/Node parity (ships RED; does NOT edit `install.test.sh`)
-
-**Wave 2** *(blocked on Wave 1; the byte-parity installer twins land together)*
-
-- [x] 08-03-PLAN.md — Two-root installer core (`install.sh` + `install.mjs`): home-resolve `${GRUGOPS_HOME:-$HOME/.grugops}` (Node `os.homedir()`), `--target`/`--yes`/non-TTY prompt + always-on D-07 self-checkout guard, copy-default flip, atomic `copy_kit`, content-idempotent adapter materialization (2 resolver adapters), full state seed incl. `plans/handoffs/`, byte-parity install marker (INSTALL-03, INSTALL-04)
-
-**Wave 3** *(blocked on Wave 2; reversal + docs match the frozen installer behavior)*
-
-- [x] 08-04-PLAN.md — Two-root uninstall (D-06: marker + adapters + wiring only; never the shared kit or seeded state) + `install/README.md` two-root docs (`--target`, copy-default, `$GRUGOPS_HOME`, self-checkout guard)
-
-### Phase 9: Doctor & Two-Root Validator
-
-**Goal**: Ship the verification layer that would have caught all three dogfood pains and that proves the split cannot silently regress — the `--check` doctor that resolves and stats every referenced path, and the two-root-aware validator that refuses to false-green in the dev checkout or with `$GRUGOPS_HOME` unset. Built after the installer because both reuse its resolution logic and key off the final ref spelling, and the validator matches the doctor's resolution rule so the two can never disagree about where the kit is.
-**Depends on**: Phase 8
-**Requirements**: INSTALL-05, VAL-02
-**Success Criteria** (what must be TRUE):
-
-  1. `install.sh --check` (and `install.mjs`) verifies every referenced path resolves — kit at the kit root, state in the repo, no dangling symlinks — and on failure names the FIRST unresolved path together with the file that references it
-  2. The doctor uses clear exit codes: pass exits 0, FAIL exits nonzero, a WARN exits 0 by default, and `--check --strict` promotes WARN to a nonzero gate
-  3. The structure validator is two-root aware — an explicit KIT_ROOT and STATE_ROOT, with NO silent fallback to `.` — so it cannot return a false green when run inside the dev checkout or with `$GRUGOPS_HOME` unset
-  4. A BAD fixture for a missing / unset kit root (the C3 footgun) MUST fail the validator, and the doctor and validator resolve the kit home identically so "doctor passes" and "validator passes" can never disagree
-  5. `install.test.sh` is updated for the split — fresh install lays the kit + materializes the adapter + seeds `.grugops/factory.config.json` and `plans/handoffs/`, the doctor passes on a good split and fails loudly on a missing kit — with idempotency, dry-run, and reversibility preserved
-
-**Plans**: 6 plans (4 original + 2 gap-closure)
-
-**Wave 1** *(parallel — disjoint files: the sh doctor and the validator split are independent)*
-
-- [x] 09-01-PLAN.md — sh `install.sh --check` doctor (three-source cross-check, ordered first-failure, WARN tier, exit-code matrix) (INSTALL-05)
-- [x] 09-02-PLAN.md — Two-root validator split: `VALIDATE_KIT_ROOT` (no default) + `VALIDATE_ROOT`, classification-routed checks (VAL-02)
-
-**Wave 2** *(blocked on 09-01; the byte-parity Node doctor twin keys off the sh doctor)*
-
-- [x] 09-03-PLAN.md — Node `install.mjs --check` doctor (byte-parity twin of the sh doctor) (INSTALL-05)
-
-**Wave 3** *(blocked on 09-01/02/03; the harness verifies all three programs)*
-
-- [x] 09-04-PLAN.md — Test harness + split fixtures + three-way resolution-parity assertion (`install.test.sh` doctor checks + `validate.test.sh` two-root C3 fixtures) (INSTALL-05, VAL-02)
-
-**Wave 4** *(gap closure — verification found 3 blocker gaps; disjoint files: install/* vs scripts/* run parallel)*
-
-- [x] 09-05-PLAN.md — Doctor sh/Node parity fixes: normalize `resolve_grugops_home` (CR-01 trailing-slash) + fold a garbled marker into the not-installed FAIL (CR-02), with two new install.test.sh parity sub-cases (INSTALL-05)
-- [x] 09-06-PLAN.md — Validator fail-closed null-guard: reject null/non-object JSON in `checkConfig`/`checkPackaging` (CR-03) + null-literal regression fixtures in validate.test.sh (VAL-02)
-
+Candidate carryover (v2+): per-repo kit-version pin + skew warning (SKEW-01), doctor `--fix` (FIX-01), plugin-form path resolution / publishing as a Claude Code plugin (PLUGIN-01). Plus the v1.1 tech debt — Nyquist formal validation ×3, the WR-05 packaging-template regeneration hazard, `check-kit-refs.sh` hardening (see `milestones/v1.1-MILESTONE-AUDIT.md`).
 
 ## Progress
 
-**Execution Order:**
-Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8 → 9
+| Phase | Milestone | Plans Complete | Status | Completed |
+|-------|-----------|----------------|--------|-----------|
+| 1. Substrate, Config & State Skeleton | v1.0 | 5/5 | Complete | 2026-06-02 |
+| 2. Shared Contracts | v1.0 | 4/4 | Complete | 2026-06-03 |
+| 3. Roles & AGENTS.md Substrate | v1.0 | 8/8 | Complete | 2026-06-03 |
+| 4. Workflows, Cadence & Backpressure | v1.0 | 7/7 | Complete | 2026-06-03 |
+| 5. Packaging, Adapters, Install & Distribution | v1.0 | 5/5 | Complete | 2026-06-03 |
+| 6. Validation, Brand & Dogfood | v1.0 | 5/5 | Complete | 2026-06-04 |
+| 7. Shared-Home Foundation & Path Rewrite | v1.1 | 4/4 | Complete | 2026-06-06 |
+| 8. Two-Root Installer | v1.1 | 4/4 | Complete | 2026-06-07 |
+| 9. Doctor & Two-Root Validator | v1.1 | 6/6 | Complete | 2026-06-08 |
 
-**Research flags:**
-
-- Phase 5 (Packaging/Distribution) warrants phase-level research — per-tool conventions and Claude Code plugin format move fast; verify `claude plugin validate` output, commands/ vs skills/ behavior, and plugin-cache path resolution against current tool docs at build time. Phases 1-4 and 6 use standard, internally-defined patterns and need no additional research.
-- v1.1 (Phases 7-9): all three use standard, internally-defined patterns — the disambiguation rule, token spellings, `${GRUGOPS_HOME:-$HOME/.grugops}` resolution snippets, doctor exit-code convention, and two-root validator split are fully specified in `.planning/research/{ARCHITECTURE,PITFALLS,STACK}.md`. No additional phase-level research needed; the gating checks are C1 (grep-to-zero in Phase 7) and C3 (unset-`$GRUGOPS_HOME` BAD fixture in Phase 9). C2/migration is deferred to v1.2 (not in this milestone).
-
-| Phase | Plans Complete | Status | Completed |
-|-------|----------------|--------|-----------|
-| 1. Substrate, Config & State Skeleton | 5/5 | Complete    | 2026-06-02 |
-| 2. Shared Contracts | 4/4 | Complete    | 2026-06-03 |
-| 3. Roles & AGENTS.md Substrate | 8/8 | Complete    | 2026-06-03 |
-| 4. Workflows, Cadence & Backpressure | 7/7 | Complete    | 2026-06-03 |
-| 5. Packaging, Adapters, Install & Distribution | 5/5 | Complete    | 2026-06-03 |
-| 6. Validation, Brand & Dogfood | 5/5 | Complete    | 2026-06-04 |
-| 7. Shared-Home Foundation & Path Rewrite | 4/4 | Complete    | 2026-06-06 |
-| 8. Two-Root Installer | 4/4 | Complete    | 2026-06-07 |
-| 9. Doctor & Two-Root Validator | 6/6 | Complete    | 2026-06-08 |
+**Totals:** 9 phases · 48 plans · 2 milestones shipped.

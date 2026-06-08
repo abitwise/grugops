@@ -10,54 +10,59 @@ It is lean by default and scales to enterprise governance on a single config fla
 
 A user installs grugops on top of the coding-agent CLI they already run, types `/grug`, and gets a disciplined delivery team — a visible board, strict handoff packets, and an auditable requirement→code→test→release trail — entirely as readable markdown, with humans always holding merge and deploy. **The role is the intelligence. The workflow is the guardrail. The handoff is the memory. The board is the state. The gate is the backpressure. Humans decide; agents execute.**
 
-## Current Milestone: v1.1 Install & Distribution
+## Current State
 
-**Goal:** Redesign the grugops install experience to a shared-location architecture — the kit installs once to `$GRUGOPS_HOME` (default `~/.grugops`) and any target repo gets a tiny, self-resolving footprint — fixing the dogfood pains where adapters referenced `agent-factory/…` repo-relative but the kit was never installed into the target.
+**Shipped through v1.1 Install & Distribution (2026-06-08).** Two milestones are complete:
 
-**Target features:**
-- Kit/state split: `$GRUGOPS_HOME` holds the read-only kit; per-repo state (`plans/`, `memory-bank/`, the project's `factory.config.json`, runtime handoffs → `plans/handoffs/`) stays in the target repo
-- Path-root rewrite across ~31 role/workflow files (kit refs → `$GRUGOPS_HOME`; ~50 handoff refs → `plans/handoffs/`; ~32 config refs → repo config)
-- Installer ergonomics: `--target <repo>` + interactive prompt, default copy (not symlink), `--check` doctor that verifies every referenced path resolves
-- Two-root-aware validator + `install.test.sh`
-- Migration path for already-installed repos (idempotent; never deletes user state)
+- **v1.0 MVP — Full Agent Factory v2** (phases 1–6, 34 plans, shipped 2026-06-04): the complete spec — 16 role prompts, 14 workflows with dual cadence + the bounded backpressure gate, shared I/O contracts, per-tool adapters for all five host CLIs, both Claude distribution forms, idempotent installers, a mechanical prod-deploy hook, the structure validator, brand/legal collateral, and an end-to-end idea→PR dogfood.
+- **v1.1 Install & Distribution** (phases 7–9, 14 plans, shipped 2026-06-08): the shared-location, two-root install — the read-only kit installs once to `${GRUGOPS_HOME:-$HOME/.grugops}`; per-repo state (`.grugops/`, `plans/`, `memory-bank/`) stays in the target; ~31 files rewritten to resolve kit-vs-state correctly (grep-to-zero gate); two-root installer (materializes the absolute kit path, seeds state without clobbering); `--check` doctor + two-root validator that refuses to false-green.
 
-**Design contract:** `docs/design/shared-install.md`. Eventual destination is the Claude plugin, but that does not solve path resolution by itself.
+The whole kit is **boring on purpose**: ~77 markdown files under `agent-factory/` plus two byte-parity install scripts (`install.sh` POSIX, `install.mjs` Node) and one stdlib-only Node validator. No runtime, DB, or queue — the intelligence lives in the host coding agent.
+
+## Next Milestone Goals
+
+v1.2 is the migration/update story (researched, intentionally deferred from v1.1):
+
+- **MIGR-01**: `install.sh --migrate` converts an already-installed repo (in-repo `agent-factory/` + symlinks) to the split layout — additive-then-relocate, never delete-first (rename-to-backup; deletion only behind explicit `--prune-old-kit`).
+- **UPD-01**: `install.sh --update` refreshes the central kit in place; two-stage uninstall; doctor names the specific unresolved path.
+- Candidate for v2+: per-repo kit-version pin + skew warning (SKEW-01), doctor `--fix` (FIX-01), and plugin-form path resolution / publishing grugops as a Claude Code plugin (PLUGIN-01).
+- Also worth a pass: the v1.1 tech-debt items (Nyquist formal validation ×3, the WR-05 packaging-template regeneration hazard, `check-kit-refs.sh` hardening). See `milestones/v1.1-MILESTONE-AUDIT.md`.
+
+Run `/gsd-new-milestone` to scope it (questioning → research → requirements → roadmap).
+
+**Design contract for the install line:** `docs/design/shared-install.md`. Eventual destination is the Claude plugin, but that does not solve path resolution by itself.
 
 ## Requirements
 
 ### Validated
 
-<!-- Shipped and confirmed valuable. -->
+<!-- Shipped and confirmed valuable. Grouped by theme; per-requirement detail lives in milestones/v1.0-REQUIREMENTS.md and v1.1-REQUIREMENTS.md. -->
 
-- [x] Example runs (5): greenfield bootstrap, brownfield bootstrap, ticket→PR, sprint cycle, release run — *Validated in Phase 6* (EX-01; #2/#4/#5 illustrative with honesty banner, #1/#3 REAL captures from the dogfood)
-- [x] Validator script (`scripts/validate-agent-factory.mjs`): structure-only, stdlib-only, never fabricates a pass, never creates `package.json`; GOOD/BAD fixture self-test proves both paths — *Validated in Phase 6* (VAL-01)
-- [x] Brand & docs collateral: README (hero + acknowledgements + non-affiliation footer), NOTICE, CONTRIBUTING, `brand/wordmark*.svg` + `brand/icon.svg`, `docs/faq.md` — *Validated in Phase 6* (BRAND-01/02/03; lowercase `grugops`, `/grugops` only, grugbrain.dev attribution + non-affiliation intact)
-- [x] Dogfood validation: out-of-repo sample bootstrapped, one ticket driven idea→PR, validator passed on the result — *Validated in Phase 6* (DOG-01 met; DOG-02 sequential agent-proven half complete, live-Claude-Code-session half deferred to milestone-close UAT in `06-HUMAN-UAT.md`)
+**v1.0 — Full Agent Factory v2 (shipped 2026-06-04):**
+
+- ✓ Repository scaffold + zero-config dial (`factory.config.json` + `factory.config.md` twin; lean defaults) — v1.0 (STRUCT-01/02, CONFIG-01/02/03)
+- ✓ All 16 role prompts (Orchestrator + 10 core + 5 enterprise) on the fixed 9-section skeleton; Orchestrator owns the routing matrix, WIP/DoR gate, XL-split, never-merge/never-deploy hard limit — v1.0 (ROLE-01/02/03)
+- ✓ 14-workflow suite — lifecycle + bootstrap + ceremonies (dual Kanban/Scrum cadence) + enterprise release/incident; single-source §14 backpressure quality gate — v1.0 (FLOW-01..05, BOARD-02/03, GATE-01, SAFE-01)
+- ✓ Shared I/O contracts — handoff templates (core + v2) + 10 checklists (lean/enterprise tiers) + minimal agent-maintained memory-bank — v1.0 (HAND-01/02, CHECK-01/02, MEM-01/02)
+- ✓ Delivery OS state plane — WIP-limited board, traceability, NFR catalog, metrics; stable ID schemes with configurable prefix — v1.0 (BOARD-01/04, TRACE-01/02, NFR-01, METRIC-01)
+- ✓ Minimal §17.1 `AGENTS.md` embedding Karpathy's 12 coding-agent rules; real commands with flags, `UNKNOWN - verify` never faked — v1.0 (AGENTS-01/02)
+- ✓ Per-tool adapters (all five host CLIs) + both Claude forms (standalone `.claude/` + versioned plugin); only dispatch differs, never content — v1.0 (PKG-01/02, CLAUDE-01/02/03)
+- ✓ Mechanical prod-deploy guard — pure-Node plugin-level PreToolUse hook, denies absent human-set approval, refuses self-set, fails closed — v1.0 (SAFE-02)
+- ✓ Structure validator (stdlib-only, never fabricates a pass), 5 example runs, brand/legal collateral (README + NOTICE + CONTRIBUTING + FAQ + original-art SVGs) — v1.0 (VAL-01, EX-01, BRAND-01/02/03)
+- ✓ End-to-end idea→PR dogfood on an out-of-repo sample; validator passed — v1.0 (DOG-01; **DOG-02 partial** — sequential path proven, live-Claude-Code half deferred, see STATE.md Deferred Items)
+
+**v1.1 — Install & Distribution (shipped 2026-06-08):**
+
+- ✓ Shared-location, two-root architecture — read-only kit at `${GRUGOPS_HOME:-$HOME/.grugops}`, per-repo state under `.grugops/`/`plans/`/`memory-bank/`; ~31 files rewritten to resolve kit-vs-state correctly (grep-to-zero gate) — v1.1 (SHOME-01/02/03/04)
+- ✓ Two-root installer at sh/Node byte-parity — `--target`/`--yes`/non-TTY, copy-default, atomic kit copy, materialized absolute kit path in the adapters, state seed without clobbering; two-root uninstall preserves seeded state + shared kit — v1.1 (INSTALL-03/04)
+- ✓ `--check` doctor (sh + byte-parity Node) — non-mutating, three-source kit-root cross-check, deterministic first-failure with referencing file, WARN tier, full exit-code matrix — v1.1 (INSTALL-05)
+- ✓ Two-root-aware validator with NO `.` fallback — refuses to false-green in the dev checkout or with `$GRUGOPS_HOME` unset (C3 guard); three-way resolution-parity assertion — v1.1 (VAL-02)
 
 ### Active
 
-<!-- Current scope: build the full v2 spec (enterprise + plugin edition) in this milestone. All hypotheses until shipped and dogfooded. -->
+<!-- Empty — both shipped milestones are archived and REQUIREMENTS.md was reset. The next milestone's requirements are defined via /gsd-new-milestone. See "Next Milestone Goals" above for the v1.2 candidate scope (MIGR-01, UPD-01) and carried-over tech debt. -->
 
-- [ ] Repository structure per spec §3 (`agent-factory/`, `plans/`, `memory-bank/`, `install/`, `.claude-plugin/`, root `AGENTS.md`)
-- [ ] Config dial: `factory.config.json` + human-readable `factory.config.md`; factory runs lean with zero config, honors config in every role
-- [ ] Core role prompts (11): orchestrator, agents-md-scribe, brownfield-mapper, greenfield-mapper, ba-pm, system-analyst, architect-design, software-engineer, qe-e2e, security-nfr, uat-planner
-- [ ] Enterprise-pack roles (5): release-manager, compliance-officer, incident-responder, factory-coach, installer
-- [ ] Lifecycle + bootstrap workflows: greenfield/brownfield bootstrap, idea→epics, epic→tickets, ticket→PR, PR quality gate, UAT pack
-- [ ] Ceremony workflows: backlog refinement, sprint planning, daily sweep, sprint review, retro (Kanban flow + Scrum cadence both selectable by config)
-- [ ] Enterprise workflows: release (12) and incident (13)
-- [ ] Handoff templates (universal + per-role + ticket-ready/implementation-ready + v2: release, incident-postmortem, retro-notes, refinement-notes, sprint-plan)
-- [ ] Checklists: definition-of-ready, definition-of-done (lean), definition-of-done-enterprise (superset), pr-review, security-nfr, compliance, accessibility, observability-slo, release-readiness, uat
-- [ ] Delivery OS state files: `plans/board.md` (WIP-limited columns), `plans/traceability.md` (requirement→ticket→code→test→UAT→release), `plans/nfr-catalog.md`, `plans/metrics.md`, sprint + release file formats
-- [ ] Stable ID schemes (EPIC/FEAT/ABC/ADR/NFR/RISK/REL/INC) with configurable prefix
-- [ ] CI/CD backpressure model: deterministic prefetch → implement on branch → gate (install/lint/typecheck/unit/build/e2e) → bounded self-fix (default 2) → result (READY_FOR_HUMAN_REVIEW | BLOCKED_NEEDS_FIX | SPLIT_REQUIRED)
-- [ ] Root `AGENTS.md` substrate: minimal, high-signal, points to roles/workflows/handoffs/checklists; embeds **Andrej Karpathy's 12 coding-agent rules** (Think Before Coding / Simplicity First / Surgical Changes / Goal-Driven Execution) as default behavioral guardrails; Commands section uses real commands with flags, preferring fast file-scoped variants; unknown commands marked `UNKNOWN - verify`, never faked
-- [ ] Per-tool adapters + `agent-factory/packaging/` (adapters.md map, subagent frontmatter template, slash-command template) for Claude Code, Codex, Gemini, OpenCode, Copilot — only dispatch differs, never content
-- [ ] Standalone `.claude/` form: thin sub-agent wrappers, `/grug` command(s), one-line CLAUDE.md pointer
-- [ ] Claude Code plugin form: `.claude-plugin/plugin.json` + `marketplace.json`, `agents/`, `commands/`, optional hooks (e.g. PreToolUse guard blocking prod deploy)
-- [ ] Install scripts: `install/install.sh` (POSIX) + `install/install.mjs` (Node) — idempotent, additive, dry-run-capable, reversible; `uninstall.sh`; "just install the markdown" minimal path documented
-- [ ] **Minimal** memory-bank that is the kit's persistent agent-maintained store for state, plans, and project info (index, project-brief, product, architecture, contributing, decisions/ ADRs, progress, runbook, glossary) — kept as small as possible; roles read it on start and update `60-progress.md`/`50-decisions/` as work progresses
-<!-- Example runs, validator, brand/docs collateral, and dogfood validation moved to Validated in Phase 6. -->
-<!-- NOTE: The remaining Active items above were built across Phases 1–5; the v1.0 milestone is now complete. Run /gsd-complete-milestone for the full milestone review and archival, which reconciles this list. -->
+_(No active requirements — define the next milestone with `/gsd-new-milestone`.)_
 
 ### Out of Scope
 
@@ -69,10 +74,15 @@ A user installs grugops on top of the coding-agent CLI they already run, types `
 - An agent marketplace beyond the single-plugin catalog — out of scope to avoid building a platform
 - Auto-merge to protected branches or auto-deploy to production — safety must be mechanical, never crossed
 - Any mascot/art that resembles or implies a tie to the "Grug" children's-book character — separate IP; original art only, non-affiliation maintained
+- *(v1.1)* Background auto-update of the central kit — surprise mutation; `--update` is explicit and human-run
+- *(v1.1)* Symlink-overlay install / per-repo kit vendoring — the rejected alternatives; copy to `$GRUGOPS_HOME` is the chosen model
+- *(v1.1)* TUI/wizard installer, global `$PATH` binary, telemetry — keep it boring: sh + Node stdlib, no daemon, no data collection
+- *(v1.1)* Doctor that auto-fixes user content — `--check` reports and names; it never edits the user's repo
+- *(v1.1)* XDG base-dir split (`$XDG_DATA_HOME` etc.) — peer tools reject it; one `$GRUGOPS_HOME` is simpler and cross-platform
 
 ## Context
 
-- **Greenfield repo.** Only source material present is `docs/initial/agent_factory_builder_spec_v2.md` (the technical spec, the contract for *what* to build) and `docs/initial/grugops_brand_manual.md` (brand, voice, visual identity, ready-to-paste collateral, legal positioning). Git is already initialized at the worktree root.
+- **Two milestones shipped.** Began greenfield from `docs/initial/agent_factory_builder_spec_v2.md` (the *what*-to-build contract) and `docs/initial/grugops_brand_manual.md` (brand/voice/visual identity/legal). v1.0 built the full v2 spec; v1.1 redesigned the install to the shared-location two-root model. Current state: ~77 markdown files under `agent-factory/`, ~718 tracked files total, ~500 commits. The kit is licensed MIT and carries public brand/legal collateral.
 - **The build artifact is almost entirely markdown**, plus two functionally-identical install scripts (`install.sh` POSIX, `install.mjs` Node) and one optional Node validator. There is no application runtime to build.
 - **The default stack grugops *recommends to its users*** (greenfield-mapper default) is TypeScript / Node.js+Fastify / Vue / PostgreSQL / Playwright / Docker / Kubernetes-ready — but grugops itself ships no such stack; it is markdown + scripts.
 - **Fast-moving conventions.** Claude Code plugin format, the `AGENTS.md` cross-tool standard, and slash-command auto-namespacing change quickly; the spec repeatedly flags "verify against current tool docs." Up-front research is worthwhile.
@@ -97,16 +107,21 @@ A user installs grugops on top of the coding-agent CLI they already run, types `
 
 | Decision | Rationale | Outcome |
 |----------|-----------|---------|
-| Build the **full v2 spec** (core + enterprise pack) in this milestone, not lean-first | User wants the complete enterprise + plugin edition now | — Pending |
-| Ship **both** distribution forms: standalone `.claude/` and the plugin + marketplace | Fast iteration AND versioned, shareable distribution | — Pending |
-| **Include brand/docs collateral** (README, NOTICE, CONTRIBUTING, wordmark/icon SVGs, FAQ) in this milestone | Public repo; the collateral is already written in the brand manual | — Pending |
-| Validate via **dogfood + validator**: run `/grug` on a sample repo to take a ticket idea→PR | Prove the kit works end-to-end; matches spec acceptance criteria (§20) | — Pending |
-| Default recommended stack: TS / Node-Fastify / Vue / Postgres / Playwright / Docker / K8s-ready | Spec greenfield-mapper default for grugops's *users* | — Pending |
-| Enforce prod-safety mechanically where possible (Claude Code hook blocks deploy) | "Humans decide, agents execute" must be a guardrail, not a hope | — Pending |
-| Markdown-only kit; no runtime, DB, or queue | Boring on purpose; intelligence lives in the host agent | — Pending |
-| Memory-bank is the minimal agent-maintained state/plans store | User-requested completeness; same anti-bloat rule as AGENTS.md | — Pending |
-| Best-practices AGENTS.md embeds Karpathy's 12 coding-agent rules + agents.md-standard commands (file-scoped) | User-requested; the 12 rules operationalize the grug philosophy (simple, surgical, think-first, goal-driven) | — Pending |
-| **[Phase 2]** Handoff duplicate headers: fix derived `business-handoff.md`; accept `product-handoff.md` + `implementation-handoff.md` as-is | A2 (inline universal header) + D-08 (verbatim §5.A body) intentionally collide on `## Scope`/`## Risks`; the two spec-verbatim files cannot be disambiguated without breaking a locked decision. **Phase 3 role authors and the Phase 6 validator must treat the universal-header `## Scope`/`## Risks` as authoritative and tolerate the duplicate §5.A body sections in those two files.** | ✓ Resolved (Phase 2) |
+| Build the **full v2 spec** (core + enterprise pack) in this milestone, not lean-first | User wants the complete enterprise + plugin edition now | ✓ Good — full v2 spec shipped in v1.0 (6 phases, 34 plans) |
+| Ship **both** distribution forms: standalone `.claude/` and the plugin + marketplace | Fast iteration AND versioned, shareable distribution | ✓ Good — both forms ship and coexist (CLAUDE-01/02/03) |
+| **Include brand/docs collateral** (README, NOTICE, CONTRIBUTING, wordmark/icon SVGs, FAQ) in this milestone | Public repo; the collateral is already written in the brand manual | ✓ Good — full public collateral shipped (BRAND-01/02/03) |
+| Validate via **dogfood + validator**: run `/grug` on a sample repo to take a ticket idea→PR | Prove the kit works end-to-end; matches spec acceptance criteria (§20) | ✓ Good — DOG-01 met; the dogfood surfaced the install pains that became all of v1.1. DOG-02 live-CC half still pending human |
+| Default recommended stack: TS / Node-Fastify / Vue / Postgres / Playwright / Docker / K8s-ready | Spec greenfield-mapper default for grugops's *users* | ✓ Good — exercised in the v1.0 dogfood (TS/Node+Fastify sample) |
+| Enforce prod-safety mechanically where possible (Claude Code hook blocks deploy) | "Humans decide, agents execute" must be a guardrail, not a hope | ✓ Good — pure-Node PreToolUse guard ships; live firing pending human (Deferred Items) |
+| Markdown-only kit; no runtime, DB, or queue | Boring on purpose; intelligence lives in the host agent | ✓ Good — held across both milestones |
+| Memory-bank is the minimal agent-maintained state/plans store | User-requested completeness; same anti-bloat rule as AGENTS.md | ✓ Good — shipped minimal (MEM-01/02) |
+| Best-practices AGENTS.md embeds Karpathy's 12 coding-agent rules + agents.md-standard commands (file-scoped) | User-requested; the 12 rules operationalize the grug philosophy | ✓ Good — single-source in AGENTS.md (AGENTS-02) |
+| **[Phase 2]** Handoff duplicate headers: fix derived `business-handoff.md`; accept `product-handoff.md` + `implementation-handoff.md` as-is | A2 (inline universal header) + D-08 (verbatim §5.A body) intentionally collide on `## Scope`/`## Risks`; treat the universal-header sections as authoritative and tolerate the duplicate §5.A bodies in those two files | ✓ Resolved (Phase 2) |
+| **[v1.1]** Kit home `${GRUGOPS_HOME:-$HOME/.grugops}` — NOT XDG, NOT literal `~`; default **COPY** not symlink | Peer tools reject XDG; copy is robust; the env-var form resolves identically in sh + Node | ✓ Good — SHOME-01, installer copy-default (INSTALL-04) |
+| **[v1.1]** Per-repo config at `.grugops/factory.config.json` (marker/version stamp in `.grugops/`) | Supersedes the older repo-root recommendation; clean kit/state split | ✓ Good — SHOME-02; 32 config refs resolve here |
+| **[v1.1]** Installer **materializes** the absolute kit path into the standalone adapters | An LLM can't expand `$GRUGOPS_HOME` in prose; one one-line bash self-heal fallback is the only env-var reference | ✓ Good — SHOME-04; sole resolver confined to 3 legal sites |
+| **[v1.1]** Single-window sequential role-load (`_role-switch-protocol.md`); packaging templates grant **NO** spawn tool | The kit is portable across 5 CLIs; sub-agent nesting isn't available everywhere | ✓ Good (D-08) — ⚠️ Revisit: the templates still carry `Agent`/"spawn" prose (WR-05 regeneration hazard, tech debt) |
+| **[v1.1, D-28/D-29]** Version `0.1.0` (brand-new public tool); `skills/` over `commands/` for the plugin | Brand-new public release; skills are the forward path | ✓ Good — shipped in v1.0 packaging |
 
 ## Evolution
 
@@ -126,6 +141,8 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
+*Last updated: 2026-06-08 after v1.1 milestone — **Milestone v1.1 "Install & Distribution" complete and archived** (phases 7–9, 14 plans; audit `tech_debt`, 8/8 requirements satisfied, no blockers). v1.0 was also archived retroactively (it was never formally closed). Both milestones now live in `.planning/milestones/` (v1.0/v1.1 ROADMAP + REQUIREMENTS, v1.1 audit); `ROADMAP.md` collapsed to milestone groupings; `REQUIREMENTS.md` reset for the next milestone; tags `v1.0` + `v1.1` created. 7 v1.0-era open artifacts (DOG-02 live-CC dogfood + a stale quick-task marker) acknowledged and deferred — see STATE.md Deferred Items. Carried tech debt: Nyquist formal validation ×3, the WR-05 packaging-template regeneration hazard, `check-kit-refs.sh` hardening (WR-01..04). Next: `/gsd-new-milestone` for v1.2 (MIGR-01 migrate + UPD-01 update).*
+
 *Last updated: 2026-06-07 — Phase 8 (Two-Root Installer) complete (4/4 plans, verification 5/5; INSTALL-03 + INSTALL-04 validated). **The installer now fixes all three dogfood pains (DOG-02).** `install/install.sh` (POSIX behavioral spec) + `install/install.mjs` (byte-parity Node twin) resolve `${GRUGOPS_HOME:-$HOME/.grugops}` (Node via `os.homedir()`), atomically copy the read-only kit there, materialize the resolved ABSOLUTE kit path into exactly the two standalone adapters, and seed the per-repo state plane (`.grugops/factory.config.json`, install marker, `plans/**` incl. `plans/handoffs/`, `memory-bank/**`) skip-if-exists — never clobbering user content. Default mode flipped to COPY (symlink opt-in); `--target <repo>` from any CWD + confirm prompt with `--yes`/non-TTY bypass; always-on D-07 self-checkout guard (refuse-by-default, `--allow-self` override). 08-01 carry-forward: dropped the `Agent` spawn grant from both packaging templates (WR-05/D-08), corrected stale config-path prose (IN-01/D-09), bundled `agent-factory/seed/**` (D-01/D-02) excluded from `check-kit-refs.sh` (D-03). 08-02 shipped the RED-by-design harness `install/install.two-root.test.sh`. 08-04 D-06 uninstall removes only adapters + wiring + the `.grugops/install.json` marker — never the shared `$GRUGOPS_HOME` kit nor seeded state. **Human-approved reconciliation:** the "frozen" `install.test.sh` Check 3 (byte-restore on uninstall) was structurally incompatible with the two-root seed model, so a single-check slice of Phase-9 VAL-02 was pulled forward — only Check 3 was rewritten to the D-06 contract (grugops-owned removed, seeded user state survives); the other 6 checks stay byte-identical. Code review found **2 Critical + 4 Warning** — CR-01 (unbounded sentinel/marker strip could delete user content past an unterminated open marker, in `uninstall.sh` + both installers' materialize logic) and CR-02 (`uninstall.sh` ignored its own documented `--target`, operating on `$(pwd)`) — both empirical hard-constraint violations, **all 6 fixed atomically and re-proven**; 2 Info (IN-01 CRLF-in-marker, IN-02 seed board WIP ref) left out-of-scope, non-blocking. All three harnesses GREEN: `install.test.sh`, `install.two-root.test.sh` (18/18 incl. sh/Node byte-parity), `check-kit-refs.sh`. Next: `/gsd-discuss-phase 9` or `/gsd-plan-phase 9` (Doctor & Two-Root Validator).*
 
 *Last updated: 2026-06-06 — Phase 7 (Shared-Home Foundation & Path Rewrite) complete (4/4 plans, verification 5/5). **The kit/state split convention is frozen and the whole kit rewritten to it.** A canonical `## Kit vs state` rule in `AGENTS.md` plus a byte-identical "Kit vs state invariant" marker at four canonical sites (AGENTS.md, `agent-factory/roles/orchestrator.md`, `.claude/agents/grugops-orchestrator.md`, `.claude/skills/grugops/SKILL.md`); the sole resolver is the `${GRUGOPS_HOME:-$HOME/.grugops}` self-heal + STOP-on-absence, confined to exactly three legal sites (the two `.claude` adapters + `agent-factory/packaging/subagent.frontmatter.md`). The bulk rewrite (07-02 roles+op-skills, 07-03 14 workflows): every config ref → `.grugops/factory.config.json` (`#field` anchors preserved); handoffs split into TEMPLATE reads (bare `agent-factory/handoffs/`, KIT) vs runtime INSTANCE writes (`plans/handoffs/<ID>-<stage>.md`, STATE), with frozen `<stage>` tokens; `_role-switch-protocol.md` step-4 template-read-vs-instance-write split in place. The mechanical proof is `scripts/check-kit-refs.sh` (SHOME-03) — POSIX, read-only, ships GREEN: zero `agent-factory/config/` refs, handoff-allowlist, no `$GRUGOPS_HOME` in prose, invariant marker present — with a fail-on-mutation proof. SHOME-01..04 complete. Regression harnesses (`guard.test.sh`, `validate.test.sh`, `install.test.sh`) + the structural validator all PASS. Code review: 0 Critical / 5 Warning / 2 Info — none blocking; two carry forward to Phase 8: WR-05 (the two packaging **templates** still grant the `Agent` spawn tool, a regeneration hazard contradicting the no-spawn rule) and IN-01 (`agent-factory/README.md` + `factory.config.md` still carry the old config path — deliberately deferred to Phase 8 per RESEARCH.md O2). Plus four latent gate-robustness items (WR-01..04, false-green channels not currently triggered). Next: `/gsd-discuss-phase 8` (Two-Root Installer).*
