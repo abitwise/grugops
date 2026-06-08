@@ -276,7 +276,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 
 **Wave 2** *(blocked on 09-01; the byte-parity Node doctor twin keys off the sh doctor)*
 
-- [ ] 09-03-PLAN.md — Node `install.mjs --check` doctor (byte-parity twin of the sh doctor) (INSTALL-05)
+- [x] 09-03-PLAN.md — Node `install.mjs --check` doctor (byte-parity twin of the sh doctor) (INSTALL-05)
 
 **Wave 3** *(blocked on 09-01/02/03; the harness verifies all three programs)*
 
@@ -303,4 +303,4 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8 →
 | 6. Validation, Brand & Dogfood | 5/5 | Complete    | 2026-06-04 |
 | 7. Shared-Home Foundation & Path Rewrite | 4/4 | Complete    | 2026-06-06 |
 | 8. Two-Root Installer | 4/4 | Complete    | 2026-06-07 |
-| 9. Doctor & Two-Root Validator | 2/4 | In Progress|  |
+| 9. Doctor & Two-Root Validator | 3/4 | In Progress|  |

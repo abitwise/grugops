@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: Install & Distribution
 status: executing
-last_updated: "2026-06-08T07:09:46.609Z"
+last_updated: "2026-06-08T07:17:14.992Z"
 last_activity: 2026-06-08
 progress:
   total_phases: 9
   completed_phases: 8
   total_plans: 46
-  completed_plans: 44
+  completed_plans: 45
   percent: 89
 ---
 
@@ -25,7 +25,7 @@ See: .planning/PROJECT.md (updated 2026-06-02)
 ## Current Position
 
 Phase: 09 (doctor-two-root-validator) — EXECUTING
-Plan: 3 of 4
+Plan: 4 of 4
 Status: Ready to execute
 Last activity: 2026-06-08
 
@@ -100,6 +100,7 @@ Last activity: 2026-06-08
 | Phase 08 P08-04 | 10 | 2 tasks | 2 files |
 | Phase 09 P01 | 4m | 2 tasks | 1 files |
 | Phase 09 P02 | 7m | 2 tasks | 1 files |
+| Phase 09 P03 | 5m | 2 tasks | 1 files |
 
 ## Accumulated Context
 
@@ -190,6 +191,8 @@ Recent decisions affecting current work:
 - [Phase ?]: [09-02] validator split: VALIDATE_KIT_ROOT no default → unset is a hard exit(1) with a literal (C3) tag (D-08); STATE_ROOT reuses VALIDATE_ROOT (else repo root) so the 8 single-tree fixtures stay valid as state fixtures
 - [Phase ?]: [09-02] bare exists/safeRead/listDir helpers REMOVED (not aliased), forked into kit*/state* — every call site is explicitly kit/state-scoped; mixed required-files loop split by Phase-7 classification
 - [Phase ?]: [09-02] validate.test.sh is RED-by-design until Plan 09-04 adds the run_fixture_split driver + split fixtures + resolution-parity assertion — the C3 guard firing on the old harness is correct, not a regression
+- [Phase ?]: [09-03] install.mjs --check is the byte-parity Node twin of install.sh --check: same D-03 three-source cross-check, ordered first-failure, WARN tier, exit-code matrix, not-installed fold-into-FAIL; proven byte-identical across 12 cases
+- [Phase ?]: [09-03] docAbspath (non-normalizing, mirrors sh abspath) replaces node:path resolve() in the cross-check so cosmetic /. segments classify as WARN identically across the sh boundary; MAT_* sentinels relocated above the doctor for the readAdapterKit TDZ under --check
 
 ### Pending Todos
 
@@ -223,6 +226,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-06-08T07:09:22.058Z
+Last session: 2026-06-08T07:17:09.263Z
 Stopped at: Phase 9 context gathered
 Resume file: None
