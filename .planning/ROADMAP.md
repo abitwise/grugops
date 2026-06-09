@@ -74,7 +74,7 @@ Full phase details + milestone summary: `milestones/v1.1-ROADMAP.md` · requirem
 **Wave 1**
 
 - [x] 10-01-PLAN.md — SDLC-coverage audit artifact (16 roles + 14 workflows x 9 lifecycle stages; gap->phase mapping)
-- [ ] 10-02-PLAN.md — Four foundation guards aggregator + fail-proof harness; adapters.md stale-spawn-prose fix
+- [x] 10-02-PLAN.md — Four foundation guards aggregator + fail-proof harness; adapters.md stale-spawn-prose fix
 - [ ] 10-03-PLAN.md — 8 config-dial keys atomic across 3 files + enterprise-escalation contract; e2e_when->ui_e2e rename
 
 **Wave 2** *(blocked on Wave 1 completion)*
@@ -194,7 +194,7 @@ Phases execute in numeric order: 10 → 11 → 12 → 13 → 14 → 15 → 16 �
 | 7. Shared-Home Foundation & Path Rewrite | v1.1 | 4/4 | Complete | 2026-06-06 |
 | 8. Two-Root Installer | v1.1 | 4/4 | Complete | 2026-06-07 |
 | 9. Doctor & Two-Root Validator | v1.1 | 6/6 | Complete | 2026-06-08 |
-| 10. SDLC-Coverage Audit & Foundation Guards | v1.2 | 1/4 | In Progress|  |
+| 10. SDLC-Coverage Audit & Foundation Guards | v1.2 | 2/4 | In Progress|  |
 | 11. Senior Persona Overhaul | v1.2 | 0/TBD | Not started | - |
 | 12. BDD + TDD Wiring | v1.2 | 0/TBD | Not started | - |
 | 13. Frontend/UI Persona & Design→Build Workflow | v1.2 | 0/TBD | Not started | - |

@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: SDLC Depth, Quality Discipline & Browsable Docs
 status: executing
-last_updated: "2026-06-09T16:01:28.000Z"
+last_updated: "2026-06-09T16:09:23.264Z"
 last_activity: 2026-06-09
 progress:
   total_phases: 8
   completed_phases: 0
   total_plans: 4
-  completed_plans: 1
+  completed_plans: 2
   percent: 0
 ---
 
@@ -25,11 +25,11 @@ See: .planning/PROJECT.md (updated 2026-06-09 — v1.2 milestone started)
 ## Current Position
 
 Phase: 10 (sdlc-coverage-audit-foundation-guards) — EXECUTING
-Plan: 2 of 4
+Plan: 3 of 4
 Status: Ready to execute
 Last activity: 2026-06-09
 
-Progress: [███░░░░░░░] 25%
+Progress: [█████░░░░░] 50%
 
 ## Performance Metrics
 
@@ -108,6 +108,7 @@ Progress: [███░░░░░░░] 25%
 | Phase 09 P05 | 11m | 2 tasks | 2 files |
 | Phase 09 P06 | 5m | 2 tasks | 2 files |
 | Phase 10 P01 | 9m | 1 tasks | 1 files |
+| Phase 10 P02 | 4m | 2 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -217,6 +218,8 @@ Recent decisions affecting current work:
 - [Phase ?]: [09-06] CR-03 fail-closed null-guard: checkConfig + checkPackaging reject a null/array/primitive JSON.parse result with a greppable 'not a JSON object' finding before dereferencing — JSON.parse('null') returns null without throwing, so try/catch alone was not fail-closed; two RED-before/GREEN-after null-literal regression cases (config + plugin) lock the crash path
 - [Phase 09]: [09-05 remediation] code-review found 09-05 closed only the exact reported spellings; the parity CLASS is now closed: resolve_grugops_home collapses ./.. segments lexically (awk, no cd/pwd) to match Node path.resolve() (Check 14 trailing-slash stays green); marker_structurally_valid is a pragmatic pure-POSIX (no jq) gate that rejects a marker with a valid kitRoot line + trailing non-JSON garbage (the sh false-green) and folds it into the byte-identical not-installed FAIL the Node oracle emits. New Checks 16/17/18 are RED-before/GREEN-after gates (proven by reverting install.sh). install.mjs (oracle) untouched; install/validate/two-root/check-kit-refs suites all green
 - [Phase ?]: [10-01] SDLC-coverage audit (.planning/v1.2-SDLC-COVERAGE-AUDIT.md): lifecycle breadth COMPLETE (all 9 stages owned); 4 real gaps are depth/contract/specialization holes mapping to existing v1.2 phases — GAP-1 business->engineer prose-only contract->Phase 12, GAP-2 senior-judgment persona layer->Phase 11, GAP-3 frontend/UI specialist->Phase 13, GAP-4 leveled security + un-cheatable gate->Phase 14+15; 0 gaps uncovered; verdict roadmap-sufficient, no re-scope (D-03). adapters.md stale-spawn-prose + WR-05 noted as observations (fixes owned by 10-02/Phase 11).
+- [Phase ?]: [10-02] Four foundation guards in ONE POSIX-sh aggregator (D-04, no npm deps): guard_wr05 (two EREs over the exact 4-file scan set, frontmatter token only never prose spawn, D-08/D-09), guard_agents_bytes (WARN 20480/FAIL 28672 below the 32768 Codex cap, D-07), guard_adapter_size (byte-based WARN 3072/FAIL 4096, D-07), guard_voice (section-scoped awk-strip of Caveman prompt + word-boundary grug, D-10). Ships GREEN, read-only; fails red on violation.
+- [Phase ?]: [10-02] Fail-proof harness: hermetic mirror-and-mutate plants both WR-05 grant shapes + AGENTS.md/adapter oversize + a voice marker, asserts each fails red, plus smoke-green + cmp -s config-JSON byte-identity (guards the Plan 10-03 tri-file drift). adapters.md stale Claude-Code-spawns claim corrected to uniform sequential role-load (D-09); conceptual spawn preserved (D-08); NOT in WR-05 scope.
 
 ### Pending Todos
 
@@ -259,6 +262,6 @@ Items acknowledged and deferred at the v1.1 milestone close on 2026-06-08. All a
 
 ## Session Continuity
 
-Last session: 2026-06-09T16:00:39.829Z
+Last session: 2026-06-09T16:08:53.484Z
 Stopped at: Phase 10 context gathered
 Resume file: None
