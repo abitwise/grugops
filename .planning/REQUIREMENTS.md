@@ -101,44 +101,54 @@ Acknowledged but deferred — not in the v1.2 roadmap.
 
 ## Traceability
 
-Populated by the roadmapper. Each requirement maps to exactly one phase.
+Each requirement maps to exactly one phase. v1.2 phase numbering continues from v1.1 (Phases 10–17; no reset).
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| SDLC-01 | TBD | Pending |
-| SDLC-02 | TBD | Pending |
-| SDLC-03 | TBD | Pending |
-| PERS-01 | TBD | Pending |
-| PERS-02 | TBD | Pending |
-| PERS-03 | TBD | Pending |
-| BDD-01 | TBD | Pending |
-| BDD-02 | TBD | Pending |
-| BDD-03 | TBD | Pending |
-| TDD-01 | TBD | Pending |
-| TDD-02 | TBD | Pending |
-| UI-01 | TBD | Pending |
-| UI-02 | TBD | Pending |
-| UI-03 | TBD | Pending |
-| UIQA-01 | TBD | Pending |
-| UIQA-02 | TBD | Pending |
-| SEC-01 | TBD | Pending |
-| SEC-02 | TBD | Pending |
-| SEC-03 | TBD | Pending |
-| TINT-01 | TBD | Pending |
-| TINT-02 | TBD | Pending |
-| TINT-03 | TBD | Pending |
-| LINT-01 | TBD | Pending |
-| LINT-02 | TBD | Pending |
-| DOCS-01 | TBD | Pending |
-| DOCS-02 | TBD | Pending |
-| MIGR-01 | TBD | Pending |
-| UPD-01 | TBD | Pending |
+| SDLC-01 | Phase 10 | Pending |
+| SDLC-02 | Phase 10 | Pending |
+| SDLC-03 | Phase 10 | Pending |
+| PERS-01 | Phase 11 | Pending |
+| PERS-02 | Phase 11 | Pending |
+| PERS-03 | Phase 11 | Pending |
+| BDD-01 | Phase 12 | Pending |
+| BDD-02 | Phase 12 | Pending |
+| BDD-03 | Phase 12 | Pending |
+| TDD-01 | Phase 12 | Pending |
+| TDD-02 | Phase 12 | Pending |
+| UI-01 | Phase 13 | Pending |
+| UI-02 | Phase 13 | Pending |
+| UI-03 | Phase 13 | Pending |
+| UIQA-01 | Phase 15 | Pending |
+| UIQA-02 | Phase 15 | Pending |
+| SEC-01 | Phase 14 | Pending |
+| SEC-02 | Phase 14 | Pending |
+| SEC-03 | Phase 14 | Pending |
+| TINT-01 | Phase 15 | Pending |
+| TINT-02 | Phase 15 | Pending |
+| TINT-03 | Phase 15 | Pending |
+| LINT-01 | Phase 15 | Pending |
+| LINT-02 | Phase 15 | Pending |
+| DOCS-01 | Phase 17 | Pending |
+| DOCS-02 | Phase 17 | Pending |
+| MIGR-01 | Phase 16 | Pending |
+| UPD-01 | Phase 16 | Pending |
 
 **Coverage:**
 - v1.2 requirements: 28 total
-- Mapped to phases: 0 (roadmapper to fill)
-- Unmapped: 28 ⚠️ (expected until roadmap is created)
+- Mapped to phases: 28 ✓
+- Unmapped: 0 ✓
+
+**Phase distribution:**
+- Phase 10 (SDLC-Coverage Audit & Foundation Guards): SDLC-01, SDLC-02, SDLC-03 (3)
+- Phase 11 (Senior Persona Overhaul): PERS-01, PERS-02, PERS-03 (3)
+- Phase 12 (BDD + TDD Wiring): BDD-01, BDD-02, BDD-03, TDD-01, TDD-02 (5)
+- Phase 13 (Frontend/UI Persona & Design→Build Workflow): UI-01, UI-02, UI-03 (3)
+- Phase 14 (Security Audit (OWASP ASVS) & Checklist Re-Anchor): SEC-01, SEC-02, SEC-03 (3)
+- Phase 15 (§14 Gate Convergence — Lint, UI/E2E & Test-Integrity): UIQA-01, UIQA-02, TINT-01, TINT-02, TINT-03, LINT-01, LINT-02 (7)
+- Phase 16 (Install --migrate / --update): MIGR-01, UPD-01 (2)
+- Phase 17 (Browsable Docs Catalog): DOCS-01, DOCS-02 (2)
 
 ---
 *Requirements defined: 2026-06-09*
-*Last updated: 2026-06-09 after initial definition*
+*Last updated: 2026-06-09 after roadmap creation — all 28 requirements mapped to phases 10–17 (100% coverage, 0 unmapped)*

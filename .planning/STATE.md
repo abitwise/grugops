@@ -3,10 +3,10 @@ gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: SDLC Depth, Quality Discipline & Browsable Docs
 status: planning
-last_updated: "2026-06-09T12:48:50.597Z"
+last_updated: "2026-06-09T13:10:00.000Z"
 last_activity: 2026-06-09
 progress:
-  total_phases: 0
+  total_phases: 8
   completed_phases: 0
   total_plans: 0
   completed_plans: 0
@@ -17,17 +17,19 @@ progress:
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-06-08 after v1.1 milestone)
+See: .planning/PROJECT.md (updated 2026-06-09 — v1.2 milestone started)
 
 **Core value:** A user installs grugops on top of the coding-agent CLI they already run, types `/grug`, and gets a disciplined delivery team — a visible board, strict handoffs, and an auditable requirement→code→test→release trail — entirely as readable markdown, with humans always holding merge and deploy.
-**Current focus:** v1.1 shipped & archived (with v1.0). Planning v1.2 — SDLC Depth, Quality Discipline & Browsable Docs (senior personas, BDD+TDD, UI build+test, security/ASVS, test-integrity gate, linting, docs catalog, install migrate/update).
+**Current focus:** v1.2 SDLC Depth, Quality Discipline & Browsable Docs — roadmap created (8 phases, 10–17). Opens with the SDLC-coverage audit + mechanical foundation guards + config-dial contract (Phase 10), then senior personas (11), BDD+TDD (12), frontend/UI (13) + security/ASVS (14) as parallel content streams, §14 gate convergence (15), install migrate/update as an independent track (16), and the browsable docs catalog last (17).
 
 ## Current Position
 
-Phase: Not started (defining requirements)
-Plan: —
-Status: Defining requirements
-Last activity: 2026-06-09 — Milestone v1.2 started
+Phase: 10 of 17 (SDLC-Coverage Audit & Foundation Guards) — first v1.2 phase, not yet started
+Plan: — (no plans yet)
+Status: Roadmap created — ready to plan Phase 10
+Last activity: 2026-06-09 — v1.2 roadmap created; 28 requirements mapped across phases 10–17 (100% coverage)
+
+Progress: [░░░░░░░░░░] 0% (v1.2: 0/8 phases)
 
 ## Performance Metrics
 
@@ -113,6 +115,16 @@ Last activity: 2026-06-09 — Milestone v1.2 started
 Decisions are logged in PROJECT.md Key Decisions table.
 Recent decisions affecting current work:
 
+- [v1.2 Roadmap]: 8 phases, numbering CONTINUED from v1.1 (Phases 10–17, NOT reset to 1). All 28 v1.2 requirements mapped to exactly one phase, 100% coverage, 0 unmapped — SDLC-01/02/03 → Phase 10; PERS-01/02/03 → Phase 11; BDD-01/02/03 + TDD-01/02 → Phase 12; UI-01/02/03 → Phase 13; SEC-01/02/03 → Phase 14; UIQA-01/02 + TINT-01/02/03 + LINT-01/02 → Phase 15; MIGR-01 + UPD-01 → Phase 16; DOCS-01/02 → Phase 17.
+- [v1.2 Roadmap]: Phase order honors the research dependency-ordered build sequence — audit + foundation guards FIRST (10), senior personas as the substrate (11), then BDD+TDD (12), frontend/UI (13) + security/ASVS (14) as independent parallel content streams, §14 gate CONVERGENCE consuming 12/13/14 (15), install migrate/update as an INDEPENDENT track (16, may run parallel to 11–15), browsable docs catalog LAST since it documents the finished set (17).
+- [v1.2 Roadmap]: Config dial FOLDED INTO the foundation phase (Phase 10) rather than a standalone phase — SDLC-03 (the config-dial contract) is itself a foundation guard, and the actual schema edits (json + .md twin + seed, atomic) land in Phase 10 so every later capability builds against a real config schema. New keys: top-level `bdd` + `security.asvs_level`/`security.block_on`; gate-execution knobs nested under `quality` (`tdd`, `lint{strict,autofix}`, `ui_e2e`, `test_integrity`, `gate_enforcement`).
+- [v1.2 Roadmap]: Foundation guards front-loaded in Phase 10 (pitfalls 1,3,4,5,6 mitigated before content lands) — WR-05 spawn-grant grep, single-source adapter-size check, AGENTS.md byte-budget check (32 KiB Codex cap), voice-discipline lint over security/compliance/warning surfaces. Each fails red, never fabricated.
+- [v1.2 Roadmap]: Hard constraints carried into every phase framing — markdown-only kit (stdlib-only scripts, no npm deps in grugops itself); single-source role text (adapters are thin pointers, never forked); config-dial lean-default (zero-config still runs); two-voice discipline (grug in prompts; clear voice in security/compliance/warnings); no-fabrication (`UNKNOWN - verify`, never fake a gate/test/citation); single-window sequential role-load (NO spawn tool in packaging templates — WR-05 retired in Phase 11); two-root kit/state split; humans-hold-merge/deploy unchanged + mechanical.
+- [v1.2 Roadmap]: New workflow ordinals are 14 (UI design→build, Phase 13) and 15 (security-audit, Phase 14); the frozen 00–13 must NOT renumber (a renumber ripples through every Orchestrator workflow-map reference). New 17th role `roles/frontend-ui.md` in Phase 13.
+- [v1.2 Roadmap]: §14 gate stays single-source — ALL gate changes (lint + UI/E2E + test-integrity) land in `05-pr-quality-gate.md` step 3/4 ONLY, never forked into workflows 14/15; the bounded `self_fix_attempts` loop wraps the whole expanded sequence unchanged; the three terminal results (`READY_FOR_HUMAN_REVIEW` / `BLOCKED_NEEDS_FIX` / `SPLIT_REQUIRED`) preserved.
+- [v1.2 Roadmap]: Test-integrity is a trace-integrity SAFETY carve-out — `quality.test_integrity` is never fully dialable off (warn | block only); structured-justification escape hatch (reason + named owner + ticket/REQ-ID + expiry + closed-list category), agent may NOT self-author; RED fixture proves a hollow justification fails. Mirrors the prod-deploy hook's refuse-self-set.
+- [v1.2 Roadmap]: Install migrate/update (Phase 16) is RED-harness-first, never-delete-first (rename-to-backup; deletion only behind `--prune-old-kit`), byte-parity sh/Node, re-run no-op — highest-blast-radius pitfall, references the v1.1 CR-01 unbounded-marker-strip fix.
+- [v1.2 Research flags]: download the pinned ASVS 5.0.0 CSV before authoring the Phase-14 checklist (verify level-column name/position); verify playwright-bdd 9 ↔ @playwright/test 1.60.x compatibility before the Phase-15 gate work (bump both together); verify role/workflow frontmatter completeness before the Phase-17 catalog (emit `UNKNOWN - verify` if absent). Traceability extension = Option 1 (in-cell, zero header churn) per ARCHITECTURE.md — confirm before BDD/TDD wiring.
 - [Init]: Build the full v2 spec (core + enterprise pack) this milestone, not lean-first
 - [Init]: Ship both distribution forms — standalone `.claude/` and plugin + marketplace
 - [Init]: Enforce prod-safety mechanically via a plugin-level PreToolUse hook (not subagent frontmatter)
@@ -178,7 +190,7 @@ Recent decisions affecting current work:
 - [v1.1 Roadmap]: 3 phases, numbering CONTINUED from v1.0 (Phase 7-9, not reset to 1); 8 requirements mapped — SHOME-01..04 → Phase 7, INSTALL-03/04 → Phase 8, INSTALL-05 + VAL-02 → Phase 9
 - [v1.1 Roadmap]: Phase order honors the research FORCED build order — split convention + resolution mechanism + ~31-file rewrite (P7) → installer (resolve `$GRUGOPS_HOME`, copy, materialize abs kit path, `--target`/`--yes`, seed `.grugops/`+`plans/handoffs/`) (P8) → `--check` doctor + two-root validator + `install.test.sh` (P9). Rewrite + materialize-mechanism kept together so doctor and validator key off the final ref spelling.
 - [v1.1 Roadmap]: LOCKED decisions baked into phase goals — kit home `${GRUGOPS_HOME:-$HOME/.grugops}` (NOT XDG, NOT literal `~`); default COPY not symlink; per-repo config at **`.grugops/factory.config.json`** with install marker/version stamp in `.grugops/` (per SHOME-02 — overrides the older ARCHITECTURE.md repo-root recommendation); installer MATERIALIZES the absolute kit path into standalone adapters (LLM cannot expand `$GRUGOPS_HOME` in prose) + one-line bash self-heal fallback; zero-dep (sh + Node stdlib, no package.json); never overwrite/delete user content.
-- [v1.1 Roadmap]: Gating pitfalls in success criteria — C1 grep-to-zero-bare-refs build gate (Phase 7 SC#5); C3 no-fallback-to-`.` / unset-`$GRUGOPS_HOME` BAD fixture (Phase 9 SC#3-4). C2/migration is DEFERRED to v1.2 (MIGR-01), not phased here.
+- [v1.1 Roadmap]: Gating pitfalls in success criteria — C1 grep-to-zero-bare-refs build gate (Phase 7 SC#5); C3 no-fallback-to-`.` / unset-`$GRUGOPS_HOME` BAD fixture (Phase 9 SC#3-4). C2/migration is DEFERRED to v1.2 (MIGR-01), now Phase 16.
 - [Phase ?]: [07-02] handoff instance <stage> tokens FROZEN (product/system/architecture/impl-ready/implementation/qe/security-nfr/uat/ticket-ready/release/postmortem/retro/refinement/sprint-plan); Plan 03 workflows MUST reuse byte-identically. Step-4 split + all 13 op-skill invariants landed; zero config refs in role/skill set.
 - [Phase ?]: [07-03] Workflow tier rewritten: 13 workflows read .grugops/factory.config.json (D-02, #quality preserved); all 14 'Handoffs produced' sections + 04/05 read sides (D-06) + 09/12 collective inputs name ticket-scoped plans/handoffs/<ID>-<stage>.md instances; <stage> tokens reused byte-identically from Plan 02; 10-sprint-review untouched
 - [Phase ?]: [07-04] Build gate scripts/check-kit-refs.sh ships GREEN (proves a completed rewrite); 3 assertions + SC2 marker over an explicit SCAN set; Assertion 3 scoped to exclude the 3 legal GRUGOPS_HOME sites; O3 included, O2 docs/README pointers deferred to Phase 8
@@ -214,11 +226,14 @@ None yet.
 
 [Issues that affect future work]
 
-- C1 (GATING, Phase 7): a single missed ref out of ~137 across 31 files dangles silently — the grep-to-zero build gate is the only mechanical net; eyeballs are not enough.
-- LLM-in-prose anti-pattern (cross-cutting): NO role/workflow/SKILL body/AGENTS.md may name `$GRUGOPS_HOME` — only `${CLAUDE_PLUGIN_ROOT}` is expanded inline (plugin), and arbitrary env vars are dead strings in both forms. The adapter holds the only env-var reference; the installer materializes the absolute path.
-- Config location: SHOME-02 LOCKS per-repo config to `.grugops/factory.config.json` (with the install marker/version stamp in `.grugops/`). The older `.planning/research/ARCHITECTURE.md` recommended repo-root `factory.config.json` — that recommendation is SUPERSEDED by the requirement; use `.grugops/`.
-- C3 (GATING, Phase 9): the validator must NOT fall back to `.` and MUST fail an unset-`$GRUGOPS_HOME` BAD fixture, or it false-greens in the dev checkout. Doctor and validator must resolve the kit home identically.
-- v1.1 needs no further phase-level research — patterns are fully specified in the research files.
+- [v1.2] WR-05 spawn-grant regeneration hazard (carried v1.1 tech debt): the two packaging templates still prescribe the `Agent` tool / "spawn" prose. Retire it in Phase 11 AND add the mechanical grep guard in Phase 10 — a regen during the persona overhaul silently re-arms sub-agent spawning otherwise.
+- [v1.2] Migrate/update is the highest-blast-radius pitfall — runs irreversibly on the user's repo. Never delete-first; rename-to-backup; deletion only behind `--prune-old-kit`; bounded marker-strip (v1.1 CR-01 fix); RED harness first; sh/Node byte-parity. Phase 16.
+- [v1.2] Config-dial regressions (both directions): a capability with no config branch over-taxes solo users; an enterprise gate that is prose-only is skippable. Every v1.2 capability defines a lean default + an enterprise escalation; enterprise gates are mechanical where the host allows (Phase 10 contract + Phase 15 gate).
+- [v1.2] Voice-discipline drift: ASVS findings, test-integrity verdicts, and migrate/update data-loss warnings MUST be clear professional English; the senior-persona overhaul must NOT flatten grug voice in role prompts. Voice-lint guard lands in Phase 10, enforced through Phases 11/14/16.
+- [v1.2] Single-source drift: new BDD/ASVS/UI/lint content lands ONCE under `agent-factory/`; adapters stay pointer-sized; gate changes single-source in `05-pr-quality-gate.md`. Adapter-size guard lands in Phase 10.
+- [v1.2 Research flags] Download the pinned ASVS 5.0.0 CSV before the Phase-14 checklist (verify level-column name/position); verify playwright-bdd 9 ↔ @playwright/test 1.60.x compatibility before the Phase-15 gate work; verify role/workflow frontmatter completeness before the Phase-17 catalog.
+- LLM-in-prose anti-pattern (cross-cutting, carried from v1.1): NO role/workflow/SKILL body/AGENTS.md may name `$GRUGOPS_HOME` — only `${CLAUDE_PLUGIN_ROOT}` is expanded inline (plugin), and arbitrary env vars are dead strings in both forms. The adapter holds the only env-var reference; the installer materializes the absolute path.
+- Config location (carried from v1.1): per-repo config is `.grugops/factory.config.json` (SHOME-02 LOCK), with the install marker/version stamp in `.grugops/`. The older ARCHITECTURE.md repo-root recommendation is SUPERSEDED.
 
 ### Quick Tasks Completed
 
@@ -242,6 +257,6 @@ Items acknowledged and deferred at the v1.1 milestone close on 2026-06-08. All a
 
 ## Session Continuity
 
-Last session: 2026-06-08T08:43:08.556Z
-Stopped at: Phase 9 context gathered
-Resume file: None
+Last session: 2026-06-09T13:10:00.000Z
+Stopped at: v1.2 roadmap created (8 phases, 10–17; 28 requirements mapped, 100% coverage)
+Resume file: None — next is `/gsd-plan-phase 10`
