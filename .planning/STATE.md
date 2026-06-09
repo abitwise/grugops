@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: SDLC Depth, Quality Discipline & Browsable Docs
-status: executing
-last_updated: "2026-06-09T16:14:54.819Z"
+status: verifying
+last_updated: "2026-06-09T16:23:14.346Z"
 last_activity: 2026-06-09
 progress:
   total_phases: 8
-  completed_phases: 0
+  completed_phases: 1
   total_plans: 4
-  completed_plans: 3
-  percent: 0
+  completed_plans: 4
+  percent: 13
 ---
 
 # Project State
@@ -26,10 +26,10 @@ See: .planning/PROJECT.md (updated 2026-06-09 — v1.2 milestone started)
 
 Phase: 10 (sdlc-coverage-audit-foundation-guards) — EXECUTING
 Plan: 4 of 4
-Status: Ready to execute
+Status: Phase complete — ready for verification
 Last activity: 2026-06-09
 
-Progress: [████████░░] 75%
+Progress: [██████████] 100%
 
 ## Performance Metrics
 
@@ -110,6 +110,7 @@ Progress: [████████░░] 75%
 | Phase 10 P01 | 9m | 1 tasks | 1 files |
 | Phase 10 P02 | 4m | 2 tasks | 3 files |
 | Phase 10 P03 | 7m | 2 tasks | 4 files |
+| Phase 10 P04 | 6m | 2 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -224,6 +225,8 @@ Recent decisions affecting current work:
 - [Phase ?]: [10-03] 8 new config-dial keys landed atomically with LOCKED lean defaults across both JSON config files (config/ + seed/, byte-identical cmp -s): top-level `bdd`=lean; new top-level `security` object (asvs_level=L1, block_on=high); `quality.tdd`=encouraged, `quality.lint`={strict:false,autofix:true}, `quality.test_integrity`=warn, `quality.gate_enforcement`=blocking. Phase 10 seeds schema+contract ONLY; behavior wired downstream (Phase 12/14/15).
 - [Phase ?]: [10-03] `quality.e2e_when` RENAMED to `quality.ui_e2e` (D-13, same enum) across all 4 sites — both JSON, the .md twin (2 sites), and 05-pr-quality-gate.md step 3 — zero `e2e_when` remaining tree-wide (T-10-03-O orphan check). `lint` kept in BOTH `mandatory_gates` AND the new `quality.lint` object (complementary, not duplicate). `test_integrity` is warn|block, never off (TINT-03 carve-out, documented clear-voice).
 - [Phase ?]: [10-03] factory.config.md twin carries a dedicated "Config-dial contract (lean → enterprise)" section (D-11): per-key allowed values · lean default · enterprise escalation for all 8 keys; zero-config prose updated so absent key = lean default (SC4). `gate_enforcement` noted already-strict-at-lean (advisory is the relaxed direction, not the escalation).
+- [Phase ?]: [10-04] checkConfig() enum-recognizes the 8 v1.2 dial keys ACTIVE-WHEN-PRESENT / LENIENT-WHEN-ABSENT (D-14): an invalid present value is err() (nonzero even bare) and names the key; a missing key is its lean default (no error, SC4 preserved). quality.lint is shape-checked {strict,autofix} (D-12); test_integrity enum is warn|block — disabling rejected (TINT-03).
+- [Phase ?]: [10-04] validate.test.sh gains three hermetic assertions (mktemp -d from fixtures/good, no committed bad-fixture dir): asvs_level=L4 + test_integrity=off both fail red and name the key; fixtures/good (none of the 8 keys) still exits 0 (SC4); cmp -s proves config/ == seed/.grugops/ byte-identical. SC3 fully closed (schema in 10-03, recognition here).
 
 ### Pending Todos
 
@@ -266,6 +269,6 @@ Items acknowledged and deferred at the v1.1 milestone close on 2026-06-08. All a
 
 ## Session Continuity
 
-Last session: 2026-06-09T16:14:31.892Z
+Last session: 2026-06-09T16:22:39.997Z
 Stopped at: Phase 10 context gathered
 Resume file: None
