@@ -67,7 +67,11 @@ Full phase details + milestone summary: `milestones/v1.1-ROADMAP.md` · requirem
   2. The build gate runs four mechanical foundation guards that each fail red on violation and never fabricate a pass: a WR-05 spawn-grant grep over packaging templates + materialized adapters, a single-source adapter-size check, an AGENTS.md byte-budget check (under the 32 KiB Codex cap), and a voice-discipline lint over security/compliance/warning surfaces.
   3. A documented config-dial contract defines, for every v1.2 capability, an explicit lean default and an enterprise escalation — and the new dial keys (`bdd`, `quality.tdd`, `quality.lint`, `quality.ui_e2e`, `quality.test_integrity`, `quality.gate_enforcement`, `security.asvs_level`, `security.block_on`) exist with lean defaults across all three config files atomically (`config/factory.config.json`, `config/factory.config.md` twin, `seed/.grugops/factory.config.json`), recognized by the validator.
   4. Zero-config still runs lean: with no config file present, every new key degrades to its documented lean default.
-**Plans**: TBD
+**Plans**: 4 plans
+- [ ] 10-01-PLAN.md — SDLC-coverage audit artifact (16 roles + 14 workflows x 9 lifecycle stages; gap->phase mapping)
+- [ ] 10-02-PLAN.md — Four foundation guards aggregator + fail-proof harness; adapters.md stale-spawn-prose fix
+- [ ] 10-03-PLAN.md — 8 config-dial keys atomic across 3 files + enterprise-escalation contract; e2e_when->ui_e2e rename
+- [ ] 10-04-PLAN.md — Validator active-when-present/lenient-when-absent enum recognition + validate.test.sh extension
 
 ### Phase 11: Senior Persona Overhaul
 **Goal**: Lay the substrate every later content phase depends on — raise all personas to senior judgment via one new clear-voice skeleton section, deepen the business-analysis persona, and retire the WR-05 spawn-grant from the packaging templates.
@@ -161,7 +165,7 @@ Phases execute in numeric order: 10 → 11 → 12 → 13 → 14 → 15 → 16 �
 | 7. Shared-Home Foundation & Path Rewrite | v1.1 | 4/4 | Complete | 2026-06-06 |
 | 8. Two-Root Installer | v1.1 | 4/4 | Complete | 2026-06-07 |
 | 9. Doctor & Two-Root Validator | v1.1 | 6/6 | Complete | 2026-06-08 |
-| 10. SDLC-Coverage Audit & Foundation Guards | v1.2 | 0/TBD | Not started | - |
+| 10. SDLC-Coverage Audit & Foundation Guards | v1.2 | 0/4 | Not started | - |
 | 11. Senior Persona Overhaul | v1.2 | 0/TBD | Not started | - |
 | 12. BDD + TDD Wiring | v1.2 | 0/TBD | Not started | - |
 | 13. Frontend/UI Persona & Design→Build Workflow | v1.2 | 0/TBD | Not started | - |
