@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: SDLC Depth, Quality Discipline & Browsable Docs
 status: executing
-last_updated: "2026-06-09T15:13:15.020Z"
-last_activity: 2026-06-09 -- Phase 10 planning complete
+last_updated: "2026-06-09T16:01:28.000Z"
+last_activity: 2026-06-09
 progress:
   total_phases: 8
   completed_phases: 0
   total_plans: 4
-  completed_plans: 0
+  completed_plans: 1
   percent: 0
 ---
 
@@ -20,16 +20,16 @@ progress:
 See: .planning/PROJECT.md (updated 2026-06-09 — v1.2 milestone started)
 
 **Core value:** A user installs grugops on top of the coding-agent CLI they already run, types `/grug`, and gets a disciplined delivery team — a visible board, strict handoffs, and an auditable requirement→code→test→release trail — entirely as readable markdown, with humans always holding merge and deploy.
-**Current focus:** v1.2 SDLC Depth, Quality Discipline & Browsable Docs — roadmap created (8 phases, 10–17). Opens with the SDLC-coverage audit + mechanical foundation guards + config-dial contract (Phase 10), then senior personas (11), BDD+TDD (12), frontend/UI (13) + security/ASVS (14) as parallel content streams, §14 gate convergence (15), install migrate/update as an independent track (16), and the browsable docs catalog last (17).
+**Current focus:** Phase 10 — sdlc-coverage-audit-foundation-guards
 
 ## Current Position
 
-Phase: 10 of 17 (SDLC-Coverage Audit & Foundation Guards) — first v1.2 phase, not yet started
-Plan: — (no plans yet)
+Phase: 10 (sdlc-coverage-audit-foundation-guards) — EXECUTING
+Plan: 2 of 4
 Status: Ready to execute
-Last activity: 2026-06-09 -- Phase 10 planning complete
+Last activity: 2026-06-09
 
-Progress: [░░░░░░░░░░] 0% (v1.2: 0/8 phases)
+Progress: [███░░░░░░░] 25%
 
 ## Performance Metrics
 
@@ -107,6 +107,7 @@ Progress: [░░░░░░░░░░] 0% (v1.2: 0/8 phases)
 | Phase 09 P09-04 | 12m | 3 tasks | 2 files |
 | Phase 09 P05 | 11m | 2 tasks | 2 files |
 | Phase 09 P06 | 5m | 2 tasks | 2 files |
+| Phase 10 P01 | 9m | 1 tasks | 1 files |
 
 ## Accumulated Context
 
@@ -215,6 +216,7 @@ Recent decisions affecting current work:
 - [Phase ?]: [09-05] doctor parity gap closure (CR-01/CR-02): resolve_grugops_home lexically collapses repeated/trailing slashes to match Node resolve() so --strict exits 0 like Node; a garbled .grugops/install.json folds into the byte-identical not-installed FAIL the Node oracle emits; install.mjs (oracle) untouched; Check 14 + Check 15 are RED-before/GREEN-after parity gates
 - [Phase ?]: [09-06] CR-03 fail-closed null-guard: checkConfig + checkPackaging reject a null/array/primitive JSON.parse result with a greppable 'not a JSON object' finding before dereferencing — JSON.parse('null') returns null without throwing, so try/catch alone was not fail-closed; two RED-before/GREEN-after null-literal regression cases (config + plugin) lock the crash path
 - [Phase 09]: [09-05 remediation] code-review found 09-05 closed only the exact reported spellings; the parity CLASS is now closed: resolve_grugops_home collapses ./.. segments lexically (awk, no cd/pwd) to match Node path.resolve() (Check 14 trailing-slash stays green); marker_structurally_valid is a pragmatic pure-POSIX (no jq) gate that rejects a marker with a valid kitRoot line + trailing non-JSON garbage (the sh false-green) and folds it into the byte-identical not-installed FAIL the Node oracle emits. New Checks 16/17/18 are RED-before/GREEN-after gates (proven by reverting install.sh). install.mjs (oracle) untouched; install/validate/two-root/check-kit-refs suites all green
+- [Phase ?]: [10-01] SDLC-coverage audit (.planning/v1.2-SDLC-COVERAGE-AUDIT.md): lifecycle breadth COMPLETE (all 9 stages owned); 4 real gaps are depth/contract/specialization holes mapping to existing v1.2 phases — GAP-1 business->engineer prose-only contract->Phase 12, GAP-2 senior-judgment persona layer->Phase 11, GAP-3 frontend/UI specialist->Phase 13, GAP-4 leveled security + un-cheatable gate->Phase 14+15; 0 gaps uncovered; verdict roadmap-sufficient, no re-scope (D-03). adapters.md stale-spawn-prose + WR-05 noted as observations (fixes owned by 10-02/Phase 11).
 
 ### Pending Todos
 
@@ -257,6 +259,6 @@ Items acknowledged and deferred at the v1.1 milestone close on 2026-06-08. All a
 
 ## Session Continuity
 
-Last session: 2026-06-09T14:24:01.191Z
+Last session: 2026-06-09T16:00:39.829Z
 Stopped at: Phase 10 context gathered
-Resume file: .planning/phases/10-sdlc-coverage-audit-foundation-guards/10-CONTEXT.md
+Resume file: None

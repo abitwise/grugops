@@ -13,7 +13,7 @@ Each maps to exactly one roadmap phase (traceability filled by the roadmapper).
 
 ### SDLC Coverage & Foundation Guards
 
-- [ ] **SDLC-01**: grugops ships an SDLC-coverage audit that reviews every role + workflow for full-lifecycle completeness (especially the business→engineer handoff) and records the gaps it finds
+- [x] **SDLC-01**: grugops ships an SDLC-coverage audit that reviews every role + workflow for full-lifecycle completeness (especially the business→engineer handoff) and records the gaps it finds
 - [ ] **SDLC-02**: Mechanical foundation guards run in the build gate before content changes — WR-05 spawn-grant grep, single-source adapter-size check, AGENTS.md byte-budget check, and a voice-discipline lint — each failing red on violation (never fabricated)
 - [ ] **SDLC-03**: A documented config-dial contract defines, for every v1.2 capability, a lean default and an enterprise escalation, so zero-config still runs lean and no enterprise gate is prose-only
 
@@ -105,7 +105,7 @@ Each requirement maps to exactly one phase. v1.2 phase numbering continues from 
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| SDLC-01 | Phase 10 | Pending |
+| SDLC-01 | Phase 10 | Complete |
 | SDLC-02 | Phase 10 | Pending |
 | SDLC-03 | Phase 10 | Pending |
 | PERS-01 | Phase 11 | Pending |
