@@ -371,6 +371,22 @@ function checkConfig() {
       }
     }
   }
+
+  // ── Safety invariant: production_requires_human_confirmation must be true (WR-01) ────────────
+  // The ONE field in the schema with a hardcoded safety floor ("Must stay `true`",
+  // factory.config.md:28) — the mechanical form of the no-agent-deploy rule (agents never deploy
+  // to production alone; a named human always confirms). Mirrors the TINT-03 carve-out: there is
+  // NO false value in ANY mode. Presence-guarded so an ABSENT key stays the lean `true` default
+  // (preserving SC4 zero-config — only an explicit `false` is rejected); an err() (always nonzero,
+  // even bare — never warn()) because a silently-dialed-off deploy guard is a safety regression.
+  if (
+    "production_requires_human_confirmation" in cfg &&
+    cfg.production_requires_human_confirmation !== true
+  ) {
+    err(
+      `${rel}: "production_requires_human_confirmation" must be true (agents never deploy to production alone)`,
+    );
+  }
 }
 
 // ── Check 5+6: board<->ticket status match (vacuous on zero tickets) + traceability rows ──────

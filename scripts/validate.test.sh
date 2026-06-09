@@ -344,6 +344,31 @@ else
   fail "ENUM bad-tint should reject 'off' + name test_integrity (rc=$RC: $OUT)"
 fi
 
+# (h.2b) WR-01 safety floor: production_requires_human_confirmation=false is REJECTED — the field
+# has NO false value in any mode (factory.config.md:28 "Must stay `true`"), so a config trying to
+# dial off the no-agent-deploy guard fails red + names the key. Same class as the TINT-03 carve-out;
+# proves the new checkConfig() safety-floor check can actually fail (a check that can only pass is
+# fabricated green). Hermetic: built under $WORK from $FIX/good, real repo never mutated.
+BAD_PROD_KIT="$WORK/bad-prod-confirm-kit"
+mkdir -p "$BAD_PROD_KIT"
+cp -R -- "$FIX/good/agent-factory" "$BAD_PROD_KIT/agent-factory"
+cp -- "$FIX/good/AGENTS.md" "$BAD_PROD_KIT/AGENTS.md"
+[ -d "$FIX/good/.claude-plugin" ] && cp -R -- "$FIX/good/.claude-plugin" "$BAD_PROD_KIT/.claude-plugin"
+cp -R -- "$FIX/good/plans" "$BAD_PROD_KIT/plans"
+node -e '
+const fs = require("fs");
+const p = process.argv[1];
+const c = JSON.parse(fs.readFileSync(p, "utf8"));
+c.production_requires_human_confirmation = false;
+fs.writeFileSync(p, JSON.stringify(c, null, 2));
+' "$BAD_PROD_KIT/agent-factory/config/factory.config.json"
+OUT=$(VALIDATE_KIT_ROOT="$BAD_PROD_KIT" VALIDATE_ROOT="$BAD_PROD_KIT" node "$VALIDATOR" 2>&1) && RC=0 || RC=$?
+if [ "$RC" -ne 0 ] && printf '%s' "$OUT" | grep -qi 'production_requires_human_confirmation'; then
+  pass "WR-01 prod-confirm=false → nonzero + 'production_requires_human_confirmation' (safety floor)"
+else
+  fail "WR-01 prod-confirm=false should be rejected + name the key (rc=$RC: $OUT)"
+fi
+
 # (h.3) ABSENT-KEYS-PASS (SC4, the load-bearing zero-config assertion). fixtures/good carries
 # NONE of the 8 new keys; the validator must still exit 0 because each absent key degrades to its
 # lean default (T-10-04-SC4 — a required-key regression would break this). Reuse expect_pass over
