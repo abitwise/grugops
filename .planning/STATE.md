@@ -1,17 +1,16 @@
 ---
 gsd_state_version: 1.0
-milestone: v1.1
-milestone_name: Install & Distribution
-status: v1.1 milestone complete
-last_updated: 2026-06-08T15:00:00.000Z
-last_activity: 2026-06-08 -- v1.1 milestone completed and archived (v1.0 also archived retroactively); tags v1.0 + v1.1
+milestone: v1.2
+milestone_name: SDLC Depth, Quality Discipline & Browsable Docs
+status: planning
+last_updated: "2026-06-09T12:48:50.597Z"
+last_activity: 2026-06-09
 progress:
-  total_phases: 9
-  completed_phases: 9
-  total_plans: 48
-  completed_plans: 48
-  percent: 100
-stopped_at: Awaiting next milestone (v1.2 — run /gsd-new-milestone)
+  total_phases: 0
+  completed_phases: 0
+  total_plans: 0
+  completed_plans: 0
+  percent: 0
 ---
 
 # Project State
@@ -21,14 +20,14 @@ stopped_at: Awaiting next milestone (v1.2 — run /gsd-new-milestone)
 See: .planning/PROJECT.md (updated 2026-06-08 after v1.1 milestone)
 
 **Core value:** A user installs grugops on top of the coding-agent CLI they already run, types `/grug`, and gets a disciplined delivery team — a visible board, strict handoffs, and an auditable requirement→code→test→release trail — entirely as readable markdown, with humans always holding merge and deploy.
-**Current focus:** v1.1 shipped & archived (with v1.0). Planning the next milestone (v1.2 — Migration & Update).
+**Current focus:** v1.1 shipped & archived (with v1.0). Planning v1.2 — SDLC Depth, Quality Discipline & Browsable Docs (senior personas, BDD+TDD, UI build+test, security/ASVS, test-integrity gate, linting, docs catalog, install migrate/update).
 
 ## Current Position
 
-Phase: Milestone v1.1 complete and archived
+Phase: Not started (defining requirements)
 Plan: —
-Status: Awaiting next milestone (run /gsd-new-milestone for v1.2)
-Last activity: 2026-06-08 — v1.0 + v1.1 archived to .planning/milestones/; ROADMAP collapsed; REQUIREMENTS.md reset; tags v1.0 + v1.1
+Status: Defining requirements
+Last activity: 2026-06-09 — Milestone v1.2 started
 
 ## Performance Metrics
 

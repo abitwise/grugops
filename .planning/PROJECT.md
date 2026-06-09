@@ -19,18 +19,27 @@ A user installs grugops on top of the coding-agent CLI they already run, types `
 
 The whole kit is **boring on purpose**: ~77 markdown files under `agent-factory/` plus two byte-parity install scripts (`install.sh` POSIX, `install.mjs` Node) and one stdlib-only Node validator. No runtime, DB, or queue — the intelligence lives in the host coding agent.
 
-## Next Milestone Goals
+## Current Milestone: v1.2 SDLC Depth, Quality Discipline & Browsable Docs
 
-v1.2 is the migration/update story (researched, intentionally deferred from v1.1):
+**Goal:** Make grugops's delivery lifecycle senior-grade and trustworthy end-to-end — deeper personas with full SDLC coverage (especially the business→engineer handoff), test-first by default, automated UI build+test, security auditing, an un-cheatable quality gate, linting, and browsable docs — and finally ship the deferred install migrate/update story.
 
-- **MIGR-01**: `install.sh --migrate` converts an already-installed repo (in-repo `agent-factory/` + symlinks) to the split layout — additive-then-relocate, never delete-first (rename-to-backup; deletion only behind explicit `--prune-old-kit`).
-- **UPD-01**: `install.sh --update` refreshes the central kit in place; two-stage uninstall; doctor names the specific unresolved path.
-- Candidate for v2+: per-repo kit-version pin + skew warning (SKEW-01), doctor `--fix` (FIX-01), and plugin-form path resolution / publishing grugops as a Claude Code plugin (PLUGIN-01).
-- Also worth a pass: the v1.1 tech-debt items (Nyquist formal validation ×3, the WR-05 packaging-template regeneration hazard, `check-kit-refs.sh` hardening). See `milestones/v1.1-MILESTONE-AUDIT.md`.
+This is a largely **introspective** milestone: most work improves grugops's own kit (persona text, workflows, the gate, docs), not an external app. "UI / tests / security" are capabilities grugops gives its *users* through roles + workflows + the gate, since grugops itself is markdown. The automation principle "**bug the user as little as needed**" threads through the UI + test flows — sensible defaults, fewer human checkpoints, stop only at genuine decision/safety gates. The merge/deploy hard limit (humans decide) is unchanged.
 
-Run `/gsd-new-milestone` to scope it (questioning → research → requirements → roadmap).
+**Target features:**
+- **SDLC coverage audit & gap-fix** — review every role/workflow for lifecycle completeness; close the business→engineer gaps (this milestone opens with the audit, which informs the rest)
+- **Senior-level persona overhaul** — rewrite all personas to experienced/senior; deepen business-analysis personas + workflows
+- **Test-first baked in** — BDD given-when-then at acceptance/UAT (the business→engineer contract) + TDD red-green at the unit layer; depth dialed via `factory.config`
+- **UI build flow** — a senior frontend/UI persona + a UI design→build workflow
+- **Automated UI/E2E testing** — Playwright-based visual + E2E in the quality gate, automated to minimize human stops
+- **Security auditing (OWASP ASVS, dialed)** — a security-audit workflow + checklist anchored to ASVS (L1 lean → L2/L3 enterprise)
+- **Test-integrity gate** — block unjustified skipped tests; explicit documented-justification escape hatch; never fake a pass
+- **Code linting practice** — a lint step in the gate + per-stack linter recommendations
+- **Browsable docs catalog** — generated in-repo markdown reference of every agent + workflow (no web UI — stays inside the boundary)
+- **Install migrate/update** — `install.sh --migrate` (MIGR-01) + `install.sh --update` (UPD-01), folded in from the queued v1.2 story
 
-**Design contract for the install line:** `docs/design/shared-install.md`. Eventual destination is the Claude plugin, but that does not solve path resolution by itself.
+**Beyond v1.2 (candidates, not in scope):** per-repo kit-version pin + skew warning (SKEW-01), doctor `--fix` (FIX-01), plugin-form path resolution / publishing grugops as a Claude Code plugin (PLUGIN-01). Carried v1.1 tech-debt (Nyquist formal validation ×3, the WR-05 packaging-template regeneration hazard, `check-kit-refs.sh` hardening — see `milestones/v1.1-MILESTONE-AUDIT.md`) is a candidate to fold in where it overlaps with the gate/persona work.
+
+**Design contract for the install line:** `docs/design/shared-install.md`.
 
 ## Requirements
 
@@ -60,9 +69,9 @@ Run `/gsd-new-milestone` to scope it (questioning → research → requirements 
 
 ### Active
 
-<!-- Empty — both shipped milestones are archived and REQUIREMENTS.md was reset. The next milestone's requirements are defined via /gsd-new-milestone. See "Next Milestone Goals" above for the v1.2 candidate scope (MIGR-01, UPD-01) and carried-over tech debt. -->
+<!-- v1.2 requirements are being defined this milestone; canonical per-requirement detail + REQ-IDs live in REQUIREMENTS.md and are mapped to phases by the roadmap. -->
 
-_(No active requirements — define the next milestone with `/gsd-new-milestone`.)_
+_v1.2 "SDLC Depth, Quality Discipline & Browsable Docs" — requirements defined in `REQUIREMENTS.md`. Themes: SDLC-coverage audit, senior persona overhaul, BDD+TDD (config-dialed), UI build flow, automated UI/E2E testing, security auditing (OWASP ASVS, dialed), test-integrity gate, code linting, browsable docs catalog, install migrate/update (MIGR-01/UPD-01)._
 
 ### Out of Scope
 
@@ -141,6 +150,8 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
+*Last updated: 2026-06-09 — **Milestone v1.2 "SDLC Depth, Quality Discipline & Browsable Docs" started.** Goal: make grugops's lifecycle senior-grade and trustworthy end-to-end. Scope (10 themes): SDLC-coverage audit + business→engineer gap-fix, senior persona overhaul (incl. deeper BA personas/workflows), test-first baked in (BDD at acceptance + TDD at unit, config-dialed), a senior frontend/UI persona + UI design→build workflow, automated Playwright UI/E2E in the gate, security auditing anchored to OWASP ASVS (L1 lean → L2/L3 enterprise, dialed), a test-integrity gate that blocks unjustified skipped tests (no fabrication), a lint step + per-stack linter recommendations, a browsable in-repo markdown docs catalog of all agents+workflows, and the deferred install migrate/update story (MIGR-01 `--migrate` + UPD-01 `--update`, folded in per user). Automation principle: "bug the user as little as needed" — fewer human checkpoints, defaults over prompts, stop only at real decision/safety gates; merge/deploy hard limit unchanged. Milestone label held at v1.2 (user: "first useful version"); artifact SemVer stays 0.1.0 (D-28). Phase numbering continues from v1.1 (last phase 9). Next: research decision → requirements → roadmap.*
+
 *Last updated: 2026-06-08 after v1.1 milestone — **Milestone v1.1 "Install & Distribution" complete and archived** (phases 7–9, 14 plans; audit `tech_debt`, 8/8 requirements satisfied, no blockers). v1.0 was also archived retroactively (it was never formally closed). Both milestones now live in `.planning/milestones/` (v1.0/v1.1 ROADMAP + REQUIREMENTS, v1.1 audit); `ROADMAP.md` collapsed to milestone groupings; `REQUIREMENTS.md` reset for the next milestone; tags `v1.0` + `v1.1` created. 7 v1.0-era open artifacts (DOG-02 live-CC dogfood + a stale quick-task marker) acknowledged and deferred — see STATE.md Deferred Items. Carried tech debt: Nyquist formal validation ×3, the WR-05 packaging-template regeneration hazard, `check-kit-refs.sh` hardening (WR-01..04). Next: `/gsd-new-milestone` for v1.2 (MIGR-01 migrate + UPD-01 update).*
 
 *Last updated: 2026-06-07 — Phase 8 (Two-Root Installer) complete (4/4 plans, verification 5/5; INSTALL-03 + INSTALL-04 validated). **The installer now fixes all three dogfood pains (DOG-02).** `install/install.sh` (POSIX behavioral spec) + `install/install.mjs` (byte-parity Node twin) resolve `${GRUGOPS_HOME:-$HOME/.grugops}` (Node via `os.homedir()`), atomically copy the read-only kit there, materialize the resolved ABSOLUTE kit path into exactly the two standalone adapters, and seed the per-repo state plane (`.grugops/factory.config.json`, install marker, `plans/**` incl. `plans/handoffs/`, `memory-bank/**`) skip-if-exists — never clobbering user content. Default mode flipped to COPY (symlink opt-in); `--target <repo>` from any CWD + confirm prompt with `--yes`/non-TTY bypass; always-on D-07 self-checkout guard (refuse-by-default, `--allow-self` override). 08-01 carry-forward: dropped the `Agent` spawn grant from both packaging templates (WR-05/D-08), corrected stale config-path prose (IN-01/D-09), bundled `agent-factory/seed/**` (D-01/D-02) excluded from `check-kit-refs.sh` (D-03). 08-02 shipped the RED-by-design harness `install/install.two-root.test.sh`. 08-04 D-06 uninstall removes only adapters + wiring + the `.grugops/install.json` marker — never the shared `$GRUGOPS_HOME` kit nor seeded state. **Human-approved reconciliation:** the "frozen" `install.test.sh` Check 3 (byte-restore on uninstall) was structurally incompatible with the two-root seed model, so a single-check slice of Phase-9 VAL-02 was pulled forward — only Check 3 was rewritten to the D-06 contract (grugops-owned removed, seeded user state survives); the other 6 checks stay byte-identical. Code review found **2 Critical + 4 Warning** — CR-01 (unbounded sentinel/marker strip could delete user content past an unterminated open marker, in `uninstall.sh` + both installers' materialize logic) and CR-02 (`uninstall.sh` ignored its own documented `--target`, operating on `$(pwd)`) — both empirical hard-constraint violations, **all 6 fixed atomically and re-proven**; 2 Info (IN-01 CRLF-in-marker, IN-02 seed board WIP ref) left out-of-scope, non-blocking. All three harnesses GREEN: `install.test.sh`, `install.two-root.test.sh` (18/18 incl. sh/Node byte-parity), `check-kit-refs.sh`. Next: `/gsd-discuss-phase 9` or `/gsd-plan-phase 9` (Doctor & Two-Root Validator).*
