@@ -2,9 +2,13 @@
 //
 // Asserts the frozen grugops kit tree is structurally well-formed: required files exist,
 // role/workflow files carry their required sections (by PREFIX match — never exact-string,
-// never uniqueness), the config parses with mode/cadence/autonomy, board<->ticket status
-// matches (VACUOUS on zero tickets — D-43), traceability completeness is flagged, and
-// packaging is present with a named plugin.json.
+// never uniqueness), the config parses with mode/cadence/autonomy AND enum-checks the 8
+// optional v1.2 dial keys WHEN PRESENT (bdd; quality.tdd/ui_e2e/test_integrity/gate_enforcement;
+// quality.lint shape; security.asvs_level/block_on) — a MISSING key is its lean default, never
+// an error (D-14 active-when-present / lenient-when-absent, preserving SC4 zero-config); the
+// trace-integrity key is warn|block only — disabling it is rejected (TINT-03 carve-out).
+// Board<->ticket status matches (VACUOUS on zero tickets — D-43), traceability completeness is
+// flagged, and packaging is present with a named plugin.json.
 //
 // Node stdlib ONLY — node:fs + node:path + node:url. ZERO npm dependencies. NO package.json
 // is created or required (D-45, spec §18). Invocation requires the kit root explicitly:
@@ -24,7 +28,9 @@
 // (Phase-7 classification: agent-factory/… + AGENTS.md + .claude-plugin/ = KIT; plans/… = STATE).
 //
 // Two-tier findings (D-44): ERRORS (missing file/section; config doesn't parse or lacks
-// mode/cadence/autonomy; plugin.json missing name; board/ticket status mismatch) → exit 1.
+// mode/cadence/autonomy; a PRESENT dial key carrying an out-of-enum value — e.g. asvs_level:"L4"
+// or a trace-integrity value outside warn|block; a malformed quality.lint shape; plugin.json
+// missing name; board/ticket status mismatch) → exit 1.
 // WARNINGS (ticket missing a traceability row, or a row missing Tests/UAT) → reported, exit 0
 // bare; --strict promotes them to the nonzero exit.
 //
@@ -300,6 +306,69 @@ function checkConfig() {
   for (const key of ["mode", "cadence", "autonomy"]) {
     if (typeof cfg[key] !== "string" || cfg[key].trim() === "") {
       err(`${rel}: missing or empty required key "${key}"`);
+    }
+  }
+
+  // ── Optional-enum recognition of the 8 new v1.2 dial keys (SDLC-03 / D-14) ──────────────────
+  // ACTIVE-WHEN-PRESENT, LENIENT-WHEN-ABSENT — the opposite contract to the required-string loop
+  // above: a MISSING key is its documented lean default (NEVER an error — preserves SC4
+  // zero-config); only an INVALID PRESENT value is an err() (always nonzero, even bare — RESEARCH
+  // Security row 5, never warn()). Every check is guarded by `if (key in obj)`, never the
+  // unconditional loop, so a config without these keys still passes (Pitfall 5 / D-14).
+  // The trace-integrity enum is ["warn","block"] — disabling it is deliberately EXCLUDED
+  // (TINT-03 safety carve-out: trace-integrity is never fully dialable off).
+  const ENUMS = {
+    bdd: ["off", "lean", "strict"],
+  };
+  const Q_ENUMS = {
+    tdd: ["off", "encouraged", "required"],
+    ui_e2e: ["off", "ui-or-critical-path", "always"],
+    test_integrity: ["warn", "block"], // disabling EXCLUDED — TINT-03 carve-out
+    gate_enforcement: ["advisory", "blocking"],
+  };
+  const SEC_ENUMS = {
+    asvs_level: ["L1", "L2", "L3"],
+    block_on: ["none", "low", "medium", "high"],
+  };
+
+  // top-level bdd — presence-guarded; absent = lean default, no error (SC4).
+  if ("bdd" in cfg && !ENUMS.bdd.includes(cfg.bdd)) {
+    err(`${rel}: invalid "bdd" value "${cfg.bdd}" (allowed: ${ENUMS.bdd.join("|")})`);
+  }
+
+  // quality.* enums — only if quality is a non-null, non-array object.
+  if (cfg.quality && typeof cfg.quality === "object" && !Array.isArray(cfg.quality)) {
+    for (const [k, allowed] of Object.entries(Q_ENUMS)) {
+      if (k in cfg.quality && !allowed.includes(cfg.quality[k])) {
+        err(
+          `${rel}: invalid "quality.${k}" value "${cfg.quality[k]}" (allowed: ${allowed.join("|")})`,
+        );
+      }
+    }
+    // quality.lint is an OBJECT { strict:bool, autofix:bool } — SHAPE-check, not enum (D-12).
+    if ("lint" in cfg.quality) {
+      const l = cfg.quality.lint;
+      if (l === null || typeof l !== "object" || Array.isArray(l)) {
+        err(`${rel}: "quality.lint" must be an object { strict, autofix }`);
+      } else {
+        if ("strict" in l && typeof l.strict !== "boolean") {
+          err(`${rel}: "quality.lint.strict" must be boolean`);
+        }
+        if ("autofix" in l && typeof l.autofix !== "boolean") {
+          err(`${rel}: "quality.lint.autofix" must be boolean`);
+        }
+      }
+    }
+  }
+
+  // security.* enums — only if security is a non-null, non-array object.
+  if (cfg.security && typeof cfg.security === "object" && !Array.isArray(cfg.security)) {
+    for (const [k, allowed] of Object.entries(SEC_ENUMS)) {
+      if (k in cfg.security && !allowed.includes(cfg.security[k])) {
+        err(
+          `${rel}: invalid "security.${k}" value "${cfg.security[k]}" (allowed: ${allowed.join("|")})`,
+        );
+      }
     }
   }
 }
