@@ -110,6 +110,12 @@ None - no external service configuration required.
 - **Plan 10-04** (validator) is the immediate consumer: it adds active-when-present, lenient-when-absent enum recognition for these 8 keys (D-14) and enforces the `test_integrity` no-`off` carve-out mechanically. SC3's validator-recognition half is 10-04's scope; this plan delivered SC3's schema + contract half.
 - No blockers. The `cmp -s` byte-identity guard (from 10-02) protects the two JSON files against future drift.
 
+## Self-Check: PASSED
+
+All claimed files exist and all task/summary commits are present in git history:
+- Files: `config/factory.config.json`, `seed/.grugops/factory.config.json`, `config/factory.config.md`, `workflows/05-pr-quality-gate.md`, `10-03-SUMMARY.md` — all FOUND.
+- Commits: `236fc6f` (Task 1), `9799769` (Task 2), `c4dfead` (SUMMARY) — all FOUND.
+
 ---
 *Phase: 10-sdlc-coverage-audit-foundation-guards*
 *Completed: 2026-06-09*

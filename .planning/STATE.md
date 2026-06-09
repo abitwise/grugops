@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: SDLC Depth, Quality Discipline & Browsable Docs
 status: executing
-last_updated: "2026-06-09T16:09:23.264Z"
+last_updated: "2026-06-09T16:14:54.819Z"
 last_activity: 2026-06-09
 progress:
   total_phases: 8
   completed_phases: 0
   total_plans: 4
-  completed_plans: 2
+  completed_plans: 3
   percent: 0
 ---
 
@@ -25,11 +25,11 @@ See: .planning/PROJECT.md (updated 2026-06-09 — v1.2 milestone started)
 ## Current Position
 
 Phase: 10 (sdlc-coverage-audit-foundation-guards) — EXECUTING
-Plan: 3 of 4
+Plan: 4 of 4
 Status: Ready to execute
 Last activity: 2026-06-09
 
-Progress: [█████░░░░░] 50%
+Progress: [████████░░] 75%
 
 ## Performance Metrics
 
@@ -109,6 +109,7 @@ Progress: [█████░░░░░] 50%
 | Phase 09 P06 | 5m | 2 tasks | 2 files |
 | Phase 10 P01 | 9m | 1 tasks | 1 files |
 | Phase 10 P02 | 4m | 2 tasks | 3 files |
+| Phase 10 P03 | 7m | 2 tasks | 4 files |
 
 ## Accumulated Context
 
@@ -220,6 +221,9 @@ Recent decisions affecting current work:
 - [Phase ?]: [10-01] SDLC-coverage audit (.planning/v1.2-SDLC-COVERAGE-AUDIT.md): lifecycle breadth COMPLETE (all 9 stages owned); 4 real gaps are depth/contract/specialization holes mapping to existing v1.2 phases — GAP-1 business->engineer prose-only contract->Phase 12, GAP-2 senior-judgment persona layer->Phase 11, GAP-3 frontend/UI specialist->Phase 13, GAP-4 leveled security + un-cheatable gate->Phase 14+15; 0 gaps uncovered; verdict roadmap-sufficient, no re-scope (D-03). adapters.md stale-spawn-prose + WR-05 noted as observations (fixes owned by 10-02/Phase 11).
 - [Phase ?]: [10-02] Four foundation guards in ONE POSIX-sh aggregator (D-04, no npm deps): guard_wr05 (two EREs over the exact 4-file scan set, frontmatter token only never prose spawn, D-08/D-09), guard_agents_bytes (WARN 20480/FAIL 28672 below the 32768 Codex cap, D-07), guard_adapter_size (byte-based WARN 3072/FAIL 4096, D-07), guard_voice (section-scoped awk-strip of Caveman prompt + word-boundary grug, D-10). Ships GREEN, read-only; fails red on violation.
 - [Phase ?]: [10-02] Fail-proof harness: hermetic mirror-and-mutate plants both WR-05 grant shapes + AGENTS.md/adapter oversize + a voice marker, asserts each fails red, plus smoke-green + cmp -s config-JSON byte-identity (guards the Plan 10-03 tri-file drift). adapters.md stale Claude-Code-spawns claim corrected to uniform sequential role-load (D-09); conceptual spawn preserved (D-08); NOT in WR-05 scope.
+- [Phase ?]: [10-03] 8 new config-dial keys landed atomically with LOCKED lean defaults across both JSON config files (config/ + seed/, byte-identical cmp -s): top-level `bdd`=lean; new top-level `security` object (asvs_level=L1, block_on=high); `quality.tdd`=encouraged, `quality.lint`={strict:false,autofix:true}, `quality.test_integrity`=warn, `quality.gate_enforcement`=blocking. Phase 10 seeds schema+contract ONLY; behavior wired downstream (Phase 12/14/15).
+- [Phase ?]: [10-03] `quality.e2e_when` RENAMED to `quality.ui_e2e` (D-13, same enum) across all 4 sites — both JSON, the .md twin (2 sites), and 05-pr-quality-gate.md step 3 — zero `e2e_when` remaining tree-wide (T-10-03-O orphan check). `lint` kept in BOTH `mandatory_gates` AND the new `quality.lint` object (complementary, not duplicate). `test_integrity` is warn|block, never off (TINT-03 carve-out, documented clear-voice).
+- [Phase ?]: [10-03] factory.config.md twin carries a dedicated "Config-dial contract (lean → enterprise)" section (D-11): per-key allowed values · lean default · enterprise escalation for all 8 keys; zero-config prose updated so absent key = lean default (SC4). `gate_enforcement` noted already-strict-at-lean (advisory is the relaxed direction, not the escalation).
 
 ### Pending Todos
 
@@ -262,6 +266,6 @@ Items acknowledged and deferred at the v1.1 milestone close on 2026-06-08. All a
 
 ## Session Continuity
 
-Last session: 2026-06-09T16:08:53.484Z
+Last session: 2026-06-09T16:14:31.892Z
 Stopped at: Phase 10 context gathered
 Resume file: None
