@@ -282,6 +282,85 @@ else
   fail "null-literal plugin.json should be a finding, not a crash (rc=$RC: $OUT)"
 fi
 
+# (h) OPTIONAL-ENUM RECOGNITION of the 8 new v1.2 dial keys (SDLC-03 / D-14 / SC3 / SC4 /
+# TINT-03 — Plan 10-04). The validator now enum-checks the 8 keys ONLY WHEN PRESENT: an invalid
+# present value is err() (nonzero, even bare); a MISSING key is its lean default (no error,
+# preserving zero-config SC4). All fixtures are built HERMETICALLY under $WORK from $FIX/good
+# (mktemp -d, mutate one key) — NO committed bad-fixture dir is added (RESEARCH Open Question 2,
+# matching the repo's null-literal/split pattern). The real repo / $HOME are never mutated.
+printf '\n-- optional-enum dial keys (SDLC-03 / D-14, SC3/SC4/TINT-03) --\n'
+
+# (h.1) INVALID-ENUM fail-proof: an out-of-enum security.asvs_level "L4" makes the validator fail
+# red and NAME the key (the no-fabrication contract made mechanical — T-10-04-RT). Build a kit
+# copy, add a security object carrying the illegal value, run the validator over it.
+BAD_ASVS_KIT="$WORK/bad-asvs-kit"
+mkdir -p "$BAD_ASVS_KIT"
+cp -R -- "$FIX/good/agent-factory" "$BAD_ASVS_KIT/agent-factory"
+cp -- "$FIX/good/AGENTS.md" "$BAD_ASVS_KIT/AGENTS.md"
+[ -d "$FIX/good/.claude-plugin" ] && cp -R -- "$FIX/good/.claude-plugin" "$BAD_ASVS_KIT/.claude-plugin"
+cp -R -- "$FIX/good/plans" "$BAD_ASVS_KIT/plans"
+# Mutate ONLY the config: add a security object with an out-of-enum asvs_level (fixtures/good
+# carries no security object, so add the minimal { "asvs_level": "L4" } to trigger the check).
+node -e '
+const fs = require("fs");
+const p = process.argv[1];
+const c = JSON.parse(fs.readFileSync(p, "utf8"));
+c.security = { asvs_level: "L4" };
+fs.writeFileSync(p, JSON.stringify(c, null, 2));
+' "$BAD_ASVS_KIT/agent-factory/config/factory.config.json"
+OUT=$(VALIDATE_KIT_ROOT="$BAD_ASVS_KIT" VALIDATE_ROOT="$BAD_ASVS_KIT" node "$VALIDATOR" 2>&1) && RC=0 || RC=$?
+if [ "$RC" -ne 0 ] && printf '%s' "$OUT" | grep -qi 'asvs_level'; then
+  pass "ENUM bad-asvs (security.asvs_level=L4) → nonzero + 'asvs_level'"
+else
+  fail "ENUM bad-asvs should fail red + name asvs_level (rc=$RC: $OUT)"
+fi
+# Guard against accidentally committing a bad-fixture dir for this case (RESEARCH Open Question 2).
+if [ ! -d "$FIX/bad-config-bad-asvs" ]; then
+  pass "ENUM bad-asvs built hermetically (no committed scripts/fixtures/bad-config-bad-asvs dir)"
+else
+  fail "ENUM bad-asvs should be hermetic — committed fixture dir scripts/fixtures/bad-config-bad-asvs exists"
+fi
+
+# (h.2) TINT-03 carve-out: quality.test_integrity "off" is rejected — "off" is NOT in the
+# enum (warn|block), so a config trying to DISABLE trace-integrity fails red + names the key
+# (T-10-04-T1, the trace-integrity safety carve-out made mechanical).
+BAD_TINT_KIT="$WORK/bad-tint-kit"
+mkdir -p "$BAD_TINT_KIT"
+cp -R -- "$FIX/good/agent-factory" "$BAD_TINT_KIT/agent-factory"
+cp -- "$FIX/good/AGENTS.md" "$BAD_TINT_KIT/AGENTS.md"
+[ -d "$FIX/good/.claude-plugin" ] && cp -R -- "$FIX/good/.claude-plugin" "$BAD_TINT_KIT/.claude-plugin"
+cp -R -- "$FIX/good/plans" "$BAD_TINT_KIT/plans"
+node -e '
+const fs = require("fs");
+const p = process.argv[1];
+const c = JSON.parse(fs.readFileSync(p, "utf8"));
+c.quality = Object.assign({}, c.quality, { test_integrity: "off" });
+fs.writeFileSync(p, JSON.stringify(c, null, 2));
+' "$BAD_TINT_KIT/agent-factory/config/factory.config.json"
+OUT=$(VALIDATE_KIT_ROOT="$BAD_TINT_KIT" VALIDATE_ROOT="$BAD_TINT_KIT" node "$VALIDATOR" 2>&1) && RC=0 || RC=$?
+if [ "$RC" -ne 0 ] && printf '%s' "$OUT" | grep -qi 'test_integrity'; then
+  pass "ENUM bad-tint (quality.test_integrity=off) → nonzero + 'test_integrity' (TINT-03)"
+else
+  fail "ENUM bad-tint should reject 'off' + name test_integrity (rc=$RC: $OUT)"
+fi
+
+# (h.3) ABSENT-KEYS-PASS (SC4, the load-bearing zero-config assertion). fixtures/good carries
+# NONE of the 8 new keys; the validator must still exit 0 because each absent key degrades to its
+# lean default (T-10-04-SC4 — a required-key regression would break this). Reuse expect_pass over
+# the UNMODIFIED good fixture.
+expect_pass "ENUM absent-keys (fixtures/good has none of the 8) → exit 0 (SC4)" "$FIX/good"
+
+# (h.4) BYTE-IDENTITY (Pitfall 4): the two real config JSONs (config/ + seed/.grugops/) must stay
+# byte-identical so the tri-file dial edit never silently drifts. Read-only `cmp -s` over the REAL
+# tree (the one sanctioned real-tree read; everything else is hermetic). Complements the same
+# assertion in the foundation-guards harness (Plan 10-02) — both gates catch a JSON/JSON drift.
+if cmp -s "$REPO_ROOT/agent-factory/config/factory.config.json" \
+          "$REPO_ROOT/agent-factory/seed/.grugops/factory.config.json"; then
+  pass "config JSONs byte-identical (config/ == seed/.grugops/) via cmp -s"
+else
+  fail "config JSON drift (config/ vs seed/ diverge)"
+fi
+
 # ── Result ───────────────────────────────────────────────────────────────────────────────────
 printf '\n'
 if [ "$FAILS" -eq 0 ]; then
