@@ -3,6 +3,7 @@
   "mode": "lean",
   "cadence": "kanban",
   "autonomy": "pr",
+  "bdd": "lean",
   "id_prefix": "ABC",
   "repo_strategy": "mono",
   "default_stack": {
@@ -33,12 +34,20 @@
     "coverage_threshold": 0.8,
     "self_fix_attempts": 2,
     "mandatory_gates": ["lint", "typecheck", "unit", "build"],
-    "e2e_when": "ui-or-critical-path"
+    "ui_e2e": "ui-or-critical-path",
+    "tdd": "encouraged",
+    "lint": { "strict": false, "autofix": true },
+    "test_integrity": "warn",
+    "gate_enforcement": "blocking"
   },
   "nfr": {
     "a11y_target": "WCAG-2.2-AA",
     "perf_p95_ms": 300,
     "availability": "99.9%"
+  },
+  "security": {
+    "asvs_level": "L1",
+    "block_on": "high"
   },
   "compliance_regime": [],
   "environments": ["dev", "staging", "prod"],
