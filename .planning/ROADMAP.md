@@ -13,6 +13,7 @@ grugops is built bottom-up as a file protocol, not a runtime. v1.0 froze the sha
 ## Phases
 
 **Phase Numbering:**
+
 - Integer phases (1, 2, 3): Planned milestone work
 - Decimal phases (2.1, 2.2): Urgent insertions (marked with INSERTED)
 
@@ -59,94 +60,122 @@ Full phase details + milestone summary: `milestones/v1.1-ROADMAP.md` · requirem
 ## Phase Details
 
 ### Phase 10: SDLC-Coverage Audit & Foundation Guards
+
 **Goal**: The milestone opener — produce the SDLC-coverage audit that scopes the rest, and stand up the cross-cutting mechanical guards + config-dial contract so every later content phase writes into a guarded, dialed environment.
 **Depends on**: Phase 9 (v1.1 complete)
 **Requirements**: SDLC-01, SDLC-02, SDLC-03
 **Success Criteria** (what must be TRUE):
+
   1. A committed audit artifact reviews all 16 roles + 14 workflows for lifecycle completeness and records the gaps it finds (named focus: the business→engineer handoff).
   2. The build gate runs four mechanical foundation guards that each fail red on violation and never fabricate a pass: a WR-05 spawn-grant grep over packaging templates + materialized adapters, a single-source adapter-size check, an AGENTS.md byte-budget check (under the 32 KiB Codex cap), and a voice-discipline lint over security/compliance/warning surfaces.
   3. A documented config-dial contract defines, for every v1.2 capability, an explicit lean default and an enterprise escalation — and the new dial keys (`bdd`, `quality.tdd`, `quality.lint`, `quality.ui_e2e`, `quality.test_integrity`, `quality.gate_enforcement`, `security.asvs_level`, `security.block_on`) exist with lean defaults across all three config files atomically (`config/factory.config.json`, `config/factory.config.md` twin, `seed/.grugops/factory.config.json`), recognized by the validator.
-  4. Zero-config still runs lean: with no config file present, every new key degrades to its documented lean default.
-**Plans**: 4 plans
+  4. Zero-config still runs lean: with no config file present, every new key degrades to its documented lean default.**Plans**: 4 plans
+
+**Wave 1**
+
 - [ ] 10-01-PLAN.md — SDLC-coverage audit artifact (16 roles + 14 workflows x 9 lifecycle stages; gap->phase mapping)
 - [ ] 10-02-PLAN.md — Four foundation guards aggregator + fail-proof harness; adapters.md stale-spawn-prose fix
 - [ ] 10-03-PLAN.md — 8 config-dial keys atomic across 3 files + enterprise-escalation contract; e2e_when->ui_e2e rename
+
+**Wave 2** *(blocked on Wave 1 completion)*
+
 - [ ] 10-04-PLAN.md — Validator active-when-present/lenient-when-absent enum recognition + validate.test.sh extension
 
 ### Phase 11: Senior Persona Overhaul
+
 **Goal**: Lay the substrate every later content phase depends on — raise all personas to senior judgment via one new clear-voice skeleton section, deepen the business-analysis persona, and retire the WR-05 spawn-grant from the packaging templates.
 **Depends on**: Phase 10
 **Requirements**: PERS-01, PERS-02, PERS-03
 **Success Criteria** (what must be TRUE):
+
   1. Every role prompt carries a clear-voice "What good looks like / When to escalate" section capturing senior judgment, while the grug caveman voice is preserved in the prompt body (verified by the voice-lint guard from Phase 10).
   2. The business-analysis persona + its workflow are deepened to senior level — INVEST-shaped user stories, explicit acceptance criteria, measurable NFRs, and a Definition of Ready that closes the business→engineer handoff.
   3. Both packaging templates (`subagent.frontmatter.md`, `slash-command.template.md`) carry NO spawn-tool grant — the WR-05 grep guard passes on the templates and on a fresh regeneration, preserving single-window sequential role-load across all five host CLIs.
   4. New persona depth lives once under `agent-factory/`; the per-tool adapters stay pointer-sized (single-source adapter check passes).
+
 **Plans**: TBD
 **UI hint**: yes
 
 ### Phase 12: BDD + TDD Wiring
+
 **Goal**: Close the central business→engineer gap with a test-first contract — given-when-then acceptance scenarios produced by a Three Amigos step, driving a red-green TDD double-loop at the unit layer, both config-dialed and layered so no behavior is double-owned.
 **Depends on**: Phase 10 (dial keys), Phase 11 (senior personas)
 **Requirements**: BDD-01, BDD-02, BDD-03, TDD-01, TDD-02
 **Success Criteria** (what must be TRUE):
+
   1. Acceptance behavior is expressed as declarative given-when-then scenarios (no UI selectors in the scenarios) that form the business→engineer contract, carried in the product and QE handoff templates and wired to be executable-or-absent — no Gherkin nobody runs.
   2. A Three Amigos / Example Mapping step is folded into backlog refinement, producing the scenarios before code.
   3. The engineering workflow drives test-first red-green-refactor at the unit layer with the double-loop rule encoded: no second acceptance scenario goes red before the first is green, and each behavior is owned by exactly one test layer (BDD acceptance vs TDD unit — no duplication).
   4. BDD depth reads `bdd` (off | lean | strict) and TDD strictness reads `quality.tdd` (off | encouraged | required) from `.grugops/factory.config.json`, each degrading to its lean default when absent.
+
 **Plans**: TBD
 
 ### Phase 13: Frontend/UI Persona & Design→Build Workflow
+
 **Goal**: Give grugops a senior frontend/UI specialist and a repeatable UI build flow — a new 17th role that activates via the role-switch protocol (no spawn) and a new workflow 14 the Orchestrator routes UI work to.
 **Depends on**: Phase 10 (dial keys), Phase 11 (skeleton)
 **Requirements**: UI-01, UI-02, UI-03
 **Success Criteria** (what must be TRUE):
+
   1. A senior frontend/UI persona (`roles/frontend-ui.md`) exists on the standard role skeleton and activates via `_role-switch-protocol.md` with no spawn tool (WR-05 guard passes).
   2. A UI design→build workflow (`workflows/14-ui-design-to-build.md`) walks design contract → component build → all five states (loading / empty / error / success / partial-data) → accessibility → visual baseline, referencing the §14 gate rather than restating it.
   3. The Orchestrator routing matrix and classification list route UI work to the frontend/UI persona, and the new role + workflow register in the workflow map without renumbering the frozen 00–13 ordinals.
+
 **Plans**: TBD
 **UI hint**: yes
 
 ### Phase 14: Security Audit (OWASP ASVS) & Checklist Re-Anchor
+
 **Goal**: Give grugops a leveled, evidence-backed security posture — a new ASVS-anchored security-audit workflow (workflow 15), a regenerated ASVS 5.0 checklist with L1/L2/L3 tags and requirement IDs, and a dialed ASVS level — all in clear professional voice.
 **Depends on**: Phase 10 (dial keys), Phase 11 (skeleton)
 **Requirements**: SEC-01, SEC-02, SEC-03
 **Success Criteria** (what must be TRUE):
+
   1. A security-audit workflow (`workflows/15-security-audit.md`) anchored to OWASP ASVS 5.0 exists, registered in the Orchestrator workflow map without renumbering 00–13, and references the §14 gate for any gate steps.
   2. The security/NFR checklist is rewritten to ASVS 5.0 chapters with L1/L2/L3 tags and requirement IDs, generated from the pinned ASVS 5.0.0 source (not hand-transcribed), and every "pass" cites evidence or reads `UNKNOWN - verify` — no unbacked ticks.
   3. ASVS level is config-dialed (`security.asvs_level`: L1 lean → L2 enterprise → L3 + named human sign-off), the gate's security block-threshold is dialed (`security.block_on`), and all security findings are written in clear professional voice (voice-lint guard passes on the security surfaces).
+
 **Plans**: TBD
 
 ### Phase 15: §14 Gate Convergence — Lint, UI/E2E & Test-Integrity
+
 **Goal**: Converge the BDD/UI/ASVS work into the single-source §14 quality gate — add lint, automated UI/E2E + visual regression, and an un-cheatable structured-justification test-integrity check to `05-pr-quality-gate.md` only, all config-dialed, preserving the bounded-self-fix contract and the three terminal results.
 **Depends on**: Phase 12 (BDD/TDD), Phase 13 (UI flow), Phase 14 (ASVS posture)
 **Requirements**: UIQA-01, UIQA-02, TINT-01, TINT-02, TINT-03, LINT-01, LINT-02
 **Success Criteria** (what must be TRUE):
+
   1. Lint is a first-class §14 gate step backed by a per-stack linter recommendations table (ESLint 9 flat default for the Vue stack; Biome caveat; Ruff / golangci-lint fallbacks), with strictness and autofix read from `quality.lint`.
   2. Automated UI/E2E + visual-regression (Playwright `toHaveScreenshot` + axe-core a11y) is templated with flake-resistance encoded (role/label/`data-testid` locators, masking, animations disabled, fixed viewport, baselines generated in CI/Docker) and wired into the gate step, dialed via `quality.ui_e2e` (off | ui-or-critical-path | always).
   3. The gate blocks unjustified skipped tests: a legitimate skip requires a structured justification (reason + named owner + tracking ticket/REQ-ID + expiry date + closed-list category), the agent may not self-author it, the gate fails when unjustified skips > 0 or expired skips > 0, and quarantine is a non-blocking lane (never silent deletion) — proven by a RED fixture where a hollow justification fails.
   4. Test-integrity enforcement is never fully dialable off (`quality.test_integrity`: warn | block only — a trace-integrity safety carve-out); all new steps wrap unchanged inside the bounded `self_fix_attempts` loop and preserve the three terminal results (`READY_FOR_HUMAN_REVIEW` / `BLOCKED_NEEDS_FIX` / `SPLIT_REQUIRED`); all gate changes land single-source in `05-pr-quality-gate.md` (no fork into workflows 14/15).
+
 **Plans**: TBD
 **UI hint**: yes
 
 ### Phase 16: Install --migrate / --update
+
 **Goal**: Ship the deferred install migrate/update story as an independent track — RED-harness-first, additive, reversible, never-delete-first, byte-parity sh/Node modes to move an already-installed in-repo layout to the two-root layout and refresh the central kit in place.
 **Depends on**: Phase 9 (v1.1 installer); no dependency on the content phases (10–15) — can run in parallel
 **Requirements**: MIGR-01, UPD-01
 **Success Criteria** (what must be TRUE):
+
   1. `install.sh --migrate` converts an already-installed in-repo layout to the split two-root layout additive-then-relocate (rename-to-backup; deletion only behind an explicit `--prune-old-kit`), at sh/Node byte-parity, and a re-run is a no-op.
   2. `install.sh --update` refreshes the central `$GRUGOPS_HOME` kit in place in a two-stage, reversible operation, leaving per-repo state untouched, and the doctor names the specific unresolved path on failure.
   3. A RED-by-design test harness exists and passes: a user-edited config survives migration (backed up, not lost), a re-run is a no-op, and uninstall-after-migrate restores the pre-migrate state — with bounded marker-strip (no unterminated-marker over-deletion, per the v1.1 CR-01 fix).
+
 **Plans**: TBD
 
 ### Phase 17: Browsable Docs Catalog
+
 **Goal**: Document the finished kit — a stdlib-only generator produces a browsable in-repo markdown catalog of the final 17 roles and 15 workflows from their frontmatter, with a freshness check that fails red on drift. Runs last so it documents the completed set.
 **Depends on**: Phases 11–15 (the finished role/workflow set); runs after everything else
 **Requirements**: DOCS-01, DOCS-02
 **Success Criteria** (what must be TRUE):
+
   1. A stdlib-only Node generator (no npm deps) produces a committed browsable in-repo markdown catalog (`docs/catalog/`) of every role + workflow from their frontmatter — no web UI, generated not hand-maintained, emitting `UNKNOWN - verify` rather than inventing a missing description.
   2. A freshness check (regenerate-to-temp, diff, non-zero on drift) prevents the catalog from drifting from the kit it documents, wired so a stale catalog fails the build red.
   3. The catalog reflects the finished set — all 17 roles (incl. the new frontend/UI persona) and all 15 workflows (incl. the new UI design→build and security-audit workflows).
+
 **Plans**: TBD
 
 ## Progress
