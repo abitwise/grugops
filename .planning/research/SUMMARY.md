@@ -1,183 +1,196 @@
 # Project Research Summary
 
-**Project:** grugops — Install & Distribution (v1.1 shared-location install milestone)
-**Domain:** Shared-home installer refactor for a markdown agent-factory kit (`$GRUGOPS_HOME` kit + per-repo state)
-**Researched:** 2026-06-06
+**Project:** grugops v1.2 — SDLC Depth, Quality Discipline & Browsable Docs
+**Domain:** Markdown agent-factory kit — deepening an existing 16-role / 14-workflow / §14-gate delivery system
+**Researched:** 2026-06-09
 **Confidence:** HIGH
+
+> Synthesis of `.planning/research/{STACK,FEATURES,ARCHITECTURE,PITFALLS}.md` (4 parallel researchers, all read the actual `agent-factory/` tree).
+
+---
 
 ## Executive Summary
 
-The v1.1 milestone refactors grugops from a fully-in-repo kit into a shared-home model: one read-only kit at `$GRUGOPS_HOME` (default `~/.grugops`) and per-project writable state seeded into each target repo. This is the established pattern across every comparable developer tool (rustup, nvm, pyenv, volta, oh-my-zsh), and the design decision is locked (`docs/design/shared-install.md`). What the research resolved is the _mechanism_ by which the split actually works in production — and one finding reshapes the entire implementation approach versus the naive reading of the design doc.
+grugops v1.2 deepens an already-shipped markdown agent-factory across ten interlocking themes. The kit ships no runtime — every deliverable is role-prompt text, workflow steps, checklist items, handoff fields, and config-dial knobs encoded into markdown files, plus two byte-parity install scripts and one stdlib-only Node validator. The v1.2 additions follow this exact pattern: OWASP ASVS 5.0.0 is REFERENCED as the security-audit anchor and RECOMMENDED to users (never installed into grugops); playwright-bdd 9.x, Vitest 4.x, and ESLint 9 flat-config are similarly user-recommendations encoded in role/workflow text and AGENTS.md command slots. The one new code artifact is a stdlib-only Node catalog generator (no npm dependencies added to grugops).
 
-The load-bearing correction: **an LLM does not expand `$GRUGOPS_HOME` in prose.** The agent is not a shell; it reads the literal string. Writing `$GRUGOPS_HOME/agent-factory/roles/x.md` in a SKILL body or role file produces a dead string that causes the agent to hunt, hallucinate, or silently fail — this is the DOG-02 failure mode re-created one layer up. The only safe mechanism is (A) the installer materializes the resolved absolute kit path directly into each standalone adapter at install time, plus (B) a one-line bash self-heal fallback inside the adapter. Kit prose itself never names `$GRUGOPS_HOME`. Plugin form is handled identically but by Claude Code's own inline substitution of `${CLAUDE_PLUGIN_ROOT}` — that env var IS expanded in skill/agent content; arbitrary env vars are not.
+The recommended build approach is dependency-honoring and sequential: SDLC-coverage audit first (it scopes everything), then senior persona overhaul (the substrate), then config-dial extension, then BDD+TDD wiring, then the frontend/UI persona and security-audit workflow (can run in parallel), then §14 gate-step additions (converges on the BDD/UI/ASVS work those phases produce), then install migrate/update (independent track throughout), and finally the docs catalog (documents the finished set). The result is a 17-role, 15-workflow, expanded-§14 kit with a fully leveled security posture and a browsable in-repo reference — all within the existing markdown-only boundary.
 
-The research also confirmed three gating pitfalls that must close before any dogfood: dangling-reference reincarnation (C1), migration data-loss (C2), and false-green two-root validator (C3). These are not theoretical — C1 is the exact bug the refactor is fixing, just reincarnated at the prose layer if the rewrite is incomplete. The build order that emerges from combining the four research files is: split-convention documentation → path-rewrite of ~31 files → installer (kit-copy + adapter-materialization) → `--check` doctor → two-root validator → migration → tests. The `grugops/quick-harden-role-switch-autocommit` branch is already merged to main, so the prerequisite "edit the protocol text once" is satisfied.
+The highest risks are cross-cutting rather than capability-specific. The WR-05 spawn-tool regeneration hazard must be killed mechanically in the first phase. The install migrate/update path must never delete-first — this is the highest-blast-radius pitfall in v1.2, and the v1.1 CR-01 bug proved the failure mode is real. Every new capability must read `factory.config.json` and define lean/enterprise tiers explicitly or the "zero-config first" promise breaks in both directions (over-taxing solo users OR allowing enterprise gates to be skipped as prose-only). The recommendation is to front-load all mechanical guards in Phase 1 — WR-05 grep, single-source adapter check, AGENTS.md byte budget, voice-lint, config-dial contract — so every subsequent phase writes into a guarded environment.
+
+---
 
 ## Key Findings
 
 ### Recommended Stack
 
-The stack for this milestone is stdlib-only by project constraint — no new deps, no `package.json`. All mechanisms are POSIX builtins or Node 18+ stdlib. The conventions to adopt are drawn from the `$TOOL_HOME` dotdir pattern: `${GRUGOPS_HOME:-"$HOME/.grugops"}` in sh (colon form, so empty string falls back like unset), and `process.env.GRUGOPS_HOME && process.env.GRUGOPS_HOME.trim() ? resolve(process.env.GRUGOPS_HOME) : resolve(homedir(), ".grugops")` in Node. A literal `~` must never be baked into any value or markdown prose — `~` is shell interactive sugar that an LLM does not expand (the nvm #2074 failure mode). Copy is the install default; symlink is opt-in only.
+**"grugops references/recommends, never installs" — the framing rule for every entry:**
 
-**Core technologies:**
-- `${GRUGOPS_HOME:-"$HOME/.grugops"}` (POSIX sh): single env-var-overridable kit home — matches rustup/nvm/pyenv/volta convention (HIGH)
-- `os.homedir()` + `path.resolve()` (Node 18+ stdlib): cross-platform home resolution identical to Git Bash's `$HOME` (HIGH)
-- `agent-factory/VERSION` stamp at install: cheapest drift detector — a single VERSION compare, no checksum manifest (MEDIUM)
-- `--check` / doctor subcommand: verify every adapter/role-ref resolves; fail with the first missing path — mirrors `brew doctor` / `mise doctor` / `flutter doctor` (MEDIUM convention)
+- **OWASP ASVS 5.0.0** (released 2025-05-30): The security-audit anchor. ~350 requirements, 17 chapters, three cumulative levels (L3 ⊇ L2 ⊇ L1). v5 rebalanced: L1 is now a realistic light entry point (fits the lean tier); L3 substantially expanded (~90 distinct L3 reqs). Ships a machine-readable CSV/JSON with a per-requirement level column — generate/filter the checklist from the source, never hand-transcribe. **Level → tier map: L1 → lean default, L2 → enterprise, L3 → enterprise + explicit `security.asvs_level: 3` + named human sign-off.**
+- **`playwright-bdd` 9.0.0** (released 2026-06-02, Gherkin → Playwright Test runner): The BDD runner for the recommended Playwright stack. Gherkin scenarios become native Playwright tests — auto-waiting, fixtures, parallelism, tracing, and built-in `toHaveScreenshot()` visual regression out of the box. **Use playwright-bdd, not Cucumber.js:** Cucumber.js has no built-in VRT and requires a separate runner, losing Playwright fixtures/parallelism.
+- **Vitest 4.x** (4.1 current; requires Vite ≥6, Node ≥20): TDD unit/integration runner for the Vue/TS stack. Jest-compatible API; created by the Vue/Vite team. Paired with **@vue/test-utils 2.4.x** for Vue 3 component testing — the officially recommended Vue testing stack.
+- **Playwright 1.60.x**: UI/E2E + visual-regression engine. `toHaveScreenshot()` is the deciding reason playwright-bdd beats Cucumber.js for grugops's stack.
+- **ESLint 9 flat config** (`eslint.config.mjs`) + `eslint-plugin-vue` (≥9) + `@vue/eslint-config-typescript` + Prettier: The **only** fully-supported combination for Vue SFCs today. **Biome 2.x is NOT the default for the Vue stack** — Vue/Svelte/Astro support is experimental (landed 2.3, not stable). Recommend Biome only for JS/TS projects without Vue SFCs. Per-stack fallbacks: Ruff 0.15.x for Python; golangci-lint v2 for Go.
+- **Stdlib-only Node catalog generator**: No `gray-matter`, no `js-yaml`, no npm dependency added to grugops. Sibling of `scripts/validate-agent-factory.mjs`. Parses the known frontmatter key-set with a hand-rolled reader; emits committed markdown.
+
+**Proposed config-dial flag set** (additive to existing keys, all three config files edited atomically):
+
+```jsonc
+{
+  "quality": {
+    "tdd": "encouraged",               // off | encouraged | required
+    "lint": { "strict": false, "autofix": true },
+    "ui_e2e": "ui-or-critical-path",   // off | ui-or-critical-path | always
+    "test_integrity": "warn",          // warn | block  (safety: never fully off)
+    "gate_enforcement": "warn"         // warn | block
+  },
+  "bdd": "lean",                       // off | lean | strict
+  "security": {
+    "asvs_level": 1,                   // 1 | 2 | 3
+    "block_on": "high",                // none | high | medium
+    "require_human_signoff_at": 3      // L3 demands named human approver
+  }
+}
+```
+
+Gate-execution knobs nest under `quality`; `bdd` and `security.asvs_level` are top-level (lifecycle scope, not just gate scope).
 
 ### Expected Features
 
-The MVP that fixes the three dogfood pains is: path-root rewrite + shared-home kit install + `--target`/prompt + `--yes` CI bypass + per-repo seed (skip existing) + `--check` doctor + `DRY_RUN=1` across two roots + `install.mjs` parity + two-root-aware validator. Everything else is P2/P3.
+**Must have (table stakes) — v1.2 core:**
 
-**Must have (P1 — v1.1 launch):**
-- Path-root rewrite across ~31 files (~55 kit refs + 50 handoff refs + 32 config refs) — the linchpin; nothing else resolves without it
-- Shared-home install to `$GRUGOPS_HOME` (env-overridable, copy not symlink) — fixes "kit never arrives" + "symlinks into clone"
-- `--target <repo>` + interactive confirm-the-default prompt — fixes "wrong target"; confirm rather than silently default to CWD (the install-into-clone bug)
-- `--yes` / non-interactive (auto-detect non-TTY stdin) — CI bypass; required any time a prompt exists
-- Per-repo seed: `factory.config.json` + `plans/` incl. `plans/handoffs/`; skip existing files, never overwrite
-- `--check` doctor: kit-exists, every adapter ref resolves, repo state dirs exist, no dangling symlinks; exit non-zero on FAIL; report specific unresolved path + referencing file
-- `DRY_RUN=1` across the full two-root flow
-- `install.mjs` mirrors `install.sh`; `install.test.sh` proves parity, idempotency, dry-run, uninstall
-- Two-root-aware validator update
+- SDLC-coverage audit & gap-fix (opens milestone; confirmed gaps: `ba-pm.md` ~48 lines/shallow, `security-nfr-checklist.md` is 10 one-line items, no frontend/UI role exists)
+- Senior persona overhaul (all 16 roles + new 17th): ONE new skeleton section `## What good looks like / When to escalate` in clear voice; grug caveman voice stays in role prompts
+- BDD+TDD double-loop (non-conflicting, layered): BDD = outer acceptance loop (Given/When/Then, QE/business-owned, passes over days); TDD = inner unit loop (engineer-owned, passes over minutes); rule: "never write a second failing acceptance test before the first is green"
+- Three Amigos / Example Mapping: fold into `07-backlog-refinement.md`; Example Mapping before Gherkin; Gherkin written afterward not live in workshop
+- OWASP ASVS-anchored security audit: new `workflows/15-security-audit.md`; full rewrite of the 10-line `security-nfr-checklist.md` into L1/L2/L3 tagged ASVS chapters with requirement IDs; clear professional English throughout findings
+- Test-integrity gate (default-on, never fully dialable off): four required fields per skip (reason + named owner + ticket/REQ-ID + expiry date); gate fails on `unjustified_skips > 0` AND `expired_skips > 0`; agent may NOT self-author justifications; quarantine ≠ delete
+- Senior frontend/UI persona (`roles/frontend-ui.md`, 17th role) + UI design→build workflow (`workflows/14-ui-design-to-build.md`): design contract → build → all 5 states (loading/empty/error/success/partial-data) → a11y → visual baseline
+- Automated UI/E2E + visual regression in §14 gate: Playwright `toHaveScreenshot()` component-level first; axe-core a11y assertions; masked, animations disabled, fixed viewport, baselines in CI/Docker only
+- Lint as a first-class gate step with per-stack linter recommendations table
+- Install `--migrate` / `--update` (MIGR-01 / UPD-01): additive, reversible, never delete-first, byte-parity sh/Node
+- Browsable in-repo markdown docs catalog: `scripts/build-docs-catalog.mjs` (stdlib-only) → `docs/catalog/`; generated not hand-maintained; CI staleness check; no web UI
 
-**Should have (P2 — after core validates):**
-- `--update` verb to refresh only the shared kit
-- `--migrate` for v1.0 in-repo installs (additive-then-relocate, never delete-first)
-- Doctor names specific unresolved path + referencing file (the differentiator vs vague doctors)
-- Two-stage `uninstall` (per-repo adapters vs shared kit)
+**Should have (differentiators):**
 
-**Defer (P3 / v2+):**
-- Doctor version-skew warning (kit VERSION vs repo-recorded version)
-- Doctor `--fix` for enumerated safe repairs
-- Plugin-form path resolution (`$GRUGOPS_HOME` vs `${CLAUDE_PLUGIN_ROOT}`, one rule two homes)
+- Double-loop BDD↔TDD explicitly diagrammed in the workflow (two concentric loops, clear ownership — the non-conflict story most kits miss)
+- INVEST-shaped stories + measurable NFRs baked into Definition of Ready
+- Mutation-testing guidance (recommend where stack supports; never mandate a runtime grugops can't ship — honesty about coverage gameability)
+- "Bug the user as little as needed" encoded as a bounded Orchestrator principle (merge/deploy human stop explicitly exempt and mechanically non-negotiable)
 
-**Anti-features (protect scope — do not build):**
-- No background auto-update — silent kit changes break the trace; explicit `--update` verb only
-- No symlink overlay — dogfood explicitly rejected; INSTALL_MODE=symlink is opt-in only
-- No vendoring kit into every repo — footprint; rejected in the design
-- No interactive TUI / wizard — zero deps, CI-hostile
-- No telemetry — local-only, hostile to air-gapped/regulated users
-- No doctor auto-fix of user content — `--fix` is enumerated and touches only missing scaffold, never `plans/` or `factory.config.json`
+**Defer (post-v1.2):** Mutation testing as a requirement; full cross-browser visual matrix; SKEW-01; FIX-01; PLUGIN-01.
+
+**NEW vs MODIFIED inventory:**
+
+NEW files:
+- `roles/frontend-ui.md` (17th role)
+- `workflows/14-ui-design-to-build.md`
+- `workflows/15-security-audit.md`
+- `scripts/build-docs-catalog.mjs`
+- `docs/catalog/` (generated output)
+
+MODIFIED files (key):
+- All 16 `roles/*.md` — new `## What good looks like / When to escalate` section; esp. `ba-pm.md` (most shallow) and `security-nfr.md` (ASVS uplift)
+- `workflows/05-pr-quality-gate.md` (§14) — step 3 extended; test-integrity check added; bounded-self-fix contract unchanged
+- `workflows/04`, `06`, `07`, `02`, `03` — BDD/TDD/Three Amigos wiring
+- `handoffs/product-handoff.md` — BDD acceptance scenarios block
+- `handoffs/implementation-ready-packet.md` — TDD test-first strategy
+- `handoffs/qe-handoff.md` — UI/E2E results + skip-justification log
+- `handoffs/security-nfr-handoff.md` — ASVS level + control-by-control findings
+- `checklists/security-nfr-checklist.md` — full ASVS rewrite
+- `checklists/definition-of-done.md` / `definition-of-done-enterprise.md`
+- `config/factory.config.json` + `config/factory.config.md` + `seed/.grugops/factory.config.json` (atomic unit)
+- `install/install.sh` + `install/install.mjs` — `--update` / `--migrate` modes
+- `orchestrator.md` — routing matrix updated
 
 ### Architecture Approach
 
-The single resolution rule: the **adapter** is the only place a kit root is bound to an absolute path. Standalone adapters get the absolute path materialized by the installer; plugin adapters use `${CLAUDE_PLUGIN_ROOT}` which Claude Code substitutes inline. Kit prose (roles/workflows) never names `$GRUGOPS_HOME` — it continues to write `agent-factory/...` which is unambiguous once the disambiguation rule is stated in the adapter and AGENTS.md: "`agent-factory/...` = under KIT ROOT (read-only); `plans/...`, `memory-bank/...`, repo `factory.config.json` = THIS repository (read/write)." The handoff split is the most error-prone part: template reads stay `agent-factory/handoffs/` (KIT ROOT); instance writes move to `plans/handoffs/` (repo). One rule, two bindings of KIT ROOT.
+This is an integration architecture, not a greenfield design. All new capabilities follow the same file-layer pattern: one canonical file under `agent-factory/`; per-tool adapters stay thin pointers; the §14 gate remains single-source (ALL new gate steps land in `05-pr-quality-gate.md` step 3 only, never forked into the new workflows); config reads from `.grugops/factory.config.json` with documented lean defaults.
 
-**Major components:**
-1. **Standalone adapter** (`.claude/skills/*/SKILL.md`, `.claude/agents/grugops-orchestrator.md`) — holds the only absolute kit-root reference; materialized at install time; re-materialized on every re-install; never user-authored
-2. **Kit prose** (`agent-factory/roles/`, `agent-factory/workflows/`) — ~31 files rewritten so all handoff writes go to `plans/handoffs/`, all config refs go to repo `factory.config.json`, kit-to-kit refs keep `agent-factory/...` prefix under the disambiguation rule
-3. **Installer** (`install.sh` / `install.mjs`) — resolves `$GRUGOPS_HOME`, copies kit there, materializes absolute KIT ROOT into adapters, seeds per-repo state, runs `--check`; copy-default, `--target`/prompt, `--yes`, `DRY_RUN=1`
-4. **`--check` doctor** — verifies every adapter/role-referenced path resolves; fails with first missing path; shares resolution rule with the validator
-5. **Two-root validator** (`scripts/validate-agent-factory.mjs`) — `KIT_ROOT` + `STATE_ROOT`; cross-root ref check; GOOD/BAD split fixtures incl. unset-`$GRUGOPS_HOME` BAD; back-compat collapse when only `VALIDATE_ROOT` is set
-6. **Migration** (`install.sh --migrate`) — additive-then-relocate: copy kit, rescue filled handoffs, seed config, re-materialize adapters, quarantine (never delete) old in-repo `agent-factory/`, run `--check`
+**Critical architectural decisions:**
 
-**Per-repo config location (confirmed):** repo-root `factory.config.json`. Matches `package.json` ergonomics; avoids a second state root; single fixed repo-relative literal for all 32 refs.
+- The roles use a consistent 9-heading skeleton (`One job / Caveman prompt / Reads / Activates when / Responsibilities / Output / Board moves / Trace updates / Hard limits`). The senior overhaul adds exactly **ONE** new section across all files: a clear-voice `## What good looks like / When to escalate` block. Caveman prompt stays terse.
+- The §14 gate extended step-3 sequence: `install → lint → typecheck → unit → build → ui-e2e → e2e`. The bounded-self-fix contract (step 4, `self_fix_attempts` rounds) wraps the ENTIRE expanded sequence unchanged. Three terminal results unchanged: `READY_FOR_HUMAN_REVIEW` / `BLOCKED_NEEDS_FIX` / `SPLIT_REQUIRED`.
+- New workflows are numbered 14 and 15 — frozen ordinals (00–13 must not renumber; a renumber ripples through every Orchestrator workflow-map reference).
+- Config changes touch THREE files atomically: `config/factory.config.json`, `config/factory.config.md` byte-twin, `seed/.grugops/factory.config.json`. Gate-execution knobs nest under `quality`; `bdd` and `security.asvs_level` are top-level.
+- Traceability extension is additive (Option 1 recommended): encode new evidence inside existing cells via documented convention — `Tests` cell records UI/E2E results and skip count; `NFRs` cell records ASVS level. Update seed FORMAT comment. Zero header churn, no validator column self-test breakage.
+- The new frontend/UI role activates via `_role-switch-protocol.md` like every other role — no spawn tool, no sub-agent. Playwright runs as a gate CLI command, not a spawned agent.
 
 ### Critical Pitfalls
 
-1. **C1 — Dangling-reference reincarnation (GATING):** bare `agent-factory/...` refs surviving the rewrite cause silent wrong-root reads. Prevention: (a) build gate — `grep -rn 'agent-factory/'` over shipped kit/adapters returns zero bare refs; (b) installer materializes absolute path into adapters (Mechanism A) with bash self-heal fallback (Mechanism B); (c) `--check` doctor stat's every ref. Agent must be told in prose to STOP — not hunt — if the kit dir is absent. Both path-rewrite and doctor must land before dogfood.
+**Front-load mechanical guards in the foundation phase (Phase 1) — before any content phases pour material in.**
 
-2. **C2 — Migration data-loss (GATING):** `rm -rf agent-factory/` takes user-filled handoffs; leaving them in place strands them silently. Prevention: additive-then-relocate, never delete-first. Rescue filled handoff instances to `plans/handoffs/`, rename (never delete) the old `agent-factory/`. Fixture test: a filled handoff survives migration with content intact. No ship without this test.
+1. **WR-05 spawn-tool regeneration hazard** — Packaging templates (`subagent.frontmatter.md`, `slash-command.template.md`) still carry `Agent` tool / "spawn sub-agents" prose from v1.1 tech debt. Any regen during the v1.2 persona overhaul silently re-arms sub-agent spawning. Fix the templates as the FIRST packaging-touching task; add a `check-kit-refs.sh` grep for `tools: Agent` / "spawn" in templates and materialized adapters — fail the gate if found. Mechanical, not prose.
+2. **Migrate/update delete-first (highest blast radius)** — `--migrate` runs irreversibly on the user's repo. The v1.1 CR-01 bug (unbounded sentinel strip deleted user content) proved this is real. Rule: never delete-first. Rename-to-backup before any write; deletion only behind explicit `--prune`; bounded marker-strip only; re-run is a no-op; sh/Node byte-parity on the migrate path. Ship a RED harness first (user-edited config survives; re-run is a no-op; uninstall-after-migrate restores).
+3. **Config-dial regressions (both directions)** — Either a capability has no `factory.config` branch (always-on, over-taxing solo users) or an enterprise gate exists only as prose (skippable). Every capability must define both a lean default and an enterprise escalation. Make enterprise gates mechanical (artifact-exists + ran check).
+4. **Test-integrity escape hatch becomes a rubber stamp** — Free-text justification lets an agent write "flaky, fix later" and pass the gate. Require all four structured fields (reason + named owner + tracking ticket/REQ-ID + expiry date) plus a closed-list category. Agent may NOT self-author justifications. Gate counts skips in verdict. RED fixture: hollow justification MUST fail.
+5. **Single-source drift** — New BDD/ASVS/UI/lint content written into per-tool adapters. Extend `check-kit-refs.sh` to assert adapters are pointer-sized. Every new capability lands ONCE under `agent-factory/`; adapters only point.
+6. **AGENTS.md and role-prompt bloat** — Reference-not-embed: role prompts link to checklists/workflow files, they do not embed them. Track AGENTS.md bytes against the 32 KiB Codex cap in CI.
+7. **Voice-discipline drift** — ASVS findings, migrate/update data-loss warnings, and test-integrity verdicts MUST be clear professional English. "Sounding senior" must not flatten grug voice in role prompts. A voice-lint check on security/compliance/warning surfaces prevents both failures.
 
-3. **C3 — False-green two-root validator (GATING):** validator run inside the grugops dev checkout finds everything green while a real target with dangling refs is broken. Prevention: two explicit roots with no silent fallback to `.`; unset-`$GRUGOPS_HOME` BAD fixture MUST fail; validator and `--check` doctor resolve home identically.
-
-4. **C4 — Single-source erosion:** `$GRUGOPS_HOME` is a derived cache, not an editable source. Prevention: stamp VERSION + provenance; `--update` reports (never silently clobbers) a locally-modified kit file; migration renames the stale in-repo copy out of the agent's glob path.
-
-5. **LLM-in-prose anti-pattern (cross-cutting):** `$GRUGOPS_HOME` in kit prose or skill bodies is a dead string in standalone form and an unexpanded arbitrary env var in plugin form (only `${CLAUDE_PLUGIN_ROOT}` is expanded inline). Prevention: no bare `$GRUGOPS_HOME` in any role, workflow, SKILL body, or AGENTS.md. The adapter holds the only env-var reference.
+---
 
 ## Implications for Roadmap
 
-Based on combined research, the forced build order (each step is the next step's input):
+> Proposed phase shape. The roadmapper owns the final structure and phase numbering (continues from v1.1's last phase, **10**).
 
-### Phase 1: Split Convention + Path Rewrite
-**Rationale:** The disambiguation rule and final token spelling must be locked before any automated tool checks them. Every downstream component (installer, doctor, validator, migration) keys off the final `agent-factory/...` vs `plans/handoffs/` vs `factory.config.json` token decisions. The `grugops/quick-harden-role-switch-autocommit` branch is already merged to main — the role-switch protocol can be edited once in this phase. Pure prose editing, no code.
-**Delivers:** AGENTS.md + orchestrator preamble with disambiguation rule + bash self-heal line (Mechanism B); all ~31 role/workflow files rewritten; `grep -rn 'agent-factory/'` over shipped artifacts returns zero bare refs
-**Addresses:** C1 root cause, anti-pattern LLM-in-prose
-**Avoids:** C1 reincarnation, C3 validator keying off wrong tokens
+**Phase A — SDLC-Coverage Audit & Foundation Guards (FIRST):** Audit is the named milestone opener; cross-cutting mechanical guards must land BEFORE content phases write into the system. Delivers gap report + WR-05 spawn grep, single-source adapter-size check, AGENTS.md byte-budget check, voice-lint skeleton, config-dial contract spec, traceability-extension decision. Avoids pitfalls 1, 5, 6, 3, 7.
 
-### Phase 2: Installer — Two-Root Install + Adapter Materialization
-**Rationale:** Core fix for all three dogfood pains. Must follow Phase 1 because the installer materializes paths that match the rewritten token spelling. `install.sh` and `install.mjs` land together (parity is an existing contract).
-**Delivers:** `$GRUGOPS_HOME` resolution (env > default `~/.grugops`); kit copy (idempotent); absolute KIT ROOT materialized into standalone adapters (Mechanism A); per-repo seed; `--target`/prompt + `--yes`/non-TTY; `DRY_RUN=1`; VERSION stamp; `install.mjs` mirrors `install.sh`; `install.test.sh` extended
-**Implements:** Installer + standalone adapter components
-**Avoids:** C4 (VERSION stamp), C5 (copy-default), CI/container/Windows env-resolution pitfalls
+**Phase B — Senior Persona Overhaul:** Persona depth is the substrate every later phase depends on. All 16 `roles/*.md` get the clear-voice `## What good looks like / When to escalate` section; packaging templates stripped of WR-05 spawn prose. One reviewable kit-wide diff.
 
-### Phase 3: `--check` Doctor
-**Rationale:** The design calls this "the guard that would have caught all three pains." Depends on Phase 1 (to know which refs to verify) and Phase 2 (to know what a good install looks like). Build before the validator and migration because both reuse its resolution logic.
-**Delivers:** `--check` mode: kit-exists, every ref resolves, no dangling symlinks, per-repo state exists; exit non-zero on FAIL; specific unresolved path + referencing file; WARN exits 0 / FAIL exits 1; `--check --strict`; shared resolution rule with the validator
-**Addresses:** C1 (catches missed bare refs), C3 (shared resolution), C5 (dangling-symlink detection)
+**Phase C — Config Dial Extension:** Every later capability reads the new keys; finalize the dial contract first. All three config files updated atomically; lean defaults; validator recognizes new keys.
 
-### Phase 4: Two-Root Validator + Test Fixtures
-**Rationale:** Validator must follow the path-rewrite and doctor. Shares resolution rule with the doctor — building doctor first gives the validator a reference implementation to match. The validator is the structural proof layer; it must not regress on the split.
-**Delivers:** `validate-agent-factory.mjs` split into `KIT_ROOT`/`STATE_ROOT`; cross-root ref classification; GOOD/BAD split fixtures incl. unset-`$GRUGOPS_HOME` BAD + bare-ref-wrong-root BAD; back-compat `VALIDATE_ROOT` collapse; `validate.test.sh` updated
-**Implements:** Two-root validator component
-**Avoids:** C3 false-green (the gating check for the entire milestone)
+**Phase D — BDD + TDD Wiring:** The business→engineer gap-fix is the central delivery. Three Amigos produces scenarios; BDD drives TDD (double-loop). `ba-pm.md`/`uat-planner.md`/`software-engineer.md`/`qe-e2e.md` + workflows 02/03/04/06/07 modified; handoffs gain BDD/TDD blocks.
 
-### Phase 5: Migration (`--migrate`) — P2
-**Rationale:** Migration is last because it reuses adapter-materialization (Phase 2), repo-config seeding (Phase 2), and the doctor (Phase 3) to self-verify. Highest-risk operation (C2 data-loss); build when all dependencies are tested and stable. P2 — can ship after the core is dogfooded on fresh installs.
-**Delivers:** `--migrate` mode: detect old layout, copy kit, rescue filled handoff instances → `plans/handoffs/`, seed config, re-materialize adapters, quarantine (rename, never delete) old `agent-factory/`, run `--check`; DRY_RUN=1; idempotent; fixture with filled handoff survives; `--prune-old-kit` as explicit non-default
-**Addresses:** C2 (additive-then-relocate), C4 (kills stale in-repo copy as a read source)
-**Avoids:** C2 data-loss (hard gate: no ship without the survival fixture test)
+**Phase E — Frontend/UI Persona + UI Design-to-Build Workflow:** Prerequisite for visual-regression/axe gate steps. NEW `roles/frontend-ui.md` + `workflows/14-ui-design-to-build.md`; Orchestrator routing updated. Can run parallel to F.
 
-### Phase Ordering Rationale
+**Phase F — Security Audit (OWASP ASVS) + Checklist Re-Anchor:** NEW `workflows/15-security-audit.md`; full ASVS-5.0 rewrite of `security-nfr-checklist.md` with L1/L2/L3 tags + requirement IDs; clear-voice findings. **Research flag: download the pinned ASVS 5.0.0 CSV before authoring.** Can run parallel to E.
 
-- **Convention before code:** the split rule and token spelling must be locked before any automated tool checks them — a missed ref in Phase 1 cascades into all later phases
-- **Installer before doctor:** the doctor verifies what the installer produces; shared resolution rule is cleaner to extract after the installer owns it
-- **Doctor before validator:** validator and doctor must share the same `$GRUGOPS_HOME` resolution; building doctor first gives the validator a reference implementation to match
-- **Validator before migration:** migration's self-verification step calls the doctor and implicitly validates the split; both must be trustworthy before migration ships
-- **Migration is P2:** not needed for the core fix to work on fresh installs; defer until core is dogfooded and a real v1.0 repo needs to move
-- **Tests are continuous:** `install.test.sh` grows with each phase; do not defer all tests to Phase 5
+**Phase G — §14 Gate-Step Additions (CONVERGENCE):** Consumes BDD (D), UI flow (E), ASVS posture (F). All gate changes land in `05-pr-quality-gate.md` only. Step-3 extended; test-integrity check + structured skip schema + RED fixture; DoD lines added. **Research flag: verify playwright-bdd 9 ↔ @playwright/test 1.60.x compatibility.**
+
+**Phase H — Install --migrate / --update (INDEPENDENT TRACK):** No dependency on content phases; can run parallel to C–G. Both installers extended; byte-parity; **RED harness first** (user-edited config survives; re-run no-op; uninstall-after-migrate restores); never delete-first.
+
+**Phase I — Browsable Docs Catalog (LAST):** Documents the finished set (all 17 roles, 15 workflows). NEW stdlib-only `scripts/build-docs-catalog.mjs` → `docs/catalog/*`; validator freshness check (regenerate-to-tmp, diff, nonzero on drift); generated-not-hand-maintained.
+
+**Ordering rationale:** A→B→C is a strict prerequisite sequence (guards → substrate → config contract). D, E, F are independent content streams after C and all converge on G. G is strictly downstream of D/E/F. H is an independent parallel track. I is strictly last.
 
 ### Research Flags
 
-Phases with standard patterns (skip research-phase):
-- **Phase 1 (rewrite):** mechanical prose editing; token spellings and disambiguation rule are fully designed in the research files; the blast radius is measured (31 files, ~137 refs)
-- **Phase 2 (installer):** stdlib-only; patterns are identical to rustup/nvm/oh-my-zsh; the resolution code snippets in STACK.md can be used directly
-- **Phase 3 (doctor):** well-documented pattern; exit-code convention fully specified in FEATURES.md
-- **Phase 4 (validator):** two-root split design fully specified in ARCHITECTURE.md; back-compat collapse rule is clear
+- **Security audit phase:** Download ASVS 5.0.0 CSV at the `v5.0.0` pinned tag before planning the checklist; verify level-column name/position. `UNKNOWN - verify` per-requirement level tagging until inspected.
+- **Gate phase (visual regression):** Verify playwright-bdd 9.x ↔ @playwright/test 1.60.x compatibility window; bump both together.
+- **Install --migrate phase:** Write RED harness fixtures before implementation (v1.1 CR-01 + two-root installer are the references). No external research needed; high-discipline execution required.
+- **Standard patterns (skip extra research):** audit/guards, persona overhaul, config dial, BDD/TDD, frontend/UI, docs catalog.
 
-Phases needing attention during planning:
-- **Phase 5 (migration):** the additive-then-relocate algorithm is specified but the fixture design for the C2 survival test needs explicit planning before writing code; the `is_protected()` extension for the surgical within-`agent-factory/` case requires careful thought
+---
 
 ## Confidence Assessment
 
 | Area | Confidence | Notes |
 |------|------------|-------|
-| Stack | HIGH | All mechanisms are stdlib; POSIX and Node 18+ APIs verified against primary sources; `$TOOL_HOME` dotdir convention verified across rustup/nvm/pyenv/volta |
-| Features | HIGH | Table-stakes drawn from named comparables with official docs; anti-features are principled design decisions from the locked design doc; MVP split is clear |
-| Architecture | HIGH | LLM-doesn't-expand-env-var finding verified against Claude Code plugin docs; standalone behavior confirmed from live repo grep (137 refs); single-rule-two-homes design is logically complete |
-| Pitfalls | HIGH | C1 is a live measured bug (137 bare refs / 31 files); C2 maps directly to the existing never-delete contract; C3 is a structural gap confirmed by reading the current validator source |
+| Stack | HIGH | All versions verified against npm/GitHub/official docs as of 2026-06-09. Open: playwright-bdd 9 ↔ @playwright/test 1.60.x minor compatibility — verify before gate phase. |
+| Features | HIGH (practices) / MEDIUM (dial mapping) | BDD/TDD/Three Amigos/ASVS/flaky-quarantine are well-documented standards. Exact lean→enterprise dial mapping is a design choice. Confirmed repo gaps: 10-line security checklist, no frontend/UI role, shallow `ba-pm.md`. |
+| Architecture | HIGH | Grounded in direct inspection of the actual `agent-factory/` tree. |
+| Pitfalls | HIGH (grugops-specific) / MEDIUM (external SOTA) | WR-05 and CR-01 are documented v1.1 findings; single-source/bloat/voice are named constraints. BDD/ASVS/Playwright pitfalls web-verified June 2026. |
 
 **Overall confidence:** HIGH
 
 ### Gaps to Address
 
-- **Plugin-form bundling (D-31):** the plugin adapter must bundle `agent-factory/` inside the plugin dir so `${CLAUDE_PLUGIN_ROOT}/agent-factory/...` resolves in the plugin cache. Deferred to the plugin milestone. When designing the `resolve_kit_root()` function in Phase 2, stub the plugin home binding so the plugin milestone can add it without a second rewrite.
-- **Per-repo install marker:** exact filename + location for the VERSION stamp (e.g. `plans/.grugops-install.json` holding `{version, grugopsHome, installedAt}`). Decide in Phase 2 alongside the VERSION stamp; LOW friction either way.
-- **CI/container `$HOME` unset:** `getent passwd "$(id -u)"` fallback for containers with arbitrary UIDs is documented in PITFALLS.md; confirm-with-test in Phase 2 rather than build speculatively.
-- **`2.0.0` vs `0.x` version:** flagged open in STACK.md and CLAUDE.md. This milestone should not change the version. Flag for human decision before the release milestone.
-- **Doctor `--check --fix`:** defer; ship detect-and-report first. When added, the allowed fix set must be enumerated and locked to missing scaffold only — never user content.
+- **ASVS 5.0.0 CSV field layout** (`UNKNOWN - verify`): verify level-column name/position from the pinned CSV before the security phase.
+- **playwright-bdd 9 ↔ @playwright/test 1.60.x compatibility** (`UNKNOWN - verify`): verify before the gate phase; bump both together.
+- **Docs-catalog frontmatter completeness**: verify all role/workflow files carry complete frontmatter before the catalog phase; if not, add a backlog item.
+- **Traceability extension option (decision pending)**: ARCHITECTURE recommends Option 1 (in-cell, zero header churn); confirm before BDD/TDD wiring.
+- **Biome vs ESLint headline (human decision)**: ESLint-default for the Vue stack is the recommendation; revisit when Biome Vue support exits experimental.
+
+---
 
 ## Sources
 
-### Primary (HIGH confidence)
-- `docs/design/shared-install.md` (in-repo) — locked split decision, blast radius, installer/validator/migration scope
-- `code.claude.com/docs/en/plugins-reference` — `${CLAUDE_PLUGIN_ROOT}`/`${CLAUDE_PLUGIN_DATA}`/`${CLAUDE_PROJECT_DIR}` inline substitution in skill/agent content; arbitrary `${ENV_VAR}` documented for hook/MCP command strings only
-- `freedesktop.org — XDG Base Directory Spec v0.8` — confirmed XDG is the rejected alternative; absolute-path-or-ignore rule borrowed
-- Node.js v24 API docs (`os.homedir`, `path.resolve`) — cross-platform home resolution behavior
-- `rust-lang.github.io/rustup`, `nvm-sh/nvm`, `pyenv`, `volta` docs — `$TOOL_HOME` dotdir convention; `$HOME` not `~` in defaults
-- `install/install.sh`, `install/uninstall.sh`, `install/install.test.sh` (in-repo) — existing contract; `is_protected()`, `cmp`, `DRY_RUN`, `CONTRACT VIOLATION` assertions
-- `AGENTS.md`, `.claude/skills/grugops/SKILL.md`, `agent-factory/roles/orchestrator.md` (in-repo) — live bare refs measured by grep (137 refs / 31 files)
-- `msys2.org`, gitforwindows.org, Windows Dev Blog — Git Bash `ln -s` deep-copy; Windows symlinks need Developer Mode
+**Primary (HIGH):** `agent-factory/` repo tree (direct inspection); `github.com/OWASP/ASVS` v5.0.0 tag; `playwright.dev`; `github.com/vitalets/playwright-bdd`; `vitest.dev`; `vuejs.org/guide/scaling-up/testing`; `eslint.vuejs.org`; `agents.md`; `developers.openai.com/codex/guides/agents-md` (32 KiB cap); `.planning/milestones/v1.1-MILESTONE-AUDIT.md` (WR-05, CR-01).
 
-### Secondary (MEDIUM confidence)
-- `brew doctor` exit-code history, `mise doctor`, `flutter doctor`, `npm doctor` — `--check` convention and exit-code design
-- AlmaLinux toolbox commit + linuxbash.sh — `getent passwd` fallback for unset `$HOME` in containers
-- `kubernetes.io version-skew-policy`, `asdf .tool-versions local-vs-global` — C6 compatibility-window framing
-- sanity.io, jhall.io, oneuptime.com — idempotent migration: ADD/COPY first, humans DELETE
+**Secondary (MEDIUM):** `softwaremill.com/whats-new-in-asvs-5-0/`; `justin.searls.co` (double-loop BDD/TDD); `automationpanda.com` (Three Amigos, Gherkin anti-patterns); `testdino.com` (Playwright flake-resistance); `minware.com` (flaky-test quarantine: reason/owner/ticket/expiry); Biome 2.x changelog (Vue experimental).
 
-### Tertiary (LOW confidence)
-- nvm issue #2074 — tilde-not-expanded-in-env-var gotcha; illustrative, behavior independently verified from POSIX spec
+**Tertiary (LOW — validate during security phase):** secondary ASVS summaries for per-requirement L1/L2/L3 counts — verify against the pinned CSV.
 
 ---
-*Research completed: 2026-06-06*
-*Ready for roadmap: yes*
+
+*Research completed: 2026-06-09 · Ready for roadmap: yes*
