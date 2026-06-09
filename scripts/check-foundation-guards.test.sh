@@ -120,6 +120,15 @@ yes x | head -c 30000 > "$M/AGENTS.md"
 printf '\n' >> "$M/AGENTS.md"
 expect_fail "agents-bytes oversize (>28672B) → nonzero + 'AGENTS.md'" "$M" "AGENTS.md"
 
+# guard_agents_bytes (CR-01) — plant a MISSING AGENTS.md; assert it fails red naming AGENTS.md.
+# The oversize case above is a mutated-file violation; this is the OTHER failure mode — a deleted
+# input must NOT vacuous-PASS. On macOS sh a missing AGENTS.md let `wc -c <` print an empty string
+# (no abort under set -eu), `b` became "", both numeric tests evaluated false, and the guard fell
+# through to a spurious PASS. Removing the mirrored file points the guard at an absent AGENTS.md.
+M=$(mirror agents-missing)
+rm -f "$M/AGENTS.md"
+expect_fail "agents-bytes missing AGENTS.md → nonzero + 'AGENTS.md missing'" "$M" "AGENTS.md missing"
+
 # ---------------------------------------------------------------------------
 # guard_adapter_size — plant a >4096 B adapter; assert it fails red naming the adapter path.
 # ---------------------------------------------------------------------------
@@ -128,6 +137,13 @@ M=$(mirror adapter-oversize)
 yes x | head -c 5000 > "$M/.claude/skills/grugops/SKILL.md"
 printf '\n' >> "$M/.claude/skills/grugops/SKILL.md"
 expect_fail "adapter-size oversize (>4096B) → nonzero + adapter path" "$M" "SKILL.md"
+
+# guard_adapter_size (CR-01) — plant a MISSING adapter; assert it fails red naming the path.
+# Same vacuous-PASS class as agents-missing: a deleted adapter must fail red naming its path, not
+# pass on an empty `wc -c <` byte count.
+M=$(mirror adapter-missing)
+rm -f "$M/.claude/agents/grugops-orchestrator.md"
+expect_fail "adapter-size missing adapter → nonzero + 'missing'" "$M" "grugops-orchestrator.md missing"
 
 # ---------------------------------------------------------------------------
 # guard_voice — plant `grug smash` into a CLEAR-VOICE surface (NOT inside ## Caveman prompt);

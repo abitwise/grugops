@@ -105,6 +105,14 @@ AGENTS_FAIL=28672   # 28 KiB — headroom below the 32768 B Codex cap
 
 guard_agents_bytes() {
   printf '\n[guard_agents_bytes] AGENTS.md byte budget (Codex cap 32768B)\n'
+  # Missing-file fail-red (CR-01): on macOS sh a missing AGENTS.md lets `wc -c <` print an empty
+  # string WITHOUT aborting the command substitution, so `b` becomes "", both `[ "$b" -ge … ]`
+  # tests evaluate false (with a stderr integer-expression warning), and the guard fell through to
+  # a spurious PASS — vacuous green that silently skipped the check. Assert presence first.
+  if [ ! -f AGENTS.md ]; then
+    fail "AGENTS.md missing (required for Codex cap check)"
+    return
+  fi
   b=$(wc -c < AGENTS.md | tr -d ' ')
   if   [ "$b" -ge "$AGENTS_FAIL" ]; then fail "AGENTS.md ${b}B >= ${AGENTS_FAIL}B (Codex cap 32768B)"
   elif [ "$b" -ge "$AGENTS_WARN" ]; then warn "AGENTS.md ${b}B >= ${AGENTS_WARN}B — approaching cap"
@@ -125,6 +133,12 @@ AD_FAIL=4096    # 4 KiB
 guard_adapter_size() {
   printf '\n[guard_adapter_size] adapters stay pointer-sized (single-source, byte ceiling)\n'
   for f in $ADAPTERS; do
+    # Missing-file fail-red (CR-01, same vacuous-PASS class as guard_agents_bytes): a deleted
+    # adapter must fail red naming the path, not silently pass via an empty `wc -c <` byte count.
+    if [ ! -f "$f" ]; then
+      fail "$f missing (adapter required)"
+      continue
+    fi
     b=$(wc -c < "$f" | tr -d ' ')
     if   [ "$b" -ge "$AD_FAIL" ]; then fail "$f ${b}B >= ${AD_FAIL}B — adapter too large (role body copied in?)"
     elif [ "$b" -ge "$AD_WARN" ]; then warn "$f ${b}B >= ${AD_WARN}B — approaching pointer ceiling"
