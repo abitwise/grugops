@@ -1,0 +1,174 @@
+#!/usr/bin/env sh
+# check-foundation-guards.test.sh — SDLC-02 / SC2 fail-proof harness for
+# scripts/check-foundation-guards.sh.
+#
+# Proves the four foundation guards both PASS and FAIL — the no-fabrication contract (a gate
+# that can only ever pass is fabricated green). It plants EXACTLY ONE real violation per guard
+# into a hermetic throwaway copy of the inputs, runs the guard against that copy, and asserts
+# each fails red (nonzero exit AND the finding names the defect — the expect_fail shape from
+# validate.test.sh). Then a smoke run proves the REAL guard is GREEN over the REAL tree, and a
+# `cmp -s` assertion proves the two config JSONs stay byte-identical (the tri-file drift Plan
+# 10-03 must avoid — no existing gate catches a JSON↔JSON drift, so it lives here).
+#
+# The guard hard-codes repo-relative input paths, so each case is run hermetically by mirroring
+# the guard's input files into $WORK/<case>/, copying the guard script alongside them, planting
+# the ONE violation, and invoking the guard FROM that mirror (its relative paths then resolve to
+# the mutated copy). NOTHING outside $WORK is ever written — the real repo and $HOME are never
+# mutated (the validate.test.sh T-09-09 invariant).
+#
+# House style mirrors scripts/validate.test.sh: #!/usr/bin/env sh, set -eu, pass()/fail()/FAILS,
+# printf (not echo -e), hermetic mktemp -d + trap cleanup, the `out=$(cmd) && rc=0 || rc=$?`
+# capture idiom that survives set -e when the command is EXPECTED to fail, ALL CHECKS PASSED /
+# N CHECK(S) FAILED, exit 0/1.
+#
+# Run from the repo root:  sh scripts/check-foundation-guards.test.sh
+# Exit 0 = all checks PASS; exit 1 = at least one FAIL.
+
+set -eu
+
+GUARD="scripts/check-foundation-guards.sh"
+FAILS=0
+
+pass() { printf '  PASS  %s\n' "$1"; }
+fail() { printf '  FAIL  %s\n' "$1"; FAILS=$((FAILS + 1)); }
+
+# Presence preamble — without the guard there is nothing to test.
+[ -f "$GUARD" ] || { fail "guard present at $GUARD"; printf '1 CHECK(S) FAILED\n'; exit 1; }
+
+# Absolute repo root + guard path, so a case run from inside $WORK still finds the source files
+# it copies from. (The guard itself, once copied into the mirror, is invoked by its mirror path.)
+REPO_ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
+
+# Hermetic throwaway area, cleaned on exit (success or failure). Every planted-violation mirror
+# and every scratch file lives here; the real repo / $HOME are never touched.
+WORK=$(mktemp -d)
+cleanup() { rm -rf -- "$WORK"; }
+trap cleanup EXIT INT TERM
+
+# The complete set of input files the guard reads (repo-relative). A mirror is a $WORK/<case>
+# tree carrying byte-faithful copies of all of these plus the guard script; one file is then
+# mutated to plant the violation.
+GUARD_INPUTS="AGENTS.md \
+.claude/skills/grugops/SKILL.md \
+.claude/agents/grugops-orchestrator.md \
+agent-factory/packaging/subagent.frontmatter.md \
+agent-factory/packaging/slash-command.template.md \
+agent-factory/roles/security-nfr.md \
+agent-factory/roles/compliance-officer.md \
+agent-factory/roles/incident-responder.md"
+
+# mirror <case> — build $WORK/<case> with byte-faithful copies of every guard input + the guard
+# script itself, recreating the relative dir layout so the guard's hard-coded paths resolve. Echo
+# the mirror dir on stdout. The caller plants ONE violation, then runs the guard from the mirror.
+mirror() {
+  m="$WORK/$1"
+  mkdir -p "$m"
+  for rel in $GUARD_INPUTS; do
+    mkdir -p "$m/$(dirname -- "$rel")"
+    cp -- "$REPO_ROOT/$rel" "$m/$rel"
+  done
+  mkdir -p "$m/scripts"
+  cp -- "$REPO_ROOT/$GUARD" "$m/scripts/check-foundation-guards.sh"
+  printf '%s' "$m"
+}
+
+# run_in <dir> — run the guard from inside the mirror dir so its relative paths resolve to the
+# mutated copy; capture combined stdout+stderr in OUT and the exit code in RC (set -e safe).
+run_in() {
+  OUT=$( cd -- "$1" && sh scripts/check-foundation-guards.sh 2>&1 ) && RC=0 || RC=$?
+}
+
+# expect_fail <label> <mirror-dir> <finding-token> — the planted case MUST exit nonzero AND the
+# output must name the defect (case-insensitive). This is the no-fabrication assertion: a guard
+# that returns 0 here, or fails without naming the defect, is itself broken.
+expect_fail() {
+  run_in "$2"
+  if [ "$RC" -ne 0 ] && printf '%s' "$OUT" | grep -qi "$3"; then
+    pass "$1"
+  else
+    fail "$1 (expected nonzero + '$3', got rc=$RC: $OUT)"
+  fi
+}
+
+printf '== foundation-guards fail-proof harness (SDLC-02 / SC2) ==\n\n'
+
+# ---------------------------------------------------------------------------
+# guard_wr05 — plant a frontmatter spawn grant in a scan-set file; assert it fails red.
+# Two grant SHAPES, two cases (comma-form header + YAML-array item) — both must be caught
+# (T-10-02-FN: a false-negative on either shape is a regression).
+# ---------------------------------------------------------------------------
+printf '%s\n' '-- guard_wr05 (both grant shapes) --'
+
+M=$(mirror wr05-comma)
+# Plant the comma-form grant by appending a tools: header line carrying an Agent token.
+printf '\ntools: Read, Agent\n' >> "$M/.claude/agents/grugops-orchestrator.md"
+expect_fail "wr05 comma-form (tools: ... Agent) → nonzero + 'spawn grant'" "$M" "spawn grant"
+
+M=$(mirror wr05-array)
+# Plant the YAML-array-item grant.
+printf '\n  - Agent\n' >> "$M/.claude/skills/grugops/SKILL.md"
+expect_fail "wr05 array-item (  - Agent) → nonzero + 'spawn grant'" "$M" "spawn grant"
+
+# ---------------------------------------------------------------------------
+# guard_agents_bytes — plant a >28672 B AGENTS.md; assert it fails red naming AGENTS.md.
+# `yes` + head is portable; the padding pushes the file past the FAIL threshold (28672 B).
+# ---------------------------------------------------------------------------
+printf '\n-- guard_agents_bytes --\n'
+M=$(mirror agents-oversize)
+# Overwrite AGENTS.md with a >28672-byte body (30000 'x' chars + a trailing newline).
+yes x | head -c 30000 > "$M/AGENTS.md"
+printf '\n' >> "$M/AGENTS.md"
+expect_fail "agents-bytes oversize (>28672B) → nonzero + 'AGENTS.md'" "$M" "AGENTS.md"
+
+# ---------------------------------------------------------------------------
+# guard_adapter_size — plant a >4096 B adapter; assert it fails red naming the adapter path.
+# ---------------------------------------------------------------------------
+printf '\n-- guard_adapter_size --\n'
+M=$(mirror adapter-oversize)
+yes x | head -c 5000 > "$M/.claude/skills/grugops/SKILL.md"
+printf '\n' >> "$M/.claude/skills/grugops/SKILL.md"
+expect_fail "adapter-size oversize (>4096B) → nonzero + adapter path" "$M" "SKILL.md"
+
+# ---------------------------------------------------------------------------
+# guard_voice — plant `grug smash` into a CLEAR-VOICE surface (NOT inside ## Caveman prompt);
+# assert it fails red naming the role path. Appending at end-of-file lands well after the
+# fenced caveman block, in clear-voice territory (the ## Hard limits tail).
+# ---------------------------------------------------------------------------
+printf '\n-- guard_voice --\n'
+M=$(mirror voice-marker)
+printf '\ngrug smash the bug.\n' >> "$M/agent-factory/roles/security-nfr.md"
+expect_fail "voice marker in clear-voice surface → nonzero + role path" "$M" "security-nfr.md"
+
+# ---------------------------------------------------------------------------
+# Smoke — the REAL guard over the REAL tree must be GREEN (exit 0). Proves the guards do not
+# fabricate-fail: the clean tree passes (T-10-02-FP — no prose/`.grugops` false positives).
+# ---------------------------------------------------------------------------
+printf '\n-- smoke (real tree) --\n'
+OUT=$( cd -- "$REPO_ROOT" && sh "$GUARD" 2>&1 ) && RC=0 || RC=$?
+if [ "$RC" -eq 0 ] && printf '%s' "$OUT" | grep -qF 'ALL CHECKS PASSED'; then
+  pass "smoke: real guard GREEN over the real tree"
+else
+  fail "smoke: real guard should be GREEN (rc=$RC: $OUT)"
+fi
+
+# ---------------------------------------------------------------------------
+# cmp -s — the two config JSONs must be byte-identical (the tri-file drift Plan 10-03 must
+# avoid; no existing gate catches a JSON↔JSON drift, so the foundation-guards test harness owns
+# it). RESEARCH Pitfall 4.
+# ---------------------------------------------------------------------------
+printf '\n-- config-JSON byte identity (cmp -s) --\n'
+if cmp -s "$REPO_ROOT/agent-factory/config/factory.config.json" "$REPO_ROOT/agent-factory/seed/.grugops/factory.config.json"; then
+  pass "config JSONs byte-identical (config/ == seed/.grugops/)"
+else
+  fail "config JSON drift (config/ vs seed/.grugops/ diverge)"
+fi
+
+# ── Result ───────────────────────────────────────────────────────────────────────────────────
+printf '\n'
+if [ "$FAILS" -eq 0 ]; then
+  printf 'ALL CHECKS PASSED\n'
+  exit 0
+else
+  printf '%s CHECK(S) FAILED\n' "$FAILS"
+  exit 1
+fi

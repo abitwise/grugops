@@ -12,10 +12,12 @@ points at the same files. the wrapper is thin; the brain is shared.
 pointer at that one entry rule — it never copies the role body, it just tells the host
 tool how to reach it.
 
-The single thing that changes from tool to tool is *how the Orchestrator reaches its
-specialist roles* — whether the host can **spawn** sub-agents or must **load** role files
-into one context in sequence. **Only the dispatch differs, never the content.** Same
-roles, same handoffs, same gates — only the dispatch differs.
+The single thing that changes from tool to tool is *which entry file the host reads* to reach
+the Orchestrator. The dispatch model itself does NOT change: rather than **spawn** sub-agents
+(not available across every host CLI, and sub-agents cannot nest), grugops uses one uniform
+single-window sequential role-load — the Orchestrator **loads** each role file into one context
+in turn. **Only the entry file differs, never the dispatch model and never the content.** Same
+roles, same handoffs, same gates.
 
 > **Note on this document vs. `agent-factory/README.md`.** The README carries an earlier
 > usage overview whose Claude Code row predates the command-form decision (D-29). **This
@@ -30,16 +32,19 @@ ship — never assume a tool fact is permanent.
 
 | Tool | Entry file it reads | Dispatch mode | Adapter | Verify |
 | ---- | ------------------- | ------------- | ------- | ------ |
-| **Claude Code** | `CLAUDE.md` one-line pointer + portable `AGENTS.md` | Native sub-agents — the Orchestrator runs as the **main thread** (plugin `settings.json` `agent:`) and spawns role agents with the `Agent` tool (sub-agents cannot nest, so it must be main-thread) | **Both forms.** Standalone `.claude/skills/grugops*` (dash → `/grugops-plan`) **and** the `.claude-plugin/` plugin colon form (`/grugops:plan`) | verify against current tool docs |
+| **Claude Code** | `CLAUDE.md` one-line pointer + portable `AGENTS.md` | Sequential role-load — no spawn; the Orchestrator loads each role file into one context in turn (the frozen single-window design, `_role-switch-protocol.md`) | **Both forms.** Standalone `.claude/skills/grugops*` (dash → `/grugops-plan`) **and** the `.claude-plugin/` plugin colon form (`/grugops:plan`) | verify against current tool docs |
 | **Codex CLI** | root `AGENTS.md` (+ global `~/.codex/AGENTS.md`) | Sequential role-load — no spawn; the Orchestrator loads each role file into one context in turn | **None — native.** Codex reads `AGENTS.md` directly | verify against current tool docs |
 | **Gemini CLI** | `AGENTS.md` via `.gemini/settings.json` `context.fileName: ["AGENTS.md","GEMINI.md"]` | Sequential role-load — no spawn | **`settings.json` wiring** (`context.fileName` array; cleaner than a `GEMINI.md` pointer, which also works) | verify against current tool docs |
 | **OpenCode** | root `AGENTS.md` (+ global `~/.config/opencode/AGENTS.md`) | Sequential role-load — no spawn (or its own native agents) | **None — native.** OpenCode reads `AGENTS.md` directly | verify against current tool docs |
 | **GitHub Copilot CLI** | `AGENTS.md` (+ optional `.github/copilot-instructions.md`) | Sequential role-load — no spawn | **Optional pointer.** Ensuring `AGENTS.md` is present is sufficient; the `.github/` pointer is a convenience | verify against current Copilot CLI docs |
 
-Where a tool supports real sub-agents (Claude Code), the Orchestrator spawns a role agent
-when it would otherwise "wake" that role. Where it does not, the Orchestrator is a single
-agent that *loads the relevant role file into context* at that moment. **Only the dispatch
-differs, never the content.**
+All five tools use the SAME single-window sequential role-load (the frozen Phase-7/8 design,
+`_role-switch-protocol.md`): the Orchestrator is a single agent that *loads the relevant role
+file into context* at the moment it would otherwise "wake" that role — no sub-agent spawning,
+because the kit must run identically across all five host CLIs and sub-agent nesting is not
+available everywhere. What changes from tool to tool is only the **entry file** the host reads
+to reach `agent-factory/roles/orchestrator.md` (the column above), never the dispatch model and
+never the content. **Same roles, same handoffs, same gates — only the entry file differs.**
 
 Doc links cite `code.claude.com/docs/en/*` (the current host) — for example
 `code.claude.com/docs/en/plugins-reference`, `code.claude.com/docs/en/skills`,
