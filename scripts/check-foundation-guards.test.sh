@@ -155,6 +155,16 @@ M=$(mirror voice-marker)
 printf '\ngrug smash the bug.\n' >> "$M/agent-factory/roles/security-nfr.md"
 expect_fail "voice marker in clear-voice surface → nonzero + role path" "$M" "security-nfr.md"
 
+# guard_voice (CR-02) — plant a MISSING voice file; assert a STRUCTURED fail (nonzero + a finding
+# naming the missing file), NOT a raw `awk: can't open file` abort. Under set -eu a non-zero awk
+# exit inside the body=$(awk … "$f") command substitution aborted the whole script before the
+# FAILS counter or the `== Result ==` summary ran; the fix asserts presence first so a deleted
+# voice file degrades to a guarded finding. Removing the mirrored file points the guard at an
+# absent role file.
+M=$(mirror voice-missing)
+rm -f "$M/agent-factory/roles/compliance-officer.md"
+expect_fail "voice missing file → nonzero + 'compliance-officer.md' (structured, not awk abort)" "$M" "compliance-officer.md"
+
 # ---------------------------------------------------------------------------
 # Smoke — the REAL guard over the REAL tree must be GREEN (exit 0). Proves the guards do not
 # fabricate-fail: the clean tree passes (T-10-02-FP — no prose/`.grugops` false positives).

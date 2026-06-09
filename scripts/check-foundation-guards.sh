@@ -172,6 +172,16 @@ guard_voice() {
   printf '\n[guard_voice] clear-voice surfaces free of caveman markers (section-scoped)\n'
   voice_fail=
   for f in $VOICE_FILES; do
+    # Missing-file structured fail (CR-02): under `set -eu` a non-zero `awk` exit (its
+    # "can't open file" on a missing $f) inside a command substitution ABORTS the whole script —
+    # the FAILS counter never increments, no `== Result ==` / `N CHECK(S) FAILED` summary prints,
+    # and CI sees awk's raw error instead of the guard's structured finding. Assert presence first
+    # so a missing voice file produces a nonzero-exit finding that NAMES the file, not a raw abort.
+    if [ ! -f "$f" ]; then
+      voice_fail="$voice_fail
+$f: required voice file missing"
+      continue
+    fi
     # Strip the single fenced `## Caveman prompt` block, then scan the clear-voice remainder.
     body=$(awk '
       /^## Caveman prompt/ {skip=1}
