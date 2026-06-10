@@ -40,8 +40,11 @@ Date:
 ## Scope / out of scope
 <!-- DoR: scope and out-of-scope clear -->
 
+## INVEST shape
+<!-- DoR: story is INVEST-shaped (independent, negotiable, valuable, estimable, small, testable) -->
+
 ## Acceptance criteria (Given/When/Then)
-<!-- DoR: acceptance criteria clear (Given/When/Then) -->
+<!-- DoR: acceptance criteria clear (Given/When/Then), testable and measurable -->
 
 ## Dependencies
 <!-- DoR: dependencies known -->

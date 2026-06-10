@@ -9,7 +9,7 @@ cadence: both
 Run this regularly to keep the `Ready` column stocked, or right before planning. This ceremony applies to **both** cadences — in kanban it runs on a steady rhythm so the continuous pull never starves; in scrum it runs ahead of `08-sprint-planning.md` so the box can be filled. grug keep the larder full so dev never go hungry. The flow: the top of `Backlog` -> BA/PM (+ System Analyst, + Architect/Design for spikes) -> sized, prioritized, DoR-met items -> a stocked `Ready` column.
 
 ## Agents involved
-- BA/PM — clarifies the work, sizes (`XS`–`XL`), prioritizes (`P0`–`P3`), marks security/NFR triggers, and takes items to the Definition of Ready.
+- BA/PM — shapes each item INVEST (independent, negotiable, valuable, estimable, small, testable), writes testable + measurable acceptance, sizes (`XS`–`XL`), prioritizes (`P0`–`P3`), marks security/NFR triggers with measurable targets, and takes items to the Definition of Ready.
 - System Analyst — clarifies behavior when a ticket's acceptance is unclear.
 - Architect/Design — investigates spikes when an item needs a technical answer before it can be sized.
 
@@ -22,10 +22,10 @@ Roles activate via the role-switch protocol (`agent-factory/roles/_role-switch-p
 
 ## Steps
 1. Pull the top items off the `Backlog` column by priority (BA/PM).
-2. Clarify each item — user value, scope, and acceptance criteria; pull in the System Analyst when behavior is unclear, or Architect/Design for a spike.
-3. Split `XL` work into smaller tickets — the Orchestrator enforces `SPLIT_REQUIRED`; no `XL` ticket enters dev.
-4. Size each item (`XS`–`XL`) and prioritize it (`P0`–`P3`).
-5. Mark any security/NFR triggers on the ticket so the gate fires later.
+2. Clarify each item to INVEST shape — user value, scope, and acceptance criteria that are testable and measurable (a number, a state, an observable outcome, never "works"); pull in the System Analyst when behavior is unclear, or Architect/Design for a spike.
+3. Split `XL` work into smaller tickets — the Orchestrator enforces `SPLIT_REQUIRED`; no `XL` ticket enters dev. A ticket only a long dependency chain can deliver is not yet independent — split it.
+4. Size each item (`XS`–`XL`) and prioritize it (`P0`–`P3`); a story that cannot be estimated is not yet small or clear enough — clarify it first.
+5. Mark any security/NFR triggers on the ticket, each with a measurable target (p95 latency, error budget, concurrency) so the gate fires on a real number, not "fast"/"secure".
 6. Promote items that meet `agent-factory/checklists/definition-of-ready.md` into the `Ready` column; record the refinement by filling the `refinement-notes.md` template from `agent-factory/handoffs/` into the instance `plans/handoffs/<SPRINT-ID>-refinement.md`.
 
 ## Board moves
