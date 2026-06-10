@@ -22,7 +22,7 @@
 ### What Was Inefficient
 - **Nyquist formal validation never ran** across all three phases (draft/planned, tasks not executed) — behavioral coverage was strong (live test suites green) but the formal layer lagged, leaving a process-doc gap flagged at close.
 - **Code-review found a parity *class*, not just instances** — 09-05 initially closed only the exact reported spellings (CR-01/CR-02); a follow-up remediation was needed to close the lexical `./..` collapse class. Fixing to the class the first time would have saved a round.
-- **Carry-forward debt accumulated quietly** — WR-05 (packaging templates still grant `Agent`/spawn) rode from Phase 7 → 8 and remains open; carried-forward warnings need a hard owner, not just a note.
+- **Carry-forward debt accumulated quietly** — WR-05 (packaging templates still grant `Agent`/spawn) rode from Phase 7 → 8 as an open warning. **Now closed:** the grant was dropped in Phase 8, a mechanical guard (`guard_wr05`) was added in Phase 10, and it was re-verified GREEN after the Phase-11 persona rewrite (retired, D-10). The lesson stands — carried-forward warnings need a hard owner (a mechanical guard + a named retirement phase), not just a note.
 
 ### Patterns Established
 - **One rule, two homes** — a single resolution rule (`${GRUGOPS_HOME:-$HOME/.grugops}`) with an installer-materialized absolute path (standalone) or `${CLAUDE_PLUGIN_ROOT}` (plugin); no role/workflow/SKILL/AGENTS.md ever names `$GRUGOPS_HOME` in prose.
