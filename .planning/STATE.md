@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: SDLC Depth, Quality Discipline & Browsable Docs
-status: executing
-last_updated: "2026-06-10T22:11:38.747Z"
+status: verifying
+last_updated: "2026-06-10T22:18:24.914Z"
 last_activity: 2026-06-10
 progress:
   total_phases: 8
-  completed_phases: 1
+  completed_phases: 2
   total_plans: 9
-  completed_plans: 8
-  percent: 13
+  completed_plans: 9
+  percent: 25
 ---
 
 # Project State
@@ -26,10 +26,10 @@ See: .planning/PROJECT.md (updated 2026-06-09 — v1.2 milestone started)
 
 Phase: 11 (senior-persona-overhaul) — EXECUTING
 Plan: 5 of 5
-Status: Ready to execute
+Status: Phase complete — ready for verification
 Last activity: 2026-06-10
 
-Progress: [█████████░] 89%
+Progress: [██████████] 100%
 
 ## Performance Metrics
 
@@ -116,6 +116,7 @@ Progress: [█████████░] 89%
 | Phase 11 P02 | 25m | 2 tasks | 8 files |
 | Phase 11 P03 | 6m | 2 tasks | 4 files |
 | Phase 11 P04 | 18m | 3 tasks | 2 files |
+| Phase 11 P05 | 4m | 2 tasks | 4 files |
 
 ## Accumulated Context
 
@@ -241,6 +242,7 @@ Recent decisions affecting current work:
 - [Phase ?]: [11-04] guard_voice expanded to all 16 roles (D-05); the marker refinement lands FIRST as a separate per-phrase awk gsub neutralizing /grug + grug voice/wink before the grep, so the all-16 scan ships GREEN with no orchestrator/Scribe false positive and a bare grug-smash still fails (the fence anchor is NOT re-engineered, D-10)
 - [Phase ?]: [11-04] D-06 guard_caveman_preserved CAVEMAN_MARKERS = VOICE_MARKERS idioms + ^You\b — the clean caveman blocks are clipped second-person imperatives with NO literal grug idiom, so plain VOICE_MARKERS would ship RED; ^You\b is the cadence separating a real block from a sanded prose rewrite (all 16 hit, sanded prose does not)
 - [Phase ?]: [11-04] D-07 guard_role_size uses locked per-file 2026-06-10 ceilings (FAIL +12% / WARN +6%; orchestrator outlier 7041/6664; ba-pm BA headroom 3294/3075) via a POSIX-sh case lookup — NOT a flat number and NOT live-computed; ba-pm at 3291B emits an advisory WARN, build stays GREEN
+- [Phase ?]: [11-05] PERS-03 — WR-05 RETIRED: guard_wr05 re-verified GREEN on a fresh post-rewrite run (regen-safety, the LAST check per D-10); the spawn-grant debt marker closed in all 4 locked tracking docs (PROJECT/STATE/SDLC-audit/RETROSPECTIVE); explanatory spawn prose KEPT (D-08); SDLC audit GAP-2 row reconciled to the D-01/D-11 reframe (in-place senior deepening, no new section, terse caveman = token economy)
 
 ### Pending Todos
 
@@ -283,6 +285,6 @@ Items acknowledged and deferred at the v1.1 milestone close on 2026-06-08. All a
 
 ## Session Continuity
 
-Last session: 2026-06-10T22:11:28.232Z
-Stopped at: Completed 11-02-PLAN.md
+Last session: 2026-06-10T22:18:24.908Z
+Stopped at: Completed 11-05-PLAN.md (PERS-03; Phase 11 ready for verification)
 Resume file: None

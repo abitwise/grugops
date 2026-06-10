@@ -49,7 +49,7 @@ Full phase details + milestone summary: `milestones/v1.1-ROADMAP.md` · requirem
 **Milestone Goal:** Make grugops's delivery lifecycle senior-grade and trustworthy end-to-end — deeper personas with full SDLC coverage (especially the business→engineer handoff), test-first by default (BDD at acceptance + TDD at the unit layer, config-dialed), automated UI build+test, OWASP ASVS security auditing, an un-cheatable quality gate, code linting, browsable docs — and finally ship the deferred install migrate/update story. Introspective milestone: most work improves grugops's own markdown kit; "UI / tests / security" are capabilities grugops gives its *users* through roles + workflows + the gate, since grugops itself is markdown.
 
 - [x] **Phase 10: SDLC-Coverage Audit & Foundation Guards** - Audit lifecycle coverage; land the mechanical guards (WR-05 spawn grep, adapter-size, AGENTS.md byte budget, voice-lint) and the config-dial contract + schema before any content lands (all 4 plans executed 2026-06-09; awaiting phase verification) (completed 2026-06-10)
-- [ ] **Phase 11: Senior Persona Overhaul** - Deepen every role to senior judgment in place (no new section; terse caveman voice preserved as the token-economy mechanism), deepen the business-analysis persona to senior, retire WR-05 in the packaging templates
+- [x] **Phase 11: Senior Persona Overhaul** - Deepen every role to senior judgment in place (no new section; terse caveman voice preserved as the token-economy mechanism), deepen the business-analysis persona to senior, retire WR-05 in the packaging templates (all 5 plans executed 2026-06-10; awaiting phase verification)
 - [ ] **Phase 12: BDD + TDD Wiring** - Given-when-then acceptance contract (Three Amigos) + red-green TDD double-loop across the BA/QE/engineer roles, workflows, and handoffs; both config-dialed
 - [ ] **Phase 13: Frontend/UI Persona & Design→Build Workflow** - New senior frontend/UI role (no spawn) + a UI design→build workflow (workflow 14); Orchestrator routes UI work to it
 - [ ] **Phase 14: Security Audit (OWASP ASVS) & Checklist Re-Anchor** - New security-audit workflow (workflow 15) + an ASVS 5.0-generated L1/L2/L3 checklist; ASVS level config-dialed; clear-voice findings
@@ -106,7 +106,7 @@ Full phase details + milestone summary: `milestones/v1.1-ROADMAP.md` · requirem
 
 **Wave 3** *(blocked on Wave 2 completion)*
 
-- [ ] 11-05-PLAN.md — WR-05 re-run (regen-safety, last check) + close 4 markers + reconcile audit GAP-2 row [PERS-03]
+- [x] 11-05-PLAN.md — WR-05 re-run (regen-safety, last check) + close 4 markers + reconcile audit GAP-2 row [PERS-03]
 
 **Cross-cutting constraints:**
 
@@ -214,7 +214,7 @@ Phases execute in numeric order: 10 → 11 → 12 → 13 → 14 → 15 → 16 �
 | 8. Two-Root Installer | v1.1 | 4/4 | Complete | 2026-06-07 |
 | 9. Doctor & Two-Root Validator | v1.1 | 6/6 | Complete | 2026-06-08 |
 | 10. SDLC-Coverage Audit & Foundation Guards | v1.2 | 4/4 | Complete    | 2026-06-10 |
-| 11. Senior Persona Overhaul | v1.2 | 4/5 | In Progress|  |
+| 11. Senior Persona Overhaul | v1.2 | 5/5 | Verifying | 2026-06-10 |
 | 12. BDD + TDD Wiring | v1.2 | 0/TBD | Not started | - |
 | 13. Frontend/UI Persona & Design→Build Workflow | v1.2 | 0/TBD | Not started | - |
 | 14. Security Audit (OWASP ASVS) & Checklist Re-Anchor | v1.2 | 0/TBD | Not started | - |
