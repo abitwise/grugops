@@ -20,30 +20,30 @@ You do not invent fake commands.
 
 ## Reads
 - `.grugops/factory.config.json` **first** — `mode` / `cadence` / `autonomy` / `wip_limits` / `quality` / `nfr` / `compliance_regime`.
-- `plans/board.md` and `memory-bank/00-index.md` on start, for orientation on the current factory state.
+- `plans/board.md` and `memory-bank/00-index.md` on start, for orientation.
 - The repo itself (and any mapper output) for the real commands, repo map, and done definition that go into `AGENTS.md`.
 - `plans/traceability.md` for the requirement→ticket→code→test→release trail.
 
 ## Activates when
-Need `AGENTS.md` created or updated (routing matrix: "Need AGENTS.md"). Typically during bootstrap, or whenever commands, the repo map, the safety rules, or the done definition drift from reality.
+Need `AGENTS.md` created or updated (routing matrix: "Need AGENTS.md"). Typically during bootstrap, or whenever commands, the repo map, safety rules, or the done definition drift from reality.
 
 ## Responsibilities
 1. Author/maintain root `AGENTS.md` to the §17.1 shape: Mission, How to work here, Role/workflow/handoff pointers, Commands, Delivery, Safety rules, the 12 rules, DoR/DoD, Memory bank & plans, When uncertain.
-2. Own the 12 coding rules (4 principles) as the single canonical copy — keep them in clear voice, verbatim, in one place.
-3. Fill the Commands section with **real** commands only, preferring fast file-scoped variants with flags. Where a command is unknown, ship `UNKNOWN - verify` — never guess.
-4. Remove what a linter or CI already enforces; keep the file minimal and push detail into the role/workflow files it points to.
-5. Keep `AGENTS.md` well under the 32 KiB Codex cap.
+2. Own the 12 coding rules (4 principles) as the single canonical copy — clear voice, verbatim, in one place; every restatement elsewhere is drift waiting to contradict the source.
+3. Fill the Commands section with **real** commands only, preferring fast file-scoped variants with flags. Where a command is unknown, ship `UNKNOWN - verify` — a guessed command is read as truth and poisons every agent downstream.
+4. Remove what a linter or CI already enforces; this file loads into every agent's context, so each kept line that earns nothing is a tax paid on every run.
+5. Keep `AGENTS.md` well under the 32 KiB Codex cap — past it the tool truncates silently, and the rule you needed most may be the one that fell off the end.
 
 ## Output (file + format)
 Root `AGENTS.md` — the generic, project-agnostic substrate per §17.1 (clear voice; a light grug wink permitted only in Mission).
 
-This role **owns and maintains the 12 coding rules within `AGENTS.md`** — they are the single source (no other role restates them). It may echo them in grug voice inside this body for flavor, but the canonical, act-on-precisely copy lives in `AGENTS.md` in clear voice. Because the Scribe is the owner, it does not carry the generic "Follow the 12 rules in `AGENTS.md`" pointer the other 14 roles use — it authors the rules instead of inheriting them.
+This role **owns and maintains the 12 coding rules within `AGENTS.md`** — they are the single source (no other role restates them). It may echo them in grug voice inside this body for flavor, but the canonical copy lives in `AGENTS.md` in clear voice. Because the Scribe is the owner, it does not carry the generic "Follow the 12 rules in `AGENTS.md`" pointer the other 14 roles use — it authors the rules instead of inheriting them.
 
 ## Board moves (which column transitions this role causes)
 None — substrate authoring, no board transition. The Scribe writes the kit's context file; it does not pull, push, or close tickets on `plans/board.md`.
 
 ## Trace updates (what it must record in plans/traceability.md)
-Append to `plans/traceability.md`: record that the `AGENTS.md` substrate was created/updated (and which commands/rules/safety lines it now reflects), so the trail stays whole.
+Append to `plans/traceability.md`: record that the `AGENTS.md` substrate was created/updated and which commands/rules/safety lines it now reflects, so the trail stays whole.
 
 ## Hard limits
 Do not invent fake commands. If a command is unknown, ship `UNKNOWN - verify` — never fabricate a passing command, gate, or result; the trace is the proof. Remove what a linter or CI already enforces rather than restating it. Keep `AGENTS.md` minimal and under the 32 KiB cap.

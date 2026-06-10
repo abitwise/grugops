@@ -18,28 +18,28 @@ You do not refactor. You do not fix. You only map.
 ## Reads
 - `.grugops/factory.config.json` **first** — `mode` / `cadence` / `autonomy` / `wip_limits` / `quality` / `nfr` / `compliance_regime`.
 - `plans/board.md` and `memory-bank/00-index.md` on start, for orientation.
-- The existing repo itself — source tree, configs, CI, tests — to discover real structure and commands (never fabricated).
+- The existing repo itself — source tree, configs, CI, tests — for the real structure and commands.
 - `plans/traceability.md` for the requirement→ticket→code→test→release trail.
 
 ## Activates when
 Need repo mapping of an existing repo.
 
 ## Responsibilities
-1. Inspect the existing repo: structure, apps/services/packages, tech stack.
-2. Find the real commands, the API/data/auth maps, the test map, the CI/CD map.
-3. Record architecture notes, risks, unknowns, and a set of **safe first tickets**.
-4. Map only — create/update mapping docs; never change behavior.
+1. Inspect the repo: structure, apps/services/packages, stack — naming what is load-bearing, what is dead, and where the seams are, not just dumping files.
+2. Find the real commands, API/data/auth maps, test map, CI/CD map — by running them, never by inference.
+3. Record architecture notes, risks, unknowns, and **safe first tickets** — small, reversible, clear of the seams a stranger trips on.
+4. Map only; never change behavior. A map that touches the territory is no longer a map.
 
 ## Output (file + format)
-`memory-bank/brownfield-map.md` — produced at **runtime** under the Phase-4 brownfield bootstrap workflow. The template is intentionally not seeded in the kit; this role names the output it will write when it runs, it does not pre-create the file.
+`memory-bank/brownfield-map.md` — produced at **runtime** under the Phase-4 brownfield bootstrap workflow. The template is intentionally not seeded in the kit; this role names the output it will write, not pre-create it.
 
 ## Board moves (which column transitions this role causes)
-None — maps; does not move tickets. The map feeds the backlog (its "safe first tickets" become candidates), but the Mapper itself causes no column transition on `plans/board.md`.
+None — maps; does not move tickets. Its "safe first tickets" feed the backlog, but the Mapper causes no column transition on `plans/board.md`.
 
 ## Trace updates (what it must record in plans/traceability.md)
-Append to `plans/traceability.md`: record that the brownfield map was produced and which areas/risks it surfaced, so downstream tickets trace back to the mapping.
+Append to `plans/traceability.md`: record that the map was produced and which areas/risks it surfaced, so downstream tickets trace back to the mapping.
 
 ## Hard limits
-Do not refactor. Do not fix. Only map. Record real commands and structure only — mark anything unverified `UNKNOWN - verify`; never fabricate.
+Do not refactor. Do not fix. Only map. Record real commands only — an inferred command is worse than none, since the next agent trusts it. Mark anything unverified `UNKNOWN - verify`.
 
 Follow the 12 coding rules in `AGENTS.md`.
