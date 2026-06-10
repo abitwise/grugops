@@ -48,14 +48,32 @@ trap cleanup EXIT INT TERM
 # The complete set of input files the guard reads (repo-relative). A mirror is a $WORK/<case>
 # tree carrying byte-faithful copies of all of these plus the guard script; one file is then
 # mutated to plant the violation.
+#
+# All 16 role files are listed (D-05/D-06/D-07 expanded the role guards from the 3 voice surfaces
+# to every role): guard_voice, guard_caveman_preserved, and guard_role_size each read all 16, so
+# the mirror must copy all 16 into every hermetic case or the smoke/planted runs would FAIL on a
+# missing role. `_role-switch-protocol.md` is NOT one of the 16 (no caveman block) — excluded.
 GUARD_INPUTS="AGENTS.md \
 .claude/skills/grugops/SKILL.md \
 .claude/agents/grugops-orchestrator.md \
 agent-factory/packaging/subagent.frontmatter.md \
 agent-factory/packaging/slash-command.template.md \
-agent-factory/roles/security-nfr.md \
+agent-factory/roles/agents-md-scribe.md \
+agent-factory/roles/architect-design.md \
+agent-factory/roles/ba-pm.md \
+agent-factory/roles/brownfield-mapper.md \
 agent-factory/roles/compliance-officer.md \
-agent-factory/roles/incident-responder.md"
+agent-factory/roles/factory-coach.md \
+agent-factory/roles/greenfield-mapper.md \
+agent-factory/roles/incident-responder.md \
+agent-factory/roles/installer.md \
+agent-factory/roles/orchestrator.md \
+agent-factory/roles/qe-e2e.md \
+agent-factory/roles/release-manager.md \
+agent-factory/roles/security-nfr.md \
+agent-factory/roles/software-engineer.md \
+agent-factory/roles/system-analyst.md \
+agent-factory/roles/uat-planner.md"
 
 # mirror <case> — build $WORK/<case> with byte-faithful copies of every guard input + the guard
 # script itself, recreating the relative dir layout so the guard's hard-coded paths resolve. Echo
@@ -164,6 +182,65 @@ expect_fail "voice marker in clear-voice surface → nonzero + role path" "$M" "
 M=$(mirror voice-missing)
 rm -f "$M/agent-factory/roles/compliance-officer.md"
 expect_fail "voice missing file → nonzero + 'compliance-officer.md' (structured, not awk abort)" "$M" "compliance-officer.md"
+
+# guard_voice (D-05 refinement is NARROW, not weakened — T-11-07) — plant a NEW clear-voice grug
+# phrase ("grug voice" / a `/grug` brand command) into a clear-voice surface; the refinement must
+# ACCEPT it (still GREEN), proving the all-16 expansion's marker-neutralization is real. The
+# `voice-marker` case above already proves a BARE `grug smash` STILL fails — so the refinement
+# narrows the false positives without eroding the real catch.
+M=$(mirror voice-refine-accept)
+printf '\nThe Scribe may add a light grug wink in Mission; route every `/grug` request to grug voice.\n' >> "$M/agent-factory/roles/security-nfr.md"
+run_in "$M"
+if [ "$RC" -eq 0 ] && printf '%s' "$OUT" | grep -qF 'ALL CHECKS PASSED'; then
+  pass "voice refinement accepts clear-voice grug-meta + /grug (narrow, not weakened)"
+else
+  fail "voice refinement should accept clear-voice grug-meta (rc=$RC: $OUT)"
+fi
+
+# ---------------------------------------------------------------------------
+# guard_caveman_preserved (D-06 RED) — SAND the caveman voice off a role: replace the lines INSIDE
+# the fenced `## Caveman prompt` block with marker-free professional prose (fences + rest of file
+# preserved). Assert guard_caveman_preserved fails red naming the role + a caveman/sanded/marker
+# token. This is the no-fabrication proof that D-06 cannot only-ever-pass.
+# ---------------------------------------------------------------------------
+printf '\n-- guard_caveman_preserved (D-06 RED) --\n'
+M=$(mirror caveman-sanded)
+awk '
+  /^## Caveman prompt/ {seen=1; print; next}
+  seen && /^```/ {
+    fence++
+    print
+    if (fence==1) { print "The role evaluates the repository with professional diligence."; infence=1; next }
+    if (fence==2) { infence=0; seen=0; next }
+  }
+  infence { next }
+  { print }
+' "$M/agent-factory/roles/brownfield-mapper.md" > "$M/agent-factory/roles/brownfield-mapper.sanded" \
+  && mv "$M/agent-factory/roles/brownfield-mapper.sanded" "$M/agent-factory/roles/brownfield-mapper.md"
+expect_fail "sanded caveman block → nonzero + 'no caveman marker'" "$M" "no caveman marker"
+
+# guard_caveman_preserved (CR-02) — plant a MISSING role; assert a STRUCTURED fail naming the path,
+# not a raw awk abort (same set -eu class as voice-missing). A deleted role must fail red.
+M=$(mirror caveman-missing)
+rm -f "$M/agent-factory/roles/ba-pm.md"
+expect_fail "caveman missing role → nonzero + 'ba-pm.md' (structured, not awk abort)" "$M" "ba-pm.md"
+
+# ---------------------------------------------------------------------------
+# guard_role_size (D-07 RED) — BLOAT a role past its locked FAIL ceiling with the yes|head idiom
+# (mirrors adapter-oversize). brownfield-mapper.md's FAIL ceiling is 2487 B; pad to 6000 B so it
+# trips regardless. Assert guard_role_size fails red naming the role + 'bloated'.
+# ---------------------------------------------------------------------------
+printf '\n-- guard_role_size (D-07 RED) --\n'
+M=$(mirror role-oversize)
+yes x | head -c 6000 > "$M/agent-factory/roles/brownfield-mapper.md"
+printf '\n' >> "$M/agent-factory/roles/brownfield-mapper.md"
+expect_fail "oversize role (>ceiling) → nonzero + 'bloated'" "$M" "bloated"
+
+# guard_role_size (CR-01) — plant a MISSING role; assert it fails red naming the path, not a
+# vacuous-PASS on an empty `wc -c <` byte count (mirrors adapter-missing).
+M=$(mirror role-size-missing)
+rm -f "$M/agent-factory/roles/installer.md"
+expect_fail "role-size missing role → nonzero + 'installer.md missing'" "$M" "installer.md missing"
 
 # ---------------------------------------------------------------------------
 # Smoke — the REAL guard over the REAL tree must be GREEN (exit 0). Proves the guards do not
