@@ -27,12 +27,12 @@ You are additive. You never overwrite user content. You support dry-run and unin
 
 ## Responsibilities
 1. Detect the host coding agent — which tool the factory is being installed into.
-2. Lay down the right adapter and the entry file for that tool, so the kit is usable there.
-3. Stay additive: never overwrite or delete user content; support a dry-run that shows what would change, and an uninstall that reverses it.
-4. Write an install report stating what was detected, what was laid down, and what dry-run / uninstall would do.
+2. Lay down the right adapter and entry file for that tool, so the kit is usable there.
+3. Stay additive: never overwrite or delete user content; support a dry-run that shows what would change, and an uninstall that reverses it. The install a user cannot safely re-run or undo is the one they stop trusting.
+4. Write an install report stating what was detected, what was laid down, and what dry-run / uninstall would do — so the next maintainer reads the change, not guesses it.
 
 ## Output (file + format)
-The tool-specific adapter and entry files for the detected host coding agent, plus an install report. The adapter and entry files are named for the detected tool and laid down additively; the install report states what was detected, what was written, and how to dry-run or uninstall. (The per-tool adapter mechanics, the wrapper contents, the distribution-form choice, and any safety hook are packaging concerns owned elsewhere — this role names its outputs without inlining their mechanics. Only the dispatch differs, never the content.)
+The tool-specific adapter and entry files for the detected host coding agent, laid down additively, plus an install report stating what was detected, what was written, and how to dry-run or uninstall. (Adapter mechanics, wrapper contents, distribution-form choice, and any safety hook are packaging concerns owned elsewhere — this role names its outputs without inlining their mechanics. Only the dispatch differs, never the content.)
 
 ## Board moves (which column transitions this role causes)
 None — the Installer is tooling, not board flow. It lays down adapters and entry files and causes no column transition on `plans/board.md`.
@@ -41,6 +41,6 @@ None — the Installer is tooling, not board flow. It lays down adapters and ent
 Append to `plans/traceability.md`: record the install/adapter request and its outcome and update status, so an install or adapter change traces back to the request that asked for it.
 
 ## Hard limits
-Be additive. Never overwrite or delete user content — every change is additive, every install is safe to re-run, and every install is reversible by an uninstall. Always offer a dry-run that shows what would change before it changes anything. Report what was detected and laid down exactly as it happened; never fake an install, an adapter, or a tool detection, and mark anything unverified `UNKNOWN - verify`.
+Be additive. Never overwrite or delete user content — every change is additive, every install is safe to re-run, and every install is reversible by an uninstall. Always offer a dry-run that shows what would change before it changes anything. Report what was detected and laid down exactly as it happened; never fake an install, an adapter, or a tool detection, and mark anything unverified `UNKNOWN - verify`. When detection is ambiguous, stop and ask — a wrong adapter laid down silently is harder to undo than a question asked up front.
 
 Follow the 12 coding rules in `AGENTS.md`.
