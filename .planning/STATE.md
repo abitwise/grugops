@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: SDLC Depth, Quality Discipline & Browsable Docs
 status: executing
-last_updated: "2026-06-10T21:38:49.612Z"
+last_updated: "2026-06-10T21:51:45.440Z"
 last_activity: 2026-06-10
 progress:
   total_phases: 8
   completed_phases: 1
   total_plans: 9
-  completed_plans: 5
+  completed_plans: 6
   percent: 13
 ---
 
@@ -25,11 +25,11 @@ See: .planning/PROJECT.md (updated 2026-06-09 — v1.2 milestone started)
 ## Current Position
 
 Phase: 11 (senior-persona-overhaul) — EXECUTING
-Plan: 2 of 5
+Plan: 3 of 5
 Status: Ready to execute
 Last activity: 2026-06-10
 
-Progress: [██████░░░░] 56%
+Progress: [███████░░░] 67%
 
 ## Performance Metrics
 
@@ -113,6 +113,7 @@ Progress: [██████░░░░] 56%
 | Phase 10 P03 | 7m | 2 tasks | 4 files |
 | Phase 10 P04 | 6m | 2 tasks | 2 files |
 | Phase 11 P01 | 20m | 2 tasks | 7 files |
+| Phase 11 P02 | 25m | 2 tasks | 8 files |
 
 ## Accumulated Context
 
@@ -231,6 +232,8 @@ Recent decisions affecting current work:
 - [Phase ?]: [10-04] validate.test.sh gains three hermetic assertions (mktemp -d from fixtures/good, no committed bad-fixture dir): asvs_level=L4 + test_integrity=off both fail red and name the key; fixtures/good (none of the 8 keys) still exits 0 (SC4); cmp -s proves config/ == seed/.grugops/ byte-identical. SC3 fully closed (schema in 10-03, recognition here).
 - [Phase ?]: [11-01] Senior persona depth lands as a sharp clause woven into an existing skeleton section, paid for by compressing weak connective prose elsewhere — never a net byte addition (enforces D-04 token economy)
 - [Phase ?]: [11-01] 'Flat-or-smaller' (D-04) read as 'within the plan-defined +6% guard_role_size ceiling', not 'below raw baseline'; all 7 wave-1 roles pass their ceilings and guard_voice over the 2 clear-voice safety roles stays green
+- [Phase 11]: [11-02] Senior persona depth lands as a sharp clause woven into an existing skeleton section, paid for by compressing weak connective prose elsewhere — never a net byte addition (D-04 token economy); the orchestrator size outlier (banner/Routing matrix/WIP-DoR gate/XL-split/workflow table/clear-voice safety) is preserved verbatim, not normalized away (D-03)
+- [Phase 11]: [11-02] All clear-voice safety surfaces deepened in plain English only — release-manager named-human deploy gate (SAFE-01), software-engineer no-fake-results, installer additive/never-overwrite/dry-run, security-nfr PASS|PASS_WITH_RISKS|BLOCKED findings; security-nfr stays guard_voice-clean; all 8 roles within +6% ceilings
 
 ### Pending Todos
 
@@ -273,6 +276,6 @@ Items acknowledged and deferred at the v1.1 milestone close on 2026-06-08. All a
 
 ## Session Continuity
 
-Last session: 2026-06-10T21:38:24.168Z
-Stopped at: Phase 11 context gathered
+Last session: 2026-06-10T21:51:45.428Z
+Stopped at: Completed 11-02-PLAN.md
 Resume file: None

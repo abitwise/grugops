@@ -97,7 +97,7 @@ Full phase details + milestone summary: `milestones/v1.1-ROADMAP.md` · requirem
 **Wave 1**
 
 - [x] 11-01-PLAN.md — Senior rewrite of 7 roles (scribe, architect, brownfield, factory-coach, greenfield, compliance, incident) in place [PERS-01]
-- [ ] 11-02-PLAN.md — Senior rewrite of 8 roles (installer, orchestrator outlier, qe-e2e, release, security-nfr, engineer, system-analyst, uat) in place [PERS-01]
+- [x] 11-02-PLAN.md — Senior rewrite of 8 roles (installer, orchestrator outlier, qe-e2e, release, security-nfr, engineer, system-analyst, uat) in place [PERS-01]
 - [ ] 11-03-PLAN.md — ba-pm senior rewrite + senior BA deepening (DoR hub INVEST/measurable-NFR, workflow 07, packet aligned) [PERS-01, PERS-02]
 
 **Wave 2** *(blocked on Wave 1 completion)*
@@ -214,7 +214,7 @@ Phases execute in numeric order: 10 → 11 → 12 → 13 → 14 → 15 → 16 �
 | 8. Two-Root Installer | v1.1 | 4/4 | Complete | 2026-06-07 |
 | 9. Doctor & Two-Root Validator | v1.1 | 6/6 | Complete | 2026-06-08 |
 | 10. SDLC-Coverage Audit & Foundation Guards | v1.2 | 4/4 | Complete    | 2026-06-10 |
-| 11. Senior Persona Overhaul | v1.2 | 1/5 | In Progress|  |
+| 11. Senior Persona Overhaul | v1.2 | 2/5 | In Progress|  |
 | 12. BDD + TDD Wiring | v1.2 | 0/TBD | Not started | - |
 | 13. Frontend/UI Persona & Design→Build Workflow | v1.2 | 0/TBD | Not started | - |
 | 14. Security Audit (OWASP ASVS) & Checklist Re-Anchor | v1.2 | 0/TBD | Not started | - |
