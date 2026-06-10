@@ -298,6 +298,82 @@ $f: no caveman marker (voice sanded off?)"
 }
 
 # ---------------------------------------------------------------------------
+# guard_role_size — per-role byte ceiling, byte-for-byte mirror of guard_adapter_size (D-07).
+#
+# Enforces the D-04 token-economy invariant in code: the terse caveman voice is grugops's
+# cost mechanism, so "senior" must mean SHARPER JUDGMENT PER TOKEN, not more prose. A rewrite
+# that bloats a role into verbose professional English fails red.
+#
+# PER-FILE documented constants (NOT a flat number, NOT computed live):
+#   - a flat ceiling either punishes orchestrator's legitimate 6286 B outlier (routing matrix +
+#     WIP/DoR gate + XL-split + workflow table that NO other role has) OR licenses every other
+#     role to bloat to 6 KB;
+#   - a live-computed `current size` ceiling is tautological — it can never fail.
+# So each role gets its OWN two-tier WARN->FAIL ceiling, hard-coded from the 2026-06-10 baseline:
+#   FAIL = baseline + 12%, WARN = baseline + 6%. Byte-based (mirrors guard_adapter_size): a
+#   bloated file can carry few long lines, so a line count under-counts it.
+#
+# ba-pm.md gets EXTRA headroom (FAIL = baseline +20%, WARN = +12%): it legitimately gains senior
+# BA judgment via PERS-02 (INVEST, measurable acceptance + NFR, DoR rigor). It still fails a
+# *bloated* rewrite — the larger headroom is documented, not a blank cheque.
+#
+# `_role-switch-protocol.md` (2326 B) is the protocol, NOT a persona — EXCLUDED (uses ROLE_FILES,
+# the 16-file list shared with guard_voice + guard_caveman_preserved).
+#
+# CR-01 missing-file fail-red (mirrors guard_adapter_size): a deleted role must fail red NAMING
+# the path, never vacuous-pass on an empty `wc -c <` byte count.
+# ---------------------------------------------------------------------------
+# Per-role FAIL/WARN ceilings keyed by basename. Baseline captured 2026-06-10; FAIL = +12% /
+# WARN = +6% off baseline (ba-pm.md = +20% / +12% PERS-02 headroom). Looked up via `case` since
+# POSIX sh has no associative arrays.
+role_ceiling() {
+  # $1 = role basename → echoes "FAIL WARN"
+  case "$1" in
+    orchestrator.md)       echo "7041 6664" ;;
+    security-nfr.md)       echo "4576 4331" ;;
+    compliance-officer.md) echo "4160 3937" ;;
+    release-manager.md)    echo "4144 3922" ;;
+    agents-md-scribe.md)   echo "3910 3701" ;;
+    architect-design.md)   echo "3617 3423" ;;
+    ba-pm.md)              echo "3294 3075" ;;  # PERS-02 BA headroom (+20% / +12%)
+    factory-coach.md)      echo "3420 3237" ;;
+    incident-responder.md) echo "3387 3206" ;;
+    installer.md)          echo "3345 3166" ;;
+    software-engineer.md)  echo "3307 3130" ;;
+    qe-e2e.md)             echo "3224 3051" ;;
+    uat-planner.md)        echo "3149 2980" ;;
+    system-analyst.md)     echo "2809 2659" ;;
+    greenfield-mapper.md)  echo "2673 2530" ;;
+    brownfield-mapper.md)  echo "2487 2354" ;;
+    *)                     echo "" ;;
+  esac
+}
+
+guard_role_size() {
+  printf '\n[guard_role_size] roles stay terse — senior != verbose (per-file byte ceiling, D-07)\n'
+  for f in $ROLE_FILES; do
+    # CR-01 missing-file fail-red: a deleted role must fail red naming the path, not pass on an
+    # empty `wc -c <` byte count.
+    if [ ! -f "$f" ]; then
+      fail "$f missing (role required)"
+      continue
+    fi
+    base=$(basename -- "$f")
+    ceil=$(role_ceiling "$base")
+    if [ -z "$ceil" ]; then
+      fail "$f has no documented ceiling (unknown role — update role_ceiling)"
+      continue
+    fi
+    rfail=${ceil%% *}
+    rwarn=${ceil##* }
+    b=$(wc -c < "$f" | tr -d ' ')
+    if   [ "$b" -ge "$rfail" ]; then fail "$f ${b}B >= ${rfail}B — role bloated (senior != verbose)"
+    elif [ "$b" -ge "$rwarn" ]; then warn "$f ${b}B >= ${rwarn}B — approaching ceiling"
+    else pass "$f ${b}B within ceiling"; fi
+  done
+}
+
+# ---------------------------------------------------------------------------
 # Run all guards.
 # ---------------------------------------------------------------------------
 printf '== Phase 10 foundation-guards gate (SDLC-02 / SC2) ==\n'
@@ -306,6 +382,7 @@ guard_agents_bytes
 guard_adapter_size
 guard_voice
 guard_caveman_preserved
+guard_role_size
 
 # ---------------------------------------------------------------------------
 # Result
