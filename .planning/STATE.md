@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: SDLC Depth, Quality Discipline & Browsable Docs
 status: executing
-last_updated: "2026-06-10T22:00:47.377Z"
+last_updated: "2026-06-10T22:11:38.747Z"
 last_activity: 2026-06-10
 progress:
   total_phases: 8
   completed_phases: 1
   total_plans: 9
-  completed_plans: 7
+  completed_plans: 8
   percent: 13
 ---
 
@@ -25,11 +25,11 @@ See: .planning/PROJECT.md (updated 2026-06-09 — v1.2 milestone started)
 ## Current Position
 
 Phase: 11 (senior-persona-overhaul) — EXECUTING
-Plan: 4 of 5
+Plan: 5 of 5
 Status: Ready to execute
 Last activity: 2026-06-10
 
-Progress: [████████░░] 78%
+Progress: [█████████░] 89%
 
 ## Performance Metrics
 
@@ -115,6 +115,7 @@ Progress: [████████░░] 78%
 | Phase 11 P01 | 20m | 2 tasks | 7 files |
 | Phase 11 P02 | 25m | 2 tasks | 8 files |
 | Phase 11 P03 | 6m | 2 tasks | 4 files |
+| Phase 11 P04 | 18m | 3 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -237,6 +238,9 @@ Recent decisions affecting current work:
 - [Phase 11]: [11-02] All clear-voice safety surfaces deepened in plain English only — release-manager named-human deploy gate (SAFE-01), software-engineer no-fake-results, installer additive/never-overwrite/dry-run, security-nfr PASS|PASS_WITH_RISKS|BLOCKED findings; security-nfr stays guard_voice-clean; all 8 roles within +6% ceilings
 - [Phase ?]: [11-03] ba-pm is the 16th and final role rewrite (PERS-01) landed with the senior BA deepening (PERS-02) in one coherent edit; senior BA judgment (INVEST, testable+measurable acceptance, measurable NFR targets, DoR rigor) woven into existing sections, paid for by compression — 2745->3291 B within the 3294 B BA-headroom ceiling (D-04)
 - [Phase ?]: [11-03] DoR deepened as the single INVEST + measurable-NFR hub (D-08); INVEST-shaping became one new gated check so its matching '## INVEST shape' field was added to ticket-ready-packet.md in the same task to keep the DoR<->packet 1:1 contract (T-11-05/Pitfall 5); Given/When/Then prose line KEPT, zero Three Amigos/Example Mapping/executable scenarios across ba-pm+DoR+workflow 07 (D-09)
+- [Phase ?]: [11-04] guard_voice expanded to all 16 roles (D-05); the marker refinement lands FIRST as a separate per-phrase awk gsub neutralizing /grug + grug voice/wink before the grep, so the all-16 scan ships GREEN with no orchestrator/Scribe false positive and a bare grug-smash still fails (the fence anchor is NOT re-engineered, D-10)
+- [Phase ?]: [11-04] D-06 guard_caveman_preserved CAVEMAN_MARKERS = VOICE_MARKERS idioms + ^You\b — the clean caveman blocks are clipped second-person imperatives with NO literal grug idiom, so plain VOICE_MARKERS would ship RED; ^You\b is the cadence separating a real block from a sanded prose rewrite (all 16 hit, sanded prose does not)
+- [Phase ?]: [11-04] D-07 guard_role_size uses locked per-file 2026-06-10 ceilings (FAIL +12% / WARN +6%; orchestrator outlier 7041/6664; ba-pm BA headroom 3294/3075) via a POSIX-sh case lookup — NOT a flat number and NOT live-computed; ba-pm at 3291B emits an advisory WARN, build stays GREEN
 
 ### Pending Todos
 
@@ -279,6 +283,6 @@ Items acknowledged and deferred at the v1.1 milestone close on 2026-06-08. All a
 
 ## Session Continuity
 
-Last session: 2026-06-10T22:00:34.166Z
+Last session: 2026-06-10T22:11:28.232Z
 Stopped at: Completed 11-02-PLAN.md
 Resume file: None
