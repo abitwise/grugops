@@ -93,7 +93,12 @@ Full phase details + milestone summary: `milestones/v1.1-ROADMAP.md` · requirem
   3. Both packaging templates (`subagent.frontmatter.md`, `slash-command.template.md`) carry NO spawn-tool grant — the WR-05 grep guard passes on the templates and on a fresh regeneration (re-run after the rewrite), preserving single-window sequential role-load across all five host CLIs; the WR-05 debt marker is closed in PROJECT.md / STATE.md / the SDLC audit / retrospective.
   4. New persona depth lives once under `agent-factory/`; the per-tool adapters stay pointer-sized (single-source adapter check passes).
 
-**Plans**: TBD
+**Plans**: 5 plans
+- [ ] 11-01-PLAN.md — Senior rewrite of 7 roles (scribe, architect, brownfield, factory-coach, greenfield, compliance, incident) in place [PERS-01]
+- [ ] 11-02-PLAN.md — Senior rewrite of 8 roles (installer, orchestrator outlier, qe-e2e, release, security-nfr, engineer, system-analyst, uat) in place [PERS-01]
+- [ ] 11-03-PLAN.md — ba-pm senior rewrite + senior BA deepening (DoR hub INVEST/measurable-NFR, workflow 07, packet aligned) [PERS-01, PERS-02]
+- [ ] 11-04-PLAN.md — 3 guard changes (voice→all 16 + refine, caveman-preserved, role-size) + fail-proof fixtures, ship GREEN [PERS-01]
+- [ ] 11-05-PLAN.md — WR-05 re-run (regen-safety, last check) + close 4 markers + reconcile audit GAP-2 row [PERS-03]
 **UI hint**: no  <!-- markdown role-prompt rewrite; no visual UI — the frontend/UI persona is Phase 13 -->
 **Context note**: PERS-01 mechanism changed during discuss-phase (2026-06-10) — see `.planning/phases/11-senior-persona-overhaul/11-CONTEXT.md`. Original "add a What-good-looks-like/When-to-escalate section" replaced by in-place persona deepening at the user's direction (the model already carries generic quality knowledge; the value is a sophisticated persona, and the terse caveman voice is the token-economy mechanism).
 
@@ -196,7 +201,7 @@ Phases execute in numeric order: 10 → 11 → 12 → 13 → 14 → 15 → 16 �
 | 8. Two-Root Installer | v1.1 | 4/4 | Complete | 2026-06-07 |
 | 9. Doctor & Two-Root Validator | v1.1 | 6/6 | Complete | 2026-06-08 |
 | 10. SDLC-Coverage Audit & Foundation Guards | v1.2 | 4/4 | Complete    | 2026-06-10 |
-| 11. Senior Persona Overhaul | v1.2 | 0/TBD | Not started | - |
+| 11. Senior Persona Overhaul | v1.2 | 0/5 | Not started | - |
 | 12. BDD + TDD Wiring | v1.2 | 0/TBD | Not started | - |
 | 13. Frontend/UI Persona & Design→Build Workflow | v1.2 | 0/TBD | Not started | - |
 | 14. Security Audit (OWASP ASVS) & Checklist Re-Anchor | v1.2 | 0/TBD | Not started | - |
