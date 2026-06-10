@@ -26,12 +26,23 @@
 #                        invariant) is ~470 chars, so a line count under-counts a bloated
 #                        file. A pointer-only adapter that grows past the ceiling signals a
 #                        role body was copied in, breaking single-source.
-#   guard_voice        — voice-discipline lint over the curated clear-voice surfaces
-#                        (security/compliance/incident roles). SECTION-scoped: strips the
-#                        single fenced `## Caveman prompt` block (intentionally caveman), then
+#   guard_voice        — voice-discipline lint over ALL 16 role files (D-05 expansion from the
+#                        3 curated security/compliance/incident surfaces). SECTION-scoped: strips
+#                        the single fenced `## Caveman prompt` block (intentionally caveman), then
 #                        greps the clear-voice remainder for caveman markers. Uses `\bgrug\b`
 #                        (word-boundary — CRITICAL: bare `grug` false-positives on `.grugops/`
 #                        in every role's `## Reads` section, D-10).
+#                        D-05 marker refinement (verified false positives across the clean 16-role
+#                        tree, RESEARCH Pitfall 1): `\bgrug\b` treats `/` as a word boundary, so
+#                        the `/grug` BRAND COMMAND (orchestrator.md) matches; and the Scribe
+#                        legitimately DESCRIBES the voice rule in clear prose ("grug wink" /
+#                        "grug voice", agents-md-scribe.md). The refinement NEUTRALIZES exactly
+#                        these three clear-voice phrasings (`/grug`, `grug voice`, `grug wink`)
+#                        before the marker grep — pattern-based so a senior rewrite introducing
+#                        NEW clear-voice grug prose stays green, while a bare `grug smash` in a
+#                        clear-voice surface STILL fails (the neutralization is per-phrase, not
+#                        per-line: a real violation on the SAME line as an accepted phrase still
+#                        trips). The awk fence anchor is NOT re-engineered (D-10 forward-compat).
 #
 # Strictly READ-ONLY: grep / wc / awk / test only. No writes, no in-place edits, no `--fix`.
 # House style mirrors scripts/check-kit-refs.sh: #!/usr/bin/env sh, set -eu, printf not
@@ -163,9 +174,27 @@ guard_adapter_size() {
 # role, those new sections are AUTOMATICALLY scanned — no guard change is needed. Phase 11
 # must NOT re-engineer this anchor.
 # ---------------------------------------------------------------------------
-VOICE_FILES="agent-factory/roles/security-nfr.md \
+# The 16 role files (D-05 expansion). `_role-switch-protocol.md` is the protocol, NOT a persona —
+# it has no `## Caveman prompt` block, so it is correctly EXCLUDED from the 16 (and from ROLE_FILES
+# in guard_role_size + guard_caveman_preserved). This same 16-file list is the scan set for all
+# three role guards (guard_voice, guard_caveman_preserved, guard_role_size).
+ROLE_FILES="agent-factory/roles/agents-md-scribe.md \
+agent-factory/roles/architect-design.md \
+agent-factory/roles/ba-pm.md \
+agent-factory/roles/brownfield-mapper.md \
 agent-factory/roles/compliance-officer.md \
-agent-factory/roles/incident-responder.md"
+agent-factory/roles/factory-coach.md \
+agent-factory/roles/greenfield-mapper.md \
+agent-factory/roles/incident-responder.md \
+agent-factory/roles/installer.md \
+agent-factory/roles/orchestrator.md \
+agent-factory/roles/qe-e2e.md \
+agent-factory/roles/release-manager.md \
+agent-factory/roles/security-nfr.md \
+agent-factory/roles/software-engineer.md \
+agent-factory/roles/system-analyst.md \
+agent-factory/roles/uat-planner.md"
+VOICE_FILES="$ROLE_FILES"
 VOICE_MARKERS='\bgrug\b|\bclub\b|\brock\b|\bcave\b|\bsmash\b|\bshiny\b|brain hurt|me think|no think|big think'
 
 guard_voice() {
@@ -183,12 +212,24 @@ $f: required voice file missing"
       continue
     fi
     # Strip the single fenced `## Caveman prompt` block, then scan the clear-voice remainder.
+    # (D-10 forward-compat: this anchor is NOT re-engineered for the D-05 expansion.)
     body=$(awk '
       /^## Caveman prompt/ {skip=1}
       skip && /^```/        {fence++; if(fence==2){skip=0;fence=0}; next}
       skip                  {next}
       {print}
     ' "$f")
+    # D-05 marker refinement (a SEPARATE pass — does NOT touch the fence anchor above): neutralize
+    # the three verified clear-voice grug phrasings so the all-16 scan ships GREEN. `/grug` is the
+    # brand command; "grug voice" / "grug wink" are the Scribe's clear-voice descriptions of the
+    # voice rule. Per-phrase gsub (NOT a per-line grep -v) so a bare `grug smash` on the SAME line
+    # as an accepted phrase STILL trips. `BRANDCMD`/`voice-meta`/`wink-meta` are marker-free fillers.
+    body=$(printf '%s\n' "$body" | awk '{
+      gsub(/\/grug/, "BRANDCMD")
+      gsub(/grug voice/, "voice-meta")
+      gsub(/grug wink/, "wink-meta")
+      print
+    }')
     m=$(printf '%s\n' "$body" | grep -nE "$VOICE_MARKERS" || true)
     [ -n "$m" ] && voice_fail="$voice_fail
 $f:
@@ -202,13 +243,69 @@ $m"
 }
 
 # ---------------------------------------------------------------------------
-# Run all four guards.
+# guard_caveman_preserved — the POSITIVE INVERSE of guard_voice (D-06).
+#
+# guard_voice strips the `## Caveman prompt` block and asserts the REMAINDER is marker-free;
+# this guard keeps ONLY the block and asserts it is non-empty AND carries >=1 caveman marker —
+# so the senior-persona rewrite (Phase 11) cannot SAND THE GRUG VOICE OFF. The terse caveman
+# prompt is grugops's token-economy mechanism; a rewrite that flattens it into verbose
+# professional prose must fail red, not pass silently. Scans the SAME 16 ROLE_FILES.
+#
+# The fence-counting awk is the verified guard_voice idiom INVERTED — print only the lines
+# INSIDE the fenced block (between the first and second ``` after `## Caveman prompt`).
+#
+# CAVEMAN_MARKERS (D-06 discretion — ALIGNED WITH, then extended from, guard_voice's
+# VOICE_MARKERS): the explicit grug idioms PLUS `^You\b`. The clean-tree caveman blocks are
+# written as clipped second-person imperatives ("You are <Role>.", "You do not refactor.") and
+# do NOT carry a literal `grug`/`me think` idiom — so VOICE_MARKERS alone would fail RED on the
+# clean tree (verified). `^You\b` is the universal caveman cadence that distinguishes a real
+# grug block from a SANDED professional-prose rewrite (verified: all 16 clean blocks hit, a
+# flowing professional-prose block does not). A bare grug idiom (`grug smash` etc.) also counts.
+#
+# CR-02 presence-first (same class as guard_voice): a missing role must fail red NAMING the path,
+# never let a non-zero awk exit abort the script under set -eu before the summary prints.
+# ---------------------------------------------------------------------------
+CAVEMAN_MARKERS="$VOICE_MARKERS|^You\\b"
+
+guard_caveman_preserved() {
+  printf '\n[guard_caveman_preserved] every role keeps a non-empty caveman prompt block (D-06)\n'
+  cav_fail=
+  for f in $ROLE_FILES; do
+    if [ ! -f "$f" ]; then
+      cav_fail="$cav_fail
+$f: required role file missing (caveman prompt block missing or empty)"
+      continue
+    fi
+    # Keep ONLY the lines INSIDE the fenced `## Caveman prompt` block (inverse of guard_voice).
+    block=$(awk '
+      /^## Caveman prompt/ {seen=1; next}
+      seen && /^```/        {fence++; if(fence==1){infence=1; next}; if(fence==2){exit}}
+      infence               {print}
+    ' "$f")
+    if [ -z "$block" ]; then
+      cav_fail="$cav_fail
+$f: caveman prompt block missing or empty"
+    elif ! printf '%s\n' "$block" | grep -qE "$CAVEMAN_MARKERS"; then
+      cav_fail="$cav_fail
+$f: no caveman marker (voice sanded off?)"
+    fi
+  done
+  if [ -z "$cav_fail" ]; then
+    pass "caveman: all 16 roles keep a non-empty markered caveman prompt block"
+  else
+    fail "caveman-preserved violation:$cav_fail"
+  fi
+}
+
+# ---------------------------------------------------------------------------
+# Run all guards.
 # ---------------------------------------------------------------------------
 printf '== Phase 10 foundation-guards gate (SDLC-02 / SC2) ==\n'
 guard_wr05
 guard_agents_bytes
 guard_adapter_size
 guard_voice
+guard_caveman_preserved
 
 # ---------------------------------------------------------------------------
 # Result
