@@ -49,7 +49,7 @@ Full phase details + milestone summary: `milestones/v1.1-ROADMAP.md` · requirem
 **Milestone Goal:** Make grugops's delivery lifecycle senior-grade and trustworthy end-to-end — deeper personas with full SDLC coverage (especially the business→engineer handoff), test-first by default (BDD at acceptance + TDD at the unit layer, config-dialed), automated UI build+test, OWASP ASVS security auditing, an un-cheatable quality gate, code linting, browsable docs — and finally ship the deferred install migrate/update story. Introspective milestone: most work improves grugops's own markdown kit; "UI / tests / security" are capabilities grugops gives its *users* through roles + workflows + the gate, since grugops itself is markdown.
 
 - [x] **Phase 10: SDLC-Coverage Audit & Foundation Guards** - Audit lifecycle coverage; land the mechanical guards (WR-05 spawn grep, adapter-size, AGENTS.md byte budget, voice-lint) and the config-dial contract + schema before any content lands (all 4 plans executed 2026-06-09; awaiting phase verification) (completed 2026-06-10)
-- [ ] **Phase 11: Senior Persona Overhaul** - Add a clear-voice "What good looks like / When to escalate" section to every role, deepen the business-analysis persona to senior, retire WR-05 in the packaging templates
+- [ ] **Phase 11: Senior Persona Overhaul** - Deepen every role to senior judgment in place (no new section; terse caveman voice preserved as the token-economy mechanism), deepen the business-analysis persona to senior, retire WR-05 in the packaging templates
 - [ ] **Phase 12: BDD + TDD Wiring** - Given-when-then acceptance contract (Three Amigos) + red-green TDD double-loop across the BA/QE/engineer roles, workflows, and handoffs; both config-dialed
 - [ ] **Phase 13: Frontend/UI Persona & Design→Build Workflow** - New senior frontend/UI role (no spawn) + a UI design→build workflow (workflow 14); Orchestrator routes UI work to it
 - [ ] **Phase 14: Security Audit (OWASP ASVS) & Checklist Re-Anchor** - New security-audit workflow (workflow 15) + an ASVS 5.0-generated L1/L2/L3 checklist; ASVS level config-dialed; clear-voice findings
@@ -83,18 +83,19 @@ Full phase details + milestone summary: `milestones/v1.1-ROADMAP.md` · requirem
 
 ### Phase 11: Senior Persona Overhaul
 
-**Goal**: Lay the substrate every later content phase depends on — raise all personas to senior judgment via one new clear-voice skeleton section, deepen the business-analysis persona, and retire the WR-05 spawn-grant from the packaging templates.
+**Goal**: Lay the substrate every later content phase depends on — raise all personas to senior judgment by deepening each role in place (no new section; the terse grug caveman voice is preserved as grugops's token-economy mechanism), deepen the business-analysis persona, and retire the WR-05 spawn-grant from the packaging templates.
 **Depends on**: Phase 10
 **Requirements**: PERS-01, PERS-02, PERS-03
 **Success Criteria** (what must be TRUE):
 
-  1. Every role prompt carries a clear-voice "What good looks like / When to escalate" section capturing senior judgment, while the grug caveman voice is preserved in the prompt body (verified by the voice-lint guard from Phase 10).
-  2. The business-analysis persona + its workflow are deepened to senior level — INVEST-shaped user stories, explicit acceptance criteria, measurable NFRs, and a Definition of Ready that closes the business→engineer handoff.
-  3. Both packaging templates (`subagent.frontmatter.md`, `slash-command.template.md`) carry NO spawn-tool grant — the WR-05 grep guard passes on the templates and on a fresh regeneration, preserving single-window sequential role-load across all five host CLIs.
+  1. Every role prompt is deepened to senior judgment (long-term experience + forward-thinking) in place — no new section — while the terse grug caveman voice is preserved as grugops's token-economy mechanism (seniority = sharper judgment per token, not more prose). Verified mechanically by the Phase-10 voice-lint guard expanded to all 16 roles, a new caveman-preserved guard (every role keeps a non-empty `## Caveman prompt` block with ≥1 marker), and a new role-file size ceiling that fails a bloated rewrite. Each rewrite preserves the role's single `One job`, contract sections, pointer discipline, and AGENTS.md footer — persona + voice deepen, responsibilities do not.
+  2. The business-analysis persona + its workflow are deepened to senior level — INVEST-shaped user stories, explicit acceptance criteria, measurable NFRs, and a Definition of Ready that closes the business→engineer handoff. Depth is single-sourced with `definition-of-ready.md` as the hub (`ba-pm.md` + `07-backlog-refinement.md` point to it); prose-quality only — executable given-when-then + Three Amigos are Phase 12.
+  3. Both packaging templates (`subagent.frontmatter.md`, `slash-command.template.md`) carry NO spawn-tool grant — the WR-05 grep guard passes on the templates and on a fresh regeneration (re-run after the rewrite), preserving single-window sequential role-load across all five host CLIs; the WR-05 debt marker is closed in PROJECT.md / STATE.md / the SDLC audit / retrospective.
   4. New persona depth lives once under `agent-factory/`; the per-tool adapters stay pointer-sized (single-source adapter check passes).
 
 **Plans**: TBD
-**UI hint**: yes
+**UI hint**: no  <!-- markdown role-prompt rewrite; no visual UI — the frontend/UI persona is Phase 13 -->
+**Context note**: PERS-01 mechanism changed during discuss-phase (2026-06-10) — see `.planning/phases/11-senior-persona-overhaul/11-CONTEXT.md`. Original "add a What-good-looks-like/When-to-escalate section" replaced by in-place persona deepening at the user's direction (the model already carries generic quality knowledge; the value is a sophisticated persona, and the terse caveman voice is the token-economy mechanism).
 
 ### Phase 12: BDD + TDD Wiring
 

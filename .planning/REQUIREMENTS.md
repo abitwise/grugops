@@ -19,7 +19,7 @@ Each maps to exactly one roadmap phase (traceability filled by the roadmapper).
 
 ### Senior Personas
 
-- [ ] **PERS-01**: Every role prompt gains a clear-voice "What good looks like / When to escalate" section capturing senior judgment, with the grug caveman voice preserved in the prompt body
+- [ ] **PERS-01**: Every role prompt is deepened to senior judgment (long-term experience + forward-thinking) in place — no new section — with the terse grug caveman voice preserved as grugops's token-economy mechanism (seniority = sharper judgment per token, not more prose); verified by the all-16-role voice-lint guard, a new caveman-preserved guard, and a new role-file size ceiling _(mechanism revised during discuss-phase 2026-06-10; see 11-CONTEXT.md)_
 - [ ] **PERS-02**: The business-analysis persona + workflow are deepened to senior level — INVEST-shaped user stories, explicit acceptance criteria, measurable NFRs, and a Definition of Ready that closes the business→engineer handoff
 - [ ] **PERS-03**: The packaging templates carry NO spawn-tool grant (WR-05 retired), preserving single-window sequential role-load across all five host CLIs
 
