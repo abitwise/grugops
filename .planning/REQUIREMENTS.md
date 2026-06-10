@@ -19,8 +19,8 @@ Each maps to exactly one roadmap phase (traceability filled by the roadmapper).
 
 ### Senior Personas
 
-- [ ] **PERS-01**: Every role prompt is deepened to senior judgment (long-term experience + forward-thinking) in place — no new section — with the terse grug caveman voice preserved as grugops's token-economy mechanism (seniority = sharper judgment per token, not more prose); verified by the all-16-role voice-lint guard, a new caveman-preserved guard, and a new role-file size ceiling _(mechanism revised during discuss-phase 2026-06-10; see 11-CONTEXT.md)_
-- [ ] **PERS-02**: The business-analysis persona + workflow are deepened to senior level — INVEST-shaped user stories, explicit acceptance criteria, measurable NFRs, and a Definition of Ready that closes the business→engineer handoff
+- [x] **PERS-01**: Every role prompt is deepened to senior judgment (long-term experience + forward-thinking) in place — no new section — with the terse grug caveman voice preserved as grugops's token-economy mechanism (seniority = sharper judgment per token, not more prose); verified by the all-16-role voice-lint guard, a new caveman-preserved guard, and a new role-file size ceiling _(mechanism revised during discuss-phase 2026-06-10; see 11-CONTEXT.md)_
+- [x] **PERS-02**: The business-analysis persona + workflow are deepened to senior level — INVEST-shaped user stories, explicit acceptance criteria, measurable NFRs, and a Definition of Ready that closes the business→engineer handoff
 - [ ] **PERS-03**: The packaging templates carry NO spawn-tool grant (WR-05 retired), preserving single-window sequential role-load across all five host CLIs
 
 ### BDD Acceptance Layer
@@ -108,8 +108,8 @@ Each requirement maps to exactly one phase. v1.2 phase numbering continues from 
 | SDLC-01 | Phase 10 | Complete |
 | SDLC-02 | Phase 10 | Complete |
 | SDLC-03 | Phase 10 | Complete |
-| PERS-01 | Phase 11 | Pending |
-| PERS-02 | Phase 11 | Pending |
+| PERS-01 | Phase 11 | Complete |
+| PERS-02 | Phase 11 | Complete |
 | PERS-03 | Phase 11 | Pending |
 | BDD-01 | Phase 12 | Pending |
 | BDD-02 | Phase 12 | Pending |

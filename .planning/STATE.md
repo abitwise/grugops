@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: SDLC Depth, Quality Discipline & Browsable Docs
 status: executing
-last_updated: "2026-06-10T21:51:45.440Z"
+last_updated: "2026-06-10T22:00:47.377Z"
 last_activity: 2026-06-10
 progress:
   total_phases: 8
   completed_phases: 1
   total_plans: 9
-  completed_plans: 6
+  completed_plans: 7
   percent: 13
 ---
 
@@ -25,11 +25,11 @@ See: .planning/PROJECT.md (updated 2026-06-09 — v1.2 milestone started)
 ## Current Position
 
 Phase: 11 (senior-persona-overhaul) — EXECUTING
-Plan: 3 of 5
+Plan: 4 of 5
 Status: Ready to execute
 Last activity: 2026-06-10
 
-Progress: [███████░░░] 67%
+Progress: [████████░░] 78%
 
 ## Performance Metrics
 
@@ -114,6 +114,7 @@ Progress: [███████░░░] 67%
 | Phase 10 P04 | 6m | 2 tasks | 2 files |
 | Phase 11 P01 | 20m | 2 tasks | 7 files |
 | Phase 11 P02 | 25m | 2 tasks | 8 files |
+| Phase 11 P03 | 6m | 2 tasks | 4 files |
 
 ## Accumulated Context
 
@@ -234,6 +235,8 @@ Recent decisions affecting current work:
 - [Phase ?]: [11-01] 'Flat-or-smaller' (D-04) read as 'within the plan-defined +6% guard_role_size ceiling', not 'below raw baseline'; all 7 wave-1 roles pass their ceilings and guard_voice over the 2 clear-voice safety roles stays green
 - [Phase 11]: [11-02] Senior persona depth lands as a sharp clause woven into an existing skeleton section, paid for by compressing weak connective prose elsewhere — never a net byte addition (D-04 token economy); the orchestrator size outlier (banner/Routing matrix/WIP-DoR gate/XL-split/workflow table/clear-voice safety) is preserved verbatim, not normalized away (D-03)
 - [Phase 11]: [11-02] All clear-voice safety surfaces deepened in plain English only — release-manager named-human deploy gate (SAFE-01), software-engineer no-fake-results, installer additive/never-overwrite/dry-run, security-nfr PASS|PASS_WITH_RISKS|BLOCKED findings; security-nfr stays guard_voice-clean; all 8 roles within +6% ceilings
+- [Phase ?]: [11-03] ba-pm is the 16th and final role rewrite (PERS-01) landed with the senior BA deepening (PERS-02) in one coherent edit; senior BA judgment (INVEST, testable+measurable acceptance, measurable NFR targets, DoR rigor) woven into existing sections, paid for by compression — 2745->3291 B within the 3294 B BA-headroom ceiling (D-04)
+- [Phase ?]: [11-03] DoR deepened as the single INVEST + measurable-NFR hub (D-08); INVEST-shaping became one new gated check so its matching '## INVEST shape' field was added to ticket-ready-packet.md in the same task to keep the DoR<->packet 1:1 contract (T-11-05/Pitfall 5); Given/When/Then prose line KEPT, zero Three Amigos/Example Mapping/executable scenarios across ba-pm+DoR+workflow 07 (D-09)
 
 ### Pending Todos
 
@@ -276,6 +279,6 @@ Items acknowledged and deferred at the v1.1 milestone close on 2026-06-08. All a
 
 ## Session Continuity
 
-Last session: 2026-06-10T21:51:45.428Z
+Last session: 2026-06-10T22:00:34.166Z
 Stopped at: Completed 11-02-PLAN.md
 Resume file: None
