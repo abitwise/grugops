@@ -1,9 +1,13 @@
 ---
 phase: 10-sdlc-coverage-audit-foundation-guards
 verified: 2026-06-09T00:00:00Z
-status: human_needed
+status: passed
 score: 4/4 must-haves verified
 overrides_applied: 0
+human_verification_resolved:
+  by: agent-review
+  resolved: 2026-06-10T00:00:00Z
+  note: "Both human-verification items are document reviews resolvable without another repo; resolved by agent review per user instruction (see 10-HUMAN-UAT.md, status passed). Item 1 — all 4 gap narratives are real depth/contract holes; gap→phase mapping cross-checked against ROADMAP.md and matches exactly (GAP-1→P12, GAP-2→P11, GAP-3→P13, GAP-4→P14+P15). Item 2 — all 8 keys' lean defaults match factory.config.json byte-for-byte (seed cmp -s identical); escalation directions sensible; TINT-03 (warn|block, never off) explicit. The broader end-to-end dogfood (install in a real repo, run /grug) is deferred to a dedicated session after all v1.2 phases."
 re_verification:
   previous_status: gaps_found
   previous_score: 3/4
@@ -24,7 +28,7 @@ human_verification:
 
 **Phase Goal:** The milestone opener — produce the SDLC-coverage audit that scopes the rest, and stand up the cross-cutting mechanical guards + config-dial contract so every later content phase writes into a guarded, dialed environment.
 **Verified:** 2026-06-09T00:00:00Z
-**Status:** human_needed
+**Status:** passed (4/4 automated + 2/2 human-review items resolved by agent per user instruction; see `human_verification_resolved` and `10-HUMAN-UAT.md`)
 **Re-verification:** Yes — after gap closure (commits 1bf3141, a627f38, 9f4dedc, d8dcba0; fix report 10-REVIEW-FIX.md)
 
 ## Goal Achievement
