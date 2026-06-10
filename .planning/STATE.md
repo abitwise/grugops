@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: SDLC Depth, Quality Discipline & Browsable Docs
 status: executing
-last_updated: "2026-06-10T21:05:11.729Z"
-last_activity: 2026-06-10 -- Phase 11 planning complete
+last_updated: "2026-06-10T21:38:49.612Z"
+last_activity: 2026-06-10
 progress:
   total_phases: 8
   completed_phases: 1
   total_plans: 9
-  completed_plans: 4
+  completed_plans: 5
   percent: 13
 ---
 
@@ -20,16 +20,16 @@ progress:
 See: .planning/PROJECT.md (updated 2026-06-09 — v1.2 milestone started)
 
 **Core value:** A user installs grugops on top of the coding-agent CLI they already run, types `/grug`, and gets a disciplined delivery team — a visible board, strict handoffs, and an auditable requirement→code→test→release trail — entirely as readable markdown, with humans always holding merge and deploy.
-**Current focus:** Phase 11 — senior persona overhaul
+**Current focus:** Phase 11 — senior-persona-overhaul
 
 ## Current Position
 
-Phase: 11
-Plan: Not started
+Phase: 11 (senior-persona-overhaul) — EXECUTING
+Plan: 2 of 5
 Status: Ready to execute
-Last activity: 2026-06-10 -- Phase 11 planning complete
+Last activity: 2026-06-10
 
-Progress: [██████████] 100%
+Progress: [██████░░░░] 56%
 
 ## Performance Metrics
 
@@ -112,6 +112,7 @@ Progress: [██████████] 100%
 | Phase 10 P02 | 4m | 2 tasks | 3 files |
 | Phase 10 P03 | 7m | 2 tasks | 4 files |
 | Phase 10 P04 | 6m | 2 tasks | 2 files |
+| Phase 11 P01 | 20m | 2 tasks | 7 files |
 
 ## Accumulated Context
 
@@ -228,6 +229,8 @@ Recent decisions affecting current work:
 - [Phase ?]: [10-03] factory.config.md twin carries a dedicated "Config-dial contract (lean → enterprise)" section (D-11): per-key allowed values · lean default · enterprise escalation for all 8 keys; zero-config prose updated so absent key = lean default (SC4). `gate_enforcement` noted already-strict-at-lean (advisory is the relaxed direction, not the escalation).
 - [Phase ?]: [10-04] checkConfig() enum-recognizes the 8 v1.2 dial keys ACTIVE-WHEN-PRESENT / LENIENT-WHEN-ABSENT (D-14): an invalid present value is err() (nonzero even bare) and names the key; a missing key is its lean default (no error, SC4 preserved). quality.lint is shape-checked {strict,autofix} (D-12); test_integrity enum is warn|block — disabling rejected (TINT-03).
 - [Phase ?]: [10-04] validate.test.sh gains three hermetic assertions (mktemp -d from fixtures/good, no committed bad-fixture dir): asvs_level=L4 + test_integrity=off both fail red and name the key; fixtures/good (none of the 8 keys) still exits 0 (SC4); cmp -s proves config/ == seed/.grugops/ byte-identical. SC3 fully closed (schema in 10-03, recognition here).
+- [Phase ?]: [11-01] Senior persona depth lands as a sharp clause woven into an existing skeleton section, paid for by compressing weak connective prose elsewhere — never a net byte addition (enforces D-04 token economy)
+- [Phase ?]: [11-01] 'Flat-or-smaller' (D-04) read as 'within the plan-defined +6% guard_role_size ceiling', not 'below raw baseline'; all 7 wave-1 roles pass their ceilings and guard_voice over the 2 clear-voice safety roles stays green
 
 ### Pending Todos
 
@@ -270,6 +273,6 @@ Items acknowledged and deferred at the v1.1 milestone close on 2026-06-08. All a
 
 ## Session Continuity
 
-Last session: 2026-06-10T16:12:01.240Z
+Last session: 2026-06-10T21:38:24.168Z
 Stopped at: Phase 11 context gathered
-Resume file: .planning/phases/11-senior-persona-overhaul/11-CONTEXT.md
+Resume file: None
