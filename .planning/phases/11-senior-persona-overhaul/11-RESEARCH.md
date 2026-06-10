@@ -319,22 +319,27 @@ Not applicable in the usual sense — no external library evolution drives this 
 | A3 | PERS-02's BA deepening lands inside existing DoR lines / handoff fields, needing no new packet field | Pitfall 5 | If a new gated DoR check is added, `ticket-ready-packet.md` must be updated in the same plan or the gate desyncs |
 | A4 | Audit L170 stale wording is out of the locked D-10 close-list and need not be touched | State of the Art | LOW — flagged for planner awareness; D-10 enumerates exactly 4 marker locations (PROJECT/STATE/audit-observation/RETRO), and the audit *observation* lines are 44/191, not the GAP-2 table row 170 |
 
-## Open Questions
+## Open Questions (RESOLVED)
+
+> All three resolved during planning (2026-06-10/11). Resolutions are locked downstream; see the inline **RESOLVED** markers.
 
 1. **D-07 exact byte/line thresholds (Claude's discretion, must lock in the plan).**
    - What we know: current sizes (table above); orchestrator 6286 B is the legit outlier; next-largest 4085 B; D-04 wants flat-or-smaller; `guard_adapter_size` uses byte-based two-tier WARN 3072 / FAIL 4096.
    - What's unclear: per-file-relative (current+%) vs single ceiling above 6286 B; the exact headroom %.
    - Recommendation: **per-file-relative** ceiling = `current_bytes + ~12%` headroom as FAIL, `current_bytes + ~6%` as WARN, computed once and **hard-coded as documented constants** (not computed live — a live "current size" makes the guard tautological). This holds each role flat-or-smaller against its committed baseline. Document the baseline-capture date. ba-pm.md (PERS-02) may warrant a slightly larger explicit headroom — call it out in the guard comment.
+   - **RESOLVED:** per-file-relative +12% FAIL / +6% WARN, hard-coded constants off the 2026-06-10 baseline, with extra headroom for ba-pm.md. Locked in `11-04-PLAN.md` Task 2 action and `11-PATTERNS.md` Group C.
 
 2. **D-05 marker-refinement choice (Claude's discretion).**
    - What we know: 3 clean-tree false positives (Pitfall 1); D-05 says "don't weaken the guard."
    - What's unclear: pre-filter `/grug` vs accept the Scribe lines vs tighten the ERE.
    - Recommendation: pre-filter the `/grug` brand-command literal (it is unambiguously not caveman voice) AND treat the Scribe's two voice-meta lines as accepted (they *describe* the voice rule in clear prose; an inline `# voice-meta: accepted` style allowlist or excluding `grug voice|grug wink` phrases). Keep `\bgrug\b` otherwise — bare `grug smash` must still fail.
+   - **RESOLVED:** pre-filter `/grug` + accept the Scribe's two voice-meta lines, `\bgrug\b` otherwise preserved (refinement lands FIRST, before the scan expansion). Locked in `11-04-PLAN.md` Task 1 action and `11-PATTERNS.md` Group D.
 
 3. **Should `v1.2-SDLC-COVERAGE-AUDIT.md` L170 stale "what good looks like" wording be reconciled?**
    - What we know: it predates the D-11 reframe; D-10 locks 4 marker locations and L170 (the GAP-2 table row) is not among them.
    - What's unclear: whether the user wants source-of-truth consistency extended here.
    - Recommendation: flag to the user during planning; reconciling it is cheap and matches the D-11 "keep the source of truth truthful" intent, but it is strictly out of the locked D-10 close-list — get explicit confirmation before editing.
+   - **RESOLVED:** user confirmed YES during planning (2026-06-11) — reconcile the GAP-2 row to the D-11 reframe as a bounded one-line fix. Locked in `11-05-PLAN.md` Task 2.
 
 ## Environment Availability
 
