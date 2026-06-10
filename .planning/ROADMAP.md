@@ -94,11 +94,24 @@ Full phase details + milestone summary: `milestones/v1.1-ROADMAP.md` · requirem
   4. New persona depth lives once under `agent-factory/`; the per-tool adapters stay pointer-sized (single-source adapter check passes).
 
 **Plans**: 5 plans
+**Wave 1**
+
 - [ ] 11-01-PLAN.md — Senior rewrite of 7 roles (scribe, architect, brownfield, factory-coach, greenfield, compliance, incident) in place [PERS-01]
 - [ ] 11-02-PLAN.md — Senior rewrite of 8 roles (installer, orchestrator outlier, qe-e2e, release, security-nfr, engineer, system-analyst, uat) in place [PERS-01]
 - [ ] 11-03-PLAN.md — ba-pm senior rewrite + senior BA deepening (DoR hub INVEST/measurable-NFR, workflow 07, packet aligned) [PERS-01, PERS-02]
+
+**Wave 2** *(blocked on Wave 1 completion)*
+
 - [ ] 11-04-PLAN.md — 3 guard changes (voice→all 16 + refine, caveman-preserved, role-size) + fail-proof fixtures, ship GREEN [PERS-01]
+
+**Wave 3** *(blocked on Wave 2 completion)*
+
 - [ ] 11-05-PLAN.md — WR-05 re-run (regen-safety, last check) + close 4 markers + reconcile audit GAP-2 row [PERS-03]
+
+**Cross-cutting constraints:**
+
+- Each role's single `One job` is unchanged — persona + voice deepen, responsibilities do not (D-03)
+
 **UI hint**: no  <!-- markdown role-prompt rewrite; no visual UI — the frontend/UI persona is Phase 13 -->
 **Context note**: PERS-01 mechanism changed during discuss-phase (2026-06-10) — see `.planning/phases/11-senior-persona-overhaul/11-CONTEXT.md`. Original "add a What-good-looks-like/When-to-escalate section" replaced by in-place persona deepening at the user's direction (the model already carries generic quality knowledge; the value is a sophisticated persona, and the terse caveman voice is the token-economy mechanism).
 
