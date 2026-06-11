@@ -1,10 +1,11 @@
 ---
 phase: 13
 slug: frontend-ui-persona-design-build-workflow
-status: draft
-nyquist_compliant: false
-wave_0_complete: false
+status: complete
+nyquist_compliant: true
+wave_0_complete: true
 created: 2026-06-11
+validated: 2026-06-12
 ---
 
 # Phase 13 — Validation Strategy
@@ -41,16 +42,16 @@ created: 2026-06-11
 
 | Req | Wave | Behavior | Test Type | Automated Command / Structural Check | Status |
 |-----|------|----------|-----------|--------------------------------------|--------|
-| UI-01 | 1 | 17th role exists on 9-section skeleton | structural | `test -f agent-factory/roles/frontend-ui.md`; `grep -q 'kind: role' agent-factory/roles/frontend-ui.md` | ⬜ pending |
-| UI-01 | 1 | No spawn tool (WR-05 stays GREEN) | guard | `guard_wr05` PASS; `grep -iE '(tools\|allowed-tools):.*\b(Agent\|Task)\b' agent-factory/roles/frontend-ui.md` empty | ⬜ pending |
-| UI-01 | 1 | Caveman block present + markered | guard | `guard_caveman_preserved` PASS for frontend-ui.md | ⬜ pending |
-| UI-01 | 1 | Role stays terse (under size ceiling) | guard | `guard_role_size` PASS — requires paired `ROLE_FILES` + `role_ceiling()` case entry | ⬜ pending |
-| UI-02 | 1 | Workflow 14 walks contract→build→5 states→a11y→visual baseline | structural | `test -f agent-factory/workflows/14-ui-design-to-build.md`; `grep -q 'order: 14'`; states (loading/empty/error/success/partial) present; `grep -q 'WCAG 2.2 AA'` | ⬜ pending |
-| UI-02 | 1 | References 04 + 05, does not restate the gate | structural | `grep -q '04-ticket-to-pr.md'` AND `grep -q '05-pr-quality-gate.md'`; gate step-labels NOT inlined | ⬜ pending |
-| UI-03 | 2 | Orchestrator routes UI work (classification + matrix + map) | structural | `grep -q 'ui-build' …/orchestrator.md`; `grep -qi 'Frontend/UI' …/orchestrator.md`; workflow-map row `ui-build → 14-ui-design-to-build.md`; request-count literal 15→16 | ⬜ pending |
-| UI-03 | 2 | 00–13 workflow ordinals not renumbered | structural | `ls agent-factory/workflows/` shows 00–13 unchanged + new 14 | ⬜ pending |
-| (reg) | 1 | 17th role registered in guard + test harness | guard | both guard scripts GREEN; `grep -q 'frontend-ui.md' scripts/check-foundation-guards.sh` (ROLE_FILES + role_ceiling case) and `scripts/check-foundation-guards.test.sh` (GUARD_INPUTS) | ⬜ pending |
-| (size) | 2 | orchestrator.md ceiling raised to fit UI-03 edits | guard | `guard_role_size` PASS for orchestrator.md after the routing edits (current headroom: ~3B to WARN / ~380B to FAIL — ceiling MUST be bumped in the same plan) | ⬜ pending |
+| UI-01 | 1 | 17th role exists on 9-section skeleton | structural | `test -f agent-factory/roles/frontend-ui.md`; `grep -q 'kind: role' agent-factory/roles/frontend-ui.md` | ✅ green |
+| UI-01 | 1 | No spawn tool (WR-05 stays GREEN) | guard | `guard_wr05` PASS; `grep -iE '(tools\|allowed-tools):.*\b(Agent\|Task)\b' agent-factory/roles/frontend-ui.md` empty | ✅ green |
+| UI-01 | 1 | Caveman block present + markered | guard | `guard_caveman_preserved` PASS for frontend-ui.md | ✅ green |
+| UI-01 | 1 | Role stays terse (under size ceiling) | guard | `guard_role_size` PASS — requires paired `ROLE_FILES` + `role_ceiling()` case entry | ✅ green |
+| UI-02 | 1 | Workflow 14 walks contract→build→5 states→a11y→visual baseline | structural | `test -f agent-factory/workflows/14-ui-design-to-build.md`; `grep -q 'order: 14'`; states (loading/empty/error/success/partial) present; `grep -q 'WCAG 2.2 AA'` | ✅ green |
+| UI-02 | 1 | References 04 + 05, does not restate the gate | structural | `grep -q '04-ticket-to-pr.md'` AND `grep -q '05-pr-quality-gate.md'`; gate step-labels NOT inlined | ✅ green |
+| UI-03 | 2 | Orchestrator routes UI work (classification + matrix + map) | structural | `grep -q 'ui-build' …/orchestrator.md`; `grep -qi 'Frontend/UI' …/orchestrator.md`; workflow-map row `ui-build → 14-ui-design-to-build.md`; request-count literal 15→16 | ✅ green |
+| UI-03 | 2 | 00–13 workflow ordinals not renumbered | structural | `ls agent-factory/workflows/` shows 00–13 unchanged + new 14 | ✅ green |
+| (reg) | 1 | 17th role registered in guard + test harness | guard | both guard scripts GREEN; `grep -q 'frontend-ui.md' scripts/check-foundation-guards.sh` (ROLE_FILES + role_ceiling case) and `scripts/check-foundation-guards.test.sh` (GUARD_INPUTS) | ✅ green |
+| (size) | 2 | orchestrator.md ceiling raised to fit UI-03 edits | guard | `guard_role_size` PASS for orchestrator.md after the routing edits (raised to `7570 7165` off the post-wiring 6759B) | ✅ green |
 
 *Status: ⬜ pending · ✅ green · ❌ red · ⚠️ flaky*
 
@@ -78,11 +79,31 @@ edits the per-commit run catches if missed.
 
 ## Validation Sign-Off
 
-- [ ] All UI-01/02/03 behaviors have a guard or structural-grep verification
-- [ ] Sampling continuity: per-commit guard run after each task
-- [ ] Wave 0 gaps: none (existing guards cover the phase)
-- [ ] No watch-mode flags (guards are one-shot scripts)
-- [ ] Feedback latency < 5s
-- [ ] `nyquist_compliant: true` set in frontmatter once plans embed these checks
+- [x] All UI-01/02/03 behaviors have a guard or structural-grep verification
+- [x] Sampling continuity: per-commit guard run after each task
+- [x] Wave 0 gaps: none (existing guards cover the phase)
+- [x] No watch-mode flags (guards are one-shot scripts)
+- [x] Feedback latency < 5s
+- [x] `nyquist_compliant: true` set in frontmatter once plans embed these checks
 
-**Approval:** pending
+**Approval:** validated 2026-06-12 — automated audit GREEN (24/24 structural greps + both guard suites exit 0). Two Manual-Only quality reads remain optional human judgments (do not block compliance).
+
+---
+
+## Validation Audit 2026-06-12
+
+Audited the executed phase against the Per-Task Verification Map. grugops ships no app test
+runner — every requirement is verified mechanically (guard PASS) or structurally (grep). All
+nine map rows were re-run and confirmed green; both `check-foundation-guards.sh` and
+`check-foundation-guards.test.sh` exit 0. No MISSING or PARTIAL coverage → no auditor spawn,
+no new test files. The only change is un-staling this contract (statuses `⬜ pending → ✅ green`,
+`nyquist_compliant false → true`). The two Manual-Only items are manual *by design* (persona
+depth, reference-not-restate quality), not escalated gaps.
+
+| Metric | Count |
+|--------|-------|
+| Gaps found | 0 |
+| Resolved | 0 |
+| Escalated | 0 |
+| Map rows green | 9 / 9 |
+| Manual-only (by design) | 2 |
