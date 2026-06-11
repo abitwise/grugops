@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: SDLC Depth, Quality Discipline & Browsable Docs
 status: executing
-last_updated: "2026-06-11T09:41:57.081Z"
-last_activity: 2026-06-11 -- Phase 12 execution started
+last_updated: "2026-06-11T09:45:27.317Z"
+last_activity: 2026-06-11
 progress:
   total_phases: 8
   completed_phases: 2
   total_plans: 14
-  completed_plans: 9
+  completed_plans: 10
   percent: 25
 ---
 
@@ -25,11 +25,11 @@ See: .planning/PROJECT.md (updated 2026-06-09 — v1.2 milestone started)
 ## Current Position
 
 Phase: 12 (bdd-tdd-wiring) — EXECUTING
-Plan: 1 of 5
-Status: Executing Phase 12
-Last activity: 2026-06-11 -- Phase 12 execution started
+Plan: 2 of 5
+Status: Ready to execute
+Last activity: 2026-06-11
 
-Progress: [██████████] 100%
+Progress: [███████░░░] 71%
 
 ## Performance Metrics
 
@@ -117,6 +117,7 @@ Progress: [██████████] 100%
 | Phase 11 P03 | 6m | 2 tasks | 4 files |
 | Phase 11 P04 | 18m | 3 tasks | 2 files |
 | Phase 11 P05 | 4m | 2 tasks | 4 files |
+| Phase 12 P01 | 4m | 2 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -243,6 +244,8 @@ Recent decisions affecting current work:
 - [Phase ?]: [11-04] D-06 guard_caveman_preserved CAVEMAN_MARKERS = VOICE_MARKERS idioms + ^You\b — the clean caveman blocks are clipped second-person imperatives with NO literal grug idiom, so plain VOICE_MARKERS would ship RED; ^You\b is the cadence separating a real block from a sanded prose rewrite (all 16 hit, sanded prose does not)
 - [Phase ?]: [11-04] D-07 guard_role_size uses locked per-file 2026-06-10 ceilings (FAIL +12% / WARN +6%; orchestrator outlier 7041/6664; ba-pm BA headroom 3294/3075) via a POSIX-sh case lookup — NOT a flat number and NOT live-computed; ba-pm at 3291B emits an advisory WARN, build stays GREEN
 - [Phase ?]: [11-05] PERS-03 — WR-05 RETIRED: guard_wr05 re-verified GREEN on a fresh post-rewrite run (regen-safety, the LAST check per D-10); the spawn-grant debt marker closed in all 4 locked tracking docs (PROJECT/STATE/SDLC-audit/RETROSPECTIVE); explanatory spawn prose KEPT (D-08); SDLC audit GAP-2 row reconciled to the D-01/D-11 reframe (in-place senior deepening, no new section, terse caveman = token economy)
+- [Phase ?]: [12-01] BDD-01 acceptance-contract landed: tiered selector-free ## Acceptance scenarios (Given/When/Then) block in product+QE handoffs (D-02), beside the preserved criteria bar; degrades to lean when bdd dial absent (D-01); hard no-selectors rule (D-03); strict-tier host file+runner left UNKNOWN - verify (host-agnostic)
+- [Phase ?]: [12-01] D-14 scenario->trace linkage is an additive in-cell comment convention near ## Trace updates, NOT a schema/column rename of plans/traceability.md; block mirrored byte-identical across both handoffs (1:1 contract shape); no acceptance red/green evidence field here (owned by 12-04)
 
 ### Pending Todos
 
@@ -285,6 +288,6 @@ Items acknowledged and deferred at the v1.1 milestone close on 2026-06-08. All a
 
 ## Session Continuity
 
-Last session: 2026-06-11T08:33:18.614Z
+Last session: 2026-06-11T09:45:04.669Z
 Stopped at: Phase 12 context gathered
-Resume file: .planning/phases/12-bdd-tdd-wiring/12-CONTEXT.md
+Resume file: None
