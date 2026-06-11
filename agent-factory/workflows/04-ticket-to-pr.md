@@ -24,8 +24,8 @@ Roles activate via the role-switch protocol (`agent-factory/roles/_role-switch-p
 ## Steps
 1. The Orchestrator checks the ticket against `agent-factory/checklists/definition-of-ready.md`. If it is not ready, stop and name the missing input.
 2. The Orchestrator pulls the ticket into development, respecting WIP limits.
-3. The Software Engineer implements the one ticket on a branch — a small diff, with tests.
-4. Run the quality gate per `agent-factory/workflows/05-pr-quality-gate.md`. The gate loop, the bounded self-fix, and the terminal result live there — this workflow references that gate and does not restate it.
+3. The Software Engineer implements the one ticket on a branch — a small diff, test-first. Run the **inner loop** per unit behavior: write a FAILING unit test (red) -> minimal code to pass (green) -> refactor (still green), repeat. Honor the `quality.tdd` dial (`off` / `encouraged` / `required`, default `encouraged`). The **double-loop rule** (D-08): the outer acceptance scenario (QE-owned, from the handoff `## Acceptance scenarios` block) stays RED until the inner loop closes it, and NO SECOND acceptance scenario goes red before the first is green. The **contract-vs-logic seam** (D-09): the acceptance scenario asserts the observable business outcome once; the unit tests assert the internal logic and edge cases beneath it — the unit layer never re-asserts the same observable outcome. See `agent-factory/checklists/example-mapping.md` for the worked seam example (not restated here).
+4. Run the quality gate per `agent-factory/workflows/05-pr-quality-gate.md`. The gate loop, the bounded self-fix, and the terminal result live there — this workflow references that gate and does not restate it. Mechanical no-second-red / one-behavior-one-layer enforcement is the §14 gate's concern, not this step.
 5. QE/E2E breaks the feature and reports the result and gaps.
 6. Security/NFR reviews the change if a risk-bearing surface is triggered.
 
@@ -37,6 +37,8 @@ Under `plans/handoffs/` (filled from the templates in `agent-factory/handoffs/`)
 
 ## Trace updates
 Append to `plans/traceability.md`: the `Code (PR/files)` link and the `Tests` link against the ticket row, and update `Status`.
+<!-- The acceptance scenarios are carried forward to the UAT pack and release — they flow forward, NOT rewritten here. A deeper UAT-BDD treatment is its own later concern (D-13). -->
+
 
 ## Metrics emitted
 Record `Cycle time` and `WIP` in `plans/metrics.md`.
