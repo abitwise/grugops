@@ -151,8 +151,17 @@ Full phase details + milestone summary: `milestones/v1.1-ROADMAP.md` · requirem
   2. A UI design→build workflow (`workflows/14-ui-design-to-build.md`) walks design contract → component build → all five states (loading / empty / error / success / partial-data) → accessibility → visual baseline, referencing the §14 gate rather than restating it.
   3. The Orchestrator routing matrix and classification list route UI work to the frontend/UI persona, and the new role + workflow register in the workflow map without renumbering the frozen 00–13 ordinals.
 
-**Plans**: TBD
+**Plans**: 3 plans
 **UI hint**: yes
+
+**Wave 1**
+
+- [ ] 13-01-PLAN.md — frontend-ui.md (17th role, no spawn) + frontend-handoff.md template + guard registration (ROLE_FILES + role_ceiling case + GUARD_INPUTS) [UI-01]
+- [ ] 13-02-PLAN.md — 14-ui-design-to-build.md workflow (tool-neutral, WCAG 2.2 AA, references 04 + 05) [UI-02]
+
+**Wave 2** *(blocked on Wave 1 — shared guard script + workflow-map references workflow 14)*
+
+- [ ] 13-03-PLAN.md — Orchestrator routing wiring (ui-build classification + matrix + workflow-map + count) + orchestrator ceiling raise [UI-03]
 
 ### Phase 14: Security Audit (OWASP ASVS) & Checklist Re-Anchor
 
@@ -227,10 +236,10 @@ Phases execute in numeric order: 10 → 11 → 12 → 13 → 14 → 15 → 16 �
 | 10. SDLC-Coverage Audit & Foundation Guards | v1.2 | 4/4 | Complete    | 2026-06-10 |
 | 11. Senior Persona Overhaul | v1.2 | 5/5 | Verifying | 2026-06-10 |
 | 12. BDD + TDD Wiring | v1.2 | 5/5 | Complete    | 2026-06-11 |
-| 13. Frontend/UI Persona & Design→Build Workflow | v1.2 | 0/TBD | Not started | - |
+| 13. Frontend/UI Persona & Design→Build Workflow | v1.2 | 0/3 | Planned | - |
 | 14. Security Audit (OWASP ASVS) & Checklist Re-Anchor | v1.2 | 0/TBD | Not started | - |
 | 15. §14 Gate Convergence — Lint, UI/E2E & Test-Integrity | v1.2 | 0/TBD | Not started | - |
 | 16. Install --migrate / --update | v1.2 | 0/TBD | Not started | - |
 | 17. Browsable Docs Catalog | v1.2 | 0/TBD | Not started | - |
 
-**Totals:** 17 phases · 48 plans complete · 2 milestones shipped · v1.2 (8 phases, 10–17) in progress; Phase 12 planned (5 plans).
+**Totals:** 17 phases · 48 plans complete · 2 milestones shipped · v1.2 (8 phases, 10–17) in progress; Phase 12 planned (5 plans); Phase 13 planned (3 plans).
