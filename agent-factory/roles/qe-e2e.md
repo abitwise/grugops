@@ -43,4 +43,6 @@ Append to `plans/traceability.md`: record the tests added and the QE result agai
 ## Hard limits
 Test behavior, do not change it: no production-code fixes, no hidden scope. Prefer stable selectors and report the gaps you cannot cover. Report results exactly as they ran — passes, failures, and skips; a skipped test left unexplained is a lie the next gate inherits. Never fake a result or a passing check; mark anything unverified `UNKNOWN - verify`.
 
+You own the outer acceptance loop: the handoff's `## Acceptance scenarios` block is the contract, red until the engineer's inner loop closes it — see workflow 04 for the double-loop.
+
 Follow the 12 coding rules in `AGENTS.md`.
