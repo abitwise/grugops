@@ -36,7 +36,7 @@ Each maps to exactly one roadmap phase (traceability filled by the roadmapper).
 
 ### Frontend/UI Build
 
-- [ ] **UI-01**: grugops includes a senior frontend/UI persona (new role) that activates via the role-switch protocol with no spawn tool
+- [x] **UI-01**: grugops includes a senior frontend/UI persona (new role) that activates via the role-switch protocol with no spawn tool
 - [ ] **UI-02**: grugops includes a UI design→build workflow (design contract → component build → loading/empty/error/success/partial-data states → accessibility → visual baseline)
 - [ ] **UI-03**: The Orchestrator routing matrix routes UI work to the frontend/UI persona
 
@@ -116,7 +116,7 @@ Each requirement maps to exactly one phase. v1.2 phase numbering continues from 
 | BDD-03 | Phase 12 | Complete |
 | TDD-01 | Phase 12 | Complete |
 | TDD-02 | Phase 12 | Complete |
-| UI-01 | Phase 13 | Pending |
+| UI-01 | Phase 13 | Complete |
 | UI-02 | Phase 13 | Pending |
 | UI-03 | Phase 13 | Pending |
 | UIQA-01 | Phase 15 | Pending |

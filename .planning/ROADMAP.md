@@ -156,7 +156,7 @@ Full phase details + milestone summary: `milestones/v1.1-ROADMAP.md` · requirem
 
 **Wave 1**
 
-- [ ] 13-01-PLAN.md — frontend-ui.md (17th role, no spawn) + frontend-handoff.md template + guard registration (ROLE_FILES + role_ceiling case + GUARD_INPUTS) [UI-01]
+- [x] 13-01-PLAN.md — frontend-ui.md (17th role, no spawn) + frontend-handoff.md template + guard registration (ROLE_FILES + role_ceiling case + GUARD_INPUTS) [UI-01]
 - [ ] 13-02-PLAN.md — 14-ui-design-to-build.md workflow (tool-neutral, WCAG 2.2 AA, references 04 + 05) [UI-02]
 
 **Wave 2** *(blocked on Wave 1 — shared guard script + workflow-map references workflow 14)*
@@ -236,7 +236,7 @@ Phases execute in numeric order: 10 → 11 → 12 → 13 → 14 → 15 → 16 �
 | 10. SDLC-Coverage Audit & Foundation Guards | v1.2 | 4/4 | Complete    | 2026-06-10 |
 | 11. Senior Persona Overhaul | v1.2 | 5/5 | Verifying | 2026-06-10 |
 | 12. BDD + TDD Wiring | v1.2 | 5/5 | Complete    | 2026-06-11 |
-| 13. Frontend/UI Persona & Design→Build Workflow | v1.2 | 0/3 | Planned | - |
+| 13. Frontend/UI Persona & Design→Build Workflow | v1.2 | 1/3 | In Progress|  |
 | 14. Security Audit (OWASP ASVS) & Checklist Re-Anchor | v1.2 | 0/TBD | Not started | - |
 | 15. §14 Gate Convergence — Lint, UI/E2E & Test-Integrity | v1.2 | 0/TBD | Not started | - |
 | 16. Install --migrate / --update | v1.2 | 0/TBD | Not started | - |
