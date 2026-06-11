@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: SDLC Depth, Quality Discipline & Browsable Docs
-status: executing
-last_updated: "2026-06-11T10:00:22.746Z"
+status: verifying
+last_updated: "2026-06-11T10:04:20.135Z"
 last_activity: 2026-06-11
 progress:
   total_phases: 8
-  completed_phases: 2
+  completed_phases: 3
   total_plans: 14
-  completed_plans: 13
-  percent: 25
+  completed_plans: 14
+  percent: 38
 ---
 
 # Project State
@@ -26,10 +26,10 @@ See: .planning/PROJECT.md (updated 2026-06-09 — v1.2 milestone started)
 
 Phase: 12 (bdd-tdd-wiring) — EXECUTING
 Plan: 5 of 5
-Status: Ready to execute
+Status: Phase complete — ready for verification
 Last activity: 2026-06-11
 
-Progress: [█████████░] 93%
+Progress: [██████████] 100%
 
 ## Performance Metrics
 
@@ -121,6 +121,7 @@ Progress: [█████████░] 93%
 | Phase 12 P02 | 2m | 2 tasks | 2 files |
 | Phase 12 P03 | 1m | 2 tasks | 2 files |
 | Phase 12 P05 | 6m | 3 tasks | 3 files |
+| Phase 12 P04 | 5min | 2 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -256,6 +257,7 @@ Recent decisions affecting current work:
 - [Phase 12]: [12-05] Role-enforced double-loop guardrails landed as SINGLE terse pointer lines: software-engineer.md carries the inner-loop + contract-vs-logic seam (D-09) pointing to example-mapping.md; qe-e2e.md carries the outer acceptance loop (D-07/D-08) pointing to the QE handoff scenarios block + workflow 04. The workflow routes, the role enforces; the worked example + loop sequence stay in the hub/workflow, never in a byte-ceilinged role.
 - [Phase 12]: [12-05] software-engineer.md hit the FAIL ceiling on the first inner-loop+seam draft (3452B vs 3307B); followed the plan's stated fallback — seam guardrail as the one line, workflow 04 carries the loop — tightened to 3295B (advisory WARN, build GREEN).
 - [Phase 12]: [12-05] AGENTS.md gained a new ### Acceptance micro-slot (D-12, RESEARCH OQ1 planner pick) valued UNKNOWN - verify; host runner names live only in a trailing HTML comment — single-source, host-agnostic, no per-stack bloat, no adapter touched.
+- [Phase ?]: 12-04: Tiered test-first / red-green evidence field added to both handoffs — engineer inner-loop (implementation-handoff) + QE outer-loop (qe-handoff), reading quality.tdd (default encouraged), each with the clear-voice no-fabrication floor (UNKNOWN - verify) (TDD-02, D-07/D-10)
 
 ### Pending Todos
 
@@ -298,6 +300,6 @@ Items acknowledged and deferred at the v1.1 milestone close on 2026-06-08. All a
 
 ## Session Continuity
 
-Last session: 2026-06-11T09:59:54.531Z
+Last session: 2026-06-11T10:04:00.871Z
 Stopped at: Completed 12-05-PLAN.md
 Resume file: None
