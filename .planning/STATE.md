@@ -3,7 +3,7 @@ gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: SDLC Depth, Quality Discipline & Browsable Docs
 status: verifying
-last_updated: "2026-06-10T22:18:24.914Z"
+last_updated: "2026-06-11T08:33:18.621Z"
 last_activity: 2026-06-10
 progress:
   total_phases: 8
@@ -285,6 +285,6 @@ Items acknowledged and deferred at the v1.1 milestone close on 2026-06-08. All a
 
 ## Session Continuity
 
-Last session: 2026-06-10T22:18:24.908Z
-Stopped at: Completed 11-05-PLAN.md (PERS-03; Phase 11 ready for verification)
-Resume file: None
+Last session: 2026-06-11T08:33:18.614Z
+Stopped at: Phase 12 context gathered
+Resume file: .planning/phases/12-bdd-tdd-wiring/12-CONTEXT.md
