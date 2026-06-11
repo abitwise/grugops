@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: SDLC Depth, Quality Discipline & Browsable Docs
 status: executing
-last_updated: "2026-06-11T09:53:12.897Z"
+last_updated: "2026-06-11T10:00:22.746Z"
 last_activity: 2026-06-11
 progress:
   total_phases: 8
   completed_phases: 2
   total_plans: 14
-  completed_plans: 12
+  completed_plans: 13
   percent: 25
 ---
 
@@ -25,11 +25,11 @@ See: .planning/PROJECT.md (updated 2026-06-09 — v1.2 milestone started)
 ## Current Position
 
 Phase: 12 (bdd-tdd-wiring) — EXECUTING
-Plan: 4 of 5
+Plan: 5 of 5
 Status: Ready to execute
 Last activity: 2026-06-11
 
-Progress: [█████████░] 86%
+Progress: [█████████░] 93%
 
 ## Performance Metrics
 
@@ -120,6 +120,7 @@ Progress: [█████████░] 86%
 | Phase 12 P01 | 4m | 2 tasks | 2 files |
 | Phase 12 P02 | 2m | 2 tasks | 2 files |
 | Phase 12 P03 | 1m | 2 tasks | 2 files |
+| Phase 12 P05 | 6m | 3 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -252,6 +253,9 @@ Recent decisions affecting current work:
 - [Phase 12-02]: Workflow 07 Three Amigos step inserted as new Step 3 (after INVEST-shape, before sizing per RESEARCH OQ2), steps renumbered 3-6 to 4-7; single dial-gated pointer line (bdd off=skip / lean=BA self-runs all three voices / strict=named; absent=lean), four-card ceremony NOT restated; Phase-11 senior-BA INVEST step untouched
 - [Phase ?]: [Phase 12-03] TDD-01 workflow half: workflow 04 Step 3 carries the engineer inner loop (failing unit test -> minimal code -> green -> refactor) + double-loop rule D-08 (outer acceptance stays red until inner closes it; no second acceptance red before first green) + contract-vs-logic seam D-09 pointing to example-mapping.md; quality.tdd named inline (off/encouraged/required, default encouraged); enforcement stays single-source in gate 05 (Phase 15), no mechanical guard authored
 - [Phase ?]: [Phase 12-03] D-13 light forward-pointer is an HTML comment in workflow 04 Trace updates (scenarios flow forward to UAT/release, NOT rewritten); workflows 06/02/03 untouched. impl-ready packet TDD line (D-11) under the EXISTING ## Test strategy heading in the file's reference-comment clear-voice style — read-before-coding: which units prove the behavior, which layer owns what, seam points to the hub
+- [Phase 12]: [12-05] Role-enforced double-loop guardrails landed as SINGLE terse pointer lines: software-engineer.md carries the inner-loop + contract-vs-logic seam (D-09) pointing to example-mapping.md; qe-e2e.md carries the outer acceptance loop (D-07/D-08) pointing to the QE handoff scenarios block + workflow 04. The workflow routes, the role enforces; the worked example + loop sequence stay in the hub/workflow, never in a byte-ceilinged role.
+- [Phase 12]: [12-05] software-engineer.md hit the FAIL ceiling on the first inner-loop+seam draft (3452B vs 3307B); followed the plan's stated fallback — seam guardrail as the one line, workflow 04 carries the loop — tightened to 3295B (advisory WARN, build GREEN).
+- [Phase 12]: [12-05] AGENTS.md gained a new ### Acceptance micro-slot (D-12, RESEARCH OQ1 planner pick) valued UNKNOWN - verify; host runner names live only in a trailing HTML comment — single-source, host-agnostic, no per-stack bloat, no adapter touched.
 
 ### Pending Todos
 
@@ -294,6 +298,6 @@ Items acknowledged and deferred at the v1.1 milestone close on 2026-06-08. All a
 
 ## Session Continuity
 
-Last session: 2026-06-11T09:52:52.497Z
-Stopped at: Phase 12 context gathered
+Last session: 2026-06-11T09:59:54.531Z
+Stopped at: Completed 12-05-PLAN.md
 Resume file: None
