@@ -127,6 +127,14 @@ M=$(mirror wr05-array)
 printf '\n  - Agent\n' >> "$M/.claude/skills/grugops/SKILL.md"
 expect_fail "wr05 array-item (  - Agent) → nonzero + 'spawn grant'" "$M" "spawn grant"
 
+M=$(mirror wr05-array-quoted)
+# Plant the QUOTED YAML-array-item grant (WR-02 RED proof): `- "Agent"` is valid YAML and a real
+# spawn-grant shape, but the original WR05_ARRAY anchor required the token to IMMEDIATELY follow
+# dash+space, so a quoted grant shipped GREEN — a false-negative on the core no-spawn-grant
+# safety contract. The optional-quote class in WR05_ARRAY must now catch it.
+printf '\n  - "Agent"\n' >> "$M/.claude/skills/grugops/SKILL.md"
+expect_fail "wr05 quoted array-item (  - \"Agent\") → nonzero + 'spawn grant'" "$M" "spawn grant"
+
 # ---------------------------------------------------------------------------
 # guard_agents_bytes — plant a >28672 B AGENTS.md; assert it fails red naming AGENTS.md.
 # `yes` + head is portable; the padding pushes the file past the FAIL threshold (28672 B).

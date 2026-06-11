@@ -85,7 +85,12 @@ warn() { printf '  WARN  %s\n' "$1"; }
 # (D-08: the templates legitimately document the no-spawn rule using that word).
 # ---------------------------------------------------------------------------
 WR05_COMMA='^(tools|allowed-tools):.*\b(Agent|Task)\b'
-WR05_ARRAY='^[[:space:]]*-[[:space:]]*(Agent|Task)\b'
+# WR-02 fix: allow an optional quote (single or double) between the dash and the token so a
+# QUOTED YAML array item (`- "Agent"`, `- 'Agent'`) — valid YAML, a real spawn-grant shape —
+# is caught, not just the bare `- Agent`. Mirrors WR05_COMMA's permissiveness. Without the
+# optional-quote class the anchor required the token to IMMEDIATELY follow dash+space, so a
+# quoted grant shipped GREEN (a false-negative on grugops's core no-spawn-grant safety contract).
+WR05_ARRAY='^[[:space:]]*-[[:space:]]*["'\'']?(Agent|Task)\b'
 WR05_SCAN="agent-factory/packaging/subagent.frontmatter.md \
 agent-factory/packaging/slash-command.template.md \
 .claude/skills/grugops/SKILL.md \
