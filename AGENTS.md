@@ -51,6 +51,10 @@ Real commands only, with flags, preferring fast single-file variants. If a comma
 - Test (all): `UNKNOWN - verify`
 - Test (single file): `UNKNOWN - verify`
 
+### Acceptance
+
+- Acceptance / BDD scenarios: `UNKNOWN - verify` <!-- host runner, e.g. cucumber-js / behave / `bddgen && playwright test` — names live here only as examples, never as a hard command -->
+
 ### Lint
 
 - Lint (all): `UNKNOWN - verify`
