@@ -46,4 +46,14 @@ Scenario: <one observable business behavior>
 ## Flaky risk
 ## Coverage vs threshold
 ## Result
+## Acceptance red/green evidence
+<!-- quality.tdd dial: off = omit this field · encouraged = note the acceptance scenario was run
+     honestly · required = record the outer scenario's red→green sequence as QE actually ran it
+     against the host runner; default encouraged (a missing key reads as encouraged). This is the
+     QE-owned OUTER-loop evidence; the engineer's inner-loop red/green lives in implementation-handoff. -->
+<!-- Floor (no-fabrication): if a step was not run, write `UNKNOWN - verify`. Never record a red or a
+     green that did not actually happen — a green that was never run is the most expensive lie in the trace. -->
+- Red (acceptance scenario failing first): <what failed, or `UNKNOWN - verify`>
+- Green (acceptance scenario passing): <what passed, or `UNKNOWN - verify`>
+- Scenario / runner: <the observable business behavior this proves + host runner, or `UNKNOWN - verify`>
 ## Gaps
