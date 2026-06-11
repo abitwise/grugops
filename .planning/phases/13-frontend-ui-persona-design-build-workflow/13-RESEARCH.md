@@ -363,22 +363,25 @@ Then add `agent-factory/roles/frontend-ui.md` to `GUARD_INPUTS` in `check-founda
 
 **If this table is empty:** It is not — all six assumptions are LOW (or LOW–MEDIUM for A6) and resolvable by the planner during authoring (measure-then-set for ceilings, lock-once for the token spelling, decide-once on the checklist edit).
 
-## Open Questions
+## Open Questions (RESOLVED at planning)
 
 1. **Exact orchestrator ceiling bump magnitude.**
    - What we know: orchestrator.md is 6661B; ceiling FAIL 7041 / WARN 6664; the UI-03 edits will add ~150–400B.
    - What's unclear: the precise post-wiring byte count (depends on row wording).
    - Recommendation: author the orchestrator edits terse, re-measure with `wc -c`, then set FAIL = round(new × 1.12) / WARN = round(new × 1.06). Do this in the same plan/task as the wiring so the guard never goes red mid-phase.
+   - **RESOLVED:** adopted in Plan 13-03 Task 2 (measure-then-set in the same plan as the UI-03 wiring).
 
 2. **Whether to add a forward-pointer to Phase-15 tooling in workflow 14.**
    - What we know: D-08 forbids naming tools in the workflow *body*; Phase 12 used light forward-pointers elsewhere.
    - What's unclear: whether a single neutral line like "(automated visual/a11y wiring lands later)" is wanted or is itself a leak.
    - Recommendation: omit tool names entirely; if a pointer is wanted, keep it tool-neutral and phase-neutral ("automation of these checks is a later concern"). Default: no pointer, to stay clean.
+   - **RESOLVED:** adopted in Plan 13-02 — no Phase-15 forward-pointer; body stays tool-neutral.
 
 3. **Whether to edit `accessibility-checklist.md` or only reference it.**
    - What we know: it exists, is enterprise-tier, names "e.g. WCAG 2.2 AA", and is referenced only by the checklist index.
    - What's unclear: whether D-09's "name WCAG 2.2 AA as the bar" implies tightening the checklist's "e.g." or just naming the bar in the new artifacts.
    - Recommendation: name WCAG 2.2 AA in the new role/workflow/handoff AND reference the checklist for the item list; optionally tighten the checklist's "e.g." to "target standard: WCAG 2.2 AA" while keeping it tier-agnostic so lean UI tickets still get the a11y bar without enterprise gating. A6.
+   - **RESOLVED:** adopted in Plans 13-01/13-02 — name WCAG 2.2 AA in the new artifacts and reference the checklist (reference-not-restate).
 
 ## Environment Availability
 
