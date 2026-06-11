@@ -189,7 +189,13 @@ expect_fail "voice marker in clear-voice surface → nonzero + role path" "$M" "
 # absent role file.
 M=$(mirror voice-missing)
 rm -f "$M/agent-factory/roles/compliance-officer.md"
-expect_fail "voice missing file → nonzero + 'compliance-officer.md' (structured, not awk abort)" "$M" "compliance-officer.md"
+# WR-04: assert guard_voice's OWN presence-check phrase (`required voice file missing`, emitted at
+# the guard's line 211), not the bare filename. compliance-officer.md is in the SHARED ROLE_FILES
+# list read by THREE guards (guard_voice, guard_caveman_preserved, guard_role_size), each of which
+# prints the filename on its own missing-file branch — so a bare-filename assertion would still
+# pass if guard_voice's presence-check regressed (guard_role_size's line alone satisfies it). The
+# guard-specific phrase binds this test to the code path it claims (CR-02) to exercise.
+expect_fail "voice missing file → nonzero + 'required voice file missing' (guard_voice presence-check)" "$M" "required voice file missing"
 
 # guard_voice (D-05 refinement is NARROW, not weakened — T-11-07) — plant a NEW clear-voice grug
 # phrase ("grug voice" / a `/grug` brand command) into a clear-voice surface; the refinement must
@@ -271,7 +277,12 @@ expect_fail "single-opener sanded block → nonzero + 'sanded to prose'" "$M" "s
 # not a raw awk abort (same set -eu class as voice-missing). A deleted role must fail red.
 M=$(mirror caveman-missing)
 rm -f "$M/agent-factory/roles/ba-pm.md"
-expect_fail "caveman missing role → nonzero + 'ba-pm.md' (structured, not awk abort)" "$M" "ba-pm.md"
+# WR-04: assert guard_caveman_preserved's OWN missing-file phrase (`caveman prompt block missing`,
+# emitted by its presence-check branch), not the bare filename. ba-pm.md is in the SHARED
+# ROLE_FILES list read by THREE guards, each printing the filename — so a bare-filename assertion
+# could be satisfied by guard_voice or guard_role_size even if guard_caveman_preserved's own
+# presence-check regressed. The guard-specific phrase binds this test (CR-02) to its code path.
+expect_fail "caveman missing role → nonzero + 'caveman prompt block missing' (guard_caveman_preserved presence-check)" "$M" "caveman prompt block missing"
 
 # ---------------------------------------------------------------------------
 # guard_role_size (D-07 RED) — BLOAT a role past its locked FAIL ceiling with the yes|head idiom
