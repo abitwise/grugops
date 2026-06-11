@@ -49,10 +49,11 @@ trap cleanup EXIT INT TERM
 # tree carrying byte-faithful copies of all of these plus the guard script; one file is then
 # mutated to plant the violation.
 #
-# All 16 role files are listed (D-05/D-06/D-07 expanded the role guards from the 3 voice surfaces
-# to every role): guard_voice, guard_caveman_preserved, and guard_role_size each read all 16, so
-# the mirror must copy all 16 into every hermetic case or the smoke/planted runs would FAIL on a
-# missing role. `_role-switch-protocol.md` is NOT one of the 16 (no caveman block) — excluded.
+# All 17 role files are listed (D-05/D-06/D-07 expanded the role guards from the 3 voice surfaces
+# to every role; Phase 13 added frontend-ui.md): guard_voice, guard_caveman_preserved, and
+# guard_role_size each read all 17, so the mirror must copy all 17 into every hermetic case or the
+# smoke/planted runs would FAIL on a missing role. `_role-switch-protocol.md` is NOT one of the 17
+# (no caveman block) — excluded.
 GUARD_INPUTS="AGENTS.md \
 .claude/skills/grugops/SKILL.md \
 .claude/agents/grugops-orchestrator.md \
@@ -64,6 +65,7 @@ agent-factory/roles/ba-pm.md \
 agent-factory/roles/brownfield-mapper.md \
 agent-factory/roles/compliance-officer.md \
 agent-factory/roles/factory-coach.md \
+agent-factory/roles/frontend-ui.md \
 agent-factory/roles/greenfield-mapper.md \
 agent-factory/roles/incident-responder.md \
 agent-factory/roles/installer.md \

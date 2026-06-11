@@ -26,7 +26,7 @@
 #                        invariant) is ~470 chars, so a line count under-counts a bloated
 #                        file. A pointer-only adapter that grows past the ceiling signals a
 #                        role body was copied in, breaking single-source.
-#   guard_voice        — voice-discipline lint over ALL 16 role files (D-05 expansion from the
+#   guard_voice        — voice-discipline lint over ALL 17 role files (D-05 expansion from the
 #                        3 curated security/compliance/incident surfaces). SECTION-scoped: strips
 #                        the single fenced `## Caveman prompt` block (intentionally caveman), then
 #                        greps the clear-voice remainder for caveman markers. Uses `\bgrug\b`
@@ -179,16 +179,17 @@ guard_adapter_size() {
 # role, those new sections are AUTOMATICALLY scanned — no guard change is needed. Phase 11
 # must NOT re-engineer this anchor.
 # ---------------------------------------------------------------------------
-# The 16 role files (D-05 expansion). `_role-switch-protocol.md` is the protocol, NOT a persona —
-# it has no `## Caveman prompt` block, so it is correctly EXCLUDED from the 16 (and from ROLE_FILES
-# in guard_role_size + guard_caveman_preserved). This same 16-file list is the scan set for all
-# three role guards (guard_voice, guard_caveman_preserved, guard_role_size).
+# The 17 role files (D-05 expansion + Phase 13 frontend-ui). `_role-switch-protocol.md` is the
+# protocol, NOT a persona — it has no `## Caveman prompt` block, so it is correctly EXCLUDED from
+# the 17 (and from ROLE_FILES in guard_role_size + guard_caveman_preserved). This same 17-file list
+# is the scan set for all three role guards (guard_voice, guard_caveman_preserved, guard_role_size).
 ROLE_FILES="agent-factory/roles/agents-md-scribe.md \
 agent-factory/roles/architect-design.md \
 agent-factory/roles/ba-pm.md \
 agent-factory/roles/brownfield-mapper.md \
 agent-factory/roles/compliance-officer.md \
 agent-factory/roles/factory-coach.md \
+agent-factory/roles/frontend-ui.md \
 agent-factory/roles/greenfield-mapper.md \
 agent-factory/roles/incident-responder.md \
 agent-factory/roles/installer.md \
@@ -326,7 +327,7 @@ $f: caveman voice sanded to prose (only the opener survives — no caveman marke
     fi
   done
   if [ -z "$cav_fail" ]; then
-    pass "caveman: all 16 roles keep a non-empty markered caveman prompt block"
+    pass "caveman: all 17 roles keep a non-empty markered caveman prompt block"
   else
     fail "caveman-preserved violation:$cav_fail"
   fi
@@ -353,7 +354,7 @@ $f: caveman voice sanded to prose (only the opener survives — no caveman marke
 # *bloated* rewrite — the larger headroom is documented, not a blank cheque.
 #
 # `_role-switch-protocol.md` (2326 B) is the protocol, NOT a persona — EXCLUDED (uses ROLE_FILES,
-# the 16-file list shared with guard_voice + guard_caveman_preserved).
+# the 17-file list shared with guard_voice + guard_caveman_preserved).
 #
 # CR-01 missing-file fail-red (mirrors guard_adapter_size): a deleted role must fail red NAMING
 # the path, never vacuous-pass on an empty `wc -c <` byte count.
@@ -372,6 +373,7 @@ role_ceiling() {
     architect-design.md)   echo "3617 3423" ;;
     ba-pm.md)              echo "3294 3075" ;;  # PERS-02 BA headroom (+20% / +12%)
     factory-coach.md)      echo "3420 3237" ;;
+    frontend-ui.md)        echo "3969 3757" ;;  # Phase 13 — 17th role (UI-01)
     incident-responder.md) echo "3387 3206" ;;
     installer.md)          echo "3345 3166" ;;
     software-engineer.md)  echo "3307 3130" ;;
