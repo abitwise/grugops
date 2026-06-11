@@ -205,6 +205,20 @@ else
   fail "voice refinement should accept clear-voice grug-meta (rc=$RC: $OUT)"
 fi
 
+# guard_voice (WR-03 RED) — MALFORM the caveman fence: delete the CLOSING ``` of a role's
+# `## Caveman prompt` block so the fence is unbalanced. With the old strip awk, `skip` never
+# reset and EVERY line after the heading was silently dropped from the clear-voice scan — a
+# false-negative across the whole file tail. The WR-03 END-sentinel must now fail red NAMING the
+# file. Drop only the second ``` after the heading; the rest of the file is preserved.
+M=$(mirror voice-unclosed-fence)
+awk '
+  /^## Caveman prompt/ {seen=1}
+  seen && /^```/ { fence++; if (fence==2) next }  # delete the closing fence → unbalanced
+  { print }
+' "$M/agent-factory/roles/qe-e2e.md" > "$M/agent-factory/roles/qe-e2e.unclosed" \
+  && mv "$M/agent-factory/roles/qe-e2e.unclosed" "$M/agent-factory/roles/qe-e2e.md"
+expect_fail "unterminated caveman fence → nonzero + 'unterminated'" "$M" "unterminated"
+
 # ---------------------------------------------------------------------------
 # guard_caveman_preserved (D-06 RED) — SAND the caveman voice off a role: replace the lines INSIDE
 # the fenced `## Caveman prompt` block with marker-free professional prose (fences + rest of file

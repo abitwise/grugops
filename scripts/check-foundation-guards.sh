@@ -218,12 +218,27 @@ $f: required voice file missing"
     fi
     # Strip the single fenced `## Caveman prompt` block, then scan the clear-voice remainder.
     # (D-10 forward-compat: this anchor is NOT re-engineered for the D-05 expansion.)
+    #
+    # WR-03 fix: if the caveman fence is MALFORMED (missing/odd number of ```), `skip` never
+    # resets and EVERY line after the heading is silently dropped from the clear-voice scan — a
+    # false-negative across the whole file tail (## Hard limits, the safety lines, etc.). The
+    # END block emits a sentinel when `skip` is still set at EOF so an unterminated block fails
+    # RED instead of scanning nothing. The sentinel carries no VOICE_MARKER, so it is detected by
+    # its own grep below, not confused with a caveman marker. (This adds an END action only — it
+    # does NOT re-engineer the fence anchor, honoring D-10 forward-compat.)
     body=$(awk '
       /^## Caveman prompt/ {skip=1}
       skip && /^```/        {fence++; if(fence==2){skip=0;fence=0}; next}
       skip                  {next}
       {print}
+      END { if (skip) print "__UNCLOSED_CAVEMAN_FENCE__" }
     ' "$f")
+    # WR-03: an unterminated caveman block fails red NAMING the file — the tail was never scanned.
+    if printf '%s\n' "$body" | grep -qF '__UNCLOSED_CAVEMAN_FENCE__'; then
+      voice_fail="$voice_fail
+$f: unterminated ## Caveman prompt fence — clear-voice tail not scanned (malformed fence)"
+      continue
+    fi
     # D-05 marker refinement (a SEPARATE pass — does NOT touch the fence anchor above): neutralize
     # the three verified clear-voice grug phrasings so the all-16 scan ships GREEN. `/grug` is the
     # brand command; "grug voice" / "grug wink" are the Scribe's clear-voice descriptions of the
