@@ -1,10 +1,11 @@
 ---
 phase: 12
 slug: bdd-tdd-wiring
-status: draft
-nyquist_compliant: false
-wave_0_complete: false
+status: complete
+nyquist_compliant: true
+wave_0_complete: true
 created: 2026-06-11
+validated: 2026-06-11
 ---
 
 # Phase 12 — Validation Strategy
@@ -48,25 +49,25 @@ created: 2026-06-11
 
 | Req ID | Behavior | Test Type | Automated Command (structural) | File Exists | Status |
 |--------|----------|-----------|--------------------------------|-------------|--------|
-| BDD-01 | `## Acceptance scenarios (Given/When/Then)` block present in product-handoff | structural grep | `grep -q '^## Acceptance scenarios (Given/When/Then)' agent-factory/handoffs/product-handoff.md` | ❌ W0 | ⬜ pending |
-| BDD-01 | `## Acceptance scenarios` block present in qe-handoff | structural grep | `grep -q '^## Acceptance scenarios' agent-factory/handoffs/qe-handoff.md` | ❌ W0 | ⬜ pending |
-| BDD-01 | No-selectors rule line present in the scenario template | structural grep | `grep -qi 'no .*selectors\|business language' agent-factory/handoffs/product-handoff.md` | ❌ W0 | ⬜ pending |
-| BDD-01 | Existing `## Acceptance criteria` line preserved (criteria ≠ scenarios) | structural grep | `grep -q '^## Acceptance criteria (Given/When/Then)' agent-factory/handoffs/product-handoff.md` | ✅ today | ⬜ pending |
-| BDD-02 | `example-mapping.md` hub exists (NEW file) | structural test | `test -f agent-factory/checklists/example-mapping.md` | ❌ W0 | ⬜ pending |
-| BDD-02 | Workflow 07 points to the hub | structural grep | `grep -q 'example-mapping.md' agent-factory/workflows/07-backlog-refinement.md` | ❌ W0 | ⬜ pending |
-| BDD-02 | Example-Mapping-before-Gherkin rule line present | structural grep + manual | `grep -qi 'after\|first' agent-factory/checklists/example-mapping.md` (confirm intent) | ❌ W0 | ⬜ pending |
-| BDD-03 | `bdd` dial read present (degrade-to-lean) in the new content | structural grep | `grep -q 'bdd' agent-factory/checklists/example-mapping.md` + handoff/workflow comments | ❌ W0 | ⬜ pending |
-| TDD-01 | TDD red-green step present in workflow 04 | structural grep | `grep -qi 'red.*green\|failing.*test.*first' agent-factory/workflows/04-ticket-to-pr.md` | ❌ W0 | ⬜ pending |
-| TDD-01 | Double-loop / no-second-red rule present | structural grep | `grep -qi 'no second\|outer\|inner' agent-factory/workflows/04-ticket-to-pr.md` | ❌ W0 | ⬜ pending |
-| TDD-01 | Contract-vs-logic seam rule line present (one-behavior-one-layer) | structural grep | `grep -qi 'seam\|one .*layer\|observable' agent-factory/roles/software-engineer.md` | ❌ W0 | ⬜ pending |
-| TDD-01 | Worked seam example present (hub or workflow, NOT a role file) | structural grep | `grep -qi 'seam\|observable' agent-factory/checklists/example-mapping.md` (or wf04) | ❌ W0 | ⬜ pending |
-| TDD-02 | Test-first / red-green evidence field present in implementation-handoff | structural grep | `grep -qi 'test-first\|red.*green' agent-factory/handoffs/implementation-handoff.md` | ❌ W0 | ⬜ pending |
-| TDD-02 | `quality.tdd` dial read present (degrade-to-encouraged) | structural grep | `grep -qi 'tdd' agent-factory/handoffs/implementation-handoff.md` (comment) | ❌ W0 | ⬜ pending |
-| TDD-02 | No-fabrication floor (`UNKNOWN - verify`) in the evidence field | structural grep | `grep -q 'UNKNOWN - verify' agent-factory/handoffs/implementation-handoff.md` | ⚠ confirm in new field | ⬜ pending |
-| D-11 | TDD test-strategy content in impl-ready packet (extend existing `## Test strategy`) | structural grep | `grep -qi 'unit\|layer\|red.*green' agent-factory/handoffs/implementation-ready-packet.md` | ❌ W0 (heading exists) | ⬜ pending |
-| D-12 | AGENTS.md acceptance command slot present, under byte budget | structural grep + guard | `grep -qi 'acceptance\|bdd' AGENTS.md && sh scripts/check-foundation-guards.sh` (`guard_agents_bytes`) | ❌ W0 | ⬜ pending |
-| cross | Role byte ceiling stays GREEN after software-engineer.md / qe-e2e.md edits | mechanical guard | `sh scripts/check-foundation-guards.sh` (`guard_role_size`, `guard_voice`, `guard_caveman_preserved`) | ✅ harness exists | ⬜ pending |
-| cross | Adapters untouched / pointer-sized (single-source held) | mechanical guard | `sh scripts/check-foundation-guards.sh` (`guard_adapter_size`) | ✅ free | ✅ passes for free |
+| BDD-01 | `## Acceptance scenarios (Given/When/Then)` block present in product-handoff | structural grep | `grep -q '^## Acceptance scenarios (Given/When/Then)' agent-factory/handoffs/product-handoff.md` | ✅ today | ✅ green |
+| BDD-01 | `## Acceptance scenarios` block present in qe-handoff | structural grep | `grep -q '^## Acceptance scenarios' agent-factory/handoffs/qe-handoff.md` | ✅ today | ✅ green |
+| BDD-01 | No-selectors rule line present in the scenario template | structural grep | `grep -qi 'no .*selectors\|business language' agent-factory/handoffs/product-handoff.md` | ✅ today | ✅ green |
+| BDD-01 | Existing `## Acceptance criteria` line preserved (criteria ≠ scenarios) | structural grep | `grep -q '^## Acceptance criteria (Given/When/Then)' agent-factory/handoffs/product-handoff.md` | ✅ today | ✅ green |
+| BDD-02 | `example-mapping.md` hub exists (NEW file) | structural test | `test -f agent-factory/checklists/example-mapping.md` | ✅ today | ✅ green |
+| BDD-02 | Workflow 07 points to the hub | structural grep | `grep -q 'example-mapping.md' agent-factory/workflows/07-backlog-refinement.md` | ✅ today | ✅ green |
+| BDD-02 | Example-Mapping-before-Gherkin rule line present | structural grep + manual | `grep -qi 'after\|first' agent-factory/checklists/example-mapping.md` (confirm intent) | ✅ today | ✅ green |
+| BDD-03 | `bdd` dial read present (degrade-to-lean) in the new content | structural grep | `grep -q 'bdd' agent-factory/checklists/example-mapping.md` + handoff/workflow comments | ✅ today | ✅ green |
+| TDD-01 | TDD red-green step present in workflow 04 | structural grep | `grep -qi 'red.*green\|failing.*test.*first' agent-factory/workflows/04-ticket-to-pr.md` | ✅ today | ✅ green |
+| TDD-01 | Double-loop / no-second-red rule present | structural grep | `grep -qi 'no second\|outer\|inner' agent-factory/workflows/04-ticket-to-pr.md` | ✅ today | ✅ green |
+| TDD-01 | Contract-vs-logic seam rule line present (one-behavior-one-layer) | structural grep | `grep -qi 'seam\|one .*layer\|observable' agent-factory/roles/software-engineer.md` | ✅ today | ✅ green |
+| TDD-01 | Worked seam example present (hub or workflow, NOT a role file) | structural grep | `grep -qi 'seam\|observable' agent-factory/checklists/example-mapping.md` (or wf04) | ✅ today | ✅ green |
+| TDD-02 | Test-first / red-green evidence field present in implementation-handoff | structural grep | `grep -qi 'test-first\|red.*green' agent-factory/handoffs/implementation-handoff.md` | ✅ today | ✅ green |
+| TDD-02 | `quality.tdd` dial read present (degrade-to-encouraged) | structural grep | `grep -qi 'tdd' agent-factory/handoffs/implementation-handoff.md` (comment) | ✅ today | ✅ green |
+| TDD-02 | No-fabrication floor (`UNKNOWN - verify`) in the evidence field | structural grep | `grep -q 'UNKNOWN - verify' agent-factory/handoffs/implementation-handoff.md` | ✅ today | ✅ green |
+| D-11 | TDD test-strategy content in impl-ready packet (extend existing `## Test strategy`) | structural grep | `grep -qi 'unit\|layer\|red.*green' agent-factory/handoffs/implementation-ready-packet.md` | ✅ today | ✅ green |
+| D-12 | AGENTS.md acceptance command slot present, under byte budget | structural grep + guard | `grep -qi 'acceptance\|bdd' AGENTS.md && sh scripts/check-foundation-guards.sh` (`guard_agents_bytes`) | ✅ today | ✅ green |
+| cross | Role byte ceiling stays GREEN after software-engineer.md / qe-e2e.md edits | mechanical guard | `sh scripts/check-foundation-guards.sh` (`guard_role_size`, `guard_voice`, `guard_caveman_preserved`) | ✅ harness exists | ✅ green (3 WARN, 0 FAIL) |
+| cross | Adapters untouched / pointer-sized (single-source held) | mechanical guard | `sh scripts/check-foundation-guards.sh` (`guard_adapter_size`) | ✅ free | ✅ green |
 
 *Status: ⬜ pending · ✅ green · ❌ red · ⚠️ flaky*
 
@@ -74,10 +75,10 @@ created: 2026-06-11
 
 ## Wave 0 Requirements
 
-- [ ] **No NEW test framework** — POSIX sh + the existing `check-foundation-guards.sh` cover the mechanical surface; the rest is ad-hoc structural greps + prose review.
-- [ ] `agent-factory/checklists/example-mapping.md` — NEW file (BDD-02); its existence is the test.
-- [ ] The structural greps above are per-task one-liners the executor runs — they do **NOT** need a new harness and must **NOT** become a Phase-15 enforcement guard.
-- [ ] **Confirm `guard_role_size` headroom BEFORE writing role lines** — `software-engineer.md` ~2 B below WARN, `qe-e2e.md` ~17 B below WARN (measured live 2026-06-11). Plan role edits as single terse pointer lines; the worked seam example lives in the hub/workflow, never in a role file.
+- [x] **No NEW test framework** — POSIX sh + the existing `check-foundation-guards.sh` cover the mechanical surface; the rest is ad-hoc structural greps + prose review.
+- [x] `agent-factory/checklists/example-mapping.md` — NEW file (BDD-02); its existence is the test. (`test -f` ✅)
+- [x] The structural greps above are per-task one-liners the executor runs — they do **NOT** need a new harness and must **NOT** become a Phase-15 enforcement guard.
+- [x] **Confirm `guard_role_size` headroom BEFORE writing role lines** — `software-engineer.md` 3295 B and `qe-e2e.md` 3220 B both landed under their FAIL ceilings (3307 / 3224); WARN (not FAIL) at validation. The worked seam example lives in the hub, never in a role file.
 
 ---
 
@@ -93,15 +94,32 @@ created: 2026-06-11
 
 ---
 
+## Validation Audit 2026-06-11
+
+Re-ran every per-task structural grep + both foundation-guards harnesses live against the post-execution tree. All 17 structural rows GREEN; `check-foundation-guards.sh` and `check-foundation-guards.test.sh` both exit 0 (ALL CHECKS PASSED). No automatable gaps found → no auditor spawned, no test files generated.
+
+| Metric | Count |
+|--------|-------|
+| Automatable rows audited | 17 structural + 2 mechanical-guard |
+| COVERED (green) | 19 |
+| PARTIAL / MISSING (automatable gaps) | 0 |
+| Resolved by auditor | 0 (none needed) |
+| Escalated | 0 |
+| Manual-only (irreducible prose-judgment) | 5 — unchanged; spot-reviewed in 12-VERIFICATION.md |
+
+**Note on Nyquist compliance:** Every requirement that *can* be mechanically verified has automated structural verification, all green, <5 s feedback latency — so the phase is Nyquist-compliant. The 5 Manual-Only rows are inherent quality judgments (declarativeness, teaching-example clarity, hub terseness, double-loop readability, two-voice floor) that no grep can score; they are not deferred automatable work. Mechanical *enforcement* of executable-or-absent / no-second-red / one-behavior-one-layer is Phase 15 by design (not pre-empted here).
+
+---
+
 ## Validation Sign-Off
 
-- [ ] All mechanical rows map to a `check-foundation-guards.sh` command or a one-line structural grep
-- [ ] Sampling continuity: guard run after every task commit; harness + full grep set after every wave
-- [ ] Wave 0 covers the NEW `example-mapping.md` file + the role byte-ceiling headroom check
-- [ ] No watch-mode flags (scripts/greps are one-shot read-only)
-- [ ] Feedback latency < 5s
-- [ ] Structural greps pass AND prose-judgment spot review completed before verify
-- [ ] No new mechanical enforcement guard authored (executable-or-absent / no-skip / one-layer enforcement is Phase 15)
-- [ ] `nyquist_compliant: true` set in frontmatter
+- [x] All mechanical rows map to a `check-foundation-guards.sh` command or a one-line structural grep
+- [x] Sampling continuity: guard run after every task commit; harness + full grep set after every wave
+- [x] Wave 0 covers the NEW `example-mapping.md` file + the role byte-ceiling headroom check
+- [x] No watch-mode flags (scripts/greps are one-shot read-only)
+- [x] Feedback latency < 5s
+- [x] Structural greps pass AND prose-judgment spot review completed before verify (spot review: 12-VERIFICATION.md behavioral spot-checks PASS; WR-01/02/03 resolved, commit 1dc7bd1)
+- [x] No new mechanical enforcement guard authored (executable-or-absent / no-skip / one-layer enforcement is Phase 15)
+- [x] `nyquist_compliant: true` set in frontmatter
 
-**Approval:** pending
+**Approval:** validated 2026-06-11 — all automatable verification GREEN; 5 manual-only prose-judgment rows documented (spot-reviewed at verify).
