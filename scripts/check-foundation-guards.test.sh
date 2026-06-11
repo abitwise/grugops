@@ -227,6 +227,32 @@ awk '
   && mv "$M/agent-factory/roles/brownfield-mapper.sanded" "$M/agent-factory/roles/brownfield-mapper.md"
 expect_fail "sanded caveman block → nonzero + 'no caveman marker'" "$M" "no caveman marker"
 
+# guard_caveman_preserved (WR-01 RED) — sand the block down to a SINGLE `You are <Role>.` opener
+# plus flowing professional prose (1 `^You` line, no grug idiom). Every block keeps that opener,
+# so the OLD single-marker grep (which OR'd `^You\b` into the markers) ACCEPTED this bypass — a
+# block can be simultaneously under the byte ceiling AND retain only the opener, escaping both
+# guards. The WR-01 fix requires >=2 `^You` lines OR a bare grug idiom, so a single opener now
+# fails red. Replace the inside-fence lines with one opener + two prose lines.
+M=$(mirror caveman-single-opener)
+awk '
+  /^## Caveman prompt/ {seen=1; print; next}
+  seen && /^```/ {
+    fence++
+    print
+    if (fence==1) {
+      print "You are the Brownfield Mapper."
+      print "This role surveys the existing repository with professional diligence,"
+      print "documenting the current architecture before any change is proposed."
+      infence=1; next
+    }
+    if (fence==2) { infence=0; seen=0; next }
+  }
+  infence { next }
+  { print }
+' "$M/agent-factory/roles/brownfield-mapper.md" > "$M/agent-factory/roles/brownfield-mapper.sanded" \
+  && mv "$M/agent-factory/roles/brownfield-mapper.sanded" "$M/agent-factory/roles/brownfield-mapper.md"
+expect_fail "single-opener sanded block → nonzero + 'sanded to prose'" "$M" "sanded to prose"
+
 # guard_caveman_preserved (CR-02) — plant a MISSING role; assert a STRUCTURED fail naming the path,
 # not a raw awk abort (same set -eu class as voice-missing). A deleted role must fail red.
 M=$(mirror caveman-missing)

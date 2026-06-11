@@ -269,8 +269,16 @@ $m"
 #
 # CR-02 presence-first (same class as guard_voice): a missing role must fail red NAMING the path,
 # never let a non-zero awk exit abort the script under set -eu before the summary prints.
+#
+# WR-01 fix: a SINGLE `You are <Role>.` opener is NOT enough evidence of caveman voice. Every
+# block — sanded or not — keeps that one opener, so the old single-marker grep (which OR'd
+# `^You\b` into the markers) PASSED a block flattened into flowing professional prose that kept
+# only the opener, defeating the D-06 "voice not sanded off" contract (professional prose is
+# often SHORTER than terse caveman cadence, so guard_role_size's byte ceiling is no backstop).
+# The fix requires evidence BEYOND the universal opener: at least TWO `^You`-cadence lines OR at
+# least one bare grug idiom (VOICE_MARKERS). All 16 clean blocks carry >=4 `^You` lines (verified
+# 2026-06-11), so the threshold keeps the clean tree GREEN while rejecting a single-opener sand.
 # ---------------------------------------------------------------------------
-CAVEMAN_MARKERS="$VOICE_MARKERS|^You\\b"
 
 guard_caveman_preserved() {
   printf '\n[guard_caveman_preserved] every role keeps a non-empty caveman prompt block (D-06)\n'
@@ -290,9 +298,16 @@ $f: required role file missing (caveman prompt block missing or empty)"
     if [ -z "$block" ]; then
       cav_fail="$cav_fail
 $f: caveman prompt block missing or empty"
-    elif ! printf '%s\n' "$block" | grep -qE "$CAVEMAN_MARKERS"; then
-      cav_fail="$cav_fail
-$f: no caveman marker (voice sanded off?)"
+    else
+      # WR-01: require >=2 `^You`-cadence lines OR >=1 bare grug idiom — a single opener fails.
+      # `|| true` keeps the assignment safe under set -e: `grep -c` exits 1 on a zero count, which
+      # would otherwise abort the script inside the command substitution (a fully-sanded block has
+      # zero `^You` lines — exactly the case this guard must FLAG, not crash on).
+      youcount=$(printf '%s\n' "$block" | grep -cE '^You\b' || true)
+      if [ "$youcount" -lt 2 ] && ! printf '%s\n' "$block" | grep -qE "$VOICE_MARKERS"; then
+        cav_fail="$cav_fail
+$f: caveman voice sanded to prose (only the opener survives — no caveman marker)"
+      fi
     fi
   done
   if [ -z "$cav_fail" ]; then
