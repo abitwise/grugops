@@ -473,22 +473,27 @@ follow are declarative business language (no selectors).
 | A4 | AGENTS.md slot named `### Acceptance` with one `UNKNOWN - verify` line stays well under budget | Code Examples / D-12 | LOW — AGENTS.md is 6051 B, WARN at 20480; one line adds <120 B. The discretion is `acceptance:` vs `bdd:` naming. |
 | A5 | No slopcheck/package-legitimacy gate is required because the phase installs nothing | Package Legitimacy Audit | LOW — verified against CLAUDE.md + REQUIREMENTS Out of Scope (no npm deps). Runner names are prose examples, registry-verified to exist, host-installed if chosen. |
 
-## Open Questions
+## Open Questions (RESOLVED)
+
+> All three resolved by the inline recommendations below; Phase-12 plans implement them faithfully (confirmed by plan-checker, 2026-06-11). Markers added post-planning.
 
 1. **Exact AGENTS.md slot name — `### Acceptance` vs folding into `### Test` as `Acceptance / BDD: …`**
    - What we know: D-12 says one line under the byte budget, alongside unit/e2e; both shapes satisfy it.
    - What's unclear: whether a new micro-heading or an extra line under `### Test` reads cleaner.
    - Recommendation: a single line — either a new `### Acceptance` micro-slot or an extra bullet under `### Test`. Planner picks; both are trivially under budget. Use `UNKNOWN - verify` as the value (host supplies the real command).
+   - **RESOLVED:** plan 12-05 T3 lands the single-line slot under the byte budget with value `UNKNOWN - verify` (host supplies the command).
 
 2. **Whether workflow 07's Three Amigos step sits before or after the Phase-11 senior-BA INVEST step**
    - What we know: D-04/05/06 fold the step ON TOP of the Phase-11 ceremony; D-06 says Example Mapping (discovery) precedes writing scenarios.
    - What's unclear: exact step ordering inside workflow 07's numbered list.
    - Recommendation: place the dial-gated Three Amigos step after "clarify to INVEST" (Step 2) and before "size/prioritize" (Step 4) — discovery happens once the story is INVEST-shaped but before it is sized; scenarios are written after the workshop. Keep it a single pointer line to `example-mapping.md`.
+   - **RESOLVED:** plan 12-02 folds the dial-gated Three Amigos step into workflow 07 as a single pointer line to `example-mapping.md`, on top of the Phase-11 ceremony; scenarios written after the workshop.
 
 3. **`strict`-tier scenario-file location/extension convention (D-01 discretion)**
    - What we know: host runners converge on `features/*.feature` + a `steps/`-style sibling, but layouts differ (playwright-bdd uses `defineBddConfig()` + `.features-gen/`; Behave uses `features/steps/`).
    - What's unclear: any single convention grugops could recommend without over-prescribing.
    - Recommendation: do NOT pin a layout. Reference the chosen host runner's own convention as an example and mark `UNKNOWN - verify`. Selector-free is the only hard rule grugops imposes.
+   - **RESOLVED:** no layout pinned — plans reference the chosen host runner's own convention and mark `UNKNOWN - verify`; selector-free stays the only hard rule.
 
 ## Environment Availability
 
