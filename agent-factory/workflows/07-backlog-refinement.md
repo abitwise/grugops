@@ -19,14 +19,16 @@ Roles activate via the role-switch protocol (`agent-factory/roles/_role-switch-p
 - The top of the `Backlog` column on `plans/board.md` — the captured ideas to refine.
 - `.grugops/factory.config.json` for `mode`, `cadence`, sizing (tshirt), and `priority_scheme` (`P0`–`P3`).
 - `agent-factory/checklists/definition-of-ready.md` — the bar each item must meet before it can be promoted.
+- `agent-factory/checklists/example-mapping.md` — the Three Amigos / Example Mapping ceremony, when the `bdd` dial is not `off`.
 
 ## Steps
 1. Pull the top items off the `Backlog` column by priority (BA/PM).
 2. Clarify each item to INVEST shape — user value, scope, and acceptance criteria that are testable and measurable (a number, a state, an observable outcome, never "works"); pull in the System Analyst when behavior is unclear, or Architect/Design for a spike.
-3. Split `XL` work into smaller tickets — the Orchestrator enforces `SPLIT_REQUIRED`; no `XL` ticket enters dev. A ticket only a long dependency chain can deliver is not yet independent — split it.
-4. Size each item (`XS`–`XL`) and prioritize it (`P0`–`P3`); a story that cannot be estimated is not yet small or clear enough — clarify it first.
-5. Mark any security/NFR triggers on the ticket, each with a measurable target (p95 latency, error budget, concurrency) so the gate fires on a real number, not "fast"/"secure".
-6. Promote items that meet `agent-factory/checklists/definition-of-ready.md` into the `Ready` column; record the refinement by filling the `refinement-notes.md` template from `agent-factory/handoffs/` into the instance `plans/handoffs/<SPRINT-ID>-refinement.md`.
+3. When the `bdd` dial is not `off`, run the Three Amigos / Example Mapping conversation per `agent-factory/checklists/example-mapping.md` to surface the declarative scenarios BEFORE the item is sized — read the dial inline (`off` = skip the step · `lean` = the BA self-runs all three voices · `strict` = named participants; absent = lean). Discovery first, scenarios after; declarative business language, never selectors.
+4. Split `XL` work into smaller tickets — the Orchestrator enforces `SPLIT_REQUIRED`; no `XL` ticket enters dev. A ticket only a long dependency chain can deliver is not yet independent — split it.
+5. Size each item (`XS`–`XL`) and prioritize it (`P0`–`P3`); a story that cannot be estimated is not yet small or clear enough — clarify it first.
+6. Mark any security/NFR triggers on the ticket, each with a measurable target (p95 latency, error budget, concurrency) so the gate fires on a real number, not "fast"/"secure".
+7. Promote items that meet `agent-factory/checklists/definition-of-ready.md` into the `Ready` column; record the refinement by filling the `refinement-notes.md` template from `agent-factory/handoffs/` into the instance `plans/handoffs/<SPRINT-ID>-refinement.md`.
 
 ## Board moves
 On `plans/board.md`, BA/PM owns the `Backlog -> Ready` exit: items that meet the Definition of Ready move from `Backlog` to `Ready`. `XL` items do not advance — they are split back into the `Backlog` as smaller tickets via `SPLIT_REQUIRED`. The `Ready` column WIP limit (from `factory.config.json#wip_limits`) caps how many items sit ready at once.
