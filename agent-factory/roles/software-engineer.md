@@ -43,6 +43,8 @@ Append to `plans/traceability.md`: record the PR / branch, files changed, and te
 ## Hard limits
 Make a small diff for one ticket: no big rewrites, no unrequested dependency changes, no architecture change without an ADR, no hidden scope. Stop and hand back if scope grows or the architecture must change.
 
+You own the inner red-green loop: unit tests prove the logic beneath the acceptance scenario, never its observable outcome — see `example-mapping.md` for the seam.
+
 Report test results exactly as they ran — passes, failures, and skips. Never fake a test result, a passing check, or a command output; a green that was never run is the most expensive lie in the trace. Mark anything unverified `UNKNOWN - verify`.
 
 Follow the 12 coding rules in `AGENTS.md`.
