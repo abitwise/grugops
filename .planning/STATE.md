@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: SDLC Depth, Quality Discipline & Browsable Docs
 status: executing
-last_updated: "2026-06-11T09:45:27.317Z"
+last_updated: "2026-06-11T09:49:44.255Z"
 last_activity: 2026-06-11
 progress:
   total_phases: 8
   completed_phases: 2
   total_plans: 14
-  completed_plans: 10
+  completed_plans: 11
   percent: 25
 ---
 
@@ -25,11 +25,11 @@ See: .planning/PROJECT.md (updated 2026-06-09 — v1.2 milestone started)
 ## Current Position
 
 Phase: 12 (bdd-tdd-wiring) — EXECUTING
-Plan: 2 of 5
+Plan: 3 of 5
 Status: Ready to execute
 Last activity: 2026-06-11
 
-Progress: [███████░░░] 71%
+Progress: [████████░░] 79%
 
 ## Performance Metrics
 
@@ -118,6 +118,7 @@ Progress: [███████░░░] 71%
 | Phase 11 P04 | 18m | 3 tasks | 2 files |
 | Phase 11 P05 | 4m | 2 tasks | 4 files |
 | Phase 12 P01 | 4m | 2 tasks | 2 files |
+| Phase 12 P02 | 2m | 2 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -246,6 +247,8 @@ Recent decisions affecting current work:
 - [Phase ?]: [11-05] PERS-03 — WR-05 RETIRED: guard_wr05 re-verified GREEN on a fresh post-rewrite run (regen-safety, the LAST check per D-10); the spawn-grant debt marker closed in all 4 locked tracking docs (PROJECT/STATE/SDLC-audit/RETROSPECTIVE); explanatory spawn prose KEPT (D-08); SDLC audit GAP-2 row reconciled to the D-01/D-11 reframe (in-place senior deepening, no new section, terse caveman = token economy)
 - [Phase ?]: [12-01] BDD-01 acceptance-contract landed: tiered selector-free ## Acceptance scenarios (Given/When/Then) block in product+QE handoffs (D-02), beside the preserved criteria bar; degrades to lean when bdd dial absent (D-01); hard no-selectors rule (D-03); strict-tier host file+runner left UNKNOWN - verify (host-agnostic)
 - [Phase ?]: [12-01] D-14 scenario->trace linkage is an additive in-cell comment convention near ## Trace updates, NOT a schema/column rename of plans/traceability.md; block mirrored byte-identical across both handoffs (1:1 contract shape); no acceptance red/green evidence field here (owned by 12-04)
+- [Phase 12-02]: Example Mapping (Three Amigos) hub created mirroring definition-of-ready.md (D-04): terse flat bullets + one fenced worked example, NOT a wall of text; carries the contract-vs-logic seam worked example (D-09) in the hub so it never bloats a byte-ceilinged role file
+- [Phase 12-02]: Workflow 07 Three Amigos step inserted as new Step 3 (after INVEST-shape, before sizing per RESEARCH OQ2), steps renumbered 3-6 to 4-7; single dial-gated pointer line (bdd off=skip / lean=BA self-runs all three voices / strict=named; absent=lean), four-card ceremony NOT restated; Phase-11 senior-BA INVEST step untouched
 
 ### Pending Todos
 
@@ -288,6 +291,6 @@ Items acknowledged and deferred at the v1.1 milestone close on 2026-06-08. All a
 
 ## Session Continuity
 
-Last session: 2026-06-11T09:45:04.669Z
+Last session: 2026-06-11T09:49:44.249Z
 Stopped at: Phase 12 context gathered
 Resume file: None

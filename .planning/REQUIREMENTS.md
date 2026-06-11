@@ -26,8 +26,8 @@ Each maps to exactly one roadmap phase (traceability filled by the roadmapper).
 ### BDD Acceptance Layer
 
 - [x] **BDD-01**: Acceptance behavior is expressed as given-when-then scenarios that form the business→engineer contract, carried in the product + QE handoffs (declarative, executable-or-absent — no Gherkin nobody runs)
-- [ ] **BDD-02**: A Three Amigos / Example Mapping step is folded into backlog refinement, producing the scenarios before code
-- [ ] **BDD-03**: BDD depth is config-dialed (off | lean | strict)
+- [x] **BDD-02**: A Three Amigos / Example Mapping step is folded into backlog refinement, producing the scenarios before code
+- [x] **BDD-03**: BDD depth is config-dialed (off | lean | strict)
 
 ### TDD Unit Layer
 
@@ -112,8 +112,8 @@ Each requirement maps to exactly one phase. v1.2 phase numbering continues from 
 | PERS-02 | Phase 11 | Complete |
 | PERS-03 | Phase 11 | Complete |
 | BDD-01 | Phase 12 | Complete |
-| BDD-02 | Phase 12 | Pending |
-| BDD-03 | Phase 12 | Pending |
+| BDD-02 | Phase 12 | Complete |
+| BDD-03 | Phase 12 | Complete |
 | TDD-01 | Phase 12 | Pending |
 | TDD-02 | Phase 12 | Pending |
 | UI-01 | Phase 13 | Pending |
