@@ -37,4 +37,5 @@ Date:
 <!-- reference architecture-handoff.md and system-handoff.md -->
 ## Files likely touched
 ## Test strategy
+<!-- Read before coding: which unit tests prove the changed behavior, and which layer owns what. The acceptance scenario owns the observable outcome (red-green at the outer loop); the unit tests own the logic and edge cases beneath it (the engineer's inner red-green loop). One behavior, one layer — see agent-factory/checklists/example-mapping.md for the contract-vs-logic seam. -->
 ## Commands to run
