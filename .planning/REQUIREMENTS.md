@@ -31,7 +31,7 @@ Each maps to exactly one roadmap phase (traceability filled by the roadmapper).
 
 ### TDD Unit Layer
 
-- [ ] **TDD-01**: The engineering workflow drives test-first red-green-refactor at the unit layer, with the double-loop rule — no second acceptance scenario goes red before the first is green, and one behavior is owned by exactly one test layer (no BDD/TDD duplication)
+- [x] **TDD-01**: The engineering workflow drives test-first red-green-refactor at the unit layer, with the double-loop rule — no second acceptance scenario goes red before the first is green, and one behavior is owned by exactly one test layer (no BDD/TDD duplication)
 - [ ] **TDD-02**: TDD strictness is config-dialed (off | encouraged | required)
 
 ### Frontend/UI Build
@@ -114,7 +114,7 @@ Each requirement maps to exactly one phase. v1.2 phase numbering continues from 
 | BDD-01 | Phase 12 | Complete |
 | BDD-02 | Phase 12 | Complete |
 | BDD-03 | Phase 12 | Complete |
-| TDD-01 | Phase 12 | Pending |
+| TDD-01 | Phase 12 | Complete |
 | TDD-02 | Phase 12 | Pending |
 | UI-01 | Phase 13 | Pending |
 | UI-02 | Phase 13 | Pending |

@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: SDLC Depth, Quality Discipline & Browsable Docs
 status: executing
-last_updated: "2026-06-11T09:49:44.255Z"
+last_updated: "2026-06-11T09:53:12.897Z"
 last_activity: 2026-06-11
 progress:
   total_phases: 8
   completed_phases: 2
   total_plans: 14
-  completed_plans: 11
+  completed_plans: 12
   percent: 25
 ---
 
@@ -25,11 +25,11 @@ See: .planning/PROJECT.md (updated 2026-06-09 — v1.2 milestone started)
 ## Current Position
 
 Phase: 12 (bdd-tdd-wiring) — EXECUTING
-Plan: 3 of 5
+Plan: 4 of 5
 Status: Ready to execute
 Last activity: 2026-06-11
 
-Progress: [████████░░] 79%
+Progress: [█████████░] 86%
 
 ## Performance Metrics
 
@@ -119,6 +119,7 @@ Progress: [████████░░] 79%
 | Phase 11 P05 | 4m | 2 tasks | 4 files |
 | Phase 12 P01 | 4m | 2 tasks | 2 files |
 | Phase 12 P02 | 2m | 2 tasks | 2 files |
+| Phase 12 P03 | 1m | 2 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -249,6 +250,8 @@ Recent decisions affecting current work:
 - [Phase ?]: [12-01] D-14 scenario->trace linkage is an additive in-cell comment convention near ## Trace updates, NOT a schema/column rename of plans/traceability.md; block mirrored byte-identical across both handoffs (1:1 contract shape); no acceptance red/green evidence field here (owned by 12-04)
 - [Phase 12-02]: Example Mapping (Three Amigos) hub created mirroring definition-of-ready.md (D-04): terse flat bullets + one fenced worked example, NOT a wall of text; carries the contract-vs-logic seam worked example (D-09) in the hub so it never bloats a byte-ceilinged role file
 - [Phase 12-02]: Workflow 07 Three Amigos step inserted as new Step 3 (after INVEST-shape, before sizing per RESEARCH OQ2), steps renumbered 3-6 to 4-7; single dial-gated pointer line (bdd off=skip / lean=BA self-runs all three voices / strict=named; absent=lean), four-card ceremony NOT restated; Phase-11 senior-BA INVEST step untouched
+- [Phase ?]: [Phase 12-03] TDD-01 workflow half: workflow 04 Step 3 carries the engineer inner loop (failing unit test -> minimal code -> green -> refactor) + double-loop rule D-08 (outer acceptance stays red until inner closes it; no second acceptance red before first green) + contract-vs-logic seam D-09 pointing to example-mapping.md; quality.tdd named inline (off/encouraged/required, default encouraged); enforcement stays single-source in gate 05 (Phase 15), no mechanical guard authored
+- [Phase ?]: [Phase 12-03] D-13 light forward-pointer is an HTML comment in workflow 04 Trace updates (scenarios flow forward to UAT/release, NOT rewritten); workflows 06/02/03 untouched. impl-ready packet TDD line (D-11) under the EXISTING ## Test strategy heading in the file's reference-comment clear-voice style — read-before-coding: which units prove the behavior, which layer owns what, seam points to the hub
 
 ### Pending Todos
 
@@ -291,6 +294,6 @@ Items acknowledged and deferred at the v1.1 milestone close on 2026-06-08. All a
 
 ## Session Continuity
 
-Last session: 2026-06-11T09:49:44.249Z
+Last session: 2026-06-11T09:52:52.497Z
 Stopped at: Phase 12 context gathered
 Resume file: None
