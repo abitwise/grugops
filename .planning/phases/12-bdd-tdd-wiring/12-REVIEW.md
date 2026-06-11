@@ -19,7 +19,8 @@ findings:
   warning: 3
   info: 1
   total: 4
-status: issues_found
+status: resolved
+resolution: "All 3 warnings (WR-01/WR-02 gate-naming single-source, WR-03 criteria/scenarios disambiguation) fixed in commit 1dc7bd1; IN-01 (terse role-file pointers) accepted as a documented byte-ceiling tradeoff. Gates GREEN post-fix."
 ---
 
 # Phase 12: Code Review Report
