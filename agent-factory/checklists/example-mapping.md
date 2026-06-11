@@ -44,5 +44,5 @@ INNER (TDD unit — asserts the LOGIC + EDGE CASES beneath, never re-asserting "
 
 Seam: the acceptance scenario owns "the total is 90" once; the unit tests own how the
 discount engine behaves. The same end-state asserted at both layers is the duplication
-smell to avoid. (Mechanical no-duplication enforcement is the Phase 15 gate; this hub
-lands the rule.)
+smell to avoid. (Mechanical no-duplication enforcement is planned for the quality gate
+(`agent-factory/workflows/05-pr-quality-gate.md`); this hub lands the rule.)

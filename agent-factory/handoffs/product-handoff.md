@@ -32,6 +32,7 @@ Date:
 ## Scope
 ## Out of scope
 ## Acceptance criteria (Given/When/Then)
+<!-- criteria = the terse pass/fail bar; the Acceptance scenarios block below is the executable contract — do not duplicate -->
 ## Acceptance scenarios (Given/When/Then)
 <!-- bdd dial: off = omit · lean = inline declarative G/W/T below · strict = link selector-free
      scenario files wired to host step definitions; default lean. Declarative business language
