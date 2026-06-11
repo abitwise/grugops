@@ -127,7 +127,18 @@ Full phase details + milestone summary: `milestones/v1.1-ROADMAP.md` · requirem
   3. The engineering workflow drives test-first red-green-refactor at the unit layer with the double-loop rule encoded: no second acceptance scenario goes red before the first is green, and each behavior is owned by exactly one test layer (BDD acceptance vs TDD unit — no duplication).
   4. BDD depth reads `bdd` (off | lean | strict) and TDD strictness reads `quality.tdd` (off | encouraged | required) from `.grugops/factory.config.json`, each degrading to its lean default when absent.
 
-**Plans**: TBD
+**Plans**: 5 plans
+
+**Wave 1**
+
+- [ ] 12-01-PLAN.md — Acceptance-scenarios G/W/T contract in product + QE handoffs (tiered, no-selectors, D-14 trace note) [BDD-01]
+- [ ] 12-02-PLAN.md — NEW example-mapping.md Three Amigos hub + dial-gated step in workflow 07 + the contract-vs-logic seam example [BDD-02, BDD-03]
+- [ ] 12-03-PLAN.md — TDD red-green double-loop step in workflow 04 + TDD test-strategy line in impl-ready packet + light forward-pointer [TDD-01]
+- [ ] 12-05-PLAN.md — Role guardrail pointer lines (software-engineer + qe-e2e, byte-ceiling-watched) + AGENTS.md acceptance command slot [TDD-01, BDD-01]
+
+**Wave 2** *(blocked on 12-01 — shared qe-handoff.md)*
+
+- [ ] 12-04-PLAN.md — Tiered test-first / red-green evidence fields in implementation + QE handoffs with the clear-voice no-fabrication floor [TDD-02]
 
 ### Phase 13: Frontend/UI Persona & Design→Build Workflow
 
@@ -215,11 +226,11 @@ Phases execute in numeric order: 10 → 11 → 12 → 13 → 14 → 15 → 16 �
 | 9. Doctor & Two-Root Validator | v1.1 | 6/6 | Complete | 2026-06-08 |
 | 10. SDLC-Coverage Audit & Foundation Guards | v1.2 | 4/4 | Complete    | 2026-06-10 |
 | 11. Senior Persona Overhaul | v1.2 | 5/5 | Verifying | 2026-06-10 |
-| 12. BDD + TDD Wiring | v1.2 | 0/TBD | Not started | - |
+| 12. BDD + TDD Wiring | v1.2 | 0/5 | Planned | - |
 | 13. Frontend/UI Persona & Design→Build Workflow | v1.2 | 0/TBD | Not started | - |
 | 14. Security Audit (OWASP ASVS) & Checklist Re-Anchor | v1.2 | 0/TBD | Not started | - |
 | 15. §14 Gate Convergence — Lint, UI/E2E & Test-Integrity | v1.2 | 0/TBD | Not started | - |
 | 16. Install --migrate / --update | v1.2 | 0/TBD | Not started | - |
 | 17. Browsable Docs Catalog | v1.2 | 0/TBD | Not started | - |
 
-**Totals:** 17 phases · 48 plans complete · 2 milestones shipped · v1.2 (8 phases, 10–17) in progress.
+**Totals:** 17 phases · 48 plans complete · 2 milestones shipped · v1.2 (8 phases, 10–17) in progress; Phase 12 planned (5 plans).
