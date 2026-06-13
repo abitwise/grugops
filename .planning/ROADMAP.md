@@ -52,7 +52,7 @@ Full phase details + milestone summary: `milestones/v1.1-ROADMAP.md` · requirem
 - [x] **Phase 11: Senior Persona Overhaul** - Deepen every role to senior judgment in place (no new section; terse caveman voice preserved as the token-economy mechanism), deepen the business-analysis persona to senior, retire WR-05 in the packaging templates (all 5 plans executed 2026-06-10; awaiting phase verification)
 - [x] **Phase 12: BDD + TDD Wiring** - Given-when-then acceptance contract (Three Amigos) + red-green TDD double-loop across the BA/QE/engineer roles, workflows, and handoffs; both config-dialed (all 5 plans executed 2026-06-11; awaiting phase verification) (completed 2026-06-11)
 - [x] **Phase 13: Frontend/UI Persona & Design→Build Workflow** - New senior frontend/UI role (no spawn) + a UI design→build workflow (workflow 14); Orchestrator routes UI work to it (completed 2026-06-11)
-- [ ] **Phase 14: Security Audit (OWASP ASVS) & Checklist Re-Anchor** - New security-audit workflow (workflow 15) + an ASVS 5.0-generated L1/L2/L3 checklist; ASVS level config-dialed; clear-voice findings
+- [x] **Phase 14: Security Audit (OWASP ASVS) & Checklist Re-Anchor** - New security-audit workflow (workflow 15) + an ASVS 5.0-generated L1/L2/L3 checklist; ASVS level config-dialed; clear-voice findings (completed 2026-06-13)
 - [ ] **Phase 15: §14 Gate Convergence — Lint, UI/E2E & Test-Integrity** - Single-source gate additions in `05-pr-quality-gate.md`: lint step, automated UI/E2E + visual regression, and an un-cheatable structured-justification test-integrity check; all config-dialed
 - [ ] **Phase 16: Install --migrate / --update** - RED-harness-first, never-delete-first, byte-parity sh/Node install modes to migrate an in-repo layout forward and refresh the central kit
 - [ ] **Phase 17: Browsable Docs Catalog** - Stdlib-only generator emits an in-repo markdown catalog of the finished 17-role / 15-workflow set; a freshness check fails red on drift
@@ -246,7 +246,7 @@ Phases execute in numeric order: 10 → 11 → 12 → 13 → 14 → 15 → 16 �
 | 11. Senior Persona Overhaul | v1.2 | 5/5 | Verifying | 2026-06-10 |
 | 12. BDD + TDD Wiring | v1.2 | 5/5 | Complete    | 2026-06-11 |
 | 13. Frontend/UI Persona & Design→Build Workflow | v1.2 | 3/3 | Complete    | 2026-06-11 |
-| 14. Security Audit (OWASP ASVS) & Checklist Re-Anchor | v1.2 | 3/3 | Verifying | - |
+| 14. Security Audit (OWASP ASVS) & Checklist Re-Anchor | v1.2 | 3/3 | Complete    | 2026-06-13 |
 | 15. §14 Gate Convergence — Lint, UI/E2E & Test-Integrity | v1.2 | 0/TBD | Not started | - |
 | 16. Install --migrate / --update | v1.2 | 0/TBD | Not started | - |
 | 17. Browsable Docs Catalog | v1.2 | 0/TBD | Not started | - |

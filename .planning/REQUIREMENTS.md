@@ -47,9 +47,9 @@ Each maps to exactly one roadmap phase (traceability filled by the roadmapper).
 
 ### Security Auditing
 
-- [ ] **SEC-01**: grugops includes a security-audit workflow anchored to OWASP ASVS 5.0
-- [ ] **SEC-02**: The security/NFR checklist is rewritten to ASVS 5.0 chapters with L1/L2/L3 tags and requirement IDs, generated from the pinned ASVS source (not hand-transcribed)
-- [ ] **SEC-03**: ASVS level is config-dialed (L1 lean → L2 enterprise → L3 + named human sign-off), the gate's security block-threshold is dialed, and all security findings are written in clear professional voice
+- [x] **SEC-01**: grugops includes a security-audit workflow anchored to OWASP ASVS 5.0
+- [x] **SEC-02**: The security/NFR checklist is rewritten to ASVS 5.0 chapters with L1/L2/L3 tags and requirement IDs, generated from the pinned ASVS source (not hand-transcribed)
+- [x] **SEC-03**: ASVS level is config-dialed (L1 lean → L2 enterprise → L3 + named human sign-off), the gate's security block-threshold is dialed, and all security findings are written in clear professional voice
 
 ### Test Integrity
 
@@ -121,9 +121,9 @@ Each requirement maps to exactly one phase. v1.2 phase numbering continues from 
 | UI-03 | Phase 13 | Complete |
 | UIQA-01 | Phase 15 | Pending |
 | UIQA-02 | Phase 15 | Pending |
-| SEC-01 | Phase 14 | Pending |
-| SEC-02 | Phase 14 | Pending |
-| SEC-03 | Phase 14 | Pending |
+| SEC-01 | Phase 14 | Complete |
+| SEC-02 | Phase 14 | Complete |
+| SEC-03 | Phase 14 | Complete |
 | TINT-01 | Phase 15 | Pending |
 | TINT-02 | Phase 15 | Pending |
 | TINT-03 | Phase 15 | Pending |
