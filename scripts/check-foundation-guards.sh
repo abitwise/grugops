@@ -366,7 +366,7 @@ role_ceiling() {
   # $1 = role basename → echoes "FAIL WARN"
   case "$1" in
     orchestrator.md)       echo "7570 7165" ;;  # +Phase-13 routing (ui-build classification + matrix + map row); measured 6759 B
-    security-nfr.md)       echo "4576 4331" ;;
+    security-nfr.md)       echo "5102 4830" ;;  # +Phase-14 D-09 severity-map + read-time level-filter note; measured 4556 B (FAIL +12% / WARN +6%)
     compliance-officer.md) echo "4160 3937" ;;
     release-manager.md)    echo "4144 3922" ;;
     agents-md-scribe.md)   echo "3910 3701" ;;
