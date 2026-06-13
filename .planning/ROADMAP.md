@@ -198,7 +198,25 @@ Full phase details + milestone summary: `milestones/v1.1-ROADMAP.md` · requirem
   3. A kit-shipped-runnable convention exists and is documented: how a TS routine ships inside the kit, is materialized by the installer, and is invoked cross-platform from a workflow step — the foundation the Phase-16 gate checker builds on.
   4. The foundational constraint is formally amended (CLAUDE.md / PROJECT.md) to record the ratified TS pivot; the prior "HELD" notes in the Phase 12–14 contexts are marked superseded. Converting `install.sh` is an explicit decision point — removing the zero-Node POSIX install path is called out and ruled on, not done silently.
 
-**Plans**: TBD
+**Plans**: 6 plans
+
+**Wave 0**
+
+- [ ] 15-01-PLAN.md — Toolchain scaffolding: package.json + tsconfig + vitest.config + .gitattributes LF pin + lockfile + .gitignore + freshness gate (D-01/D-02/D-03/D-04/D-05/D-06) [TOOL-01]
+
+**Wave 1** *(blocked on Wave 0; plans 02/03/04 run in parallel — disjoint file ownership)*
+
+- [ ] 15-02-PLAN.md — Prod-deploy guard byte-for-behavior port (fail-closed, literal approval var, full DEPLOY set) + Vitest oracle + hooks.json repoint (D-10) [TOOL-01]
+- [ ] 15-03-PLAN.md — Single install.ts (collapse sh+mjs, D-07) + uninstall.ts + Vitest harness with the D-08 retired-parity marker (D-07/D-08/D-09) [TOOL-01]
+- [ ] 15-04-PLAN.md — Validator + ASVS generator + foundation-guards + kit-refs ports (byte-reproducible, C3/CR-03 preserved) + RED-by-design Vitest harnesses [TOOL-01]
+
+**Wave 2** *(blocked on Wave 0 + Plan 03 — touches install.ts)*
+
+- [ ] 15-05-PLAN.md — Kit-shipped-runnable convention: reference routine + RED fixture + D-11 installer materialization to tools/grugops/ (D-11/D-12) [TOOL-02]
+
+**Wave 3** *(blocked on Waves 1–2 — deletes the parity oracles only after green)*
+
+- [ ] 15-06-PLAN.md — D-13 constraint amendment (CLAUDE.md/PROJECT.md + supersede HELD notes) + invocation/env-var sweeps + delete all POSIX/.mjs originals (D-09/D-13; blocking human checkpoint) [TOOL-01]
 
 ### Phase 16: §14 Gate Convergence — Lint, UI/E2E & Test-Integrity
 
@@ -263,7 +281,7 @@ Phases execute in numeric order: 10 → 11 → 12 → 13 → 14 → 15 → 16 �
 | 12. BDD + TDD Wiring | v1.2 | 5/5 | Complete    | 2026-06-11 |
 | 13. Frontend/UI Persona & Design→Build Workflow | v1.2 | 3/3 | Complete    | 2026-06-11 |
 | 14. Security Audit (OWASP ASVS) & Checklist Re-Anchor | v1.2 | 3/3 | Complete    | 2026-06-13 |
-| 15. TypeScript Tooling Migration | v1.2 | 0/TBD | Not started | - |
+| 15. TypeScript Tooling Migration | v1.2 | 0/6 | Not started | - |
 | 16. §14 Gate Convergence — Lint, UI/E2E & Test-Integrity | v1.2 | 0/TBD | Not started | - |
 | 17. Install --migrate / --update | v1.2 | 0/TBD | Not started | - |
 | 18. Browsable Docs Catalog | v1.2 | 0/TBD | Not started | - |
