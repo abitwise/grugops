@@ -13,7 +13,7 @@ Resolve the kit root (this adapter is the sole resolver):
 # 2. if absent, self-heal:
 KIT="${GRUGOPS_HOME:-$HOME/.grugops}/agent-factory"
 # 3. if "$KIT" still does not exist: STOP. Print:
-#    "grugops kit not found at $KIT. Run install.sh (or install.sh --check) to install the kit."
+#    "grugops kit not found at $KIT. Run node install/install.js (or node install/install.js --check) to install the kit."
 #    Do NOT hunt the repo for agent-factory/… .
 ```
 

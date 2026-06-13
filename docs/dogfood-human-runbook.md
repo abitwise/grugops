@@ -26,7 +26,7 @@ This dogfood runs at `autonomy=pr`. It NEVER deploys to production.
   never actually reach a cluster. If your shell is configured against a real cluster, change the
   probe to a harmless matched pattern (e.g. `helm upgrade fake ./nope`) or run it with no
   kube-context; the only thing being tested is that the PreToolUse hook fires and denies.
-- An agent may never grant its own approval. The guard (`hooks/guard.mjs`) also refuses any inline
+- An agent may never grant its own approval. The guard (`hooks/guard.js`) also refuses any inline
   attempt to set or export `GRUGOPS_PROD_DEPLOY_APPROVED` — approval must come from a human in the
   shell that launches Claude. Do not attempt to work around this.
 
@@ -80,9 +80,9 @@ pointers resolve against the user's repo and produce real planning output rather
 
 ## Check 2 — Live PreToolUse hook firing (SAFE-02)
 
-**Why:** `hooks/guard.mjs` is wired as a plugin-level PreToolUse Bash matcher
-(`hooks/hooks.json` → `node "${CLAUDE_PLUGIN_ROOT}/hooks/guard.mjs"`). The unit harness
-(`hooks/guard.test.sh`, 26/26) proves the Node logic in isolation; this check proves the full
+**Why:** `hooks/guard.js` is wired as a plugin-level PreToolUse Bash matcher
+(`hooks/hooks.json` → `node "${CLAUDE_PLUGIN_ROOT}/hooks/guard.js"`). The unit harness
+(`npx vitest run hooks`, the `hooks/guard.test.ts` suite) proves the Node logic in isolation; this check proves the full
 wiring fires for real inside a live session. The guard is the mechanical backstop for "humans
 decide, agents execute."
 
@@ -130,7 +130,7 @@ dispatch mechanism differs.
 2. Confirm the SAME handoff filenames are produced under `agent-factory/handoffs/`:
    `implementation-handoff.md` and `qe-handoff.md`.
 3. Confirm the gate returns the SAME terminal verdict: `READY_FOR_HUMAN_REVIEW`.
-4. Confirm `node scripts/validate-agent-factory.mjs` exits 0 on the resulting tree (DOG-01),
+4. Confirm `node scripts/validate-agent-factory.js` exits 0 on the resulting tree (DOG-01),
    matching the sequential run.
 
 **Expected outcome:** Same ticket, same handoff filenames, same gate verdict, same validator

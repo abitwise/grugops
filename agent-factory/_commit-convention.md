@@ -67,7 +67,7 @@ This is enforced by two complementary layers:
 - **The commit side (this convention).** The branch guard above REDIRECTS a commit away
   from a protected branch onto a `grugops/<workflow>-<id>` working branch. A convention
   can redirect; that is why the commit-side safety lives here.
-- **The push side (the mechanical hook).** The PreToolUse guard `hooks/guard.mjs` DENIES
+- **The push side (the mechanical hook).** The PreToolUse guard `hooks/guard.js` DENIES
   any `git push` that names a protected branch (`main`, `master`, `release/…`) and any
   force push, plus the config-matched production-deploy commands. A deny-hook can only
   block, not redirect.
@@ -78,4 +78,4 @@ agent onto a safe branch. The correct behavior for a commit attempted on a prote
 branch is to SWITCH to a working branch and proceed, which only this convention can do; a
 blanket `git commit` deny would stall the agent with no path forward. So the commit-side
 safety lives in this convention's branch guard, and the push-side safety stays in the
-hook. `hooks/hooks.json` and `hooks/guard.mjs` are unchanged by this convention.
+hook. `hooks/hooks.json` and `hooks/guard.js` are unchanged by this convention.

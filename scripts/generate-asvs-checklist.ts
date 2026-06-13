@@ -1,14 +1,11 @@
 // generate-asvs-checklist.ts — grugops security/NFR checklist generator (SEC-02).
 //
-// TypeScript port of generate-asvs-checklist.mjs (Phase 15, TOOL-01). This is a TRANSLATION,
-// not a redesign: byte-reproducibility IS the contract. The emitted checklist MUST be
-// byte-identical to the .mjs output (the D-02 freshness gate AND the security-checklist
-// provenance both break on a single-byte drift). Only TypeScript types were added; the source
-// pin, the fail-closed load chain, and the deterministic lines.join("\n") + writeFileSync emit
-// are byte-for-behavior identical. import.meta.dirname replaces dirname(fileURLToPath(...)).
-// NOTE: the provenance header still names `scripts/generate-asvs-checklist.mjs` as the
-// re-run command — that line is preserved verbatim so the committed checklist stays byte-
-// identical to the .mjs output (Plan 06 retires the .mjs and repoints the header).
+// TypeScript port of the original .mjs generator (Phase 15, TOOL-01). This was a TRANSLATION,
+// not a redesign: byte-reproducibility IS the contract. Only TypeScript types were added; the
+// source pin, the fail-closed load chain, and the deterministic lines.join("\n") + writeFileSync
+// emit are byte-for-behavior identical. import.meta.dirname replaces dirname(fileURLToPath(...)).
+// Plan 06 retired the original .mjs and repointed the provenance header to this `.js` build;
+// the checklist was regenerated once so the committed bytes match this generator exactly.
 //
 // Emits agent-factory/checklists/security-nfr-checklist.md from the vendored OWASP ASVS
 // 5.0.0 flat.json. Group the 345 requirements by chapter (V1..V17), then write one row per
@@ -121,7 +118,7 @@ lines.push("---");
 lines.push("kind: checklist");
 lines.push("---");
 lines.push(
-  `<!-- GENERATED — do not hand-edit. Re-run: node scripts/generate-asvs-checklist.mjs`,
+  `<!-- GENERATED — do not hand-edit. Re-run: node scripts/generate-asvs-checklist.js`,
 );
 lines.push(`     Source: ${ASVS_VERSION} · OWASP/ASVS @ ${TAG}`);
 lines.push(`     Commit: ${SHA} -->`);

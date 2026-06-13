@@ -30,7 +30,7 @@ Clear voice — this is a resolution and safety rule, not a joke.
 - `agent-factory/…` = **KIT** — read-only, resolved from the kit root; NEVER written.
 - `plans/`, `memory-bank/`, `.grugops/` = **STATE** — read/write in THIS repo.
 - `agent-factory/handoffs/<template>.md` is the **TEMPLATE** you read; `plans/handoffs/<WORK-ITEM-ID>-<stage>.md` is the runtime **INSTANCE** you write.
-- The kit root is resolved by the adapter only. If the resolved kit dir is absent: **STOP — do not hunt** the repo for `agent-factory/…`. Re-run the installer (`install.sh` or `install.sh --check`).
+- The kit root is resolved by the adapter only. If the resolved kit dir is absent: **STOP — do not hunt** the repo for `agent-factory/…`. Re-run the installer (`node install/install.js` or `node install/install.js --check`).
 
 > **Kit vs state invariant:** `agent-factory/…` = read-only KIT (from the kit root, never written); `plans/`, `memory-bank/`, `.grugops/` = STATE in this repo. Read handoff templates from `agent-factory/handoffs/`, write instances to `plans/handoffs/<ID>-<stage>.md`. If the kit dir is absent, STOP — do not hunt.
 

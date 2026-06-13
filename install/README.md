@@ -27,10 +27,11 @@ runtime, no service, no database.
 
 ## 2. The scripted path — per-tool conveniences
 
-grugops ships two functionally identical installers — `install.sh` (POSIX) and `install.mjs`
-(Node, zero deps). They are **idempotent** (run them twice, nothing changes), **additive**
-(they only ever append behind unique sentinels), and **reversible**. `install.sh` is the
-behavioral spec and `install.mjs` mirrors it byte-for-byte.
+grugops ships a single installer, `install/install.js` — a Node program (the compiled output of
+`install/install.ts`). **Node 22+ is a prerequisite for the scripted path** (the minimal path in
+§1 still needs nothing at all). The installer is **idempotent** (run it twice, nothing changes),
+**additive** (it only ever appends behind unique sentinels), and **reversible**. It runs the same
+way on every platform Node runs on, including Windows.
 
 The installer uses a **two-root** layout, so the kit and your per-repo state stay cleanly
 separated:
@@ -42,22 +43,19 @@ separated:
 
 ```sh
 # Install into a chosen repo (run from anywhere):
-sh install/install.sh --target /path/to/repo
+node install/install.js --target /path/to/repo
 
 # Install into the current repo (prompts to confirm the target first):
-sh install/install.sh
+node install/install.js
 
 # Unattended / CI (take the default target, no prompt):
-sh install/install.sh --yes
+node install/install.js --yes
 
 # Preview first — prints the plan, changes NOTHING on disk (in either root):
-DRY_RUN=1 sh install/install.sh
-
-# Cross-platform (Windows / anywhere Node runs) — same behavior, Node stdlib only, zero deps:
-node install/install.mjs --target /path/to/repo
+DRY_RUN=1 node install/install.js
 
 # Put the shared kit somewhere other than ~/.grugops:
-GRUGOPS_HOME=/opt/grugops sh install/install.sh --target /path/to/repo
+GRUGOPS_HOME=/opt/grugops node install/install.js --target /path/to/repo
 ```
 
 ### Choosing the target (`--target`, the prompt, `--yes`)
@@ -79,9 +77,9 @@ on every platform; the previous symlink default was fragile (links broke when th
 moved). Symlinks are still available as an opt-in:
 
 ```sh
-sh install/install.sh --symlink --target /path/to/repo
+node install/install.js --symlink --target /path/to/repo
 # or:
-INSTALL_MODE=symlink sh install/install.sh --target /path/to/repo
+INSTALL_MODE=symlink node install/install.js --target /path/to/repo
 ```
 
 ### The self-checkout guard (`--allow-self`)
@@ -120,12 +118,12 @@ in your target are never modified beyond the additive edits above.
 ### Undo
 
 ```sh
-sh install/uninstall.sh --target /path/to/repo
+node install/uninstall.js --target /path/to/repo
 # preview the reversal first:
-DRY_RUN=1 sh install/uninstall.sh --target /path/to/repo
+DRY_RUN=1 node install/uninstall.js --target /path/to/repo
 ```
 
-`uninstall.sh` removes **only** the grugops-owned wiring it added to the target: the skills, the
+`uninstall.js` removes **only** the grugops-owned wiring it added to the target: the skills, the
 Orchestrator wrapper, the materialized resolver adapters, the sentinel-delimited `CLAUDE.md` and
 Copilot pointer blocks (the rest of those files stays exactly as it was), the `AGENTS.md` entry
 it added to the Gemini settings, and the `.grugops/install.json` marker.
@@ -141,15 +139,14 @@ It deliberately does **not** touch:
 ### Prove it yourself
 
 ```sh
-sh install/install.test.sh            # the single-root behavioral gate
-sh install/install.two-root.test.sh   # the two-root behavioral gate
+npx vitest run install   # the install/uninstall behavioral gate (single-root + two-root)
 ```
 
-Both harnesses run against throwaway temporary fixtures (they never mutate your repo, `$HOME`,
-or a real `$GRUGOPS_HOME`) and assert the contract: a double install produces zero diff,
-`DRY_RUN=1` changes nothing in either root, `install.sh` and `install.mjs` produce identical
-trees, and install-then-uninstall removes the grugops-owned wiring + the install marker while
-the shared kit, the seeded state, and `agent-factory/` all survive untouched.
+The harness runs against throwaway temporary fixtures (it never mutates your repo, `$HOME`,
+or a real `$GRUGOPS_HOME`) and asserts the contract: a double install produces zero diff,
+`DRY_RUN=1` changes nothing in either root, and install-then-uninstall removes the
+grugops-owned wiring + the install marker while the shared kit, the seeded state, and
+`agent-factory/` all survive untouched.
 
 ---
 
@@ -195,7 +192,7 @@ production without named human confirmation. Humans decide; agents execute.** Ho
 *enforced* differs by tool, and it is important to be honest about the difference.
 
 - **Claude Code — mechanical.** The plugin ships a `PreToolUse` hook (`hooks/hooks.json` →
-  `hooks/guard.mjs`) that **denies** any command matching a production-deploy pattern unless a
+  `hooks/guard.js`) that **denies** any command matching a production-deploy pattern unless a
   human has exported the approval environment variable in the shell that launched Claude. The
   guard also **refuses** any command that tries to set that variable inline, so the agent
   cannot approve itself, and it **fails closed**. This pairs with the config flag

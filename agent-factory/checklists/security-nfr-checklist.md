@@ -1,7 +1,7 @@
 ---
 kind: checklist
 ---
-<!-- GENERATED — do not hand-edit. Re-run: node scripts/generate-asvs-checklist.mjs
+<!-- GENERATED — do not hand-edit. Re-run: node scripts/generate-asvs-checklist.js
      Source: OWASP ASVS 5.0.0 · OWASP/ASVS @ v5.0.0_release
      Commit: 5cf9b032440be53ce345ab3c130fda46ba1ce7a2 -->
 # Security / NFR Checklist

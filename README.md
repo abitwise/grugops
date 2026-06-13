@@ -11,8 +11,8 @@ grugops is a file-based agent factory for software delivery. It is a small kit o
 Each agent is grug-brained on purpose: one job, short words, hard limits. Lean by default, enterprise governance on a flag. File-based. No platform. No lock-in.
 
 ```bash
-# install
-sh install/install.sh
+# install (Node 22+)
+node install/install.js
 # then, in your coding agent:
 /grugops "bootstrap this repo and propose safe first tickets"
 ```
@@ -21,13 +21,13 @@ sh install/install.sh
 
 grugops version `0.1.0`.
 
-1. **Install** — run the idempotent, additive, reversible installer from the repo root:
+1. **Install** — run the idempotent, additive, reversible installer (Node 22+) from the repo root:
 
    ```bash
-   sh install/install.sh
+   node install/install.js
    ```
 
-   The installer never overwrites or deletes your content; re-running it is safe, and `uninstall.sh` removes only what was added. Set `DRY_RUN=1` to preview the changes first.
+   The installer never overwrites or deletes your content; re-running it is safe, and `node install/uninstall.js` removes only what was added. Set `DRY_RUN=1` to preview the changes first.
 
 2. **Drive it** — in your coding agent, invoke the dash-standalone command:
 
