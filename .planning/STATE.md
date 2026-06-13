@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: SDLC Depth, Quality Discipline & Browsable Docs
 status: executing
-last_updated: "2026-06-13T17:58:36.877Z"
-last_activity: 2026-06-13 -- Phase 15 execution started
+last_updated: "2026-06-13T18:06:28.283Z"
+last_activity: 2026-06-13
 progress:
   total_phases: 9
   completed_phases: 5
   total_plans: 26
-  completed_plans: 20
+  completed_plans: 21
   percent: 56
 ---
 
@@ -25,11 +25,11 @@ See: .planning/PROJECT.md (updated 2026-06-09 — v1.2 milestone started)
 ## Current Position
 
 Phase: 15 (typescript-tooling-migration) — EXECUTING
-Plan: 1 of 6
-Status: Executing Phase 15
-Last activity: 2026-06-13 -- Phase 15 execution started
+Plan: 2 of 6
+Status: Ready to execute
+Last activity: 2026-06-13
 
-Progress: [██████████] 100%
+Progress: [████████░░] 81%
 
 ## Performance Metrics
 
@@ -128,6 +128,7 @@ Progress: [██████████] 100%
 | Phase 13 P01 | 4m | 2 tasks | 4 files |
 | Phase 13 P02 | 7m | 1 tasks | 1 files |
 | Phase 13 P03 | 3m | 2 tasks | 2 files |
+| Phase 15 P01 | 10m | 2 tasks | 9 files |
 
 ## Accumulated Context
 
@@ -271,6 +272,9 @@ Recent decisions affecting current work:
 - [Phase ?]: [13-02] reference-not-restate (D-03): workflow 14 names 04-ticket-to-pr.md (build) + 05-pr-quality-gate.md (gate) by filename using 04's verbatim 'references that ... and does not restate it' phrasing; gate step-labels absent; tool-neutral body (D-08, 0 tool names), WCAG 2.2 AA the only standard (D-09); no Phase-15 forward-pointer (OQ2)
 - [Phase ?]: [13-03] UI-03 Orchestrator routing wired: ui-build classification token (15->16) + Need UI/frontend -> Frontend/UI matrix row + ui-build -> 14-ui-design-to-build.md workflow-map row appended (00-13 NOT renumbered, Pitfall 6); four terse edits added only +98B (6661->6759B)
 - [Phase ?]: [13-03] orchestrator role_ceiling RAISED to '7570 7165' off the MEASURED 6759B post-wiring size (+12%/+6%, measure-then-set, trap 2 closed) — frontend-ui.md case left untouched at '3969 3757' (Plan 01 owns it); both foundation-guard scripts exit 0 GREEN
+- [Phase ?]: [15-01] @types/node accepted as third dev-dep under D-05 (type-only, erased at compile); pinned ~22 to the D-03 Node-22 floor
+- [Phase ?]: [15-01] tsconfig types:[node] added so tsc resolves @types/node globals/builtins; **/*.test.ts excluded from emit (Vitest runs .test.ts directly, no committed test .js)
+- [Phase ?]: [15-01] D-02 freshness gate live: rebuild-to-temp + Buffer.equals, exit 0 fresh / 1 drift|error, fail-closed on broken rebuild; .gitattributes eol=lf + tsconfig newLine:lf close Pitfall 1
 
 ### Pending Todos
 
@@ -313,6 +317,6 @@ Items acknowledged and deferred at the v1.1 milestone close on 2026-06-08. All a
 
 ## Session Continuity
 
-Last session: 2026-06-13T16:25:53.726Z
+Last session: 2026-06-13T18:06:08.603Z
 Stopped at: Phase 15 context gathered
-Resume file: .planning/phases/15-typescript-tooling-migration/15-CONTEXT.md
+Resume file: None

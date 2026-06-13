@@ -134,7 +134,7 @@ Each requirement maps to exactly one phase. v1.2 phase numbering continues from 
 | TINT-03 | Phase 16 | Pending |
 | LINT-01 | Phase 16 | Pending |
 | LINT-02 | Phase 16 | Pending |
-| TOOL-01 | Phase 15 | Pending |
+| TOOL-01 | Phase 15 | In Progress (15-01: build posture + freshness gate; script migrations Waves 1–3) |
 | TOOL-02 | Phase 15 | Pending |
 | DOCS-01 | Phase 18 | Pending |
 | DOCS-02 | Phase 18 | Pending |

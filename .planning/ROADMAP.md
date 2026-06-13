@@ -202,7 +202,7 @@ Full phase details + milestone summary: `milestones/v1.1-ROADMAP.md` · requirem
 
 **Wave 0**
 
-- [ ] 15-01-PLAN.md — Toolchain scaffolding: package.json + tsconfig + vitest.config + .gitattributes LF pin + lockfile + .gitignore + freshness gate (D-01/D-02/D-03/D-04/D-05/D-06) [TOOL-01]
+- [x] 15-01-PLAN.md — Toolchain scaffolding: package.json + tsconfig + vitest.config + .gitattributes LF pin + lockfile + .gitignore + freshness gate (D-01/D-02/D-03/D-04/D-05/D-06) [TOOL-01]
 
 **Wave 1** *(blocked on Wave 0; plans 02/03/04 run in parallel — disjoint file ownership)*
 
@@ -281,7 +281,7 @@ Phases execute in numeric order: 10 → 11 → 12 → 13 → 14 → 15 → 16 �
 | 12. BDD + TDD Wiring | v1.2 | 5/5 | Complete    | 2026-06-11 |
 | 13. Frontend/UI Persona & Design→Build Workflow | v1.2 | 3/3 | Complete    | 2026-06-11 |
 | 14. Security Audit (OWASP ASVS) & Checklist Re-Anchor | v1.2 | 3/3 | Complete    | 2026-06-13 |
-| 15. TypeScript Tooling Migration | v1.2 | 0/6 | Not started | - |
+| 15. TypeScript Tooling Migration | v1.2 | 1/6 | In Progress|  |
 | 16. §14 Gate Convergence — Lint, UI/E2E & Test-Integrity | v1.2 | 0/TBD | Not started | - |
 | 17. Install --migrate / --update | v1.2 | 0/TBD | Not started | - |
 | 18. Browsable Docs Catalog | v1.2 | 0/TBD | Not started | - |
