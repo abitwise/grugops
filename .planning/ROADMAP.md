@@ -212,7 +212,7 @@ Full phase details + milestone summary: `milestones/v1.1-ROADMAP.md` · requirem
 
 **Wave 2** *(blocked on Wave 0 + Plan 03 — touches install.ts)*
 
-- [ ] 15-05-PLAN.md — Kit-shipped-runnable convention: reference routine + RED fixture + D-11 installer materialization to tools/grugops/ (D-11/D-12) [TOOL-02]
+- [x] 15-05-PLAN.md — Kit-shipped-runnable convention: reference routine + RED fixture + D-11 installer materialization to tools/grugops/ (D-11/D-12) [TOOL-02]
 
 **Wave 3** *(blocked on Waves 1–2 — deletes the parity oracles only after green)*
 
@@ -281,7 +281,7 @@ Phases execute in numeric order: 10 → 11 → 12 → 13 → 14 → 15 → 16 �
 | 12. BDD + TDD Wiring | v1.2 | 5/5 | Complete    | 2026-06-11 |
 | 13. Frontend/UI Persona & Design→Build Workflow | v1.2 | 3/3 | Complete    | 2026-06-11 |
 | 14. Security Audit (OWASP ASVS) & Checklist Re-Anchor | v1.2 | 3/3 | Complete    | 2026-06-13 |
-| 15. TypeScript Tooling Migration | v1.2 | 4/6 | In Progress|  |
+| 15. TypeScript Tooling Migration | v1.2 | 5/6 | In Progress|  |
 | 16. §14 Gate Convergence — Lint, UI/E2E & Test-Integrity | v1.2 | 0/TBD | Not started | - |
 | 17. Install --migrate / --update | v1.2 | 0/TBD | Not started | - |
 | 18. Browsable Docs Catalog | v1.2 | 0/TBD | Not started | - |

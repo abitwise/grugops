@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: SDLC Depth, Quality Discipline & Browsable Docs
 status: executing
-last_updated: "2026-06-13T18:40:15.698Z"
+last_updated: "2026-06-13T18:48:22.684Z"
 last_activity: 2026-06-13
 progress:
   total_phases: 9
   completed_phases: 5
   total_plans: 26
-  completed_plans: 24
+  completed_plans: 25
   percent: 56
 ---
 
@@ -25,11 +25,11 @@ See: .planning/PROJECT.md (updated 2026-06-09 — v1.2 milestone started)
 ## Current Position
 
 Phase: 15 (typescript-tooling-migration) — EXECUTING
-Plan: 5 of 6
+Plan: 6 of 6
 Status: Ready to execute
 Last activity: 2026-06-13
 
-Progress: [█████████░] 92%
+Progress: [██████████] 96%
 
 ## Performance Metrics
 
@@ -132,6 +132,7 @@ Progress: [█████████░] 92%
 | Phase 15 P02 | 3m | 2 tasks | 4 files |
 | Phase 15 P03 | 25m | 2 tasks | 5 files |
 | Phase 15 P04 | 22m | 2 tasks | 11 files |
+| Phase 15 P05 | 12m | 2 tasks | 8 files |
 
 ## Accumulated Context
 
@@ -286,6 +287,7 @@ Recent decisions affecting current work:
 - [Phase ?]: [15-04] Validator + ASVS generator + foundation-guards + kit-refs ported .mjs/.sh -> .ts at exact parity (RESEARCH Open Q4: types only, refactor nothing semantic); C3 unset-kit guard + CR-03 fail-closed-on-null preserved verbatim; full .sh/.mjs-vs-.js output diff byte-identical on the real tree
 - [Phase ?]: [15-04] ASVS checklist proven byte-reproducible 3 ways (.js == .mjs output == committed file); provenance header kept verbatim so bytes don't drift, Plan 06 repoints it; checklist NOT re-committed (no-op IS the fidelity proof)
 - [Phase ?]: [15-04] CHECK_ROOT env override added to the two read-only checkers so the .sh run-from-mirror hermetic idiom ports to Vitest; RED-by-design proven by planted regression; TOOL-01 stays In Progress (spans 15-06 .mjs/.sh deletion)
+- [Phase ?]: [15-05] TOOL-02 kit-shipped-runnable convention PROVEN: reference-check.ts speaks the D-12 contract (exit 0/1/2 + clear-voice stdout + --json), node: builtins only, RED on a planted FORBIDDEN fixture; install.ts materializeRunnable() copies the compiled .js into the host's committed tools/grugops/ (additive/idempotent/never-overwrite), runs in a bare-Node host with no node_modules; materialization path CONFIRMED tools/grugops/ (D-11 RESOLVED); Phase 16's checker reuses materializeRunnable via the RUNNABLES table; TOOL-02 complete, TOOL-01 left In Progress (15-06 deletes .mjs/.sh)
 
 ### Pending Todos
 
@@ -328,6 +330,6 @@ Items acknowledged and deferred at the v1.1 milestone close on 2026-06-08. All a
 
 ## Session Continuity
 
-Last session: 2026-06-13T18:39:50.507Z
+Last session: 2026-06-13T18:47:57.659Z
 Stopped at: Phase 15 context gathered
 Resume file: None
