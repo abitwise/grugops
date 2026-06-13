@@ -183,7 +183,7 @@ Full phase details + milestone summary: `milestones/v1.1-ROADMAP.md` · requirem
 
 **Wave 2** *(blocked on Wave 1 — guard_voice scans the regenerated checklist + workflow 15; harness mirrors both)*
 
-- [ ] 14-03-PLAN.md — Dial behavior (read-time asvs_level filter + D-09 severity map + named-owner override) in role + handoff; guard_voice extension over the 4 security surfaces + RED fixtures [SEC-03]
+- [x] 14-03-PLAN.md — Dial behavior (read-time asvs_level filter + D-09 severity map + named-owner override) in role + handoff; guard_voice extension over the 4 security surfaces + RED fixtures [SEC-03]
 
 ### Phase 15: §14 Gate Convergence — Lint, UI/E2E & Test-Integrity
 
@@ -246,7 +246,7 @@ Phases execute in numeric order: 10 → 11 → 12 → 13 → 14 → 15 → 16 �
 | 11. Senior Persona Overhaul | v1.2 | 5/5 | Verifying | 2026-06-10 |
 | 12. BDD + TDD Wiring | v1.2 | 5/5 | Complete    | 2026-06-11 |
 | 13. Frontend/UI Persona & Design→Build Workflow | v1.2 | 3/3 | Complete    | 2026-06-11 |
-| 14. Security Audit (OWASP ASVS) & Checklist Re-Anchor | v1.2 | 2/3 | In Progress|  |
+| 14. Security Audit (OWASP ASVS) & Checklist Re-Anchor | v1.2 | 3/3 | Verifying | - |
 | 15. §14 Gate Convergence — Lint, UI/E2E & Test-Integrity | v1.2 | 0/TBD | Not started | - |
 | 16. Install --migrate / --update | v1.2 | 0/TBD | Not started | - |
 | 17. Browsable Docs Catalog | v1.2 | 0/TBD | Not started | - |
