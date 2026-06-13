@@ -1,0 +1,3 @@
+This is a clean reference fixture for the kit-shipped-runnable convention.
+It contains no forbidden token, so reference-check.js exits 0 (pass).
+Every line here is ordinary, deterministic content.

@@ -1,0 +1,4 @@
+This is the planted RED fixture for the kit-shipped-runnable convention.
+The next line carries the planted bad token so reference-check.js exits 1.
+FORBIDDEN
+The presence of that token must produce a finding and a non-zero (1) exit.
