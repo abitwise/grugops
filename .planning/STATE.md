@@ -3,7 +3,7 @@ gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: SDLC Depth, Quality Discipline & Browsable Docs
 status: planning
-last_updated: "2026-06-13T15:42:44.509Z"
+last_updated: "2026-06-13T16:25:53.735Z"
 last_activity: 2026-06-13
 progress:
   total_phases: 9
@@ -313,6 +313,6 @@ Items acknowledged and deferred at the v1.1 milestone close on 2026-06-08. All a
 
 ## Session Continuity
 
-Last session: 2026-06-13T15:42:44.495Z
-Stopped at: TS pivot ratified; roadmap reshaped (new Phase 15 = TS Tooling Migration; gate convergence → 16)
-Resume file: .planning/ROADMAP.md
+Last session: 2026-06-13T16:25:53.726Z
+Stopped at: Phase 15 context gathered
+Resume file: .planning/phases/15-typescript-tooling-migration/15-CONTEXT.md
