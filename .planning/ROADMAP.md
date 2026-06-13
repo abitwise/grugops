@@ -207,7 +207,7 @@ Full phase details + milestone summary: `milestones/v1.1-ROADMAP.md` · requirem
 **Wave 1** *(blocked on Wave 0; plans 02/03/04 run in parallel — disjoint file ownership)*
 
 - [x] 15-02-PLAN.md — Prod-deploy guard byte-for-behavior port (fail-closed, literal approval var, full DEPLOY set) + Vitest oracle + hooks.json repoint (D-10) [TOOL-01]
-- [ ] 15-03-PLAN.md — Single install.ts (collapse sh+mjs, D-07) + uninstall.ts + Vitest harness with the D-08 retired-parity marker (D-07/D-08/D-09) [TOOL-01]
+- [x] 15-03-PLAN.md — Single install.ts (collapse sh+mjs, D-07) + uninstall.ts + Vitest harness with the D-08 retired-parity marker (D-07/D-08/D-09) [TOOL-01]
 - [ ] 15-04-PLAN.md — Validator + ASVS generator + foundation-guards + kit-refs ports (byte-reproducible, C3/CR-03 preserved) + RED-by-design Vitest harnesses [TOOL-01]
 
 **Wave 2** *(blocked on Wave 0 + Plan 03 — touches install.ts)*
@@ -281,7 +281,7 @@ Phases execute in numeric order: 10 → 11 → 12 → 13 → 14 → 15 → 16 �
 | 12. BDD + TDD Wiring | v1.2 | 5/5 | Complete    | 2026-06-11 |
 | 13. Frontend/UI Persona & Design→Build Workflow | v1.2 | 3/3 | Complete    | 2026-06-11 |
 | 14. Security Audit (OWASP ASVS) & Checklist Re-Anchor | v1.2 | 3/3 | Complete    | 2026-06-13 |
-| 15. TypeScript Tooling Migration | v1.2 | 2/6 | In Progress|  |
+| 15. TypeScript Tooling Migration | v1.2 | 3/6 | In Progress|  |
 | 16. §14 Gate Convergence — Lint, UI/E2E & Test-Integrity | v1.2 | 0/TBD | Not started | - |
 | 17. Install --migrate / --update | v1.2 | 0/TBD | Not started | - |
 | 18. Browsable Docs Catalog | v1.2 | 0/TBD | Not started | - |

@@ -74,7 +74,7 @@ Each maps to exactly one roadmap phase (traceability filled by the roadmapper).
 
 ### Tooling / TypeScript Foundation
 
-- [ ] **TOOL-01**: grugops's tooling layer is TypeScript, executed cross-platform (incl. Windows) with an explicit posture on build + dependencies — Node native type-stripping preferred to preserve a zero-build, no-unjustified-npm-deps path; the existing scripts (installers, validator, ASVS generator, foundation guards + harnesses) migrate at behavior parity
+- [x] **TOOL-01**: grugops's tooling layer is TypeScript, executed cross-platform (incl. Windows) with an explicit posture on build + dependencies — Node native type-stripping preferred to preserve a zero-build, no-unjustified-npm-deps path; the existing scripts (installers, validator, ASVS generator, foundation guards + harnesses) migrate at behavior parity
 - [ ] **TOOL-02**: A kit-shipped-runnable convention lets a TypeScript routine ship inside the kit, be materialized by the installer, and run cross-platform from a workflow step — the foundation that lets the §14 gate ship an un-cheatable cross-platform test-integrity checker into host repos
 
 ## Future Requirements
