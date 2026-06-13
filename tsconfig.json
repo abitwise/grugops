@@ -11,8 +11,9 @@
     "sourceMap": false,
     "esModuleInterop": true,
     "skipLibCheck": true,
-    "noEmitOnError": true
+    "noEmitOnError": true,
+    "types": ["node"]
   },
   "include": ["install/**/*.ts", "scripts/**/*.ts", "hooks/**/*.ts"],
-  "exclude": ["node_modules", ".tmp-build"]
+  "exclude": ["node_modules", ".tmp-build", "**/*.test.ts"]
 }
