@@ -108,6 +108,13 @@ None - no external service configuration required.
 - SEC-03 behavior is wired and mechanically proven. The deep-audit workflow (14-02) emits severity-tagged findings; the role/handoff now carry the severity vocabulary; Phase 15 (gate convergence) can read `security.block_on` at `05-pr-quality-gate.md` against those findings — audit produces, gate enforces (D-07), unchanged here.
 - No blockers. STATE.md / ROADMAP.md intentionally NOT modified (orchestrator owns those for the wave-level update).
 
+## Self-Check: PASSED
+
+All claimed files exist; all task + summary commits present in history:
+- Files: security-nfr.md, security-nfr-handoff.md, check-foundation-guards.sh, check-foundation-guards.test.sh, 14-03-SUMMARY.md — all FOUND.
+- Commits: 8d3b42f (Task 1), 0fb6b00 (Task 2), efb3f31 (SUMMARY) — all FOUND.
+- Full suite GREEN: check-foundation-guards.sh + .test.sh + check-kit-refs.sh + validate-agent-factory.mjs all exit 0.
+
 ---
 *Phase: 14-security-audit-owasp-asvs-checklist-re-anchor*
 *Completed: 2026-06-13*
