@@ -178,8 +178,8 @@ Full phase details + milestone summary: `milestones/v1.1-ROADMAP.md` · requirem
 
 **Wave 1**
 
-- [ ] 14-01-PLAN.md — Vendor pinned ASVS 5.0.0 flat.json + stdlib-Node generator + regenerated full L1/L2/L3 checklist in place [SEC-02]
-- [ ] 14-02-PLAN.md — Workflow 15 (deep ASVS audit, reference-don't-restate) + Orchestrator security-audit registration (no renumber) [SEC-01]
+- [x] 14-01-PLAN.md — Vendor pinned ASVS 5.0.0 flat.json + stdlib-Node generator + regenerated full L1/L2/L3 checklist in place [SEC-02]
+- [x] 14-02-PLAN.md — Workflow 15 (deep ASVS audit, reference-don't-restate) + Orchestrator security-audit registration (no renumber) [SEC-01]
 
 **Wave 2** *(blocked on Wave 1 — guard_voice scans the regenerated checklist + workflow 15; harness mirrors both)*
 
@@ -246,7 +246,7 @@ Phases execute in numeric order: 10 → 11 → 12 → 13 → 14 → 15 → 16 �
 | 11. Senior Persona Overhaul | v1.2 | 5/5 | Verifying | 2026-06-10 |
 | 12. BDD + TDD Wiring | v1.2 | 5/5 | Complete    | 2026-06-11 |
 | 13. Frontend/UI Persona & Design→Build Workflow | v1.2 | 3/3 | Complete    | 2026-06-11 |
-| 14. Security Audit (OWASP ASVS) & Checklist Re-Anchor | v1.2 | 0/TBD | Not started | - |
+| 14. Security Audit (OWASP ASVS) & Checklist Re-Anchor | v1.2 | 2/3 | In Progress|  |
 | 15. §14 Gate Convergence — Lint, UI/E2E & Test-Integrity | v1.2 | 0/TBD | Not started | - |
 | 16. Install --migrate / --update | v1.2 | 0/TBD | Not started | - |
 | 17. Browsable Docs Catalog | v1.2 | 0/TBD | Not started | - |
