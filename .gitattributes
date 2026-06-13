@@ -1,0 +1,12 @@
+# Pin committed TypeScript build outputs to LF line endings.
+#
+# The D-02 freshness check rebuilds the .ts sources to a temp directory and
+# compares the result byte-for-byte against the committed .js. If a Windows
+# checkout stored those committed .js files with CRLF while a macOS/Linux CI
+# rebuild emits LF, the comparison would fail on line endings alone — a false
+# "stale build" signal that masks (or is mistaken for) real drift. Pinning the
+# committed build outputs to LF here, together with tsconfig "newLine": "lf",
+# keeps the freshness diff deterministic and meaningful across platforms.
+install/*.js    text eol=lf
+scripts/**/*.js text eol=lf
+hooks/*.js      text eol=lf

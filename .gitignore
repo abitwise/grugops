@@ -1,0 +1,6 @@
+# npm install tree — the committed lockfile is the supply-chain integrity
+# anchor (D-04); node_modules itself is never committed.
+node_modules/
+
+# Transient rebuild target used by the freshness gate (D-02).
+.tmp-build/

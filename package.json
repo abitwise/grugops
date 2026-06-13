@@ -1,0 +1,19 @@
+{
+  "name": "grugops-tooling",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "build": "tsc",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "freshness": "tsc --outDir .tmp-build && node scripts/freshness.js"
+  },
+  "devDependencies": {
+    "@types/node": "~22",
+    "typescript": "~6.0.3",
+    "vitest": "~4.1.8"
+  }
+}
