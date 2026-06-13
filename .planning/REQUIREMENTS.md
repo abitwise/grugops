@@ -72,6 +72,11 @@ Each maps to exactly one roadmap phase (traceability filled by the roadmapper).
 - [ ] **MIGR-01**: `install.sh --migrate` converts an already-installed in-repo layout to the split two-root layout — additive-then-relocate, never delete-first (rename-to-backup; deletion only behind explicit `--prune-old-kit`); byte-parity sh/Node; re-run is a no-op
 - [ ] **UPD-01**: `install.sh --update` refreshes the central `$GRUGOPS_HOME` kit in place (two-stage, reversible); the doctor names the specific unresolved path on failure
 
+### Tooling / TypeScript Foundation
+
+- [ ] **TOOL-01**: grugops's tooling layer is TypeScript, executed cross-platform (incl. Windows) with an explicit posture on build + dependencies — Node native type-stripping preferred to preserve a zero-build, no-unjustified-npm-deps path; the existing scripts (installers, validator, ASVS generator, foundation guards + harnesses) migrate at behavior parity
+- [ ] **TOOL-02**: A kit-shipped-runnable convention lets a TypeScript routine ship inside the kit, be materialized by the installer, and run cross-platform from a workflow step — the foundation that lets the §14 gate ship an un-cheatable cross-platform test-integrity checker into host repos
+
 ## Future Requirements
 
 Acknowledged but deferred — not in the v1.2 roadmap.
@@ -101,7 +106,7 @@ Acknowledged but deferred — not in the v1.2 roadmap.
 
 ## Traceability
 
-Each requirement maps to exactly one phase. v1.2 phase numbering continues from v1.1 (Phases 10–17; no reset).
+Each requirement maps to exactly one phase. v1.2 phase numbering continues from v1.1 (Phases 10–18; no reset).
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
@@ -119,24 +124,26 @@ Each requirement maps to exactly one phase. v1.2 phase numbering continues from 
 | UI-01 | Phase 13 | Complete |
 | UI-02 | Phase 13 | Complete |
 | UI-03 | Phase 13 | Complete |
-| UIQA-01 | Phase 15 | Pending |
-| UIQA-02 | Phase 15 | Pending |
+| UIQA-01 | Phase 16 | Pending |
+| UIQA-02 | Phase 16 | Pending |
 | SEC-01 | Phase 14 | Complete |
 | SEC-02 | Phase 14 | Complete |
 | SEC-03 | Phase 14 | Complete |
-| TINT-01 | Phase 15 | Pending |
-| TINT-02 | Phase 15 | Pending |
-| TINT-03 | Phase 15 | Pending |
-| LINT-01 | Phase 15 | Pending |
-| LINT-02 | Phase 15 | Pending |
-| DOCS-01 | Phase 17 | Pending |
-| DOCS-02 | Phase 17 | Pending |
-| MIGR-01 | Phase 16 | Pending |
-| UPD-01 | Phase 16 | Pending |
+| TINT-01 | Phase 16 | Pending |
+| TINT-02 | Phase 16 | Pending |
+| TINT-03 | Phase 16 | Pending |
+| LINT-01 | Phase 16 | Pending |
+| LINT-02 | Phase 16 | Pending |
+| TOOL-01 | Phase 15 | Pending |
+| TOOL-02 | Phase 15 | Pending |
+| DOCS-01 | Phase 18 | Pending |
+| DOCS-02 | Phase 18 | Pending |
+| MIGR-01 | Phase 17 | Pending |
+| UPD-01 | Phase 17 | Pending |
 
 **Coverage:**
-- v1.2 requirements: 28 total
-- Mapped to phases: 28 ✓
+- v1.2 requirements: 30 total
+- Mapped to phases: 30 ✓
 - Unmapped: 0 ✓
 
 **Phase distribution:**
@@ -145,10 +152,11 @@ Each requirement maps to exactly one phase. v1.2 phase numbering continues from 
 - Phase 12 (BDD + TDD Wiring): BDD-01, BDD-02, BDD-03, TDD-01, TDD-02 (5)
 - Phase 13 (Frontend/UI Persona & Design→Build Workflow): UI-01, UI-02, UI-03 (3)
 - Phase 14 (Security Audit (OWASP ASVS) & Checklist Re-Anchor): SEC-01, SEC-02, SEC-03 (3)
-- Phase 15 (§14 Gate Convergence — Lint, UI/E2E & Test-Integrity): UIQA-01, UIQA-02, TINT-01, TINT-02, TINT-03, LINT-01, LINT-02 (7)
-- Phase 16 (Install --migrate / --update): MIGR-01, UPD-01 (2)
-- Phase 17 (Browsable Docs Catalog): DOCS-01, DOCS-02 (2)
+- Phase 15 (TypeScript Tooling Migration): TOOL-01, TOOL-02 (2)
+- Phase 16 (§14 Gate Convergence — Lint, UI/E2E & Test-Integrity): UIQA-01, UIQA-02, TINT-01, TINT-02, TINT-03, LINT-01, LINT-02 (7)
+- Phase 17 (Install --migrate / --update): MIGR-01, UPD-01 (2)
+- Phase 18 (Browsable Docs Catalog): DOCS-01, DOCS-02 (2)
 
 ---
 *Requirements defined: 2026-06-09*
-*Last updated: 2026-06-09 after roadmap creation — all 28 requirements mapped to phases 10–17 (100% coverage, 0 unmapped)*
+*Last updated: 2026-06-13 — TypeScript pivot ratified; inserted Phase 15 (TS Tooling Migration, TOOL-01/02), renumbered gate/install/docs to 16/17/18; all 30 requirements mapped to phases 10–18 (100% coverage, 0 unmapped)*

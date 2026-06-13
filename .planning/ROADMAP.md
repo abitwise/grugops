@@ -8,7 +8,7 @@
 
 ## Overview
 
-grugops is built bottom-up as a file protocol, not a runtime. v1.0 froze the shared vocabulary, built the 16 roles + 14 workflows + contracts + adapters + both Claude forms + installers + validator + brand collateral, and proved the chain with a dogfood. v1.1 redesigned the install to a shared-location two-root model (read-only kit at `${GRUGOPS_HOME:-$HOME/.grugops}`, per-repo state in the target) with a path rewrite, a two-root installer, a `--check` doctor, and a false-green-proof validator. v1.2 deepens the kit itself: it opens with an SDLC-coverage audit plus the mechanical foundation guards (WR-05 spawn grep, single-source adapter-size check, AGENTS.md byte budget, voice-lint, config-dial contract) so every later content phase writes into a guarded environment; then a senior-persona overhaul lays the substrate, BDD+TDD close the business→engineer handoff, a frontend/UI persona and an ASVS security audit run as parallel content streams, the §14 quality gate converges all of it (lint + UI/E2E + test-integrity), install migrate/update lands as an independent track, and a generated docs catalog documents the finished 17-role / 15-workflow set last. Each phase's outputs are the next phase's inputs.
+grugops is built bottom-up as a file protocol, not a runtime. v1.0 froze the shared vocabulary, built the 16 roles + 14 workflows + contracts + adapters + both Claude forms + installers + validator + brand collateral, and proved the chain with a dogfood. v1.1 redesigned the install to a shared-location two-root model (read-only kit at `${GRUGOPS_HOME:-$HOME/.grugops}`, per-repo state in the target) with a path rewrite, a two-root installer, a `--check` doctor, and a false-green-proof validator. v1.2 deepens the kit itself: it opens with an SDLC-coverage audit plus the mechanical foundation guards (WR-05 spawn grep, single-source adapter-size check, AGENTS.md byte budget, voice-lint, config-dial contract) so every later content phase writes into a guarded environment; then a senior-persona overhaul lays the substrate, BDD+TDD close the business→engineer handoff, a frontend/UI persona and an ASVS security audit run as parallel content streams, then a TypeScript tooling migration converts the script layer (installers, validator, generator, guards) to a zero-build cross-platform foundation, the §14 quality gate converges all of it (lint + UI/E2E + test-integrity) on that TS foundation, install migrate/update lands as an independent track, and a generated docs catalog documents the finished 17-role / 15-workflow set last. Each phase's outputs are the next phase's inputs.
 
 ## Phases
 
@@ -53,9 +53,10 @@ Full phase details + milestone summary: `milestones/v1.1-ROADMAP.md` · requirem
 - [x] **Phase 12: BDD + TDD Wiring** - Given-when-then acceptance contract (Three Amigos) + red-green TDD double-loop across the BA/QE/engineer roles, workflows, and handoffs; both config-dialed (all 5 plans executed 2026-06-11; awaiting phase verification) (completed 2026-06-11)
 - [x] **Phase 13: Frontend/UI Persona & Design→Build Workflow** - New senior frontend/UI role (no spawn) + a UI design→build workflow (workflow 14); Orchestrator routes UI work to it (completed 2026-06-11)
 - [x] **Phase 14: Security Audit (OWASP ASVS) & Checklist Re-Anchor** - New security-audit workflow (workflow 15) + an ASVS 5.0-generated L1/L2/L3 checklist; ASVS level config-dialed; clear-voice findings (completed 2026-06-13)
-- [ ] **Phase 15: §14 Gate Convergence — Lint, UI/E2E & Test-Integrity** - Single-source gate additions in `05-pr-quality-gate.md`: lint step, automated UI/E2E + visual regression, and an un-cheatable structured-justification test-integrity check; all config-dialed
-- [ ] **Phase 16: Install --migrate / --update** - RED-harness-first, never-delete-first, byte-parity sh/Node install modes to migrate an in-repo layout forward and refresh the central kit
-- [ ] **Phase 17: Browsable Docs Catalog** - Stdlib-only generator emits an in-repo markdown catalog of the finished 17-role / 15-workflow set; a freshness check fails red on drift
+- [ ] **Phase 15: TypeScript Tooling Migration** - Ratified TS pivot: migrate install (`install.sh`/`install.mjs`), validator, ASVS generator, and foundation guards (+ their `.test` harnesses) to TypeScript at behavior parity; establish a zero-build cross-platform execution model + a kit-shipped-runnable convention so later phases ship cross-platform routines into host repos
+- [ ] **Phase 16: §14 Gate Convergence — Lint, UI/E2E & Test-Integrity** - Single-source gate additions in `05-pr-quality-gate.md`: lint step, automated UI/E2E + visual regression, and an un-cheatable structured-justification test-integrity check (TS checker on the Phase-15 foundation); all config-dialed
+- [ ] **Phase 17: Install --migrate / --update** - RED-harness-first, never-delete-first, byte-parity install modes to migrate an in-repo layout forward and refresh the central kit
+- [ ] **Phase 18: Browsable Docs Catalog** - Generator emits an in-repo markdown catalog of the finished 17-role / 15-workflow set; a freshness check fails red on drift
 
 ## Phase Details
 
@@ -185,10 +186,25 @@ Full phase details + milestone summary: `milestones/v1.1-ROADMAP.md` · requirem
 
 - [x] 14-03-PLAN.md — Dial behavior (read-time asvs_level filter + D-09 severity map + named-owner override) in role + handoff; guard_voice extension over the 4 security surfaces + RED fixtures [SEC-03]
 
-### Phase 15: §14 Gate Convergence — Lint, UI/E2E & Test-Integrity
+### Phase 15: TypeScript Tooling Migration
 
-**Goal**: Converge the BDD/UI/ASVS work into the single-source §14 quality gate — add lint, automated UI/E2E + visual regression, and an un-cheatable structured-justification test-integrity check to `05-pr-quality-gate.md` only, all config-dialed, preserving the bounded-self-fix contract and the three terminal results.
-**Depends on**: Phase 12 (BDD/TDD), Phase 13 (UI flow), Phase 14 (ASVS posture)
+**Goal**: Execute the ratified TypeScript pivot for grugops's tooling layer — migrate the existing scripts (`install.sh`, `install.mjs`, `scripts/validate-agent-factory.mjs`, `scripts/generate-asvs-checklist.mjs`, `scripts/check-foundation-guards.sh`, and their `.test` harnesses) to TypeScript at behavior parity, establish a zero-build cross-platform execution model (research Node native type-stripping vs a `tsc` build), and define the kit-shipped-runnable convention so later phases can ship cross-platform routines into host repos. Amends the foundational "markdown + stdlib-only, no-npm-deps" constraint to the ratified posture.
+**Depends on**: Phase 9 (the v1.1 installer scripts) + Phase 10 (foundation guards) — the scripts being migrated
+**Requirements**: TOOL-01, TOOL-02
+**Success Criteria** (what must be TRUE):
+
+  1. A cross-platform TS execution model is decided and documented: runs on Windows/macOS/Linux, with an explicit build posture (Node native type-stripping preferred to preserve a zero-build, no-npm-deps path; any added dependency or build step justified in writing).
+  2. All existing tooling scripts are migrated to TypeScript at behavior parity — the byte-parity sh/Node install contract and every RED-by-design test harness still fail red on a regression and pass green on the migrated code.
+  3. A kit-shipped-runnable convention exists and is documented: how a TS routine ships inside the kit, is materialized by the installer, and is invoked cross-platform from a workflow step — the foundation the Phase-16 gate checker builds on.
+  4. The foundational constraint is formally amended (CLAUDE.md / PROJECT.md) to record the ratified TS pivot; the prior "HELD" notes in the Phase 12–14 contexts are marked superseded. Converting `install.sh` is an explicit decision point — removing the zero-Node POSIX install path is called out and ruled on, not done silently.
+
+**Plans**: TBD
+
+### Phase 16: §14 Gate Convergence — Lint, UI/E2E & Test-Integrity
+
+**Goal**: Converge the BDD/UI/ASVS work into the single-source §14 quality gate — add lint, automated UI/E2E + visual regression, and an un-cheatable structured-justification test-integrity check to `05-pr-quality-gate.md` only, all config-dialed, preserving the bounded-self-fix contract and the three terminal results. The test-integrity checker is a cross-platform TypeScript routine on the Phase-15 foundation.
+**Depends on**: Phase 12 (BDD/TDD), Phase 13 (UI flow), Phase 14 (ASVS posture), Phase 15 (TS tooling foundation + kit-shipped-runnable convention)
+**Pre-decisions captured (2026-06-13, during the discuss session that ratified the TS pivot):** see `.planning/phases/16-14-gate-convergence-lint-ui-e2e-test-integrity/16-PRE-DECISIONS.md` — test-integrity enforcement = committed checker + RED fixture; checker validates a grugops justification registry and compares skip counts (stack-agnostic); checker language = TypeScript on the Phase-15 foundation.
 **Requirements**: UIQA-01, UIQA-02, TINT-01, TINT-02, TINT-03, LINT-01, LINT-02
 **Success Criteria** (what must be TRUE):
 
@@ -200,10 +216,10 @@ Full phase details + milestone summary: `milestones/v1.1-ROADMAP.md` · requirem
 **Plans**: TBD
 **UI hint**: yes
 
-### Phase 16: Install --migrate / --update
+### Phase 17: Install --migrate / --update
 
-**Goal**: Ship the deferred install migrate/update story as an independent track — RED-harness-first, additive, reversible, never-delete-first, byte-parity sh/Node modes to move an already-installed in-repo layout to the two-root layout and refresh the central kit in place.
-**Depends on**: Phase 9 (v1.1 installer); no dependency on the content phases (10–15) — can run in parallel
+**Goal**: Ship the deferred install migrate/update story as an independent track — RED-harness-first, additive, reversible, never-delete-first, byte-parity modes to move an already-installed in-repo layout to the two-root layout and refresh the central kit in place. Builds on the Phase-15 TypeScript installer.
+**Depends on**: Phase 9 (v1.1 installer) + Phase 15 (TS installer); no dependency on the content phases (10–16) — can otherwise run in parallel
 **Requirements**: MIGR-01, UPD-01
 **Success Criteria** (what must be TRUE):
 
@@ -213,10 +229,10 @@ Full phase details + milestone summary: `milestones/v1.1-ROADMAP.md` · requirem
 
 **Plans**: TBD
 
-### Phase 17: Browsable Docs Catalog
+### Phase 18: Browsable Docs Catalog
 
-**Goal**: Document the finished kit — a stdlib-only generator produces a browsable in-repo markdown catalog of the final 17 roles and 15 workflows from their frontmatter, with a freshness check that fails red on drift. Runs last so it documents the completed set.
-**Depends on**: Phases 11–15 (the finished role/workflow set); runs after everything else
+**Goal**: Document the finished kit — a generator produces a browsable in-repo markdown catalog of the final 17 roles and 15 workflows from their frontmatter, with a freshness check that fails red on drift. Runs last so it documents the completed set.
+**Depends on**: Phases 11–16 (the finished role/workflow set); runs after everything else
 **Requirements**: DOCS-01, DOCS-02
 **Success Criteria** (what must be TRUE):
 
@@ -229,7 +245,7 @@ Full phase details + milestone summary: `milestones/v1.1-ROADMAP.md` · requirem
 ## Progress
 
 **Execution Order:**
-Phases execute in numeric order: 10 → 11 → 12 → 13 → 14 → 15 → 16 → 17 (16 is an independent track that may run in parallel with 11–15).
+Phases execute in numeric order: 10 → 11 → 12 → 13 → 14 → 15 → 16 → 17 → 18 (17 is an independent track that may run in parallel with 11–16).
 
 | Phase | Milestone | Plans Complete | Status | Completed |
 |-------|-----------|----------------|--------|-----------|
@@ -247,8 +263,9 @@ Phases execute in numeric order: 10 → 11 → 12 → 13 → 14 → 15 → 16 �
 | 12. BDD + TDD Wiring | v1.2 | 5/5 | Complete    | 2026-06-11 |
 | 13. Frontend/UI Persona & Design→Build Workflow | v1.2 | 3/3 | Complete    | 2026-06-11 |
 | 14. Security Audit (OWASP ASVS) & Checklist Re-Anchor | v1.2 | 3/3 | Complete    | 2026-06-13 |
-| 15. §14 Gate Convergence — Lint, UI/E2E & Test-Integrity | v1.2 | 0/TBD | Not started | - |
-| 16. Install --migrate / --update | v1.2 | 0/TBD | Not started | - |
-| 17. Browsable Docs Catalog | v1.2 | 0/TBD | Not started | - |
+| 15. TypeScript Tooling Migration | v1.2 | 0/TBD | Not started | - |
+| 16. §14 Gate Convergence — Lint, UI/E2E & Test-Integrity | v1.2 | 0/TBD | Not started | - |
+| 17. Install --migrate / --update | v1.2 | 0/TBD | Not started | - |
+| 18. Browsable Docs Catalog | v1.2 | 0/TBD | Not started | - |
 
-**Totals:** 17 phases · 48 plans complete · 2 milestones shipped · v1.2 (8 phases, 10–17) in progress; Phase 12 planned (5 plans); Phase 13 planned (3 plans).
+**Totals:** 18 phases · 48 plans complete · 2 milestones shipped · v1.2 (9 phases, 10–18) in progress.

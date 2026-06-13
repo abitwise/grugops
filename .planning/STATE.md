@@ -2,16 +2,15 @@
 gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: SDLC Depth, Quality Discipline & Browsable Docs
-status: ready_to_plan
-last_updated: 2026-06-13T08:27:52.855Z
-last_activity: 2026-06-13 -- Phase 14 execution started
+status: planning
+last_updated: "2026-06-13T15:42:44.509Z"
+last_activity: 2026-06-13
 progress:
-  total_phases: 8
-  completed_phases: 4
+  total_phases: 9
+  completed_phases: 5
   total_plans: 20
-  completed_plans: 68
-  percent: 50
-stopped_at: Phase 14 complete (3/3) — ready to discuss Phase 15
+  completed_plans: 20
+  percent: 56
 ---
 
 # Project State
@@ -314,6 +313,6 @@ Items acknowledged and deferred at the v1.1 milestone close on 2026-06-08. All a
 
 ## Session Continuity
 
-Last session: 2026-06-13T07:02:08.055Z
-Stopped at: Phase 14 context gathered
-Resume file: .planning/phases/14-security-audit-owasp-asvs-checklist-re-anchor/14-CONTEXT.md
+Last session: 2026-06-13T15:42:44.495Z
+Stopped at: TS pivot ratified; roadmap reshaped (new Phase 15 = TS Tooling Migration; gate convergence → 16)
+Resume file: .planning/ROADMAP.md
