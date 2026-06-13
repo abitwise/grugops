@@ -522,27 +522,31 @@ This "old harness as oracle, then swap" approach makes parity *mechanically prov
 
 **Note:** These six assumptions are all low/medium risk and all in Claude's-discretion or confirm-the-locked-constraint territory. No assumed *compliance/security/retention* claim is present.
 
-## Open Questions
+## Open Questions (RESOLVED)
 
 1. **`@types/node` major version pin**
    - What we know: latest is `25.9.3`; the dev machine runs Node 24; the locked floor is Node 22.
    - What's unclear: whether to pin `@types/node@~22` (matches the runtime floor, most conservative) or `~24`/`~25` (matches the dev machine).
    - Recommendation: pin `~22` to match the D-03 floor so types never describe APIs unavailable at the minimum supported Node. Low stakes — easily bumped.
+   - **RESOLVED:** `@types/node` pinned `~22` to match the D-03 Node-22 floor — implemented in Plan 15-01's `package.json` dev-deps.
 
 2. **Exact committed host-local materialization path (D-11, Claude's discretion)**
    - What we know: must be committed, namespaced, not gitignore-adjacent, runnable from a bare host checkout.
    - What's unclear: `tools/grugops/` vs `.grugops/bin/` vs `bin/`.
    - Recommendation: `tools/grugops/`. Decide in planning and bake it into the reference routine + the installer materialization.
+   - **RESOLVED:** host-local materialization path = `tools/grugops/` — implemented in Plan 15-05 (reference routine + `install.ts` `materializeRunnable`).
 
 3. **CI wiring shape (Claude's discretion — no `.github/workflows/` exists today)**
    - What we know: build (`tsc`), typecheck (`tsc --noEmit`), test (`vitest run`), and freshness gate all need to run; grugops's existing gate idiom is "a single shell-invokable check that exits 0/1."
    - What's unclear: whether to add a GitHub Actions workflow now or keep the same "runnable check script" convention the foundation guards use (the existing guards ship as runnable scripts with no `.github/` workflow — "held").
    - Recommendation: keep parity with the existing convention — ship the freshness/typecheck/test as `npm` scripts + a single aggregator runnable; defer an actual `.github/workflows/` file unless the milestone wants CI now (consistent with Phase 10's "no `.github/` workflow added (held)").
+   - **RESOLVED:** CI wiring = `npm` scripts convention, no `.github/workflows/` file added this phase (consistent with Phase 10's held CI) — implemented via Plan 15-01's `package.json` scripts.
 
 4. **Does the two-root validator / `$GRUGOPS_HOME` resolution change in the port? (Claude's discretion)**
    - What we know: the validator's `VALIDATE_KIT_ROOT` (no-default, C3 footgun guard) and the installer's `GRUGOPS_HOME` resolution are behavior-load-bearing and well-tested.
    - What's unclear: whether the TS port should refactor any of this resolution logic.
    - Recommendation: **port behavior 1:1, refactor nothing in the resolution logic.** The C3 no-false-green guard and the lexical-path-collapse parity fixes (CR-01..03 in STATE.md) are hard-won; preserve them exactly. Add types, change nothing semantic.
+   - **RESOLVED:** the two-root validator / `$GRUGOPS_HOME` resolution is ported behavior-1:1, refactor nothing semantic — implemented in Plan 15-04.
 
 ## Environment Availability
 
