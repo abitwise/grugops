@@ -434,4 +434,55 @@ describe("install.js / uninstall.js — single-installer contract (folds install
     const unin = spawnSync("node", [UNINSTALL_JS, "--bad-arg-xyz"], { encoding: "utf8", env: { ...process.env } });
     expect(unin.status).toBe(2);
   });
+
+  // ── D-11 materializeRunnable(): the kit-shipped runnable lands at the committed host path ─────
+  // The TOOL-02 install-side proof. install.js copies the compiled reference routine into the
+  // host's committed tools/grugops/ path (additive/idempotent/never-overwrite); a second install
+  // is a no-op; a user-edited copy is NOT clobbered; and the materialized routine runs from the
+  // bare host fixture with ONLY Node (no node_modules) and exits 1 on the bad fixture — the D-11
+  // end-to-end proof that Phase 16's checker materializes via this exact mechanism.
+  const MATERIALIZED_REL = join("tools", "grugops", "reference-check.js");
+  const BAD_FIXTURE = join(REPO_ROOT, "scripts", "runnable-ref", "fixtures", "bad.txt");
+
+  it("D-11 materialize: the runnable lands at the committed tools/grugops/ host path", () => {
+    const target = makeFixture();
+    const home = mkTmp();
+    expect(runInstall(target, home).status).toBe(0);
+    const materialized = join(target, MATERIALIZED_REL);
+    expect(existsSync(materialized)).toBe(true);
+    // It is a byte-identical copy of the kit's committed runnable (the materialization source).
+    expect(readFileSync(materialized, "utf8")).toBe(
+      readFileSync(join(REPO_ROOT, "scripts", "runnable-ref", "reference-check.js"), "utf8"),
+    );
+  });
+
+  it("D-11 materialize: a second install is idempotent (the materialized runnable is unchanged)", () => {
+    const target = makeFixture();
+    const home = mkTmp();
+    expect(runInstall(target, home).status).toBe(0);
+    const first = readFileSync(join(target, MATERIALIZED_REL), "utf8");
+    expect(runInstall(target, home).status).toBe(0);
+    expect(readFileSync(join(target, MATERIALIZED_REL), "utf8")).toBe(first);
+  });
+
+  it("D-11 materialize: never-overwrite — a user-edited materialized runnable is preserved (T-15-05-Tamper)", () => {
+    const target = makeFixture();
+    const home = mkTmp();
+    // Plant a user-edited routine at the materialization path BEFORE install.
+    mkdirSync(join(target, "tools", "grugops"), { recursive: true });
+    writeFileSync(join(target, MATERIALIZED_REL), "// USER-EDITED RUNNABLE — install must never clobber this.\n");
+    expect(runInstall(target, home).status).toBe(0);
+    expect(readFileSync(join(target, MATERIALIZED_REL), "utf8")).toContain("USER-EDITED RUNNABLE");
+  });
+
+  it("D-11 materialize: the materialized runnable runs in a bare-Node host (no node_modules) and exits 1 on the bad fixture", () => {
+    const target = makeFixture();
+    const home = mkTmp();
+    expect(runInstall(target, home).status).toBe(0);
+    const materialized = join(target, MATERIALIZED_REL);
+    // The target fixture has NO node_modules — this is the D-11 host-CI emulation (kit absent).
+    const r = spawnSync("node", [materialized, BAD_FIXTURE], { encoding: "utf8", cwd: target });
+    expect(r.status).toBe(1); // 1 = findings on the bad fixture (the gate would block)
+    expect(r.stdout).toContain("FORBIDDEN");
+  });
 });

@@ -635,6 +635,54 @@ function seedState() {
         report("created", "plans/handoffs/");
     }
 }
+// materializeRunnable (D-11 — the kit-shipped-runnable convention): copy the compiled
+// reference routine .js from the running kit checkout into the host's COMMITTED, namespaced
+// path tools/grugops/ under $TARGET. This is the generic mechanism Phase 16's cross-platform
+// test-integrity checker reuses (16-PRE-DECISIONS.md) — the reference routine is merely the
+// FIRST materialized runnable; later checkers materialize the same way. The host then runs
+// `node tools/grugops/<routine>.js <args>` with ONLY Node present (no ~/.grugops, no npm,
+// no node_modules), which is exactly why a single committed .js — not the whole kit — is copied.
+//
+// Path choice (RESEARCH Open Q2 / D-11, RESOLVED): tools/grugops/ — committed, namespaced, not
+// gitignore-adjacent like .grugops/ state, not colliding with a project's build bin/. The
+// materialized file lands at a path the host's CI sees on a bare checkout (Pitfall 5).
+//
+// Shape (mirrors seedFile, additive/idempotent/never-overwrite — T-15-05-Tamper): skip if the
+// source is missing; skip-if-identical (a re-run is a no-op); NEVER `>`-truncate an existing host
+// file (a user-edited materialized routine is preserved verbatim); honor DRY_RUN (report only, no
+// write). It writes ONLY under tools/grugops/ — it never touches a protected dir and never sets
+// the deploy-approval var (T-15-05-EoP). Report strings are CLEAR PROFESSIONAL VOICE.
+//
+// RUNNABLES: each entry is [source-relative-to-GRUGOPS_SRC, dest-relative-to-TARGET]. The
+// reference routine is the only kit-shipped runnable today; Phase 16's checker appends here.
+const RUNNABLES = [
+    ["scripts/runnable-ref/reference-check.js", "tools/grugops/reference-check.js"],
+];
+function materializeRunnable() {
+    for (const [srcRel, destRel] of RUNNABLES) {
+        const src = join(GRUGOPS_SRC, srcRel);
+        const dest = join(TARGET, destRel);
+        if (!existsSync(src)) {
+            report("skipped", `${destRel} (source missing: ${src})`);
+            continue;
+        }
+        // never-overwrite (T-15-05-Tamper): an existing host file is left untouched. If it is
+        // byte-identical the re-run is a clean no-op; if a user edited it, it is preserved verbatim.
+        if (existsSync(dest)) {
+            report("skipped", sameContent(src, dest)
+                ? `${destRel} (target already has it — D-04)`
+                : `${destRel} (target has a different copy — left untouched, never-overwrite)`);
+            continue;
+        }
+        if (DRY_RUN) {
+            report("would-add", destRel);
+            continue;
+        }
+        mkdirp(dirname(dest));
+        copyFileSync(src, dest);
+        report("created", destRel);
+    }
+}
 // writeMarker: write .grugops/install.json. Exactly four stable fields in fixed order; the
 // install-time timestamp is deliberately OMITTED (RESOLVED Q1, Option b) — overwrite
 // unconditionally, idempotent.
@@ -694,11 +742,12 @@ ensureBlock(join(TARGET, COPILOT_REL), COPILOT_OPEN, COPILOT_PTR, COPILOT_CLOSE,
 // 7. Seed the per-repo state plane into the target (skip-if-exists) so /grugops works first run.
 console.log("\n-- state seed --");
 seedState();
-// D-11 materialization seam (Plan 05): materializeRunnable() — which copies the compiled
-// kit-shipped runnable(s) into the host's committed tools path — is inserted HERE, between
-// seedState() and writeMarker(), in Plan 05. It is deliberately NOT added in this plan (Plan 03
-// is a behavior-preserving port only). Reuse the seedFile/linkOrCopy shape (additive, idempotent,
-// never-overwrite) when it lands.
+// D-11 materialization seam (Plan 05): materializeRunnable() copies the compiled kit-shipped
+// runnable(s) into the host's committed tools/grugops/ path, between seedState() and
+// writeMarker() (the seam Plan 03 reserved). Additive/idempotent/never-overwrite, reusing the
+// seedFile shape. This is the TOOL-02 convention Phase 16's test-integrity checker reuses.
+console.log("\n-- runnables --");
+materializeRunnable();
 // 8. Write the install marker (grugops-owned; overwritten unconditionally).
 writeMarker();
 console.log("\n-- notes --");
