@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: SDLC Depth, Quality Discipline & Browsable Docs
 status: executing
-last_updated: "2026-06-13T18:24:58.067Z"
+last_updated: "2026-06-13T18:40:15.698Z"
 last_activity: 2026-06-13
 progress:
   total_phases: 9
   completed_phases: 5
   total_plans: 26
-  completed_plans: 23
+  completed_plans: 24
   percent: 56
 ---
 
@@ -25,11 +25,11 @@ See: .planning/PROJECT.md (updated 2026-06-09 — v1.2 milestone started)
 ## Current Position
 
 Phase: 15 (typescript-tooling-migration) — EXECUTING
-Plan: 4 of 6
+Plan: 5 of 6
 Status: Ready to execute
 Last activity: 2026-06-13
 
-Progress: [█████████░] 88%
+Progress: [█████████░] 92%
 
 ## Performance Metrics
 
@@ -131,6 +131,7 @@ Progress: [█████████░] 88%
 | Phase 15 P01 | 10m | 2 tasks | 9 files |
 | Phase 15 P02 | 3m | 2 tasks | 4 files |
 | Phase 15 P03 | 25m | 2 tasks | 5 files |
+| Phase 15 P04 | 22m | 2 tasks | 11 files |
 
 ## Accumulated Context
 
@@ -282,6 +283,9 @@ Recent decisions affecting current work:
 - [Phase ?]: [15-03] install.sh + install.mjs collapsed into a single behavior-parity install.ts/.js (D-07); uninstall.sh -> uninstall.ts/.js (D-09); Node now the hard prerequisite, dual sh/Node byte-parity install contract retired
 - [Phase ?]: [15-03] Ported install.mjs (not install.sh) as the analog — types only, every env-var/sentinel/exit-code/regex/fail-closed branch carried byte-for-behavior; sentinel strings byte-identical across the install/uninstall pair; D-11 materializeRunnable() seam reserved between seedState() and writeMarker() for Plan 05
 - [Phase ?]: [15-03] install.test.ts folds install.test.sh + install.two-root.test.sh into one Vitest suite (17 pass + 1 skip) over the committed .js; carries the REQUIRED D-08 retired-parity marker (old Check 4 sh-vs-Node parity intentionally gone — Pitfall 6); old .sh/.mjs/.test.sh kept as oracles until Plan 06
+- [Phase ?]: [15-04] Validator + ASVS generator + foundation-guards + kit-refs ported .mjs/.sh -> .ts at exact parity (RESEARCH Open Q4: types only, refactor nothing semantic); C3 unset-kit guard + CR-03 fail-closed-on-null preserved verbatim; full .sh/.mjs-vs-.js output diff byte-identical on the real tree
+- [Phase ?]: [15-04] ASVS checklist proven byte-reproducible 3 ways (.js == .mjs output == committed file); provenance header kept verbatim so bytes don't drift, Plan 06 repoints it; checklist NOT re-committed (no-op IS the fidelity proof)
+- [Phase ?]: [15-04] CHECK_ROOT env override added to the two read-only checkers so the .sh run-from-mirror hermetic idiom ports to Vitest; RED-by-design proven by planted regression; TOOL-01 stays In Progress (spans 15-06 .mjs/.sh deletion)
 
 ### Pending Todos
 
@@ -324,6 +328,6 @@ Items acknowledged and deferred at the v1.1 milestone close on 2026-06-08. All a
 
 ## Session Continuity
 
-Last session: 2026-06-13T18:24:50.280Z
+Last session: 2026-06-13T18:39:50.507Z
 Stopped at: Phase 15 context gathered
 Resume file: None

@@ -134,7 +134,7 @@ Each requirement maps to exactly one phase. v1.2 phase numbering continues from 
 | TINT-03 | Phase 16 | Pending |
 | LINT-01 | Phase 16 | Pending |
 | LINT-02 | Phase 16 | Pending |
-| TOOL-01 | Phase 15 | In Progress (15-01: build posture + freshness gate; 15-02: prod-deploy guard ported at parity; 15-03: single installer + uninstall ported at parity; remaining script migrations 15-04, originals deleted 15-06) |
+| TOOL-01 | Phase 15 | In Progress (15-01: build posture + freshness gate; 15-02: prod-deploy guard ported at parity; 15-03: single installer + uninstall ported at parity; 15-04: validator + ASVS generator + foundation-guards + kit-refs ported at exact parity — byte-reproducible ASVS, full .sh/.mjs-vs-.js diff identical, RED-by-design harnesses green; .mjs/.sh originals deleted 15-06) |
 | TOOL-02 | Phase 15 | Pending |
 | DOCS-01 | Phase 18 | Pending |
 | DOCS-02 | Phase 18 | Pending |
