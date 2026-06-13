@@ -200,7 +200,16 @@ agent-factory/roles/security-nfr.md \
 agent-factory/roles/software-engineer.md \
 agent-factory/roles/system-analyst.md \
 agent-factory/roles/uat-planner.md"
-VOICE_FILES="$ROLE_FILES"
+# SEC_VOICE_FILES (D-10, Phase 14) — the 3 NON-role security surfaces that must also be clear
+# professional voice. These have NO `## Caveman prompt` fence, so the fence-strip awk below is a
+# harmless no-op on them and they are scanned WHOLE (correct — everything on a security surface is
+# clear voice, D-10/D-11). `security-nfr.md` is ALREADY in ROLE_FILES (its caveman carve-out is
+# handled there) — do NOT add it here. They inherit the per-file missing-file presence-check by
+# being in VOICE_FILES.
+SEC_VOICE_FILES="agent-factory/workflows/15-security-audit.md \
+agent-factory/checklists/security-nfr-checklist.md \
+agent-factory/handoffs/security-nfr-handoff.md"
+VOICE_FILES="$ROLE_FILES $SEC_VOICE_FILES"
 VOICE_MARKERS='\bgrug\b|\bclub\b|\brock\b|\bcave\b|\bsmash\b|\bshiny\b|brain hurt|me think|no think|big think'
 
 guard_voice() {

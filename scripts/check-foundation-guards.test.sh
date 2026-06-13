@@ -75,7 +75,10 @@ agent-factory/roles/release-manager.md \
 agent-factory/roles/security-nfr.md \
 agent-factory/roles/software-engineer.md \
 agent-factory/roles/system-analyst.md \
-agent-factory/roles/uat-planner.md"
+agent-factory/roles/uat-planner.md \
+agent-factory/workflows/15-security-audit.md \
+agent-factory/checklists/security-nfr-checklist.md \
+agent-factory/handoffs/security-nfr-handoff.md"
 
 # mirror <case> — build $WORK/<case> with byte-faithful copies of every guard input + the guard
 # script itself, recreating the relative dir layout so the guard's hard-coded paths resolve. Echo
@@ -182,6 +185,22 @@ printf '\n-- guard_voice --\n'
 M=$(mirror voice-marker)
 printf '\ngrug smash the bug.\n' >> "$M/agent-factory/roles/security-nfr.md"
 expect_fail "voice marker in clear-voice surface → nonzero + role path" "$M" "security-nfr.md"
+
+# guard_voice (D-10 Phase 14) — one RED fixture per NEW security surface. Each surface is added to
+# VOICE_FILES (and to GUARD_INPUTS above so mirror() copies it). These have NO `## Caveman prompt`
+# fence, so the marker lands in clear-voice territory and must fail RED naming the surface — the
+# no-fabrication proof that each new surface's voice scan can actually fail (mirrors voice-marker).
+M=$(mirror voice-marker-wf15)
+printf '\ngrug smash the audit.\n' >> "$M/agent-factory/workflows/15-security-audit.md"
+expect_fail "voice marker in workflow 15 → nonzero + surface path" "$M" "15-security-audit.md"
+
+M=$(mirror voice-marker-checklist)
+printf '\ngrug smash the checklist.\n' >> "$M/agent-factory/checklists/security-nfr-checklist.md"
+expect_fail "voice marker in ASVS checklist → nonzero + surface path" "$M" "security-nfr-checklist.md"
+
+M=$(mirror voice-marker-handoff)
+printf '\ngrug smash the handoff.\n' >> "$M/agent-factory/handoffs/security-nfr-handoff.md"
+expect_fail "voice marker in security-nfr handoff → nonzero + surface path" "$M" "security-nfr-handoff.md"
 
 # guard_voice (CR-02) — plant a MISSING voice file; assert a STRUCTURED fail (nonzero + a finding
 # naming the missing file), NOT a raw `awk: can't open file` abort. Under set -eu a non-zero awk
