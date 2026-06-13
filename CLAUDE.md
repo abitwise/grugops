@@ -53,7 +53,7 @@ It is lean by default and scales to enterprise governance on a single config fla
 | **`claude plugin validate <dir>`** (or `/plugin validate`) | Validate `plugin.json` + `marketplace.json` + agent/skill/command/hook frontmatter | Run in CI before publishing. `--strict` turns warnings (e.g. misspelled fields, non-kebab-case names) into errors. Use it; it is the authoritative gate. |
 | **`claude --plugin-dir ./grugops-plugin`** | Local plugin testing without install | Fastest dev loop. Also accepts a `.zip` (CC v2.1.128+). |
 | **`/reload-plugins`** | Hot-reload plugin changes mid-session | Picks up skills, agents, hooks, MCP, LSP without restart. |
-| **`scripts/validate-agent-factory.mjs`** | grugops's own structure validator (spec §18) | Checks required files exist, role/workflow sections present, config parses, board↔ticket status match, traceability completeness, packaging presence. Structure not behavior. Never fakes results. |
+| **`scripts/validate-agent-factory.ts`** (compiled `.js`) | grugops's own structure validator (spec §18) | Checks required files exist, role/workflow sections present, config parses, board↔ticket status match, traceability completeness, packaging presence. Structure not behavior. Never fakes results. |
 ## Installation (what users run)
 # Minimal path (any tool) — "just install the markdown":
 #   copy AGENTS.md + agent-factory/ into the repo, then tell the agent:
