@@ -174,7 +174,16 @@ Full phase details + milestone summary: `milestones/v1.1-ROADMAP.md` · requirem
   2. The security/NFR checklist is rewritten to ASVS 5.0 chapters with L1/L2/L3 tags and requirement IDs, generated from the pinned ASVS 5.0.0 source (not hand-transcribed), and every "pass" cites evidence or reads `UNKNOWN - verify` — no unbacked ticks.
   3. ASVS level is config-dialed (`security.asvs_level`: L1 lean → L2 enterprise → L3 + named human sign-off), the gate's security block-threshold is dialed (`security.block_on`), and all security findings are written in clear professional voice (voice-lint guard passes on the security surfaces).
 
-**Plans**: TBD
+**Plans**: 3 plans
+
+**Wave 1**
+
+- [ ] 14-01-PLAN.md — Vendor pinned ASVS 5.0.0 flat.json + stdlib-Node generator + regenerated full L1/L2/L3 checklist in place [SEC-02]
+- [ ] 14-02-PLAN.md — Workflow 15 (deep ASVS audit, reference-don't-restate) + Orchestrator security-audit registration (no renumber) [SEC-01]
+
+**Wave 2** *(blocked on Wave 1 — guard_voice scans the regenerated checklist + workflow 15; harness mirrors both)*
+
+- [ ] 14-03-PLAN.md — Dial behavior (read-time asvs_level filter + D-09 severity map + named-owner override) in role + handoff; guard_voice extension over the 4 security surfaces + RED fixtures [SEC-03]
 
 ### Phase 15: §14 Gate Convergence — Lint, UI/E2E & Test-Integrity
 
