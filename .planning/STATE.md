@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: SDLC Depth, Quality Discipline & Browsable Docs
 status: executing
-last_updated: "2026-06-13T18:06:28.283Z"
+last_updated: "2026-06-13T18:13:45.287Z"
 last_activity: 2026-06-13
 progress:
   total_phases: 9
   completed_phases: 5
   total_plans: 26
-  completed_plans: 21
+  completed_plans: 22
   percent: 56
 ---
 
@@ -25,11 +25,11 @@ See: .planning/PROJECT.md (updated 2026-06-09 — v1.2 milestone started)
 ## Current Position
 
 Phase: 15 (typescript-tooling-migration) — EXECUTING
-Plan: 2 of 6
+Plan: 3 of 6
 Status: Ready to execute
 Last activity: 2026-06-13
 
-Progress: [████████░░] 81%
+Progress: [█████████░] 85%
 
 ## Performance Metrics
 
@@ -129,6 +129,7 @@ Progress: [████████░░] 81%
 | Phase 13 P02 | 7m | 1 tasks | 1 files |
 | Phase 13 P03 | 3m | 2 tasks | 2 files |
 | Phase 15 P01 | 10m | 2 tasks | 9 files |
+| Phase 15 P02 | 3m | 2 tasks | 4 files |
 
 ## Accumulated Context
 
@@ -275,6 +276,8 @@ Recent decisions affecting current work:
 - [Phase ?]: [15-01] @types/node accepted as third dev-dep under D-05 (type-only, erased at compile); pinned ~22 to the D-03 Node-22 floor
 - [Phase ?]: [15-01] tsconfig types:[node] added so tsc resolves @types/node globals/builtins; **/*.test.ts excluded from emit (Vitest runs .test.ts directly, no committed test .js)
 - [Phase ?]: [15-01] D-02 freshness gate live: rebuild-to-temp + Buffer.equals, exit 0 fresh / 1 drift|error, fail-closed on broken rebuild; .gitattributes eol=lf + tsconfig newLine:lf close Pitfall 1
+- [Phase ?]: [15-02] Prod-deploy guard ported byte-for-behavior to TS (hooks/guard.ts/.js): APPROVAL literal GRUGOPS_PROD_DEPLOY_APPROVED preserved, DEPLOY array diff-identical to guard.mjs, SELF_APPROVE + fail-closed fd-0 stdin parse + exit-0/JSON-deny mechanism unchanged; hooks.json repointed to guard.js (D-10)
+- [Phase ?]: [15-02] guard.test.ts Vitest oracle reproduces all 26 guard.test.sh assertions + a NEW D-10 missing-artifact case (27 green) spawning the committed guard.js; guard.mjs+guard.test.sh kept as parity oracle until Plan 06; host hook auto-migration deferred to Phase 17 --migrate
 
 ### Pending Todos
 
@@ -317,6 +320,6 @@ Items acknowledged and deferred at the v1.1 milestone close on 2026-06-08. All a
 
 ## Session Continuity
 
-Last session: 2026-06-13T18:06:08.603Z
+Last session: 2026-06-13T18:13:21.007Z
 Stopped at: Phase 15 context gathered
 Resume file: None
