@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: SDLC Depth, Quality Discipline & Browsable Docs
-status: executing
-last_updated: "2026-06-13T18:48:22.684Z"
+status: verifying
+last_updated: "2026-06-13T20:42:26.355Z"
 last_activity: 2026-06-13
 progress:
   total_phases: 9
-  completed_phases: 5
+  completed_phases: 6
   total_plans: 26
-  completed_plans: 25
-  percent: 56
+  completed_plans: 26
+  percent: 67
 ---
 
 # Project State
@@ -26,10 +26,10 @@ See: .planning/PROJECT.md (updated 2026-06-09 — v1.2 milestone started)
 
 Phase: 15 (typescript-tooling-migration) — EXECUTING
 Plan: 6 of 6
-Status: Ready to execute
+Status: Phase complete — ready for verification
 Last activity: 2026-06-13
 
-Progress: [██████████] 96%
+Progress: [██████████] 100%
 
 ## Performance Metrics
 
@@ -133,6 +133,7 @@ Progress: [██████████] 96%
 | Phase 15 P03 | 25m | 2 tasks | 5 files |
 | Phase 15 P04 | 22m | 2 tasks | 11 files |
 | Phase 15 P05 | 12m | 2 tasks | 8 files |
+| Phase 15 P15-06 | 18m | 3 tasks | 15 files |
 
 ## Accumulated Context
 
@@ -288,6 +289,7 @@ Recent decisions affecting current work:
 - [Phase ?]: [15-04] ASVS checklist proven byte-reproducible 3 ways (.js == .mjs output == committed file); provenance header kept verbatim so bytes don't drift, Plan 06 repoints it; checklist NOT re-committed (no-op IS the fidelity proof)
 - [Phase ?]: [15-04] CHECK_ROOT env override added to the two read-only checkers so the .sh run-from-mirror hermetic idiom ports to Vitest; RED-by-design proven by planted regression; TOOL-01 stays In Progress (spans 15-06 .mjs/.sh deletion)
 - [Phase ?]: [15-05] TOOL-02 kit-shipped-runnable convention PROVEN: reference-check.ts speaks the D-12 contract (exit 0/1/2 + clear-voice stdout + --json), node: builtins only, RED on a planted FORBIDDEN fixture; install.ts materializeRunnable() copies the compiled .js into the host's committed tools/grugops/ (additive/idempotent/never-overwrite), runs in a bare-Node host with no node_modules; materialization path CONFIRMED tools/grugops/ (D-11 RESOLVED); Phase 16's checker reuses materializeRunnable via the RUNNABLES table; TOOL-02 complete, TOOL-01 left In Progress (15-06 deletes .mjs/.sh)
+- [Phase 15]: [15-06] TOOL-01 closed + D-13 ratified: tooling layer is TypeScript (tsc-compiled committed .js, freshness-checked); single Node-required install.ts (POSIX installer dropped, Node a hard prerequisite); dev-deps {typescript, vitest, @types/node} dev/CI-only; zero runtime deps on hosts; Node 22+ floor. 13 POSIX/.mjs originals + .test.sh oracles deleted after a green-suite gate (D-09 — nothing POSIX remains); prior HELD notes in 12/13/14-CONTEXT.md marked superseded (history preserved); human-approved checkpoint.
 
 ### Pending Todos
 
@@ -330,6 +332,6 @@ Items acknowledged and deferred at the v1.1 milestone close on 2026-06-08. All a
 
 ## Session Continuity
 
-Last session: 2026-06-13T18:47:57.659Z
-Stopped at: Phase 15 context gathered
+Last session: 2026-06-13T20:42:26.348Z
+Stopped at: Completed 15-06-PLAN.md (Phase 15 ready for verification)
 Resume file: None

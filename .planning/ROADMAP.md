@@ -53,7 +53,7 @@ Full phase details + milestone summary: `milestones/v1.1-ROADMAP.md` · requirem
 - [x] **Phase 12: BDD + TDD Wiring** - Given-when-then acceptance contract (Three Amigos) + red-green TDD double-loop across the BA/QE/engineer roles, workflows, and handoffs; both config-dialed (all 5 plans executed 2026-06-11; awaiting phase verification) (completed 2026-06-11)
 - [x] **Phase 13: Frontend/UI Persona & Design→Build Workflow** - New senior frontend/UI role (no spawn) + a UI design→build workflow (workflow 14); Orchestrator routes UI work to it (completed 2026-06-11)
 - [x] **Phase 14: Security Audit (OWASP ASVS) & Checklist Re-Anchor** - New security-audit workflow (workflow 15) + an ASVS 5.0-generated L1/L2/L3 checklist; ASVS level config-dialed; clear-voice findings (completed 2026-06-13)
-- [ ] **Phase 15: TypeScript Tooling Migration** - Ratified TS pivot: migrate install (`install.sh`/`install.mjs`), validator, ASVS generator, and foundation guards (+ their `.test` harnesses) to TypeScript at behavior parity; establish a zero-build cross-platform execution model + a kit-shipped-runnable convention so later phases ship cross-platform routines into host repos
+- [x] **Phase 15: TypeScript Tooling Migration** - Ratified TS pivot: migrate install (`install.sh`/`install.mjs`), validator, ASVS generator, and foundation guards (+ their `.test` harnesses) to TypeScript at behavior parity; establish a zero-build cross-platform execution model + a kit-shipped-runnable convention so later phases ship cross-platform routines into host repos (completed 2026-06-13)
 - [ ] **Phase 16: §14 Gate Convergence — Lint, UI/E2E & Test-Integrity** - Single-source gate additions in `05-pr-quality-gate.md`: lint step, automated UI/E2E + visual regression, and an un-cheatable structured-justification test-integrity check (TS checker on the Phase-15 foundation); all config-dialed
 - [ ] **Phase 17: Install --migrate / --update** - RED-harness-first, never-delete-first, byte-parity install modes to migrate an in-repo layout forward and refresh the central kit
 - [ ] **Phase 18: Browsable Docs Catalog** - Generator emits an in-repo markdown catalog of the finished 17-role / 15-workflow set; a freshness check fails red on drift
@@ -216,7 +216,7 @@ Full phase details + milestone summary: `milestones/v1.1-ROADMAP.md` · requirem
 
 **Wave 3** *(blocked on Waves 1–2 — deletes the parity oracles only after green)*
 
-- [ ] 15-06-PLAN.md — D-13 constraint amendment (CLAUDE.md/PROJECT.md + supersede HELD notes) + invocation/env-var sweeps + delete all POSIX/.mjs originals (D-09/D-13; blocking human checkpoint) [TOOL-01]
+- [x] 15-06-PLAN.md — D-13 constraint amendment (CLAUDE.md/PROJECT.md + supersede HELD notes) + invocation/env-var sweeps + delete all POSIX/.mjs originals (D-09/D-13; blocking human checkpoint) [TOOL-01]
 
 ### Phase 16: §14 Gate Convergence — Lint, UI/E2E & Test-Integrity
 
@@ -281,7 +281,7 @@ Phases execute in numeric order: 10 → 11 → 12 → 13 → 14 → 15 → 16 �
 | 12. BDD + TDD Wiring | v1.2 | 5/5 | Complete    | 2026-06-11 |
 | 13. Frontend/UI Persona & Design→Build Workflow | v1.2 | 3/3 | Complete    | 2026-06-11 |
 | 14. Security Audit (OWASP ASVS) & Checklist Re-Anchor | v1.2 | 3/3 | Complete    | 2026-06-13 |
-| 15. TypeScript Tooling Migration | v1.2 | 5/6 | In Progress|  |
+| 15. TypeScript Tooling Migration | v1.2 | 6/6 | Complete   | 2026-06-13 |
 | 16. §14 Gate Convergence — Lint, UI/E2E & Test-Integrity | v1.2 | 0/TBD | Not started | - |
 | 17. Install --migrate / --update | v1.2 | 0/TBD | Not started | - |
 | 18. Browsable Docs Catalog | v1.2 | 0/TBD | Not started | - |

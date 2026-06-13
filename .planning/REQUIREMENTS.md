@@ -74,7 +74,7 @@ Each maps to exactly one roadmap phase (traceability filled by the roadmapper).
 
 ### Tooling / TypeScript Foundation
 
-- [ ] **TOOL-01**: grugops's tooling layer is TypeScript, executed cross-platform (incl. Windows) with an explicit posture on build + dependencies — Node native type-stripping preferred to preserve a zero-build, no-unjustified-npm-deps path; the existing scripts (installers, validator, ASVS generator, foundation guards + harnesses) migrate at behavior parity
+- [x] **TOOL-01**: grugops's tooling layer is TypeScript, executed cross-platform (incl. Windows) with an explicit posture on build + dependencies — Node native type-stripping preferred to preserve a zero-build, no-unjustified-npm-deps path; the existing scripts (installers, validator, ASVS generator, foundation guards + harnesses) migrate at behavior parity
 - [x] **TOOL-02**: A kit-shipped-runnable convention lets a TypeScript routine ship inside the kit, be materialized by the installer, and run cross-platform from a workflow step — the foundation that lets the §14 gate ship an un-cheatable cross-platform test-integrity checker into host repos
 
 ## Future Requirements
@@ -134,7 +134,7 @@ Each requirement maps to exactly one phase. v1.2 phase numbering continues from 
 | TINT-03 | Phase 16 | Pending |
 | LINT-01 | Phase 16 | Pending |
 | LINT-02 | Phase 16 | Pending |
-| TOOL-01 | Phase 15 | In Progress (15-01: build posture + freshness gate; 15-02: prod-deploy guard ported at parity; 15-03: single installer + uninstall ported at parity; 15-04: validator + ASVS generator + foundation-guards + kit-refs ported at exact parity — byte-reproducible ASVS, full .sh/.mjs-vs-.js diff identical, RED-by-design harnesses green; .mjs/.sh originals deleted 15-06) |
+| TOOL-01 | Phase 15 | Complete (15-01: build posture + freshness gate; 15-02: prod-deploy guard ported at parity; 15-03: single installer + uninstall ported at parity; 15-04: validator + ASVS generator + foundation-guards + kit-refs ported at exact parity — byte-reproducible ASVS, full .sh/.mjs-vs-.js diff identical, RED-by-design harnesses green; 15-06: invocation-string + env-var sweeps, 13 POSIX/.mjs originals + .test.sh oracles deleted after green-suite gate (D-09), D-13 constraint amendment ratified — nothing POSIX remains) |
 | TOOL-02 | Phase 15 | Complete |
 | DOCS-01 | Phase 18 | Pending |
 | DOCS-02 | Phase 18 | Pending |
