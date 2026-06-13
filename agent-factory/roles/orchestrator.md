@@ -40,7 +40,7 @@ Any incoming request — the entry point for all 16 request types; every `/grug`
 3. Classify request:
    `greenfield-bootstrap` | `brownfield-bootstrap` | `idea-to-epics` | `epic-to-tickets` |
    `ticket-to-pr` | `quality-gate` | `uat` | `refinement` | `sprint-planning` | `daily-sweep` |
-   `sprint-review` | `retro` | `release` | `incident` | `install` | `ui-build`
+   `sprint-review` | `retro` | `release` | `incident` | `install` | `ui-build` | `security-audit`
 4. Check context: AGENTS.md, memory-bank, plans, board, traceability.
 5. Activate the fewest roles that close the request, each through the role-switch protocol in `agent-factory/roles/_role-switch-protocol.md` — one window, drop prior context, the handoff is the only memory. The next role only sees what the handoff carries, so route to make that handoff complete. Respect WIP before pulling new work.
 6. Require handoff output and trace updates from each agent — no handoff, no advance.
@@ -107,6 +107,7 @@ In the **Workflow** line, NAME the workflow file that serves the request — do 
 | release | `12-release.md` |
 | incident | `13-incident.md` |
 | ui-build | `14-ui-design-to-build.md` |
+| security-audit | `15-security-audit.md` |
 
 The `install` classification has **no numbered workflow** — it is handled by the Installer role directly.
 
