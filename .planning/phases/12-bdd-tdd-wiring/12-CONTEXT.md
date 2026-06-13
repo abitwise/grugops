@@ -154,6 +154,7 @@ Wire the **test-first contract** end-to-end into grugops's markdown kit (BDD-01/
 - **Mutation-testing step / `quality.mutation_testing` key** — FEATURES floated it as an enterprise TDD escalation; NOT adopted this phase (no new keys; grugops can't ship a runtime). Candidate for a future milestone.
 - **1:1 scenario→trace schema columns** — Phase 12 keeps linkage as an additive comment-documented convention (D-14); a real schema/column change is not done here.
 - **TypeScript pivot (project-level, HELD)** — still held; Phase 12 stays markdown + POSIX sh. Do not smuggle it in.
+  - **SUPERSEDED by the Phase-15 TypeScript pivot (D-13, ratified 2026-06-13).** The pivot is no longer held: grugops's tooling layer is now TypeScript (tsc-compiled committed `.js`, freshness-checked; single Node-required `install.ts`; dev-deps `{typescript, vitest}`; Node 22+ floor). This HELD note is preserved for history; the ratified constraint now lives in CLAUDE.md + PROJECT.md.
 
 None of the above is unowned — each maps to a named later phase or a standing held decision.
 

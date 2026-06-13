@@ -140,6 +140,7 @@ Give grugops a **17th role** — a senior frontend/UI specialist (`agent-factory
 - **A standing design-system file / design-token registry** as a separate artifact — kept inside the contract for now (D-11); a separate artifact is a future idea if the contract proves too heavy.
 - **frontend-ui re-review of the built UI** (second activation) — considered and rejected this phase (D-03); QE owns verification. Could revisit if UI-acceptance proves to need a design eye the gate can't supply.
 - **TypeScript pivot (project-level, HELD)** — unchanged; Phase 13 stays POSIX sh for the guard line + markdown for the kit. Do not smuggle it in.
+  - **SUPERSEDED by the Phase-15 TypeScript pivot (D-13, ratified 2026-06-13).** The pivot is no longer held: grugops's tooling layer is now TypeScript (tsc-compiled committed `.js`, freshness-checked; single Node-required `install.ts`; dev-deps `{typescript, vitest}`; Node 22+ floor). This HELD note is preserved for history; the ratified constraint now lives in CLAUDE.md + PROJECT.md.
 
 None of the above is unowned — each maps to a named later phase or a standing held decision.
 
