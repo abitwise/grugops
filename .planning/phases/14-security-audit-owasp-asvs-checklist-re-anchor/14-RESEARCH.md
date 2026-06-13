@@ -398,22 +398,25 @@ active at L1 = 70 ; active at L2 = 253 (70+183) ; active at L3 = 345 (cumulative
 | A3 | The vendored data path is `scripts/asvs/asvs-5.0.0.flat.json` | Standard Stack / Structure | None — path is Claude's discretion; only "pinned + in-repo" is locked (D-01). |
 | A4 | The nfr-catalog pointer currently in the checklist may move to the role rather than the regenerated ASVS checklist | Pitfall 4 | Medium — the regenerated checklist is pure ASVS; the NFR/performance items are adjacent. The planner should decide where the NFR pointer lives so the role's "performance vs NFR catalog" check still resolves. Flag for planning. |
 
-## Open Questions
+## Open Questions (RESOLVED)
 
 1. **Where does the NFR/performance pointer live after re-anchor?**
    - What we know: the current checklist mixes ASVS-style items with `performance impact vs NFR catalog` / `reliability` / `monitoring` lines; `roles/security-nfr.md` checks performance against `plans/nfr-catalog.md`.
    - What's unclear: the regenerated checklist is pure ASVS (345 items, no NFR-catalog line). The role still must check NFR budgets.
    - Recommendation: keep the NFR/perf/reliability checks in the *role* (security-nfr.md already does, lines 30–31) and let the regenerated checklist be pure ASVS. The role already points at both the checklist and `nfr-catalog.md` separately. No data is lost. (Planner to confirm.)
+   - **RESOLVED (adopted in planning):** NFR pointer stays in the role; the regenerated checklist is pure ASVS. Plan 14-01 Task 2 drops the old NFR pointer from the generated checklist; Plan 14-03 Task 1 keeps the `plans/nfr-catalog.md` pointer in `security-nfr.md`.
 
 2. **Terse-write vs ceiling-bump for `security-nfr.md` (D-09)?**
    - What we know: ~250 B of FAIL headroom; Phase-13 precedent shows ceiling bumps are legitimate + documented.
    - What's unclear: whether the D-09 content fits in the headroom.
    - Recommendation: attempt terse first; if it WARNs/FAILs, bump the `role_ceiling()` entry with an inline rationale comment (Phase-13 style). Either is acceptable; make it explicit.
+   - **RESOLVED (adopted in planning):** terse-first with documented ceiling-bump fallback — the full procedure is encoded in Plan 14-03 Task 1's action and acceptance criteria.
 
 3. **Does workflow 15 need a `## Metrics emitted` section?**
    - What we know: `05-pr-quality-gate.md` records `Gate pass rate`; workflow 14 omits metrics.
    - What's unclear: whether a deep audit should record an audit-coverage metric.
    - Recommendation: optional; mirror workflow 14 (no metrics section) unless the planner wants an audit metric. Not validator-enforced (workflow 15 isn't in the frozen list).
+   - **RESOLVED (adopted in planning):** omit the Metrics section — mirror workflow 14. Encoded in Plan 14-02 Task 1's action.
 
 ## Environment Availability
 
