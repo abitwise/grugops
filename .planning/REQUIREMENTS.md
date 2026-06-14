@@ -42,7 +42,7 @@ Each maps to exactly one roadmap phase (traceability filled by the roadmapper).
 
 ### Automated UI/E2E Testing
 
-- [ ] **UIQA-01**: grugops recommends and templates automated UI/E2E + visual-regression testing (Playwright `toHaveScreenshot` + axe-core a11y), with flake-resistance practices encoded (masking, animations disabled, fixed viewport, baselines generated in CI/Docker)
+- [x] **UIQA-01**: grugops recommends and templates automated UI/E2E + visual-regression testing (Playwright `toHaveScreenshot` + axe-core a11y), with flake-resistance practices encoded (masking, animations disabled, fixed viewport, baselines generated in CI/Docker)
 - [ ] **UIQA-02**: UI/E2E is wired into the §14 quality gate as a step, config-dialed (off | ui-or-critical-path | always), automated to minimize human checkpoints
 
 ### Security Auditing
@@ -59,7 +59,7 @@ Each maps to exactly one roadmap phase (traceability filled by the roadmapper).
 
 ### Code Linting
 
-- [ ] **LINT-01**: Lint is a first-class §14 gate step, with a per-stack linter recommendations table (ESLint 9 flat default for the Vue stack; Biome caveat; Ruff / golangci-lint fallbacks)
+- [x] **LINT-01**: Lint is a first-class §14 gate step, with a per-stack linter recommendations table (ESLint 9 flat default for the Vue stack; Biome caveat; Ruff / golangci-lint fallbacks)
 - [ ] **LINT-02**: Lint strictness is config-dialed (strict on/off, autofix on/off)
 
 ### Docs Catalog
@@ -124,7 +124,7 @@ Each requirement maps to exactly one phase. v1.2 phase numbering continues from 
 | UI-01 | Phase 13 | Complete |
 | UI-02 | Phase 13 | Complete |
 | UI-03 | Phase 13 | Complete |
-| UIQA-01 | Phase 16 | Pending |
+| UIQA-01 | Phase 16 | Complete |
 | UIQA-02 | Phase 16 | Pending |
 | SEC-01 | Phase 14 | Complete |
 | SEC-02 | Phase 14 | Complete |
@@ -132,7 +132,7 @@ Each requirement maps to exactly one phase. v1.2 phase numbering continues from 
 | TINT-01 | Phase 16 | Complete |
 | TINT-02 | Phase 16 | Complete |
 | TINT-03 | Phase 16 | Complete |
-| LINT-01 | Phase 16 | Pending |
+| LINT-01 | Phase 16 | Complete |
 | LINT-02 | Phase 16 | Pending |
 | TOOL-01 | Phase 15 | Complete (15-01: build posture + freshness gate; 15-02: prod-deploy guard ported at parity; 15-03: single installer + uninstall ported at parity; 15-04: validator + ASVS generator + foundation-guards + kit-refs ported at exact parity — byte-reproducible ASVS, full .sh/.mjs-vs-.js diff identical, RED-by-design harnesses green; 15-06: invocation-string + env-var sweeps, 13 POSIX/.mjs originals + .test.sh oracles deleted after green-suite gate (D-09), D-13 constraint amendment ratified — nothing POSIX remains) |
 | TOOL-02 | Phase 15 | Complete |

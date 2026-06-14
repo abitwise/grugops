@@ -237,7 +237,7 @@ Full phase details + milestone summary: `milestones/v1.1-ROADMAP.md` · requirem
 **Wave 1** *(parallel — disjoint file ownership)*
 
 - [x] 16-01-PLAN.md — Test-integrity checker (near-clone of reference-check.ts) + GREEN/RED/edge fixtures + Vitest RED-fixture harness (SC3 keystone) + install RUNNABLES tuple [TINT-01, TINT-02, TINT-03]
-- [ ] 16-02-PLAN.md — Playwright visual-regression recipe + axe-core accessibility extension + per-stack linter recommendations table + index registration [UIQA-01, LINT-01]
+- [x] 16-02-PLAN.md — Playwright visual-regression recipe + axe-core accessibility extension + per-stack linter recommendations table + index registration [UIQA-01, LINT-01]
 
 **Wave 2** *(blocked on Wave 1 — references the materialized checker path + the two new checklist filenames)*
 
@@ -291,7 +291,7 @@ Phases execute in numeric order: 10 → 11 → 12 → 13 → 14 → 15 → 16 �
 | 13. Frontend/UI Persona & Design→Build Workflow | v1.2 | 3/3 | Complete    | 2026-06-11 |
 | 14. Security Audit (OWASP ASVS) & Checklist Re-Anchor | v1.2 | 3/3 | Complete    | 2026-06-13 |
 | 15. TypeScript Tooling Migration | v1.2 | 6/6 | Complete    | 2026-06-13 |
-| 16. §14 Gate Convergence — Lint, UI/E2E & Test-Integrity | v1.2 | 1/3 | In Progress|  |
+| 16. §14 Gate Convergence — Lint, UI/E2E & Test-Integrity | v1.2 | 2/3 | In Progress|  |
 | 17. Install --migrate / --update | v1.2 | 0/TBD | Not started | - |
 | 18. Browsable Docs Catalog | v1.2 | 0/TBD | Not started | - |
 

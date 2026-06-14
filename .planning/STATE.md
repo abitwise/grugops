@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: SDLC Depth, Quality Discipline & Browsable Docs
 status: executing
-last_updated: "2026-06-14T11:13:46.982Z"
+last_updated: "2026-06-14T11:19:48.238Z"
 last_activity: 2026-06-14
 progress:
   total_phases: 9
   completed_phases: 6
   total_plans: 29
-  completed_plans: 27
+  completed_plans: 28
   percent: 67
 ---
 
@@ -25,11 +25,11 @@ See: .planning/PROJECT.md (updated 2026-06-09 — v1.2 milestone started)
 ## Current Position
 
 Phase: 16 (14-gate-convergence-lint-ui-e2e-test-integrity) — EXECUTING
-Plan: 2 of 3
+Plan: 3 of 3
 Status: Ready to execute
 Last activity: 2026-06-14
 
-Progress: [█████████░] 93%
+Progress: [██████████] 97%
 
 ## Performance Metrics
 
@@ -136,6 +136,7 @@ Progress: [█████████░] 93%
 | Phase 15 P05 | 12m | 2 tasks | 8 files |
 | Phase 15 P15-06 | 18m | 3 tasks | 15 files |
 | Phase 16 P01 | 4m | 3 tasks | 9 files |
+| Phase Phase 16 P02 P02 | 6m | 2 tasks | 4 files |
 
 ## Accumulated Context
 
@@ -294,6 +295,7 @@ Recent decisions affecting current work:
 - [Phase 15]: [15-06] TOOL-01 closed + D-13 ratified: tooling layer is TypeScript (tsc-compiled committed .js, freshness-checked); single Node-required install.ts (POSIX installer dropped, Node a hard prerequisite); dev-deps {typescript, vitest, @types/node} dev/CI-only; zero runtime deps on hosts; Node 22+ floor. 13 POSIX/.mjs originals + .test.sh oracles deleted after a green-suite gate (D-09 — nothing POSIX remains); prior HELD notes in 12/13/14-CONTEXT.md marked superseded (history preserved); human-approved checkpoint.
 - [Phase ?]: [16-01] Test-integrity checker is a committed node:builtins-only near-clone of reference-check.ts (exit 0/1/2 + clear-voice + --json); validates registry format and compares --skip-count <N> against the valid-justification count; hollow placeholder-owner RED fixture proves SC3 exit 1.
 - [Phase ?]: [16-01] Missing/non-integer --skip-count -> 'UNKNOWN - verify' exit 1 (D-14); expired well-formed row blocks (D-05) and does not count; valid+unexpired flaky-quarantine counts (D-04). Materialized via one RUNNABLES tuple in install.ts.
+- [Phase ?]: [16-02] Two clear-voice checklist siblings added under agent-factory/checklists/ (D-06 reference-not-embed): playwright-visual-regression-recipe.md (toHaveScreenshot flake-resistance set + axe pointer, UIQA-01) + linter-recommendations.md (per-stack ESLint-flat-default/Biome-qualified/Ruff/golangci-lint table, strict --max-warnings 0 + safe-autofix CLI + quality.lint wiring + UNKNOWN-verify fallbacks, LINT-01); accessibility-checklist.md extended with @axe-core/playwright AxeBuilder .withTags WCAG 2.2 AA; both registered in 00-index.md; all three §14-free, clear-voice; validator green.
 
 ### Pending Todos
 
@@ -336,6 +338,6 @@ Items acknowledged and deferred at the v1.1 milestone close on 2026-06-08. All a
 
 ## Session Continuity
 
-Last session: 2026-06-14T11:13:20.871Z
+Last session: 2026-06-14T11:19:21.406Z
 Stopped at: Phase 16 context gathered
 Resume file: None
