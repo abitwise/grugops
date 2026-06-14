@@ -64,9 +64,9 @@ This document is the human-readable twin of the JSON. Each top-level field has o
 | `mandatory_gates` | `["lint","typecheck","unit","build"]` | Gates that must pass for every change. |
 | `ui_e2e` | `ui-or-critical-path` | When UI / end-to-end tests run. Allowed: `off`, `ui-or-critical-path`, `always`. |
 | `tdd` | `encouraged` | Test-first (red-green) discipline at the unit layer. Allowed: `off`, `encouraged`, `required`. |
-| `lint` | `{ strict: false, autofix: true }` | Linting policy: `strict` toggles fail-on-warning; `autofix` toggles auto-applying safe fixes. Complementary to the `lint` entry in `mandatory_gates` (that controls gate presence; this controls strictness). |
-| `test_integrity` | `warn` | Policy for unjustified skipped/disabled tests. Allowed: `warn`, `block` — **never `off`** (TINT-03 trace-integrity safety carve-out; the gate must never silently accept a hollowed-out test suite). |
-| `gate_enforcement` | `blocking` | Whether a failing quality gate blocks or only advises. Allowed: `advisory`, `blocking`. |
+| `lint` | `{ strict: false, autofix: true }` | Linting policy: `strict` toggles fail-on-warning; `autofix` toggles auto-applying safe fixes. Complementary to the `lint` entry in `mandatory_gates` (that controls gate presence; this controls strictness). At the gate, `autofix:true` runs the linter's safe autofix inside the bounded `self_fix_attempts` loop (lint is agent-fixable), and when no linter is configured the lint step records `UNKNOWN - verify` non-blocking — never a faked pass. |
+| `test_integrity` | `warn` | Policy for unjustified skipped/disabled tests. Allowed: `warn`, `block` — **never `off`** (TINT-03 trace-integrity safety carve-out; the gate must never silently accept a hollowed-out test suite). The gate's test-integrity step is **human-only** and checks the human-owned `.grugops/test-skips.md` registry: the agent may not self-author a justification, so an unjustified or expired skip short-circuits to `BLOCKED_NEEDS_FIX` (it does not spend a self-fix attempt). |
+| `gate_enforcement` | `blocking` | Whether a failing quality gate blocks or only advises. Allowed: `advisory`, `blocking`. `advisory` composes with `test_integrity: block`: it downgrades the pipeline ACTION uniformly while the finding is **still emitted loudly** in clear voice — the trace stays intact, never silent (D-10). |
 
 ### `nfr` sub-fields
 
