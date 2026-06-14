@@ -657,6 +657,7 @@ function seedState() {
 // reference routine is the only kit-shipped runnable today; Phase 16's checker appends here.
 const RUNNABLES = [
     ["scripts/runnable-ref/reference-check.js", "tools/grugops/reference-check.js"],
+    ["scripts/runnable-ref/test-skip-integrity.js", "tools/grugops/test-skip-integrity.js"],
 ];
 function materializeRunnable() {
     for (const [srcRel, destRel] of RUNNABLES) {
