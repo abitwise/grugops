@@ -231,8 +231,17 @@ Full phase details + milestone summary: `milestones/v1.1-ROADMAP.md` · requirem
   3. The gate blocks unjustified skipped tests: a legitimate skip requires a structured justification (reason + named owner + tracking ticket/REQ-ID + expiry date + closed-list category), the agent may not self-author it, the gate fails when unjustified skips > 0 or expired skips > 0, and quarantine is a non-blocking lane (never silent deletion) — proven by a RED fixture where a hollow justification fails.
   4. Test-integrity enforcement is never fully dialable off (`quality.test_integrity`: warn | block only — a trace-integrity safety carve-out); all new steps wrap unchanged inside the bounded `self_fix_attempts` loop and preserve the three terminal results (`READY_FOR_HUMAN_REVIEW` / `BLOCKED_NEEDS_FIX` / `SPLIT_REQUIRED`); all gate changes land single-source in `05-pr-quality-gate.md` (no fork into workflows 14/15).
 
-**Plans**: TBD
+**Plans**: 3 plans
 **UI hint**: yes
+
+**Wave 1** *(parallel — disjoint file ownership)*
+
+- [ ] 16-01-PLAN.md — Test-integrity checker (near-clone of reference-check.ts) + GREEN/RED/edge fixtures + Vitest RED-fixture harness (SC3 keystone) + install RUNNABLES tuple [TINT-01, TINT-02, TINT-03]
+- [ ] 16-02-PLAN.md — Playwright visual-regression recipe + axe-core accessibility extension + per-stack linter recommendations table + index registration [UIQA-01, LINT-01]
+
+**Wave 2** *(blocked on Wave 1 — references the materialized checker path + the two new checklist filenames)*
+
+- [ ] 16-03-PLAN.md — Single-source gate wiring in 05-pr-quality-gate.md (lint/ui_e2e/test-integrity steps + D-08/D-09/D-10 mapping) + AGENTS.md skip-count slot + config-twin dial prose [UIQA-02, LINT-02, TINT-01, TINT-02, TINT-03]
 
 ### Phase 17: Install --migrate / --update
 
@@ -282,7 +291,7 @@ Phases execute in numeric order: 10 → 11 → 12 → 13 → 14 → 15 → 16 �
 | 13. Frontend/UI Persona & Design→Build Workflow | v1.2 | 3/3 | Complete    | 2026-06-11 |
 | 14. Security Audit (OWASP ASVS) & Checklist Re-Anchor | v1.2 | 3/3 | Complete    | 2026-06-13 |
 | 15. TypeScript Tooling Migration | v1.2 | 6/6 | Complete    | 2026-06-13 |
-| 16. §14 Gate Convergence — Lint, UI/E2E & Test-Integrity | v1.2 | 0/TBD | Not started | - |
+| 16. §14 Gate Convergence — Lint, UI/E2E & Test-Integrity | v1.2 | 0/3 | Not started | - |
 | 17. Install --migrate / --update | v1.2 | 0/TBD | Not started | - |
 | 18. Browsable Docs Catalog | v1.2 | 0/TBD | Not started | - |
 
