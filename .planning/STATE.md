@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: SDLC Depth, Quality Discipline & Browsable Docs
 status: executing
-last_updated: "2026-06-14T10:41:54.606Z"
-last_activity: 2026-06-14 -- Phase 16 planning complete
+last_updated: "2026-06-14T11:13:46.982Z"
+last_activity: 2026-06-14
 progress:
   total_phases: 9
   completed_phases: 6
   total_plans: 29
-  completed_plans: 26
+  completed_plans: 27
   percent: 67
 ---
 
@@ -20,16 +20,16 @@ progress:
 See: .planning/PROJECT.md (updated 2026-06-09 — v1.2 milestone started)
 
 **Core value:** A user installs grugops on top of the coding-agent CLI they already run, types `/grug`, and gets a disciplined delivery team — a visible board, strict handoffs, and an auditable requirement→code→test→release trail — entirely as readable markdown, with humans always holding merge and deploy.
-**Current focus:** Phase 16 — 14 gate convergence lint ui e2e test integrity
+**Current focus:** Phase 16 — 14-gate-convergence-lint-ui-e2e-test-integrity
 
 ## Current Position
 
-Phase: 16
-Plan: Not started
+Phase: 16 (14-gate-convergence-lint-ui-e2e-test-integrity) — EXECUTING
+Plan: 2 of 3
 Status: Ready to execute
-Last activity: 2026-06-14 -- Phase 16 planning complete
+Last activity: 2026-06-14
 
-Progress: [██████████] 100%
+Progress: [█████████░] 93%
 
 ## Performance Metrics
 
@@ -135,6 +135,7 @@ Progress: [██████████] 100%
 | Phase 15 P04 | 22m | 2 tasks | 11 files |
 | Phase 15 P05 | 12m | 2 tasks | 8 files |
 | Phase 15 P15-06 | 18m | 3 tasks | 15 files |
+| Phase 16 P01 | 4m | 3 tasks | 9 files |
 
 ## Accumulated Context
 
@@ -291,6 +292,8 @@ Recent decisions affecting current work:
 - [Phase ?]: [15-04] CHECK_ROOT env override added to the two read-only checkers so the .sh run-from-mirror hermetic idiom ports to Vitest; RED-by-design proven by planted regression; TOOL-01 stays In Progress (spans 15-06 .mjs/.sh deletion)
 - [Phase ?]: [15-05] TOOL-02 kit-shipped-runnable convention PROVEN: reference-check.ts speaks the D-12 contract (exit 0/1/2 + clear-voice stdout + --json), node: builtins only, RED on a planted FORBIDDEN fixture; install.ts materializeRunnable() copies the compiled .js into the host's committed tools/grugops/ (additive/idempotent/never-overwrite), runs in a bare-Node host with no node_modules; materialization path CONFIRMED tools/grugops/ (D-11 RESOLVED); Phase 16's checker reuses materializeRunnable via the RUNNABLES table; TOOL-02 complete, TOOL-01 left In Progress (15-06 deletes .mjs/.sh)
 - [Phase 15]: [15-06] TOOL-01 closed + D-13 ratified: tooling layer is TypeScript (tsc-compiled committed .js, freshness-checked); single Node-required install.ts (POSIX installer dropped, Node a hard prerequisite); dev-deps {typescript, vitest, @types/node} dev/CI-only; zero runtime deps on hosts; Node 22+ floor. 13 POSIX/.mjs originals + .test.sh oracles deleted after a green-suite gate (D-09 — nothing POSIX remains); prior HELD notes in 12/13/14-CONTEXT.md marked superseded (history preserved); human-approved checkpoint.
+- [Phase ?]: [16-01] Test-integrity checker is a committed node:builtins-only near-clone of reference-check.ts (exit 0/1/2 + clear-voice + --json); validates registry format and compares --skip-count <N> against the valid-justification count; hollow placeholder-owner RED fixture proves SC3 exit 1.
+- [Phase ?]: [16-01] Missing/non-integer --skip-count -> 'UNKNOWN - verify' exit 1 (D-14); expired well-formed row blocks (D-05) and does not count; valid+unexpired flaky-quarantine counts (D-04). Materialized via one RUNNABLES tuple in install.ts.
 
 ### Pending Todos
 
@@ -333,6 +336,6 @@ Items acknowledged and deferred at the v1.1 milestone close on 2026-06-08. All a
 
 ## Session Continuity
 
-Last session: 2026-06-14T09:59:10.870Z
+Last session: 2026-06-14T11:13:20.871Z
 Stopped at: Phase 16 context gathered
-Resume file: .planning/phases/16-14-gate-convergence-lint-ui-e2e-test-integrity/16-CONTEXT.md
+Resume file: None

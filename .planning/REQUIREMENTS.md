@@ -53,9 +53,9 @@ Each maps to exactly one roadmap phase (traceability filled by the roadmapper).
 
 ### Test Integrity
 
-- [ ] **TINT-01**: The §14 gate blocks unjustified skipped tests; a legitimate skip requires a structured justification (reason + named owner + tracking ticket/REQ-ID + expiry date + closed-list category), and the agent may not self-author it
-- [ ] **TINT-02**: The gate fails when unjustified skips > 0 or expired skips > 0; quarantine is a non-blocking lane (never silent deletion); coverage-honesty guidance discourages vanity coverage
-- [ ] **TINT-03**: Test-integrity enforcement is never fully dialable off (warn | block only) — a trace-integrity safety carve-out
+- [x] **TINT-01**: The §14 gate blocks unjustified skipped tests; a legitimate skip requires a structured justification (reason + named owner + tracking ticket/REQ-ID + expiry date + closed-list category), and the agent may not self-author it
+- [x] **TINT-02**: The gate fails when unjustified skips > 0 or expired skips > 0; quarantine is a non-blocking lane (never silent deletion); coverage-honesty guidance discourages vanity coverage
+- [x] **TINT-03**: Test-integrity enforcement is never fully dialable off (warn | block only) — a trace-integrity safety carve-out
 
 ### Code Linting
 
@@ -129,9 +129,9 @@ Each requirement maps to exactly one phase. v1.2 phase numbering continues from 
 | SEC-01 | Phase 14 | Complete |
 | SEC-02 | Phase 14 | Complete |
 | SEC-03 | Phase 14 | Complete |
-| TINT-01 | Phase 16 | Pending |
-| TINT-02 | Phase 16 | Pending |
-| TINT-03 | Phase 16 | Pending |
+| TINT-01 | Phase 16 | Complete |
+| TINT-02 | Phase 16 | Complete |
+| TINT-03 | Phase 16 | Complete |
 | LINT-01 | Phase 16 | Pending |
 | LINT-02 | Phase 16 | Pending |
 | TOOL-01 | Phase 15 | Complete (15-01: build posture + freshness gate; 15-02: prod-deploy guard ported at parity; 15-03: single installer + uninstall ported at parity; 15-04: validator + ASVS generator + foundation-guards + kit-refs ported at exact parity — byte-reproducible ASVS, full .sh/.mjs-vs-.js diff identical, RED-by-design harnesses green; 15-06: invocation-string + env-var sweeps, 13 POSIX/.mjs originals + .test.sh oracles deleted after green-suite gate (D-09), D-13 constraint amendment ratified — nothing POSIX remains) |
