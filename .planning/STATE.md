@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: SDLC Depth, Quality Discipline & Browsable Docs
-status: executing
-last_updated: "2026-06-14T11:19:48.238Z"
+status: verifying
+last_updated: "2026-06-14T11:26:38.739Z"
 last_activity: 2026-06-14
 progress:
   total_phases: 9
-  completed_phases: 6
+  completed_phases: 7
   total_plans: 29
-  completed_plans: 28
-  percent: 67
+  completed_plans: 29
+  percent: 78
 ---
 
 # Project State
@@ -26,10 +26,10 @@ See: .planning/PROJECT.md (updated 2026-06-09 — v1.2 milestone started)
 
 Phase: 16 (14-gate-convergence-lint-ui-e2e-test-integrity) — EXECUTING
 Plan: 3 of 3
-Status: Ready to execute
+Status: Phase complete — ready for verification
 Last activity: 2026-06-14
 
-Progress: [██████████] 97%
+Progress: [██████████] 100%
 
 ## Performance Metrics
 
@@ -137,6 +137,7 @@ Progress: [██████████] 97%
 | Phase 15 P15-06 | 18m | 3 tasks | 15 files |
 | Phase 16 P01 | 4m | 3 tasks | 9 files |
 | Phase Phase 16 P02 P02 | 6m | 2 tasks | 4 files |
+| Phase 16 P03 | 9m | 2 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -296,6 +297,9 @@ Recent decisions affecting current work:
 - [Phase ?]: [16-01] Test-integrity checker is a committed node:builtins-only near-clone of reference-check.ts (exit 0/1/2 + clear-voice + --json); validates registry format and compares --skip-count <N> against the valid-justification count; hollow placeholder-owner RED fixture proves SC3 exit 1.
 - [Phase ?]: [16-01] Missing/non-integer --skip-count -> 'UNKNOWN - verify' exit 1 (D-14); expired well-formed row blocks (D-05) and does not count; valid+unexpired flaky-quarantine counts (D-04). Materialized via one RUNNABLES tuple in install.ts.
 - [Phase ?]: [16-02] Two clear-voice checklist siblings added under agent-factory/checklists/ (D-06 reference-not-embed): playwright-visual-regression-recipe.md (toHaveScreenshot flake-resistance set + axe pointer, UIQA-01) + linter-recommendations.md (per-stack ESLint-flat-default/Biome-qualified/Ruff/golangci-lint table, strict --max-warnings 0 + safe-autofix CLI + quality.lint wiring + UNKNOWN-verify fallbacks, LINT-01); accessibility-checklist.md extended with @axe-core/playwright AxeBuilder .withTags WCAG 2.2 AA; both registered in 00-index.md; all three §14-free, clear-voice; validator green.
+- [Phase ?]: [16-03] Convergence keystone: all gate behavior wired single-source into 05-pr-quality-gate.md — quality.lint {strict,autofix} (UNKNOWN-verify non-blocking when no linter), quality.ui_e2e referencing recipe+axe by filename, and a NEW human-only test-integrity step invoking node tools/grugops/test-skip-integrity.js --skip-count <N> branching on exit 0/1/2; no fork into 14/15, no §14 literal.
+- [Phase ?]: [16-03] D-08/D-09/D-10 terminal mapping on the bounded self_fix_attempts loop: lint + UI/E2E code/a11y are agent-fixable; visual-baseline acceptance and test-integrity exit-1 are human-only and short-circuit to BLOCKED_NEEDS_FIX WITHOUT spending self_fix_attempts; gate_enforcement:advisory downgrades the action but still emits the finding loudly (TINT-03 floor = no silent accept, not a hard stop). Three terminal results preserved.
+- [Phase ?]: [16-03] AGENTS.md ### Test integrity skip-count slot added (mirrors ### Acceptance): UNKNOWN-verify default, per-runner vitest/jest/pytest/go examples-only in an HTML comment, never-a-silent-0. factory.config.md dial→behavior prose added by enriching existing quality.* Meaning cells — ZERO new keys, JSON twin byte-unchanged (Pitfall 6); .grugops/test-skips.md registry path is a fixed convention (D-01), not a config value.
 
 ### Pending Todos
 
@@ -338,6 +342,6 @@ Items acknowledged and deferred at the v1.1 milestone close on 2026-06-08. All a
 
 ## Session Continuity
 
-Last session: 2026-06-14T11:19:21.406Z
+Last session: 2026-06-14T11:25:19.799Z
 Stopped at: Phase 16 context gathered
 Resume file: None
