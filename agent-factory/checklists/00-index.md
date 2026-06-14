@@ -36,3 +36,5 @@ Active only in `mode: enterprise` (in addition to the lean tier).
 | `accessibility-checklist.md` | when the user interface changes |
 | `observability-slo-checklist.md` | when a user-facing or critical path is touched |
 | `release-readiness-checklist.md` | before a release |
+| `linter-recommendations.md` | when configuring the lint step at the gate |
+| `playwright-visual-regression-recipe.md` | when verifying UI visual baselines at the gate |
