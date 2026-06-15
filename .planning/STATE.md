@@ -2,16 +2,15 @@
 gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: SDLC Depth, Quality Discipline & Browsable Docs
-status: ready_to_plan
-last_updated: 2026-06-14T11:41:32.058Z
+status: planning
+last_updated: "2026-06-15T06:10:52.240Z"
 last_activity: 2026-06-14
 progress:
   total_phases: 9
   completed_phases: 7
   total_plans: 29
-  completed_plans: 77
+  completed_plans: 29
   percent: 78
-stopped_at: Phase 16 complete (3/3) — ready to discuss Phase 17
 ---
 
 # Project State
@@ -344,6 +343,6 @@ Items acknowledged and deferred at the v1.1 milestone close on 2026-06-08. All a
 
 ## Session Continuity
 
-Last session: 2026-06-14T11:25:19.799Z
-Stopped at: Phase 16 context gathered
-Resume file: None
+Last session: 2026-06-15T06:10:52.227Z
+Stopped at: Phase 17 context gathered
+Resume file: .planning/phases/17-install-migrate-update/17-CONTEXT.md
