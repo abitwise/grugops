@@ -159,12 +159,11 @@ DRY_RUN=1 node install/install.js --migrate --target /path/to/repo
   adapters, exactly like a normal install (it is orchestration around the same install run).
 
 It is **idempotent and re-run-safe**: running `--migrate` a second time on an already-migrated
-repo does nothing. If a stray in-repo `agent-factory/` is left behind after migration, `--migrate`
-tells you and points you at the companion that removes it:
-
-```sh
-node install/install.js --prune-old-kit   # remove a leftover in-repo agent-factory/ after migrate
-```
+repo does nothing. If a stray **live** in-repo `agent-factory/` is left behind after migration,
+`--migrate` tells you — and tells you to remove it **by hand** once you have confirmed the shared
+kit at `${GRUGOPS_HOME:-$HOME/.grugops}` is in use. `--prune-old-kit` does **not** clear it: prune
+only removes timestamped `.bak.<ISO>` backups, never a live kit (it refuses to delete user content
+by design).
 
 A `--migrate` on a clean repo (no old layout) simply falls through to a normal fresh install.
 

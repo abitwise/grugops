@@ -137,6 +137,17 @@ function resolveTarget() {
     const def = process.env.TARGET ? resolve(process.env.TARGET) : process.cwd();
     if (YES || !process.stdin.isTTY)
         return toPosix(def);
+    // No-target modes never install INTO a repo (WR-02): --update is kit-home-only and
+    // --prune-old-kit only removes timestamped .bak.<ISO> backups. Do NOT ask "install into which
+    // repo?" for them. --update ignores the answer entirely, so take the default silently; prune
+    // still needs a repo root to scan, so it asks its own mode-appropriate question.
+    if (UPDATE)
+        return toPosix(def);
+    if (PRUNE_OLD_KIT) {
+        process.stdout.write(`Prune grugops backups in which repo? [${toPosix(def)}] `);
+        const pruneAns = readlineSync().trim();
+        return toPosix(pruneAns ? resolve(pruneAns) : def);
+    }
     // Interactive confirm-the-default prompt (synchronous one-line read of stdin).
     process.stdout.write(`Install grugops into which repo? [${toPosix(def)}] `);
     const ans = readlineSync().trim();
@@ -1091,8 +1102,9 @@ function updateKitHome() {
 // (Pitfall 4). It is pure orchestration around the unchanged install run (D-02): it never forks the
 // copyKit→materializeAdapter→seedState→writeMarker sequence below.
 //   - isMigrated → already two-root. Do NOT re-run install (D-12 no re-mutate). If a leftover
-//     in-repo agent-factory/ remains (half-state) warn in clear voice + hint --prune-old-kit; else
-//     report already-migrated. Either way exit 0.
+//     LIVE in-repo agent-factory/ remains (half-state) warn in clear voice that it must be removed
+//     by hand — prune only removes .bak.<ISO> backups, never a live kit (WR-01) — else report
+//     already-migrated. Either way exit 0.
 //   - isOldLayout → run migratePreSteps() (config-move + in-repo-kit backup + symlink-unlink), then
 //     FALL THROUGH into the existing install run (which copies the fresh kit, D-01).
 //   - isClean (or anything else) → FALL THROUGH into the existing install run unchanged (D-11).
@@ -1100,8 +1112,10 @@ if (MIGRATE) {
     const layout = detectOldLayout();
     if (layout.isMigrated) {
         if (layout.leftoverKit) {
-            console.log("This repo is already migrated to the two-root layout, but a leftover in-repo agent-factory/ remains.");
-            console.log("Nothing was changed. To remove the leftover in-repo kit, run: node install/install.js --prune-old-kit");
+            console.log("This repo is already migrated to the two-root layout, but a leftover LIVE in-repo agent-factory/ remains.");
+            console.log(`Nothing was changed. Once you have confirmed the shared kit at ${GRUGOPS_HOME} is in use,`);
+            console.log("back up and remove the leftover agent-factory/ by hand — prune only removes timestamped");
+            console.log(".bak.<ISO> backups, never a live kit, so it cannot clear this one.");
         }
         else {
             console.log("This repo is already migrated to the two-root layout. Nothing to do.");

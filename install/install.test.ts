@@ -632,10 +632,11 @@ describe("install.js / uninstall.js — single-installer contract (folds install
     expect(existsSync(join(homeA, "agent-factory", "roles", "orchestrator.md"))).toBe(true);
   });
 
-  // SC1 / D-12: --migrate on an already-migrated repo that still has a leftover in-repo
-  // agent-factory/ (half-state) is a no-op + warns (clear voice) + hints --prune-old-kit. Install
-  // first (marker present), then plant a leftover agent-factory/, then --migrate must not re-mutate.
-  it("migrate: half-state no-op + warn", () => {
+  // SC1 / D-12: --migrate on an already-migrated repo that still has a leftover LIVE in-repo
+  // agent-factory/ (half-state) is a no-op + warns (clear voice) that the leftover must be removed
+  // BY HAND. prune cannot clear it (live, protected, non-.bak dir), so the guidance must NOT promise
+  // prune removes it (WR-01). Install first (marker present), then --migrate must not re-mutate.
+  it("migrate: half-state no-op + honest leftover guidance", () => {
     const target = makeFixture();
     const home = mkTmp();
     expect(runInstall(target, home).status).toBe(0);
@@ -646,9 +647,18 @@ describe("install.js / uninstall.js — single-installer contract (folds install
 
     const r = runInstall(target, home, "--migrate");
     expect(r.status).toBe(0);
-    expect(r.stdout).toContain("--prune-old-kit"); // hints the companion that removes the leftover
+    // Honest guidance (WR-01): tell the user to remove the live leftover by hand, and do NOT point
+    // them at --prune-old-kit, which only clears timestamped .bak.<ISO> backups, never a live kit.
+    expect(r.stdout).toContain("by hand");
+    expect(r.stdout).toContain("never a live kit");
+    expect(r.stdout).not.toContain("--prune-old-kit");
     expect(snapshot(target)).toBe(t0); // no re-mutation (D-12)
     expect(snapshot(home)).toBe(h0);
+
+    // Prove the guidance is honest: --prune-old-kit must NOT remove the live leftover agent-factory/
+    // (it is protected, non-.bak), so the leftover survives — exactly why the hint says "by hand".
+    expect(runInstall(target, home, "--prune-old-kit").status).toBe(0);
+    expect(existsSync(join(target, "agent-factory", "roles", "orchestrator.md"))).toBe(true);
   });
 
   // SC3 / D-04: a user-edited config survives migration — moved to .grugops/factory.config.json
