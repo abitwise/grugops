@@ -934,6 +934,45 @@ describe("install.js / uninstall.js — single-installer contract (folds install
     expect(readFileSync(join(home, "agent-factory", "VERSION"), "utf8")).toContain(sourceVer);
   });
 
+  // ── --prune-old-kit (D-10, Plan 17-03) — the single, opt-in deletion path ────────────────────
+  // --prune-old-kit removes ONLY grugops-created timestamped backups (agent-factory.bak.<ISO> in
+  // both roots, plus the config .bak migrate leaves) and NEVER runs on the default path
+  // (never-delete-first). It uses a tight name-shape matcher (not a loose *.bak — Pitfall 5) and an
+  // isProtected()-style guard so plans/, .planning/, .grugops/ seeded state, docs/, src/, and the
+  // live agent-factory/ are never touched.
+  it("prune: removes only grugops backups, default preserves", () => {
+    const target = makeOldLayoutFixture();
+    const home = mkTmp();
+    // migrate creates the grugops backups: agent-factory.bak.<ISO> (the displaced in-repo kit) and
+    // a config .bak (inside that backup, since the in-repo kit is renamed aside).
+    expect(runInstall(target, home, "--migrate").status).toBe(0);
+    expect(backupGlob(target, "agent-factory").length).toBe(1); // the grugops kit backup exists
+
+    // plant a USER-owned backup that is NOT grugops-shaped (no .bak.<ISO> stamp) — must survive.
+    writeFileSync(join(target, "mine.bak"), "USER-OWNED BACKUP — prune must never delete this.\n");
+    // also plant a grugops-shaped kit backup under the kit HOME (the --update displaced-kit shape).
+    mkdirSync(join(home, "agent-factory.bak.2026-06-15T00-00-00.000Z"), { recursive: true });
+    writeFileSync(join(home, "agent-factory.bak.2026-06-15T00-00-00.000Z", "VERSION"), "old\n");
+
+    // (a) a DEFAULT (non-prune) run never deletes any backup (never-delete-first, D-10).
+    expect(runInstall(target, home).status).toBe(0);
+    expect(backupGlob(target, "agent-factory").length).toBe(1); // still there after a normal install
+    expect(homeBackupGlob(home).length).toBe(1); // home backup still there too
+
+    // (b) --prune-old-kit removes the grugops backups in BOTH roots.
+    const r = runInstall(target, home, "--prune-old-kit");
+    expect(r.status).toBe(0);
+    expect(backupGlob(target, "agent-factory").length).toBe(0); // grugops target backup gone
+    expect(homeBackupGlob(home).length).toBe(0); // grugops home backup gone
+
+    // (c) the user-owned non-grugops backup + the protected seeded state SURVIVE.
+    expect(readFileSync(join(target, "mine.bak"), "utf8")).toContain("USER-OWNED BACKUP");
+    expect(existsSync(join(target, ".grugops", "factory.config.json"))).toBe(true);
+    expect(existsSync(join(target, "plans", "board.md"))).toBe(true);
+    // the LIVE kit at home is untouched (only the backups were pruned).
+    expect(existsSync(join(home, "agent-factory", "roles", "orchestrator.md"))).toBe(true);
+  });
+
   // ── D-11 materializeRunnable(): the kit-shipped runnable lands at the committed host path ─────
   // The TOOL-02 install-side proof. install.js copies the compiled reference routine into the
   // host's committed tools/grugops/ path (additive/idempotent/never-overwrite); a second install
