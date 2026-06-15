@@ -76,6 +76,63 @@ function makeFixture(): string {
   return d;
 }
 
+// make_old_layout_fixture — the v1.0 migrate-FROM shape (the one genuinely new Wave-0 helper,
+// Plan 17-01). Produces the old in-repo layout that --migrate (Plan 02) converts to the two-root
+// split: a vendored in-repo agent-factory/ (so detection's hasInRepoKit is true), an old
+// user-edited config inside the vendored kit at agent-factory/config/factory.config.json (the
+// v1.0 location, VERIFIED from git v1.0 in 17-RESEARCH Old-Layout Forensics) and OPTIONALLY a
+// repo-root factory.config.json variant (opts.rootConfig — the CONTEXT D-04 location; Plan 02
+// must handle both), repo-relative .claude adapters that reference agent-factory/… with NO
+// grugops:materialized-kit block, and NO .grugops/install.json marker. With opts.symlink the
+// orchestrator adapter is a SYMLINK pointing at a planted source-clone file carrying a SENTINEL —
+// the Plan-02 LANDMINE case (writeFileSync through a live symlink dest would corrupt the source).
+function makeOldLayoutFixture(opts?: { symlink?: boolean; rootConfig?: boolean }): string {
+  const d = mkTmp();
+  // In-repo vendored kit — the hasInRepoKit detection signal (D-03).
+  mkdirSync(join(d, "agent-factory", "roles"), { recursive: true });
+  mkdirSync(join(d, "agent-factory", "config"), { recursive: true });
+  mkdirSync(join(d, "agent-factory", "workflows"), { recursive: true });
+  writeFileSync(join(d, "agent-factory", "roles", "orchestrator.md"), "FROZEN CORE — old in-repo vendored kit.\n");
+  // Old user-edited config at the v1.0 in-repo location (recognizable edited token).
+  writeFileSync(
+    join(d, "agent-factory", "config", "factory.config.json"),
+    '{ "_edited": "OLD-USER-EDITED-CONFIG-KIT-LOCATION" }\n',
+  );
+  // Optional repo-root config variant (CONTEXT D-04 location — Plan 02 handles both).
+  if (opts?.rootConfig) {
+    writeFileSync(join(d, "factory.config.json"), '{ "_edited": "OLD-USER-EDITED-CONFIG-ROOT-LOCATION" }\n');
+  }
+  // Repo-relative .claude adapters — reference agent-factory/… with NO materialized-kit block.
+  mkdirSync(join(d, ".claude", "skills", "grugops"), { recursive: true });
+  mkdirSync(join(d, ".claude", "agents"), { recursive: true });
+  writeFileSync(
+    join(d, ".claude", "skills", "grugops", "SKILL.md"),
+    "> read `agent-factory/roles/orchestrator.md` and act as the Orchestrator.\n" +
+      "> config: `agent-factory/config/factory.config.json`; workflows: `agent-factory/workflows/`.\n",
+  );
+  if (opts?.symlink) {
+    // LANDMINE: the orchestrator adapter is a symlink into a planted source clone carrying a
+    // SENTINEL. A naive writeFileSync(dest) would follow the link and clobber the clone.
+    mkdirSync(join(d, "source-clone"), { recursive: true });
+    writeFileSync(
+      join(d, "source-clone", "orchestrator-src.md"),
+      "SENTINEL-SOURCE-CLONE — a writeFileSync through the live symlink dest would corrupt this.\n",
+    );
+    // Target is relative to the symlink's OWN directory (.claude/agents/), so it must climb back
+    // to the fixture root before descending into source-clone/.
+    spawnSync("ln", ["-s", join("..", "..", "source-clone", "orchestrator-src.md"), "grugops-orchestrator.md"], {
+      cwd: join(d, ".claude", "agents"),
+    });
+  } else {
+    writeFileSync(
+      join(d, ".claude", "agents", "grugops-orchestrator.md"),
+      "> read `agent-factory/roles/orchestrator.md` and act as the Orchestrator (repo-relative).\n",
+    );
+  }
+  // NO .grugops/install.json marker — the second detection signal (D-03 old-layout = no marker).
+  return d;
+}
+
 // snapshot — a stable, content-addressed manifest of a tree (sorted "path hash|LINK" lines) so two
 // states diff regardless of inode/symlink details. An absent dir snapshots to "" (a legitimate,
 // diffable "never created" state for the DRY_RUN two-root assertion). Mirrors the sh `find … |
@@ -472,6 +529,39 @@ describe("install.js / uninstall.js — single-installer contract (folds install
     const js = readFileSync(INSTALL_JS, "utf8");
     expect(js).toContain("backupIfDiffers");
     expect(js).toContain("isoStamp");
+  });
+
+  // ── migrate: the old-layout fixture builder is shaped like the v1.0 migrate-FROM layout ───────
+  // RED-by-design (Plan 17-01): proves makeOldLayoutFixture() BEFORE Plan 02 consumes it. The
+  // fixture must carry the three D-03 old-layout signals — in-repo vendored kit present, a
+  // repo-relative adapter with NO grugops:materialized-kit block, and NO .grugops/install.json
+  // marker — plus the symlink + rootConfig variants Plan 02's LANDMINE / D-04 cases need.
+  it("migrate: old-layout fixture is shaped correctly (in-repo kit, repo-relative adapter, no marker)", () => {
+    const d = makeOldLayoutFixture();
+    // (1) in-repo vendored kit present → hasInRepoKit detection signal.
+    expect(existsSync(join(d, "agent-factory", "roles", "orchestrator.md"))).toBe(true);
+    expect(existsSync(join(d, "agent-factory", "config", "factory.config.json"))).toBe(true);
+    // (2) the repo-relative adapter has NO materialized-kit block.
+    const skill = readFileSync(join(d, ".claude", "skills", "grugops", "SKILL.md"), "utf8");
+    const agent = readFileSync(join(d, ".claude", "agents", "grugops-orchestrator.md"), "utf8");
+    expect(skill).toContain("agent-factory/roles/orchestrator.md");
+    expect(skill).not.toContain("grugops:materialized-kit");
+    expect(agent).not.toContain("grugops:materialized-kit");
+    // (3) NO install marker → old-layout = unmigrated.
+    expect(existsSync(join(d, ".grugops", "install.json"))).toBe(false);
+
+    // rootConfig variant plants the CONTEXT D-04 repo-root config too.
+    const dRoot = makeOldLayoutFixture({ rootConfig: true });
+    expect(existsSync(join(dRoot, "factory.config.json"))).toBe(true);
+    expect(existsSync(join(dRoot, "agent-factory", "config", "factory.config.json"))).toBe(true);
+
+    // symlink variant: the orchestrator adapter is a symlink into a planted source clone (LANDMINE).
+    const dLink = makeOldLayoutFixture({ symlink: true });
+    expect(lstatSync(join(dLink, ".claude", "agents", "grugops-orchestrator.md")).isSymbolicLink()).toBe(true);
+    expect(existsSync(join(dLink, "source-clone", "orchestrator-src.md"))).toBe(true);
+    expect(readFileSync(join(dLink, ".claude", "agents", "grugops-orchestrator.md"), "utf8")).toContain(
+      "SENTINEL-SOURCE-CLONE",
+    );
   });
 
   // ── D-11 materializeRunnable(): the kit-shipped runnable lands at the committed host path ─────

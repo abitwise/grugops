@@ -609,9 +609,16 @@ function detectTools() {
 // re-copy from the running checkout (no version negotiation).
 //
 // WR-02 (true atomicity): build the new kit in a temp dir, move any existing kit ASIDE, then a
-// single atomic rename puts the new kit in place; the old copy is removed afterward. There is no
+// single atomic rename puts the new kit in place; the old copy is handled afterward. There is no
 // window in which KIT_ROOT is absent. DRY_RUN mutates nothing.
-function copyKit() {
+//
+// retainBackup (Plan 17-01, D-06/D-02): when false (the default — the install path) the displaced
+// kit is removed after the swap, exactly as before (regression-safe: the default path is
+// behaviorally unchanged). When true (the --update path, Plan 03) the displaced kit is KEPT as a
+// timestamped backup INSTEAD of being deleted — but only if it actually DIFFERS from the freshly
+// staged kit (D-09 differs-only no-op: a byte-identical re-copy leaves no backup artifact). This
+// is single-source — the retain path reuses dirsSameContent + isoStamp, it does not fork.
+function copyKit(retainBackup = false) {
     if (DRY_RUN) {
         report("would-copy", `kit → ${KIT_ROOT}`);
         return;
@@ -622,12 +629,25 @@ function copyKit() {
     rmSync(tmp, { recursive: true, force: true });
     cpSync(join(GRUGOPS_SRC, "agent-factory"), tmp, { recursive: true });
     // Move the existing kit aside (if any), put the new kit in place via a single atomic rename,
-    // then clean up the old copy. A concurrent reader sees either the old kit or the new — never
-    // an absent one.
-    if (existsSync(KIT_ROOT))
+    // then handle the old copy. A concurrent reader sees either the old kit or the new — never an
+    // absent one (true atomicity preserved on both the default and retain paths).
+    const hadOld = existsSync(KIT_ROOT);
+    if (hadOld)
         renameSync(KIT_ROOT, old);
     renameSync(tmp, KIT_ROOT);
-    rmSync(old, { recursive: true, force: true });
+    if (hadOld && retainBackup && !dirsSameContent(old, KIT_ROOT)) {
+        // --update: keep the displaced kit as a timestamped backup (never-delete-first), but ONLY
+        // when it differs from the freshly staged kit (D-09). KIT_ROOT is now the NEW kit, so the
+        // comparison is displaced-old vs new.
+        const backup = `${KIT_ROOT}.bak.${isoStamp()}`;
+        renameSync(old, backup);
+        report("backed-up", `kit → ${backup}`);
+    }
+    else {
+        // Default install path (retainBackup=false), a byte-identical retain (D-09 no-op), or no prior
+        // kit: remove the displaced copy exactly as before.
+        rmSync(old, { recursive: true, force: true });
+    }
     report("copied", `kit → ${KIT_ROOT}`);
 }
 // materializeAdapter: lay an adapter down from $GRUGOPS_SRC and inject the resolved KIT line
@@ -819,8 +839,10 @@ if (DRY_RUN)
     console.log("mode:   DRY_RUN (no filesystem changes)");
 console.log(`tools detected: ${detectTools()}`);
 // 0. Copy the read-only kit to $GRUGOPS_HOME (atomic) — first so the seed source + VERSION exist.
+// Explicit default (retainBackup=false): the install path never retains a backup; Plans 02/03 pass
+// the mode they need (--update retains).
 console.log("\n-- kit --");
-copyKit();
+copyKit(false);
 console.log("\n-- adapters --");
 // 1a. The 6 delegating dash skills (blockquote only, no resolver block) — plain copy.
 for (const s of SKILLS) {
