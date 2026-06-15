@@ -63,6 +63,11 @@ let ALLOW_SELF = false;
 let ARG_SYMLINK = false;
 let CHECK = false;
 let STRICT = false;
+// Phase-17 (Plan 17-01) mode flags. Recognized by the arg-parse loop here so any other unknown
+// arg still exits 2; the modes themselves are NOT wired into a branch yet (Plans 02/03 do that).
+let MIGRATE = false;
+let UPDATE = false;
+let PRUNE_OLD_KIT = false;
 const argv = process.argv.slice(2);
 for (let i = 0; i < argv.length; i++) {
   const a = argv[i];
@@ -80,6 +85,12 @@ for (let i = 0; i < argv.length; i++) {
     CHECK = true;
   } else if (a === "--strict") {
     STRICT = true;
+  } else if (a === "--migrate") {
+    MIGRATE = true;
+  } else if (a === "--update") {
+    UPDATE = true;
+  } else if (a === "--prune-old-kit") {
+    PRUNE_OLD_KIT = true;
   } else {
     process.stderr.write(`install.js: unknown argument: ${a}\n`);
     process.exit(2);
@@ -434,6 +445,85 @@ const sameContent = (a: string, b: string): boolean => {
     return false;
   }
 };
+
+// ---------------------------------------------------------------------------
+// Phase-17 Wave-0 shared backup primitives (Plan 17-01, MIGR-01 / UPD-01).
+// Single-source so Plans 02 (--migrate) and 03 (--update) do not each invent their own
+// timestamp/backup logic (which would drift). Clear professional voice on every report
+// string (safety surface — D-13: these run as `node install/install.js --migrate|--update`).
+// ---------------------------------------------------------------------------
+
+// isoStamp: a filesystem-safe, millisecond-precision ISO timestamp — every ':' replaced with '-'
+// so the suffix is legal on every filesystem including Windows (D-08). Shape: YYYY-MM-DDTHH-MM-SS.mmmZ.
+const isoStamp = (): string => new Date().toISOString().replace(/:/g, "-");
+
+// dirsSameContent: recursive byte-equality of two directory trees. Compares the sorted set of
+// relative file paths and each file's bytes (via sameContent). FAIL-SAFE-TO-DIFFERS: any read
+// error, missing tree, or set mismatch returns false, so a true no-op (D-09 "no backup when
+// identical") is declared ONLY when the two trees are provably identical. Symlinks are treated as
+// differing (lstat is a file, not a regular file) — a conservative bias toward keeping a backup.
+function dirsSameContent(a: string, b: string): boolean {
+  const rel = (root: string, base: string): string[] => {
+    const out: string[] = [];
+    let ents;
+    try {
+      ents = readdirSync(join(root, base), { withFileTypes: true });
+    } catch {
+      return out;
+    }
+    for (const ent of ents) {
+      const r = base ? `${base}/${ent.name}` : ent.name;
+      if (ent.isDirectory()) out.push(...rel(root, r));
+      else if (ent.isFile()) out.push(r);
+      else return [" differs"]; // symlink/special → force a mismatch (fail-safe-to-differs)
+    }
+    return out;
+  };
+  try {
+    if (!existsSync(a) || !existsSync(b)) return false;
+    const la = rel(a, "").sort();
+    const lb = rel(b, "").sort();
+    if (la.length !== lb.length) return false;
+    for (let i = 0; i < la.length; i++) {
+      if (la[i] !== lb[i]) return false;
+      if (!sameContent(join(a, la[i]), join(b, lb[i]))) return false;
+    }
+    return true;
+  } catch {
+    return false; // fail-safe-to-differs: never declare identical on an error
+  }
+}
+
+// backupIfDiffers: the single rename-to-backup primitive (never-delete-first). If `target` does
+// not exist there is nothing to back up → return false. If `target` is byte-identical to
+// `replacement` (file: sameContent; dir: dirsSameContent), this is a true no-op (D-09) → report
+// `skipped (identical — no backup, D-09)` and return false (NO artifact created). Otherwise rename
+// `target` aside to `${target}.bak.<ISO>` (filesystem-safe via isoStamp) and report `backed-up`,
+// returning true. DRY_RUN mutates nothing and reports a `would-backup` line. Returns true iff a
+// backup was (or would be) made.
+function backupIfDiffers(target: string, replacement: string, label: string): boolean {
+  if (!existsSync(target)) return false;
+  let identical = false;
+  try {
+    identical = lstatSync(target).isDirectory()
+      ? dirsSameContent(target, replacement)
+      : sameContent(target, replacement);
+  } catch {
+    identical = false; // fail-safe-to-differs
+  }
+  if (identical) {
+    report("skipped", `${label} (identical — no backup, D-09)`);
+    return false;
+  }
+  const backup = `${target}.bak.${isoStamp()}`;
+  if (DRY_RUN) {
+    report("would-backup", `${label} → ${backup}`);
+    return true;
+  }
+  renameSync(target, backup);
+  report("backed-up", `${label} → ${backup}`);
+  return true;
+}
 
 // ensure_block: idempotent sentinel-delimited append to a user file. Never overwrites; skips
 // if the open sentinel is already present; creates the file if absent. Never `>`-truncates.
