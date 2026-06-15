@@ -8,7 +8,7 @@
 
 ## Overview
 
-grugops is built bottom-up as a file protocol, not a runtime. v1.0 froze the shared vocabulary, built the 16 roles + 14 workflows + contracts + adapters + both Claude forms + installers + validator + brand collateral, and proved the chain with a dogfood. v1.1 redesigned the install to a shared-location two-root model (read-only kit at `${GRUGOPS_HOME:-$HOME/.grugops}`, per-repo state in the target) with a path rewrite, a two-root installer, a `--check` doctor, and a false-green-proof validator. v1.2 deepens the kit itself: it opens with an SDLC-coverage audit plus the mechanical foundation guards (WR-05 spawn grep, single-source adapter-size check, AGENTS.md byte budget, voice-lint, config-dial contract) so every later content phase writes into a guarded environment; then a senior-persona overhaul lays the substrate, BDD+TDD close the business→engineer handoff, a frontend/UI persona and an ASVS security audit run as parallel content streams, then a TypeScript tooling migration converts the script layer (installers, validator, generator, guards) to a zero-build cross-platform foundation, the §14 quality gate converges all of it (lint + UI/E2E + test-integrity) on that TS foundation, install migrate/update lands as an independent track, and a generated docs catalog documents the finished 17-role / 15-workflow set last. Each phase's outputs are the next phase's inputs.
+grugops is built bottom-up as a file protocol, not a runtime. v1.0 froze the shared vocabulary, built the 16 roles + 14 workflows + contracts + adapters + both Claude forms + installers + validator + brand collateral, and proved the chain with a dogfood. v1.1 redesigned the install to a shared-location two-root model (read-only kit at `${GRUGOPS_HOME:-$HOME/.grugops}`, per-repo state in the target) with a path rewrite, a two-root installer, a `--check` doctor, and a false-green-proof validator. v1.2 deepens the kit itself: it opens with an SDLC-coverage audit plus the mechanical foundation guards (WR-05 spawn grep, single-source adapter-size check, AGENTS.md byte budget, voice-lint, config-dial contract) so every later content phase writes into a guarded environment; then a senior-persona overhaul lays the substrate, BDD+TDD close the business→engineer handoff, a frontend/UI persona and an ASVS security audit run as parallel content streams, then a TypeScript tooling migration converts the script layer (installers, validator, generator, guards) to a zero-build cross-platform foundation, the §14 quality gate converges all of it (lint + UI/E2E + test-integrity) on that TS foundation, install migrate/update lands as an independent track, and a generated docs catalog documents the finished 17-role / 16-workflow set last. Each phase's outputs are the next phase's inputs.
 
 ## Phases
 
@@ -56,7 +56,7 @@ Full phase details + milestone summary: `milestones/v1.1-ROADMAP.md` · requirem
 - [x] **Phase 15: TypeScript Tooling Migration** - Ratified TS pivot: migrate install (`install.sh`/`install.mjs`), validator, ASVS generator, and foundation guards (+ their `.test` harnesses) to TypeScript at behavior parity; establish a zero-build cross-platform execution model + a kit-shipped-runnable convention so later phases ship cross-platform routines into host repos (completed 2026-06-13)
 - [x] **Phase 16: §14 Gate Convergence — Lint, UI/E2E & Test-Integrity** - Single-source gate additions in `05-pr-quality-gate.md`: lint step, automated UI/E2E + visual regression, and an un-cheatable structured-justification test-integrity check (TS checker on the Phase-15 foundation); all config-dialed (3/3 plans executed — awaiting phase verification) (completed 2026-06-14)
 - [x] **Phase 17: Install --migrate / --update** - RED-harness-first, never-delete-first install modes to migrate an in-repo layout forward (--migrate) and refresh the central kit (--update) + the single opt-in deletion path (--prune-old-kit) (all 3 plans executed 2026-06-15; verified passed 13/13 + WR-01/WR-02 fixed)
-- [ ] **Phase 18: Browsable Docs Catalog** - Generator emits an in-repo markdown catalog of the finished 17-role / 15-workflow set; a freshness check fails red on drift
+- [ ] **Phase 18: Browsable Docs Catalog** - Generator emits an in-repo markdown catalog of the finished 17-role / 16-workflow set; a freshness check fails red on drift
 
 ## Phase Details
 
@@ -272,16 +272,24 @@ Full phase details + milestone summary: `milestones/v1.1-ROADMAP.md` · requirem
 
 ### Phase 18: Browsable Docs Catalog
 
-**Goal**: Document the finished kit — a generator produces a browsable in-repo markdown catalog of the final 17 roles and 15 workflows from their frontmatter, with a freshness check that fails red on drift. Runs last so it documents the completed set.
+**Goal**: Document the finished kit — a generator produces a browsable in-repo markdown catalog of the final 17 roles and 16 workflows from their frontmatter, with a freshness check that fails red on drift. Runs last so it documents the completed set.
 **Depends on**: Phases 11–16 (the finished role/workflow set); runs after everything else
 **Requirements**: DOCS-01, DOCS-02
 **Success Criteria** (what must be TRUE):
 
   1. A stdlib-only Node generator (no npm deps) produces a committed browsable in-repo markdown catalog (`docs/catalog/`) of every role + workflow from their frontmatter — no web UI, generated not hand-maintained, emitting `UNKNOWN - verify` rather than inventing a missing description.
   2. A freshness check (regenerate-to-temp, diff, non-zero on drift) prevents the catalog from drifting from the kit it documents, wired so a stale catalog fails the build red.
-  3. The catalog reflects the finished set — all 17 roles (incl. the new frontend/UI persona) and all 15 workflows (incl. the new UI design→build and security-audit workflows).
+  3. The catalog reflects the finished set — all 17 roles (incl. the new frontend/UI persona) and all 16 workflows (incl. the new UI design→build and security-audit workflows). _(Corrected from "15 workflows": there are 16 numbered workflow files `00`–`15`; the prior "15" prose label was off by one. The catalog is the source of truth.)_
 
-**Plans**: TBD
+**Plans**: 2 plans
+
+**Wave 1**
+
+- [ ] 18-01-PLAN.md — generate-catalog.ts read-only deterministic generator + committed docs/catalog/README.md + DOCS-01 oracle + generate:catalog script + .gitattributes LF pin [DOCS-01]
+
+**Wave 2** *(blocked on Wave 1 — needs the generator .js + the committed catalog to byte-diff against)*
+
+- [ ] 18-02-PLAN.md — catalog-freshness.ts standalone fail-closed drift gate (mirror-spawn regenerate-to-temp) + DOCS-02 oracle + freshness:catalog script [DOCS-02]
 
 ## Progress
 
@@ -307,6 +315,6 @@ Phases execute in numeric order: 10 → 11 → 12 → 13 → 14 → 15 → 16 �
 | 15. TypeScript Tooling Migration | v1.2 | 6/6 | Complete    | 2026-06-13 |
 | 16. §14 Gate Convergence — Lint, UI/E2E & Test-Integrity | v1.2 | 3/3 | Complete    | 2026-06-14 |
 | 17. Install --migrate / --update | v1.2 | 3/3 | Complete    | 2026-06-15 |
-| 18. Browsable Docs Catalog | v1.2 | 0/TBD | Not started | - |
+| 18. Browsable Docs Catalog | v1.2 | 0/2 | Not started | - |
 
 **Totals:** 18 phases · 48 plans complete · 2 milestones shipped · v1.2 (9 phases, 10–18) in progress.
