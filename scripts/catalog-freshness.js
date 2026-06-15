@@ -66,7 +66,18 @@ if (r.status !== 0) {
 }
 // ── Byte-compare the committed catalog against the fresh regeneration ────────────
 const toPosix = (p) => p.split(sep).join("/");
-const committed = readFileSync(join(ROOT, "docs/catalog/README.md"));
+let committed;
+try {
+    committed = readFileSync(join(ROOT, "docs/catalog/README.md"));
+}
+catch {
+    // Fail-closed: if the committed catalog cannot be read (e.g. it is missing), we
+    // cannot prove freshness — clean up the temp mirror and report, never fall through
+    // to "fresh".
+    cleanup();
+    console.log(`Catalog freshness check FAILED: ${toPosix("docs/catalog/README.md")} could not be read — run \`npm run generate:catalog\` and commit it.`);
+    process.exit(1);
+}
 const rebuilt = readFileSync(join(tmp, "docs/catalog/README.md"));
 cleanup();
 if (!committed.equals(rebuilt)) {
