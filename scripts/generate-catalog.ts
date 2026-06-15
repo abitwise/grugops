@@ -69,8 +69,12 @@ function firstSentence(body: string): string {
 }
 
 // ── Extract the body of a `## <heading>` section (up to the next `## ` or end of file) ─────────
+// The lookahead's second branch is `$(?![\s\S])` — true end-of-input, NOT end-of-line. Under the
+// `/m` flag a bare `$` matches the end of EVERY line, which would let the non-greedy capture stop
+// at the first newline (truncating a last-in-file section to its first line, and — combined with a
+// blank line after the heading — returning an empty body that falsely trips the fail-closed guard).
 function sectionBody(text: string, heading: string): string | null {
-  const re = new RegExp(`^## ${heading}\\n([\\s\\S]*?)(?=\\n## |$)`, "m");
+  const re = new RegExp(`^## ${heading}\\n([\\s\\S]*?)(?=\\n## |$(?![\\s\\S]))`, "m");
   const m = text.match(re);
   return m ? m[1] : null;
 }
@@ -117,7 +121,12 @@ for (const file of roleFiles) {
     fail(`${file}: role tier must be core|enterprise, found "${tier ?? ""}"`);
   }
   const body = sectionBody(text!, "One job");
-  if (!body) fail(`${file}: no \`## One job\` section — refusing to write a partial catalog`);
+  // `null` = section absent; `""`/whitespace-only = section present but empty. Guard both
+  // explicitly so a `## One job\n\n<text>` layout (blank line after the heading) parses correctly
+  // rather than tripping a falsy-`""` check (WR-01).
+  if (body === null || body.trim() === "") {
+    fail(`${file}: no \`## One job\` section — refusing to write a partial catalog`);
+  }
   roles.push({
     name: h1![1].trim(),
     tier,
@@ -153,7 +162,9 @@ for (const file of workflowFiles) {
     fail(`${file}: workflow order must be an integer, found "${fm.order ?? ""}"`);
   }
   const body = sectionBody(text!, "When to use");
-  if (!body) {
+  // `null` = section absent; `""`/whitespace-only = section present but empty. Guard both
+  // explicitly (see the roles loop above — WR-01).
+  if (body === null || body.trim() === "") {
     fail(`${file}: no \`## When to use\` section — refusing to write a partial catalog`);
   }
   // No fabrication (D-09): a genuinely absent cadence surfaces UNKNOWN - verify, never `both`.
