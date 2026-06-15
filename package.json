@@ -10,7 +10,8 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "freshness": "tsc --outDir .tmp-build && node scripts/freshness.js",
-    "generate:catalog": "tsc --outDir .tmp-build && node scripts/generate-catalog.js"
+    "generate:catalog": "tsc --outDir .tmp-build && node scripts/generate-catalog.js",
+    "freshness:catalog": "tsc --outDir .tmp-build && node scripts/catalog-freshness.js"
   },
   "devDependencies": {
     "@types/node": "~22",

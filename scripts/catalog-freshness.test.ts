@@ -62,12 +62,16 @@ describe("catalog-freshness.js (DOCS-02 catalog drift gate)", () => {
     // Plant a non-conforming role file (no `# Role:` H1) into the real kit. The gate
     // cpSyncs agent-factory/roles into its temp mirror, so the mirrored generator
     // rejects it (fail-closed, exit 1) and the gate must refuse to report "fresh".
-    const badRole = join(ROOT, "agent-factory", "roles", "__catalog_freshness_badrole__.md");
+    // The filename must NOT start with `_` — the generator's D-03 underscore filter
+    // would silently drop it, so the regen would succeed and never exercise the gate.
+    const badRole = join(ROOT, "agent-factory", "roles", "zzz-catalog-freshness-badrole.md");
     writeFileSync(badRole, "---\nkind: role\ntier: core\n---\n\nNo H1 here.\n");
     try {
       const r = runFreshness();
       expect(r.status).not.toBe(0);
-      expect(r.stdout.toLowerCase()).not.toContain("catalog fresh");
+      // The success-only marker — distinct from the "Catalog freshness check FAILED"
+      // fail-closed message, which also contains the substring "catalog fresh".
+      expect(r.stdout.toLowerCase()).not.toContain("matches a fresh regeneration");
     } finally {
       // Remove the planted source so it never lingers in the tree.
       rmSync(badRole, { force: true });
