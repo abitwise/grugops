@@ -315,6 +315,6 @@ Phases execute in numeric order: 10 → 11 → 12 → 13 → 14 → 15 → 16 �
 | 15. TypeScript Tooling Migration | v1.2 | 6/6 | Complete    | 2026-06-13 |
 | 16. §14 Gate Convergence — Lint, UI/E2E & Test-Integrity | v1.2 | 3/3 | Complete    | 2026-06-14 |
 | 17. Install --migrate / --update | v1.2 | 3/3 | Complete    | 2026-06-15 |
-| 18. Browsable Docs Catalog | v1.2 | 2/2 | Complete   | 2026-06-15 |
+| 18. Browsable Docs Catalog | v1.2 | 2/2 | Complete    | 2026-06-15 |
 
 **Totals:** 18 phases · 48 plans complete · 2 milestones shipped · v1.2 (9 phases, 10–18) in progress.
