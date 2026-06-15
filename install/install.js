@@ -171,6 +171,13 @@ const sameContent = (a, b) => {
 // isoStamp: a filesystem-safe, millisecond-precision ISO timestamp — every ':' replaced with '-'
 // so the suffix is legal on every filesystem including Windows (D-08). Shape: YYYY-MM-DDTHH-MM-SS.mmmZ.
 const isoStamp = () => new Date().toISOString().replace(/:/g, "-");
+// GRUGOPS_BACKUP_SUFFIX: a TIGHT anchored matcher for the grugops backup name-shape — `.bak.`
+// followed by an isoStamp() ISO timestamp (YYYY-MM-DDTHH-MM-SS.mmmZ, colons replaced by '-'),
+// anchored to end-of-string. NOT a loose `*.bak` (Pitfall 5 / T-17-03-PRUNE): a user's `mine.bak`
+// or `notes.bak` does NOT match, only the grugops `<name>.bak.<ISO>` shape this installer creates.
+// Declared HERE (with the other early helpers) so the early --prune-old-kit branch — which runs
+// before the original install run — reaches it via pruneOldKit() without a const TDZ error.
+const GRUGOPS_BACKUP_SUFFIX = /\.bak\.\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}\.\d{3}Z$/;
 // ---------------------------------------------------------------------------
 // Doctor (INSTALL-05) — a non-mutating verifier: reads only, stats only, mutates NOTHING (never
 // copyKit / materializeAdapter / seedState / writeMarker; never reads or writes the prod
@@ -397,6 +404,22 @@ if (UPDATE) {
     console.log(`\n== update complete${DRY_RUN ? " (DRY_RUN — nothing changed)" : ""} ==`);
     process.exit(0);
 }
+// --- --prune-old-kit branch (D-10, Plan 17-03) — the SINGLE, opt-in deletion path. Wired EARLY
+// (alongside --update, before the self-checkout guard) because it only deletes grugops-owned
+// backups in the two known roots and never mutates the live kit or any user content. It prints a
+// banner, runs pruneOldKit() (tight name-shape + isProtected guard, DRY_RUN-safe), and exits 0.
+// Pruning is reachable ONLY here — it never runs on the default install path (never-delete-first). ---
+if (PRUNE_OLD_KIT) {
+    console.log("== grugops prune (--prune-old-kit) ==");
+    console.log(`home:   ${GRUGOPS_HOME}`);
+    console.log(`target: ${TARGET}`);
+    if (DRY_RUN)
+        console.log("mode:   DRY_RUN (no filesystem changes)");
+    console.log("\n-- removing grugops backups (only the timestamped .bak.<ISO> migrate/update leave) --");
+    pruneOldKit();
+    console.log(`\n== prune complete${DRY_RUN ? " (DRY_RUN — nothing changed)" : ""} ==`);
+    process.exit(0);
+}
 // --- D-07 self-checkout guard (ALWAYS-ON): runs unconditionally after TARGET resolution, before
 // any write, independent of TTY / --yes (Pitfall 3). Refuse when EITHER resolved TARGET ==
 // resolved GRUGOPS_SRC, OR the target carries grugops SOURCE markers (install/install.sh AND
@@ -520,6 +543,75 @@ function backupIfDiffers(target, replacement, label) {
     renameSync(target, backup);
     report("backed-up", `${label} → ${backup}`);
     return true;
+}
+// ---------------------------------------------------------------------------
+// Phase-17 Plan 03 — `--prune-old-kit` (D-10): the SINGLE, opt-in deletion path. It removes ONLY
+// grugops-created timestamped backups (the ones --migrate and --update leave behind) and NEVER
+// runs on the default install path (never-delete-first). Every string is CLEAR PROFESSIONAL VOICE
+// (safety surface; this runs as `node install/install.js --prune-old-kit`).
+// ---------------------------------------------------------------------------
+// isPruneProtected: mirror uninstall.ts's isProtected() denylist (uninstall.ts:110-119) so prune
+// can NEVER touch the live kit, the seeded state, or any user-owned tree — even if a backup-shaped
+// name somehow appeared under one. agent-factory/, plans/, .planning/, .grugops/, docs/, src/ (and
+// the root itself) are off-limits, always. Checked against $TARGET; the kit-home prune only ever
+// considers `agent-factory.bak.<ISO>` siblings of the live kit, never the live `agent-factory/`.
+function isPruneProtected(p) {
+    const protectedDirs = ["agent-factory", "plans", ".planning", ".grugops", "docs", "src"];
+    for (const d of protectedDirs) {
+        const base = `${TARGET}/${d}`;
+        if (p === base || p.startsWith(`${base}/`))
+            return true;
+    }
+    if (p === TARGET || p === `${TARGET}/`)
+        return true;
+    return false;
+}
+// removeBackup: remove ONE grugops backup, but only after the name-shape AND the isProtected guard
+// both pass. The shape was already matched by the caller; this re-checks the guard as a last gate
+// before any rmSync (defense-in-depth — the deletion surface gets two independent checks). DRY_RUN
+// narrates a `would-remove` line and deletes nothing.
+function removeBackup(path, name) {
+    if (isPruneProtected(path)) {
+        report("skipped", `${name} (protected path — never pruned)`);
+        return;
+    }
+    if (DRY_RUN) {
+        report("would-remove", path);
+        return;
+    }
+    rmSync(path, { recursive: true, force: true });
+    report("removed", path);
+}
+// pruneOldKit: the ONLY deletion path (D-10). Glob BOTH roots for the grugops backup name-shape and
+// remove each match (guarded). Under $TARGET: `agent-factory.bak.<ISO>` (the displaced in-repo kit)
+// and `factory.config.json.bak.<ISO>` (the original config migrate leaves at the repo root). Under
+// $GRUGOPS_HOME: `agent-factory.bak.<ISO>` (the displaced kit --update retains). NOTHING that does
+// not match GRUGOPS_BACKUP_SUFFIX is ever considered (a user `mine.bak` is invisible to prune).
+// Reachable ONLY from the --prune-old-kit branch — it never runs on the default install path.
+function pruneOldKit() {
+    const roots = [
+        [TARGET, "target"],
+        [GRUGOPS_HOME, "kit home"],
+    ];
+    let pruned = 0;
+    for (const [root, label] of roots) {
+        let entries;
+        try {
+            entries = readdirSync(root);
+        }
+        catch {
+            continue; // an absent root has nothing to prune
+        }
+        for (const name of entries.sort()) {
+            if (!GRUGOPS_BACKUP_SUFFIX.test(name))
+                continue; // not a grugops backup → never touched
+            removeBackup(join(root, name), `${label}: ${name}`);
+            pruned += 1;
+        }
+    }
+    if (pruned === 0) {
+        report("ok", "no grugops backups found to prune (nothing to do)");
+    }
 }
 function detectOldLayout() {
     const hasInRepoKit = existsSync(join(TARGET, "agent-factory", "roles", "orchestrator.md"));

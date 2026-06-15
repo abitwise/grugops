@@ -203,6 +203,55 @@ A migrate is reversible by hand. To return a repo to its pre-migrate state:
 After these steps your `agent-factory/` kit and your edited config are exactly as they were before
 the migrate. All commands are local `mv`/`rm`/`node` — nothing fetches anything.
 
+### Updating the shared kit (`--update`)
+
+When you pull a newer grugops checkout and want every repo to pick up the new kit, refresh the
+**shared kit** in place with `--update`:
+
+```sh
+node install/install.js --update
+# preview the refresh first (changes NOTHING on disk):
+DRY_RUN=1 node install/install.js --update
+```
+
+`--update` is **kit-home-only**: it refreshes the read-only kit at `${GRUGOPS_HOME:-$HOME/.grugops}`
+from the running checkout and **does not touch any repo's per-repo state** — it never writes adapters,
+seeded `.grugops/` state, or a marker into a target. There is no `--target` to pass; one update
+refreshes the one shared kit that every installed repo resolves against.
+
+It is **reversible**: the displaced kit is retained as a timestamped `agent-factory.bak.<ISO>`
+backup under the kit home (renamed aside, never deleted) whenever the new kit differs from it. If the
+kit is already identical, the update is a true no-op and leaves no backup behind.
+
+If the checkout you run `--update` from is **older** than the kit already installed (a downgrade),
+`--update` prints a clear warning naming both versions and then **proceeds** — it refreshes the kit
+to the older version (retaining the newer one as the timestamped backup) rather than refusing. If
+that was not what you intended, the backup is right there to restore.
+
+### Pruning old backups (`--prune-old-kit`)
+
+Both `--migrate` and `--update` leave **timestamped backups** behind on purpose (so a refresh or a
+migration is always reversible). When you are confident you no longer need them, `--prune-old-kit`
+removes them — and **only** them:
+
+```sh
+node install/install.js --prune-old-kit
+# preview which backups would be removed (deletes NOTHING):
+DRY_RUN=1 node install/install.js --prune-old-kit
+```
+
+This is the **single, opt-in deletion path** in grugops, and it is deliberately narrow:
+
+- it removes **only** grugops-created backups — the `agent-factory.bak.<ISO>` directories (in both
+  the target repo and the shared kit home) and the `factory.config.json.bak.<ISO>` files migrate
+  leaves. The match is anchored to the exact `<name>.bak.<ISO-timestamp>` shape grugops creates, so a
+  file of your own such as `mine.bak` or `notes.bak` is **never** matched;
+- it **never** runs on the default install path — deletion happens only when you pass this flag
+  (grugops never deletes first);
+- it never touches the **live** `agent-factory/` kit, your seeded `.grugops/` state, `plans/`,
+  `.planning/`, `docs/`, `src/`, or any other content you own (the same protected-path guard the
+  uninstaller uses).
+
 ### Prove it yourself
 
 ```sh
