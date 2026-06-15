@@ -254,7 +254,21 @@ Full phase details + milestone summary: `milestones/v1.1-ROADMAP.md` · requirem
   2. `install.sh --update` refreshes the central `$GRUGOPS_HOME` kit in place in a two-stage, reversible operation, leaving per-repo state untouched, and the doctor names the specific unresolved path on failure.
   3. A RED-by-design test harness exists and passes: a user-edited config survives migration (backed up, not lost), a re-run is a no-op, and uninstall-after-migrate restores the pre-migrate state — with bounded marker-strip (no unterminated-marker over-deletion, per the v1.1 CR-01 fix).
 
-**Plans**: TBD
+> **D-13 supersession (planned 2026-06-15):** SC1/SC2's "install.sh / sh-Node byte-parity" wording is superseded by the Phase-15 TypeScript pivot — there is no `install.sh`. The modes are flags on the single TS installer: `node install/install.js --migrate|--update|--prune-old-kit`. The committed `install/install.js` is rebuilt with `tsc` and must pass `npm run freshness` before commit. SC3's restore mechanism is the orchestrator-ratified DOCUMENTED manual `.bak` rename (not new automated uninstall-restore logic). D-04 config-location resolution: migrate checks BOTH legacy locations (repo-root `factory.config.json` AND `agent-factory/config/factory.config.json`).
+
+**Plans**: 3 plans
+
+**Wave 0**
+
+- [ ] 17-01-PLAN.md — RED-harness foundation: 3 flags recognized + isoStamp()/backupIfDiffers() differs-only helper + copyKit(retainBackup) + makeOldLayoutFixture() [MIGR-01, UPD-01]
+
+**Wave 1** *(blocked on Wave 0 — shares install.ts/install.test.ts)*
+
+- [ ] 17-02-PLAN.md — --migrate: detectOldLayout() + pre-steps (config-move D-04, symlink-unlink LANDMINE, backup) around the unchanged install run + SC3 uninstall-restore (minimal uninstall.ts) + README [MIGR-01]
+
+**Wave 2** *(blocked on Wave 1 — shares install.ts/install.test.ts/README.md)*
+
+- [ ] 17-03-PLAN.md — --update (kit-home-only, retain-backup, downgrade-warn) + --prune-old-kit (the only deletion path) + README [UPD-01]
 
 ### Phase 18: Browsable Docs Catalog
 
@@ -292,7 +306,7 @@ Phases execute in numeric order: 10 → 11 → 12 → 13 → 14 → 15 → 16 �
 | 14. Security Audit (OWASP ASVS) & Checklist Re-Anchor | v1.2 | 3/3 | Complete    | 2026-06-13 |
 | 15. TypeScript Tooling Migration | v1.2 | 6/6 | Complete    | 2026-06-13 |
 | 16. §14 Gate Convergence — Lint, UI/E2E & Test-Integrity | v1.2 | 3/3 | Complete    | 2026-06-14 |
-| 17. Install --migrate / --update | v1.2 | 0/TBD | Not started | - |
+| 17. Install --migrate / --update | v1.2 | 0/3 | Not started | - |
 | 18. Browsable Docs Catalog | v1.2 | 0/TBD | Not started | - |
 
 **Totals:** 18 phases · 48 plans complete · 2 milestones shipped · v1.2 (9 phases, 10–18) in progress.
