@@ -564,6 +564,175 @@ describe("install.js / uninstall.js — single-installer contract (folds install
     );
   });
 
+  // ── --migrate (MIGR-01, Plan 17-02) — the 8 RED-by-design migrate cases ──────────────────────
+  // --migrate converts an already-installed v1.0 in-repo layout to the two-root layout as
+  // orchestration around the unchanged install run (D-02): migratePreSteps (config-move + backup +
+  // symlink-unlink) then FALL THROUGH into the existing copyKit→materializeAdapter→seedState→
+  // materializeRunnable→writeMarker sequence. Helper: glob the timestamped backups in a target.
+  const backupGlob = (dir: string, prefix: string): string[] => {
+    if (!existsSync(dir)) return [];
+    return readdirSync(dir).filter((n) => n.startsWith(`${prefix}.bak.`));
+  };
+
+  // SC1 / MIGR-01: convert old in-repo layout → two-root. After migrate the marker is present, the
+  // kit is at $GRUGOPS_HOME/agent-factory, the resolver adapters carry the materialized KIT= block,
+  // and the displaced in-repo agent-factory/ is renamed to a timestamped backup (never deleted).
+  it("migrate: converts old in-repo layout to two-root", () => {
+    const target = makeOldLayoutFixture();
+    const home = mkTmp();
+    const r = runInstall(target, home, "--migrate");
+    expect(r.status).toBe(0);
+
+    // two-root: the shared kit is now under $GRUGOPS_HOME (fresh from source, D-01).
+    expect(existsSync(join(home, "agent-factory", "roles", "orchestrator.md"))).toBe(true);
+    // marker present — the repo is now migrated.
+    expect(existsSync(join(target, ".grugops", "install.json"))).toBe(true);
+    // the resolver adapters carry the materialized KIT= block pointing at the shared kit.
+    const agent = readFileSync(join(target, ".claude", "agents", "grugops-orchestrator.md"), "utf8");
+    expect(agent).toContain("grugops:materialized-kit");
+    expect(agent).toContain(join(home, "agent-factory"));
+    // never-delete-first: the displaced in-repo agent-factory/ is renamed to a timestamped backup.
+    expect(backupGlob(target, "agent-factory").length).toBe(1);
+  });
+
+  // SC1 / D-09/D-12: a second migrate is a true no-op — the marker is now present, so the D-12 path
+  // exits 0 without re-running install. Snapshot equality across two migrates AND a non-growing
+  // backup glob count (D-08 differs-only; the second run creates no new artifact).
+  it("migrate: a second migrate is a no-op", () => {
+    const target = makeOldLayoutFixture();
+    const home = mkTmp();
+    expect(runInstall(target, home, "--migrate").status).toBe(0);
+    const t1 = snapshot(target);
+    const h1 = snapshot(home);
+    const bak1 = backupGlob(target, "agent-factory").length;
+
+    const r2 = runInstall(target, home, "--migrate");
+    expect(r2.status).toBe(0);
+    expect(snapshot(target)).toBe(t1); // target unchanged by the second migrate
+    expect(snapshot(home)).toBe(h1); // home unchanged
+    expect(backupGlob(target, "agent-factory").length).toBe(bak1); // backups did not grow (D-08)
+  });
+
+  // SC1 / D-11: --migrate on a clean repo (no old layout, no install) falls through to a normal
+  // fresh install — the result equals a plain runInstall (no migrate pre-steps fire).
+  it("migrate: clean repo falls through to fresh install", () => {
+    const targetA = makeFixture();
+    const homeA = mkTmp();
+    expect(runInstall(targetA, homeA, "--migrate").status).toBe(0);
+
+    const targetB = makeFixture();
+    const homeB = mkTmp();
+    expect(runInstall(targetB, homeB).status).toBe(0);
+
+    // A --migrate on a clean repo produces the same target shape as a plain install (no backups).
+    expect(backupGlob(targetA, "agent-factory").length).toBe(0);
+    expect(existsSync(join(targetA, ".grugops", "install.json"))).toBe(true);
+    expect(existsSync(join(targetA, ".claude", "agents", "grugops-orchestrator.md"))).toBe(true);
+    // and the kit landed under home just like a plain install.
+    expect(existsSync(join(homeA, "agent-factory", "roles", "orchestrator.md"))).toBe(true);
+  });
+
+  // SC1 / D-12: --migrate on an already-migrated repo that still has a leftover in-repo
+  // agent-factory/ (half-state) is a no-op + warns (clear voice) + hints --prune-old-kit. Install
+  // first (marker present), then plant a leftover agent-factory/, then --migrate must not re-mutate.
+  it("migrate: half-state no-op + warn", () => {
+    const target = makeFixture();
+    const home = mkTmp();
+    expect(runInstall(target, home).status).toBe(0);
+    // makeFixture already plants an in-repo agent-factory/roles/orchestrator.md (the leftover kit),
+    // so after a normal install the repo is migrated (marker present) AND has a leftover in-repo kit.
+    const t0 = snapshot(target);
+    const h0 = snapshot(home);
+
+    const r = runInstall(target, home, "--migrate");
+    expect(r.status).toBe(0);
+    expect(r.stdout).toContain("--prune-old-kit"); // hints the companion that removes the leftover
+    expect(snapshot(target)).toBe(t0); // no re-mutation (D-12)
+    expect(snapshot(home)).toBe(h0);
+  });
+
+  // SC3 / D-04: a user-edited config survives migration — moved to .grugops/factory.config.json
+  // with the edited content, original left as a .bak; BOTH legacy locations are handled (the v1.0
+  // in-repo agent-factory/config/ location AND the CONTEXT repo-root factory.config.json location).
+  it("migrate: user-edited config survives", () => {
+    // (a) the v1.0 in-repo kit-config location.
+    const targetK = makeOldLayoutFixture();
+    const homeK = mkTmp();
+    expect(runInstall(targetK, homeK, "--migrate").status).toBe(0);
+    // the edited config is carried forward to the two-root .grugops/ location.
+    const seededK = readFileSync(join(targetK, ".grugops", "factory.config.json"), "utf8");
+    expect(seededK).toContain("OLD-USER-EDITED-CONFIG-KIT-LOCATION");
+    // the original is left as a timestamped .bak (never lost, D-04).
+    expect(backupGlob(join(targetK, "agent-factory", "config"), "factory.config.json").length).toBe(1);
+
+    // (b) the CONTEXT repo-root location.
+    const targetR = makeOldLayoutFixture({ rootConfig: true });
+    const homeR = mkTmp();
+    expect(runInstall(targetR, homeR, "--migrate").status).toBe(0);
+    const seededR = readFileSync(join(targetR, ".grugops", "factory.config.json"), "utf8");
+    // the repo-root config is the user-edited one carried forward (root checked too).
+    expect(seededR).toMatch(/OLD-USER-EDITED-CONFIG-(ROOT|KIT)-LOCATION/);
+    // a .bak of the repo-root original exists.
+    expect(backupGlob(targetR, "factory.config.json").length).toBe(1);
+  });
+
+  // SC3 / CR-01: bounded marker-strip — a repo-relative adapter with an UNTERMINATED
+  // grugops:materialized-kit open marker loses no following lines after migrate re-materializes
+  // (the v1.1 CR-01 bounded-removal not regressed).
+  it("migrate: bounded marker-strip", () => {
+    const target = makeOldLayoutFixture();
+    const home = mkTmp();
+    // Plant a UNTERMINATED open marker in the orchestrator adapter with a sentinel line AFTER it.
+    const adapter = join(target, ".claude", "agents", "grugops-orchestrator.md");
+    writeFileSync(
+      adapter,
+      "# <!-- grugops:materialized-kit -->\n" +
+        'KIT="/old/stale/path"\n' +
+        "SENTINEL-AFTER-UNTERMINATED-OPEN-MUST-SURVIVE\n",
+    );
+    expect(runInstall(target, home, "--migrate").status).toBe(0);
+    const after = readFileSync(adapter, "utf8");
+    // the line following the unterminated open marker is preserved (CR-01 bounded removal).
+    expect(after).toContain("SENTINEL-AFTER-UNTERMINATED-OPEN-MUST-SURVIVE");
+  });
+
+  // LANDMINE (Pitfall 1): a symlink .claude adapter migrate does NOT write through the symlink and
+  // corrupt the source clone — the symlink dest is unlinked before re-materialize (HIGH-severity).
+  it("migrate: symlink adapter does not corrupt source clone", () => {
+    const target = makeOldLayoutFixture({ symlink: true });
+    const home = mkTmp();
+    const srcClone = join(target, "source-clone", "orchestrator-src.md");
+    const before = readFileSync(srcClone, "utf8");
+    expect(before).toContain("SENTINEL-SOURCE-CLONE");
+
+    expect(runInstall(target, home, "--migrate").status).toBe(0);
+
+    // THE PROOF: the planted source-clone file is byte-unchanged — migrate unlinked the symlink
+    // dest before materializeAdapter, so the write never followed the link into the clone.
+    expect(readFileSync(srcClone, "utf8")).toBe(before);
+    // and the adapter is now a real materialized file (not a symlink) carrying the KIT= block.
+    expect(lstatSync(join(target, ".claude", "agents", "grugops-orchestrator.md")).isSymbolicLink()).toBe(false);
+    const agent = readFileSync(join(target, ".claude", "agents", "grugops-orchestrator.md"), "utf8");
+    expect(agent).toContain("grugops:materialized-kit");
+  });
+
+  // DRY_RUN: --migrate mutates nothing and prints would-* lines for backup/move/copy/materialize.
+  it("DRY_RUN: new modes mutate nothing", () => {
+    const target = makeOldLayoutFixture();
+    const home = mkTmp();
+    rmSync(home, { recursive: true, force: true }); // start with home ABSENT
+    const tPre = snapshot(target);
+
+    const r = spawnSync("node", [INSTALL_JS, "--yes", "--migrate"], {
+      encoding: "utf8",
+      env: { ...process.env, DRY_RUN: "1", INSTALL_MODE: "copy", GRUGOPS_SRC: REPO_ROOT, GRUGOPS_HOME: home, TARGET: target },
+    });
+    expect(r.status).toBe(0);
+    expect(snapshot(target)).toBe(tPre); // target byte-for-byte unchanged
+    expect(existsSync(home)).toBe(false); // home never created
+    expect(r.stdout).toMatch(/would-/); // the migrate plan is narrated, not executed
+  });
+
   // ── D-11 materializeRunnable(): the kit-shipped runnable lands at the committed host path ─────
   // The TOOL-02 install-side proof. install.js copies the compiled reference routine into the
   // host's committed tools/grugops/ path (additive/idempotent/never-overwrite); a second install
