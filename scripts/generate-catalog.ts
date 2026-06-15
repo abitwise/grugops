@@ -68,6 +68,16 @@ function firstSentence(body: string): string {
   return dot === -1 ? line : line.slice(0, dot + 1);
 }
 
+// ── Escape free-text content before it goes into a pipe-delimited table cell (WR-03) ──────────
+// A literal `|` in an authored first sentence / H1 / cadence value would inject a spurious column;
+// a stray newline would break the row. Backslash-escape `\` first (so we don't double-escape the
+// `|` escapes we add next), then `|`, then flatten any newline to a space. Applied ONLY to authored
+// content cells (name, summary, cadence) — never to the Source link column, which is constructed
+// from a controlled file path and a relative URL we build ourselves.
+function cell(s: string): string {
+  return s.replace(/\\/g, "\\\\").replace(/\|/g, "\\|").replace(/\r?\n/g, " ");
+}
+
 // ── Extract the body of a `## <heading>` section (up to the next `## ` or end of file) ─────────
 // The lookahead's second branch is `$(?![\s\S])` — true end-of-input, NOT end-of-line. Under the
 // `/m` flag a bare `$` matches the end of EVERY line, which would let the non-greedy capture stop
@@ -211,7 +221,9 @@ lines.push("");
 lines.push("| Role | Tier | One job | Source |");
 lines.push("| --- | --- | --- | --- |");
 for (const r of roles) {
-  lines.push(`| ${r.name} | ${r.tier} | ${r.summary} | [${r.link}](/${r.link}) |`);
+  // Content cells (name, summary) are escaped (WR-03); the Source link column is not (controlled
+  // path). `tier` is constrained to core|enterprise so it needs no escaping.
+  lines.push(`| ${cell(r.name)} | ${r.tier} | ${cell(r.summary)} | [${r.link}](/${r.link}) |`);
 }
 lines.push("");
 lines.push("## Workflows");
@@ -219,8 +231,9 @@ lines.push("");
 lines.push("| # | Workflow | Cadence | When to use | Source |");
 lines.push("| --- | --- | --- | --- | --- |");
 for (const w of workflows) {
+  // Content cells (name, cadence, summary) escaped (WR-03); `order` is an integer; link column raw.
   lines.push(
-    `| ${w.order} | ${w.name} | ${w.cadence} | ${w.summary} | [${w.link}](/${w.link}) |`,
+    `| ${w.order} | ${cell(w.name)} | ${cell(w.cadence)} | ${cell(w.summary)} | [${w.link}](/${w.link}) |`,
   );
 }
 lines.push(""); // trailing element → exactly one final "\n"
