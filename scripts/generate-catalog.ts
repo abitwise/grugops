@@ -138,8 +138,11 @@ for (const file of roleFiles) {
 // ── Read + parse workflows (all 16 numbered files 00..15) ─────────────────────────────────────
 let workflowFiles!: string[];
 try {
+  // Match the documented contract: numbered workflow files only (`NN-*.md`, 00..15). A stray
+  // README.md/_draft.md/note.md dropped into the dir is ignored rather than picked up and hard-
+  // failed on the `# Workflow:` H1 check — mirrors the roles loop's `_`-prefix guard (WR-04, D-03).
   workflowFiles = readdirSync(WORKFLOWS_DIR)
-    .filter((f) => f.endsWith(".md"))
+    .filter((f) => /^\d{2}-.+\.md$/.test(f))
     .sort();
 } catch {
   fail(`cannot read workflows directory: ${WORKFLOWS_DIR}`);
