@@ -16,6 +16,8 @@ findings:
   info: 2
   total: 7
 status: issues_found
+blockers_resolved: true
+resolution_commit: 7bb2e00
 ---
 
 # Phase 18: Code Review Report
@@ -226,6 +228,31 @@ this split — it asserts the *success-only* marker is absent from `r.stdout`).
 to keep future output-parsing changes from breaking the gate's tests.
 
 ---
+
+## Resolution (orchestrator, commit `7bb2e00`)
+
+Both BLOCKERs were independently reproduced/confirmed against the code and then fixed
+during phase execution, before phase verification:
+
+- **CR-01 — FIXED.** `vitest.config.ts` now sets `test.fileParallelism: false`, serializing
+  test-file execution so the shared-real-tree gate oracles no longer race. Verified: 3
+  consecutive `npx vitest run` passes (10 files, 136 passed / 1 skipped) with zero flakes;
+  the reviewer-confirmed `--no-file-parallelism` behavior is now the committed default.
+- **CR-02 — FIXED.** `scripts/catalog-freshness.ts` guards the committed-catalog read in a
+  `try/catch` that calls `cleanup()` and prints a clear-voice fail-closed finding (then
+  `exit 1`) instead of throwing a raw `ENOENT` and leaking the temp mirror. The committed
+  `catalog-freshness.js` was recompiled (`npm run build`); `npm run freshness` and
+  `npm run freshness:catalog` both pass.
+
+The 3 WARNINGs + 2 INFO are retained as **advisory** (non-blocking), with these dispositions:
+
+- **WR-02 — by design, not a defect.** The one-sentence summary is the deliberate D-01
+  contract (`firstSentence` splits on `". "` and keeps the first sentence). Left as-is;
+  the reviewer's note about authoring guidance is captured here for future kit authors.
+- **WR-01, WR-03, IN-01, IN-02 — accepted as advisory.** Minor robustness/clarity nits
+  (error-cause surfacing, frontmatter key class, a parity-only `toPosix`, a docstring
+  stream-split note). No behavioral defect; not in scope for this phase. Available for a
+  future polish pass via `/gsd-code-review 18 --fix`.
 
 _Reviewed: 2026-06-15_
 _Reviewer: Claude (gsd-code-reviewer)_
