@@ -136,6 +136,73 @@ It deliberately does **not** touch:
   become your content once seeded (they may hold real work), so they survive uninstall
 - `agent-factory/`, `.planning/`, `docs/`, `src/`, or any file you own
 
+### Migrating an existing install (`--migrate`)
+
+If you installed an **older, single-root grugops** (the v1.0 layout, where the kit was vendored
+in-repo under `agent-factory/` and your config lived inside it), `--migrate` moves you to the
+current two-root layout safely and reversibly:
+
+```sh
+node install/install.js --migrate --target /path/to/repo
+# preview the migrate plan first (changes NOTHING on disk):
+DRY_RUN=1 node install/install.js --migrate --target /path/to/repo
+```
+
+`--migrate` is additive-then-relocate and **never deletes** your content. It:
+
+- backs up the displaced in-repo `agent-factory/` to a timestamped
+  `agent-factory.bak.<ISO>` directory (it is renamed aside, never deleted);
+- carries your **edited config forward** to `.grugops/factory.config.json` and leaves the
+  original in place renamed to `<original>.bak.<ISO>`. Both legacy config locations are handled —
+  the in-repo `agent-factory/config/factory.config.json` and a repo-root `factory.config.json`;
+- copies the fresh shared kit to `${GRUGOPS_HOME:-$HOME/.grugops}` and materializes the resolver
+  adapters, exactly like a normal install (it is orchestration around the same install run).
+
+It is **idempotent and re-run-safe**: running `--migrate` a second time on an already-migrated
+repo does nothing. If a stray in-repo `agent-factory/` is left behind after migration, `--migrate`
+tells you and points you at the companion that removes it:
+
+```sh
+node install/install.js --prune-old-kit   # remove a leftover in-repo agent-factory/ after migrate
+```
+
+A `--migrate` on a clean repo (no old layout) simply falls through to a normal fresh install.
+
+#### Rolling a migrate back (the manual restore)
+
+A migrate is reversible by hand. To return a repo to its pre-migrate state:
+
+1. **Remove the grugops wiring.** Run the uninstall, which removes only the grugops-owned
+   adapters, the sentinel blocks, and the `.grugops/install.json` marker (it preserves the
+   migrate backups and the seeded config):
+
+   ```sh
+   node install/uninstall.js --target /path/to/repo
+   ```
+
+2. **Restore the in-repo kit.** Rename the timestamped backup back over `agent-factory/`. Inside
+   that backup, your original config is preserved as a `.bak`; rename it back first:
+
+   ```sh
+   cd /path/to/repo
+   mv agent-factory.bak.<ISO>/config/factory.config.json.bak.<ISO> \
+      agent-factory.bak.<ISO>/config/factory.config.json
+   mv agent-factory.bak.<ISO> agent-factory
+   ```
+
+   (If your old config lived at the **repo root** instead, rename that `.bak` back too:
+   `mv factory.config.json.bak.<ISO> factory.config.json`.)
+
+3. **Remove the migrate-seeded config.** Migrate carried your edited config forward into
+   `.grugops/`; remove that copy to return to the single-root shape:
+
+   ```sh
+   rm .grugops/factory.config.json
+   ```
+
+After these steps your `agent-factory/` kit and your edited config are exactly as they were before
+the migrate. All commands are local `mv`/`rm`/`node` — nothing fetches anything.
+
 ### Prove it yourself
 
 ```sh

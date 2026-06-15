@@ -36,6 +36,7 @@ import {
   readdirSync,
   readFileSync,
   rmSync,
+  renameSync,
   existsSync,
   statSync,
   lstatSync,
@@ -759,6 +760,52 @@ describe("install.js / uninstall.js — single-installer contract (folds install
     expect(snapshot(target)).toBe(tPre); // target byte-for-byte unchanged
     expect(existsSync(home)).toBe(false); // home never created
     expect(r.stdout).toMatch(/would-/); // the migrate plan is narrated, not executed
+  });
+
+  // SC3: uninstall-after-migrate + the DOCUMENTED manual .bak rename restores the pre-migrate state.
+  // migrate relocates the user's in-repo kit to a timestamped backup and carries the edited config
+  // forward; uninstall removes ONLY the grugops-owned wiring + marker (leaving the backups + seeded
+  // config — D-06); then the documented manual restore (README ### Migrating an existing install)
+  // renames agent-factory.bak.<ISO>/ back to agent-factory/, restores the config .bak inside it, and
+  // removes the migrate-seeded .grugops/factory.config.json — yielding the pre-migrate user content.
+  // uninstall.ts needs NO new automated migrate-rollback logic for this to hold (the restore is the
+  // user's documented manual step), so this case locks the README steps to the actual file shapes.
+  // The snapshot is scoped to the user-owned agent-factory/ tree (the grugops-owned .claude adapters
+  // are wiring that uninstall removes by design in both layouts, so they are not part of the
+  // restored user state).
+  it("migrate: uninstall-after-migrate restores pre-migrate state", () => {
+    const target = makeOldLayoutFixture();
+    const home = mkTmp();
+    // pre-migrate snapshot of the user-owned in-repo kit (the content migrate backs up + restore renames back).
+    const pre = snapshot(join(target, "agent-factory"));
+    expect(pre).toContain("config/factory.config.json"); // the edited config is part of pre-migrate state
+
+    expect(runInstall(target, home, "--migrate").status).toBe(0);
+    expect(runUninstall(target, home).status).toBe(0);
+
+    // DOCUMENTED MANUAL RESTORE (exactly the README ### Migrating an existing install rollback steps):
+    // 1. find the timestamped in-repo-kit backup.
+    const bakDirs = backupGlob(target, "agent-factory");
+    expect(bakDirs.length).toBe(1);
+    const bak = join(target, bakDirs[0]);
+    // 2. restore the original config .bak inside the backup (rename it back over its original name).
+    const cfgBaks = backupGlob(join(bak, "config"), "factory.config.json");
+    expect(cfgBaks.length).toBe(1);
+    renameSync(join(bak, "config", cfgBaks[0]), join(bak, "config", "factory.config.json"));
+    // 3. rename the whole backup back to agent-factory/.
+    renameSync(bak, join(target, "agent-factory"));
+    // 4. remove the migrate-seeded .grugops/factory.config.json (it was created by migrate).
+    rmSync(join(target, ".grugops", "factory.config.json"), { force: true });
+
+    // The restored user-owned in-repo kit equals the pre-migrate snapshot exactly.
+    expect(snapshot(join(target, "agent-factory"))).toBe(pre);
+    // The edited config content survived the whole round-trip.
+    expect(readFileSync(join(target, "agent-factory", "config", "factory.config.json"), "utf8")).toContain(
+      "OLD-USER-EDITED-CONFIG-KIT-LOCATION",
+    );
+    // The grugops-owned wiring + marker are gone (uninstall removed them).
+    expect(existsSync(join(target, ".claude", "agents", "grugops-orchestrator.md"))).toBe(false);
+    expect(existsSync(join(target, ".grugops", "install.json"))).toBe(false);
   });
 
   // ── D-11 materializeRunnable(): the kit-shipped runnable lands at the committed host path ─────

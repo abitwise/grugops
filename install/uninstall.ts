@@ -390,6 +390,15 @@ function unmergeGemini(): void {
 // Never remove $GRUGOPS_HOME — the shared kit is depended on by other repos; removing it is a
 // manual `rm` only (no --purge-kit this phase). Never remove .grugops/factory.config.json,
 // plans/, or memory-bank/ — those are seeded user state. This touches exactly one named file.
+//
+// Uninstall-after-migrate (SC3, MIGR-01): uninstall makes NO special migrate-rollback move. By
+// removing only the grugops-owned wiring + this marker while PRESERVING the migrate-created
+// timestamped backups (agent-factory.bak.<ISO>/ and the config .bak inside it) and the seeded
+// .grugops/ state, it leaves exactly the state the user's DOCUMENTED manual restore needs: rename
+// the agent-factory.bak.<ISO>/ backup back to agent-factory/, restore the config .bak, and remove
+// the migrate-seeded .grugops/factory.config.json. Those rollback steps are owned by the user and
+// documented in install/README.md (### Migrating an existing install). No automated migrate-rollback
+// logic lives here by design (minimal-change, never-delete-first).
 function removeMarker(): void {
   const m = `${TARGET}/.grugops/install.json`;
   if (!pathExists(m)) {
