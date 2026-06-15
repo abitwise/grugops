@@ -745,8 +745,9 @@ describe("install.js / uninstall.js — single-installer contract (folds install
     expect(agent).toContain("grugops:materialized-kit");
   });
 
-  // DRY_RUN: --migrate mutates nothing and prints would-* lines for backup/move/copy/materialize.
+  // DRY_RUN: --migrate / --update / --prune-old-kit mutate nothing and narrate would-* lines.
   it("DRY_RUN: new modes mutate nothing", () => {
+    // (a) --migrate arm: an old-layout target under DRY_RUN is narrated, never executed.
     const target = makeOldLayoutFixture();
     const home = mkTmp();
     rmSync(home, { recursive: true, force: true }); // start with home ABSENT
@@ -760,6 +761,44 @@ describe("install.js / uninstall.js — single-installer contract (folds install
     expect(snapshot(target)).toBe(tPre); // target byte-for-byte unchanged
     expect(existsSync(home)).toBe(false); // home never created
     expect(r.stdout).toMatch(/would-/); // the migrate plan is narrated, not executed
+
+    // (b) --update arm: install a real two-root pair, snapshot both roots, then DRY_RUN --update —
+    // it narrates would-* and mutates NEITHER root (kit-home-only and DRY_RUN-safe).
+    const uTarget = makeFixture();
+    const uHome = mkTmp();
+    expect(runInstall(uTarget, uHome).status).toBe(0);
+    // induce a differing installed kit so a NON-dry --update would have retained a backup.
+    writeFileSync(join(uHome, "agent-factory", "VERSION"), "9.9.9-displaced\n");
+    const utPre = snapshot(uTarget);
+    const uhPre = snapshot(uHome);
+    const ru = spawnSync("node", [INSTALL_JS, "--yes", "--update"], {
+      encoding: "utf8",
+      env: { ...process.env, DRY_RUN: "1", INSTALL_MODE: "copy", GRUGOPS_SRC: REPO_ROOT, GRUGOPS_HOME: uHome, TARGET: uTarget },
+    });
+    expect(ru.status).toBe(0);
+    expect(ru.stdout).toMatch(/would-/); // the update plan is narrated
+    expect(snapshot(uTarget)).toBe(utPre); // per-repo state untouched
+    expect(snapshot(uHome)).toBe(uhPre); // kit home unchanged (no real copy, no backup)
+    expect(homeBackupGlob(uHome).length).toBe(0); // DRY_RUN created no backup
+
+    // (c) --prune-old-kit arm: plant grugops backups in both roots, DRY_RUN --prune-old-kit lists
+    // would-remove and deletes NOTHING.
+    const pTarget = makeFixture();
+    const pHome = mkTmp();
+    expect(runInstall(pTarget, pHome).status).toBe(0);
+    // plant a grugops-shaped backup in each root.
+    mkdirSync(join(pHome, `agent-factory.bak.${"2026-06-15T00-00-00.000Z"}`), { recursive: true });
+    mkdirSync(join(pTarget, `agent-factory.bak.${"2026-06-15T00-00-00.000Z"}`), { recursive: true });
+    const ptPre = snapshot(pTarget);
+    const phPre = snapshot(pHome);
+    const rp = spawnSync("node", [INSTALL_JS, "--yes", "--prune-old-kit"], {
+      encoding: "utf8",
+      env: { ...process.env, DRY_RUN: "1", INSTALL_MODE: "copy", GRUGOPS_SRC: REPO_ROOT, GRUGOPS_HOME: pHome, TARGET: pTarget },
+    });
+    expect(rp.status).toBe(0);
+    expect(rp.stdout).toMatch(/would-remove/); // the prune plan is narrated
+    expect(snapshot(pTarget)).toBe(ptPre); // nothing deleted in the target
+    expect(snapshot(pHome)).toBe(phPre); // nothing deleted in the kit home
   });
 
   // SC3: uninstall-after-migrate + the DOCUMENTED manual .bak rename restores the pre-migrate state.
@@ -806,6 +845,93 @@ describe("install.js / uninstall.js — single-installer contract (folds install
     // The grugops-owned wiring + marker are gone (uninstall removed them).
     expect(existsSync(join(target, ".claude", "agents", "grugops-orchestrator.md"))).toBe(false);
     expect(existsSync(join(target, ".grugops", "install.json"))).toBe(false);
+  });
+
+  // ── --update (UPD-01, Plan 17-03) — the 3 RED-by-design update cases (D-05/D-06/D-07) ─────────
+  // --update refreshes the central $GRUGOPS_HOME kit in place via copyKit(retainBackup=true): it is
+  // kit-home-only (D-05, never touches a repo's per-repo state — no --target write), retains the
+  // displaced kit as a timestamped backup when it differs (D-06), is a true no-op when identical
+  // (D-09), and warns-then-proceeds on a downgrade (D-07). The doctor's "name the unresolved path"
+  // case (doctor: a missing kit) stays green — --update does not regress SC2.
+  //
+  // Helper: glob the timestamped kit backups under a kit home (agent-factory.bak.<ISO>).
+  const homeBackupGlob = (home: string): string[] => {
+    if (!existsSync(home)) return [];
+    return readdirSync(home).filter((n) => n.startsWith("agent-factory.bak."));
+  };
+
+  // D-05: --update refreshes the kit at $GRUGOPS_HOME and leaves the per-repo state UNTOUCHED.
+  // Install a target (seeds .grugops/, plans/, adapters), snapshot the whole target, run --update,
+  // and assert the target snapshot is byte-identical (kit-home-only — no target write) while the
+  // shared kit at home is still present and real (refreshed in place).
+  it("update: refreshes kit, leaves per-repo state untouched", () => {
+    const target = makeFixture();
+    const home = mkTmp();
+    expect(runInstall(target, home).status).toBe(0);
+
+    const tPre = snapshot(target); // the full per-repo state after install
+    expect(tPre).toContain(".grugops/install.json"); // a real installed per-repo state
+
+    const r = runInstall(target, home, "--update");
+    expect(r.status).toBe(0);
+
+    // kit-home-only (D-05): the per-repo state is byte-for-byte unchanged by --update.
+    expect(snapshot(target)).toBe(tPre);
+    // the shared kit at home is refreshed in place (still a real kit).
+    expect(existsSync(join(home, "agent-factory", "roles", "orchestrator.md"))).toBe(true);
+  });
+
+  // D-06: --update retains the displaced kit as a timestamped backup when it DIFFERS, and creates
+  // NO backup when identical (D-09 no-op). Install first (home now carries a kit), then induce a
+  // DIFFERING installed kit by editing a file inside the installed home kit (its VERSION, the way
+  // the doctor-skew case does), so copyKit's dirsSameContent(old, new) is false. --update renames
+  // the displaced kit to agent-factory.bak.<ISO>. A second --update with an unchanged source is a
+  // true no-op → no new backup.
+  it("update: displaced kit retained as backup", () => {
+    const target = makeFixture();
+    const home = mkTmp();
+    expect(runInstall(target, home).status).toBe(0);
+    expect(homeBackupGlob(home).length).toBe(0); // install never retains a kit backup
+
+    // induce a DIFFERING installed kit (edit the installed home kit's VERSION).
+    writeFileSync(join(home, "agent-factory", "VERSION"), "9.9.9-displaced\n");
+
+    const r = runInstall(target, home, "--update");
+    expect(r.status).toBe(0);
+    // D-06: the displaced (differing) kit is renamed aside to a timestamped backup.
+    expect(homeBackupGlob(home).length).toBe(1);
+    // the backup carries the edited content (it is the displaced kit, never deleted).
+    const bak = homeBackupGlob(home)[0];
+    expect(readFileSync(join(home, bak, "VERSION"), "utf8")).toContain("9.9.9-displaced");
+
+    // D-09: a second --update with an UNCHANGED source kit is a true no-op → no new backup.
+    const r2 = runInstall(target, home, "--update");
+    expect(r2.status).toBe(0);
+    expect(homeBackupGlob(home).length).toBe(1); // the count did not grow
+  });
+
+  // D-07: --update on a downgrade (the running checkout VERSION is OLDER than the installed kit
+  // VERSION) warns in clear voice naming BOTH versions, then PROCEEDS (exit 0, no refusal —
+  // SKEW-01 deferred). Install first, write a NEWER VERSION into the installed home kit, run
+  // --update from the (older) source, and assert exit 0 + a stdout warning carrying both versions.
+  it("update: downgrade warns then proceeds", () => {
+    const target = makeFixture();
+    const home = mkTmp();
+    expect(runInstall(target, home).status).toBe(0);
+
+    // make the INSTALLED kit a newer version than the running source checkout → a downgrade.
+    const installedVer = "99.0.0-installed";
+    writeFileSync(join(home, "agent-factory", "VERSION"), installedVer + "\n");
+    // the source VERSION is whatever the repo ships (older than 99.0.0).
+    const sourceVer = readFileSync(join(REPO_ROOT, "agent-factory", "VERSION"), "utf8").split("\n")[0];
+
+    const r = runInstall(target, home, "--update");
+    expect(r.status).toBe(0); // proceeds (no refusal — D-07)
+    // the warning names BOTH versions (the delta).
+    expect(r.stdout).toContain(installedVer);
+    expect(r.stdout).toContain(sourceVer);
+    // and the kit was refreshed (the source version is now installed).
+    expect(readFileSync(join(home, "agent-factory", "VERSION"), "utf8")).toContain(sourceVer);
   });
 
   // ── D-11 materializeRunnable(): the kit-shipped runnable lands at the committed host path ─────
