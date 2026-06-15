@@ -149,6 +149,28 @@ const TARGET = resolveTarget();
 const MAT_OPEN = "# <!-- grugops:materialized-kit -->";
 const MAT_CLOSE = "# <!-- /grugops:materialized-kit -->";
 const MAT_SLOT = "# 1. (installed) the absolute kit path the installer wrote above this line.";
+// report / mkdirp / sameContent / isoStamp: install-side helpers declared HERE (above the doctor +
+// the early --update / --prune-old-kit / --migrate branches) so those early branches — which run
+// before the original install run — can call them (transitively, via copyKit → dirsSameContent →
+// sameContent) without tripping the const temporal dead zone (mirrors the MAT_* relocation above
+// the doctor). copyKit is reached from the early --update branch, and it walks dirsSameContent
+// (D-09 differs-only no-op), which calls sameContent — so sameContent MUST be initialized first.
+const report = (label, msg) => console.log(`  ${label.padEnd(14)} ${msg}`);
+const mkdirp = (dir) => {
+    if (!existsSync(dir) && !DRY_RUN)
+        mkdirSync(dir, { recursive: true });
+};
+const sameContent = (a, b) => {
+    try {
+        return readFileSync(a, "utf8") === readFileSync(b, "utf8");
+    }
+    catch {
+        return false;
+    }
+};
+// isoStamp: a filesystem-safe, millisecond-precision ISO timestamp — every ':' replaced with '-'
+// so the suffix is legal on every filesystem including Windows (D-08). Shape: YYYY-MM-DDTHH-MM-SS.mmmZ.
+const isoStamp = () => new Date().toISOString().replace(/:/g, "-");
 // ---------------------------------------------------------------------------
 // Doctor (INSTALL-05) — a non-mutating verifier: reads only, stats only, mutates NOTHING (never
 // copyKit / materializeAdapter / seedState / writeMarker; never reads or writes the prod
@@ -356,6 +378,25 @@ function doctor() {
 if (CHECK) {
     process.exit(doctor());
 }
+// --- --update branch (UPD-01, Plan 17-03) — wired EARLY: right after the doctor early-exit and
+// BEFORE the D-07 self-checkout guard, because --update has NO target and only writes under
+// $GRUGOPS_HOME (Pitfall 4 / A2). It must never reach the install run, the guard, or any target
+// mutation — it prints a short banner, refreshes the kit home (kit-home-only, retain-backup,
+// downgrade warn-then-proceed via updateKitHome()), prints a --check hint, and exits 0. The
+// helper functions it calls (updateKitHome / copyKit) are hoisted declarations defined below. ---
+if (UPDATE) {
+    console.log("== grugops update (--update) ==");
+    console.log(`source: ${GRUGOPS_SRC}`);
+    console.log(`home:   ${GRUGOPS_HOME}`);
+    console.log(`kit:    ${KIT_ROOT}`);
+    if (DRY_RUN)
+        console.log("mode:   DRY_RUN (no filesystem changes)");
+    console.log("\n-- kit refresh (kit-home-only; per-repo state untouched) --");
+    updateKitHome();
+    console.log("\n  Run `node install/install.js --check --target <repo>` to verify a repo against the refreshed kit.");
+    console.log(`\n== update complete${DRY_RUN ? " (DRY_RUN — nothing changed)" : ""} ==`);
+    process.exit(0);
+}
 // --- D-07 self-checkout guard (ALWAYS-ON): runs unconditionally after TARGET resolution, before
 // any write, independent of TTY / --yes (Pitfall 3). Refuse when EITHER resolved TARGET ==
 // resolved GRUGOPS_SRC, OR the target carries grugops SOURCE markers (install/install.sh AND
@@ -389,22 +430,9 @@ const COPILOT_REL = ".github/copilot-instructions.md";
 const COPILOT_OPEN = "<!-- GSD:grugops-copilot-start-here -->";
 const COPILOT_PTR = "grugops: read `AGENTS.md`, then `agent-factory/roles/orchestrator.md`, and act as the Orchestrator.";
 const COPILOT_CLOSE = "<!-- GSD:grugops-copilot-start-here-end -->";
-const report = (label, msg) => console.log(`  ${label.padEnd(14)} ${msg}`);
-const mkdirp = (dir) => {
-    if (!existsSync(dir) && !DRY_RUN)
-        mkdirSync(dir, { recursive: true });
-};
 const isSymlink = (p) => {
     try {
         return lstatSync(p).isSymbolicLink();
-    }
-    catch {
-        return false;
-    }
-};
-const sameContent = (a, b) => {
-    try {
-        return readFileSync(a, "utf8") === readFileSync(b, "utf8");
     }
     catch {
         return false;
@@ -416,9 +444,6 @@ const sameContent = (a, b) => {
 // timestamp/backup logic (which would drift). Clear professional voice on every report
 // string (safety surface — D-13: these run as `node install/install.js --migrate|--update`).
 // ---------------------------------------------------------------------------
-// isoStamp: a filesystem-safe, millisecond-precision ISO timestamp — every ':' replaced with '-'
-// so the suffix is legal on every filesystem including Windows (D-08). Shape: YYYY-MM-DDTHH-MM-SS.mmmZ.
-const isoStamp = () => new Date().toISOString().replace(/:/g, "-");
 // dirsSameContent: recursive byte-equality of two directory trees. Compares the sorted set of
 // relative file paths and each file's bytes (via sameContent). FAIL-SAFE-TO-DIFFERS: any read
 // error, missing tree, or set mismatch returns false, so a true no-op (D-09 "no backup when
@@ -896,6 +921,77 @@ function writeMarker() {
     };
     writeFileSync(join(TARGET, ".grugops", "install.json"), JSON.stringify(marker, null, 2) + "\n");
     report("created", ".grugops/install.json (marker)");
+}
+// ---------------------------------------------------------------------------
+// Phase-17 Plan 03 — `--update` (UPD-01, D-05/D-06/D-07) + `--prune-old-kit` (D-10).
+//
+// `--update` refreshes the central $GRUGOPS_HOME kit IN PLACE and is KIT-HOME-ONLY (D-05): it never
+// touches a repo's per-repo state (no --target write, no seedState / no materializeAdapter / no
+// marker). It is single-source — it is copyKit(retainBackup=true), so the displaced kit is retained
+// as a timestamped backup when it DIFFERS (D-06) and is a true no-op when identical (D-09). On a
+// downgrade (the running checkout VERSION is older than the installed kit VERSION) it warns in clear
+// voice naming BOTH versions, then PROCEEDS (no refusal/negotiation — D-07; SKEW-01 deferred). Every
+// string is CLEAR PROFESSIONAL VOICE (safety surface; this runs as `node install/install.js --update`).
+// ---------------------------------------------------------------------------
+// readKitVersion: head -n 1 of a kit's VERSION file, the way writeMarker/doctor read it. Returns
+// "" on an absent/unreadable file (fail-closed — an absent VERSION simply yields no version delta).
+function readKitVersion(verFile) {
+    if (!existsSync(verFile))
+        return "";
+    try {
+        return readFileSync(verFile, "utf8").split("\n")[0].trim();
+    }
+    catch {
+        return "";
+    }
+}
+// isDowngrade: true ONLY when both versions parse as dotted numeric SemVer-ish triples AND the
+// source (running checkout) is strictly numerically older than the installed kit. Conservative:
+// any unparseable version, a pre-release/build suffix that does not parse, or equal versions →
+// false (we do not warn-on-downgrade when we cannot prove a downgrade — D-07 SKEW-01 deferred).
+function isDowngrade(installed, source) {
+    const parse = (v) => {
+        const core = v.split(/[-+]/, 1)[0]; // drop any -prerelease / +build suffix
+        const parts = core.split(".");
+        if (parts.length === 0)
+            return null;
+        const nums = [];
+        for (const p of parts) {
+            if (!/^\d+$/.test(p))
+                return null;
+            nums.push(Number(p));
+        }
+        return nums;
+    };
+    const a = parse(installed);
+    const b = parse(source);
+    if (!a || !b)
+        return false;
+    const len = Math.max(a.length, b.length);
+    for (let i = 0; i < len; i++) {
+        const ai = a[i] ?? 0;
+        const bi = b[i] ?? 0;
+        if (bi < ai)
+            return true; // source older at the first differing component → downgrade
+        if (bi > ai)
+            return false; // source newer → not a downgrade
+    }
+    return false; // equal → not a downgrade
+}
+// updateKitHome: the kit-home-only refresh (D-05). Read the installed kit VERSION and the running
+// source VERSION; on a proven downgrade warn (clear voice, naming both), then PROCEED. Then
+// copyKit(true) — the retain path keeps the displaced kit as a timestamped backup when it differs
+// (D-06) and is a no-op when identical (D-09). NOTHING else: no target write, no seed, no adapter,
+// no marker. DRY_RUN-safe (copyKit short-circuits; the downgrade warning still prints the plan).
+function updateKitHome() {
+    const installedVer = readKitVersion(join(KIT_ROOT, "VERSION"));
+    const sourceVer = readKitVersion(join(GRUGOPS_SRC, "agent-factory", "VERSION"));
+    if (installedVer !== "" && sourceVer !== "" && isDowngrade(installedVer, sourceVer)) {
+        report("warning", `the running checkout (${sourceVer}) is OLDER than the installed kit (${installedVer}). ` +
+            `Proceeding to refresh the kit to ${sourceVer} — the displaced kit is retained as a timestamped backup ` +
+            `(remove it later with --prune-old-kit).`);
+    }
+    copyKit(true);
 }
 // --- --migrate branch (MIGR-01, Plan 17-02) --------------------------------------------------
 // Placed AFTER the always-on D-07 self-checkout guard and the doctor early-exit, BEFORE the run
