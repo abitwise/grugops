@@ -285,7 +285,7 @@ Full phase details + milestone summary: `milestones/v1.1-ROADMAP.md` · requirem
 
 **Wave 1**
 
-- [ ] 18-01-PLAN.md — generate-catalog.ts read-only deterministic generator + committed docs/catalog/README.md + DOCS-01 oracle + generate:catalog script + .gitattributes LF pin [DOCS-01]
+- [x] 18-01-PLAN.md — generate-catalog.ts read-only deterministic generator + committed docs/catalog/README.md + DOCS-01 oracle + generate:catalog script + .gitattributes LF pin [DOCS-01]
 
 **Wave 2** *(blocked on Wave 1 — needs the generator .js + the committed catalog to byte-diff against)*
 
@@ -315,6 +315,6 @@ Phases execute in numeric order: 10 → 11 → 12 → 13 → 14 → 15 → 16 �
 | 15. TypeScript Tooling Migration | v1.2 | 6/6 | Complete    | 2026-06-13 |
 | 16. §14 Gate Convergence — Lint, UI/E2E & Test-Integrity | v1.2 | 3/3 | Complete    | 2026-06-14 |
 | 17. Install --migrate / --update | v1.2 | 3/3 | Complete    | 2026-06-15 |
-| 18. Browsable Docs Catalog | v1.2 | 0/2 | Not started | - |
+| 18. Browsable Docs Catalog | v1.2 | 1/2 | In Progress|  |
 
 **Totals:** 18 phases · 48 plans complete · 2 milestones shipped · v1.2 (9 phases, 10–18) in progress.

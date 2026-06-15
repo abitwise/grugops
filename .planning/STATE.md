@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: SDLC Depth, Quality Discipline & Browsable Docs
 status: executing
-last_updated: "2026-06-15T09:28:42.687Z"
-last_activity: 2026-06-15 -- Phase 18 planning complete
+last_updated: "2026-06-15T09:43:43.255Z"
+last_activity: 2026-06-15
 progress:
   total_phases: 9
   completed_phases: 8
   total_plans: 34
-  completed_plans: 32
+  completed_plans: 33
   percent: 89
 ---
 
@@ -20,16 +20,16 @@ progress:
 See: .planning/PROJECT.md (updated 2026-06-09 — v1.2 milestone started)
 
 **Core value:** A user installs grugops on top of the coding-agent CLI they already run, types `/grug`, and gets a disciplined delivery team — a visible board, strict handoffs, and an auditable requirement→code→test→release trail — entirely as readable markdown, with humans always holding merge and deploy.
-**Current focus:** Phase 18 — browsable docs catalog
+**Current focus:** Phase 18 — browsable-docs-catalog
 
 ## Current Position
 
-Phase: 18
-Plan: Not started
+Phase: 18 (browsable-docs-catalog) — EXECUTING
+Plan: 2 of 2
 Status: Ready to execute
-Last activity: 2026-06-15 -- Phase 18 planning complete
+Last activity: 2026-06-15
 
-Progress: [██████████] 100%
+Progress: [██████████] 97%
 
 ## Performance Metrics
 
@@ -143,6 +143,7 @@ Progress: [██████████] 100%
 | Phase 17 P01 | 9m | 2 tasks | 3 files |
 | Phase 17 P02 | 26m | 2 tasks | 6 files |
 | Phase 17 P03 | 14m | 2 tasks | 4 files |
+| Phase 18 P01 | 5m | 2 tasks | 6 files |
 
 ## Accumulated Context
 
@@ -314,6 +315,7 @@ Recent decisions affecting current work:
 - [Phase ?]: [17-03] --update is kit-home-only (D-05): branches BEFORE the self-checkout guard, calls only updateKitHome()=copyKit(retainBackup=true), never writes a target; retains the displaced kit as agent-factory.bak.<ISO> when it differs (D-06) / no-op when identical (D-09); a downgrade warns naming both versions then PROCEEDS (D-07)
 - [Phase ?]: [17-03] --prune-old-kit is the single opt-in deletion path (D-10): anchored GRUGOPS_BACKUP_SUFFIX (.bak.<ISO>, NOT *.bak — Pitfall 5) + isProtected()-style guard mirroring uninstall.ts; removes only grugops backups in both roots; the default install path never prunes (never-delete-first)
 - [Phase ?]: [17-03] TDZ class fixed (Rule 3): the early --update / --prune-old-kit branches reached const-arrow helpers (report/mkdirp/sameContent/isoStamp/GRUGOPS_BACKUP_SUFFIX) before init; relocated them above the doctor (mirrors the MAT_* relocation). The sameContent TDZ silently broke the D-09 differs-only no-op (every --update forced a backup)
+- [Phase ?]: [18-01] DOCS-01 catalog generator: self-discovers 17 roles + 16 workflows via readdirSync; read-only parse; D-08 byte-stable ordering; D-09 workflows 12/13 cadence -> UNKNOWN - verify; fail-closed before any partial write; catalog source links are repo-root-relative to keep the file free of '..'
 
 ### Pending Todos
 
@@ -356,6 +358,6 @@ Items acknowledged and deferred at the v1.1 milestone close on 2026-06-08. All a
 
 ## Session Continuity
 
-Last session: 2026-06-15T08:35:15.060Z
+Last session: 2026-06-15T09:43:29.029Z
 Stopped at: Phase 18 context gathered
-Resume file: .planning/phases/18-browsable-docs-catalog/18-CONTEXT.md
+Resume file: None
