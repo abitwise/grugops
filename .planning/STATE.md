@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: SDLC Depth, Quality Discipline & Browsable Docs
-status: executing
-last_updated: "2026-06-15T07:29:28.094Z"
+status: verifying
+last_updated: "2026-06-15T07:47:45.491Z"
 last_activity: 2026-06-15
 progress:
   total_phases: 9
-  completed_phases: 7
+  completed_phases: 8
   total_plans: 32
-  completed_plans: 31
-  percent: 78
+  completed_plans: 32
+  percent: 89
 ---
 
 # Project State
@@ -26,10 +26,10 @@ See: .planning/PROJECT.md (updated 2026-06-09 — v1.2 milestone started)
 
 Phase: 17 (install-migrate-update) — EXECUTING
 Plan: 3 of 3
-Status: Ready to execute
+Status: Phase complete — ready for verification
 Last activity: 2026-06-15
 
-Progress: [██████████] 97%
+Progress: [██████████] 100%
 
 ## Performance Metrics
 
@@ -141,6 +141,7 @@ Progress: [██████████] 97%
 | Phase 16 P03 | 9m | 2 tasks | 3 files |
 | Phase 17 P01 | 9m | 2 tasks | 3 files |
 | Phase 17 P02 | 26m | 2 tasks | 6 files |
+| Phase 17 P03 | 14m | 2 tasks | 4 files |
 
 ## Accumulated Context
 
@@ -309,6 +310,9 @@ Recent decisions affecting current work:
 - [Phase ?]: [17-02] symlink-corruption LANDMINE (Pitfall 1/T-17-02-SYM) FIXED: migratePreSteps rmSync(force) any isSymlink resolver-adapter dest BEFORE materializeAdapter, proven byte-unchanged source-clone by a RED-by-design case; never writeFileSync through a live symlink
 - [Phase ?]: [17-02] D-04 config-path discrepancy RESOLVED as HANDLE-BOTH: migrate checks both the v1.0 in-repo agent-factory/config/factory.config.json AND the repo-root factory.config.json, carrying whichever exists forward to .grugops/ (only-if-absent) and leaving the original as a timestamped .bak
 - [Phase ?]: [17-02] SC3 restore is the user's DOCUMENTED MANUAL .bak rename (README), NOT new uninstall logic — uninstall.ts gained only a clear-voice comment (no new flag, no migrate-rollback code); the SC3 snapshot is scoped to the user-owned agent-factory/ tree since migrate replaces the grugops .claude adapters in place
+- [Phase ?]: [17-03] --update is kit-home-only (D-05): branches BEFORE the self-checkout guard, calls only updateKitHome()=copyKit(retainBackup=true), never writes a target; retains the displaced kit as agent-factory.bak.<ISO> when it differs (D-06) / no-op when identical (D-09); a downgrade warns naming both versions then PROCEEDS (D-07)
+- [Phase ?]: [17-03] --prune-old-kit is the single opt-in deletion path (D-10): anchored GRUGOPS_BACKUP_SUFFIX (.bak.<ISO>, NOT *.bak — Pitfall 5) + isProtected()-style guard mirroring uninstall.ts; removes only grugops backups in both roots; the default install path never prunes (never-delete-first)
+- [Phase ?]: [17-03] TDZ class fixed (Rule 3): the early --update / --prune-old-kit branches reached const-arrow helpers (report/mkdirp/sameContent/isoStamp/GRUGOPS_BACKUP_SUFFIX) before init; relocated them above the doctor (mirrors the MAT_* relocation). The sameContent TDZ silently broke the D-09 differs-only no-op (every --update forced a backup)
 
 ### Pending Todos
 
@@ -351,6 +355,6 @@ Items acknowledged and deferred at the v1.1 milestone close on 2026-06-08. All a
 
 ## Session Continuity
 
-Last session: 2026-06-15T07:28:49.766Z
+Last session: 2026-06-15T07:47:13.329Z
 Stopped at: Phase 17 context gathered
 Resume file: None

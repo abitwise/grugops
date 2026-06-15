@@ -70,7 +70,7 @@ Each maps to exactly one roadmap phase (traceability filled by the roadmapper).
 ### Install Migrate/Update
 
 - [x] **MIGR-01**: `install.sh --migrate` converts an already-installed in-repo layout to the split two-root layout — additive-then-relocate, never delete-first (rename-to-backup; deletion only behind explicit `--prune-old-kit`); byte-parity sh/Node; re-run is a no-op
-- [ ] **UPD-01**: `install.sh --update` refreshes the central `$GRUGOPS_HOME` kit in place (two-stage, reversible); the doctor names the specific unresolved path on failure
+- [x] **UPD-01**: `install.sh --update` refreshes the central `$GRUGOPS_HOME` kit in place (two-stage, reversible); the doctor names the specific unresolved path on failure
 
 ### Tooling / TypeScript Foundation
 
@@ -139,7 +139,7 @@ Each requirement maps to exactly one phase. v1.2 phase numbering continues from 
 | DOCS-01 | Phase 18 | Pending |
 | DOCS-02 | Phase 18 | Pending |
 | MIGR-01 | Phase 17 | Complete |
-| UPD-01 | Phase 17 | Pending |
+| UPD-01 | Phase 17 | Complete |
 
 **Coverage:**
 - v1.2 requirements: 30 total
