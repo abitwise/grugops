@@ -496,6 +496,74 @@ function backupIfDiffers(target, replacement, label) {
     report("backed-up", `${label} → ${backup}`);
     return true;
 }
+function detectOldLayout() {
+    const hasInRepoKit = existsSync(join(TARGET, "agent-factory", "roles", "orchestrator.md"));
+    const marker = readMarker(join(TARGET, ".grugops", "install.json"));
+    const adapterMaterialized = readAdapterKit(join(TARGET, AGENT_REL)) !== "";
+    return {
+        isOldLayout: hasInRepoKit && marker === null && !adapterMaterialized,
+        isMigrated: marker !== null,
+        isClean: !hasInRepoKit && marker === null,
+        leftoverKit: hasInRepoKit,
+    };
+}
+// migratePreSteps: the one-time relocation safety work, run ONLY when isOldLayout. After it the
+// install run proceeds verbatim (D-02). Three steps, all never-delete-first and DRY_RUN-safe:
+//   1. Carry the user's edited config forward. BOTH legacy locations are checked (the v1.0 in-repo
+//      agent-factory/config/factory.config.json AND the repo-root factory.config.json — the planner
+//      resolved the CONTEXT/history discrepancy by HANDLING BOTH, D-04). For whichever exists, COPY
+//      it to .grugops/factory.config.json only if that seeded target does not already exist
+//      (never-overwrite seeded state, D-04), then rename the original aside to `${original}.bak.<ISO>`.
+//   2. Back up the displaced in-repo agent-factory/ via backupIfDiffers (timestamped, differs-only,
+//      D-08/D-09). The in-repo kit is NOT at KIT_ROOT, so copyKit's retainBackup does not cover it.
+//   3. LANDMINE (Pitfall 1): unlink any resolver-adapter dest that is a live SYMLINK BEFORE the
+//      install run re-materializes it — never writeFileSync THROUGH a symlink into the source clone.
+function migratePreSteps() {
+    // 1. config-move (BOTH legacy locations, D-04).
+    const seededConfig = join(TARGET, ".grugops", "factory.config.json");
+    const legacyConfigs = [
+        join(TARGET, "factory.config.json"),
+        join(TARGET, "agent-factory", "config", "factory.config.json"),
+    ];
+    for (const legacy of legacyConfigs) {
+        if (!existsSync(legacy))
+            continue;
+        if (DRY_RUN) {
+            report("would-move", `user config ${legacy} → ${seededConfig} (original left as .bak)`);
+            continue;
+        }
+        // COPY forward to the seeded .grugops/ location only if absent (never-overwrite seeded state).
+        if (!existsSync(seededConfig)) {
+            mkdirp(dirname(seededConfig));
+            copyFileSync(legacy, seededConfig);
+            report("moved", `user config → ${seededConfig} (carried forward, D-04)`);
+        }
+        else {
+            report("skipped", `user config (.grugops/factory.config.json already present — kept, D-04)`);
+        }
+        // Leave the original in place renamed to a timestamped .bak (never deleted, D-04).
+        const bak = `${legacy}.bak.${isoStamp()}`;
+        renameSync(legacy, bak);
+        report("backed-up", `original config → ${bak}`);
+    }
+    // 2. back up the displaced in-repo agent-factory/ (timestamped, differs-only — D-08/D-09).
+    backupIfDiffers(join(TARGET, "agent-factory"), join(GRUGOPS_SRC, "agent-factory"), "in-repo agent-factory/");
+    // 3. LANDMINE (Pitfall 1): unlink any SYMLINK resolver-adapter dest before re-materialize.
+    const adapterDests = [
+        join(TARGET, AGENT_REL),
+        join(TARGET, ".claude", "skills", "grugops", "SKILL.md"),
+    ];
+    for (const dest of adapterDests) {
+        if (!isSymlink(dest))
+            continue;
+        if (DRY_RUN) {
+            report("would-unlink", `symlink adapter ${dest} (never write through a live symlink — Pitfall 1)`);
+            continue;
+        }
+        rmSync(dest, { force: true });
+        report("unlinked", `symlink adapter ${dest} (re-materialized as a real file — Pitfall 1)`);
+    }
+}
 // ensure_block: idempotent sentinel-delimited append to a user file. Never overwrites; skips
 // if the open sentinel is already present; creates the file if absent. Never `>`-truncates.
 function ensureBlock(file, open, body, close, label) {
@@ -828,6 +896,42 @@ function writeMarker() {
     };
     writeFileSync(join(TARGET, ".grugops", "install.json"), JSON.stringify(marker, null, 2) + "\n");
     report("created", ".grugops/install.json (marker)");
+}
+// --- --migrate branch (MIGR-01, Plan 17-02) --------------------------------------------------
+// Placed AFTER the always-on D-07 self-checkout guard and the doctor early-exit, BEFORE the run
+// banner + the `-- kit --` block, so migrate operates on a real user repo and keeps the guard
+// (Pitfall 4). It is pure orchestration around the unchanged install run (D-02): it never forks the
+// copyKit→materializeAdapter→seedState→writeMarker sequence below.
+//   - isMigrated → already two-root. Do NOT re-run install (D-12 no re-mutate). If a leftover
+//     in-repo agent-factory/ remains (half-state) warn in clear voice + hint --prune-old-kit; else
+//     report already-migrated. Either way exit 0.
+//   - isOldLayout → run migratePreSteps() (config-move + in-repo-kit backup + symlink-unlink), then
+//     FALL THROUGH into the existing install run (which copies the fresh kit, D-01).
+//   - isClean (or anything else) → FALL THROUGH into the existing install run unchanged (D-11).
+if (MIGRATE) {
+    const layout = detectOldLayout();
+    if (layout.isMigrated) {
+        if (layout.leftoverKit) {
+            console.log("This repo is already migrated to the two-root layout, but a leftover in-repo agent-factory/ remains.");
+            console.log("Nothing was changed. To remove the leftover in-repo kit, run: node install/install.js --prune-old-kit");
+        }
+        else {
+            console.log("This repo is already migrated to the two-root layout. Nothing to do.");
+        }
+        process.exit(0);
+    }
+    if (layout.isOldLayout) {
+        console.log("== grugops migrate (old in-repo layout → two-root) ==");
+        console.log(`target: ${TARGET}`);
+        if (DRY_RUN)
+            console.log("mode:   DRY_RUN (no filesystem changes)");
+        console.log("\n-- migrate pre-steps --");
+        migratePreSteps();
+        // FALL THROUGH into the install run below (D-02): it copies the fresh kit from source (D-01),
+        // re-materializes the resolver adapters, seeds state (incl. the carried-forward config), and
+        // writes the marker.
+    }
+    // isClean (or any other non-old, non-migrated state): fall through to a normal fresh install (D-11).
 }
 // --- run -------------------------------------------------------------------
 console.log("== grugops install ==");

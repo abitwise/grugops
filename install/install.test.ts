@@ -614,17 +614,16 @@ describe("install.js / uninstall.js — single-installer contract (folds install
   });
 
   // SC1 / D-11: --migrate on a clean repo (no old layout, no install) falls through to a normal
-  // fresh install — the result equals a plain runInstall (no migrate pre-steps fire).
+  // fresh install — the result equals a plain runInstall (no migrate pre-steps fire). A truly clean
+  // repo has NO in-repo agent-factory/ and NO marker (makeFixture plants an in-repo kit, so it is
+  // an old-layout shape, not clean — use a bare target here).
   it("migrate: clean repo falls through to fresh install", () => {
-    const targetA = makeFixture();
+    const targetA = mkTmp(); // bare: no agent-factory/, no marker → isClean
+    writeFileSync(join(targetA, "CLAUDE.md"), "# User Project\n");
     const homeA = mkTmp();
     expect(runInstall(targetA, homeA, "--migrate").status).toBe(0);
 
-    const targetB = makeFixture();
-    const homeB = mkTmp();
-    expect(runInstall(targetB, homeB).status).toBe(0);
-
-    // A --migrate on a clean repo produces the same target shape as a plain install (no backups).
+    // A --migrate on a clean repo produces a plain-install target shape (no migrate backups fired).
     expect(backupGlob(targetA, "agent-factory").length).toBe(0);
     expect(existsSync(join(targetA, ".grugops", "install.json"))).toBe(true);
     expect(existsSync(join(targetA, ".claude", "agents", "grugops-orchestrator.md"))).toBe(true);
@@ -655,44 +654,73 @@ describe("install.js / uninstall.js — single-installer contract (folds install
   // with the edited content, original left as a .bak; BOTH legacy locations are handled (the v1.0
   // in-repo agent-factory/config/ location AND the CONTEXT repo-root factory.config.json location).
   it("migrate: user-edited config survives", () => {
-    // (a) the v1.0 in-repo kit-config location.
+    // (a) the v1.0 in-repo kit-config location. The edited config is carried forward to .grugops/;
+    // the original is left as a .bak AND travels inside the wholesale agent-factory/ backup (the
+    // in-repo kit is renamed aside by step 2), so the original content is preserved twice over.
     const targetK = makeOldLayoutFixture();
     const homeK = mkTmp();
     expect(runInstall(targetK, homeK, "--migrate").status).toBe(0);
     // the edited config is carried forward to the two-root .grugops/ location.
     const seededK = readFileSync(join(targetK, ".grugops", "factory.config.json"), "utf8");
     expect(seededK).toContain("OLD-USER-EDITED-CONFIG-KIT-LOCATION");
-    // the original is left as a timestamped .bak (never lost, D-04).
-    expect(backupGlob(join(targetK, "agent-factory", "config"), "factory.config.json").length).toBe(1);
+    // the original is never lost — the displaced in-repo agent-factory/ is preserved as a
+    // timestamped backup that carries the original config (renamed to a .bak inside it).
+    const bakDirs = backupGlob(targetK, "agent-factory");
+    expect(bakDirs.length).toBe(1);
+    const bakConfigDir = join(targetK, bakDirs[0], "config");
+    expect(backupGlob(bakConfigDir, "factory.config.json").length).toBe(1);
 
-    // (b) the CONTEXT repo-root location.
+    // (b) the CONTEXT repo-root location. The repo-root config is carried forward; its .bak stays
+    // at the repo root (it is NOT inside agent-factory/, so it does not travel with the kit backup).
     const targetR = makeOldLayoutFixture({ rootConfig: true });
     const homeR = mkTmp();
     expect(runInstall(targetR, homeR, "--migrate").status).toBe(0);
     const seededR = readFileSync(join(targetR, ".grugops", "factory.config.json"), "utf8");
     // the repo-root config is the user-edited one carried forward (root checked too).
     expect(seededR).toMatch(/OLD-USER-EDITED-CONFIG-(ROOT|KIT)-LOCATION/);
-    // a .bak of the repo-root original exists.
+    // a .bak of the repo-root original exists at the repo root.
     expect(backupGlob(targetR, "factory.config.json").length).toBe(1);
   });
 
-  // SC3 / CR-01: bounded marker-strip — a repo-relative adapter with an UNTERMINATED
-  // grugops:materialized-kit open marker loses no following lines after migrate re-materializes
-  // (the v1.1 CR-01 bounded-removal not regressed).
+  // SC3 / CR-01: bounded marker-strip — migrate re-materializes the resolver adapters via
+  // materializeAdapter, which strips a prior grugops:materialized-kit block from the SOURCE adapter
+  // before injecting the fresh KIT line. CR-01 guarantees that an UNTERMINATED open marker (no close)
+  // in that source adapter loses NO following lines (it buffers the block and restores it at EOF
+  // rather than swallowing the rest of the file). To exercise migrate's materializeAdapter on
+  // unterminated-marker content, point GRUGOPS_SRC at a minimal fake source whose orchestrator
+  // adapter carries an unterminated open marker + a sentinel line, run --migrate, and assert the
+  // sentinel survives in the materialized output (the v1.1 CR-01 bounded removal not regressed).
   it("migrate: bounded marker-strip", () => {
+    // minimal fake GRUGOPS_SRC the install run can copy + materialize from.
+    const src = mkTmp();
+    mkdirSync(join(src, "agent-factory", "roles"), { recursive: true });
+    mkdirSync(join(src, "agent-factory", "seed", ".grugops"), { recursive: true });
+    mkdirSync(join(src, ".claude", "skills", "grugops"), { recursive: true });
+    mkdirSync(join(src, ".claude", "agents"), { recursive: true });
+    writeFileSync(join(src, "agent-factory", "roles", "orchestrator.md"), "FROZEN SRC CORE\n");
+    writeFileSync(join(src, "agent-factory", "VERSION"), "0.0.0-test\n");
+    writeFileSync(join(src, "agent-factory", "seed", ".grugops", "factory.config.json"), '{"seed":true}\n');
+    writeFileSync(join(src, ".claude", "skills", "grugops", "SKILL.md"), "> src skill\n");
+    // The orchestrator adapter SOURCE carries an UNTERMINATED grugops:materialized-kit open marker
+    // (no close) followed by a sentinel line and the MAT_SLOT line. CR-01: the unterminated block is
+    // restored verbatim at EOF rather than swallowing every following line.
+    writeFileSync(
+      join(src, ".claude", "agents", "grugops-orchestrator.md"),
+      "# <!-- grugops:materialized-kit -->\n" +
+        'KIT="/will/be/stripped"\n' +
+        "SENTINEL-AFTER-UNTERMINATED-OPEN-MUST-SURVIVE\n" +
+        "# 1. (installed) the absolute kit path the installer wrote above this line.\n",
+    );
+
     const target = makeOldLayoutFixture();
     const home = mkTmp();
-    // Plant a UNTERMINATED open marker in the orchestrator adapter with a sentinel line AFTER it.
-    const adapter = join(target, ".claude", "agents", "grugops-orchestrator.md");
-    writeFileSync(
-      adapter,
-      "# <!-- grugops:materialized-kit -->\n" +
-        'KIT="/old/stale/path"\n' +
-        "SENTINEL-AFTER-UNTERMINATED-OPEN-MUST-SURVIVE\n",
-    );
-    expect(runInstall(target, home, "--migrate").status).toBe(0);
-    const after = readFileSync(adapter, "utf8");
-    // the line following the unterminated open marker is preserved (CR-01 bounded removal).
+    const r = spawnSync("node", [INSTALL_JS, "--yes", "--migrate"], {
+      encoding: "utf8",
+      env: { ...process.env, INSTALL_MODE: "copy", GRUGOPS_SRC: src, GRUGOPS_HOME: home, TARGET: target },
+    });
+    expect(r.status).toBe(0);
+    const after = readFileSync(join(target, ".claude", "agents", "grugops-orchestrator.md"), "utf8");
+    // the line following the unterminated open marker is preserved (CR-01 bounded removal — no loss).
     expect(after).toContain("SENTINEL-AFTER-UNTERMINATED-OPEN-MUST-SURVIVE");
   });
 
