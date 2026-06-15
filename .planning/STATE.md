@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: SDLC Depth, Quality Discipline & Browsable Docs
 status: executing
-last_updated: "2026-06-15T07:15:53.778Z"
+last_updated: "2026-06-15T07:29:28.094Z"
 last_activity: 2026-06-15
 progress:
   total_phases: 9
   completed_phases: 7
   total_plans: 32
-  completed_plans: 30
+  completed_plans: 31
   percent: 78
 ---
 
@@ -25,11 +25,11 @@ See: .planning/PROJECT.md (updated 2026-06-09 — v1.2 milestone started)
 ## Current Position
 
 Phase: 17 (install-migrate-update) — EXECUTING
-Plan: 2 of 3
+Plan: 3 of 3
 Status: Ready to execute
 Last activity: 2026-06-15
 
-Progress: [█████████░] 94%
+Progress: [██████████] 97%
 
 ## Performance Metrics
 
@@ -140,6 +140,7 @@ Progress: [█████████░] 94%
 | Phase Phase 16 P02 P02 | 6m | 2 tasks | 4 files |
 | Phase 16 P03 | 9m | 2 tasks | 3 files |
 | Phase 17 P01 | 9m | 2 tasks | 3 files |
+| Phase 17 P02 | 26m | 2 tasks | 6 files |
 
 ## Accumulated Context
 
@@ -304,6 +305,10 @@ Recent decisions affecting current work:
 - [Phase ?]: [16-03] AGENTS.md ### Test integrity skip-count slot added (mirrors ### Acceptance): UNKNOWN-verify default, per-runner vitest/jest/pytest/go examples-only in an HTML comment, never-a-silent-0. factory.config.md dial→behavior prose added by enriching existing quality.* Meaning cells — ZERO new keys, JSON twin byte-unchanged (Pitfall 6); .grugops/test-skips.md registry path is a fixed convention (D-01), not a config value.
 - [Phase ?]: [17-01] Wave-0 keystone: 3 mode flags (--migrate/--update/--prune-old-kit) RECOGNIZED only (NOT wired; Plans 02/03 own the branches), any other unknown arg still exits 2 (T-17-01-AP); single-source backup primitives isoStamp()/dirsSameContent()/backupIfDiffers() — differs-only no-op (D-09), DRY_RUN-safe, clear professional voice; copyKit(retainBackup) default path behaviorally unchanged (baseline idempotency + two-root cases green)
 - [Phase ?]: [17-01] D-13 honored — no install.sh; modes are flags on the single TS installer, install.js rebuilt + freshness-green; makeOldLayoutFixture() plants config at BOTH the v1.0 in-repo AND opt-in repo-root (D-04) locations so Plan 02 handles both; MIGR-01/UPD-01 deliberately NOT marked complete (satisfied once --migrate/--update are wired + verified in Plans 02/03)
+- [Phase ?]: [17-02] --migrate (MIGR-01) is single-source orchestration (D-02): detectOldLayout classifies + migratePreSteps relocates (config-move BOTH legacy locations D-04, in-repo-kit backup, symlink-unlink LANDMINE Pitfall 1) then the branch FALLS THROUGH into the unchanged install run — no forked path
+- [Phase ?]: [17-02] symlink-corruption LANDMINE (Pitfall 1/T-17-02-SYM) FIXED: migratePreSteps rmSync(force) any isSymlink resolver-adapter dest BEFORE materializeAdapter, proven byte-unchanged source-clone by a RED-by-design case; never writeFileSync through a live symlink
+- [Phase ?]: [17-02] D-04 config-path discrepancy RESOLVED as HANDLE-BOTH: migrate checks both the v1.0 in-repo agent-factory/config/factory.config.json AND the repo-root factory.config.json, carrying whichever exists forward to .grugops/ (only-if-absent) and leaving the original as a timestamped .bak
+- [Phase ?]: [17-02] SC3 restore is the user's DOCUMENTED MANUAL .bak rename (README), NOT new uninstall logic — uninstall.ts gained only a clear-voice comment (no new flag, no migrate-rollback code); the SC3 snapshot is scoped to the user-owned agent-factory/ tree since migrate replaces the grugops .claude adapters in place
 
 ### Pending Todos
 
@@ -346,6 +351,6 @@ Items acknowledged and deferred at the v1.1 milestone close on 2026-06-08. All a
 
 ## Session Continuity
 
-Last session: 2026-06-15T07:15:25.110Z
+Last session: 2026-06-15T07:28:49.766Z
 Stopped at: Phase 17 context gathered
 Resume file: None

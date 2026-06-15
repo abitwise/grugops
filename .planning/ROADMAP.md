@@ -264,7 +264,7 @@ Full phase details + milestone summary: `milestones/v1.1-ROADMAP.md` · requirem
 
 **Wave 1** *(blocked on Wave 0 — shares install.ts/install.test.ts)*
 
-- [ ] 17-02-PLAN.md — --migrate: detectOldLayout() + pre-steps (config-move D-04, symlink-unlink LANDMINE, backup) around the unchanged install run + SC3 uninstall-restore (minimal uninstall.ts) + README [MIGR-01]
+- [x] 17-02-PLAN.md — --migrate: detectOldLayout() + pre-steps (config-move D-04, symlink-unlink LANDMINE, backup) around the unchanged install run + SC3 uninstall-restore (minimal uninstall.ts) + README [MIGR-01]
 
 **Wave 2** *(blocked on Wave 1 — shares install.ts/install.test.ts/README.md)*
 
@@ -306,7 +306,7 @@ Phases execute in numeric order: 10 → 11 → 12 → 13 → 14 → 15 → 16 �
 | 14. Security Audit (OWASP ASVS) & Checklist Re-Anchor | v1.2 | 3/3 | Complete    | 2026-06-13 |
 | 15. TypeScript Tooling Migration | v1.2 | 6/6 | Complete    | 2026-06-13 |
 | 16. §14 Gate Convergence — Lint, UI/E2E & Test-Integrity | v1.2 | 3/3 | Complete    | 2026-06-14 |
-| 17. Install --migrate / --update | v1.2 | 1/3 | In Progress|  |
+| 17. Install --migrate / --update | v1.2 | 2/3 | In Progress|  |
 | 18. Browsable Docs Catalog | v1.2 | 0/TBD | Not started | - |
 
 **Totals:** 18 phases · 48 plans complete · 2 milestones shipped · v1.2 (9 phases, 10–18) in progress.
