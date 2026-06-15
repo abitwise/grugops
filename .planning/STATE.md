@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: SDLC Depth, Quality Discipline & Browsable Docs
 status: executing
-last_updated: "2026-06-15T06:54:49.221Z"
-last_activity: 2026-06-15 -- Phase 17 planning complete
+last_updated: "2026-06-15T07:15:53.778Z"
+last_activity: 2026-06-15
 progress:
   total_phases: 9
   completed_phases: 7
   total_plans: 32
-  completed_plans: 29
+  completed_plans: 30
   percent: 78
 ---
 
@@ -20,16 +20,16 @@ progress:
 See: .planning/PROJECT.md (updated 2026-06-09 — v1.2 milestone started)
 
 **Core value:** A user installs grugops on top of the coding-agent CLI they already run, types `/grug`, and gets a disciplined delivery team — a visible board, strict handoffs, and an auditable requirement→code→test→release trail — entirely as readable markdown, with humans always holding merge and deploy.
-**Current focus:** Phase 17 — install   migrate /   update
+**Current focus:** Phase 17 — install-migrate-update
 
 ## Current Position
 
-Phase: 17
-Plan: Not started
+Phase: 17 (install-migrate-update) — EXECUTING
+Plan: 2 of 3
 Status: Ready to execute
-Last activity: 2026-06-15 -- Phase 17 planning complete
+Last activity: 2026-06-15
 
-Progress: [██████████] 100%
+Progress: [█████████░] 94%
 
 ## Performance Metrics
 
@@ -139,6 +139,7 @@ Progress: [██████████] 100%
 | Phase 16 P01 | 4m | 3 tasks | 9 files |
 | Phase Phase 16 P02 P02 | 6m | 2 tasks | 4 files |
 | Phase 16 P03 | 9m | 2 tasks | 3 files |
+| Phase 17 P01 | 9m | 2 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -301,6 +302,8 @@ Recent decisions affecting current work:
 - [Phase ?]: [16-03] Convergence keystone: all gate behavior wired single-source into 05-pr-quality-gate.md — quality.lint {strict,autofix} (UNKNOWN-verify non-blocking when no linter), quality.ui_e2e referencing recipe+axe by filename, and a NEW human-only test-integrity step invoking node tools/grugops/test-skip-integrity.js --skip-count <N> branching on exit 0/1/2; no fork into 14/15, no §14 literal.
 - [Phase ?]: [16-03] D-08/D-09/D-10 terminal mapping on the bounded self_fix_attempts loop: lint + UI/E2E code/a11y are agent-fixable; visual-baseline acceptance and test-integrity exit-1 are human-only and short-circuit to BLOCKED_NEEDS_FIX WITHOUT spending self_fix_attempts; gate_enforcement:advisory downgrades the action but still emits the finding loudly (TINT-03 floor = no silent accept, not a hard stop). Three terminal results preserved.
 - [Phase ?]: [16-03] AGENTS.md ### Test integrity skip-count slot added (mirrors ### Acceptance): UNKNOWN-verify default, per-runner vitest/jest/pytest/go examples-only in an HTML comment, never-a-silent-0. factory.config.md dial→behavior prose added by enriching existing quality.* Meaning cells — ZERO new keys, JSON twin byte-unchanged (Pitfall 6); .grugops/test-skips.md registry path is a fixed convention (D-01), not a config value.
+- [Phase ?]: [17-01] Wave-0 keystone: 3 mode flags (--migrate/--update/--prune-old-kit) RECOGNIZED only (NOT wired; Plans 02/03 own the branches), any other unknown arg still exits 2 (T-17-01-AP); single-source backup primitives isoStamp()/dirsSameContent()/backupIfDiffers() — differs-only no-op (D-09), DRY_RUN-safe, clear professional voice; copyKit(retainBackup) default path behaviorally unchanged (baseline idempotency + two-root cases green)
+- [Phase ?]: [17-01] D-13 honored — no install.sh; modes are flags on the single TS installer, install.js rebuilt + freshness-green; makeOldLayoutFixture() plants config at BOTH the v1.0 in-repo AND opt-in repo-root (D-04) locations so Plan 02 handles both; MIGR-01/UPD-01 deliberately NOT marked complete (satisfied once --migrate/--update are wired + verified in Plans 02/03)
 
 ### Pending Todos
 
@@ -343,6 +346,6 @@ Items acknowledged and deferred at the v1.1 milestone close on 2026-06-08. All a
 
 ## Session Continuity
 
-Last session: 2026-06-15T06:10:52.227Z
+Last session: 2026-06-15T07:15:25.110Z
 Stopped at: Phase 17 context gathered
-Resume file: .planning/phases/17-install-migrate-update/17-CONTEXT.md
+Resume file: None
