@@ -435,6 +435,45 @@ describe("install.js / uninstall.js — single-installer contract (folds install
     expect(unin.status).toBe(2);
   });
 
+  // ── unknown-arg: the 3 new Phase-17 flags are RECOGNIZED; any other unknown arg still exits 2 ─
+  // Wave-0 foundation (Plan 17-01): --migrate / --update / --prune-old-kit are added to the
+  // arg-parse loop so they are recognized (NOT exit 2), but they are NOT yet wired into any branch
+  // (Plans 02/03 do that). The contract is purely "recognized, not rejected" here. A still-unknown
+  // arg (--bad-arg-xyz) must continue to hit process.exit(2). Drive each flag under DRY_RUN so the
+  // run is a no-op on the filesystem regardless of any future wiring — this case asserts arg-parse
+  // recognition only, never mode behavior.
+  it("unknown-arg: --migrate / --update / --prune-old-kit are recognized (not exit 2); a bad arg still exits 2", () => {
+    const target = makeFixture();
+    const home = mkTmp();
+    const dryEnv = {
+      ...process.env,
+      DRY_RUN: "1",
+      INSTALL_MODE: "copy",
+      GRUGOPS_SRC: REPO_ROOT,
+      GRUGOPS_HOME: home,
+      TARGET: target,
+    };
+    for (const flag of ["--migrate", "--update", "--prune-old-kit"]) {
+      const r = spawnSync("node", [INSTALL_JS, "--yes", flag], { encoding: "utf8", env: dryEnv });
+      // Recognized: the unknown-arg branch exits 2; a recognized flag must NOT.
+      expect(r.status).not.toBe(2);
+    }
+    // A genuinely unknown arg still exits 2 (the regression guard for T-17-01-AP).
+    const bad = spawnSync("node", [INSTALL_JS, "--yes", "--bad-arg-xyz"], { encoding: "utf8", env: dryEnv });
+    expect(bad.status).toBe(2);
+  });
+
+  // ── source-presence: the shared backup primitives exist in the committed compiled output ──────
+  // The Wave-0 single-source helpers backupIfDiffers() + isoStamp() are the keystone Plans 02/03
+  // build on. They must exist in install.ts AND in the committed install.js (the artifact the
+  // harness drives + the freshness gate guards). A grep-level presence assertion is sufficient at
+  // Wave 0 — the behavioral differs-only / timestamp cases land in Plans 02/03 via the real modes.
+  it("source-presence: backupIfDiffers() and isoStamp() are present in the committed install.js", () => {
+    const js = readFileSync(INSTALL_JS, "utf8");
+    expect(js).toContain("backupIfDiffers");
+    expect(js).toContain("isoStamp");
+  });
+
   // ── D-11 materializeRunnable(): the kit-shipped runnable lands at the committed host path ─────
   // The TOOL-02 install-side proof. install.js copies the compiled reference routine into the
   // host's committed tools/grugops/ path (additive/idempotent/never-overwrite); a second install
