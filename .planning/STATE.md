@@ -2,15 +2,16 @@
 gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: SDLC Depth, Quality Discipline & Browsable Docs
-status: verifying
-last_updated: "2026-06-15T07:47:45.491Z"
+status: ready_to_plan
+last_updated: 2026-06-15T08:14:56.355Z
 last_activity: 2026-06-15
 progress:
   total_phases: 9
   completed_phases: 8
   total_plans: 32
-  completed_plans: 32
+  completed_plans: 80
   percent: 89
+stopped_at: Phase 17 complete (3/3) — ready to discuss Phase 18
 ---
 
 # Project State
@@ -20,13 +21,13 @@ progress:
 See: .planning/PROJECT.md (updated 2026-06-09 — v1.2 milestone started)
 
 **Core value:** A user installs grugops on top of the coding-agent CLI they already run, types `/grug`, and gets a disciplined delivery team — a visible board, strict handoffs, and an auditable requirement→code→test→release trail — entirely as readable markdown, with humans always holding merge and deploy.
-**Current focus:** Phase 17 — install-migrate-update
+**Current focus:** Phase 18 — browsable docs catalog
 
 ## Current Position
 
-Phase: 17 (install-migrate-update) — EXECUTING
-Plan: 3 of 3
-Status: Phase complete — ready for verification
+Phase: 18
+Plan: Not started
+Status: Ready to plan
 Last activity: 2026-06-15
 
 Progress: [██████████] 100%
@@ -35,7 +36,7 @@ Progress: [██████████] 100%
 
 **Velocity:**
 
-- Total plans completed: 72
+- Total plans completed: 75
 - Average duration: -
 - Total execution time: 0 hours
 
@@ -58,6 +59,7 @@ Progress: [██████████] 100%
 | 14 | 3 | - | - |
 | 15 | 6 | - | - |
 | 16 | 3 | - | - |
+| 17 | 3 | - | - |
 
 **Recent Trend:**
 
