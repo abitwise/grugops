@@ -209,8 +209,12 @@ describe("generate-catalog.js (DOCS-01)", () => {
       expect(text).toContain("UNKNOWN - verify");
       // No fabricated cadence value for the absent field.
       expect(text).not.toContain("cadence: both");
-      // No double-period anywhere (Pitfall 1 — incident-responder single-sentence summary).
-      expect(text).not.toContain("..");
+      // No FABRICATED double-period after a sentence (Pitfall 1 — incident-responder single-sentence
+      // summary, where naively re-appending a period would yield `word..`). Scoped to that artifact
+      // — a word char followed by `..` then whitespace/pipe/end-of-line — so it no longer false-fails
+      // on the legitimate `../../` in the now-relative source links (or on `...` ellipses). (IN-03,
+      // mandatory collateral of WR-02's relative-link form.)
+      expect(text).not.toMatch(/\w\.\.(\s|\||$)/m);
     } finally {
       writeFileSync(OUT, before);
     }

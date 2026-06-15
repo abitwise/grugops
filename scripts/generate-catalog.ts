@@ -222,8 +222,10 @@ lines.push("| Role | Tier | One job | Source |");
 lines.push("| --- | --- | --- | --- |");
 for (const r of roles) {
   // Content cells (name, summary) are escaped (WR-03); the Source link column is not (controlled
-  // path). `tier` is constrained to core|enterprise so it needs no escaping.
-  lines.push(`| ${cell(r.name)} | ${r.tier} | ${cell(r.summary)} | [${r.link}](/${r.link}) |`);
+  // path). `tier` is constrained to core|enterprise so it needs no escaping. The link is RELATIVE
+  // from docs/catalog/ (two levels up to the repo root) — portable across local viewers, VS Code
+  // preview, plain CommonMark, and npm's README view, not just github.com's blob renderer (WR-02).
+  lines.push(`| ${cell(r.name)} | ${r.tier} | ${cell(r.summary)} | [${r.link}](../../${r.link}) |`);
 }
 lines.push("");
 lines.push("## Workflows");
@@ -232,8 +234,9 @@ lines.push("| # | Workflow | Cadence | When to use | Source |");
 lines.push("| --- | --- | --- | --- | --- |");
 for (const w of workflows) {
   // Content cells (name, cadence, summary) escaped (WR-03); `order` is an integer; link column raw.
+  // Relative link from docs/catalog/ — see the roles loop above (WR-02).
   lines.push(
-    `| ${w.order} | ${cell(w.name)} | ${cell(w.cadence)} | ${cell(w.summary)} | [${w.link}](/${w.link}) |`,
+    `| ${w.order} | ${cell(w.name)} | ${cell(w.cadence)} | ${cell(w.summary)} | [${w.link}](../../${w.link}) |`,
   );
 }
 lines.push(""); // trailing element → exactly one final "\n"
