@@ -283,7 +283,7 @@ if (!committed.equals(rebuilt)) {
 | A2 | The summary = first sentence of `## One job` / `## When to use`, single-line body. | Pattern 4 | Verified across all 33 files; low risk. If a future kit file wraps the section across multiple lines, the "first non-empty line" rule still yields a sensible (possibly shorter) summary — acceptable, and freshness would catch any surprise. |
 | A3 | Workflows 12/13 show `tier` and a `cadence` of `UNKNOWN - verify` (or a combined column) rather than a fabricated cadence. | D-09 / Q4 | D-09 forbids fabricating `cadence: both`. The column-presentation choice is Claude's Discretion; the no-fabrication floor is locked. |
 
-## Open Questions
+## Open Questions (RESOLVED)
 
 1. **The "15 vs 16 workflows" reconciliation (the one decision the planner must make).**
    - **What we know (all VERIFIED on disk):**
@@ -292,12 +292,12 @@ if (!committed.equals(rebuilt)) {
      - **The orchestrator workflow-map lists all 16** (`00`–`15`, including `14-ui-design-to-build.md` and `15-security-audit.md`) and counts "all 16 request types" (16 numbered workflows + the `install` classification, which has no numbered file).
      - **Count lineage:** v1.0 = "14 workflows" (files `00`–`13`). Phase 13 added file `14`, Phase 14 added file `15` → **16 files**. But the v1.2 ROADMAP/PROJECT/CONTEXT prose says "15 workflows." The "+2 files but +1 in prose" gap means the prose label is **off by one** — likely it counted "+1 for security, treating UI as already-implied," or simply mis-tallied. The roles count is internally consistent (17 = 18 files − 1 `_`-prefixed), but the workflow count is NOT (the docs say 15, the files say 16).
    - **What's unclear:** Whether "15" is the *intended* number (implying one file should be hidden) or a stale label. There is **no rule or file** that supports hiding a workflow — so the evidence points squarely at a lagging label, not a deliberate exclusion.
-   - **Recommendation:** The generator should emit a count of **16 numbered workflows** (it parses the 16 files; fabricating "15" would violate no-fabrication and contradict the orchestrator's own map). For **SC #3** ("all 15 workflows … incl. 14 + 15"), reconcile by reading SC #3's *intent* — "reflect the finished set, including the two new workflows" — which the 16-file catalog satisfies completely (it includes workflows 14 and 15). The planner should either (a) note in the PLAN that the catalog correctly shows 16 and SC #3's "15" is a documentation typo to be corrected in passing, or (b) raise it as a one-line clarification to the user. **Do not** drop a workflow to force the number to 15. This is the single most important thing for the planner to get right.
+   - **RESOLVED — Recommendation (implemented in plans):** The generator should emit a count of **16 numbered workflows** (it parses the 16 files; fabricating "15" would violate no-fabrication and contradict the orchestrator's own map). For **SC #3** ("all 15 workflows … incl. 14 + 15"), reconcile by reading SC #3's *intent* — "reflect the finished set, including the two new workflows" — which the 16-file catalog satisfies completely (it includes workflows 14 and 15). The planner should either (a) note in the PLAN that the catalog correctly shows 16 and SC #3's "15" is a documentation typo to be corrected in passing, or (b) raise it as a one-line clarification to the user. **Do not** drop a workflow to force the number to 15. This is the single most important thing for the planner to get right.
 
 2. **Freshness regeneration mechanism: mirror-spawn vs. OUT-override.**
    - **What we know:** `freshness.ts` rebuilds the whole tree to `--outDir tmp` (works because tsc owns the output layout). `generate-asvs-checklist.test.ts` uses a `cpSync`-mirror-into-`<tmp>` + run-the-mirrored-`.js` idiom to redirect output without touching the real tree.
    - **What's unclear:** Which idiom the catalog freshness gate should use to get a temp copy to diff while keeping the generator's OUT a fixed literal in normal runs.
-   - **Recommendation:** Use the mirror-spawn idiom (proven in the ASVS test). Lock it as a plan decision. Keep OUT a fixed literal in the generator (path-traversal mitigation); the *gate* arranges the temp mirror.
+   - **RESOLVED — Recommendation (implemented in plans):** Use the mirror-spawn idiom (proven in the ASVS test). Lock it as a plan decision. Keep OUT a fixed literal in the generator (path-traversal mitigation); the *gate* arranges the temp mirror.
 
 ## Environment Availability
 

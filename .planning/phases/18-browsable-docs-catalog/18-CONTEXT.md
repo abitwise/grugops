@@ -6,14 +6,14 @@
 <domain>
 ## Phase Boundary
 
-A generator emits a **browsable in-repo markdown catalog** of the finished kit — all **17 roles** (incl. `frontend-ui`) and **15 workflows** (incl. workflow 14 UI design→build + workflow 15 security-audit) — committed under `docs/catalog/`, plus a **freshness check that fails the build red on drift**. The catalog is generated, never hand-maintained; it is something users *read*.
+A generator emits a **browsable in-repo markdown catalog** of the finished kit — all **17 roles** (incl. `frontend-ui`) and **16 workflows** (files `00`–`15`, incl. workflow 14 UI design→build + workflow 15 security-audit) — committed under `docs/catalog/`, plus a **freshness check that fails the build red on drift**. The catalog is generated, never hand-maintained; it is something users *read*.
 
 Delivers DOCS-01 (the generator + committed catalog) and DOCS-02 (the freshness gate). Runs last in v1.2 so it documents the completed role/workflow set.
 
 **Out of scope (hard boundaries, not to be reopened):**
 - No web UI / dashboard / site — markdown only, in-repo (the file-based boundary).
 - No fabrication — `UNKNOWN - verify` for any genuinely missing field; never invent a description.
-- No edits to the 17 role / 15 workflow kit files (see D-01) — this is a pure read-generator.
+- No edits to the 17 role / 16 workflow kit files (see D-01) — this is a pure read-generator.
 - No new frontmatter fields added to the kit files (see D-01).
 
 </domain>
@@ -66,7 +66,7 @@ Delivers DOCS-01 (the generator + committed catalog) and DOCS-02 (the freshness 
 
 ### The source set to catalog
 - `agent-factory/roles/*.md` — 17 roles (exclude `_role-switch-protocol.md` per D-03).
-- `agent-factory/workflows/*.md` — 15 workflows (`00`–`15`, ordered by the `order` frontmatter field).
+- `agent-factory/workflows/*.md` — 16 workflows (files `00`–`15`, ordered by the `order` frontmatter field; see the count-reconciliation footnote below).
 
 </canonical_refs>
 
@@ -95,7 +95,7 @@ Delivers DOCS-01 (the generator + committed catalog) and DOCS-02 (the freshness 
 <specifics>
 ## Specific Ideas
 
-- The catalog is the v1.2 capstone: it should visibly reflect the *finished* set — 17 roles incl. `frontend-ui`, 15 workflows incl. 14 (UI design→build) + 15 (security-audit). A reader should be able to confirm "the whole kit is here" at a glance.
+- The catalog is the v1.2 capstone: it should visibly reflect the *finished* set — 17 roles incl. `frontend-ui`, 16 workflows incl. 14 (UI design→build) + 15 (security-audit). A reader should be able to confirm "the whole kit is here" at a glance.
 - Mirror the existing tooling's discipline ethos: deterministic, reproducible, fail-closed, no fabrication (`UNKNOWN - verify`), clear voice on the gate output.
 
 </specifics>
@@ -108,6 +108,10 @@ Delivers DOCS-01 (the generator + committed catalog) and DOCS-02 (the freshness 
 - **Folding catalog freshness into the foundation-guards aggregator / §14 gate** — considered; deferred in favor of a standalone script (D-07). A later phase could route it through the gate if gate-cohesion becomes desirable.
 
 </deferred>
+
+---
+
+> **Count reconciliation (post-research, 2026-06-15):** This context originally framed the set as "15 workflows." Research (`18-RESEARCH.md` Q1) verified **16 workflow files on disk** (`00`–`15`, `order` 0–15, contiguous, no excludable `_`-prefixed file) — the "15" was a lagging off-by-one prose label, not a deliberate exclusion. The count above is corrected to **16** and ROADMAP SC #3 was corrected in the same pass. **No locked decision (D-01..D-09) changed** — none of them specified a count; the generator self-discovers via `readdirSync` and emits whatever the kit actually contains.
 
 ---
 
