@@ -65,7 +65,7 @@ Each maps to exactly one roadmap phase (traceability filled by the roadmapper).
 ### Docs Catalog
 
 - [x] **DOCS-01**: A stdlib-only Node generator produces a browsable in-repo markdown catalog of every role + workflow from their frontmatter (committed; no npm deps; no web UI)
-- [ ] **DOCS-02**: A freshness check (regenerate-to-temp, diff, non-zero on drift) prevents the catalog from drifting from the kit it documents
+- [x] **DOCS-02**: A freshness check (regenerate-to-temp, diff, non-zero on drift) prevents the catalog from drifting from the kit it documents
 
 ### Install Migrate/Update
 
@@ -137,7 +137,7 @@ Each requirement maps to exactly one phase. v1.2 phase numbering continues from 
 | TOOL-01 | Phase 15 | Complete (15-01: build posture + freshness gate; 15-02: prod-deploy guard ported at parity; 15-03: single installer + uninstall ported at parity; 15-04: validator + ASVS generator + foundation-guards + kit-refs ported at exact parity — byte-reproducible ASVS, full .sh/.mjs-vs-.js diff identical, RED-by-design harnesses green; 15-06: invocation-string + env-var sweeps, 13 POSIX/.mjs originals + .test.sh oracles deleted after green-suite gate (D-09), D-13 constraint amendment ratified — nothing POSIX remains) |
 | TOOL-02 | Phase 15 | Complete |
 | DOCS-01 | Phase 18 | Complete |
-| DOCS-02 | Phase 18 | Pending |
+| DOCS-02 | Phase 18 | Complete |
 | MIGR-01 | Phase 17 | Complete |
 | UPD-01 | Phase 17 | Complete |
 

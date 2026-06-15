@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: SDLC Depth, Quality Discipline & Browsable Docs
-status: executing
-last_updated: "2026-06-15T09:43:43.255Z"
+status: verifying
+last_updated: "2026-06-15T09:50:58.890Z"
 last_activity: 2026-06-15
 progress:
   total_phases: 9
-  completed_phases: 8
+  completed_phases: 9
   total_plans: 34
-  completed_plans: 33
-  percent: 89
+  completed_plans: 34
+  percent: 100
 ---
 
 # Project State
@@ -26,10 +26,10 @@ See: .planning/PROJECT.md (updated 2026-06-09 — v1.2 milestone started)
 
 Phase: 18 (browsable-docs-catalog) — EXECUTING
 Plan: 2 of 2
-Status: Ready to execute
+Status: Phase complete — ready for verification
 Last activity: 2026-06-15
 
-Progress: [██████████] 97%
+Progress: [██████████] 100%
 
 ## Performance Metrics
 
@@ -144,6 +144,7 @@ Progress: [██████████] 97%
 | Phase 17 P02 | 26m | 2 tasks | 6 files |
 | Phase 17 P03 | 14m | 2 tasks | 4 files |
 | Phase 18 P01 | 5m | 2 tasks | 6 files |
+| Phase 18 P02 | 3m | 2 tasks | 4 files |
 
 ## Accumulated Context
 
@@ -316,6 +317,8 @@ Recent decisions affecting current work:
 - [Phase ?]: [17-03] --prune-old-kit is the single opt-in deletion path (D-10): anchored GRUGOPS_BACKUP_SUFFIX (.bak.<ISO>, NOT *.bak — Pitfall 5) + isProtected()-style guard mirroring uninstall.ts; removes only grugops backups in both roots; the default install path never prunes (never-delete-first)
 - [Phase ?]: [17-03] TDZ class fixed (Rule 3): the early --update / --prune-old-kit branches reached const-arrow helpers (report/mkdirp/sameContent/isoStamp/GRUGOPS_BACKUP_SUFFIX) before init; relocated them above the doctor (mirrors the MAT_* relocation). The sameContent TDZ silently broke the D-09 differs-only no-op (every --update forced a backup)
 - [Phase ?]: [18-01] DOCS-01 catalog generator: self-discovers 17 roles + 16 workflows via readdirSync; read-only parse; D-08 byte-stable ordering; D-09 workflows 12/13 cadence -> UNKNOWN - verify; fail-closed before any partial write; catalog source links are repo-root-relative to keep the file free of '..'
+- [Phase ?]: [18-02] DOCS-02 catalog freshness gate is STANDALONE (own freshness:catalog package.json script), NOT folded into check-foundation-guards.ts (D-07); guards byte-unchanged. Mirror-spawn regen (cpSync generator .js + roles+workflows into a temp tree, spawnSync so OUT stays a fixed literal, D-06 path-traversal-safe), Buffer.equals byte-diff vs committed docs/catalog/README.md, fail-closed: non-zero regen ⇒ exit 1, never fresh (T-18-06).
+- [Phase ?]: [18-02] Rule 1 fix: the fail-closed RED fixture must use a NON-underscore bad-role filename (the generator D-03 _-prefix filter silently drops _-files, vacuously passing the regen); the no-success assertion targets the success-only marker 'matches a fresh regeneration' since the fail-closed message also contains 'catalog fresh'.
 
 ### Pending Todos
 
@@ -358,6 +361,6 @@ Items acknowledged and deferred at the v1.1 milestone close on 2026-06-08. All a
 
 ## Session Continuity
 
-Last session: 2026-06-15T09:43:29.029Z
+Last session: 2026-06-15T09:50:49.409Z
 Stopped at: Phase 18 context gathered
 Resume file: None

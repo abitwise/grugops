@@ -56,7 +56,7 @@ Full phase details + milestone summary: `milestones/v1.1-ROADMAP.md` · requirem
 - [x] **Phase 15: TypeScript Tooling Migration** - Ratified TS pivot: migrate install (`install.sh`/`install.mjs`), validator, ASVS generator, and foundation guards (+ their `.test` harnesses) to TypeScript at behavior parity; establish a zero-build cross-platform execution model + a kit-shipped-runnable convention so later phases ship cross-platform routines into host repos (completed 2026-06-13)
 - [x] **Phase 16: §14 Gate Convergence — Lint, UI/E2E & Test-Integrity** - Single-source gate additions in `05-pr-quality-gate.md`: lint step, automated UI/E2E + visual regression, and an un-cheatable structured-justification test-integrity check (TS checker on the Phase-15 foundation); all config-dialed (3/3 plans executed — awaiting phase verification) (completed 2026-06-14)
 - [x] **Phase 17: Install --migrate / --update** - RED-harness-first, never-delete-first install modes to migrate an in-repo layout forward (--migrate) and refresh the central kit (--update) + the single opt-in deletion path (--prune-old-kit) (all 3 plans executed 2026-06-15; verified passed 13/13 + WR-01/WR-02 fixed)
-- [ ] **Phase 18: Browsable Docs Catalog** - Generator emits an in-repo markdown catalog of the finished 17-role / 16-workflow set; a freshness check fails red on drift
+- [x] **Phase 18: Browsable Docs Catalog** - Generator emits an in-repo markdown catalog of the finished 17-role / 16-workflow set; a freshness check fails red on drift (completed 2026-06-15)
 
 ## Phase Details
 
@@ -289,7 +289,7 @@ Full phase details + milestone summary: `milestones/v1.1-ROADMAP.md` · requirem
 
 **Wave 2** *(blocked on Wave 1 — needs the generator .js + the committed catalog to byte-diff against)*
 
-- [ ] 18-02-PLAN.md — catalog-freshness.ts standalone fail-closed drift gate (mirror-spawn regenerate-to-temp) + DOCS-02 oracle + freshness:catalog script [DOCS-02]
+- [x] 18-02-PLAN.md — catalog-freshness.ts standalone fail-closed drift gate (mirror-spawn regenerate-to-temp) + DOCS-02 oracle + freshness:catalog script [DOCS-02]
 
 ## Progress
 
@@ -315,6 +315,6 @@ Phases execute in numeric order: 10 → 11 → 12 → 13 → 14 → 15 → 16 �
 | 15. TypeScript Tooling Migration | v1.2 | 6/6 | Complete    | 2026-06-13 |
 | 16. §14 Gate Convergence — Lint, UI/E2E & Test-Integrity | v1.2 | 3/3 | Complete    | 2026-06-14 |
 | 17. Install --migrate / --update | v1.2 | 3/3 | Complete    | 2026-06-15 |
-| 18. Browsable Docs Catalog | v1.2 | 1/2 | In Progress|  |
+| 18. Browsable Docs Catalog | v1.2 | 2/2 | Complete   | 2026-06-15 |
 
 **Totals:** 18 phases · 48 plans complete · 2 milestones shipped · v1.2 (9 phases, 10–18) in progress.
