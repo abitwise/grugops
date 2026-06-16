@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: SDLC Depth, Quality Discipline & Browsable Docs
 status: executing
-last_updated: "2026-06-16T10:25:06.390Z"
+last_updated: "2026-06-16T10:29:02.113Z"
 last_activity: 2026-06-16
 progress:
   total_phases: 10
   completed_phases: 9
   total_plans: 38
-  completed_plans: 36
+  completed_plans: 37
   percent: 90
 ---
 
@@ -25,11 +25,11 @@ See: .planning/PROJECT.md (updated 2026-06-09 — v1.2 milestone started)
 ## Current Position
 
 Phase: 19 (factory-auto-uat-harness-tier-1-deterministic-oracles-tier-2) — EXECUTING
-Plan: 3 of 4
+Plan: 4 of 4
 Status: Ready to execute
 Last activity: 2026-06-16
 
-Progress: [██████████] 95%
+Progress: [██████████] 97%
 
 ## Performance Metrics
 
@@ -148,6 +148,7 @@ Progress: [██████████] 95%
 | Phase 18 P02 | 3m | 2 tasks | 4 files |
 | Phase 19 P01 | 20m | 3 tasks | 6 files |
 | Phase 19 P02 | 18m | 2 tasks | 4 files |
+| Phase 19 P03a | 2m | 1 tasks | 1 files |
 
 ## Accumulated Context
 
@@ -331,6 +332,7 @@ Recent decisions affecting current work:
 - [Phase ?]: [19-01] A2 wiring oracle never references GRUGOPS_PROD_DEPLOY_APPROVED (0 refs); A3 parity surfaces the still-pending-human CC-native column as advisory WARN, never confirmed (no-fabrication)
 - [Phase ?]: [19-02] Tier-2 E2E harness gates every live assertion on a fail-closed claude auth status probe; absent/unauthed emits a LOUD distinct LOUD_SKIP_MARKER (never a silent green). BLOCKER 2 proven by a -t loud-skip stubbed-probe test asserting the exact sentinel.
 - [Phase ?]: [19-02] Tier-2 lane carries NO new dial key (self-gates on its own auth probe); stays dev/CI-only out of the default test green path; zero new devDependency. Both lanes referenced single-source in 05-pr-quality-gate.md (no fork into 14/15).
+- [Phase ?]: [19-03a] B3 wording UAT (11-HUMAN-UAT.md scenario 3) flipped to [passed] strictly from the captured node scripts/check-uat-oracles.js real run (exit 0, oracleWr05Wording PASS) — never hand-set; UAT-AUTO-04 left IN PROGRESS (jointly owned with 19-03b)
 
 ### Pending Todos
 
@@ -374,6 +376,6 @@ Items acknowledged and deferred at the v1.1 milestone close on 2026-06-08. All a
 
 ## Session Continuity
 
-Last session: 2026-06-16T10:24:43.777Z
+Last session: 2026-06-16T10:28:19.921Z
 Stopped at: Phase 18 context gathered
 Resume file: None
