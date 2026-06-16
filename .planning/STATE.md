@@ -26,7 +26,7 @@ See: .planning/PROJECT.md (updated 2026-06-09 — v1.2 milestone started)
 
 Phase: 19 (factory-auto-uat-harness-tier-1-deterministic-oracles-tier-2) — VERIFIED human_needed (4/5 SC)
 Plan: 4 of 4 (all plans ran)
-Status: Phase goal partially met — UAT-AUTO-04 IN PROGRESS. Tier-1 oracles + Tier-2 harness + gate/runbook wiring done (UAT-AUTO-01/02/03/05); B3 (19-03a) + A2/SAFE-02 (19-03b) resolved from real runs; A1 (D-31) + A3 (DOG-02 + 9 examples/03 parity cells) still [pending] — live agentic calls timed out at the 120s per-call budget. Needs a longer-budget real run to close A1/A3.
+Status: Phase goal nearly met — UAT-AUTO-04 IN PROGRESS, only A3 left. Tier-1 oracles + Tier-2 harness + gate/runbook wiring done (UAT-AUTO-01/02/03/05); B3 (19-03a) + A2/SAFE-02 + A1/D-31 (long-budget run) resolved from real runs. 05-HUMAN-UAT.md fully passed (2/2); 06 at 2/3. Only A3 (DOG-02 + 9 examples/03 parity cells) [pending] — both "take-it-to-a-PR" calls timed out at 120s AND 420s without emitting the frozen markers to -p stdout (likely a test-design limit; redesign A3-live to assert on-disk handoff artifacts).
 Last activity: 2026-06-16
 
 Progress: [█████████░] 4/5 success criteria (A1/A3 live UATs pending)

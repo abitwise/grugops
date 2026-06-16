@@ -318,7 +318,7 @@ Full phase details + milestone summary: `milestones/v1.1-ROADMAP.md` · requirem
 
 **Wave 3** *(blocked on 19-01 + 19-02)* **— Live-runtime UAT resolution (human-gated)**
 
-- [x] 19-03b-PLAN.md — Ran Tier-2 for real (human checkpoint, authed `claude` CLI). **A2/SAFE-02 resolved → [passed]** in 05/06-HUMAN-UAT.md from the captured deny-string evidence. **A1 (D-31) and A3 (DOG-02 + the 9 examples/03 parity cells) stay [pending]** — the agentic `claude -p` calls timed out at the 120s per-call budget (inconclusive, never fabricated). Closed a 19-02 harness gap (stdin/timeout hardening). A1/A3 need a longer-budget real run (follow-up). See 19-03b-SUMMARY.md [UAT-AUTO-04 still In Progress]
+- [x] 19-03b-PLAN.md — Ran Tier-2 for real (human checkpoint, authed `claude` CLI). **A1/D-31 + A2/SAFE-02 resolved → [passed]** in 05/06-HUMAN-UAT.md from captured real-run evidence (A1 on a long-budget re-run, `UAT_E2E_CALL_TIMEOUT_MS=420000`, 5m45s). `05-HUMAN-UAT.md` now fully passed (2/2). **A3 (DOG-02 + the 9 examples/03 parity cells) stays [pending]** — both "take-it-to-a-PR" calls timed out at 120s AND 420s without emitting the frozen handoff markers to `-p` stdout (likely a test-design limit; assert on-disk artifacts). Closed a 19-02 harness gap (stdin/timeout hardening + configurable per-call timeout). See 19-03b-SUMMARY.md [UAT-AUTO-04 still In Progress — only A3 left]
 
 ## Progress
 
@@ -345,6 +345,6 @@ Phases execute in numeric order: 10 → 11 → 12 → 13 → 14 → 15 → 16 �
 | 16. §14 Gate Convergence — Lint, UI/E2E & Test-Integrity | v1.2 | 3/3 | Complete    | 2026-06-14 |
 | 17. Install --migrate / --update | v1.2 | 3/3 | Complete    | 2026-06-15 |
 | 18. Browsable Docs Catalog | v1.2 | 2/2 | Complete    | 2026-06-15 |
-| 19. Factory Auto-UAT Harness — Tier 1 Oracles + Tier 2 Headless E2E | v1.2 | 4/4 | Human-needed (4/5 SC) |  |
+| 19. Factory Auto-UAT Harness — Tier 1 Oracles + Tier 2 Headless E2E | v1.2 | 4/4 | Human-needed (4/5 SC — only A3 left) |  |
 
 **Totals:** 19 phases · 48 plans complete · 2 milestones shipped · v1.2 (10 phases, 10–19) in progress.

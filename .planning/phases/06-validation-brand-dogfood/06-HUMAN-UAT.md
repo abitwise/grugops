@@ -20,7 +20,8 @@ sequential half + the validator (DOG-01) already passed for real.
 
 ### 1. D-31 — plugin marketplace install + plugin-cache pointer resolution
 expected: `/plugin marketplace add <owner>/grugops` then `/plugin install grugops@grugops`, then `/grugops:plan` produces planning output (NOT a path error) — proving the repo-relative `agent-factory/roles/*.md` pointers resolve against the user's repo, not the broken plugin cache.
-result: [pending]
+result: [passed]
+note: Confirmed 2026-06-16 by a real Tier-2 headless run (`scripts/e2e/uat-live.test.ts`, A1 case, `UAT_E2E_CALL_TIMEOUT_MS=420000`). Installed grugops into a throwaway mkdtemp repo (`marketplace add` + `install grugops@grugops --scope local`) and drove `claude -p "/grugops:plan …"`; the output carried planning/Orchestrator markers with NO plugin-cache path error — proving the repo-relative `agent-factory/roles/*.md` pointers resolve against the user's repo, not the cache (D-31). Test passed in 5m45s; throwaway install cleaned up.
 
 ### 2. SAFE-02 — live PreToolUse hook firing
 expected: a matched guarded prod-deploy (e.g. `kubectl apply -f x`) WITHOUT `GRUGOPS_PROD_DEPLOY_APPROVED` set is DENIED by the PreToolUse hook with the clear-voice deny message. NEVER set the approval env var; NEVER run a real deploy (V14). The guard is already verified mechanically by `hooks/guard.test.sh` (passing); this confirms it fires in a live CC session.
@@ -34,9 +35,9 @@ result: [pending]
 ## Summary
 
 total: 3
-passed: 1
+passed: 2
 issues: 0
-pending: 2
+pending: 1
 skipped: 0
 blocked: 0
 
