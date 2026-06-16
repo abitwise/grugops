@@ -157,6 +157,12 @@ const LIVE = emitLoudSkipIfUnavailable();
 // One throwaway scope for the whole live lane; cleaned in afterAll regardless of pass/fail.
 let tmpRepo = "";
 
+// Per-call budget for agentic `claude -p` sessions. Configurable via env so a longer real run can
+// resolve the heavier A1/A3 cases (a full planning / take-it-to-a-PR session can take minutes)
+// without editing the harness; defaults to a generous 300s. A timed-out call returns partial output
+// and the marker assertion fails honestly — the UAT cell stays pending, never fabricated.
+const CALL_TIMEOUT_MS = Number(process.env.UAT_E2E_CALL_TIMEOUT_MS) || 300_000;
+
 // Helper: run the real `claude` CLI in print mode with arg arrays (never shell:true on the data
 // path — ASVS V5 / command-injection). Returns combined stdout for marker assertions.
 function claudePrint(args: string[], cwd: string): { status: number | null; out: string } {
@@ -171,7 +177,7 @@ function claudePrint(args: string[], cwd: string): { status: number | null; out:
     // output and the marker assertion fails honestly — the UAT cell stays pending, never fabricated);
     // raise maxBuffer so a verbose `--output-format json` agent transcript is not truncated.
     input: "",
-    timeout: 120_000,
+    timeout: CALL_TIMEOUT_MS,
     maxBuffer: 10 * 1024 * 1024,
   });
   return { status: r.status, out: `${r.stdout ?? ""}\n${r.stderr ?? ""}` };
