@@ -2,11 +2,11 @@
 gsd_state_version: 1.0
 milestone: v2.0
 milestone_name: Decentralized Factory — Shared Verified Context
-status: planning
-last_updated: "2026-06-16T15:17:48.666Z"
+status: roadmapped
+last_updated: "2026-06-16T20:30:00.000Z"
 last_activity: 2026-06-16
 progress:
-  total_phases: 0
+  total_phases: 7
   completed_phases: 0
   total_plans: 0
   completed_plans: 0
@@ -20,14 +20,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-06-16 — after v1.2 milestone)
 
 **Core value:** A user installs grugops on top of the coding-agent CLI they already run, types `/grug`, and gets a disciplined delivery team — a visible board, strict handoffs, and an auditable requirement→code→test→release trail — entirely as readable markdown, with humans always holding merge and deploy.
-**Current focus:** Planning the next milestone — decentralize grugops (task-flow agents gather/update long-term context, removing handoffs); A3/DOG-02 dual-path handoff-parity becomes moot under it. Start with `/gsd-new-milestone`.
+**Current focus:** v2.0 roadmap created — 7 phases (20–26) decentralize grugops onto a shared verified context (read-before-act / write-after-verify), a file-based task queue, and parallel agents (Claude Code primary; four CLIs degrade to sequential). Foundation-first build: substrate → verify → compact → parallel → handoff-removal → governance → equivalence-oracle dogfood. A3/DOG-02 retires only when the Phase-26 oracle passes. Next: `/gsd-plan-phase 20`.
 
 ## Current Position
 
-Phase: Not started (defining requirements)
+Phase: 20 — Shared-Context Substrate & Concurrency Foundation (not started)
 Plan: —
-Status: Defining requirements
-Last activity: 2026-06-16 — Milestone v2.0 started
+Status: Roadmapped — awaiting Phase 20 planning
+Last activity: 2026-06-16 — Milestone v2.0 roadmap created (Phases 20–26, 28 requirements, 100% coverage)
 
 ## Performance Metrics
 
@@ -152,6 +152,11 @@ Last activity: 2026-06-16 — Milestone v2.0 started
 
 ### Roadmap Evolution
 
+- **v2.0 roadmap created (2026-06-16):** 7 phases (20–26), numbering CONTINUED from v1.2 (last phase 19, NOT reset). All 28 v2.0 requirements mapped to exactly one phase — 100% coverage, 0 unmapped: SCTX-01..05 + CLAIM-01/02 → Phase 20; VFY-01..04 → Phase 21; CMP-01..03 → Phase 22; PAR-01..04 + CLAIM-03 → Phase 23; MIGR-01..04 → Phase 24; GOV-01/02 → Phase 25; DOGF-01..03 → Phase 26.
+- **v2.0 phase order honors the research foundation-first build spine** (SUMMARY.md "Phase Ordering Rationale"): (1) foundation before content — substrate + atomic-write helpers + verify-stamp hooks + queue + grep guard FIRST (20) before any role writes; (2) verify before remove — the §14-gate verifier wired (21) before handoffs become the sole memory; (3) compact before fan-out — two-tier compaction (22) before the first parallel run makes the 15x token tax real; (4) substrate wired before handoffs deleted — parallel + sequential both built on the one substrate (23) before clean handoff removal (24); the WR-05 inversion is one coordinated flip in 23 (guard + packaging + catalog); (5) governance last-but-one (25); (6) the equivalence oracle LAST (26) — meaningful only when both paths are wired end-to-end.
+- **v2.0 honesty floor baked into success criteria:** grugops's OWN success/cost gain is `UNKNOWN - verify` until the Phase-26 dogfood measures it — DeLM's +10.5pp / ~50% benchmark numbers are NEVER claimed as grugops's (Phase 26 SC3). "Verified" means passed the §14 behavior gate, recorded as an auditable `verified_by: §14-gate#id` stamp; refuse-self-set is a validator FAIL proven by a RED fixture (Phase 21 SC2). A3/DOG-02 is retired ONLY when the equivalence oracle passes — never on handoff deletion alone (Phase 26 SC4).
+- **v2.0 LOCKED decisions baked into phase goals** (PROJECT.md Key Decisions): parallel-first / Claude-Code primary (strict 5-tool parity retired — the four CLIs degrade to sequential, never break); clean replacement of handoffs (shared context = sole inter-role memory); context index = committed derived JSONL guarded by `freshness:context` (markdown wins); reverse the v1.1 no-spawn rule for Claude Code only (inverted `guard_wr05`); CC floor v2.1.172 nested spawning (depth ≤5, width capped by `queue.wip_limit`); zero new host runtime deps (`node:fs` + markdown + the `Agent` tool on the v1.2 committed-`.js` layer).
+- **v2.0 research flags** (carry into planning): Phase 26 needs `/gsd-plan-phase --research-phase 26` (first true parallel dogfood; equivalence-oracle + cost-measurement design are novel; `isolation: worktree` ↔ shared-context-path interaction UNKNOWN until exercised). Phase 24 needs a complete pre-deletion grep enumeration of every handoff reference before planning (largest blast radius). Phase 23 WR-05 inversion is a coordinated multi-file flip; the worktree/shared-context interaction is UNKNOWN. Phase 20 must include Windows + NFS-like behavior tests or mark the cross-platform claim `UNKNOWN - verify`. Two human decisions surfaced in research were RESOLVED at kickoff: JSONL = committed derived (freshness:context gate added); CC floor = v2.1.172 nested.
 - Phase 19 added (2026-06-16): Factory Auto-UAT Harness — Tier 1 deterministic oracles + Tier 2 `claude --print` headless E2E to honestly automate the deferred live-runtime human UATs (A1 plugin-cache pointer resolution / D-31, A2 live hook firing / SAFE-02, A3 sub-agent dual-path parity / DOG-02) + B3 WR-05 wording cross-check. Tier 3 (B1/B2 persona/prose judgment, Phase 11) is explicitly OUT of scope — stays human sign-off. Reopened v1.2 (was milestone_complete but never archived). Rationale captured in quick task [260616-faw](./quick/260616-faw-automate-remaining-human-uats-feasibilit/260616-faw-PLAN.md).
 
 ### Decisions
@@ -380,10 +385,11 @@ Items acknowledged and deferred at the **v1.2 milestone close on 2026-06-16** (1
 
 ## Session Continuity
 
-Last session: 2026-06-16T10:28:19.921Z
-Stopped at: Phase 18 context gathered
+Last session: 2026-06-16T20:30:00.000Z
+Stopped at: v2.0 roadmap created (Phases 20–26) — awaiting user approval, then Phase 20 planning
 Resume file: None
 
 ## Operator Next Steps
 
-- Start the next milestone with /gsd-new-milestone
+- Review the v2.0 roadmap (Phases 20–26) in .planning/ROADMAP.md; approve or request revision
+- On approval, plan the first phase: `/gsd-plan-phase 20` (Shared-Context Substrate & Concurrency Foundation)

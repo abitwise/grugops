@@ -5,11 +5,13 @@
 - ✅ **v1.0 MVP — Full Agent Factory v2** — Phases 1–6 (shipped 2026-06-04)
 - ✅ **v1.1 Install & Distribution** — Phases 7–9 (shipped 2026-06-08)
 - ✅ **v1.2 SDLC Depth, Quality Discipline & Browsable Docs** — Phases 10–19 (shipped 2026-06-16)
-- 📋 **Next: Decentralization** — task-flow agents gather/update long-term context, removing static handoffs (define via `/gsd-new-milestone`)
+- 🚧 **v2.0 Decentralized Factory — Shared Verified Context** — Phases 20–26 (active)
 
 ## Overview
 
-grugops is built bottom-up as a file protocol, not a runtime. v1.0 froze the shared vocabulary, built the 16 roles + 14 workflows + contracts + adapters + both Claude forms + installers + validator + brand collateral, and proved the chain with a dogfood. v1.1 redesigned the install to a shared-location two-root model (read-only kit at `${GRUGOPS_HOME:-$HOME/.grugops}`, per-repo state in the target) with a path rewrite, a two-root installer, a `--check` doctor, and a false-green-proof validator. v1.2 deepened the kit itself: it opened with an SDLC-coverage audit plus the mechanical foundation guards (WR-05 spawn grep, single-source adapter-size check, AGENTS.md byte budget, voice-lint, config-dial contract) so every later content phase wrote into a guarded environment; then a senior-persona overhaul laid the substrate, BDD+TDD closed the business→engineer handoff, a frontend/UI persona and an ASVS security audit ran as parallel content streams, then a TypeScript tooling migration converted the script layer (installers, validator, generator, guards) to a zero-build cross-platform foundation, the §14 quality gate converged all of it (lint + UI/E2E + test-integrity) on that TS foundation, install migrate/update landed as an independent track, a generated docs catalog documented the finished 17-role / 16-workflow set, and finally Phase 19 reopened the milestone post-Phase-18 to add an honest Tier-1/Tier-2 auto-UAT harness. All three milestones are shipped; the next milestone **decentralizes** grugops — task-flow agents that gather and update long-term context, removing the static handoff packets.
+grugops is built bottom-up as a file protocol, not a runtime. v1.0 froze the shared vocabulary, built the 16 roles + 14 workflows + contracts + adapters + both Claude forms + installers + validator + brand collateral, and proved the chain with a dogfood. v1.1 redesigned the install to a shared-location two-root model (read-only kit at `${GRUGOPS_HOME:-$HOME/.grugops}`, per-repo state in the target) with a path rewrite, a two-root installer, a `--check` doctor, and a false-green-proof validator. v1.2 deepened the kit itself: it opened with an SDLC-coverage audit plus the mechanical foundation guards (WR-05 spawn grep, single-source adapter-size check, AGENTS.md byte budget, voice-lint, config-dial contract) so every later content phase wrote into a guarded environment; then a senior-persona overhaul laid the substrate, BDD+TDD closed the business→engineer handoff, a frontend/UI persona and an ASVS security audit ran as parallel content streams, then a TypeScript tooling migration converted the script layer (installers, validator, generator, guards) to a zero-build cross-platform foundation, the §14 quality gate converged all of it (lint + UI/E2E + test-integrity) on that TS foundation, install migrate/update landed as an independent track, a generated docs catalog documented the finished 17-role / 16-workflow set, and finally Phase 19 reopened the milestone post-Phase-18 to add an honest Tier-1/Tier-2 auto-UAT harness.
+
+**v2.0 is a major architecture pivot.** It replaces the centralized Orchestrator + static handoff packets with three DeLM-derived primitives (arXiv 2606.10662) — a **shared verified context** (typed notes, read-before-act / write-after-verify), a **file-based task queue** (agents claim work atomically without a central router), and **parallel agents** (Claude Code primary via the `Agent` tool; the other four CLIs degrade to sequential over the same files). The entire decentralization ships with **zero new runtime dependencies** — `node:fs` + markdown + the Claude Code `Agent` tool on top of the v1.2 committed-`.js` tooling layer. grugops's defensible differentiator over DeLM and every multi-agent framework is strict: **"verified" means passed the §14 behavior gate**, recorded as an auditable, human-gatable `verified_by` stamp — never a black-box blackboard. The build is foundation-first (Phases 20–22 mechanize the substrate, verifier, and compaction before any role uses them), then parallel execution + clean handoff removal (23–24), governance (25), and an equivalence-oracle dogfood last (26) that honestly retires the A3/DOG-02 dual-path waiver — and only then. grugops's *own* success/cost gain stays `UNKNOWN - verify` until Phase 26 measures it; DeLM's benchmark numbers are never claimed as grugops's.
 
 ## Phases
 
@@ -18,7 +20,7 @@ grugops is built bottom-up as a file protocol, not a runtime. v1.0 froze the sha
 - Integer phases (1, 2, 3): Planned milestone work
 - Decimal phases (2.1, 2.2): Urgent insertions (marked with INSERTED)
 
-Phase numbering is continuous across milestones — it never resets. The next milestone continues from Phase 19.
+Phase numbering is continuous across milestones — it never resets. v2.0 continues from Phase 19, starting at Phase 20.
 
 <details>
 <summary>✅ v1.0 MVP — Full Agent Factory v2 (Phases 1–6) — SHIPPED 2026-06-04</summary>
@@ -63,9 +65,94 @@ Full phase details + milestone summary: `milestones/v1.2-ROADMAP.md` · requirem
 
 </details>
 
-### 📋 Next: Decentralization (Planned)
+### 🚧 v2.0 Decentralized Factory — Shared Verified Context (Phases 20–26) — ACTIVE
 
-- [ ] Decentralize grugops — task-flow agents gather/update long-term context, replacing static handoff packets (retires the A3/DOG-02 dual-path handoff-parity concern, which becomes moot). Define requirements via `/gsd-new-milestone`.
+- [ ] **Phase 20: Shared-Context Substrate & Concurrency Foundation** — the atomic-write helpers, the typed-note schema, the verify-stamp validator hooks, the file-based queue, and the grep guard — mechanized before any role writes to the shared context
+- [ ] **Phase 21: Verify-Before-Write Admission** — the §14 gate as the un-cheatable verifier; refuse-self-set; the read-before-act / write-after-verify protocol (Workflow 16)
+- [ ] **Phase 22: Memory & Trajectory Compaction** — two-tier memory + the `context.compaction` dial + the load-bearing-field carve-out (Workflow 18), landed before parallel fan-out makes the token tax real
+- [ ] **Phase 23: Parallel Execution & Orchestrator-as-Decomposer** — Orchestrator router→decomposer/scheduler/gate, nested CC spawning + the degraded sequential path, the inverted WR-05 guard, the WIP cap (Workflow 17)
+- [ ] **Phase 24: Clean Handoff Removal & Traceability Migration** — rewire all 18 roles + 16 workflows onto the substrate, then delete all 17 handoff templates in one grep-to-zero change; migrate the trace, never drop it
+- [ ] **Phase 25: Governance-on-a-Dial** — `context.human_admission` + `context.audit_retention` enterprise tiers over the decentralized substrate; the un-dialable safety floor unchanged
+- [ ] **Phase 26: Dogfood, Dual-Path Oracle & A3/DOG-02 Retirement** — the equivalence oracle (on-disk parity), the N-agent parallel dogfood, and the honest token-cost measurement; A3/DOG-02 retired ONLY when the oracle passes
+
+## Phase Details
+
+### Phase 20: Shared-Context Substrate & Concurrency Foundation
+**Goal**: Establish the shared verified-context substrate and atomic concurrency primitives — the file locations, the typed-note schema with provenance, the only-sanctioned write path, and the file-based task queue — so that drift is caught as it is written, before any role uses them.
+**Depends on**: Nothing new (builds on the v1.2 committed-`.js` tooling layer)
+**Requirements**: SCTX-01, SCTX-02, SCTX-03, SCTX-04, SCTX-05, CLAIM-01, CLAIM-02
+**Success Criteria** (what must be TRUE):
+  1. A note authored against the six-kind schema (`claim`/`finding`/`decision`/`failed-attempt`/`observation`/`artifact-ref`) carries a complete provenance fence (`by`/`at`/`verified_by`/`confidence`/`refs`/`supersedes`) and the markdown is the source of truth; a note missing a required provenance field is a validator structural FAIL.
+  2. Two concurrent writes through `appendNote`/`atomicWrite` produce two distinct, un-clobbered notes (no lost-update, no torn append) — proven on a cross-platform path including the Windows unlink-then-rename sequence.
+  3. A subtask file moves `pending → claimed → done` by atomic rename, and a `claim.ts` claim via `mkdirSync` is exclusive (a second claimant on the same task fails) with no central lock manager.
+  4. The committed per-task JSONL index regenerates byte-identically from the markdown; editing the markdown without regenerating the index trips the `freshness:context` gate (fail-closed), and the markdown wins on any conflict.
+  5. `guard_context_writes` fails RED if any shipped role/workflow text writes the shared context by a path other than the sanctioned `context-io.ts` helpers (a planted raw-write fixture proves it).
+**Plans**: TBD
+
+### Phase 21: Verify-Before-Write Admission (the §14 Gate as the Un-Cheatable Verifier)
+**Goal**: Wire the differentiator mechanically — a `finding` is admitted to the shared context only with a real, non-self verification stamp — so the replacement memory is trustworthy before it becomes the sole memory.
+**Depends on**: Phase 20 (the schema, validator hooks, and write path must exist)
+**Requirements**: VFY-01, VFY-02, VFY-03, VFY-04
+**Success Criteria** (what must be TRUE):
+  1. A `finding` carrying `verified_by: §14-gate#<id>` (a real gate verdict), a passing test reference, or a named human is admitted; a `finding` with no such stamp is refused.
+  2. A `finding` whose `verified_by` is missing, `self`, or the writing agent is a validator structural FAIL — a RED fixture proves a hollow/self-authored stamp fails (mirroring the prod-deploy hook's refuse-self-set).
+  3. A role following Workflow 16 (`16-context-read-write.md`) reads the shared context before acting and writes only after verification, and every other role references that single-source protocol rather than restating it.
+  4. The §14 gate's bounded `self_fix_attempts` loop drives a bounded verify→regenerate cycle, and the `claim` / `UNKNOWN - verify` escape hatch is honest and explicitly non-load-bearing (a `claim` can never satisfy a `finding`'s admission).
+**Plans**: TBD
+
+### Phase 22: Memory & Trajectory Compaction (Dialable, Token-Economy)
+**Goal**: Bound the multi-agent token tax with two-tier memory — verbose local trajectory stays in the agent's thread; only compact, re-verified distillations promote to the shared context — landed before parallel fan-out makes the cost real.
+**Depends on**: Phase 21 (compacted output is re-verified before write — needs the admission gate)
+**Requirements**: CMP-01, CMP-02, CMP-03
+**Success Criteria** (what must be TRUE):
+  1. An agent's verbose trajectory stays in `.grugops/context/threads/<agent>.md` while only a compact distillation reaches the shared context, and that promoted distillation is re-verified before write.
+  2. Compaction never drops a load-bearing field — `verified_by`, `failed-attempt`, `supersedes`, and `by`/`at` provenance survive compaction; a RED test fails if any is dropped.
+  3. The `context.compaction: aggressive|balanced|retain-raw` dial changes how aggressively trajectories are distilled, defaults to `aggressive` when absent (lean), and is documented across all three config surfaces.
+  4. A role following Workflow 18 (`18-context-compaction.md`) compacts by the single-source protocol, and other roles reference it rather than restating it.
+**Plans**: TBD
+
+### Phase 23: Parallel Execution & Orchestrator-as-Decomposer (One Substrate, Two Modes)
+**Goal**: Run both execution paths — parallel on Claude Code, sequential on the four other CLIs — on the one shared substrate: redefine the Orchestrator from router to decomposer/scheduler/gate, invert the WR-05 guard, and cap concurrent width.
+**Depends on**: Phase 22 (compaction must be in place before the first parallel fan-out)
+**Requirements**: PAR-01, PAR-02, PAR-03, PAR-04, CLAIM-03
+**Success Criteria** (what must be TRUE):
+  1. The Orchestrator decomposes work into queued subtasks, holds `Agent(<allowlist>)` and the human merge/deploy gate, sets `queue.wip_limit`, and does NOT relay data between agents (coordination is through the shared context only).
+  2. On Claude Code, role agents claim tasks and run in parallel via nested sub-agent spawning (depth ≤5); concurrent agent *width* never exceeds `queue.wip_limit` (CLAIM-03 — grugops's responsibility, since the platform caps depth, not width).
+  3. The four non-spawning CLIs drain the same queue at concurrency-1 via the rewired `_role-switch-protocol.md` step-4, producing identical on-disk artifacts to the parallel path (one substrate, two modes that converge).
+  4. `guard_wr05` is inverted from "no role grants `Agent`" to "only the coordinator grants `Agent(<allowlist>)`", and it flips atomically with the packaging templates and the docs catalog (a planted non-coordinator grant fails RED).
+**Plans**: TBD
+
+### Phase 24: Clean Handoff Removal & Traceability Migration
+**Goal**: Cut over cleanly from static handoff packets to the shared verified context as the sole inter-role memory — rewire every reader first, then delete in one grep-to-zero change — while preserving the requirement→code→test→release trace.
+**Depends on**: Phases 20–23 (the substrate must exist, verify, compact, and be read/written by roles before any handoff is removed)
+**Requirements**: MIGR-01, MIGR-02, MIGR-03, MIGR-04
+**Success Criteria** (what must be TRUE):
+  1. All 18 roles + 16 workflows + 3 packaging templates + AGENTS.md read and write the shared context with zero remaining references to static handoffs (a grep-to-zero gate proves it).
+  2. All 17 handoff templates and the `plans/handoffs/` seed are deleted, and `validate-agent-factory.ts` + `generate-catalog.ts` are updated in the SAME change (the validator and catalog never reference a deleted artifact).
+  3. The requirement→code→test→release traceability is carried onto note `refs`/trace fields — the trail is preserved end-to-end, never dropped.
+  4. `install.ts --migrate` renames a user's `plans/handoffs/` state to a timestamped backup (never delete-first), and `git revert` is the documented rollback.
+**Plans**: TBD
+
+### Phase 25: Governance-on-a-Dial
+**Goal**: Expose the enterprise governance tiers over the now-stable decentralized substrate — human-gated high-severity admission and audit retention — without touching the lean defaults or the un-dialable safety floor.
+**Depends on**: Phase 24 (the substrate is the sole memory and roles are rewired before governance is layered on)
+**Requirements**: GOV-01, GOV-02
+**Success Criteria** (what must be TRUE):
+  1. With `context.human_admission: high-severity` (or `all`), an agent proposes a verified note and a NAMED human disposes high-severity entries (security/architecture/release) before admission; with `off` (lean default) routine verified notes admit without a human stop.
+  2. `context.audit_retention: git|retained` controls audit-trail retention, and all three config files are updated in lockstep with lean defaults preserved (zero-config still runs lean).
+  3. The un-dialable safety floor is unchanged and not bypassable by any dial setting — verify-before-write, no-fabrication, test-integrity, and humans-hold-merge/deploy all hold regardless of governance configuration.
+**Plans**: TBD
+
+### Phase 26: Dogfood, Dual-Path Oracle & A3/DOG-02 Retirement
+**Goal**: Turn "degrade, never break" and "verified means verified" from prose into proof — a dual-path equivalence oracle on on-disk artifacts, an N-agent parallel dogfood, and an honest token-cost measurement — and retire A3/DOG-02 only when the oracle passes.
+**Depends on**: Phase 25 (both execution paths and the full substrate must be wired end-to-end before the oracle is meaningful)
+**Requirements**: DOGF-01, DOGF-02, DOGF-03
+**Success Criteria** (what must be TRUE):
+  1. A dual-path equivalence oracle (replacing `oracleParity` A3 in `check-uat-oracles.ts`) runs the same seeded task (a) parallel on Claude Code and (b) sequential via single-window role-load and asserts ON-DISK equivalence — the same set of admitted `finding`s, the same gate verdict, the same artifact.
+  2. A parallel N-agent dogfood produces N distinct un-clobbered notes, each task is claimed exactly once, and a stale claim is reclaimed — confirming the `isolation: worktree` ↔ shared-context-path interaction.
+  3. Aggregate token cost is measured so the ~50% cost claim is DEMONSTRATED with grugops's own numbers or honestly marked `UNKNOWN - verify` (DeLM's benchmark numbers are never asserted as grugops's).
+  4. A3/DOG-02 is marked retired ONLY after the equivalence oracle passes — never on handoff deletion alone.
+**Plans**: TBD
 
 ## Progress
 
@@ -90,5 +177,12 @@ Full phase details + milestone summary: `milestones/v1.2-ROADMAP.md` · requirem
 | 17. Install --migrate / --update | v1.2 | 3/3 | Complete | 2026-06-15 |
 | 18. Browsable Docs Catalog | v1.2 | 2/2 | Complete | 2026-06-15 |
 | 19. Factory Auto-UAT Harness — Tier 1 Oracles + Tier 2 Headless E2E | v1.2 | 4/4 | Closed (A3/DOG-02 waived → next milestone) | 2026-06-16 |
+| 20. Shared-Context Substrate & Concurrency Foundation | v2.0 | 0/? | Pending | - |
+| 21. Verify-Before-Write Admission | v2.0 | 0/? | Pending | - |
+| 22. Memory & Trajectory Compaction | v2.0 | 0/? | Pending | - |
+| 23. Parallel Execution & Orchestrator-as-Decomposer | v2.0 | 0/? | Pending | - |
+| 24. Clean Handoff Removal & Traceability Migration | v2.0 | 0/? | Pending | - |
+| 25. Governance-on-a-Dial | v2.0 | 0/? | Pending | - |
+| 26. Dogfood, Dual-Path Oracle & A3/DOG-02 Retirement | v2.0 | 0/? | Pending | - |
 
-**Totals:** 19 phases · 86 plans complete · 3 milestones shipped (v1.0 + v1.1 + v1.2). Next milestone: decentralization — define via `/gsd-new-milestone`.
+**Totals:** 26 phases · 86 plans complete · 3 milestones shipped (v1.0 + v1.1 + v1.2). Active milestone: **v2.0 Decentralized Factory — Shared Verified Context** (Phases 20–26, 28 requirements, 0 plans complete). Next: `/gsd-plan-phase 20`.

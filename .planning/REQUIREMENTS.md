@@ -98,7 +98,7 @@ Explicitly excluded. Documented to prevent scope creep.
 
 ## Traceability
 
-Which phases cover which requirements. Populated during roadmap creation.
+Which phases cover which requirements. Confirmed during roadmap creation (2026-06-16) — every v2.0 requirement maps to exactly one phase (20–26); no orphans, no duplicates.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
@@ -133,9 +133,9 @@ Which phases cover which requirements. Populated during roadmap creation.
 
 **Coverage:**
 - v2.0 requirements: 28 total
-- Mapped to phases: 28 (proposed; confirmed by roadmapper)
+- Mapped to phases: 28 (confirmed by roadmapper — proposed mapping verified against SUMMARY.md per-phase "Delivers" with no correction needed)
 - Unmapped: 0 ✓
 
 ---
 *Requirements defined: 2026-06-16*
-*Last updated: 2026-06-16 after initial definition*
+*Last updated: 2026-06-16 — traceability confirmed at roadmap creation (28/28 mapped to Phases 20–26, 0 unmapped)*
