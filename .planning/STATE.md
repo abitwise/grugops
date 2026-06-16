@@ -2,34 +2,32 @@
 gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: SDLC Depth, Quality Discipline & Browsable Docs
-status: executing
-last_updated: "2026-06-16T10:29:02.113Z"
-last_activity: 2026-06-16
+status: Awaiting next milestone
+last_updated: "2026-06-16T14:42:14.303Z"
+last_activity: 2026-06-16 — Milestone v1.2 completed and archived
 progress:
   total_phases: 10
-  completed_phases: 9
+  completed_phases: 10
   total_plans: 38
-  completed_plans: 37
-  percent: 90
+  completed_plans: 38
+  percent: 100
 ---
 
 # Project State
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-06-09 — v1.2 milestone started)
+See: .planning/PROJECT.md (updated 2026-06-16 — after v1.2 milestone)
 
 **Core value:** A user installs grugops on top of the coding-agent CLI they already run, types `/grug`, and gets a disciplined delivery team — a visible board, strict handoffs, and an auditable requirement→code→test→release trail — entirely as readable markdown, with humans always holding merge and deploy.
-**Current focus:** Phase 19 — factory-auto-uat-harness-tier-1-deterministic-oracles-tier-2
+**Current focus:** Planning the next milestone — decentralize grugops (task-flow agents gather/update long-term context, removing handoffs); A3/DOG-02 dual-path handoff-parity becomes moot under it. Start with `/gsd-new-milestone`.
 
 ## Current Position
 
-Phase: 19 (factory-auto-uat-harness-tier-1-deterministic-oracles-tier-2) — CLOSED 2026-06-16 (1 human-waived shortcoming: A3)
-Plan: 4 of 4 (all plans ran)
-Status: Phase goal nearly met — UAT-AUTO-04 IN PROGRESS, only A3 left. Tier-1 oracles + Tier-2 harness + gate/runbook wiring done (UAT-AUTO-01/02/03/05); B3 (19-03a) + A2/SAFE-02 + A1/D-31 (long-budget run) resolved from real runs. 05-HUMAN-UAT.md fully passed (2/2); 06 at 2/3. Only A3 (DOG-02 + 9 examples/03 parity cells) [pending] — both "take-it-to-a-PR" calls timed out at 120s AND 420s without emitting the frozen markers to -p stdout. **A3 is an ACCEPTED human-waived shortcoming (2026-06-16): do NOT schedule a fix** — the next milestone decentralizes grugops (task-flow agents + long-term context) and removes handoffs, making the A3 dual-path handoff-parity test moot. UAT-AUTO-04 stays In Progress, revisited/retired under that milestone.
-Last activity: 2026-06-16
-
-Progress: [█████████░] 4/5 success criteria (A1/A3 live UATs pending)
+Phase: Milestone v1.2 complete
+Plan: —
+Status: Awaiting next milestone
+Last activity: 2026-06-16 — Milestone v1.2 completed and archived
 
 ## Performance Metrics
 
@@ -362,20 +360,30 @@ None yet.
 
 ## Deferred Items
 
-Items acknowledged and deferred at the v1.1 milestone close on 2026-06-08. All are v1.0-era (phases 02/05/06); the v1.1 phases (07–09) carry no open artifacts. None are blockers — they are either human-only live-Claude-Code dogfood (DOG-02, genuinely not agent-runnable) or a stale tracking marker for already-completed work.
+Items acknowledged and deferred at the **v1.2 milestone close on 2026-06-16** (13 open artifacts from the pre-close audit). All are known/ratified — none are discovered blockers. They fall into three buckets: the **A3/DOG-02 human waiver** (carried to the next decentralization milestone that removes handoffs, making the dual-path parity test moot — NOT scheduled for a fix), the **B1/B2 Tier-3 persona/prose sign-off** (human-only by design; Phase 19 explicitly scoped Tier 3 out of automation), and **routine carry-forward** (stale status strings whose underlying work shipped, plus two stale quick-task markers). See `milestones/v1.2-MILESTONE-AUDIT.md` for the full analysis.
 
 | Category | Item | Status | Deferred At | Note |
 |----------|------|--------|-------------|------|
-| quick_task | 260606-0my-harden-grugops-role-switch-protocol-auto | missing marker | 2026-06-08 | Stale marker only — the work shipped at commit 6a66994 (see Quick Tasks Completed) |
-| verification | Phase 05 — 05-VERIFICATION.md | human_needed | 2026-06-08 | DOG-02 live-CC half: plugin-cache pointer resolution (D-31) + live SAFE-02 hook firing |
-| verification | Phase 06 — 06-VERIFICATION.md | human_needed | 2026-06-08 | DOG-02 live-CC half: CC sub-agent spawn + dual-path parity column |
-| uat | Phase 05 — 05-HUMAN-UAT.md | partial (2 open) | 2026-06-08 | Live-Claude-Code dogfood scenarios; tracked honestly, never fabricated |
-| uat | Phase 06 — 06-HUMAN-UAT.md | partial (3 open) | 2026-06-08 | Live-Claude-Code dogfood scenarios; runbook in docs/dogfood-human-runbook.md |
-| uat | Phase 06 — 06-UAT.md | partial (0 open) | 2026-06-08 | No open scenarios; status string only |
-| uat | Phase 02 — 02-HUMAN-UAT.md | resolved (0 open) | 2026-06-08 | Already resolved; listed for completeness |
+| uat | Phase 06 — 06-HUMAN-UAT.md | partial (1 open) | 2026-06-16 | A3/DOG-02 live dual-path handoff-parity — **human-waived → next milestone** (handoffs removed there, test moot); both PR-path Tier-2 calls timed out without emitting frozen markers to `-p` stdout (test-design limit). Tier-1 structural oracle intact + passing. |
+| uat | Phase 11 — 11-HUMAN-UAT.md | partial (2 open) | 2026-06-16 | B1/B2 senior-persona prose/judgment sign-off — human-only Tier 3, unscoreable by guard; out of automation scope by design |
+| uat | Phase 06 — 06-UAT.md | partial (0 open) | 2026-06-16 | No open scenarios; status string only |
+| uat | Phase 02 — 02-HUMAN-UAT.md | resolved (0 open) | 2026-06-16 | Already resolved; listed for completeness |
+| uat | Phase 05 — 05-HUMAN-UAT.md | passed (0 open) | 2026-06-16 | A1/D-31 + A2/SAFE-02 resolved from real runs in Phase 19 (2/2 passed); status string only |
+| uat | Phase 10 — 10-HUMAN-UAT.md | passed (0 open) | 2026-06-16 | Resolved; status string only |
+| uat | Phase 17 — 17-HUMAN-UAT.md | resolved (0 open) | 2026-06-16 | Resolved; status string only |
+| verification | Phase 19 — 19-VERIFICATION.md | human_needed (4/5 SC) | 2026-06-16 | SC4 partial — only A3 live parity unverified (waived above); SC1/2/3/5 passed |
+| verification | Phase 11 — 11-VERIFICATION.md | human_needed (9/10) | 2026-06-16 | 10th item = B1/B2 persona prose judgment, unscoreable by any guard — human-only |
+| verification | Phase 05 — 05-VERIFICATION.md | human_needed | 2026-06-16 | Stale frontmatter — A1/A2 were resolved in Phase 19 (19-03b real run); predates that run |
+| verification | Phase 06 — 06-VERIFICATION.md | human_needed | 2026-06-16 | Stale frontmatter — A1/A2 resolved in Phase 19; A3 remains (waived above) |
+| quick_task | 260606-0my-harden-grugops-role-switch-protocol-auto | missing marker | 2026-06-16 | Stale marker only — work shipped at commit 6a66994 (carried from v1.1 close) |
+| quick_task | 260616-faw-automate-remaining-human-uats-feasibilit | missing marker | 2026-06-16 | Stale marker only — work shipped at commit 5dcc5ef (became Phase 19) |
 
 ## Session Continuity
 
 Last session: 2026-06-16T10:28:19.921Z
 Stopped at: Phase 18 context gathered
 Resume file: None
+
+## Operator Next Steps
+
+- Start the next milestone with /gsd-new-milestone

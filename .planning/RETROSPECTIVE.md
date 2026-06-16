@@ -2,6 +2,50 @@
 
 *A living document updated after each milestone. Lessons feed forward into future planning.*
 
+## Milestone: v1.2 — SDLC Depth, Quality Discipline & Browsable Docs
+
+**Shipped:** 2026-06-16
+**Phases:** 10 (10–19) | **Plans:** 38 | **Commits:** 263
+
+### What Was Built
+- A senior-grade lifecycle: all 16 roles deepened in place + a 17th frontend/UI persona; the business→engineer handoff closed via an INVEST/measurable-NFR Definition-of-Ready hub
+- Test-first by default — declarative Given/When/Then acceptance contract + Three Amigos/Example-Mapping + a TDD red-green double-loop, all config-dialed
+- An OWASP ASVS 5.0 security-audit workflow + a generated leveled L1/L2/L3 checklist (345 reqs, byte-reproducible from a pinned source)
+- The converged un-cheatable §14 quality gate — lint + Playwright UI/E2E + visual regression + a structured-justification test-integrity checker the agent can't self-author — single-sourced in `05-pr-quality-gate.md`
+- A TypeScript tooling foundation — the whole script layer migrated to a zero-build, `tsc`-compiled committed-`.js`, freshness-checked, cross-platform model (Node 22+) + the kit-shipped-runnable convention
+- Install `--migrate`/`--update`/`--prune-old-kit`, a browsable docs catalog + a fail-closed freshness gate, and an honest Tier-1/Tier-2 auto-UAT harness
+
+### What Worked
+- **Foundation-first sequencing** — landing the mechanical guards + config-dial contract in Phase 10 meant every later content phase wrote into a guarded, dialed environment; the guards caught regressions the moment they appeared.
+- **Token-economy persona deepening** — the senior overhaul added judgment per token (woven into existing sections, paid for by compressing weak prose) under hard byte ceilings, instead of bloating the prompts — "sharper, not longer."
+- **Ratifying the TS pivot as its own phase** — pulling the long-HELD TypeScript decision into an explicit Phase 15, with a freshness check proving committed `.js` can't drift from `.ts`, gave the gate / test-integrity work a real cross-platform foundation instead of scattered ad-hoc `.mjs`.
+- **Honest automation over fake green** — Phase 19's Tier-2 harness loud-skips when the CLI is unauthed and asserts on markers, never grading its own homework; it resolved the long-deferred A1/A2/B3 live UATs from real captured runs.
+
+### What Was Inefficient
+- **The milestone reopened after it was "done"** — Phase 19 was added post-Phase-18 to automate the deferred live-runtime UATs, so v1.2 was marked complete-but-never-archived and then re-opened. Scoping the auto-UAT work into the milestone up front would have avoided the reopen.
+- **A live UAT resisted automation to the end** — A3/DOG-02 dual-path handoff-parity never produced frozen markers on `--print` stdout within even a 420s budget; the right call (assert on-disk artifacts, or wait for the decentralization that removes handoffs) was reached only after two timed-out real runs.
+- **Nyquist formal validation still lags** — 7 of 10 phases are PARTIAL (structural-guard/markdown work where wave-0 unit-test compliance doesn't map cleanly), the same debt carried from v1.1. Behavioral coverage is strong (144+ tests green); the formal layer remains a process-doc gap.
+- **Stale status strings accumulated** — 05/06 verification frontmatter still read human_needed after Phase 19 resolved A1/A2; the close had to reconcile them. Resolving upstream status when a later phase closes an item would avoid the cleanup.
+
+### Patterns Established
+- **Single-source the gate** — every gate addition (lint, UI/E2E, test-integrity) lands in `05-pr-quality-gate.md` only; workflows reference it, never fork it. The bounded self-fix loop and three terminal results wrap unchanged.
+- **Committed-`.js` + freshness check** — author tooling in TS, compile to committed `.js`, gate on a rebuild-to-temp byte diff so the artifact provably can't drift from its source — the zero-host-dependency cross-platform model.
+- **Safety carve-outs are never fully dialable off** — `test_integrity` is `warn|block` only (mirrors the prod-deploy hook's refuse-self-set); a trace-integrity floor the dial can't disable.
+- **Tiered honesty for un-runnable checks** — Tier-1 deterministic oracles (authoritative) / Tier-2 gated live E2E (loud-skip) / Tier-3 human-only judgment (explicitly out of automation scope); each lane states whether it's authoritative or advisory.
+
+### Key Lessons
+1. Scope the verification/UAT-automation work *into* the milestone — a deferred "automate the live UATs later" became a whole reopened phase (19).
+2. When a live assertion resists automation, question the assertion's *surface* (here, `--print` stdout vs on-disk artifacts) before spending more real-run budget.
+3. Deepen personas by compression, not addition — judgment-per-token under a byte ceiling preserves the token economy that is grugops's whole cost model.
+4. A pivot worth holding is worth ratifying as its own phase with a mechanical anti-drift gate, not sprinkling the new tech in piecemeal.
+
+### Cost Observations
+- Model mix: predominantly opus (model_profile `quality`).
+- Scale: the largest milestone yet — 263 commits, +46,382/−4,686 across 278 files over 8 days (2026-06-09 → 2026-06-16).
+- Notable: the TS migration (15) and gate convergence (16) were the heaviest content; Phase 19's two timed-out 420s live runs were the most expensive low-yield spend — resolved by waiving A3.
+
+---
+
 ## Milestone: v1.1 — Install & Distribution
 
 **Shipped:** 2026-06-08
@@ -85,6 +129,7 @@
 |-----------|---------|--------|-------|------------|
 | v1.0 | 206 | 6 | 34 | Bottom-up build of the full spec; dogfood as acceptance gate |
 | v1.1 | 92 | 3 | 14 | Forced build order + mechanical gates (C1 grep-to-zero, C3 fail-closed); sh/Node byte-parity contract |
+| v1.2 | 263 | 10 | 38 | Foundation-first guards + config-dial; token-economy persona overhaul; TypeScript tooling pivot (committed-`.js` + freshness); converged single-source §14 gate; honest Tier-1/2 auto-UAT |
 
 ### Cumulative Quality
 
@@ -92,9 +137,11 @@
 |-----------|------------------|--------------|--------------------|
 | v1.0 | validator self-test, guard.test.sh, install.test.sh, check-structure.sh | (not formally audited) | validator (stdlib-only), guard (pure-Node) |
 | v1.1 | install.test.sh 18/18, validate.test.sh 18/18, two-root 12/12, check-kit-refs green | `tech_debt` (8/8 reqs, no blockers) | doctor (sh + Node), two-root validator |
+| v1.2 | Vitest suite 144+ green (install, validator, ASVS, guards, UAT oracles, catalog, freshness) + foundation-guards aggregator | `tech_debt` (34/35 reqs, 7/7 integration seams, no blockers) | TS tooling → committed-`.js` + freshness (zero host runtime deps); test-integrity checker; catalog generator + freshness gate; Tier-1 UAT oracles |
 
 ### Top Lessons (Verified Across Milestones)
 
 1. **Mechanical gates beat eyeballs and prompts** — the prod-deploy hook (v1.0) and the grep-to-zero / fail-closed gates (v1.1) are the load-bearing safety, not the prose.
 2. **Never fabricate** — `UNKNOWN - verify`, honest deferral of un-runnable items (DOG-02), and re-verifying after gap closure kept the trace trustworthy across both milestones.
-3. **Close milestones promptly** — v1.0's skipped archive cost a retroactive reconstruction; do the close as part of shipping.
+3. **Close milestones promptly** — v1.0's skipped archive cost a retroactive reconstruction; do the close as part of shipping. Corollary (v1.2): scope the verification/UAT-automation *into* the milestone — deferring it reopened v1.2 as a whole new phase (19).
+4. **Make tooling drift impossible, not just unlikely** — the committed-`.js` + freshness check (v1.2) is the same move as the v1.1 sh/Node byte-parity contract: pick one source of truth and gate mechanically on a byte diff so the artifact provably can't drift.

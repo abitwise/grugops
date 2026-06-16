@@ -1,5 +1,29 @@
 # Milestones
 
+## v1.2 SDLC Depth, Quality Discipline & Browsable Docs (Shipped: 2026-06-16)
+
+**Phases completed:** 10 phases (10–19), 38 plans, 55 tasks
+**Git:** `9dc56ad..5ecb6e4` — 263 commits, 278 files changed (+46,382 / −4,686) · 2026-06-09 → 2026-06-16
+**Audit:** `tech_debt` — 34/35 requirements satisfied, 7/7 cross-phase integration seams wired (0 broken), no blockers
+**Known deferred items at close:** 13 (all known/ratified — A3/DOG-02 human-waived, B1/B2 Tier-3 human-only, 2 stale markers; see STATE.md Deferred Items)
+
+**Delivered:** Made grugops's delivery lifecycle senior-grade and trustworthy end-to-end — deeper SDLC personas with the business→engineer handoff closed, test-first by default, automated UI build+test, OWASP ASVS security auditing, an un-cheatable quality gate, a TypeScript tooling foundation, browsable docs, the deferred install migrate/update story, and an honest auto-UAT harness — almost entirely as improvements to grugops's own markdown kit.
+
+**Key accomplishments:**
+
+- **SDLC-coverage audit + foundation guards + config-dial contract (Phase 10)** — opened the milestone by scoring all 16 roles × 14 workflows × 9 lifecycle stages (breadth complete; 4 depth gaps mapped to phases 11–15, 0 uncovered), landing four mechanical guards (WR-05 spawn-grant grep, adapter-size, AGENTS.md byte budget, voice-lint) with a fail-proof harness, and 8 new dial keys with lean defaults + a documented lean→enterprise escalation contract the validator enum-recognizes active-when-present / lenient-when-absent.
+- **Senior persona overhaul + 17th frontend/UI role (Phases 11, 13)** — deepened all 16 roles to senior judgment in place (sharper-per-token; terse caveman voice preserved as the token-economy mechanism; per-file byte ceilings enforced), closed the business→engineer handoff via the INVEST/measurable-NFR Definition-of-Ready hub, retired the WR-05 spawn grant (re-verified GREEN post-rewrite), and added a senior `frontend-ui` persona (no spawn) + workflow 14 (UI design→build, WCAG 2.2 AA) the Orchestrator routes to.
+- **Test-first baked in (Phase 12)** — declarative selector-free Given/When/Then acceptance contract in the product + QE handoffs, a single-source Three Amigos / Example-Mapping hub folded into backlog refinement, and the engineer red-green double-loop with dial-aware test-first evidence fields carrying the clear-voice no-fabrication floor — all config-dialed via `bdd` + `quality.tdd`.
+- **OWASP ASVS 5.0 security posture (Phase 14)** — workflow 15 (deep leveled audit, reference-don't-restate the gate) + the security/NFR checklist regenerated from a vendored pinned ASVS 5.0.0 source by a zero-dep generator (345 L1/L2/L3 requirements, byte-reproducible, provably not hand-transcribed), with `security.asvs_level`/`block_on` dialed and clear-voice findings (guard_voice over all four security surfaces).
+- **TypeScript tooling foundation (Phase 15, D-13 ratified)** — migrated the whole script layer (single `install.ts`, validator, ASVS generator, six-guard aggregator, kit-refs) to a zero-build, `tsc`-compiled committed-`.js`, freshness-checked cross-platform model, and proved the kit-shipped-runnable convention end-to-end; all 13 POSIX/`.mjs` originals + `.test.sh` oracles deleted only after a green migration suite; Node 22+ floor.
+- **Converged un-cheatable §14 quality gate (Phase 16)** — wired lint, automated Playwright UI/E2E + visual regression + axe-core a11y, and a structured-justification test-integrity checker the agent cannot self-author into the single-source `05-pr-quality-gate.md`, all config-dialed, preserving the bounded self-fix loop and three terminal results; `test_integrity` carries a `warn|block`-only safety floor (never off).
+- **Install --migrate / --update + browsable docs catalog (Phases 17, 18)** — RED-harness-first, never-delete-first `--migrate`/`--update`/`--prune-old-kit` flags on the single TS installer (the only deletion path removes only timestamped `.bak` backups), and a read-only stdlib-only generator emitting a byte-stable `docs/catalog/README.md` (17 roles + 16 workflows, each linked to source) guarded by a fail-closed `freshness:catalog` drift gate.
+- **Honest factory auto-UAT harness (Phase 19)** — Tier-1 deterministic oracles (WR-05 wording, hooks.json→guard wiring, dual-path parity) wired into the foundation-guards aggregator + a Tier-2 `claude --print` headless E2E harness that LOUD-skips when unauthed; run for real it resolved B3 + A1/D-31 + A2/SAFE-02 from captured evidence without fabrication. A3/DOG-02 live dual-path parity is **human-waived** to the next (decentralization) milestone that removes handoffs; B1/B2 persona/prose judgment stays a human sign-off.
+
+Archived: `milestones/v1.2-ROADMAP.md`, `milestones/v1.2-REQUIREMENTS.md`, `milestones/v1.2-MILESTONE-AUDIT.md`
+
+---
+
 ## v1.1 Install & Distribution (Shipped: 2026-06-08)
 
 **Phases completed:** 3 phases (7–9), 14 plans, ~33 tasks
