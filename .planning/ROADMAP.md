@@ -57,7 +57,7 @@ Full phase details + milestone summary: `milestones/v1.1-ROADMAP.md` · requirem
 - [x] **Phase 16: §14 Gate Convergence — Lint, UI/E2E & Test-Integrity** - Single-source gate additions in `05-pr-quality-gate.md`: lint step, automated UI/E2E + visual regression, and an un-cheatable structured-justification test-integrity check (TS checker on the Phase-15 foundation); all config-dialed (3/3 plans executed — awaiting phase verification) (completed 2026-06-14)
 - [x] **Phase 17: Install --migrate / --update** - RED-harness-first, never-delete-first install modes to migrate an in-repo layout forward (--migrate) and refresh the central kit (--update) + the single opt-in deletion path (--prune-old-kit) (all 3 plans executed 2026-06-15; verified passed 13/13 + WR-01/WR-02 fixed)
 - [x] **Phase 18: Browsable Docs Catalog** - Generator emits an in-repo markdown catalog of the finished 17-role / 16-workflow set; a freshness check fails red on drift (completed 2026-06-15)
-- [ ] **Phase 19: Factory Auto-UAT Harness — Tier 1 Oracles + Tier 2 Headless E2E** - Honest automation of the agent-unrunnable live-runtime human UATs: deterministic Tier-1 oracles (WR-05 wording, hooks.json→guard wiring, dual-path parity) + a Tier-2 `claude --print` headless E2E harness (loud-skip when unauthed); resolves the deferred A1/A2/A3 + B3 UATs. Tier 3 persona/prose judgment (B1/B2) stays human (reopens the milestone)
+- [x] **Phase 19: Factory Auto-UAT Harness — Tier 1 Oracles + Tier 2 Headless E2E** *(closed 2026-06-16 with one human-accepted shortcoming)* - Honest automation of the agent-unrunnable live-runtime human UATs: deterministic Tier-1 oracles (WR-05 wording, hooks.json→guard wiring, dual-path parity) + a Tier-2 `claude --print` headless E2E harness (loud-skip when unauthed); resolved B3, A1/D-31, A2/SAFE-02 from real runs. **A3/DOG-02 dual-path handoff-parity remains [pending] — human-waived (UAT-AUTO-04 carried forward): the next milestone decentralizes grugops and removes handoffs, making the A3 test moot; do NOT schedule a fix.** Tier 3 persona/prose judgment (B1/B2) stays human
 
 ## Phase Details
 
@@ -345,6 +345,6 @@ Phases execute in numeric order: 10 → 11 → 12 → 13 → 14 → 15 → 16 �
 | 16. §14 Gate Convergence — Lint, UI/E2E & Test-Integrity | v1.2 | 3/3 | Complete    | 2026-06-14 |
 | 17. Install --migrate / --update | v1.2 | 3/3 | Complete    | 2026-06-15 |
 | 18. Browsable Docs Catalog | v1.2 | 2/2 | Complete    | 2026-06-15 |
-| 19. Factory Auto-UAT Harness — Tier 1 Oracles + Tier 2 Headless E2E | v1.2 | 4/4 | Human-needed (4/5 SC — only A3 left) |  |
+| 19. Factory Auto-UAT Harness — Tier 1 Oracles + Tier 2 Headless E2E | v1.2 | 4/4 | Closed — A3 waived → next milestone | 2026-06-16 |
 
 **Totals:** 19 phases · 48 plans complete · 2 milestones shipped · v1.2 (10 phases, 10–19) in progress.

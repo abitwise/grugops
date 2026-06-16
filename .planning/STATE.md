@@ -24,9 +24,9 @@ See: .planning/PROJECT.md (updated 2026-06-09 — v1.2 milestone started)
 
 ## Current Position
 
-Phase: 19 (factory-auto-uat-harness-tier-1-deterministic-oracles-tier-2) — VERIFIED human_needed (4/5 SC)
+Phase: 19 (factory-auto-uat-harness-tier-1-deterministic-oracles-tier-2) — CLOSED 2026-06-16 (1 human-waived shortcoming: A3)
 Plan: 4 of 4 (all plans ran)
-Status: Phase goal nearly met — UAT-AUTO-04 IN PROGRESS, only A3 left. Tier-1 oracles + Tier-2 harness + gate/runbook wiring done (UAT-AUTO-01/02/03/05); B3 (19-03a) + A2/SAFE-02 + A1/D-31 (long-budget run) resolved from real runs. 05-HUMAN-UAT.md fully passed (2/2); 06 at 2/3. Only A3 (DOG-02 + 9 examples/03 parity cells) [pending] — both "take-it-to-a-PR" calls timed out at 120s AND 420s without emitting the frozen markers to -p stdout (likely a test-design limit; redesign A3-live to assert on-disk handoff artifacts).
+Status: Phase goal nearly met — UAT-AUTO-04 IN PROGRESS, only A3 left. Tier-1 oracles + Tier-2 harness + gate/runbook wiring done (UAT-AUTO-01/02/03/05); B3 (19-03a) + A2/SAFE-02 + A1/D-31 (long-budget run) resolved from real runs. 05-HUMAN-UAT.md fully passed (2/2); 06 at 2/3. Only A3 (DOG-02 + 9 examples/03 parity cells) [pending] — both "take-it-to-a-PR" calls timed out at 120s AND 420s without emitting the frozen markers to -p stdout. **A3 is an ACCEPTED human-waived shortcoming (2026-06-16): do NOT schedule a fix** — the next milestone decentralizes grugops (task-flow agents + long-term context) and removes handoffs, making the A3 dual-path handoff-parity test moot. UAT-AUTO-04 stays In Progress, revisited/retired under that milestone.
 Last activity: 2026-06-16
 
 Progress: [█████████░] 4/5 success criteria (A1/A3 live UATs pending)
