@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: SDLC Depth, Quality Discipline & Browsable Docs
 status: executing
-last_updated: "2026-06-16T10:01:35.349Z"
+last_updated: "2026-06-16T10:25:06.390Z"
 last_activity: 2026-06-16
 progress:
   total_phases: 10
   completed_phases: 9
   total_plans: 38
-  completed_plans: 35
+  completed_plans: 36
   percent: 90
 ---
 
@@ -25,11 +25,11 @@ See: .planning/PROJECT.md (updated 2026-06-09 — v1.2 milestone started)
 ## Current Position
 
 Phase: 19 (factory-auto-uat-harness-tier-1-deterministic-oracles-tier-2) — EXECUTING
-Plan: 2 of 4
+Plan: 3 of 4
 Status: Ready to execute
 Last activity: 2026-06-16
 
-Progress: [█████████░] 92%
+Progress: [██████████] 95%
 
 ## Performance Metrics
 
@@ -147,6 +147,7 @@ Progress: [█████████░] 92%
 | Phase 18 P01 | 5m | 2 tasks | 6 files |
 | Phase 18 P02 | 3m | 2 tasks | 4 files |
 | Phase 19 P01 | 20m | 3 tasks | 6 files |
+| Phase 19 P02 | 18m | 2 tasks | 4 files |
 
 ## Accumulated Context
 
@@ -328,6 +329,8 @@ Recent decisions affecting current work:
 - [Phase ?]: [19-01] Tier-1 oracles live single-source in scripts/check-uat-oracles.ts (standalone aggregator + import.meta entry guard, D-07); foundation-guards aggregator imports+invokes the three and folds uatOracleFails() into FAILS so it fails closed (UAT-AUTO-05)
 - [Phase ?]: [19-01] B3 wording oracle asserts three SEMANTIC beats per file via tolerant per-beat lookahead regexes (beat2 tolerates STATE.md guard_wr05 (...sh) in Phase 10), NOT the verbatim P8->P10->P11 slug
 - [Phase ?]: [19-01] A2 wiring oracle never references GRUGOPS_PROD_DEPLOY_APPROVED (0 refs); A3 parity surfaces the still-pending-human CC-native column as advisory WARN, never confirmed (no-fabrication)
+- [Phase ?]: [19-02] Tier-2 E2E harness gates every live assertion on a fail-closed claude auth status probe; absent/unauthed emits a LOUD distinct LOUD_SKIP_MARKER (never a silent green). BLOCKER 2 proven by a -t loud-skip stubbed-probe test asserting the exact sentinel.
+- [Phase ?]: [19-02] Tier-2 lane carries NO new dial key (self-gates on its own auth probe); stays dev/CI-only out of the default test green path; zero new devDependency. Both lanes referenced single-source in 05-pr-quality-gate.md (no fork into 14/15).
 
 ### Pending Todos
 
@@ -371,6 +374,6 @@ Items acknowledged and deferred at the v1.1 milestone close on 2026-06-08. All a
 
 ## Session Continuity
 
-Last session: 2026-06-16T10:01:10.121Z
+Last session: 2026-06-16T10:24:43.777Z
 Stopped at: Phase 18 context gathered
 Resume file: None
