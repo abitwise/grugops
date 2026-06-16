@@ -309,7 +309,7 @@ Full phase details + milestone summary: `milestones/v1.1-ROADMAP.md` · requirem
 
 **Wave 1 — Tier-1 deterministic oracles**
 
-- [ ] 19-01-PLAN.md — `scripts/check-uat-oracles.ts` (3 oracles: B3 wording, A2 hooks.json→guard wiring, A3 structural parity) + committed `.js` (freshness-clean) + `check-uat-oracles.test.ts` plant-and-run (each oracle PASS + FAIL-red) + wire the 3 oracles into the foundation-guards aggregator (`scripts/check-foundation-guards.ts`) so `node scripts/check-foundation-guards.js` runs them and fails closed (ROADMAP SC3 / LOCKED CONTEXT.md decision) [UAT-AUTO-01, UAT-AUTO-03, UAT-AUTO-05]
+- [x] 19-01-PLAN.md — `scripts/check-uat-oracles.ts` (3 oracles: B3 wording, A2 hooks.json→guard wiring, A3 structural parity) + committed `.js` (freshness-clean) + `check-uat-oracles.test.ts` plant-and-run (each oracle PASS + FAIL-red) + wire the 3 oracles into the foundation-guards aggregator (`scripts/check-foundation-guards.ts`) so `node scripts/check-foundation-guards.js` runs them and fails closed (ROADMAP SC3 / LOCKED CONTEXT.md decision) [UAT-AUTO-01, UAT-AUTO-03, UAT-AUTO-05]
 
 **Wave 2** *(blocked on 19-01)* **— Tier-2 headless E2E + gate wiring + docs; deterministic B3 resolution (parallel)**
 
@@ -345,6 +345,6 @@ Phases execute in numeric order: 10 → 11 → 12 → 13 → 14 → 15 → 16 �
 | 16. §14 Gate Convergence — Lint, UI/E2E & Test-Integrity | v1.2 | 3/3 | Complete    | 2026-06-14 |
 | 17. Install --migrate / --update | v1.2 | 3/3 | Complete    | 2026-06-15 |
 | 18. Browsable Docs Catalog | v1.2 | 2/2 | Complete    | 2026-06-15 |
-| 19. Factory Auto-UAT Harness — Tier 1 Oracles + Tier 2 Headless E2E | v1.2 | 0/3 | Planned | - |
+| 19. Factory Auto-UAT Harness — Tier 1 Oracles + Tier 2 Headless E2E | v1.2 | 1/4 | In Progress|  |
 
 **Totals:** 19 phases · 48 plans complete · 2 milestones shipped · v1.2 (10 phases, 10–19) in progress.

@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: SDLC Depth, Quality Discipline & Browsable Docs
 status: executing
-last_updated: "2026-06-16T09:35:46.048Z"
-last_activity: 2026-06-16 -- Phase 19 planning complete
+last_updated: "2026-06-16T10:01:35.349Z"
+last_activity: 2026-06-16
 progress:
   total_phases: 10
   completed_phases: 9
   total_plans: 38
-  completed_plans: 34
-  percent: 89
+  completed_plans: 35
+  percent: 90
 ---
 
 # Project State
@@ -20,16 +20,16 @@ progress:
 See: .planning/PROJECT.md (updated 2026-06-09 — v1.2 milestone started)
 
 **Core value:** A user installs grugops on top of the coding-agent CLI they already run, types `/grug`, and gets a disciplined delivery team — a visible board, strict handoffs, and an auditable requirement→code→test→release trail — entirely as readable markdown, with humans always holding merge and deploy.
-**Current focus:** Phase 19 — Factory Auto-UAT Harness (Tier 1 oracles + Tier 2 headless E2E)
+**Current focus:** Phase 19 — factory-auto-uat-harness-tier-1-deterministic-oracles-tier-2
 
 ## Current Position
 
-Phase: 19
-Plan: Not planned yet
+Phase: 19 (factory-auto-uat-harness-tier-1-deterministic-oracles-tier-2) — EXECUTING
+Plan: 2 of 4
 Status: Ready to execute
-Last activity: 2026-06-16 -- Phase 19 planning complete
+Last activity: 2026-06-16
 
-Progress: [█████████░] 90% (9/10 phases)
+Progress: [█████████░] 92%
 
 ## Performance Metrics
 
@@ -146,6 +146,7 @@ Progress: [█████████░] 90% (9/10 phases)
 | Phase 17 P03 | 14m | 2 tasks | 4 files |
 | Phase 18 P01 | 5m | 2 tasks | 6 files |
 | Phase 18 P02 | 3m | 2 tasks | 4 files |
+| Phase 19 P01 | 20m | 3 tasks | 6 files |
 
 ## Accumulated Context
 
@@ -324,6 +325,9 @@ Recent decisions affecting current work:
 - [Phase ?]: [18-01] DOCS-01 catalog generator: self-discovers 17 roles + 16 workflows via readdirSync; read-only parse; D-08 byte-stable ordering; D-09 workflows 12/13 cadence -> UNKNOWN - verify; fail-closed before any partial write; catalog source links are repo-root-relative to keep the file free of '..'
 - [Phase ?]: [18-02] DOCS-02 catalog freshness gate is STANDALONE (own freshness:catalog package.json script), NOT folded into check-foundation-guards.ts (D-07); guards byte-unchanged. Mirror-spawn regen (cpSync generator .js + roles+workflows into a temp tree, spawnSync so OUT stays a fixed literal, D-06 path-traversal-safe), Buffer.equals byte-diff vs committed docs/catalog/README.md, fail-closed: non-zero regen ⇒ exit 1, never fresh (T-18-06).
 - [Phase ?]: [18-02] Rule 1 fix: the fail-closed RED fixture must use a NON-underscore bad-role filename (the generator D-03 _-prefix filter silently drops _-files, vacuously passing the regen); the no-success assertion targets the success-only marker 'matches a fresh regeneration' since the fail-closed message also contains 'catalog fresh'.
+- [Phase ?]: [19-01] Tier-1 oracles live single-source in scripts/check-uat-oracles.ts (standalone aggregator + import.meta entry guard, D-07); foundation-guards aggregator imports+invokes the three and folds uatOracleFails() into FAILS so it fails closed (UAT-AUTO-05)
+- [Phase ?]: [19-01] B3 wording oracle asserts three SEMANTIC beats per file via tolerant per-beat lookahead regexes (beat2 tolerates STATE.md guard_wr05 (...sh) in Phase 10), NOT the verbatim P8->P10->P11 slug
+- [Phase ?]: [19-01] A2 wiring oracle never references GRUGOPS_PROD_DEPLOY_APPROVED (0 refs); A3 parity surfaces the still-pending-human CC-native column as advisory WARN, never confirmed (no-fabrication)
 
 ### Pending Todos
 
@@ -367,6 +371,6 @@ Items acknowledged and deferred at the v1.1 milestone close on 2026-06-08. All a
 
 ## Session Continuity
 
-Last session: 2026-06-15T09:50:49.409Z
+Last session: 2026-06-16T10:01:10.121Z
 Stopped at: Phase 18 context gathered
 Resume file: None
