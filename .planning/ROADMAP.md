@@ -153,7 +153,7 @@ Full phase details + milestone summary: `milestones/v1.1-ROADMAP.md` · requirem
   2. A UI design→build workflow (`workflows/14-ui-design-to-build.md`) walks design contract → component build → all five states (loading / empty / error / success / partial-data) → accessibility → visual baseline, referencing the §14 gate rather than restating it.
   3. The Orchestrator routing matrix and classification list route UI work to the frontend/UI persona, and the new role + workflow register in the workflow map without renumbering the frozen 00–13 ordinals.
 
-**Plans**: 3 plans
+**Plans**: 4 plans
 **UI hint**: yes
 
 **Wave 1**
@@ -176,7 +176,7 @@ Full phase details + milestone summary: `milestones/v1.1-ROADMAP.md` · requirem
   2. The security/NFR checklist is rewritten to ASVS 5.0 chapters with L1/L2/L3 tags and requirement IDs, generated from the pinned ASVS 5.0.0 source (not hand-transcribed), and every "pass" cites evidence or reads `UNKNOWN - verify` — no unbacked ticks.
   3. ASVS level is config-dialed (`security.asvs_level`: L1 lean → L2 enterprise → L3 + named human sign-off), the gate's security block-threshold is dialed (`security.block_on`), and all security findings are written in clear professional voice (voice-lint guard passes on the security surfaces).
 
-**Plans**: 3 plans
+**Plans**: 4 plans
 
 **Wave 1**
 
@@ -232,7 +232,7 @@ Full phase details + milestone summary: `milestones/v1.1-ROADMAP.md` · requirem
   3. The gate blocks unjustified skipped tests: a legitimate skip requires a structured justification (reason + named owner + tracking ticket/REQ-ID + expiry date + closed-list category), the agent may not self-author it, the gate fails when unjustified skips > 0 or expired skips > 0, and quarantine is a non-blocking lane (never silent deletion) — proven by a RED fixture where a hollow justification fails.
   4. Test-integrity enforcement is never fully dialable off (`quality.test_integrity`: warn | block only — a trace-integrity safety carve-out); all new steps wrap unchanged inside the bounded `self_fix_attempts` loop and preserve the three terminal results (`READY_FOR_HUMAN_REVIEW` / `BLOCKED_NEEDS_FIX` / `SPLIT_REQUIRED`); all gate changes land single-source in `05-pr-quality-gate.md` (no fork into workflows 14/15).
 
-**Plans**: 3 plans
+**Plans**: 4 plans
 **UI hint**: yes
 
 **Wave 1** *(parallel — disjoint file ownership)*
@@ -257,7 +257,7 @@ Full phase details + milestone summary: `milestones/v1.1-ROADMAP.md` · requirem
 
 > **D-13 supersession (planned 2026-06-15):** SC1/SC2's "install.sh / sh-Node byte-parity" wording is superseded by the Phase-15 TypeScript pivot — there is no `install.sh`. The modes are flags on the single TS installer: `node install/install.js --migrate|--update|--prune-old-kit`. The committed `install/install.js` is rebuilt with `tsc` and must pass `npm run freshness` before commit. SC3's restore mechanism is the orchestrator-ratified DOCUMENTED manual `.bak` rename (not new automated uninstall-restore logic). D-04 config-location resolution: migrate checks BOTH legacy locations (repo-root `factory.config.json` AND `agent-factory/config/factory.config.json`).
 
-**Plans**: 3 plans
+**Plans**: 4 plans
 
 **Wave 0**
 
@@ -305,19 +305,20 @@ Full phase details + milestone summary: `milestones/v1.1-ROADMAP.md` · requirem
   4. Run for real, the harness honestly resolves the A1/A2/A3 + B3 items in their UAT files (`05-HUMAN-UAT.md`, `06-HUMAN-UAT.md`, `11-HUMAN-UAT.md` scenario 3) — status set from real runs, never faked. B1/B2 remain human-only.
   5. **Zero new host runtime dependency**: the `claude`-CLI E2E stays dev/CI-only and is config/skip-gated; the minimal markdown-copy install path (`install/README.md` §1) is unaffected.
 
-**Plans**: 3 plans
+**Plans**: 4 plans
 
 **Wave 1 — Tier-1 deterministic oracles**
 
-- [ ] 19-01-PLAN.md — `scripts/check-uat-oracles.ts` (3 oracles: B3 wording, A2 hooks.json→guard wiring, A3 structural parity) + committed `.js` (freshness-clean) + `check-uat-oracles.test.ts` plant-and-run (each oracle PASS + FAIL-red) [UAT-AUTO-01, UAT-AUTO-03]
+- [ ] 19-01-PLAN.md — `scripts/check-uat-oracles.ts` (3 oracles: B3 wording, A2 hooks.json→guard wiring, A3 structural parity) + committed `.js` (freshness-clean) + `check-uat-oracles.test.ts` plant-and-run (each oracle PASS + FAIL-red) + wire the 3 oracles into the foundation-guards aggregator (`scripts/check-foundation-guards.ts`) so `node scripts/check-foundation-guards.js` runs them and fails closed (ROADMAP SC3 / LOCKED CONTEXT.md decision) [UAT-AUTO-01, UAT-AUTO-03, UAT-AUTO-05]
 
-**Wave 2** *(blocked on 19-01)* **— Tier-2 headless E2E + gate wiring + docs**
+**Wave 2** *(blocked on 19-01)* **— Tier-2 headless E2E + gate wiring + docs; deterministic B3 resolution (parallel)**
 
 - [ ] 19-02-PLAN.md — `scripts/e2e/uat-live.test.ts` (claude-present-and-authed probe + loud-skip; A1/A2-live/A3-live) + `test:e2e` script + single-source §14 gate reference + three-lane `dogfood-human-runbook.md` docs [UAT-AUTO-02, UAT-AUTO-03, UAT-AUTO-05]
+- [ ] 19-03a-PLAN.md — Resolve B3 (11-HUMAN-UAT scenario 3) from the deterministic Tier-1 oracle real run — autonomous (no `claude` CLI/auth); flips the cell only on a real PASS, value-verified (W1); scenarios 1 & 2 untouched [UAT-AUTO-04]
 
-**Wave 3** *(blocked on 19-01 + 19-02)* **— Real-run UAT resolution (human-gated)**
+**Wave 3** *(blocked on 19-01 + 19-02)* **— Live-runtime UAT resolution (human-gated)**
 
-- [ ] 19-03-PLAN.md — Resolve B3 (11-HUMAN-UAT scenario 3) from the Tier-1 oracle real run + run Tier-2 for real (human checkpoint) to flip A1/A2/A3 cells in 05/06-HUMAN-UAT.md + the 9 parity cells in examples/03 — real-run output only, loud-skip leaves cells pending [UAT-AUTO-04]
+- [ ] 19-03b-PLAN.md — Run Tier-2 for real (human checkpoint, authed `claude` CLI) to flip A1/A2/A3 cells in 05/06-HUMAN-UAT.md + the 9 parity cells in examples/03 — real-run output only; a loud-skip leaves cells pending [UAT-AUTO-04]
 
 ## Progress
 

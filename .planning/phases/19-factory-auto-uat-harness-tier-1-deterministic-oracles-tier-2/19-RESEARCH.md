@@ -376,22 +376,21 @@ claude plugin uninstall grugops ; claude plugin marketplace remove grugops
 | A4 | A new gate-execution dial for the lanes (if any) should reuse the `quality.*` enum shape; the E2E lane likely needs no new key (it self-skips on unauth). | User Constraints (config dial) | A redundant new key adds dial surface. Discretion item — confirm during planning. |
 | A5 | The committed `.js` freshness gate (`OUTPUT_DIRS=["install","scripts","hooks"]`) auto-covers a new `scripts/e2e/` subdir. | Pitfall 5 | If `scripts/e2e/` were gitignored or excluded, a stale `.js` would slip. Verify the new path is tracked + LF-pinned. |
 
-## Open Questions
+## Open Questions (RESOLVED)
 
-1. **Does `claude -p "/grugops:plan <args>"` trigger the slash command in print mode?**
+> All three Open Questions are resolved-by-design for planning. Q1/Q2 are mechanics the Tier-2 harness PROBES live during build-out (the plan encodes the assertion shape, not a guessed answer); Q3 is an orchestrator-tracked process step, not a code unknown.
+
+1. **RESOLVED: probe live during build-out; plan asserts markers-present-AND-path-error-absent on both `claude -p "/grugops:plan …"` and the `--plugin-dir ./` fallback.**
    - What we know: `-p` is the documented non-interactive mode; `--output-format json` gives a result envelope; slash commands are invoked interactively as `/skill-name`; `--plugin-dir ./` loads a plugin for one session. The plugin form's `plan` skill is `skills/plan/SKILL.md` (`/grugops:plan`).
-   - What's unclear: Whether a leading `/grugops:plan` literal in the `-p` prompt is parsed as a command invocation vs. plain prompt text (the docs describe interactive invocation; print-mode slash-trigger isn't spelled out).
-   - Recommendation: During build-out, run BOTH `claude -p "/grugops:plan …"` and `claude --plugin-dir ./ -p "<request>"` against the authed local CLI; lock whichever fires. Assert markers-present-AND-path-error-absent; on neither, fail/inconclusive-loud. Mark the chosen form as the harness contract.
+   - Resolution: The A1 harness case (Plan 19-02 Task 1) runs BOTH forms against the authed local CLI and locks whichever fires. The honesty contract is to assert **planning/Orchestrator markers PRESENT and the path-error substring ABSENT** on whichever form triggers; on neither, the run is fail/inconclusive-loud (never a silent pass). The print-mode slash-trigger nuance is a build-out probe with a defined assertion shape, not an open unknown blocking planning.
 
-2. **Marketplace source form for the throwaway repo: local `./` path vs. Git `owner/repo`?**
+2. **RESOLVED: prefer the local `./` marketplace-source form; verify the plugin-cache copy actually occurs (that IS the D-31 condition).**
    - What we know: `claude plugin marketplace add` accepts "a URL, path, or GitHub repo"; the runbook notes a raw-URL marketplace does NOT fetch plugin files — use a Git host or a local path. This repo's `.claude-plugin/{plugin,marketplace}.json` validate clean (`claude plugin validate` exit 0).
-   - What's unclear: Whether `marketplace add <local-path-to-grugops-repo>` then `install grugops@grugops` correctly copies the plugin into the throwaway repo's cache to reproduce the D-31 cache-copy condition.
-   - Recommendation: Prefer the local-path form (`marketplace add <abs-path-to-this-repo>`) for hermeticity; verify the plugin-cache copy actually happens (that IS the condition D-31 tests). Fall back to a Git-hosted form if local-path doesn't trigger the copy.
+   - Resolution: The A1 case uses the local-path form (`marketplace add <abs-path-to-this-repo>` → `install grugops@grugops --scope local`) for hermeticity, and the assertion explicitly verifies the plugin-cache copy occurred — that copy IS the D-31 condition under test. Fall back to a Git-hosted form only if the local-path form does not trigger the copy on the target CLI version.
 
-3. **Are UAT-AUTO-01..05 the agreed requirement IDs, and do they belong to v1.2 (reopened) or a new v1.3 line?**
-   - What we know: ROADMAP/STATE reopened v1.2 for Phase 19; the feasibility plan framed the capability as a "v1.3 candidate feature."
-   - What's unclear: Whether these five requirements join v1.2's count (now 30) or open a new milestone block.
-   - Recommendation: A discuss-phase / planner decision. Add them to REQUIREMENTS.md + traceability before the decision-coverage gate runs (see Assumption A1).
+3. **RESOLVED: UAT-AUTO-01..05 backfill into REQUIREMENTS.md is the orchestrator's job, tracked separately.**
+   - What we know: ROADMAP/STATE reopened v1.2 for Phase 19; the feasibility plan framed the capability as a "v1.3 candidate feature." UAT-AUTO-01..05 are referenced in ROADMAP/STATE but not yet defined in REQUIREMENTS.md.
+   - Resolution: Defining UAT-AUTO-01..05 in REQUIREMENTS.md + the traceability table (and the v1.2-vs-v1.3 milestone placement) is an orchestrator/discuss-phase process step, tracked separately from these execution plans. The plans cover all five IDs in their `requirements` frontmatter (19-01: UAT-AUTO-01/03; 19-02: UAT-AUTO-02/03/05; 19-03a/19-03b: UAT-AUTO-04). The proposed decomposition in the Phase Requirements table above is the agreed wording basis.
 
 ## Environment Availability
 

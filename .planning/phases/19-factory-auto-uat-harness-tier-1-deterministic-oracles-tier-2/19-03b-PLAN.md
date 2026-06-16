@@ -1,26 +1,22 @@
 ---
 phase: 19-factory-auto-uat-harness-tier-1-deterministic-oracles-tier-2
-plan: 03
+plan: 03b
 type: execute
 wave: 3
 depends_on: ["19-01", "19-02"]
 files_modified:
   - .planning/phases/05-packaging-adapters-install-distribution/05-HUMAN-UAT.md
   - .planning/phases/06-validation-brand-dogfood/06-HUMAN-UAT.md
-  - .planning/phases/11-senior-persona-overhaul/11-HUMAN-UAT.md
   - examples/03-ticket-to-pr.md
 autonomous: false
 requirements: [UAT-AUTO-04]
 must_haves:
   truths:
-    - "The B3 wording UAT (11-HUMAN-UAT.md scenario 3) is resolved from the captured `node scripts/check-uat-oracles.js` real-run output — never hand-set"
     - "The A1/A2/A3 UAT cells in 05-HUMAN-UAT.md and 06-HUMAN-UAT.md flip to passed ONLY from the captured `npm run test:e2e` real-run output against an authed claude CLI"
     - "The 9 CC-native parity cells in examples/03-ticket-to-pr.md are filled ONLY from the A3-live real-run output"
     - "If the `claude` CLI is absent/unauthed (test:e2e loud-skips), the A1/A2/A3 cells stay pending — the run produces a loud-skip artifact and the checkpoint does not flip them"
-    - "B1/B2 (11-HUMAN-UAT.md scenarios 1 & 2, persona/prose judgment) remain human-only and are NOT machine-resolved"
+    - "GRUGOPS_PROD_DEPLOY_APPROVED is NEVER set and NO real deploy occurs during the run (V14)"
   artifacts:
-    - path: ".planning/phases/11-senior-persona-overhaul/11-HUMAN-UAT.md"
-      provides: "Scenario 3 (B3) resolved from the Tier-1 oracle real-run output"
     - path: ".planning/phases/05-packaging-adapters-install-distribution/05-HUMAN-UAT.md"
       provides: "A1/A2 cells resolved from real-run output (or left pending on loud-skip)"
     - path: ".planning/phases/06-validation-brand-dogfood/06-HUMAN-UAT.md"
@@ -28,23 +24,22 @@ must_haves:
     - path: "examples/03-ticket-to-pr.md"
       provides: "The 9 CC-native parity cells filled from the A3-live real run"
   key_links:
-    - from: "scripts/check-uat-oracles.js + npm run test:e2e"
-      to: "the three *-HUMAN-UAT.md files + examples/03 parity table"
+    - from: "npm run test:e2e (authed real run)"
+      to: "the two *-HUMAN-UAT.md files + examples/03 parity table"
       via: "captured real-run output is the ONLY evidence permitted to flip a cell"
       pattern: "result: \\[passed\\]|result: \\[pending\\]"
 ---
 
 <objective>
-Resolve the long-deferred live-runtime UATs from REAL-RUN output only — never hand-set (Constraint #6). Run the Tier-1 oracle (`node scripts/check-uat-oracles.js`) and the Tier-2 headless harness (`npm run test:e2e`) against the developer's authed `claude` CLI, capture the output, and flip ONLY the cells the captured evidence justifies:
-- B3 → `11-HUMAN-UAT.md` scenario 3 (from the Tier-1 wording-oracle output, which always runs).
+Resolve the long-deferred LIVE-RUNTIME UATs (A1/A2/A3) from REAL-RUN output only — never hand-set (Constraint #6). Run the Tier-2 headless harness (`npm run test:e2e`) against the developer's authed `claude` CLI, capture the output, and flip ONLY the cells the captured evidence justifies:
 - A1/A2 → `05-HUMAN-UAT.md`; A1/A2/A3 → `06-HUMAN-UAT.md`; the 9 CC-native parity cells in `examples/03-ticket-to-pr.md` (from the Tier-2 real-run output, ONLY if the CLI is present+authed).
 
-If the Tier-2 lane LOUD-SKIPS (CLI absent/unauthed), the A1/A2/A3 cells STAY pending — the loud-skip artifact is recorded and the cells are NOT flipped. B1/B2 (`11-HUMAN-UAT.md` scenarios 1 & 2, persona/prose judgment) remain human-only and are untouched.
+If the Tier-2 lane LOUD-SKIPS (CLI absent/unauthed), the A1/A2/A3 cells STAY pending — the loud-skip artifact is recorded and the cells are NOT flipped.
 
-This plan is `autonomous: false`: the Tier-2 real-run requires an authed `claude` CLI that an autonomous executor cannot guarantee. The checkpoint presents the captured output to the human, who confirms the flips reflect a real run before any cell changes.
+This plan is `autonomous: false`: the Tier-2 real-run requires an authed `claude` CLI that an autonomous executor cannot guarantee. The checkpoint presents the captured output to the human, who confirms the flips reflect a real run before any cell changes. This is the live half split out of the former Plan 19-03 (BLOCKER 3) so the deterministic B3 resolution (now 19-03a, `autonomous: true`) is NOT gated behind this human checkpoint. `depends_on` BOTH the Tier-1 oracle (`19-01`) and the Tier-2 harness (`19-02`).
 
-Purpose: close the deferred A1/A2/A3 + B3 UATs honestly, completing the phase's "run for real" success criterion.
-Output: flipped cells in the three UAT files + the parity table, each traceable to captured real-run output (or explicitly left pending with the loud-skip recorded).
+Purpose: close the deferred A1/A2/A3 live-runtime UATs honestly, completing the phase's "run for real" success criterion.
+Output: flipped cells in `05-HUMAN-UAT.md` / `06-HUMAN-UAT.md` + the 9 parity cells in `examples/03-ticket-to-pr.md`, each traceable to captured real-run output (or explicitly left pending with the loud-skip recorded).
 </objective>
 
 <execution_context>
@@ -62,52 +57,27 @@ Output: flipped cells in the three UAT files + the parity table, each traceable 
 @.planning/phases/19-factory-auto-uat-harness-tier-1-deterministic-oracles-tier-2/19-02-PLAN.md
 @.planning/phases/05-packaging-adapters-install-distribution/05-HUMAN-UAT.md
 @.planning/phases/06-validation-brand-dogfood/06-HUMAN-UAT.md
-@.planning/phases/11-senior-persona-overhaul/11-HUMAN-UAT.md
 @examples/03-ticket-to-pr.md
 </context>
 
 <tasks>
 
-<task type="auto">
-  <name>Task 1: Resolve B3 (11-HUMAN-UAT scenario 3) from the Tier-1 oracle real run</name>
-  <files>.planning/phases/11-senior-persona-overhaul/11-HUMAN-UAT.md</files>
-  <read_first>
-    - .planning/phases/11-senior-persona-overhaul/11-HUMAN-UAT.md — the three scenarios + Summary block; scenario 3 (B3 WR-05 wording) is the ONLY one this task touches; scenarios 1 & 2 (B1/B2) stay human (do NOT touch)
-    - scripts/check-uat-oracles.ts (from Plan 01) — the B3 wording oracle whose output is the evidence
-    - 19-CONTEXT.md <specifics> — the exact UAT files and the "scenario 3 only" boundary
-  </read_first>
-  <action>
-    Run `node scripts/check-uat-oracles.js` and capture the full stdout. The B3 wording oracle is deterministic and always runs (no CLI dependency). If the run exits 0 with `ALL CHECKS PASSED` and the wording-oracle PASS line for the four tracking docs is present, flip `11-HUMAN-UAT.md` scenario 3 `result: [pending]` → `result: [passed]` and add a one-line note citing the captured real-run evidence (the command + the PASS line). Update the Summary block counts (passed/pending) for scenario 3 ONLY. Do NOT touch scenarios 1 & 2 — B1/B2 persona/prose judgment stays human-only. If the oracle FAILS or the wording PASS line is absent, leave scenario 3 pending and record the failing output in the SUMMARY (never flip on a non-pass — Constraint #6).
-  </action>
-  <verify>
-    <automated>node scripts/check-uat-oracles.js && grep -A1 'WR-05 closure' .planning/phases/11-senior-persona-overhaul/11-HUMAN-UAT.md | grep -c 'result:'</automated>
-  </verify>
-  <acceptance_criteria>
-    - The flip is justified by captured output: `node scripts/check-uat-oracles.js` exits 0 and the SUMMARY records the wording-oracle PASS line as the evidence.
-    - `11-HUMAN-UAT.md` scenario 3 reads `result: [passed]` ONLY if the oracle passed; the note cites the real-run command + PASS line.
-    - Scenarios 1 & 2 are byte-unchanged (`git diff` touches only scenario 3 + the Summary counts).
-    - The Summary block's passed/pending counts are consistent with the single scenario-3 flip.
-    - If the oracle did not pass, scenario 3 stays `[pending]` and the SUMMARY records the failing output (no fabricated flip).
-  </acceptance_criteria>
-  <done>Scenario 3 (B3) is resolved strictly from the captured Tier-1 oracle real-run output; scenarios 1 & 2 untouched; the Summary counts updated.</done>
-</task>
-
 <task type="checkpoint:human-verify" gate="blocking-human">
-  <name>Task 2: Run the Tier-2 harness for real and resolve A1/A2/A3 cells (human-gated)</name>
+  <name>Task 1: Run the Tier-2 harness for real and resolve A1/A2/A3 cells (human-gated)</name>
   <files>.planning/phases/05-packaging-adapters-install-distribution/05-HUMAN-UAT.md, .planning/phases/06-validation-brand-dogfood/06-HUMAN-UAT.md, examples/03-ticket-to-pr.md</files>
   <read_first>
-    - scripts/e2e/uat-live.test.ts (from Plan 02) — the gated harness + its loud-skip marker
+    - scripts/e2e/uat-live.test.ts (from Plan 19-02) — the gated harness + its loud-skip marker (`LOUD_SKIP_MARKER`)
     - .planning/phases/05-packaging-adapters-install-distribution/05-HUMAN-UAT.md — tests 1 (A1 D-31) + 2 (A2 SAFE-02); the `result: [pending]` cells + Summary block
     - .planning/phases/06-validation-brand-dogfood/06-HUMAN-UAT.md — tests 1 (A1) + 2 (A2) + 3 (A3 dual-path; fills the 9 parity cells); the `result: [pending]` cells + Summary block
     - examples/03-ticket-to-pr.md:169-177 — the 9 `pending human` CC-native parity cells to fill from the A3-live run
     - 19-CONTEXT.md <decisions> Honesty — a status flips ONLY from a real run's output; loud-skip = not a pass = stays pending
   </read_first>
   <what-built>
-    Plan 02 built `scripts/e2e/uat-live.test.ts` — a `claude --print` headless harness gated on `claude auth status`, covering A1 (plugin-cache pointer resolution / D-31), A2-live (SAFE-02 deny without the approval var / V14), and A3-live (DOG-02 dual-path parity). It loud-skips when the CLI is absent/unauthed. Plan 01 built the deterministic Tier-1 oracles. This checkpoint runs the Tier-2 lane for REAL against an authed CLI and resolves the A1/A2/A3 UAT cells from the captured output.
+    Plan 19-02 built `scripts/e2e/uat-live.test.ts` — a `claude --print` headless harness gated on `claude auth status`, covering A1 (plugin-cache pointer resolution / D-31), A2-live (SAFE-02 deny without the approval var / V14), and A3-live (DOG-02 dual-path parity). It loud-skips (emitting the distinct `LOUD_SKIP_MARKER`) when the CLI is absent/unauthed. Plan 19-01 built the deterministic Tier-1 oracles (B3 already resolved in 19-03a). This checkpoint runs the Tier-2 lane for REAL against an authed CLI and resolves the A1/A2/A3 UAT cells from the captured output.
   </what-built>
   <how-to-verify>
     1. Confirm the CLI is present and authed: `command -v claude && claude auth status` (expect exit 0 / logged in). If NOT authed, STOP — the A1/A2/A3 cells stay pending; record the loud-skip and skip the flips below.
-    2. Run `npm run test:e2e` and capture the full output (stdout + stderr). Confirm it did NOT loud-skip (no `SKIPPED: claude CLI absent or unauthed` marker) — the live A1/A2/A3 cases actually executed.
+    2. Run `npm run test:e2e` and capture the full output (stdout + stderr). Confirm it did NOT loud-skip (no `LOUD_SKIP_MARKER` / `SKIPPED: claude CLI absent or unauthed` line) — the live A1/A2/A3 cases actually executed.
     3. From the captured output, confirm each behavior: A1 produced planning markers with NO path-error (D-31 resolved); A2-live emitted the clear-voice deny string `"Production deploy blocked: humans decide, agents execute."` for the matched probe WITHOUT `GRUGOPS_PROD_DEPLOY_APPROVED` set (SAFE-02 / V14); A3-live produced the SAME handoff filenames (`implementation-handoff.md`, `qe-handoff.md`) and the SAME verdict (`READY_FOR_HUMAN_REVIEW`) on both dispatch paths (DOG-02).
     4. Confirm the harness cleaned up: `claude plugin list` does NOT show grugops after the run.
     5. ONLY for the cases the captured output justifies: flip the matching `result: [pending]` → `result: [passed]` in `05-HUMAN-UAT.md` (A1/A2) and `06-HUMAN-UAT.md` (A1/A2/A3), each with a note citing the real-run command + the observed marker. Fill the 9 CC-native parity cells in `examples/03-ticket-to-pr.md` from the A3-live output (same filenames + verdict; only dispatch differs). Update the Summary blocks. NEVER set `GRUGOPS_PROD_DEPLOY_APPROVED` and NEVER run a real deploy.
@@ -139,7 +109,7 @@ Output: flipped cells in the three UAT files + the parity table, each traceable 
 |----------|-------------|
 | captured real-run output → UAT file cells | The ONLY evidence permitted to flip a cell; a hand-set status is the forbidden fabrication |
 | Tier-2 run → the SAFE-02 deploy boundary | A2-live must assert the DENY without approving or deploying |
-| run → developer's claude plugin config | Must be clean after the run (Plan 02's afterAll cleanup) |
+| run → developer's claude plugin config | Must be clean after the run (Plan 19-02's afterAll cleanup) |
 
 ## STRIDE Threat Register
 
@@ -147,21 +117,21 @@ Output: flipped cells in the three UAT files + the parity table, each traceable 
 |-----------|----------|-----------|-------------|-----------------|
 | T-19-01 | Repudiation / trace integrity | UAT cell flips | mitigate | A cell flips ONLY from captured real-run output; a loud-skip leaves cells pending; the human checkpoint confirms the evidence before any flip (Constraint #6). |
 | T-19-02 | Elevation of Privilege | A2-live during the real run | mitigate | `GRUGOPS_PROD_DEPLOY_APPROVED` is NEVER set; the run asserts the DENY. Humans hold merge/deploy (V14) — the self-approve keystone. |
-| T-19-03 | Tampering | A2-live probe deploying for real | mitigate | Harmless matched probe / no kube-context (Plan 02's harness); the assertion is the deny, not execution (Pitfall 4). |
-| T-19-04 | Tampering | leftover plugin/marketplace config | mitigate | Plan 02's `afterAll` cleanup; checkpoint step 4 verifies `claude plugin list` is clean post-run (Pitfall 3). |
+| T-19-03 | Tampering | A2-live probe deploying for real | mitigate | Harmless matched probe / no kube-context (Plan 19-02's harness); the assertion is the deny, not execution (Pitfall 4). |
+| T-19-04 | Tampering | leftover plugin/marketplace config | mitigate | Plan 19-02's `afterAll` cleanup; checkpoint step 4 verifies `claude plugin list` is clean post-run (Pitfall 3). |
 | T-19-SC | Tampering | npm installs | mitigate | This plan installs ZERO packages — it runs existing committed `.js` + the external `claude` CLI prerequisite. No package-legitimacy checkpoint needed. |
 </threat_model>
 
 <verification>
-- B3 (`11-HUMAN-UAT.md` scenario 3) resolved from the captured Tier-1 oracle output; scenarios 1 & 2 untouched (human-only).
 - A1/A2/A3 cells in `05-HUMAN-UAT.md` / `06-HUMAN-UAT.md` + the 9 parity cells in `examples/03-ticket-to-pr.md` flipped ONLY from captured `npm run test:e2e` real-run output, or left pending on a loud-skip with the marker recorded.
 - No flip is hand-set; every flip cites its evidence line. No real deploy; `GRUGOPS_PROD_DEPLOY_APPROVED` never set; plugin config clean post-run.
+- No `files_modified` overlap with 19-03a (which owns `11-HUMAN-UAT.md`); this plan owns `05-HUMAN-UAT.md` + `06-HUMAN-UAT.md` + `examples/03-ticket-to-pr.md` only.
 </verification>
 
 <success_criteria>
-Run for real, the harness honestly resolves the A1/A2/A3 + B3 items in their UAT files (`05-HUMAN-UAT.md`, `06-HUMAN-UAT.md`, `11-HUMAN-UAT.md` scenario 3) — status set ONLY from real-run output, never faked; B1/B2 remain human-only (UAT-AUTO-04). When the `claude` CLI is absent/unauthed the A1/A2/A3 cells stay pending with the loud-skip recorded — never a fabricated pass.
+Run for real, the harness honestly resolves the A1/A2/A3 items in their UAT files (`05-HUMAN-UAT.md`, `06-HUMAN-UAT.md`) and the 9 parity cells in `examples/03-ticket-to-pr.md` — status set ONLY from real-run output, never faked (UAT-AUTO-04). When the `claude` CLI is absent/unauthed the A1/A2/A3 cells stay pending with the loud-skip recorded — never a fabricated pass.
 </success_criteria>
 
 <output>
-Create `.planning/phases/19-factory-auto-uat-harness-tier-1-deterministic-oracles-tier-2/19-03-SUMMARY.md` when done.
+Create `.planning/phases/19-factory-auto-uat-harness-tier-1-deterministic-oracles-tier-2/19-03b-SUMMARY.md` when done.
 </output>
