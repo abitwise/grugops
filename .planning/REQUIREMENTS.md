@@ -83,9 +83,9 @@ Each maps to exactly one roadmap phase (traceability filled by the roadmapper).
 
 - [x] **UAT-AUTO-01**: Tier-1 deterministic oracles (no LLM, fail-red, never fabricate) cover B3 WR-05 wording-consistency across PROJECT.md / STATE.md / the SDLC-coverage audit / RETROSPECTIVE.md, A2 `hooks.json`→`guard` deny-wiring on a matched prod-deploy payload, and A3 dual-path artifact-structure parity (same handoff filenames + same gate verdict string) — authored in TypeScript, compiled to committed `.js`, freshness-checked, vitest-covered
 - [ ] **UAT-AUTO-02**: A Tier-2 headless E2E harness uses `claude --print` to cover A1 plugin-cache pointer resolution (D-31), A2 live PreToolUse hook firing (SAFE-02), and A3 live dual-path parity (DOG-02); it is gated on "CLI present AND authed", asserts on markers/structure (not exact LLM prose), and emits a **loud SKIP** (never a silent green) when the CLI is unavailable/unauthed
-- [x] **UAT-AUTO-03**: Both lanes are wired into the §14 quality gate **and** the foundation-guards aggregator; `docs/dogfood-human-runbook.md` documents the three lanes in clear (non-caveman) voice, stating which lane is authoritative (Tier 1/2 real runs) vs advisory/human (Tier 3)
+- [ ] **UAT-AUTO-03**: Both lanes are wired into the §14 quality gate **and** the foundation-guards aggregator; `docs/dogfood-human-runbook.md` documents the three lanes in clear (non-caveman) voice, stating which lane is authoritative (Tier 1/2 real runs) vs advisory/human (Tier 3)
 - [ ] **UAT-AUTO-04**: Run for real, the harness honestly resolves the A1/A2/A3 + B3 items in their UAT files (`05-HUMAN-UAT.md`, `06-HUMAN-UAT.md`, `11-HUMAN-UAT.md` scenario 3) — status set from real runs, never faked; B1/B2 remain human-only
-- [x] **UAT-AUTO-05**: Zero new host runtime dependency — the `claude`-CLI E2E stays dev/CI-only and is config/skip-gated; the minimal markdown-copy install path (`install/README.md` §1) and the committed-`.js` host execution model are unaffected (dev deps stay `{typescript, vitest}` + `@types/node`)
+- [ ] **UAT-AUTO-05**: Zero new host runtime dependency — the `claude`-CLI E2E stays dev/CI-only and is config/skip-gated; the minimal markdown-copy install path (`install/README.md` §1) and the committed-`.js` host execution model are unaffected (dev deps stay `{typescript, vitest}` + `@types/node`)
 
 ## Future Requirements
 
