@@ -76,10 +76,10 @@ export function claudePresentAndAuthed(): boolean {
     // present? Probe the CLI directly with an arg array (no shell:true — avoids the DEP0190 shell
     // hazard and needs no untrusted input). `claude --version` exits 0 when the binary resolves on
     // PATH and a non-null status; an ENOENT spawn leaves status null and sets error → fail-closed.
-    const which = spawnSync("claude", ["--version"], { encoding: "utf8" });
+    const which = spawnSync("claude", ["--version"], { encoding: "utf8", input: "", timeout: 20_000 });
     if (which.status !== 0 || which.error != null) return false;
     // authed? deterministic, no API call, no token spend. Arg-array spawn (no shell on the data path).
-    const auth = spawnSync("claude", ["auth", "status", "--json"], { encoding: "utf8" });
+    const auth = spawnSync("claude", ["auth", "status", "--json"], { encoding: "utf8", input: "", timeout: 20_000 });
     if (auth.status !== 0) return false; // exit 1 = not logged in
     return JSON.parse(auth.stdout)?.loggedIn === true; // belt-and-suspenders
   } catch {
@@ -166,6 +166,13 @@ function claudePrint(args: string[], cwd: string): { status: number | null; out:
     // process.env is passed through UNCHANGED — the harness explicitly never injects the approval
     // var. (No `[APPROVAL]: …` key appears anywhere in this file by design.)
     env: { ...process.env },
+    // Close stdin (EOF) so an interactive CLI prompt can NEVER hang the harness; bound each call so
+    // a stuck `claude` cannot block the suite indefinitely (a timed-out call returns its partial
+    // output and the marker assertion fails honestly — the UAT cell stays pending, never fabricated);
+    // raise maxBuffer so a verbose `--output-format json` agent transcript is not truncated.
+    input: "",
+    timeout: 120_000,
+    maxBuffer: 10 * 1024 * 1024,
   });
   return { status: r.status, out: `${r.stdout ?? ""}\n${r.stderr ?? ""}` };
 }
@@ -175,12 +182,22 @@ afterAll(() => {
   // Clean up the plugin install + marketplace so the dev's real claude config is not polluted
   // (Pitfall 3). Best-effort: cleanup failures must not mask a test result.
   try {
-    spawnSync("claude", ["plugin", "uninstall", "grugops"], { encoding: "utf8" });
+    spawnSync("claude", ["plugin", "uninstall", "grugops", "--scope", "local"], {
+      cwd: tmpRepo || ROOT,
+      encoding: "utf8",
+      input: "",
+      timeout: 60_000,
+    });
   } catch {
     /* best-effort */
   }
   try {
-    spawnSync("claude", ["plugin", "marketplace", "remove", "grugops"], { encoding: "utf8" });
+    spawnSync("claude", ["plugin", "marketplace", "remove", "grugops", "--scope", "local"], {
+      cwd: tmpRepo || ROOT,
+      encoding: "utf8",
+      input: "",
+      timeout: 60_000,
+    });
   } catch {
     /* best-effort */
   }
@@ -209,10 +226,14 @@ describe("Tier-2 live E2E against the real claude CLI (gated on present+authed)"
       spawnSync("claude", ["plugin", "marketplace", "add", ROOT, "--scope", "local"], {
         cwd: tmpRepo,
         encoding: "utf8",
+        input: "",
+        timeout: 60_000,
       });
       spawnSync("claude", ["plugin", "install", "grugops@grugops", "--scope", "local"], {
         cwd: tmpRepo,
         encoding: "utf8",
+        input: "",
+        timeout: 60_000,
       });
 
       // Open Q1: probe BOTH the colon slash-command form AND the --plugin-dir ./ fallback; lock
