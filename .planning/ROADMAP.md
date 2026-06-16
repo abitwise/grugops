@@ -57,7 +57,7 @@ Full phase details + milestone summary: `milestones/v1.1-ROADMAP.md` · requirem
 - [x] **Phase 16: §14 Gate Convergence — Lint, UI/E2E & Test-Integrity** - Single-source gate additions in `05-pr-quality-gate.md`: lint step, automated UI/E2E + visual regression, and an un-cheatable structured-justification test-integrity check (TS checker on the Phase-15 foundation); all config-dialed (3/3 plans executed — awaiting phase verification) (completed 2026-06-14)
 - [x] **Phase 17: Install --migrate / --update** - RED-harness-first, never-delete-first install modes to migrate an in-repo layout forward (--migrate) and refresh the central kit (--update) + the single opt-in deletion path (--prune-old-kit) (all 3 plans executed 2026-06-15; verified passed 13/13 + WR-01/WR-02 fixed)
 - [x] **Phase 18: Browsable Docs Catalog** - Generator emits an in-repo markdown catalog of the finished 17-role / 16-workflow set; a freshness check fails red on drift (completed 2026-06-15)
-- [ ] **Phase 19: Factory Auto-UAT Harness — Tier 1 Oracles + Tier 2 Headless E2E** - Honest automation of the agent-unrunnable live-runtime human UATs: deterministic Tier-1 oracles (WR-05 wording, hooks.json→guard wiring, dual-path parity) + a Tier-2 `claude --print` headless E2E harness (loud-skip when unauthed); resolves the deferred A1/A2/A3 + B3 UATs. Tier 3 persona/prose judgment (B1/B2) stays human (reopens the milestone; not yet planned)
+- [ ] **Phase 19: Factory Auto-UAT Harness — Tier 1 Oracles + Tier 2 Headless E2E** - Honest automation of the agent-unrunnable live-runtime human UATs: deterministic Tier-1 oracles (WR-05 wording, hooks.json→guard wiring, dual-path parity) + a Tier-2 `claude --print` headless E2E harness (loud-skip when unauthed); resolves the deferred A1/A2/A3 + B3 UATs. Tier 3 persona/prose judgment (B1/B2) stays human (reopens the milestone)
 
 ## Phase Details
 
@@ -305,15 +305,19 @@ Full phase details + milestone summary: `milestones/v1.1-ROADMAP.md` · requirem
   4. Run for real, the harness honestly resolves the A1/A2/A3 + B3 items in their UAT files (`05-HUMAN-UAT.md`, `06-HUMAN-UAT.md`, `11-HUMAN-UAT.md` scenario 3) — status set from real runs, never faked. B1/B2 remain human-only.
   5. **Zero new host runtime dependency**: the `claude`-CLI E2E stays dev/CI-only and is config/skip-gated; the minimal markdown-copy install path (`install/README.md` §1) is unaffected.
 
-**Plans**: TBD (run `/gsd-plan-phase 19`)
+**Plans**: 3 plans
 
 **Wave 1 — Tier-1 deterministic oracles**
 
-- [ ] WR-05 wording-consistency oracle + hooks.json→guard wiring test + dual-path artifact-structure parity oracle (TS + committed `.js` + freshness + vitest), wired into the foundation-guards aggregator
+- [ ] 19-01-PLAN.md — `scripts/check-uat-oracles.ts` (3 oracles: B3 wording, A2 hooks.json→guard wiring, A3 structural parity) + committed `.js` (freshness-clean) + `check-uat-oracles.test.ts` plant-and-run (each oracle PASS + FAIL-red) [UAT-AUTO-01, UAT-AUTO-03]
 
-**Wave 2** *(blocked on Wave 1)* **— Tier-2 headless E2E + gate wiring + docs**
+**Wave 2** *(blocked on 19-01)* **— Tier-2 headless E2E + gate wiring + docs**
 
-- [ ] `claude --print` headless harness for A1/A2-live/A3-live with CLI-present-and-authed gating + loud-skip; §14 gate wiring; dogfood-runbook three-lane docs; resolve the A1/A2/A3+B3 UAT files from real runs
+- [ ] 19-02-PLAN.md — `scripts/e2e/uat-live.test.ts` (claude-present-and-authed probe + loud-skip; A1/A2-live/A3-live) + `test:e2e` script + single-source §14 gate reference + three-lane `dogfood-human-runbook.md` docs [UAT-AUTO-02, UAT-AUTO-03, UAT-AUTO-05]
+
+**Wave 3** *(blocked on 19-01 + 19-02)* **— Real-run UAT resolution (human-gated)**
+
+- [ ] 19-03-PLAN.md — Resolve B3 (11-HUMAN-UAT scenario 3) from the Tier-1 oracle real run + run Tier-2 for real (human checkpoint) to flip A1/A2/A3 cells in 05/06-HUMAN-UAT.md + the 9 parity cells in examples/03 — real-run output only, loud-skip leaves cells pending [UAT-AUTO-04]
 
 ## Progress
 
@@ -340,6 +344,6 @@ Phases execute in numeric order: 10 → 11 → 12 → 13 → 14 → 15 → 16 �
 | 16. §14 Gate Convergence — Lint, UI/E2E & Test-Integrity | v1.2 | 3/3 | Complete    | 2026-06-14 |
 | 17. Install --migrate / --update | v1.2 | 3/3 | Complete    | 2026-06-15 |
 | 18. Browsable Docs Catalog | v1.2 | 2/2 | Complete    | 2026-06-15 |
-| 19. Factory Auto-UAT Harness — Tier 1 Oracles + Tier 2 Headless E2E | v1.2 | 0/0 | Not planned | - |
+| 19. Factory Auto-UAT Harness — Tier 1 Oracles + Tier 2 Headless E2E | v1.2 | 0/3 | Planned | - |
 
 **Totals:** 19 phases · 48 plans complete · 2 milestones shipped · v1.2 (10 phases, 10–19) in progress.
