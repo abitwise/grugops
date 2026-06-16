@@ -77,6 +77,16 @@ Each maps to exactly one roadmap phase (traceability filled by the roadmapper).
 - [x] **TOOL-01**: grugops's tooling layer is TypeScript, executed cross-platform (incl. Windows) with an explicit posture on build + dependencies — Node native type-stripping preferred to preserve a zero-build, no-unjustified-npm-deps path; the existing scripts (installers, validator, ASVS generator, foundation guards + harnesses) migrate at behavior parity
 - [x] **TOOL-02**: A kit-shipped-runnable convention lets a TypeScript routine ship inside the kit, be materialized by the installer, and run cross-platform from a workflow step — the foundation that lets the §14 gate ship an un-cheatable cross-platform test-integrity checker into host repos
 
+### Factory Auto-UAT Harness
+
+> Added 2026-06-16 when v1.2 reopened post-Phase-18 (Phase 19). Honestly automates the agent-unrunnable **live-runtime** human UATs without an agent grading its own homework (Constraint #6, no fabrication). Tier 3 (B1/B2 persona/prose judgment) stays a human sign-off and is explicitly out of scope.
+
+- [ ] **UAT-AUTO-01**: Tier-1 deterministic oracles (no LLM, fail-red, never fabricate) cover B3 WR-05 wording-consistency across PROJECT.md / STATE.md / the SDLC-coverage audit / RETROSPECTIVE.md, A2 `hooks.json`→`guard` deny-wiring on a matched prod-deploy payload, and A3 dual-path artifact-structure parity (same handoff filenames + same gate verdict string) — authored in TypeScript, compiled to committed `.js`, freshness-checked, vitest-covered
+- [ ] **UAT-AUTO-02**: A Tier-2 headless E2E harness uses `claude --print` to cover A1 plugin-cache pointer resolution (D-31), A2 live PreToolUse hook firing (SAFE-02), and A3 live dual-path parity (DOG-02); it is gated on "CLI present AND authed", asserts on markers/structure (not exact LLM prose), and emits a **loud SKIP** (never a silent green) when the CLI is unavailable/unauthed
+- [ ] **UAT-AUTO-03**: Both lanes are wired into the §14 quality gate **and** the foundation-guards aggregator; `docs/dogfood-human-runbook.md` documents the three lanes in clear (non-caveman) voice, stating which lane is authoritative (Tier 1/2 real runs) vs advisory/human (Tier 3)
+- [ ] **UAT-AUTO-04**: Run for real, the harness honestly resolves the A1/A2/A3 + B3 items in their UAT files (`05-HUMAN-UAT.md`, `06-HUMAN-UAT.md`, `11-HUMAN-UAT.md` scenario 3) — status set from real runs, never faked; B1/B2 remain human-only
+- [ ] **UAT-AUTO-05**: Zero new host runtime dependency — the `claude`-CLI E2E stays dev/CI-only and is config/skip-gated; the minimal markdown-copy install path (`install/README.md` §1) and the committed-`.js` host execution model are unaffected (dev deps stay `{typescript, vitest}` + `@types/node`)
+
 ## Future Requirements
 
 Acknowledged but deferred — not in the v1.2 roadmap.
@@ -140,10 +150,15 @@ Each requirement maps to exactly one phase. v1.2 phase numbering continues from 
 | DOCS-02 | Phase 18 | Complete |
 | MIGR-01 | Phase 17 | Complete |
 | UPD-01 | Phase 17 | Complete |
+| UAT-AUTO-01 | Phase 19 | Planned |
+| UAT-AUTO-02 | Phase 19 | Planned |
+| UAT-AUTO-03 | Phase 19 | Planned |
+| UAT-AUTO-04 | Phase 19 | Planned |
+| UAT-AUTO-05 | Phase 19 | Planned |
 
 **Coverage:**
-- v1.2 requirements: 30 total
-- Mapped to phases: 30 ✓
+- v1.2 requirements: 35 total
+- Mapped to phases: 35 ✓
 - Unmapped: 0 ✓
 
 **Phase distribution:**
@@ -156,7 +171,8 @@ Each requirement maps to exactly one phase. v1.2 phase numbering continues from 
 - Phase 16 (§14 Gate Convergence — Lint, UI/E2E & Test-Integrity): UIQA-01, UIQA-02, TINT-01, TINT-02, TINT-03, LINT-01, LINT-02 (7)
 - Phase 17 (Install --migrate / --update): MIGR-01, UPD-01 (2)
 - Phase 18 (Browsable Docs Catalog): DOCS-01, DOCS-02 (2)
+- Phase 19 (Factory Auto-UAT Harness — Tier 1 Oracles + Tier 2 Headless E2E): UAT-AUTO-01, UAT-AUTO-02, UAT-AUTO-03, UAT-AUTO-04, UAT-AUTO-05 (5)
 
 ---
 *Requirements defined: 2026-06-09*
-*Last updated: 2026-06-13 — TypeScript pivot ratified; inserted Phase 15 (TS Tooling Migration, TOOL-01/02), renumbered gate/install/docs to 16/17/18; all 30 requirements mapped to phases 10–18 (100% coverage, 0 unmapped)*
+*Last updated: 2026-06-16 — v1.2 reopened post-Phase-18; backfilled Phase 19 (Factory Auto-UAT Harness, UAT-AUTO-01..05) into the requirements set + traceability table; all 35 requirements mapped to phases 10–19 (100% coverage, 0 unmapped)*
