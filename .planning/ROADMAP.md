@@ -4,7 +4,7 @@
 
 - ✅ **v1.0 MVP — Full Agent Factory v2** — Phases 1–6 (shipped 2026-06-04)
 - ✅ **v1.1 Install & Distribution** — Phases 7–9 (shipped 2026-06-08)
-- 🚧 **v1.2 SDLC Depth, Quality Discipline & Browsable Docs** — Phases 10–17 (in progress)
+- 🚧 **v1.2 SDLC Depth, Quality Discipline & Browsable Docs** — Phases 10–19 (in progress)
 
 ## Overview
 
@@ -44,7 +44,7 @@ Full phase details + milestone summary: `milestones/v1.1-ROADMAP.md` · requirem
 
 </details>
 
-### 🚧 v1.2 SDLC Depth, Quality Discipline & Browsable Docs (Phases 10–17) — IN PROGRESS
+### 🚧 v1.2 SDLC Depth, Quality Discipline & Browsable Docs (Phases 10–19) — IN PROGRESS
 
 **Milestone Goal:** Make grugops's delivery lifecycle senior-grade and trustworthy end-to-end — deeper personas with full SDLC coverage (especially the business→engineer handoff), test-first by default (BDD at acceptance + TDD at the unit layer, config-dialed), automated UI build+test, OWASP ASVS security auditing, an un-cheatable quality gate, code linting, browsable docs — and finally ship the deferred install migrate/update story. Introspective milestone: most work improves grugops's own markdown kit; "UI / tests / security" are capabilities grugops gives its *users* through roles + workflows + the gate, since grugops itself is markdown.
 
@@ -57,6 +57,7 @@ Full phase details + milestone summary: `milestones/v1.1-ROADMAP.md` · requirem
 - [x] **Phase 16: §14 Gate Convergence — Lint, UI/E2E & Test-Integrity** - Single-source gate additions in `05-pr-quality-gate.md`: lint step, automated UI/E2E + visual regression, and an un-cheatable structured-justification test-integrity check (TS checker on the Phase-15 foundation); all config-dialed (3/3 plans executed — awaiting phase verification) (completed 2026-06-14)
 - [x] **Phase 17: Install --migrate / --update** - RED-harness-first, never-delete-first install modes to migrate an in-repo layout forward (--migrate) and refresh the central kit (--update) + the single opt-in deletion path (--prune-old-kit) (all 3 plans executed 2026-06-15; verified passed 13/13 + WR-01/WR-02 fixed)
 - [x] **Phase 18: Browsable Docs Catalog** - Generator emits an in-repo markdown catalog of the finished 17-role / 16-workflow set; a freshness check fails red on drift (completed 2026-06-15)
+- [ ] **Phase 19: Factory Auto-UAT Harness — Tier 1 Oracles + Tier 2 Headless E2E** - Honest automation of the agent-unrunnable live-runtime human UATs: deterministic Tier-1 oracles (WR-05 wording, hooks.json→guard wiring, dual-path parity) + a Tier-2 `claude --print` headless E2E harness (loud-skip when unauthed); resolves the deferred A1/A2/A3 + B3 UATs. Tier 3 persona/prose judgment (B1/B2) stays human (reopens the milestone; not yet planned)
 
 ## Phase Details
 
@@ -291,10 +292,33 @@ Full phase details + milestone summary: `milestones/v1.1-ROADMAP.md` · requirem
 
 - [x] 18-02-PLAN.md — catalog-freshness.ts standalone fail-closed drift gate (mirror-spawn regenerate-to-temp) + DOCS-02 oracle + freshness:catalog script [DOCS-02]
 
+### Phase 19: Factory Auto-UAT Harness — Tier 1 Oracles + Tier 2 Headless E2E
+
+**Goal**: Convert the agent-unrunnable live-runtime human UATs into *honest* automation — no agent grading its own homework (Constraint #6, no fabrication). Stand up deterministic Tier-1 oracles wired into the §14 gate, plus a Tier-2 `claude --print` headless E2E harness that skips LOUDLY when the CLI is absent/unauthed (never a silent pass). Running the harness for real then resolves the long-deferred live-runtime UATs (A1 plugin-cache pointer resolution / D-31, A2 live PreToolUse hook firing / SAFE-02, A3 sub-agent dual-path parity / DOG-02) and the B3 WR-05 wording cross-check. Tier 3 (B1/B2 persona/prose judgment) is OUT of scope — it stays a human sign-off.
+**Depends on**: Phase 18 (catalog generator+oracle+freshness pattern), Phase 16 (§14 gate), Phase 15 (TS→committed-.js + freshness foundation, D-13), Phase 14 (generator+oracle structural template), Phase 10 (foundation-guards aggregator to wire into)
+**Requirements**: UAT-AUTO-01, UAT-AUTO-02, UAT-AUTO-03, UAT-AUTO-04, UAT-AUTO-05
+**Success Criteria** (what must be TRUE):
+
+  1. Tier-1 deterministic oracles exist, fail red, and never fabricate a pass: (a) **WR-05 wording-consistency** across PROJECT.md / STATE.md / the SDLC-coverage audit / RETROSPECTIVE.md asserting "spawn grant dropped P8 → guarded P10 → re-verified P11"; (b) **hooks.json→guard wiring** — a matched prod-deploy stdin payload yields exit-2 / deny-JSON through the same path Claude Code uses; (c) **dual-path artifact-structure parity** — same handoff filenames + same gate verdict string between sequential and sub-agent dispatch. Authored in TypeScript, compiled to committed `.js`, freshness-checked, vitest-covered.
+  2. A **Tier-2 headless E2E harness** uses `claude --print` to cover A1 pointer resolution, A2 live hook firing, and A3 live dual-path parity; it is gated on "CLI present AND authed", asserts on markers/structure (not exact LLM prose), and emits a **loud SKIP** (never a silent green) when the CLI is unavailable/unauthed.
+  3. Both lanes are wired into the §14 quality gate / foundation-guards aggregator; `docs/dogfood-human-runbook.md` documents the three lanes in **clear (non-caveman) voice**, stating which lane is authoritative vs advisory.
+  4. Run for real, the harness honestly resolves the A1/A2/A3 + B3 items in their UAT files (`05-HUMAN-UAT.md`, `06-HUMAN-UAT.md`, `11-HUMAN-UAT.md` scenario 3) — status set from real runs, never faked. B1/B2 remain human-only.
+  5. **Zero new host runtime dependency**: the `claude`-CLI E2E stays dev/CI-only and is config/skip-gated; the minimal markdown-copy install path (`install/README.md` §1) is unaffected.
+
+**Plans**: TBD (run `/gsd-plan-phase 19`)
+
+**Wave 1 — Tier-1 deterministic oracles**
+
+- [ ] WR-05 wording-consistency oracle + hooks.json→guard wiring test + dual-path artifact-structure parity oracle (TS + committed `.js` + freshness + vitest), wired into the foundation-guards aggregator
+
+**Wave 2** *(blocked on Wave 1)* **— Tier-2 headless E2E + gate wiring + docs**
+
+- [ ] `claude --print` headless harness for A1/A2-live/A3-live with CLI-present-and-authed gating + loud-skip; §14 gate wiring; dogfood-runbook three-lane docs; resolve the A1/A2/A3+B3 UAT files from real runs
+
 ## Progress
 
 **Execution Order:**
-Phases execute in numeric order: 10 → 11 → 12 → 13 → 14 → 15 → 16 → 17 → 18 (17 is an independent track that may run in parallel with 11–16).
+Phases execute in numeric order: 10 → 11 → 12 → 13 → 14 → 15 → 16 → 17 → 18 → 19 (17 is an independent track that may run in parallel with 11–16; 19 reopened the milestone post-18 to automate the deferred live-runtime UATs).
 
 | Phase | Milestone | Plans Complete | Status | Completed |
 |-------|-----------|----------------|--------|-----------|
@@ -316,5 +340,6 @@ Phases execute in numeric order: 10 → 11 → 12 → 13 → 14 → 15 → 16 �
 | 16. §14 Gate Convergence — Lint, UI/E2E & Test-Integrity | v1.2 | 3/3 | Complete    | 2026-06-14 |
 | 17. Install --migrate / --update | v1.2 | 3/3 | Complete    | 2026-06-15 |
 | 18. Browsable Docs Catalog | v1.2 | 2/2 | Complete    | 2026-06-15 |
+| 19. Factory Auto-UAT Harness — Tier 1 Oracles + Tier 2 Headless E2E | v1.2 | 0/0 | Not planned | - |
 
-**Totals:** 18 phases · 48 plans complete · 2 milestones shipped · v1.2 (9 phases, 10–18) in progress.
+**Totals:** 19 phases · 48 plans complete · 2 milestones shipped · v1.2 (10 phases, 10–19) in progress.

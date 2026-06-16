@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: SDLC Depth, Quality Discipline & Browsable Docs
-status: milestone_complete
-last_updated: 2026-06-15T10:09:11.798Z
-last_activity: 2026-06-15
+status: in_progress
+last_updated: 2026-06-16T00:00:00.000Z
+last_activity: 2026-06-16
 progress:
-  total_phases: 9
+  total_phases: 10
   completed_phases: 9
   total_plans: 34
   completed_plans: 82
-  percent: 100
-stopped_at: Milestone complete (Phase 18 was final phase)
+  percent: 90
+stopped_at: Phase 19 added — milestone reopened post-18 to automate the deferred live-runtime UATs (Tier 1 oracles + Tier 2 headless E2E); Tier 3 persona judgment stays human. Phase 19 not yet planned.
 ---
 
 # Project State
@@ -21,16 +21,16 @@ stopped_at: Milestone complete (Phase 18 was final phase)
 See: .planning/PROJECT.md (updated 2026-06-09 — v1.2 milestone started)
 
 **Core value:** A user installs grugops on top of the coding-agent CLI they already run, types `/grug`, and gets a disciplined delivery team — a visible board, strict handoffs, and an auditable requirement→code→test→release trail — entirely as readable markdown, with humans always holding merge and deploy.
-**Current focus:** Milestone complete
+**Current focus:** Phase 19 — Factory Auto-UAT Harness (Tier 1 oracles + Tier 2 headless E2E)
 
 ## Current Position
 
-Phase: 18
-Plan: Not started
-Status: Milestone complete
-Last activity: 2026-06-16 - Completed quick task 260616-faw: feasibility plan to automate remaining human UATs
+Phase: 19
+Plan: Not planned yet
+Status: Phase 19 added (milestone reopened) — ready to plan
+Last activity: 2026-06-16 - Added Phase 19 (Factory Auto-UAT Harness); reopened v1.2
 
-Progress: [██████████] 100%
+Progress: [█████████░] 90% (9/10 phases)
 
 ## Performance Metrics
 
@@ -149,6 +149,10 @@ Progress: [██████████] 100%
 | Phase 18 P02 | 3m | 2 tasks | 4 files |
 
 ## Accumulated Context
+
+### Roadmap Evolution
+
+- Phase 19 added (2026-06-16): Factory Auto-UAT Harness — Tier 1 deterministic oracles + Tier 2 `claude --print` headless E2E to honestly automate the deferred live-runtime human UATs (A1 plugin-cache pointer resolution / D-31, A2 live hook firing / SAFE-02, A3 sub-agent dual-path parity / DOG-02) + B3 WR-05 wording cross-check. Tier 3 (B1/B2 persona/prose judgment, Phase 11) is explicitly OUT of scope — stays human sign-off. Reopened v1.2 (was milestone_complete but never archived). Rationale captured in quick task [260616-faw](./quick/260616-faw-automate-remaining-human-uats-feasibilit/260616-faw-PLAN.md).
 
 ### Decisions
 
