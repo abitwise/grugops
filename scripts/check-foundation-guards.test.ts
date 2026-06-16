@@ -63,6 +63,16 @@ const GUARD_INPUTS = [
   "agent-factory/workflows/15-security-audit.md",
   "agent-factory/checklists/security-nfr-checklist.md",
   "agent-factory/handoffs/security-nfr-handoff.md",
+  // Phase 19 Tier-1 oracle inputs (UAT-AUTO-05): the aggregator now invokes the three oracles, which
+  // read these. Mirror them so the hermetic plant case below can break one and prove the aggregator
+  // fails closed. (The oracle bodies live single-source in check-uat-oracles.ts.)
+  ".planning/PROJECT.md",
+  ".planning/STATE.md",
+  ".planning/v1.2-SDLC-COVERAGE-AUDIT.md",
+  ".planning/RETROSPECTIVE.md",
+  "hooks/hooks.json",
+  "hooks/guard.js",
+  "examples/03-ticket-to-pr.md",
 ];
 
 const tmpDirs: string[] = [];
@@ -351,6 +361,24 @@ describe("check-foundation-guards.js (SDLC-02 / SC2 fail-proof harness)", () => 
     const r = runIn(m);
     expect(r.status).not.toBe(0);
     expect(out(r)).toContain("installer.md missing");
+  });
+
+  // ── Phase 19 Tier-1 oracle wiring (UAT-AUTO-05 / BLOCKER 1) — the aggregator must FAIL CLOSED. ──
+  // Break a single Tier-1 input in the mirror (remove the READY_FOR_HUMAN_REVIEW verdict from the
+  // parity example, which the A3 parity oracle asserts) and prove the aggregator goes red — i.e.
+  // `node scripts/check-foundation-guards.js` exits non-zero when any one Tier-1 oracle fails.
+  it("tier-1 wiring: a broken Tier-1 oracle input → aggregator nonzero + names the Tier-1 failure", () => {
+    const m = mirror();
+    const file = join(m, "examples/03-ticket-to-pr.md");
+    const stripped = readFileSync(file, "utf8").replace(
+      /READY_FOR_HUMAN_REVIEW/g,
+      "REDACTED_VERDICT",
+    );
+    writeFileSync(file, stripped);
+    const r = runIn(m);
+    expect(r.status).not.toBe(0);
+    expect(out(r)).toMatch(/parity structural violation/i);
+    expect(out(r)).toContain("READY_FOR_HUMAN_REVIEW");
   });
 
   // ── Smoke — the REAL guard over the REAL tree must be GREEN (exit 0). ─────────────────────────
