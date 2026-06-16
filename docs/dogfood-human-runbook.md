@@ -14,6 +14,27 @@ This is the intended design — humans decide, agents execute — not a degradat
 "agent-proven vs human-confirmed" split is the point: the sequential path is proven by an agent,
 and the CC-native path is confirmed by a human, against the same ticket.
 
+## The three UAT lanes (what grades what)
+
+grugops verifies these UATs across three lanes. Two are **authoritative** (they decide pass/fail
+from real, deterministic or real-run output); one is **advisory/human** (a person judges it — it is
+never machine-graded). Knowing which is which is the whole honesty contract: a lane never claims a
+result it did not actually observe.
+
+| Lane | What it is | Command | Authoritative or advisory |
+|------|------------|---------|---------------------------|
+| **Tier-1 — deterministic oracles** | No-LLM, fail-red checks of the deterministic parts of these UATs: WR-05 wording-consistency, the `hooks.json → guard.js` deny wiring, and dual-path artifact-structure parity. | `node scripts/check-uat-oracles.js` (exit 0 `ALL CHECKS PASSED` / 1 `N CHECK(S) FAILED`) | **Authoritative.** A red oracle is a real failure; a green oracle is a real pass. Never fabricated. |
+| **Tier-2 — headless E2E** | The live-runtime half (Checks 1–3 below) automated step-for-step against the real `claude` CLI in headless `--print` mode, gated on a `claude auth status` present-and-authed probe. | `npm run test:e2e` (dev/CI-only; loud-skips when the CLI is absent/unauthed) | **Authoritative — from a real authed run only.** When the probe fails it emits a LOUD SKIP and exits green via that skip; **a skip is NOT a pass** — the UAT stays `pending`, never flipped by a skip and never hand-set. |
+| **Tier-3 — human persona/prose judgment** | "Is the prose senior enough" — the persona/voice scenarios that are self-grading and low-confidence for any machine. | `11-HUMAN-UAT.md` scenarios 1 & 2 (human sign-off) | **Advisory / human.** Never machine-graded; a human signs off. An LLM-judge here would manufacture a green, so it is deliberately out of scope. |
+
+The manual Checks 1–3 below are now **automated step-for-step by the Tier-2 harness** — the harness
+mirrors this procedure. The manual steps remain the canonical description of *what* is being proven
+and are the human fallback when no authed CLI is available. In all cases a UAT status flips to
+passed/resolved **only from a real run's captured output** (Tier-1 oracle output or a real authed
+Tier-2 run), never from a skip and never hand-set. The frozen artifacts the lanes agree on — the
+handoff filenames `implementation-handoff.md` and `qe-handoff.md`, and the gate verdict
+`READY_FOR_HUMAN_REVIEW` — match `examples/03-ticket-to-pr.md`.
+
 ## Safety constraint (read first — non-negotiable)
 
 This dogfood runs at `autonomy=pr`. It NEVER deploys to production.
