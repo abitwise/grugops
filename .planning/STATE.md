@@ -346,7 +346,7 @@ None yet.
 | # | Description | Date | Commit | Directory |
 |---|-------------|------|--------|-----------|
 | 260606-0my | Harden grugops role-switch protocol + auto-commit to working branch (DOG-02 dogfood fixes) | 2026-06-06 | 6a66994 | [260606-0my-harden-grugops-role-switch-protocol-auto](./quick/260606-0my-harden-grugops-role-switch-protocol-auto/) |
-| 260616-faw | Feasibility plan — automate the activities in the remaining human UATs (analysis only; 3-tier verdict) | 2026-06-16 | 0079375 | [260616-faw-automate-remaining-human-uats-feasibilit](./quick/260616-faw-automate-remaining-human-uats-feasibilit/) |
+| 260616-faw | Feasibility plan — automate the activities in the remaining human UATs (analysis only; 3-tier verdict) | 2026-06-16 | 5dcc5ef | [260616-faw-automate-remaining-human-uats-feasibilit](./quick/260616-faw-automate-remaining-human-uats-feasibilit/) |
 
 ## Deferred Items
 
