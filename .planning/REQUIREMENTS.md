@@ -38,7 +38,7 @@ Requirements for the decentralization milestone. Each maps to exactly one roadma
 
 - [x] **VFY-01**: A `finding` is admitted to the shared context only with a real §14-gate verdict, a passing test reference, or a named human — recorded as `verified_by: §14-gate#<id>`.
 - [x] **VFY-02**: Refuse-self-set — a `verified_by` that is missing, `self`, or the writing agent on a `finding` is a validator structural FAIL; a RED fixture proves a hollow/self-authored stamp fails (mirrors the prod-deploy hook + v1.2 test-integrity carve-out).
-- [ ] **VFY-03**: Workflow 16 (`16-context-read-write.md`) — the single-source read-before-act / write-after-verify / verify-admission protocol that all roles reference (never restate).
+- [x] **VFY-03**: Workflow 16 (`16-context-read-write.md`) — the single-source read-before-act / write-after-verify / verify-admission protocol that all roles reference (never restate).
 - [x] **VFY-04**: The §14 gate's bounded `self_fix_attempts` loop is reused as the bounded verify→regenerate loop; the `claim` / `UNKNOWN - verify` escape hatch stays honest and explicitly non-load-bearing.
 
 ### CMP — Memory & Trajectory Compaction
@@ -113,7 +113,7 @@ Which phases cover which requirements. Confirmed during roadmap creation (2026-0
 | CLAIM-03 | Phase 23 | Pending |
 | VFY-01 | Phase 21 | Complete |
 | VFY-02 | Phase 21 | Complete |
-| VFY-03 | Phase 21 | Pending |
+| VFY-03 | Phase 21 | Complete |
 | VFY-04 | Phase 21 | Complete |
 | CMP-01 | Phase 22 | Pending |
 | CMP-02 | Phase 22 | Pending |
