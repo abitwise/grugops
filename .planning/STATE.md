@@ -4,13 +4,13 @@ milestone: v2.0
 milestone_name: Decentralized Factory — Shared Verified Context
 status: executing
 stopped_at: Phase 21 context gathered
-last_updated: "2026-06-17T13:40:59.534Z"
+last_updated: "2026-06-17T13:45:10.198Z"
 last_activity: 2026-06-17 -- Phase 21 execution started
 progress:
   total_phases: 7
   completed_phases: 1
   total_plans: 7
-  completed_plans: 5
+  completed_plans: 6
   percent: 14
 ---
 
@@ -26,7 +26,7 @@ See: .planning/PROJECT.md (updated 2026-06-16 — after v1.2 milestone)
 ## Current Position
 
 Phase: 21 (verify-before-write-admission-the-14-gate-as-the-un-cheatabl) — EXECUTING
-Plan: 2 of 3
+Plan: 3 of 3
 Status: Ready to execute
 Last activity: 2026-06-17 -- Phase 21 execution started
 
@@ -154,6 +154,7 @@ Last activity: 2026-06-17 -- Phase 21 execution started
 | Phase 20 P03 | 9m | 2 tasks | 4 files |
 | Phase 20 P04 | 5m | 2 tasks | 4 files |
 | Phase 21 P01 | 6m | 2 tasks | 3 files |
+| Phase 21 P02 | 4m | 1 tasks | 1 files |
 
 ## Accumulated Context
 
@@ -352,6 +353,8 @@ Recent decisions affecting current work:
 - [Phase ?]: [20-04] guard_context_writes (SCTX-05) registered as a clone of guard_wr05 in check-foundation-guards.ts — explicit CTX_SCAN (17 roles + 16 workflows, never repo-wide), CTX_WRITE_RE matches a write TOKEN (writeFileSync/appendFileSync/Write/redirect/echo) co-occurring with .grugops/context/ in either order, not the prose word 'write'; folds into the single-source §14 gate (no fork). Calibration tests target workflow files (no byte ceiling) to isolate the proof.
 - [Phase ?]: [20-04] .github/workflows/ci.yml created honestly (did not exist — RESEARCH [ASSUMED] was false) — os matrix [ubuntu-latest, windows-latest] on Node 22, vitest with the live e2e lane excluded so the SC-2 unlink-then-rename Windows branch runs on a real Windows runner; freshness+guards on ubuntu; true-NFS atomicity left UNKNOWN - verify (DOGF-02/Phase 26).
 - [Phase ?]: [21-01] Admission surface = two functions (validate pure; admit() the only context-reading path, D-10); GREEN-verdict contract = kind:finding + by:§14-gate + refs includes §14-gate#<id> + body READY_FOR_HUMAN_REVIEW + live; CLI verb = admit
+- [Phase ?]: [21-02] §14 gate emits a by:§14-gate green verdict via context-io.ts emitVerdict on READY_FOR_HUMAN_REVIEW ONLY; unique node:crypto per-run id (not ticket id) is the §14-gate#<id> stamp downstream findings reference (D-03/D-04)
+- [Phase ?]: [21-02] VFY-04 honest by reference: verify->regenerate pins to existing Step-4 self_fix_attempts (no new dial, D-12); non-green emits no green verdict, refused finding degrades to UNKNOWN - verify (D-11); single-source preserved (D-15), guard_context_writes green
 
 ### Pending Todos
 
@@ -401,7 +404,7 @@ Items acknowledged and deferred at the **v1.2 milestone close on 2026-06-16** (1
 
 ## Session Continuity
 
-Last session: 2026-06-17T13:40:38.426Z
+Last session: 2026-06-17T13:45:04.300Z
 Stopped at: Phase 21 context gathered
 Resume file: .planning/phases/21-verify-before-write-admission-the-14-gate-as-the-un-cheatabl/21-CONTEXT.md
 

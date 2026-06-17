@@ -122,7 +122,7 @@ Plans:
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
-- [ ] 21-02-PLAN.md — §14 gate emits a `by: §14-gate` green verdict (unique per-run id) via context-io.ts on READY_FOR_HUMAN_REVIEW; single-source, references the bounded self_fix_attempts loop [VFY-01, VFY-04]
+- [x] 21-02-PLAN.md — §14 gate emits a `by: §14-gate` green verdict (unique per-run id) via context-io.ts on READY_FOR_HUMAN_REVIEW; single-source, references the bounded self_fix_attempts loop [VFY-01, VFY-04]
 - [ ] 21-03-PLAN.md — author Workflow 16 (single-source read/write/admission protocol) + sync context-note.md + the one-line WF16 pointer in all 17 roles [VFY-03, VFY-04]
 
 ### Phase 22: Memory & Trajectory Compaction (Dialable, Token-Economy)
@@ -218,7 +218,7 @@ Plans:
 | 18. Browsable Docs Catalog | v1.2 | 2/2 | Complete | 2026-06-15 |
 | 19. Factory Auto-UAT Harness — Tier 1 Oracles + Tier 2 Headless E2E | v1.2 | 4/4 | Closed (A3/DOG-02 waived → next milestone) | 2026-06-16 |
 | 20. Shared-Context Substrate & Concurrency Foundation | v2.0 | 4/4 | Complete    | 2026-06-17 |
-| 21. Verify-Before-Write Admission | v2.0 | 1/3 | In Progress|  |
+| 21. Verify-Before-Write Admission | v2.0 | 2/3 | In Progress|  |
 | 22. Memory & Trajectory Compaction | v2.0 | 0/? | Pending | - |
 | 23. Parallel Execution & Orchestrator-as-Decomposer | v2.0 | 0/? | Pending | - |
 | 24. Clean Handoff Removal & Traceability Migration | v2.0 | 0/? | Pending | - |
