@@ -6,6 +6,7 @@
 **Grounded in:** DeLM — *Decentralized Multi-Agent Systems with Shared Context* (Mao & Mirhoseini, 2026; arXiv 2606.10662). grugops extracts the best parts (shared verified context, file-based task queue, parallel agents, memory compaction) and differentiates on its own ground: the verified context is **auditable and human-gated**, with the existing §14 quality gate as the verifier. Full research: `.planning/research/SUMMARY.md`.
 
 **Milestone decisions (from kickoff + requirements gating):**
+
 - Architecture: **parallel-first, Claude Code primary**; the other four CLIs degrade to sequential over the same shared context (strict 5-tool parity retired — degrade, never break).
 - Migration: **clean replacement** of static handoffs — the shared verified context becomes the sole inter-role memory.
 - Context index storage: **committed derived JSONL** guarded by a `freshness:context` drift gate (markdown is the source of truth; JSONL is the machine-parsable mirror).
@@ -35,8 +36,8 @@ Requirements for the decentralization milestone. Each maps to exactly one roadma
 
 ### VFY — Verify-Before-Write Admission
 
-- [ ] **VFY-01**: A `finding` is admitted to the shared context only with a real §14-gate verdict, a passing test reference, or a named human — recorded as `verified_by: §14-gate#<id>`.
-- [ ] **VFY-02**: Refuse-self-set — a `verified_by` that is missing, `self`, or the writing agent on a `finding` is a validator structural FAIL; a RED fixture proves a hollow/self-authored stamp fails (mirrors the prod-deploy hook + v1.2 test-integrity carve-out).
+- [x] **VFY-01**: A `finding` is admitted to the shared context only with a real §14-gate verdict, a passing test reference, or a named human — recorded as `verified_by: §14-gate#<id>`.
+- [x] **VFY-02**: Refuse-self-set — a `verified_by` that is missing, `self`, or the writing agent on a `finding` is a validator structural FAIL; a RED fixture proves a hollow/self-authored stamp fails (mirrors the prod-deploy hook + v1.2 test-integrity carve-out).
 - [ ] **VFY-03**: Workflow 16 (`16-context-read-write.md`) — the single-source read-before-act / write-after-verify / verify-admission protocol that all roles reference (never restate).
 - [ ] **VFY-04**: The §14 gate's bounded `self_fix_attempts` loop is reused as the bounded verify→regenerate loop; the `claim` / `UNKNOWN - verify` escape hatch stays honest and explicitly non-load-bearing.
 
@@ -110,8 +111,8 @@ Which phases cover which requirements. Confirmed during roadmap creation (2026-0
 | CLAIM-01 | Phase 20 | Complete |
 | CLAIM-02 | Phase 20 | Complete |
 | CLAIM-03 | Phase 23 | Pending |
-| VFY-01 | Phase 21 | Pending |
-| VFY-02 | Phase 21 | Pending |
+| VFY-01 | Phase 21 | Complete |
+| VFY-02 | Phase 21 | Complete |
 | VFY-03 | Phase 21 | Pending |
 | VFY-04 | Phase 21 | Pending |
 | CMP-01 | Phase 22 | Pending |
@@ -132,6 +133,7 @@ Which phases cover which requirements. Confirmed during roadmap creation (2026-0
 | DOGF-03 | Phase 26 | Pending |
 
 **Coverage:**
+
 - v2.0 requirements: 28 total
 - Mapped to phases: 28 (confirmed by roadmapper — proposed mapping verified against SUMMARY.md per-phase "Delivers" with no correction needed)
 - Unmapped: 0 ✓

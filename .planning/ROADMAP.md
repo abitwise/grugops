@@ -118,7 +118,7 @@ Plans:
 Plans:
 **Wave 1**
 
-- [ ] 21-01-PLAN.md — extend context-io.ts validate() with the refuse-self/impersonation FAIL set + the context-aware admission cross-check (Posture B); RED-then-GREEN fixtures [VFY-01, VFY-02]
+- [x] 21-01-PLAN.md — extend context-io.ts validate() with the refuse-self/impersonation FAIL set + the context-aware admission cross-check (Posture B); RED-then-GREEN fixtures [VFY-01, VFY-02]
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
@@ -218,7 +218,7 @@ Plans:
 | 18. Browsable Docs Catalog | v1.2 | 2/2 | Complete | 2026-06-15 |
 | 19. Factory Auto-UAT Harness — Tier 1 Oracles + Tier 2 Headless E2E | v1.2 | 4/4 | Closed (A3/DOG-02 waived → next milestone) | 2026-06-16 |
 | 20. Shared-Context Substrate & Concurrency Foundation | v2.0 | 4/4 | Complete    | 2026-06-17 |
-| 21. Verify-Before-Write Admission | v2.0 | 0/? | Pending | - |
+| 21. Verify-Before-Write Admission | v2.0 | 1/3 | In Progress|  |
 | 22. Memory & Trajectory Compaction | v2.0 | 0/? | Pending | - |
 | 23. Parallel Execution & Orchestrator-as-Decomposer | v2.0 | 0/? | Pending | - |
 | 24. Clean Handoff Removal & Traceability Migration | v2.0 | 0/? | Pending | - |

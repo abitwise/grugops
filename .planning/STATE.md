@@ -3,13 +3,14 @@ gsd_state_version: 1.0
 milestone: v2.0
 milestone_name: Decentralized Factory — Shared Verified Context
 status: executing
-last_updated: "2026-06-17T13:26:46.692Z"
-last_activity: 2026-06-17 -- Phase 21 planning complete
+stopped_at: Phase 21 context gathered
+last_updated: "2026-06-17T13:40:59.534Z"
+last_activity: 2026-06-17 -- Phase 21 execution started
 progress:
   total_phases: 7
   completed_phases: 1
   total_plans: 7
-  completed_plans: 4
+  completed_plans: 5
   percent: 14
 ---
 
@@ -20,14 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-06-16 — after v1.2 milestone)
 
 **Core value:** A user installs grugops on top of the coding-agent CLI they already run, types `/grug`, and gets a disciplined delivery team — a visible board, strict handoffs, and an auditable requirement→code→test→release trail — entirely as readable markdown, with humans always holding merge and deploy.
-**Current focus:** Phase 21 — verify before write admission (the §14 gate as the un cheatable verifier)
+**Current focus:** Phase 21 — verify-before-write-admission-the-14-gate-as-the-un-cheatabl
 
 ## Current Position
 
-Phase: 21
-Plan: Not started
+Phase: 21 (verify-before-write-admission-the-14-gate-as-the-un-cheatabl) — EXECUTING
+Plan: 2 of 3
 Status: Ready to execute
-Last activity: 2026-06-17 -- Phase 21 planning complete
+Last activity: 2026-06-17 -- Phase 21 execution started
 
 ## Performance Metrics
 
@@ -152,6 +153,7 @@ Last activity: 2026-06-17 -- Phase 21 planning complete
 | Phase 20 P02 | 3m | 2 tasks | 3 files |
 | Phase 20 P03 | 9m | 2 tasks | 4 files |
 | Phase 20 P04 | 5m | 2 tasks | 4 files |
+| Phase 21 P01 | 6m | 2 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -349,6 +351,7 @@ Recent decisions affecting current work:
 - [Phase ?]: [20-03] freshness:context drift gate: per-task mirror-spawn regen via context-io.js render then Buffer.equals byte-diff committed vs fresh, fail-closed (non-zero regen/unreadable/mismatch to exit 1, never fresh); markdown notes/ win, gate never edits them; realpathSync the temp mirror so context-io.js isMain CLI guard fires on the macOS /var symlink (SCTX-03, SC-4)
 - [Phase ?]: [20-04] guard_context_writes (SCTX-05) registered as a clone of guard_wr05 in check-foundation-guards.ts — explicit CTX_SCAN (17 roles + 16 workflows, never repo-wide), CTX_WRITE_RE matches a write TOKEN (writeFileSync/appendFileSync/Write/redirect/echo) co-occurring with .grugops/context/ in either order, not the prose word 'write'; folds into the single-source §14 gate (no fork). Calibration tests target workflow files (no byte ceiling) to isolate the proof.
 - [Phase ?]: [20-04] .github/workflows/ci.yml created honestly (did not exist — RESEARCH [ASSUMED] was false) — os matrix [ubuntu-latest, windows-latest] on Node 22, vitest with the live e2e lane excluded so the SC-2 unlink-then-rename Windows branch runs on a real Windows runner; freshness+guards on ubuntu; true-NFS atomicity left UNKNOWN - verify (DOGF-02/Phase 26).
+- [Phase ?]: [21-01] Admission surface = two functions (validate pure; admit() the only context-reading path, D-10); GREEN-verdict contract = kind:finding + by:§14-gate + refs includes §14-gate#<id> + body READY_FOR_HUMAN_REVIEW + live; CLI verb = admit
 
 ### Pending Todos
 
@@ -398,7 +401,7 @@ Items acknowledged and deferred at the **v1.2 milestone close on 2026-06-16** (1
 
 ## Session Continuity
 
-Last session: 2026-06-17T12:58:03.099Z
+Last session: 2026-06-17T13:40:38.426Z
 Stopped at: Phase 21 context gathered
 Resume file: .planning/phases/21-verify-before-write-admission-the-14-gate-as-the-un-cheatabl/21-CONTEXT.md
 
