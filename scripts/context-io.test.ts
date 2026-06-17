@@ -308,6 +308,167 @@ describe("context-io.js — provenance-forgery defense (CR-01)", () => {
   });
 });
 
+describe("context-io.js — verify-before-write admission (VFY-01/VFY-02)", () => {
+  // Run the compiled CLI: `node context-io.js admit <task> <noteFile> <contextRoot>`.
+  function runAdmit(task: string, noteFile: string, contextRoot: string) {
+    return spawnSync("node", [CONTEXT_IO_JS, "admit", task, noteFile, contextRoot], {
+      cwd: ROOT,
+      encoding: "utf8",
+    });
+  }
+
+  // ── D-09 structural refuse-self set (text-only `validate <file>` path) ─────────────────────────
+
+  it("D-09 hollow stamp: a finding with empty verified_by is a structural FAIL naming verified_by", () => {
+    const dir = freshTmp("ctx-io-vfy-hollow-");
+    const f = join(dir, "note.md");
+    writeFileSync(f, goodNoteText({ kind: "finding", verified_by: "" }));
+    const r = runValidate(f);
+    expect(r.status).not.toBe(0);
+    expect(`${r.stdout}${r.stderr}`).toContain("verified_by");
+  });
+
+  it("D-09 refuse-self literal `self`: a finding with verified_by: self is a FAIL", () => {
+    const dir = freshTmp("ctx-io-vfy-self-");
+    const f = join(dir, "note.md");
+    writeFileSync(f, goodNoteText({ kind: "finding", verified_by: "self" }));
+    const r = runValidate(f);
+    expect(r.status).not.toBe(0);
+    expect(`${r.stdout}${r.stderr}`).toContain("verified_by");
+  });
+
+  it("D-09 refuse-self literal `me`: a finding with verified_by: me is a FAIL", () => {
+    const dir = freshTmp("ctx-io-vfy-me-");
+    const f = join(dir, "note.md");
+    writeFileSync(f, goodNoteText({ kind: "finding", verified_by: "me" }));
+    const r = runValidate(f);
+    expect(r.status).not.toBe(0);
+    expect(`${r.stdout}${r.stderr}`).toContain("verified_by");
+  });
+
+  it("D-09 refuse-self literal `agent`: a finding with verified_by: agent is a FAIL", () => {
+    const dir = freshTmp("ctx-io-vfy-agent-");
+    const f = join(dir, "note.md");
+    writeFileSync(f, goodNoteText({ kind: "finding", verified_by: "agent" }));
+    const r = runValidate(f);
+    expect(r.status).not.toBe(0);
+    expect(`${r.stdout}${r.stderr}`).toContain("verified_by");
+  });
+
+  it("D-09 verified_by == by: a finding stamping its own author is a self-stamp FAIL", () => {
+    const dir = freshTmp("ctx-io-vfy-selfstamp-");
+    const f = join(dir, "note.md");
+    writeFileSync(f, goodNoteText({ kind: "finding", by: "engineer", verified_by: "engineer" }));
+    const r = runValidate(f);
+    expect(r.status).not.toBe(0);
+    expect(`${r.stdout}${r.stderr}`).toMatch(/self-stamp|verified_by/i);
+  });
+
+  it("D-09 DeLM phrase `pending`: a finding with verified_by: pending is a FAIL", () => {
+    const dir = freshTmp("ctx-io-vfy-pending-");
+    const f = join(dir, "note.md");
+    writeFileSync(f, goodNoteText({ kind: "finding", verified_by: "pending" }));
+    const r = runValidate(f);
+    expect(r.status).not.toBe(0);
+    expect(`${r.stdout}${r.stderr}`).toContain("verified_by");
+  });
+
+  it("D-09 DeLM phrase `n/a`: a finding with verified_by: n/a is a FAIL", () => {
+    const dir = freshTmp("ctx-io-vfy-na-");
+    const f = join(dir, "note.md");
+    writeFileSync(f, goodNoteText({ kind: "finding", verified_by: "n/a" }));
+    const r = runValidate(f);
+    expect(r.status).not.toBe(0);
+    expect(`${r.stdout}${r.stderr}`).toContain("verified_by");
+  });
+
+  it("D-09 DeLM phrase `should pass`: a finding with verified_by: should pass is a FAIL", () => {
+    const dir = freshTmp("ctx-io-vfy-shouldpass-");
+    const f = join(dir, "note.md");
+    writeFileSync(f, goodNoteText({ kind: "finding", verified_by: "should pass" }));
+    const r = runValidate(f);
+    expect(r.status).not.toBe(0);
+    expect(`${r.stdout}${r.stderr}`).toContain("verified_by");
+  });
+
+  it("D-09 no-false-positive: a legit §14-gate stamp whose id embeds `tbd` passes the structural layer", () => {
+    // The matcher must be ==/startsWith with a non-alpha boundary, NOT naive substring: a stamp
+    // id that happens to embed the letters of a phrase (here `tbd` inside `ftbdui`) must NOT FAIL.
+    const dir = freshTmp("ctx-io-vfy-nofp-");
+    const f = join(dir, "note.md");
+    writeFileSync(f, goodNoteText({ kind: "finding", verified_by: "§14-gate#R-ftbdui-001" }));
+    const r = runValidate(f);
+    // Structural layer accepts the grammar (the CLI `validate` path is text-only — no context read).
+    expect(r.status).toBe(0);
+  });
+
+  it("D-08 soft kinds need no stamp: a claim with empty verified_by passes the structural layer", () => {
+    const dir = freshTmp("ctx-io-vfy-claim-");
+    const f = join(dir, "note.md");
+    writeFileSync(f, goodNoteText({ kind: "claim", verified_by: "" }));
+    const r = runValidate(f);
+    expect(r.status).toBe(0);
+  });
+
+  it("D-08 soft kinds need no stamp: an observation with empty verified_by passes the structural layer", () => {
+    const dir = freshTmp("ctx-io-vfy-obs-");
+    const f = join(dir, "note.md");
+    writeFileSync(f, goodNoteText({ kind: "observation", verified_by: "" }));
+    const r = runValidate(f);
+    expect(r.status).toBe(0);
+  });
+
+  // ── D-02 reserved identity (impersonation) on the plain text path ──────────────────────────────
+
+  it("D-02 impersonation: a note authored by: §14-gate on the plain validate path is a structural FAIL", () => {
+    const dir = freshTmp("ctx-io-vfy-imp-");
+    const f = join(dir, "note.md");
+    // A claim authored by the reserved gate identity — must FAIL on the plain `validate <file>` path
+    // (the gate's own emission carve-out, D-04, goes through emitVerdict, never this CLI verb).
+    writeFileSync(f, goodNoteText({ kind: "claim", by: "§14-gate", verified_by: "" }));
+    const r = runValidate(f);
+    expect(r.status).not.toBe(0);
+    expect(`${r.stdout}${r.stderr}`).toMatch(/§14-gate|reserved/i);
+  });
+
+  // ── D-01 admission cross-check (context-aware) ──────────────────────────────────────────────────
+
+  it("D-01 admission FAIL: a §14-gate#<id> finding with NO matching verdict is refused naming the id", () => {
+    const contextRoot = freshTmp("ctx-io-vfy-noverdict-");
+    const task = "task-admit-none";
+    const f = join(contextRoot, "finding.md");
+    writeFileSync(f, goodNoteText({ kind: "finding", verified_by: "§14-gate#NOPE-001" }));
+    const r = runAdmit(task, f, contextRoot);
+    expect(r.status).not.toBe(0);
+    expect(`${r.stdout}${r.stderr}`).toContain("NOPE-001");
+  });
+
+  it("D-01 workhorse GREEN: a §14-gate#<id> finding WITH a matching live green verdict is admitted (exit 0)", () => {
+    const contextRoot = freshTmp("ctx-io-vfy-green-");
+    const task = "task-admit-green";
+    // Plant a real green verdict via the dedicated gate emission carve-out (D-03/D-04). The verdict
+    // is itself a context note authored by: §14-gate, carrying the per-run id and a green marker.
+    const id = "RUN-7A3F";
+    mod.emitVerdict(task, id, contextRoot);
+    // The finding stamps that exact per-run id.
+    const f = join(contextRoot, "finding.md");
+    writeFileSync(f, goodNoteText({ kind: "finding", verified_by: `§14-gate#${id}` }));
+    const r = runAdmit(task, f, contextRoot);
+    expect(r.status).toBe(0);
+  });
+
+  it("D-01 admission FAIL on id mismatch: a finding stamping a different id than the planted verdict is refused", () => {
+    const contextRoot = freshTmp("ctx-io-vfy-mismatch-");
+    const task = "task-admit-mismatch";
+    mod.emitVerdict(task, "RUN-AAAA", contextRoot);
+    const f = join(contextRoot, "finding.md");
+    writeFileSync(f, goodNoteText({ kind: "finding", verified_by: "§14-gate#RUN-BBBB" }));
+    const r = runAdmit(task, f, contextRoot);
+    expect(r.status).not.toBe(0);
+    expect(`${r.stdout}${r.stderr}`).toContain("RUN-BBBB");
+  });
+});
+
 describe("context-io.js — replay/supersede (SCTX-04)", () => {
   it("currentState folds out a superseded note by at+supersedes, not file position", () => {
     const a = {
