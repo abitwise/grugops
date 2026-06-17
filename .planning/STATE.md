@@ -2,9 +2,9 @@
 gsd_state_version: 1.0
 milestone: v2.0
 milestone_name: Decentralized Factory — Shared Verified Context
-status: roadmapped
-last_updated: "2026-06-16T20:30:00.000Z"
-last_activity: 2026-06-16
+status: planning
+last_updated: "2026-06-17T08:18:29.020Z"
+last_activity: 2026-06-16 — Milestone v2.0 roadmap created (Phases 20–26, 28 requirements, 100% coverage)
 progress:
   total_phases: 7
   completed_phases: 0
@@ -385,9 +385,9 @@ Items acknowledged and deferred at the **v1.2 milestone close on 2026-06-16** (1
 
 ## Session Continuity
 
-Last session: 2026-06-16T20:30:00.000Z
-Stopped at: v2.0 roadmap created (Phases 20–26) — awaiting user approval, then Phase 20 planning
-Resume file: None
+Last session: 2026-06-17T08:18:29.006Z
+Stopped at: Phase 20 context gathered
+Resume file: .planning/phases/20-shared-context-substrate-concurrency-foundation/20-CONTEXT.md
 
 ## Operator Next Steps
 
