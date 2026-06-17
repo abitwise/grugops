@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v2.0
 milestone_name: Decentralized Factory — Shared Verified Context
 status: executing
-last_updated: "2026-06-17T10:05:20.014Z"
+last_updated: "2026-06-17T10:15:34.987Z"
 last_activity: 2026-06-17
 progress:
   total_phases: 7
   completed_phases: 0
   total_plans: 4
-  completed_plans: 2
+  completed_plans: 3
   percent: 0
 ---
 
@@ -25,7 +25,7 @@ See: .planning/PROJECT.md (updated 2026-06-16 — after v1.2 milestone)
 ## Current Position
 
 Phase: 20 (shared-context-substrate-concurrency-foundation) — EXECUTING
-Plan: 3 of 4
+Plan: 4 of 4
 Status: Ready to execute
 Last activity: 2026-06-17
 
@@ -149,6 +149,7 @@ Last activity: 2026-06-17
 | Phase 19 P03a | 2m | 1 tasks | 1 files |
 | Phase 20 P01 | 9m | 2 tasks | 5 files |
 | Phase 20 P02 | 3m | 2 tasks | 3 files |
+| Phase 20 P03 | 9m | 2 tasks | 4 files |
 
 ## Accumulated Context
 
@@ -343,6 +344,7 @@ Recent decisions affecting current work:
 - [Phase ?]: [20-01] context-io.ts is the ONLY sanctioned shared-context write path: per-note-file + atomic temp-then-rename to a FRESH unique path; Windows unlink-then-rename branch confined to the single-writer freshness-gated index.* regen; markdown notes/ is SoT, index.* derived/freshness-gatable
 - [Phase ?]: [20-02] claimTask(queueRoot, task, by): atomic mkdirSync claim, EEXIST=lost (false) distinct from rethrown ENOENT/EACCES; claim.md is the now-running registry
 - [Phase ?]: [20-02] sweepStale: explicit generous wall-clock TTL reclaim, caller-supplied TTL, NO pid/host liveness (PAR-05 deferred)
+- [Phase ?]: [20-03] freshness:context drift gate: per-task mirror-spawn regen via context-io.js render then Buffer.equals byte-diff committed vs fresh, fail-closed (non-zero regen/unreadable/mismatch to exit 1, never fresh); markdown notes/ win, gate never edits them; realpathSync the temp mirror so context-io.js isMain CLI guard fires on the macOS /var symlink (SCTX-03, SC-4)
 
 ### Pending Todos
 
@@ -392,8 +394,8 @@ Items acknowledged and deferred at the **v1.2 milestone close on 2026-06-16** (1
 
 ## Session Continuity
 
-Last session: 2026-06-17T10:05:19.842Z
-Stopped at: Completed 20-02-PLAN.md
+Last session: 2026-06-17T10:15:34.834Z
+Stopped at: Completed 20-03-PLAN.md
 Resume file: None
 
 ## Operator Next Steps
