@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v2.0
 milestone_name: Decentralized Factory — Shared Verified Context
 status: executing
-last_updated: "2026-06-17T09:58:10.872Z"
+last_updated: "2026-06-17T10:05:20.014Z"
 last_activity: 2026-06-17
 progress:
   total_phases: 7
   completed_phases: 0
   total_plans: 4
-  completed_plans: 1
+  completed_plans: 2
   percent: 0
 ---
 
@@ -25,7 +25,7 @@ See: .planning/PROJECT.md (updated 2026-06-16 — after v1.2 milestone)
 ## Current Position
 
 Phase: 20 (shared-context-substrate-concurrency-foundation) — EXECUTING
-Plan: 2 of 4
+Plan: 3 of 4
 Status: Ready to execute
 Last activity: 2026-06-17
 
@@ -148,6 +148,7 @@ Last activity: 2026-06-17
 | Phase 19 P02 | 18m | 2 tasks | 4 files |
 | Phase 19 P03a | 2m | 1 tasks | 1 files |
 | Phase 20 P01 | 9m | 2 tasks | 5 files |
+| Phase 20 P02 | 3m | 2 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -340,6 +341,8 @@ Recent decisions affecting current work:
 - [Phase ?]: [20-01] refs YAML-list parsing: extend the existing flat key:value frontmatter parser minimally for a refs: list block (single-line comma form also accepted) — zero new dependency (resolves RESEARCH Open Q1)
 - [Phase ?]: [20-01] derived filenames index.md + index.jsonl (folder-relative); JSONL line is event-only (8 provenance fields, fixed key order, body excluded)
 - [Phase ?]: [20-01] context-io.ts is the ONLY sanctioned shared-context write path: per-note-file + atomic temp-then-rename to a FRESH unique path; Windows unlink-then-rename branch confined to the single-writer freshness-gated index.* regen; markdown notes/ is SoT, index.* derived/freshness-gatable
+- [Phase ?]: [20-02] claimTask(queueRoot, task, by): atomic mkdirSync claim, EEXIST=lost (false) distinct from rethrown ENOENT/EACCES; claim.md is the now-running registry
+- [Phase ?]: [20-02] sweepStale: explicit generous wall-clock TTL reclaim, caller-supplied TTL, NO pid/host liveness (PAR-05 deferred)
 
 ### Pending Todos
 
@@ -389,8 +392,8 @@ Items acknowledged and deferred at the **v1.2 milestone close on 2026-06-16** (1
 
 ## Session Continuity
 
-Last session: 2026-06-17T09:58:10.865Z
-Stopped at: Completed 20-01-PLAN.md
+Last session: 2026-06-17T10:05:19.842Z
+Stopped at: Completed 20-02-PLAN.md
 Resume file: None
 
 ## Operator Next Steps

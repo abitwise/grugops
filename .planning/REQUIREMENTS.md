@@ -29,8 +29,8 @@ Requirements for the decentralization milestone. Each maps to exactly one roadma
 
 ### CLAIM — File-Based Task Queue & Atomic Claim
 
-- [ ] **CLAIM-01**: A file-based task queue at `.grugops/queue/{pending,claimed,done}/` — subtask files transition state by atomic rename; no central lock manager.
-- [ ] **CLAIM-02**: `claim.ts` — atomic claim via `mkdirSync` (NFS-safe, preferred over `O_EXCL`) + a stale-claim sweep rule; `node:fs`-only, committed `.js`, cross-platform tested.
+- [x] **CLAIM-01**: A file-based task queue at `.grugops/queue/{pending,claimed,done}/` — subtask files transition state by atomic rename; no central lock manager.
+- [x] **CLAIM-02**: `claim.ts` — atomic claim via `mkdirSync` (NFS-safe, preferred over `O_EXCL`) + a stale-claim sweep rule; `node:fs`-only, committed `.js`, cross-platform tested.
 - [ ] **CLAIM-03**: A WIP cap (`queue.wip_limit`) bounding concurrent agent *width* (the platform caps spawn depth at 5, not width — the width cap is grugops's responsibility).
 
 ### VFY — Verify-Before-Write Admission
@@ -107,8 +107,8 @@ Which phases cover which requirements. Confirmed during roadmap creation (2026-0
 | SCTX-03 | Phase 20 | Pending |
 | SCTX-04 | Phase 20 | Complete |
 | SCTX-05 | Phase 20 | Pending |
-| CLAIM-01 | Phase 20 | Pending |
-| CLAIM-02 | Phase 20 | Pending |
+| CLAIM-01 | Phase 20 | Complete |
+| CLAIM-02 | Phase 20 | Complete |
 | CLAIM-03 | Phase 23 | Pending |
 | VFY-01 | Phase 21 | Pending |
 | VFY-02 | Phase 21 | Pending |
