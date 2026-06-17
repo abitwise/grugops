@@ -12,7 +12,8 @@
     "test:e2e": "vitest run scripts/e2e",
     "freshness": "tsc --outDir .tmp-build && node scripts/freshness.js",
     "generate:catalog": "tsc --outDir .tmp-build && node scripts/generate-catalog.js",
-    "freshness:catalog": "tsc --outDir .tmp-build && node scripts/catalog-freshness.js"
+    "freshness:catalog": "tsc --outDir .tmp-build && node scripts/catalog-freshness.js",
+    "freshness:context": "tsc --outDir .tmp-build && node scripts/context-freshness.js"
   },
   "devDependencies": {
     "@types/node": "~22",
