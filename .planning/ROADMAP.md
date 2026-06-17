@@ -114,7 +114,7 @@ Plans:
   3. A role following Workflow 16 (`16-context-read-write.md`) reads the shared context before acting and writes only after verification, and every other role references that single-source protocol rather than restating it.
   4. The §14 gate's bounded `self_fix_attempts` loop drives a bounded verify→regenerate cycle, and the `claim` / `UNKNOWN - verify` escape hatch is honest and explicitly non-load-bearing (a `claim` can never satisfy a `finding`'s admission).
 
-**Plans**: 3 plans (2 waves)
+**Plans**: 4 plans (3 waves) — Wave 3 is the CR-01 gap-closure pass after initial verification scored 3/4
 Plans:
 **Wave 1**
 
@@ -124,6 +124,10 @@ Plans:
 
 - [x] 21-02-PLAN.md — §14 gate emits a `by: §14-gate` green verdict (unique per-run id) via context-io.ts on READY_FOR_HUMAN_REVIEW; single-source, references the bounded self_fix_attempts loop [VFY-01, VFY-04]
 - [x] 21-03-PLAN.md — author Workflow 16 (single-source read/write/admission protocol) + sync context-note.md + the one-line WF16 pointer in all 17 roles [VFY-03, VFY-04]
+
+**Wave 3 — gap closure** *(closes CR-01 from 21-VERIFICATION.md, which scored SC-1 PARTIAL)*
+
+- [ ] 21-04-PLAN.md — CR-01: normalize CRLF/CR to LF in parseNote so a git-autocrlf (Windows) verdict note is read identically to its LF form; RED-then-GREEN CRLF round-trip test over readContext + admit; rebuild + freshness-verify the committed .js [VFY-01]
 
 ### Phase 22: Memory & Trajectory Compaction (Dialable, Token-Economy)
 
@@ -218,11 +222,11 @@ Plans:
 | 18. Browsable Docs Catalog | v1.2 | 2/2 | Complete | 2026-06-15 |
 | 19. Factory Auto-UAT Harness — Tier 1 Oracles + Tier 2 Headless E2E | v1.2 | 4/4 | Closed (A3/DOG-02 waived → next milestone) | 2026-06-16 |
 | 20. Shared-Context Substrate & Concurrency Foundation | v2.0 | 4/4 | Complete    | 2026-06-17 |
-| 21. Verify-Before-Write Admission | v2.0 | 3/3 | Verifying | - |
+| 21. Verify-Before-Write Admission | v2.0 | 3/4 | Verifying (CR-01 gap-closure planned: 21-04) | - |
 | 22. Memory & Trajectory Compaction | v2.0 | 0/? | Pending | - |
 | 23. Parallel Execution & Orchestrator-as-Decomposer | v2.0 | 0/? | Pending | - |
 | 24. Clean Handoff Removal & Traceability Migration | v2.0 | 0/? | Pending | - |
 | 25. Governance-on-a-Dial | v2.0 | 0/? | Pending | - |
 | 26. Dogfood, Dual-Path Oracle & A3/DOG-02 Retirement | v2.0 | 0/? | Pending | - |
 
-**Totals:** 26 phases · 90 plans complete · 3 milestones shipped (v1.0 + v1.1 + v1.2). Active milestone: **v2.0 Decentralized Factory — Shared Verified Context** (Phases 20–26, 28 requirements, 4 plans executed). Phase 20: all 4 plans executed (2 waves) — awaiting phase verification. Next: verify Phase 20, then `/gsd-plan-phase 21`.
+**Totals:** 26 phases · 90 plans complete · 3 milestones shipped (v1.0 + v1.1 + v1.2). Active milestone: **v2.0 Decentralized Factory — Shared Verified Context** (Phases 20–26, 28 requirements, 4 plans executed). Phase 20: all 4 plans executed (2 waves) — awaiting phase verification. Phase 21: 3 plans executed, verification scored 3/4 (SC-1 PARTIAL, CR-01 CRLF gap) — gap-closure plan 21-04 added. Next: execute `/gsd-execute-phase 21 --gaps-only`.
