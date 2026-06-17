@@ -25,7 +25,7 @@ Requirements for the decentralization milestone. Each maps to exactly one roadma
 - [x] **SCTX-02**: `context-io.ts` — `node:fs`-only helpers (`readContext` / `appendNote` / `atomicWrite`) compiled to committed `.js`, Windows-safe (unlink-then-rename), freshness-checked like the rest of the tooling layer.
 - [x] **SCTX-03**: A committed per-task JSONL index derived from the markdown, guarded by a `freshness:context` drift gate (regenerate → byte-diff, fail-closed); the markdown wins on any conflict.
 - [x] **SCTX-04**: An append-only, git-tracked context audit trail — every note carries `by` / `at` / `verified_by` / `supersedes`; the trace replays from `at` + `supersedes` (not file position); `git log` is the tamper-evident attribution.
-- [ ] **SCTX-05**: `guard_context_writes` — a foundation guard that fails red if any shipped role/workflow text writes the shared context by a path other than the sanctioned `context-io.ts` helpers.
+- [x] **SCTX-05**: `guard_context_writes` — a foundation guard that fails red if any shipped role/workflow text writes the shared context by a path other than the sanctioned `context-io.ts` helpers.
 
 ### CLAIM — File-Based Task Queue & Atomic Claim
 
@@ -106,7 +106,7 @@ Which phases cover which requirements. Confirmed during roadmap creation (2026-0
 | SCTX-02 | Phase 20 | Complete |
 | SCTX-03 | Phase 20 | Complete |
 | SCTX-04 | Phase 20 | Complete |
-| SCTX-05 | Phase 20 | Pending |
+| SCTX-05 | Phase 20 | Complete |
 | CLAIM-01 | Phase 20 | Complete |
 | CLAIM-02 | Phase 20 | Complete |
 | CLAIM-03 | Phase 23 | Pending |

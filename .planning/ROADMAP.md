@@ -67,7 +67,7 @@ Full phase details + milestone summary: `milestones/v1.2-ROADMAP.md` · requirem
 
 ### 🚧 v2.0 Decentralized Factory — Shared Verified Context (Phases 20–26) — ACTIVE
 
-- [ ] **Phase 20: Shared-Context Substrate & Concurrency Foundation** — the atomic-write helpers, the typed-note schema, the verify-stamp validator hooks, the file-based queue, and the grep guard — mechanized before any role writes to the shared context
+- [ ] **Phase 20: Shared-Context Substrate & Concurrency Foundation** — the atomic-write helpers, the typed-note schema, the verify-stamp validator hooks, the file-based queue, and the grep guard — mechanized before any role writes to the shared context (all 4 plans executed 2026-06-17 — awaiting phase verification)
 - [ ] **Phase 21: Verify-Before-Write Admission** — the §14 gate as the un-cheatable verifier; refuse-self-set; the read-before-act / write-after-verify protocol (Workflow 16)
 - [ ] **Phase 22: Memory & Trajectory Compaction** — two-tier memory + the `context.compaction` dial + the load-bearing-field carve-out (Workflow 18), landed before parallel fan-out makes the token tax real
 - [ ] **Phase 23: Parallel Execution & Orchestrator-as-Decomposer** — Orchestrator router→decomposer/scheduler/gate, nested CC spawning + the degraded sequential path, the inverted WR-05 guard, the WIP cap (Workflow 17)
@@ -100,7 +100,7 @@ Plans:
 **Wave 2** *(blocked on Wave 1 completion)*
 
 - [x] 20-03-PLAN.md — context-freshness.ts freshness:context drift gate (clone catalog-freshness.ts; markdown wins, fail-closed) [SC-4]
-- [ ] 20-04-PLAN.md — guard_context_writes foundation guard + windows-latest CI leg [SC-5, SC-2 Windows runtime]
+- [x] 20-04-PLAN.md — guard_context_writes foundation guard + windows-latest CI leg [SC-5, SC-2 Windows runtime]
 
 ### Phase 21: Verify-Before-Write Admission (the §14 Gate as the Un-Cheatable Verifier)
 
@@ -208,7 +208,7 @@ Plans:
 | 17. Install --migrate / --update | v1.2 | 3/3 | Complete | 2026-06-15 |
 | 18. Browsable Docs Catalog | v1.2 | 2/2 | Complete | 2026-06-15 |
 | 19. Factory Auto-UAT Harness — Tier 1 Oracles + Tier 2 Headless E2E | v1.2 | 4/4 | Closed (A3/DOG-02 waived → next milestone) | 2026-06-16 |
-| 20. Shared-Context Substrate & Concurrency Foundation | v2.0 | 3/4 | In Progress|  |
+| 20. Shared-Context Substrate & Concurrency Foundation | v2.0 | 4/4 | Awaiting verification | 2026-06-17 |
 | 21. Verify-Before-Write Admission | v2.0 | 0/? | Pending | - |
 | 22. Memory & Trajectory Compaction | v2.0 | 0/? | Pending | - |
 | 23. Parallel Execution & Orchestrator-as-Decomposer | v2.0 | 0/? | Pending | - |
@@ -216,4 +216,4 @@ Plans:
 | 25. Governance-on-a-Dial | v2.0 | 0/? | Pending | - |
 | 26. Dogfood, Dual-Path Oracle & A3/DOG-02 Retirement | v2.0 | 0/? | Pending | - |
 
-**Totals:** 26 phases · 86 plans complete · 3 milestones shipped (v1.0 + v1.1 + v1.2). Active milestone: **v2.0 Decentralized Factory — Shared Verified Context** (Phases 20–26, 28 requirements, 0 plans complete). Phase 20 planned (4 plans, 2 waves). Next: `/gsd-execute-phase 20`.
+**Totals:** 26 phases · 90 plans complete · 3 milestones shipped (v1.0 + v1.1 + v1.2). Active milestone: **v2.0 Decentralized Factory — Shared Verified Context** (Phases 20–26, 28 requirements, 4 plans executed). Phase 20: all 4 plans executed (2 waves) — awaiting phase verification. Next: verify Phase 20, then `/gsd-plan-phase 21`.
