@@ -16,11 +16,12 @@ files_reviewed_list:
   - agent-factory/contracts/task-notes.template.md
   - .github/workflows/ci.yml
 findings:
-  critical: 2
+  critical: 0
+  critical_resolved: 2
   warning: 5
   info: 3
-  total: 10
-status: issues_found
+  total: 8
+status: warnings_outstanding
 ---
 
 # Phase 20: Code Review Report
@@ -176,6 +177,20 @@ if (existsSync(subtask)) {
 
 ---
 
+## Remediation (2026-06-17, post-review)
+
+Both BLOCKERs were fixed under strict TDD (RED test proving the vulnerability first, then GREEN) during execute-phase, before phase verification. The 5 warnings and 3 info items remain outstanding and are carried forward (candidates for a follow-up `/gsd-code-review 20 --fix` or the next phase's hardening).
+
+- **CR-01 — RESOLVED.** `appendNote` now rejects any note field containing CR/LF via `assertSingleLine` (kind, by, at, verified_by, confidence, supersedes, each refs[]); `validate()` additionally fails on a duplicate frontmatter key (`structural FAIL: duplicate frontmatter key "<key>"`), closing the CLI `validate <file>` path for out-of-band notes. Commits `a246edd` (RED) → `09963b7` (fix).
+- **CR-02 — RESOLVED.** `claimTask` rejects a `by` containing CR/LF before writing `claim.md`; `sweepStale` treats a claim record with more than one `at:` line as tampered and reclaims it rather than trusting the first match. Commits `fff628a` (RED) → `08960a7` (fix).
+
+Gate after remediation: `npm run build` exit 0 · `npx vitest run` (excl. live e2e) 170 passed/1 skipped · `npm run freshness` 16/16 `.js` fresh · `node scripts/check-foundation-guards.js` ALL CHECKS PASSED.
+
+Outstanding (non-blocking): WR-01 (guard_context_writes regex false-positives on the `<task>` placeholder — will bite when Phase 24 wires roles), WR-02 (validate `at` parseability), WR-03/WR-04 (silent-clobber renames), WR-05 (CI rebuilds committed `.js` before tests; ubuntu-only freshness), IN-01/02/03.
+
+---
+
 _Reviewed: 2026-06-17T10:30:55Z_
 _Reviewer: Claude (gsd-code-reviewer)_
 _Depth: standard_
+_Remediation: 2026-06-17 (CR-01, CR-02 resolved during execute-phase)_
