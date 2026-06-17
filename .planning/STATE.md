@@ -2,10 +2,10 @@
 gsd_state_version: 1.0
 milestone: v2.0
 milestone_name: Decentralized Factory — Shared Verified Context
-status: verifying
-stopped_at: Phase 21 CR-01 gap-closure (21-04) executed — awaiting re-verification
-last_updated: "2026-06-17T15:14:04.676Z"
-last_activity: 2026-06-17 -- Phase 21 Plan 04 (CR-01) executed: parseNote CRLF normalization, RED 3e4991a / GREEN 51f3b24
+status: ready
+stopped_at: Phase 21 complete (4/4 plans, verification passed)
+last_updated: "2026-06-17T15:21:47.898Z"
+last_activity: 2026-06-17
 progress:
   total_phases: 7
   completed_phases: 2
@@ -21,20 +21,20 @@ progress:
 See: .planning/PROJECT.md (updated 2026-06-16 — after v1.2 milestone)
 
 **Core value:** A user installs grugops on top of the coding-agent CLI they already run, types `/grug`, and gets a disciplined delivery team — a visible board, strict handoffs, and an auditable requirement→code→test→release trail — entirely as readable markdown, with humans always holding merge and deploy.
-**Current focus:** Phase 21 — verify-before-write-admission-the-14-gate-as-the-un-cheatabl
+**Current focus:** Phase 22 — memory-&-trajectory-compaction (next; Phase 21 complete)
 
 ## Current Position
 
-Phase: 21 (verify-before-write-admission-the-14-gate-as-the-un-cheatabl) — EXECUTING
-Plan: 4 of 4 (gap closure) — complete
-Status: CR-01 gap-closure done — ready for phase re-verification
-Last activity: 2026-06-17 -- Phase 21 execution started
+Phase: 22
+Plan: Not started
+Status: Phase 21 complete (4/4 plans, verification passed 4/4). Ready to start Phase 22.
+Last activity: 2026-06-17
 
 ## Performance Metrics
 
 **Velocity:**
 
-- Total plans completed: 81
+- Total plans completed: 85
 - Average duration: -
 - Total execution time: 0 hours
 
@@ -60,6 +60,7 @@ Last activity: 2026-06-17 -- Phase 21 execution started
 | 17 | 3 | - | - |
 | 18 | 2 | - | - |
 | 20 | 4 | - | - |
+| 21 | 4 | - | - |
 
 **Recent Trend:**
 
