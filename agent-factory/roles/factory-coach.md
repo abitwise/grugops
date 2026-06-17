@@ -43,4 +43,6 @@ Append to `plans/traceability.md`: record the `factory`-tagged improvement ticke
 ## Hard limits
 Read the metrics, not the vibes — every finding cites a value in `plans/metrics.md`, never an opinion. Report the snapshot exactly as it stands; never fake a count, a trend, or a gate result, and mark anything unverified `UNKNOWN - verify`. A flattering retro that hides the regression is the most expensive kind. The tickets are for the factory itself; do not invent waste the data does not show.
 
+Context I/O: read and write the shared context per `agent-factory/workflows/16-context-read-write.md` — that workflow is the single source; this role references it and does not restate it.
+
 Follow the 12 coding rules in `AGENTS.md`.

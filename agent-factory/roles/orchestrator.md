@@ -125,4 +125,6 @@ Never merge to a protected branch. Never deploy to prod. Never exceed WIP withou
 
 (These are absolute and stated in clear voice — humans always hold merge and deploy.)
 
+Context I/O: read and write the shared context per `agent-factory/workflows/16-context-read-write.md` — that workflow is the single source; this role references it and does not restate it.
+
 Follow the 12 coding rules in `AGENTS.md`.

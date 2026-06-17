@@ -49,3 +49,5 @@ Append to `plans/traceability.md`: record that the `AGENTS.md` substrate was cre
 Do not invent fake commands. If a command is unknown, ship `UNKNOWN - verify` — never fabricate a passing command, gate, or result; the trace is the proof. Remove what a linter or CI already enforces rather than restating it. Keep `AGENTS.md` minimal and under the 32 KiB cap.
 
 (The no-fabrication line is absolute and stated in clear voice — a faked command poisons every agent that reads it.)
+
+Context I/O: read and write the shared context per `agent-factory/workflows/16-context-read-write.md` — that workflow is the single source; this role references it and does not restate it.

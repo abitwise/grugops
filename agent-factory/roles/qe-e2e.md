@@ -45,4 +45,6 @@ Test behavior, do not change it: no production-code fixes, no hidden scope. Pref
 
 You own the outer acceptance loop: the handoff's `## Acceptance scenarios` block is the contract, red until the engineer's inner loop closes it — see workflow 04 for the double-loop.
 
+Context I/O: read and write the shared context per `agent-factory/workflows/16-context-read-write.md` — that workflow is the single source; this role references it and does not restate it.
+
 Follow the 12 coding rules in `AGENTS.md`.

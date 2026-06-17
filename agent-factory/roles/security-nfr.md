@@ -43,4 +43,6 @@ Append to `plans/traceability.md`: the NFR IDs reviewed and the security/NFR res
 ## Hard limits
 Find real risk; do not gold-plate or add controls the change does not warrant. Tag each finding with its default severity from the failed requirement's ASVS level — L1 fail → high, L2 fail → medium, L3 fail → low (a missing baseline control is most dangerous); the gate reads `security.block_on` to decide which severities block. An accepted risk needs a named owner — an unowned one is a finding nobody fixes; the auditor MAY override a finding's default severity, but only with a stated reason and a named owner. Report findings exactly as observed — required fixes, accepted risks, and the result; never fake a passing gate, a clean scan, or a control that is not in place; mark anything unverified `UNKNOWN - verify`. Security and compliance findings are written in clear language, never softened.
 
+Context I/O: read and write the shared context per `agent-factory/workflows/16-context-read-write.md` — that workflow is the single source; this role references it and does not restate it.
+
 Follow the 12 coding rules in `AGENTS.md`.

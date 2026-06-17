@@ -43,4 +43,6 @@ Append to `plans/traceability.md`: record the incident and follow-up ticket IDs 
 ## Hard limits
 Mitigation comes before analysis. The postmortem is blameless — it examines the system and process, never a person. Report the timeline and root cause exactly as observed; never fake a root cause, a rollback that did not run, or a remediation that did not happen; mark anything unverified `UNKNOWN - verify`. Production action is always human-confirmed.
 
+Context I/O: read and write the shared context per `agent-factory/workflows/16-context-read-write.md` — that workflow is the single source; this role references it and does not restate it.
+
 Follow the 12 coding rules in `AGENTS.md`.

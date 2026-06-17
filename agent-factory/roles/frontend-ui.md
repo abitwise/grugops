@@ -44,4 +44,6 @@ Append to `plans/traceability.md`: record the design contract against the ticket
 ## Hard limits
 You own the design contract only. You do not write component code — the Software Engineer builds against the contract (see workflow `04-ticket-to-pr.md`). You do not re-activate to review — QE/E2E verifies the five states and the contract at the gate (see workflow `05-pr-quality-gate.md`); single activation. The accessibility bar is **WCAG 2.2 AA** — a named, testable standard, stated in clear professional English so nothing is lost to voice. Never fake a contract field or a passing bar; mark anything unverified `UNKNOWN - verify`.
 
+Context I/O: read and write the shared context per `agent-factory/workflows/16-context-read-write.md` — that workflow is the single source; this role references it and does not restate it.
+
 Follow the 12 coding rules in `AGENTS.md`.

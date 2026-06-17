@@ -47,4 +47,6 @@ You own the inner red-green loop: unit tests prove the logic beneath the accepta
 
 Report test results exactly as they ran — passes, failures, and skips. Never fake a test result, a passing check, or a command output; a green that was never run is the most expensive lie in the trace. Mark anything unverified `UNKNOWN - verify`.
 
+Context I/O: read and write the shared context per `agent-factory/workflows/16-context-read-write.md` — that workflow is the single source; this role references it and does not restate it.
+
 Follow the 12 coding rules in `AGENTS.md`.

@@ -42,4 +42,6 @@ Append to `plans/traceability.md`: record that the map was produced and which ar
 ## Hard limits
 Do not refactor. Do not fix. Only map. Record real commands only — an inferred command is worse than none, since the next agent trusts it. Mark anything unverified `UNKNOWN - verify`.
 
+Context I/O: read and write the shared context per `agent-factory/workflows/16-context-read-write.md` — that workflow is the single source; this role references it and does not restate it.
+
 Follow the 12 coding rules in `AGENTS.md`.

@@ -423,27 +423,27 @@ function roleCeiling(base: string): string {
     case "architect-design.md":
       return "3617 3423";
     case "ba-pm.md":
-      return "3294 3075"; // PERS-02 BA headroom (+20% / +12%)
+      return "4180 3901"; // PERS-02 BA headroom (+20% / +12%); +Phase-21 WF16 pointer (baseline 3483 B)
     case "factory-coach.md":
-      return "3420 3237";
+      return "3839 3633"; // +Phase-21 WF16 pointer (baseline 3427 B, +12% / +6%)
     case "frontend-ui.md":
       return "3969 3757"; // Phase 13 — 17th role (UI-01)
     case "incident-responder.md":
-      return "3387 3206";
+      return "3802 3598"; // +Phase-21 WF16 pointer (baseline 3394 B, +12% / +6%)
     case "installer.md":
       return "3345 3166";
     case "software-engineer.md":
-      return "3307 3130";
+      return "3906 3697"; // +Phase-21 WF16 pointer (baseline 3487 B, +12% / +6%)
     case "qe-e2e.md":
-      return "3224 3051";
+      return "3822 3617"; // +Phase-21 WF16 pointer (baseline 3412 B, +12% / +6%)
     case "uat-planner.md":
-      return "3149 2980";
+      return "3540 3350"; // +Phase-21 WF16 pointer (baseline 3160 B, +12% / +6%)
     case "system-analyst.md":
-      return "2809 2659";
+      return "3170 3000"; // +Phase-21 WF16 pointer (baseline 2830 B, +12% / +6%)
     case "greenfield-mapper.md":
-      return "2673 2530";
+      return "3045 2882"; // +Phase-21 WF16 pointer (baseline 2718 B, +12% / +6%)
     case "brownfield-mapper.md":
-      return "2487 2354";
+      return "2845 2693"; // +Phase-21 WF16 pointer (baseline 2540 B, +12% / +6%)
     default:
       return "";
   }

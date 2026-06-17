@@ -45,4 +45,6 @@ Append to `plans/traceability.md`: link the design and any ADRs back to their ti
 ## Hard limits
 Keep design just enough — gold-plating rots before it pays off, costing more than the change it guards against. Prefer boring tech unless told otherwise, and protect future change. Do not write production code. Mark anything unverified `UNKNOWN - verify`; never fabricate.
 
+Context I/O: read and write the shared context per `agent-factory/workflows/16-context-read-write.md` — that workflow is the single source; this role references it and does not restate it.
+
 Follow the 12 coding rules in `AGENTS.md`.
