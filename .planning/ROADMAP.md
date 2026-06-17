@@ -87,7 +87,13 @@ Full phase details + milestone summary: `milestones/v1.2-ROADMAP.md` · requirem
   3. A subtask file moves `pending → claimed → done` by atomic rename, and a `claim.ts` claim via `mkdirSync` is exclusive (a second claimant on the same task fails) with no central lock manager.
   4. The committed per-task JSONL index regenerates byte-identically from the markdown; editing the markdown without regenerating the index trips the `freshness:context` gate (fail-closed), and the markdown wins on any conflict.
   5. `guard_context_writes` fails RED if any shipped role/workflow text writes the shared context by a path other than the sanctioned `context-io.ts` helpers (a planted raw-write fixture proves it).
-**Plans**: TBD
+**Plans**: 4 plans (2 waves)
+
+Plans:
+- [ ] 20-01-PLAN.md — note-schema contract docs + context-io.ts (atomicWrite/appendNote/readContext + deterministic index render + schema validate) [SC-1, SC-2]
+- [ ] 20-02-PLAN.md — claim.ts: mkdirSync atomic claim + pending→claimed→done rename transitions + generous-TTL stale-sweep [SC-3]
+- [ ] 20-03-PLAN.md — context-freshness.ts freshness:context drift gate (clone catalog-freshness.ts; markdown wins, fail-closed) [SC-4]
+- [ ] 20-04-PLAN.md — guard_context_writes foundation guard + windows-latest CI leg [SC-5, SC-2 Windows runtime]
 
 ### Phase 21: Verify-Before-Write Admission (the §14 Gate as the Un-Cheatable Verifier)
 **Goal**: Wire the differentiator mechanically — a `finding` is admitted to the shared context only with a real, non-self verification stamp — so the replacement memory is trustworthy before it becomes the sole memory.
@@ -177,7 +183,7 @@ Full phase details + milestone summary: `milestones/v1.2-ROADMAP.md` · requirem
 | 17. Install --migrate / --update | v1.2 | 3/3 | Complete | 2026-06-15 |
 | 18. Browsable Docs Catalog | v1.2 | 2/2 | Complete | 2026-06-15 |
 | 19. Factory Auto-UAT Harness — Tier 1 Oracles + Tier 2 Headless E2E | v1.2 | 4/4 | Closed (A3/DOG-02 waived → next milestone) | 2026-06-16 |
-| 20. Shared-Context Substrate & Concurrency Foundation | v2.0 | 0/? | Pending | - |
+| 20. Shared-Context Substrate & Concurrency Foundation | v2.0 | 0/4 | Pending | - |
 | 21. Verify-Before-Write Admission | v2.0 | 0/? | Pending | - |
 | 22. Memory & Trajectory Compaction | v2.0 | 0/? | Pending | - |
 | 23. Parallel Execution & Orchestrator-as-Decomposer | v2.0 | 0/? | Pending | - |
@@ -185,4 +191,4 @@ Full phase details + milestone summary: `milestones/v1.2-ROADMAP.md` · requirem
 | 25. Governance-on-a-Dial | v2.0 | 0/? | Pending | - |
 | 26. Dogfood, Dual-Path Oracle & A3/DOG-02 Retirement | v2.0 | 0/? | Pending | - |
 
-**Totals:** 26 phases · 86 plans complete · 3 milestones shipped (v1.0 + v1.1 + v1.2). Active milestone: **v2.0 Decentralized Factory — Shared Verified Context** (Phases 20–26, 28 requirements, 0 plans complete). Next: `/gsd-plan-phase 20`.
+**Totals:** 26 phases · 86 plans complete · 3 milestones shipped (v1.0 + v1.1 + v1.2). Active milestone: **v2.0 Decentralized Factory — Shared Verified Context** (Phases 20–26, 28 requirements, 0 plans complete). Phase 20 planned (4 plans, 2 waves). Next: `/gsd-execute-phase 20`.
