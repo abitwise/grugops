@@ -92,6 +92,19 @@ function assertSafeTask(task: string): void {
   }
 }
 
+// ── Single-line field guard (provenance-forgery mitigation, CR-01) ──────────────────────────────
+// Every NoteInput field is interpolated RAW into the YAML provenance fence by composeNote. An
+// embedded newline would inject additional `key: value` lines; because parseNote lets a later key
+// overwrite an earlier one, an injected `kind:`/`verified_by:` could flip a soft `claim` into a
+// forged verified `finding`. Reject any field carrying a CR or LF BEFORE composing.
+function assertSingleLine(name: string, value: string): void {
+  if (/[\r\n]/.test(value)) {
+    throw new Error(
+      `context-io: field "${name}" must be single-line (no embedded newline): ${JSON.stringify(value)}`,
+    );
+  }
+}
+
 // ── Frontmatter parse (stdlib slice+regex — NO js-yaml/gray-matter, per the zero-dep constraint).
 // Extends the flat key:value idiom from generate-catalog.ts with one addition: a `refs:` YAML list
 // block (`refs:\n  - x\n  - y`). A single-line `refs: a, b` comma form is also accepted. The choice
@@ -100,6 +113,11 @@ interface ParsedFrontmatter {
   scalars: Record<string, string>;
   refs: string[];
   body: string;
+  // Frontmatter keys that appeared on more than one `key: value` line. parseNote keeps the LAST
+  // value (later overwrites earlier) for backward-compatible reads; validate() treats any entry
+  // here as a structural FAIL (CR-01 defense-in-depth) — a duplicate provenance key is the on-disk
+  // signature of a field-injection forgery.
+  duplicateKeys: string[];
 }
 
 function parseNote(text: string): ParsedFrontmatter | null {
@@ -108,12 +126,18 @@ function parseNote(text: string): ParsedFrontmatter | null {
   const fmLines = m[1].split("\n");
   const body = m[2] ?? "";
   const scalars: Record<string, string> = {};
+  const seen = new Set<string>();
+  const dupes = new Set<string>();
   let refs: string[] = [];
   for (let i = 0; i < fmLines.length; i++) {
     const line = fmLines[i];
     // A `refs:` key with no inline value starts a YAML list block: consume following `  - x` lines.
+    // The `- item` lines are consumed HERE and never reach the kv branch, so the legitimate refs:
+    // list block can never register as a duplicate provenance key.
     const refsBlock = line.match(/^refs:\s*$/);
     if (refsBlock) {
+      if (seen.has("refs")) dupes.add("refs");
+      seen.add("refs");
       const collected: string[] = [];
       while (i + 1 < fmLines.length && /^\s*-\s+/.test(fmLines[i + 1])) {
         collected.push(fmLines[++i].replace(/^\s*-\s+/, "").trim());
@@ -125,6 +149,10 @@ function parseNote(text: string): ParsedFrontmatter | null {
     if (kv) {
       const key = kv[1];
       const val = kv[2].trim();
+      // Record a duplicate provenance key once. parseNote still keeps the last value (overwrite)
+      // for backward-compatible reads; validate() rejects on the recorded duplicate.
+      if (seen.has(key)) dupes.add(key);
+      seen.add(key);
       if (key === "refs") {
         // Single-line comma form: `refs: a, b, c` (empty → []).
         refs = val === "" ? [] : val.split(",").map((s) => s.trim()).filter((s) => s !== "");
@@ -133,7 +161,7 @@ function parseNote(text: string): ParsedFrontmatter | null {
       }
     }
   }
-  return { scalars, refs, body };
+  return { scalars, refs, body, duplicateKeys: [...dupes] };
 }
 
 // ── Validate a note's structure (SC-1). Returns a finding string array; empty = valid. ──────────
@@ -144,6 +172,14 @@ export function validate(text: string): string[] {
     return ["structural FAIL: no YAML frontmatter fence (--- ... ---) found"];
   }
   const { scalars } = parsed;
+  // Duplicate provenance key (CR-01 defense-in-depth): a second `kind:`/`at:`/… line is the on-disk
+  // signature of a field-injection forgery (the later line silently overrides the earlier one).
+  // Reject it here so the CLI `validate <file>` path catches an out-of-band note, not just the
+  // appendNote write path. The legitimate refs: YAML list block cannot trigger this — its `- item`
+  // lines are consumed by parseNote and never counted as repeated keys.
+  for (const dup of parsed.duplicateKeys) {
+    findings.push(`structural FAIL: duplicate frontmatter key "${dup}"`);
+  }
   // Required provenance fields: a missing one is a structural FAIL naming the field.
   for (const field of ["kind", "by", "at", "confidence"] as const) {
     if (scalars[field] === undefined || scalars[field] === "") {
@@ -229,6 +265,15 @@ export function appendNote(
   contextRoot: string = DEFAULT_CONTEXT_ROOT,
 ): string {
   assertSafeTask(task);
+  // Field-injection guard (CR-01): no interpolated provenance field may carry a newline, which
+  // would smuggle additional frontmatter lines into the fence and forge a verified note.
+  assertSingleLine("kind", note.kind);
+  assertSingleLine("by", note.by);
+  assertSingleLine("at", note.at);
+  assertSingleLine("verified_by", note.verified_by);
+  assertSingleLine("confidence", note.confidence);
+  if (note.supersedes !== null) assertSingleLine("supersedes", note.supersedes);
+  for (const r of note.refs) assertSingleLine("refs[]", r);
   const text = composeNote(note, body);
   const findings = validate(text);
   if (findings.length > 0) {
