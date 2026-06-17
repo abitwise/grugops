@@ -47,7 +47,7 @@
 // Findings are written to stdout in CLEAR PROFESSIONAL VOICE (CLAUDE.md hard rule —
 // this is a build-safety + trace surface, never caveman voice).
 import { spawnSync } from "node:child_process";
-import { mkdtempSync, mkdirSync, cpSync, rmSync, readFileSync, readdirSync, existsSync, } from "node:fs";
+import { mkdtempSync, mkdirSync, cpSync, rmSync, readFileSync, readdirSync, realpathSync, existsSync, } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, sep } from "node:path";
 // Repo root = this script's parent's parent (scripts/ -> repo root).
@@ -59,7 +59,14 @@ const CONTEXT_ROOT = CHECK_ROOT
     ? join(CHECK_ROOT, ".grugops", "context")
     : join(ROOT, ".grugops", "context");
 // Unique temp mirror per run; cleaned up before every process.exit.
-const tmp = mkdtempSync(join(tmpdir(), "grugops-context-fresh-"));
+// realpathSync-resolve the temp dir: on macOS tmpdir() lives under /var (a symlink to
+// /private/var), and the context-io.js render guards its CLI behind an isMain check
+// (import.meta.url === pathToFileURL(process.argv[1]).href). If the mirror path still
+// carries the /var symlink, the spawned render's argv[1] (symlinked) would not match
+// its import.meta.url (realpath-resolved) and the render would silently no-op with
+// exit 0 — defeating the byte-compare. Resolving the symlink up front keeps the two
+// equal so the mirrored render actually runs.
+const tmp = realpathSync(mkdtempSync(join(tmpdir(), "grugops-context-fresh-")));
 function cleanup() {
     rmSync(tmp, { recursive: true, force: true });
 }
