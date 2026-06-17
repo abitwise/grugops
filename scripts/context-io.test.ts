@@ -156,10 +156,10 @@ describe("context-io.js — appendNote concurrent un-clobbered writes (SC-2)", (
     // Exactly N distinct files — none clobbered.
     expect(files.length).toBe(N);
     expect(new Set(files).size).toBe(N);
-    // Each parses to well-formed frontmatter with a kind.
+    // Each parses to well-formed frontmatter opening with the kind line.
     for (const file of files) {
       const text = readFileSync(join(notesDir, file), "utf8");
-      expect(text).toMatch(/^---\n[\s\S]*?\nkind: observation\n/);
+      expect(text).toMatch(/^---\nkind: observation\n/);
     }
   });
 });
