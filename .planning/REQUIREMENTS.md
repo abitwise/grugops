@@ -36,7 +36,7 @@ Requirements for the decentralization milestone. Each maps to exactly one roadma
 
 ### VFY — Verify-Before-Write Admission
 
-- [x] **VFY-01**: A `finding` is admitted to the shared context only with a real §14-gate verdict, a passing test reference, or a named human — recorded as `verified_by: §14-gate#<id>`.
+- [ ] **VFY-01**: A `finding` is admitted to the shared context only with a real §14-gate verdict, a passing test reference, or a named human — recorded as `verified_by: §14-gate#<id>`. (PARTIAL — admission verified under LF; CRLF gap on Windows blocks, see 21-VERIFICATION.md CR-01)
 - [x] **VFY-02**: Refuse-self-set — a `verified_by` that is missing, `self`, or the writing agent on a `finding` is a validator structural FAIL; a RED fixture proves a hollow/self-authored stamp fails (mirrors the prod-deploy hook + v1.2 test-integrity carve-out).
 - [x] **VFY-03**: Workflow 16 (`16-context-read-write.md`) — the single-source read-before-act / write-after-verify / verify-admission protocol that all roles reference (never restate).
 - [x] **VFY-04**: The §14 gate's bounded `self_fix_attempts` loop is reused as the bounded verify→regenerate loop; the `claim` / `UNKNOWN - verify` escape hatch stays honest and explicitly non-load-bearing.
@@ -111,7 +111,7 @@ Which phases cover which requirements. Confirmed during roadmap creation (2026-0
 | CLAIM-01 | Phase 20 | Complete |
 | CLAIM-02 | Phase 20 | Complete |
 | CLAIM-03 | Phase 23 | Pending |
-| VFY-01 | Phase 21 | Complete |
+| VFY-01 | Phase 21 | Partial (CRLF gap — see 21-VERIFICATION.md) |
 | VFY-02 | Phase 21 | Complete |
 | VFY-03 | Phase 21 | Complete |
 | VFY-04 | Phase 21 | Complete |
