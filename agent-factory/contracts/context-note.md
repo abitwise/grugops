@@ -76,7 +76,7 @@ Every note's frontmatter carries exactly these provenance keys:
 | `kind`        | one of the six values      | What kind of note this is. |
 | `by`          | string                     | The authoring role or agent. |
 | `at`          | ISO-8601 timestamp string  | When the note was recorded. The authoritative replay sort key. |
-| `verified_by` | string (may be empty)      | What verified this note's claim (e.g. a `§14-gate#<id>` stamp or a named human). Empty in Phase 20. |
+| `verified_by` | string (may be empty)      | What verified this note's claim. For a `finding` it must carry a real `§14-gate#<id>` stamp (gate-verified) or a `human:<name>` stamp (escalation); other kinds may leave it empty. |
 | `confidence`  | string                     | The author's confidence (e.g. `high` / `medium` / `low` / `UNKNOWN - verify`). |
 | `refs`        | YAML list (may be empty)   | References this note points at — requirement ids, file paths, ticket refs. The trace-migration substrate (SCTX-04). |
 | `supersedes`  | note-id ref, or empty      | The id of an earlier note this one overrides. Empty when the note supersedes nothing. |
@@ -94,11 +94,18 @@ A note missing any one of them is a **structural FAIL**. The validator names the
 field; it never silently accepts an incomplete note. This is the no-fabrication floor: an
 unstamped note cannot enter the verified context.
 
-`verified_by`, `supersedes`, and `refs` **may be empty** in Phase 20. They are recorded on
-every note so the schema is stable, but Phase 20 does not enforce their contents. The
-admission rules that give `verified_by` teeth — requiring a real verification stamp before a
-note is treated as verified, and refusing an agent's self-set stamp — are **Phase 21 (VFY),
-out of scope here**. Phase 20 records the field; Phase 21 admits on it.
+`supersedes` and `refs` **may be empty** on any note. `verified_by` **may be empty** only on a
+soft or neutral kind (`claim` / `decision` / `failed-attempt` / `observation` / `artifact-ref`);
+on a `finding` it is enforced. The admission rules that give `verified_by` teeth are now live in
+`scripts/context-io.ts`: a `finding` is admitted only with a real verification stamp, and an
+agent's self-set stamp is refused. Specifically, for a `finding` the validator is a structural
+FAIL when `verified_by` is empty, is a literal `self` / `me` / `agent`, equals the note's own
+`by` (self-stamp), is a DeLM invalid-evidence phrase, or matches neither accepted grammar — the
+refuse-self FAIL set. A `verified_by: §14-gate#<id>` stamp additionally cross-checks a live GREEN
+gate verdict carrying that per-run id (Posture B): a stamp that matches no live green verdict is
+refused. A `human:<name>` stamp is accepted structurally (its un-forgeable human-set signal is
+layered in Phase 25). The reserved `by: §14-gate` identity is itself a structural FAIL on any
+note except the gate's own verdict emission — the one root-of-trust carve-out.
 
 ## The six note kinds
 
@@ -133,10 +140,12 @@ A `claim`-kind note is an *assertion in the context*; a queue CLAIM is *ownershi
 the queue*. They are different mechanisms with different files, different directories, and
 different purposes.
 
-**Forward reference (Phase 21, VFY-04 — not implemented here):** a `claim`-kind note can
-never, on its own, satisfy a `finding`'s admission requirement. A claim is soft until
-something verifies it; only a verified result is a `finding`. Phase 20 records the `claim`
-kind faithfully; Phase 21 enforces that a claim does not masquerade as a verified finding.
+**The `claim`-kind cannot satisfy a finding's admission (now enforced, VFY-04):** a `claim`-kind
+note can never, on its own, satisfy a `finding`'s admission requirement. A claim is soft until
+something verifies it; only a verified result is a `finding`. `scripts/context-io.ts` enforces
+this: a `finding` is admitted only with a real verification stamp, so a claim cannot masquerade
+as a verified finding. When a finding's stamp is refused, the agent honestly re-records the
+result as a `claim` with `confidence: UNKNOWN - verify` — it never fakes a pass.
 
 ## Worked example: a valid note
 
