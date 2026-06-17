@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v2.0
 milestone_name: Decentralized Factory — Shared Verified Context
 status: verifying
-stopped_at: Phase 21 context gathered
-last_updated: "2026-06-17T13:54:18.239Z"
-last_activity: 2026-06-17 -- Phase 21 execution started
+stopped_at: Phase 21 CR-01 gap-closure (21-04) executed — awaiting re-verification
+last_updated: "2026-06-17T15:14:04.676Z"
+last_activity: 2026-06-17 -- Phase 21 Plan 04 (CR-01) executed: parseNote CRLF normalization, RED 3e4991a / GREEN 51f3b24
 progress:
   total_phases: 7
   completed_phases: 2
-  total_plans: 7
-  completed_plans: 7
+  total_plans: 8
+  completed_plans: 8
   percent: 29
 ---
 
@@ -26,8 +26,8 @@ See: .planning/PROJECT.md (updated 2026-06-16 — after v1.2 milestone)
 ## Current Position
 
 Phase: 21 (verify-before-write-admission-the-14-gate-as-the-un-cheatabl) — EXECUTING
-Plan: 3 of 3
-Status: Phase complete — ready for verification
+Plan: 4 of 4 (gap closure) — complete
+Status: CR-01 gap-closure done — ready for phase re-verification
 Last activity: 2026-06-17 -- Phase 21 execution started
 
 ## Performance Metrics
@@ -156,6 +156,7 @@ Last activity: 2026-06-17 -- Phase 21 execution started
 | Phase 21 P01 | 6m | 2 tasks | 3 files |
 | Phase 21 P02 | 4m | 1 tasks | 1 files |
 | Phase 21 P03 | 8m | 2 tasks | 23 files |
+| Phase 21 P04 | 3m | 2 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -358,6 +359,7 @@ Recent decisions affecting current work:
 - [Phase ?]: [21-02] VFY-04 honest by reference: verify->regenerate pins to existing Step-4 self_fix_attempts (no new dial, D-12); non-green emits no green verdict, refused finding degrades to UNKNOWN - verify (D-11); single-source preserved (D-15), guard_context_writes green
 - [Phase ?]: Phase 21 Plan 03: WF16 (16-context-read-write.md) is the single-source context I/O protocol; all 17 roles carry one terse pointer (D-13/D-14, SC-3 honestly TRUE)
 - [Phase ?]: 9 role-size FAIL ceilings bumped in lockstep for the WF16 pointer (~189 B), +12%/+6% (ba-pm +20%/+12%); committed guard .js freshness-checked (D-07)
+- [Phase ?]: [21-04] CR-01 closed: parseNote normalizes CRLF/CR to LF before the fence match so a git-autocrlf (Windows) green verdict admits its finding identically to LF; RED 3e4991a GREEN 51f3b24 freshness 0
 
 ### Pending Todos
 
@@ -407,7 +409,7 @@ Items acknowledged and deferred at the **v1.2 milestone close on 2026-06-16** (1
 
 ## Session Continuity
 
-Last session: 2026-06-17T13:53:53.421Z
+Last session: 2026-06-17T15:13:58.317Z
 Stopped at: Phase 21 context gathered
 Resume file: .planning/phases/21-verify-before-write-admission-the-14-gate-as-the-un-cheatabl/21-CONTEXT.md
 
