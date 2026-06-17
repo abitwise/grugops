@@ -88,6 +88,13 @@ function atomicRename(src, dst) {
 // parent-missing, EACCES, ...) rethrows — a real failure is never swallowed into a false "lost".
 export function claimTask(queueRoot, task, by) {
     assertSafeTask(task);
+    // Field-injection guard (CR-02): `by` is written raw into claim.md frontmatter. A newline would
+    // smuggle a forged `at:` line ahead of the real one, and sweepStale's first-match regex would
+    // then read the forged timestamp — making a stale claim un-sweepable forever (queue-lock DoS).
+    // Reject any `by` carrying a CR or LF before writing the record.
+    if (/[\r\n]/.test(by)) {
+        throw new Error(`claim: invalid "by" — must be single-line (no embedded newline): ${JSON.stringify(by)}`);
+    }
     const claimDir = join(queueRoot, "claimed", task);
     try {
         mkdirSync(claimDir); // atomic create-or-fail (NOT recursive — a missing claimed/ parent is a real ENOENT)
@@ -147,22 +154,32 @@ export function sweepStale(queueRoot, ttlMs, now = Date.now()) {
         const claimMd = join(claimedDir, task, "claim.md");
         if (!existsSync(claimMd))
             continue;
-        const m = readFileSync(claimMd, "utf8").match(/^at:\s*(.+)$/m);
-        if (!m)
-            continue; // no `at` field → cannot judge staleness; leave the claim alone
-        const at = Date.parse(m[1].trim());
-        if (Number.isNaN(at))
-            continue; // unparseable timestamp → leave it alone (conservative)
-        if (now - at > ttlMs) {
-            // Stale: return the subtask to pending/ (atomic rename) BEFORE releasing the claim dir, then
-            // remove the claim directory. Wall-clock only — no liveness probe.
-            const subtask = join(claimedDir, task, `${task}.md`);
-            if (existsSync(subtask)) {
-                atomicRename(subtask, join(queueRoot, "pending", `${task}.md`));
-            }
-            rmSync(join(claimedDir, task), { recursive: true, force: true });
-            reclaimed.push(task);
+        const claimText = readFileSync(claimMd, "utf8");
+        // Defense-in-depth (CR-02): the design writes EXACTLY ONE `at:` line. More than one is a
+        // tampered/malformed record (the on-disk signature of a `by`-injection that smuggled a forged
+        // `at:`). Do NOT trust the first match — treat the claim as compromised and reclaim it, rather
+        // than leaving it un-sweepable forever.
+        const atLineCount = (claimText.match(/^at:/gm) ?? []).length;
+        const m = claimText.match(/^at:\s*(.+)$/m);
+        const tampered = atLineCount > 1;
+        if (!tampered) {
+            if (!m)
+                continue; // no `at` field → cannot judge staleness; leave the claim alone
+            const at = Date.parse(m[1].trim());
+            if (Number.isNaN(at))
+                continue; // unparseable timestamp → leave it alone (conservative)
+            if (now - at <= ttlMs)
+                continue; // fresh (within TTL) → leave it alone
         }
+        // Reclaim: stale-by-TTL OR tampered (multi-`at`). Return the subtask to pending/ (atomic
+        // rename) BEFORE releasing the claim dir, then remove the claim directory. Wall-clock only —
+        // no liveness probe.
+        const subtask = join(claimedDir, task, `${task}.md`);
+        if (existsSync(subtask)) {
+            atomicRename(subtask, join(queueRoot, "pending", `${task}.md`));
+        }
+        rmSync(join(claimedDir, task), { recursive: true, force: true });
+        reclaimed.push(task);
     }
     return reclaimed;
 }
