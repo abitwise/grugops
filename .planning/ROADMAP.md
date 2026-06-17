@@ -68,7 +68,7 @@ Full phase details + milestone summary: `milestones/v1.2-ROADMAP.md` · requirem
 ### 🚧 v2.0 Decentralized Factory — Shared Verified Context (Phases 20–26) — ACTIVE
 
 - [x] **Phase 20: Shared-Context Substrate & Concurrency Foundation** — the atomic-write helpers, the typed-note schema, the verify-stamp validator hooks, the file-based queue, and the grep guard — mechanized before any role writes to the shared context (all 4 plans executed 2026-06-17 — awaiting phase verification) (completed 2026-06-17)
-- [x] **Phase 21: Verify-Before-Write Admission** — the §14 gate as the un-cheatable verifier; refuse-self-set; the read-before-act / write-after-verify protocol (Workflow 16) (completed 2026-06-17)
+- [ ] **Phase 21: Verify-Before-Write Admission** — the §14 gate as the un-cheatable verifier; refuse-self-set; the read-before-act / write-after-verify protocol (Workflow 16)
 - [ ] **Phase 22: Memory & Trajectory Compaction** — two-tier memory + the `context.compaction` dial + the load-bearing-field carve-out (Workflow 18), landed before parallel fan-out makes the token tax real
 - [ ] **Phase 23: Parallel Execution & Orchestrator-as-Decomposer** — Orchestrator router→decomposer/scheduler/gate, nested CC spawning + the degraded sequential path, the inverted WR-05 guard, the WIP cap (Workflow 17)
 - [ ] **Phase 24: Clean Handoff Removal & Traceability Migration** — rewire all 18 roles + 16 workflows onto the substrate, then delete all 17 handoff templates in one grep-to-zero change; migrate the trace, never drop it
@@ -218,7 +218,7 @@ Plans:
 | 18. Browsable Docs Catalog | v1.2 | 2/2 | Complete | 2026-06-15 |
 | 19. Factory Auto-UAT Harness — Tier 1 Oracles + Tier 2 Headless E2E | v1.2 | 4/4 | Closed (A3/DOG-02 waived → next milestone) | 2026-06-16 |
 | 20. Shared-Context Substrate & Concurrency Foundation | v2.0 | 4/4 | Complete    | 2026-06-17 |
-| 21. Verify-Before-Write Admission | v2.0 | 3/3 | Complete   | 2026-06-17 |
+| 21. Verify-Before-Write Admission | v2.0 | 3/3 | Verifying | - |
 | 22. Memory & Trajectory Compaction | v2.0 | 0/? | Pending | - |
 | 23. Parallel Execution & Orchestrator-as-Decomposer | v2.0 | 0/? | Pending | - |
 | 24. Clean Handoff Removal & Traceability Migration | v2.0 | 0/? | Pending | - |
