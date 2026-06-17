@@ -429,9 +429,11 @@ function guardContextWrites(): void {
 | A3 | The `guard_context_writes` regex can distinguish a planted raw-write from legitimate prose that names the path | Code Examples / Guard Clone | MEDIUM — exactly the calibration `guard_wr05` had to do (token vs prose word). The planted-fixture test is the forcing function; the regex is tuned to the fixture, not guessed. |
 | A4 | Per-task JSONL granularity (one `index.jsonl` per `<task>/`) is the right shape vs a rolled global index | Schema / Discretion | LOW — SCTX-03 says "per-task" explicitly and the per-task folder layout is locked; per-task confirmed. |
 
-## Open Questions
+## Open Questions (RESOLVED)
 
-1. **`refs` YAML-list parsing without a new dependency**
+> All three resolved at plan time (Phase 20 plans 20-01..20-04). Resolutions inline below.
+
+1. **`refs` YAML-list parsing without a new dependency** — RESOLVED (20-01 T2): extend the stdlib parser minimally (zero-dep) to read a `refs:` YAML list, or accept a single-line comma form; executor's discretion within the zero-dep constraint, choice documented in code.
    - What we know: the provenance fence carries `refs` as a YAML list; the existing `parseFrontmatter` is flat key:value (no list support).
    - What's unclear: whether to extend the existing parser minimally, or define `refs` as a single-line comma form to stay within the flat parser.
    - Recommendation: extend the stdlib parser to read a `refs:\n  - x\n  - y` block (small, zero-dep) — keeps the frontmatter idiomatic and matches the locked "YAML list" decision. Decide at plan time; either way no new package.
@@ -439,12 +441,9 @@ function guardContextWrites(): void {
 2. **Exact derived-artifact filenames + whether `index.jsonl` carries the note body**
    - What we know: per-task folder is locked; filenames are Claude's Discretion; SCTX-03 says per-task JSONL.
    - What's unclear: `index.md` vs `<task>.md`; whether the JSONL line is event-only (no body) or includes the body.
-   - Recommendation: `index.md` + `index.jsonl` (folder-relative, no task-name duplication); JSONL line = provenance fields only (event index), body stays in `notes/` (the SoT). Keeps the JSONL compact and the freshness diff stable. Planner-final.
+   - Recommendation: `index.md` + `index.jsonl` (folder-relative, no task-name duplication); JSONL line = provenance fields only (event index), body stays in `notes/` (the SoT). Keeps the JSONL compact and the freshness diff stable. **RESOLVED (20-01/20-03):** adopted exactly as recommended (`index.md` + `index.jsonl`, event-only JSONL line).
 
-3. **CI matrix: which exact GitHub Actions config adds the `windows-latest` leg**
-   - What we know: the locked design adds a real `windows-latest` vitest leg; the repo currently runs vitest (presumably on `ubuntu-latest`).
-   - What's unclear: the exact workflow file + matrix syntax (not read this session — out of the proof-mechanics core, but needed for SC-2 proof).
-   - Recommendation: the plan should locate `.github/workflows/*.yml`, add `os: [ubuntu-latest, windows-latest]` to the test job matrix, and confirm the spawn-the-compiled-`.js` tests run on Windows (path-separator normalization already handled via `node:path`). `[ASSUMED: a GitHub Actions workflow exists — not verified this session]`
+3. **CI matrix: which exact GitHub Actions config adds the `windows-latest` leg** — RESOLVED (20-04 T2): the `[ASSUMED]` was **disproven** — `.github/workflows/` is ABSENT (verified by planner + plan-checker). The plan therefore CREATES `.github/workflows/ci.yml` honestly (not edits a phantom) with `os: [ubuntu-latest, windows-latest]` on Node 22, excluding the live-e2e lane. SC-2's logic is proven unconditionally by the deterministic concurrent-write unit (20-01); the Windows leg adds the real unlink-then-rename runtime proof.
 
 ## Environment Availability
 

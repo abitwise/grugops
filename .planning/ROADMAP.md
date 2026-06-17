@@ -78,86 +78,111 @@ Full phase details + milestone summary: `milestones/v1.2-ROADMAP.md` · requirem
 ## Phase Details
 
 ### Phase 20: Shared-Context Substrate & Concurrency Foundation
+
 **Goal**: Establish the shared verified-context substrate and atomic concurrency primitives — the file locations, the typed-note schema with provenance, the only-sanctioned write path, and the file-based task queue — so that drift is caught as it is written, before any role uses them.
 **Depends on**: Nothing new (builds on the v1.2 committed-`.js` tooling layer)
 **Requirements**: SCTX-01, SCTX-02, SCTX-03, SCTX-04, SCTX-05, CLAIM-01, CLAIM-02
 **Success Criteria** (what must be TRUE):
+
   1. A note authored against the six-kind schema (`claim`/`finding`/`decision`/`failed-attempt`/`observation`/`artifact-ref`) carries a complete provenance fence (`by`/`at`/`verified_by`/`confidence`/`refs`/`supersedes`) and the markdown is the source of truth; a note missing a required provenance field is a validator structural FAIL.
   2. Two concurrent writes through `appendNote`/`atomicWrite` produce two distinct, un-clobbered notes (no lost-update, no torn append) — proven on a cross-platform path including the Windows unlink-then-rename sequence.
   3. A subtask file moves `pending → claimed → done` by atomic rename, and a `claim.ts` claim via `mkdirSync` is exclusive (a second claimant on the same task fails) with no central lock manager.
   4. The committed per-task JSONL index regenerates byte-identically from the markdown; editing the markdown without regenerating the index trips the `freshness:context` gate (fail-closed), and the markdown wins on any conflict.
   5. `guard_context_writes` fails RED if any shipped role/workflow text writes the shared context by a path other than the sanctioned `context-io.ts` helpers (a planted raw-write fixture proves it).
-**Plans**: 4 plans (2 waves)
 
+**Plans**: 4 plans (2 waves)
 Plans:
+**Wave 1**
+
 - [ ] 20-01-PLAN.md — note-schema contract docs + context-io.ts (atomicWrite/appendNote/readContext + deterministic index render + schema validate) [SC-1, SC-2]
 - [ ] 20-02-PLAN.md — claim.ts: mkdirSync atomic claim + pending→claimed→done rename transitions + generous-TTL stale-sweep [SC-3]
+
+**Wave 2** *(blocked on Wave 1 completion)*
+
 - [ ] 20-03-PLAN.md — context-freshness.ts freshness:context drift gate (clone catalog-freshness.ts; markdown wins, fail-closed) [SC-4]
 - [ ] 20-04-PLAN.md — guard_context_writes foundation guard + windows-latest CI leg [SC-5, SC-2 Windows runtime]
 
 ### Phase 21: Verify-Before-Write Admission (the §14 Gate as the Un-Cheatable Verifier)
+
 **Goal**: Wire the differentiator mechanically — a `finding` is admitted to the shared context only with a real, non-self verification stamp — so the replacement memory is trustworthy before it becomes the sole memory.
 **Depends on**: Phase 20 (the schema, validator hooks, and write path must exist)
 **Requirements**: VFY-01, VFY-02, VFY-03, VFY-04
 **Success Criteria** (what must be TRUE):
+
   1. A `finding` carrying `verified_by: §14-gate#<id>` (a real gate verdict), a passing test reference, or a named human is admitted; a `finding` with no such stamp is refused.
   2. A `finding` whose `verified_by` is missing, `self`, or the writing agent is a validator structural FAIL — a RED fixture proves a hollow/self-authored stamp fails (mirroring the prod-deploy hook's refuse-self-set).
   3. A role following Workflow 16 (`16-context-read-write.md`) reads the shared context before acting and writes only after verification, and every other role references that single-source protocol rather than restating it.
   4. The §14 gate's bounded `self_fix_attempts` loop drives a bounded verify→regenerate cycle, and the `claim` / `UNKNOWN - verify` escape hatch is honest and explicitly non-load-bearing (a `claim` can never satisfy a `finding`'s admission).
+
 **Plans**: TBD
 
 ### Phase 22: Memory & Trajectory Compaction (Dialable, Token-Economy)
+
 **Goal**: Bound the multi-agent token tax with two-tier memory — verbose local trajectory stays in the agent's thread; only compact, re-verified distillations promote to the shared context — landed before parallel fan-out makes the cost real.
 **Depends on**: Phase 21 (compacted output is re-verified before write — needs the admission gate)
 **Requirements**: CMP-01, CMP-02, CMP-03
 **Success Criteria** (what must be TRUE):
+
   1. An agent's verbose trajectory stays in `.grugops/context/threads/<agent>.md` while only a compact distillation reaches the shared context, and that promoted distillation is re-verified before write.
   2. Compaction never drops a load-bearing field — `verified_by`, `failed-attempt`, `supersedes`, and `by`/`at` provenance survive compaction; a RED test fails if any is dropped.
   3. The `context.compaction: aggressive|balanced|retain-raw` dial changes how aggressively trajectories are distilled, defaults to `aggressive` when absent (lean), and is documented across all three config surfaces.
   4. A role following Workflow 18 (`18-context-compaction.md`) compacts by the single-source protocol, and other roles reference it rather than restating it.
+
 **Plans**: TBD
 
 ### Phase 23: Parallel Execution & Orchestrator-as-Decomposer (One Substrate, Two Modes)
+
 **Goal**: Run both execution paths — parallel on Claude Code, sequential on the four other CLIs — on the one shared substrate: redefine the Orchestrator from router to decomposer/scheduler/gate, invert the WR-05 guard, and cap concurrent width.
 **Depends on**: Phase 22 (compaction must be in place before the first parallel fan-out)
 **Requirements**: PAR-01, PAR-02, PAR-03, PAR-04, CLAIM-03
 **Success Criteria** (what must be TRUE):
+
   1. The Orchestrator decomposes work into queued subtasks, holds `Agent(<allowlist>)` and the human merge/deploy gate, sets `queue.wip_limit`, and does NOT relay data between agents (coordination is through the shared context only).
   2. On Claude Code, role agents claim tasks and run in parallel via nested sub-agent spawning (depth ≤5); concurrent agent *width* never exceeds `queue.wip_limit` (CLAIM-03 — grugops's responsibility, since the platform caps depth, not width).
   3. The four non-spawning CLIs drain the same queue at concurrency-1 via the rewired `_role-switch-protocol.md` step-4, producing identical on-disk artifacts to the parallel path (one substrate, two modes that converge).
   4. `guard_wr05` is inverted from "no role grants `Agent`" to "only the coordinator grants `Agent(<allowlist>)`", and it flips atomically with the packaging templates and the docs catalog (a planted non-coordinator grant fails RED).
+
 **Plans**: TBD
 
 ### Phase 24: Clean Handoff Removal & Traceability Migration
+
 **Goal**: Cut over cleanly from static handoff packets to the shared verified context as the sole inter-role memory — rewire every reader first, then delete in one grep-to-zero change — while preserving the requirement→code→test→release trace.
 **Depends on**: Phases 20–23 (the substrate must exist, verify, compact, and be read/written by roles before any handoff is removed)
 **Requirements**: MIGR-01, MIGR-02, MIGR-03, MIGR-04
 **Success Criteria** (what must be TRUE):
+
   1. All 18 roles + 16 workflows + 3 packaging templates + AGENTS.md read and write the shared context with zero remaining references to static handoffs (a grep-to-zero gate proves it).
   2. All 17 handoff templates and the `plans/handoffs/` seed are deleted, and `validate-agent-factory.ts` + `generate-catalog.ts` are updated in the SAME change (the validator and catalog never reference a deleted artifact).
   3. The requirement→code→test→release traceability is carried onto note `refs`/trace fields — the trail is preserved end-to-end, never dropped.
   4. `install.ts --migrate` renames a user's `plans/handoffs/` state to a timestamped backup (never delete-first), and `git revert` is the documented rollback.
+
 **Plans**: TBD
 
 ### Phase 25: Governance-on-a-Dial
+
 **Goal**: Expose the enterprise governance tiers over the now-stable decentralized substrate — human-gated high-severity admission and audit retention — without touching the lean defaults or the un-dialable safety floor.
 **Depends on**: Phase 24 (the substrate is the sole memory and roles are rewired before governance is layered on)
 **Requirements**: GOV-01, GOV-02
 **Success Criteria** (what must be TRUE):
+
   1. With `context.human_admission: high-severity` (or `all`), an agent proposes a verified note and a NAMED human disposes high-severity entries (security/architecture/release) before admission; with `off` (lean default) routine verified notes admit without a human stop.
   2. `context.audit_retention: git|retained` controls audit-trail retention, and all three config files are updated in lockstep with lean defaults preserved (zero-config still runs lean).
   3. The un-dialable safety floor is unchanged and not bypassable by any dial setting — verify-before-write, no-fabrication, test-integrity, and humans-hold-merge/deploy all hold regardless of governance configuration.
+
 **Plans**: TBD
 
 ### Phase 26: Dogfood, Dual-Path Oracle & A3/DOG-02 Retirement
+
 **Goal**: Turn "degrade, never break" and "verified means verified" from prose into proof — a dual-path equivalence oracle on on-disk artifacts, an N-agent parallel dogfood, and an honest token-cost measurement — and retire A3/DOG-02 only when the oracle passes.
 **Depends on**: Phase 25 (both execution paths and the full substrate must be wired end-to-end before the oracle is meaningful)
 **Requirements**: DOGF-01, DOGF-02, DOGF-03
 **Success Criteria** (what must be TRUE):
+
   1. A dual-path equivalence oracle (replacing `oracleParity` A3 in `check-uat-oracles.ts`) runs the same seeded task (a) parallel on Claude Code and (b) sequential via single-window role-load and asserts ON-DISK equivalence — the same set of admitted `finding`s, the same gate verdict, the same artifact.
   2. A parallel N-agent dogfood produces N distinct un-clobbered notes, each task is claimed exactly once, and a stale claim is reclaimed — confirming the `isolation: worktree` ↔ shared-context-path interaction.
   3. Aggregate token cost is measured so the ~50% cost claim is DEMONSTRATED with grugops's own numbers or honestly marked `UNKNOWN - verify` (DeLM's benchmark numbers are never asserted as grugops's).
   4. A3/DOG-02 is marked retired ONLY after the equivalence oracle passes — never on handoff deletion alone.
+
 **Plans**: TBD
 
 ## Progress
