@@ -146,3 +146,38 @@ describe("claim.js — explicit generous-TTL stale sweep (DOGF-02 seed)", () => 
     expect(existsSync(join(root, "claimed", "fresh-job"))).toBe(true); // claim still held
   });
 });
+
+describe("claim.js — queue-lock-DoS defense via by-injection (CR-02)", () => {
+  // `by` is written RAW into claim.md frontmatter and is never validated. A newline-injected `by`
+  // smuggles a far-future `at:` line ahead of the real one; sweepStale's first-match regex returns
+  // the forged future timestamp, so the stale claim is NEVER reclaimed — a permanent queue lock.
+  // claimTask MUST reject any `by` carrying an embedded newline.
+  it("claimTask rejects a newline-injected `by` (no smuggled at: line)", () => {
+    const root = makeQueueRoot("claim-by-injection-", ["dos-job"]);
+    const injected = "attacker\nat: 2999-01-01T00:00:00.000Z";
+    expect(() => mod.claimTask(root, "dos-job", injected)).toThrow(
+      /single-line|newline/i,
+    );
+  });
+
+  // Defense-in-depth: a claim.md that ALREADY carries more than one `at:` line (tampered or
+  // malformed — the design writes exactly one) must NOT be trusted to the first match and left
+  // un-sweepable. A multi-`at` record is treated as tampered and reclaimed regardless of which
+  // timestamp the regex would have matched.
+  it("sweepStale reclaims a tampered claim carrying multiple at: lines (not un-sweepable)", () => {
+    const root = makeQueueRoot("claim-multi-at-", ["tampered-job"]);
+    expect(mod.claimTask(root, "tampered-job", "engineer")).toBe(true);
+    mod.transition(root, "tampered-job", "pending", "claimed");
+    const claimMd = join(root, "claimed", "tampered-job", "claim.md");
+    // Hand-write a tampered record: a forged far-future `at:` placed BEFORE the real stale one,
+    // exactly the on-disk shape a by-injection would have produced.
+    writeFileSync(
+      claimMd,
+      "---\nby: attacker\nat: 2999-01-01T00:00:00.000Z\n" +
+        "at: 2000-01-01T00:00:00.000Z\ntask: tampered-job\n---\n",
+    );
+    const reclaimed = mod.sweepStale(root, 60 * 60 * 1000);
+    expect(reclaimed).toContain("tampered-job"); // tampered claim is reclaimed, not locked forever
+    expect(existsSync(join(root, "claimed", "tampered-job"))).toBe(false); // claim released
+  });
+});
