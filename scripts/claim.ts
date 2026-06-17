@@ -45,8 +45,12 @@
 import {
   mkdirSync,
   writeFileSync,
+  readFileSync,
+  readdirSync,
   renameSync,
   unlinkSync,
+  rmSync,
+  existsSync,
 } from "node:fs";
 import { join } from "node:path";
 
@@ -146,5 +150,47 @@ function stagePath(queueRoot: string, task: string, stage: QueueStage): string {
     : join(queueRoot, stage, `${task}.md`);
 }
 
-// ── sweepStale (Task 2 / DOGF-02 seed) — the explicit generous-TTL wall-clock stale sweep lands
-//    in plan 20-02 Task 2, appended below. ─────────────────────────────────────────────────────
+// ── sweepStale: explicit generous-TTL wall-clock stale-claim reclaim (CLAIM-02, DOGF-02 seed). ──
+//
+// Reads every claimed/<task>/claim.md, and when `now - Date.parse(at) > ttlMs` it RECLAIMS the task:
+// the subtask file (claimed/<task>/<task>.md, if present) is returned to pending/<task>.md by atomic
+// rename, then the claim directory is released (rmSync recursive). Returns the list of reclaimed task
+// names (DOGF-02 asserts a stale claim is reclaimed). A fresh claim (within the TTL) is left
+// untouched — the sweep is conservative, so it has a real no-op path too (no-fabrication).
+//
+// WALL-CLOCK TTL ONLY — this deliberately reads NO pid/host or any liveness signal. pid/host liveness
+// is rejected as not portable cross-machine / on NFS (heartbeat/advisory-lease liveness is deferred
+// to v2.x, PAR-05). The TTL VALUE is supplied by the CALLER — a config dial wiring it is a LATER
+// phase (Phase 22/25); Phase 20 ships the RULE, not the dial. The default must be GENEROUS — it must
+// EXCEED a real agent turn — and is explicitly NOT DeLM's 300 s. `now` is injectable for deterministic
+// testing; production passes the real clock.
+export function sweepStale(
+  queueRoot: string,
+  ttlMs: number,
+  now: number = Date.now(),
+): string[] {
+  const claimedDir = join(queueRoot, "claimed");
+  if (!existsSync(claimedDir)) return [];
+  const reclaimed: string[] = [];
+  for (const task of readdirSync(claimedDir)) {
+    // Defensive: skip anything whose name would not be a safe task (never join an unsafe segment).
+    if (!TASK_NAME_RE.test(task) || task === "." || task === "..") continue;
+    const claimMd = join(claimedDir, task, "claim.md");
+    if (!existsSync(claimMd)) continue;
+    const m = readFileSync(claimMd, "utf8").match(/^at:\s*(.+)$/m);
+    if (!m) continue; // no `at` field → cannot judge staleness; leave the claim alone
+    const at = Date.parse(m[1].trim());
+    if (Number.isNaN(at)) continue; // unparseable timestamp → leave it alone (conservative)
+    if (now - at > ttlMs) {
+      // Stale: return the subtask to pending/ (atomic rename) BEFORE releasing the claim dir, then
+      // remove the claim directory. Wall-clock only — no liveness probe.
+      const subtask = join(claimedDir, task, `${task}.md`);
+      if (existsSync(subtask)) {
+        atomicRename(subtask, join(queueRoot, "pending", `${task}.md`));
+      }
+      rmSync(join(claimedDir, task), { recursive: true, force: true });
+      reclaimed.push(task);
+    }
+  }
+  return reclaimed;
+}
