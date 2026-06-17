@@ -73,6 +73,25 @@ const GUARD_INPUTS = [
   "hooks/hooks.json",
   "hooks/guard.js",
   "examples/03-ticket-to-pr.md",
+  // Phase 20 guard_context_writes SCAN set (SCTX-05): the 16 shipped workflows (the 17 roles are
+  // already mirrored above). The guard greps these for a raw `.grugops/context/` write bypassing
+  // context-io.ts; mirror them so the SC-5 planted-raw-write case can plant a bypass into one.
+  "agent-factory/workflows/00-bootstrap-greenfield.md",
+  "agent-factory/workflows/01-bootstrap-brownfield.md",
+  "agent-factory/workflows/02-idea-to-epics.md",
+  "agent-factory/workflows/03-epic-to-tickets.md",
+  "agent-factory/workflows/04-ticket-to-pr.md",
+  "agent-factory/workflows/05-pr-quality-gate.md",
+  "agent-factory/workflows/06-uat-pack.md",
+  "agent-factory/workflows/07-backlog-refinement.md",
+  "agent-factory/workflows/08-sprint-planning.md",
+  "agent-factory/workflows/09-daily-sweep.md",
+  "agent-factory/workflows/10-sprint-review.md",
+  "agent-factory/workflows/11-retro.md",
+  "agent-factory/workflows/12-release.md",
+  "agent-factory/workflows/13-incident.md",
+  "agent-factory/workflows/14-ui-design-to-build.md",
+  "agent-factory/workflows/15-security-audit.md",
 ];
 
 const tmpDirs: string[] = [];
@@ -379,6 +398,51 @@ describe("check-foundation-guards.js (SDLC-02 / SC2 fail-proof harness)", () => 
     expect(r.status).not.toBe(0);
     expect(out(r)).toMatch(/parity structural violation/i);
     expect(out(r)).toContain("READY_FOR_HUMAN_REVIEW");
+  });
+
+  // ── guard_context_writes — SC-5: planted raw context write fires; legitimate prose stays GREEN. ──
+  // A raw `writeFileSync('.grugops/context/...')` in shipped role text bypasses context-io.ts — the
+  // exact T-20-10 tampering threat. Plant it into one scanned role file and prove the aggregator goes
+  // red naming SCTX-05. (token-then-path: the write TOKEN precedes the path on the line.)
+  it("guard_context_writes planted raw write (writeFileSync into .grugops/context/) → nonzero + SCTX-05", () => {
+    const m = mirror();
+    // Plant into a WORKFLOW (no byte ceiling) so the only guard that can fire is guard_context_writes —
+    // proving SCTX-05 fires on the bypass in isolation, not as a side effect of guard_role_size.
+    appendFileSync(
+      join(m, "agent-factory/workflows/02-idea-to-epics.md"),
+      "\nwriteFileSync('.grugops/context/task-x/notes/n.md', data);\n",
+    );
+    const r = runIn(m);
+    expect(r.status).not.toBe(0);
+    expect(out(r)).toContain("SCTX-05");
+  });
+
+  // path-then-token shape: a shell redirect writing the context path (`echo ... >> .grugops/context/`).
+  it("guard_context_writes planted shell redirect (echo >> .grugops/context/) → nonzero + SCTX-05", () => {
+    const m = mirror();
+    appendFileSync(
+      join(m, "agent-factory/workflows/04-ticket-to-pr.md"),
+      "\necho note >> .grugops/context/task-x/index.md\n",
+    );
+    const r = runIn(m);
+    expect(r.status).not.toBe(0);
+    expect(out(r)).toContain("SCTX-05");
+  });
+
+  // CALIBRATION (A3): legitimate prose that merely NAMES the helper + the path is NOT a raw write —
+  // the guard must stay GREEN (the prose word "write" is not a TOKEN). This is the no-false-positive
+  // half of the no-fabrication proof: the guard fires on a real bypass but not on sanctioned prose.
+  it("guard_context_writes prose naming context-io.ts + path stays GREEN (no false positive, A3)", () => {
+    const m = mirror();
+    // Append to a WORKFLOW file (workflows have no byte ceiling, so this isolates the calibration to
+    // guard_context_writes — a role file would also trip guard_role_size, masking the real assertion).
+    appendFileSync(
+      join(m, "agent-factory/workflows/03-epic-to-tickets.md"),
+      "\nRoles never raw-write `.grugops/context/` directly; they call the context-io.ts helper.\n",
+    );
+    const r = runIn(m);
+    expect(r.status).toBe(0);
+    expect(out(r)).toContain("ALL CHECKS PASSED");
   });
 
   // ── Smoke — the REAL guard over the REAL tree must be GREEN (exit 0). ─────────────────────────

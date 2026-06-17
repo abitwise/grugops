@@ -29,6 +29,14 @@
 //   guard_caveman_preserved — the POSITIVE INVERSE of guard_voice (D-06): keeps ONLY the
 //                        block and asserts it carries caveman cadence (>=2 `^You` OR >=1 idiom).
 //   guard_role_size    — per-role byte ceiling, locked from the 2026-06-10 baseline (D-07).
+//   guard_context_writes — Phase 20 (SCTX-05): greps shipped role + workflow text for a raw
+//                        context-write TOKEN (writeFileSync/appendFileSync/the `Write` tool/a
+//                        shell `>`/`>>`/`echo` redirect) co-occurring with the `.grugops/context/`
+//                        path on the SAME line — a bypass of the sanctioned context-io.ts helpers.
+//                        Fails RED on any hit. Explicit SCAN set (the 17 roles + 16 workflows) —
+//                        NEVER a repo-wide grep. Calibrated to a TOKEN, not the prose word "write":
+//                        text that merely NAMES `context-io.ts` or the path in prose stays GREEN
+//                        (mirror guard_wr05's token-vs-prose care, D-09; RESEARCH Assumption A3).
 //
 // Strictly READ-ONLY: reads files, never writes. Node stdlib ONLY — node:fs + node:path. Zero
 // npm dependencies; runs with bare Node. import.meta.dirname resolves the repo root from this
@@ -39,7 +47,7 @@
 // quality/safety surface, never caveman voice).
 //
 //   node scripts/check-foundation-guards.js
-// Exit 0 = all six guards GREEN; exit 1 = at least one FAIL (WARNs do NOT fail the build).
+// Exit 0 = all seven guards GREEN; exit 1 = at least one FAIL (WARNs do NOT fail the build).
 
 import { readFileSync, existsSync, statSync } from "node:fs";
 import { join, basename } from "node:path";
@@ -471,6 +479,69 @@ function guardRoleSize(): void {
 }
 
 // ---------------------------------------------------------------------------
+// guard_context_writes — shared context written ONLY via context-io.ts (SCTX-05, Phase 20).
+//
+// Clone of guardWr05()'s shape (D-09): an explicit SCAN set (NEVER a repo-wide grep), the shared
+// grepFiles() helper, pass()/fail() folding into the shared FAILS counter, clear voice. It detects
+// a raw context-write that bypasses the sanctioned context-io.ts helpers — a `.grugops/context/`
+// path co-occurring on the SAME line with a real write TOKEN: writeFileSync / appendFileSync / the
+// `Write` tool token (capital-W word boundary) / a shell `>`|`>>` redirect / an `echo` redirect.
+//
+// CALIBRATION (RESEARCH Assumption A3 — exactly the token-vs-prose care guard_wr05 needed): the
+// regex requires BOTH the path AND a write token, in EITHER order, on one line. It therefore FIRES
+// on a planted `writeFileSync('.grugops/context/...')` or `echo ... >> .grugops/context/...`, but
+// does NOT fire on legitimate prose that merely NAMES the helper or the path — e.g. "roles never
+// raw-write `.grugops/context/` — they call context-io.ts" (the prose word "write" is not a TOKEN;
+// only `\bWrite\b`/`writeFileSync`/`appendFileSync`/a redirect/`echo` count). The real-tree smoke
+// test (no shipped role/workflow does a raw write) is the forcing function keeping the regex tuned.
+// ---------------------------------------------------------------------------
+// The context path fragment, separator-agnostic (`/` or `\`). Used in both halves of the alternation.
+const CTX_PATH = String.raw`\.grugops[\\/]context[\\/]`;
+// A genuine write TOKEN — NOT the prose word "write". `\bWrite\b` is the (capital-W) Claude `Write`
+// tool token; `>`/`>>` and `echo` are shell-redirect writes. Bare lowercase "write" is excluded.
+const CTX_TOKEN = String.raw`writeFileSync|appendFileSync|\bWrite\b|>>?|\becho\b`;
+// FIRE when the path and a write token co-occur on one line, in EITHER order (token-then-path for
+// `writeFileSync('.grugops/context/...')`; path-then-token for `... .grugops/context/... >> file`).
+const CTX_WRITE_RE = new RegExp(
+  `(${CTX_PATH}.*(${CTX_TOKEN}))|((${CTX_TOKEN}).*${CTX_PATH})`,
+);
+// Explicit SCAN set: the 17 shipped role files (reuse ROLE_FILES) + the 16 shipped workflows. These
+// are the files that may legitimately MENTION the context path in prose once roles are wired in
+// later phases; the guard ensures any such mention is never a raw-write bypass. NEVER a repo-wide
+// grep (mirrors guard_wr05's explicit 4-file scan set).
+const CTX_WORKFLOWS = [
+  "agent-factory/workflows/00-bootstrap-greenfield.md",
+  "agent-factory/workflows/01-bootstrap-brownfield.md",
+  "agent-factory/workflows/02-idea-to-epics.md",
+  "agent-factory/workflows/03-epic-to-tickets.md",
+  "agent-factory/workflows/04-ticket-to-pr.md",
+  "agent-factory/workflows/05-pr-quality-gate.md",
+  "agent-factory/workflows/06-uat-pack.md",
+  "agent-factory/workflows/07-backlog-refinement.md",
+  "agent-factory/workflows/08-sprint-planning.md",
+  "agent-factory/workflows/09-daily-sweep.md",
+  "agent-factory/workflows/10-sprint-review.md",
+  "agent-factory/workflows/11-retro.md",
+  "agent-factory/workflows/12-release.md",
+  "agent-factory/workflows/13-incident.md",
+  "agent-factory/workflows/14-ui-design-to-build.md",
+  "agent-factory/workflows/15-security-audit.md",
+];
+const CTX_SCAN = [...ROLE_FILES, ...CTX_WORKFLOWS];
+
+function guardContextWrites(): void {
+  process.stdout.write(
+    "\n[guard_context_writes] shared context written only via context-io.ts (SCTX-05)\n",
+  );
+  const hits = grepFiles(CTX_SCAN, CTX_WRITE_RE).join("\n");
+  if (hits === "") {
+    pass("SCTX-05: no raw context write in shipped role/workflow text (use context-io.ts)");
+  } else {
+    fail(`SCTX-05 raw context write (bypasses context-io.ts):\n${hits}`);
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Run all guards.
 // ---------------------------------------------------------------------------
 process.stdout.write("== Phase 10 foundation-guards gate (SDLC-02 / SC2) ==\n");
@@ -480,6 +551,7 @@ guardAdapterSize();
 guardVoice();
 guardCavemanPreserved();
 guardRoleSize();
+guardContextWrites();
 
 // ---------------------------------------------------------------------------
 // Phase 19 auto-UAT Tier-1 oracles (UAT-AUTO-05 / BLOCKER 1).
