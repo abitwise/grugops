@@ -20,8 +20,9 @@
 // caveman voice).
 //
 // CLI (so plan-03's freshness gate can mirror-spawn the render, and the oracle can drive it):
-//   node scripts/context-io.js validate <noteFile>           # exit 0 = valid, 1 = structural FAIL
-//   node scripts/context-io.js render <task> [contextRoot]   # regen index.md + index.jsonl
+//   node scripts/context-io.js validate <noteFile>                  # exit 0 = valid, 1 = structural FAIL
+//   node scripts/context-io.js admit <task> <noteFile> [root]       # exit 0 = admitted, 1 = refused (D-01)
+//   node scripts/context-io.js render <task> [contextRoot]          # regen index.md + index.jsonl
 //
 // Path-traversal mitigation (ASVS V12, T-20-01): the task name is validated against a strict
 // allowlist (^[A-Za-z0-9._-]+$, rejecting .. / separators / absolute paths) before it is joined
@@ -90,6 +91,65 @@ function assertSafeTask(task: string): void {
         "(no path separators, no .., no absolute paths)",
     );
   }
+}
+
+// ── The reserved §14-gate author identity (D-02/D-04) ───────────────────────────────────────────
+// `§14-gate` is a reserved author identity: the §14 quality gate is the root of the verification
+// chain, and the ONLY emitter allowed to author a `by: §14-gate` verdict note (mirroring how the
+// prod-deploy hook trusts the human-set env var as ITS root, hooks/guard.ts). Any OTHER note
+// authored `by: §14-gate` is an impersonation flag — a structural FAIL on the plain validate path.
+// The one carve-out (D-04): the gate's own verdict emission goes through emitVerdict(), which sets
+// an internal trusted flag so the reserved-identity rule does not reject it.
+const GATE_IDENTITY = "§14-gate";
+
+// ── The two accepted verified_by grammars (D-05/D-06/D-07) ──────────────────────────────────────
+// Anchored allowlists modeled on TASK_NAME_RE — only these two grammars admit a `finding`:
+//   - §14-gate#<id>  the workhorse; admission cross-checks a live green verdict (D-01).
+//   - human:<name>   the escalation valve (D-07); its un-forgeability is layered in Phase 25.
+// There is NO separate passing-test-reference grammar: a passing test IS a green gate run, so the
+// gate grammar already covers it (D-05/D-06). The id/name segment reuses the task-name allowlist.
+const GATE_STAMP_RE = /^§14-gate#[A-Za-z0-9._-]+$/;
+const HUMAN_STAMP_RE = /^human:[A-Za-z0-9._-]+$/;
+
+// ── DeLM invalid-evidence phrase list (D-09; from DeLM verifier.py _INVALID_EVIDENCE_PHRASES) ────
+// A `verified_by` that IS one of these (or STARTS with one at a non-alpha boundary) is hollow
+// evidence and a structural FAIL. Match by lowercase+trim then `==` OR `startsWith` + a non-alpha
+// boundary — NEVER naive substring (`.includes()` would false-positive on a legitimate stamp whose
+// id happens to embed a phrase's letters, e.g. an id containing `tbd`). Same token-vs-prose care
+// as guard_context_writes / guard_wr05 in check-foundation-guards.ts.
+const DELM_INVALID_EVIDENCE = [
+  "tbd",
+  "pending",
+  "not verified",
+  "unverified",
+  "should work",
+  "should pass",
+  "looks right",
+  "looks correct",
+  "seems to work",
+  "to be verified",
+  "will verify",
+  "n/a",
+] as const;
+
+// Literal self-attestation tokens an agent must never use as its own verification (D-09).
+const REFUSE_SELF_LITERALS = ["self", "me", "agent"] as const;
+
+// Return true when `value` IS a DeLM invalid-evidence phrase, or STARTS with one followed by a
+// non-alphanumeric boundary (so `pending review` matches but `§14-gate#R-ftbdui-001` does not).
+// This is the deliberate non-substring matcher D-09 requires.
+function isInvalidEvidencePhrase(value: string): boolean {
+  const v = value.trim().toLowerCase();
+  for (const phrase of DELM_INVALID_EVIDENCE) {
+    if (v === phrase) return true;
+    if (v.startsWith(phrase)) {
+      const next = v.charAt(phrase.length);
+      // A non-alpha boundary (space, punctuation, end-of-string) means the phrase stands alone as a
+      // token; an alphanumeric next char means it is part of a larger token and is NOT a match.
+      if (!/[A-Za-z0-9]/.test(next)) return true;
+    }
+  }
+  return false;
 }
 
 // ── Single-line field guard (provenance-forgery mitigation, CR-01) ──────────────────────────────
@@ -164,8 +224,13 @@ function parseNote(text: string): ParsedFrontmatter | null {
   return { scalars, refs, body, duplicateKeys: [...dupes] };
 }
 
-// ── Validate a note's structure (SC-1). Returns a finding string array; empty = valid. ──────────
-export function validate(text: string): string[] {
+// ── Validate a note's structure (SC-1, extended in Phase 21 with the D-09/D-02 refuse-self set). ─
+// PURE text→findings — inspects ONLY the parsed scalars, never reads context (D-10 keeps the cheap
+// structural check pure; the context-aware admission cross-check is the separate admit() function).
+// `trustedGateEmission` is the D-04 carve-out flag the gate's own emitVerdict() path sets so its
+// reserved `by: §14-gate` verdict note is not rejected as an impersonation. The plain CLI
+// `validate <file>` verb NEVER sets it, so an agent impersonating the gate always FAILs.
+export function validate(text: string, trustedGateEmission = false): string[] {
   const findings: string[] = [];
   const parsed = parseNote(text);
   if (!parsed) {
@@ -195,6 +260,52 @@ export function validate(text: string): string[] {
       );
     }
   }
+
+  // ── D-02 reserved-identity rule (applies to ANY note, not only findings) ──────────────────────
+  // A note authored `by: §14-gate` is an impersonation flag, EXCEPT the gate's own verdict
+  // emission (D-04), which routes through emitVerdict() and sets trustedGateEmission.
+  if (scalars.by === GATE_IDENTITY && !trustedGateEmission) {
+    findings.push(
+      `structural FAIL: "${GATE_IDENTITY}" is a reserved author identity (the §14 quality gate). ` +
+        `A note may not be authored by it — this is an impersonation flag. Only the gate's own ` +
+        `verdict emission may use this identity.`,
+    );
+  }
+
+  // ── D-09 refuse-self FAIL set, GATED on kind === "finding" (D-08 — only a finding needs a stamp).
+  // Still text-only: inspects scalars.verified_by / scalars.by only. The gate's own verdict is a
+  // `finding` authored by the trusted root (D-04): it carries no verified_by of its own (nothing
+  // verifies the root), so the refuse-self set is suppressed for the trusted-gate-emission path.
+  if (scalars.kind === "finding" && !trustedGateEmission) {
+    const vb = (scalars.verified_by ?? "").trim();
+    if (vb === "") {
+      findings.push(
+        `structural FAIL: a finding requires a verified_by stamp — it must not be empty ` +
+          `(refuse-self: an unverified finding cannot enter the verified context).`,
+      );
+    } else if ((REFUSE_SELF_LITERALS as readonly string[]).includes(vb.toLowerCase())) {
+      findings.push(
+        `structural FAIL: verified_by "${vb}" is a self-attestation literal — a finding may not ` +
+          `verify itself (refuse-self).`,
+      );
+    } else if (vb === scalars.by) {
+      findings.push(
+        `structural FAIL: verified_by "${vb}" equals the author (by) — an author may not ` +
+          `self-stamp its own finding (refuse-self).`,
+      );
+    } else if (isInvalidEvidencePhrase(vb)) {
+      findings.push(
+        `structural FAIL: verified_by "${vb}" is hollow evidence (a DeLM invalid-evidence ` +
+          `phrase) — it does not name a real verification.`,
+      );
+    } else if (!GATE_STAMP_RE.test(vb) && !HUMAN_STAMP_RE.test(vb)) {
+      findings.push(
+        `structural FAIL: verified_by "${vb}" matches no accepted grammar. A finding's stamp ` +
+          `must be "§14-gate#<id>" (gate-verified) or "human:<name>" (escalation).`,
+      );
+    }
+  }
+
   return findings;
 }
 
@@ -326,6 +437,121 @@ export function currentState(notes: NoteRecord[]): NoteRecord[] {
   return ordered.filter((n) => !superseded.has(n.id));
 }
 
+// ── The green-verdict recognition contract (D-01/D-03) ──────────────────────────────────────────
+// A §14-gate verdict is itself a context note (it dogfoods the schema — not a separate ledger).
+// A note is a LIVE GREEN verdict for per-run id <id> exactly when ALL of:
+//   - kind === "finding"
+//   - by === "§14-gate"   (the reserved gate identity)
+//   - refs includes the literal "§14-gate#<id>"   (the per-run id this verdict certifies)
+//   - body contains the green terminal marker "READY_FOR_HUMAN_REVIEW"
+//   - it is LIVE (not folded out by currentState — a superseded/withdrawn verdict must not admit)
+// Plan 02's emitVerdict() (below) is the ONLY emitter; the gate's §14 step calls it on a green
+// terminal result. The admission cross-check (admit) matches a finding's §14-gate#<id> stamp
+// against this contract. Keep emitVerdict and this recognizer in lockstep with Plan 02.
+const VERDICT_GREEN_MARKER = "READY_FOR_HUMAN_REVIEW";
+
+function verdictStampFor(id: string): string {
+  return `${GATE_IDENTITY}#${id}`;
+}
+
+function isLiveGreenVerdict(n: NoteRecord, id: string): boolean {
+  return (
+    n.kind === "finding" &&
+    n.by === GATE_IDENTITY &&
+    n.refs.includes(verdictStampFor(id)) &&
+    n.body.includes(VERDICT_GREEN_MARKER)
+  );
+}
+
+// ── emitVerdict: the §14 gate's verdict emission carve-out (D-03/D-04). ──────────────────────────
+// The ONE path allowed to author a `by: §14-gate` note. Called by the §14 quality gate step
+// (05-pr-quality-gate.md, Plan 02) on a GREEN terminal result, carrying the unique per-run <id>
+// that downstream findings reference in `verified_by: §14-gate#<id>`. Composes a verdict note,
+// validates it with the trusted-gate-emission carve-out (so the reserved-identity rule does not
+// reject the gate's own note), and atomically appends it under the task. Returns the verdict
+// note's id. The per-run <id> is the caller's (the gate generates it via node:crypto, D-03).
+export function emitVerdict(
+  task: string,
+  id: string,
+  contextRoot: string = DEFAULT_CONTEXT_ROOT,
+  at: string = new Date().toISOString(),
+): string {
+  assertSafeTask(task);
+  // The per-run id is interpolated into a ref; it must be single-line and grammar-clean so the
+  // emitted stamp `§14-gate#<id>` is a valid GATE_STAMP_RE stamp downstream findings can match.
+  assertSingleLine("verdict id", id);
+  if (!GATE_STAMP_RE.test(verdictStampFor(id))) {
+    throw new Error(
+      `context-io.emitVerdict: invalid per-run id "${id}" — the emitted stamp ` +
+        `"${verdictStampFor(id)}" must match ${GATE_STAMP_RE}.`,
+    );
+  }
+  const note: NoteInput = {
+    kind: "finding",
+    by: GATE_IDENTITY,
+    at,
+    verified_by: "", // the gate is the root of trust (D-04) — its verdict stamps nothing above it
+    confidence: "high",
+    refs: [verdictStampFor(id)],
+    supersedes: null,
+  };
+  const body = `${VERDICT_GREEN_MARKER}: the §14 quality gate run ${id} passed (all checks green).`;
+  for (const r of note.refs) assertSingleLine("refs[]", r);
+  const text = composeNote(note, body);
+  // Validate WITH the trusted-gate-emission carve-out: the reserved-identity rule is suppressed for
+  // this one path (D-04); every other structural rule still applies.
+  const findings = validate(text, true);
+  if (findings.length > 0) {
+    throw new Error(
+      `context-io.emitVerdict: refusing to write an invalid verdict note:\n${findings.join("\n")}`,
+    );
+  }
+  const notesDir = join(contextRoot, task, "notes");
+  mkdirSync(notesDir, { recursive: true });
+  const noteIdStr = noteId(note);
+  atomicWrite(join(notesDir, `${noteIdStr}.md`), text);
+  return noteIdStr;
+}
+
+// ── admit: the context-aware admission cross-check (D-01/D-10 — the ONLY context-reading path). ──
+// Given a candidate note text for a task, run the structural validate() first; then, only when the
+// note is a `finding` carrying a §14-gate#<id> stamp, cross-check that <id> against a LIVE GREEN
+// verdict record under the task (Posture B — format-trust alone is refused). Returns a findings
+// array (empty = admitted). A `human:<name>` stamp passes structurally and is NOT gate-cross-checked
+// (its un-forgeability is Phase 25). Keeping this a DISTINCT function preserves the D-10 separation:
+// validate() stays pure; only admit() reads context.
+export function admit(
+  task: string,
+  text: string,
+  contextRoot: string = DEFAULT_CONTEXT_ROOT,
+): string[] {
+  assertSafeTask(task);
+  // Structural gate first: a structurally invalid note is never admitted (D-11 strict-reject).
+  const findings = validate(text);
+  if (findings.length > 0) return findings;
+
+  const parsed = parseNote(text);
+  if (!parsed) return ["admission FAIL: no YAML frontmatter fence (--- ... ---) found"];
+  const { scalars } = parsed;
+
+  // Only a gate-stamped finding triggers the verdict cross-check (D-01). A human:<name> finding is
+  // structurally valid and admitted without a gate cross-check (D-07). Soft kinds carry no stamp.
+  const vb = (scalars.verified_by ?? "").trim();
+  if (scalars.kind === "finding" && GATE_STAMP_RE.test(vb)) {
+    const id = vb.slice(`${GATE_IDENTITY}#`.length);
+    const live = currentState(readContext(task, contextRoot));
+    const matched = live.some((n) => isLiveGreenVerdict(n, id));
+    if (!matched) {
+      return [
+        `admission FAIL: no live green §14-gate verdict found for "${verdictStampFor(id)}" under ` +
+          `task "${task}". A finding stamped §14-gate#${id} is admitted only when a real green ` +
+          `gate verdict with that per-run id exists in the task context (Posture B).`,
+      ];
+    }
+  }
+  return [];
+}
+
 // ── cell(): escape free-text before it enters a pipe-delimited markdown table cell (T-20-02). ───
 // Cloned from generate-catalog.ts: backslash first, then pipe, then flatten newlines to a space.
 function cell(s: string): string {
@@ -434,6 +660,22 @@ if (isMain) {
       }
       console.log("note valid: all required provenance fields present, kind is one of the six.");
       process.exit(0);
+    } else if (cmd === "admit") {
+      // Context-aware admission (D-01): structural validate + the §14-gate verdict cross-check.
+      const task = rest[0];
+      const noteFile = rest[1];
+      const contextRoot = rest[2]; // optional explicit root (tests pass a temp dir)
+      if (!task || !noteFile) {
+        console.error("usage: context-io.js admit <task> <noteFile> [contextRoot]");
+        process.exit(1);
+      }
+      const findings = admit(task, readFileSync(noteFile, "utf8"), contextRoot ?? DEFAULT_CONTEXT_ROOT);
+      if (findings.length > 0) {
+        for (const f of findings) console.error(f);
+        process.exit(1);
+      }
+      console.log(`note admitted: structurally valid and the §14-gate stamp matches a live green verdict.`);
+      process.exit(0);
     } else if (cmd === "render") {
       const task = rest[0];
       const contextRoot = rest[1]; // optional explicit root (tests pass a temp dir)
@@ -446,7 +688,7 @@ if (isMain) {
       process.exit(0);
     } else {
       console.error(
-        "usage: context-io.js <validate <noteFile> | render <task> [contextRoot]>",
+        "usage: context-io.js <validate <noteFile> | admit <task> <noteFile> [contextRoot] | render <task> [contextRoot]>",
       );
       process.exit(1);
     }

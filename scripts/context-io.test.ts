@@ -58,7 +58,10 @@ function goodNoteText(over: Partial<Record<string, string>> = {}): string {
     kind: "finding",
     by: "engineer",
     at: "2026-06-17T14:23:05Z",
-    verified_by: "",
+    // Default to a valid gate stamp so the default finding is structurally admissible under the
+    // Phase-21 D-09 refuse-self rule (a finding now requires a real §14-gate#<id> or human:<name>
+    // stamp). The hollow/self/phrase RED cases override verified_by explicitly.
+    verified_by: "§14-gate#SEED-001",
     confidence: "high",
     ...over,
   };
@@ -298,9 +301,11 @@ describe("context-io.js — provenance-forgery defense (CR-01)", () => {
   it("a valid note with a multi-item refs: list block still validates (no false duplicate)", () => {
     const dir = freshTmp("ctx-io-refs-ok-");
     const f = join(dir, "note.md");
+    // Carries a valid gate stamp so the finding is admissible under the Phase-21 D-09 rule — this
+    // case's intent is the refs: list block, not the stamp.
     const text =
       "---\nkind: finding\nby: engineer\nat: 2026-06-17T14:23:05Z\n" +
-      "verified_by: \nconfidence: high\n" +
+      "verified_by: §14-gate#SEED-001\nconfidence: high\n" +
       "refs:\n  - AUTH-01\n  - AUTH-02\nsupersedes: \n---\n\nbody\n";
     writeFileSync(f, text);
     const r = runValidate(f);
