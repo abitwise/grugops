@@ -120,7 +120,13 @@ function assertSingleLine(name, value) {
     }
 }
 function parseNote(text) {
-    const m = text.match(/^---\n([\s\S]*?)\n---\n?([\s\S]*)$/);
+    // Normalize CRLF/CR to LF before matching the fence so a git-autocrlf (Windows) note parses
+    // identically to its LF form. Without this, the fence regex (anchored on \n) misses a CRLF note,
+    // parseNote returns null, readContext silently drops it, and admit() wrongly refuses a real
+    // §14-gate verdict (CR-01). parseNote is the single choke point feeding both validate() and
+    // readContext, so normalizing here aligns the text and admission paths in one place.
+    const normalized = text.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+    const m = normalized.match(/^---\n([\s\S]*?)\n---\n?([\s\S]*)$/);
     if (!m)
         return null; // no frontmatter fence → caller treats as a structural fail
     const fmLines = m[1].split("\n");
