@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v2.0
 milestone_name: Decentralized Factory — Shared Verified Context
 status: executing
-last_updated: "2026-06-17T08:51:31.193Z"
-last_activity: 2026-06-17 -- Phase 20 planning complete
+last_updated: "2026-06-17T09:58:10.872Z"
+last_activity: 2026-06-17
 progress:
   total_phases: 7
   completed_phases: 0
   total_plans: 4
-  completed_plans: 0
+  completed_plans: 1
   percent: 0
 ---
 
@@ -20,14 +20,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-06-16 — after v1.2 milestone)
 
 **Core value:** A user installs grugops on top of the coding-agent CLI they already run, types `/grug`, and gets a disciplined delivery team — a visible board, strict handoffs, and an auditable requirement→code→test→release trail — entirely as readable markdown, with humans always holding merge and deploy.
-**Current focus:** v2.0 roadmap created — 7 phases (20–26) decentralize grugops onto a shared verified context (read-before-act / write-after-verify), a file-based task queue, and parallel agents (Claude Code primary; four CLIs degrade to sequential). Foundation-first build: substrate → verify → compact → parallel → handoff-removal → governance → equivalence-oracle dogfood. A3/DOG-02 retires only when the Phase-26 oracle passes. Next: `/gsd-plan-phase 20`.
+**Current focus:** Phase 20 — shared-context-substrate-concurrency-foundation
 
 ## Current Position
 
-Phase: 20 — Shared-Context Substrate & Concurrency Foundation (not started)
-Plan: —
+Phase: 20 (shared-context-substrate-concurrency-foundation) — EXECUTING
+Plan: 2 of 4
 Status: Ready to execute
-Last activity: 2026-06-17 -- Phase 20 planning complete
+Last activity: 2026-06-17
 
 ## Performance Metrics
 
@@ -147,6 +147,7 @@ Last activity: 2026-06-17 -- Phase 20 planning complete
 | Phase 19 P01 | 20m | 3 tasks | 6 files |
 | Phase 19 P02 | 18m | 2 tasks | 4 files |
 | Phase 19 P03a | 2m | 1 tasks | 1 files |
+| Phase 20 P01 | 9m | 2 tasks | 5 files |
 
 ## Accumulated Context
 
@@ -336,6 +337,9 @@ Recent decisions affecting current work:
 - [Phase ?]: [19-02] Tier-2 E2E harness gates every live assertion on a fail-closed claude auth status probe; absent/unauthed emits a LOUD distinct LOUD_SKIP_MARKER (never a silent green). BLOCKER 2 proven by a -t loud-skip stubbed-probe test asserting the exact sentinel.
 - [Phase ?]: [19-02] Tier-2 lane carries NO new dial key (self-gates on its own auth probe); stays dev/CI-only out of the default test green path; zero new devDependency. Both lanes referenced single-source in 05-pr-quality-gate.md (no fork into 14/15).
 - [Phase ?]: [19-03a] B3 wording UAT (11-HUMAN-UAT.md scenario 3) flipped to [passed] strictly from the captured node scripts/check-uat-oracles.js real run (exit 0, oracleWr05Wording PASS) — never hand-set; UAT-AUTO-04 left IN PROGRESS (jointly owned with 19-03b)
+- [Phase ?]: [20-01] refs YAML-list parsing: extend the existing flat key:value frontmatter parser minimally for a refs: list block (single-line comma form also accepted) — zero new dependency (resolves RESEARCH Open Q1)
+- [Phase ?]: [20-01] derived filenames index.md + index.jsonl (folder-relative); JSONL line is event-only (8 provenance fields, fixed key order, body excluded)
+- [Phase ?]: [20-01] context-io.ts is the ONLY sanctioned shared-context write path: per-note-file + atomic temp-then-rename to a FRESH unique path; Windows unlink-then-rename branch confined to the single-writer freshness-gated index.* regen; markdown notes/ is SoT, index.* derived/freshness-gatable
 
 ### Pending Todos
 
@@ -385,9 +389,9 @@ Items acknowledged and deferred at the **v1.2 milestone close on 2026-06-16** (1
 
 ## Session Continuity
 
-Last session: 2026-06-17T08:18:29.006Z
-Stopped at: Phase 20 context gathered
-Resume file: .planning/phases/20-shared-context-substrate-concurrency-foundation/20-CONTEXT.md
+Last session: 2026-06-17T09:58:10.865Z
+Stopped at: Completed 20-01-PLAN.md
+Resume file: None
 
 ## Operator Next Steps
 

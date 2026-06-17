@@ -94,7 +94,7 @@ Full phase details + milestone summary: `milestones/v1.2-ROADMAP.md` · requirem
 Plans:
 **Wave 1**
 
-- [ ] 20-01-PLAN.md — note-schema contract docs + context-io.ts (atomicWrite/appendNote/readContext + deterministic index render + schema validate) [SC-1, SC-2]
+- [x] 20-01-PLAN.md — note-schema contract docs + context-io.ts (atomicWrite/appendNote/readContext + deterministic index render + schema validate) [SC-1, SC-2]
 - [ ] 20-02-PLAN.md — claim.ts: mkdirSync atomic claim + pending→claimed→done rename transitions + generous-TTL stale-sweep [SC-3]
 
 **Wave 2** *(blocked on Wave 1 completion)*
@@ -208,7 +208,7 @@ Plans:
 | 17. Install --migrate / --update | v1.2 | 3/3 | Complete | 2026-06-15 |
 | 18. Browsable Docs Catalog | v1.2 | 2/2 | Complete | 2026-06-15 |
 | 19. Factory Auto-UAT Harness — Tier 1 Oracles + Tier 2 Headless E2E | v1.2 | 4/4 | Closed (A3/DOG-02 waived → next milestone) | 2026-06-16 |
-| 20. Shared-Context Substrate & Concurrency Foundation | v2.0 | 0/4 | Pending | - |
+| 20. Shared-Context Substrate & Concurrency Foundation | v2.0 | 1/4 | In Progress|  |
 | 21. Verify-Before-Write Admission | v2.0 | 0/? | Pending | - |
 | 22. Memory & Trajectory Compaction | v2.0 | 0/? | Pending | - |
 | 23. Parallel Execution & Orchestrator-as-Decomposer | v2.0 | 0/? | Pending | - |
