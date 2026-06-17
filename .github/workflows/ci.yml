@@ -1,0 +1,66 @@
+# grugops CI — vitest suite + freshness/build gates on an OS matrix.
+#
+# Created in Phase 20 plan 20-04 (SC-2 Windows proof). RESEARCH flagged a CI workflow as
+# [ASSUMED] to exist — it did NOT. This file is created honestly; it does not fake any result.
+#
+# The windows-latest leg exists for ONE specific reason: to EXECUTE the SC-2
+# `unlinkSync`-then-`renameSync` branch in scripts/context-io.ts on a real Windows runner
+# (Windows MoveFileEx is not atomic and rejects rename-onto-existing with EPERM/EEXIST/EACCES;
+# that branch only runs on Windows). The deterministic unit test in scripts/context-io.test.ts
+# carries the logic proof on every OS; this matrix makes the cross-platform claim real, not asserted.
+#
+# HONESTY CARVE-OUT (no fabrication): a GREEN windows-latest run proves the Windows code branch
+# executes and the concurrent-writer/render tests pass on Windows. It does NOT prove atomicity over
+# a true network filesystem (NFS/SMB) — that is `UNKNOWN - verify` and is intentionally NOT claimed
+# here. The real concurrency oracle is DOGF-02 (Phase 26). Do not read Windows-green as NFS-green.
+#
+# Node 22 is the documented hard floor (CLAUDE.md / package.json engines `>=22`). The committed
+# package-lock.json makes `npm ci` deterministic. Dev deps are typescript/vitest/@types/node only
+# (already audited) — this workflow installs NO new package.
+
+name: ci
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    name: test (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install (dev deps only — typescript/vitest/@types/node)
+        run: npm ci
+
+      - name: Build (tsc → committed .js parity surface)
+        run: npm run build
+
+      # Run the full vitest suite EXCLUDING the live claude-CLI e2e lane (scripts/e2e). That lane
+      # spends tokens and can hang on an authed box; it is NOT a CI gate. On windows-latest this is
+      # the step that exercises the SC-2 unlink-then-rename branch (paths normalized via node:path).
+      - name: Vitest (e2e lane excluded)
+        run: npx vitest run --exclude '**/scripts/e2e/**'
+
+      # ubuntu-only: the three freshness gates + the foundation-guard aggregator. Scoped to one OS to
+      # avoid path-separator drift in the freshness diffs; Windows stays scoped to the atomicity proof.
+      - name: Freshness gates + foundation guards (ubuntu only)
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          npm run freshness
+          npm run freshness:catalog
+          npm run freshness:context
+          node scripts/check-foundation-guards.js
