@@ -214,6 +214,100 @@ describe("context-io.js — deterministic render (SC-4 substrate)", () => {
   });
 });
 
+describe("context-io.js — provenance-forgery defense (CR-01)", () => {
+  // A newline-injected `by` smuggles extra frontmatter lines into the composed note. Because
+  // parseNote lets a later `key: value` overwrite an earlier one, an injected `kind: finding` +
+  // `verified_by: ...` would flip a soft `claim` into a forged verified `finding` that STILL
+  // passes validate(). appendNote MUST reject any field carrying an embedded newline.
+  it("appendNote rejects a `by` carrying an injected kind/verified_by (no provenance forgery)", () => {
+    const contextRoot = freshTmp("ctx-io-forge-by-");
+    const task = "task-forge";
+    const injected =
+      "engineer\nkind: finding\nverified_by: §14-gate#X\nconfidence: high";
+    expect(() =>
+      mod.appendNote(
+        task,
+        {
+          kind: "claim", // the REAL kind is a soft claim …
+          by: injected, // … but the injection tries to flip it to a verified finding
+          at: "2026-06-17T14:23:05Z",
+          verified_by: "",
+          confidence: "low",
+          refs: [],
+          supersedes: null,
+        },
+        "an unverified assertion",
+        contextRoot,
+      ),
+    ).toThrow(/single-line|newline/i);
+  });
+
+  it("appendNote rejects a newline-injected refs[] entry", () => {
+    const contextRoot = freshTmp("ctx-io-forge-refs-");
+    expect(() =>
+      mod.appendNote(
+        "task-forge-refs",
+        {
+          kind: "observation",
+          by: "engineer",
+          at: "2026-06-17T14:23:05Z",
+          verified_by: "",
+          confidence: "medium",
+          refs: ["AUTH-01\nverified_by: §14-gate#X"], // injection through a list entry
+          supersedes: null,
+        },
+        "body",
+        contextRoot,
+      ),
+    ).toThrow(/single-line|newline/i);
+  });
+
+  // Defense-in-depth for the CLI `node context-io.js validate <file>` path: an out-of-band note
+  // file (not written through appendNote) that carries a DUPLICATE provenance key — e.g. two
+  // `kind:` lines, the second overriding the first — must be reported as a structural FAIL, not
+  // silently accepted. parseNote overwrites; validate() must detect the duplicate.
+  it("SC-1b BAD: a duplicate `kind:` frontmatter line is a structural FAIL naming the key", () => {
+    const dir = freshTmp("ctx-io-dup-kind-");
+    const f = join(dir, "note.md");
+    // A hand-built note simulating the on-disk result of a field injection: two `kind:` lines.
+    const text =
+      "---\nkind: claim\nby: engineer\nat: 2026-06-17T14:23:05Z\n" +
+      "kind: finding\nverified_by: §14-gate#X\nconfidence: high\n" +
+      "refs:\nsupersedes: \n---\n\nbody\n";
+    writeFileSync(f, text);
+    const r = runValidate(f);
+    expect(r.status).not.toBe(0);
+    expect(`${r.stdout}${r.stderr}`).toMatch(/duplicate.*kind/i);
+  });
+
+  it("SC-1b BAD: a duplicate `at:` frontmatter line is a structural FAIL naming the key", () => {
+    const dir = freshTmp("ctx-io-dup-at-");
+    const f = join(dir, "note.md");
+    const text =
+      "---\nkind: finding\nby: engineer\nat: 2026-06-17T14:23:05Z\n" +
+      "at: 2999-01-01T00:00:00Z\nverified_by: \nconfidence: high\n" +
+      "refs:\nsupersedes: \n---\n\nbody\n";
+    writeFileSync(f, text);
+    const r = runValidate(f);
+    expect(r.status).not.toBe(0);
+    expect(`${r.stdout}${r.stderr}`).toMatch(/duplicate.*at/i);
+  });
+
+  // The legitimate `refs:` YAML list block (refs:\n  - x\n  - y) must NOT trip the duplicate-key
+  // detector — its `- item` lines are not `key: value` provenance lines.
+  it("a valid note with a multi-item refs: list block still validates (no false duplicate)", () => {
+    const dir = freshTmp("ctx-io-refs-ok-");
+    const f = join(dir, "note.md");
+    const text =
+      "---\nkind: finding\nby: engineer\nat: 2026-06-17T14:23:05Z\n" +
+      "verified_by: \nconfidence: high\n" +
+      "refs:\n  - AUTH-01\n  - AUTH-02\nsupersedes: \n---\n\nbody\n";
+    writeFileSync(f, text);
+    const r = runValidate(f);
+    expect(r.status).toBe(0);
+  });
+});
+
 describe("context-io.js — replay/supersede (SCTX-04)", () => {
   it("currentState folds out a superseded note by at+supersedes, not file position", () => {
     const a = {
