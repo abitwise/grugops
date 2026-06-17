@@ -503,3 +503,72 @@ describe("context-io.js — replay/supersede (SCTX-04)", () => {
     expect(liveIds).not.toContain(a.id); // A folded out
   });
 });
+
+describe("context-io.js — CRLF round-trip admission (CR-01)", () => {
+  // Run the compiled CLI: `node context-io.js admit <task> <noteFile> <contextRoot>`.
+  // Same spawnSync shape as the verify-before-write admission block (L318-323).
+  function runAdmit(task: string, noteFile: string, contextRoot: string) {
+    return spawnSync("node", [CONTEXT_IO_JS, "admit", task, noteFile, contextRoot], {
+      cwd: ROOT,
+      encoding: "utf8",
+    });
+  }
+
+  // Rewrite every note file under <contextRoot>/<task>/notes/ from LF to CRLF on disk —
+  // reproducing the git autocrlf=true (Windows default) state CR-01 fails on. emitVerdict
+  // writes LF bytes via atomicWrite, so the test must re-encode the written file to CRLF.
+  function rewriteNotesToCRLF(contextRoot: string, task: string) {
+    const notesDir = join(contextRoot, task, "notes");
+    for (const name of readdirSync(notesDir)) {
+      if (!name.endsWith(".md")) continue;
+      const p = join(notesDir, name);
+      const lf = readFileSync(p, "utf8");
+      writeFileSync(p, lf.replace(/\n/g, "\r\n"));
+    }
+  }
+
+  it("CR-01 workhorse: a CRLF-encoded green §14-gate verdict admits a matching CRLF-stamped finding (exit 0)", () => {
+    const contextRoot = freshTmp("ctx-io-crlf-green-");
+    const task = "crlf-task-green";
+    const id = "RUN-CRLF-7A3F";
+    // Plant a real green verdict (emitVerdict writes LF), then rewrite its on-disk bytes to CRLF
+    // — the exact state that makes the verdict invisible to readContext before the parseNote fix.
+    mod.emitVerdict(task, id, contextRoot);
+    rewriteNotesToCRLF(contextRoot, task);
+    // The candidate finding is ALSO CRLF-encoded, covering the candidate-note side of parseNote.
+    const f = join(contextRoot, "finding.md");
+    writeFileSync(
+      f,
+      goodNoteText({ kind: "finding", verified_by: `§14-gate#${id}` }).replace(/\n/g, "\r\n"),
+    );
+    const r = runAdmit(task, f, contextRoot);
+    // RED before the Task-2 fix: "no live green §14-gate verdict found" because the CRLF verdict
+    // is dropped by readContext. GREEN after: the CRLF verdict is parsed identically to its LF form.
+    expect(r.status).toBe(0);
+  });
+
+  it("CR-01 read path: readContext surfaces the CRLF-rewritten §14-gate verdict (by === §14-gate, refs include the id)", () => {
+    const contextRoot = freshTmp("ctx-io-crlf-read-");
+    const task = "crlf-task-read";
+    const id = "RUN-CRLF-READ-01";
+    mod.emitVerdict(task, id, contextRoot);
+    rewriteNotesToCRLF(contextRoot, task);
+    // Direct proof readContext no longer silently drops the CRLF note: the verdict record is visible.
+    const records = mod.readContext(task, contextRoot);
+    const verdict = records.find((n) => n.by === "§14-gate");
+    expect(verdict).toBeDefined();
+    expect(verdict!.refs).toContain(`§14-gate#${id}`);
+  });
+
+  it("LF no-regression: the SAME green-verdict scenario with LF-encoded notes still admits (exit 0)", () => {
+    // Sibling parity assertion — proves the fix adds CRLF support WITHOUT changing LF behavior.
+    const contextRoot = freshTmp("ctx-io-crlf-lf-");
+    const task = "crlf-task-lf";
+    const id = "RUN-LF-PARITY-01";
+    mod.emitVerdict(task, id, contextRoot); // LF bytes, NOT rewritten to CRLF
+    const f = join(contextRoot, "finding.md");
+    writeFileSync(f, goodNoteText({ kind: "finding", verified_by: `§14-gate#${id}` })); // LF finding
+    const r = runAdmit(task, f, contextRoot);
+    expect(r.status).toBe(0);
+  });
+});
