@@ -4,16 +4,16 @@ milestone: v2.0
 milestone_name: Decentralized Factory — Shared Verified Context
 current_phase: 22
 current_phase_name: memory-trajectory-compaction-dialable-token-economy
-status: planned
-stopped_at: "Phase 22 gap-closure plan 22-04 PLANNED + converged (round 3, CMP-02). Stable-id rewrite: promote noteId to a frozen `id:` field; carve-out becomes an id-keyed exact 1:1 match (affirmative existence + fail-closed + byte-equal load-bearing fields); delete verifiedKey Set + findCounterpart tuple fallback; strict drop policy (only the raw-grounded supersedes fold removes a note; failed-attempt ids + verified findings survive unconditionally). 7 held-out RED-first cases. Plan passed a 3-iteration adversarial plan-check loop that caught + closed 2 new bypasses during planning (forged promoted-side fold; raw-side verified-finding fold). Next: /gsd-execute-phase 22"
-last_updated: "2026-06-18T15:30:00.000Z"
+status: executed_awaiting_verification
+stopped_at: "Phase 22 gap-closure plan 22-04 EXECUTED (round 3, CMP-02 stable-id rewrite). All 4 tasks committed: 7 held-out adversarial cases RED-first against the committed pre-fix compactor.js (CR-01/CR-02 P7/CR-02 P8/IN-01/FORGED-FOLD/RAW-FOLD-VERIFIED + read-path duplicate-id) and now REFUSE (exit 1) against the post-fix .js naming the right element; frozen `id:` field threaded through context-io.ts (compose/append/emitVerdict/read + contract); checkCarveOut rewritten to an id-keyed exact 1:1 match over an ASYMMETRIC required-survival set (currentState folds out only soft non-verified notes; verified findings + failed-attempts survive unconditionally); verifiedKey Set + findCounterpart DELETED; readNoteFields rejects a duplicate provenance key on the oracle's read path; both committed .js byte-fresh (npm run freshness exit 0); full non-e2e suite GREEN (244 passed). Phase 22 NOT yet verified-complete — gaps were found in round 2; next: re-verify CMP-02 via /gsd-plan-phase 22 --gaps re-run or code-review + adversarial reproduction before marking the phase complete."
+last_updated: "2026-06-18T14:21:16.985Z"
 last_activity: 2026-06-18
-last_activity_desc: Phase 22 gap-closure round 3 planned — 22-04 stable-id rewrite; converged after 3 adversarial plan-check iterations (PASS, no residual false-accept)
+last_activity_desc: Phase 22 plan 22-04 executed (CMP-02 stable-id rewrite)
 progress:
   total_phases: 7
   completed_phases: 3
   total_plans: 12
-  completed_plans: 11
+  completed_plans: 12
   percent: 43
 ---
 
@@ -28,10 +28,10 @@ See: .planning/PROJECT.md (updated 2026-06-16 — after v1.2 milestone)
 
 ## Current Position
 
-Phase: 22 (memory-trajectory-compaction-dialable-token-economy) — GAP-CLOSURE PLANNED (round 3, 22-04)
-Plan: 22-04 written + plan-checker PASS (CMP-02 only; 22-01/02/03 shipped). 4 tasks, 1 wave, test-first.
-Status: Planned. The round-3 fix is the STABLE-ID REWRITE (orchestrator+user decided): the carve-out's bypass class (CR-01 collision / CR-02 fail-open / IN-01 supersedes) traces to ONE defect — no stable per-note identity, so the oracle guessed raw→promoted from forgeable content tuples. 22-04 threads the existing noteId (`<at-compact>-<by>-<kind>-<nonce>`) through as a frozen `id:` frontmatter field and makes the match an id-keyed exact 1:1 (affirmative existence + fail-closed + byte-equal load-bearing fields); deletes verifiedKey Set + findCounterpart; strict drop policy = only the RAW-GROUNDED supersedes fold (currentState(rawThread)) removes a note, and failed-attempt ids + verified findings survive UNCONDITIONALLY (never supersede-foldable). CR-01 reproduced live this session (exit 0). Plan converged through a 3-iteration adversarial plan-check (opus) that found + closed 2 NEW bypasses during planning: forged promoted-side supersedes-fold, and raw-side verified-finding fold. 7 held-out RED-first cases pin the whole class; both committed .js rebuilt + freshness gated last. Next: /gsd-execute-phase 22
-Last activity: 2026-06-18 — Phase 22 gap-closure round 3 planned (22-04); converged after 3 adversarial plan-check iterations (final PASS, no residual false-accept)
+Phase: 22 (memory-trajectory-compaction-dialable-token-economy) — EXECUTED, AWAITING RE-VERIFICATION
+Plan: 4 of 4 (all plans executed; 22-04 gap-closure round 3 done)
+Status: 22-04 executed — re-verify CMP-02 before marking the phase complete
+Last activity: 2026-06-18 — Phase 22 plan 22-04 executed (CMP-02 stable-id rewrite)
 
 ## Performance Metrics
 
@@ -164,6 +164,7 @@ Last activity: 2026-06-18 — Phase 22 gap-closure round 3 planned (22-04); conv
 | Phase 22 P01 | 6min | 3 tasks | 7 files |
 | Phase 22 P02 | 8min | 3 tasks | 24 files |
 | Phase 22 P03 | 6m | 4 tasks | 3 files |
+| Phase 22 P04 | 18m | 4 tasks | 7 files |
 
 ## Accumulated Context
 
@@ -370,6 +371,7 @@ Recent decisions affecting current work:
 - [Phase ?]: compactor.ts is a read-only carve-out invariant checker over (raw thread -> promoted notes); never summarizes, forks no writer — promotion stays in appendNote, re-verify in admit (Phase 22 D-01/D-02/D-12)
 - [Phase ?]: context.compaction dial (aggressive|balanced|retain-raw; lean default aggressive) tunes body verbosity only; durable note set + carve-out fields are un-dialable at every value (D-05)
 - [Phase ?]: WF18 single-source compaction protocol: order:18 (Pitfall 2), references WF16+§14-gate (D-10), restates nothing; the additive WF18 role pointer re-baselined guard_role_size for 5 roles per the Phase-21 WF16 convention
+- [Phase ?]: [22-04] CMP-02 carve-out is now an id-keyed exact 1:1 match on a frozen id: field ALONE; verifiedKey Set + findCounterpart tuple fallback DELETED; required-survival set is ASYMMETRIC (currentState folds out only soft non-verified notes; verified findings + failed-attempts survive unconditionally); promoted-side supersedes never authorizes a drop; readNoteFields rejects a duplicate provenance key on the oracle read path; 7 held-out RED-first cases incl. FORGED-FOLD + RAW-FOLD-VERIFIED
 
 ### Pending Todos
 
@@ -419,7 +421,7 @@ Items acknowledged and deferred at the **v1.2 milestone close on 2026-06-16** (1
 
 ## Session Continuity
 
-Last session: 2026-06-18T10:46:19.815Z
+Last session: 2026-06-18T14:19:29.849Z
 Stopped at: Phase 22 context gathered
 Resume file: .planning/phases/22-memory-trajectory-compaction-dialable-token-economy/22-CONTEXT.md
 
