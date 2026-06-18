@@ -1,127 +1,205 @@
 ---
 phase: 22-memory-trajectory-compaction-dialable-token-economy
-verified: 2026-06-18T10:05:35Z
+verified: 2026-06-18T14:05:00Z
 status: gaps_found
 score: 3/4 must-haves verified
 behavior_unverified: 0
 overrides_applied: 0
+re_verification:
+  previous_status: gaps_found
+  previous_score: 3/4
+  gaps_closed:
+    - "CMP-02 single-instance mutation: a forged/swapped verified_by on a promoted finding is refused (exit 1, names verified_by)"
+    - "CMP-02 single-instance mutation: a by mutated engineer->attacker on a verified finding is refused"
+    - "CMP-02 wholly-dropped verified finding (unique stamp, 2+ promoted) is refused via the affirmative existence check"
+    - "CMP-02 ambiguous-sibling borrow (same-kind, different verified_by) no longer borrows an intact sibling"
+    - "WR-01 CLI fails closed on a missing/typo'd threadDir (exit 1, never carve-out intact)"
+    - "WR-02 unrecoverable FA-id surfaced as an explicit finding; WR-03 degradeToClaim throws on a non-template note"
+  gaps_remaining:
+    - "CMP-02 carve-out is STILL bypassable: a load-bearing provenance field can be dropped/altered and survive at exit 0 via CR-01 (identity-key collision) and CR-02 (fail-open null counterpart for non-verified notes)"
+  regressions: []
 gaps:
-  - truth: "Compaction never drops a load-bearing field — verified_by, failed-attempt, supersedes, and by/at provenance survive compaction; a RED test fails if any is dropped (CMP-02, SC2)"
+  - truth: "CMP-02 / SC2 — compaction never drops a load-bearing field; a RED test fails if any (verified_by / failed-attempt / supersedes / by / at) is dropped or altered. The carve-out must be un-cheatable."
     status: failed
-    reason: "checkCarveOut() has three confirmed bypasses — all reproducible against the committed compactor.js. (1) CR-01: a field mutated from one non-empty value to another non-empty value is silently accepted (line 181: `rawVal !== '' && promVal === ''` only catches drop-to-empty, not mutation). Confirmed: verified_by mutated from §14-gate#SEED-001 to §14-gate#FORGED-999 returns exit 0, empty findings. (2) CR-02: a durable verified finding wholly deleted from the promoted set passes when ≥2 promoted notes remain (line 177 `continue`s on null counterpart; single-note fallback masks the bug only in the trivial 1-note case). Confirmed: raw={finding, FA-1}, promoted={FA-1, FA-2} returns exit 0, empty findings. (3) CR-03: with two same-kind notes, a dropped `by` on one note is masked by borrowing the intact sibling as the counterpart (findCounterpart line 210 returns sameKind[0] unconditionally when byMatch fails). Confirmed: raw={engineer-finding, reviewer-finding}, promoted strips reviewer's by — returns exit 0, empty findings. The test oracle (compactor.test.ts) exercises only the cooperative drop-to-empty path in a single-note set — the exact path that works — and stays green through all three bypasses. Zero negative test cases cover mutation, wholly-dropped-finding, or multi-same-kind scenarios."
+    reason: >-
+      Three independent bypasses survive at exit 0 against the COMMITTED scripts/compactor.js,
+      all reproduced empirically this verification (not inferred). The shipped 22-test suite is
+      fully GREEN, but it pins only single-instance shapes (unique verified_by per finding,
+      mutations applied only to verified findings) — it does not exercise the shapes that break
+      the oracle, so green is necessary but NOT sufficient. SC2 promised an un-cheatable carve-out;
+      a forged/dropped/altered provenance field still passes the gate.
     artifacts:
-      - path: "scripts/compactor.ts"
-        issue: "checkCarveOut() line 181: condition `rawVal !== '' && promVal === ''` must be `rawVal !== '' && rawVal !== promVal` to catch mutations. Line 177: `continue` on null counterpart silently ignores wholly-dropped durable verified findings — requires an affirmative check that every raw note carrying a non-empty verified_by has a matching entry in the promoted set. findCounterpart() line 210: returns sameKind[0] when multiple same-kind notes exist and byMatch fails — ambiguous counterpart selection masks a dropped field on one of N same-kind notes."
-      - path: "scripts/compactor.js"
-        issue: "Committed .js is byte-fresh vs the buggy .ts — the bugs are present in both."
-      - path: "scripts/compactor.test.ts"
-        issue: "WR-04 confirmed: no negative test cases for (a) field mutated to a different non-empty value, (b) verified finding wholly dropped with ≥2 promoted notes, (c) two same-kind notes where one drops a field, or (d) forged verified_by substitution. Oracle gives false confidence in the safety invariant."
+      - path: "scripts/compactor.ts:225-241"
+        issue: >-
+          CR-01 (identity-key collision, Critical). The affirmative existence check keys raw
+          verified notes into a Set on verifiedKey = [kind, verified_by, by, at].join(" ") (line 225)
+          and tests .has() — set MEMBERSHIP, not COUNT. One gate run stamps multiple findings with
+          the SAME verified_by/by/at, so two raw verified findings collapse to one key; a single
+          surviving promoted note satisfies both, and the second verified finding can be wholly
+          dropped at exit 0. findCounterpart also returns null on byStamp.length > 1 (line 257), so
+          the per-field loop is skipped (line 197 if (!counterpart) continue), and nothing detects
+          the drop.
+      - path: "scripts/compactor.ts:194-219, 251-263"
+        issue: >-
+          CR-02 (fail-open null counterpart, Critical). The alter/drop loop runs only on a 1:1
+          counterpart; line 197 if (!counterpart) continue is fail-OPEN. For a non-verified durable
+          note (empty verified_by — observation/decision/claim/artifact-ref), matching falls to the
+          (kind, at) tuple (line 260). Mutate BOTH by and at (no tuple match -> null -> skipped), or
+          have two notes share (kind, at) (ambiguous, byTuple.length>1 -> null -> skipped). The
+          existence check also ignores empty-verified_by notes (line 233 continue). Net: a by swapped
+          engineer->attacker on an observation/decision — or dropped entirely — survives at exit 0.
+          The header comment (lines 187-193) claims by/at are protected "on every promoted note";
+          they are not.
+      - path: "scripts/compactor.ts:198, 225-241"
+        issue: >-
+          IN-01 (supersedes never affirmatively checked, completeness gap). supersedes is in the
+          alter list (line 198) but absent from the existence-key/affirmative check (lines 225-241).
+          A non-verified durable note whose supersedes link is load-bearing but which is wholly
+          dropped (or whose counterpart does not resolve) loses the link with no detection. supersedes
+          is named explicitly in SC2 as a load-bearing field.
+      - path: "scripts/compactor.test.ts:135-376"
+        issue: >-
+          WR-03 (false-confidence suite). Every negative case uses a UNIQUE verified_by per finding
+          (SEED-001, SEED-002) and applies field mutations only to VERIFIED findings. grep over the
+          test file for RUN-9 / observation / two-same-(kind,at) returns nothing. The suite pins
+          exactly the paths that already work; the shared-gate-run and non-verified-note shapes are
+          absent. 22/22 green over a still-bypassable oracle — the identical failure mode that shipped
+          the prior version.
     missing:
-      - "Fix checkCarveOut() line 181: replace `promVal === ''` with `rawVal !== promVal` (inequality check, not empty check)."
-      - "Fix checkCarveOut() line 177: build a set of raw notes with non-empty verified_by keyed by (kind, verified_by, by) and require each key to appear in the promoted set; do not continue-skip a null counterpart for provenance-bearing notes."
-      - "Fix findCounterpart() lines 206-210: match counterparts 1:1 on stable identity (e.g. verified_by stamp or (kind, at)); never fall back to sameKind[0] when multiple candidates exist."
-      - "Add RED test cases for CR-01 (mutated verified_by), CR-02 (wholly-dropped finding with 2+ promoted notes), CR-03 (two same-kind notes, one drops a field). Each must assert exit 1 AND name the fault — written RED against current .js first, then the fix turns them green."
-      - "Rebuild compactor.js from fixed compactor.ts (npm run build) and commit the fresh .js."
-      - "Fix the comment at compactor.ts line 177 to state the actual enforced policy after CR-02 is resolved (IN-01)."
-deferred: []
-behavior_unverified_items: []
-human_verification: []
+      - >-
+        CR-01 fix — make the affirmative existence check MULTIPLICITY-AWARE, not set-membership.
+        Count raw verified notes per identity key and require >= that many promoted notes carrying
+        the same key (or key on a per-note content/body hash or stable id rather than the shared
+        provenance tuple). Add a held-out RED test: two raw findings sharing one gate-run stamp +
+        by + at, promoted drops one -> must refuse.
+        Repro (exit 0 today): raw {sql.md,xss.md} both verified_by §14-gate#RUN-9 / by eng /
+        at 2026-06-17T14:23:05Z, promoted {sql.md} only.
+      - >-
+        CR-02 fix — fail CLOSED on a null counterpart for a NON-VERIFIED durable note. When a raw
+        durable note has no resolvable 1:1 counterpart, that is itself a carve-out finding (its
+        provenance cannot be confirmed intact), not a silent continue at line 197. This forces a
+        deterministic per-note identity so by/at can be honestly verified across compaction. Add
+        held-out RED tests P7 and P8.
+        Repro (exit 0 today): P7 observation, by engineer->attacker AND at re-timestamped;
+        P8 two observations sharing (kind, at), one's by line dropped.
+      - >-
+        IN-01 fix — fold supersedes integrity into the same identity-based affirmative comparison
+        once notes carry stable identities, so a wholly-dropped note's load-bearing supersedes link
+        is detected.
+        Repro (exit 0 today): non-verified decision with supersedes: <id> wholly dropped from the
+        promoted set; one unrelated note promoted.
+      - >-
+        WR-03 fix — add the three held-out adversarial cases (P2b shared gate-run drop-one,
+        P7 non-verified both-fields-mutated, P8 two-same-(kind,at) one-by-dropped) as RED-first
+        tests that fail against today's compactor.js and pass only after the CR-01/CR-02/IN-01 fixes.
 ---
 
-# Phase 22: Memory Trajectory Compaction — Verification Report
+# Phase 22: Memory & Trajectory Compaction Verification Report
 
 **Phase Goal:** Bound the multi-agent token tax with two-tier memory — verbose local trajectory stays in the agent's thread; only compact, re-verified distillations promote to the shared context.
-**Verified:** 2026-06-18T10:05:35Z
+**Verified:** 2026-06-18T14:05:00Z
 **Status:** gaps_found
-**Re-verification:** No — initial verification
+**Re-verification:** Yes — after gap-closure plan 22-03 (focus CMP-02 / SC2)
 
 ## Goal Achievement
 
 ### Observable Truths
 
-| # | Truth | Status | Evidence |
-|---|-------|--------|----------|
-| 1 | Verbose trajectory stays in `.grugops/context/threads/<agent>.md`; only compact distillation reaches shared context; promotion routes through `context-io.appendNote`; promoted finding is re-verified via `admit()` before write (CMP-01, SC1) | ✓ VERIFIED | `writeThread()` writes to `<contextRoot>/<task>/threads/<agent>.md` (compactor.ts lines 232-246). `promote()` is a direct pass-through to `appendNote` (lines 251-258). `reVerify()` is a direct pass-through to `admit()` (lines 263-269). Two-tier separation test (`compactor.test.ts` lines 272-354) verified experimentally: verbose body present in thread tier, absent from notes/. `**/.grugops/context/*/threads/` scoped in `.gitignore`; no blanket `.grugops/context/` ignore present. |
-| 2 | Compaction never drops a load-bearing field — `verified_by`, `failed-attempt`, `supersedes`, and `by`/`at` provenance survive compaction; a RED test fails if any is dropped (CMP-02, SC2) | ✗ FAILED | Three confirmed bypasses in the committed `scripts/compactor.js`, each reproduced directly by invoking `checkCarveOut()` with constructed inputs: **CR-01** — `verified_by` mutated from `§14-gate#SEED-001` to `§14-gate#FORGED-999` returns `[]` (exit 0). Root cause: line 181 condition `rawVal !== "" && promVal === ""` detects only drop-to-empty, not mutation. **CR-02** — a durable verified `finding` wholly deleted from the promoted set passes when ≥2 notes remain. Root cause: line 177 `continue`-skips notes with no counterpart. **CR-03** — reviewer `finding` with `by` stripped passes when an engineer `finding` exists (same kind). Root cause: `findCounterpart` lines 206-210 falls back to `sameKind[0]` when `byMatch` fails, borrowing the intact sibling. The test oracle (`compactor.test.ts`) pins only the cooperative drop-to-empty path in a single-note set — the one path that works — and produces green results through all three bypasses (WR-04 confirmed). |
-| 3 | `context.compaction: aggressive\|balanced\|retain-raw` dial changes how aggressively trajectories are distilled, defaults to `aggressive` when absent, and is documented across all three config surfaces (CMP-03, SC3) | ✓ VERIFIED | `context.compaction: "aggressive"` present in `agent-factory/config/factory.config.json` and `agent-factory/seed/.grugops/factory.config.json`; `diff` of the two files produces zero output (byte-twin, D-06). `agent-factory/config/factory.config.md` contains a `### context` sub-field section, a `context.compaction` row in the lean→enterprise dial-contract table, and the zero-config defaults paragraph updated to 9 keys listing `context.compaction` as defaulting to `aggressive` when absent. `readCompactionDial()` tested: no-file → `aggressive`, no-key → `aggressive`, explicit `retain-raw` → `retain-raw`. |
-| 4 | A role following Workflow 18 (`18-context-compaction.md`) compacts by the single-source protocol, and other roles reference it rather than restating it (CMP-03, SC4) | ✓ VERIFIED | `agent-factory/workflows/18-context-compaction.md` exists with `order: 18`, `# Workflow: context compaction`, all required sections (`## When to use`, `## Steps`, `## Stop conditions`, `## Done condition`, `## Commit`). References both `16-context-read-write.md` and `05-pr-quality-gate.md` without restating their content. Ordinal preserved at 18 (not renumbered to 17). `grep -rln '18-context-compaction.md' agent-factory/roles/` returns exactly 17 files (all roles, excluding `_role-switch-protocol.md`). Catalog test asserts `toBe(18)` with `"context compaction"` in `WORKFLOW_NAMES`; `docs/catalog/README.md` contains the WF18 row; `freshness:catalog` passes. |
+| #   | Truth (Success Criterion)                                                                                                       | Status     | Evidence                                                                                                                                                                                                 |
+| --- | ------------------------------------------------------------------------------------------------------------------------------- | ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | (CMP-01) Verbose trajectory stays in `.grugops/context/threads/<agent>.md`; only a compact distillation reaches shared context, re-verified before write. | ✓ VERIFIED | `.gitignore:12` scopes `**/.grugops/context/*/threads/`; no blanket `.grugops/context/` ignore. `writeThread`/`promote`/`reVerify` in compactor.ts:284-321 implement the two tiers; promote routes only through `appendNote` (D-02.3). Test suite proves two-tier separation + sole-writer byte-identity. |
+| 2   | (CMP-02) Compaction never drops a load-bearing field — `verified_by`/`failed-attempt`/`supersedes`/`by`/`at` survive; a RED test fails if any is dropped. Un-cheatable. | ✗ FAILED   | THREE bypasses reproduced at exit 0 against committed `scripts/compactor.js`: CR-01 (compactor.ts:225-241), CR-02 (compactor.ts:194-219 + 251-263), IN-01 (supersedes). Suite is 22/22 green but pins only single-instance shapes. See gaps. |
+| 3   | (CMP-03) The `context.compaction: aggressive\|balanced\|retain-raw` dial works, defaults to `aggressive`, documented across all 3 config surfaces.    | ✓ VERIFIED | `readCompactionDial` (compactor.ts:268-279) defaults to `aggressive` on missing file/key/parse-error (D-06). `factory.config.md:91,107` + both `factory.config.json` defaults = `aggressive`. Dial documented in config doc, JSON, and Workflow 18. Tests: default-on-absent + dial-invariance + byte-identical-across-dials. |
+| 4   | (CMP-03) A role following Workflow 18 compacts by the single-source protocol; other roles reference it.                          | ✓ VERIFIED | `agent-factory/workflows/18-context-compaction.md:9` declares it the single source of the two-tier protocol; 10+ roles reference `18-context-compaction`/`Workflow 18` rather than restating it. Workflow 18 hands the proposed set to the compactor and honors its refusal (line 38). |
 
-**Score:** 3/4 truths verified (0 behavior-unverified)
+**Score:** 3/4 truths verified (0 present, behavior-unverified). CMP-02 FAILED.
 
 ### Required Artifacts
 
-| Artifact | Expected | Status | Details |
-|----------|----------|--------|---------|
-| `scripts/compactor.ts` | Deterministic carve-out invariant checker; imports context-io.js; never summarizes | ✗ STUB (logic flaw) | File exists, imports from `./context-io.js`, structure is correct. The `checkCarveOut()` function is substantively implemented but has three confirmed logic errors that render the carve-out invariant unenforceable for realistic inputs. See gaps. |
-| `scripts/compactor.js` | Committed tsc output of compactor.ts (freshness-gated) | ✗ STUB (inherited) | Exists and byte-fresh vs compactor.ts (`npm run freshness` exits 0). The bugs in the .ts are faithfully compiled into the .js. |
-| `scripts/compactor.test.ts` | RED-fixture-first vitest oracle: one drop case per carve-out element + GOOD + dial-invariance + re-verify | ✗ STUB (inadequate coverage) | File exists; 14 tests all pass. Test titles match the specified list. However the negative cases exercise only cooperative drop-to-empty in a single-note set — the one code path that works — providing false confidence (WR-04). Three adversarial paths (mutation, wholly-dropped-among-siblings, multi-same-kind) are entirely absent. |
-| `agent-factory/config/factory.config.json` | context.compaction dial (lean default aggressive) | ✓ VERIFIED | `context.compaction: "aggressive"` present. |
-| `agent-factory/seed/.grugops/factory.config.json` | Byte-twin of the config dial | ✓ VERIFIED | Byte-identical to the main config (diff: zero output). |
-| `agent-factory/config/factory.config.md` | context sub-field reference + lean→enterprise dial-contract row + absent-default documentation | ✓ VERIFIED | All three documentation locations present and correct. |
-| `.gitignore` | Ephemeral threads/ tier ignore scoped to `*/threads/` only | ✓ VERIFIED | `**/.grugops/context/*/threads/` present; no blanket `.grugops/context/` ignore. |
-| `agent-factory/workflows/18-context-compaction.md` | Single-source compaction protocol; order:18; references WF16 + §14 gate | ✓ VERIFIED | All checks pass. |
+| Artifact                  | Expected                                              | Status     | Details                                                                                                                                  |
+| ------------------------- | ----------------------------------------------------- | ---------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| `scripts/compactor.ts`    | Hardened carve-out oracle (un-cheatable)              | ⚠️ STUB-OF-INTENT | Exists, substantive, wired to context-io (`appendNote`/`admit`), freshness-gated. BUT does NOT achieve its stated invariant — bypassable 3 ways. |
+| `scripts/compactor.js`    | Byte-fresh tsc output of compactor.ts                 | ✓ VERIFIED | Present (mtime 2026-06-18T10:49Z ≥ .ts 10:43Z); is the artifact the tests + repros run against.                                          |
+| `scripts/compactor.test.ts` | Adversarial RED-first oracle for every drop/alter shape | ⚠️ INSUFFICIENT | 22/22 green, but covers only single-instance verified-note shapes. Missing shared-gate-run, non-verified-note, both-fields-mutated cases (WR-03). |
 
 ### Key Link Verification
 
-| From | To | Via | Status | Details |
-|------|----|-----|--------|---------|
-| `scripts/compactor.ts` | `scripts/context-io.ts` | `import { appendNote, admit } from "./context-io.js"` | ✓ WIRED | Line 57 confirmed. `promote()` delegates to `appendNote`; `reVerify()` delegates to `admit()`. |
-| `scripts/compactor.ts` | `scripts/freshness.ts` | `collectJs()` auto-globs `scripts/*.js` | ✓ WIRED | `freshness.ts` discovers `compactor.js`; `npm run freshness` exits 0. |
-| `agent-factory/config/factory.config.json` | `agent-factory/seed/.grugops/factory.config.json` | Byte-twin invariant (D-06) | ✓ WIRED | `diff` produces zero output. |
-| `agent-factory/roles/*.md` | `agent-factory/workflows/18-context-compaction.md` | One-line pointer per role | ✓ WIRED | 17/17 role files carry the pointer. |
-| `agent-factory/workflows/18-context-compaction.md` | `agent-factory/workflows/16-context-read-write.md` | References WF16's admission rules | ✓ WIRED | `16-context-read-write.md` referenced in WF18 body; content not restated. |
-
-### Data-Flow Trace (Level 4)
-
-Not applicable — this phase produces tooling scripts and configuration/documentation, not UI components that render dynamic data.
+| From               | To                  | Via                                  | Status   | Details                                                                                  |
+| ------------------ | ------------------- | ------------------------------------ | -------- | ---------------------------------------------------------------------------------------- |
+| `scripts/compactor.ts` | `scripts/context-io.ts` | imports `appendNote`/`admit`; promote routes only through appendNote | ✓ WIRED  | compactor.ts:53-57 imports; promote() (303-310) + reVerify() (315-321) are pass-throughs. Sole-writer test asserts byte-identity vs direct appendNote. |
+| `scripts/compactor.ts` | `scripts/freshness.ts`  | freshness globs scripts/*.js; rebuilt compactor.js rejoins drift gate | ✓ WIRED  | compactor.js present and consumed; covered by the existing freshness gate (D-13).        |
+| Workflow 18        | `scripts/compactor.ts`  | hands proposed promoted set to the carve-out check, honors refusal    | ✓ WIRED  | 18-context-compaction.md:38 instructs running the checker and honoring its non-zero exit. |
 
 ### Behavioral Spot-Checks
 
-| Behavior | Command | Result | Status |
-|----------|---------|--------|--------|
-| CR-01: mutated `verified_by` (non-empty → different non-empty) is refused | `checkCarveOut(rawMap, mutatedMap)` where `verified_by` changes from `§14-gate#SEED-001` to `§14-gate#FORGED-999` | `[]` (exit 0) | ✗ FAIL — BYPASS CONFIRMED |
-| CR-02: wholly-dropped durable verified finding with ≥2 promoted notes is refused | `checkCarveOut(raw={finding,FA-1}, promoted={FA-1,FA-2})` | `[]` (exit 0) | ✗ FAIL — BYPASS CONFIRMED |
-| CR-03: two same-kind notes, one drops `by`, is refused | `checkCarveOut(raw={eng-finding,rev-finding}, promoted=rev strips by)` | `[]` (exit 0) | ✗ FAIL — BYPASS CONFIRMED |
-| Cooperative drop-to-empty path (what the test suite actually pins) | `runCheck(thread, promoted, {finding: {verified_by: ""}})` | exit 1, names `verified_by` | ✓ PASS — but this is the only working path |
-| Test suite green | `npx vitest run scripts/compactor.test.ts` | 14/14 passed | ✓ PASS (green for wrong reasons — suite does not cover the bypassed paths) |
-| Compactor.js byte-fresh | `npm run freshness` | exit 0, 17 files fresh | ✓ PASS |
+| Behavior                                                  | Command                                                                 | Result                                              | Status |
+| --------------------------------------------------------- | ----------------------------------------------------------------------- | --------------------------------------------------- | ------ |
+| CR-01: drop one of two findings sharing one gate-run stamp | `node scripts/compactor.js check <thread> <promoted>` (raw {sql,xss} §14-gate#RUN-9; promoted {sql}) | `carve-out intact` / exit 0 — verified XSS finding silently dropped | ✗ FAIL (BYPASS) |
+| CR-02 (P7): non-verified observation, `by` engineer->attacker + `at` re-timestamped | same CLI, empty verified_by, both fields mutated                       | `carve-out intact` / exit 0 — tampered provenance survived | ✗ FAIL (BYPASS) |
+| CR-02 (P8): two same-`(kind,at)` observations, one's `by` dropped | same CLI, ambiguous counterpart                                         | `carve-out intact` / exit 0 — dropped `by` survived | ✗ FAIL (BYPASS) |
+| IN-01: non-verified decision with `supersedes` wholly dropped | same CLI, decision absent from promoted                                | `carve-out intact` / exit 0 — supersedes link lost  | ✗ FAIL (BYPASS) |
+| Full compactor test suite (necessary-but-insufficient)    | `npx vitest run scripts/compactor.test.ts`                              | 22 passed (22)                                      | ✓ PASS (but insufficient — pins only working shapes) |
+| CMP-01 gitignore scoping                                  | `grep -nE "context/\*/threads/" .gitignore`                            | `**/.grugops/context/*/threads/`; no blanket ignore | ✓ PASS |
+| CMP-03 dial default                                       | `readCompactionDial` on absent file/key                                | `aggressive`                                        | ✓ PASS |
 
 ### Requirements Coverage
 
-| Requirement | Source Plan | Description | Status | Evidence |
-|-------------|-------------|-------------|--------|----------|
-| CMP-01 | 22-01-PLAN.md | Two-tier compaction: verbose trajectory stays in threads/; only compact distillations promote | ✓ SATISFIED | `writeThread()` and `promote()` implement the two-tier separation. Tests confirm verbose body absent from notes/. |
-| CMP-02 | 22-01-PLAN.md | Load-bearing-field carve-out; RED test fails if any field dropped | ✗ BLOCKED | checkCarveOut() has three confirmed logic bypasses (mutation, wholly-dropped-finding, multi-same-kind). Test oracle pins only the one code path that works. The safety invariant is NOT enforced for adversarial inputs. |
-| CMP-03 | 22-01-PLAN.md, 22-02-PLAN.md | context.compaction dial + WF18 single-source protocol | ✓ SATISFIED | Dial present in 3 config surfaces, byte-twin confirmed, defaults to aggressive. WF18 exists as single-source protocol, 17 role pointers present. |
+| Requirement | Source Plan         | Description                                                | Status        | Evidence                                                                                          |
+| ----------- | ------------------- | ---------------------------------------------------------- | ------------- | ------------------------------------------------------------------------------------------------- |
+| CMP-01      | 22-01               | Two-tier compaction (thread tier / shared context)         | ✓ SATISFIED   | Truth 1; gitignore + writeThread/promote + sole-writer test.                                      |
+| CMP-02      | 22-01, 22-03 (gaps) | Load-bearing-field carve-out; RED test fails on any drop   | ✗ BLOCKED     | Truth 2 FAILED; 3 bypasses at exit 0. REQUIREMENTS.md:119 already marks CMP-02 "In Progress".      |
+| CMP-03      | 22-02               | Dial (default aggressive), re-verify, Workflow 18 single-source | ✓ SATISFIED   | Truths 3 & 4; config surfaces + Workflow 18 + dial tests.                                          |
+
+All three phase requirement IDs (CMP-01, CMP-02, CMP-03) are accounted for. No orphaned requirements.
 
 ### Anti-Patterns Found
 
-| File | Line | Pattern | Severity | Impact |
-|------|------|---------|----------|--------|
-| `scripts/compactor.ts` | 177 | Comment "a wholly-dropped durable note is the agent's call" directly contradicts the stated safety contract in the header (lines 18-19) | 🛑 BLOCKER | Operators reading the comment would believe the behavior is intentional; it enables a silent bypass of the carve-out for deletion of verified findings. |
-| `scripts/compactor.ts` | 181 | `rawVal !== "" && promVal === ""` — only catches drop-to-empty, not mutation | 🛑 BLOCKER | Allows any load-bearing field to be mutated to a different value (including a forged stamp) without detection. |
-| `scripts/compactor.ts` | 206-210 | `findCounterpart` falls back to `sameKind[0]` when `byMatch` fails and `sameKind.length > 1` | 🛑 BLOCKER | Ambiguous 1:N matching masks dropped fields on one of N same-kind notes. |
-| `scripts/compactor.test.ts` | 135-269 | No test cases for field mutation, wholly-dropped findings with siblings, or multi-same-kind scenarios | 🛑 BLOCKER | The RED-first oracle gives false confidence in a safety-critical invariant; the suite stays green through all three confirmed bypasses. |
+| File                  | Line     | Pattern                                          | Severity   | Impact                                                                                       |
+| --------------------- | -------- | ------------------------------------------------ | ---------- | -------------------------------------------------------------------------------------------- |
+| `scripts/compactor.ts` | 197      | `if (!counterpart) continue;` — fail-OPEN for a fail-CLOSED safety oracle | 🛑 BLOCKER | A non-verified durable note with no resolvable 1:1 counterpart skips the alter/drop check; tampered/dropped `by`/`at` survives. |
+| `scripts/compactor.ts` | 225-234  | Set-membership (`.has`) instead of multiplicity count for verified existence | 🛑 BLOCKER | Two findings sharing one gate-run stamp collapse to one key; one surviving note covers both — a verified finding can be dropped. |
+| `scripts/compactor.ts` | 187-193  | Header comment claims `by`/`at` protected "on every promoted note" — contradicted by code | ⚠️ WARNING | A safety-surface comment overstates the guarantee; CLAUDE.md treats clarity on safety topics as a hard rule. |
+| `scripts/compactor.test.ts` | 135-376 | Negative cases all use unique `verified_by` + verified findings only | ⚠️ WARNING | False-confidence suite; 22/22 green over a bypassable oracle. |
+
+No unreferenced debt markers (TBD/FIXME/XXX) found in the modified files.
 
 ### Human Verification Required
 
-None — all gaps are programmatically confirmed with code-level evidence.
+None. All gaps are mechanically reproduced (exit 0 on the committed `.js`) — no human judgment needed to confirm the failure.
 
 ### Gaps Summary
 
-**Success Criterion 2 (CMP-02) is not met.** The `checkCarveOut()` function — the stated un-cheatable mechanical floor — has three independent code-level bypasses confirmed against the committed `scripts/compactor.js`:
+The phase goal's mechanical floor — the CMP-02 carve-out, the *un-cheatable* guarantee that no
+load-bearing provenance field is silently dropped on the path from raw thread to promoted notes —
+is **not achieved**. Gap-closure 22-03 genuinely closed the three ORIGINAL single-instance bypasses
+(forged/mutated `verified_by`, mutated `by` on a stamped finding, wholly-dropped verified finding
+with a unique stamp, the ambiguous same-kind borrow) and added real fail-closed input/degrade
+hardening (WR-01/WR-02/WR-03) — those are confirmed closed.
 
-**CR-01 (mutation bypass):** The condition at line 181 is `rawVal !== "" && promVal === ""`. It catches only drop-to-empty. Any mutation from one non-empty value to a different non-empty value passes silently — including forging a `verified_by` stamp from `§14-gate#SEED-001` to `§14-gate#FORGED-999`. Reproduction: `checkCarveOut(raw={verified_by: "§14-gate#SEED-001"}, promoted={verified_by: "§14-gate#FORGED-999"})` → `[]`.
+But the hardening INTRODUCED a new collision bypass (CR-01) and LEFT the original sin reachable for
+non-verified notes (CR-02), and `supersedes` is never affirmatively checked (IN-01). All three were
+reproduced THIS verification, returning `carve-out intact` / exit 0 against the committed
+`scripts/compactor.js`:
 
-**CR-02 (wholly-dropped durable finding bypass):** Line 177 `continue`-skips raw notes with no counterpart, with the comment "a wholly-dropped durable note is the agent's call." A verified `finding` carrying `verified_by: §14-gate#SEED-001` can be deleted entirely from the promoted set when ≥2 other notes exist. The `promoted.size === 1` fallback in `findCounterpart` accidentally catches the trivial single-note case — which is the only case the test exercises. Reproduction: `checkCarveOut(raw={finding,FA-1}, promoted={FA-1,FA-2})` → `[]`.
+- **CR-01** (compactor.ts:225-241): keying on a shared `(kind, verified_by, by, at)` tuple in a Set
+  lets two findings from one gate run collapse to one key — drop one, exit 0.
+- **CR-02** (compactor.ts:194-219, 251-263): `if (!counterpart) continue` is fail-open; a
+  non-verified note with both `by` and `at` mutated (or an ambiguous `(kind,at)`) skips the check —
+  a `by` swapped engineer->attacker survives, exit 0.
+- **IN-01** (compactor.ts:198, 225-241): `supersedes` (a SC2-named load-bearing field) is policed
+  only via the 1:1 counterpart; a wholly-dropped note loses its supersedes link undetected.
 
-**CR-03 (multi-same-kind ambiguity bypass):** `findCounterpart` lines 209-210 returns `sameKind[0]` unconditionally when `byMatch` fails and `sameKind.length > 1`. A dropped `by` on one of two same-kind notes is compared against the intact sibling, masking the drop. Reproduction: two findings, one loses `by` → `checkCarveOut` returns `[]`.
+This is the exact failure mode flagged in MEMORY (a green suite is not proof for a safety
+invariant): the 22-test suite is fully GREEN yet pins only the shapes that already work. SC2's bar
+is that the oracle REFUSES every drop/alteration, not that the shipped tests pass.
 
-**WR-04 (test oracle inadequacy):** All negative cases in `compactor.test.ts` drop a field to empty string in a single-durable-note set. This is the cooperative drop path that the current logic happens to handle. None of the adversarial cases (mutation, deletion, multi-same-kind) appear in the test suite. The suite will remain green through all three bypasses without any code changes.
+CMP-01 and CMP-03 are UNTOUCHED by 22-03 and confirmed to still hold (regression clean).
 
-SC1 (two-tier separation), SC3 (dial configuration), and SC4 (WF18 single-source protocol) are fully verified.
+Status: **gaps_found**. Route to `/gsd-plan-phase 22 --gaps` — the CR-01 multiplicity fix, the
+CR-02 fail-closed-on-null-counterpart fix, the IN-01 affirmative `supersedes` check, and held-out
+RED-first tests (P2b/P7/P8) are specified with file:line and a one-line repro each in the frontmatter.
 
 ---
 
-_Verified: 2026-06-18T10:05:35Z_
+_Verified: 2026-06-18T14:05:00Z_
 _Verifier: Claude (gsd-verifier)_
