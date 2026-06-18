@@ -167,47 +167,83 @@ export function checkCarveOut(
     }
   }
 
-  // 2. The load-bearing provenance fields must be intact on every promoted durable note (D-02.2).
-  // For each non-failed-attempt note in the raw thread, find its promoted counterpart (match by
-  // kind + by, falling back to kind alone when a single note of that kind exists) and confirm no
-  // load-bearing field present in the raw note was dropped/emptied in the promoted note.
+  // 2. The load-bearing provenance fields must be INTACT — never dropped AND never mutated — on
+  // every promoted durable note (D-02.2). Policy (IN-01): a durable note carrying a NON-EMPTY
+  // verified_by (a §14-gate-verified finding) MUST survive into the promoted set; deleting it
+  // entirely is REFUSED (a gate verdict cannot be silently repudiated by deleting its finding).
+  // A durable note WITHOUT a verified_by stamp (an unverified claim/observation) MAY be dropped —
+  // that is the agent's legitimate body-compression latitude. For a note that DOES have a
+  // counterpart, no load-bearing field present in the raw note may be dropped-to-empty OR
+  // altered-to-a-different-value in that counterpart.
   for (const [, rawFields] of rawThread) {
     if (rawFields.kind === "failed-attempt") continue;
     const counterpart = findCounterpart(rawFields, promoted);
-    if (!counterpart) continue; // a wholly-dropped durable note is the agent's call; fields are the floor
+    if (!counterpart) continue; // wholly-dropped notes are handled by the CR-02 existence check below
     for (const field of ["verified_by", "supersedes", "by", "at"] as const) {
       const rawVal = rawFields[field];
       const promVal = counterpart[field];
-      if (rawVal !== "" && promVal === "") {
-        findings.push(
-          `carve-out FAIL: load-bearing provenance field "${field}" (value "${rawVal}") was ` +
-            `dropped from a promoted ${rawFields.kind} note — provenance must survive compaction ` +
-            `(CMP-02, D-02.2).`,
-        );
+      // Only a field that is load-bearing in the raw note (non-empty) is protected. Refuse whenever
+      // it was altered at all — distinguishing "dropped to empty" from "altered to <value>".
+      if (rawVal !== "" && rawVal !== promVal) {
+        if (promVal === "") {
+          findings.push(
+            `carve-out FAIL: load-bearing provenance field "${field}" (value "${rawVal}") was ` +
+              `dropped to empty on a promoted ${rawFields.kind} note — provenance must survive ` +
+              `compaction (CMP-02, D-02.2).`,
+          );
+        } else {
+          findings.push(
+            `carve-out FAIL: load-bearing provenance field "${field}" was altered on a promoted ` +
+              `${rawFields.kind} note from "${rawVal}" to "${promVal}" — provenance must survive ` +
+              `compaction unchanged (CMP-02, D-02.2).`,
+          );
+        }
       }
+    }
+  }
+
+  // CR-02. Affirmative existence check: every raw durable note carrying a NON-EMPTY verified_by
+  // must appear in the promoted set, keyed on its stable identity (kind, verified_by, by, at).
+  // A verified finding wholly deleted from the promoted set is REFUSED here — never silently
+  // skipped via a null counterpart above.
+  const verifiedKey = (f: NoteFields) => [f.kind, f.verified_by, f.by, f.at].join(" ");
+  const promotedVerifiedKeys = new Set<string>();
+  for (const [, fields] of promoted) {
+    if (fields.kind !== "failed-attempt" && fields.verified_by !== "") {
+      promotedVerifiedKeys.add(verifiedKey(fields));
+    }
+  }
+  for (const [, rawFields] of rawThread) {
+    if (rawFields.kind === "failed-attempt" || rawFields.verified_by === "") continue;
+    if (!promotedVerifiedKeys.has(verifiedKey(rawFields))) {
+      findings.push(
+        `carve-out FAIL: a §14-gate-verified ${rawFields.kind} note (verified_by "${rawFields.verified_by}", ` +
+          `by "${rawFields.by}") was wholly dropped from the promoted set — a verified finding must ` +
+          `survive compaction; a gate verdict cannot be silently repudiated (CMP-02, D-02.2).`,
+      );
     }
   }
 
   return findings;
 }
 
-// Find the promoted note that corresponds to a raw note. Prefer an exact (kind, by) match; when the
-// `by` line was dropped (the "drops by" case), the promoted note's by is empty, so fall back to a
-// single note of the same kind.
+// Find the promoted note that corresponds to a raw note, matching on STABLE identity: prefer the
+// verified_by stamp (CR-01 forbids mutating it), else fall back to the (kind, at) tuple. NEVER
+// borrow an arbitrary sibling: when no deterministic 1:1 match exists, return null and let the
+// CR-02 existence check surface a dropped verified note. A non-1:1 match must not mask a dropped
+// field by borrowing an intact sibling's provenance (CR-03).
 function findCounterpart(raw: NoteFields, promoted: Map<string, NoteFields>): NoteFields | null {
-  const sameKind = [...promoted.values()].filter((p) => p.kind === raw.kind);
-  if (sameKind.length === 0) {
-    // No same-kind note: the by/at line may have been stripped, changing the parsed kind line's
-    // siblings but not the kind itself — so this only fires if the kind was also lost. Match any
-    // single promoted note as the counterpart so a stripped required field is still caught.
-    if (promoted.size === 1) return [...promoted.values()][0];
-    return null;
+  const candidates = [...promoted.values()];
+  // Prefer a unique match on the (unforgeable, CR-01-protected) verified_by stamp.
+  if (raw.verified_by !== "") {
+    const byStamp = candidates.filter((p) => p.verified_by === raw.verified_by);
+    if (byStamp.length === 1) return byStamp[0];
+    if (byStamp.length > 1) return null; // ambiguous — never borrow
   }
-  const byMatch = sameKind.find((p) => p.by === raw.by);
-  if (byMatch) return byMatch;
-  // by was dropped/changed → return the single same-kind note as the counterpart.
-  if (sameKind.length === 1) return sameKind[0];
-  return sameKind[0];
+  // Else match deterministically on the (kind, at) tuple.
+  const byTuple = candidates.filter((p) => p.kind === raw.kind && p.at === raw.at && raw.at !== "");
+  if (byTuple.length === 1) return byTuple[0];
+  return null;
 }
 
 // ── readCompactionDial: read context.compaction from .grugops/factory.config.json at point-of-use. ─
@@ -298,6 +334,16 @@ if (isMain) {
       if (!threadDir || !promotedDir) {
         console.error(
           "usage: compactor.js check <threadDir> <promotedDir> [--compaction=<aggressive|balanced|retain-raw>]",
+        );
+        process.exit(1);
+      }
+      // Fail closed (WR-01): the raw thread being checked MUST exist. A missing/typo'd threadDir
+      // must never be read as an empty map and reported as carve-out intact — that would turn the
+      // safety oracle into a rubber stamp. The promotedDir MAY legitimately be empty pre-promotion.
+      if (!existsSync(threadDir)) {
+        console.error(
+          `compactor: thread directory "${threadDir}" does not exist — refusing to report ` +
+            "carve-out status for a missing raw thread (fail-closed, CMP-02, WR-01).",
         );
         process.exit(1);
       }
