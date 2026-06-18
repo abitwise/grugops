@@ -4,15 +4,15 @@ milestone: v2.0
 milestone_name: Decentralized Factory — Shared Verified Context
 current_phase: 22
 current_phase_name: memory-trajectory-compaction-dialable-token-economy
-status: gaps_found
-stopped_at: "Phase 22 re-verification gaps_found (3/4). 22-03 fixed the 3 original single-instance carve-out bypasses, but deep code review + verifier reproduced 2 NEW bypasses against the committed compactor.js: CR-01 (identity-key collision — existence check uses Set membership not count) + CR-02 (fail-open null-counterpart for non-verified notes), plus IN-01 (supersedes never affirmatively checked). CMP-02/SC2 still fails. Next: /gsd-plan-phase 22 --gaps"
-last_updated: "2026-06-18T11:07:00.000Z"
+status: planned
+stopped_at: "Phase 22 gap-closure plan 22-04 PLANNED + converged (round 3, CMP-02). Stable-id rewrite: promote noteId to a frozen `id:` field; carve-out becomes an id-keyed exact 1:1 match (affirmative existence + fail-closed + byte-equal load-bearing fields); delete verifiedKey Set + findCounterpart tuple fallback; strict drop policy (only the raw-grounded supersedes fold removes a note; failed-attempt ids + verified findings survive unconditionally). 7 held-out RED-first cases. Plan passed a 3-iteration adversarial plan-check loop that caught + closed 2 new bypasses during planning (forged promoted-side fold; raw-side verified-finding fold). Next: /gsd-execute-phase 22"
+last_updated: "2026-06-18T15:30:00.000Z"
 last_activity: 2026-06-18
-last_activity_desc: Phase 22 re-verification after 22-03 gap-closure — gaps_found (CMP-02 carve-out still bypassable 2 ways)
+last_activity_desc: Phase 22 gap-closure round 3 planned — 22-04 stable-id rewrite; converged after 3 adversarial plan-check iterations (PASS, no residual false-accept)
 progress:
   total_phases: 7
   completed_phases: 3
-  total_plans: 11
+  total_plans: 12
   completed_plans: 11
   percent: 43
 ---
@@ -28,10 +28,10 @@ See: .planning/PROJECT.md (updated 2026-06-16 — after v1.2 milestone)
 
 ## Current Position
 
-Phase: 22 (memory-trajectory-compaction-dialable-token-economy) — GAPS FOUND (re-verification)
-Plan: 3 of 3 executed (22-03 gap-closure shipped: 5 commits, 22/22 tests green, freshness 0)
-Status: Re-verification gaps_found (3/4 SCs). CMP-01 + CMP-03 hold. CMP-02/SC2 STILL FAILS — the carve-out oracle is bypassable two ways the green suite never exercises: CR-01 identity-key collision (compactor.ts:225-241, Set membership not count) and CR-02 fail-open null-counterpart for non-verified notes (compactor.ts:194-219/197), plus IN-01 supersedes never affirmatively checked. All 3 reproduced at exit 0 against the committed compactor.js by both the deep code review (22-REVIEW.md) and the verifier (22-VERIFICATION.md). Next: /gsd-plan-phase 22 --gaps
-Last activity: 2026-06-18 — Phase 22 re-verification: deep code review + verifier reproduced 2 new carve-out bypasses; gaps_found
+Phase: 22 (memory-trajectory-compaction-dialable-token-economy) — GAP-CLOSURE PLANNED (round 3, 22-04)
+Plan: 22-04 written + plan-checker PASS (CMP-02 only; 22-01/02/03 shipped). 4 tasks, 1 wave, test-first.
+Status: Planned. The round-3 fix is the STABLE-ID REWRITE (orchestrator+user decided): the carve-out's bypass class (CR-01 collision / CR-02 fail-open / IN-01 supersedes) traces to ONE defect — no stable per-note identity, so the oracle guessed raw→promoted from forgeable content tuples. 22-04 threads the existing noteId (`<at-compact>-<by>-<kind>-<nonce>`) through as a frozen `id:` frontmatter field and makes the match an id-keyed exact 1:1 (affirmative existence + fail-closed + byte-equal load-bearing fields); deletes verifiedKey Set + findCounterpart; strict drop policy = only the RAW-GROUNDED supersedes fold (currentState(rawThread)) removes a note, and failed-attempt ids + verified findings survive UNCONDITIONALLY (never supersede-foldable). CR-01 reproduced live this session (exit 0). Plan converged through a 3-iteration adversarial plan-check (opus) that found + closed 2 NEW bypasses during planning: forged promoted-side supersedes-fold, and raw-side verified-finding fold. 7 held-out RED-first cases pin the whole class; both committed .js rebuilt + freshness gated last. Next: /gsd-execute-phase 22
+Last activity: 2026-06-18 — Phase 22 gap-closure round 3 planned (22-04); converged after 3 adversarial plan-check iterations (final PASS, no residual false-accept)
 
 ## Performance Metrics
 
