@@ -4,17 +4,17 @@ milestone: v2.0
 milestone_name: Decentralized Factory — Shared Verified Context
 current_phase: 22
 current_phase_name: memory-trajectory-compaction-dialable-token-economy
-status: executing
+status: verifying
 stopped_at: Phase 22 context gathered
-last_updated: "2026-06-18T09:43:15.182Z"
+last_updated: "2026-06-18T09:52:22.854Z"
 last_activity: 2026-06-18
 last_activity_desc: Phase 22 execution started
 progress:
   total_phases: 7
-  completed_phases: 2
+  completed_phases: 3
   total_plans: 10
-  completed_plans: 9
-  percent: 29
+  completed_plans: 10
+  percent: 43
 ---
 
 # Project State
@@ -30,7 +30,7 @@ See: .planning/PROJECT.md (updated 2026-06-16 — after v1.2 milestone)
 
 Phase: 22 (memory-trajectory-compaction-dialable-token-economy) — EXECUTING
 Plan: 2 of 2
-Status: Ready to execute
+Status: Phase complete — ready for verification
 Last activity: 2026-06-18 — Phase 22 execution started
 
 ## Performance Metrics
@@ -162,6 +162,7 @@ Last activity: 2026-06-18 — Phase 22 execution started
 | Phase 21 P03 | 8m | 2 tasks | 23 files |
 | Phase 21 P04 | 3m | 2 tasks | 3 files |
 | Phase 22 P01 | 6min | 3 tasks | 7 files |
+| Phase 22 P02 | 8min | 3 tasks | 24 files |
 
 ## Accumulated Context
 
@@ -367,6 +368,7 @@ Recent decisions affecting current work:
 - [Phase ?]: [21-04] CR-01 closed: parseNote normalizes CRLF/CR to LF before the fence match so a git-autocrlf (Windows) green verdict admits its finding identically to LF; RED 3e4991a GREEN 51f3b24 freshness 0
 - [Phase ?]: compactor.ts is a read-only carve-out invariant checker over (raw thread -> promoted notes); never summarizes, forks no writer — promotion stays in appendNote, re-verify in admit (Phase 22 D-01/D-02/D-12)
 - [Phase ?]: context.compaction dial (aggressive|balanced|retain-raw; lean default aggressive) tunes body verbosity only; durable note set + carve-out fields are un-dialable at every value (D-05)
+- [Phase ?]: WF18 single-source compaction protocol: order:18 (Pitfall 2), references WF16+§14-gate (D-10), restates nothing; the additive WF18 role pointer re-baselined guard_role_size for 5 roles per the Phase-21 WF16 convention
 
 ### Pending Todos
 
@@ -416,7 +418,7 @@ Items acknowledged and deferred at the **v1.2 milestone close on 2026-06-16** (1
 
 ## Session Continuity
 
-Last session: 2026-06-18T09:42:56.531Z
+Last session: 2026-06-18T09:51:18.700Z
 Stopped at: Phase 22 context gathered
 Resume file: .planning/phases/22-memory-trajectory-compaction-dialable-token-economy/22-CONTEXT.md
 
