@@ -60,6 +60,7 @@ const mod: typeof import("./compactor.js") = await import(
 // A complete, valid note frontmatter+body the carve-out cases mutate one field of.
 function noteText(over: Partial<Record<string, string>> = {}): string {
   const f: Record<string, string> = {
+    id: "20260617T142305Z-engineer-finding-seed0001",
     kind: "finding",
     by: "engineer",
     at: "2026-06-17T14:23:05Z",
@@ -70,6 +71,7 @@ function noteText(over: Partial<Record<string, string>> = {}): string {
   };
   return (
     "---\n" +
+    `id: ${f.id}\n` +
     `kind: ${f.kind}\n` +
     `by: ${f.by}\n` +
     `at: ${f.at}\n` +
@@ -97,6 +99,7 @@ function goodRawThread(threadDir: string): void {
   writeFileSync(
     join(threadDir, "FA-1.md"),
     noteText({
+      id: "20260617T142305Z-engineer-failed-attempt-fa1",
       kind: "failed-attempt",
       verified_by: "",
       body: "FA-1: tried a shared in-memory token cache — it broke under concurrent writers.",
@@ -116,6 +119,7 @@ function goodPromotedSet(promotedDir: string, over?: { finding?: Partial<Record<
     writeFileSync(
       join(promotedDir, "FA-1.md"),
       noteText({
+        id: "20260617T142305Z-engineer-failed-attempt-fa1",
         kind: "failed-attempt",
         verified_by: "",
         body: "FA-1: shared token cache broke under concurrency.",
@@ -323,34 +327,37 @@ describe("compactor.js — CMP-02 carve-out invariant (drop refuses, names the f
     const promoted = join(dir, "promoted");
     // Raw: TWO findings of the same kind, different by (engineer + reviewer), plus FA-1.
     mkdirSync(thread, { recursive: true });
+    const engId = "20260617T142305Z-engineer-finding-eng1";
+    const revId = "20260617T150000Z-reviewer-finding-rev1";
     writeFileSync(
       join(thread, "finding-eng.md"),
-      noteText({ kind: "finding", by: "engineer", at: "2026-06-17T14:23:05Z", verified_by: "§14-gate#SEED-001" }),
+      noteText({ id: engId, kind: "finding", by: "engineer", at: "2026-06-17T14:23:05Z", verified_by: "§14-gate#SEED-001" }),
     );
     writeFileSync(
       join(thread, "finding-rev.md"),
-      noteText({ kind: "finding", by: "reviewer", at: "2026-06-17T15:00:00Z", verified_by: "§14-gate#SEED-002" }),
+      noteText({ id: revId, kind: "finding", by: "reviewer", at: "2026-06-17T15:00:00Z", verified_by: "§14-gate#SEED-002" }),
     );
     writeFileSync(
       join(thread, "FA-1.md"),
-      noteText({ kind: "failed-attempt", verified_by: "", body: "FA-1: dead end." }),
+      noteText({ id: "20260617T142305Z-engineer-failed-attempt-fa1", kind: "failed-attempt", verified_by: "", body: "FA-1: dead end." }),
     );
-    // Promoted: both findings, but the reviewer finding has its `by:` line stripped; engineer intact.
+    // Promoted: both findings (distinct ids), but the reviewer finding has its `by:` line stripped;
+    // engineer intact. The id-keyed match isolates the by-drop to the reviewer finding alone.
     mkdirSync(promoted, { recursive: true });
     writeFileSync(
       join(promoted, "finding-eng.md"),
-      noteText({ kind: "finding", by: "engineer", at: "2026-06-17T14:23:05Z", verified_by: "§14-gate#SEED-001" }),
+      noteText({ id: engId, kind: "finding", by: "engineer", at: "2026-06-17T14:23:05Z", verified_by: "§14-gate#SEED-001" }),
     );
     writeFileSync(
       join(promoted, "finding-rev.md"),
-      noteText({ kind: "finding", by: "reviewer", at: "2026-06-17T15:00:00Z", verified_by: "§14-gate#SEED-002" }).replace(
+      noteText({ id: revId, kind: "finding", by: "reviewer", at: "2026-06-17T15:00:00Z", verified_by: "§14-gate#SEED-002" }).replace(
         "by: reviewer\n",
         "",
       ),
     );
     writeFileSync(
       join(promoted, "FA-1.md"),
-      noteText({ kind: "failed-attempt", verified_by: "", body: "FA-1: dead end." }),
+      noteText({ id: "20260617T142305Z-engineer-failed-attempt-fa1", kind: "failed-attempt", verified_by: "", body: "FA-1: dead end." }),
     );
     const r = runCheck(thread, promoted);
     expect(r.status, "a dropped by on one of two same-kind findings must be refused").not.toBe(0);

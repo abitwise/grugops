@@ -50,10 +50,13 @@
 import { readFileSync, readdirSync, mkdirSync, existsSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
+import { randomUUID } from "node:crypto";
 import {
   appendNote,
   admit,
+  currentState,
   type NoteInput,
+  type NoteRecord,
 } from "./context-io.js";
 
 // ── Context root (production). Tests pass an explicit root. ──────────────────────────────────────
@@ -85,30 +88,54 @@ function assertSafeSegment(kind: string, value: string): void {
 // flat key:value scalar shape mirrors context-io.ts's parseNote (we only need the scalar fields the
 // carve-out inspects); CRLF is normalized so a Windows-checkout note reads identically.
 interface NoteFields {
+  id: string;
   kind: string;
   by: string;
   at: string;
   verified_by: string;
   supersedes: string;
   body: string;
+  // Provenance keys that appeared on more than one `key: value` line. The carve-out treats ANY
+  // entry here as a fail-closed structural finding — a duplicate provenance key is the on-disk
+  // signature of a field-injection / id-collision forgery on the path the oracle parses. This
+  // mirrors context-io.ts parseNote's seen/dupes machinery so the duplicate-key defense runs on
+  // the READ path the oracle reads, not only on context-io's write path.
+  duplicateKeys: string[];
 }
+
+// The provenance keys whose duplication is a fail-closed structural finding (mirrors the keys the
+// carve-out and context-io guard). A second line of any of these silently overrides the first under
+// a last-value-wins parse — exactly the forgery the read-path guard must reject.
+const GUARDED_KEYS = ["id", "kind", "by", "at", "verified_by", "supersedes"] as const;
 
 function readNoteFields(text: string): NoteFields | null {
   const normalized = text.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
   const m = normalized.match(/^---\n([\s\S]*?)\n---\n?([\s\S]*)$/);
   if (!m) return null;
   const scalars: Record<string, string> = {};
+  const seen = new Set<string>();
+  const dupes = new Set<string>();
   for (const line of m[1].split("\n")) {
+    // A `refs:` YAML list block's `- item` lines are not provenance scalars; they never match the
+    // kv regex (no `key:` shape), so they cannot register as a duplicate provenance key.
     const kv = line.match(/^([A-Za-z_]+):\s*(.*)$/);
-    if (kv) scalars[kv[1]] = kv[2].trim();
+    if (!kv) continue;
+    const key = kv[1];
+    // Record a duplicate of a GUARDED provenance key once. The parser still keeps the last value
+    // (overwrite) for backward-compatible reads; the carve-out refuses on the recorded duplicate.
+    if (seen.has(key) && (GUARDED_KEYS as readonly string[]).includes(key)) dupes.add(key);
+    seen.add(key);
+    scalars[key] = kv[2].trim();
   }
   return {
+    id: scalars.id ?? "",
     kind: scalars.kind ?? "",
     by: scalars.by ?? "",
     at: scalars.at ?? "",
     verified_by: scalars.verified_by ?? "",
     supersedes: scalars.supersedes ?? "",
     body: m[2]?.trim() ?? "",
+    duplicateKeys: [...dupes],
   };
 }
 
@@ -183,34 +210,135 @@ export function checkCarveOut(
     }
   }
 
-  // 2. The load-bearing provenance fields must be INTACT — never dropped AND never mutated — on
-  // every promoted durable note (D-02.2). Policy (IN-01): a durable note carrying a NON-EMPTY
-  // verified_by (a §14-gate-verified finding) MUST survive into the promoted set; deleting it
-  // entirely is REFUSED (a gate verdict cannot be silently repudiated by deleting its finding).
-  // A durable note WITHOUT a verified_by stamp (an unverified claim/observation) MAY be dropped —
-  // that is the agent's legitimate body-compression latitude. For a note that DOES have a
-  // counterpart, no load-bearing field present in the raw note may be dropped-to-empty OR
-  // altered-to-a-different-value in that counterpart.
-  for (const [, rawFields] of rawThread) {
-    if (rawFields.kind === "failed-attempt") continue;
-    const counterpart = findCounterpart(rawFields, promoted);
-    if (!counterpart) continue; // wholly-dropped notes are handled by the CR-02 existence check below
-    for (const field of ["verified_by", "supersedes", "by", "at"] as const) {
-      const rawVal = rawFields[field];
+  // 0. Read-path structural reject (T-22-04-02). A duplicate provenance key in ANY raw OR promoted
+  // note fails closed BEFORE the id-keyed match — a second `id:` (or kind/by/at/...) line silently
+  // overrides the first under a last-value-wins parse and is the on-disk signature of an id-collision
+  // or field-injection forgery. The duplicate-key defense therefore runs on the path the oracle
+  // parses (readNoteFields), not only context-io's write path.
+  for (const [file, fields] of rawThread) {
+    for (const dup of fields.duplicateKeys) {
+      findings.push(
+        `carve-out FAIL: duplicate provenance key "${dup}" in raw thread note "${file}" — a repeated ` +
+          `provenance line silently overrides the first and is the signature of a forged/colliding ` +
+          `identity; fail closed (CMP-02, T-22-04-02).`,
+      );
+    }
+  }
+  for (const [file, fields] of promoted) {
+    for (const dup of fields.duplicateKeys) {
+      findings.push(
+        `carve-out FAIL: duplicate provenance key "${dup}" in promoted note "${file}" — a repeated ` +
+          `provenance line silently overrides the first and is the signature of a forged/colliding ` +
+          `identity; fail closed (CMP-02, T-22-04-02).`,
+      );
+    }
+  }
+
+  // 2. The id-keyed exact 1:1 carve-out (the STABLE-ID rewrite). Identity is the frozen `id` field
+  // ALONE — never a forgeable/collidable content tuple (verified_by/by/at/kind). The required-
+  // survival set is ASYMMETRIC: it starts from currentState(rawThread) — context-io's deterministic
+  // raw-side supersedes collapse, the ONE fold D-03 sanctions — but because that fold is KIND-BLIND
+  // and verified_by-BLIND, it may remove ONLY soft, non-verified notes. A note with a NON-EMPTY
+  // verified_by (a §14-gate-verified finding) survives the fold UNCONDITIONALLY (probe (b)).
+
+  // Build the promoted-by-id map. A promoted durable note with an absent or duplicate id fails closed.
+  const promotedById = new Map<string, NoteFields>();
+  for (const [file, fields] of promoted) {
+    if (fields.kind === "failed-attempt") continue; // FA survival is rule 1 (FA-token, not id)
+    if (fields.id === "") {
+      findings.push(
+        `carve-out FAIL: promoted ${fields.kind} note "${file}" has no frozen "id" field — every ` +
+          `durable note must carry its creation-time id so the carve-out can match it (CMP-02).`,
+      );
+      continue;
+    }
+    if (promotedById.has(fields.id)) {
+      findings.push(
+        `carve-out FAIL: two promoted notes share the id "${fields.id}" — a colliding identity ` +
+          `cannot be matched 1:1; fail closed (CMP-02).`,
+      );
+      continue;
+    }
+    promotedById.set(fields.id, fields);
+  }
+
+  // Compute currentState(rawThread) over the RAW durable notes read as NoteRecord-shaped values
+  // (id + supersedes are what the supersedes fold needs). This reuses context-io's currentState
+  // BYTE-FOR-BYTE — the raw-side supersedes graph ONLY, never a promoted-side claim.
+  const rawDurable: Array<{ file: string; fields: NoteFields }> = [];
+  for (const [file, fields] of rawThread) {
+    if (fields.kind === "failed-attempt") continue;
+    rawDurable.push({ file, fields });
+  }
+  const rawRecords: NoteRecord[] = rawDurable.map(({ fields }) => ({
+    id: fields.id,
+    kind: fields.kind,
+    by: fields.by,
+    at: fields.at,
+    verified_by: fields.verified_by,
+    confidence: "",
+    refs: [],
+    supersedes: fields.supersedes !== "" ? fields.supersedes : null,
+    body: fields.body,
+  }));
+  const survivingIds = new Set(currentState(rawRecords).map((n) => n.id));
+
+  // The required-survival set: a raw durable note is REQUIRED unless it is a SOFT kind with EMPTY
+  // verified_by AND folded out raw-side (not a currentState survivor). §14-gate-verified findings
+  // (non-empty verified_by) are added back UNCONDITIONALLY: a weaker raw-side supersedes link MUST
+  // NOT fold a verified finding out of the required set (probe (b)). A currentState survivor S that
+  // supersedes a soft note X is itself a survivor, so it is required — that automatically enforces
+  // "the superseding note must itself survive byte-equal" (a dropped S fails its own existence check).
+  for (const { file, fields } of rawDurable) {
+    const isVerified = fields.verified_by !== "";
+    const required = isVerified || survivingIds.has(fields.id);
+    if (!required) continue; // soft, non-verified, folded out raw-side — the one sanctioned removal
+
+    if (fields.id === "") {
+      findings.push(
+        `carve-out FAIL: raw ${fields.kind} note "${file}" has no frozen "id" field — a durable raw ` +
+          `note must carry its creation-time id to be tracked across compaction; fail closed (CMP-02).`,
+      );
+      continue;
+    }
+
+    // Affirmative existence keyed on the frozen id ALONE. A promoted-side `supersedes` line NEVER
+    // authorizes a drop (FORGED-FOLD): the required set is the raw-side graph only.
+    const counterpart = promotedById.get(fields.id);
+    if (!counterpart) {
+      if (isVerified) {
+        findings.push(
+          `carve-out FAIL: a §14-gate-verified ${fields.kind} note (id "${fields.id}", verified_by ` +
+            `"${fields.verified_by}", by "${fields.by}") was dropped from the promoted set — a verified ` +
+            `finding survives compaction unconditionally; neither a promoted-side nor a weaker raw-side ` +
+            `supersedes link can fold it out (CMP-02, T-22-04-05/T-22-04-06).`,
+        );
+      } else {
+        findings.push(
+          `carve-out FAIL: durable ${fields.kind} note id "${fields.id}" present in the raw thread ` +
+            `(live in currentState(rawThread)) was dropped from the promoted set — the only sanctioned ` +
+            `removal is a raw-side supersedes fold of a soft note (CMP-02, D-03).`,
+        );
+      }
+      continue;
+    }
+
+    // Under the matched id, every load-bearing field must be BYTE-EQUAL. A matched note's own
+    // supersedes link is therefore byte-equal-checked and cannot be altered or dropped.
+    for (const field of ["id", "kind", "by", "at", "verified_by", "supersedes"] as const) {
+      const rawVal = fields[field];
       const promVal = counterpart[field];
-      // Only a field that is load-bearing in the raw note (non-empty) is protected. Refuse whenever
-      // it was altered at all — distinguishing "dropped to empty" from "altered to <value>".
-      if (rawVal !== "" && rawVal !== promVal) {
+      if (rawVal !== promVal) {
         if (promVal === "") {
           findings.push(
-            `carve-out FAIL: load-bearing provenance field "${field}" (value "${rawVal}") was ` +
-              `dropped to empty on a promoted ${rawFields.kind} note — provenance must survive ` +
-              `compaction (CMP-02, D-02.2).`,
+            `carve-out FAIL: load-bearing provenance field "${field}" (value "${rawVal}") was dropped ` +
+              `to empty on the promoted note matched by id "${fields.id}" — provenance must survive ` +
+              `compaction byte-equal (CMP-02, D-02.2).`,
           );
         } else {
           findings.push(
-            `carve-out FAIL: load-bearing provenance field "${field}" was altered on a promoted ` +
-              `${rawFields.kind} note from "${rawVal}" to "${promVal}" — provenance must survive ` +
+            `carve-out FAIL: load-bearing provenance field "${field}" was altered on the promoted note ` +
+              `matched by id "${fields.id}" from "${rawVal}" to "${promVal}" — provenance must survive ` +
               `compaction unchanged (CMP-02, D-02.2).`,
           );
         }
@@ -218,48 +346,7 @@ export function checkCarveOut(
     }
   }
 
-  // CR-02. Affirmative existence check: every raw durable note carrying a NON-EMPTY verified_by
-  // must appear in the promoted set, keyed on its stable identity (kind, verified_by, by, at).
-  // A verified finding wholly deleted from the promoted set is REFUSED here — never silently
-  // skipped via a null counterpart above.
-  const verifiedKey = (f: NoteFields) => [f.kind, f.verified_by, f.by, f.at].join(" ");
-  const promotedVerifiedKeys = new Set<string>();
-  for (const [, fields] of promoted) {
-    if (fields.kind !== "failed-attempt" && fields.verified_by !== "") {
-      promotedVerifiedKeys.add(verifiedKey(fields));
-    }
-  }
-  for (const [, rawFields] of rawThread) {
-    if (rawFields.kind === "failed-attempt" || rawFields.verified_by === "") continue;
-    if (!promotedVerifiedKeys.has(verifiedKey(rawFields))) {
-      findings.push(
-        `carve-out FAIL: a §14-gate-verified ${rawFields.kind} note (verified_by "${rawFields.verified_by}", ` +
-          `by "${rawFields.by}") was wholly dropped from the promoted set — a verified finding must ` +
-          `survive compaction; a gate verdict cannot be silently repudiated (CMP-02, D-02.2).`,
-      );
-    }
-  }
-
   return findings;
-}
-
-// Find the promoted note that corresponds to a raw note, matching on STABLE identity: prefer the
-// verified_by stamp (CR-01 forbids mutating it), else fall back to the (kind, at) tuple. NEVER
-// borrow an arbitrary sibling: when no deterministic 1:1 match exists, return null and let the
-// CR-02 existence check surface a dropped verified note. A non-1:1 match must not mask a dropped
-// field by borrowing an intact sibling's provenance (CR-03).
-function findCounterpart(raw: NoteFields, promoted: Map<string, NoteFields>): NoteFields | null {
-  const candidates = [...promoted.values()];
-  // Prefer a unique match on the (unforgeable, CR-01-protected) verified_by stamp.
-  if (raw.verified_by !== "") {
-    const byStamp = candidates.filter((p) => p.verified_by === raw.verified_by);
-    if (byStamp.length === 1) return byStamp[0];
-    if (byStamp.length > 1) return null; // ambiguous — never borrow
-  }
-  // Else match deterministically on the (kind, at) tuple.
-  const byTuple = candidates.filter((p) => p.kind === raw.kind && p.at === raw.at && raw.at !== "");
-  if (byTuple.length === 1) return byTuple[0];
-  return null;
 }
 
 // ── readCompactionDial: read context.compaction from .grugops/factory.config.json at point-of-use. ─
@@ -281,11 +368,18 @@ export function readCompactionDial(configRoot: string = DEFAULT_CONFIG_ROOT): Co
 // ── writeThread: append the verbose local trajectory to the ephemeral threads/<agent>.md tier. ───
 // This is the gitignored local scratch (D-07/D-08). It is NOT the shared context — it never routes
 // through appendNote. mkdirSync on demand mirrors appendNote's notes/ creation.
+//
+// Thread-representation resolution (D-08-consistent): the thread tier stays a SINGLE file per agent
+// (threads/<agent>.md), but each recorded note is appended as an id-BEARING structured fence so the
+// compaction step (Workflow 18 step 3) can parse the file into the per-note raw set the carve-out
+// reads, every raw note carrying the same frozen `id:` its promoted counterpart must preserve. The
+// stamped id is the creation-time noteId() value (the single source of identity raw→promoted).
 export function writeThread(
   task: string,
   agent: string,
   body: string,
   contextRoot: string = DEFAULT_CONTEXT_ROOT,
+  note?: NoteInput,
 ): string {
   assertSafeSegment("task", task);
   assertSafeSegment("agent", agent);
@@ -293,8 +387,40 @@ export function writeThread(
   mkdirSync(threadsDir, { recursive: true });
   const threadPath = join(threadsDir, `${agent}.md`);
   const existing = existsSync(threadPath) ? readFileSync(threadPath, "utf8") : "";
-  writeFileSync(threadPath, existing + (existing && !existing.endsWith("\n") ? "\n" : "") + body + "\n");
+  // When the caller supplies the note's provenance, append an id-bearing structured fence (the frozen
+  // creation-time id is the SAME id a promoted counterpart preserves byte-for-byte). When no
+  // provenance is supplied (free scratch), append the raw body unchanged — the verbose local
+  // trajectory the agent later distills.
+  const record = note
+    ? composeThreadNote(note, body)
+    : body + "\n";
+  writeFileSync(
+    threadPath,
+    existing + (existing && !existing.endsWith("\n") ? "\n" : "") + record,
+  );
   return threadPath;
+}
+
+// ── composeThreadNote: an id-bearing structured note fence for the thread tier. ──────────────────
+// Mirrors context-io's composeNote frontmatter shape (id: first) so the compaction step parses a
+// thread record identically to a promoted note. The id is the frozen creation-time noteId() value.
+function composeThreadNote(note: NoteInput, body: string): string {
+  const id = `${note.at.replace(/[-:]/g, "").replace(/\.\d+/, "")}-${note.by}-${note.kind}-${randomUUID().slice(0, 8)}`;
+  const refsBlock =
+    note.refs.length === 0 ? "refs:\n" : "refs:\n" + note.refs.map((r) => `  - ${r}`).join("\n") + "\n";
+  return (
+    "---\n" +
+    `id: ${id}\n` +
+    `kind: ${note.kind}\n` +
+    `by: ${note.by}\n` +
+    `at: ${note.at}\n` +
+    `verified_by: ${note.verified_by}\n` +
+    `confidence: ${note.confidence}\n` +
+    refsBlock +
+    `supersedes: ${note.supersedes ?? ""}\n` +
+    "---\n\n" +
+    (body.endsWith("\n") ? body : body + "\n")
+  );
 }
 
 // ── promote: the SOLE promotion path (D-02.3) — a thin pass-through to context-io.appendNote. ────
