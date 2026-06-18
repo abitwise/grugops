@@ -23,6 +23,7 @@ This document is the human-readable twin of the JSON. Each top-level field has o
 | `quality` | object | see below | Quality gate settings (keys: `coverage_threshold`, `self_fix_attempts`, `mandatory_gates`, `ui_e2e`, `tdd`, `lint`, `test_integrity`, `gate_enforcement`). |
 | `nfr` | object | see below | Non-functional-requirement targets (keys: `a11y_target`, `perf_p95_ms`, `availability`). |
 | `security` | object | see below | Security-audit settings anchored to OWASP ASVS (keys: `asvs_level`, `block_on`). |
+| `context` | object | see below | Shared-context memory settings (key: `compaction`). |
 | `compliance_regime` | array of strings | `[]` (empty) | Active compliance regimes, e.g. `["GDPR","SOC2"]`. Empty = trigger-only via sensitive-data rules. |
 | `environments` | array of strings | `["dev","staging","prod"]` | Deployment environments the factory recognizes. |
 | `production_requires_human_confirmation` | boolean | `true` | Must stay `true`: agents never deploy to production alone; a named human always confirms. |
@@ -83,6 +84,12 @@ This document is the human-readable twin of the JSON. Each top-level field has o
 | `asvs_level` | `L1` | OWASP ASVS verification level the security audit targets. Allowed: `L1`, `L2`, `L3`. `L1` = baseline; higher levels add depth for sensitive or regulated systems. |
 | `block_on` | `high` | Lowest severity that blocks the gate on a security finding. Allowed: `none`, `low`, `medium`, `high`. `high` = only high-severity findings block; lower values are stricter (more findings block). |
 
+### `context` sub-fields
+
+| Key | Default | Meaning |
+|-----|---------|---------|
+| `compaction` | `aggressive` | How verbose the trajectory bodies promoted into the shared verified context are, and how much of the raw local trajectory reaches the read-by-default (shared) tier. Allowed: `aggressive`, `balanced`, `retain-raw`. This is a **body-verbosity / how-much-raw-reaches-shared knob only** — it is **never** the carve-out: the durable note set (`finding` / `decision` / `failed-attempt` / `artifact-ref`) and the load-bearing provenance fields (`verified_by` / `supersedes` / `by` / `at`, plus every raw `failed-attempt` id) survive identically at every value and cannot be dialled away (un-dialable, D-05). |
+
 ## Config-dial contract (lean → enterprise)
 
 This is the escalation contract for the gate / test-first / security dials. Each row states the key, its allowed values, the **lean default** (what zero-config gives you), and the **Enterprise escalation** (the direction a regulated team turns the dial). Phase 10 documents this contract; the behaviour behind each key is wired in later milestones (BDD/TDD, UI/E2E, ASVS) — turning a dial up does not, by itself, change behaviour until that capability ships.
@@ -97,6 +104,7 @@ This is the escalation contract for the gate / test-first / security dials. Each
 | `quality.gate_enforcement` | `advisory`, `blocking` | `blocking` | `blocking` — already strict at the lean default; there is no looser-than-lean enterprise setting (`advisory` is the relaxed direction, not the escalation). |
 | `security.asvs_level` | `L1`, `L2`, `L3` | `L1` | `L2`, then `L3` with named human sign-off — deeper ASVS verification for sensitive or regulated systems. |
 | `security.block_on` | `none`, `low`, `medium`, `high` | `high` | `medium`, then `low` — more security findings block the gate as the bar rises. |
+| `context.compaction` | `aggressive`, `balanced`, `retain-raw` | `aggressive` | `retain-raw` — full trajectory bodies admitted to the committed shared context (enterprise/audit: pay the tokens to keep the whole record durable). The body/raw verbosity knob is **all** the dial moves; the durable note set and the carve-out (the load-bearing provenance fields + every raw `failed-attempt` id) are **un-dialable at every value** (D-05) — exactly like `quality.test_integrity` has no `off`. |
 
 ## Zero-config defaults
 
@@ -106,6 +114,6 @@ grugops runs with zero configuration. When no `factory.config.json` is present, 
 - `cadence=kanban`
 - `autonomy=pr`
 
-The same holds for the gate / test-first / security dials documented above: every one of the eight keys (`bdd`, `quality.tdd`, `quality.lint`, `quality.ui_e2e`, `quality.test_integrity`, `quality.gate_enforcement`, `security.asvs_level`, `security.block_on`) degrades to its documented lean default when the key — or the whole file — is absent. A missing key is never an error; it is read as its lean default. (The single safety floor is `quality.test_integrity`, which has no `off` value in any mode — TINT-03.)
+The same holds for the gate / test-first / security / memory dials documented above: every one of the nine keys (`bdd`, `quality.tdd`, `quality.lint`, `quality.ui_e2e`, `quality.test_integrity`, `quality.gate_enforcement`, `security.asvs_level`, `security.block_on`, `context.compaction`) degrades to its documented lean default when the key — or the whole file — is absent. A missing key is never an error; it is read as its lean default. So a missing `context.compaction` reads as `aggressive`, exactly the read-at-use, default-on-absent precedent the compactor relies on (D-06). (The single safety floor is `quality.test_integrity`, which has no `off` value in any mode — TINT-03; the carve-out behind `context.compaction` is un-dialable for the same trace-integrity reason — D-05.)
 
 These documented defaults — not the file alone — are what you can rely on. Every role reads the config first and honors it when present, and falls back to these same lean defaults when the file is absent. The shipped `factory.config.json` is simply this lean baseline made visible and editable; deleting it does not change the default behavior.

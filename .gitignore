@@ -4,3 +4,9 @@ node_modules/
 
 # Transient rebuild target used by the freshness gate (D-02).
 .tmp-build/
+
+# Ephemeral local agent trajectory tier (D-07) — never committed. Only the verified
+# shared context (notes/, index.*) under .grugops/context/<task>/ is durable; the
+# verbose per-agent threads/ scratch is local-only. Scoped to */threads/ ONLY — never a
+# blanket .grugops/context/ ignore (that would drop the committed notes/ + index.*).
+**/.grugops/context/*/threads/

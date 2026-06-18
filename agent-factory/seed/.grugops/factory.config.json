@@ -49,6 +49,9 @@
     "asvs_level": "L1",
     "block_on": "high"
   },
+  "context": {
+    "compaction": "aggressive"
+  },
   "compliance_regime": [],
   "environments": ["dev", "staging", "prod"],
   "production_requires_human_confirmation": true,
