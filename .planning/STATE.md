@@ -2,9 +2,10 @@
 gsd_state_version: 1.0
 milestone: v2.0
 milestone_name: Decentralized Factory — Shared Verified Context
+current_phase: 22
 status: ready
-stopped_at: Phase 21 complete (4/4 plans, verification passed)
-last_updated: "2026-06-17T15:21:47.898Z"
+stopped_at: Phase 22 context gathered
+last_updated: "2026-06-18T08:37:46.717Z"
 last_activity: 2026-06-17
 progress:
   total_phases: 7
@@ -410,9 +411,9 @@ Items acknowledged and deferred at the **v1.2 milestone close on 2026-06-16** (1
 
 ## Session Continuity
 
-Last session: 2026-06-17T15:13:58.317Z
-Stopped at: Phase 21 context gathered
-Resume file: .planning/phases/21-verify-before-write-admission-the-14-gate-as-the-un-cheatabl/21-CONTEXT.md
+Last session: 2026-06-18T08:37:46.710Z
+Stopped at: Phase 22 context gathered
+Resume file: .planning/phases/22-memory-trajectory-compaction-dialable-token-economy/22-CONTEXT.md
 
 ## Operator Next Steps
 
