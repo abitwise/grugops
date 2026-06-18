@@ -375,6 +375,322 @@ describe("compactor.js — CMP-02 carve-out invariant (drop refuses, names the f
   });
 });
 
+// ── Held-out RED-first adversarial cases (gap-closure 22-04, the STABLE-ID rewrite). ──────────────
+// These pin the bypass CLASS that survives the content-tuple match: the carve-out has NO stable
+// per-note identity, so it guesses raw→promoted from forgeable, collidable content tuples. Each case
+// is RED-first against the committed PRE-fix compactor.js (it returns exit 0 / carve-out intact) and
+// REFUSES (exit 1) against the post-fix id-keyed carve-out. The fixtures carry an explicit frozen
+// id: frontmatter line; the promoted counterpart preserves it verbatim (or drops the note / mutates
+// one field under it).
+
+// An id-bearing note: the frozen id: line lives immediately after the opening fence (the
+// deterministic slot context-io's composeNote will use). Otherwise the shape mirrors noteText.
+function idNoteText(over: Partial<Record<string, string>> = {}): string {
+  const f: Record<string, string> = {
+    id: "20260617T142305Z-engineer-finding-seed0001",
+    kind: "finding",
+    by: "engineer",
+    at: "2026-06-17T14:23:05Z",
+    verified_by: "§14-gate#SEED-001",
+    confidence: "high",
+    supersedes: "",
+    refs: "AUTH-01",
+    body: "The login endpoint rejects an expired token with a 401.",
+    ...over,
+  };
+  return (
+    "---\n" +
+    `id: ${f.id}\n` +
+    `kind: ${f.kind}\n` +
+    `by: ${f.by}\n` +
+    `at: ${f.at}\n` +
+    `verified_by: ${f.verified_by}\n` +
+    `confidence: ${f.confidence}\n` +
+    `refs:\n  - ${f.refs}\n` +
+    `supersedes: ${f.supersedes}\n` +
+    "---\n\n" +
+    f.body +
+    "\n"
+  );
+}
+
+describe("compactor.js — CMP-02 id-keyed carve-out (gap-closure 22-04, held-out RED-first)", () => {
+  it("CR-01 shared gate-run stamp — drop one of two distinct-id verified findings — refuse, naming the dropped id", () => {
+    const dir = freshTmp("cmp-cr01-");
+    const thread = join(dir, "thread");
+    const promoted = join(dir, "promoted");
+    mkdirSync(thread, { recursive: true });
+    // TWO verified findings sharing ONE §14-gate run stamp / by / at but DISTINCT ids.
+    writeFileSync(
+      join(thread, "sql.md"),
+      idNoteText({
+        id: "20260617T142305Z-engineer-finding-sql1",
+        verified_by: "§14-gate#RUN-9",
+        body: "SQL injection in the search filter is fixed.",
+      }),
+    );
+    writeFileSync(
+      join(thread, "xss.md"),
+      idNoteText({
+        id: "20260617T142305Z-engineer-finding-xss1",
+        verified_by: "§14-gate#RUN-9",
+        body: "Stored XSS in the profile bio is fixed.",
+      }),
+    );
+    mkdirSync(promoted, { recursive: true });
+    // Promoted keeps ONLY the SQL finding; the XSS finding (distinct id) is dropped.
+    writeFileSync(
+      join(promoted, "sql.md"),
+      idNoteText({
+        id: "20260617T142305Z-engineer-finding-sql1",
+        verified_by: "§14-gate#RUN-9",
+        body: "SQL injection in the search filter is fixed.",
+      }),
+    );
+    const r = runCheck(thread, promoted);
+    expect(r.status, "dropping one of two distinct-id findings under a shared stamp must refuse").not.toBe(0);
+    // Names the dropped XSS finding's id.
+    expect(`${r.stdout}${r.stderr}`).toContain("20260617T142305Z-engineer-finding-xss1");
+  });
+
+  it("CR-02 P7 non-verified observation — by engineer→attacker AND at re-timestamped under one id — refuse", () => {
+    const dir = freshTmp("cmp-cr02p7-");
+    const thread = join(dir, "thread");
+    const promoted = join(dir, "promoted");
+    mkdirSync(thread, { recursive: true });
+    // A non-verified observation with a fixed id (empty verified_by).
+    writeFileSync(
+      join(thread, "obs.md"),
+      idNoteText({
+        id: "20260617T142305Z-engineer-observation-obs1",
+        kind: "observation",
+        verified_by: "",
+        body: "The rate limiter resets at midnight UTC.",
+      }),
+    );
+    mkdirSync(promoted, { recursive: true });
+    // SAME id, but by engineer→attacker AND at re-timestamped. The id still matches; by/at are
+    // byte-compared under it.
+    writeFileSync(
+      join(promoted, "obs.md"),
+      idNoteText({
+        id: "20260617T142305Z-engineer-observation-obs1",
+        kind: "observation",
+        verified_by: "",
+        by: "attacker",
+        at: "2099-01-01T00:00:00Z",
+        body: "The rate limiter resets at midnight UTC.",
+      }),
+    );
+    const r = runCheck(thread, promoted);
+    expect(r.status, "a by+at mutation under a matched id must refuse").not.toBe(0);
+    // Names a mutated provenance field (by or at).
+    expect(`${r.stdout}${r.stderr}`).toMatch(/\bby\b|\bat\b/);
+  });
+
+  it("CR-02 P8 two observations sharing (kind, at), distinct ids — one by dropped — refuse, naming by", () => {
+    const dir = freshTmp("cmp-cr02p8-");
+    const thread = join(dir, "thread");
+    const promoted = join(dir, "promoted");
+    mkdirSync(thread, { recursive: true });
+    // TWO observations sharing (kind, at) but DISTINCT ids and distinct by.
+    writeFileSync(
+      join(thread, "obs-a.md"),
+      idNoteText({
+        id: "20260617T142305Z-engineer-observation-a1",
+        kind: "observation",
+        by: "engineer",
+        verified_by: "",
+        body: "Observation A.",
+      }),
+    );
+    writeFileSync(
+      join(thread, "obs-b.md"),
+      idNoteText({
+        id: "20260617T142305Z-reviewer-observation-b1",
+        kind: "observation",
+        by: "reviewer",
+        verified_by: "",
+        body: "Observation B.",
+      }),
+    );
+    mkdirSync(promoted, { recursive: true });
+    writeFileSync(
+      join(promoted, "obs-a.md"),
+      idNoteText({
+        id: "20260617T142305Z-engineer-observation-a1",
+        kind: "observation",
+        by: "engineer",
+        verified_by: "",
+        body: "Observation A.",
+      }),
+    );
+    // Observation B keeps its id but its `by:` line is stripped.
+    writeFileSync(
+      join(promoted, "obs-b.md"),
+      idNoteText({
+        id: "20260617T142305Z-reviewer-observation-b1",
+        kind: "observation",
+        by: "reviewer",
+        verified_by: "",
+        body: "Observation B.",
+      }).replace("by: reviewer\n", ""),
+    );
+    const r = runCheck(thread, promoted);
+    expect(r.status, "a dropped by on one of two same-(kind,at) observations must refuse").not.toBe(0);
+    expect(`${r.stdout}${r.stderr}`).toContain("by");
+  });
+
+  it("IN-01 non-verified decision with supersedes wholly dropped — refuse, naming supersedes / the dropped id", () => {
+    const dir = freshTmp("cmp-in01-");
+    const thread = join(dir, "thread");
+    const promoted = join(dir, "promoted");
+    mkdirSync(thread, { recursive: true });
+    // A non-verified decision carrying a supersedes link, with a fixed id. NOTHING in the raw thread
+    // supersedes it, so it is live in currentState(rawThread).
+    writeFileSync(
+      join(thread, "decision.md"),
+      idNoteText({
+        id: "20260617T142305Z-engineer-decision-dec1",
+        kind: "decision",
+        verified_by: "",
+        supersedes: "20260617T130000Z-engineer-decision-old1",
+        body: "We adopt token rotation; supersedes the earlier static-token decision.",
+      }),
+    );
+    mkdirSync(promoted, { recursive: true });
+    // The decision is WHOLLY dropped; one unrelated note is promoted in its place.
+    writeFileSync(
+      join(promoted, "unrelated.md"),
+      idNoteText({
+        id: "20260617T142305Z-engineer-observation-unr1",
+        kind: "observation",
+        verified_by: "",
+        supersedes: "",
+        body: "An unrelated observation.",
+      }),
+    );
+    const r = runCheck(thread, promoted);
+    expect(r.status, "a wholly-dropped non-verified decision with a supersedes link must refuse").not.toBe(0);
+    // Names the dropped decision's id (and/or its supersedes link).
+    expect(`${r.stdout}${r.stderr}`).toContain("20260617T142305Z-engineer-decision-dec1");
+  });
+
+  it("FORGED-FOLD forged promoted-side supersedes — raw note X live in currentState(rawThread), dropped + a throwaway note carrying supersedes: X promoted in its place — refuse, naming the dropped id X", () => {
+    const dir = freshTmp("cmp-forgedfold-");
+    const thread = join(dir, "thread");
+    const promoted = join(dir, "promoted");
+    mkdirSync(thread, { recursive: true });
+    // A load-bearing verified finding N with id X. NOTHING in the raw thread supersedes X, so X is
+    // live in currentState(rawThread).
+    const X = "20260617T142305Z-engineer-finding-x001";
+    writeFileSync(
+      join(thread, "finding.md"),
+      idNoteText({
+        id: X,
+        verified_by: "§14-gate#RUN-7",
+        by: "engineer",
+        body: "The auth bypass is fixed.",
+      }),
+    );
+    mkdirSync(promoted, { recursive: true });
+    // Promoted DROPS N entirely and promotes a throwaway observation whose supersedes: X is a forged
+    // fold link attempting to AUTHORIZE the drop. A naive promoted-side fold would BYPASS.
+    writeFileSync(
+      join(promoted, "throwaway.md"),
+      idNoteText({
+        id: "20260617T142305Z-attacker-observation-tw01",
+        kind: "observation",
+        verified_by: "",
+        by: "attacker",
+        supersedes: X,
+        body: "A throwaway note forging a fold of the dropped finding.",
+      }),
+    );
+    const r = runCheck(thread, promoted);
+    expect(r.status, "a forged promoted-side supersedes must NOT authorize dropping a raw-live note").not.toBe(0);
+    // Names the dropped finding's id X — the promoted-side supersedes: X does not fold X away.
+    expect(`${r.stdout}${r.stderr}`).toContain(X);
+  });
+
+  it("RAW-FOLD-VERIFIED raw-side supersedes folds away a verified finding — raw has verified finding X (verified_by §14-gate#RUN-7, by engineer, distinct id) + a non-verified observation S carrying supersedes: X; promoted keeps only S — refuse, naming the dropped finding / verified_by", () => {
+    const dir = freshTmp("cmp-rawfoldverified-");
+    const thread = join(dir, "thread");
+    const promoted = join(dir, "promoted");
+    mkdirSync(thread, { recursive: true });
+    // A §14-gate-verified finding X (non-empty verified_by, distinct id).
+    const X = "20260617T142305Z-engineer-finding-vx01";
+    writeFileSync(
+      join(thread, "finding.md"),
+      idNoteText({
+        id: X,
+        verified_by: "§14-gate#RUN-7",
+        by: "engineer",
+        body: "The privilege-escalation hole is fixed (gate-verified).",
+      }),
+    );
+    // A NON-VERIFIED observation S (empty verified_by) carrying a GENUINE raw-side supersedes: X.
+    // A naive currentState(rawThread) would fold X out of the required set (kind-blind fold).
+    writeFileSync(
+      join(thread, "soft.md"),
+      idNoteText({
+        id: "20260617T150000Z-attacker-observation-s001",
+        kind: "observation",
+        verified_by: "",
+        by: "attacker",
+        at: "2026-06-17T15:00:00Z",
+        supersedes: X,
+        body: "A weaker note claiming to supersede the verified finding.",
+      }),
+    );
+    mkdirSync(promoted, { recursive: true });
+    // Promoted keeps ONLY S; the verified finding X is dropped.
+    writeFileSync(
+      join(promoted, "soft.md"),
+      idNoteText({
+        id: "20260617T150000Z-attacker-observation-s001",
+        kind: "observation",
+        verified_by: "",
+        by: "attacker",
+        at: "2026-06-17T15:00:00Z",
+        supersedes: X,
+        body: "A weaker note claiming to supersede the verified finding.",
+      }),
+    );
+    const r = runCheck(thread, promoted);
+    expect(r.status, "a weaker raw-side supersedes must NOT fold a §14-gate-verified finding out of the required set").not.toBe(0);
+    // Names the dropped verified finding's id (the post-fix id-keyed carve-out emits the dropped id;
+    // the pre-fix tuple check never named it). RED-first against BOTH the pre-fix .js and a naive
+    // currentState-folded required-survival set, which would fold X out and pass at exit 0.
+    expect(`${r.stdout}${r.stderr}`).toContain(X);
+  });
+
+  it("read-path duplicate id — a promoted note with two id: lines — fail closed (readNoteFields rejects the duplicate provenance key)", () => {
+    const dir = freshTmp("cmp-dupid-");
+    const thread = join(dir, "thread");
+    const promoted = join(dir, "promoted");
+    mkdirSync(thread, { recursive: true });
+    const X = "20260617T142305Z-engineer-finding-dup1";
+    writeFileSync(
+      join(thread, "finding.md"),
+      idNoteText({ id: X, verified_by: "§14-gate#RUN-7", body: "A verified finding." }),
+    );
+    mkdirSync(promoted, { recursive: true });
+    // The promoted note carries TWO id: lines — a duplicate-key forgery on the path the oracle parses.
+    writeFileSync(
+      join(promoted, "finding.md"),
+      idNoteText({ id: X, verified_by: "§14-gate#RUN-7", body: "A verified finding." }).replace(
+        `id: ${X}\n`,
+        `id: ${X}\nid: 20260617T142305Z-engineer-finding-forged9\n`,
+      ),
+    );
+    const r = runCheck(thread, promoted);
+    expect(r.status, "a duplicate id: line on the read path must fail closed").not.toBe(0);
+    // The structural duplicate-key message names id.
+    expect(`${r.stdout}${r.stderr}`).toMatch(/duplicate.*id|id.*duplicate/i);
+  });
+});
+
 describe("compactor.js — fail-closed input (gap-closure 22-03, WR-01)", () => {
   it("CLI check fails closed on a missing threadDir — exit 1, never carve-out intact", () => {
     const dir = freshTmp("cmp-missing-thread-");
