@@ -415,13 +415,13 @@ function roleCeiling(base: string): string {
     case "security-nfr.md":
       return "5102 4830"; // +Phase-14 D-09 severity-map; measured 4556 B
     case "compliance-officer.md":
-      return "4160 3937";
+      return "4813 4555"; // +Phase-22 WF18 pointer (baseline 4297 B, +12% / +6%)
     case "release-manager.md":
-      return "4144 3922";
+      return "4765 4510"; // +Phase-22 WF18 pointer (baseline 4254 B, +12% / +6%)
     case "agents-md-scribe.md":
-      return "3910 3701";
+      return "4544 4301"; // +Phase-22 WF18 pointer (baseline 4057 B, +12% / +6%)
     case "architect-design.md":
-      return "3617 3423";
+      return "4243 4016"; // +Phase-22 WF18 pointer (baseline 3788 B, +12% / +6%)
     case "ba-pm.md":
       return "4180 3901"; // PERS-02 BA headroom (+20% / +12%); +Phase-21 WF16 pointer (baseline 3483 B)
     case "factory-coach.md":
@@ -431,7 +431,7 @@ function roleCeiling(base: string): string {
     case "incident-responder.md":
       return "3802 3598"; // +Phase-21 WF16 pointer (baseline 3394 B, +12% / +6%)
     case "installer.md":
-      return "3345 3166";
+      return "3938 3727"; // +Phase-22 WF18 pointer (baseline 3516 B, +12% / +6%)
     case "software-engineer.md":
       return "3906 3697"; // +Phase-21 WF16 pointer (baseline 3487 B, +12% / +6%)
     case "qe-e2e.md":
