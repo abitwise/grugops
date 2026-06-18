@@ -5,10 +5,10 @@ milestone_name: Decentralized Factory — Shared Verified Context
 current_phase: 22
 current_phase_name: memory-trajectory-compaction-dialable-token-economy
 status: executing
-stopped_at: "Phase 22 gap-closure ROUND 4 PLANNED. 22-05-PLAN.md created (CMP-02 oracle UNIFICATION) + gsd-plan-checker PASSED (independent verify). The plan collapses the two-enforcement-path seam: folds kind:failed-attempt into the SAME id-keyed byte-equal pass as durable notes (closes CR-01 + WR-01), mirrors the promoted-side id-collision guard on the raw side (closes CR-03 — the verbatim-unimplemented 22-04 must-have), validates kind∈NOTE_KINDS (WR-03), fails closed on an unparseable note (WR-02), and exports ONE shared frontmatter parser from context-io.ts so the oracle read path can't drift from appendNote (IN-02). RED-first proof against the COMMITTED scripts/compactor.js is REQUIRED (green suite ≠ proof) plus a generalized field×kind mutation sweep. CMP-02 is STILL gaps_found — NOTHING is closed until 22-05 is executed AND re-verified. Next: /gsd-execute-phase 22 (then re-verify; do NOT mark CMP-02/phase complete on a green suite alone — adversarially reproduce CR-01 + CR-03 against the committed .js)."
-last_updated: "2026-06-18T15:48:45.126Z"
+stopped_at: "Phase 22 gap-closure ROUND 4 EXECUTED + RE-VERIFIED 2026-06-18 = GAPS_FOUND. 22-05 (oracle unification) CLOSED the two round-3 gaps with RED→GREEN proof against the COMMITTED compactor.js — CR-01-r4 (FA folded into the id-keyed byte-equal pass) + CR-03 (raw-side id-collision guard) — plus WR-01/WR-02/WR-03 + IN-02-partial; freshness exit 0; 280 non-e2e tests green. BUT a NEW 4th CMP-02 bypass remains — WHITESPACE/PARSER-PROJECTION DRIFT: the oracle adopted the shared parser (parseNote) but NOT the shared validator (checkCarveOut never calls validate()); parseNote matches a key only at column 0, so an indented / `key : value` load-bearing line silently projects to '' and the byte-equal loop compares the projection, not the file bytes. Reproduced by deep code review (22-REVIEW.md CR-01/CR-02/CR-03) AND by the orchestrator against the committed compactor.js with a column-0 CONTROL: a §14-gate-verified finding (folded out by a soft note's supersedes) is DROPPED at exit 0 when its raw verified_by is indented ONE space, and correctly REFUSED (exit 1) at column 0. CMP-02 STILL gaps_found; CMP-01 + CMP-03 verified. Fix (round 5): run the shared validate() over every raw+promoted note AND/OR fail-closed on any unrecognized in-fence line shape; compare on bytes not the lenient projection; RED-first line-shape sweep (indent / space-before-colon / trailing-ws / CRLF × field × kind). Green suite ≠ proof. Next: /gsd-plan-phase 22 --gaps."
+last_updated: "2026-06-18T19:25:00.000Z"
 last_activity: 2026-06-18
-last_activity_desc: Phase 22 execution started
+last_activity_desc: Phase 22 round-4 re-verification = gaps_found (4th CMP-02 bypass — whitespace/parser-projection drift)
 progress:
   total_phases: 7
   completed_phases: 3
@@ -28,10 +28,10 @@ See: .planning/PROJECT.md (updated 2026-06-16 — after v1.2 milestone)
 
 ## Current Position
 
-Phase: 22 (memory-trajectory-compaction-dialable-token-economy) — EXECUTED (re-verify pending)
-Plan: 5 of 5
-Status: 22-05 executed — CMP-02 oracle unification complete; CR-03 + CR-01 closed (RED→GREEN proven against the committed .js). Phase-complete is subject to round-4 re-verification (do NOT mark CMP-02/phase complete on a green suite alone).
-Last activity: 2026-06-18 — Phase 22 plan 22-05 executed (CMP-02 oracle unification)
+Phase: 22 (memory-trajectory-compaction-dialable-token-economy) — ROUND-4 RE-VERIFIED = GAPS_FOUND
+Plan: 5 of 5 executed; CMP-02 still failing → round 5 pending
+Status: 22-05 executed (oracle unification) closed the two round-3 gaps (CR-01-r4 FA-exemption + CR-03 raw-collision, RED→GREEN vs committed .js) but round-4 re-verification found a NEW 4th bypass — whitespace/parser-projection drift (oracle shares the parser, not the validator; indented load-bearing line projects to "" → §14-gate-verified finding droppable at exit 0). Reproduced vs the committed compactor.js with a column-0 control. CMP-02 = gaps_found; CMP-01 + CMP-03 verified. Do NOT mark the phase complete.
+Last activity: 2026-06-18 — Phase 22 round-4 re-verification = gaps_found (see 22-VERIFICATION.md + 22-REVIEW.md)
 
 ## Performance Metrics
 
