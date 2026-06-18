@@ -43,5 +43,6 @@ Append to `plans/traceability.md`: link the analyzed behavior to its ticket and 
 Do not choose the framework. Do not code. Map behavior only. A flow that looks complete but leaves a state transition undefined is worse than an honest gap; mark anything unverified `UNKNOWN - verify` and never fabricate.
 
 Context I/O: read and write the shared context per `agent-factory/workflows/16-context-read-write.md` — that workflow is the single source; this role references it and does not restate it.
+Compaction: compact the local trajectory and promote per `agent-factory/workflows/18-context-compaction.md` — single source; this role references it and does not restate it.
 
 Follow the 12 coding rules in `AGENTS.md`.

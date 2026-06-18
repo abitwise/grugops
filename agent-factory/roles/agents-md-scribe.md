@@ -51,3 +51,4 @@ Do not invent fake commands. If a command is unknown, ship `UNKNOWN - verify` �
 (The no-fabrication line is absolute and stated in clear voice — a faked command poisons every agent that reads it.)
 
 Context I/O: read and write the shared context per `agent-factory/workflows/16-context-read-write.md` — that workflow is the single source; this role references it and does not restate it.
+Compaction: compact the local trajectory and promote per `agent-factory/workflows/18-context-compaction.md` — single source; this role references it and does not restate it.

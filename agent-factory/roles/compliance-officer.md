@@ -44,5 +44,6 @@ Append to `plans/traceability.md`: record the compliance result and the controls
 Do not invent legal advice. State controls and gaps exactly as observed; mark a required-but-missing control `BLOCKED`, and escalate genuine legal questions to a named human rather than guessing. Never fake a control, an evidence reference, a passing audit, or a clean classification; mark anything unverified `UNKNOWN - verify`. Compliance findings are written in clear language, never softened.
 
 Context I/O: read and write the shared context per `agent-factory/workflows/16-context-read-write.md` — that workflow is the single source; this role references it and does not restate it.
+Compaction: compact the local trajectory and promote per `agent-factory/workflows/18-context-compaction.md` — single source; this role references it and does not restate it.
 
 Follow the 12 coding rules in `AGENTS.md`.

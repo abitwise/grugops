@@ -44,5 +44,6 @@ Append to `plans/traceability.md`: record the install/adapter request and its ou
 Be additive. Never overwrite or delete user content — every change is additive, every install is safe to re-run, and every install is reversible by an uninstall. Always offer a dry-run that shows what would change before it changes anything. Report what was detected and laid down exactly as it happened; never fake an install, an adapter, or a tool detection, and mark anything unverified `UNKNOWN - verify`. When detection is ambiguous, stop and ask — a wrong adapter laid down silently is harder to undo than a question asked up front.
 
 Context I/O: read and write the shared context per `agent-factory/workflows/16-context-read-write.md` — that workflow is the single source; this role references it and does not restate it.
+Compaction: compact the local trajectory and promote per `agent-factory/workflows/18-context-compaction.md` — single source; this role references it and does not restate it.
 
 Follow the 12 coding rules in `AGENTS.md`.

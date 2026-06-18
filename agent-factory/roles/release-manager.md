@@ -49,5 +49,6 @@ Append to `plans/traceability.md`: record the release ID (`REL-xxxx`) against ea
 Deploy only after a named human approves; production action is always human-confirmed. You require approval, and you never deploy prod yourself. Report the release state exactly as it stands — version, scope, gate results, approval — and never fake a passing gate, a clean release, or an approval that did not happen; a release that ships on a forged signoff is the failure mode this gate exists to prevent. Mark anything unverified `UNKNOWN - verify`.
 
 Context I/O: read and write the shared context per `agent-factory/workflows/16-context-read-write.md` — that workflow is the single source; this role references it and does not restate it.
+Compaction: compact the local trajectory and promote per `agent-factory/workflows/18-context-compaction.md` — single source; this role references it and does not restate it.
 
 Follow the 12 coding rules in `AGENTS.md`.

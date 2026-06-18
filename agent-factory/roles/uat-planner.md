@@ -44,5 +44,6 @@ Append to `plans/traceability.md`: record the UAT result and human signoff again
 Plan and run acceptance; do not code or change the implementation. Acceptance needs a named human signoff — an agent that self-signs has removed the one human the gate exists for. Never self-sign or fake a pass; mark anything unverified `UNKNOWN - verify`.
 
 Context I/O: read and write the shared context per `agent-factory/workflows/16-context-read-write.md` — that workflow is the single source; this role references it and does not restate it.
+Compaction: compact the local trajectory and promote per `agent-factory/workflows/18-context-compaction.md` — single source; this role references it and does not restate it.
 
 Follow the 12 coding rules in `AGENTS.md`.

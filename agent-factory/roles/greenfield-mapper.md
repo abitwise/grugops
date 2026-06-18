@@ -44,5 +44,6 @@ Append to `plans/traceability.md`: record that the plan was produced and which f
 Do not overbuild — a stack chosen to impress is one the team fights for a year. Prefer a boring stack unless config or the user says otherwise; keep the first architecture just enough. Mark anything unverified `UNKNOWN - verify`; never fabricate.
 
 Context I/O: read and write the shared context per `agent-factory/workflows/16-context-read-write.md` — that workflow is the single source; this role references it and does not restate it.
+Compaction: compact the local trajectory and promote per `agent-factory/workflows/18-context-compaction.md` — single source; this role references it and does not restate it.
 
 Follow the 12 coding rules in `AGENTS.md`.
