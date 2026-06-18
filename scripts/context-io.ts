@@ -169,7 +169,7 @@ function assertSingleLine(name: string, value: string): void {
 // Extends the flat key:value idiom from generate-catalog.ts with one addition: a `refs:` YAML list
 // block (`refs:\n  - x\n  - y`). A single-line `refs: a, b` comma form is also accepted. The choice
 // (extend the parser minimally rather than add a dependency) resolves RESEARCH Open Question 1.
-interface ParsedFrontmatter {
+export interface ParsedFrontmatter {
   scalars: Record<string, string>;
   refs: string[];
   body: string;
@@ -180,7 +180,11 @@ interface ParsedFrontmatter {
   duplicateKeys: string[];
 }
 
-function parseNote(text: string): ParsedFrontmatter | null {
+// EXPORTED (IN-02): this is the single canonical frontmatter parser. The compactor's read path
+// adopts THIS function instead of a hand-rolled near-copy, so the path the carve-out oracle parses
+// provably cannot drift from the path appendNote/validate validates. No behavior change on export —
+// only the visibility of the declaration and its ParsedFrontmatter return type.
+export function parseNote(text: string): ParsedFrontmatter | null {
   // Normalize CRLF/CR to LF before matching the fence so a git-autocrlf (Windows) note parses
   // identically to its LF form. Without this, the fence regex (anchored on \n) misses a CRLF note,
   // parseNote returns null, readContext silently drops it, and admit() wrongly refuses a real

@@ -615,3 +615,34 @@ describe("context-io.js — CRLF round-trip admission (CR-01)", () => {
     expect(r.status).toBe(0);
   });
 });
+
+// ── Exported canonical parser contract (IN-02, round-4 oracle unification) ────────────────────────
+// parseNote is now an EXPORT — the single canonical frontmatter parser. The compactor's read path
+// adopts THIS function so the path the carve-out oracle parses cannot drift from the path appendNote
+// validates. This case proves the exported parser is the SAME parser the write-path validator uses:
+// it reports a duplicate provenance key in `duplicateKeys` exactly as validate() rejects on.
+describe("context-io.js — exported canonical frontmatter parser (IN-02)", () => {
+  it("the exported parseNote is the same parser appendNote's validate path uses", () => {
+    // A note text carrying two `id:` lines — the on-disk forgery signature validate() rejects.
+    // The exported parser must surface that duplicate in duplicateKeys, proving the compactor's
+    // adopted read-path parser is the write-path parser, not a divergent hand-rolled copy.
+    const twoIdNote =
+      "---\n" +
+      "id: 20260617T142305Z-engineer-finding-first1\n" +
+      "id: 20260617T142305Z-engineer-finding-second\n" +
+      "kind: finding\n" +
+      "by: engineer\n" +
+      "at: 2026-06-17T14:23:05Z\n" +
+      "verified_by: §14-gate#DUP-001\n" +
+      "confidence: high\n" +
+      "refs:\n  - AUTH-01\n" +
+      "supersedes: \n" +
+      "---\n\n" +
+      "The login endpoint rejects an expired token with a 401.\n";
+    const parsed = mod.parseNote(twoIdNote);
+    expect(parsed).not.toBeNull();
+    expect(parsed!.duplicateKeys).toContain("id");
+    // And the SAME on-disk text is rejected by validate() — proving one parser feeds both paths.
+    expect(mod.validate(twoIdNote).length).toBeGreaterThan(0);
+  });
+});
