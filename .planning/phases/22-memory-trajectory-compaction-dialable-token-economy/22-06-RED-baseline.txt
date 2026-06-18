@@ -1,0 +1,90 @@
+================================================================================
+22-06 RED BASELINE — CMP-02 round-5 line-shape / parser-projection-drift bypass
+Captured: 2026-06-18T19:45:08Z
+Pre-fix committed artifact: scripts/compactor.js @ commit 429f01c (deep-review snapshot);
+HEAD at capture time: 988a825 (docs-only since 429f01c — .js unchanged).
+scripts/compactor.js sha256: 62ef21722b034e49ef6c28a64c9936f6ea8db977220618f65e932b6c47bdfed5
+PURPOSE: prove the 3 CR-01/CR-02/CR-03 reproductions FAIL against the CURRENT committed .js
+         (the asserted exit-1 does NOT yet hold — the bypass is LIVE / exit 0 carve-out intact).
+================================================================================
+
+### STEP 1 — vitest run of the new round-5 block against the COMMITTED compactor.js (NOT rebuilt)
+$ npx vitest run scripts/compactor.test.ts -t "round-5 line-shape"
+
+
+ RUN  v4.1.8 /Users/olgeroeselg/Projects/public/grugops
+
+ ❯ scripts/compactor.test.ts (68 tests | 4 failed | 64 skipped) 140ms
+     × CR-01 indented verified_by (single space) + raw-side fold — verified finding dropped — refuse 40ms
+     × CR-01 space-before-colon verified_by + raw-side fold — verified finding dropped — refuse 36ms
+     × CR-02 indented `by` on BOTH sides — FA authorship laundered engineer→attacker — refuse 28ms
+     × CR-03 column-0 empty verified_by finding + raw-side fold — malformed finding dropped — refuse 34ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 4 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  scripts/compactor.test.ts > compactor.js — CMP-02 round-5 line-shape carve-out (whitespace/parser-projection drift, held-out RED-first) > CR-01 indented verified_by (single space) + raw-side fold — verified finding dropped — refuse
+AssertionError: an indented verified_by line must not silently demote a verified finding to foldable: expected +0 not to be +0 // Object.is equality
+ ❯ scripts/compactor.test.ts:1341:11
+    1339|       r.status,
+    1340|       "an indented verified_by line must not silently demote a verifie…
+    1341|     ).not.toBe(0);
+       |           ^
+    1342|     expect(`${r.stdout}${r.stderr}`).toContain("verified_by");
+    1343|   });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/4]⎯
+
+ FAIL  scripts/compactor.test.ts > compactor.js — CMP-02 round-5 line-shape carve-out (whitespace/parser-projection drift, held-out RED-first) > CR-01 space-before-colon verified_by + raw-side fold — verified finding dropped — refuse
+AssertionError: a `key : value` space-before-colon verified_by must not silently demote a verified finding: expected +0 not to be +0 // Object.is equality
+ ❯ scripts/compactor.test.ts:1399:11
+    1397|       r.status,
+    1398|       "a `key : value` space-before-colon verified_by must not silentl…
+    1399|     ).not.toBe(0);
+       |           ^
+    1400|     expect(`${r.stdout}${r.stderr}`).toContain("verified_by");
+    1401|   });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/4]⎯
+
+ FAIL  scripts/compactor.test.ts > compactor.js — CMP-02 round-5 line-shape carve-out (whitespace/parser-projection drift, held-out RED-first) > CR-02 indented `by` on BOTH sides — FA authorship laundered engineer→attacker — refuse
+AssertionError: an indented `by` line on both sides must not let FA authorship be laundered byte-invisibly: expected +0 not to be +0 // Object.is equality
+ ❯ scripts/compactor.test.ts:1447:11
+    1445|       r.status,
+    1446|       "an indented `by` line on both sides must not let FA authorship …
+    1447|     ).not.toBe(0);
+       |           ^
+    1448|     expect(`${r.stdout}${r.stderr}`).toContain("by");
+    1449|   });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/4]⎯
+
+ FAIL  scripts/compactor.test.ts > compactor.js — CMP-02 round-5 line-shape carve-out (whitespace/parser-projection drift, held-out RED-first) > CR-03 column-0 empty verified_by finding + raw-side fold — malformed finding dropped — refuse
+AssertionError: a finding with empty verified_by must be refused (finding-needs-a-stamp), not silently demoted: expected +0 not to be +0 // Object.is equality
+ ❯ scripts/compactor.test.ts:1509:11
+    1507|       r.status,
+    1508|       "a finding with empty verified_by must be refused (finding-needs…
+    1509|     ).not.toBe(0);
+       |           ^
+    1510|     expect(`${r.stdout}${r.stderr}`).toContain("verified_by");
+    1511|   });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/4]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  4 failed | 64 skipped (68)
+   Start at  22:45:18
+   Duration  284ms (transform 56ms, setup 0ms, import 70ms, tests 140ms, environment 0ms)
+
+VITEST_EXIT=1
+
+================================================================================
+### STEP 2 — direct CLI invocation on the CR-01 fixture against the COMMITTED .js
+The verified finding (indented verified_by) is dropped; promoted keeps ONLY fold.md.
+Expected (LIVE BYPASS): exit 0 + "carve-out intact" — a §14-gate-verified finding
+silently dropped from the promoted set.
+$ node scripts/compactor.js check <thread> <promoted>
+
+carve-out intact: every failed-attempt id survived and all load-bearing provenance fields are present.
+CLI_EXIT=0 (0 == bypass live: verified finding dropped, carve-out wrongly reports intact)
+----- end direct CLI invocation -----

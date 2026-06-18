@@ -1258,3 +1258,255 @@ describe("compactor.js — CMP-02 round-4 oracle unification (CR-03 + CR-01, hel
     }
   }
 });
+
+// ── CMP-02 ROUND-5: line-shape / parser-projection-drift carve-out (held-out, RED-first) ──────────
+// The 4th distinct CMP-02 bypass. Rounds 1–4 each shipped a fully GREEN suite and each stayed
+// bypassable, because the oracle adopted the shared lenient PARSER (parseNote) but never the shared
+// strict VALIDATOR (validate()). parseNote's kv regex (/^([A-Za-z_]+):\s*(.*)$/, context-io.ts:218)
+// recognizes a key ONLY at column 0, so an indented line, a `key : value` (space-before-colon) line,
+// or a trailing-whitespace / CRLF variant silently projects to "" with no parse error and no
+// duplicate-key signal — and the oracle then keys isVerified / the byte-equal loop on that lenient
+// projection, not the file bytes. A §14-gate-verified finding can be dropped, or an FA's by/at
+// laundered, at exit 0 "carve-out intact".
+//
+// These three tests reproduce CR-01 / CR-02 / CR-03 VERBATIM from 22-REVIEW.md. They are RED-FIRST:
+// against the CURRENT committed scripts/compactor.js they FAIL (the asserted exit≠0 does NOT hold —
+// the bypass is LIVE, the CLI returns exit 0 / "carve-out intact"). They PASS (exit 1) only after the
+// Task-2 shared-layer fix (parseNote.malformedLines + validate() + the two checkCarveOut gates) is
+// built into the committed .js (Task 4). The RED baseline is captured in 22-06-RED-baseline.txt.
+//
+// Frontmatter for the perturbed cases is built as LITERAL template strings — NOT routed through
+// idNoteText/faNoteText (those always emit clean column-0 keys, which would erase the whole point).
+describe("compactor.js — CMP-02 round-5 line-shape carve-out (whitespace/parser-projection drift, held-out RED-first)", () => {
+  // ── CR-01 (22-REVIEW.md:60-126): a §14-gate-verified finding whose raw verified_by line is indented
+  // by a SINGLE SPACE; a throwaway observation fold.md carries supersedes: <finding-id>; the promoted
+  // set is ONLY fold.md (the verified finding entirely dropped). parseNote reads verified_by as "" →
+  // isVerified false → the raw-side fold removes it from the required set → its drop is invisible.
+  // RED-first: exit 0 against the committed pre-fix compactor.js; exit 1 after the fix.
+  it("CR-01 indented verified_by (single space) + raw-side fold — verified finding dropped — refuse", () => {
+    const dir = freshTmp("cmp-r5-cr01-");
+    const thread = join(dir, "thread");
+    const promoted = join(dir, "promoted");
+    mkdirSync(thread, { recursive: true });
+    // The verified finding — verified_by indented by a SINGLE SPACE (22-REVIEW.md:78-93).
+    writeFileSync(
+      join(thread, "finding.md"),
+      "---\n" +
+        "id: 20260617T142305Z-engineer-finding-vx\n" +
+        "kind: finding\n" +
+        "by: engineer\n" +
+        "at: 2026-06-17T14:23:05Z\n" +
+        "  verified_by: §14-gate#RUN7\n" +
+        "confidence: high\n" +
+        "refs:\n  - A\n" +
+        "supersedes: \n" +
+        "---\n\n" +
+        "The auth bypass is fixed.\n",
+    );
+    // A throwaway observation that folds the finding out raw-side (22-REVIEW.md:94-109).
+    writeFileSync(
+      join(thread, "fold.md"),
+      "---\n" +
+        "id: 20260617T150000Z-attacker-observation-f1\n" +
+        "kind: observation\n" +
+        "by: attacker\n" +
+        "at: 2026-06-17T15:00:00Z\n" +
+        "verified_by: \n" +
+        "confidence: low\n" +
+        "refs:\n  - A\n" +
+        "supersedes: 20260617T142305Z-engineer-finding-vx\n" +
+        "---\n\n" +
+        "fold\n",
+    );
+    mkdirSync(promoted, { recursive: true });
+    // Promoted keeps ONLY fold.md — the verified finding is entirely dropped.
+    writeFileSync(
+      join(promoted, "fold.md"),
+      "---\n" +
+        "id: 20260617T150000Z-attacker-observation-f1\n" +
+        "kind: observation\n" +
+        "by: attacker\n" +
+        "at: 2026-06-17T15:00:00Z\n" +
+        "verified_by: \n" +
+        "confidence: low\n" +
+        "refs:\n  - A\n" +
+        "supersedes: 20260617T142305Z-engineer-finding-vx\n" +
+        "---\n\n" +
+        "fold\n",
+    );
+    const r = runCheck(thread, promoted);
+    expect(
+      r.status,
+      "an indented verified_by line must not silently demote a verified finding to foldable",
+    ).not.toBe(0);
+    expect(`${r.stdout}${r.stderr}`).toContain("verified_by");
+  });
+
+  // ── CR-01 variant (22-REVIEW.md:114-115): `verified_by : value` (space BEFORE the colon).
+  // "reproduces identically" — the anchored /^([A-Za-z_]+):/ does not match because of the space.
+  it("CR-01 space-before-colon verified_by + raw-side fold — verified finding dropped — refuse", () => {
+    const dir = freshTmp("cmp-r5-cr01b-");
+    const thread = join(dir, "thread");
+    const promoted = join(dir, "promoted");
+    mkdirSync(thread, { recursive: true });
+    writeFileSync(
+      join(thread, "finding.md"),
+      "---\n" +
+        "id: 20260617T142305Z-engineer-finding-vx\n" +
+        "kind: finding\n" +
+        "by: engineer\n" +
+        "at: 2026-06-17T14:23:05Z\n" +
+        "verified_by : §14-gate#RUN7\n" +
+        "confidence: high\n" +
+        "refs:\n  - A\n" +
+        "supersedes: \n" +
+        "---\n\n" +
+        "The auth bypass is fixed.\n",
+    );
+    writeFileSync(
+      join(thread, "fold.md"),
+      "---\n" +
+        "id: 20260617T150000Z-attacker-observation-f1\n" +
+        "kind: observation\n" +
+        "by: attacker\n" +
+        "at: 2026-06-17T15:00:00Z\n" +
+        "verified_by: \n" +
+        "confidence: low\n" +
+        "refs:\n  - A\n" +
+        "supersedes: 20260617T142305Z-engineer-finding-vx\n" +
+        "---\n\n" +
+        "fold\n",
+    );
+    mkdirSync(promoted, { recursive: true });
+    writeFileSync(
+      join(promoted, "fold.md"),
+      "---\n" +
+        "id: 20260617T150000Z-attacker-observation-f1\n" +
+        "kind: observation\n" +
+        "by: attacker\n" +
+        "at: 2026-06-17T15:00:00Z\n" +
+        "verified_by: \n" +
+        "confidence: low\n" +
+        "refs:\n  - A\n" +
+        "supersedes: 20260617T142305Z-engineer-finding-vx\n" +
+        "---\n\n" +
+        "fold\n",
+    );
+    const r = runCheck(thread, promoted);
+    expect(
+      r.status,
+      "a `key : value` space-before-colon verified_by must not silently demote a verified finding",
+    ).not.toBe(0);
+    expect(`${r.stdout}${r.stderr}`).toContain("verified_by");
+  });
+
+  // ── CR-02 (22-REVIEW.md:129-185): a failed-attempt whose `by` line is indented on BOTH the raw and
+  // the promoted side; raw by: engineer, promoted by: attacker. The parser reads "" on both sides, so
+  // "" === "" passes the byte-equal loop and the authorship laundering is invisible — while git/human
+  // sees by: attacker. RED-first: exit 0 against the committed pre-fix .js; exit 1 after the fix.
+  it("CR-02 indented `by` on BOTH sides — FA authorship laundered engineer→attacker — refuse", () => {
+    const dir = freshTmp("cmp-r5-cr02-");
+    const thread = join(dir, "thread");
+    const promoted = join(dir, "promoted");
+    mkdirSync(thread, { recursive: true });
+    // Raw FA (22-REVIEW.md:144-159): by indented, value engineer.
+    writeFileSync(
+      join(thread, "fa.md"),
+      "---\n" +
+        "id: 20260617T142305Z-engineer-failed-attempt-fa1\n" +
+        "kind: failed-attempt\n" +
+        "  by: engineer\n" +
+        "at: 2026-06-17T14:23:05Z\n" +
+        "verified_by: \n" +
+        "confidence: low\n" +
+        "refs:\n  - A\n" +
+        "supersedes: \n" +
+        "---\n\n" +
+        "FA-1: dead end\n",
+    );
+    mkdirSync(promoted, { recursive: true });
+    // Promoted FA (22-REVIEW.md:160-175): same id, FA-token preserved, by indented and value flipped.
+    writeFileSync(
+      join(promoted, "fa.md"),
+      "---\n" +
+        "id: 20260617T142305Z-engineer-failed-attempt-fa1\n" +
+        "kind: failed-attempt\n" +
+        "  by: attacker\n" +
+        "at: 2026-06-17T14:23:05Z\n" +
+        "verified_by: \n" +
+        "confidence: low\n" +
+        "refs:\n  - A\n" +
+        "supersedes: \n" +
+        "---\n\n" +
+        "FA-1: dead end\n",
+    );
+    const r = runCheck(thread, promoted);
+    expect(
+      r.status,
+      "an indented `by` line on both sides must not let FA authorship be laundered byte-invisibly",
+    ).not.toBe(0);
+    expect(`${r.stdout}${r.stderr}`).toContain("by");
+  });
+
+  // ── CR-03 (22-REVIEW.md:189-212): NO parser trick. The raw finding's verified_by is at COLUMN 0 and
+  // genuinely EMPTY. isVerified is false (correctly), so a raw-side fold removes it from the required
+  // set and its drop is accepted — but by the schema a `finding` MUST carry a real stamp, so the write
+  // path (validate()) refuses it. Gate (b) (the shared validate() run) closes this: a column-0 empty
+  // verified_by finding is a finding-needs-a-stamp structural FAIL. RED-first: exit 0 pre-fix.
+  it("CR-03 column-0 empty verified_by finding + raw-side fold — malformed finding dropped — refuse", () => {
+    const dir = freshTmp("cmp-r5-cr03-");
+    const thread = join(dir, "thread");
+    const promoted = join(dir, "promoted");
+    mkdirSync(thread, { recursive: true });
+    // The finding has a column-0, genuinely EMPTY verified_by — structurally invalid per the schema.
+    writeFileSync(
+      join(thread, "finding.md"),
+      "---\n" +
+        "id: 20260617T142305Z-engineer-finding-vx\n" +
+        "kind: finding\n" +
+        "by: engineer\n" +
+        "at: 2026-06-17T14:23:05Z\n" +
+        "verified_by: \n" +
+        "confidence: high\n" +
+        "refs:\n  - A\n" +
+        "supersedes: \n" +
+        "---\n\n" +
+        "The auth bypass is fixed.\n",
+    );
+    writeFileSync(
+      join(thread, "fold.md"),
+      "---\n" +
+        "id: 20260617T150000Z-attacker-observation-f1\n" +
+        "kind: observation\n" +
+        "by: attacker\n" +
+        "at: 2026-06-17T15:00:00Z\n" +
+        "verified_by: \n" +
+        "confidence: low\n" +
+        "refs:\n  - A\n" +
+        "supersedes: 20260617T142305Z-engineer-finding-vx\n" +
+        "---\n\n" +
+        "fold\n",
+    );
+    mkdirSync(promoted, { recursive: true });
+    writeFileSync(
+      join(promoted, "fold.md"),
+      "---\n" +
+        "id: 20260617T150000Z-attacker-observation-f1\n" +
+        "kind: observation\n" +
+        "by: attacker\n" +
+        "at: 2026-06-17T15:00:00Z\n" +
+        "verified_by: \n" +
+        "confidence: low\n" +
+        "refs:\n  - A\n" +
+        "supersedes: 20260617T142305Z-engineer-finding-vx\n" +
+        "---\n\n" +
+        "fold\n",
+    );
+    const r = runCheck(thread, promoted);
+    expect(
+      r.status,
+      "a finding with empty verified_by must be refused (finding-needs-a-stamp), not silently demoted",
+    ).not.toBe(0);
+    expect(`${r.stdout}${r.stderr}`).toContain("verified_by");
+  });
+});
