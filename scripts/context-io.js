@@ -119,7 +119,11 @@ function assertSingleLine(name, value) {
         throw new Error(`context-io: field "${name}" must be single-line (no embedded newline): ${JSON.stringify(value)}`);
     }
 }
-function parseNote(text) {
+// EXPORTED (IN-02): this is the single canonical frontmatter parser. The compactor's read path
+// adopts THIS function instead of a hand-rolled near-copy, so the path the carve-out oracle parses
+// provably cannot drift from the path appendNote/validate validates. No behavior change on export —
+// only the visibility of the declaration and its ParsedFrontmatter return type.
+export function parseNote(text) {
     // Normalize CRLF/CR to LF before matching the fence so a git-autocrlf (Windows) note parses
     // identically to its LF form. Without this, the fence regex (anchored on \n) misses a CRLF note,
     // parseNote returns null, readContext silently drops it, and admit() wrongly refuses a real
