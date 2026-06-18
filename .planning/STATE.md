@@ -4,11 +4,11 @@ milestone: v2.0
 milestone_name: Decentralized Factory — Shared Verified Context
 current_phase: 22
 current_phase_name: memory-trajectory-compaction-dialable-token-economy
-status: executing
-stopped_at: Phase 22 gap-closure planned (22-03) — ready to execute (CMP-02 stays open until executed + re-verified)
-last_updated: "2026-06-18T10:46:25.646Z"
+status: gaps_found
+stopped_at: "Phase 22 re-verification gaps_found (3/4). 22-03 fixed the 3 original single-instance carve-out bypasses, but deep code review + verifier reproduced 2 NEW bypasses against the committed compactor.js: CR-01 (identity-key collision — existence check uses Set membership not count) + CR-02 (fail-open null-counterpart for non-verified notes), plus IN-01 (supersedes never affirmatively checked). CMP-02/SC2 still fails. Next: /gsd-plan-phase 22 --gaps"
+last_updated: "2026-06-18T11:07:00.000Z"
 last_activity: 2026-06-18
-last_activity_desc: Phase 22 execution started
+last_activity_desc: Phase 22 re-verification after 22-03 gap-closure — gaps_found (CMP-02 carve-out still bypassable 2 ways)
 progress:
   total_phases: 7
   completed_phases: 3
@@ -28,10 +28,10 @@ See: .planning/PROJECT.md (updated 2026-06-16 — after v1.2 milestone)
 
 ## Current Position
 
-Phase: 22 (memory-trajectory-compaction-dialable-token-economy) — EXECUTING
-Plan: 2 of 3
-Status: Ready to execute
-Last activity: 2026-06-18 — Phase 22 execution started
+Phase: 22 (memory-trajectory-compaction-dialable-token-economy) — GAPS FOUND (re-verification)
+Plan: 3 of 3 executed (22-03 gap-closure shipped: 5 commits, 22/22 tests green, freshness 0)
+Status: Re-verification gaps_found (3/4 SCs). CMP-01 + CMP-03 hold. CMP-02/SC2 STILL FAILS — the carve-out oracle is bypassable two ways the green suite never exercises: CR-01 identity-key collision (compactor.ts:225-241, Set membership not count) and CR-02 fail-open null-counterpart for non-verified notes (compactor.ts:194-219/197), plus IN-01 supersedes never affirmatively checked. All 3 reproduced at exit 0 against the committed compactor.js by both the deep code review (22-REVIEW.md) and the verifier (22-VERIFICATION.md). Next: /gsd-plan-phase 22 --gaps
+Last activity: 2026-06-18 — Phase 22 re-verification: deep code review + verifier reproduced 2 new carve-out bypasses; gaps_found
 
 ## Performance Metrics
 
