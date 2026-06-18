@@ -141,11 +141,12 @@ Plans:
   3. The `context.compaction: aggressive|balanced|retain-raw` dial changes how aggressively trajectories are distilled, defaults to `aggressive` when absent (lean), and is documented across all three config surfaces.
   4. A role following Workflow 18 (`18-context-compaction.md`) compacts by the single-source protocol, and other roles reference it rather than restating it.
 
-**Plans**: 3/3 plans complete
+**Plans**: 3/4 plans complete
 
 - [x] 22-01-PLAN.md — compactor.ts carve-out invariant checker (RED-first) + committed compactor.js + the context.compaction dial across all 3 config surfaces + the threads/ .gitignore entry (CMP-01/02/03)
 - [x] 22-02-PLAN.md — author WF18 single-source compaction protocol + bump the catalog count test 17→18 + add the one-line WF18 pointer to all 17 roles (CMP-03)
 - [x] 22-03-PLAN.md — gap-closure: harden the checkCarveOut safety oracle so CMP-02/SC2 genuinely holds — adversarial RED-first cases + fix CR-01 (mutation/forged stamp), CR-02 (wholly-dropped verified finding), CR-03 (multi-same-kind borrow), WR-01 (fail-closed missing threadDir), WR-02/03/05 hardening, rebuild byte-fresh compactor.js (CMP-02)
+- [ ] 22-04-PLAN.md — gap-closure round 3: STABLE-ID REWRITE — promote noteId to an explicit frozen `id:` frontmatter field; rewrite checkCarveOut to an id-keyed exact 1:1 match (affirmative existence + fail-closed + byte-equal load-bearing fields), delete the verifiedKey Set + findCounterpart tuple fallback; strict drop policy (only the supersedes fold removes a note); 4 held-out RED-first cases (CR-01/CR-02 P7/CR-02 P8/IN-01); rebuild byte-fresh compactor.js + context-io.js (CMP-02)
 
 ### Phase 23: Parallel Execution & Orchestrator-as-Decomposer (One Substrate, Two Modes)
 
