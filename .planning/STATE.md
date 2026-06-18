@@ -5,10 +5,10 @@ milestone_name: Decentralized Factory — Shared Verified Context
 current_phase: 22
 current_phase_name: memory-trajectory-compaction-dialable-token-economy
 status: gaps_found
-stopped_at: Phase 22 verification — gaps_found (CMP-02)
-last_updated: "2026-06-18T10:05:35.000Z"
+stopped_at: Phase 22 gap-closure planned (22-03) — ready to execute (CMP-02 stays open until executed + re-verified)
+last_updated: "2026-06-18T10:30:31.000Z"
 last_activity: 2026-06-18
-last_activity_desc: Phase 22 verified — gaps_found (CMP-02 carve-out bypassable)
+last_activity_desc: Phase 22 gap-closure plan 22-03 created + plan-checker PASSED (closes CMP-02 carve-out)
 progress:
   total_phases: 7
   completed_phases: 3
@@ -28,10 +28,10 @@ See: .planning/PROJECT.md (updated 2026-06-16 — after v1.2 milestone)
 
 ## Current Position
 
-Phase: 22 (memory-trajectory-compaction-dialable-token-economy) — GAPS FOUND
-Plan: 2 of 2 executed (both committed)
-Status: Verification gaps_found (3/4 SCs) — CMP-02 carve-out bypassable: checkCarveOut catches only drop-to-empty (mutation/forgery + wholly-dropped findings slip through); RED oracle too weak. Next: /gsd-plan-phase 22 --gaps
-Last activity: 2026-06-18 — Phase 22 verified (gaps_found)
+Phase: 22 (memory-trajectory-compaction-dialable-token-economy) — GAPS FOUND (gap-closure planned)
+Plan: 3 planned (22-01/22-02 executed; 22-03 gap-closure created + plan-checker PASSED, awaiting execution)
+Status: Verification gaps_found (3/4 SCs) — CMP-02 carve-out bypassable: checkCarveOut catches only drop-to-empty (mutation/forgery + wholly-dropped findings slip through); RED oracle too weak. Gap-closure plan 22-03 (TDD, 4 tasks) hardens checkCarveOut (CR-01/02/03 + WR-01) and adds an adversarial RED-first oracle; plan-checker PASSED. Next: /gsd-execute-phase 22
+Last activity: 2026-06-18 — Phase 22 gap-closure plan 22-03 created + verified
 
 ## Performance Metrics
 
