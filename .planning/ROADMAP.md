@@ -141,8 +141,9 @@ Plans:
   3. The `context.compaction: aggressive|balanced|retain-raw` dial changes how aggressively trajectories are distilled, defaults to `aggressive` when absent (lean), and is documented across all three config surfaces.
   4. A role following Workflow 18 (`18-context-compaction.md`) compacts by the single-source protocol, and other roles reference it rather than restating it.
 
-**Plans**: 2 plans
-- [ ] 22-01-PLAN.md — compactor.ts carve-out invariant checker (RED-first) + committed compactor.js + the context.compaction dial across all 3 config surfaces + the threads/ .gitignore entry (CMP-01/02/03)
+**Plans**: 1/2 plans executed
+
+- [x] 22-01-PLAN.md — compactor.ts carve-out invariant checker (RED-first) + committed compactor.js + the context.compaction dial across all 3 config surfaces + the threads/ .gitignore entry (CMP-01/02/03)
 - [ ] 22-02-PLAN.md — author WF18 single-source compaction protocol + bump the catalog count test 17→18 + add the one-line WF18 pointer to all 17 roles (CMP-03)
 
 ### Phase 23: Parallel Execution & Orchestrator-as-Decomposer (One Substrate, Two Modes)
@@ -225,7 +226,7 @@ Plans:
 | 19. Factory Auto-UAT Harness — Tier 1 Oracles + Tier 2 Headless E2E | v1.2 | 4/4 | Closed (A3/DOG-02 waived → next milestone) | 2026-06-16 |
 | 20. Shared-Context Substrate & Concurrency Foundation | v2.0 | 4/4 | Complete    | 2026-06-17 |
 | 21. Verify-Before-Write Admission | v2.0 | 4/4 | Complete    | 2026-06-17 |
-| 22. Memory & Trajectory Compaction | v2.0 | 0/? | Pending | - |
+| 22. Memory & Trajectory Compaction | v2.0 | 1/2 | In Progress|  |
 | 23. Parallel Execution & Orchestrator-as-Decomposer | v2.0 | 0/? | Pending | - |
 | 24. Clean Handoff Removal & Traceability Migration | v2.0 | 0/? | Pending | - |
 | 25. Governance-on-a-Dial | v2.0 | 0/? | Pending | - |

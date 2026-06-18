@@ -3,16 +3,17 @@ gsd_state_version: 1.0
 milestone: v2.0
 milestone_name: Decentralized Factory — Shared Verified Context
 current_phase: 22
+current_phase_name: memory-trajectory-compaction-dialable-token-economy
 status: executing
 stopped_at: Phase 22 context gathered
-last_updated: "2026-06-18T09:12:33.453Z"
+last_updated: "2026-06-18T09:43:15.182Z"
 last_activity: 2026-06-18
-last_activity_desc: Phase 22 planning complete
+last_activity_desc: Phase 22 execution started
 progress:
   total_phases: 7
   completed_phases: 2
-  total_plans: 8
-  completed_plans: 8
+  total_plans: 10
+  completed_plans: 9
   percent: 29
 ---
 
@@ -23,14 +24,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-06-16 — after v1.2 milestone)
 
 **Core value:** A user installs grugops on top of the coding-agent CLI they already run, types `/grug`, and gets a disciplined delivery team — a visible board, strict handoffs, and an auditable requirement→code→test→release trail — entirely as readable markdown, with humans always holding merge and deploy.
-**Current focus:** Phase 22 — memory-&-trajectory-compaction (next; Phase 21 complete)
+**Current focus:** Phase 22 — memory-trajectory-compaction-dialable-token-economy
 
 ## Current Position
 
-Phase: 22
-Plan: Not started
+Phase: 22 (memory-trajectory-compaction-dialable-token-economy) — EXECUTING
+Plan: 2 of 2
 Status: Ready to execute
-Last activity: 2026-06-18 — Phase 22 planning complete
+Last activity: 2026-06-18 — Phase 22 execution started
 
 ## Performance Metrics
 
@@ -160,6 +161,7 @@ Last activity: 2026-06-18 — Phase 22 planning complete
 | Phase 21 P02 | 4m | 1 tasks | 1 files |
 | Phase 21 P03 | 8m | 2 tasks | 23 files |
 | Phase 21 P04 | 3m | 2 tasks | 3 files |
+| Phase 22 P01 | 6min | 3 tasks | 7 files |
 
 ## Accumulated Context
 
@@ -363,6 +365,8 @@ Recent decisions affecting current work:
 - [Phase ?]: Phase 21 Plan 03: WF16 (16-context-read-write.md) is the single-source context I/O protocol; all 17 roles carry one terse pointer (D-13/D-14, SC-3 honestly TRUE)
 - [Phase ?]: 9 role-size FAIL ceilings bumped in lockstep for the WF16 pointer (~189 B), +12%/+6% (ba-pm +20%/+12%); committed guard .js freshness-checked (D-07)
 - [Phase ?]: [21-04] CR-01 closed: parseNote normalizes CRLF/CR to LF before the fence match so a git-autocrlf (Windows) green verdict admits its finding identically to LF; RED 3e4991a GREEN 51f3b24 freshness 0
+- [Phase ?]: compactor.ts is a read-only carve-out invariant checker over (raw thread -> promoted notes); never summarizes, forks no writer — promotion stays in appendNote, re-verify in admit (Phase 22 D-01/D-02/D-12)
+- [Phase ?]: context.compaction dial (aggressive|balanced|retain-raw; lean default aggressive) tunes body verbosity only; durable note set + carve-out fields are un-dialable at every value (D-05)
 
 ### Pending Todos
 
@@ -412,7 +416,7 @@ Items acknowledged and deferred at the **v1.2 milestone close on 2026-06-16** (1
 
 ## Session Continuity
 
-Last session: 2026-06-18T08:37:46.710Z
+Last session: 2026-06-18T09:42:56.531Z
 Stopped at: Phase 22 context gathered
 Resume file: .planning/phases/22-memory-trajectory-compaction-dialable-token-economy/22-CONTEXT.md
 
