@@ -2,10 +2,10 @@
 // (Vitest harness for scripts/generate-catalog.js).
 //
 // Drives the COMMITTED compiled artifact scripts/generate-catalog.js (never the .ts) and asserts
-// the DOCS-01 contract over the real kit (17 roles + 17 workflows):
+// the DOCS-01 contract over the real kit (17 roles + 18 workflows):
 //   (1) WRITES + EXITS 0 over the real kit, leaving the tree clean (regen == committed bytes);
 //   (2) BYTE-REPRODUCIBLE: two successive regenerations are byte-identical (and equal committed);
-//   (3) COMPLETE SET: all 17 role names + all 17 workflow names present, exactly 17 + 17 rows;
+//   (3) COMPLETE SET: all 17 role names + all 18 workflow names present, exactly 17 + 18 rows;
 //   (4) FAIL-CLOSED: a tampered kit file with no `# Role:` H1 → exit 1, NO partial write — proven
 //       hermetically (mirror-and-tamper into a temp dir) so the real tree is never touched;
 //   (5) NO FABRICATION: workflows 12/13 cadence cell reads `UNKNOWN - verify`, never `cadence: both`,
@@ -68,7 +68,7 @@ const ROLE_NAMES = [
   "UAT Planner",
 ];
 
-// The 17 workflow display names (from each file's `# Workflow:` H1) — load-bearing literals.
+// The 18 workflow display names (from each file's `# Workflow:` H1) — load-bearing literals.
 const WORKFLOW_NAMES = [
   "Bootstrap greenfield",
   "Bootstrap brownfield",
@@ -87,6 +87,7 @@ const WORKFLOW_NAMES = [
   "UI design to build",
   "Security audit (OWASP ASVS)",
   "context read/write",
+  "context compaction",
 ];
 
 // Count data rows in a GitHub-flavored markdown table body for a given source-dir prefix.
@@ -132,9 +133,9 @@ describe("generate-catalog.js (DOCS-01)", () => {
     }
   });
 
-  // (3) complete set: all 17 role names + all 17 workflow names present (incl. frontend-ui via its
-  // source link, and workflows 14 + 15 + 16); exactly 17 role data rows + 17 workflow data rows.
-  it("contains all 17 roles and all 17 workflows with exact row counts", () => {
+  // (3) complete set: all 17 role names + all 18 workflow names present (incl. frontend-ui via its
+  // source link, and workflows 14 + 15 + 16 + 18); exactly 17 role data rows + 18 workflow data rows.
+  it("contains all 17 roles and all 18 workflows with exact row counts", () => {
     const before = readFileSync(OUT);
     try {
       const r = spawnSync("node", [GEN_JS], { encoding: "utf8" });
@@ -149,9 +150,9 @@ describe("generate-catalog.js (DOCS-01)", () => {
       expect(text).toContain("agent-factory/workflows/14-ui-design-to-build.md");
       expect(text).toContain("agent-factory/workflows/15-security-audit.md");
 
-      // Exactly 17 role rows + 17 workflow rows (count via source-link matches, not `.` tallies).
+      // Exactly 17 role rows + 18 workflow rows (count via source-link matches, not `.` tallies).
       expect(countRowsLinkingInto(text, "roles")).toBe(17);
-      expect(countRowsLinkingInto(text, "workflows")).toBe(17);
+      expect(countRowsLinkingInto(text, "workflows")).toBe(18);
     } finally {
       writeFileSync(OUT, before);
     }

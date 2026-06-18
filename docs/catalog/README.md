@@ -2,7 +2,7 @@
 # grugops Catalog
 
 This is the generated, browsable index of the grugops kit: 17 role personas and
-17 workflows. Each row links to its source file. The catalog is produced by
+18 workflows. Each row links to its source file. The catalog is produced by
 `scripts/generate-catalog.js` and is never hand-edited — re-run the generator and commit the
 result. Any unverified field is marked `UNKNOWN - verify` rather than invented.
 
@@ -49,3 +49,4 @@ result. Any unverified field is marked `UNKNOWN - verify` rather than invented.
 | 14 | UI design to build | both | When a ticket needs UI/frontend work — a design contract authored once, then built and verified. | [agent-factory/workflows/14-ui-design-to-build.md](../../agent-factory/workflows/14-ui-design-to-build.md) |
 | 15 | Security audit (OWASP ASVS) | both | When a deep, standalone security audit is wanted — on demand, per phase, or per milestone. | [agent-factory/workflows/15-security-audit.md](../../agent-factory/workflows/15-security-audit.md) |
 | 16 | context read/write | both | Whenever a role is about to act on, or record into, the shared verified context. | [agent-factory/workflows/16-context-read-write.md](../../agent-factory/workflows/16-context-read-write.md) |
+| 18 | context compaction | both | Whenever an agent has accumulated a verbose local trajectory for a task and is about to promote results into the shared verified context. | [agent-factory/workflows/18-context-compaction.md](../../agent-factory/workflows/18-context-compaction.md) |
