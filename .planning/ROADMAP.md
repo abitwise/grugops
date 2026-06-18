@@ -141,12 +141,13 @@ Plans:
   3. The `context.compaction: aggressive|balanced|retain-raw` dial changes how aggressively trajectories are distilled, defaults to `aggressive` when absent (lean), and is documented across all three config surfaces.
   4. A role following Workflow 18 (`18-context-compaction.md`) compacts by the single-source protocol, and other roles reference it rather than restating it.
 
-**Plans**: 3/4 plans complete
+**Plans**: 4/5 plans complete
 
 - [x] 22-01-PLAN.md — compactor.ts carve-out invariant checker (RED-first) + committed compactor.js + the context.compaction dial across all 3 config surfaces + the threads/ .gitignore entry (CMP-01/02/03)
 - [x] 22-02-PLAN.md — author WF18 single-source compaction protocol + bump the catalog count test 17→18 + add the one-line WF18 pointer to all 17 roles (CMP-03)
 - [x] 22-03-PLAN.md — gap-closure: harden the checkCarveOut safety oracle so CMP-02/SC2 genuinely holds — adversarial RED-first cases + fix CR-01 (mutation/forged stamp), CR-02 (wholly-dropped verified finding), CR-03 (multi-same-kind borrow), WR-01 (fail-closed missing threadDir), WR-02/03/05 hardening, rebuild byte-fresh compactor.js (CMP-02)
 - [x] 22-04-PLAN.md — gap-closure round 3: STABLE-ID REWRITE — promoted noteId to an explicit frozen `id:` frontmatter field; rewrote checkCarveOut to an id-keyed exact 1:1 match (affirmative existence + fail-closed + byte-equal load-bearing fields) over an ASYMMETRIC required-survival set (currentState folds out only soft non-verified notes; verified findings + failed-attempts survive unconditionally); DELETED the verifiedKey Set + findCounterpart tuple fallback; strict drop policy; readNoteFields read-path duplicate-key reject; 7 held-out RED-first cases (CR-01/CR-02 P7/CR-02 P8/IN-01/FORGED-FOLD/RAW-FOLD-VERIFIED + read-path duplicate-id); rebuilt byte-fresh compactor.js + context-io.js (CMP-02) — executed 2026-06-18, awaiting phase re-verification
+- [ ] 22-05-PLAN.md — gap-closure round 4: ORACLE UNIFICATION — collapse the durable/failed-attempt enforcement seam. Fold the FA path into the ONE id-keyed exact-match + byte-equal pass (no `kind: failed-attempt` exemption — closes CR-01 provenance laundering); add the raw-side id-collision guard mirroring the promoted-side guard (closes CR-03 — verbatim 22-04 must-have); key FA survival on the frozen id not the body token (WR-01); validate `kind ∈ NOTE_KINDS` for every note (WR-03); fail closed on an unparseable raw .md (WR-02); export ONE shared frontmatter parser from context-io.ts and adopt it on the compactor read path (IN-02); generalized parameterized (field × kind) RED-first mutation sweep + the two named reproductions proven RED→GREEN against the committed .js; rebuild byte-fresh compactor.js + context-io.js (CMP-02)
 
 ### Phase 23: Parallel Execution & Orchestrator-as-Decomposer (One Substrate, Two Modes)
 
