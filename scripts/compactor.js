@@ -53,7 +53,7 @@ import { readFileSync, readdirSync, mkdirSync, existsSync, writeFileSync } from 
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { randomUUID } from "node:crypto";
-import { appendNote, admit, currentState, parseNote, NOTE_KINDS, } from "./context-io.js";
+import { appendNote, admit, currentState, parseNote, validate, NOTE_KINDS, } from "./context-io.js";
 // ── Context root (production). Tests pass an explicit root. ──────────────────────────────────────
 const REPO_ROOT = join(import.meta.dirname, "..");
 const DEFAULT_CONTEXT_ROOT = join(REPO_ROOT, ".grugops", "context");
@@ -88,6 +88,10 @@ function readNoteFields(text) {
         supersedes: s.supersedes ?? "",
         body: parsed.body.trim(),
         duplicateKeys: parsed.duplicateKeys,
+        malformedLines: parsed.malformedLines,
+        // Carry the VERBATIM on-disk bytes (never a re-serialization) so gate (b) runs validate() on the
+        // exact text the writer would have validated — an indented/CRLF line must reach validate() intact.
+        text,
     };
 }
 // Read every notes/*.md-style file under a directory. A `.md` with no valid frontmatter fence is
@@ -184,6 +188,53 @@ export function checkCarveOut(rawThread, promoted, _dial = DEFAULT_DIAL) {
             findings.push(`carve-out FAIL: duplicate provenance key "${dup}" in promoted note "${file}" — a repeated ` +
                 `provenance line silently overrides the first and is the signature of a forged/colliding ` +
                 `identity; fail closed (CMP-02, T-22-04-02).`);
+        }
+    }
+    // ── CMP-02 ROUND-5: the two shared-layer fail-closed gates (IN-02 completion). ─────────────────
+    // The 4th bypass class (whitespace / parser-projection drift) exists because rounds 1–4 adopted the
+    // shared lenient PARSER (parseNote) but never the shared strict VALIDATOR (validate()). Both gates
+    // run on EVERY raw AND promoted note BEFORE any survival / byte-equal decision keys on a parsed
+    // field, so the read path (this oracle) refuses EXACTLY what the write path (appendNote/validate)
+    // refuses. Together they treat the CLASS (any non-recognized in-fence line shape, plus any
+    // structural finding the writer would reject), not the two named shapes (the round-1→4 lesson).
+    // Gate (a) — malformedLines reject (T-22-06-02/T-22-06-05). An indented / `key : value` /
+    // trailing-whitespace line silently projects to "" under the lenient parser; the byte-equal loop
+    // would then compare ""==="" on a line whose bytes differ. Reject any malformedLines entry here so
+    // every line reaching the byte-equal loop is a recognized column-0 line whose projection equals its
+    // bytes. Mirrors the duplicateKeys block word-shape (name the file + the offending line, cite CMP-02).
+    for (const [file, fields] of rawNotes) {
+        for (const line of fields.malformedLines) {
+            findings.push(`carve-out FAIL: malformed frontmatter line "${line}" in raw thread note "${file}" — an ` +
+                `indented or "key : value" provenance line silently projects to empty under the lenient ` +
+                `parser, so the carve-out cannot trust the byte-equal comparison of that line; fail closed ` +
+                `(CMP-02, IN-02).`);
+        }
+    }
+    for (const [file, fields] of promotedNotes) {
+        for (const line of fields.malformedLines) {
+            findings.push(`carve-out FAIL: malformed frontmatter line "${line}" in promoted note "${file}" — an ` +
+                `indented or "key : value" provenance line silently projects to empty under the lenient ` +
+                `parser, so the carve-out cannot trust the byte-equal comparison of that line; fail closed ` +
+                `(CMP-02, IN-02).`);
+        }
+    }
+    // Gate (b) — shared validate() reject (T-22-06-01/T-22-06-03). Run the SAME structural validator the
+    // write path uses on every raw AND promoted note's VERBATIM on-disk bytes, and fail closed on any
+    // structural finding. This is what closes CR-03: a column-0, genuinely-empty verified_by finding is
+    // well-formed LINE SHAPE (so gate (a) cannot see it) but validate() rejects it via the
+    // finding-needs-a-stamp rule (context-io.ts) — the carve-out must not accept as "raw truth" any note
+    // the sanctioned writer would have refused to write. Run validate() AFTER gate (a) so a malformed
+    // line is named by its own gate; gate (b) then catches the schema-level kind↔field obligations.
+    for (const [file, fields] of rawNotes) {
+        for (const f of validate(fields.text)) {
+            findings.push(`carve-out FAIL: raw thread note "${file}" is structurally invalid — ${f} (the carve-out ` +
+                `runs the shared write-path validator so it refuses exactly what appendNote refuses; CMP-02, IN-02).`);
+        }
+    }
+    for (const [file, fields] of promotedNotes) {
+        for (const f of validate(fields.text)) {
+            findings.push(`carve-out FAIL: promoted note "${file}" is structurally invalid — ${f} (the carve-out runs ` +
+                `the shared write-path validator so it refuses exactly what appendNote refuses; CMP-02, IN-02).`);
         }
     }
     // 1. The id-keyed exact 1:1 carve-out, UNIFIED over durable notes AND failed-attempts. Identity is
@@ -297,6 +348,18 @@ export function checkCarveOut(rawThread, promoted, _dial = DEFAULT_DIAL) {
         // Under the matched id, every load-bearing field must be BYTE-EQUAL — for FAILED-ATTEMPTS exactly
         // as for durable notes (CR-01: there is NO FA exemption). A matched note's own supersedes link is
         // therefore byte-equal-checked and cannot be altered or dropped.
+        //
+        // BYTE-EQUAL-LOOP RESIDUAL-SEAM ANALYSIS (CMP-02 round-5, IN-02 completion):
+        // Once gate (a) above rejects any malformedLines, EVERY note reaching this loop has only
+        // recognized column-0 `key: value` lines, so the lenient parser's projection of each load-bearing
+        // field EQUALS its on-disk bytes — the loop can no longer compare ""==="" on a line that differs
+        // in bytes (the CR-02 laundering vector is closed BEFORE this loop runs). The one field validate()
+        // does not police by grammar is `supersedes` (it accepts any column-0 value); but gate (a)
+        // guarantees the supersedes line is a recognized column-0 line, and THIS loop byte-equal-compares
+        // it under the matched id — so a byte-level alteration of supersedes still trips here. No
+        // field-specific seam survives. WR-01: a laundered line is now refused by gate (a)/(b) BEFORE the
+        // "altered to empty" vs "altered" message branch below could misreport it, so the operator-facing
+        // FAIL message always echoes on-disk reality.
         for (const field of ["id", "kind", "by", "at", "verified_by", "supersedes"]) {
             const rawVal = fields[field];
             const promVal = counterpart[field];

@@ -1,0 +1,69 @@
+================================================================================
+22-06 GREEN PROOF — CMP-02 round-5 line-shape bypass CLOSED against the committed .js
+Captured: 2026-06-18T19:52:57Z
+Pairs with 22-06-RED-baseline.txt (pre-fix commit 429f01c: exit 0 / carve-out intact).
+================================================================================
+
+### REGRESSION-SAFETY GREP (a tighter parser touches all parseNote callers)
+No committed .grugops/context note .md exists (the runtime context dir is gitignored/absent).
+Committed .md with a kind:/verified_by: fence are role/workflow/checklist DOCS — never fed
+through parseNote (the carve-out reads only .grugops/context/**/notes & threads/*.md).
+Grep of test-file in-fence literals for an INDENTED key / 'key : value' shape the new
+malformedLines check would reject found ONLY the intentional CR-01/CR-02 perturbations
+(compactor.test.ts:1299,1359,1418,1434). The one legal indented in-fence shape ('  - item'
+under refs:) is exempt in the grammar. Result: ZERO illegitimate in-fence shapes — no
+grammar change needed.
+
+### STEP 1 — npm run build (tsc → regenerate committed scripts/context-io.js + compactor.js)
+$ npm run build
+
+> build
+> tsc
+
+BUILD_EXIT=0
+
+### STEP 2 — npm run freshness (committed .js MUST be a byte-faithful build of the .ts; D-13)
+$ npm run freshness
+
+> freshness
+> tsc --outDir .tmp-build && node scripts/freshness.js
+
+All build outputs fresh: 17 committed .js file(s) match a fresh tsc rebuild.
+FRESHNESS_EXIT=0
+
+### STEP 3 — round-5 reproductions + line-shape matrix against the REBUILT committed compactor.js
+$ npx vitest run scripts/compactor.test.ts -t "round-5"
+
+ RUN  v4.1.8 /Users/olgeroeselg/Projects/public/grugops
+
+
+ Test Files  1 passed (1)
+      Tests  109 passed | 64 skipped (173)
+   Start at  22:53:06
+   Duration  3.45s (transform 48ms, setup 0ms, import 63ms, tests 3.31s, environment 0ms)
+
+VITEST_R5_EXIT=0
+
+### STEP 4 — direct CLI on the SAME CR-01 fixture against the REBUILT committed compactor.js
+Pre-fix (429f01c): exit 0 / carve-out intact (see 22-06-RED-baseline.txt STEP 2).
+Post-fix expected: exit 1 / carve-out FAIL naming verified_by + the malformed line.
+$ node scripts/compactor.js check <thread> <promoted>
+
+carve-out FAIL: malformed frontmatter line "  verified_by: §14-gate#RUN7" in raw thread note "finding.md" — an indented or "key : value" provenance line silently projects to empty under the lenient parser, so the carve-out cannot trust the byte-equal comparison of that line; fail closed (CMP-02, IN-02).
+carve-out FAIL: raw thread note "finding.md" is structurally invalid — structural FAIL: malformed frontmatter line "  verified_by: §14-gate#RUN7" — a provenance line must be a column-0 "key: value", the "refs:" block header, or a "  - item" refs entry (an indented or "key : value" line silently projects to empty and cannot enter the verified context). (the carve-out runs the shared write-path validator so it refuses exactly what appendNote refuses; CMP-02, IN-02).
+carve-out FAIL: raw thread note "finding.md" is structurally invalid — structural FAIL: a finding requires a verified_by stamp — it must not be empty (refuse-self: an unverified finding cannot enter the verified context). (the carve-out runs the shared write-path validator so it refuses exactly what appendNote refuses; CMP-02, IN-02).
+CLI_EXIT=1 (1 == bypass CLOSED: the dropped verified finding is now refused)
+----- RED→GREEN transition captured (429f01c exit 0 → post-fix exit 1) -----
+
+### STEP 5 — full non-e2e regression suite (NOT npm test — that runs the live claude-CLI e2e lane)
+$ npx vitest run --exclude '**/scripts/e2e/**'
+
+ RUN  v4.1.8 /Users/olgeroeselg/Projects/public/grugops
+
+
+ Test Files  16 passed (16)
+      Tests  395 passed | 1 skipped (396)
+   Start at  22:53:30
+   Duration  24.82s (transform 181ms, setup 0ms, import 317ms, tests 23.38s, environment 1ms)
+
+FULL_SUITE_EXIT=0
