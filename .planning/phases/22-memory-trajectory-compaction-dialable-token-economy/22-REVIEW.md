@@ -1,291 +1,289 @@
 ---
 phase: 22-memory-trajectory-compaction-dialable-token-economy
-reviewed: 2026-06-18T19:10:00Z
+reviewed: 2026-06-18T23:30:00Z
 depth: deep
 files_reviewed: 4
 files_reviewed_list:
-  - scripts/compactor.ts
   - scripts/context-io.ts
-  - scripts/compactor.test.ts
+  - scripts/compactor.ts
   - scripts/context-io.test.ts
+  - scripts/compactor.test.ts
 findings:
-  critical: 3
-  warning: 2
-  info: 1
+  critical: 1
+  warning: 3
+  info: 2
   total: 6
 status: issues_found
 ---
 
-# Phase 22: Code Review Report
+# Phase 22: Code Review Report (Round-5 CMP-02 gap-closure)
 
 **Reviewed:** 2026-06-18
 **Depth:** deep (cross-file)
 **Files Reviewed:** 4
-**Status:** issues_found — ROUND-4 ORACLE IS BYPASSABLE (the 4th bypass)
+**Status:** issues_found — ROUND-5 ORACLE IS BYPASSABLE (the 5th bypass)
 
 ## Summary
 
-The held-out unit suite is fully GREEN (64/64 in `compactor.test.ts`). As warned, a green
-suite is necessary but not sufficient. I constructed **a reproducible bypass family that
-makes `checkCarveOut()` exit 0 while a §14-gate-verified finding is dropped and while a
-failed-attempt's `by`/`at` provenance is laundered.** This is the same failure shape as
-rounds 1–3: the round-4 fix closed the *named* attack shapes (FA byte-equal exemption, raw-id
-collision) but left a NEW seam — the **read-path parser is loose where the write-path
-validator is strict, and the carve-out adopted only the parser, not the validation.**
+This is the round-5 adversarial review of the CMP-02 carve-out safety invariant
+(`checkCarveOut()` in `scripts/compactor.ts`), which has been bypassed four times across
+rounds 1–4 despite each round shipping a fully green unit suite. The round-5 fix adds two
+shared-layer fail-closed gates — gate (a) `parseNote.malformedLines` and gate (b) the shared
+`validate()` — run on every raw and promoted note's verbatim bytes before any survival /
+byte-equal decision.
 
-Root cause (one defect, three exploit forms): `parseNote()` is a tolerant, last-value-wins
-frontmatter reader. It only recognizes a `key: value` line when the key is at **column 0**
-(`/^([A-Za-z_]+):\s*(.*)$/`, context-io.ts:218). A provenance line that is **indented by one
-space/tab**, or written as **`verified_by : value`** (a space before the colon), is silently
-**not parsed** — the field becomes `""` with **no duplicate-key signal and no parse failure**.
-`validate()` (the write path) would reject the resulting note (a `finding` with empty
-`verified_by` is a structural FAIL), but `checkCarveOut()` never runs `validate()` on raw or
-promoted notes — it checks only `kind ∈ NOTE_KINDS` and `duplicateKeys`. The oracle's
-strongest protection (`isVerified = verified_by !== ""` → unconditional survival,
-compactor.ts:338) is therefore keyed on a field an adversary can make the oracle read as empty
-while a human/git reading the file sees it intact.
+**Pre-flight checks (all clean):**
 
-The IN-02 claim — "the path the carve-out parses provably cannot drift from the path the
-writer validates" — is only half-true: the two share the *parser* but not the *validator*.
-The parser is loose by contract (it must tolerate pre-id notes, last-value-wins); only
-`validate()` tightens it. Adopting the shared parser WITHOUT the shared validation re-opened
-the seam.
+- The committed `scripts/context-io.js` and `scripts/compactor.js` are a **byte-identical**
+  build of their `.ts` sources (rebuilt with the project `tsconfig.json` to a temp dir and
+  diffed). Analyzing the `.ts` is sound — the tests drive the `.js`.
+- The full suite for both files is **green: 211 passed**.
 
-All bypasses below were reproduced against the COMMITTED `scripts/compactor.js` and exit 0
-("carve-out intact"). The corresponding `validate()` call on the same raw text returns a
-structural FAIL — proving the write path refuses exactly what the oracle accepts.
+**The round-5 fix is real and robust for the line-shape class it targets.** I confirmed, by
+driving the committed CLI on hand-crafted notes, that the previously-bypassable vectors are now
+closed: indented `verified_by`, `key : value` (space-before-colon), tab-after-colon,
+trailing-whitespace, CRLF, lone-CR line-splitting (caught via duplicate-key/malformed),
+body-`---` second fence, premature in-fence `---`, refs-item shaped like a key, relabel
+finding→claim, and supersedes laundering are ALL refused (or correctly handled). The two-gate +
+byte-equal core is airtight **for any note the oracle parses**.
+
+**But a FIFTH bypass exists, and it is in the exact same family as rounds 1–4: a production
+data shape the oracle's parser silently projects away.** The carve-out's read path
+(`readNoteDir` → `parseNote`) parses only the FIRST `---...---` fence per `.md` file, while the
+production write path (`writeThread` / `composeThreadNote`, same module) APPENDS multiple note
+fences into a single `threads/<agent>.md` file. Every note after the first is swallowed into
+the first note's `body` and is invisible to the oracle — bypassing both new gates, the
+byte-equal loop, AND the required-survival set entirely. A §14-gate-verified finding or an
+unconditionally-required failed-attempt buried as note #2+ can be silently dropped at exit 0
+"carve-out intact". Constructible, reproduced below, classified **Critical**.
+
+The reason all 211 tests stayed green: **every carve-out test writes exactly one note per
+`.md` file.** The single test that calls `writeThread` (compactor.test.ts:729) writes one note
+and never feeds the result to `checkCarveOut` — it only asserts two-tier separation. The corpus
+never exercises the actual production raw-thread representation. This is the precise
+"green suite necessary but not sufficient" failure mode.
 
 ## Critical Issues
 
-### CR-01: Verified-finding drop laundered via a parse-invisible `verified_by` + raw-side fold
+### CR-01: Multi-note thread file — every note after the first is invisible to the carve-out (FIFTH CMP-02 bypass)
 
-**File:** `scripts/compactor.ts:338` (`const isVerified = fields.verified_by !== "";`),
-depending on `scripts/context-io.ts:218` (the column-0-only `kv` regex).
+**File:** `scripts/compactor.ts:160-174` (`readNoteDir`), `scripts/compactor.ts:129-147`
+(`readNoteFields`), `scripts/context-io.ts:197-259` (`parseNote`), produced by
+`scripts/compactor.ts:517-564` (`writeThread` / `composeThreadNote`).
 
-**Issue:** A §14-gate-verified finding present in the raw thread is dropped from the promoted
-set, yet the carve-out reports "intact." The raw finding's `verified_by` line is written
-**indented** (or as `verified_by : …`). `parseNote` does not match it as a key, so
-`fields.verified_by === ""` → `isVerified === false`. A throwaway raw note carrying
-`supersedes: <finding-id>` then folds the finding out of `survivingIds`, so
-`required = isVerified || isFailedAttempt || survivingIds.has(id)` (compactor.ts:340) is
-**false**. The finding is never checked for survival, and its drop from the promoted set is
-invisible. This defeats exactly the protection the `RAW-FOLD-VERIFIED` test
-(compactor.test.ts:625) claims to guarantee — that test only passes because it writes a
-column-0 `verified_by`.
+**Issue:**
+`readNoteDir` reads each `.md` file and calls `readNoteFields` → `parseNote` **once** per file.
+`parseNote`'s fence regex `/^---\n([\s\S]*?)\n---\n?([\s\S]*)$/` (context-io.ts:204) is
+non-greedy on the frontmatter group, so for a file containing multiple concatenated note
+fences it parses **only the first fence** and folds the entire remainder — including every
+subsequent note's frontmatter and body — into `m[2]`, the body of the first note.
 
-**Reproduction (exits 0 — "carve-out intact"):**
+The production raw-thread representation is exactly such a multi-note file. `writeThread`
+(compactor.ts:517-542) appends each provenance-bearing note to a **single**
+`threads/<agent>.md` file via `composeThreadNote`. The module's own contract comment
+(compactor.ts:513-516) states the intent: *"each recorded note is appended as an id-BEARING
+structured fence so the compaction step ... can parse the file into the per-note raw set the
+carve-out reads."* No such splitter exists anywhere — `readNoteDir` does not split a
+multi-fence file into per-note records. So the per-note raw set the carve-out is supposed to
+read is silently truncated to the first note in each thread file.
 
-Raw thread `finding.md` (note the single-space indent before `verified_by`):
-```
+Consequence: a §14-gate-verified finding (or an unconditionally-required failed-attempt) that
+is the 2nd-or-later note in a thread file is **never seen** by the oracle. It cannot enter the
+required-survival set, so dropping it from the promoted set is accepted. Both gate (a) and gate
+(b) inspect only the first note; the buried notes are body text. Same class as the prior four
+bypasses (a real on-disk byte present, projected away by the parser before any survival
+decision keys on it).
+
+**Reproduction (verified against the committed `scripts/compactor.js`):**
+
+Raw thread `thread/engineer.md` (one file, two note fences — exactly what `writeThread`
+produces after two calls):
+
+```text
 ---
-id: 20260617T142305Z-engineer-finding-vx
-kind: finding
+id: 20260617T142305Z-engineer-observation-o1
+kind: observation
 by: engineer
 at: 2026-06-17T14:23:05Z
-  verified_by: §14-gate#RUN7
+verified_by: 
+confidence: low
+refs:
+  - X
+supersedes: 
+---
+
+just an observation.
+---
+id: 20260617T150000Z-engineer-finding-CRITICAL
+kind: finding
+by: engineer
+at: 2026-06-17T15:00:00Z
+verified_by: §14-gate#RUN7
 confidence: high
 refs:
-  - A
+  - Y
 supersedes: 
 ---
 
-The auth bypass is fixed.
+The SQL injection is fixed (gate-verified).
 ```
-Raw thread `fold.md` (a throwaway note that folds the finding out raw-side):
-```
+
+Promoted `promoted/o1.md` (keeps ONLY the first observation; the verified finding is entirely
+absent):
+
+```text
 ---
-id: 20260617T150000Z-attacker-observation-f1
+id: 20260617T142305Z-engineer-observation-o1
 kind: observation
-by: attacker
-at: 2026-06-17T15:00:00Z
-verified_by: 
-confidence: low
-refs:
-  - A
-supersedes: 20260617T142305Z-engineer-finding-vx
----
-
-fold
-```
-Promoted set: **only `fold.md`** (the verified finding is entirely dropped).
-
-`validate()` on the raw `finding.md` returns `["structural FAIL: a finding requires a
-verified_by stamp …"]` — proving the write path would reject this note while the carve-out
-accepts its silent drop. The `verified_by : value` (space-before-colon) variant reproduces
-identically (also confirmed).
-
-**Fix:** Make the carve-out enforce the write-path structural contract on every raw and
-promoted note before keying any survival decision on a parsed field — run the shared exported
-`validate()` on each note and fail closed on any structural finding; in particular a raw
-`finding` must carry a non-empty grammar-valid `verified_by`, so a parse-empty `verified_by`
-is refused rather than silently demoting the note to "soft/foldable." Equivalently (and
-closing CR-01/CR-02/CR-03 at one choke point), tighten `parseNote` to fail closed on any
-non-blank line inside the fence that is neither a recognized column-0 `key: value`, a `refs:`
-list `- item`, nor empty — an indented/`key : value` provenance line must be a hard error,
-not a silently dropped field.
-
----
-
-### CR-02: Failed-attempt `by`/`at` provenance laundered via symmetric parse-invisibility
-
-**File:** `scripts/compactor.ts:384-402` (the byte-equal field loop), depending on the same
-column-0-only parser at `scripts/context-io.ts:218`.
-
-**Issue:** The byte-equal loop compares `fields[field]` (raw) against `counterpart[field]`
-(promoted). If the **same** load-bearing line is indented (or `key : value`-shaped) on **both**
-the raw and the promoted note, the parser reads `""` on both sides, the loop sees `"" === ""`,
-and the mutation passes — while a human or `git` reading the promoted file sees the altered
-authorship. The carve-out's core promise ("`by`/`at`/`verified_by`/`supersedes` survive
-compaction byte-equal, including on failed-attempts") is defeated: the oracle byte-compares
-the *parser's projection*, not the *file's bytes*.
-
-**Reproduction (exits 0 — "carve-out intact"; human/git sees `by: attacker`):**
-
-Raw `fa.md`:
-```
----
-id: 20260617T142305Z-engineer-failed-attempt-fa1
-kind: failed-attempt
-  by: engineer
+by: engineer
 at: 2026-06-17T14:23:05Z
 verified_by: 
 confidence: low
 refs:
-  - A
+  - X
 supersedes: 
 ---
 
-FA-1: dead end
+just an observation.
 ```
-Promoted `fa.md` (same id, FA-token preserved, `by` indented and value flipped to `attacker`):
+
+Result:
+
+```text
+$ node scripts/compactor.js check thread promoted
+carve-out intact: every failed-attempt id survived and all load-bearing provenance fields are present.
+EXIT=0
 ```
----
-id: 20260617T142305Z-engineer-failed-attempt-fa1
-kind: failed-attempt
-  by: attacker
-at: 2026-06-17T14:23:05Z
-verified_by: 
-confidence: low
-refs:
-  - A
-supersedes: 
----
 
-FA-1: dead end
+The §14-gate-verified finding was silently dropped. The same construction with a
+`failed-attempt` buried as note #2 (the unconditionally-required class) also returns exit 0
+"carve-out intact".
+
+I also confirmed `writeThread` produces this shape in practice: two `writeThread` calls with
+note provenance yield a single `threads/engineer.md` containing four `^---$` fence lines (two
+complete notes), and `parseNote` of that file returns only the first note's scalars with the
+second note buried in `.body` (and `malformedLines` empty — the body is not scanned).
+
+**Fix:**
+The read path must split a multi-note file into per-note records BEFORE parsing, so EVERY note
+in a thread file reaches both gates and the required-survival set. The split must use the SAME
+fence grammar `parseNote` uses (single source of truth, the IN-02 principle), and a trailing
+non-blank, non-fence remainder must fail closed (it is an unparseable note, never a silent
+drop). Sketch:
+
+```ts
+// In context-io.ts — a shared splitter yielding each note's verbatim bytes, reusing the same
+// fence shape parseNote recognizes. A non-blank remainder that is not a fence is a structural
+// fault the caller surfaces (fail closed), never dropped.
+export function splitNotes(text: string): { notes: string[]; trailingMalformed: string | null } {
+  const normalized = text.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+  const notes: string[] = [];
+  let rest = normalized;
+  const FENCE = /^---\n[\s\S]*?\n---\n?/;
+  let m: RegExpMatchArray | null;
+  while ((m = rest.match(FENCE))) {
+    notes.push(m[0]);
+    rest = rest.slice(m[0].length);
+  }
+  return { notes, trailingMalformed: rest.trim() === "" ? null : rest };
+}
 ```
-The GENERALIZED mutation sweep (compactor.test.ts:1215) does not catch this because it only
-ever writes column-0 fields and perturbs the *value*, never the *line shape*. The oracle
-asserts "provenance survives byte-equal" but compares parser-projected scalars, so a byte
-change the parser cannot see is invisible. Works for `by`, `at`, and `supersedes` identically.
 
-**Fix:** Same single choke-point as CR-01 — the parser must not silently drop an
-indented/malformed provenance line. Either (a) fail closed on any non-blank, non-recognized
-line inside the fence, or (b) have the carve-out compare the raw frontmatter bytes of each
-load-bearing field region rather than the parser's tolerant projection. Option (a) closes both
-CR-01 and CR-02.
+Then `readNoteDir` iterates `splitNotes(fileText).notes`, keys each by its frozen id (or
+`<file>#<n>`), runs BOTH gates and the byte-equal / required-survival logic per note, and pushes
+a fail-closed finding for any `trailingMalformed` remainder. Until the carve-out reads the same
+per-note set the write path emits, the invariant is bypassable.
 
----
-
-### CR-03: Oracle never enforces "a finding must be verified" — unverified-finding drop laundered (value-level, no parser trick)
-
-**File:** `scripts/compactor.ts:333-341` (required-set construction). Independent of the
-parser — a logic gap in the required-set rules.
-
-**Issue:** The required-survival rule is `required = isVerified || isFailedAttempt ||
-survivingIds.has(id)`. A note with `kind: finding` and a genuinely **empty** `verified_by`
-(column 0, no parser trickery) is treated as soft and foldable: `isVerified` is false, so a
-raw-side `supersedes` link folds it out of the required set and its drop is accepted. But by
-the schema (context-note.md), a `finding` MUST carry a real stamp — a `finding` with empty
-`verified_by` is structurally invalid and the write path refuses it. The carve-out accepts it
-as raw input and silently downgrades it to "soft," which both (a) lets a malformed finding be
-dropped and (b) is the value-level analog of CR-01 (the attacker need not indent — just emit
-`verified_by:` empty and fold). The oracle treats `kind` as validated (WR-03) but never
-cross-checks the kind↔field obligations that `validate()` enforces.
-
-**Reproduction (exits 0):** Identical to CR-01 but with the raw finding's `verified_by:` line
-at column 0 and genuinely empty; a throwaway `fold.md` supersedes it; promoted keeps only the
-fold. The finding is dropped, carve-out intact. (Confirmed empirically.)
-
-**Fix:** Run the shared `validate()` over every raw and promoted note and fail closed on any
-structural finding (this rejects a `finding` with empty/invalid `verified_by` before the
-soft-fold logic can demote it). This single change also closes CR-01 and CR-02. The carve-out
-must not accept as "raw truth" any note the sanctioned writer would have refused to write.
+**Mandatory test to close alongside the fix (this is WHY the bypass survived):** a held-out case
+that builds the raw thread via `writeThread` (or a literal multi-fence file), drops a buried
+verified finding / buried FA from the promoted set, and asserts the CLI refuses (exit 1) naming
+the dropped id. A single-note-per-file corpus structurally cannot detect this class.
 
 ## Warnings
 
-### WR-01: "altered to empty" vs "altered" message branch misreports the laundered field
+### WR-01: Free-scratch `writeThread` appends raw body with no fence — broadens the multi-note invisibility surface
 
-**File:** `scripts/compactor.ts:388-400`
+**File:** `scripts/compactor.ts:534-536` (`writeThread`), `scripts/compactor.ts:160-174`
+(`readNoteDir`).
 
-**Issue:** When `promVal === ""` the message says the field "was dropped to empty"; otherwise
-"was altered … to `<promVal>`." Under the CR-02 indentation trick, the *promoted* value the
-oracle reads is `""` even though the on-disk value is non-empty (e.g. `attacker`). In the
-partially-caught one-sided-indentation cases, the operator-facing message names the wrong
-promoted value (`""`), obscuring the real on-disk forgery during incident response. After the
-CR-fixes this is moot, but if only a partial fix lands, the message should echo the bytes on
-disk, not the parser's projection.
+**Issue:**
+Called WITHOUT a `note` argument, `writeThread` appends `body + "\n"` as raw scratch
+(compactor.ts:535-536) — no `---` fence. A thread file that mixes fenced notes with raw scratch
+(or is entirely scratch) compounds CR-01: `parseNote` parses the first fence and swallows
+everything after (any later structured note included), or returns null for an all-scratch file.
+An all-scratch file is caught as `unparseable` (fail closed, good), but a fence-then-scratch
+file silently hides any later note. Nothing on the write path enforces "only clean fenced
+notes," yet the read path assumes it.
 
-**Fix:** Surface the raw line bytes (or flag the field as structurally malformed) in the
-finding text, not the tolerant-parser scalar.
+**Fix:** Fold into the CR-01 splitter; additionally give free-scratch a deterministic boundary
+(or reject mixing scratch and fenced notes in one file) so the compaction step has unambiguous
+per-note edges.
 
-### WR-02: Test suite never exercises indentation / `key : value` malformation
+### WR-02: `readContext` silently skips an unparseable note (fail-open), diverging from the compactor's fail-closed posture
 
-**File:** `scripts/compactor.test.ts` (entire file); `scripts/context-io.test.ts`
+**File:** `scripts/context-io.ts:464-468`.
 
-**Issue:** Every fixture writes provenance lines at column 0 with `key: value`. No test feeds
-an indented provenance line, a `key : value` (space-before-colon) line, or any line the loose
-parser silently drops. The GENERALIZED sweep (line 1215) claims (field × kind) coverage but
-only perturbs *values*, never *line shape*, so it structurally cannot detect
-CR-01/CR-02/CR-03. The duplicate-key tests pass, but a *single* malformed (non-duplicate) line
-is the uncovered seam — and that single line is the entire bypass. The suite therefore does
-not genuinely discriminate the round-4 invariant from a parser-trusting one.
+**Issue:**
+`readContext` does `if (!parsed) continue;` — it silently drops any `notes/<id>.md` that
+`parseNote` cannot parse (the inline comment says "skip an unparseable file rather than crash
+the read"). The compactor deliberately does the OPPOSITE (WR-02, compactor.ts:160-174: record
+unparseable and fail closed). `readContext` feeds `currentState`, `admit`, and `render` —
+including the live-green-verdict cross-check in `admit` (context-io.ts:609). A note unparseable
+for any reason (a future encoding edge the normalizer misses, a truncated write) vanishes from
+admission and replay with no signal. For a safety-relevant read path this is fail-open. Not the
+CMP-02 carve-out path (hence Warning), but it is the same anti-pattern the phase is eliminating.
 
-**Fix:** Add held-out RED-first cases for the three exploit forms (parse-empty `verified_by`
-finding + raw-side fold → exit 1; FA with a load-bearing line indented on both sides → exit 1;
-`key : value` space-before-colon variant → exit 1) and a parser-level test that the carve-out
-consumer fails closed on any non-blank, non-`key:`, non-`- item` line inside the fence.
+**Fix:** Surface unparseable notes from `readContext` (e.g. a sibling list callers can fail
+closed on, mirroring `NoteDirResult.unparseable`) rather than `continue`.
+
+### WR-03: `readContext` id/filename divergence — code contradicts its comment and emits no signal
+
+**File:** `scripts/context-io.ts:470-475`.
+
+**Issue:**
+`const id = s.id && s.id !== "" ? s.id : fileId;` (line 475) **prefers the frontmatter `id`**
+when present, but the adjacent comment (lines 470-473) claims "the filename (the storage key)
+wins for the read." The code and comment disagree. More importantly, when frontmatter `id` ≠
+filename id — which the comment itself calls "the on-disk signature of a tampered identity" —
+the divergence is resolved silently with NO finding. The comment defers to "validate() … on the
+explicit path," but `validate()` only sees text, never the filename, so it cannot cross-check
+`id` vs filename. Nothing surfaces the divergence. A latent identity seam on the context read
+path (not the carve-out, hence Warning), plus a code/comment defect.
+
+**Fix:** Decide the resolution rule, make code and comment agree, and emit a structural finding
+(or fail closed in the relevant caller) when frontmatter `id` ≠ filename id.
 
 ## Info
 
-### IN-01: `failedAttemptToken` body regex is a cosmetic label only (no defect)
+### IN-01: Duplicated id-composition logic between `composeThreadNote` and `noteId` (drift hazard)
 
-**File:** `scripts/compactor.ts:167-173`
+**File:** `scripts/compactor.ts:547-548` vs `scripts/context-io.ts:416-420`.
 
-**Issue:** `failedAttemptToken` only enriches a dropped-FA message; survival is correctly keyed
-on the frozen id (WR-01). It reads `parsed.body.trim()`, so a token spanning the fence boundary
-is not findable — acceptable for a cosmetic label. No correctness impact.
+**Issue:**
+`composeThreadNote` re-implements the id formula
+(`${at.replace(...)}-${by}-${kind}-${randomUUID().slice(0,8)}`) inline instead of reusing
+`context-io`'s `noteId`. This is the exact drift hazard the IN-02 unification killed for the
+parser — the same single-source principle should apply to id composition. A future change to
+`noteId`'s format would not propagate here, and a thread id could diverge from the
+promoted-counterpart id format, defeating the id-keyed carve-out.
 
-**Fix:** None required.
+**Fix:** Export and reuse `noteId` (or a shared id helper) from `context-io.ts`.
 
----
+### IN-02: `validate()` accepts arbitrary unknown frontmatter keys with no signal
 
-## What I tried that is genuinely BLOCKED (for honesty)
+**File:** `scripts/context-io.ts:235-248`, `scripts/context-io.ts:267-358`.
 
-- **Promoted-side single-field value flip (column 0):** caught by the byte-equal loop.
-- **Raw-id collision aliasing two raw notes onto one promoted note:** blocked by the CR-03
-  raw-side collision guard (compactor.ts:292-304).
-- **Promoted-id collision:** blocked (compactor.ts:276-282).
-- **Duplicate provenance key (two `id:`/`kind:`/… lines), even across a blank line:** blocked —
-  `parseNote` records every repeat in `duplicateKeys`; the carve-out fails closed
-  (compactor.ts:238-255). Confirmed empirically.
-- **FORGED-FOLD (promoted-side `supersedes` authorizing a drop):** blocked — the required set
-  is the raw-side graph only (compactor.ts:351-354).
-- **Relabel kind to an unknown value to route onto a weaker path:** blocked by the up-front
-  `kind ∈ NOTE_KINDS` check (compactor.ts:214-231).
-- **Unparseable `.md` (no fence) silently dropped:** blocked — surfaced as a fail-closed
-  finding (compactor.ts:197-208).
-- **Hiding FA-ness by indenting `kind: failed-attempt`:** blocked — kind parses empty →
-  WR-03 fail closed.
-- **BOM-prefixed note:** `parseNote` returns null → fail-closed unparseable finding (acceptable).
-- **Raw-side genuine supersedes fold of a non-verified durable `decision`:** NOT a bypass —
-  this is the sanctioned D-03 raw-side collapse; only verified findings and FAs are
-  unconditionally protected, and a non-verified durable note losing to a later raw-side
-  supersedes is by-design foldable.
+**Issue:**
+The kv branch accepts any `^([A-Za-z_]+):` key into `scalars` (confirmed: `foo: bar` parses,
+`validate()` returns 0 findings). Unknown keys are not load-bearing today, so not a bypass — but
+a permissive surface: a future field that becomes load-bearing, or a typo of a real provenance
+key (e.g. `verfied_by:`), is silently accepted while the real field reads as missing/empty.
+Given the phase's "fail closed on the class, not the named shape" lesson, an allowlist of
+recognized provenance keys (structural finding for anything else) would harden against the next
+typo-shaped laundering vector.
 
-The ONE open seam: a provenance line **present in the file but indented or `key : value`-shaped**
-is read as empty by the oracle yet seen as present by humans/git, and the carve-out never runs
-the write-path `validate()` that would reject the resulting note. That single seam yields
-CR-01, CR-02, and (value-level) CR-03.
+**Fix:** Consider an allowlist of known provenance keys in `validate()`; emit a structural
+finding for unrecognized keys. Lower priority than CR-01.
 
 ---
 
