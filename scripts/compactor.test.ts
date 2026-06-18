@@ -266,6 +266,113 @@ describe("compactor.js — CMP-02 carve-out invariant (drop refuses, names the f
       expect(`${r2.stdout}${r2.stderr}`).toContain("verified_by");
     }
   });
+
+  // ── Held-out adversarial cases (gap-closure 22-03). RED against the committed compactor.js. ──
+  // These pin the three confirmed bypasses (CR-01 mutation, CR-02 wholly-dropped verified finding,
+  // CR-03 multi-same-kind borrowing). Today's code returns exit 0 / empty findings for each.
+
+  it("mutates verified_by to a forged stamp — refuse, naming verified_by", () => {
+    const dir = freshTmp("cmp-mut-vb-");
+    const thread = join(dir, "thread");
+    const promoted = join(dir, "promoted");
+    goodRawThread(thread); // finding's verified_by seeded at §14-gate#SEED-001
+    // The promoted finding keeps a NON-EMPTY verified_by but swaps it to a forged stamp.
+    goodPromotedSet(promoted, { finding: { verified_by: "§14-gate#FORGED-999" } });
+    const r = runCheck(thread, promoted);
+    expect(r.status, "a forged verified_by must be refused").not.toBe(0);
+    expect(`${r.stdout}${r.stderr}`).toContain("verified_by");
+  });
+
+  it("mutates by to a different non-empty value — refuse, naming by", () => {
+    const dir = freshTmp("cmp-mut-by-");
+    const thread = join(dir, "thread");
+    const promoted = join(dir, "promoted");
+    goodRawThread(thread); // finding by: engineer
+    // The promoted finding keeps a NON-EMPTY by but swaps engineer -> attacker.
+    goodPromotedSet(promoted, { finding: { by: "attacker" } });
+    const r = runCheck(thread, promoted);
+    expect(r.status, "a mutated by must be refused").not.toBe(0);
+    expect(`${r.stdout}${r.stderr}`).toContain("by");
+  });
+
+  it("wholly drops a verified finding with 2+ promoted notes — refuse, naming the dropped finding", () => {
+    const dir = freshTmp("cmp-drop-verified-");
+    const thread = join(dir, "thread");
+    const promoted = join(dir, "promoted");
+    // Raw: the verified finding (§14-gate#SEED-001) + FA-1.
+    goodRawThread(thread);
+    // Promoted: TWO failed-attempt notes only (FA-1 + FA-2); the verified finding is entirely ABSENT.
+    mkdirSync(promoted, { recursive: true });
+    writeFileSync(
+      join(promoted, "FA-1.md"),
+      noteText({ kind: "failed-attempt", verified_by: "", body: "FA-1: dead end." }),
+    );
+    writeFileSync(
+      join(promoted, "FA-2.md"),
+      noteText({ kind: "failed-attempt", verified_by: "", body: "FA-2: another dead end." }),
+    );
+    const r = runCheck(thread, promoted);
+    expect(r.status, "a wholly-dropped verified finding must be refused").not.toBe(0);
+    // The message names the dropped verified finding (its stamp or kind).
+    expect(`${r.stdout}${r.stderr}`).toMatch(/verified_by|finding/);
+  });
+
+  it("drops by on one of two same-kind findings — refuse, naming by", () => {
+    const dir = freshTmp("cmp-multi-samekind-");
+    const thread = join(dir, "thread");
+    const promoted = join(dir, "promoted");
+    // Raw: TWO findings of the same kind, different by (engineer + reviewer), plus FA-1.
+    mkdirSync(thread, { recursive: true });
+    writeFileSync(
+      join(thread, "finding-eng.md"),
+      noteText({ kind: "finding", by: "engineer", at: "2026-06-17T14:23:05Z", verified_by: "§14-gate#SEED-001" }),
+    );
+    writeFileSync(
+      join(thread, "finding-rev.md"),
+      noteText({ kind: "finding", by: "reviewer", at: "2026-06-17T15:00:00Z", verified_by: "§14-gate#SEED-002" }),
+    );
+    writeFileSync(
+      join(thread, "FA-1.md"),
+      noteText({ kind: "failed-attempt", verified_by: "", body: "FA-1: dead end." }),
+    );
+    // Promoted: both findings, but the reviewer finding has its `by:` line stripped; engineer intact.
+    mkdirSync(promoted, { recursive: true });
+    writeFileSync(
+      join(promoted, "finding-eng.md"),
+      noteText({ kind: "finding", by: "engineer", at: "2026-06-17T14:23:05Z", verified_by: "§14-gate#SEED-001" }),
+    );
+    writeFileSync(
+      join(promoted, "finding-rev.md"),
+      noteText({ kind: "finding", by: "reviewer", at: "2026-06-17T15:00:00Z", verified_by: "§14-gate#SEED-002" }).replace(
+        "by: reviewer\n",
+        "",
+      ),
+    );
+    writeFileSync(
+      join(promoted, "FA-1.md"),
+      noteText({ kind: "failed-attempt", verified_by: "", body: "FA-1: dead end." }),
+    );
+    const r = runCheck(thread, promoted);
+    expect(r.status, "a dropped by on one of two same-kind findings must be refused").not.toBe(0);
+    expect(`${r.stdout}${r.stderr}`).toContain("by");
+  });
+});
+
+describe("compactor.js — fail-closed input (gap-closure 22-03, WR-01)", () => {
+  it("CLI check fails closed on a missing threadDir — exit 1, never carve-out intact", () => {
+    const dir = freshTmp("cmp-missing-thread-");
+    // A threadDir path that does NOT exist (a non-existent subdir of a fresh tmp dir).
+    const thread = join(dir, "does-not-exist");
+    const promoted = join(dir, "promoted");
+    mkdirSync(promoted, { recursive: true }); // a valid (empty) promoted dir
+    const r = runCheck(thread, promoted);
+    expect(r.status, "a missing threadDir must fail closed").not.toBe(0);
+    const out = `${r.stdout}${r.stderr}`;
+    // Names the missing thread directory on stderr.
+    expect(r.stderr).toMatch(/thread/i);
+    // Never reports the success phrase for a non-existent threadDir.
+    expect(out).not.toContain("carve-out intact");
+  });
 });
 
 describe("compactor.js — CMP-01 two-tier separation + sole writer", () => {
@@ -419,5 +526,25 @@ describe("compactor.js — CMP-03 dial behavior + re-verify", () => {
     expect(degraded).toContain("UNKNOWN - verify");
     // It must NOT carry a hand-carried §14-gate stamp on the degraded claim.
     expect(degraded).not.toMatch(/verified_by:\s*§14-gate#/);
+  });
+
+  // ── Dial-independence by construction (gap-closure 22-03, WR-05 / D-05). ──
+  it("carve-out findings are byte-identical across all three dials for the same mutation", () => {
+    // ONE single-mutation input (the forged-stamp promoted set from case 1) checked at each dial.
+    const dir = freshTmp("cmp-dial-byteid-");
+    const thread = join(dir, "thread");
+    const promoted = join(dir, "promoted");
+    goodRawThread(thread);
+    goodPromotedSet(promoted, { finding: { verified_by: "§14-gate#FORGED-999" } });
+    const capture = (dial: string) => {
+      const r = runCheck(thread, promoted, dial);
+      return `${r.stdout}${r.stderr}`;
+    };
+    const outAggressive = capture("aggressive");
+    const outBalanced = capture("balanced");
+    const outRetainRaw = capture("retain-raw");
+    // The carve-out output must be byte-identical text at every dial — not merely non-zero status.
+    expect(outBalanced).toBe(outAggressive);
+    expect(outRetainRaw).toBe(outAggressive);
   });
 });
