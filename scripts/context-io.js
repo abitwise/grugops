@@ -279,9 +279,14 @@ export function atomicWrite(finalPath, data) {
     }
 }
 // ── Compose a note's frontmatter + body from a validated NoteInput. ─────────────────────────────
-function composeNote(note, body) {
+// The frozen `id:` line is emitted FIRST inside the fence (a deterministic slot, before `kind:`) so
+// the on-disk frontmatter carries the same stable creation-time identity as the <id>.md filename.
+// The id is a load-bearing provenance field the compaction carve-out matches raw→promoted on and
+// byte-equal-checks — it is single-line-guarded exactly as the other provenance fields are.
+function composeNote(note, body, id) {
     const refsBlock = note.refs.length === 0 ? "refs:\n" : "refs:\n" + note.refs.map((r) => `  - ${r}`).join("\n") + "\n";
     return ("---\n" +
+        `id: ${id}\n` +
         `kind: ${note.kind}\n` +
         `by: ${note.by}\n` +
         `at: ${note.at}\n` +
@@ -314,14 +319,19 @@ export function appendNote(task, note, body, contextRoot = DEFAULT_CONTEXT_ROOT)
         assertSingleLine("supersedes", note.supersedes);
     for (const r of note.refs)
         assertSingleLine("refs[]", r);
-    const text = composeNote(note, body);
+    // Compute the frozen id ONCE and use it for BOTH the emitted `id:` frontmatter field and the
+    // <id>.md filename — a single source of the identity so frontmatter `id` and filename can never
+    // diverge. Guard it as a single-line field (an attacker must not forge/collide an id via a
+    // smuggled frontmatter line).
+    const id = noteId(note);
+    assertSingleLine("id", id);
+    const text = composeNote(note, body, id);
     const findings = validate(text);
     if (findings.length > 0) {
         throw new Error(`context-io.appendNote: refusing to write an invalid note:\n${findings.join("\n")}`);
     }
     const notesDir = join(contextRoot, task, "notes");
     mkdirSync(notesDir, { recursive: true });
-    const id = noteId(note);
     atomicWrite(join(notesDir, `${id}.md`), text);
     return id;
 }
@@ -340,8 +350,14 @@ export function readContext(task, contextRoot = DEFAULT_CONTEXT_ROOT) {
         if (!parsed)
             continue; // skip an unparseable file rather than crash the read
         const s = parsed.scalars;
+        // Prefer the explicit frozen `id:` field; fall back to the filename-derived id when absent (a
+        // pre-id note). When BOTH are present they must agree — a frontmatter id diverging from its
+        // filename is the on-disk signature of a tampered identity, so the filename (the storage key)
+        // wins for the read and the divergence is left for validate() to surface on the explicit path.
+        const fileId = file.replace(/\.md$/, "");
+        const id = s.id && s.id !== "" ? s.id : fileId;
         records.push({
-            id: file.replace(/\.md$/, ""),
+            id,
             kind: s.kind ?? "",
             by: s.by ?? "",
             at: s.at ?? "",
@@ -411,7 +427,11 @@ export function emitVerdict(task, id, contextRoot = DEFAULT_CONTEXT_ROOT, at = n
     const body = `${VERDICT_GREEN_MARKER}: the §14 quality gate run ${id} passed (all checks green).`;
     for (const r of note.refs)
         assertSingleLine("refs[]", r);
-    const text = composeNote(note, body);
+    // The verdict note carries its own frozen id (the same one in its <id>.md filename) — a single
+    // source of identity, single-line-guarded like every other provenance field.
+    const noteIdStr = noteId(note);
+    assertSingleLine("id", noteIdStr);
+    const text = composeNote(note, body, noteIdStr);
     // Validate WITH the trusted-gate-emission carve-out: the reserved-identity rule is suppressed for
     // this one path (D-04); every other structural rule still applies.
     const findings = validate(text, true);
@@ -420,7 +440,6 @@ export function emitVerdict(task, id, contextRoot = DEFAULT_CONTEXT_ROOT, at = n
     }
     const notesDir = join(contextRoot, task, "notes");
     mkdirSync(notesDir, { recursive: true });
-    const noteIdStr = noteId(note);
     atomicWrite(join(notesDir, `${noteIdStr}.md`), text);
     return noteIdStr;
 }

@@ -159,10 +159,10 @@ describe("context-io.js — appendNote concurrent un-clobbered writes (SC-2)", (
     // Exactly N distinct files — none clobbered.
     expect(files.length).toBe(N);
     expect(new Set(files).size).toBe(N);
-    // Each parses to well-formed frontmatter opening with the kind line.
+    // Each parses to well-formed frontmatter opening with the frozen id line, then kind.
     for (const file of files) {
       const text = readFileSync(join(notesDir, file), "utf8");
-      expect(text).toMatch(/^---\nkind: observation\n/);
+      expect(text).toMatch(/^---\nid: \S+\nkind: observation\n/);
     }
   });
 });
@@ -294,6 +294,49 @@ describe("context-io.js — provenance-forgery defense (CR-01)", () => {
     const r = runValidate(f);
     expect(r.status).not.toBe(0);
     expect(`${r.stdout}${r.stderr}`).toMatch(/duplicate.*at/i);
+  });
+
+  it("SC-1b BAD: a duplicate `id:` frontmatter line is a structural FAIL naming the key", () => {
+    const dir = freshTmp("ctx-io-dup-id-");
+    const f = join(dir, "note.md");
+    // Two `id:` lines simulate an id forgery/collision on disk: the duplicate-key defense must
+    // reject it, exactly as it rejects a duplicate kind:/at:.
+    const text =
+      "---\nid: 20260617T142305Z-engineer-finding-aaaa\n" +
+      "kind: finding\nby: engineer\nat: 2026-06-17T14:23:05Z\n" +
+      "id: 20260617T142305Z-attacker-finding-bbbb\n" +
+      "verified_by: §14-gate#SEED-001\nconfidence: high\nrefs:\nsupersedes: \n---\n\nbody\n";
+    writeFileSync(f, text);
+    const r = runValidate(f);
+    expect(r.status).not.toBe(0);
+    expect(`${r.stdout}${r.stderr}`).toMatch(/duplicate.*id/i);
+  });
+
+  it("appendNote emits an `id:` field equal to the <id>.md filename", () => {
+    const contextRoot = freshTmp("ctx-io-idfield-");
+    const task = "task-idfield";
+    const returnedId = mod.appendNote(
+      task,
+      {
+        kind: "finding",
+        by: "engineer",
+        at: "2026-06-17T14:23:05Z",
+        verified_by: "§14-gate#SEED-001",
+        confidence: "high",
+        refs: ["AUTH-01"],
+        supersedes: null,
+      },
+      "compact body",
+      contextRoot,
+    );
+    const notesDir = join(contextRoot, task, "notes");
+    const files = readdirSync(notesDir).filter((fn) => fn.endsWith(".md"));
+    expect(files.length).toBe(1);
+    const fileId = files[0].replace(/\.md$/, "");
+    // The returned id, the filename id, and the emitted frontmatter `id:` line all agree.
+    expect(fileId).toBe(returnedId);
+    const text = readFileSync(join(notesDir, files[0]), "utf8");
+    expect(text).toContain(`id: ${returnedId}\n`);
   });
 
   // The legitimate `refs:` YAML list block (refs:\n  - x\n  - y) must NOT trip the duplicate-key

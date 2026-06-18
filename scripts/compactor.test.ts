@@ -774,9 +774,11 @@ describe("compactor.js — CMP-01 two-tier separation + sole writer", () => {
       const d = join(root, task, "notes");
       const files = readdirSync(d).filter((f) => f.endsWith(".md"));
       expect(files.length).toBe(1);
-      // Strip the random nonce from the filename and the note id-bearing lines: compare the note
-      // BODY+frontmatter bytes, which are produced solely by context-io's composeNote.
-      return readFileSync(join(d, files[0]), "utf8");
+      // Strip the random nonce from the filename and the note id-bearing `id:` line: compare the
+      // note BODY+frontmatter bytes, which are produced solely by context-io's composeNote. The
+      // `id:` line carries a per-note random nonce, so it differs between two independent writes of
+      // the same input — normalize it away, exactly as the filename nonce is stripped.
+      return readFileSync(join(d, files[0]), "utf8").replace(/^id: .*$/m, "id: <id>");
     };
     expect(readOne(rootA)).toBe(readOne(rootB));
   });

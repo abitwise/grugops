@@ -73,6 +73,7 @@ Every note's frontmatter carries exactly these provenance keys:
 
 | Key           | Type                       | Meaning |
 | ------------- | -------------------------- | ------- |
+| `id`          | string                     | The note's stable creation-time identity (`<at-compact>-<by>-<kind>-<nonce>`), frozen at write and equal to the `<id>.md` filename. Carried verbatim through compaction — a load-bearing field the carve-out matches raw→promoted on and byte-equal-checks. |
 | `kind`        | one of the six values      | What kind of note this is. |
 | `by`          | string                     | The authoring role or agent. |
 | `at`          | ISO-8601 timestamp string  | When the note was recorded. The authoritative replay sort key. |
@@ -151,6 +152,7 @@ result as a `claim` with `confidence: UNKNOWN - verify` — it never fakes a pas
 
 ```markdown
 ---
+id: 20260617T142305Z-software-engineer-finding-a1b2
 kind: finding
 by: software-engineer
 at: 2026-06-17T14:23:05Z
@@ -167,5 +169,6 @@ Verified by the §14 quality gate run ABC-001 (lint + tests + UI/E2E all green).
 ```
 
 This note is structurally valid: `kind`, `by`, `at`, and `confidence` are all present and
-`kind` is one of the six values. `verified_by` carries a gate stamp, `refs` is a YAML list,
-and `supersedes` is empty (this note overrides nothing).
+`kind` is one of the six values. `id` is the note's frozen creation-time identity and equals
+the `<id>.md` filename. `verified_by` carries a gate stamp, `refs` is a YAML list, and
+`supersedes` is empty (this note overrides nothing).
