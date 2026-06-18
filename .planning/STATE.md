@@ -4,11 +4,11 @@ milestone: v2.0
 milestone_name: Decentralized Factory — Shared Verified Context
 current_phase: 22
 current_phase_name: memory-trajectory-compaction-dialable-token-economy
-status: executed_awaiting_verification
-stopped_at: "Phase 22 gap-closure plan 22-04 EXECUTED (round 3, CMP-02 stable-id rewrite). All 4 tasks committed: 7 held-out adversarial cases RED-first against the committed pre-fix compactor.js (CR-01/CR-02 P7/CR-02 P8/IN-01/FORGED-FOLD/RAW-FOLD-VERIFIED + read-path duplicate-id) and now REFUSE (exit 1) against the post-fix .js naming the right element; frozen `id:` field threaded through context-io.ts (compose/append/emitVerdict/read + contract); checkCarveOut rewritten to an id-keyed exact 1:1 match over an ASYMMETRIC required-survival set (currentState folds out only soft non-verified notes; verified findings + failed-attempts survive unconditionally); verifiedKey Set + findCounterpart DELETED; readNoteFields rejects a duplicate provenance key on the oracle's read path; both committed .js byte-fresh (npm run freshness exit 0); full non-e2e suite GREEN (244 passed). Phase 22 NOT yet verified-complete — gaps were found in round 2; next: re-verify CMP-02 via /gsd-plan-phase 22 --gaps re-run or code-review + adversarial reproduction before marking the phase complete."
-last_updated: "2026-06-18T14:21:16.985Z"
+status: gaps_found
+stopped_at: "Phase 22 RE-VERIFICATION (round 3, 22-04 stable-id rewrite) → GAPS_FOUND. 22-04 was real progress: the 7 held-out bypasses (CR-01/CR-02 P7+P8/IN-01/FORGED-FOLD/RAW-FOLD-VERIFIED + read-path dup-id) all refuse exit 1; verifiedKey Set + findCounterpart DELETED; suite GREEN (244); freshness exit 0. BUT the CMP-02 carve-out is STILL bypassable by TWO residual shapes, EACH independently reproduced at exit 0 against the committed scripts/compactor.js: (CR-03, from the verifier) NO raw-side id-collision guard — two raw notes sharing a forged id drop a §14-gate-verified finding undetected (violates a verbatim 22-04 must-have); (CR-01, from a parallel DEEP code-review) the kind:failed-attempt path SKIPS the byte-equal check entirely (continue @compactor.ts:247,270 → field loop @328 never runs for FAs) — by/at/verified_by/supersedes launderable on a failed-attempt. Both merged into 22-VERIFICATION.md `gaps:` (+ WR-01/02/03/04 in 22-REVIEW.md). The round-3 lesson recurs: a green suite ≠ proof for this safety oracle — gaps surfaced via code-review + adversarial reproduction, NOT the green suite. Do NOT mark CMP-02 or the phase complete. Next: /gsd-plan-phase 22 --gaps (round 4 — MUST close BOTH CR-01 and CR-03 + FA-cluster warnings WR-01/02/03)."
+last_updated: "2026-06-18T17:45:00.000Z"
 last_activity: 2026-06-18
-last_activity_desc: Phase 22 plan 22-04 executed (CMP-02 stable-id rewrite)
+last_activity_desc: Phase 22 re-verified (round 3) — gaps_found; CMP-02 still bypassable (CR-01 FA-provenance + CR-03 raw-id-collision), both reproduced
 progress:
   total_phases: 7
   completed_phases: 3
@@ -28,10 +28,10 @@ See: .planning/PROJECT.md (updated 2026-06-16 — after v1.2 milestone)
 
 ## Current Position
 
-Phase: 22 (memory-trajectory-compaction-dialable-token-economy) — EXECUTED, AWAITING RE-VERIFICATION
-Plan: 4 of 4 (all plans executed; 22-04 gap-closure round 3 done)
-Status: 22-04 executed — re-verify CMP-02 before marking the phase complete
-Last activity: 2026-06-18 — Phase 22 plan 22-04 executed (CMP-02 stable-id rewrite)
+Phase: 22 (memory-trajectory-compaction-dialable-token-economy) — RE-VERIFIED ROUND 3 → GAPS_FOUND
+Plan: 4 of 4 executed; 22-04 (stable-id rewrite) closed 7 bypasses but CMP-02 NOT fully closed
+Status: gaps_found — CMP-02 carve-out still bypassable by TWO reproduced shapes: CR-01 (failed-attempt path skips the byte-equal provenance check — by/at/verified_by/supersedes launderable) + CR-03 (no raw-side id-collision guard — a verified finding dropped via a forged shared id). Both at exit 0 against the committed compactor.js; both recorded in 22-VERIFICATION.md `gaps:`. CMP-01 + CMP-03 verified and untouched. Next: /gsd-plan-phase 22 --gaps (round 4 must close BOTH).
+Last activity: 2026-06-18 — Phase 22 re-verification round 3 = gaps_found (code-review + adversarial reproduction found CR-01 + CR-03; green suite alone passed)
 
 ## Performance Metrics
 
