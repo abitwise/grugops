@@ -178,6 +178,16 @@ export interface ParsedFrontmatter {
   // here as a structural FAIL (CR-01 defense-in-depth) — a duplicate provenance key is the on-disk
   // signature of a field-injection forgery.
   duplicateKeys: string[];
+  // Non-recognized in-fence line shapes (CMP-02 round-5, IN-02 completion). parseNote records the
+  // exact offending line text for any fence line that is NOT one of: a blank line, the `refs:` block
+  // header, a `refs:` list item (`  - x`), or a column-0 `key: value` scalar. This catches a
+  // leading-space/tab indented key, a `key : value` (space before the colon) line, and any junk line —
+  // each of which the anchored kv regex (/^([A-Za-z_]+):\s*(.*)$/) silently projects to "" with no
+  // parse error and no duplicate-key signal. This signal describes LINE SHAPE ONLY; it is orthogonal
+  // to the lenient pre-id / last-value-wins projection contract. validate() pushes a structural FAIL
+  // per entry, and the compaction carve-out oracle fails closed on any entry — so the read path
+  // (the oracle) refuses EXACTLY what the write path (appendNote/validate) refuses.
+  malformedLines: string[];
 }
 
 // EXPORTED (IN-02): this is the single canonical frontmatter parser. The compactor's read path
@@ -198,9 +208,16 @@ export function parseNote(text: string): ParsedFrontmatter | null {
   const scalars: Record<string, string> = {};
   const seen = new Set<string>();
   const dupes = new Set<string>();
+  // Non-recognized in-fence line shapes (CMP-02 round-5, IN-02). Records the exact offending line
+  // text so validate() and the carve-out oracle can name each one. The recognized set is exactly:
+  // a blank line, the `refs:` block header, a `refs:` list item consumed under a header, and a
+  // column-0 `key: value` scalar. Everything else inside the fence is malformed.
+  const malformed: string[] = [];
   let refs: string[] = [];
   for (let i = 0; i < fmLines.length; i++) {
     const line = fmLines[i];
+    // A blank (empty-after-trim) line is a recognized, legal shape — skip it.
+    if (line.trim() === "") continue;
     // A `refs:` key with no inline value starts a YAML list block: consume following `  - x` lines.
     // The `- item` lines are consumed HERE and never reach the kv branch, so the legitimate refs:
     // list block can never register as a duplicate provenance key.
@@ -229,9 +246,16 @@ export function parseNote(text: string): ParsedFrontmatter | null {
       } else {
         scalars[key] = val;
       }
+      continue;
     }
+    // CMP-02 round-5: a non-blank fence line that is neither the `refs:` header, a `refs:` list item
+    // consumed above, nor a column-0 `key: value` scalar is MALFORMED. A stray `  - item` outside a
+    // refs block, a leading-space/tab indented key, a `key : value` (space before the colon) line,
+    // and any junk line all land here. The anchored kv regex would silently project each to "" with
+    // no signal; recording it lets validate() and the carve-out oracle fail closed on the LINE SHAPE.
+    malformed.push(line);
   }
-  return { scalars, refs, body, duplicateKeys: [...dupes] };
+  return { scalars, refs, body, duplicateKeys: [...dupes], malformedLines: malformed };
 }
 
 // ── Validate a note's structure (SC-1, extended in Phase 21 with the D-09/D-02 refuse-self set). ─
@@ -254,6 +278,20 @@ export function validate(text: string, trustedGateEmission = false): string[] {
   // lines are consumed by parseNote and never counted as repeated keys.
   for (const dup of parsed.duplicateKeys) {
     findings.push(`structural FAIL: duplicate frontmatter key "${dup}"`);
+  }
+  // Malformed in-fence line shape (CMP-02 round-5, IN-02 completion): a non-blank fence line that is
+  // neither a column-0 `key: value`, the `refs:` block header, nor a `  - item` refs entry silently
+  // projects to "" under the lenient parser and cannot enter the verified context. Reject it here so
+  // the CLI `validate <file>` verb AND appendNote's write path refuse exactly these notes — and so
+  // the compaction carve-out oracle (which runs this same validate()) refuses them on the read path.
+  // Symmetric with the duplicateKeys loop above: a duplicate key launders a VALUE; a malformed line
+  // launders a whole FIELD by projecting it to empty.
+  for (const line of parsed.malformedLines) {
+    findings.push(
+      `structural FAIL: malformed frontmatter line "${line}" — a provenance line must be a column-0 ` +
+        `"key: value", the "refs:" block header, or a "  - item" refs entry (an indented or ` +
+        `"key : value" line silently projects to empty and cannot enter the verified context).`,
+    );
   }
   // Required provenance fields: a missing one is a structural FAIL naming the field.
   for (const field of ["kind", "by", "at", "confidence"] as const) {
