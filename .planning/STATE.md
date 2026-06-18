@@ -5,10 +5,10 @@ milestone_name: Decentralized Factory — Shared Verified Context
 current_phase: 22
 current_phase_name: memory-trajectory-compaction-dialable-token-economy
 status: gaps_found
-stopped_at: "Phase 22 RE-VERIFICATION (round 3, 22-04 stable-id rewrite) → GAPS_FOUND. 22-04 was real progress: the 7 held-out bypasses (CR-01/CR-02 P7+P8/IN-01/FORGED-FOLD/RAW-FOLD-VERIFIED + read-path dup-id) all refuse exit 1; verifiedKey Set + findCounterpart DELETED; suite GREEN (244); freshness exit 0. BUT the CMP-02 carve-out is STILL bypassable by TWO residual shapes, EACH independently reproduced at exit 0 against the committed scripts/compactor.js: (CR-03, from the verifier) NO raw-side id-collision guard — two raw notes sharing a forged id drop a §14-gate-verified finding undetected (violates a verbatim 22-04 must-have); (CR-01, from a parallel DEEP code-review) the kind:failed-attempt path SKIPS the byte-equal check entirely (continue @compactor.ts:247,270 → field loop @328 never runs for FAs) — by/at/verified_by/supersedes launderable on a failed-attempt. Both merged into 22-VERIFICATION.md `gaps:` (+ WR-01/02/03/04 in 22-REVIEW.md). The round-3 lesson recurs: a green suite ≠ proof for this safety oracle — gaps surfaced via code-review + adversarial reproduction, NOT the green suite. Do NOT mark CMP-02 or the phase complete. Next: /gsd-plan-phase 22 --gaps (round 4 — MUST close BOTH CR-01 and CR-03 + FA-cluster warnings WR-01/02/03)."
-last_updated: "2026-06-18T17:45:00.000Z"
+stopped_at: "Phase 22 gap-closure ROUND 4 PLANNED. 22-05-PLAN.md created (CMP-02 oracle UNIFICATION) + gsd-plan-checker PASSED (independent verify). The plan collapses the two-enforcement-path seam: folds kind:failed-attempt into the SAME id-keyed byte-equal pass as durable notes (closes CR-01 + WR-01), mirrors the promoted-side id-collision guard on the raw side (closes CR-03 — the verbatim-unimplemented 22-04 must-have), validates kind∈NOTE_KINDS (WR-03), fails closed on an unparseable note (WR-02), and exports ONE shared frontmatter parser from context-io.ts so the oracle read path can't drift from appendNote (IN-02). RED-first proof against the COMMITTED scripts/compactor.js is REQUIRED (green suite ≠ proof) plus a generalized field×kind mutation sweep. CMP-02 is STILL gaps_found — NOTHING is closed until 22-05 is executed AND re-verified. Next: /gsd-execute-phase 22 (then re-verify; do NOT mark CMP-02/phase complete on a green suite alone — adversarially reproduce CR-01 + CR-03 against the committed .js)."
+last_updated: "2026-06-18T15:08:34.000Z"
 last_activity: 2026-06-18
-last_activity_desc: Phase 22 re-verified (round 3) — gaps_found; CMP-02 still bypassable (CR-01 FA-provenance + CR-03 raw-id-collision), both reproduced
+last_activity_desc: Phase 22 round-4 gap-closure plan 22-05 created (CMP-02 oracle unification) + gsd-plan-checker PASSED; ready to execute (gaps NOT yet closed)
 progress:
   total_phases: 7
   completed_phases: 3
@@ -28,10 +28,10 @@ See: .planning/PROJECT.md (updated 2026-06-16 — after v1.2 milestone)
 
 ## Current Position
 
-Phase: 22 (memory-trajectory-compaction-dialable-token-economy) — RE-VERIFIED ROUND 3 → GAPS_FOUND
-Plan: 4 of 4 executed; 22-04 (stable-id rewrite) closed 7 bypasses but CMP-02 NOT fully closed
-Status: gaps_found — CMP-02 carve-out still bypassable by TWO reproduced shapes: CR-01 (failed-attempt path skips the byte-equal provenance check — by/at/verified_by/supersedes launderable) + CR-03 (no raw-side id-collision guard — a verified finding dropped via a forged shared id). Both at exit 0 against the committed compactor.js; both recorded in 22-VERIFICATION.md `gaps:`. CMP-01 + CMP-03 verified and untouched. Next: /gsd-plan-phase 22 --gaps (round 4 must close BOTH).
-Last activity: 2026-06-18 — Phase 22 re-verification round 3 = gaps_found (code-review + adversarial reproduction found CR-01 + CR-03; green suite alone passed)
+Phase: 22 (memory-trajectory-compaction-dialable-token-economy) — ROUND-4 GAP-CLOSURE PLANNED (status stays gaps_found until 22-05 is executed + re-verified)
+Plan: 22-05-PLAN.md created (round 4) + gsd-plan-checker PASSED; 22-01..22-04 executed (22-04 closed 7 bypasses, CMP-02 still open on CR-01 + CR-03)
+Status: gaps_found — round-4 plan 22-05 will close CR-01 (FA byte-equal exemption) + CR-03 (raw-side id-collision) by collapsing the two-path seam into ONE id-keyed byte-equal pass + a shared frontmatter parser (IN-02). NOTHING closed until executed + re-verified with adversarial reproduction against the committed .js. CMP-01 + CMP-03 verified and untouched. Next: /gsd-execute-phase 22.
+Last activity: 2026-06-18 — round-4 gap-closure plan 22-05 created + gsd-plan-checker PASSED (ready to execute)
 
 ## Performance Metrics
 
