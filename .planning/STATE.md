@@ -4,11 +4,11 @@ milestone: v2.0
 milestone_name: Decentralized Factory — Shared Verified Context
 current_phase: 22
 current_phase_name: memory-trajectory-compaction-dialable-token-economy
-status: verifying
-stopped_at: Phase 22 context gathered
-last_updated: "2026-06-18T09:52:22.854Z"
+status: gaps_found
+stopped_at: Phase 22 verification — gaps_found (CMP-02)
+last_updated: "2026-06-18T10:05:35.000Z"
 last_activity: 2026-06-18
-last_activity_desc: Phase 22 execution started
+last_activity_desc: Phase 22 verified — gaps_found (CMP-02 carve-out bypassable)
 progress:
   total_phases: 7
   completed_phases: 3
@@ -28,10 +28,10 @@ See: .planning/PROJECT.md (updated 2026-06-16 — after v1.2 milestone)
 
 ## Current Position
 
-Phase: 22 (memory-trajectory-compaction-dialable-token-economy) — EXECUTING
-Plan: 2 of 2
-Status: Phase complete — ready for verification
-Last activity: 2026-06-18 — Phase 22 execution started
+Phase: 22 (memory-trajectory-compaction-dialable-token-economy) — GAPS FOUND
+Plan: 2 of 2 executed (both committed)
+Status: Verification gaps_found (3/4 SCs) — CMP-02 carve-out bypassable: checkCarveOut catches only drop-to-empty (mutation/forgery + wholly-dropped findings slip through); RED oracle too weak. Next: /gsd-plan-phase 22 --gaps
+Last activity: 2026-06-18 — Phase 22 verified (gaps_found)
 
 ## Performance Metrics
 
