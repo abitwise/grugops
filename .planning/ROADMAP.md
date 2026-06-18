@@ -69,7 +69,7 @@ Full phase details + milestone summary: `milestones/v1.2-ROADMAP.md` · requirem
 
 - [x] **Phase 20: Shared-Context Substrate & Concurrency Foundation** — the atomic-write helpers, the typed-note schema, the verify-stamp validator hooks, the file-based queue, and the grep guard — mechanized before any role writes to the shared context (all 4 plans executed 2026-06-17 — awaiting phase verification) (completed 2026-06-17)
 - [x] **Phase 21: Verify-Before-Write Admission** — the §14 gate as the un-cheatable verifier; refuse-self-set; the read-before-act / write-after-verify protocol (Workflow 16) (completed 2026-06-17 — 4/4 plans incl. CR-01 CRLF gap-closure 21-04; verification 4/4)
-- [ ] **Phase 22: Memory & Trajectory Compaction** — two-tier memory + the `context.compaction` dial + the load-bearing-field carve-out (Workflow 18), landed before parallel fan-out makes the token tax real (both plans executed 2026-06-18 — awaiting phase verification)
+- [ ] **Phase 22: Memory & Trajectory Compaction** — two-tier memory + the `context.compaction` dial + the load-bearing-field carve-out (Workflow 18), landed before parallel fan-out makes the token tax real (all 3 plans executed 2026-06-18 incl. CMP-02 gap-closure 22-03 — awaiting phase re-verification)
 - [ ] **Phase 23: Parallel Execution & Orchestrator-as-Decomposer** — Orchestrator router→decomposer/scheduler/gate, nested CC spawning + the degraded sequential path, the inverted WR-05 guard, the WIP cap (Workflow 17)
 - [ ] **Phase 24: Clean Handoff Removal & Traceability Migration** — rewire all 18 roles + 16 workflows onto the substrate, then delete all 17 handoff templates in one grep-to-zero change; migrate the trace, never drop it
 - [ ] **Phase 25: Governance-on-a-Dial** — `context.human_admission` + `context.audit_retention` enterprise tiers over the decentralized substrate; the un-dialable safety floor unchanged
@@ -141,11 +141,11 @@ Plans:
   3. The `context.compaction: aggressive|balanced|retain-raw` dial changes how aggressively trajectories are distilled, defaults to `aggressive` when absent (lean), and is documented across all three config surfaces.
   4. A role following Workflow 18 (`18-context-compaction.md`) compacts by the single-source protocol, and other roles reference it rather than restating it.
 
-**Plans**: 3 plans (2 complete, 1 gap-closure pending)
+**Plans**: 3/3 plans complete
 
 - [x] 22-01-PLAN.md — compactor.ts carve-out invariant checker (RED-first) + committed compactor.js + the context.compaction dial across all 3 config surfaces + the threads/ .gitignore entry (CMP-01/02/03)
 - [x] 22-02-PLAN.md — author WF18 single-source compaction protocol + bump the catalog count test 17→18 + add the one-line WF18 pointer to all 17 roles (CMP-03)
-- [ ] 22-03-PLAN.md — gap-closure: harden the checkCarveOut safety oracle so CMP-02/SC2 genuinely holds — adversarial RED-first cases + fix CR-01 (mutation/forged stamp), CR-02 (wholly-dropped verified finding), CR-03 (multi-same-kind borrow), WR-01 (fail-closed missing threadDir), WR-02/03/05 hardening, rebuild byte-fresh compactor.js (CMP-02)
+- [x] 22-03-PLAN.md — gap-closure: harden the checkCarveOut safety oracle so CMP-02/SC2 genuinely holds — adversarial RED-first cases + fix CR-01 (mutation/forged stamp), CR-02 (wholly-dropped verified finding), CR-03 (multi-same-kind borrow), WR-01 (fail-closed missing threadDir), WR-02/03/05 hardening, rebuild byte-fresh compactor.js (CMP-02)
 
 ### Phase 23: Parallel Execution & Orchestrator-as-Decomposer (One Substrate, Two Modes)
 
@@ -227,7 +227,7 @@ Plans:
 | 19. Factory Auto-UAT Harness — Tier 1 Oracles + Tier 2 Headless E2E | v1.2 | 4/4 | Closed (A3/DOG-02 waived → next milestone) | 2026-06-16 |
 | 20. Shared-Context Substrate & Concurrency Foundation | v2.0 | 4/4 | Complete    | 2026-06-17 |
 | 21. Verify-Before-Write Admission | v2.0 | 4/4 | Complete    | 2026-06-17 |
-| 22. Memory & Trajectory Compaction | v2.0 | 2/2 | Complete   | 2026-06-18 |
+| 22. Memory & Trajectory Compaction | v2.0 | 3/3 | Awaiting re-verification | 2026-06-18 |
 | 23. Parallel Execution & Orchestrator-as-Decomposer | v2.0 | 0/? | Pending | - |
 | 24. Clean Handoff Removal & Traceability Migration | v2.0 | 0/? | Pending | - |
 | 25. Governance-on-a-Dial | v2.0 | 0/? | Pending | - |

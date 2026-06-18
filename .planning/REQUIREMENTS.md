@@ -44,7 +44,7 @@ Requirements for the decentralization milestone. Each maps to exactly one roadma
 ### CMP — Memory & Trajectory Compaction
 
 - [x] **CMP-01**: `compactor.ts` — two-tier compaction: the verbose local trajectory stays in `.grugops/context/threads/<agent>.md`; only compact verified distillations promote to the shared context.
-- [ ] **CMP-02**: A load-bearing-field carve-out — `verified_by`, `failed-attempt`, `supersedes`, and `by`/`at` provenance are compaction-exempt; a RED test fails if any is dropped. _(Phase 22 verification gaps_found: `checkCarveOut` only detects drop-to-empty — mutation/forgery and wholly-dropped findings bypass it; oracle too weak. See 22-VERIFICATION.md → gap-closure.)_
+- [x] **CMP-02**: A load-bearing-field carve-out — `verified_by`, `failed-attempt`, `supersedes`, and `by`/`at` provenance are compaction-exempt; a RED test fails if any is dropped. _(Phase 22 verification gaps_found: `checkCarveOut` only detects drop-to-empty — mutation/forgery and wholly-dropped findings bypass it; oracle too weak. See 22-VERIFICATION.md → gap-closure.)_
 - [x] **CMP-03**: A `context.compaction: aggressive|balanced|retain-raw` dial (lean default `aggressive`); compacted output is re-verified before write; Workflow 18 (`18-context-compaction.md`) is the single-source protocol.
 
 ### PAR — Parallel Execution & Orchestrator-as-Decomposer
