@@ -1,301 +1,253 @@
 ---
 phase: 22-memory-trajectory-compaction-dialable-token-economy
-reviewed: 2026-06-18T00:00:00Z
-depth: standard
-files_reviewed: 3
+reviewed: 2026-06-18T14:05:00Z
+depth: deep
+files_reviewed: 2
 files_reviewed_list:
   - scripts/compactor.ts
   - scripts/compactor.test.ts
-  - scripts/generate-catalog.test.ts
 findings:
-  critical: 3
-  warning: 5
-  info: 3
-  total: 11
+  critical: 2
+  warning: 3
+  info: 2
+  total: 7
 status: issues_found
 ---
 
 # Phase 22: Code Review Report
 
-**Reviewed:** 2026-06-18
-**Depth:** standard
-**Files Reviewed:** 3
+**Reviewed:** 2026-06-18T14:05:00Z
+**Depth:** deep
+**Files Reviewed:** 2
 **Status:** issues_found
 
 ## Summary
 
-`compactor.ts` is positioned as the *un-cheatable mechanical floor* of memory/trajectory
-compaction — the safety oracle that guarantees no load-bearing field is ever silently dropped.
-I reviewed it adversarially against that exact contract, and the carve-out check does **not hold
-its stated invariant**. Three distinct ways a load-bearing element survives the check at `exit 0`
-were confirmed by running the committed `scripts/compactor.js` against constructed inputs:
+This is the safety-oracle re-review of `checkCarveOut()` after gap-closure 22-03. The three prior
+bypasses the gap-closure targeted are genuinely closed for the *single-instance* shapes the new
+tests pin: a forged/swapped `verified_by` (P5), a mutated `by` on a stamped finding (P5/P12), a
+wholly-dropped verified finding when promoted has ≥2 notes (P4/P9), the ambiguous-sibling borrow
+(the CR-03 same-kind case), the WR-01 missing-thread fail-closed, the WR-02 unrecoverable-FA-id,
+and the WR-03 degrade throw. The 22-test suite is green and I reproduced each of those as actually
+refusing against the committed `scripts/compactor.js`. `_dial` is declared and **never read** inside
+`checkCarveOut` (D-05 holds at source), the file is `node:fs`-only with no network / `exec` / `eval`
+/ LLM call, and the voice is clear-professional throughout.
 
-1. A load-bearing field that is **mutated to a different value** (rather than emptied) is never
-   detected — including a `verified_by` stamp swapped to a **forged `§14-gate#FORGED-999`**. The
-   check only fires on `rawVal !== "" && promVal === ""` (drop-to-empty), so any non-empty
-   substitution passes.
-2. A **wholly-dropped durable verified finding** passes whenever the promoted set has ≥2 notes —
-   the realistic case. The provenance check iterates raw notes and *skips* any with no counterpart,
-   so deleting the finding entirely (with its `verified_by`) is invisible.
-3. The **counterpart matcher is ambiguous with ≥2 same-kind notes**: a dropped `by` on one note is
-   masked by matching the other, intact note.
+**But the hardening introduced a NEW class of bypass and left a residual one — the original sin
+(a load-bearing provenance field altered/dropped and surviving at `exit 0`) is STILL reachable two
+ways, both reproduced against the committed `.js`, neither exercised by any test:**
 
-Separately, a **missing/typo'd thread directory silently reports "carve-out intact"** instead of
-failing closed — an operator error turns the safety oracle into a rubber stamp.
+1. **CR-01 (NEW — identity-key collision):** the CR-02 affirmative-existence check dedups raw
+   verified findings into a `Set` keyed on `(kind, verified_by, by, at)`. When one gate run verifies
+   *two* findings — same `verified_by: §14-gate#RUN-9`, same author, same timestamp — both raw notes
+   collapse to **one** key, so a **single** surviving promoted note satisfies the existence check for
+   *both*. Dropping one of the two verified findings passes `exit 0`. This is exactly the
+   wholly-dropped-verified-finding failure CR-02 was created to kill, resurrected via key collision.
 
-The test file (`compactor.test.ts`) is the RED-first oracle that is supposed to catch these
-regressions. It does not: every negative case drops a field to *empty* in a *single-note* set, so
-the oracle pins only the one code path that happens to work and leaves the three real bypasses
-above completely unexercised. This is the most important finding — the oracle gives false
-confidence in a safety-critical invariant.
+2. **CR-02 (RESIDUAL — the original CR-01 sin, for non-verified durable notes):** the
+   alter/drop detection on `by`/`at`/`supersedes` only runs when `findCounterpart` resolves a 1:1
+   match. For a durable note with an **empty `verified_by`** (observation / decision / claim /
+   artifact-ref), matching falls back to the `(kind, at)` tuple. Mutate **both** `by` and `at`
+   (no tuple match → `null` → mutation check skipped), or have **two** notes share `(kind, at)`
+   (ambiguous → `null` → skipped), and a `by` swapped engineer→attacker — or dropped entirely —
+   **survives at `exit 0`.** The header (lines 187-193) claims `by`/`at` are protected "on every
+   promoted note"; they are not.
 
-`generate-catalog.test.ts` (the 17→18 count bump) is sound; one minor robustness note below.
+Both findings let a forged/dropped/altered provenance field survive the gate, so both are Critical.
+The test file remains the weak link: every negative case still uses a *unique* `verified_by` per
+finding and a *verified* finding for the field-mutation cases — the shared-gate-run shape and the
+non-verified-note shape are not present anywhere (grep for `RUN-9`/`observation`/two-same-tuple
+returns nothing). A green suite is not proof here.
 
-All Critical findings were reproduced empirically against the committed `.js`, not inferred.
+All Critical and the timing-related Warning were reproduced empirically against the committed
+`scripts/compactor.js`, not inferred.
 
-## Critical Issues
+## Narrative Findings (AI reviewer)
 
-### CR-01: Mutated load-bearing field (incl. forged `verified_by` stamp) is not detected
+### Critical Issues
 
-**File:** `scripts/compactor.ts:178-188`
-**Issue:** The provenance check only fires on a drop-to-empty:
+#### CR-01: Identity-key collision lets a wholly-dropped verified finding pass when one gate run verifies two findings
+
+**File:** `scripts/compactor.ts:221-241` (the CR-02 existence check; `verifiedKey` at line 225)
+**Issue:** The existence check builds `promotedVerifiedKeys` as a `Set` of
+`verifiedKey(f) = [kind, verified_by, by, at].join(" ")`, then asserts each raw verified note's key
+is present. A single gate run stamps every finding it verifies with the **same** `verified_by`
+(`§14-gate#<run-id>`), and a batch of findings authored by the same role at the same emit time share
+`by` and `at` as well. Two such raw findings therefore produce the **identical** key. A `Set` holds
+it once, so **one** surviving promoted note marks the key present and the **second** verified finding
+can be deleted entirely — its gate-verified provenance silently repudiated — and the check returns
+`exit 0`. This is the precise defect CR-02 (prior review) was written to prevent.
+
+Reproduced against the committed `scripts/compactor.js`:
+```
+P2b: raw = {sql.md, xss.md} both verified_by §14-gate#RUN-9, by eng, at 2026-06-17T14:23:05Z
+     promoted = {sql.md} only            -> exit 0  <<< ACCEPTED >>>  (xss finding silently dropped)
+```
+The `findCounterpart` path does not save this either: with two notes sharing the stamp, `byStamp.length > 1`
+returns `null` (line 257), so the per-field mutation loop is skipped for both. Nothing detects the drop.
+
+**Fix:** The existence check must be **multiplicity-aware**, not set-membership. Count raw verified
+notes per identity key and require at least that many promoted notes carrying the same key — or,
+better, key on a value that is actually unique per note (the note body/content hash, or a per-note
+id) rather than the shared provenance tuple. Concrete multiplicity approach:
 ```ts
-if (rawVal !== "" && promVal === "") { findings.push(...) }
-```
-A field changed to a *different non-empty value* is silently accepted. This defeats the stated
-invariant that load-bearing fields must be "INTACT on every promoted note" (header lines 18-19,
-CMP-02.2). The most dangerous instance: the promoted `verified_by` can be swapped from the real
-`§14-gate#SEED-001` to a fabricated `§14-gate#FORGED-999` and the carve-out reports `exit 0`.
-
-Reproduced:
-```
-PROBE A (by mutated engineer->attacker):          exit 0  (none)
-PROBE B (verified_by mutated to forged stamp):    exit 0  (none)
-```
-Compaction is explicitly supposed to refuse a stamp that "no longer cross-checks." `checkCarveOut`
-never catches the substitution; only the separate `reVerify`/`admit` path would — and `checkCarveOut`
-is the gate the CLI `check` verb runs.
-
-**Fix:** Compare for inequality, not just emptiness, on every load-bearing field:
-```ts
-for (const field of ["verified_by", "supersedes", "by", "at"] as const) {
-  const rawVal = rawFields[field];
-  const promVal = counterpart[field];
-  if (rawVal !== "" && rawVal !== promVal) {
+const countByKey = (notes: Iterable<NoteFields>) => {
+  const m = new Map<string, number>();
+  for (const f of notes) {
+    if (f.kind === "failed-attempt" || f.verified_by === "") continue;
+    const k = verifiedKey(f);
+    m.set(k, (m.get(k) ?? 0) + 1);
+  }
+  return m;
+};
+const rawCounts = countByKey(rawThread.values());
+const promCounts = countByKey(promoted.values());
+for (const [key, need] of rawCounts) {
+  if ((promCounts.get(key) ?? 0) < need) {
     findings.push(
-      `carve-out FAIL: load-bearing provenance field "${field}" was altered from "${rawVal}" ` +
-        `to "${promVal === "" ? "<empty>" : promVal}" on a promoted ${rawFields.kind} note ` +
-        `— provenance must survive compaction unchanged (CMP-02, D-02.2).`,
+      `carve-out FAIL: ${need} §14-gate-verified note(s) with identity "${key}" were present in the ` +
+        `raw thread but only ${promCounts.get(key) ?? 0} survived into the promoted set — a verified ` +
+        `finding cannot be silently dropped (CMP-02, D-02.2).`,
     );
   }
 }
 ```
-(If a *legitimately* re-stamped `verified_by` is ever expected, that must route through `reVerify`
-and be whitelisted explicitly — silent acceptance of any value is not acceptable for a safety floor.)
+Add a held-out test: two raw findings sharing one gate-run stamp+by+at, promoted drops one → must refuse.
 
-### CR-02: A wholly-dropped durable verified finding passes the carve-out (≥2 promoted notes)
+#### CR-02: A non-verified durable note's `by` (or `at`) can be altered or dropped and survive — the original CR-01 sin, still reachable
 
-**File:** `scripts/compactor.ts:174-189` (with `findCounterpart`, 197-211)
-**Issue:** For each raw durable note the loop calls `findCounterpart`; when none is found it
-`continue`s (line 177) with the comment "a wholly-dropped durable note is the agent's call." That
-comment is load-bearing and wrong for the safety story: a verified `finding` carrying
-`verified_by: §14-gate#SEED-001` can be deleted entirely from the promoted set — dropping its
-`verified_by`/`by`/`at` provenance — and the check passes. The header (lines 18-19) and the test
-banner (lines 10-13) both claim dropping `verified_by` is refused; that only holds when the finding
-*survives but empties the field*, not when it is removed.
+**File:** `scripts/compactor.ts:194-219` (field-mutation loop) + `findCounterpart` 251-263
+**Issue:** The alter/drop guard for `by` / `at` / `supersedes` only fires when `findCounterpart`
+returns a non-null 1:1 match (line 197 `if (!counterpart) continue;`). For a durable note with an
+**empty `verified_by`** — observation, decision, claim, artifact-ref — matching falls through to the
+`(kind, at)` tuple (line 260). Two independent ways to force `findCounterpart` to return `null` and
+thereby **skip** the mutation check entirely, while the note is in fact present-but-tampered:
 
-The `findCounterpart` `promoted.size === 1` fallback (line 203) accidentally catches this in the
-trivial single-note case, which is exactly the case the test exercises — masking the bug. With ≥2
-promoted notes (the realistic case) the fallback cannot fire.
+- Mutate **both** `by` and `at`: no candidate matches `(kind, at)` → `null` → skipped.
+- Two raw notes share `(kind, at)`: `byTuple.length > 1` is not handled, so a single match is
+  required; with the counterpart altered, the count is not exactly 1 → `null` → skipped.
 
-Reproduced:
+Because these notes have no `verified_by`, the CR-02 existence check (lines 232-233 `continue` on
+empty `verified_by`) also ignores them. Net result: a `by` swapped `engineer` → `attacker` on an
+observation/decision survives at `exit 0` — the exact "the original sin" the framing asks to hunt.
+
+Reproduced against the committed `scripts/compactor.js`:
 ```
-PROBE E (durable finding dropped, promoted.size==1):  exit 1   (accidental catch)
-PROBE H (durable finding dropped, promoted has 2 FA): exit 0   (BYPASS)
+P7: observation, by engineer->attacker AND at re-timestamped  -> exit 0  <<< ACCEPTED >>>
+P8: two observations same (kind,at), one's `by` line dropped   -> exit 0  <<< ACCEPTED >>>
 ```
+The header comment (lines 187-193) and the field list `["verified_by","supersedes","by","at"]`
+assert these fields are protected on *every* promoted durable note. They are protected only on notes
+that happen to resolve a 1:1 counterpart — a coverage gap, not the stated invariant.
 
-**Fix:** Decide and enforce the real contract. If a verified finding's provenance must survive,
-detect the wholly-dropped durable finding instead of silently `continue`-ing. One concrete approach:
-build a set of raw "provenance-bearing" notes (any note with a non-empty `verified_by`) keyed by
-`verified_by` (or `(kind, verified_by, by)`), and require each such key to appear in the promoted
-set:
+**Fix:** Skipping the mutation check on a null counterpart is fail-OPEN for an oracle that must
+fail-CLOSED. When a raw durable note (verified or not) has no resolvable 1:1 counterpart, that is
+itself a carve-out finding (cannot confirm its provenance survived), not a silent `continue`:
 ```ts
-const rawVerified = [...rawThread.values()]
-  .filter((f) => f.kind !== "failed-attempt" && f.verified_by !== "");
-const promotedStamps = new Set(
-  [...promoted.values()].map((f) => `${f.kind}|${f.verified_by}|${f.by}|${f.at}`),
-);
-for (const raw of rawVerified) {
-  if (!promotedStamps.has(`${raw.kind}|${raw.verified_by}|${raw.by}|${raw.at}`)) {
+const counterpart = findCounterpart(rawFields, promoted);
+if (!counterpart) {
+  // No deterministic 1:1 match. A verified note is covered by the (fixed CR-01) existence check;
+  // a non-verified durable note with no counterpart cannot be confirmed intact — fail closed.
+  if (rawFields.verified_by === "") {
     findings.push(
-      `carve-out FAIL: verified ${raw.kind} (verified_by "${raw.verified_by}", by "${raw.by}") ` +
-        `present in the raw thread was dropped from the promoted set — a gate-verified finding ` +
-        `and its provenance must survive compaction (CMP-02, D-02.2).`,
+      `carve-out FAIL: durable ${rawFields.kind} note (by "${rawFields.by}", at "${rawFields.at}") ` +
+        `has no deterministic 1:1 counterpart in the promoted set — its provenance cannot be ` +
+        `confirmed intact (CMP-02, D-02.2). Promote a uniquely-identifiable counterpart, or drop ` +
+        `the whole note (allowed for an unverified note) rather than altering its provenance.`,
     );
   }
+  continue;
 }
 ```
-Whatever the intended policy, the code comment at line 177 must match it; "the agent's call" is
-incompatible with "the carve-out is the un-dialable floor."
+This forces a deterministic identity for non-verified notes too (e.g. give every promotable note a
+stable id and match on it), which is the only way `by`/`at` can be honestly verified across compaction.
+Add held-out tests for P7 and P8.
 
-### CR-03: `findCounterpart` mis-matches with multiple same-kind notes, masking a dropped field
+### Warnings
 
-**File:** `scripts/compactor.ts:197-211`
-**Issue:** When a raw note's `by` is dropped (promoted `by === ""`), `byMatch` fails and the
-function returns `sameKind[0]` (lines 209-210) regardless of which raw note is being checked. With
-two same-kind notes — e.g. an `engineer` finding and a `reviewer` finding — the reviewer finding's
-dropped `by` is compared against the engineer finding's intact counterpart, so the drop is never
-flagged. The fallback "return the single same-kind note" reasoning silently degrades to "return an
-arbitrary same-kind note" when `sameKind.length > 1`.
+#### WR-01: A legitimately re-timestamped verified finding emits a spurious second "wholly dropped" finding
+
+**File:** `scripts/compactor.ts:194-219` (alter check) + `221-241` (existence check)
+**Issue:** The two checks are not coordinated. When a verified finding's `at` legitimately changes
+between raw and promoted (a compaction that re-timestamps), the alter check correctly reports
+`at altered`, **and** the existence check — keyed on the now-changed `at` — additionally reports the
+note as `wholly dropped from the promoted set`. The note was not dropped; only its `at` changed. The
+operator sees a contradictory, misleading pair of messages for one cause.
 
 Reproduced:
 ```
-PROBE C (2 findings, reviewer's `by` dropped):  exit 0  (BYPASS)
+P3: single verified finding, at re-timestamped ->
+  "load-bearing provenance field at was altered ..."
+  "a §14-gate-verified finding note ... was wholly dropped ..."   <-- false; it is present
 ```
+This is a correctness defect in the *reporting* (and a hint that the existence key over-relies on
+mutable fields). Not a bypass, but it muddies a safety-surface message, which CLAUDE.md treats as a
+clarity hard-rule. The CR-01 multiplicity fix that keys on content/id rather than the mutable
+`(by, at)` tuple would also resolve this.
 
-**Fix:** Match counterparts deterministically and 1:1 on stable identity. Prefer matching on
-`verified_by` (the load-bearing stamp, which CR-01's fix forbids mutating) or on note `at`+`kind`,
-and treat an unmatched raw durable note per CR-02 rather than silently borrowing another note's
-fields. Do not fall back to `sameKind[0]` when more than one candidate exists.
+**Fix:** Key the existence check on a stable identity that does not include the fields the alter
+check already polices (e.g. the `verified_by` stamp plus a content/body hash), so an *altered* field
+is reported once by the alter check and never re-reported as a phantom drop.
 
-## Warnings
+#### WR-02: `findCounterpart` (kind, at) fallback is content-blind — a swapped-but-same-(kind,at) note matches
 
-### WR-01: Missing/typo'd thread directory silently reports "carve-out intact"
+**File:** `scripts/compactor.ts:259-262`
+**Issue:** When `verified_by` is empty, the counterpart is chosen purely on `(kind, at)` with no
+regard for body or other fields. If a promoted note shares `kind` and `at` with a raw note but is in
+fact a *different* note (content replaced) — common when an agent re-timestamps or reuses a template
+`at` — the matcher binds them as counterparts, then checks only the four provenance fields. A
+wholesale body/content substitution that keeps `(kind, at)` is invisible to the carve-out. The tool's
+charter is structure, not body, so this is a Warning rather than Critical, but combined with CR-02 it
+widens the non-verified attack surface.
 
-**File:** `scripts/compactor.ts:116-118` (`readNoteDir`) → CLI `check`, 312-322
-**Issue:** `readNoteDir` returns an empty map for a non-existent directory (`if (!existsSync(dir)) return out`).
-A typo in the `<threadDir>` argument therefore yields an empty raw thread, no failed-attempt ids,
-no durable notes — and the check prints "carve-out intact" with `exit 0`. For a fail-closed safety
-oracle, a missing *input* should be an error, not a pass.
+**Fix:** Give promotable notes a stable per-note id and match on it; fall back to `(kind, at)` only
+as a tie-break, and treat a non-unique fallback as a finding (per the CR-02 fix) rather than a bind.
 
-Reproduced:
-```
-PROBE F (thread dir missing/typo): exit 0  "carve-out intact..."
-```
+#### WR-03: Test suite does not exercise the shared-gate-run, non-verified-note, or both-fields-mutated shapes — false confidence
 
-**Fix:** In the CLI `check` path, fail closed when the threadDir does not exist (the promotedDir
-may legitimately be empty pre-promotion, but the raw thread being checked must exist):
-```ts
-if (!existsSync(threadDir)) {
-  console.error(`compactor: thread directory not found: ${threadDir}`);
-  process.exit(1);
-}
-```
+**File:** `scripts/compactor.test.ts:135-376` (the CMP-02 describe block)
+**Issue:** Every negative case uses a **unique** `verified_by` per finding (`SEED-001`, `SEED-002`)
+and applies field mutations only to **verified** findings. The realistic shapes that break the
+oracle are absent:
+- no test where two findings share one gate-run stamp + `by` + `at` (CR-01);
+- no test that mutates/drops `by` on a **non-verified** note (observation/decision) (CR-02);
+- no test that mutates **both** `by` and `at`, or uses two same-`(kind, at)` non-verified notes.
 
-### WR-02: `failedAttemptId` filename fallback can manufacture a spurious id mismatch
+A grep for `RUN-9` / `observation` / a shared tuple over the test file returns nothing. The suite
+therefore pins exactly the paths that already work and certifies the invariant as held while two
+bypasses sit open — the same false-confidence failure mode that shipped the prior 14-green-test
+version. The byte-identity dial test (lines 549-566) is genuinely non-vacuous (it compares actual
+finding text across dials, not just status) — good — but it only covers the one mutation that the
+code already catches.
 
-**File:** `scripts/compactor.ts:130-138`
-**Issue:** When a failed-attempt note carries no `FA-…` token in body or filename, the function
-returns `filename.replace(/\.md$/, "")` as the id. The raw thread and the promoted set frequently
-use *different* filenames for the same dead-end (the test itself does: thread `FA-1.md` body
-`"FA-1: tried…"` vs promoted `FA-1.md` body `"FA-1: shared token cache broke…"` — same `FA-1`
-token, different prose). If either side ever loses the `FA-` token, the id silently becomes the raw
-filename and will not match the promoted filename, producing either a false PASS (different ids both
-fall through) or a confusing false FAIL. The id derivation should be one stable source, not a
-body-or-filename-or-raw-filename cascade.
+**Fix:** Add held-out RED cases for P2b (shared gate-run, drop one), P7 (non-verified note, both
+`by` and `at` mutated), and P8 (two same-`(kind, at)` non-verified notes, one `by` dropped). Each
+must currently fail (today's code accepts them) and pass only after the CR-01/CR-02 fixes.
 
-**Fix:** Require an `FA-…` token for a `failed-attempt` and treat its absence as an explicit
-carve-out finding (the comment at line 136 already says it "is itself a carve-out violation" — but
-the code returns a best-effort id instead of recording a finding). Return `null`-plus-finding, or a
-sentinel that `checkCarveOut` reports as "failed-attempt note has no recoverable FA-id."
+### Info
 
-### WR-03: `degradeToClaim` silently no-ops on a note that does not match the expected templates
+#### IN-01: `supersedes` is policed only via the 1:1 counterpart, never affirmatively
 
-**File:** `scripts/compactor.ts:275-284`
-**Issue:** The three `.replace()` calls are anchored to exact line shapes (`^kind:\s*finding\s*$`,
-`^verified_by:\s*.*$`, `^confidence:\s*.*$`). If the finding lacks a `confidence:` line, or `kind`
-is e.g. `finding ` with a trailing-space variation the regex misses, the function returns text that
-is *not* degraded — still `kind: finding`, possibly still carrying the stamp — with no error. For
-the "honest degrade" escape hatch this is a silent integrity failure: the caller believes it
-degraded to a claim when it did not. The trailing comment (lines 281-283) acknowledges the
-append-confidence case is "out of scope" and relies on the template "always" carrying the fields,
-which is an unverified assumption at a safety boundary.
+**File:** `scripts/compactor.ts:198, 221-241`
+**Issue:** `supersedes` is in the alter list but absent from the existence-key/affirmative check.
+A note whose `supersedes` link is load-bearing but which is wholly dropped (or whose counterpart
+does not resolve) loses the link with no affirmative detection. Lower severity because supersedes is
+a fold-order hint rather than a verification stamp, but for completeness the same multiplicity logic
+should consider it.
+**Fix:** When the CR-01/CR-02 fixes give notes stable identities, fold `supersedes` integrity into
+that same identity-based comparison.
 
-**Fix:** After the replacements, assert the post-conditions and throw on failure:
-```ts
-if (!/^kind:\s*claim\s*$/m.test(out) || !/^confidence:\s*UNKNOWN - verify\s*$/m.test(out)) {
-  throw new Error("compactor.degradeToClaim: input did not match the finding template; refusing to return an un-degraded note");
-}
-if (/verified_by:\s*§14-gate#/.test(out)) {
-  throw new Error("compactor.degradeToClaim: degraded claim still carries a §14-gate stamp");
-}
-```
+#### IN-02: Failed-attempt id matching is unordered/multiplicity-blind
 
-### WR-04: Test oracle does not pin any of CR-01/CR-02/CR-03 — false confidence in the invariant
-
-**File:** `scripts/compactor.test.ts:135-269`
-**Issue:** Every negative case drops a field to **empty** in a **single durable-note** set, which is
-precisely the one path that works. There is no case for: (a) a field mutated to a *different*
-non-empty value (CR-01), (b) a verified finding *wholly dropped* with ≥2 promoted notes (CR-02),
-(c) two same-kind notes where one drops a field (CR-03), or (d) a forged `verified_by` substitution.
-A RED-first oracle for an "un-cheatable" safety floor must include the adversarial substitution and
-deletion cases, not only the cooperative drop-to-empty case. As written, the suite will stay green
-through all three confirmed bypasses.
-
-**Fix:** Add the missing negative cases (each currently passes at `exit 0`, demonstrating the gap):
-```ts
-it("mutates verified_by to a forged stamp — refuse, naming verified_by", () => {
-  // raw verified_by §14-gate#SEED-001; promoted §14-gate#FORGED-999 → must exit 1
-});
-it("wholly drops a verified finding with 2+ promoted notes — refuse, naming the dropped finding", () => {
-  // promoted = {FA-1, FA-2}, raw = {finding(verified), FA-1} → must exit 1
-});
-it("drops `by` on one of two same-kind findings — refuse, naming by", () => {
-  // raw {engineer-finding, reviewer-finding}; promoted strips reviewer's by → must exit 1
-});
-```
-These should be written RED against the current `.js`, then CR-01/02/03 fixed to turn them green.
-
-### WR-05: `_dial` parameter is dead — the un-dialable guarantee is structural-by-omission, not asserted
-
-**File:** `scripts/compactor.ts:146` (param `_dial`), 246-268 (test)
-**Issue:** `checkCarveOut` takes `_dial` and never reads it — which is the *correct* behavior for an
-un-dialable check, but it is undocumented in code as a deliberate intentional-ignore and the test's
-"un-dialable" case only varies the *passed* dial through the CLI, which equally never reads it. The
-guarantee "the carve-out holds identically at every dial" is currently true only because the dial is
-inert; if a future edit ever wires `_dial` into the comparison, no test would catch the regression
-(the un-dial test drops a field that fails for *unrelated* reasons at every dial). The property is
-asserted by accident, not by construction.
-
-**Fix:** Keep `_dial` inert but add an explicit assertion of dial-independence: run the *same*
-faithful-but-for-one-mutation input across all three dials and assert byte-identical findings output
-(not just `status !== 0`), so a future dial-sensitive branch is caught.
-
-## Info
-
-### IN-01: Comment at line 177 contradicts the safety contract
-
-**File:** `scripts/compactor.ts:177`
-**Issue:** `// a wholly-dropped durable note is the agent's call; fields are the floor` directly
-conflicts with CR-02 and with the header's "load-bearing fields are INTACT on every promoted note."
-Whatever policy is chosen, align the comment so the next reader does not trust a guarantee the code
-does not provide.
-**Fix:** Reword to state the actual enforced policy once CR-02 is resolved.
-
-### IN-02: `findCounterpart` lines 209-210 are an unreachable-style redundancy
-
-**File:** `scripts/compactor.ts:206-210`
-**Issue:** `if (sameKind.length === 1) return sameKind[0];` followed unconditionally by
-`return sameKind[0];` makes the length check dead — both branches return `sameKind[0]`. This is the
-mechanical symptom of CR-03 (arbitrary same-kind borrow). Once CR-03 is fixed the redundancy
-disappears; flagging it here so it is not "cleaned up" into the broken single return.
-**Fix:** Resolve via CR-03 (deterministic 1:1 matching); do not collapse to a single `sameKind[0]`.
-
-### IN-03: `generate-catalog.test.ts` count bump is sound; one robustness note
-
-**File:** `scripts/generate-catalog.test.ts:72-91, 138-159`
-**Issue:** The 17→18 workflow bump and new `"context compaction"` entry meaningfully pin the catalog
-(exact row counts via `countRowsLinkingInto`, plus name-presence). This is good. Minor: the row
-count regex `agent-factory/${dir}/[^)\\s|]+\\.md` counts *link targets*, so a duplicate link to the
-same workflow file would inflate the count and a name typo in the table cell would not be caught by
-the count (only by the separate `toContain(name)` loop). Not a defect in this change — noting that
-the count assertion and the name assertion are independent and neither alone proves row↔name
-correspondence.
-**Fix:** Optional: assert each `WORKFLOW_NAMES[i]` co-occurs on the same table row as its source link
-(stronger row-integrity pin). Not required for this phase.
+**File:** `scripts/compactor.ts:171-184`
+**Issue:** `promotedFailedIds` is a `Set`; if the raw thread carries two distinct dead-ends that
+happen to extract the same `FA-<token>` (e.g. `FA-1` reused for two notes), one surviving promoted
+`FA-1` satisfies both. Same multiplicity blind spot as CR-01, lower stakes (dead-ends are reusable
+hints, not verdicts), and an `FA-` token collision is unlikely by convention — recorded for symmetry.
+**Fix:** If FA ids are ever non-unique in practice, count rather than set-test, mirroring the CR-01 fix.
 
 ---
 
-_Reviewed: 2026-06-18_
+_Reviewed: 2026-06-18T14:05:00Z_
 _Reviewer: Claude (gsd-code-reviewer)_
-_Depth: standard_
+_Depth: deep_
