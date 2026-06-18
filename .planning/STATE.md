@@ -4,16 +4,16 @@ milestone: v2.0
 milestone_name: Decentralized Factory — Shared Verified Context
 current_phase: 22
 current_phase_name: memory-trajectory-compaction-dialable-token-economy
-status: gaps_found
+status: executing
 stopped_at: "Phase 22 gap-closure ROUND 4 PLANNED. 22-05-PLAN.md created (CMP-02 oracle UNIFICATION) + gsd-plan-checker PASSED (independent verify). The plan collapses the two-enforcement-path seam: folds kind:failed-attempt into the SAME id-keyed byte-equal pass as durable notes (closes CR-01 + WR-01), mirrors the promoted-side id-collision guard on the raw side (closes CR-03 — the verbatim-unimplemented 22-04 must-have), validates kind∈NOTE_KINDS (WR-03), fails closed on an unparseable note (WR-02), and exports ONE shared frontmatter parser from context-io.ts so the oracle read path can't drift from appendNote (IN-02). RED-first proof against the COMMITTED scripts/compactor.js is REQUIRED (green suite ≠ proof) plus a generalized field×kind mutation sweep. CMP-02 is STILL gaps_found — NOTHING is closed until 22-05 is executed AND re-verified. Next: /gsd-execute-phase 22 (then re-verify; do NOT mark CMP-02/phase complete on a green suite alone — adversarially reproduce CR-01 + CR-03 against the committed .js)."
-last_updated: "2026-06-18T15:08:34.000Z"
+last_updated: "2026-06-18T15:48:45.126Z"
 last_activity: 2026-06-18
-last_activity_desc: Phase 22 round-4 gap-closure plan 22-05 created (CMP-02 oracle unification) + gsd-plan-checker PASSED; ready to execute (gaps NOT yet closed)
+last_activity_desc: Phase 22 execution started
 progress:
   total_phases: 7
   completed_phases: 3
-  total_plans: 12
-  completed_plans: 12
+  total_plans: 13
+  completed_plans: 13
   percent: 43
 ---
 
@@ -28,10 +28,10 @@ See: .planning/PROJECT.md (updated 2026-06-16 — after v1.2 milestone)
 
 ## Current Position
 
-Phase: 22 (memory-trajectory-compaction-dialable-token-economy) — ROUND-4 GAP-CLOSURE PLANNED (status stays gaps_found until 22-05 is executed + re-verified)
-Plan: 22-05-PLAN.md created (round 4) + gsd-plan-checker PASSED; 22-01..22-04 executed (22-04 closed 7 bypasses, CMP-02 still open on CR-01 + CR-03)
-Status: gaps_found — round-4 plan 22-05 will close CR-01 (FA byte-equal exemption) + CR-03 (raw-side id-collision) by collapsing the two-path seam into ONE id-keyed byte-equal pass + a shared frontmatter parser (IN-02). NOTHING closed until executed + re-verified with adversarial reproduction against the committed .js. CMP-01 + CMP-03 verified and untouched. Next: /gsd-execute-phase 22.
-Last activity: 2026-06-18 — round-4 gap-closure plan 22-05 created + gsd-plan-checker PASSED (ready to execute)
+Phase: 22 (memory-trajectory-compaction-dialable-token-economy) — EXECUTED (re-verify pending)
+Plan: 5 of 5
+Status: 22-05 executed — CMP-02 oracle unification complete; CR-03 + CR-01 closed (RED→GREEN proven against the committed .js). Phase-complete is subject to round-4 re-verification (do NOT mark CMP-02/phase complete on a green suite alone).
+Last activity: 2026-06-18 — Phase 22 plan 22-05 executed (CMP-02 oracle unification)
 
 ## Performance Metrics
 
@@ -165,6 +165,7 @@ Last activity: 2026-06-18 — round-4 gap-closure plan 22-05 created + gsd-plan-
 | Phase 22 P02 | 8min | 3 tasks | 24 files |
 | Phase 22 P03 | 6m | 4 tasks | 3 files |
 | Phase 22 P04 | 18m | 4 tasks | 7 files |
+| Phase 22 P05 | 9 | 4 tasks | 6 files |
 
 ## Accumulated Context
 
@@ -372,6 +373,8 @@ Recent decisions affecting current work:
 - [Phase ?]: context.compaction dial (aggressive|balanced|retain-raw; lean default aggressive) tunes body verbosity only; durable note set + carve-out fields are un-dialable at every value (D-05)
 - [Phase ?]: WF18 single-source compaction protocol: order:18 (Pitfall 2), references WF16+§14-gate (D-10), restates nothing; the additive WF18 role pointer re-baselined guard_role_size for 5 roles per the Phase-21 WF16 convention
 - [Phase ?]: [22-04] CMP-02 carve-out is now an id-keyed exact 1:1 match on a frozen id: field ALONE; verifiedKey Set + findCounterpart tuple fallback DELETED; required-survival set is ASYMMETRIC (currentState folds out only soft non-verified notes; verified findings + failed-attempts survive unconditionally); promoted-side supersedes never authorizes a drop; readNoteFields rejects a duplicate provenance key on the oracle read path; 7 held-out RED-first cases incl. FORGED-FOLD + RAW-FOLD-VERIFIED
+- [Phase ?]: 22-05: oracle unified — FA + durable notes share one id-keyed byte-equal pass; CR-03 + CR-01 closed (RED→GREEN proven against the committed .js)
+- [Phase ?]: 22-05: FA survival/identity keyed on the frozen id, not the body FA-token (WR-01); compactor read path adopts the single exported context-io.parseNote (IN-02)
 
 ### Pending Todos
 
@@ -421,7 +424,7 @@ Items acknowledged and deferred at the **v1.2 milestone close on 2026-06-16** (1
 
 ## Session Continuity
 
-Last session: 2026-06-18T14:19:29.849Z
+Last session: 2026-06-18T15:48:13.327Z
 Stopped at: Phase 22 context gathered
 Resume file: .planning/phases/22-memory-trajectory-compaction-dialable-token-economy/22-CONTEXT.md
 
