@@ -904,3 +904,355 @@ describe("compactor.js — CMP-03 dial behavior + re-verify", () => {
     expect(() => mod.degradeToClaim(notATemplate)).toThrow();
   });
 });
+
+// ── Round-4 oracle unification: CR-03 + CR-01 named reproductions + per-field FA mutation cases + ─
+// the FA / raw / promoted id-collision cases + kind/unparseable fail-closed cases + the faithful-FA
+// acceptance case + a GENERALIZED parameterized (field × kind) mutation sweep. EVERY case here is
+// RED-first against the COMMITTED PRE-fix scripts/compactor.js (it returns exit 0 / "carve-out
+// intact" today on the seam these cases probe) and is expected to REFUSE (exit 1) only after the
+// Task-3 oracle unification folds the failed-attempt path into the single id-keyed byte-equal pass,
+// adds the raw-side collision guard, validates kind ∈ NOTE_KINDS, and fails closed on unparseable.
+//
+// A green suite is NECESSARY but NOT SUFFICIENT — the proof of closure is the RED→GREEN transition of
+// the two named reproductions, captured against the committed .js (Task 2 RED baseline, Task 4 GREEN).
+
+// The six contract kinds (mirrors context-io NOTE_KINDS) the generalized sweep iterates.
+const SWEEP_KINDS = [
+  "claim",
+  "finding",
+  "decision",
+  "failed-attempt",
+  "observation",
+  "artifact-ref",
+] as const;
+
+// A failed-attempt raw/promoted note carrying an explicit frozen `id:` AND an FA-<token> in its
+// body (so it cannot pass on rule-1 FA-token survival alone — the byte-equal pass under the id is
+// what must catch a laundered provenance field).
+function faNoteText(over: Partial<Record<string, string>> = {}): string {
+  const f: Record<string, string> = {
+    id: "20260617T142305Z-engineer-failed-attempt-faX",
+    by: "engineer",
+    at: "2026-06-17T14:23:05Z",
+    verified_by: "§14-gate#RUN-1",
+    confidence: "low",
+    supersedes: "",
+    token: "FA-7",
+    body: "FA-7: tried a shared in-memory token cache — it broke under concurrent writers.",
+    ...over,
+  };
+  return (
+    "---\n" +
+    `id: ${f.id}\n` +
+    "kind: failed-attempt\n" +
+    `by: ${f.by}\n` +
+    `at: ${f.at}\n` +
+    `verified_by: ${f.verified_by}\n` +
+    `confidence: ${f.confidence}\n` +
+    "refs:\n  - AUTH-01\n" +
+    `supersedes: ${f.supersedes}\n` +
+    "---\n\n" +
+    f.body +
+    "\n"
+  );
+}
+
+describe("compactor.js — CMP-02 round-4 oracle unification (CR-03 + CR-01, held-out RED-first)", () => {
+  // ── CR-03 (raw-side id collision) — the verbatim 22-04 must-have never implemented. ───────────
+  // Two distinct §14-gate-verified findings (an SQL finding and an XSS finding) BOTH carry one
+  // forged id; promoted keeps only the first. The promoted-side guard exists, but the raw set has
+  // no equivalent — so the second's drop is invisible under the shared id. The unified oracle adds
+  // the raw-side collision guard and names the colliding id.
+  it("CR-03 raw-side id collision — two distinct verified findings share one forged id, drop one — refuse, naming the colliding id", () => {
+    const dir = freshTmp("cmp-cr03-");
+    const thread = join(dir, "thread");
+    const promoted = join(dir, "promoted");
+    mkdirSync(thread, { recursive: true });
+    writeFileSync(
+      join(thread, "sql.md"),
+      idNoteText({
+        id: "20260617T142305Z-engineer-finding-dup",
+        verified_by: "§14-gate#RUN-7",
+        by: "engineer",
+        body: "SQL injection in the search filter is fixed.",
+      }),
+    );
+    writeFileSync(
+      join(thread, "xss.md"),
+      idNoteText({
+        id: "20260617T142305Z-engineer-finding-dup",
+        verified_by: "§14-gate#RUN-7",
+        by: "engineer",
+        body: "Stored XSS in the profile bio is fixed.",
+      }),
+    );
+    mkdirSync(promoted, { recursive: true });
+    // Promoted keeps ONLY the SQL finding under the shared forged id; the XSS finding is dropped.
+    writeFileSync(
+      join(promoted, "sql.md"),
+      idNoteText({
+        id: "20260617T142305Z-engineer-finding-dup",
+        verified_by: "§14-gate#RUN-7",
+        by: "engineer",
+        body: "SQL injection in the search filter is fixed.",
+      }),
+    );
+    const r = runCheck(thread, promoted);
+    expect(r.status, "a raw-side id collision hiding a dropped verified finding must refuse").not.toBe(0);
+    expect(`${r.stdout}${r.stderr}`).toContain("20260617T142305Z-engineer-finding-dup");
+  });
+
+  // ── CR-01 (failed-attempt provenance laundering) — the FA byte-equal exemption. ──────────────
+  // A raw FA's authorship is laundered on promotion (by engineer→attacker, verified_by emptied) while
+  // the FA-<token> survives in the body. The pre-fix oracle only checks FA-token survival, so the
+  // laundered fields pass at exit 0. The unified oracle runs FAs through the byte-equal field loop.
+  it("CR-01 failed-attempt provenance laundering — by/verified_by altered on an FA, FA-token preserved — refuse, naming the field", () => {
+    const dir = freshTmp("cmp-cr01fa-");
+    const thread = join(dir, "thread");
+    const promoted = join(dir, "promoted");
+    mkdirSync(thread, { recursive: true });
+    writeFileSync(
+      join(thread, "fa.md"),
+      faNoteText({
+        id: "20260617T142305Z-engineer-failed-attempt-fa1",
+        by: "engineer",
+        verified_by: "§14-gate#RUN-1",
+        token: "FA-1",
+        body: "FA-1: tried a shared in-memory token cache — it broke under concurrent writers.",
+      }),
+    );
+    mkdirSync(promoted, { recursive: true });
+    // SAME id, FA-token preserved in the body, but `by` laundered and `verified_by` emptied.
+    writeFileSync(
+      join(promoted, "fa.md"),
+      faNoteText({
+        id: "20260617T142305Z-engineer-failed-attempt-fa1",
+        by: "attacker",
+        verified_by: "",
+        token: "FA-1",
+        body: "FA-1: shared token cache broke under concurrency.",
+      }),
+    );
+    const r = runCheck(thread, promoted);
+    expect(r.status, "laundering by/verified_by on an FA must refuse").not.toBe(0);
+    expect(`${r.stdout}${r.stderr}`).toMatch(/\bby\b|\bverified_by\b/);
+  });
+
+  // ── Per-field FA mutation cases (WR-04) — one load-bearing field per case, on an FA matched by id. ─
+  it("failed-attempt drops by — refuse, naming by", () => {
+    const dir = freshTmp("cmp-fa-by-");
+    const thread = join(dir, "thread");
+    const promoted = join(dir, "promoted");
+    mkdirSync(thread, { recursive: true });
+    writeFileSync(join(thread, "fa.md"), faNoteText({ by: "engineer" }));
+    mkdirSync(promoted, { recursive: true });
+    // Strip the `by:` line entirely on the promoted FA (FA-token preserved).
+    writeFileSync(join(promoted, "fa.md"), faNoteText({ by: "engineer" }).replace("by: engineer\n", ""));
+    const r = runCheck(thread, promoted);
+    expect(r.status, "dropping by on an FA must refuse").not.toBe(0);
+    expect(`${r.stdout}${r.stderr}`).toContain("by");
+  });
+
+  it("failed-attempt drops verified_by on a verified FA — refuse, naming verified_by", () => {
+    const dir = freshTmp("cmp-fa-vb-");
+    const thread = join(dir, "thread");
+    const promoted = join(dir, "promoted");
+    mkdirSync(thread, { recursive: true });
+    writeFileSync(join(thread, "fa.md"), faNoteText({ verified_by: "§14-gate#RUN-1" }));
+    mkdirSync(promoted, { recursive: true });
+    writeFileSync(join(promoted, "fa.md"), faNoteText({ verified_by: "" }));
+    const r = runCheck(thread, promoted);
+    expect(r.status, "dropping verified_by on a verified FA must refuse").not.toBe(0);
+    expect(`${r.stdout}${r.stderr}`).toContain("verified_by");
+  });
+
+  it("failed-attempt alters at — refuse, naming at", () => {
+    const dir = freshTmp("cmp-fa-at-");
+    const thread = join(dir, "thread");
+    const promoted = join(dir, "promoted");
+    mkdirSync(thread, { recursive: true });
+    writeFileSync(join(thread, "fa.md"), faNoteText({ at: "2026-06-17T14:23:05Z" }));
+    mkdirSync(promoted, { recursive: true });
+    writeFileSync(join(promoted, "fa.md"), faNoteText({ at: "2099-01-01T00:00:00Z" }));
+    const r = runCheck(thread, promoted);
+    expect(r.status, "altering at on an FA must refuse").not.toBe(0);
+    expect(`${r.stdout}${r.stderr}`).toContain("at");
+  });
+
+  it("failed-attempt alters supersedes — refuse, naming supersedes", () => {
+    const dir = freshTmp("cmp-fa-sup-");
+    const thread = join(dir, "thread");
+    const promoted = join(dir, "promoted");
+    mkdirSync(thread, { recursive: true });
+    writeFileSync(join(thread, "fa.md"), faNoteText({ supersedes: "20260617T130000Z-engineer-failed-attempt-old" }));
+    mkdirSync(promoted, { recursive: true });
+    writeFileSync(join(promoted, "fa.md"), faNoteText({ supersedes: "" }));
+    const r = runCheck(thread, promoted);
+    expect(r.status, "altering supersedes on an FA must refuse").not.toBe(0);
+    expect(`${r.stdout}${r.stderr}`).toContain("supersedes");
+  });
+
+  // ── WR-01 — FA survival keyed on the frozen id, NOT the body FA-<token>. ──────────────────────
+  it("two distinct dead-ends sharing one FA-token, distinct ids, one dropped — refuse, naming the dropped id", () => {
+    const dir = freshTmp("cmp-fa-tok-");
+    const thread = join(dir, "thread");
+    const promoted = join(dir, "promoted");
+    mkdirSync(thread, { recursive: true });
+    // Two distinct dead-ends — same body FA-token but DISTINCT frozen ids.
+    writeFileSync(
+      join(thread, "fa-a.md"),
+      faNoteText({ id: "20260617T142305Z-engineer-failed-attempt-aaa", verified_by: "", token: "FA-9", body: "FA-9: cache approach A failed." }),
+    );
+    writeFileSync(
+      join(thread, "fa-b.md"),
+      faNoteText({ id: "20260617T142305Z-engineer-failed-attempt-bbb", verified_by: "", token: "FA-9", body: "FA-9: cache approach B failed." }),
+    );
+    mkdirSync(promoted, { recursive: true });
+    // Promoted keeps only ONE id; the FA-token is identical so a token-keyed oracle wrongly accepts.
+    writeFileSync(
+      join(promoted, "fa-a.md"),
+      faNoteText({ id: "20260617T142305Z-engineer-failed-attempt-aaa", verified_by: "", token: "FA-9", body: "FA-9: cache approach A failed." }),
+    );
+    const r = runCheck(thread, promoted);
+    expect(r.status, "dropping one of two distinct-id dead-ends under a shared token must refuse").not.toBe(0);
+    expect(`${r.stdout}${r.stderr}`).toContain("20260617T142305Z-engineer-failed-attempt-bbb");
+  });
+
+  it("failed-attempt promoted-side id collision — refuse, naming the colliding id", () => {
+    const dir = freshTmp("cmp-fa-pcol-");
+    const thread = join(dir, "thread");
+    const promoted = join(dir, "promoted");
+    mkdirSync(thread, { recursive: true });
+    writeFileSync(
+      join(thread, "fa.md"),
+      faNoteText({ id: "20260617T142305Z-engineer-failed-attempt-col", verified_by: "", token: "FA-5", body: "FA-5: dead end." }),
+    );
+    mkdirSync(promoted, { recursive: true });
+    // TWO promoted FAs share one id — a colliding identity cannot be matched 1:1.
+    writeFileSync(
+      join(promoted, "fa-1.md"),
+      faNoteText({ id: "20260617T142305Z-engineer-failed-attempt-col", verified_by: "", token: "FA-5", body: "FA-5: dead end one." }),
+    );
+    writeFileSync(
+      join(promoted, "fa-2.md"),
+      faNoteText({ id: "20260617T142305Z-engineer-failed-attempt-col", verified_by: "", token: "FA-5", body: "FA-5: dead end two." }),
+    );
+    const r = runCheck(thread, promoted);
+    expect(r.status, "a promoted-side FA id collision must refuse").not.toBe(0);
+    expect(`${r.stdout}${r.stderr}`).toContain("20260617T142305Z-engineer-failed-attempt-col");
+  });
+
+  // ── WR-03 — kind ∈ NOTE_KINDS validated up front. ────────────────────────────────────────────
+  it("unknown kind on a raw note — fail closed, naming the offending kind", () => {
+    const dir = freshTmp("cmp-badkind-");
+    const thread = join(dir, "thread");
+    const promoted = join(dir, "promoted");
+    mkdirSync(thread, { recursive: true });
+    // A kind OUTSIDE the six NOTE_KINDS (the relabel-to-a-weaker-path forgery).
+    writeFileSync(
+      join(thread, "weird.md"),
+      idNoteText({ id: "20260617T142305Z-engineer-finding-weird", kind: "super-finding", verified_by: "" }),
+    );
+    mkdirSync(promoted, { recursive: true });
+    const r = runCheck(thread, promoted);
+    expect(r.status, "an unknown kind must fail closed").not.toBe(0);
+    expect(`${r.stdout}${r.stderr}`).toContain("super-finding");
+  });
+
+  // ── WR-02 — unparseable raw .md (no frontmatter fence) fails closed naming the file. ──────────
+  it("unparseable raw .md (no frontmatter fence) — fail closed, naming the file", () => {
+    const dir = freshTmp("cmp-unparse-");
+    const thread = join(dir, "thread");
+    const promoted = join(dir, "promoted");
+    mkdirSync(thread, { recursive: true });
+    // No `---` fence at all — the shared parser returns null. A silent drop would erase a required
+    // survivor; the unified oracle surfaces a finding naming the file.
+    writeFileSync(join(thread, "corrupt.md"), "this file has no frontmatter fence at all\n");
+    mkdirSync(promoted, { recursive: true });
+    const r = runCheck(thread, promoted);
+    expect(r.status, "an unparseable raw .md must fail closed").not.toBe(0);
+    expect(`${r.stdout}${r.stderr}`).toContain("corrupt.md");
+  });
+
+  // ── Faithful-FA acceptance — guard against false refusal. ─────────────────────────────────────
+  it("faithful FA body-only compaction — accepted (no false refusal)", () => {
+    const dir = freshTmp("cmp-fa-good-");
+    const thread = join(dir, "thread");
+    const promoted = join(dir, "promoted");
+    mkdirSync(thread, { recursive: true });
+    writeFileSync(
+      join(thread, "fa.md"),
+      faNoteText({
+        id: "20260617T142305Z-engineer-failed-attempt-keep",
+        verified_by: "",
+        token: "FA-3",
+        body: "FA-3: tried a shared in-memory token cache — it broke under concurrent writers, twice.",
+      }),
+    );
+    mkdirSync(promoted, { recursive: true });
+    // Provenance byte-equal; ONLY the body shortened (the sanctioned D-01 compression latitude).
+    writeFileSync(
+      join(promoted, "fa.md"),
+      faNoteText({
+        id: "20260617T142305Z-engineer-failed-attempt-keep",
+        verified_by: "",
+        token: "FA-3",
+        body: "FA-3: shared token cache broke under concurrency.",
+      }),
+    );
+    const r = runCheck(thread, promoted);
+    expect(r.status, "a faithful FA body-only compaction must be accepted").toBe(0);
+  });
+
+  // ── GENERALIZED parameterized mutation sweep (the whack-a-mole breaker) ───────────────────────
+  // For EACH load-bearing field × EACH of the six kinds, build a minimal valid raw note with a fixed
+  // id, then promote it with exactly that one field perturbed under the same id. Every perturbation
+  // must refuse and name the perturbed field. `finding` keeps a non-empty verified_by (so it stays
+  // admissible); soft kinds leave verified_by empty. When perturbing verified_by ON a finding, swap
+  // it to a DIFFERENT valid-grammar stamp so the case isolates the byte-equal alteration.
+  for (const field of ["by", "at", "verified_by", "supersedes"] as const) {
+    for (const kind of SWEEP_KINDS) {
+      it(`GENERALIZED mutation sweep — ${kind} / ${field} perturbed — refuse, naming the field`, () => {
+        const dir = freshTmp(`cmp-sweep-${kind}-${field}-`);
+        const thread = join(dir, "thread");
+        const promoted = join(dir, "promoted");
+        const isFinding = kind === "finding";
+        const idVal = `20260617T142305Z-engineer-${kind}-sweep01`;
+        const baseVerifiedBy = isFinding ? "§14-gate#SWEEP-1" : "";
+        const baseSupersedes = `20260617T130000Z-engineer-${kind}-old1`;
+        const tokenBody =
+          kind === "failed-attempt"
+            ? "FA-2: a reusable dead-end recorded for replay."
+            : "A compact distillation of the local trajectory.";
+        const base: Partial<Record<string, string>> = {
+          id: idVal,
+          kind,
+          by: "engineer",
+          at: "2026-06-17T14:23:05Z",
+          verified_by: baseVerifiedBy,
+          supersedes: field === "supersedes" ? baseSupersedes : "",
+          body: tokenBody,
+        };
+        // The single-field perturbation for the promoted note.
+        const perturbed: Partial<Record<string, string>> = { ...base };
+        if (field === "by") perturbed.by = "attacker";
+        else if (field === "at") perturbed.at = "2099-01-01T00:00:00Z";
+        else if (field === "verified_by")
+          perturbed.verified_by = isFinding ? "§14-gate#OTHER-9" : "";
+        else if (field === "supersedes") perturbed.supersedes = "";
+        // Skip the no-op combination (perturbing verified_by on a soft kind whose base is already
+        // empty produces no byte change — not a meaningful perturbation).
+        if (field === "verified_by" && !isFinding) return;
+
+        const builder = kind === "failed-attempt" ? faNoteText : idNoteText;
+        mkdirSync(thread, { recursive: true });
+        writeFileSync(join(thread, "note.md"), builder(base));
+        mkdirSync(promoted, { recursive: true });
+        writeFileSync(join(promoted, "note.md"), builder(perturbed));
+        const r = runCheck(thread, promoted);
+        expect(r.status, `${kind}/${field} perturbation must refuse`).not.toBe(0);
+        expect(`${r.stdout}${r.stderr}`).toContain(field);
+      });
+    }
+  }
+});
