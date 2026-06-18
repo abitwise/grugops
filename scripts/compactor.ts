@@ -127,14 +127,18 @@ function readNoteDir(dir: string): Map<string, NoteFields> {
 // ── Failed-attempt id extraction. The load-bearing id is the FA-<token> the agent records in the ─
 // note (the DeLM reusable dead-end key). Read it from the body (`FA-1: …`) or the filename
 // (`FA-1.md`) — whichever carries it — so a dropped failed-attempt is named precisely.
+//
+// Fail closed (WR-02): a failed-attempt with NO recoverable FA-token in body OR filename returns
+// null — it MUST NOT be given a silent best-effort filename id (the raw and promoted sides routinely
+// use different filenames for the same dead-end, so a filename fallback manufactures spurious
+// matches/mismatches). The caller surfaces a missing FA-id as an explicit carve-out finding.
 function failedAttemptId(filename: string, fields: NoteFields): string | null {
   if (fields.kind !== "failed-attempt") return null;
   const fromBody = fields.body.match(/\bFA-[A-Za-z0-9_-]+\b/);
   if (fromBody) return fromBody[0];
   const fromName = filename.match(/\bFA-[A-Za-z0-9_-]+\b/);
   if (fromName) return fromName[0];
-  // A failed-attempt with no recoverable id is itself a carve-out violation: it cannot be tracked.
-  return filename.replace(/\.md$/, "");
+  return null; // no recoverable FA-id — a carve-out violation the caller reports explicitly
 }
 
 // ── The carve-out invariant check (CMP-02). Returns a findings array; empty = intact. ────────────
@@ -148,13 +152,25 @@ export function checkCarveOut(
   const findings: string[] = [];
 
   // 1. Every failed-attempt id in the raw thread must survive into the promoted set (D-02.1).
+  // A raw failed-attempt with no recoverable FA-id is itself a carve-out violation (WR-02): it
+  // cannot be tracked across compaction, so it is surfaced as an explicit finding naming the file
+  // rather than given a silent best-effort id.
   const rawFailedIds: string[] = [];
   for (const [file, fields] of rawThread) {
+    if (fields.kind !== "failed-attempt") continue;
     const id = failedAttemptId(file, fields);
-    if (id !== null) rawFailedIds.push(id);
+    if (id !== null) {
+      rawFailedIds.push(id);
+    } else {
+      findings.push(
+        `carve-out FAIL: failed-attempt note "${file}" has no recoverable FA-id (no FA-<token> in ` +
+          `its body or filename) — a DeLM reusable dead-end must carry a trackable id (CMP-02, WR-02).`,
+      );
+    }
   }
   const promotedFailedIds = new Set<string>();
   for (const [file, fields] of promoted) {
+    if (fields.kind !== "failed-attempt") continue;
     const id = failedAttemptId(file, fields);
     if (id !== null) promotedFailedIds.add(id);
   }
@@ -310,12 +326,26 @@ export function reVerify(
 // with confidence "UNKNOWN - verify" and an EMPTY verified_by — the trace stays honest.
 export function degradeToClaim(findingText: string): string {
   const normalized = findingText.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
-  let out = normalized
+  const out = normalized
     .replace(/^kind:\s*finding\s*$/m, "kind: claim")
     .replace(/^verified_by:\s*.*$/m, "verified_by: ")
     .replace(/^confidence:\s*.*$/m, "confidence: UNKNOWN - verify");
-  // If the note carried no confidence line, append one inside the fence is out of scope; the
-  // finding template always carries kind/verified_by/confidence, so the replacements above hold.
+  // Fail closed (WR-03): the anchored replacements above silently no-op on a note that is not the
+  // finding template (e.g. no confidence line, or a kind other than finding). The honest-degrade
+  // escape hatch must NOT return an un-degraded note the caller would believe was degraded — assert
+  // the post-conditions and throw on failure so a malformed input is refused, never rubber-stamped.
+  if (!/^kind:\s*claim\s*$/m.test(out) || !/^confidence:\s*UNKNOWN - verify\s*$/m.test(out)) {
+    throw new Error(
+      "compactor.degradeToClaim: input did not match the finding template (expected a `kind: " +
+        "finding` note with a `confidence:` line) — refusing to return an un-degraded note (WR-03).",
+    );
+  }
+  if (/^verified_by:\s*§14-gate#/m.test(out)) {
+    throw new Error(
+      "compactor.degradeToClaim: degraded claim still carries a §14-gate provenance stamp — " +
+        "refusing to hand-carry a stamp onto a degraded claim (WR-03).",
+    );
+  }
   return out;
 }
 

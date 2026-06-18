@@ -356,6 +356,23 @@ describe("compactor.js — CMP-02 carve-out invariant (drop refuses, names the f
     expect(r.status, "a dropped by on one of two same-kind findings must be refused").not.toBe(0);
     expect(`${r.stdout}${r.stderr}`).toContain("by");
   });
+
+  it("failed-attempt with no recoverable FA-id — refuse, naming the unrecoverable note", () => {
+    const dir = freshTmp("cmp-no-faid-");
+    const thread = join(dir, "thread");
+    const promoted = join(dir, "promoted");
+    mkdirSync(thread, { recursive: true });
+    // A failed-attempt whose body AND filename carry NO FA- token — unrecoverable id.
+    writeFileSync(
+      join(thread, "deadend.md"),
+      noteText({ kind: "failed-attempt", verified_by: "", body: "tried a shared cache, it broke." }),
+    );
+    mkdirSync(promoted, { recursive: true });
+    const r = runCheck(thread, promoted);
+    expect(r.status, "an unrecoverable FA-id must be refused").not.toBe(0);
+    // Names the unrecoverable note (its filename).
+    expect(`${r.stdout}${r.stderr}`).toContain("deadend.md");
+  });
 });
 
 describe("compactor.js — fail-closed input (gap-closure 22-03, WR-01)", () => {
@@ -546,5 +563,19 @@ describe("compactor.js — CMP-03 dial behavior + re-verify", () => {
     // The carve-out output must be byte-identical text at every dial — not merely non-zero status.
     expect(outBalanced).toBe(outAggressive);
     expect(outRetainRaw).toBe(outAggressive);
+  });
+
+  it("degradeToClaim throws on a non-finding-template input (gap-closure 22-03, WR-03)", () => {
+    // A note that lacks a confidence line — the anchored replacements would silently no-op, leaving
+    // an un-degraded note. The fail-closed guard must throw instead of returning that note.
+    const notATemplate =
+      "---\n" +
+      "kind: finding\n" +
+      "by: engineer\n" +
+      "at: 2026-06-17T14:23:05Z\n" +
+      "verified_by: §14-gate#NOPE-001\n" +
+      "---\n\n" +
+      "no confidence line here.\n";
+    expect(() => mod.degradeToClaim(notATemplate)).toThrow();
   });
 });
