@@ -16,7 +16,10 @@
 //   1. Every failed-attempt note id present in the raw thread SURVIVES into the promoted set
 //      (DeLM reusable dead-ends are never compacted away). A dropped id → refuse, name the id.
 //   2. The load-bearing provenance fields verified_by / supersedes / by / at are INTACT on every
-//      promoted note. A dropped field → refuse, name the field.
+//      promoted note. A dropped field → refuse, name the field. (IN-01) This holds on EVERY kind —
+//      INCLUDING failed-attempts: the round-4 oracle unification folds the FA path into the same
+//      id-keyed byte-equal pass as durable notes, so this claim is now literally true with no
+//      FA exemption to launder authorship through.
 //   3. Promotion routes ONLY through context-io.ts's appendNote — this file forks NO writer of
 //      .grugops/context/ (the single sanctioned write path + the Phase-21 admission gate are
 //      preserved; the guard_context_writes foundation guard still holds).
@@ -55,6 +58,8 @@ import {
   appendNote,
   admit,
   currentState,
+  parseNote,
+  NOTE_KINDS,
   type NoteInput,
   type NoteRecord,
 } from "./context-io.js";
@@ -84,9 +89,15 @@ function assertSafeSegment(kind: string, value: string): void {
 
 // ── Minimal frontmatter read (read-only; never a write path). ────────────────────────────────────
 // The compactor READS provenance fields off raw thread + promoted note files to compare them. This
-// is not note I/O into the shared context — promotion still routes solely through appendNote. The
-// flat key:value scalar shape mirrors context-io.ts's parseNote (we only need the scalar fields the
-// carve-out inspects); CRLF is normalized so a Windows-checkout note reads identically.
+// is not note I/O into the shared context — promotion still routes solely through appendNote.
+//
+// IN-02 (round-4 oracle unification): the read path adopts the SINGLE exported `parseNote` from
+// context-io.ts — the SAME parser appendNote's validate path uses — so the path the carve-out oracle
+// parses provably CANNOT drift from the path the writer validates. The hand-rolled fence regex + kv
+// loop + seen/dupes machinery that used to live here is DELETED; `readNoteFields` now projects the
+// shared parser's ParsedFrontmatter (scalars / body / duplicateKeys) into the compactor's NoteFields
+// shape. The duplicate-key fail-closed defense is PRESERVED because `parseNote` already tracks every
+// repeated frontmatter key in `duplicateKeys`, which the carve-out's duplicate-key loop consumes.
 interface NoteFields {
   id: string;
   kind: string;
@@ -95,117 +106,126 @@ interface NoteFields {
   verified_by: string;
   supersedes: string;
   body: string;
-  // Provenance keys that appeared on more than one `key: value` line. The carve-out treats ANY
-  // entry here as a fail-closed structural finding — a duplicate provenance key is the on-disk
-  // signature of a field-injection / id-collision forgery on the path the oracle parses. This
-  // mirrors context-io.ts parseNote's seen/dupes machinery so the duplicate-key defense runs on
-  // the READ path the oracle reads, not only on context-io's write path.
+  // Frontmatter keys that appeared on more than one `key: value` line (from the shared parser). The
+  // carve-out treats ANY entry here as a fail-closed structural finding — a duplicate provenance key
+  // is the on-disk signature of a field-injection / id-collision forgery on the path the oracle
+  // parses. Sourced from context-io.parseNote's seen/dupes machinery (IN-02), not a local copy.
   duplicateKeys: string[];
 }
 
-// The provenance keys whose duplication is a fail-closed structural finding (mirrors the keys the
-// carve-out and context-io guard). A second line of any of these silently overrides the first under
-// a last-value-wins parse — exactly the forgery the read-path guard must reject.
-const GUARDED_KEYS = ["id", "kind", "by", "at", "verified_by", "supersedes"] as const;
-
+// Project the shared parser's output into the compactor's NoteFields. Returns null when the shared
+// parser returns null (no valid `---` fence) — the caller (readNoteDir) surfaces that as a
+// fail-closed structural finding naming the file (WR-02), never a silent drop.
 function readNoteFields(text: string): NoteFields | null {
-  const normalized = text.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
-  const m = normalized.match(/^---\n([\s\S]*?)\n---\n?([\s\S]*)$/);
-  if (!m) return null;
-  const scalars: Record<string, string> = {};
-  const seen = new Set<string>();
-  const dupes = new Set<string>();
-  for (const line of m[1].split("\n")) {
-    // A `refs:` YAML list block's `- item` lines are not provenance scalars; they never match the
-    // kv regex (no `key:` shape), so they cannot register as a duplicate provenance key.
-    const kv = line.match(/^([A-Za-z_]+):\s*(.*)$/);
-    if (!kv) continue;
-    const key = kv[1];
-    // Record a duplicate of a GUARDED provenance key once. The parser still keeps the last value
-    // (overwrite) for backward-compatible reads; the carve-out refuses on the recorded duplicate.
-    if (seen.has(key) && (GUARDED_KEYS as readonly string[]).includes(key)) dupes.add(key);
-    seen.add(key);
-    scalars[key] = kv[2].trim();
-  }
+  const parsed = parseNote(text);
+  if (!parsed) return null;
+  const s = parsed.scalars;
   return {
-    id: scalars.id ?? "",
-    kind: scalars.kind ?? "",
-    by: scalars.by ?? "",
-    at: scalars.at ?? "",
-    verified_by: scalars.verified_by ?? "",
-    supersedes: scalars.supersedes ?? "",
-    body: m[2]?.trim() ?? "",
-    duplicateKeys: [...dupes],
+    id: s.id ?? "",
+    kind: s.kind ?? "",
+    by: s.by ?? "",
+    at: s.at ?? "",
+    verified_by: s.verified_by ?? "",
+    supersedes: s.supersedes ?? "",
+    body: parsed.body.trim(),
+    duplicateKeys: parsed.duplicateKeys,
   };
 }
 
-// Read every notes/*.md-style file under a directory into parsed fields keyed by filename.
-function readNoteDir(dir: string): Map<string, NoteFields> {
-  const out = new Map<string, NoteFields>();
-  if (!existsSync(dir)) return out;
+// The result of reading a notes/*.md-style directory: the parsed fields keyed by filename, PLUS the
+// names of any `.md` files the shared parser could not parse (no valid `---` fence). An unparseable
+// file is NOT silently dropped (WR-02) — it is carried to checkCarveOut as a fail-closed structural
+// finding, the same posture as the missing-thread guard at the CLI.
+interface NoteDirResult {
+  notes: Map<string, NoteFields>;
+  unparseable: string[];
+}
+
+// Read every notes/*.md-style file under a directory. A `.md` with no valid frontmatter fence is
+// recorded in `unparseable` (fail-closed, WR-02) rather than omitted from the map.
+function readNoteDir(dir: string): NoteDirResult {
+  const notes = new Map<string, NoteFields>();
+  const unparseable: string[] = [];
+  if (!existsSync(dir)) return { notes, unparseable };
   for (const file of readdirSync(dir)) {
     if (!file.endsWith(".md")) continue;
     const fields = readNoteFields(readFileSync(join(dir, file), "utf8"));
-    if (fields) out.set(file, fields);
+    if (fields) {
+      notes.set(file, fields);
+    } else {
+      unparseable.push(file);
+    }
   }
-  return out;
+  return { notes, unparseable };
 }
 
-// ── Failed-attempt id extraction. The load-bearing id is the FA-<token> the agent records in the ─
-// note (the DeLM reusable dead-end key). Read it from the body (`FA-1: …`) or the filename
-// (`FA-1.md`) — whichever carries it — so a dropped failed-attempt is named precisely.
-//
-// Fail closed (WR-02): a failed-attempt with NO recoverable FA-token in body OR filename returns
-// null — it MUST NOT be given a silent best-effort filename id (the raw and promoted sides routinely
-// use different filenames for the same dead-end, so a filename fallback manufactures spurious
-// matches/mismatches). The caller surfaces a missing FA-id as an explicit carve-out finding.
-function failedAttemptId(filename: string, fields: NoteFields): string | null {
-  if (fields.kind !== "failed-attempt") return null;
+// ── Failed-attempt naming token (WR-01). The frozen `id` is the IDENTITY/SURVIVAL key for a ──────
+// failed-attempt — exactly as for a durable note (round-4 oracle unification). The body `FA-<token>`
+// is NOT an identity: two distinct dead-ends may share one token, and a token is forgeable. We read
+// it ONLY to enrich a dropped-FA message with a human-legible signal ("failed-attempt FA-1 (id …)").
+// It NEVER keys survival or dedup (WR-01) — that is the frozen id alone.
+function failedAttemptToken(filename: string, fields: NoteFields): string | null {
   const fromBody = fields.body.match(/\bFA-[A-Za-z0-9_-]+\b/);
   if (fromBody) return fromBody[0];
   const fromName = filename.match(/\bFA-[A-Za-z0-9_-]+\b/);
   if (fromName) return fromName[0];
-  return null; // no recoverable FA-id — a carve-out violation the caller reports explicitly
+  return null;
 }
 
 // ── The carve-out invariant check (CMP-02). Returns a findings array; empty = intact. ────────────
 // Deterministic, mechanical, summarization-free. The dial is accepted but NEVER weakens the check
 // (D-05): the carve-out holds identically at aggressive / balanced / retain-raw.
+//
+// ROUND-4 ORACLE UNIFICATION: there is ONE enforcement scheme. Failed-attempts and durable notes
+// flow through the SAME id-keyed exact-match + byte-equal field loop. There is no weaker FA path for
+// a bypass to migrate into (CR-01). Identity/survival is the frozen `id` for EVERY kind (WR-01); the
+// raw side is collision-guarded exactly as the promoted side is (CR-03); every note's `kind` is
+// validated against NOTE_KINDS up front (WR-03); an unparseable `.md` fails closed naming the file
+// (WR-02). Failed-attempts are MORE load-bearing than durable notes (unconditionally required to
+// survive), so they are checked at least as strictly.
 export function checkCarveOut(
-  rawThread: Map<string, NoteFields>,
-  promoted: Map<string, NoteFields>,
+  rawThread: NoteDirResult,
+  promoted: NoteDirResult,
   _dial: CompactionDial = DEFAULT_DIAL,
 ): string[] {
   const findings: string[] = [];
+  const rawNotes = rawThread.notes;
+  const promotedNotes = promoted.notes;
 
-  // 1. Every failed-attempt id in the raw thread must survive into the promoted set (D-02.1).
-  // A raw failed-attempt with no recoverable FA-id is itself a carve-out violation (WR-02): it
-  // cannot be tracked across compaction, so it is surfaced as an explicit finding naming the file
-  // rather than given a silent best-effort id.
-  const rawFailedIds: string[] = [];
-  for (const [file, fields] of rawThread) {
-    if (fields.kind !== "failed-attempt") continue;
-    const id = failedAttemptId(file, fields);
-    if (id !== null) {
-      rawFailedIds.push(id);
-    } else {
+  // WR-02. An unparseable raw OR promoted `.md` (no valid `---` fence) fails closed naming the file —
+  // never a silent drop from the required-survival set. Same posture as the missing-thread CLI guard.
+  for (const file of rawThread.unparseable) {
+    findings.push(
+      `carve-out FAIL: raw thread note "${file}" has no valid frontmatter fence — an unparseable ` +
+        `note cannot be tracked across compaction; fail closed rather than silently drop it (CMP-02, WR-02).`,
+    );
+  }
+  for (const file of promoted.unparseable) {
+    findings.push(
+      `carve-out FAIL: promoted note "${file}" has no valid frontmatter fence — an unparseable ` +
+        `note cannot be matched 1:1; fail closed rather than silently drop it (CMP-02, WR-02).`,
+    );
+  }
+
+  // WR-03. Validate `kind ∈ NOTE_KINDS` for EVERY raw and promoted note up front. An empty or unknown
+  // kind fails closed naming the value — a durable→failed-attempt (or any) relabel can no longer route
+  // a load-bearing note onto a different/unchecked path, because every kind is validated and every
+  // note flows through the same byte-equal loop.
+  for (const [file, fields] of rawNotes) {
+    if (!(NOTE_KINDS as readonly string[]).includes(fields.kind)) {
       findings.push(
-        `carve-out FAIL: failed-attempt note "${file}" has no recoverable FA-id (no FA-<token> in ` +
-          `its body or filename) — a DeLM reusable dead-end must carry a trackable id (CMP-02, WR-02).`,
+        `carve-out FAIL: raw thread note "${file}" has an invalid kind "${fields.kind}" — every note ` +
+          `must declare one of the ${NOTE_KINDS.length} contract kinds (${NOTE_KINDS.join(", ")}); ` +
+          `fail closed (CMP-02, WR-03).`,
       );
     }
   }
-  const promotedFailedIds = new Set<string>();
-  for (const [file, fields] of promoted) {
-    if (fields.kind !== "failed-attempt") continue;
-    const id = failedAttemptId(file, fields);
-    if (id !== null) promotedFailedIds.add(id);
-  }
-  for (const id of rawFailedIds) {
-    if (!promotedFailedIds.has(id)) {
+  for (const [file, fields] of promotedNotes) {
+    if (!(NOTE_KINDS as readonly string[]).includes(fields.kind)) {
       findings.push(
-        `carve-out FAIL: failed-attempt "${id}" present in the raw thread was dropped from the ` +
-          `promoted set — DeLM reusable dead-ends are never compacted away (CMP-02, D-02.1).`,
+        `carve-out FAIL: promoted note "${file}" has an invalid kind "${fields.kind}" — every note ` +
+          `must declare one of the ${NOTE_KINDS.length} contract kinds (${NOTE_KINDS.join(", ")}); ` +
+          `fail closed (CMP-02, WR-03).`,
       );
     }
   }
@@ -213,9 +233,9 @@ export function checkCarveOut(
   // 0. Read-path structural reject (T-22-04-02). A duplicate provenance key in ANY raw OR promoted
   // note fails closed BEFORE the id-keyed match — a second `id:` (or kind/by/at/...) line silently
   // overrides the first under a last-value-wins parse and is the on-disk signature of an id-collision
-  // or field-injection forgery. The duplicate-key defense therefore runs on the path the oracle
-  // parses (readNoteFields), not only context-io's write path.
-  for (const [file, fields] of rawThread) {
+  // or field-injection forgery. The duplicate-key defense runs on the path the oracle parses (the
+  // shared exported parseNote, IN-02), not only context-io's write path.
+  for (const [file, fields] of rawNotes) {
     for (const dup of fields.duplicateKeys) {
       findings.push(
         `carve-out FAIL: duplicate provenance key "${dup}" in raw thread note "${file}" — a repeated ` +
@@ -224,7 +244,7 @@ export function checkCarveOut(
       );
     }
   }
-  for (const [file, fields] of promoted) {
+  for (const [file, fields] of promotedNotes) {
     for (const dup of fields.duplicateKeys) {
       findings.push(
         `carve-out FAIL: duplicate provenance key "${dup}" in promoted note "${file}" — a repeated ` +
@@ -234,21 +254,22 @@ export function checkCarveOut(
     }
   }
 
-  // 2. The id-keyed exact 1:1 carve-out (the STABLE-ID rewrite). Identity is the frozen `id` field
-  // ALONE — never a forgeable/collidable content tuple (verified_by/by/at/kind). The required-
-  // survival set is ASYMMETRIC: it starts from currentState(rawThread) — context-io's deterministic
-  // raw-side supersedes collapse, the ONE fold D-03 sanctions — but because that fold is KIND-BLIND
-  // and verified_by-BLIND, it may remove ONLY soft, non-verified notes. A note with a NON-EMPTY
-  // verified_by (a §14-gate-verified finding) survives the fold UNCONDITIONALLY (probe (b)).
+  // 1. The id-keyed exact 1:1 carve-out, UNIFIED over durable notes AND failed-attempts. Identity is
+  // the frozen `id` field ALONE — never a forgeable/collidable content tuple, and never the FA body
+  // token (WR-01). The required-survival set is ASYMMETRIC: it starts from currentState(rawThread) —
+  // context-io's deterministic raw-side supersedes collapse, the ONE fold D-03 sanctions — but because
+  // that fold is KIND-BLIND and verified_by-BLIND it may remove ONLY soft, non-verified notes. A
+  // §14-gate-verified finding (non-empty verified_by) AND a failed-attempt survive the fold
+  // UNCONDITIONALLY.
 
-  // Build the promoted-by-id map. A promoted durable note with an absent or duplicate id fails closed.
+  // Build the promoted-by-id map for ALL notes (durable + FA). A promoted note with an absent or
+  // duplicate id fails closed — the promoted-side collision guard (mirrored on the raw side below).
   const promotedById = new Map<string, NoteFields>();
-  for (const [file, fields] of promoted) {
-    if (fields.kind === "failed-attempt") continue; // FA survival is rule 1 (FA-token, not id)
+  for (const [file, fields] of promotedNotes) {
     if (fields.id === "") {
       findings.push(
         `carve-out FAIL: promoted ${fields.kind} note "${file}" has no frozen "id" field — every ` +
-          `durable note must carry its creation-time id so the carve-out can match it (CMP-02).`,
+          `note must carry its creation-time id so the carve-out can match it (CMP-02).`,
       );
       continue;
     }
@@ -262,15 +283,36 @@ export function checkCarveOut(
     promotedById.set(fields.id, fields);
   }
 
-  // Compute currentState(rawThread) over the RAW durable notes read as NoteRecord-shaped values
-  // (id + supersedes are what the supersedes fold needs). This reuses context-io's currentState
-  // BYTE-FOR-BYTE — the raw-side supersedes graph ONLY, never a promoted-side claim.
-  const rawDurable: Array<{ file: string; fields: NoteFields }> = [];
-  for (const [file, fields] of rawThread) {
-    if (fields.kind === "failed-attempt") continue;
-    rawDurable.push({ file, fields });
+  // CR-03. Raw-side id-collision guard — the EXACT mirror of the promoted-side guard above. Two
+  // durable-or-FA raw notes sharing one forged id would both `.get(fields.id)` the same promoted
+  // counterpart and both pass byte-equal (only the body differs), hiding the second's drop. Track a
+  // `seen` set of raw ids; a repeat fails closed naming the colliding id. A colliding id is dropped
+  // from the required set (it cannot be matched 1:1) so the collision finding is the single reported
+  // fault, not a cascade of spurious drops.
+  const seenRawIds = new Set<string>();
+  const collidingRawIds = new Set<string>();
+  for (const [, fields] of rawNotes) {
+    if (fields.id === "") continue; // an empty id is reported per-note below, not as a collision
+    if (seenRawIds.has(fields.id)) collidingRawIds.add(fields.id);
+    seenRawIds.add(fields.id);
   }
-  const rawRecords: NoteRecord[] = rawDurable.map(({ fields }) => ({
+  for (const id of collidingRawIds) {
+    findings.push(
+      `carve-out FAIL: two durable raw notes share the id "${id}" — a colliding identity cannot be ` +
+        `matched 1:1; fail closed (CMP-02, CR-03).`,
+    );
+  }
+
+  // Compute currentState(rawThread) over the RAW notes read as NoteRecord-shaped values (id +
+  // supersedes are what the supersedes fold needs). This reuses context-io's currentState
+  // BYTE-FOR-BYTE — the raw-side supersedes graph ONLY, never a promoted-side claim. Failed-attempts
+  // are included so a soft FA superseded raw-side is handled deterministically; but an FA is added
+  // back to the required set UNCONDITIONALLY regardless of the fold (it is a DeLM reusable dead-end).
+  const rawAll: Array<{ file: string; fields: NoteFields }> = [];
+  for (const [file, fields] of rawNotes) {
+    rawAll.push({ file, fields });
+  }
+  const rawRecords: NoteRecord[] = rawAll.map(({ fields }) => ({
     id: fields.id,
     kind: fields.kind,
     by: fields.by,
@@ -283,30 +325,43 @@ export function checkCarveOut(
   }));
   const survivingIds = new Set(currentState(rawRecords).map((n) => n.id));
 
-  // The required-survival set: a raw durable note is REQUIRED unless it is a SOFT kind with EMPTY
-  // verified_by AND folded out raw-side (not a currentState survivor). §14-gate-verified findings
-  // (non-empty verified_by) are added back UNCONDITIONALLY: a weaker raw-side supersedes link MUST
-  // NOT fold a verified finding out of the required set (probe (b)). A currentState survivor S that
-  // supersedes a soft note X is itself a survivor, so it is required — that automatically enforces
-  // "the superseding note must itself survive byte-equal" (a dropped S fails its own existence check).
-  for (const { file, fields } of rawDurable) {
+  // The required-survival set: a raw note is REQUIRED unless it is a SOFT, non-verified, non-FA kind
+  // folded out raw-side (not a currentState survivor) — the one sanctioned removal. §14-gate-verified
+  // findings (non-empty verified_by) AND failed-attempts are added back UNCONDITIONALLY: a weaker
+  // raw-side supersedes link MUST NOT fold either out of the required set. Each required note then
+  // flows through the SAME affirmative-existence + byte-equal field loop (the FA exemption is gone).
+  for (const { file, fields } of rawAll) {
+    // A colliding raw id was already reported; it cannot be matched 1:1, so skip it here to avoid a
+    // spurious "dropped" cascade on top of the collision finding.
+    if (collidingRawIds.has(fields.id)) continue;
+
     const isVerified = fields.verified_by !== "";
-    const required = isVerified || survivingIds.has(fields.id);
-    if (!required) continue; // soft, non-verified, folded out raw-side — the one sanctioned removal
+    const isFailedAttempt = fields.kind === "failed-attempt";
+    const required = isVerified || isFailedAttempt || survivingIds.has(fields.id);
+    if (!required) continue; // soft, non-verified, non-FA, folded out raw-side — the sanctioned removal
 
     if (fields.id === "") {
       findings.push(
-        `carve-out FAIL: raw ${fields.kind} note "${file}" has no frozen "id" field — a durable raw ` +
-          `note must carry its creation-time id to be tracked across compaction; fail closed (CMP-02).`,
+        `carve-out FAIL: raw ${fields.kind} note "${file}" has no frozen "id" field — a load-bearing ` +
+          `raw note must carry its creation-time id to be tracked across compaction; fail closed (CMP-02).`,
       );
       continue;
     }
 
     // Affirmative existence keyed on the frozen id ALONE. A promoted-side `supersedes` line NEVER
-    // authorizes a drop (FORGED-FOLD): the required set is the raw-side graph only.
+    // authorizes a drop (FORGED-FOLD): the required set is the raw-side graph only. For a dropped
+    // failed-attempt, the human-legible FA-token enriches the message (WR-01) — identity is the id.
     const counterpart = promotedById.get(fields.id);
     if (!counterpart) {
-      if (isVerified) {
+      if (isFailedAttempt) {
+        const token = failedAttemptToken(file, fields);
+        const tokenLabel = token ? ` (${token})` : "";
+        findings.push(
+          `carve-out FAIL: failed-attempt note id "${fields.id}"${tokenLabel} present in the raw ` +
+            `thread was dropped from the promoted set — DeLM reusable dead-ends are never compacted ` +
+            `away; survival is keyed on the frozen id, not the body token (CMP-02, D-02.1, WR-01).`,
+        );
+      } else if (isVerified) {
         findings.push(
           `carve-out FAIL: a §14-gate-verified ${fields.kind} note (id "${fields.id}", verified_by ` +
             `"${fields.verified_by}", by "${fields.by}") was dropped from the promoted set — a verified ` +
@@ -323,8 +378,9 @@ export function checkCarveOut(
       continue;
     }
 
-    // Under the matched id, every load-bearing field must be BYTE-EQUAL. A matched note's own
-    // supersedes link is therefore byte-equal-checked and cannot be altered or dropped.
+    // Under the matched id, every load-bearing field must be BYTE-EQUAL — for FAILED-ATTEMPTS exactly
+    // as for durable notes (CR-01: there is NO FA exemption). A matched note's own supersedes link is
+    // therefore byte-equal-checked and cannot be altered or dropped.
     for (const field of ["id", "kind", "by", "at", "verified_by", "supersedes"] as const) {
       const rawVal = fields[field];
       const promVal = counterpart[field];
@@ -333,13 +389,13 @@ export function checkCarveOut(
           findings.push(
             `carve-out FAIL: load-bearing provenance field "${field}" (value "${rawVal}") was dropped ` +
               `to empty on the promoted note matched by id "${fields.id}" — provenance must survive ` +
-              `compaction byte-equal (CMP-02, D-02.2).`,
+              `compaction byte-equal, including on failed-attempts (CMP-02, D-02.2).`,
           );
         } else {
           findings.push(
             `carve-out FAIL: load-bearing provenance field "${field}" was altered on the promoted note ` +
               `matched by id "${fields.id}" from "${rawVal}" to "${promVal}" — provenance must survive ` +
-              `compaction unchanged (CMP-02, D-02.2).`,
+              `compaction unchanged, including on failed-attempts (CMP-02, D-02.2).`,
           );
         }
       }
@@ -511,6 +567,8 @@ if (isMain) {
         ? (dialRaw as CompactionDial)
         : DEFAULT_DIAL;
 
+      // readNoteDir returns a NoteDirResult { notes, unparseable } — checkCarveOut surfaces an
+      // unparseable .md as a fail-closed finding naming the file (WR-02), never a silent drop.
       const rawThread = readNoteDir(threadDir);
       const promoted = readNoteDir(promotedDir);
       const findings = checkCarveOut(rawThread, promoted, dial);

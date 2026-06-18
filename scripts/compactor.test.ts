@@ -163,7 +163,7 @@ describe("compactor.js — CMP-02 carve-out invariant (drop refuses, names the f
     );
     writeFileSync(
       join(thread, "FA-1.md"),
-      noteText({ kind: "failed-attempt", verified_by: "", body: "FA-1: dead end." }),
+      noteText({ id: "20260617T142305Z-engineer-failed-attempt-fa1", kind: "failed-attempt", verified_by: "", body: "FA-1: dead end." }),
     );
     mkdirSync(promoted, { recursive: true });
     // Promoted finding drops the supersedes link (empty).
@@ -173,7 +173,7 @@ describe("compactor.js — CMP-02 carve-out invariant (drop refuses, names the f
     );
     writeFileSync(
       join(promoted, "FA-1.md"),
-      noteText({ kind: "failed-attempt", verified_by: "", body: "FA-1: dead end." }),
+      noteText({ id: "20260617T142305Z-engineer-failed-attempt-fa1", kind: "failed-attempt", verified_by: "", body: "FA-1: dead end." }),
     );
     const r = runCheck(thread, promoted);
     expect(r.status).not.toBe(0);
@@ -196,7 +196,7 @@ describe("compactor.js — CMP-02 carve-out invariant (drop refuses, names the f
     );
     writeFileSync(
       join(promoted, "FA-1.md"),
-      noteText({ kind: "failed-attempt", verified_by: "", body: "FA-1: dead end." }),
+      noteText({ id: "20260617T142305Z-engineer-failed-attempt-fa1", kind: "failed-attempt", verified_by: "", body: "FA-1: dead end." }),
     );
     const r = runCheck(thread, promoted);
     expect(r.status).not.toBe(0);
@@ -219,7 +219,7 @@ describe("compactor.js — CMP-02 carve-out invariant (drop refuses, names the f
     );
     writeFileSync(
       join(promoted, "FA-1.md"),
-      noteText({ kind: "failed-attempt", verified_by: "", body: "FA-1: dead end." }),
+      noteText({ id: "20260617T142305Z-engineer-failed-attempt-fa1", kind: "failed-attempt", verified_by: "", body: "FA-1: dead end." }),
     );
     const r = runCheck(thread, promoted);
     expect(r.status).not.toBe(0);
@@ -309,11 +309,11 @@ describe("compactor.js — CMP-02 carve-out invariant (drop refuses, names the f
     mkdirSync(promoted, { recursive: true });
     writeFileSync(
       join(promoted, "FA-1.md"),
-      noteText({ kind: "failed-attempt", verified_by: "", body: "FA-1: dead end." }),
+      noteText({ id: "20260617T142305Z-engineer-failed-attempt-fa1", kind: "failed-attempt", verified_by: "", body: "FA-1: dead end." }),
     );
     writeFileSync(
       join(promoted, "FA-2.md"),
-      noteText({ kind: "failed-attempt", verified_by: "", body: "FA-2: another dead end." }),
+      noteText({ id: "20260617T142305Z-engineer-failed-attempt-fa2", kind: "failed-attempt", verified_by: "", body: "FA-2: another dead end." }),
     );
     const r = runCheck(thread, promoted);
     expect(r.status, "a wholly-dropped verified finding must be refused").not.toBe(0);
@@ -364,21 +364,23 @@ describe("compactor.js — CMP-02 carve-out invariant (drop refuses, names the f
     expect(`${r.stdout}${r.stderr}`).toContain("by");
   });
 
-  it("failed-attempt with no recoverable FA-id — refuse, naming the unrecoverable note", () => {
+  it("failed-attempt dropped from promotion — refuse, naming the frozen id (WR-01: id is identity, not the body token)", () => {
     const dir = freshTmp("cmp-no-faid-");
     const thread = join(dir, "thread");
     const promoted = join(dir, "promoted");
     mkdirSync(thread, { recursive: true });
-    // A failed-attempt whose body AND filename carry NO FA- token — unrecoverable id.
+    // A failed-attempt whose body carries NO FA- token. Under the round-4 oracle unification its
+    // survival is keyed on the FROZEN id (WR-01), not a recoverable body token — so dropping it from
+    // the promoted set still refuses, now naming the id rather than the filename.
     writeFileSync(
       join(thread, "deadend.md"),
-      noteText({ kind: "failed-attempt", verified_by: "", body: "tried a shared cache, it broke." }),
+      noteText({ id: "20260617T142305Z-engineer-failed-attempt-nofa", kind: "failed-attempt", verified_by: "", body: "tried a shared cache, it broke." }),
     );
     mkdirSync(promoted, { recursive: true });
     const r = runCheck(thread, promoted);
-    expect(r.status, "an unrecoverable FA-id must be refused").not.toBe(0);
-    // Names the unrecoverable note (its filename).
-    expect(`${r.stdout}${r.stderr}`).toContain("deadend.md");
+    expect(r.status, "a dropped failed-attempt must be refused").not.toBe(0);
+    // Names the dropped failed-attempt by its frozen id (the WR-01 identity key).
+    expect(`${r.stdout}${r.stderr}`).toContain("20260617T142305Z-engineer-failed-attempt-nofa");
   });
 });
 
