@@ -5,15 +5,15 @@ milestone_name: Decentralized Factory — Shared Verified Context
 current_phase: 22
 current_phase_name: memory-trajectory-compaction-dialable-token-economy
 status: executing
-stopped_at: "Phase 22 gap-closure ROUND 4 EXECUTED + RE-VERIFIED 2026-06-18 = GAPS_FOUND. 22-05 (oracle unification) CLOSED the two round-3 gaps with RED→GREEN proof against the COMMITTED compactor.js — CR-01-r4 (FA folded into the id-keyed byte-equal pass) + CR-03 (raw-side id-collision guard) — plus WR-01/WR-02/WR-03 + IN-02-partial; freshness exit 0; 280 non-e2e tests green. BUT a NEW 4th CMP-02 bypass remains — WHITESPACE/PARSER-PROJECTION DRIFT: the oracle adopted the shared parser (parseNote) but NOT the shared validator (checkCarveOut never calls validate()); parseNote matches a key only at column 0, so an indented / `key : value` load-bearing line silently projects to '' and the byte-equal loop compares the projection, not the file bytes. Reproduced by deep code review (22-REVIEW.md CR-01/CR-02/CR-03) AND by the orchestrator against the committed compactor.js with a column-0 CONTROL: a §14-gate-verified finding (folded out by a soft note's supersedes) is DROPPED at exit 0 when its raw verified_by is indented ONE space, and correctly REFUSED (exit 1) at column 0. CMP-02 STILL gaps_found; CMP-01 + CMP-03 verified. Fix (round 5): run the shared validate() over every raw+promoted note AND/OR fail-closed on any unrecognized in-fence line shape; compare on bytes not the lenient projection; RED-first line-shape sweep (indent / space-before-colon / trailing-ws / CRLF × field × kind). Green suite ≠ proof. Next: /gsd-plan-phase 22 --gaps."
-last_updated: "2026-06-18T19:25:00.000Z"
+stopped_at: "Phase 22 gap-closure ROUND 5 (22-06) EXECUTED 2026-06-18 — AWAITING VERIFICATION. Completed the shared-layer IN-02 contract rounds 1–4 left half-done (the oracle had adopted the shared PARSER parseNote but never the shared VALIDATOR validate()). Three edits: (A) parseNote records a `malformedLines: string[]` signal for any non-recognized in-fence line shape (indented key, `key : value` space-before-colon, stray junk; the only legal indented shape, `  - item` under refs:, is exempt) while preserving the lenient pre-id / last-value-wins / CRLF-normalized projection; (B) validate() pushes a structural FAIL per malformedLines entry (write path + CLI validate refuse them); (C) checkCarveOut imports validate, NoteFields gains malformedLines + the VERBATIM on-disk `text`, and two fail-closed gates run on EVERY raw+promoted note BEFORE any survival/byte-equal decision — gate (a) reject any malformedLines, gate (b) run validate() on the on-disk bytes (closes CR-03's column-0 empty verified_by via finding-needs-a-stamp). Read path == write path. RED→GREEN against the COMMITTED scripts/compactor.js: pre-fix 429f01c exit 0 / carve-out intact → post-fix exit 1 / carve-out FAIL naming verified_by (evidence 22-06-RED-baseline.txt + 22-06-GREEN-proof.txt). npm run freshness exit 0 (17 committed .js byte-fresh, D-13); npx vitest run --exclude '**/scripts/e2e/**' = 395 passed / 1 skipped / 16 files. Held-out field × kind × line-shape matrix pins the CLASS. Residual seam: gate (a) guarantees every byte-equal-loop line is a recognized column-0 line, so supersedes (validate() does not grammar-police it) is still covered by the byte-equal loop; confidence is non-load-bearing so a normalized-shape confidence change is sanctioned latitude. CMP-01 + CMP-03 untouched. Green suite ≠ proof — CMP-02 closure remains the verifier's call (the 5th adversarial round). Next: re-verify Phase 22."
+last_updated: "2026-06-18T19:56:38.049Z"
 last_activity: 2026-06-18
-last_activity_desc: Phase 22 round-4 re-verification = gaps_found (4th CMP-02 bypass — whitespace/parser-projection drift)
+last_activity_desc: Phase 22 round-5 (22-06) CMP-02 gap-closure executed — awaiting verification
 progress:
   total_phases: 7
-  completed_phases: 3
-  total_plans: 13
-  completed_plans: 13
+  completed_phases: 2
+  total_plans: 14
+  completed_plans: 14
   percent: 43
 ---
 
@@ -28,10 +28,10 @@ See: .planning/PROJECT.md (updated 2026-06-16 — after v1.2 milestone)
 
 ## Current Position
 
-Phase: 22 (memory-trajectory-compaction-dialable-token-economy) — ROUND-4 RE-VERIFIED = GAPS_FOUND
-Plan: 5 of 5 executed; CMP-02 still failing → round 5 pending
-Status: 22-05 executed (oracle unification) closed the two round-3 gaps (CR-01-r4 FA-exemption + CR-03 raw-collision, RED→GREEN vs committed .js) but round-4 re-verification found a NEW 4th bypass — whitespace/parser-projection drift (oracle shares the parser, not the validator; indented load-bearing line projects to "" → §14-gate-verified finding droppable at exit 0). Reproduced vs the committed compactor.js with a column-0 control. CMP-02 = gaps_found; CMP-01 + CMP-03 verified. Do NOT mark the phase complete.
-Last activity: 2026-06-18 — Phase 22 round-4 re-verification = gaps_found (see 22-VERIFICATION.md + 22-REVIEW.md)
+Phase: 22 (memory-trajectory-compaction-dialable-token-economy) — AWAITING VERIFICATION
+Plan: 6 of 6 (round-5 CMP-02 gap-closure 22-06 executed)
+Status: Round 5 executed — awaiting the 5th adversarial CMP-02 re-verification
+Last activity: 2026-06-18 — Phase 22 round-5 (22-06) CMP-02 gap-closure executed
 
 ## Performance Metrics
 
@@ -166,6 +166,7 @@ Last activity: 2026-06-18 — Phase 22 round-4 re-verification = gaps_found (see
 | Phase 22 P03 | 6m | 4 tasks | 3 files |
 | Phase 22 P04 | 18m | 4 tasks | 7 files |
 | Phase 22 P05 | 9 | 4 tasks | 6 files |
+| Phase 22 P06 | 11m | 4 tasks | 6 files |
 
 ## Accumulated Context
 
@@ -375,6 +376,7 @@ Recent decisions affecting current work:
 - [Phase ?]: [22-04] CMP-02 carve-out is now an id-keyed exact 1:1 match on a frozen id: field ALONE; verifiedKey Set + findCounterpart tuple fallback DELETED; required-survival set is ASYMMETRIC (currentState folds out only soft non-verified notes; verified findings + failed-attempts survive unconditionally); promoted-side supersedes never authorizes a drop; readNoteFields rejects a duplicate provenance key on the oracle read path; 7 held-out RED-first cases incl. FORGED-FOLD + RAW-FOLD-VERIFIED
 - [Phase ?]: 22-05: oracle unified — FA + durable notes share one id-keyed byte-equal pass; CR-03 + CR-01 closed (RED→GREEN proven against the committed .js)
 - [Phase ?]: 22-05: FA survival/identity keyed on the frozen id, not the body FA-token (WR-01); compactor read path adopts the single exported context-io.parseNote (IN-02)
+- [Phase ?]: [22-06] CMP-02 round-5 shared-layer IN-02 completed; 4th line-shape/parser-projection-drift bypass closed with RED to GREEN against committed compactor.js
 
 ### Pending Todos
 
@@ -424,7 +426,7 @@ Items acknowledged and deferred at the **v1.2 milestone close on 2026-06-16** (1
 
 ## Session Continuity
 
-Last session: 2026-06-18T15:48:13.327Z
+Last session: 2026-06-18T19:56:04.957Z
 Stopped at: Phase 22 context gathered
 Resume file: .planning/phases/22-memory-trajectory-compaction-dialable-token-economy/22-CONTEXT.md
 
