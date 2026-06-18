@@ -44,7 +44,7 @@ Requirements for the decentralization milestone. Each maps to exactly one roadma
 ### CMP — Memory & Trajectory Compaction
 
 - [x] **CMP-01**: `compactor.ts` — two-tier compaction: the verbose local trajectory stays in `.grugops/context/threads/<agent>.md`; only compact verified distillations promote to the shared context.
-- [x] **CMP-02**: A load-bearing-field carve-out — `verified_by`, `failed-attempt`, `supersedes`, and `by`/`at` provenance are compaction-exempt; a RED test fails if any is dropped. _(Phase 22 verification gaps_found: `checkCarveOut` only detects drop-to-empty — mutation/forgery and wholly-dropped findings bypass it; oracle too weak. See 22-VERIFICATION.md → gap-closure.)_
+- [ ] **CMP-02**: A load-bearing-field carve-out — `verified_by`, `failed-attempt`, `supersedes`, and `by`/`at` provenance are compaction-exempt; a RED test fails if any is dropped. _(IN PROGRESS — Phase 22 re-verification round 3 (22-04 stable-id rewrite) gaps_found: the rewrite closed the original tuple-collision/fail-open class, but `checkCarveOut` is STILL bypassable at exit 0 by CR-01 (the `kind:failed-attempt` path skips the byte-equal provenance check — `by`/`at`/`verified_by`/`supersedes` launderable on a failed-attempt) and CR-03 (no raw-side id-collision guard — two raw notes sharing a forged id drop a verified finding). Both reproduced. See 22-VERIFICATION.md `gaps:` + 22-REVIEW.md → round-4 gap-closure.)_
 - [x] **CMP-03**: A `context.compaction: aggressive|balanced|retain-raw` dial (lean default `aggressive`); compacted output is re-verified before write; Workflow 18 (`18-context-compaction.md`) is the single-source protocol.
 
 ### PAR — Parallel Execution & Orchestrator-as-Decomposer
