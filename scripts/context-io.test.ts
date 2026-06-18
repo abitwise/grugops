@@ -646,3 +646,107 @@ describe("context-io.js — exported canonical frontmatter parser (IN-02)", () =
     expect(mod.validate(twoIdNote).length).toBeGreaterThan(0);
   });
 });
+
+// ── CMP-02 ROUND-5: malformed in-fence line shapes (read-path == write-path, IN-02) ───────────────
+// Proves the IN-02 completion at the shared layer: parseNote records every non-recognized in-fence
+// line shape in malformedLines, AND validate() returns a finding for each — so the carve-out oracle
+// (which runs this same parseNote + validate) refuses EXACTLY the notes the write path (appendNote)
+// refuses. Plus the two contract guardrails: CRLF is normalized (NOT a malformed shape), and a clean
+// column-0 note with a legal refs: list block is NOT over-rejected (regression safety for refs).
+describe("context-io.js — malformed in-fence line shapes (read-path == write-path, IN-02)", () => {
+  // Build a finding note with EXACTLY one line reshaped per the perturbation. The reshaped line is the
+  // verified_by line (a load-bearing provenance field). Column-0 elsewhere so only the shape varies.
+  function noteWithReshapedVerifiedBy(reshape: (line: string) => string): string {
+    const vbLine = reshape("verified_by: §14-gate#RUN7");
+    return (
+      "---\n" +
+      "id: 20260617T142305Z-engineer-finding-vx\n" +
+      "kind: finding\n" +
+      "by: engineer\n" +
+      "at: 2026-06-17T14:23:05Z\n" +
+      vbLine +
+      "\n" +
+      "confidence: high\n" +
+      "refs:\n  - AUTH-01\n" +
+      "supersedes: \n" +
+      "---\n\n" +
+      "The auth bypass is fixed.\n"
+    );
+  }
+
+  // The non-normalized line-shape perturbations (the parser does NOT trim/normalize these away, so
+  // each is a recorded malformedLines entry). Trailing-whitespace and CRLF are tested separately
+  // because the parser normalizes them (they are NOT malformed shapes by design).
+  const MALFORMED_SHAPES = {
+    "leading-space": (line: string) => " " + line,
+    "leading-tab": (line: string) => "\t" + line,
+    "space-before-colon": (line: string) => line.replace(/^([A-Za-z_]+):/, "$1 :"),
+  } as const;
+
+  for (const [shapeName, reshape] of Object.entries(MALFORMED_SHAPES)) {
+    it(`${shapeName}: parseNote records it in malformedLines AND validate() returns a finding`, () => {
+      const text = noteWithReshapedVerifiedBy(reshape);
+      const parsed = mod.parseNote(text);
+      expect(parsed).not.toBeNull();
+      // (1) parseNote records the offending line in malformedLines (the exact reshaped text).
+      expect(parsed!.malformedLines.length).toBeGreaterThan(0);
+      expect(parsed!.malformedLines.some((l) => l.includes("verified_by"))).toBe(true);
+      // (2) validate() returns a non-empty findings array on the SAME on-disk text — the write path
+      // refuses exactly what the read-path oracle now refuses.
+      const findings = mod.validate(text);
+      expect(findings.length).toBeGreaterThan(0);
+      expect(findings.some((f) => f.includes("malformed frontmatter line"))).toBe(true);
+    });
+  }
+
+  it("trailing-whitespace on a value is tolerated (trimmed) — NOT a malformed shape", () => {
+    // A trailing-whitespace value line is a recognized column-0 key: value; the parser trims the
+    // value. It is NOT a line-shape anomaly, so malformedLines stays empty and the value parses clean.
+    const text = noteWithReshapedVerifiedBy((line) => line + "   ");
+    const parsed = mod.parseNote(text);
+    expect(parsed).not.toBeNull();
+    expect(parsed!.malformedLines).toEqual([]);
+    expect(parsed!.scalars.verified_by).toBe("§14-gate#RUN7");
+    // The note is otherwise valid (a real grammar stamp), so validate() returns no findings.
+    expect(mod.validate(text)).toEqual([]);
+  });
+
+  it("CRLF-identity: a CRLF-terminated note parses identically to its LF twin with EMPTY malformedLines", () => {
+    const lf = noteWithReshapedVerifiedBy((line) => line); // clean column-0, LF
+    const crlf = lf.replace(/\n/g, "\r\n"); // re-terminate EVERY line with CRLF
+    const pLf = mod.parseNote(lf);
+    const pCrlf = mod.parseNote(crlf);
+    expect(pLf).not.toBeNull();
+    expect(pCrlf).not.toBeNull();
+    // CRLF is normalized at parseNote — the CRLF note is NOT a malformed shape and parses to the same
+    // scalars/refs/body as its LF twin (byte-identical projection).
+    expect(pCrlf!.malformedLines).toEqual([]);
+    expect(pLf!.malformedLines).toEqual([]);
+    expect(pCrlf!.scalars).toEqual(pLf!.scalars);
+    expect(pCrlf!.refs).toEqual(pLf!.refs);
+    expect(pCrlf!.body).toEqual(pLf!.body);
+    expect(mod.validate(crlf)).toEqual([]);
+  });
+
+  it("negative control: a clean column-0 note + legal refs: list block is NOT over-rejected", () => {
+    // Regression safety for the refs block: a legitimate `refs:` header followed by `  - item` list
+    // items must NOT register as malformed (the `  - item` indent is the one legal indented shape).
+    const text =
+      "---\n" +
+      "id: 20260617T142305Z-engineer-finding-clean1\n" +
+      "kind: finding\n" +
+      "by: engineer\n" +
+      "at: 2026-06-17T14:23:05Z\n" +
+      "verified_by: §14-gate#RUN7\n" +
+      "confidence: high\n" +
+      "refs:\n  - AUTH-01\n  - AUTH-02\n" +
+      "supersedes: \n" +
+      "---\n\n" +
+      "The auth bypass is fixed.\n";
+    const parsed = mod.parseNote(text);
+    expect(parsed).not.toBeNull();
+    expect(parsed!.malformedLines).toEqual([]);
+    expect(parsed!.refs).toEqual(["AUTH-01", "AUTH-02"]);
+    expect(mod.validate(text)).toEqual([]);
+  });
+});

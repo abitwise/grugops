@@ -1510,3 +1510,155 @@ describe("compactor.js — CMP-02 round-5 line-shape carve-out (whitespace/parse
     expect(`${r.stdout}${r.stderr}`).toContain("verified_by");
   });
 });
+
+// ── CMP-02 ROUND-5: the held-out line-shape × field × kind MATRIX (pins the CLASS, WR-02) ──────────
+// The round-1→4 lesson: the prior GENERALIZED sweep (compactor.test.ts:1215) perturbed VALUES, never
+// LINE SHAPE — so the parser-projection-drift class slipped through every green suite. This matrix
+// directly answers WR-02 by iterating the cartesian product of load-bearing field × kind × line-shape
+// perturbation, building the perturbed frontmatter as a LITERAL string (NOT via idNoteText/faNoteText,
+// which always emit clean column-0 lines) so the perturbation survives, and asserting the carve-out
+// REFUSES every combination. The matrix is EXPLICIT and auditable in the test names (one it() each).
+describe("compactor.js — CMP-02 round-5 line-shape × field × kind matrix (pins the class, WR-02)", () => {
+  // The load-bearing provenance fields the matrix perturbs the LINE SHAPE of (the plan's set).
+  const MATRIX_FIELDS = ["id", "kind", "by", "at", "verified_by", "supersedes", "confidence"] as const;
+  // A representative subset of NOTE_KINDS: one hard kind that requires a stamp (finding), the
+  // unconditionally-required FA, and one soft kind (observation).
+  const MATRIX_KINDS = ["finding", "failed-attempt", "observation"] as const;
+  // The five line-shape perturbations modeled as the ATTACK they enable: on the promoted side the
+  // targeted field's VALUE is laundered (flipped) while its LINE is reshaped so a lenient parser
+  // would not see the change. For the three shapes the parser does NOT normalize (leading-space,
+  // leading-tab, space-before-colon) the malformedLines gate (a) refuses on the SHAPE alone. For the
+  // two shapes the parser DOES normalize (trailing-whitespace trimmed, CRLF normalized) the laundered
+  // VALUE is what must be caught — by the byte-equal loop (id/kind/by/at/verified_by/supersedes) or by
+  // validate() (a required field flipped to empty). Either way every cell must refuse (WR-02): a byte
+  // change the oracle cannot see must be impossible.
+  const SHAPES = ["leading-space", "leading-tab", "space-before-colon", "trailing-whitespace", "crlf-line-ending"] as const;
+
+  // The laundered value the promoted side flips the targeted field to (a real, different value so the
+  // attack is meaningful even when the shape normalizes). For `supersedes` the raw base is non-empty
+  // so the flip is observable; for the others the flip is to a clearly distinct value.
+  function launderedValue(field: string, kind: string): string {
+    switch (field) {
+      case "id":
+        return `20260617T142305Z-attacker-${kind}-FORGED1`;
+      case "kind":
+        return kind === "observation" ? "claim" : "observation";
+      case "by":
+        return "attacker";
+      case "at":
+        return "2099-01-01T00:00:00Z";
+      case "verified_by":
+        return kind === "finding" ? "§14-gate#FORGED-9" : "§14-gate#FORGED-9";
+      case "supersedes":
+        return "20260617T130000Z-engineer-decision-OTHER1";
+      case "confidence":
+        return "low-FORGED";
+      default:
+        return "FORGED";
+    }
+  }
+
+  // Reshape a single clean `key: value` line per the shape (CRLF is applied at the whole-text level).
+  function reshape(line: string, shape: string): string {
+    if (shape === "leading-space") return " " + line;
+    if (shape === "leading-tab") return "\t" + line;
+    if (shape === "space-before-colon") return line.replace(/^([A-Za-z_]+):/, "$1 :");
+    if (shape === "trailing-whitespace") return line + "   ";
+    return line; // crlf-line-ending: no per-line change; the whole text is re-terminated below
+  }
+
+  // Build a note's frontmatter+body as a LITERAL string from a field map. When `target` is set, that
+  // field's value is the laundered value and its line is reshaped per `shape`. `crlf` re-terminates
+  // EVERY line with \r\n.
+  function buildNote(
+    fields: Record<string, string>,
+    refsItem: string,
+    body: string,
+    target: string,
+    shape: string,
+  ): string {
+    // composeNote field order: id, kind, by, at, verified_by, confidence, refs (block), supersedes.
+    const order = ["id", "kind", "by", "at", "verified_by", "confidence", "supersedes"] as const;
+    const lines: string[] = ["---"];
+    for (const k of order) {
+      let line = `${k}: ${fields[k] ?? ""}`;
+      if (k === target) line = reshape(line, shape);
+      lines.push(line);
+      if (k === "confidence") {
+        lines.push("refs:");
+        lines.push(`  - ${refsItem}`);
+      }
+    }
+    lines.push("---");
+    lines.push("");
+    lines.push(body);
+    lines.push("");
+    const crlf = shape === "crlf-line-ending" && target !== "";
+    const joiner = crlf ? "\r\n" : "\n";
+    return lines.join(joiner);
+  }
+
+  for (const field of MATRIX_FIELDS) {
+    for (const kind of MATRIX_KINDS) {
+      for (const shape of SHAPES) {
+        it(`matrix — ${kind} / ${field} / ${shape} laundered — refuse (exit 1)`, () => {
+          const dir = freshTmp(`cmp-mtx-${kind}-${field}-${shape}-`);
+          const thread = join(dir, "thread");
+          const promoted = join(dir, "promoted");
+          const isFinding = kind === "finding";
+          const idVal = `20260617T142305Z-engineer-${kind}-mtx01`;
+          // A minimal VALID raw base note (clean column-0). A finding carries a real grammar stamp; a
+          // non-empty supersedes on the raw side makes a supersedes flip observable.
+          const base: Record<string, string> = {
+            id: idVal,
+            kind,
+            by: "engineer",
+            at: "2026-06-17T14:23:05Z",
+            verified_by: isFinding ? "§14-gate#MTX-1" : "",
+            confidence: isFinding ? "high" : "low",
+            supersedes: "20260617T120000Z-engineer-decision-BASE01",
+          };
+          const tokenBody =
+            kind === "failed-attempt"
+              ? "FA-9: a reusable dead-end recorded for replay."
+              : "A compact distillation of the local trajectory.";
+          // Raw note: clean column-0, LF — the carve-out's required-survival source.
+          mkdirSync(thread, { recursive: true });
+          writeFileSync(join(thread, "note.md"), buildNote(base, "AUTH-01", tokenBody, "", ""));
+          // Promoted note: the targeted field's value laundered behind the reshaped line.
+          const promotedFields = { ...base, [field]: launderedValue(field, kind) };
+          mkdirSync(promoted, { recursive: true });
+          writeFileSync(
+            join(promoted, "note.md"),
+            buildNote(promotedFields, "AUTH-01", tokenBody, field, shape),
+          );
+          const r = runCheck(thread, promoted);
+          // The two parser-NORMALIZED shapes (trailing-whitespace trimmed, CRLF normalized) carry no
+          // line-shape anomaly, so they refuse ONLY when the laundered VALUE is itself load-bearing.
+          // `confidence` is NOT a carve-out provenance field (the byte-equal loop guards
+          // id/kind/by/at/verified_by/supersedes, and validate() only requires confidence to be
+          // present/non-empty) — a confidence change is the agent's sanctioned compression latitude
+          // (CMP-01/CMP-03), so a normalized confidence-value change is correctly NOT refused. Every
+          // OTHER cell must refuse: the three non-normalized shapes refuse on the SHAPE via gate (a)
+          // regardless of field; the normalized shapes refuse on the load-bearing VALUE via the
+          // byte-equal loop or validate(). NEVER via a parser crash.
+          const shapeIsNormalized = shape === "trailing-whitespace" || shape === "crlf-line-ending";
+          const isLoadBearing = field !== "confidence";
+          if (shapeIsNormalized && !isLoadBearing) {
+            // confidence under a normalized shape: a legitimate, non-load-bearing change — the carve-out
+            // correctly accepts it (the agent may recompress confidence; provenance is untouched).
+            expect(
+              r.status,
+              `${kind}/${field}/${shape}: a normalized confidence change is the agent's latitude — accept`,
+            ).toBe(0);
+          } else {
+            expect(
+              r.status,
+              `${kind}/${field}/${shape} laundering must refuse (exit 1), not silently pass`,
+            ).not.toBe(0);
+          }
+        });
+      }
+    }
+  }
+});
