@@ -44,7 +44,7 @@ Requirements for the decentralization milestone. Each maps to exactly one roadma
 ### CMP — Memory & Trajectory Compaction
 
 - [x] **CMP-01**: `compactor.ts` — two-tier compaction: the verbose local trajectory stays in `.grugops/context/threads/<agent>.md`; only compact verified distillations promote to the shared context.
-- [x] **CMP-02**: A load-bearing-field carve-out — `verified_by`, `failed-attempt`, `supersedes`, and `by`/`at` provenance are compaction-exempt; a RED test fails if any is dropped.
+- [ ] **CMP-02**: A load-bearing-field carve-out — `verified_by`, `failed-attempt`, `supersedes`, and `by`/`at` provenance are compaction-exempt; a RED test fails if any is dropped. _(Phase 22 verification gaps_found: `checkCarveOut` only detects drop-to-empty — mutation/forgery and wholly-dropped findings bypass it; oracle too weak. See 22-VERIFICATION.md → gap-closure.)_
 - [x] **CMP-03**: A `context.compaction: aggressive|balanced|retain-raw` dial (lean default `aggressive`); compacted output is re-verified before write; Workflow 18 (`18-context-compaction.md`) is the single-source protocol.
 
 ### PAR — Parallel Execution & Orchestrator-as-Decomposer
@@ -116,7 +116,7 @@ Which phases cover which requirements. Confirmed during roadmap creation (2026-0
 | VFY-03 | Phase 21 | Complete |
 | VFY-04 | Phase 21 | Complete |
 | CMP-01 | Phase 22 | Complete |
-| CMP-02 | Phase 22 | Complete |
+| CMP-02 | Phase 22 | In Progress |
 | CMP-03 | Phase 22 | Complete |
 | PAR-01 | Phase 23 | Pending |
 | PAR-02 | Phase 23 | Pending |
