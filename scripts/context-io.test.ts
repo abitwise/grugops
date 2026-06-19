@@ -750,3 +750,154 @@ describe("context-io.js — malformed in-fence line shapes (read-path == write-p
     expect(mod.validate(text)).toEqual([]);
   });
 });
+
+// ── CMP-02 ROUND-6: splitNotes multi-fence split (shared grammar, IN-02) ──────────────────────────
+// Proves the BODY-CONSUMING splitter the carve-out read path adopts: it carves a single multi-note
+// threads/<agent>.md file (D-08) into each note's VERBATIM bytes INCLUDING its body, single-sourcing
+// its boundary grammar with parseNote (a carved note equals a parsed note — they cannot drift). A
+// frontmatter-only matcher that strips bodies or swallows note #2 into trailingMalformed FAILS these
+// (the body-byte and body-`---` assertions are the 6th-bypass pins).
+describe("context-io.js — splitNotes multi-fence split (shared grammar, IN-02)", () => {
+  // An id-bearing note in the composeNote/composeThreadNote shape (id: first), with a non-empty body.
+  function note(over: { id: string; kind?: string; verified_by?: string; body: string }): string {
+    return (
+      "---\n" +
+      `id: ${over.id}\n` +
+      `kind: ${over.kind ?? "finding"}\n` +
+      "by: engineer\n" +
+      "at: 2026-06-17T14:23:05Z\n" +
+      `verified_by: ${over.verified_by ?? "§14-gate#RUN7"}\n` +
+      "confidence: high\n" +
+      "refs:\n  - A\n" +
+      "supersedes: \n" +
+      "---\n\n" +
+      over.body +
+      "\n"
+    );
+  }
+
+  const note1 = note({ id: "20260617T142305Z-engineer-finding-n1", body: "Finding ONE body." });
+  const note2 = note({
+    id: "20260617T150000Z-engineer-finding-n2",
+    body: "Finding TWO body.",
+  });
+
+  it("a two-fence file splits into exactly 2 notes, each the VERBATIM bytes of its note INCLUDING its body", () => {
+    const text = note1 + note2;
+    const r = mod.splitNotes(text);
+    expect(r.notes.length).toBe(2);
+    expect(r.notes[0]).toBe(note1);
+    expect(r.notes[1]).toBe(note2);
+    // Each element parses standalone via parseNote AND its body is the authored body (NOT stripped).
+    const p0 = mod.parseNote(r.notes[0]);
+    const p1 = mod.parseNote(r.notes[1]);
+    expect(p0).not.toBeNull();
+    expect(p1).not.toBeNull();
+    expect(p0!.scalars.id).toBe("20260617T142305Z-engineer-finding-n1");
+    expect(p1!.scalars.id).toBe("20260617T150000Z-engineer-finding-n2");
+    expect(p0!.body.trim()).toBe("Finding ONE body.");
+    expect(p1!.body.trim()).toBe("Finding TWO body.");
+  });
+
+  it("BYTE round-trip: notes.join('') + (trailingMalformed ?? '') reproduces the input byte-for-byte", () => {
+    const text = note1 + note2;
+    const r = mod.splitNotes(text);
+    expect(r.trailingMalformed).toBeNull();
+    expect(r.notes.join("") + (r.trailingMalformed ?? "")).toBe(text);
+  });
+
+  it("trailingMalformed is null for a clean two-fence file; non-null (equals the scratch) for a mixed scratch+fence file", () => {
+    const clean = mod.splitNotes(note1 + note2);
+    expect(clean.trailingMalformed).toBeNull();
+
+    // Un-fenced scratch ahead of a fenced note (the WR-01 mixed file). The leading scratch is a
+    // non-boundary remainder splitNotes surfaces — and no byte is lost.
+    const scratch = "free scratch the agent jotted, no fence here.\n";
+    const mixed = scratch + note1;
+    const r = mod.splitNotes(mixed);
+    expect(r.notes.length).toBe(1);
+    expect(r.notes[0]).toBe(note1);
+    expect(r.trailingMalformed).toBe(scratch);
+    // No byte invented, none dropped (the malformed region + the note bytes reproduce the input).
+    expect((r.trailingMalformed ?? "") + r.notes.join("")).toBe(mixed);
+  });
+
+  it("a single-fence file yields exactly 1 note (body intact) and null trailingMalformed", () => {
+    const r = mod.splitNotes(note1);
+    expect(r.notes.length).toBe(1);
+    expect(r.notes[0]).toBe(note1);
+    expect(r.trailingMalformed).toBeNull();
+    expect(mod.parseNote(r.notes[0])!.body.trim()).toBe("Finding ONE body.");
+  });
+
+  it("an all-scratch (no fence) file yields 0 notes and a non-null trailingMalformed", () => {
+    const scratch = "just raw scratch.\nno fence anywhere.\n";
+    const r = mod.splitNotes(scratch);
+    expect(r.notes.length).toBe(0);
+    expect(r.trailingMalformed).toBe(scratch);
+  });
+
+  it("BODY `---` ambiguity: a note #1 body with a lone `---` rule + an embedded `---\\nkey: value\\n---` block splits into EXACTLY 2 notes (not 3+), body `---` kept verbatim", () => {
+    // Note #1's body contains a lone `---` horizontal rule AND an embedded `---\nkey: value\n---`
+    // block; note #2 is a real verified finding. The body `---` is body bytes, not a boundary.
+    const bodyWithDashes =
+      "an observation with a horizontal rule:\n---\nand an embedded block:\n---\nembedded: value\n---\nend of body.";
+    const obs = note({
+      id: "20260617T142305Z-engineer-observation-bd1",
+      kind: "observation",
+      verified_by: "",
+      body: bodyWithDashes,
+    });
+    const text = obs + note2;
+    const r = mod.splitNotes(text);
+    // EXACTLY 2 notes — the body `---`/embedded block neither spawns a spurious note nor terminates
+    // note #1 early.
+    expect(r.notes.length).toBe(2);
+    expect(r.trailingMalformed).toBeNull();
+    // note[0].body keeps the body `---` / embedded block VERBATIM.
+    const p0 = mod.parseNote(r.notes[0]);
+    expect(p0).not.toBeNull();
+    expect(p0!.body).toContain("---");
+    expect(p0!.body).toContain("embedded: value");
+    expect(p0!.body.trim()).toBe(bodyWithDashes);
+    // note #2 is recovered as its own note with its own id.
+    expect(mod.parseNote(r.notes[1])!.scalars.id).toBe("20260617T150000Z-engineer-finding-n2");
+    // Byte round-trip still exact.
+    expect(r.notes.join("")).toBe(text);
+  });
+
+  it("SHARED-GRAMMAR: a carved note equals a note authored standalone (splitNotes cannot drift from parseNote)", () => {
+    const text = note1 + note2;
+    const carved = mod.splitNotes(text).notes.map((n) => mod.parseNote(n));
+    const standalone = [note1, note2].map((n) => mod.parseNote(n));
+    expect(carved[0]!.scalars).toEqual(standalone[0]!.scalars);
+    expect(carved[1]!.scalars).toEqual(standalone[1]!.scalars);
+    expect(carved[0]!.body).toEqual(standalone[0]!.body);
+    expect(carved[1]!.body).toEqual(standalone[1]!.body);
+  });
+
+  it("CRLF identity: a CRLF two-fence file splits to the same notes as its LF twin", () => {
+    const lf = note1 + note2;
+    const crlf = lf.replace(/\n/g, "\r\n");
+    const rLf = mod.splitNotes(lf);
+    const rCrlf = mod.splitNotes(crlf);
+    // CRLF is normalized at splitNotes (mirror parseNote) — the per-note set is byte-identical.
+    expect(rCrlf.notes).toEqual(rLf.notes);
+    expect(rCrlf.trailingMalformed).toBe(rLf.trailingMalformed);
+  });
+
+  it("IN-01: composeThreadNote's id uses the exported noteId — a carved thread note's id matches the noteId formula shape", () => {
+    // noteId is the single exported id source (IN-01). A note id it produces matches the documented
+    // <at-compact>-<by>-<kind>-<nonce> shape, the same shape a promoted counterpart's id has.
+    const id = mod.noteId({
+      kind: "finding",
+      by: "engineer",
+      at: "2026-06-17T14:23:05Z",
+      verified_by: "§14-gate#RUN7",
+      confidence: "high",
+      refs: ["A"],
+      supersedes: null,
+    });
+    expect(id).toMatch(/^20260617T142305Z-engineer-finding-[0-9a-f]{8}$/);
+  });
+});

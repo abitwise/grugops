@@ -516,7 +516,12 @@ function composeNote(note: NoteInput, body: string, id: string): string {
 }
 
 // ── Note id: <at-compact>-<by>-<kind>-<nonce>. The nonce is a collision nonce, NOT a security token.
-function noteId(note: NoteInput): string {
+// EXPORTED (IN-01): this is the SINGLE source of note identity raw→promoted, reused by both
+// appendNote/emitVerdict (the shared-context write path) AND the compactor's composeThreadNote (the
+// raw-thread write path). Single-sourcing the formula is the same single-source principle as IN-02's
+// shared parser: a thread note's frozen id CANNOT drift from the promoted-counterpart id format the
+// id-keyed carve-out match depends on, because both sides compute it here.
+export function noteId(note: NoteInput): string {
   const atCompact = note.at.replace(/[-:]/g, "").replace(/\.\d+/, ""); // 2026-06-17T14:23:05Z → 20260617T142305Z
   const nonce = randomUUID().slice(0, 8); // node:crypto — lock-free same-millisecond uniqueness
   return `${atCompact}-${note.by}-${note.kind}-${nonce}`;

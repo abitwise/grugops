@@ -53,11 +53,11 @@
 import { readFileSync, readdirSync, mkdirSync, existsSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
-import { randomUUID } from "node:crypto";
 import {
   appendNote,
   admit,
   currentState,
+  noteId,
   parseNote,
   splitNotes,
   validate,
@@ -582,7 +582,10 @@ export function writeThread(
 // Mirrors context-io's composeNote frontmatter shape (id: first) so the compaction step parses a
 // thread record identically to a promoted note. The id is the frozen creation-time noteId() value.
 function composeThreadNote(note: NoteInput, body: string): string {
-  const id = `${note.at.replace(/[-:]/g, "").replace(/\.\d+/, "")}-${note.by}-${note.kind}-${randomUUID().slice(0, 8)}`;
+  // IN-01: the frozen id comes from the single exported noteId() — the SAME formula a promoted
+  // counterpart's id is produced by (context-io.appendNote/emitVerdict). A thread note's id therefore
+  // cannot drift in shape from the promoted-side id the id-keyed carve-out match depends on.
+  const id = noteId(note);
   const refsBlock =
     note.refs.length === 0 ? "refs:\n" : "refs:\n" + note.refs.map((r) => `  - ${r}`).join("\n") + "\n";
   return (
