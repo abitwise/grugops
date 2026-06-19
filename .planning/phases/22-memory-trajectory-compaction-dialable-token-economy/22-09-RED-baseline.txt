@@ -1,0 +1,46 @@
+=== CMP-02 round-8 RED baseline (against the COMMITTED PRE-FIX scripts/compactor.js / context-io.js) ===
+=== captured: 2026-06-19T14:34:02Z ===
+=== git HEAD (pre-fix artifact): c199ec9 ===
+=== pre-fix .js confirmation (the 7th-bypass gate is LIVE in the committed .js) ===
+grep -c 'looksLikeFrontmatterLine(lines[i + 1])' scripts/context-io.js = 1  (the narrower-than-parseNote boundary gate)
+grep -c 'opensIdBearingRun' scripts/context-io.js = 2  (the hand-rolled boundary line scan)
+
+# The 7th distinct CMP-02 silent-absorb bypass: a note #2 whose opening fence's FIRST in-fence
+# line is BLANK (---\n\nid:) or a JUNK/heading line (---\n# heading\nid:), also under CRLF, is
+# parsed CLEAN by parseNote (non-null, id-bearing) yet MISSED by splitNotes' boundary walk
+# (isBoundaryAt hard-requires looksLikeFrontmatterLine(lines[i+1]), a STRICT SUBSET of parseNote's
+# grammar). The buried §14-gate-verified failed-attempt folds into note #1's body and is dropped
+# at exit 0 'carve-out intact'. RED here; GREEN only after Task 2 UNIFIES the two parsers.
+
+=== DIRECT CLI + splitNotes signature on each fence-open shape (COMMITTED pre-fix artifact) ===
+--- (a) blank-first fence note #2 (buried finding 20260617T150000Z-engineer-finding-r8blankfir) ---
+splitNotes signature: notes.length=1 trailingMalformed=null (SILENT-ABSORB = count=1/trailing=null)
+carve-out intact: every failed-attempt id survived and all load-bearing provenance fields are present.
+EXIT=0
+
+--- (b) junk/heading-first fence note #2 (buried finding 20260617T150000Z-engineer-finding-r8junk) ---
+splitNotes signature: notes.length=1 trailingMalformed=null (SILENT-ABSORB = count=1/trailing=null)
+carve-out intact: every failed-attempt id survived and all load-bearing provenance fields are present.
+EXIT=0
+
+--- (c) CRLF blank-first fence note #2 (buried finding 20260617T150000Z-engineer-finding-r8crlf) ---
+splitNotes signature: notes.length=1 trailingMalformed=null (SILENT-ABSORB = count=1/trailing=null)
+carve-out intact: every failed-attempt id survived and all load-bearing provenance fields are present.
+EXIT=0
+
+=== vitest RED summary: round-8 context-io units (against pre-fix .js) ===
+$ npx vitest run scripts/context-io.test.ts -t '7th bypass|PARSENOTE-ORACLE'
+  ⎯⎯⎯⎯⎯⎯⎯ Failed Tests 4 ⎯⎯⎯⎯⎯⎯⎯
+   Test Files  1 failed (1)
+        Tests  4 failed | 53 skipped (57)
+
+=== vitest RED summary: round-8 compactor e2e (against committed pre-fix .js) ===
+$ npx vitest run scripts/compactor.test.ts -t 'round-8'
+  ⎯⎯⎯⎯⎯⎯⎯ Failed Tests 3 ⎯⎯⎯⎯⎯⎯⎯
+   Test Files  1 failed (1)
+        Tests  3 failed | 182 skipped (185)
+
+# 4 context-io units FAIL (blank-first, junk-first, CRLF blank-first, parseNote-oracle fuzz);
+# the INTER-NOTE TILING unit PASSES (it is a non-regression unit, GREEN pre- and post-fix).
+# 3 compactor e2e tests FAIL (each exits 0 'carve-out intact' — the LIVE drop, reproduced above).
+# NO source fix applied in Task 1 (splitNotes/isBoundaryAt body unchanged).

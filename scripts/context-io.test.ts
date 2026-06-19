@@ -1056,4 +1056,211 @@ describe("context-io.js — splitNotes multi-fence split (shared grammar, IN-02)
       "a reordered composeNote output must be recovered or refused, never silently swallowed",
     ).toBe(false);
   });
+
+  // ── CMP-02 ROUND-8: the fence-open silent-absorb CLASS, closed by UNIFYING the two parsers ───────
+  // The 7th distinct bypass: a note #2 whose opening fence's FIRST in-fence line is BLANK
+  // (`---\n\nid: …`) or a JUNK/heading line (`---\n# heading\nid: …`), also under CRLF, is parsed
+  // CLEAN by parseNote (non-null, id populated) yet was MISSED by the round-7 splitNotes boundary
+  // walk — its `isBoundaryAt` hard-required `looksLikeFrontmatterLine(lines[i + 1])` (the line
+  // immediately after the `---`), a STRICT SUBSET of parseNote's grammar (parseNote tolerates a
+  // leading blank or a junk first line and still returns non-null). So note #2 folded silently into
+  // note #1's body: splitNotes returned the FORBIDDEN silent-absorb signature
+  // count=1 / trailingMalformed=null. These units pin the named shapes for a human-legible RED/GREEN
+  // signal; the parseNote-ORACLE fuzz test below is the first-class closure evidence for the CLASS.
+
+  // Build a note #2 whose opening fence begins with a BLANK line before `id:` — parseNote skips the
+  // leading blank and returns a non-null id-bearing note, so this is a real boundary the splitter must
+  // surface (or refuse), never silently swallow.
+  function blankFirstNote(id: string, body: string): string {
+    return (
+      "---\n" +
+      "\n" + // BLANK first in-fence line — the 7th-bypass shape
+      `id: ${id}\n` +
+      "kind: finding\n" +
+      "by: engineer\n" +
+      "at: 2026-06-17T15:00:00Z\n" +
+      "verified_by: §14-gate#RUN8\n" +
+      "confidence: high\n" +
+      "refs:\n  - Y\n" +
+      "supersedes: \n" +
+      "---\n\n" +
+      body +
+      "\n"
+    );
+  }
+
+  // Build a note #2 whose opening fence begins with a `# heading` JUNK line before `id:` — parseNote
+  // records the junk line to malformedLines but STILL returns a non-null id-bearing note.
+  function junkFirstNote(id: string, body: string): string {
+    return (
+      "---\n" +
+      "# heading\n" + // JUNK/heading first in-fence line — the 7th-bypass shape
+      `id: ${id}\n` +
+      "kind: finding\n" +
+      "by: engineer\n" +
+      "at: 2026-06-17T15:00:00Z\n" +
+      "verified_by: §14-gate#RUN8\n" +
+      "confidence: high\n" +
+      "refs:\n  - Y\n" +
+      "supersedes: \n" +
+      "---\n\n" +
+      body +
+      "\n"
+    );
+  }
+
+  it("FAIL-CLOSURE (7th bypass): a blank-first `---\\n\\nid:` note #2 is NEVER silently absorbed — count grows OR trailingMalformed is non-null", () => {
+    const note2v = blankFirstNote("20260617T150000Z-engineer-finding-bf2", "Finding TWO body (blank-first).");
+    // parseNote accepts note #2 in isolation as id-bearing (the precondition of the class invariant).
+    const p = mod.parseNote(note2v);
+    expect(p).not.toBeNull();
+    expect(p!.scalars.id).toBe("20260617T150000Z-engineer-finding-bf2");
+    const r = mod.splitNotes(note1 + note2v);
+    const silentlyAbsorbed = r.notes.length === 1 && r.trailingMalformed === null;
+    expect(
+      silentlyAbsorbed,
+      "a blank-first fence-open region parseNote accepts as id-bearing must be recovered or refused, never silently swallowed",
+    ).toBe(false);
+  });
+
+  it("FAIL-CLOSURE (7th bypass): a junk/heading-first `---\\n# heading\\nid:` note #2 is NEVER silently absorbed — count grows OR trailingMalformed is non-null", () => {
+    const note2v = junkFirstNote("20260617T150000Z-engineer-finding-jf2", "Finding TWO body (junk-first).");
+    const p = mod.parseNote(note2v);
+    expect(p).not.toBeNull();
+    expect(p!.scalars.id).toBe("20260617T150000Z-engineer-finding-jf2");
+    const r = mod.splitNotes(note1 + note2v);
+    const silentlyAbsorbed = r.notes.length === 1 && r.trailingMalformed === null;
+    expect(
+      silentlyAbsorbed,
+      "a junk/heading-first fence-open region parseNote accepts as id-bearing must be recovered or refused, never silently swallowed",
+    ).toBe(false);
+  });
+
+  it("FAIL-CLOSURE (7th bypass): a CRLF blank-first note #2 is NEVER silently absorbed — count grows OR trailingMalformed is non-null", () => {
+    const lf = note1 + blankFirstNote("20260617T150000Z-engineer-finding-cf2", "Finding TWO body (crlf blank-first).");
+    const crlf = lf.replace(/\n/g, "\r\n");
+    // parseNote normalizes CRLF first and accepts note #2 — so splitNotes must too (CRLF identity).
+    const p = mod.parseNote(crlf.replace(/^[\s\S]*?(?=\r\n---\r\n\r\nid|\r\n--- \r\n)/, ""));
+    // (We assert the splitter behavior directly; the CRLF acceptance is exercised end-to-end below.)
+    const r = mod.splitNotes(crlf);
+    const silentlyAbsorbed = r.notes.length === 1 && r.trailingMalformed === null;
+    expect(
+      silentlyAbsorbed,
+      "a CRLF blank-first fence-open region must be recovered or refused, never silently swallowed",
+    ).toBe(false);
+    void p;
+  });
+
+  // ── THE PARSENOTE-ORACLE PROPERTY/TABLE FUZZ TEST — the first-class CLOSURE EVIDENCE for the CLASS ─
+  // This is the structural difference from rounds 1–7. It does NOT enumerate the named shapes; it
+  // GENERATES note #2 variants across six dimensions and derives its expectation from parseNote — the
+  // SINGLE grammar the unified splitter now consults. Because the oracle IS parseNote, this test would
+  // catch a hypothetical shape #9 (a fence-open shape nobody has named yet): for EVERY generated input,
+  // IF parseNote accepts note #2 in isolation as an id-bearing note, THEN splitNotes must not return the
+  // silent-absorb signature. THIS test — not the suite being green — is the closure evidence for the
+  // silent-absorb class. A green vitest suite has NOT been proof for this invariant seven times running.
+  it("PARSENOTE-ORACLE FUZZ (closure evidence for the class): for every generated note #2 variant parseNote accepts as id-bearing, splitNotes never returns the silent-absorb signature", () => {
+    // The six dimensions an adversary can vary on the opening fence of note #2.
+    const leadingBlanks = [0, 1, 2]; // {0,1,2} leading blank lines after the `---`
+    const junkPresent = [false, true]; // a `# heading` junk line present/absent
+    const indentId = [false, true]; // leading indent on the `id:` line present/absent
+    const ordering = ["id-first", "kind-first"] as const; // id-first vs kind-first
+    const trailingWs = [false, true]; // trailing whitespace on the opening `---` line
+    const crlf = [false, true]; // LF vs CRLF
+
+    let asserted = 0;
+    let skipped = 0;
+    for (const nBlanks of leadingBlanks) {
+      for (const junk of junkPresent) {
+        for (const indent of indentId) {
+          for (const order of ordering) {
+            for (const tws of trailingWs) {
+              for (const useCrlf of crlf) {
+                // Compose note #2's bytes for this variant. A distinct body keeps byte round-trip
+                // meaningful per variant.
+                const id = `20260617T150000Z-engineer-finding-fuzz${asserted + skipped}`;
+                const idLine = indent ? ` id: ${id}` : `id: ${id}`;
+                const fmLines =
+                  order === "kind-first" ? ["kind: finding", idLine] : [idLine, "kind: finding"];
+                const open = tws ? "--- " : "---";
+                const lead =
+                  "\n".repeat(nBlanks) + (junk ? "# heading\n" : "");
+                let note2v =
+                  open +
+                  "\n" +
+                  lead +
+                  fmLines.join("\n") +
+                  "\n" +
+                  "by: engineer\n" +
+                  "at: 2026-06-17T15:00:00Z\n" +
+                  "verified_by: §14-gate#RUN8\n" +
+                  "confidence: high\n" +
+                  "refs:\n  - Y\n" +
+                  "supersedes: \n" +
+                  "---\n\n" +
+                  `Finding TWO body (fuzz ${asserted + skipped}).\n`;
+                let head = note1;
+                if (useCrlf) {
+                  note2v = note2v.replace(/\n/g, "\r\n");
+                  head = note1.replace(/\n/g, "\r\n");
+                }
+                // The ORACLE: does parseNote accept note #2 in isolation as an id-bearing note?
+                const p = mod.parseNote(note2v);
+                const accepted = p !== null && typeof p.scalars.id === "string" && p.scalars.id !== "";
+                if (!accepted) {
+                  // The invariant is CONDITIONED on parseNote accepting as id-bearing. A variant
+                  // parseNote rejects (e.g. a `--- ` trailing-space open its `^---\n` fence rejects) is
+                  // not in scope here — it fails closed by construction and is covered by the
+                  // trailing-space round-7 unit. Skip it.
+                  skipped++;
+                  continue;
+                }
+                const r = mod.splitNotes(head + note2v);
+                const silentlyAbsorbed = r.notes.length === 1 && r.trailingMalformed === null;
+                expect(
+                  silentlyAbsorbed,
+                  `silent-absorb for a parseNote-accepted id-bearing note #2 ` +
+                    `(blanks=${nBlanks} junk=${junk} indent=${indent} order=${order} tws=${tws} crlf=${useCrlf})`,
+                ).toBe(false);
+                asserted++;
+              }
+            }
+          }
+        }
+      }
+    }
+    // Sanity: the generator actually produced parseNote-accepted variants to assert on (the test is
+    // not vacuously green). The bulk of the 96-cell grid is id-bearing and parseNote-accepted.
+    expect(asserted).toBeGreaterThan(20);
+  });
+
+  // ── INTER-NOTE TILING (non-regression; GREEN pre- AND post-fix, NOT part of the RED set) ─────────
+  // Pins the candidate-enumeration boundary walk against a mis-slice when an id-LESS `---…---` block
+  // sits BETWEEN two real notes. The embedded id-less block stays note #1's body (it has no id → not a
+  // boundary, the round-5 win) and the real note #2 after it is still recovered → EXACTLY 2 notes, and
+  // byte round-trip holds. Extends the single-note BODY-`---` ambiguity test to the inter-note case.
+  it("INTER-NOTE TILING: an id-less `---…---` block embedded in note #1's body, followed by a real note #2, yields EXACTLY 2 notes with exact byte round-trip", () => {
+    const bodyWithEmbedded =
+      "an observation:\n---\nembedded: value\n---\nend of note one body.";
+    const n1 = note({
+      id: "20260617T142305Z-engineer-observation-it1",
+      kind: "observation",
+      verified_by: "",
+      body: bodyWithEmbedded,
+    });
+    const n2 = note({ id: "20260617T150000Z-engineer-finding-it2", body: "Real note two body." });
+    const text = n1 + n2;
+    const r = mod.splitNotes(text);
+    expect(r.notes.length).toBe(2);
+    expect(r.trailingMalformed).toBeNull();
+    // The embedded id-less block stays note #1's body verbatim.
+    const p0 = mod.parseNote(r.notes[0]);
+    expect(p0).not.toBeNull();
+    expect(p0!.body).toContain("embedded: value");
+    expect(p0!.body.trim()).toBe(bodyWithEmbedded);
+    // Note #2 recovered with its own id.
+    expect(mod.parseNote(r.notes[1])!.scalars.id).toBe("20260617T150000Z-engineer-finding-it2");
+    // Byte round-trip exact.
+    expect(r.notes.join("") + (r.trailingMalformed ?? "")).toBe(text);
+  });
 });

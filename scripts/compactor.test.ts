@@ -2349,3 +2349,161 @@ describe("compactor.js — CMP-02 round-7 writer-order guard (composeThreadNote 
     ).toBe(false);
   });
 });
+
+// ── CMP-02 ROUND-8: fence-open fail-closure END-TO-END (held-out RED-first) ───────────────────────
+// The 7th distinct CMP-02 bypass: a note #2 whose opening fence's FIRST in-fence line is BLANK
+// (`---\n\nid: …`) or a JUNK/heading line (`---\n# heading\nid: …`), also under CRLF, is parsed CLEAN
+// by parseNote yet was MISSED by the round-7 splitNotes boundary walk (its `isBoundaryAt` hard-required
+// `looksLikeFrontmatterLine(lines[i + 1])` — the line immediately after the `---` — a STRICT SUBSET of
+// parseNote's grammar). So note #2 folded silently into note #1's body; the §14-gate-verified
+// failed-attempt buried as note #2 never entered the required-survival set and the CLI exited 0
+// "carve-out intact" while the verified finding was dropped.
+//
+// These THREE tests are RED-FIRST: they MUST FAIL against the CURRENT committed scripts/compactor.js
+// (the bypass is live — the buried-note fixtures return exit 0). Post-fix (Task 2 unifies the splitter
+// boundary with parseNote) the buried note is recovered or the file refused and the CLI exits 1 NAMING
+// the dropped id (or the refused file). Each note #2 is glued onto the same threads/<agent>.md file via
+// the SANCTIONED writeThread FREE-SCRATCH (no-`note`-arg) path so the corpus exercises the production
+// writer-reachable shape (the verifier's reproduction), not a hand-authored string the writer could
+// never emit. RED captured in 22-09-RED-baseline.txt; GREEN in 22-09-GREEN-proof.txt.
+describe("compactor.js — CMP-02 round-8 fence-open fail-closure (held-out RED-first)", () => {
+  // Extract every frozen `id:` (at any indent) from a thread file, in document order — used to learn
+  // note #2's id for the dropped-id assertion.
+  function allStampedIds(threadFile: string): string[] {
+    const text = readFileSync(threadFile, "utf8").replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+    return [...text.matchAll(/^\s*id:\s*(\S+)\s*$/gm)].map((m) => m[1]);
+  }
+
+  // Compose a promoted note file byte-faithful to a note: id-first, the canonical column-0 shape the
+  // sanctioned writer emits. Reused from the round-6/round-7 blocks' shape.
+  function promotedNote(fields: {
+    id: string;
+    kind: string;
+    by: string;
+    at: string;
+    verified_by: string;
+    confidence: string;
+    refs: string[];
+    supersedes: string;
+    body: string;
+  }): string {
+    const refsBlock =
+      fields.refs.length === 0
+        ? "refs:\n"
+        : "refs:\n" + fields.refs.map((r) => `  - ${r}`).join("\n") + "\n";
+    return (
+      "---\n" +
+      `id: ${fields.id}\n` +
+      `kind: ${fields.kind}\n` +
+      `by: ${fields.by}\n` +
+      `at: ${fields.at}\n` +
+      `verified_by: ${fields.verified_by}\n` +
+      `confidence: ${fields.confidence}\n` +
+      refsBlock +
+      `supersedes: ${fields.supersedes}\n` +
+      "---\n\n" +
+      (fields.body.endsWith("\n") ? fields.body : fields.body + "\n")
+    );
+  }
+
+  // Build a fence-shaped note #2 byte block whose opening fence begins with a BLANK or a JUNK/heading
+  // line before `id:` — the 7th-bypass fence-open shape. The carried verified_by stamp is a
+  // §14-gate#RUN8 finding the carve-out must not lose. The id is REAL and discoverable so the GREEN
+  // assertion can name the dropped id. `crlf` rewrites the bytes with `\r\n` separators.
+  function fenceOpenNote(open: "blank-first" | "junk-first", id: string, crlf: boolean): string {
+    const lead = open === "blank-first" ? "\n" : "# heading\n";
+    const bytes =
+      "---\n" +
+      lead +
+      `id: ${id}\n` +
+      "kind: finding\n" +
+      "by: engineer\n" +
+      "at: 2026-06-17T15:00:00Z\n" +
+      "verified_by: §14-gate#RUN8\n" +
+      "confidence: high\n" +
+      "refs:\n  - Y\n" +
+      "supersedes: \n" +
+      "---\n\n" +
+      "The SQL injection is fixed (gate-verified).\n";
+    return crlf ? bytes.replace(/\n/g, "\r\n") : bytes;
+  }
+
+  // The shared body of each fence-open case: note #1 written id-first via the structured writeThread
+  // path; note #2 glued on via the SANCTIONED free-scratch (no-`note`-arg) writeThread path. Promoted
+  // keeps ONLY note #1 — note #2's §14-gate-verified finding is dropped. Returns the run + note #2's id.
+  function runFenceOpen(open: "blank-first" | "junk-first", crlf: boolean, tag: string) {
+    const dir = freshTmp(`cmp-r8-${tag}-`);
+    const contextRoot = join(dir, "ctx");
+    const task = `task-r8-${tag}`;
+    const agent = "engineer";
+    // Note #1: a soft observation, written id-first via the structured fence path.
+    mod.writeThread(task, agent, "just an observation.", contextRoot, {
+      kind: "observation",
+      by: "engineer",
+      at: "2026-06-17T14:23:05Z",
+      verified_by: "",
+      confidence: "low",
+      refs: ["X"],
+      supersedes: null,
+    });
+    // Note #2's id is a fixed value in the canonical noteId() shape so the GREEN run can name it.
+    const note2Id = `20260617T150000Z-engineer-finding-r8${tag.replace(/[^a-z0-9]/g, "").slice(0, 8)}`;
+    // Note #2: the fence-open shape, glued on via the FREE-SCRATCH path (NO note arg → arbitrary bytes).
+    const threadFile = mod.writeThread(task, agent, fenceOpenNote(open, note2Id, crlf), contextRoot);
+
+    const threadDir = join(contextRoot, task, "threads");
+    const promoted = join(dir, "promoted");
+    mkdirSync(promoted, { recursive: true });
+    const ids = allStampedIds(threadFile);
+    const obsId = ids[0];
+    writeFileSync(
+      join(promoted, "obs.md"),
+      promotedNote({
+        id: obsId,
+        kind: "observation",
+        by: "engineer",
+        at: "2026-06-17T14:23:05Z",
+        verified_by: "",
+        confidence: "low",
+        refs: ["X"],
+        supersedes: "",
+        body: "just an observation.",
+      }),
+    );
+
+    return { run: runCheck(threadDir, promoted), note2Id, agent };
+  }
+
+  // (a) BLANK-FIRST fence note #2: the opening fence's first in-fence line is BLANK before `id:`.
+  it("RED-first: a blank-first fence note #2 (writer-reachable free-scratch) drops a verified finding — refuse (exit 1) naming the dropped id or the refused file", () => {
+    const { run, note2Id, agent } = runFenceOpen("blank-first", false, "blank-first");
+    expect(
+      run.status,
+      "a blank-first fence-open note #2 must not silently drop its §14-gate-verified finding",
+    ).not.toBe(0);
+    const out = `${run.stdout}${run.stderr}`;
+    expect(out.includes(note2Id) || out.includes(`${agent}.md`)).toBe(true);
+  });
+
+  // (b) JUNK/HEADING-FIRST fence note #2: the opening fence begins with a `# heading` line before `id:`.
+  it("RED-first: a junk/heading-first fence note #2 (writer-reachable free-scratch) drops a verified finding — refuse (exit 1) naming the dropped id or the refused file", () => {
+    const { run, note2Id, agent } = runFenceOpen("junk-first", false, "junk");
+    expect(
+      run.status,
+      "a junk/heading-first fence-open note #2 must not silently drop its §14-gate-verified finding",
+    ).not.toBe(0);
+    const out = `${run.stdout}${run.stderr}`;
+    expect(out.includes(note2Id) || out.includes(`${agent}.md`)).toBe(true);
+  });
+
+  // (c) CRLF blank-first fence note #2: the same blank-first shape written with CRLF line endings.
+  it("RED-first: a CRLF blank-first fence note #2 (writer-reachable free-scratch) drops a verified finding — refuse (exit 1) naming the dropped id or the refused file", () => {
+    const { run, note2Id, agent } = runFenceOpen("blank-first", true, "crlf");
+    expect(
+      run.status,
+      "a CRLF blank-first fence-open note #2 must not silently drop its §14-gate-verified finding",
+    ).not.toBe(0);
+    const out = `${run.stdout}${run.stderr}`;
+    expect(out.includes(note2Id) || out.includes(`${agent}.md`)).toBe(true);
+  });
+});
