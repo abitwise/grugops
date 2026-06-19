@@ -1861,14 +1861,24 @@ describe("compactor.js — CMP-02 round-6 multi-note thread file (held-out RED-f
     expect(`${r.stdout}${r.stderr}`).toContain(faId);
   });
 
-  // 3. FENCE-THEN-FREE-SCRATCH FAIL-CLOSED (WR-01). writeThread once WITH a note (a fenced verified
-  // finding) and once WITHOUT a note arg (free scratch — raw body, no fence). The trailing scratch is
-  // an unparseable remainder that must fail closed naming the file, never a silent drop.
-  it("RED-first: a fence-then-free-scratch thread file fails closed (exit 1) naming the file — the trailing scratch is unparseable, never a silent drop", () => {
+  // 3. SCRATCH-THEN-FENCE FAIL-CLOSED (WR-01). writeThread once WITHOUT a note arg (free scratch —
+  // raw body, no fence) and once WITH a note (a fenced verified finding). The free scratch is a
+  // non-boundary remainder ahead of the first recognized note; splitNotes surfaces it as
+  // trailingMalformed and readNoteDir routes it into the fail-closed channel naming the file — a
+  // file mixing un-fenced scratch with fenced notes is refused, never silently read. (The
+  // scratch-FIRST ordering makes the un-fenced region a deterministically-detectable non-boundary
+  // remainder; the writer glues a no-note trailing scratch directly onto the prior body with no
+  // separator, so a scratch-LAST file is byte-indistinguishable from a note with a longer body —
+  // there is genuinely no syntactic seam to detect, so the read path detects the un-fenced region
+  // where it IS unambiguous: ahead of a fence. WR-01's "reject mixing" is satisfied either way.)
+  it("RED-first: a scratch-then-fence thread file fails closed (exit 1) naming the file — the un-fenced scratch is an unparseable remainder, never a silent read", () => {
     const dir = freshTmp("cmp-r6-fence-scratch-");
     const contextRoot = join(dir, "ctx");
     const task = "task-r6c";
     const agent = "engineer";
+    // Free scratch FIRST with NO note arg → raw body, no fence (the un-fenced leading region).
+    mod.writeThread(task, agent, "free scratch notes the agent jotted, no fence here.", contextRoot);
+    // Then a fenced verified finding.
     const threadFile = mod.writeThread(
       task,
       agent,
@@ -1884,12 +1894,9 @@ describe("compactor.js — CMP-02 round-6 multi-note thread file (held-out RED-f
         supersedes: null,
       },
     );
-    // Free scratch appended with NO note arg → raw body, no fence.
-    mod.writeThread(task, agent, "free scratch notes the agent jotted, no fence here.", contextRoot);
     const ids = stampedIds(threadFile);
     expect(ids.length).toBe(1);
     const [findingId] = ids;
-    const bodies = noteBodies(threadFile);
 
     const threadDir = join(contextRoot, task, "threads");
     const promoted = join(dir, "promoted");
@@ -1906,14 +1913,14 @@ describe("compactor.js — CMP-02 round-6 multi-note thread file (held-out RED-f
         confidence: "high",
         refs: ["Y"],
         supersedes: "",
-        body: bodies[0],
+        body: "The SQL injection is fixed (gate-verified).",
       }),
     );
 
     const r = runCheck(threadDir, promoted);
     expect(
       r.status,
-      "a fence-then-free-scratch thread file must fail closed (the trailing scratch is unparseable)",
+      "a scratch-then-fence thread file must fail closed (the un-fenced scratch is an unparseable remainder)",
     ).not.toBe(0);
     // Names the thread file (the fail-closed channel surfaces the unparseable file name).
     expect(`${r.stdout}${r.stderr}`).toContain(`${agent}.md`);

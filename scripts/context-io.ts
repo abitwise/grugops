@@ -258,6 +258,109 @@ export function parseNote(text: string): ParsedFrontmatter | null {
   return { scalars, refs, body, duplicateKeys: [...dupes], malformedLines: malformed };
 }
 
+// ── isNoteOpeningLine: the SINGLE note-opening predicate splitNotes keys its boundary on. ──────────
+// A note's frontmatter ALWAYS begins with a column-0 `id:` line: BOTH note writers (context-io's
+// composeNote and the compactor's composeThreadNote) emit the frozen `id:` as the FIRST line inside
+// the fence — a deterministic creation-time slot (the id is the load-bearing identity the carve-out
+// matches raw→promoted on). So a real note BOUNDARY is a column-0 `---` line immediately followed by
+// an `id:` line. This is a STRICT SUBSET of isRecognizedFrontmatterLine (an `id:` line is a
+// `key: value` scalar), so a carved note still parses identically via parseNote (no grammar drift,
+// IN-02) — but it is specific enough that a body's embedded `---\nkey: value\n---` block (a markdown
+// fenced block or YAML-ish snippet inside a note body, whose first line is NOT `id:`) is NOT mistaken
+// for a note boundary. That precision is what stops the embedded-`---`-block 6th-bypass: a buried real
+// note #2 after such a body is still recovered, and the body block neither spawns a spurious note nor
+// hides the following one.
+function isNoteOpeningLine(line: string): boolean {
+  return /^id:\s*(.*)$/.test(line);
+}
+
+// ── splitNotes: a BODY-CONSUMING splitter (IN-02 single source). ──────────────────────────────────
+// The production raw-thread representation is a SINGLE threads/<agent>.md file (D-08) that the write
+// path (writeThread/composeThreadNote) builds by APPENDING each note as a `---\n<frontmatter>\n---\n
+// \n<body>\n` fence. The carve-out read path must recover EXACTLY the per-note set the write path
+// emitted — same note count, same verbatim bytes — so it splits the file back into per-note records
+// before parsing. parseNote's non-greedy fence regex matches only the FIRST fence, folding every
+// later note into note #1's body; splitNotes is the read-path fix (CMP-02, the 5th-bypass closure).
+//
+// A NOTE BOUNDARY is a column-0 `---\n` line that is IMMEDIATELY FOLLOWED by an `id:` line (the
+// deterministic id-first slot BOTH note writers emit — composeNote/composeThreadNote; via
+// isNoteOpeningLine, a subset of parseNote's recognized lines, so a carved note still parses
+// identically — IN-02 single source, no drift). A bare `---` line that appears INSIDE a body (a
+// markdown horizontal rule, the closing fence followed by body text, or an embedded
+// `---\nkey: value\n---` block whose first line is not `id:`) is NOT a boundary. A note's TEXT runs
+// from one boundary UP TO (but not including) the NEXT boundary,
+// or EOF — so each note's text INCLUDES its body (the body-consuming part). This is what a
+// frontmatter-only matcher (one that stops at a note's closing fence) gets wrong: it strips bodies and
+// halts at the first body line, swallowing note #2 — that is the explicitly-disallowed 6th bypass.
+//
+// Contract (the single-source / no-drift / no-byte-loss guarantees the carve-out depends on):
+//   1. For each element, parseNote(notes[i]) is NON-NULL AND parseNote(notes[i]).body equals that
+//      note's authored body (a carved note equals a parsed note, body included).
+//   2. notes.join("") + (trailingMalformed ?? "") reproduces the CRLF-normalized input BYTE-FOR-BYTE
+//      (no byte invented, none dropped).
+// A trailing non-blank region AFTER the last recognized note that is NOT itself a valid note boundary
+// (e.g. free scratch from the no-`note` writeThread path, WR-01) is returned as trailingMalformed; the
+// caller routes it into the fail-closed channel. A single-fence file yields exactly one note (body
+// intact); an all-scratch file yields zero notes plus a trailingMalformed.
+export function splitNotes(text: string): { notes: string[]; trailingMalformed: string | null } {
+  // Normalize CRLF/CR to LF FIRST (mirror parseNote) so a CRLF multi-note file splits identically to
+  // its LF form — the carve-out must not see a different per-note set on Windows line endings.
+  const normalized = text.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+  if (normalized === "") return { notes: [], trailingMalformed: null };
+  const lines = normalized.split("\n");
+  // Re-join lines [from, to) into their VERBATIM byte slice. split("\n") drops each separator, so a
+  // slice [from, to) is the lines joined by "\n"; a trailing "\n" is added when the slice does not run
+  // to the final (possibly-empty) element, so byte round-trip is exact.
+  const sliceBytes = (from: number, to: number): string => {
+    const segment = lines.slice(from, to).join("\n");
+    return to < lines.length ? segment + "\n" : segment;
+  };
+  // A note BOUNDARY is a column-0 `---` line whose NEXT line OPENS a note frontmatter block — i.e. an
+  // `id:` line (the deterministic id-first slot BOTH writers emit; a subset of the parser's recognized
+  // lines, IN-02). A bare `---` inside a body (a markdown horizontal rule, or a note's closing fence
+  // whose following line is body text, or an embedded `---\nkey: value\n---` block whose first line is
+  // not `id:`) is NOT a boundary — so a body `---` neither spawns a spurious note nor hides a real
+  // following note.
+  const isBoundaryAt = (i: number): boolean =>
+    lines[i] === "---" && i + 1 < lines.length && isNoteOpeningLine(lines[i + 1]);
+
+  // Find every boundary index in document order.
+  const boundaries: number[] = [];
+  for (let i = 0; i < lines.length; i++) {
+    if (isBoundaryAt(i)) boundaries.push(i);
+  }
+
+  // No boundary at all → the whole text is an un-fenced remainder (an all-scratch file). Zero notes;
+  // the caller fails closed on the non-blank remainder (WR-01 / WR-02).
+  if (boundaries.length === 0) {
+    const remainder = sliceBytes(0, lines.length);
+    return { notes: [], trailingMalformed: remainder.trim() === "" ? null : remainder };
+  }
+
+  // Each note's text runs from its boundary UP TO the NEXT boundary, or EOF for the final note — so a
+  // note INCLUDES its body (body-consuming). Notes therefore cover the first boundary → EOF exactly.
+  const notes: string[] = [];
+  for (let b = 0; b < boundaries.length; b++) {
+    const start = boundaries[b];
+    const end = b + 1 < boundaries.length ? boundaries[b + 1] : lines.length;
+    notes.push(sliceBytes(start, end));
+  }
+
+  // Any content BEFORE the first boundary is un-fenced scratch ahead of the recognized notes (e.g. the
+  // no-`note` writeThread free-scratch path written before a fenced note, WR-01). It is a structural
+  // remainder the caller must fail closed on — never a silently-read region. When the first boundary is
+  // at index 0 (the normal multi-note file) this region is empty and trailingMalformed is null.
+  //
+  // BYTE ROUND-TRIP (contract property 2): the splitter invents no byte and drops none — the leading
+  // remainder PLUS every note's verbatim slice reproduce the CRLF-normalized input. In the common
+  // (clean) case the leading remainder is empty, so notes.join("") alone reproduces the input; when a
+  // leading remainder is present the file is refused (not promoted), so the only contract that matters
+  // is that no byte is lost — leadingRemainder + notes.join("") === normalized always holds.
+  const leadingRemainder = sliceBytes(0, boundaries[0]);
+  const trailingMalformed = leadingRemainder.trim() === "" ? null : leadingRemainder;
+  return { notes, trailingMalformed };
+}
+
 // ── Validate a note's structure (SC-1, extended in Phase 21 with the D-09/D-02 refuse-self set). ─
 // PURE text→findings — inspects ONLY the parsed scalars, never reads context (D-10 keeps the cheap
 // structural check pure; the context-aware admission cross-check is the separate admit() function).
