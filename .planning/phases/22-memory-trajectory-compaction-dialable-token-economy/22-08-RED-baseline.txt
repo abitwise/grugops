@@ -1,0 +1,49 @@
+=== CMP-02 round-7 RED baseline (against the COMMITTED PRE-FIX scripts/compactor.js) ===
+=== captured: 2026-06-19T13:02:01Z ===
+=== git HEAD: c7429d2 (pre-fix round-6 build — isNoteOpeningLine = /^id:/, exact lines[i]==="---") ===
+=== committed .js confirmed clean vs HEAD (the round-6 artifact under test) ===
+
+# Each boundary-miss note #2 (kind-first / indented-id / trailing-space) is a §14-gate-verified
+# finding buried as note #2 in a single threads/<agent>.md and DROPPED from the promoted set.
+# The pre-fix splitNotes folds it into note #1's body (count=1, trailingMalformed=null) so the
+# CLI exits 0 'carve-out intact' — the LIVE 6th bypass. RED is exit 0 here + the vitest failures.
+
+=== DIRECT CLI reproductions (node scripts/compactor.js check) — each MUST print 'carve-out intact' / EXIT=0 (the live drop) ===
+--- (a) kind-first note #2 (dropped finding id 20260617T150000Z-engineer-finding-r7kindfirst) ---
+carve-out intact: every failed-attempt id survived and all load-bearing provenance fields are present.
+EXIT=0
+--- (b) indented-id note #2 (dropped finding id 20260617T150000Z-engineer-finding-r7indented) ---
+carve-out intact: every failed-attempt id survived and all load-bearing provenance fields are present.
+EXIT=0
+--- (c) trailing-space '--- ' boundary note #2 (dropped finding id 20260617T150000Z-engineer-finding-r7trailingspace) ---
+carve-out intact: every failed-attempt id survived and all load-bearing provenance fields are present.
+EXIT=0
+
+=== VITEST RED: the new boundary-miss tests FAIL against the committed pre-fix .js ===
+$ npx vitest run scripts/compactor.test.ts -t 'round-7 boundary-miss'
+  ⎯⎯⎯⎯⎯⎯⎯ Failed Tests 3 ⎯⎯⎯⎯⎯⎯⎯
+   FAIL  scripts/compactor.test.ts > compactor.js — CMP-02 round-7 boundary-miss fail-closure (held-out RED-first) > RED-first: a kind-first note #2 (writer-reachable free-scratch) drops a verified finding — refuse (exit 1) naming the dropped id or the refused file
+  AssertionError: a kind-first boundary-miss note #2 must not silently drop its §14-gate-verified finding: expected +0 not to be +0 // Object.is equality
+   FAIL  scripts/compactor.test.ts > compactor.js — CMP-02 round-7 boundary-miss fail-closure (held-out RED-first) > RED-first: an indented-id note #2 (writer-reachable free-scratch) drops a verified finding — refuse (exit 1) naming the dropped id or the refused file
+  AssertionError: an indented-id boundary-miss note #2 must not silently drop its §14-gate-verified finding: expected +0 not to be +0 // Object.is equality
+   FAIL  scripts/compactor.test.ts > compactor.js — CMP-02 round-7 boundary-miss fail-closure (held-out RED-first) > RED-first: a trailing-space `--- ` boundary note #2 (writer-reachable free-scratch) drops a verified finding — refuse (exit 1) naming the dropped id or the refused file
+  AssertionError: a trailing-space `--- ` boundary-miss note #2 must not silently drop its §14-gate-verified finding: expected +0 not to be +0 // Object.is equality
+   Test Files  1 failed (1)
+        Tests  3 failed | 178 skipped (181)
+
+$ npx vitest run scripts/context-io.test.ts -t 'splitNotes multi-fence'  (the 4 new round-7 units fail; the 9 round-6 units pass)
+       × FAIL-CLOSURE: a kind-first note #2 after note #1 is NEVER silently absorbed — count grows OR trailingMalformed is non-null (never count=1 / trailingMalformed=null) 3ms
+       × FAIL-CLOSURE: an indented-id note #2 after note #1 is NEVER silently absorbed — count grows OR trailingMalformed is non-null 0ms
+       × FAIL-CLOSURE: a trailing-space `--- ` boundary before a frontmatter-looking line is NEVER silently absorbed — count grows OR trailingMalformed is non-null 0ms
+  ⎯⎯⎯⎯⎯⎯⎯ Failed Tests 4 ⎯⎯⎯⎯⎯⎯⎯
+   FAIL  scripts/context-io.test.ts > context-io.js — splitNotes multi-fence split (shared grammar, IN-02) > FAIL-CLOSURE: a kind-first note #2 after note #1 is NEVER silently absorbed — count grows OR trailingMalformed is non-null (never count=1 / trailingMalformed=null)
+   FAIL  scripts/context-io.test.ts > context-io.js — splitNotes multi-fence split (shared grammar, IN-02) > FAIL-CLOSURE: an indented-id note #2 after note #1 is NEVER silently absorbed — count grows OR trailingMalformed is non-null
+   FAIL  scripts/context-io.test.ts > context-io.js — splitNotes multi-fence split (shared grammar, IN-02) > FAIL-CLOSURE: a trailing-space `--- ` boundary before a frontmatter-looking line is NEVER silently absorbed — count grows OR trailingMalformed is non-null
+   FAIL  scripts/context-io.test.ts > context-io.js — splitNotes multi-fence split (shared grammar, IN-02) > BROADENED-GRAMMAR (no drift): a carved KIND-FIRST note equals the same note parsed standalone — splitNotes recovers it, never lost
+   Test Files  1 failed (1)
+        Tests  4 failed | 9 passed | 38 skipped (51)
+
+=== Result: the boundary-miss class is LIVE in the committed pre-fix .js ===
+kind-first / indented-id / trailing-space note #2: dropped at exit 0 'carve-out intact' (direct CLI above)
+the 3 round-7 compactor.test.ts tests + the 4 round-7 context-io.test.ts units: RED (run.status===0 / silent-absorb)
+NO source fix applied in Task 1 (scripts/context-io.js + scripts/compactor.js are byte-identical to HEAD).

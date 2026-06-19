@@ -900,4 +900,112 @@ describe("context-io.js — splitNotes multi-fence split (shared grammar, IN-02)
     });
     expect(id).toMatch(/^20260617T142305Z-engineer-finding-[0-9a-f]{8}$/);
   });
+
+  // ── CMP-02 ROUND-7: splitNotes fail-closure + broadened (no-drift) grammar ──────────────────────
+  // The 6th bypass class: a `---`-boundary-shaped line followed by a frontmatter-looking line whose
+  // shape the /^id:/-only boundary key did not recognize was SILENTLY absorbed into note #1's body
+  // (count=1, trailingMalformed=null). The fix is FAIL-CLOSURE: such a region is EITHER recovered as a
+  // parsed note OR routed to a non-null trailingMalformed (loud refusal) — NEVER silently swallowed.
+  // Broadened recognition (the boundary key reuses parseNote's recognized-frontmatter-line set) is the
+  // usability layer that RECOVERS a genuine unambiguous kind-first / indented note #2. These units pin
+  // BOTH: the fail-closure floor and the no-drift recovery.
+
+  // Build a kind-first note (kind: on the first frontmatter line, id: second). A genuine, unambiguous
+  // note the broadened grammar should RECOVER (count increments, the note parses).
+  function kindFirstNote(id: string, body: string): string {
+    return (
+      "---\n" +
+      `kind: finding\n` +
+      `id: ${id}\n` +
+      "by: engineer\n" +
+      "at: 2026-06-17T15:00:00Z\n" +
+      "verified_by: §14-gate#RUN7\n" +
+      "confidence: high\n" +
+      "refs:\n  - Y\n" +
+      "supersedes: \n" +
+      "---\n\n" +
+      body +
+      "\n"
+    );
+  }
+
+  // Build an indented-id note (the opening frontmatter line is ` id:` with a leading space). Note: an
+  // indented provenance line is `malformedLines`-flagged by parseNote, so the read path (the oracle)
+  // fails closed on it — here we assert the SPLITTER does not silently swallow it.
+  function indentedIdNote(id: string, body: string): string {
+    return (
+      "---\n" +
+      ` id: ${id}\n` +
+      "kind: finding\n" +
+      "by: engineer\n" +
+      "at: 2026-06-17T15:00:00Z\n" +
+      "verified_by: §14-gate#RUN7\n" +
+      "confidence: high\n" +
+      "refs:\n  - Y\n" +
+      "supersedes: \n" +
+      "---\n\n" +
+      body +
+      "\n"
+    );
+  }
+
+  it("FAIL-CLOSURE: a kind-first note #2 after note #1 is NEVER silently absorbed — count grows OR trailingMalformed is non-null (never count=1 / trailingMalformed=null)", () => {
+    const text = note1 + kindFirstNote("20260617T150000Z-engineer-finding-kf2", "Finding TWO body (kind-first).");
+    const r = mod.splitNotes(text);
+    // The forbidden silent-absorb outcome: a single note that swallowed the whole kind-first region
+    // into note #1's body with NO fail-closed signal.
+    const silentlyAbsorbed = r.notes.length === 1 && r.trailingMalformed === null;
+    expect(
+      silentlyAbsorbed,
+      "a kind-first fence-ish region must be recovered as a note OR refused (non-null trailingMalformed), never silently swallowed",
+    ).toBe(false);
+  });
+
+  it("FAIL-CLOSURE: an indented-id note #2 after note #1 is NEVER silently absorbed — count grows OR trailingMalformed is non-null", () => {
+    const text = note1 + indentedIdNote("20260617T150000Z-engineer-finding-ind2", "Finding TWO body (indented).");
+    const r = mod.splitNotes(text);
+    const silentlyAbsorbed = r.notes.length === 1 && r.trailingMalformed === null;
+    expect(
+      silentlyAbsorbed,
+      "an indented-id fence-ish region must be recovered as a note OR refused, never silently swallowed",
+    ).toBe(false);
+  });
+
+  it("FAIL-CLOSURE: a trailing-space `--- ` boundary before a frontmatter-looking line is NEVER silently absorbed — count grows OR trailingMalformed is non-null", () => {
+    // note #1 then a `--- ` (trailing space) boundary before an id-first frontmatter block.
+    const note2TrailingSpace =
+      "--- \n" +
+      "id: 20260617T150000Z-engineer-finding-ts2\n" +
+      "kind: finding\n" +
+      "by: engineer\n" +
+      "at: 2026-06-17T15:00:00Z\n" +
+      "verified_by: §14-gate#RUN7\n" +
+      "confidence: high\n" +
+      "refs:\n  - Y\n" +
+      "supersedes: \n" +
+      "---\n\n" +
+      "Finding TWO body (trailing-space boundary).\n";
+    const r = mod.splitNotes(note1 + note2TrailingSpace);
+    const silentlyAbsorbed = r.notes.length === 1 && r.trailingMalformed === null;
+    expect(
+      silentlyAbsorbed,
+      "a trailing-space `--- ` fence-ish region must be recovered as a note OR refused, never silently swallowed",
+    ).toBe(false);
+  });
+
+  it("BROADENED-GRAMMAR (no drift): a carved KIND-FIRST note equals the same note parsed standalone — splitNotes recovers it, never lost", () => {
+    const kf = kindFirstNote("20260617T150000Z-engineer-finding-kf3", "Finding TWO body (kind-first recover).");
+    const text = note1 + kf;
+    const r = mod.splitNotes(text);
+    // The kind-first note #2 is RECOVERED as its own note (the broadened, single-source grammar).
+    expect(r.notes.length).toBe(2);
+    expect(r.trailingMalformed).toBeNull();
+    // splitNotes∘parseNote == parseNote for the kind-first shape: the carved note equals the standalone.
+    const carved1 = mod.parseNote(r.notes[1]);
+    const standalone1 = mod.parseNote(kf);
+    expect(carved1).not.toBeNull();
+    expect(carved1!.scalars).toEqual(standalone1!.scalars);
+    expect(carved1!.body).toEqual(standalone1!.body);
+    expect(carved1!.scalars.id).toBe("20260617T150000Z-engineer-finding-kf3");
+  });
 });

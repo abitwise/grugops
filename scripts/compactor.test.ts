@@ -2084,3 +2084,182 @@ describe("compactor.js — CMP-02 round-6 multi-note thread file (held-out RED-f
     expect(`${r.stdout}${r.stderr}`).toContain(findingId);
   });
 });
+
+// ── CMP-02 ROUND-7: boundary-miss fail-closure (held-out RED-first, end-to-end) ────────────────────
+// The 6th distinct CMP-02 bypass: the round-6 read path narrowed the note-boundary predicate to a
+// column-0 `---` line followed by a column-0 `id:` line (isNoteOpeningLine = /^id:/, the exact
+// `lines[i] === "---"` compare). That `/^id:/` set is a STRICT SUBSET of parseNote's recognized-
+// frontmatter-line grammar, so a note #2 whose opening fence is NOT a column-0 id-first shape —
+//   (a) KIND-FIRST   (`kind:` on the first frontmatter line, `id:` second),
+//   (b) INDENTED-ID  (` id:` with a leading space/tab),
+//   (c) TRAILING-SPACE boundary (`--- ` instead of `---`) —
+// is NOT recognized as a boundary. splitNotes folds note #2 entirely into note #1's body with NO
+// fail-closed signal (count=1, trailingMalformed=null), so its §14-gate-verified finding never enters
+// the required-survival set and the CLI exits 0 "carve-out intact" while the finding is dropped.
+//
+// These tests are WRITER-REACHABLE, not hand-authored: each note #2 is glued onto the same
+// threads/<agent>.md via the SANCTIONED mod.writeThread free-scratch path (the no-`note`-arg branch,
+// compactor.ts:571-573 — `record = body + "\n"`), reproducing the LIVE writer-reachable drop the
+// round-6 verifier saw (22-VERIFICATION.md lines 104-115, 145-154). They are RED against the COMMITTED
+// pre-fix scripts/compactor.js (the buried finding drops, exit 0) and GREEN only after Task 2's
+// fail-closure fix (exit 1 naming the dropped id OR refusing the file). RED/GREEN evidence is captured
+// in 22-08-RED-baseline.txt / 22-08-GREEN-proof.txt.
+describe("compactor.js — CMP-02 round-7 boundary-miss fail-closure (held-out RED-first)", () => {
+  // Extract every frozen `id:` (at any indent) from a thread file, in document order — used to learn
+  // note #2's id for the dropped-id assertion. The indent-tolerant regex deliberately matches the
+  // indented-id fixture too.
+  function allStampedIds(threadFile: string): string[] {
+    const text = readFileSync(threadFile, "utf8").replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+    return [...text.matchAll(/^\s*id:\s*(\S+)\s*$/gm)].map((m) => m[1]);
+  }
+
+  // Compose a promoted note file byte-faithful to a note: id-first, the canonical column-0 shape the
+  // sanctioned writer (composeNote/composeThreadNote) emits. Reused from the round-6 block's shape.
+  function promotedNote(fields: {
+    id: string;
+    kind: string;
+    by: string;
+    at: string;
+    verified_by: string;
+    confidence: string;
+    refs: string[];
+    supersedes: string;
+    body: string;
+  }): string {
+    const refsBlock =
+      fields.refs.length === 0
+        ? "refs:\n"
+        : "refs:\n" + fields.refs.map((r) => `  - ${r}`).join("\n") + "\n";
+    return (
+      "---\n" +
+      `id: ${fields.id}\n` +
+      `kind: ${fields.kind}\n` +
+      `by: ${fields.by}\n` +
+      `at: ${fields.at}\n` +
+      `verified_by: ${fields.verified_by}\n` +
+      `confidence: ${fields.confidence}\n` +
+      refsBlock +
+      `supersedes: ${fields.supersedes}\n` +
+      "---\n\n" +
+      (fields.body.endsWith("\n") ? fields.body : fields.body + "\n")
+    );
+  }
+
+  // Build a fence-shaped note #2 byte block whose opening shape is an exotic-but-valid boundary the
+  // round-6 /^id:/-only splitter MISSES. `shape` selects the boundary-miss variant; the carried
+  // verified_by stamp is a §14-gate#RUN7 finding the carve-out must not lose. The id is REAL and
+  // discoverable (allStampedIds finds it) so the GREEN assertion can name the dropped id.
+  function boundaryMissFence(
+    shape: "kind-first" | "indented-id" | "trailing-space",
+    id: string,
+  ): string {
+    const idLine = shape === "indented-id" ? ` id: ${id}` : `id: ${id}`;
+    const openBoundary = shape === "trailing-space" ? "--- " : "---";
+    // kind-first: emit `kind:` on the first frontmatter line, `id:` on the second. Otherwise id-first.
+    const fmLines =
+      shape === "kind-first"
+        ? [`kind: finding`, `id: ${id}`]
+        : [idLine, `kind: finding`];
+    return (
+      openBoundary +
+      "\n" +
+      fmLines.join("\n") +
+      "\n" +
+      "by: engineer\n" +
+      "at: 2026-06-17T15:00:00Z\n" +
+      "verified_by: §14-gate#RUN7\n" +
+      "confidence: high\n" +
+      "refs:\n  - Y\n" +
+      "supersedes: \n" +
+      "---\n\n" +
+      "The SQL injection is fixed (gate-verified).\n"
+    );
+  }
+
+  // The shared body of each boundary-miss case: note #1 written id-first via the structured writeThread
+  // path; note #2 glued on via the SANCTIONED free-scratch (no-`note`-arg) writeThread path so the
+  // corpus exercises the production writer-reachable shape, not a hand-authored string. Promoted keeps
+  // ONLY note #1 — note #2's §14-gate-verified finding is dropped. Returns the run + note #2's id.
+  function runBoundaryMiss(shape: "kind-first" | "indented-id" | "trailing-space", tag: string) {
+    const dir = freshTmp(`cmp-r7-${tag}-`);
+    const contextRoot = join(dir, "ctx");
+    const task = `task-r7-${tag}`;
+    const agent = "engineer";
+    // Note #1: a soft observation, written id-first via the structured fence path.
+    mod.writeThread(task, agent, "just an observation.", contextRoot, {
+      kind: "observation",
+      by: "engineer",
+      at: "2026-06-17T14:23:05Z",
+      verified_by: "",
+      confidence: "low",
+      refs: ["X"],
+      supersedes: null,
+    });
+    // Note #2's id is a fixed value in the canonical noteId() shape (<at-compact>-<by>-<kind>-<nonce>)
+    // so the GREEN run can name the dropped id. A literal (not a fresh nonce) keeps the fixture
+    // deterministic; uniqueness per shape is provided by `tag`.
+    const note2Id = `20260617T150000Z-engineer-finding-r7${tag.replace(/[^a-z0-9]/g, "").slice(0, 8)}`;
+    // Note #2: the boundary-miss fence, glued on via the FREE-SCRATCH path (NO note arg → the no-fence
+    // branch that appends arbitrary agent bytes — the writer-reachable adversarial boundary).
+    const threadFile = mod.writeThread(task, agent, boundaryMissFence(shape, note2Id), contextRoot);
+
+    const threadDir = join(contextRoot, task, "threads");
+    const promoted = join(dir, "promoted");
+    mkdirSync(promoted, { recursive: true });
+    // Promoted keeps ONLY note #1 (the observation); note #2's verified finding is absent.
+    const ids = allStampedIds(threadFile);
+    const obsId = ids[0];
+    writeFileSync(
+      join(promoted, "obs.md"),
+      promotedNote({
+        id: obsId,
+        kind: "observation",
+        by: "engineer",
+        at: "2026-06-17T14:23:05Z",
+        verified_by: "",
+        confidence: "low",
+        refs: ["X"],
+        supersedes: "",
+        body: "just an observation.",
+      }),
+    );
+
+    return { run: runCheck(threadDir, promoted), note2Id, agent };
+  }
+
+  // (a) KIND-FIRST note #2: the opening frontmatter line is `kind:`, `id:` is second. Round-6's
+  // /^id:/-only boundary misses it → silent body-absorb → exit 0 (RED). Post-fix the region is
+  // recovered or refused → exit 1 naming the dropped id or the refused file (GREEN).
+  it("RED-first: a kind-first note #2 (writer-reachable free-scratch) drops a verified finding — refuse (exit 1) naming the dropped id or the refused file", () => {
+    const { run, note2Id, agent } = runBoundaryMiss("kind-first", "kind-first");
+    expect(
+      run.status,
+      "a kind-first boundary-miss note #2 must not silently drop its §14-gate-verified finding",
+    ).not.toBe(0);
+    const out = `${run.stdout}${run.stderr}`;
+    expect(out.includes(note2Id) || out.includes(`${agent}.md`)).toBe(true);
+  });
+
+  // (b) INDENTED-ID note #2: the opening frontmatter line is ` id:` (leading space). Same drop.
+  it("RED-first: an indented-id note #2 (writer-reachable free-scratch) drops a verified finding — refuse (exit 1) naming the dropped id or the refused file", () => {
+    const { run, note2Id, agent } = runBoundaryMiss("indented-id", "indented");
+    expect(
+      run.status,
+      "an indented-id boundary-miss note #2 must not silently drop its §14-gate-verified finding",
+    ).not.toBe(0);
+    const out = `${run.stdout}${run.stderr}`;
+    expect(out.includes(note2Id) || out.includes(`${agent}.md`)).toBe(true);
+  });
+
+  // (c) TRAILING-SPACE boundary note #2: the opening boundary line is `--- ` (trailing space) rather
+  // than `---`. Round-6's exact `lines[i] === "---"` compare misses it. Same drop.
+  it("RED-first: a trailing-space `--- ` boundary note #2 (writer-reachable free-scratch) drops a verified finding — refuse (exit 1) naming the dropped id or the refused file", () => {
+    const { run, note2Id, agent } = runBoundaryMiss("trailing-space", "trailing-space");
+    expect(
+      run.status,
+      "a trailing-space `--- ` boundary-miss note #2 must not silently drop its §14-gate-verified finding",
+    ).not.toBe(0);
+    const out = `${run.stdout}${run.stderr}`;
+    expect(out.includes(note2Id) || out.includes(`${agent}.md`)).toBe(true);
+  });
+});
