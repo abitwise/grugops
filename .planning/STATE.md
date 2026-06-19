@@ -6,14 +6,14 @@ current_phase: 22
 current_phase_name: memory-trajectory-compaction-dialable-token-economy
 status: executing
 stopped_at: "Phase 22 gap-closure ROUND 6 (22-07) EXECUTED + RE-VERIFIED 2026-06-19 = GAPS_FOUND (6/8 must-haves; SC1/SC3/SC4 pass, SC2/CMP-02 BLOCKED). Round 6 GENUINELY CLOSED the 5th bypass class FOR ID-FIRST NOTES (multi-note thread file): a shared body-consuming splitNotes() in context-io.ts + per-note readNoteDir keyed <file>#<n> (both round-5 gates + byte-equal/required-survival run PER NOTE) + trailingMalformed leading-scratch → NoteDirResult.unparseable fail-closed; IN-01 closed (noteId exported + reused by composeThreadNote, inline formula gone). RED→GREEN vs the COMMITTED compactor.js (22-07-RED/GREEN evidence; 4/5 round-6 tests fail vs pre-fix, all pass post-fix — orchestrator re-confirmed by swapping the pre-fix .js back in); freshness exit 0; 409 non-e2e tests green. CMP-01 + CMP-03 verified & untouched (read-path-only, write representation unchanged). BUT a 6th DISTINCT CMP-02 bypass was found by the verifier (after orchestrator + deep code review flagged the risk) and INDEPENDENTLY REPRODUCED end-to-end through the committed `node scripts/compactor.js check` — ID-FIRST/NO-DRIFT: the executor deviated (Rule 1) from the plan's IN-02 must_have (boundary = `---` + ANY recognized frontmatter line) to boundary = `---` + an `id:` line (isNoteOpeningLine = /^id:/, context-io.ts:273), a STRICT SUBSET of parseNote's recognized-line set. This IS the splitNotes↔parseNote drift the must_have names as 'the 6th bypass'. A note #2 that is KIND-FIRST (id on the 2nd frontmatter line), indented-id, or trailing-space-`--- ` is NOT recognized as a boundary → its §14-gate-verified finding (verified_by §14-gate#RUN7) is folded SILENTLY into note #1's body (splitNotes count=1, trailingMalformed=null, malformedLines=[]) → dropped at exit 0 'carve-out intact'. Writer-REACHABLE via the sanctioned writeThread no-`note` free-scratch path (glues arbitrary kind-first bytes in); the plan's own threat model (22-07-PLAN.md:519) declares the multi-note file an adversarial boundary. Why the 409-test suite stayed green: every round-6 fixture authors id-first notes (the production shape), never the kind-first/indented/trailing-space shapes (green suite ≠ proof, 6th time). The deviation is safe ONLY due to an undocumented/untested/unguarded 'every writer emits id: first' coupling (composeNote/composeThreadNote) — a field-reorder re-opens it green. Also: round-6 test #3 (scratch-then-fence) is NOT RED-first (passes vs pre-fix). Fix (round 7): restore a genuinely shared boundary grammar (disambiguate body-`---` by fence STRUCTURE, not the id-first shortcut) OR add a self-checking structural guard + fail-closed splitNotes that REFUSES any unrecognized `---`+frontmatter region instead of absorbing it into a body, + held-out RED-first CLI tests for kind-first / indented-id / trailing-space-`---` shapes. Next: /gsd-plan-phase 22 --gaps."
-last_updated: "2026-06-19T11:02:47.598Z"
+last_updated: "2026-06-19T13:21:35.695Z"
 last_activity: 2026-06-19
-last_activity_desc: Re-verified Phase 22 round 6 (22-07) = GAPS_FOUND (6/8) — 5th bypass closed for id-first notes, but a 6th CMP-02 bypass found (id-first/no-drift; splitNotes /^id:/ ⊊ parseNote grammar; kind-first note #2 dropped at exit 0)
+last_activity_desc: Phase 22 plan 22-08 executed (3 tasks, RED→GREEN end-to-end vs committed compactor.js)
 progress:
   total_phases: 7
   completed_phases: 3
-  total_plans: 15
-  completed_plans: 15
+  total_plans: 16
+  completed_plans: 16
   percent: 43
 ---
 
@@ -28,10 +28,10 @@ See: .planning/PROJECT.md (updated 2026-06-16 — after v1.2 milestone)
 
 ## Current Position
 
-Phase: 22 (memory-trajectory-compaction-dialable-token-economy) — EXECUTING
-Plan: 22-07 executed (round-6 gap-closure) — awaiting verification
-Status: 22-07 complete; needs /gsd-verify (RED→GREEN against committed .js per 22-07-RED-baseline.txt + 22-07-GREEN-proof.txt)
-Last activity: 2026-06-19 — Completed 22-07-PLAN.md (5th CMP-02 bypass / multi-note thread file closed)
+Phase: 22 (memory-trajectory-compaction-dialable-token-economy) — AWAITING VERIFICATION
+Plan: 8 of 8 (22-08 round-7 gap closure executed)
+Status: All 8 plans executed; round-7 (22-08) CMP-02 fail-closed read-path fix landed — awaiting re-verification (green suite ≠ proof for this safety invariant)
+Last activity: 2026-06-19 — Phase 22 plan 22-08 executed (3 tasks, RED→GREEN end-to-end vs committed compactor.js)
 
 ## Performance Metrics
 
@@ -168,6 +168,7 @@ Last activity: 2026-06-19 — Completed 22-07-PLAN.md (5th CMP-02 bypass / multi
 | Phase 22 P05 | 9 | 4 tasks | 6 files |
 | Phase 22 P06 | 11m | 4 tasks | 6 files |
 | Phase 22 P07 | 32min | 4 tasks | 6 files |
+| Phase 22 P08 | 21min | 3 tasks | 4 files |
 
 ## Accumulated Context
 
@@ -381,6 +382,9 @@ Recent decisions affecting current work:
 - [Phase ?]: 22-07: CMP-02 5th bypass (multi-note thread file) closed via shared splitNotes + per-note readNoteDir keyed <file>#<n>; IN-01 noteId unified; RED→GREEN vs committed .js.
 - [Phase ?]: 22-07: splitNotes boundary = column-0 --- + an id: line (subset of parseNote's recognized lines so carved==parsed, no drift); body --- / embedded ---key:value--- block is NOT a boundary (6th-bypass guard).
 - [Phase ?]: 22-07: WR-01 fail-closed anchored on the un-fenced LEADING region (scratch-then-fence); read-path-only — write representation + readContext untouched; WR-02/WR-03/broader-IN-02 deferred.
+- [Phase 22]: 22-08: Fork A (read-path-only) splitNotes fail-closure — recover OR refuse, never silently absorb; the safety floor is fail-closure, broadened recognition is a usability layer on top
+- [Phase 22]: 22-08: note boundary keyed on an id-bearing frontmatter run so a kind-first note is recovered while an id-less embedded body fence stays body (round-5 win preserved)
+- [Phase 22]: 22-08: isRecognizedFrontmatterLine single exported source-of-truth grammar shared by parseNote + splitNotes (no drift); writer-order guard pins composeNote/composeThreadNote field order
 
 ### Pending Todos
 
@@ -430,9 +434,9 @@ Items acknowledged and deferred at the **v1.2 milestone close on 2026-06-16** (1
 
 ## Session Continuity
 
-Last session: 2026-06-19T11:01:43.831Z
-Stopped at: Phase 22 context gathered
-Resume file: .planning/phases/22-memory-trajectory-compaction-dialable-token-economy/22-CONTEXT.md
+Last session: 2026-06-19T13:19:38.982Z
+Stopped at: Completed 22-08-PLAN.md (round-7 CMP-02 fail-closed read-path gap closure) — awaiting Phase 22 re-verification
+Resume file: None
 
 ## Operator Next Steps
 
