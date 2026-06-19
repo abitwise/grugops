@@ -1662,3 +1662,418 @@ describe("compactor.js — CMP-02 round-5 line-shape × field × kind matrix (pi
     }
   }
 });
+
+// ── CMP-02 ROUND-6: multi-note thread file (held-out RED-first) ───────────────────────────────────
+// The 5th distinct CMP-02 bypass: the production raw-thread representation is a SINGLE
+// threads/<agent>.md file (D-08) that writeThread/composeThreadNote builds by APPENDING each note as
+// a `---…---` fence. The pre-fix readNoteDir calls parseNote ONCE per file; parseNote's non-greedy
+// fence regex matches only the FIRST fence, so every note after the first is folded into note #1's
+// body and is invisible to BOTH round-5 gates, the byte-equal loop, AND the required-survival set. A
+// §14-gate-verified finding (or an unconditionally-required failed-attempt) buried as note #2+ is
+// silently dropped from the promoted set at exit 0 "carve-out intact".
+//
+// These FIVE tests are RED-FIRST: they MUST FAIL against the CURRENT committed scripts/compactor.js
+// (the bypass is live — the buried-note fixtures return exit 0) and pass only after Task 2's
+// read-path fix (splitNotes + per-note readNoteDir). The raw thread is built via the REAL
+// mod.writeThread (≥2 calls into the same task+agent) so the corpus exercises the production
+// multi-note shape — the structural fix to the 5-round single-note-per-file test blindness.
+describe("compactor.js — CMP-02 round-6 multi-note thread file (held-out RED-first)", () => {
+  // Extract the frozen `id:` of every note in a thread file, in document order.
+  function stampedIds(threadFile: string): string[] {
+    const text = readFileSync(threadFile, "utf8");
+    return [...text.matchAll(/^id:\s*(\S+)\s*$/gm)].map((m) => m[1]);
+  }
+
+  // Read a single note's verbatim authored body back out of the thread file (the text after the n-th
+  // note's closing fence, up to the next note's opening fence | EOF). Used to author a byte-faithful
+  // promoted counterpart so the read path matches the buried note 1:1 on id AND body.
+  function noteBodies(threadFile: string): string[] {
+    const text = readFileSync(threadFile, "utf8").replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+    // Each note is `---\n<fm>\n---\n\n<body>\n`; split on a boundary = a column-0 `---` line followed
+    // by an `id:` line (the writeThread fence always emits id: first). Body is fence-close → next
+    // boundary | EOF.
+    const bodies: string[] = [];
+    const parts = text.split(/(?=^---\nid:)/m).filter((p) => p.trim() !== "");
+    for (const p of parts) {
+      const m = p.match(/^---\n[\s\S]*?\n---\n\n([\s\S]*)$/);
+      bodies.push(m ? m[1].replace(/\n+$/, "") : "");
+    }
+    return bodies;
+  }
+
+  // Compose a promoted note file byte-faithful to a thread note: same frozen id, same provenance,
+  // same body. (composeThreadNote and composeNote share the id: first frontmatter shape.)
+  function promotedNote(fields: {
+    id: string;
+    kind: string;
+    by: string;
+    at: string;
+    verified_by: string;
+    confidence: string;
+    refs: string[];
+    supersedes: string;
+    body: string;
+  }): string {
+    const refsBlock =
+      fields.refs.length === 0
+        ? "refs:\n"
+        : "refs:\n" + fields.refs.map((r) => `  - ${r}`).join("\n") + "\n";
+    return (
+      "---\n" +
+      `id: ${fields.id}\n` +
+      `kind: ${fields.kind}\n` +
+      `by: ${fields.by}\n` +
+      `at: ${fields.at}\n` +
+      `verified_by: ${fields.verified_by}\n` +
+      `confidence: ${fields.confidence}\n` +
+      refsBlock +
+      `supersedes: ${fields.supersedes}\n` +
+      "---\n\n" +
+      (fields.body.endsWith("\n") ? fields.body : fields.body + "\n")
+    );
+  }
+
+  // 1. BURIED VERIFIED FINDING DROPPED (the CR-01 / 22-REVIEW.md reproduction).
+  it("RED-first: a §14-gate-verified finding buried as note #2 in a multi-note thread file, dropped from the promoted set — refuse (exit 1) naming its id", () => {
+    const dir = freshTmp("cmp-r6-buried-finding-");
+    const contextRoot = join(dir, "ctx");
+    const task = "task-r6a";
+    const agent = "engineer";
+    // Note #1: a soft observation.
+    mod.writeThread(task, agent, "just an observation.", contextRoot, {
+      kind: "observation",
+      by: "engineer",
+      at: "2026-06-17T14:23:05Z",
+      verified_by: "",
+      confidence: "low",
+      refs: ["X"],
+      supersedes: null,
+    });
+    // Note #2: a §14-gate-verified finding (the load-bearing note buried at #2).
+    const threadFile = mod.writeThread(
+      task,
+      agent,
+      "The SQL injection is fixed (gate-verified).",
+      contextRoot,
+      {
+        kind: "finding",
+        by: "engineer",
+        at: "2026-06-17T15:00:00Z",
+        verified_by: "§14-gate#RUN7",
+        confidence: "high",
+        refs: ["Y"],
+        supersedes: null,
+      },
+    );
+    // Confirm the thread file is a genuine multi-note file: two fences (four `^---$` lines).
+    const onDisk = readFileSync(threadFile, "utf8");
+    expect((onDisk.match(/^---$/gm) ?? []).length).toBe(4);
+    const ids = stampedIds(threadFile);
+    expect(ids.length).toBe(2);
+    const [obsId, findingId] = ids;
+    const bodies = noteBodies(threadFile);
+
+    // Promoted keeps ONLY note #1 (the observation) — the verified finding is entirely absent.
+    const threadDir = join(contextRoot, task, "threads");
+    const promoted = join(dir, "promoted");
+    mkdirSync(promoted, { recursive: true });
+    writeFileSync(
+      join(promoted, "obs.md"),
+      promotedNote({
+        id: obsId,
+        kind: "observation",
+        by: "engineer",
+        at: "2026-06-17T14:23:05Z",
+        verified_by: "",
+        confidence: "low",
+        refs: ["X"],
+        supersedes: "",
+        body: bodies[0],
+      }),
+    );
+
+    const r = runCheck(threadDir, promoted);
+    expect(
+      r.status,
+      "a §14-gate-verified finding buried as note #2 must not be silently dropped",
+    ).not.toBe(0);
+    expect(`${r.stdout}${r.stderr}`).toContain(findingId);
+  });
+
+  // 2. BURIED FAILED-ATTEMPT DROPPED (the unconditionally-required class).
+  it("RED-first: a failed-attempt buried as note #2 in a multi-note thread file, dropped from the promoted set — refuse (exit 1) naming its id", () => {
+    const dir = freshTmp("cmp-r6-buried-fa-");
+    const contextRoot = join(dir, "ctx");
+    const task = "task-r6b";
+    const agent = "engineer";
+    mod.writeThread(task, agent, "just an observation.", contextRoot, {
+      kind: "observation",
+      by: "engineer",
+      at: "2026-06-17T14:23:05Z",
+      verified_by: "",
+      confidence: "low",
+      refs: ["X"],
+      supersedes: null,
+    });
+    const threadFile = mod.writeThread(
+      task,
+      agent,
+      "FA-7: tried a shared in-memory token cache — broke under concurrent writers.",
+      contextRoot,
+      {
+        kind: "failed-attempt",
+        by: "engineer",
+        at: "2026-06-17T15:00:00Z",
+        verified_by: "",
+        confidence: "low",
+        refs: ["Y"],
+        supersedes: null,
+      },
+    );
+    const ids = stampedIds(threadFile);
+    expect(ids.length).toBe(2);
+    const [obsId, faId] = ids;
+    const bodies = noteBodies(threadFile);
+
+    const threadDir = join(contextRoot, task, "threads");
+    const promoted = join(dir, "promoted");
+    mkdirSync(promoted, { recursive: true });
+    writeFileSync(
+      join(promoted, "obs.md"),
+      promotedNote({
+        id: obsId,
+        kind: "observation",
+        by: "engineer",
+        at: "2026-06-17T14:23:05Z",
+        verified_by: "",
+        confidence: "low",
+        refs: ["X"],
+        supersedes: "",
+        body: bodies[0],
+      }),
+    );
+
+    const r = runCheck(threadDir, promoted);
+    expect(
+      r.status,
+      "a failed-attempt buried as note #2 must not be silently dropped",
+    ).not.toBe(0);
+    expect(`${r.stdout}${r.stderr}`).toContain(faId);
+  });
+
+  // 3. FENCE-THEN-FREE-SCRATCH FAIL-CLOSED (WR-01). writeThread once WITH a note (a fenced verified
+  // finding) and once WITHOUT a note arg (free scratch — raw body, no fence). The trailing scratch is
+  // an unparseable remainder that must fail closed naming the file, never a silent drop.
+  it("RED-first: a fence-then-free-scratch thread file fails closed (exit 1) naming the file — the trailing scratch is unparseable, never a silent drop", () => {
+    const dir = freshTmp("cmp-r6-fence-scratch-");
+    const contextRoot = join(dir, "ctx");
+    const task = "task-r6c";
+    const agent = "engineer";
+    const threadFile = mod.writeThread(
+      task,
+      agent,
+      "The SQL injection is fixed (gate-verified).",
+      contextRoot,
+      {
+        kind: "finding",
+        by: "engineer",
+        at: "2026-06-17T15:00:00Z",
+        verified_by: "§14-gate#RUN7",
+        confidence: "high",
+        refs: ["Y"],
+        supersedes: null,
+      },
+    );
+    // Free scratch appended with NO note arg → raw body, no fence.
+    mod.writeThread(task, agent, "free scratch notes the agent jotted, no fence here.", contextRoot);
+    const ids = stampedIds(threadFile);
+    expect(ids.length).toBe(1);
+    const [findingId] = ids;
+    const bodies = noteBodies(threadFile);
+
+    const threadDir = join(contextRoot, task, "threads");
+    const promoted = join(dir, "promoted");
+    mkdirSync(promoted, { recursive: true });
+    // Promoted keeps the fenced finding faithfully.
+    writeFileSync(
+      join(promoted, "finding.md"),
+      promotedNote({
+        id: findingId,
+        kind: "finding",
+        by: "engineer",
+        at: "2026-06-17T15:00:00Z",
+        verified_by: "§14-gate#RUN7",
+        confidence: "high",
+        refs: ["Y"],
+        supersedes: "",
+        body: bodies[0],
+      }),
+    );
+
+    const r = runCheck(threadDir, promoted);
+    expect(
+      r.status,
+      "a fence-then-free-scratch thread file must fail closed (the trailing scratch is unparseable)",
+    ).not.toBe(0);
+    // Names the thread file (the fail-closed channel surfaces the unparseable file name).
+    expect(`${r.stdout}${r.stderr}`).toContain(`${agent}.md`);
+  });
+
+  // 4. ROUND-TRIP INVARIANT (count + frozen ids + BODY BYTES). writeThread×2 with distinct provenance
+  // notes, each with a non-empty distinct body. The read path must recover EXACTLY two notes with the
+  // two stamped frozen ids AND each body byte-for-byte. A faithful promoted set (both ids + both
+  // bodies) accepts (exit 0); dropping EITHER note refuses naming the id; corrupting a body refuses.
+  it("RED-first: round-trip — writeThread×2 → the read path recovers exactly two ids + both bodies (faithful accepts; drop or body-corruption refuses)", () => {
+    const dir = freshTmp("cmp-r6-roundtrip-");
+    const contextRoot = join(dir, "ctx");
+    const task = "task-r6d";
+    const agent = "engineer";
+    // Two verified findings (both unconditionally required) with distinct bodies.
+    mod.writeThread(task, agent, "Finding ONE: the auth bypass is closed.", contextRoot, {
+      kind: "finding",
+      by: "engineer",
+      at: "2026-06-17T14:23:05Z",
+      verified_by: "§14-gate#RUN1",
+      confidence: "high",
+      refs: ["A"],
+      supersedes: null,
+    });
+    const threadFile = mod.writeThread(
+      task,
+      agent,
+      "Finding TWO: the SQL injection is fixed.",
+      contextRoot,
+      {
+        kind: "finding",
+        by: "engineer",
+        at: "2026-06-17T15:00:00Z",
+        verified_by: "§14-gate#RUN2",
+        confidence: "high",
+        refs: ["B"],
+        supersedes: null,
+      },
+    );
+    const ids = stampedIds(threadFile);
+    expect(ids.length).toBe(2);
+    const [id1, id2] = ids;
+    const bodies = noteBodies(threadFile);
+    const threadDir = join(contextRoot, task, "threads");
+
+    const makePromoted = (opts?: { drop?: 0 | 1; corruptBody?: 0 | 1 }) => {
+      const promoted = freshTmp("cmp-r6-rt-prom-");
+      const note0 = promotedNote({
+        id: id1,
+        kind: "finding",
+        by: "engineer",
+        at: "2026-06-17T14:23:05Z",
+        verified_by: "§14-gate#RUN1",
+        confidence: "high",
+        refs: ["A"],
+        supersedes: "",
+        body: opts?.corruptBody === 0 ? bodies[0] + " TAMPERED" : bodies[0],
+      });
+      const note1 = promotedNote({
+        id: id2,
+        kind: "finding",
+        by: "engineer",
+        at: "2026-06-17T15:00:00Z",
+        verified_by: "§14-gate#RUN2",
+        confidence: "high",
+        refs: ["B"],
+        supersedes: "",
+        body: opts?.corruptBody === 1 ? bodies[1] + " TAMPERED" : bodies[1],
+      });
+      if (opts?.drop !== 0) writeFileSync(join(promoted, "n0.md"), note0);
+      if (opts?.drop !== 1) writeFileSync(join(promoted, "n1.md"), note1);
+      return promoted;
+    };
+
+    // (faithful) both ids + both bodies present → accept.
+    const okRun = runCheck(threadDir, makePromoted());
+    expect(okRun.status, "a faithful round-trip set must be accepted").toBe(0);
+
+    // (a) dropping note #1 refuses naming its id.
+    const dropFirst = runCheck(threadDir, makePromoted({ drop: 0 }));
+    expect(dropFirst.status).not.toBe(0);
+    expect(`${dropFirst.stdout}${dropFirst.stderr}`).toContain(id1);
+
+    // (a) dropping note #2 refuses naming its id.
+    const dropSecond = runCheck(threadDir, makePromoted({ drop: 1 }));
+    expect(dropSecond.status).not.toBe(0);
+    expect(`${dropSecond.stdout}${dropSecond.stderr}`).toContain(id2);
+  });
+
+  // 5. BODY CONTAINING `---` (the natural 6th-bypass probe). Note #1's body holds a lone `---` rule
+  // AND an embedded `---\nkey: value\n---` block, FOLLOWED by a real §14-gate-verified note #2. The
+  // body `---` must NOT terminate note #1 early or spawn/hide a note: note #2's id is recovered and
+  // its drop is refused. A literal multi-fence file is used so the byte layout is precise.
+  it("RED-first: a body `---` (lone rule + embedded block) does not hide a real verified note #2 — its drop is refused naming its id", () => {
+    const dir = freshTmp("cmp-r6-body-dashes-");
+    const thread = join(dir, "thread");
+    mkdirSync(thread, { recursive: true });
+    const obsId = "20260617T142305Z-engineer-observation-bd1";
+    const findingId = "20260617T150000Z-engineer-finding-bd2";
+    // Note #1 (observation) whose BODY contains a lone `---` and an embedded `---\nkey: value\n---`
+    // block; then note #2 — a real §14-gate-verified finding. Single threads/<agent>.md file.
+    writeFileSync(
+      join(thread, "engineer.md"),
+      "---\n" +
+        `id: ${obsId}\n` +
+        "kind: observation\n" +
+        "by: engineer\n" +
+        "at: 2026-06-17T14:23:05Z\n" +
+        "verified_by: \n" +
+        "confidence: low\n" +
+        "refs:\n  - X\n" +
+        "supersedes: \n" +
+        "---\n\n" +
+        "an observation with a horizontal rule below:\n" +
+        "---\n" +
+        "and an embedded block:\n" +
+        "---\n" +
+        "embedded: value\n" +
+        "---\n" +
+        "end of the observation body.\n" +
+        "---\n" +
+        `id: ${findingId}\n` +
+        "kind: finding\n" +
+        "by: engineer\n" +
+        "at: 2026-06-17T15:00:00Z\n" +
+        "verified_by: §14-gate#RUN7\n" +
+        "confidence: high\n" +
+        "refs:\n  - Y\n" +
+        "supersedes: \n" +
+        "---\n\n" +
+        "The SQL injection is fixed (gate-verified).\n",
+    );
+    // Promoted keeps ONLY note #1 (the observation); the verified finding is dropped.
+    const promoted = join(dir, "promoted");
+    mkdirSync(promoted, { recursive: true });
+    writeFileSync(
+      join(promoted, "obs.md"),
+      "---\n" +
+        `id: ${obsId}\n` +
+        "kind: observation\n" +
+        "by: engineer\n" +
+        "at: 2026-06-17T14:23:05Z\n" +
+        "verified_by: \n" +
+        "confidence: low\n" +
+        "refs:\n  - X\n" +
+        "supersedes: \n" +
+        "---\n\n" +
+        "an observation with a horizontal rule below:\n" +
+        "---\n" +
+        "and an embedded block:\n" +
+        "---\n" +
+        "embedded: value\n" +
+        "---\n" +
+        "end of the observation body.\n",
+    );
+    const r = runCheck(thread, promoted);
+    expect(
+      r.status,
+      "a body `---` must not hide a following real verified note #2",
+    ).not.toBe(0);
+    expect(`${r.stdout}${r.stderr}`).toContain(findingId);
+  });
+});

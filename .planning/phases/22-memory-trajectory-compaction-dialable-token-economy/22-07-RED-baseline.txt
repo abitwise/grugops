@@ -1,0 +1,89 @@
+=== CMP-02 round-6 RED baseline (against the COMMITTED scripts/compactor.js — NOT rebuilt) ===
+=== captured: 2026-06-19T10:46:50Z ===
+=== git HEAD: 5bb15cd ===
+
+$ npx vitest run scripts/compactor.test.ts -t 'round-6 multi-note'
+
+ RUN  v4.1.8 /Users/olgeroeselg/Projects/public/grugops
+
+ ❯ scripts/compactor.test.ts (178 tests | 5 failed | 173 skipped) 217ms
+     × RED-first: a §14-gate-verified finding buried as note #2 in a multi-note thread file, dropped from the promoted set — refuse (exit 1) naming its id 38ms
+     × RED-first: a failed-attempt buried as note #2 in a multi-note thread file, dropped from the promoted set — refuse (exit 1) naming its id 29ms
+     × RED-first: a fence-then-free-scratch thread file fails closed (exit 1) naming the file — the trailing scratch is unparseable, never a silent drop 31ms
+     × RED-first: round-trip — writeThread×2 → the read path recovers exactly two ids + both bodies (faithful accepts; drop or body-corruption refuses) 84ms
+     × RED-first: a body `---` (lone rule + embedded block) does not hide a real verified note #2 — its drop is refused naming its id 32ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 5 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  scripts/compactor.test.ts > compactor.js — CMP-02 round-6 multi-note thread file (held-out RED-first) > RED-first: a §14-gate-verified finding buried as note #2 in a multi-note thread file, dropped from the promoted set — refuse (exit 1) naming its id
+AssertionError: a §14-gate-verified finding buried as note #2 must not be silently dropped: expected +0 not to be +0 // Object.is equality
+ ❯ scripts/compactor.test.ts:1799:11
+    1797|       r.status,
+    1798|       "a §14-gate-verified finding buried as note #2 must not be silen…
+    1799|     ).not.toBe(0);
+       |           ^
+    1800|     expect(`${r.stdout}${r.stderr}`).toContain(findingId);
+    1801|   });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/5]⎯
+
+ FAIL  scripts/compactor.test.ts > compactor.js — CMP-02 round-6 multi-note thread file (held-out RED-first) > RED-first: a failed-attempt buried as note #2 in a multi-note thread file, dropped from the promoted set — refuse (exit 1) naming its id
+AssertionError: a failed-attempt buried as note #2 must not be silently dropped: expected +0 not to be +0 // Object.is equality
+ ❯ scripts/compactor.test.ts:1860:11
+    1858|       r.status,
+    1859|       "a failed-attempt buried as note #2 must not be silently dropped…
+    1860|     ).not.toBe(0);
+       |           ^
+    1861|     expect(`${r.stdout}${r.stderr}`).toContain(faId);
+    1862|   });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/5]⎯
+
+ FAIL  scripts/compactor.test.ts > compactor.js — CMP-02 round-6 multi-note thread file (held-out RED-first) > RED-first: a fence-then-free-scratch thread file fails closed (exit 1) naming the file — the trailing scratch is unparseable, never a silent drop
+AssertionError: a fence-then-free-scratch thread file must fail closed (the trailing scratch is unparseable): expected +0 not to be +0 // Object.is equality
+ ❯ scripts/compactor.test.ts:1917:11
+    1915|       r.status,
+    1916|       "a fence-then-free-scratch thread file must fail closed (the tra…
+    1917|     ).not.toBe(0);
+       |           ^
+    1918|     // Names the thread file (the fail-closed channel surfaces the unp…
+    1919|     expect(`${r.stdout}${r.stderr}`).toContain(`${agent}.md`);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/5]⎯
+
+ FAIL  scripts/compactor.test.ts > compactor.js — CMP-02 round-6 multi-note thread file (held-out RED-first) > RED-first: round-trip — writeThread×2 → the read path recovers exactly two ids + both bodies (faithful accepts; drop or body-corruption refuses)
+AssertionError: expected +0 not to be +0 // Object.is equality
+ ❯ scripts/compactor.test.ts:2002:35
+    2000|     // (a) dropping note #2 refuses naming its id.
+    2001|     const dropSecond = runCheck(threadDir, makePromoted({ drop: 1 }));
+    2002|     expect(dropSecond.status).not.toBe(0);
+       |                                   ^
+    2003|     expect(`${dropSecond.stdout}${dropSecond.stderr}`).toContain(id2);
+    2004|   });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/5]⎯
+
+ FAIL  scripts/compactor.test.ts > compactor.js — CMP-02 round-6 multi-note thread file (held-out RED-first) > RED-first: a body `---` (lone rule + embedded block) does not hide a real verified note #2 — its drop is refused naming its id
+AssertionError: a body `---` must not hide a following real verified note #2: expected +0 not to be +0 // Object.is equality
+ ❯ scripts/compactor.test.ts:2076:11
+    2074|       r.status,
+    2075|       "a body `---` must not hide a following real verified note #2",
+    2076|     ).not.toBe(0);
+       |           ^
+    2077|     expect(`${r.stdout}${r.stderr}`).toContain(findingId);
+    2078|   });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[5/5]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  5 failed | 173 skipped (178)
+   Start at  13:46:51
+   Duration  365ms (transform 55ms, setup 0ms, import 70ms, tests 217ms, environment 0ms)
+
+
+=== DIRECT CLI on the buried-verified-finding fixture (committed scripts/compactor.js, pre-fix) ===
+$ node scripts/compactor.js check <thread> <promoted>
+carve-out intact: every failed-attempt id survived and all load-bearing provenance fields are present.
+EXIT=0
+(the §14-gate-verified finding 20260617T150000Z-engineer-finding-CRITICAL was silently dropped at exit 0 — the live bypass)
