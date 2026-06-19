@@ -1,0 +1,43 @@
+=== CMP-02 round-6 GREEN proof (against the freshly REBUILT committed scripts/compactor.js) ===
+=== captured: 2026-06-19T10:58:26Z ===
+=== git HEAD (pre final commit): b30243a ===
+=== npm run freshness: exit 0 (committed .js byte-faithful to .ts, D-13) ===
+
+$ npx vitest run scripts/compactor.test.ts -t 'round-6 multi-note'
+
+ RUN  v4.1.8 /Users/olgeroeselg/Projects/public/grugops
+
+
+ Test Files  1 passed (1)
+      Tests  5 passed | 173 skipped (178)
+   Start at  13:58:26
+   Duration  413ms (transform 59ms, setup 0ms, import 77ms, tests 255ms, environment 0ms)
+
+
+=== DIRECT CLI on the buried-verified-finding fixture (REBUILT committed scripts/compactor.js, post-fix) ===
+$ node scripts/compactor.js check <thread> <promoted>
+EXIT=1
+(post-fix: exit 1 NAMING the dropped §14-gate-verified finding id 20260617T150000Z-engineer-finding-CRITICAL — RED->GREEN transition confirmed against the COMMITTED .js)
+
+=== FULL non-e2e regression suite (npx vitest run --exclude '**/scripts/e2e/**') ===
+$ npx vitest run --exclude '**/scripts/e2e/**'
+
+ RUN  v4.1.8 /Users/olgeroeselg/Projects/public/grugops
+
+
+ Test Files  16 passed (16)
+      Tests  409 passed | 1 skipped (410)
+   Start at  13:58:47
+   Duration  24.57s (transform 145ms, setup 0ms, import 240ms, tests 23.32s, environment 1ms)
+
+
+=== Regression-safety grep (run pre-build, re-confirmed) ===
+committed multi-fence .md under .grugops/context/**: NONE (the threads/<agent>.md multi-note file is gitignored, D-07/D-08 — not committed)
+committed .md (excluding .planning/) with >1 id: stamp in one file: NONE
+inline id formula remaining in composeThreadNote: NONE (IN-01 — composeThreadNote calls the exported noteId)
+
+=== Result summary ===
+round-6 block (5 tests): GREEN against the rebuilt committed compactor.js
+direct CLI on buried-finding fixture: exit 1 naming the dropped id (was exit 0 'carve-out intact' pre-fix — see 22-07-RED-baseline.txt)
+npm run freshness: exit 0 (17 committed .js fresh)
+full non-e2e suite: 16 files, 409 passed, 1 skipped, 0 failed

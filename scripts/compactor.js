@@ -52,8 +52,7 @@
 import { readFileSync, readdirSync, mkdirSync, existsSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
-import { randomUUID } from "node:crypto";
-import { appendNote, admit, currentState, parseNote, validate, NOTE_KINDS, } from "./context-io.js";
+import { appendNote, admit, currentState, noteId, parseNote, splitNotes, validate, NOTE_KINDS, } from "./context-io.js";
 // ── Context root (production). Tests pass an explicit root. ──────────────────────────────────────
 const REPO_ROOT = join(import.meta.dirname, "..");
 const DEFAULT_CONTEXT_ROOT = join(REPO_ROOT, ".grugops", "context");
@@ -94,8 +93,30 @@ function readNoteFields(text) {
         text,
     };
 }
-// Read every notes/*.md-style file under a directory. A `.md` with no valid frontmatter fence is
-// recorded in `unparseable` (fail-closed, WR-02) rather than omitted from the map.
+// Read every notes/*.md-style file under a directory, PER NOTE.
+//
+// CMP-02 ROUND-6 (the 5th-bypass fix): the production raw-thread representation is a SINGLE
+// threads/<agent>.md file (D-08) that the write path builds by APPENDING each note as a `---…---`
+// fence. The previous read path called parseNote ONCE per file; parseNote matches only the FIRST
+// fence, so every note after the first was folded into note #1's body — invisible to the round-5
+// gates, the byte-equal loop, AND the required-survival set. A §14-gate-verified finding (or an
+// unconditionally-required failed-attempt) buried as note #2+ was silently dropped at exit 0.
+//
+// THE CLASS-LEVEL INVARIANT this restores: the read path recovers EXACTLY the per-note set the write
+// path emitted — same note count, same frozen ids, same verbatim bytes — or fails closed. We split
+// each file into its per-note slices via the SHARED splitNotes (context-io.ts), which single-sources
+// its boundary grammar with parseNote (a carved note equals a parsed note, body included — they
+// cannot drift, IN-02), and key EACH note by `<file>#<n>` so the Map holds one record per note (n is
+// 0-based, the note's index within the file). Because every note now reaches the Map as its own
+// record, the downstream id-keyed survival match, both round-5 gates, and the byte-equal loop run PER
+// NOTE — a buried note enters the required-survival set and its drop is refused.
+//
+// A trailing/leading non-boundary remainder (e.g. un-fenced free scratch mixed into a thread file via
+// the no-`note` writeThread path, WR-01) is surfaced by splitNotes as `trailingMalformed`; we route
+// the FILE NAME into the existing `unparseable` fail-closed channel (checkCarveOut already emits a
+// fail-closed finding per unparseable entry) so a mixed scratch/fenced file is refused naming the
+// file, never silently read. Applied UNIFORMLY on BOTH the raw thread side AND the promoted side — a
+// one-fence promoted file yields exactly `<file>#0`, a single code path with no per-side special case.
 function readNoteDir(dir) {
     const notes = new Map();
     const unparseable = [];
@@ -104,11 +125,25 @@ function readNoteDir(dir) {
     for (const file of readdirSync(dir)) {
         if (!file.endsWith(".md"))
             continue;
-        const fields = readNoteFields(readFileSync(join(dir, file), "utf8"));
-        if (fields) {
-            notes.set(file, fields);
-        }
-        else {
+        const fileText = readFileSync(join(dir, file), "utf8");
+        const split = splitNotes(fileText);
+        split.notes.forEach((noteText, n) => {
+            // Key each note uniquely within the file so the Map never clobbers a multi-note file's later
+            // notes (the 5th-bypass root cause). n is 0-based — the note's document-order index in the file.
+            const key = `${file}#${n}`;
+            const fields = readNoteFields(noteText);
+            if (fields) {
+                notes.set(key, fields);
+            }
+            else {
+                // Defensive: a splitNotes element should always parse (its boundary reuses parseNote's
+                // recognized-line set), but if it does not, fail closed naming the per-note key.
+                unparseable.push(key);
+            }
+        });
+        // A non-boundary remainder (un-fenced scratch mixed with fenced notes, or an all-scratch file)
+        // fails closed naming the file — never a silent read (WR-01 / WR-02).
+        if (split.trailingMalformed !== null) {
             unparseable.push(file);
         }
     }
@@ -427,7 +462,10 @@ export function writeThread(task, agent, body, contextRoot = DEFAULT_CONTEXT_ROO
 // Mirrors context-io's composeNote frontmatter shape (id: first) so the compaction step parses a
 // thread record identically to a promoted note. The id is the frozen creation-time noteId() value.
 function composeThreadNote(note, body) {
-    const id = `${note.at.replace(/[-:]/g, "").replace(/\.\d+/, "")}-${note.by}-${note.kind}-${randomUUID().slice(0, 8)}`;
+    // IN-01: the frozen id comes from the single exported noteId() — the SAME formula a promoted
+    // counterpart's id is produced by (context-io.appendNote/emitVerdict). A thread note's id therefore
+    // cannot drift in shape from the promoted-side id the id-keyed carve-out match depends on.
+    const id = noteId(note);
     const refsBlock = note.refs.length === 0 ? "refs:\n" : "refs:\n" + note.refs.map((r) => `  - ${r}`).join("\n") + "\n";
     return ("---\n" +
         `id: ${id}\n` +
