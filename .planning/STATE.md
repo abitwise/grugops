@@ -6,14 +6,14 @@ current_phase: 22
 current_phase_name: memory-trajectory-compaction-dialable-token-economy
 status: executing
 stopped_at: "Phase 22 gap-closure ROUND 8 (22-09) PLANNED + plan-checked (opus gsd-plan-checker = VERIFICATION PASSED; 2 non-blocking hardening WARNINGs folded into the plan by the orchestrator) — READY TO EXECUTE. This round closes the 7th CMP-02 bypass (leading-blank/junk fence-open silent-absorb) AND the whole silent-absorb CLASS via the USER-CHOSEN architecture: UNIFY THE TWO PARSERS. splitNotes' note-boundary decision is derived from parseNote itself — slice the candidate region from each column-0 `---` open to its first `\\n---` close (the span parseNote's `^---\\n([\\s\\S]*?)\\n---` non-greedy regex picks), call parseNote, and treat it as a boundary IFF parseNote(region) is non-null AND id-bearing. The bespoke boundary AUTHORITY (isBoundaryAt's looksLikeFrontmatterLine(lines[i+1]) gate + the hand-rolled opensIdBearingRun line scan) is REMOVED (grep==0, hardened per plan-checker WARNING so no demoted helper can silently regain authority — the exact drift that recurred 7×). After this there is ONE fence grammar; splitNotes and parseNote CANNOT drift. CLOSURE EVIDENCE is structural, not enumerative: a parseNote-ORACLE property/table fuzz test generates note #2 across {leading blanks}×{junk/heading}×{indent}×{kind-first/id-first}×{trailing-ws}×{LF/CRLF} and asserts the class invariant for EVERY variant (would catch a hypothetical shape #9), PLUS held-out RED-first end-to-end tests through the COMMITTED `node scripts/compactor.js check` for blank-first/junk-first/CRLF (each burying a §14-gate-verified failed-attempt via the sanctioned writeThread free-scratch path) — RED (exit 0 'carve-out intact') against the committed pre-fix .js, GREEN (exit 1 naming the dropped id) after the fix. Non-regression PINNED with tests: round-5 body-`---` win (id-less embedded `---…---` stays body), the 3 round-7 shapes (kind-first recovered / indented gated / trailing-space `--- ` refused — parseNote's `^---\\n` rejects `--- \\n`), byte round-trip, CRLF-first, an inter-note tiling unit (id-less block BETWEEN two real notes → exactly 2 notes + byte round-trip, added per plan-checker WARNING), and a re-cast writer-order guard (pins parseNote-acceptability + an id, not field order). D-13 byte-fresh committed .js (npm run freshness exit 0). OUT OF SCOPE (frozen/deferred): Fork B/write-path, readContext, noteId, CMP-01, CMP-03, WR-03 (fail-SAFE), WR-02-broader, IN-02-broader. Standing lesson re-affirmed: a green vitest suite is NOT closure for this safety invariant — the proof is the held-out RED→GREEN run end-to-end against the committed .js plus the parseNote-oracle class invariant. Next: /gsd-execute-phase 22 (round 8)."
-last_updated: "2026-06-19T16:42:00.000Z"
+last_updated: "2026-06-19T14:45:12.720Z"
 last_activity: 2026-06-19
-last_activity_desc: Planned Phase 22 round 8 (22-09) — UNIFY the two parsers (splitNotes' boundary derived from parseNote, one grammar, can't drift) to kill the silent-absorb CLASS; opus plan-checker = VERIFICATION PASSED, 2 hardening WARNINGs folded in (opensIdBearingRun removal grep==0; inter-note tiling test); parseNote-oracle fuzz test = first-class class-closure evidence. Ready to execute.
+last_activity_desc: Phase 22 execution started
 progress:
   total_phases: 7
   completed_phases: 3
-  total_plans: 16
-  completed_plans: 16
+  total_plans: 17
+  completed_plans: 17
   percent: 43
 ---
 
@@ -28,10 +28,10 @@ See: .planning/PROJECT.md (updated 2026-06-16 — after v1.2 milestone)
 
 ## Current Position
 
-Phase: 22 (memory-trajectory-compaction-dialable-token-economy) — ROUND 8 PLANNED (ready to execute)
-Plan: 9 of 9 (22-09 round-8 gap closure planned + plan-checked)
-Status: Round-8 plan (22-09) PLANNED & plan-checker PASSED (opus). Architecture = UNIFY the two parsers: splitNotes' boundary derived from parseNote (one grammar, can't drift) — kills the silent-absorb CLASS, not just the 7th shape. parseNote-oracle fuzz test + held-out RED-first e2e (blank/junk/CRLF via writeThread free-scratch through the committed compactor.js) are the closure proof; a green suite is NOT closure for this safety invariant. Ready to execute.
-Last activity: 2026-06-19 — Phase 22 round 8 (22-09) planned: unify-the-parsers, parseNote-grounded boundary, anti-whack-a-mole parseNote-oracle fuzz test; opus plan-checker PASSED + 2 hardening WARNINGs folded in
+Phase: 22 (memory-trajectory-compaction-dialable-token-economy) — EXECUTING
+Plan: 2 of 9
+Status: Ready to execute
+Last activity: 2026-06-19 — Phase 22 execution started
 
 ## Performance Metrics
 
@@ -169,6 +169,7 @@ Last activity: 2026-06-19 — Phase 22 round 8 (22-09) planned: unify-the-parser
 | Phase 22 P06 | 11m | 4 tasks | 6 files |
 | Phase 22 P07 | 32min | 4 tasks | 6 files |
 | Phase 22 P08 | 21min | 3 tasks | 4 files |
+| Phase 22 P09 | 12 | 3 tasks | 4 files |
 
 ## Accumulated Context
 
@@ -385,6 +386,7 @@ Recent decisions affecting current work:
 - [Phase 22]: 22-08: Fork A (read-path-only) splitNotes fail-closure — recover OR refuse, never silently absorb; the safety floor is fail-closure, broadened recognition is a usability layer on top
 - [Phase 22]: 22-08: note boundary keyed on an id-bearing frontmatter run so a kind-first note is recovered while an id-less embedded body fence stays body (round-5 win preserved)
 - [Phase 22]: 22-08: isRecognizedFrontmatterLine single exported source-of-truth grammar shared by parseNote + splitNotes (no drift); writer-order guard pins composeNote/composeThreadNote field order
+- [Phase ?]: 22-09 round-8: UNIFY splitNotes' boundary with parseNote (boundary iff parseNote(region) non-null AND id-bearing); looksLikeFrontmatterLine(lines[i+1]) + opensIdBearingRun removed as authority (grep==0, .ts+.js); 7th CMP-02 silent-absorb bypass + the CLASS closed (parseNote-oracle fuzz); Fork B frozen.
 
 ### Pending Todos
 
@@ -434,7 +436,7 @@ Items acknowledged and deferred at the **v1.2 milestone close on 2026-06-16** (1
 
 ## Session Continuity
 
-Last session: 2026-06-19T13:19:38.982Z
+Last session: 2026-06-19T14:44:34.150Z
 Stopped at: Completed 22-08-PLAN.md (round-7 CMP-02 fail-closed read-path gap closure) — awaiting Phase 22 re-verification
 Resume file: None
 
