@@ -1,193 +1,260 @@
 ---
 phase: 22-memory-trajectory-compaction-dialable-token-economy
-verified: 2026-06-19T15:10:00Z
+verified: 2026-06-19T16:40:00Z
 status: gaps_found
 score: 6/8 must-haves verified
 behavior_unverified: 0
 overrides_applied: 0
-round: 6
+round: 7
 re_verification:
   previous_status: gaps_found
-  previous_score: 3/4
-  previous_round: 5
+  previous_score: 6/8
+  previous_round: 6
   gaps_closed:
-    - "Multi-note thread file (the 5th-bypass shape) is closed FOR ID-FIRST NOTES: a §14-gate-verified finding buried as note #2+ with id-first frontmatter ordering is now recovered via splitNotes and its drop refused (RED→GREEN vs committed .js, 22-07-RED/GREEN evidence, independently re-confirmed)."
-    - "IN-01: composeThreadNote reuses the exported noteId; no inline id formula remains (grep-confirmed)."
-    - "trailingMalformed leading-scratch remainder routed to NoteDirResult.unparseable fail-closed channel."
+    - "splitNotes/parseNote DRIFT (the 6th bypass) is closed for the THREE plan-named shapes: a kind-first note #2 is RECOVERED (count=2), an indented-`id:` note #2 is RECOVERED then refused downstream by checkCarveOut gate (a), and a trailing-space `--- ` boundary note #2 is REFUSED (count=1 + non-null trailingMalformed → unparseable). Independently re-confirmed against the committed scripts/context-io.js — none of the three silently absorbs. The `/^id:/`-only boundary key is gone; a shared exported `isRecognizedFrontmatterLine` predicate now backs the parser's malformed decision and the splitter's frontmatter-looking test."
+    - "Writer-order guard: a structural test now pins BOTH composeNote and composeThreadNote field order to the splitter (a future reorder fails RED), closing the unguarded coupling the round-6 verifier refused to certify."
+    - "Test #3 replaced with a discriminating RED-first non-boundary-remainder-after-note-#2 case (refused naming <agent>.md), with the safe-non-goal comment for trailing free scratch present."
+    - "Byte-fresh committed .js (D-13): npm run freshness exits 0 (17 committed .js fresh); full non-e2e suite 418 passed / 1 skipped / 0 failed — independently re-confirmed."
   gaps_remaining:
-    - "splitNotes/parseNote DO drift: the boundary predicate is /^id:/ (id-first only, context-io.ts:273) — a STRICT SUBSET of parseNote's recognized-line set, NOT the shared grammar the must_have requires. A kind-first / indented-id / trailing-space-boundary note #2 is folded silently into note #1's body (no fail-closed signal) → a §14-gate-verified finding dropped at exit 0. This is the 6th distinct CMP-02 bypass, independently reproduced end-to-end through the committed CLI and reachable via the sanctioned writeThread free-scratch path."
+    - "A 7th DISTINCT CMP-02 silent-absorb bypass (SAME class as the 6th): a note #2 whose fence OPENS with a leading blank line (`---\\n\\nid: …`) or a leading junk line (`---\\n# heading\\nid: …`) is parsed CLEAN by parseNote (non-null, no malformedLines) yet is NOT recognized as a boundary by splitNotes, so it folds silently into note #1's body (count=1, trailingMalformed=null, malformedLines=[]). A §14-gate-verified failed-attempt buried this way is dropped from the promoted set and `node scripts/compactor.js check` exits 0 'carve-out intact'. Root cause: isBoundaryAt requires looksLikeFrontmatterLine(lines[i+1]) — the line IMMEDIATELY after `---` — but opensIdBearingRun and parseNote BOTH tolerate a leading blank/junk line before `id:`. The boundary heuristic is again NARROWER than parseNote's actual fence grammar. Reproduced at the splitNotes unit level AND end-to-end through the committed CLI (transcripts below). Also reproduces with CRLF line endings."
   regressions: []
 gaps:
-  - truth: "splitNotes and parseNote share ONE recognized-line set (a single source-of-truth boundary grammar, IN-02) ... splitNotes cannot drift from parseNote ... if they could drift, that would be the 6th bypass."
+  - truth: "FAIL-CLOSURE CLASS INVARIANT: splitNotes silently absorbs NOTHING fence-ish — a fence-ish region is EITHER recovered as a parsed note OR loudly refused, NEVER silently swallowed into a prior note's body, regardless of which exotic shape an adversary picks (must_have truth #1; prohibition 'NO SILENT BODY-ABSORPTION')."
     status: failed
     reason: >
-      The implementation does NOT share parseNote's recognized-line set. The note boundary is
-      `column-0 ---` followed specifically by an `id:` line (isNoteOpeningLine = /^id:/, context-io.ts:273),
-      a STRICT SUBSET of parseNote's grammar — not "the SAME set." This IS the drift the must_have
-      names as "the 6th bypass." Independently reproduced end-to-end through the committed
-      `node scripts/compactor.js check`: a two-note thread file whose note #2 is KIND-FIRST (id on the
-      second frontmatter line) folds the §14-gate-verified finding (verified_by: §14-gate#RUN7) into
-      note #1's body. splitNotes returns count=1, trailingMalformed=null, malformedLines=[] (NO
-      fail-closed signal), and the CLI exits 0 "carve-out intact" while the verified finding is dropped
-      from the promoted set. Same silent drop reproduced for an indented `id:` and a `--- `
-      (trailing-space) boundary line. This violates SC2 ("Compaction never drops a load-bearing field —
-      verified_by ... survive compaction") and the plan's CLASS-level round-trip invariant (must_have
-      truth #1). Crucially this is worse than the reviewer's WR-01 framing ("latent / not
-      writer-reachable"): the writeThread no-`note` free-scratch path glues ARBITRARY agent body bytes
-      into the same threads/<agent>.md, and the plan's own threat model (22-07-PLAN.md:519) declares
-      that file an adversarial boundary ("a single file holds MANY adversary-authored note fences; the
-      oracle must recover EVERY note"). A kind-first fence in free scratch is adversary-authored note
-      content and is dropped silently. Two sanctioned writeThread calls reproduce the exact file.
+      The class invariant does NOT hold. A 7th distinct silent-absorb bypass — the same class as the
+      6th — is reproducible against the COMMITTED scripts/compactor.js. A note #2 whose opening fence's
+      FIRST in-fence line is a blank line (`---\n\nid: …`) or a junk/heading line (`---\n# heading\nid: …`)
+      is parsed as a CLEAN note by parseNote (non-null, malformedLines=[], id/kind/verified_by all
+      populated) but is NOT seen as a boundary by splitNotes. splitNotes(note1 + note2_blank) returns
+      EXACTLY the forbidden signature the prohibition names: notes.length=1, trailingMalformed=null,
+      malformedLines=[] — note #2 is silently folded into note #1's body. The §14-gate-verified
+      failed-attempt buried this way (verified_by: §14-gate#RUN7) never becomes a parsed fence, never
+      enters the id-keyed required-survival set, and the CLI exits 0 "carve-out intact" while the
+      verified finding is dropped from the promoted set. This violates SC2 ("Compaction never drops a
+      load-bearing field — verified_by / failed-attempt / supersedes / by / at survive compaction") and
+      must_have truth #1's class-level promise ("regardless of which exotic shape an adversary picks").
+
+      ROOT CAUSE (precise): in scripts/context-io.ts, `isBoundaryAt(i)` (lines 416-420) hard-requires
+      `looksLikeFrontmatterLine(lines[i + 1])` — the line IMMEDIATELY after the `---`. But
+      `opensIdBearingRun(i)` (lines 406-415) AND `parseNote` (lines 253-310) BOTH tolerate a leading
+      blank line (`if (l.trim() === "") continue;` / the parse loop skips blanks) and a junk line (it is
+      recorded as malformed but parseNote still returns non-null). So a fence opening with a blank/junk
+      first line passes parseNote cleanly-enough but fails isBoundaryAt's `lines[i+1]` gate → the region
+      is never a boundary → silent body-absorb. The round-7 fix broadened the boundary KEY (shared
+      `isRecognizedFrontmatterLine`, trailing-whitespace-tolerant `isBoundaryShapedLine`, id-bearing-run
+      detection) but left the candidate-boundary trigger as a single-line `lines[i+1]` heuristic — once
+      again NARROWER than parseNote's real fence grammar. This is whack-a-mole on the same class the
+      plan's objective explicitly set out to kill ("Broadening recognition alone is whack-a-mole … the
+      PRIMARY safety mechanism is FAIL-CLOSURE, not recognition").
+
+      WRITER-REACHABLE (not hand-authored): note #2's blank-first bytes are glued onto the same
+      threads/<agent>.md via the SANCTIONED writeThread no-`note` free-scratch path (compactor.ts:571-573),
+      exactly the adversarial boundary the plan's own threat model declares ("a single file holds MANY
+      adversary-authored note fences; the oracle must recover EVERY note"). Two sanctioned writeThread
+      calls reproduce the exact file (transcript below).
     artifacts:
       - path: "scripts/context-io.ts"
-        issue: "isNoteOpeningLine (line 273) = /^id:/ is column-0-and-id-first only; isBoundaryAt (line 324) requires lines[i] === '---' (exact). Any boundary miss (kind-first, indented id, trailing-space ---) folds the note into a prior body with NO malformedLines / NO trailingMalformed / NO parse-null — it bypasses ALL round-4/5 fail-closed gates because the buried note never becomes a parsed fence. There is no guard or test coupling the writers' field order to the splitter (grep-confirmed)."
+        issue: >
+          isBoundaryAt (lines 416-420) gates the candidate boundary on
+          `looksLikeFrontmatterLine(lines[i + 1])` (the immediate next line). opensIdBearingRun
+          (lines 406-415) and parseNote (lines 253-310) tolerate a leading blank/junk line before the
+          first recognized frontmatter line, so the splitter's i+1 trigger is a STRICT SUBSET of the
+          regions parseNote will parse as a note. A `---\n\nid:…` or `---\n# heading\nid:…` fence is
+          parsed clean by parseNote yet yields count=1 / trailingMalformed=null in splitNotes (silent
+          absorb). The candidate-boundary / fail-closure decision must be complete with respect to
+          parseNote's fence grammar, not a single lines[i+1] line-shape test.
       - path: "scripts/compactor.ts"
-        issue: "readNoteDir (lines 190-203) trusts splitNotes' boundary recognition; when splitNotes returns count=1 for a real two-note file, the buried verified finding never reaches the id-keyed required-survival set, so checkCarveOut cannot refuse its drop."
+        issue: >
+          readNoteDir (lines 183-211) trusts splitNotes' boundary recognition; when splitNotes returns
+          count=1 for a real two-note file, the buried §14-gate-verified note never reaches the id-keyed
+          required-survival set, so checkCarveOut (lines 237+) cannot refuse its drop — the CLI exits 0.
     missing:
-      - "EITHER restore a genuinely SHARED boundary grammar: a boundary is `column-0 ---` followed by ANY recognized parseNote frontmatter line, so splitNotes cannot drift from parseNote — disambiguating a body's embedded `---key:value---` block by fence STRUCTURE (a true note's opening fence CLOSES with a `---` and the inter-fence region is its frontmatter), NOT by the id-first shortcut, so the body-`---` test still passes."
-      - "OR keep id-first but make the invariant SELF-CHECKING and fail-closed: (a) a structural guard/test asserting BOTH composeNote and composeThreadNote emit `id:` as the first frontmatter line (so a future field-reorder fails red, not silent); AND (b) splitNotes must FAIL CLOSED — route to trailingMalformed/unparseable — whenever a `---` line is followed by a frontmatter-looking line (`<key>:` at any indent) that is NOT a recognized id-first boundary, instead of silently absorbing it into a body."
-      - "A held-out RED-first test (against the committed pre-fix .js) for the kind-first / indented-id / trailing-space-`---` buried-verified-finding shapes, driven end-to-end through `node scripts/compactor.js check`, asserting exit 1 naming the dropped id."
-  - truth: "Fail closed, never silent: a trailing non-blank, non-fence remainder ... is surfaced as trailingMalformed and routed into NoteDirResult.unparseable (WR-01)"
-    status: partial
-    reason: >
-      The fail-closed channel works ONLY for a LEADING un-fenced remainder (scratch-then-fence).
-      Round-6 test #3 was reframed from scratch-LAST to scratch-FIRST and NO LONGER discriminates the
-      fix — it passes against the PRE-FIX committed .js (22-REVIEW.md WR-02). I confirm the executor's
-      safety claim is TRUE for FREE scratch (the no-`note` path carries no fenced provenance field, so
-      trailing free scratch cannot smuggle a load-bearing field) — so this is NOT itself a load-bearing
-      drop. BUT the same byte-absorption is the mechanism by which a buried kind-first FENCED note is
-      swallowed (gap #1). Listed as partial because test #3 is non-discriminating filler and must not
-      be counted as evidence of the round-6 closure.
-    artifacts:
-      - path: "scripts/compactor.test.ts"
-        issue: "round-6 test #3 (scratch-then-fence) passes against pre-fix code → does not discriminate the fix; non-discriminating filler."
-    missing:
-      - "Replace test #3 with a RED-first multi-note case that exercises the new read path (note #1 fenced, a non-boundary fence-shaped remainder after note #2, refused naming <agent>.md, RED against the pre-fix .js), plus an explicit comment that trailing FREE scratch carries no provenance by construction (deliberate safe non-goal)."
+      - "Make the candidate-boundary / fail-closure decision parseNote-grammar-COMPLETE: it must NOT hinge on `lines[i+1]` looking like frontmatter. EITHER (a) when scanning for the frontmatter run that opens after a `---`-shaped line, tolerate the SAME leading blank/junk lines parseNote tolerates (so a `---\\n\\nid:…` / `---\\n# heading\\nid:…` region is recognized as opening an id-bearing run), OR (b) fail closed on ANY column-0 `---`…`---` region that parseNote would parse as a note (or that contains an id-looking line) but splitNotes did not surface — route it to trailingMalformed/unparseable rather than into a prior body."
+      - "A held-out RED-first test (against the committed pre-fix .js) for the leading-blank-fence and leading-junk-fence buried-verified-finding shapes, constructed via the sanctioned writeThread free-scratch path and driven end-to-end through `node scripts/compactor.js check`, asserting exit 1 naming the dropped id. Include a CRLF variant (it reproduces under CRLF too)."
+      - "A splitNotes unit assertion that a `---\\n\\nid:…` and a `---\\n# heading\\nid:…` two-note input NEVER returns count=1 / trailingMalformed=null (the silent-absorb signature) — it must recover (count grows) or refuse (non-null trailingMalformed)."
 deferred:
-  - truth: "WR-03: a faithful note whose body legitimately contains `---\\nid:` is falsely refused (writer-reachable false-positive; fails SAFE)"
-    addressed_in: "follow-up round (out of scope per 22-07-PLAN.md; fails in the SAFE direction — refuse not admit)"
-    evidence: "22-REVIEW.md WR-03 — usability defect to track, not a security bypass"
-  - truth: "WR-02 (readContext fail-OPEN) and broader IN-02 (unknown-key allowlist in validate())"
-    addressed_in: "explicitly deferred by 22-07-PLAN.md OUT OF SCOPE block"
-    evidence: "22-07-PLAN.md:122-128 — readContext untouched (confirmed); validate() got no unknown-key allowlist (confirmed)"
+  - truth: "WR-03: a faithful note whose body legitimately contains a `---`+frontmatter sequence is loudly refused (usability false-positive; fails SAFE — refuse, not admit)"
+    addressed_in: "follow-up round (out of scope per 22-08-PLAN.md OUT OF SCOPE block; fails in the SAFE direction)"
+    evidence: "22-08-PLAN.md lines 170-173 — WR-03 explicitly deferred, fail-SAFE"
+  - truth: "WR-02-broader (readContext fail-OPEN `if (!parsed) continue;`) and IN-02-broader (unknown-key allowlist / typo-laundering in validate())"
+    addressed_in: "follow-up round (out of scope per 22-08-PLAN.md OUT OF SCOPE block)"
+    evidence: "22-08-PLAN.md lines 170-174 — both broader classes explicitly out of scope for round 7"
 ---
 
-# Phase 22: Memory & Trajectory Compaction Verification Report (Round 6, plan 22-07)
+# Phase 22: Memory & Trajectory Compaction Verification Report (Round 7)
 
-**Phase Goal:** Bound the multi-agent token tax with two-tier memory — verbose local trajectory stays in the agent's thread; only compact, re-verified distillations promote to the shared context — landed before parallel fan-out makes the cost real.
+**Phase Goal:** Bound the multi-agent token tax with two-tier memory. CMP-01 (two-tier compaction) and CMP-03 (the `context.compaction` dial + Workflow 18) are VERIFIED and untouched. The open requirement is **CMP-02 / SC2**: the load-bearing-field carve-out oracle (`scripts/compactor.js check`) must be an un-cheatable mechanical floor — no §14-gate-verified finding / required failed-attempt may be silently dropped on the way from the raw multi-note thread to the promoted notes.
 
-**Verified:** 2026-06-19T15:10:00Z
+**Verified:** 2026-06-19T16:40:00Z
 **Status:** gaps_found
-**Re-verification:** Yes — round 6, after the 5th-bypass (multi-note thread file) gap closure.
+**Re-verification:** Yes — round 7, after the 22-08 round-7 gap-closure plan.
 
 ## Goal Achievement
 
-Round 22-07 touches ONLY CMP-02 / SC2 (the load-bearing-field carve-out). CMP-01 and CMP-03 were verified earlier and are confirmed untouched. Verification focus: SC2 as a SAFETY INVARIANT bypassed FIVE times across rounds 1–5. Green tests are necessary but NOT sufficient — proof is RED→GREEN reproduction against the committed scripts/compactor.js plus a CLASS-level invariant.
+### Observable Truths
 
-### Observable Truths (the 22-07 must_have set)
+| #   | Truth (round-7 must-have)                                      | Status     | Evidence |
+| --- | -------------------------------------------------------------- | ---------- | -------- |
+| 1   | FAIL-CLOSURE CLASS INVARIANT — splitNotes silently absorbs NOTHING fence-ish, regardless of exotic shape | ✗ FAILED | 7th distinct silent-absorb bypass reproduced (leading-blank / leading-junk fence open) at the splitNotes unit level AND end-to-end through the committed CLI. count=1 / trailingMalformed=null / malformedLines=[] — the exact forbidden signature. |
+| 2   | BROADENED RECOGNITION (shared `isRecognizedFrontmatterLine`, kind-first + indented recovered, no drift) | ✓ VERIFIED | `isRecognizedFrontmatterLine` exported (context-io.ts:208) and consulted by parseNote (line 303) and splitNotes (via looksLikeFrontmatterLine + opensIdBearingRun). kind-first → count=2 (recovered); indented-`id:` → count=2 (recovered, gated downstream). `/^id:/`-only key gone. |
+| 3   | BODY-`---` PRECISION PRESERVED (no round-5 regression) | ✓ VERIFIED | The BODY-`---` ambiguity test passes in the full suite (418 passed); an id-less embedded `---\nkey: value\n---` block stays note #1's body (boundary keyed on an id-bearing run). |
+| 4   | SELF-CHECKING WRITER-ORDER GUARD for composeNote AND composeThreadNote | ✓ VERIFIED | Guard tests present in both context-io.test.ts (composeNote) and compactor.test.ts (composeThreadNote via writeThread); both pass; a reorder breaking the id-bearing run would fail RED. |
+| 5   | HELD-OUT RED-FIRST END-TO-END for the THREE named boundary-miss shapes (kind-first / indented / trailing-space) | ✓ VERIFIED | 22-08-RED-baseline.txt (exit 0 "carve-out intact" pre-fix) → 22-08-GREEN-proof.txt (exit 1 naming the dropped id / refused file post-fix), end-to-end through the committed CLI, each via the writeThread free-scratch path. Re-confirmed: all three are closed (no silent absorb). |
+| 6   | TEST #3 REPLACED / discriminating (non-boundary remainder after note #2; safe-non-goal comment) | ✓ VERIFIED | Round-6 non-discriminating scratch-then-fence test replaced; safe-non-goal comment present; suite green. |
+| 7   | BYTE-FRESH COMMITTED .js (D-13), freshness 0, suite green | ✓ VERIFIED | `npm run freshness` exit 0 (17 committed .js fresh); `npx vitest run --exclude '**/scripts/e2e/**'` = 418 passed / 1 skipped / 0 failed. Independently re-run. |
 
-| # | Truth | Status | Evidence |
-|---|-------|--------|----------|
-| 1 | CLASS INVARIANT: read path recovers EXACTLY the per-note set the write path emitted, or fails closed | ✗ FAILED | Holds for id-first notes only. A kind-first note #2 yields count=1 / trailing=null → verified finding dropped at exit 0 (reproduced end-to-end through committed CLI). |
-| 2 | Round-trip: writeThread×2 → readNoteDir recovers the exact id-set (RED→GREEN vs committed .js) | ✓ VERIFIED | 5 round-6 tests RED→GREEN against committed .js (22-07-RED/GREEN; orchestrator independently re-confirmed). Valid **for id-first notes**. |
-| 3 | Body-byte round-trip (body-consuming splitter); body survival required for exit 0 | ✓ VERIFIED | splitNotes is body-consuming; `notes.join('')+(trailingMalformed??'')` round-trips byte-for-byte (independently re-confirmed). |
-| 4 | splitNotes and parseNote share ONE recognized-line set; cannot drift; drift = 6th bypass | ✗ FAILED | **They DO drift.** Boundary = /^id:/ (strict subset, context-io.ts:273), not parseNote's set. The 6th bypass is live and reproduced. Decisive gap. |
-| 5 | Body `---` is not a boundary; a buried §14-gate note #2 after a body block is still recovered | ⚠️ PARTIAL | The body-`---`/embedded-block case (note #2 id-first) is correctly handled. But the same narrow precision excludes a real kind-first note #2 (gap #1). |
-| 6 | Fail closed, never silent: a trailing/leading non-fence remainder → unparseable | ⚠️ PARTIAL | Leading scratch fails closed (works). Trailing free scratch absorbed as body (safe for free scratch; same absorption hides kind-first fences — gap #1). Test #3 non-discriminating. |
-| 7 | IN-01 closed: composeThreadNote reuses exported noteId; no inline id formula | ✓ VERIFIED | `export function noteId` (context-io.ts:524); composeThreadNote calls noteId(note) (compactor.ts:588); inline `.replace(/[-:]/g` count = 0. |
-| 8 | RED→GREEN reproducible against the COMMITTED compactor.js | ✓ VERIFIED | 22-07-RED-baseline.txt (exit 0 "carve-out intact") → 22-07-GREEN-proof.txt (exit 1 naming dropped id); independently re-confirmed; freshness exit 0; 409 passed / 1 skipped. |
+**Score:** 6/8 truths verified (the two failing items are truth #1 and its sibling prohibition "NO SILENT BODY-ABSORPTION").
 
-**Score:** 6/8 truths verified (truths #1 and #4 FAILED; both turn on the same id-first/no-drift defect).
+> Truth #1 is the decisive, load-bearing class invariant. It is FAILED. SC2 / CMP-02 is therefore NOT closed. SC1 / SC3 / SC4 (CMP-01, CMP-03 dial, CMP-03 Workflow 18) remain VERIFIED and untouched.
 
-## The decisive adjudication (the two findings)
+### Prohibitions
 
-### Finding 1 (id-first boundary deviation) — does the codebase satisfy "share ONE grammar so they CANNOT drift"?
+| Prohibition | Status | Evidence |
+| ----------- | ------ | -------- |
+| NO SILENT BODY-ABSORPTION (count=1 / trailingMalformed=null / malformedLines=[] on a region with a frontmatter-looking line after a `---`-ish line is FORBIDDEN) | ✗ VIOLATED | Reproduced exactly: blank-first and junk-first note #2 → count=1, trailingMalformed=null, malformedLines=[]. This is the verbatim forbidden signature. |
+| NO WRITER FIELD-ORDER COUPLING LEFT UNGUARDED | ✓ HELD | Writer-order guard tests present for both writers (truth #4). |
+| NO WRITE-PATH CHANGE (Fork B rejected) | ✓ HELD | writeThread / composeThreadNote emitted bytes unchanged; threads/<agent>.md representation frozen. |
+| NO CORPUS-NARROWING SATISFACTION | ✓ HELD | The three named boundary-miss tests are present, RED-first, and exercise the writeThread free-scratch path; no fixture narrowed. |
 
-**No. It satisfies only the weaker "they don't drift today because writers happen to be id-first" — and even that weaker claim fails in practice because the raw thread file accepts arbitrary agent bytes via the free-scratch path.**
-
-I did not rubber-stamp the SUMMARY. I independently reproduced a LIVE exit-0 drop of a §14-gate-verified finding through the committed CLI:
-
-- `splitNotes(id-first note1 + kind-first note2)` → `count=1, trailingMalformed=null, malformedLines=[]`. The verified finding (`verified_by: §14-gate#RUN7`) is folded into note #1's body.
-- `node scripts/compactor.js check <raw> <promoted>` with the finding dropped from the promoted set → **`carve-out intact ... EXIT=0`**. The verified finding was silently dropped.
-- The file is producible by **two sanctioned `writeThread` calls** (note #1 structured path; note #2 via the no-`note` free-scratch path with kind-first bytes the agent chose). Writer-reachable, not merely hand-authored.
-- Same silent drop for an indented `id:` and a `--- ` trailing-space boundary line.
-
-This is the **6th distinct CMP-02 bypass**, in exactly the family the plan's own must_have #4 names ("if they could drift, that would be the 6th bypass"). The closure rests on an **undocumented, untested, unguarded** "every writer emits id: first" invariant — no structural guard, no test (grep-confirmed). A benign field-reorder of composeNote, or any free-scratch the agent shapes as a kind-first fence, re-opens the hole with a fully green suite. An unguarded coupling is NOT an acceptable foundation for an "un-cheatable mechanical floor." SC2 does not hold as stated.
-
-### Finding 2 (test #3 reframe) — does the non-discriminating test weaken the SC2 proof?
-
-**Yes, as test-integrity. The underlying safety claim is TRUE, but the test must not be counted as evidence.**
-
-I confirm: trailing FREE scratch (no-`note` path) carries no fenced provenance field, so it cannot smuggle a load-bearing field — that gap is safe. But test #3 (reframed scratch-then-fence) passes against the PRE-FIX code (22-REVIEW.md WR-02), so it does not discriminate the fix. More importantly, the very byte-absorption that makes trailing scratch "safe" is the SAME mechanism that hides a kind-first FENCED note (gap #1): splitNotes silently absorbs unrecognized fence-shaped content into a body instead of failing closed. The SC2 proof is weakened both by the filler test and by the structural gap beside it.
-
-## Required Artifacts
+### Required Artifacts
 
 | Artifact | Expected | Status | Details |
-|----------|----------|--------|---------|
-| `scripts/context-io.ts` | exported splitNotes sharing parseNote grammar; exported noteId | ⚠️ HOLLOW | splitNotes + noteId exported and wired, BUT splitNotes does NOT share parseNote's grammar (boundary = /^id:/ subset) — the artifact's stated `provides` ("sharing parseNote's fence grammar") is not met. |
-| `scripts/context-io.js` | byte-fresh tsc build | ✓ VERIFIED | `npm run freshness` exit 0. |
-| `scripts/compactor.ts` | readNoteDir iterates splitNotes; per-note keying; trailingMalformed→unparseable; composeThreadNote reuses noteId | ✓ VERIFIED | splitNotes( in readNoteDir; noteId( ×4; unparseable ×18; inline id formula = 0. |
+| -------- | -------- | ------ | ------- |
+| `scripts/context-io.ts` | fail-closed splitNotes + shared recognized-line predicate | ⚠️ PARTIAL | `isRecognizedFrontmatterLine` shared predicate present and reused; trailing-whitespace-tolerant boundary; id-bearing-run detection. BUT the candidate-boundary trigger (`isBoundaryAt`'s `looksLikeFrontmatterLine(lines[i+1])`) is narrower than parseNote's grammar → the 7th silent-absorb bypass. |
+| `scripts/context-io.js` | byte-fresh tsc build | ✓ VERIFIED | freshness exit 0. |
+| `scripts/compactor.ts` | readNoteDir consumes the fail-closed channel; composeThreadNote + guard | ✓ VERIFIED | readNoteDir routes trailingMalformed → unparseable (lines 206-208); checkCarveOut fails closed naming the file. Unchanged-except-guard as planned. |
 | `scripts/compactor.js` | byte-fresh tsc build | ✓ VERIFIED | freshness exit 0. |
-| `scripts/compactor.test.ts` | FIVE held-out RED-first multi-note tests | ⚠️ PARTIAL | 5 exist, 4 genuinely RED→GREEN; test #3 non-discriminating (passes pre-fix). NONE cover the kind-first / indented-id boundary-miss shape — the corpus blind spot that hid the 6th bypass. |
-| `scripts/context-io.test.ts` | splitNotes unit + shared-grammar proof | ⚠️ PARTIAL | 9 tests incl. body-`---`. The "shared-grammar (splitNotes∘parse == parseNote)" assertion exercises only id-first notes, so it does NOT prove no-drift for the failing shapes. |
-| `22-07-RED-baseline.txt` | RED evidence | ✓ VERIFIED | exit 0 "carve-out intact" + 5 failing tests recorded. |
-| `22-07-GREEN-proof.txt` | GREEN evidence | ✓ VERIFIED | exit 1 naming dropped id + freshness exit 0 + 409 passed. |
+| `scripts/compactor.test.ts` | held-out RED-first boundary-miss + guard + replaced test #3 | ⚠️ PARTIAL | Present for the three named shapes; no test for the leading-blank / leading-junk class (the 7th bypass). |
+| `scripts/context-io.test.ts` | fail-closure units + broadened no-drift + composeNote guard | ⚠️ PARTIAL | Present for the three named shapes; no fail-closure unit for the leading-blank / leading-junk class. |
+| `22-08-RED-baseline.txt` | pre-fix exit-0 "carve-out intact" | ✓ VERIFIED | Contains "carve-out intact" for all three named shapes. |
+| `22-08-GREEN-proof.txt` | post-fix exit-1 naming the dropped id | ✓ VERIFIED | Contains "carve-out FAIL"; exit 1 for all three named shapes. |
 
-## Key Link Verification
+### Key Link Verification
 
 | From | To | Via | Status | Details |
-|------|-----|-----|--------|---------|
-| compactor.ts readNoteDir | context-io.ts splitNotes | readNoteDir iterates splitNotes(fileText).notes | ✓ WIRED | compactor.ts:190-203 |
-| context-io.ts splitNotes | context-io.ts parseNote recognized-line set | shared recognized-line set (single source) | ✗ NOT_WIRED | splitNotes uses isNoteOpeningLine (/^id:/), a separate narrower predicate — NOT parseNote's recognized-line set. This is the gap. |
-| compactor.ts composeThreadNote | context-io.ts noteId | reuses exported noteId | ✓ WIRED | composeThreadNote calls noteId(note); inline formula removed |
-| compactor.ts readNoteDir | compactor.ts checkCarveOut unparseable | trailingMalformed → NoteDirResult.unparseable | ✓ WIRED | leading remainder routed; works for scratch-then-fence only |
+| ---- | -- | --- | ------ | ------- |
+| splitNotes boundary recognition | parseNote recognized-line set | shared `isRecognizedFrontmatterLine` predicate | ⚠️ PARTIAL | The shared predicate exists and removes the `/^id:/` drift, but the splitter's candidate-boundary TRIGGER (`lines[i+1]`) is still not complete w.r.t. parseNote's fence grammar (leading blank/junk) — residual drift = the 7th bypass. |
+| splitNotes fail-closure | readNoteDir → NoteDirResult.unparseable | trailingMalformed | ⚠️ PARTIAL | The channel works when splitNotes surfaces a refusal; it never fires for the blank/junk-first fence because splitNotes silently absorbs it (no trailingMalformed produced). |
+| writer-order guard tests | composeNote + composeThreadNote | structural reorder-fails-RED test | ✓ WIRED | Both writers guarded. |
+| held-out boundary-miss tests | committed compactor.js CLI | runCheck / spawnSync end-to-end | ✓ WIRED | For the three named shapes only. |
 
-## Behavioral Spot-Checks (independent, against committed .js)
+### Behavioral Spot-Checks / Probe Execution
 
-| Behavior | Command | Result | Status |
-|----------|---------|--------|--------|
-| Build + freshness | `npm run build && npm run freshness` | All 17 committed .js fresh; exit 0 | ✓ PASS |
-| splitNotes on id-first 2-note file | `node` repro | count=2, both notes recovered | ✓ PASS |
-| splitNotes on kind-first note #2 | `node` repro | **count=1, trailing=null — finding HIDDEN** | ✗ FAIL (6th bypass) |
-| End-to-end CLI drop of kind-first verified finding | `node scripts/compactor.js check` | **EXIT=0 "carve-out intact"** while finding dropped | ✗ FAIL (live SC2 violation) |
-| Kind-first note reachable via writeThread free-scratch | `node` repro (2× writeThread) | file produced; splitNotes count=1 | ✗ FAIL (writer-reachable) |
-| Indented-id / `--- ` boundary note #2 | `node` repro | count=1, trailing=null | ✗ FAIL (same class) |
+Independently reproduced against the COMMITTED `scripts/context-io.js` and `scripts/compactor.js` (working tree clean == HEAD 126d75d; committed .js byte-fresh per `npm run freshness` exit 0). Throwaway ESM harnesses were used and then deleted; the working tree is clean apart from this VERIFICATION.md.
 
-## Requirements Coverage
+**(1) Unit level — splitNotes silently absorbs a leading-blank / leading-junk fence (the 7th bypass):**
+
+```
+--- parseNote of the lone blank-first note #2 in isolation ---
+  parseNote(note2_blank) = NON-NULL  id="DROP-ME-FA-7" kind="failed-attempt" verified_by="§14-gate#RUN7" malformedLines=[]
+=== two-note: note1 + note2 (blank-first fence) ===
+  splitNotes -> notes.length = 1 | trailingMalformed = null
+=== two-note: note1 + note2 (# heading-first fence) ===
+  splitNotes -> notes.length = 1 | trailingMalformed = null
+=== two-note CRLF: note1 + note2 (blank-first) ===
+  splitNotes -> notes.length = 1 | trailingMalformed = null
+
+=== VERDICT ===
+blank-first   : notes=1 trailing=null  SILENT-ABSORB=true
+heading-first : notes=1 trailing=null  SILENT-ABSORB=true
+crlf blank    : notes=1 trailing=null  SILENT-ABSORB=true
+```
+
+note #2 (blank-first) parses CLEAN in isolation (non-null, no malformedLines, id/kind/verified_by populated) yet `splitNotes` folds it into note #1's body with the forbidden `count=1 / trailingMalformed=null / malformedLines=[]` signature. Reproduces for blank-first, `# heading`-first, and CRLF.
+
+**(2) End-to-end — committed `node scripts/compactor.js check` exits 0 dropping a §14-gate-verified failed-attempt:**
+
+Raw thread `threads/engineer.md` built via two SANCTIONED writeThread calls (note #1 structured via the `note` arg; note #2 a §14-gate-verified `failed-attempt` whose fence opens with a blank line, via the no-`note` free-scratch path). Promoted set keeps ONLY note #1.
+
+```
+splitNotes on the raw thread: notes.length=1 trailingMalformed=null
+
+=== node scripts/compactor.js check <threadDir> <promotedDir> ===
+EXIT = 0
+STDOUT: carve-out intact: every failed-attempt id survived and all load-bearing provenance fields are present.
+STDERR:
+
+=== VERDICT ===
+promoted dir kept only note #1; note #2 (verified FA id=20260617T150000Z-engineer-finding-r7blankfirst) was DROPPED.
+CLI exit=0 (0 == "carve-out intact" == SILENT DROP == BYPASS REPRODUCED)
+mentions dropped id = false
+```
+
+The verified failed-attempt `20260617T150000Z-engineer-finding-r7blankfirst` (verified_by `§14-gate#RUN7`) is dropped from the promoted set and the oracle reports "carve-out intact" at exit 0. This is the 7th distinct CMP-02 bypass.
+
+**(3) Root-cause confirmation — the `lines[i+1]` heuristic is the gate:**
+
+```
+""               looksLikeFrontmatterLine = false
+"# heading"      looksLikeFrontmatterLine = false
+"   "            looksLikeFrontmatterLine = false
+"id: X"          looksLikeFrontmatterLine = true
+"kind: finding"  looksLikeFrontmatterLine = true
+```
+
+When `lines[i+1]` is blank or a junk/heading line, `looksLikeFrontmatterLine` returns false, so `isBoundaryAt(i)` returns false and the fence is never a boundary — even though `opensIdBearingRun` (which skips blanks) and `parseNote` (which skips blanks / records junk but still returns non-null) would have accepted it.
+
+**(4) The three round-7 named shapes ARE closed (so round 8 does not redo them):**
+
+```
+kind-first       -> notes=2 trailing=null | SILENT-ABSORB=false
+indented-id      -> notes=2 trailing=null | SILENT-ABSORB=false
+trailing-space   -> notes=1 trailing=NON-NULL | SILENT-ABSORB=false
+```
+
+kind-first → RECOVERED (count=2); indented-`id:` → RECOVERED (count=2, gated downstream); trailing-space `--- ` → REFUSED (count=1 + non-null trailingMalformed). None silently absorbs. Round 7 genuinely closed these three.
+
+**(5) Baseline re-confirmation:**
+
+```
+$ npm run freshness
+  All build outputs fresh: 17 committed .js file(s) match a fresh tsc rebuild.
+  FRESHNESS_EXIT=0
+
+$ npx vitest run --exclude '**/scripts/e2e/**'
+  Test Files  16 passed (16)
+       Tests  418 passed | 1 skipped (419)
+```
+
+### Requirements Coverage
 
 | Requirement | Source Plan | Description | Status | Evidence |
-|-------------|-------------|-------------|--------|----------|
-| CMP-02 | 22-07 | Load-bearing-field carve-out; RED test fails if any dropped | ✗ BLOCKED | SC2 violated — verified_by finding dropped at exit 0 via the 6th bypass (kind-first / boundary-miss). The "RED test" corpus does not cover this shape. |
-| CMP-01 | earlier (22-01/22-02) | Two-tier compaction | ✓ SATISFIED (untouched) | 22-07 commits touch only the 6 declared script files; no dial/two-tier/Workflow-18 change. CMP-01 tests green within the 409-suite. |
-| CMP-03 | earlier (22-01/22-02) | context.compaction dial + re-verify + Workflow 18 | ✓ SATISFIED (untouched) | readContext untouched; dial/re-verify unchanged (diff scope confirmed). |
+| ----------- | ----------- | ----------- | ------ | -------- |
+| CMP-01 | (22-01/22-02) | Two-tier compaction | ✓ SATISFIED | Verified in prior rounds; untouched this round (out of scope per plan). |
+| CMP-02 | 22-08 | Load-bearing-field carve-out oracle | ✗ BLOCKED | SC2 not closed — 7th distinct silent-absorb bypass reproduced end-to-end. |
+| CMP-03 | (22-01/22-02) | `context.compaction` dial + Workflow 18 | ✓ SATISFIED | Verified in prior rounds; untouched this round. |
 
-All three phase requirement IDs accounted for. No orphaned requirements.
+### Success Criteria Coverage (ROADMAP)
 
-## Anti-Patterns Found
+| SC | Statement | Status |
+| -- | --------- | ------ |
+| SC1 | Verbose trajectory stays local; only re-verified distillation promotes | ✓ VERIFIED (CMP-01, untouched) |
+| SC2 | Compaction never drops a load-bearing field; a RED test fails if any is dropped | ✗ FAILED — verified failed-attempt dropped at exit 0 via the leading-blank/junk fence |
+| SC3 | `context.compaction` dial defaults aggressive, documented across three surfaces | ✓ VERIFIED (CMP-03, untouched) |
+| SC4 | Workflow 18 single-source protocol | ✓ VERIFIED (CMP-03, untouched) |
 
-| File | Line | Pattern | Severity | Impact |
-|------|------|---------|----------|--------|
-| scripts/context-io.ts | 273 | Safety invariant depends on an undocumented/unguarded/untested cross-module "id-first" writer contract | 🛑 Blocker | A field-reorder or free-scratch kind-first fence silently re-opens the bypass with a green suite |
-| scripts/context-io.ts | 318-325 | splitNotes silently ABSORBS an unrecognized `---`+frontmatter-looking region into a body instead of failing closed | 🛑 Blocker | Boundary miss = silent note drop, bypassing all round-4/5 fail-closed gates (the note never becomes a parsed fence) |
-| scripts/compactor.test.ts | round-6 test #3 | Non-discriminating test (passes pre-fix) counted as closure evidence | ⚠️ Warning | Weakens the SC2 proof; replace with a RED-first case |
+### Anti-Patterns Found
 
-No `TBD`/`FIXME`/`XXX` debt markers in the modified files.
+No debt markers (TBD / FIXME / XXX) introduced in the touched source. The defect is a logic incompleteness (a single-line candidate-boundary heuristic narrower than the parser's grammar), not a stub or marker.
 
-## CMP-01 / CMP-03 Untouched (confirmed)
+### Human Verification Required
 
-`git diff --name-only 76d4347~1 08d1716` shows only the 6 declared script files + 2 evidence files. No change to the `context.compaction` dial, two-tier separation, re-verify, Workflow 18, or `readContext`. The write-path representation (single multi-note threads/<agent>.md) is unchanged — read-path-only as scoped. CMP-01/CMP-03 tests remain green within the 409-test non-e2e suite.
+None — the gap is mechanically reproducible and conclusively demonstrated above. No human-only (visual / real-time / external-service) verification is needed.
 
-## Gaps Summary
+### Gaps Summary
 
-Round 6 made real, verifiable progress: it genuinely closes the multi-note bypass **for id-first notes**, handles the body-`---`/embedded-block case, closes IN-01, and 4 of 5 tests are honest RED→GREEN against the committed .js. The mechanical scaffolding (splitNotes export, per-note readNoteDir keyed `<file>#<n>`, trailingMalformed→unparseable, byte-fresh .js) is all present and wired.
+Round 7 made real, durable progress and **genuinely closed the three plan-named round-6 boundary-miss shapes** (kind-first recovered, indented-`id:` recovered-then-gated, trailing-space `--- ` refused), introduced the single-source `isRecognizedFrontmatterLine` grammar (removing the `/^id:/` drift), added the self-checking writer-order guard for both writers, replaced the non-discriminating test #3, and kept the committed `.js` byte-fresh with a green suite. Six of eight must-haves are verified.
 
-But SC2 — the un-cheatable mechanical floor — does **not** hold as stated. The boundary predicate `/^id:/` is a strict subset of parseNote's grammar, which is precisely the splitNotes/parseNote DRIFT the plan's must_have #4 forbids ("that would be the 6th bypass"). I independently reproduced, end-to-end through the committed CLI, a §14-gate-verified finding silently dropped at exit 0 when buried as a kind-first note #2 — reachable via the sanctioned writeThread free-scratch path, which the plan's own threat model declares an adversarial boundary. This is the 6th distinct CMP-02 bypass. The suite was green precisely because the corpus never authored a kind-first / boundary-miss note — the same structural test blindness that hid rounds 1–5.
+However, the **decisive load-bearing must-have (truth #1, the FAIL-CLOSURE CLASS INVARIANT) is FAILED**, and its sibling prohibition "NO SILENT BODY-ABSORPTION" is VIOLATED. A **7th distinct CMP-02 bypass — the same silent-absorb class as the 6th** — survives: a note whose opening fence's first in-fence line is a blank line (`---\n\nid: …`) or a junk/heading line (`---\n# heading\nid: …`) is parsed clean by `parseNote` but is not recognized as a boundary by `splitNotes`, so it folds silently into the prior note's body (`count=1 / trailingMalformed=null / malformedLines=[]`). A §14-gate-verified `failed-attempt` buried this way is dropped from the promoted set and the committed `node scripts/compactor.js check` exits 0 "carve-out intact". Reproduced both at the `splitNotes` unit level and end-to-end through the committed CLI (and under CRLF), writer-reachable via the sanctioned `writeThread` free-scratch path.
 
-This is consistent with, and stronger than, the deep code review (22-REVIEW.md WR-01, rated WARNING because it judged the shape "not writer-reachable today"; my free-scratch reproduction shows it IS reachable). Combined with WR-04 (same root cause) and the non-discriminating test #3 (WR-02), the round-6 closure of SC2 cannot be certified.
+The round-7 fix again broadened *recognition* but left the candidate-boundary *trigger* (`isBoundaryAt`'s `looksLikeFrontmatterLine(lines[i+1])`) narrower than `parseNote`'s actual fence grammar — the exact whack-a-mole the plan's objective set out to end. Per the standing lesson (a green vitest suite is not proof for this safety invariant), the suite stayed fully green through this bypass.
 
-**Round-7 closure must** either (a) restore a genuinely shared boundary grammar that still passes the body-`---` test (disambiguating embedded blocks by fence STRUCTURE, not the id-first shortcut), OR (b) keep id-first but make it self-checking: a structural guard + test that both writers emit id-first AND a fail-closed splitNotes that refuses (routes to unparseable) any `---`+frontmatter-looking region it does not recognize as a clean boundary — never silently absorbing it into a body. Plus a held-out RED-first test for the kind-first / indented-id / trailing-space-`---` buried-verified-finding shapes driven through `node scripts/compactor.js check`.
+**Round-8 fix direction (precise):** the candidate-boundary / fail-closure decision must NOT hinge on `lines[i+1]` looking like frontmatter. It must be complete with respect to `parseNote`'s actual fence grammar — i.e. tolerate the SAME leading blank/junk lines `parseNote` tolerates when scanning for the id-bearing run, OR fail closed on ANY column-0 `---`…`---` region that `parseNote` would parse as a note (or that contains an id-looking line) but `splitNotes` did not surface, routing it to `trailingMalformed`/`unparseable` rather than into a prior body. The floor must be parseNote-grammar-complete, not a line-i+1 heuristic. Add held-out RED-first tests for the leading-blank-fence and leading-junk-fence shapes (including a CRLF variant), constructed via the writeThread free-scratch path and driven end-to-end through the committed CLI.
+
+CMP-01 and CMP-03 (SC1 / SC3 / SC4) remain VERIFIED and untouched. Fork B (write-path change) remains rejected; WR-03 / WR-02-broader / IN-02-broader remain correctly deferred.
 
 ---
 
-_Verified: 2026-06-19T15:10:00Z_
-_Verifier: Claude (gsd-verifier)_
+_Verified: 2026-06-19T16:40:00Z_
+_Verifier: Claude (gsd-verifier), round 7_
