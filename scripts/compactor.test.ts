@@ -2306,28 +2306,33 @@ describe("compactor.js — CMP-02 round-7 boundary-miss fail-closure (held-out R
   });
 });
 
-// ── CMP-02 ROUND-7: writer-order guard for composeThreadNote (T-22-08-04) ──────────────────────────
-// The round-6 closure rested on an undocumented, untested "every writer emits id: first" coupling: a
-// benign field-reorder of composeThreadNote would silently re-open the boundary-miss hole with a fully
-// green suite. This guard PINS the coupling. composeThreadNote is not exported, so we exercise its REAL
-// output via mod.writeThread (the sanctioned id-bearing structured-fence path) and assert the on-disk
-// fence is recognized by the read-path splitter (ctxio.splitNotes) as EXACTLY one boundary / one clean
-// note. A future field-reorder of composeThreadNote that broke that recognition fails THIS test RED.
-describe("compactor.js — CMP-02 round-7 writer-order guard (composeThreadNote ↔ splitNotes)", () => {
-  it("WRITER-ORDER GUARD: composeThreadNote's real output is recognized by splitNotes as exactly one clean boundary; a reorder that broke recognition would fail RED", () => {
-    const dir = freshTmp("cmp-r7-writer-guard-");
+// ── CMP-02 ROUND-8: writer-order guard for composeThreadNote, RE-CAST for the UNIFIED design ────────
+// The closure must NOT rest on an unguarded writer↔splitter coupling: a future field-reorder OR an
+// id-drop in composeThreadNote would re-open the hole with a green suite. composeThreadNote is not
+// exported, so we exercise its REAL output via mod.writeThread (the sanctioned id-bearing
+// structured-fence path) and assert the on-disk fence is parseNote-acceptable + id-bearing and
+// recognized by the read-path splitter (ctxio.splitNotes — now grounded on parseNote) as EXACTLY one
+// boundary. Under unification the boundary depends on parseNote-acceptability + an id, not field ORDER,
+// so a reorder that keeps the id is legal (recovered); the guard pins parseNote-acceptability + id
+// presence. A future writer change that broke parseNote-acceptability or dropped the id fails THIS RED.
+describe("compactor.js — CMP-02 round-8 writer-order guard (composeThreadNote ↔ splitNotes, unified)", () => {
+  it("WRITER-ORDER GUARD (unified): composeThreadNote's real output is parseNote-acceptable + id-bearing + exactly one splitNotes boundary; a dropped id loses note status", () => {
+    const dir = freshTmp("cmp-r8-writer-guard-");
     const contextRoot = join(dir, "ctx");
     const threadFile = mod.writeThread("guard-task", "engineer", "The composed thread note body.", contextRoot, {
       kind: "finding",
       by: "engineer",
       at: "2026-06-17T14:23:05Z",
-      verified_by: "§14-gate#RUN7",
+      verified_by: "§14-gate#RUN8",
       confidence: "high",
       refs: ["A"],
       supersedes: null,
     });
     const text = readFileSync(threadFile, "utf8");
-    // The real writer output is exactly one recognized note boundary, clean (no malformed lines).
+    // The real writer output is parseNote-acceptable + id-bearing and exactly one recognized boundary.
+    const parsedReal = ctxio.parseNote(text);
+    expect(parsedReal, "composeThreadNote output must be parseNote-acceptable").not.toBeNull();
+    expect(parsedReal!.scalars.id ?? "", "composeThreadNote output must be id-bearing").not.toBe("");
     const split = ctxio.splitNotes(text);
     expect(split.notes.length, "composeThreadNote output must be exactly one splitNotes boundary").toBe(1);
     expect(split.trailingMalformed).toBeNull();
@@ -2335,18 +2340,18 @@ describe("compactor.js — CMP-02 round-7 writer-order guard (composeThreadNote 
     expect(parsed).not.toBeNull();
     expect(parsed!.malformedLines).toEqual([]);
     expect(parsed!.scalars.id ?? "").not.toBe("");
-    // A perturbed copy whose opening `id:` is reordered after `kind:` (a kind-first reorder) is STILL
-    // recognized by the broadened id-bearing-run grammar (recovered, not silently absorbed). A reorder
-    // that broke the id-bearing run entirely (e.g. dropping id) would not be recovered and would fail
-    // closed — so a future field-reorder of composeThreadNote can never silently re-open the hole.
+    // A field REORDER that KEEPS the id (id after kind) is LEGAL under unification — recovered as exactly
+    // one boundary, parseNote-acceptable + id-bearing — the boundary no longer depends on order.
     const reordered = text.replace(/^id: (.+)\nkind: (.+)\n/m, "kind: $2\nid: $1\n");
     expect(reordered).not.toBe(text);
     const reSplit = ctxio.splitNotes(reordered);
-    const silentlyAbsorbed = reSplit.notes.length === 0 && reSplit.trailingMalformed === null;
-    expect(
-      silentlyAbsorbed,
-      "a reordered composeThreadNote output must be recovered or refused, never silently swallowed",
-    ).toBe(false);
+    expect(reSplit.notes.length, "a reorder that keeps the id is recovered as one boundary").toBe(1);
+    expect(ctxio.parseNote(reSplit.notes[0])!.scalars.id ?? "").not.toBe("");
+    // The RED arm: the id is LOAD-BEARING. A perturbation that DROPS the id loses note status — the
+    // id-keyed carve-out has no id to key on — so a future writer that dropped the id is detectable.
+    const idDropped = text.replace(/^id: .+\n/m, "");
+    expect(idDropped).not.toBe(text);
+    expect(ctxio.parseNote(idDropped)?.scalars.id ?? "").toBe("");
   });
 });
 

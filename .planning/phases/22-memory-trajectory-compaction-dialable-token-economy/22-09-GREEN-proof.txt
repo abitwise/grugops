@@ -1,0 +1,54 @@
+=== CMP-02 round-8 GREEN proof (against the freshly REBUILT committed scripts/compactor.js / context-io.js) ===
+=== captured: 2026-06-19T14:40:59Z ===
+=== git HEAD (pre final commit): 54344e0 ===
+=== npm run freshness: exit 0 (committed .js byte-faithful to .ts, D-13 — re-confirmed below) ===
+
+# THE FIX: splitNotes' note-boundary decision is UNIFIED with parseNote (one grammar). A column-0
+# ---shaped open is a boundary iff parseNote(region) is non-null AND id-bearing (RECOVERED), OR it
+# carries an id-looking line but does not cleanly parse (REFUSED via trailingMalformed). The
+# looksLikeFrontmatterLine(lines[i+1]) gate and the hand-rolled opensIdBearingRun line scan are
+# REMOVED (grep -c both == 0 in context-io.ts and .js) — no re-derived boundary oracle survives to
+# drift. Each fence-open note #2 (blank-first / junk-first / CRLF) was DROPPED at exit 0 'carve-out
+# intact' against the pre-fix .js (see 22-09-RED-baseline.txt). Post-fix the buried §14-gate-
+# verified finding is recovered or refused and the committed CLI exits 1. RED->GREEN END-TO-END.
+
+=== grep gates on the COMMITTED (rebuilt) .js ===
+grep -c 'looksLikeFrontmatterLine(lines[i + 1])' scripts/context-io.js = 0
+grep -c 'opensIdBearingRun' scripts/context-io.js = 0
+grep -c 'looksLikeFrontmatterLine(lines[i + 1])' scripts/context-io.ts = 0
+grep -c 'opensIdBearingRun' scripts/context-io.ts = 0
+
+=== DIRECT CLI on each fence-open shape (REBUILT committed scripts/compactor.js, post-fix) ===
+--- (a) blank-first fence note #2 (buried finding 20260617T150000Z-engineer-finding-r8blankfir) ---
+splitNotes signature: notes.length=2 trailingMalformed=null (SILENT-ABSORB = count=1/trailing=null)
+carve-out FAIL: a §14-gate-verified finding note (id "20260617T150000Z-engineer-finding-r8blankfir", verified_by "§14-gate#RUN8", by "engineer") was dropped from the promoted set — a verified finding survives compaction unconditionally; neither a promoted-side nor a weaker raw-side supersedes link can fold it out (CMP-02, T-22-04-05/T-22-04-06).
+EXIT=1
+
+--- (b) junk/heading-first fence note #2 (buried finding 20260617T150000Z-engineer-finding-r8junk) ---
+splitNotes signature: notes.length=2 trailingMalformed=null (SILENT-ABSORB = count=1/trailing=null)
+carve-out FAIL: malformed frontmatter line "# heading" in raw thread note "engineer.md#1" — an indented or "key : value" provenance line silently projects to empty under the lenient parser, so the carve-out cannot trust the byte-equal comparison of that line; fail closed (CMP-02, IN-02).
+carve-out FAIL: raw thread note "engineer.md#1" is structurally invalid — structural FAIL: malformed frontmatter line "# heading" — a provenance line must be a column-0 "key: value", the "refs:" block header, or a "  - item" refs entry (an indented or "key : value" line silently projects to empty and cannot enter the verified context). (the carve-out runs the shared write-path validator so it refuses exactly what appendNote refuses; CMP-02, IN-02).
+carve-out FAIL: a §14-gate-verified finding note (id "20260617T150000Z-engineer-finding-r8junk", verified_by "§14-gate#RUN8", by "engineer") was dropped from the promoted set — a verified finding survives compaction unconditionally; neither a promoted-side nor a weaker raw-side supersedes link can fold it out (CMP-02, T-22-04-05/T-22-04-06).
+EXIT=1
+
+--- (c) CRLF blank-first fence note #2 (buried finding 20260617T150000Z-engineer-finding-r8crlf) ---
+splitNotes signature: notes.length=2 trailingMalformed=null (SILENT-ABSORB = count=1/trailing=null)
+carve-out FAIL: a §14-gate-verified finding note (id "20260617T150000Z-engineer-finding-r8crlf", verified_by "§14-gate#RUN8", by "engineer") was dropped from the promoted set — a verified finding survives compaction unconditionally; neither a promoted-side nor a weaker raw-side supersedes link can fold it out (CMP-02, T-22-04-05/T-22-04-06).
+EXIT=1
+
+=== npm run freshness (committed .js byte-fresh vs tsc rebuild, D-13) ===
+$ npm run freshness
+  
+  All build outputs fresh: 17 committed .js file(s) match a fresh tsc rebuild.
+  freshness exit: 0
+
+=== parseNote-oracle fuzz test + round-8 blocks GREEN (against the rebuilt committed .js) ===
+$ npx vitest run scripts/context-io.test.ts scripts/compactor.test.ts -t 'round-8|PARSENOTE-ORACLE|7th bypass|INTER-NOTE'
+   Test Files  2 passed (2)
+        Tests  9 passed | 233 skipped (242)
+
+=== FULL non-e2e regression suite ===
+$ npx vitest run --exclude '**/scripts/e2e/**'
+   Test Files  16 passed (16)
+        Tests  426 passed | 1 skipped (427)
+     Duration  24.61s (transform 148ms, setup 0ms, import 244ms, tests 23.39s, environment 1ms)

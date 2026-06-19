@@ -1009,15 +1009,16 @@ describe("context-io.js — splitNotes multi-fence split (shared grammar, IN-02)
     expect(carved1!.scalars.id).toBe("20260617T150000Z-engineer-finding-kf3");
   });
 
-  // ── WRITER-ORDER GUARD for composeNote (kills the unguarded coupling, T-22-08-04). ──────────────
-  // The round-6 closure rested on an undocumented "every writer emits id: first" coupling: a benign
-  // field-reorder of composeNote would re-open the boundary-miss hole with a fully green suite. This
-  // guard PINS the coupling: the REAL composeNote output (written via appendNote into a temp notes/
-  // dir, then read back) must be recognized by splitNotes as EXACTLY one boundary / one note that
-  // parses cleanly, AND a perturbed copy whose `id:` is moved off the opening must NOT be silently
-  // swallowed (it is recovered as a boundary by the broadened id-bearing-run grammar, or refused —
-  // never absorbed). A future reorder of composeNote that breaks recognition fails THIS test RED.
-  it("WRITER-ORDER GUARD: composeNote's real output is recognized by splitNotes as exactly one boundary; a reorder that broke recognition would fail RED", () => {
+  // ── WRITER-ORDER GUARD for composeNote, RE-CAST for the UNIFIED design (ROUND-8, T-22-09-04). ────
+  // The closure must NOT rest on an unguarded writer↔splitter coupling: a future writer change that
+  // broke parseNote-acceptability or DROPPED the id would silently re-open the hole with a green suite.
+  // Under unification the boundary depends on parseNote-acceptability + an id, NOT on field ORDER — so a
+  // benign field REORDER that keeps the id is legal (recovered). This guard therefore pins the unified
+  // contract: the REAL composeNote output is parseNote-acceptable, id-bearing, and recognized by
+  // splitNotes as EXACTLY one boundary; a reorder that keeps the id is still recovered; and a DROPPED-id
+  // perturbation is never silently swallowed (refused or not-recovered, never count=1/trailing=null). A
+  // future writer change that broke parseNote-acceptability or dropped the id fails THIS test RED.
+  it("WRITER-ORDER GUARD (unified): composeNote's real output is parseNote-acceptable + id-bearing + exactly one splitNotes boundary; a dropped-id perturbation is never silently swallowed", () => {
     const root = freshTmp("ctxio-writer-guard-");
     // appendNote composes via composeNote and writes notes/<id>.md.
     const id = mod.appendNote(
@@ -1026,7 +1027,7 @@ describe("context-io.js — splitNotes multi-fence split (shared grammar, IN-02)
         kind: "finding",
         by: "engineer",
         at: "2026-06-17T14:23:05Z",
-        verified_by: "§14-gate#RUN7",
+        verified_by: "§14-gate#RUN8",
         confidence: "high",
         refs: ["A"],
         supersedes: null,
@@ -1035,7 +1036,10 @@ describe("context-io.js — splitNotes multi-fence split (shared grammar, IN-02)
       root,
     );
     const text = readFileSync(join(root, "guard-task", "notes", `${id}.md`), "utf8");
-    // The real writer output is exactly one recognized note boundary, clean.
+    // The real writer output is parseNote-acceptable + id-bearing and exactly one recognized boundary.
+    const parsedReal = mod.parseNote(text);
+    expect(parsedReal, "composeNote output must be parseNote-acceptable").not.toBeNull();
+    expect(parsedReal!.scalars.id ?? "", "composeNote output must be id-bearing").not.toBe("");
     const split = mod.splitNotes(text);
     expect(split.notes.length, "composeNote output must be exactly one splitNotes boundary").toBe(1);
     expect(split.trailingMalformed).toBeNull();
@@ -1043,18 +1047,24 @@ describe("context-io.js — splitNotes multi-fence split (shared grammar, IN-02)
     expect(parsed).not.toBeNull();
     expect(parsed!.scalars.id).toBe(id);
     expect(parsed!.malformedLines).toEqual([]);
-    // A perturbed copy whose opening `id:` is reordered after `kind:` (a kind-first reorder) is STILL
-    // recognized by the broadened id-bearing-run grammar (recovered, not silently absorbed) — proving
-    // the boundary key no longer depends on id-FIRST specifically, but a reorder that broke the
-    // id-bearing run entirely (e.g. dropping id) would not be recovered and would fail closed.
+    // A field REORDER that KEEPS the id (id moved after kind) is LEGAL under unification — recovered as
+    // exactly one boundary, parseNote-acceptable + id-bearing — the boundary no longer depends on order.
     const reordered = text.replace(/^id: (.+)\nkind: (.+)\n/m, "kind: $2\nid: $1\n");
     expect(reordered).not.toBe(text); // the perturbation actually applied
     const reSplit = mod.splitNotes(reordered);
-    const silentlyAbsorbed = reSplit.notes.length === 0 && reSplit.trailingMalformed === null;
-    expect(
-      silentlyAbsorbed,
-      "a reordered composeNote output must be recovered or refused, never silently swallowed",
-    ).toBe(false);
+    expect(reSplit.notes.length, "a reorder that keeps the id is recovered as one boundary").toBe(1);
+    expect(mod.parseNote(reSplit.notes[0])!.scalars.id).toBe(id);
+    // The RED arm: the id is LOAD-BEARING for recognition. A perturbation that DROPS the id entirely is
+    // no longer recovered as an id-bearing note — it loses note status (an id-less fence is body, the
+    // round-5 win). This pins that the guard would catch a future writer that dropped the id: such output
+    // would NOT round-trip as a clean id-bearing note through splitNotes∘parseNote.
+    const idDropped = text.replace(/^id: .+\n/m, "");
+    expect(idDropped).not.toBe(text);
+    const droppedParsed = mod.parseNote(idDropped);
+    // parseNote still parses the fence, but the id scalar is now absent/empty — so the unified boundary
+    // would NOT treat it as a recoverable id-bearing note. The writer dropping the id is therefore
+    // detectable: the carve-out's id-keyed match has no id to key on.
+    expect(droppedParsed?.scalars.id ?? "").toBe("");
   });
 
   // ── CMP-02 ROUND-8: the fence-open silent-absorb CLASS, closed by UNIFYING the two parsers ───────

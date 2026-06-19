@@ -145,18 +145,12 @@ export function isRecognizedFrontmatterLine(line) {
         return true; // column-0 key: value scalar
     return false;
 }
-// ── looksLikeFrontmatterLine: the BROADER fail-closure trigger. ─────────────────────────────────
-// A line that LOOKS like frontmatter even when it is not cleanly recognized: a `<key>:` line at ANY
-// indent, INCLUDING the `key : value` (space-before-colon) shape and an indented `  id:` line. This
-// is deliberately wider than isRecognizedFrontmatterLine so that splitNotes can FAIL CLOSED on a
-// `---`-boundary-shaped line followed by a frontmatter-LOOKING line it cannot cleanly recover —
-// rather than silently absorbing it into a prior note's body (the 6th-bypass class). A region that
-// looks-like-frontmatter but is not recognized is refused (loud), never swallowed.
-function looksLikeFrontmatterLine(line) {
-    // A key (optionally indented) followed by an optional space and a colon — `id:`, `  id:`,
-    // `kind :`, `key : value`. The recognized set is a strict subset of this.
-    return /^\s*[A-Za-z_][A-Za-z0-9_]*\s*:/.test(line);
-}
+// ROUND-8 (parser unification): the former broader single-line fail-closure-trigger helper that the
+// round-6/round-7 splitter used to decide a note boundary one line at a time is REMOVED. Its job is
+// now done by parseNote itself — splitNotes derives "does a note open here?" by parsing the candidate
+// region (see splitNotes below), so there is ONE grammar and no parallel line heuristic that can drift
+// from the parser (the precise failure mode that produced seven bypasses). No standalone single-line
+// boundary helper survives to be re-broadened.
 // EXPORTED (IN-02): this is the single canonical frontmatter parser. The compactor's read path
 // adopts THIS function instead of a hand-rolled near-copy, so the path the carve-out oracle parses
 // provably cannot drift from the path appendNote/validate validates. No behavior change on export —
@@ -316,44 +310,85 @@ export function splitNotes(text) {
         const segment = lines.slice(from, to).join("\n");
         return to < lines.length ? segment + "\n" : segment;
     };
-    // ── Identifying a NOTE BOUNDARY (the load-bearing, drift-proof, id-centered rule). ──────────────
-    // Every note the carve-out tracks is matched raw→promoted on its frozen `id` — a fence WITHOUT an id
-    // cannot participate in the carve-out, so it is definitionally BODY content, not a note. This is the
-    // principled discriminator that lets broadened recognition (recover a kind-first note #2) coexist
-    // with the round-5 body-`---` win (an embedded `---\nkey: value\n---` block inside a body has NO id
-    // and is consumed as body, never a spurious note).
+    // ── Identifying a NOTE BOUNDARY — UNIFIED with parseNote (ROUND-8: ONE grammar, no re-derivation). ─
+    // THE BOUNDARY ORACLE IS parseNote. Every note the carve-out tracks is matched raw→promoted on its
+    // frozen `id`, so a fence WITHOUT an id cannot participate in the carve-out and is definitionally BODY
+    // content, not a note. The "does a NOTE open at this column-0 `---`-shaped line?" decision is therefore
+    // derived DIRECTLY from parseNote: take the candidate region from this `---` open up to its FIRST
+    // `\n---` close — the SAME span parseNote's non-greedy fence regex `^---\n([\s\S]*?)\n---` matches —
+    // hand it to parseNote, and treat the line as a NOTE BOUNDARY iff parseNote(region) is non-null AND the
+    // parsed frontmatter carries a non-empty `id`.
     //
-    // A NOTE BOUNDARY is a `---`-boundary-shaped line (trailing-whitespace tolerant) that OPENS a
-    // frontmatter run — the maximal run of CONTIGUOUS frontmatter-LOOKING lines that follows, up to its
-    // closing `---` — and that run CONTAINS an `id:`-looking line (`id:` at ANY indent: column-0 `id:`,
-    // kind-first with `id:` on a later line, or an indented ` id:`). Because the run is keyed on the id
-    // (the carve-out's identity), the boundary survives field-reordering (kind-first) and is broader than
-    // the round-6 `/^id:/`-first subset — the drift that was the 6th bypass. The trailing-whitespace
-    // tolerance of isBoundaryShapedLine handles the `--- ` variant.
+    // WHY THIS ENDS THE META-DISEASE (the lesson of 7 bypasses): rounds 1–7 RE-DERIVED "where does a note
+    // open" with bespoke line heuristics (an id-first line scan, a single-line gate testing only the line
+    // immediately after the open, a hand-rolled id-bearing-run line scan). Each re-derivation was NARROWER than
+    // parseNote's real fence grammar and drifted from it — a new exotic fence-open shape (a blank-first or
+    // junk-first fence, the 7th bypass) defeated the heuristic while parseNote accepted the note cleanly.
+    // By consulting parseNote ITSELF for the boundary, splitNotes' boundary-finding and parseNote CANNOT
+    // drift: there is ONE grammar a future reviewer can point to. A hypothetical shape #9 is covered by
+    // construction (proven by the parseNote-oracle fuzz test), not by adding another heuristic arm.
+    //
+    // This UNIFICATION preserves every prior win because parseNote-acceptance + an id is exactly the right
+    // discriminator: the round-5 body-`---` win (an id-LESS embedded `---\nkey: value\n---` block parses
+    // but has NO id → not a note-open attempt → stays body); a kind-first / blank-first / junk-first /
+    // indented-id note (parseNote accepts an id at any position/indent → recovered, then gated downstream);
+    // and a trailing-space `--- ` or unclosed orphan open (parseNote's anchored `^---\n`+closing-fence
+    // grammar rejects it → it is a note-open ATTEMPT that does not cleanly parse → routed to
+    // trailingMalformed and FAILED CLOSED, never silently absorbed).
+    //
+    // THE FAIL-CLOSURE FLOOR (must_have SC2): a `---`-shaped open is a BOUNDARY whenever it opens a
+    // NOTE-OPEN ATTEMPT — its candidate region either (a) parseNote-accepts as an id-bearing note (clean,
+    // RECOVERED below) OR (b) carries an `id:`-looking line anywhere in its frontmatter run yet does NOT
+    // cleanly parse as a column-0 id-bearing note (REFUSED below via parseNote returning null or an empty
+    // id → trailingMalformed → readNoteDir unparseable → checkCarveOut exit 1 naming the file). The
+    // id-looking signal is ONLY a fail-closure TRIGGER that decides refuse-vs-leave-as-body — it is NEVER
+    // the RECOVER authority: whether a surfaced region becomes its own per-note record is decided solely by
+    // parseNote in the region walk below. This is what separates a real note-open attempt (refuse) from an
+    // id-LESS embedded body block (stay body, the round-5 win). isBoundaryShapedLine is used ONLY to
+    // cheaply enumerate candidate `---`-shaped opens to test.
+    const idBearing = (region) => {
+        const parsed = parseNote(region);
+        return parsed !== null && typeof parsed.scalars.id === "string" && parsed.scalars.id !== "";
+    };
+    // The candidate region opening at line `i` runs from this `---` open up to (and including) its FIRST
+    // subsequent `---`-shaped close — the same first `\n---` parseNote's non-greedy regex picks. If there
+    // is no later `---`-shaped line, the region runs to EOF (parseNote then rejects it for want of a
+    // closing fence → a note-open attempt that fails closed). Returns the region's bytes for parseNote.
+    const candidateRegionFrom = (i) => {
+        for (let j = i + 1; j < lines.length; j++) {
+            if (isBoundaryShapedLine(lines[j]))
+                return sliceBytes(i, j + 1);
+        }
+        return sliceBytes(i, lines.length);
+    };
+    // The FAIL-CLOSURE trigger: does the run that opens just after line `i` carry an `id:`-looking line (at
+    // ANY indent) before its closing `---`-shaped line? A run with an id is a note-open ATTEMPT — even when
+    // it does not cleanly parse (a trailing-space `--- ` open, an indented ` id:`, a truncated orphan with
+    // no close). This is NOT a recover authority — parseNote still decides recover-vs-refuse below — it
+    // only stops a fence-ish note-open attempt from being silently absorbed into a prior body (the precise
+    // class that produced 7 bypasses). An id-LESS embedded `---key:value---` body block lacks this signal,
+    // so it correctly stays body (round-5 win).
     const ID_LOOKING = /^\s*id\s*:/;
-    // Does the frontmatter run that opens at boundary line `i` (i.e. starting at line i+1) contain an
-    // id-looking line before it ends? The run ends at the closing `---`-shaped line or the first line
-    // that is neither frontmatter-looking nor blank. A blank line inside a fence is legal frontmatter
-    // (parseNote skips it), so it does not end the run.
-    const opensIdBearingRun = (i) => {
+    const opensNoteAttempt = (i) => {
         for (let j = i + 1; j < lines.length; j++) {
             const l = lines[j];
             if (isBoundaryShapedLine(l))
-                return false; // hit the closing fence with no id seen
+                return false; // reached the closing fence with no id seen
             if (ID_LOOKING.test(l))
-                return true; // an id-looking line — this is a note opening
-            if (l.trim() === "")
-                continue; // a blank line is legal inside frontmatter
-            if (!looksLikeFrontmatterLine(l))
-                return false; // body text — not a frontmatter run
+                return true; // an id-looking line — a note-open attempt
         }
-        return false; // ran off the end without a closing fence or an id
+        return false; // ran off the end with no id (and no close) — not a note-open attempt
     };
+    // A NOTE BOUNDARY is a column-0 `---`-shaped line that opens a note-open attempt: parseNote accepts the
+    // candidate region as an id-bearing note (clean → recovered) OR the region carries an id-looking line
+    // but does not cleanly parse (→ refused). parseNote is the RECOVER authority; opensNoteAttempt is only
+    // the fail-closure trigger that keeps an un-parseable note-open attempt from being silently swallowed.
     const isBoundaryAt = (i) => isBoundaryShapedLine(lines[i]) &&
-        i + 1 < lines.length &&
-        looksLikeFrontmatterLine(lines[i + 1]) &&
-        opensIdBearingRun(i);
-    // Find every note-boundary index in document order.
+        (idBearing(candidateRegionFrom(i)) || opensNoteAttempt(i));
+    // Find every note-boundary index in document order. A `---` close consumed as the END of one note's
+    // candidate region can also OPEN the next note's region; the boundary walk below re-slices each note
+    // from its boundary to the NEXT boundary, so adjacent notes (no blank line between a close and the
+    // next open) still tile exactly.
     const boundaries = [];
     for (let i = 0; i < lines.length; i++) {
         if (isBoundaryAt(i))
