@@ -6,14 +6,14 @@ current_phase: 22
 current_phase_name: memory-trajectory-compaction-dialable-token-economy
 status: executing
 stopped_at: "Phase 22 gap-closure ROUND 5 (22-06) EXECUTED + RE-VERIFIED 2026-06-18 = GAPS_FOUND (3/4 must-haves; SC1/SC3/SC4 pass, SC2/CMP-02 BLOCKED). Round 5 GENUINELY CLOSED the 4th bypass class (whitespace/parser-projection line-shape drift) — confirmed real & robust by the orchestrator's own 6-fixture adversarial probe AND the verifier: parseNote.malformedLines gate (a) + shared validate() gate (b) on every raw+promoted note's VERBATIM on-disk bytes; RED→GREEN vs the COMMITTED compactor.js (429f01c exit 0 → post-fix exit 1); freshness exit 0; 395 non-e2e tests green; held-out field × kind × line-shape matrix. BUT a 5th DISTINCT CMP-02 bypass was found by deep adversarial code review (22-REVIEW.md CR-01) and INDEPENDENTLY REPRODUCED by both orchestrator and verifier against the committed compactor.js — MULTI-NOTE THREAD FILE: the production raw-thread representation is a SINGLE threads/<agent>.md that writeThread/composeThreadNote (compactor.ts:517-564) builds by APPENDING each note as a `---...---` fence; but readNoteDir→parseNote parses ONLY THE FIRST fence per file (non-greedy fence regex), folding every later note's frontmatter+body into note #1's `.body`. No note-splitter exists despite the module's own contract comment (compactor.ts:512-516) promising one. So a §14-gate-verified finding (or an unconditionally-required failed-attempt) buried as note #2+ is invisible to BOTH round-5 gates, the byte-equal loop, AND the required-survival set → silently dropped at exit 0 'carve-out intact'. Reproduced: a 2-fence engineer.md (observation #1 + verified finding #2), promoted keeps only #1 → exit 0. Same class as rounds 1–4 (a real on-disk byte projected away by the parser before any survival decision). Why the 395-test suite stayed green: every carve-out test writes exactly ONE note per .md file; the lone writeThread test never feeds checkCarveOut — the corpus never exercises the production multi-note shape (green suite ≠ proof, 5th time). CMP-01 + CMP-03 verified & untouched. Fix (round 6): export splitNotes(text) from context-io.ts reusing the SAME fence grammar parseNote uses; readNoteDir iterates per-note records, runs gate (a)+(b) + byte-equal/required-survival PER note, and fails closed on any non-blank non-fence trailing remainder; held-out RED-first test that builds a multi-note thread via writeThread, drops a buried verified finding / FA, asserts exit 1 (a single-note-per-file corpus structurally cannot detect this class). Next: /gsd-plan-phase 22 --gaps."
-last_updated: "2026-06-18T20:05:00.000Z"
-last_activity: 2026-06-18
-last_activity_desc: Phase 22 round-5 re-verification = gaps_found (5th CMP-02 bypass — multi-note thread file; round-5 closed the 4th/line-shape class)
+last_updated: "2026-06-19T11:02:47.598Z"
+last_activity: 2026-06-19
+last_activity_desc: Completed 22-07-PLAN.md (5th CMP-02 bypass / multi-note thread file closed)
 progress:
   total_phases: 7
-  completed_phases: 2
-  total_plans: 14
-  completed_plans: 14
+  completed_phases: 3
+  total_plans: 15
+  completed_plans: 15
   percent: 43
 ---
 
@@ -28,10 +28,10 @@ See: .planning/PROJECT.md (updated 2026-06-16 — after v1.2 milestone)
 
 ## Current Position
 
-Phase: 22 (memory-trajectory-compaction-dialable-token-economy) — ROUND-5 RE-VERIFIED = GAPS_FOUND (3/4 must-haves)
-Plan: 6 of 6 executed; CMP-02/SC2 still failing (5th bypass) → round 6 pending
-Status: Round 5 (22-06) CLOSED the 4th bypass class (line-shape/parser-projection drift, proven RED→GREEN vs the committed .js) but re-verification found a NEW 5th CMP-02 bypass — MULTI-NOTE THREAD FILE: writeThread appends notes as fences into one threads/<agent>.md, but readNoteDir→parseNote reads only the first fence (no splitter), so a verified finding / required FA buried as note #2+ is invisible and droppable at exit 0. Reproduced independently (orchestrator + 22-REVIEW.md CR-01 + verifier) vs the committed compactor.js. SC1/SC3/SC4 pass; SC2 fails. CMP-01 + CMP-03 verified. Do NOT mark the phase complete.
-Last activity: 2026-06-18 — Phase 22 round-5 re-verification = gaps_found (5th CMP-02 bypass — multi-note thread file; see 22-VERIFICATION.md + 22-REVIEW.md)
+Phase: 22 (memory-trajectory-compaction-dialable-token-economy) — EXECUTING
+Plan: 22-07 executed (round-6 gap-closure) — awaiting verification
+Status: 22-07 complete; needs /gsd-verify (RED→GREEN against committed .js per 22-07-RED-baseline.txt + 22-07-GREEN-proof.txt)
+Last activity: 2026-06-19 — Completed 22-07-PLAN.md (5th CMP-02 bypass / multi-note thread file closed)
 
 ## Performance Metrics
 
@@ -167,6 +167,7 @@ Last activity: 2026-06-18 — Phase 22 round-5 re-verification = gaps_found (5th
 | Phase 22 P04 | 18m | 4 tasks | 7 files |
 | Phase 22 P05 | 9 | 4 tasks | 6 files |
 | Phase 22 P06 | 11m | 4 tasks | 6 files |
+| Phase 22 P07 | 32min | 4 tasks | 6 files |
 
 ## Accumulated Context
 
@@ -377,6 +378,9 @@ Recent decisions affecting current work:
 - [Phase ?]: 22-05: oracle unified — FA + durable notes share one id-keyed byte-equal pass; CR-03 + CR-01 closed (RED→GREEN proven against the committed .js)
 - [Phase ?]: 22-05: FA survival/identity keyed on the frozen id, not the body FA-token (WR-01); compactor read path adopts the single exported context-io.parseNote (IN-02)
 - [Phase ?]: [22-06] CMP-02 round-5 shared-layer IN-02 completed; 4th line-shape/parser-projection-drift bypass closed with RED to GREEN against committed compactor.js
+- [Phase ?]: 22-07: CMP-02 5th bypass (multi-note thread file) closed via shared splitNotes + per-note readNoteDir keyed <file>#<n>; IN-01 noteId unified; RED→GREEN vs committed .js.
+- [Phase ?]: 22-07: splitNotes boundary = column-0 --- + an id: line (subset of parseNote's recognized lines so carved==parsed, no drift); body --- / embedded ---key:value--- block is NOT a boundary (6th-bypass guard).
+- [Phase ?]: 22-07: WR-01 fail-closed anchored on the un-fenced LEADING region (scratch-then-fence); read-path-only — write representation + readContext untouched; WR-02/WR-03/broader-IN-02 deferred.
 
 ### Pending Todos
 
@@ -426,7 +430,7 @@ Items acknowledged and deferred at the **v1.2 milestone close on 2026-06-16** (1
 
 ## Session Continuity
 
-Last session: 2026-06-18T19:56:04.957Z
+Last session: 2026-06-19T11:01:43.831Z
 Stopped at: Phase 22 context gathered
 Resume file: .planning/phases/22-memory-trajectory-compaction-dialable-token-economy/22-CONTEXT.md
 
