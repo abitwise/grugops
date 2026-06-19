@@ -1,6 +1,6 @@
 ---
 phase: 22-memory-trajectory-compaction-dialable-token-economy
-reviewed: 2026-06-18T23:30:00Z
+reviewed: 2026-06-19T00:00:00Z
 depth: deep
 files_reviewed: 4
 files_reviewed_list:
@@ -9,284 +9,187 @@ files_reviewed_list:
   - scripts/context-io.test.ts
   - scripts/compactor.test.ts
 findings:
-  critical: 1
-  warning: 3
+  critical: 0
+  warning: 4
   info: 2
   total: 6
 status: issues_found
 ---
 
-# Phase 22: Code Review Report (Round-5 CMP-02 gap-closure)
+# Phase 22: Code Review Report (round-6, CMP-02 multi-note read-path)
 
-**Reviewed:** 2026-06-18
-**Depth:** deep (cross-file)
+**Reviewed:** 2026-06-19
+**Depth:** deep
 **Files Reviewed:** 4
-**Status:** issues_found — ROUND-5 ORACLE IS BYPASSABLE (the 5th bypass)
+**Status:** issues_found
 
 ## Summary
 
-This is the round-5 adversarial review of the CMP-02 carve-out safety invariant
-(`checkCarveOut()` in `scripts/compactor.ts`), which has been bypassed four times across
-rounds 1–4 despite each round shipping a fully green unit suite. The round-5 fix adds two
-shared-layer fail-closed gates — gate (a) `parseNote.malformedLines` and gate (b) the shared
-`validate()` — run on every raw and promoted note's verbatim bytes before any survival /
-byte-equal decision.
+The round-6 change closes the **5th CMP-02 bypass** (multi-note thread file) by introducing a
+shared body-consuming splitter `splitNotes()` in `context-io.ts` and a per-note `readNoteDir()` in
+`compactor.ts` that keys each recovered note `<file>#<n>`. I verified the fix empirically against
+both the committed `.js` and a freshly-compiled **pre-fix** build (commit `14bb3ee~1`).
 
-**Pre-flight checks (all clean):**
+**No live 6th bypass was found.** I could not construct any writer-reachable corpus that drops a
+load-bearing provenance field (`verified_by` / `supersedes` / `by` / `at` / a required
+`failed-attempt` id) at exit 0. Specifically I confirmed, by running the compiled artifacts:
 
-- The committed `scripts/context-io.js` and `scripts/compactor.js` are a **byte-identical**
-  build of their `.ts` sources (rebuilt with the project `tsconfig.json` to a temp dir and
-  diffed). Analyzing the `.ts` is sound — the tests drive the `.js`.
-- The full suite for both files is **green: 211 passed**.
+- splitNotes recovers buried note #2 in the body-`---` fixture (count 2, no malformed lines).
+- The byte round-trip property (`notes.join("") + (trailingMalformed ?? "") === normalized`) holds exactly.
+- `idx:` / `id_foo:` / inline body `id:` do NOT spawn false boundaries.
+- Both note-emitting paths — `composeNote` (context-io.ts:504) and `composeThreadNote`
+  (compactor.ts:592), and therefore `appendNote` / `emitVerdict` — emit `id:` as the FIRST
+  frontmatter line. So the executor's `isNoteOpeningLine = /^id:/` deviation from the plan's IN-02
+  "ANY recognized frontmatter line" contract is **safe given the current writers**.
+- Free trailing scratch (no-`note` `writeThread`) is glued into a body and carries no fenced
+  provenance field — it genuinely cannot smuggle a load-bearing field (test #3's claim is correct).
+- The build-output freshness gate is green: the committed `.js` is a faithful build of the `.ts`.
+- Full suite: 225/225 pass (compactor + context-io); all 5 round-6 tests pass against committed code.
 
-**The round-5 fix is real and robust for the line-shape class it targets.** I confirmed, by
-driving the committed CLI on hand-crafted notes, that the previously-bypassable vectors are now
-closed: indented `verified_by`, `key : value` (space-before-colon), tab-after-colon,
-trailing-whitespace, CRLF, lone-CR line-splitting (caught via duplicate-key/malformed),
-body-`---` second fence, premature in-fence `---`, refs-item shaped like a key, relabel
-finding→claim, and supersedes laundering are ALL refused (or correctly handled). The two-gate +
-byte-equal core is airtight **for any note the oracle parses**.
+However, the safety invariant now rests on an **undocumented, untested, unguarded cross-module
+ordering contract** ("every note-emitting writer must place `id:` first"). I reproduced the exact
+5th-bypass shape — a §14-gate-verified finding silently dropped at exit 0 — by perturbing only that
+ordering (WR-01 below). It is not reachable through a sanctioned writer today, so it is a WARNING,
+not a Critical; but it is precisely the regression the plan warned `splitNotes` drifting from
+`parseNote` "would be the 6th bypass." The fix should be hardened so a benign field-reorder cannot
+silently re-open the hole. Two further WARNINGs concern test-integrity (a non-discriminating round-6
+test) and a writer-reachable false-refusal.
 
-**But a FIFTH bypass exists, and it is in the exact same family as rounds 1–4: a production
-data shape the oracle's parser silently projects away.** The carve-out's read path
-(`readNoteDir` → `parseNote`) parses only the FIRST `---...---` fence per `.md` file, while the
-production write path (`writeThread` / `composeThreadNote`, same module) APPENDS multiple note
-fences into a single `threads/<agent>.md` file. Every note after the first is swallowed into
-the first note's `body` and is invisible to the oracle — bypassing both new gates, the
-byte-equal loop, AND the required-survival set entirely. A §14-gate-verified finding or an
-unconditionally-required failed-attempt buried as note #2+ can be silently dropped at exit 0
-"carve-out intact". Constructible, reproduced below, classified **Critical**.
-
-The reason all 211 tests stayed green: **every carve-out test writes exactly one note per
-`.md` file.** The single test that calls `writeThread` (compactor.test.ts:729) writes one note
-and never feeds the result to `checkCarveOut` — it only asserts two-tier separation. The corpus
-never exercises the actual production raw-thread representation. This is the precise
-"green suite necessary but not sufficient" failure mode.
-
-## Critical Issues
-
-### CR-01: Multi-note thread file — every note after the first is invisible to the carve-out (FIFTH CMP-02 bypass)
-
-**File:** `scripts/compactor.ts:160-174` (`readNoteDir`), `scripts/compactor.ts:129-147`
-(`readNoteFields`), `scripts/context-io.ts:197-259` (`parseNote`), produced by
-`scripts/compactor.ts:517-564` (`writeThread` / `composeThreadNote`).
-
-**Issue:**
-`readNoteDir` reads each `.md` file and calls `readNoteFields` → `parseNote` **once** per file.
-`parseNote`'s fence regex `/^---\n([\s\S]*?)\n---\n?([\s\S]*)$/` (context-io.ts:204) is
-non-greedy on the frontmatter group, so for a file containing multiple concatenated note
-fences it parses **only the first fence** and folds the entire remainder — including every
-subsequent note's frontmatter and body — into `m[2]`, the body of the first note.
-
-The production raw-thread representation is exactly such a multi-note file. `writeThread`
-(compactor.ts:517-542) appends each provenance-bearing note to a **single**
-`threads/<agent>.md` file via `composeThreadNote`. The module's own contract comment
-(compactor.ts:513-516) states the intent: *"each recorded note is appended as an id-BEARING
-structured fence so the compaction step ... can parse the file into the per-note raw set the
-carve-out reads."* No such splitter exists anywhere — `readNoteDir` does not split a
-multi-fence file into per-note records. So the per-note raw set the carve-out is supposed to
-read is silently truncated to the first note in each thread file.
-
-Consequence: a §14-gate-verified finding (or an unconditionally-required failed-attempt) that
-is the 2nd-or-later note in a thread file is **never seen** by the oracle. It cannot enter the
-required-survival set, so dropping it from the promoted set is accepted. Both gate (a) and gate
-(b) inspect only the first note; the buried notes are body text. Same class as the prior four
-bypasses (a real on-disk byte present, projected away by the parser before any survival
-decision keys on it).
-
-**Reproduction (verified against the committed `scripts/compactor.js`):**
-
-Raw thread `thread/engineer.md` (one file, two note fences — exactly what `writeThread`
-produces after two calls):
-
-```text
----
-id: 20260617T142305Z-engineer-observation-o1
-kind: observation
-by: engineer
-at: 2026-06-17T14:23:05Z
-verified_by: 
-confidence: low
-refs:
-  - X
-supersedes: 
----
-
-just an observation.
----
-id: 20260617T150000Z-engineer-finding-CRITICAL
-kind: finding
-by: engineer
-at: 2026-06-17T15:00:00Z
-verified_by: §14-gate#RUN7
-confidence: high
-refs:
-  - Y
-supersedes: 
----
-
-The SQL injection is fixed (gate-verified).
-```
-
-Promoted `promoted/o1.md` (keeps ONLY the first observation; the verified finding is entirely
-absent):
-
-```text
----
-id: 20260617T142305Z-engineer-observation-o1
-kind: observation
-by: engineer
-at: 2026-06-17T14:23:05Z
-verified_by: 
-confidence: low
-refs:
-  - X
-supersedes: 
----
-
-just an observation.
-```
-
-Result:
-
-```text
-$ node scripts/compactor.js check thread promoted
-carve-out intact: every failed-attempt id survived and all load-bearing provenance fields are present.
-EXIT=0
-```
-
-The §14-gate-verified finding was silently dropped. The same construction with a
-`failed-attempt` buried as note #2 (the unconditionally-required class) also returns exit 0
-"carve-out intact".
-
-I also confirmed `writeThread` produces this shape in practice: two `writeThread` calls with
-note provenance yield a single `threads/engineer.md` containing four `^---$` fence lines (two
-complete notes), and `parseNote` of that file returns only the first note's scalars with the
-second note buried in `.body` (and `malformedLines` empty — the body is not scanned).
-
-**Fix:**
-The read path must split a multi-note file into per-note records BEFORE parsing, so EVERY note
-in a thread file reaches both gates and the required-survival set. The split must use the SAME
-fence grammar `parseNote` uses (single source of truth, the IN-02 principle), and a trailing
-non-blank, non-fence remainder must fail closed (it is an unparseable note, never a silent
-drop). Sketch:
-
-```ts
-// In context-io.ts — a shared splitter yielding each note's verbatim bytes, reusing the same
-// fence shape parseNote recognizes. A non-blank remainder that is not a fence is a structural
-// fault the caller surfaces (fail closed), never dropped.
-export function splitNotes(text: string): { notes: string[]; trailingMalformed: string | null } {
-  const normalized = text.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
-  const notes: string[] = [];
-  let rest = normalized;
-  const FENCE = /^---\n[\s\S]*?\n---\n?/;
-  let m: RegExpMatchArray | null;
-  while ((m = rest.match(FENCE))) {
-    notes.push(m[0]);
-    rest = rest.slice(m[0].length);
-  }
-  return { notes, trailingMalformed: rest.trim() === "" ? null : rest };
-}
-```
-
-Then `readNoteDir` iterates `splitNotes(fileText).notes`, keys each by its frozen id (or
-`<file>#<n>`), runs BOTH gates and the byte-equal / required-survival logic per note, and pushes
-a fail-closed finding for any `trailingMalformed` remainder. Until the carve-out reads the same
-per-note set the write path emits, the invariant is bypassable.
-
-**Mandatory test to close alongside the fix (this is WHY the bypass survived):** a held-out case
-that builds the raw thread via `writeThread` (or a literal multi-fence file), drops a buried
-verified finding / buried FA from the promoted set, and asserts the CLI refuses (exit 1) naming
-the dropped id. A single-note-per-file corpus structurally cannot detect this class.
+## Narrative Findings (AI reviewer)
 
 ## Warnings
 
-### WR-01: Free-scratch `writeThread` appends raw body with no fence — broadens the multi-note invisibility surface
+### WR-01: `splitNotes` boundary couples the safety invariant to an unguarded "id-first" writer contract; a field reorder silently re-opens the 5th bypass
 
-**File:** `scripts/compactor.ts:534-536` (`writeThread`), `scripts/compactor.ts:160-174`
-(`readNoteDir`).
-
+**File:** `scripts/context-io.ts:273-275` (`isNoteOpeningLine`), `:324-325` (`isBoundaryAt`)
 **Issue:**
-Called WITHOUT a `note` argument, `writeThread` appends `body + "\n"` as raw scratch
-(compactor.ts:535-536) — no `---` fence. A thread file that mixes fenced notes with raw scratch
-(or is entirely scratch) compounds CR-01: `parseNote` parses the first fence and swallows
-everything after (any later structured note included), or returns null for an all-scratch file.
-An all-scratch file is caught as `unparseable` (fail closed, good), but a fence-then-scratch
-file silently hides any later note. Nothing on the write path enforces "only clean fenced
-notes," yet the read path assumes it.
+The round-6 executor narrowed the note-boundary predicate to `---` followed by a column-0 `id:`
+line (`isNoteOpeningLine = /^id:\s*(.*)$/`), a strict subset of the plan's IN-02 contract
+(`---` + ANY recognized frontmatter line). This is correct ONLY because both current writers freeze
+`id:` first. The invariant is not enforced anywhere — there is no guard, no test, and no comment
+coupling the two writers' field order to the splitter.
 
-**Fix:** Fold into the CR-01 splitter; additionally give free-scratch a deterministic boundary
-(or reject mixing scratch and fenced notes in one file) so the compaction step has unambiguous
-per-note edges.
+I reproduced the resurrected bypass directly (compiled `.js`): a thread file whose note #1 is
+id-first (a real boundary) and whose note #2 is **kind-first** (a §14-gate-verified finding, `id:`
+on the second frontmatter line) folds note #2 entirely into note #1's body:
 
-### WR-02: `readContext` silently skips an unparseable note (fail-open), diverging from the compactor's fail-closed posture
+```
+splitNotes(note1_idFirst + note2_kindFirst)
+  => note count = 1, trailingMalformed = null
+     note[0] kind=observation, validateFindings=0   (the verified finding is now body text — HIDDEN)
+```
 
-**File:** `scripts/context-io.ts:464-468`.
+`readNoteDir` then records ONE note, the required-survival set never includes the finding, and
+`checkCarveOut` returns exit 0 "carve-out intact" while a verified finding was dropped — byte-for-byte
+the 5th bypass. A future refactor of `composeNote`'s field order, or any new writer that does not
+emit `id:` first, silently regresses the safety oracle with a fully green suite.
 
+**Fix:** Restore the plan's IN-02 contract — make the boundary predicate `---` followed by ANY
+recognized frontmatter line (reuse `parseNote`'s recognized-line set, not just `/^id:/`), so the
+splitter cannot drift from the parser. AND add a fail-closed test that a non-`id`-first note (e.g.
+kind-first) buried as note #2 is either recovered or refused — never folded into a prior body.
+Minimum hardening if the `id:`-only predicate is kept: a single fail-closed test asserting the
+mixed-ordering case refuses, plus a structural guard/comment that both `composeNote` and
+`composeThreadNote` emit `id:` first.
+
+### WR-02: round-6 test #3 (scratch-then-fence) is NOT RED-first — it passes against the pre-fix code, so it does not discriminate the bypass
+
+**File:** `scripts/compactor.test.ts:1874-1927`
 **Issue:**
-`readContext` does `if (!parsed) continue;` — it silently drops any `notes/<id>.md` that
-`parseNote` cannot parse (the inline comment says "skip an unparseable file rather than crash
-the read"). The compactor deliberately does the OPPOSITE (WR-02, compactor.ts:160-174: record
-unparseable and fail closed). `readContext` feeds `currentState`, `admit`, and `render` —
-including the live-green-verdict cross-check in `admit` (context-io.ts:609). A note unparseable
-for any reason (a future encoding edge the normalizer misses, a truncated write) vanishes from
-admission and replay with no signal. For a safety-relevant read path this is fail-open. Not the
-CMP-02 carve-out path (hence Warning), but it is the same anti-pattern the phase is eliminating.
+Running all five round-6 tests against a freshly-compiled **pre-fix** build (`14bb3ee~1`) yields
+4 RED (correctly failing) and **1 GREEN**: test #3, "a scratch-then-fence thread file fails closed."
+It passes before the fix because the pre-fix `parseNote`-once read path already returns null on the
+leading un-fenced scratch and fails closed for an unrelated reason — it does not exercise the
+multi-note read-path fix at all. A test that passes against the code it is meant to pin proves
+nothing about the fix. The other four round-6 tests are genuinely discriminating (verified RED→GREEN).
 
-**Fix:** Surface unparseable notes from `readContext` (e.g. a sibling list callers can fail
-closed on, mirroring `NoteDirResult.unparseable`) rather than `continue`.
+The reframing from scratch-LAST to scratch-FIRST (documented in the test's own comment,
+:1864-1873) sidesteps a real seam: trailing free-scratch glued after a real note is
+byte-indistinguishable from a longer body, so it cannot be detected. I confirmed that gap is
+**safe** — trailing scratch lives in a body and carries no fenced provenance field — so the carve-out
+contract is not weakened. The defect is test-integrity only: #3 is a non-discriminating filler that
+should not be counted as evidence of the round-6 closure.
 
-### WR-03: `readContext` id/filename divergence — code contradicts its comment and emits no signal
+**Fix:** Either delete test #3 or replace it with a genuinely RED-first case that exercises the new
+read path (e.g. a multi-note file where note #1 is fenced and a non-boundary remainder follows note
+#2, asserting the file is refused naming `<agent>.md`, RED against the pre-fix .js). Add an explicit
+comment that trailing free-scratch carries no provenance field by construction, so its
+non-detectability is a deliberate, safe non-goal rather than an untested gap.
 
-**File:** `scripts/context-io.ts:470-475`.
+### WR-03: a faithful note whose body legitimately contains the literal sequence `\n---\nid:` is falsely refused (writer-reachable false-positive)
 
+**File:** `scripts/context-io.ts:324-347` (`isBoundaryAt` / note slicing), consumed at `scripts/compactor.ts:191-208`
 **Issue:**
-`const id = s.id && s.id !== "" ? s.id : fileId;` (line 475) **prefers the frontmatter `id`**
-when present, but the adjacent comment (lines 470-473) claims "the filename (the storage key)
-wins for the read." The code and comment disagree. More importantly, when frontmatter `id` ≠
-filename id — which the comment itself calls "the on-disk signature of a tampered identity" —
-the divergence is resolved silently with NO finding. The comment defers to "validate() … on the
-explicit path," but `validate()` only sees text, never the filename, so it cannot cross-check
-`id` vs filename. Nothing surfaces the divergence. A latent identity seam on the context read
-path (not the carve-out, hence Warning), plus a code/comment defect.
+The body is arbitrary agent text. An agent that distills a thread quoting another note, or documents
+the note schema, can legitimately write a body containing `---\nid: <example>`. splitNotes treats
+that body line as a real boundary and splits one faithful note into two; the second slice has no
+closing fence, `parseNote` returns null, and `readNoteDir` routes it to `unparseable` → exit 1
+"carve-out FAIL." I reproduced this through the real `writeThread`:
 
-**Fix:** Decide the resolution rule, make code and comment agree, and emit a structural finding
-(or fail closed in the relevant caller) when frontmatter `id` ≠ filename id.
+```
+writeThread(body = "... A note looks like:\n---\nid: ...EXAMPLE\nkind: finding\n...")
+  => splitNotes count = 2; note[1] = (null parse) -> fail closed (false refusal)
+```
+
+This fails in the SAFE direction (refuse, not admit), so it is not a security bypass — but it blocks
+an otherwise-correct compaction and surfaces as a confusing "no valid frontmatter fence" error on a
+note the agent wrote correctly. Likelihood is non-trivial precisely because these scripts' job is to
+manage notes, so note-shaped text in bodies is plausible.
+
+**Fix:** Document the body restriction in the `context-note.md` contract and the splitter comment
+(a note body must not contain a column-0 `---` line immediately followed by a column-0 `id:` line),
+and ideally have the WRITE path (`composeThreadNote` / `appendNote`) detect such a body at compose
+time so the failure names the real cause ("body contains a fence-like sequence") rather than
+surfacing downstream as an unparseable-note refusal.
+
+### WR-04: an indented / non-column-0 `id:` opening line silently hides a buried note (latent, not writer-reachable today)
+
+**File:** `scripts/context-io.ts:273-275` (`isNoteOpeningLine` is column-0 only)
+**Issue:**
+`isNoteOpeningLine` matches `id:` only at column 0. A note whose frontmatter opens with an indented
+`id:` (e.g. ` id:`) is not recognized as a boundary; the entire note (including a §14-gate-verified
+finding) is folded into the prior note's body with **no malformed-line signal and a passing
+validate()** — count drops by one and the buried note is invisible:
+
+```
+splitNotes(obs + "\n---\n id: <finding>\nkind: finding\nverified_by: §14-gate#RUN7\n...")
+  => note count = 1, malformedLines = [], validateFindings = 0   (the finding is HIDDEN in the body)
+```
+
+This is NOT reachable through a sanctioned writer (both writers emit a column-0 `id:`), so it is
+latent. It is closely related to WR-01: both show that when the splitter's boundary recognition fails
+to fire, the note is dropped silently rather than failing closed. The round-4/5 hardening added
+malformedLines/validate gates that fail closed on a recognized-but-malformed in-fence line, but a
+note hidden because its opening line was never recognized as a boundary bypasses those gates entirely
+(its frontmatter never becomes a parsed fence).
+
+**Fix:** Same root remediation as WR-01 — broaden the boundary predicate to the parser's recognized
+line set, and/or have splitNotes treat a `---` line whose successor looks like frontmatter
+(`<key>:` at any indent, or a `key : value` shape) but is not a clean boundary as a fail-closed
+remainder rather than silently absorbing it into a body. Add a unit test for the indented-id shape.
 
 ## Info
 
-### IN-01: Duplicated id-composition logic between `composeThreadNote` and `noteId` (drift hazard)
+### IN-01: round-6 source change sits outside the declared diff base
 
-**File:** `scripts/compactor.ts:547-548` vs `scripts/context-io.ts:416-420`.
+**File:** review config `diff_base: 5bb15cd`
+**Issue:** The configured diff base `5bb15cd` is a docs commit; the actual round-6 read-path change
+is `14bb3ee` (splitNotes + per-note readNoteDir) and `b30243a` (noteId export). Reviewing strictly
+against `5bb15cd..HEAD` would conflate planning churn with the code change. I reviewed the full
+current state of the four files and verified RED-first against `14bb3ee~1` instead. No action needed
+beyond noting the diff base for downstream consumers.
 
-**Issue:**
-`composeThreadNote` re-implements the id formula
-(`${at.replace(...)}-${by}-${kind}-${randomUUID().slice(0,8)}`) inline instead of reusing
-`context-io`'s `noteId`. This is the exact drift hazard the IN-02 unification killed for the
-parser — the same single-source principle should apply to id composition. A future change to
-`noteId`'s format would not propagate here, and a thread id could diverge from the
-promoted-counterpart id format, defeating the id-keyed carve-out.
+### IN-02: `readContext` and `render` (context-io.ts) still read one `parseNote` per `notes/<id>.md`, by design
 
-**Fix:** Export and reuse `noteId` (or a shared id helper) from `context-io.ts`.
-
-### IN-02: `validate()` accepts arbitrary unknown frontmatter keys with no signal
-
-**File:** `scripts/context-io.ts:235-248`, `scripts/context-io.ts:267-358`.
-
-**Issue:**
-The kv branch accepts any `^([A-Za-z_]+):` key into `scalars` (confirmed: `foo: bar` parses,
-`validate()` returns 0 findings). Unknown keys are not load-bearing today, so not a bypass — but
-a permissive surface: a future field that becomes load-bearing, or a typo of a real provenance
-key (e.g. `verfied_by:`), is silently accepted while the real field reads as missing/empty.
-Given the phase's "fail closed on the class, not the named shape" lesson, an allowlist of
-recognized provenance keys (structural finding for anything else) would harden against the next
-typo-shaped laundering vector.
-
-**Fix:** Consider an allowlist of known provenance keys in `validate()`; emit a structural
-finding for unrecognized keys. Lower priority than CR-01.
+**File:** `scripts/context-io.ts:567-597` (`readContext`)
+**Issue:** The multi-note splitNotes path is applied only in the compactor's `readNoteDir`. The
+promoted `notes/` tier is one-note-per-file (appendNote writes a fresh `<id>.md` each call), so the
+single-`parseNote` read there is correct and not a buried-note risk. Confirmed for completeness — no
+defect. (The previously-deferred readContext fail-open and id/filename divergence remain out of
+round-6 scope; the round-6 change did not make them newly reachable.)
 
 ---
 
-_Reviewed: 2026-06-18_
+_Reviewed: 2026-06-19_
 _Reviewer: Claude (gsd-code-reviewer)_
 _Depth: deep_
