@@ -2,13 +2,13 @@
 gsd_state_version: 1.0
 milestone: v2.0
 milestone_name: Decentralized Factory — Shared Verified Context
-current_phase: 22
-current_phase_name: memory-trajectory-compaction-dialable-token-economy
+current_phase: 23
+current_phase_name: One Substrate, Two Modes
 status: executing
-stopped_at: "Phase 22 gap-closure ROUND 8 (22-09) PLANNED + plan-checked (opus gsd-plan-checker = VERIFICATION PASSED; 2 non-blocking hardening WARNINGs folded into the plan by the orchestrator) — READY TO EXECUTE. This round closes the 7th CMP-02 bypass (leading-blank/junk fence-open silent-absorb) AND the whole silent-absorb CLASS via the USER-CHOSEN architecture: UNIFY THE TWO PARSERS. splitNotes' note-boundary decision is derived from parseNote itself — slice the candidate region from each column-0 `---` open to its first `\\n---` close (the span parseNote's `^---\\n([\\s\\S]*?)\\n---` non-greedy regex picks), call parseNote, and treat it as a boundary IFF parseNote(region) is non-null AND id-bearing. The bespoke boundary AUTHORITY (isBoundaryAt's looksLikeFrontmatterLine(lines[i+1]) gate + the hand-rolled opensIdBearingRun line scan) is REMOVED (grep==0, hardened per plan-checker WARNING so no demoted helper can silently regain authority — the exact drift that recurred 7×). After this there is ONE fence grammar; splitNotes and parseNote CANNOT drift. CLOSURE EVIDENCE is structural, not enumerative: a parseNote-ORACLE property/table fuzz test generates note #2 across {leading blanks}×{junk/heading}×{indent}×{kind-first/id-first}×{trailing-ws}×{LF/CRLF} and asserts the class invariant for EVERY variant (would catch a hypothetical shape #9), PLUS held-out RED-first end-to-end tests through the COMMITTED `node scripts/compactor.js check` for blank-first/junk-first/CRLF (each burying a §14-gate-verified failed-attempt via the sanctioned writeThread free-scratch path) — RED (exit 0 'carve-out intact') against the committed pre-fix .js, GREEN (exit 1 naming the dropped id) after the fix. Non-regression PINNED with tests: round-5 body-`---` win (id-less embedded `---…---` stays body), the 3 round-7 shapes (kind-first recovered / indented gated / trailing-space `--- ` refused — parseNote's `^---\\n` rejects `--- \\n`), byte round-trip, CRLF-first, an inter-note tiling unit (id-less block BETWEEN two real notes → exactly 2 notes + byte round-trip, added per plan-checker WARNING), and a re-cast writer-order guard (pins parseNote-acceptability + an id, not field order). D-13 byte-fresh committed .js (npm run freshness exit 0). OUT OF SCOPE (frozen/deferred): Fork B/write-path, readContext, noteId, CMP-01, CMP-03, WR-03 (fail-SAFE), WR-02-broader, IN-02-broader. Standing lesson re-affirmed: a green vitest suite is NOT closure for this safety invariant — the proof is the held-out RED→GREEN run end-to-end against the committed .js plus the parseNote-oracle class invariant. Next: /gsd-execute-phase 22 (round 8)."
-last_updated: "2026-06-19T14:45:12.720Z"
+stopped_at: Completed 22-08-PLAN.md (round-7 CMP-02 fail-closed read-path gap closure) — awaiting Phase 22 re-verification
+last_updated: "2026-06-19T15:05:41.468Z"
 last_activity: 2026-06-19
-last_activity_desc: Phase 22 execution started
+last_activity_desc: Phase 22 complete, transitioned to Phase 23
 progress:
   total_phases: 7
   completed_phases: 3
@@ -28,16 +28,16 @@ See: .planning/PROJECT.md (updated 2026-06-16 — after v1.2 milestone)
 
 ## Current Position
 
-Phase: 22 (memory-trajectory-compaction-dialable-token-economy) — EXECUTING
-Plan: 2 of 9
+Phase: 23 — Parallel Execution & Orchestrator-as-Decomposer (One Substrate, Two Modes)
+Plan: Not started
 Status: Ready to execute
-Last activity: 2026-06-19 — Phase 22 execution started
+Last activity: 2026-06-19 — Phase 22 complete, transitioned to Phase 23
 
 ## Performance Metrics
 
 **Velocity:**
 
-- Total plans completed: 85
+- Total plans completed: 94
 - Average duration: -
 - Total execution time: 0 hours
 
@@ -64,6 +64,7 @@ Last activity: 2026-06-19 — Phase 22 execution started
 | 18 | 2 | - | - |
 | 20 | 4 | - | - |
 | 21 | 4 | - | - |
+| 22 | 9 | - | - |
 
 **Recent Trend:**
 

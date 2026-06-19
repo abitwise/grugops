@@ -116,7 +116,7 @@ Which phases cover which requirements. Confirmed during roadmap creation (2026-0
 | VFY-03 | Phase 21 | Complete |
 | VFY-04 | Phase 21 | Complete |
 | CMP-01 | Phase 22 | Complete |
-| CMP-02 | Phase 22 | In Progress |
+| CMP-02 | Phase 22 | Complete |
 | CMP-03 | Phase 22 | Complete |
 | PAR-01 | Phase 23 | Pending |
 | PAR-02 | Phase 23 | Pending |
