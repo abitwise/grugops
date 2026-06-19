@@ -1,0 +1,56 @@
+=== CMP-02 round-7 GREEN proof (against the freshly REBUILT committed scripts/compactor.js) ===
+=== captured: 2026-06-19T13:16:09Z ===
+=== git HEAD (pre final commit): 891f82f ===
+=== npm run freshness: exit 0 (committed .js byte-faithful to .ts, D-13 — re-confirmed below) ===
+
+# Each boundary-miss note #2 (kind-first / indented-id / trailing-space) was DROPPED at exit 0
+# 'carve-out intact' against the pre-fix .js (see 22-08-RED-baseline.txt). Post-fix the fail-closed
+# splitNotes recovers or refuses the buried note and the CLI exits 1 NAMING the dropped id (or the
+# refused file). RED->GREEN transition confirmed END-TO-END against the COMMITTED scripts/compactor.js.
+
+=== DIRECT CLI on each boundary-miss shape (REBUILT committed scripts/compactor.js, post-fix) ===
+--- (a) kind-first note #2 — exit 1 names the dropped id (buried finding 20260617T150000Z-engineer-finding-r7kindfirst) ---
+carve-out FAIL: a §14-gate-verified finding note (id "20260617T150000Z-engineer-finding-r7kindfirst", verified_by "§14-gate#RUN7", by "engineer") was dropped from the promoted set — a verified finding survives compaction unconditionally; neither a promoted-side nor a weaker raw-side supersedes link can fold it out (CMP-02, T-22-04-05/T-22-04-06).
+EXIT=1
+--- (b) indented-id note #2 — exit 1 fail-closed (names the malformed/empty-id or the refused file) (buried finding 20260617T150000Z-engineer-finding-r7indented) ---
+carve-out FAIL: malformed frontmatter line " id: 20260617T150000Z-engineer-finding-r7indented" in raw thread note "engineer.md#1" — an indented or "key : value" provenance line silently projects to empty under the lenient parser, so the carve-out cannot trust the byte-equal comparison of that line; fail closed (CMP-02, IN-02).
+carve-out FAIL: raw thread note "engineer.md#1" is structurally invalid — structural FAIL: malformed frontmatter line " id: 20260617T150000Z-engineer-finding-r7indented" — a provenance line must be a column-0 "key: value", the "refs:" block header, or a "  - item" refs entry (an indented or "key : value" line silently projects to empty and cannot enter the verified context). (the carve-out runs the shared write-path validator so it refuses exactly what appendNote refuses; CMP-02, IN-02).
+carve-out FAIL: raw finding note "engineer.md#1" has no frozen "id" field — a load-bearing raw note must carry its creation-time id to be tracked across compaction; fail closed (CMP-02).
+EXIT=1
+--- (c) trailing-space '--- ' boundary note #2 — exit 1 fail-closed (refused file) (buried finding 20260617T150000Z-engineer-finding-r7trailingspace) ---
+carve-out FAIL: raw thread note "engineer.md" has no valid frontmatter fence — an unparseable note cannot be tracked across compaction; fail closed rather than silently drop it (CMP-02, WR-02).
+EXIT=1
+
+=== npm run freshness (committed .js byte-fresh vs tsc rebuild, D-13) ===
+$ npm run freshness
+  > freshness
+  > tsc --outDir .tmp-build && node scripts/freshness.js
+  All build outputs fresh: 17 committed .js file(s) match a fresh tsc rebuild.
+  freshness exit: 0
+
+=== FULL non-e2e regression suite ===
+$ npx vitest run --exclude '**/scripts/e2e/**'
+   Test Files  16 passed (16)
+        Tests  418 passed | 1 skipped (419)
+     Duration  25.17s (transform 175ms, setup 0ms, import 276ms, tests 23.87s, environment 1ms)
+
+=== Round-7 vitest blocks GREEN (against the rebuilt committed .js) ===
+$ npx vitest run scripts/compactor.test.ts scripts/context-io.test.ts -t 'round-7'
+   Test Files  1 passed | 1 skipped (2)
+        Tests  4 passed | 230 skipped (234)
+
+=== Result summary ===
+boundary-miss kind-first / indented-id / trailing-space note #2: exit 1 fail-closed post-fix
+  (was exit 0 'carve-out intact' pre-fix — see 22-08-RED-baseline.txt) — RED->GREEN end-to-end
+  against the COMMITTED scripts/compactor.js confirmed.
+fail-closure CLASS invariant: splitNotes recovers (kind-first) or refuses (indented/trailing-space)
+  — never silently absorbs a fence-ish id-bearing region into a prior body.
+broadened recognition / no drift: isRecognizedFrontmatterLine is the single exported source-of-truth
+  grammar; the splitNotes∘parseNote==parseNote assertion passes on a KIND-FIRST note.
+round-5 body-`---` win preserved: the BODY-`---` ambiguity test still passes (id-less embedded block stays body).
+writer-order guard: composeNote AND composeThreadNote real output recognized as exactly one clean boundary.
+test #3 replaced: round-6 non-discriminating scratch-then-fence test deleted; replacement (non-boundary
+  fence-shaped remainder after note #2) is RED-first against the committed pre-fix .js.
+npm run freshness: exit 0 (17 committed .js fresh).
+full non-e2e suite: 16 files, 418 passed, 1 skipped, 0 failed.
+scope: readContext / noteId / the writers' emitted bytes / the write-path representation UNCHANGED (Fork A).

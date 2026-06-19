@@ -1008,4 +1008,52 @@ describe("context-io.js — splitNotes multi-fence split (shared grammar, IN-02)
     expect(carved1!.body).toEqual(standalone1!.body);
     expect(carved1!.scalars.id).toBe("20260617T150000Z-engineer-finding-kf3");
   });
+
+  // ── WRITER-ORDER GUARD for composeNote (kills the unguarded coupling, T-22-08-04). ──────────────
+  // The round-6 closure rested on an undocumented "every writer emits id: first" coupling: a benign
+  // field-reorder of composeNote would re-open the boundary-miss hole with a fully green suite. This
+  // guard PINS the coupling: the REAL composeNote output (written via appendNote into a temp notes/
+  // dir, then read back) must be recognized by splitNotes as EXACTLY one boundary / one note that
+  // parses cleanly, AND a perturbed copy whose `id:` is moved off the opening must NOT be silently
+  // swallowed (it is recovered as a boundary by the broadened id-bearing-run grammar, or refused —
+  // never absorbed). A future reorder of composeNote that breaks recognition fails THIS test RED.
+  it("WRITER-ORDER GUARD: composeNote's real output is recognized by splitNotes as exactly one boundary; a reorder that broke recognition would fail RED", () => {
+    const root = freshTmp("ctxio-writer-guard-");
+    // appendNote composes via composeNote and writes notes/<id>.md.
+    const id = mod.appendNote(
+      "guard-task",
+      {
+        kind: "finding",
+        by: "engineer",
+        at: "2026-06-17T14:23:05Z",
+        verified_by: "§14-gate#RUN7",
+        confidence: "high",
+        refs: ["A"],
+        supersedes: null,
+      },
+      "The composed note body.",
+      root,
+    );
+    const text = readFileSync(join(root, "guard-task", "notes", `${id}.md`), "utf8");
+    // The real writer output is exactly one recognized note boundary, clean.
+    const split = mod.splitNotes(text);
+    expect(split.notes.length, "composeNote output must be exactly one splitNotes boundary").toBe(1);
+    expect(split.trailingMalformed).toBeNull();
+    const parsed = mod.parseNote(split.notes[0]);
+    expect(parsed).not.toBeNull();
+    expect(parsed!.scalars.id).toBe(id);
+    expect(parsed!.malformedLines).toEqual([]);
+    // A perturbed copy whose opening `id:` is reordered after `kind:` (a kind-first reorder) is STILL
+    // recognized by the broadened id-bearing-run grammar (recovered, not silently absorbed) — proving
+    // the boundary key no longer depends on id-FIRST specifically, but a reorder that broke the
+    // id-bearing run entirely (e.g. dropping id) would not be recovered and would fail closed.
+    const reordered = text.replace(/^id: (.+)\nkind: (.+)\n/m, "kind: $2\nid: $1\n");
+    expect(reordered).not.toBe(text); // the perturbation actually applied
+    const reSplit = mod.splitNotes(reordered);
+    const silentlyAbsorbed = reSplit.notes.length === 0 && reSplit.trailingMalformed === null;
+    expect(
+      silentlyAbsorbed,
+      "a reordered composeNote output must be recovered or refused, never silently swallowed",
+    ).toBe(false);
+  });
 });

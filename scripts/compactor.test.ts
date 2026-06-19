@@ -56,6 +56,14 @@ const mod: typeof import("./compactor.js") = await import(
   pathToFileURL(COMPACTOR_JS).href
 );
 
+// The compiled context-io.js exposes splitNotes / parseNote — the read-path grammar the
+// writer-order guard pins composeThreadNote's output against (the splitter and the writer must agree
+// on the note-opening shape, or a future field-reorder silently re-opens the boundary-miss hole).
+const CONTEXT_IO_JS = join(ROOT, "scripts", "context-io.js");
+const ctxio: typeof import("./context-io.js") = await import(
+  pathToFileURL(CONTEXT_IO_JS).href
+);
+
 // ── Note composition (mirrors context-io.test.ts goodNoteText shape) ──────────────────────────────
 // A complete, valid note frontmatter+body the carve-out cases mutate one field of.
 function noteText(over: Partial<Record<string, string>> = {}): string {
@@ -1861,47 +1869,81 @@ describe("compactor.js — CMP-02 round-6 multi-note thread file (held-out RED-f
     expect(`${r.stdout}${r.stderr}`).toContain(faId);
   });
 
-  // 3. SCRATCH-THEN-FENCE FAIL-CLOSED (WR-01). writeThread once WITHOUT a note arg (free scratch —
-  // raw body, no fence) and once WITH a note (a fenced verified finding). The free scratch is a
-  // non-boundary remainder ahead of the first recognized note; splitNotes surfaces it as
-  // trailingMalformed and readNoteDir routes it into the fail-closed channel naming the file — a
-  // file mixing un-fenced scratch with fenced notes is refused, never silently read. (The
-  // scratch-FIRST ordering makes the un-fenced region a deterministically-detectable non-boundary
-  // remainder; the writer glues a no-note trailing scratch directly onto the prior body with no
-  // separator, so a scratch-LAST file is byte-indistinguishable from a note with a longer body —
-  // there is genuinely no syntactic seam to detect, so the read path detects the un-fenced region
-  // where it IS unambiguous: ahead of a fence. WR-01's "reject mixing" is satisfied either way.)
-  it("RED-first: a scratch-then-fence thread file fails closed (exit 1) naming the file — the un-fenced scratch is an unparseable remainder, never a silent read", () => {
-    const dir = freshTmp("cmp-r6-fence-scratch-");
+  // 3. NON-BOUNDARY REMAINDER AFTER NOTE #2 FAIL-CLOSED (WR-02, round-7 replacement of the round-6
+  // non-discriminating test #3). The round-6 test #3 (scratch-then-fence) asserted only that the
+  // thread file name appears on stderr — an expectation the PRE-FIX code already satisfied (its
+  // leading-scratch handling named the file), so it proved nothing about the read path under repair
+  // (WR-02). This replacement is genuinely RED-first against the committed pre-fix .js: note #1 fenced
+  // id-first, a real fenced note #2 id-first, and THEN a NON-BOUNDARY fence-shaped remainder appended
+  // as free scratch AFTER note #2 — a fence whose run carries NO id (an id-less `---\nkey: value\n---`
+  // block, i.e. NOT a note). The fail-closed read path must refuse the file naming `<agent>.md` rather
+  // than silently read past the malformed tail. (DELIBERATE SAFE NON-GOAL: a trailing FREE scratch that
+  // is byte-indistinguishable from a longer body carries no fenced provenance by construction — there
+  // is no syntactic seam to detect, so its non-detectability is a safe non-goal, never an untested gap;
+  // this test pins the case that IS detectable: a fence-shaped remainder with no recoverable note.)
+  it("RED-first: a non-boundary fence-shaped remainder AFTER note #2 fails closed (exit 1) naming the file — a fence-ish id-less tail is refused, never silently read", () => {
+    const dir = freshTmp("cmp-r7-nonboundary-tail-");
     const contextRoot = join(dir, "ctx");
-    const task = "task-r6c";
+    const task = "task-r7tail";
     const agent = "engineer";
-    // Free scratch FIRST with NO note arg → raw body, no fence (the un-fenced leading region).
-    mod.writeThread(task, agent, "free scratch notes the agent jotted, no fence here.", contextRoot);
-    // Then a fenced verified finding.
+    // Note #1: a soft observation (fenced, id-first).
+    mod.writeThread(task, agent, "just an observation.", contextRoot, {
+      kind: "observation",
+      by: "engineer",
+      at: "2026-06-17T14:23:05Z",
+      verified_by: "",
+      confidence: "low",
+      refs: ["X"],
+      supersedes: null,
+    });
+    // Note #2: a real fenced §14-gate-verified finding (id-first).
+    mod.writeThread(task, agent, "The SQL injection is fixed (gate-verified).", contextRoot, {
+      kind: "finding",
+      by: "engineer",
+      at: "2026-06-17T15:00:00Z",
+      verified_by: "§14-gate#RUN7",
+      confidence: "high",
+      refs: ["Y"],
+      supersedes: null,
+    });
+    // A fence-shaped remainder AFTER note #2, glued via the free-scratch path: a trailing-space `--- `
+    // boundary opening an id-bearing run with NO closing `---` (a truncated/orphan note opening). The
+    // round-6 splitter's exact `lines[i] === "---"` compare misses the `--- ` boundary, so the tail is
+    // silently absorbed into note #2's body → exit 0 (RED against the committed pre-fix .js). The
+    // round-7 fail-closed splitter sees the `--- ` boundary + id-bearing run, splits the region out, and
+    // parseNote returns null (no closing fence) → routed to trailingMalformed → readNoteDir surfaces the
+    // FILE as unparseable → checkCarveOut refuses naming `<agent>.md`. Never silently read past it.
     const threadFile = mod.writeThread(
       task,
       agent,
-      "The SQL injection is fixed (gate-verified).",
+      "--- \nid: 20260617T160000Z-engineer-finding-orphantail\nkind: finding\nby: engineer\nat: 2026-06-17T16:00:00Z\ntrailing fence-shaped remainder with no closing fence.",
       contextRoot,
-      {
-        kind: "finding",
-        by: "engineer",
-        at: "2026-06-17T15:00:00Z",
-        verified_by: "§14-gate#RUN7",
-        confidence: "high",
-        refs: ["Y"],
-        supersedes: null,
-      },
     );
+    // The two REAL notes (note #1 obs, note #2 finding) plus the orphan-tail id stamp — three `id:`
+    // lines on disk. The two real notes' ids are the first two in document order; the third is the
+    // orphan tail (no closing fence). The promoted set keeps the two real notes faithfully so the ONLY
+    // fault is the unparseable fence-ish tail — proving the file is refused on the tail, not on a drop.
     const ids = stampedIds(threadFile);
-    expect(ids.length).toBe(1);
-    const [findingId] = ids;
+    expect(ids.length).toBe(3);
+    const [obsId, findingId] = ids;
 
     const threadDir = join(contextRoot, task, "threads");
     const promoted = join(dir, "promoted");
     mkdirSync(promoted, { recursive: true });
-    // Promoted keeps the fenced finding faithfully.
+    writeFileSync(
+      join(promoted, "obs.md"),
+      promotedNote({
+        id: obsId,
+        kind: "observation",
+        by: "engineer",
+        at: "2026-06-17T14:23:05Z",
+        verified_by: "",
+        confidence: "low",
+        refs: ["X"],
+        supersedes: "",
+        body: "just an observation.",
+      }),
+    );
     writeFileSync(
       join(promoted, "finding.md"),
       promotedNote({
@@ -1920,7 +1962,7 @@ describe("compactor.js — CMP-02 round-6 multi-note thread file (held-out RED-f
     const r = runCheck(threadDir, promoted);
     expect(
       r.status,
-      "a scratch-then-fence thread file must fail closed (the un-fenced scratch is an unparseable remainder)",
+      "a non-boundary fence-shaped remainder after note #2 must fail closed (the id-less fence-ish tail is an unparseable remainder)",
     ).not.toBe(0);
     // Names the thread file (the fail-closed channel surfaces the unparseable file name).
     expect(`${r.stdout}${r.stderr}`).toContain(`${agent}.md`);
@@ -2261,5 +2303,49 @@ describe("compactor.js — CMP-02 round-7 boundary-miss fail-closure (held-out R
     ).not.toBe(0);
     const out = `${run.stdout}${run.stderr}`;
     expect(out.includes(note2Id) || out.includes(`${agent}.md`)).toBe(true);
+  });
+});
+
+// ── CMP-02 ROUND-7: writer-order guard for composeThreadNote (T-22-08-04) ──────────────────────────
+// The round-6 closure rested on an undocumented, untested "every writer emits id: first" coupling: a
+// benign field-reorder of composeThreadNote would silently re-open the boundary-miss hole with a fully
+// green suite. This guard PINS the coupling. composeThreadNote is not exported, so we exercise its REAL
+// output via mod.writeThread (the sanctioned id-bearing structured-fence path) and assert the on-disk
+// fence is recognized by the read-path splitter (ctxio.splitNotes) as EXACTLY one boundary / one clean
+// note. A future field-reorder of composeThreadNote that broke that recognition fails THIS test RED.
+describe("compactor.js — CMP-02 round-7 writer-order guard (composeThreadNote ↔ splitNotes)", () => {
+  it("WRITER-ORDER GUARD: composeThreadNote's real output is recognized by splitNotes as exactly one clean boundary; a reorder that broke recognition would fail RED", () => {
+    const dir = freshTmp("cmp-r7-writer-guard-");
+    const contextRoot = join(dir, "ctx");
+    const threadFile = mod.writeThread("guard-task", "engineer", "The composed thread note body.", contextRoot, {
+      kind: "finding",
+      by: "engineer",
+      at: "2026-06-17T14:23:05Z",
+      verified_by: "§14-gate#RUN7",
+      confidence: "high",
+      refs: ["A"],
+      supersedes: null,
+    });
+    const text = readFileSync(threadFile, "utf8");
+    // The real writer output is exactly one recognized note boundary, clean (no malformed lines).
+    const split = ctxio.splitNotes(text);
+    expect(split.notes.length, "composeThreadNote output must be exactly one splitNotes boundary").toBe(1);
+    expect(split.trailingMalformed).toBeNull();
+    const parsed = ctxio.parseNote(split.notes[0]);
+    expect(parsed).not.toBeNull();
+    expect(parsed!.malformedLines).toEqual([]);
+    expect(parsed!.scalars.id ?? "").not.toBe("");
+    // A perturbed copy whose opening `id:` is reordered after `kind:` (a kind-first reorder) is STILL
+    // recognized by the broadened id-bearing-run grammar (recovered, not silently absorbed). A reorder
+    // that broke the id-bearing run entirely (e.g. dropping id) would not be recovered and would fail
+    // closed — so a future field-reorder of composeThreadNote can never silently re-open the hole.
+    const reordered = text.replace(/^id: (.+)\nkind: (.+)\n/m, "kind: $2\nid: $1\n");
+    expect(reordered).not.toBe(text);
+    const reSplit = ctxio.splitNotes(reordered);
+    const silentlyAbsorbed = reSplit.notes.length === 0 && reSplit.trailingMalformed === null;
+    expect(
+      silentlyAbsorbed,
+      "a reordered composeThreadNote output must be recovered or refused, never silently swallowed",
+    ).toBe(false);
   });
 });
