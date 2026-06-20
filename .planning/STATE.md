@@ -5,14 +5,14 @@ milestone_name: Decentralized Factory — Shared Verified Context
 current_phase: 23
 current_phase_name: One Substrate, Two Modes
 status: planning
-stopped_at: Phase 23 context gathered
-last_updated: "2026-06-20T21:32:50.326Z"
-last_activity: 2026-06-19
-last_activity_desc: Phase 22 complete, transitioned to Phase 23
+stopped_at: Phase 23 planned — 3 plans across 3 waves, plan-checker passed (ready to execute)
+last_updated: "2026-06-21"
+last_activity: 2026-06-21
+last_activity_desc: Phase 23 planned (3 plans, 3 waves; research + plan-checker passed)
 progress:
   total_phases: 7
   completed_phases: 3
-  total_plans: 17
+  total_plans: 20
   completed_plans: 17
   percent: 43
 ---
@@ -24,14 +24,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-06-16 — after v1.2 milestone)
 
 **Core value:** A user installs grugops on top of the coding-agent CLI they already run, types `/grug`, and gets a disciplined delivery team — a visible board, strict handoffs, and an auditable requirement→code→test→release trail — entirely as readable markdown, with humans always holding merge and deploy.
-**Current focus:** Phase 22 — memory-trajectory-compaction-dialable-token-economy
+**Current focus:** Phase 23 — Parallel Execution & Orchestrator-as-Decomposer (One Substrate, Two Modes)
 
 ## Current Position
 
 Phase: 23 — Parallel Execution & Orchestrator-as-Decomposer (One Substrate, Two Modes)
-Plan: Not started
+Plan: 3 plans across 3 waves — planned & verified (plan-checker passed)
 Status: Ready to execute
-Last activity: 2026-06-19 — Phase 22 complete, transitioned to Phase 23
+Last activity: 2026-06-21 — Phase 23 planned (3 plans, plan-checker passed)
 
 ## Performance Metrics
 

@@ -167,8 +167,16 @@ Plans:
 
 **Plans**: 3 plans (3 waves)
 Plans:
+**Wave 1**
+
 - [ ] 23-01-PLAN.md — queue config object (3 surfaces, D-06) + cross-surface consistency check + now-running.md render (D-14) + queue-rooted freshness gate [CLAIM-03]
+
+**Wave 2** *(blocked on Wave 1 completion)*
+
 - [ ] 23-02-PLAN.md — Orchestrator augment (router → decompose/schedule/gate, D-11/D-12/D-13) + Workflow 17 + SC1/SC2 decomposition+width spine + SC3 dual-path convergence oracle [PAR-01, PAR-02, PAR-03, CLAIM-03]
+
+**Wave 3** *(blocked on Wave 2 completion)*
+
 - [ ] 23-03-PLAN.md — the atomic WR-05 flip (D-18 7 surfaces): both-direction guard_wr05 + 3 RED fixtures + B3 asymmetry oracle + protocol/packaging/asymmetric-tables/coordinator-adapter + regenerated catalog [PAR-04, PAR-02, CLAIM-03]
 
 ### Phase 24: Clean Handoff Removal & Traceability Migration
