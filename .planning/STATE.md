@@ -5,8 +5,8 @@ milestone_name: Decentralized Factory — Shared Verified Context
 current_phase: 23
 current_phase_name: One Substrate, Two Modes
 status: planning
-stopped_at: "Phase 22 (Memory & Trajectory Compaction) COMPLETE 2026-06-19 — CMP-01/02/03 all verified. Round 8 (22-09) closed the CMP-02 carve-out silent-absorb CLASS (bypassed 7× rounds 1–7) by UNIFYING the two parsers: splitNotes' boundary RECOVER authority IS parseNote (idBearing(region)=parseNote(region) non-null AND id-bearing); the looksLikeFrontmatterLine(lines[i+1]) gate + opensIdBearingRun scan REMOVED (grep==0, one grammar can't drift). Executor's opensNoteAttempt OR-branch deviation accepted as fail-SAFE (only broadens the refuse path; forced by the plan's own must_have #5 requiring trailing-space `--- ` REFUSED, which parseNote rejects). Verified PASSED 8/8 by TWO independent opus probes (gsd-verifier sonnet→opus override + an independent adversarial red-team): ~140k generated shapes + e2e repros through the committed `node scripts/compactor.js check`, ZERO silent-absorbs; 426 non-e2e green, freshness 0, compactor.ts byte-frozen (Fork B held). Deferred fail-SAFE (NOT SC2 gaps, all refuse loudly): WR-03 usability false-positive, byte-round-trip `\\n` on the refused-remainder string only, BOM/ZWSP. Commits ff403c7/54344e0/9ebf290/9c96c15 + completion 1e0df37. Next: /gsd-discuss-phase 23 (Parallel Execution & Orchestrator-as-Decomposer — no 23-CONTEXT.md yet)."
-last_updated: "2026-06-19T15:05:41.468Z"
+stopped_at: Phase 23 context gathered
+last_updated: "2026-06-20T21:32:50.326Z"
 last_activity: 2026-06-19
 last_activity_desc: Phase 22 complete, transitioned to Phase 23
 progress:
@@ -437,9 +437,9 @@ Items acknowledged and deferred at the **v1.2 milestone close on 2026-06-16** (1
 
 ## Session Continuity
 
-Last session: 2026-06-19T14:44:34.150Z
-Stopped at: Completed 22-08-PLAN.md (round-7 CMP-02 fail-closed read-path gap closure) — awaiting Phase 22 re-verification
-Resume file: None
+Last session: 2026-06-20T21:32:50.313Z
+Stopped at: Phase 23 context gathered
+Resume file: .planning/phases/23-parallel-execution-orchestrator-as-decomposer-one-substrate-/23-CONTEXT.md
 
 ## Operator Next Steps
 
