@@ -49,9 +49,9 @@ Requirements for the decentralization milestone. Each maps to exactly one roadma
 
 ### PAR — Parallel Execution & Orchestrator-as-Decomposer
 
-- [ ] **PAR-01**: The Orchestrator is redefined from sole router to decomposer/scheduler/gate — it decomposes work into queued subtasks, holds `Agent(<allowlist>)`, holds the human merge/deploy gate, and does **not** relay data (the blackboard control component).
+- [x] **PAR-01**: The Orchestrator is redefined from sole router to decomposer/scheduler/gate — it decomposes work into queued subtasks, holds `Agent(<allowlist>)`, holds the human merge/deploy gate, and does **not** relay data (the blackboard control component).
 - [x] **PAR-02**: Parallel role-agent execution on Claude Code via nested sub-agent spawning (v2.1.172 floor; agents may themselves decompose, depth ≤5) + Workflow 17 (`17-task-claim.md`).
-- [ ] **PAR-03**: A degraded sequential path for the four non-spawning CLIs — concurrency-1 over the *same* substrate via the rewired `_role-switch-protocol.md` step-4; one substrate, two execution modes that converge on identical on-disk artifacts.
+- [x] **PAR-03**: A degraded sequential path for the four non-spawning CLIs — concurrency-1 over the *same* substrate via the rewired `_role-switch-protocol.md` step-4; one substrate, two execution modes that converge on identical on-disk artifacts.
 - [x] **PAR-04**: `guard_wr05` inverted — from "no role grants `Agent`" to "only the coordinator grants `Agent(<allowlist>)`"; flips atomically with the packaging templates + the docs catalog.
 
 ### MIGR — Clean Handoff Removal & Traceability Migration
@@ -118,9 +118,9 @@ Which phases cover which requirements. Confirmed during roadmap creation (2026-0
 | CMP-01 | Phase 22 | Complete |
 | CMP-02 | Phase 22 | Complete |
 | CMP-03 | Phase 22 | Complete |
-| PAR-01 | Phase 23 | Pending |
+| PAR-01 | Phase 23 | Complete |
 | PAR-02 | Phase 23 | Complete |
-| PAR-03 | Phase 23 | Pending |
+| PAR-03 | Phase 23 | Complete |
 | PAR-04 | Phase 23 | Complete |
 | MIGR-01 | Phase 24 | Pending |
 | MIGR-02 | Phase 24 | Pending |

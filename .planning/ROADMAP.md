@@ -246,7 +246,7 @@ Plans:
 | 20. Shared-Context Substrate & Concurrency Foundation | v2.0 | 4/4 | Complete    | 2026-06-17 |
 | 21. Verify-Before-Write Admission | v2.0 | 4/4 | Complete    | 2026-06-17 |
 | 22. Memory & Trajectory Compaction | v2.0 | 9/9 | Complete    | 2026-06-19 |
-| 23. Parallel Execution & Orchestrator-as-Decomposer | v2.0 | 3/3 | Awaiting Verification | 2026-06-21 |
+| 23. Parallel Execution & Orchestrator-as-Decomposer | v2.0 | 3/3 | Complete    | 2026-06-21 |
 | 24. Clean Handoff Removal & Traceability Migration | v2.0 | 0/? | Pending | - |
 | 25. Governance-on-a-Dial | v2.0 | 0/? | Pending | - |
 | 26. Dogfood, Dual-Path Oracle & A3/DOG-02 Retirement | v2.0 | 0/? | Pending | - |
