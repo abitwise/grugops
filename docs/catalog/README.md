@@ -2,7 +2,7 @@
 # grugops Catalog
 
 This is the generated, browsable index of the grugops kit: 17 role personas and
-18 workflows. Each row links to its source file. The catalog is produced by
+19 workflows. Each row links to its source file. The catalog is produced by
 `scripts/generate-catalog.js` and is never hand-edited — re-run the generator and commit the
 result. Any unverified field is marked `UNKNOWN - verify` rather than invented.
 
@@ -16,7 +16,7 @@ result. Any unverified field is marked `UNKNOWN - verify` rather than invented.
 | Brownfield Mapper | core | Inspect an existing repo and produce a read-only map — structure, commands, architecture, tests, risks, and safe first tickets. | [agent-factory/roles/brownfield-mapper.md](../../agent-factory/roles/brownfield-mapper.md) |
 | Frontend/UI | core | Author the UI/design contract the engineer builds against and QE verifies — design tokens, component inventory, the five states, and the accessibility bar. | [agent-factory/roles/frontend-ui.md](../../agent-factory/roles/frontend-ui.md) |
 | Greenfield Mapper | core | Shape empty land — choose a boring stack unless told otherwise, lay out the folder and docs plan, and sketch a first architecture. | [agent-factory/roles/greenfield-mapper.md](../../agent-factory/roles/greenfield-mapper.md) |
-| Orchestrator | core | Route each incoming request to the right role agent within hard limits — read the config and board first, keep scope small, enforce WIP, demand a handoff, and make the next step obvious. | [agent-factory/roles/orchestrator.md](../../agent-factory/roles/orchestrator.md) |
+| Orchestrator | core | Decompose each request into subtasks, route each to the right role agent within hard limits, and schedule them over the shared queue — config/board first, scope small, WIP/width enforced, handoff demanded, next step obvious. | [agent-factory/roles/orchestrator.md](../../agent-factory/roles/orchestrator.md) |
 | QE/E2E | core | Break the feature — test happy, sad, and edge paths, write E2E where useful with stable selectors, avoid flaky tests, and report the gaps. | [agent-factory/roles/qe-e2e.md](../../agent-factory/roles/qe-e2e.md) |
 | Security/NFR | core | Look for danger across a change — review authentication, data, secrets, performance, reliability, logging, and compliance notes — and return a clear result with required fixes and accepted risks. | [agent-factory/roles/security-nfr.md](../../agent-factory/roles/security-nfr.md) |
 | Software Engineer | core | Implement one ticket — read the handoff first, make a small diff, add tests, run checks, and update docs. | [agent-factory/roles/software-engineer.md](../../agent-factory/roles/software-engineer.md) |
@@ -49,4 +49,5 @@ result. Any unverified field is marked `UNKNOWN - verify` rather than invented.
 | 14 | UI design to build | both | When a ticket needs UI/frontend work — a design contract authored once, then built and verified. | [agent-factory/workflows/14-ui-design-to-build.md](../../agent-factory/workflows/14-ui-design-to-build.md) |
 | 15 | Security audit (OWASP ASVS) | both | When a deep, standalone security audit is wanted — on demand, per phase, or per milestone. | [agent-factory/workflows/15-security-audit.md](../../agent-factory/workflows/15-security-audit.md) |
 | 16 | context read/write | both | Whenever a role is about to act on, or record into, the shared verified context. | [agent-factory/workflows/16-context-read-write.md](../../agent-factory/workflows/16-context-read-write.md) |
+| 17 | task claim + schedule | both | Whenever a role is about to take ownership of a queued subtask, or the coordinator is about to schedule the queue. | [agent-factory/workflows/17-task-claim.md](../../agent-factory/workflows/17-task-claim.md) |
 | 18 | context compaction | both | Whenever an agent has accumulated a verbose local trajectory for a task and is about to promote results into the shared verified context. | [agent-factory/workflows/18-context-compaction.md](../../agent-factory/workflows/18-context-compaction.md) |
