@@ -32,19 +32,22 @@ ship — never assume a tool fact is permanent.
 
 | Tool | Entry file it reads | Dispatch mode | Adapter | Verify |
 | ---- | ------------------- | ------------- | ------- | ------ |
-| **Claude Code** | `CLAUDE.md` one-line pointer + portable `AGENTS.md` | Sequential role-load — no spawn; the Orchestrator loads each role file into one context in turn (the frozen single-window design, `_role-switch-protocol.md`) | **Both forms.** Standalone `.claude/skills/grugops*` (dash → `/grugops-plan`) **and** the `.claude-plugin/` plugin colon form (`/grugops:plan`) | verify against current tool docs |
+| **Claude Code** | `CLAUDE.md` one-line pointer + portable `AGENTS.md` | Coordinator spawns role agents — the `coordinator: true` orchestrator adapter holds the enumerated `Agent(<allowlist>)` grant and spawns role agents (nested depth ≤5, concurrent width capped by `queue.wip_limit`); the single-window sequential role-load remains available as the fallback | **Both forms.** Standalone `.claude/skills/grugops*` (dash → `/grugops-plan`) **and** the `.claude-plugin/` plugin colon form (`/grugops:plan`) | verify against current tool docs |
 | **Codex CLI** | root `AGENTS.md` (+ global `~/.codex/AGENTS.md`) | Sequential role-load — no spawn; the Orchestrator loads each role file into one context in turn | **None — native.** Codex reads `AGENTS.md` directly | verify against current tool docs |
 | **Gemini CLI** | `AGENTS.md` via `.gemini/settings.json` `context.fileName: ["AGENTS.md","GEMINI.md"]` | Sequential role-load — no spawn | **`settings.json` wiring** (`context.fileName` array; cleaner than a `GEMINI.md` pointer, which also works) | verify against current tool docs |
 | **OpenCode** | root `AGENTS.md` (+ global `~/.config/opencode/AGENTS.md`) | Sequential role-load — no spawn (or its own native agents) | **None — native.** OpenCode reads `AGENTS.md` directly | verify against current tool docs |
 | **GitHub Copilot CLI** | `AGENTS.md` (+ optional `.github/copilot-instructions.md`) | Sequential role-load — no spawn | **Optional pointer.** Ensuring `AGENTS.md` is present is sufficient; the `.github/` pointer is a convenience | verify against current Copilot CLI docs |
 
-All five tools use the SAME single-window sequential role-load (the frozen Phase-7/8 design,
-`_role-switch-protocol.md`): the Orchestrator is a single agent that *loads the relevant role
-file into context* at the moment it would otherwise "wake" that role — no sub-agent spawning,
-because the kit must run identically across all five host CLIs and sub-agent nesting is not
-available everywhere. What changes from tool to tool is only the **entry file** the host reads
-to reach `agent-factory/roles/orchestrator.md` (the column above), never the dispatch model and
-never the content. **Same roles, same handoffs, same gates — only the entry file differs.**
+The four non-spawning CLIs (Codex, Gemini, OpenCode, Copilot) use the single-window sequential
+role-load (`_role-switch-protocol.md`): the Orchestrator is a single agent that *loads the
+relevant role file into context* at the moment it would otherwise "wake" that role — no
+sub-agent spawning, because those hosts cannot spawn. Claude Code adds coordinator spawning: the
+`coordinator: true` orchestrator adapter holds the enumerated spawn grant and dispatches role
+agents in parallel (depth ≤5, width ≤ `queue.wip_limit`), with the sequential role-load still
+available as the fallback. What changes from tool to tool is the **entry file** the host reads
+to reach `agent-factory/roles/orchestrator.md` (the column above) and — on Claude Code only — the
+dispatch mode. **Same roles, same handoffs, same gates — the four non-spawning CLIs stay
+sequential; only Claude Code adds coordinator spawning.**
 
 Doc links cite `code.claude.com/docs/en/*` (the current host) — for example
 `code.claude.com/docs/en/plugins-reference`, `code.claude.com/docs/en/skills`,

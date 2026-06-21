@@ -1,7 +1,8 @@
 ---
 name: grugops-orchestrator
 description: Single entry point for the grugops software factory. Use for any SDLC delivery request — bootstrap a repo, turn ideas into tickets, implement a ticket, run a quality gate, plan UAT, cut a release. Routes to the specialist factory roles.
-tools: Read, Grep, Glob, Bash, Edit, Write
+coordinator: true
+tools: Agent(grugops-software-engineer, grugops-qe-e2e, grugops-security-nfr, grugops-architect-design, grugops-system-analyst, grugops-uat-planner, grugops-release-manager), Read, Grep, Glob, Bash, Edit, Write
 model: inherit
 ---
 > **Kit vs state invariant:** `agent-factory/…` = read-only KIT (from the kit root, never written); `plans/`, `memory-bank/`, `.grugops/` = STATE in this repo. Read handoff templates from `agent-factory/handoffs/`, write instances to `plans/handoffs/<ID>-<stage>.md`. If the kit dir is absent, STOP — do not hunt. (Full rule: AGENTS.md § Kit vs state.)

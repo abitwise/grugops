@@ -95,10 +95,11 @@ Do not carry the `grugops-` prefix into the plugin directory names, or you get t
 - **`disable-model-invocation: true` belongs on `grugops-release`** — the destructive,
   deploy-touching command — so the model can never auto-trigger it; only a human invokes it.
   This pairs with the mechanical prod-deploy guard (see `adapters.md`).
-- **No spawn tool in `allowed-tools`.** grugops activates each role via single-window
-  sequential role-load (`agent-factory/roles/_role-switch-protocol.md`: one window, drop
-  prior context between roles, the handoff packet is the only memory), NOT sub-agent
-  spawning — so the skill grants only the file/shell tools it uses and never a spawn tool.
-  This keeps role activation identical across all five host CLIs. Reference:
-  `code.claude.com/docs/en/skills`.
+- **No spawn tool in a skill's `allowed-tools`.** A slash-command skill never spawns — spawning
+  is coordinator-only and lives on the orchestrator sub-agent adapter, not on a command skill.
+  On the four non-spawning host CLIs grugops activates each role via single-window sequential
+  role-load (`agent-factory/roles/_role-switch-protocol.md`: one window, drop prior context
+  between roles, the handoff packet is the only memory); on Claude Code the coordinator may
+  spawn role agents instead. Either way the skill grants only the file/shell tools it uses and
+  never a spawn tool. Reference: `code.claude.com/docs/en/skills`.
 - Clear voice for the safety line (named-human-approval); light grug wink only in framing.

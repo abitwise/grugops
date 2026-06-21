@@ -37,16 +37,16 @@ tool can *spawn* sub-agents or must *load* role files into context one at a time
 
 | Tool                  | Entry file it reads                              | Role dispatch                                            |
 | --------------------- | ------------------------------------------------ | -------------------------------------------------------- |
-| **Claude Code**       | `CLAUDE.md` (+ portable `AGENTS.md`, Phase 3)    | Native sub-agents — the Orchestrator spawns role agents  |
+| **Claude Code**       | `CLAUDE.md` (+ portable `AGENTS.md`, Phase 3)    | Coordinator spawns role agents — the `coordinator: true` adapter holds the grant |
 | **Codex CLI**         | `AGENTS.md` (root + nested, global)              | Sequential role-load — no spawn                          |
 | **Gemini CLI**        | `GEMINI.md` (or `AGENTS.md` via `context.fileName`) | Sequential role-load — no spawn                       |
 | **OpenCode**          | `AGENTS.md` (+ its agent config)                 | Sequential role-load (or its own native agents)          |
 | **GitHub Copilot CLI**| `AGENTS.md` (+ `.github/copilot-instructions.md`)| Sequential role-load — no spawn                          |
 
-Where a tool supports real sub-agents (Claude Code), the Orchestrator spawns a role agent
-when it would otherwise "wake" that role. Where it does not, the Orchestrator is a single
-agent that *loads the relevant role file into context* at that moment. Same roles, same
-handoffs, same gates — only the dispatch differs.
+On Claude Code the coordinator (the `coordinator: true` orchestrator adapter) spawns a role
+agent when it would otherwise "wake" that role. On the four non-spawning CLIs the Orchestrator
+is a single agent that *loads the relevant role file into context* at that moment. Same roles,
+same handoffs, same gates — only the dispatch differs.
 
 The detailed per-tool **adapters** (thin wrappers, slash commands, entry-file pointers, and
 the Claude Code plugin form) ship in Phase 5 under `agent-factory/packaging/`. This table is
