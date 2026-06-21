@@ -1,0 +1,57 @@
+===================================================================
+23-03 GREEN-PROOF — the REAL flipped tree passes the COMMITTED .js
+Generated: 2026-06-21T07:54:50Z
+===================================================================
+
+### guard_wr05 over the real tree (coordinator holds grant; non-coordinators do not)
+[guard_wr05] coordinator-only spawn grant: marker-keyed both-direction enforcement (WR-05)
+  PASS  WR-05: coordinator holds the spawn grant; no non-coordinator does
+[oracleWr05Wording] WR-05 closure beats + the asymmetric 5-tool-table flip (B3 / UAT-AUTO-01, D-19)
+  PASS  WR-05 wording: closure beats present in all four tracking docs; the 5-tool-table flip is asymmetric (CC row spawns, four CLI rows stay no-spawn)
+ALL CHECKS PASSED
+GUARD_EXIT=0
+
+### oracleWr05Wording over the real tree (closure beats + asymmetric flip)
+[oracleWr05Wording] WR-05 closure beats + the asymmetric 5-tool-table flip (B3 / UAT-AUTO-01, D-19)
+  PASS  WR-05 wording: closure beats present in all four tracking docs; the 5-tool-table flip is asymmetric (CC row spawns, four CLI rows stay no-spawn)
+ALL CHECKS PASSED
+ORACLE_EXIT=0
+
+### catalog-freshness + build freshness
+Catalog fresh: docs/catalog/README.md matches a fresh regeneration.
+CATALOG_FRESHNESS_EXIT=0
+
+### Full guard run exit (all guards + oracles)
+FULL_GUARD_EXIT=0
+FULL_ORACLE_EXIT=0
+
+===================================================================
+END GREEN-PROOF — exits MUST all be 0
+===================================================================
+
+===================================================================
+INDEPENDENT PROBE — adversarial read of the inverted guard_wr05 logic
+===================================================================
+Reviewer: executor independent pass (branch enumeration vs every half-flip)
+Detection: marker ERE /^coordinator:\s*true\b/ ONLY (D-15). No hard-coded
+  coordinator filename in the detection branch — the only "orchestrator"
+  string in the guard region is the explicit WR05_SCAN list entry (the
+  established 4-file scan set), never a detection key. Confirmed by grep.
+Both grant EREs retained verbatim (Agent|Task alias kept); SCAN stays the
+  explicit 4-file list (never a repo-wide grep).
+
+Branch enumeration (no code path PASSes a half-flip on the existing coordinator):
+  - planted non-coordinator grant   -> (!isCoordinator && hasGrant)  -> FAIL  [RED a]
+  - dropped coordinator grant       -> ( isCoordinator && !hasGrant) -> FAIL  [RED b]
+  - removed coordinator marker      -> file becomes non-coordinator + grant
+                                         -> (!isCoordinator && hasGrant) -> FAIL [RED c]
+  - non-CC table row gains spawn    -> oracleWr05Wording asymmetry beat -> FAIL [RED d]
+  - CC table row loses spawn        -> oracleWr05Wording CC beat        -> FAIL
+Each verified NON-ZERO against the COMMITTED .js in 23-03-RED-baseline.txt.
+
+hooks/guard.ts: UNCHANGED (the humans-hold-merge/deploy floor survives the flip).
+NOTE: a deliberate SECOND coordinator marker is a louder act than silent drift and
+  is out of scope for the three targeted drift threats (T-23-08/09/10), all covered.
+Full non-e2e regression: 448 passed, 1 skipped, 0 failed.
+Build freshness exit 0; catalog-freshness exit 0.
+===================================================================

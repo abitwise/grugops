@@ -92,6 +92,11 @@ const GUARD_INPUTS = [
   "agent-factory/workflows/13-incident.md",
   "agent-factory/workflows/14-ui-design-to-build.md",
   "agent-factory/workflows/15-security-audit.md",
+  // Phase 23 (D-19): the invoked oracleWr05Wording now scans the 5-tool tables for asymmetric-flip
+  // drift, so mirror them too — otherwise the oracle's CR-01 missing-file fail-red would fire on
+  // every foundation-guards plant case.
+  "agent-factory/packaging/adapters.md",
+  "agent-factory/README.md",
 ];
 
 const tmpDirs: string[] = [];

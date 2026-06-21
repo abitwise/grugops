@@ -1,0 +1,35 @@
+===================================================================
+23-03 RED-BASELINE — half-flips proven NON-ZERO vs the COMMITTED .js
+Generated: 2026-06-21T07:54:37Z
+guard.js : /Users/olgeroeselg/Projects/public/grugops/scripts/check-foundation-guards.js
+oracle.js: /Users/olgeroeselg/Projects/public/grugops/scripts/check-uat-oracles.js
+===================================================================
+
+### RED (a) — planted grant on non-coordinator (slash-command.template.md) → expect rogue spawner, NONZERO
+[guard_wr05] coordinator-only spawn grant: marker-keyed both-direction enforcement (WR-05)
+agent-factory/packaging/slash-command.template.md: non-coordinator carries a spawn grant — rogue spawner (only the coordinator: true file may hold the grant)
+1 CHECK(S) FAILED
+GUARD_EXIT=1
+
+### RED (b) — coordinator grant DROPPED (grugops-orchestrator.md) → expect kills CC parallelism, NONZERO
+[guard_wr05] coordinator-only spawn grant: marker-keyed both-direction enforcement (WR-05)
+.claude/agents/grugops-orchestrator.md: coordinator carries no spawn grant — a dropped grant kills Claude Code parallelism (the coordinator MUST hold the enumerated role-agent grant)
+1 CHECK(S) FAILED
+GUARD_EXIT=1
+
+### RED (c) — coordinator MARKER removed (grant retained) → expect rogue spawner, NONZERO
+[guard_wr05] coordinator-only spawn grant: marker-keyed both-direction enforcement (WR-05)
+.claude/agents/grugops-orchestrator.md: non-coordinator carries a spawn grant — rogue spawner (only the coordinator: true file may hold the grant)
+1 CHECK(S) FAILED
+GUARD_EXIT=1
+
+### RED (d) — asymmetry drift: Codex CLI row gains spawn wording (adapters.md) → expect asymmetry drift, NONZERO
+[oracleWr05Wording] WR-05 closure beats + the asymmetric 5-tool-table flip (B3 / UAT-AUTO-01, D-19)
+  agent-factory/packaging/adapters.md: the Codex CLI row gained spawn/coordinator wording — asymmetry drift (only the Claude Code row may spawn)
+  agent-factory/packaging/adapters.md: the Codex CLI row lost its no-spawn / sequential-role-load wording
+1 CHECK(S) FAILED
+ORACLE_EXIT=1
+
+===================================================================
+END RED-BASELINE — all four half-flips MUST show a NONZERO exit above
+===================================================================

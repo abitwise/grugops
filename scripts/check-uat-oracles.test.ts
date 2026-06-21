@@ -41,6 +41,9 @@ const GUARD_INPUTS = [
   "hooks/hooks.json",
   "hooks/guard.js",
   "examples/03-ticket-to-pr.md",
+  // Phase 23 (D-19 / Pitfall 3): the oracle now scans the 5-tool tables for asymmetric-flip drift.
+  "agent-factory/packaging/adapters.md",
+  "agent-factory/README.md",
 ];
 
 const tmpDirs: string[] = [];
@@ -97,6 +100,54 @@ describe("check-uat-oracles.js (Phase 19 Tier-1 fail-proof harness)", () => {
     const r = runIn(m);
     expect(r.status).not.toBe(0);
     expect(out(r)).toContain("RETROSPECTIVE.md missing");
+  });
+
+  // ── Asymmetry-drift RED fixture (D-19 / Pitfall 3) — a non-CC row growing spawn wording → red. ────
+  // Plant coordinator-spawn wording into the Codex CLI row of adapters.md (mirror) and assert the
+  // oracle goes red naming the drifted row/file. This is the wording-drift catcher the flip needs:
+  // the asymmetric flip must keep the four non-CC rows no-spawn; a bulk find-replace that hits them
+  // is the exact bug.
+  it("wording asymmetry-drift: Codex CLI row gains spawn/coordinator wording → nonzero + names the row/file", () => {
+    const m = mirror();
+    const file = join(m, "agent-factory/packaging/adapters.md");
+    const drifted = readFileSync(file, "utf8")
+      .split("\n")
+      .map((l) =>
+        /^\|\s*\*\*Codex CLI\*\*/.test(l)
+          ? l.replace(
+              "Sequential role-load — no spawn",
+              "Coordinator spawns role agents",
+            )
+          : l,
+      )
+      .join("\n");
+    writeFileSync(file, drifted);
+    const r = runIn(m);
+    expect(r.status).not.toBe(0);
+    expect(out(r)).toMatch(/asymmetry drift/i);
+    expect(out(r)).toContain("adapters.md");
+    expect(out(r)).toContain("Codex CLI");
+  });
+
+  // The CC row losing its coordinator-spawn wording must ALSO fail (the flip must persist).
+  it("wording asymmetry: Claude Code row loses coordinator-spawn wording → nonzero + names the file", () => {
+    const m = mirror();
+    const file = join(m, "agent-factory/README.md");
+    const reverted = readFileSync(file, "utf8")
+      .split("\n")
+      .map((l) =>
+        /^\|\s*\*\*Claude Code\*\*/.test(l)
+          ? l.replace(
+              /Coordinator spawns role agents[^|]*/,
+              "Sequential role-load — no spawn ",
+            )
+          : l,
+      )
+      .join("\n");
+    writeFileSync(file, reverted);
+    const r = runIn(m);
+    expect(r.status).not.toBe(0);
+    expect(out(r)).toContain("README.md");
   });
 
   // ── oracleHooksWiring — break the matcher (NOT guard.js logic); the aggregator must go red. ──────

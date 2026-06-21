@@ -117,17 +117,40 @@ const WR05_BEATS: { label: string; re: RegExp }[] = [
   },
 ];
 
+// Phase 23 asymmetry assertion (D-19 / Pitfall 3) — after the WR-05 flip the 5-tool tables in
+// adapters.md + README.md are ASYMMETRIC: only the Claude Code row carries the coordinator-spawn
+// language; the four other CLI rows (Codex/Gemini/OpenCode/Copilot) MUST still say no-spawn /
+// sequential role-load. A bulk find-replace that lets a non-CC row grow spawn/coordinator wording
+// is the drift bug this assertion catches. Explicit scan list (never a repo-wide grep).
+const ASYM_TABLE_FILES = [
+  "agent-factory/packaging/adapters.md",
+  "agent-factory/README.md",
+];
+// A 5-tool-table row is a markdown table line whose first cell names the tool (bold). Match the row
+// by its leading bold tool name so the scan is anchored to the table, not arbitrary prose.
+const ASYM_ROWS: { label: string; rowRe: RegExp }[] = [
+  { label: "Codex CLI", rowRe: /^\|\s*\*\*Codex CLI\*\*/ },
+  { label: "Gemini CLI", rowRe: /^\|\s*\*\*Gemini CLI\*\*/ },
+  { label: "OpenCode", rowRe: /^\|\s*\*\*OpenCode\*\*/ },
+  { label: "GitHub Copilot CLI", rowRe: /^\|\s*\*\*GitHub Copilot CLI\*\*/ },
+  { label: "Claude Code", rowRe: /^\|\s*\*\*Claude Code\*\*/ },
+];
+// Spawn/coordinator wording that MUST NOT appear in a non-CC row, and MUST appear in the CC row.
+const ASYM_SPAWN_WORDING = /coordinator|spawns? role agents|spawn role agents/i;
+// The no-spawn wording every non-CC row MUST still carry (sequential single-window load).
+const ASYM_NOSPAWN_WORDING = /no spawn|Sequential role-load/i;
+
 export function oracleWr05Wording(): void {
   process.stdout.write(
-    "\n[oracleWr05Wording] WR-05 closure beats consistent across the four tracking docs (B3 / UAT-AUTO-01)\n",
+    "\n[oracleWr05Wording] WR-05 closure beats + the asymmetric 5-tool-table flip (B3 / UAT-AUTO-01, D-19)\n",
   );
 
   // CR-01 missing-file fail-red: a scan file that is absent must fail red NAMING the file, never
   // vacuous-PASS. Done FIRST so a missing input can never read as "every file carries every beat".
   let missing = false;
-  for (const f of WR05_SCAN) {
+  for (const f of [...WR05_SCAN, ...ASYM_TABLE_FILES]) {
     if (!fileExists(f)) {
-      fail(`${f} missing (required WR-05 tracking doc)`);
+      fail(`${f} missing (required WR-05 tracking/table doc)`);
       missing = true;
     }
   }
@@ -145,10 +168,37 @@ export function oracleWr05Wording(): void {
     }
   }
 
-  if (beatFail === "") {
-    pass("WR-05 wording: all three closure beats present in all four tracking docs");
+  // Asymmetry assertion (D-19 / Pitfall 3): scan each 5-tool table row in adapters.md + README.md.
+  // The four non-CC rows MUST carry no-spawn wording and MUST NOT carry spawn/coordinator wording;
+  // the Claude Code row MUST carry the spawn/coordinator wording. Fail naming the row + file.
+  let asymFail = "";
+  for (const file of ASYM_TABLE_FILES) {
+    const lines = readText(file).split("\n");
+    for (const { label, rowRe } of ASYM_ROWS) {
+      const row = lines.find((l) => rowRe.test(l));
+      if (row === undefined) continue; // README's table omits headers some rows carry; absence is not drift here
+      const isCC = label === "Claude Code";
+      if (isCC) {
+        if (!ASYM_SPAWN_WORDING.test(row)) {
+          asymFail += `\n  ${file}: the Claude Code row lost the coordinator-spawn wording (the flip must keep it)`;
+        }
+      } else {
+        if (ASYM_SPAWN_WORDING.test(row)) {
+          asymFail += `\n  ${file}: the ${label} row gained spawn/coordinator wording — asymmetry drift (only the Claude Code row may spawn)`;
+        }
+        if (!ASYM_NOSPAWN_WORDING.test(row)) {
+          asymFail += `\n  ${file}: the ${label} row lost its no-spawn / sequential-role-load wording`;
+        }
+      }
+    }
+  }
+
+  if (beatFail === "" && asymFail === "") {
+    pass(
+      "WR-05 wording: closure beats present in all four tracking docs; the 5-tool-table flip is asymmetric (CC row spawns, four CLI rows stay no-spawn)",
+    );
   } else {
-    fail(`WR-05 wording-consistency violation:${beatFail}`);
+    fail(`WR-05 wording-consistency violation:${beatFail}${asymFail}`);
   }
 }
 
