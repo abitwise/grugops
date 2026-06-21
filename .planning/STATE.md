@@ -3,17 +3,17 @@ gsd_state_version: 1.0
 milestone: v2.0
 milestone_name: Decentralized Factory — Shared Verified Context
 current_phase: 23
-current_phase_name: One Substrate, Two Modes
-status: planning
+current_phase_name: parallel-execution-orchestrator-as-decomposer-one-substrate-
+status: executing
 stopped_at: Phase 23 planned — 3 plans across 3 waves, plan-checker passed (ready to execute)
-last_updated: "2026-06-21"
+last_updated: "2026-06-21T07:09:39.605Z"
 last_activity: 2026-06-21
-last_activity_desc: Phase 23 planned (3 plans, 3 waves; research + plan-checker passed)
+last_activity_desc: Phase 23 execution started
 progress:
   total_phases: 7
   completed_phases: 3
   total_plans: 20
-  completed_plans: 17
+  completed_plans: 18
   percent: 43
 ---
 
@@ -24,14 +24,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-06-16 — after v1.2 milestone)
 
 **Core value:** A user installs grugops on top of the coding-agent CLI they already run, types `/grug`, and gets a disciplined delivery team — a visible board, strict handoffs, and an auditable requirement→code→test→release trail — entirely as readable markdown, with humans always holding merge and deploy.
-**Current focus:** Phase 23 — Parallel Execution & Orchestrator-as-Decomposer (One Substrate, Two Modes)
+**Current focus:** Phase 23 — parallel-execution-orchestrator-as-decomposer-one-substrate-
 
 ## Current Position
 
-Phase: 23 — Parallel Execution & Orchestrator-as-Decomposer (One Substrate, Two Modes)
-Plan: 3 plans across 3 waves — planned & verified (plan-checker passed)
+Phase: 23 (parallel-execution-orchestrator-as-decomposer-one-substrate-) — EXECUTING
+Plan: 2 of 3
 Status: Ready to execute
-Last activity: 2026-06-21 — Phase 23 planned (3 plans, plan-checker passed)
+Last activity: 2026-06-21 — Phase 23 execution started
 
 ## Performance Metrics
 
@@ -171,6 +171,7 @@ Last activity: 2026-06-21 — Phase 23 planned (3 plans, plan-checker passed)
 | Phase 22 P07 | 32min | 4 tasks | 6 files |
 | Phase 22 P08 | 21min | 3 tasks | 4 files |
 | Phase 22 P09 | 12 | 3 tasks | 4 files |
+| Phase 23 P01 | 5m | 2 tasks | 10 files |
 
 ## Accumulated Context
 
@@ -388,6 +389,8 @@ Recent decisions affecting current work:
 - [Phase 22]: 22-08: note boundary keyed on an id-bearing frontmatter run so a kind-first note is recovered while an id-less embedded body fence stays body (round-5 win preserved)
 - [Phase 22]: 22-08: isRecognizedFrontmatterLine single exported source-of-truth grammar shared by parseNote + splitNotes (no drift); writer-order guard pins composeNote/composeThreadNote field order
 - [Phase ?]: 22-09 round-8: UNIFY splitNotes' boundary with parseNote (boundary iff parseNote(region) non-null AND id-bearing); looksLikeFrontmatterLine(lines[i+1]) + opensIdBearingRun removed as authority (grep==0, .ts+.js); 7th CMP-02 silent-absorb bypass + the CLASS closed (parseNote-oracle fuzz); Fork B frozen.
+- [Phase 23]: 23-01: queue config is a NEW top-level object sibling to wip_limits (D-06/D-07: queue.wip_limit = concurrent agent WIDTH, distinct from per-column wip_limits board flow) — byte-consistent across config.json + seed + documented in the .md twin
+- [Phase 23]: 23-01: now-running render lives in claim.ts and REUSES sweepStale's first-at-trusted / multi-at tamper discipline — a forged second at: line is skipped, never a trusted row, no permissive multi-match parser (T-23-01); queue freshness is a dedicated standalone gate re-rooted at .grugops/queue/ (Pitfall 5)
 
 ### Pending Todos
 
@@ -437,7 +440,7 @@ Items acknowledged and deferred at the **v1.2 milestone close on 2026-06-16** (1
 
 ## Session Continuity
 
-Last session: 2026-06-20T21:32:50.313Z
+Last session: 2026-06-21T07:09:07.230Z
 Stopped at: Phase 23 context gathered
 Resume file: .planning/phases/23-parallel-execution-orchestrator-as-decomposer-one-substrate-/23-CONTEXT.md
 
