@@ -129,6 +129,32 @@ describe("check-uat-oracles.js (Phase 19 Tier-1 fail-proof harness)", () => {
     expect(out(r)).toContain("Codex CLI");
   });
 
+  // WR-01: the broadened ASYM_SPAWN_WORDING catches the CONCEPT, not three exact phrasings. A non-CC
+  // row that gains "parallel"/"fan-out" wording (without the literal "coordinator"/"spawns role
+  // agents") previously passed both directions; it must now fail naming the row. Plant "parallel
+  // fan-out of role agents" into the Gemini CLI row (keeping its no-spawn wording so the ONLY trip is
+  // the broadened spawn-concept catch).
+  it("wording WR-01: non-CC row gains 'parallel fan-out' wording (no literal coordinator) → nonzero + names the row", () => {
+    const m = mirror();
+    const file = join(m, "agent-factory/packaging/adapters.md");
+    const drifted = readFileSync(file, "utf8")
+      .split("\n")
+      .map((l) =>
+        /^\|\s*\*\*Gemini CLI\*\*/.test(l)
+          ? l.replace(
+              "Sequential role-load — no spawn",
+              "Sequential role-load — no spawn; now also parallel fan-out of role agents",
+            )
+          : l,
+      )
+      .join("\n");
+    writeFileSync(file, drifted);
+    const r = runIn(m);
+    expect(r.status).not.toBe(0);
+    expect(out(r)).toMatch(/asymmetry drift/i);
+    expect(out(r)).toContain("Gemini CLI");
+  });
+
   // The CC row losing its coordinator-spawn wording must ALSO fail (the flip must persist).
   it("wording asymmetry: Claude Code row loses coordinator-spawn wording → nonzero + names the file", () => {
     const m = mirror();

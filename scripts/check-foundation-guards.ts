@@ -139,25 +139,73 @@ const WR05_SCAN = [
   ".claude/agents/grugops-orchestrator.md",
 ];
 
+// Strip every line that sits INSIDE a ```-delimited code fence, returning only the lines OUTSIDE
+// any fence. This is a GENERAL fence operation (distinct from stripCavemanBlock, which is scoped to
+// the single `## Caveman prompt` section); it shares the SAME line-state toggle pattern (D-10: the
+// fence anchor is not re-engineered). Packaging templates legitimately SHOW frontmatter inside
+// ``` fences (e.g. a coordinator example carrying `coordinator: true` + `Agent(...)`); the WR-05
+// guard must read those illustrative lines as documentation, never as a live marker/grant.
+//
+// Toggle: every line matching /^```/ flips the inside/outside state, then is itself dropped. Lines
+// while inside are dropped; lines while outside are kept. FAIL-SAFE on an unterminated fence (the
+// state is still "inside" at EOF): the tail was opened but never closed, so it is treated as
+// inside-fence and never exposed — a malformed doc can never leak an unguarded live grant past the
+// strip. (CR-01: a fenced documentation example must not be mis-read as a second live coordinator.)
+function stripFencedBlocks(text: string): string {
+  const out: string[] = [];
+  let inside = false;
+  for (const line of text.split("\n")) {
+    if (/^```/.test(line)) {
+      inside = !inside;
+      continue; // the fence delimiter line is never emitted
+    }
+    if (inside) continue; // lines inside a fence are dropped (documentation, not live frontmatter)
+    out.push(line);
+  }
+  // An unterminated fence leaves `inside` set at EOF. The tail was inside an opened-but-unclosed
+  // fence and was already dropped above — fail-safe: we never emit it. Nothing more to do.
+  return out.join("\n");
+}
+
+// Apply a line-anchored ERE to the fence-stripped body of a file, returning true if any surviving
+// (non-fenced) line matches. The EREs are byte-identical to the pre-fix guard — only the INPUT
+// changes (fenced lines removed), so the real adapter's REAL (non-fenced) frontmatter marker/grant
+// remains detected while an illustrative fenced example is ignored.
+function matchesOutsideFences(rel: string, re: RegExp): boolean {
+  const body = stripFencedBlocks(readText(rel));
+  return body.split("\n").some((l) => re.test(l));
+}
+
 function guardWr05(): void {
   process.stdout.write(
     "\n[guard_wr05] coordinator-only spawn grant: marker-keyed both-direction enforcement (WR-05)\n",
   );
   let wr05Fail = "";
+  // Collect every SCAN file whose FENCE-STRIPPED body carries the coordinator marker. The substrate
+  // has exactly ONE coordinator (the orchestrator adapter); a second marker — live or from a doc
+  // example mis-read as live — is a cardinality violation (CR-01).
+  const coordinators: string[] = [];
   for (const f of WR05_SCAN) {
     if (!fileExists(f)) continue; // missing template/adapter is covered by guard_adapter_size (CR-01)
-    const isCoordinator = grepFiles([f], WR05_COORDINATOR).length > 0;
+    const isCoordinator = matchesOutsideFences(f, WR05_COORDINATOR);
     const hasGrant =
-      grepFiles([f], WR05_COMMA).length > 0 ||
-      grepFiles([f], WR05_ARRAY).length > 0;
+      matchesOutsideFences(f, WR05_COMMA) || matchesOutsideFences(f, WR05_ARRAY);
+    if (isCoordinator) coordinators.push(f);
     if (isCoordinator && !hasGrant) {
       wr05Fail += `\n${f}: coordinator carries no spawn grant — a dropped grant kills Claude Code parallelism (the coordinator MUST hold the enumerated role-agent grant)`;
     } else if (!isCoordinator && hasGrant) {
       wr05Fail += `\n${f}: non-coordinator carries a spawn grant — rogue spawner (only the coordinator: true file may hold the grant)`;
     }
   }
+  // Cardinality (CR-01): exactly one coordinator across the SCAN set. A fenced documentation example
+  // is stripped before this count, so it cannot inflate it; a LIVE second marker fails red naming the
+  // offending files. This keeps the both-direction invariant honest — no file is promoted out of the
+  // must-not-spawn set by an illustrative marker.
+  if (coordinators.length !== 1) {
+    wr05Fail += `\nexpected exactly one coordinator: true file in the scan set, found ${coordinators.length}${coordinators.length > 0 ? `: ${coordinators.join(", ")}` : ""}`;
+  }
   if (wr05Fail === "") {
-    pass("WR-05: coordinator holds the spawn grant; no non-coordinator does");
+    pass("WR-05: exactly one coordinator holds the spawn grant; no non-coordinator does");
   } else {
     fail(`WR-05 coordinator-spawn-grant violation:${wr05Fail}`);
   }

@@ -136,7 +136,20 @@ const ASYM_ROWS: { label: string; rowRe: RegExp }[] = [
   { label: "Claude Code", rowRe: /^\|\s*\*\*Claude Code\*\*/ },
 ];
 // Spawn/coordinator wording that MUST NOT appear in a non-CC row, and MUST appear in the CC row.
-const ASYM_SPAWN_WORDING = /coordinator|spawns? role agents|spawn role agents/i;
+//
+// WR-01 broadened: the prohibited set is the CONCEPT of parallel/coordinator dispatch, not three
+// exact phrasings. A drifted non-CC row advertising "parallel role dispatch", "fan-out agents",
+// "concurrent sub-agents", or "runs roles in parallel" previously passed both directions (it tripped
+// neither the old three-phrase ASYM_SPAWN_WORDING nor lost its "Sequential role-load" no-spawn
+// wording). The broadened alternation catches the concept tokens.
+//
+// The bare `spawn` token is handled carefully so it COEXISTS with the legitimate "no spawn" wording
+// every non-CC row carries: `\bspawn` is matched only when NOT immediately preceded by "no " (a
+// negative-lookbehind-free form via the `(?<!no )` lookbehind, supported on the Node 22+ floor). So
+// "Sequential role-load — no spawn" does NOT trip, but "may spawn role agents" / "spawns role agents"
+// / "parallel spawn" does. `coordinator`, `parallel`, `concurren(t)`, and `fan-out` are flat tokens.
+const ASYM_SPAWN_WORDING =
+  /coordinator|parallel|concurren|fan-?out|dispatch[^|]*agent|(?<!no )\bspawn/i;
 // The no-spawn wording every non-CC row MUST still carry (sequential single-window load).
 const ASYM_NOSPAWN_WORDING = /no spawn|Sequential role-load/i;
 
@@ -175,19 +188,30 @@ export function oracleWr05Wording(): void {
   for (const file of ASYM_TABLE_FILES) {
     const lines = readText(file).split("\n");
     for (const { label, rowRe } of ASYM_ROWS) {
-      const row = lines.find((l) => rowRe.test(l));
-      if (row === undefined) continue; // README's table omits headers some rows carry; absence is not drift here
+      // WR-03: validate EVERY matching row for the tool, not just the first. The real tree carries
+      // exactly one row per tool per file (verified 2026-06-21: adapters.md + README.md each have a
+      // single bold-tool-name row per CLI). A SECOND matching row — a drifted legacy/overview table
+      // that gained spawn wording on a duplicate row — would be invisible to a first-match `find`; a
+      // `filter` over all matches makes it visible. We assert one-per-tool so a duplicate cannot hide,
+      // then validate each matching row in its direction.
+      const rows = lines.filter((l) => rowRe.test(l));
+      if (rows.length === 0) continue; // README's table omits headers some rows carry; absence is not drift here
+      if (rows.length > 1) {
+        asymFail += `\n  ${file}: found ${rows.length} table rows for ${label} — a duplicate/legacy row could hide asymmetry drift (expected exactly one row per tool)`;
+      }
       const isCC = label === "Claude Code";
-      if (isCC) {
-        if (!ASYM_SPAWN_WORDING.test(row)) {
-          asymFail += `\n  ${file}: the Claude Code row lost the coordinator-spawn wording (the flip must keep it)`;
-        }
-      } else {
-        if (ASYM_SPAWN_WORDING.test(row)) {
-          asymFail += `\n  ${file}: the ${label} row gained spawn/coordinator wording — asymmetry drift (only the Claude Code row may spawn)`;
-        }
-        if (!ASYM_NOSPAWN_WORDING.test(row)) {
-          asymFail += `\n  ${file}: the ${label} row lost its no-spawn / sequential-role-load wording`;
+      for (const row of rows) {
+        if (isCC) {
+          if (!ASYM_SPAWN_WORDING.test(row)) {
+            asymFail += `\n  ${file}: the Claude Code row lost the coordinator-spawn wording (the flip must keep it)`;
+          }
+        } else {
+          if (ASYM_SPAWN_WORDING.test(row)) {
+            asymFail += `\n  ${file}: the ${label} row gained spawn/coordinator wording — asymmetry drift (only the Claude Code row may spawn)`;
+          }
+          if (!ASYM_NOSPAWN_WORDING.test(row)) {
+            asymFail += `\n  ${file}: the ${label} row lost its no-spawn / sequential-role-load wording`;
+          }
         }
       }
     }

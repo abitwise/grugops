@@ -208,6 +208,39 @@ describe("check-foundation-guards.js (SDLC-02 / SC2 fail-proof harness)", () => 
     expect(out(r)).toContain("grugops-orchestrator.md");
   });
 
+  // CR-01 fence-immunity: a SCAN file carrying ONLY a FENCED coordinator example (marker + grant
+  // inside a ``` block) and NO live grant must be IGNORED — the guard PASSES. This is the real
+  // subagent.frontmatter.md shape (a documentation example), which previously read as a second live
+  // coordinator. Plant the fenced example into a non-adapter SCAN file (slash-command.template.md,
+  // which has no live marker/grant) and assert the aggregator stays GREEN.
+  it("guard_wr05 FENCED coordinator example (marker+grant inside ```) is ignored → guard PASSES (CR-01 fence-immunity)", () => {
+    const m = mirror();
+    appendFileSync(
+      join(m, "agent-factory/packaging/slash-command.template.md"),
+      "\n## Example coordinator wrapper\n\n```markdown\n---\nname: grugops-orchestrator\ncoordinator: true\ntools: Agent(grugops-software-engineer, grugops-qe-e2e), Read\n---\n```\n",
+    );
+    const r = runIn(m);
+    expect(r.status).toBe(0);
+    expect(out(r)).toContain("ALL CHECKS PASSED");
+  });
+
+  // CR-01 cardinality: a SCAN file with a LIVE (non-fenced) second coordinator: true + grant must
+  // FAIL the exactly-one-coordinator cardinality check (found 2). Plant a real frontmatter marker +
+  // grant (NOT inside a fence) into slash-command.template.md; with the orchestrator adapter already
+  // a coordinator, the count becomes 2.
+  it("guard_wr05 LIVE second coordinator (non-fenced) → nonzero + 'found 2' cardinality fail (CR-01)", () => {
+    const m = mirror();
+    appendFileSync(
+      join(m, "agent-factory/packaging/slash-command.template.md"),
+      "\ncoordinator: true\ntools: Agent(grugops-software-engineer), Read\n",
+    );
+    const r = runIn(m);
+    expect(r.status).not.toBe(0);
+    expect(out(r)).toMatch(/exactly one coordinator/i);
+    expect(out(r)).toContain("found 2");
+    expect(out(r)).toContain("slash-command.template.md");
+  });
+
   // ── guard_agents_bytes — oversize + missing (CR-01). ─────────────────────────────────────────
   it("guard_agents_bytes oversize (>28672B) → nonzero + 'AGENTS.md'", () => {
     const m = mirror();

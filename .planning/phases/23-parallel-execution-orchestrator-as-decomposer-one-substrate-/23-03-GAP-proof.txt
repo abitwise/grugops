@@ -1,0 +1,27 @@
+=== 23-03 GAP-CLOSURE ADVERSARIAL PROOF (committed .js, hand-built CHECK_ROOT mirrors) ===
+Project lesson: a green suite is not proof. Each case drives the COMMITTED .js directly.
+Generated: 2026-06-21T08:22:19.217Z
+
+(a) FENCE-IMMUNITY: a SCAN file carrying ONLY a fenced coordinator example (marker+grant inside ```), no live grant
+    committed check-foundation-guards.js exit = 0  (EXPECT 0)
+    WR-05 line: [guard_wr05] coordinator-only spawn grant: marker-keyed both-direction enforcement (WR-05)
+    RESULT: PASS — fenced example ignored, guard green
+
+(b) CARDINALITY: a LIVE (non-fenced) SECOND coordinator: true + grant in the scan set
+    committed check-foundation-guards.js exit = 1  (EXPECT non-zero)
+    finding: expected exactly one coordinator: true file in the scan set, found 2: agent-factory/packaging/slash-command.template.md, .claude/agents/grugops-orchestrator.md
+    RESULT: PASS — cardinality fail (found 2)
+
+(c) ASYM-DRIFT (WR-01): non-CC (Gemini) row gains "parallel fan-out" — no literal coordinator / spawns-role-agents
+    committed check-uat-oracles.js exit = 1  (EXPECT non-zero)
+    finding: agent-factory/packaging/adapters.md: the Gemini CLI row gained spawn/coordinator wording — asymmetry drift (only the Claude Code row may spawn)
+    RESULT: PASS — broadened wording catches the concept
+
+(d) WR-04 IMPORT-SAFETY: import now-running-freshness.js (main() entry-gated)
+    import exit = 0  (EXPECT 0, prints imported-no-exit)
+    RESULT: PASS — module import-safe
+
+(e) REAL-TREE CONTROL (no false-RED introduced): committed guards over the real tree
+    check-foundation-guards.js exit = 0  (EXPECT 0)
+    check-uat-oracles.js        exit = 0  (EXPECT 0)
+    RESULT: PASS — real tree stays green
