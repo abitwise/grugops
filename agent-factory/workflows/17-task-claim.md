@@ -1,0 +1,45 @@
+---
+kind: workflow
+order: 17
+cadence: both
+---
+# Workflow: task claim + schedule
+
+## When to use
+Whenever a role is about to take ownership of a queued subtask, or the coordinator is about to schedule the queue. This workflow is the single source of the claim+schedule protocol: how a pending subtask is claimed exactly once, how it transitions pending → claimed → done, and how a stale claim is reclaimed. Every role references this file rather than restating — there is one protocol, named here, not forked into each role.
+
+It builds directly on `agent-factory/workflows/16-context-read-write.md` (the read/write/admission protocol) for all note I/O and does not restate it: the claim layer owns work-ownership; WF16 owns what enters the shared verified context.
+
+## The claim/note seam
+Two distinct things, never blurred:
+
+- **The queue CLAIM** — hard work-ownership via an atomic directory create (`scripts/claim.js` `claimTask`). The claim directory's existence IS the claim; there is no central lock manager. This is the concurrency net under the substrate: a task is claimed exactly once, so within-task context writing is single-writer.
+- **The `claim` note-KIND** (WF16 / `context-io.ts`) — a soft, unverified assertion in the shared context. It is unrelated to the queue claim and shares no code path. The now-running registry record (`claimed/<task>/claim.md`) is NOT a `kind: claim` note.
+
+The queue owns ownership; WF16 owns memory. Never write the shared context by claiming, and never claim by writing a note.
+
+## Steps
+Run these in order.
+
+1. **Read the verified state first.** Before claiming, read the subtask's shared context per WF16 (`readContext` / `render`) — start from the verified findings, decisions, and recorded failed attempts, not a blank slate. Do not re-derive what the context already holds; do not retry a recorded failed attempt.
+
+2. **Claim atomically.** Claim a pending subtask via `scripts/claim.js` `claimTask(queueRoot, task, by)`. The first claimant's atomic `mkdirSync` of `claimed/<task>/` wins (returns true) and writes the now-running registry record `claimed/<task>/claim.md` (`by` / `at` / `task`). A second claimant gets `EEXIST` = claim lost (returns false — NOT an error); ANY other code (parent-missing, permission) is a genuine failure and is rethrown. If the claim is lost, move to the next pending task — never two agents on one task.
+
+3. **Transition into claimed.** Move the subtask file `pending/<task>.md` → `claimed/<task>/<task>.md` by `claim.js` `transition` (atomic rename). The claim directory must already exist (step 2 created it).
+
+4. **Do the work, then write after you verify.** Implement the subtask. Record results into the shared verified context ONLY via WF16 (`context-io.ts` `appendNote`) under the honest note kind — a `finding` only with a real stamp, soft results as `claim` / `observation`. The admission rules live in WF16; this workflow references them and does not restate them. Coordination is ONLY through the on-disk substrate — never relay data agent-to-agent.
+
+5. **Mark done.** Transition the subtask `claimed/<task>/<task>.md` → `done/<task>.md` by `claim.js` `transition` (atomic rename) once the work is recorded and verified.
+
+6. **Coordinator stale-claim sweep.** The coordinator periodically runs `claim.js` `sweepStale(queueRoot, ttlMs)` with `ttlMs` derived from `queue.stale_ttl_minutes`. A claim whose `claim.md` `at` is older than the TTL — or a tampered multi-`at` record — is reclaimed: the subtask returns to `pending/` (atomic rename) and the claim directory is released. Wall-clock TTL only; no pid/host liveness. A fresh claim is left untouched (the sweep is conservative and has a real no-op path).
+
+## Stop conditions
+- The claim is lost (`claimTask` returns false / `EEXIST`) → do not proceed on that task; move to the next pending task. Do not retry the same claim in a tight loop.
+- `claimTask` throws any code other than `EEXIST` (parent missing, permission) → stop; a real error is never swallowed into a false "lost". Surface it.
+- A result cannot be honestly admitted by WF16 (no real stamp, budget exhausted) → stop and hand to a human per WF16. Do not fake a stamp; do not mark the task done on an unverified result.
+
+## Done condition
+The subtask was claimed exactly once (atomic `mkdirSync`), transitioned pending → claimed → done by atomic rename, its results were recorded only through WF16 (`context-io.ts`) under an honest kind, and no data was relayed agent-to-agent — coordination flowed only through the on-disk queue and shared context. Any stale or tampered claim was reclaimed by the coordinator's wall-clock sweep.
+
+## Commit
+Commit the queue and context state this workflow advanced (the moved subtask records and any `notes/` / derived `index.*` that `context-io.ts` produced) per `agent-factory/_commit-convention.md` — branch guard first (never a protected branch), then `type(scope): summary`. This workflow claims and schedules work; it never merges and never deploys — humans hold both.
