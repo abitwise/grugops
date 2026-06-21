@@ -165,7 +165,7 @@ Plans:
   3. The four non-spawning CLIs drain the same queue at concurrency-1 via the rewired `_role-switch-protocol.md` step-4, producing identical on-disk artifacts to the parallel path (one substrate, two modes that converge).
   4. `guard_wr05` is inverted from "no role grants `Agent`" to "only the coordinator grants `Agent(<allowlist>)`", and it flips atomically with the packaging templates and the docs catalog (a planted non-coordinator grant fails RED).
 
-**Plans**: 1/3 plans executed
+**Plans**: 2/3 plans executed
 Plans:
 **Wave 1**
 
@@ -173,7 +173,7 @@ Plans:
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
-- [ ] 23-02-PLAN.md — Orchestrator augment (router → decompose/schedule/gate, D-11/D-12/D-13) + Workflow 17 + SC1/SC2 decomposition+width spine + SC3 dual-path convergence oracle [PAR-01, PAR-02, PAR-03, CLAIM-03]
+- [x] 23-02-PLAN.md — Orchestrator augment (router → decompose/schedule/gate, D-11/D-12/D-13) + Workflow 17 + SC1/SC2 decomposition+width spine + SC3 dual-path convergence oracle [PAR-01, PAR-02, PAR-03, CLAIM-03]
 
 **Wave 3** *(blocked on Wave 2 completion)*
 
@@ -246,7 +246,7 @@ Plans:
 | 20. Shared-Context Substrate & Concurrency Foundation | v2.0 | 4/4 | Complete    | 2026-06-17 |
 | 21. Verify-Before-Write Admission | v2.0 | 4/4 | Complete    | 2026-06-17 |
 | 22. Memory & Trajectory Compaction | v2.0 | 9/9 | Complete    | 2026-06-19 |
-| 23. Parallel Execution & Orchestrator-as-Decomposer | v2.0 | 1/3 | In Progress|  |
+| 23. Parallel Execution & Orchestrator-as-Decomposer | v2.0 | 2/3 | In Progress|  |
 | 24. Clean Handoff Removal & Traceability Migration | v2.0 | 0/? | Pending | - |
 | 25. Governance-on-a-Dial | v2.0 | 0/? | Pending | - |
 | 26. Dogfood, Dual-Path Oracle & A3/DOG-02 Retirement | v2.0 | 0/? | Pending | - |
