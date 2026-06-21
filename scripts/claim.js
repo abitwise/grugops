@@ -43,6 +43,8 @@
 // queue file's content as an absolute path.
 import { mkdirSync, writeFileSync, readFileSync, readdirSync, renameSync, unlinkSync, rmSync, existsSync, } from "node:fs";
 import { join } from "node:path";
+import { pathToFileURL } from "node:url";
+import { randomUUID } from "node:crypto";
 // ── Fixed queue root (production). Tests pass an explicit root. ──────────────────────────────────
 const ROOT = join(import.meta.dirname, "..");
 const DEFAULT_QUEUE_ROOT = join(ROOT, ".grugops", "queue");
@@ -182,4 +184,121 @@ export function sweepStale(queueRoot, ttlMs, now = Date.now()) {
         reclaimed.push(task);
     }
     return reclaimed;
+}
+// ── atomicWrite: write a unique temp sibling, then rename onto the final path. ──────────────────
+// Cloned from context-io.ts atomicWrite (l.622-647). POSIX renameSync atomically replaces; Windows
+// (MoveFileEx) is not atomic and fails EPERM/EEXIST/EACCES when the destination exists — the
+// unlink-then-rename branch handles that. now-running.md is a single-writer derived artifact that is
+// regenerated wholesale, so the Windows branch may fire on regen; on any other error the temp is
+// cleaned up and the error rethrown (a broken write never leaves a half-file as the "render").
+function atomicWrite(finalPath, data) {
+    const tmp = `${finalPath}.tmp-${process.pid}-${Date.now()}-${randomUUID().slice(0, 8)}`;
+    writeFileSync(tmp, data, "utf8");
+    try {
+        renameSync(tmp, finalPath);
+    }
+    catch (e) {
+        const code = e.code;
+        if (code === "EPERM" || code === "EEXIST" || code === "EACCES") {
+            try {
+                unlinkSync(finalPath);
+            }
+            catch {
+                /* not-present is fine */
+            }
+            renameSync(tmp, finalPath);
+        }
+        else {
+            try {
+                unlinkSync(tmp);
+            }
+            catch {
+                /* best-effort */
+            }
+            throw e;
+        }
+    }
+}
+// ── cell(): escape free-text before it enters a pipe-delimited markdown table cell. ─────────────
+// Cloned from context-io.ts cell() (l.884-888): backslash first, then pipe, then flatten newlines.
+function cell(s) {
+    return s.replace(/\\/g, "\\\\").replace(/\|/g, "\\|").replace(/\r?\n/g, " ");
+}
+// ── renderNowRunning: derive .grugops/queue/now-running.md from the claim registry (D-14). ──────
+//
+// Reads every claimed/<task>/claim.md and emits a deterministic, GENERATED-headered markdown table
+// (task | by | since), sorted by `at` then `task`, with a single trailing newline — byte-reproducible
+// (running twice over the same registry produces identical bytes; it carries no wall-clock of its own).
+// An empty/absent claimed/ yields a header-only render (vacuous, no crash). This is the human-facing
+// "what is running" view and the SC2 width-evidence source.
+//
+// SECURITY CARVE-OUT (T-23-01, V5 — load-bearing): the parse REUSES claim.ts's first-`at`-trusted /
+// single-line discipline from sweepStale (l.190-202). A claim.md is written with EXACTLY ONE `at:`
+// line; MORE than one is a tampered/malformed record (the on-disk signature of a `by`-injection that
+// smuggled a forged `at:`). A tampered record is NEVER emitted as a trusted row — it is skipped, never
+// trusted on the first (or second) match. There is deliberately NO permissive multi-match frontmatter
+// parser here: a forged second `at:` line is a queue-lock DoS, and trusting it would let a tampered
+// claim masquerade as a running row.
+export function renderNowRunning(queueRoot = DEFAULT_QUEUE_ROOT) {
+    const claimedDir = join(queueRoot, "claimed");
+    const rows = [];
+    if (existsSync(claimedDir)) {
+        for (const task of readdirSync(claimedDir)) {
+            // Defensive: never read through an unsafe segment.
+            if (!TASK_NAME_RE.test(task) || task === "." || task === "..")
+                continue;
+            const claimMd = join(claimedDir, task, "claim.md");
+            if (!existsSync(claimMd))
+                continue;
+            const claimText = readFileSync(claimMd, "utf8");
+            // First-`at`-trusted single-line discipline (mirror sweepStale l.194-196). A multi-`at`
+            // record is tampered → skip it; do NOT emit a forged second line as a trusted row.
+            const atLineCount = (claimText.match(/^at:/gm) ?? []).length;
+            if (atLineCount > 1)
+                continue; // tampered (multi-`at`) — never a trusted now-running row
+            const atMatch = claimText.match(/^at:\s*(.+)$/m);
+            if (!atMatch)
+                continue; // no `at` field → cannot place it on the timeline; skip
+            // `by` is likewise single-line (claimTask rejects CR/LF in `by` at write time); take the first.
+            const byMatch = claimText.match(/^by:\s*(.+)$/m);
+            const by = byMatch ? byMatch[1].trim() : "";
+            rows.push({ task, by, at: atMatch[1].trim() });
+        }
+    }
+    // Deterministic order: by `at` (ISO lexicographic), then by `task` as a stable tiebreak.
+    rows.sort((a, b) => (a.at !== b.at ? a.at.localeCompare(b.at) : a.task.localeCompare(b.task)));
+    const md = [];
+    md.push("<!-- GENERATED — do not hand-edit. Re-run: node scripts/claim.js now-running -->");
+    md.push("# Now running");
+    md.push("");
+    md.push("| task | by | since |");
+    md.push("| --- | --- | --- |");
+    for (const r of rows) {
+        md.push(`| ${cell(r.task)} | ${cell(r.by)} | ${cell(r.at)} |`);
+    }
+    md.push(""); // trailing element → exactly one final "\n"
+    atomicWrite(join(queueRoot, "now-running.md"), md.join("\n"));
+}
+// ── CLI entrypoint (only when run directly, never on import) ─────────────────────────────────────
+// import.meta.url === the executed file's URL when run via `node claim.js ...`. The freshness gate
+// and the package.json script invoke `node scripts/claim.js now-running [queueRoot]`.
+const isMain = process.argv[1] !== undefined && import.meta.url === pathToFileURL(process.argv[1]).href;
+if (isMain) {
+    const [cmd, ...rest] = process.argv.slice(2);
+    try {
+        if (cmd === "now-running") {
+            const queueRoot = rest[0]; // optional explicit root (tests / the gate pass a temp root)
+            renderNowRunning(queueRoot ?? DEFAULT_QUEUE_ROOT);
+            console.log("rendered .grugops/queue/now-running.md from the claim registry.");
+            process.exit(0);
+        }
+        else {
+            console.error("usage: claim.js now-running [queueRoot]");
+            process.exit(1);
+        }
+    }
+    catch (e) {
+        console.error(`claim: ${e.message}`);
+        process.exit(1);
+    }
 }

@@ -13,7 +13,8 @@
     "freshness": "tsc --outDir .tmp-build && node scripts/freshness.js",
     "generate:catalog": "tsc --outDir .tmp-build && node scripts/generate-catalog.js",
     "freshness:catalog": "tsc --outDir .tmp-build && node scripts/catalog-freshness.js",
-    "freshness:context": "tsc --outDir .tmp-build && node scripts/context-freshness.js"
+    "freshness:context": "tsc --outDir .tmp-build && node scripts/context-freshness.js",
+    "freshness:queue": "tsc --outDir .tmp-build && node scripts/now-running-freshness.js"
   },
   "devDependencies": {
     "@types/node": "~22",
