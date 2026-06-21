@@ -125,32 +125,82 @@ afterAll(() => {
 });
 
 describe("check-foundation-guards.js (SDLC-02 / SC2 fail-proof harness)", () => {
-  // ── guard_wr05 — plant a frontmatter spawn grant; both grant SHAPES must be caught. ──────────
-  it("guard_wr05 comma-form (tools: ... Agent) → nonzero + 'spawn grant'", () => {
+  // ── guard_wr05 (Phase 23 INVERTED, both-direction, marker-keyed) ─────────────────────────────
+  // After the WR-05 flip the guard enforces BOTH directions over the explicit SCAN set:
+  //   • the coordinator (coordinator: true marker) MUST carry the spawn grant;
+  //   • every non-coordinator SCAN file MUST NOT.
+  // The grant shapes (comma list + YAML array, both alias tokens) are still caught on a
+  // non-coordinator; the orchestrator legitimately carries a grant now, so the rogue-grant plant
+  // moves to a NON-coordinator SCAN file.
+
+  // RED fixture (a): planted grant on a NON-coordinator SCAN file → rogue spawner. Plant onto a
+  // packaging template (no coordinator: true marker) so the non-coordinator direction fires.
+  it("guard_wr05 planted grant on non-coordinator (comma-form) → nonzero + 'rogue spawner' names the file", () => {
     const m = mirror();
     appendFileSync(
-      join(m, ".claude/agents/grugops-orchestrator.md"),
+      join(m, "agent-factory/packaging/slash-command.template.md"),
       "\ntools: Read, Agent\n",
     );
     const r = runIn(m);
     expect(r.status).not.toBe(0);
-    expect(out(r)).toMatch(/spawn grant/i);
+    expect(out(r)).toMatch(/rogue spawner/i);
+    expect(out(r)).toContain("slash-command.template.md");
   });
 
-  it("guard_wr05 array-item (  - Agent) → nonzero + 'spawn grant'", () => {
+  it("guard_wr05 planted grant on non-coordinator (array-item) → nonzero + 'rogue spawner'", () => {
     const m = mirror();
     appendFileSync(join(m, ".claude/skills/grugops/SKILL.md"), "\n  - Agent\n");
     const r = runIn(m);
     expect(r.status).not.toBe(0);
-    expect(out(r)).toMatch(/spawn grant/i);
+    expect(out(r)).toMatch(/rogue spawner/i);
+    expect(out(r)).toContain("SKILL.md");
   });
 
-  it("guard_wr05 quoted array-item (  - \"Agent\") → nonzero + 'spawn grant' (WR-02)", () => {
+  it("guard_wr05 planted grant on non-coordinator (quoted array-item) → nonzero + 'rogue spawner' (WR-02)", () => {
     const m = mirror();
     appendFileSync(join(m, ".claude/skills/grugops/SKILL.md"), '\n  - "Agent"\n');
     const r = runIn(m);
     expect(r.status).not.toBe(0);
-    expect(out(r)).toMatch(/spawn grant/i);
+    expect(out(r)).toMatch(/rogue spawner/i);
+    expect(out(r)).toContain("SKILL.md");
+  });
+
+  // RED fixture (b): the coordinator with its spawn grant DROPPED → a half-flip that silently kills
+  // CC parallelism. Rewrite the orchestrator adapter to keep coordinator: true but strip every grant.
+  it("guard_wr05 coordinator grant DROPPED → nonzero + 'dropped grant kills Claude Code parallelism' names the file (D-16)", () => {
+    const m = mirror();
+    const file = join(m, ".claude/agents/grugops-orchestrator.md");
+    const stripped = readFileSync(file, "utf8")
+      .split("\n")
+      // remove any line that carries the spawn grant (comma list OR array item), keep the marker.
+      .filter(
+        (l) =>
+          !/^(tools|allowed-tools):.*\b(Agent|Task)\b/.test(l) &&
+          !/^[ \t]*-[ \t]*["']?(Agent|Task)\b/.test(l),
+      )
+      .join("\n");
+    writeFileSync(file, stripped);
+    const r = runIn(m);
+    expect(r.status).not.toBe(0);
+    expect(out(r)).toMatch(/kills Claude Code parallelism/i);
+    expect(out(r)).toContain("grugops-orchestrator.md");
+  });
+
+  // RED fixture (c): the coordinator: true MARKER removed → a rename/marker-loss must not silently
+  // demote the coordinator. With the marker gone the orchestrator is a non-coordinator that still
+  // holds a grant → the non-coordinator direction fires.
+  it("guard_wr05 coordinator marker REMOVED (grant retained) → nonzero + 'rogue spawner' names the file (D-15)", () => {
+    const m = mirror();
+    const file = join(m, ".claude/agents/grugops-orchestrator.md");
+    const demoted = readFileSync(file, "utf8")
+      .split("\n")
+      .filter((l) => !/^coordinator:\s*true\b/.test(l))
+      .join("\n");
+    writeFileSync(file, demoted);
+    const r = runIn(m);
+    expect(r.status).not.toBe(0);
+    expect(out(r)).toMatch(/rogue spawner/i);
+    expect(out(r)).toContain("grugops-orchestrator.md");
   });
 
   // ── guard_agents_bytes — oversize + missing (CR-01). ─────────────────────────────────────────

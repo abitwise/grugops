@@ -105,18 +105,33 @@ function grepFiles(files: string[], re: RegExp): string[] {
 }
 
 // ---------------------------------------------------------------------------
-// guard_wr05 — no frontmatter spawn grant in the 2 templates + 2 materialized adapters.
+// guard_wr05 — both-direction coordinator-spawn-grant enforcement (Phase 23, D-15/D-16).
 //
-// Two grant shapes: the comma list (`tools: Read, Grep, ...`) and the YAML array
-// (`allowed-tools:\n  - Read\n  ...`). A grant can also be scoped (`Agent(worker)`). The two
-// EREs catch all three; the word boundary makes `Agent(worker)` match while keeping the pattern
-// anchored to a token, not a substring. Explicit 4-file SCAN set — NEVER a repo-wide grep.
+// INVERTED (Phase 23 WR-05 flip): the guard no longer forbids the spawn grant outright. Claude
+// Code parallelism is now enabled for ONE designated coordinator. The guard asserts BOTH directions
+// over the explicit SCAN set:
+//   • the coordinator (identified by its `coordinator: true` frontmatter MARKER, NEVER a hard-coded
+//     filename — D-15) MUST carry the spawn grant; a dropped grant silently kills CC parallelism;
+//   • every NON-coordinator SCAN file MUST NOT carry the grant; a planted grant is a rogue spawner.
+// Detection is the marker only (D-15). A removed marker demotes the file to non-coordinator, so an
+// orchestrator that loses its marker but keeps its grant fails the non-coordinator direction — a
+// rename/marker-loss can never silently downgrade the coordinator.
+//
+// Two grant shapes catch every form (kept verbatim from the pre-flip guard, both alias tokens
+// retained — State-of-the-Art: the legacy alias still resolves): the comma list
+// (`tools: Read, Grep, ...`) and the YAML array (`allowed-tools:\n  - Read\n  ...`). A grant can
+// also be scoped (the parenthesized allowlist form). The two EREs catch all of them; the word
+// boundary keeps the pattern anchored to a token, not a substring. Explicit 4-file SCAN set —
+// NEVER a repo-wide grep (the established token-vs-prose care).
 // ---------------------------------------------------------------------------
 const WR05_COMMA = /^(tools|allowed-tools):.*\b(Agent|Task)\b/;
 // WR-02 fix: allow an optional quote (single or double) between the dash and the token so a
 // QUOTED YAML array item (`- "Agent"`, `- 'Agent'`) — valid YAML, a real spawn-grant shape — is
 // caught, not just the bare `- Agent`. Mirrors WR05_COMMA's permissiveness.
 const WR05_ARRAY = /^[ \t]*-[ \t]*["']?(Agent|Task)\b/;
+// D-15 marker: line-anchored match for the coordinator key set to true. This is the ONLY way the
+// guard identifies the coordinator — never a filename.
+const WR05_COORDINATOR = /^coordinator:\s*true\b/;
 const WR05_SCAN = [
   "agent-factory/packaging/subagent.frontmatter.md",
   "agent-factory/packaging/slash-command.template.md",
@@ -126,16 +141,25 @@ const WR05_SCAN = [
 
 function guardWr05(): void {
   process.stdout.write(
-    "\n[guard_wr05] no spawn-tool grant in packaging-template / adapter frontmatter (WR-05)\n",
+    "\n[guard_wr05] coordinator-only spawn grant: marker-keyed both-direction enforcement (WR-05)\n",
   );
-  const hits = [
-    ...grepFiles(WR05_SCAN, WR05_COMMA),
-    ...grepFiles(WR05_SCAN, WR05_ARRAY),
-  ].join("\n");
-  if (hits === "") {
-    pass("WR-05: no spawn grant in frontmatter");
+  let wr05Fail = "";
+  for (const f of WR05_SCAN) {
+    if (!fileExists(f)) continue; // missing template/adapter is covered by guard_adapter_size (CR-01)
+    const isCoordinator = grepFiles([f], WR05_COORDINATOR).length > 0;
+    const hasGrant =
+      grepFiles([f], WR05_COMMA).length > 0 ||
+      grepFiles([f], WR05_ARRAY).length > 0;
+    if (isCoordinator && !hasGrant) {
+      wr05Fail += `\n${f}: coordinator carries no spawn grant — a dropped grant kills Claude Code parallelism (the coordinator MUST hold the enumerated role-agent grant)`;
+    } else if (!isCoordinator && hasGrant) {
+      wr05Fail += `\n${f}: non-coordinator carries a spawn grant — rogue spawner (only the coordinator: true file may hold the grant)`;
+    }
+  }
+  if (wr05Fail === "") {
+    pass("WR-05: coordinator holds the spawn grant; no non-coordinator does");
   } else {
-    fail(`WR-05 spawn grant:\n${hits}`);
+    fail(`WR-05 coordinator-spawn-grant violation:${wr05Fail}`);
   }
 }
 
