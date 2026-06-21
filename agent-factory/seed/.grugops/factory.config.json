@@ -52,6 +52,11 @@
   "context": {
     "compaction": "aggressive"
   },
+  "queue": {
+    "wip_limit": 3,
+    "claim_cap": 2,
+    "stale_ttl_minutes": 30
+  },
   "compliance_regime": [],
   "environments": ["dev", "staging", "prod"],
   "production_requires_human_confirmation": true,
