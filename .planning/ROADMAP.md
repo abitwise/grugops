@@ -192,10 +192,15 @@ Plans:
   4. `install.ts --migrate` renames a user's `plans/handoffs/` state to a timestamped backup (never delete-first), and `git revert` is the documented rollback.
 
 **Plans**: 5 plans (2 waves — D-12 rewire-before-delete)
+**Wave 1**
+
 - [ ] 24-01-PLAN.md — STAGE 1 rewire: 18 roles + 3 packaging templates + AGENTS.md → reference WF16 / publish typed notes (MIGR-01, wave 1)
 - [ ] 24-02-PLAN.md — STAGE 1 rewire: 16 SDLC workflows (00–15) → reference WF16 (MIGR-01, wave 1)
 - [ ] 24-03-PLAN.md — trace render + fail-closed freshness:traceability gate (MIGR-03, wave 1)
 - [ ] 24-04-PLAN.md — install.ts --migrate handoffs-backup + seedState mkdir removal + tests (MIGR-04 + MIGR-02 install slice, wave 1)
+
+**Wave 2** *(blocked on Wave 1 completion)*
+
 - [ ] 24-05-PLAN.md — STAGE 2 atomic delete: rm 17 templates + 8 fixture dirs, flip check-kit-refs, drop FROZEN_HANDOFFS + re-point trace check, D-15 adversarial proof (MIGR-02, wave 2, depends_on 24-01/02/03/04)
 
 ### Phase 25: Governance-on-a-Dial
