@@ -9,15 +9,15 @@ cadence: both
 When a change is implemented and needs to pass the gate before a human reviews it. grug no merge on a green guess — the gate runs, the result is recorded, a human decides. This workflow is the single source of the backpressure loop: when an implementation is ready, the change flows implementation -> QE/E2E -> Security/NFR -> Architect/Design (if structure changed) -> Orchestrator recommendation. Every other workflow that needs the gate references this file rather than restating the loop.
 
 ## Agents involved
-- QE/E2E — breaks the feature, reports coverage and gaps (writes `plans/handoffs/<TICKET-ID>-qe.md`).
-- Security/NFR — reviews risk when triggered (writes `plans/handoffs/<TICKET-ID>-security-nfr.md`).
-- Architect/Design — only if the change altered structure (writes `plans/handoffs/<TICKET-ID>-architecture.md`).
+- QE/E2E — breaks the feature, reports coverage and gaps.
+- Security/NFR — reviews risk when triggered.
+- Architect/Design — only if the change altered structure.
 - Orchestrator — runs the deterministic prefetch and emits the recommendation. The Orchestrator recommends; it never auto-merges.
 
-Roles activate via the role-switch protocol (`agent-factory/roles/_role-switch-protocol.md`): one window, drop prior context, the handoff is the only memory.
+Each role reads the shared verified context before it works and records its results as typed notes (finding / decision / artifact-ref, with trace ids on refs) per `agent-factory/workflows/16-context-read-write.md`. Roles activate via the role-switch protocol (`agent-factory/roles/_role-switch-protocol.md`): one window, drop prior context; the shared verified context is the memory.
 
 ## Inputs required
-- The implemented change on a branch and the Software Engineer's filled handoff `plans/handoffs/<TICKET-ID>-implementation.md`.
+- The implemented change on a branch and the Software Engineer's recorded implementation notes in the shared verified context (read per Workflow 16).
 - The ticket and its acceptance criteria; relevant prior ADRs in `memory-bank/50-decisions/`.
 - Gate commands pulled from the root `AGENTS.md` command slots at runtime.
 - Quality knobs from `.grugops/factory.config.json#quality`.
@@ -26,7 +26,7 @@ Roles activate via the role-switch protocol (`agent-factory/roles/_role-switch-p
 ## Steps
 The backpressure loop, in clear voice. Run it in this order:
 
-1. **Deterministic prefetch.** Before the model writes code, the Orchestrator gathers the context the change needs — the ticket, the open handoffs, the gate commands from `AGENTS.md`, the relevant files, and any prior ADRs. The agent starts focused, not drowning.
+1. **Deterministic prefetch.** Before the model writes code, the Orchestrator gathers the context the change needs — the ticket, the shared verified context for the task (read per Workflow 16), the gate commands from `AGENTS.md`, the relevant files, and any prior ADRs. The agent starts focused, not drowning.
 2. **Implement on a branch** (`autonomy=branch` or `autonomy=pr`).
 3. **Run the gate** in order: `install -> lint -> typecheck -> unit -> build -> e2e -> test-integrity`. The commands come from the root `AGENTS.md` command slots — they are never invented. If a command is unknown, the gate records `UNKNOWN - verify` rather than faking a pass. `mandatory_gates` (`["lint","typecheck","unit","build"]`) must pass; `coverage_threshold` (`0.8`) is the coverage floor; `ui_e2e` (`"ui-or-critical-path"`) decides when e2e runs. The lint, UI/E2E, and test-integrity steps are config-dialed under `quality` — wire each as follows:
 
@@ -56,9 +56,6 @@ The backpressure loop, in clear voice. Run it in this order:
 ## Board moves
 On `plans/board.md`, the gate runs while the ticket sits in `In Review`. When a triggered Security/NFR review is needed, the QE/E2E exit moves it on to `In Security/NFR`. The gate does not move work to `Done` — only a human-approved merge (and release, in enterprise mode) does.
 
-## Handoffs produced
-Under `plans/handoffs/` (filled from the templates in `agent-factory/handoffs/`): `<TICKET-ID>-qe.md` (QE/E2E) and `<TICKET-ID>-security-nfr.md` (Security/NFR, when triggered). `<TICKET-ID>-architecture.md` is produced only if the change altered structure and the Architect/Design review re-runs.
-
 ## Trace updates
 Append to `plans/traceability.md`: the `Tests` link (from the QE result) and the `Code (PR/files)` link, against the ticket row, and update `Status`.
 
@@ -74,4 +71,4 @@ Record `Gate pass rate` in `plans/metrics.md`.
 The gate produces one of the three terminal results — `READY_FOR_HUMAN_REVIEW`, `BLOCKED_NEEDS_FIX`, or `SPLIT_REQUIRED`. This workflow emits a recommendation that a human reviews; it never auto-merges and never deploys. Humans hold merge and deploy.
 
 ## Commit
-Commit the artifacts this workflow wrote (the gate result and recommendation, the QE / security-nfr handoffs, the gate-pass-rate metric, the board move, the updated traceability rows, and — on a `READY_FOR_HUMAN_REVIEW` result — the green `§14-gate` verdict context note that `emitVerdict` in `scripts/context-io.ts` produced) per `agent-factory/_commit-convention.md` — branch guard first (never a protected branch; switch to `grugops/pr-quality-gate-<id>`), then `type(scope): summary`. The gate recommends only — never merge, never deploy; humans hold both.
+Commit the artifacts this workflow wrote (the gate result and recommendation, the QE / security-nfr context notes recorded per Workflow 16, the gate-pass-rate metric, the board move, the updated traceability rows, and — on a `READY_FOR_HUMAN_REVIEW` result — the green `§14-gate` verdict context note that `emitVerdict` in `scripts/context-io.ts` produced) per `agent-factory/_commit-convention.md` — branch guard first (never a protected branch; switch to `grugops/pr-quality-gate-<id>`), then `type(scope): summary`. The gate recommends only — never merge, never deploy; humans hold both.

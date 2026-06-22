@@ -10,11 +10,11 @@ When a ready ticket needs to become a pull request a human can review. grug no r
 
 ## Agents involved
 - Orchestrator — checks readiness against the Definition of Ready and pulls the ticket into development.
-- Software Engineer — implements the one ticket on a branch (writes `plans/handoffs/<TICKET-ID>-implementation.md`).
-- QE/E2E — breaks the feature and reports gaps (writes `plans/handoffs/<TICKET-ID>-qe.md`).
-- Security/NFR — reviews risk if the change is triggered (writes `plans/handoffs/<TICKET-ID>-security-nfr.md`).
+- Software Engineer — implements the one ticket on a branch.
+- QE/E2E — breaks the feature and reports gaps.
+- Security/NFR — reviews risk if the change is triggered.
 
-Roles activate via the role-switch protocol (`agent-factory/roles/_role-switch-protocol.md`): one window, drop prior context, the handoff is the only memory.
+Each role reads the shared verified context before it works and records its results as typed notes (decision / finding / artifact-ref, with trace ids on refs) per `agent-factory/workflows/16-context-read-write.md`. Roles activate via the role-switch protocol (`agent-factory/roles/_role-switch-protocol.md`): one window, drop prior context; the shared verified context is the memory.
 
 ## Inputs required
 - A ticket with acceptance criteria, size, and priority.
@@ -24,16 +24,13 @@ Roles activate via the role-switch protocol (`agent-factory/roles/_role-switch-p
 ## Steps
 1. The Orchestrator checks the ticket against `agent-factory/checklists/definition-of-ready.md`. If it is not ready, stop and name the missing input.
 2. The Orchestrator pulls the ticket into development, respecting WIP limits.
-3. The Software Engineer implements the one ticket on a branch — a small diff, test-first. Run the **inner loop** per unit behavior: write a FAILING unit test (red) -> minimal code to pass (green) -> refactor (still green), repeat. Honor the `quality.tdd` dial (`off` / `encouraged` / `required`, default `encouraged`). The **double-loop rule** (D-08): the outer acceptance scenario (QE-owned, from the handoff `## Acceptance scenarios` block) stays RED until the inner loop closes it, and NO SECOND acceptance scenario goes red before the first is green. The **contract-vs-logic seam** (D-09): the acceptance scenario asserts the observable business outcome once; the unit tests assert the internal logic and edge cases beneath it — the unit layer never re-asserts the same observable outcome. See `agent-factory/checklists/example-mapping.md` for the worked seam example (not restated here).
+3. The Software Engineer implements the one ticket on a branch — a small diff, test-first. Run the **inner loop** per unit behavior: write a FAILING unit test (red) -> minimal code to pass (green) -> refactor (still green), repeat. Honor the `quality.tdd` dial (`off` / `encouraged` / `required`, default `encouraged`). The **double-loop rule** (D-08): the outer acceptance scenario (QE-owned, read from the shared verified context per Workflow 16) stays RED until the inner loop closes it, and NO SECOND acceptance scenario goes red before the first is green. The **contract-vs-logic seam** (D-09): the acceptance scenario asserts the observable business outcome once; the unit tests assert the internal logic and edge cases beneath it — the unit layer never re-asserts the same observable outcome. See `agent-factory/checklists/example-mapping.md` for the worked seam example (not restated here).
 4. Run the quality gate per `agent-factory/workflows/05-pr-quality-gate.md`. The gate loop, the bounded self-fix, and the terminal result live there — this workflow references that gate and does not restate it. Mechanical no-second-red / one-behavior-one-layer enforcement is planned for that quality gate (`agent-factory/workflows/05-pr-quality-gate.md`); this step does not enforce it.
 5. QE/E2E breaks the feature and reports the result and gaps.
 6. Security/NFR reviews the change if a risk-bearing surface is triggered.
 
 ## Board moves
 On `plans/board.md`, the full path is `Ready for Dev -> In Development -> In Review (-> In Security/NFR)`. The Orchestrator owns `Ready for Dev -> In Development`; the Software Engineer owns `In Development -> In Review`; QE/E2E owns the `In Review` exit; Security/NFR owns the `In Security/NFR` exit when triggered.
-
-## Handoffs produced
-Under `plans/handoffs/` (filled from the templates in `agent-factory/handoffs/`): `<TICKET-ID>-implementation.md` (Software Engineer), `<TICKET-ID>-qe.md` (QE/E2E), and `<TICKET-ID>-security-nfr.md` (Security/NFR, if triggered).
 
 ## Trace updates
 Append to `plans/traceability.md`: the `Code (PR/files)` link and the `Tests` link against the ticket row, and update `Status`.
@@ -48,7 +45,7 @@ Record `Cycle time` and `WIP` in `plans/metrics.md`.
 - The ticket is XL (too large for one PR) -> `SPLIT_REQUIRED`, routed back to BA/PM for splitting before it can enter `Ready for Dev`.
 
 ## Done condition
-Code is changed per the `autonomy` setting, tests are added, the gate commands have run, the implementation and QE (and, when triggered, security-nfr) handoffs are written, and the trace is updated. This workflow honors `autonomy=pr` — the agent opens a branch and a PR; it never merges. Humans hold merge and deploy.
+Code is changed per the `autonomy` setting, tests are added, the gate commands have run, the implementation and QE (and, when triggered, security-nfr) results are recorded as typed notes per Workflow 16, and the trace is updated. This workflow honors `autonomy=pr` — the agent opens a branch and a PR; it never merges. Humans hold merge and deploy.
 
 ## Commit
-Commit the artifacts this workflow wrote (the board moves, the implementation / QE / security-nfr handoffs, the metrics, and the updated traceability rows) per `agent-factory/_commit-convention.md` — branch guard first (never a protected branch; the implementation already lives on a `grugops/ticket-to-pr-<id>` working branch per `autonomy=pr`), then `type(scope): summary`. Never merge, never deploy; humans hold both.
+Commit the artifacts this workflow wrote (the board moves, the implementation / QE / security-nfr context notes recorded per Workflow 16, the metrics, and the updated traceability rows) per `agent-factory/_commit-convention.md` — branch guard first (never a protected branch; the implementation already lives on a `grugops/ticket-to-pr-<id>` working branch per `autonomy=pr`), then `type(scope): summary`. Never merge, never deploy; humans hold both.
