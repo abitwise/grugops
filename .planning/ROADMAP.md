@@ -257,7 +257,7 @@ Plans:
 | 21. Verify-Before-Write Admission | v2.0 | 4/4 | Complete    | 2026-06-17 |
 | 22. Memory & Trajectory Compaction | v2.0 | 9/9 | Complete    | 2026-06-19 |
 | 23. Parallel Execution & Orchestrator-as-Decomposer | v2.0 | 3/3 | Complete    | 2026-06-21 |
-| 24. Clean Handoff Removal & Traceability Migration | v2.0 | 5/5 | Complete   | 2026-06-22 |
+| 24. Clean Handoff Removal & Traceability Migration | v2.0 | 5/5 | Complete    | 2026-06-22 |
 | 25. Governance-on-a-Dial | v2.0 | 0/? | Pending | - |
 | 26. Dogfood, Dual-Path Oracle & A3/DOG-02 Retirement | v2.0 | 0/? | Pending | - |
 

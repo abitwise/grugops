@@ -2,13 +2,13 @@
 gsd_state_version: 1.0
 milestone: v2.0
 milestone_name: Decentralized Factory — Shared Verified Context
-current_phase: 24
-current_phase_name: clean-handoff-removal-traceability-migration
+current_phase: 25
+current_phase_name: Governance-on-a-Dial
 status: verifying
-stopped_at: Phase 24 context gathered
-last_updated: "2026-06-22T21:10:09.637Z"
+stopped_at: Completed 24-01-PLAN.md (Stage-1 role + packaging handoff removal)
+last_updated: "2026-06-22T21:22:56.597Z"
 last_activity: 2026-06-22
-last_activity_desc: Phase 24 execution started
+last_activity_desc: Phase 24 complete, transitioned to Phase 25
 progress:
   total_phases: 7
   completed_phases: 5
@@ -28,16 +28,16 @@ See: .planning/PROJECT.md (updated 2026-06-16 — after v1.2 milestone)
 
 ## Current Position
 
-Phase: 24 (clean-handoff-removal-traceability-migration) — EXECUTING
-Plan: 5 of 5
+Phase: 25 — Governance-on-a-Dial
+Plan: Not started
 Status: Phase complete — ready for verification
-Last activity: 2026-06-22 — Phase 24 execution started
+Last activity: 2026-06-22 — Phase 24 complete, transitioned to Phase 25
 
 ## Performance Metrics
 
 **Velocity:**
 
-- Total plans completed: 98
+- Total plans completed: 103
 - Average duration: -
 - Total execution time: 0 hours
 
@@ -66,6 +66,7 @@ Last activity: 2026-06-22 — Phase 24 execution started
 | 21 | 4 | - | - |
 | 22 | 9 | - | - |
 | 23 | 4 | - | - |
+| 24 | 5 | - | - |
 
 **Recent Trend:**
 
