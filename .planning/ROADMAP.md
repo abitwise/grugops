@@ -191,12 +191,12 @@ Plans:
   3. The requirement→code→test→release traceability is carried onto note `refs`/trace fields — the trail is preserved end-to-end, never dropped.
   4. `install.ts --migrate` renames a user's `plans/handoffs/` state to a timestamped backup (never delete-first), and `git revert` is the documented rollback.
 
-**Plans**: 2/5 plans executed
+**Plans**: 3/5 plans executed
 **Wave 1**
 
 - [x] 24-01-PLAN.md — STAGE 1 rewire: 18 roles + 3 packaging templates + AGENTS.md → reference WF16 / publish typed notes (MIGR-01, wave 1)
 - [x] 24-02-PLAN.md — STAGE 1 rewire: 16 SDLC workflows (00–15) → reference WF16 (MIGR-01, wave 1)
-- [ ] 24-03-PLAN.md — trace render + fail-closed freshness:traceability gate (MIGR-03, wave 1)
+- [x] 24-03-PLAN.md — trace render + fail-closed freshness:traceability gate (MIGR-03, wave 1)
 - [ ] 24-04-PLAN.md — install.ts --migrate handoffs-backup + seedState mkdir removal + tests (MIGR-04 + MIGR-02 install slice, wave 1)
 
 **Wave 2** *(blocked on Wave 1 completion)*
@@ -257,7 +257,7 @@ Plans:
 | 21. Verify-Before-Write Admission | v2.0 | 4/4 | Complete    | 2026-06-17 |
 | 22. Memory & Trajectory Compaction | v2.0 | 9/9 | Complete    | 2026-06-19 |
 | 23. Parallel Execution & Orchestrator-as-Decomposer | v2.0 | 3/3 | Complete    | 2026-06-21 |
-| 24. Clean Handoff Removal & Traceability Migration | v2.0 | 2/5 | In Progress|  |
+| 24. Clean Handoff Removal & Traceability Migration | v2.0 | 3/5 | In Progress|  |
 | 25. Governance-on-a-Dial | v2.0 | 0/? | Pending | - |
 | 26. Dogfood, Dual-Path Oracle & A3/DOG-02 Retirement | v2.0 | 0/? | Pending | - |
 

@@ -58,7 +58,7 @@ Requirements for the decentralization milestone. Each maps to exactly one roadma
 
 - [x] **MIGR-01**: Rewire all 18 roles + 16 workflows + 3 packaging templates + AGENTS.md off static handoffs onto the context substrate (substrate-first, before any deletion). _(Complete: Plan 24-01 did 18 roles + 3 packaging + AGENTS.md; Plan 24-02 did the 16-workflow half — every SDLC workflow now records typed notes per Workflow 16, zero agent-factory/handoffs/ refs.)_
 - [ ] **MIGR-02**: Delete all 17 handoff templates + the `plans/handoffs/` seed; update `validate-agent-factory.ts` + `generate-catalog.ts` in the *same* grep-to-zero change.
-- [ ] **MIGR-03**: Migrate the requirement→code→test→release traceability onto note `refs`/trace fields — the trail is preserved, never dropped.
+- [x] **MIGR-03**: Migrate the requirement→code→test→release traceability onto note `refs`/trace fields — the trail is preserved, never dropped.
 - [ ] **MIGR-04**: `install.ts --migrate` renames user `plans/handoffs/` state to a timestamped backup (never delete-first); rollback is `git revert`.
 
 ### GOV — Governance-on-a-Dial
@@ -124,7 +124,7 @@ Which phases cover which requirements. Confirmed during roadmap creation (2026-0
 | PAR-04 | Phase 23 | Complete |
 | MIGR-01 | Phase 24 | Complete (24-01 roles+packaging+AGENTS.md; 24-02 all 16 workflows) |
 | MIGR-02 | Phase 24 | Pending |
-| MIGR-03 | Phase 24 | Pending |
+| MIGR-03 | Phase 24 | Complete |
 | MIGR-04 | Phase 24 | Pending |
 | GOV-01 | Phase 25 | Pending |
 | GOV-02 | Phase 25 | Pending |
