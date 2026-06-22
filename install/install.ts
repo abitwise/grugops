@@ -356,7 +356,9 @@ function doctor(): number {
     [join(KIT_ROOT, "workflows"), adapterFile],
     [join(TARGET, ".grugops", "factory.config.json"), adapterFile],
     [join(TARGET, "plans", "board.md"), adapterFile],
-    [join(TARGET, "plans", "handoffs"), adapterFile],
+    // MIGR-02 (Phase 24): plans/handoffs/ is no longer seeded (the note-native trace replaced the
+    // handoff relay), so the doctor must NOT require it — checking it here would FAIL every clean
+    // install. Removed deliberately in lockstep with the seedState mkdir removal.
   ];
 
   if (DOC_FAILS === 0) {
@@ -582,6 +584,57 @@ function backupIfDiffers(target: string, replacement: string, label: string): bo
   renameSync(target, backup);
   report("backed-up", `${label} → ${backup}`);
   return true;
+}
+
+// backupDir: the Phase-24 MIGR-04 handoffs-backup primitive — a thinner sibling of backupIfDiffers
+// with NO `replacement` argument (D-19: --migrate NEVER parses or converts legacy handoff content;
+// it only relocates the directory, preserving the originals for the human). Never-delete-first
+// (D-18): the directory is RENAMED aside to `${target}.bak.<isoStamp()>`, never removed. The backup
+// name reuses isoStamp() so it matches the anchored GRUGOPS_BACKUP_SUFFIX shape (--prune-old-kit can
+// later sweep it). Safety contract:
+//   - absent target  → "nothing to migrate" clean no-op, returns false (idempotent, D-20: a second
+//                       run after the dir is already backed up changes nothing).
+//   - backup-name collision (the `.bak.<ISO>` already exists) → ABORT: print a clear professional-
+//     voice message naming the collision and leave the ORIGINAL untouched, never overwriting the
+//     existing backup (D-18 never-clobber). Returns false; the original is preserved verbatim.
+//   - DRY_RUN → print a `would-backup` line and mutate NOTHING (D-20). Returns true (a backup WOULD
+//     have been made), so the caller can report intent.
+//   - otherwise → renameSync the dir aside and report `backed-up`. Returns true.
+// Clear professional voice on every string (installer safety surface — CLAUDE.md hard constraint).
+function backupDir(target: string, label: string): boolean {
+  if (!existsSync(target)) {
+    report("ok", `${label} (nothing to migrate — no ${target})`);
+    return false;
+  }
+  const backup = `${target}.bak.${isoStamp()}`;
+  if (existsSync(backup)) {
+    // Never-clobber (D-18): a backup of this exact name already exists. Abort this step, leave the
+    // original in place untouched, and tell the human plainly. (isoStamp millisecond precision makes
+    // a routine collision unlikely; this abort is the safety floor, not the common path.)
+    report(
+      "aborted",
+      `${label}: a backup named ${backup} already exists — leaving ${target} untouched to avoid overwriting it. ` +
+        `Move or remove the existing backup, then re-run --migrate.`,
+    );
+    return false;
+  }
+  if (DRY_RUN) {
+    report("would-backup", `${label} → ${backup}`);
+    return true;
+  }
+  renameSync(target, backup);
+  report("backed-up", `${label} → ${backup}`);
+  return true;
+}
+
+// migrateHandoffs: the Phase-24 MIGR-04 step folded INTO the existing --migrate orchestration (D-17:
+// EXTEND, never a colliding new flag). Backs up a user's runtime-accumulated plans/handoffs/ — the
+// old relay's directory — to plans/handoffs.bak.<ISO> via backupDir (never-delete-first, abort on
+// collision, no content conversion, DRY_RUN/idempotent). Called on EVERY --migrate path (both the
+// already-two-root isMigrated arm AND the old-layout path) because a user can have accumulated
+// plans/handoffs/ regardless of layout state (D-17 reconcile).
+function migrateHandoffs(): void {
+  backupDir(join(TARGET, "plans", "handoffs"), "plans/handoffs/");
 }
 
 // ---------------------------------------------------------------------------
@@ -990,8 +1043,10 @@ function listSeedFiles(root: string, base = ""): string[] {
 }
 
 // seedState: seed the full per-repo state plane from $KIT_ROOT/seed/** into $TARGET, per-file
-// skip-if-exists (INSTALL-04, D-01/D-04). Explicitly creates plans/handoffs/ (a runtime dir
-// absent from the seed skeleton — Pitfall 4). DRY_RUN mutates nothing.
+// skip-if-exists (INSTALL-04, D-01/D-04). DRY_RUN mutates nothing. MIGR-02 (Phase 24): the old
+// relay's plans/handoffs/ runtime dir is NO LONGER created — the note-native trace replaces the
+// handoff relay, so fresh installs leave plans/handoffs/ absent (a user's accumulated dir is
+// backed up by --migrate, never recreated here).
 function seedState(): void {
   const seed = join(KIT_ROOT, "seed");
   if (!existsSync(seed)) {
@@ -1001,15 +1056,10 @@ function seedState(): void {
   for (const rel of listSeedFiles(seed)) {
     seedFile(join(seed, rel), join(TARGET, rel), rel);
   }
-  const handoffs = join(TARGET, "plans", "handoffs");
-  if (existsSync(handoffs)) {
-    report("skipped", "plans/handoffs/ (target already has it — D-04)");
-  } else if (DRY_RUN) {
-    report("would-add", "plans/handoffs/");
-  } else {
-    mkdirp(handoffs);
-    report("created", "plans/handoffs/");
-  }
+  // MIGR-02 (Phase 24): the old relay's runtime plans/handoffs/ dir is no longer seeded. The
+  // clean note-native trace replaces the handoff relay, so a fresh install must NOT recreate the
+  // dir — the former handoffs-mkdir block is removed deliberately (not an omission). Existing
+  // users who accumulated plans/handoffs/ under the old relay back it up via `--migrate` (D-17).
 }
 
 // materializeRunnable (D-11 — the kit-shipped-runnable convention): copy the compiled
@@ -1176,6 +1226,15 @@ function updateKitHome(): void {
 //   - isClean (or anything else) → FALL THROUGH into the existing install run unchanged (D-11).
 if (MIGRATE) {
   const layout = detectOldLayout();
+  // MIGR-04 (Phase 24, D-17 reconcile): back up a user's runtime-accumulated plans/handoffs/ on
+  // EVERY --migrate path — the already-two-root isMigrated arm, the old-layout path, AND the clean
+  // fall-through — because a user can have accumulated handoffs under the old relay regardless of
+  // layout state. Folded into the existing orchestration here (never a colliding new flag); the
+  // step is a clean no-op when plans/handoffs/ is absent (D-20 idempotent) and aborts without
+  // clobbering on a backup-name collision (D-18). It runs BEFORE the isMigrated early-exit so an
+  // already-migrated repo still gets its handoffs backed up.
+  console.log("\n-- handoffs backup (MIGR-04) --");
+  migrateHandoffs();
   if (layout.isMigrated) {
     if (layout.leftoverKit) {
       console.log(
