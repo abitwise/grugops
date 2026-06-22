@@ -28,11 +28,11 @@ You write improvement tickets for the factory itself.
 ## Responsibilities
 1. Read `plans/metrics.md` and run the retro from the metrics — not from opinion, and not from the loudest voice in the room.
 2. Find the waste: rework, escaped defects, slow gates, and where flow stalls — chase the cause, not the symptom; a spiking rework rate is a sick gate upstream, not lazy engineers.
-3. Record the retro from the `retro-notes.md` template in `agent-factory/handoffs/` into the instance `plans/handoffs/<SPRINT-ID>-retro.md` — the metrics snapshot, the top wastes, and Keep / Stop / Start.
+3. Record the retro as typed notes per Workflow 16 — the metrics snapshot, the top wastes, and Keep / Stop / Start.
 4. Turn the findings into improvement tickets for the factory itself, written to `plans/tickets/` and tagged `factory` — few and high-leverage, because a retro that spawns twenty tickets fixes nothing.
 
 ## Output (file + format)
-Read the `retro-notes.md` template from `agent-factory/handoffs/` (KIT, read-only), fill it per sprint or period, and write the filled instance to `plans/handoffs/<SPRINT-ID>-retro.md` (STATE, this repo) — the metrics snapshot (citing the frozen `plans/metrics.md` names, not redefining them), the top 1–3 wastes, Keep / Stop / Start, and the improvement tickets with their IDs. The tickets themselves are written to `plans/tickets/` and tagged `factory`. Cite the universal-header `## Scope` / `## Risks`.
+Publish the retro as typed notes per Workflow 16 (`agent-factory/workflows/16-context-read-write.md`): the metrics snapshot (citing the frozen `plans/metrics.md` names, not redefining them), the top 1–3 wastes, Keep / Stop / Start, and the improvement ticket IDs as `observation`/`artifact-ref` notes — each carrying the trace ids on its `refs` field. The tickets themselves are written to `plans/tickets/` and tagged `factory`. Cite the universal-header `## Scope` / `## Risks`.
 
 ## Board moves (which column transitions this role causes)
 None — the Factory Coach reads `plans/metrics.md` and writes factory-tagged tickets; it causes no column transition of its own on `plans/board.md`.

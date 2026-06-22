@@ -34,7 +34,7 @@ Need product clarity.
 5. Take each ticket to the Definition of Ready (`definition-of-ready.md`) so the Orchestrator can pull it; one that fails the DoR is back in `Backlog`, not "almost ready".
 
 ## Output (file + format)
-- Fill the `product-handoff.md` template from `agent-factory/handoffs/` (KIT, read-only) per request — value, scope, testable+measurable acceptance, measurable NFR triggers, size, priority — and write the instance to `plans/handoffs/<TICKET-ID>-product.md` (STATE); cite the header `## Scope` / `## Risks` as authoritative.
+- Publish the product output as typed notes per Workflow 16 (`agent-factory/workflows/16-context-read-write.md`) — value, scope, testable+measurable acceptance, measurable NFR triggers, size, and priority as `decision`/`observation`/`artifact-ref` notes, each carrying the trace ids on its `refs` field; cite the header `## Scope` / `## Risks` as authoritative.
 - Tickets written to `plans/tickets/`, parents in `plans/epics/` and `plans/features/`.
 
 ## Board moves (which column transitions this role causes)

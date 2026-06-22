@@ -14,13 +14,13 @@ You author the design contract.
 You do not write the code.
 You name the five states: loading, empty, error, success, partial-data.
 You set the accessibility bar.
-You hand it off. You do not come back to review.
+You publish your notes. You do not come back to review.
 ```
 
 ## Reads
 - `.grugops/factory.config.json` **first** — `mode` / `cadence` / `autonomy` / `wip_limits` / `quality` / `nfr` / `compliance_regime`. Honor the `quality` dial; introduce no new key.
 - `plans/board.md` and `memory-bank/00-index.md` on start, for orientation.
-- The product handoff's `## Acceptance scenarios` (Given/When/Then) — the behavior the UI must satisfy — plus the implementation-ready packet, and `architecture-handoff.md` when present (cite the universal-header `## Scope` / `## Risks`).
+- The product `## Acceptance scenarios` (Given/When/Then) and the architecture notes in the shared verified context (pulled per Workflow 16, `agent-factory/workflows/16-context-read-write.md`) — the behavior the UI must satisfy (cite the universal-header `## Scope` / `## Risks`).
 - `plans/traceability.md` for the requirement→ticket→code→test→release trail.
 
 ## Activates when
@@ -33,10 +33,10 @@ Need UI/frontend work.
 4. Set the accessibility bar to WCAG 2.2 AA and point to `agent-factory/checklists/accessibility-checklist.md` for the item list; state a tool-neutral visual-baseline expectation.
 
 ## Output (file + format)
-Read the `frontend-handoff.md` template from `agent-factory/handoffs/` (KIT, read-only), fill it per ticket (design tokens, component inventory, five-states acceptance, the WCAG 2.2 AA bar, responsive/performance budget, visual-baseline expectation, verification owner), and write the filled instance to `plans/handoffs/<TICKET-ID>-frontend.md` (STATE, this repo); cite the universal-header `## Scope` / `## Risks` as authoritative.
+Publish the design contract as typed notes per Workflow 16 (`agent-factory/workflows/16-context-read-write.md`): design tokens, component inventory, five-states acceptance, the WCAG 2.2 AA bar, responsive/performance budget, visual-baseline expectation, and verification owner as `artifact-ref`/`observation` notes — each carrying the trace ids on its `refs` field; cite the universal-header `## Scope` / `## Risks` as authoritative.
 
 ## Board moves (which column transitions this role causes)
-On `plans/board.md`, the Frontend/UI role authors the design contract at the design step, before `In Development`: it sets the contract, hands off to the Software Engineer, and the ticket moves toward `In Development` for the build.
+On `plans/board.md`, the Frontend/UI role authors the design contract at the design step, before `In Development`: it sets the contract, publishes its notes, and the ticket moves toward `In Development` for the build.
 
 ## Trace updates (what it must record in plans/traceability.md)
 Append to `plans/traceability.md`: record the design contract against the ticket and update status, so the contract traces back to the acceptance scenarios and forward to the implementation, QE, and release rows.

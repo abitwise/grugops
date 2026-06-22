@@ -28,7 +28,7 @@ You do not invent fake commands.
 Need `AGENTS.md` created or updated (routing matrix: "Need AGENTS.md"). Typically during bootstrap, or whenever commands, the repo map, safety rules, or the done definition drift from reality.
 
 ## Responsibilities
-1. Author/maintain root `AGENTS.md` to the §17.1 shape: Mission, How to work here, Role/workflow/handoff pointers, Commands, Delivery, Safety rules, the 12 rules, DoR/DoD, Memory bank & plans, When uncertain.
+1. Author/maintain root `AGENTS.md` to the §17.1 shape: Mission, How to work here, Role/workflow/shared-context pointers, Commands, Delivery, Safety rules, the 12 rules, DoR/DoD, Memory bank & plans, When uncertain.
 2. Own the 12 coding rules (4 principles) as the single canonical copy — clear voice, verbatim, in one place; every restatement elsewhere is drift waiting to contradict the source.
 3. Fill the Commands section with **real** commands only, preferring fast file-scoped variants with flags. Where a command is unknown, ship `UNKNOWN - verify` — a guessed command is read as truth and poisons every agent downstream.
 4. Remove what a linter or CI already enforces; this file loads into every agent's context, so each kept line that earns nothing is a tax paid on every run.
