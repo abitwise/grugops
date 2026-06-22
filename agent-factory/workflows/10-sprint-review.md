@@ -13,7 +13,7 @@ At the end of a sprint, when the box closes and the team accepts what got done. 
 - BA/PM — validates the delivered work against the original acceptance criteria, value, and scope.
 - QE/E2E — confirms the tests back what is being accepted and names any remaining gaps.
 
-Roles activate via the role-switch protocol (`agent-factory/roles/_role-switch-protocol.md`): one window, drop prior context, the handoff is the only memory.
+Each role reads the shared verified context before it works and records its results as typed notes (decision / finding / artifact-ref, with trace ids on refs) per `agent-factory/workflows/16-context-read-write.md`. Roles activate via the role-switch protocol (`agent-factory/roles/_role-switch-protocol.md`): one window, drop prior context; the shared verified context is the memory.
 
 ## Inputs required
 - The active `plans/sprints/SPRINT-xx.md` written at `08-sprint-planning.md` — the committed goal and items.
@@ -30,8 +30,8 @@ Roles activate via the role-switch protocol (`agent-factory/roles/_role-switch-p
 ## Board moves
 On `plans/board.md`, the review confirms items already in the frozen `Done` column — it introduces no new transition. Carry-over items stay where they sit (or return to `Ready` at the next planning), recorded as Carried out in the sprint file.
 
-## Handoffs produced
-None new. The sprint file `plans/sprints/SPRINT-xx.md` is the artifact — the review notes are appended to it, not written to a separate handoff.
+## Output
+None new. The sprint file `plans/sprints/SPRINT-xx.md` is the artifact — the review notes are appended to it; the validated outcomes are recorded as typed notes per Workflow 16.
 
 ## Trace updates
 Confirm the reviewed tickets' rows in `plans/traceability.md` are complete — `UAT`, `Status`, and (where released) the release link — for each accepted item; do not author new rows here.

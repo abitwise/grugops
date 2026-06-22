@@ -193,15 +193,16 @@ const ROLE_SECTIONS = [
     "## Trace updates",
     "## Hard limits",
 ];
-// Workflow section headings — the 9 §18-named sections, prefix-matched (## Metrics emitted is
-// bonus and not asserted).
+// Workflow section headings — the §18-named sections, prefix-matched (## Metrics emitted is
+// bonus and not asserted). The former "## Handoffs" section was dropped in Phase 24: workflows
+// no longer produce static handoffs — role outputs are recorded as typed notes per Workflow 16,
+// so a workflow has no required handoff section to assert.
 const WORKFLOW_SECTIONS = [
     "## When",
     "## Agents",
     "## Inputs",
     "## Steps",
     "## Board moves",
-    "## Handoffs",
     "## Trace updates",
     "## Stop",
     "## Done",

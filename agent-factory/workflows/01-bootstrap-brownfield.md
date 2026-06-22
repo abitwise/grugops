@@ -12,9 +12,9 @@ When you drop the factory onto an existing repo and want it mapped, documented, 
 - Brownfield Mapper — maps the existing repo, documenting structure and known commands (`memory-bank/brownfield-map.md`); no board move.
 - AGENTS.md Scribe — writes/updates the root `AGENTS.md` substrate; no board move.
 - Architect/Design — reviews the existing structure and notes risks and constraints.
-- Security/NFR — runs a high-risk scan of the unknown repo (`security-nfr-handoff.md`), returning `PASS | PASS_WITH_RISKS | BLOCKED`.
+- Security/NFR — runs a high-risk scan of the unknown repo, returning `PASS | PASS_WITH_RISKS | BLOCKED`.
 
-Roles activate via the role-switch protocol (`agent-factory/roles/_role-switch-protocol.md`): one window, drop prior context, the handoff is the only memory.
+Each role reads the shared verified context before it works and records its results as typed notes (decision / finding / artifact-ref, with trace ids on refs) per `agent-factory/workflows/16-context-read-write.md`. Roles activate via the role-switch protocol (`agent-factory/roles/_role-switch-protocol.md`): one window, drop prior context; the shared verified context is the memory.
 
 ## Inputs required
 - An existing repository — the codebase to adopt.
@@ -25,14 +25,11 @@ Roles activate via the role-switch protocol (`agent-factory/roles/_role-switch-p
 1. The Brownfield Mapper maps the existing repo into `memory-bank/brownfield-map.md`, documenting the structure and the known build/test/lint commands it can confirm.
 2. The AGENTS.md Scribe writes/updates the root `AGENTS.md`. The brownfield map records the known commands, but the kit file's command slots stay `UNKNOWN - verify` until the Scribe verifies them per-project; never fabricate a command here.
 3. Architect/Design reviews the structure, noting risky areas, constraints, and any decisions worth recording.
-4. Security/NFR runs a high-risk scan of the repo and fills the `security-nfr-handoff.md` template from `agent-factory/handoffs/` into the instance `plans/handoffs/<TICKET-ID>-security-nfr.md` with a result of `PASS`, `PASS_WITH_RISKS`, or `BLOCKED`.
+4. Security/NFR runs a high-risk scan of the repo and records the scan result — `PASS`, `PASS_WITH_RISKS`, or `BLOCKED` — as a typed note per Workflow 16.
 5. With the risks understood, BA/PM cuts a small set of safe first tickets into `plans/tickets/` and seeds `plans/board.md`.
 
 ## Board moves
 On `plans/board.md`, seed the board with its columns and per-column WIP limits. Security/NFR owns the `In Security/NFR` exit for the high-risk scan; the safe first tickets enter `Backlog`.
-
-## Handoffs produced
-Under `plans/handoffs/` (filled from the templates in `agent-factory/handoffs/`): `<TICKET-ID>-security-nfr.md` (Security/NFR).
 
 ## Trace updates
 Seed `plans/traceability.md` rows for the safe first tickets — set `Status` and link any `NFRs` raised by the scan — so the first work traces back to a documented risk posture.
@@ -45,7 +42,7 @@ None beyond seeding. The board and metrics counters start empty; `plans/metrics.
 - The repo cannot be mapped (no readable structure, no confirmable commands) — stop and request access or context.
 
 ## Done condition
-The root `AGENTS.md`, `memory-bank/brownfield-map.md`, and the updated memory-bank exist; the known commands and the risks are documented (with the `plans/handoffs/<TICKET-ID>-security-nfr.md` result); the safe first tickets exist; `plans/board.md` is seeded; `.grugops/factory.config.json` is present. The `AGENTS.md` command slots remain `UNKNOWN - verify` until verified per-project.
+The root `AGENTS.md`, `memory-bank/brownfield-map.md`, and the updated memory-bank exist; the known commands and the risks are documented (with the security-nfr scan result recorded as a typed note per Workflow 16); the safe first tickets exist; `plans/board.md` is seeded; `.grugops/factory.config.json` is present. The `AGENTS.md` command slots remain `UNKNOWN - verify` until verified per-project.
 
 ## Commit
-Commit the artifacts this workflow wrote (the brownfield map, the seeded board, the safe first tickets, the security-nfr handoff, and the traceability rows) per `agent-factory/_commit-convention.md` — branch guard first (never a protected branch; switch to `grugops/bootstrap-brownfield-<id>`), then `type(scope): summary`. Never merge, never deploy; humans hold both.
+Commit the artifacts this workflow wrote (the brownfield map, the seeded board, the safe first tickets, the security-nfr note recorded per Workflow 16, and the traceability rows) per `agent-factory/_commit-convention.md` — branch guard first (never a protected branch; switch to `grugops/bootstrap-brownfield-<id>`), then `type(scope): summary`. Never merge, never deploy; humans hold both.

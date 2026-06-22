@@ -6,12 +6,12 @@ cadence: both
 # Workflow: Idea to epics
 
 ## When to use
-When a raw idea or request needs to become epics the team can plan against. grug no build everything — first find the user, the pain, the value, then cut to a defensible MVP. The idea flows idea -> BA/PM -> product-handoff -> epics.
+When a raw idea or request needs to become epics the team can plan against. grug no build everything — first find the user, the pain, the value, then cut to a defensible MVP. The idea flows idea -> BA/PM -> product decisions recorded as verified context -> epics.
 
 ## Agents involved
-- BA/PM — finds the user, the pain, and the value; defines the MVP scope, non-goals, and risks; breaks the idea into epics (`product-handoff.md`).
+- BA/PM — finds the user, the pain, and the value; defines the MVP scope, non-goals, and risks; breaks the idea into epics.
 
-Roles activate via the role-switch protocol (`agent-factory/roles/_role-switch-protocol.md`): one window, drop prior context, the handoff is the only memory.
+Each role reads the shared verified context before it works and records its results as typed notes (decision / finding / artifact-ref, with trace ids on refs) per `agent-factory/workflows/16-context-read-write.md`. Roles activate via the role-switch protocol (`agent-factory/roles/_role-switch-protocol.md`): one window, drop prior context; the shared verified context is the memory.
 
 ## Inputs required
 - A raw idea or business request — the thing to scope.
@@ -21,14 +21,11 @@ Roles activate via the role-switch protocol (`agent-factory/roles/_role-switch-p
 ## Steps
 1. BA/PM clarifies the idea — who is the user, what is the pain, what is the value worth building.
 2. BA/PM defines the MVP scope plus the explicit non-goals and the known risks; says no to bloat.
-3. BA/PM fills the `product-handoff.md` template from `agent-factory/handoffs/` into the instance `plans/handoffs/<TICKET-ID>-product.md` with the user value, scope, non-goals, and risks.
+3. BA/PM records the user value, scope, non-goals, and risks as typed notes (decision / finding) per Workflow 16.
 4. BA/PM breaks the idea into epics and adds them to `Backlog` (epics written to `plans/epics/`).
 
 ## Board moves
 On `plans/board.md`, the new epics enter `Backlog`. BA/PM owns the `Backlog -> Ready` exit and moves an item to `Ready` once it meets the Definition of Ready.
-
-## Handoffs produced
-Under `plans/handoffs/` (filled from the templates in `agent-factory/handoffs/`): `<TICKET-ID>-product.md` (BA/PM).
 
 ## Trace updates
 Append to `plans/traceability.md`: the `Epic` and `Feature` rows for the new epics, and set `Status`, so every downstream ticket traces back to a product epic.
@@ -40,7 +37,7 @@ Record `Throughput` and `Lead time` in `plans/metrics.md` as epics land in `Back
 - The idea is too vague to scope — stop and request the missing clarity from the requester; do not invent the user, the pain, or the value.
 
 ## Done condition
-The MVP scope is clear; the epics, the non-goals, and the risks are written; the epics are added to `Backlog`. The `plans/handoffs/<TICKET-ID>-product.md` instance is filled and the trace rows are appended.
+The MVP scope is clear; the epics, the non-goals, and the risks are written; the epics are added to `Backlog`. The product decisions are recorded as typed notes per Workflow 16 and the trace rows are appended.
 
 ## Commit
-Commit the artifacts this workflow wrote (the epics, the board update, the `product-handoff.md`, and the traceability rows) per `agent-factory/_commit-convention.md` — branch guard first (never a protected branch; switch to `grugops/idea-to-epics-<id>`), then `type(scope): summary`. Never merge, never deploy; humans hold both.
+Commit the artifacts this workflow wrote (the epics, the board update, the product notes recorded per Workflow 16, and the traceability rows) per `agent-factory/_commit-convention.md` — branch guard first (never a protected branch; switch to `grugops/idea-to-epics-<id>`), then `type(scope): summary`. Never merge, never deploy; humans hold both.

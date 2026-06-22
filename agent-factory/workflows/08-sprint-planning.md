@@ -12,7 +12,7 @@ At the start of a sprint, when the team works in time-boxed iterations. This is 
 - Orchestrator — reads `config.cadence` and capacity, pulls committed items from `Ready` by priority up to capacity, enforces the Definition of Ready before each pull.
 - BA/PM — frames the one-sentence sprint goal and confirms each pulled item is Ready (value, scope, acceptance, size, priority).
 
-Roles activate via the role-switch protocol (`agent-factory/roles/_role-switch-protocol.md`): one window, drop prior context, the handoff is the only memory.
+Each role reads the shared verified context before it works and records its results as typed notes (decision / finding / artifact-ref, with trace ids on refs) per `agent-factory/workflows/16-context-read-write.md`. Roles activate via the role-switch protocol (`agent-factory/roles/_role-switch-protocol.md`): one window, drop prior context; the shared verified context is the memory.
 
 ## Inputs required
 - A stocked `Ready` column on `plans/board.md` — enough sized, prioritized, DoR-met work to fill the box.
@@ -37,8 +37,8 @@ Roles activate via the role-switch protocol (`agent-factory/roles/_role-switch-p
 ## Board moves
 On `plans/board.md`, committed items leave the `Ready` column into the sprint commitment recorded in `plans/sprints/SPRINT-xx.md`; the Orchestrator pulls each forward into `Ready for Dev` as the box runs, respecting WIP limits. No new column is introduced — the sprint file is the scrum overlay on top of the same board.
 
-## Handoffs produced
-The primary output is `plans/sprints/SPRINT-xx.md` (the sprint file). Optionally, under `plans/handoffs/` (filled from the `sprint-plan.md` template in `agent-factory/handoffs/`), a one-off `<SPRINT-ID>-sprint-plan.md` packet may carry the goal and committed list for the team.
+## Output
+The primary output is `plans/sprints/SPRINT-xx.md` (the sprint file). The sprint goal and committed list are recorded as typed notes per Workflow 16 for the team.
 
 ## Trace updates
 None new beyond the committed tickets' existing rows. Each committed ticket already carries its row in `plans/traceability.md`; sprint planning commits to those rows, it does not author new code/test/UAT links.
@@ -54,4 +54,4 @@ Record `Velocity` in `plans/metrics.md` — the scrum size points per sprint, me
 `plans/sprints/SPRINT-xx.md` is written with the Goal, Dates, Capacity, and the Committed list (each item sized), and the Velocity / Burndown / Notes-for-retro fields are present to be filled as the box runs. The sprint goal is one sentence and every committed item met the Definition of Ready.
 
 ## Commit
-Commit the artifacts this workflow wrote (the `plans/sprints/SPRINT-xx.md` file, the optional `plans/handoffs/<SPRINT-ID>-sprint-plan.md` packet, the board moves, and the velocity metric) per `agent-factory/_commit-convention.md` — branch guard first (never a protected branch; switch to `grugops/sprint-planning-<id>`), then `type(scope): summary`. Never merge, never deploy; humans hold both.
+Commit the artifacts this workflow wrote (the `plans/sprints/SPRINT-xx.md` file, the sprint-plan notes recorded per Workflow 16, the board moves, and the velocity metric) per `agent-factory/_commit-convention.md` — branch guard first (never a protected branch; switch to `grugops/sprint-planning-<id>`), then `type(scope): summary`. Never merge, never deploy; humans hold both.
