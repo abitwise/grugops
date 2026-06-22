@@ -32,7 +32,7 @@ You write improvement tickets for the factory itself.
 4. Turn the findings into improvement tickets for the factory itself, written to `plans/tickets/` and tagged `factory` — few and high-leverage, because a retro that spawns twenty tickets fixes nothing.
 
 ## Output (file + format)
-Publish the retro as typed notes per Workflow 16 (`agent-factory/workflows/16-context-read-write.md`): the metrics snapshot (citing the frozen `plans/metrics.md` names, not redefining them), the top 1–3 wastes, Keep / Stop / Start, and the improvement ticket IDs as `observation`/`artifact-ref` notes — each carrying the trace ids on its `refs` field. The tickets themselves are written to `plans/tickets/` and tagged `factory`. Cite the universal-header `## Scope` / `## Risks`.
+Publish the retro as typed notes per Workflow 16: the metrics snapshot (citing the frozen `plans/metrics.md` names, not redefining them), the top 1–3 wastes, Keep / Stop / Start, and the improvement ticket IDs as `observation`/`artifact-ref` notes — each carrying the trace ids on its `refs` field. The tickets themselves are written to `plans/tickets/` and tagged `factory`. Cite the universal-header `## Scope` / `## Risks`.
 
 ## Board moves (which column transitions this role causes)
 None — the Factory Coach reads `plans/metrics.md` and writes factory-tagged tickets; it causes no column transition of its own on `plans/board.md`.

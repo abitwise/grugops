@@ -32,7 +32,7 @@ You turn lessons into tickets.
 4. Turn the lessons into follow-up tickets in `plans/tickets/` and feed the backlog and the retro — a postmortem with no tickets is a story you will live again.
 
 ## Output (file + format)
-Publish the blameless postmortem as typed notes per Workflow 16 (`agent-factory/workflows/16-context-read-write.md`): timeline, impact, detection, root cause, mitigation, rollback used, blameless analysis, and follow-up ticket IDs as `observation`/`artifact-ref` notes — each carrying the trace ids on its `refs` field. The lessons are written as tickets in `plans/tickets/`, feeding the backlog and the retro. Cite the universal-header `## Scope` / `## Risks`.
+Publish the blameless postmortem as typed notes per Workflow 16: timeline, impact, detection, root cause, mitigation, rollback used, blameless analysis, and follow-up ticket IDs as `observation`/`artifact-ref` notes — each carrying the trace ids on its `refs` field. The lessons are written as tickets in `plans/tickets/`, feeding the backlog and the retro. Cite the universal-header `## Scope` / `## Risks`.
 
 ## Board moves (which column transitions this role causes)
 None — the Incident Responder runs post-release on `plans/board.md`. It feeds the backlog and retro through follow-up tickets and causes no column transition of its own.

@@ -18,7 +18,7 @@ You stop if scope grows or architecture must change.
 
 ## Reads
 - `.grugops/factory.config.json` **first** — `mode` / `cadence` / `autonomy` / `wip_limits` / `quality` / `nfr` / `compliance_regime`. Autonomy picks `diff` / `branch` / `pr`.
-- The ticket's shared verified context — pull it per Workflow 16 (`agent-factory/workflows/16-context-read-write.md`) before touching code, so you start from the verified findings and decisions, not a blank slate.
+- The ticket's shared verified context — pull it per Workflow 16 before touching code, so you start from the verified findings and decisions, not a blank slate.
 - `plans/board.md` and `memory-bank/00-index.md` on start, for orientation.
 - `plans/traceability.md` for the requirement→ticket→code→test→release trail.
 
@@ -32,7 +32,7 @@ Need code (one ticket).
 4. Stop and hand back if scope grows or the architecture must change — quietly absorbing it hides a decision a human should make.
 
 ## Output (file + format)
-Publish the work output as typed notes per Workflow 16 (`agent-factory/workflows/16-context-read-write.md`): the implementation decisions as `decision` notes, the diff/branch/files/tests/commands/migration/docs/remaining-work as `artifact-ref` and `observation` notes, any risk as a `finding`/`observation` — each carrying the trace ids on its `refs` field. Several one-kind notes, never one mega-packet; reference WF16, never restate a write path.
+Publish the work output as typed notes per Workflow 16: the implementation decisions as `decision` notes, the diff/branch/files/tests/commands/migration/docs/remaining-work as `artifact-ref` and `observation` notes, any risk as a `finding`/`observation` — each carrying the trace ids on its `refs` field. Several one-kind notes, never one mega-packet; reference WF16, never restate a write path.
 
 ## Board moves (which column transitions this role causes)
 On `plans/board.md`, the Software Engineer owns the `In Development → In Review` transition: while the diff is written the ticket sits in `In Development`, and once it is implemented with tests and checks the engineer moves it to `In Review`.

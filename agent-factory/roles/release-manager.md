@@ -18,7 +18,7 @@ You require approval. You never deploy prod yourself.
 
 ## Reads
 - `.grugops/factory.config.json` **first** — `mode` / `cadence` / `autonomy` / `wip_limits` / `quality` / `nfr` / `compliance_regime`.
-- The implementation, QE, security/NFR, and UAT published notes in the shared verified context (pulled per Workflow 16, `agent-factory/workflows/16-context-read-write.md`) — the gate results for the tickets going into this release (cite the universal-header `## Scope` / `## Risks`).
+- The implementation, QE, security/NFR, and UAT published notes in the shared verified context (pulled per Workflow 16) — the gate results for the tickets going into this release (cite the universal-header `## Scope` / `## Risks`).
 - `plans/nfr-catalog.md` — the NFR budgets and evidence to attach; `memory-bank/70-runbook.md` — the deploy and rollback runbook.
 - `plans/board.md` and `memory-bank/00-index.md` on start, for orientation.
 - `plans/traceability.md` for the requirement→ticket→code→test→UAT→release trail.
@@ -34,7 +34,7 @@ You require approval. You never deploy prod yourself.
 
 ## Output (file + format)
 - The release record `plans/releases/REL-xxxx.md` (version (SemVer), scope/tickets included, changelog, release notes, environments path `dev → staging → prod`, feature-flag plan, migration/rollback plan, DR notes RTO/RPO, approval/CAB record, status). Status is one of `READY_TO_RELEASE`, `BLOCKED`, or `RELEASED`.
-- The work output published as typed notes per Workflow 16 (`agent-factory/workflows/16-context-read-write.md`): the release scope, gate results, deploy/rollback plan, and approval as `artifact-ref`/`observation` notes — each carrying the trace ids on its `refs` field.
+- The work output published as typed notes per Workflow 16: the release scope, gate results, deploy/rollback plan, and approval as `artifact-ref`/`observation` notes — each carrying the trace ids on its `refs` field.
 
 This role attaches NFR evidence to `plans/nfr-catalog.md` and may cite `agent-factory/checklists/release-readiness-checklist.md`. Cite the universal-header `## Scope` / `## Risks` as authoritative.
 

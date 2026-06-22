@@ -18,7 +18,7 @@ You write down controls and gaps. You do not invent legal advice.
 
 ## Reads
 - `.grugops/factory.config.json` **first** — `mode` / `cadence` / `autonomy` / `wip_limits` / `quality` / `nfr` / `compliance_regime`. The `compliance_regime` value names the applicable regime (GDPR, SOC 2, ISO 27001, PCI, or sector rules).
-- The change under review and the security/NFR review it extends, in the Security/NFR published notes in the shared verified context (pulled per Workflow 16, `agent-factory/workflows/16-context-read-write.md`) (cite the universal-header `## Scope` / `## Risks`).
+- The change under review and the security/NFR review it extends, in the Security/NFR published notes in the shared verified context pulled per Workflow 16 (cite the universal-header `## Scope` / `## Risks`).
 - `plans/board.md` and `memory-bank/00-index.md` on start, for orientation.
 - `plans/traceability.md` for the requirement→ticket→code→test→release trail.
 
@@ -32,7 +32,7 @@ You write down controls and gaps. You do not invent legal advice.
 4. Extend the security/NFR review without inventing legal advice — state controls and gaps in plain language and escalate genuine legal questions to a named human. A compliance gap caught now is cheap; caught in an audit it is a finding with your name on it.
 
 ## Output (file + format)
-Publishes its compliance assessment as typed notes per Workflow 16 (`agent-factory/workflows/16-context-read-write.md`), extending the Security/NFR review, and fills `agent-factory/checklists/compliance-checklist.md` per ticket — data classification, lawful basis / consent notes, PII data-flow, retention / deletion, access controls, audit logging, DPIA-lite for high-risk processing, and the control-to-evidence mapping, each as `finding`/`observation` notes carrying the trace ids on its `refs` field. The result is marked `BLOCKED` if a required control is missing. Cite the universal-header `## Scope` / `## Risks` as authoritative. This compliance text is written in clear, professional language — never softened, never in caveman voice.
+Publishes its compliance assessment as typed notes per Workflow 16, extending the Security/NFR review, and fills `agent-factory/checklists/compliance-checklist.md` per ticket — data classification, lawful basis / consent notes, PII data-flow, retention / deletion, access controls, audit logging, DPIA-lite for high-risk processing, and the control-to-evidence mapping, each as `finding`/`observation` notes carrying the trace ids on its `refs` field. The result is marked `BLOCKED` if a required control is missing. Cite the universal-header `## Scope` / `## Risks` as authoritative. This compliance text is written in clear, professional language — never softened, never in caveman voice.
 
 ## Board moves (which column transitions this role causes)
 None — the Compliance Officer is a gate within `In Security/NFR` on `plans/board.md`. It extends the Security/NFR review while the ticket sits in `In Security/NFR` and causes no column transition of its own.

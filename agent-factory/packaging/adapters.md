@@ -5,8 +5,8 @@ tier: core
 # Packaging: per-tool adapters
 
 grug build factory once. grug not build it five times. so the roles, the workflows,
-the handoffs, the gates — they live once, in `agent-factory/`, and every host tool
-points at the same files. the wrapper is thin; the brain is shared.
+the shared context protocol, the gates — they live once, in `agent-factory/`, and every
+host tool points at the same files. the wrapper is thin; the brain is shared.
 
 **All work starts at `agent-factory/roles/orchestrator.md`.** every adapter below is a
 pointer at that one entry rule — it never copies the role body, it just tells the host
@@ -17,7 +17,7 @@ the Orchestrator. The dispatch model itself does NOT change: rather than **spawn
 (not available across every host CLI, and sub-agents cannot nest), grugops uses one uniform
 single-window sequential role-load — the Orchestrator **loads** each role file into one context
 in turn. **Only the entry file differs, never the dispatch model and never the content.** Same
-roles, same handoffs, same gates.
+roles, same shared context, same gates.
 
 > **Note on this document vs. `agent-factory/README.md`.** The README carries an earlier
 > usage overview whose Claude Code row predates the command-form decision (D-29). **This
@@ -46,7 +46,7 @@ sub-agent spawning, because those hosts cannot spawn. Claude Code adds coordinat
 agents in parallel (depth ≤5, width ≤ `queue.wip_limit`), with the sequential role-load still
 available as the fallback. What changes from tool to tool is the **entry file** the host reads
 to reach `agent-factory/roles/orchestrator.md` (the column above) and — on Claude Code only — the
-dispatch mode. **Same roles, same handoffs, same gates — the four non-spawning CLIs stay
+dispatch mode. **Same roles, same shared context, same gates — the four non-spawning CLIs stay
 sequential; only Claude Code adds coordinator spawning.**
 
 Doc links cite `code.claude.com/docs/en/*` (the current host) — for example

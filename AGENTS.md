@@ -2,7 +2,7 @@
 
 ## Mission
 
-This repo runs a file-based agent factory for software delivery. One Orchestrator (the head grug) routes work through the full lifecycle; a few single-job grug agents execute within hard limits. The role is the intelligence. The workflow is the guardrail. The handoff is the memory. The board is the state. The gate is the backpressure. Humans decide; agents execute.
+This repo runs a file-based agent factory for software delivery. One Orchestrator (the head grug) routes work through the full lifecycle; a few single-job grug agents execute within hard limits. The role is the intelligence. The workflow is the guardrail. The shared verified context is the memory. The board is the state. The gate is the backpressure. Humans decide; agents execute.
 
 ## How to work here
 
@@ -14,13 +14,14 @@ Read in this order:
 2. `agent-factory/roles/orchestrator.md` — the routing contract; act as the Orchestrator.
 3. `plans/board.md` — the visible state; respect every column's WIP limit before pulling new work.
 
-The Orchestrator classifies the request, activates the right specialist role(s), demands a handoff packet from each, updates the board and traceability, and produces the next action.
+The Orchestrator classifies the request, activates the right specialist role(s), requires published notes from each, updates the board and traceability, and produces the next action.
 
-## Role / workflow / handoff files
+## Role / workflow files
+
+Roles pull the shared verified context they need and publish their work output as typed notes — per Workflow 16 (`agent-factory/workflows/16-context-read-write.md`). The shared context is the inter-role memory; the Orchestrator sequences by decompose→enqueue.
 
 - Roles:      `agent-factory/roles/`
 - Workflows:  `agent-factory/workflows/`
-- Handoffs:   `agent-factory/handoffs/` (TEMPLATES you read; filled runtime instances are written to `plans/handoffs/`)
 - Checklists: `agent-factory/checklists/`
 
 ## Kit vs state
@@ -29,10 +30,10 @@ Clear voice — this is a resolution and safety rule, not a joke.
 
 - `agent-factory/…` = **KIT** — read-only, resolved from the kit root; NEVER written.
 - `plans/`, `memory-bank/`, `.grugops/` = **STATE** — read/write in THIS repo.
-- `agent-factory/handoffs/<template>.md` is the **TEMPLATE** you read; `plans/handoffs/<WORK-ITEM-ID>-<stage>.md` is the runtime **INSTANCE** you write.
+- Roles read and write the shared verified context only via Workflow 16 (`agent-factory/workflows/16-context-read-write.md`) — referenced, never restated.
 - The kit root is resolved by the adapter only. If the resolved kit dir is absent: **STOP — do not hunt** the repo for `agent-factory/…`. Re-run the installer (`node install/install.js` or `node install/install.js --check`).
 
-> **Kit vs state invariant:** `agent-factory/…` = read-only KIT (from the kit root, never written); `plans/`, `memory-bank/`, `.grugops/` = STATE in this repo. Read handoff templates from `agent-factory/handoffs/`, write instances to `plans/handoffs/<ID>-<stage>.md`. If the kit dir is absent, STOP — do not hunt.
+> **Kit vs state invariant:** `agent-factory/…` = read-only KIT (from the kit root, never written); `plans/`, `memory-bank/`, `.grugops/` = STATE in this repo. Roles pull shared context and publish typed notes per Workflow 16 — referenced, never restated. If the kit dir is absent, STOP — do not hunt.
 
 ## Commands
 

@@ -15,7 +15,7 @@ in one place.
 Spawning is **coordinator-only**. On the four non-spawning host CLIs (Codex, Gemini, OpenCode,
 Copilot) grugops uses single-window sequential role-load via
 `agent-factory/roles/_role-switch-protocol.md` — one window, drop prior context between roles,
-the handoff packet is the only memory. On Claude Code the one designated coordinator (the
+the shared verified context is the only memory. On Claude Code the one designated coordinator (the
 orchestrator adapter) may instead spawn role agents. So a plain specialist wrapper's `tools:`
 list carries only the file/shell tools that role uses and no spawn tool, while the coordinator
 adapter alone carries the marker plus the enumerated spawn grant (see the coordinator example
@@ -30,7 +30,7 @@ description: Single entry point for the grugops software factory. Use for any SD
 tools: Read, Grep, Glob, Bash, Edit, Write
 model: inherit
 ---
-> **Kit vs state invariant:** `agent-factory/…` = read-only KIT (from the kit root, never written); `plans/`, `memory-bank/`, `.grugops/` = STATE in this repo. Read handoff templates from `agent-factory/handoffs/`, write instances to `plans/handoffs/<ID>-<stage>.md`. If the kit dir is absent, STOP — do not hunt. (Full rule: AGENTS.md § Kit vs state.)
+> **Kit vs state invariant:** `agent-factory/…` = read-only KIT (from the kit root, never written); `plans/`, `memory-bank/`, `.grugops/` = STATE in this repo. Roles pull shared context and publish typed notes per Workflow 16 — referenced, never restated. If the kit dir is absent, STOP — do not hunt. (Full rule: AGENTS.md § Kit vs state.)
 
 Resolve the kit root (this adapter is the sole resolver):
 
@@ -47,8 +47,8 @@ You follow `agent-factory/roles/orchestrator.md` exactly. Read it now, then read
 `.grugops/factory.config.json`, the root `AGENTS.md`, and `plans/board.md`
 (respect every column's WIP limit). Then act as the Orchestrator: classify the request,
 activate each role through the role-switch protocol (`agent-factory/roles/_role-switch-protocol.md`)
-— one window, drop prior context, the handoff is the only memory — demand a handoff packet from
-each, update the board and traceability, and produce the next action.
+— one window, drop prior context, the shared verified context is the only memory — require
+published notes from each, update the board and traceability, and produce the next action.
 
 Never merge to a protected branch. Never deploy to prod. Humans always hold merge and
 deploy.
@@ -60,15 +60,15 @@ deploy.
   auto-routing, so write it as a clear "use for / use when" sentence.
 - **`tools: Read, Grep, Glob, Bash, Edit, Write`** — for a plain specialist wrapper, file and
   shell tools only, **no spawn tool**. A specialist role never spawns; it does its one job and
-  hands off. The spawn grant is reserved for the coordinator adapter alone (below). On the four
-  non-spawning host CLIs every role — coordinator included — activates via single-window
+  publishes its notes. The spawn grant is reserved for the coordinator adapter alone (below). On
+  the four non-spawning host CLIs every role — coordinator included — activates via single-window
   sequential role-load (`agent-factory/roles/_role-switch-protocol.md`: one window, drop prior
-  context between roles, the handoff packet is the only memory); on Claude Code the coordinator
-  may spawn instead.
+  context between roles, the shared verified context is the only memory); on Claude Code the
+  coordinator may spawn instead.
 - **`model: inherit`** — the documented default; keeps the user's session model rather than
   pinning cost/capability.
 - **Body** — repo-relative pointer-text. It cites `agent-factory/roles/orchestrator.md` (the
-  frozen role) and the read order, then hands off to that role. It echoes the hard limit in
+  frozen role) and the read order, then acts as that role. It echoes the hard limit in
   clear voice. It contains **no copied role instructions**.
 
 The hard-limit line ("Never merge to a protected branch. Never deploy to prod.") is repeated

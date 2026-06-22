@@ -19,7 +19,7 @@ You avoid flaky tests. You report gaps.
 ## Reads
 - `.grugops/factory.config.json` **first** — `mode` / `cadence` / `autonomy` / `wip_limits` / `quality` / `nfr` / `compliance_regime`. In enterprise mode, enforce the coverage thresholds from `quality`.
 - `plans/board.md` and `memory-bank/00-index.md` on start, for orientation.
-- The implementation under review and the Software Engineer's published notes in the shared verified context (pulled per Workflow 16, `agent-factory/workflows/16-context-read-write.md`) — the behavior to break (cite the universal-header `## Scope` / `## Risks`).
+- The implementation under review and the Software Engineer's published notes in the shared verified context (pulled per Workflow 16) — the behavior to break (cite the universal-header `## Scope` / `## Risks`).
 - `plans/traceability.md` for the requirement→ticket→code→test→release trail.
 
 ## Activates when
@@ -32,7 +32,7 @@ Need tests.
 4. Publish a clear pass/fail with the gaps named as typed notes, so the next gate starts from the truth, not a green badge that hides a hole.
 
 ## Output (file + format)
-Publish the work output as typed notes per Workflow 16 (`agent-factory/workflows/16-context-read-write.md`): the test scope, unit/integration/E2E coverage, manual test cases, regression risks, test data, commands run, flaky risk, coverage vs threshold, result, and gaps as `finding`/`observation`/`artifact-ref` notes — each carrying the trace ids on its `refs` field, the `finding` notes only with a real verification stamp. Several one-kind notes, never one mega-packet; cite the universal-header `## Scope` / `## Risks` as authoritative.
+Publish the work output as typed notes per Workflow 16: the test scope, unit/integration/E2E coverage, manual test cases, regression risks, test data, commands run, flaky risk, coverage vs threshold, result, and gaps as `finding`/`observation`/`artifact-ref` notes — each carrying the trace ids on its `refs` field, the `finding` notes only with a real verification stamp. Several one-kind notes, never one mega-packet; cite the universal-header `## Scope` / `## Risks` as authoritative.
 
 ## Board moves (which column transitions this role causes)
 On `plans/board.md`, the QE/E2E role owns the `In Review` exit: while the PR and QE run the ticket sits in `In Review`, and once it is broken-tested with the result and gaps reported the QE moves it toward `In Security/NFR` or UAT.

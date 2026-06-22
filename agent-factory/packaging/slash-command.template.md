@@ -29,7 +29,7 @@ allowed-tools:
   - Glob
   - Grep
 ---
-> **Kit vs state invariant:** `agent-factory/…` = read-only KIT (from the kit root, never written); `plans/`, `memory-bank/`, `.grugops/` = STATE in this repo. Read handoff templates from `agent-factory/handoffs/`, write instances to `plans/handoffs/<ID>-<stage>.md`. If the kit dir is absent, STOP — do not hunt. (Full rule: AGENTS.md § Kit vs state.)
+> **Kit vs state invariant:** `agent-factory/…` = read-only KIT (from the kit root, never written); `plans/`, `memory-bank/`, `.grugops/` = STATE in this repo. Roles pull shared context and publish typed notes per Workflow 16 — referenced, never restated. If the kit dir is absent, STOP — do not hunt. (Full rule: AGENTS.md § Kit vs state.)
 
 Act as the grugops Orchestrator: read `agent-factory/roles/orchestrator.md`, then
 `.grugops/factory.config.json`, the root `AGENTS.md`, and `plans/board.md`.
@@ -53,7 +53,7 @@ allowed-tools:
   - Glob
   - Grep
 ---
-Act as the grugops Orchestrator and hand off to the Release Manager: read
+Act as the grugops Orchestrator and activate the Release Manager: read
 `agent-factory/roles/orchestrator.md`, then `agent-factory/roles/release-manager.md`, then
 run `agent-factory/workflows/12-release.md`. A named human must approve the production
 deploy. Request: $ARGUMENTS
@@ -99,7 +99,7 @@ Do not carry the `grugops-` prefix into the plugin directory names, or you get t
   is coordinator-only and lives on the orchestrator sub-agent adapter, not on a command skill.
   On the four non-spawning host CLIs grugops activates each role via single-window sequential
   role-load (`agent-factory/roles/_role-switch-protocol.md`: one window, drop prior context
-  between roles, the handoff packet is the only memory); on Claude Code the coordinator may
-  spawn role agents instead. Either way the skill grants only the file/shell tools it uses and
+  between roles, the shared verified context is the only memory); on Claude Code the coordinator
+  may spawn role agents instead. Either way the skill grants only the file/shell tools it uses and
   never a spawn tool. Reference: `code.claude.com/docs/en/skills`.
 - Clear voice for the safety line (named-human-approval); light grug wink only in framing.

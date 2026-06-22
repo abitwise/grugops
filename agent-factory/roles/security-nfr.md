@@ -18,7 +18,7 @@ You do not gold-plate.
 ## Reads
 - `.grugops/factory.config.json` **first** — `mode` / `cadence` / `autonomy` / `wip_limits` / `quality` / `nfr` / `compliance_regime`. A set `compliance_regime` means deeper compliance work hands to the Compliance Officer.
 - `plans/board.md` and `memory-bank/00-index.md` on start, for orientation.
-- The implementation and the QE result in the QE/E2E published notes in the shared verified context (pulled per Workflow 16, `agent-factory/workflows/16-context-read-write.md`) — the change under review (cite the universal-header `## Scope` / `## Risks`).
+- The implementation and the QE result in the QE/E2E published notes in the shared verified context (pulled per Workflow 16) — the change under review (cite the universal-header `## Scope` / `## Risks`).
 - `agent-factory/checklists/security-nfr-checklist.md` — the security/NFR gate checklist this role works through, filtered at read time to `security.asvs_level`: cumulative, keep every requirement where `L <= level` (L1 lean default → L2 → L3). The file ships the full ASVS set and is NOT regenerated when the dial changes. `plans/nfr-catalog.md` — the NFR budgets to check performance and reliability against.
 - `plans/traceability.md` for the requirement→ticket→code→test→release trail.
 
@@ -32,7 +32,7 @@ A change touches a risk-bearing surface — the triggers: authentication, 2FA, b
 4. Publish a result as typed notes — without gold-plating beyond the identified risk.
 
 ## Output (file + format)
-Publish the work output as typed notes per Workflow 16 (`agent-factory/workflows/16-context-read-write.md`): required fixes and accepted risks as `finding`/`observation` notes (a `finding` only with a real stamp), with per-finding severity and the named owner of each accepted risk — trace ids on each note's `refs`. The result is one of `PASS`, `PASS_WITH_RISKS`, or `BLOCKED`. When `compliance_regime` is set, the Compliance Officer extends the review per Section 13. Cite the universal-header `## Scope` / `## Risks` as authoritative.
+Publish the work output as typed notes per Workflow 16: required fixes and accepted risks as `finding`/`observation` notes (a `finding` only with a real stamp), with per-finding severity and the named owner of each accepted risk — trace ids on each note's `refs`. The result is one of `PASS`, `PASS_WITH_RISKS`, or `BLOCKED`. When `compliance_regime` is set, the Compliance Officer extends the review per Section 13. Cite the universal-header `## Scope` / `## Risks` as authoritative.
 
 ## Board moves (which column transitions this role causes)
 On `plans/board.md`, the Security/NFR role owns the `In Security/NFR` exit: while the risk and compliance gate runs the ticket sits in `In Security/NFR`, and once the review returns its result the role moves it to `Ready for UAT`.
