@@ -283,13 +283,17 @@ const ROLE_FILES = [
     "agent-factory/roles/system-analyst.md",
     "agent-factory/roles/uat-planner.md",
 ];
-// SEC_VOICE_FILES (D-10, Phase 14) — the 3 NON-role security surfaces. They have NO
+// SEC_VOICE_FILES (D-10, Phase 14) — the NON-role security surfaces. They have NO
 // `## Caveman prompt` fence, so the fence-strip is a harmless no-op and they are scanned WHOLE.
 // `security-nfr.md` is ALREADY in ROLE_FILES — do NOT add it here.
+// (Phase 24) The third entry, agent-factory/handoffs/security-nfr-handoff.md, was DROPPED: the 17
+// static handoff templates were deleted (the shared verified-context notes replaced the relay), so
+// the deleted security-nfr handoff is no longer a voice surface. The two surviving security
+// surfaces (the workflow + the checklist) still carry the clear-voice security content the guard
+// enforces.
 const SEC_VOICE_FILES = [
     "agent-factory/workflows/15-security-audit.md",
     "agent-factory/checklists/security-nfr-checklist.md",
-    "agent-factory/handoffs/security-nfr-handoff.md",
 ];
 const VOICE_FILES = [...ROLE_FILES, ...SEC_VOICE_FILES];
 // `\bgrug\b|\bclub\b|...` — word-boundary markers + idioms. `g`+`m` so grep-like line matching.

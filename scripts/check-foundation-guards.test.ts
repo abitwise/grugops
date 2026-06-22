@@ -62,7 +62,8 @@ const GUARD_INPUTS = [
   "agent-factory/roles/uat-planner.md",
   "agent-factory/workflows/15-security-audit.md",
   "agent-factory/checklists/security-nfr-checklist.md",
-  "agent-factory/handoffs/security-nfr-handoff.md",
+  // (Phase 24) agent-factory/handoffs/security-nfr-handoff.md was DROPPED from SEC_VOICE_FILES — the
+  // 17 static handoff templates were deleted, so the deleted handoff is no longer a guard input.
   // Phase 19 Tier-1 oracle inputs (UAT-AUTO-05): the aggregator now invokes the three oracles, which
   // read these. Mirror them so the hermetic plant case below can break one and prove the aggregator
   // fails closed. (The oracle bodies live single-source in check-uat-oracles.ts.)
@@ -312,16 +313,10 @@ describe("check-foundation-guards.js (SDLC-02 / SC2 fail-proof harness)", () => 
     expect(out(r)).toContain("security-nfr-checklist.md");
   });
 
-  it("guard_voice marker in security-nfr handoff → nonzero + surface path (D-10)", () => {
-    const m = mirror();
-    appendFileSync(
-      join(m, "agent-factory/handoffs/security-nfr-handoff.md"),
-      "\ngrug smash the handoff.\n",
-    );
-    const r = runIn(m);
-    expect(r.status).not.toBe(0);
-    expect(out(r)).toContain("security-nfr-handoff.md");
-  });
+  // (Phase 24) The former "guard_voice marker in security-nfr handoff" case was REMOVED: the static
+  // handoff templates were deleted, so agent-factory/handoffs/security-nfr-handoff.md is no longer a
+  // SEC_VOICE_FILE. The surviving security surfaces (the 15-security-audit workflow + the
+  // security-nfr-checklist, covered above) still prove guard_voice fails red on a SEC surface.
 
   it("guard_voice missing file → nonzero + 'required voice file missing' (CR-02)", () => {
     const m = mirror();

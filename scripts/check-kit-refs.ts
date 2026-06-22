@@ -66,10 +66,6 @@ const GH_SCAN = [
   "AGENTS.md",
 ];
 
-// The exhaustive 16-template ERE allowlist — verbatim from `ls agent-factory/handoffs/`.
-const ALLOW =
-  /agent-factory\/handoffs\/(architecture-handoff|business-handoff|implementation-handoff|implementation-ready-packet|incident-postmortem|product-handoff|qe-handoff|refinement-notes|release-handoff|retro-notes|security-nfr-handoff|sprint-plan|system-handoff|ticket-ready-packet|uat-handoff|universal-handoff)\.md/;
-
 // The four canonical sites carrying the compressed kit-vs-state invariant (SC2).
 const MARKER_SITES = [
   "AGENTS.md",
@@ -156,27 +152,26 @@ if (cfg === "") {
 }
 
 // ---------------------------------------------------------------------------
-// Assertion 2 (D-08.2): every agent-factory/handoffs/ ref is a known template name, the bare
-// template-dir form (followed by a backtick), or the template-placeholder form. A leaked
-// instance write into the kit (a ticket-scoped name) FAILS because it is none of those.
+// Assertion 2 (D-13, FLIPPED in Phase 24): ZERO agent-factory/handoffs/ refs in the SCAN set.
 //
-// The .sh chains three `grep -Ev` filters over the `path:lineno:line` hits: drop lines matching
-// the 16-template ALLOW ERE, drop lines matching the literal `agent-factory/handoffs/\``, and
-// drop lines matching `agent-factory/handoffs/<template>\.md`. What survives is a stray.
+// The 17 handoff templates were deleted in Phase 24 (the shared verified-context notes replaced
+// the static-handoff relay). The former "known-template ALLOW ERE + template-dir/placeholder
+// filters" are gone: ANY surviving `agent-factory/handoffs/` ref in the shipped kit + adapters +
+// AGENTS.md is now a dangling reference to a deleted artifact and FAILS. This flip IS the
+// backpressure for the two-stage cut-over (D-12/D-14) — it could not go green until the Wave-1
+// rewire (Plans 24-01/24-02) drove the role/workflow/packaging/AGENTS.md SCAN set to zero. The
+// explicit SCAN set (~45-55) is preserved — never a repo-wide grep (D-13 token economy).
 // ---------------------------------------------------------------------------
 process.stdout.write(
-  "\n[Assertion 2] every agent-factory/handoffs/ ref is a known template or the template dir\n",
+  "\n[Assertion 2] zero agent-factory/handoffs/ refs remain (the 17 templates were deleted in Phase 24)\n",
 );
-const handoffHits = grepSubstring(SCAN, "agent-factory/handoffs/");
-const stray = handoffHits
-  .filter((line) => !ALLOW.test(line))
-  .filter((line) => !line.includes("agent-factory/handoffs/`"))
-  .filter((line) => !/agent-factory\/handoffs\/<template>\.md/.test(line))
-  .join("\n");
+const stray = grepSubstring(SCAN, "agent-factory/handoffs/").join("\n");
 if (stray === "") {
-  pass("every agent-factory/handoffs/ ref is a known template or the template dir");
+  pass("no agent-factory/handoffs/ refs remain");
 } else {
-  fail(`non-template agent-factory/handoffs/ ref (leaked instance?):\n${stray}`);
+  fail(
+    `stray agent-factory/handoffs/ ref(s) — the handoff templates were deleted (Phase 24); rewire to the shared-context notes:\n${stray}`,
+  );
 }
 
 // ---------------------------------------------------------------------------

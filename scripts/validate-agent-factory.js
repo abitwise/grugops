@@ -127,25 +127,13 @@ const WORKFLOWS = [
     "12-release",
     "13-incident",
 ];
-// 16 frozen handoff filenames (check-structure.sh:48) — existence-only per §18.
-const FROZEN_HANDOFFS = [
-    "universal-handoff",
-    "business-handoff",
-    "product-handoff",
-    "system-handoff",
-    "architecture-handoff",
-    "implementation-handoff",
-    "qe-handoff",
-    "security-nfr-handoff",
-    "uat-handoff",
-    "ticket-ready-packet",
-    "implementation-ready-packet",
-    "release-handoff",
-    "incident-postmortem",
-    "retro-notes",
-    "refinement-notes",
-    "sprint-plan",
-];
+// The 17 static handoff templates were DELETED in Phase 24 (the shared verified-context notes
+// replaced the static-handoff relay). The former FROZEN_HANDOFFS existence list is gone with them;
+// a workflow's role output is now recorded as typed notes per Workflow 16, and the requirement→
+// code→test→release trace SURVIVES as the note-derived plans/traceability.md render (D-01). The
+// per-ticket trace-completeness check below (checkTickets) is RE-POINTED at that render — same
+// path, same ticket-id key (trace.includes(id)), only the row source changed (D-04, Pitfall 4):
+// it is preserved, never removed, so the trace-completeness guarantee is not silently weakened.
 // 16 role filenames — every role authored across Phases 3.
 const ROLES = [
     "orchestrator",
@@ -235,11 +223,8 @@ function checkRequiredFiles() {
         if (!kitExists(rel))
             err(`missing required workflow file: ${rel}`);
     }
-    for (const h of FROZEN_HANDOFFS) {
-        const rel = `agent-factory/handoffs/${h}.md`;
-        if (!kitExists(rel))
-            err(`missing required handoff file: ${rel}`);
-    }
+    // (Phase 24) No handoff-template existence loop: the 17 static templates were deleted; role
+    // output is now typed notes (Workflow 16) and the trace survives as the note-derived render.
     for (const c of CHECKLISTS) {
         const rel = `agent-factory/checklists/${c}.md`;
         if (!kitExists(rel))

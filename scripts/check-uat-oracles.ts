@@ -315,7 +315,12 @@ export function oracleHooksWiring(): void {
 // (no-fabrication). The LIVE fill of the CC-native column comes from Plan 02's Tier-2 run, not here.
 // ---------------------------------------------------------------------------
 const PARITY_FILE = "examples/03-ticket-to-pr.md";
-const FROZEN_HANDOFFS = ["implementation-handoff.md", "qe-handoff.md"];
+// (Phase 24) The 17 static handoff templates were deleted; the oracle no longer asserts the parity
+// table NAMES specific handoff filenames (asserting against deleted artifacts — Pitfall 5). The
+// oracle is NOT retired — the A3/DOG-02 equivalence retirement is Phase 26, out of scope. The live
+// parity anchors that remain are the two dispatch-column shape and the frozen gate verdict; the
+// per-role output a ticket now produces is recorded as typed notes (Workflow 16), not a static
+// handoff file, so there is no deleted filename for the table to pin.
 const FROZEN_VERDICT = "READY_FOR_HUMAN_REVIEW";
 // The two dispatch-column headers that make the table a TWO-column parity table.
 const SEQ_COLUMN = "Sequential AGENTS.md path";
@@ -323,7 +328,7 @@ const CC_COLUMN = "CC-native sub-agent path";
 
 export function oracleParity(): void {
   process.stdout.write(
-    "\n[oracleParity] dual-path parity table names the frozen handoffs + verdict and never passes a pending-human cell (A3 / UAT-AUTO-03)\n",
+    "\n[oracleParity] dual-path parity table is two-column shaped + names the frozen verdict and never passes a pending-human cell (A3 / UAT-AUTO-03)\n",
   );
 
   // CR-01 missing-file fail-red.
@@ -343,12 +348,9 @@ export function oracleParity(): void {
     parityFail += `\n  missing the CC-native dispatch column header ("${CC_COLUMN}")`;
   }
 
-  // Frozen handoff filenames must be named in the table.
-  for (const h of FROZEN_HANDOFFS) {
-    if (!text.includes(h)) {
-      parityFail += `\n  missing frozen handoff filename "${h}"`;
-    }
-  }
+  // (Phase 24) No frozen-handoff-filename assertion: the static handoff templates were deleted, so
+  // the oracle must not assert the parity table names deleted artifacts (Pitfall 5). The two
+  // dispatch-column shape + the frozen gate verdict remain the live parity anchors.
 
   // Frozen gate verdict must be named.
   if (!text.includes(FROZEN_VERDICT)) {
@@ -365,7 +367,7 @@ export function oracleParity(): void {
 
   if (parityFail === "") {
     pass(
-      "parity structure: two dispatch columns present, frozen handoffs + verdict named",
+      "parity structure: two dispatch columns present, frozen verdict named",
     );
     if (ccStillPending) {
       // Advisory only — the structural floor passed; the live CC-native fill is human/Tier-2's job.

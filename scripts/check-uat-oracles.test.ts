@@ -214,17 +214,21 @@ describe("check-uat-oracles.js (Phase 19 Tier-1 fail-proof harness)", () => {
     expect(out(r)).toContain("READY_FOR_HUMAN_REVIEW");
   });
 
-  it("parity: parity table missing a frozen handoff filename → nonzero + names the missing handoff", () => {
+  // (Phase 24) The frozen-handoff-filename assertion was dropped: the static handoff templates were
+  // deleted, so the oracle no longer asserts the parity table names deleted artifacts (Pitfall 5).
+  // The oracle is NOT retired — its surviving live anchor is the two dispatch-column shape. Removing
+  // a dispatch-column header must still drive the oracle RED.
+  it("parity: parity table missing a dispatch column header → nonzero + names the missing column", () => {
     const m = mirror();
     const file = join(m, "examples/03-ticket-to-pr.md");
     const stripped = readFileSync(file, "utf8").replace(
-      /implementation-handoff\.md/g,
-      "redacted-handoff.md",
+      /CC-native sub-agent path/g,
+      "redacted-column",
     );
     writeFileSync(file, stripped);
     const r = runIn(m);
     expect(r.status).not.toBe(0);
-    expect(out(r)).toContain("implementation-handoff.md");
+    expect(out(r)).toContain("CC-native sub-agent path");
   });
 
   // ── Smoke — the REAL aggregator over the REAL tree must be GREEN (exit 0). ────────────────────────
