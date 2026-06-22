@@ -296,8 +296,11 @@ describe("install.js / uninstall.js — single-installer contract (folds install
     expect(skill).toContain(expectKit);
   });
 
-  // ── Two-root: the per-repo state plane is seeded, incl. the runtime plans/handoffs/ dir (two-root [3]) ─
-  it("two-root: the per-repo state plane is seeded (config + marker + plans/handoffs/ + memory-bank/)", () => {
+  // ── Two-root: the per-repo state plane is seeded, but plans/handoffs/ is NOT (two-root [3]) ─────
+  // MIGR-02 (Phase 24): the old relay's runtime plans/handoffs/ dir is no longer seeded — the
+  // note-native trace replaces the handoff relay, so a fresh install must leave it ABSENT. This
+  // assertion is INVERTED from the pre-Phase-24 version (which asserted the dir IS a directory).
+  it("two-root: the per-repo state plane is seeded but plans/handoffs/ is NOT created (config + marker + memory-bank/; MIGR-02)", () => {
     const target = makeFixture();
     const home = mkTmp();
     expect(runInstall(target, home).status).toBe(0);
@@ -305,7 +308,8 @@ describe("install.js / uninstall.js — single-installer contract (folds install
     expect(existsSync(join(target, ".grugops", "install.json"))).toBe(true);
     expect(existsSync(join(target, "plans", "board.md"))).toBe(true);
     expect(existsSync(join(target, "memory-bank", "00-index.md"))).toBe(true);
-    expect(statSync(join(target, "plans", "handoffs")).isDirectory()).toBe(true);
+    // MIGR-02: a fresh install never recreates the old relay's runtime handoffs dir.
+    expect(existsSync(join(target, "plans", "handoffs"))).toBe(false);
   });
 
   // ── never-overwrite: a pre-existing seeded file is left byte-untouched (two-root [4], D-04) ──
@@ -733,6 +737,115 @@ describe("install.js / uninstall.js — single-installer contract (folds install
     const after = readFileSync(join(target, ".claude", "agents", "grugops-orchestrator.md"), "utf8");
     // the line following the unterminated open marker is preserved (CR-01 bounded removal — no loss).
     expect(after).toContain("SENTINEL-AFTER-UNTERMINATED-OPEN-MUST-SURVIVE");
+  });
+
+  // ── MIGR-04 (Phase 24, D-18/D-20) — the 4 plans/handoffs/ backup cases ───────────────────────
+  // --migrate backs up a user's runtime-accumulated plans/handoffs/ (the old relay's dir) to a
+  // timestamped plans/handoffs.bak.<ISO> via the never-delete-first backupDir primitive: rename,
+  // never delete-first; abort on a backup-name collision without clobbering (D-18); no content
+  // conversion (D-19 — the dir is only relocated); DRY_RUN mutates nothing + a second run with no
+  // dir is a clean no-op (D-20). The backup name matches the anchored GRUGOPS_BACKUP_SUFFIX shape.
+
+  // Helper: glob the timestamped handoffs backups under a target's plans/ dir.
+  const handoffsBackupGlob = (target: string): string[] => {
+    const plans = join(target, "plans");
+    if (!existsSync(plans)) return [];
+    return readdirSync(plans).filter((n) => /^handoffs\.bak\.\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}\.\d{3}Z$/.test(n));
+  };
+
+  // (1) BACKUP — a target with plans/handoffs/ present: --migrate renames it to
+  // plans/handoffs.bak.<ISO>; the original is gone, the backup is present + correctly shaped, and a
+  // backed-up report line is printed (D-18 never-delete-first rename).
+  it("migrate: plans/handoffs/ is backed up to a timestamped .bak (MIGR-04, never-delete-first)", () => {
+    const target = makeFixture();
+    const home = mkTmp();
+    // Seed a runtime-accumulated handoffs dir with a user file (the old relay's leftover state).
+    mkdirSync(join(target, "plans", "handoffs"), { recursive: true });
+    writeFileSync(join(target, "plans", "handoffs", "T-001-implementation.md"), "user handoff — must be preserved\n");
+
+    const r = runInstall(target, home, "--migrate");
+    expect(r.status).toBe(0);
+    // The original is RENAMED aside, not deleted — the dir is gone but the backup exists.
+    expect(existsSync(join(target, "plans", "handoffs"))).toBe(false);
+    const baks = handoffsBackupGlob(target);
+    expect(baks.length).toBe(1);
+    // The user's content survives verbatim inside the backup (no conversion — D-19).
+    expect(readFileSync(join(target, "plans", baks[0], "T-001-implementation.md"), "utf8")).toContain("must be preserved");
+    expect(r.stdout).toMatch(/backed-up/); // a backed-up report line is printed
+  });
+
+  // (2) IDEMPOTENT — a second --migrate with no plans/handoffs/ is a clean no-op: exit 0, a
+  // "nothing to migrate" line, and NO new backup artifact (D-20 idempotent).
+  it("migrate: a second --migrate with no plans/handoffs/ is a nothing-to-migrate no-op (MIGR-04, D-20)", () => {
+    const target = makeFixture();
+    const home = mkTmp();
+    mkdirSync(join(target, "plans", "handoffs"), { recursive: true });
+    writeFileSync(join(target, "plans", "handoffs", "T-002-qe.md"), "handoff\n");
+    expect(runInstall(target, home, "--migrate").status).toBe(0);
+    expect(handoffsBackupGlob(target).length).toBe(1); // first migrate made exactly one backup
+
+    // Second migrate: plans/handoffs/ is gone now → nothing to migrate, no new backup.
+    const r2 = runInstall(target, home, "--migrate");
+    expect(r2.status).toBe(0);
+    expect(r2.stdout).toMatch(/nothing to migrate/);
+    expect(handoffsBackupGlob(target).length).toBe(1); // count did NOT grow
+  });
+
+  // (3) DRY_RUN — DRY_RUN=1 --migrate prints a would-backup line and the filesystem is UNCHANGED:
+  // plans/handoffs/ is still present and NO .bak is created (D-20 dry-run never mutates).
+  it("migrate: DRY_RUN --migrate narrates a would-backup and creates no .bak (MIGR-04, D-20)", () => {
+    const target = makeFixture();
+    const home = mkTmp();
+    mkdirSync(join(target, "plans", "handoffs"), { recursive: true });
+    writeFileSync(join(target, "plans", "handoffs", "T-003-uat.md"), "handoff\n");
+
+    const r = spawnSync("node", [INSTALL_JS, "--yes", "--migrate"], {
+      encoding: "utf8",
+      env: { ...process.env, DRY_RUN: "1", INSTALL_MODE: "copy", GRUGOPS_SRC: REPO_ROOT, GRUGOPS_HOME: home, TARGET: target },
+    });
+    expect(r.status).toBe(0);
+    expect(r.stdout).toMatch(/would-backup/); // the backup is narrated, not executed
+    // The filesystem is byte-for-byte unchanged: original present, no backup made.
+    expect(existsSync(join(target, "plans", "handoffs"))).toBe(true);
+    expect(existsSync(join(target, "plans", "handoffs", "T-003-uat.md"))).toBe(true);
+    expect(handoffsBackupGlob(target).length).toBe(0);
+  });
+
+  // (4) NEVER-CLOBBER — a pre-existing plans/handoffs.bak.<that exact ISO> collision makes --migrate
+  // ABORT the handoffs-backup step with a clear message, leaving BOTH the original plans/handoffs/
+  // AND the existing backup untouched (D-18 never-clobber). To force the EXACT-name collision
+  // deterministically we drive the committed installer through a tiny ESM wrapper that pins
+  // Date.prototype.toISOString to a fixed instant, so isoStamp() resolves to a known stamp and we
+  // can pre-create the colliding backup name ahead of the run.
+  it("migrate: a backup-name collision aborts without clobbering (MIGR-04, D-18 never-clobber)", () => {
+    const target = makeFixture();
+    const home = mkTmp();
+    mkdirSync(join(target, "plans", "handoffs"), { recursive: true });
+    writeFileSync(join(target, "plans", "handoffs", "T-004.md"), "original handoff\n");
+
+    // isoStamp() replaces ':' with '-', so the fixed instant 2026-06-22T12:00:00.000Z becomes the
+    // backup-name stamp 2026-06-22T12-00-00.000Z. Pre-create that EXACT colliding backup.
+    const collidingBak = join(target, "plans", "handoffs.bak.2026-06-22T12-00-00.000Z");
+    mkdirSync(collidingBak, { recursive: true });
+    writeFileSync(join(collidingBak, "SENTINEL.md"), "PRE-EXISTING BACKUP — MUST NOT BE CLOBBERED\n");
+
+    // A throwaway ESM wrapper: pin the clock, then run the committed installer with correct argv.
+    const wrapperDir = mkTmp();
+    const wrapper = join(wrapperDir, "pin-clock.mjs");
+    writeFileSync(
+      wrapper,
+      `Date.prototype.toISOString = function () { return "2026-06-22T12:00:00.000Z"; };\n` +
+        `await import(${JSON.stringify(INSTALL_JS)});\n`,
+    );
+    const r = spawnSync("node", [wrapper, "--yes", "--migrate"], {
+      encoding: "utf8",
+      env: { ...process.env, INSTALL_MODE: "copy", GRUGOPS_SRC: REPO_ROOT, GRUGOPS_HOME: home, TARGET: target },
+    });
+    // The handoffs-backup step aborts in clear voice; the original is preserved untouched and the
+    // pre-existing backup is never overwritten (D-18 never-clobber).
+    expect(r.stdout).toMatch(/aborted/);
+    expect(existsSync(join(target, "plans", "handoffs", "T-004.md"))).toBe(true); // original untouched
+    expect(readFileSync(join(collidingBak, "SENTINEL.md"), "utf8")).toContain("MUST NOT BE CLOBBERED");
   });
 
   // LANDMINE (Pitfall 1): a symlink .claude adapter migrate does NOT write through the symlink and

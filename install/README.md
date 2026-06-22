@@ -39,7 +39,7 @@ separated:
 - **Shared, read-only kit** → copied once to `${GRUGOPS_HOME:-$HOME/.grugops}` (default
   `~/.grugops`). One kit, shared across every repo you install into.
 - **Per-repo, writable state** → seeded into the target repo (`.grugops/factory.config.json`,
-  the install marker, `plans/` incl. `plans/handoffs/`, and `memory-bank/`).
+  the install marker, `plans/`, and `memory-bank/`).
 
 ```sh
 # Install into a chosen repo (run from anywhere):
@@ -105,7 +105,7 @@ In the **target repo**:
   keys are preserved, never clobbered)
 - an optional `.github/copilot-instructions.md` pointer
 - **seeded per-repo state** (skip-if-exists, never clobbered): `.grugops/factory.config.json`,
-  the `.grugops/install.json` marker, `plans/` (incl. `plans/handoffs/`), and `memory-bank/`
+  the `.grugops/install.json` marker, `plans/`, and `memory-bank/`
 
 In the **shared kit root** (`${GRUGOPS_HOME:-$HOME/.grugops}`):
 
@@ -152,11 +152,22 @@ DRY_RUN=1 node install/install.js --migrate --target /path/to/repo
 
 - backs up the displaced in-repo `agent-factory/` to a timestamped
   `agent-factory.bak.<ISO>` directory (it is renamed aside, never deleted);
+- backs up any runtime-accumulated **`plans/handoffs/`** directory — the old delivery relay's
+  per-stage handoff files — to a timestamped `plans/handoffs.bak.<ISO>` directory (renamed aside,
+  **never deleted and never converted**: the originals are preserved verbatim for you, since the
+  current grugops trace is note-native and does not parse the legacy handoff format). If a backup
+  of that exact name already exists, `--migrate` **aborts that step and leaves your originals
+  untouched** rather than overwrite the existing backup;
 - carries your **edited config forward** to `.grugops/factory.config.json` and leaves the
   original in place renamed to `<original>.bak.<ISO>`. Both legacy config locations are handled —
   the in-repo `agent-factory/config/factory.config.json` and a repo-root `factory.config.json`;
 - copies the fresh shared kit to `${GRUGOPS_HOME:-$HOME/.grugops}` and materializes the resolver
   adapters, exactly like a normal install (it is orchestration around the same install run).
+
+The `plans/handoffs/` backup runs on **every** `--migrate` (whether your repo is on the old layout
+or already on the current two-root layout), because the handoffs dir can accumulate regardless of
+layout state. When `plans/handoffs/` is absent it is a clean no-op (`--migrate` reports *nothing to
+migrate* and changes nothing).
 
 It is **idempotent and re-run-safe**: running `--migrate` a second time on an already-migrated
 repo does nothing. If a stray **live** in-repo `agent-factory/` is left behind after migration,
@@ -201,6 +212,29 @@ A migrate is reversible by hand. To return a repo to its pre-migrate state:
 
 After these steps your `agent-factory/` kit and your edited config are exactly as they were before
 the migrate. All commands are local `mv`/`rm`/`node` — nothing fetches anything.
+
+##### Restoring `plans/handoffs/` and the `git revert` lossless rollback
+
+The migration is **lossless and reversible** because nothing is ever deleted — every relocated
+thing lives on as a timestamped `.bak.<ISO>` directory beside the original. To restore your old
+delivery-relay handoffs, simply rename the backup back:
+
+```sh
+cd /path/to/repo
+mv plans/handoffs.bak.<ISO> plans/handoffs
+```
+
+If the migration itself was committed to git, you can roll the whole change back with a single
+`git revert` of the migration commit, then restore the out-of-band `.bak.<ISO>` directory by hand:
+
+```sh
+git revert <migration-commit-sha>     # undoes the committed migration edits
+mv plans/handoffs.bak.<ISO> plans/handoffs   # restore the preserved handoffs (kept out-of-band)
+```
+
+`git revert` reverses the tracked changes, and because the handoffs were renamed aside (never
+deleted) the `.bak.<ISO>` directory survives the revert and carries your original files verbatim —
+so the `git revert` + restore is a **lossless** round-trip with no data left orphaned.
 
 ### Updating the shared kit (`--update`)
 
