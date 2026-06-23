@@ -5,8 +5,8 @@ milestone_name: Decentralized Factory — Shared Verified Context
 current_phase: 25
 current_phase_name: Governance-on-a-Dial
 status: verifying
-stopped_at: Completed 24-01-PLAN.md (Stage-1 role + packaging handoff removal)
-last_updated: "2026-06-22T21:22:56.597Z"
+stopped_at: Phase 25 context gathered
+last_updated: "2026-06-23T13:47:14.197Z"
 last_activity: 2026-06-22
 last_activity_desc: Phase 24 complete, transitioned to Phase 25
 progress:
@@ -452,9 +452,9 @@ Items acknowledged and deferred at the **v1.2 milestone close on 2026-06-16** (1
 
 ## Session Continuity
 
-Last session: 2026-06-22T21:09:59.608Z
-Stopped at: Completed 24-01-PLAN.md (Stage-1 role + packaging handoff removal)
-Resume file: .planning/phases/24-clean-handoff-removal-traceability-migration/24-02-PLAN.md
+Last session: 2026-06-23T13:47:14.183Z
+Stopped at: Phase 25 context gathered
+Resume file: .planning/phases/25-governance-on-a-dial/25-CONTEXT.md
 
 ## Operator Next Steps
 
