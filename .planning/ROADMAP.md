@@ -216,8 +216,16 @@ Plans:
 
 **Plans**: 3 plans (2 waves)
 Plans:
+**Wave 1**
+
 - [ ] 25-01-PLAN.md — config foundation: the two governance keys (3-surface lockstep) + the shared `readGovernanceConfig` helper (Wave 1)
+
+**Wave 2** *(blocked on Wave 1 completion)*
+
 - [ ] 25-02-PLAN.md — the GOV-01 un-forgeable admission-guard PreToolUse hook + second hooks.json matcher + close the Phase-25 deferral markers (Wave 2)
+
+**Wave 3** *(blocked on Wave 2 completion)*
+
 - [ ] 25-03-PLAN.md — admit() D-04 in-script refusal + the GOV-02 audit ledger + the SC3 floor-invariance sweep (Wave 2)
 
 ### Phase 26: Dogfood, Dual-Path Oracle & A3/DOG-02 Retirement
