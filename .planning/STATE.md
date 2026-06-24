@@ -4,11 +4,11 @@ milestone: v2.0
 milestone_name: Decentralized Factory — Shared Verified Context
 current_phase: 25
 current_phase_name: governance-on-a-dial
-status: verifying
-stopped_at: "Gap-closure plan 25-04 — Tasks 01/02/03 executed + committed (3b0c16b/f858f4a/b8382be); the BLOCKING checkpoint 25-04-04 (independent both-angle opus red-team) RAN and returned GAPS FOUND vs the committed .js: 25-04 closed the 6 originally-reported forms but the red-team found NEW bypasses — matcher still misses >=12 launcher shapes (command/exec/nice/path/nodejs/eval/backtick/split-quote/brace-group) and that gap also reopens D-01 refuse-self-set; non-string human_admission coerces to off; case-variant `by` escapes high-severity. SC1+SC3 STILL gaps_found (6th green-suite-insufficient catch of v2.0, D-12). Route: /gsd-plan-phase 25 --gaps"
-last_updated: "2026-06-24T19:44:43.000Z"
+status: planned
+stopped_at: "Round-2 gap-closure plan 25-05 PLANNED + plan-checker VERIFICATION PASSED (10/10 dimensions; requirements 2/2; decision-coverage 11/11). Fixes the round-2 red-team gaps the 174-case author suites missed: resolve the EFFECTIVE command word as ONE authority (skip command-modifier builtins / basename a path / fully de-quote / brace-group / nodejs) layered on the preserved 25-04 segmentation + fail-closed GATE on the unresolvable admit-shape tail (eval / sh -c body / env-indirection) (GAP-A, user-confirmed Posture A); move refuse-self-set in front of the matcher early-exit (GAP-B); canonicalize a PRESENT non-string human_admission to gate-or-stricter, absent stays lean (GAP-C); case-insensitive high-severity role match at both tiers (GAP-D). must_haves.prohibitions carry the both-direction RED→GREEN-vs-committed-.js gate; blocking checkpoint 25-05-04 = independent both-angle opus red-team (D-12). Ready to execute. Route: /gsd-execute-phase 25"
+last_updated: "2026-06-24T20:16:41.693Z"
 last_activity: 2026-06-24
-last_activity_desc: "25-04 executed (Tasks 01-03 committed); independent both-angle red-team at checkpoint 25-04-04 found NEW GOV-01 bypasses -> SC1+SC3 still gaps_found; route to /gsd-plan-phase 25 --gaps"
+last_activity_desc: "25-05 round-2 gap-closure plan created + plan-checker PASSED; ready to execute (wave 5, autonomous:false — hard-stops at the independent red-team checkpoint 25-05-04)"
 progress:
   total_phases: 7
   completed_phases: 6
