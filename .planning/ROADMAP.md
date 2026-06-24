@@ -214,7 +214,7 @@ Plans:
   2. `context.audit_retention: git|retained` controls audit-trail retention, and all three config files are updated in lockstep with lean defaults preserved (zero-config still runs lean).
   3. The un-dialable safety floor is unchanged and not bypassable by any dial setting — verify-before-write, no-fabrication, test-integrity, and humans-hold-merge/deploy all hold regardless of governance configuration.
 
-**Plans**: 3/3 plans complete
+**Plans**: 4 plans (4 waves; 25-04 is gap closure for the SC1+SC3 GOV-01 bypasses)
 Plans:
 **Wave 1**
 
@@ -227,6 +227,10 @@ Plans:
 **Wave 3** *(blocked on Wave 2 completion)*
 
 - [x] 25-03-PLAN.md — admit() D-04 in-script refusal + the GOV-02 audit ledger + the SC3 floor-invariance sweep (Wave 2)
+
+**Wave 4** *(gap closure — blocked on Waves 1-3; verification GAPS_FOUND 2026-06-24)*
+
+- [ ] 25-04-PLAN.md — GOV-01/SC1+SC3 gap closure: replace the ADMIT_SEGMENT regex with a real shell-segment parser (catch subshell / `\`-continuation / `npx tsx` launchers; heredoc/quoted/comment bodies inert) + the forged-human-stamp backstop in admit() + fail-closed dial & corrupt-config in the hook + anti-whack-a-mole class fuzz + both-direction RED→GREEN proof vs the committed `.js` + independent both-angle red-team checkpoint (Wave 4)
 
 ### Phase 26: Dogfood, Dual-Path Oracle & A3/DOG-02 Retirement
 
