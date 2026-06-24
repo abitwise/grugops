@@ -4,17 +4,17 @@ milestone: v2.0
 milestone_name: Decentralized Factory — Shared Verified Context
 current_phase: 25
 current_phase_name: governance-on-a-dial
-status: planned
-stopped_at: "Round-2 gap-closure plan 25-05 PLANNED + plan-checker VERIFICATION PASSED (10/10 dimensions; requirements 2/2; decision-coverage 11/11). Fixes the round-2 red-team gaps the 174-case author suites missed: resolve the EFFECTIVE command word as ONE authority (skip command-modifier builtins / basename a path / fully de-quote / brace-group / nodejs) layered on the preserved 25-04 segmentation + fail-closed GATE on the unresolvable admit-shape tail (eval / sh -c body / env-indirection) (GAP-A, user-confirmed Posture A); move refuse-self-set in front of the matcher early-exit (GAP-B); canonicalize a PRESENT non-string human_admission to gate-or-stricter, absent stays lean (GAP-C); case-insensitive high-severity role match at both tiers (GAP-D). must_haves.prohibitions carry the both-direction RED→GREEN-vs-committed-.js gate; blocking checkpoint 25-05-04 = independent both-angle opus red-team (D-12). Ready to execute. Route: /gsd-execute-phase 25"
-last_updated: "2026-06-24T20:16:41.693Z"
+status: executing
+stopped_at: "Round-2 gap-closure plan 25-05 EXECUTED tasks 01-03 (committed ffb0d75 / 4100ce4 / 4e69496) and HARD-STOPPED at the BLOCKING human-verify checkpoint 25-05-04 (autonomous:false, gate=blocking — the executor did NOT self-approve on its own green author suite, per D-12 / the 6th green-suite-insufficient catch of v2.0). Fixes landed: (01, GAP-A/GAP-B) ONE effective-command-word resolver layered on the PRESERVED 25-04 segmentation — skip command-modifier builtins (command/exec/nice/time/nohup/stdbuf/timeout/xargs/builtin) / basename a path / fully de-quote every quoted run / brace-group / nodejs — feeding isAdmitInvocation, PLUS a fail-CLOSED unresolvable-tail GATE (eval / sh -c / bash -c body / $X env-indirection, fired ONLY when the admit shape is present via a narrow raw-segment-text check), PLUS the refuse-self-set check moved IN FRONT of the matcher early-exit (admit-shape-scoped, denies even with the var in env on a matcher false-negative); (02, GAP-C/GAP-D) both readers canonicalize a PRESENT non-string human_admission (true/1/null/array/object) + a present non-object context/whole-file config to gate-or-stricter sentinel 'all' (only exact JSON 'off' is off-equivalent; ABSENT + present-obj-no-key stay lean → SC2 preserved; result.source stays 'ok'), + case-insensitive HIGH_SEVERITY_ROLES at BOTH the hook (lowercased .has) and admit() (lowercased .includes) tiers; (03) HOOK-tier non-string-dial + case-variant-by sweeps + the anti-whack-a-mole command-RESOLUTION class fuzz over {builtin/path/nodejs/split-quote/brace-group + a compound}×{LF|CRLF} asserting live→DENY / unresolvable→GATE / no-admit-dynamic→ALLOW / inert→ALLOW as a CLASS invariant. RED baseline (29 bypasses live pre-fix) + GREEN proof (all 29 flip to DENY, zero over-blocks) captured vs the committed .js (25-05-RED-baseline.txt / 25-05-GREEN-proof.txt). guard.ts byte-frozen (3501810e21308e4b7e219679a6ca30dace9b5d66); freshness 0; 743 non-e2e green; foundation-guards (WR-01) green; admission-guard.test.ts 74 cases (>= guard.test.ts 27). NEXT (orchestrator): dispatch the INDEPENDENT both-angle opus red-team (the P23 logic + input-surface split) vs the COMMITTED .js — it must reproduce (a)-(d), invent an un-enumerated obfuscation shape, and the human gives the 'approved' resume signal. Do NOT mark 25-05 complete / flip ROADMAP to Complete until the checkpoint clears."
+last_updated: "2026-06-24T23:53:00.000Z"
 last_activity: 2026-06-24
-last_activity_desc: "25-05 round-2 gap-closure plan created + plan-checker PASSED; ready to execute (wave 5, autonomous:false — hard-stops at the independent red-team checkpoint 25-05-04)"
+last_activity_desc: "Plan 25-05 tasks 01-03 executed + committed; STOPPED at blocking checkpoint 25-05-04 (independent red-team pending)"
 progress:
   total_phases: 7
-  completed_phases: 6
-  total_plans: 29
+  completed_phases: 5
+  total_plans: 30
   completed_plans: 30
-  percent: 86
+  percent: 71
 ---
 
 # Project State
@@ -28,10 +28,10 @@ See: .planning/PROJECT.md (updated 2026-06-16 — after v1.2 milestone)
 
 ## Current Position
 
-Phase: 25 (governance-on-a-dial) — VERIFYING (gap-closure 25-04 executed; red-team found new gaps)
-Plan: 4 of 4 (gap-closure) — Tasks 01–03 committed; Task 04 red-team checkpoint RAN → GAPS FOUND
-Status: gaps_found — independent both-angle red-team reproduced NEW GOV-01 bypasses vs the committed .js (SC1+SC3 still open; 6th green-suite-insufficient catch, D-12)
-Last activity: 2026-06-24 — 25-04 executed (3b0c16b/f858f4a/b8382be); red-team at 25-04-04 found new bypasses → route to /gsd-plan-phase 25 --gaps
+Phase: 25 (governance-on-a-dial) — EXECUTING (plan 25-05 round-2 gap-closure)
+Plan: 5 of 5 — tasks 01-03 committed; STOPPED at blocking checkpoint 25-05-04
+Status: Awaiting the independent both-angle opus red-team (D-12) + the human "approved" resume signal — NOT complete
+Last activity: 2026-06-24 — 25-05 tasks 01-03 executed; hard-stopped at blocking checkpoint 25-05-04
 
 ## Performance Metrics
 
