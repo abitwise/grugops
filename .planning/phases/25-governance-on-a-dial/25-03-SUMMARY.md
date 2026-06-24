@@ -131,9 +131,25 @@ None - no external service configuration required.
 3. Confirm the floor-invariance dial sweep green INCLUDING garbage values, all four invariants refusing, `git diff --quiet hooks/guard.ts` exit 0, and that a garbage `human_admission` never admits a high-severity finding lacking a `human:NAME` stamp.
 4. Record the reproduced commands + outcomes here.
 
+## Independent Red-Team Results (2026-06-24) — BYPASSES FOUND, floor NOT proven
+
+The orchestrator dispatched TWO independent opus-grade red-teams (different blind spots — one logic, one input-surface, the P23 lesson), each reproducing vs the COMMITTED `.js` (`admission-guard.js` `d60fe72…`, `context-io.js` `89fb2e8…`), NOT the author's suites. The author's 31-case + 88-case green suites passed, but the red-teams found real GOV-01 bypasses — the green-suite-insufficient lesson (D-12) confirmed.
+
+**Red-Team A (logic) — `FLOOR HOLDS` (four named invariants) but found a fail-open:**
+- The hook gates only on the EXACT strings `high-severity`/`all`; any unknown/garbage/typo/case/whitespace value (`hihg-severity`, `High-Severity`, `all `, `""`, `bogus`, `OFF`, `1`…) → ALLOW (off-equivalent). `admit()` is the opposite (`!== "off"` → fail-closed). A high-severity **non-finding** under a typo'd dial passes BOTH tiers silently. Violates Plan 25-03's SC3 structural requirement ("garbage treated as gate-or-stricter, NEVER off-equivalent that opens a hole").
+- The four named floor invariants (refuse-self, no-fabrication, test_integrity-no-`off`, guard.ts byte-frozen) DO hold at every dial value, incl. garbage.
+
+**Red-Team B (input surface) — `HOLE FOUND`:**
+- **FALSE-NEGATIVE (real GOV-01 bypass):** three command forms slip a real gated high-severity admit PAST the matcher (hook ALLOWs while the identical command admits): (1) subshell `( node context-io.js admit T forged.md )` — leading `(` not in the boundary class; (2) backslash-newline continuation — `\n` ends the matcher span before `admit` but bash continues the line; (3) `npx tsx scripts/context-io.ts admit …` — matcher anchors only on `node`, never `npx`/`tsx`. Compounded by: `admit()`'s D-04 has NO backstop for a FORGED `verified_by: human:eve` stamp (it only fires when NO `human:` stamp exists), so the hook is the sole gate — and these forms defeat it → a high-severity note with a forged human stamp + no session var is admitted with ZERO human approval.
+- **FALSE-POSITIVE (CR-01 inverse, fail-safe but real):** a heredoc/multiline command whose later line merely contains admit text is DENIED as if live (`\n` is a hard boundary) — over-blocks inert doc-generation under active governance.
+- **Corrupt/unreadable config** → `readGovernanceConfig` returns `off` → hook fails OPEN even on a forged high-severity admit (the hook's own config try/catch is dead code).
+- **PASS:** self-set refusal (D-01) solid across all variants incl. var-in-env; WR-01 did NOT false-positive (28/28 green — scan set structurally excludes the closed-marker files); fail-closed on missing/empty-`by` notes; single-line false-positive battery clean.
+
+**Disposition:** the checkpoint resume-signal protocol covers "describe the bypass found." Bypasses WERE found → the SC3 floor is NOT proven and the checkpoint is NOT approved. Root cause: the matcher regex-firewalls on `\n` instead of parsing shell segments, and the dial/corrupt-config path fails open. Fix direction (per both red-teams): replace the regex matcher with proper shell-segment parsing (catch `node`/`npx`/`tsx`/subshell/continuation launchers; treat heredoc/quoted bodies as data) and make the dial + corrupt-config fail-CLOSED (gate anything not exactly `off`). Routed to a formal gap-closure plan (`/gsd-plan-phase 25 --gaps`), per user direction.
+
 ## Next Phase Readiness
-- GOV-01 (D-04 in-script tier + the Plan-25-02 hook) and GOV-02 (audit ledger) are implemented and unit-covered; the SC3 sweep is green.
-- **Blocker:** the independent red-team at Task 25-03-04 is the gate — the phase is NOT complete until it reproduces (a)-(d) above and the human approves.
+- GOV-01 (D-04 in-script tier + the Plan-25-02 hook) and GOV-02 (audit ledger) are implemented and unit-covered; the SC3 author sweep is green; the four named floor invariants hold.
+- **Blocker (gaps_found):** the independent red-team found real GOV-01 bypasses (matcher evasion via subshell / `\`-continuation / `npx tsx`, and fail-open on garbage/corrupt-config dial). The phase is NOT complete until a gap-closure plan hardens the matcher + dial handling and BOTH red-teams re-confirm the bypasses flip to DENY and the heredoc false-positive flips to ALLOW vs the new committed `.js`.
 
 ## Self-Check: PASSED
 
