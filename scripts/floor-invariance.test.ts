@@ -481,3 +481,224 @@ describe("SC1 anti-whack-a-mole — class invariant over {launcher}×{prefix}×{
     expect(hookDecision(exotic, dir)).toBe("deny");
   });
 });
+
+// ════════════════════════════════════════════════════════════════════════════════════════════════
+// ROUND-2 (25-05) SWEEPS — the type-level + command-RESOLUTION extensions of the 25-04 sweeps.
+// The 25-04 HOOK-tier sweep tested garbage STRING dials; the round-2 red-team showed the holes were
+// (a) non-STRING dial TYPES coercing to off, (b) a case-variant `by` escaping the case-sensitive
+// severity classification, and (c) command-RESOLUTION obfuscation (the matcher tested the launcher as
+// a literal word). These sweeps close those classes structurally. As in 25-04, a GREEN sweep is
+// NECESSARY-NOT-SUFFICIENT (D-12): the blocking Task 25-05-04 independent both-angle opus red-team is
+// the gate; these sweeps do NOT, by themselves, declare SC1/SC3 closed.
+// ════════════════════════════════════════════════════════════════════════════════════════════════
+
+// Write a RAW JSON config so a NON-STRING human_admission value can be expressed (JSON.stringify of a
+// JS object would coerce a JS value to its string form). Returns {dir, highNote}.
+function projectRawDial(rawJson: string): { dir: string; highNote: string } {
+  const dir = freshTmp("hook-rawdial-");
+  mkdirSync(join(dir, ".grugops"), { recursive: true });
+  writeFileSync(
+    join(dir, ".grugops", "factory.config.json"),
+    `{ "context": { "human_admission": ${rawJson} } }`,
+  );
+  const highNote = join(dir, "high.md");
+  writeFileSync(highNote, HIGH_NOTE);
+  return { dir, highNote };
+}
+
+describe("SC3 HOOK-tier (25-05 GAP-C) — every PRESENT non-string dial TYPE fails CLOSED", () => {
+  // The TYPE-level extension of the 25-04 garbage-STRING sweep: a present true / 1 / null / array /
+  // object human_admission must gate a matched high-severity admit (governance not silently off), at
+  // source="ok" (it WAS read). The present `"off"` STRING and a genuinely ABSENT config stay lean.
+  const NON_STRING = ["true", "1", "null", '["all"]', "{}"];
+  for (const raw of NON_STRING) {
+    it(`hook DENIES a high-severity admit when human_admission=${raw} (non-string → gate-or-stricter)`, () => {
+      const { dir, highNote } = projectRawDial(raw);
+      const cmd = `node scripts/context-io.js admit my-task ${highNote}`;
+      expect(
+        hookDecision(cmd, dir),
+        `non-string dial ${raw} must gate, never off-equivalent`,
+      ).toBe("deny");
+    });
+  }
+
+  it("hook DENIES under a present non-object `context` (string) — gate-or-stricter", () => {
+    const dir = freshTmp("hook-nonobjctx-");
+    mkdirSync(join(dir, ".grugops"), { recursive: true });
+    writeFileSync(join(dir, ".grugops", "factory.config.json"), '{ "context": "x" }');
+    const highNote = join(dir, "high.md");
+    writeFileSync(highNote, HIGH_NOTE);
+    const cmd = `node scripts/context-io.js admit my-task ${highNote}`;
+    expect(hookDecision(cmd, dir)).toBe("deny");
+  });
+
+  it("hook ALLOWs the present `\"off\"` STRING and a genuinely ABSENT config (lean preserved)", () => {
+    const { dir, highNote } = projectWith({ dial: "off" });
+    expect(hookDecision(`node scripts/context-io.js admit my-task ${highNote}`, dir)).toBe("allow");
+    const abs = projectWith({ absent: true });
+    expect(
+      hookDecision(`node scripts/context-io.js admit my-task ${abs.routineNote}`, abs.dir),
+    ).toBe("allow");
+  });
+});
+
+describe("SC1 HOOK-tier (25-05 GAP-D) — a case-variant `by` is classified high-severity", () => {
+  // The case-sensitive HIGH_SEVERITY_ROLES membership test let a case-variant `by` escape the
+  // high-severity gate. Each casing of each high-severity role must now DENY a gated un-approved admit
+  // under human_admission: high-severity; a routine role still ALLOWs (no over-classification).
+  const HI_SEV_CASINGS = [
+    "Security-NFR",
+    "SECURITY-NFR",
+    "security-nfr",
+    "Architect-Design",
+    "ARCHITECT-DESIGN",
+    "Release-Manager",
+    "RELEASE-MANAGER",
+  ];
+  function projectCaseVariant(by: string): { dir: string; note: string } {
+    const dir = freshTmp("hook-cv-");
+    mkdirSync(join(dir, ".grugops"), { recursive: true });
+    writeFileSync(
+      join(dir, ".grugops", "factory.config.json"),
+      JSON.stringify({ context: { human_admission: "high-severity" } }),
+    );
+    const note = join(dir, "cv.md");
+    writeFileSync(note, `---\nid: n1\nby: ${by}\nkind: finding\nverified_by: human:alice\n---\nbody\n`);
+    return { dir, note };
+  }
+  for (const by of HI_SEV_CASINGS) {
+    it(`hook DENIES a case-variant high-severity admit (by: ${by}) under high-severity`, () => {
+      const { dir, note } = projectCaseVariant(by);
+      expect(hookDecision(`node scripts/context-io.js admit my-task ${note}`, dir)).toBe("deny");
+    });
+  }
+
+  it("hook ALLOWs a routine role (software-engineer) under high-severity (no over-classification)", () => {
+    const dir = freshTmp("hook-cv-routine-");
+    mkdirSync(join(dir, ".grugops"), { recursive: true });
+    writeFileSync(
+      join(dir, ".grugops", "factory.config.json"),
+      JSON.stringify({ context: { human_admission: "high-severity" } }),
+    );
+    const note = join(dir, "r.md");
+    writeFileSync(note, ROUTINE_NOTE);
+    expect(hookDecision(`node scripts/context-io.js admit my-task ${note}`, dir)).toBe("allow");
+  });
+});
+
+describe("SC1 anti-whack-a-mole (25-05) — command-RESOLUTION class invariant over the obfuscation matrix", () => {
+  // The matcher resolves the EFFECTIVE command word as ONE authority over the shell grammar (skip
+  // command-modifier builtins → basename a path → fully de-quote → brace-group → nodejs), layered on
+  // the PRESERVED 25-04 segmentation. So the proof is a CLASS invariant over the effective-command-word
+  // obfuscation matrix, not an enumeration of known launcher spellings: a LIVE admit launch on a gated
+  // high-severity un-approved note DENIES for EVERY {resolution-obfuscation × line-ending} combination,
+  // the unresolvable admit-shape tail (eval / sh -c body / env-indirection) GATES, an admit-shape-free
+  // dynamic command ALLOWs, and an INERT mention ALLOWs. A launcher spelling outside any narrow anchor
+  // is caught structurally because resolution — not enumeration — is the boundary (the P22 round-8
+  // "make the boundary BE the parser" lesson applied to command-RESOLUTION). D-12: this GREEN class
+  // invariant is NECESSARY-NOT-SUFFICIENT; the independent red-team at Task 25-05-04 is the gate.
+  const LINE_ENDINGS: Array<["LF" | "CRLF", string]> = [
+    ["LF", "\n"],
+    ["CRLF", "\r\n"],
+  ];
+
+  // Each entry maps the bare `node` launcher word to an obfuscated EFFECTIVE-command-word spelling that
+  // still resolves to a launcher. The tail (script + admit verb + note) is shared.
+  function resolutionForms(note: string): Array<[string, string]> {
+    const tail = `scripts/context-io.js admit my-task ${note}`;
+    return [
+      ["builtin-command", `command node ${tail}`],
+      ["builtin-exec", `exec node ${tail}`],
+      ["builtin-nice", `nice node ${tail}`],
+      ["builtin-time", `time node ${tail}`],
+      ["builtin-nohup", `nohup node ${tail}`],
+      ["builtin-xargs", `xargs node ${tail}`],
+      ["path-abs", `/usr/local/bin/node ${tail}`],
+      ["path-rel", `./node ${tail}`],
+      ["alt-nodejs", `nodejs ${tail}`],
+      ['split-quote-double', `no"de" ${tail}`],
+      ["split-quote-single", `n''ode ${tail}`],
+      ["brace-group", `{ node ${tail}; }`],
+      // a compound the author did not enumerate: builtin × path × split-quote together
+      ["compound", `command /usr/local/bin/no"de" ${tail}`],
+    ];
+  }
+
+  // Unresolvable admit-shape tail — the resolver cannot see through these, so they GATE (DENY).
+  function unresolvableForms(note: string): Array<[string, string]> {
+    const tail = `node scripts/context-io.js admit my-task ${note}`;
+    return [
+      ["eval", `eval "${tail}"`],
+      ["sh -c", `sh -c "${tail}"`],
+      ["bash -c", `bash -c "${tail}"`],
+      ["env-indirection", `$X scripts/context-io.js admit my-task ${note}`],
+    ];
+  }
+
+  // Admit-shape-FREE dynamic commands — unrelated, must ALLOW (no over-block).
+  const NO_ADMIT_DYNAMIC: Array<[string, string]> = [
+    ["eval-no-admit", `eval "echo hi"`],
+    ["bash -c-no-admit", `bash -c "ls"`],
+  ];
+
+  // Inert mentions — admit text as DATA, must ALLOW.
+  function inertForms(note: string): Array<[string, string]> {
+    const tail = `node scripts/context-io.js admit my-task ${note}`;
+    return [
+      ["single-quoted", `echo '${tail}'`],
+      ["double-quoted", `echo "${tail}"`],
+      ["comment", `ls # ${tail}`],
+      ["path-named-admit", `cat ./admit/notes.txt`],
+    ];
+  }
+
+  for (const [leName, nl] of LINE_ENDINGS) {
+    it(`LIVE admit launches DENY for every resolution-obfuscation form (${leName})`, () => {
+      const { dir, highNote } = projectWith({ dial: "all" });
+      for (const [name, base] of resolutionForms(highNote)) {
+        // Insert the line-ending variant by splitting the launcher word from its first arg with a
+        // backslash-continuation, exercising the CRLF path on the segmentation layer too.
+        const command = nl === "\n" ? base : base.replace(" ", ` \\${nl}`);
+        expect(hookDecision(command, dir), `live ${name}/${leName} must gate DENY`).toBe("deny");
+      }
+    });
+
+    it(`unresolvable admit-shape tail GATES for every form (${leName})`, () => {
+      const { dir, highNote } = projectWith({ dial: "all" });
+      for (const [name, command] of unresolvableForms(highNote)) {
+        expect(hookDecision(command, dir), `unresolvable ${name}/${leName} must GATE (deny)`).toBe(
+          "deny",
+        );
+      }
+    });
+
+    it(`admit-shape-free dynamic commands ALLOW (${leName}) — fail-closed tail is admit-scoped`, () => {
+      const { dir } = projectWith({ dial: "all" });
+      for (const [name, command] of NO_ADMIT_DYNAMIC) {
+        expect(hookDecision(command, dir), `no-admit ${name}/${leName} must ALLOW`).toBe("allow");
+      }
+    });
+
+    it(`INERT admit mentions ALLOW for every form (${leName}) — no over-block`, () => {
+      const { dir, highNote } = projectWith({ dial: "all" });
+      for (const [name, command] of inertForms(highNote)) {
+        expect(hookDecision(command, dir), `inert ${name}/${leName} must ALLOW (data)`).toBe(
+          "allow",
+        );
+      }
+    });
+  }
+
+  it("the refuse-self-set floor holds behind a resolution-obfuscated launcher (GAP-B, matcher false-negative)", () => {
+    // The inline self-set is refused independent of launcher recognition — proven behind every
+    // resolution-obfuscation form even with the var already in env.
+    const { dir, highNote } = projectWith({ dial: "high-severity" });
+    for (const [name, base] of resolutionForms(highNote)) {
+      const command = `${APPROVAL}=eve ${base}`;
+      expect(
+        hookDecision(command, dir, "eve"),
+        `self-set behind ${name} must DENY even with the var in env`,
+      ).toBe("deny");
+    }
+  });
+});

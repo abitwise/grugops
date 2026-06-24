@@ -65,4 +65,59 @@ CONTROLS (already correct pre-fix — unchanged post-fix)
 [bare node ...admit (supported)] => DENY  (unchanged)       node scripts/context-io.js admit my-task NOTE
 [absent config routine admit]    => ALLOW (unchanged)       node ...admit my-task ROUTINE (zero-config lean)
 
-(continued in Task 25-05-03 — non-string dial + case-variant `by` rows appended below.)
+------------------------------------------------------------------------------------
+GAP-C / SC3 — a PRESENT non-string human_admission now GATES (gate-or-stricter)
+------------------------------------------------------------------------------------
+(Appended by Task 25-05-03. Both readers canonicalize a present non-string value to the
+strictest dial "all" at source="ok"; only the exact JSON string "off" is off-equivalent.)
+Post-fix committed blobs at completion:
+    hooks/admission-guard.js   blob 1b822df14daba4cd85d19a1231fe34be283b2633
+    scripts/context-io.js      blob ab56f680beb4724b7973a2423b993f29d8514adc
+    hooks/guard.ts             blob 3501810e21308e4b7e219679a6ca30dace9b5d66 (byte-frozen, D-02)
+
+[non-string dial true]           => DENY  (RED was ALLOW)   {"context":{"human_admission":true}}    + high-sev admit
+[non-string dial number 1]       => DENY  (RED was ALLOW)   {"context":{"human_admission":1}}       + high-sev admit
+[non-string dial null]           => DENY  (RED was ALLOW)   {"context":{"human_admission":null}}    + high-sev admit
+[non-string dial array]          => DENY  (RED was ALLOW)   {"context":{"human_admission":["all"]}} + high-sev admit
+[non-string dial object]         => DENY  (RED was ALLOW)   {"context":{"human_admission":{}}}      + high-sev admit
+
+Reader canonicalization (unit, via the committed context-io.js):
+  readGovernanceConfig / readGovernanceConfigResult for true/1/null/array/object
+    => human_admission="all", result.source="ok"   (gate-or-stricter, never off)
+  present non-object context ("x")  => "all"
+  present non-object whole-file ([]) => "all" at source="ok"
+  ABSENT config                      => "off" at source="absent"   (zero-config lean, SC2)
+  present object ctx, no key          => "off"                      (governance unconfigured, lean)
+  present STRING "off"/"high-severity"/"all" => read VERBATIM      (existing contract unchanged)
+
+------------------------------------------------------------------------------------
+GAP-D / SC1 — case-variant `by` now classifies high-severity at BOTH tiers
+------------------------------------------------------------------------------------
+Hook tier (child-spawn committed admission-guard.js, dial high-severity, no approval):
+[case-variant by=Security-NFR]   => DENY  (RED was ALLOW)   node ...admit NOTE  (by: Security-NFR)
+[case-variant by=SECURITY-NFR]   => DENY  (RED was ALLOW)   node ...admit NOTE  (by: SECURITY-NFR)
+[case-variant by=Architect-Design]=> DENY (RED was ALLOW)   node ...admit NOTE  (by: Architect-Design)
+[case-variant by=Release-Manager]=> DENY  (RED was ALLOW)   node ...admit NOTE  (by: Release-Manager)
+
+admit() tier (in-script D-04 forged-stamp backstop, committed context-io.js):
+  a case-variant high-severity finding (Security-NFR / SECURITY-NFR / Architect-Design /
+  Release-Manager) carrying a self-authored human:eve stamp under human_admission:high-severity
+    => REFUSE (names the verbatim case-variant by + defers to the un-forgeable hook; no rewrite)
+  a routine role under high-severity  => ADMIT (no over-classification)
+
+====================================================================================
+FINAL SUMMARY (post-fix committed .js): all 29 round-2 bypasses flip ALLOW -> DENY
+(builtin-wrapper / path-basename / nodejs / split-quote / brace-group launcher;
+unresolvable eval/sh -c/bash -c/env-indirection tail; inline self-set behind a wrapper;
+non-string dial true/1/null/array/object; case-variant by). All 6 over-block-clean
+controls (inert heredoc/quoted/comment/path-named-admit + no-admit dynamic commands)
+and both supported/absent controls stay correct. Zero bypasses, zero over-blocks.
+
+guard.ts byte-frozen (3501810e21308e4b7e219679a6ca30dace9b5d66); freshness 0;
+admission-guard.test.ts + context-io.test.ts + floor-invariance.test.ts all green.
+
+D-12: this RED->GREEN proof + the anti-whack-a-mole command-RESOLUTION class fuzz are
+NECESSARY but NOT SUFFICIENT. The blocking Task 25-05-04 independent both-angle opus
+red-team (reproduced vs the committed .js, inventing an un-enumerated obfuscation shape)
+is the closure gate — it is NOT self-reported here.
+
