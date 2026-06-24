@@ -2,7 +2,7 @@
 phase: 25-governance-on-a-dial
 verified: 2026-06-24T18:00:00Z
 status: gaps_found
-score: 1/3 success criteria verified (SC2 verified; SC1 + SC3 failed)
+score: 1/3 success criteria verified (SC2 verified; SC1 + SC3 STILL failed after 25-04 gap-closure — see post-25-04 update below)
 behavior_unverified: 0
 overrides_applied: 0
 re_verification:
@@ -110,10 +110,20 @@ human_verification:
 
 # Phase 25: Governance-on-a-Dial Verification Report
 
+> ## ⚠ UPDATE 2026-06-24T19:44Z — post-25-04 independent red-team: STILL gaps_found
+>
+> Gap-closure plan **25-04** was EXECUTED (tasks 01–03 committed `3b0c16b`/`f858f4a`/`b8382be`) and put through its blocking **Task 25-04-04** independent both-angle (logic + input-surface) opus red-team vs the committed `.js`. It **CLOSED the 6 originally-reported forms** below (subshell / `\`-continuation / `npx tsx` / bare npx/tsx / 7 garbage-STRING dials / corrupt config / forged-stamp-when-no-stamp / heredoc false-positive). **But the red-team found NEW bypasses → SC1+SC3 remain `gaps_found`.** The gap entries below are SUPERSEDED by these current findings (full repros + root-cause line refs: `25-04-SUMMARY.md` → "Independent Both-Angle Red-Team" section):
+>
+> - **SC1 / matcher (input-surface):** ≥12 launcher shapes still ALLOW a live gated admit — `command`/`exec`/`nice`/`time`/`nohup`/`xargs` wrappers, path/basename (`/usr/local/bin/node`), `nodejs`, `eval`/backtick, split-quote (`no"de"`), `{ }` brace group. Root: `LAUNCHERS` is a 3-literal anchor set (admission-guard.ts:88/265), no effective-command-word resolution; whole-token-only de-quote (:118). **Compounding:** `SELF_APPROVE` runs AFTER the matcher early-exit (:332-341), so every matcher false-negative also reopens the D-01 refuse-self-set floor invariant.
+> - **SC1 / severity (logic):** case-variant `by: Security-NFR` escapes the case-sensitive `HIGH_SEVERITY_ROLES` (hook:440, admit:929) while `validate()` accepts any `by` → forged `human:eve` admitted under the `high-severity` dial (both tiers).
+> - **SC3 / dial (logic):** a non-string `human_admission` (`true`/`1`/`null`/`[]`/`{}`) coerces to `off` (context-io.ts:1134+1191 `typeof human === "string" ? human : default`) → governance silently OFF at both tiers despite `source="ok"`.
+>
+> guard.ts byte-frozen (`3501810e…`) and freshness 0 throughout. SC2 + the GOV-02 audit ledger remain PRESERVED. **Next:** `/gsd-plan-phase 25 --gaps`.
+
 **Phase Goal:** Expose the enterprise governance tiers over the now-stable decentralized substrate — human-gated high-severity admission and audit retention — without touching the lean defaults or the un-dialable safety floor.
-**Verified:** 2026-06-24T18:00:00Z
+**Verified:** 2026-06-24T18:00:00Z (initial) · 2026-06-24T19:44Z (post-25-04 independent red-team — still gaps_found)
 **Status:** gaps_found
-**Re-verification:** No — initial verification
+**Re-verification:** Yes — re-checked after 25-04 gap-closure via the blocking independent both-angle red-team (Task 25-04-04)
 
 ## Goal Achievement
 

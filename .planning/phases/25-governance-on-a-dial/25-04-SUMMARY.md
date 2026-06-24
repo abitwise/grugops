@@ -131,6 +131,51 @@ status: complete
 - commit `b8382be` (Task 25-04-03) — FOUND
 - `ADMIT_SEGMENT` regex firewall GONE (only a historical comment reference remains; one parser feeds the gate) — CONFIRMED
 
+## Independent Both-Angle Red-Team (Task 25-04-04) — GAPS FOUND ❌
+
+Two independent opus-grade red-teams (the P23 split — LOGIC + INPUT-SURFACE, distinct blind spots) attacked the COMMITTED `hooks/admission-guard.js` / `scripts/context-io.js` (HEAD `2615084`) with their own harnesses, forbidden from citing the author suites. **Both found real, reproduced bypasses. SC1+SC3 are NOT closed.** Per D-12 / [[grugops-safety-invariant-green-suite-insufficient]] this checkpoint — not the green author suite — is the gate: the author's 174-case suites passed while ≥14 bypasses remain live. The orchestrator independently re-confirmed every root cause against the committed source (line refs below). **This is the 6th green-suite-insufficient catch of v2.0.**
+
+**What 25-04 DID close (verified):** the 6 originally-reported forms — subshell `( node …admit )`, `\`-continuation, `npx tsx`, bare `npx`/`tsx`, the 7 garbage-STRING dials, the corrupt config, the forged-stamp-when-no-stamp, and the heredoc false-positive (GAP3). The shell-segment parser correctly solved **segmentation** (quoting / heredoc / comment / subshell / `\`-continuation / `VAR=` / `env` prefix). The false-positive (over-block) angle is genuinely CLEAN.
+
+**What it did NOT close — the parser solved segmentation but not command-RESOLUTION, plus two type/normalization holes upstream of the dial hardening:**
+
+### INPUT-SURFACE angle — matcher tier still bypassable (≥12 launcher shapes ALLOW a live gated admit)
+Root cause: `LAUNCHERS = new Set(["node","npx","tsx"])` (admission-guard.ts:88) matched as a **literal** command word (`!LAUNCHERS.has(tokens[cmdIdx].value)` :265) — an anchor list, not effective-command-word resolution. Prefix-skip only handles `VAR=`/`env` (:240), not command-modifier builtins. Quote-strip only un-quotes a **whole-token** run (`/^(['"])([\s\S]*)\1$/` :118).
+
+| Class | Example (abridged) | bash runs admit? | hook |
+|---|---|---|---|
+| command-modifier builtins | `command node …admit`, `exec`/`nice`/`time`/`nohup node …`, `… \| xargs node …` | YES | ALLOW ❌ |
+| path / basename | `/usr/local/bin/node …admit`, `./node …` | YES | ALLOW ❌ |
+| alt binary name | `nodejs …admit` | YES | ALLOW ❌ |
+| eval / backtick | `eval "node …admit"`, `` `node …admit` `` | YES | ALLOW ❌ |
+| split-quote launcher | `no"de" …admit`, `n''ode …admit` | YES | ALLOW ❌ |
+| brace group | `{ node …admit; }` | YES | ALLOW ❌ |
+
+End-to-end (dial=high-severity, no approval var): `command /usr/local/bin/node scripts/context-io.js admit my-task <hi-sev-note>` → hook **ALLOW** + the real admit prints `note admitted` exit 0. The un-forgeable tier never fired.
+
+**Compounding floor break (one of the four NAMED invariants):** the refuse-self-set check `SELF_APPROVE.test(cmd)` (:341) runs AFTER the matcher early-exit `if (!isAdmitInvocation(cmd)) process.exit(0)` (:332-333) — so EVERY matcher false-negative ALSO reopens D-01: `GRUGOPS_ADMISSION_APPROVED_BY=eve command node …admit` → ALLOW (should DENY).
+
+### LOGIC angle — two floor bypasses upstream of the dial/config hardening
+1. **Non-string `human_admission` coerces to `off`** — `human_admission: typeof human === "string" ? human : GOVERNANCE_DEFAULTS.human_admission` (context-io.ts:1134 **and** 1191; default = `off`). A present, valid-JSON config with `human_admission: true` / `1` / `null` / `["all"]` / `{}` → silently `off` → ALLOW at BOTH tiers (`source="ok"`, NOT the absent/lean path). Most plausible operator mistake: writing `"human_admission": true` to "turn governance ON" → it is silently OFF. (The same coercion makes a degenerate whole-file config `[]`/`"x"`/`null` read lean.)
+2. **Case-variant `by` escapes the `high-severity` gate** — `HIGH_SEVERITY_ROLES.has(by)` (hook:440) and `.includes((by).trim())` (admit:929) are both **case-sensitive**, while `validate()` accepts any non-empty `by`. `by: Security-NFR` (any case) reads non-high → under `human_admission: high-severity` the hook ALLOWs and admit() ADMITs a forged `verified_by: human:eve`. (Only the `high-severity` dial; `all` still gates via `gateEveryMatch` — safe fallback.)
+
+Dial STRING edges (` off`, `off `, `Off`, NBSP, `off;`, greek-omicron, …) all correctly DENY. Corrupt-vs-absent config distinction holds (minor: a broken symlink at the config path reads absent→lean). Forged-stamp grammar is solid WHEN `by` is canonical.
+
+### Invariants (both red-teams + orchestrator confirmed)
+- `git diff --quiet hooks/guard.ts` exit 0, blob `3501810e21308e4b7e219679a6ca30dace9b5d66` — byte-frozen ✓
+- `npm run freshness` exit 0 (21 `.js` fresh) ✓ · working tree clean before+after both probes ✓
+- D-01 refuse-self-set: **BROKEN via the matcher gap** (see compounding above) ✗
+
+### Disposition — checkpoint 25-04-04 does NOT pass; SC1+SC3 remain gaps_found
+Recommended fixes for the next `--gaps` cycle (route: `/gsd-plan-phase 25 --gaps`):
+- **Matcher:** resolve the segment's EFFECTIVE command word — skip command-modifier builtins (`command`/`exec`/`nice`/`time`/`nohup`/`stdbuf`/`xargs`/`timeout`/…), take the **basename** of a path, add `nodejs`, fully de-quote a token (remove every quoted run so `no"de"`→`node`), recognize `{ }` grouping, and treat `eval`/backtick bodies as live command text. One resolution authority, not a wider anchor list (the anti-whack-a-mole discipline still applies — to command-resolution this time, not segmentation).
+- **Self-set:** move `SELF_APPROVE` in front of / independent of the matcher early-exit so an inline self-set is refused regardless of launcher recognition.
+- **Reader:** treat a present-but-non-string `human_admission` (and a non-object `context` / non-object whole-file config) as gate-or-stricter, NOT `off` — only the exact JSON string `"off"` is off-equivalent.
+- **Severity:** make `HIGH_SEVERITY_ROLES` matching case-insensitive at both tiers (or have `validate()` reject a non-canonical-case high-sev role so classifier and structural acceptance agree).
+- **Proof:** RED→GREEN vs the committed `.js` with new rows — each new launcher class, an inline-self-set-behind-a-wrapper, a non-string dial, and a case-variant `by`.
+
+The P23 logic+input-surface split earned its keep again — each angle found holes the other would have missed.
+
 ---
 *Phase: 25-governance-on-a-dial*
-*Completed: 2026-06-24 (Tasks 01–03; Task 04 blocking checkpoint pending the independent red-team)*
+*Tasks 01–03 executed + committed; Task 04 (independent both-angle red-team checkpoint) RAN and returned **GAPS FOUND** — SC1+SC3 NOT closed (2026-06-24). Route: `/gsd-plan-phase 25 --gaps`.*

@@ -4,11 +4,11 @@ milestone: v2.0
 milestone_name: Decentralized Factory — Shared Verified Context
 current_phase: 25
 current_phase_name: governance-on-a-dial
-status: executing
-stopped_at: "Gap-closure plan 25-04 — Tasks 01/02/03 executed + committed (3b0c16b/f858f4a/b8382be: shell-segment parser matcher, fail-closed dial+corrupt-config, forged-stamp backstop, HOOK-tier sweep + anti-whack-a-mole fuzz, RED→GREEN proof vs the committed .js); STOPPED at the BLOCKING checkpoint 25-04-04 (independent both-angle opus red-team) — SC1+SC3 NOT closed until that reproduces the closure (D-12, green suite necessary-not-sufficient)"
-last_updated: "2026-06-24T22:30:00.000Z"
+status: verifying
+stopped_at: "Gap-closure plan 25-04 — Tasks 01/02/03 executed + committed (3b0c16b/f858f4a/b8382be); the BLOCKING checkpoint 25-04-04 (independent both-angle opus red-team) RAN and returned GAPS FOUND vs the committed .js: 25-04 closed the 6 originally-reported forms but the red-team found NEW bypasses — matcher still misses >=12 launcher shapes (command/exec/nice/path/nodejs/eval/backtick/split-quote/brace-group) and that gap also reopens D-01 refuse-self-set; non-string human_admission coerces to off; case-variant `by` escapes high-severity. SC1+SC3 STILL gaps_found (6th green-suite-insufficient catch of v2.0, D-12). Route: /gsd-plan-phase 25 --gaps"
+last_updated: "2026-06-24T19:44:43.000Z"
 last_activity: 2026-06-24
-last_activity_desc: "25-04 gap-closure Tasks 01–03 committed; blocked at the 25-04-04 independent red-team checkpoint"
+last_activity_desc: "25-04 executed (Tasks 01-03 committed); independent both-angle red-team at checkpoint 25-04-04 found NEW GOV-01 bypasses -> SC1+SC3 still gaps_found; route to /gsd-plan-phase 25 --gaps"
 progress:
   total_phases: 7
   completed_phases: 6
@@ -28,10 +28,10 @@ See: .planning/PROJECT.md (updated 2026-06-16 — after v1.2 milestone)
 
 ## Current Position
 
-Phase: 25 (governance-on-a-dial) — EXECUTING (gap-closure 25-04, blocked at checkpoint)
-Plan: 4 of 4 (gap-closure) — Tasks 01–03 committed; Task 04 blocking red-team checkpoint pending
-Status: STOPPED at the 25-04-04 independent both-angle red-team checkpoint (SC1+SC3 closure gate, D-12)
-Last activity: 2026-06-24 — 25-04 Tasks 01–03 committed (3b0c16b/f858f4a/b8382be); awaiting the independent red-team
+Phase: 25 (governance-on-a-dial) — VERIFYING (gap-closure 25-04 executed; red-team found new gaps)
+Plan: 4 of 4 (gap-closure) — Tasks 01–03 committed; Task 04 red-team checkpoint RAN → GAPS FOUND
+Status: gaps_found — independent both-angle red-team reproduced NEW GOV-01 bypasses vs the committed .js (SC1+SC3 still open; 6th green-suite-insufficient catch, D-12)
+Last activity: 2026-06-24 — 25-04 executed (3b0c16b/f858f4a/b8382be); red-team at 25-04-04 found new bypasses → route to /gsd-plan-phase 25 --gaps
 
 ## Performance Metrics
 
