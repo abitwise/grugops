@@ -4,11 +4,11 @@ milestone: v2.0
 milestone_name: Decentralized Factory — Shared Verified Context
 current_phase: 25
 current_phase_name: governance-on-a-dial
-status: verifying
-stopped_at: Phase 25 plan 03 tasks 1-3 executed + committed; STOPPED at the 25-03-04 blocking checkpoint
-last_updated: "2026-06-24T07:19:58.198Z"
+status: planned
+stopped_at: Phase 25 verification gaps_found (SC1+SC3); gap-closure plan 25-04 created (--gaps) + plan-checker PASSED; ready to execute
+last_updated: "2026-06-24T15:16:06.544Z"
 last_activity: 2026-06-24
-last_activity_desc: Phase 25 execution started
+last_activity_desc: Phase 25 gap-closure plan 25-04 planned (--gaps); plan-checker PASSED
 progress:
   total_phases: 7
   completed_phases: 6
@@ -28,10 +28,10 @@ See: .planning/PROJECT.md (updated 2026-06-16 — after v1.2 milestone)
 
 ## Current Position
 
-Phase: 25 (governance-on-a-dial) — EXECUTING
-Plan: 3 of 3
-Status: Phase complete — ready for verification
-Last activity: 2026-06-24 — Phase 25 execution started
+Phase: 25 (governance-on-a-dial) — gap-closure planned (25-04)
+Plan: 4 of 4 (25-04 gap closure — not yet executed)
+Status: Ready to execute
+Last activity: 2026-06-24 — Phase 25 gap-closure plan 25-04 created (--gaps), plan-checker PASSED
 
 ## Performance Metrics
 
