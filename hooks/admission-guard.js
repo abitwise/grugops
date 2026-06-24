@@ -59,28 +59,231 @@ const HIGH_SEVERITY_ROLES = new Set([
 // `env GRUGOPS_ADMISSION_APPROVED_BY=alice ...`). Matched regardless of surrounding command.
 // Cloned verbatim from hooks/guard.ts:88, swapping only the variable name.
 const SELF_APPROVE = new RegExp(`(^|[\\s;&|(])(export\\s+|env\\s+)?${APPROVAL}\\s*=`);
-// Verb-anchored admit match (mirror guard.ts:50 — match the SUBCOMMAND VERB, not a substring).
-// CRITICAL INPUT-SURFACE DISCIPLINE (inverse of the P23 CR-01 false-positive, T-25-04): the
-// guard must fire ONLY on a real Bash admit invocation, NEVER on the same text appearing inside
-// a quoted string (`echo 'node context-io.js admit …'`), after a `#` comment, or as a path
-// component. A naive `node[\s\S]*admit` spans across quotes and comments and false-positives.
+// ── Shell-segment parser: ONE parsing authority over the command grammar ──────────────────────────
 //
-// The match shape, anchored within ONE unquoted command segment: an optional shell prefix of
-// inline VAR=val assignments and/or `env VAR=val` (the shell's command-prefix grammar — this is
-// also exactly how an agent would TRY to self-set the approval var), then `node` as the segment's
-// command, then a context-io(.js) script token, then the `admit` verb — with NO quote character
-// (' or ") and NO `#` comment introducer anywhere in the matched span. A real admit never wraps
-// its own verb in quotes; a quote or a comment before the verb means the text is an argument to
-// some OTHER command (echo/cat), not a live admit. See isAdmitInvocation() below.
+// CRITICAL INPUT-SURFACE DISCIPLINE (T-25-10/T-25-13, the inverse of the P23 CR-01 false-positive):
+// the guard must fire on EVERY real Bash admit invocation, and ONLY on a real one. A real admit can
+// be launched by any of `node`, `npx`, `tsx`, or `npx tsx`, and the launcher segment can be wrapped
+// in a subshell `( … )` / `$( … )`, prefixed with inline `VAR=val`/`env VAR=val` assignments, and
+// joined across a backslash-newline line continuation. Conversely, the same text appearing inside a
+// single/double-quoted string, after a `#` comment, or in a heredoc body is INERT DATA, not a live
+// command. The prior `ADMIT_SEGMENT` regex anchored only on a bare `node` at an unquoted segment
+// start; three real launchers (subshell, `\`-continuation, `npx tsx`) escaped it and an inert
+// heredoc body line false-positived. Widening the regex one more notch is the whack-a-mole trap
+// (P22 was bypassed 7× that way). Instead, the boundary IS the parser: one tokenizer walks the
+// command grammar once, classifying quoted / commented / heredoc text as data, then we ask whether
+// any LIVE command segment is an admit launch. A launcher shape outside a narrow anchor cannot
+// escape, and an inert mention cannot false-positive — both follow from the single grammar walk.
 //
-// The prefix span allows `=` and `+` (env values), but the FIRST token after the separator must
-// still resolve to `node` — so a quoted/commented mention can never reach the `node` anchor.
-const ADMIT_SEGMENT = /(^|[;&|\n])(\s|&|\|)*(?:(?:env\s+)?[A-Za-z_][A-Za-z0-9_]*=[^\s'"#;&|\n]*\s+)*(?:env\s+)?node\b[^'"#;&|\n]*?\bcontext-io(?:\.js)?\b[^'"#;&|\n]*?\badmit\b/;
-// Returns true only when `cmd` contains a real `node …context-io(.js) admit …` invocation as an
-// actual command segment — not embedded in a quoted echo/cat argument, not after a `#` comment,
-// not as a path. This is the SOLE gate input surface: the command verb, never file content.
+// This is the SOLE gate input surface: the Bash `tool_input.command` string, never file content.
+const ADMIT_VERB = "admit";
+const ADMIT_SCRIPT = "context-io"; // matches context-io and context-io.js as a token substring
+// The launcher commands that actually RUN a script: a bare interpreter or an npx/tsx runner.
+const LAUNCHERS = new Set(["node", "npx", "tsx"]);
+// Walk the command string ONCE, honoring the shell quoting / comment / continuation / heredoc /
+// segment-separator grammar, and return the LIVE tokens (the words the shell would actually run),
+// each flagged with whether it begins a command segment. Anything inside quotes, after `#`, or
+// within a heredoc body is data and is never emitted as a live token. This is intentionally a
+// recognizer for the constructs that matter to the gate (it does not evaluate the command); a
+// failure to recognize a launcher fails CLOSED downstream on a matched gated admit.
+function liveTokens(cmd) {
+    const tokens = [];
+    const heredocDelims = []; // pending heredoc terminators, in declaration order
+    let i = 0;
+    const n = cmd.length;
+    // A segment starts at the very beginning and after every command separator / opening grouping.
+    // The first non-space token after such a boundary is the segment's command.
+    let atSegmentStart = true;
+    let cur = ""; // the token being accumulated
+    let curStartsSegment = false;
+    let building = false; // true once cur has begun accumulating a token
+    const flush = () => {
+        if (building) {
+            // Strip one layer of matching surrounding quotes (already-literal inner content is kept).
+            const stripped = cur.replace(/^(['"])([\s\S]*)\1$/, "$2");
+            tokens.push({ value: stripped, startsSegment: curStartsSegment });
+            cur = "";
+            building = false;
+        }
+    };
+    const begin = () => {
+        if (!building) {
+            building = true;
+            curStartsSegment = atSegmentStart;
+            atSegmentStart = false;
+        }
+    };
+    while (i < n) {
+        const c = cmd[i];
+        // After a newline, consume any pending heredoc body up to (and including) its terminator line.
+        // The body lines are DATA — never tokenized — so an admit mention inside a heredoc is inert.
+        if (heredocDelims.length > 0 && (c === "\n" || (c === "\r" && cmd[i + 1] === "\n"))) {
+            flush();
+            // advance past the CR?LF that ended the redirection line
+            i += c === "\r" ? 2 : 1;
+            const delim = heredocDelims.shift();
+            while (i < n) {
+                let lineEnd = cmd.indexOf("\n", i);
+                if (lineEnd < 0)
+                    lineEnd = n;
+                const rawLine = cmd.slice(i, lineEnd).replace(/\r$/, "");
+                // The terminator may be indented when the heredoc used `<<-`; compare the trimmed line.
+                if (rawLine.trim() === delim) {
+                    i = lineEnd < n ? lineEnd + 1 : n;
+                    break;
+                }
+                i = lineEnd < n ? lineEnd + 1 : n;
+            }
+            atSegmentStart = true; // the line after a heredoc body begins a fresh segment
+            continue;
+        }
+        // `#` introduces a comment only at a token boundary (not mid-word); the rest of the line is data.
+        if (c === "#" && !building) {
+            let lineEnd = cmd.indexOf("\n", i);
+            if (lineEnd < 0)
+                lineEnd = n;
+            i = lineEnd;
+            continue;
+        }
+        // Single / double quoted runs: capture the whole run (including quotes) as part of the current
+        // token so it strips to literal data. A quote can never start a live launcher token.
+        if (c === "'" || c === '"') {
+            const close = cmd.indexOf(c, i + 1);
+            const end = close < 0 ? n : close + 1;
+            begin();
+            cur += cmd.slice(i, end);
+            i = end;
+            continue;
+        }
+        // Backslash-newline is a LINE CONTINUATION: the shell joins the two physical lines into one
+        // logical line, so it neither ends the token nor starts a new segment. `node \<newline> …admit`
+        // is ONE live `node` segment. A backslash before any other char escapes that char into the token.
+        if (c === "\\") {
+            if (cmd[i + 1] === "\n") {
+                i += 2;
+                continue;
+            }
+            if (cmd[i + 1] === "\r" && cmd[i + 2] === "\n") {
+                i += 3;
+                continue;
+            }
+            if (i + 1 < n) {
+                begin();
+                cur += cmd[i + 1];
+                i += 2;
+                continue;
+            }
+            i += 1;
+            continue;
+        }
+        // Heredoc redirection operator: `<<WORD`, `<<-WORD`, `<<'WORD'`/`<<"WORD"`. Record the
+        // terminator; the BODY (consumed after the next newline) is data. The operator itself is not a
+        // token we care about, but we keep walking the rest of the redirection line normally.
+        if (c === "<" && cmd[i + 1] === "<") {
+            flush();
+            let j = i + 2;
+            if (cmd[j] === "-")
+                j += 1;
+            while (j < n && /\s/.test(cmd[j]) && cmd[j] !== "\n")
+                j += 1;
+            let delim = "";
+            if (cmd[j] === "'" || cmd[j] === '"') {
+                const q = cmd[j];
+                const close = cmd.indexOf(q, j + 1);
+                const end = close < 0 ? n : close;
+                delim = cmd.slice(j + 1, end);
+                j = close < 0 ? n : close + 1;
+            }
+            else {
+                const m = /^[A-Za-z0-9_]+/.exec(cmd.slice(j));
+                delim = m ? m[0] : "";
+                j += delim.length;
+            }
+            if (delim !== "")
+                heredocDelims.push(delim);
+            i = j;
+            continue;
+        }
+        // Command separators and grouping that OPEN a new command context. After any of these, the next
+        // word is the first command of a segment. `(` and `$(` open a subshell / command substitution
+        // whose first command is still evaluated — so `( node …admit )` is recognized.
+        // `;` `&` `|` `\n` separate segments; `)` closes a group.
+        if (c === "$" && cmd[i + 1] === "(") {
+            flush();
+            atSegmentStart = true;
+            i += 2;
+            continue;
+        }
+        if (c === "(" || c === ")" || c === ";" || c === "&" || c === "|") {
+            flush();
+            atSegmentStart = true;
+            i += 1;
+            continue;
+        }
+        if (c === "\n" || c === "\r") {
+            flush();
+            atSegmentStart = true;
+            i += 1;
+            continue;
+        }
+        // Plain whitespace ends the current token but does NOT open a new segment (still inside the
+        // same command's argument list).
+        if (/\s/.test(c)) {
+            flush();
+            i += 1;
+            continue;
+        }
+        // Any other character extends the current token. An inline `VAR=val` / `env VAR=val` assignment
+        // PREFIX is handled in isAdmitInvocation() (the launcher scan treats assignment tokens and `env`
+        // as transparent), so the tokenizer needs no special case here.
+        begin();
+        cur += c;
+        i += 1;
+    }
+    flush();
+    return tokens;
+}
+// A command-prefix token that the shell strips before resolving the real command word: an inline
+// `VAR=val` assignment or the `env` wrapper. The launcher may sit behind any number of these.
+function isCommandPrefix(value) {
+    return value === "env" || /^[A-Za-z_][A-Za-z0-9_]*=/.test(value);
+}
+// Returns true only when a LIVE command segment is a real admit launch. For each command segment we
+// skip the assignment/`env` prefix to find the real command word; if it is a launcher (node | npx |
+// tsx) we then confirm the SAME segment's remaining live tokens include a context-io script token
+// followed by the `admit` verb. The `npx tsx <script>` two-token form is covered because the
+// launcher is `npx` and `tsx` is simply an earlier argument before the script token. A
+// quoted/commented/heredoc mention never produces these live tokens, so it can never match.
 function isAdmitInvocation(cmd) {
-    return ADMIT_SEGMENT.test(cmd);
+    const tokens = liveTokens(cmd);
+    for (let i = 0; i < tokens.length; i++) {
+        if (!tokens[i].startsSegment)
+            continue;
+        // Skip an assignment / `env` command prefix to reach the real command word for this segment.
+        let cmdIdx = i;
+        while (cmdIdx < tokens.length && isCommandPrefix(tokens[cmdIdx].value)) {
+            // Only continue skipping while we stay within this segment's leading run.
+            if (cmdIdx > i && tokens[cmdIdx].startsSegment)
+                break;
+            cmdIdx += 1;
+        }
+        if (cmdIdx >= tokens.length)
+            continue;
+        if (cmdIdx > i && tokens[cmdIdx].startsSegment)
+            continue; // crossed into a new segment
+        if (!LAUNCHERS.has(tokens[cmdIdx].value))
+            continue;
+        // Scan the rest of THIS segment (until the next segment-leading token) for the script + verb.
+        let sawScript = false;
+        for (let j = cmdIdx + 1; j < tokens.length && !tokens[j].startsSegment; j++) {
+            const v = tokens[j].value;
+            if (v.includes(ADMIT_SCRIPT))
+                sawScript = true;
+            else if (v === ADMIT_VERB && sawScript)
+                return true;
+        }
+    }
+    return false;
 }
 function deny(reason) {
     process.stdout.write(JSON.stringify({

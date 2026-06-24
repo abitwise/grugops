@@ -1,0 +1,80 @@
+25-04 RED BASELINE — the GOV-01 bypasses reproduced vs the PRE-FIX COMMITTED .js
+================================================================================
+
+Captured FIRST, before any source edit (the 22-08 / 22-09 RED -> GREEN discipline).
+Every result below is a child-spawn of the COMMITTED artifacts, NOT the .ts and NOT
+the author's test suites:
+
+    hooks/admission-guard.js   blob d60fe7267188c15c1eafa36089031cf1191ccfc2
+    scripts/context-io.js      blob 89fb2e890fb0d6a90ef15b162fe11963b8529cd2
+    hooks/guard.ts             blob 3501810e21308e4b7e219679a6ca30dace9b5d66 (byte-frozen, D-02)
+
+Test fixture for the hook-tier rows: a high-severity note (by: security-nfr, kind:
+finding) under human_admission: high-severity, with NO GRUGOPS_ADMISSION_APPROVED_BY
+in the hook's process env. A correct gate DENIES; the PRE-FIX hook ALLOWs (the bypass).
+
+--------------------------------------------------------------------------------
+GAP1 / SC1 — matcher false-NEGATIVES (a real gated admit slips PAST the hook)
+--------------------------------------------------------------------------------
+[subshell ( node ... admit )]            => ALLOW  (bypass live)   ( node scripts/context-io.js admit my-task NOTE )
+[backslash-newline continuation]         => ALLOW  (bypass live)   node \<newline> scripts/context-io.js admit my-task NOTE
+[npx tsx]                                => ALLOW  (bypass live)   npx tsx scripts/context-io.ts admit my-task NOTE
+[bare npx (context-io.js)]               => ALLOW  (bypass live)   npx context-io.js admit my-task NOTE
+[bare tsx]                               => ALLOW  (bypass live)   tsx scripts/context-io.ts admit my-task NOTE
+
+Root cause: ADMIT_SEGMENT (admission-guard.ts:83-84) anchors only on a bare `node`
+at an unquoted segment start; a leading `(` is not in the boundary class, `\n` ends
+the matcher span before the verb, and the anchor is `node\b` (never npx/tsx).
+
+CONTROL (the supported form already gated correctly pre-fix):
+[node ... admit (supported)]             => DENY                   node scripts/context-io.js admit my-task NOTE
+
+--------------------------------------------------------------------------------
+GAP3 — matcher false-POSITIVE (CR-01 inverse, fail-safe but real over-block)
+--------------------------------------------------------------------------------
+[heredoc body (inert)]                   => DENY  (over-block)     cat <<EOF\nnode ... admit my-task NOTE\nEOF
+
+Root cause: the matcher treats `\n` as a command-segment boundary, so an inert
+heredoc body line reads as a live admit segment and is denied. A correct shell-aware
+parser recognizes the heredoc body as DATA and ALLOWs it.
+
+--------------------------------------------------------------------------------
+GAP2 / SC3 — dial fail-OPEN (any non-canonical human_admission value -> ALLOW)
+--------------------------------------------------------------------------------
+[dial=hihg-severity (typo)]              => ALLOW  (fail-open)
+[dial=High-Severity (case)]              => ALLOW  (fail-open)
+[dial=all  (trailing whitespace)]        => ALLOW  (fail-open)
+[dial= (empty string)]                   => ALLOW  (fail-open)
+[dial=bogus]                             => ALLOW  (fail-open)
+[dial=OFF (mis-cased)]                   => ALLOW  (fail-open)
+[dial=1]                                 => ALLOW  (fail-open)
+
+Root cause: the hook gates on the EXACT strings high-severity / all only
+(admission-guard.ts:229); any other value falls through to process.exit(0) ALLOW —
+off-equivalent. A typo opens the floor.
+
+--------------------------------------------------------------------------------
+GAP2 / SC3 — corrupt-config fail-OPEN (present-but-unreadable config -> ALLOW)
+--------------------------------------------------------------------------------
+[corrupt config]                         => ALLOW  (fail-open)     factory.config.json = "{ this is : not json "
+
+Root cause: readGovernanceConfig (context-io.ts:1096+) returns the lean `off`
+default on ANY read failure and NEVER throws, so the hook's own try/catch is dead
+code and a corrupt config yields dial="off" -> ALLOW.
+
+--------------------------------------------------------------------------------
+GAP1 / SC1 — forged human:NAME stamp fail-OPEN at the admit() D-04 tier
+--------------------------------------------------------------------------------
+[forged human:eve under high-severity]   => ADMITTED (forgery passes)
+
+A self-authored `verified_by: human:eve` stamp on a high-severity finding
+(by: security-nfr), gate-cross-check satisfied, under human_admission: high-severity
+is ADMITTED. Root cause: the D-04 refusal (context-io.ts:930) fires only when NO
+human stamp exists (!HUMAN_STAMP_RE.test(vb)); a structurally well-formed forged
+stamp passes the grammar and bypasses D-04 at every dial value.
+
+================================================================================
+DISPOSITION: every gap in 25-VERIFICATION.md (gaps_found) is reproduced live against
+the committed .js. Task 25-04-01/02/03 close them; 25-04-GREEN-proof.txt records the
+post-fix flip. Per D-12 the GREEN flip is necessary-but-NOT-sufficient — the
+independent both-angle opus red-team at Task 25-04-04 is the closure gate.

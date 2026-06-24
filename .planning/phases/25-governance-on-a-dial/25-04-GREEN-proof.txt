@@ -1,0 +1,48 @@
+25-04 GREEN PROOF — the GOV-01 bypasses CLOSED vs the POST-FIX COMMITTED .js
+================================================================================
+
+The both-direction RED -> GREEN flip (22-08 / 22-09 discipline). Pair with
+25-04-RED-baseline.txt (the pre-fix ALLOWs). Every result is a child-spawn of the
+COMMITTED artifacts AFTER the fix, NOT the .ts and NOT the author's test suites.
+
+    hooks/admission-guard.js   rebuilt by `npm run build`; freshness 0 drift
+    scripts/context-io.js      rebuilt by `npm run build`; freshness 0 drift
+    hooks/guard.ts             blob 3501810e21308e4b7e219679a6ca30dace9b5d66 (byte-frozen, D-02)
+
+Hook-tier fixture: a high-severity note (by: security-nfr, kind: finding) under
+human_admission: high-severity (or all), with NO GRUGOPS_ADMISSION_APPROVED_BY in
+the hook env. A correct gate now DENIES the bypass and ALLOWs the inert mention.
+
+--------------------------------------------------------------------------------
+GAP1 / SC1 — matcher false-negatives now DENY (each launcher flipped ALLOW -> DENY)
+--------------------------------------------------------------------------------
+[subshell ( node ... admit )]            RED ALLOW -> GREEN DENY
+[backslash-newline continuation]         RED ALLOW -> GREEN DENY
+[npx tsx]                                RED ALLOW -> GREEN DENY
+[bare npx (context-io.js)]               RED ALLOW -> GREEN DENY
+[bare tsx]                               RED ALLOW -> GREEN DENY
+[env VAR=v node ... admit (prefix)]      DENY (prefix transparent)
+[VAR=v node ... admit (assignment)]      DENY (prefix transparent)
+[node ... admit (supported)]             DENY (no regression)
+
+The deny reason NAMES the note file in each case (the harness asserts stdout
+contains the note path).
+
+--------------------------------------------------------------------------------
+GAP3 — matcher false-positive now ALLOWs (heredoc/quoted body recognized as DATA)
+--------------------------------------------------------------------------------
+[heredoc body (inert)]                   RED DENY -> GREEN ALLOW
+[<<-EOF indented heredoc body]           ALLOW (inert)
+[single-quoted echo mention]             ALLOW (inert)
+[double-quoted echo mention]             ALLOW (inert)
+[# comment mention]                      ALLOW (inert)
+[path component named admit]             ALLOW (inert)
+[render verb (not admit)]                ALLOW (different verb)
+
+--------------------------------------------------------------------------------
+D-01 floor preserved — refuse-self-set still DENIES (even with the var in env)
+--------------------------------------------------------------------------------
+[inline export approval && admit]        DENY
+
+(The dial fail-closed rows, the corrupt-config row, the forged-human-stamp row, and
+the zero-config lean ALLOW row are appended by Task 25-04-02/03 below.)

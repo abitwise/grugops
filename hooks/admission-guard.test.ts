@@ -304,4 +304,70 @@ describe("admission-guard.js (GOV-01 human-admission gate) — child-spawn deny/
       CLAUDE_PROJECT_DIR: projectHigh,
     });
   });
+
+  // ── 10. Gap-closure (25-04): shell-segment parser catches every admit launcher (SC1, GAP1) ───
+  // The prior ADMIT_SEGMENT regex anchored only on a bare `node` at an unquoted segment start, so
+  // three real launchers slipped past the gate (verified RED in 25-04-RED-baseline.txt). The
+  // shell-segment parser recognizes node | npx | tsx | npx tsx, a subshell `( … )` prefix, and a
+  // backslash-newline continuation as live admit launches. Each must DENY a gated high-severity
+  // un-approved admit.
+  it("deny (25-04): subshell `( node …admit )` launcher under high-severity (matcher bypass closed)", () => {
+    expectDeny(payload(`( node scripts/context-io.js admit my-task ${highNote} )`), {
+      CLAUDE_PROJECT_DIR: projectHigh,
+    });
+  });
+
+  it("deny (25-04): backslash-newline continuation `node \\<newline> …admit` under high-severity", () => {
+    expectDeny(payload(`node \\\nscripts/context-io.js admit my-task ${highNote}`), {
+      CLAUDE_PROJECT_DIR: projectHigh,
+    });
+  });
+
+  it("deny (25-04): `npx tsx scripts/context-io.ts admit …` under high-severity", () => {
+    expectDeny(payload(`npx tsx scripts/context-io.ts admit my-task ${highNote}`), {
+      CLAUDE_PROJECT_DIR: projectHigh,
+    });
+  });
+
+  it("deny (25-04): bare `npx context-io.js admit …` under high-severity", () => {
+    expectDeny(payload(`npx context-io.js admit my-task ${highNote}`), {
+      CLAUDE_PROJECT_DIR: projectHigh,
+    });
+  });
+
+  it("deny (25-04): bare `tsx scripts/context-io.ts admit …` under high-severity", () => {
+    expectDeny(payload(`tsx scripts/context-io.ts admit my-task ${highNote}`), {
+      CLAUDE_PROJECT_DIR: projectHigh,
+    });
+  });
+
+  it("deny (25-04): assignment-prefix `FOO=bar node …admit` under high-severity (prefix transparent)", () => {
+    expectDeny(payload(`FOO=bar node scripts/context-io.js admit my-task ${highNote}`), {
+      CLAUDE_PROJECT_DIR: projectHigh,
+    });
+  });
+
+  // ── 11. Gap-closure (25-04): inert heredoc/quoted body is DATA, not a live admit (GAP3) ───────
+  // The CR-01-inverse false-positive: the prior matcher treated `\n` as a hard segment boundary, so
+  // an inert heredoc body line containing admit text was DENIED (verified RED). The parser now
+  // recognizes the heredoc body as data → ALLOW.
+  it("allow (25-04): inert heredoc body line containing admit text is DATA (CR-01-inverse fixed)", () => {
+    expectAllow(
+      payload(`cat <<EOF\nnode scripts/context-io.js admit my-task ${highNote}\nEOF`),
+      { CLAUDE_PROJECT_DIR: projectHigh },
+    );
+  });
+
+  it("allow (25-04): indented `<<-EOF` heredoc body with admit text is inert", () => {
+    expectAllow(
+      payload(`cat <<-EOF\n\tnode scripts/context-io.js admit my-task ${highNote}\n\tEOF`),
+      { CLAUDE_PROJECT_DIR: projectAll },
+    );
+  });
+
+  it("allow (25-04): double-quoted admit mention is inert", () => {
+    expectAllow(payload(`echo "node scripts/context-io.js admit my-task ${highNote}"`), {
+      CLAUDE_PROJECT_DIR: projectAll,
+    });
+  });
 });
