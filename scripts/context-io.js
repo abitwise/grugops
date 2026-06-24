@@ -29,7 +29,7 @@
 // under the context root. The context root itself is a fixed literal (.grugops/context) in
 // production; tests pass an explicit temp root.
 import { randomUUID } from "node:crypto";
-import { writeFileSync, readFileSync, readdirSync, renameSync, unlinkSync, mkdirSync, existsSync, } from "node:fs";
+import { writeFileSync, appendFileSync, readFileSync, readdirSync, renameSync, unlinkSync, mkdirSync, existsSync, } from "node:fs";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 // ── The six note kinds (SCTX-01) ──────────────────────────────────────────────────────────────
@@ -737,6 +737,18 @@ export function emitVerdict(task, id, contextRoot = DEFAULT_CONTEXT_ROOT, at = n
     atomicWrite(join(notesDir, `${noteIdStr}.md`), text);
     return noteIdStr;
 }
+// ── Governance high-severity roles (D-06) ───────────────────────────────────────────────────────
+// Severity is the AUTHORING ROLE, read from the note's `by` scalar via the canonical parseNote —
+// there is NO self-declared `severity:` note field (it would be gameable downward, D-06). A finding
+// authored by one of these three roles is a high-severity governance entry: a security/NFR finding,
+// an architecture decision, or a release verdict. The admission-guard hook (Plan 25-02) classifies
+// from this SAME set, so the in-script tier and the hook tier cannot diverge.
+const HIGH_SEVERITY_ROLES = ["security-nfr", "architect-design", "release-manager"];
+// ── The single global governance audit-ledger path (GOV-02, D-08) ───────────────────────────────
+// Under audit_retention: retained, admit() appends one admission-record event here. One durable
+// end-to-end auditor trail (OQ-2). This is the governance RECORD ledger — NOT a note-body store and
+// NOT a compaction artifact (D-09): it never touches the compaction code path.
+const AUDIT_LEDGER_RELPATH = [".grugops", "audit", "admissions.jsonl"];
 // ── admit: the context-aware admission cross-check (D-01/D-10 — the ONLY context-reading path). ──
 // Given a candidate note text for a task, run the structural validate() first; then, only when the
 // note is a `finding` carrying a §14-gate#<id> stamp, cross-check that <id> against a LIVE GREEN
@@ -746,7 +758,22 @@ export function emitVerdict(task, id, contextRoot = DEFAULT_CONTEXT_ROOT, at = n
 // the human-set session variable and denies an un-approved high-severity admission (the agent's own
 // child env can never reach that variable). Keeping this a DISTINCT function preserves the D-10
 // separation: validate() stays pure; only admit() reads context; the hook holds the human gate.
-export function admit(task, text, contextRoot = DEFAULT_CONTEXT_ROOT) {
+//
+// GOVERNANCE TIERS (Plan 25-03):
+//   - D-04 in-script refusal (defense-in-depth): when human_admission ≠ off, a high-severity finding
+//     (by ∈ HIGH_SEVERITY_ROLES) lacking a human:<name> stamp is refused, NAMING the fault — exactly
+//     like the validate() refuse-self set, NEVER rewriting the note (the no-fabrication floor). This
+//     is the WEAKER, self-settable tier (D-05): an in-script check is settable in admit()'s own child
+//     env, so it covers the four non-CC CLIs at the script level but is NOT the un-forgeable primary
+//     (that is the separate admission-guard hook, Plan 25-02). The dial is read via the shared
+//     readGovernanceConfig — the SAME read path the hook uses — so the two tiers cannot diverge (OQ-3).
+//   - GOV-02 audit ledger: under audit_retention: retained, a successful admission appends one
+//     fixed-key JSONL event to the single global .grugops/audit/admissions.jsonl. Under git (the lean
+//     default) nothing new is written (the audit stays implicit in git history).
+//
+// repoRoot resolves BOTH the governance config (readGovernanceConfig) AND the audit-ledger location;
+// it defaults to the script's own repo root (ROOT). Tests pass an explicit temp root.
+export function admit(task, text, contextRoot = DEFAULT_CONTEXT_ROOT, repoRoot = ROOT) {
     assertSafeTask(task);
     // Structural gate first: a structurally invalid note is never admitted (D-11 strict-reject).
     const findings = validate(text);
@@ -771,7 +798,58 @@ export function admit(task, text, contextRoot = DEFAULT_CONTEXT_ROOT) {
             ];
         }
     }
+    // ── D-04 governance defense-in-depth refusal (the weaker, self-settable tier, D-05) ────────────
+    // Read the human_admission dial via the ONE shared path (OQ-3). When the dial is on (≠ off) and
+    // this is a high-severity governance finding (by ∈ HIGH_SEVERITY_ROLES) that carries NO human:<name>
+    // disposition, REFUSE and name the fault — mirroring the validate() refuse-self set exactly. We push
+    // a finding; we NEVER silently rewrite the note (the no-fabrication floor). The dials only ADD this
+    // refusal; there is no value that removes a floor refusal (SC3).
+    const gov = readGovernanceConfig(repoRoot);
+    const isHighSeverity = scalars.kind === "finding" &&
+        HIGH_SEVERITY_ROLES.includes((scalars.by ?? "").trim());
+    if (isHighSeverity && gov.human_admission !== "off" && !HUMAN_STAMP_RE.test(vb)) {
+        return [
+            `admission REFUSED (human_admission: ${gov.human_admission}): a high-severity governance entry ` +
+                `authored by "${(scalars.by ?? "").trim()}" (security, architecture, or release) requires a ` +
+                `named human disposition (verified_by: human:NAME) under the active human_admission setting. ` +
+                `Admission is refused until a named human disposes it. This is the in-script defense-in-depth ` +
+                `tier; on Claude Code the un-forgeable gate is the separate admission-guard hook.`,
+        ];
+    }
+    // ── GOV-02 audit ledger (retained mode only) ───────────────────────────────────────────────────
+    // Admission is decided (no findings remain → admitted). Under audit_retention: retained, append ONE
+    // fixed-key JSONL event recording the admission RECORD — never the note body (D-09), never the
+    // compaction path. Under git (lean default) write nothing new.
+    if (gov.audit_retention === "retained") {
+        appendAuditLedger(repoRoot, scalars, isHighSeverity, vb);
+    }
     return [];
+}
+// ── appendAuditLedger: append one fixed-key admission-record event (GOV-02, D-08/D-09/D-10). ─────
+// The sole sanctioned writer of the governance audit ledger. It records the admission RECORD only —
+// id / kind / by / severity / verified_by / disposed_by / at — NOT the note body and with NO overlap
+// with the compaction (note-body verbosity) code path. The fixed key order mirrors the toJsonl()
+// discipline so each line is byte-reproducible. The .grugops/audit/ directory is created on demand.
+function appendAuditLedger(repoRoot, scalars, isHighSeverity, verifiedBy) {
+    const auditDir = join(repoRoot, AUDIT_LEDGER_RELPATH[0], AUDIT_LEDGER_RELPATH[1]);
+    const ledgerPath = join(auditDir, AUDIT_LEDGER_RELPATH[2]);
+    mkdirSync(auditDir, { recursive: true });
+    // disposed_by: the named human who disposed a high-severity entry (human:NAME), else null. Derived
+    // from the admitting stamp — NOT a separate note field.
+    const disposedBy = HUMAN_STAMP_RE.test(verifiedBy) ? verifiedBy : null;
+    // severity is the CLASSIFICATION derived from `by` (D-06), not a note-body field.
+    const event = {
+        id: scalars.id ?? "",
+        kind: scalars.kind ?? "",
+        by: (scalars.by ?? "").trim(),
+        severity: isHighSeverity ? "high" : "routine",
+        verified_by: verifiedBy,
+        disposed_by: disposedBy,
+        at: scalars.at ?? "",
+    };
+    // Append-only: never truncate or rewrite a prior line. JSON.stringify of the literal above fixes
+    // the key order, so the line is byte-reproducible (the toJsonl shape).
+    appendFileSync(ledgerPath, JSON.stringify(event) + "\n", "utf8");
 }
 // ── cell(): escape free-text before it enters a pipe-delimited markdown table cell (T-20-02). ───
 // Cloned from generate-catalog.ts: backslash first, then pipe, then flatten newlines to a space.
@@ -903,11 +981,12 @@ if (isMain) {
             const task = rest[0];
             const noteFile = rest[1];
             const contextRoot = rest[2]; // optional explicit root (tests pass a temp dir)
+            const repoRoot = rest[3]; // optional governance/audit root (tests pass a temp dir); defaults to ROOT
             if (!task || !noteFile) {
-                console.error("usage: context-io.js admit <task> <noteFile> [contextRoot]");
+                console.error("usage: context-io.js admit <task> <noteFile> [contextRoot] [repoRoot]");
                 process.exit(1);
             }
-            const findings = admit(task, readFileSync(noteFile, "utf8"), contextRoot ?? DEFAULT_CONTEXT_ROOT);
+            const findings = admit(task, readFileSync(noteFile, "utf8"), contextRoot ?? DEFAULT_CONTEXT_ROOT, repoRoot ?? ROOT);
             if (findings.length > 0) {
                 for (const f of findings)
                     console.error(f);

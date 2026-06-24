@@ -616,6 +616,103 @@ describe("context-io.js — CRLF round-trip admission (CR-01)", () => {
   });
 });
 
+// ── D-04 high-severity in-script refusal (defense-in-depth, never rewrite) ────────────────────────
+// admit() refuses a high-severity governance finding (by ∈ {security-nfr, architect-design,
+// release-manager}, D-06) that lacks a human:NAME stamp when human_admission ≠ off, NAMING the fault
+// and NEVER rewriting the note (the no-fabrication floor). The dial is read via the SHARED
+// readGovernanceConfig (OQ-3) — the same path the hook uses. This is the WEAKER self-settable tier
+// (D-05) covering the four non-CC CLIs at the script level; the un-forgeable primary is the hook.
+describe("d-04 high-severity in-script refusal", () => {
+  // Write a factory.config.json under a temp repoRoot with the given context dial values, returning
+  // the repoRoot to pass as admit()'s 4th argument. readGovernanceConfig resolves this exact path.
+  function repoWithGovernance(context: Record<string, string>): string {
+    const root = freshTmp("d04-repo-");
+    mkdirSync(join(root, ".grugops"), { recursive: true });
+    writeFileSync(
+      join(root, ".grugops", "factory.config.json"),
+      JSON.stringify({ context }, null, 2),
+    );
+    return root;
+  }
+
+  // A high-severity finding stamped with a real §14-gate#<id>, plus a planted live green verdict so
+  // the D-01 cross-check PASSES — isolating D-04 as the deciding factor. Returns {contextRoot, text}.
+  function highSevGateStamped(by: string): { contextRoot: string; text: string } {
+    const contextRoot = freshTmp("d04-ctx-");
+    const task = "d04-task";
+    const id = "RUN-D04-GREEN";
+    mod.emitVerdict(task, id, contextRoot);
+    const text = goodNoteText({ kind: "finding", by, verified_by: `§14-gate#${id}` });
+    return { contextRoot, text };
+  }
+
+  it("REFUSES a high-severity finding (by: security-nfr) lacking a human stamp under high-severity — names the fault", () => {
+    const repoRoot = repoWithGovernance({ human_admission: "high-severity" });
+    const { contextRoot, text } = highSevGateStamped("security-nfr");
+    const findings = mod.admit("d04-task", text, contextRoot, repoRoot);
+    expect(findings.length).toBeGreaterThan(0);
+    expect(findings.join("\n")).toContain("human_admission");
+    expect(findings.join("\n")).toContain("security-nfr");
+    // No rewrite: the input note text is unchanged (admit returns findings, never mutates the note).
+    expect(text).toContain("by: security-nfr");
+  });
+
+  it("does NOT fire when the finding carries a verified_by: human:alice stamp under high-severity", () => {
+    const repoRoot = repoWithGovernance({ human_admission: "high-severity" });
+    const contextRoot = freshTmp("d04-human-");
+    const text = goodNoteText({
+      kind: "finding",
+      by: "security-nfr",
+      verified_by: "human:alice",
+    });
+    const findings = mod.admit("d04-task-human", text, contextRoot, repoRoot);
+    expect(findings).toEqual([]); // admitted; the human stamp is present
+  });
+
+  it("does NOT fire for a routine finding (by: software-engineer) under high-severity", () => {
+    const repoRoot = repoWithGovernance({ human_admission: "high-severity" });
+    const contextRoot = freshTmp("d04-routine-");
+    const task = "d04-routine";
+    const id = "RUN-D04-ROUTINE";
+    mod.emitVerdict(task, id, contextRoot);
+    const text = goodNoteText({
+      kind: "finding",
+      by: "software-engineer",
+      verified_by: `§14-gate#${id}`,
+    });
+    const findings = mod.admit(task, text, contextRoot, repoRoot);
+    expect(findings).toEqual([]); // routine roles are not high-severity
+  });
+
+  it("does NOT fire for a high-severity finding under human_admission: off (lean default)", () => {
+    const repoRoot = repoWithGovernance({ human_admission: "off" });
+    const { contextRoot, text } = highSevGateStamped("architect-design");
+    const findings = mod.admit("d04-task", text, contextRoot, repoRoot);
+    expect(findings).toEqual([]); // lean mode adds no human stop
+  });
+
+  it("FIRES for a high-severity finding lacking a human stamp under human_admission: all", () => {
+    const repoRoot = repoWithGovernance({ human_admission: "all" });
+    const { contextRoot, text } = highSevGateStamped("release-manager");
+    const findings = mod.admit("d04-task", text, contextRoot, repoRoot);
+    expect(findings.length).toBeGreaterThan(0);
+    expect(findings.join("\n")).toContain("release-manager");
+  });
+
+  it("the refusal is additive (a finding string) and admit returns [] only when no D-04 finding is present", () => {
+    // The same high-severity note admits cleanly once a human stamp is present (proving the D-04
+    // branch is the ONLY thing the dial adds — remove the gap and admission succeeds).
+    const repoRoot = repoWithGovernance({ human_admission: "all" });
+    const contextRoot = freshTmp("d04-additive-");
+    const stamped = goodNoteText({
+      kind: "finding",
+      by: "security-nfr",
+      verified_by: "human:bob",
+    });
+    expect(mod.admit("d04-additive", stamped, contextRoot, repoRoot)).toEqual([]);
+  });
+});
+
 // ── Exported canonical parser contract (IN-02, round-4 oracle unification) ────────────────────────
 // parseNote is now an EXPORT — the single canonical frontmatter parser. The compactor's read path
 // adopts THIS function so the path the carve-out oracle parses cannot drift from the path appendNote
