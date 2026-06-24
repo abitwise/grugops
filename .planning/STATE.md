@@ -4,17 +4,17 @@ milestone: v2.0
 milestone_name: Decentralized Factory — Shared Verified Context
 current_phase: 25
 current_phase_name: governance-on-a-dial
-status: executing
-stopped_at: Phase 25 context gathered
-last_updated: "2026-06-24T07:05:27.634Z"
+status: verifying
+stopped_at: Phase 25 plan 03 tasks 1-3 executed + committed; STOPPED at the 25-03-04 blocking checkpoint
+last_updated: "2026-06-24T07:19:58.198Z"
 last_activity: 2026-06-24
 last_activity_desc: Phase 25 execution started
 progress:
   total_phases: 7
-  completed_phases: 5
+  completed_phases: 6
   total_plans: 28
-  completed_plans: 28
-  percent: 71
+  completed_plans: 29
+  percent: 86
 ---
 
 # Project State
@@ -30,7 +30,7 @@ See: .planning/PROJECT.md (updated 2026-06-16 — after v1.2 milestone)
 
 Phase: 25 (governance-on-a-dial) — EXECUTING
 Plan: 3 of 3
-Status: Ready to execute
+Status: Phase complete — ready for verification
 Last activity: 2026-06-24 — Phase 25 execution started
 
 ## Performance Metrics
@@ -182,6 +182,7 @@ Last activity: 2026-06-24 — Phase 25 execution started
 | Phase 24 P04 | 6min | 2 tasks | 4 files |
 | Phase 24 P05 | 70m | 3 tasks | 170 files |
 | Phase 25 P01 | 7min | 2 tasks | 6 files |
+| Phase 25 P03 | 12 | 3 tasks | 4 files |
 
 ## Accumulated Context
 
@@ -406,6 +407,8 @@ Recent decisions affecting current work:
 - [Phase ?]: 24-04: removed seedState plans/handoffs/ mkdir + the plans/handoffs doctor ref in lockstep (MIGR-02) — fresh installs leave the dir absent, --check still green
 - [Phase ?]: 25-01: readGovernanceConfig fails OPEN to lean (reader never throws); the 25-02 hook fails CLOSED on a matched admit, not the reader
 - [Phase ?]: 25-01: the governance reader returns present values verbatim (no allowed-set validation) so the 25-03 floor-sweep can prove a bogus value still refuses
+- [Phase ?]: 25-03: admit() D-04 in-script refusal is the weaker self-settable tier (D-05); the un-forgeable primary is the Plan-25-02 hook
+- [Phase ?]: 25-03: GOV-02 ledger writes one fixed-key JSONL admission RECORD (id/kind/by/severity/verified_by/disposed_by/at) under retained, nothing under git; never the note body, separate from compaction (D-09)
 
 ### Pending Todos
 
@@ -455,9 +458,9 @@ Items acknowledged and deferred at the **v1.2 milestone close on 2026-06-16** (1
 
 ## Session Continuity
 
-Last session: 2026-06-24T07:05:27.628Z
-Stopped at: Phase 25 context gathered
-Resume file: .planning/phases/25-governance-on-a-dial/25-CONTEXT.md
+Last session: 2026-06-24T07:19:58.192Z
+Stopped at: Phase 25 plan 03 tasks 1-3 executed + committed; STOPPED at the 25-03-04 blocking checkpoint
+Resume file: Task 25-03-04 (checkpoint:human-verify, gate=blocking) — independent SC3 red-team pending
 
 ## Operator Next Steps
 
