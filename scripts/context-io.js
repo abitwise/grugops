@@ -64,7 +64,12 @@ const GATE_IDENTITY = "§14-gate";
 // ── The two accepted verified_by grammars (D-05/D-06/D-07) ──────────────────────────────────────
 // Anchored allowlists modeled on TASK_NAME_RE — only these two grammars admit a `finding`:
 //   - §14-gate#<id>  the workhorse; admission cross-checks a live green verdict (D-01).
-//   - human:<name>   the escalation valve (D-07); its un-forgeability is layered in Phase 25.
+//   - human:<name>   the escalation valve (D-07). Its un-forgeable signal is now delivered by the
+//                    separate PreToolUse `admission-guard` hook: a distinct process that reads the
+//                    human-set session variable the agent's own child env cannot reach (mirroring
+//                    the prod-deploy guard). That is the Claude Code primary tier; the four non-CC
+//                    CLIs degrade to the in-script admit() refusal plus a prompt-level "stop, ask a
+//                    named human," documented honestly as not mechanically un-forgeable (D-04/D-05).
 // There is NO separate passing-test-reference grammar: a passing test IS a green gate run, so the
 // gate grammar already covers it (D-05/D-06). The id/name segment reuses the task-name allowlist.
 const GATE_STAMP_RE = /^§14-gate#[A-Za-z0-9._-]+$/;
@@ -737,8 +742,10 @@ export function emitVerdict(task, id, contextRoot = DEFAULT_CONTEXT_ROOT, at = n
 // note is a `finding` carrying a §14-gate#<id> stamp, cross-check that <id> against a LIVE GREEN
 // verdict record under the task (Posture B — format-trust alone is refused). Returns a findings
 // array (empty = admitted). A `human:<name>` stamp passes structurally and is NOT gate-cross-checked
-// (its un-forgeability is Phase 25). Keeping this a DISTINCT function preserves the D-10 separation:
-// validate() stays pure; only admit() reads context.
+// here; its un-forgeable enforcement is the separate PreToolUse `admission-guard` hook, which reads
+// the human-set session variable and denies an un-approved high-severity admission (the agent's own
+// child env can never reach that variable). Keeping this a DISTINCT function preserves the D-10
+// separation: validate() stays pure; only admit() reads context; the hook holds the human gate.
 export function admit(task, text, contextRoot = DEFAULT_CONTEXT_ROOT) {
     assertSafeTask(task);
     // Structural gate first: a structurally invalid note is never admitted (D-11 strict-reject).

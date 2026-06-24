@@ -104,9 +104,13 @@ FAIL when `verified_by` is empty, is a literal `self` / `me` / `agent`, equals t
 `by` (self-stamp), is a DeLM invalid-evidence phrase, or matches neither accepted grammar — the
 refuse-self FAIL set. A `verified_by: §14-gate#<id>` stamp additionally cross-checks a live GREEN
 gate verdict carrying that per-run id (Posture B): a stamp that matches no live green verdict is
-refused. A `human:<name>` stamp is accepted structurally (its un-forgeable human-set signal is
-layered in Phase 25). The reserved `by: §14-gate` identity is itself a structural FAIL on any
-note except the gate's own verdict emission — the one root-of-trust carve-out.
+refused. A `human:<name>` stamp is accepted structurally; its un-forgeable human-set signal is
+delivered by the separate PreToolUse `admission-guard` hook — a distinct process that reads the
+human-set session variable the agent's own child env cannot reach (mirroring the prod-deploy guard).
+That hook is the Claude Code primary tier, gated by the `human_admission` dial; the four non-CC CLIs
+degrade to the in-script `admit()` refusal plus a prompt-level "stop, ask a named human," documented
+honestly as not mechanically un-forgeable (D-04/D-05). The reserved `by: §14-gate` identity is itself
+a structural FAIL on any note except the gate's own verdict emission — the one root-of-trust carve-out.
 
 ## The six note kinds
 
