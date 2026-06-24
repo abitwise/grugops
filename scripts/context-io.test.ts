@@ -27,6 +27,7 @@ import {
   writeFileSync,
   readFileSync,
   readdirSync,
+  existsSync,
   rmSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
@@ -710,6 +711,109 @@ describe("d-04 high-severity in-script refusal", () => {
       verified_by: "human:bob",
     });
     expect(mod.admit("d04-additive", stamped, contextRoot, repoRoot)).toEqual([]);
+  });
+});
+
+// ── GOV-02 audit-retention ledger (retained → one JSONL event; git → nothing) ─────────────────────
+// Under audit_retention: retained, a successful admission appends ONE fixed-key JSONL event to a
+// single global .grugops/audit/admissions.jsonl (append-only, byte-reproducible via the toJsonl
+// shape). Under git (lean default) NOTHING new is written. The event records the admission RECORD
+// (id/kind/by/severity/verified_by/disposed_by/at) — never the note body (D-09), never a compaction
+// duplicate. The dial is read via the SHARED readGovernanceConfig (OQ-3).
+describe("audit-ledger", () => {
+  function repoWithAudit(audit_retention: string): string {
+    const root = freshTmp("ledger-repo-");
+    mkdirSync(join(root, ".grugops"), { recursive: true });
+    writeFileSync(
+      join(root, ".grugops", "factory.config.json"),
+      JSON.stringify({ context: { audit_retention } }, null, 2),
+    );
+    return root;
+  }
+
+  // The single global ledger path under a repoRoot.
+  function ledgerPath(repoRoot: string): string {
+    return join(repoRoot, ".grugops", "audit", "admissions.jsonl");
+  }
+
+  // A routine human-stamped finding that admits cleanly (no D-04 gate, no §14-gate cross-check).
+  function routineHumanFinding(): string {
+    return goodNoteText({
+      kind: "finding",
+      by: "software-engineer",
+      verified_by: "human:carol",
+    });
+  }
+
+  it("retained mode: one admission appends exactly ONE valid JSONL line with the fixed key order", () => {
+    const repoRoot = repoWithAudit("retained");
+    const contextRoot = freshTmp("ledger-ctx-");
+    const findings = mod.admit("ledger-task", routineHumanFinding(), contextRoot, repoRoot);
+    expect(findings).toEqual([]); // admitted
+    const lines = readFileSync(ledgerPath(repoRoot), "utf8").split("\n").filter((l) => l.length > 0);
+    expect(lines.length).toBe(1);
+    const event = JSON.parse(lines[0]);
+    // Fixed key order: id, kind, by, severity, verified_by, disposed_by, at.
+    expect(Object.keys(event)).toEqual([
+      "id",
+      "kind",
+      "by",
+      "severity",
+      "verified_by",
+      "disposed_by",
+      "at",
+    ]);
+    expect(event.kind).toBe("finding");
+    expect(event.by).toBe("software-engineer");
+    expect(event.severity).toBe("routine");
+    expect(event.verified_by).toBe("human:carol");
+    expect(event.disposed_by).toBe("human:carol");
+    // The note BODY is NOT recorded (D-09): the ledger has no body/text field.
+    expect(event).not.toHaveProperty("body");
+  });
+
+  it("retained mode: two admissions produce exactly two lines (append-only, prior line preserved)", () => {
+    const repoRoot = repoWithAudit("retained");
+    const contextRoot = freshTmp("ledger-ctx2-");
+    mod.admit("ledger-task-a", routineHumanFinding(), contextRoot, repoRoot);
+    mod.admit("ledger-task-b", routineHumanFinding(), contextRoot, repoRoot);
+    const lines = readFileSync(ledgerPath(repoRoot), "utf8").split("\n").filter((l) => l.length > 0);
+    expect(lines.length).toBe(2);
+    // Each line is independently valid JSON.
+    for (const l of lines) expect(() => JSON.parse(l)).not.toThrow();
+  });
+
+  it("retained mode: a high-severity human-disposed admission records severity:high and disposed_by", () => {
+    const repoRoot = repoWithAudit("retained");
+    const contextRoot = freshTmp("ledger-highsev-");
+    const text = goodNoteText({
+      kind: "finding",
+      by: "security-nfr",
+      verified_by: "human:dave",
+    });
+    // human_admission defaults to off here, so the D-04 gate does not fire; admission succeeds.
+    const findings = mod.admit("ledger-highsev", text, contextRoot, repoRoot);
+    expect(findings).toEqual([]);
+    const lines = readFileSync(ledgerPath(repoRoot), "utf8").split("\n").filter((l) => l.length > 0);
+    const event = JSON.parse(lines[0]);
+    expect(event.severity).toBe("high");
+    expect(event.disposed_by).toBe("human:dave");
+  });
+
+  it("git mode (lean default): NO .grugops/audit/ directory and NO ledger file are created", () => {
+    const repoRoot = repoWithAudit("git");
+    const contextRoot = freshTmp("ledger-git-");
+    const findings = mod.admit("ledger-git-task", routineHumanFinding(), contextRoot, repoRoot);
+    expect(findings).toEqual([]); // admitted
+    expect(existsSync(join(repoRoot, ".grugops", "audit"))).toBe(false);
+    expect(existsSync(ledgerPath(repoRoot))).toBe(false);
+  });
+
+  it("absent config (zero-config) → defaults to git → nothing written", () => {
+    const repoRoot = freshTmp("ledger-nocfg-"); // no factory.config.json at all
+    const contextRoot = freshTmp("ledger-nocfg-ctx-");
+    mod.admit("ledger-nocfg-task", routineHumanFinding(), contextRoot, repoRoot);
+    expect(existsSync(join(repoRoot, ".grugops", "audit"))).toBe(false);
   });
 });
 
