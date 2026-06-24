@@ -214,7 +214,7 @@ Plans:
   2. `context.audit_retention: git|retained` controls audit-trail retention, and all three config files are updated in lockstep with lean defaults preserved (zero-config still runs lean).
   3. The un-dialable safety floor is unchanged and not bypassable by any dial setting — verify-before-write, no-fabrication, test-integrity, and humans-hold-merge/deploy all hold regardless of governance configuration.
 
-**Plans**: 1/3 plans executed
+**Plans**: 2/3 plans executed
 Plans:
 **Wave 1**
 
@@ -222,7 +222,7 @@ Plans:
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
-- [ ] 25-02-PLAN.md — the GOV-01 un-forgeable admission-guard PreToolUse hook + second hooks.json matcher + close the Phase-25 deferral markers (Wave 2)
+- [x] 25-02-PLAN.md — the GOV-01 un-forgeable admission-guard PreToolUse hook + second hooks.json matcher + close the Phase-25 deferral markers (Wave 2)
 
 **Wave 3** *(blocked on Wave 2 completion)*
 
@@ -270,7 +270,7 @@ Plans:
 | 22. Memory & Trajectory Compaction | v2.0 | 9/9 | Complete    | 2026-06-19 |
 | 23. Parallel Execution & Orchestrator-as-Decomposer | v2.0 | 3/3 | Complete    | 2026-06-21 |
 | 24. Clean Handoff Removal & Traceability Migration | v2.0 | 5/5 | Complete    | 2026-06-22 |
-| 25. Governance-on-a-Dial | v2.0 | 1/3 | In Progress|  |
+| 25. Governance-on-a-Dial | v2.0 | 2/3 | In Progress|  |
 | 26. Dogfood, Dual-Path Oracle & A3/DOG-02 Retirement | v2.0 | 0/? | Pending | - |
 
 **Totals:** 26 phases · 92 plans complete · 3 milestones shipped (v1.0 + v1.1 + v1.2). Active milestone: **v2.0 Decentralized Factory — Shared Verified Context** (Phases 20–26, 28 requirements, 13 plans executed across Phases 20–22). Phase 20: all 4 plans executed (2 waves) — awaiting phase verification. Phase 21: complete — 4/4 plans (incl. CR-01 CRLF gap-closure 21-04); verification passed 4/4. Phase 22: all 6 plans executed 2026-06-18; **round 5 (22-06) re-verified 2026-06-18 = GAPS_FOUND (3/4 must-haves)**. Round 5 GENUINELY CLOSED the 4th bypass class (whitespace/parser-projection line-shape drift) — parseNote.malformedLines gate (a) + shared validate() gate (b) on every raw+promoted note's verbatim bytes, RED→GREEN vs the COMMITTED compactor.js, freshness exit 0, 395 non-e2e tests green, held-out line-shape matrix. BUT a 5th DISTINCT CMP-02 bypass was found (22-REVIEW.md CR-01) and independently reproduced by orchestrator + verifier against the committed compactor.js — MULTI-NOTE THREAD FILE: writeThread/composeThreadNote append each note as a fence into ONE threads/<agent>.md, but readNoteDir→parseNote reads only the FIRST fence (non-greedy regex; no splitter exists despite the module's contract comment), so a §14-gate-verified finding / required failed-attempt buried as note #2+ is invisible to the round-5 gates, the byte-equal loop, and the required-survival set → silently dropped at exit 0. SC1/SC3/SC4 pass; SC2/CMP-02 still BLOCKED. CMP-01 + CMP-03 verified. Green suite ≠ proof — 5th time (the corpus writes one note per .md file, never the production multi-note shape). Fix (round 6): a shared splitNotes() so the read path reads the same per-note set the write path emits, + a held-out multi-note RED test. Next: /gsd-plan-phase 22 --gaps (round 6), then re-verify Phase 22, then Phase 23.
