@@ -35,7 +35,7 @@
 // Vitest globals:false (the repo default) → import test fns explicitly.
 
 import { describe, it, expect, afterAll } from "vitest";
-import { execFileSync } from "node:child_process";
+import { execFileSync, spawnSync } from "node:child_process";
 import {
   mkdtempSync,
   mkdirSync,
@@ -49,8 +49,10 @@ import { pathToFileURL } from "node:url";
 
 const ROOT = join(import.meta.dirname, "..");
 const CONTEXT_IO_JS = join(ROOT, "scripts", "context-io.js");
+const GUARD_JS = join(ROOT, "hooks", "admission-guard.js");
 const TWIN_MD = join(ROOT, "agent-factory/config/factory.config.md");
 const KIT_JSON = join(ROOT, "agent-factory/config/factory.config.json");
+const APPROVAL = "GRUGOPS_ADMISSION_APPROVED_BY";
 
 // The frozen prod-deploy-guard source blob (D-02). hooks/guard.ts must hash to this at every dial
 // value — admission work must never touch the deploy guard. This is the committed-tree blob recorded
@@ -286,5 +288,196 @@ describe("SC3 floor-invariance — every governance dial value (incl. garbage) s
       const findings = mod.admit(task, text, contextRoot, repoRoot);
       expect(findings.length, "OFF (mis-cased) must not be read as the off sentinel").toBeGreaterThan(0);
     });
+  });
+});
+
+// ════════════════════════════════════════════════════════════════════════════════════════════════
+// 25-04 GAP-CLOSURE — the HOOK tier (the un-forgeable primary), not just admit()
+//
+// The 25-VERIFICATION.md red-team found the SC3 fail-open and the SC1 matcher bypasses on the HOOK,
+// while the original 88-case sweep above asserted only the admit() (script) tier. These blocks
+// child-spawn the COMMITTED hooks/admission-guard.js (never the .ts, never the author's
+// admission-guard.test.ts) and assert the class invariant the red-team requires:
+//   - SC3: every non-`off` human_admission value (incl. typo/case/whitespace/garbage) AND a corrupt
+//     config gate a matched admit (DENY); a genuinely absent config allows a routine admit (lean).
+//   - SC1/GAP1/GAP3 (anti-whack-a-mole): across {launcher} × {prefix} × {body-context} × {LF|CRLF}
+//     a LIVE admit is gated-DENY and an INERT mention is ALLOWed — proven as a CLASS invariant over
+//     the single shell-segment parsing authority, NOT an enumeration of known launcher shapes. A
+//     launcher shape outside any narrow anchor cannot escape (one grammar walk), and an inert body
+//     cannot false-positive.
+//
+// D-12 / [[grugops-safety-invariant-green-suite-insufficient]]: this GREEN sweep is NECESSARY BUT
+// NOT SUFFICIENT. The blocking checkpoint (Task 25-04-04) requires an INDEPENDENT opus-grade
+// red-team (both the logic angle AND the input-surface angle — the P23 split) to reproduce the
+// closure adversarially against the committed .js before SC1+SC3 are considered closed.
+// ════════════════════════════════════════════════════════════════════════════════════════════════
+
+// Child-spawn the COMMITTED admission-guard.js with a clean env (never inherit a stray APPROVAL),
+// returning whether it emitted a deny. Mirrors the hooks/admission-guard.test.ts runGuard harness.
+function hookDecision(
+  command: string,
+  projectDir: string,
+  approval?: string,
+): "deny" | "allow" {
+  const baseEnv: Record<string, string> = {};
+  for (const [k, v] of Object.entries(process.env)) {
+    if (k === APPROVAL) continue;
+    if (v !== undefined) baseEnv[k] = v;
+  }
+  const env: Record<string, string> = { ...baseEnv, CLAUDE_PROJECT_DIR: projectDir };
+  if (approval !== undefined) env[APPROVAL] = approval;
+  const r = spawnSync("node", [GUARD_JS], {
+    input: JSON.stringify({ tool_input: { command } }),
+    encoding: "utf8",
+    env,
+  });
+  return (r.stdout ?? "").includes('"permissionDecision":"deny"') ? "deny" : "allow";
+}
+
+// A project dir with a chosen human_admission value (or a corrupt config) plus a high-severity note.
+const HIGH_NOTE =
+  "---\nid: n1\nby: security-nfr\nkind: finding\nverified_by: human:alice\n---\nhigh-sev body\n";
+const ROUTINE_NOTE =
+  "---\nid: n2\nby: software-engineer\nkind: observation\nverified_by:\n---\nroutine body\n";
+
+function projectWith(opts: { dial?: string; corrupt?: boolean; absent?: boolean }): {
+  dir: string;
+  highNote: string;
+  routineNote: string;
+} {
+  const dir = freshTmp("hook-floor-");
+  if (!opts.absent) {
+    mkdirSync(join(dir, ".grugops"), { recursive: true });
+    const cfgPath = join(dir, ".grugops", "factory.config.json");
+    if (opts.corrupt) writeFileSync(cfgPath, "{ this is : not json ");
+    else writeFileSync(cfgPath, JSON.stringify({ context: { human_admission: opts.dial ?? "off" } }));
+  }
+  const highNote = join(dir, "high.md");
+  const routineNote = join(dir, "routine.md");
+  writeFileSync(highNote, HIGH_NOTE);
+  writeFileSync(routineNote, ROUTINE_NOTE);
+  return { dir, highNote, routineNote };
+}
+
+describe("SC3 HOOK-tier — every non-`off` dial + a corrupt config fail CLOSED (committed admission-guard.js)", () => {
+  // The FULL garbage/typo/case/whitespace value set, swept against the HOOK (the un-forgeable tier).
+  const NON_OFF = [
+    "high-severity",
+    "all",
+    "", // empty
+    "bogus",
+    "OFF", // mis-cased
+    "High-Severity",
+    "hihg-severity", // typo
+    "all ", // trailing whitespace
+    "1",
+    "true",
+    "zZ9-garbage_random-string",
+  ];
+
+  for (const dial of NON_OFF) {
+    it(`hook DENIES a high-severity admit when human_admission=${JSON.stringify(dial)} (gate-or-stricter)`, () => {
+      const { dir, highNote } = projectWith({ dial });
+      const cmd = `node scripts/context-io.js admit my-task ${highNote}`;
+      expect(hookDecision(cmd, dir), `dial=${JSON.stringify(dial)} must gate, never off-equivalent`).toBe(
+        "deny",
+      );
+    });
+  }
+
+  it("hook ALLOWs a high-severity admit only under canonical `off` (lean)", () => {
+    const { dir, highNote } = projectWith({ dial: "off" });
+    const cmd = `node scripts/context-io.js admit my-task ${highNote}`;
+    expect(hookDecision(cmd, dir)).toBe("allow");
+  });
+
+  it("hook DENIES a matched admit when the config is present-but-unreadable (corrupt → fail-closed)", () => {
+    const { dir, highNote } = projectWith({ corrupt: true });
+    const cmd = `node scripts/context-io.js admit my-task ${highNote}`;
+    expect(hookDecision(cmd, dir)).toBe("deny");
+  });
+
+  it("hook ALLOWs a routine admit when the config is genuinely ABSENT (zero-config lean preserved)", () => {
+    const { dir, routineNote } = projectWith({ absent: true });
+    const cmd = `node scripts/context-io.js admit my-task ${routineNote}`;
+    expect(hookDecision(cmd, dir)).toBe("allow");
+  });
+});
+
+describe("SC1 anti-whack-a-mole — class invariant over {launcher}×{prefix}×{body}×{LF|CRLF}", () => {
+  // The matcher is ONE parsing authority over the shell grammar (liveTokens + isAdmitInvocation), so
+  // the proof is a CLASS invariant, not an enumeration: a LIVE admit launch on a gated high-severity
+  // un-approved note must DENY for EVERY launcher/prefix/line-ending combination, and an INERT
+  // mention (quoted / heredoc / comment) must ALLOW for EVERY combination. A hypothetical launcher
+  // shape #N is caught structurally; an inert body line #N is allowed structurally.
+  const LAUNCHERS = ["node", "npx", "tsx", "npx tsx"];
+  const LINE_ENDINGS: Array<["LF" | "CRLF", string]> = [
+    ["LF", "\n"],
+    ["CRLF", "\r\n"],
+  ];
+
+  // Build the script+verb tail for a launcher, given a note path.
+  function adminTail(launcher: string, note: string): string {
+    // npx/tsx run the .ts; node runs the .js; both reach the same admit verb.
+    const script = launcher === "node" ? "scripts/context-io.js" : "scripts/context-io.ts";
+    return `${launcher} ${script} admit my-task ${note}`;
+  }
+
+  // LIVE prefixes — each keeps the launcher a real command (must DENY when gated).
+  function livePrefixes(launcher: string, note: string, nl: string): Array<[string, string]> {
+    const tail = adminTail(launcher, note);
+    return [
+      ["none", tail],
+      ["subshell", `( ${tail} )`],
+      ["env-var", `FOO=bar ${tail}`],
+      ["env-wrapper", `env FOO=bar ${tail}`],
+      // backslash-newline line continuation between the launcher word and the rest.
+      ["continuation", tail.replace(" ", ` \\${nl}`)],
+    ];
+  }
+
+  // INERT bodies — each makes the admit text DATA (must ALLOW even when gated).
+  function inertBodies(launcher: string, note: string, nl: string): Array<[string, string]> {
+    const tail = adminTail(launcher, note);
+    return [
+      ["single-quoted", `echo '${tail}'`],
+      ["double-quoted", `echo "${tail}"`],
+      ["heredoc", `cat <<EOF${nl}${tail}${nl}EOF`],
+      ["comment", `ls # ${tail}`],
+    ];
+  }
+
+  for (const launcher of LAUNCHERS) {
+    for (const [leName, nl] of LINE_ENDINGS) {
+      // Use `all` so every matched live admit is gated regardless of severity-role parsing — the
+      // class invariant is about the MATCHER (live vs inert), isolated from severity classification.
+      it(`LIVE admit launches DENY: launcher=${JSON.stringify(launcher)} (${leName})`, () => {
+        const { dir, highNote } = projectWith({ dial: "all" });
+        for (const [prefixName, command] of livePrefixes(launcher, highNote, nl)) {
+          expect(
+            hookDecision(command, dir),
+            `live ${launcher}/${prefixName}/${leName} must be gated DENY`,
+          ).toBe("deny");
+        }
+      });
+
+      it(`INERT mentions ALLOW: launcher=${JSON.stringify(launcher)} (${leName})`, () => {
+        const { dir, highNote } = projectWith({ dial: "all" });
+        for (const [bodyName, command] of inertBodies(launcher, highNote, nl)) {
+          expect(
+            hookDecision(command, dir),
+            `inert ${launcher}/${bodyName}/${leName} must be ALLOW (data, not a live admit)`,
+          ).toBe("allow");
+        }
+      });
+    }
+  }
+
+  it("an adversary-shaped launcher the author did not enumerate is still caught (single grammar walk)", () => {
+    // A nested-subshell + assignment-prefix + continuation combination not spelled out as a named
+    // case above: the parser catches it because it walks the grammar once, not an anchor list.
+    const { dir, highNote } = projectWith({ dial: "all" });
+    const exotic = `( FOO=1 env BAR=2 node \\\nscripts/context-io.js \\\nadmit my-task ${highNote} )`;
+    expect(hookDecision(exotic, dir)).toBe("deny");
   });
 });

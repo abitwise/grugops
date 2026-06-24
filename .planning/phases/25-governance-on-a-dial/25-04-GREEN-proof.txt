@@ -84,3 +84,31 @@ admit() NAMES the self-authored stamp and defers to the un-forgeable hook; the n
 text is byte-unchanged on refusal (no-fabrication floor). The hook stays the only
 path that grants a high-severity admit.
 
+--------------------------------------------------------------------------------
+ANTI-WHACK-A-MOLE — class invariant over {launcher}×{prefix}×{body}×{LF|CRLF}
+(scripts/floor-invariance.test.ts, child-spawned vs the committed admission-guard.js)
+--------------------------------------------------------------------------------
+launchers swept:  node | npx | tsx | npx tsx
+prefixes (LIVE):  none | subshell ( ) | env-var VAR=v | env wrapper | \-continuation
+bodies (INERT):   single-quoted | double-quoted | heredoc | # comment
+line endings:     LF and CRLF
+
+  every LIVE admit launch (gated, no approval)  => DENY
+  every INERT mention (quoted/heredoc/comment)  => ALLOW
+
+[adversary-shaped exotic launcher]  => DENY
+  ( FOO=1 env BAR=2 node \<nl> scripts/context-io.js \<nl> admit my-task NOTE )
+  — a nested-subshell + double-assignment-prefix + multi-continuation combination NOT
+    enumerated as a named case; caught because the matcher walks the grammar ONCE
+    (one parsing authority), not an anchor list.
+
+================================================================================
+HOW REPRODUCED: each row was child-spawned against the COMMITTED hooks/admission-guard.js
+and scripts/context-io.js (never the .ts). The hook-tier and fuzz rows are also asserted
+in scripts/floor-invariance.test.ts (119 cases) and hooks/admission-guard.test.ts
+(55 cases); the admit()-tier forged-stamp rows in scripts/context-io.test.ts.
+
+D-12: this GREEN proof is NECESSARY-BUT-NOT-SUFFICIENT. SC1+SC3 are CLOSED only when
+the INDEPENDENT both-angle (logic + input-surface) opus red-team at Task 25-04-04
+reproduces these flips vs the committed .js. The author suite is not the gate.
+
