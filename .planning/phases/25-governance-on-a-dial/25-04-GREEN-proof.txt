@@ -44,5 +44,43 @@ D-01 floor preserved — refuse-self-set still DENIES (even with the var in env)
 --------------------------------------------------------------------------------
 [inline export approval && admit]        DENY
 
-(The dial fail-closed rows, the corrupt-config row, the forged-human-stamp row, and
-the zero-config lean ALLOW row are appended by Task 25-04-02/03 below.)
+--------------------------------------------------------------------------------
+GAP2 / SC3 — dial fail-CLOSED (every non-off value flipped ALLOW -> DENY)
+--------------------------------------------------------------------------------
+[dial=off (canonical)]                   ALLOW (no over-gate)
+[dial=high-severity (canonical)]         DENY
+[dial=all (canonical)]                   DENY
+[dial=hihg-severity (typo)]              RED ALLOW -> GREEN DENY
+[dial=High-Severity (case)]              RED ALLOW -> GREEN DENY
+[dial=all  (trailing whitespace)]        RED ALLOW -> GREEN DENY
+[dial= (empty string)]                   RED ALLOW -> GREEN DENY
+[dial=bogus]                             RED ALLOW -> GREEN DENY
+[dial=OFF (mis-cased)]                   RED ALLOW -> GREEN DENY
+[dial=1]                                 RED ALLOW -> GREEN DENY
+
+The only non-gating dial value is EXACTLY "off"; every other value is gate-or-stricter
+(gateEveryMatch — an unrecognized value gates at least as strictly as `all`).
+
+--------------------------------------------------------------------------------
+GAP2 / SC3 — corrupt config fail-CLOSED; absent config stays lean
+--------------------------------------------------------------------------------
+[corrupt config (present-but-unreadable)] RED ALLOW -> GREEN DENY
+[absent config, routine admit]            ALLOW (zero-config lean preserved)
+
+The hook consumes the richer readGovernanceConfigResult: source="unreadable" ->
+deny; source="absent" -> lean (allow routine). readGovernanceConfig's
+default-on-absent value contract is unchanged (SC2 / 25-01/02/03 preserved).
+
+--------------------------------------------------------------------------------
+GAP1 / SC1 — forged human:NAME stamp REFUSED at admit() D-04 (the weaker tier)
+--------------------------------------------------------------------------------
+[forged human:eve, by security-nfr, high-severity]  RED ADMITTED -> GREEN REFUSED
+[forged human:eve, by release-manager, all]         REFUSED
+[forged human:eve, by architect-design, off]        ADMITTED (lean adds no human stop)
+[self-authored human:alice high-severity finding]   REFUSED (no longer admitted)
+[routine finding with human:carol stamp, high-sev]  ADMITTED (backstop is high-sev-scoped)
+
+admit() NAMES the self-authored stamp and defers to the un-forgeable hook; the note
+text is byte-unchanged on refusal (no-fabrication floor). The hook stays the only
+path that grants a high-severity admit.
+

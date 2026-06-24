@@ -807,13 +807,32 @@ export function admit(task, text, contextRoot = DEFAULT_CONTEXT_ROOT, repoRoot =
     const gov = readGovernanceConfig(repoRoot);
     const isHighSeverity = scalars.kind === "finding" &&
         HIGH_SEVERITY_ROLES.includes((scalars.by ?? "").trim());
-    if (isHighSeverity && gov.human_admission !== "off" && !HUMAN_STAMP_RE.test(vb)) {
+    // Under an active dial (≠ off), a high-severity finding is refused at this in-script tier when it
+    // lacks a named human disposition. CRITICAL (the 25-04 forged-stamp backstop, GAP1): the refusal
+    // must fire for BOTH a finding with NO human:NAME stamp AND a finding carrying a SELF-AUTHORED
+    // human:NAME stamp. admit() is the weaker, self-settable tier (D-05) — it cannot itself verify
+    // that a human:NAME stamp was placed by a real human, so it cannot honor a self-authored
+    // high-severity human stamp. The ONLY path that grants a high-severity admit is the un-forgeable
+    // admission-guard hook, which reads the human-set session env the agent's child env cannot reach.
+    // Previously this branch fired only on a MISSING stamp (!HUMAN_STAMP_RE.test(vb)), so a forged
+    // `verified_by: human:eve` passed at every dial (verified RED in 25-04-RED-baseline.txt). Now a
+    // high-severity finding under an active dial is refused regardless of a self-authored human stamp;
+    // we NAME the fault and NEVER rewrite the note (the no-fabrication floor). The hook stays the only
+    // grant path; a hook-disposed admit never reaches admit() with an un-gated high-severity finding.
+    if (isHighSeverity && gov.human_admission !== "off") {
+        const hasHumanStamp = HUMAN_STAMP_RE.test(vb);
+        const fault = hasHumanStamp
+            ? `carries a self-authored human disposition stamp (verified_by: ${vb}) that this in-script ` +
+                `tier cannot verify was placed by a real human. A high-severity admission is granted ONLY ` +
+                `through the un-forgeable admission-guard hook (a human exports the approval in the launching ` +
+                `shell); a self-authored human:NAME stamp does not satisfy it.`
+            : `requires a named human disposition (verified_by: human:NAME) under the active ` +
+                `human_admission setting, granted through the un-forgeable admission-guard hook.`;
         return [
             `admission REFUSED (human_admission: ${gov.human_admission}): a high-severity governance entry ` +
-                `authored by "${(scalars.by ?? "").trim()}" (security, architecture, or release) requires a ` +
-                `named human disposition (verified_by: human:NAME) under the active human_admission setting. ` +
-                `Admission is refused until a named human disposes it. This is the in-script defense-in-depth ` +
-                `tier; on Claude Code the un-forgeable gate is the separate admission-guard hook.`,
+                `authored by "${(scalars.by ?? "").trim()}" (security, architecture, or release) ${fault} ` +
+                `Admission is refused until a named human disposes it through the hook. This is the in-script ` +
+                `defense-in-depth tier; on Claude Code the un-forgeable gate is the separate admission-guard hook.`,
         ];
     }
     // ── GOV-02 audit ledger (retained mode only) ───────────────────────────────────────────────────
@@ -954,6 +973,41 @@ export function readGovernanceConfig(repoRoot) {
     }
     // No config file at any standard location → lean default. Zero-config runs lean.
     return { ...GOVERNANCE_DEFAULTS };
+}
+export function readGovernanceConfigResult(repoRoot) {
+    const base = repoRoot ?? ROOT;
+    const candidates = [
+        join(base, ".grugops", "factory.config.json"),
+        join(base, "agent-factory", "config", "factory.config.json"),
+    ];
+    for (const path of candidates) {
+        if (!existsSync(path))
+            continue;
+        // A config file EXISTS here. Any failure to read or parse it is a read FAILURE → unreadable
+        // (fail closed), NOT an absence. This is the distinction the hook needs and the value reader
+        // (correctly) cannot make.
+        try {
+            const parsed = JSON.parse(readFileSync(path, "utf8"));
+            const context = parsed?.context;
+            if (context === undefined || context === null || typeof context !== "object") {
+                return { source: "ok", config: { ...GOVERNANCE_DEFAULTS } };
+            }
+            const human = context.human_admission;
+            const audit = context.audit_retention;
+            return {
+                source: "ok",
+                config: {
+                    human_admission: typeof human === "string" ? human : GOVERNANCE_DEFAULTS.human_admission,
+                    audit_retention: typeof audit === "string" ? audit : GOVERNANCE_DEFAULTS.audit_retention,
+                },
+            };
+        }
+        catch {
+            return { source: "unreadable", config: { ...GOVERNANCE_DEFAULTS } };
+        }
+    }
+    // No config file at any standard location → genuinely absent. Zero-config runs lean.
+    return { source: "absent", config: { ...GOVERNANCE_DEFAULTS } };
 }
 // ── CLI entrypoint (only when run directly, never on import) ────────────────────────────────────
 // import.meta.url === the executed file's URL when run via `node context-io.js ...`.

@@ -42,7 +42,7 @@
 // `permissionDecisionReason` (gives the agent a clear message). Allow = exit 0, no output.
 
 import { readFileSync } from "node:fs";
-import { parseNote, readGovernanceConfig } from "../scripts/context-io.js";
+import { parseNote, readGovernanceConfigResult } from "../scripts/context-io.js";
 
 // The human-confirm signal for admission. A human exports this in the shell that launches
 // Claude (or via settings env); the agent must never set it. The hook reads it from its OWN
@@ -346,15 +346,21 @@ if (SELF_APPROVE.test(cmd)) {
   );
 }
 
-// Read the dial via the ONE shared config-read path (Plan 25-01). Fail CLOSED: if this throws on
-// a matched admit, deny. (readGovernanceConfig is built to never throw and to return the lean
-// default on any read failure; the catch is belt-and-suspenders for any future read path.)
+// Read the dial via the richer discriminated read (Plan 25-01 reader; 25-04 result wrapper). The
+// hook — the un-forgeable tier — must FAIL CLOSED on a corrupt config, so it distinguishes a
+// genuinely ABSENT config (stay lean → allow routine) from a present-but-UNREADABLE one (deny). The
+// value reader (readGovernanceConfig) keeps its default-on-absent contract; this hook consumes the
+// richer result instead. The try/catch is belt-and-suspenders — the reader does not throw — but a
+// throw on a matched admit must also fail closed.
 let dial: string;
+let configSource: "absent" | "ok" | "unreadable";
 try {
-  // ${CLAUDE_PROJECT_DIR} is the documented hook project root (CLAUDE.md). When unset, the helper
+  // ${CLAUDE_PROJECT_DIR} is the documented hook project root (CLAUDE.md). When unset, the reader
   // falls back to its own repo root.
   const projectDir = process.env.CLAUDE_PROJECT_DIR;
-  dial = readGovernanceConfig(projectDir).human_admission;
+  const result = readGovernanceConfigResult(projectDir);
+  dial = result.config.human_admission;
+  configSource = result.source;
 } catch {
   deny(
     `Admission blocked (fail-closed): the governance configuration could not be read while ` +
@@ -363,10 +369,31 @@ try {
   );
 }
 
-// Lean default / explicit `off` → no human stop. Nothing to gate.
+// Fail CLOSED on a present-but-unreadable (corrupt / non-JSON) config: a matched admit is denied
+// pending a human, never crash-allowed. A genuinely ABSENT config is NOT a read failure — it is the
+// zero-config lean default, so it falls through to the dial logic below (which allows routine).
+if (configSource === "unreadable") {
+  deny(
+    `Admission blocked (fail-closed): the governance configuration exists but could not be parsed ` +
+      `(corrupt or non-JSON) while evaluating an admission. The hook treats an unreadable governance ` +
+      `config as gate-or-stricter. A human must repair the configuration, or export ${APPROVAL}=NAME ` +
+      `to authorize this admission explicitly.`,
+  );
+}
+
+// Canonicalize the dial fail-CLOSED. The ONLY value that does NOT gate is EXACTLY "off". Every other
+// human_admission value — a typo, garbage, a case variant, trailing whitespace, an empty string — is
+// treated as gate-or-stricter, never off-equivalent, so a typo can never open a hole (SC3). This is
+// the un-dialable-floor guarantee at the un-forgeable tier: the dials only TIGHTEN.
+//   - "off"           → no human stop (lean / explicit off). Nothing to gate.
+//   - "high-severity" → gate only the three high-severity authoring roles.
+//   - "all"           → gate EVERY matched admission.
+//   - anything else   → gate EVERY matched admission (conservative: a non-canonical value never
+//                       under-gates, so an unrecognized dial is at least as strict as `all`).
 if (dial === "off") {
   process.exit(0);
 }
+const gateEveryMatch = dial !== "high-severity"; // "all" OR any non-canonical value → gate all
 
 // Locate and re-read the named note file to classify severity by its authoring role `by`. Fail
 // CLOSED: an unreadable note or an unparsable `by` on a matched admit denies (never crash-allow).
@@ -407,15 +434,17 @@ try {
 }
 
 // Is THIS admission gated by the dial?
-//   - "all": every matched admission requires the human stamp.
-//   - "high-severity": only the three high-severity authoring roles require it.
+//   - gateEveryMatch (set for "all" AND for any non-canonical value): every matched admission
+//     requires the human stamp.
+//   - "high-severity" (the only other non-off value): only the three high-severity authoring roles.
 const isHighSeverity = HIGH_SEVERITY_ROLES.has(by);
-const isGated = dial === "all" || (dial === "high-severity" && isHighSeverity);
+const isGated = gateEveryMatch || isHighSeverity;
 
 if (isGated && !process.env[APPROVAL]) {
   const disposition =
-    dial === "all"
-      ? `Governance is set to "all": every admission requires a named human disposition.`
+    gateEveryMatch
+      ? `Governance requires a named human disposition for every admission under the active setting ` +
+        `(human_admission="${dial}").`
       : `This is a high-severity admission (by: ${by}); a high-severity governance entry requires a named human disposition.`;
   deny(
     `Admission blocked: humans decide, agents execute. ${disposition} ` +

@@ -370,4 +370,60 @@ describe("admission-guard.js (GOV-01 human-admission gate) — child-spawn deny/
       CLAUDE_PROJECT_DIR: projectAll,
     });
   });
+
+  // ── 12. Gap-closure (25-04): fail-CLOSED on a non-canonical dial value (SC3, GAP2) ────────────
+  // The hook gates on EXACTLY "off" as the only non-gating value; every other human_admission value
+  // (typo / case / whitespace / garbage / empty) is gate-or-stricter, never off-equivalent. A
+  // high-severity note with no approval var under any such value must DENY (verified RED: each
+  // previously fell through to ALLOW). A note file is needed since the gate re-reads it for routine
+  // values, so we reuse the temp-config helper with each dial.
+  function makeProjectWithNote(dial: string, noteSrc: string): { dir: string; note: string } {
+    const dir = mkdtempSync(join(tmpdir(), `adm-dial-`));
+    mkdirSync(join(dir, ".grugops"), { recursive: true });
+    writeFileSync(
+      join(dir, ".grugops", "factory.config.json"),
+      JSON.stringify({ context: { human_admission: dial } }),
+    );
+    const note = join(dir, "high.md");
+    writeFileSync(note, noteSrc);
+    return { dir, note };
+  }
+  const HIGH_NOTE_SRC =
+    "---\nid: n1\nby: security-nfr\nkind: finding\nverified_by: human:alice\n---\nhigh-sev body\n";
+
+  for (const dial of ["hihg-severity", "High-Severity", "all ", "", "bogus", "OFF", "1", "true"]) {
+    it(`deny (25-04): non-canonical human_admission=${JSON.stringify(dial)} gates a high-severity admit (fail-closed)`, () => {
+      const { dir, note } = makeProjectWithNote(dial, HIGH_NOTE_SRC);
+      expectDeny(payload(admitCmd(note)), { CLAUDE_PROJECT_DIR: dir });
+      rmSync(dir, { recursive: true, force: true });
+    });
+  }
+
+  it("allow (25-04): canonical `off` still allows a high-severity admit (no over-gate)", () => {
+    const { dir, note } = makeProjectWithNote("off", HIGH_NOTE_SRC);
+    expectAllow(payload(admitCmd(note)), { CLAUDE_PROJECT_DIR: dir });
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  // ── 13. Gap-closure (25-04): fail-CLOSED on a corrupt config; lean on a genuinely absent one ──
+  it("deny (25-04): a present-but-unreadable (corrupt) config DENIES a matched admit (fail-closed)", () => {
+    const dir = mkdtempSync(join(tmpdir(), "adm-corrupt-"));
+    mkdirSync(join(dir, ".grugops"), { recursive: true });
+    writeFileSync(join(dir, ".grugops", "factory.config.json"), "{ this is : not json ");
+    const note = join(dir, "high.md");
+    writeFileSync(note, HIGH_NOTE_SRC);
+    expectDeny(payload(admitCmd(note)), { CLAUDE_PROJECT_DIR: dir });
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  it("allow (25-04): a genuinely ABSENT config allows a routine admit (zero-config lean preserved)", () => {
+    const dir = mkdtempSync(join(tmpdir(), "adm-absent-"));
+    const note = join(dir, "routine.md");
+    writeFileSync(
+      note,
+      "---\nid: n2\nby: software-engineer\nkind: observation\nverified_by:\n---\nroutine body\n",
+    );
+    expectAllow(payload(admitCmd(note)), { CLAUDE_PROJECT_DIR: dir });
+    rmSync(dir, { recursive: true, force: true });
+  });
 });

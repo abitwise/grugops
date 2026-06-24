@@ -658,7 +658,11 @@ describe("d-04 high-severity in-script refusal", () => {
     expect(text).toContain("by: security-nfr");
   });
 
-  it("does NOT fire when the finding carries a verified_by: human:alice stamp under high-severity", () => {
+  it("REFUSES a high-severity finding carrying a self-authored human:alice stamp under high-severity (25-04 forged-stamp backstop)", () => {
+    // 25-04 backstop: admit() is the weaker self-settable tier and cannot verify that a human:NAME
+    // stamp was placed by a real human, so a self-authored high-severity human stamp is refused under
+    // an active dial. (Previously this case admitted — the exact forgeable behavior the verifier
+    // flagged. The un-forgeable hook is the only path that grants a high-severity admit.)
     const repoRoot = repoWithGovernance({ human_admission: "high-severity" });
     const contextRoot = freshTmp("d04-human-");
     const text = goodNoteText({
@@ -667,7 +671,9 @@ describe("d-04 high-severity in-script refusal", () => {
       verified_by: "human:alice",
     });
     const findings = mod.admit("d04-task-human", text, contextRoot, repoRoot);
-    expect(findings).toEqual([]); // admitted; the human stamp is present
+    expect(findings.length).toBeGreaterThan(0);
+    expect(findings.join("\n")).toContain("human:alice");
+    expect(findings.join("\n")).toContain("admission-guard hook");
   });
 
   it("does NOT fire for a routine finding (by: software-engineer) under high-severity", () => {
@@ -701,9 +707,11 @@ describe("d-04 high-severity in-script refusal", () => {
   });
 
   it("the refusal is additive (a finding string) and admit returns [] only when no D-04 finding is present", () => {
-    // The same high-severity note admits cleanly once a human stamp is present (proving the D-04
-    // branch is the ONLY thing the dial adds — remove the gap and admission succeeds).
-    const repoRoot = repoWithGovernance({ human_admission: "all" });
+    // Under `off` the dial adds NO human stop: the high-severity note admits regardless of the
+    // human:NAME stamp (the lean default). This proves the D-04 refusal is the ONLY thing an active
+    // dial adds. (Under an active dial a self-authored human:NAME stamp is now refused — see the
+    // 25-04 forged-stamp backstop block below — because admit() cannot verify a real human placed it.)
+    const repoRoot = repoWithGovernance({ human_admission: "off" });
     const contextRoot = freshTmp("d04-additive-");
     const stamped = goodNoteText({
       kind: "finding",
@@ -711,6 +719,60 @@ describe("d-04 high-severity in-script refusal", () => {
       verified_by: "human:bob",
     });
     expect(mod.admit("d04-additive", stamped, contextRoot, repoRoot)).toEqual([]);
+  });
+
+  // ── 25-04 forged-human-stamp backstop (SC1, GAP1) ───────────────────────────────────────────────
+  // admit() is the weaker, self-settable tier (D-05): it cannot verify that a `human:NAME` stamp was
+  // placed by a real human, so under an active dial it refuses a high-severity finding carrying a
+  // SELF-AUTHORED human:NAME stamp. The un-forgeable hook is the only path that grants a high-severity
+  // admit. Previously the refusal fired only on a MISSING stamp, so a forged `human:eve` passed at
+  // every dial (verified RED in 25-04-RED-baseline.txt). These cases close that gap.
+  describe("25-04 forged human:NAME backstop", () => {
+    it("REFUSES a high-severity finding carrying a self-authored human:eve stamp under high-severity (names the fault, no rewrite)", () => {
+      const repoRoot = repoWithGovernance({ human_admission: "high-severity" });
+      const { contextRoot, text } = highSevGateStamped("security-nfr");
+      // Overwrite the gate stamp with a forged self-authored human:NAME stamp.
+      const forged = text.replace(/verified_by: .*/, "verified_by: human:eve");
+      const before = forged;
+      const findings = mod.admit("d04-forge", forged, contextRoot, repoRoot);
+      expect(findings.length).toBeGreaterThan(0);
+      expect(findings.join("\n")).toContain("human_admission");
+      expect(findings.join("\n")).toContain("security-nfr");
+      // The refusal NAMES the self-authored stamp and defers to the un-forgeable hook.
+      expect(findings.join("\n")).toContain("human:eve");
+      expect(findings.join("\n")).toContain("admission-guard hook");
+      // No rewrite: the input note text is byte-unchanged (admit returns findings, never mutates).
+      expect(forged).toBe(before);
+      expect(forged).toContain("verified_by: human:eve");
+    });
+
+    it("REFUSES a forged human:eve high-severity finding under `all` as well", () => {
+      const repoRoot = repoWithGovernance({ human_admission: "all" });
+      const { contextRoot, text } = highSevGateStamped("release-manager");
+      const forged = text.replace(/verified_by: .*/, "verified_by: human:eve");
+      const findings = mod.admit("d04-forge-all", forged, contextRoot, repoRoot);
+      expect(findings.length).toBeGreaterThan(0);
+      expect(findings.join("\n")).toContain("release-manager");
+    });
+
+    it("does NOT fire for a forged human:eve high-severity stamp under `off` (lean adds no human stop)", () => {
+      const repoRoot = repoWithGovernance({ human_admission: "off" });
+      const { contextRoot, text } = highSevGateStamped("architect-design");
+      const forged = text.replace(/verified_by: .*/, "verified_by: human:eve");
+      expect(mod.admit("d04-forge-off", forged, contextRoot, repoRoot)).toEqual([]);
+    });
+
+    it("does NOT fire for a ROUTINE finding carrying a human:NAME stamp under high-severity (backstop is high-severity-scoped)", () => {
+      // A routine role is not high-severity, so admit() does not second-guess its human stamp.
+      const repoRoot = repoWithGovernance({ human_admission: "high-severity" });
+      const contextRoot = freshTmp("d04-routine-human-");
+      const text = goodNoteText({
+        kind: "finding",
+        by: "software-engineer",
+        verified_by: "human:carol",
+      });
+      expect(mod.admit("d04-routine-human", text, contextRoot, repoRoot)).toEqual([]);
+    });
   });
 });
 
