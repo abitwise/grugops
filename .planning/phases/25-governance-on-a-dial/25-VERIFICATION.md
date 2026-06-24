@@ -110,6 +110,47 @@ human_verification:
 
 # Phase 25: Governance-on-a-Dial Verification Report
 
+> ## ⚠ UPDATE 2026-06-25 — post-25-05 (round-2 gap-closure) independent red-team: STILL gaps_found
+>
+> Round-2 gap-closure plan **25-05** was EXECUTED (tasks 01–03 committed `ffb0d75`/`4100ce4`/`4e69496`)
+> and put through its blocking **Task 25-05-04** independent both-angle (logic + input-surface) opus
+> red-team vs the committed `.js`, corroborated by the orchestrator's own child-spawn probes. The
+> author suite is fully green (743 non-e2e), `guard.ts` byte-frozen (`3501810e…`), freshness 0.
+> **25-05 CLOSED the round-2 LOGIC classes** (GAP-C non-string/corrupt/edge dial, GAP-D case/whitespace
+> severity, GAP-B self-set-behind-wrapper — all confirmed SOLID at both tiers) and the over-block
+> direction stays clean. **But the red-team reproduced THREE NEW live exploitable bypass classes
+> (+ one masked defect) → SC1 remains `gaps_found`.** This is round 3 / the **7th** green-suite-insufficient
+> catch of v2.0. Full repros + root-cause line refs + the structural root fix: `25-05-SUMMARY.md` →
+> "Independent Both-Angle Red-Team". The round-1 gap entries (frontmatter) and the post-25-04 banner
+> below are SUPERSEDED by these current findings:
+>
+> - **SC1 / matcher — path-form command modifier (INPUT-SURFACE):** `/usr/bin/env node …admit`,
+>   `/usr/bin/nice node …`, `/usr/bin/env -S node …` (invented), `/usr/bin/xargs node …`, `./nice node …`
+>   all ALLOW a gated admit. Root: round-2 basenamed only the launcher word; `isCommandPrefix`
+>   (admission-guard.ts:367-373) still tests the RAW modifier token, so a path-form modifier escapes
+>   the prefix-skip and the trailing `node` reads as an argument.
+> - **SC1 / matcher — command-substitution / backtick command word (INPUT-SURFACE):** `$(echo node) …admit`,
+>   `` `echo node` …``, `$(printf node) …`, `$(basename /usr/bin/node) …`, nested/in-modifier-slot all
+>   ALLOW. Root: `$(`/`(` are treated as segment openers (:313-314) and backticks are ungrammared, so
+>   the substitution that PRODUCES the command word fails OPEN — asymmetric with `$X` (which fails closed).
+> - **SC1 / classifier — multi-admit "shield" (LOGIC, NEW, CRITICAL):** under `high-severity`,
+>   `node …admit T <routine> ; node …admit T <high-sev>` (and `&&`/`\|`/subshell) ALLOWs. Root:
+>   `noteFileFromCommand` (admission-guard.ts:509-517) classifies only the FIRST `admit` token; the
+>   matcher is segment-aware but the severity classifier is not. The shielded high-sev note is
+>   structurally valid and may carry a forged `human:eve` stamp → forged-human high-severity admit with
+>   zero real human, through the un-forgeable PRIMARY tier on Claude Code.
+> - **SC1 / masked defect (defense-in-depth):** the hook reads `by` via `parseNote` (last-wins/malformed-
+>   tolerant) without `validate()`, so a duplicate/indented `by` mis-classifies — masked today by
+>   `admit()`'s own `validate()`. Fix for tier consistency.
+>
+> **What HELD (round-4 need NOT re-touch):** GAP-C, GAP-D, GAP-B/D-01 floor, off-case/whitespace,
+> over-block direction, the four named floor invariants, freshness, `guard.ts` byte-frozen. SC2 + the
+> GOV-02 audit ledger remain PRESERVED. **Structural root fix (anti-whack-a-mole, applied completely):**
+> resolve the effective command word over EVERY token in the leading run (basename + de-quote modifiers
+> too); fail CLOSED on EVERY dynamic command-word production (`$(…)`/backtick, not just `$X`/`eval`);
+> classify EVERY live admit segment's note (not just the first `admit`); make hook note-parsing
+> consistent with `validate()`. **Next:** `/gsd-plan-phase 25 --gaps`.
+
 > ## ⚠ UPDATE 2026-06-24T19:44Z — post-25-04 independent red-team: STILL gaps_found
 >
 > Gap-closure plan **25-04** was EXECUTED (tasks 01–03 committed `3b0c16b`/`f858f4a`/`b8382be`) and put through its blocking **Task 25-04-04** independent both-angle (logic + input-surface) opus red-team vs the committed `.js`. It **CLOSED the 6 originally-reported forms** below (subshell / `\`-continuation / `npx tsx` / bare npx/tsx / 7 garbage-STRING dials / corrupt config / forged-stamp-when-no-stamp / heredoc false-positive). **But the red-team found NEW bypasses → SC1+SC3 remain `gaps_found`.** The gap entries below are SUPERSEDED by these current findings (full repros + root-cause line refs: `25-04-SUMMARY.md` → "Independent Both-Angle Red-Team" section):
