@@ -214,7 +214,7 @@ Plans:
   2. `context.audit_retention: git|retained` controls audit-trail retention, and all three config files are updated in lockstep with lean defaults preserved (zero-config still runs lean).
   3. The un-dialable safety floor is unchanged and not bypassable by any dial setting — verify-before-write, no-fabrication, test-integrity, and humans-hold-merge/deploy all hold regardless of governance configuration.
 
-**Plans**: 4 plans (4 waves; 25-04 is gap closure for the SC1+SC3 GOV-01 bypasses)
+**Plans**: 5 plans (5 waves; 25-04 + 25-05 are gap-closure rounds for the SC1+SC3 GOV-01 bypasses)
 Plans:
 **Wave 1**
 
@@ -230,7 +230,11 @@ Plans:
 
 **Wave 4** *(gap closure — blocked on Waves 1-3; verification GAPS_FOUND 2026-06-24)*
 
-- [ ] 25-04-PLAN.md — GOV-01/SC1+SC3 gap closure: replace the ADMIT_SEGMENT regex with a real shell-segment parser (catch subshell / `\`-continuation / `npx tsx` launchers; heredoc/quoted/comment bodies inert) + the forged-human-stamp backstop in admit() + fail-closed dial & corrupt-config in the hook + anti-whack-a-mole class fuzz + both-direction RED→GREEN proof vs the committed `.js` + independent both-angle red-team checkpoint (Wave 4)
+- [ ] 25-04-PLAN.md — GOV-01/SC1+SC3 gap closure (round 1): replace the ADMIT_SEGMENT regex with a real shell-segment parser (catch subshell / `\`-continuation / `npx tsx` launchers; heredoc/quoted/comment bodies inert) + the forged-human-stamp backstop in admit() + fail-closed dial & corrupt-config in the hook + anti-whack-a-mole class fuzz + both-direction RED→GREEN proof vs the committed `.js` + independent both-angle red-team checkpoint (Wave 4) — EXECUTED (tasks 01–03 committed `3b0c16b`/`f858f4a`/`b8382be`); the blocking red-team (25-04-04) returned GAPS_FOUND → round 2 (25-05)
+
+**Wave 5** *(gap closure round 2 — blocked on Waves 1-4; 25-04-04 red-team STILL gaps_found 2026-06-24)*
+
+- [ ] 25-05-PLAN.md — GOV-01/SC1+SC3 gap closure (round 2): resolve the EFFECTIVE command word (skip command-modifier builtins / basename a path / fully de-quote / brace-group / `nodejs`) as ONE authority layered on the preserved 25-04 segmentation + fail-closed unresolvable-tail GATE (eval / `sh -c` body / env-indirection) (GAP-A) + move refuse-self-set in front of the matcher early-exit (GAP-B) + canonicalize a PRESENT non-string `human_admission` to gate-or-stricter, absent stays lean (GAP-C) + case-insensitive high-severity role match at both tiers (GAP-D) + anti-whack-a-mole command-resolution fuzz + both-direction RED→GREEN proof vs the committed `.js` + independent both-angle red-team checkpoint (Wave 5)
 
 ### Phase 26: Dogfood, Dual-Path Oracle & A3/DOG-02 Retirement
 
