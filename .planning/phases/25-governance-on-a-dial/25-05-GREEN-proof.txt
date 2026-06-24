@@ -1,0 +1,68 @@
+25-05 GREEN PROOF — the round-2 GOV-01 bypasses CLOSED vs the POST-FIX COMMITTED .js
+====================================================================================
+
+Captured AFTER each fix, against the rebuilt COMMITTED artifacts (the 22-08 / 22-09
+RED -> GREEN discipline; companion to 25-05-RED-baseline.txt, extending the 25-04 format).
+
+Every result below is a child-spawn of the COMMITTED .js (never the .ts, never the author
+test suites). This file is built incrementally across the round-2 tasks:
+  - Task 25-05-01 contributes the GAP-A matcher rows + GAP-A fail-closed-tail rows + the
+    GAP-B self-set-behind-a-wrapper rows (this section).
+  - Task 25-05-03 completes the proof set: the GAP-C non-string-dial rows + the GAP-D
+    case-variant-`by` rows + the full over-block-clean / zero-config control set.
+
+Post-Task-25-05-01 committed blob:
+    hooks/admission-guard.js   blob 1b822df14daba4cd85d19a1231fe34be283b2633
+    hooks/guard.ts             blob 3501810e21308e4b7e219679a6ca30dace9b5d66 (byte-frozen, D-02)
+
+Fixture: a high-severity note (by: security-nfr, kind: finding) under
+human_admission: high-severity, no GRUGOPS_ADMISSION_APPROVED_BY in the hook env.
+
+------------------------------------------------------------------------------------
+GAP-A / SC1 — effective-command-word resolution (every round-2 launcher now DENIES)
+------------------------------------------------------------------------------------
+[builtin-wrapper command]        => DENY  (RED was ALLOW)   command node scripts/context-io.js admit my-task NOTE
+[builtin-wrapper exec]           => DENY  (RED was ALLOW)   exec node scripts/context-io.js admit my-task NOTE
+[builtin-wrapper nice]           => DENY  (RED was ALLOW)   nice node scripts/context-io.js admit my-task NOTE
+[builtin-wrapper time]           => DENY  (RED was ALLOW)   time node scripts/context-io.js admit my-task NOTE
+[builtin-wrapper nohup]          => DENY  (RED was ALLOW)   nohup node scripts/context-io.js admit my-task NOTE
+[builtin-wrapper xargs]          => DENY  (RED was ALLOW)   xargs node scripts/context-io.js admit my-task NOTE
+[path launcher abs]              => DENY  (RED was ALLOW)   /usr/local/bin/node scripts/context-io.js admit my-task NOTE
+[path launcher rel]              => DENY  (RED was ALLOW)   ./node scripts/context-io.js admit my-task NOTE
+[alt binary nodejs]              => DENY  (RED was ALLOW)   nodejs scripts/context-io.js admit my-task NOTE
+[split-quote no"de"]             => DENY  (RED was ALLOW)   no"de" scripts/context-io.js admit my-task NOTE
+[split-quote n''ode]             => DENY  (RED was ALLOW)   n''ode scripts/context-io.js admit my-task NOTE
+[brace-group { node ..; }]       => DENY  (RED was ALLOW)   { node scripts/context-io.js admit my-task NOTE; }
+
+GAP-A fail-closed unresolvable admit-shape tail (GATES = DENY):
+[unresolvable eval]              => DENY  (RED was ALLOW)   eval "node scripts/context-io.js admit my-task NOTE"
+[unresolvable sh -c]             => DENY  (RED was ALLOW)   sh -c "node scripts/context-io.js admit my-task NOTE"
+[unresolvable bash -c]           => DENY  (RED was ALLOW)   bash -c "node scripts/context-io.js admit my-task NOTE"
+[unresolvable env-indirection]   => DENY  (RED was ALLOW)   $X scripts/context-io.js admit my-task NOTE
+
+------------------------------------------------------------------------------------
+GAP-B / SC1 floor — refuse-self-set holds even on a matcher false-negative
+------------------------------------------------------------------------------------
+(env var GRUGOPS_ADMISSION_APPROVED_BY=eve PRESENT in the hook env; still DENIES.)
+[self-set behind command]        => DENY  (RED was ALLOW)   GRUGOPS_ADMISSION_APPROVED_BY=eve command node ...admit NOTE
+[self-set behind path]           => DENY  (RED was ALLOW)   GRUGOPS_ADMISSION_APPROVED_BY=eve /usr/local/bin/node ...admit NOTE
+[self-set behind nodejs]         => DENY  (RED was ALLOW)   GRUGOPS_ADMISSION_APPROVED_BY=eve nodejs ...admit NOTE
+[self-set behind brace]          => DENY  (RED was ALLOW)   GRUGOPS_ADMISSION_APPROVED_BY=eve { node ...admit NOTE; }
+
+------------------------------------------------------------------------------------
+OVER-BLOCK-CLEAN controls (the 25-04 CR-01-inverse fail-safe — still ALLOW post-fix)
+------------------------------------------------------------------------------------
+[inert heredoc body]             => ALLOW (unchanged)       cat <<EOF\nnode ...admit my-task NOTE\nEOF
+[inert double-quoted]            => ALLOW (unchanged)       echo "node ...admit my-task NOTE"
+[inert comment]                  => ALLOW (unchanged)       ls # node ...admit my-task NOTE
+[inert path named admit]         => ALLOW (unchanged)       cat ./admit/notes.txt
+[dynamic eval no admit]          => ALLOW (unchanged)       eval "echo hi"
+[dynamic bash -c no admit]       => ALLOW (unchanged)       bash -c "ls"
+
+------------------------------------------------------------------------------------
+CONTROLS (already correct pre-fix — unchanged post-fix)
+------------------------------------------------------------------------------------
+[bare node ...admit (supported)] => DENY  (unchanged)       node scripts/context-io.js admit my-task NOTE
+[absent config routine admit]    => ALLOW (unchanged)       node ...admit my-task ROUTINE (zero-config lean)
+
+(continued in Task 25-05-03 — non-string dial + case-variant `by` rows appended below.)

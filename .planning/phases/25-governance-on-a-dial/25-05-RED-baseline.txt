@@ -1,0 +1,115 @@
+25-05 RED BASELINE — the round-2 GOV-01 bypasses reproduced vs the PRE-FIX COMMITTED .js
+========================================================================================
+
+Captured FIRST, before any source edit (the 22-08 / 22-09 RED -> GREEN discipline,
+extending the 25-04-RED-baseline.txt row format).
+
+Every result below is a child-spawn of the COMMITTED artifacts as they stood at the
+PRE-FIX HEAD 88e6b67, NOT the .ts and NOT the author's test suites:
+
+    hooks/admission-guard.js   blob 6c563d2a2eaadb764c1c5a82632b82d4a3414e7a (pre-fix)
+    scripts/context-io.js      blob 7009841568f0ff509e768494744556b8ed0e8bc5 (pre-fix)
+    hooks/guard.ts             blob 3501810e21308e4b7e219679a6ca30dace9b5d66 (byte-frozen, D-02)
+
+(NB: the 25-05 plan text cites "HEAD 2615084" as the pre-fix point; the actual current
+repo HEAD at execution time is 88e6b67 — the same pre-fix admission-guard.js/context-io.js
+content, no round-2 resolver present. grep for COMMAND_MODIFIERS / effectiveLauncher /
+nodejs in the committed admission-guard.js returned 0 matches before the fix.)
+
+Test fixture for the hook-tier rows: a high-severity note (by: security-nfr, kind:
+finding) under human_admission: high-severity, with NO GRUGOPS_ADMISSION_APPROVED_BY
+in the hook's process env. A correct gate DENIES; the PRE-FIX hook ALLOWs (the bypass).
+
+These are the FOUR round-2 root-cause classes the 25-04 independent both-angle red-team
+found (25-04-SUMMARY.md "Independent Both-Angle Red-Team") that the author's 174-case
+suites missed — the parser solved SEGMENTATION (25-04) but not command-RESOLUTION, plus
+two type/normalization holes upstream of the dial hardening.
+
+----------------------------------------------------------------------------------------
+GAP-A / SC1 — matcher false-NEGATIVES (command-RESOLUTION, a real gated admit slips PAST)
+----------------------------------------------------------------------------------------
+Root cause: LAUNCHERS = new Set(["node","npx","tsx"]) (admission-guard.ts:88) matched as a
+LITERAL command word (!LAUNCHERS.has(tokens[cmdIdx].value), :265) — an anchor list, not
+effective-command-word resolution. The prefix-skip handles only VAR=/env (:240-244), the
+quote-strip un-quotes only a WHOLE-token run (/^(['"])([\s\S]*)\1$/ :118), nodejs is absent,
+a path is never basenamed, a `{ … }` brace group is not a recognized command context.
+
+[builtin-wrapper command]        => ALLOW  (bypass live)   command node scripts/context-io.js admit my-task NOTE
+[builtin-wrapper exec]           => ALLOW  (bypass live)   exec node scripts/context-io.js admit my-task NOTE
+[builtin-wrapper nice]           => ALLOW  (bypass live)   nice node scripts/context-io.js admit my-task NOTE
+[builtin-wrapper time]           => ALLOW  (bypass live)   time node scripts/context-io.js admit my-task NOTE
+[builtin-wrapper nohup]          => ALLOW  (bypass live)   nohup node scripts/context-io.js admit my-task NOTE
+[builtin-wrapper xargs]          => ALLOW  (bypass live)   xargs node scripts/context-io.js admit my-task NOTE
+[path launcher abs]              => ALLOW  (bypass live)   /usr/local/bin/node scripts/context-io.js admit my-task NOTE
+[path launcher rel]              => ALLOW  (bypass live)   ./node scripts/context-io.js admit my-task NOTE
+[alt binary nodejs]              => ALLOW  (bypass live)   nodejs scripts/context-io.js admit my-task NOTE
+[split-quote no"de"]             => ALLOW  (bypass live)   no"de" scripts/context-io.js admit my-task NOTE
+[split-quote n''ode]             => ALLOW  (bypass live)   n''ode scripts/context-io.js admit my-task NOTE
+[brace-group { node ..; }]       => ALLOW  (bypass live)   { node scripts/context-io.js admit my-task NOTE; }
+
+GAP-A unresolvable admit-shape tail (must GATE = DENY; the dynamic-eval / indirection forms):
+[unresolvable eval]              => ALLOW  (bypass live)   eval "node scripts/context-io.js admit my-task NOTE"
+[unresolvable sh -c]             => ALLOW  (bypass live)   sh -c "node scripts/context-io.js admit my-task NOTE"
+[unresolvable bash -c]           => ALLOW  (bypass live)   bash -c "node scripts/context-io.js admit my-task NOTE"
+[unresolvable env-indirection]   => ALLOW  (bypass live)   $X scripts/context-io.js admit my-task NOTE
+
+----------------------------------------------------------------------------------------
+GAP-B / SC1 floor — the refuse-self-set (D-01) reopened by a matcher false-negative
+----------------------------------------------------------------------------------------
+Root cause: SELF_APPROVE.test(cmd) (:341) runs AFTER the matcher early-exit
+`if (!isAdmitInvocation(cmd)) process.exit(0)` (:332-333) — so EVERY matcher false-negative
+ALSO reopens D-01. An inline self-set behind a wrapper passes even with the var in env.
+
+[self-set behind command]        => ALLOW  (bypass live)   GRUGOPS_ADMISSION_APPROVED_BY=eve command node ...admit NOTE  (env var set to eve)
+[self-set behind path]           => ALLOW  (bypass live)   GRUGOPS_ADMISSION_APPROVED_BY=eve /usr/local/bin/node ...admit NOTE
+[self-set behind nodejs]         => ALLOW  (bypass live)   GRUGOPS_ADMISSION_APPROVED_BY=eve nodejs ...admit NOTE
+[self-set behind brace]          => ALLOW  (bypass live)   GRUGOPS_ADMISSION_APPROVED_BY=eve { node ...admit NOTE; }
+
+----------------------------------------------------------------------------------------
+GAP-C / SC3 — a PRESENT non-string human_admission silently coerces to `off`
+----------------------------------------------------------------------------------------
+Root cause: human_admission: typeof human === "string" ? human : GOVERNANCE_DEFAULTS
+(context-io.ts:1134 AND 1191; default = off). A present true / 1 / null / ["all"] / {} reads
+`off` at source="ok" (NOT the absent/lean path). Writing "human_admission": true to "turn it
+on" silently turns it OFF at both tiers.
+
+[non-string dial true]           => ALLOW  (bypass live)   {"context":{"human_admission":true}}    + high-sev admit
+[non-string dial number 1]       => ALLOW  (bypass live)   {"context":{"human_admission":1}}       + high-sev admit
+[non-string dial null]           => ALLOW  (bypass live)   {"context":{"human_admission":null}}    + high-sev admit
+[non-string dial array]          => ALLOW  (bypass live)   {"context":{"human_admission":["all"]}} + high-sev admit
+[non-string dial object]         => ALLOW  (bypass live)   {"context":{"human_admission":{}}}      + high-sev admit
+
+----------------------------------------------------------------------------------------
+GAP-D / SC1 — case-variant `by` escapes the case-SENSITIVE high-severity classification
+----------------------------------------------------------------------------------------
+Root cause: HIGH_SEVERITY_ROLES.has(by) (hook:440) and .includes((by).trim()) (admit:929)
+are case-SENSITIVE while validate() accepts any non-empty `by`. by: Security-NFR reads
+non-high → under human_admission: high-severity the hook ALLOWs and admit() admits a forged
+verified_by: human:eve.
+
+[case-variant by=Security-NFR]   => ALLOW  (bypass live)   node ...admit NOTE  (by: Security-NFR,  dial high-severity)
+[case-variant by=SECURITY-NFR]   => ALLOW  (bypass live)   node ...admit NOTE  (by: SECURITY-NFR,  dial high-severity)
+[case-variant by=Architect-Design]=> ALLOW (bypass live)   node ...admit NOTE  (by: Architect-Design, dial high-severity)
+[case-variant by=Release-Manager]=> ALLOW  (bypass live)   node ...admit NOTE  (by: Release-Manager, dial high-severity)
+
+----------------------------------------------------------------------------------------
+OVER-BLOCK-CLEAN controls (the 25-04 CR-01-inverse fail-safe — these correctly ALLOW pre-fix)
+----------------------------------------------------------------------------------------
+[inert heredoc body]             => ALLOW  (correct)       cat <<EOF\nnode ...admit my-task NOTE\nEOF
+[inert double-quoted]            => ALLOW  (correct)       echo "node ...admit my-task NOTE"
+[inert comment]                  => ALLOW  (correct)       ls # node ...admit my-task NOTE
+[inert path named admit]         => ALLOW  (correct)       cat ./admit/notes.txt
+[dynamic eval no admit]          => ALLOW  (correct)       eval "echo hi"
+[dynamic bash -c no admit]       => ALLOW  (correct)       bash -c "ls"
+
+----------------------------------------------------------------------------------------
+CONTROLS (already correct pre-fix — must stay correct post-fix)
+----------------------------------------------------------------------------------------
+[bare node ...admit (supported)] => DENY                   node scripts/context-io.js admit my-task NOTE
+[absent config routine admit]    => ALLOW                  node ...admit my-task ROUTINE  (no config → zero-config lean)
+
+========================================================================================
+SUMMARY (pre-fix committed .js): 29 round-2 bypasses LIVE (all want DENY, all ALLOW);
+all 6 over-block-clean controls correctly ALLOW; both supported/absent controls correct.
+The POST-FIX committed .js must flip every BYPASS-LIVE row to DENY while leaving every
+over-block-clean / absent / supported control unchanged — captured in 25-05-GREEN-proof.txt.

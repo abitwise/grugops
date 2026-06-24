@@ -426,4 +426,85 @@ describe("admission-guard.js (GOV-01 human-admission gate) — child-spawn deny/
     expectAllow(payload(admitCmd(note)), { CLAUDE_PROJECT_DIR: dir });
     rmSync(dir, { recursive: true, force: true });
   });
+
+  // ── 14. Gap-closure (25-05 / GAP-A): effective-command-word resolution catches every round-2 ──
+  //    launcher obfuscation. The 25-04 parser solved SEGMENTATION but matched the launcher as a
+  //    LITERAL command word; the round-2 red-team wrapped the launcher in a command-modifier builtin,
+  //    a path, the alt binary name, split quotes, or a brace group and slipped a real gated admit past
+  //    the hook (verified RED in 25-05-RED-baseline.txt). The resolver now resolves the EFFECTIVE
+  //    command word (skip builtins → basename a path → fully de-quote → brace-group → nodejs) so each
+  //    DENIES a gated high-severity un-approved admit. Spawned vs the COMMITTED admission-guard.js.
+  for (const [label, command] of [
+    ["builtin command", `command node scripts/context-io.js admit my-task __NOTE__`],
+    ["builtin exec", `exec node scripts/context-io.js admit my-task __NOTE__`],
+    ["builtin nice", `nice node scripts/context-io.js admit my-task __NOTE__`],
+    ["builtin time", `time node scripts/context-io.js admit my-task __NOTE__`],
+    ["builtin nohup", `nohup node scripts/context-io.js admit my-task __NOTE__`],
+    ["builtin xargs", `xargs node scripts/context-io.js admit my-task __NOTE__`],
+    ["path abs", `/usr/local/bin/node scripts/context-io.js admit my-task __NOTE__`],
+    ["path rel", `./node scripts/context-io.js admit my-task __NOTE__`],
+    ["alt binary nodejs", `nodejs scripts/context-io.js admit my-task __NOTE__`],
+    ["split-quote no\"de\"", `no"de" scripts/context-io.js admit my-task __NOTE__`],
+    ["split-quote n''ode", `n''ode scripts/context-io.js admit my-task __NOTE__`],
+    ["brace group", `{ node scripts/context-io.js admit my-task __NOTE__; }`],
+  ] as const) {
+    it(`deny (25-05/GAP-A): ${label} launcher DENIES a gated high-severity admit`, () => {
+      expectDeny(payload(command.replace("__NOTE__", highNote)), {
+        CLAUDE_PROJECT_DIR: projectHigh,
+      });
+    });
+  }
+
+  // ── 15. Gap-closure (25-05 / GAP-A fail-closed tail): an admit shape behind a dynamic-evaluation /
+  //    indirection command word the resolver cannot statically resolve (eval / sh -c / bash -c /
+  //    env-indirection) must GATE (deny pending a human). The admit shape lives inside a quoted body
+  //    the tokenizer treats as data, so the resolver fails CLOSED on the raw segment text.
+  for (const [label, command] of [
+    ["eval body", `eval "node scripts/context-io.js admit my-task __NOTE__"`],
+    ["sh -c body", `sh -c "node scripts/context-io.js admit my-task __NOTE__"`],
+    ["bash -c body", `bash -c "node scripts/context-io.js admit my-task __NOTE__"`],
+    ["env-indirection", `$X scripts/context-io.js admit my-task __NOTE__`],
+  ] as const) {
+    it(`deny (25-05/GAP-A tail): unresolvable admit-shape behind ${label} GATES (fail-closed)`, () => {
+      expectDeny(payload(command.replace("__NOTE__", highNote)), {
+        CLAUDE_PROJECT_DIR: projectHigh,
+      });
+    });
+  }
+
+  // ── 16. Gap-closure (25-05 / GAP-A over-block-clean): the fail-closed tail fires ONLY on the admit
+  //    shape. A dynamic-evaluation command with NO admit reference is unrelated and must ALLOW (the
+  //    25-04 CR-01-inverse fail-safe preserved).
+  it("allow (25-05/GAP-A): `eval \"echo hi\"` with no admit reference is not gated", () => {
+    expectAllow(payload(`eval "echo hi"`), { CLAUDE_PROJECT_DIR: projectAll });
+  });
+
+  it("allow (25-05/GAP-A): `bash -c \"ls\"` with no admit reference is not gated", () => {
+    expectAllow(payload(`bash -c "ls"`), { CLAUDE_PROJECT_DIR: projectAll });
+  });
+
+  // ── 17. Gap-closure (25-05 / GAP-B): the refuse-self-set floor (D-01) holds even on a matcher
+  //    false-negative. An inline self-set behind ANY wrapper DENIES even with the var already in env,
+  //    because the self-set check is evaluated independent of / in front of the matcher early-exit.
+  for (const [label, command] of [
+    ["behind builtin", `${APPROVAL}=eve command node scripts/context-io.js admit my-task __NOTE__`],
+    ["behind path", `${APPROVAL}=eve /usr/local/bin/node scripts/context-io.js admit my-task __NOTE__`],
+    ["behind nodejs", `${APPROVAL}=eve nodejs scripts/context-io.js admit my-task __NOTE__`],
+    ["behind brace", `${APPROVAL}=eve { node scripts/context-io.js admit my-task __NOTE__; }`],
+  ] as const) {
+    it(`deny (25-05/GAP-B): inline self-set ${label} DENIES even with the var in env`, () => {
+      expectDeny(payload(command.replace("__NOTE__", highNote)), {
+        CLAUDE_PROJECT_DIR: projectHigh,
+        [APPROVAL]: "eve",
+      });
+    });
+  }
+
+  it("allow (25-05/GAP-B): a benign self-set with NO admit attempt is not gated (no over-block)", () => {
+    // The self-set check is admit-shape-scoped: an export with no live admit shape must ALLOW.
+    expectAllow(payload(`export ${APPROVAL}=eve && ls -la`), {
+      CLAUDE_PROJECT_DIR: projectAll,
+      [APPROVAL]: "eve",
+    });
+  });
 });
