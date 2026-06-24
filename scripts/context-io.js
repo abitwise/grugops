@@ -805,8 +805,13 @@ export function admit(task, text, contextRoot = DEFAULT_CONTEXT_ROOT, repoRoot =
     // a finding; we NEVER silently rewrite the note (the no-fabrication floor). The dials only ADD this
     // refusal; there is no value that removes a floor refusal (SC3).
     const gov = readGovernanceConfig(repoRoot);
+    // Case-INSENSITIVE high-severity classification (round-2 GAP-D): HIGH_SEVERITY_ROLES is lowercase and
+    // validate() accepts any non-empty `by`, so a case-variant `by` (`Security-NFR`, `SECURITY-NFR`) must
+    // still classify high-severity — otherwise the `high-severity` dial is escapable by casing and a
+    // forged self-authored `human:NAME` stamp slips through admit()'s D-04 backstop. Lowercase the trimmed
+    // `by` for the membership test only; the original `by` is preserved verbatim in the refusal message.
     const isHighSeverity = scalars.kind === "finding" &&
-        HIGH_SEVERITY_ROLES.includes((scalars.by ?? "").trim());
+        HIGH_SEVERITY_ROLES.includes((scalars.by ?? "").trim().toLowerCase());
     // Under an active dial (≠ off), a high-severity finding is refused at this in-script tier when it
     // lacks a named human disposition. CRITICAL (the 25-04 forged-stamp backstop, GAP1): the refusal
     // must fire for BOTH a finding with NO human:NAME stamp AND a finding carrying a SELF-AUTHORED
@@ -943,6 +948,21 @@ export function render(task, contextRoot = DEFAULT_CONTEXT_ROOT) {
     atomicWrite(join(taskDir, "index.md"), md.join("\n"));
 }
 const GOVERNANCE_DEFAULTS = { human_admission: "off", audit_retention: "git" };
+// Gate-or-stricter sentinel for a PRESENT-but-non-string human_admission (round-2 GAP-C). Only the
+// EXACT JSON string "off" is off-equivalent; a present non-string value (true / 1 / null / array /
+// object) — or a present non-object config shape — must NEVER coerce to the lean `off` default, or an
+// operator who writes `"human_admission": true` to "turn governance on" silently turns it OFF. We
+// canonicalize such a value to "all": the strictest dial (gate EVERY matched admission), which the hook
+// and admit() already treat as gate-or-stricter. A genuinely ABSENT config still reads the lean default
+// (the zero-config contract, SC2). The audit_retention dial keeps its own default-on-non-string
+// behavior (GAP-C is human_admission-scoped — D-08's audit ledger contract is unchanged).
+const GATE_OR_STRICTER_HUMAN_ADMISSION = "all";
+// Canonicalize a raw human_admission JSON value read from config. A string is taken VERBATIM (the
+// existing contract — "off"/"high-severity"/"all"/typo all flow through unchanged; the hook canonicalizes
+// a typo'd STRING fail-closed). A PRESENT non-string value is gate-or-stricter, never `off`.
+function canonicalizeHumanAdmission(raw) {
+    return typeof raw === "string" ? raw : GATE_OR_STRICTER_HUMAN_ADMISSION;
+}
 export function readGovernanceConfig(repoRoot) {
     const base = repoRoot ?? ROOT;
     // Standard config locations, most-specific (repo-dropped) first.
@@ -955,14 +975,28 @@ export function readGovernanceConfig(repoRoot) {
             if (!existsSync(path))
                 continue;
             const parsed = JSON.parse(readFileSync(path, "utf8"));
-            const context = parsed?.context;
-            if (context === undefined || context === null || typeof context !== "object") {
+            // A whole-file config that parsed but is NOT a JSON object (an array / string / number / null)
+            // is a present-but-degenerate shape — gate-or-stricter, never lean (round-2 GAP-C). A genuinely
+            // absent file is handled after the loop and stays lean.
+            if (parsed === null || typeof parsed !== "object" || Array.isArray(parsed)) {
+                return { human_admission: GATE_OR_STRICTER_HUMAN_ADMISSION, audit_retention: GOVERNANCE_DEFAULTS.audit_retention };
+            }
+            const context = parsed.context;
+            // A `context` key that is PRESENT but not a JSON object (null / array / string / number) is a
+            // degenerate present shape — gate-or-stricter (GAP-C). A genuinely ABSENT `context` key (a valid
+            // config with governance simply unconfigured) stays lean — zero-config preserved (SC2).
+            if (context === undefined) {
                 return { ...GOVERNANCE_DEFAULTS };
             }
-            const human = context.human_admission;
-            const audit = context.audit_retention;
+            if (context === null || typeof context !== "object" || Array.isArray(context)) {
+                return { human_admission: GATE_OR_STRICTER_HUMAN_ADMISSION, audit_retention: GOVERNANCE_DEFAULTS.audit_retention };
+            }
+            const ctx = context;
+            const human = ctx.human_admission;
+            const audit = ctx.audit_retention;
+            // A PRESENT human_admission key that is non-string → gate-or-stricter; an ABSENT key → lean `off`.
             return {
-                human_admission: typeof human === "string" ? human : GOVERNANCE_DEFAULTS.human_admission,
+                human_admission: human === undefined ? GOVERNANCE_DEFAULTS.human_admission : canonicalizeHumanAdmission(human),
                 audit_retention: typeof audit === "string" ? audit : GOVERNANCE_DEFAULTS.audit_retention,
             };
         }
@@ -988,16 +1022,34 @@ export function readGovernanceConfigResult(repoRoot) {
         // (correctly) cannot make.
         try {
             const parsed = JSON.parse(readFileSync(path, "utf8"));
-            const context = parsed?.context;
-            if (context === undefined || context === null || typeof context !== "object") {
+            // A present-but-degenerate whole-file shape (array / string / number / null) parses but is not a
+            // config object — gate-or-stricter at source="ok" (it WAS read), never the lean default (GAP-C).
+            if (parsed === null || typeof parsed !== "object" || Array.isArray(parsed)) {
+                return {
+                    source: "ok",
+                    config: { human_admission: GATE_OR_STRICTER_HUMAN_ADMISSION, audit_retention: GOVERNANCE_DEFAULTS.audit_retention },
+                };
+            }
+            const context = parsed.context;
+            // An ABSENT `context` key (governance unconfigured) stays lean; a PRESENT non-object `context`
+            // (null / array / string / number) is a degenerate present shape → gate-or-stricter (GAP-C).
+            if (context === undefined) {
                 return { source: "ok", config: { ...GOVERNANCE_DEFAULTS } };
             }
-            const human = context.human_admission;
-            const audit = context.audit_retention;
+            if (context === null || typeof context !== "object" || Array.isArray(context)) {
+                return {
+                    source: "ok",
+                    config: { human_admission: GATE_OR_STRICTER_HUMAN_ADMISSION, audit_retention: GOVERNANCE_DEFAULTS.audit_retention },
+                };
+            }
+            const ctx = context;
+            const human = ctx.human_admission;
+            const audit = ctx.audit_retention;
             return {
                 source: "ok",
                 config: {
-                    human_admission: typeof human === "string" ? human : GOVERNANCE_DEFAULTS.human_admission,
+                    // A PRESENT non-string human_admission → gate-or-stricter; an ABSENT key → lean `off` (GAP-C).
+                    human_admission: human === undefined ? GOVERNANCE_DEFAULTS.human_admission : canonicalizeHumanAdmission(human),
                     audit_retention: typeof audit === "string" ? audit : GOVERNANCE_DEFAULTS.audit_retention,
                 },
             };

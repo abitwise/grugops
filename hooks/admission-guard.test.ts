@@ -507,4 +507,61 @@ describe("admission-guard.js (GOV-01 human-admission gate) — child-spawn deny/
       [APPROVAL]: "eve",
     });
   });
+
+  // ── 18. Gap-closure (25-05 / GAP-C): a PRESENT non-string human_admission gates a matched admit ──
+  //    (governance is NOT silently off). The reader canonicalizes a present true/1/null/array/object
+  //    to gate-or-stricter; the hook then DENIES a matched high-severity un-approved admit. A present
+  //    `"off"` string ALLOWs; a genuinely absent config ALLOWs routine (verified separately above).
+  function makeProjectRawDial(rawJson: string, noteSrc: string): { dir: string; note: string } {
+    const dir = mkdtempSync(join(tmpdir(), "adm-rawdial-"));
+    mkdirSync(join(dir, ".grugops"), { recursive: true });
+    writeFileSync(
+      join(dir, ".grugops", "factory.config.json"),
+      `{ "context": { "human_admission": ${rawJson} } }`,
+    );
+    const note = join(dir, "high.md");
+    writeFileSync(note, noteSrc);
+    return { dir, note };
+  }
+  const HI_NOTE_SRC =
+    "---\nid: n1\nby: security-nfr\nkind: finding\nverified_by: human:alice\n---\nhigh-sev body\n";
+
+  for (const raw of ["true", "1", "null", '["all"]', "{}"]) {
+    it(`deny (25-05/GAP-C): present non-string human_admission=${raw} gates a high-severity admit`, () => {
+      const { dir, note } = makeProjectRawDial(raw, HI_NOTE_SRC);
+      expectDeny(payload(admitCmd(note)), { CLAUDE_PROJECT_DIR: dir });
+      rmSync(dir, { recursive: true, force: true });
+    });
+  }
+
+  // ── 19. Gap-closure (25-05 / GAP-D): a case-variant `by` is classified high-severity at the hook ──
+  //    tier. Under human_admission: high-severity, a case-variant high-severity un-approved admit must
+  //    DENY (case-insensitive classification), while a routine role still ALLOWs (no over-classification).
+  for (const by of ["Security-NFR", "SECURITY-NFR", "Architect-Design", "Release-Manager"]) {
+    it(`deny (25-05/GAP-D): case-variant by=${by} is gated high-severity under high-severity`, () => {
+      const dir = mkdtempSync(join(tmpdir(), "adm-cv-"));
+      mkdirSync(join(dir, ".grugops"), { recursive: true });
+      writeFileSync(
+        join(dir, ".grugops", "factory.config.json"),
+        JSON.stringify({ context: { human_admission: "high-severity" } }),
+      );
+      const note = join(dir, "cv.md");
+      writeFileSync(note, `---\nid: n1\nby: ${by}\nkind: finding\nverified_by: human:alice\n---\nbody\n`);
+      expectDeny(payload(admitCmd(note)), { CLAUDE_PROJECT_DIR: dir });
+      rmSync(dir, { recursive: true, force: true });
+    });
+  }
+
+  it("allow (25-05/GAP-D): a routine role under high-severity is still not gated (no over-classification)", () => {
+    const dir = mkdtempSync(join(tmpdir(), "adm-cv-routine-"));
+    mkdirSync(join(dir, ".grugops"), { recursive: true });
+    writeFileSync(
+      join(dir, ".grugops", "factory.config.json"),
+      JSON.stringify({ context: { human_admission: "high-severity" } }),
+    );
+    const note = join(dir, "r.md");
+    writeFileSync(note, `---\nid: n2\nby: software-engineer\nkind: observation\nverified_by:\n---\nbody\n`);
+    expectAllow(payload(admitCmd(note)), { CLAUDE_PROJECT_DIR: dir });
+    rmSync(dir, { recursive: true, force: true });
+  });
 });

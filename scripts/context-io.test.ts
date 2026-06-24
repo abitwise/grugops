@@ -774,6 +774,119 @@ describe("d-04 high-severity in-script refusal", () => {
       expect(mod.admit("d04-routine-human", text, contextRoot, repoRoot)).toEqual([]);
     });
   });
+
+  // ── 25-05 GAP-D: case-INSENSITIVE high-severity classification at the admit() tier ──────────────
+  // validate() accepts any non-empty `by`, and HIGH_SEVERITY_ROLES is lowercase. The round-2 red-team
+  // showed a case-variant `by` (`Security-NFR`) escaped the case-SENSITIVE membership test, so under
+  // human_admission: high-severity a forged self-authored `human:eve` stamp was ADMITTED (verified RED
+  // in 25-05-RED-baseline.txt). admit() now lowercases the trimmed `by` for the membership test, so a
+  // case-variant high-severity finding is refused under an active dial.
+  describe("25-05 GAP-D case-insensitive high-severity backstop", () => {
+    for (const by of ["Security-NFR", "SECURITY-NFR", "Architect-Design", "Release-Manager"]) {
+      it(`REFUSES a case-variant high-severity finding (by: ${by}) carrying a self-authored human:eve stamp under high-severity`, () => {
+        const repoRoot = repoWithGovernance({ human_admission: "high-severity" });
+        const { contextRoot, text } = highSevGateStamped(by);
+        const forged = text.replace(/verified_by: .*/, "verified_by: human:eve");
+        const findings = mod.admit("d04-cv", forged, contextRoot, repoRoot);
+        expect(findings.length).toBeGreaterThan(0);
+        // The fault is named (the verbatim case-variant by is preserved in the message).
+        expect(findings.join("\n")).toContain(by);
+        expect(findings.join("\n")).toContain("admission-guard hook");
+        // No rewrite: the forged stamp is byte-unchanged in the input.
+        expect(forged).toContain("verified_by: human:eve");
+      });
+    }
+
+    it("still does NOT fire for a routine role under high-severity (no over-classification)", () => {
+      const repoRoot = repoWithGovernance({ human_admission: "high-severity" });
+      const contextRoot = freshTmp("d04-cv-routine-");
+      const task = "d04-cv-routine";
+      const id = "RUN-CV-ROUTINE";
+      mod.emitVerdict(task, id, contextRoot);
+      const text = goodNoteText({
+        kind: "finding",
+        by: "software-engineer",
+        verified_by: `§14-gate#${id}`,
+      });
+      expect(mod.admit(task, text, contextRoot, repoRoot)).toEqual([]);
+    });
+  });
+});
+
+// ── 25-05 GAP-C: non-string human_admission canonicalization (gate-or-stricter, never silently off) ─
+// The round-2 red-team found a PRESENT but non-string human_admission (true / 1 / null / array /
+// object) — and a present non-object `context` / non-object whole-file config — coerced to the lean
+// `off` default at source="ok" (NOT the absent path). Writing `"human_admission": true` to "turn
+// governance on" silently turned it OFF at both tiers (verified RED in 25-05-RED-baseline.txt). Both
+// readers now canonicalize a present non-string value (and a present non-object shape) to a
+// gate-or-stricter sentinel ("all"); only the EXACT JSON string "off" is off-equivalent. A genuinely
+// ABSENT config — and a present valid object whose `human_admission` key is simply absent — stays lean.
+describe("25-05 GAP-C non-string human_admission canonicalization", () => {
+  // Write a raw JSON config (so a non-string human_admission value can be expressed) and return the
+  // repoRoot the readers resolve against.
+  function repoRaw(json: string): string {
+    const root = freshTmp("gapc-repo-");
+    mkdirSync(join(root, ".grugops"), { recursive: true });
+    writeFileSync(join(root, ".grugops", "factory.config.json"), json);
+    return root;
+  }
+
+  for (const [label, raw] of [
+    ["true", "true"],
+    ["number 1", "1"],
+    ["null", "null"],
+    ["array", '["all"]'],
+    ["object", "{}"],
+  ] as const) {
+    it(`readGovernanceConfig: a present non-string human_admission (${label}) gates-or-stricter, never off`, () => {
+      const root = repoRaw(`{"context":{"human_admission":${raw}}}`);
+      const cfg = mod.readGovernanceConfig(root);
+      expect(cfg.human_admission).not.toBe("off");
+      // The sentinel is the strictest dial; the hook treats it as gate-every-match.
+      expect(cfg.human_admission).toBe("all");
+    });
+
+    it(`readGovernanceConfigResult: a present non-string human_admission (${label}) is source="ok" + gate-or-stricter`, () => {
+      const root = repoRaw(`{"context":{"human_admission":${raw}}}`);
+      const res = mod.readGovernanceConfigResult(root);
+      expect(res.source).toBe("ok"); // it WAS read — not absent, not unreadable
+      expect(res.config.human_admission).not.toBe("off");
+      expect(res.config.human_admission).toBe("all");
+    });
+  }
+
+  it("a present non-object `context` (string) gates-or-stricter, never off", () => {
+    const root = repoRaw('{"context":"x"}');
+    expect(mod.readGovernanceConfig(root).human_admission).toBe("all");
+    expect(mod.readGovernanceConfigResult(root).config.human_admission).toBe("all");
+  });
+
+  it("a present non-object whole-file config (array) gates-or-stricter at source=ok", () => {
+    const root = repoRaw("[]");
+    expect(mod.readGovernanceConfig(root).human_admission).toBe("all");
+    const res = mod.readGovernanceConfigResult(root);
+    expect(res.source).toBe("ok");
+    expect(res.config.human_admission).toBe("all");
+  });
+
+  it("a genuinely ABSENT config still reads the lean `off` (zero-config preserved, SC2)", () => {
+    const root = freshTmp("gapc-absent-");
+    expect(mod.readGovernanceConfig(root).human_admission).toBe("off");
+    expect(mod.readGovernanceConfigResult(root).source).toBe("absent");
+    expect(mod.readGovernanceConfigResult(root).config.human_admission).toBe("off");
+  });
+
+  it("a present valid object `context` with NO human_admission key stays lean `off`", () => {
+    const root = repoRaw('{"context":{"audit_retention":"git"}}');
+    expect(mod.readGovernanceConfig(root).human_admission).toBe("off");
+  });
+
+  it("a present valid STRING human_admission is read VERBATIM (the existing contract is unchanged)", () => {
+    for (const s of ["off", "high-severity", "all"]) {
+      const root = repoRaw(`{"context":{"human_admission":"${s}"}}`);
+      expect(mod.readGovernanceConfig(root).human_admission).toBe(s);
+    }
+  });
 });
 
 // ── GOV-02 audit-retention ledger (retained → one JSONL event; git → nothing) ─────────────────────
