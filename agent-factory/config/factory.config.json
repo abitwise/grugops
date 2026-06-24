@@ -50,7 +50,9 @@
     "block_on": "high"
   },
   "context": {
-    "compaction": "aggressive"
+    "compaction": "aggressive",
+    "human_admission": "off",
+    "audit_retention": "git"
   },
   "queue": {
     "wip_limit": 3,
