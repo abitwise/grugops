@@ -968,6 +968,65 @@ export function render(task: string, contextRoot: string = DEFAULT_CONTEXT_ROOT)
   atomicWrite(join(taskDir, "index.md"), md.join("\n"));
 }
 
+// ── readGovernanceConfig — the SINGLE shared governance config-read path (GOV-01/GOV-02) ─────────
+//
+// This is the ONE config-read both the admission-guard hook (Plan 25-02) and the in-script admit()
+// refusal (Plan 25-03) consume, so the two governance read paths cannot diverge (OQ-3).
+//
+// Semantics (D-11, read-at-use / default-on-absent — see agent-factory/config/factory.config.md):
+//   - A missing config file, an unreadable file, a non-JSON file, an absent `context` object, or an
+//     absent key all degrade to the LEAN DEFAULT for that key (human_admission→"off",
+//     audit_retention→"git"). This function NEVER throws — zero-config grugops always runs lean.
+//   - A value that IS present is returned VERBATIM. The reader does NOT validate it against the
+//     allowed set; the consumer (hook / admit / floor-sweep) decides. Returning a garbage value
+//     verbatim is required so the Plan-25-03 floor-sweep can prove a bogus value still REFUSES.
+//   - This helper fails OPEN to lean because it is the READER. Failing CLOSED on a matched
+//     high-severity admit is the HOOK's job (Plan 25-02), NOT this read helper's.
+//
+// Config-location resolution: given a directory to look in (`repoRoot`), try the standard config
+// locations in order — first the installed/repo-dropped `.grugops/factory.config.json` (what the
+// installer drops at a consumer repo root and what the hook points `${CLAUDE_PROJECT_DIR}` at), then
+// the in-kit `agent-factory/config/factory.config.json`. When `repoRoot` is omitted, default to the
+// script's own repo root (join(import.meta.dirname, "..")) exactly as freshness.ts resolves ROOT.
+export interface GovernanceConfig {
+  human_admission: string;
+  audit_retention: string;
+}
+
+const GOVERNANCE_DEFAULTS: GovernanceConfig = { human_admission: "off", audit_retention: "git" };
+
+export function readGovernanceConfig(repoRoot?: string): GovernanceConfig {
+  const base = repoRoot ?? ROOT;
+  // Standard config locations, most-specific (repo-dropped) first.
+  const candidates = [
+    join(base, ".grugops", "factory.config.json"),
+    join(base, "agent-factory", "config", "factory.config.json"),
+  ];
+
+  for (const path of candidates) {
+    try {
+      if (!existsSync(path)) continue;
+      const parsed = JSON.parse(readFileSync(path, "utf8")) as { context?: Record<string, unknown> };
+      const context = parsed?.context;
+      if (context === undefined || context === null || typeof context !== "object") {
+        return { ...GOVERNANCE_DEFAULTS };
+      }
+      const human = context.human_admission;
+      const audit = context.audit_retention;
+      return {
+        human_admission: typeof human === "string" ? human : GOVERNANCE_DEFAULTS.human_admission,
+        audit_retention: typeof audit === "string" ? audit : GOVERNANCE_DEFAULTS.audit_retention,
+      };
+    } catch {
+      // Unreadable / non-JSON / any failure → fall through to the lean default. Never throw.
+      return { ...GOVERNANCE_DEFAULTS };
+    }
+  }
+
+  // No config file at any standard location → lean default. Zero-config runs lean.
+  return { ...GOVERNANCE_DEFAULTS };
+}
+
 // ── CLI entrypoint (only when run directly, never on import) ────────────────────────────────────
 // import.meta.url === the executed file's URL when run via `node context-io.js ...`.
 const isMain =

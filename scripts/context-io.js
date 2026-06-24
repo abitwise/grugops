@@ -838,6 +838,38 @@ export function render(task, contextRoot = DEFAULT_CONTEXT_ROOT) {
     md.push(""); // trailing element → exactly one final "\n"
     atomicWrite(join(taskDir, "index.md"), md.join("\n"));
 }
+const GOVERNANCE_DEFAULTS = { human_admission: "off", audit_retention: "git" };
+export function readGovernanceConfig(repoRoot) {
+    const base = repoRoot ?? ROOT;
+    // Standard config locations, most-specific (repo-dropped) first.
+    const candidates = [
+        join(base, ".grugops", "factory.config.json"),
+        join(base, "agent-factory", "config", "factory.config.json"),
+    ];
+    for (const path of candidates) {
+        try {
+            if (!existsSync(path))
+                continue;
+            const parsed = JSON.parse(readFileSync(path, "utf8"));
+            const context = parsed?.context;
+            if (context === undefined || context === null || typeof context !== "object") {
+                return { ...GOVERNANCE_DEFAULTS };
+            }
+            const human = context.human_admission;
+            const audit = context.audit_retention;
+            return {
+                human_admission: typeof human === "string" ? human : GOVERNANCE_DEFAULTS.human_admission,
+                audit_retention: typeof audit === "string" ? audit : GOVERNANCE_DEFAULTS.audit_retention,
+            };
+        }
+        catch {
+            // Unreadable / non-JSON / any failure → fall through to the lean default. Never throw.
+            return { ...GOVERNANCE_DEFAULTS };
+        }
+    }
+    // No config file at any standard location → lean default. Zero-config runs lean.
+    return { ...GOVERNANCE_DEFAULTS };
+}
 // ── CLI entrypoint (only when run directly, never on import) ────────────────────────────────────
 // import.meta.url === the executed file's URL when run via `node context-io.js ...`.
 const isMain = process.argv[1] !== undefined && import.meta.url === pathToFileURL(process.argv[1]).href;

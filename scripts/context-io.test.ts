@@ -1274,3 +1274,60 @@ describe("context-io.js — splitNotes multi-fence split (shared grammar, IN-02)
     expect(r.notes.join("") + (r.trailingMalformed ?? "")).toBe(text);
   });
 });
+
+// ── readGovernanceConfig — the SINGLE shared config-read path (GOV-01/GOV-02, OQ-3) ────────────────
+// Read-at-use, default-on-absent (D-11): a missing/unreadable/garbage config — or an absent key —
+// degrades to the lean default (human_admission→"off", audit_retention→"git"), NEVER throws. A value
+// that IS present is returned verbatim (the reader does NOT sanitize; the consumer decides). This is
+// fail-OPEN-to-LEAN because it is the READER; the hook (25-02) is the one that fails CLOSED on a
+// matched admit.
+describe("governance-config", () => {
+  // Write a config file at the standard repo-drop location (.grugops/factory.config.json) under a
+  // temp root, with the given `context` object, and return the temp root to pass as repoRoot.
+  function rootWithContext(context: unknown): string {
+    const root = freshTmp("gov-cfg-");
+    mkdirSync(join(root, ".grugops"), { recursive: true });
+    writeFileSync(
+      join(root, ".grugops", "factory.config.json"),
+      JSON.stringify({ context }, null, 2),
+    );
+    return root;
+  }
+
+  it("no config file present → lean defaults off/git (never throws)", () => {
+    const root = freshTmp("gov-nocfg-"); // empty dir, no config anywhere
+    const g = mod.readGovernanceConfig(root);
+    expect(g).toEqual({ human_admission: "off", audit_retention: "git" });
+  });
+
+  it("context.human_admission='high-severity' is read back verbatim", () => {
+    const root = rootWithContext({ human_admission: "high-severity" });
+    expect(mod.readGovernanceConfig(root).human_admission).toBe("high-severity");
+  });
+
+  it("context.audit_retention='retained' is read back verbatim", () => {
+    const root = rootWithContext({ audit_retention: "retained" });
+    expect(mod.readGovernanceConfig(root).audit_retention).toBe("retained");
+  });
+
+  it("absent context object → lean defaults (never throws)", () => {
+    const root = freshTmp("gov-noctx-");
+    mkdirSync(join(root, ".grugops"), { recursive: true });
+    writeFileSync(join(root, ".grugops", "factory.config.json"), JSON.stringify({ mode: "lean" }));
+    expect(mod.readGovernanceConfig(root)).toEqual({ human_admission: "off", audit_retention: "git" });
+  });
+
+  it("garbage (non-JSON) config → lean defaults (never throws)", () => {
+    const root = freshTmp("gov-garbage-");
+    mkdirSync(join(root, ".grugops"), { recursive: true });
+    writeFileSync(join(root, ".grugops", "factory.config.json"), "{ not valid json ]]]");
+    expect(mod.readGovernanceConfig(root)).toEqual({ human_admission: "off", audit_retention: "git" });
+  });
+
+  it("a set GARBAGE value is returned verbatim — the reader does NOT sanitize (SC3 floor-sweep relies on this)", () => {
+    const root = rootWithContext({ human_admission: "bogus", audit_retention: "nonsense" });
+    const g = mod.readGovernanceConfig(root);
+    expect(g.human_admission).toBe("bogus");
+    expect(g.audit_retention).toBe("nonsense");
+  });
+});
