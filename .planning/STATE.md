@@ -4,16 +4,16 @@ milestone: v2.0
 milestone_name: Decentralized Factory — Shared Verified Context
 current_phase: 25
 current_phase_name: governance-on-a-dial
-status: planned
-stopped_at: Phase 25 verification gaps_found (SC1+SC3); gap-closure plan 25-04 created (--gaps) + plan-checker PASSED; ready to execute
-last_updated: "2026-06-24T15:16:06.544Z"
+status: executing
+stopped_at: "Gap-closure plan 25-04 — Tasks 01/02/03 executed + committed (3b0c16b/f858f4a/b8382be: shell-segment parser matcher, fail-closed dial+corrupt-config, forged-stamp backstop, HOOK-tier sweep + anti-whack-a-mole fuzz, RED→GREEN proof vs the committed .js); STOPPED at the BLOCKING checkpoint 25-04-04 (independent both-angle opus red-team) — SC1+SC3 NOT closed until that reproduces the closure (D-12, green suite necessary-not-sufficient)"
+last_updated: "2026-06-24T22:30:00.000Z"
 last_activity: 2026-06-24
-last_activity_desc: Phase 25 gap-closure plan 25-04 planned (--gaps); plan-checker PASSED
+last_activity_desc: "25-04 gap-closure Tasks 01–03 committed; blocked at the 25-04-04 independent red-team checkpoint"
 progress:
   total_phases: 7
   completed_phases: 6
-  total_plans: 28
-  completed_plans: 29
+  total_plans: 29
+  completed_plans: 30
   percent: 86
 ---
 
@@ -28,10 +28,10 @@ See: .planning/PROJECT.md (updated 2026-06-16 — after v1.2 milestone)
 
 ## Current Position
 
-Phase: 25 (governance-on-a-dial) — gap-closure planned (25-04)
-Plan: 4 of 4 (25-04 gap closure — not yet executed)
-Status: Ready to execute
-Last activity: 2026-06-24 — Phase 25 gap-closure plan 25-04 created (--gaps), plan-checker PASSED
+Phase: 25 (governance-on-a-dial) — EXECUTING (gap-closure 25-04, blocked at checkpoint)
+Plan: 4 of 4 (gap-closure) — Tasks 01–03 committed; Task 04 blocking red-team checkpoint pending
+Status: STOPPED at the 25-04-04 independent both-angle red-team checkpoint (SC1+SC3 closure gate, D-12)
+Last activity: 2026-06-24 — 25-04 Tasks 01–03 committed (3b0c16b/f858f4a/b8382be); awaiting the independent red-team
 
 ## Performance Metrics
 
@@ -458,7 +458,7 @@ Items acknowledged and deferred at the **v1.2 milestone close on 2026-06-16** (1
 
 ## Session Continuity
 
-Last session: 2026-06-24T07:19:58.192Z
+Last session: 2026-06-24T19:27:09.505Z
 Stopped at: Phase 25 plan 03 tasks 1-3 executed + committed; STOPPED at the 25-03-04 blocking checkpoint
 Resume file: Task 25-03-04 (checkpoint:human-verify, gate=blocking) — independent SC3 red-team pending
 
