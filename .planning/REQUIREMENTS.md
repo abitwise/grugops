@@ -63,8 +63,8 @@ Requirements for the decentralization milestone. Each maps to exactly one roadma
 
 ### GOV — Governance-on-a-Dial
 
-- [ ] **GOV-01**: `context.human_admission: off|high-severity|all` — the agent proposes a verified note; a named human disposes high-severity (security / architecture / release) entries; mirrors the prod-deploy hook extended to memory.
-- [ ] **GOV-02**: `context.audit_retention: git|retained` — all three config files updated in lockstep; lean defaults preserved; the un-dialable safety floor (verify-before-write, no-fabrication, test-integrity, humans-hold-merge/deploy) is unchanged.
+- [x] **GOV-01**: `context.human_admission: off|high-severity|all` — the agent proposes a verified note; a named human disposes high-severity (security / architecture / release) entries; mirrors the prod-deploy hook extended to memory.
+- [x] **GOV-02**: `context.audit_retention: git|retained` — all three config files updated in lockstep; lean defaults preserved; the un-dialable safety floor (verify-before-write, no-fabrication, test-integrity, humans-hold-merge/deploy) is unchanged.
 
 ### DOGF — Dogfood, Dual-Path Oracle & A3/DOG-02 Retirement
 
@@ -126,8 +126,8 @@ Which phases cover which requirements. Confirmed during roadmap creation (2026-0
 | MIGR-02 | Phase 24 | Complete |
 | MIGR-03 | Phase 24 | Complete |
 | MIGR-04 | Phase 24 | Complete |
-| GOV-01 | Phase 25 | Pending |
-| GOV-02 | Phase 25 | Pending |
+| GOV-01 | Phase 25 | Complete |
+| GOV-02 | Phase 25 | Complete |
 | DOGF-01 | Phase 26 | Pending |
 | DOGF-02 | Phase 26 | Pending |
 | DOGF-03 | Phase 26 | Pending |

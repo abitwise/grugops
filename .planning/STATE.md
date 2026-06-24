@@ -3,17 +3,17 @@ gsd_state_version: 1.0
 milestone: v2.0
 milestone_name: Decentralized Factory — Shared Verified Context
 current_phase: 25
-current_phase_name: Governance-on-a-Dial
+current_phase_name: governance-on-a-dial
 status: executing
 stopped_at: Phase 25 context gathered
-last_updated: "2026-06-23T21:19:04.469Z"
-last_activity: 2026-06-22
-last_activity_desc: Phase 24 complete, transitioned to Phase 25
+last_updated: "2026-06-24T06:54:02.219Z"
+last_activity: 2026-06-24
+last_activity_desc: Phase 25 execution started
 progress:
   total_phases: 7
   completed_phases: 5
-  total_plans: 25
-  completed_plans: 26
+  total_plans: 28
+  completed_plans: 27
   percent: 71
 ---
 
@@ -24,14 +24,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-06-16 — after v1.2 milestone)
 
 **Core value:** A user installs grugops on top of the coding-agent CLI they already run, types `/grug`, and gets a disciplined delivery team — a visible board, strict handoffs, and an auditable requirement→code→test→release trail — entirely as readable markdown, with humans always holding merge and deploy.
-**Current focus:** Phase 24 — clean-handoff-removal-traceability-migration
+**Current focus:** Phase 25 — governance-on-a-dial
 
 ## Current Position
 
-Phase: 25 — Governance-on-a-Dial
-Plan: Not started
+Phase: 25 (governance-on-a-dial) — EXECUTING
+Plan: 2 of 3
 Status: Ready to execute
-Last activity: 2026-06-22 — Phase 24 complete, transitioned to Phase 25
+Last activity: 2026-06-24 — Phase 25 execution started
 
 ## Performance Metrics
 
@@ -181,6 +181,7 @@ Last activity: 2026-06-22 — Phase 24 complete, transitioned to Phase 25
 | Phase 24 P03 | 12m | 2 tasks | 7 files |
 | Phase 24 P04 | 6min | 2 tasks | 4 files |
 | Phase 24 P05 | 70m | 3 tasks | 170 files |
+| Phase 25 P01 | 7min | 2 tasks | 6 files |
 
 ## Accumulated Context
 
@@ -403,6 +404,8 @@ Recent decisions affecting current work:
 - [Phase ?]: [24-03] plans/traceability.md migrated onto note refs (D-01 Option A): survives as a deterministic render of note refs (Requirement|Code|Tests|UAT|Release keyed by ticket id, emitted verbatim), gated fail-closed by a standalone freshness:traceability twin of now-running-freshness (D-03)
 - [Phase ?]: 24-04: folded the --migrate plans/handoffs/ backup into the existing v1.2 migrate orchestration (D-17); backupDir is never-delete-first, aborts on .bak collision (D-18), no content conversion (D-19), DRY_RUN/idempotent (D-20)
 - [Phase ?]: 24-04: removed seedState plans/handoffs/ mkdir + the plans/handoffs doctor ref in lockstep (MIGR-02) — fresh installs leave the dir absent, --check still green
+- [Phase ?]: 25-01: readGovernanceConfig fails OPEN to lean (reader never throws); the 25-02 hook fails CLOSED on a matched admit, not the reader
+- [Phase ?]: 25-01: the governance reader returns present values verbatim (no allowed-set validation) so the 25-03 floor-sweep can prove a bogus value still refuses
 
 ### Pending Todos
 
@@ -452,7 +455,7 @@ Items acknowledged and deferred at the **v1.2 milestone close on 2026-06-16** (1
 
 ## Session Continuity
 
-Last session: 2026-06-23T13:47:14.183Z
+Last session: 2026-06-24T06:53:35.200Z
 Stopped at: Phase 25 context gathered
 Resume file: .planning/phases/25-governance-on-a-dial/25-CONTEXT.md
 
