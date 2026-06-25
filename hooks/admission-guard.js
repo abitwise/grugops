@@ -164,6 +164,50 @@ function stripQuotedRuns(token) {
     }
     return out;
 }
+// Sentinel value for a synthetic token the walk emits when a command-substitution `$( … )` or a
+// backtick run stands in COMMAND-WORD position (it IS the command word the shell would form). The
+// produced command word is dynamic and statically unresolvable, so the resolver treats this segment's
+// command word as unresolvable and FAILS CLOSED when the segment carries the admit shape (Class B).
+// A real token can never equal this value (it contains characters no shell word survives with).
+const DYNAMIC_COMMAND_WORD = "\0$(dynamic)\0";
+// Find the index just past the matching `)` that closes a `$( … )` command substitution that opens
+// at `open` (where cmd[open]==='$' && cmd[open+1]==='('). Counts NESTED `$( … )` and `(` so a nested
+// substitution `$(echo $(echo node))` is consumed as one balanced span. Quoted runs inside are skipped
+// so a `)` inside a string does not close the span early. Returns `cmd.length` on an unbalanced span
+// (best-effort; the whole tail is then treated as the substitution body — the segment's command word
+// stays the synthetic dynamic token, which fails CLOSED on a matched admit shape).
+function matchCommandSubstitution(cmd, open) {
+    let depth = 0;
+    let i = open;
+    const n = cmd.length;
+    while (i < n) {
+        const c = cmd[i];
+        if (c === "'" || c === '"') {
+            const close = cmd.indexOf(c, i + 1);
+            i = close < 0 ? n : close + 1;
+            continue;
+        }
+        if (c === "$" && cmd[i + 1] === "(") {
+            depth += 1;
+            i += 2;
+            continue;
+        }
+        if (c === "(") {
+            depth += 1;
+            i += 1;
+            continue;
+        }
+        if (c === ")") {
+            depth -= 1;
+            i += 1;
+            if (depth === 0)
+                return i;
+            continue;
+        }
+        i += 1;
+    }
+    return n;
+}
 // Walk the command string ONCE, honoring the shell quoting / comment / continuation / heredoc /
 // segment-separator grammar, and return the LIVE tokens (the words the shell would actually run),
 // each flagged with whether it begins a command segment. Anything inside quotes, after `#`, or
@@ -295,16 +339,46 @@ function liveTokens(cmd) {
             i = j;
             continue;
         }
-        // Command separators and grouping that OPEN a new command context. After any of these, the next
-        // word is the first command of a segment. `(` and `$(` open a subshell / command substitution
-        // whose first command is still evaluated — so `( node …admit )` is recognized.
-        // `;` `&` `|` `\n` separate segments; `)` closes a group.
+        // Command substitution `$( … )`. Two cases, distinguished by POSITION (round-3 Class B):
+        //   1. TOKEN-START position (`!building` — nothing accumulated into the current token yet): the
+        //      substitution PRODUCES a whole word the shell will run as the command word OR a leading-run
+        //      modifier argument (`$(echo node) …admit`, `nice $(echo node) …admit`). That word is dynamic
+        //      and statically unresolvable, so we emit a synthetic DYNAMIC_COMMAND_WORD token (carrying this
+        //      position's startsSegment flag), consume the WHOLE balanced `$( … )` span as data, and keep
+        //      the line open so the rest of the segment is its arguments — letting the admit-shape scan see
+        //      the trailing `…admit NOTE`. The leading-run resolver (liveAdmitSegments) then encounters the
+        //      synthetic token as the effective command word and fails CLOSED on the admit shape. (The 25-04
+        //      behavior opened a fresh segment at the INNER word, which both exposed the inner command AND
+        //      lost the outer admit shape — the Class B root.)
+        //   2. MID-WORD position (`building` — appended to an in-progress token, e.g. `foo$(…)bar`): the
+        //      substitution is part of an argument word, not a command word; we skip its balanced span as
+        //      data and keep accumulating the current token.
         if (c === "$" && cmd[i + 1] === "(") {
-            flush();
-            atSegmentStart = true;
-            i += 2;
+            const end = matchCommandSubstitution(cmd, i); // index just past the matching ")"
+            if (!building) {
+                tokens.push({ value: DYNAMIC_COMMAND_WORD, startsSegment: atSegmentStart, start: i });
+                atSegmentStart = false; // the produced word occupies this token position
+            }
+            i = end;
             continue;
         }
+        // A backtick command substitution `` ` … ` `` behaves like `$( … )`. At a token-start position it
+        // produces a dynamic command word / leading-run argument (Class B); mid-word it is part of a word.
+        // Backticks were previously unhandled (the run extended the current token), so a
+        // `` `echo node` …admit `` failed OPEN — the Class B backtick root.
+        if (c === "`") {
+            const close = cmd.indexOf("`", i + 1);
+            const end = close < 0 ? n : close + 1;
+            if (!building) {
+                tokens.push({ value: DYNAMIC_COMMAND_WORD, startsSegment: atSegmentStart, start: i });
+                atSegmentStart = false;
+            }
+            i = end;
+            continue;
+        }
+        // Command separators and grouping that OPEN a new command context. After any of these, the next
+        // word is the first command of a segment. `(` opens a subshell whose first command is still
+        // evaluated — so `( node …admit )` is recognized. `;` `&` `|` `\n` separate segments; `)` closes.
         if (c === "(" || c === ")" || c === ";" || c === "&" || c === "|") {
             flush();
             atSegmentStart = true;
@@ -351,8 +425,8 @@ function liveTokens(cmd) {
             continue;
         }
         // Any other character extends the current token. An inline `VAR=val` / `env VAR=val` assignment
-        // PREFIX is handled in isAdmitInvocation() (the launcher scan treats assignment tokens and `env`
-        // as transparent), so the tokenizer needs no special case here.
+        // PREFIX is handled in liveAdmitSegments() (the leading-run prefix-skip treats assignment tokens
+        // and `env` as transparent), so the tokenizer needs no special case here.
         begin();
         cur += c;
         i += 1;
@@ -362,12 +436,23 @@ function liveTokens(cmd) {
 }
 // A command-prefix token that the shell strips before resolving the real command word: an inline
 // `VAR=val` assignment, the `env` wrapper, or a command-modifier builtin (`command`/`exec`/`nice`/… —
-// each runs the command that FOLLOWS it). The launcher may sit behind any number of these (round-2
-// GAP-A: the prior version skipped only `env`/`VAR=`, so `command node …` / `nice node …` escaped).
+// each runs the command that FOLLOWS it). The launcher may sit behind any number of these.
+//
+// Round-3 Class A: the EFFECTIVE command word is resolved over EVERY leading-run token, not only the
+// final command word. An assignment is detected on the RAW token (an assignment must keep its `=` and
+// is never path-formed), but `env` / a command-modifier builtin is detected on the token's EFFECTIVE
+// word (basename of a path, fully de-quoted) so a PATH-FORM modifier (`/usr/bin/env`, `/usr/bin/nice`,
+// `./xargs`) resolves to `env`/`nice`/`xargs` and is skipped exactly like the bare form. Previously the
+// raw token was tested, so a path-form modifier escaped the prefix-skip and the trailing launcher read
+// as an argument (the Class A root). The token is already de-quoted by the tokenizer; we basename it
+// here so resolution — not a raw-spelling anchor — is the boundary (one authority over every token).
 function isCommandPrefix(value) {
-    return (value === "env" ||
-        COMMAND_MODIFIERS.has(value) ||
-        /^[A-Za-z_][A-Za-z0-9_]*=/.test(value));
+    // An inline `VAR=val` assignment prefix — tested on the RAW token (it keeps its `=`).
+    if (/^[A-Za-z_][A-Za-z0-9_]*=/.test(value))
+        return true;
+    // `env` / a command-modifier builtin — tested on the EFFECTIVE word (basename + already de-quoted).
+    const word = effectiveCommandWord(value);
+    return word === "env" || COMMAND_MODIFIERS.has(word);
 }
 // Does the rest of THIS segment (from index `from`, until the next segment-leading token) carry the
 // admit SHAPE — a context-io script reference followed by the `admit` verb? A quoted/commented/heredoc
@@ -413,26 +498,69 @@ function rawSegmentText(cmd, tokens, from) {
     }
     return cmd.slice(start, end);
 }
-// Returns true only when a LIVE command segment is a real admit launch — OR an admit-shape behind a
-// command word the resolver cannot statically resolve to a definitely-non-launcher (the round-2 GAP-A
-// fail-closed tail). For each command segment we skip the assignment / `env` / command-modifier-builtin
-// prefix to find the EFFECTIVE command word (basename of a path; fully de-quoted by the tokenizer). If
-// the effective word is a launcher (node | npx | tsx | nodejs) AND the same segment carries the admit
-// shape → live admit. If instead the effective word is a dynamic-evaluation / indirection construct
-// (eval / sh -c / bash -c / `$X`-indirected) AND the segment STILL carries the admit shape → the gate
-// fails CLOSED (treat as a live admit to be gated). The dynamic-tail trigger is NARROW: it requires the
-// admit shape in the live segment, so a plain `eval "echo hi"` / `bash -c "ls"` with no admit reference
-// is not gated. ONE command-resolution authority, not a growing launcher-spelling list.
-function isAdmitInvocation(cmd) {
+// The note file a LIVE admit segment names: the admit CLI signature is
+// `<launcher> <script> admit <task> <noteFile> [root]` (context-io.ts), so within the segment's live
+// tokens the note file is the SECOND live token AFTER the `admit` verb token. Scans only THIS segment
+// (from `from` until the next segment-leading token). Returns null when the segment does not carry the
+// admit shape or the note positional is absent — the caller fails closed on a matched gated admit.
+function noteFileInSegment(tokens, from) {
+    let sawScript = false;
+    for (let j = from; j < tokens.length && (j === from || !tokens[j].startsSegment); j++) {
+        const v = tokens[j].value;
+        if (v.includes(ADMIT_SCRIPT))
+            sawScript = true;
+        else if (v === ADMIT_VERB && sawScript) {
+            // tokens[j+1] = task, tokens[j+2] = noteFile — but only if they stay within this segment.
+            const taskIdx = j + 1;
+            const noteIdx = j + 2;
+            if (noteIdx < tokens.length &&
+                !tokens[taskIdx].startsSegment &&
+                !tokens[noteIdx].startsSegment) {
+                const noteFile = tokens[noteIdx].value;
+                return noteFile === "" ? null : noteFile;
+            }
+            return null; // admit shape present but no locatable note positional → fail closed upstream
+        }
+    }
+    return null;
+}
+// THE ONE command-resolution + classification authority (round-3 UNIFY). A single walk over the live
+// tokens yields EVERY live admit segment — replacing both the launcher-membership matcher and the
+// separate naive note-file walk that diverged (the disease behind Classes A/B/E). For each command
+// segment we resolve the EFFECTIVE command word over EVERY leading-run token (skip assignment / `env` /
+// command-modifier-builtin prefixes, each resolved by basename + de-quote so a PATH-FORM modifier is
+// skipped too — Class A), then classify the segment's command word:
+//   - a launcher (node | npx | tsx | nodejs) carrying the admit shape → a live, resolvable admit
+//     segment; its note file is the second live token after the admit verb;
+//   - a dynamic-evaluation / indirection word (eval / sh -c / bash -c / `$X`) OR a command-substitution
+//     `$( … )` / backtick command word (the synthetic DYNAMIC_COMMAND_WORD token — Class B) carrying the
+//     admit shape → an UNRESOLVABLE live admit segment (the command word is statically unknowable), so
+//     it fails CLOSED (gate). For the eval/`$X` tail the admit shape may sit inside a quoted body the
+//     tokenizer treats as DATA, so we also check the segment's RAW text.
+// EVERY live admit segment is returned (not just the first), so a multi-admit command is classified
+// per segment and the caller gates if ANY segment is gated (Class E). The narrow trigger is preserved:
+// a dynamic / substitution command word with NO admit shape in its live segment is NOT an admit segment.
+function liveAdmitSegments(cmd) {
     const tokens = liveTokens(cmd);
+    const segments = [];
     for (let i = 0; i < tokens.length; i++) {
         if (!tokens[i].startsSegment)
             continue;
         // Skip an assignment / `env` / command-modifier-builtin prefix to reach the real command word.
+        // isCommandPrefix resolves each leading-run token's effective word (basename + de-quote), so a
+        // path-form modifier (`/usr/bin/env`/`/usr/bin/nice`/`./xargs`) is skipped like the bare form. Once
+        // at least one modifier has been skipped, an option flag belonging to that modifier (`env -S …`,
+        // `env -i …`, `nohup -n …`) is also skipped — a launcher / the admit script / the admit verb never
+        // begins with `-`, so skipping a leading-run flag cannot swallow a real command word (Class A: the
+        // `env -S node …admit` form).
         let cmdIdx = i;
-        while (cmdIdx < tokens.length && isCommandPrefix(tokens[cmdIdx].value)) {
-            // Only continue skipping while we stay within this segment's leading run.
+        while (cmdIdx < tokens.length) {
             if (cmdIdx > i && tokens[cmdIdx].startsSegment)
+                break; // stay within this segment's leading run
+            const v = tokens[cmdIdx].value;
+            const isPrefix = isCommandPrefix(v);
+            const isModifierFlag = cmdIdx > i && v.startsWith("-"); // an option to a modifier already skipped
+            if (!isPrefix && !isModifierFlag)
                 break;
             cmdIdx += 1;
         }
@@ -441,25 +569,34 @@ function isAdmitInvocation(cmd) {
         if (cmdIdx > i && tokens[cmdIdx].startsSegment)
             continue; // crossed into a new segment
         const rawWord = tokens[cmdIdx].value;
+        // Class B: a command-substitution `$( … )` / backtick command word (the synthetic dynamic token) is
+        // statically unresolvable. If THIS segment carries the admit shape, it is an unresolvable live admit
+        // → fail CLOSED. With no admit shape it is not an admit (narrow trigger — no over-block).
+        if (rawWord === DYNAMIC_COMMAND_WORD) {
+            if (segmentHasAdmitShape(tokens, cmdIdx + 1)) {
+                segments.push({ noteFile: null, unresolvable: true });
+            }
+            continue;
+        }
         const word = effectiveCommandWord(rawWord); // basename a path; the token is already de-quoted
         if (LAUNCHERS.has(word)) {
-            if (segmentHasAdmitShape(tokens, cmdIdx + 1))
-                return true;
+            if (segmentHasAdmitShape(tokens, cmdIdx + 1)) {
+                segments.push({ noteFile: noteFileInSegment(tokens, cmdIdx + 1), unresolvable: false });
+            }
             continue;
         }
         // Fail-closed tail: an admit shape behind a dynamic-evaluation / indirection command word the
         // resolver cannot see through (eval / sh -c / bash -c / `$X`). The admit shape is usually inside a
-        // quoted body the tokenizer treats as DATA, so we check the RAW segment text (live-token scan would
-        // miss it). GATE only when the admit shape (a context-io reference AND the `admit` verb) is present
-        // in this segment — a plain `eval "echo hi"` / `bash -c "ls"` with no admit reference is NOT gated.
+        // quoted body the tokenizer treats as DATA, so we also check the RAW segment text. GATE only when
+        // the admit shape is present — a plain `eval "echo hi"` / `bash -c "ls"` is NOT an admit segment.
         if (DYNAMIC_EVAL_WORDS.has(word) || isEnvIndirectedWord(rawWord)) {
             if (segmentHasAdmitShape(tokens, cmdIdx + 1) ||
                 rawTextHasAdmitShape(rawSegmentText(cmd, tokens, cmdIdx))) {
-                return true;
+                segments.push({ noteFile: null, unresolvable: true });
             }
         }
     }
-    return false;
+    return segments;
 }
 // Does ANY live segment of the command carry the admit SHAPE (a context-io script reference followed
 // by the `admit` verb), regardless of whether a launcher word was recognized? This is the GAP-B
@@ -486,30 +623,6 @@ function deny(reason) {
         },
     }));
     process.exit(0); // exit 0 + JSON deny = blocked, with a message for the agent.
-}
-// Tokenize a shell command into whitespace-separated argv-like tokens, stripping a single layer
-// of surrounding quotes from each token. This is intentionally simple: it is only used to find
-// the positional note-file argument AFTER the verb has already matched ADMIT_VERB. It does not
-// attempt full shell parsing — it does not need to, because a failure to locate the note file on
-// a matched gated admit fails CLOSED below (deny), never crash-allows.
-function tokenize(cmd) {
-    const tokens = cmd.match(/"[^"]*"|'[^']*'|[^\s]+/g) ?? [];
-    return tokens.map((t) => t.replace(/^['"]|['"]$/g, ""));
-}
-// Extract the note-file path from a matched admit invocation. The admit CLI signature is
-// `context-io.js admit <task> <noteFile> [contextRoot]` (context-io.ts:1051-1060), so the note
-// file is the SECOND positional after the `admit` verb (rest[1]). Returns null when it cannot be
-// located — the caller fails closed on a matched gated admit.
-function noteFileFromCommand(cmd) {
-    const tokens = tokenize(cmd);
-    const admitIdx = tokens.findIndex((t) => t === "admit");
-    if (admitIdx < 0)
-        return null;
-    // tokens[admitIdx+1] = task, tokens[admitIdx+2] = noteFile.
-    const noteFile = tokens[admitIdx + 2];
-    if (noteFile === undefined || noteFile === "")
-        return null;
-    return noteFile;
 }
 // Read and parse stdin. Fail CLOSED on the parse: if input cannot be read or parsed, treat the
 // command as empty. An empty command matches no admit invocation and is allowed, so a malformed
@@ -540,15 +653,20 @@ if (SELF_APPROVE.test(cmd) && commandHasLiveAdmitShape(cmd)) {
         `Admission of a governance entry must be authorized by a human who exports ${APPROVAL}=NAME ` +
         `in the shell that launches Claude — it cannot be set inside the command.`);
 }
-// Not an admit invocation → nothing to gate. This includes empty/malformed stdin (cmd=""), a
-// non-admit command (ls, render), and any command that merely MENTIONS admit text without being
-// a real `node …context-io admit …` call (e.g. `echo 'node context-io.js admit …'`,
-// `cat doc.md`). The guard's only input is the command verb, never file content. The refuse-self-set
-// floor above already fired for any self-set co-occurring with a live admit shape.
-if (!isAdmitInvocation(cmd)) {
+// Resolve EVERY live admit segment through the ONE command-resolution authority (round-3 UNIFY). An
+// empty result means the command is not an admit invocation — nothing to gate. This includes
+// empty/malformed stdin (cmd=""), a non-admit command (ls, render), and any command that merely
+// MENTIONS admit text without being a real `node …context-io admit …` call (e.g.
+// `echo 'node context-io.js admit …'`, `cat doc.md`). The guard's only input is the command verb,
+// never file content. The refuse-self-set floor above already fired for any self-set co-occurring
+// with a live admit shape.
+const admitSegments = liveAdmitSegments(cmd);
+if (admitSegments.length === 0) {
     process.exit(0);
 }
-// The command IS a matched admit. From here, any later failure on a gated admission denies.
+// The command IS a matched admit (one or more live admit segments). From here, any later failure on a
+// gated admission denies. Class E: a multi-admit command is classified PER SEGMENT below, and the
+// command gates if ANY live admit segment resolves to a gated severity — not just the first.
 // Read the dial via the richer discriminated read (Plan 25-01 reader; 25-04 result wrapper). The
 // hook — the un-forgeable tier — must FAIL CLOSED on a corrupt config, so it distinguishes a
 // genuinely ABSENT config (stay lean → allow routine) from a present-but-UNREADABLE one (deny). The
@@ -592,53 +710,84 @@ if (dial === "off") {
     process.exit(0);
 }
 const gateEveryMatch = dial !== "high-severity"; // "all" OR any non-canonical value → gate all
-// Locate and re-read the named note file to classify severity by its authoring role `by`. Fail
-// CLOSED: an unreadable note or an unparsable `by` on a matched admit denies (never crash-allow).
-const noteFile = noteFileFromCommand(cmd);
-if (noteFile === null) {
-    deny(`Admission blocked (fail-closed): could not determine the note file from the admit command ` +
-        `while governance is active (human_admission="${dial}"). A human must review this admission, ` +
-        `or export ${APPROVAL}=NAME to authorize it.`);
-}
-let by = "";
-try {
-    const text = readFileSync(noteFile, "utf8");
-    const parsed = parseNote(text);
-    if (parsed === null) {
-        deny(`Admission blocked (fail-closed): the note "${noteFile}" has no parsable frontmatter while ` +
-            `governance is active (human_admission="${dial}"). A human must review this admission, ` +
+// Whether the human stamp is present in the hook's OWN process env (the un-forgeable session export).
+// When present, a gated admission is authorized; when absent, a gated admission denies.
+const approved = Boolean(process.env[APPROVAL]);
+// Classify ONE live admit segment under the active dial and deny if it is gated and unapproved. Each
+// segment is classified independently so a multi-admit command gates if ANY segment is gated (Class E):
+// the first gated, unapproved segment denies the whole command; a routine segment under `high-severity`
+// is not gated and is skipped (no over-block of a routine-only multi-admit). An unresolvable segment
+// (Class B `$()`/backtick command word, or the eval/`$X` tail) has no readable note, so it fails CLOSED
+// under any active dial. A resolvable segment re-reads its note from disk and classifies severity by the
+// authoring role `by` (round-2 GAP-D case-insensitive); any read/parse failure on a gated admit denies.
+function classifySegmentOrDeny(seg) {
+    // Unresolvable command word (Class B substitution / the eval/`$X` tail): the note is unknowable, so
+    // fail CLOSED under any active dial regardless of whether this specific note would be high-severity.
+    if (seg.unresolvable) {
+        if (!approved) {
+            deny(`Admission blocked (fail-closed): an admission was launched behind a command word the hook ` +
+                `cannot statically resolve (a command substitution "$( … )"/backtick or a dynamic-evaluation ` +
+                `wrapper) while governance is active (human_admission="${dial}"). The hook cannot read the ` +
+                `note to classify it, so it treats this admission as gate-or-stricter. A human must review ` +
+                `this admission, or export ${APPROVAL}=NAME to authorize it.`);
+        }
+        return; // approved → this segment is authorized; continue to the next
+    }
+    const noteFile = seg.noteFile;
+    if (noteFile === null) {
+        deny(`Admission blocked (fail-closed): could not determine the note file from the admit command ` +
+            `while governance is active (human_admission="${dial}"). A human must review this admission, ` +
             `or export ${APPROVAL}=NAME to authorize it.`);
     }
-    by = (parsed.scalars.by ?? "").trim();
-    if (by === "") {
-        deny(`Admission blocked (fail-closed): the note "${noteFile}" has no authoring role ("by") while ` +
-            `governance is active (human_admission="${dial}"). A human must review this admission, ` +
+    let by = "";
+    try {
+        const text = readFileSync(noteFile, "utf8");
+        const parsed = parseNote(text);
+        if (parsed === null) {
+            deny(`Admission blocked (fail-closed): the note "${noteFile}" has no parsable frontmatter while ` +
+                `governance is active (human_admission="${dial}"). A human must review this admission, ` +
+                `or export ${APPROVAL}=NAME to authorize it.`);
+        }
+        by = (parsed.scalars.by ?? "").trim();
+        if (by === "") {
+            deny(`Admission blocked (fail-closed): the note "${noteFile}" has no authoring role ("by") while ` +
+                `governance is active (human_admission="${dial}"). A human must review this admission, ` +
+                `or export ${APPROVAL}=NAME to authorize it.`);
+        }
+    }
+    catch {
+        deny(`Admission blocked (fail-closed): the note "${noteFile}" could not be read while governance is ` +
+            `active (human_admission="${dial}"). A human must review this admission, ` +
             `or export ${APPROVAL}=NAME to authorize it.`);
     }
+    // Is THIS admission gated by the dial?
+    //   - gateEveryMatch (set for "all" AND for any non-canonical value): every matched admission
+    //     requires the human stamp.
+    //   - "high-severity" (the only other non-off value): only the three high-severity authoring roles.
+    // Case-INSENSITIVE high-severity classification (round-2 GAP-D): the role constants are lowercase and
+    // validate() accepts any non-empty `by`, so a case-variant `by` (`Security-NFR`, `SECURITY-NFR`) must
+    // still classify high-severity — otherwise the `high-severity` dial is escapable by casing. We
+    // lowercase the trimmed `by` for the membership test only; the original `by` is preserved for the
+    // deny message.
+    const isHighSeverity = HIGH_SEVERITY_ROLES.has(by.toLowerCase());
+    const isGated = gateEveryMatch || isHighSeverity;
+    if (isGated && !approved) {
+        const disposition = gateEveryMatch
+            ? `Governance requires a named human disposition for every admission under the active setting ` +
+                `(human_admission="${dial}").`
+            : `This is a high-severity admission (by: ${by}); a high-severity governance entry requires a named human disposition.`;
+        deny(`Admission blocked: humans decide, agents execute. ${disposition} ` +
+            `The note "${noteFile}" cannot be admitted until a human exports ${APPROVAL}=NAME in the shell ` +
+            `that launches Claude, then re-runs the admission. The agent must not set ${APPROVAL} itself.`);
+    }
+    // This segment is not gated (routine under high-severity) or the human stamp is present → authorized.
 }
-catch {
-    deny(`Admission blocked (fail-closed): the note "${noteFile}" could not be read while governance is ` +
-        `active (human_admission="${dial}"). A human must review this admission, ` +
-        `or export ${APPROVAL}=NAME to authorize it.`);
+// Class E: classify EVERY live admit segment; the command gates if ANY segment is gated and unapproved.
+// classifySegmentOrDeny denies (and exits) on the first gated, unapproved segment, so a high-severity
+// segment shielded behind a routine admit is still caught regardless of position.
+for (const seg of admitSegments) {
+    classifySegmentOrDeny(seg);
 }
-// Is THIS admission gated by the dial?
-//   - gateEveryMatch (set for "all" AND for any non-canonical value): every matched admission
-//     requires the human stamp.
-//   - "high-severity" (the only other non-off value): only the three high-severity authoring roles.
-// Case-INSENSITIVE high-severity classification (round-2 GAP-D): the role constants are lowercase and
-// validate() accepts any non-empty `by`, so a case-variant `by` (`Security-NFR`, `SECURITY-NFR`) must
-// still classify high-severity — otherwise the `high-severity` dial is escapable by casing. We lowercase
-// the trimmed `by` for the membership test only; the original `by` is preserved for the deny message.
-const isHighSeverity = HIGH_SEVERITY_ROLES.has(by.toLowerCase());
-const isGated = gateEveryMatch || isHighSeverity;
-if (isGated && !process.env[APPROVAL]) {
-    const disposition = gateEveryMatch
-        ? `Governance requires a named human disposition for every admission under the active setting ` +
-            `(human_admission="${dial}").`
-        : `This is a high-severity admission (by: ${by}); a high-severity governance entry requires a named human disposition.`;
-    deny(`Admission blocked: humans decide, agents execute. ${disposition} ` +
-        `The note "${noteFile}" cannot be admitted until a human exports ${APPROVAL}=NAME in the shell ` +
-        `that launches Claude, then re-runs the admission. The agent must not set ${APPROVAL} itself.`);
-}
-// Allow: not gated (routine role under high-severity, or off), or the human stamp is present.
+// Allow: no live admit segment was gated-and-unapproved (every segment routine under high-severity, or
+// off, or the human stamp is present).
 process.exit(0);

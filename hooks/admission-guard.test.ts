@@ -564,4 +564,116 @@ describe("admission-guard.js (GOV-01 human-admission gate) — child-spawn deny/
     expectAllow(payload(admitCmd(note)), { CLAUDE_PROJECT_DIR: dir });
     rmSync(dir, { recursive: true, force: true });
   });
+
+  // ── 20. Gap-closure (25-06 / Class A): a PATH-FORM command modifier resolves over EVERY leading-run ──
+  //    token. The 25-05 resolver basenamed/de-quoted only the FINAL command word; the round-3 red-team
+  //    spelled the modifier itself as a PATH (`/usr/bin/env`/`/usr/bin/nice`/`./nice`) or used an env
+  //    flag (`env -S`), so the raw-token prefix-skip (isCommandPrefix on the raw token) stopped and the
+  //    trailing `node` read as an argument (verified RED in 25-06-RED-baseline.txt). isCommandPrefix now
+  //    resolves each leading-run token's effective word (basename + de-quote) and skips a modifier's
+  //    option flag, so every path-form modifier resolves through to the trailing `node` and DENIES a
+  //    gated high-severity un-approved admit. Spawned vs the COMMITTED admission-guard.js.
+  for (const [label, command] of [
+    ["path /usr/bin/env", `/usr/bin/env node scripts/context-io.js admit my-task __NOTE__`],
+    ["path /usr/bin/nice", `/usr/bin/nice node scripts/context-io.js admit my-task __NOTE__`],
+    ["path /usr/bin/env -S", `/usr/bin/env -S node scripts/context-io.js admit my-task __NOTE__`],
+    ["path /usr/bin/xargs", `/usr/bin/xargs node scripts/context-io.js admit my-task __NOTE__`],
+    ["path ./nice", `./nice node scripts/context-io.js admit my-task __NOTE__`],
+    ["doubled env+nice", `/usr/bin/env /usr/bin/nice node scripts/context-io.js admit my-task __NOTE__`],
+    ["env flag -i", `env -i node scripts/context-io.js admit my-task __NOTE__`],
+  ] as const) {
+    it(`deny (25-06/Class A): path-form modifier ${label} DENIES a gated high-severity admit`, () => {
+      expectDeny(payload(command.replace("__NOTE__", highNote)), {
+        CLAUDE_PROJECT_DIR: projectHigh,
+      });
+    });
+  }
+
+  // ── 21. Gap-closure (25-06 / Class B): a command word PRODUCED by a `$( … )` / backtick substitution ──
+  //    is statically unresolvable and FAILS CLOSED (gate) when the live segment carries the admit shape.
+  //    The 25-04 tokenizer opened a fresh segment at the substitution's INNER word, exposing `echo` and
+  //    losing the outer admit shape, so `$(echo node) …admit` failed OPEN — asymmetric with `$X …admit`,
+  //    which already failed closed (verified RED). The tokenizer now emits a synthetic dynamic-command-word
+  //    token for a token-start substitution and the resolver gates it on the admit shape. Includes a nested
+  //    substitution and an in-modifier-slot substitution the author surfaces explicitly.
+  for (const [label, command] of [
+    ["$(echo node)", `$(echo node) scripts/context-io.js admit my-task __NOTE__`],
+    ["backtick echo node", "`echo node` scripts/context-io.js admit my-task __NOTE__"],
+    ["$(printf node)", `$(printf node) scripts/context-io.js admit my-task __NOTE__`],
+    ["$(basename /usr/bin/node)", `$(basename /usr/bin/node) scripts/context-io.js admit my-task __NOTE__`],
+    ["nested $(echo $(echo node))", `$(echo $(echo node)) scripts/context-io.js admit my-task __NOTE__`],
+    ["in-modifier nice $(echo node)", `nice $(echo node) scripts/context-io.js admit my-task __NOTE__`],
+  ] as const) {
+    it(`deny (25-06/Class B): command-substitution command word ${label} GATES (fail-closed)`, () => {
+      expectDeny(payload(command.replace("__NOTE__", highNote)), {
+        CLAUDE_PROJECT_DIR: projectHigh,
+      });
+    });
+  }
+
+  // ── 22. Gap-closure (25-06 / Class B narrow trigger): a `$( … )` / backtick with NO admit shape in the ──
+  //    live segment is unrelated and must ALLOW (no over-block — the fail-closed gate is admit-shape-scoped).
+  it("allow (25-06/Class B): `$(echo hi) ls` with no admit reference is not gated", () => {
+    expectAllow(payload(`$(echo hi) ls`), { CLAUDE_PROJECT_DIR: projectAll });
+  });
+
+  it("allow (25-06/Class B): a bare backtick command with no admit reference is not gated", () => {
+    expectAllow(payload("`echo hi`"), { CLAUDE_PROJECT_DIR: projectAll });
+  });
+
+  // ── 23. Gap-closure (25-06 / Class E, CRITICAL multi-admit shield): the classifier is the segment walk ──
+  //    — EVERY live admit segment is classified and the command gates if ANY resolves to a gated severity.
+  //    The 25-05 classifier (noteFileFromCommand) read only the FIRST admit's note, so a routine admit
+  //    first then a high-severity admit shielded the high-severity one under `high-severity` (verified RED).
+  //    Now the per-segment authority classifies each; a high-severity admit in ANY position DENIES.
+  const ROUTINE_FIRST = (sep: string): string =>
+    `node scripts/context-io.js admit t1 ${routineNote} ${sep} node scripts/context-io.js admit t2 ${highNote}`;
+  const HIGH_FIRST = (sep: string): string =>
+    `node scripts/context-io.js admit t1 ${highNote} ${sep} node scripts/context-io.js admit t2 ${routineNote}`;
+  for (const sep of [";", "&&", "||", "|", "&"]) {
+    it(`deny (25-06/Class E): routine-first then high-severity joined by "${sep}" DENIES under high-severity`, () => {
+      expectDeny(payload(ROUTINE_FIRST(sep)), { CLAUDE_PROJECT_DIR: projectHigh });
+    });
+    it(`deny (25-06/Class E): high-severity-first then routine joined by "${sep}" DENIES under high-severity`, () => {
+      expectDeny(payload(HIGH_FIRST(sep)), { CLAUDE_PROJECT_DIR: projectHigh });
+    });
+  }
+
+  it("deny (25-06/Class E): a high-severity admit shielded inside a subshell DENIES under high-severity", () => {
+    expectDeny(
+      payload(
+        `( node scripts/context-io.js admit t1 ${routineNote} ) ; node scripts/context-io.js admit t2 ${highNote}`,
+      ),
+      { CLAUDE_PROJECT_DIR: projectHigh },
+    );
+  });
+
+  it("deny (25-06/Class E): a 3-admit chain with the high-severity admit LAST DENIES under high-severity", () => {
+    expectDeny(
+      payload(
+        `node scripts/context-io.js admit t1 ${routineNote} ; ` +
+          `node scripts/context-io.js admit t2 ${routineNote} ; ` +
+          `node scripts/context-io.js admit t3 ${highNote}`,
+      ),
+      { CLAUDE_PROJECT_DIR: projectHigh },
+    );
+  });
+
+  it("allow (25-06/Class E): a routine-ONLY multi-admit under high-severity ALLOWs (no over-block)", () => {
+    expectAllow(
+      payload(
+        `node scripts/context-io.js admit t1 ${routineNote} ; node scripts/context-io.js admit t2 ${routineNote}`,
+      ),
+      { CLAUDE_PROJECT_DIR: projectHigh },
+    );
+  });
+
+  it("deny (25-06/Class E): a routine-only multi-admit under `all` DENIES (every admission gated)", () => {
+    expectDeny(
+      payload(
+        `node scripts/context-io.js admit t1 ${routineNote} ; node scripts/context-io.js admit t2 ${routineNote}`,
+      ),
+      { CLAUDE_PROJECT_DIR: projectAll },
+    );
+  });
 });

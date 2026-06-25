@@ -1,0 +1,75 @@
+25-06 GREEN PROOF — the round-3 GOV-01 bypasses CLOSED vs the POST-FIX COMMITTED .js
+====================================================================================
+
+Captured AFTER each fix, against the rebuilt COMMITTED artifacts (the 22-08 / 22-09
+RED -> GREEN discipline; companion to 25-06-RED-baseline.txt, extending the 25-05 format).
+
+Every result below is a child-spawn of the COMMITTED .js (never the .ts, never the author
+test suites). This file is built incrementally across the round-3 tasks:
+  - Task 25-06-01 contributes the Class A path-form-modifier rows, the Class B command-
+    substitution/backtick rows, and the Class E multi-admit-shield rows (this section).
+  - Task 25-06-02 contributes the Class F duplicate/indented `by` rows.
+  - Task 25-06-03 completes the proof set: the full over-block-clean / routine-only /
+    no-admit-shape / zero-config control set.
+
+Post-Task-25-06-01 committed blob (the UNIFIED liveAdmitSegments authority; the naive
+tokenize + noteFileFromCommand second walk DELETED):
+    hooks/admission-guard.js   (rebuilt; freshness 0 drift)
+    hooks/guard.ts             blob 3501810e21308e4b7e219679a6ca30dace9b5d66 (byte-frozen, D-02)
+    scripts/context-io.ts      unchanged (GAP-C/GAP-D + ledger preserved)
+
+Fixture: a high-severity note (by: security-nfr, kind: finding) under
+human_admission: high-severity, no GRUGOPS_ADMISSION_APPROVED_BY in the hook env.
+A routine note (by: software-engineer) is the routine segment in the Class E rows.
+
+------------------------------------------------------------------------------------
+CLASS A / SC1 — path-form command modifier (every form now DENIES)
+------------------------------------------------------------------------------------
+[A path /usr/bin/env]            => DENY  (RED was ALLOW)   /usr/bin/env node scripts/context-io.js admit my-task NOTE
+[A path /usr/bin/nice]           => DENY  (RED was ALLOW)   /usr/bin/nice node scripts/context-io.js admit my-task NOTE
+[A path /usr/bin/env -S]         => DENY  (RED was ALLOW)   /usr/bin/env -S node scripts/context-io.js admit my-task NOTE
+[A path /usr/bin/xargs]          => DENY  (RED was ALLOW)   /usr/bin/xargs node scripts/context-io.js admit my-task NOTE
+[A path ./nice]                  => DENY  (RED was ALLOW)   ./nice node scripts/context-io.js admit my-task NOTE
+[A doubled env+nice]             => DENY  (RED was ALLOW)   /usr/bin/env /usr/bin/nice node scripts/context-io.js admit my-task NOTE
+[A env flag -i]                  => DENY  (new control)     env -i node scripts/context-io.js admit my-task NOTE
+
+------------------------------------------------------------------------------------
+CLASS B / SC1 — a $( … )/backtick command word fails CLOSED (every form GATES = DENY)
+------------------------------------------------------------------------------------
+[B $(echo node)]                 => DENY  (RED was ALLOW)   $(echo node) scripts/context-io.js admit my-task NOTE
+[B backtick echo node]           => DENY  (RED was ALLOW)   `echo node` scripts/context-io.js admit my-task NOTE
+[B $(printf node)]               => DENY  (RED was ALLOW)   $(printf node) scripts/context-io.js admit my-task NOTE
+[B $(basename /usr/bin/node)]    => DENY  (RED was ALLOW)   $(basename /usr/bin/node) scripts/context-io.js admit my-task NOTE
+[B nested $(echo $(echo node))]  => DENY  (new control)     $(echo $(echo node)) scripts/context-io.js admit my-task NOTE
+[B in-modifier nice $(echo node)]=> DENY  (new control)     nice $(echo node) scripts/context-io.js admit my-task NOTE
+
+Class B narrow trigger (no admit shape → ALLOW, no over-block):
+[B no-admit $()]                 => ALLOW (correct)         $(echo hi) ls
+[B no-admit backtick]            => ALLOW (correct)         `echo hi`
+
+------------------------------------------------------------------------------------
+CLASS E / SC1 (CRITICAL multi-admit shield) — every live admit segment classified;
+gate if ANY is gated (every ordering/separator DENIES; routine-only ALLOWs)
+------------------------------------------------------------------------------------
+[E ; routine,high]               => DENY  (RED was ALLOW)   node ...admit t1 ROUTINE ; node ...admit t2 NOTE
+[E && routine,high]              => DENY  (RED was ALLOW)   node ...admit t1 ROUTINE && node ...admit t2 NOTE
+[E || routine,high]              => DENY  (new control)     node ...admit t1 ROUTINE || node ...admit t2 NOTE
+[E | routine,high]               => DENY  (RED was ALLOW)   node ...admit t1 ROUTINE | node ...admit t2 NOTE
+[E & routine,high]               => DENY  (new control)     node ...admit t1 ROUTINE & node ...admit t2 NOTE
+[E subshell routine,high]        => DENY  (RED was ALLOW)   ( node ...admit t1 ROUTINE ) ; node ...admit t2 NOTE
+[E high,routine (high first)]    => DENY  (new control)     node ...admit t1 NOTE ; node ...admit t2 ROUTINE
+[E 3-admit, high last]           => DENY  (new control)     node ...admit t1 ROUTINE ; node ...admit t2 ROUTINE ; node ...admit t3 NOTE
+
+Class E no-over-block controls:
+[E routine-only multi (high-sev dial)] => ALLOW (correct)   node ...admit t1 ROUTINE ; node ...admit t2 ROUTINE  (human_admission: high-severity)
+[E routine-only multi (all dial)]      => DENY  (correct)   node ...admit t1 ROUTINE ; node ...admit t2 ROUTINE  (human_admission: all → every admit gated)
+
+------------------------------------------------------------------------------------
+CONTROLS (already correct pre-fix — confirmed unchanged post-Task-25-06-01)
+------------------------------------------------------------------------------------
+[bare node ...admit (supported)] => DENY                    node scripts/context-io.js admit my-task NOTE
+[inert double-quoted]            => ALLOW                   echo "node ...admit my-task NOTE"
+[inert heredoc body]             => ALLOW                   cat <<EOF\nnode ...admit my-task NOTE\nEOF
+[approved high]                  => ALLOW                   node ...admit my-task NOTE  (GRUGOPS_ADMISSION_APPROVED_BY=alice present)
+
+(Class F rows + the full control set are appended by Tasks 25-06-02 / 25-06-03.)

@@ -1,0 +1,101 @@
+25-06 RED BASELINE — the round-3 GOV-01 bypasses reproduced vs the PRE-FIX COMMITTED .js
+========================================================================================
+
+Captured FIRST, before any source edit (the 22-08 / 22-09 RED -> GREEN discipline,
+extending the 25-05-RED-baseline.txt row format).
+
+Every result below is a child-spawn of the COMMITTED artifacts as they stood at the
+PRE-FIX HEAD d4a90e2 (same admission-guard.js content as a43c962 — the intervening
+25-06 plan commits were docs-only), NOT the .ts and NOT the author's test suites:
+
+    hooks/admission-guard.js   blob 1b822df14daba4cd85d19a1231fe34be283b2633 (pre-fix)
+    scripts/context-io.js      (unchanged this round — GAP-C/GAP-D preserved)
+    hooks/guard.ts             blob 3501810e21308e4b7e219679a6ca30dace9b5d66 (byte-frozen, D-02)
+
+Test fixture for the hook-tier rows: a high-severity note (by: security-nfr, kind:
+finding) under human_admission: high-severity, with NO GRUGOPS_ADMISSION_APPROVED_BY
+in the hook's process env. A correct gate DENIES; the PRE-FIX hook ALLOWs (the bypass).
+
+These are the FOUR round-3 root-cause classes the 25-05 independent both-angle red-team
+found (25-05-SUMMARY.md "Independent Both-Angle Red-Team") that the author's 743-case
+suite missed — the 25-05 round-2 resolver fixed command-RESOLUTION at ONE point (the
+final command word) but (A) the prefix/modifier tokens are tested RAW so a PATH-FORM
+modifier escapes, (B) a `$( … )` / backtick that PRODUCES the command word fails OPEN,
+(E) the CLASSIFIER is a SEPARATE naive walk that sees only the FIRST admit so a routine
+admit shields a high-severity one, and (F) the hook reads `by` last-wins so a duplicate /
+indented `by` that validate() rejects mis-classifies to routine.
+
+----------------------------------------------------------------------------------------
+CLASS A / SC1 — path-form command modifier escapes the raw-token prefix-skip
+----------------------------------------------------------------------------------------
+Root cause: isCommandPrefix(value) (admission-guard.ts:367) tests the RAW token, and the
+prefix-skip loop (isAdmitInvocation :437) never basenames/de-quotes the MODIFIER tokens —
+effectiveCommandWord + stripQuotedRuns are applied only to the FINAL resolved command word
+(:445), never to the leading-run modifiers. So a path-form `/usr/bin/env` / `/usr/bin/nice`
+is NOT recognized as a command-modifier (its basename `env`/`nice` is), the prefix-skip
+stops, and the trailing `node` reads as an argument — the segment resolves to a non-launcher.
+
+[A path /usr/bin/env]            => ALLOW  (bypass live)   /usr/bin/env node scripts/context-io.js admit my-task NOTE
+[A path /usr/bin/nice]           => ALLOW  (bypass live)   /usr/bin/nice node scripts/context-io.js admit my-task NOTE
+[A path /usr/bin/env -S]         => ALLOW  (bypass live)   /usr/bin/env -S node scripts/context-io.js admit my-task NOTE
+[A path /usr/bin/xargs]          => ALLOW  (bypass live)   /usr/bin/xargs node scripts/context-io.js admit my-task NOTE
+[A path ./nice]                  => ALLOW  (bypass live)   ./nice node scripts/context-io.js admit my-task NOTE
+[A doubled env+nice]             => ALLOW  (bypass live)   /usr/bin/env /usr/bin/nice node scripts/context-io.js admit my-task NOTE
+
+----------------------------------------------------------------------------------------
+CLASS B / SC1 — a $( … ) / backtick command word fails OPEN (asymmetric with $X)
+----------------------------------------------------------------------------------------
+Root cause: `$(` opens a fresh segment at the INNER word (admission-guard.ts:313), exposing
+`echo` as the command word, and backticks are unhandled (:355 extends the token). The OUTER
+command word the shell forms (`$(echo node)` → `node`) is dynamically produced and never
+recognized. `$X …admit` already fails CLOSED (isEnvIndirectedWord) but `$(…) …admit` and
+`` `…` …admit `` fail OPEN — the asymmetry this class exploits.
+
+[B $(echo node)]                 => ALLOW  (bypass live)   $(echo node) scripts/context-io.js admit my-task NOTE
+[B backtick echo node]           => ALLOW  (bypass live)   `echo node` scripts/context-io.js admit my-task NOTE
+[B $(printf node)]               => ALLOW  (bypass live)   $(printf node) scripts/context-io.js admit my-task NOTE
+[B $(basename /usr/bin/node)]    => ALLOW  (bypass live)   $(basename /usr/bin/node) scripts/context-io.js admit my-task NOTE
+
+----------------------------------------------------------------------------------------
+CLASS E / SC1 (CRITICAL multi-admit shield) — the classifier sees only the FIRST admit
+----------------------------------------------------------------------------------------
+Root cause: noteFileFromCommand (admission-guard.ts:509) uses a SEPARATE naive tokenize
+(:500) + findIndex(t === "admit") (:511) that returns the FIRST admit's note file only. The
+MATCHER walks segments via liveTokens; the CLASSIFIER does not. Under high-severity, a
+routine admit first then a high-severity admit: the matcher fires, but the classifier reads
+the ROUTINE note's `by` (software-engineer) → not gated → ALLOW. The high-severity admit
+runs un-gated through the un-forgeable primary tier.
+
+[E multi ; routine,high]         => ALLOW  (bypass live)   node ...admit t1 ROUTINE ; node ...admit t2 NOTE
+[E multi && routine,high]        => ALLOW  (bypass live)   node ...admit t1 ROUTINE && node ...admit t2 NOTE
+[E multi | routine,high]         => ALLOW  (bypass live)   node ...admit t1 ROUTINE | node ...admit t2 NOTE
+[E multi subshell]               => ALLOW  (bypass live)   ( node ...admit t1 ROUTINE ) ; node ...admit t2 NOTE
+
+----------------------------------------------------------------------------------------
+CLASS F / SC1 (tier inconsistency) — duplicate / indented `by` last-wins-classifies routine
+----------------------------------------------------------------------------------------
+Root cause: the hook reads parsed.scalars.by (last-wins, admission-guard.ts:632) WITHOUT
+consulting parsed.duplicateKeys / parsed.malformedLines, which validate() (context-io.ts:
+542-557) rejects as a structural FAIL. A note with `by: security-nfr` then `by: software-
+engineer` (duplicate) or an indented ` by: security-nfr` reads as routine at the hook but is
+rejected by admit()'s validate() — the two tiers disagree, and under high-severity the hook
+ALLOWs a structurally-invalid note that should gate-or-stricter.
+
+[F dup by]                       => ALLOW  (bypass live)   node ...admit my-task DUP   (by: security-nfr then by: software-engineer)
+[F indented by]                  => ALLOW  (bypass live)   node ...admit my-task IND   (indented ` by: security-nfr`)
+
+----------------------------------------------------------------------------------------
+OVER-BLOCK-CLEAN controls (the CR-01-inverse fail-safe — these correctly ALLOW pre-fix and
+must stay ALLOW post-fix; the new gates must be NARROW)
+----------------------------------------------------------------------------------------
+[E routine-only multi]           => ALLOW  (correct)       node ...admit t1 ROUTINE ; node ...admit t2 ROUTINE2  (under high-severity)
+[B no-admit $()]                 => ALLOW  (correct)       $(echo hi) ls
+[B no-admit backtick]            => ALLOW  (correct)       `echo hi`
+(plus the 25-05 inert heredoc / quoted / comment / eval-no-admit controls — unchanged)
+
+========================================================================================
+SUMMARY (pre-fix committed .js, blob 1b822df1…): all 16 round-3 bypass rows LIVE (all want
+DENY/GATE, all ALLOW); all over-block-clean controls correctly ALLOW. The POST-FIX committed
+.js must flip every BYPASS-LIVE row to DENY/GATE while leaving every over-block-clean /
+routine-only / no-admit-shape / absent / supported control unchanged — captured in
+25-06-GREEN-proof.txt.
