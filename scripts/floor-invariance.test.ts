@@ -702,3 +702,178 @@ describe("SC1 anti-whack-a-mole (25-05) — command-RESOLUTION class invariant o
     }
   });
 });
+
+describe("SC1 anti-whack-a-mole (25-06) — command-RESOLUTION class invariant over the round-3 matrix", () => {
+  // Round-3 UNIFY: the matcher and the classifier are ONE liveAdmitSegments authority over the shell
+  // grammar — command-word resolution (basename + de-quote) is applied to EVERY leading-run token, a
+  // command-substitution / backtick command word fails CLOSED, and EVERY live admit segment is
+  // classified. So the proof is a CLASS invariant over three NEW dimensions the round-2 fuzz did not
+  // cover, NOT an enumeration: (A) a PATH-FORM command modifier × every modifier spelling/path prefix/
+  // flag resolves through to the trailing launcher and DENIES; (B) a `$( … )` / backtick that PRODUCES
+  // the command word GATES on the admit shape and ALLOWs without it; (E) a multi-admit command DENIES
+  // whenever ANY live segment is gated (any ordering / separator) and a routine-only multi-admit ALLOWs
+  // under high-severity. A launcher/modifier spelling or admit-ordering outside any narrow anchor cannot
+  // escape, because resolution + per-segment classification — not enumeration — is the boundary (the P22
+  // round-8 "make the boundary BE the parser" lesson applied to command-RESOLUTION). D-12: this GREEN
+  // class invariant is NECESSARY-NOT-SUFFICIENT; the INDEPENDENT both-angle red-team at Task 25-06-04 is
+  // the gate, not a green suite — the author's suites passed and STILL missed these classes across rounds
+  // 1, 2, and 3. The round-2 effective-command-word / non-string-dial / case-variant sweeps above are
+  // PRESERVED and not duplicated here.
+  const LINE_ENDINGS: Array<["LF" | "CRLF", string]> = [
+    ["LF", "\n"],
+    ["CRLF", "\r\n"],
+  ];
+
+  // ── Class A: PATH-FORM command modifiers. Every {modifier × path-prefix × optional flag} resolves to
+  //    its basename, is skipped as a leading-run prefix, and the trailing `node` becomes the effective
+  //    command word → DENY a gated high-severity un-approved admit. (The round-2 fuzz basenamed only the
+  //    FINAL launcher word; a PATH-FORM MODIFIER token is the new dimension.)
+  function pathFormModifierForms(note: string): Array<[string, string]> {
+    const tail = `node scripts/context-io.js admit my-task ${note}`;
+    const modifiers = ["env", "nice", "xargs", "nohup", "stdbuf", "timeout", "command", "exec"];
+    const prefixes = ["/usr/bin/", "/bin/", "./"];
+    const out: Array<[string, string]> = [];
+    for (const m of modifiers) {
+      for (const p of prefixes) {
+        out.push([`${p}${m}`, `${p}${m} ${tail}`]);
+      }
+    }
+    // env with an option flag (env -S / env -i) — the modifier's flag is skipped in the leading run.
+    out.push(["/usr/bin/env -S", `/usr/bin/env -S ${tail}`]);
+    out.push(["env -i", `env -i ${tail}`]);
+    // a doubled path-form modifier chain (the author surfaces this compound explicitly).
+    out.push(["doubled /usr/bin/env /bin/nice", `/usr/bin/env /bin/nice ${tail}`]);
+    return out;
+  }
+
+  // ── Class B: a command word PRODUCED by a `$( … )` / backtick substitution (incl. nested and
+  //    in-modifier-slot). With the admit shape → GATE (DENY); without it → ALLOW (narrow trigger).
+  function commandSubstitutionForms(note: string): Array<[string, string]> {
+    const tail = `scripts/context-io.js admit my-task ${note}`;
+    return [
+      ["$(echo node)", `$(echo node) ${tail}`],
+      ["backtick echo node", "`echo node` " + tail],
+      ["$(printf node)", `$(printf node) ${tail}`],
+      ["$(basename /usr/bin/node)", `$(basename /usr/bin/node) ${tail}`],
+      ["nested $(echo $(echo node))", `$(echo $(echo node)) ${tail}`],
+      ["in-modifier nice $(echo node)", `nice $(echo node) ${tail}`],
+      // an author-unenumerated compound: a path-form modifier in front of a substitution command word.
+      ["path-modifier + substitution", `/usr/bin/env $(echo node) ${tail}`],
+    ];
+  }
+
+  // A command substitution / backtick with NO admit shape in the live segment → ALLOW (no over-block).
+  const NO_ADMIT_SUBSTITUTION: Array<[string, string]> = [
+    ["$(echo hi) ls", `$(echo hi) ls`],
+    ["bare backtick", "`echo hi`"],
+    ["$(printf foo) echo bar", `$(printf foo) echo bar`],
+  ];
+
+  // ── Class E: multi-admit ordering. Build a chain of admit segments (each routine, plus one optional
+  //    high-severity in a chosen position) joined by a separator. Under high-severity, a chain DENIES iff
+  //    it contains the high-severity segment (any position); a routine-only chain ALLOWs. Under `all`,
+  //    any chain DENIES (every admit gated).
+  const SEPARATORS = [";", "&&", "||", "|", "&"];
+  function admitSeg(task: string, note: string): string {
+    return `node scripts/context-io.js admit ${task} ${note}`;
+  }
+  function chain(segs: string[], sep: string): string {
+    return segs.join(` ${sep} `);
+  }
+
+  for (const [leName, nl] of LINE_ENDINGS) {
+    it(`Class A — every path-form modifier DENIES a gated high-severity admit (${leName})`, () => {
+      const { dir, highNote } = projectWith({ dial: "high-severity" });
+      for (const [name, base] of pathFormModifierForms(highNote)) {
+        const command = nl === "\n" ? base : base.replace(" ", ` \\${nl}`);
+        expect(hookDecision(command, dir), `path-form modifier ${name}/${leName} must DENY`).toBe(
+          "deny",
+        );
+      }
+    });
+
+    it(`Class A — a path-form modifier with NO launcher / no admit shape ALLOWs (${leName})`, () => {
+      const { dir } = projectWith({ dial: "all" });
+      // `/usr/bin/env ls` — a modifier wrapping a non-launcher with no admit shape is unrelated.
+      const command = nl === "\n" ? `/usr/bin/env ls -la` : `/usr/bin/env \\${nl}ls -la`;
+      expect(hookDecision(command, dir), `inert path-form modifier/${leName} must ALLOW`).toBe(
+        "allow",
+      );
+    });
+
+    it(`Class B — every command-substitution command word GATES on the admit shape (${leName})`, () => {
+      const { dir, highNote } = projectWith({ dial: "high-severity" });
+      for (const [name, command] of commandSubstitutionForms(highNote)) {
+        expect(hookDecision(command, dir), `substitution ${name}/${leName} must GATE (deny)`).toBe(
+          "deny",
+        );
+      }
+    });
+
+    it(`Class B — a command substitution with NO admit shape ALLOWs (${leName}) — no over-block`, () => {
+      const { dir } = projectWith({ dial: "all" });
+      for (const [name, command] of NO_ADMIT_SUBSTITUTION) {
+        expect(hookDecision(command, dir), `no-admit substitution ${name}/${leName} must ALLOW`).toBe(
+          "allow",
+        );
+      }
+    });
+
+    it(`Class E — a chain containing a high-severity admit DENIES under high-severity, any position/separator (${leName})`, () => {
+      const { dir, highNote, routineNote } = projectWith({ dial: "high-severity" });
+      for (const sep of SEPARATORS) {
+        // high in each of three positions across a 3-segment chain.
+        const positions: string[][] = [
+          [admitSeg("t1", highNote), admitSeg("t2", routineNote), admitSeg("t3", routineNote)],
+          [admitSeg("t1", routineNote), admitSeg("t2", highNote), admitSeg("t3", routineNote)],
+          [admitSeg("t1", routineNote), admitSeg("t2", routineNote), admitSeg("t3", highNote)],
+        ];
+        for (let p = 0; p < positions.length; p++) {
+          const command = chain(positions[p], sep);
+          expect(
+            hookDecision(command, dir),
+            `multi-admit high@pos${p} sep="${sep}"/${leName} must DENY`,
+          ).toBe("deny");
+        }
+      }
+    });
+
+    it(`Class E — a routine-ONLY chain ALLOWs under high-severity (no over-block) and DENIES under all (${leName})`, () => {
+      const high = projectWith({ dial: "high-severity" });
+      const all = projectWith({ dial: "all" });
+      for (const sep of SEPARATORS) {
+        for (const n of [2, 3]) {
+          const segs = Array.from({ length: n }, (_, k) => admitSeg(`t${k}`, high.routineNote));
+          const cmdHigh = chain(segs, sep);
+          expect(
+            hookDecision(cmdHigh, high.dir),
+            `routine-only ${n}-chain sep="${sep}"/${leName} must ALLOW under high-severity`,
+          ).toBe("allow");
+          const segsAll = Array.from({ length: n }, (_, k) => admitSeg(`t${k}`, all.routineNote));
+          const cmdAll = chain(segsAll, sep);
+          expect(
+            hookDecision(cmdAll, all.dir),
+            `routine-only ${n}-chain sep="${sep}"/${leName} must DENY under all`,
+          ).toBe("deny");
+        }
+      }
+    });
+  }
+
+  // The structural argument (D-12): the matcher and classifier are ONE liveAdmitSegments authority, so
+  // command-word resolution is uniform over every leading-run token and EVERY live admit segment is
+  // classified. A launcher/modifier spelling or admit-ordering outside any narrow anchor cannot escape,
+  // and a dynamically-produced command word fails closed. The proof is the class invariant above, not an
+  // enumeration of known forms — and a GREEN class invariant is NECESSARY-NOT-SUFFICIENT; the independent
+  // both-angle opus red-team at Task 25-06-04 is the closure gate.
+  it("the refuse-self-set floor (GAP-B) holds behind a path-form-modifier launcher (matcher false-negative)", () => {
+    const { dir, highNote } = projectWith({ dial: "high-severity" });
+    for (const [name, base] of pathFormModifierForms(highNote)) {
+      const command = `${APPROVAL}=eve ${base}`;
+      expect(
+        hookDecision(command, dir, "eve"),
+        `self-set behind ${name} must DENY even with the var in env`,
+      ).toBe("deny");
+    }
+  });
+});

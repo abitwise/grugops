@@ -89,5 +89,46 @@ Class F controls (no over/under-classification regression):
 [F well-formed high high-sev]    => DENY  (correct)         node ...admit my-task HIGH     (single by: security-nfr)
 [F dup by under off]             => ALLOW (correct)         node ...admit my-task DUP      (off never gates)
 
-(The full over-block-clean / routine-only / no-admit-shape / zero-config control set is
-appended by Task 25-06-03.)
+------------------------------------------------------------------------------------
+FULL CONTROL SET (Task 25-06-03) — over-block-clean / routine-only / no-admit-shape /
+zero-config all correctly ALLOW; the round-2 launchers + GAP-B/GAP-D still DENY
+------------------------------------------------------------------------------------
+Over-block-clean (the CR-01-inverse fail-safe — inert mentions stay DATA):
+[inert heredoc body]             => ALLOW (unchanged)       cat <<EOF\nnode ...admit my-task NOTE\nEOF
+[inert <<-EOF heredoc body]      => ALLOW (unchanged)       cat <<-EOF\n\tnode ...admit my-task NOTE\n\tEOF
+[inert single-quoted]            => ALLOW (unchanged)       echo 'node ...admit my-task NOTE'
+[inert double-quoted]            => ALLOW (unchanged)       echo "node ...admit my-task NOTE"
+[inert comment]                  => ALLOW (unchanged)       ls # node ...admit my-task NOTE
+[inert path named admit]         => ALLOW (unchanged)       cat ./admit/notes.txt
+[dynamic eval no admit]          => ALLOW (unchanged)       eval "echo hi"
+[dynamic bash -c no admit]       => ALLOW (unchanged)       bash -c "ls"
+[Class B no-admit $()]           => ALLOW (Task 25-06-01)   $(echo hi) ls
+[Class B no-admit backtick]      => ALLOW (Task 25-06-01)   `echo hi`
+[Class A no-admit path modifier] => ALLOW (Task 25-06-03)   /usr/bin/env ls -la
+
+Routine-only multi-admit (Class E no-over-block):
+[E routine-only multi high-sev]  => ALLOW (Task 25-06-01)   node ...admit t1 ROUTINE ; node ...admit t2 ROUTINE  (high-severity)
+
+Zero-config / supported (already correct pre-fix — confirmed unchanged):
+[absent config routine admit]    => ALLOW                   node ...admit my-task ROUTINE  (no config → zero-config lean)
+[bare node ...admit (supported)] => DENY                    node scripts/context-io.js admit my-task NOTE
+
+Round-2 closures PRESERVED (still DENY — no regression; verified by the round-2 sweeps
+that stay GREEN in floor-invariance.test.ts and admission-guard.test.ts):
+[round-2 builtin/path/nodejs/brace launchers]  => DENY      (GAP-A effective-command-word, every form)
+[round-2 eval/sh -c/$X unresolvable tail]      => DENY      (GAP-A fail-closed tail)
+[GAP-B self-set behind any wrapper]            => DENY      (even with the var in env)
+[GAP-C present non-string / corrupt dial]      => DENY      (gate-or-stricter; context-io.ts unchanged)
+[GAP-C genuinely absent config]                => ALLOW     (zero-config lean preserved)
+[GAP-D case-variant by=Security-NFR @ high-sev]=> DENY      (case-insensitive classification)
+
+====================================================================================
+SUMMARY (post-fix committed .js): every round-3 BYPASS row (Class A path-form modifier,
+Class B $()/backtick command word, Class E multi-admit shield, Class F duplicate/indented
+`by`) flipped from ALLOW (RED) to DENY/GATE; every over-block-clean / routine-only /
+no-admit-shape / zero-config / supported control unchanged; the round-2 GAP-A/B/C/D closures
+PRESERVED. The naive tokenize + noteFileFromCommand second walk is DELETED (grep == 0);
+hooks/guard.ts byte-frozen (3501810e); scripts/context-io.ts unchanged; freshness 0.
+
+D-12: this both-direction RED->GREEN proof + the anti-whack-a-mole fuzz are NECESSARY but
+NOT SUFFICIENT — the INDEPENDENT both-angle opus red-team (Task 25-06-04) is the closure gate.
