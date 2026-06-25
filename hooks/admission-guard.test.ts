@@ -739,4 +739,145 @@ describe("admission-guard.js (GOV-01 human-admission gate) — child-spawn deny/
     expectDeny(payload(admitCmd(note)), { CLAUDE_PROJECT_DIR: dir });
     rmSync(dir, { recursive: true, force: true });
   });
+
+  // ── 25. Gap-closure (25-07 round-4 / INVERT the default on the unresolvable leading-run tail) ─────
+  //    The 25-06 UNIFY resolved `<modifier> [-flags] <launcher>` but SILENTLY DROPPED a segment whose
+  //    command word did not resolve to a launcher (default ALLOW) — three sub-roots reached that drop
+  //    while carrying a real gated admit: (a) a modifier OPERAND the leading-run skip stopped at, (b) an
+  //    unlisted wrapper not in COMMAND_MODIFIERS, (c) a leading redirection the tokenizer read as the
+  //    command word (verified RED in 25-07-RED-baseline.txt vs the committed admission-guard.js, blob
+  //    a65a93c5…). The round-4 invert fails CLOSED on that unresolvable tail, exactly as Class B already
+  //    does: a LIVE admit shape behind the unresolved command word classifies by the note's severity
+  //    (high → DENY, routine → gated only under `all`), and a dynamic-eval word hidden behind an operand
+  //    fails closed on the raw admit shape. COMMAND_MODIFIERS is NOT widened; no second walk; the gate is
+  //    admit-shape-triggered so a non-admit wrapper stays ALLOW. D-12: this GREEN oracle is
+  //    NECESSARY-BUT-NOT-SUFFICIENT — the INDEPENDENT both-angle opus red-team at Task 25-07-04 is the
+  //    closure gate, not a green suite. Each case is spawned vs the COMMITTED admission-guard.js.
+
+  // Sub-root (a) — modifier OPERAND not consumed: each DENIES a gated high-severity un-approved admit.
+  for (const [label, prefix] of [
+    ["timeout 5", "timeout 5"],
+    ["nice -n 5", "nice -n 5"],
+    ["exec -a foo", "exec -a foo"],
+    ["xargs -I {}", "xargs -I {}"],
+    ["env -C /tmp", "env -C /tmp"],
+    ["env -u PATH", "env -u PATH"],
+    ["timeout -k 1 5", "timeout -k 1 5"],
+    ["/usr/bin/timeout 5", "/usr/bin/timeout 5"],
+    ["nice '-n' '5'", "nice '-n' '5'"],
+  ] as const) {
+    it(`deny (25-07/sub-root a): modifier-operand "${label} node …admit" DENIES a gated high-severity admit`, () => {
+      expectDeny(payload(`${prefix} ${admitCmd(highNote)}`), { CLAUDE_PROJECT_DIR: projectHigh });
+    });
+  }
+
+  // Sub-root (b) — wrapper not in COMMAND_MODIFIERS: each DENIES (the fix does NOT widen the set).
+  for (const [label, prefix] of [
+    ["sudo", "sudo"],
+    ["doas", "doas"],
+    ["setsid", "setsid"],
+    ["ionice -c2", "ionice -c2"],
+    ["chrt -f 1", "chrt -f 1"],
+    ["taskset 0x1", "taskset 0x1"],
+  ] as const) {
+    it(`deny (25-07/sub-root b): unlisted wrapper "${label} node …admit" DENIES a gated high-severity admit`, () => {
+      expectDeny(payload(`${prefix} ${admitCmd(highNote)}`), { CLAUDE_PROJECT_DIR: projectHigh });
+    });
+  }
+
+  // Sub-root (c) — leading redirection: the operator/target reads as the command word → DENY.
+  for (const [label, prefix] of [
+    [">/dev/null", ">/dev/null"],
+    ["2>/dev/null", "2>/dev/null"],
+    ["2>&1", "2>&1"],
+  ] as const) {
+    it(`deny (25-07/sub-root c): leading redirection "${label} node …admit" DENIES a gated high-severity admit`, () => {
+      expectDeny(payload(`${prefix} ${admitCmd(highNote)}`), { CLAUDE_PROJECT_DIR: projectHigh });
+    });
+  }
+
+  // Compounding: at dial `all` a ROUTINE admit behind a wrapper DENIES (the strictest dial no longer leaks).
+  it("deny (25-07/compounding): dial-`all` routine admit behind a wrapper DENIES (strictest dial floor)", () => {
+    expectDeny(payload(`timeout 5 ${admitCmd(routineNote)}`), { CLAUDE_PROJECT_DIR: projectAll });
+  });
+
+  // Compounding: the Class-E reopening — a wrapped high-severity admit shielded behind a routine admit
+  // DENIES under high-severity in every separator / ordering (the per-segment walk classifies it).
+  for (const sep of [";", "&&", "||", "|", "&"]) {
+    it(`deny (25-07/Class-E reopened): routine ; wrapped-high joined by "${sep}" DENIES under high-severity`, () => {
+      expectDeny(
+        payload(`${admitCmd(routineNote)} ${sep} timeout 5 ${admitCmd(highNote)}`),
+        { CLAUDE_PROJECT_DIR: projectHigh },
+      );
+    });
+    it(`deny (25-07/Class-E reopened): wrapped-high ; routine joined by "${sep}" DENIES under high-severity`, () => {
+      expectDeny(
+        payload(`timeout 5 ${admitCmd(highNote)} ${sep} ${admitCmd(routineNote)}`),
+        { CLAUDE_PROJECT_DIR: projectHigh },
+      );
+    });
+  }
+
+  // Invented un-enumerated shapes (anti-whack-a-mole — caught structurally on the unresolvable tail).
+  it("deny (25-07/invented): a path-form modifier + flag + operand chain DENIES", () => {
+    expectDeny(payload(`/usr/bin/timeout -k 1 5 ${admitCmd(highNote)}`), { CLAUDE_PROJECT_DIR: projectHigh });
+  });
+  it("deny (25-07/invented): a redirection between the wrapper and the launcher DENIES", () => {
+    expectDeny(payload(`timeout 5 2>/dev/null ${admitCmd(highNote)}`), { CLAUDE_PROJECT_DIR: projectHigh });
+  });
+  it("deny (25-07/invented): a 3-admit chain shielding a wrapped high behind two routines DENIES", () => {
+    expectDeny(
+      payload(`${admitCmd(routineNote)} ; ${admitCmd(routineNote)} ; sudo ${admitCmd(highNote)}`),
+      { CLAUDE_PROJECT_DIR: projectHigh },
+    );
+  });
+  it("deny (25-07/invented): a stacked operand+eval (`timeout 5 sh -c \"…admit…\"`) fails CLOSED", () => {
+    // The admit is hidden inside an EXECUTED quoted body behind the timeout operand: a dynamic-eval word
+    // (sh) sits in the leading run, so the raw admit shape fails closed (case (2) of the invert).
+    expectDeny(
+      payload(`timeout 5 sh -c "node scripts/context-io.js admit my-task ${highNote}"`),
+      { CLAUDE_PROJECT_DIR: projectHigh },
+    );
+  });
+
+  // Over-block controls (the fail-safe direction — MUST ALLOW): a non-admit wrapper has no admit shape.
+  it("allow (25-07/over-block): `timeout 5 node render` (non-admit wrapper) ALLOWs", () => {
+    expectAllow(payload("timeout 5 node render"), { CLAUDE_PROJECT_DIR: projectHigh });
+  });
+  it("allow (25-07/over-block): `sudo ls` (non-admit wrapper) ALLOWs", () => {
+    expectAllow(payload("sudo ls"), { CLAUDE_PROJECT_DIR: projectHigh });
+  });
+  it("allow (25-07/over-block): `>/dev/null node build` (non-admit redirection) ALLOWs", () => {
+    expectAllow(payload(">/dev/null node build"), { CLAUDE_PROJECT_DIR: projectHigh });
+  });
+  it("allow (25-07/over-block): `2>/dev/null make` (non-admit redirection) ALLOWs", () => {
+    expectAllow(payload("2>/dev/null make"), { CLAUDE_PROJECT_DIR: projectHigh });
+  });
+  it("allow (25-07/over-block): `setsid sleep 1` (non-admit wrapper) ALLOWs", () => {
+    expectAllow(payload("setsid sleep 1"), { CLAUDE_PROJECT_DIR: projectHigh });
+  });
+  it("allow (25-07/over-block): a routine-only multi-admit with a wrapped routine ALLOWs under high-severity", () => {
+    expectAllow(
+      payload(`${admitCmd(routineNote)} ; timeout 5 ${admitCmd(routineNote)}`),
+      { CLAUDE_PROJECT_DIR: projectHigh },
+    );
+  });
+  it("allow (25-07/over-block): an inert double-quoted admit mention behind a wrapper ALLOWs", () => {
+    expectAllow(
+      payload(`timeout 5 echo "node scripts/context-io.js admit my-task ${highNote}"`),
+      { CLAUDE_PROJECT_DIR: projectHigh },
+    );
+  });
+  it("allow (25-07/over-block): an inert heredoc admit mention behind a wrapper ALLOWs", () => {
+    expectAllow(
+      payload(`timeout 5 cat <<EOF\nnode scripts/context-io.js admit my-task ${highNote}\nEOF`),
+      { CLAUDE_PROJECT_DIR: projectHigh },
+    );
+  });
+  it("allow (25-07/over-block): an inert comment admit mention behind a wrapper ALLOWs", () => {
+    expectAllow(
+      payload(`timeout 5 ls # node scripts/context-io.js admit my-task ${highNote}`),
+      { CLAUDE_PROJECT_DIR: projectHigh },
+    );
+  });
 });
