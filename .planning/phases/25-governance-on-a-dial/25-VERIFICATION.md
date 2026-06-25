@@ -1,8 +1,8 @@
 ---
 phase: 25-governance-on-a-dial
-verified: 2026-06-24T18:00:00Z
+verified: 2026-06-25T20:33:00Z
 status: gaps_found
-score: 1/3 success criteria verified (SC2 verified; SC1 STILL failed after 25-06 round-3 gap-closure — Classes A/B/E/F closed but a NEW command-modifier-operand / unlisted-wrapper / leading-redirection command-RESOLUTION class bypasses the un-forgeable gate; SC3 dial-canonicalization closed in 25-05 but the SC1 hole leaks a gated admit at EVERY dial incl. `all` — see post-25-06 banner below)
+score: 1/3 success criteria verified (SC2 verified; SC1 STILL failed after 25-07 round-4 INVERT gap-closure — the round-4 leading-run command-RESOLUTION class IS closed and confirmed SOLID by both red-team angles, but a NEW class bypasses the un-forgeable gate: the admit-SHAPE detector is a literal substring/token test on the un-expanded command string, so shell expansion that defers the script-ref/verb to runtime — glob `context-i*.js`, arg-position `$()`, `$S`/`$V` param-expansion, `xargs` — slips a gated high-severity admit; the glob form also breaks the D-01 self-set floor and dial-`all` has no backstop; SC3 dial-canonicalization closed in 25-05 but the SC1 hole leaks at EVERY dial incl. `all` — see post-25-07 banner below; round 5, 9th green-suite-insufficient catch)
 behavior_unverified: 0
 overrides_applied: 0
 re_verification:
@@ -109,6 +109,57 @@ human_verification:
 ---
 
 # Phase 25: Governance-on-a-Dial Verification Report
+
+> ## ⚠ UPDATE 2026-06-25 — post-25-07 (round-4 INVERT gap-closure) independent both-angle red-team: STILL gaps_found
+>
+> Round-4 gap-closure plan **25-07** was EXECUTED (tasks 01–03 committed `67d4d17`/`c581a2e`/`01e8b72`)
+> and put through its blocking **Task 25-07-04** independent both-angle (LOGIC + INPUT-SURFACE, the P23
+> split) opus red-team vs the COMMITTED `admission-guard.js` (blob `756ce508…`), corroborated by the
+> orchestrator's own child-spawn reproduction. Author suite fully green (admission-guard 162 / floor-invariance
+> 168 / foundation-guards 28 / 846 non-e2e), `guard.ts` byte-frozen (`3501810e…`), `scripts/context-io.ts`
+> UNCHANGED, freshness 0. **25-07's INVERT CLOSED the entire round-4 leading-run command-RESOLUTION class —
+> CONFIRMED SOLID by BOTH red-team angles:** sub-root (a) modifier-operand (`timeout 5 node …admit`,
+> `nice -n 5`, `exec -a`, `xargs -I {}`, `env -C`, `/usr/bin/timeout 5`, …), (b) unlisted wrapper
+> (`sudo`/`doas`/`setsid`/`ionice`/`chrt`/`taskset`), (c) leading redirection (`>/dev/null`, `2>/dev/null`,
+> `2>&1`) all DENY; the dial-`all` routine-behind-wrapper leak and the Class-E wrapper reopening DENY; the
+> over-block-clean direction holds (a non-admit wrapper has no admit shape → ALLOW). `COMMAND_MODIFIERS` was
+> NOT widened, `function tokenize`/`noteFileFromCommand` stay grep=0 (single authority), SC2 + the GOV-02
+> ledger HOLD. **BUT both angles + the orchestrator probe converged on ONE NEW structural class → SC1 remains
+> `gaps_found`.** This is round 5 / the **9th** green-suite-insufficient catch of v2.0. Full repros + root
+> cause: `25-07-SUMMARY.md` → "Checkpoint 25-07-04 — INDEPENDENT both-angle red-team (orchestrator-dispatched)".
+> The banners below are SUPERSEDED for the CLOSED classes; this is the live finding:
+>
+> - **SC1 / admit-SHAPE detection vs shell expansion (INPUT-SURFACE + LOGIC, both angles converged).**
+>   Round 4 hardened command-word RESOLUTION but the admit-SHAPE DETECTOR (`segmentHasAdmitShape` /
+>   `commandHasLiveAdmitShape`) is still a LITERAL substring/token test — `v.includes("context-io")` then a
+>   token `=== "admit"` — run on the **un-expanded** command string. Any shell expansion that defers the
+>   script-ref or the verb to runtime makes `node` resolve cleanly with NO live admit token in its segment, so
+>   the round-4 invert (which fires only on an UNRESOLVED command word) never triggers and the segment is
+>   dropped (ALLOW). Reproduced vs the committed `.js` (dial `high-severity`, no approval env), the direct form
+>   DENYing as control:
+>   - **glob script-ref** — `node scripts/context-i*.js admit my-task <hi>` (and `…i?.js`, `…i[o].js`):
+>     `context-i*.js` carries no `context-io` substring → ALLOW; the shell glob-expands to the one real file.
+>   - **argument-position command substitution** — `node $(echo <ctx> admit my-task <hi>)` and
+>     `` node `echo …` ``: the `$()`/backtick guard only covers COMMAND-WORD position, not arguments → ALLOW.
+>   - **parameter expansion / word-split** — `export S=<ctx> && node "$S" admit my-task <hi>`,
+>     `export V=admit && node <ctx> "$V" my-task <hi>`, unquoted `$A` → ALLOW.
+>   - **cross-segment stdin→argv** — `echo "<ctx> admit my-task <hi>" | xargs node` → ALLOW.
+>   - **AGGRAVATING:** the glob form ALSO defeats the D-01 refuse-self-set floor (`commandHasLiveAdmitShape`
+>     keys the same literal shape). **MOST DAMAGING:** under dial `all`, a routine glob admit has NO in-script
+>     backstop (`admit()` refuses only high-severity roles), so the strictest dial's "gate every admission"
+>     guarantee is fully defeated. The over-block direction stays clean (inert quoted/heredoc/comment mentions
+>     behind a wrapper ALLOW; `25-07-GREEN-proof.txt` rows are truthful but its threat enumeration is INCOMPLETE).
+>
+> **Structural root fix for round 5 (both red-team angles independently converged — anti-whack-a-mole):**
+> do NOT recognize more literal spellings (`*`→`?`→`$`→… is unbounded). Make SHAPE DETECTION structural,
+> exactly as the round-4 invert made command-word RESOLUTION structural: a recognized-launcher segment whose
+> **script-or-verb position carries a glob / parameter-expansion / command-substitution / word-split
+> metacharacter** is statically UNRESOLVABLE → gate-or-stricter (fail closed). The shell — not the hook —
+> decides the final argv, so a hook that string-matches the PRE-expansion command can never be faithful; the
+> faithful posture is "a launcher whose argv cannot be statically resolved to a non-admit is gate-or-stricter."
+> Keep enforcement in the external hook (the un-forgeable D-01 tier — moving it into `admit()` only yields the
+> self-settable D-05 tier). The P22 round-8 "the boundary IS the parser; fail closed on the unresolvable tail"
+> lesson, extended from the command word to the argument run. **Next:** `/gsd-plan-phase 25 --gaps`.
 
 > ## ⚠ UPDATE 2026-06-25 — post-25-06 (round-3 UNIFY gap-closure) independent both-angle red-team: STILL gaps_found
 >
