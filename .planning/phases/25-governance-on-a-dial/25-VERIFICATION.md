@@ -2,7 +2,7 @@
 phase: 25-governance-on-a-dial
 verified: 2026-06-24T18:00:00Z
 status: gaps_found
-score: 1/3 success criteria verified (SC2 verified; SC1 + SC3 STILL failed after 25-04 gap-closure — see post-25-04 update below)
+score: 1/3 success criteria verified (SC2 verified; SC1 STILL failed after 25-06 round-3 gap-closure — Classes A/B/E/F closed but a NEW command-modifier-operand / unlisted-wrapper / leading-redirection command-RESOLUTION class bypasses the un-forgeable gate; SC3 dial-canonicalization closed in 25-05 but the SC1 hole leaks a gated admit at EVERY dial incl. `all` — see post-25-06 banner below)
 behavior_unverified: 0
 overrides_applied: 0
 re_verification:
@@ -109,6 +109,55 @@ human_verification:
 ---
 
 # Phase 25: Governance-on-a-Dial Verification Report
+
+> ## ⚠ UPDATE 2026-06-25 — post-25-06 (round-3 UNIFY gap-closure) independent both-angle red-team: STILL gaps_found
+>
+> Round-3 gap-closure plan **25-06** was EXECUTED (tasks 01–03 committed `4ba29f2`/`8d5b263`/`2f99cde`)
+> and put through its blocking **Task 25-06-04** independent both-angle (LOGIC + INPUT-SURFACE, the P23
+> split) opus red-team vs the COMMITTED `admission-guard.js` (blob `a65a93c5…`), corroborated by the
+> orchestrator's own child-spawn probe. Author suite fully green (304 governance / 792 non-e2e),
+> `guard.ts` byte-frozen (`3501810e…`), `scripts/context-io.ts` UNCHANGED, freshness 0.
+> **25-06 CLOSED all four round-3 classes — CONFIRMED SOLID by BOTH red-team angles:** Class A path-form
+> launcher (`/usr/bin/nice node`, `command node`, `nodejs`, `no"de"`, `{ node …; }`) DENIES; Class B
+> `$(echo node)`/backtick command word GATES; Class E `routine ; high` / `routine && high` / newline /
+> subshell DENIES (routine-only ALLOWs); Class F duplicate/indented/spaced/CRLF `by` is gate-or-stricter
+> (a 108-shape hook-vs-`validate()` divergence fuzz found ZERO divergence). GAP-B/C/D, the four named
+> floor invariants, the over-block-clean direction (zero false-positives), SC2 + the GOV-02 ledger all
+> HOLD. **BUT both angles + the orchestrator probe reproduced ONE NEW structural command-RESOLUTION
+> class (17+ live forms) → SC1 remains `gaps_found`.** This is round 4 / the **8th** green-suite-
+> insufficient catch of v2.0 (exactly as Plan 25-06's prohibition #1 anticipated). Full repros + root-
+> cause line refs: `25-06-SUMMARY.md` → "Independent Both-Angle Red-Team". The banners below are
+> SUPERSEDED for the CLOSED classes; this is the live finding:
+>
+> - **SC1 / leading-run command-modifier-operand resolution (INPUT-SURFACE + LOGIC, both angles converged).**
+>   The round-3 UNIFY resolver (`liveAdmitSegments`, admission-guard.ts:566-574 / .js:556-566) models
+>   `<modifier> [-flags] <launcher>` but NOT the rest of the shell's prefix grammar, and SILENTLY DROPS a
+>   segment whose command word doesn't resolve to a launcher (default = ALLOW). One class, three sub-roots:
+>   - **(2) option/modifier OPERAND not consumed** — `timeout 5 node …admit <hi>` (the textbook, flagless
+>     `timeout` form; the duration `5` halts the leading-run skip and reads as the command word),
+>     `nice -n 5 node …`, `exec -a foo node …`, `xargs -I {} node …`, `env -C /tmp node …`, `env -u PATH node …`,
+>     `timeout -k 1 5 node …`, `/usr/bin/timeout 5 node …`, `nice '-n' '5' node …` — all ALLOW a gated
+>     high-severity admit (forged `human:eve`, zero real human) through the un-forgeable PRIMARY tier.
+>   - **(1) wrapper not in `COMMAND_MODIFIERS`** (admission-guard.ts:110-120) — `sudo`/`doas`/`setsid`/`ionice`/
+>     `chrt`/`taskset node …admit` ALLOW (the closed enumeration is the anti-pattern this phase keeps hitting).
+>   - **(3) leading redirection** — `>/dev/null node …admit`, `2>/dev/null node …`, `2>&1 node …` ALLOW
+>     (`liveTokens` has no redirection grammar; the operator/target reads as the segment's command word).
+>   - **Compounding:** at dial `all` even a ROUTINE admit slips (`timeout 5 node …admit <routine>`) — the
+>     strictest dial's floor leaks; and Class E is REOPENED — `node …admit <routine> ; timeout 5 node …admit <hi>`
+>     ALLOWs because the wrapper makes the shielded high segment invisible to per-segment classification.
+>     The D-01 self-set floor is NOT breached (the broader `commandHasLiveAdmitShape` shape-scan still fires) —
+>     this is a GATING bypass, not a self-approval breach.
+>
+> **Structural root fix for round 4 (both red-team angles independently converged — anti-whack-a-mole):**
+> do NOT widen `COMMAND_MODIFIERS` or enumerate operand grammars one notch at a time (the trap). Instead
+> INVERT the default exactly as Class B already does for dynamic words: when a segment carries the live
+> admit SHAPE (`segmentHasAdmitShape` — a context-io reference + the `admit` verb) but the leading-run
+> resolution does NOT terminate at a recognized launcher, treat the command word as UNRESOLVABLE and
+> GATE (fail-closed), instead of silently dropping the segment. The admit shape is the trigger, so a new
+> wrapper/option/redirection spelling cannot escape; the over-block direction is proven safe (a non-admit
+> wrapper — `timeout 5 node render`, `sudo ls` — has no admit shape and stays ALLOW). The P22 round-8
+> "make the boundary BE the parser, and fail closed on the unresolvable tail" lesson, applied to
+> modifier-operand consumption. **Next:** `/gsd-plan-phase 25 --gaps`.
 
 > ## ⚠ UPDATE 2026-06-25 — post-25-05 (round-2 gap-closure) independent red-team: STILL gaps_found
 >

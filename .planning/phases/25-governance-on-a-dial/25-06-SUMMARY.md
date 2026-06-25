@@ -37,7 +37,8 @@ metrics:
   completed: 2026-06-25
   tasks_completed: 3
   tasks_total: 4
-status: in-progress-blocked-at-checkpoint
+status: gaps_found
+checkpoint_25_06_04: failed — independent both-angle opus red-team reproduced a NEW command-RESOLUTION bypass class vs the committed .js (round 4 / 8th green-suite-insufficient catch); see "Independent Both-Angle Red-Team" below
 ---
 
 # Phase 25 Plan 06: UNIFY matcher+classifier into ONE liveTokens authority (round-3 gap closure) Summary
@@ -102,8 +103,38 @@ SC2 (audit_retention 3-surface lockstep), the GOV-02 audit ledger, and the round
 
 Per D-12 and [[grugops-safety-invariant-green-suite-insufficient]] (the 8th green-suite-insufficient catch of v2.0), the author's 120+156 green cases are NECESSARY-BUT-NOT-SUFFICIENT. SC1 closure REQUIRES an INDEPENDENT both-angle (LOGIC + INPUT-SURFACE, the P23 split) opus-grade red-team to reproduce (a)–(d) vs the committed `admission-guard.js` (blob `a65a93c5…`) — inventing an un-enumerated obfuscation shape per angle — before the floor is considered proven. That red-team is the orchestrator's to dispatch; the executor HARD-STOPPED here without self-approving.
 
-## Self-Check: PASSED
+## Self-Check: PASSED (author tasks 01–03)
 
 - `25-06-RED-baseline.txt`, `25-06-GREEN-proof.txt` exist.
 - `25-06-SUMMARY.md` exists (this file).
 - Commits `4ba29f2`, `8d5b263`, `2f99cde` exist on `main`.
+
+---
+
+## Independent Both-Angle Red-Team (Task 25-06-04, orchestrator-run) — checkpoint does NOT pass: GAPS_FOUND
+
+Per D-12 and [[grugops-safety-invariant-green-suite-insufficient]], the author's green suite (304 governance / 792 non-e2e) is necessary-but-not-sufficient. The orchestrator spot-checked (commits real, `guard.ts` byte-frozen `3501810e…`, `scripts/context-io.ts` UNCHANGED, freshness 0, second walk deleted grep=0, suites independently re-run green) then dispatched **TWO independent opus red-teams** (the P23 LOGIC + INPUT-SURFACE split) against the **COMMITTED `admission-guard.js` (blob `a65a93c5…`)**, plus its own child-spawn probe. **Both angles + the orchestrator probe independently converged on GAPS_FOUND** — a NEW command-RESOLUTION bypass class the round-3 fix introduced. This is **round 4 / the 8th green-suite-insufficient catch of v2.0**, exactly as this plan's prohibition #1 anticipated. The checkpoint HARD-STOP held: the executor did not self-approve; the independent adversary caught the gap.
+
+### CONFIRMED CLOSED by both angles (round 4 need NOT re-touch — the UNIFY landed)
+- **Class A** path-form launcher (`/usr/bin/nice node`, `/usr/local/bin/node`, `env -S node`), `command node`, `nodejs`, split-quote `no"de"`, brace-group `{ node …; }` → all DENY.
+- **Class B** `$(echo node) …admit`, `` `echo node` …admit `` → GATE (fail-closed); a `$()`/backtick/eval with NO admit shape → ALLOW.
+- **Class E** routine-then-high / high-then-routine across `;`/`&&`/`||`/`|`/`&`/newline/subshell, high shielded behind two routines, high interleaved with non-admit commands → DENY; routine-only multi-admit ALLOWs; `all`-dial any multi-admit DENIES. (Reopened ONLY via the new wrapper hole below — the per-segment classifier itself is sound.)
+- **Class F** duplicate `by`, indented/tab ` by:`, `by : value` spaced colon, CRLF frontmatter, trailing-whitespace/case-variant value, two fences — a **108-shape hook-vs-`validate()` divergence fuzz found ZERO divergence**; no under-gate of a valid high finding.
+- **GAP-B/C/D + floor:** self-set-behind-a-wrapper DENIES (incl. behind `timeout 5`/`nice -n 5` — the broader `commandHasLiveAdmitShape` shape-scan is resolution-independent, so the bypass does NOT reopen the D-01 floor); every typo/garbage/non-string/corrupt/case/whitespace dial gates; absent stays lean. The over-block direction is CLEAN (zero false-positives across both angles).
+
+### THE NEW LIVE CLASS — leading-run command-modifier-operand resolution (SC1 still forgeable)
+`liveAdmitSegments` (admission-guard.ts:566-574 / .js:556-566) resolves `<modifier> [-flags] <launcher>` but not the rest of the shell's prefix grammar, and **silently DROPS a segment whose command word doesn't resolve to a launcher (default ALLOW)**. One disease, three sub-roots, 17+ reproduced live forms (gated high-severity admit with a forged `human:eve`, zero real human, through the un-forgeable PRIMARY tier on Claude Code):
+
+| Sub-root | Example (dial=high-severity unless noted) | Actual | Root |
+|---|---|---|---|
+| **2 — modifier OPERAND not consumed** | `timeout 5 node …admit <hi>` (flagless textbook form), `nice -n 5 node …`, `exec -a foo node …`, `xargs -I {} node …`, `env -C /tmp node …`, `env -u PATH node …`, `timeout -k 1 5 node …`, `/usr/bin/timeout 5 node …`, `nice '-n' '5' node …` | **ALLOW** | the `isModifierFlag` skip (ts:571) consumes a `-flag` but not its separate-word VALUE (`5`/`foo`/`{}`/`/tmp`), nor a bare modifier operand (`timeout`'s duration); the loop breaks at the operand and reads IT as the command word |
+| **1 — wrapper not in `COMMAND_MODIFIERS`** | `sudo node …`, `doas node …`, `setsid node …`, `ionice -c2 node …`, `chrt -f 1 node …`, `taskset 0x1 node …` | **ALLOW** | closed enumeration (ts:110-120); an unlisted launcher-runner resolves to itself, not in `LAUNCHERS` → segment dropped |
+| **3 — leading redirection** | `>/dev/null node …`, `2>/dev/null node …`, `2>&1 node …` | **ALLOW** | `liveTokens` has no redirection grammar; the operator/target tokenizes as the segment's command word |
+
+**Compounding:** at dial **`all`** even a routine admit slips (`timeout 5 node …admit <routine>`) — the strictest dial's floor leaks; and **Class E is REOPENED** — `node …admit <routine> ; timeout 5 node …admit <hi>` ALLOWs because the wrapper hides the shielded high segment. `timeout 5 node …admit` (no flags) is the most dangerous: the textbook way to run `timeout`, trivially reachable.
+
+### Structural root fix for round 4 (both angles independently converged — anti-whack-a-mole)
+Do NOT widen `COMMAND_MODIFIERS` or enumerate operand grammars (`-n`/`-a`/`-I`/bare-duration) one notch at a time — the trap. **INVERT the default exactly as Class B already does for a dynamic command word:** when a segment carries the live admit SHAPE (`segmentHasAdmitShape` — a context-io reference + the `admit` verb) but the leading-run resolution does NOT terminate at a recognized launcher, treat the command word as UNRESOLVABLE and **GATE (fail-closed)** instead of silently dropping the segment. Because the admit shape is the trigger, a new wrapper / option-operand / redirection spelling cannot escape; the over-block direction is proven safe (a non-admit wrapper — `timeout 5 node render`, `sudo ls` — has no admit shape, stays ALLOW). The P22 round-8 "make the boundary BE the parser, fail closed on the unresolvable tail" lesson, applied to modifier-operand consumption — the same UNIFY discipline this plan used for Classes A/B/E, completed for the leading run.
+
+### Preserved + invariants at the stop
+`guard.ts` byte-frozen (`3501810e…`), `scripts/context-io.ts` UNCHANGED (GAP-C/GAP-D + GOV-02 ledger intact), `admission-guard.js` blob `a65a93c5…` (red-team edited nothing), freshness 0, second walk deleted, SC2 verified, the four named floor invariants hold, WR-01 no false-positive. Only SC1's command-RESOLUTION surface remains open. **Route:** `/gsd-plan-phase 25 --gaps` (round 4).
