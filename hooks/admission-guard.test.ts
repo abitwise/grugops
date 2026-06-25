@@ -676,4 +676,67 @@ describe("admission-guard.js (GOV-01 human-admission gate) — child-spawn deny/
       { CLAUDE_PROJECT_DIR: projectAll },
     );
   });
+
+  // ── 24. Gap-closure (25-06 / Class F): the hook's per-segment note read is validate()-consistent. A ──
+  //    note with a DUPLICATE `by` (`by: security-nfr` then `by: software-engineer`) or an INDENTED
+  //    ` by:` (which parseNote records in duplicateKeys / malformedLines and validate() rejects as a
+  //    structural FAIL) must NOT be read last-wins-to-routine and silently admitted. Under an active
+  //    dial on a matched admit, such a note DENIES (gate-or-stricter), so the un-forgeable hook tier and
+  //    the in-script admit() tier classify the identical note identically. A well-formed single `by` is
+  //    unchanged (routine ALLOWs, high-severity DENIES). Spawned vs the COMMITTED admission-guard.js;
+  //    context-io.ts is UNCHANGED (the fix reuses parseNote's recorded duplicateKeys/malformedLines).
+  const DUP_BY_NOTE =
+    "---\nid: n4\nby: security-nfr\nby: software-engineer\nkind: finding\nverified_by: human:alice\n---\nbody\n";
+  const INDENTED_BY_NOTE =
+    "---\nid: n5\n by: security-nfr\nby: software-engineer\nkind: finding\nverified_by: human:alice\n---\nbody\n";
+
+  function makeProjectWithNoteBody(dial: string, noteSrc: string): { dir: string; note: string } {
+    const dir = mkdtempSync(join(tmpdir(), "adm-classf-"));
+    mkdirSync(join(dir, ".grugops"), { recursive: true });
+    writeFileSync(
+      join(dir, ".grugops", "factory.config.json"),
+      JSON.stringify({ context: { human_admission: dial } }),
+    );
+    const note = join(dir, "note.md");
+    writeFileSync(note, noteSrc);
+    return { dir, note };
+  }
+
+  for (const dial of ["high-severity", "all"]) {
+    it(`deny (25-06/Class F): a duplicate-\`by\` note DENIES under ${dial} (gate-or-stricter, not last-wins)`, () => {
+      const { dir, note } = makeProjectWithNoteBody(dial, DUP_BY_NOTE);
+      expectDeny(payload(admitCmd(note)), { CLAUDE_PROJECT_DIR: dir });
+      rmSync(dir, { recursive: true, force: true });
+    });
+
+    it(`deny (25-06/Class F): an indented \` by:\` note DENIES under ${dial} (gate-or-stricter, not last-wins)`, () => {
+      const { dir, note } = makeProjectWithNoteBody(dial, INDENTED_BY_NOTE);
+      expectDeny(payload(admitCmd(note)), { CLAUDE_PROJECT_DIR: dir });
+      rmSync(dir, { recursive: true, force: true });
+    });
+  }
+
+  it("allow (25-06/Class F): a duplicate-`by` note ALLOWs under `off` (off never gates)", () => {
+    const { dir, note } = makeProjectWithNoteBody("off", DUP_BY_NOTE);
+    expectAllow(payload(admitCmd(note)), { CLAUDE_PROJECT_DIR: dir });
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  it("allow (25-06/Class F control): a well-formed single `by: software-engineer` is routine (ALLOW under high-severity)", () => {
+    const { dir, note } = makeProjectWithNoteBody(
+      "high-severity",
+      "---\nid: n2\nby: software-engineer\nkind: observation\nverified_by:\n---\nbody\n",
+    );
+    expectAllow(payload(admitCmd(note)), { CLAUDE_PROJECT_DIR: dir });
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  it("deny (25-06/Class F control): a well-formed single `by: security-nfr` is high-severity (DENY under high-severity)", () => {
+    const { dir, note } = makeProjectWithNoteBody(
+      "high-severity",
+      "---\nid: n1\nby: security-nfr\nkind: finding\nverified_by: human:alice\n---\nbody\n",
+    );
+    expectDeny(payload(admitCmd(note)), { CLAUDE_PROJECT_DIR: dir });
+    rmSync(dir, { recursive: true, force: true });
+  });
 });

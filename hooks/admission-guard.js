@@ -748,6 +748,31 @@ function classifySegmentOrDeny(seg) {
                 `governance is active (human_admission="${dial}"). A human must review this admission, ` +
                 `or export ${APPROVAL}=NAME to authorize it.`);
         }
+        // Class F — the hook's note read must be CONSISTENT with admit()'s validate() (D-06): a note whose
+        // provenance `by` is structurally invalid must NOT be read last-wins-to-routine and slipped through.
+        // parseNote keeps the LAST `by` (overwrite) in scalars.by for backward-compatible reads, but it
+        // RECORDS a duplicate `by` in duplicateKeys and an indented / `key : value` ` by:` line in
+        // malformedLines (projecting it to empty) — exactly the two shapes validate() (context-io.ts:542-557)
+        // rejects as a structural FAIL. The hook consults those SAME signals so the un-forgeable hook tier
+        // and the in-script admit() tier classify the identical note identically; a `by` the hook cannot read
+        // consistently with validate() is gate-or-stricter, never a silent routine ALLOW. We scope to the
+        // provenance `by` specifically (not validate()'s full required-field set) so the hook's note re-read —
+        // which only needs `by` to classify severity — does not over-reach. The trigger is still admit-shape-
+        // scoped (this is a LIVE matched admit's re-read note), so an inert duplicate-`by` mention is
+        // unaffected. context-io.ts is UNCHANGED — this reuses the exported parseNote's recorded signals.
+        const hasDuplicateBy = parsed.duplicateKeys.includes("by");
+        const hasMalformedBy = parsed.malformedLines.some((line) => {
+            const m = line.match(/^\s*([A-Za-z_]+)\s*:/);
+            return m !== null && m[1] === "by";
+        });
+        if (hasDuplicateBy || hasMalformedBy) {
+            deny(`Admission blocked (fail-closed): the note "${noteFile}" has a structurally invalid authoring ` +
+                `role — a ${hasDuplicateBy ? "duplicate" : "malformed (indented or \"key : value\")"} "by" ` +
+                `line that validate() rejects — while governance is active (human_admission="${dial}"). The ` +
+                `hook classifies a note consistently with admit()'s validate(): a "by" it cannot read ` +
+                `unambiguously is gate-or-stricter, never read last-wins. A human must review this admission, ` +
+                `or export ${APPROVAL}=NAME to authorize it.`);
+        }
         by = (parsed.scalars.by ?? "").trim();
         if (by === "") {
             deny(`Admission blocked (fail-closed): the note "${noteFile}" has no authoring role ("by") while ` +

@@ -72,4 +72,22 @@ CONTROLS (already correct pre-fix — confirmed unchanged post-Task-25-06-01)
 [inert heredoc body]             => ALLOW                   cat <<EOF\nnode ...admit my-task NOTE\nEOF
 [approved high]                  => ALLOW                   node ...admit my-task NOTE  (GRUGOPS_ADMISSION_APPROVED_BY=alice present)
 
-(Class F rows + the full control set are appended by Tasks 25-06-02 / 25-06-03.)
+------------------------------------------------------------------------------------
+CLASS F / SC1 (tier consistency) — duplicate / indented `by` is gate-or-stricter
+(Task 25-06-02; the hook consults parseNote's duplicateKeys/malformedLines like validate())
+------------------------------------------------------------------------------------
+Post-Task-25-06-02 committed blob: hooks/admission-guard.js rebuilt (freshness 0);
+context-io.ts UNCHANGED (the Class F fix reuses the exported parseNote's recorded signals).
+
+[F dup by under high-severity]   => DENY  (RED was ALLOW)   node ...admit my-task DUP  (by: security-nfr then by: software-engineer)
+[F dup by under all]             => DENY  (RED was ALLOW)   node ...admit my-task DUP
+[F indented by under high-sev]   => DENY  (RED was ALLOW)   node ...admit my-task IND  (` by: security-nfr` indented + by: software-engineer)
+[F indented by under all]        => DENY  (RED was ALLOW)   node ...admit my-task IND
+
+Class F controls (no over/under-classification regression):
+[F well-formed routine high-sev] => ALLOW (correct)         node ...admit my-task ROUTINE  (single by: software-engineer)
+[F well-formed high high-sev]    => DENY  (correct)         node ...admit my-task HIGH     (single by: security-nfr)
+[F dup by under off]             => ALLOW (correct)         node ...admit my-task DUP      (off never gates)
+
+(The full over-block-clean / routine-only / no-admit-shape / zero-config control set is
+appended by Task 25-06-03.)
