@@ -1,0 +1,115 @@
+25-07 RED BASELINE — the round-4 leading-run command-RESOLUTION bypasses reproduced vs the PRE-FIX COMMITTED .js
+================================================================================================================
+
+Captured FIRST, before any source edit (the 22-08 / 22-09 RED -> GREEN discipline,
+extending the 25-05-RED-baseline.txt / 25-06 row format).
+
+Every result below is a child-spawn of the COMMITTED artifacts as they stood at the
+PRE-FIX point, NOT the .ts and NOT the author's *.test.ts suites:
+
+    hooks/admission-guard.js   blob a65a93c58a975b7b4a9fbc54641fc5207062f222 (pre-fix)
+    scripts/context-io.js      UNCHANGED this round (GAP-C/GAP-D + GOV-02 ledger intact)
+    hooks/guard.ts             blob 3501810e21308e4b7e219679a6ca30dace9b5d66 (byte-frozen, D-02)
+
+(NB: the 25-07 plan text cites the pre-fix point as "HEAD a025a2b". The actual repo HEAD at
+execution time is ffefddc — two docs-only plan-creation commits later; the committed
+admission-guard.js content is byte-identical, blob a65a93c5 confirmed via `git hash-object`,
+i.e. no round-4 invert present. grep for `segmentHasDynamicEvalWord` in the committed
+admission-guard.js returned 0 matches before the fix.)
+
+Test fixture for the hook-tier rows (mirrors the 25-06 fixture): a high-severity note
+(by: security-nfr, kind: finding) = <HI>, and a routine note (by: software-engineer,
+kind: observation) = <RT>, under the named human_admission dial, with NO
+GRUGOPS_ADMISSION_APPROVED_BY in the hook's process env. A correct gate DENIES a gated
+admission; the PRE-FIX hook ALLOWs it (the bypass).
+
+These are the THREE sub-roots + two compounding leaks the 25-06 independent both-angle
+opus red-team converged on (25-06-SUMMARY.md "THE NEW LIVE CLASS"), the round-4 / 8th
+green-suite-insufficient catch: `liveAdmitSegments` resolves `<modifier> [-flags] <launcher>`
+but SILENTLY DROPS a segment whose command word does not resolve to a launcher (default ALLOW).
+
+----------------------------------------------------------------------------------------
+SUB-ROOT (a) — modifier OPERAND not consumed (dial high-severity, <HI> note; want DENY)
+----------------------------------------------------------------------------------------
+Root: the isModifierFlag skip (admission-guard.ts:571) consumes a `-flag` but not its
+separate-word VALUE nor a bare modifier operand; the loop breaks at the operand and reads
+IT as the command word, which is not in LAUNCHERS, so the segment is dropped.
+
+[(a) timeout 5 node]            => ALLOW (bypass live)   timeout 5 node scripts/context-io.js admit my-task <HI>
+[(a) nice -n 5 node]           => ALLOW (bypass live)   nice -n 5 node scripts/context-io.js admit my-task <HI>
+[(a) exec -a foo node]         => ALLOW (bypass live)   exec -a foo node scripts/context-io.js admit my-task <HI>
+[(a) xargs -I {} node]         => ALLOW (bypass live)   xargs -I {} node scripts/context-io.js admit my-task <HI>
+[(a) env -C /tmp node]         => ALLOW (bypass live)   env -C /tmp node scripts/context-io.js admit my-task <HI>
+[(a) env -u PATH node]         => ALLOW (bypass live)   env -u PATH node scripts/context-io.js admit my-task <HI>
+[(a) timeout -k 1 5 node]      => ALLOW (bypass live)   timeout -k 1 5 node scripts/context-io.js admit my-task <HI>
+[(a) /usr/bin/timeout 5 node]  => ALLOW (bypass live)   /usr/bin/timeout 5 node scripts/context-io.js admit my-task <HI>
+[(a) nice '-n' '5' node]       => ALLOW (bypass live)   nice '-n' '5' node scripts/context-io.js admit my-task <HI>
+
+----------------------------------------------------------------------------------------
+SUB-ROOT (b) — wrapper not in COMMAND_MODIFIERS (dial high-severity, <HI> note; want DENY)
+----------------------------------------------------------------------------------------
+Root: COMMAND_MODIFIERS (admission-guard.ts:110-120) is a closed enumeration; an unlisted
+launcher-runner resolves to itself, not in LAUNCHERS, so the segment is dropped.
+
+[(b) sudo node]                => ALLOW (bypass live)   sudo node scripts/context-io.js admit my-task <HI>
+[(b) doas node]                => ALLOW (bypass live)   doas node scripts/context-io.js admit my-task <HI>
+[(b) setsid node]              => ALLOW (bypass live)   setsid node scripts/context-io.js admit my-task <HI>
+[(b) ionice -c2 node]          => ALLOW (bypass live)   ionice -c2 node scripts/context-io.js admit my-task <HI>
+[(b) chrt -f 1 node]           => ALLOW (bypass live)   chrt -f 1 node scripts/context-io.js admit my-task <HI>
+[(b) taskset 0x1 node]         => ALLOW (bypass live)   taskset 0x1 node scripts/context-io.js admit my-task <HI>
+
+----------------------------------------------------------------------------------------
+SUB-ROOT (c) — leading redirection (dial high-severity, <HI> note; want DENY)
+----------------------------------------------------------------------------------------
+Root: liveTokens has no redirection grammar; the operator/target tokenizes as the segment's
+command word, not in LAUNCHERS, so the segment is dropped.
+
+[(c) >/dev/null node]          => ALLOW (bypass live)   >/dev/null node scripts/context-io.js admit my-task <HI>
+[(c) 2>/dev/null node]         => ALLOW (bypass live)   2>/dev/null node scripts/context-io.js admit my-task <HI>
+[(c) 2>&1 node]                => ALLOW (bypass live)   2>&1 node scripts/context-io.js admit my-task <HI>
+
+----------------------------------------------------------------------------------------
+COMPOUNDING leaks — dial-`all` floor leak + Class-E reopening (want DENY)
+----------------------------------------------------------------------------------------
+[all: timeout 5 node <RT>]     => ALLOW (bypass live)   timeout 5 node scripts/context-io.js admit my-task <RT>   (dial=all; the strictest dial leaks a routine behind a wrapper)
+[E: node <RT> ; timeout 5 node <HI>] => ALLOW (bypass live)   node ...admit <RT> ; timeout 5 node ...admit <HI>   (dial=high-severity; the wrapper hides the shielded high segment)
+[E: timeout 5 node <HI> ; node <RT>] => ALLOW (bypass live)   timeout 5 node ...admit <HI> ; node ...admit <RT>   (dial=high-severity; either ordering)
+
+----------------------------------------------------------------------------------------
+INVENTED un-enumerated shapes (anti-whack-a-mole; want DENY post-fix — all bypass pre-fix)
+----------------------------------------------------------------------------------------
+[inv: /usr/bin/timeout -k 1 5 node <HI>]   => ALLOW (bypass live)   /usr/bin/timeout -k 1 5 node ...admit <HI>   (path-form modifier + flag + operand chain)
+[inv: redirection between wrapper+launcher] => ALLOW (bypass live)   timeout 5 2>/dev/null node ...admit <HI>
+[inv: 3-admit shield high behind two routines] => ALLOW (bypass live)   node ...admit <RT> ; node ...admit <RT> ; sudo node ...admit <HI>
+[inv: stacked operand+eval]                 => ALLOW (bypass live)   timeout 5 sh -c "node ...admit <HI>"   (admit hidden in an EXECUTED quoted body behind an operand)
+
+----------------------------------------------------------------------------------------
+OVER-BLOCK-CLEAN controls (correctly ALLOW pre-fix; must stay ALLOW post-fix)
+----------------------------------------------------------------------------------------
+[ob: timeout 5 node render]    => ALLOW (correct)       timeout 5 node render               (non-admit wrapper, no admit shape)
+[ob: sudo ls]                  => ALLOW (correct)       sudo ls
+[ob: >/dev/null node build]    => ALLOW (correct)       >/dev/null node build
+[ob: 2>/dev/null make]         => ALLOW (correct)       2>/dev/null make
+[ob: setsid sleep 1]           => ALLOW (correct)       setsid sleep 1
+[ob: routine-only multi behind wrapper] => ALLOW (correct)   node ...admit <RT> ; timeout 5 node ...admit <RT>   (dial=high-severity; routine-only)
+[ob: inert quoted mention behind wrapper] => ALLOW (correct)   timeout 5 echo "node ...admit <HI>"   (body never executed)
+[ob: inert heredoc behind wrapper]      => ALLOW (correct)   timeout 5 cat <<EOF\nnode ...admit <HI>\nEOF
+[ob: inert comment behind wrapper]      => ALLOW (correct)   timeout 5 ls # node ...admit <HI>
+[ob: zero-config absent lean (routine)] => ALLOW (correct)   node ...admit <RT>   (dial=off / absent → lean)
+
+----------------------------------------------------------------------------------------
+PRESERVED controls (already correct pre-fix; must stay correct post-fix)
+----------------------------------------------------------------------------------------
+[p: Class A /usr/bin/nice node <HI>]   => DENY  (correct)   /usr/bin/nice node ...admit <HI>
+[p: Class B $(echo node) <HI>]         => DENY  (correct)   $(echo node) scripts/context-io.js admit my-task <HI>
+[p: bare node <HI>]                    => DENY  (correct)   node ...admit <HI>
+[p: routine bare under high]           => ALLOW (correct)   node ...admit <RT>   (dial=high-severity)
+[p: $() with no admit shape]           => ALLOW (correct)   $(echo hi) ls
+
+========================================================================================
+SUMMARY (pre-fix committed .js, blob a65a93c5…): 31 round-4 bypasses LIVE (all want DENY,
+all ALLOW): 9 sub-root (a) + 6 sub-root (b) + 3 sub-root (c) + 3 compounding + 4 invented +
+the 5-row 3-position spread reproduced in the suite/fuzz. All 10 over-block-clean controls
+correctly ALLOW; all 5 preserved round-3/round-2 controls correct. The POST-FIX committed
+.js must flip every BYPASS-LIVE row to DENY while leaving every over-block-clean / preserved
+control unchanged — captured in 25-07-GREEN-proof.txt.

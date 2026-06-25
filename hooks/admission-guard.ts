@@ -471,6 +471,26 @@ function isEnvIndirectedWord(value: string): boolean {
   return /^\$\{?[A-Za-z_]/.test(value);
 }
 
+// Does this segment's leading run — from the unresolved command word at `from` up to the next
+// segment-leading token — contain a dynamic-evaluation / indirection word (eval / sh / bash / dash /
+// zsh / source / `.` / `$X`)? Used by the round-4 invert's fail-closed tail: when the resolved command
+// word is an UNRESOLVED operand / wrapper / redirection that carries no LIVE admit shape, an admit
+// shape hidden inside such a word's quoted body (`timeout 5 sh -c "node …admit NOTE"`) is still
+// EXECUTED and must fail CLOSED — but ONLY when a dynamic-evaluation word is actually present, so an
+// inert quoted / heredoc / comment mention behind a plain wrapper (`timeout 5 echo "…admit…"`,
+// `timeout 5 cat <<EOF…EOF`) — where the body is never executed — is NOT over-blocked. The scan reuses
+// the SAME DYNAMIC_EVAL_WORDS / isEnvIndirectedWord recognizers as the direct dynamic-eval branch; it
+// does not enumerate a new grammar.
+function segmentHasDynamicEvalWord(tokens: LiveToken[], from: number): boolean {
+  for (let j = from; j < tokens.length && (j === from || !tokens[j].startsSegment); j++) {
+    const raw = tokens[j].value;
+    if (raw === DYNAMIC_COMMAND_WORD) continue;
+    const w = effectiveCommandWord(raw);
+    if (DYNAMIC_EVAL_WORDS.has(w) || isEnvIndirectedWord(raw)) return true;
+  }
+  return false;
+}
+
 // For a dynamic-evaluation / indirection command word (eval / sh -c / bash -c / `$X`), the admit shape
 // is typically hidden inside a quoted body the tokenizer (correctly) treats as DATA, so the live-token
 // scan cannot see it. The resolver cannot evaluate the body, so it fails CLOSED: if the RAW remaining
@@ -604,6 +624,47 @@ function liveAdmitSegments(cmd: string): AdmitSegment[] {
       ) {
         segments.push({ noteFile: null, unresolvable: true });
       }
+      continue;
+    }
+
+    // ── Round-4 INVERT THE DEFAULT on the unresolvable leading-run tail (SC1, sub-roots a/b/c) ──────
+    //
+    // The command word resolved to NONE of {launcher, the synthetic command-substitution token, a
+    // dynamic-evaluation / `$X` word}. So it is a leading-run construct the resolver cannot prove
+    // launches a recognized interpreter: a command-MODIFIER OPERAND the prefix-skip stopped at
+    // (`timeout 5 node …` — the duration `5`; `nice -n 5 node …` — the `-n` value; `xargs -I {} node …`),
+    // an UNLISTED WRAPPER not in COMMAND_MODIFIERS (`sudo`/`doas`/`setsid`/`ionice`/`chrt`/`taskset node …`),
+    // or a LEADING REDIRECTION operator/target the tokenizer read as the command word (`>/dev/null node …`,
+    // `2>/dev/null node …`). The pre-round-4 code silently DROPPED such a segment (the default-ALLOW hole).
+    //
+    // INVERT that default and fail CLOSED — exactly the posture Class B (a `$( … )`/backtick command word)
+    // and the dynamic-eval tail already take — so a NEW wrapper / option-operand / redirection spelling
+    // cannot escape WITHOUT a code change (no COMMAND_MODIFIERS widening, no operand/redirection grammar
+    // enumeration; the gate fires structurally on the admit shape behind the unresolvable command word).
+    // Two narrow, admit-shape-triggered cases (the over-block fail-safe — a non-admit wrapper has neither
+    // and stays ALLOW):
+    //   1. A LIVE admit shape (the `node`/`context-io`/`admit`/NOTE run survives as live tokens because
+    //      the wrapper/operand/redirection sits in FRONT of it). The note positional is therefore also a
+    //      live token, so classify by the note's actual severity exactly like a launcher (re-read from
+    //      disk in classifySegmentOrDeny): a routine admit behind a wrapper stays ALLOW under
+    //      `high-severity` (no over-block — the dial gates only high-severity roles) while a high-severity
+    //      admit behind the same wrapper DENIES; under `all` every matched admission gates. When the note
+    //      positional is absent, noteFileInSegment returns null and the segment fails closed downstream.
+    //      (This refines the blanket fail-closed gate to a severity-classified gate so the `high-severity`
+    //      dial's routine-allow contract holds — the threat is an UNAPPROVED high-severity/all admit, and
+    //      the note's `by` cannot be forged downward, so reading it behind the wrapper is safe.)
+    //   2. No live admit shape, BUT a dynamic-evaluation word sits in this segment's leading run after the
+    //      unresolved operand AND the RAW segment text carries the admit shape (`timeout 5 sh -c
+    //      "node …admit NOTE"` — the admit hidden inside an EXECUTED quoted body the tokenizer treats as
+    //      data). The note is unreadable, so fail CLOSED (unresolvable). An inert quoted/heredoc/comment
+    //      mention behind a non-eval wrapper has no dynamic-eval word and stays ALLOW.
+    if (segmentHasAdmitShape(tokens, cmdIdx + 1)) {
+      segments.push({ noteFile: noteFileInSegment(tokens, cmdIdx + 1), unresolvable: false });
+    } else if (
+      segmentHasDynamicEvalWord(tokens, cmdIdx) &&
+      rawTextHasAdmitShape(rawSegmentText(cmd, tokens, cmdIdx))
+    ) {
+      segments.push({ noteFile: null, unresolvable: true });
     }
   }
   return segments;

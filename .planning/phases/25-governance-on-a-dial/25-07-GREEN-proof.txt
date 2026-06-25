@@ -1,0 +1,105 @@
+25-07 GREEN PROOF — the round-4 invert closes every leading-run command-RESOLUTION bypass vs the POST-FIX COMMITTED .js
+=====================================================================================================================
+
+Captured AFTER the fix + `npm run build` + `npm run freshness` (0 drift), child-spawning the
+COMMITTED POST-FIX artifacts, NOT the .ts and NOT the author's *.test.ts suites:
+
+    hooks/admission-guard.js   POST-FIX committed build (fresh tsc; freshness 0)
+    scripts/context-io.js      UNCHANGED this round (git diff --quiet scripts/context-io.ts → exit 0)
+    hooks/guard.ts             blob 3501810e21308e4b7e219679a6ca30dace9b5d66 (byte-frozen, D-02; git diff --quiet → exit 0)
+
+THE FIX (structural INVERT inside the ONE liveAdmitSegments authority — no COMMAND_MODIFIERS
+widening, no operand/redirection grammar enumeration, no second walk): after the leading-run
+prefix-skip, a resolved command word that is NEITHER a launcher NOR an already-gating
+dynamic/substitution word, on a segment carrying the admit shape, fails CLOSED instead of
+silently dropping —
+  (1) a LIVE admit shape → classify by the (live, readable) note's severity exactly like a
+      launcher (high → DENY, routine → gated only under `all` / never under `high-severity`);
+  (2) no live admit shape but a dynamic-eval word in the leading run + a raw admit shape (an
+      admit hidden in an EXECUTED quoted body) → fail CLOSED (unresolvable).
+The trigger is admit-shape-narrow: a non-admit wrapper has neither and stays ALLOW.
+
+Same fixture as the RED baseline: <HI> = by:security-nfr high-severity note; <RT> =
+by:software-engineer routine note; named dial; NO GRUGOPS_ADMISSION_APPROVED_BY in env.
+
+----------------------------------------------------------------------------------------
+SUB-ROOT (a) — modifier OPERAND (dial high-severity, <HI> note): pre-fix ALLOW -> POST-FIX DENY
+----------------------------------------------------------------------------------------
+[(a) timeout 5 node]            => DENY (closed)   timeout 5 node scripts/context-io.js admit my-task <HI>
+[(a) nice -n 5 node]           => DENY (closed)   nice -n 5 node scripts/context-io.js admit my-task <HI>
+[(a) exec -a foo node]         => DENY (closed)   exec -a foo node scripts/context-io.js admit my-task <HI>
+[(a) xargs -I {} node]         => DENY (closed)   xargs -I {} node scripts/context-io.js admit my-task <HI>
+[(a) env -C /tmp node]         => DENY (closed)   env -C /tmp node scripts/context-io.js admit my-task <HI>
+[(a) env -u PATH node]         => DENY (closed)   env -u PATH node scripts/context-io.js admit my-task <HI>
+[(a) timeout -k 1 5 node]      => DENY (closed)   timeout -k 1 5 node scripts/context-io.js admit my-task <HI>
+[(a) /usr/bin/timeout 5 node]  => DENY (closed)   /usr/bin/timeout 5 node scripts/context-io.js admit my-task <HI>
+[(a) nice '-n' '5' node]       => DENY (closed)   nice '-n' '5' node scripts/context-io.js admit my-task <HI>
+
+----------------------------------------------------------------------------------------
+SUB-ROOT (b) — unlisted wrapper (dial high-severity, <HI> note): pre-fix ALLOW -> POST-FIX DENY
+----------------------------------------------------------------------------------------
+[(b) sudo node]                => DENY (closed)   sudo node scripts/context-io.js admit my-task <HI>
+[(b) doas node]                => DENY (closed)   doas node scripts/context-io.js admit my-task <HI>
+[(b) setsid node]              => DENY (closed)   setsid node scripts/context-io.js admit my-task <HI>
+[(b) ionice -c2 node]          => DENY (closed)   ionice -c2 node scripts/context-io.js admit my-task <HI>
+[(b) chrt -f 1 node]           => DENY (closed)   chrt -f 1 node scripts/context-io.js admit my-task <HI>
+[(b) taskset 0x1 node]         => DENY (closed)   taskset 0x1 node scripts/context-io.js admit my-task <HI>
+
+----------------------------------------------------------------------------------------
+SUB-ROOT (c) — leading redirection (dial high-severity, <HI> note): pre-fix ALLOW -> POST-FIX DENY
+----------------------------------------------------------------------------------------
+[(c) >/dev/null node]          => DENY (closed)   >/dev/null node scripts/context-io.js admit my-task <HI>
+[(c) 2>/dev/null node]         => DENY (closed)   2>/dev/null node scripts/context-io.js admit my-task <HI>
+[(c) 2>&1 node]                => DENY (closed)   2>&1 node scripts/context-io.js admit my-task <HI>
+
+----------------------------------------------------------------------------------------
+COMPOUNDING — dial-`all` floor leak + Class-E reopening: pre-fix ALLOW -> POST-FIX DENY
+----------------------------------------------------------------------------------------
+[all: timeout 5 node <RT>]     => DENY (closed)   timeout 5 node ...admit <RT>   (dial=all; the strictest dial no longer leaks a routine behind a wrapper)
+[E: node <RT> ; timeout 5 node <HI>] => DENY (closed)   node ...admit <RT> ; timeout 5 node ...admit <HI>   (dial=high-severity; the wrapped high segment is now classified)
+[E: timeout 5 node <HI> ; node <RT>] => DENY (closed)   timeout 5 node ...admit <HI> ; node ...admit <RT>   (dial=high-severity; either ordering)
+
+----------------------------------------------------------------------------------------
+INVENTED un-enumerated shapes — caught STRUCTURALLY: pre-fix ALLOW -> POST-FIX DENY
+----------------------------------------------------------------------------------------
+[inv: /usr/bin/timeout -k 1 5 node <HI>]   => DENY (closed)   /usr/bin/timeout -k 1 5 node ...admit <HI>
+[inv: redirection between wrapper+launcher] => DENY (closed)   timeout 5 2>/dev/null node ...admit <HI>
+[inv: 3-admit shield high behind two routines] => DENY (closed)   node ...admit <RT> ; node ...admit <RT> ; sudo node ...admit <HI>
+[inv: stacked operand+eval]                 => DENY (closed)   timeout 5 sh -c "node ...admit <HI>"   (case (2): dynamic-eval word in the leading run + raw admit shape → fail closed)
+
+----------------------------------------------------------------------------------------
+OVER-BLOCK-CLEAN controls — STILL ALLOW post-fix (the fail-safe direction; zero false-positives)
+----------------------------------------------------------------------------------------
+[ob: timeout 5 node render]    => ALLOW (no over-block)   timeout 5 node render
+[ob: sudo ls]                  => ALLOW (no over-block)   sudo ls
+[ob: >/dev/null node build]    => ALLOW (no over-block)   >/dev/null node build
+[ob: 2>/dev/null make]         => ALLOW (no over-block)   2>/dev/null make
+[ob: setsid sleep 1]           => ALLOW (no over-block)   setsid sleep 1
+[ob: routine-only multi behind wrapper] => ALLOW (no over-block)   node ...admit <RT> ; timeout 5 node ...admit <RT>   (dial=high-severity; routine note read behind the wrapper → not gated)
+[ob: inert quoted mention behind wrapper] => ALLOW (no over-block)   timeout 5 echo "node ...admit <HI>"   (no dynamic-eval word; body inert)
+[ob: inert heredoc behind wrapper]      => ALLOW (no over-block)   timeout 5 cat <<EOF\nnode ...admit <HI>\nEOF
+[ob: inert comment behind wrapper]      => ALLOW (no over-block)   timeout 5 ls # node ...admit <HI>
+[ob: zero-config absent lean (routine)] => ALLOW (no over-block)   node ...admit <RT>   (dial=off / absent)
+
+----------------------------------------------------------------------------------------
+PRESERVED controls — round-3 / round-2 closures hold post-fix
+----------------------------------------------------------------------------------------
+[p: Class A /usr/bin/nice node <HI>]   => DENY  (held)   /usr/bin/nice node ...admit <HI>
+[p: Class B $(echo node) <HI>]         => DENY  (held)   $(echo node) scripts/context-io.js admit my-task <HI>
+[p: bare node <HI>]                    => DENY  (held)   node ...admit <HI>
+[p: routine bare under high]           => ALLOW (held)   node ...admit <RT>   (dial=high-severity)
+[p: $() with no admit shape]           => ALLOW (held)   $(echo hi) ls
+
+========================================================================================
+SUMMARY (post-fix committed .js): every one of the 31 RED bypass rows now DENIES; all 10
+over-block-clean controls still ALLOW (zero false-positives — the clean over-block record is
+preserved); all 5 preserved round-3/round-2 controls hold. COMMAND_MODIFIERS membership is
+unchanged (no widening); `function tokenize` / `noteFileFromCommand` remain grep=0 (single
+authority); `liveAdmitSegments` is still the one authority; the liveTokens tokenizer body is
+byte-identical (only the leading-run DISPOSITION on the unresolved tail changed). guard.ts
+byte-frozen (3501810e…), scripts/context-io.ts untouched, freshness 0.
+
+D-12 / [[grugops-safety-invariant-green-suite-insufficient]]: this GREEN proof + the author
+child-spawn oracle + the anti-whack-a-mole fuzz are NECESSARY-BUT-NOT-SUFFICIENT. SC1 closure
+REQUIRES the INDEPENDENT both-angle opus red-team at Task 25-07-04 (the blocking checkpoint),
+reproduced against the committed .js — not self-reported as a green suite.
