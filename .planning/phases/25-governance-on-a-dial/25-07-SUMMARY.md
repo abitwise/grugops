@@ -124,3 +124,44 @@ Per D-12 and [[grugops-safety-invariant-green-suite-insufficient]] (the 8th gree
 - `25-07-RED-baseline.txt`, `25-07-GREEN-proof.txt`, `25-07-SUMMARY.md` exist.
 - Commits `67d4d17` (invert + proofs), `c581a2e` (oracle), `01e8b72` (fuzz) exist on `main`.
 - `hooks/admission-guard.js` is a fresh tsc build (freshness 0); `hooks/guard.ts` byte-frozen `3501810e…`; `scripts/context-io.ts` unchanged.
+
+## Checkpoint 25-07-04 — INDEPENDENT both-angle red-team (orchestrator-dispatched, 2026-06-25): **BYPASS_FOUND → round 5**
+
+The orchestrator dispatched two independent opus-grade adversaries (the P23 split — LOGIC and INPUT-SURFACE, blind to each other), each attacking the **committed** `hooks/admission-guard.js` (blob `756ce508…`) / `scripts/context-io.js` (blob `ab56f680…`) via its own throwaway child-spawn harness, never the `.ts` and never the author's suites. **Both returned BYPASS_FOUND.** The orchestrator then independently reproduced the cleanest cases against the committed hook (verbatim evidence below). This is the **9th green-suite-insufficient catch of v2.0** — the author's 162 + 168 + 28 + 846 green cases all hold, and the guard is still forgeable.
+
+### Confirmed bypasses (orchestrator-reproduced; dial `high-severity`, no approval env, note `by: security-nfr`)
+
+| # | Command (`<CTX>` = abs `scripts/context-io.js`, `<HI>` = high-sev note) | Expected | Observed | Angle |
+|---|---|---|---|---|
+| CONTROL | `node <CTX> admit my-task <HI>` | DENY | **DENY** ✓ | — |
+| A | `node scripts/context-i*.js admit my-task <HI>` (glob) | DENY | **ALLOW** ✗ | input-surface |
+| A' | `…context-i?.js` / `…context-i[o].js` | DENY | **ALLOW** ✗ | input-surface |
+| B | `node $(echo <CTX> admit my-task <HI>)` (arg-position cmd-sub) | DENY | **ALLOW** ✗ | logic |
+| B' | `echo "<CTX> admit my-task <HI>" \| xargs node` | DENY | **ALLOW** ✗ | logic |
+| C | `export S=<CTX> && node "$S" admit my-task <HI>` (param-expansion) | DENY | **ALLOW** ✗ | input-surface |
+| C' | `export V=admit && node <CTX> "$V" my-task <HI>` | DENY | **ALLOW** ✗ | input-surface |
+| D | `GRUGOPS_ADMISSION_APPROVED_BY=eve node scripts/context-i*.js admit my-task <HI>` | DENY | **ALLOW** ✗ | **D-01 floor breach** |
+| E | (dial `all`) `node scripts/context-i*.js admit my-task <ROUTINE>` | DENY | **ALLOW** ✗ | logic — strictest dial leaks, **no in-script backstop** |
+
+Both shells reconstruct a real, unapproved, high-severity `admit` argv (`scripts/context-i*.js` glob-expands to the single real `scripts/context-io.js`; `$(echo …)` / `$S` / `$V` word-split to the literal argv). The byte-identical command with the literal script path **DENIES** — so the gate fires on the direct form and is defeated solely by argument/identifier delivery. Repo stays clean (the hook only evaluates the command string; it does not execute the admit).
+
+### Converged root cause (both angles, independently)
+
+The admit-SHAPE detector (`segmentHasAdmitShape` / `commandHasLiveAdmitShape`) is a **literal substring/token test** — `v.includes("context-io")` then a token `=== "admit"` — run on the **un-expanded** command string. **Round 4 hardened command-word RESOLUTION (the leading run) but left SHAPE DETECTION naive.** Any shell expansion that defers `context-io` or `admit` to runtime walks straight through, because the launcher's own segment then carries no literal `admit`/`context-io` token and `node` resolves fine, so the round-4 invert (which only fires on an *unresolved command word*) never triggers: globbing (`context-i*.js`), parameter expansion (`$S`/`$V`), command substitution in **argument** position (`node $(…)` — the `$()`/backtick guard only covers *command-word* position), word-splitting (`$A`), and cross-segment stdin→argv via `xargs`. This is the same meta-pattern as Phase 22 / [[grugops-safety-invariant-green-suite-insufficient]]: **the heuristic is narrower than the format** — and here the "format" is the shell's own expansion grammar, which the hook does not run.
+
+**Aggravating:** the glob form (#D) also defeats the **D-01 refuse-self-set floor** — `commandHasLiveAdmitShape` keys on the same literal shape. **Most damaging:** under dial `all` (#E), the hook is the *only* gate (`admit()` in context-io.js refuses only high-severity roles, not routine), so the `all` "gate every admission" guarantee is fully defeated with no backstop.
+
+### What is SOLID (both red-teams confirmed — not a round-4 regression)
+
+- Every round-4 enumerated class closes correctly: sub-roots (a) modifier-operand, (b) unlisted-wrapper, (c) leading-redirection all DENY; the dial-`all` *wrapper* leak and the Class-E *wrapper* reopening DENY; the stacked `sh -c "…admit…"` dynamic-eval tail DENIES.
+- Over-block controls are clean (zero false positives): `sudo ls`, `timeout 5 node render`, `>/dev/null node build`, routine-only multi-admit, and inert quoted/heredoc/`#`-comment mentions behind a wrapper all ALLOW.
+- Structural/floor checks pass: `git diff --quiet hooks/guard.ts` exit 0 (blob `3501810e…`), `git diff --quiet scripts/context-io.ts` exit 0, `npm run freshness` exit 0 (21 committed `.js` fresh), `function tokenize` / `noteFileFromCommand` grep = 0 (single authority), `COMMAND_MODIFIERS` not widened.
+- `25-07-GREEN-proof.txt` rows are **truthful** for every row they contain — but the proof is **INCOMPLETE**: its threat enumeration never covers script-reference/verb shape-hiding via shell expansion, so it certifies a closure the gate does not have.
+
+### Recommended structural direction for round 5 (both adversaries converged; NOT applied here)
+
+Adding more literal spellings (`*`, `?`, `$`) is the whack-a-mole trap. The fix must make **shape detection** structural, mirroring the round-4 invert that already made command-word resolution structural. Two viable postures:
+1. **Fail-closed on unresolvable argv** — a recognized-launcher segment whose argument run contains a glob / parameter-expansion / command-substitution / word-split metacharacter in **script-or-verb position** is statically unknowable → gate-or-stricter, exactly as a command-word `$()` already fails closed. ("A launcher whose argv cannot be statically resolved to a non-admit is gate-or-stricter.")
+2. **Move the boundary past the shell** — anchor the gate on a post-expansion artifact the shell cannot obfuscate (the actual `context-io.js admit` invocation / the verified-context write itself), not on the pre-expansion command string. The terminal Phase 22 lesson: *the raw command string before the shell touches it cannot be made faithful by string matching, because the shell — not the hook — decides what `node` finally runs.*
+
+**Disposition:** Checkpoint 25-07-04 is **NOT approved.** SC1 (GOV-01 un-forgeable tier) remains **FAIL**. SC2 + GOV-02 (audit ledger) remain verified/preserved. The phase is **not** complete; the ROADMAP phase status is **not** flipped. Next: a round-5 gap-closure plan that makes the admit-shape detector structural — `/gsd-plan-phase 25 --gaps`.
