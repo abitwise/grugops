@@ -877,3 +877,229 @@ describe("SC1 anti-whack-a-mole (25-06) — command-RESOLUTION class invariant o
     }
   });
 });
+
+describe("SC1 anti-whack-a-mole (25-07) — leading-run command-RESOLUTION class invariant over the round-4 matrix", () => {
+  // Round-4 INVERT: the leading-run resolver now fails CLOSED on the UNRESOLVABLE tail — an admit shape
+  // behind a command word that does not resolve to a recognized launcher (a modifier OPERAND the skip
+  // stopped at, an UNLISTED wrapper, or a LEADING REDIRECTION the tokenizer read as the command word)
+  // is treated as a live admit and gated, exactly as Class B does for a dynamic command word. So the
+  // proof is a CLASS invariant over the wrapper / modifier-operand / leading-redirection × dial ×
+  // admit-ordering matrix, NOT an enumeration: a gated admit behind ANY unresolved command word in ANY
+  // live segment → DENY; a routine-only / no-admit-shape / inert command → ALLOW. A wrapper/operand/
+  // redirection spelling outside any anchor cannot escape because resolution FAILS CLOSED on the
+  // unresolvable tail — COMMAND_MODIFIERS is NOT widened and no operand/redirection grammar is enumerated.
+  // The round-2 {launcher}×{prefix}×{body} fuzz, the round-3 path-form-modifier × substitution × multi-
+  // admit fuzz, and the non-string-dial / case-variant sweeps above are PRESERVED and not duplicated.
+  //
+  // D-12 / [[grugops-safety-invariant-green-suite-insufficient]]: this GREEN class invariant is
+  // NECESSARY-BUT-NOT-SUFFICIENT — the author's suites passed and STILL missed a class across rounds 1,
+  // 2, 3, and the round-3 fix. The INDEPENDENT both-angle opus red-team at Task 25-07-04 is the closure
+  // gate, not a green suite. Every case child-spawns the COMMITTED admission-guard.js (never the .ts).
+  const admitTail = (note: string): string => `node scripts/context-io.js admit my-task ${note}`;
+  const SEPARATORS = [";", "&&", "||", "|", "&"];
+
+  // ── Modifier-OPERAND fuzz: {modifier} × {operand spelling} × {path spelling}. The skip stops at the
+  //    operand, which is not a launcher → the admit shape behind it fails closed. A modifier-operand
+  //    prefix with NO trailing admit shape stays ALLOW (no over-block).
+  const MODIFIERS = ["timeout", "nice", "exec", "xargs", "env", "nohup"];
+  const OPERANDS = ["5", "-n 5", "-a foo", "-I {}", "-C /tmp", "-u PATH", "-k 1 5", "'-n' '5'"];
+  const MOD_PATHS = ["", "/usr/bin/", "./"];
+
+  it("modifier-operand fuzz — every {modifier × operand × path} behind an admit shape DENIES (high-severity)", () => {
+    const { dir, highNote } = projectWith({ dial: "high-severity" });
+    for (const m of MODIFIERS) {
+      for (const op of OPERANDS) {
+        for (const p of MOD_PATHS) {
+          const command = `${p}${m} ${op} ${admitTail(highNote)}`;
+          expect(
+            hookDecision(command, dir),
+            `modifier-operand "${p}${m} ${op} node …admit" must DENY`,
+          ).toBe("deny");
+        }
+      }
+    }
+  });
+
+  it("modifier-operand fuzz — the same prefix with NO admit shape ALLOWs (no over-block)", () => {
+    const { dir } = projectWith({ dial: "high-severity" });
+    for (const m of MODIFIERS) {
+      for (const op of OPERANDS) {
+        for (const p of MOD_PATHS) {
+          const command = `${p}${m} ${op} node render`;
+          expect(
+            hookDecision(command, dir),
+            `non-admit modifier-operand "${p}${m} ${op} node render" must ALLOW`,
+          ).toBe("allow");
+        }
+      }
+    }
+  });
+
+  // ── Unlisted-wrapper fuzz: {wrapper}(with/without a flag) on a segment carrying the admit shape →
+  //    DENY; the same wrapper on a non-admit command → ALLOW. COMMAND_MODIFIERS is NOT widened.
+  const WRAPPERS = ["sudo", "doas", "setsid", "ionice", "chrt", "taskset"];
+  const WRAPPER_FLAGS = ["", "-c2", "-f 1", "0x1"];
+
+  it("unlisted-wrapper fuzz — every {wrapper × flag} behind an admit shape DENIES (high-severity)", () => {
+    const { dir, highNote } = projectWith({ dial: "high-severity" });
+    for (const w of WRAPPERS) {
+      for (const f of WRAPPER_FLAGS) {
+        const command = `${w}${f ? " " + f : ""} ${admitTail(highNote)}`;
+        expect(hookDecision(command, dir), `unlisted wrapper "${w} ${f}" must DENY`).toBe("deny");
+      }
+    }
+  });
+
+  it("unlisted-wrapper fuzz — the same wrapper on a non-admit command ALLOWs (no over-block)", () => {
+    const { dir } = projectWith({ dial: "high-severity" });
+    for (const w of WRAPPERS) {
+      for (const f of WRAPPER_FLAGS) {
+        const command = `${w}${f ? " " + f : ""} ls -la`;
+        expect(hookDecision(command, dir), `non-admit wrapper "${w} ${f} ls" must ALLOW`).toBe("allow");
+      }
+    }
+  });
+
+  // ── Leading-redirection fuzz: {redirection operator} on a segment carrying the admit shape → DENY;
+  //    the same redirection on a non-admit command → ALLOW. No redirection grammar is enumerated.
+  const REDIRS = [">/dev/null", "1>/dev/null", "2>/dev/null", "2>&1", "&>/dev/null"];
+
+  it("leading-redirection fuzz — every redirection behind an admit shape DENIES (high-severity)", () => {
+    const { dir, highNote } = projectWith({ dial: "high-severity" });
+    for (const r of REDIRS) {
+      const command = `${r} ${admitTail(highNote)}`;
+      expect(hookDecision(command, dir), `leading redirection "${r} node …admit" must DENY`).toBe("deny");
+    }
+  });
+
+  it("leading-redirection fuzz — the same redirection on a non-admit command ALLOWs (no over-block)", () => {
+    const { dir } = projectWith({ dial: "high-severity" });
+    for (const r of REDIRS) {
+      const command = `${r} node build`;
+      expect(hookDecision(command, dir), `non-admit redirection "${r} node build" must ALLOW`).toBe("allow");
+    }
+  });
+
+  // ── Dial dimension: under `all` a ROUTINE admit behind ANY wrapper/operand/redirection DENIES (the
+  //    strictest dial's floor does not leak); under `off` it ALLOWs (lean).
+  it("dial dimension — a routine admit behind any wrapper/operand/redirection DENIES under `all`, ALLOWs under `off`", () => {
+    const all = projectWith({ dial: "all" });
+    const off = projectWith({ dial: "off" });
+    const prefixes = ["timeout 5", "nice -n 5", "sudo", "setsid", ">/dev/null", "2>/dev/null"];
+    for (const pre of prefixes) {
+      expect(
+        hookDecision(`${pre} ${admitTail(all.routineNote)}`, all.dir),
+        `routine behind "${pre}" must DENY under all`,
+      ).toBe("deny");
+      expect(
+        hookDecision(`${pre} ${admitTail(off.routineNote)}`, off.dir),
+        `routine behind "${pre}" must ALLOW under off`,
+      ).toBe("allow");
+    }
+  });
+
+  // ── Admit-ordering fuzz: a wrapped high-severity admit shielded among routine admits DENIES under
+  //    high-severity in ANY position / separator (2- and 3-admit chains); a routine-only multi-admit
+  //    (some behind wrappers) ALLOWs under high-severity (no over-block).
+  it("admit-ordering fuzz — a wrapped high-severity admit in any position/separator DENIES under high-severity", () => {
+    const { dir, highNote, routineNote } = projectWith({ dial: "high-severity" });
+    const wrappedHigh = `timeout 5 ${admitTail(highNote)}`;
+    const bareRoutine = admitTail(routineNote);
+    for (const sep of SEPARATORS) {
+      const chains: string[][] = [
+        [wrappedHigh, bareRoutine],
+        [bareRoutine, wrappedHigh],
+        [wrappedHigh, bareRoutine, bareRoutine],
+        [bareRoutine, wrappedHigh, bareRoutine],
+        [bareRoutine, bareRoutine, wrappedHigh],
+      ];
+      for (let p = 0; p < chains.length; p++) {
+        const command = chains[p].join(` ${sep} `);
+        expect(
+          hookDecision(command, dir),
+          `wrapped-high chain pos${p} sep="${sep}" must DENY`,
+        ).toBe("deny");
+      }
+    }
+  });
+
+  it("admit-ordering fuzz — a routine-only multi-admit (some wrapped) ALLOWs under high-severity, DENIES under all", () => {
+    const high = projectWith({ dial: "high-severity" });
+    const all = projectWith({ dial: "all" });
+    for (const sep of SEPARATORS) {
+      const cmdHigh = [
+        admitTail(high.routineNote),
+        `timeout 5 ${admitTail(high.routineNote)}`,
+        `sudo ${admitTail(high.routineNote)}`,
+      ].join(` ${sep} `);
+      expect(
+        hookDecision(cmdHigh, high.dir),
+        `routine-only wrapped chain sep="${sep}" must ALLOW under high-severity`,
+      ).toBe("allow");
+      const cmdAll = [
+        admitTail(all.routineNote),
+        `timeout 5 ${admitTail(all.routineNote)}`,
+      ].join(` ${sep} `);
+      expect(
+        hookDecision(cmdAll, all.dir),
+        `routine-only wrapped chain sep="${sep}" must DENY under all`,
+      ).toBe("deny");
+    }
+  });
+
+  // ── LF | CRLF: the class invariant holds under both line endings for a representative set (the
+  //    tokenizer's separator/continuation handling is line-ending-aware; the round-4 disposition is not).
+  it("LF|CRLF — a wrapped high-severity admit DENIES and an inert mention behind a wrapper ALLOWs under both", () => {
+    const { dir, highNote } = projectWith({ dial: "high-severity" });
+    for (const nl of ["\n", "\r\n"]) {
+      // routine ; wrapped-high, joined with the chosen line ending around the separator.
+      const denyCmd = `node scripts/context-io.js admit t1 ${highNote}${nl}sudo ${admitTail(highNote)}`;
+      expect(hookDecision(denyCmd, dir), `newline-joined wrapped-high must DENY`).toBe("deny");
+      // an inert heredoc mention behind a wrapper stays ALLOW (no dynamic-eval word, body not executed).
+      const allowCmd = `timeout 5 cat <<EOF${nl}node scripts/context-io.js admit my-task ${highNote}${nl}EOF`;
+      expect(hookDecision(allowCmd, dir), `inert heredoc behind a wrapper must ALLOW`).toBe("allow");
+    }
+  });
+
+  // ── Invented un-enumerated shapes (anti-whack-a-mole; caught STRUCTURALLY on the unresolvable tail,
+  //    not by an anchor list) — the property the author did NOT individually enumerate.
+  it("invented shapes — un-enumerated wrapper/operand/redirection/eval stacks are caught structurally", () => {
+    const { dir, highNote, routineNote } = projectWith({ dial: "high-severity" });
+    const invented: Array<[string, string, "deny" | "allow"]> = [
+      ["path-form modifier + flag + operand", `/usr/bin/timeout -k 1 5 ${admitTail(highNote)}`, "deny"],
+      ["redirection between wrapper and launcher", `timeout 5 2>/dev/null ${admitTail(highNote)}`, "deny"],
+      ["3-admit shield high behind two routines", `${admitTail(routineNote)} ; ${admitTail(routineNote)} ; sudo ${admitTail(highNote)}`, "deny"],
+      ["stacked operand + eval (executed body)", `timeout 5 sh -c "node scripts/context-io.js admit my-task ${highNote}"`, "deny"],
+      ["doubled unlisted wrapper", `sudo setsid ${admitTail(highNote)}`, "deny"],
+      ["operand then unlisted wrapper", `timeout 5 sudo ${admitTail(highNote)}`, "deny"],
+      // over-block fail-safe: an inert eval-body mention with NO real admit (echo, not sh -c).
+      ["inert echo body behind operand", `timeout 5 echo "node scripts/context-io.js admit my-task ${highNote}"`, "allow"],
+    ];
+    for (const [name, command, want] of invented) {
+      expect(hookDecision(command, dir), `invented shape "${name}" must ${want.toUpperCase()}`).toBe(want);
+    }
+  });
+
+  // The structural argument (D-12): the invert fails closed on the UNRESOLVABLE tail — an admit shape
+  // behind a command word the resolver cannot prove is a recognized launcher — so a wrapper/operand/
+  // redirection spelling outside any anchor cannot escape WITHOUT a code change. The proof is the class
+  // invariant above, not an enumeration of known forms; and a GREEN class invariant is
+  // NECESSARY-BUT-NOT-SUFFICIENT — the independent both-angle opus red-team at Task 25-07-04 is the gate.
+  it("the four named floor invariants still hold behind a round-4 wrapper (self-set / guard byte-frozen)", () => {
+    const { dir, highNote } = projectWith({ dial: "high-severity" });
+    // GAP-B self-set behind a modifier-operand wrapper DENIES even with the var in env.
+    expect(
+      hookDecision(`${APPROVAL}=eve timeout 5 ${admitTail(highNote)}`, dir, "eve"),
+      "self-set behind a modifier-operand wrapper must DENY even with the var in env",
+    ).toBe("deny");
+    expect(
+      hookDecision(`${APPROVAL}=eve sudo ${admitTail(highNote)}`, dir, "eve"),
+      "self-set behind an unlisted wrapper must DENY even with the var in env",
+    ).toBe("deny");
+    // guard.ts stays byte-frozen (D-02) — the round-4 resolver edit must not touch the deploy guard.
+    const blob = execFileSync("git", ["hash-object", join(ROOT, "hooks", "guard.ts")], {
+      encoding: "utf8",
+    }).trim();
+    expect(blob, "hooks/guard.ts must be byte-frozen at the D-02 blob").toBe(FROZEN_GUARD_BLOB);
+  });
+});
