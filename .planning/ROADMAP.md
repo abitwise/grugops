@@ -214,7 +214,7 @@ Plans:
   2. `context.audit_retention: git|retained` controls audit-trail retention, and all three config files are updated in lockstep with lean defaults preserved (zero-config still runs lean).
   3. The un-dialable safety floor is unchanged and not bypassable by any dial setting — verify-before-write, no-fabrication, test-integrity, and humans-hold-merge/deploy all hold regardless of governance configuration.
 
-**Plans**: 5 plans (5 waves; 25-04 + 25-05 are gap-closure rounds for the SC1+SC3 GOV-01 bypasses)
+**Plans**: 6 plans (6 waves; 25-04 + 25-05 + 25-06 are gap-closure rounds for the SC1+SC3 GOV-01 bypasses)
 Plans:
 **Wave 1**
 
@@ -234,7 +234,11 @@ Plans:
 
 **Wave 5** *(gap closure round 2 — blocked on Waves 1-4; 25-04-04 red-team STILL gaps_found 2026-06-24)*
 
-- [ ] 25-05-PLAN.md — GOV-01/SC1+SC3 gap closure (round 2): resolve the EFFECTIVE command word (skip command-modifier builtins / basename a path / fully de-quote / brace-group / `nodejs`) as ONE authority layered on the preserved 25-04 segmentation + fail-closed unresolvable-tail GATE (eval / `sh -c` body / env-indirection) (GAP-A) + move refuse-self-set in front of the matcher early-exit (GAP-B) + canonicalize a PRESENT non-string `human_admission` to gate-or-stricter, absent stays lean (GAP-C) + case-insensitive high-severity role match at both tiers (GAP-D) + anti-whack-a-mole command-resolution fuzz + both-direction RED→GREEN proof vs the committed `.js` + independent both-angle red-team checkpoint (Wave 5)
+- [ ] 25-05-PLAN.md — GOV-01/SC1+SC3 gap closure (round 2): resolve the EFFECTIVE command word (skip command-modifier builtins / basename a path / fully de-quote / brace-group / `nodejs`) as ONE authority layered on the preserved 25-04 segmentation + fail-closed unresolvable-tail GATE (eval / `sh -c` body / env-indirection) (GAP-A) + move refuse-self-set in front of the matcher early-exit (GAP-B) + canonicalize a PRESENT non-string `human_admission` to gate-or-stricter, absent stays lean (GAP-C) + case-insensitive high-severity role match at both tiers (GAP-D) + anti-whack-a-mole command-resolution fuzz + both-direction RED→GREEN proof vs the committed `.js` + independent both-angle red-team checkpoint (Wave 5) — EXECUTED (tasks 01–03 committed `ffb0d75`/`4100ce4`/`4e69496`); the blocking red-team (25-05-04) returned GAPS_FOUND (round-2 LOGIC closures GAP-B/C/D confirmed SOLID; 4 NEW command-RESOLUTION classes found) → round 3 (25-06)
+
+**Wave 6** *(gap closure round 3 — blocked on Waves 1-5; 25-05-04 red-team STILL gaps_found 2026-06-25)*
+
+- [ ] 25-06-PLAN.md — GOV-01/SC1 gap closure (round 3): UNIFY the matcher + classifier into ONE `liveTokens` per-segment authority {isLiveAdmit, noteFile, by/severity} — resolve the effective command word over EVERY leading-run token so a path-form modifier (`/usr/bin/env node …admit`) resolves (Class A) + fail-closed on a `$()`/backtick command word (Class B) + classify EVERY live admit segment so a multi-admit shield (`node …admit T routine ; node …admit T high-sev` under high-severity) DENIES (Class E, critical) + a validate()-consistent per-segment note read rejecting duplicate/indented `by` (Class F) + DELETE the naive `tokenize`/`noteFileFromCommand` second walk (single authority) + anti-whack-a-mole command-resolution fuzz + both-direction RED→GREEN proof vs the committed `.js` + independent both-angle red-team checkpoint (Wave 6). Preserves the round-2 GAP-B/C/D closures + SC2 + the GOV-02 ledger; `scripts/context-io.ts` not edited
 
 ### Phase 26: Dogfood, Dual-Path Oracle & A3/DOG-02 Retirement
 
