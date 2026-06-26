@@ -1,0 +1,139 @@
+25-08 RED BASELINE — the round-5 shell-rewrite admit-SHAPE bypasses reproduced vs the PRE-FIX COMMITTED .js
+===========================================================================================================
+
+Captured FIRST, before any source edit (the 22-08 / 22-09 RED -> GREEN discipline,
+extending the 25-07-RED-baseline.txt row format).
+
+Every result below is a child-spawn of the COMMITTED artifacts as they stood at the
+PRE-FIX point, NOT the .ts and NOT the author's *.test.ts suites:
+
+    hooks/admission-guard.js   blob 756ce50841e4a5c4955d2197ce08f43e47931659 (pre-fix, HEAD a1eb54a)
+    scripts/context-io.js      UNCHANGED this round (GAP-C/GAP-D + GOV-02 ledger intact)
+    hooks/guard.ts             blob 3501810e21308e4b7e219679a6ca30dace9b5d66 (byte-frozen, D-02)
+
+Test fixture (mirrors the 25-07 fixture): a high-severity note (by: security-nfr,
+kind: finding) = <HI>, and a routine note (by: software-engineer, kind: observation)
+= <RT>, under the named human_admission dial, with NO GRUGOPS_ADMISSION_APPROVED_BY in
+the hook's process env. A correct gate DENIES a gated admission; the PRE-FIX hook ALLOWs
+the round-5 bypasses.
+
+THE NEW CLASS (25-07-SUMMARY.md "Checkpoint 25-07-04", the 9th green-suite-insufficient
+catch): the admit-SHAPE DETECTOR (segmentHasAdmitShape / commandHasLiveAdmitShape) is a
+LITERAL substring/token test (`v.includes("context-io")` + token `admit`) on the
+UN-EXPANDED command string, so any shell REWRITE that defers the script-ref or the admit
+verb to runtime walks through. Round-4 hardened command-word RESOLUTION but left SHAPE
+DETECTION naive.
+
+S = scripts/context-io.js (literal script ref)
+
+----------------------------------------------------------------------------------------
+ROUND-5 BYPASSES — pre-fix ALLOW (the live holes; all want DENY post-fix). dial=high-severity, <HI>
+----------------------------------------------------------------------------------------
+[glob script]           => ALLOW (bypass live)   node scripts/context-i*.js admit my-task <HI>
+[arg-cmd-sub]           => ALLOW (bypass live)   node $(echo S admit my-task <HI>)
+[backtick-cmd-sub]      => ALLOW (bypass live)   node `echo S admit my-task <HI>`
+[param $S script]       => ALLOW (bypass live)   node "$S" admit my-task <HI>
+[param $V verb]         => ALLOW (bypass live)   node S "$V" my-task <HI>
+[param $A bareword]     => ALLOW (bypass live)   node $A admit my-task <HI>
+[xargs stdin-feed]      => ALLOW (bypass live)   echo "S admit my-task <HI>" | xargs node
+[EXTGLOB @(o)]          => ALLOW (bypass live)   shopt -s extglob; node scripts/context-i@(o).js admit my-task <HI>
+[EXTGLOB ?(o)]          => ALLOW (bypass live)   shopt -s extglob; node scripts/context-i?(o).js admit my-task <HI>
+[EXTGLOB +(o)]          => ALLOW (bypass live)   shopt -s extglob; node scripts/context-i+(o).js admit my-task <HI>
+[EXTGLOB !(x)]          => ALLOW (bypass live)   shopt -s extglob; node scripts/context-io!(x).js admit my-task <HI>
+[brace verb]            => ALLOW (bypass live)   node S admi{t,x} my-task <HI>
+[process-sub script]    => ALLOW (bypass live)   node <(echo S) admit my-task <HI>
+[bun glob]              => ALLOW (bypass live)   bun scripts/context-i*.js admit my-task <HI>
+[bun $S $V both-dyn]    => ALLOW (bypass live)   bun "$S" "$V"
+[deno run $S $V]        => ALLOW (bypass live)   deno run "$S" "$V"
+[shebang]               => ALLOW (bypass live)   scripts/context-io.js admit my-task <HI>
+[timeout + glob]        => ALLOW (bypass live)   timeout 5 node scripts/context-i*.js admit my-task <HI>
+[sudo + param]          => ALLOW (bypass live)   sudo node "$S" admit my-task <HI>
+[redir + arg-cmd-sub]   => ALLOW (bypass live)   >/dev/null node $(echo S admit my-task <HI>)
+[timeout + extglob]     => ALLOW (bypass live)   shopt -s extglob; timeout 5 node scripts/context-i@(o).js admit my-task <HI>
+[D-01 glob self-set]    => ALLOW (bypass live)   GRUGOPS_ADMISSION_APPROVED_BY=eve node scripts/context-i*.js admit my-task <HI>   (var in env; floor must still refuse)
+[dial-all glob routine] => ALLOW (bypass live)   node scripts/context-i*.js admit my-task <RT>   (dial=all; strictest dial leaks a routine via glob)
+
+----------------------------------------------------------------------------------------
+REGRESSION-GUARD CONTROLS — already DENY on the committed .js (the rev-1 position-pinning
+would have BROKEN these; RULE 1 position-free must KEEP them). dial=high-severity, <HI>
+----------------------------------------------------------------------------------------
+[npx -p foo tsx]        => DENY (already)   npx -p foo tsx S admit my-task <HI>   (whole-segment scan finds literal context-io)
+[npx -c foo tsx]        => DENY (already)   npx -c foo tsx S admit my-task <HI>
+[npx --package foo tsx] => DENY (already)   npx --package foo tsx S admit my-task <HI>
+[node -r preload]       => DENY (already)   node -r ./preload.js S admit my-task <HI>
+[quote-removal script]  => DENY (already)   node scripts/'context-io'.js admit my-task <HI>   (de-quoter already collapses the quotes)
+[quote-removal verb]    => DENY (already)   node S ad''mit my-task <HI>
+[quoted "admit"]        => DENY (already)   node S "admit" my-task <HI>
+[fully-static quoted]   => DENY (already)   node "scripts/context-io.js" "admit" my-task <HI>
+[tilde script]          => DENY (already)   node ~/context-io.js admit my-task <HI>   (~/context-io.js still includes the literal substring)
+[bunx literal]          => DENY (already)   bunx S admit my-task <HI>   (round-4 catch-all sees the literal admit shape)
+[deno run literal]      => DENY (already)   deno run S admit my-task <HI>
+[ts-node literal]       => DENY (already)   ts-node S admit my-task <HI>
+[nice + bun (literal)]  => DENY (already)   nice -n 5 bun S admit my-task <HI>
+[dial-all bun routine]  => DENY (already)   bun S admit my-task <RT>   (dial=all; literal admit shape behind a non-launcher)
+
+----------------------------------------------------------------------------------------
+DISCLOSED FORWARDING-RUNNER OVER-BLOCK — pre-fix ALLOW (CORRECT pre-fix; these are NOT
+admits and NOT bypasses). POST-FIX they GATE under active governance as the accepted,
+opt-in, bounded over-block of the forwarding fail-closed (ALLOW under `off`).
+----------------------------------------------------------------------------------------
+[npx vitest run $FILE (high)]      => ALLOW (correct pre-fix; -> DENY post-fix, disclosed over-block)
+[bun app.js $ARG (high)]           => ALLOW (correct pre-fix; -> DENY post-fix, disclosed over-block)
+[deno run server.ts $PORT (high)]  => ALLOW (correct pre-fix; -> DENY post-fix, disclosed over-block)
+[ts-node $SCRIPT (high)]           => ALLOW (correct pre-fix; -> DENY post-fix, disclosed over-block)
+[npx vitest run $FILE (off)]       => ALLOW (correct both sides; off never gates)
+[static npx vitest run tests/foo.test.ts] => ALLOW (correct both sides; all tokens final-literal)
+[static node app.js]               => ALLOW (correct both sides)
+
+----------------------------------------------------------------------------------------
+OVER-BLOCK-CLEAN controls (correctly ALLOW pre-fix; MUST stay ALLOW post-fix). dial=high-severity
+----------------------------------------------------------------------------------------
+[ob: node build]                => ALLOW (correct)   node build
+[ob: node build $HOME/out]      => ALLOW (correct)   node build $HOME/out   (literal script, trailing dynamic arg ignored)
+[ob: node render]               => ALLOW (correct)   node render
+[ob: node script.js test]       => ALLOW (correct)   node script.js test
+[ob: node S validate]           => ALLOW (correct)   node S validate <HI>   (literal context-io, NON-admit verb)
+[ob: cp $SRC $DST]              => ALLOW (correct)   cp $SRC $DST   (not a JS runner, no concrete anchor)
+[ob: cp $A $B]                 => ALLOW (correct)   cp $A $B
+[ob: tar $A $B]                => ALLOW (correct)   tar $A $B
+[ob: git log $REF]             => ALLOW (correct)   git log $REF
+[ob: qjs $S $V]                => ALLOW (correct)   qjs "$S" "$V"   (DISCLOSED unknown-runtime residual T-25-40)
+[ob: timeout 5 node render]     => ALLOW (correct)   timeout 5 node render
+[ob: sudo ls]                  => ALLOW (correct)   sudo ls
+[ob: >/dev/null node build]     => ALLOW (correct)   >/dev/null node build
+[ob: routine-only multi]        => ALLOW (correct)   node S admit t1 <RT> ; node S admit t2 <RT>   (dial=high-severity)
+[ob: inert echo behind wrapper] => ALLOW (correct)   timeout 5 echo "node S admit my-task <HI>"   (body never executed)
+[ob: echo build | xargs node]   => ALLOW (correct)   echo build | xargs node   (no admit shape in the raw)
+[ob: zero-config absent lean]   => ALLOW (correct)   node S admit my-task <RT>   (dial=off / absent → lean)
+
+----------------------------------------------------------------------------------------
+PRESERVED round-1..4 controls (already correct pre-fix; MUST stay correct post-fix)
+----------------------------------------------------------------------------------------
+[p: Class A /usr/bin/nice node <HI>] => DENY  (correct)   /usr/bin/nice node S admit my-task <HI>
+[p: Class B $(echo node) <HI>]       => DENY  (correct)   $(echo node) S admit my-task <HI>
+[p: bare node <HI>]                  => DENY  (correct)   node S admit my-task <HI>
+[p: routine bare under high]         => ALLOW (correct)   node S admit my-task <RT>   (dial=high-severity)
+[p: sh -c body <HI>]                 => DENY  (correct)   sh -c "node S admit my-task <HI>"
+[p: round-4 timeout 5 node <HI>]     => DENY  (correct)   timeout 5 node S admit my-task <HI>
+[p: round-4 sudo node <HI>]          => DENY  (correct)   sudo node S admit my-task <HI>
+[p: round-4 >/dev/null node <HI>]    => DENY  (correct)   >/dev/null node S admit my-task <HI>
+[p: inert heredoc]                   => ALLOW (correct)   cat <<EOF \n node S admit my-task <HI> \n EOF
+[p: $() no admit shape]              => ALLOW (correct)   $(echo hi) ls
+[p: empty stdin]                     => ALLOW (correct)   (empty)
+
+========================================================================================
+SUMMARY (pre-fix committed .js, blob 756ce508…): 22 round-5 shell-rewrite bypasses LIVE
+(all want DENY, all ALLOW): glob / arg-cmd-sub / backtick / param×3 / xargs-feed / extglob×4
+/ brace / process-sub / bun-glob / bun-$S-$V / deno-run-$S-$V / shebang / 5 wrapped
+compounds / the D-01 glob self-set / the dial-`all` glob routine leak. The regression-guard
+controls (npx/node value-flag, quote-removal, tilde, literal JS-runners, nice+bun) already
+DENY — RULE 1 (position-free) must KEEP them. All over-block-clean / preserved controls are
+correct. The POST-FIX committed .js must flip every BYPASS-LIVE row to DENY (naming the
+unresolvable / fail-closed condition) while leaving every over-block-clean / preserved
+control unchanged, and GATE the disclosed forwarding-runner over-block under active
+governance only — captured in 25-08-GREEN-proof.txt.
+
+D-12 / [[grugops-safety-invariant-green-suite-insufficient]]: this RED capture + the GREEN
+proof + the author suites are NECESSARY-BUT-NOT-SUFFICIENT. SC1 round-5 closure REQUIRES the
+INDEPENDENT both-angle opus red-team at Task 25-08-04 (the blocking checkpoint), reproduced
+against the committed .js — not self-reported as a green suite.

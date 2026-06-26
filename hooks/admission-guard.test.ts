@@ -880,4 +880,134 @@ describe("admission-guard.js (GOV-01 human-admission gate) — child-spawn deny/
       { CLAUDE_PROJECT_DIR: projectHigh },
     );
   });
+
+  // ── 26. Gap-closure (25-08 round-5 / STRUCTURAL admit-SHAPE detector via an ALLOWLIST) ────────────
+  //    The 25-07 round-4 hardened command-word RESOLUTION but left the admit-SHAPE detector a LITERAL
+  //    substring/token test on the UN-EXPANDED command string, so any shell REWRITE that defers the
+  //    script-ref or the admit verb to runtime walked through (glob / command-substitution / parameter
+  //    word-split / xargs stdin-feed / extglob / a non-node JS runner / a shebang). Verified RED vs the
+  //    committed admission-guard.js (blob 756ce508…) in 25-08-RED-baseline.txt. The fix makes the
+  //    detector STRUCTURAL: a script/verb token the hook cannot PROVE is an inert final literal (an
+  //    ALLOWLIST `^[A-Za-z0-9/._:=,-]*$` + a raw free of `$`/backtick) is UNRESOLVABLE → fail CLOSED,
+  //    catching extglob `@(` and any future metachar WITHOUT enumeration. RULE 1 (position-free literal
+  //    context-io → verb) closes the npx-value-flag regression; RULE 2 (hidden script: direct-runner
+  //    script pin vs forwarding-runner any-unresolvable) + JS_RUNNERS close `bun $S $V`. Each case
+  //    child-spawns the COMMITTED admission-guard.js. D-12: this GREEN oracle is NECESSARY-NOT-
+  //    SUFFICIENT — the INDEPENDENT both-angle opus red-team at Task 25-08-04 is the closure gate.
+  const S = "scripts/context-io.js";
+
+  // Expansion + rewrite forms — each delivers a real gated high-severity admit via a shell rewrite of the
+  // script-ref or verb; each must DENY (the literal substring no longer gates — the structural detector
+  // does). `shopt -s extglob;` precedes the extglob forms exactly as a real attacker would set it.
+  for (const [label, command] of [
+    ["glob script", `node scripts/context-i*.js admit my-task __NOTE__`],
+    ["arg-cmd-sub", `node $(echo ${S} admit my-task __NOTE__)`],
+    ["backtick-cmd-sub", "node `echo " + S + " admit my-task __NOTE__`"],
+    ["param $S script", `node "$S" admit my-task __NOTE__`],
+    ["param $V verb", `node ${S} "$V" my-task __NOTE__`],
+    ["param $A bareword", `node $A admit my-task __NOTE__`],
+    ["xargs stdin-feed", `echo "${S} admit my-task __NOTE__" | xargs node`],
+    ["EXTGLOB @(o)", `shopt -s extglob; node scripts/context-i@(o).js admit my-task __NOTE__`],
+    ["EXTGLOB ?(o)", `shopt -s extglob; node scripts/context-i?(o).js admit my-task __NOTE__`],
+    ["EXTGLOB +(o)", `shopt -s extglob; node scripts/context-i+(o).js admit my-task __NOTE__`],
+    ["EXTGLOB !(x)", `shopt -s extglob; node scripts/context-io!(x).js admit my-task __NOTE__`],
+    ["brace verb", `node ${S} admi{t,x} my-task __NOTE__`],
+    ["quote-removal script", `node scripts/'context-io'.js admit my-task __NOTE__`],
+    ["quote-removal verb", `node ${S} ad''mit my-task __NOTE__`],
+    ['quoted "admit"', `node ${S} "admit" my-task __NOTE__`],
+    ["fully-static quoted", `node "scripts/context-io.js" "admit" my-task __NOTE__`],
+    ["tilde script", `node ~/context-io.js admit my-task __NOTE__`],
+    ["process-sub script", `node <(echo ${S}) admit my-task __NOTE__`],
+    ["glob in note-path", `node ${S} admit my-task note-*.md`],
+  ] as const) {
+    it(`deny (25-08/rewrite): ${label} DENIES a gated high-severity admit (structural)`, () => {
+      expectDeny(payload(command.replace("__NOTE__", highNote)), { CLAUDE_PROJECT_DIR: projectHigh });
+    });
+  }
+
+  // Launcher-flag forms (the BLOCKER-A regression guards — already DENY on the committed .js via RULE 1's
+  // position-free scan; the rev-1 position-pinning would have REGRESSED them to ALLOW).
+  for (const [label, command] of [
+    ["npx -p foo tsx", `npx -p foo tsx ${S} admit my-task __NOTE__`],
+    ["npx -c foo tsx", `npx -c foo tsx ${S} admit my-task __NOTE__`],
+    ["npx --package foo tsx", `npx --package foo tsx ${S} admit my-task __NOTE__`],
+    ["node -r preload", `node -r ./preload.js ${S} admit my-task __NOTE__`],
+    ["node --import x", `node --import ./x.js ${S} admit my-task __NOTE__`],
+  ] as const) {
+    it(`deny (25-08/npx-flag): ${label} DENIES (RULE 1 position-free, regression closed)`, () => {
+      expectDeny(payload(command.replace("__NOTE__", highNote)), { CLAUDE_PROJECT_DIR: projectHigh });
+    });
+  }
+
+  // JS_RUNNERS forms — a context-io admit launched by a JS runtime; including the both-dynamic `bun $S $V`
+  // (RULE 2 forwarding gates an unresolvable script). JS_RUNNERS is a distinct JS-execution-capability set.
+  for (const [label, command] of [
+    ["bun glob", `bun scripts/context-i*.js admit my-task __NOTE__`],
+    ["bunx literal", `bunx ${S} admit my-task __NOTE__`],
+    ["deno run literal", `deno run ${S} admit my-task __NOTE__`],
+    ["ts-node literal", `ts-node ${S} admit my-task __NOTE__`],
+    ["bun $S $V both-dynamic", `bun "$S" "$V"`],
+    ["deno run $S $V", `deno run "$S" "$V"`],
+  ] as const) {
+    it(`deny (25-08/JS_RUNNERS): ${label} DENIES (recognized forwarding runner)`, () => {
+      expectDeny(payload(command.replace("__NOTE__", highNote)), { CLAUDE_PROJECT_DIR: projectHigh });
+    });
+  }
+
+  // Shebang — the script itself is the command word (no node/npx in front); the unrecognized-command
+  // concrete-anchor scan treats the command word as a script candidate.
+  it("deny (25-08/shebang): `scripts/context-io.js admit …` DENIES (command word as script candidate)", () => {
+    expectDeny(payload(`${S} admit my-task ${highNote}`), { CLAUDE_PROJECT_DIR: projectHigh });
+  });
+
+  // Nested wrapper + rewrite compounds — the wrapper sits in FRONT of a rewrite-obfuscated launcher; the
+  // buried-launcher / unresolved-tail disposition gates the compound.
+  for (const [label, command] of [
+    ["timeout + glob", `timeout 5 node scripts/context-i*.js admit my-task __NOTE__`],
+    ["sudo + param", `sudo node "$S" admit my-task __NOTE__`],
+    ["redir + arg-cmd-sub", `>/dev/null node $(echo ${S} admit my-task __NOTE__)`],
+    ["nice + bun", `nice -n 5 bun ${S} admit my-task __NOTE__`],
+    ["timeout + extglob", `shopt -s extglob; timeout 5 node scripts/context-i@(o).js admit my-task __NOTE__`],
+  ] as const) {
+    it(`deny (25-08/compound): ${label} DENIES (nested wrapper + rewrite)`, () => {
+      expectDeny(payload(command.replace("__NOTE__", highNote)), { CLAUDE_PROJECT_DIR: projectHigh });
+    });
+  }
+
+  // D-01 floor via a glob self-set, and the dial-`all` routine-via-rewrite leak.
+  it("deny (25-08/D-01): a glob self-set DENIES even with the var in env (floor via the one authority)", () => {
+    expectDeny(payload(`${APPROVAL}=eve node scripts/context-i*.js admit my-task ${highNote}`), {
+      CLAUDE_PROJECT_DIR: projectHigh,
+      [APPROVAL]: "eve",
+    });
+  });
+  it("deny (25-08/dial-all): a routine admit via glob DENIES under `all` (no in-script backstop needed)", () => {
+    expectDeny(payload(`node scripts/context-i*.js admit my-task ${routineNote}`), {
+      CLAUDE_PROJECT_DIR: projectAll,
+    });
+  });
+  it("deny (25-08/dial-all): a routine admit via a JS runner DENIES under `all`", () => {
+    expectDeny(payload(`bun ${S} admit my-task ${routineNote}`), { CLAUDE_PROJECT_DIR: projectAll });
+  });
+
+  // Over-block controls (the bounded fail-safe — MUST ALLOW): a direct runner with a provably-literal
+  // non-context-io script, a recognized launcher running a literal context-io NON-admit verb, an
+  // unrecognized non-JS-runner with no concrete anchor, and the disclosed unknown-runtime residual.
+  for (const [label, command] of [
+    ["node build", `node build`],
+    ["node build $HOME/out", `node build $HOME/out`],
+    ["node render", `node render`],
+    ["node script.js test", `node script.js test`],
+    ["node …validate", `node ${S} validate __NOTE__`],
+    ["cp $SRC $DST", `cp $SRC $DST`],
+    ["cp $A $B", `cp $A $B`],
+    ["tar $A $B", `tar $A $B`],
+    ["git log $REF", `git log $REF`],
+    ["qjs $S $V (unknown runtime residual)", `qjs "$S" "$V"`],
+    [">/dev/null node build", `>/dev/null node build`],
+  ] as const) {
+    it(`allow (25-08/over-block): ${label} ALLOWs (no concrete anchor / non-admit / disclosed residual)`, () => {
+      expectAllow(payload(command.replace("__NOTE__", highNote)), { CLAUDE_PROJECT_DIR: projectHigh });
+    });
+  }
 });

@@ -81,6 +81,50 @@ const ADMIT_SCRIPT = "context-io"; // matches context-io and context-io.js as a 
 // The launcher commands that actually RUN a script: a bare interpreter or an npx/tsx runner.
 // `nodejs` is the alternate Debian/Ubuntu binary name for `node` (round-2 GAP-A).
 const LAUNCHERS = new Set(["node", "npx", "tsx", "nodejs"]);
+// ── Round-5 (GOV-01 un-forgeable tier): structural admit-SHAPE detection ───────────────────────────
+//
+// The prior admit-SHAPE detector (segmentHasAdmitShape) is a LITERAL substring/token test on the
+// UN-EXPANDED command string, so any shell REWRITE that defers the script-ref or the admit verb to
+// runtime walked through (glob `node scripts/context-i*.js admit`, command/parameter substitution,
+// word-split, extglob `context-i@(o).js`, a non-node JS runner, a shebang). The fix requires PROOF a
+// script/verb token is its final literal form — an ALLOWLIST of provably-inert characters, NOT a
+// denylist of dangerous ones (a denylist is the same enumeration trap inverted; it would miss extglob
+// `@(` and any future metachar). A token outside the allowlist is UNRESOLVABLE → fail CLOSED, with no
+// enumeration of what expands. The disposition is SCRIPT-anchored and applies to ANY command word —
+// never the literal substring. `scripts/context-io.ts` is NOT edited (the un-forgeable hook re-closes
+// the dial-`all` rewrite case; the self-settable in-script tier adds no un-forgeable defense).
+// JS-EXECUTION-CAPABILITY set: runtimes that can RUN a context-io admit. This is a NEW SEPARATE set —
+// NOT a widening of COMMAND_MODIFIERS (which resolves a wrapped command word) and NOT a widening of
+// LAUNCHERS. A JS_RUNNER is treated as a recognized (FORWARDING) launcher: it forwards to a runner +
+// script at a deep / variable position the hook cannot pin, so any unresolvable token in its argv fails
+// closed (RULE 2 forwarding). This closes `bun $S $V` while keeping `cp $A $B` allowed (cp is not a JS
+// runner, so the unrecognized-command scan needs a concrete literal anchor it does not have).
+const JS_RUNNERS = new Set(["bun", "bunx", "deno", "ts-node"]);
+// DIRECT runners execute their FIRST positional as the script, so RULE 2 can pin it precisely (after a
+// value-flag-arity skip) and gate only that script — a trailing dynamic ARG is ignored (`node build
+// $HOME/out` allows). FORWARDING runners ({npx} ∪ JS_RUNNERS) hand off to a runner + script the hook
+// cannot pin, so RULE 2 gates on ANY unresolvable token in the post-launcher argv.
+const DIRECT_RUNNERS = new Set(["node", "nodejs", "tsx"]);
+// node's value-consuming flags: each takes the NEXT token as its value, so the DIRECT-runner script pin
+// skips BOTH (by arity). A `--flag=value` is a single token, skipped as one. Skipping by arity (not
+// guessing) keeps the pin precise; RULE 1 (position-free) independently catches the literal-context-io
+// case regardless of any flag, so the rev-1 npx-value-flag regression cannot reopen.
+const VALUE_FLAGS = new Set([
+    "-r",
+    "--require",
+    "-e",
+    "--eval",
+    "--import",
+    "--loader",
+    "-p",
+    "--print",
+    "-C",
+    "--conditions",
+]);
+// A launcher reached BEHIND one of these feeders has a STDIN-sourced argv (the script/verb arrive on
+// stdin, not the command line). `xargs` is also a COMMAND_MODIFIER (the leading-run skip reaches the
+// launcher behind it); this set marks that the reached launcher's argv is stdin-fed → unresolvable.
+const STDIN_ARGV_FEEDERS = new Set(["xargs"]);
 // ── Effective-command-word resolution (round-2 GAP-A): command-RESOLUTION, not an anchor list ──────
 //
 // The 25-04 tokenizer (liveTokens) correctly solved SEGMENTATION — it classifies quoted / commented /
@@ -545,6 +589,143 @@ function noteFileInSegment(tokens, from) {
     }
     return null;
 }
+// ── ALLOWLIST prove-final-literal (round-5) ────────────────────────────────────────────────────────
+//
+// The inert ALLOWLIST: letters, digits, and `/ . _ - : = ,` — exactly the characters a real
+// `scripts/context-io.js` / an absolute or `./` path / the `admit`/`validate`/`render` verb / a task-id
+// / a note path need, NONE of which triggers a bash rewrite as a bare character. ANY other character
+// (extglob `@( +( !(`, history `!`, process-sub `<(`, brace `{}`, glob `*?[`, tilde `~`, `$`, backtick,
+// a future metachar) is OUTSIDE the allowlist → the token is not provably its final literal form. This
+// is a POSITIVE character-class match, not a denylist — a new/exotic expansion form gates with NO code
+// change because it is outside the inert set, not because it was added to a list of dangerous chars.
+const FINAL_LITERAL_VALUE = /^[A-Za-z0-9/._:=,-]*$/;
+// The RAW source slice of token `j`: from its start offset to the next token's start (or end of string).
+// Used to catch a substitution the tokenizer consumed MID-WORD (e.g. `sc$(echo ript).js` de-quotes to a
+// clean `sc.js` value, but its raw carries `$(`). The interstitial gap between two emitted tokens is only
+// whitespace / separators (a `$`/backtick would itself BEGIN a token, so it lands at the next token's
+// start, which this slice excludes), so the slice never imports a neighbour's metacharacter.
+function tokenRawSlice(cmd, tokens, j) {
+    const start = tokens[j].start;
+    const end = j + 1 < tokens.length ? tokens[j + 1].start : cmd.length;
+    return cmd.slice(start, end);
+}
+// PROVE token `j` is its final literal form (the rev-2 ALLOWLIST, not the rev-1 denylist): (1) its
+// DE-QUOTED value (liveTokens already stripped balanced quotes) consists EXCLUSIVELY of the inert
+// allowlist; (2) its RAW slice carries no `$` and no backtick (catching a parameter/command/arithmetic/
+// process/ANSI-C substitution the tokenizer consumed mid-word, while NOT over-flagging a balanced quoted
+// literal like `"admit"` whose raw has only quotes); (3) it is not the dynamic-command-word sentinel.
+// Anything else is UNRESOLVABLE → the caller fails CLOSED. De-quoting happens FIRST, so a quoted-but-
+// static token (`"admit"`, `scripts/'context-io'.js`) proves literal and classifies correctly.
+function tokenIsFinalLiteral(tokens, j, cmd) {
+    const tok = tokens[j];
+    if (tok.value === DYNAMIC_COMMAND_WORD)
+        return false;
+    if (!FINAL_LITERAL_VALUE.test(tok.value))
+        return false;
+    const raw = tokenRawSlice(cmd, tokens, j);
+    return !raw.includes("$") && !raw.includes("`");
+}
+// Resolve THIS segment's admit disposition STRUCTURALLY, applied to ANY command word — a recognized
+// launcher (LAUNCHERS ∪ JS_RUNNERS) or an unrecognized command word (cp/tar/git, or a shebang script) —
+// never the literal substring. `behindFeeder` marks that the command word was reached behind a
+// STDIN_ARGV_FEEDER. A script/verb token the hook cannot PROVE is an inert final literal is gate-or-
+// stricter; we prove inertness via the allowlist, never enumerate what expands.
+// The disposition of a recognized launcher (LAUNCHERS ∪ JS_RUNNERS) at `launcherIdx`: RULE 1 (position-
+// free literal-context-io → verb check) then RULE 2 (hidden script: direct-runner script pin vs
+// forwarding-runner any-unresolvable), then the stdin-feeder fallback.
+function launcherDisposition(tokens, launcherIdx, cmd, behindFeeder) {
+    const word = effectiveCommandWord(tokens[launcherIdx].value);
+    // RULE 1 (POSITION-FREE — matches the committed whole-segment behavior, closing the rev-1 npx-flag
+    // regression): scan the post-launcher argv for the FIRST final-literal token whose de-quoted value
+    // contains the context-io script name, regardless of any value-consuming flag in front of it. Classify
+    // the immediately-following verb token.
+    for (let j = launcherIdx + 1; j < tokens.length && !tokens[j].startsSegment; j++) {
+        if (tokenIsFinalLiteral(tokens, j, cmd) && tokens[j].value.includes(ADMIT_SCRIPT)) {
+            const verbIdx = j + 1;
+            if (verbIdx >= tokens.length || tokens[verbIdx].startsSegment)
+                return { kind: "none" };
+            if (!tokenIsFinalLiteral(tokens, verbIdx, cmd))
+                return { kind: "unresolvable" };
+            if (tokens[verbIdx].value === ADMIT_VERB) {
+                return { kind: "admit", noteFile: noteFileInSegment(tokens, launcherIdx + 1) };
+            }
+            return { kind: "none" }; // a final-literal non-admit verb (validate / render) → ALLOW
+        }
+    }
+    // RULE 2 (no final-literal context-io found → a HIDDEN script).
+    if (word === "npx" || JS_RUNNERS.has(word)) {
+        // FORWARDING runner: it forwards to a runner + script at a deep / variable position, so ANY
+        // unresolvable token in the post-launcher argv fails closed (the disclosed bounded over-block:
+        // `npx vitest run $FILE` / `bun app.js $ARG` gate while governance is active).
+        for (let j = launcherIdx + 1; j < tokens.length && !tokens[j].startsSegment; j++) {
+            if (!tokenIsFinalLiteral(tokens, j, cmd))
+                return { kind: "unresolvable" };
+        }
+    }
+    else if (DIRECT_RUNNERS.has(word)) {
+        // DIRECT runner: pin the script = the first positional after a value-flag-arity skip, and gate only
+        // if THAT script is unresolvable. A trailing dynamic ARG after a literal script is ignored (`node
+        // build $HOME/out` allows).
+        let j = launcherIdx + 1;
+        while (j < tokens.length && !tokens[j].startsSegment && tokens[j].value.startsWith("-")) {
+            j += VALUE_FLAGS.has(tokens[j].value) ? 2 : 1; // skip a value-flag AND its separate-word value
+        }
+        if (j < tokens.length && !tokens[j].startsSegment && !tokenIsFinalLiteral(tokens, j, cmd)) {
+            return { kind: "unresolvable" };
+        }
+        // a literal non-context-io script (or no positional) → not an admit.
+    }
+    // A launcher behind a stdin feeder with no resolvable script: the admit args arrive on stdin (the hook
+    // cannot see them). Gate only when the raw command text carries the admit shape, so a benign
+    // `echo build | xargs node` stays ALLOW while `echo "<ctx> admit …" | xargs node` fails closed.
+    if (behindFeeder && rawTextHasAdmitShape(cmd))
+        return { kind: "unresolvable" };
+    return { kind: "none" };
+}
+function segmentAdmitDisposition(tokens, cmdIdx, cmd, behindFeeder) {
+    const word = effectiveCommandWord(tokens[cmdIdx].value);
+    if (LAUNCHERS.has(word) || JS_RUNNERS.has(word)) {
+        return launcherDisposition(tokens, cmdIdx, cmd, behindFeeder);
+    }
+    // UNRECOGNIZED command word. A launcher can still be BURIED in this segment's leading run behind a
+    // wrapper / modifier-operand / redirection the resolver stopped at (`timeout 5 node …`, `sudo node …`,
+    // `>/dev/null node …`), and its script may itself be rewritten (extglob `context-i@(o).js` splits the
+    // token at `(`, glob, a command substitution). Evaluate a buried launcher's disposition and use it
+    // only when it resolves to admit / unresolvable, so a wrapped NON-admit launcher (`timeout 5 node
+    // build`) is not over-blocked. This generalizes the round-4 unresolved-tail invert to a launcher whose
+    // SCRIPT is unresolvable, not only to a literal admit shape.
+    for (let j = cmdIdx + 1; j < tokens.length && !tokens[j].startsSegment; j++) {
+        const w = effectiveCommandWord(tokens[j].value);
+        if (LAUNCHERS.has(w) || JS_RUNNERS.has(w)) {
+            const d = launcherDisposition(tokens, j, cmd, behindFeeder);
+            if (d.kind !== "none")
+                return d;
+        }
+    }
+    // The concrete-anchor structural scan. The command word ITSELF is a Ti candidate (the shebang case
+    // `scripts/context-io.js admit …`). Gate when adjacent positional tokens (Ti, Ti+1) satisfy [Ti final-
+    // literal-context-io OR Ti not final-literal] AND [Ti+1 final-literal-admit OR Ti+1 not final-literal]
+    // AND at least one CONCRETE literal anchor (so `cp $A $B` — both unresolvable, no anchor — stays
+    // ALLOW; the disclosed `qjs $S $V` unknown-runtime residual too).
+    for (let j = cmdIdx; j + 1 < tokens.length && (j === cmdIdx || !tokens[j].startsSegment); j++) {
+        if (tokens[j + 1].startsSegment)
+            break;
+        const tiLiteral = tokenIsFinalLiteral(tokens, j, cmd);
+        const ti1Literal = tokenIsFinalLiteral(tokens, j + 1, cmd);
+        const tiCtx = tiLiteral && tokens[j].value.includes(ADMIT_SCRIPT);
+        const ti1Admit = ti1Literal && tokens[j + 1].value === ADMIT_VERB;
+        const tiOk = tiCtx || !tiLiteral;
+        const ti1Ok = ti1Admit || !ti1Literal;
+        const anchor = tiCtx || ti1Admit;
+        if (tiOk && ti1Ok && anchor) {
+            if (tiCtx && ti1Admit) {
+                return { kind: "admit", noteFile: noteFileInSegment(tokens, j) };
+            }
+            return { kind: "unresolvable" };
+        }
+    }
+    return { kind: "none" };
+}
 // THE ONE command-resolution + classification authority (round-3 UNIFY). A single walk over the live
 // tokens yields EVERY live admit segment — replacing both the launcher-membership matcher and the
 // separate naive note-file walk that diverged (the disease behind Classes A/B/E). For each command
@@ -575,6 +756,7 @@ function liveAdmitSegments(cmd) {
         // begins with `-`, so skipping a leading-run flag cannot swallow a real command word (Class A: the
         // `env -S node …admit` form).
         let cmdIdx = i;
+        let behindFeeder = false; // reached the command word behind a STDIN_ARGV_FEEDER (xargs) → stdin argv
         while (cmdIdx < tokens.length) {
             if (cmdIdx > i && tokens[cmdIdx].startsSegment)
                 break; // stay within this segment's leading run
@@ -583,6 +765,8 @@ function liveAdmitSegments(cmd) {
             const isModifierFlag = cmdIdx > i && v.startsWith("-"); // an option to a modifier already skipped
             if (!isPrefix && !isModifierFlag)
                 break;
+            if (isPrefix && STDIN_ARGV_FEEDERS.has(effectiveCommandWord(v)))
+                behindFeeder = true;
             cmdIdx += 1;
         }
         if (cmdIdx >= tokens.length)
@@ -600,12 +784,6 @@ function liveAdmitSegments(cmd) {
             continue;
         }
         const word = effectiveCommandWord(rawWord); // basename a path; the token is already de-quoted
-        if (LAUNCHERS.has(word)) {
-            if (segmentHasAdmitShape(tokens, cmdIdx + 1)) {
-                segments.push({ noteFile: noteFileInSegment(tokens, cmdIdx + 1), unresolvable: false });
-            }
-            continue;
-        }
         // Fail-closed tail: an admit shape behind a dynamic-evaluation / indirection command word the
         // resolver cannot see through (eval / sh -c / bash -c / `$X`). The admit shape is usually inside a
         // quoted body the tokenizer treats as DATA, so we also check the RAW segment text. GATE only when
@@ -648,10 +826,25 @@ function liveAdmitSegments(cmd) {
         //      "node …admit NOTE"` — the admit hidden inside an EXECUTED quoted body the tokenizer treats as
         //      data). The note is unreadable, so fail CLOSED (unresolvable). An inert quoted/heredoc/comment
         //      mention behind a non-eval wrapper has no dynamic-eval word and stays ALLOW.
-        if (segmentHasAdmitShape(tokens, cmdIdx + 1)) {
-            segments.push({ noteFile: noteFileInSegment(tokens, cmdIdx + 1), unresolvable: false });
+        //
+        // Round-5: the admit-SHAPE detection is now STRUCTURAL via the ONE segmentAdmitDisposition — applied
+        // to ANY command word (a recognized launcher RULE 1/RULE 2, or this unrecognized command word's
+        // concrete-anchor scan / the shebang case), never the literal `segmentHasAdmitShape` substring. A
+        // script/verb token the hook cannot prove is an inert final literal is unresolvable → fail CLOSED, so
+        // glob / param / cmd-sub / extglob / a JS runner / a hidden script gate WITHOUT enumerating spellings.
+        const disp = segmentAdmitDisposition(tokens, cmdIdx, cmd, behindFeeder);
+        if (disp.kind === "admit") {
+            segments.push({ noteFile: disp.noteFile, unresolvable: false });
         }
-        else if (segmentHasDynamicEvalWord(tokens, cmdIdx) &&
+        else if (disp.kind === "unresolvable") {
+            segments.push({ noteFile: null, unresolvable: true });
+        }
+        else if (
+        // PRESERVE the round-4 dynamic-eval tail: no live admit shape, but a dynamic-evaluation word in the
+        // leading run AND the RAW segment text carries the admit shape (`timeout 5 sh -c "node …admit NOTE"`
+        // — the admit hidden inside an EXECUTED quoted body the tokenizer treats as data). Fail CLOSED. An
+        // inert quoted/heredoc/comment mention behind a non-eval wrapper has no dynamic-eval word → ALLOW.
+        segmentHasDynamicEvalWord(tokens, cmdIdx) &&
             rawTextHasAdmitShape(rawSegmentText(cmd, tokens, cmdIdx))) {
             segments.push({ noteFile: null, unresolvable: true });
         }
@@ -665,14 +858,11 @@ function liveAdmitSegments(cmd) {
 // launcher recognition. It is still SHAPE-scoped (a live script+verb run, never an inert quoted/heredoc/
 // comment mention), so a benign self-set with no admit attempt (`export VAR=x && ls`) is not affected.
 function commandHasLiveAdmitShape(cmd) {
-    const tokens = liveTokens(cmd);
-    for (let i = 0; i < tokens.length; i++) {
-        if (!tokens[i].startsSegment)
-            continue;
-        if (segmentHasAdmitShape(tokens, i))
-            return true;
-    }
-    return false;
+    // Round-5: derive from the ONE structural authority, so the D-01 floor holds even behind a rewrite the
+    // literal segmentHasAdmitShape would miss (a glob `node scripts/context-i*.js admit` self-set resolves
+    // to an unresolvable admit segment here → the floor fires). A benign self-set with no admit attempt
+    // (`export VAR=x && ls`) yields no admit segment → the floor does not over-block.
+    return liveAdmitSegments(cmd).length > 0;
 }
 function deny(reason) {
     process.stdout.write(JSON.stringify({
