@@ -16,5 +16,11 @@
     "agents-md",
     "grug",
     "claude-code"
-  ]
+  ],
+  "mcpServers": {
+    "grugops": {
+      "command": "node",
+      "args": ["${CLAUDE_PLUGIN_ROOT}/scripts/admission-server.js"]
+    }
+  }
 }
