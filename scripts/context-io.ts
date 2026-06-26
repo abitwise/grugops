@@ -695,6 +695,7 @@ export function appendNote(
   note: NoteInput,
   body: string,
   contextRoot: string = DEFAULT_CONTEXT_ROOT,
+  precomputedId?: string,
 ): string {
   assertSafeTask(task);
   // Field-injection guard (CR-01): no interpolated provenance field may carry a newline, which
@@ -710,7 +711,13 @@ export function appendNote(
   // <id>.md filename — a single source of the identity so frontmatter `id` and filename can never
   // diverge. Guard it as a single-line field (an attacker must not forge/collide an id via a
   // smuggled frontmatter line).
-  const id = noteId(note);
+  //
+  // A caller MAY pass a precomputedId so the persisted note shares ONE identity with a record the
+  // caller already composed/validated/ledgered for the SAME note (Plan 25-09's admitAndAppend keeps
+  // the GOV-02 ledger `id` and the on-disk <id>.md filename consistent this way). When omitted the
+  // id is generated here exactly as before — appendNote's behavior is byte-identical for every
+  // existing caller (additive optional parameter).
+  const id = precomputedId ?? noteId(note);
   assertSingleLine("id", id);
   const text = composeNote(note, body, id);
   const findings = validate(text);
@@ -1255,6 +1262,159 @@ export function readGovernanceConfigResult(repoRoot?: string): GovernanceConfigR
 
   // No config file at any standard location → genuinely absent. Zero-config runs lean.
   return { source: "absent", config: { ...GOVERNANCE_DEFAULTS } };
+}
+
+// ── admitAndAppend + isGatedNote + isHighSeverityRole — the structured-channel persist arbiter ───
+// (Plan 25-09, D-01 point-of-effect move). THREE additive exports. They REUSE the byte-frozen admit()
+// (non-gated path) and the in-module sanctioned writer + GOV-02 ledger (gated path); they fork NO
+// second writer and reconstruct the gated composition / severity classifier NOWHERE else (W-A single
+// source). The un-forgeable Claude Code gate is the PER-CALL 25-10 PreToolUse hook, NOT these
+// functions and NOT the MCP server — admitAndAppend reads no approval env; it arbitrates persistence
+// from isGatedNote + the note's own verified_by stamp.
+//
+// CLEAR PROFESSIONAL VOICE throughout (CLAUDE.md hard rule — governance/safety surface, never caveman).
+
+// ── isHighSeverityRole — the SINGLE-SOURCE severity classifier (W-A, round-8 anti-drift). ────────
+// Severity is the AUTHORING ROLE (D-06). Canonicalize the `by` value before the allowlist test so a
+// homoglyph/spacing/case variant of a role literal cannot dodge the `high-severity` dial: NFKC-fold
+// (collapses full-width and compatibility forms), strip ALL whitespace AND zero-width code points
+// (U+200B/C/D, U+2060, U+FEFF; ordinary whitespace incl. U+00A0 is covered by \s), then lowercase.
+// A TRUE cross-script homoglyph `by` is the accepted D-06 residual (escape via human_admission: all).
+// This is the ONLY severity classifier isGatedNote depends on; admit()'s frozen .trim().toLowerCase()
+// D-04 classifier is a separate, WEAKER, intentionally-frozen degrade tier whose coverage ⊆ this one.
+export function isHighSeverityRole(by: string): boolean {
+  const canonical = (by ?? "")
+    .normalize("NFKC")
+    .replace(/[\s\u200B\u200C\u200D\u2060\uFEFF]/gu, "")
+    .toLowerCase();
+  return (HIGH_SEVERITY_ROLES as readonly string[]).includes(canonical);
+}
+
+// ── isGatedNote — the SINGLE-SOURCE FULL gated decision (W-A, round-8 anti-drift). ───────────────
+// The COMPLETE gated predicate lives HERE and only here: a note is gated when
+//   kind === "finding" AND ((isHighSeverityRole(by) AND the dial is active) OR the dial is "all"),
+// with the dial canonicalization folded in. BOTH the combiner (admitAndAppend) and the 25-10 per-call
+// hook IMPORT this; NEITHER reconstructs the `((high-sev && active) || all)` composition locally —
+// that duplicated composition was the 10-round drift surface (the allow-forge risk: the hook reading
+// not-gated/allow-unchecked while the combiner reads gated/trust-the-stamp). configResult is the
+// discriminated read (readGovernanceConfigResult): an UNREADABLE config fails CLOSED (gate-or-stricter,
+// SC3). The value reader already canonicalizes a present non-string dial to "all" (gate-or-stricter),
+// so config.human_admission is always a string here; a present typo/garbage string is also treated as
+// gate-or-stricter. Only the exact string "off" (or a genuinely absent config, which reads "off") is
+// NOT gated.
+export function isGatedNote(
+  by: string,
+  kind: string,
+  configResult: GovernanceConfigResult,
+): boolean {
+  // Only a finding is ever gated — soft kinds carry no stamp (D-08).
+  if (kind !== "finding") return false;
+  // A config file that EXISTS but cannot be read/parsed → fail closed (gate-or-stricter, SC3).
+  if (configResult.source === "unreadable") return true;
+  const dial = configResult.config.human_admission;
+  if (dial === "off") return false; // lean / explicitly off → never gated
+  if (dial === "all") return true; // strictest → every finding gated
+  if (dial === "high-severity") return isHighSeverityRole(by); // gated iff a high-severity role
+  // Any other PRESENT value (a typo, garbage, or a canonicalized non-string) → gate-or-stricter.
+  return true;
+}
+
+// ── admitAndAppend's result: the new note id on success, or the named faults on refusal. ─────────
+export interface AdmitAndAppendResult {
+  id: string | null; // the new note id when persisted; null on refusal (nothing written)
+  findings: string[]; // empty on success; the named fault(s) on refusal
+}
+
+// ── admitAndAppend — the additive admit-decides-then-persist combiner (D-01 point-of-effect). ────
+// Decides admission, then persists ONLY on success through appendNote (the SOLE sanctioned writer),
+// returning the new note id; on refusal it returns the named findings and persists NOTHING (the
+// no-fabrication floor — it never rewrites a note to make it pass). It reads NO approval env: the
+// un-forgeable per-entry gate is the per-call 25-10 hook. repoRoot resolves the governance config AND
+// the audit ledger (defaults to the script's own repo root); tests pass an explicit temp root.
+export function admitAndAppend(
+  task: string,
+  note: NoteInput,
+  body: string,
+  contextRoot: string = DEFAULT_CONTEXT_ROOT,
+  repoRoot: string = ROOT,
+): AdmitAndAppendResult {
+  assertSafeTask(task);
+
+  // Decide GATED via the SINGLE-SOURCE predicate (W-A) — NOT a local reconstruction; the SAME
+  // isGatedNote the 25-10 per-call hook imports. The discriminated read fails closed on an unreadable
+  // config (gate-or-stricter, SC3).
+  const configResult = readGovernanceConfigResult(repoRoot);
+  const gated = isGatedNote(note.by, note.kind, configResult);
+  const vb = (note.verified_by ?? "").trim();
+
+  if (gated) {
+    // GATED: persist ONLY with a valid human:NAME disposition stamp. On Claude Code the per-call
+    // 25-10 hook validated this stamp against the FRESH human-set session env, so the disposition is
+    // un-forgeable per entry; on the non-CC / direct-node tier it is the weaker self-settable D-05
+    // residual (documented, not over-claimed). A gated note lacking a valid human:NAME stamp is
+    // REFUSED naming the fault — this also backstops a gated routine note under human_admission: all
+    // that carries no disposition (W5).
+    if (!HUMAN_STAMP_RE.test(vb)) {
+      return {
+        id: null,
+        findings: [
+          "admission REFUSED: this note is gated under the active human_admission setting and " +
+            "requires a named human disposition (verified_by: human:NAME). It carries " +
+            (vb === "" ? "no disposition stamp" : `"${vb}", which is not a human:NAME stamp`) +
+            ". A named human grants the specific disposition through the per-call admission hook; " +
+            "admission is refused until then. No note was written.",
+        ],
+      };
+    }
+    // Reuse the IN-MODULE composeNote + validate + appendNote (the sole writer) — the gated branch
+    // does NOT call admit() (admit()'s frozen D-04 would refuse a high-severity finding regardless of
+    // stamp). Compose with a frozen id so the persisted <id>.md and the GOV-02 ledger record share one
+    // identity. On a structurally invalid note, return the findings rather than throwing.
+    const id = noteId(note);
+    const text = composeNote(note, body, id);
+    const findings = validate(text);
+    if (findings.length > 0) return { id: null, findings };
+    const persistedId = appendNote(task, note, body, contextRoot, id);
+    // GOV-02 ledger (retained mode only): reuse the SAME private appendAuditLedger admit() uses —
+    // disposed_by derives from the human:NAME stamp; severity is the role classification (D-06).
+    if (configResult.config.audit_retention === "retained") {
+      const scalars: Record<string, string> = {
+        id: persistedId,
+        kind: note.kind,
+        by: note.by,
+        at: note.at,
+        verified_by: note.verified_by,
+        confidence: note.confidence,
+      };
+      appendAuditLedger(repoRoot, scalars, isHighSeverityRole(note.by), vb);
+    }
+    return { id: persistedId, findings: [] };
+  }
+
+  // NON-GATED: a human:NAME stamp is illegitimate here — it would forge a disposed_by ledger entry.
+  // REJECT an agent-supplied human:NAME on a non-gated note (W3): verified_by must be empty or a
+  // §14-gate#<id> stamp. Nothing is written.
+  if (HUMAN_STAMP_RE.test(vb)) {
+    return {
+      id: null,
+      findings: [
+        "admission REFUSED (W3): this note is not gated, so its verified_by must be empty or a " +
+          `"§14-gate#<id>" stamp — it must not carry a "human:NAME" disposition ("${vb}"). A human ` +
+          "disposition is meaningful only on a gated entry; accepting one here would forge a " +
+          "disposed_by audit record. No note was written.",
+      ],
+    };
+  }
+  // Route the non-gated note through admit() UNCHANGED (validate + Posture-B §14-gate cross-check +
+  // the D-04 branch, which cannot fire on a non-gated note + the GOV-02 ledger). Compose with a frozen
+  // id so the ledger record and the persisted <id>.md share one identity, then persist that same id on
+  // success. Posture-B is preserved (VFY-01).
+  const id = noteId(note);
+  const text = composeNote(note, body, id);
+  const findings = admit(task, text, contextRoot, repoRoot);
+  if (findings.length > 0) return { id: null, findings };
+  const persistedId = appendNote(task, note, body, contextRoot, id);
+  return { id: persistedId, findings: [] };
 }
 
 // ── CLI entrypoint (only when run directly, never on import) ────────────────────────────────────
