@@ -44,7 +44,8 @@ patterns-established:
   - "Allowlist prove-final-literal: a script/verb token outside the inert set is UNRESOLVABLE → fail closed"
   - "Bash-grounded fuzz: the oracle is what bash actually does, so a gap inside the predicate fails the suite"
 
-requirements-completed: [GOV-01, GOV-02]
+requirements-completed: [GOV-02]
+# GOV-01 NOT complete — SC1 round-5 closure FAILED: the orchestrator-dispatched independent red-team reproduced a real bash-grounded in-scope bypass (extglob-fragmentation via self-enabled extglob). See "Independent Both-Angle Red-Team" section below. Routes to round 6.
 
 coverage:
   - id: D1
@@ -82,7 +83,7 @@ coverage:
 
 duration: 75min
 completed: 2026-06-26
-status: awaiting-red-team
+status: gaps_found
 ---
 
 # Phase 25 Plan 08: Structural admit-SHAPE Detector (round-5 gap closure) Summary
@@ -148,7 +149,7 @@ The bounded over-block and TWO disclosed residuals from the plan HOLD as stated,
 | **Forwarding-runner over-block** (T-25-40) | `npx vitest run $FILE` / `bun app.js $ARG` / `deno run server.ts $PORT` / `ts-node $SCRIPT` GATE under active governance, ALLOW under `off` | Accepted, opt-in, avoidable; asserted as an intended GATED control |
 | **Unknown-runtime forge** (T-25-40) | `qjs $S $V` / `llrt $S $V` (runner not in LAUNCHERS ∪ JS_RUNNERS, both positions dynamic, no literal anchor) ALLOWs | Accepted, disclosed |
 | **Name-resolution forge** (T-25-41) | `node /tmp/<renamed-context-io>.js admit` ALLOWs | PRE-EXISTING substring-anchor limit, out of hook-tier scope, NOT a round-5 regression |
-| **threat_flag: extglob-fragmentation residual (NEW)** | An EXTGLOB `@( …` script combined with a DYNAMIC command-substitution command word (`$(echo node) scripts/context-i@(o).js admit`) OR a quoted eval body (`bash -c "… context-i@(o).js admit"`) still ALLOWs | **Disclosed, flagged for the independent red-team.** ROOT: the extglob `(` is a hard segment separator in the BYTE-FROZEN liveTokens tokenizer (must not edit this round), so it fragments the script token away from the admit verb and there is no recognized launcher to pin the `@`-fragment. The DIRECT / wrapped / JS-runner extglob forms DO close. Narrow (extglob specifically + a dynamic command word / quoted body — a double evasion). A future round could close it by handling the `(`-fragmentation or revisiting liveTokens. |
+| **extglob-fragmentation (NEW) — ❌ CONFIRMED REAL BYPASS by the red-team** | An EXTGLOB `@( …` script combined with a DYNAMIC command-substitution command word (`$(echo node) scripts/context-i@(o).js admit`) OR a quoted eval body (`bash -c "… context-i@(o).js admit"`) ALLOWs | **NO LONGER a benign residual.** The orchestrator-dispatched independent red-team BASH-GROUNDED this as a real high-severity admission that the guard ALLOWs, and DEFEATED the "extglob must be pre-enabled" mitigation: a single Bash-tool call self-enables extglob via a NEWLINE (`shopt -s extglob⏎$(echo node) scripts/context-i@(o).js admit …` → ledger line appended). This is IN SCOPE for SC1 (command-string shape-hiding) → **gaps_found, round 6.** ROOT unchanged: the byte-frozen liveTokens `(`-segmentation fragments the script token before the allowlist can flag `@(`. |
 
 SC1 is deliberately SCOPED to command-string shape-hiding and is NOT claimed as full un-forgeability (no-fabrication / CLAUDE.md).
 
@@ -165,15 +166,35 @@ SC1 is deliberately SCOPED to command-string shape-hiding and is NOT claimed as 
 - `npx vitest run --exclude '**/scripts/e2e/**'` → 919 passed | 1 skipped (full non-e2e regression)
 - `function tokenize` / `noteFileFromCommand` grep = 0; `COMMAND_MODIFIERS` / `LAUNCHERS` membership unchanged; `JS_RUNNERS` a distinct set; `tokenIsFinalLiteral` an allowlist; `liveTokens` byte-identical (cmp)
 
-## Next Phase Readiness — BLOCKING CHECKPOINT PENDING (Task 25-08-04)
+## Independent Both-Angle Red-Team (Task 25-08-04 — orchestrator-dispatched) — VERDICT: GAPS_FOUND
 
-**SC1 round-5 closure is NOT declared.** Per D-12 / [[grugops-safety-invariant-green-suite-insufficient]] (the terminal lesson — this phase hit it 9 times across rounds, and the round-5 design was broken on paper twice), a green author suite is necessary-but-NOT-sufficient for a mechanically-un-forgeable safety guard. The orchestrator (NOT the authoring executor) must dispatch an INDEPENDENT opus-grade both-angle red-team (guard LOGIC + guard INPUT-SURFACE) to reproduce (a)-(d) against the COMMITTED `hooks/admission-guard.js` (never the `.ts`, never the author suites), invent ≥1 un-enumerated rewrite per angle, and confirm the disclosed residuals (including the NEW extglob-fragmentation residual above) behave EXACTLY as stated. The red-team's reproduced commands + invented forms + outcomes must be appended to this SUMMARY before SC1 closure can be declared.
+Per D-12 / [[grugops-safety-invariant-green-suite-insufficient]], the authoring executor HARD-STOPPED without self-approving, and the orchestrator dispatched an INDEPENDENT opus-grade both-angle red-team against the COMMITTED `hooks/admission-guard.js` (never the `.ts`, never the author suites). It built its own stdin driver + a BASH-GROUNDED oracle (a candidate counts as a forge only if bash actually appends to `.grugops/audit/admissions.jsonl` AND the guard ALLOWs). Verdict: **GAPS_FOUND.**
 
-The authoring executor HARD-STOPPED at this checkpoint WITHOUT self-approving.
+**The round-5 STRUCTURAL fix is genuinely effective for its enumerated target** — every glob / param / command-substitution / brace / word-split / xargs / eval / `sh -c` / **recognized-launcher**-extglob shape-hiding form fails CLOSED (DENY), dials gate correctly, routine admits are not over-blocked, freshness 0. But the artifact is a STATIC analyzer of the pre-expansion command string, and the red-team reproduced two real, bash-grounded admit-forges that ALLOW a high-severity admission under active governance:
+
+1. **❌ extglob-fragmentation — REAL, IN-SCOPE SC1 BYPASS (decisive gap → round 6).** Minimal repro (bash-grounded; ledger line + `note admitted`):
+   ```
+   stdin command:  shopt -s extglob\n$(echo node) scripts/context-i@(o).js admit mytask hi.md <ctx> <repo>
+   config:         human_admission = "all" (or "high-severity"); GRUGOPS_ADMISSION_APPROVED_BY unset
+   guard verdict:  exit 0, no output = ALLOW
+   bash reality:   $(echo node)→node; @(o)→o under extglob ⇒ runs node scripts/context-io.js admit … ⇒ REAL high-sev admit
+   ```
+   The red-team **broke the executor's "extglob must be externally pre-enabled" mitigation**: a single Bash-tool call self-enables extglob via a **newline** (`shopt -s extglob⏎…`) — the `;`-separated form is a bash parse-error, but the newline form executes `shopt` then parses line 2 with extglob live. So this is reachable with NO environmental precondition. `bash -c $'shopt -s extglob⏎node scripts/context-i@(o).js admit …'` also ALLOWs+admits. Root cause: the byte-frozen `liveTokens` tokenizer treats `(` as a hard segment separator (`admission-guard.js:426`), fragmenting `context-i@(o).js` before the allowlist can flag `@(`. This is command-string shape-hiding → squarely in SC1's scope → **the round-5 closure claim does not hold.**
+
+2. **❌ renamed / hardlinked copy — REAL admit, but the DISCLOSED out-of-scope substring-anchor limit (T-25-41).** `cp scripts/context-io.js scripts/ctx2.mjs && node scripts/ctx2.mjs admit mytask hi.md …` → ALLOW + real admit (hardlink identical; `.js`/`.mjs` both work). Real and reachable, but matches its disclosure exactly: a name-resolution under-block (the detector anchors on the literal substring `context-io`, `ADMIT_SCRIPT` at `:80`), out of the string-matcher's scope, NOT a round-5 regression.
+
+**The executor's other disclosures were confirmed ACCURATE:**
+- **(ii) `qjs $S $V` — BENIGN** (correctly under-blocks): qjs is absent and `context-io.js` imports `node:crypto`/`node:fs`/`node:path`/`node:url` + `import.meta.dirname` — none exist in QuickJS, so it throws before any admission. No admission effect possible.
+- **(i) forwarding-runner over-block — bounded/active-only** as disclosed (`npx vitest run $FILE` GATEs under active gov / ALLOWs under `off`; direct `node build.js $HOME/out` not over-blocked).
+- **Incidental defense worth keeping:** `context-io.js`'s `isMain` check (`import.meta.url === pathToFileURL(argv[1])`) defeats symlink and `/dev/stdin` vectors (Node realpaths the main entry) — these would otherwise have been additional bypasses.
+
+**Fix direction for round 6 (both the red-team and the executor's own disclosure converge):** a static tokenizer cannot be complete against bash (extglob `(`-fragmentation, rename, hardlink). Either **move the gate past the shell** — anchor on the actual `context-io.js admit` process / the verified-context write at the point of EFFECT, where argv is already expanded and the real script identity is known (the Phase-22 terminal lesson: make the boundary BE the parser) — **or** narrow SC1's stated guarantee to explicitly exclude self-enabled-extglob and document rename/hardlink as known filesystem-identity limits. The decision is the human's (see orchestrator hand-off).
+
+**SC1 round-5 closure is NOT declared. Phase 25 NOT complete; ROADMAP NOT flipped; GOV-01 NOT marked complete (GOV-02 + the audit ledger remain SATISFIED and untouched).** Next: `/gsd-plan-phase 25 --gaps` for round-6 closure.
 
 ---
 *Phase: 25-governance-on-a-dial*
-*Plan: 08 — implementation complete (tasks 01-03 + 1 Rule-1 deviation); blocking independent red-team (Task 25-08-04) PENDING*
+*Plan: 08 — implementation complete (tasks 01-03 + 1 Rule-1 deviation); independent red-team (Task 25-08-04) RAN → GAPS_FOUND (extglob-fragmentation in-scope bypass); routes to round 6*
 
 ## Self-Check: PASSED
 

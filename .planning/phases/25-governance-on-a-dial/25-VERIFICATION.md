@@ -2,7 +2,7 @@
 phase: 25-governance-on-a-dial
 verified: 2026-06-25T20:33:00Z
 status: gaps_found
-score: 1/3 success criteria verified (SC2 verified; SC1 STILL failed after 25-07 round-4 INVERT gap-closure — the round-4 leading-run command-RESOLUTION class IS closed and confirmed SOLID by both red-team angles, but a NEW class bypasses the un-forgeable gate: the admit-SHAPE detector is a literal substring/token test on the un-expanded command string, so shell expansion that defers the script-ref/verb to runtime — glob `context-i*.js`, arg-position `$()`, `$S`/`$V` param-expansion, `xargs` — slips a gated high-severity admit; the glob form also breaks the D-01 self-set floor and dial-`all` has no backstop; SC3 dial-canonicalization closed in 25-05 but the SC1 hole leaks at EVERY dial incl. `all` — see post-25-07 banner below; round 5, 9th green-suite-insufficient catch)
+score: 1/3 success criteria verified (SC2 verified; SC1 STILL failed after 25-08 round-5 STRUCTURAL gap-closure — the round-5 structural admit-SHAPE detector (allowlist `tokenIsFinalLiteral` + SCRIPT-anchored RULE 1/2 + JS_RUNNERS) DID close the round-5 shape-hiding class (glob `context-i*.js`, arg-position `$()`, `$S`/`$V` param-expansion, brace, word-split, `xargs`, eval, `sh -c`, recognized-launcher extglob — all confirmed DENY by the orchestrator-dispatched independent red-team), but that red-team BASH-GROUNDED a NEW in-scope class that still ALLOWs a real high-severity admit: extglob-fragmentation via SELF-ENABLED extglob in one Bash-tool call (`shopt -s extglob⏎$(echo node) scripts/context-i@(o).js admit …` → ledger line appended), because the byte-frozen liveTokens tokenizer treats `(` as a hard segment separator and fragments the script token before the allowlist can flag `@(`; plus the DISCLOSED out-of-scope rename/hardlink substring-anchor limit (T-25-41). A STATIC analyzer of the pre-expansion string cannot be complete against bash — see post-25-08 banner below; round 6, 10th green-suite-insufficient catch)
 behavior_unverified: 0
 overrides_applied: 0
 re_verification:
@@ -355,3 +355,27 @@ These gaps are structured in the `gaps:` frontmatter for `/gsd-plan-phase 25 --g
 
 _Verified: 2026-06-24T18:00:00Z_
 _Verifier: Claude (gsd-verifier)_
+
+---
+
+## UPDATE 2026-06-26 — post-25-08 (round-5 EXECUTED → orchestrator-dispatched independent red-team → STILL gaps_found; round 6)
+
+Plan 25-08 (round-5 structural admit-SHAPE detector) executed sequential-on-main (executor opus): tasks 01–03 + a Rule-1 self-probe deviation committed (`00a76e1` structural detector + RED baseline / `19dd88e` child-spawn oracle + GREEN proof / `8585b92` bash-grounded anti-whack-a-mole fuzz / `e6556c5` dynamic-command-word + eval-body closure). Author gates GREEN (necessary-not-sufficient, D-12): `admission-guard.test.ts` 236, `floor-invariance.test.ts` 176, full non-e2e **919 passed | 1 skipped**; freshness 0; `hooks/guard.ts` + `scripts/context-io.ts` byte-frozen (`git diff --quiet` exit 0); `liveTokens` byte-identical; `COMMAND_MODIFIERS`/`LAUNCHERS` unwidened. The executor HARD-STOPPED at the blocking checkpoint 25-08-04 WITHOUT self-approving.
+
+**The orchestrator dispatched an INDEPENDENT opus-grade both-angle red-team** against the COMMITTED `hooks/admission-guard.js` (never the `.ts`, never the author suites), with its own stdin driver + a BASH-GROUNDED oracle (forge ⇔ bash actually appends to `.grugops/audit/admissions.jsonl` AND guard ALLOWs). **VERDICT: GAPS_FOUND.**
+
+**SOLID / preserved (red-team confirmed):** the round-5 structural fix closes its entire enumerated target — glob / param / command-sub / brace / word-split / `xargs` / `eval` / `sh -c` / **recognized-launcher** extglob all fail CLOSED (DENY); dials gate correctly; routine admits not over-blocked; D-01 self-set floor holds behind a rewrite; SC2 + the GOV-02 audit ledger untouched and SATISFIED; freshness 0; `guard.ts`/`context-io.ts` byte-frozen. The executor's disclosed **(ii) qjs** residual is genuinely **BENIGN** (QuickJS lacks `node:` APIs ⇒ `context-io.js` throws before admitting) and **(i) forwarding-runner over-block** is bounded/active-only exactly as disclosed.
+
+**NEW round-5 gap (decisive, IN SCOPE for SC1 = command-string shape-hiding):**
+
+- **extglob-fragmentation via self-enabled extglob.** Bash-grounded minimal repro: stdin `{"tool_input":{"command":"shopt -s extglob\n$(echo node) scripts/context-i@(o).js admit mytask hi.md <ctx> <repo>"}}`, config `human_admission:"all"` (or `high-severity`), `GRUGOPS_ADMISSION_APPROVED_BY` unset → guard exits 0 (**ALLOW**) while bash appends a real high-sev ledger line (`@(o)→o` under extglob ⇒ runs `node scripts/context-io.js admit …`). The red-team **defeated the executor's "extglob must be externally pre-enabled" mitigation**: a single Bash-tool call self-enables extglob via a NEWLINE (`shopt -s extglob⏎…`); the `;`-separated form is a bash parse-error, but the newline form executes `shopt` then parses line 2 with extglob live — so reachable with NO precondition. `bash -c $'shopt -s extglob⏎node scripts/context-i@(o).js admit …'` also ALLOWs+admits. ROOT: the byte-frozen `liveTokens` tokenizer treats `(` as a hard segment separator (`admission-guard.js:426`), fragmenting `context-i@(o).js` before the allowlist flags `@(`.
+
+**DISCLOSED out-of-scope limit (real, but matches T-25-41, NOT a round-5 regression):**
+
+- **renamed / hardlinked copy.** `cp scripts/context-io.js scripts/ctx2.mjs && node scripts/ctx2.mjs admit mytask hi.md …` → ALLOW + real admit (hardlink identical; `.js`/`.mjs` both work). The detector anchors on the literal substring `context-io` (`ADMIT_SCRIPT`, `:80`); a renamed/hardlinked copy is a resolvable literal that simply isn't `context-io` ⇒ a name-resolution under-block, out of the command-string-matcher's scope. (symlink + `/dev/stdin` variants are BENIGN — Node realpaths the main entry, breaking `context-io`'s `isMain` self-check.)
+
+**Round-6 fix direction (red-team + executor disclosure converge — and the Phase-22 terminal lesson):** a static analyzer of the pre-expansion command string cannot be complete against bash (extglob `(`-fragmentation, rename, hardlink). Either (A) **move the gate past the shell** — enforce at the point of EFFECT inside `context-io.js admit` / the verified-context write, where argv is already expanded and the real script identity is known (make the boundary BE the parser, as Phase 22 round-8 did) — or (B) **narrow SC1's stated guarantee** to explicitly exclude self-enabled-extglob and document rename/hardlink as known filesystem-identity limits. **This is a human decision** (safety-posture trade-off); recorded for the round-6 planner.
+
+SC1 round-5 closure NOT declared. Phase 25 NOT complete; ROADMAP NOT flipped; GOV-01 NOT marked complete (GOV-02 + ledger preserved). Findings recorded in `25-08-SUMMARY.md` (Independent Both-Angle Red-Team section). **Next: `/gsd-plan-phase 25 --gaps` for round-6 closure.**
+
+_Updated: 2026-06-26 — orchestrator (independent red-team dispatch, Task 25-08-04 resolution)_
