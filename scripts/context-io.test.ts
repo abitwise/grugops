@@ -21,6 +21,7 @@
 
 import { describe, it, expect, afterAll } from "vitest";
 import { spawnSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import {
   mkdtempSync,
   mkdirSync,
@@ -1705,5 +1706,249 @@ describe("governance-config", () => {
     const g = mod.readGovernanceConfig(root);
     expect(g.human_admission).toBe("bogus");
     expect(g.audit_retention).toBe("nonsense");
+  });
+});
+
+// ── W-B mechanical admit() freeze (Plan 25-09) ────────────────────────────────────────────────────
+// admit() is byte-frozen this plan: the additive admitAndAppend MUST reuse it, never edit it. A green
+// suite alone cannot PROVE admit() is unchanged ([[grugops-safety-invariant-green-suite-insufficient]]).
+// This test extracts admit()'s exact function span from the committed SOURCE by brace-matching from
+// `export function admit(` to its balanced closing brace and asserts its byte-hash equals a baseline
+// pinned from the pre-25-09 committed admit(). Any future edit to admit()'s body goes RED here — the
+// freeze is proven structurally, not inferred from the behavioral suite.
+describe("context-io.ts — W-B admit() mechanical byte-freeze (Plan 25-09)", () => {
+  // The pinned baseline: sha256 of admit()'s function span captured from the committed admit() before
+  // the 25-09 additive exports landed. admit() must hash to this exactly.
+  const ADMIT_FROZEN_SHA256 =
+    "b7998cbd5e550b904a4f659a6464f5cbc39eebf7825c96e18abac017f1e8be3d";
+
+  // Extract the span `export function admit(` … matching `}` by brace-counting (the SAME extraction the
+  // baseline was captured with). Reads the committed .ts source (the freeze is on the source of truth).
+  function extractAdmitSpan(src: string): string {
+    const start = src.indexOf("export function admit(");
+    if (start < 0) throw new Error("admit() not found in context-io.ts");
+    let depth = 0;
+    let end = -1;
+    for (let i = src.indexOf("{", start); i < src.length; i++) {
+      const c = src[i];
+      if (c === "{") depth++;
+      else if (c === "}") {
+        depth--;
+        if (depth === 0) {
+          end = i;
+          break;
+        }
+      }
+    }
+    if (end < 0) throw new Error("admit() closing brace not found (unbalanced span)");
+    return src.slice(start, end + 1);
+  }
+
+  it("admit()'s function span byte-hash equals the pinned pre-25-09 baseline (frozen, not green-inferred)", () => {
+    const src = readFileSync(join(ROOT, "scripts", "context-io.ts"), "utf8");
+    const span = extractAdmitSpan(src);
+    const actual = createHash("sha256").update(span, "utf8").digest("hex");
+    expect(actual).toBe(ADMIT_FROZEN_SHA256);
+  });
+});
+
+// ── isHighSeverityRole — the single-source severity classifier (W-A, Plan 25-09) ──────────────────
+describe("context-io.js — isHighSeverityRole (single-source severity classifier, W-A)", () => {
+  it("classifies the three exact role literals as high-severity", () => {
+    expect(mod.isHighSeverityRole("security-nfr")).toBe(true);
+    expect(mod.isHighSeverityRole("architect-design")).toBe(true);
+    expect(mod.isHighSeverityRole("release-manager")).toBe(true);
+  });
+
+  it("a routine role (software-engineer) is NOT high-severity", () => {
+    expect(mod.isHighSeverityRole("software-engineer")).toBe(false);
+    expect(mod.isHighSeverityRole("")).toBe(false);
+  });
+
+  it("folds case / leading+trailing whitespace / U+00A0 / U+200B / NFKC full-width to high-severity", () => {
+    expect(mod.isHighSeverityRole("SECURITY-NFR")).toBe(true); // case
+    expect(mod.isHighSeverityRole("  security-nfr  ")).toBe(true); // ASCII whitespace
+    expect(mod.isHighSeverityRole("security"+"\u00A0"+"-nfr")).toBe(true); // NBSP inside
+    expect(mod.isHighSeverityRole("security"+"\u200B"+"-nfr")).toBe(true); // zero-width space inside
+    // NFKC full-width letters + full-width hyphen fold to the ASCII literal.
+    expect(mod.isHighSeverityRole("\uFF53\uFF45\uFF43\uFF55\uFF52\uFF49\uFF54\uFF59\uFF0D\uFF4E\uFF46\uFF52")).toBe(true);
+  });
+});
+
+// ── isGatedNote — the single-source FULL gated decision (W-A, Plan 25-09) ─────────────────────────
+describe("context-io.js — isGatedNote (single-source full gated decision, W-A)", () => {
+  const ok = (human_admission: string): import("./context-io.js").GovernanceConfigResult => ({
+    source: "ok",
+    config: { human_admission, audit_retention: "git" },
+  });
+
+  it("off (or absent) → NOT gated for any kind/role", () => {
+    expect(mod.isGatedNote("security-nfr", "finding", ok("off"))).toBe(false);
+    expect(
+      mod.isGatedNote("security-nfr", "finding", { source: "absent", config: { human_admission: "off", audit_retention: "git" } }),
+    ).toBe(false);
+  });
+
+  it("high-severity → gated for a high-sev role finding, NOT for a routine role finding", () => {
+    expect(mod.isGatedNote("security-nfr", "finding", ok("high-severity"))).toBe(true);
+    expect(mod.isGatedNote("software-engineer", "finding", ok("high-severity"))).toBe(false);
+  });
+
+  it("all → gated for ANY finding (high-sev OR routine)", () => {
+    expect(mod.isGatedNote("security-nfr", "finding", ok("all"))).toBe(true);
+    expect(mod.isGatedNote("software-engineer", "finding", ok("all"))).toBe(true);
+  });
+
+  it("a non-finding kind is NEVER gated (soft kinds carry no stamp)", () => {
+    expect(mod.isGatedNote("security-nfr", "claim", ok("all"))).toBe(false);
+    expect(mod.isGatedNote("security-nfr", "observation", ok("high-severity"))).toBe(false);
+  });
+
+  it("a typo/garbage present dial → gate-or-stricter (gated like all)", () => {
+    expect(mod.isGatedNote("software-engineer", "finding", ok("bogus"))).toBe(true);
+  });
+
+  it("an UNREADABLE config source → fail closed (gated)", () => {
+    expect(
+      mod.isGatedNote("software-engineer", "finding", { source: "unreadable", config: { human_admission: "off", audit_retention: "git" } }),
+    ).toBe(true);
+  });
+});
+
+// ── admitAndAppend — the admit-decides-then-persist combiner (Plan 25-09) ─────────────────────────
+describe("context-io.js — admitAndAppend (structured-channel persist arbiter, D-01)", () => {
+  // A factory.config.json under a temp repoRoot with the given context dial values; returns the root.
+  function repoWithGovernance(context: Record<string, string>): string {
+    const root = freshTmp("aaa-repo-");
+    mkdirSync(join(root, ".grugops"), { recursive: true });
+    writeFileSync(join(root, ".grugops", "factory.config.json"), JSON.stringify({ context }, null, 2));
+    return root;
+  }
+  function notesDir(contextRoot: string, task: string): string {
+    return join(contextRoot, task, "notes");
+  }
+  function noteFiles(contextRoot: string, task: string): string[] {
+    const d = notesDir(contextRoot, task);
+    return existsSync(d) ? readdirSync(d).filter((f) => f.endsWith(".md")) : [];
+  }
+  function ledgerLines(repoRoot: string): string[] {
+    const p = join(repoRoot, ".grugops", "audit", "admissions.jsonl");
+    return existsSync(p)
+      ? readFileSync(p, "utf8").split("\n").filter((l) => l.trim() !== "")
+      : [];
+  }
+  const baseNote = (over: Partial<import("./context-io.js").NoteInput> = {}) => ({
+    kind: "observation" as const,
+    by: "software-engineer",
+    at: "2026-06-17T14:23:05Z",
+    verified_by: "",
+    confidence: "high",
+    refs: [],
+    supersedes: null,
+    ...over,
+  });
+
+  it("persists a clean routine note (off dial): a new notes/<id>.md exists and the id is returned", () => {
+    const contextRoot = freshTmp("aaa-clean-ctx-");
+    const repoRoot = repoWithGovernance({ human_admission: "off" });
+    const task = "aaa-clean";
+    const res = mod.admitAndAppend(task, baseNote(), "a routine observation", contextRoot, repoRoot);
+    expect(res.findings).toEqual([]);
+    expect(res.id).toBeTruthy();
+    expect(noteFiles(contextRoot, task)).toHaveLength(1);
+    expect(existsSync(join(notesDir(contextRoot, task), `${res.id}.md`))).toBe(true);
+  });
+
+  it("GATED + valid human:NAME (high-severity dial): persists ONE note stamped human:alice and ledgers disposed_by:human:alice (retained)", () => {
+    const contextRoot = freshTmp("aaa-gated-ok-ctx-");
+    const repoRoot = repoWithGovernance({ human_admission: "high-severity", audit_retention: "retained" });
+    const task = "aaa-gated-ok";
+    const note = baseNote({ kind: "finding", by: "security-nfr", verified_by: "human:alice" });
+    const res = mod.admitAndAppend(task, note, "a high-severity finding, disposed by a human", contextRoot, repoRoot);
+    expect(res.findings).toEqual([]);
+    expect(res.id).toBeTruthy();
+    const files = noteFiles(contextRoot, task);
+    expect(files).toHaveLength(1);
+    const text = readFileSync(join(notesDir(contextRoot, task), files[0]), "utf8");
+    expect(text).toContain("verified_by: human:alice");
+    const lines = ledgerLines(repoRoot);
+    expect(lines).toHaveLength(1);
+    const event = JSON.parse(lines[0]);
+    expect(event.disposed_by).toBe("human:alice");
+    expect(event.id).toBe(res.id); // ledger id == persisted note id (single identity)
+    expect(event.severity).toBe("high");
+  });
+
+  it("GATED without a valid human:NAME stamp (high-severity dial): REFUSES naming the fault and persists nothing", () => {
+    const contextRoot = freshTmp("aaa-gated-nostamp-ctx-");
+    const repoRoot = repoWithGovernance({ human_admission: "high-severity" });
+    const task = "aaa-gated-nostamp";
+    const note = baseNote({ kind: "finding", by: "security-nfr", verified_by: "" });
+    const res = mod.admitAndAppend(task, note, "a high-severity finding with no disposition", contextRoot, repoRoot);
+    expect(res.id).toBeNull();
+    expect(res.findings.join("\n")).toMatch(/human:NAME|human disposition/);
+    expect(noteFiles(contextRoot, task)).toHaveLength(0);
+  });
+
+  it("W5 backstop: a GATED routine note under `all` lacking a human:NAME stamp is REFUSED, persists nothing", () => {
+    const contextRoot = freshTmp("aaa-w5-ctx-");
+    const repoRoot = repoWithGovernance({ human_admission: "all" });
+    const task = "aaa-w5";
+    const note = baseNote({ kind: "finding", by: "software-engineer", verified_by: "§14-gate#SEED-001" });
+    const res = mod.admitAndAppend(task, note, "a routine finding under all, no human disposition", contextRoot, repoRoot);
+    expect(res.id).toBeNull();
+    expect(res.findings.join("\n")).toMatch(/human:NAME|human disposition/);
+    expect(noteFiles(contextRoot, task)).toHaveLength(0);
+  });
+
+  it("W3: a NON-GATED note carrying an agent-supplied human:NAME stamp is REFUSED, persists nothing (no forged disposed_by)", () => {
+    const contextRoot = freshTmp("aaa-w3-ctx-");
+    const repoRoot = repoWithGovernance({ human_admission: "high-severity", audit_retention: "retained" });
+    const task = "aaa-w3";
+    // A routine-role finding under high-severity → NOT gated → a human:NAME stamp is illegitimate.
+    const note = baseNote({ kind: "finding", by: "software-engineer", verified_by: "human:eve" });
+    const res = mod.admitAndAppend(task, note, "a routine finding forging a human disposition", contextRoot, repoRoot);
+    expect(res.id).toBeNull();
+    expect(res.findings.join("\n")).toMatch(/W3|must be empty|§14-gate/);
+    expect(noteFiles(contextRoot, task)).toHaveLength(0);
+    expect(ledgerLines(repoRoot)).toHaveLength(0); // no forged disposed_by entered the ledger
+  });
+
+  it("Posture-B preserved: a §14-gate#<id> finding with NO live green verdict is refused, persists nothing", () => {
+    const contextRoot = freshTmp("aaa-postureb-ctx-");
+    const repoRoot = repoWithGovernance({ human_admission: "off" });
+    const task = "aaa-postureb";
+    const note = baseNote({ kind: "finding", by: "software-engineer", verified_by: "§14-gate#NOPE-001" });
+    const res = mod.admitAndAppend(task, note, "a gate-stamped finding with no verdict", contextRoot, repoRoot);
+    expect(res.id).toBeNull();
+    expect(res.findings.join("\n")).toContain("NOPE-001");
+    expect(noteFiles(contextRoot, task)).toHaveLength(0);
+  });
+
+  it("Posture-B GREEN: a §14-gate#<id> finding WITH a planted live green verdict is admitted + persisted", () => {
+    const contextRoot = freshTmp("aaa-postureb-green-ctx-");
+    const repoRoot = repoWithGovernance({ human_admission: "off" });
+    const task = "aaa-postureb-green";
+    const id = "RUN-AAA-7A3F";
+    mod.emitVerdict(task, id, contextRoot);
+    const note = baseNote({ kind: "finding", by: "software-engineer", verified_by: `§14-gate#${id}` });
+    const res = mod.admitAndAppend(task, note, "a gate-verified finding", contextRoot, repoRoot);
+    expect(res.findings).toEqual([]);
+    expect(res.id).toBeTruthy();
+    // emitVerdict planted one note; admitAndAppend adds the second.
+    expect(noteFiles(contextRoot, task)).toHaveLength(2);
+  });
+
+  it("unreadable config fails closed: a finding under a corrupt config is gated → refused without a human:NAME stamp", () => {
+    const contextRoot = freshTmp("aaa-unreadable-ctx-");
+    const repoRoot = freshTmp("aaa-unreadable-repo-");
+    mkdirSync(join(repoRoot, ".grugops"), { recursive: true });
+    writeFileSync(join(repoRoot, ".grugops", "factory.config.json"), "{ this is not json");
+    const task = "aaa-unreadable";
+    const note = baseNote({ kind: "finding", by: "software-engineer", verified_by: "§14-gate#SEED-001" });
+    const res = mod.admitAndAppend(task, note, "a finding under a corrupt config", contextRoot, repoRoot);
+    expect(res.id).toBeNull();
+    expect(res.findings.join("\n")).toMatch(/human:NAME|human disposition/);
+    expect(noteFiles(contextRoot, task)).toHaveLength(0);
   });
 });
