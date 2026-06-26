@@ -452,3 +452,232 @@ No new external dependencies. No missing dependencies block this phase.
 ## Sources (external links)
 - [Claude Code Hooks — code.claude.com](https://code.claude.com/docs/en/hooks)
 - [Automate actions with hooks — code.claude.com](https://code.claude.com/docs/en/hooks-guide)
+
+---
+
+## Round 6 — Move-the-Gate-to-Point-of-Effect: Mechanism Research
+
+**Researched:** 2026-06-26
+**Confidence:** HIGH on the mechanism (Q1/Q2/Q4 grounded in live CC docs + in-repo reads); HIGH on the residual analysis (Q3 grounded directly in `readContext`/`atomicWrite` source).
+
+> **Voice note (clear professional voice — this is a safety surface, never caveman voice).**
+
+> **STALE-FRONTMATTER NOTICE.** The `gaps:` YAML frontmatter at the top of `25-VERIFICATION.md`
+> is SUPERSEDED. It still names the round-4 abandoned approach ("replace the ADMIT_SEGMENT regex
+> matcher with proper shell-segment parsing") and round-4 SC3 fail-open items that were closed in
+> later rounds. The authoritative round-6 direction is the prose **"DECISION (2026-06-26, human):
+> option (A) — MOVE THE GATE TO POINT-OF-EFFECT"** banner (25-VERIFICATION.md ~L361-385). Treat the
+> frontmatter `missing:` items as historical, not a work list.
+
+### The locked frame (do not re-litigate)
+
+Ten rounds proved a PreToolUse **Bash** hook that parses the **pre-expansion** command string can never
+be complete against bash (glob / brace / param-expansion / command-substitution / word-split / `xargs` /
+`eval` / `sh -c` / self-enabled-extglob `(`-fragmentation / rename / hardlink). Human decision: stop
+patching the tokenizer; move WHERE/HOW admission is gated so it no longer depends on parsing an un-expanded
+Bash string. **Hard constraint:** the un-forgeable CC tier must live OUTSIDE the agent process — NOT inside
+`context-io.js admit()` (self-settable D-05 tier; the agent can also run a modified copy), and NOT in the
+existing Bash hook (sees only the pre-expansion string by construction).
+
+---
+
+### Q1 [decisive] — Can a PreToolUse hook gate a NON-Bash tool and receive STRUCTURED `tool_input`?
+
+**YES — confirmed, HIGH.** This is the linchpin and it holds.
+
+`[VERIFIED: code.claude.com/docs/en/hooks]` A PreToolUse hook `matcher` targets tools **by exact name**
+(`"Write"`, `"Edit"`, `"Read"`, …), by **list** (`"Edit|Write"` / `"Edit, Write"`), and by **MCP tool
+name / regex** (`"mcp__grugops__admit"`, `"mcp__grugops__.*"`). MCP tools follow `mcp__<server>__<tool>`.
+
+`[VERIFIED: code.claude.com/docs/en/hooks]` The hook receives on stdin a JSON object with `tool_name` and
+`tool_input`, where **`tool_input` is the already-final structured argument object — NOT a shell string
+subject to later expansion**:
+- `Bash` → `{ "command": string }` (the proxy that 10 rounds could not parse)
+- `Write` → `{ "file_path": string, "content": string }`
+- `Edit` → `{ "file_path": string, ... }`
+- **MCP tool → a structured JSON object of that tool's named parameters** (e.g. `{ "task": "...", "note": "..." }`)
+
+`[VERIFIED]` Block mechanism is identical to the existing guards: exit 0 + JSON
+`hookSpecificOutput.permissionDecision: "deny"` + `permissionDecisionReason` (or legacy exit 2). There is
+also `updatedInput` (rewrite args) and `"ask"`/`"defer"` — not needed here; keep the `guard.ts` deny shape.
+
+**Why this is decisive:** if admission is expressed as a `Write`/`Edit`/MCP tool call, the hook reads the
+final arguments directly. **There is no command string to obfuscate, so the ENTIRE shell-expansion bypass
+family (glob, brace, param/command substitution, word-split, extglob `(`-fragmentation, line-continuation,
+launcher rename) disappears by construction** — not by recognizing more spellings, but because the proxy
+the spellings attacked is gone.
+
+---
+
+### Q2 — Lightest structured admission channel within the constraints
+
+Constraints (CLAUDE.md): zero host runtime deps, Node 22+ only, committed `.js` runnable with nothing
+installed, "NOT a platform, runtime, database, queue, or hosted service."
+
+| Option | Hook sees structured input? | New host runtime | Brand/constraint fit | Verdict |
+|--------|----------------------------|------------------|----------------------|---------|
+| **(b) Gate an existing `Write`/`Edit` tool call** to the context store — retarget `admission-guard` from a `Bash` matcher to a `Write\|Edit` matcher; read `tool_input.file_path` + `tool_input.content`, classify severity by the note's `by` (D-06), deny un-approved high-severity | **YES** — `{file_path, content}` is final, never shell-expanded | **ZERO** (reuses the committed-`.js` hook + freshness pattern already shipped) | **Best.** No new component; the hook stays the external process the constraint demands; mirrors `guard.ts` posture | **RECOMMENDED** |
+| **(a) Ship a tiny committed-`.js` stdio MCP server** `mcp__grugops__admit`; a PreToolUse `mcp__grugops__admit` matcher reads the structured args + human-set env, denies | **YES** — MCP `tool_input` is structured JSON | One new long-running `node server.js` (zero-dep) + plugin.json `mcpServers` + per-server user approval | Mild tension with "NOT a service" (a persistent stdio server); but the channel is **cross-CLI** (MCP is portable) | **Runner-up** |
+| **(c) Harness-mediated skill / slash-command path** | Partial — a skill ultimately runs Bash/Write under the hood; the gate still lands on whatever tool it emits | Zero | Does not by itself create a non-shell channel | Not sufficient alone |
+
+`[VERIFIED: code.claude.com/docs/en/plugins-reference]` A plugin ships a zero-dep stdio MCP server via
+`plugin.json` `mcpServers`: `{ "command": "node", "args": ["${CLAUDE_PLUGIN_ROOT}/server.js"] }` (docs
+example verbatim). `transport: stdio` is the default. **Gotchas:** plugin MCP servers go through the **same
+per-server user approval** as a project `.mcp.json`; on plugin update the server keeps the old
+`${CLAUDE_PLUGIN_ROOT}` until `/reload-plugins`; plugin-shipped **agents** may not declare `mcpServers`/
+`hooks`/`permissionMode` (L72) — but plugin-shipped **hooks and MCP servers themselves are fine** (the
+existing grugops guard is a plugin hook). Either way the **gate is the PreToolUse hook**, not the server.
+
+**Footprint conclusion:** option (b) adds **no runtime** — it is the existing `admission-guard.js` with its
+input surface changed from a parsed `tool_input.command` string to a read `tool_input.file_path` +
+`tool_input.content`. Option (a) is a genuine (if small) expansion of the kit (a new always-on server
+process) and is in mild tension with the "not a service" line.
+
+---
+
+### Q3 [the crux] — Does the structured channel REMOVE the bash escape hatch? Brutally honest.
+
+**The decisive in-repo fact (grounds the whole answer):** shared context is **a directory of `.md` files
+owned by the agent's uid.** `readContext` (`scripts/context-io.ts:727`) reads **every `*.md`** in
+`.grugops/context/<task>/notes/` and parses it; `currentState` (`:762`) just sorts + folds `supersedes`.
+**There is no "admitted" bit, no signature, no marker** distinguishing an admitted note from a raw file
+drop. `admit()` does **not** itself write the note — the persistence is an `atomicWrite` of a `.md` into
+the notes dir. The CLI exposes only `validate` / `admit` / `render` — **no `write` verb** (`:1268-1315`).
+
+Therefore, on a **single-user box** (agent process + any guard/server share one uid and both can write the
+store), the honest answer to "is the WRITE gateable out-of-process at all?" is:
+
+> **NO — not fully.** A same-uid process can always create a file in a directory it owns. The agent can land
+> a forged high-severity note in shared context WITHOUT touching the sanctioned channel, via: a `Bash` write
+> (`echo >> notes/x.md`, `cp`, `tee`, `> notes/x.md` redirection), a **hand-modified copy** of
+> `context-io.js`, or any same-uid filesystem write. No out-of-process gate can prevent a same-uid file
+> write. **This residual is IRREDUCIBLE in-box.**
+
+**Crucially, this residual is PRE-EXISTING, not newly opened by the move.** The command-string Bash hook
+**never closed it either** — it only ever gated the *sanctioned* `node …context-io.js admit …` invocation.
+A direct `echo >> notes/x.md` or a `Write`-tool drop into the notes dir was **never matched by the Bash hook
+at all** (the Bash matcher only sees Bash). So the direct-FS-write / modified-copy hole has been open the
+entire time; it is the same family as the already-accepted **T-25-41 rename/hardlink** and **D-05
+"un-forgeable tier is CC-only"** residuals.
+
+**Decisive comparison — does option A still STRICTLY beat the command-string parser? YES. The hypothesis
+in the brief is CORRECT.**
+
+1. The command-string parser had bypasses **on the sanctioned path itself** — the worst kind. The agent ran
+   the real blessed tool (`context-io.js admit`) exactly as intended and the gate failed to *see* it
+   (extglob-fragmentation, glob, rename). Round after round, a faithful-use-of-the-tool slipped the gate.
+2. The structured channel has **zero bypasses on the sanctioned path** — there is no command string to
+   obfuscate; the hook reads final `{file_path, content}` (or MCP args). 100% of the shell-expansion family
+   is closed structurally, with no enumeration.
+3. **Option (b) strictly INCREASES coverage**: it gates the direct `Write`/`Edit` drop into the notes dir —
+   a path the Bash hook never covered. So the move is not merely "cleaner"; it closes a hole the old design
+   left wide open.
+4. Both designs share the **identical** out-of-band residual (same-uid raw FS write / modified copy). The
+   move does **not** open it — it predates round 6.
+
+**Net: A is a strict improvement with no regression.** It converts an unbounded, actively-exploited
+shell-obfuscation bypass surface into the pre-existing, bounded, documented same-uid filesystem limit.
+
+**What backstops the irreducible residual (defense-in-depth — preserve/strengthen, do not pretend it is the
+un-forgeable tier):**
+- `admit()` D-04 in-script refusal (self-settable D-05 tier) — covers the sanctioned `context-io.js admit`
+  path and the 4 non-CC CLIs.
+- The **no-fabrication floor + validator**: a forged `human:NAME` stamp is structurally accepted but is a
+  fabrication-floor violation upstream. (Note: you cannot make the stamp cryptographically un-forgeable
+  in-box — binding it to the GOV-02 ledger is circular, since a same-uid agent can also append the ledger.)
+- **`autonomy=pr` — humans hold merge/deploy.** This is the dial-independent ultimate backstop and the
+  honest answer to "what stops a determined same-uid agent": a named human at the PR/merge boundary.
+
+---
+
+### Q4 — Cross-CLI degrade
+
+`[VERIFIED: ./CLAUDE.md §"6. AGENTS.md + per-tool entry files"]` Of the five target CLIs, **only Claude
+Code has a hook system** that can gate a tool call. Codex CLI, Gemini CLI, OpenCode, and GitHub Copilot CLI
+read `AGENTS.md` (and per-tool entry files) but ship **no PreToolUse-equivalent that can deny a structured
+tool call**. Therefore the **un-forgeable tier stays CC-only**, consistent with **D-05** and the entire v2.0
+primary/degrade architecture. The other four degrade to: the `admit()` D-04 in-script refusal + prompt-level
+"stop, ask a named human."
+
+**Honest nuance (do not overclaim):** MCP itself *is* portable — Codex/Gemini/OpenCode/Copilot can all
+consume MCP servers — so an MCP admission **channel** (option a) could exist cross-CLI even though the
+**gate** (the deny) cannot. `[ASSUMED]` OpenCode has an emerging plugin/`tool.execute.before` hook surface,
+but grugops does not target it and parity is unverified; treat any cross-CLI un-forgeable gate as a separate
+future evaluation, not a round-6 deliverable.
+
+---
+
+### Q5 — Preserve-list for the plan
+
+- `hooks/guard.ts` **byte-frozen** (`git hash-object` == `3501810e…`; `git diff --quiet` exit 0). Do not touch.
+- **SC2 + the GOV-02 audit ledger untouched** — `appendAuditLedger` (`context-io.ts:979-1003`), the 3-surface
+  config lockstep, and the consistency test stay as verified.
+- **SC3 floor not regressed**: the gate must keep **non-canonical `human_admission` ⇒ gate-or-stricter**
+  (any value not exactly `off` gates) and **corrupt/unreadable config ⇒ fail closed**. Carry this same dial
+  canonicalization into the retargeted structured hook — it is the SC3 fix from the later rounds and must
+  not be lost in the move.
+- **No new kit prose that trips `guard_context_writes` (WR-01) or the foundation guards** (D-13) — reference
+  Workflow 16 / config keys; never restate a raw `.grugops/` write path beside a write token.
+- **Freshness check must cover any new committed `.js`** — the retargeted `admission-guard.js` (option b) or
+  a new `server.js` (option a). `scripts/context-io.ts` should ideally stay byte-frozen too (the move lives
+  in the hook + the write path, not the reader).
+- **D-12 closure protocol:** re-prove with an INDEPENDENT bash-grounded opus red-team, not a green author
+  suite. For a structured-input hook the red-team's job changes: it can no longer find a shell-obfuscation
+  bypass (none exists); it must instead confirm (i) every sanctioned structured admit path is gated, (ii) the
+  dial fail-closed posture holds, and (iii) the residual is exactly the documented same-uid FS-write limit
+  and nothing broader.
+
+---
+
+### RANKED RECOMMENDATION
+
+1. **(b) Retarget `admission-guard` to gate the STRUCTURED context-store WRITE (`Write`/`Edit` matcher).**
+   Zero new runtime, reuses the shipped committed-`.js` hook + freshness pattern, keeps the gate as the
+   external process the hard constraint demands, and **structurally eliminates the entire shell-obfuscation
+   family** because the hook reads final `{file_path, content}` instead of a Bash string. It also closes the
+   direct-`Write`-to-notes-dir hole the Bash hook never covered. Best brand/constraint fit.
+
+2. **(a) Ship a zero-dep stdio MCP `mcp__grugops__admit` and gate it with an `mcp__grugops__admit` matcher.**
+   The semantically cleanest "dedicated channel the agent cannot shell-forge," and the channel is cross-CLI.
+   Runner-up only because it adds a persistent server component (mild tension with "not a service") plus a
+   per-server approval and a new committed `.js`.
+
+**The brutally-honest residual (must be documented in the plan, in clear voice):** On a single-user box,
+shared context is a directory of `.md` files the agent's uid owns; `readContext` admits any parseable file
+with no admission marker. No out-of-process mechanism can stop a same-uid process from writing such a file
+(via Bash `echo`/`cp`/`tee`/redirection, a hand-modified `context-io.js` copy, or any FS write). This is
+**irreducible in-box** and **pre-existing** (the command-string hook never closed it). Option A does not open
+it; A converts an actively-exploited bypass surface into this bounded, known limit. The true backstop for the
+residual is **`autonomy=pr` — a named human holds merge/deploy** — plus the in-script D-04 refusal and the
+no-fabrication floor.
+
+### Open decisions the HUMAN must make
+
+1. **Mechanism: (b) gate-an-existing-Write/Edit-tool vs (a) ship-an-MCP-server.** Recommendation: (b) for
+   zero-runtime/brand fit; choose (a) only if a dedicated, cross-CLI admission channel is worth a server
+   component.
+2. **Accept the same-uid direct-FS-write / modified-copy residual as the documented in-box limit?** It is
+   irreducible on a single-user box; recommend documenting it explicitly (alongside T-25-41 / D-05) and
+   relying on `autonomy=pr`. This is a safety-posture call, not an auto-pick.
+3. **What is TODAY's sanctioned note-WRITE path?** (A `Write` tool call? a future `context-io` write verb? a
+   raw Bash `echo`/`atomicWrite` driven by the workflow?) **The planner must pin this**, because option (b)'s
+   matcher must cover exactly the tool that performs the write. If notes are currently written by raw Bash,
+   option (b) requires moving the sanctioned write onto a structured tool (a Workflow-16 change) — otherwise
+   the structured gate sits in front of a path the workflow does not actually use.
+4. **Restate SC1 to an achievable invariant.** Recommended wording: "the sanctioned admission channel is
+   structurally gated with no shell-obfuscation surface; the residual same-uid direct-FS-write is an
+   accepted, documented in-box limit backstopped by `autonomy=pr`." This lets the next red-team measure
+   against an honest, reachable guarantee rather than the impossible "no same-uid process may ever write a
+   file."
+
+### Assumptions Log (round 6)
+
+| # | Claim | Risk if wrong |
+|---|-------|---------------|
+| R6-A1 | OpenCode's `tool.execute.before` plugin hook could host a cross-CLI structured gate | Low — not a round-6 deliverable; un-forgeable tier stays CC-only regardless (D-05) |
+| R6-A2 | The current sanctioned note-write path is not yet a structured tool call (CLI has no `write` verb; admit() does not persist) | Medium — drives whether option (b) needs a Workflow-16 write-path change; planner must pin it |
+
+### Round 6 Sources
+- [Claude Code Hooks — matcher targets (Write/Edit/MCP), `tool_input` structure, permissionDecision](https://code.claude.com/docs/en/hooks) — HIGH
+- [Claude Code Plugins reference — `mcpServers` zero-dep stdio config, per-server approval, plugin-agent restrictions](https://code.claude.com/docs/en/plugins-reference) — HIGH
+- In-repo (read directly this session): `scripts/context-io.ts` (`readContext:727`, `currentState:762`, `atomicWrite:628`, `admit:889`, CLI `:1268-1315`, `isMain:1262`), `hooks/admission-guard.ts`, `hooks/guard.ts`, `hooks/hooks.json`, `.claude-plugin/plugin.json`, `./CLAUDE.md` — HIGH
