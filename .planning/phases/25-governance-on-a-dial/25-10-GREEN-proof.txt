@@ -1,0 +1,42 @@
+25-10 GREEN proof — both-direction proof (D-12: necessary-but-not-sufficient; the
+independent red-team at Task 25-11-03 is the gate, NOT this proof).
+
+Captured against the RETARGETED committed hooks/admission-guard.js (the per-call
+structured tool_input gate on the mcp__grugops__.* family), blob:
+7ccd00d8a549c41d40b9091343d624336721e722
+
+Driver: pipe a STRUCTURED PreToolUse stdin JSON (tool_name = the grugops MCP
+admission tool, tool_input = the note's structured fields) to the committed .js,
+assert deny/allow by exit-0 + JSON hookSpecificOutput.permissionDecision.
+
+--------------------------------------------------------------------------------
+CASE 1 (planted, flips RED->GREEN): high-severity finding, NO env, NO stamp.
+
+payload:
+{"tool_name":"mcp__grugops__propose_note","tool_input":{"task":"t","kind":"finding","by":"security-nfr","verified_by":"","body":"b"}}
+env: GRUGOPS_ADMISSION_APPROVED_BY unset
+DECISION: DENY   <-- GREEN (was ALLOW on the pre-retarget .js — see 25-10-RED-baseline.txt)
+
+CASE 2 (positive per-call): high-severity finding, env=alice, verified_by=human:alice.
+
+payload:
+{"tool_name":"mcp__grugops__propose_note","tool_input":{"task":"t","kind":"finding","by":"security-nfr","verified_by":"human:alice","body":"b"}}
+env: GRUGOPS_ADMISSION_APPROVED_BY=alice
+DECISION: ALLOW   <-- the fresh env + a matching stamp grants this call
+
+CASE 3 (mismatch): high-severity finding, env=alice, verified_by=human:bob.
+
+payload:
+{"tool_name":"mcp__grugops__propose_note","tool_input":{"task":"t","kind":"finding","by":"security-nfr","verified_by":"human:bob","body":"b"}}
+env: GRUGOPS_ADMISSION_APPROVED_BY=alice
+DECISION: DENY   <-- a stamp for a different name is refused (per-call stamp-binding, D-07)
+
+--------------------------------------------------------------------------------
+The planted high-severity-without-env admit flipped ALLOW (RED, pre-retarget Bash
+matcher never saw the MCP call) -> DENY (GREEN, retargeted structured gate). The
+positive (env=alice + human:alice -> ALLOW) and the mismatch (env=alice + human:bob
+-> DENY) hold on GREEN. The whole command-string parser is deleted; the gate reads
+only the final structured tool_input plus the fresh per-call session env.
+
+Full structured-channel suite: 180 passed (hooks/admission-guard.test.ts +
+scripts/floor-invariance.test.ts) under --testTimeout=30000.

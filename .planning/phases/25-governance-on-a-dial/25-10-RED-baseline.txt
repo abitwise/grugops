@@ -1,0 +1,31 @@
+25-10 RED baseline — both-direction proof (D-12: necessary-but-not-sufficient; the
+independent red-team at Task 25-11-03 is the gate, NOT this baseline).
+
+Captured against the PRE-RETARGET committed hooks/admission-guard.js (the Bash
+command-string matcher), blob: edd0699ec4418dba6c024c9632df73ccef878bcd
+
+Driver: pipe a STRUCTURED PreToolUse stdin JSON (tool_name = the grugops MCP
+admission tool, tool_input = the note's structured fields) to the committed .js,
+assert deny/allow by exit-0 + JSON hookSpecificOutput.permissionDecision.
+
+--------------------------------------------------------------------------------
+CASE (planted): a high-severity structured admit, NO env, NO matching stamp.
+
+payload:
+{"tool_name":"mcp__grugops__propose_note","tool_input":{"task":"t","kind":"finding","by":"security-nfr","at":"2026-06-26T00:00:00Z","confidence":"high","verified_by":"","body":"b"}}
+
+env: GRUGOPS_ADMISSION_APPROVED_BY unset
+
+stdout: (empty)
+DECISION: ALLOW   <-- RED
+
+WHY: the pre-retarget hook reads only tool_input.command. A structured propose_note
+call carries NO command string, so the old hook computes cmd="" → no admit segment →
+exit 0 (allow). The Bash matcher in hooks.json never even routes an mcp__grugops__*
+tool call to this hook. The sanctioned structured admission channel is therefore
+COMPLETELY UNGATED on the pre-retarget artifact — exactly the gap Plan 25-10 closes.
+
+This is the planted-direction RED. The GREEN proof (25-10-GREEN-proof.txt) shows the
+SAME structured admit DENY on the retargeted committed .js, the positive per-call
+case (env=alice + verified_by=human:alice -> ALLOW), and the mismatch
+(env=alice + verified_by=human:bob -> DENY).
