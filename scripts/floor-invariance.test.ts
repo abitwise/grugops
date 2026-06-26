@@ -1103,3 +1103,226 @@ describe("SC1 anti-whack-a-mole (25-07) — leading-run command-RESOLUTION class
     expect(blob, "hooks/guard.ts must be byte-frozen at the D-02 blob").toBe(FROZEN_GUARD_BLOB);
   });
 });
+
+describe("SC1 anti-whack-a-mole (25-08) — BASH-GROUNDED prove-final-literal class invariant", () => {
+  // Round-5: the admit-SHAPE detector is now STRUCTURAL — a script/verb token the hook cannot PROVE is an
+  // inert final literal (an ALLOWLIST `^[A-Za-z0-9/._:=,-]*$` + a raw free of `$`/backtick) is
+  // UNRESOLVABLE → fail CLOSED, catching extglob/glob/brace/tilde/param/cmd-sub/process-sub + any future
+  // metachar WITHOUT enumeration. The proof is a CLASS invariant — but its ORACLE is GROUNDED IN ACTUAL
+  // BASH BEHAVIOR, NOT in `tokenIsFinalLiteral` (the rev-1 CIRCULARITY: a self-referential oracle can
+  // never catch a gap INSIDE the predicate — the rev-1 fuzz passed extglob). `bashRewrites(token)` SPAWNS
+  // bash (`printf '%s\n'` for the simple forms; a controlled-temp-dir glob/extglob probe with `shopt -s
+  // extglob` and a real scripts/context-io.js for the glob forms) to decide INDEPENDENTLY whether bash
+  // rewrites the token, then asserts: a bash-rewritten script/verb token in an admit construction FORCES
+  // the committed admission-guard.js to gate. A gap inside the allowlist (e.g. wrongly allowlisting `@`,
+  // `(`) makes the extglob assertions FAIL — the suite is not self-referential. The round-2/3/4 sweeps +
+  // the four named floor invariants above are PRESERVED, not duplicated.
+  //
+  // D-12 / [[grugops-safety-invariant-green-suite-insufficient]]: this GREEN bash-grounded fuzz is
+  // NECESSARY-BUT-NOT-SUFFICIENT — the INDEPENDENT both-angle opus red-team at Task 25-08-04 is the gate.
+
+  // A controlled probe dir holding a REAL scripts/context-io.js so the glob/extglob probe can expand.
+  function makeProbeDir(): string {
+    const dir = freshTmp("bash-probe-");
+    mkdirSync(join(dir, "scripts"), { recursive: true });
+    writeFileSync(join(dir, "scripts", "context-io.js"), "// probe\n");
+    return dir;
+  }
+
+  // THE BASH-GROUNDED ORACLE (independent of the detector): does bash rewrite/expand the token into
+  // anything other than its verbatim single line? Spawns bash with extglob on, in the probe dir, and
+  // compares the expansion to the raw token. Glob/extglob expand against the real context-io.js; brace /
+  // tilde / ANSI-C / parameter / command-substitution / process-substitution / quote-removal all change
+  // the printed output. A static literal prints verbatim → not rewritten.
+  function bashRewrites(token: string, probeDir: string): boolean {
+    const r = spawnSync("bash", ["-c", `shopt -s extglob; printf '%s\\n' ${token}`], {
+      cwd: probeDir,
+      encoding: "utf8",
+    });
+    return (r.stdout ?? "") !== token + "\n";
+  }
+
+  // The INDEPENDENT generator: obfuscated forms of the SCRIPT-ref (de-quote/expand to scripts/context-io.js
+  // in the probe dir) — spanning glob, extglob `@(/?(/+(/!(`, brace, tilde, ANSI-C, parameter, command-
+  // substitution, process-substitution, quote-removal, mid-word substitution, and randomized non-alnum.
+  function scriptRewriteTokens(): string[] {
+    const randomChars = ["*", "?", "[o]", "@(o)", "+(o)", "!(zz)", "{o,x}"];
+    return [
+      "scripts/context-i*.js",
+      "scripts/context-i?.js",
+      "scripts/context-i@(o).js",
+      "scripts/context-i?(o).js",
+      "scripts/context-i+(o).js",
+      "scripts/context-io!(zz).js",
+      "scripts/context-i{o,x}.js",
+      "~/context-io.js",
+      "$S",
+      "${S}",
+      "$(echo scripts/context-io.js)",
+      "`echo scripts/context-io.js`",
+      "scr$(echo ipts)/context-io.js",
+      "<(echo scripts/context-io.js)",
+      ...randomChars.map((c) => `scripts/context-i${c}.js`),
+    ];
+  }
+
+  // Obfuscated forms of the admit VERB (de-quote/expand to `admit`).
+  function verbRewriteTokens(): string[] {
+    return [
+      "admi{t,x}",
+      "ad''mit",
+      '"admit"',
+      "$'admit'",
+      "$V",
+      "${V}",
+      "$(echo admit)",
+      "`echo admit`",
+      "ad$(echo mi)t",
+      "adm[i]t",
+      "ad?it",
+      "admi*",
+    ];
+  }
+
+  const S = "scripts/context-io.js";
+
+  it("SCRIPT-position: every bash-rewritten script token FORCES a gate (independent oracle)", () => {
+    const probe = makeProbeDir();
+    const { dir, highNote } = projectWith({ dial: "high-severity" });
+    let checkedRewrites = 0;
+    for (const tok of scriptRewriteTokens()) {
+      const command = `node ${tok} admit my-task ${highNote}`;
+      if (bashRewrites(tok, probe)) {
+        checkedRewrites++;
+        expect(
+          hookDecision(command, dir),
+          `bash rewrites script token ${JSON.stringify(tok)} → the hook MUST gate`,
+        ).toBe("deny");
+      } else {
+        // bash leaves it verbatim: it is then either the literal context-io admit (gate) or a literal
+        // outside the inert allowlist (the hook safely over-blocks). Either way an admit-shaped command
+        // with this script + the admit verb on a high-severity note gates — never under-blocks.
+        expect(
+          hookDecision(command, dir),
+          `non-rewritten admit-shaped script token ${JSON.stringify(tok)} must not under-block`,
+        ).toBe("deny");
+      }
+    }
+    expect(checkedRewrites, "the generator must exercise real bash rewrites").toBeGreaterThan(8);
+  });
+
+  it("VERB-position: every bash-rewritten verb token FORCES a gate (independent oracle)", () => {
+    const probe = makeProbeDir();
+    const { dir, highNote } = projectWith({ dial: "high-severity" });
+    let checkedRewrites = 0;
+    for (const tok of verbRewriteTokens()) {
+      const command = `node ${S} ${tok} my-task ${highNote}`;
+      const rewritten = bashRewrites(tok, probe);
+      if (rewritten) checkedRewrites++;
+      expect(
+        hookDecision(command, dir),
+        `${rewritten ? "bash-rewritten" : "obfuscated"} verb token ${JSON.stringify(tok)} → the hook MUST gate`,
+      ).toBe("deny");
+    }
+    expect(checkedRewrites, "the generator must exercise real bash rewrites").toBeGreaterThan(6);
+  });
+
+  it("a STATIC literal classifies correctly — context-io admit DENIES, a non-context-io script ALLOWs", () => {
+    const probe = makeProbeDir();
+    const { dir, highNote } = projectWith({ dial: "high-severity" });
+    // A fully-static literal is NOT rewritten by bash.
+    expect(bashRewrites(S, probe), "the literal script must not be a bash rewrite").toBe(false);
+    expect(bashRewrites("build", probe), "a literal non-context-io script must not be a bash rewrite").toBe(false);
+    expect(hookDecision(`node ${S} admit my-task ${highNote}`, dir)).toBe("deny");
+    expect(hookDecision(`node build`, dir)).toBe("allow");
+    expect(hookDecision(`node build $HOME/out`, dir)).toBe("allow");
+    expect(hookDecision(`node ${S} validate ${highNote}`, dir)).toBe("allow");
+  });
+
+  it("JS_RUNNERS / unknown-runtime boundary — bun $S $V gates, qjs $S $V allows, cp $A $B allows", () => {
+    const { dir } = projectWith({ dial: "high-severity" });
+    expect(hookDecision(`bun "$S" "$V"`, dir), "a recognized JS runner with a dynamic script gates").toBe("deny");
+    expect(hookDecision(`deno run "$S" "$V"`, dir)).toBe("deny");
+    expect(hookDecision(`qjs "$S" "$V"`, dir), "an UNKNOWN runtime is the disclosed residual (allow)").toBe("allow");
+    expect(hookDecision(`cp $A $B`, dir), "a non-JS-runner with no concrete anchor allows").toBe("allow");
+    expect(hookDecision(`tar $A $B`, dir)).toBe("allow");
+  });
+
+  it("xargs stdin-feed — an admit fed via xargs gates; a benign feed allows", () => {
+    const { dir, highNote } = projectWith({ dial: "high-severity" });
+    expect(
+      hookDecision(`echo "${S} admit my-task ${highNote}" | xargs node`, dir),
+      "an admit shape fed via xargs stdin must gate",
+    ).toBe("deny");
+    expect(hookDecision(`echo build | xargs node`, dir), "a benign xargs feed must allow").toBe("allow");
+  });
+
+  it("dial dimension — a routine admit via a rewrite DENIES under `all`, ALLOWs under `off`", () => {
+    const all = projectWith({ dial: "all" });
+    const off = projectWith({ dial: "off" });
+    for (const tok of ["scripts/context-i*.js", "scripts/context-i@(o).js"]) {
+      expect(
+        hookDecision(`node ${tok} admit my-task ${all.routineNote}`, all.dir),
+        `routine admit via ${tok} must DENY under all`,
+      ).toBe("deny");
+      expect(
+        hookDecision(`node ${tok} admit my-task ${off.routineNote}`, off.dir),
+        `routine admit via ${tok} must ALLOW under off`,
+      ).toBe("allow");
+    }
+  });
+
+  it("separator × ordering — a rewrite-obfuscated high-severity admit shielded among routines DENIES", () => {
+    const { dir, highNote, routineNote } = projectWith({ dial: "high-severity" });
+    const rewriteHigh = `node scripts/context-i*.js admit t ${highNote}`;
+    const bareRoutine = `node ${S} admit t ${routineNote}`;
+    for (const sep of [";", "&&", "||", "|", "&"]) {
+      const chains: string[][] = [
+        [rewriteHigh, bareRoutine],
+        [bareRoutine, rewriteHigh],
+        [bareRoutine, bareRoutine, rewriteHigh],
+      ];
+      for (let p = 0; p < chains.length; p++) {
+        expect(
+          hookDecision(chains[p].join(` ${sep} `), dir),
+          `rewrite-obfuscated high shielded@pos${p} sep="${sep}" must DENY`,
+        ).toBe("deny");
+      }
+    }
+    // A routine-only LITERAL chain ALLOWs under high-severity (no over-block of a readable routine note).
+    expect(
+      hookDecision(`${bareRoutine} ; node ${S} admit t ${routineNote}`, dir),
+      "a routine-only LITERAL chain must ALLOW under high-severity (no over-block)",
+    ).toBe("allow");
+    // But a routine note delivered via a REWRITE is unresolvable (the hook cannot read the note), so it
+    // fail-closed gates under any active dial — the disclosed, bounded over-block of an obfuscated admit.
+    expect(
+      hookDecision(`node scripts/context-i*.js admit t ${routineNote}`, dir),
+      "a routine note delivered via a glob rewrite is unresolvable → gates (bounded over-block)",
+    ).toBe("deny");
+  });
+
+  // The structural argument (the rev-1 circularity fix): the oracle is what BASH actually does, so a gap
+  // INSIDE the allowlist makes the suite FAIL — it is not self-referential. Mutation note: temporarily
+  // allowlisting `(` or `@` in tokenIsFinalLiteral would make the extglob `@(o)` / `+(o)` script-position
+  // assertions FAIL (the hook would then resolve the split token as a literal non-context-io script and
+  // ALLOW), proving the bash oracle drives the proof. D-12: a GREEN fuzz is necessary-not-sufficient; the
+  // independent both-angle opus red-team at Task 25-08-04 is the gate.
+  it("the four named floor invariants still hold behind a round-5 rewrite (self-set / guard byte-frozen)", () => {
+    const { dir, highNote } = projectWith({ dial: "high-severity" });
+    // GAP-B self-set behind a glob/extglob-rewritten launcher DENIES even with the var in env.
+    expect(
+      hookDecision(`${APPROVAL}=eve node scripts/context-i*.js admit my-task ${highNote}`, dir, "eve"),
+      "self-set behind a glob rewrite must DENY even with the var in env",
+    ).toBe("deny");
+    expect(
+      hookDecision(`${APPROVAL}=eve bun "$S" "$V"`, dir, "eve"),
+      "self-set behind a JS-runner rewrite must DENY even with the var in env",
+    ).toBe("deny");
+    // guard.ts stays byte-frozen (D-02) — the round-5 detector edit must not touch the deploy guard.
+    const blob = execFileSync("git", ["hash-object", join(ROOT, "hooks", "guard.ts")], {
+      encoding: "utf8",
+    }).trim();
+    expect(blob, "hooks/guard.ts must be byte-frozen at the D-02 blob").toBe(FROZEN_GUARD_BLOB);
+  });
+});
