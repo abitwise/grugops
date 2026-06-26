@@ -1060,4 +1060,47 @@ describe("admission-guard.js (GOV-01 human-admission gate) — child-spawn deny/
   it("allow (25-08/bounded-over-block): `node $SCRIPT build` ALLOWs under `off`", () => {
     expectAllow(payload("node $SCRIPT build"), { CLAUDE_PROJECT_DIR: projectOff });
   });
+
+  // ── 29. Gap-closure (25-08, executor self-probe / Rule-1) — STRUCTURAL detection behind a DYNAMIC
+  //    command word (a `$( … )`/backtick command substitution, or an eval/sh -c/$X word) must also catch a
+  //    GLOB/param/cmd-sub-obfuscated script, not only the literal substring (BLOCKER-2: structural on ANY
+  //    command word). The authoring executor's adversarial self-probe found these compound forms ALLOWed;
+  //    each must now DENY. (This is the AUTHOR suite — D-12: necessary-not-sufficient; the independent
+  //    red-team at Task 25-08-04 is the gate.)
+  for (const [label, command] of [
+    ["$(echo node) + glob script", `$(echo node) scripts/context-i*.js admit my-task __NOTE__`],
+    ["backtick launcher + glob", "`echo node` scripts/context-i*.js admit my-task __NOTE__"],
+    ["$X env-indirect + glob (live)", `$X scripts/context-i*.js admit my-task __NOTE__`],
+    ["sh -c glob body", `sh -c "node scripts/context-i*.js admit my-task __NOTE__"`],
+    ["eval glob body", `eval "node scripts/context-i*.js admit my-task __NOTE__"`],
+    ["bash -c param body", `bash -c "node \\"$S\\" admit my-task __NOTE__"`],
+  ] as const) {
+    it(`deny (25-08/dynamic-cmd-word): ${label} DENIES (structural behind a dynamic command word)`, () => {
+      expectDeny(payload(command.replace("__NOTE__", highNote)), { CLAUDE_PROJECT_DIR: projectHigh });
+    });
+  }
+
+  it("allow (25-08/Class-B narrow trigger): `$(echo hi) ls` with no admit shape stays ALLOW (no over-block)", () => {
+    expectAllow(payload("$(echo hi) ls"), { CLAUDE_PROJECT_DIR: projectAll });
+  });
+
+  // DISCLOSED RESIDUAL (not a silent gap): an EXTGLOB `@( …` script combined with a DYNAMIC command-
+  // substitution command word OR a quoted eval body still ALLOWs, because the extglob `(` fragments the
+  // script token at a segment boundary in the BYTE-FROZEN liveTokens tokenizer (which this round must not
+  // edit), and there is no recognized launcher to pin the `@`-fragment as an unresolvable script. The
+  // DIRECT / wrapped / JS-runner extglob forms (the plan's RED forms) DO close. This residual is narrow
+  // (extglob specifically + a dynamic command word / quoted body — a double evasion) and is flagged for
+  // the independent red-team in 25-08-SUMMARY. Asserted here so the boundary is explicit, not hidden.
+  it("allow (25-08/DISCLOSED residual): `$(echo node) …context-i@(o).js admit` ALLOWs (extglob `(` fragmentation)", () => {
+    expectAllow(
+      payload(`shopt -s extglob; $(echo node) scripts/context-i@(o).js admit my-task ${highNote}`),
+      { CLAUDE_PROJECT_DIR: projectHigh },
+    );
+  });
+  it("allow (25-08/DISCLOSED residual): `bash -c \"…context-i@(o).js admit\"` ALLOWs (extglob `(` in a quoted body)", () => {
+    expectAllow(
+      payload(`bash -c "shopt -s extglob; node scripts/context-i@(o).js admit my-task ${highNote}"`),
+      { CLAUDE_PROJECT_DIR: projectHigh },
+    );
+  });
 });

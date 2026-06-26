@@ -129,3 +129,37 @@ child-spawn oracle (admission-guard.test.ts) + the bash-grounded fuzz (floor-inv
 are NECESSARY-BUT-NOT-SUFFICIENT. SC1 round-5 closure REQUIRES the INDEPENDENT both-angle opus
 red-team at Task 25-08-04 (the blocking checkpoint), reproduced against the committed .js — not
 self-reported as a green suite.
+
+========================================================================================
+ADDENDUM (executor adversarial self-probe — Rule-1 deviation fixes, committed after the
+author suites): the authoring executor ran its OWN adversarial probe (NOT the independent
+red-team, which the orchestrator dispatches at Task 25-08-04) inventing un-enumerated
+compound forms, and CLOSED additional bypasses found:
+
+  [$(echo node) scripts/context-i*.js admit]  => DENY  (Class B command-sub launcher + glob; segmentHasStructuralAdmitShape)
+  [`echo node` scripts/context-i*.js admit]    => DENY  (backtick launcher + glob)
+  [$X scripts/context-i*.js admit (live)]      => DENY  (env-indirect command word + live glob)
+  [sh -c "node scripts/context-i*.js admit"]   => DENY  (glob inside an executed quoted eval body; rawBodyHasStructuralAdmitShape retokenize)
+  [eval "node scripts/context-i*.js admit"]    => DENY
+  [bash -c "node \"$S\" admit …"]              => DENY
+
+  Invented input-surface forms that DENY: deep extglob +(a|o), nested extglob @(?(o)),
+  char-class [o], ANSI-C $'\x61dmit', arithmetic-sub $((0)), tilde ~root/, glob-in-note-path.
+  Invented logic forms that DENY: deno --allow-read $X admit, npx -p a -p b tsx … admit,
+  3-admit shield via glob, $L launcher, xargs -P2 node feed, $(echo node) + glob.
+  Disclosed residuals confirmed ALLOW as stated: llrt/qjs $S $V (unknown runtime, T-25-40);
+  node /tmp/x.js admit and node ./ci.js admit (name-resolution forge, T-25-41).
+
+DISCLOSED RESIDUAL (NOT a silent gap — flagged for the independent red-team at 25-08-04):
+an EXTGLOB `@( …` / `?( …` / `+( …` / `!( …` script combined with a DYNAMIC command-
+substitution command word (`$(echo node) scripts/context-i@(o).js admit`) OR a quoted eval
+body (`bash -c "… context-i@(o).js admit …"`) still ALLOWs. ROOT: the extglob `(` is a hard
+segment separator in the BYTE-FROZEN liveTokens tokenizer (D-02-style constraint — this round
+must NOT edit liveTokens), so it fragments the script token (`scripts/context-i@`) into a
+different pseudo-segment from the `admit` verb, and there is no recognized launcher to pin the
+`@`-fragment as an unresolvable script (the DIRECT/wrapped/JS-runner extglob forms DO pin it
+and DENY). The residual is NARROW: extglob SPECIFICALLY (glob `*`/`?`/`[ ]`, param, cmd-sub,
+brace, tilde all close everywhere) AND a dynamic command-substitution word or a quoted eval
+body — a double evasion. Asserted ALLOW in admission-guard.test.ts section 29 so the boundary
+is explicit. A future round could close it by re-tokenizing across the `(`-fragmentation or by
+revisiting the liveTokens `(`-handling (out of this round's byte-frozen-tokenizer scope).

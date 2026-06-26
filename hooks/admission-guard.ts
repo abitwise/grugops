@@ -699,6 +699,44 @@ function launcherDisposition(
   return { kind: "none" };
 }
 
+// Does the segment from `from` carry a STRUCTURAL admit shape — adjacent positional tokens (Ti, Ti+1)
+// where [Ti final-literal-context-io OR Ti not final-literal] AND [Ti+1 final-literal-admit OR Ti+1 not
+// final-literal] AND at least one CONCRETE literal anchor (Ti literally context-io OR Ti+1 literally
+// admit)? Used by the Class B branch (a `$( … )`/backtick command word) so a glob/rewrite-obfuscated
+// script behind a dynamic launcher (`$(echo node) scripts/context-i*.js admit`) is caught structurally,
+// not only the literal `segmentHasAdmitShape` substring (BLOCKER-2 — structural detection on ANY command
+// word). The anchor bound keeps `$(echo hi) ls` (no concrete admit/context-io literal) from over-blocking.
+function segmentHasStructuralAdmitShape(tokens: LiveToken[], from: number, cmd: string): boolean {
+  for (let j = from; j + 1 < tokens.length && (j === from || !tokens[j].startsSegment); j++) {
+    if (tokens[j + 1].startsSegment) break;
+    const tiLiteral = tokenIsFinalLiteral(tokens, j, cmd);
+    const ti1Literal = tokenIsFinalLiteral(tokens, j + 1, cmd);
+    const tiCtx = tiLiteral && tokens[j].value.includes(ADMIT_SCRIPT);
+    const ti1Admit = ti1Literal && tokens[j + 1].value === ADMIT_VERB;
+    const tiOk = tiCtx || !tiLiteral;
+    const ti1Ok = ti1Admit || !ti1Literal;
+    if (tiOk && ti1Ok && (tiCtx || ti1Admit)) return true;
+  }
+  return false;
+}
+
+// An admit hidden inside an EXECUTED quoted eval body (`sh -c "node scripts/context-i*.js admit NOTE"`)
+// is DATA to the live-token walk, so the literal rawTextHasAdmitShape (which needs the literal
+// `context-io` substring) misses a glob/rewrite-obfuscated script inside it. Re-run the ONE tokenizer on
+// the de-quoted body text and apply the structural shape scan, so a glob/param/cmd-sub context-io inside
+// an sh -c / eval / $X body gates too. (extglob `@(` inside a body still fragments the token at `(` in
+// the byte-frozen tokenizer — a disclosed residual, see 25-08-SUMMARY.) Reuses liveTokens — no new walk.
+function rawBodyHasStructuralAdmitShape(text: string): boolean {
+  const unquoted = text.replace(/['"]/g, " "); // de-quote so the executed body becomes live tokens
+  const toks = liveTokens(unquoted);
+  for (let k = 0; k < toks.length; k++) {
+    if (k === 0 || toks[k].startsSegment) {
+      if (segmentHasStructuralAdmitShape(toks, k, unquoted)) return true;
+    }
+  }
+  return false;
+}
+
 function segmentAdmitDisposition(
   tokens: LiveToken[],
   cmdIdx: number,
@@ -804,7 +842,12 @@ function liveAdmitSegments(cmd: string): AdmitSegment[] {
     // statically unresolvable. If THIS segment carries the admit shape, it is an unresolvable live admit
     // → fail CLOSED. With no admit shape it is not an admit (narrow trigger — no over-block).
     if (rawWord === DYNAMIC_COMMAND_WORD) {
-      if (segmentHasAdmitShape(tokens, cmdIdx + 1)) {
+      // Round-5: detect the admit shape STRUCTURALLY too, so a glob/rewrite-obfuscated script behind a
+      // dynamic launcher (`$(echo node) scripts/context-i*.js admit`) gates, not only the literal form.
+      if (
+        segmentHasAdmitShape(tokens, cmdIdx + 1) ||
+        segmentHasStructuralAdmitShape(tokens, cmdIdx + 1, cmd)
+      ) {
         segments.push({ noteFile: null, unresolvable: true });
       }
       continue;
@@ -818,6 +861,12 @@ function liveAdmitSegments(cmd: string): AdmitSegment[] {
     if (DYNAMIC_EVAL_WORDS.has(word) || isEnvIndirectedWord(rawWord)) {
       if (
         segmentHasAdmitShape(tokens, cmdIdx + 1) ||
+        // Round-5: a glob/rewrite-obfuscated script in the LIVE argv behind a dynamic-eval/indirection
+        // word (`$X scripts/context-i*.js admit`) is caught structurally; the body retokenize catches a
+        // glob/param/cmd-sub admit hidden inside an EXECUTED quoted eval body; rawTextHasAdmitShape remains
+        // the literal fallback for the round-4 literal-context-io eval-body form.
+        segmentHasStructuralAdmitShape(tokens, cmdIdx + 1, cmd) ||
+        rawBodyHasStructuralAdmitShape(rawSegmentText(cmd, tokens, cmdIdx)) ||
         rawTextHasAdmitShape(rawSegmentText(cmd, tokens, cmdIdx))
       ) {
         segments.push({ noteFile: null, unresolvable: true });
