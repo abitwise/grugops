@@ -214,7 +214,7 @@ Plans:
   2. `context.audit_retention: git|retained` controls audit-trail retention, and all three config files are updated in lockstep with lean defaults preserved (zero-config still runs lean).
   3. The un-dialable safety floor is unchanged and not bypassable by any dial setting — verify-before-write, no-fabrication, test-integrity, and humans-hold-merge/deploy all hold regardless of governance configuration.
 
-**Plans**: 10/11 plans executed
+**Plans**: 10/12 plans executed
 Plans:
 **Wave 1**
 
@@ -255,6 +255,12 @@ Human decision (2026-06-26): stop patching the pre-expansion command-string toke
 - [x] 25-09-PLAN.md — the structured admission CHANNEL: zero-dep stdio MCP server `mcp__grugops__propose_note` + the additive `admitAndAppend` combiner (admit-decides-then-persist via the single writer, reusing Posture-B/D-04/the GOV-02 ledger) + plugin.json mcpServers wiring + the structured-channel write-path proof (Wave 9) [GOV-01, GOV-02]
 - [x] 25-10-PLAN.md — the un-forgeable GATE retarget: replace the Bash matcher with a `mcp__grugops__propose_note` structured matcher; DELETE the entire 10-round `liveTokens` command-string parser; decide from `tool_input.{by,kind,verified_by}` + the human-set session env; carry forward SC3 (off-only-is-off + corrupt-config fail-closed) + case-insensitive D-06; both-direction RED→GREEN vs the committed `.js` + the SC3 floor sweep on the structured channel (Wave 10, depends_on 25-09) [GOV-01, GOV-02]
 - [ ] 25-11-PLAN.md — WF16 + context-note contract describe the structured channel + hook; restate SC1 in ROADMAP + CONTEXT + document the irreducible same-uid residual (clear voice); BLOCKING independent bash-grounded opus red-team (D-12) vs the committed artifacts (Wave 11, depends_on 25-09/25-10) [GOV-01, GOV-02]
+
+**Wave 12** *(gap closure round 7 — close the three round-6 channel-reachable defects; blocked on Waves 9-11; 25-11 red-team STILL gaps_found 2026-06-26, 11th green-suite-insufficient catch)*
+
+Round 6 (MOVE-THE-GATE) succeeded at its core — the 10-round shell-obfuscation class is gone and two independent bash-grounded opus red-teams confirmed SC1's core human-gate HOLDS (SC2/SC3 preserved; single-source `isGatedNote`; `admit()` + `guard.ts` frozen; freshness 0). Round 7 fixes ONLY the three channel-reachable defects the red-team found and aims to be FINAL. Do NOT re-open round 6.
+
+- [ ] 25-12-PLAN.md — GAP-R6-1 path traversal through the single sanctioned writer: STRUCTURAL path-containment assertion in `appendNote` (resolved write path must stay inside the task's notes dir; protects ALL callers incl. the `propose_note` SOFT-kind channel) + defense-in-depth `by`/`at` metacharacter reject in `validate()` (preserves the reserved `§14-gate`); noteId formula/nonce unchanged. GAP-R6-2 config-root divergence: the admission server derives the dial/ledger/context root from the SAME trusted source the hook uses (`CLAUDE_PROJECT_DIR`), removes `repoRoot`/`contextRoot` from the tool inputSchema, and does not honor agent-supplied roots (off-mode W3 defeat / forged-`disposed_by` closed). GAP-R6-3 (HUMAN DECISION 2026-06-26 — HONEST-SCOPE, no new mechanism): prose-only restatement of SC1 (ROADMAP + 25-CONTEXT §A′) + WF16 + context-note.md to a per-SESSION-grant, per-note-CAPABLE model; `disposed_by: human:<name>` defined as "admitted under <name>'s session grant". Held-out RED tests built via the real channel + positive controls; rebuild the committed `.js` (freshness 0); BLOCKING independent bash-grounded opus red-team (D-12) with ≥1 novel probe vs the committed artifacts. Preserves `guard.ts`/`admit()` frozen, the deleted command-string parser, single-source classifiers, SC2 + the GOV-02 ledger, and the SC3 floor (Wave 12, depends_on 25-09/25-10/25-11) [GOV-01, GOV-02]
 
 ### Phase 26: Dogfood, Dual-Path Oracle & A3/DOG-02 Retirement
 
