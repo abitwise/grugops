@@ -1,0 +1,131 @@
+25-08 GREEN PROOF — the structural ALLOWLIST detector closes every round-5 shell-rewrite bypass vs the POST-FIX COMMITTED .js
+==========================================================================================================================
+
+Captured AFTER the fix + `npm run build` + `npm run freshness` (0 drift), child-spawning the
+COMMITTED POST-FIX artifacts, NOT the .ts and NOT the author's *.test.ts suites:
+
+    hooks/admission-guard.js   POST-FIX committed build (fresh tsc; freshness 0; first committed at 00a76e1)
+    scripts/context-io.js      UNCHANGED this round (git diff --quiet scripts/context-io.ts → exit 0)
+    hooks/guard.ts             blob 3501810e21308e4b7e219679a6ca30dace9b5d66 (byte-frozen, D-02; git diff --quiet → exit 0)
+
+THE FIX (structural admit-SHAPE detection inside the ONE liveAdmitSegments authority — no
+COMMAND_MODIFIERS widening, no LAUNCHERS widening, no second walk, liveTokens byte-identical):
+a script/verb token the hook cannot PROVE is an inert final literal is UNRESOLVABLE → fail
+CLOSED. `tokenIsFinalLiteral` is an ALLOWLIST `^[A-Za-z0-9/._:=,-]*$` (de-quoted value) + raw
+free of `$`/backtick + not the dynamic sentinel — catching extglob `@(` / glob / brace / tilde
+/ `$` / backtick / process-sub / any future metachar WITHOUT enumeration. `segmentAdmitDisposition`
+is SCRIPT-anchored — RULE 1 (position-free literal context-io → verb), RULE 2 (DIRECT-runner
+script pin vs FORWARDING-runner any-unresolvable), a buried-launcher scan for wrapped rewrites,
+and an unrecognized-command concrete-anchor scan (shebang). `JS_RUNNERS = {bun,bunx,deno,ts-node}`
+is a distinct JS-execution-capability set. The ONE detector feeds the launcher path, the catch-all,
+and `commandHasLiveAdmitShape` (the D-01 floor). `scripts/context-io.ts` is NOT edited.
+
+Same fixture as the RED baseline: <HI> = by:security-nfr; <RT> = by:software-engineer; named dial;
+NO GRUGOPS_ADMISSION_APPROVED_BY in env. S = scripts/context-io.js.
+
+----------------------------------------------------------------------------------------
+ROUND-5 BYPASSES — pre-fix ALLOW -> POST-FIX DENY (dial=high-severity, <HI>)
+----------------------------------------------------------------------------------------
+[glob script]           => DENY (closed)   node scripts/context-i*.js admit my-task <HI>            (RULE 2 direct: unresolvable script)
+[arg-cmd-sub]           => DENY (closed)   node $(echo S admit my-task <HI>)                        (DYNAMIC_COMMAND_WORD script)
+[backtick-cmd-sub]      => DENY (closed)   node `echo S admit my-task <HI>`                         (DYNAMIC_COMMAND_WORD script)
+[param $S script]       => DENY (closed)   node "$S" admit my-task <HI>                             ($ in value → not final-literal)
+[param $V verb]         => DENY (closed)   node S "$V" my-task <HI>                                 (RULE 1: verb not final-literal → unresolvable)
+[param $A bareword]     => DENY (closed)   node $A admit my-task <HI>                               (RULE 2 direct: unresolvable script)
+[xargs stdin-feed]      => DENY (closed)   echo "S admit my-task <HI>" | xargs node                 (feeder + raw admit shape → unresolvable)
+[EXTGLOB @(o)]          => DENY (closed)   node scripts/context-i@(o).js admit my-task <HI>         (@ outside the allowlist)
+[EXTGLOB ?(o)]          => DENY (closed)   node scripts/context-i?(o).js admit my-task <HI>
+[EXTGLOB +(o)]          => DENY (closed)   node scripts/context-i+(o).js admit my-task <HI>
+[EXTGLOB !(x)]          => DENY (closed)   node scripts/context-io!(x).js admit my-task <HI>
+[brace verb]            => DENY (closed)   node S admi{t,x} my-task <HI>                            (RULE 1: verb { outside allowlist)
+[process-sub script]    => DENY (closed)   node <(echo S) admit my-task <HI>                        (< outside allowlist → unresolvable)
+[bun glob]              => DENY (closed)   bun scripts/context-i*.js admit my-task <HI>             (forwarding: unresolvable token)
+[bun $S $V both-dyn]    => DENY (closed)   bun "$S" "$V"                                            (forwarding: unresolvable token)
+[deno run $S $V]        => DENY (closed)   deno run "$S" "$V"
+[shebang]               => DENY (closed)   scripts/context-io.js admit my-task <HI>                 (command word = script candidate)
+[timeout + glob]        => DENY (closed)   timeout 5 node scripts/context-i*.js admit my-task <HI>  (buried launcher, unresolvable script)
+[sudo + param]          => DENY (closed)   sudo node "$S" admit my-task <HI>                        (buried launcher)
+[redir + arg-cmd-sub]   => DENY (closed)   >/dev/null node $(echo S admit my-task <HI>)             (buried launcher, dynamic script)
+[timeout + extglob]     => DENY (closed)   timeout 5 node scripts/context-i@(o).js admit my-task <HI>
+[D-01 glob self-set]    => DENY (closed)   GRUGOPS_ADMISSION_APPROVED_BY=eve node scripts/context-i*.js admit my-task <HI>   (floor via the one authority)
+[dial-all glob routine] => DENY (closed)   node scripts/context-i*.js admit my-task <RT>            (dial=all; unresolvable → gate)
+
+----------------------------------------------------------------------------------------
+REGRESSION-GUARD CONTROLS — DENY pre AND post (RULE 1 position-free KEEPS them; rev-1 would have regressed)
+----------------------------------------------------------------------------------------
+[npx -p foo tsx]        => DENY (held)   npx -p foo tsx S admit my-task <HI>        (RULE 1 finds literal context-io past the -p flag)
+[npx -c foo tsx]        => DENY (held)   npx -c foo tsx S admit my-task <HI>
+[npx --package foo tsx] => DENY (held)   npx --package foo tsx S admit my-task <HI>
+[node -r preload]       => DENY (held)   node -r ./preload.js S admit my-task <HI>
+[quote-removal script]  => DENY (held)   node scripts/'context-io'.js admit my-task <HI>   (de-quotes to literal context-io)
+[quote-removal verb]    => DENY (held)   node S ad''mit my-task <HI>
+[quoted "admit"]        => DENY (held)   node S "admit" my-task <HI>
+[fully-static quoted]   => DENY (held)   node "scripts/context-io.js" "admit" my-task <HI>
+[tilde script]          => DENY (held)   node ~/context-io.js admit my-task <HI>   (RULE 2 direct: ~ outside allowlist → unresolvable)
+[bunx/deno/ts-node lit] => DENY (held)   bunx|deno run|ts-node S admit my-task <HI>   (RULE 1 literal context-io)
+[nice + bun (literal)]  => DENY (held)   nice -n 5 bun S admit my-task <HI>
+[glob in note-path]     => DENY (closed) node S admit my-task note-*.md   (RULE 1 note positional not final-literal → unresolvable)
+
+----------------------------------------------------------------------------------------
+DISCLOSED FORWARDING-RUNNER OVER-BLOCK — the accepted, opt-in, bounded GATED control (T-25-40)
+----------------------------------------------------------------------------------------
+[npx vitest run $FILE]       => DENY under high-severity / ALLOW under off   (any unresolvable token in a forwarding runner gates)
+[bun app.js $ARG]            => DENY under high-severity / ALLOW under off
+[deno run server.ts $PORT]   => DENY under high-severity / ALLOW under off
+[ts-node $SCRIPT]            => DENY under high-severity / ALLOW under off
+[node $SCRIPT build]         => DENY under high-severity / ALLOW under off   (bounded direct-runner over-block marker)
+[STATIC npx vitest run tests/foo.test.ts] => ALLOW (all tokens final-literal)
+[STATIC node app.js]         => ALLOW (direct runner, literal script)
+
+----------------------------------------------------------------------------------------
+DISCLOSED RESIDUALS — ALLOW post-fix (explicit, not silent; out of hook-tier scope)
+----------------------------------------------------------------------------------------
+[qjs $S $V]                  => ALLOW   qjs "$S" "$V"   (UNKNOWN-runtime: not in LAUNCHERS ∪ JS_RUNNERS, both positions dynamic, no literal anchor — T-25-40)
+[name-resolution forge]      => ALLOW   node /tmp/x.js admit my-task <HI>   (a renamed context-io copy; PRE-EXISTING substring-anchor limit — T-25-41, NOT a round-5 regression)
+
+----------------------------------------------------------------------------------------
+OVER-BLOCK-CLEAN controls — STILL ALLOW post-fix (zero false-positives on proven-non-admit data)
+----------------------------------------------------------------------------------------
+[ob: node build]                => ALLOW   node build
+[ob: node build $HOME/out]      => ALLOW   node build $HOME/out   (literal script, trailing dynamic arg ignored)
+[ob: node render]               => ALLOW   node render
+[ob: node script.js test]       => ALLOW   node script.js test
+[ob: node S validate]           => ALLOW   node S validate <HI>   (literal context-io, NON-admit verb)
+[ob: cp $SRC $DST / cp $A $B]    => ALLOW   (not a JS runner, no concrete literal anchor)
+[ob: tar $A $B / git log $REF]   => ALLOW
+[ob: timeout 5 node render]      => ALLOW
+[ob: sudo ls]                    => ALLOW
+[ob: >/dev/null node build]      => ALLOW
+[ob: routine-only multi]         => ALLOW   node S admit t1 <RT> ; node S admit t2 <RT>   (dial=high-severity)
+[ob: inert echo behind wrapper]  => ALLOW   timeout 5 echo "node S admit my-task <HI>"   (body never executed)
+[ob: echo build | xargs node]    => ALLOW   (feeder + no admit shape in the raw)
+[ob: zero-config absent lean]    => ALLOW   node S admit my-task <RT>   (dial=off / absent)
+
+----------------------------------------------------------------------------------------
+PRESERVED round-1..4 controls — hold post-fix
+----------------------------------------------------------------------------------------
+[p: Class A /usr/bin/nice node <HI>] => DENY (held)
+[p: Class B $(echo node) <HI>]       => DENY (held)
+[p: bare node <HI>]                  => DENY (held)
+[p: routine bare under high]         => ALLOW (held)
+[p: sh -c body <HI>]                 => DENY (held)
+[p: round-4 timeout/sudo/redir node <HI>] => DENY (held)
+[p: inert heredoc / $() no admit shape / empty stdin] => ALLOW (held)
+
+========================================================================================
+SUMMARY (post-fix committed .js): every one of the 22 RED round-5 bypass rows now DENIES
+(naming the unresolvable / fail-closed condition); the 13 regression-guard controls still
+DENY (RULE 1 position-free); the disclosed forwarding-runner over-block GATES under active
+governance and ALLOWs under `off`; the two disclosed residuals (qjs unknown-runtime, the
+pre-existing name-resolution forge) ALLOW explicitly; all over-block-clean and preserved
+round-1..4 controls hold. COMMAND_MODIFIERS / LAUNCHERS membership unchanged (no widening;
+JS_RUNNERS a distinct set); `function tokenize` / `noteFileFromCommand` grep=0 (single
+authority); `tokenIsFinalLiteral` is an ALLOWLIST (positive class), not a denylist; the
+liveTokens tokenizer body is byte-identical. guard.ts byte-frozen (3501810e…),
+scripts/context-io.ts untouched, freshness 0.
+
+D-12 / [[grugops-safety-invariant-green-suite-insufficient]]: this GREEN proof + the author
+child-spawn oracle (admission-guard.test.ts) + the bash-grounded fuzz (floor-invariance.test.ts)
+are NECESSARY-BUT-NOT-SUFFICIENT. SC1 round-5 closure REQUIRES the INDEPENDENT both-angle opus
+red-team at Task 25-08-04 (the blocking checkpoint), reproduced against the committed .js — not
+self-reported as a green suite.

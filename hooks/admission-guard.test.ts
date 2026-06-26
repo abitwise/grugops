@@ -1010,4 +1010,54 @@ describe("admission-guard.js (GOV-01 human-admission gate) — child-spawn deny/
       expectAllow(payload(command.replace("__NOTE__", highNote)), { CLAUDE_PROJECT_DIR: projectHigh });
     });
   }
+
+  // ── 27. Gap-closure (25-08) — the DISCLOSED forwarding-runner over-block is an INTENDED GATED control,
+  //    not a silent false-positive. A FORWARDING runner ({npx} ∪ JS_RUNNERS) forwards to a runner+script
+  //    at a deep/variable position the hook cannot pin, so RULE 2 gates on ANY unresolvable post-launcher
+  //    token. The accepted, opt-in, avoidable price: a non-admit forwarding-runner command with a dynamic
+  //    token DENIES while governance is active, and ALLOWs under `off` (proving it is opt-in). A
+  //    static/direct command avoids it. NOT tightened by runner semantics (that would be a new closed-
+  //    enumeration anti-pattern). This is asserted EXPLICITLY per the threat model (T-25-40), not hidden.
+  for (const [label, command] of [
+    ["npx vitest run $FILE", `npx vitest run $FILE`],
+    ["bun app.js $ARG", `bun app.js $ARG`],
+    ["deno run server.ts $PORT", `deno run server.ts $PORT`],
+    ["ts-node $SCRIPT", `ts-node $SCRIPT`],
+    ["bunx eslint $DIR", `bunx eslint $DIR`],
+  ] as const) {
+    it(`deny (25-08/fwd-over-block): ${label} GATES under high-severity (intended bounded over-block)`, () => {
+      expectDeny(payload(command), { CLAUDE_PROJECT_DIR: projectHigh });
+    });
+    it(`allow (25-08/fwd-over-block): ${label} ALLOWs under \`off\` (opt-in, avoidable)`, () => {
+      expectAllow(payload(command), { CLAUDE_PROJECT_DIR: projectOff });
+    });
+  }
+
+  it("allow (25-08/fwd-over-block control): a STATIC `npx vitest run tests/foo.test.ts` ALLOWs (all final-literal)", () => {
+    expectAllow(payload("npx vitest run tests/foo.test.ts"), { CLAUDE_PROJECT_DIR: projectHigh });
+  });
+  it("allow (25-08/fwd-over-block control): a STATIC `node app.js` ALLOWs (direct runner, literal script)", () => {
+    expectAllow(payload("node app.js"), { CLAUDE_PROJECT_DIR: projectHigh });
+  });
+
+  // ── 28. Gap-closure (25-08) — the DISCLOSED, PRE-EXISTING NAME-resolution residual (T-25-41). A real
+  //    admit run via a renamed/symlinked copy of context-io.js under a NON-context-io name ALLOWs: RULE 1
+  //    finds no literal `context-io`, and RULE 2-direct pins the renamed path as a final-literal non-
+  //    context-io script → none. This is a FUNDAMENTAL limit of name-based command-string detection — it
+  //    is PRE-EXISTING in the committed .js (the `context-io` substring anchor), NOT a round-5 regression,
+  //    and OUT OF HOOK-TIER SCOPE (the in-script admit() tier, deliberately kept byte-frozen this round,
+  //    is the only place a rename forge could be backstopped). Asserted ALLOW so the residual is explicit,
+  //    not a silent gap. The hook decides purely from the command STRING, so no real file copy is needed.
+  it("allow (25-08/name-residual): `node /tmp/x.js admit …` (a renamed context-io copy) ALLOWs (disclosed, pre-existing)", () => {
+    expectAllow(payload(`node /tmp/x.js admit my-task ${highNote}`), { CLAUDE_PROJECT_DIR: projectHigh });
+  });
+
+  // The bounded `node $SCRIPT build` over-block marker: a hidden (parameter-expanded) script under a DIRECT
+  // runner GATES under active governance (RULE 2 direct pins the unresolvable script), ALLOWs under `off`.
+  it("deny (25-08/bounded-over-block): `node $SCRIPT build` GATES under high-severity (hidden direct script)", () => {
+    expectDeny(payload("node $SCRIPT build"), { CLAUDE_PROJECT_DIR: projectHigh });
+  });
+  it("allow (25-08/bounded-over-block): `node $SCRIPT build` ALLOWs under `off`", () => {
+    expectAllow(payload("node $SCRIPT build"), { CLAUDE_PROJECT_DIR: projectOff });
+  });
 });
