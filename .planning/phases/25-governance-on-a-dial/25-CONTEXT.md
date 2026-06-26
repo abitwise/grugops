@@ -85,6 +85,45 @@ optional durable audit ledger.
   primary/degrade architecture as the whole v2.0 pivot). User accepted the CC-only un-forgeable
   tier rather than chasing a cross-CLI mechanism.
 
+### A′. SC1 restatement (round 6) — the achievable invariant + the documented residual
+
+After 10 rounds of patching the pre-expansion command-string tokenizer, the human chose to MOVE
+THE GATE TO THE POINT OF EFFECT (a structured admission channel + a per-call hook reading the final
+structured arguments) rather than keep chasing bash-completeness. SC1 is restated to the achievable
+invariant below. **This exact wording is mirrored verbatim in `.planning/ROADMAP.md` Phase 25
+Success Criteria item 1 — one wording, two places.**
+
+**SC1 (restated, round 6 — the achievable invariant):** The SANCTIONED admission channel is
+mechanically un-forgeable on Claude Code: a verified note is admitted only through the structured
+`mcp__grugops__propose_note` tool, gated by a PER-CALL PreToolUse `admission-guard` hook that reads
+the FRESH session disposition per call (`GRUGOPS_ADMISSION_APPROVED_BY=<name>`, the variable the
+agent's own child env cannot reach) and validates the agent-supplied `human:<name>` stamp against it
+PER NOTE — the hook reads the FINAL structured tool arguments, not a shell command string, so there
+is no shell-obfuscation surface. A gated (high-severity) note cannot be admitted through this channel
+without a named human; AND a human-APPROVED note IS admitted through it stamped
+`verified_by: human:<name>`, with the disposition attributed PER NOTE in the GOV-02 ledger
+(`disposed_by: human:<name>`, per-entry — no session blanket; the positive D-07 capability). UX
+(mirrors the deploy guard): the human exports `GRUGOPS_ADMISSION_APPROVED_BY=<name>` for the SPECIFIC
+disposition, the per-call hook validates it, and the human may unset it after. This un-forgeable tier
+is claimed CONSERVATIVELY for Claude Code only — un-forgeability is NOT claimed for the four non-CC
+CLIs, which degrade to the in-script `admit()` refusal plus a prompt-level "stop, ask a named human"
+(D-04/D-05).
+
+**Documented residual (NOT closed — stated plainly, no-fabrication):** direct same-uid filesystem
+forgery that BYPASSES the channel is an IRREDUCIBLE, PRE-EXISTING in-box limit (the prior
+command-string hook never closed it either). On a single-user box the shared context is a directory
+of note files the agent's uid owns and `readContext` admits any parseable file; no out-of-process
+mechanism can stop a same-uid process from writing one outside the channel — a `Write`-tool drop, a
+Bash `echo`/`cp`/`tee`/redirection, a hand-modified `context-io` copy, OR a programmatic
+`node -e appendNote(...)` (forges a note), `node -e admitAndAppend(...)` (forges a note AND, under
+`audit_retention: retained`, a GOV-02 `disposed_by` ledger line), or `node -e emitVerdict(...)`
+(forges a LIVE green §14-gate verdict — the most powerful same-uid form, since a forged green verdict
+then lets Posture-B admit forged findings). An agent self-setting the approval env on its OWN process
+is part of this same direct-node residual, not a channel bypass. The backstop is `autonomy=pr` — a
+named human holds merge/deploy — plus the in-script D-04 refusal and the no-fabrication floor. SC1 is
+CLOSED for the sanctioned channel on CC; the same-uid direct-FS residual is documented, NOT
+eliminated.
+
 ### B. Severity signal — un-gameable, narrow; `all` covers cross-cutting
 
 - **D-06 (severity = authoring role):** high-severity = the note's `by` ∈
