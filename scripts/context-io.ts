@@ -1320,7 +1320,10 @@ export function isGatedNote(
 }
 
 // ── admitAndAppend's result: the new note id on success, or the named faults on refusal. ─────────
-export interface AdmitAndAppendResult {
+// NOT exported (W-A anti-bloat: the ONLY new exports are the three functions admitAndAppend /
+// isGatedNote / isHighSeverityRole). Consumers read the inferred structural shape — this is the
+// return type of admitAndAppend, erased entirely from the compiled .js.
+interface AdmitAndAppendResult {
   id: string | null; // the new note id when persisted; null on refusal (nothing written)
   findings: string[]; // empty on success; the named fault(s) on refusal
 }
