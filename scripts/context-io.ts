@@ -40,7 +40,7 @@ import {
   mkdirSync,
   existsSync,
 } from "node:fs";
-import { join } from "node:path";
+import { join, resolve, sep } from "node:path";
 import { pathToFileURL } from "node:url";
 
 // ── The six note kinds (SCTX-01) ──────────────────────────────────────────────────────────────
@@ -170,6 +170,18 @@ function assertSingleLine(name: string, value: string): void {
     );
   }
 }
+
+// ── R6-1 CO-PRIMARY: path-metacharacter set for the `by`/`at` provenance scalars (Plan 25-12). ────
+// `by` and `at` flow into noteId → the on-disk <id>.md filename. A value carrying a path separator
+// (`/` or `\`), a NUL byte / any C0 control character (U+0000–U+001F), or the parent-directory
+// sequence `..` is a path-traversal attempt (the GAP-R6-1 class). validate() FAILs on it — this is a
+// CO-PRIMARY, load-bearing guard (NOT mere defense-in-depth): it is the structural guard for
+// emitVerdict's `at` parameter and for the CLI / compaction-carve-out oracle callers of validate(),
+// and it must not be weakened or skipped. It does NOT reject the reserved `by: §14-gate` (U+00A7 is
+// none of these metacharacters) nor a legitimate ISO-8601 `at` (a single dot between digits is not the
+// `..` parent-dir sequence). The shared writeNoteFile chokepoint is the OTHER primary (it contains the
+// resolved write path and also catches a forged/precomputed id, which validate does not inspect).
+const PATH_METACHAR_RE = /[\\/\u0000-\u001F]|\.\./;
 
 // ── Frontmatter parse (stdlib slice+regex — NO js-yaml/gray-matter, per the zero-dep constraint).
 // Extends the flat key:value idiom from generate-catalog.ts with one addition: a `refs:` YAML list
@@ -572,6 +584,24 @@ export function validate(text: string, trustedGateEmission = false): string[] {
     }
   }
 
+  // ── R6-1 CO-PRIMARY path-metacharacter reject for `by`/`at` (load-bearing, Plan 25-12) ─────────
+  // `by` and `at` flow into noteId → the on-disk <id>.md filename. A value carrying a path separator,
+  // a NUL / C0 control char, or the `..` parent-dir sequence is a traversal attempt — a structural
+  // FAIL naming the field. This is the structural guard for emitVerdict's `at` parameter and the CLI /
+  // compaction-carve-out oracle validate callers; it pairs with (does not replace) the writeNoteFile
+  // containment chokepoint. The reserved `by: §14-gate` (U+00A7) and a legitimate ISO-8601 `at`
+  // (single dots, `:`/`-`/`T`/`Z`) are NOT metacharacters and pass this check.
+  for (const field of ["by", "at"] as const) {
+    const v = scalars[field];
+    if (v !== undefined && v !== "" && PATH_METACHAR_RE.test(v)) {
+      findings.push(
+        `structural FAIL: provenance field "${field}" ("${v}") contains a path separator, a control ` +
+          `character, or a ".." sequence — these flow into the on-disk note filename and a ` +
+          `metacharacter there is a path-traversal attempt.`,
+      );
+    }
+  }
+
   // ── D-02 reserved-identity rule (applies to ANY note, not only findings) ──────────────────────
   // A note authored `by: §14-gate` is an impersonation flag, EXCEPT the gate's own verdict
   // emission (D-04), which routes through emitVerdict() and sets trustedGateEmission.
@@ -652,6 +682,38 @@ export function atomicWrite(finalPath: string, data: string): void {
   }
 }
 
+// ── writeNoteFile: the SINGLE note-file write chokepoint (path-containment, R6-1). ───────────────
+// GAP-R6-1 (Plan 25-12, the Phase-22 round-8 one-chokepoint lesson): the on-disk note filename is
+// `${id}.md`, and `id` is `${atCompact}-${by}-${kind}-${nonce}` (noteId) — so an agent-controlled
+// `by`/`at` carrying a path separator or `..` could steer the write OUTSIDE the task's notes dir
+// (cross-task injection through the sanctioned writer). The structural fix makes containment a
+// PROPERTY OF THE WRITE: compute the final path, then assert the RESOLVED final path stays strictly
+// inside the RESOLVED notes dir (it must begin with the resolved notes dir + the platform separator),
+// failing CLOSED (throw, nothing written) otherwise. BOTH note-file writers — appendNote AND the
+// sibling direct writer emitVerdict — route through here, so a future `at`-reachable change to either
+// cannot silently re-open the hole. Because the check operates on the RESOLVED filesystem path it
+// cannot be defeated by a novel metacharacter spelling (the anti-whack-a-mole posture). KNOWN LIMIT
+// (documented, NOT patched): a lexical resolve() does not follow symlinks, so a symlinked notes dir /
+// ancestor would pass containment — bounded by the same-uid direct-FS residual (the channel can only
+// atomicWrite a `.md`, never plant a symlink). The id is NOT inspected by validate(); this
+// path-containment is what catches a forged/precomputed id.
+function writeNoteFile(notesDir: string, id: string, text: string): void {
+  const finalPath = join(notesDir, `${id}.md`);
+  const resolvedDir = resolve(notesDir);
+  const resolvedFinal = resolve(finalPath);
+  // Strict containment: the resolved final path must begin with the resolved notes dir + separator.
+  // (Equality is NOT allowed — the final path is always a file strictly inside the dir.)
+  if (!resolvedFinal.startsWith(resolvedDir + sep)) {
+    throw new Error(
+      `context-io.writeNoteFile: refusing to write — note id "${id}" resolves OUTSIDE the task ` +
+        `notes directory (path containment violated: "${resolvedFinal}" is not strictly inside ` +
+        `"${resolvedDir}"). No file was written. This is a path-traversal attempt (GAP-R6-1).`,
+    );
+  }
+  mkdirSync(notesDir, { recursive: true });
+  atomicWrite(finalPath, text);
+}
+
 // ── Compose a note's frontmatter + body from a validated NoteInput. ─────────────────────────────
 // The frozen `id:` line is emitted FIRST inside the fence (a deterministic slot, before `kind:`) so
 // the on-disk frontmatter carries the same stable creation-time identity as the <id>.md filename.
@@ -724,9 +786,10 @@ export function appendNote(
   if (findings.length > 0) {
     throw new Error(`context-io.appendNote: refusing to write an invalid note:\n${findings.join("\n")}`);
   }
+  // Route through the SINGLE write chokepoint (R6-1): containment is a property of the write, so a
+  // traversal-bearing id can never escape the task's notes dir.
   const notesDir = join(contextRoot, task, "notes");
-  mkdirSync(notesDir, { recursive: true });
-  atomicWrite(join(notesDir, `${id}.md`), text);
+  writeNoteFile(notesDir, id, text);
   return id;
 }
 
@@ -849,9 +912,10 @@ export function emitVerdict(
       `context-io.emitVerdict: refusing to write an invalid verdict note:\n${findings.join("\n")}`,
     );
   }
+  // Route through the SAME single write chokepoint as appendNote (R6-1): emitVerdict is a SECOND
+  // direct note-file writer, so containment must live in the shared helper, not only in appendNote.
   const notesDir = join(contextRoot, task, "notes");
-  mkdirSync(notesDir, { recursive: true });
-  atomicWrite(join(notesDir, `${noteIdStr}.md`), text);
+  writeNoteFile(notesDir, noteIdStr, text);
   return noteIdStr;
 }
 

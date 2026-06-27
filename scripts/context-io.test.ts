@@ -1952,3 +1952,128 @@ describe("context-io.js — admitAndAppend (structured-channel persist arbiter, 
     expect(noteFiles(contextRoot, task)).toHaveLength(0);
   });
 });
+
+// ── GAP-R6-1 — path-containment through the shared writeNoteFile chokepoint (Plan 25-12) ───────────
+// A forged `by`/`at` carrying a path separator or `..` flows into noteId → the on-disk <id>.md
+// filename. Before this plan, appendNote/emitVerdict wrote the file with no containment guard, so a
+// traversal `by` escaped the task's notes dir (cross-task injection; GAP-R6-1 in 25-VERIFICATION.md).
+// The fix is a SINGLE shared writeNoteFile chokepoint (resolved final path must stay strictly inside
+// the resolved notes dir, fail-closed) routed through by BOTH appendNote AND emitVerdict, plus a
+// CO-PRIMARY `by`/`at` metacharacter reject in validate(). These RED-first tests drive BOTH writers
+// and prove nothing escapes the context tree; the positive controls prove a legit note + the reserved
+// §14-gate verdict still write.
+describe("context-io.js — GAP-R6-1 path-containment (shared writeNoteFile chokepoint, Plan 25-12)", () => {
+  function notesDirOf(contextRoot: string, task: string): string {
+    return join(contextRoot, task, "notes");
+  }
+  function noteFilesOf(contextRoot: string, task: string): string[] {
+    const d = notesDirOf(contextRoot, task);
+    return existsSync(d) ? readdirSync(d).filter((f) => f.endsWith(".md")) : [];
+  }
+  const baseNote = (over: Partial<import("./context-io.js").NoteInput> = {}) => ({
+    kind: "claim" as const,
+    by: "software-engineer",
+    at: "2026-06-17T14:23:05Z",
+    verified_by: "",
+    confidence: "high",
+    refs: [] as string[],
+    supersedes: null as string | null,
+    ...over,
+  });
+
+  // Pre-create VICTIM/notes so the escape is REAL (a missing dir would throw ENOENT and pass the test
+  // for the wrong reason). With the dir present, the PRE-FIX writer lands the file there (true escape);
+  // the FIXED writer refuses. This is the anti-whack-a-mole RED: it proves containment, not luck.
+  function plantVictim(contextRoot: string): void {
+    mkdirSync(notesDirOf(contextRoot, "VICTIM"), { recursive: true });
+  }
+
+  it("appendNote REFUSES a traversal `by` and writes NOTHING into the VICTIM task (true escape blocked)", () => {
+    const contextRoot = freshTmp("r61-by-ctx-");
+    plantVictim(contextRoot);
+    expect(() =>
+      mod.appendNote(
+        "ATK",
+        baseNote({ by: "x/../../../VICTIM/notes/INJECTED" }),
+        "an injected note",
+        contextRoot,
+      ),
+    ).toThrow();
+    expect(noteFilesOf(contextRoot, "VICTIM")).toHaveLength(0);
+    expect(noteFilesOf(contextRoot, "ATK")).toHaveLength(0);
+  });
+
+  it("appendNote REFUSES a traversal `at` (separator + ..) and writes nothing into the VICTIM task", () => {
+    const contextRoot = freshTmp("r61-at-ctx-");
+    plantVictim(contextRoot);
+    expect(() =>
+      mod.appendNote(
+        "ATK",
+        baseNote({ at: "2026-06-17T14:23:05Z/../../../VICTIM/notes/INJECTED" }),
+        "an injected note via at",
+        contextRoot,
+      ),
+    ).toThrow();
+    expect(noteFilesOf(contextRoot, "VICTIM")).toHaveLength(0);
+  });
+
+  it("admitAndAppend (SOFT kind, no gate) REFUSES a traversal `by` with id:null and writes nothing into VICTIM", () => {
+    const contextRoot = freshTmp("r61-aaa-ctx-");
+    const repoRoot = freshTmp("r61-aaa-repo-"); // no config → off (non-gated)
+    plantVictim(contextRoot);
+    const res = mod.admitAndAppend(
+      "ATK",
+      baseNote({ kind: "claim", by: "x/../../../VICTIM/notes/INJECTED" }),
+      "an injected soft note via the combiner",
+      contextRoot,
+      repoRoot,
+    );
+    expect(res.id).toBeNull();
+    expect(res.findings.length).toBeGreaterThan(0);
+    expect(noteFilesOf(contextRoot, "VICTIM")).toHaveLength(0);
+  });
+
+  it("emitVerdict (the sibling direct writer) REFUSES a traversal `at` and writes nothing into VICTIM", () => {
+    const contextRoot = freshTmp("r61-ev-ctx-");
+    plantVictim(contextRoot);
+    expect(() =>
+      mod.emitVerdict("ATK", "RUN-AAAA", contextRoot, "2026-06-17T14:23:05Z/../../../VICTIM/notes/INJECTED"),
+    ).toThrow();
+    expect(noteFilesOf(contextRoot, "VICTIM")).toHaveLength(0);
+  });
+
+  it("POSITIVE: a legit claim persists exactly one file under its own task's notes dir", () => {
+    const contextRoot = freshTmp("r61-pos-claim-ctx-");
+    const id = mod.appendNote("OWN", baseNote(), "a legitimate claim", contextRoot);
+    expect(id).toBeTruthy();
+    expect(noteFilesOf(contextRoot, "OWN")).toEqual([`${id}.md`]);
+  });
+
+  it("POSITIVE: a reserved `by: §14-gate` verdict via emitVerdict (legit ISO `at`) still writes", () => {
+    const contextRoot = freshTmp("r61-pos-verdict-ctx-");
+    const id = mod.emitVerdict("OWN", "RUN-OWN-7A3F", contextRoot);
+    expect(id).toBeTruthy();
+    expect(noteFilesOf(contextRoot, "OWN")).toHaveLength(1);
+    const text = readFileSync(join(notesDirOf(contextRoot, "OWN"), `${id}.md`), "utf8");
+    expect(text).toContain("by: §14-gate");
+  });
+
+  it("validate() rejects a `by`/`at` carrying a separator or `..` but PRESERVES §14-gate and ISO-8601", () => {
+    // The co-primary structural reject (load-bearing): a traversal `by`/`at` FAILs validate.
+    const traversalBy = mod.validate(goodNoteText({ by: "x/../../../VICTIM/notes/INJECTED" }));
+    expect(traversalBy.join("\n")).toMatch(/by/);
+    // A legit note (engineer / ISO at) passes the metachar check — assert the metachar finding absent.
+    const legit = mod.validate(goodNoteText());
+    expect(legit.join("\n")).not.toMatch(/path separator|".." sequence|control character/);
+    // The reserved §14-gate identity must NOT be rejected by the metachar guard (U+00A7 is none of
+    // those metacharacters). It still fails the reserved-identity rule on the plain validate path, but
+    // NOT the path-metacharacter reject — assert the metachar finding is absent.
+    const gate = mod.validate(goodNoteText({ by: "§14-gate" }));
+    expect(gate.join("\n")).not.toMatch(/path separator|".." sequence|control character/);
+  });
+
+  it("noteId formula is unchanged: <at-compact>-<by>-<kind>-<8 hex nonce>", () => {
+    const id = mod.noteId(baseNote({ by: "software-engineer", kind: "claim", at: "2026-06-17T14:23:05Z" }));
+    expect(id).toMatch(/^20260617T142305Z-software-engineer-claim-[0-9a-f]{8}$/);
+  });
+});

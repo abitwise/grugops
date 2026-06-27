@@ -175,6 +175,26 @@ describe("admission-server — structured-channel write path via the call handle
     expect(ledgerLines(repoRoot)).toHaveLength(0); // no forged disposed_by entered the ledger
   });
 
+  it("GAP-R6-1: a propose_note SOFT-kind (claim) with a traversal `by` is refused and writes nothing into the VICTIM task", () => {
+    const contextRoot = freshTmp("asrv-r61-ctx-");
+    const repoRoot = repoWithGovernance({ human_admission: "off" }); // off → a claim is non-gated
+    // Plant VICTIM/notes so the escape is REAL: pre-fix the soft note lands here; the fix refuses.
+    mkdirSync(notesDir(contextRoot, "VICTIM"), { recursive: true });
+    const a = args({
+      task: "ATK",
+      kind: "claim",
+      by: "x/../../../VICTIM/notes/INJECTED",
+      verified_by: "",
+      body: "a soft note attempting cross-task injection through the sanctioned channel",
+      contextRoot,
+      repoRoot,
+    });
+    const res = srv.handleProposeNote(a);
+    expect(res.isError).toBe(true);
+    expect(noteFiles(contextRoot, "VICTIM")).toHaveLength(0); // no INJECTED file escaped into VICTIM
+    expect(noteFiles(contextRoot, "ATK")).toHaveLength(0);
+  });
+
   it("single-writer: the only artifact under contextRoot is the one note file (no second-writer / stray files)", () => {
     const contextRoot = freshTmp("asrv-single-ctx-");
     const repoRoot = repoWithGovernance({ human_admission: "off" });
