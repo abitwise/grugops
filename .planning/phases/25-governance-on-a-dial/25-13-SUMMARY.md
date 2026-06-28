@@ -1,52 +1,35 @@
 ---
 phase: 25-governance-on-a-dial
 plan: 13
-status: interim-executor-handoff
-note: NOT a closure verdict — the orchestrator authors the closure/gaps verdict from the independent red-teams (no-fabrication, D-12)
+status: passed
+verdict: SC1 round-8 closure DECLARED — GAP-R7-1 structurally closed; human-approved 2026-06-29
+authored_by: orchestrator (from ≥2 independent bash-grounded opus red-teams + self-reproduction, NOT the green author suite — D-12)
 ---
 
-# Phase 25 Plan 13: GAP-R7-1 round-8 — INTERIM executor handoff (NOT a closure)
+# 25-13 SUMMARY — round-8 closure (GAP-R7-1 CLOSED; the saga's first passing closure gate)
 
-**Tasks 1–3 complete; HARD-STOPPED at blocking checkpoint 25-13-04; SC1 closure NOT declared; orchestrator red-teams pending.**
+**Plan:** 25-13 (round 8 — unify the kind + severity classifiers into one format-aware authority each; deliberately unfreeze admit()).
+**Outcome:** **SC1 round-8 closure DECLARED.** Both independent bash-grounded opus red-teams returned NO_BYPASS, the orchestrator self-reproduction passed 19/19, every preservation gate held, and the human approved closure (2026-06-29). Phase 25 is COMPLETE — SC1 (restated channel invariant) + SC2 + SC3 all met; GOV-01 + GOV-02 satisfied. This is the FIRST passing closure gate after 7 prior rounds and 12 green-suite-insufficient catches.
 
-This is an INTERIM handoff written by the authoring executor. It is explicitly NOT a
-pass/closure verdict. Per the plan's `<output>` and the D-12 lesson (a green author suite
-has been necessary-but-insufficient 12 straight times), the closure or gaps_found verdict
-MUST be authored by the orchestrator from ≥2 independent bash-grounded opus red-teams +
-orchestrator self-reproduction against the COMMITTED `.js`. The author suite below is green
-but does not, on its own, close SC1.
+## What executed (tasks 1–3, sequential-on-main; executor opus)
+- **Task 1 — Lever-1 (`a521444`):** Added exported `normalizeKind(raw)` (= parseNote's exact `.trim()` semantics, no case fold) — the ONE kind authority. `parseNote` ITSELF consults it; `isGatedNote`, the admission-guard hook, and the admission-server boundary import/consult it. The hook normalizes once at the source (~:150) so both the finding-equality check and `isGatedNote` see the same value. The server enforces `NOTE_KINDS` at the boundary (normalize-then-treat-consistently). The gate's finding-view is now byte-identical to what the store persists.
+- **Task 2 — Lever-2 (`444b839`):** admit()'s D-04 severity now routes through the single-source `isHighSeverityRole(scalars.by ?? "")` (a strict superset of the former `.trim().toLowerCase()` membership — catches internal-space/NFKC/zero-width forms). This DELIBERATELY UNFROZE admit() (D-12: the byte-freeze had frozen a strictly-weaker duplicate classifier — the trap). `ADMIT_FROZEN_SHA256` re-pinned to the new span `dbf66ac76f577ce848b9f6c2d3422ba39694c9c7a775c4524e8976ee4893ebf7` (prior `b7998cbd…be3d`); the freeze comment records the round-8 unfreeze rationale; the freeze re-locks GREEN at the new baseline so future drift still goes RED.
+- **Task 3 — proof + rebuild (`4c54354`):** Held-out RED→GREEN vs the committed `.js` (hook Lever-1 + end-to-end Lever-2 + kind×by structural sweep + ledger-honesty positives + enum-at-boundary); rebuilt the committed `.js`; freshness 0. Evidence: `25-13-RED-baseline.txt`, `25-13-GREEN-proof.txt`.
 
-## What was built (Tasks 1–3)
+The executor HARD-STOPPED at the blocking checkpoint 25-13-04 without self-approving, did not flip the ROADMAP, and did not mark GOV-01/GOV-02 complete (correct — the author suite is necessary-but-insufficient).
 
-- **Task 1 (Lever-1, commit `a521444`):** Added exported `normalizeKind(raw)` in
-  `scripts/context-io.ts` — the single kind authority, byte-identical to `parseNote`'s
-  persisted trim semantics. `parseNote`, `isGatedNote`, the admission-guard hook, and the
-  admission-server boundary all consult it. The hook normalizes the kind once at the source;
-  the server enforces `NOTE_KINDS` at the boundary (normalize-then-treat-consistently).
-- **Task 2 (Lever-2, commit `444b839`):** `admit()`'s D-04 now classifies severity via the
-  single-source `isHighSeverityRole(scalars.by ?? "")` instead of an inline weaker
-  `.trim().toLowerCase()` membership test. Deliberate, recorded unfreeze; `ADMIT_FROZEN_SHA256`
-  re-pinned to the new span hash with a round-8 rationale in the freeze comment.
-- **Task 3 (proof + rebuild, commit `4c54354`):** Held-out RED→GREEN cases vs the committed
-  `.js` (hook Lever-1 + end-to-end Lever-2 + kind×by structural sweep + ledger-honesty
-  positives + enum-at-boundary). Rebuilt the committed `.js`; captured `25-13-RED-baseline.txt`
-  and `25-13-GREEN-proof.txt`.
+## Checkpoint 25-13-04 — the D-12 closure gate (the verdict, no-fabrication)
+The orchestrator dispatched **TWO independent bash-grounded opus red-teams** (blind to each other) against the COMMITTED `.js` (`hooks/admission-guard.js`, `scripts/context-io.js`, `scripts/admission-server.js`), each with its own stdin/JSON-RPC drivers and isolated `mktemp -d` roots, plus orchestrator self-reproduction. The bash-grounded oracle: a forge counts only if, under an ACTIVE dial with `GRUGOPS_ADMISSION_APPROVED_BY` unset and no real human disposition, a HIGH-severity note is hook-ALLOWed and/or actually persisted (note file and/or `.grugops/audit/admissions.jsonl` line).
 
-## Verification evidence (author suite — necessary, NOT sufficient)
+- **RT-1 (classifier-divergence deep attack) → NO_BYPASS.** Full whitespace/zero-width/NFKC/homoglyph/case battery on `kind` AND `by`: gate-view == store-view for every variant. The load-bearing result: every input the hook reads as non-finding (ALLOW) is EXACTLY one the server's `NOTE_KINDS.includes(normalizeKind(...))` boundary REFUSES — no value persists as a finding while the hook allows. `isHighSeverityRole` strict superset over 1344 candidate `by` strings: 0 regressions. Positive controls discriminate (env+stamp ALLOW, mismatch DENY, routine ALLOW).
+- **RT-2 (maximally-creative novel-hole hunt) → NO_BYPASS.** Hook crash-allow probes (lone surrogates, object/array/`__proto__`, 1 MB `by`, 5000-deep nesting, malformed/empty/non-JSON stdin) all fail CLOSED (deny) — no non-blocking exit. 1274-combo hook↔server divergence fuzz: 0 flagged. Confirmed intact: enum-at-boundary, the §14-gate stamp cross-check (reserved-identity rule rejects `by: §14-gate`), GAP-R6-1 path-traversal containment, GAP-R6-2 config-root from `CLAUDE_PROJECT_DIR`, GAP-R6-3 honest-scope, the SC3 garbage/typo/corrupt-config floor, and the freeze (recomputed the span hash independently → exact match).
+- **Orchestrator self-reproduction → 19/19.** Both levers DENY at the un-forgeable hook tier (`kind:"finding "`/`" finding"`/`"\tfinding"`, `by:"security- nfr"`, combined); the ZWSP `kind` is hook-ALLOW but server-enum-REFUSED (the Lever-1 closure); positive (env=alice + `human:alice`) ALLOW, mismatch DENY, routine ALLOW, off-dial lean preserved, garbage dial `"HIGH-SEVERITY"` fail-closed (SC3); `isHighSeverityRole("security- nfr")` true; one severity authority; freeze hash matches the re-pinned baseline.
+- **Preservation gates:** `hooks/guard.ts` byte-frozen (`3501810e21308e4b7e219679a6ca30dace9b5d66`, `git diff --quiet` exit 0); `liveTokens` grep = 0 (.ts + .js); SC2 config 3-surface `cmp` byte-identical; exactly one `HIGH_SEVERITY_ROLES.includes` site (inside `isHighSeverityRole`); freshness 0; full non-e2e suite 778 passed / 1 skipped (pre-existing runtime conditional).
 
-- New admit() span hash (re-pinned `ADMIT_FROZEN_SHA256`): `dbf66ac76f577ce848b9f6c2d3422ba39694c9c7a775c4524e8976ee4893ebf7` (prior `b7998cbd…be3d`); freeze test GREEN at the new baseline.
-- Single-source greps: `normalizeKind` consulted in context-io.ts (5), admission-guard.ts (2), admission-server.ts (2); the ONLY `HIGH_SEVERITY_ROLES … .includes(...)` site is inside `isHighSeverityRole` (1).
-- RED→GREEN vs the committed `.js`: Lever-1 hook ALLOW→DENY; Lever-2 end-to-end ADMITTED+ledger`routine` → REFUSED + 0 ledger lines.
-- Gates: `npm run freshness` 0 drift (22 `.js` fresh); `git diff --quiet hooks/guard.ts` exit 0, hash `3501810e21308e4b7e219679a6ca30dace9b5d66`; `liveTokens` grep = 0; SC2 `cmp` byte-identical; full non-e2e suite 778 passed / 1 skipped (pre-existing runtime conditional; no source-level skips).
+## Documented residual (stated plainly — no-fabrication; NOT a bypass)
+On Claude Code the PreToolUse hook is the single mechanically un-forgeable tier; `admit()` / `admitAndAppend` is the documented WEAKER, self-settable degrade tier (for the four non-CC CLIs) that reads no approval env. RT-2 confirmed the server alone, reached WITHOUT the hook, will persist a forged-stamp gated finding — but on a correctly-wired CC session the hook fires on every `mcp__grugops__.*` call and cannot be crashed into a non-blocking exit, so the weak tier is reachable only by SKIPPING the hook. That is the IRREDUCIBLE same-uid / no-hook residual already disclosed in SC1 §A′ and GAP-R6-3 (a same-uid process can write a note file or call `appendNote`/`admitAndAppend`/`emitVerdict` directly), backstopped by `autonomy=pr` (a named human holds merge/deploy) + the no-fabrication floor. SC1 is CLOSED for the SANCTIONED channel on CC; the same-uid direct-FS residual is documented, not eliminated. RT-2's honest risk note — the CC human-gate has no env-backed backstop behind the hook, so hook mis-wiring would be a single point of failure — is recorded for future hardening (e.g. a future second `mcp__grugops__` tool must be covered by the matcher).
 
-## What the executor did NOT do (by design)
+## The terminal lesson (the saga's resolution)
+After 12 catches, the fix that held was the round-8 / Phase-22 "one format-aware authority" applied FULLY: ONE kind classifier (consulted by the parser, the gate, and the in-script backstop) + ONE severity classifier — and the courage to UNFREEZE the byte-frozen primitive, because the freeze had been preserving a strictly-weaker duplicate (the trap), not protecting correctness. Proven by ≥2 independent bash-grounded red-teams + self-reproduction (not a green author suite — that was necessary-but-insufficient every single round, including round 7 where the first red-team false-passed). See [[grugops-safety-invariant-green-suite-insufficient]].
 
-- Did NOT run Task 4 / dispatch the red-teams (orchestrator's job).
-- Did NOT self-approve or declare SC1 closure.
-- Did NOT flip the ROADMAP, did NOT mark GOV-01/GOV-02 complete, did NOT edit STATE.md/ROADMAP.md/REQUIREMENTS.md.
-- Did NOT author a closure/gaps verdict — that is the orchestrator's, from the red-teams.
-
-## Self-Check: PASSED
-
-- Commits exist: `a521444`, `444b839`, `4c54354` (verified in `git log`).
-- Files exist: `25-13-RED-baseline.txt`, `25-13-GREEN-proof.txt` (captured in the phase dir).
+_Authored 2026-06-29 by the orchestrator from the red-team reproductions + self-reproduction, human-approved at the blocking checkpoint. No-fabrication: the verdict is grounded in the reproduced cells, not the author suite._

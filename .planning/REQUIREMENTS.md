@@ -126,8 +126,8 @@ Which phases cover which requirements. Confirmed during roadmap creation (2026-0
 | MIGR-02 | Phase 24 | Complete |
 | MIGR-03 | Phase 24 | Complete |
 | MIGR-04 | Phase 24 | Complete |
-| GOV-01 | Phase 25 | In Progress |
-| GOV-02 | Phase 25 | In Progress |
+| GOV-01 | Phase 25 | Complete (round-8 SC1 closure 2026-06-29; un-forgeable sanctioned-channel human gate, verified by 2 independent red-teams NO_BYPASS + self-repro) |
+| GOV-02 | Phase 25 | Complete (audit_retention ledger; 3-surface lockstep, lean defaults) |
 | DOGF-01 | Phase 26 | Pending |
 | DOGF-02 | Phase 26 | Pending |
 | DOGF-03 | Phase 26 | Pending |
