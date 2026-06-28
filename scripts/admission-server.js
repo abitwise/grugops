@@ -42,7 +42,7 @@
 import { createInterface } from "node:readline";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
-import { admitAndAppend, NOTE_KINDS, } from "./context-io.js";
+import { admitAndAppend, normalizeKind, NOTE_KINDS, } from "./context-io.js";
 // The MCP server name. The full tool name a hook/agent sees is mcp__<server>__<tool>, so this name must
 // match the mcpServers key in .claude-plugin/plugin.json → mcp__grugops__propose_note.
 export const SERVER_NAME = "grugops";
@@ -115,8 +115,28 @@ function trustedRepoRoot() {
 export function handleProposeNote(args) {
     // Defensive shape coercion — the gate's decision logic lives in context-io, not here.
     const task = String(args.task ?? "");
+    // Enum-at-boundary (round-8 GAP-R7-1 Lever-1, defense-in-depth): canonicalize the agent-supplied kind
+    // through the SAME single-source authority parseNote / isGatedNote / the hook consult, then validate it
+    // against NOTE_KINDS BEFORE persistence. A padded kind that normalizes INTO the enum (e.g. "finding ")
+    // is built into the NoteInput as its CANONICAL form, so the persisted note's kind shape equals the
+    // gate's view — they can never differ. A kind that does NOT normalize into the enum is rejected here,
+    // naming the fault, before admitAndAppend runs (per the round-8 contract: normalize-then-treat-
+    // consistently — legitimate padded input that normalizes into the enum is NOT rejected).
+    const canonicalKind = normalizeKind(typeof args.kind === "string" ? args.kind : undefined);
+    if (!NOTE_KINDS.includes(canonicalKind)) {
+        return {
+            content: [
+                {
+                    type: "text",
+                    text: `admission REFUSED: the note "kind" ${JSON.stringify(args.kind)} is not one of the ` +
+                        `recognized kinds (${NOTE_KINDS.join(", ")}). No note was written.`,
+                },
+            ],
+            isError: true,
+        };
+    }
     const note = {
-        kind: args.kind,
+        kind: canonicalKind,
         by: String(args.by ?? ""),
         at: String(args.at ?? ""),
         verified_by: String(args.verified_by ?? ""),

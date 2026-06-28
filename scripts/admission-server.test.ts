@@ -45,6 +45,10 @@ afterAll(() => {
 
 // Import the committed server .js for the in-process call-handler path (the server's tools/call route).
 const srv: typeof import("./admission-server.js") = await import(pathToFileURL(SERVER_JS).href);
+// Import the committed context-io .js to SEED a real live green §14-gate verdict for the GAP-R7-1
+// end-to-end cases (the combiner's Posture-B cross-check requires a genuine verdict in the task context).
+const CONTEXT_IO_JS = join(ROOT, "scripts", "context-io.js");
+const cio: typeof import("./context-io.js") = await import(pathToFileURL(CONTEXT_IO_JS).href);
 
 // A factory.config.json under a temp root with the given context dial values; returns the root. This
 // root is the TRUSTED project root (GAP-R6-2): the server derives the dial / ledger / context root from
@@ -418,5 +422,144 @@ describe("admission-server — GAP-R6-2 trusted-root derivation from CLAUDE_PROJ
     const props = srv.PROPOSE_NOTE_TOOL.inputSchema.properties as Record<string, unknown>;
     expect(props.repoRoot).toBeUndefined();
     expect(props.contextRoot).toBeUndefined();
+  });
+});
+
+// ── GAP-R7-1 (round-8) — the UNIFIED-classifier end-to-end proof through the COMBINER channel ─────────
+// Held-out RED→GREEN vs the COMMITTED .js (D-12). The live bypass (RT-B bash-grounded, round 7): a
+// high-severity finding admitted through the sanctioned channel with NO human env and NO human stamp, the
+// GOV-02 ledger mislabelling it severity:"routine" — via TWO levers combined:
+//   Lever-1: kind:"finding " (whitespace-padded) → pre-fix isGatedNote raw-compared kind !== "finding"
+//     and treated it as a SOFT kind ⇒ routed the note onto admit()'s NON-gated path (where parseNote had
+//     already trimmed it back to a REAL finding).
+//   Lever-2: by:"security- nfr" (internal space) → admit()'s former edges-only `.trim().toLowerCase()`
+//     classifier (the byte-freeze trap) read it as NOT high-severity ⇒ admitted + ledgered "routine".
+// Pre-fix (25-13-RED-baseline.txt): ADMITTED, a note file written, a ledger line with severity:"routine".
+// Post-fix: normalizeKind makes isGatedNote see a real finding (Lever-1 closed) AND admit()'s D-04 now
+// routes through the single-source isHighSeverityRole which folds the internal space (Lever-2 closed) — so
+// the note is REFUSED with NO file and NO ledger line. The assertions target the STRUCTURAL property
+// (any in-enum whitespace kind × any internal-space/NFKC high-sev by gates), never a fixed spelling list.
+describe("admission-server — GAP-R7-1 round-8 unified-classifier end-to-end (RED→GREEN vs committed .js)", () => {
+  const ctxRootOf = (root: string) => join(root, ".grugops", "context");
+
+  it("Lever-1+2 combined: padded kind + internal-space high-sev by, live green gate, NO env/stamp → REFUSED, no note, no ledger line", () => {
+    const root = repoWithGovernance({ human_admission: "high-severity", audit_retention: "retained" });
+    const task = "asrv-gapr7-combined";
+    cio.emitVerdict(task, "LIVEID-1", ctxRootOf(root)); // a REAL live green §14-gate verdict
+    const res = withProjectDir(root, () =>
+      srv.handleProposeNote(
+        args({
+          task,
+          kind: "finding ", // Lever-1
+          by: "security- nfr", // Lever-2
+          verified_by: "§14-gate#LIVEID-1",
+          body: "a high-severity finding smuggled past both classifiers",
+        }),
+      ),
+    );
+    expect(res.isError).toBe(true);
+    // No note file beyond the seeded verdict; no ledger line at all.
+    expect(noteFiles(root, task)).toHaveLength(1); // only the seeded verdict note
+    expect(ledgerLines(root)).toHaveLength(0);
+  });
+
+  it("Lever-1 isolated control: padded kind + EXACT high-sev by → REFUSED (admit's D-04 also catches the exact role)", () => {
+    const root = repoWithGovernance({ human_admission: "high-severity", audit_retention: "retained" });
+    const task = "asrv-gapr7-lever1";
+    cio.emitVerdict(task, "LIVEID-2", ctxRootOf(root));
+    const res = withProjectDir(root, () =>
+      srv.handleProposeNote(
+        args({ task, kind: "finding ", by: "security-nfr", verified_by: "§14-gate#LIVEID-2", body: "padded kind, exact role" }),
+      ),
+    );
+    expect(res.isError).toBe(true);
+    expect(ledgerLines(root)).toHaveLength(0);
+  });
+
+  // Structural sweep: any in-enum whitespace kind variant × any internal-space/NFKC/case high-sev by is
+  // REFUSED end-to-end. Proves the property, not a denylist.
+  const KIND_VARIANTS = ["finding ", " finding", "\tfinding", "finding\t", "  finding  "];
+  const BY_VARIANTS = ["security- nfr", "security-nfr ", " architect-design", "Release-Manager", "release- manager"];
+  let i = 0;
+  for (const kind of KIND_VARIANTS) {
+    for (const by of BY_VARIANTS) {
+      i++;
+      it(`structural REFUSE: kind=${JSON.stringify(kind)} × by=${JSON.stringify(by)} (no env/stamp) → REFUSED, no ledger line`, () => {
+        const root = repoWithGovernance({ human_admission: "high-severity", audit_retention: "retained" });
+        const task = `asrv-gapr7-sweep-${i}`;
+        cio.emitVerdict(task, `SWEEP-${i}`, ctxRootOf(root));
+        const res = withProjectDir(root, () =>
+          srv.handleProposeNote(args({ task, kind, by, verified_by: `§14-gate#SWEEP-${i}`, body: "sweep" })),
+        );
+        expect(res.isError).toBe(true);
+        expect(ledgerLines(root)).toHaveLength(0);
+      });
+    }
+  }
+
+  // POSITIVE (no over-block): a real high-severity finding disposed by a named human ADMITS, and the
+  // GOV-02 ledger records the HONEST label — severity:"high", disposed_by:human:NAME (NOT routine).
+  it("POSITIVE: high-sev finding + human:alice under high-severity ADMITS; ledger severity=high disposed_by=human:alice", () => {
+    const root = repoWithGovernance({ human_admission: "high-severity", audit_retention: "retained" });
+    const task = "asrv-gapr7-pos";
+    const res = withProjectDir(root, () =>
+      srv.handleProposeNote(
+        args({ task, kind: "finding", by: "security-nfr", verified_by: "human:alice", body: "a real high-sev finding disposed by a named human" }),
+      ),
+    );
+    expect(res.isError).toBeFalsy();
+    expect(noteFiles(root, task)).toHaveLength(1);
+    const lines = ledgerLines(root);
+    expect(lines).toHaveLength(1);
+    const ev = JSON.parse(lines[0]);
+    expect(ev.severity).toBe("high");
+    expect(ev.disposed_by).toBe("human:alice");
+  });
+
+  // POSITIVE (no over-block): an internal-space high-sev by with a PADDED kind, disposed by a named human,
+  // ADMITS — the unification gates it, then the valid human stamp authorizes it, ledgered honestly "high".
+  it("POSITIVE: padded kind + internal-space by + human:alice ADMITS with ledger severity=high (no over-block)", () => {
+    const root = repoWithGovernance({ human_admission: "high-severity", audit_retention: "retained" });
+    const task = "asrv-gapr7-pos2";
+    const res = withProjectDir(root, () =>
+      srv.handleProposeNote(
+        args({ task, kind: "finding ", by: "security- nfr", verified_by: "human:alice", body: "padded+internal-space, human disposed" }),
+      ),
+    );
+    expect(res.isError).toBeFalsy();
+    const lines = ledgerLines(root);
+    expect(lines).toHaveLength(1);
+    expect(JSON.parse(lines[0]).severity).toBe("high");
+  });
+
+  // No over-block: a padded ROUTINE finding (gate-stamped) under high-severity ADMITS (routine never D-04
+  // gated), ledgered honestly "routine".
+  it("no over-block: padded routine finding (gate-stamped) under high-severity ADMITS; ledger severity=routine", () => {
+    const root = repoWithGovernance({ human_admission: "high-severity", audit_retention: "retained" });
+    const task = "asrv-gapr7-routine";
+    cio.emitVerdict(task, "ROUT-1", ctxRootOf(root));
+    const res = withProjectDir(root, () =>
+      srv.handleProposeNote(
+        args({ task, kind: "finding ", by: "software-engineer", verified_by: "§14-gate#ROUT-1", body: "routine padded finding" }),
+      ),
+    );
+    expect(res.isError).toBeFalsy();
+    const lines = ledgerLines(root);
+    expect(lines).toHaveLength(1);
+    expect(JSON.parse(lines[0]).severity).toBe("routine");
+  });
+
+  // Enum-at-boundary: a kind that does NOT normalize into NOTE_KINDS is rejected before persistence.
+  it("enum-at-boundary: kind that does not normalize into NOTE_KINDS is REFUSED before persistence", () => {
+    const root = repoWithGovernance({ human_admission: "off" });
+    const task = "asrv-gapr7-badkind";
+    // A U+200B zero-width space embedded inside "finding" — String.trim() (and thus normalizeKind) does
+    // NOT strip an interior zero-width char, so this does not normalize into NOTE_KINDS and is rejected.
+    const zwKind = "find​ing";
+    const res = withProjectDir(root, () =>
+      srv.handleProposeNote(args({ task, kind: zwKind, by: "software-engineer", verified_by: "", body: "zero-width kind not in enum" })),
+    );
+    expect(res.isError).toBe(true);
+    expect(noteFiles(root, task)).toHaveLength(0);
   });
 });

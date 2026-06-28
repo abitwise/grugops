@@ -287,6 +287,62 @@ describe("admission-guard.js (GOV-01 per-call structured gate) — child-spawn d
     });
   }
 
+  // ── 6b. GAP-R7-1 Lever-1 (round-8): whitespace-padded kind gates as the canonical finding ─────────
+  // Held-out RED→GREEN vs the COMMITTED admission-guard.js. Pre-fix the hook raw-compared
+  // `kind !== "finding"`, so a padded `kind:"finding "` read as a SOFT (non-finding) kind and the hook
+  // ALLOWed a high-severity finding with NO env (recorded ALLOW in 25-13-RED-baseline.txt). Post-fix the
+  // hook consults the single-source normalizeKind, so every in-enum whitespace variant normalizes to
+  // "finding" and DENIES — EXACTLY as the canonical form does. This asserts the STRUCTURAL property (any
+  // whitespace-padded form of the finding kind gates identically), NOT a fixed denylist of spellings.
+  const KIND_PAD_VARIANTS: Array<[string, string]> = [
+    ["trailing space", "finding "],
+    ["leading space", " finding"],
+    ["leading tab", "\tfinding"],
+    ["trailing tab", "finding\t"],
+    ["surrounding spaces", "  finding  "],
+    ["trailing newline", "finding\n"],
+  ];
+  for (const [label, kind] of KIND_PAD_VARIANTS) {
+    it(`deny (GAP-R7-1 Lever-1): high-severity finding with padded kind (${label}) gates as finding and DENIES without env`, () => {
+      expectDeny(payload({ by: "security-nfr", kind, verified_by: "§14-gate#x" }), {
+        CLAUDE_PROJECT_DIR: makeProject({ dial: "high-severity" }),
+      });
+    });
+  }
+
+  // Lever-1 control: an internal-space high-severity `by` with the EXACT kind:"finding" DENIES on its own
+  // (independent of Lever-1) — this is what makes Lever-2 (admit()'s former weaker `by` classifier) the
+  // necessary second lever for the end-to-end bypass, not the hook tier.
+  it("deny (GAP-R7-1 Lever-1 control): internal-space by=security- nfr + exact kind:finding DENIES (isGatedNote folds by)", () => {
+    expectDeny(payload({ by: "security- nfr", kind: "finding", verified_by: "§14-gate#x" }), {
+      CLAUDE_PROJECT_DIR: makeProject({ dial: "high-severity" }),
+    });
+  });
+
+  // No over-block: a padded SOFT kind stays not-gated (the normalization does not over-gate soft kinds).
+  it("allow (GAP-R7-1 Lever-1 control): a padded soft kind (observation ) under `all` is NOT gated", () => {
+    expectAllow(payload({ by: "security-nfr", kind: "observation ", verified_by: "" }), {
+      CLAUDE_PROJECT_DIR: makeProject({ dial: "all" }),
+    });
+  });
+
+  // No over-block: a padded routine finding under high-severity stays not-gated (kind normalizes to a
+  // finding, but the routine `by` keeps it non-high-severity → ALLOW).
+  it("allow (GAP-R7-1 Lever-1 control): a padded routine finding under high-severity is NOT gated", () => {
+    expectAllow(payload({ by: "software-engineer", kind: "finding ", verified_by: "§14-gate#x" }), {
+      CLAUDE_PROJECT_DIR: makeProject({ dial: "high-severity" }),
+    });
+  });
+
+  // The combined-lever GREEN positive at the hook tier: a padded kind + a real human env+stamp ALLOWS
+  // (the normalization gates it, then the per-call env+stamp authorizes it).
+  it("allow (GAP-R7-1 Lever-1 positive): padded kind + env=alice + human:alice ALLOWS", () => {
+    expectAllow(payload({ by: "security-nfr", kind: "finding ", verified_by: "human:alice" }), {
+      CLAUDE_PROJECT_DIR: makeProject({ dial: "high-severity" }),
+      [APPROVAL]: "alice",
+    });
+  });
+
   // ── 7. Cleanup ────────────────────────────────────────────────────────────────────────────────────
   it("cleanup temp dirs", () => {
     for (const d of tmpDirs) {

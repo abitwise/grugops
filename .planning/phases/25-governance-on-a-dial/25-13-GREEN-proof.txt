@@ -1,0 +1,23 @@
+# 25-13 GREEN evidence — GAP-R7-1 round-8 levers vs the COMMITTED .js
+# generated: 2026-06-28T20:10:05.211Z
+# git HEAD: 444b839ebe20c49d870d6897ba48b18792014ffb
+
+## Lever-1 (gate/hook tier): whitespace-padded kind under high-severity dial, NO env
+  hook kind="finding " by="security-nfr" no-env -> DENY   (want DENY post-fix)
+  hook kind=" finding" by="security-nfr" no-env -> DENY   (want DENY post-fix)
+  hook kind="\tfinding" by="security-nfr" no-env -> DENY   (want DENY post-fix)
+  hook kind="finding\t" by="security-nfr" no-env -> DENY   (want DENY post-fix)
+  [control] hook kind="finding" by="security- nfr" no-env -> DENY   (DENY both rounds: isGatedNote folds by)
+  [positive] hook kind="finding" by="security-nfr" env=alice+human:alice -> ALLOW   (want ALLOW)
+  [no-overblock] hook kind="finding" by="software-engineer" -> ALLOW   (want ALLOW: routine not gated)
+
+## Lever-2 (combiner/admit tier, end-to-end): padded kind + internal-space high-sev by, live green gate, NO env/human stamp
+  outcome: REFUSED   (want REFUSED post-fix)
+  server text: "admission REFUSED: this note is gated under the active human_admission setting and requires a named human disposition (verified_by: human:NAME). It carries \"§14"
+  note files written (excl. the seeded verdict): 1 total in notes dir
+  ledger lines: 0; severities: []   (pre-fix: a high-sev admit mislabelled "routine")
+
+## Lever-2 controls (each lever necessary)
+  [ctlA] padded kind + exact high-sev by -> REFUSED   (want REFUSED post-fix)
+  [positive] high-sev + human:alice -> ADMITTED; ledger severity="high" disposed_by="human:alice"   (want ADMITTED/high/human:alice)
+  [off-dial] routine finding, dial off -> ADMITTED   (want ADMITTED)

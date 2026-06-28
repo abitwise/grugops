@@ -62,7 +62,7 @@
 // `permissionDecisionReason` (gives the agent a clear message). Allow = exit 0, no output. This mirrors
 // the prod-deploy guard's posture exactly.
 import { readFileSync } from "node:fs";
-import { isGatedNote, readGovernanceConfigResult } from "../scripts/context-io.js";
+import { isGatedNote, normalizeKind, readGovernanceConfigResult } from "../scripts/context-io.js";
 // The human-confirm signal for admission. A human exports this in the shell that launches Claude (or
 // via settings env); the agent must never set it. The hook reads it from its OWN process env, which the
 // agent's spawned-child env cannot reach.
@@ -141,7 +141,13 @@ if (typeof kindRaw !== "string" || kindRaw.length === 0) {
     }
     process.exit(0); // off / absent → nothing to gate
 }
-const kind = kindRaw;
+// Canonicalize the kind via the SINGLE-SOURCE authority ONCE at the source (round-8 GAP-R7-1 Lever-1)
+// so BOTH the finding-equality check below AND the isGatedNote call further down see the SAME normalized
+// value parseNote persists. Pre-fix the hook raw-compared `kindRaw !== "finding"`, so a padded
+// `kind:"finding "` read as a soft kind here and the hook ALLOWed a real, store-persisted finding. The
+// missing/empty-kind fail-closed branch above intentionally inspects kindRaw (an all-whitespace kind is
+// still "present" to the agent); the classification below consults the canonical form.
+const kind = normalizeKind(kindRaw);
 // Only a finding is ever gated (soft kinds carry no disposition stamp, D-08 — via isGatedNote).
 if (kind !== "finding") {
     process.exit(0);

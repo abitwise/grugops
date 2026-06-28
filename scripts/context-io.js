@@ -252,6 +252,13 @@ export function parseNote(text) {
         }
         malformed.push(line);
     }
+    // Route the parsed `kind` THROUGH the single-source authority (round-8 GAP-R7-1 Lever-1). This is
+    // behavior-identical to the kv loop's existing `.trim()` (the value is already trimmed) — its sole
+    // purpose is to make parseNote consult the SAME helper the gate (isGatedNote / the hook / the server)
+    // consults, so the store's kind view and the gate's kind view cannot drift. The existing parseNote
+    // tests stay green (this is a proven no-op on the persisted value).
+    if (scalars.kind !== undefined)
+        scalars.kind = normalizeKind(scalars.kind);
     return { scalars, refs, body, duplicateKeys: [...dupes], malformedLines: malformed };
 }
 // ── isBoundaryShapedLine: a `---`-boundary-shaped fence line, trailing-whitespace tolerant. ────────
@@ -868,13 +875,19 @@ export function admit(task, text, contextRoot = DEFAULT_CONTEXT_ROOT, repoRoot =
     // a finding; we NEVER silently rewrite the note (the no-fabrication floor). The dials only ADD this
     // refusal; there is no value that removes a floor refusal (SC3).
     const gov = readGovernanceConfig(repoRoot);
-    // Case-INSENSITIVE high-severity classification (round-2 GAP-D): HIGH_SEVERITY_ROLES is lowercase and
-    // validate() accepts any non-empty `by`, so a case-variant `by` (`Security-NFR`, `SECURITY-NFR`) must
-    // still classify high-severity — otherwise the `high-severity` dial is escapable by casing and a
-    // forged self-authored `human:NAME` stamp slips through admit()'s D-04 backstop. Lowercase the trimmed
-    // `by` for the membership test only; the original `by` is preserved verbatim in the refusal message.
-    const isHighSeverity = scalars.kind === "finding" &&
-        HIGH_SEVERITY_ROLES.includes((scalars.by ?? "").trim().toLowerCase());
+    // SINGLE-SOURCE high-severity classification (round-8 GAP-R7-1 Lever-2). admit()'s D-04 backstop now
+    // classifies severity through the ONE classifier isHighSeverityRole — NOT a separate inline
+    // `.trim().toLowerCase()` membership test. isHighSeverityRole is a STRICT SUPERSET of the former check:
+    // it NFKC-folds, strips ALL whitespace AND zero-width code points, then lowercases, so it catches the
+    // internal-space / NFKC / zero-width / case `by` variants the former edges-only trim missed (e.g.
+    // `by:"security- nfr"`). Routing admit()'s D-04 through the same classifier isGatedNote and the hook
+    // use means the in-script tier and the gate tier cannot diverge — there is no weaker duplicate left to
+    // drift. This DELIBERATELY UNFREEZES admit() (D-12: the byte-freeze had frozen a strictly-weaker
+    // duplicate `by` classifier — the GAP-R7-1 Lever-2 trap); the freeze re-locks at the new baseline so
+    // any FUTURE drift to admit() still goes RED. scalars.kind is parseNote's already-normalized output
+    // (the kind authority), so the finding guard consumes the canonical value. The original `by` is
+    // preserved verbatim in the refusal message below.
+    const isHighSeverity = scalars.kind === "finding" && isHighSeverityRole(scalars.by ?? "");
     // Under an active dial (≠ off), a high-severity finding is refused at this in-script tier when it
     // lacks a named human disposition. CRITICAL (the 25-04 forged-stamp backstop, GAP1): the refusal
     // must fire for BOTH a finding with NO human:NAME stamp AND a finding carrying a SELF-AUTHORED
@@ -1133,6 +1146,27 @@ export function readGovernanceConfigResult(repoRoot) {
 // from isGatedNote + the note's own verified_by stamp.
 //
 // CLEAR PROFESSIONAL VOICE throughout (CLAUDE.md hard rule — governance/safety surface, never caveman).
+// ── normalizeKind — the SINGLE-SOURCE kind classifier (round-8 GAP-R7-1 Lever-1 anti-drift). ─────
+// The ONE authority for a note's `kind` view. It MUST equal, byte-for-byte, the value parseNote
+// persists for `kind`: parseNote's kv loop trims every scalar value via String.trim() (line ~286) and
+// does NOT case-fold, so this returns the trimmed string with no case change. parseNote ITSELF calls
+// this, and isGatedNote, the admission-guard hook, and the admission-server boundary all consult it —
+// so the gate's notion of "is this a finding?" can never be NARROWER than what the store persists.
+//
+// GAP-R7-1 Lever-1 was exactly that divergence: the hook and isGatedNote raw-compared `kind !== "finding"`
+// while parseNote trimmed, so a whitespace-padded `kind:"finding "` read as a SOFT (non-finding) kind at
+// the gate (ALLOW / not-gated) yet persisted as a REAL `finding` in the store. Routing every kind view
+// through this one helper makes that divergence structurally impossible.
+//
+// ANTI-WHACK-A-MOLE: this is NOT a denylist of padded spellings — it consults the format's own
+// normalization (the SAME trim parseNote applies), so there is nothing left to drift. A zero-width code
+// point (U+200B etc.) is NOT removed by String.trim(), so such a value stays a non-finding at BOTH the
+// gate and the store — no divergence — which is the correct, consistent outcome (it is also not a member
+// of NOTE_KINDS, so the store rejects it). Severity folding (NFKC/zero-width) is a SEPARATE concern owned
+// by isHighSeverityRole; kind canonicalization deliberately mirrors parseNote and nothing more.
+export function normalizeKind(raw) {
+    return (raw ?? "").trim();
+}
 // ── isHighSeverityRole — the SINGLE-SOURCE severity classifier (W-A, round-8 anti-drift). ────────
 // Severity is the AUTHORING ROLE (D-06). Canonicalize the `by` value before the allowlist test so a
 // homoglyph/spacing/case variant of a role literal cannot dodge the `high-severity` dial: NFKC-fold
@@ -1161,8 +1195,11 @@ export function isHighSeverityRole(by) {
 // gate-or-stricter. Only the exact string "off" (or a genuinely absent config, which reads "off") is
 // NOT gated.
 export function isGatedNote(by, kind, configResult) {
-    // Only a finding is ever gated — soft kinds carry no stamp (D-08).
-    if (kind !== "finding")
+    // Only a finding is ever gated — soft kinds carry no stamp (D-08). Consult the single-source kind
+    // authority (round-8 GAP-R7-1 Lever-1): a whitespace-padded `kind:"finding "` normalizes to "finding"
+    // here EXACTLY as parseNote persists it, so the gate's finding-view can never be narrower than the
+    // store's. This is the SAME normalizeKind the admission-guard hook and the admission-server consult.
+    if (normalizeKind(kind) !== "finding")
         return false;
     // A config file that EXISTS but cannot be read/parsed → fail closed (gate-or-stricter, SC3).
     if (configResult.source === "unreadable")
