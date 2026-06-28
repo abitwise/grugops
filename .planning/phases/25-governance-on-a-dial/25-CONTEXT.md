@@ -98,13 +98,20 @@ mechanically un-forgeable on Claude Code: a verified note is admitted only throu
 `mcp__grugops__propose_note` tool, gated by a PER-CALL PreToolUse `admission-guard` hook that reads
 the FRESH session disposition per call (`GRUGOPS_ADMISSION_APPROVED_BY=<name>`, the variable the
 agent's own child env cannot reach) and validates the agent-supplied `human:<name>` stamp against it
-PER NOTE — the hook reads the FINAL structured tool arguments, not a shell command string, so there
-is no shell-obfuscation surface. A gated (high-severity) note cannot be admitted through this channel
-without a named human; AND a human-APPROVED note IS admitted through it stamped
-`verified_by: human:<name>`, with the disposition attributed PER NOTE in the GOV-02 ledger
-(`disposed_by: human:<name>`, per-entry — no session blanket; the positive D-07 capability). UX
-(mirrors the deploy guard): the human exports `GRUGOPS_ADMISSION_APPROVED_BY=<name>` for the SPECIFIC
-disposition, the per-call hook validates it, and the human may unset it after. This un-forgeable tier
+on EVERY call — the hook reads the FINAL structured tool arguments, not a shell command string, so
+there is no shell-obfuscation surface. The grant is SESSION-SCOPED and per-note CAPABLE: once a named
+human exports it, it authorizes high-severity admissions under that name for the rest of the session,
+and the human controls granularity by setting/unsetting the grant around a specific disposition (the
+per-call hook re-reads the fresh env, so an unset takes effect on the next call); it is NOT a
+mechanically-enforced per-note nonce — one standing grant authorizes unlimited admissions under that
+name until unset (GAP-R6-3 honest-scope, human decision 2026-06-26). A gated (high-severity) note
+cannot be admitted through this channel without a named human; AND a human-APPROVED note IS admitted
+through it stamped `verified_by: human:<name>`, with the disposition recorded in the GOV-02 ledger as
+`disposed_by: human:<name>` — defined precisely as "admitted under <name>'s session grant," NOT
+"individually reviewed each entry" (the honest per-session-grant / per-note-capable D-07 model). UX
+(mirrors the deploy guard): the human exports `GRUGOPS_ADMISSION_APPROVED_BY=<name>` to grant the
+disposition for the session, the per-call hook validates the stamp against the fresh env on every
+call, and the human may unset it when the disposition is done. This un-forgeable tier
 is claimed CONSERVATIVELY for Claude Code only — un-forgeability is NOT claimed for the four non-CC
 CLIs, which degrade to the in-script `admit()` refusal plus a prompt-level "stop, ask a named human"
 (D-04/D-05).
@@ -145,7 +152,16 @@ eliminated.
   deny. No new staging protocol; fail-closed. The note is not lost — after the human disposes
   (exports the approval var for that disposition), admission is re-run and admits with the
   `human:<name>` stamp; or the agent honestly re-records as a soft `claim`
-  (`confidence: UNKNOWN - verify`) — never a faked pass. **Async `proposed/` staging
+  (`confidence: UNKNOWN - verify`) — never a faked pass. **Honest scope (round 7, human
+  decision 2026-06-26 — GAP-R6-3):** the approval grant is SESSION-SCOPED and per-note
+  CAPABLE, not a mechanically-enforced per-note nonce. Exporting
+  `GRUGOPS_ADMISSION_APPROVED_BY=<name>` authorizes high-severity admissions under that name
+  for the rest of the session; the per-call hook re-reads the fresh env on every call, so the
+  human controls granularity by setting/unsetting the grant around a specific disposition, but
+  one standing grant authorizes unlimited admissions under that name until unset. The GOV-02
+  ledger's `disposed_by: human:<name>` therefore means precisely "admitted under <name>'s
+  session grant," NOT "individually reviewed each entry" — no over-attribution. **Async
+  `proposed/` staging
   (write-but-invisible-to-`readContext`-live-state + promote-on-dispose + TTL) is DEFERRED to
   v2.x** (see Deferred Ideas). The safety argument won: a security/architecture/release finding
   is exactly what you want to block on.

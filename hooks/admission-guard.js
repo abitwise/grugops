@@ -22,10 +22,15 @@
 // human-admission signal is a separate process that reads the HUMAN-SET SESSION env var. An agent's own
 // inline `export VAR=...` lands in the child env it spawns, which the hook process never inherits; the
 // human's session export DOES reach the hook. The hook runs FRESH PER CALL and reads the CURRENT
-// session env, so the disposition is PER NOTE (a fresh human decision each time), never frozen at
-// launch. An in-script env check inside admit() would be self-settable and therefore forgeable — hence
-// the hook is the un-forgeable tier; admit()'s in-script refusal is the documented WEAKER degrade tier
-// for the four non-Claude-Code CLIs (D-04/D-05).
+// session env, so the grant is honestly scoped as SESSION-SCOPED and per-note CAPABLE (GAP-R6-3, human
+// decision 2026-06-26): once a named human exports the approval variable, it authorizes high-severity
+// admissions under that name for the rest of the session; the human controls granularity by
+// setting/unsetting the grant around a specific disposition (the per-call re-read means an unset takes
+// effect on the next call), but a standing grant is NOT a mechanically-enforced per-note nonce — one
+// export authorizes unlimited admissions under that name until unset. An in-script env check inside
+// admit() would be self-settable and therefore forgeable — hence the hook is the un-forgeable tier;
+// admit()'s in-script refusal is the documented WEAKER degrade tier for the four non-Claude-Code CLIs
+// (D-04/D-05).
 //
 // Contract (CLEAR PROFESSIONAL VOICE throughout — security/governance/audit surfaces are never caveman
 // voice, per CLAUDE.md):
@@ -43,7 +48,8 @@
 //     gate-or-stricter (the only off-equivalent value is EXACTLY "off").
 //   - For a GATED note, DENIES unless BOTH (a) the FRESH session env GRUGOPS_ADMISSION_APPROVED_BY=<name>
 //     is present in the hook's OWN process env AND (b) tool_input.verified_by === `human:${name}`. This
-//     binds the agent-supplied stamp to the env-verified approver PER CALL/PER NOTE (D-07): the agent
+//     binds the agent-supplied stamp to the env-verified approver on EVERY call against the fresh
+//     session grant (a session-scoped, per-note-CAPABLE grant, D-07 — not a per-note nonce): the agent
 //     supplies the stamp, the hook validates it against the fresh env. A missing env, a missing/empty
 //     stamp, or a mismatched/forged stamp (`human:bob` while env=alice) all DENY. No tool argument alone
 //     grants — the stamp alone never approves (this is the structured-channel form of refuse-self-set:

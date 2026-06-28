@@ -108,10 +108,14 @@ refused. A `human:<name>` stamp is accepted structurally; on Claude Code its un-
 signal is delivered by the separate PER-CALL PreToolUse `admission-guard` hook that gates the
 STRUCTURED `mcp__grugops__propose_note` admission channel — a distinct process that reads the FRESH
 session variable per call (the variable the agent's own child env cannot reach) and validates the
-agent-supplied `human:<name>` stamp against it PER NOTE (mirroring the prod-deploy guard). The hook
-reads the FINAL structured tool arguments, not a Bash command string, so there is no command text to
-obfuscate, and it binds each disposition to the specific entry the named human disposed (per-entry,
-no session blanket — D-07). The structured channel routes its persistence through `context-io.ts`
+agent-supplied `human:<name>` stamp against it on every call (mirroring the prod-deploy guard). The
+hook reads the FINAL structured tool arguments, not a Bash command string, so there is no command
+text to obfuscate. The grant is session-scoped and per-note capable (D-07): once a named human
+exports the approval variable, it authorizes high-severity admissions under that name for the rest of
+the session, and the human controls granularity by setting/unsetting the grant around a specific
+disposition (the per-call hook re-reads the fresh env, so an unset takes effect on the next call); it
+is not a mechanically-enforced per-note nonce. The GOV-02 ledger's `disposed_by: human:<name>`
+therefore means "admitted under <name>'s session grant," not "individually reviewed each entry." The structured channel routes its persistence through `context-io.ts`
 (`admitAndAppend` → `appendNote`), so `context-io.ts` remains the single sanctioned writer. That hook
 is the Claude Code primary tier, gated by the `human_admission` dial; the four non-CC CLIs degrade to
 the in-script `admit()` refusal plus a prompt-level "stop, ask a named human," documented honestly as

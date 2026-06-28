@@ -11,20 +11,24 @@
 // THE SERVER IS NOT THE GATE. Two facts (RESEARCH round 6) make this load-bearing:
 //   1. The un-forgeable Claude Code gate is the PER-CALL PreToolUse hook on mcp__grugops__.* (Plan
 //      25-10), which runs FRESH per call and reads the CURRENT human-set session env. An MCP server's
-//      process.env is FROZEN at launch and cannot see a mid-session export — a server-env approval would
-//      be PER-SESSION, silently narrowing D-07's per-ENTRY disposition to a blanket and mis-attributing
-//      the GOV-02 disposed_by to a human who never reviewed that specific entry (an audit-integrity
-//      failure). So this server reads NO approval env; it only forwards the structured args.
+//      process.env is FROZEN at launch and cannot see a mid-session export, so the GATE must live in the
+//      per-call hook, NOT in this server: only the per-call re-read lets a mid-session set/unset of the
+//      grant take effect. The grant is honestly scoped as SESSION-SCOPED and per-note CAPABLE (D-07,
+//      GAP-R6-3): a standing grant authorizes high-severity admissions under that name until unset — it
+//      is not a mechanically-enforced per-note nonce, and the GOV-02 disposed_by accordingly means
+//      "admitted under <name>'s session grant," not "individually reviewed each entry." So this server
+//      reads NO approval env; it only forwards the structured args.
 //   2. The single sanctioned writer stays context-io.appendNote. This server forks NO writer and parses
 //      NO shell string: it builds a NoteInput from the structured args and calls
 //      context-io.admitAndAppend, which decides admission then persists ONLY via appendNote.
 //
-// Per-NOTE disposition (D-07, conservative CC-only un-forgeability claim): a human grants a SPECIFIC
-// high-severity disposition by exporting GRUGOPS_ADMISSION_APPROVED_BY=<name> in the launching shell;
-// the per-call 25-10 hook validates the agent-supplied verified_by: human:<name> stamp against that
-// FRESH env, per call, un-forgeably. The four non-CC CLIs degrade to the weaker self-settable D-05 tier
-// (admitAndAppend's stamp check) and are NOT claimed un-forgeable. This server is the structured channel;
-// the hook is the gate.
+// Session-grant disposition (D-07, conservative CC-only un-forgeability claim, honestly scoped): a human
+// grants a high-severity disposition by exporting GRUGOPS_ADMISSION_APPROVED_BY=<name> in the launching
+// shell; the per-call 25-10 hook validates the agent-supplied verified_by: human:<name> stamp against
+// that FRESH env on every call, un-forgeably. The grant is session-scoped and per-note capable (the
+// human controls granularity by setting/unsetting around a disposition), not a per-note nonce. The four
+// non-CC CLIs degrade to the weaker self-settable D-05 tier (admitAndAppend's stamp check) and are NOT
+// claimed un-forgeable. This server is the structured channel; the hook is the gate.
 //
 // Build model (D-13): node: stdlib ONLY — ZERO host runtime deps. Authored in TypeScript, compiled with
 // tsc to a committed scripts/admission-server.js the host runs with bare Node; the freshness gate
