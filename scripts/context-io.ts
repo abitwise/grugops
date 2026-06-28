@@ -1001,14 +1001,20 @@ export function admit(
   // a finding; we NEVER silently rewrite the note (the no-fabrication floor). The dials only ADD this
   // refusal; there is no value that removes a floor refusal (SC3).
   const gov = readGovernanceConfig(repoRoot);
-  // Case-INSENSITIVE high-severity classification (round-2 GAP-D): HIGH_SEVERITY_ROLES is lowercase and
-  // validate() accepts any non-empty `by`, so a case-variant `by` (`Security-NFR`, `SECURITY-NFR`) must
-  // still classify high-severity — otherwise the `high-severity` dial is escapable by casing and a
-  // forged self-authored `human:NAME` stamp slips through admit()'s D-04 backstop. Lowercase the trimmed
-  // `by` for the membership test only; the original `by` is preserved verbatim in the refusal message.
+  // SINGLE-SOURCE high-severity classification (round-8 GAP-R7-1 Lever-2). admit()'s D-04 backstop now
+  // classifies severity through the ONE classifier isHighSeverityRole — NOT a separate inline
+  // `.trim().toLowerCase()` membership test. isHighSeverityRole is a STRICT SUPERSET of the former check:
+  // it NFKC-folds, strips ALL whitespace AND zero-width code points, then lowercases, so it catches the
+  // internal-space / NFKC / zero-width / case `by` variants the former edges-only trim missed (e.g.
+  // `by:"security- nfr"`). Routing admit()'s D-04 through the same classifier isGatedNote and the hook
+  // use means the in-script tier and the gate tier cannot diverge — there is no weaker duplicate left to
+  // drift. This DELIBERATELY UNFREEZES admit() (D-12: the byte-freeze had frozen a strictly-weaker
+  // duplicate `by` classifier — the GAP-R7-1 Lever-2 trap); the freeze re-locks at the new baseline so
+  // any FUTURE drift to admit() still goes RED. scalars.kind is parseNote's already-normalized output
+  // (the kind authority), so the finding guard consumes the canonical value. The original `by` is
+  // preserved verbatim in the refusal message below.
   const isHighSeverity =
-    scalars.kind === "finding" &&
-    (HIGH_SEVERITY_ROLES as readonly string[]).includes((scalars.by ?? "").trim().toLowerCase());
+    scalars.kind === "finding" && isHighSeverityRole(scalars.by ?? "");
   // Under an active dial (≠ off), a high-severity finding is refused at this in-script tier when it
   // lacks a named human disposition. CRITICAL (the 25-04 forged-stamp backstop, GAP1): the refusal
   // must fire for BOTH a finding with NO human:NAME stamp AND a finding carrying a SELF-AUTHORED

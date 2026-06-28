@@ -1709,18 +1709,30 @@ describe("governance-config", () => {
   });
 });
 
-// ── W-B mechanical admit() freeze (Plan 25-09) ────────────────────────────────────────────────────
-// admit() is byte-frozen this plan: the additive admitAndAppend MUST reuse it, never edit it. A green
-// suite alone cannot PROVE admit() is unchanged ([[grugops-safety-invariant-green-suite-insufficient]]).
-// This test extracts admit()'s exact function span from the committed SOURCE by brace-matching from
-// `export function admit(` to its balanced closing brace and asserts its byte-hash equals a baseline
-// pinned from the pre-25-09 committed admit(). Any future edit to admit()'s body goes RED here — the
-// freeze is proven structurally, not inferred from the behavioral suite.
-describe("context-io.ts — W-B admit() mechanical byte-freeze (Plan 25-09)", () => {
-  // The pinned baseline: sha256 of admit()'s function span captured from the committed admit() before
-  // the 25-09 additive exports landed. admit() must hash to this exactly.
+// ── W-B mechanical admit() freeze (Plan 25-09; RE-BASELINED Plan 25-13, round-8) ────────────────────
+// admit() is byte-frozen: this test extracts admit()'s exact function span from the committed SOURCE by
+// brace-matching from `export function admit(` to its balanced closing brace and asserts its byte-hash
+// equals a pinned baseline. Any future edit to admit()'s body goes RED here — the freeze is proven
+// structurally, not inferred from the behavioral suite
+// ([[grugops-safety-invariant-green-suite-insufficient]]).
+//
+// ROUND-8 DELIBERATE UNFREEZE + RE-BASELINE (Plan 25-13, GAP-R7-1 Lever-2). The previous baseline froze
+// admit()'s D-04 with a STRICTLY-WEAKER duplicate `by` classifier — an inline
+// `(HIGH_SEVERITY_ROLES …).includes((scalars.by ?? "").trim().toLowerCase())` (edges-only). That was the
+// GAP-R7-1 Lever-2 TRAP: the freeze was protecting a classifier that diverged from the single-source
+// isHighSeverityRole (which NFKC-folds + strips ALL whitespace/zero-width), so an internal-space
+// `by:"security- nfr"` slipped past admit()'s backstop. The human-decided round-8 scope (2026-06-28)
+// UNIFIES the classifiers: admit()'s D-04 now calls isHighSeverityRole(scalars.by ?? ""), a strict
+// SUPERSET of the former test (no admit() refusal regresses). admit()'s span therefore changes ONCE,
+// deliberately, and the freeze RE-LOCKS at the new baseline below so any FUTURE drift to admit() still
+// goes RED. The freeze stays a structural guard — re-pinned, NEVER deleted/skipped/weakened.
+// (hooks/guard.ts's SEPARATE prod-deploy freeze is untouched — a different invariant.)
+describe("context-io.ts — W-B admit() mechanical byte-freeze (Plan 25-09; re-baselined 25-13)", () => {
+  // The pinned baseline: sha256 of admit()'s function span. RE-PINNED in Plan 25-13 (round-8) after the
+  // deliberate Lever-2 unfreeze routed D-04 through the single-source isHighSeverityRole. admit() must
+  // hash to this exactly; the prior baseline was b7998cbd…be3d (pre-25-13).
   const ADMIT_FROZEN_SHA256 =
-    "b7998cbd5e550b904a4f659a6464f5cbc39eebf7825c96e18abac017f1e8be3d";
+    "dbf66ac76f577ce848b9f6c2d3422ba39694c9c7a775c4524e8976ee4893ebf7";
 
   // Extract the span `export function admit(` … matching `}` by brace-counting (the SAME extraction the
   // baseline was captured with). Reads the committed .ts source (the freeze is on the source of truth).
