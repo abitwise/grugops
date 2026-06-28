@@ -36,6 +36,7 @@
 // MCP transport: newline-delimited JSON-RPC 2.0 over stdin/stdout (the MCP stdio transport). The minimal
 // handshake implemented: initialize, notifications/initialized, tools/list, tools/call, ping.
 import { createInterface } from "node:readline";
+import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { admitAndAppend, NOTE_KINDS, } from "./context-io.js";
 // The MCP server name. The full tool name a hook/agent sees is mcp__<server>__<tool>, so this name must
@@ -88,18 +89,25 @@ export const PROPOSE_NOTE_TOOL = {
                 description: "A note id this note overrides, or null.",
             },
             body: { type: "string", description: "The markdown body of the note." },
-            contextRoot: {
-                type: "string",
-                description: "Optional explicit context root (tests pass a temp dir).",
-            },
-            repoRoot: {
-                type: "string",
-                description: "Optional explicit governance/audit root (tests pass a temp dir).",
-            },
         },
         required: ["task", "kind", "by", "at", "confidence", "body"],
     },
 };
+// ── The TRUSTED governance/persist root (GAP-R6-2, Plan 25-12). ──────────────────────────────────
+// The dial / ledger root / context root MUST come from the SAME trusted source the per-call
+// admission-guard hook reads (process.env.CLAUDE_PROJECT_DIR), NOT from agent-supplied tool args. An
+// MCP server's process.env is launch-frozen, but the harness keeps CLAUDE_PROJECT_DIR stable per
+// session, so the hook tier and this persist tier resolve the IDENTICAL root and cannot diverge. When
+// CLAUDE_PROJECT_DIR is unset the fallback is the server's OWN resolved repo root (join(dirname, ".."))
+// — equal to context-io's ROOT and to admitAndAppend's repoRoot default. Agent `repoRoot`/`contextRoot`
+// are no longer in the inputSchema and are ignored here (the off-mode W3 defeat + forged disposed_by are
+// closed: the agent can no longer point governance at a root it controls).
+function trustedRepoRoot() {
+    const fromEnv = process.env.CLAUDE_PROJECT_DIR;
+    if (typeof fromEnv === "string" && fromEnv !== "")
+        return fromEnv;
+    return join(import.meta.dirname, "..");
+}
 export function handleProposeNote(args) {
     // Defensive shape coercion — the gate's decision logic lives in context-io, not here.
     const task = String(args.task ?? "");
@@ -113,8 +121,11 @@ export function handleProposeNote(args) {
         supersedes: args.supersedes === undefined || args.supersedes === null ? null : String(args.supersedes),
     };
     const body = String(args.body ?? "");
-    const contextRoot = args.contextRoot === undefined ? undefined : String(args.contextRoot);
-    const repoRoot = args.repoRoot === undefined ? undefined : String(args.repoRoot);
+    // GAP-R6-2: derive the governance/persist root from the trusted source (CLAUDE_PROJECT_DIR), NEVER
+    // from agent-supplied args. The context root is the trusted root's .grugops/context subpath. Any
+    // `args.repoRoot`/`args.contextRoot` an agent sends is ignored (they are no longer in the schema).
+    const repoRoot = trustedRepoRoot();
+    const contextRoot = join(repoRoot, ".grugops", "context");
     try {
         const result = admitAndAppend(task, note, body, contextRoot, repoRoot);
         if (result.findings.length > 0) {
