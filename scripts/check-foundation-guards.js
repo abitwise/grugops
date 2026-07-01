@@ -55,7 +55,7 @@ import { join, basename } from "node:path";
 // oracle BODIES live single-source in check-uat-oracles.ts — here we only INVOKE them and fold their
 // accumulated fail count into FAILS. The oracle module honors the SAME CHECK_ROOT override, so the
 // fail-proof harness's hermetic mirror plant exercises them through this aggregator too.
-import { oracleWr05Wording, oracleHooksWiring, oracleParity, uatOracleFails, } from "./check-uat-oracles.js";
+import { oracleWr05Wording, oracleHooksWiring, oracleDualPathEquivalence, uatOracleFails, } from "./check-uat-oracles.js";
 // The .sh hard-coded repo-relative paths and assumed cwd == repo root. The TS port resolves
 // every path against the script-relative repo root, but ALSO honors a CHECK_ROOT override so the
 // Vitest harness can point the guard at a hermetic mirror dir (mirrors how the .test.sh harness
@@ -603,14 +603,14 @@ guardContextWrites();
 // Phase 19 auto-UAT Tier-1 oracles (UAT-AUTO-05 / BLOCKER 1).
 //
 // Invoke the three deterministic oracles defined single-source in check-uat-oracles.ts (B3 wording,
-// A2 wiring, A3 parity), then fold their accumulated fail count into this aggregator's FAILS so the
+// A2 wiring, A3 dual-path equivalence), then fold their accumulated fail count into this aggregator's FAILS so the
 // existing exit tail goes non-zero if any one Tier-1 oracle fails — the aggregator FAILS CLOSED.
 // The oracle bodies are NOT restated here (single-source).
 // ---------------------------------------------------------------------------
 process.stdout.write("\n== Phase 19 auto-UAT Tier-1 oracles (UAT-AUTO-05) ==\n");
 oracleWr05Wording();
 oracleHooksWiring();
-oracleParity();
+oracleDualPathEquivalence();
 FAILS += uatOracleFails();
 // ---------------------------------------------------------------------------
 // Result

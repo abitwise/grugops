@@ -59,7 +59,7 @@ import { join, basename } from "node:path";
 import {
   oracleWr05Wording,
   oracleHooksWiring,
-  oracleParity,
+  oracleDualPathEquivalence,
   uatOracleFails,
 } from "./check-uat-oracles.js";
 
@@ -633,14 +633,14 @@ guardContextWrites();
 // Phase 19 auto-UAT Tier-1 oracles (UAT-AUTO-05 / BLOCKER 1).
 //
 // Invoke the three deterministic oracles defined single-source in check-uat-oracles.ts (B3 wording,
-// A2 wiring, A3 parity), then fold their accumulated fail count into this aggregator's FAILS so the
+// A2 wiring, A3 dual-path equivalence), then fold their accumulated fail count into this aggregator's FAILS so the
 // existing exit tail goes non-zero if any one Tier-1 oracle fails — the aggregator FAILS CLOSED.
 // The oracle bodies are NOT restated here (single-source).
 // ---------------------------------------------------------------------------
 process.stdout.write("\n== Phase 19 auto-UAT Tier-1 oracles (UAT-AUTO-05) ==\n");
 oracleWr05Wording();
 oracleHooksWiring();
-oracleParity();
+oracleDualPathEquivalence();
 FAILS += uatOracleFails();
 
 // ---------------------------------------------------------------------------

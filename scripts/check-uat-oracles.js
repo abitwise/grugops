@@ -13,9 +13,14 @@
 //                       guard.js with a matched kubectl-apply payload and asserts the deny-JSON.
 //                       This is the WIRING contract only — guard.test.ts covers guard logic (26/26);
 //                       re-testing it here would be scope creep.
-//   oracleParity (A3 / UAT-AUTO-03) — reads examples/03-ticket-to-pr.md and asserts the dual-path
-//                       parity table names the frozen handoff filenames + the frozen gate verdict in
-//                       both dispatch columns, and NEVER marks a `pending human` cell passed.
+//   oracleDualPathEquivalence (A3 / UAT-AUTO-03, DOGF-01) — replays ONE seeded decomposition two ways
+//                       (parallel-spawn simulation vs sequential drain) in hermetic temp roots, driving
+//                       the committed claim.js/context-io.js, then asserts the two paths converge on the
+//                       SAME on-disk admitted-note set (via the single-source dual-path-equivalence
+//                       comparator), the SAME done/ artifact, and the SAME frozen verdict string. This
+//                       REPLACES the former structural-grep oracleParity: real substrate convergence,
+//                       not a doc-shape grep. The finding carries a FROZEN synthetic §14-gate stamp
+//                       (D-03) — no live gate/emitVerdict/admit call, kept deterministic and no-LLM.
 //
 // This module is STANDALONE — its own run-all block + exit tail (mirroring the catalog-freshness.ts
 // standalone-not-folded precedent, D-07). It is wired as its own lane AND its three oracle functions
@@ -33,9 +38,15 @@
 //
 //   node scripts/check-uat-oracles.js
 // Exit 0 = all three oracles GREEN (ALL CHECKS PASSED); exit 1 = at least one FAIL.
-import { readFileSync, existsSync } from "node:fs";
+import { readFileSync, existsSync, mkdtempSync, mkdirSync, writeFileSync, readdirSync, rmSync, } from "node:fs";
 import { join } from "node:path";
+import { tmpdir } from "node:os";
 import { spawnSync } from "node:child_process";
+// Substrate primitives (committed .js twins) + the single-source equivalence comparator. The Tier-1
+// oracleDualPathEquivalence drives these directly to replay one seed two ways on disk (DOGF-01).
+import { appendNote } from "./context-io.js";
+import { claimTask, transition } from "./claim.js";
+import { projectTaskState, assertEquivalent } from "./dual-path-equivalence.js";
 // CHECK_ROOT override is load-bearing: the Vitest harness plants violations into a hermetic mirror
 // dir and points CHECK_ROOT at it, then spawns the committed .js against that mirror. When unset,
 // resolve every path against the script-relative repo root (cwd does not matter).
@@ -285,66 +296,139 @@ export function oracleHooksWiring() {
     pass('hooks.json → guard.js wiring intact: "Bash" matcher routes to guard.js, which denies a matched deploy');
 }
 // ---------------------------------------------------------------------------
-// oracleParity (A3 / UAT-AUTO-03) — dual-path parity table structural assertion.
+// oracleDualPathEquivalence (A3 / UAT-AUTO-03, DOGF-01) — real on-disk dual-path convergence proof.
 //
-// examples/03-ticket-to-pr.md carries the DOG-02 dual-path parity table: a Sequential AGENTS.md
-// column (agent-proven) and a CC-native sub-agent column (currently `pending human`). The oracle
-// asserts the table is structurally shaped for two dispatch columns and names the frozen handoff
-// filenames + the frozen gate verdict — WITHOUT ever marking a `pending human` cell as passed
-// (no-fabrication). The LIVE fill of the CC-native column comes from Plan 02's Tier-2 run, not here.
+// REPLACES the former structural-grep oracleParity. Instead of reading a doc's parity table, it drives
+// the committed substrate primitives (claim.js + context-io.js) to replay ONE seeded decomposition two
+// independent ways against two hermetic mkdtempSync roots:
+//   Mode A (parallel-spawn simulation) — claim all up to width, doWork in fan-out order, then transition
+//                                        every task to done (interleaved).
+//   Mode B (sequential drain)          — claim one, doWork, done, repeat (strict serial).
+// Then it asserts the two final substrates are EQUAL order-independently: the same done/ record set,
+// the same per-task admitted-note set (via the single-source projectTaskState/assertEquivalent — the
+// SAME comparator convergence-spine.test.ts uses, so the definitions cannot drift), and the frozen
+// verdict string present on both. "verified means verified / degrade never break" becomes a substrate-
+// convergence proof, not a doc grep.
+//
+// The seeded decomposition includes >=1 admitted `finding` carrying a FROZEN synthetic stamp
+// `verified_by: §14-gate#<fixed-id>` that passes context-io validate() structurally via GATE_STAMP_RE
+// (D-03) — deliberately NO live gate: this oracle never calls emitVerdict (the sole sanctioned
+// by:§14-gate writer) nor admit (the live-verdict cross-check); gate/admission LOGIC is tested by its
+// own suites. Keeping the Tier-1 lane deterministic and tightly scoped is the whole point.
 // ---------------------------------------------------------------------------
-const PARITY_FILE = "examples/03-ticket-to-pr.md";
-// (Phase 24) The 17 static handoff templates were deleted; the oracle no longer asserts the parity
-// table NAMES specific handoff filenames (asserting against deleted artifacts — Pitfall 5). The
-// oracle is NOT retired — the A3/DOG-02 equivalence retirement is Phase 26, out of scope. The live
-// parity anchors that remain are the two dispatch-column shape and the frozen gate verdict; the
-// per-role output a ticket now produces is recorded as typed notes (Workflow 16), not a static
-// handoff file, so there is no deleted filename for the table to pin.
-const FROZEN_VERDICT = "READY_FOR_HUMAN_REVIEW";
-// The two dispatch-column headers that make the table a TWO-column parity table.
-const SEQ_COLUMN = "Sequential AGENTS.md path";
-const CC_COLUMN = "CC-native sub-agent path";
-export function oracleParity() {
-    process.stdout.write("\n[oracleParity] dual-path parity table is two-column shaped + names the frozen verdict and never passes a pending-human cell (A3 / UAT-AUTO-03)\n");
-    // CR-01 missing-file fail-red.
-    if (!fileExists(PARITY_FILE)) {
-        fail(`${PARITY_FILE} missing (required for the dual-path parity check)`);
-        return;
+// Frozen fixture constants (D-03). FIXED_ID makes the stamp deterministic; FROZEN_VERDICT is a fixture
+// string literal (context-io's green marker), NOT a gate-authored note.
+const FIXED_ID = "R26-DOGF01-0001";
+const GATE_STAMP = `§14-gate#${FIXED_ID}`; // literal stamp — passes validate() via GATE_STAMP_RE
+const FROZEN_VERDICT = "READY_FOR_HUMAN_REVIEW"; // frozen verdict STRING (no live gate call)
+const EQUIV_TASKS = ["t1", "t2", "t3"]; // minimal seeded decomposition (honors wip_limit width of 3)
+function seedEquivSubstrate(subtasks) {
+    const queueRoot = mkdtempSync(join(tmpdir(), "dpe-equiv-"));
+    for (const stage of ["pending", "claimed", "done"]) {
+        mkdirSync(join(queueRoot, stage), { recursive: true });
     }
-    const text = readText(PARITY_FILE);
-    let parityFail = "";
-    // Structural: the table must be shaped for TWO dispatch columns (both headers present).
-    if (!text.includes(SEQ_COLUMN)) {
-        parityFail += `\n  missing the Sequential dispatch column header ("${SEQ_COLUMN}")`;
+    for (const t of subtasks) {
+        writeFileSync(join(queueRoot, "pending", `${t}.md`), `# subtask ${t}\nref: .grugops/context/${t}/\n`);
     }
-    if (!text.includes(CC_COLUMN)) {
-        parityFail += `\n  missing the CC-native dispatch column header ("${CC_COLUMN}")`;
-    }
-    // (Phase 24) No frozen-handoff-filename assertion: the static handoff templates were deleted, so
-    // the oracle must not assert the parity table names deleted artifacts (Pitfall 5). The two
-    // dispatch-column shape + the frozen gate verdict remain the live parity anchors.
-    // Frozen gate verdict must be named.
-    if (!text.includes(FROZEN_VERDICT)) {
-        parityFail += `\n  missing frozen gate verdict "${FROZEN_VERDICT}"`;
-    }
-    // No-fabrication: the oracle must DISTINGUISH a structurally-parity-shaped + `pending human` cell
-    // from a filled-and-matching cell. The CC-native column legitimately still reads `pending human`
-    // (its live fill is the Tier-2 A3-live run, not this deterministic oracle). The structural pass
-    // condition is "frozen strings present + two columns shaped" — it must NEVER read a `pending human`
-    // cell AS a confirmed match. We surface the still-pending state explicitly (WARN, advisory) so the
-    // oracle can never silently report the CC-native path as confirmed when it is not.
-    const ccStillPending = /pending human/i.test(text);
-    if (parityFail === "") {
-        pass("parity structure: two dispatch columns present, frozen verdict named");
-        if (ccStillPending) {
-            // Advisory only — the structural floor passed; the live CC-native fill is human/Tier-2's job.
-            // This is the no-fabrication guard surfaced honestly: the oracle does NOT claim the CC-native
-            // column is confirmed.
-            warn("CC-native parity column still reads `pending human` — its live fill comes from the Tier-2 A3-live run; NOT marked confirmed here (no-fabrication)");
+    const contextRoot = join(queueRoot, ".grugops", "context");
+    mkdirSync(contextRoot, { recursive: true });
+    return { queueRoot, contextRoot };
+}
+// Deterministic per-task work, IDENTICAL in both modes (only the RUN ORDER differs). Each task gets one
+// soft observation note (no stamp) PLUS one admitted finding carrying the frozen §14-gate stamp and the
+// frozen verdict in its body. Fixed `at` values keyed off the task make the canonical replay sort
+// mode-independent. Writes through the committed context-io.js appendNote to an explicit contextRoot.
+function equivDoWork(sub, task) {
+    const n = task.replace(/[^0-9]/g, "") || "0";
+    const soft = {
+        kind: "observation",
+        by: "engineer",
+        at: `2026-06-21T10:0${n}:00.000Z`,
+        verified_by: "",
+        confidence: "high",
+        refs: [],
+        supersedes: null,
+    };
+    appendNote(task, soft, `observed work for ${task}`, sub.contextRoot);
+    const finding = {
+        kind: "finding",
+        by: "engineer",
+        at: `2026-06-21T10:0${n}:30.000Z`,
+        verified_by: GATE_STAMP,
+        confidence: "high",
+        refs: [GATE_STAMP],
+        supersedes: null,
+    };
+    appendNote(task, finding, `${FROZEN_VERDICT}: seeded admitted finding for ${task}`, sub.contextRoot);
+}
+export function oracleDualPathEquivalence() {
+    process.stdout.write("\n[oracleDualPathEquivalence] one seed replayed parallel-spawn-sim vs sequential-drain converges on the same admitted note-set + done/ artifact + frozen verdict (A3 / UAT-AUTO-03, DOGF-01)\n");
+    const tmpRoots = [];
+    try {
+        // ── Mode A: PARALLEL-spawn simulation — claim all, work in fan-out (reversed) order, then all done.
+        const a = seedEquivSubstrate(EQUIV_TASKS);
+        tmpRoots.push(a.queueRoot);
+        for (const t of EQUIV_TASKS) {
+            if (!claimTask(a.queueRoot, t, "engineer")) {
+                fail(`Mode A (parallel-spawn) could not claim seeded task "${t}"`);
+                return;
+            }
+            transition(a.queueRoot, t, "pending", "claimed");
+        }
+        for (const t of [...EQUIV_TASKS].reverse())
+            equivDoWork(a, t);
+        for (const t of EQUIV_TASKS)
+            transition(a.queueRoot, t, "claimed", "done");
+        // ── Mode B: SEQUENTIAL drain — claim one, work, done, repeat (strict serial).
+        const b = seedEquivSubstrate(EQUIV_TASKS);
+        tmpRoots.push(b.queueRoot);
+        for (const t of EQUIV_TASKS) {
+            if (!claimTask(b.queueRoot, t, "engineer")) {
+                fail(`Mode B (sequential-drain) could not claim seeded task "${t}"`);
+                return;
+            }
+            transition(b.queueRoot, t, "pending", "claimed");
+            equivDoWork(b, t);
+            transition(b.queueRoot, t, "claimed", "done");
+        }
+        // ── Converge: the two final substrates must be EQUAL order-independently. ─────────────────────
+        let divergence = "";
+        // Same done/ record set.
+        const doneA = readdirSync(join(a.queueRoot, "done")).sort();
+        const doneB = readdirSync(join(b.queueRoot, "done")).sort();
+        if (JSON.stringify(doneA) !== JSON.stringify(doneB)) {
+            divergence += `\n  done/ artifact set differs: A=${JSON.stringify(doneA)} B=${JSON.stringify(doneB)}`;
+        }
+        // Same per-task admitted-note set (single-source comparator), plus the frozen verdict + the frozen
+        // finding stamp present on BOTH paths (never fabricate — assert the finding actually landed).
+        for (const t of EQUIV_TASKS) {
+            const pa = projectTaskState(a.contextRoot, t);
+            const pb = projectTaskState(b.contextRoot, t);
+            const diffs = assertEquivalent(pa, pb);
+            if (diffs.length > 0) {
+                divergence += `\n  task "${t}" note-sets diverge:${diffs.map((d) => `\n    - ${d}`).join("")}`;
+            }
+            const verdictA = pa.some((nr) => nr.body.includes(FROZEN_VERDICT));
+            const verdictB = pb.some((nr) => nr.body.includes(FROZEN_VERDICT));
+            if (!verdictA || !verdictB) {
+                divergence += `\n  task "${t}" missing frozen verdict "${FROZEN_VERDICT}" on disk (A=${verdictA} B=${verdictB})`;
+            }
+            const stampA = pa.some((nr) => nr.verified_by === GATE_STAMP);
+            const stampB = pb.some((nr) => nr.verified_by === GATE_STAMP);
+            if (!stampA || !stampB) {
+                divergence += `\n  task "${t}" missing the frozen finding stamp "${GATE_STAMP}" on disk (A=${stampA} B=${stampB})`;
+            }
+        }
+        if (divergence === "") {
+            pass("dual-path equivalence: parallel-spawn-sim and sequential-drain replays converge on the same admitted note-set, the same done/ artifact, and the frozen verdict on disk");
+        }
+        else {
+            fail(`dual-path equivalence violation:${divergence}`);
         }
     }
-    else {
-        fail(`dual-path parity structural violation:${parityFail}`);
+    finally {
+        for (const d of tmpRoots)
+            rmSync(d, { recursive: true, force: true });
     }
 }
 // ---------------------------------------------------------------------------
@@ -358,7 +442,7 @@ function runAll() {
     process.stdout.write("== Phase 19 Tier-1 auto-UAT oracles (UAT-AUTO-01/03) ==\n");
     oracleWr05Wording();
     oracleHooksWiring();
-    oracleParity();
+    oracleDualPathEquivalence();
     process.stdout.write("\n== Result ==\n");
     if (FAILS === 0) {
         process.stdout.write("ALL CHECKS PASSED\n");
