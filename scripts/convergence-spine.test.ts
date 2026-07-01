@@ -29,6 +29,9 @@ import {
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
+// Single-source equivalence comparator (DOGF-01): the SAME projectTaskState both this test AND the
+// Tier-1 oracleDualPathEquivalence import — no re-implemented projection, no drift (D-04).
+import { projectTaskState } from "./dual-path-equivalence.js";
 
 const ROOT = join(import.meta.dirname, "..");
 const CLAIM_JS = join(ROOT, "scripts", "claim.js");
@@ -108,19 +111,20 @@ function doWork(sub: Substrate, task: string): void {
   }
 }
 
-// Canonicalize a substrate: the sorted set of done/ task names + each task's currentState() projected
-// to (kind, at, body) sorted — a mode/order-independent fingerprint of the final on-disk state.
+// Canonicalize a substrate: the sorted set of done/ task names + each task's projected currentState()
+// — a mode/order-independent fingerprint of the final on-disk state. The per-task projection now comes
+// from the SINGLE-SOURCE projectTaskState (dual-path-equivalence.js) that the Tier-1 oracle also uses,
+// so the test and the oracle share ONE equivalence definition (D-04). projectTaskState drops the nonce
+// `id` and carries {kind, at, verified_by, confidence, refs, body}; for this test's soft-only fixture
+// the extra fields are constant, so the existing done-set + per-task-notes assertions are unchanged.
 function canonical(sub: Substrate, subtasks: string[]): {
   done: string[];
-  notes: Record<string, { kind: string; at: string; body: string }[]>;
+  notes: Record<string, ReturnType<typeof projectTaskState>>;
 } {
   const done = readdirSync(join(sub.queueRoot, "done")).sort();
-  const notes: Record<string, { kind: string; at: string; body: string }[]> = {};
+  const notes: Record<string, ReturnType<typeof projectTaskState>> = {};
   for (const t of subtasks) {
-    const state = ctx.currentState(ctx.readContext(t, sub.contextRoot));
-    notes[t] = state
-      .map((nr) => ({ kind: nr.kind, at: nr.at, body: nr.body }))
-      .sort((a, b) => (a.at !== b.at ? a.at.localeCompare(b.at) : a.body.localeCompare(b.body)));
+    notes[t] = projectTaskState(sub.contextRoot, t);
   }
   return { done, notes };
 }
