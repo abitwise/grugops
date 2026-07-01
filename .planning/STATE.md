@@ -6,7 +6,7 @@ current_phase: 25
 current_phase_name: governance-on-a-dial
 status: executing
 stopped_at: Phase 26 context gathered
-last_updated: "2026-06-29T09:58:07.820Z"
+last_updated: "2026-07-01T10:11:17.930Z"
 last_activity: 2026-06-29
 last_activity_desc: "Phase 25 COMPLETE (SC1 round-8 closure; 2 red-teams NO_BYPASS + self-repro 19/19 + human approval); NEXT: /gsd-plan-phase --research-phase 26"
 progress:
@@ -30,7 +30,7 @@ See: .planning/PROJECT.md (updated 2026-06-16 — after v1.2 milestone)
 
 Phase: 25 (governance-on-a-dial) — ✅ COMPLETE (round-8 SC1 closure, 2026-06-29). Milestone v2.0 continues → Phase 26 next.
 Plan: 13 of 13 complete (round-8 plan 25-13 executed sequential-on-main; tasks a521444/444b839/4c54354; blocking checkpoint 25-13-04 PASSED)
-Status: Phase 25 COMPLETE — GAP-R7-1 structurally closed (unified kind authority normalizeKind + severity authority isHighSeverityRole; admit() deliberately UNFROZEN + ADMIT_FROZEN_SHA256 re-pinned dbf66ac7…ebf7). The D-12 closure gate PASSED for the first time in 8 rounds: TWO independent bash-grounded opus red-teams BOTH NO_BYPASS + orchestrator self-reproduction 19/19 + every preservation gate (guard.ts byte-frozen, liveTokens=0, SC2 lockstep, single severity authority, freshness 0, four SC3 invariants, GAP-R6-1/2/3 wins) + HUMAN APPROVAL (2026-06-29). SC1 (restated sanctioned-channel invariant) + SC2 + SC3 all MET; GOV-01 + GOV-02 satisfied; VERIFICATION.md status: passed (3/3). Documented IRREDUCIBLE residual (not a bypass): same-uid/no-hook direct-FS forgery, backstopped by autonomy=pr + the no-fabrication floor. NEXT: Phase 26 (Dogfood, Dual-Path Oracle & A3/DOG-02 Retirement) — research-first: /gsd-plan-phase --research-phase 26
+Status: Ready to execute
 Last activity: 2026-06-29 — Phase 25 COMPLETE (SC1 round-8 closure; 2 red-teams NO_BYPASS + self-repro 19/19 + human approval); NEXT: /gsd-plan-phase --research-phase 26
 
 ## Performance Metrics

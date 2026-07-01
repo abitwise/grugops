@@ -283,10 +283,18 @@ Round 7 CLOSED all three round-6 channel defects (path-traversal, config-root, h
 **Plans**: 5 plans
 
 Plans:
+**Wave 1**
+
 - [ ] 26-01-PLAN.md — DOGF-01: single-source equivalence comparator + oracleDualPathEquivalence replaces oracleParity + aggregator lockstep + RED/GREEN tests (Wave 1)
 - [ ] 26-02-PLAN.md — DOGF-02: real-worktree N-agent dogfood — exactly-once claim, N un-clobbered notes, shared-root shadow negative-check, sweepStale reclaim (Wave 1)
 - [ ] 26-03-PLAN.md — DOGF-03: token-cost harness with the honest `UNKNOWN - verify` default + fixture test (Wave 1)
+
+**Wave 2** *(blocked on Wave 1 completion)*
+
 - [ ] 26-04-PLAN.md — DOGF-02 (live): retarget A3-live off deleted handoffs onto note-set+verdict equivalence + gated N-agent live confirmation + runbook fix (Wave 2)
+
+**Wave 3** *(blocked on Wave 2 completion)*
+
 - [ ] 26-05-PLAN.md — SC4: evidence-gated A3/DOG-02 retirement flip (oracle-green + captured live run), doc trace cleanup (Wave 3)
 
 ## Progress
