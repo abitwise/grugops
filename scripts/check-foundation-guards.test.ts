@@ -73,7 +73,8 @@ const GUARD_INPUTS = [
   ".planning/RETROSPECTIVE.md",
   "hooks/hooks.json",
   "hooks/guard.js",
-  "examples/03-ticket-to-pr.md",
+  // (DOGF-01) examples/03-ticket-to-pr.md dropped: the A3 oracle is now oracleDualPathEquivalence,
+  // which self-seeds hermetic temp dirs and reads no repo input — the former parity example is dead.
   // Phase 20 guard_context_writes SCAN set (SCTX-05): the 16 shipped workflows (the 17 roles are
   // already mirrored above). The guard greps these for a raw `.grugops/context/` write bypassing
   // context-io.ts; mirror them so the SC-5 planted-raw-write case can plant a bypass into one.
@@ -466,21 +467,21 @@ describe("check-foundation-guards.js (SDLC-02 / SC2 fail-proof harness)", () => 
   });
 
   // ── Phase 19 Tier-1 oracle wiring (UAT-AUTO-05 / BLOCKER 1) — the aggregator must FAIL CLOSED. ──
-  // Break a single Tier-1 input in the mirror (remove the READY_FOR_HUMAN_REVIEW verdict from the
-  // parity example, which the A3 parity oracle asserts) and prove the aggregator goes red — i.e.
-  // `node scripts/check-foundation-guards.js` exits non-zero when any one Tier-1 oracle fails.
+  // Break a single Tier-1 input in the mirror and prove the aggregator goes red — i.e. `node
+  // scripts/check-foundation-guards.js` exits non-zero when any one Tier-1 oracle fails, proving it
+  // folds uatOracleFails(). (DOGF-01: the A3 oracle is now oracleDualPathEquivalence, which self-seeds
+  // hermetic temp dirs and reads NO mirror input, so it cannot be broken via the mirror. We break the
+  // A2 hooks-wiring oracle instead — mutating hooks.json's matcher away from "Bash" is a crisp
+  // deterministic Tier-1 failure that the aggregator must inherit.)
   it("tier-1 wiring: a broken Tier-1 oracle input → aggregator nonzero + names the Tier-1 failure", () => {
     const m = mirror();
-    const file = join(m, "examples/03-ticket-to-pr.md");
-    const stripped = readFileSync(file, "utf8").replace(
-      /READY_FOR_HUMAN_REVIEW/g,
-      "REDACTED_VERDICT",
-    );
-    writeFileSync(file, stripped);
+    const file = join(m, "hooks/hooks.json");
+    const cfg = JSON.parse(readFileSync(file, "utf8"));
+    cfg.hooks.PreToolUse[0].matcher = "NotBash";
+    writeFileSync(file, JSON.stringify(cfg, null, 2));
     const r = runIn(m);
     expect(r.status).not.toBe(0);
-    expect(out(r)).toMatch(/parity structural violation/i);
-    expect(out(r)).toContain("READY_FOR_HUMAN_REVIEW");
+    expect(out(r)).toMatch(/matcher is not "Bash"/);
   });
 
   // ── guard_context_writes — SC-5: planted raw context write fires; legitimate prose stays GREEN. ──
