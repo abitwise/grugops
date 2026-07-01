@@ -280,13 +280,13 @@ Round 7 CLOSED all three round-6 channel defects (path-traversal, config-root, h
   3. Aggregate token cost is measured so the ~50% cost claim is DEMONSTRATED with grugops's own numbers or honestly marked `UNKNOWN - verify` (DeLM's benchmark numbers are never asserted as grugops's).
   4. A3/DOG-02 is marked retired ONLY after the equivalence oracle passes — never on handoff deletion alone.
 
-**Plans**: 1/5 plans executed
+**Plans**: 2/5 plans executed
 
 Plans:
 **Wave 1**
 
 - [x] 26-01-PLAN.md — DOGF-01: single-source equivalence comparator + oracleDualPathEquivalence replaces oracleParity + aggregator lockstep + RED/GREEN tests (Wave 1)
-- [ ] 26-02-PLAN.md — DOGF-02: real-worktree N-agent dogfood — exactly-once claim, N un-clobbered notes, shared-root shadow negative-check, sweepStale reclaim (Wave 1)
+- [x] 26-02-PLAN.md — DOGF-02: real-worktree N-agent dogfood — exactly-once claim, N un-clobbered notes, shared-root shadow negative-check, sweepStale reclaim (Wave 1)
 - [ ] 26-03-PLAN.md — DOGF-03: token-cost harness with the honest `UNKNOWN - verify` default + fixture test (Wave 1)
 
 **Wave 2** *(blocked on Wave 1 completion)*
@@ -326,6 +326,6 @@ Plans:
 | 23. Parallel Execution & Orchestrator-as-Decomposer | v2.0 | 3/3 | Complete    | 2026-06-21 |
 | 24. Clean Handoff Removal & Traceability Migration | v2.0 | 5/5 | Complete    | 2026-06-22 |
 | 25. Governance-on-a-Dial | v2.0 | 13/13 | Complete | 2026-06-29 |
-| 26. Dogfood, Dual-Path Oracle & A3/DOG-02 Retirement | v2.0 | 1/5 | In Progress|  |
+| 26. Dogfood, Dual-Path Oracle & A3/DOG-02 Retirement | v2.0 | 2/5 | In Progress|  |
 
 **Totals:** 26 phases · 3 milestones shipped (v1.0 + v1.1 + v1.2). Active milestone: **v2.0 Decentralized Factory — Shared Verified Context** (Phases 20–26, 28 requirements). **v2.0 progress (current): Phases 20–25 COMPLETE — Phase 25 governance closed 2026-06-29 after an 8-round safety-gate hardening (GAP-R7-1, the 12th green-suite-insufficient catch, closed by unifying the classifier authorities + deliberately unfreezing admit(); SC1+SC2+SC3 met, GOV-01/02 satisfied). Phase 26 (Dogfood / Dual-Path Oracle / A3/DOG-02 retirement) PENDING — research-first.** [The Phase-20/21/22-era narrative below is RETAINED as historical detail from earlier rounds and is superseded by the per-phase status table above:] Phase 20: all 4 plans executed (2 waves) — awaiting phase verification. Phase 21: complete — 4/4 plans (incl. CR-01 CRLF gap-closure 21-04); verification passed 4/4. Phase 22: all 6 plans executed 2026-06-18; **round 5 (22-06) re-verified 2026-06-18 = GAPS_FOUND (3/4 must-haves)**. Round 5 GENUINELY CLOSED the 4th bypass class (whitespace/parser-projection line-shape drift) — parseNote.malformedLines gate (a) + shared validate() gate (b) on every raw+promoted note's verbatim bytes, RED→GREEN vs the COMMITTED compactor.js, freshness exit 0, 395 non-e2e tests green, held-out line-shape matrix. BUT a 5th DISTINCT CMP-02 bypass was found (22-REVIEW.md CR-01) and independently reproduced by orchestrator + verifier against the committed compactor.js — MULTI-NOTE THREAD FILE: writeThread/composeThreadNote append each note as a fence into ONE threads/<agent>.md, but readNoteDir→parseNote reads only the FIRST fence (non-greedy regex; no splitter exists despite the module's contract comment), so a §14-gate-verified finding / required failed-attempt buried as note #2+ is invisible to the round-5 gates, the byte-equal loop, and the required-survival set → silently dropped at exit 0. SC1/SC3/SC4 pass; SC2/CMP-02 still BLOCKED. CMP-01 + CMP-03 verified. Green suite ≠ proof — 5th time (the corpus writes one note per .md file, never the production multi-note shape). Fix (round 6): a shared splitNotes() so the read path reads the same per-note set the write path emits, + a held-out multi-note RED test. Next: /gsd-plan-phase 22 --gaps (round 6), then re-verify Phase 22, then Phase 23.
