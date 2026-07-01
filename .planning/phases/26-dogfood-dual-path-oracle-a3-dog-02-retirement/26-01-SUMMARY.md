@@ -158,6 +158,10 @@ _Note: TDD tasks 1 and 2 were implemented and verified as single passing commits
 - The RETIREMENT flip (A3/DOG-02) remains evidence-gated (D-01/D-02): it additionally requires one captured live dual-path run. That live capture and the N-agent worktree dogfood (DOGF-02) + cost harness (DOGF-03) are the remaining plans 02–05. The retired flip must NOT happen on the deterministic oracle alone.
 - Loud Flag 2 (Tier-2 `A3-live` + human runbook still naming the Phase-24-deleted handoff filenames) is unaddressed here by design — it is the retirement/Tier-2 plans' scope, and this plan's oracle correctly references no deleted artifacts.
 
+## Self-Check: PASSED
+
+All created files exist on disk and all task commits are present in git history.
+
 ---
 *Phase: 26-dogfood-dual-path-oracle-a3-dog-02-retirement*
 *Completed: 2026-07-01*

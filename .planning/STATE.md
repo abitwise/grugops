@@ -2,18 +2,18 @@
 gsd_state_version: 1.0
 milestone: v2.0
 milestone_name: Decentralized Factory — Shared Verified Context
-current_phase: 25
-current_phase_name: governance-on-a-dial
+current_phase: 26
+current_phase_name: dogfood-dual-path-oracle-a3-dog-02-retirement
 status: executing
 stopped_at: Phase 26 context gathered
-last_updated: "2026-07-01T10:11:17.930Z"
-last_activity: 2026-06-29
-last_activity_desc: "Phase 25 COMPLETE (SC1 round-8 closure; 2 red-teams NO_BYPASS + self-repro 19/19 + human approval); NEXT: /gsd-plan-phase --research-phase 26"
+last_updated: "2026-07-01T12:30:11.996Z"
+last_activity: 2026-07-01
+last_activity_desc: Phase 26 execution started
 progress:
   total_phases: 7
   completed_phases: 6
-  total_plans: 38
-  completed_plans: 39
+  total_plans: 43
+  completed_plans: 40
   percent: 86
 ---
 
@@ -24,14 +24,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-06-16 — after v1.2 milestone)
 
 **Core value:** A user installs grugops on top of the coding-agent CLI they already run, types `/grug`, and gets a disciplined delivery team — a visible board, strict handoffs, and an auditable requirement→code→test→release trail — entirely as readable markdown, with humans always holding merge and deploy.
-**Current focus:** Phase 25 — governance-on-a-dial
+**Current focus:** Phase 26 — dogfood-dual-path-oracle-a3-dog-02-retirement
 
 ## Current Position
 
-Phase: 25 (governance-on-a-dial) — ✅ COMPLETE (round-8 SC1 closure, 2026-06-29). Milestone v2.0 continues → Phase 26 next.
-Plan: 13 of 13 complete (round-8 plan 25-13 executed sequential-on-main; tasks a521444/444b839/4c54354; blocking checkpoint 25-13-04 PASSED)
+Phase: 26 (dogfood-dual-path-oracle-a3-dog-02-retirement) — EXECUTING
+Plan: 2 of 5
 Status: Ready to execute
-Last activity: 2026-06-29 — Phase 25 COMPLETE (SC1 round-8 closure; 2 red-teams NO_BYPASS + self-repro 19/19 + human approval); NEXT: /gsd-plan-phase --research-phase 26
+Last activity: 2026-07-01 — Phase 26 execution started
 
 ## Performance Metrics
 
@@ -185,6 +185,7 @@ Last activity: 2026-06-29 — Phase 25 COMPLETE (SC1 round-8 closure; 2 red-team
 | Phase 25 P03 | 12 | 3 tasks | 4 files |
 | Phase 25 P09 | 13min | 3 tasks | 7 files |
 | Phase 25 P10 | 13min | 2 tasks | 6 files |
+| Phase 26 P01 | 9min | 3 tasks | 9 files |
 
 ## Accumulated Context
 
@@ -415,6 +416,7 @@ Recent decisions affecting current work:
 - [Phase ?]: [25-08] JS_RUNNERS {bun,bunx,deno,ts-node} is a distinct JS-execution-capability set (NOT a COMMAND_MODIFIERS/LAUNCHERS widening); scripts/context-io.ts byte-frozen; NEW disclosed extglob-fragmentation residual (extglob + dynamic command-sub word / quoted eval body) flagged for the red-team
 - [Phase ?]: [25-09] Move-the-gate (D-01): zero-dep stdio MCP server mcp__grugops__propose_note wrapping admitAndAppend replaces the parsed-shell-string proxy; shell-obfuscation family gone by construction. Server is NOT the gate (no approval env); per-note gate is the 25-10 per-call hook. W-A single-source isGatedNote+isHighSeverityRole imported by both; admit() W-B byte-frozen; exactly 3 new exports; appendNote optional precomputedId keeps ledger id == on-disk id.
 - [Phase ?]: 25-10: GOV-01 gate moved to the structured channel (D-01) — admission-guard is a per-call PreToolUse gate on mcp__grugops__.* reading final tool_input; the command-string parser is DELETED; a gated finding needs fresh env GRUGOPS_ADMISSION_APPROVED_BY=<name> AND verified_by===human:<name> (D-07); independent red-team (25-11) is the closure gate, not the green suite (D-12)
+- [Phase ?]: 26-01: oracleParity replaced by real on-disk oracleDualPathEquivalence via single-source comparator; DOGF-01 deterministic half green; retirement flip still evidence-gated on a live run (D-01)
 
 ### Pending Todos
 
@@ -464,7 +466,7 @@ Items acknowledged and deferred at the **v1.2 milestone close on 2026-06-16** (1
 
 ## Session Continuity
 
-Last session: 2026-06-29T09:58:07.802Z
+Last session: 2026-07-01T12:29:51.997Z
 Stopped at: Phase 26 context gathered
 Resume file: .planning/phases/26-dogfood-dual-path-oracle-a3-dog-02-retirement/26-CONTEXT.md
 
