@@ -26,13 +26,18 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, dirname } from "node:path";
+// The single-source equivalence comparator the Tier-1 oracle uses — imported here for the RED
+// non-vacuity case (proving assertEquivalent genuinely goes red on divergence, not a fabricated green).
+import { assertEquivalent, type ProjectedNote } from "./dual-path-equivalence.js";
 
 const ROOT = join(import.meta.dirname, "..");
 const GUARD_JS = join(ROOT, "scripts", "check-uat-oracles.js");
 
-// The complete set of input files the aggregator reads (repo-relative). A mirror carries byte-faithful
-// copies of all of these; one file is then mutated to plant a violation. The four WR05_SCAN docs +
-// hooks.json + the committed guard.js (the A2 oracle spawns it) + the parity example.
+// The complete set of input files the file-reading oracles consume (repo-relative). A mirror carries
+// byte-faithful copies of all of these; one file is then mutated to plant a violation. The four
+// WR05_SCAN docs + hooks.json + the committed guard.js (the A2 oracle spawns it) + the two 5-tool
+// tables. (DOGF-01: oracleDualPathEquivalence self-seeds hermetic temp dirs and reads NONE of these,
+// so examples/03-ticket-to-pr.md — the former parity-grep oracle's input — is no longer a guard input.)
 const GUARD_INPUTS = [
   ".planning/PROJECT.md",
   ".planning/STATE.md",
@@ -40,7 +45,6 @@ const GUARD_INPUTS = [
   ".planning/RETROSPECTIVE.md",
   "hooks/hooks.json",
   "hooks/guard.js",
-  "examples/03-ticket-to-pr.md",
   // Phase 23 (D-19 / Pitfall 3): the oracle now scans the 5-tool tables for asymmetric-flip drift.
   "agent-factory/packaging/adapters.md",
   "agent-factory/README.md",
@@ -199,36 +203,49 @@ describe("check-uat-oracles.js (Phase 19 Tier-1 fail-proof harness)", () => {
     expect(out(r)).toMatch(/does not reference guard\.js/);
   });
 
-  // ── oracleParity — remove a frozen string; the aggregator must go red. ───────────────────────────
-  it("parity: parity table missing the READY_FOR_HUMAN_REVIEW verdict → nonzero + names the missing string", () => {
-    const m = mirror();
-    const file = join(m, "examples/03-ticket-to-pr.md");
-    const stripped = readFileSync(file, "utf8").replace(
-      /READY_FOR_HUMAN_REVIEW/g,
-      "REDACTED_VERDICT",
-    );
-    writeFileSync(file, stripped);
-    const r = runIn(m);
-    expect(r.status).not.toBe(0);
-    expect(out(r)).toMatch(/parity structural violation/i);
-    expect(out(r)).toContain("READY_FOR_HUMAN_REVIEW");
+  // ── oracleDualPathEquivalence (DOGF-01) — replaces the two structural parity-grep tests. ─────────
+  //
+  // The oracle no longer reads a doc's parity table; it drives the committed substrate two ways in
+  // hermetic temp dirs and asserts on-disk convergence. Its inputs are self-seeded (mkdtempSync), so
+  // there is no mirror file to mutate — the failure surface lives in the SHARED comparator instead.
+  // Hence two cases: a GREEN convergence case (the real oracle passes over its own hermetic fixture)
+  // and a RED non-vacuity case (the comparator returns a non-empty diff on divergence — the keystone
+  // that proves the oracle CAN go red and is not a fabricated green).
+
+  // GREEN: the real aggregator converges — the dual-path equivalence oracle passes over the real tree.
+  it("equivalence: real aggregator GREEN and the dual-path equivalence oracle reports PASS", () => {
+    const r = spawnSync("node", [GUARD_JS], { encoding: "utf8" });
+    expect(r.status).toBe(0);
+    expect(out(r)).toContain("oracleDualPathEquivalence");
+    // The oracle's PASS line names the convergence property it proved.
+    expect(out(r)).toMatch(/PASS\s+dual-path equivalence/);
   });
 
-  // (Phase 24) The frozen-handoff-filename assertion was dropped: the static handoff templates were
-  // deleted, so the oracle no longer asserts the parity table names deleted artifacts (Pitfall 5).
-  // The oracle is NOT retired — its surviving live anchor is the two dispatch-column shape. Removing
-  // a dispatch-column header must still drive the oracle RED.
-  it("parity: parity table missing a dispatch column header → nonzero + names the missing column", () => {
-    const m = mirror();
-    const file = join(m, "examples/03-ticket-to-pr.md");
-    const stripped = readFileSync(file, "utf8").replace(
-      /CC-native sub-agent path/g,
-      "redacted-column",
-    );
-    writeFileSync(file, stripped);
-    const r = runIn(m);
-    expect(r.status).not.toBe(0);
-    expect(out(r)).toContain("CC-native sub-agent path");
+  // RED non-vacuity keystone: feed assertEquivalent two DELIBERATELY divergent projected note-sets and
+  // assert it returns a NON-empty diff. If the comparator ever returned [] on real divergence, the
+  // whole oracle would be a fabricated green — this case is the guard against exactly that.
+  it("equivalence non-vacuity: assertEquivalent returns a NON-empty diff when the two note-sets diverge", () => {
+    const noteFor = (body: string): ProjectedNote => ({
+      kind: "finding",
+      at: "2026-06-21T10:01:30.000Z",
+      verified_by: "§14-gate#R26-DOGF01-0001",
+      confidence: "high",
+      refs: ["§14-gate#R26-DOGF01-0001"],
+      body,
+    });
+    const pathA = [noteFor("READY_FOR_HUMAN_REVIEW: seeded admitted finding for t1")];
+
+    // (1) a field-level divergence (path B's finding lost the frozen verdict body) → non-empty diff.
+    const pathBVerdictDropped = [noteFor("REDACTED: the frozen verdict is gone")];
+    const diffField = assertEquivalent(pathA, pathBVerdictDropped);
+    expect(diffField.length).toBeGreaterThan(0);
+
+    // (2) a count divergence (path B is missing the admitted finding entirely) → non-empty diff.
+    const diffMissing = assertEquivalent(pathA, []);
+    expect(diffMissing.length).toBeGreaterThan(0);
+
+    // Sanity: identical note-sets are equivalent (empty diff) — the comparator is not always-red either.
+    expect(assertEquivalent(pathA, [noteFor("READY_FOR_HUMAN_REVIEW: seeded admitted finding for t1")])).toEqual([]);
   });
 
   // ── Smoke — the REAL aggregator over the REAL tree must be GREEN (exit 0). ────────────────────────
