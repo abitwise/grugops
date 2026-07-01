@@ -280,7 +280,14 @@ Round 7 CLOSED all three round-6 channel defects (path-traversal, config-root, h
   3. Aggregate token cost is measured so the ~50% cost claim is DEMONSTRATED with grugops's own numbers or honestly marked `UNKNOWN - verify` (DeLM's benchmark numbers are never asserted as grugops's).
   4. A3/DOG-02 is marked retired ONLY after the equivalence oracle passes — never on handoff deletion alone.
 
-**Plans**: TBD
+**Plans**: 5 plans
+
+Plans:
+- [ ] 26-01-PLAN.md — DOGF-01: single-source equivalence comparator + oracleDualPathEquivalence replaces oracleParity + aggregator lockstep + RED/GREEN tests (Wave 1)
+- [ ] 26-02-PLAN.md — DOGF-02: real-worktree N-agent dogfood — exactly-once claim, N un-clobbered notes, shared-root shadow negative-check, sweepStale reclaim (Wave 1)
+- [ ] 26-03-PLAN.md — DOGF-03: token-cost harness with the honest `UNKNOWN - verify` default + fixture test (Wave 1)
+- [ ] 26-04-PLAN.md — DOGF-02 (live): retarget A3-live off deleted handoffs onto note-set+verdict equivalence + gated N-agent live confirmation + runbook fix (Wave 2)
+- [ ] 26-05-PLAN.md — SC4: evidence-gated A3/DOG-02 retirement flip (oracle-green + captured live run), doc trace cleanup (Wave 3)
 
 ## Progress
 
