@@ -70,7 +70,7 @@ Requirements for the decentralization milestone. Each maps to exactly one roadma
 
 - [x] **DOGF-01**: A dual-path equivalence oracle in `check-uat-oracles.ts` (replacing the `oracleParity` A3 check) — the same seeded task run (a) parallel on Claude Code and (b) sequential via single-window role-load; assert ON-DISK context + verdict equivalence (same admitted findings, same gate result, same artifact).
 - [x] **DOGF-02**: A parallel N-agent dogfood — N distinct un-clobbered notes, each task claimed exactly once, a stale claim reclaimed (extends the Tier-2 headless E2E harness). Confirms `isolation: worktree` ↔ shared-context-path interaction.
-- [ ] **DOGF-03**: Aggregate token-cost measurement so the ~50% cost claim is *demonstrated* or honestly marked `UNKNOWN - verify`; A3/DOG-02 is retired **only** when the oracle passes.
+- [x] **DOGF-03**: Aggregate token-cost measurement so the ~50% cost claim is *demonstrated* or honestly marked `UNKNOWN - verify`; A3/DOG-02 is retired **only** when the oracle passes.
 
 ## v2.x Requirements
 
@@ -130,7 +130,7 @@ Which phases cover which requirements. Confirmed during roadmap creation (2026-0
 | GOV-02 | Phase 25 | Complete (audit_retention ledger; 3-surface lockstep, lean defaults) |
 | DOGF-01 | Phase 26 | Complete |
 | DOGF-02 | Phase 26 | Complete |
-| DOGF-03 | Phase 26 | Pending |
+| DOGF-03 | Phase 26 | Complete |
 
 **Coverage:**
 
