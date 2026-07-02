@@ -31,9 +31,13 @@ The manual Checks 1–3 below are now **automated step-for-step by the Tier-2 ha
 mirrors this procedure. The manual steps remain the canonical description of *what* is being proven
 and are the human fallback when no authed CLI is available. In all cases a UAT status flips to
 passed/resolved **only from a real run's captured output** (Tier-1 oracle output or a real authed
-Tier-2 run), never from a skip and never hand-set. The frozen artifacts the lanes agree on — the
-handoff filenames `implementation-handoff.md` and `qe-handoff.md`, and the gate verdict
-`READY_FOR_HUMAN_REVIEW` — match `examples/03-ticket-to-pr.md`.
+Tier-2 run), never from a skip and never hand-set. The **dual-path artifact both dispatch paths must
+agree on** is the **on-disk admitted-note set + the frozen gate verdict string**
+`READY_FOR_HUMAN_REVIEW` (D-05) — the shared-context `finding`s and their frozen verdict, **not**
+byte-identical generated prose (a live LLM run is not byte-deterministic — that is exactly why the
+deterministic on-disk note-set equivalence is the always-on Tier-1 oracle
+`oracleDualPathEquivalence`, and this human run is confirmation only). The single-source definition
+of that equivalence lives in `scripts/dual-path-equivalence.ts`.
 
 ## Safety constraint (read first — non-negotiable)
 
@@ -136,9 +140,9 @@ Do not export the variable to "make it pass." A successful test is the command b
 
 **Why:** On the CC-native path the Orchestrator runs as a spawned sub-agent
 (`.claude/agents/grugops-orchestrator.md`, invoked via the `Agent` tool, or the `/grugops`
-skill `.claude/skills/grugops/SKILL.md`). DOG-02 asserts this path produces the **same ticket,
-the same handoff filenames, and the same gate verdict** as the captured sequential run — only the
-dispatch mechanism differs.
+skill `.claude/skills/grugops/SKILL.md`). DOG-02 asserts this path converges on the **same ticket,
+the same on-disk admitted-note set, and the same frozen gate verdict** as the captured sequential
+run — only the dispatch mechanism differs, never the content (D-05).
 
 **Steps (run inside the sample repo, in a live Claude Code session):**
 
@@ -148,14 +152,16 @@ dispatch mechanism differs.
    ```
    (This spawns the `grugops-orchestrator` sub-agent, which routes to Software Engineer → QE/E2E
    and runs the gate per `05-pr-quality-gate.md`.)
-2. Confirm the SAME handoff filenames are produced under `agent-factory/handoffs/`:
-   `implementation-handoff.md` and `qe-handoff.md`.
-3. Confirm the gate returns the SAME terminal verdict: `READY_FOR_HUMAN_REVIEW`.
+2. Confirm the CC-native path converges on the SAME on-disk admitted-note set as the sequential
+   run: the shared-context `finding` notes carrying the frozen `§14-gate` stamp (D-05). This is the
+   dual-path artifact — the notes in the shared context, not any generated filename.
+3. Confirm the gate returns the SAME terminal verdict string: `READY_FOR_HUMAN_REVIEW`.
 4. Confirm `node scripts/validate-agent-factory.js` exits 0 on the resulting tree (DOG-01),
    matching the sequential run.
 
-**Expected outcome:** Same ticket, same handoff filenames, same gate verdict, same validator
-exit 0 as `examples/03-ticket-to-pr.md`. The agent opens a branch and a PR and never merges
+**Expected outcome:** Same ticket, same on-disk admitted-note set, same frozen gate verdict, same
+validator exit 0 as `examples/03-ticket-to-pr.md`. The equivalence is the on-disk note set + verdict
+string, never byte-identical prose (D-05). The agent opens a branch and a PR and never merges
 (`autonomy=pr`).
 
 **Record:** PASS / FAIL — ___________  (notes: ____________________________________________)
@@ -173,11 +179,17 @@ Once Checks 1–3 above pass, replace each `pending human` cell with the confirm
 verify it **equals** its sequential counterpart:
 
 - Same ticket: `ABC-001 — GET /version endpoint`.
-- Same handoff filenames: `implementation-handoff.md`, `qe-handoff.md`.
-- Same gate verdict: `READY_FOR_HUMAN_REVIEW`.
+- Same on-disk admitted-note set: the shared-context `finding`s carrying the frozen `§14-gate`
+  stamp (D-05) — the dual-path artifact, not any generated filename.
+- Same gate verdict string: `READY_FOR_HUMAN_REVIEW`.
 - Same validator outcome: `ALL CHECKS PASSED` (exit 0).
 - Plus the two CC-only confirmations: D-31 pointer resolution (Check 1) and the SAFE-02 live deny
   (Check 2).
+
+Record the captured run as evidence for the retirement gate: note the **capture date** and the
+observed **verdict string** (`READY_FOR_HUMAN_REVIEW`) alongside the filled cells — that one
+captured live dual-path run is what D-01 requires (with the deterministic Tier-1 oracle green)
+before A3/DOG-02 can be retired.
 
 When every CC-native cell is confirmed and matches, DOG-02 is met: **only the dispatch differs,
 never the content.** If any check fails, leave its cell honest (record FAIL with notes) — never
