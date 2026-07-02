@@ -12,7 +12,7 @@
 // outside the temp dir is mutated.
 //
 // Spawns the COMMITTED compiled .js (never the .ts), mirroring the spawnSync child-CLI test idiom.
-// Cases are tagged so they are runnable by name: -t "wording" / -t "wiring" / -t "parity".
+// Cases are tagged so they are runnable by name: -t "wording" / -t "wiring" / -t "equivalence".
 
 import { describe, it, expect, afterAll } from "vitest";
 import { spawnSync, type SpawnSyncReturns } from "node:child_process";

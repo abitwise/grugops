@@ -173,7 +173,7 @@ describe("worktree-dogfood — DOGF-02/SC2 real worktrees, one shared context ro
             CLAIM_TASK,
             NOTE_TASK,
             `agent-${i}`,
-            `2026-06-21T10:00:0${i}.000Z`,
+            `2026-06-21T10:00:${String(i).padStart(2, "0")}.000Z`,
             resultFile,
           ],
           wt,

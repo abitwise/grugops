@@ -51,6 +51,7 @@ import {
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { spawnSync } from "node:child_process";
+import { pathToFileURL } from "node:url";
 // Substrate primitives (committed .js twins) + the single-source equivalence comparator. The Tier-1
 // oracleDualPathEquivalence drives these directly to replay one seed two ways on disk (DOGF-01).
 import { appendNote, type NoteInput } from "./context-io.js";
@@ -75,10 +76,6 @@ const pass = (m: string): void => {
 const fail = (m: string): void => {
   process.stdout.write(`  FAIL  ${m}\n`);
   FAILS += 1;
-};
-// warn() is advisory only — it does NOT increment FAILS (mirrors the foundation-guards spine).
-const warn = (m: string): void => {
-  process.stdout.write(`  WARN  ${m}\n`);
 };
 
 // Exported accessor so an importing aggregator can read the accumulated fail count after invoking
@@ -384,7 +381,7 @@ function equivDoWork(sub: EquivSubstrate, task: string): void {
   const soft: NoteInput = {
     kind: "observation",
     by: "engineer",
-    at: `2026-06-21T10:0${n}:00.000Z`,
+    at: `2026-06-21T10:${String(n).padStart(2, "0")}:00.000Z`,
     verified_by: "",
     confidence: "high",
     refs: [],
@@ -394,7 +391,7 @@ function equivDoWork(sub: EquivSubstrate, task: string): void {
   const finding: NoteInput = {
     kind: "finding",
     by: "engineer",
-    at: `2026-06-21T10:0${n}:30.000Z`,
+    at: `2026-06-21T10:${String(n).padStart(2, "0")}:30.000Z`,
     verified_by: GATE_STAMP,
     confidence: "high",
     refs: [GATE_STAMP],
@@ -444,11 +441,17 @@ export function oracleDualPathEquivalence(): void {
     // ── Converge: the two final substrates must be EQUAL order-independently. ─────────────────────
     let divergence = "";
 
-    // Same done/ record set.
-    const doneA = readdirSync(join(a.queueRoot, "done")).sort();
-    const doneB = readdirSync(join(b.queueRoot, "done")).sort();
-    if (JSON.stringify(doneA) !== JSON.stringify(doneB)) {
-      divergence += `\n  done/ artifact set differs: A=${JSON.stringify(doneA)} B=${JSON.stringify(doneB)}`;
+    // Same done/ record set — AND both must equal the expected per-task artifact set. Comparing the
+    // two paths to each other ALONE is vacuous: a `transition` no-op regression drains neither queue,
+    // leaving BOTH done/ dirs empty and equal, and the check would pass green (WR-01). Anchoring to the
+    // expected `${task}.md` set makes an empty (or partial) drain fail red.
+    const doneExpected = JSON.stringify([...EQUIV_TASKS].map((t) => `${t}.md`).sort());
+    const doneA = JSON.stringify(readdirSync(join(a.queueRoot, "done")).sort());
+    const doneB = JSON.stringify(readdirSync(join(b.queueRoot, "done")).sort());
+    if (doneA !== doneB) {
+      divergence += `\n  done/ artifact set differs: A=${doneA} B=${doneB}`;
+    } else if (doneA !== doneExpected) {
+      divergence += `\n  done/ artifact set does not match the expected per-task set: got ${doneA}, expected ${doneExpected}`;
     }
 
     // Same per-task admitted-note set (single-source comparator), plus the frozen verdict + the frozen
@@ -508,10 +511,13 @@ function runAll(): void {
 }
 
 // Entry check: true only when this module was launched directly (not imported). process.argv[1] is
-// the launched script path; compare it to this module's own file URL path.
+// the launched script path; compare it to this module's own file URL via pathToFileURL — a hand-built
+// `file://${argv[1]}` URL does NOT match on Windows (backslash paths + drive letters), which would make
+// a direct `node check-uat-oracles.js` run ZERO oracles and exit 0 — a fabricated green for a
+// no-fabrication safety tool (CR-01). Every sibling script (claim/context-io/compactor) uses this form.
 const isEntry =
   process.argv[1] !== undefined &&
-  import.meta.url === new URL(`file://${process.argv[1]}`).href;
+  import.meta.url === pathToFileURL(process.argv[1]).href;
 
 if (isEntry) {
   runAll();

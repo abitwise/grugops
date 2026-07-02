@@ -81,12 +81,12 @@ function workItems(task: string): { kind: "observation" | "decision"; at: string
   return [
     {
       kind: "observation",
-      at: `2026-06-21T10:0${n}:00.000Z`,
+      at: `2026-06-21T10:${String(n).padStart(2, "0")}:00.000Z`,
       body: `observed work for ${task}`,
     },
     {
       kind: "decision",
-      at: `2026-06-21T10:0${n}:30.000Z`,
+      at: `2026-06-21T10:${String(n).padStart(2, "0")}:30.000Z`,
       body: `decided approach for ${task}`,
     },
   ];

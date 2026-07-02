@@ -40,6 +40,10 @@ export interface ProjectedNote {
 // fields). Reads through context-io's readContext/currentState — the one sanctioned replay.
 export function projectTaskState(contextRoot: string, task: string): ProjectedNote[] {
   return currentState(readContext(task, contextRoot))
+    // Intentionally omit three NoteRecord fields (not an oversight): `id` (a randomUUID nonce —
+    // Pitfall 2), `by` (the author/agent identity legitimately DIFFERS between the parallel-agent and
+    // sequential-single-window paths, so including it would force a false inequality), and `supersedes`
+    // (it references the dropped nonce `id`). Everything that DEFINES substrate equivalence is kept.
     .map((nr) => ({
       kind: nr.kind,
       at: nr.at,
@@ -48,9 +52,15 @@ export function projectTaskState(contextRoot: string, task: string): ProjectedNo
       refs: nr.refs,
       body: nr.body,
     }))
-    .sort((a, b) =>
-      a.at !== b.at ? a.at.localeCompare(b.at) : a.body.localeCompare(b.body),
-    );
+    // TOTAL order: `at` then `body` give a readable primary ordering; the full id-free fingerprint is
+    // the final tiebreaker so notes that tie on (at, body) still sort deterministically and never
+    // misalign in assertEquivalent's index-wise compare. A non-total key (at, body) alone could yield a
+    // spurious red when two distinct notes share the same at+body (WR-02).
+    .sort((a, b) => {
+      if (a.at !== b.at) return a.at.localeCompare(b.at);
+      if (a.body !== b.body) return a.body.localeCompare(b.body);
+      return JSON.stringify(a).localeCompare(JSON.stringify(b));
+    });
 }
 
 // Deep-compare two projected note-sets and return a list of human-readable diffs. Empty array === the

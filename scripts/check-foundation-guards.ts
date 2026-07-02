@@ -575,7 +575,12 @@ function guardRoleSize(): void {
 const CTX_PATH = String.raw`\.grugops[\\/]context[\\/]`;
 // A genuine write TOKEN — NOT the prose word "write". `\bWrite\b` is the (capital-W) Claude `Write`
 // tool token; `>`/`>>` and `echo` are shell-redirect writes. Bare lowercase "write" is excluded.
-const CTX_TOKEN = String.raw`writeFileSync|appendFileSync|\bWrite\b|>>?|\becho\b`;
+// The `>>?` redirect is guarded by a negative lookbehind so it does NOT fire on an ASCII arrow
+// (`-> .grugops/context/`, `=> …`, `<- …`) that merely NAMES the path in prose — those are a
+// false-positive raw-write, never a real redirect (WR-03). A genuine `echo … >> path` still matches
+// (its `>` is preceded by whitespace). A leading blockquote `> path` remains textually identical to a
+// redirect, so the guard still errs on the safe side there (a false-POSITIVE, never a bypass).
+const CTX_TOKEN = String.raw`writeFileSync|appendFileSync|\bWrite\b|(?<![-<=])>>?|\becho\b`;
 // FIRE when the path and a write token co-occur on one line, in EITHER order (token-then-path for
 // `writeFileSync('.grugops/context/...')`; path-then-token for `... .grugops/context/... >> file`).
 const CTX_WRITE_RE = new RegExp(
