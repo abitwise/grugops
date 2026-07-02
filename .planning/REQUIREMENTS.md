@@ -72,6 +72,8 @@ Requirements for the decentralization milestone. Each maps to exactly one roadma
 - [x] **DOGF-02**: A parallel N-agent dogfood — N distinct un-clobbered notes, each task claimed exactly once, a stale claim reclaimed (extends the Tier-2 headless E2E harness). Confirms `isolation: worktree` ↔ shared-context-path interaction.
 - [x] **DOGF-03**: Aggregate token-cost measurement so the ~50% cost claim is *demonstrated* or honestly marked `UNKNOWN - verify`; A3/DOG-02 is retired **only** when the oracle passes.
 
+> **A3/DOG-02 retirement status (2026-07-02): PENDING — DEFERRED.** The DOGF-01/02/03 *mechanical* deliverables are complete: the deterministic dual-path equivalence oracle is green (`node scripts/check-foundation-guards.js` exit 0, `oracleDualPathEquivalence` PASS; `check-uat-oracles.test.ts` and `worktree-dogfood.test.ts` green), and the N-agent dogfood is green. But the A3/DOG-02 *retirement itself* flips only when BOTH (a) the oracle is green AND (b) one captured live dual-path run is recorded (date + verdict) — authed Tier-2 `npm run test:e2e` A3-live case OR a completed `docs/dogfood-human-runbook.md` — per D-01/D-02/SC4. Condition (a) is met; (b) has no captured run yet, so the retirement is **DEFERRED** and the CC-native parity column in `examples/03-ticket-to-pr.md` correctly stays `pending human`. A loud-skip is never a capture, and cost never gates the retirement (D-11). No deleted artifact is asserted; the requirement→trace is preserved. The examples/03 cleanup (deleted-handoff-ref removal + `validate-agent-factory` .mjs→.js correction + parity-cell flip) is one coupled edit that lands with the flip on `approved`, so it too is deferred.
+
 ## v2.x Requirements
 
 Deferred to a future release. Tracked, not in this roadmap.
