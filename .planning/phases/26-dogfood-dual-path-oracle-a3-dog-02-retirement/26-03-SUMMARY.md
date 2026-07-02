@@ -132,6 +132,11 @@ None - no external service configuration required. (A future authed Tier-2 captu
 - DOGF-03 is met: the honest cost instrument exists and is proven by a fixture test. The grugops number is honestly deferred to a later authed capture and never gates the phase or the A3/DOG-02 retirement.
 - Remaining phase-26 work (DOGF-01 oracle wiring, DOGF-02 worktree dogfood, and the evidence-gated retirement flip) is independent of this plan.
 
+## Self-Check: PASSED
+
+- Files: scripts/measure-cost.ts, scripts/measure-cost.js, scripts/measure-cost.test.ts, 26-03-SUMMARY.md — all FOUND
+- Commits: bf39386, 810d498, 64e93c8 — all FOUND
+
 ---
 *Phase: 26-dogfood-dual-path-oracle-a3-dog-02-retirement*
 *Completed: 2026-07-01*
