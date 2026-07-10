@@ -5,16 +5,16 @@ milestone_name: Decentralized Factory — Shared Verified Context
 current_phase: 26
 current_phase_name: dogfood-dual-path-oracle-a3-dog-02-retirement
 status: executing
-stopped_at: Planned 26-06-PLAN.md (gap closure)
-last_updated: "2026-07-10T00:00:00.000Z"
+stopped_at: Executed 26-06-PLAN.md (final plan; phase 26 awaiting verification — A3/DOG-02 retirement DEFERRED per GAP-D1)
+last_updated: "2026-07-10T13:23:47.133Z"
 last_activity: 2026-07-10
-last_activity_desc: Phase 26 gap-closure plan 26-06 created (live-harness A1/A2/A3/A3-N)
+last_activity_desc: Phase 26 plan 26-06 executed — live-harness A1/A2/A3/A3-N repaired; phase awaiting verification, retirement DEFERRED
 progress:
   total_phases: 7
   completed_phases: 6
   total_plans: 44
-  completed_plans: 43
-  percent: 86
+  completed_plans: 44
+  percent: 98
 ---
 
 # Project State
@@ -28,10 +28,10 @@ See: .planning/PROJECT.md (updated 2026-06-16 — after v1.2 milestone)
 
 ## Current Position
 
-Phase: 26 (dogfood-dual-path-oracle-a3-dog-02-retirement) — EXECUTING
-Plan: 5 of 6 (26-06 gap closure planned, not executed)
-Status: Ready to execute
-Last activity: 2026-07-10 — Phase 26 gap-closure plan 26-06 created from 26-UAT.md gaps (live-harness A1/A2/A3/A3-N). A3/DOG-02 retirement remains DEFERRED (SC4: no captured live dual-path run).
+Phase: 26 (dogfood-dual-path-oracle-a3-dog-02-retirement) — EXECUTING (all 6 plans executed; phase NOT complete)
+Plan: 6 of 6 executed
+Status: Phase 26 awaiting verification — A3/DOG-02 retirement DEFERRED (SC4: no captured live dual-path run; GAP-D1)
+Last activity: 2026-07-10 — Phase 26 plan 26-06 executed (live-harness A1/A2/A3/A3-N repaired). Retirement stays DEFERRED.
 
 ## Performance Metrics
 
@@ -205,6 +205,11 @@ Last activity: 2026-07-10 — Phase 26 gap-closure plan 26-06 created from 26-UA
 
 Decisions are logged in PROJECT.md Key Decisions table.
 Recent decisions affecting current work:
+
+- [26-06]: A2 prod-deploy-deny matcher anchored STRUCTURALLY on `"permissionDecision":"deny"` (hooks/guard.ts:90-100), NOT on quotable prose — the offline RED test proved a prose anchor false-TRUEs the `docs/dogfood-human-runbook.md:129` verbatim deny block-quote; the structural anchor closes the doc-quotation vacuity vector (T-26-A2, the terminal STRUCTURAL-fix lesson).
+- [26-06]: `claude -p --output-format json` hook-decision reachability left `UNKNOWN - verify` (help documents json only as a "single result"; a captured authed run is out of scope, GAP-D1). Structured anchor PREFERRED because it fails CLOSED (honest pending), never a vacuous prose TRUE.
+- [26-06]: A3-N node-runner Bash grant = `--allowedTools "Bash(node *)"`, verified verbatim against `claude --help` v2.1.206 (narrowest scoped form, mirrors the documented `Bash(git *)` example; the blanket skip-all-permissions bypass is prohibited in committed test code).
+- [26-06]: DOGF-01/DOGF-02 NOT marked complete and REQUIREMENTS.md untouched — the live dual-path / N-agent confirmation stays DEFERRED (SC4, GAP-D1). This plan only repairs the harness so it CAN run green on a future authed box; Phase 26 is therefore NOT complete (roadmap phase-Complete flip reverted).
 
 - [v1.2 Roadmap]: 8 phases, numbering CONTINUED from v1.1 (Phases 10–17, NOT reset to 1). All 28 v1.2 requirements mapped to exactly one phase, 100% coverage, 0 unmapped — SDLC-01/02/03 → Phase 10; PERS-01/02/03 → Phase 11; BDD-01/02/03 + TDD-01/02 → Phase 12; UI-01/02/03 → Phase 13; SEC-01/02/03 → Phase 14; UIQA-01/02 + TINT-01/02/03 + LINT-01/02 → Phase 15; MIGR-01 + UPD-01 → Phase 16; DOCS-01/02 → Phase 17.
 - [v1.2 Roadmap]: Phase order honors the research dependency-ordered build sequence — audit + foundation guards FIRST (10), senior personas as the substrate (11), then BDD+TDD (12), frontend/UI (13) + security/ASVS (14) as independent parallel content streams, §14 gate CONVERGENCE consuming 12/13/14 (15), install migrate/update as an INDEPENDENT track (16, may run parallel to 11–15), browsable docs catalog LAST since it documents the finished set (17).
@@ -473,7 +478,7 @@ Items acknowledged and deferred at the **v1.2 milestone close on 2026-06-16** (1
 
 ## Session Continuity
 
-Last session: 2026-07-02T12:17:10.033Z
+Last session: 2026-07-10T13:23:47.125Z
 Stopped at: Completed 26-03-PLAN.md
 Resume file: None
 
