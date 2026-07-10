@@ -280,7 +280,7 @@ Round 7 CLOSED all three round-6 channel defects (path-traversal, config-root, h
   3. Aggregate token cost is measured so the ~50% cost claim is DEMONSTRATED with grugops's own numbers or honestly marked `UNKNOWN - verify` (DeLM's benchmark numbers are never asserted as grugops's).
   4. A3/DOG-02 is marked retired ONLY after the equivalence oracle passes — never on handoff deletion alone.
 
-**Plans**: 5/5 plans complete
+**Plans**: 6 plans (5 complete + 1 gap-closure in progress)
 
 Plans:
 **Wave 1**
@@ -296,6 +296,10 @@ Plans:
 **Wave 3** *(blocked on Wave 2 completion)*
 
 - [x] 26-05-PLAN.md — SC4: evidence-gated A3/DOG-02 retirement flip (oracle-green + captured live run), doc trace cleanup (Wave 3)
+
+**Wave 4** *(gap closure — repair the 4 live-harness defects from 26-UAT.md; retirement stays DEFERRED per GAP-D1; blocked on Wave 2)*
+
+- [ ] 26-06-PLAN.md — Live-harness fixes A1/A2/A3/A3-N in scripts/e2e/uat-live.test.ts: per-test vitest timeouts derived from CALL_TIMEOUT_MS (A1); single-source markdown-insensitive prod-deploy-deny matcher + offline non-vacuity RED test (A2); lighter seeded ABC-001 task reaching the frozen verdict (A3); narrowest verified Bash-grant flag with the live agent as driver (A3-N). No retirement flip [DOGF-01, DOGF-02] (Wave 4)
 
 ## Progress
 
