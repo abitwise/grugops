@@ -172,6 +172,27 @@ let tmpRepo = "";
 // and the marker assertion fails honestly — the UAT cell stays pending, never fabricated.
 const CALL_TIMEOUT_MS = Number(process.env.UAT_E2E_CALL_TIMEOUT_MS) || 300_000;
 
+// liveTimeoutMs — DERIVE each live case's vitest per-test timeout FROM CALL_TIMEOUT_MS so the two
+// bounds can never desync again (A1 fix). vitest.config.ts sets no `testTimeout`, so each live `it()`
+// would otherwise inherit vitest's built-in 5000ms default while each claudePrint is bounded at
+// CALL_TIMEOUT_MS (300s); vitest cannot interrupt the synchronous spawnSync, so it reports a 5s
+// timeout yet blocks for minutes. The `it()` 4th-arg per-test timeout (the only in-repo idiom,
+// worktree-dogfood.test.ts:210) is the fix. `nClaudeCalls` = the number of claudePrint calls in the
+// case; `extraMs` folds in the fixed-budget install/cleanup spawns. Raising UAT_E2E_CALL_TIMEOUT_MS
+// now raises BOTH bounds together (constraint 5 — they can never desync).
+function liveTimeoutMs(nClaudeCalls: number, extraMs = 0): number {
+  return nClaudeCalls * CALL_TIMEOUT_MS + extraMs;
+}
+
+// WIP_LIMIT — the N-agent fan-out width, hoisted to module scope (read from the real factory config,
+// D-08 — never hard-coded) so BOTH the A3-N per-test timeout arg and the A3-N body read ONE source and
+// can never disagree.
+const WIP_LIMIT = (
+  JSON.parse(
+    readFileSync(join(ROOT, "agent-factory", "config", "factory.config.json"), "utf8"),
+  ) as { queue: { wip_limit: number } }
+).queue.wip_limit;
+
 // Helper: run the real `claude` CLI in print mode with arg arrays (never a shell on the data
 // path — ASVS V5 / command-injection). Returns combined stdout for marker assertions.
 function claudePrint(args: string[], cwd: string): { status: number | null; out: string } {
@@ -291,6 +312,9 @@ describe("Tier-2 live E2E against the real claude CLI (gated on present+authed)"
         `D-31: neither /grugops:plan nor --plugin-dir ./ produced planning markers without a cache path error. Captured: ${used.slice(0, 400)}`,
       ).toBe(true);
     },
+    // 2 claudePrint calls (primary + fallback) + 2 plugin-install spawns (60_000ms each) +
+    // marketplace-add headroom → 2*CALL_TIMEOUT_MS + 4*60_000ms.
+    liveTimeoutMs(2, 4 * 60_000),
   );
 
   // A2-live — SAFE-02 live deny (V14). NEVER sets the approval var; harmless matched probe only.
@@ -323,6 +347,8 @@ describe("Tier-2 live E2E against the real claude CLI (gated on present+authed)"
         `SAFE-02: expected the clear-voice deny string to appear. Captured: ${r.out.slice(0, 400)}`,
       ).toBe(true);
     },
+    // 1 claudePrint call → CALL_TIMEOUT_MS + 60_000ms headroom.
+    liveTimeoutMs(1, 60_000),
   );
 
   // A3-live — dual-path DISPATCH parity (DOG-02), retargeted onto the D-05 equivalence artifact.
@@ -375,6 +401,8 @@ describe("Tier-2 live E2E against the real claude CLI (gated on present+authed)"
         `DOG-02 (D-05): frozen gate verdict "${FROZEN_VERDICT}" must converge on BOTH dispatch paths (seq=${seqVerdict}, sub=${subVerdict}). Captured seq=${sequential.out.slice(0, 200)} | sub=${subagent.out.slice(0, 200)}`,
       ).toBe(true);
     },
+    // 2 claudePrint calls (sequential + sub-agent dispatch) → 2*CALL_TIMEOUT_MS + 60_000ms headroom.
+    liveTimeoutMs(2, 60_000),
   );
 
   // A3-live-N — the DOGF-02 N-agent LIVE confirmation (D-09), Tier-2 confirmation ONLY.
@@ -392,11 +420,10 @@ describe("Tier-2 live E2E against the real claude CLI (gated on present+authed)"
   it.skipIf(!LIVE)(
     "A3-live-N (DOGF-02, D-09): N real claude dispatches against ONE shared queue + context root accrete N distinct un-clobbered notes and claim a single-slot task exactly once",
     () => {
-      // N honors queue.wip_limit (D-08) — read from the real factory config, not hard-coded.
-      const factoryConfig = JSON.parse(
-        readFileSync(join(ROOT, "agent-factory", "config", "factory.config.json"), "utf8"),
-      ) as { queue: { wip_limit: number } };
-      const N = factoryConfig.queue.wip_limit; // = 3
+      // N honors queue.wip_limit (D-08) — the module-scope WIP_LIMIT (ONE hoisted source, read from
+      // the real factory config; never hard-coded) so the per-test timeout and this body can never
+      // disagree.
+      const N = WIP_LIMIT; // = 3
 
       // Allowlist-safe task names (^[A-Za-z0-9._-]+$).
       const CLAIM_TASK = "shared-claim-task"; // single-slot: claimed exactly once
@@ -507,5 +534,7 @@ writeFileSync(resultFile, JSON.stringify({ agentId, won, cwd: process.cwd() }));
         rmSync(shared, { recursive: true, force: true });
       }
     },
+    // WIP_LIMIT claudePrint dispatches (one per agent) → WIP_LIMIT*CALL_TIMEOUT_MS + 60_000ms headroom.
+    liveTimeoutMs(WIP_LIMIT, 60_000),
   );
 });
