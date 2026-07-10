@@ -24,6 +24,7 @@
 
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
+import { spawnSync } from "node:child_process";
 import { join } from "node:path";
 import {
   prodDeployDenyFired,
@@ -141,8 +142,38 @@ describe("prod-deploy-deny matcher (SAFE-02 / T-26-A2) — offline non-vacuity R
     // matcher can never silently drift from the guard's contract.
     expect(guardSrc.includes(PROD_DEPLOY_DENY_KEY)).toBe(true);
     expect(guardSrc.includes(`"${PROD_DEPLOY_DENY_VALUE}"`)).toBe(true);
-    // Strongest anti-drift check: the matcher's OWN predicate fires on the guard's source envelope. If
-    // guard.ts's deny() marker ever changes, this goes red and forces the matcher to be updated in lock-step.
-    expect(prodDeployDenyFired(guardSrc)).toBe(true);
+  });
+
+  // ── Anchor integrity at the POINT OF EFFECT — the real guard's bytes, not a source-text lookalike ──
+  it("anchor integrity (point-of-effect): the REAL committed guard, executed on a matched deploy with no approval in env, emits a transcript prodDeployDenyFired scores TRUE", () => {
+    // Running the actual hook is the only anti-drift check that cannot be satisfied by text that merely
+    // LOOKS like the marker. Asserting the predicate against hooks/guard.ts SOURCE is what previously
+    // forced the matcher to tolerate the object-literal grammar and reopened the doc-quotation vector.
+    // Offline and token-free: node executing a committed .js on a synthetic stdin payload.
+    const env = { ...process.env };
+    delete env.GRUGOPS_PROD_DEPLOY_APPROVED; // never let a stray approval vacuously turn deny into allow
+
+    const r = spawnSync(process.execPath, [join(ROOT, "hooks", "guard.js")], {
+      input: JSON.stringify({ tool_name: "Bash", tool_input: { command: "kubectl apply -f x" } }),
+      encoding: "utf8",
+      env,
+    });
+
+    expect(r.status).toBe(0); // exit 0 + JSON deny = blocked, with a message for the agent
+    expect(prodDeployDenyFired(r.stdout)).toBe(true);
+  });
+
+  // ── The guard is the ONLY thing that can make the matcher TRUE: no deny, no match ─────────────────
+  it("point-of-effect non-vacuity: the same guard, on a command that matches NO deploy pattern, emits nothing the matcher scores TRUE", () => {
+    const env = { ...process.env };
+    delete env.GRUGOPS_PROD_DEPLOY_APPROVED;
+
+    const r = spawnSync(process.execPath, [join(ROOT, "hooks", "guard.js")], {
+      input: JSON.stringify({ tool_name: "Bash", tool_input: { command: "echo hello" } }),
+      encoding: "utf8",
+      env,
+    });
+
+    expect(prodDeployDenyFired(r.stdout ?? "")).toBe(false);
   });
 });
