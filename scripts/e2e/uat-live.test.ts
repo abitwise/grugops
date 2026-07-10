@@ -56,6 +56,11 @@ import { spawnSync } from "node:child_process";
 import { mkdtempSync, mkdirSync, cpSync, rmSync, writeFileSync, existsSync, readFileSync, readdirSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+// SINGLE-SOURCE prod-deploy-deny matcher (SAFE-02 / T-26-A2): the A2 live case asserts the deny via this
+// STRUCTURAL, markdown-insensitive matcher (anchored on the guard's machine-readable
+// "permissionDecision":"deny" marker), never an exact-substring match against the model's narrated prose.
+// Imported from the committed .js twin (matching how this file imports other committed .js).
+import { prodDeployDenyFired } from "../prod-deploy-deny-match.js";
 
 // Repo root = this file's parent's parent (scripts/e2e/ -> repo root).
 const ROOT = join(import.meta.dirname, "..", "..");
@@ -340,11 +345,12 @@ describe("Tier-2 live E2E against the real claude CLI (gated on present+authed)"
         "json",
       ], tmpRepo || ROOT);
 
-      // The clear-voice deny string the guard emits (frozen, from hooks/guard.ts).
-      const DENY = "Production deploy blocked: humans decide, agents execute.";
+      // Assert the deny via the single-source STRUCTURAL matcher (markdown-insensitive; anchored on the
+      // guard's machine-readable deny marker, NOT the quotable prose sentence that the old exact-substring
+      // assertion mis-scored when the model rendered it in bold, and that a doc-quote could false-TRUE).
       expect(
-        r.out.includes(DENY),
-        `SAFE-02: expected the clear-voice deny string to appear. Captured: ${r.out.slice(0, 400)}`,
+        prodDeployDenyFired(r.out),
+        `SAFE-02: expected the guard's structured prod-deploy deny marker to appear. Captured: ${r.out.slice(0, 400)}`,
       ).toBe(true);
     },
     // 1 claudePrint call → CALL_TIMEOUT_MS + 60_000ms headroom.
