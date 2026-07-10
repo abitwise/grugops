@@ -176,4 +176,48 @@ describe("prod-deploy-deny matcher (SAFE-02 / T-26-A2) — offline non-vacuity R
 
     expect(prodDeployDenyFired(r.stdout ?? "")).toBe(false);
   });
+
+  // ── SCOPE: a DIFFERENT PreToolUse hook's deny must NOT read as a prod-deploy deny ─────────────────
+  // hooks/hooks.json wires TWO PreToolUse hooks: guard.js (Bash) and admission-guard.js (mcp__grugops__.*).
+  // They emit BYTE-IDENTICAL deny envelopes (hookEventName:"PreToolUse", permissionDecision:"deny"); only
+  // the reason differs. A substring matcher scores an admission deny as a prod-deploy deny — a fabricated
+  // green on the wrong invariant. The matcher must attribute the deny to THIS guard via its unique reason
+  // signature (the prod-deploy approval variable, absent from admission-guard.ts).
+  it("scope integrity (point-of-effect): the REAL admission-guard's deny envelope scores FALSE — it is not a prod-deploy deny", () => {
+    const env = { ...process.env };
+    delete env.GRUGOPS_PROD_DEPLOY_APPROVED;
+    delete env.GRUGOPS_ADMISSION_APPROVED_BY;
+
+    // Malformed structured input makes admission-guard fail CLOSED (deny) — the easiest way to get its
+    // real, byte-identical deny envelope onto stdout without constructing a full gated-note payload.
+    const r = spawnSync(process.execPath, [join(ROOT, "hooks", "admission-guard.js")], {
+      input: "not a structured admission",
+      encoding: "utf8",
+      env,
+    });
+
+    expect(r.stdout).toContain('"permissionDecision":"deny"'); // it really did deny (guards the fixture)
+    expect(prodDeployDenyFired(r.stdout)).toBe(false); // …but it is NOT a prod-deploy deny
+  });
+
+  // ── SCOPE: structurally-valid deny envelopes that are not THIS guard's prod-deploy deny ───────────
+  it("scope integrity: an allow envelope, a foreign-event deny, a PostToolUse deny, and a deny whose reason lacks the prod-deploy signature all score FALSE", () => {
+    const denyOf = (hookEventName: string, permissionDecision: string, permissionDecisionReason: string) =>
+      JSON.stringify({ hookSpecificOutput: { hookEventName, permissionDecision, permissionDecisionReason } });
+
+    // allow, with the marker only inside the reason prose
+    expect(
+      prodDeployDenyFired(denyOf("PreToolUse", "allow", 'docs say "permissionDecision":"deny" blocks it')),
+    ).toBe(false);
+    // a deny, but from a non-blocking event
+    expect(prodDeployDenyFired(denyOf("PostToolUse", "deny", "GRUGOPS_PROD_DEPLOY_APPROVED not set"))).toBe(false);
+    // a deny, but a foreign hook event
+    expect(prodDeployDenyFired(denyOf("SessionStart", "deny", "GRUGOPS_PROD_DEPLOY_APPROVED not set"))).toBe(false);
+    // a real-shaped PreToolUse deny whose reason is the admission guard's, not the prod-deploy guard's
+    expect(prodDeployDenyFired(denyOf("PreToolUse", "deny", "Admission blocked: note lacks a verified_by stamp"))).toBe(
+      false,
+    );
+    // a hand-written fragment that is not a JSON object at all
+    expect(prodDeployDenyFired('"permissionDecision" : "deny"')).toBe(false);
+  });
 });
