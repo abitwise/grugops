@@ -373,7 +373,13 @@ describe("Tier-2 live E2E against the real claude CLI (gated on present+authed)"
   it.skipIf(!LIVE)(
     "A3-live (DOG-02, D-05): the same ticket through sequential and sub-agent dispatch converges on the same frozen on-disk gate verdict (on-disk note-set + verdict, not deleted handoff filenames)",
     () => {
-      const TICKET = "implement ABC-001: add a GET /version endpoint and take it to a PR";
+      // A3 fix (GAP-D3): a LIGHTER seeded ABC-001 task that stops at the §14 gate verdict. It drops the
+      // branch/build/pull-request completion session (which made both dispatches hit the 300s per-call
+      // cap before emitting the verdict) while still traversing BOTH dispatch paths through the gate to
+      // READY_FOR_HUMAN_REVIEW. The assertion is the frozen ON-DISK verdict (D-12), never a pull request —
+      // so reaching the gate verdict is sufficient and CALL_TIMEOUT_MS is NOT raised as the primary fix.
+      const TICKET =
+        "implement ABC-001: add a GET /version endpoint, then run it through the §14 gate and report the gate verdict — stop at the gate verdict, do not open a branch or build anything";
       // The frozen verdict STRING both dispatch paths must converge on (examples/03-ticket-to-pr.md;
       // context-io VERDICT_GREEN_MARKER). This on-disk verdict is the D-05 equivalence artifact — never
       // the deleted handoff filenames, and never byte-identical LLM prose.
@@ -482,6 +488,21 @@ writeFileSync(resultFile, JSON.stringify({ agentId, won, cwd: process.cwd() }));
 `,
         );
 
+        // A3-N fix (GAP-D2): the live agent stays the DRIVER (the harness never calls the runner directly
+        // — that would collapse this case into the already-green deterministic twin worktree-dogfood.test.ts
+        // and prove nothing about live dispatch). A headless `claude -p` under default permissions will not
+        // execute an arbitrary Bash command (→ 0 notes on the shared root — a permission denial, not agent
+        // whim), so the node-runner invocation is granted the NARROWEST verified tool-grant flag, scoped to
+        // node only — NOT the blanket skip-all-permissions bypass (prohibited in committed test code).
+        //
+        // VERIFIED against the installed CLI (`claude --help`, v2.1.206):
+        //   --allowedTools, --allowed-tools <tools...>
+        //       Comma or space-separated list of tool names to allow (e.g. "Bash(git *) Edit")
+        // so `Bash(node *)` is the documented scoped form (mirrors the help's `Bash(git *)` example),
+        // narrower than a blanket `Bash` grant. If the runner still does not execute, the on-disk
+        // convergence assertions below fail honestly (0 notes → a clear failure message, never a fabricated
+        // green). The captured `claude --help` evidence is recorded verbatim in 26-06-SUMMARY.md.
+        const RUNNER_BASH_GRANT = "Bash(node *)";
         // Spawn N REAL claude dispatches, each instructed to run the runner with the SHARED absolute
         // roots. Arg-array spawnSync only (claudePrint) — never a shell on the data path (V5); the
         // approval env is never set. Each agent gets its own cwd dir under the shared root so a
@@ -508,6 +529,10 @@ writeFileSync(resultFile, JSON.stringify({ agentId, won, cwd: process.cwd() }));
             `Run this exact shell command and then report done. Do not modify it: ${cmd}`,
             "--output-format",
             "json",
+            // Grant ONLY the narrowest verified node-scoped Bash tool so the injected runner actually
+            // executes (applied here, at the A3-N runner dispatch, never globally).
+            "--allowedTools",
+            RUNNER_BASH_GRANT,
           ], agentCwd);
         }
 
