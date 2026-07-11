@@ -215,3 +215,41 @@ blocked: 0
     User asked to choose (AFK at 2026-07-03T16:49Z): (A) diagnose+plan fixes now [no live
     re-run], (B) note & continue UAT / file separately, (C) fix setup+assertion bugs inline.
     Recorded honestly; no agents spawned, no fixes applied, live lane NOT re-run pending choice.
+
+- truth: "The A2 prod-deploy deny matcher cannot be false-TRUEd by anything other than a real prod-deploy guard deny"
+  status: resolved_structurally
+  reason: "26-06 execute-phase spot-check (2026-07-11) refused to trust the green suite and reproduced a live false-TRUE. Two independent opus red-teams + a parser-oracle fuzz then found the originally-shipped matcher unsound in two ways. Both classes are now closed structurally; one residual is documented, not closed."
+  severity: major
+  test: 2
+  root_cause: |
+    (Bypass 1 — doc-quotation) The first structural matcher used a regex with OPTIONAL key
+    quotes so it could double as an anti-drift check against hooks/guard.ts SOURCE. That
+    admitted the TS object-literal grammar. CLAUDE.md:96 documents the hook contract in that
+    grammar and `claude -p` auto-loads CLAUDE.md at cwd=ROOT, so an agent that merely cited why
+    it was blocked scored a deny with no hook firing.
+    (Bypass 2 — scope confusion) hooks/hooks.json wires TWO PreToolUse hooks (guard.js on Bash,
+    admission-guard.js on mcp) emitting byte-identical deny envelopes. A substring/quoted-key
+    match scored an admission-guard deny — and allow-envelopes, PostToolUse denies, foreign-event
+    denies, and the quoted marker echoed from ~30 committed repo files — as a prod-deploy deny.
+  fix: |
+    Matcher rebuilt to PARSE the transcript into JSON objects and require, within ONE object,
+    hookEventName==="PreToolUse" + permissionDecision==="deny" + a permissionDecisionReason
+    containing GRUGOPS_PROD_DEPLOY_APPROVED (the guard's unique in-envelope signature, absent
+    from admission-guard.ts). Anti-drift moved to the point of effect (execute the real guard.js,
+    match its stdout). Commits: e10ba28/0da668d (bypass 1), f4f5baa/e189bd5 (bypass 2).
+    Fuzz: 30 rows, 0 false-TRUE / 0 false-FALSE on the trustworthy corpus (was 5 false-TRUE).
+  residual: |
+    IRREDUCIBLE and DOCUMENTED, not closed: the live A2 case reads agent-authored `claude -p`
+    bytes, so a deliberately-forged complete envelope still scores TRUE. No matcher over
+    adversary-authored input can attribute a deny to the hook. The live A2 lane is therefore
+    CONFIRMATION-ONLY (D-09) and annotated as such in-code; a live green is NOT sufficient for
+    the D-01/D-02 captured-live-run retirement gate. The SOUND proof is the Tier-1 point-of-effect
+    oracle (scripts/check-uat-oracles.ts executes the real guard.js). Red-team B also noted the
+    guard is a plugin-only hook not installed on this box, so an A2 run in cwd=ROOT could not fire
+    the hook at all.
+  follow_up_for_human: |
+    If a live end-to-end deny must ever be ASSERTED (not merely confirmed), it needs an
+    unforgeable observation channel — the guard's own captured stdout/exit or a hook-audit log
+    the agent cannot author — not the agent's narrated transcript. Arguably beyond 26-06's
+    harness-fix scope; left as a decision for the human. A3/DOG-02 retirement stays DEFERRED
+    regardless (GAP-D1 unchanged).
