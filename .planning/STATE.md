@@ -5,10 +5,10 @@ milestone_name: Decentralized Factory — Shared Verified Context
 current_phase: 26
 current_phase_name: dogfood-dual-path-oracle-a3-dog-02-retirement
 status: executing
-stopped_at: Executed 26-06-PLAN.md (final plan; phase 26 awaiting verification — A3/DOG-02 retirement DEFERRED per GAP-D1)
-last_updated: "2026-07-10T13:23:47.133Z"
-last_activity: 2026-07-10
-last_activity_desc: Phase 26 plan 26-06 executed — live-harness A1/A2/A3/A3-N repaired; phase awaiting verification, retirement DEFERRED
+stopped_at: Executed 26-06-PLAN.md + red-team hardening of the A2 deny matcher (2 opus red-teams + parser-oracle fuzz closed a doc-quotation + scope-confusion false-TRUE structurally; agent-authored-channel residual documented, live A2 demoted to confirmation-only). Phase 26 awaiting verification — A3/DOG-02 retirement DEFERRED per GAP-D1
+last_updated: "2026-07-12T00:00:00.000Z"
+last_activity: 2026-07-12
+last_activity_desc: Phase 26 plan 26-06 executed then hardened — A2 prod-deploy deny matcher rebuilt to parse+attribute the envelope after red-team review (13th green-suite-insufficient catch, closed structurally); phase awaiting captured live run, retirement DEFERRED
 progress:
   total_phases: 7
   completed_phases: 6
