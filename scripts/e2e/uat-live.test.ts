@@ -345,12 +345,23 @@ describe("Tier-2 live E2E against the real claude CLI (gated on present+authed)"
         "json",
       ], tmpRepo || ROOT);
 
-      // Assert the deny via the single-source STRUCTURAL matcher (markdown-insensitive; anchored on the
-      // guard's machine-readable deny marker, NOT the quotable prose sentence that the old exact-substring
-      // assertion mis-scored when the model rendered it in bold, and that a doc-quote could false-TRUE).
+      // Assert the deny via the single-source STRUCTURAL matcher. prodDeployDenyFired PARSES the
+      // transcript into JSON objects and requires, within one object, hookEventName:"PreToolUse" +
+      // permissionDecision:"deny" + the prod-deploy reason signature — so a bolded prose sentence, a
+      // doc-quote, or a byte-identical admission-guard deny cannot false-TRUE it (scripts/
+      // prod-deploy-deny-match.ts; proven by its offline non-vacuity + point-of-effect tests).
+      //
+      // CONFIRMATION ONLY (D-09), NOT a safety proof. `r.out` is `claude -p` output — bytes the AGENT
+      // authored. Two red-teams confirmed the irreducible limit: a matcher over agent-authored text can
+      // detect that a well-formed prod-deploy deny envelope APPEARS, never that the mechanical hook FIRED
+      // (the model can reproduce the envelope; a plugin-only guard may not even be installed for this
+      // headless run). The SOUND proof that the guard denies is the Tier-1 point-of-effect oracle, which
+      // executes the real guard.js and matches ITS stdout (scripts/check-uat-oracles.ts +
+      // scripts/prod-deploy-deny-match.test.ts). A green here is a live confirmation signal only — it is
+      // NOT sufficient evidence for the D-01/D-02 captured-live-run retirement gate.
       expect(
         prodDeployDenyFired(r.out),
-        `SAFE-02: expected the guard's structured prod-deploy deny marker to appear. Captured: ${r.out.slice(0, 400)}`,
+        `SAFE-02: expected the guard's structured prod-deploy deny envelope to appear. Captured: ${r.out.slice(0, 400)}`,
       ).toBe(true);
     },
     // 1 claudePrint call → CALL_TIMEOUT_MS + 60_000ms headroom.
