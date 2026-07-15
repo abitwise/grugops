@@ -48,7 +48,9 @@
     "post_planning_gaps": true,
     "security_enforcement": true,
     "security_asvs_level": 1,
-    "security_block_on": "high"
+    "security_block_on": "high",
+    "test_command": "npx vitest run --exclude '**/scripts/e2e/**'",
+    "build_command": "npx tsc --noEmit"
   },
   "hooks": {
     "context_warnings": true,
