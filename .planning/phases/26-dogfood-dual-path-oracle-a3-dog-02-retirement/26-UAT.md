@@ -3,7 +3,7 @@ status: partial
 phase: 26-dogfood-dual-path-oracle-a3-dog-02-retirement
 source: [26-01-SUMMARY.md, 26-02-SUMMARY.md, 26-03-SUMMARY.md, 26-04-SUMMARY.md, 26-05-SUMMARY.md]
 started: 2026-07-02T15:35:47Z
-updated: 2026-07-03T16:49:36Z
+updated: 2026-07-21T14:31:47Z
 ---
 
 ## Current Test
@@ -181,7 +181,15 @@ blocked: 0
 ## Gaps
 
 - truth: "The Tier-2 live dual-path harness (A1/A2/A3/A3-N) runs green against the real claude CLI"
-  status: failed
+  status: resolved
+  resolved_by: 26-06-PLAN.md
+  resolved_at: 2026-07-21
+  resolution_scope: |
+    All four harness defects fixed and offline-proven by executed plan 26-06 (SUMMARY complete,
+    commits d18c206/f798e60/2933d0a/1faf61b + red-team hardening e10ba28/0da668d/f4f5baa/e189bd5;
+    offline suite 794 passed | 1 skipped, freshness 25/25, parser-oracle fuzz 0 false-TRUE /
+    0 false-FALSE). The live lane itself was deliberately NOT re-executed (real tokens; GAP-D1) —
+    a captured live green remains the deferred D-01/D-02 evidence tracked by Test 4, not by this gap.
   reason: "User ran full `npm run test` on an authed box (2026-07-03); all 4 live e2e cases failed on first-ever live execution. Structural retarget is correct; live execution is not."
   severity: major
   test: 2
@@ -211,10 +219,10 @@ blocked: 0
     Not in phase-26 CLOSEOUT scope by 26-05's DEFER: the captured live dual-path run was
     already deferred, so A3/DOG-02 retirement correctly stays pending. This gap is the live
     HARNESS quality, distinct from the (green) DOGF-01/02/03 mechanical deliverables.
-  awaiting_routing: |
-    User asked to choose (AFK at 2026-07-03T16:49Z): (A) diagnose+plan fixes now [no live
-    re-run], (B) note & continue UAT / file separately, (C) fix setup+assertion bugs inline.
-    Recorded honestly; no agents spawned, no fixes applied, live lane NOT re-run pending choice.
+  routing_resolution: |
+    The 2026-07-03 routing question (A/B/C) was superseded: path (A) was effectively taken —
+    gap-closure plan 26-06 was planned 2026-07-10 and executed 2026-07-10/11 with no live re-run.
+    Reconciled by /gsd-verify-work resume on 2026-07-21.
 
 - truth: "The A2 prod-deploy deny matcher cannot be false-TRUEd by anything other than a real prod-deploy guard deny"
   status: resolved_structurally
