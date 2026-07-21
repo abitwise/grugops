@@ -39,6 +39,10 @@ grugops version `0.1.0`.
 
 3. **Go deep** — the internal start-here guide explains how to point any of the five host tools at the Orchestrator and walk a ticket from idea to PR. See **[`agent-factory/README.md`](agent-factory/README.md)**.
 
+## Changelog
+
+The release history lives in [`CHANGELOG.md`](CHANGELOG.md) and follows Keep a Changelog.
+
 ## Acknowledgements
 
 grugops is inspired by **The Grug Brained Developer** (https://grugbrain.dev) by Carson Gross —
