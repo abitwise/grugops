@@ -31,7 +31,7 @@ See: .planning/PROJECT.md (updated 2026-06-16 — after v1.2 milestone)
 Phase: 26 (dogfood-dual-path-oracle-a3-dog-02-retirement) — EXECUTING (all 6 plans executed; phase NOT complete)
 Plan: 6 of 6 executed
 Status: Phase 26 awaiting verification — A3/DOG-02 retirement DEFERRED (SC4: no captured live dual-path run; GAP-D1)
-Last activity: 2026-07-21 — Completed quick task 260721-hjm: user-facing docs audit (agent-factory/README.md updated to v2.0 reality; rest verified clean).
+Last activity: 2026-07-21 — Completed quick task 260721-iyt: added root CHANGELOG.md (Keep a Changelog 1.1.0) and linked it from README.md.
 
 ## Performance Metrics
 
@@ -456,6 +456,7 @@ None yet.
 | 260606-0my | Harden grugops role-switch protocol + auto-commit to working branch (DOG-02 dogfood fixes) | 2026-06-06 | 6a66994 | [260606-0my-harden-grugops-role-switch-protocol-auto](./quick/260606-0my-harden-grugops-role-switch-protocol-auto/) |
 | 260616-faw | Feasibility plan — automate the activities in the remaining human UATs (analysis only; 3-tier verdict) | 2026-06-16 | 5dcc5ef | [260616-faw-automate-remaining-human-uats-feasibilit](./quick/260616-faw-automate-remaining-human-uats-feasibilit/) |
 | 260721-hjm | Audit user-facing docs for freshness + concision (agent-factory/README.md brought to v2.0 reality) | 2026-07-21 | 56d46ed | [260721-hjm-go-over-user-facing-documentation-audit-](./quick/260721-hjm-go-over-user-facing-documentation-audit-/) |
+| 260721-iyt | Add root CHANGELOG.md (Keep a Changelog 1.1.0, from real tags + milestone docs) and link it from README.md | 2026-07-21 | 1c30907 | [260721-iyt-add-missing-changelog-md-populated-from-](./quick/260721-iyt-add-missing-changelog-md-populated-from-/) |
 
 ## Deferred Items
 
