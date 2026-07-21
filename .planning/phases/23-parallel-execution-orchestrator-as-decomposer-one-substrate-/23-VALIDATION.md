@@ -1,10 +1,11 @@
 ---
 phase: 23
 slug: parallel-execution-orchestrator-as-decomposer-one-substrate
-status: draft
-nyquist_compliant: false
-wave_0_complete: false
+status: validated
+nyquist_compliant: true
+wave_0_complete: true
 created: 2026-06-21
+validated: 2026-07-21
 ---
 
 # Phase 23 — Validation Strategy
@@ -44,7 +45,14 @@ created: 2026-06-21
 
 | Task ID | Plan | Wave | Requirement | Threat Ref | Secure Behavior | Test Type | Automated Command | File Exists | Status |
 |---------|------|------|-------------|------------|-----------------|-----------|-------------------|-------------|--------|
-| _pending plan_ | — | — | PAR-01..04 / CLAIM-03 | T-23-* | — | — | — | — | ⬜ pending |
+| 23-01-T1 | 23-01 | 1 | CLAIM-03 (D-06/D-07) | T-23-03 | queue object byte-consistent on 3 surfaces; width-vs-flow documented | unit | `npx vitest run scripts/config-queue-consistency.test.ts` | ✅ | ✅ green |
+| 23-01-T2 | 23-01 | 1 | CLAIM-03 (D-14, Pitfall 5) | T-23-01, T-23-02 | first-at-trusted render (forged 2nd `at:` skipped); queue freshness gate fails closed on drift | unit + gate | `npx vitest run scripts/now-running-freshness.test.ts scripts/claim.test.ts` · `node scripts/now-running-freshness.js` | ✅ | ✅ green |
+| 23-02-T1 | 23-02 | 2 | PAR-01, PAR-02 (D-11/D-12/D-13, D-05) | T-23-04, T-23-05 | orchestrator spine + hard limit under guard_role_size; WF17 single-source, chains WF16 | guard | `npx vitest run scripts/check-foundation-guards.test.ts` · `node scripts/check-foundation-guards.js` | ✅ | ✅ green |
+| 23-02-T2 | 23-02 | 2 | PAR-01/SC1, PAR-02/SC2, PAR-03/SC3, CLAIM-03 (D-04, Pitfall 4) | T-23-04, T-23-05, T-23-06 | thin pending refs; WIDTH ≤ wip_limit non-vacuous; claim exclusivity (EEXIST); dual-path substrate equality via currentState() | spine fixture | `npx vitest run scripts/decompose-spine.test.ts scripts/convergence-spine.test.ts` | ✅ | ✅ green |
+| 23-03-T1 | 23-03 | 3 | PAR-04/SC4 (D-15/D-16) | T-23-08, T-23-09, T-23-10 | both-direction marker-keyed guard_wr05; THREE half-flip RED fixtures vs committed `.js` | guard + RED fixtures | `npx vitest run scripts/check-foundation-guards.test.ts && node scripts/check-foundation-guards.js` | ✅ | ✅ green |
+| 23-03-T2 | 23-03 | 3 | PAR-04, PAR-02 (D-17/D-18/D-19) | T-23-08, T-23-11 | coordinator marker+grant on adapter (≤4096 B); asymmetric 5-tool flip (CC row only) | guard | `node scripts/check-foundation-guards.js` | ✅ | ✅ green |
+| 23-03-T3 | 23-03 | 3 | PAR-04 (D-18, Pitfall 3) | T-23-11, T-23-13 | B3 oracle asymmetry beat (non-CC row drift → RED); catalog regenerated + fresh | oracle + RED fixture | `npx vitest run scripts/check-uat-oracles.test.ts && node scripts/catalog-freshness.js && npm run freshness` | ✅ | ✅ green |
+| 23-03-GAP | 23-03-GAP | 3 | PAR-04 (CR-01/WR-01/WR-03/WR-04) | T-23-08..T-23-11 | fence-immunity + exactly-one-coordinator cardinality; concept-level asymmetry catch; import-safe queue gate | guard/oracle + proof | `npx vitest run scripts/check-foundation-guards.test.ts scripts/check-uat-oracles.test.ts` · `23-03-GAP-proof.txt` (5/5 vs committed `.js`) | ✅ | ✅ green |
 
 *Status: ⬜ pending · ✅ green · ❌ red · ⚠️ flaky*
 
@@ -54,12 +62,12 @@ created: 2026-06-21
 
 > From `23-RESEARCH.md` § Validation Architecture → "Wave 0 Gaps". Confirm exact filenames against the plans.
 
-- [ ] `scripts/<convergence>.test.ts` — SC3 dual-path convergence spine fixture (seeded 2–3-subtask decomposition, order-independent substrate equality). Covers PAR-03/SC3, D-04.
-- [ ] `scripts/<spine>.test.ts` — SC1/SC2 decomposition + width-cap (`wip_limit`) assertions. Covers PAR-01/PAR-02.
-- [ ] `scripts/now-running-freshness.ts` (+ committed `.js` + `.test.ts`) — queue-rooted render freshness gate (clone `context-freshness.ts`, re-root at `.grugops/queue/`). Covers D-14.
-- [ ] Extend `scripts/check-foundation-guards.test.ts` with the THREE both-direction RED fixtures (planted non-coordinator grant; dropped coordinator grant; lost `coordinator:` marker). Covers PAR-04/SC4, D-16.
-- [ ] Extend the B3 wording oracle test (`check-uat-oracles.test.ts`) with the four-CLI asymmetry assertion. Covers PAR-04 wording, D-19.
-- [ ] Confirm (or add) a `queue`-object cross-surface consistency check among the three config files. Covers D-06.
+- [x] `scripts/convergence-spine.test.ts` — SC3 dual-path convergence spine fixture (seeded 2–3-subtask decomposition, order-independent substrate equality via `currentState()`). Covers PAR-03/SC3, D-04. (Plan 23-02 T2)
+- [x] `scripts/decompose-spine.test.ts` — SC1/SC2 decomposition + width-cap (`wip_limit`) assertions, non-vacuous (`widthHighWater === WIP_LIMIT` + freed-slot reuse). Covers PAR-01/PAR-02. (Plan 23-02 T2)
+- [x] `scripts/now-running-freshness.ts` (+ committed `.js` + `.test.ts`) — queue-rooted render freshness gate (clone of `context-freshness.ts`, re-rooted at `.grugops/queue/`), import-safe after WR-04. Covers D-14. (Plan 23-01 T2)
+- [x] Extended `scripts/check-foundation-guards.test.ts` with the THREE both-direction RED fixtures (planted non-coordinator grant; dropped coordinator grant; lost `coordinator:` marker) + fence-immunity + cardinality cases. Covers PAR-04/SC4, D-16. (Plans 23-03 T1, 23-03-GAP)
+- [x] Extended the B3 wording oracle test (`check-uat-oracles.test.ts`) with the four-CLI asymmetry assertion (+ concept-level WR-01 broadening). Covers PAR-04 wording, D-19. (Plans 23-03 T3, 23-03-GAP)
+- [x] `scripts/config-queue-consistency.test.ts` — `queue`-object cross-surface consistency check among the three config files. Covers D-06. (Plan 23-01 T1)
 
 ---
 
@@ -76,11 +84,31 @@ created: 2026-06-21
 
 ## Validation Sign-Off
 
-- [ ] All tasks have `<automated>` verify or Wave 0 dependencies
-- [ ] Sampling continuity: no 3 consecutive tasks without automated verify
-- [ ] Wave 0 covers all MISSING references
-- [ ] No watch-mode flags
-- [ ] Adversarial reproduction completed for the WR-05 flip (both-direction RED proof against committed `.js` + asymmetry-drift repro + independent probe) — green suite alone is NOT sufficient
-- [ ] `nyquist_compliant: true` set in frontmatter
+- [x] All tasks have `<automated>` verify or Wave 0 dependencies
+- [x] Sampling continuity: no 3 consecutive tasks without automated verify
+- [x] Wave 0 covers all MISSING references
+- [x] No watch-mode flags
+- [x] Adversarial reproduction completed for the WR-05 flip (both-direction RED proof against committed `.js` + asymmetry-drift repro + independent probe) — `23-03-RED-baseline.txt` / `23-03-GREEN-proof.txt` / `23-03-GAP-proof.txt` + the independent verifier reproduction in `23-VERIFICATION.md` § Behavioral Spot-Checks
+- [x] `nyquist_compliant: true` set in frontmatter
 
-**Approval:** pending
+**Approval:** validated 2026-07-21 (retroactive Nyquist audit — see below)
+
+---
+
+## Validation Audit 2026-07-21
+
+| Metric | Count |
+|--------|-------|
+| Gaps found | 0 |
+| Resolved | 0 |
+| Escalated | 0 |
+
+All 8 task rows verified green by live runs on this box: the six phase suites
+(`npx vitest run scripts/config-queue-consistency.test.ts scripts/now-running-freshness.test.ts scripts/decompose-spine.test.ts scripts/convergence-spine.test.ts scripts/check-foundation-guards.test.ts scripts/check-uat-oracles.test.ts`)
+56/56 passed, and all five standalone gates exit 0 (`check-foundation-guards.js`,
+`check-uat-oracles.js`, `now-running-freshness.js`, `catalog-freshness.js`, `npm run freshness`).
+Every requirement (CLAIM-03, PAR-01..PAR-04) has automated coverage; the WR-05 flip carries the
+full adversarial evidence chain (RED-baseline → GREEN-proof → GAP-proof → independent verifier
+reproduction against the committed `.js`), honoring the green-suite-insufficient rule. The two
+Manual-Only rows (A3/DOG-02 real-role dual-path equivalence; `isolation: worktree` interaction)
+remain correctly deferred to Phase 26 — they require a live authed run and are NOT asserted green here.
