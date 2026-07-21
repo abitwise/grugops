@@ -18,15 +18,15 @@ always hold merge and deploy.
 > then `plans/board.md`. Act as the Orchestrator.
 
 The Orchestrator reads the config, classifies your request, respects the board's WIP limits,
-activates the right specialist roles, demands handoff packets, updates the board and
-traceability, and produces the next action.
+activates the right specialist roles, requires each to publish typed notes into the shared
+verified context, updates the board and traceability, and produces the next action.
 
 > **Note:** The portable root `AGENTS.md` substrate — the other entry point most host tools
-> read automatically — **lands in Phase 3** (the "Roles & AGENTS.md Substrate" phase). It
-> does **not** exist yet. Until it ships, point your agent directly at
-> `agent-factory/roles/orchestrator.md` as shown above. The role prompts and workflow bodies
-> referenced throughout this guide also ship in later phases (roles in Phase 3, workflows in
-> Phase 4); this README documents how to use them and locks the frozen paths they will live at.
+> read automatically — ships now at the repo root, so most tools can pick up grugops from
+> `AGENTS.md` directly; pointing your agent at `agent-factory/roles/orchestrator.md` as shown
+> above works everywhere. The role prompts ship under `agent-factory/roles/` and the workflow
+> bodies under `agent-factory/workflows/`; this guide documents how to use them and the frozen
+> paths they live at.
 
 ## Usage across the five tools
 
@@ -37,7 +37,7 @@ tool can *spawn* sub-agents or must *load* role files into context one at a time
 
 | Tool                  | Entry file it reads                              | Role dispatch                                            |
 | --------------------- | ------------------------------------------------ | -------------------------------------------------------- |
-| **Claude Code**       | `CLAUDE.md` (+ portable `AGENTS.md`, Phase 3)    | Coordinator spawns role agents — the `coordinator: true` adapter holds the grant |
+| **Claude Code**       | `CLAUDE.md` (+ portable `AGENTS.md`)             | Coordinator spawns role agents — the `coordinator: true` adapter holds the grant |
 | **Codex CLI**         | `AGENTS.md` (root + nested, global)              | Sequential role-load — no spawn                          |
 | **Gemini CLI**        | `GEMINI.md` (or `AGENTS.md` via `context.fileName`) | Sequential role-load — no spawn                       |
 | **OpenCode**          | `AGENTS.md` (+ its agent config)                 | Sequential role-load (or its own native agents)          |
@@ -49,8 +49,9 @@ is a single agent that *loads the relevant role file into context* at that momen
 same handoffs, same gates — only the dispatch differs.
 
 The detailed per-tool **adapters** (thin wrappers, slash commands, entry-file pointers, and
-the Claude Code plugin form) ship in Phase 5 under `agent-factory/packaging/`. This table is
-the usage overview; the adapters are the mechanical conveniences layered on top.
+the Claude Code plugin form) ship now — the installer (`node install/install.js`) lays them
+down. This table is the usage overview; the adapters are the mechanical conveniences layered
+on top.
 
 ## Configuration
 
@@ -75,8 +76,9 @@ compliance regimes, release gates) on a single flag.
   linking requirement → ticket → code → test → UAT → release, so every shipped change is
   accountable end to end.
 - **The lifecycle** — the Orchestrator routes each request through the relevant stages
-  (analysis → design → engineering → QE → security/NFR → UAT → release), demanding a handoff
-  packet at each step so the next role inherits exactly what it needs.
+  (analysis → design → engineering → QE → security/NFR → UAT → release); each role pulls the
+  shared verified context and publishes typed notes back into it (Workflow 16), so the next
+  role inherits exactly what it needs.
 
 ## Copy-paste Orchestrator prompts
 
@@ -117,15 +119,21 @@ Use the Orchestrator. Prepare release <version> for these tickets.
 ## Install
 
 The minimal "just install the markdown" path works for any tool: copy the portable
-`AGENTS.md` (ships in Phase 3) and the `agent-factory/` folder into your repo, then tell the
-agent *"start at `agent-factory/roles/orchestrator.md`."* That is the floor — no scripts
-required.
+`AGENTS.md` and the `agent-factory/` folder into your repo, then tell the agent *"start at
+`agent-factory/roles/orchestrator.md`."* That is the floor — no scripts required.
 
 For per-tool conveniences (thin sub-agent wrappers, a slash command, entry-file pointers, and
-the Claude Code plugin form), grugops ships idempotent, additive, dry-run-capable, reversible
-installers under `install/`. **The installers themselves ship in Phase 5** — until then, use
-the minimal markdown path above.
+the Claude Code plugin form), grugops ships a single idempotent, additive, dry-run-capable,
+reversible installer. **Node 22+ is a prerequisite** for the scripted path:
 
-The exact install commands and the slash-command shape are tool-specific and move quickly;
-they will be documented with the installers in Phase 5. `UNKNOWN - verify` against current
-tool docs at install time.
+```sh
+node install/install.js --target /path/to/repo
+```
+
+See **[`install/README.md`](../install/README.md)** for the full flag set (`--target`,
+`--yes`, `DRY_RUN`, `--symlink`, `--migrate`, `--update`, `--prune-old-kit`) and the two-root
+kit/state layout.
+
+The Claude Code plugin form (colon-namespaced `/grugops:<op>` commands) installs from the
+marketplace; its exact install commands move with the plugin schema, so confirm them against
+current tool docs — `UNKNOWN - verify`.
