@@ -15,3 +15,29 @@ hooks/*.js      text eol=lf
 # generator emits literal "\n", and its byte-stability (the `npm run generate:catalog`
 # no-op contract and the DOCS-01 reproducibility test) must hold across platforms.
 docs/catalog/README.md text eol=lf
+
+# Pin ALL remaining committed text sources to LF. Root cause (2026-07-21, CI run
+# 29824410110): the two pins above only covered committed .js build outputs and the
+# generated catalog. Every other text file — agent-factory role/workflow markdown,
+# .ts sources, install templates, JSON, YAML — had no eol pin, so on the windows-latest
+# runner (Git for Windows core.autocrlf=true) they checked out CRLF. Line-anchored
+# regexes and byte-exact oracles over those files then false-fire: SC-5's
+# guard_context_writes calibration cases (scripts/check-foundation-guards.test.ts,
+# incl. the Phase 20 "prose naming context-io.ts + path stays GREEN (A3)" case and the
+# real-tree smoke test) failed on windows-latest, along with context-io.test.ts's
+# function-span byte-hash oracle, install.test.ts's marker-line matching, and every
+# freshness/catalog/ASVS reproducibility check — all CRLF-vs-LF false positives, not
+# real drift. Pinning every text extension to LF here makes checkout content identical
+# on every OS, so these guards observe the same bytes everywhere.
+*.md   text eol=lf
+*.ts   text eol=lf
+*.mts  text eol=lf
+*.cts  text eol=lf
+*.js   text eol=lf
+*.cjs  text eol=lf
+*.mjs  text eol=lf
+*.json text eol=lf
+*.yml  text eol=lf
+*.yaml text eol=lf
+*.sh   text eol=lf
+*.txt  text eol=lf
