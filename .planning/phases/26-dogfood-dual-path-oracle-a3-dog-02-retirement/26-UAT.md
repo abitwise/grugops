@@ -1,21 +1,14 @@
 ---
-status: partial
+status: complete
 phase: 26-dogfood-dual-path-oracle-a3-dog-02-retirement
 source: [26-01-SUMMARY.md, 26-02-SUMMARY.md, 26-03-SUMMARY.md, 26-04-SUMMARY.md, 26-05-SUMMARY.md]
 started: 2026-07-02T15:35:47Z
-updated: 2026-07-21T14:31:47Z
+updated: 2026-07-23T22:09:52Z
 ---
 
 ## Current Test
-<!-- OVERWRITE each test - shows where we are -->
 
-number: 3
-name: Human runbook retargeted onto on-disk note-set + verdict (26-04 · T2)
-expected: |
-  docs/dogfood-human-runbook.md dual-path artifact is the on-disk note-set + frozen
-  verdict (no deleted handoff filenames); Step 4 records capture date + verdict as
-  retirement-gate evidence. Confirm it reads as a valid capture instrument.
-awaiting: user response
+[testing complete]
 
 ## Tests
 
@@ -91,6 +84,12 @@ reported: |
       `node runner.mjs` command, so nothing was written to the shared context root. The
       deterministic analog worktree-dogfood.test.ts passed (claim.js/context-io.js are fine).
 severity: major
+note: |
+  RESOLVED via gap closure (see ## Gaps): all four defects fixed by executed plan 26-06
+  (2026-07-10/11, offline-proven + red-team hardened). The live lane was deliberately not
+  re-run (real tokens; GAP-D1) — a live re-test is Tier-2 confirmation-only and belongs to
+  the deferred captured run tracked by Test 4. The issue record above is the honest history
+  of the 2026-07-03 first-ever live execution.
 
 ### 3. Human runbook retargeted onto on-disk note-set + verdict (26-04 · T2)
 expected: |
@@ -100,7 +99,12 @@ expected: |
   date + verdict string as retirement-gate evidence, keeping the runbook a valid D-01 captured
   live-run instrument. Same schema-validation flag as T1 (verifications passed). Confirm the
   runbook reads correctly as a capture instrument.
-result: [pending]
+result: pass
+note: |
+  Guided walkthrough 2026-07-24: mechanical check confirmed zero "handoff" occurrences
+  (old deleted names implementation-handoff.md / qe-handoff.md absent); user confirmed the
+  note-set+verdict anchor (L34-40), Check 3 convergence anchors (L139-167), Step 4
+  capture-date+verdict retirement evidence (L171-196), and overall capture-instrument validity.
 
 ### 4. A3/DOG-02 retirement correctly DEFERRED (26-05)
 expected: |
@@ -113,7 +117,11 @@ expected: |
     • .planning/REQUIREMENTS.md carries an honest "PENDING — DEFERRED (2026-07-02)" note
     • DOGF-01/02/03 mechanical deliverables stand (marked done)
   Confirm this deferral is the intended state (retirement waits for a future captured live run).
-result: [pending]
+result: pass
+note: |
+  User confirmed 2026-07-24: the deferral is the intended state. Retirement stays gated on
+  one captured live dual-path run (D-01/D-02); the 26-06 harness repair makes that future
+  run executable but does not substitute for it.
 
 ### 5. DOGF-01 · single-source dual-path equivalence comparator
 expected: projectTaskState drops nonce id; assertEquivalent returns diff string[]
@@ -172,9 +180,9 @@ coverage_id: 26-03-D4
 ## Summary
 
 total: 13
-passed: 10
+passed: 12
 issues: 1
-pending: 2
+pending: 0
 skipped: 0
 blocked: 0
 
