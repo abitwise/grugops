@@ -82,7 +82,7 @@ pointers resolve against the user's repo and produce real planning output rather
 
 1. Add the marketplace:
    ```text
-   /plugin marketplace add <owner>/grugops
+   /plugin marketplace add abitwise/grugops
    ```
    (or `/plugin marketplace add ./` from a local checkout of this repo). `UNKNOWN - verify` the
    exact command against current Claude Code docs.
