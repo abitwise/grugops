@@ -2,9 +2,12 @@
 gsd_state_version: 1.0
 milestone: v2.1
 milestone_name: Autonomous Factory — Real Spawning, Controlled Language & Live Board
+current_phase: 27
 status: planning
-last_updated: "2026-07-28T14:40:00.000Z"
+stopped_at: Phase 27 context gathered
+last_updated: "2026-07-28T13:43:02.517Z"
 last_activity: 2026-07-28
+last_activity_desc: v2.1 roadmap created (7 phases 27–33, 46/46 requirements mapped, 0 unmapped)
 progress:
   total_phases: 7
   completed_phases: 0
@@ -530,9 +533,9 @@ Shape of the carry: **9 of 11 are pre-v2.0 carryover** from the v1.2 block above
 
 ## Session Continuity
 
-Last session: 2026-07-28
-Stopped at: v2.1 roadmap created — 7 phases (27–33), 46/46 requirements mapped
-Resume file: None
+Last session: 2026-07-28T13:43:02.509Z
+Stopped at: Phase 27 context gathered
+Resume file: .planning/phases/27-spawn-correctness-kit-set-authority/27-CONTEXT.md
 
 ## Operator Next Steps
 
