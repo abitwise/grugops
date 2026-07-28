@@ -1,255 +1,460 @@
 # Feature Research
 
-**Domain:** Decentralized multi-agent systems with a shared verified context — re-architecting grugops (a file-based, markdown agentic-SDLC kit) from a centralized Orchestrator + static handoff packets to parallel agents claiming work from a queue and building on one shared, verified, **auditable + human-gated** context. (v2.0 "Decentralized Factory")
-**Researched:** 2026-06-16
-**Confidence:** HIGH on prior-art patterns (blackboard, stigmergy, AutoGen/CrewAI/LangGraph/Swarm/Anthropic guidance, and DeLM's own mechanics are all well-documented and cross-verified). HIGH on the differentiation thesis (DeLM's verifier validates *grounding*, not *correctness*, and the paper explicitly has NO human-in-the-loop/audit — verified from the paper itself; that gap is grugops's wedge). MEDIUM on exact mapping to grugops's lean→enterprise dial and on file-concurrency tactics for the 5 host CLIs (design choices, not external facts).
+**Domain:** Agentic software-delivery kit — live board monitoring, human-in-the-loop autonomy control, agent-driven acceptance testing, controlled natural language for machine-read/machine-written docs
+**Researched:** 2026-07-28
+**Confidence:** MEDIUM-HIGH overall — HIGH on areas 1–3 (mature comparables, converging patterns), MEDIUM on area 4's rules and **LOW on area 4's central evidence claim** (see `## Area 4 evidence honesty`, which is the section the quality gate cares about)
 
-> **Framing.** grugops ships **NO runtime, DB, or queue** (PROJECT.md Out of Scope, hard). Every "feature" below is something grugops ENCODES as markdown (role text, workflow steps, a context-note schema, a file-based queue convention) + its zero-runtime-dep TypeScript tooling layer (committed `.js`, Node 22+) + the `factory.config.json` dial. Read "feature" as "a coordination/verification primitive grugops realizes in files." The two-voice rule still applies (caveman in role prompts; clear professional English in safety/audit/governance). The v2.0 decisions are LOCKED: parallel-first / Claude Code primary (4 others degrade to sequential, never break); clean replacement of static handoffs by the shared context; extract best-of-DeLM and differentiate on auditable + human-gated.
+**Milestone scope:** v2.1 Autonomous Factory. Four NEW capability areas only. Existing grugops features (shared verified context, §14 gate, queue, ASVS, BDD/TDD, install line, docs catalog) are treated as **substrate to depend on**, not as things to re-research.
 
----
-
-## Existing grugops capabilities this milestone builds on (the dependency substrate)
-
-Every feature below is rated for **complexity** AND **dependency on existing grugops capabilities**. The reusable substrate already shipped:
-
-- **§14 quality gate** (`05-pr-quality-gate.md`) + **no-fabrication / `UNKNOWN - verify`** + **test-integrity checker** — this is grugops's ready-made **verifier**. DeLM has to *build* a verifier (string-match + cheap-LLM grounding check); grugops already ships a stronger, un-cheatable one. **The single biggest reuse.**
-- **Traceability trail** (`plans/traceability.md`) + **board-as-state** (`plans/board.md`, WIP-limited) + **handoff packets** (`plans/handoffs/<ID>-<stage>.md`) — the board is a primitive queue/state plane today; the handoffs are the thing being *replaced* by the shared context.
-- **Config dial** (`factory.config.json`, lean→enterprise on one flag) — the scaling mechanism for every new knob.
-- **Mechanical prod-deploy hook** (PreToolUse, fails closed) + **humans-hold-merge/deploy** — UNCHANGED, the hard floor.
-- **TS tooling layer** (zero-runtime-dep committed `.js`, freshness-checked, Node 22+) — where any atomic-claim / context-validation / compaction helper must live (markdown can't enforce atomicity; a tiny runnable can).
-- **Caveman = token economy** — terse role text IS the cost-reduction mechanism; DeLM's "~50% cost" win and grugops's token-economy ethos are the same goal from two angles (compact context + compact prose).
+> The v2.0 edition of this file is preserved at `.planning/research/archive/v2.0/FEATURES.md`.
 
 ---
 
-## Prior Art: how decentralized shared-context multi-agent systems actually work
+## Executive read (the five findings that should survive into requirements)
 
-Survey beyond DeLM, with the reusable pattern extracted for each.
-
-### 1. Classic BLACKBOARD architecture (the original shared-context AI pattern, 1970s Hearsay-II)
-Three elements: the **blackboard** (central shared store of facts + partial solutions), **knowledge sources** (independent expert agents that don't know each other exists), and a **control component** (monitors the blackboard, decides which KS to fire next).
-- **Got right:** decoupling (KSs coordinate *only* through the shared store, never directly — exactly grugops's "no agent-to-agent bus" goal); incremental/opportunistic solution-building; the control component is a *scheduler*, not a router that data flows through.
-- **Concurrency/conflict:** if two KSs operate on different keys they run concurrently with **per-key locks or optimistic concurrency**; when KSs produce conflicting/overlapping solutions a **conflict-resolution step in the control component** reconciles and picks the most promising. This is the canonical answer to "how do parallel writers not corrupt the store."
-- **Reusable for grugops:** the **shared verified context = the blackboard**; the **§14 gate + verifier = admission control onto the blackboard**; the **shrunk Orchestrator = the control component** (a scheduler/decomposer + human-gate holder, NOT a data router). Per-key (= per-note / per-task) locking maps cleanly to a **per-file** convention. Conflict resolution maps to "last-verified-write-wins on a note label, with an append-only history so nothing is lost."
-
-### 2. STIGMERGY (indirect coordination through the shared environment; ant pheromone trails → file-system traces)
-Agents coordinate by leaving **traces in a shared environment** that trigger the next action — no central plan, no direct messaging. Software example from the literature: agent A drops a file in an output dir; agent B watches that dir and starts when files appear. Reported as **scalable, robust to single-point failure, low overhead** — but **hard to debug and hard to guarantee global coherence**.
-- **Reusable for grugops:** the shared context *is* the environment; a verified note is a pheromone trail ("this path failed → treat as a constraint," exactly DeLM's failure-as-constraint). A **claimed task file** is a trace that suppresses duplicate work. grugops's existing **board + file conventions are already a stigmergic medium** — this milestone formalizes it. The honest caveats (debuggability, global coherence) map directly to grugops's differentiators: the **audit trail (git log over append-only files) IS the debuggability answer**, and the **human gate IS the global-coherence backstop**.
-
-### 3. Modern LLM-agent frameworks (current 2026 capabilities, verified)
-
-| Framework | Shared context | Task distribution / handoff | Verification | Memory / compaction | Parallel vs sequential |
-|---|---|---|---|---|---|
-| **AutoGen** (Microsoft) | Conversation history, in-memory by default | `GroupChat` conversational orchestration | None built-in | In-memory conversation, no compaction primitive | Conversational; weak true-parallel |
-| **CrewAI** | Task outputs passed sequentially | Role-based crews + process types; handoffs as structured JSON | None built-in | Sequential output passing | Mostly sequential; role-team model |
-| **LangGraph** | **Persistent state graph + checkpointing (time-travel)**; **reducer logic merges concurrent updates** | Directed graph w/ conditional edges; deterministic | None built-in (you wire it) | Checkpoints; durable state | Strongest concurrency control (reducers resolve concurrent writes) |
-| **OpenAI Swarm → Agents SDK** | **Stateless between calls**; `context_variables` must carry ALL state forward — "no hidden memory" | `handoff` = a function returning the next agent; "routines" | None built-in | None (stateless); SDK is the production successor to the Oct-2024 Swarm experiment | Lightweight; handoff-driven, sequential |
-| **Anthropic multi-agent research** (orchestrator-worker) | **Subagents get a fresh context window and DON'T know each other exists**; lead agent decomposes upfront | Lead agent assigns self-contained subtasks (objective + output format + boundaries) | "people testing agents find edge cases evals miss" — verification is human + evals, not a primitive | Agents "store essential info in external memory before proceeding"; resume-from-checkpoint, retry logic | **Parallel** subagents, **but explicitly: less effective for tightly-interdependent tasks like coding** |
-
-**Cross-framework facts that matter for grugops:**
-- **None of the five ships a built-in correctness verifier.** Verification is left to the user. grugops already HAS one (the §14 gate). This is the recurring gap.
-- **LangGraph's reducer** is the cleanest concurrent-write-merge answer in the field — the file-based analog grugops needs is "per-note last-verified-write-wins + append-only history," realized as a file convention + a tiny TS merge/lock helper.
-- **OpenAI Swarm's "no hidden memory, every handoff carries all context"** is the *opposite* of grugops's target (shared persistent context); it's the design grugops is moving *away from* (it's basically the static-handoff model). Useful as a contrast.
-- **Anthropic's two hard warnings:** multi-agent uses **~15× the tokens** of a single chat, and is **less effective for tightly-interdependent work like coding** (many inter-agent dependencies, real-time coordination is weak). grugops's domain IS coding/SDLC — so the DeLM bet (shared *verified* context lets agents build on each other's *checkpointed* progress instead of coordinating in real time, and *cuts* cost ~50%) is precisely the mechanism that makes multi-agent viable for coding. grugops must lean on the **shared-verified-context + queue** design, NOT real-time agent chatter, and must keep the context **compact** (caveman/compaction) to avoid the 15× blow-up.
-
-### 4. What makes DeLM genuinely NOVEL — and where grugops differentiates
-
-**DeLM's actual mechanics (verified from arXiv 2606.10662):**
-- **Shared verified context** stores compact `(label, gist)` entries; agents read **lock-free snapshots at dispatch time** (later commits visible only on next snapshot); **write-before-publish ordering** so later agents see only fully-verified entries. Tags seen in traces: `FACT`, `FAIL`, `PATCH_SUMMARY`, `CONSTRAINT` (no formal JSONL schema published).
-- **Task queue** is **dependency-aware** (`[deps:…]`); agents asynchronously draw tasks; when exhausted, **one agent takes a queue lock and generates more subtasks**. (No fine-grained concurrent-claim locking is disclosed — a real gap to design around.)
-- **Verifier (two-stage):** Stage-1 is **programmatic string-match** (a bullet's head+tail words must appear verbatim, in order, in the source — i.e. it verifies the note is *grounded in the source*, not that it's *correct*); Stage-2 is a **cheap LLM** (e.g. DeepSeek-V4-Flash) checking hallucination/semantic-drift/missing-qualifiers. Rejected writes are regenerated with feedback up to a retry limit.
-- **Memory compaction = hierarchical summarization** (Stage-1 atomic ref-tagged bullets → Stage-2 highly-compact gists; agents read gists by default and **selectively unfold** to summary/raw only when needed). **Cost saving comes from three sources:** shared failures become reusable constraints (no private dead-ends); compact patch-summaries replace full traces; selective unfolding amortizes detailed reads.
-- **Numbers (verified):** SWE-bench Verified — **65.7% Avg@1 / 72.9% Pass@2 / 77.4% Pass@4**, **+9.3pp Avg@1** over the strongest baseline (AOrchestra-Parallel), **~$0.12/task ≈ half the cost** of the strongest agentic baselines. LongBench-v2 Multi-Doc QA — **+ up to 5.7pp** (GPT-5.4), best/tied-best in most domain-model combos. (The milestone brief's "+up to 10.5pp / ~50% cost" is the headline-abstract figure; the per-table SWE-bench gain is +9.3pp — cite both honestly.)
-- **DeLM's stated limitations:** admission-time verification adds overhead; quality is bounded by decomposition quality (coarse splits → under-specified subtasks); model-family-specific prompts. **Critically: the paper makes NO mention of human-in-the-loop review, audit mechanisms, or governance** (confirmed directly from the paper).
-
-**The honest novelty of DeLM:** the *combination* of (a) admission-time **verification before a write is published** (most frameworks let any agent write anything), (b) **failure-as-shared-constraint** (turning private dead-ends into collective progress), and (c) **compaction-for-cost** baked into the substrate. That trio is what buys "+ task success AND −50% cost simultaneously," which is rare.
-
-**Where grugops differentiates (the defensible niche):** DeLM's verifier proves a note is **grounded** (string-matches the source) and **non-hallucinated** — it does NOT prove the note is **correct**, **tested**, **secure**, or **release-worthy**, and it has **no human gate and no audit story**. grugops's existing machinery answers exactly those:
-  - **Verified means PASSED THE §14 GATE** (lint + typecheck + unit + build + Playwright UI/E2E + visual-regression + test-integrity), not just "grounded in a source." A write to the shared context is admitted only with gate evidence — the **un-cheatable, behavior-level verifier DeLM lacks**.
-  - **Auditable by construction:** append-only verified-context files under git → **`git log` is a free, tamper-evident audit trail** (a recognized 2026 pattern — Squad's `decisions.md` drop-box, ESAA event-sourcing for agents). The requirement→code→test→release **trace is the proof**; DeLM has no trace.
-  - **Human-gated:** humans still hold merge/deploy (mechanical hook, unchanged); the shrunk Orchestrator is the **human-gate holder**. A regulated team can require named human admission of high-severity context entries. DeLM is fully autonomous.
-  - **Dialable lean→enterprise:** one flag scales from "solo builder, verify-then-write, no ceremony" to "regulated, named-human context admission + full ASVS gate + retained audit." No competitor offers governance-on-a-dial over a decentralized substrate.
-
-> **Differentiation thesis (sharp + honest):** "**Verifiable, gated, auditable decentralized agentic delivery**" is a defensible niche. DeLM proved the *decentralized + verified-context + cheap* mechanism works for coding; grugops's edge is that its "verified" is **behavior-tested and human-gated**, its substrate is **plain files with a git audit trail**, and its depth is **dialable to enterprise governance** — none of which DeLM, AutoGen, CrewAI, LangGraph, Swarm, or Anthropic's research system provides as a packaged whole. **What grugops does NOT get to claim:** novel coordination science (that's DeLM's), or the raw benchmark numbers (those are DeLM's on its harness; grugops's gains are unproven until dogfooded — `UNKNOWN - verify` until then). The edge is **trust + auditability + governance over a borrowed, sound mechanism**, not a better benchmark.
+1. **The dashboard's value is the parser, not the pixels.** Every comparable TUI (lazygit, k9s, gh-dash) is a thin renderer over one authoritative model. grugops's differentiator is that the model is *typed and reusable*; its risk is that a second grammar for "what column is this ticket in" appears — which is the exact failure class the v2.0 closure doctrine was written about.
+2. **`fs.watch` + atomic-rename is a known trap, and grugops writes by atomic rename.** A watch bound to a file path is orphaned by the rename that replaces it. Watch the **directory**; debounce; keep a last-good snapshot. Windows is worse (no events on watched-dir move/rename, `EPERM` on delete, directory-level monitoring only).
+3. **CI/CD converged on per-risk-boundary granularity, ternary state, prevent-self-approval, and timeout→deny.** All four are directly transplantable. Notably GitHub ships a literal *"prevent self-reviews"* toggle — the same predicate grugops already enforces on `verified_by`.
+4. **"The agent explores, the code judges" is the settled pattern for agent-run UAT** — and it is architecturally identical to grugops's `emitVerdict()` root-of-trust. The four documented self-pass failure modes (assertion weakening, test deletion, behavioral fakery, **state pollution**) map cleanly onto grugops's admission model, and state pollution is the one grugops has not yet closed for browser evidence.
+5. **There is no published evidence that controlled language improves LLM comprehension.** The mechanism is plausible; the citation does not exist. STE's attested benefit is for *human* readers and translation. Worse, STE's "do not omit articles/subjects" rule makes text **longer**, so STE must not be sold as a token-economy win. Recommend shipping a named *grugops writing profile derived from* ASD-STE100 rules, never a claim of STE conformance.
 
 ---
 
-## Feature Landscape
+## Area 1 — CLI dashboard / live board monitor
 
-### Table Stakes (must have to be a credible decentralized shared-context system)
+### Comparable tools surveyed
 
-Missing any of these = the re-architecture isn't actually decentralized, or isn't safe to trust.
+| Tool | What it teaches | Mutates state? |
+|------|-----------------|----------------|
+| **lazygit** | The reference keyboard model: pane-per-domain, `Tab` between panes, always-visible status bar showing *the keys valid right now*, `?` for full help | Yes (commits, merges) |
+| **k9s** | Resource-nav sidebar + live-refreshing table + drill-down; `:` command palette | Yes |
+| **gh-dash** | Sectioned dashboard over remote state; numbered view jumps (`1`–`5`), `Enter` focuses a preview pane instead of opening a browser, live keyword search, progressive loading, configurable sections | Yes (custom keybindings can trigger Actions/reviews) |
+| **btop** | High-frequency full-repaint monitor — the *wrong* model for a file-backed board | No |
+| **claude-squad / openkanban / amux / repomon / octomux / Claude-Code-Agent-Monitor** | The 2026 wave of agent-orchestration monitors: worktree-per-agent, unified permission inbox, live monitor grid, Kanban status board, in-app diff review | Yes — most of them are control planes, not monitors |
 
-| Feature | Why Expected | Complexity | Dependency on existing grugops |
-|---|---|---|---|
-| **Shared verified context substrate** — typed notes (e.g. `FACT` / `FAIL` / `CONSTRAINT` / `PATCH_SUMMARY` / `DECISION`), read-before-act, write-after-verify; the sole inter-role memory | This IS the architecture; it replaces handoffs (PROJECT.md). Without it there's no shared context | HIGH | NEW file schema; reuses `plans/` state-plane location + traceability ID scheme + handoff field knowledge (handoffs are *removed*, their content migrates here) |
-| **Verify-before-write admission control** | Unverified writes = context pollution = cascading failure (the #1 documented multi-agent failure mode). Every credible design (blackboard control component, DeLM verifier) gates admission | MEDIUM | **HIGH reuse** — the §14 gate + `UNKNOWN - verify` + test-integrity checker ARE the verifier; mostly wiring, not new verification |
-| **File-based task queue + atomic async claim** | Decentralized agents must claim work without a central router and without double-claiming. Blackboard per-key locks, DeLM async draw, the file-based "one read per claim, O(1)" pattern all confirm this is table stakes | HIGH | Board-as-state exists as a coarse queue; needs an **atomic claim** primitive — markdown can't guarantee atomicity, so a tiny TS helper (rename-based / lockfile / `O_EXCL`) on the existing tooling layer |
-| **Parallel agents on Claude Code (sub-agent spawn) + graceful sequential degradation on the other 4 CLIs** | Locked v2.0 decision; true async parallelism needs spawning (only Claude Code provides it reliably). The other four must run the SAME shared context sequentially, never break | HIGH | Reverses the v1.1 no-spawn decision **for Claude Code only**; reuses single-source role text + adapter-pointer model; the 4 sequential CLIs reuse today's single-window role-load |
-| **Memory / trajectory compaction** | Without it, shared context grows unbounded → context rot / lost-in-the-middle / 15× token blow-up (Anthropic's warning). Compaction is what makes DeLM both better AND cheaper | MEDIUM | Aligns with **caveman = token economy**; compaction is "write the compact verified gist, keep raw in a referenced file." A small TS compaction helper + a note-write discipline |
-| **Append-only, git-tracked context history (audit trail)** | A decentralized store with no history is undebuggable (stigmergy's known weakness) and unauditable. Append-only + git log is the recognized 2026 answer | LOW–MEDIUM | Reuses git + the markdown-only ethos; the trace/traceability discipline already exists. "Free audit trail via `git log`" |
-| **Orchestrator redefinition** — from sole router/bottleneck → bootstrap + decompose + human-gate holder (the blackboard "control component" / scheduler) | A central router that all data flows through recreates the bottleneck DeLM exists to kill. The Orchestrator must schedule + gate, not relay | MEDIUM | Rewrites `orchestrator.md`; reuses its existing routing-matrix/WIP/DoR/XL-split knowledge, recast as decompose+schedule+gate |
-| **Clean removal of static handoff packets** + rewire every role/workflow to read/write the shared context | Locked decision; two memory models (handoffs + context) = drift and the retired A3/DOG-02 dual-path problem. One substrate only | MEDIUM–HIGH | Touches ~all 17 roles + 14 workflows + handoff templates (deletion + rewire); honestly retires UAT-AUTO-04 |
-| **Humans hold merge/deploy — UNCHANGED, mechanical** | The hard safety floor; decentralization must not erode it | NONE (preserve) | The prod-deploy PreToolUse hook is untouched |
+**The most important observation:** essentially every comparable is a *control plane* that happens to render. grugops is proposing a *monitor* that must never control. That is an unusual position, and the design pressure will be constant and one-directional — every user request will be "let me move that ticket from here." The read-only boundary must be structural (no write capability compiled in / no fs write API reachable from the renderer), not a policy in a role prompt. This mirrors the "verdict function imports nothing from a browser" pattern from area 3.
 
-### Differentiators (grugops's edge — where it beats DeLM and the frameworks)
+### Table Stakes (Users Expect These)
 
-| Feature | Value Proposition | Complexity | Dependency on existing grugops |
-|---|---|---|---|
-| **"Verified" = passed the §14 behavior gate**, not just "grounded in a source" | DeLM's verifier proves grounding/non-hallucination; grugops proves **lint+type+unit+build+UI/E2E+visual+test-integrity**. A context note carrying gate evidence is trustworthy at a level no surveyed system offers | MEDIUM | **HIGH reuse** — the gate exists; the new work is "a write to context REQUIRES a gate verdict, and the verdict + evidence ride in the note" |
-| **Auditable verified context — git-log trace as tamper-evident proof** | The requirement→code→test→release trace *is* the value prop; over an append-only context it becomes a per-decision audit trail (who/what/when/which gate). DeLM has none; this is grugops's identity | LOW–MEDIUM | Reuses traceability + git; the discipline already exists, now applied to context writes |
-| **Human-gated context admission (dialable)** — agent *proposes* a verified note; for high-severity entries a named human *admits* it (same agent-proposes / human-disposes pattern as the prod-deploy hook) | "Humans decide, agents execute" extended to memory itself. Regulated teams can require human admission of security/architecture/release notes. No competitor gates the shared memory | MEDIUM | Reuses the prod-deploy hook pattern + dial; new is a severity→admission rule on context writes |
-| **Governance-on-a-dial over the decentralized substrate** (lean: verify-then-write, zero ceremony; enterprise: named-human admission + full-ASVS verifier + retained audit + WIP/queue policy) | One flag scales a decentralized factory from solo-sane to regulated-audit-grade. This is grugops's whole thesis applied to the new architecture — and it's the unique combination | MEDIUM | Reuses `factory.config.json`; new knobs hang off `mode`/`compliance_regime` |
-| **Failure-as-shared-constraint, encoded honestly** (a verified `FAIL` note becomes a `CONSTRAINT` other agents must honor — DeLM's key cost-win, made auditable + with no-fabrication floor) | Turns private dead-ends into collective, *recorded* progress; the no-fabrication rule means a `FAIL` can't be hand-waved away. Both a cost win and a trust win | LOW–MEDIUM | New note types; reuses `UNKNOWN - verify` / no-fabrication discipline |
-| **Board-as-state stays the human-readable queue + dashboard** | The queue isn't a hidden runtime structure (DeLM/LangGraph) — it's the visible, WIP-limited markdown board a human can read at a glance. Decentralized *and* legible | LOW–MEDIUM | The board exists; recast it as the human-facing view of the file-based queue |
-| **Zero-runtime-dep, plain-files substrate** (no DB, no queue server, no hosted service) | DeLM/LangGraph/AutoGen need a Python runtime + libraries; grugops's whole context+queue+audit is files + committed `.js`, droppable onto a CLI you already run. Lowest-friction decentralized factory | MEDIUM | Reuses the TS tooling layer + markdown-only ethos; the atomic-claim/merge helpers must respect zero-runtime-dep |
-| **Compaction as a first-class, dialable token-economy control** (DeLM's compaction + grugops's caveman ethos, exposed on the dial so enterprises can keep more raw context, solo keeps it tight) | Directly attacks Anthropic's 15× token warning; makes the ~50% cost story configurable rather than fixed | MEDIUM | Aligns caveman = token economy; new compaction knob + helper |
+| Feature | Why Expected | Complexity | Notes / grugops dependency |
+|---------|--------------|------------|----------------------------|
+| **Column view with live/limit WIP** (13 columns, `(WIP 1/3)`) | It is a Kanban board; a board that doesn't show WIP isn't one | MEDIUM | Depends on `plans/board.md` §6.1 heading format + `factory.config.json#wip_limits`. **The heading count and the live row count can disagree** — the projector must pick one authority (rows) and *report* the disagreement, never silently reconcile |
+| **Per-ticket row: ID, title, owner role, age-in-column** | Standard board affordance | LOW | Board row format already carries `(owner: …, since: …)` |
+| **Ticket ↔ file agreement surfaced** | grugops already defines the `status:`/`column:` contract; users expect drift to be visible | LOW | Depends on `plans/tickets/<prefix>-xxx.md` frontmatter. The structure validator already checks this — the dashboard *displays* it, does not re-implement it |
+| **Queue depth: pending / claimed / done counts** | "Is anything actually running?" is the first question | LOW | Reads `.grugops/queue/{pending,claimed,done}/` — directory listing only |
+| **Active agents pane** (claimant, task ref, claim age vs `stale_ttl_minutes`) | The headline of an "autonomous factory" | MEDIUM | Depends on `claim.ts` claim metadata. **Ordering flag: this pane is empty until the spawn defect is fixed** — build spawn first or the dashboard's best view ships dead |
+| **Blocked items with block age vs `blocked_escalation_days`** | The board defines Blocked as "visible, time-tracked" — a monitor that hides it contradicts the artifact | LOW | Board conventions block |
+| **Gate status: last §14 verdict + id + freshness** | The gate is the backpressure; operators watch it | MEDIUM | Depends on `emitVerdict()` output / `.grugops/context/` verdict notes |
+| **Recent events feed** (last N admitted notes, newest first) | Every monitor has a log pane | MEDIUM | Depends on shared-context note `at` timestamps + the committed JSONL index |
+| **Auto-refresh with a visible freshness indicator** | Users must know whether they're looking at now or 40 seconds ago | MEDIUM | `fs.watch` on **directories** + debounce + `fs.watchFile` polling fallback; render "last updated HH:MM:SS" and a degraded badge when watching failed |
+| **Keyboard nav: `hjkl`/arrows, `Tab` panes, `?` help, `q` quit, number keys for view jumps, `/` filter** | lazygit/k9s set this expectation universally | MEDIUM | Pure render-layer |
+| **Drill-down** (`Enter` on a ticket → detail pane: frontmatter, refs, its notes) | gh-dash's preview-pane model; avoids the context switch that motivates a TUI at all | MEDIUM | Read-only file reads |
+| **Non-TTY / CI degradation: `--once` plain text, `--json` snapshot** | Zero-config-first; also how it gets tested | LOW | Aligns with the existing committed-`.js` + deterministic-output convention |
+| **Honest unknown state** — unparseable file → `UNKNOWN - verify`, never a fabricated `0` | This project's core constraint | LOW | Direct application of the no-fabrication rule to a rendering surface |
 
-### Anti-Features (avoid — tie back to grugops Out of Scope and to documented failure modes)
+### Differentiators (Competitive Advantage)
 
-| Anti-Feature | Why tempting | Why problematic | Alternative |
-|---|---|---|---|
-| **A central message bus / orchestrator that all updates route through** | "Coordinate everything in one place" | Recreates the exact bottleneck DeLM exists to eliminate; the Orchestrator becomes the integration choke point again. Documented "full-state rebroadcast" pattern is a known scaling failure | Shrink the Orchestrator to a scheduler + gate (blackboard control component); agents coordinate **only** through the shared context, never agent-to-agent or via a relay |
-| **Unbounded shared context (append everything, never compact)** | "Keep all the history; don't lose anything" | Context rot, lost-in-the-middle, 15× token blow-up (Anthropic), exponential cost with run length — the dominant multi-agent failure mode | Compact verified gists by default + selective-unfold to referenced raw; append-only **history** is fine on disk (git), but the **active context** an agent reads must be compact |
-| **A hosted platform, database, queue server, or custom LLM runtime** | "A real queue needs a real broker / DB" | Directly violates PROJECT.md Out of Scope ("not a platform, runtime, database, queue, or hosted service"); something to operate, breaks "boring on purpose" | File-based queue + atomic claim via a tiny committed-`.js` helper (rename/`O_EXCL`/lockfile), git for history. Zero infra to run |
-| **Autonomous merge/deploy or autonomous high-severity context admission** | "Decentralized + fast = let agents finish the job" | Crosses the hard safety floor; "humans decide, agents execute" must stay mechanical; an agent can't be held accountable | Mechanical prod-deploy hook UNCHANGED; agent *proposes* verified notes, human *admits* the high-severity ones (dialable) |
-| **Direct agent-to-agent real-time chatter / negotiation** | "Agents should just talk to coordinate" | Anthropic: LLMs "are not yet great at coordinating in real time"; tightly-coupled coding work is exactly where this fails; adds non-determinism and token cost | Indirect coordination through the verified context only (blackboard/stigmergy discipline) — leave a verified trace, don't hold a conversation |
-| **A correctness verifier that only checks grounding/format (DeLM-style) and calls it "verified"** | "DeLM does it, it's enough" | "Grounded in a source" ≠ "correct/tested/secure." Calling a string-matched note "verified" would forfeit grugops's entire trust differentiator | "Verified" must mean **passed the §14 behavior gate**; grounding/format checks are necessary but not sufficient |
-| **Optimistic let-anyone-write, reconcile-conflicts-later** | "Faster, fewer locks" | Concurrent unverified writes + late reconciliation = the overwrite/pollution failure (agents overwriting each other's context — a documented top failure) | Verify-before-write admission + per-note (per-file) atomic claim + last-verified-write-wins with append-only history (blackboard per-key concurrency, LangGraph reducer analog) |
-| **Forcing strict 5-tool parity onto the parallel design** | "Don't abandon the other CLIs" | Already retired (locked decision); forcing parity to the lowest common denominator forfeits the whole DeLM speed/cost win | Claude Code primary (parallel); the other four degrade to **sequential over the same shared context** — same substrate, slower lane, never broken |
-| **A bespoke audit-log database / event-sourcing framework** | "Auditing needs real event sourcing" | More infra to run; violates Out of Scope; reinvents what git already gives free | Append-only markdown context files under git → `git log` is the audit trail (recognized 2026 pattern; no framework needed) |
+| Feature | Value Proposition | Complexity | Notes |
+|---------|-------------------|------------|-------|
+| **ONE board/state projector authority emitting a typed snapshot** | The whole point. Renderer, `--json`, and a future web view all consume the same struct; no second grammar for board truth | MEDIUM-HIGH | This *is* the v2.0 closure doctrine applied prospectively ("one format-aware authority per predicate"). Cheap now, unpayable later |
+| **Byte-deterministic `--json` snapshot + a freshness-style fixture test** | Makes a *rendering* feature mechanically verifiable, which nothing else in this class is | MEDIUM | Reuses the docs-catalog / `freshness:catalog` precedent exactly: fixture tree → snapshot → byte-compare |
+| **Verification badges** — a note/ticket shows its `verified_by` stamp and gate id | No other board shows *why* a state is trustworthy. This is grugops's entire thesis made visible | MEDIUM | Depends on VFY-01..04 |
+| **Autonomy banner** — persistent header showing the active checkpoint matrix and **any lowered floor, with who lowered it and when** | Turns area 2's "never silently" requirement into something an operator cannot miss | LOW (given area 2 lands) | Read-only; see dependency graph |
+| **Mode indicator: PARALLEL (Claude Code) vs SEQUENTIAL (other 4)** | Makes the dual-path architecture legible; a user on Codex should see *why* width is 1 | LOW | Depends on host detection already implied by the dual path |
+| **WIP-violation and stale-claim highlighting** | Derived invariants surfaced at a glance | LOW | **Surface only.** Enforcement stays in the Orchestrator role + config (see anti-features) |
+
+### Anti-Features (and the explicit "read-only / never load-bearing" violations)
+
+| Feature | Why Requested | Why Problematic | Alternative |
+|---------|---------------|-----------------|-------------|
+| **Any keybinding that moves a ticket / claims a task / unblocks / retries / kills an agent** | Every comparable TUI does it; it will be the #1 request | **Violates read-only.** Creates a second writer to `plans/board.md` and `.grugops/queue/` outside the sanctioned `context-io.ts` path — the exact thing v2.0 spent a milestone closing | Dashboard shows the state; the human types the request into the host CLI. Optionally: a key that *copies a suggested `/grug` command to the clipboard* — still no write |
+| **Approving a human checkpoint from the dashboard** | Feels like the natural home for an approval inbox (octomux ships one) | **Violates read-only, and worse: puts a write path into a safety gate.** An approval surface must be un-forgeable and named-human; a monitor process is neither | Approval stays in the host CLI session / the named-human opt-in mechanism from area 2 |
+| **A dashboard cache/index file (`.grugops/dashboard-cache.json`)** | Perf on large boards | **Violates read-only** and creates a second grammar for board truth that can go stale and be trusted | Re-parse on change; the board is a handful of KB. If perf ever bites, cache **in memory only** |
+| **The Orchestrator reading the dashboard's computed WIP count** | "We already computed it" | **Makes the dashboard load-bearing.** The kit must run identically with the dashboard never installed | Roles read `board.md` + config, as today. The projector may be *shared library code*, but the dashboard process is never in the decision path |
+| **Resident daemon / background notifier / desktop notifications** | "Tell me when the gate goes red" | grugops has no runtime and no daemon — this reintroduces one, plus a process to operate | Foreground process only; exits cleanly; `--once` for scripting |
+| **Any runtime dependency (ink/blessed/react/chalk)** | Faster to build a pretty TUI | Breaks the hard "zero runtime dependencies on host machines" constraint | Raw ANSI escape codes on Node stdlib, compiled `.js`, same as every other kit runnable |
+| **Full-screen high-FPS repaint (btop model)** | Looks impressive | Burns CPU to re-render a file that changes a few times a minute; also destroys terminal scrollback | Event-driven repaint on debounced change + a manual `r` refresh |
+| **Telemetry / usage analytics** | "Understand adoption" | Already explicitly out of scope since v1.1 | None |
+| **Auto-launching the dashboard from the installer** | Discoverability | Installers are additive and reversible; auto-launch is a surprise side effect | Print one line: how to start it |
+| **Mouse-required interactions** | Modern TUIs support mouse | Mouse is fine as an *addition*; requiring it breaks ssh/tmux/CI workflows | Keyboard-complete; mouse optional |
+| **Rendering a partially-written file** | It's what naive `fs.watch` handlers do | Shows torn state as if it were truth — a fabrication by accident | Parse to a complete snapshot, then swap; on parse failure keep the last good snapshot + show a stale/unparseable badge |
+
+### File-changes-mid-render: the expected behavior (concrete)
+
+This is the question with a real, citable answer, and grugops's write model makes it sharper than usual.
+
+- **`fs.watch` is documented as not 100% consistent across platforms and unavailable in some situations.** The `filename` callback argument is not guaranteed on all platforms — fallback logic is required. On **Windows**, no events are emitted when a watched directory is moved or renamed, `EPERM` is reported when it is deleted, and changes are monitored at the *directory* level (Node's docs explicitly note this means `fs.watch` does not protect against file substitution). `recursive: true` support differs by platform and Node version.
+- **grugops writes by atomic rename** (`context-io.ts`, `claim.ts` transitions). A watcher bound to a *file path* is orphaned the moment that file is replaced by rename — the handle follows the old inode and goes silent. **Watch the containing directory, not the file.** This is the single most likely "the dashboard just stopped updating" bug, and it is predictable in advance.
+- **Debounce.** A single logical write produces multiple events (duplicate events are known `fs.watch` behavior). Coalesce with a trailing debounce (~50–150 ms) before re-parsing.
+- **Polling fallback.** `fs.watchFile` (default interval 5007 ms) is the stdlib fallback; expose an interval flag. Network filesystems and some containers need it. The fallback must be *visible* in the UI ("polling, 5s") — a silently degraded refresh rate is a quiet lie about freshness.
+- **Never render a partial parse.** Build the whole snapshot, then atomically swap the render model. On failure: retain last good, badge it, and show the parse error on demand. Torn reads on a concurrently-written markdown file are otherwise indistinguishable from real state.
+
+---
+
+## Area 2 — Configurable human-in-the-loop checkpoints
+
+### How comparable systems model "where does a human approve?"
+
+| System | Granularity | Escape hatches | Auditability of a *lowered* setting |
+|--------|-------------|----------------|--------------------------------------|
+| **GitHub Actions Environments** | Per **environment** (a named risk boundary), attached to a job | Wait timer 0–43,200 min; branch restrictions; **"Prevent self-reviews"** toggle; env secrets withheld until the gate passes | Deployment history records what/when/who-approved. The *config change itself* is a settings edit in the org audit log |
+| **GitLab CI** | Per **job** (`when: manual` + `allow_failure: false`) and per **protected environment** (who may deploy, multiple approval rules with required counts) | Manual job blocks the pipeline; rules can require N approvers | Deployment approvals recorded per environment |
+| **Argo CD** | Per **sync / sync window** (time-boxed allow-deny), manual sync per stage | Sync windows deny by clock, not by person | Application event history |
+| **Temporal** | Per **workflow wait point** — `wait_condition(..., timeout=…)`, signal-driven | **Timeout branch is explicit and usually means reject/escalate.** Durable across worker restarts; a five-month wait costs nothing | Full event history is the audit log by construction |
+| **LangGraph** | Per **tool call** — `interrupt()` / `Command(resume=…)` | approve / **reject** / **edit the tool arguments**; checkpointed state survives process death. Vendor states "review and approve tool calls before execution" is by a wide margin the most common production HITL pattern | Checkpoint history |
+| **Claude Code permission modes** | Global-ish mode: `default` / `plan` / `acceptEdits` / `bypassPermissions` | `bypassPermissions` (`--dangerously-skip-permissions`) shows a **one-time responsibility-acceptance dialog persisted to settings**, refuses to run as root, and is documented as container/VM-only. A newer "auto mode" is the safer middle | The one-time dialog is the entire audit surface — and it's one-time |
+| **Break-glass (PAM/HIPAA practice)** | Per emergency **session** | Request + stated reason + time-box + credential rotation afterwards | **Tamper-proof log of request, approval, session, and actions; alert fires within ~60 s of activation.** Framed explicitly as "a security control, not a bypass" |
+
+### What granularity users actually want
+
+The evidence converges, and it converges *against both extremes*:
+
+- **Global scalar (`autonomy: full`) is too blunt.** It is the `--dangerously-skip-permissions` shape. Even Anthropic wraps that one flag in a responsibility dialog, a root refusal, and container-only guidance — a JSON field has none of that friction. grugops's decision to retire the scalar is well-supported.
+- **Per-workflow-step is too fine.** A 40-key matrix is a matrix nobody reads; defaults get copy-pasted from a blog post and the dial stops meaning anything.
+- **The sweet spot is per-named-risk-boundary** — GitHub's "environment", GitLab's "protected environment", LangGraph's "tool call class". For grugops that means matrix keys should be **checkpoint identities** (merge, prod deploy, context admission, test-integrity justification, verify-before-write, DoR stop, XL split, release, UAT sign-off) — roughly 8–14 keys, each naming a risk — not one key per workflow step.
+
+### Table Stakes
+
+| Feature | Why Expected | Complexity | Notes / grugops dependency |
+|---------|--------------|------------|----------------------------|
+| **An enumerated, named list of every human stop** | You cannot dial what you cannot name; also the only way to prove the matrix is complete | MEDIUM | The milestone already sequences enumeration first — correct. Cross-check against all 18 roles + 19 workflows and the prod-deploy hook |
+| **Ternary per checkpoint, not boolean:** `block` / `notify` / `off` | GitHub, GitLab, Temporal all have a middle state; boolean forces "annoying" or "unsafe" | LOW | Extends the existing `off / high-severity / all` shape of `context.human_admission` |
+| **Safe defaults; zero-config = safe** | Existing grugops constraint | LOW | Unchanged from GOV-01/02 |
+| **Named human identity on approval, never a boolean** | An approval nobody's name is on is not an approval | LOW | Already exists: `GRUGOPS_PROD_DEPLOY_APPROVED` + refuse-self-set |
+| **Prevent self-approval** | GitHub ships this as a literal toggle; grugops already enforces the same predicate on `verified_by` | LOW | Reuse `context-io.ts` `validate()`'s refuse-self set — do **not** author a second self-check (second-grammar hazard) |
+| **Timeout → deny / escalate. Never timeout → proceed** | Temporal's canonical pattern | LOW | Applies to any unattended run |
+| **Fail-closed on unknown/typo enum values** | A typo must never open a hole | LOW | Already the GOV-01 behavior: any value that isn't exactly `off` gates at least as strictly as the next tier. Generalize to every matrix key |
+| **Every approval AND every skip recorded in the trace** | Auditability is the product | MEDIUM | `plans/traceability.md` + shared-context notes |
+
+### Differentiators
+
+| Feature | Value Proposition | Complexity | Notes |
+|---------|-------------------|------------|-------|
+| **Lowering a floor is itself a gated, stamped, non-self event** | Nobody in this space does this. CI systems log a bypass *use*; the *config change* is just a settings edit. grugops can make the opt-in un-self-settable by the same mechanism class as the deploy hook | **HIGH** | This is a safety invariant. Per the project's own doctrine: budget red-team rounds, expect a structural fix, do not accept a green suite as closure |
+| **Claim-dropping — when a checkpoint is lowered, the corresponding claim is withdrawn from the artifact** | The strongest idea in this milestone. It is the no-fabrication rule applied to *marketing copy inside the trace*: a gate report must stop asserting "test integrity enforced" and instead read "test integrity: notify-only (lowered by \<human\> on \<date\>)" | MEDIUM | Touches the §14 gate report, traceability, role prompts, and the dashboard banner. Mechanically checkable: a guard asserting *claim present ⇒ checkpoint at floor* |
+| **Break-glass framing: time-boxed + reason-required + alert-on-use** | PAM practice, transplanted. A lowered floor that auto-expires is far safer than one that lives forever in a committed config | MEDIUM | Optional/enterprise tier. Even the reason-string alone beats a bare boolean |
+| **The lowered state is visible in the dashboard header** | "Never silently" made continuously visible, not just recorded | LOW | Read-only consumption of the matrix; see dependency graph |
+| **Notify-and-continue emits an admitted note, not a console line** | A "notify" that scrolls past is not a notification | LOW | Reuses the shared context as the notification channel — no new mechanism |
+
+### Anti-Features
+
+| Feature | Why Requested | Why Problematic | Alternative |
+|---------|---------------|-----------------|-------------|
+| **A single global `autonomy: full` / `yolo: true`** | Simple; users ask for it | Silently unsets everything at once, with no per-risk record. The `--dangerously-skip-permissions` shape without any of its friction | Per-checkpoint matrix; a "lower everything" convenience, if ever added, must expand to explicit per-key values on write |
+| **Env-var or CLI-flag per-run override with no persisted record** | Convenient for CI | An unrecorded lowering is exactly the "silent" outcome the milestone forbids | Overrides allowed only if they emit a trace note; otherwise refuse |
+| **Timeout → proceed ("assume approval after 24h")** | Unblocks unattended runs | Converts absence of evidence into approval — the precise anti-pattern the A3/DOG-02 capture rule exists to prevent | Timeout → deny + escalate |
+| **Deleting the guard when a checkpoint is `off`** | "It's off, why run it?" | Loses the ability to report the lowered state, and makes re-raising the floor a code change | Guard always runs; when `off` it reports `off by \<human\>` instead of blocking |
+| **Per-workflow-step granularity** | Maximum flexibility | Unusable dial; defaults become cargo-cult | ~8–14 risk-boundary checkpoints |
+| **Agent-settable opt-in of any kind** | Enables full autonomy | Straight violation of "an agent cannot self-set" | Named-human mechanism. **And re-disclose the known irreducible residual** (same-uid / no-hook direct-FS forgery) here rather than re-claiming it solved — the honest boundary is worth more than an over-claim |
+| **Approving from the dashboard** | Convenient | Cross-cutting violation of area 1's read-only boundary | Host CLI session only |
+| **"Unattended mode" that means "no checkpoints"** | It's what the word suggests | Unattended should mean *queue the decisions*, not *skip them* | Unattended = run until a `block` checkpoint, then park the task in the queue with a clear "waiting on human: \<checkpoint\>" state the dashboard shows. Temporal's model: waiting costs nothing |
+
+---
+
+## Area 3 — Agent-driven manual / exploratory testing feeding UAT
+
+### Agent-run UAT vs scripted E2E — what each is actually for
+
+| | Scripted E2E (existing §14 gate) | Agent exploratory run (new) |
+|---|---|---|
+| Strength | Deterministic, cheap to re-run, regression-proof | Discovers states nobody specified; adapts to a changed UI |
+| Weakness | Blind to anything not asserted; brittle selectors | Non-deterministic; **cannot be its own oracle** |
+| Correct role | The **gate** | The **discovery** step, and a **generator** of gate tests |
+
+**The settled synthesis pattern: the agent explores, the code judges.** The strongest published articulation enforces it structurally — the verdict function imports nothing from a browser, and a self-test asserts the browser module never entered the module table during verdict computation. Optional LLM triage may only *append explanatory text to a failure*; it can never flip a verdict to pass. This is architecturally the same shape as grugops's `emitVerdict()` root-of-trust + `admit()` cross-check, which is a strong signal the milestone's stated design is right.
+
+### Documented self-pass failure modes (all four are attested, not hypothetical)
+
+1. **Assertion weakening** — `expect(v).toBe(5)` rewritten to `expect(v).toBeTruthy()`.
+2. **Test-case deletion** — after repeated repair failures, the agent removes the failing case and reports 100% pass.
+3. **Behavioral fakery** — plausible output produced without performing the task (never read the file, summarized from the prompt).
+4. **State pollution** — the agent runs in the same environment the evaluator inspects and **writes the result file directly**.
+
+**#4 is the open surface for this milestone.** grugops has closed the note-admission path; it has not closed "the agent produced the evidence artifact it will be judged on." The countermeasure is provenance on the artifact: the evidence file must be written by the tool's own writer (Playwright's trace/video/screenshot output), and the judge must read the **artifact**, not the agent's narration of it.
+
+### Table Stakes
+
+| Feature | Why Expected | Complexity | Notes / grugops dependency |
+|---------|--------------|------------|----------------------------|
+| **Evidence written to files at a known path, never pasted into the transcript** | Prose is not evidence; this is the project's own no-fabrication rule | LOW | Playwright already in the §14 gate |
+| **Accessibility snapshot as the primary agent-legible view** | The structured a11y tree (roles, names, states, stable element refs) is ~2–5 KB and deterministic; screenshots can be enormous (one report measured **232k tokens for a single screenshot**) | MEDIUM | Playwright MCP exposes this natively; grugops already ships axe-core in the gate |
+| **Screenshot at decision points + video + `trace.zip` on failure** | The universal expectation for "what did the agent actually see" | LOW-MEDIUM | Playwright config; reuse the existing visual-regression recipe |
+| **Console logs (filtered against a benign allowlist) + network log + HTTP status** | Practitioner-standard diagnostic set; unfiltered console noise makes every run "fail" | MEDIUM | New capture, existing gate wiring |
+| **Deterministic verdict computed from captured artifacts, not from narration** | The whole point | HIGH | Depends on `emitVerdict()`; the judge must be a pure function |
+| **Loud skip when the browser/tool is unavailable — never a silent green** | Existing project pattern from the Tier-2 harness | LOW | Reuse the Tier-2 loud-skip convention verbatim |
+| **Artifact retention + cleanup policy** | Traces and videos are large; unbounded growth breaks repos | LOW | Ties to `context.audit_retention` |
+
+### Differentiators
+
+| Feature | Value Proposition | Complexity | Notes |
+|---------|-------------------|------------|-------|
+| **Evidence enters through the verify-before-write path — UAT result is a stamped note, not prose** | An agent literally cannot run its own UAT and stamp its own pass | MEDIUM (given VFY-01..04 exists) | The stated milestone intent; research fully supports it |
+| **Import-boundary separation of explorer and judge, proven by a self-test** | Turns "don't let the agent judge itself" from a rule into a mechanical fact | HIGH | Safety invariant → red-team budget applies. Direct analogue of the v2.0 structural-closure doctrine |
+| **Artifact provenance: the note records the evidence file path + content hash; the judge reads the artifact** | Closes state pollution (failure mode #4) | MEDIUM | New. This is the gap |
+| **Exploratory → promoted scripted spec** | Exploration is discovery; the promoted spec is the durable regression proof in the §14 gate | MEDIUM | "This review is where an exploratory transcript becomes engineering" — the practitioner consensus |
+| **Two-lane browser strategy** | Claude in Chrome for authenticated/interactive dev work (it drives the browser you already have logged in); Playwright MCP for reproducible/CI/cross-browser | MEDIUM-HIGH | **Recommend Playwright MCP as the floor and Claude in Chrome as the optional lane.** Documented Chrome-extension limits: connection instability, a `chrome-extension://` context problem, auth flows frequently needing manual intervention. Making the CC-only path the floor would also break the other four host CLIs |
+
+### Anti-Features
+
+| Feature | Why Requested | Why Problematic | Alternative |
+|---------|---------------|-----------------|-------------|
+| **Agent authors the pass/fail** | Fast, feels natural | All four documented self-pass modes live here | Code judges; agent may only append explanation to a failure |
+| **Screenshots as the primary agent input** | "Just look at it" | Token blowup and non-determinism; pixels are a worse oracle than the a11y tree | A11y snapshot primary; screenshots for humans and for diffing |
+| **Agent writes the evidence/result file it will be judged on** | Simplest plumbing | State pollution — attested failure mode | Tool-written artifacts only; judge reads the artifact |
+| **Auto-healing selectors / auto-rewriting assertions to reach green** | "Reduce flake" | Indistinguishable from assertion weakening | Flake is reported, not repaired, inside the gate |
+| **Exploratory runs *replacing* scripted E2E** | "Agents are more flexible" | Non-deterministic → cannot be a regression gate | Exploratory feeds the gate; the gate stays scripted |
+| **LLM-as-judge as the sole UAT oracle** | Cheap and general | A single LLM cannot reliably verify its own output — structurally predisposed to agree with itself | Deterministic judge; LLM triage as annotation only |
+| **Requiring a headed browser in CI as a hard dependency** | Fidelity | Breaks the zero-host-dependency posture and the four non-Claude CLIs | Optional lane + loud skip |
+
+---
+
+## Area 4 — Controlled natural language (ASD-STE100) for machine-read and machine-written docs
+
+### What STE actually is (HIGH confidence)
+
+- **Two parts:** (1) writing rules, (2) a dictionary. Current edition **Issue 9, released 2025-01-15**: **53 writing rules in 9 sections**, ~**900 approved words**, and ~**1200 unapproved words** listed with suggested alternatives. 555 dictionary entries were updated in Issue 9.
+- **Origin and purpose:** developed from the 1980s by AECMA (now ASD) at the European airline industry's request, so aircraft-maintenance documentation would be understandable to **non-native English readers**. Adoption has spread outside aerospace — only ~36% of Issue-8 users were aerospace/defense.
+- **Licensing:** ASD-STE100 is a copyright and trademark of ASD (Brussels). The specification is **free to download on request** from asd-ste100.org, but copyright is fully retained by ASD. **Deriving a profile from the rules and citing them is fine; redistributing the dictionary is not something the free download grants.**
+- **Tooling:** conformance checking splits sharply. Free tools are partial (a Thumbs Up STE Tool, an online verb checker, an "STE-checker"). Full checking is commercial and dictionary-dependent (Acrolinx, Congree, Boeing Simplified English Checker, ARDOS). **No free tool certifies conformance.**
+
+### The core rules, and which generalize to software procedural text
+
+**Generalize well — mechanically checkable, no licensed dictionary needed:**
+
+| Rule | Applies to grugops surfaces? |
+|------|------------------------------|
+| Procedures: **≤20 words per instruction** | Yes — workflow steps, checklists |
+| Descriptions: **≤25 words per sentence** | Yes — role prose, notes, board comments |
+| **One topic per paragraph, ≤6 sentences** | Yes |
+| **One instruction per sentence** (one imperative per line) | Yes — highest-value rule for workflow steps |
+| **Active voice**; passive only in descriptions when the agent is unknown | Yes |
+| **Restricted verb forms** — infinitive, imperative, simple present/past/future, past participle as adjective only; **no present perfect** | Mostly yes |
+| **`-ing` forms restricted** to technical nouns/modifiers | **Partially — see collision below** |
+| **Do not omit sentence components** (subject, verb, article) | **Direct collision with caveman voice — see below** |
+| **Noun clusters ≤3 words** | Yes, and useful (grugops has "shared verified context write path") |
+| **Use vertical lists** for complex/enumerable content | Yes |
+| **Safety instructions begin with the command or condition** | Yes — maps onto grugops's clear-voice safety surfaces |
+| **One word, one meaning, one part of speech** | Yes — but implement as a small *grugops* approved-term list, not ASD's 900 words |
+
+**Do not generalize / impractical without the licensed dictionary:**
+
+- **The ~900-word approved dictionary itself.** Software text needs *commit, branch, repository, subagent, TypeScript, frontmatter, idempotent* — none approved. STE's own escape hatch (Technical Names / Technical Verbs) can admit them, but applying it wholesale means the dictionary constraint effectively evaporates and you are left with the rules anyway. **Recommendation: adopt the rules, do not adopt the dictionary.**
+- Aerospace/S1000D-specific structural conventions (maintenance-manual warnings/cautions formatting tied to the S1000D data-module model).
+- The `-ing` prohibition taken literally: grugops's own queue directories are `pending/`, `claimed/`, `done/`, and "running", "blocked", "pending" are load-bearing status words. **Carve out identifiers, paths, config keys, code, and status tokens from any `-ing` rule.**
+- "Do not omit articles/subjects" **directly contradicts the caveman fenced block**, which is telegraphic by design. This is exactly why the milestone's surface split (caveman inside the fence, STE-derived profile everywhere else) is the right call — but the guard must be **surface-scoped**, or it will fight `guard_caveman_preserved` on the same bytes.
+
+### Area 4 evidence honesty — DEMONSTRATED vs `UNKNOWN - verify`
+
+This is the section the quality gate asks about, so it is stated plainly.
+
+**DEMONSTRATED (or at least well-attested):**
+
+- STE reduces ambiguity **for human readers**, particularly non-native English speakers, and improves consistency for translation/machine translation. *Confidence: MEDIUM.* This is decades of aerospace industry consensus and the stated design purpose of the standard — but I did not locate a controlled study with effect sizes, and the claim is usually asserted rather than measured in the available sources. Treat as "industry consensus", not "measured".
+- STE has **documented limitations and critics**: it requires high English proficiency to apply correctly, is frequently misapplied as a substitute for a full style guide, and produces poor documentation when badly implemented; it is recommended as a *complement* to a style guide. *Confidence: MEDIUM-HIGH.*
+- LLM-based **simplification of text for humans** improves readability metrics (reported ~2–6 grade levels in medical-communication reviews) — but the same reviews note that **only one randomised trial actually measured comprehension**. *Confidence: MEDIUM, and note this is the reverse direction:* evidence about LLMs *producing* simplified text for people, not about LLMs *consuming* controlled language better.
+
+**`UNKNOWN - verify` — plausible but NOT established:**
+
+- **`UNKNOWN - verify`: that writing agent-read documentation in ASD-STE100 (or any CNL) measurably improves LLM task success, reduces hallucination, or reduces ambiguity in agent behavior.** I found no study establishing this. The mechanism is plausible (fewer word senses, shorter sentences, less anaphora, no telegraphic omission ⇒ less ambiguity), and there is *adjacent* evidence that long, low-signal context files reduce agent success — which grugops already cites for its "Minimal AGENTS.md" constraint. But "shorter and denser helps" is not the same claim as "STE specifically helps." **Do not ship a claim that STE improves agent comprehension.**
+- **`UNKNOWN - verify`: that STE reduces token count.** Plausibly the *opposite* for grugops: STE forbids omitting articles and subjects, which makes text **longer** than the current telegraphic caveman style. **STE must not be sold as a token-economy win.** The kickoff measurement already showed the caveman-as-token-economy claim did not survive contact with the artifact; replacing it with an equally unmeasured STE-as-token-economy claim would repeat the error one level up.
+- **`UNKNOWN - verify`: that any available checker validates STE *conformance*** at a level a guard could rely on. Free tooling is partial; full conformance checking is commercial and dictionary-dependent.
+
+**The consequence for `guard_ste` — the most important design point in area 4:**
+
+> `guard_ste` must **not** claim to enforce ASD-STE100. It must enforce a **named, enumerated grugops writing profile** whose every rule it can check *exactly*, with the profile documented as "rules derived from ASD-STE100 Issue 9; not certified STE."
+
+A guard that checks 6 mechanically-checkable rules while claiming to enforce 53 is a heuristic detector that is a strict subset of the real predicate — which is, verbatim, the documented root cause of all 13 v2.0 green-suite bypasses, and the exact failure that let `guard_caveman_preserved` drift green for an entire milestone. Enumerate the profile; check every rule in it; claim only that.
+
+*(Trademark note: "Simplified Technical English" and "ASD-STE100" are ASD marks. "Derived from" + citation is the safe framing; "STE-compliant" is both unverifiable and a trademark risk.)*
+
+---
 
 ## Feature Dependencies
 
 ```
-Orchestrator redefinition (bootstrap + decompose + schedule + human-gate)
-    └──enables──> File-based task queue + atomic async claim
-                      └──requires──> atomic-claim helper on the TS tooling layer (markdown can't guarantee atomicity)
-                      └──feeds──> Parallel agents (Claude Code spawn) ── degrades to ──> Sequential agents (other 4 CLIs)
-                                       └──all read/write──> Shared verified context substrate (typed notes)
-                                                                 └──gated by──> Verify-before-write admission
-                                                                                    └──IS──> §14 quality gate + test-integrity + UNKNOWN-verify (EXISTS)
-                                                                                    └──for high-severity──> Human-gated context admission (dialable)
-                                                                 └──kept compact by──> Memory/trajectory compaction (dialable)
-                                                                 └──recorded as──> Append-only git-tracked history (audit trail)
-                                                                                        └──surfaced by──> Board-as-state (human-readable queue view)
+[Spawn correctness fix]  (milestone item, not researched here)
+    └──enables──> [Active-agents pane]        <- pane is EMPTY until spawn works
 
-Clean removal of static handoff packets ──requires──> Shared verified context substrate (the replacement must exist first)
-                                          ──rewires──> all 17 roles + 14 workflows
-                                          ──retires──> A3/DOG-02 dual-path handoff-parity (UAT-AUTO-04, now moot)
+[Board/state projector: ONE authority, typed snapshot]
+    ├──requires──> [board.md §6.1 heading format + ticket frontmatter contract]  (EXISTS)
+    ├──requires──> [.grugops/queue/{pending,claimed,done}]                       (EXISTS, CLAIM-01/02)
+    ├──requires──> [shared-context notes + JSONL index]                          (EXISTS, SCTX-01..05)
+    └──requires──> [factory.config.json#wip_limits / #queue]                     (EXISTS, CONFIG-*)
 
-Governance-on-a-dial ──reads──> factory.config (mode + compliance_regime) [EXISTS]
-                      ──scales──> verifier depth + human-admission + compaction + queue/WIP policy
+[CLI dashboard renderer]
+    └──requires──> [Board/state projector]
+        └──requires──> [directory-level fs.watch + debounce + polling fallback]
+                            └──forced-by──> [atomic-rename write model]          (EXISTS, context-io/claim)
 
-Humans hold merge/deploy (prod-deploy hook) ──UNCHANGED, gates──> release; conflicts with──> any autonomous-merge/deploy anti-feature
+[--json snapshot] ──enables──> [byte-deterministic projector test]  (reuses freshness:catalog pattern)
+
+[Checkpoint enumeration]
+    └──requires──> [pass over 18 roles + 19 workflows + prod-deploy hook]
+        └──overlaps──> [Kit consistency audit]        <- do these together, one read of the kit
+
+[Per-checkpoint autonomy matrix]
+    └──requires──> [Checkpoint enumeration]
+        ├──requires──> [fail-closed enum parsing]                    (EXISTS, GOV-01 pattern)
+        └──requires──> [named-human opt-in, agent-unsettable]        (EXTENDS deploy-hook + validate())
+
+[Claim-dropping]  ──requires──> [Per-checkpoint autonomy matrix]
+                  ──touches───> [§14 gate report, traceability.md, role prompts]
+
+[Autonomy banner in dashboard] ──requires──> [Per-checkpoint matrix] + [projector]
+
+[Agent exploratory UAT]
+    ├──requires──> [verify-before-write admission]           (EXISTS, VFY-01..04)
+    ├──requires──> [§14 gate + emitVerdict() root of trust]  (EXISTS, GATE-01/VFY-02)
+    ├──requires──> [Playwright + axe-core in the gate]       (EXISTS, UIQA-01/02)
+    └──requires──> [artifact provenance: path + hash in the note]    <- NEW, closes state pollution
+
+[Explorer/judge import boundary] ──enables──> [trustworthy agent UAT]
+
+[grugops writing profile (STE-derived)]
+    ├──requires──> [enumerated rule list, each mechanically checkable]
+    └──requires──> [surface scoping]
+                        └──conflicts──> [caveman fenced block]  (telegraphic vs "do not omit articles")
+
+[guard_ste] ──conflicts──> [guard_caveman_preserved]   unless BOTH are surface-scoped to disjoint byte ranges
+[guard_ste] ──requires───> [role-skeleton de-duplication]  (say-each-thing-once precedes rule-checking prose)
 ```
 
 ### Dependency Notes
 
-- **Shared verified context must land before handoffs are removed.** The clean replacement is only safe once the substrate exists and roles read/write it — otherwise the factory loses its memory mid-pivot. Roadmap: substrate first, then rewire, then delete handoffs.
-- **Verify-before-write IS the §14 gate** — this is the highest-leverage reuse and the core differentiator in one. Wiring "a context write requires a gate verdict + carries the evidence" is mostly plumbing on existing machinery, not new verification science.
-- **Atomic claim is the one place markdown is insufficient.** A file-based queue needs a real atomicity primitive (rename-based claim / `O_EXCL` / lockfile) — it belongs in the committed-`.js` tooling layer, must stay zero-runtime-dep, and must work cross-platform (Windows included, the reason TS was adopted).
-- **Compaction is not optional polish** — it's the guard against the 15× token blow-up and the enabler of the ~50% cost story; without it the shared context rots. Couple it to the caveman/token-economy ethos and the dial.
-- **Orchestrator redefinition gates the decentralization** — if the Orchestrator stays a router, nothing else is actually decentralized. Recast it as scheduler + gate (blackboard control component) early.
-- **Parallel (Claude Code) and sequential (4 CLIs) share ONE substrate** — design the context + queue file conventions tool-neutrally; spawning is an execution detail layered on top, not a fork of the data model. This is what keeps "degrade, never break" true.
-- **Audit trail is near-free given git + append-only** — lowest-risk, can land alongside the substrate; it's a discipline + file convention, not a build.
+- **Dashboard requires the projector, and the projector requires an authority decision.** `plans/board.md` encodes WIP twice — in the `(WIP 1/3)` heading and in the live rows beneath it. These can disagree. The projector must name one as authoritative (rows) and *surface* the disagreement. Choosing silently is a second grammar; the v2.0 doctrine says one format-aware authority per predicate.
+- **Spawn before dashboard.** The "active agents" pane is the dashboard's headline and it renders nothing until role subagents actually spawn. Shipping the dashboard first produces a demo that proves the defect.
+- **Enumeration before matrix, and enumeration piggybacks on the consistency audit.** Both require one careful read of all 18 roles + 19 workflows. Doing them in one pass is materially cheaper than twice.
+- **`guard_ste` conflicts with `guard_caveman_preserved` on the same files.** Resolve by byte-range scoping: the fenced identity block is caveman-only and STE-exempt; everything outside it is profile-governed and caveman-exempt. Both guards must agree on the fence grammar — and per the doctrine, that means **one shared fence parser**, not two.
+- **Artifact provenance is the new piece in area 3.** Everything else (gate, admission, Playwright, axe-core, loud skip) already exists. The gap is that the agent can currently produce the evidence it will be judged on.
+- **`-ing` and article rules collide with grugops's own vocabulary.** `pending/`, `claimed/`, `running` are load-bearing. Carve out identifiers, paths, config keys, code fences, and status tokens from the profile before writing the guard, not after it fails.
 
-## Lean → Enterprise Config Dial Mapping
+---
 
-| Theme | Lean (default-on, solo-sane) | Enterprise / `compliance_regime` non-empty | Config knob (proposed) |
-|---|---|---|---|
-| Context admission | Agent verifies (§14 gate) then writes; no human in the loop for routine notes | Named-human admission required for high-severity notes (security/architecture/release) | `context.human_admission: off \| high-severity \| all` |
-| Verifier depth | Existing §14 lean gate (lint/type/unit/build); grounding+format checks on notes | Full ASVS L2/L3 + UI/E2E + visual as the admission bar | reuse `quality.*` + `security.asvs_level` |
-| Compaction | Aggressive compact-gist default (token economy) | Retain more raw/summary context for audit; longer history | `context.compaction: aggressive \| balanced \| retain-raw` |
-| Queue / WIP | Light WIP cap; simple atomic claim | Strict WIP + dependency-ordered queue + claim audit | reuse board WIP; new `queue.wip_limit`, `queue.dependency_ordered` |
-| Audit retention | git history (free) | git history + retained per-note evidence + provenance header | `context.audit_retention: git \| retained` |
-| Parallelism | Claude Code parallel where present; else sequential | same (capability-driven, not policy) | none (capability-detected) |
+## MVP Definition
 
-> **Safety carve-out (NOT dialable down):** verify-before-write (no unverified note enters context), no-fabrication / `UNKNOWN - verify`, test-integrity floor, and humans-hold-merge/deploy. These are the trace's integrity and the safety boundary — on at every level, matching the existing un-dialable floors.
+### Launch With (v2.1 core)
 
-## MVP Definition (for the v2.0 milestone)
+- [ ] **Checkpoint enumeration** — the named list of every human stop, produced during the kit consistency audit. *Cheapest, unblocks the most, and is itself an audit artifact.*
+- [ ] **Per-checkpoint matrix with ternary values + fail-closed parsing + safe defaults** — replaces the `autonomy` scalar.
+- [ ] **Named-human opt-in for lowering a floor, agent-unsettable, recorded in the trace** — the safety invariant. Budget red-team rounds.
+- [ ] **Claim-dropping** — the lowered state removes the corresponding claim from the artifact. *This is what makes "never silently" true rather than asserted.*
+- [ ] **Board/state projector: one authority, typed snapshot, `--json`, byte-deterministic test** — the reusable core.
+- [ ] **CLI dashboard: columns + WIP, tickets, queue depth, active agents, blocked, gate status, autonomy banner; keyboard nav; directory-watch + debounce + polling fallback; read-only by construction.**
+- [ ] **grugops writing profile (STE-derived), enumerated, surface-scoped** + `guard_ste` that checks *exactly the enumerated rules* and claims nothing more.
+- [ ] **Rebuilt voice guard that measures voice, not sentence shape** — the current one drifted green for a milestone.
+- [ ] **Agent exploratory UAT on the Playwright MCP lane**, with tool-written artifacts, artifact provenance in the note, a deterministic judge, and a loud skip.
 
-### Launch With (v2.0 core)
+### Add After Validation (v2.1.x / next)
 
-- [ ] **Shared verified context substrate** (typed notes, read-before-act / write-after-verify, the sole inter-role memory) — the architecture itself
-- [ ] **Verify-before-write admission = the §14 gate** (a context write requires a gate verdict + carries evidence; `UNKNOWN - verify` floor) — the core differentiator, highest reuse
-- [ ] **File-based task queue + atomic async claim** (committed-`.js` claim helper, zero-runtime-dep, cross-platform) — decentralization needs a non-colliding claim
-- [ ] **Orchestrator redefinition** (bootstrap + decompose + schedule + human-gate; no longer a data router) — un-bottlenecks the design
-- [ ] **Parallel agents on Claude Code + graceful sequential degradation on the other 4 CLIs** over one substrate — the locked execution model
-- [ ] **Memory/trajectory compaction (dialable)** — guards the 15× token blow-up, enables the ~50% cost story
-- [ ] **Append-only, git-tracked context audit trail** + board-as-state as its human-readable view — the auditability differentiator
-- [ ] **Clean removal of static handoff packets** + rewire all roles/workflows; retire A3/DOG-02 (UAT-AUTO-04 moot) — the bold end-state
-- [ ] **Humans hold merge/deploy — preserved unchanged** (prod-deploy hook untouched) — the hard floor
+- [ ] **Claude-in-Chrome lane** — trigger: the Playwright lane is stable and someone needs an authenticated dev session. Documented instability makes it a second lane, never the floor.
+- [ ] **Exploratory → promoted scripted spec pipeline** — trigger: exploratory runs produce repeatable findings worth regression-locking.
+- [ ] **Break-glass time-boxing + expiry on a lowered floor** — trigger: someone leaves a floor lowered in a committed config.
+- [ ] **Dashboard drill-down detail pane + `/` filter + `:` palette** — trigger: boards get big enough that scanning fails.
+- [ ] **Per-checkpoint notification routing** — trigger: real unattended runs where parked tasks go unnoticed.
 
-### Add After Validation (v2.x)
+### Future Consideration (v2.2+)
 
-- [ ] **Human-gated high-severity context admission** promoted from a documented option to default-on for enterprise — once routine verify-then-write is trusted
-- [ ] **Dependency-aware queue ordering** (`[deps:…]`, DeLM-style) — once the flat queue is proven non-colliding
-- [ ] **Compaction tuning knobs** (aggressive/balanced/retain-raw) — once the default compaction is validated for token cost
+- [ ] **Web renderer over the same typed snapshot** — defer: the point of the projector is that this becomes cheap later; building it now re-opens the "no web UI" boundary before the CLI has proven the snapshot shape. Read-only + local only, if ever.
+- [ ] **Approval inbox UI** — defer indefinitely; it is a write path into a safety gate (see anti-features).
+- [ ] **Full STE dictionary conformance** — defer: needs a commercial checker and a license posture grugops does not have.
+- [ ] **Empirical measurement of whether the writing profile helps agents** — defer, but *name it*: this is the honest way to eventually retire the `UNKNOWN - verify`, exactly as `measure-cost.ts` does for the ~50% claim.
 
-### Future Consideration (beyond v2.0)
-
-- [ ] **Benchmark grugops's own success/cost gain** vs the v1.x centralized model (grugops's analog of DeLM's SWE-bench result) — currently `UNKNOWN - verify`; needs a real dogfood harness
-- [ ] **Carry-ins from v1.2** (SKEW-01 kit-version pin, FIX-01 doctor --fix, PLUGIN-01) — unrelated to decentralization, schedule opportunistically
+---
 
 ## Feature Prioritization Matrix
 
 | Feature | User Value | Implementation Cost | Priority |
-|---|---|---|---|
-| Shared verified context substrate | HIGH | HIGH | P1 |
-| Verify-before-write = §14 gate | HIGH | MEDIUM (high reuse) | P1 |
-| File-based task queue + atomic claim | HIGH | HIGH | P1 |
-| Orchestrator redefinition | HIGH | MEDIUM | P1 |
-| Parallel (CC) + sequential degrade (4 CLIs) | HIGH | HIGH | P1 |
-| Memory/trajectory compaction | HIGH | MEDIUM | P1 |
-| Append-only git audit trail | HIGH | LOW–MEDIUM | P1 |
-| Clean removal of static handoffs | HIGH | MEDIUM–HIGH | P1 |
-| Humans hold merge/deploy (preserve) | HIGH | NONE | P1 |
-| Human-gated context admission (dialable) | MEDIUM | MEDIUM | P2 |
-| Governance-on-a-dial | HIGH | MEDIUM | P2 |
-| Board-as-state as queue view | MEDIUM | LOW–MEDIUM | P2 |
-| Benchmark grugops's own gain | MEDIUM | HIGH | P3 |
+|---------|------------|---------------------|----------|
+| Checkpoint enumeration | HIGH | LOW | P1 |
+| Per-checkpoint matrix (ternary, fail-closed, safe defaults) | HIGH | MEDIUM | P1 |
+| Named-human opt-in for lowering a floor | HIGH | HIGH (safety invariant) | P1 |
+| Claim-dropping when a checkpoint is lowered | HIGH | MEDIUM | P1 |
+| Board/state projector (one authority, typed snapshot) | HIGH | MEDIUM-HIGH | P1 |
+| CLI dashboard core views + keyboard nav | HIGH | MEDIUM | P1 |
+| Directory-watch + debounce + polling fallback (Windows-safe) | HIGH | MEDIUM | P1 |
+| `--json` snapshot + byte-deterministic projector test | MEDIUM | LOW | P1 |
+| Writing profile enumeration + surface scoping | HIGH | MEDIUM | P1 |
+| `guard_ste` limited to the enumerated rules | HIGH | MEDIUM | P1 |
+| Voice guard rebuilt to measure voice | HIGH | MEDIUM | P1 |
+| Agent exploratory UAT — Playwright lane + tool-written artifacts | HIGH | MEDIUM | P1 |
+| Explorer/judge import-boundary separation | HIGH | HIGH (safety invariant) | P1 |
+| Artifact provenance (path + hash) in the UAT note | HIGH | MEDIUM | P1 |
+| Autonomy banner in the dashboard | MEDIUM | LOW | P2 |
+| Verification badges on notes/tickets | MEDIUM | MEDIUM | P2 |
+| Parallel/sequential mode indicator | MEDIUM | LOW | P2 |
+| WIP-violation + stale-claim highlighting | MEDIUM | LOW | P2 |
+| Drill-down detail pane, `/` filter | MEDIUM | MEDIUM | P2 |
+| Break-glass time-boxing / auto-expiry | MEDIUM | MEDIUM | P2 |
+| Exploratory → promoted spec pipeline | MEDIUM | MEDIUM | P2 |
+| Claude-in-Chrome lane | MEDIUM | MEDIUM-HIGH + UNKNOWN | P3 |
+| `:` command palette, mouse support | LOW | MEDIUM | P3 |
+| Web renderer over the snapshot | LOW (this milestone) | MEDIUM | P3 |
+
+**Priority key:** P1 must-have for the milestone · P2 add when possible · P3 future.
+
+---
 
 ## Competitor Feature Analysis
 
-| Feature | DeLM (the model) | AutoGen / CrewAI / Swarm | LangGraph | Anthropic multi-agent research | grugops v2.0 approach |
-|---|---|---|---|---|---|
-| Shared context | Verified `(label,gist)`, lock-free snapshots, write-before-publish | Conversation history / sequential output / stateless-handoff | Persistent state graph + checkpoints | Fresh per-subagent window, no sharing | **Verified typed notes in plain files**, read-before-act/write-after-verify, append-only + git |
-| Verification | Grounding string-match + cheap-LLM semantic check (NOT correctness) | None built-in | None built-in (you wire it) | Human testing + evals | **§14 behavior gate** (lint/type/unit/build/UI-E2E/visual/test-integrity) + `UNKNOWN-verify` |
-| Task distribution | Dependency-aware queue, async draw, single-lock refill | Conversational / role-team / handoff-function | Directed graph + conditional edges | Lead-agent upfront decomposition | **File-based queue, atomic async claim**, WIP-limited board as the human view |
-| Concurrent-write conflict | Write-before-publish ordering (fine-grained locking undisclosed) | N/A (mostly sequential) | **Reducers merge concurrent updates** | Workers isolated, no shared writes | **Per-note atomic claim + last-verified-write-wins + append-only history** |
-| Memory / compaction | Two-stage hierarchical summarization + selective unfold | None / in-memory | Checkpointing | "Store to external memory before proceeding" | **Dialable compaction** (caveman/token-economy), compact gist + referenced raw |
-| Audit / governance | **None** | None | None (state is inspectable, not audit-designed) | Human-in-loop testing, not audit | **git-log audit trail + human-gated admission + governance-on-a-dial** |
-| Runtime footprint | Python framework | Python framework | Python framework | Internal system | **Plain files + zero-runtime-dep committed `.js`** on the CLI you already run |
-| Safety floor | Not addressed | Not addressed | Not addressed | Human testing | **Mechanical prod-deploy hook; humans hold merge/deploy (unchanged)** |
+| Feature | Comparable A | Comparable B | grugops approach |
+|---------|--------------|--------------|------------------|
+| Board TUI | **lazygit / k9s** — panes, status bar of live keys, `?` help, drill-down; *mutating* | **gh-dash** — sectioned, numbered jumps, preview pane, live search; *mutating* | Same interaction grammar, **zero mutation** — enforced structurally (renderer has no write path), not by policy |
+| Agent monitoring | **octomux / Claude-Code-Agent-Monitor** — live grid, permission inbox, Kanban board, web UI, WebSockets | **claude-squad** — tmux multiplexing of sessions | Read-only projection of files that already exist; no daemon, no sockets, no runtime deps |
+| Approval gates | **GitHub Environments** — per-environment reviewers, wait timer, prevent-self-review, deployment history | **Temporal** — durable wait + explicit timeout branch; **LangGraph** — approve/reject/**edit** per tool call | Per-checkpoint matrix at risk-boundary granularity, timeout→deny, reuse of the existing non-self stamp predicate |
+| Lowering a safety setting | **Claude Code `bypassPermissions`** — one-time responsibility dialog, root refusal, container-only guidance | **Break-glass (PAM)** — request + reason + tamper-proof log + alert in ~60 s + time-box + rotation | Named-human, agent-unsettable opt-in, **plus claim-dropping** — the artifact stops asserting the property. No comparable does this |
+| Agent UI verification | **Playwright MCP** — a11y-snapshot-first, deterministic refs, CI-fit | **Claude in Chrome** — real authenticated session; unstable, `chrome-extension://` context issues | Playwright lane as the floor, Chrome as an optional lane; verdict by code; evidence admitted through verify-before-write |
+| Controlled language | **ASD-STE100** — 53 rules + 900-word dictionary; free spec, commercial checkers | **Acrolinx / Congree** — commercial conformance checking | Rules-only derived profile, enumerated and fully checkable; **no conformance claim**, no dictionary redistribution |
+
+---
+
+## Explicit list: features that would violate "read-only and never load-bearing"
+
+For the requirement author — write these as **prohibitions**, not omissions:
+
+1. Any keybinding that writes to `plans/board.md`, `plans/tickets/**`, `.grugops/queue/**`, `.grugops/context/**`, `plans/traceability.md`, or config.
+2. Any approval / gate decision taken from the dashboard.
+3. Any dashboard-owned cache, index, lock, or state file on disk.
+4. Any role, workflow, guard, or oracle that reads a value **computed by the dashboard** rather than from the source files. *(This is the load-bearing test: if removing the dashboard changes factory behavior, it is load-bearing.)*
+5. Any resident/background process, notifier, or socket.
+6. Any runtime dependency shipped to host machines.
+7. Rendering a partially-parsed file as if it were state.
+8. Silently degrading to polling without saying so — a false freshness claim is a fabrication.
+9. The dashboard being required by, or referenced as a step inside, any workflow.
+10. Telemetry of any kind.
+
+---
 
 ## Sources
 
-- [Decentralized Multi-Agent Systems with Shared Context (DeLM) — arXiv 2606.10662 abstract](https://arxiv.org/abs/2606.10662) (HIGH)
-- [DeLM full text — arXiv 2606.10662 HTML](https://arxiv.org/html/2606.10662) (HIGH — verifier two-stage mechanics, write-before-publish, dependency-aware queue, per-table numbers, "no human-in-the-loop/audit" confirmed)
-- [DeLM source — github.com/yuzhenmao/DeLM](https://github.com/yuzhenmao/DeLM/tree/main/src/) (HIGH)
-- [What is a blackboard system (AI)? — Klu](https://klu.ai/glossary/blackboard-system) (HIGH)
-- [Blackboard Architecture in Agentic AI — DataFlair](https://data-flair.training/blogs/blackboard-architecture-in-agentic-ai/) (MEDIUM)
-- [Collaborative Problem-Solving in Multi-Agent Systems with the Blackboard Architecture — Engineering Notes](https://notes.muthu.co/2025/10/collaborative-problem-solving-in-multi-agent-systems-with-the-blackboard-architecture/) (MEDIUM — per-key locks / optimistic concurrency / conflict-resolution in control component)
-- [Stigmergy — Wikipedia](https://en.wikipedia.org/wiki/Stigmergy) (HIGH)
-- [Coordination Mechanisms in Multi-Agent Systems — apxml](https://apxml.com/courses/agentic-llm-memory-architectures/chapter-5-multi-agent-systems/coordination-mechanisms-mas) (MEDIUM — file-in/out-dir stigmergy software example)
-- [How we built our multi-agent research system — Anthropic Engineering](https://www.anthropic.com/engineering/multi-agent-research-system) (HIGH — 15× token multiplier, coding-is-tightly-interdependent warning, subagents-don't-talk, external-memory + resume)
-- [LangGraph vs CrewAI vs AutoGen 2026 — Towards AI](https://pub.towardsai.net/langgraph-vs-crewai-vs-autogen-which-ai-agent-framework-should-your-enterprise-use-in-2026-3a9ebb407b09) (MEDIUM — orchestration models, reducer concurrent-merge, checkpointing)
-- [CrewAI vs LangGraph vs AutoGen 2026 — Pooya Golchian](https://pooya.blog/blog/crewai-vs-langgraph-autogen-comparison-2026/) (MEDIUM — handoffs as structured JSON, state-persistence differences)
-- [OpenAI Swarm: routines and handoffs — VentureBeat](https://venturebeat.com/ai/openais-swarm-ai-agent-framework-routines-and-handoffs) (HIGH — handoff = function returning next agent)
-- [openai/swarm — GitHub](https://github.com/openai/swarm) (HIGH — stateless, context_variables carry all state, superseded by Agents SDK)
-- [Why Multi-Agent LLM Systems Fail — Galileo](https://galileo.ai/blog/multi-agent-llm-systems-fail) (HIGH — 79% of failures are specification/coordination; overwriting context)
-- [Why Multi-Agent LLM Systems Fail — Redis](https://redis.io/blog/why-multi-agent-llm-systems-fail/) (MEDIUM — context poisoning/pollution, unbounded context, full-state rebroadcast bottleneck, context rot / lost-in-the-middle)
-- [Why Multi-Agent Systems Need Memory Engineering — MongoDB/Medium](https://medium.com/mongodb/why-multi-agent-systems-need-memory-engineering-153a81f8d5be) (MEDIUM)
-- [How Squad runs coordinated AI agents inside your repository — GitHub Blog](https://github.blog/ai-and-ml/github-copilot/how-squad-runs-coordinated-ai-agents-inside-your-repository/) (HIGH — append-to-decisions.md drop-box, git log = free audit trail, file-claim O(1))
-- [ESAA: Event Sourcing for Autonomous Agents in LLM-Based Software Engineering — arXiv 2602.23193](https://arxiv.org/pdf/2602.23193) (MEDIUM — append-only logs, attribution of state changes under concurrency)
-- [mcp_agent_mail — GitHub (Dicklesworthstone)](https://github.com/dicklesworthstone/mcp_agent_mail) (MEDIUM — advisory file leases, per-agent JSONL inboxes — a counter-example bus pattern to avoid)
-- [TRiSM for Agentic AI — arXiv 2506.04133](https://arxiv.org/pdf/2506.04133) (MEDIUM — trust/risk/security management framing for the governance angle)
+**Area 1 — dashboards/TUI + file watching**
+- lazygit / k9s / gh-dash design surveys — https://github.com/rothgar/awesome-tuis · https://www.gh-dash.dev/configuration/examples/ · https://metabureau.com.au/blog/gh-dash-terminal-github-dashboard · https://github.com/bjarneo/kli · https://github.com/gbarany/tea-dash (MEDIUM)
+- Agent-orchestration monitors — https://github.com/bradAGI/awesome-cli-coding-agents · https://github.com/andyrewlee/awesome-agent-orchestrators · https://github.com/hoangsonww/Claude-Code-Agent-Monitor · https://www.augmentcode.com/tools/open-source-agent-orchestrators (MEDIUM)
+- Node `fs.watch` / `fs.watchFile` caveats, platform inconsistency, Windows behavior, polling fallback — Node.js `doc/api/fs.md` via Context7 (HIGH)
 
-**Open / `UNKNOWN - verify`:**
-- grugops's own task-success / cost gain from decentralization is UNVERIFIED — DeLM's +9.3pp/~50% are on DeLM's harness, not grugops's. Do NOT claim grugops's numbers until a real dogfood benchmark exists. The differentiation thesis rests on **auditability + gating + governance**, which are demonstrable, not on benchmark superiority.
-- DeLM discloses **no fine-grained concurrent-claim locking** (only a single-lock queue refill). grugops must DESIGN its atomic-claim primitive (rename/`O_EXCL`/lockfile on the TS layer) — this is novel-to-grugops engineering, `UNKNOWN - verify` the cross-platform behavior (esp. Windows) until tested.
-- Whether plain-file atomic claim is robust enough under true Claude-Code parallel spawn (vs needing advisory leases) is a dogfood question — verify during implementation; the mcp_agent_mail "file lease" pattern is the fallback if naive claim races.
+**Area 2 — human-in-the-loop checkpoints**
+- GitHub Actions environments, required reviewers, wait timer (0–43,200 min), prevent-self-reviews, deployment audit trail — https://oneuptime.com/blog/post/2025-12-20-deployment-gates-github-actions/view · https://devblogs.microsoft.com/devops/i-need-manual-approvers-for-github-actions-and-i-got-them-now/ (MEDIUM)
+- GitLab `when: manual`, protected environments, deployment approvals — https://docs.gitlab.com/ci/environments/deployment_approvals/ · https://oneuptime.com/blog/post/2025-12-21-gitlab-deployment-approvals/view (MEDIUM)
+- Argo CD manual approval gates between environments — https://oneuptime.com/blog/post/2026-02-26-argocd-manual-approval-gates/view (MEDIUM)
+- Temporal HITL: `wait_condition` + timeout → reject/escalate, durable waits — https://temporal.io/blog/human-in-the-loop-approvals · https://docs.temporal.io/ai-cookbook/human-in-the-loop-python (MEDIUM-HIGH)
+- LangGraph `interrupt()` / `Command(resume)`, approve-reject-edit, "most common HITL pattern in production" — https://www.langchain.com/blog/making-it-easier-to-build-human-in-the-loop-agents-with-interrupt · https://docs.langchain.com/oss/python/langchain/human-in-the-loop (MEDIUM-HIGH)
+- Claude Code permission modes, `bypassPermissions` one-time responsibility dialog, root refusal, container-only guidance — https://code.claude.com/docs/en/permission-modes · https://www.anthropic.com/engineering/claude-code-auto-mode (HIGH for the docs page, MEDIUM for commentary)
+- Break-glass: tamper-proof audit trail, ~60 s alerting, "a security control, not a bypass" — https://hipaa.yale.edu/security/break-glass-procedure-granting-emergency-access-critical-ephi-systems · https://www.cloudanix.com/learn/break-glass-procedure-emergency-access-for-critical-resources · https://www.beyondtrust.com/blog/entry/provide-security-privileged-accounts-with-break-glass-process (MEDIUM)
+
+**Area 3 — agent-driven exploratory testing**
+- "The agent explores, the code judges" — import-boundary separation, self-test that the verdict function never loads a browser, LLM triage may only annotate failures — https://vadim.blog/computer-use-agents-ui-verification/ (MEDIUM-HIGH; single-author but unusually specific and mechanically stated)
+- Self-pass failure modes: assertion weakening, test deletion, behavioral fakery, state pollution — https://arxiv.org/pdf/2605.01471 · https://www.devassure.io/blog/ai-coding-agents-gaming-their-own-tests/ · https://dev.to/maximsaplin/ai-agent-failure-modes-beyond-hallucination-208g (MEDIUM-HIGH; the arXiv case study is the strongest of these)
+- LLMs cannot reliably self-verify — https://pub.towardsai.net/how-multi-agent-self-verification-actually-works-and-why-it-changes-everything-for-production-ai-71923df63d01 (MEDIUM)
+- Playwright MCP a11y-snapshot-first model, evidence capture (trace/console/network/video), screenshot token cost — https://qaskills.sh/blog/playwright-mcp-accessibility-snapshots-reference · https://medium.com/@adnanmasood/playwright-and-playwright-mcp-a-field-guide-for-agentic-browser-automation-f11b9daa3627 · https://medium.com/@7003425114klp/one-screenshot-232-000-tokens-0b37783438c7 (MEDIUM)
+- Playwright MCP vs Claude in Chrome tradeoffs and Chrome-extension limitations — https://www.test-lab.ai/blog/chrome-mcp-vs-playwright-mcp · https://stevekinney.com/courses/self-testing-ai-agents/runtime-tools-compared · https://lalatenduswain.medium.com/playwright-mcp-vs-claude-in-chrome-which-browser-testing-tool-should-you-use-in-2026-e502bee0067a (MEDIUM)
+
+**Area 4 — controlled natural language**
+- ASD-STE100 structure, 53 rules / 9 sections, ~900 approved + ~1200 unapproved words, Issue 9 (2025-01-15), concrete rules (≤20-word instructions, ≤25-word descriptions, ≤6-sentence paragraphs, one instruction per sentence, active voice, restricted verb forms, `-ing` restriction, no omitted components, ≤3-word noun clusters, vertical lists, safety-instruction form), documented criticisms and the 36% non-aerospace figure — https://en.wikipedia.org/wiki/Simplified_Technical_English · https://www.asd-ste100.org/about_STE.html · https://www.asd-ste100.org/STE_faq.html · https://www.asd-europe.org/news-media/news-events/news/simplified-technical-english-asd-ste100-issue-9/ · https://www.tcworld.info/e-magazine/technical-writing/asd-ste100-issue-9-setting-a-standard-for-technical-documentation (HIGH on structure/rules, MEDIUM-HIGH on criticism)
+- Free download on request; ASD copyright and trademark retained — https://www.asd-ste100.org/request.html · https://www.asd-ste100.org/STE_downloads.html (HIGH)
+- Checker tooling landscape (free partial vs commercial full: Thumbs Up STE Tool, verb checker, Acrolinx, Congree, Boeing Simplified English Checker, ARDOS) — https://www.techscribe.co.uk/techw/asd-simplified-technical-english.htm (MEDIUM-HIGH)
+- Controlled natural language definition and typical restrictions — https://en.wikipedia.org/wiki/Controlled_natural_language (MEDIUM)
+- LLM text simplification improves readability metrics but comprehension is largely unmeasured (one randomised trial) — https://arxiv.org/html/2407.20046v1 · https://link.springer.com/article/10.1007/s10676-024-09792-4 · https://www.ncbi.nlm.nih.gov/pmc/articles/PMC12920046/ (MEDIUM — and note this is the *reverse* direction from the claim grugops would want)
+- **No source found** establishing that controlled language improves LLM comprehension of machine-read documentation. Recorded as `UNKNOWN - verify`. (absent)
 
 ---
-*Feature research for: decentralized multi-agent systems with a shared verified context — grugops v2.0 Decentralized Factory*
-*Researched: 2026-06-16*
+*Feature research for: agentic software-delivery kit — live board monitoring, HITL autonomy control, agent-driven acceptance testing, controlled natural language*
+*Researched: 2026-07-28*

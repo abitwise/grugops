@@ -1,395 +1,829 @@
 # Pitfalls Research
 
-**Domain:** Decentralizing grugops (v2.0) — re-architecting a *portable, file-based markdown agent-factory kit* from a centralized Orchestrator + static handoff packets into a **decentralized multi-agent shared-verified-context system**: parallel agents (Claude Code primary) claim work from a file-based queue and build on one shared, verified, auditable, human-gated context that *replaces* handoffs. Zero-runtime-dep committed-`.js` TS tooling (Node 22+); the other four host CLIs degrade to sequential over the same files.
-**Researched:** 2026-06-16
-**Confidence:** HIGH on the concurrency primitives (Windows `rename` non-atomicity, `O_EXCL`/NFS, `mkdir` atomic claim, append atomicity — all re-verified June 2026), HIGH on Claude Code spawn limits (re-verified against `code.claude.com/docs/en/sub-agents`, June 2026: nested spawn since v2.1.172, fixed depth-5 background cap, **no documented global concurrent-subagent count cap**), HIGH on the grugops constraint set (PROJECT.md + STACK.md + FEATURES.md this session), MEDIUM where a mitigation is a *design choice* (queue layout, degraded-path equivalence test design) rather than a documented external fact.
+**Domain:** grugops v2.1 — adding five capabilities to a *shipped, mature, file-based markdown agent-factory kit* whose entire value proposition is a non-fabricated audit trail: (1) a read-only board dashboard over files another process writes, (2) making four previously-hard safety floors dialable, (3) agent-driven browser testing as acceptance evidence, (4) a controlled-language rewrite of 18 role prompts + 19 workflows, (5) fixing the subagent spawn path across a five-CLI portable kit. Zero host runtime deps; TypeScript compiled to committed, freshness-checked `.js`; Node 22+; Windows is a hard target.
+**Researched:** 2026-07-28
+**Confidence:** HIGH on the grugops-internal facts (read directly from `scripts/check-foundation-guards.ts`, `scripts/context-io.ts`, `scripts/validate-agent-factory.ts`, `scripts/check-uat-oracles.ts`, `.claude/agents/grugops-orchestrator.md`, `agent-factory/workflows/05-pr-quality-gate.md`, PROJECT.md this session). HIGH on Node `fs.watch` caveats (official v24 fs API docs via Context7, community-corroborated). MEDIUM on ASD-STE100 checker limits, agent-browser-evidence failure modes, torn-read mitigation, and fail-closed config practice (web-sourced, cross-checked but not vendor-primary). MEDIUM where a mitigation is a *design recommendation* rather than a documented external fact.
 
-> **Framing — read first.** These are pitfalls of **decentralizing a kit that ships no runtime**. grugops emits markdown (role text, workflow steps, a context-note schema, a queue convention) + a tiny zero-runtime-dep `node:fs`-only TS tooling layer (committed `.js`, Node 22+) + the `factory.config.json` dial. The new failure modes are about **concurrent file writes, stale reads, un-cheatable verification, token economy, deadlock-free claim, a degraded path that must not silently diverge, a scrambled audit trail, runaway spawn, a clean-cutover migration, and cross-platform atomicity** — realized in files and prose that some host agent executes. Each pitfall names the grugops hard-constraint it threatens and the **v2.0 phase (≥20)** that owns its mitigation. The v1.2 pitfalls (WR-05 regen, single-source drift, prompt bloat, dial regressions, voice drift, test-integrity loophole) **still apply** and are carried forward in the *Inherited pitfalls* table — they are NOT re-derived here; this file is the **decentralization-specific** layer on top.
+---
+
+> ## Framing — read this before any pitfall
 >
-> **Phase numbering:** v1.x ended at Phase 19. v2.0 phases start at **20**. The phase names below are *themes* (the roadmapper assigns final numbers); the ordering rationale at the bottom is the load-bearing recommendation. The single highest-order constraint: **the cross-cutting guards (atomic-write helper, verify-stamp validator, concurrency cap, degraded-path oracle) must be built and mechanized in the FOUNDATION phase BEFORE roles start writing to the shared context** — exactly as v1.2 front-loaded its foundation guards before the capability phases.
+> This project has 13 documented cases where a **fully green test suite still admitted a bypass** of a safety invariant, and the root cause was the same every time: *a heuristic detector whose grammar was a strict subset of the real format's grammar, so the format itself became the attack surface.* Closure required a **structural** fix — one format-aware authority per predicate, delete the second grammar, move the gate to the point of effect, unfreeze a frozen weaker duplicate — plus parser-oracle fuzzing, ≥2 independent red-teams, and self-reproduction of the bypass (PROJECT.md Constraints; Key Decisions "the closure doctrine", D-12).
+>
+> **A live instance of exactly that failure is already open at v2.1 kickoff.** `guard_caveman_preserved` (check-foundation-guards.ts:450) asserts `>=2` lines matching `/^You\b/` **OR** `>=1` idiom from `VOICE_MARKERS`. Its grammar is *sentence shape*. The predicate it claims to police is *voice*. Sentence shape is a strict subset of voice, so all 17 blocks drifted to plain English (zero `grug`) and the guard stayed GREEN for a full milestone. Every guard v2.1 adds is at risk of the same shape.
+>
+> **Therefore this document imposes one extra requirement on every proposed guard, and the roadmapper should treat it as a phase success criterion:** each guard must ship with a written statement of *(a) the exact grammar it matches, (b) the predicate it is claimed to enforce, and (c) whether (a) is a strict subset of (b)*. If (a) ⊊ (b), the guard **may not be described as enforcing (b)** anywhere in the kit, the trace, or the docs — the claim must be narrowed to what the grammar actually decides. Over-claiming a guard is a **no-fabrication violation**, not a documentation nit. See the *Guard Grammar Audit* table below.
+>
+> **Phase numbering:** v2.0 ended at Phase 26; v2.1 phases start at **27**. The phase names below are the researcher's recommended *themes* — the roadmapper assigns final numbers. The load-bearing ordering claim is at the bottom.
 
 ---
 
 ## Critical Pitfalls
 
-### Pitfall 1: Race conditions on shared-context writes — lost updates, interleaved appends, two parallel agents clobbering the same note/file
-
-**What goes wrong:**
-Two background subagents finish near-simultaneously and both write the shared context. Three concrete corruptions: (a) **lost update** — agent A reads `<task>.md`, agent B reads the same snapshot, both append in memory and `writeFileSync` the whole file; the second write erases the first's note. (b) **Interleaved append** — both `appendFileSync` a multi-KB markdown body; the OS splits the large writes and the two notes interleave at byte granularity into garbage. (c) **Torn read** — a reader `Read`s `<task>.md` mid-write and sees a half-written note (no `kind`, no provenance fence), then *acts on it*. The shared context — the **sole** inter-role memory after handoffs are removed — silently corrupts, and because it's the memory, the corruption propagates to every downstream agent.
-
-**Why it happens:**
-Markdown cannot enforce atomicity; the naive instinct is "the agent just Writes the file." Read-modify-write of a whole file is the default LLM pattern and is the classic lost-update race. `appendFileSync` *looks* concurrency-safe but only guarantees atomicity for a single `write(2)` of a line **≤ `PIPE_BUF`** (POSIX-minimum 512 bytes; Linux 4096) — a prose note blows past that. Under v1.x there was exactly one writer (sequential), so this hazard never existed; parallelism on Claude Code creates it for the first time.
-
-**How to avoid:**
-- **Make `atomicWrite()` and `appendNote()` the ONLY sanctioned write paths**, shipped as committed-`.js` helpers (per STACK.md). `atomicWrite` = write to `path + '.tmp.<pid>.<rand>'` then `renameSync` over the target (atomic-replace on POSIX). No role/workflow text may instruct a raw `writeFileSync`/`Write` of a context file.
-- **Split prose from metadata to dodge the append-size limit:** the long human-readable note body is published as its own `atomicWrite`-replaced markdown (single-writer-per-note-file or rename-publish), and only a **small JSONL metadata line** (well under 512 bytes — the POSIX `PIPE_BUF` floor) is `appendFileSync`-ed to the per-task `events.jsonl`. Treat append-atomicity as an *optimization*, not a correctness dependency — STACK.md's recommended safe default is to `atomicWrite` the JSONL too and drop reliance on append atomicity entirely.
-- **One note = one section with a unique label; last-verified-write-wins on a label, append-only history below** (the blackboard per-key / LangGraph-reducer analog from FEATURES.md). Never whole-file read-modify-write of the shared narrative.
-- **Mechanical guard (foundation phase):** a grep guard (same shape as `guard_wr05`) over the shipped role/workflow text that fails red if any context write goes through raw `writeFileSync`/`Write` instead of `atomicWrite`/`appendNote`. This makes "atomic-only" mechanical, not a hope.
-- **Dogfood assertion:** the Tier-2 headless E2E harness spawns N background subagents that each must write a distinct verified note, then asserts **N distinct notes survive, zero clobbered, zero torn** — this is the empirical proof the primitive holds under real concurrency.
-
-**Warning signs:**
-A role/workflow that says "Write the context file" without naming `atomicWrite`/`appendNote`; an `appendFileSync` of a multi-line/multi-KB body; a context file whose note count is less than the number of agents that claimed work; a note with a missing/garbled provenance fence; the Tier-2 harness producing fewer notes than spawned agents.
-
-**Phase to address:**
-**Phase 20 — Shared-Context Substrate & Concurrency Foundation** (build `atomicWrite`/`appendNote`/the grep guard *first*, before any role writes). Threatens **no-fabrication / trace-is-the-proof** (a corrupted memory is a lying trace) and **zero-runtime-dep** (the primitive must stay `node:fs`-only).
+### Area A — Fixing the subagent spawn path across a portable kit
 
 ---
 
-### Pitfall 2: Stale-context reads — an agent acts on a snapshot another agent has already superseded
+### P-01: Fixing the spawn path with a guard that has the same blind spot that hid the bug
 
 **What goes wrong:**
-Read-before-act is necessary but **not sufficient** under true parallelism. Agent A reads the shared context at dispatch (DeLM's "lock-free snapshot at dispatch time"), sees `[claim] AUTH-09: token TTL is 60m`, and spends its whole run building on it. Meanwhile agent B verifies and publishes `[finding] AUTH-12: TTL is 15m, supersedes AUTH-09`. A never re-reads; it ships work grounded in a fact that was already retracted. The decentralized win (agents build on each other's *checkpointed* progress) inverts into agents building on each other's *stale* progress. Worse: A may publish a *new* verified note that silently contradicts B's, and now the context holds two mutually-exclusive "verified" findings with no reconciliation.
+`guard_wr05` is extended to "also check that role agents exist," implemented as a grep for role names, and it passes while the route is still broken — because the guard checks a *token* and the failure lives in the *relationship between two files*.
 
 **Why it happens:**
-DeLM's own model is dispatch-time snapshots — later commits are visible only on the *next* snapshot, by design. Parallel agents have long-running contexts; a snapshot read once at the start goes stale over a multi-minute run. Markdown has no change-notification; there's no watcher (and a watcher daemon is forbidden — Out of Scope). The `claim`-vs-`finding` distinction exists precisely because a `claim` is retractable, but nothing forces a downstream agent to *notice* a supersession.
+`guard_wr05` was deliberately built as a frontmatter-token matcher that "matches the frontmatter TOKEN only — NEVER the prose word `spawn`/`sub-agent`" (check-foundation-guards.ts:19-21). That calibration was correct for its original predicate ("no rogue file grants `Agent`") and is exactly wrong for the new one. The current defect proves it: the orchestrator adapter's frontmatter grants `Agent(grugops-software-engineer, grugops-qe-e2e, grugops-security-nfr, grugops-architect-design, grugops-system-analyst, grugops-uat-planner, grugops-release-manager)` — **7 names, 0 of which exist on disk** (`.claude/agents/` contains exactly one file). `guard_wr05` passes, because a grant token is present and the coordinator cardinality is 1. Its grammar has no notion of *referential integrity*.
 
-**How to avoid:**
-- **Rely on `finding` (verified, durable), not `claim` (snapshot-volatile), for cross-agent dependencies.** A `claim` must never be the basis of another agent's irreversible work — the note schema already encodes this (STACK.md: a `claim` "cannot be relied on by a downstream role until promoted to `finding`"). Make this a workflow rule, not just a schema comment.
-- **`supersedes` is a first-class, mandatory field.** When a note retracts/replaces another, it carries `supersedes: <label>`; a **re-read-before-publish** step (read the context fresh immediately before the verify-and-write, not just at dispatch) checks whether anything it depended on was superseded since dispatch. If so → re-verify against the current context before publishing. This is the file-based analog of an optimistic-concurrency version check.
-- **Decompose to minimize shared mutable state** (the blackboard "different keys run concurrently" rule + Anthropic's "self-contained subtasks" guidance from FEATURES.md): the Orchestrator-as-decomposer should carve subtasks so parallel agents touch *different* context keys/files wherever possible — interdependent subtasks are exactly where Anthropic warns multi-agent coding is weakest, so sequence them, don't parallelize them.
-- **Human gate as the global-coherence backstop** (FEATURES.md): for high-severity contradictory findings, the named-human admission step is where two "verified" notes get reconciled — coherence the autonomous DeLM design has no answer for.
-- **Degraded sequential path is immune** (this is a feature): one writer at a time → no staleness. Document that the parallel path carries this risk and the sequential path does not — relevant to Pitfall 6's equivalence story.
+**How to avoid — structural, not heuristic:**
+Add a **referential-integrity oracle** that enumerates from *both* authorities and asserts **set equality**, not membership:
+- **Forward:** every name inside the coordinator's `Agent(...)` grant MUST resolve to a file under `.claude/agents/` whose frontmatter `name:` equals it exactly. A name with no file → FAIL, naming the name.
+- **Reverse:** every routable role in the Orchestrator routing matrix (`agent-factory/roles/orchestrator.md`) and every non-`_`-prefixed file in `agent-factory/roles/` MUST appear in the allowlist, or be on an explicit, *named-and-justified* `NOT_ROUTABLE` list committed in the guard source. An unlisted role → FAIL. (`greenfield-mapper` is the one that bit the user; a membership-only check would never have caught it.)
+
+This is not a subset heuristic: it derives its expected set from the filesystem and the role corpus rather than pattern-matching a shape, so a new role added later fails the guard by default rather than silently degrading. It is the same both-direction design `guard_wr05` already uses for the coordinator (check-foundation-guards.ts:110-118) — extended from "who may grant" to "what the grant resolves to."
 
 **Warning signs:**
-A role acting on a `claim`-tagged note as if it were a `finding`; two `finding` notes on the same subject with no `supersedes` linking them; an agent's output referencing a fact that a later note retracted; no "re-read before publish" step in the write-after-verify workflow; dogfood runs where parallel agents produce contradictory verified findings.
+- The extended guard is written as one more regex against one more file.
+- The guard passes on a tree where `.claude/agents/` has been emptied. (Make that a RED fixture — it is the current production state and must fail.)
+- Nobody can state what the guard does when a role file is *added*.
 
-**Phase to address:**
-**Phase 20 — Shared-Context Substrate** (the `claim`/`finding`/`supersedes` schema + re-read-before-publish rule) and **Phase 23 — Parallel Execution & Orchestrator-as-Decomposer** (decompose to minimize shared mutable state). Threatens **no-fabrication** (acting on retracted facts is a fabricated basis).
+**Phase to address:** Phase 27 (Spawn Correctness & Adapter Integrity) — build the oracle **before** authoring the 17 adapters, so the adapters land into a guarded environment (the v1.2/v2.0 foundation-guards-first pattern).
 
 ---
 
-### Pitfall 3: Verification gaps — unverified claims leaking into the shared context (the differentiator collapses if the verifier is bypassable)
+### P-02: The adapter *body* stays unguarded, so stale prose survives another "grep-to-zero"
 
 **What goes wrong:**
-grugops's *entire* differentiation over DeLM (FEATURES.md) is that "verified" means **passed the §14 behavior gate + human-gated + auditable**, not merely "grounded in a source." That collapses the instant an agent can write a `finding` *without* a real `verified_by` stamp — by self-authoring the stamp ("verified_by: me"), by writing a `finding` that should be a `claim`, by citing a gate run that never happened, or by a downstream role treating a low-bar `claim`/`observation` as if it were a verified `finding`. If the verify-before-write admission control is prose-only ("agents should verify before writing"), an agent under pressure to close a task will talk itself past it — exactly the v1.2 test-integrity-loophole failure, now applied to the memory substrate itself. A blackboard that admits unverified writes is "context pollution = cascading failure," the #1 documented multi-agent failure mode (FEATURES.md).
+v2.0 recorded a "grep-to-zero" removal of all handoff references. It was not zero. `.claude/agents/grugops-orchestrator.md` still instructs: *"one window, drop prior context, the handoff is the only memory — demand a handoff packet from each"* — the single most load-bearing adapter in the kit, telling the coordinator to run sequentially and demand artifacts that were deleted in Phase 24. The guards inspect that exact file for spawn grants (`guard_wr05`), byte size (`guard_adapter_size`), and kit paths (`check-kit-refs`) — **none of them read the body prose.**
 
 **Why it happens:**
-Self-grading is the cheapest path to "done." DeLM's verifier only checks *grounding* (verbatim string-match) + a cheap-LLM hallucination pass — it does NOT check correctness and has **no human gate and no audit** (verified from the paper, FEATURES.md); copying DeLM's bar would silently forfeit grugops's wedge. Verification-as-prose is unenforceable; an LLM will assert it verified.
+The guard set was designed around the correct v1.x/v2.0 fear: adapters must not *become copies* of role text. So it polices size and tokens. It has no authority over *semantic staleness*, and a body-prose grep was explicitly avoided (D-09 token-vs-prose care) to prevent false positives on explanatory text.
 
-**How to avoid:**
-- **`finding` admission is mechanical, mirroring the prod-deploy hook's refuse-self-set + the v1.2 test-integrity carve-out.** A `finding` REQUIRES a `verified_by` stamp that is a *real, checkable artifact* — a §14 gate verdict ID, a passing test reference, or a named human sign-off — **never the writing agent's own assertion**. The structure validator (committed `.js`) treats a `finding` with a missing, self-authored, or unresolvable `verified_by` as a **structural failure**, not a silent pass (STACK.md). This is "verify-before-write IS the §14 gate," realized as un-cheatable admission control.
-- **`verified_by: self` / `verified_by: <the-writing-agent>` is rejected by construction** — the same inversion as the prod-deploy hook ("refuses self-set approval"). The verifier and the verified must be different principals: a gate run, a test, or a human.
-- **Keep the `claim` escape hatch honest, not abusable:** unverifiable statements are allowed *as `claim`/`UNKNOWN - verify`* (the no-fabrication floor), but a `claim` can never satisfy a downstream dependency that requires a `finding` (Pitfall 2). The cost of skipping verification is that your note is non-load-bearing — not that it silently passes as fact.
-- **Human-gated admission for high-severity notes (dialable, FEATURES.md):** `context.human_admission: off | high-severity | all` — security/architecture/release findings require a named human to admit them at enterprise tiers. Agent *proposes* the verified note; human *disposes* — the prod-deploy pattern extended to memory.
-- **RED fixture (mandatory):** a `finding` carrying a hollow/self-authored `verified_by` MUST fail the validator harness — the exact RED-fixture discipline that proved the v1.2 test-integrity checker (SC3 keystone). Without a RED fixture, "un-cheatable" is unproven.
+**How to avoid — structural:**
+Do **not** answer this with a forbidden-phrase grep. A blocklist of dead terms (`handoff`, `packet`, `one window`) is precisely a strict-subset heuristic: the next stale phrase is not on the list. Instead, **generate the adapter body** and gate it with byte equality. This repo already has three working instances of exactly that pattern:
+- `scripts/generate-catalog.ts` + `catalog-freshness.ts` (`freshness:catalog`)
+- `scripts/trace-render.ts` + `trace-freshness.ts` (`freshness:traceability`)
+- `scripts/claim.js now-running` + `now-running-freshness.ts` (`freshness:queue`)
+
+Make the adapter body a deterministic render of single-source role text (`agent-factory/roles/*.md` + the role-switch protocol) plus the installer-materialized kit path, and add `freshness:adapters` — a mirror-regenerate + `Buffer.equals` gate that fails red on drift. Then stale adapter prose is not *detectable*, it is **unrepresentable**: an editor cannot leave stale text behind, because a regenerate would not reproduce it. This also permanently discharges the "adapters drift from single-source role text" constraint rather than re-checking it each milestone.
+
+If full generation is judged too large for one phase, the **minimum viable structural** step is: reduce the adapter body to a pointer plus a *frozen, byte-hashed* block, with the hash committed and checked. A body edit then fails red without anyone having to predict the offending word.
 
 **Warning signs:**
-A `finding` with `verified_by` pointing at the writing agent, at a non-existent gate run, or absent; the validator passing a context with unstamped findings; verify-before-write existing only as role prose with no mechanical check; a downstream role consuming a `claim` as a fact; no RED fixture for hollow verification.
+- The proposed fix is "add `handoff` to a deny-list."
+- The word list has to be updated whenever new vocabulary is retired.
+- `git grep handoff` is being used as the acceptance evidence. (It was last time, and it returned zero while a live reference existed — because the grep set excluded `.claude/`.)
 
-**Phase to address:**
-**Phase 21 — Verify-Before-Write Admission (the §14 gate as the un-cheatable verifier)** + the validator extension in **Phase 20**. The human-admission dial in **Phase 25 — Governance-on-a-Dial**. Threatens **no-fabrication / trace-is-the-proof** (the core differentiator) and **humans-decide-agents-execute**. **First-class — this is THE pitfall that makes or breaks the milestone's thesis.**
+**Phase to address:** Phase 27.
 
 ---
 
-### Pitfall 4: Token bloat despite compaction — shared context growing unbounded; compaction that loses load-bearing detail; the 15× multi-agent tax eating the ~50% cost win
+### P-03: The fix works on Claude Code and silently breaks the four degraded CLIs
 
 **What goes wrong:**
-Two opposite failures, both fatal to the "+success AND −50% cost" promise (FEATURES.md):
-1. **Unbounded growth → context rot.** Every agent appends; nobody compacts; the active context an agent must read grows until it hits lost-in-the-middle / context-rot, *and* Anthropic's documented **~15× token multiplier** for multi-agent systems (FEATURES.md) compounds against a fat shared file — the ~50% DeLM cost win is erased and then some. grugops's domain is *coding* (tightly-interdependent), exactly where Anthropic warns the multiplier bites hardest.
-2. **Over-aggressive compaction → lost load-bearing detail.** A compaction pass that summarizes too hard drops the one constraint a parallel agent needed (a `failed-attempt` it now re-tries, a security caveat, a `supersedes` link), so compaction *causes* the duplicate-work / re-pollution it was meant to prevent. Worse, if compaction is unverified, it can *fabricate* during summarization — silently rewriting a verified finding into something subtly wrong.
+Codex CLI, Gemini CLI, OpenCode, and Copilot CLI have no spawn model — they run the concurrency-1 sequential path over the same substrate (PROJECT.md, PAR-02/03). Authoring 17 Claude subagent adapters and rewiring the coordinator to spawn can quietly (a) delete or contradict the sequential role-switch instructions those four depend on, or (b) push the four onto a code path whose on-disk output no longer matches the parallel one — breaking the invariant `oracleDualPathEquivalence` exists to protect.
 
 **Why it happens:**
-"Keep all the history, lose nothing" is the intuitive default (the unbounded-context anti-feature, FEATURES.md). Compaction is hard to do without losing signal; an LLM summarizer optimizes for brevity, not for preserving the exact load-bearing token. The 15× tax is invisible per-agent — each subagent looks cheap; the *aggregate* across a parallel fan-out is what blows the budget.
+Claude Code is the only tool the developer is actually running while fixing this. The other four are exercised only by the oracle, and the oracle is a *simulation* (`oracleDualPathEquivalence` replays one seeded decomposition two ways in hermetic temp roots driving the committed `claim.js`/`context-io.js` — check-uat-oracles.ts:16-23). A simulation proves the substrate converges; it does not prove a Gemini CLI session still reads a coherent instruction set.
 
 **How to avoid:**
-- **Two-tier memory (STACK.md/FEATURES.md):** verbose per-agent local trajectory lives in the agent's own window (auto-compacted by Claude Code) + `.grugops/context/threads/<agent-id>.md`; only **compact, verified distillations promote to the shared file**. The shared context an agent *reads* stays small; the raw is referenced, not inlined. Selective-unfold: read the gist by default, open the raw only when a task needs it (DeLM's amortization).
-- **Append-only HISTORY on disk (git) is fine and free; the ACTIVE context an agent reads must be compact** (FEATURES.md anti-feature distinction). git is the unbounded audit log; the read-path is the bounded working set. These are different things and the design must keep them different.
-- **Compaction is dialable, never lossy-by-default of verified facts:** `context.compaction: aggressive | balanced | retain-raw` (FEATURES.md). The safety carve-out: **compaction may shorten prose but must preserve every `finding`'s `verified_by` stamp, every `failed-attempt`/`constraint`, and every `supersedes` link** — these are load-bearing and not summarizable away. Couple to the caveman = token-economy ethos (terse prose is the mechanism, per MEMORY.md — compaction must NOT bloat).
-- **Cap the fan-out (see Pitfall 8)** so the 15× multiplier is bounded — token cost is concurrency × context-size; both must be capped.
-- **Compacted output is itself a write — so it goes through verify-before-write (Pitfall 3):** a compaction that drops/alters a verified finding is a verification failure, not a silent rewrite. (`UNKNOWN - verify` if the compactor can't preserve a fact faithfully.)
-- **Honesty in the pitch:** grugops's own ~50%/+success numbers are `UNKNOWN - verify` until dogfooded (FEATURES.md) — do not claim DeLM's benchmark numbers as grugops's. The cost discipline must be *demonstrated* by the dogfood harness measuring token cost, not asserted.
+- Re-run `oracleDualPathEquivalence` as a **blocking** criterion after the rewire, and treat any change to the sequential path as requiring the oracle to be re-derived, not just re-run.
+- Add one **negative** criterion the oracle does not currently assert: the sequential path must reach the same artifact set *without* any `.claude/agents/` file present at all. If deleting `.claude/agents/` changes the sequential result, the two paths are coupled and the degradation is not real.
+- Keep the role-switch protocol (`_role-switch-protocol.md`) as the single source for the sequential contract, and make the Claude adapters *reference* it rather than restate a parallel variant of it. Two spawn narratives = two grammars = the documented failure mode.
 
-**Warning signs:**
-Shared `<task>.md` growing past a few KB of active (non-history) content; no compaction step in the write-after-verify loop; a compaction pass that drops `failed-attempt`/`constraint`/`verified_by` fields; aggregate token cost rising with agent count (the 15× tax) and no fan-out cap; the pitch citing DeLM's numbers as grugops's own.
+**Warning signs:** the phrase "the other CLIs are unaffected" appears in a plan without a run that proves it. A `.claude/`-specific instruction appears inside `agent-factory/` (the portable kit).
 
-**Phase to address:**
-**Phase 22 — Memory/Trajectory Compaction (dialable, token-economy)** + the fan-out cap in **Phase 23 — Parallel Execution**. The compaction-preserves-verified-facts carve-out is wired into **Phase 21**'s verify-before-write. Threatens **caveman = token economy** (MEMORY.md), **no-fabrication** (lossy/fabricating compaction), and the milestone's cost thesis.
+**Phase to address:** Phase 27, verified again in Phase 33 (Live Capture).
 
 ---
 
-### Pitfall 5: Coordination failures / duplicate work — two agents claim the same task, or no agent claims a task (starvation); deadlock-free claim without a central lock manager
+### P-04: Proving spawning with a test that can pass without a spawn ever happening (vacuous test)
 
 **What goes wrong:**
-Decentralized agents must claim work with **no central router** (the bottleneck DeLM exists to kill, FEATURES.md). Two failure shapes: (a) **double-claim** — two background subagents scan `pending/`, both see `task-7`, both start it → wasted tokens + two conflicting context writes (DeLM discloses *no* fine-grained concurrent-claim locking — only a single-lock queue refill; this is a real gap grugops must design around, FEATURES.md/STACK.md). (b) **Starvation/orphan** — an agent claims `task-7`, then crashes/times out mid-run; the task sits in `claimed/` forever, no agent re-picks it, the queue stalls with work that looks done but isn't. (c) **Deadlock-by-accident** — if you reach for a central lock manager to fix double-claim, you've rebuilt the central bottleneck (and a lock holder that dies wedges everyone).
+A test asserts that the adapters exist, that the allowlist is complete, that the substrate converges — all green — and *no role agent has ever run in its own session*. This is precisely the v2.1 kickoff finding: the model "silently completes the work inline" when a spawn fails with agent-type-not-found, producing outputs that look identical on disk.
 
 **Why it happens:**
-"Just scan the pending dir and pick one" is the obvious queue, and it races. A central lock manager is the obvious fix and it's the exact anti-pattern (a message bus / router all updates route through, FEATURES.md anti-feature). Crash-recovery is invisible until an agent actually dies mid-claim — easy to skip in design.
+Inline completion is *output-equivalent* to a real spawn for most artifacts. That is what made the defect survive a whole milestone. Any assertion over artifacts alone is therefore vacuous with respect to the predicate "a subagent ran."
 
-**How to avoid:**
-- **The atomic rename IS the claim — no separate lock needed** (STACK.md): the queue is a directory of files moved `pending/x → claimed/x → done/x` by `renameSync`. Two agents racing to `rename(pending/x, claimed/x)`: one wins, the other gets `ENOENT` and moves to the next pending item. The rename *is* the atomic test-and-set; there is no central lock manager, hence no deadlock and no bottleneck.
-- **NFS-safe variant where state may be networked:** `O_EXCL` (`openSync('wx')`) is the local-FS test-and-set, but **`O_EXCL` is unreliable on NFS** (re-verified June 2026 — NFS has no stateful open, the flag can't reach the server). Use **`mkdirSync(claimDir)` — directory creation is atomic and NFS-safe** (re-verified; the classic NFS-locking answer, the approach `proper-lockfile` itself uses, but stdlib). Recommend `mkdirSync`/rename claims as the default since `$GRUGOPS_HOME`/per-repo state may live on a network mount.
-- **Stale-claim recovery as a role/workflow rule, NOT a daemon** (STACK.md — no watcher process allowed): stamp every claim file/dir with `agent-id` + ISO `at`; when an agent next scans the queue, it re-`rename`s `claimed/x → pending/x` if `at` is older than a dialed threshold. Optimistic, no background process, no deadlock.
-- **Dependency-aware queue ordering** (`[deps:…]`, DeLM-style) is a v2.x add-after-validation (FEATURES.md) — start with a flat queue proven non-colliding, add dependency ordering once the claim primitive is trusted. Don't build the complex queue first.
-- **RED/dogfood proof:** the Tier-2 harness spawns N agents against M<N pending tasks and asserts **each task claimed exactly once, zero double-claims**, plus a crash-injection case proving a stale claim is reclaimed on the next scan.
+**How to avoid — the discriminating evidence must be something inline execution cannot produce:**
+- The captured run must contain a **per-agent session identity** that inline execution cannot forge: a note whose `by:` is the role identity *and* whose provenance carries a distinct session/run id, or the platform's own subagent-start marker in captured output.
+- Better: make the *absence* of a spawn a **hard failure at the point of effect** rather than a silent fallback. If the coordinator cannot resolve a role agent, it must STOP with a named error, not proceed inline. "Move the gate to the point of effect" is the closure doctrine's own prescription and it applies literally here: today the point of effect (spawn attempt) silently degrades; the gate is far away in a guard file.
+- The capture rule already in force applies unchanged (D-01/D-02): **a loud skip is not a capture; a passing suite that skipped the live lane is not a capture.** The evidence is a date + a verdict + the captured output.
 
-**Warning signs:**
-A queue that "reads pending and picks one" with no atomic move; reaching for a central lock manager / lock server; `O_EXCL` claims on network-mounted state; a `claimed/` task with no recovery path; no `agent-id`+timestamp on claims; no double-claim test; a single agent allowed to hold a lock all others wait on.
+**Warning signs:** the acceptance evidence for "spawning works" is a green `npm test`. The word "presumably" or "should now" appears near the spawn claim. Nobody can name the byte in the capture that only a real spawn produces.
 
-**Phase to address:**
-**Phase 20 — Shared-Context Substrate & Concurrency Foundation** (the atomic-claim primitive `claim()` via `mkdirSync`/rename + stale-claim sweep rule + RED test). Dependency-ordered queue deferred to v2.x. Threatens **no platform/runtime/queue** (Out of Scope — must stay a directory + `node:fs`, no broker) and **zero-runtime-dep**.
+**Phase to address:** Phase 27 designs the discriminator; Phase 33 captures the run — and this is the *same* captured run GAP-D1 has waited for since v1.0, so schedule them together.
 
 ---
 
-### Pitfall 6: The degraded-sequential-fallback trap — does sequential-over-shared-context actually preserve correctness, or silently diverge from the parallel path?
-
-**What goes wrong:**
-The locked v2.0 decision is "Claude Code parallel primary; the other four CLIs **degrade, never break**" over the *same* shared context. The trap: "degrade" quietly becomes "**diverge**." The sequential path and the parallel path produce *different outcomes* for the same input — a parallel run reconciles two findings via supersession the sequential run never encounters; a sequential run drains the queue in a different order and reaches a different decomposition; the parallel path exercises `atomicWrite`/claim-races the sequential path never hits, so a bug lives only in one path. If divergence is silent, a Codex/Gemini/OpenCode/Copilot user gets *materially different, possibly worse* results than the Claude Code user, while the kit claims parity-by-degradation. **This is precisely the A3/DOG-02 dual-path-parity concern that v1.2 human-waived to this milestone** — removing handoffs doesn't automatically retire it; it *moves* it from "do the two handoff paths match" to "do the two *execution* paths over one shared context match." If you don't test the equivalence honestly, you've waived a concern and then silently re-created it.
-
-**Why it happens:**
-"Same files, same format" *feels* like "same behavior," but parallelism introduces ordering, races, and reconciliation that sequentiality never exercises — they are not the same execution. The degraded path is the less-loved path (Claude Code is primary), so it gets less testing. The temptation is to assert parity in prose ("the other CLIs use the same substrate") and never prove it — the same prose-instead-of-proof trap that produced the original A3 waiver.
-
-**How to avoid:**
-- **One substrate, designed tool-neutrally** (FEATURES.md/STACK.md): the context + queue file conventions are identical across all five CLIs; spawning is an *execution detail layered on top*, not a fork of the data model. The sequential path is "the parallel path with concurrency = 1" — same `readContext`/verify/`appendNote`, same claim protocol (inert under single-writer but not different). Never write a separate sequential code path or a separate sequential note schema.
-- **Define "degrade, never break" as a TESTABLE equivalence, not a slogan.** The honest property is: *for the same task, the sequential path produces a context that satisfies the same verified-finding set and the same final artifact acceptance as the parallel path* — it may be slower and reach findings in a different order, but it must not reach a **worse or contradictory** end state. Pin this as an explicit acceptance criterion the roadmap can verify.
-- **A dual-path oracle in the dogfood harness** (this is the honest A3/DOG-02 retirement, STACK.md): run the same seeded task (a) parallel on Claude Code and (b) sequential via the single-window role-load, and assert the **on-disk verified context + final acceptance verdict are equivalent** (same set of `finding`s admitted, same gate result, same artifact). Assert on *on-disk artifacts*, not `--print` stdout — the original A3 test failed because it asserted on `-p` stdout, a test-design limit, not a product defect (Key Decision, 2026-06-16). **This oracle is what actually retires the waiver — not the mere removal of handoffs.**
-- **The sequential path is the correctness reference;** because it has one writer, it is immune to Pitfalls 1, 2, 5 races (STACK.md). Treat any parallel-only divergence as a parallel-path bug measured against the sequential reference.
-
-**Warning signs:**
-"Degrade, never break" asserted only in prose with no equivalence test; a separate sequential code path / note schema; the dual-path oracle asserting on stdout instead of on-disk artifacts; a bug reproducible on one path only; the sequential path producing fewer/contradictory findings than the parallel path; the A3/DOG-02 waiver marked "retired" with no equivalence proof behind it.
-
-**Phase to address:**
-**Phase 23 — Parallel Execution & Graceful Sequential Degradation** (build both paths on one substrate) + **Phase 26 — Dogfood, Dual-Path Oracle & A3/DOG-02 Retirement** (the equivalence test that honestly retires the waiver). Threatens **degrade-never-break** (the locked decision) and **no-fabrication** (a falsely-"retired" waiver is a fabricated closure). **First-class — this is the explicit reason the milestone exists to retire the A3/DOG-02 concern; retiring it requires a real test, not just deleting handoffs.**
+### Area B — Making previously-hard safety floors configurable
 
 ---
 
-### Pitfall 7: Losing the auditable trace during decentralization — async writes scrambling the requirement→code→test→release trail
+### P-05: A parse failure that fails OPEN — already present in this codebase
 
 **What goes wrong:**
-grugops's identity is the **auditable requirement→code→test→release trace** ("the trace is the proof"). Under a centralized Orchestrator with ordered handoffs, the trail was naturally linear. Decentralized async writes scramble it: notes land in non-deterministic order; two agents write provenance at the same wall-clock second; a `finding` references a `claim` that was later superseded so the lineage is broken; a parallel branch's work isn't attributable to who-did-what-when. If the trail becomes unreconstructable, the auditability differentiator (the whole wedge vs DeLM, FEATURES.md) evaporates — and a regulated user can no longer answer "which verified evidence backed this release decision, and who admitted it."
+The config reader that governs a safety control returns the *lean* default when it cannot read or parse the config, so a corrupted, truncated, or permission-denied `factory.config.json` silently disables governance.
 
-**Why it happens:**
-Linear ordering was a free side-effect of centralization; decentralization removes it without anyone deciding to. Provenance fields feel like boilerplate and get dropped under prose-bloat pressure. "git gives us audit for free" is true *only if* every write is a real, attributable, append-only commit/note — a scrambled or squashed history breaks it.
+**Why it happens — this is not hypothetical here:**
+`readGovernanceConfig()` (context-io.ts:1220) is carefully fail-closed on *degenerate shapes* — a non-object config, a non-object `context` key, and a present-but-non-string `human_admission` all return `GATE_OR_STRICTER_HUMAN_ADMISSION`. But its `catch` block (context-io.ts:1257-1259) reads:
 
-**How to avoid:**
-- **Every note carries full provenance, non-optional** (STACK.md schema): `by` (which role/agent), `at` (ISO timestamp), `verified_by` (the evidence), plus `supersedes`/`refs` for lineage. The structure validator fails any note missing provenance — same no-fabrication discipline as the verify stamp (Pitfall 3). Provenance is load-bearing and **exempt from compaction** (Pitfall 4).
-- **Append-only + git is the audit trail** (FEATURES.md — the recognized 2026 pattern, Squad's `decisions.md` drop-box, ESAA event-sourcing): `git log` over the append-only context files is a free, tamper-evident, attributable history. The reconstructability guarantee is "git log + the per-note `by`/`at`/`verified_by`/`supersedes` chain can replay who-knew-what-when." No bespoke audit DB (anti-feature, FEATURES.md).
-- **Order is reconstructable from `at` + `supersedes`, not from file position.** Because async writes have no positional order, the *logical* order is carried in the data (timestamps + supersession links), and the per-task `events.jsonl` is the machine-replayable index. The trace is reconstructed by sorting the JSONL by `at` and following `supersedes`, not by reading top-to-bottom.
-- **Traceability IDs survive the handoff removal:** the REQ-ID → finding → code → test → release chain that lived across handoff packets now lives as `refs`/trace fields on the context notes. The clean handoff removal (Pitfall 9) must *migrate* the traceability content into the notes, not drop it.
-- **Board-as-state stays the human-readable view** (FEATURES.md): the WIP-limited markdown board is the at-a-glance projection of the queue + trace, so a human can audit without parsing JSONL.
+```
+} catch {
+  // Unreadable / non-JSON / any failure → fall through to the lean default. Never throw.
+  return { ...GOVERNANCE_DEFAULTS };
+}
+```
 
-**Warning signs:**
-A note missing `by`/`at`/`verified_by`; provenance dropped by a compaction pass; lineage broken because a `supersedes` link is absent; the trace only reconstructable by file order (which is non-deterministic under async); git history squashed/rewritten so attribution is lost; a release decision with no linked verified evidence.
+`GOVERNANCE_DEFAULTS.human_admission` is `off`. So **an unreadable or malformed config yields `off`** — the permissive branch — while a *readable-but-degenerate* one yields strict. The project already noticed this asymmetry and solved it by adding a **second reader**, `readGovernanceConfigResult()` (context-io.ts:1288), which distinguishes unreadable-vs-absent "for the hook." That is two config-reading authorities with different failure semantics over the same file — the exact "second grammar" the closure doctrine says to delete.
 
-**Phase to address:**
-**Phase 20 — Shared-Context Substrate** (provenance schema + validator) and **Phase 24 — Clean Handoff Removal & Traceability Migration** (migrate the REQ→code→test→release trace into notes). Threatens **trace-is-the-proof / no-fabrication** and the **auditability differentiator**.
+**How to avoid — structural:**
+The per-checkpoint autonomy matrix must **not add a third reader**. Collapse to **one** config authority returning a discriminated result `{ absent } | { present, values } | { unreadable, rawError }`, and let every consumer (matrix, hook, `admit`, validator, dashboard) branch on that one shape. Rules:
+- **absent** → lean defaults (zero-config-first is preserved; this is the only permissive branch and it requires proving the file genuinely does not exist).
+- **present** → canonicalize each key; any value not exactly a defined variant → the **strictest** defined variant, with the raw unknown value preserved and reported (the protobuf `unknown-field-set` prescription; never normalise an unknown away).
+- **unreadable** → strictest, loudly, naming the path and the errno. Never lean.
+
+Then delete `readGovernanceConfig`'s value-only form, or make it a thin projection of the result form so the two cannot drift.
+
+**Warning signs:** two functions read the same config file. A `catch {}` returns a default. A test asserts behavior for a *missing* file but not for a *present-but-`chmod 000`* file, a truncated file, a BOM-prefixed file, or a file containing `{"context":{"checkpoints":null}}`.
+
+**Phase to address:** Phase 30 (Per-Checkpoint Autonomy Matrix), as the *first* plan in the phase — before any checkpoint reads the matrix.
 
 ---
 
-### Pitfall 8: Over-spawning cost blowups — unbounded parallel agents; missing concurrency caps; runaway loops
+### P-06: Default-open on a typo, a new checkpoint, or a partially-specified matrix
 
 **What goes wrong:**
-Claude Code's spawn model has a **fixed depth-5 cap on background subagent trees** (re-verified June 2026 — "a background subagent at depth five does not receive the Agent tool and cannot spawn further … fixed and not configurable, exists to prevent runaway concurrent trees"), **but there is NO documented cap on the *number* of concurrent background subagents at a given level** (re-verified — only `maxTurns` per subagent and `CLAUDE_CODE_DISABLE_BACKGROUND_TASKS`). So a coordinator that fans out one background subagent per queue item, per finding, or per file can spawn an unbounded *width* of concurrent agents — multiplying the already-15×-per-agent token tax (Pitfall 4) into a runaway bill. The inverse mistake (STACK.md): granting the `Agent` tool to *every* role → uncontrolled fan-out from everywhere, defeating the coordinator model. And a verify→fail→regenerate→re-verify loop with no bound (DeLM regenerates rejected writes "up to a retry limit") can spin forever burning tokens.
+Moving from an `autonomy` **scalar** to a per-checkpoint **matrix** multiplies the enum surface from one key to N keys. Three new default-open channels appear: (a) a misspelled checkpoint name is silently ignored → that checkpoint uses the code default; (b) a checkpoint added in a later phase has no matrix entry → falls to whatever the lookup returns for a missing key; (c) a valid key with an unrecognised value maps to "not strict" by falling through an `if (value === 'require_human')` test.
 
 **Why it happens:**
-The platform caps *depth* but not *width* — the width cap is **grugops's responsibility, not Claude Code's**, and it's invisible until a real fan-out runs up a bill. "One agent per task" feels natural and scales linearly with queue size. The retry-on-verification-failure loop (Pitfall 3's regeneration) is unbounded unless someone sets a limit. Each subagent looks cheap in isolation; the aggregate is the blowup.
+Object lookups return `undefined` for both "not configured" and "misspelled," and `undefined` reads as falsy. The scalar form had exactly one place to get this wrong; the matrix has one per checkpoint. Documented in the wild: JUnit silently accepted invalid values for a severity config parameter, so users believed they had configured a control they had not.
 
-**How to avoid:**
-- **grugops sets an explicit, dialable concurrency WIP cap on the queue/fan-out** — the platform won't. Reuse the existing **WIP-limited board** (FEATURES.md — board-as-state is already WIP-limited): `queue.wip_limit` bounds how many tasks may be `claimed/` (in-flight) at once. A coordinator may only spawn up to the WIP cap of background subagents; beyond that, tasks wait in `pending/`. Lean default = a small cap (e.g. 3–4); enterprise may raise it with eyes open.
-- **Grant `Agent(<allowlist>)` to the Orchestrator/coordinator ONLY** (STACK.md — the WR-05 guard *inverts* from "no role may have Agent" to "only the coordinator may"). The mechanical guard, packaging templates, and catalog flip together in one coordinated change (STACK.md flag). Every other role has no spawn tool → no rogue fan-out.
-- **Bound every loop:** the verify→regenerate→re-verify loop reuses the §14 gate's existing **bounded `self_fix_attempts`** pattern (v1.2, three terminal results) — a verification-rejected write retries a fixed N times then terminates to a human/`UNKNOWN - verify`, never spins. Per-subagent `maxTurns` is a second backstop.
-- **Prefer depth over uncontrolled width, within the depth-5 background cap:** structured fan-out (Orchestrator → roles → optional per-finding verifier) inside the cap, not a flat explosion of N background agents. Design for the depth-5 background limit explicitly (STACK.md).
-- **Dogfood measures aggregate token cost** (ties to Pitfall 4) — a fan-out that exceeds a cost budget is a caught regression, not a surprise invoice.
+**How to avoid — structural:**
+- The set of checkpoints is a **closed, exported constant** (one authority). The config reader validates the matrix against it and **rejects unknown keys loudly** rather than ignoring them — an unknown key is far more likely a typo of a real checkpoint than a forward-compat extension, and this kit has no forward-compat requirement for config keys.
+- The lookup is **total**: `checkpointPolicy(name)` is typed over the closed set, so adding a checkpoint without adding a default is a **compile error**, not a runtime open door. This is the cheapest structural win available in the whole milestone — TypeScript exhaustiveness checking is a real authority, not a heuristic.
+- Every value canonicalizes through **one** function; the fallback is the strictest variant, not the code default. Reuse `canonicalizeHumanAdmission`'s shape (it already NFKC-folds, strips zero-width code points, and lowercases — the round-8 GAP-R7-1 lesson) rather than writing a fresh `.trim().toLowerCase()`. A fresh trim-only comparison is *literally* the frozen weaker duplicate that cost Phase 25 an extra round.
 
-**Warning signs:**
-A coordinator spawning one background agent per queue item with no WIP cap; the `Agent` tool granted to a non-coordinator role; a regenerate-on-verification-fail loop with no attempt bound; aggregate token cost scaling super-linearly with queue size; no `queue.wip_limit`; designing as if Claude Code caps concurrent width (it does not — only depth-5).
+**Warning signs:** a `Record<string, string>` type for the matrix. Any `?? 'off'` or `|| false` near a checkpoint read. A test matrix that varies values but never varies *keys*.
 
-**Phase to address:**
-**Phase 23 — Parallel Execution & Orchestrator-as-Decomposer** (the WIP/concurrency cap + Agent-allowlist-to-coordinator + the inverted WR-05 guard) with the bounded retry reusing the Phase 21 verify loop. Threatens **caveman = token economy** (MEMORY.md), the cost thesis, and **humans-decide** (a runaway agent acting unbounded).
+**Phase to address:** Phase 30.
 
 ---
 
-### Pitfall 9: Clean-handoff-removal breakage — ripping out static handoffs breaks role contracts, downstream readers, the docs catalog, and the validator
+### P-07: The agent can write the config that governs it
 
 **What goes wrong:**
-The locked decision is a **clean replacement** of static handoff packets (not additive-then-deprecate) — the shared context becomes the sole inter-role memory; handoff templates + wiring are *removed*. The blast radius is enormous: ~17 roles + 14 workflows + the handoff templates + `_role-switch-protocol.md` step-4 (which reads/writes handoffs) + the **structure validator** (which checks handoff structure) + the **docs catalog** (which documents handoffs) + the install **seed** (which seeds `plans/handoffs/`) + the two-root state model (`plans/handoffs/` is seeded per-repo). A clean rip-out that misses any downstream reader leaves a role pointing at a deleted template, a validator failing on absent handoffs it still expects, a catalog documenting a removed artifact (a *lying* catalog — v1.2 Pitfall 9), or a workflow whose step-4 reads a file that no longer exists. "Clean replacement" is bolder and simpler as an *end state* but still needs a **safe cutover and a rollback story** — even a clean replacement can be done in a sequence that doesn't leave the kit broken mid-pivot.
+The autonomy matrix lives in `.grugops/factory.config.json`, inside the repo the agent edits, with an editor tool the agent holds. An agent that finds a checkpoint inconvenient edits the matrix, then passes the checkpoint. The audit trail records a pass.
 
 **Why it happens:**
-"Clean" is misread as "just delete the handoff files." The handoff concept is woven through more files than anyone enumerates upfront (the v1.1/v1.2 history shows handoff references in roles, workflows, the protocol, the validator, the catalog, the installer seed, and traceability). FEATURES.md is explicit: **the shared context must land BEFORE handoffs are removed** — "otherwise the factory loses its memory mid-pivot." A big-bang delete-and-rewire in one step maximizes the chance of a missed reader.
+This is not a new hole — v2.0 already documented the irreducible residual ("same-uid / no-hook direct-FS forgery is not preventable by a hook running as the same user," Key Decisions) and backstopped it with `autonomy=pr`, humans holding merge. But that backstop was sized for the *v2.0* threat model, in which the four floors were **un-dialable** and so an agent editing config could not reach them. Making the floors dialable **widens the blast radius of the same residual**: config edits now reach merge, prod deploy, test-integrity justification, and verify-before-write.
 
 **How to avoid:**
-- **Substrate-first ordering (FEATURES.md dependency note):** the shared verified context must exist and roles must read/write it *before* the handoffs are deleted. Sequence: (1) build the substrate (Phase 20), (2) wire verify-before-write (21), (3) rewire roles/workflows/`_role-switch-protocol.md` step-4 to read/write context instead of handoffs (24a), (4) *then* delete handoff templates + seed + validator/catalog references (24b). Never delete before the replacement is wired.
-- **Enumerate every handoff reader mechanically before deleting** — grep the kit for handoff references (templates, `plans/handoffs/`, validator arrays, catalog discovery, installer seed, traceability, role/workflow prose) and produce a checklist; the deletion is complete only when the grep returns zero stale references (the v1.1 "grep-to-zero gate" pattern).
-- **Update the validator and catalog generator in the SAME change as the deletion** (v1.2 single-source + docs-catalog-drift lessons): the validator must stop expecting handoff structure and start checking context structure; the catalog must stop documenting handoffs and document the context substrate — or the freshness gate fails red (which is the desired safety: a stale catalog/validator after a rip-out is caught, not shipped).
-- **Migration safety + rollback story (carry the v1.2 migrate/update pitfall):** even though grugops is git-versioned (so rollback = git revert for the *kit*), an *installed user's* per-repo `plans/handoffs/` state must not be silently destroyed by an `--update`/`--migrate` — rename-to-backup, never delete-first (v1.1 CR-01 lesson). Provide a documented rollback: the cutover is one coordinated change so `git revert` restores the working pre-pivot kit cleanly.
-- **Honestly retire A3/DOG-02 as part of this** — but the retirement is the equivalence *test* (Pitfall 6), not the mere deletion of handoffs. Deleting handoffs makes the *handoff*-parity test moot; it does NOT make the *execution*-parity question moot.
+- **Do not put the lowering in the config file.** Split the two things a dial does: the config may express *intent to run at a lower tier*; the **grant** must live where the agent's process cannot write it. The prod-deploy hook already demonstrates the pattern: `GRUGOPS_PROD_DEPLOY_APPROVED` is read from the hook's own process env, set by a human in the launching shell, and the guard explicitly refuses inline self-approval (`hooks/guard.ts:86-87` matches `VAR=1 cmd`, `export VAR=1`, and `env VAR=1 cmd` forms and denies them). Extend that mechanism rather than inventing a second one.
+- Make the lowered floor **fail closed on the grant, not on the intent**: a config that says `merge: agent` with no live human grant behaves exactly as `merge: human`, and says so out loud on every run.
+- Put the config file itself under a **change-detection** gate: the matrix's committed state is part of the trace, so a matrix change inside a task's own commit range is a reviewable event, not invisible.
 
-**Warning signs:**
-A plan that deletes handoff files before the context substrate is wired; a role/workflow still referencing `plans/handoffs/` or a handoff template after the rip-out; the validator failing because it still expects handoffs; the catalog documenting a removed artifact; the installer still seeding `plans/handoffs/`; a grep for handoff references returning non-zero after the deletion phase; no rollback story; user per-repo handoff state deleted without backup on `--update`.
+**Warning signs:** the design has exactly one place (`factory.config.json`) that both expresses and grants the lowering. The word "trusted" appears about a file in the working tree. The threat model says "the agent wouldn't do that."
 
-**Phase to address:**
-**Phase 24 — Clean Handoff Removal & Traceability Migration** (substrate-first, grep-to-zero, validator+catalog updated in the same change, rename-to-backup for user state). Depends on Phases 20–21 landing first. Threatens **single-source** (a missed reader is drift), **no-fabrication** (a lying catalog/validator), and **installers-never-delete-user-content**.
+**Phase to address:** Phase 30. Budget the closure-doctrine cost (≥2 independent red-teams + self-reproduction, D-12) — this phase touches the four hardest floors in the product and is the direct successor to Phase 25, which took 8 rounds.
 
 ---
 
-### Pitfall 10: Portability / cross-platform — Windows rename/lock non-atomicity, the committed-`.js` freshness model, keeping zero-runtime-dep
+### P-08: An env-var opt-in the agent's own subprocess can set
 
 **What goes wrong:**
-The concurrency primitives (Pitfalls 1, 5) are **POSIX-atomic but NOT Windows-atomic**, and the kit must run on Windows (the entire reason TS was adopted — D-13, "an un-cheatable cross-platform checker must run in host repos including Windows where POSIX shell cannot"). Three concrete cross-platform breaks: (a) **`fs.rename` over an existing file fails on Windows** (re-verified June 2026 — Windows native rename "fails if the destination file already exists" and is "not POSIX-atomic"; throws `EEXIST`/`EPERM`) — so the atomic-publish-by-rename and the rename-claim both break on Windows. (b) **`O_EXCL` is unreliable on NFS** (re-verified — no stateful open; the flag can't reach the server) — so a network-mounted `$GRUGOPS_HOME` breaks the `'wx'` claim. (c) **A network/Windows-specific bug ships green** because the freshness check only proves the committed `.js` matches its `.ts` source — it does NOT prove the *runtime behavior* is correct on Windows/NFS, and the temptation to add a real cross-platform locking dep (`proper-lockfile`) would violate zero-runtime-dep.
+The "human sets it in the launching shell" mechanism is reimplemented for the new checkpoints, and the new implementation reads the variable from a place the agent can influence — a `.env` file, a `direnv` config, the child env of a `Bash` call, or a variable exported by a script the agent wrote.
 
 **Why it happens:**
-POSIX is the developer's default; macOS/Linux dev machines never hit the Windows rename or NFS races, so the bug is invisible until a Windows/network user runs it. The committed-`.js` freshness model guarantees *source↔output parity*, which is mistaken for *behavior correctness*. The obvious cross-platform fix is a battle-tested npm lib — which is forbidden on hosts.
+`process.env` looks like one thing but is really two: the env the *hook/guard* process inherited from the human's session, and the env an agent-spawned child was handed. Only the first is un-forgeable, and only because the hook runs in the harness's process tree, not the agent's. context-io.ts:956-959 states this precisely — the in-script tier "is settable in `admit()`'s own child env" and is therefore explicitly the **weaker** tier (D-05), with the separate admission-guard hook as the un-forgeable primary.
 
 **How to avoid:**
-- **Windows-safe atomic publish:** `unlinkSync(target)` (in a try/catch, ignore ENOENT) immediately before `renameSync(tmp, target)` — accepting a tiny non-atomic window — OR scope rename-replace to single-writer files only, OR use the Windows `ReplaceFile`-semantics path where available. **Document the Windows caveat explicitly** in the helper (STACK.md). Test on Windows in CI, not just POSIX.
-- **NFS-safe atomic claim:** prefer **`mkdirSync(claimDir)`** (atomic + NFS-safe, re-verified) over `openSync('wx')` for the claim primitive when state may be networked — recommend it as the default since per-repo state location is user-controlled. The `link(2)`-based lock is a documented fallback if needed.
-- **Zero-runtime-dep held hard (STACK.md What-NOT-to-Use):** NO `proper-lockfile`, `gray-matter`, `js-yaml`, `chokidar`, or SQLite binding on hosts. grugops calls `mkdirSync`/`renameSync` *directly* (`proper-lockfile` itself just wraps `mkdir`). The note metadata is parsed by stdlib `JSON.parse` (the JSONL mirror) or a hand-rolled fence reader — same class as the v1.2 catalog/ASVS stdlib parsers.
-- **The freshness model guards source↔output, NOT behavior — so behavior needs its own cross-platform tests:** keep the `tsc`-to-committed-`.js` + freshness check (D-13) unchanged for the new helpers, AND add behavior tests for the concurrency primitives that run on **Windows + a network/NFS-like mount in CI** (or at minimum document them as `UNKNOWN - verify` until a Windows/NFS dogfood confirms — never claim cross-platform-correct without the test). FEATURES.md flags the Windows atomic-claim behavior as `UNKNOWN - verify` until tested — honor that.
-- **Keep `PIPE_BUF` out of the correctness path** (STACK.md open question): don't depend on append-atomicity (which varies by OS); `atomicWrite` the JSONL or keep lines well under 512 bytes — the safe default that needs no per-OS `PIPE_BUF` knowledge.
+- Reuse the existing two-tier split verbatim: an in-script **defense-in-depth** refusal that is honestly labelled self-settable, plus a **hook** tier that is the only grant path. Do not invent a third tier with unstated strength.
+- Never read the grant from a file in the repo (`.env`, `.envrc`, a config key) — only from the process env of a guard the agent did not launch.
+- Add the negative test explicitly: a run where the agent's own `Bash` call exports the grant variable must **still** be refused. This test exists in spirit for prod-deploy; it must exist per-checkpoint for the new matrix.
+- For the four non-Claude CLIs there is no hook, so the un-forgeable tier is **absent**. Say so in the docs; do not let the matrix imply a guarantee those four cannot deliver. (This is the same "server-less admission gate" gap already acknowledged as accepted-for-now.)
 
-**Warning signs:**
-`renameSync` over an existing target with no Windows `unlink`-first guard; `openSync('wx')` claims with state that may be on NFS; a new host runtime dependency to "fix" cross-platform locking; CI that only runs on Linux/macOS; the freshness gate cited as proof of *behavior* correctness; reliance on `appendFileSync` atomicity for correctness; a cross-platform claim with no Windows/NFS test behind it.
+**Warning signs:** a grant read via `dotenv`-style loading. A test that sets the variable in the test process and calls it proof. Docs that describe the grant identically for all five CLIs.
 
-**Phase to address:**
-**Phase 20 — Shared-Context Substrate & Concurrency Foundation** (the helpers ship Windows/NFS-safe with cross-platform behavior tests + the freshness model extended to the new helpers). Threatens **zero-runtime-dep** and the **cross-platform (Windows) mandate** that justified the TS pivot (D-13).
+**Phase to address:** Phase 30.
+
+---
+
+### P-09: The claim outlives the guarantee — a lowered floor that the docs still advertise
+
+**What goes wrong:**
+A user lowers `test_integrity` or `verify_before_write`, and README / `docs/catalog/` / role prompts / the marketing copy still assert "an agent cannot stamp its own pass." The audit trail now **overstates its guarantees**, which for this project is the worst possible defect: it is fabrication with extra steps.
+
+**Why it happens:**
+Claims live in prose across ~72 kit files plus a generated catalog plus a README, and none of them are wired to the dial. Nothing today makes a claim conditional on a config value.
+
+**How to avoid — structural, and this is the highest-leverage idea in the milestone:**
+Make the *claim* a **derived artifact**, not authored prose. Concretely:
+- Introduce a generated `.grugops/GUARANTEES.md` (or a section in a per-run trace header) rendered by a script from the **live** matrix + grant state — the same render-plus-freshness-gate family already used three times in this repo. When a floor is lowered, the rendered guarantee text *changes*, automatically, with no author involved.
+- Every gate result, verdict note, and UAT record carries the **effective checkpoint policy at the moment it was produced**. A `READY_FOR_HUMAN_REVIEW` produced under a lowered test-integrity floor must be distinguishable, forever, from one produced under the default. Otherwise the trace cannot be re-read honestly later.
+- **Loud, per-run, at the point of effect:** the terminal result banner names every non-default checkpoint. Not a config comment; not a doc footnote. The v2.0 precedent is the "advise loudly, never hide" floor already written into workflow 05 (`quality.test_integrity` has no `off` value in any mode; advisory mode advises loudly, it does not hide) — extend that discipline, do not weaken it.
+- Prose claims in static files should be **narrowed once** to the un-dialable residue ("humans hold merge and deploy unless a named human has granted otherwise for this run") and otherwise **point at** the generated guarantee surface. A static file must never assert an unconditional guarantee that a dial can remove.
+
+**Warning signs:** `README.md` says "cannot" about something the matrix can now switch off. A verdict note has no record of the policy under which it was produced. Someone proposes "we'll document the caveat" instead of rendering it.
+
+**Phase to address:** Phase 30 builds the render + the per-run banner; Phase 28 (Kit Consistency Audit) sweeps the static claims and narrows them.
+
+---
+
+### Area C — Agent-driven browser testing as acceptance evidence
+
+---
+
+### P-10: The agent narrates a pass instead of executing one (hallucinated assertion)
+
+**What goes wrong:**
+The agent reports "clicked Save, saw the success toast, UAT-03 passes." No assertion ran. This is the single documented failure cluster for agent browser automation: agent-authored failures group into *hallucinated assertions* (the agent invented a verification step), test explosion, and business-logic gaps.
+
+**Why it happens:**
+An LLM driving a browser produces prose about the browser. Prose is the default output format, and prose is exactly the thing this project has spent four milestones refusing to accept as evidence.
+
+**How to avoid — structural:**
+The pass/fail must be a **tool return value, not a model sentence**. Route every assertion through a tool whose result is machine-produced and whose failure is a non-zero result the agent cannot restate away — Playwright MCP's first-class verification tools (`browser_verify_element_visible`, `browser_verify_text_visible`, `browser_verify_list_visible`, `browser_verify_value`) and `browser_generate_locator`, or, better for this project, a **generated Playwright spec file** that the existing §14 gate runs as an ordinary `e2e` step. grugops already has the un-cheatable path built: `emitVerdict()` is the sole `§14-gate` author, and `admit()` cross-checks a finding's stamp against a live GREEN verdict. **Browser evidence should enter through that door and no other.**
+
+The right architecture is therefore: *the agent may author the test; the agent may never author the result.* An agent-driven exploration session's output is a **committed spec file**, whose execution under the gate mints the verdict. Anything the agent says between those two events is commentary.
+
+**Warning signs:** a UAT row flips to `passed` from an agent's transcript. The evidence artifact is a paragraph. `verified_by` is anything other than a real `§14-gate#<id>`, a passing test, or `human:NAME`.
+
+**Phase to address:** Phase 31 (Autonomous Manual Testing).
+
+---
+
+### P-11: A run that never happened, reported as green
+
+**What goes wrong:**
+The browser tool is absent, unauthenticated, headless-vs-attended mismatched, or the MCP server failed to start — and the lane reports success because "no failures were observed."
+
+**Why it happens:**
+Absence of failure reads as success in almost every harness that is not explicitly designed against it. Claude in Chrome requires an attended browser with site-level permissions; Playwright MCP requires a server; neither is present in CI.
+
+**How to avoid:**
+grugops has already solved this exact problem once and the solution should be copied verbatim, not redesigned. The Tier-2 `claude --print` lane **always runs a present-and-authed probe first**, and on absence emits a *loud, distinctly-marked SKIP* (`SKIPPED: claude CLI absent or unauthed …`) — "a skip is NOT a pass: the underlying UAT stays `pending`, and its status flips to passed/resolved only from a real authed run's captured output" (workflow 05, step 3). Apply identically:
+- Probe browser availability **before** the lane; loud skip on absence; the UAT stays `pending`.
+- Never let the browser lane sit inside the default `npm test` green path without the probe.
+- The skip marker must be textually distinct from a pass so `grep` cannot confuse them (this is why the existing marker is `SKIPPED:` and not `ok (skipped)`).
+
+**Warning signs:** the lane exits 0 with no output. The UAT status changed on a machine with no browser. "It works on my machine" is the only evidence.
+
+**Phase to address:** Phase 31.
+
+---
+
+### P-12: Evidence not bound to a commit, a run, or a state
+
+**What goes wrong:**
+A screenshot exists. Nobody can prove which commit it came from, whether it was taken before or after the assertion, or that it shows the asserted state. A screenshot taken *before* the click is indistinguishable from one taken after, and a stale screenshot from a previous run is indistinguishable from a fresh one.
+
+**Why it happens:**
+Screenshots are captured for humans, so they carry no provenance. The kit's own note schema *does* carry provenance (typed six-kind notes with a provenance fence, `refs`, `at`, `by`, `verified_by`) — but an image dropped into a directory bypasses all of it.
+
+**How to avoid:**
+- Evidence is an **`artifact-ref` note**, not a loose file: `refs` carries the commit SHA, the gate run id, the ticket id, and the spec/test id; the image is referenced by content hash. The trace renderer (`trace-render.ts`) already classifies refs by shape and fills the matrix from them — extend the classifier, do not add a parallel evidence ledger. (A parallel ledger is a second grammar.)
+- Bind the assertion and the capture: capture **after** the tool assertion returns, in the same tool invocation, or capture Playwright's own trace (which carries the ordered action log) rather than a bare PNG.
+- Refuse an evidence note whose commit SHA is not the HEAD the gate ran against — same class of check as `admit()`'s live-verdict cross-check, and reusable.
+
+**Warning signs:** an evidence directory with no index. Filenames as the only metadata. Two runs whose screenshots are byte-identical (a strong tell that nothing re-ran).
+
+**Phase to address:** Phase 31.
+
+---
+
+### P-13: Flaky selector read as a product failure — or worse, as a product pass
+
+**What goes wrong:**
+A locator breaks; the agent reports a product defect and files a finding. Or a locator matches nothing and the "verify text visible" call is written so that not-found short-circuits into a skipped assertion, so the test silently no-ops and reports green.
+
+**Why it happens:**
+Agent-generated locators are brittle, and the failure surface of "selector wrong" and "feature broken" is identical from inside the browser. The silent no-op variant is worse and is a known agent-authored pattern: a `try/catch` around an assertion, or an assertion inside a conditional that is false.
+
+**How to avoid:**
+- Prefer **accessibility-tree snapshot mode** (Playwright MCP's default) over pixel/DOM selectors: element identification is deterministic and role/name-based, which is both more stable and independently meaningful.
+- Ban conditional and caught assertions in generated specs mechanically. This is a genuinely checkable predicate on a generated file (an assertion inside `try`, `if`, or `catch`), and unlike prose it has a real grammar — but note it is still a *subset* check on the TypeScript spec text unless implemented over the TS AST. **Implement it over the AST**, not a regex, or do not claim it.
+- Distinguish the two failures at the source: a locator that resolves to zero elements is a **harness error** (exit code distinct from a test failure), mirroring how the test-integrity checker already separates exit `1` (finding) from exit `2` (could not run) in workflow 05 step 3. That three-valued convention is already the house style; reuse it.
+
+**Warning signs:** a finding blaming the product with no reproduction outside the browser session. A spec with `try { expect(...) } catch {}`. A "0 assertions" run reported green.
+
+**Phase to address:** Phase 31.
+
+---
+
+### Area D — Rewriting a markdown corpus to a controlled-language standard
+
+---
+
+### P-14: Claiming ASD-STE100 conformance that cannot be mechanically verified
+
+**What goes wrong:**
+The kit ships a claim of "ASD-STE100-derived controlled language, enforced by `guard_ste`." The guard checks approved words and sentence length. STE's actual requirements include one-topic-per-sentence and clarity, which no checker decides. The claim exceeds the guarantee — a no-fabrication violation in the project's own terms.
+
+**Why it happens:**
+"Controlled language" sounds mechanically decidable. It is not, and the standard's own community says so plainly: **no language checker can guarantee full compliance with STE, because the goal of STE is clarity, and only human writers can judge whether a sentence makes good sense.** Every commercial checker (Boeing SEC, HyperSTE, Congree, Acrolinx, ARDOS, TechScribe) is documented as partial, and all vendor guidance says checker output must be interpreted by a trained human.
+
+**How to avoid:**
+- **Split the predicate explicitly and publish the split.** Decidable subset: approved-dictionary membership + permitted part-of-speech, sentence-length cap (~20 words procedural / ~25 descriptive), paragraph-length cap, banned constructions (passive in procedures, gerund strings, noun clusters > 3). Non-decidable remainder: one-topic-per-sentence, clarity, correctness of meaning.
+- `guard_ste` polices **only** the decidable subset and is **named for it** — e.g. `guard_ste_lexicon_and_length`, not `guard_ste`. A guard named for a predicate it does not decide is the `guard_caveman_preserved` mistake with new vocabulary.
+- The kit's claim becomes: *"workflow steps, checklists, memory-bank, context notes, board, and traceability follow an ASD-STE100-**derived** profile; the mechanically enforced subset is X, and the remainder is a human review item."* That sentence is true, checkable, and still sells the feature.
+- The non-decidable remainder gets a **human Tier-3 sign-off**, exactly like the existing B1/B2 persona/prose judgment item. Do not pretend it automated away.
+
+**Warning signs:** any file says "STE-compliant." The guard name matches the standard's name. A conformance percentage is quoted with no denominator.
+
+**Phase to address:** Phase 29 (Controlled Language), first plan — write the split before writing the guard.
+
+---
+
+### P-15: Semantic drift while "just rewording" safety and compliance text
+
+**What goes wrong:**
+A mass rewrite pass touches `05-pr-quality-gate.md`, `15-security-audit.md`, `16-context-read-write.md`, the ASVS checklist, and the prod-deploy prose. Load-bearing precision is smoothed away: "a finding whose stamp matches no live green verdict is refused" becomes "findings need a verdict"; "never on `BLOCKED_NEEDS_FIX` or `SPLIT_REQUIRED`" loses its enumeration; `warn|block`-only becomes "configurable."
+
+**Why it happens:**
+Controlled-language rewriting optimises for short sentences and approved words. The safety text in this kit is long and precise *on purpose* — much of it is the written form of an invariant that took 8 rounds to close. Shortening is the failure mode, and it is invisible in a diff review that is looking at style.
+
+**How to avoid:**
+- **Carve the safety surfaces out of the STE profile.** The milestone already scopes STE to "workflow *steps*, checklists, memory-bank, shared-context notes, board, traceability" — hold that line hard, and add an explicit **exclusion list**: the emission/admission paragraphs of workflow 05, workflow 16's protocol, workflow 15 + the ASVS checklist, the prod-deploy prose, and every `UNKNOWN - verify` sentence. The existing `SEC_VOICE_FILES` list in `check-foundation-guards.ts` is already the beginning of such a carve-out and should be reused as the seed, not re-derived.
+- Rewrite **one file per commit**, with the diff reviewed for *meaning* by a reviewer who did not write it. A 37-file bulk commit cannot be reviewed for semantic drift and should be rejected on sight.
+- For each excluded-but-touched paragraph, require a before/after pair in the plan.
+- Note the existing precedent: the Phase 14 security checklist was *generated from a pinned ASVS source* precisely so it could be proven "not hand-transcribed." Any safety text that can be generated should be, rather than rewritten.
+
+**Warning signs:** a single commit touching >5 kit files with the message "STE pass." An enumeration (`lint → typecheck → unit → build → e2e → test-integrity`) becomes "the gate steps." A "must" becomes a "should."
+
+**Phase to address:** Phase 29, with the exclusion list ratified in Phase 28's consistency audit.
+
+---
+
+### P-16: The rewrite breaks byte ceilings, exact-match oracles, and cross-file references — and the "fix" retires the guards
+
+**What goes wrong:**
+Three concrete mechanical breakages, all pre-identifiable:
+
+1. **`guard_role_size` byte ceilings.** `roleCeiling()` (check-foundation-guards.ts:487) hard-codes per-file FAIL/WARN byte pairs derived from a 2026-06-10 baseline. A prose rewrite changes every one. The tempting fix — bump the ceilings until green — **silently retires the anti-bloat guard**, which is the guard that has been holding roles terse for four milestones.
+2. **`oracleWr05Wording`.** A Tier-1 auto-UAT oracle asserting three semantic beats appear in **`.planning/PROJECT.md`, `.planning/STATE.md`, `.planning/v1.2-SDLC-COVERAGE-AUDIT.md`, `.planning/RETROSPECTIVE.md`** (check-uat-oracles.ts:110-115), matched by per-beat regexes requiring an action token and a phase on the *same line*. This oracle is folded into the foundation-guards aggregator and fails the build. It has already broken once in this project from ordinary STATE.md editing. Any milestone that rewrites planning prose will break it.
+3. **Cross-file single-source references.** Roles and workflows reference each other by exact path and by section name ("per `agent-factory/workflows/16-context-read-write.md`", "see the human-only short-circuit in Step 4"). Renumbering a step or renaming a section during a rewrite silently orphans the reference — `check-kit-refs` validates paths, not step numbers.
+
+**How to avoid:**
+- **Ceilings:** re-baseline in **one** commit at the **end** of the rewrite, and require the new baseline to be **≤ the old** for every file. The milestone's stated goal is de-duplication ("say each thing once"); if bytes go *up*, the phase did not do what it claimed and the guard should say so. Record the delta per file in the plan. Never adjust a ceiling mid-rewrite to unblock a commit.
+- **`oracleWr05Wording`:** freeze the four scanned `.planning` files against the rewrite, or migrate the beats to a dedicated, purpose-built file that is not editorial prose. Do **not** loosen the regexes — loosening an oracle to accommodate an edit is the "second grammar" pattern in miniature.
+- **Cross-file references:** before rewriting, run an inventory of every intra-kit reference *including* step numbers and section titles; assert it after. This is a genuinely mechanical check (references are structured), so build it as a real guard rather than a manual pass. Stabilise step numbering by *not renumbering* — rewriting a step's prose is in scope; changing its number is not.
+
+**Warning signs:** a commit message contains "adjust ceiling." A regex in an oracle gets `?` or `.*` added during a prose phase. `npm test` fails and the fix touches a `.test.ts` rather than the source.
+
+**Phase to address:** Phase 29, with the ceiling re-baseline as its own final plan and a mandatory ≤-old assertion.
+
+---
+
+### P-17: The voice guard is rebuilt as another sentence-shape heuristic
+
+**What goes wrong:**
+`guard_caveman_preserved` is replaced with a "measures voice, not shape" guard that in fact counts a different shape — say, lowercase sentence starts, or absence of articles — and drifts green again.
+
+**Why it happens:**
+Voice is not mechanically decidable, for the same reason STE clarity is not. Any implementable check is a proxy. The previous proxy (`^You` ×2 OR one idiom) failed because it was satisfiable by text that had none of the intended character.
+
+**How to avoid — narrow the predicate until it is decidable, then name the guard for the narrow thing:**
+- The measurable, non-gameable core is **lexical density against a committed voice lexicon**: the block must contain ≥ N distinct tokens from a committed `voice-lexicon.md` (which must include `\bgrug\b` — its total absence across all 17 blocks was the tell), at a floor ratio to block length. This is checkable, has a real denominator, and cannot be satisfied by any amount of plain English.
+- Add the **negative** half, which is where the old guard had nothing: banned clear-voice constructions inside the block (full articles above a rate threshold, sentences over N words, second-person auxiliary chains). The old guard had only a positive test and so could not detect *dilution*.
+- **Publish the number.** "17/17 blocks carry ≥5 lexicon tokens at ≥3% density" is a claim with a denominator a reader can re-derive. "Voice preserved" is not.
+- Fuzz it: the guard must be run against (a) all 17 current blocks — which should **FAIL RED today**, and that RED is the acceptance evidence for the rebuild; (b) a corpus of plain-English blocks that pass the old guard; (c) adversarial blocks that stuff lexicon tokens into otherwise plain prose. If (c) passes, the density floor is too low.
+
+Because this guard *is* an unavoidable heuristic, it must carry the full unavoidable-heuristic tax: parser-oracle fuzz over the fence grammar (an unclosed fence, a nested fence, CRLF, a `## Caveman prompt` heading inside a fence), ≥2 independent red-teams, and a written statement that it measures lexical density and **not** voice.
+
+**Warning signs:** the new guard passes on the current 17 files. The guard's name contains the word "voice." No number is reported, only PASS.
+
+**Phase to address:** Phase 29.
+
+---
+
+### P-18: Unmeasurable conformance — "the rewrite landed" with no denominator
+
+**What goes wrong:**
+The phase completes, 37 files are rewritten, and the only evidence is that the guard is green. Since the guard polices a subset, green means "no violation of the subset was found," which is compatible with the migration having missed a third of the corpus.
+
+**How to avoid:**
+- Report **coverage** and **conformance** as two separate numbers with denominators: *files in scope / files rewritten* and *sentences checked / sentences conformant*, per surface. A file not in the scan set must be visible as such.
+- The scan set must be **derived**, not hand-listed. This repo has the bug already: `guard_context_writes`'s `CTX_WORKFLOWS` lists workflows `00`–`15` — **16 files** — while `agent-factory/workflows/` now contains **19**, so `16-context-read-write.md`, `17-task-claim.md`, and `18-context-compaction.md` are **outside the scan set**. Those are precisely the three workflows that describe context I/O. Any new hand-listed scan set will rot the same way. Derive from `readdirSync` (as `generate-catalog.ts` already does) and assert the count against an expected total so a *shrinking* corpus also fails red.
+- Keep a per-file conformance record in the trace so a later reader can tell which files were migrated and which were excluded and why.
+
+**Warning signs:** a hard-coded file array in a new guard. A phase report that says "all files" without a count. The count does not match `ls agent-factory/workflows | wc -l`.
+
+**Phase to address:** Phase 29; the `CTX_WORKFLOWS` scan-set gap is a Phase 28 (Consistency Audit) fix and should be listed as a finding there regardless.
+
+---
+
+### Area E — Read-only monitoring dashboard over actively-written files
+
+---
+
+### P-19: A second board grammar (the highest-probability repeat of the documented failure)
+
+**What goes wrong:**
+The dashboard ships its own board parser. It now disagrees with `validate-agent-factory.ts`'s parser about what a column is, and the two drift. The board renders one truth; the validator enforces another.
+
+**Why it happens:**
+The dashboard's needs (live counts, per-ticket detail, WIP display) are richer than the validator's (does this ticket's `column:` name an existing board heading?), so writing a fresh parser feels natural. There is already a board grammar in `validate-agent-factory.ts:419-443`:
+
+```
+boardColumnName(line) = line.replace(/^##\s+/,"").replace(/\s*\(WIP[^)]*\)\s*$/,"").trim()
+boardHasColumn(col)   = boardLines.some(l => l.startsWith("## ") && boardColumnName(l) === col.trim())
+frontMatter(text)     = { column: /^column:\s*(.+)$/m, status: /^status:\s*(.+)$/m }
+kebab(column) === status
+```
+
+Note that this grammar was **already** hardened once for exactly this class of bug (WR-03: `startsWith("## " + col + " ")` accepted word-prefixes, so column `In` matched `## In Development (WIP 0/3)`). A second parser will not inherit that fix.
+
+**How to avoid — structural, and this is the milestone's stated design already, so hold it:**
+**ONE board/state parser authority**, exported, emitting a typed snapshot. The dashboard renders the snapshot. The validator **consumes the same parser** rather than keeping its inline regexes. A future web app renders the same snapshot unchanged. Delete the second grammar; do not sync it. This is literally the doctrine's prescription and the CMP-02 fix that finally held ("a single exported frontmatter grammar shared by `parseNote` and `splitNotes` so the two cannot drift").
+
+Concretely: the parser owns the board-heading grammar, the WIP-marker grammar, the ticket-row grammar, and the ticket-frontmatter grammar. Everything else imports it. Add a parser-oracle fuzz suite over board fixtures (a heading with no WIP marker, `(WIP unlimited)`, `(visible, time-tracked)`, a heading inside an HTML comment — **note `plans/board.md` ships with a large `<!-- -->` documentation block containing example `## In Development (WIP 1/3)` headings and example ticket rows; a naive parser will read the documentation as live state**, which is the same fenced-example trap `guard_wr05` hit and fixed with `stripFencedBlocks` + cardinality).
+
+**Warning signs:** the word "parse" appears in a dashboard file. `validate-agent-factory.ts` is untouched by the dashboard phase. The dashboard shows a column the validator does not recognise.
+
+**Phase to address:** Phase 32 (Board Projector & CLI Dashboard) — projector first, dashboard second; the validator re-point is part of the same phase, not a follow-up.
+
+---
+
+### P-20: Torn reads — the board is *not* written atomically
+
+**What goes wrong:**
+The dashboard reads `plans/board.md` while a role is mid-write and renders a truncated board — or worse, a board that parses cleanly but is missing a column, so the operator sees a confidently wrong state.
+
+**Why it happens:**
+grugops has an atomic writer, `atomicWrite()` (context-io.ts:664) — temp file, `renameSync`, Windows fallback. But it governs **`.grugops/context/`** only, and `guard_context_writes` enforces its use only for that path. `plans/board.md` is moved by **roles using their editor tool** ("On `plans/board.md`, the Software Engineer owns the `In Development → In Review` transition…" — role and workflow prose throughout). Those writes are not atomic, and there is no single writer authority for the board.
+
+Two distinct hazards follow:
+- **Partial content.** A reader mid-write sees partial data. The accepted mitigation is writer-side: write to a unique temp file in the same directory, then `rename()` — atomic on one filesystem, so readers see all-old or all-new, never a mix.
+- **ENOENT window (Windows).** `atomicWrite`'s Windows fallback catches `EPERM`/`EEXIST`/`EACCES`, **`unlinkSync(finalPath)`, then retries the rename** (context-io.ts:670-678). Between the unlink and the rename the file **does not exist**. A dashboard that treats ENOENT as "empty board" will render an empty board. Windows is a hard target for this project.
+
+**How to avoid:**
+- **Reader side (mandatory, since the writer cannot be fully controlled):** read → parse → validate → render, and on *any* parse failure or ENOENT, **keep the last good snapshot and show a STALE badge with the failure reason and a timestamp**. Never render a partial parse. Never render empty on ENOENT. Re-read after a short backoff (this is the `awaitWriteFinish` idea — hold the event until the file is stable — implemented in ~15 lines of stdlib rather than by adding chokidar, which is an npm runtime dependency the project forbids).
+- **Writer side (the real fix, worth doing):** route board mutations through a `board-io.ts` helper using `atomicWrite`, and extend `guard_context_writes`'s token-vs-path co-occurrence check to cover `plans/board.md` and `plans/traceability.md`. That guard's grammar (a write TOKEN and the path on the same line, either order, with an arrow-lookbehind to avoid prose false positives — check-foundation-guards.ts:575-588) transfers directly. This is a modest edit that removes the hazard class rather than mitigating it.
+- Ignore `*.tmp-*` files when scanning; they are `atomicWrite`'s own temp files and will otherwise be picked up by both the watcher and any directory glob.
+
+**Warning signs:** the dashboard has ever shown an empty or half board. The renderer has no "last good" concept. `readFileSync` has no `try`. A test writes the fixture with `writeFileSync` (which is exactly the non-atomic case that must be *tested*, not avoided).
+
+**Phase to address:** Phase 32; the `board-io.ts` + guard extension may be pulled into Phase 27/28 as foundation work since it is cheap and unblocks the dashboard.
+
+---
+
+### P-21: `fs.watch` is not a reliable event source, and the reliable fallback is forbidden
+
+**What goes wrong:**
+The dashboard misses updates, double-renders, or throws — differently on macOS, Linux, Windows, and network mounts.
+
+**Why it happens — from the official Node fs docs:**
+- Availability depends on the OS notification layer (inotify / kqueue+FSEvents / event ports / `ReadDirectoryChangesW` / AHA). **IBM i does not support it.**
+- **"Unavailability on network file systems or virtualized environments may cause exceptions or unreliable behavior."** Docker-on-Mac bind mounts, WSL2 cross-filesystem paths, and NFS home directories are all realistic grugops environments.
+- **On Windows, directory renames/moves emit no event and directory deletion reports `EPERM`.** `atomicWrite`'s rename-based write on Windows is therefore in the *least* well-observed category.
+- **On Windows `fs.watch` monitors the directory, not the specific file**, so a file can be substituted with no event for the original filename — the docs state explicitly that there is no protection against malicious filesystem actions.
+- `recursive: true` is honored **only on supported platforms**.
+- Community-corroborated: duplicate events for a single change are routine, most changes surface as `rename`, and `filename` may be `null`.
+- The docs name **`fs.watchFile`** (stat polling, default interval 5007 ms) as the *slower but more reliable* alternative.
+
+The ecosystem answer is chokidar (`usePolling` for network mounts, `awaitWriteFinish` with a 2000 ms stability threshold). **grugops cannot use it** — zero host runtime dependencies is a hard constraint.
+
+**How to avoid:**
+- Treat `fs.watch` as a **hint, never a source of truth**. The event triggers a re-read; the re-read is the truth. Then duplicate events are harmless (the second re-read produces the same snapshot and renders nothing) and missed events are bounded by the poll floor.
+- Ship a **mandatory polling floor** alongside the watcher (e.g. `fs.watchFile`/`statSync` at 1–2 s), not an opt-in fallback. An opt-in fallback is never on when it is needed.
+- **Coalesce + debounce**: collapse events within a window and require size/mtime stability before parsing (the `awaitWriteFinish` idea, hand-rolled).
+- Detect content change by **content hash**, not mtime — mtime has coarse granularity on some filesystems and does not change on some in-place edits.
+- Watch the **directory** and filter by filename, not the file, so an atomic-rename replacement is still observed (a watch bound to an inode follows the old inode after a rename).
+- Wrap every `fs.watch` call in `try` and **degrade to polling-only, loudly**, on throw. Say so in the UI: "watch unavailable, polling every 2s."
+
+**Warning signs:** no polling path exists. `recursive: true` with no platform check. `mtime` equality used as the change test. Zero tests on a rename-based write.
+
+**Phase to address:** Phase 32.
+
+---
+
+### P-22: Watcher handle leaks and unbounded memory in a long-running process
+
+**What goes wrong:**
+A dashboard left open for hours accumulates `FSWatcher` handles (one per re-registration after an ENOENT or a rename), leaks `fs.watchFile` watchers (which are keyed by filename and persist until `unwatchFile`), and grows an unbounded event/render history until the terminal process is the heaviest thing on the box.
+
+**Why it happens:**
+Every existing grugops tool is a **short-lived, exit-when-done script**. Nothing in the codebase is a long-running process, so no habits, tests, or review reflexes exist for lifecycle management. This is a genuinely new failure class for the project.
+
+**How to avoid:**
+- One `AbortController` for the whole watcher set; pass `signal` to `fs.watch` (supported) and abort on exit, `SIGINT`, and `SIGTERM`.
+- Re-registration must `close()` the old watcher first; keep watchers in a `Map` keyed by path so double-registration is structurally impossible.
+- Bound every collection: last-good snapshot (1), error ring buffer (fixed N), no unbounded event log.
+- Add a **soak test** — run the dashboard against a fixture tree with a writer loop for a few thousand cycles and assert handle count and RSS are flat. Without a soak test this pitfall is undetectable in CI.
+- `persistent: false` where appropriate so the process can exit; `unref()` timers.
+
+**Warning signs:** `fs.watch` is called inside the event handler. No `close()` anywhere. `process.on('SIGINT')` absent. Memory is never measured.
+
+**Phase to address:** Phase 32.
+
+---
+
+### P-23: Terminal rendering hazards — flicker, resize, non-TTY, Windows ANSI, wide/CJK
+
+**What goes wrong:**
+The dashboard flickers on every re-render; garbles on resize; emits raw escape codes into a CI log or a pipe; mis-aligns columns for CJK/emoji ticket titles; renders unreadable on a Windows terminal.
+
+**Why it happens:**
+Full-screen redraw on every event is the naive implementation and is the flicker cause. Column alignment is computed from `String.length`, which counts UTF-16 code units — wrong for wide characters (CJK is 2 columns wide), combining marks, and emoji/ZWJ sequences. Ticket titles are free text and will contain these.
+
+**How to avoid:**
+- **Detect `process.stdout.isTTY` and branch.** Non-TTY (piped, CI, redirected to a file) → plain-text, no ANSI, no cursor control, single-shot output. Also honor `NO_COLOR`, `TERM=dumb`, and `CI`. This matters here because agents will pipe the dashboard.
+- Render **diffs, not full frames** — or at minimum draw into a buffer and write once per frame with a frame-rate cap (e.g. 10 fps) so a burst of writes cannot produce a burst of redraws.
+- Handle `process.stdout.on('resize')` by recomputing layout; clamp to a minimum width and degrade to a narrow layout rather than wrapping into garbage.
+- Compute display width with a real east-asian-width/grapheme routine, not `.length`. `Intl.Segmenter` is in the Node 22 stdlib for grapheme segmentation; width still needs a small code-point table. **Truncate by grapheme, never mid-sequence.** Sanitize control characters and ANSI sequences out of ticket titles before rendering (a ticket title is untrusted text that reaches a terminal — see Security Mistakes).
+- Modern Windows Terminal / ConHost support VT sequences, but only when virtual-terminal processing is enabled; do not assume. Keep the ANSI vocabulary small (SGR colors, cursor home, clear-line) and gate it on TTY detection.
+
+**Warning signs:** `console.clear()` per event. `.length` used for padding. No non-TTY test. The only tested terminal is the developer's.
+
+**Phase to address:** Phase 32.
+
+---
+
+### P-24: Scope creep from read-only monitor to state-mutating controller
+
+**What goes wrong:**
+"Just let me move a ticket from the dashboard" arrives, and grugops acquires a second write path to the board that bypasses roles, workflows, WIP checks, traceability updates, and the commit convention.
+
+**Why it happens:**
+A board that renders is one keystroke away from a board that edits, and the ask is completely reasonable from a UX standpoint. The constraint change ratified at kickoff was explicit and narrow: *"a **read-only, derived, local** view of the board is now permitted. Hosted/SaaS and any write path stay out of scope."*
+
+**How to avoid — structural:**
+- The dashboard process must **hold no write capability**: no `writeFileSync`/`appendFileSync`/`renameSync`/`mkdirSync` imports anywhere in the dashboard module tree. Assert this **mechanically** — an import-graph check over the dashboard's own sources, added to the foundation guards. Its grammar is "does this module tree import a mutating `node:fs` symbol," which is a real, decidable property of the source and **not** a subset heuristic if implemented over imports rather than prose.
+- No `--fix`, no `--move`, no interactive keybinding that mutates. If a user needs to move a ticket, the dashboard prints the `/grug` command to run.
+- Note the existing precedent to point at: `install --check` is a doctor that "reports and names; it never edits the user's repo." Same posture, same rationale.
+
+**Warning signs:** an issue titled "make the board interactive." A `--write` flag "just for testing." `node:fs` write symbols appear in a dashboard import.
+
+**Phase to address:** Phase 32; add the import-graph guard in the same phase that adds the dashboard.
+
+---
+
+### P-25: The board is derived from three sources that disagree, and the dashboard picks one
+
+**What goes wrong:**
+`plans/board.md` says a ticket is `In Review`; `plans/tickets/ABC-012.md` frontmatter says `status: in-development`; `.grugops/queue/claimed/` says an agent holds it. The dashboard shows one of these confidently.
+
+**Why it happens:**
+There are genuinely three state surfaces now — the board (human-facing WIP truth), ticket frontmatter (the board↔ticket contract the validator enforces), and the queue registry (the actual claim state, with `now-running.md` as its derived render). v2.0 added the third. Nothing reconciles them continuously; workflow 09 (daily sweep) reconciles the first two *periodically*.
+
+**How to avoid:**
+- The typed snapshot must model **disagreement as a first-class value**, not resolve it silently. A ticket whose three sources disagree renders as `CONFLICT` with all three values shown. This is the `UNKNOWN - verify` discipline applied to a UI: an honest "these disagree" beats a confident wrong answer, and it is the only rendering consistent with the project's no-fabrication constraint.
+- Name the authority per field in the projector's contract (board = column display; ticket frontmatter = the contract the validator enforces; claim registry = who is actually working). Do not let the dashboard invent a precedence order that no other component shares.
+- The dashboard surfacing conflicts is a **feature** — it makes the daily-sweep reconciliation visible and is arguably the strongest operator value in the whole projector.
+
+**Warning signs:** the projector has a `resolveConflict()` function. The dashboard and `validate-agent-factory` disagree about the same tree. A conflict is silently dropped.
+
+**Phase to address:** Phase 32.
+
+---
+
+### Area F — Cross-cutting
+
+---
+
+### P-26: Freshness-gate proliferation and the vacuous-pass trap
+
+**What goes wrong:**
+v2.1 adds more generated artifacts (adapter bodies, the guarantees render, board snapshot fixtures) and therefore more freshness gates. Two failure modes: gate sprawl (five `freshness:*` npm scripts nobody runs together), and **vacuous passes** — a gate that is green because there is nothing to check.
+
+**Why it happens:**
+Documented in this project already: `freshness:context` "currently passes *vacuously* on the grugops tree itself — there are no committed `.grugops/context/` notes… its non-vacuous behavior is proven only by its tests" (Key Decisions). `checkTickets()` in the validator has the same shape: `if (ticketFiles.length === 0) return;` — zero tickets → green (D-43 vacuity).
+
+**How to avoid:**
+- Every new gate reports **what it checked** (`compared 17 adapters, 0 drift`), not just PASS. A count of zero is then visible as the anomaly it is.
+- Any gate whose non-vacuous behavior is only proven by its tests must say so in its own output.
+- Consolidate the `freshness:*` lane into a single `npm run freshness:all` that CI runs, so a new gate cannot be added and then never invoked.
+
+**Phase to address:** Phase 28 (audit the existing gates), then each phase that adds one.
+
+---
+
+### P-27: `orchestrator.md` crosses its FAIL ceiling mid-milestone
+
+**What goes wrong:**
+`orchestrator.md` is 7562 B against WARN 7165 / FAIL 7570 (check-foundation-guards.ts:489). **It is 8 bytes from a hard build failure.** Every v2.1 feature adds to it: the spawn allowlist, the per-checkpoint matrix, the STE profile pointer, the dashboard mention. The build will go red on a routine edit, mid-plan, and the reflex fix is to raise the ceiling.
+
+**How to avoid:**
+Trim or split `orchestrator.md` **before** any v2.1 phase writes to it — this is already standing obligation #3 from the v2.0 close, and it is now genuinely urgent rather than advisory. The de-duplication work ("say each thing once") is the natural vehicle and should target the coordinator spine first. Five other roles sit near their ceilings too, so the STE/de-dup phase should report the byte delta for all 17.
+
+**Warning signs:** any commit that raises a value in `roleCeiling()`.
+
+**Phase to address:** Phase 27 or 28, before the coordinator gains text. Not later.
+
+---
+
+## Guard Grammar Audit
+
+Required by the framing above. For every guard v2.1 touches or adds: what it matches, what it is claimed to enforce, and whether the former is a strict subset of the latter.
+
+| Guard | Grammar it actually matches | Predicate it is claimed to enforce | Strict subset? | Verdict / required action |
+|---|---|---|---|---|
+| `guard_caveman_preserved` (existing) | `>=2` lines matching `/^You\b/` **OR** `>=1` token from `VOICE_MARKERS`, inside the fenced `## Caveman prompt` block | "every role keeps its caveman voice" | **YES — proven failed** | Rebuild as lexical-density with a published number; rename to what it measures; RED against all 17 current files is the acceptance evidence (P-17) |
+| `guard_wr05` (existing) | Line-anchored frontmatter EREs for `Agent`/`Task` + `coordinator: true`, over a 4-file scan set, fence-stripped, cardinality == 1 | "only the coordinator may spawn" | NO for that predicate — a real token check with both directions and cardinality | Keep as-is. Do **not** extend it to prose (P-02) |
+| **NEW** adapter referential integrity | Set equality between `Agent(...)` names, `.claude/agents/*.md` frontmatter `name:`, and the routable-role corpus | "every routable role can actually be spawned" | **NO** — enumerates both authorities and asserts equality | Build in Phase 27, before authoring adapters (P-01) |
+| **NEW** adapter-body staleness | *If implemented as a phrase deny-list:* a fixed word set | "no stale/contradictory adapter prose" | **YES — reject this design** | Replace with generate + `freshness:adapters` byte-equality; staleness becomes unrepresentable (P-02) |
+| `guard_context_writes` (existing) | Write TOKEN + `.grugops/context/` path co-occurring on one line, either order, arrow-lookbehind, over a hand-listed 17-role + **16**-workflow scan set | "no raw context write in shipped kit text" | Grammar is sound; **the scan set is stale** — workflows 16/17/18 are outside it | Derive the scan set via `readdirSync`; assert the count. Extend the path set to `plans/board.md` + `plans/traceability.md` (P-18, P-20) |
+| **NEW** `guard_ste_*` | Approved-word membership, POS restriction, sentence/paragraph length, banned constructions | *If named `guard_ste`:* "ASD-STE100 conformance" | **YES — inherently, and unfixably** | Name it for the decidable subset; publish the split; human Tier-3 for the remainder; never claim STE conformance (P-14) |
+| **NEW** board/state projector | Board heading + WIP-marker + ticket-row + ticket-frontmatter grammar, HTML-comment-stripped | "the rendered board equals the board file" | NO **iff** it is the single authority and the validator consumes it | Must replace `validate-agent-factory.ts`'s inline regexes, not coexist with them (P-19) |
+| **NEW** dashboard read-only | Mutating `node:fs` symbols in the dashboard module import graph | "the dashboard cannot write" | NO if over imports; **YES** if over prose/docs | Implement over imports/AST; add to foundation guards (P-24) |
+| **NEW** no-conditional-assertions in generated specs | `expect`/`browser_verify_*` inside `try`/`catch`/`if` | "no silently no-op test" | **YES if regex; NO if over the TS AST** | Implement over the AST, or narrow the claim (P-13) |
+| **NEW** checkpoint policy lookup | TypeScript exhaustive switch over a closed checkpoint set | "no checkpoint defaults open" | **NO** — compile-time totality is a real authority | Cheapest structural win in the milestone (P-06) |
+| `oracleWr05Wording` (existing) | Per-beat regexes (action token + phase on one line) over 4 `.planning` files | "the WR-05 closure narrative is consistent" | Sound, but **brittle to editorial prose** | Freeze the scanned files against the rewrite, or migrate the beats out of editorial prose. Never loosen the regexes (P-16) |
 
 ---
 
 ## Technical Debt Patterns
 
 | Shortcut | Immediate Benefit | Long-term Cost | When Acceptable |
-|----------|-------------------|----------------|-----------------|
-| Let roles `Write` context files directly instead of via `atomicWrite`/`appendNote` | No helper to build; "the agent just writes" | Lost-update / interleaved / torn-read corruption of the *sole* memory under parallelism | **Never** — atomic-only is the foundation; grep-guard it |
-| Verify-before-write as role prose only ("agents should verify") | No mechanical check to build | Self-graded findings pollute the context; the differentiator collapses | **Never** — `finding` admission is mechanical + refuse-self-set, with a RED fixture |
-| `O_EXCL`/`'wx'` claim everywhere (ignore NFS) | One primitive, simplest code | Silent claim race on network-mounted state → double-claim/corruption | Only when state is provably local; default to `mkdirSync` (NFS-safe) |
-| `renameSync`-replace with no Windows `unlink`-first | Works on the dev Mac/Linux | `EEXIST`/`EPERM` on every Windows user — breaks publish + claim | **Never** — Windows is the reason TS was adopted (D-13) |
-| Append unbounded; compact "later" | Ships the substrate faster | Context rot + 15× token tax erases the ~50% cost win; the pitch's thesis fails | Never for the active read-path; append-only *history* on git is fine |
-| Compact aggressively, drop "redundant" fields | Smaller context | Drops `verified_by`/`failed-attempt`/`supersedes` → re-pollution, broken lineage, fabrication | Never — those fields are load-bearing and compaction-exempt |
-| Big-bang delete handoffs then rewire | Bold, fewer steps on paper | Factory loses its memory mid-pivot; missed readers ship broken | **Never** — substrate-first, grep-to-zero, then delete |
-| One background subagent per queue item, no WIP cap | Maximal parallelism, simplest coordinator | Unbounded concurrent *width* (platform caps depth-5 only) → runaway token bill | Never — cap via `queue.wip_limit`; coordinator-only `Agent` grant |
-| Assert "degrade, never break" in prose, no equivalence test | Looks done; ships faster | Sequential path silently diverges/worsens; A3/DOG-02 falsely "retired" | **Never** — the equivalence oracle IS the retirement |
-| Cite DeLM's +9.3pp / ~50% as grugops's numbers | Strong pitch | Unverified claim; the trace-is-the-proof brand forbids it | Never — `UNKNOWN - verify` until grugops's own dogfood measures it |
-| Freshness check cited as proof of cross-platform correctness | No Windows/NFS CI to set up | Source↔output parity ≠ behavior correctness; Windows/NFS bug ships green | Never — behavior needs Windows/NFS behavior tests |
+|---|---|---|---|
+| Raise a `roleCeiling()` value to unblock a rewrite commit | Build goes green now | Silently retires the anti-bloat guard that has held four milestones; makes the de-duplication claim unfalsifiable | **Never mid-phase.** Only as a single end-of-phase re-baseline where every file is ≤ its old value, with the delta recorded |
+| Loosen an oracle regex so an edited doc passes | Unblocks a commit | Converts a working oracle into a strict subset of its own predicate — the documented failure mode, self-inflicted | Never |
+| Give the dashboard its own board parser | Ships faster; richer than the validator's needs | Two grammars over one format; guaranteed drift; the exact CMP-02 failure | Never — the projector-as-single-authority *is* the feature |
+| Add chokidar for reliable watching | Solves `fs.watch` in one line | Breaks the zero-host-runtime-dependency constraint that defines the product | Never. Hand-roll the ~15 lines of debounce + polling floor |
+| Read the autonomy grant from `factory.config.json` | One place to configure | The agent can write the file that governs it; widens the accepted v2.0 residual to reach merge and prod deploy | Never for the **grant**. Acceptable for the *intent*, if the grant is separate |
+| Deny-list stale words in adapter bodies | Catches today's known stale phrase | The next stale phrase is not on the list; creates a false sense of coverage | Only as a temporary supplement *alongside* the generate+freshness fix, never instead of it |
+| Hand-list a scan set in a new guard | Explicit, reviewable, matches house style | Rots on the next file addition — already happened to `CTX_WORKFLOWS` (16 of 19) | Only with a derived count assertion that fails red when the corpus changes |
+| Accept a "browser session transcript" as UAT evidence | Unblocks the autonomous-testing feature | Fabrication surface; destroys the one property the product sells | Never |
+| Skip the soak test for the dashboard | Saves a day | Handle/memory leaks are invisible in CI and only appear in the operator's long session — the exact use case | Only if the dashboard is documented as short-run, which defeats its purpose |
+
+---
 
 ## Integration Gotchas
 
-*(For a decentralized file-based kit, "integrations" = the 5 host CLIs, the file-system/OS substrate, git-as-audit-log, and Claude Code's spawn API — where the parallel/sequential prose actually executes.)*
-
 | Integration | Common Mistake | Correct Approach |
-|-------------|----------------|------------------|
-| `node:fs` `renameSync` on Windows | Atomic-replace assumed; fails `EEXIST`/`EPERM` if dest exists | `unlink`-then-`rename` (or single-writer files); document + Windows-CI test |
-| `node:fs` `O_EXCL`/`'wx'` on NFS | Used as the claim lock on network-mounted state; silent race | `mkdirSync` claim (atomic + NFS-safe) as the default |
-| `appendFileSync` for the verified note | Multi-KB note appended; interleaves past `PIPE_BUF` | Append a small JSONL metadata line (<512B); `atomicWrite` the prose body |
-| Claude Code `Agent` spawn | Assumed to cap concurrent *width*; granted to every role | Platform caps depth-5 only — grugops caps width via WIP; `Agent(<allowlist>)` to coordinator only |
-| Claude Code nested spawn (v2.1.172+) | Designed-against the old "can't nest" assumption | Design for optional nested fan-out within the fixed depth-5 background cap |
-| The 4 sequential CLIs (Codex/Gemini/OpenCode/Copilot) | Separate sequential code path / note schema | One tool-neutral substrate; sequential = concurrency-1 of the same path |
-| git as the audit log | History squashed/rewritten; provenance fields dropped | Append-only, full per-note `by`/`at`/`verified_by`/`supersedes`; `git log` replays the trace |
-| Structure validator | Still expects handoff structure after the rip-out | Update validator + catalog in the SAME change as the deletion (grep-to-zero) |
-| Installer seed / two-root state | `plans/handoffs/` seed left; user handoff state deleted on update | Re-seed `.grugops/context/`+`.grugops/queue/`; rename-to-backup user state, never delete-first |
-| Plugin-shipped subagents | Spawning Orchestrator + hooks shipped in the plugin (ignored for security) | Ship the spawning Orchestrator + guards STANDALONE `.claude/agents/`, not the plugin |
+|---|---|---|
+| Node `fs.watch` | Treating events as the source of truth; assuming `recursive` works; assuming one event per change | Event = hint only; the re-read is truth; mandatory polling floor; coalesce+debounce; content-hash comparison; wrap in `try` and degrade loudly |
+| Node `fs.watch` on Windows | Assuming a rename-based write is observed | Windows emits no event for directory rename/move and watches the *directory* not the file; watch the directory + filter, and rely on the polling floor for renames |
+| Network mounts / Docker bind / WSL2 | Assuming inotify works | Official docs: unreliable or throwing on network FS and virtualized environments; polling is the documented reliable alternative (`fs.watchFile`, default 5007 ms) |
+| `atomicWrite` (this repo) | Assuming the target always exists | The Windows `EPERM` fallback unlinks then renames — an ENOENT window. Readers must treat ENOENT as *transient*, not as "empty" |
+| `.tmp-<pid>-*` temp files | Globbing the directory and parsing them | Filter `*.tmp-*` in both the watcher and any directory scan |
+| Claude Code subagents | Assuming an allowlisted name resolves | A missing agent type fails the spawn and the model **completes inline, silently**. Assert referential integrity; fail hard at the spawn point |
+| Claude Code plugin form | Referencing `agent-factory/…` from inside the plugin | Plugins are copied to a cache; `../` references are not copied. Adapter path resolution must target the user's repo (still flagged "verify during dogfood") |
+| Playwright MCP / Claude in Chrome | Accepting the agent's narration as the result | Assertions must be tool return values; better, generate a spec the §14 gate runs; the verdict is minted by `emitVerdict()` and nothing else |
+| Claude in Chrome | Assuming it runs headless/in CI | Attended browser + site-level permissions required. Probe first; loud skip; UAT stays `pending` |
+| The four non-Claude CLIs | Assuming hook-tier guarantees apply | There is no hook there; the un-forgeable admission tier is **absent**. Document the asymmetry; do not let the matrix imply otherwise |
+| `factory.config.json` | Adding a third reader for the new matrix | One discriminated-result reader (`absent`/`present`/`unreadable`); every consumer branches on it |
+
+---
 
 ## Performance Traps
 
-*(grugops has no runtime; "performance" here = token cost + agent success rate as the decentralized factory scales with queue size and parallelism.)*
-
 | Trap | Symptoms | Prevention | When It Breaks |
-|------|----------|------------|----------------|
-| 15× multi-agent token tax × fat shared context | Aggregate cost rises super-linearly with agent count; ~50% win erased | Two-tier memory (compact promotes to shared); cap fan-out (WIP) | First real parallel fan-out on Claude Code |
-| Unbounded shared-context growth (context rot) | Agent output less focused; lost-in-the-middle; cost climbs per task | Compact active read-path; append-only history on git only | As the per-task note count grows over a long task |
-| Over-aggressive compaction | Re-tried failed-attempts; broken `supersedes` lineage; subtle fabrication | Compaction-exempt fields; dialable; compacted output re-verified | When compaction summarizes load-bearing fields away |
-| Unbounded concurrent background-subagent width | Surprise token invoice; the depth-5 cap doesn't help (it caps depth) | `queue.wip_limit` bounds in-flight claims; coordinator-only spawn | When the coordinator fans out per-item with no WIP cap |
-| Unbounded verify→regenerate loop | Tokens spin on a write that never passes verification | Reuse §14 bounded `self_fix_attempts` + per-subagent `maxTurns` | When a note is unverifiable and the loop has no bound |
-| Double-claimed work | Two agents do the same task; 2× tokens + conflicting writes | Atomic rename/`mkdir` claim; double-claim dogfood test | Under true Claude Code parallel spawn (never sequential) |
+|---|---|---|---|
+| Full-frame redraw per event | Flicker; CPU spike during agent activity | Diff rendering or buffered single-write with a frame cap (~10 fps) | Immediately, as soon as an agent writes in a burst |
+| Re-parse the whole state tree on every event | Dashboard lags behind reality; CPU pegged | Hash-gate: re-parse only when a file's content hash changed; parse per-file, not per-tree | ~50+ tickets, or a busy N-agent run |
+| `fs.watchFile` per file with no ceiling | Growing poll cost; handle count grows | Watch the **directory**; one polling timer for the whole tree | ~100 watched files |
+| Unbounded event/render history | RSS grows over an operator's session | Fixed-size ring buffers; last-good snapshot is exactly one | Hours, not minutes |
+| Watcher re-registration without `close()` | `EMFILE`/too many open files after a while | `Map`-keyed watchers; close before re-register; one `AbortController` | Hundreds of rename events |
+| Reading the full context corpus for the dashboard | Startup latency grows with project age | Read the committed JSONL index, not every note; respect `freshness:context` | Hundreds of notes |
+| Per-sentence STE checking of the whole corpus in the gate | Guard runtime dominates the build | Check only changed files in the gate; full-corpus check in a dedicated lane | 37+ files × per-sentence analysis |
+
+---
 
 ## Security Mistakes
 
-*(Domain-specific to a decentralized verified-context kit, beyond generic web security.)*
-
 | Mistake | Risk | Prevention |
-|---------|------|------------|
-| Self-authored `verified_by` stamp | Agent grades its own work; fake "verified" finding pollutes memory | Refuse self-set (mirror prod-deploy hook); verifier ≠ verified; validator fails it |
-| Autonomous admission of high-severity context notes | Security/architecture/release fact admitted with no human; safety floor eroded | `context.human_admission` dial; agent proposes, named human disposes (enterprise) |
-| Spawn (`Agent`) tool granted broadly | Rogue/uncontrolled fan-out; runaway cost; bypasses the coordinator gate | `Agent(<allowlist>)` to coordinator only; inverted WR-05 grep guard |
-| Prod-deploy hook bypassed by a spawned/parallel agent | A subagent deploys without the human gate | Hook unchanged + standalone (plugin agents ignore hooks); every spawned agent still hits it |
-| Compaction silently rewrites a verified security finding | A security caveat summarized away; gap ships behind a "verified" gist | Compaction-exempt fields; compacted output re-verified; `UNKNOWN - verify` if unfaithful |
-| A `claim` consumed as a `finding` for a security decision | Unverified assertion drives a release/security choice | Workflow rule: only `finding` satisfies a security-bearing dependency |
-| Caveman voice in a context security/release finding | Human can't act at the safety moment (carry v1.2 Pitfall 3) | Clear professional English in all finding/decision/security note bodies |
+|---|---|---|
+| Grant lives in a file the agent can write | The agent lowers the floor that governs it, then passes it; the trail records a pass | Grant only from the process env of a guard the agent did not launch; config expresses intent, never grant (P-07) |
+| Reimplementing the env-var grant for new checkpoints | The agent's own `Bash` child sets it | Reuse the existing hook tier verbatim; add the negative test where the agent exports the variable and is still refused (P-08) |
+| Config parse failure returns the lean default | Corrupt/unreadable config silently disables governance — live today in `readGovernanceConfig`'s `catch` | One discriminated-result reader; `unreadable` → strictest, loudly (P-05) |
+| Unknown enum value falls through to permissive | A typo disables a control the user believes is on | Unknown → strictest defined variant; preserve and report the raw value; reject unknown *keys* loudly (P-06) |
+| Rendering untrusted ticket titles raw to a terminal | ANSI/OSC injection from a title in a PR or an imported issue can move the cursor, rewrite the screen, or (via OSC 8 / OSC 52) forge links or touch the clipboard | Strip control chars and ESC sequences before rendering; the dashboard renders *text*, never a passthrough |
+| Dashboard reading paths from config without normalization | Path traversal out of the repo into `$HOME` | Reuse the existing `assertSafeTask`-style validation; resolve and confine to the repo root |
+| `fs.watch` treated as a security boundary | Node docs state explicitly there is no protection against malicious FS actions; on Windows a file can be substituted with no event for the original name | Never; the watcher is a UX convenience, all trust decisions run through the existing guards |
+| Approval state persisting beyond one run | A grant intended for one deploy stays live for the session | Grant is per-run and re-asserted at the point of effect; no "temporary" override without an expiry and a re-prompt |
+| Browser session with real credentials driven by an agent | Agent navigates to an unintended origin with a live session | Restrict origins; never run acceptance browsing against production; treat the browser as the *device under test*, never a privileged client |
+
+---
 
 ## UX Pitfalls
 
-*(UX here = the developer using grugops across solo→enterprise, and across the parallel vs degraded-sequential lanes.)*
-
 | Pitfall | User Impact | Better Approach |
-|---------|-------------|-----------------|
-| Sequential-CLI user silently gets worse results than Claude Code | "Degrade" became "diverge"; unfair, untrusted | Equivalence oracle proves same verified-finding set + acceptance; document the tradeoff (slower, not worse) |
-| Hidden runtime queue/context the user can't see | Decentralization feels like a black box; lost the legible board | Board-as-state stays the human-readable WIP-limited queue view |
-| Solo user forced into enterprise context-admission ceremony | Over-taxed; abandons (carry v1.2 dial pitfall) | `context.human_admission` lean default = off; enterprise escalates |
-| Surprise token bill from a parallel run | Trust broken; "the tool spent my budget" | WIP-capped fan-out; dogfood measures cost; lean default small concurrency |
-| `--update`/`--migrate` deletes user handoff state during the pivot | "The tool ate my work" (carry v1.2 migrate pitfall) | Rename-to-backup, dry-run, reversible; never delete-first |
-| A3/DOG-02 marked "retired" with no proof | User can't trust the parity claim; the brand is honesty | Retirement = the equivalence oracle passing, surfaced in the dogfood evidence |
+|---|---|---|
+| Rendering a confidently wrong board on a partial parse | The operator trusts a false state and acts on it — worse than no dashboard | Last-good + STALE badge + reason + timestamp; never render a partial parse |
+| Rendering empty on ENOENT | Looks like "all work done" at the exact moment a write is in flight | ENOENT is transient; keep last good and retry |
+| Silently resolving board/ticket/queue disagreement | Hides the drift the daily sweep exists to fix | Render `CONFLICT` with all three values — the honest render is the more useful one |
+| A lowered floor visible only in a config file | The operator forgets the floor is down and reads the trace as if it were up | Per-run banner naming every non-default checkpoint; effective policy recorded on every verdict |
+| ANSI escapes in a piped/CI log | Unreadable logs; broken downstream parsing | `isTTY` branch; honor `NO_COLOR`/`TERM=dumb`/`CI` |
+| Column misalignment on CJK/emoji titles | Board unreadable for non-ASCII projects | Display-width-aware layout; grapheme-safe truncation |
+| Dashboard that looks interactive but is not | User tries to move a ticket, nothing happens | State read-only in the header; print the `/grug` command instead of accepting the keystroke |
+| A loud skip that looks like a pass at a glance | UAT believed done when the browser never ran | Distinct `SKIPPED:` marker (existing convention); UAT stays `pending` |
+
+---
 
 ## "Looks Done But Isn't" Checklist
 
-- [ ] **Atomic writes:** Often a raw `Write`/`writeFileSync` of a context file slips in — verify every context write goes through `atomicWrite`/`appendNote`; grep-guard passes; N-agent dogfood produces N distinct un-clobbered notes
-- [ ] **Verify-before-write:** Often a self-authored/hollow `verified_by` passes — verify a RED fixture (hollow + self-set stamp) FAILS the validator; verifier ≠ verified is enforced
-- [ ] **Stale reads:** Often only a dispatch-time read exists — verify a re-read-before-publish step + `supersedes` handling; a superseded `claim` is never consumed as a fact
-- [ ] **Atomic claim:** Often `O_EXCL` used on networkable state — verify `mkdirSync`/rename claim; double-claim test passes; stale-claim reclaimed on next scan
-- [ ] **Compaction:** Often drops load-bearing fields — verify `verified_by`/`failed-attempt`/`supersedes`/provenance survive compaction; compacted output is re-verified
-- [ ] **Fan-out cap:** Often missing — verify `queue.wip_limit` bounds in-flight claims; `Agent` granted to coordinator only; verify-loop bounded
-- [ ] **Degraded path:** Often asserted in prose only — verify the dual-path equivalence oracle (parallel vs sequential) asserts on ON-DISK artifacts, same verified-finding set + acceptance
-- [ ] **Handoff removal:** Often a missed reader — verify grep-to-zero of handoff references; validator + catalog updated in the same change; substrate wired before deletion; rollback story exists
-- [ ] **Audit trace:** Often provenance dropped / order lost — verify every note has `by`/`at`/`verified_by`; trace reconstructable from `at`+`supersedes` (not file position); git history append-only
-- [ ] **Cross-platform:** Often POSIX-only — verify Windows `unlink`-then-`rename`; NFS `mkdir` claim; behavior tests run on Windows/NFS in CI (not just freshness check); no host runtime dep added
-- [ ] **A3/DOG-02 retirement:** Often "retired" = handoffs deleted — verify it's the EQUIVALENCE TEST passing, not just the deletion
-- [ ] **Carry-forward v1.x guards still green:** WR-05 (now inverted), single-source, AGENTS.md byte budget, voice-lint, test-integrity, prod-deploy hook all still pass after the pivot
+- [ ] **Spawn fix:** adapters exist and the allowlist is complete — but has a **captured live run** shown a role agent executing in its own session, with a marker inline execution cannot produce? A green suite is not a capture (D-01/D-02).
+- [ ] **Spawn fix:** does the coordinator **STOP** on an unresolvable role agent, or does it still fall back to inline?
+- [ ] **Spawn fix:** does the referential-integrity oracle FAIL RED on today's tree (`.claude/agents/` with one file)? If not, it does not check what it claims.
+- [ ] **Adapter bodies:** is stale prose *unrepresentable* (generated + byte-gated), or merely *not currently present*?
+- [ ] **Autonomy matrix:** is there still more than one function reading `factory.config.json`? Does a `chmod 000` config produce the **strictest** behavior?
+- [ ] **Autonomy matrix:** is adding a new checkpoint without a default a **compile error**?
+- [ ] **Autonomy matrix:** is there a test where the agent's own `Bash` call exports the grant and is still refused?
+- [ ] **Lowered floor:** does a verdict note produced under a lowered floor look different, forever, from one produced under the default?
+- [ ] **Lowered floor:** does any static file still assert an unconditional guarantee the matrix can now remove?
+- [ ] **Browser evidence:** is the pass a tool return value or a model sentence? Is it bound to a commit SHA and a gate run id?
+- [ ] **Browser evidence:** does the lane loud-skip when no browser is present, leaving the UAT `pending`?
+- [ ] **STE rewrite:** is the guard named for the subset it decides? Is the conformance claim narrowed to that subset?
+- [ ] **STE rewrite:** were byte ceilings re-baselined **downward** in one end-of-phase commit, with per-file deltas recorded?
+- [ ] **STE rewrite:** is the scan set derived from `readdirSync` with a count assertion, or hand-listed? (`CTX_WORKFLOWS` is 16 of 19 today.)
+- [ ] **STE rewrite:** do the four `.planning` files `oracleWr05Wording` scans still carry all three beats?
+- [ ] **STE rewrite:** were the safety-surface exclusions honored — workflow 05's emission/admission paragraphs, workflow 16, workflow 15 + the ASVS checklist, the prod-deploy prose?
+- [ ] **Dashboard:** is there exactly ONE board parser in the repo, and does `validate-agent-factory.ts` use it?
+- [ ] **Dashboard:** does it parse `plans/board.md`'s large HTML documentation comment as live columns/rows?
+- [ ] **Dashboard:** does it render correctly when the board is being written non-atomically? When it briefly does not exist? On a network mount with `fs.watch` throwing?
+- [ ] **Dashboard:** flat handle count and RSS over a soak run? Clean exit on `SIGINT`?
+- [ ] **Dashboard:** is non-TTY output plain text? Does the module tree import any mutating `node:fs` symbol?
+- [ ] **Everywhere:** does every new guard report **what it checked** (a count), so a vacuous pass is visible?
+- [ ] **Everywhere:** is `orchestrator.md` still under 7570 B?
+
+---
 
 ## Recovery Strategies
 
 | Pitfall | Recovery Cost | Recovery Steps |
-|---------|---------------|----------------|
-| Context corrupted by a write race | MEDIUM | git history is append-only → recover lost notes from `git log`/prior commits; introduce `atomicWrite`/`appendNote` + grep-guard; re-run N-agent dogfood |
-| Unverified finding polluted the context | MEDIUM | Re-run the verifier over existing findings; demote unstamped findings to `claim`; add the refuse-self-set check + RED fixture; audit downstream consumers |
-| Token blowup from fat context / unbounded fan-out | MEDIUM | Add two-tier compaction + `queue.wip_limit`; re-measure cost in the dogfood; compaction-exempt the load-bearing fields |
-| Double-claimed / starved tasks | LOW–MEDIUM | Switch to `mkdirSync`/rename atomic claim; add stale-claim sweep rule; add the double-claim + crash-injection test |
-| Degraded path diverged silently | HIGH (trust) | Build the equivalence oracle; treat parallel-only divergence as a bug vs the sequential reference; re-prove A3/DOG-02 retirement |
-| Handoff removal broke a downstream reader | MEDIUM | git revert the cutover (it's one coordinated change); re-sequence substrate-first; grep-to-zero before re-deleting; update validator+catalog in the same change |
-| Audit trace scrambled / unreconstructable | MEDIUM–HIGH | Backfill provenance fields; rebuild the JSONL index from markdown; enforce provenance in the validator; never squash the audit history |
-| Windows/NFS atomicity bug shipped | MEDIUM | Add `unlink`-then-`rename` + `mkdir` claim; add Windows/NFS behavior tests to CI; mark prior cross-platform claims `UNKNOWN - verify` until tested |
-| DeLM numbers claimed as grugops's | LOW | Replace with `UNKNOWN - verify`; stand the pitch on auditability+gating+governance (demonstrable), not borrowed benchmarks |
+|---|---|---|
+| P-19 second board grammar shipped | **MEDIUM** | Extract the projector as the sole authority; re-point the validator; delete the dashboard's parser; re-run the fuzz corpus. Cheap while both are new, expensive once a web renderer also depends on the second grammar |
+| P-05/P-06 a checkpoint shipped default-open | **HIGH** | Every run made under the open default is retroactively suspect; the trace cannot distinguish them. Requires a corrective note in the audit trail per affected run + a version bump. **This is why it must be prevented, not recovered** |
+| P-16 byte ceilings raised to unblock | **LOW if caught immediately** | Revert the ceiling change, split the file instead. HIGH once several phases have grown into the new headroom — the baseline is gone |
+| P-14 STE conformance over-claimed | **LOW** | Narrow the claim in one commit; regenerate the catalog. Cheap, but must be done before any external communication repeats the claim |
+| P-10 a fabricated browser pass reached the trace | **HIGH** | Every UAT resolved through that path reverts to `pending`; the evidence chain is re-derived. This is reputational, not just technical |
+| P-20 the dashboard rendered a wrong board | **LOW** technically | Add last-good + STALE; but the operator's trust is the real cost, and it is slow to rebuild |
+| P-22 handle/memory leak in a shipped dashboard | **LOW** | Add the `AbortController`+`Map` lifecycle and a soak test. Contained because the dashboard is non-load-bearing by design |
+| P-02 another stale-prose survivor found post-milestone | **MEDIUM** | Switch to generated adapter bodies. Note this would be the *second* occurrence; a third would indicate the deny-list approach was chosen again |
+
+---
 
 ## Pitfall-to-Phase Mapping
 
-*(v2.0 phases start at 20. Ordering rationale below the table. Phase names are themes; the roadmapper assigns final numbers — but the FOUNDATION-before-content ordering is the load-bearing recommendation, mirroring how v1.2 front-loaded its foundation guards.)*
+Phase numbers are the researcher's recommendation (v2.1 resumes at 27); the roadmapper assigns finals.
 
-| # | Pitfall | Prevention Phase (theme, ≥20) | Verification |
-|---|---------|-------------------------------|--------------|
-| 1 | Write races (lost/interleaved/torn) | **20** — Substrate & Concurrency Foundation | grep-guard: no raw context writes; N-agent dogfood → N distinct un-clobbered notes |
-| 2 | Stale-context reads | **20** (schema) + **23** (decompose to minimize shared state) | `claim`/`finding`/`supersedes` schema; re-read-before-publish; no `claim` consumed as fact |
-| 3 | Verification gaps (un-cheatable verifier) | **21** — Verify-Before-Write Admission (+ validator in 20; human-admission dial in 25) | RED fixture: hollow/self-set `verified_by` FAILS; verifier ≠ verified |
-| 4 | Token bloat / lossy compaction | **22** — Memory/Trajectory Compaction (+ fan-out cap in 23) | Active context stays compact; load-bearing fields survive; dogfood measures cost |
-| 5 | Coordination / duplicate work / starvation | **20** — Substrate & Concurrency Foundation | `mkdir`/rename atomic claim; double-claim test = each task claimed once; stale reclaim |
-| 6 | Degraded-sequential divergence (A3/DOG-02) | **23** (both paths, one substrate) + **26** (dual-path oracle) | Equivalence oracle on ON-DISK artifacts: same verified-finding set + acceptance |
-| 7 | Lost auditable trace | **20** (provenance schema) + **24** (traceability migration) | Every note has `by`/`at`/`verified_by`; trace replays from `at`+`supersedes`; git append-only |
-| 8 | Over-spawning cost blowup | **23** — Parallel Execution & Orchestrator-as-Decomposer | `queue.wip_limit`; `Agent(<allowlist>)` coordinator-only; inverted WR-05 guard; bounded loop |
-| 9 | Clean-handoff-removal breakage | **24** — Clean Handoff Removal & Traceability Migration | Substrate-first; grep-to-zero handoff refs; validator+catalog updated same change; rollback |
-| 10 | Cross-platform / zero-dep | **20** — Substrate & Concurrency Foundation | Windows `unlink`-then-`rename`; NFS `mkdir` claim; Windows/NFS behavior tests; no host dep |
-| — | Inherited v1.x guards (WR-05 inverted, single-source, byte budget, voice, test-integrity, prod-deploy hook) | Each touched phase (cross-cutting) | All v1.x foundation guards still GREEN after the pivot; WR-05 flips to coordinator-only in one coordinated change |
+| Pitfall | Prevention Phase | Verification |
+|---|---|---|
+| P-01 spawn guard with the same blind spot | **27 — Spawn Correctness** | Referential-integrity oracle FAILS RED on today's tree; passes only after all 17 adapters exist; fails when a role is added without an allowlist entry |
+| P-02 unguarded adapter body | **27** | `freshness:adapters` fails on a hand-edited body; the current stale sentence is unrepresentable after regeneration |
+| P-03 four CLIs silently broken | **27**, re-verified **33** | `oracleDualPathEquivalence` green; sequential path produces the same artifacts with `.claude/agents/` absent |
+| P-04 vacuous spawn proof | **27** designs, **33** captures | A captured run containing a marker inline execution cannot produce, with a date and a verdict |
+| P-27 `orchestrator.md` at 7562/7570 B | **27 or 28**, before the coordinator gains text | `guard_role_size` green with margin; no `roleCeiling()` value raised |
+| P-09 stale claims / P-18 scan-set rot / P-26 vacuous gates | **28 — Kit Consistency Audit** | Every unconditional guarantee in static text is narrowed or points at the generated surface; `CTX_WORKFLOWS` derived and count-asserted; `CLAUDE.md` drift closed |
+| P-14 STE over-claim | **29 — Controlled Language** | The decidable/non-decidable split is published; the guard's name matches its grammar |
+| P-15 semantic drift in safety text | **29** | Exclusion list honored; one-file-per-commit; before/after pairs for every touched safety paragraph |
+| P-16 ceilings/oracles/refs broken | **29** | Single end-of-phase re-baseline, all files ≤ old; `oracleWr05Wording` green; intra-kit reference inventory matches before/after |
+| P-17 voice guard rebuilt as a heuristic | **29** | New guard FAILS RED on all 17 current blocks; publishes a number with a denominator; survives the lexicon-stuffing adversarial corpus |
+| P-05 fail-open parse / P-06 default-open enum / P-07 self-governed config / P-08 self-settable env | **30 — Per-Checkpoint Autonomy** | One config reader; `chmod 000` → strictest; a new checkpoint without a default is a compile error; agent-exported grant still refused; ≥2 independent red-teams + self-repro (D-12) |
+| P-09 lowered floor invisible | **30** | Generated guarantees surface changes when a floor is lowered; per-run banner; effective policy on every verdict |
+| P-10 hallucinated assertion / P-11 phantom run / P-12 unbound evidence / P-13 flaky-vs-real | **31 — Autonomous Manual Testing** | Verdict minted only by `emitVerdict()`; loud skip leaves UAT `pending`; evidence is an `artifact-ref` note with commit + run id; conditional assertions rejected over the AST |
+| P-19 second grammar / P-25 conflicting sources | **32 — Board Projector & Dashboard** | Exactly one parser; `validate-agent-factory.ts` consumes it; conflicts render as `CONFLICT`; the board's HTML comment is not parsed as live state |
+| P-20 torn reads / P-21 watcher unreliability | **32** | Renders correctly against a non-atomic writer loop, an ENOENT window, and a throwing `fs.watch`; the polling floor is mandatory, not opt-in |
+| P-22 leaks / P-23 terminal hazards / P-24 scope creep | **32** | Soak test shows flat handles + RSS; non-TTY emits plain text; CJK/emoji titles align; import-graph guard proves no write capability |
+| GAP-D1 live capture + Windows portability | **33 — Live Capture & Portability** | The one captured live dual-path run flips A3/DOG-02 + the coupled `examples/03-ticket-to-pr.md` edit; `windows-latest` leg green |
 
-**Phase ordering rationale (the load-bearing recommendation):**
-1. **Phase 20 (Substrate & Concurrency Foundation) MUST come first** and ship the mechanical guards — `atomicWrite`/`appendNote`, the atomic claim primitive, the provenance+verify-stamp validator extension, the grep guard, and the cross-platform behavior tests — **before any role writes to the shared context**. This is the v1.2 lesson applied: front-load the foundation guards so drift is caught as it's written, not after. Pitfalls 1, 5, 7, 10 (and the schema half of 2) are prevented here.
-2. **Phase 21 (Verify-Before-Write)** makes the §14 gate the un-cheatable admission verifier with the refuse-self-set carve-out and a RED fixture — Pitfall 3, the milestone's whole thesis. Must precede the handoff removal (the replacement must verify before it can be the sole memory).
-3. **Phase 22 (Compaction)** lands the token-economy control — Pitfall 4 — before parallel fan-out makes the 15× tax real.
-4. **Phase 23 (Parallel Execution & Orchestrator-as-Decomposer)** introduces spawning with the WIP/concurrency cap, coordinator-only `Agent` grant, inverted WR-05 guard, and the tool-neutral sequential degradation — Pitfalls 6 (build), 8, and the decompose half of 2.
-5. **Phase 24 (Clean Handoff Removal & Traceability Migration)** — substrate-first, grep-to-zero, validator+catalog in the same change — Pitfalls 7 (migration) and 9. **Depends on 20–21 being solid.**
-6. **Phase 25 (Governance-on-a-Dial)** — human-admission + retention dials — the enterprise half of Pitfall 3.
-7. **Phase 26 (Dogfood, Dual-Path Oracle & A3/DOG-02 Retirement)** — the equivalence oracle that honestly retires the waiver (Pitfall 6) and measures token cost (Pitfall 4). **This phase is where "degrade, never break" and "verified means verified" stop being prose and become proof.**
+**Ordering rationale (the load-bearing recommendation):**
+
+1. **27 before everything.** The spawn defect is the milestone's reason for existing, it blocks the GAP-D1 capture that has been open since v1.0, and every later phase's evidence is more trustworthy once role agents genuinely run. Build the referential-integrity oracle *before* the adapters, per the v1.2/v2.0 foundation-guards-first pattern.
+2. **28 before 29.** The consistency audit produces the exclusion list, the derived scan sets, and the claim inventory that the controlled-language rewrite needs as inputs. Rewriting first means rewriting text that the audit will then say should not have been rewritten. `orchestrator.md` must be trimmed here at the latest — it is 8 bytes from FAIL.
+3. **29 before 30.** The rewrite touches config prose and role text; doing it after the matrix lands means rewriting freshly-written governance text and re-running the expensive red-team gate.
+4. **30 is the expensive one.** It is the direct successor to Phase 25 (8 rounds, 2 independent red-teams, the hardest phase in the project) and touches the four hardest floors. Budget red-team rounds explicitly; do not treat the overrun as an overrun.
+5. **31 after 30**, because browser evidence must enter through the verify-before-write path, and 30 is where that path's dialability is settled. Evidence written against a floor whose semantics change one phase later is evidence that must be re-derived.
+6. **32 last among the features.** It is read-only, non-load-bearing, and depends on the board/ticket/queue state surfaces being stable. It is also the lowest-risk place to end the milestone, and the projector benefits from 28's consistency work.
+7. **33 last**, folding the GAP-D1 capture and the Windows leg — both of which are *proofs about the whole milestone*, not features, and both of which need everything else in place.
+
+---
+
+## Inherited pitfalls still live (carried, not re-derived)
+
+From v1.2/v2.0 research and audits; each remains in force and intersects v2.1:
+
+- **Single-source drift across five tools** — worsened by 17 new adapters (P-02).
+- **Prompt bloat / byte ceilings** — six roles near the ceiling, one at 99.9% (P-27).
+- **Dial regressions** — a dial that removes a floor rather than adding friction (P-09).
+- **Test-integrity loophole** — an agent authoring its own justification; unchanged floor (`warn|block`, never `off`).
+- **Packaging-template regeneration hazard (WR-05 family)** — regeneration must not restore a dropped or incorrect grant.
+- **`check-kit-refs` / duplicate-Test-ID robustness (WR-01..04)** — carried tech debt, intersects the rewrite.
+- **Fail-safe residuals** — the WR-03 usability false-positive; the `---\n--- \n…` byte-round-trip adjacency; the `floor-invariance.test.ts` spawn-heavy timeout (needs an explicit larger `testTimeout` — this will get *worse* when Phase 30 adds checkpoints); the documented same-uid direct-FS forgery residual backstopped by `autonomy=pr` (P-07 widens its blast radius).
+- **`agent-factory/handoffs/.gitkeep`** still present — MIGR-02's "directory deleted" phrasing cosmetically unmet.
+
+---
 
 ## Sources
 
-- `.planning/PROJECT.md` — v2.0 milestone scope, locked decisions (parallel-first/CC-primary, clean handoff replacement, no-spawn reversal for CC only, A3/DOG-02 human-waiver to this milestone), hard constraints (zero-runtime-dep, no platform/queue, single-source, no-fabrication, humans-hold-merge/deploy, installers-never-delete) (HIGH)
-- `.planning/research/STACK.md` (this session) — `node:fs` concurrency primitives (`atomicWrite`/`renameSync`, `openSync('wx')`/`O_EXCL`, `mkdirSync` NFS-safe claim, `appendFileSync`/`PIPE_BUF`), the markdown+JSONL note schema with provenance/`verified_by`, Claude Code `Agent`/nesting/depth-5/background, the degraded-sequential path, the inverted WR-05 guard, the Windows/NFS caveats (HIGH)
-- `.planning/research/FEATURES.md` (this session) — DeLM verified≠correct (grounding-only, no human gate/audit), Anthropic's ~15× token tax + coding-is-tightly-interdependent warning, blackboard per-key concurrency + control-component conflict resolution, stigmergy debuggability/coherence caveats, the differentiation thesis (auditable+gated+governance), substrate-before-handoff-removal dependency, the anti-features (central bus, unbounded context, optimistic-write, DeLM-grade verifier, autonomous admission) (HIGH)
-- `.planning/milestones/v1.2-research/PITFALLS.md` — the inherited markdown-kit pitfalls (WR-05 regen, single-source drift, prompt/AGENTS.md bloat, dial regressions, voice drift, test-integrity loophole, docs-catalog drift), RED-fixture discipline, grep-to-zero gate, rename-to-backup never-delete-first, sh/Node→TS byte/behavior parity, foundation-guards-before-content ordering (HIGH)
-- [Overwriting rename is not atomic — node-fs-extra #835](https://github.com/jprichardson/node-fs-extra/issues/835) + [EPERM when renaming on Windows — nodejs/node #29481](https://github.com/nodejs/node/issues/29481) + [Get ENOENT when rename an existing file — nodejs/node #16140](https://github.com/nodejs/node/issues/16140) + [Rename (computing) — Wikipedia](https://en.wikipedia.org/wiki/Rename_(computing)) + [atomic writing on Windows — Hacker News](https://news.ycombinator.com/item?id=16573770) — Windows `rename` fails if dest exists / not POSIX-atomic; temp-file-then-rename pattern; `ReplaceFile` API (HIGH, re-verified June 2026)
-- [On the Brokenness of File Locking — 0pointer.de](http://0pointer.de/blog/projects/locking) + [A full day of file locking — pemungkah.com](https://pemungkah.com/a-full-day-of-file-locking/) + [atomic locking over NFS — Experts Exchange](https://www.experts-exchange.com/questions/10078625/atomic-locking-over-NFS-with-link-2-stat-2.html) + [Unable to lock files on NFS — Red Hat](https://access.redhat.com/solutions/43001) — `O_EXCL` unreliable on NFS (no stateful open); `mkdir()` atomic + NFS-safe; `link(2)` fallback (HIGH, re-verified June 2026)
-- [Create custom subagents — code.claude.com/docs/en/sub-agents](https://code.claude.com/docs/en/sub-agents) — `Agent` tool, nested spawn since **v2.1.172**, **fixed depth-5 background cap** ("does not receive the Agent tool … fixed and not configurable, exists to prevent runaway concurrent trees"), foreground self-limiting, `maxTurns`, `CLAUDE_CODE_DISABLE_BACKGROUND_TASKS`/`CLAUDE_CODE_FORK_SUBAGENT`, **no documented cap on concurrent background-subagent count**, background auto-deny permissions, plugin-subagents ignore hooks (HIGH, re-verified June 2026)
-- `~/.claude/.../memory/MEMORY.md` — caveman = token-economy mechanism; grugops sequential role-load history; A3/DOG-02 → next-milestone moot framing; TS pivot ratified (HIGH for project-internal context)
+**grugops-internal (HIGH — read directly this session):**
+- `.planning/PROJECT.md` — Constraints, Key Decisions (the closure doctrine, D-12, the D-01/D-02 capture rule, GOV-01 fail-closed dial), v2.1 kickoff findings, standing obligations
+- `scripts/check-foundation-guards.ts` — `guard_wr05` (l.108-212), `guard_voice` (l.375), `guard_caveman_preserved` (l.450-476), `roleCeiling()` (l.487-526), `guard_context_writes` + `CTX_WORKFLOWS` (l.558-623)
+- `scripts/context-io.ts` — `atomicWrite` (l.664-689), `admit()` + the D-04/D-05 two-tier split (l.966-1045), `readGovernanceConfig` and its lean-on-`catch` (l.1220-1265), `readGovernanceConfigResult` (l.1288+)
+- `scripts/validate-agent-factory.ts` — the board↔ticket grammar and the WR-03 prefix-match fix (l.401-455)
+- `scripts/check-uat-oracles.ts` — the three Tier-1 oracles; `oracleWr05Wording` scan set + tolerant beat regexes (l.102-120)
+- `scripts/trace-render.ts`, `scripts/now-running-freshness.ts`, `scripts/catalog-freshness.ts` — the render + byte-equality freshness-gate family the adapter/guarantee renders should join
+- `.claude/agents/grugops-orchestrator.md` — the live stale-handoff body and the 7-name / 0-file allowlist
+- `agent-factory/workflows/05-pr-quality-gate.md` — the `emitVerdict` root-of-trust carve-out, the loud-skip convention, three-valued exit codes, "advise loudly, never hide"
+- `plans/board.md`, `hooks/guard.ts`, `package.json`
 
-**Open / `UNKNOWN - verify`:**
-- grugops's own task-success / cost gain from decentralization is UNVERIFIED — DeLM's +9.3pp/~50% are on DeLM's harness, not grugops's. The pitch stands on auditability+gating+governance (demonstrable), NOT borrowed benchmarks. Resolve only with a real dogfood cost/success measurement (Phase 26).
-- Exact `PIPE_BUF` across target OSes bounds append-atomicity — sidestep by `atomicWrite`-ing the JSONL or keeping lines <512B; do not put `PIPE_BUF` on the correctness path (STACK.md).
-- Whether `isolation: worktree` code-edit agents can still read/write the *non-isolated* `.grugops/context/` path — verify during dogfood (STACK.md); if worktree re-roots the path, source-editing agents must publish notes via the main-repo path.
-- Whether naive `mkdir`/rename atomic claim is robust enough under true Claude Code parallel spawn vs needing advisory leases (the `mcp_agent_mail` file-lease pattern is the documented fallback) — a dogfood question (FEATURES.md).
+**External:**
+- Node.js v24 `fs` API docs via Context7 — `fs.watch` Caveats/Availability (platform backends, network-FS unreliability, Windows directory-rename/`EPERM`/file-substitution, no protection against malicious FS actions), `fs.watchFile` as the reliable polling alternative (default interval 5007 ms) — **HIGH**
+- chokidar issue #144 + README and cross-platform `fs.watch` writeups — duplicate events, `rename`-heavy event types, `usePolling` for network mounts, `awaitWriteFinish`/`stabilityThreshold` — **MEDIUM** (corroborates the official caveats; the library itself is unusable here)
+- microhowto "Atomically rewrite the content of a file", the ActiveState atomic-write recipe, `rename-after-writing` — write-temp-then-`rename()` gives readers all-old-or-all-new — **MEDIUM**
+- ASD-STE100 tooling pages (asd-ste100.org "Tools for STE", TechScribe, Boeing Simplified English Checker, HyperSTE, Wikipedia STE) — **no checker can guarantee full STE compliance; clarity is human-judged; checker output requires trained interpretation** — **MEDIUM**
+- Playwright MCP guides (testquality 2026 architecture, qaskills testing-capability guide, TestDino, Bug0) — hallucinated assertions as a named agent-authored failure cluster; accessibility-tree snapshot mode as the deterministic default; `browser_verify_*` first-class assertions; human oversight still required — **MEDIUM**
+- Config/enum fail-closed practice (JUnit #4617 silent invalid-value acceptance, kiota-python #515 silent empty result, the protobuf enum-behavior guide's unknown-field preservation) — never map unknown onto the permissive branch — **MEDIUM**
 
 ---
-*Pitfalls research for: decentralizing grugops (v2.0) — a portable file-based agent-factory kit moving to a shared verified context + file-based queue + parallel agents (Claude Code primary, four CLIs degrade to sequential)*
-*Researched: 2026-06-16*
+*Pitfalls research for: grugops v2.1 — Autonomous Factory (Real Spawning, Controlled Language & Live Board)*
+*Researched: 2026-07-28*
