@@ -10,8 +10,8 @@
 // Cross-platform. Node stdlib ONLY: node:fs + node:path — ZERO npm dependencies.
 //
 // Removes ONLY what install.ts added:
-//   - .claude/skills/grugops*/SKILL.md  (and the now-empty grugops* skill dirs)
-//   - .claude/agents/grugops-orchestrator.md
+//   - the skills install.ts laid down: .claude/skills/<name>/SKILL.md (and the now-empty dirs)
+//   - the adapters install.ts laid down: .claude/agents/<file>.md (and the now-empty dir)
 //   - the AGENTS.md grugops laid down  (ONLY if it is a symlink into the grugops source, or a
 //     copy byte-identical to the source — a user's own AGENTS.md is never removed)
 //   - the CLAUDE.md "GSD:grugops-start-here" sentinel block (only that block; the rest of the
@@ -43,6 +43,7 @@ import {
   unlinkSync,
   rmdirSync,
   lstatSync,
+  readdirSync,
   readlinkSync,
   realpathSync,
 } from "node:fs";
@@ -84,8 +85,6 @@ const abspath = (p: string): string => (isAbsolute(p) ? p : `${process.cwd()}/${
 // path before any removal so the reversal operates on the named target, not the CWD.
 const TARGET = abspath(ARG_TARGET || process.env.TARGET || process.cwd());
 
-const SKILLS = ["grugops", "grugops-map", "grugops-plan", "grugops-ticket", "grugops-gate", "grugops-uat", "grugops-release"];
-const AGENT_REL = ".claude/agents/grugops-orchestrator.md";
 const CLAUDE_OPEN = "<!-- GSD:grugops-start-here -->";
 const CLAUDE_CLOSE = "<!-- GSD:grugops-start-here-end -->";
 const COPILOT_REL = ".github/copilot-instructions.md";
@@ -96,6 +95,51 @@ const COPILOT_OPEN = "<!-- GSD:grugops-copilot-start-here -->";
 const COPILOT_CLOSE = "<!-- GSD:grugops-copilot-start-here-end -->";
 
 const report = (label: string, msg: string): void => console.log(`  ${label.padEnd(14)} ${msg}`);
+
+// ---------------------------------------------------------------------------
+// Kit-set derivation (KIT-02 / T-27-06) — the mirror of install.ts's srcSkillNames() /
+// srcAdapterFiles(). The hand-listed SKILLS array and the single AGENT_REL constant that used to
+// live here were DUPLICATED LITERALS in a second file, not a code mirror of install.ts: editing
+// only install.ts would have left this uninstaller removing exactly one adapter and orphaning the
+// rest. The removal set is now derived from the same $GRUGOPS_SRC root the installer installs from.
+//
+// THE REMOVAL SET IS DERIVED FROM THE KIT SOURCE, NEVER FROM THE TARGET. Listing the target's own
+// .claude/agents/ directory and deleting what is there would delete the user's own agent files —
+// a data-loss bug against the hard constraint that installers never delete user content. The
+// derived set is intersected with what actually exists in the target, and only that intersection
+// is removed.
+//
+// Both helpers return NULL — not [] — when the source directory cannot be read. Null is the
+// fail-LOUD signal: the caller reports the condition and skips that removal class entirely, leaving
+// the files for the user to remove by hand. It never falls back to target-derived deletion and
+// never claims a clean uninstall it did not perform (T-27-09).
+// ---------------------------------------------------------------------------
+
+// srcSkillNames: sorted directory names under $GRUGOPS_SRC/.claude/skills that contain a SKILL.md.
+function srcSkillNames(): string[] | null {
+  const root = join(GRUGOPS_SRC, ".claude", "skills");
+  try {
+    return readdirSync(root, { withFileTypes: true })
+      .filter((ent) => ent.isDirectory() && existsSync(join(root, ent.name, "SKILL.md")))
+      .map((ent) => ent.name)
+      .sort();
+  } catch {
+    return null;
+  }
+}
+
+// srcAdapterFiles: sorted .md filenames under $GRUGOPS_SRC/.claude/agents.
+function srcAdapterFiles(): string[] | null {
+  const root = join(GRUGOPS_SRC, ".claude", "agents");
+  try {
+    return readdirSync(root, { withFileTypes: true })
+      .filter((ent) => ent.isFile() && ent.name.endsWith(".md"))
+      .map((ent) => ent.name)
+      .sort();
+  } catch {
+    return null;
+  }
+}
 
 // SAFETY GUARD: refuse to ever operate on a frozen-core or user-data path. Every removal
 // target is checked against this denylist before it is touched. agent-factory/, plans/,
@@ -425,19 +469,56 @@ function sameFileBytes(a: string, b: string): boolean {
 
 console.log("== grugops uninstall ==");
 console.log(`target: ${TARGET}`);
+console.log(`source: ${GRUGOPS_SRC}`);
 if (DRY_RUN) console.log("mode:   DRY_RUN (no filesystem changes)");
+
+// ORDERING HAZARD (T-27-06): derive the removal set from the KIT SOURCE here, at the very TOP of
+// the removal sequence, BEFORE anything is removed. The uninstall sequence also tears down grugops
+// wiring, so a derivation taken later in the sequence could come back empty and silently orphan
+// every file it was supposed to remove.
+const SRC_SKILLS = srcSkillNames();
+const SRC_ADAPTERS = srcAdapterFiles();
+
 console.log("\n-- removing grugops adapters (only what install.js added) --");
 
-// 1. Skills + empty dirs.
-for (const s of SKILLS) {
-  removeFile(`${TARGET}/.claude/skills/${s}/SKILL.md`, `.claude/skills/${s}/SKILL.md`);
-  rmdirIfEmpty(`${TARGET}/.claude/skills/${s}`);
+// 1. Skills + empty dirs. Derived from the kit source, intersected with the target: a skill the
+//    kit ships but the target never had is reported and skipped, never "removed".
+if (SRC_SKILLS === null) {
+  report(
+    "verify",
+    `.claude/skills/ — cannot read ${join(GRUGOPS_SRC, ".claude", "skills")}, so the removal set is unknown. ` +
+      `No skill was removed. Remove any leftover grugops skill directories by hand.`,
+  );
+} else {
+  for (const s of SRC_SKILLS) {
+    const rel = `.claude/skills/${s}/SKILL.md`;
+    const f = `${TARGET}/${rel}`;
+    if (pathExists(f)) removeFile(f, rel);
+    else report("skipped", `${rel} (not present in the target — outside the removal set)`);
+    rmdirIfEmpty(`${TARGET}/.claude/skills/${s}`);
+  }
+  rmdirIfEmpty(`${TARGET}/.claude/skills`);
 }
-rmdirIfEmpty(`${TARGET}/.claude/skills`);
 
-// 2. Orchestrator wrapper + empty dir.
-removeFile(`${TARGET}/${AGENT_REL}`, AGENT_REL);
-rmdirIfEmpty(`${TARGET}/.claude/agents`);
+// 2. Adapters + empty dir. Same contract: the set comes from the kit source and is intersected with
+//    the target, so a user-authored file in .claude/agents/ is never in the removal set and
+//    survives. The directory itself is only rmdir'd when it is empty, so a surviving user file also
+//    keeps the directory.
+if (SRC_ADAPTERS === null) {
+  report(
+    "verify",
+    `.claude/agents/ — cannot read ${join(GRUGOPS_SRC, ".claude", "agents")}, so the removal set is unknown. ` +
+      `No adapter was removed. Remove any leftover grugops adapters by hand.`,
+  );
+} else {
+  for (const a of SRC_ADAPTERS) {
+    const rel = `.claude/agents/${a}`;
+    const f = `${TARGET}/${rel}`;
+    if (pathExists(f)) removeFile(f, rel);
+    else report("skipped", `${rel} (not present in the target — outside the removal set)`);
+  }
+  rmdirIfEmpty(`${TARGET}/.claude/agents`);
+}
 rmdirIfEmpty(`${TARGET}/.claude`);
 
 // 3. AGENTS.md — remove ONLY a grugops-laid-down one (symlink into source, or byte-identical
