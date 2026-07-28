@@ -53,7 +53,7 @@
 //
 //   node scripts/check-foundation-guards.js
 // Exit 0 = all seven guards GREEN; exit 1 = at least one FAIL (WARNs do NOT fail the build).
-import { readFileSync, existsSync, statSync } from "node:fs";
+import { readFileSync, existsSync, statSync, readdirSync } from "node:fs";
 import { join, basename } from "node:path";
 // Phase 19 (UAT-AUTO-05 / BLOCKER 1 / LOCKED CONTEXT.md decision / ROADMAP SC3): the run-all block
 // invokes the three Tier-1 auto-UAT oracles so this aggregator fails closed when any one fails. The
@@ -644,6 +644,148 @@ function guardContextWrites() {
     }
 }
 // ---------------------------------------------------------------------------
+// guard_referential_integrity — KIT-03 / D-09 three-way set equality (Phase 27).
+//
+// The founding defect of this milestone was a fully green guard suite over a structurally broken
+// tree: 17 roles in the kit, ONE adapter file on disk, and a coordinator grant naming SEVEN agents
+// of which ZERO resolved to anything. Nothing was checking that those three sets agreed, because
+// each guard measured its own set in isolation. This oracle checks the agreement itself:
+//
+//     grant ∪ {coordinator} == adapters == roles
+//
+// with NO exception list anywhere. An exception list is how a broken tree stays green — the moment
+// one is added, the oracle only proves what someone already believed.
+//
+// It compares WHOLE SETS and names the DIFFERING MEMBERS, not just cardinalities: a guard that
+// reports `17 != 16` tells an author nothing about which element to go find. Cardinalities are
+// compared as strict integer equality — there is no tolerance band and no rounding. Set equality
+// itself is order-independent, and every reported difference is sorted, so two runs over the same
+// broken tree produce byte-identical output.
+//
+// Fails CLOSED in every degenerate direction, because each of these otherwise reads as a vacuous
+// pass: an unreadable adapter directory, an EMPTY adapter directory ("nothing to compare, therefore
+// fine" is exactly the bug), a coordinator count that is not exactly one, and a coordinator whose
+// grant enumerates nothing (an unscoped `Agent` grant has no computable closure).
+//
+// The grant parser runs the text through the SHARED stripFencedBlocks() first — never a second fence
+// parser. agent-factory/packaging/subagent.frontmatter.md ships a coordinator example INSIDE a
+// fenced block; a non-fence-aware parser would read that documentation as a live grant. The
+// coordinator is located by the WR05_COORDINATOR marker, matching how guard_wr05 already identifies
+// it — never by filename.
+// ---------------------------------------------------------------------------
+const ADAPTER_DIR = ".claude/agents";
+// Every role's agent name is its role filename stem under the `grugops-` namespace:
+// `orchestrator.md` -> `grugops-orchestrator`. Comparison is exact JavaScript string equality over
+// these names throughout — no case folding, no normalisation, no substring matching.
+const AGENT_PREFIX = "grugops-";
+const stem = (file) => file.replace(/\.md$/, "");
+// Extract the ENUMERATED names from a scoped spawn grant:
+//   `tools: Agent(grugops-qe-e2e, grugops-installer), Read`  ->  [grugops-installer, grugops-qe-e2e]
+// Only grant-shaped lines are read (the same two EREs guard_wr05 uses), so prose that merely names
+// an agent cannot inflate the closure. Returns sorted, de-duplicated names.
+function parseAgentGrant(text) {
+    const body = stripFencedBlocks(text); // SHARED fence strip — fail-safe on an unterminated fence
+    const names = new Set();
+    for (const line of body.split("\n")) {
+        if (!WR05_COMMA.test(line) && !WR05_ARRAY.test(line))
+            continue;
+        const re = /\b(?:Agent|Task)\(([^)]*)\)/g;
+        let m;
+        while ((m = re.exec(line)) !== null) {
+            for (const raw of m[1].split(",")) {
+                const n = raw.trim().replace(/^["']|["']$/g, "");
+                if (n !== "")
+                    names.add(n);
+            }
+        }
+    }
+    return [...names].sort();
+}
+// Members of `a` absent from `b`, order-independent and sorted for byte-identical reporting.
+const missingFrom = (a, b) => a.filter((x) => !b.includes(x)).sort();
+function guardReferentialIntegrity() {
+    process.stdout.write("\n[guard_referential_integrity] role corpus == adapter directory == coordinator grant closure (KIT-03, D-09)\n");
+    // Set 1 — the role corpus, from the KIT-01 derivation.
+    const roleNames = ROLE_FILES.map((p) => `${AGENT_PREFIX}${stem(basename(p))}`).sort();
+    // Set 2 — the adapter directory.
+    let adapterFiles;
+    try {
+        adapterFiles = readdirSync(abs(ADAPTER_DIR))
+            .filter((f) => f.endsWith(".md"))
+            .sort();
+    }
+    catch {
+        fail(`KIT-03: cannot read the adapter directory ${ADAPTER_DIR} — refusing to compare against an unreadable set (${roleNames.length} roles have no adapter to match)`);
+        return;
+    }
+    if (adapterFiles.length === 0) {
+        fail(`KIT-03: ${ADAPTER_DIR} holds no adapter files — an empty adapter directory is NEVER "nothing to compare, therefore fine". All ${roleNames.length} role(s) are unbacked: ${roleNames.join(", ")}`);
+        return;
+    }
+    const adapterNames = adapterFiles.map(stem).sort();
+    // Encoding assertion: every name in the corpus is ASCII today. Asserting it removes any
+    // byte-vs-codepoint-vs-normalisation ambiguity from the string comparisons below rather than
+    // leaving it latent for a future non-ASCII filename to expose.
+    const nonAscii = [
+        ...ROLE_FILES.map((p) => basename(p)),
+        ...adapterFiles,
+    ].filter((n) => 
+    // eslint-disable-next-line no-control-regex
+    /[^\x00-\x7F]/.test(n));
+    if (nonAscii.length > 0) {
+        fail(`KIT-03: non-ASCII byte in a role/adapter filename — set membership is exact string equality and must stay unambiguous: ${nonAscii.sort().join(", ")}`);
+        return;
+    }
+    // Set 3 — the coordinator grant closure. Locate the coordinator by MARKER, never by filename.
+    const coordinators = adapterFiles.filter((f) => matchesOutsideFences(`${ADAPTER_DIR}/${f}`, WR05_COORDINATOR));
+    if (coordinators.length !== 1) {
+        fail(`KIT-03: expected exactly one \`coordinator: true\` adapter in ${ADAPTER_DIR}, found ${coordinators.length}${coordinators.length > 0 ? `: ${coordinators.join(", ")}` : " — a zero-coordinator tree is not \"no grant to check, therefore fine\""}`);
+        return;
+    }
+    const coordinatorName = stem(coordinators[0]);
+    const granted = parseAgentGrant(readText(`${ADAPTER_DIR}/${coordinators[0]}`));
+    if (granted.length === 0) {
+        fail(`KIT-03: the coordinator ${ADAPTER_DIR}/${coordinators[0]} carries no ENUMERATED Agent(...) grant — an unscoped grant has no computable closure, so the D-09 equality cannot be checked`);
+        return;
+    }
+    const grantClosure = [...new Set([...granted, coordinatorName])].sort();
+    // Three-way comparison, reported as two named directions so the message says WHICH set differs
+    // and BY WHICH MEMBERS.
+    let riFail = "";
+    const rolesNoAdapter = missingFrom(roleNames, adapterNames);
+    const adaptersNoRole = missingFrom(adapterNames, roleNames);
+    if (roleNames.length !== adapterNames.length ||
+        rolesNoAdapter.length > 0 ||
+        adaptersNoRole.length > 0) {
+        riFail += `\n  roles vs adapters: ${roleNames.length} roles, ${adapterNames.length} adapters`;
+        if (rolesNoAdapter.length > 0) {
+            riFail += `\n    ${rolesNoAdapter.length} role(s) with no adapter file: ${rolesNoAdapter.join(", ")}`;
+        }
+        if (adaptersNoRole.length > 0) {
+            riFail += `\n    ${adaptersNoRole.length} adapter(s) with no role file: ${adaptersNoRole.join(", ")}`;
+        }
+    }
+    const grantedNoAdapter = missingFrom(grantClosure, adapterNames);
+    const adaptersNotGranted = missingFrom(adapterNames, grantClosure);
+    if (grantClosure.length !== adapterNames.length ||
+        grantedNoAdapter.length > 0 ||
+        adaptersNotGranted.length > 0) {
+        riFail += `\n  grant closure vs adapters: ${grantClosure.length} granted names (${granted.length} in the grant + the coordinator ${coordinatorName}), ${adapterNames.length} adapters`;
+        if (grantedNoAdapter.length > 0) {
+            riFail += `\n    ${grantedNoAdapter.length} granted name(s) resolving to no adapter file: ${grantedNoAdapter.join(", ")}`;
+        }
+        if (adaptersNotGranted.length > 0) {
+            riFail += `\n    ${adaptersNotGranted.length} adapter(s) absent from the grant closure: ${adaptersNotGranted.join(", ")}`;
+        }
+    }
+    if (riFail === "") {
+        pass(`KIT-03: ${roleNames.length} roles == ${adapterNames.length} adapters == ${grantClosure.length} grant-closure names (D-09, no exception list)`);
+    }
+    else {
+        fail(`KIT-03 referential-integrity violation — grant ∪ {coordinator} == adapters == roles does not hold:${riFail}`);
+    }
+}
+// ---------------------------------------------------------------------------
 // Run all guards.
 // ---------------------------------------------------------------------------
 process.stdout.write("== Phase 10 foundation-guards gate (SDLC-02 / SC2) ==\n");
@@ -657,6 +799,15 @@ guardVoice();
 guardCavemanPreserved();
 guardRoleSize();
 guardContextWrites();
+// KIT-03 — THIS GUARD FAILS RED ON THE LIVE TREE FROM THIS COMMIT UNTIL PLAN 27-06.
+//
+// The tree today holds 17 roles, ONE adapter file, and a coordinator grant naming seven agents that
+// resolve to nothing. That is the structural break this milestone exists to close, and the RED is
+// the EVIDENCE for it (ROADMAP success criterion 2) — not a regression, not a bug in the guard.
+// Plan 27-06 commits the 17 adapter files and the corrected 16-name grant; that is the commit that
+// turns this guard green. Do NOT suppress it, skip it, or downgrade it to a warn() in the meantime:
+// a suppressed oracle is how the tree got here.
+guardReferentialIntegrity();
 // ---------------------------------------------------------------------------
 // Phase 19 auto-UAT Tier-1 oracles (UAT-AUTO-05 / BLOCKER 1).
 //

@@ -123,6 +123,45 @@ function mirror(): string {
   return m;
 }
 
+// The coordinator adapter's agent name, and the full role-agent namespace derived from the kit.
+const COORDINATOR = "grugops-orchestrator";
+const roleAgentNames = (): string[] =>
+  listRoles().map((f) => `grugops-${f.replace(/\.md$/, "")}`);
+const adapterPath = (root: string, name: string): string =>
+  join(root, ".claude/agents", `${name}.md`);
+
+// A mirror carrying TODAY'S shape is REFERENTIALLY BROKEN by construction: 17 roles, exactly one
+// adapter, a coordinator grant naming seven agents that resolve to nothing. That is the RED fixture
+// (and it is what plain mirror() produces). consistentMirror() builds the OTHER side — the shape
+// plan 27-06 will commit — so the cases that assert a fully green run still have a green tree to
+// assert against, and so the KIT-03 GREEN behaviour is pinned by a fixture rather than by waiting
+// for the real adapters to land. Once they do, BOTH fixtures keep working unchanged.
+function consistentMirror(): string {
+  const m = mirror();
+  const names = roleAgentNames();
+  const granted = names.filter((n) => n !== COORDINATOR);
+  // One adapter file per role. Deliberately WITHOUT a `coordinator: true` marker and without a
+  // spawn grant — exactly one coordinator may exist, and only it may hold the grant.
+  for (const name of granted) {
+    writeFileSync(
+      adapterPath(m, name),
+      `---\nname: ${name}\ndescription: Hermetic mirror fixture adapter.\nmodel: inherit\n---\nFixture adapter.\n`,
+    );
+  }
+  // Re-point the real coordinator's grant at the full 16-name set so the closure closes.
+  const coordFile = adapterPath(m, COORDINATOR);
+  const rewritten = readFileSync(coordFile, "utf8")
+    .split("\n")
+    .map((l) =>
+      /^tools:/.test(l)
+        ? `tools: Agent(${granted.join(", ")}), Read, Grep, Glob, Bash, Edit, Write`
+        : l,
+    )
+    .join("\n");
+  writeFileSync(coordFile, rewritten);
+  return m;
+}
+
 // Run the compiled guard with CHECK_ROOT pointed at the mirror; capture status + combined output.
 function runIn(checkRoot: string): SpawnSyncReturns<string> {
   return spawnSync("node", [GUARD_JS], {
@@ -223,9 +262,10 @@ describe("check-foundation-guards.js (SDLC-02 / SC2 fail-proof harness)", () => 
   // inside a ``` block) and NO live grant must be IGNORED — the guard PASSES. This is the real
   // subagent.frontmatter.md shape (a documentation example), which previously read as a second live
   // coordinator. Plant the fenced example into a non-adapter SCAN file (slash-command.template.md,
-  // which has no live marker/grant) and assert the aggregator stays GREEN.
+  // which has no live marker/grant) and assert the aggregator stays GREEN. (Phase 27: built on a
+  // consistentMirror so a fully green run is achievable — plain mirror() is KIT-03 RED by design.)
   it("guard_wr05 FENCED coordinator example (marker+grant inside ```) is ignored → guard PASSES (CR-01 fence-immunity)", () => {
-    const m = mirror();
+    const m = consistentMirror();
     appendFileSync(
       join(m, "agent-factory/packaging/slash-command.template.md"),
       "\n## Example coordinator wrapper\n\n```markdown\n---\nname: grugops-orchestrator\ncoordinator: true\ntools: Agent(grugops-software-engineer, grugops-qe-e2e), Read\n---\n```\n",
@@ -394,7 +434,7 @@ describe("check-foundation-guards.js (SDLC-02 / SC2 fail-proof harness)", () => 
   });
 
   it("guard_voice refinement accepts clear-voice grug-meta + /grug (narrow, not weakened)", () => {
-    const m = mirror();
+    const m = consistentMirror();
     appendFileSync(
       rolePath(m, "security-nfr.md"),
       "\nThe Scribe may add a light grug wink in Mission; route every `/grug` request to grug voice.\n",
@@ -574,7 +614,7 @@ describe("check-foundation-guards.js (SDLC-02 / SC2 fail-proof harness)", () => 
   // the guard must stay GREEN (the prose word "write" is not a TOKEN). This is the no-false-positive
   // half of the no-fabrication proof: the guard fires on a real bypass but not on sanctioned prose.
   it("guard_context_writes prose naming context-io.ts + path stays GREEN (no false positive, A3)", () => {
-    const m = mirror();
+    const m = consistentMirror();
     // Append to a WORKFLOW file (workflows have no byte ceiling, so this isolates the calibration to
     // guard_context_writes — a role file would also trip guard_role_size, masking the real assertion).
     appendFileSync(
@@ -586,11 +626,88 @@ describe("check-foundation-guards.js (SDLC-02 / SC2 fail-proof harness)", () => 
     expect(out(r)).toContain("ALL CHECKS PASSED");
   });
 
-  // ── Smoke — the REAL guard over the REAL tree must be GREEN (exit 0). ─────────────────────────
-  it("smoke: real guard GREEN over the real tree (T-10-02-FP)", () => {
-    const r = spawnSync("node", [GUARD_JS], { encoding: "utf8" });
+  // ── guard_referential_integrity (KIT-03 / D-09) — both directions pinned to FIXTURES. ─────────
+  //
+  // These cases assert against PLANTED mirrors, never the live tree, which is what makes them
+  // permanent. The RED case will keep proving the oracle fires long after plan 27-06 lands the real
+  // adapters and the live tree goes green — the RED evidence becomes a regression test instead of a
+  // screenshot pasted into a document that nobody re-runs.
+  it("referential integrity RED: today's shape (17 roles, 1 adapter, 7 unresolvable grants) fails naming every set difference", () => {
+    const m = mirror(); // plain mirror == today's structurally broken shape
+    const r = runIn(m);
+    expect(r.status).not.toBe(0);
+    const o = out(r);
+    // The three set differences, each named by MEMBER and not merely by cardinality.
+    expect(o).toContain("17 roles, 1 adapters");
+    expect(o).toContain("16 role(s) with no adapter file");
+    expect(o).toContain("grugops-software-engineer");
+    expect(o).toContain("7 granted name(s) resolving to no adapter file");
+    expect(o).toContain("grant ∪ {coordinator} == adapters == roles");
+  });
+
+  it("referential integrity GREEN: 17 adapters matching 17 roles with a 16-name grant passes", () => {
+    const m = consistentMirror();
+    const r = runIn(m);
     expect(r.status).toBe(0);
-    expect(out(r)).toContain("ALL CHECKS PASSED");
+    expect(out(r)).toContain(
+      "KIT-03: 17 roles == 17 adapters == 17 grant-closure names",
+    );
+  });
+
+  it("referential integrity one-element difference names the single missing adapter, not just the cardinalities", () => {
+    const m = consistentMirror();
+    rmSync(adapterPath(m, "grugops-uat-planner"), { force: true });
+    const r = runIn(m);
+    expect(r.status).not.toBe(0);
+    const o = out(r);
+    expect(o).toContain("1 role(s) with no adapter file: grugops-uat-planner");
+    expect(o).toContain(
+      "1 granted name(s) resolving to no adapter file: grugops-uat-planner",
+    );
+  });
+
+  it("referential integrity empty adapter directory fails red — never a vacuous two-empty-sets pass", () => {
+    const m = mirror();
+    rmSync(join(m, ".claude/agents"), { recursive: true, force: true });
+    mkdirSync(join(m, ".claude/agents"), { recursive: true });
+    const r = runIn(m);
+    expect(r.status).not.toBe(0);
+    expect(out(r)).toContain("holds no adapter files");
+    expect(out(r)).toContain("All 17 role(s) are unbacked");
+  });
+
+  it("referential integrity ignores a FENCED coordinator grant — no second fence parser (T-27-02)", () => {
+    const m = consistentMirror();
+    // A documentation example inside a ``` fence must not be read as a live grant. If the parser
+    // were fence-blind, these bogus names would enter the closure and the run would fail.
+    appendFileSync(
+      adapterPath(m, COORDINATOR),
+      "\n## Example\n\n```markdown\ntools: Agent(grugops-not-a-real-role, grugops-also-fake), Read\n```\n",
+    );
+    const r = runIn(m);
+    expect(r.status).toBe(0);
+    expect(out(r)).not.toContain("grugops-not-a-real-role");
+  });
+
+  // ── Smoke — the REAL guard over the REAL tree. ────────────────────────────────────────────────
+  //
+  // (Phase 27) This case INVERTED, deliberately and temporarily. The live tree is structurally
+  // broken — 17 roles, one adapter, a grant naming seven agents that resolve to nothing — and from
+  // the commit that added guard_referential_integrity the suite tells the truth about that instead
+  // of reporting a fabricated green. So the smoke assertion becomes: everything EXCEPT KIT-03 is
+  // green, and KIT-03 is the single FAIL. Plan 27-06 commits the 17 adapters and the corrected
+  // 16-name grant; at that point this case must be flipped back to `status === 0` /
+  // "ALL CHECKS PASSED". Until then the exact-one-FAIL assertion is what stops any OTHER regression
+  // from hiding behind the expected red.
+  it("smoke: real tree has exactly one FAIL and it is KIT-03 (RED evidence — flip back to green in plan 27-06)", () => {
+    const r = spawnSync("node", [GUARD_JS], { encoding: "utf8" });
+    expect(r.status).not.toBe(0);
+    const fails = out(r)
+      .split("\n")
+      .filter((l) => l.startsWith("  FAIL"));
+    expect(fails).toHaveLength(1);
+    expect(fails[0]).toContain("KIT-03 referential-integrity violation");
+    expect(out(r)).toContain("17 roles, 1 adapters");
   });
 
   // ── cmp — the two config JSONs must be byte-identical (the tri-file drift). ───────────────────
