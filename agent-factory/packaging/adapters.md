@@ -32,7 +32,7 @@ ship — never assume a tool fact is permanent.
 
 | Tool | Entry file it reads | Dispatch mode | Adapter | Verify |
 | ---- | ------------------- | ------------- | ------- | ------ |
-| **Claude Code** | `CLAUDE.md` one-line pointer + portable `AGENTS.md` | Coordinator spawns role agents — the `coordinator: true` orchestrator adapter holds the enumerated `Agent(<allowlist>)` grant and spawns role agents (nesting defaults to 3 layers, tuned by `CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH`; concurrent width capped by `queue.wip_limit`, a grugops discipline choice inside the platform's 20-concurrent cap); the single-window sequential role-load remains available as the fallback | **Both forms.** Standalone `.claude/skills/grugops*` (dash → `/grugops-plan`) **and** the `.claude-plugin/` plugin colon form (`/grugops:plan`) | verify against current tool docs |
+| **Claude Code** | `CLAUDE.md` one-line pointer + portable `AGENTS.md` | Coordinator spawns role agents, in three announced tiers — **Full** (started with `claude --agent grugops-orchestrator`: the coordinator adapter is the main thread and its enumerated `Agent(<allowlist>)` grant is runtime-enforced), **Reduced** (a default session, what the `/grugops` skill entry gets: still parallel to the same cap, grant NOT runtime-enforced), **Degraded** (`Agent` unavailable: the single-window sequential role-load). Nesting defaults to 3 layers, tuned by `CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH`; width capped by `queue.wip_limit`, a grugops discipline choice inside the platform's 20-concurrent cap | **Both forms.** Standalone `.claude/skills/grugops*` (dash → `/grugops-plan`) **and** the `.claude-plugin/` plugin colon form (`/grugops:plan`) | verify against current tool docs |
 | **Codex CLI** | root `AGENTS.md` (+ global `~/.codex/AGENTS.md`) | Sequential role-load — no spawn; the Orchestrator loads each role file into one context in turn | **None — native.** Codex reads `AGENTS.md` directly | verify against current tool docs |
 | **Gemini CLI** | `AGENTS.md` via `.gemini/settings.json` `context.fileName: ["AGENTS.md","GEMINI.md"]` | Sequential role-load — no spawn | **`settings.json` wiring** (`context.fileName` array; cleaner than a `GEMINI.md` pointer, which also works) | verify against current tool docs |
 | **OpenCode** | root `AGENTS.md` (+ global `~/.config/opencode/AGENTS.md`) | Sequential role-load — no spawn (or its own native agents) | **None — native.** OpenCode reads `AGENTS.md` directly | verify against current tool docs |
@@ -52,6 +52,38 @@ sequential role-load is still available as the fallback. What changes from tool 
 to reach `agent-factory/roles/orchestrator.md` (the column above) and — on Claude Code only — the
 dispatch mode. **Same roles, same shared context, same gates — the four non-spawning CLIs stay
 sequential; only Claude Code adds coordinator spawning.**
+
+### The three entry tiers (Claude Code)
+
+The coordinator announces its tier before it schedules anything, and it picks the tier by sensing
+whether the `Agent` tool is available to it — never by reading a host name or a version string.
+These are the same three names the coordinator body carries in
+`agent-factory/packaging/subagent.frontmatter.md` and the same three `install/README.md` §6
+documents, so a user reading the documentation and a user reading the runtime announcement see one
+vocabulary, not two.
+
+- **Full** — the session was started with `claude --agent grugops-orchestrator`. The main thread
+  takes on the coordinator's system prompt and tool restrictions, roles are scheduled in parallel
+  to `queue.wip_limit`, and the enumerated grant **is** runtime-enforced. Claude Code names the
+  agent in the session startup header, which is how a user confirms the tier is live. This is the
+  **full-capability path**.
+- **Reduced** — `Agent` is available but the session is a default main thread, which is what the
+  `/grugops` skill entry gets. Scheduling is still parallel, to the same cap; the grant is **not**
+  runtime-enforced there, because a default session declares no allowlist. The coordinator says so
+  and stays inside the grant by instruction.
+- **Degraded** — `Agent` is unavailable: the four non-Claude-Code host CLIs, or a sub-agent already
+  at the nesting limit (at the limit the platform withholds `Agent` rather than erroring, so a role
+  agent simply does the work itself). The same queue drains at concurrency one through
+  `agent-factory/roles/_role-switch-protocol.md`, announced.
+
+**grugops writes no main-thread wiring into a target repository.** The installer lays down no
+`.claude/settings.json` `agent` entry, in any form, not even sentinel-wrapped. Such an entry would
+make *every* session in that repository run as the grugops coordinator — including a session opened
+only to edit a readme — and settings files are user content the installer never overwrites. The flag
+is therefore the full-capability path this kit documents. What is deliberately **not** claimed: the
+platform documents the enumerated-allowlist rule for the `--agent` flag specifically, so whether the
+settings key enforces that same allowlist is `UNKNOWN - verify`. grugops does not write that key, so
+nothing here depends on the answer.
 
 Doc links cite `code.claude.com/docs/en/*` (the current host) — for example
 `code.claude.com/docs/en/plugins-reference`, `code.claude.com/docs/en/skills`,

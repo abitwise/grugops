@@ -10,6 +10,9 @@ plugin mirrors it in `.claude-plugin/plugin.json`. The two bump together, once p
 grugops is pre-1.0 (SemVer `0.y.z`) on purpose — it is young, and `0.y.z` reserves the right
 to change things while it settles.
 
+Once grugops is installed, **how you start the session decides what the Orchestrator can
+actually do.** The three entry tiers, and what each one really enforces, are §6.
+
 ---
 
 ## 1. The minimal path — just install the markdown (any tool)
@@ -380,6 +383,73 @@ auto-fire a release on any tool.
 
 Verify the hook schema and the per-tool autonomy behavior against current tool docs
 (`code.claude.com/docs/en/hooks`) before you depend on them.
+
+---
+
+## 6. Entry paths — the three tiers, and what each one enforces
+
+Installing grugops puts the roles on disk. How you *start* the session decides what the
+Orchestrator can actually do with them. There are three tiers, and the Orchestrator announces
+which one it is in before it schedules anything. It picks the tier by sensing whether the
+`Agent` tool is available to it — never by reading a host name or a version string.
+
+The three names below are the same three the coordinator uses in that runtime announcement
+(they live once, in `agent-factory/packaging/subagent.frontmatter.md`), so what you read here
+and what you see in a session are one vocabulary, not two.
+
+### Full — `claude --agent grugops-orchestrator`
+
+```sh
+claude --agent grugops-orchestrator
+```
+
+This is the **full-capability path**. The main thread itself takes on the coordinator's system
+prompt and tool restrictions, role agents are scheduled in parallel up to `queue.wip_limit`, and
+the enumerated `Agent(...)` grant in the coordinator adapter's frontmatter **is enforced by the
+runtime** — on this path only. Claude Code prints the agent name in the session startup header
+(`@grugops-orchestrator`); that header is how you confirm the tier is live.
+
+### Reduced — a default session (what the `/grugops` skill entry gets)
+
+The headline entry — `/grugops` in an ordinary Claude Code session — runs in a default main
+thread. That session already has the `Agent` tool, so parallel scheduling is available and is
+used, up to the same `queue.wip_limit`. But the enumerated grant is **not runtime-enforced
+here**: a default session declares no allowlist, so nothing mechanical holds a spawn inside the
+16 specialist names. The coordinator says exactly that when it announces the tier, and stays
+inside the grant by instruction rather than by enforcement. That is a weaker guarantee than the
+full tier, and it is stated plainly rather than softened — you should know which one you have.
+
+### Degraded — no `Agent` tool at all
+
+Codex CLI, Gemini CLI, OpenCode and GitHub Copilot CLI have no host spawn mechanism, and a
+Claude Code sub-agent already at the nesting limit has `Agent` withheld from it rather than
+erroring. In either case the coordinator drains the same queue at concurrency one, activating
+each role in a single window through `agent-factory/roles/_role-switch-protocol.md` — and says
+so out loud.
+
+### What the installer deliberately does not write
+
+The installer writes **no main-thread wiring into your repository** — no `.claude/settings.json`
+`agent` entry, in any form, not even behind a sentinel. Two reasons, both deliberate:
+
+- Such an entry would make **every** session in that repository run as the grugops coordinator,
+  including a session you opened only to fix a typo in a readme.
+- Settings files are **your** content, and grugops is additive: it never overwrites what you own.
+
+So the flag is the full-capability path this kit documents, and you type it in the sessions where
+you want it. What is deliberately **not** claimed here: the platform documents the
+enumerated-allowlist rule for the `--agent` flag specifically. Whether the corresponding settings
+key enforces that same allowlist is `UNKNOWN - verify` — grugops does not write that key, so
+nothing here depends on the answer, and no equivalence is asserted.
+
+### How the adapter is found
+
+Project-scope adapters live in `.claude/agents/`, and Claude Code discovers them by walking up
+from your working directory, so every `.claude/agents/` between there and the repository root is
+scanned. Identity comes only from the frontmatter `name` field — the filename does not decide it.
+All 17 grugops adapters carry the `grugops-` prefix, which keeps their names unique across a tree.
+Verify this resolution behavior against current tool docs
+(`code.claude.com/docs/en/sub-agents`) before you depend on the details.
 
 ---
 
