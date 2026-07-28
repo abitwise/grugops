@@ -3,6 +3,7 @@ phase: quick-260606-0my
 plan: 01
 subsystem: agent-factory (roles, workflows, skills, validator)
 tags: [role-switch, commit-convention, single-source, validator, self-test, dogfood-hardening]
+status: complete
 requires: []
 provides:
   - "agent-factory/roles/_role-switch-protocol.md (single-source 5-step role-switch protocol + handoff-is-sole-memory invariant)"

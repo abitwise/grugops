@@ -461,6 +461,8 @@ None yet.
 
 ## Deferred Items
 
+### v1.2 milestone close (2026-06-16)
+
 Items acknowledged and deferred at the **v1.2 milestone close on 2026-06-16** (13 open artifacts from the pre-close audit). All are known/ratified — none are discovered blockers. They fall into three buckets: the **A3/DOG-02 human waiver** (carried to the next decentralization milestone that removes handoffs, making the dual-path parity test moot — NOT scheduled for a fix), the **B1/B2 Tier-3 persona/prose sign-off** (human-only by design; Phase 19 explicitly scoped Tier 3 out of automation), and **routine carry-forward** (stale status strings whose underlying work shipped, plus two stale quick-task markers). See `milestones/v1.2-MILESTONE-AUDIT.md` for the full analysis.
 
 | Category | Item | Status | Deferred At | Note |
@@ -478,6 +480,32 @@ Items acknowledged and deferred at the **v1.2 milestone close on 2026-06-16** (1
 | verification | Phase 06 — 06-VERIFICATION.md | human_needed | 2026-06-16 | Stale frontmatter — A1/A2 resolved in Phase 19; A3 remains (waived above) |
 | quick_task | 260606-0my-harden-grugops-role-switch-protocol-auto | missing marker | 2026-06-16 | Stale marker only — work shipped at commit 6a66994 (carried from v1.1 close) |
 | quick_task | 260616-faw-automate-remaining-human-uats-feasibilit | missing marker | 2026-06-16 | Stale marker only — work shipped at commit 5dcc5ef (became Phase 19) |
+
+### v2.0 milestone close (2026-07-28)
+
+Items acknowledged and deferred at the **v2.0 milestone close on 2026-07-28** — 12 open artifacts surfaced by the pre-close audit, of which **1 was resolved during close** and 11 are carried. Closeout type: **`override_closeout`** (not all phases project as verified — see the two verification rows below).
+
+Shape of the carry: **9 of 11 are pre-v2.0 carryover** from the v1.2 block above (Phases 05, 06, 10, 11, 19) — already acknowledged at the v1.2 close on 2026-06-16 and unchanged since; they are re-listed here only because the audit re-scans the whole tree, not because anything regressed. **2 are genuinely v2.0**, and they are the same single item viewed from two files: Phase 20's Windows CI proof. See `milestones/v2.0-MILESTONE-AUDIT.md` for the full analysis, including the line-by-line attribution of all 9 Windows failures.
+
+| Category | Item | Status | Deferred At | Note |
+|----------|------|--------|-------------|------|
+| uat | Phase 20 — 20-HUMAN-UAT.md | partial (1 open) | 2026-07-28 | **v2.0 item.** Test 1 asks for a `windows-latest` job exiting 0. The leg has now run (29869231389, sha 4de61b0) and is **RED**: 9 failed / 785 passed. Audit attributed all 9 — 7 harness/fixture artifacts (path-separator assertions, a CRLF token, a symlink-privilege fixture, an unbuildable old-layout fixture cascading into 2 more), 2 a real Windows limitation of the ubuntu-scoped freshness mirror-rebuild. **Zero failures in the v2.0 substrate**: context-io, claim, compactor read-path, and every `guard_context_writes`/SCTX-05 planted-fire case passed on the real runner. Behavior is proven on Windows; the literal "exits 0" is not. Fix = a dedicated Windows-portability pass, then re-run and flip. |
+| verification | Phase 20 — 20-VERIFICATION.md | human_needed (5/5 truths) | 2026-07-28 | **v2.0 item.** Same single open human item as the row above — all 5 must-have truths are VERIFIED; only the real-runner Windows observation is outstanding. Drives `override_closeout`. |
+| verification | Phase 25 — 25-VERIFICATION.md | **parse artifact, not a gap** | 2026-07-28 | Not counted in the 11. The `init.manager` projection reports `unknown` because the frontmatter scan picks up a nested `status: partial` at line 88, inside the block the file itself marks `SUPERSEDED`. The authoritative top-level value at line 4 is `status: passed` (3/3, round-8 closure 2026-06-29), corroborated by the milestone audit and ROADMAP. Deliberately NOT edited — a verification record is not rewritten to satisfy a parser. |
+| uat | Phase 06 — 06-HUMAN-UAT.md | partial (1 open) | 2026-06-16 → carried | Pre-v2.0. A3/DOG-02 live dual-path parity — see GAP-D1 standing deferral below. |
+| uat | Phase 11 — 11-HUMAN-UAT.md | partial (2 open) | 2026-06-16 → carried | Pre-v2.0. B1/B2 senior-persona prose sign-off — human-only Tier 3, out of automation scope by design. |
+| uat | Phase 06 — 06-UAT.md | partial (0 open) | 2026-06-16 → carried | Pre-v2.0. No open scenarios; status string only. |
+| uat | Phase 05 — 05-HUMAN-UAT.md | passed (0 open) | 2026-06-16 → carried | Pre-v2.0. Resolved in Phase 19; status string only. |
+| uat | Phase 10 — 10-HUMAN-UAT.md | passed (0 open) | 2026-06-16 → carried | Pre-v2.0. Resolved; status string only. |
+| verification | Phase 19 — 19-VERIFICATION.md | human_needed (4/5 SC) | 2026-06-16 → carried | Pre-v2.0. SC4 partial — only A3 live parity unverified (GAP-D1). |
+| verification | Phase 11 — 11-VERIFICATION.md | human_needed (9/10) | 2026-06-16 → carried | Pre-v2.0. 10th item = B1/B2 persona prose judgment, unscoreable by any guard. |
+| verification | Phase 05 — 05-VERIFICATION.md | human_needed | 2026-06-16 → carried | Pre-v2.0. Stale frontmatter — A1/A2 resolved in Phase 19. |
+| verification | Phase 06 — 06-VERIFICATION.md | human_needed | 2026-06-16 → carried | Pre-v2.0. Stale frontmatter — A1/A2 resolved in Phase 19; A3 remains (GAP-D1). |
+| quick_task | 260606-0my-harden-grugops-role-switch-protocol-auto | **RESOLVED at close** | 2026-07-28 | Was a false positive. The work shipped 2026-06-06 (`Self-Check: PASSED`, commits 0e5be77 / 897e38f / 6a66994 all in git); only the `status:` frontmatter field was missing. Added `status: complete` — the item is now closed, not deferred. |
+
+**GAP-D1 — standing deferral (human-accepted 2026-07-02, re-confirmed at 26-UAT Test 4 on 2026-07-24):** the A3/DOG-02 retirement flip and its coupled `examples/03-ticket-to-pr.md` cleanup wait on ONE captured live dual-path run on an authed box (an authed Tier-2 `npm run test:e2e` A3-live case, or a completed `docs/dogfood-human-runbook.md` run with date + verdict). A loud-skip is never a capture (D-01/D-02); cost never gates it (D-11). Non-blocking for milestone close — Phase 26 verified the gating *behavior* held correctly: nothing flipped without evidence.
+
+**Other v2.0 tech debt** (from the audit, not open-artifact rows): `guard_role_size` WARN proximity on six roles (`orchestrator.md` at 7562B against a 7165B threshold, growing every phase); the Phase 22 WR-03 fail-safe usability false-positive and the `---\n--- \n…` byte-round-trip adjacency (both fail-closed, never silent-absorb); the Phase 25 `floor-invariance.test.ts` spawn-heavy timeout needing an explicit larger `testTimeout`; the documented irreducible same-uid/no-hook direct-FS forgery residual (backstopped by `autonomy=pr`); `agent-factory/handoffs/` surviving as an empty dir with a tracked `.gitkeep`.
 
 ## Session Continuity
 
