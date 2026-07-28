@@ -32,7 +32,7 @@ ship — never assume a tool fact is permanent.
 
 | Tool | Entry file it reads | Dispatch mode | Adapter | Verify |
 | ---- | ------------------- | ------------- | ------- | ------ |
-| **Claude Code** | `CLAUDE.md` one-line pointer + portable `AGENTS.md` | Coordinator spawns role agents — the `coordinator: true` orchestrator adapter holds the enumerated `Agent(<allowlist>)` grant and spawns role agents (nested depth ≤5, concurrent width capped by `queue.wip_limit`); the single-window sequential role-load remains available as the fallback | **Both forms.** Standalone `.claude/skills/grugops*` (dash → `/grugops-plan`) **and** the `.claude-plugin/` plugin colon form (`/grugops:plan`) | verify against current tool docs |
+| **Claude Code** | `CLAUDE.md` one-line pointer + portable `AGENTS.md` | Coordinator spawns role agents — the `coordinator: true` orchestrator adapter holds the enumerated `Agent(<allowlist>)` grant and spawns role agents (nesting defaults to 3 layers, tuned by `CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH`; concurrent width capped by `queue.wip_limit`, a grugops discipline choice inside the platform's 20-concurrent cap); the single-window sequential role-load remains available as the fallback | **Both forms.** Standalone `.claude/skills/grugops*` (dash → `/grugops-plan`) **and** the `.claude-plugin/` plugin colon form (`/grugops:plan`) | verify against current tool docs |
 | **Codex CLI** | root `AGENTS.md` (+ global `~/.codex/AGENTS.md`) | Sequential role-load — no spawn; the Orchestrator loads each role file into one context in turn | **None — native.** Codex reads `AGENTS.md` directly | verify against current tool docs |
 | **Gemini CLI** | `AGENTS.md` via `.gemini/settings.json` `context.fileName: ["AGENTS.md","GEMINI.md"]` | Sequential role-load — no spawn | **`settings.json` wiring** (`context.fileName` array; cleaner than a `GEMINI.md` pointer, which also works) | verify against current tool docs |
 | **OpenCode** | root `AGENTS.md` (+ global `~/.config/opencode/AGENTS.md`) | Sequential role-load — no spawn (or its own native agents) | **None — native.** OpenCode reads `AGENTS.md` directly | verify against current tool docs |
@@ -43,8 +43,12 @@ role-load (`_role-switch-protocol.md`): the Orchestrator is a single agent that 
 relevant role file into context* at the moment it would otherwise "wake" that role — no
 sub-agent spawning, because those hosts cannot spawn. Claude Code adds coordinator spawning: the
 `coordinator: true` orchestrator adapter holds the enumerated spawn grant and dispatches role
-agents in parallel (depth ≤5, width ≤ `queue.wip_limit`), with the sequential role-load still
-available as the fallback. What changes from tool to tool is the **entry file** the host reads
+agents in parallel. Nesting defaults to 3 layers below the main conversation, tuned by
+`CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH` — that default arrived in v2.1.219, and v2.1.217-v2.1.218
+defaulted to 1, a known-bad window where nesting is effectively off. Width stays at
+`queue.wip_limit`: a grugops discipline choice far inside the platform's 20-concurrent cap (200
+per session), never a consequence of the depth cap — depth and width are independent axes. The
+sequential role-load is still available as the fallback. What changes from tool to tool is the **entry file** the host reads
 to reach `agent-factory/roles/orchestrator.md` (the column above) and — on Claude Code only — the
 dispatch mode. **Same roles, same shared context, same gates — the four non-spawning CLIs stay
 sequential; only Claude Code adds coordinator spawning.**
