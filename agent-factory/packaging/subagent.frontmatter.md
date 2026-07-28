@@ -132,12 +132,27 @@ what is only promised. The `/grug` skill entry runs in a default main-thread ses
 already has the `Agent` tool — so it spawns, and the honest thing to report there is
 "parallel, grant not enforced", never "parallel, grant enforced".
 
-**Size budget.** The coordinator is the largest adapter the generator emits, because only it
-carries the tier announcement and the enumerated grant. As written above, and with the grant
-expanded to the real 16 specialist names, the generated coordinator adapter measures 2951
-bytes against the 3072-byte pointer-size warn tier and the 4096-byte fail tier; the specialist
-adapter measures 1431 bytes. Adding to the coordinator body spends that margin, and the
-ceilings are never raised to make a body fit — the body is shortened instead.
+**Size budget (measured on the generator's real output, plan 27-07).** The coordinator is the
+largest adapter the generator emits, because only it carries the tier announcement and the
+enumerated grant. With the grant expanded to the real 16 specialist names, the emitted
+coordinator adapter measures **3055 bytes** against the 3072-byte pointer-size warn tier and
+the 4096-byte fail tier — **17 bytes of warn-tier headroom**. Specialists measure 1632 bytes
+(`grugops-qe-e2e`) to 1987 bytes (`grugops-security-nfr`); a specialist's size is driven by its
+derived description, so a longer `## One job` sentence is what moves it.
+
+Two things the earlier estimate of 2951 / 1431 did not carry, both now in the measurement: the
+one-line generated-file provenance header, and the `description` emitted as a double-quoted YAML
+scalar (see below). The coordinator's margin is genuinely thin — adding roughly two more lines
+to the coordinator body, or an eighteenth role, crosses the warn tier. The ceilings are never
+raised to make a body fit; the body is shortened instead.
+
+**`description` is emitted as a double-quoted YAML scalar.** The value is derived from authored
+role prose that legitimately contains a colon-space (`routing matrix: "Need AGENTS.md"`, `the
+triggers: authentication`), and the composed value always contains the literal `Use when: `. A
+plain YAML scalar may not contain a colon-space, so the unquoted form shown in the frontmatter
+sketches above would not parse and the platform would refuse to load the adapter. The generator
+therefore always quotes it and escapes `\` and `"` — unconditionally, because a rule that fires
+only on some inputs rots on the next role edit.
 
 ## Capability → tool mapping
 

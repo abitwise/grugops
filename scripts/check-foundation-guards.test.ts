@@ -147,12 +147,60 @@ const roleAgentNames = (): string[] =>
 const adapterPath = (root: string, name: string): string =>
   join(root, ".claude/agents", `${name}.md`);
 
-// A mirror carrying TODAY'S shape is REFERENTIALLY BROKEN by construction: 17 roles, exactly one
-// adapter, a coordinator grant naming seven agents that resolve to nothing. That is the RED fixture
-// (and it is what plain mirror() produces). consistentMirror() builds the OTHER side — the shape
-// plan 27-06 will commit — so the cases that assert a fully green run still have a green tree to
-// assert against, and so the KIT-03 GREEN behaviour is pinned by a fixture rather than by waiting
-// for the real adapters to land. Once they do, BOTH fixtures keep working unchanged.
+// (Phase 27 / plan 27-07) BOTH KIT-03 fixtures are now CONSTRUCTED, and neither inherits its shape
+// from the live tree.
+//
+// Plan 27-01 wrote the RED case against plain mirror(), on the belief that "a mirror carrying
+// today's shape is referentially broken by construction" would stay true. It did not: mirror()
+// derives DERIVED_AGENT_ADAPTER_INPUTS by reading the live .claude/agents, so the moment plan 27-07
+// generated the seventeen adapters the RED fixture silently became a GREEN tree and the case stopped
+// exercising the oracle at all. An oracle regression test whose fixture tracks the thing it is
+// supposed to contradict is not a regression test. brokenMirror() therefore RE-CREATES the
+// pre-27-07 shape explicitly — 17 roles, exactly one adapter, a coordinator grant naming the seven
+// agents that resolved to nothing — so the RED evidence survives every future change to the live
+// adapter directory.
+//
+// consistentMirror() builds the other side: one adapter per role with a full 16-name grant, so the
+// cases that assert a fully green run have a green tree to assert against. It overwrites the
+// mirrored real adapters with minimal fixture bodies rather than creating them, which keeps those
+// cases independent of the generator's exact output bytes.
+
+// The seven names the hand-written pre-27-07 coordinator grant carried, none of which resolved to an
+// adapter file. Kept verbatim as the historical fixture — this list is deliberately NOT derived.
+const HISTORICAL_GRANT_7 = [
+  "grugops-software-engineer",
+  "grugops-qe-e2e",
+  "grugops-security-nfr",
+  "grugops-architect-design",
+  "grugops-system-analyst",
+  "grugops-uat-planner",
+  "grugops-release-manager",
+];
+
+// Re-point a mirrored adapter's `tools:` line at an explicit grant.
+function repointGrant(file: string, granted: string[]): void {
+  const rewritten = readFileSync(file, "utf8")
+    .split("\n")
+    .map((l) =>
+      /^tools:/.test(l)
+        ? `tools: Agent(${granted.join(", ")}), Read, Grep, Glob, Bash, Edit, Write`
+        : l,
+    )
+    .join("\n");
+  writeFileSync(file, rewritten);
+}
+
+// The RED fixture: the structurally broken tree this milestone exists to close.
+function brokenMirror(): string {
+  const m = mirror();
+  for (const name of roleAgentNames()) {
+    if (name === COORDINATOR) continue;
+    rmSync(adapterPath(m, name), { force: true });
+  }
+  repointGrant(adapterPath(m, COORDINATOR), HISTORICAL_GRANT_7);
+  return m;
+}
+
 function consistentMirror(): string {
   const m = mirror();
   const names = roleAgentNames();
@@ -165,17 +213,8 @@ function consistentMirror(): string {
       `---\nname: ${name}\ndescription: Hermetic mirror fixture adapter.\nmodel: inherit\n---\nFixture adapter.\n`,
     );
   }
-  // Re-point the real coordinator's grant at the full 16-name set so the closure closes.
-  const coordFile = adapterPath(m, COORDINATOR);
-  const rewritten = readFileSync(coordFile, "utf8")
-    .split("\n")
-    .map((l) =>
-      /^tools:/.test(l)
-        ? `tools: Agent(${granted.join(", ")}), Read, Grep, Glob, Bash, Edit, Write`
-        : l,
-    )
-    .join("\n");
-  writeFileSync(coordFile, rewritten);
+  // Re-point the coordinator's grant at the full 16-name set so the closure closes.
+  repointGrant(adapterPath(m, COORDINATOR), granted);
   return m;
 }
 
@@ -280,7 +319,8 @@ describe("check-foundation-guards.js (SDLC-02 / SC2 fail-proof harness)", () => 
   // subagent.frontmatter.md shape (a documentation example), which previously read as a second live
   // coordinator. Plant the fenced example into a non-adapter SCAN file (slash-command.template.md,
   // which has no live marker/grant) and assert the aggregator stays GREEN. (Phase 27: built on a
-  // consistentMirror so a fully green run is achievable — plain mirror() is KIT-03 RED by design.)
+  // consistentMirror so the green run is pinned to a CONSTRUCTED fixture rather than to whatever the
+  // live adapter directory happens to hold on the day.)
   it("guard_wr05 FENCED coordinator example (marker+grant inside ```) is ignored → guard PASSES (CR-01 fence-immunity)", () => {
     const m = consistentMirror();
     appendFileSync(
@@ -474,9 +514,11 @@ describe("check-foundation-guards.js (SDLC-02 / SC2 fail-proof harness)", () => 
   // never mention a file no author added to the list, so a plant that reaches the guard is the only
   // proof of derivation that a rename cannot fake.
   //
-  // Every case asserts on the guard line NAMING the planted file, never on the exit code alone:
-  // guard_referential_integrity is legitimately red in the same run (17 roles, 1 adapter, until plan
-  // 27-07), so a bare `status !== 0` would pass even if the derivation were reverted.
+  // Every case asserts on the guard line NAMING the planted file, never on the exit code alone. That
+  // was originally because guard_referential_integrity was legitimately red in the same run (17
+  // roles, 1 adapter) until plan 27-07 landed the adapters; it is kept now that the tree is green,
+  // because a bare `status !== 0` would still pass if the derivation were reverted and some
+  // unrelated guard failed instead.
 
   // ADAPTERS: plant an oversize `.md` under the mirror's .claude/agents and assert guard_adapter_size
   // measures it. Membership followed the filesystem.
@@ -496,8 +538,8 @@ describe("check-foundation-guards.js (SDLC-02 / SC2 fail-proof harness)", () => 
 
   // SPAWN_GRANT_SCAN: plant a NON-coordinator adapter carrying a spawn grant and assert guard_wr05
   // names it a rogue spawner. This is the load-bearing case of the three — it is what keeps all 17
-  // adapters inside the both-direction spawn-grant contract once plan 27-07 lands them, with no edit
-  // to the guard.
+  // adapters inside the both-direction spawn-grant contract now that plan 27-07 has landed them,
+  // with no edit to the guard.
   it("planted non-coordinator adapter with a spawn grant reaches guard_wr05 — SPAWN_GRANT_SCAN is derived (D-19)", () => {
     const m = mirror();
     writeFileSync(
@@ -749,12 +791,13 @@ describe("check-foundation-guards.js (SDLC-02 / SC2 fail-proof harness)", () => 
 
   // ── guard_referential_integrity (KIT-03 / D-09) — both directions pinned to FIXTURES. ─────────
   //
-  // These cases assert against PLANTED mirrors, never the live tree, which is what makes them
-  // permanent. The RED case will keep proving the oracle fires long after plan 27-06 lands the real
-  // adapters and the live tree goes green — the RED evidence becomes a regression test instead of a
-  // screenshot pasted into a document that nobody re-runs.
-  it("referential integrity RED: today's shape (17 roles, 1 adapter, 7 unresolvable grants) fails naming every set difference", () => {
-    const m = mirror(); // plain mirror == today's structurally broken shape
+  // These cases assert against CONSTRUCTED mirrors, never the live tree, which is what makes them
+  // permanent. The RED case keeps proving the oracle fires now that plan 27-07 has landed the real
+  // adapters and the live tree has gone green — the RED evidence is a regression test rather than a
+  // screenshot pasted into a document that nobody re-runs. (It only earns that description since
+  // 27-07 replaced its plain-mirror() fixture with brokenMirror(); see the fixture comment above.)
+  it("referential integrity RED: the pre-27-07 shape (17 roles, 1 adapter, 7 unresolvable grants) fails naming every set difference", () => {
+    const m = brokenMirror(); // the pre-27-07 structurally broken shape, re-created explicitly
     const r = runIn(m);
     expect(r.status).not.toBe(0);
     const o = out(r);
@@ -812,23 +855,28 @@ describe("check-foundation-guards.js (SDLC-02 / SC2 fail-proof harness)", () => 
 
   // ── Smoke — the REAL guard over the REAL tree. ────────────────────────────────────────────────
   //
-  // (Phase 27) This case INVERTED, deliberately and temporarily. The live tree is structurally
-  // broken — 17 roles, one adapter, a grant naming seven agents that resolve to nothing — and from
-  // the commit that added guard_referential_integrity the suite tells the truth about that instead
-  // of reporting a fabricated green. So the smoke assertion becomes: everything EXCEPT KIT-03 is
-  // green, and KIT-03 is the single FAIL. Plan 27-06 commits the 17 adapters and the corrected
-  // 16-name grant; at that point this case must be flipped back to `status === 0` /
-  // "ALL CHECKS PASSED". Until then the exact-one-FAIL assertion is what stops any OTHER regression
-  // from hiding behind the expected red.
-  it("smoke: real tree has exactly one FAIL and it is KIT-03 (RED evidence — flip back to green in plan 27-06)", () => {
+  // (Phase 27) This case was INVERTED between plans 27-01 and 27-07, deliberately and temporarily.
+  // For that window the live tree was structurally broken — 17 roles, one adapter, a grant naming
+  // seven agents that resolved to nothing — and from the commit that added
+  // guard_referential_integrity the suite told the truth about that instead of reporting a fabricated
+  // green, so the assertion read "everything EXCEPT KIT-03 is green, and KIT-03 is the single FAIL".
+  // Plan 27-07 generated the 17 adapters and the corrected 16-name grant, so it is FLIPPED BACK here:
+  // zero FAIL lines and a clean exit. The RED behaviour it used to prove did not disappear with the
+  // flip — it moved into the brokenMirror() fixture case above, which re-creates the pre-27-07 shape
+  // explicitly and is therefore permanent.
+  it("smoke: real tree is fully green — zero FAIL lines, KIT-03 included (flipped back in plan 27-07)", () => {
     const r = spawnSync("node", [GUARD_JS], { encoding: "utf8" });
-    expect(r.status).not.toBe(0);
-    const fails = out(r)
-      .split("\n")
-      .filter((l) => l.startsWith("  FAIL"));
-    expect(fails).toHaveLength(1);
-    expect(fails[0]).toContain("KIT-03 referential-integrity violation");
-    expect(out(r)).toContain("17 roles, 1 adapters");
+    const o = out(r);
+    const fails = o.split("\n").filter((l) => l.startsWith("  FAIL"));
+    // Assert on the FAIL lines BEFORE the status, so a regression reports WHICH guard broke rather
+    // than only that the exit code was non-zero.
+    expect(fails).toEqual([]);
+    expect(r.status).toBe(0);
+    expect(o).toContain("ALL CHECKS PASSED");
+    // The oracle is not merely silent — it ran and reported the three-way equality it now holds.
+    expect(o).toContain(
+      "KIT-03: 17 roles == 17 adapters == 17 grant-closure names",
+    );
   });
 
   // ── cmp — the two config JSONs must be byte-identical (the tri-file drift). ───────────────────
