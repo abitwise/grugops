@@ -26,6 +26,28 @@ The whole kit is **boring on purpose**: ~80+ markdown files under `agent-factory
 
 **The hardest-won lesson of v2.0, recorded because it cost the most:** a green test suite is not proof of a safety invariant. Three separate invariants (the CMP-02 compaction carve-out, the WR-05 spawn guard, the GOV-01 admission gate) each survived 8 rounds of gap-closure — 13 documented cases where a fully green suite still admitted a bypass. What finally closed each one was never another heuristic: it was a **structural** fix (one format-aware authority per predicate, delete the second grammar, move the gate to the point of effect, unfreeze a frozen weaker duplicate) plus parser-oracle fuzzing, ≥2 independent adversarial red-teams, and self-reproduction of the bypass before declaring closure.
 
+## Current Milestone: v2.1 Autonomous Factory — Real Spawning, Controlled Language & Live Board
+
+**Goal:** Make the decentralized factory v2.0 designed actually *run* unattended — fix the spawn path so role agents execute in their own sessions, replace ambiguous agent-written prose with a controlled-language profile, let each project decide where a human is involved, and give the operator a live view of the board.
+
+v2.0 proved the architecture on disk (dual-path equivalence oracle, N-agent worktree dogfood, grep-to-zero handoff removal). v2.1 is the milestone where a user actually runs it: the first real greenfield test surfaced that **no role agent ever spawned**, and the kit's two headline voice/economy claims did not survive measurement. This milestone is corrective and operational, not architectural — the shared verified context, the queue, and the parallel/sequential dual path are unchanged.
+
+**Target features:**
+
+- **Spawn correctness (confirmed defect, three stacked causes)** — author the missing role subagent adapters, complete the coordinator allowlist to cover every routable role, and purge the pre-v2.0 handoff/single-window text from the orchestrator adapter body. Prove with a *captured* live run, never a green suite. Extend the guard set to cover adapter **bodies**.
+- **Controlled language, split by surface** — caveman stays in the fenced identity block; an **ASD-STE100-derived writing profile** governs workflow steps, checklists, memory-bank, shared-context notes, board, and traceability. New `guard_ste`. Includes de-duplicating the role skeleton ("say each thing once") and rebuilding the voice guard to measure voice rather than sentence shape.
+- **Kit consistency audit** — a real pass over all 18 roles + 19 workflows for correctness and strangeness, including the `CLAUDE.md` drift carried from v2.0.
+- **Per-checkpoint autonomy — settable, never silently** — enumerate every human stop, then replace the `autonomy` scalar with a per-checkpoint matrix. All checkpoints *including the four current floors* become dialable; lowering a floor requires an explicit named-human opt-in an agent cannot self-set, defaults stay safe, the lowering is recorded in the trace, and the corresponding claim is dropped when it is off.
+- **Autonomous manual testing** — Claude in Chrome on Claude Code, Playwright MCP elsewhere (needs investigation). Evidence enters through the verify-before-write path so an agent cannot run its own UAT and stamp its own pass.
+- **Board projector + CLI dashboard** — ONE board/state parser authority emitting a typed snapshot the CLI renders and a future web app could render unchanged. Read-only, `fs.watch` with polling fallback, zero runtime deps, never load-bearing.
+
+**Constraint changes ratified at kickoff (2026-07-28):**
+
+1. **Out of Scope amended** — a **read-only, derived, local** view of the board is now permitted. Hosted/SaaS and any write path stay out of scope. (Reverses the blanket "Web UI, dashboards, or SaaS platform" exclusion; the file-based-source-of-truth principle is preserved because the dashboard only ever *reads*.)
+2. **The four safety floors become dialable behind a named-human opt-in** — merge, prod deploy, test-integrity justification, and verify-before-write stop being un-dialable, but do **not** become silent booleans. Safe defaults are unchanged; the guards remain and gain an opt-in tier rather than being deleted.
+
+**Folded-in standing obligations from v2.0:** GAP-D1 rides along — fixing spawn requires exactly the captured live dual-path run the retirement gate has waited for since v1.0. `orchestrator.md` (7562B vs a 7165B WARN threshold) must be trimmed since this milestone adds to it. The `CLAUDE.md` drift falls inside the consistency audit. Windows portability is touched regardless — `fs.watch` is a Windows surface.
+
 ## Most Recent Milestone: v2.0 Decentralized Factory — Shared Verified Context (shipped 2026-07-28)
 
 **Goal:** Re-architect grugops from a centralized Orchestrator + static handoff packets into a *decentralized* multi-agent factory where parallel agents (Claude Code primary) claim work from a queue and build on a **shared, verified, auditable context** that replaces handoffs entirely — targeting higher task success and ~50% lower token cost (per DeLM), while the four non-spawning host CLIs degrade gracefully to a sequential mode over the same shared context.
@@ -137,9 +159,16 @@ This is a largely **introspective** milestone: most work improves grugops's own 
 
 <!-- Next-milestone requirements will be defined via /gsd-new-milestone (fresh REQUIREMENTS.md). -->
 
-_No active milestone. v2.0 is shipped and archived; the next milestone's requirements will be defined via `/gsd-new-milestone` (questioning → research → requirements → roadmap), which creates a fresh `REQUIREMENTS.md`._
+_Milestone **v2.1 Autonomous Factory — Real Spawning, Controlled Language & Live Board** started 2026-07-28. Scoped requirements are being defined in a fresh `REQUIREMENTS.md` (research → requirements → roadmap); phases continue from 27._
 
-**Carried into the next milestone (standing obligations, in priority order):**
+**Kickoff findings that shaped the scope (measured, not assumed):**
+
+- **No role subagent exists.** `.claude/agents/` contains exactly one file (`grugops-orchestrator.md`). Its frontmatter grants `Agent(...)` over 7 role names, **all 7 of which are missing on disk** — so every spawn fails "agent type not found" and the model silently completes the work inline. The allowlist also covers only 7 of 17 roles and omits `greenfield-mapper`, the entry point for the greenfield bootstrap the user tested.
+- **v2.0's "grep-to-zero" handoff removal was not zero.** `.claude/agents/grugops-orchestrator.md:25` still reads "one window, drop prior context, **the handoff is the only memory** — demand a handoff packet from", instructing single-window sequential execution and demanding deleted artifacts. The guards check that file for voice, size, and kit-paths but nothing greps adapter **bodies** for handoff prose.
+- **Caveman-as-token-economy is not supported by the artifact.** The fenced blocks are 6% of role bytes (3,980 / 66,208). They do not compress — they restate: `software-engineer.md`'s caveman block is **58 bytes longer** than the `## One job` line it duplicates sentence-for-sentence, and `## Responsibilities` says it a third time. The real cost driver is triple-statement redundancy.
+- **The voice has drifted out entirely and the guard cannot see it.** Zero occurrences of `grug` across all 17 caveman blocks; they are plain second-person English with full articles. `guard_caveman_preserved` passes because it asserts only ">=2 lines starting with `You`" OR ">=1 idiom" — it measures sentence *shape*, not voice. This is the project's own documented failure mode (a heuristic detector that is a strict subset of the real predicate), drifting green for a full milestone.
+
+**Carried into this milestone (standing obligations, in priority order):**
 
 1. **GAP-D1 — the A3/DOG-02 retirement flip.** Human-accepted 2026-07-02, re-confirmed 2026-07-24. Needs exactly ONE captured live dual-path run on an authed box (an authed Tier-2 `npm run test:e2e` A3-live case, or a completed `docs/dogfood-human-runbook.md` run with date + verdict). On `approved`, flip A3/DOG-02 plus the coupled `examples/03-ticket-to-pr.md` cleanup — one edit. A loud-skip is never a capture (D-01/D-02); cost never gates it (D-11). This is the oldest open item in the project, carried since v1.0.
 2. **Windows-portability pass.** The `windows-latest` CI leg is red on 3 test files — normalize path assertions to accept the forward-slash form, guard the symlink fixture behind a privilege check, make the old-layout migrate fixture buildable (which also un-blocks MIGR-04's Windows coverage), and fix the temp-dir `tsc` mirror-rebuild in the freshness harness. Then re-run the leg and flip the Phase-20 human item on green. Note the cross-platform-including-Windows constraint makes this a standing obligation, not a nice-to-have.

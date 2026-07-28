@@ -1,20 +1,16 @@
 ---
 gsd_state_version: 1.0
-milestone: v2.0
-milestone_name: Decentralized Factory — Shared Verified Context
-status: Awaiting next milestone
-stopped_at: Milestone v2.0 closed and archived
-last_updated: "2026-07-28T07:52:41.393Z"
+milestone: v2.1
+milestone_name: Autonomous Factory — Real Spawning, Controlled Language & Live Board
+status: planning
+last_updated: "2026-07-28T11:08:21.654Z"
 last_activity: 2026-07-28
-last_activity_desc: Milestone v2.0 completed and archived
 progress:
-  total_phases: 7
-  completed_phases: 7
-  total_plans: 44
-  completed_plans: 44
-  percent: 100
-current_phase: 26
-current_phase_name: dogfood-dual-path-oracle-a3-dog-02-retirement
+  total_phases: 0
+  completed_phases: 0
+  total_plans: 0
+  completed_plans: 0
+  percent: 0
 ---
 
 # Project State
@@ -28,18 +24,10 @@ See: .planning/PROJECT.md (updated 2026-07-28 — after v2.0 milestone)
 
 ## Current Position
 
-Phase: Milestone v2.0 complete and archived (tag `v2.0`)
+Phase: Not started (defining requirements)
 Plan: —
-Status: Awaiting next milestone
-Last activity: 2026-07-28 — Milestone v2.0 completed and archived (`override_closeout`; 11 deferred items, 9 of them pre-v2.0 carryover)
-
-**Top of the queue for the next milestone** (full detail in PROJECT.md → Requirements → Active):
-
-1. GAP-D1 — capture ONE live dual-path run on an authed box → flip A3/DOG-02 + the coupled `examples/03-ticket-to-pr.md` edit
-2. Windows-portability pass → then flip the Phase-20 human item on a green leg
-3. Trim `orchestrator.md` (7562B vs a 7165B WARN threshold, growing every phase)
-4. Fail-safe residuals (all fail-closed, none silent)
-5. Hygiene — delete `agent-factory/handoffs/.gitkeep`; reconcile `CLAUDE.md`, which still describes handoff packets and a routing Orchestrator
+Status: Defining requirements
+Last activity: 2026-07-28 — Milestone v2.1 started
 
 ## Performance Metrics
 
