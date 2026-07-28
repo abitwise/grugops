@@ -3,7 +3,7 @@ gsd_state_version: 1.0
 milestone: v2.0
 milestone_name: Decentralized Factory — Shared Verified Context
 status: Awaiting next milestone
-stopped_at: Completed 26-03-PLAN.md
+stopped_at: Milestone v2.0 closed and archived
 last_updated: "2026-07-28T07:52:41.393Z"
 last_activity: 2026-07-28
 last_activity_desc: Milestone v2.0 completed and archived
@@ -21,17 +21,25 @@ current_phase_name: dogfood-dual-path-oracle-a3-dog-02-retirement
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-06-16 — after v1.2 milestone)
+See: .planning/PROJECT.md (updated 2026-07-28 — after v2.0 milestone)
 
-**Core value:** A user installs grugops on top of the coding-agent CLI they already run, types `/grug`, and gets a disciplined delivery team — a visible board, strict handoffs, and an auditable requirement→code→test→release trail — entirely as readable markdown, with humans always holding merge and deploy.
-**Current focus:** Phase 26 — dogfood-dual-path-oracle-a3-dog-02-retirement
+**Core value:** A user installs grugops on top of the coding-agent CLI they already run, types `/grug`, and gets a disciplined delivery team — a visible board, a shared context where nothing is written until it is *verified*, and an auditable requirement→code→test→release trail — entirely as readable markdown, with humans always holding merge and deploy. The v2.0 differentiator: **"verified" means passed the §14 behavior gate**, recorded as a `verified_by` stamp the writing agent cannot forge or self-set.
+**Current focus:** None — v2.0 shipped and archived. Next: `/gsd-new-milestone` to define the next cycle (phase numbering continues from 27).
 
 ## Current Position
 
-Phase: Milestone v2.0 complete
+Phase: Milestone v2.0 complete and archived (tag `v2.0`)
 Plan: —
 Status: Awaiting next milestone
-Last activity: 2026-07-28 — Milestone v2.0 completed and archived
+Last activity: 2026-07-28 — Milestone v2.0 completed and archived (`override_closeout`; 11 deferred items, 9 of them pre-v2.0 carryover)
+
+**Top of the queue for the next milestone** (full detail in PROJECT.md → Requirements → Active):
+
+1. GAP-D1 — capture ONE live dual-path run on an authed box → flip A3/DOG-02 + the coupled `examples/03-ticket-to-pr.md` edit
+2. Windows-portability pass → then flip the Phase-20 human item on a green leg
+3. Trim `orchestrator.md` (7562B vs a 7165B WARN threshold, growing every phase)
+4. Fail-safe residuals (all fail-closed, none silent)
+5. Hygiene — delete `agent-factory/handoffs/.gitkeep`; reconcile `CLAUDE.md`, which still describes handoff packets and a routing Orchestrator
 
 ## Performance Metrics
 
@@ -441,14 +449,29 @@ None yet.
 
 [Issues that affect future work]
 
-- [v1.2] WR-05 spawn-grant regeneration hazard — **RETIRED (Phase 11/D-10).** The `Agent` spawn grant was dropped from both packaging templates in Phase 8, guarded mechanically by `guard_wr05` (`scripts/check-foundation-guards.sh`) in Phase 10, and re-verified GREEN after the Phase-11 16-role persona rewrite (regen-safety re-run was the LAST check, proving the overhaul did not silently re-arm sub-agent spawning). Both packaging-template frontmatters + both materialized adapters carry no spawn token; the explanatory "spawn"/"sub-agent" prose is intentionally KEPT (it documents *why* there is no spawn tool — the guard matches the frontmatter token only, never the prose). No longer a blocker/concern.
-- [v1.2] Migrate/update is the highest-blast-radius pitfall — runs irreversibly on the user's repo. Never delete-first; rename-to-backup; deletion only behind `--prune-old-kit`; bounded marker-strip (v1.1 CR-01 fix); RED harness first; sh/Node byte-parity. Phase 16.
-- [v1.2] Config-dial regressions (both directions): a capability with no config branch over-taxes solo users; an enterprise gate that is prose-only is skippable. Every v1.2 capability defines a lean default + an enterprise escalation; enterprise gates are mechanical where the host allows (Phase 10 contract + Phase 15 gate).
-- [v1.2] Voice-discipline drift: ASVS findings, test-integrity verdicts, and migrate/update data-loss warnings MUST be clear professional English; the senior-persona overhaul must NOT flatten grug voice in role prompts. Voice-lint guard lands in Phase 10, enforced through Phases 11/14/16.
-- [v1.2] Single-source drift: new BDD/ASVS/UI/lint content lands ONCE under `agent-factory/`; adapters stay pointer-sized; gate changes single-source in `05-pr-quality-gate.md`. Adapter-size guard lands in Phase 10.
-- [v1.2 Research flags] Download the pinned ASVS 5.0.0 CSV before the Phase-14 checklist (verify level-column name/position); verify playwright-bdd 9 ↔ @playwright/test 1.60.x compatibility before the Phase-15 gate work; verify role/workflow frontmatter completeness before the Phase-17 catalog.
-- LLM-in-prose anti-pattern (cross-cutting, carried from v1.1): NO role/workflow/SKILL body/AGENTS.md may name `$GRUGOPS_HOME` — only `${CLAUDE_PLUGIN_ROOT}` is expanded inline (plugin), and arbitrary env vars are dead strings in both forms. The adapter holds the only env-var reference; the installer materializes the absolute path.
-- Config location (carried from v1.1): per-repo config is `.grugops/factory.config.json` (SHOME-02 LOCK), with the install marker/version stamp in `.grugops/`. The older ARCHITECTURE.md repo-root recommendation is SUPERSEDED.
+**Open — carried into the next milestone:**
+
+- **[v2.0] `windows-latest` CI leg is RED** on 3 test files (9 failures). 7 are harness/fixture artifacts (path-separator assertions, a CRLF token, a symlink-privilege fixture, an unbuildable old-layout fixture cascading into 2 more); 2 are a real Windows limitation of the ubuntu-scoped freshness mirror-rebuild. **Zero failures in the v2.0 substrate.** MIGR-04's Windows case is *unverified, not disproven* — its test fails as a cascade of the unbuildable fixture (empty output = the migrate never ran). The cross-platform-including-Windows constraint makes fixing this a standing obligation, not optional.
+- **[v2.0] `orchestrator.md` is 7562B against a 7165B `guard_role_size` WARN threshold and grows every phase** — it is the PAR-01..04 coordinator spine, so accretion is structural, not incidental. Five other roles (brownfield-mapper, frontend-ui, greenfield-mapper, qe-e2e, security-nfr) also sit near the ceiling. Advisory today (`check-foundation-guards` exits 0); a hard FAIL on the current trajectory. Trim or split **before** adding to it.
+- **[v2.0] `CLAUDE.md` drift** — the repo's project-instructions file still describes "handoff packets" and an Orchestrator that "routes work"; v2.0 deleted all 17 handoff templates (MIGR-02) and redefined the Orchestrator as a decomposer (PAR-01). It governs agent behavior repo-wide, so it was deliberately left for an explicit reconciliation rather than rewritten during the close.
+- **[v2.0] GAP-D1** — the A3/DOG-02 retirement flip and its coupled `examples/03-ticket-to-pr.md` edit wait on ONE captured live dual-path run on an authed box. A loud-skip is never a capture (D-01/D-02); cost never gates it (D-11). Oldest open item in the project.
+
+**Standing invariants — violate these and something silently breaks:**
+
+- **[v2.0] Verify-before-write is an un-dialable floor.** Nothing enters the shared context without a real, non-self verification stamp. The governance dials add friction *above* this floor; no dial value, typo, or corrupt config may drop below it — the hook fails closed on any non-canonical `human_admission` value.
+- **[v2.0] One authority per predicate.** If two code paths decide the same question (note boundary? finding? high-severity role?), they *will* drift, and the drift is the exploit — this cost 13 green-suite-insufficient catches to learn. Export one authority; make both consult it. Never ship a detector whose accept-set is narrower than the parser's.
+- **[v2.0] A safety invariant is not closed by a green suite.** Closure requires a structural fix + ≥2 *independent* red-teams + reproduction of the bypass (D-12). Price these rounds into the phase estimate.
+- **[v1.2] Migrate/update is the highest-blast-radius surface** — it runs irreversibly on the user's repo. Never delete-first; rename-to-backup; deletion only behind `--prune-old-kit`; bounded marker-strip; RED harness first.
+- **[v1.2] Config-dial regressions cut both ways** — a capability with no dial over-taxes solo users; an enterprise gate that is prose-only is skippable. Every capability needs a lean default plus a mechanical enterprise escalation.
+- **[v1.2] Voice discipline** — security findings, test-integrity verdicts, and data-loss warnings are clear professional English; role prompts keep terse grug voice (the token-economy mechanism). `guard_voice` enforces both directions.
+- **[v1.2] Single-source drift** — content lands ONCE under `agent-factory/`; adapters stay pointer-sized; gate changes go only in `05-pr-quality-gate.md`.
+- **[v1.1] LLM-in-prose anti-pattern** — NO role/workflow/SKILL body/AGENTS.md may name `$GRUGOPS_HOME`. Only `${CLAUDE_PLUGIN_ROOT}` expands inline (plugin form); arbitrary env vars are dead strings in prose. The adapter holds the only env-var reference; the installer materializes the absolute path.
+- **[v1.1] Config location** — per-repo config is `.grugops/factory.config.json` (SHOME-02 LOCK), install marker/version stamp in `.grugops/`. The older repo-root recommendation is SUPERSEDED.
+
+**Resolved during v2.0:**
+
+- ~~[v1.2] WR-05 spawn-grant regeneration hazard~~ — **superseded, then inverted.** v1.2 retired it as "no role grants `Agent`". v2.0 PAR-04 **reversed the underlying decision for Claude Code** and inverted the guard itself to "exactly one coordinator grants `Agent(<allowlist>)`", proven RED against the committed `.js`. A phase code-review caught the inverted guard mis-reading a fenced coordinator example as a live coordinator; fixed structurally with fence-stripping + cardinality. Do not reintroduce the old "no spawn anywhere" assertion — it is now wrong.
+- ~~[v1.2 Research flags]~~ — all three resolved in their phases (ASVS 5.0.0 pinned, Playwright pins verified, frontmatter completeness confirmed by the catalog generator).
 
 ### Quick Tasks Completed
 
@@ -509,8 +532,8 @@ Shape of the carry: **9 of 11 are pre-v2.0 carryover** from the v1.2 block above
 
 ## Session Continuity
 
-Last session: 2026-07-10T13:23:47.125Z
-Stopped at: Completed 26-03-PLAN.md
+Last session: 2026-07-28
+Stopped at: Milestone v2.0 closed and archived
 Resume file: None
 
 ## Operator Next Steps

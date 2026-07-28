@@ -2,6 +2,56 @@
 
 *A living document updated after each milestone. Lessons feed forward into future planning.*
 
+## Milestone: v2.0 — Decentralized Factory: Shared Verified Context
+
+**Shipped:** 2026-07-28
+**Phases:** 7 (20–26) | **Plans:** 44 | **Commits:** 339
+
+### What Was Built
+- A **shared verified context** replacing static handoffs entirely — typed six-kind notes with a provenance fence over `context-io.ts`, the only sanctioned atomic append-only write path, with a byte-reproducible index behind a fail-closed drift gate
+- **Verify-before-write admission** — a finding enters the context only against a live GREEN `§14-gate#<id>` verdict, a passing test, or a named human; self/hollow/self-authored stamps are a structural FAIL
+- **Two-tier memory + compaction** with a load-bearing-field carve-out no compaction may drop, under a `context.compaction` dial
+- A **lock-free file queue** (`mkdirSync` exclusive claim, atomic-rename transitions, TTL sweep) and **parallel execution** — Orchestrator as decomposer/scheduler/gate that relays no data, nested spawning on Claude Code, concurrency-1 degradation on the other four CLIs over the same substrate
+- **All 17 handoff templates deleted** in one grep-to-zero change, with traceability migrated onto note `refs` rather than dropped
+- **Governance-on-a-dial** (`context.human_admission`, `context.audit_retention`) over an un-dialable safety floor
+- A **dual-path equivalence oracle** proving the parallel and sequential paths converge on identical on-disk artifacts, plus an N-agent real-worktree dogfood
+
+### What Worked
+- **Foundation-first, again, and it mattered more here** — Phases 20–22 mechanized the substrate, verifier, and compaction *before* any role was allowed to write to the context. Every later phase wrote into an already-guarded environment. Doing this in the other order would have meant retrofitting a safety property onto live callers.
+- **Structural fixes over heuristics** — the only thing that ever actually closed an invariant. One format-aware authority per predicate; delete the second grammar instead of syncing it; move the gate to the point of effect; unfreeze a frozen weaker duplicate rather than working around it.
+- **Independent, bash-grounded red-teaming (D-12)** — in Phase 25 round 7 the *first* red-team false-passed and a second, independently run one found the real bypass. A single reviewer would have shipped the hole. Requiring ≥2 independent red-teams plus self-reproduction is what made closure trustworthy.
+- **Letting the evidence gate say no** — Phase 26's retirement gate correctly refused to fire for want of a captured live run. Building a mechanism and then honoring its refusal is the strongest possible evidence the mechanism works.
+- **Honest measurement** — `measureCost()` is fixture-tested to emit *no* numeric field. The headline ~50% claim stayed `UNKNOWN - verify` rather than borrowing DeLM's benchmark.
+
+### What Was Inefficient
+- **Three invariants took 8 rounds each.** CMP-02 (7 distinct bypasses), WR-05, and GOV-01 consumed roughly half the milestone's 44 plans — Phase 25 alone ran 13. Every failed round shared one root cause: a heuristic detector narrower than the real format's grammar. That root cause was identified at round 5 and *still* recurred, because each fix addressed the specific shape found rather than the class.
+- **13 green suites that were not proof.** The cost of learning "a green suite is a precondition, not evidence" was paid 13 separate times. The tell was always available — if the detector's accept-set is not provably identical to the parser's, they will diverge — but it was not made a checklist item until late.
+- **The Windows leg was never observed until milestone end.** Phase 20 deferred its `windows-latest` proof to milestone close; when it finally ran it was red on 9 tests. 7 were harness artifacts that would have been trivial to fix in-phase and instead became carried debt. Deferring a cross-platform proof to the end defers the *fixes*, not just the observation.
+- **`orchestrator.md` accreted unnoticed** until a guard warned at 7562B against a 7165B threshold. The coordinator spine grows structurally with every phase; nothing was budgeting for that.
+- **Verification records became parser-hostile.** Phase 25's frontmatter grew a `gaps_history` block deep enough that the tooling's frontmatter scan now misreads the phase's status. Rich audit history and machine-readable frontmatter pulled against each other, and the history won.
+
+### Patterns Established
+- **One authority per predicate.** If two pieces of code decide the same question (is this a note boundary? is this a finding? is this role high-severity?), they will drift, and the drift is the exploit. Export one authority and have both consult it.
+- **The gate belongs at the point of effect.** Static analysis of a pre-expansion shell string cannot be complete against bash; the fix was to stop analyzing the command and gate the write itself.
+- **A capture requires a date and a verdict.** A loud-skip is not evidence. A suite that passed while skipping the live lane is not evidence. Absence of contrary evidence never satisfies a gate.
+- **Disclose irreducible residuals instead of over-claiming.** Same-uid direct-FS forgery is not preventable by a same-uid hook; saying so plainly and naming `autonomy=pr` as the backstop is worth more than an unqualified guarantee.
+- **Delete, don't deprecate.** All 17 handoff templates went in one grep-to-zero change rather than running a parallel deprecation window — fewer moving parts, and the guard proves the removal is total.
+
+### Key Lessons
+1. **A green test suite is a precondition for closing a safety invariant, never evidence of it.** Closure needs a structural fix + independent red-teaming + self-reproduction of the bypass. Thirteen times this was learned the hard way.
+2. **When a detector and a parser disagree about the same format, the format becomes the attack surface.** Check accept-set equality explicitly; do not assume a "narrower" heuristic is a safe approximation — narrower is exactly the bug.
+3. **Two independent reviewers, not one.** The first red-team false-passed on the round that mattered most.
+4. **Run cross-platform proofs in-phase, not at milestone end.** Deferring the observation defers the cheap fixes into carried debt.
+5. **Budget red-team rounds into safety-invariant phases up front.** Phase 25's 13 plans were not overrun — they were the actual cost of the guarantee, mispriced at planning time as 3.
+6. **A mechanism that refuses to do the convenient thing is the one worth trusting.** The best result of this milestone was a gate declining to fire.
+
+### Cost Observations
+- Model mix: predominantly opus (model_profile `quality`); red-team and verifier passes deliberately run as independent opus agents.
+- Scale: the largest milestone yet — 339 commits, +52,976/−2,775 across 460 files over 42 days (2026-06-16 → 2026-07-28).
+- Notable: gap-closure rounds dominated the spend. Phases 22 and 25 alone account for 22 of 44 plans. The single most expensive pattern was re-fixing the same bypass *class* with shape-specific patches; the cheapest high-yield spend was the deterministic Tier-1 oracles, which cost nothing per run and caught real defects.
+
+---
+
 ## Milestone: v1.2 — SDLC Depth, Quality Discipline & Browsable Docs
 
 **Shipped:** 2026-06-16
@@ -130,6 +180,7 @@
 | v1.0 | 206 | 6 | 34 | Bottom-up build of the full spec; dogfood as acceptance gate |
 | v1.1 | 92 | 3 | 14 | Forced build order + mechanical gates (C1 grep-to-zero, C3 fail-closed); sh/Node byte-parity contract |
 | v1.2 | 263 | 10 | 38 | Foundation-first guards + config-dial; token-economy persona overhaul; TypeScript tooling pivot (committed-`.js` + freshness); converged single-source §14 gate; honest Tier-1/2 auto-UAT |
+| v2.0 | 339 | 7 | 44 | Architecture pivot to a decentralized shared verified context; handoffs deleted grep-to-zero; parallel agents + lock-free queue; **adversarial closure doctrine** (structural fix + ≥2 independent red-teams + self-repro) after 13 green-suite-insufficient catches |
 
 ### Cumulative Quality
 
@@ -138,10 +189,13 @@
 | v1.0 | validator self-test, guard.test.sh, install.test.sh, check-structure.sh | (not formally audited) | validator (stdlib-only), guard (pure-Node) |
 | v1.1 | install.test.sh 18/18, validate.test.sh 18/18, two-root 12/12, check-kit-refs green | `tech_debt` (8/8 reqs, no blockers) | doctor (sh + Node), two-root validator |
 | v1.2 | Vitest suite 144+ green (install, validator, ASVS, guards, UAT oracles, catalog, freshness) + foundation-guards aggregator | `tech_debt` (34/35 reqs, 7/7 integration seams, no blockers) | TS tooling → committed-`.js` + freshness (zero host runtime deps); test-integrity checker; catalog generator + freshness gate; Tier-1 UAT oracles |
+| v2.0 | Vitest 794 passed / 1 skipped (30 files) + foundation-guards, kit-refs, uat-oracles, freshness ×3, typecheck — all exit 0; `windows-latest` leg red on 3 files (harness/fixture, **zero in the v2.0 substrate**) | `tech_debt` (28/28 reqs, 8/8 integration boundaries, 7/7 Nyquist, no blockers) — closed `override_closeout` | `context-io` / `claim` / `compactor` substrate; admission guard + stdio MCP server; dual-path equivalence oracle; `freshness:context` + `freshness:traceability` gates — all zero host runtime deps |
 
 ### Top Lessons (Verified Across Milestones)
 
 1. **Mechanical gates beat eyeballs and prompts** — the prod-deploy hook (v1.0) and the grep-to-zero / fail-closed gates (v1.1) are the load-bearing safety, not the prose.
 2. **Never fabricate** — `UNKNOWN - verify`, honest deferral of un-runnable items (DOG-02), and re-verifying after gap closure kept the trace trustworthy across both milestones.
 3. **Close milestones promptly** — v1.0's skipped archive cost a retroactive reconstruction; do the close as part of shipping. Corollary (v1.2): scope the verification/UAT-automation *into* the milestone — deferring it reopened v1.2 as a whole new phase (19).
-4. **Make tooling drift impossible, not just unlikely** — the committed-`.js` + freshness check (v1.2) is the same move as the v1.1 sh/Node byte-parity contract: pick one source of truth and gate mechanically on a byte diff so the artifact provably can't drift.
+4. **Make tooling drift impossible, not just unlikely** — the committed-`.js` + freshness check (v1.2) is the same move as the v1.1 sh/Node byte-parity contract: pick one source of truth and gate mechanically on a byte diff so the artifact provably can't drift. v2.0 generalized this to *logic*: one authority per predicate, because two code paths deciding the same question will diverge and the divergence is the exploit.
+5. **A green suite is a precondition, never proof, for a safety invariant** (v2.0, learned 13 times) — closure requires a structural fix, ≥2 *independent* red-teams, and reproduction of the bypass. Corollary: price those rounds into the phase estimate, or the phase will look like a 4× overrun when it was correctly-costed work all along.
+6. **Prefer the honest negative** — v2.0's best result was an evidence gate refusing to retire a waiver, and its headline cost claim staying `UNKNOWN - verify`. A mechanism that declines to do the convenient thing is the one worth trusting; a number borrowed from someone else's benchmark is the fabrication the trace exists to prevent.
