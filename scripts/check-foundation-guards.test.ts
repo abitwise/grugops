@@ -31,35 +31,37 @@ import {
 import { tmpdir } from "node:os";
 import { join, dirname } from "node:path";
 
+import { listRoles, ROLE_COUNT } from "./kit-model.js";
+
 const ROOT = join(import.meta.dirname, "..");
 const GUARD_JS = join(ROOT, "scripts", "check-foundation-guards.js");
 
+// Repo-relative path of a role file inside a mirror (or the real tree). Every plant case below goes
+// through this helper rather than restating the directory, so the role directory is named in exactly
+// one more place than the derivation itself — the set-literal drift this phase exists to delete.
+const rolePath = (root: string, name: string): string =>
+  join(root, "agent-factory/roles", name);
+
+// (Phase 27 / KIT-01) The role portion of the harness's own input set is DERIVED. GUARD_INPUTS was
+// itself a hand-maintained list of exactly the drift class this phase deletes: 17 role literals that
+// had to be edited in lockstep with the guard's ROLE_FILES and the kit on disk. It is now built from
+// the same authority the guard uses, so a mirror can never be missing a role the guard will scan.
+// The NON-role entries stay explicit literals on purpose — they are a curated set of unrelated
+// surfaces (AGENTS.md, the two adapters, the two packaging templates, the SEC_VOICE surfaces, the
+// workflows, the .planning/ Tier-1 oracle inputs), not a directory listing, so there is nothing to
+// derive them from.
+const DERIVED_ROLE_INPUTS = listRoles().map((f) => `agent-factory/roles/${f}`);
+
 // The complete set of input files the guard reads (repo-relative). A mirror carries byte-faithful
-// copies of all of these; one file is then mutated to plant the violation. All 17 role files plus
-// the 3 SEC_VOICE surfaces plus AGENTS.md + the 2 adapters + the 2 packaging templates.
+// copies of all of these; one file is then mutated to plant the violation. The derived role corpus
+// plus the SEC_VOICE surfaces plus AGENTS.md + the 2 adapters + the 2 packaging templates.
 const GUARD_INPUTS = [
+  ...DERIVED_ROLE_INPUTS,
   "AGENTS.md",
   ".claude/skills/grugops/SKILL.md",
   ".claude/agents/grugops-orchestrator.md",
   "agent-factory/packaging/subagent.frontmatter.md",
   "agent-factory/packaging/slash-command.template.md",
-  "agent-factory/roles/agents-md-scribe.md",
-  "agent-factory/roles/architect-design.md",
-  "agent-factory/roles/ba-pm.md",
-  "agent-factory/roles/brownfield-mapper.md",
-  "agent-factory/roles/compliance-officer.md",
-  "agent-factory/roles/factory-coach.md",
-  "agent-factory/roles/frontend-ui.md",
-  "agent-factory/roles/greenfield-mapper.md",
-  "agent-factory/roles/incident-responder.md",
-  "agent-factory/roles/installer.md",
-  "agent-factory/roles/orchestrator.md",
-  "agent-factory/roles/qe-e2e.md",
-  "agent-factory/roles/release-manager.md",
-  "agent-factory/roles/security-nfr.md",
-  "agent-factory/roles/software-engineer.md",
-  "agent-factory/roles/system-analyst.md",
-  "agent-factory/roles/uat-planner.md",
   "agent-factory/workflows/15-security-audit.md",
   "agent-factory/checklists/security-nfr-checklist.md",
   // (Phase 24) agent-factory/handoffs/security-nfr-handoff.md was DROPPED from SEC_VOICE_FILES — the
@@ -291,7 +293,7 @@ describe("check-foundation-guards.js (SDLC-02 / SC2 fail-proof harness)", () => 
   it("guard_voice marker in role clear-voice surface → nonzero + role path", () => {
     const m = mirror();
     appendFileSync(
-      join(m, "agent-factory/roles/security-nfr.md"),
+      rolePath(m, "security-nfr.md"),
       "\ngrug smash the bug.\n",
     );
     const r = runIn(m);
@@ -336,9 +338,13 @@ describe("check-foundation-guards.js (SDLC-02 / SC2 fail-proof harness)", () => 
   // commit (a fully green suite over a 16-role kit — the founding defect of this milestone), whereas
   // the derived exact count cannot be satisfied by any edit to the guard source. The per-guard
   // `fileExists` branches remain in place as TOCTOU defence between readdir and read.
-  it("deleted role file → nonzero + derived kit count fails red (KIT-01 supersedes the per-guard missing-file check)", () => {
+  //
+  // These are the TWO SIDES of D-20's exact-count enforcement, and the pair is the point: a `>=`
+  // floor would let 18 through and a `<=` ceiling would let 16 through. Only 17 passes. Both test
+  // names carry the string `kit count` so `vitest -t "kit count"` selects exactly this pair.
+  it("kit count 16 roles (one deleted) → nonzero + names the derived 16 and the expected 17 (D-20 low side)", () => {
     const m = mirror();
-    rmSync(join(m, "agent-factory/roles/compliance-officer.md"), { force: true });
+    rmSync(rolePath(m, "compliance-officer.md"), { force: true });
     const r = runIn(m);
     expect(r.status).not.toBe(0);
     expect(out(r)).toContain("kit count");
@@ -346,10 +352,51 @@ describe("check-foundation-guards.js (SDLC-02 / SC2 fail-proof harness)", () => 
     expect(out(r)).toContain("expected exactly 17");
   });
 
+  it("kit count 18 roles (one planted) → nonzero + names the derived 18 and the expected 17 (D-20 high side)", () => {
+    const m = mirror();
+    // A well-formed 18th role: a byte copy of a real one, so it clears guard_voice and
+    // guard_caveman_preserved. The ONLY reason to reject it is that the corpus is now 18.
+    cpSync(rolePath(ROOT, "installer.md"), rolePath(m, "zz-planted-role.md"));
+    const r = runIn(m);
+    expect(r.status).not.toBe(0);
+    expect(out(r)).toContain("kit count");
+    expect(out(r)).toContain("derived 18 role files");
+    expect(out(r)).toContain("expected exactly 17");
+  });
+
+  // D-19 per-consumer derivation proof: ROLE_FILES must be genuinely DERIVED, not re-listed under a
+  // new name. Plant an 18th role and assert a downstream consumer (guard_role_size) emits a line
+  // naming it — a re-listed set would never mention a file no author added to the list. This case
+  // asserts on the PRESENCE of that line, not on the exit code: guard_kit_counts legitimately fails
+  // in the same run (the corpus is 18), and that is not what is under test here.
+  it("planted 18th role reaches guard_role_size — ROLE_FILES is derived, not re-listed (D-19)", () => {
+    const m = mirror();
+    cpSync(rolePath(ROOT, "installer.md"), rolePath(m, "zz-derived-probe.md"));
+    const lines = out(runIn(m)).split("\n");
+    const roleSizeLine = lines.find(
+      (l) => /^ {2}(PASS|WARN|FAIL)/.test(l) && l.includes("zz-derived-probe.md"),
+    );
+    expect(roleSizeLine).toBeDefined();
+    // roleCeiling() is deliberately NOT derived (D-17), so an undocumented role fails CLOSED naming
+    // the file rather than inheriting an automatic ceiling.
+    expect(roleSizeLine).toContain("no documented ceiling");
+  });
+
+  // The harness's own input set must stay derived — if DERIVED_ROLE_INPUTS ever silently emptied or
+  // drifted, every mirror above would be built from an incomplete kit and the plants would be
+  // measuring nothing.
+  it("GUARD_INPUTS derives exactly ROLE_COUNT role entries (the harness input set is not hand-listed)", () => {
+    expect(DERIVED_ROLE_INPUTS.length).toBe(ROLE_COUNT);
+    expect(DERIVED_ROLE_INPUTS).toContain("agent-factory/roles/orchestrator.md");
+    expect(DERIVED_ROLE_INPUTS).not.toContain(
+      "agent-factory/roles/_role-switch-protocol.md",
+    );
+  });
+
   it("guard_voice refinement accepts clear-voice grug-meta + /grug (narrow, not weakened)", () => {
     const m = mirror();
     appendFileSync(
-      join(m, "agent-factory/roles/security-nfr.md"),
+      rolePath(m, "security-nfr.md"),
       "\nThe Scribe may add a light grug wink in Mission; route every `/grug` request to grug voice.\n",
     );
     const r = runIn(m);
@@ -360,7 +407,7 @@ describe("check-foundation-guards.js (SDLC-02 / SC2 fail-proof harness)", () => 
   it("guard_voice unterminated caveman fence → nonzero + 'unterminated' (WR-03)", () => {
     const m = mirror();
     // Delete the CLOSING ``` of qe-e2e's `## Caveman prompt` block so the fence is unbalanced.
-    const file = join(m, "agent-factory/roles/qe-e2e.md");
+    const file = rolePath(m, "qe-e2e.md");
     const lines = readFileSync(file, "utf8").split("\n");
     let seen = false;
     let fence = 0;
@@ -382,7 +429,7 @@ describe("check-foundation-guards.js (SDLC-02 / SC2 fail-proof harness)", () => 
   // ── guard_caveman_preserved — sanded block + single-opener + missing (CR-02). ────────────────
   it("guard_caveman_preserved sanded block → nonzero + 'no caveman marker' (D-06)", () => {
     const m = mirror();
-    const file = join(m, "agent-factory/roles/brownfield-mapper.md");
+    const file = rolePath(m, "brownfield-mapper.md");
     const lines = readFileSync(file, "utf8").split("\n");
     // Replace the lines INSIDE the fenced block with marker-free professional prose (fences kept).
     let seen = false;
@@ -420,7 +467,7 @@ describe("check-foundation-guards.js (SDLC-02 / SC2 fail-proof harness)", () => 
 
   it("guard_caveman_preserved single-opener sand → nonzero + 'sanded to prose' (WR-01)", () => {
     const m = mirror();
-    const file = join(m, "agent-factory/roles/brownfield-mapper.md");
+    const file = rolePath(m, "brownfield-mapper.md");
     const lines = readFileSync(file, "utf8").split("\n");
     let seen = false;
     let fence = 0;
@@ -464,7 +511,7 @@ describe("check-foundation-guards.js (SDLC-02 / SC2 fail-proof harness)", () => 
   it("guard_role_size oversize role (>ceiling) → nonzero + 'bloated' (D-07)", () => {
     const m = mirror();
     writeFileSync(
-      join(m, "agent-factory/roles/brownfield-mapper.md"),
+      rolePath(m, "brownfield-mapper.md"),
       "x".repeat(6000) + "\n",
     );
     const r = runIn(m);
@@ -473,21 +520,8 @@ describe("check-foundation-guards.js (SDLC-02 / SC2 fail-proof harness)", () => 
   });
 
   // (Phase 27 / KIT-01) The former "missing role → installer.md missing" case is superseded by the
-  // derived-kit-count case above. See the comment there.
-  //
-  // roleCeiling() is deliberately NOT derived (D-17), so the unknown-role direction still fails red
-  // naming the file: plant an EXTRA role that has no documented ceiling and guard_role_size names it.
-  it("guard_role_size undocumented role → nonzero + 'no documented ceiling' names the file (D-17)", () => {
-    const m = mirror();
-    cpSync(
-      join(ROOT, "agent-factory/roles/installer.md"),
-      join(m, "agent-factory/roles/zz-new-role.md"),
-    );
-    const r = runIn(m);
-    expect(r.status).not.toBe(0);
-    expect(out(r)).toContain("zz-new-role.md");
-    expect(out(r)).toContain("no documented ceiling");
-  });
+  // `kit count 16 roles` case above; the D-17 undocumented-role direction is covered by the
+  // `planted 18th role reaches guard_role_size` case, which asserts on the guard_role_size line.
 
   // ── Phase 19 Tier-1 oracle wiring (UAT-AUTO-05 / BLOCKER 1) — the aggregator must FAIL CLOSED. ──
   // Break a single Tier-1 input in the mirror and prove the aggregator goes red — i.e. `node
