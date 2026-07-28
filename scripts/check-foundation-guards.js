@@ -237,17 +237,69 @@ function guardAgentsBytes() {
 // ---------------------------------------------------------------------------
 // guard_adapter_size — per-adapter byte ceiling (single-source). Byte-based, NOT line-based.
 // FAIL at 4096 (4 KiB); WARN at 3072 (3 KiB).
+//
+// (Phase 27 / KIT-02, D-16) The membership is DERIVED from the two adapter directories, no longer a
+// two-entry hand list. It was a two-entry list while the tree held eight adapter files — the seven
+// skill adapters were never size-checked at all, which is exactly the set-literal drift class this
+// milestone deletes. Derivation is still a BOUNDED scan: two fixed literal directories, one shape
+// rule each, never a repo-wide walk.
+//
+// Ordering is agents-then-skills, each part sorted, so the guard's output for a given tree is
+// byte-identical across runs and platforms regardless of readdirSync order.
+//
+// A derived membership list silently REMOVES the CR-01 missing-file fail-red branch that the literal
+// had: a deleted adapter simply stops being a member, so no branch can name it. That behaviour is
+// restored in two places rather than pretended to still work — the non-empty floor below (which
+// covers a directory emptied outright) and, for agent adapters specifically, the KIT-03
+// referential-integrity oracle (which compares the adapter directory against the role corpus and so
+// names any single deleted agent adapter). Skills have no corresponding role, so the SKILL_COUNT
+// assertion in guardKitCounts() closes the one gap the oracle cannot see.
 // ---------------------------------------------------------------------------
-const ADAPTERS = [
-    ".claude/skills/grugops/SKILL.md",
-    ".claude/agents/grugops-orchestrator.md",
-];
+// The two adapter directories. Fixed literal subpaths joined onto the already-resolved ROOT —
+// never argv/env/content-derived (ASVS V12, mirrors kit-model.ts's path-traversal posture).
+// ADAPTER_DIR is also the set the KIT-03 oracle compares against, so it is declared once here.
+const ADAPTER_DIR = ".claude/agents";
+const SKILL_DIR = ".claude/skills";
+// The exact expected number of skill adapters. A COUNT is not the drift class this phase deletes —
+// the drift class is a LIST OF NAMES that consumers read as truth while it rots; a count is a number
+// that can only ever fail closed. Deleting a skill directory must not be able to disappear from the
+// guard's view, and the KIT-03 oracle cannot see it (a skill has no role to compare against).
+const SKILL_COUNT = 7;
+// Read a directory, returning [] when it cannot be read. The empty result is NOT a silent pass —
+// guardAdapterSize()'s non-empty floor fails red on it, naming the directory and both counts.
+function readAdapterDir(rel) {
+    try {
+        return readdirSync(abs(rel));
+    }
+    catch {
+        return [];
+    }
+}
+// Every `.md` file directly under .claude/agents, sorted, as repo-relative paths.
+const AGENT_ADAPTERS = readAdapterDir(ADAPTER_DIR)
+    .filter((f) => f.endsWith(".md"))
+    .sort()
+    .map((f) => `${ADAPTER_DIR}/${f}`);
+// Every `<name>/SKILL.md` under .claude/skills, sorted, as repo-relative paths. The entry is kept
+// only when the SKILL.md actually exists, so a stray non-skill directory cannot join the set.
+const SKILL_ADAPTERS = readAdapterDir(SKILL_DIR)
+    .filter((d) => existsSync(abs(`${SKILL_DIR}/${d}/SKILL.md`)))
+    .sort()
+    .map((d) => `${SKILL_DIR}/${d}/SKILL.md`);
+const ADAPTERS = [...AGENT_ADAPTERS, ...SKILL_ADAPTERS];
 const AD_WARN = 3072; // 3 KiB
 const AD_FAIL = 4096; // 4 KiB
 function guardAdapterSize() {
     process.stdout.write("\n[guard_adapter_size] adapters stay pointer-sized (single-source, byte ceiling)\n");
+    // Non-empty floor — the deletion detection the derived set would otherwise have dropped. A run
+    // that compared zero adapters is the anomaly, never "nothing to check, therefore fine". Report
+    // BOTH counts so the message says which directory came back empty and what the other held.
+    if (AGENT_ADAPTERS.length === 0 || SKILL_ADAPTERS.length === 0) {
+        fail(`adapter derivation returned an empty set — ${ADAPTER_DIR}: ${AGENT_ADAPTERS.length} adapter(s), ${SKILL_DIR}: ${SKILL_ADAPTERS.length} adapter(s). An empty adapter directory is never "nothing to compare, therefore fine".`);
+    }
     for (const f of ADAPTERS) {
-        // Missing-file fail-red (CR-01): a deleted adapter must fail red naming the path.
+        // TOCTOU defence: the member came from a readdir, so a vanished file here is a race, not a
+        // deletion the derivation could have seen. Kept so the guard names it rather than throwing.
         if (!fileExists(f)) {
             fail(`${f} missing (adapter required)`);
             continue;
@@ -288,8 +340,14 @@ function guardKitCounts() {
     if (WORKFLOW_FILES.length !== WORKFLOW_COUNT) {
         countFail += `\nkit count: derived ${WORKFLOW_FILES.length} workflow files, expected exactly ${WORKFLOW_COUNT} — walk every derived consumer BEFORE updating WORKFLOW_COUNT in scripts/kit-model.ts`;
     }
+    // (Phase 27 / KIT-02) The skill-adapter count. This is the deletion detector for the ONE derived
+    // set the KIT-03 referential-integrity oracle cannot cover: a skill adapter has no corresponding
+    // role file, so removing a skill directory would otherwise just shrink the derived set in silence.
+    if (SKILL_ADAPTERS.length !== SKILL_COUNT) {
+        countFail += `\nkit count: derived ${SKILL_ADAPTERS.length} skill adapters, expected exactly ${SKILL_COUNT} — a skill adapter has no role to compare against, so this count is the only deletion signal; walk guard_adapter_size and the spawn-grant scan BEFORE updating SKILL_COUNT`;
+    }
     if (countFail === "") {
-        pass(`kit counts: derived ${ROLE_FILES.length} roles and ${WORKFLOW_FILES.length} workflows (expected ${ROLE_COUNT} / ${WORKFLOW_COUNT})`);
+        pass(`kit counts: derived ${ROLE_FILES.length} roles, ${WORKFLOW_FILES.length} workflows and ${SKILL_ADAPTERS.length} skill adapters (expected ${ROLE_COUNT} / ${WORKFLOW_COUNT} / ${SKILL_COUNT})`);
     }
     else {
         fail(`kit-count violation:${countFail}`);
@@ -673,7 +731,8 @@ function guardContextWrites() {
 // coordinator is located by the WR05_COORDINATOR marker, matching how guard_wr05 already identifies
 // it — never by filename.
 // ---------------------------------------------------------------------------
-const ADAPTER_DIR = ".claude/agents";
+// ADAPTER_DIR is declared once, up at the guard_adapter_size derivation — the adapter directory is
+// a single fact and this oracle reads the SAME one guard_adapter_size scans.
 // Every role's agent name is its role filename stem under the `grugops-` namespace:
 // `orchestrator.md` -> `grugops-orchestrator`. Comparison is exact JavaScript string equality over
 // these names throughout — no case folding, no normalisation, no substring matching.

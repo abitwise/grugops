@@ -27,6 +27,8 @@ import {
   writeFileSync,
   appendFileSync,
   readFileSync,
+  readdirSync,
+  existsSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, dirname } from "node:path";
@@ -52,14 +54,29 @@ const rolePath = (root: string, name: string): string =>
 // derive them from.
 const DERIVED_ROLE_INPUTS = listRoles().map((f) => `agent-factory/roles/${f}`);
 
+// (Phase 27 / KIT-02) The ADAPTER portion of the harness's input set is derived too, for the same
+// reason. guard_adapter_size, the spawn-grant scan and the SKILL_COUNT floor all derive their
+// membership from `.claude/agents` and `.claude/skills`, so a mirror carrying a hand-picked SUBSET
+// of those directories would trip the count floor on every plant case instead of the violation it
+// planted. Deriving here mirrors the guard's own rule, so the two can never disagree.
+const DERIVED_AGENT_ADAPTER_INPUTS = readdirSync(join(ROOT, ".claude/agents"))
+  .filter((f) => f.endsWith(".md"))
+  .sort()
+  .map((f) => `.claude/agents/${f}`);
+const DERIVED_SKILL_ADAPTER_INPUTS = readdirSync(join(ROOT, ".claude/skills"))
+  .filter((d) => existsSync(join(ROOT, ".claude/skills", d, "SKILL.md")))
+  .sort()
+  .map((d) => `.claude/skills/${d}/SKILL.md`);
+
 // The complete set of input files the guard reads (repo-relative). A mirror carries byte-faithful
 // copies of all of these; one file is then mutated to plant the violation. The derived role corpus
-// plus the SEC_VOICE surfaces plus AGENTS.md + the 2 adapters + the 2 packaging templates.
+// plus the derived adapter corpus (agents + skills) plus the SEC_VOICE surfaces plus AGENTS.md and
+// the 2 packaging templates.
 const GUARD_INPUTS = [
   ...DERIVED_ROLE_INPUTS,
+  ...DERIVED_AGENT_ADAPTER_INPUTS,
+  ...DERIVED_SKILL_ADAPTER_INPUTS,
   "AGENTS.md",
-  ".claude/skills/grugops/SKILL.md",
-  ".claude/agents/grugops-orchestrator.md",
   "agent-factory/packaging/subagent.frontmatter.md",
   "agent-factory/packaging/slash-command.template.md",
   "agent-factory/workflows/15-security-audit.md",
@@ -321,12 +338,40 @@ describe("check-foundation-guards.js (SDLC-02 / SC2 fail-proof harness)", () => 
     expect(out(r)).toContain("SKILL.md");
   });
 
-  it("guard_adapter_size missing adapter → nonzero + 'grugops-orchestrator.md missing' (CR-01)", () => {
+  // (Phase 27 / KIT-02) This case was RE-POINTED, not deleted. It used to delete the orchestrator
+  // adapter and assert the CR-01 `<path> missing` branch named it — a branch that only ever fired
+  // because ADAPTERS was a hand-listed array pointing at a now-absent file. ADAPTERS is now DERIVED,
+  // so a deleted adapter is simply never discovered and no per-file branch can see it. The deletion
+  // signal therefore moved to the non-empty floor, which is what the plan required be restored in
+  // exchange. Deleting the ONE agent adapter empties `.claude/agents`, and the floor fails red naming
+  // that directory and BOTH derived counts.
+  it("guard_adapter_size emptied adapter directory → nonzero + names the directory and both derived counts (deletion floor)", () => {
     const m = mirror();
-    rmSync(join(m, ".claude/agents/grugops-orchestrator.md"), { force: true });
+    for (const rel of DERIVED_AGENT_ADAPTER_INPUTS) {
+      rmSync(join(m, rel), { force: true });
+    }
     const r = runIn(m);
     expect(r.status).not.toBe(0);
-    expect(out(r)).toContain("grugops-orchestrator.md missing");
+    expect(out(r)).toContain("adapter derivation returned an empty set");
+    expect(out(r)).toContain(".claude/agents: 0 adapter(s)");
+    expect(out(r)).toContain(".claude/skills: 7 adapter(s)");
+  });
+
+  // The mirror-image of the floor: a SINGLE deleted skill directory cannot empty the set, and the
+  // KIT-03 oracle cannot see it either (a skill has no role to compare against). The SKILL_COUNT
+  // assertion in guard_kit_counts is the only thing standing between a deleted skill adapter and a
+  // silently smaller derived set. Assert it fails red naming the count it actually found.
+  it("kit count 6 skill adapters (one removed) → nonzero + names the derived 6 and the expected 7", () => {
+    const m = mirror();
+    rmSync(join(m, ".claude/skills/grugops-uat"), {
+      recursive: true,
+      force: true,
+    });
+    const r = runIn(m);
+    expect(r.status).not.toBe(0);
+    expect(out(r)).toContain("kit count");
+    expect(out(r)).toContain("derived 6 skill adapters");
+    expect(out(r)).toContain("expected exactly 7");
   });
 
   // ── guard_voice — clear-voice marker in each surface + missing + refinement + unclosed fence. ─
