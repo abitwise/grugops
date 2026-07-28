@@ -64,8 +64,8 @@ Each requirement maps to exactly one roadmap phase (27–33). REQ-IDs continue g
 - [ ] **SPAWN-03**: The coordinator is wired as the Claude Code **main-thread** agent so its `Agent(<allowlist>)` grant is honoured by the runtime — the current subagent placement makes the grant a no-op, since Claude Code ignores the type list inside a subagent definition.
 - [ ] **SPAWN-04**: Non-coordinator role adapters omit the `Agent` tool entirely — a mechanism that holds on both the main-thread and subagent paths, rather than relying on a frontmatter token the runtime ignores.
 - [ ] **SPAWN-05**: `guard_adapter_body` fails red on pre-v2.0 handoff/single-window prose in any adapter body (defense in depth behind generation, never the structural fix), closing the surviving `grugops-orchestrator.md:25` reference.
-- [ ] **SPAWN-06**: `orchestrator.md` is trimmed below its **7570-byte FAIL ceiling** (currently 7562B — 8 bytes of margin) *before* this milestone adds spawn-allowlist text to it; the ceiling is never raised to accommodate growth.
-- [ ] **SPAWN-07**: The advertised Claude Code floor and the `queue.wip_limit` rationale are corrected against real platform behaviour: depth is **3** on v2.1.219+ (not 5), tunable via `CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH`, with the v2.1.217–218 depth-1 window documented as a known-bad range that degrades loudly.
+- [x] **SPAWN-06**: `orchestrator.md` is trimmed below its **7570-byte FAIL ceiling** (currently 7562B — 8 bytes of margin) *before* this milestone adds spawn-allowlist text to it; the ceiling is never raised to accommodate growth.
+- [x] **SPAWN-07**: The advertised Claude Code floor and the `queue.wip_limit` rationale are corrected against real platform behaviour: depth is **3** on v2.1.219+ (not 5), tunable via `CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH`, with the v2.1.217–218 depth-1 window documented as a known-bad range that degrades loudly.
 
 ### AUDIT — Kit Consistency Audit
 
@@ -161,8 +161,8 @@ _Filled by the roadmapper 2026-07-28. Every requirement maps to exactly one phas
 | SPAWN-03 | Phase 27 | Pending |
 | SPAWN-04 | Phase 27 | Pending |
 | SPAWN-05 | Phase 27 | Pending |
-| SPAWN-06 | Phase 27 | Pending |
-| SPAWN-07 | Phase 27 | Pending |
+| SPAWN-06 | Phase 27 | Complete |
+| SPAWN-07 | Phase 27 | Complete |
 | AUDIT-01 | Phase 28 | Pending |
 | AUDIT-02 | Phase 28 | Pending |
 | AUDIT-03 | Phase 28 | Pending |
