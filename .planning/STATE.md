@@ -470,7 +470,11 @@ None yet.
 
 **Resolved during v2.0:**
 
-- ~~[v1.2] WR-05 spawn-grant regeneration hazard~~ — **superseded, then inverted.** v1.2 retired it as "no role grants `Agent`". v2.0 PAR-04 **reversed the underlying decision for Claude Code** and inverted the guard itself to "exactly one coordinator grants `Agent(<allowlist>)`", proven RED against the committed `.js`. A phase code-review caught the inverted guard mis-reading a fenced coordinator example as a live coordinator; fixed structurally with fence-stripping + cardinality. Do not reintroduce the old "no spawn anywhere" assertion — it is now wrong.
+- ~~[v1.2] WR-05 spawn-grant regeneration hazard~~ — **retired in v1.2, then deliberately inverted in v2.0.** The original v1.2 closure, retained verbatim because the Tier-1 `oracleWr05Wording` oracle asserts these three beats across all four tracking docs:
+  - The `Agent` spawn grant was **dropped** from both packaging templates in **Phase 8**.
+  - It was then guarded mechanically by `guard_wr05` (`scripts/check-foundation-guards.ts`) in **Phase 10**.
+  - It was **re-verified GREEN** after the **Phase 11** 16-role persona rewrite, proving the overhaul did not silently re-arm sub-agent spawning.
+  - **v2.0 reversed the underlying decision for Claude Code (PAR-04).** `guard_wr05` was inverted from "no role grants `Agent`" to "**exactly one coordinator** grants `Agent(<allowlist>)`", proven RED against the committed `.js` and flipped atomically with the packaging templates + docs catalog. A phase code-review caught the inverted guard mis-reading a fenced coordinator example as a live coordinator; fixed structurally with fence-stripping + exactly-one-coordinator cardinality. **Do not reintroduce a "no spawn anywhere" assertion — it is now wrong.** The four non-Claude-Code CLIs keep sequential no-spawn role-load, and the 5-tool tables are intentionally asymmetric (the oracle asserts that too).
 - ~~[v1.2 Research flags]~~ — all three resolved in their phases (ASVS 5.0.0 pinned, Playwright pins verified, frontmatter completeness confirmed by the catalog generator).
 
 ### Quick Tasks Completed
