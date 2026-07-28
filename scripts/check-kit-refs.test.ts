@@ -38,8 +38,13 @@ import { join, dirname } from "node:path";
 const ROOT = join(import.meta.dirname, "..");
 const GATE_JS = join(ROOT, "scripts", "check-kit-refs.js");
 
-// The SCAN set the gate walks (check-kit-refs.ts:45-55). The mirror copies these from the real,
-// already-rewired tree so a baseline mirror is GREEN; a planted ref then drives it RED.
+// The SCAN set the gate walks. The mirror copies these from the real, already-rewired tree so a
+// baseline mirror is GREEN; a planted ref then drives it RED.
+//
+// (Phase 27 / KIT-02, D-16) `.claude/agents` is the DIRECTORY here, tracking the gate's own change
+// from one hand-named adapter file. Copying the directory is what lets the plant-an-extra-adapter
+// cases below exist at all: under the old file entry, a second adapter in the mirror was simply
+// invisible to the gate.
 const SCAN = [
   "agent-factory/roles",
   "agent-factory/workflows",
@@ -47,7 +52,7 @@ const SCAN = [
   "agent-factory/packaging",
   "agent-factory/_commit-convention.md",
   ".claude/skills",
-  ".claude/agents/grugops-orchestrator.md",
+  ".claude/agents",
   "skills",
   "AGENTS.md",
 ];
@@ -155,5 +160,143 @@ describe("check-kit-refs flipped gate — D-15 both-direction adversarial proof 
     // Remove → GREEN again (the gate is a pure function of the SCAN-set contents).
     writeFileSync(target, original, "utf8");
     expect(runGate(mirror).status).toBe(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Phase 27 (KIT-02 / D-19) — the per-consumer derivation assertions for the three literals this
+// gate used to carry. Each case proves the set follows the FILESYSTEM in a way no re-listed array
+// could: it plants a file that did not exist when any literal could have been written, and requires
+// the gate to see it. Revert a derivation to a literal and the matching case goes red.
+//
+// Every case asserts on the NAMED FILE in the output, never on the exit code alone — a gate that
+// fails for the wrong reason is not a passing test.
+// ---------------------------------------------------------------------------
+
+// The invariant blockquote every adapter must carry (check-kit-refs.ts MARKER, byte-identical).
+const MARKER = "If the kit dir is absent, STOP — do not hunt.";
+// The resolver slot that makes an adapter a resolver, and therefore legally able to name the
+// kit-root environment variable (check-kit-refs.ts RESOLVER_SLOT / install.ts MAT_SLOT).
+const RESOLVER_SLOT =
+  "# 1. (installed) the absolute kit path the installer wrote above this line.";
+const KIT_ROOT_ENV_LINE = 'KIT="${GRUGOPS_HOME:-$HOME/.grugops}/agent-factory"';
+
+// Write an extra adapter into the mirror's adapter directory and return its repo-relative path.
+function plantAdapter(mirror: string, name: string, body: string): string {
+  const rel = `.claude/agents/${name}.md`;
+  mkdirSync(join(mirror, ".claude", "agents"), { recursive: true });
+  writeFileSync(join(mirror, rel), body, "utf8");
+  return rel;
+}
+
+// The number of marker sites the gate reports it compared. Reading the reported count (rather than
+// a bare pass) is what makes a run over a shrunken or empty derived set visible.
+function reportedMarkerSites(stdout: string): number {
+  const m = stdout.match(/marker present at all (\d+) marker sites/);
+  return m ? Number(m[1]) : -1;
+}
+
+describe("check-kit-refs derived sets — D-19 per-consumer assertions (KIT-02, Phase 27)", () => {
+  // ── MARKER_SITES: derived from the adapter directories (D-27) ──────────────────────────────
+  it("marker sites RED: a planted adapter without the invariant blockquote fails red naming it", () => {
+    const mirror = makeMirror("ckr-marker-red-");
+    const rel = plantAdapter(
+      mirror,
+      "grugops-marker-probe",
+      "---\nname: grugops-marker-probe\n---\nNo invariant blockquote here on purpose.\n",
+    );
+    const r = runGate(mirror);
+    expect(r.status).toBe(1);
+    // Named, with the failure word that means "file present, blockquote gone" — distinct from the
+    // "(absent)" word, which means the file itself is missing. The two must never be merged.
+    expect(r.stdout).toContain(`${rel}(marker-missing)`);
+  });
+
+  it("marker sites GREEN: a planted adapter WITH the blockquote passes and the reported count rises by one", () => {
+    const mirror = makeMirror("ckr-marker-green-");
+    const before = runGate(mirror);
+    expect(before.status).toBe(0);
+    const baseline = reportedMarkerSites(before.stdout);
+    expect(baseline).toBeGreaterThan(0); // the gate reports what it compared, never a bare verdict
+
+    plantAdapter(
+      mirror,
+      "grugops-marker-ok",
+      `---\nname: grugops-marker-ok\n---\n> **Kit vs state invariant:** ${MARKER}\n\nPointer text only.\n`,
+    );
+    const after = runGate(mirror);
+    expect(after.status).toBe(0);
+    // A hand-listed MARKER_SITES array could never count a file written after it.
+    expect(reportedMarkerSites(after.stdout)).toBe(baseline + 1);
+  });
+
+  it("marker sites vacuity floor: an empty adapter directory fails red rather than passing over nothing", () => {
+    const mirror = makeMirror("ckr-marker-vacuous-");
+    rmSync(join(mirror, ".claude", "agents"), { recursive: true, force: true });
+    rmSync(join(mirror, ".claude", "skills"), { recursive: true, force: true });
+    const r = runGate(mirror);
+    expect(r.status).toBe(1);
+    expect(r.stdout).toContain("no adapter files found");
+  });
+
+  // ── Assertion 3: the derived legal set keyed on the resolver slot (D-07) ────────────────────
+  it("Assertion 3 RED: a hand-written adapter naming the kit-root env var without a resolver slot fails red", () => {
+    const mirror = makeMirror("ckr-gh-red-");
+    // This is the hole the restatement closes. Under the old exclusion-by-omission form this file
+    // passed simply by not being on a list of three named paths.
+    const rel = plantAdapter(
+      mirror,
+      "grugops-rogue-resolver",
+      `---\nname: grugops-rogue-resolver\n---\n> ${MARKER}\n\n${KIT_ROOT_ENV_LINE}\n`,
+    );
+    const r = runGate(mirror);
+    expect(r.status).toBe(1);
+    expect(r.stdout).toContain("legal-set equality does not hold");
+    expect(r.stdout).toContain(rel);
+    expect(r.stdout).toContain("carries no resolver slot");
+  });
+
+  it("Assertion 3 GREEN: a resolver-slot adapter naming the env var passes — the legal set is derived, not fixed", () => {
+    const mirror = makeMirror("ckr-gh-green-");
+    plantAdapter(
+      mirror,
+      "grugops-second-resolver",
+      `---\nname: grugops-second-resolver\n---\n> ${MARKER}\n\n\`\`\`sh\n${RESOLVER_SLOT}\n${KIT_ROOT_ENV_LINE}\n\`\`\`\n`,
+    );
+    const r = runGate(mirror);
+    expect(r.status).toBe(0);
+    // The legal set grew because a resolver appeared on disk — no edit to any array.
+    expect(r.stdout).toMatch(/appears in exactly the \d+ derived legal site\(s\)/);
+  });
+
+  it("Assertion 3 two-sided: a resolver-slot adapter that LOST its self-heal line fails red too", () => {
+    const mirror = makeMirror("ckr-gh-silent-");
+    // A resolver that cannot name the kit-root variable cannot self-heal — it would hunt the repo.
+    // The old negative-only predicate looked for the variable's PRESENCE and could never see this.
+    const rel = plantAdapter(
+      mirror,
+      "grugops-mute-resolver",
+      `---\nname: grugops-mute-resolver\n---\n> ${MARKER}\n\n\`\`\`sh\n${RESOLVER_SLOT}\n\`\`\`\n`,
+    );
+    const r = runGate(mirror);
+    expect(r.status).toBe(1);
+    expect(r.stdout).toContain(rel);
+    expect(r.stdout).toContain("carries the resolver slot but never names");
+  });
+
+  // ── SCAN reach: the directory entry reaches every adapter, not just the one once named ──────
+  it("SCAN reach: a deleted-templates ref in a NON-orchestrator adapter fails Assertion 2 naming it", () => {
+    const mirror = makeMirror("ckr-scan-reach-");
+    const rel = plantAdapter(
+      mirror,
+      "grugops-scan-reach-probe",
+      `---\nname: grugops-scan-reach-probe\n---\n> ${MARKER}\n\nSee agent-factory/handoffs/scan-reach-probe.md for the old relay.\n`,
+    );
+    const r = runGate(mirror);
+    expect(r.status).toBe(1);
+    // Under the old single-file SCAN entry this adapter was not walked at all, so the stray ref was
+    // invisible. Naming BOTH the file and the stray proves the directory entry genuinely reaches it.
+    expect(r.stdout).toContain(rel);
+    expect(r.stdout).toContain("agent-factory/handoffs/scan-reach-probe.md");
   });
 });
