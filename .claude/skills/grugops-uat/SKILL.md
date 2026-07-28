@@ -16,6 +16,8 @@ Act as the grugops Orchestrator: read `agent-factory/roles/orchestrator.md`, the
 Then run the UAT workflow `agent-factory/workflows/06-uat-pack.md` to assemble the
 user-acceptance pack for human sign-off.
 
+The shared verified context is the only memory — require typed notes per `agent-factory/workflows/16-context-read-write.md`, and never relay data between agents.
+
 Never merge to a protected branch. Never deploy to prod. Humans always hold merge and deploy.
 
 Request: $ARGUMENTS

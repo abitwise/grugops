@@ -143,6 +143,10 @@ import {
   ROLE_COUNT,
   WORKFLOW_COUNT,
 } from "./kit-model.js";
+// Phase 27 (SPAWN-05 / D-24): the retired-vocabulary literals are single-source. guard_adapter_body
+// below takes the PROSE forms; check-kit-refs Assertion 2 takes the PATH form. Two genuinely
+// different predicates over different inputs — one list, never two.
+import { RETIRED_PROSE_FORMS } from "./dead-vocabulary.js";
 
 // The .sh hard-coded repo-relative paths and assumed cwd == repo root. The TS port resolves
 // every path against the script-relative repo root, but ALSO honors a CHECK_ROOT override so the
@@ -313,6 +317,19 @@ function stripFencedBlocks(text: string): string {
   return out.join("\n");
 }
 
+// Collapse every run of whitespace — including newlines — to a single space. Applied AFTER
+// stripFencedBlocks() so the prose checks below read a body the way a human reads it, not the way
+// an author happened to hard-wrap it. This is a normalization, NOT a second parser: the fence
+// authority is still the single stripFencedBlocks(), and this never sees a fenced line.
+//
+// Why it is needed: the packaging template and the generated adapter bodies hard-wrap at ~95
+// columns, so a required sentence routinely spans a line break. A line-anchored substring check
+// would then fail red on correct text purely because of where the wrap landed, and would go green
+// again if an author re-wrapped it — a guard whose verdict depends on line breaks is a guard that
+// teaches people to reformat rather than to fix. Collapsing also closes the "retired phrase split
+// across a line break" evasion on the negative half.
+const collapseWhitespace = (s: string): string => s.replace(/\s+/g, " ");
+
 // Apply a line-anchored ERE to the fence-stripped body of a file, returning true if any surviving
 // (non-fenced) line matches. The EREs are byte-identical to the pre-fix guard — only the INPUT
 // changes (fenced lines removed), so the real adapter's REAL (non-fenced) frontmatter marker/grant
@@ -354,6 +371,100 @@ function guardWr05(): void {
     pass("WR-05: exactly one coordinator holds the spawn grant; no non-coordinator does");
   } else {
     fail(`WR-05 coordinator-spawn-grant violation:${wr05Fail}`);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// guard_adapter_body — retired memory-relay vocabulary OUT, the shared-context memory sentence IN
+// (Phase 27 / SPAWN-05, D-23/D-24/D-25/D-26).
+//
+// DEFENSE IN DEPTH, NEVER THE STRUCTURAL FIX. The one surviving retired line died STRUCTURALLY the
+// moment plan 27-07 made the coordinator adapter generated from
+// agent-factory/packaging/subagent.frontmatter.md, because the template already carries the correct
+// memory wording. This guard exists to catch a hand-edit of a generated adapter and a regression in
+// the template upstream of the generator — not to be the thing that made the tree correct.
+//
+// BOTH DIRECTIONS (D-23), because each catches a failure the other cannot:
+//   • NEGATIVE — a scanned body must not carry any retired memory-relay phrase. This depends on
+//     having enumerated the retired phrases, so it can only ever be as good as that list.
+//   • POSITIVE — a scanned body must name the shared verified context as its memory. This is the
+//     half that matters most: it catches an adapter gone stale by OMISSION (one that quietly loses
+//     the sentence without gaining a banned phrase) and it does not depend on having guessed every
+//     retired phrase.
+//
+// WHAT IS DELIBERATELY NOT BANNED. The pre-generation adapter line conflated two things. The
+// memory-relay phrasing is retired. The execution-topology phrasing — one window with prior context
+// dropped between roles — is STILL CORRECT: it describes how roles activate on the four
+// non-spawning host CLIs, it is verbatim in the packaging template, and under the revised D-02 it is
+// the degraded tier's own wording. Banning it would fail red on text this project keeps on purpose,
+// and the only way back to green would be deleting correct text. The retired list in
+// scripts/dead-vocabulary.ts carries that boundary in a comment; a passing test below pins it.
+//
+// SCAN SET (D-25): the DERIVED adapters — 17 agents + 7 skills — plus the packaging template. The
+// template is the upstream source the generator is built from, so a regression there is caught
+// BEFORE it propagates into seventeen generated files. Today that is 25 bodies. Membership follows
+// the filesystem for the adapters, so an eighteenth role is scanned the day its adapter lands.
+//
+// ONE FENCE AUTHORITY. Both halves read the body through the SHARED stripFencedBlocks() — never a
+// second parser over the same bytes. A documentation example inside a ``` fence is documentation:
+// it can neither trip the ban nor satisfy the requirement. That is why the packaging template
+// states the memory sentence in LIVE prose as well as inside its two fenced body shapes — the
+// fenced copies are examples, and the guard is right not to count them.
+// ---------------------------------------------------------------------------
+const ADAPTER_BODY_TEMPLATE = "agent-factory/packaging/subagent.frontmatter.md";
+const ADAPTER_BODY_SCAN = [...ADAPTERS, ADAPTER_BODY_TEMPLATE];
+// The live memory wording, stated without its leading article so both body shapes and the
+// template's own prose sentence match the one needle. It has exactly ONE consumer, so it stays
+// local here rather than becoming a shared export — a shared module with a single consumer is a
+// second authority with nothing to justify it. (dead-vocabulary.ts is the opposite case: two
+// consumers, so it earns the module.)
+const MEMORY_SENTENCE = "shared verified context is the only memory";
+
+function guardAdapterBody(): void {
+  process.stdout.write(
+    "\n[guard_adapter_body] adapter bodies carry the shared-context memory, not the retired relay (SPAWN-05)\n",
+  );
+  let bodyFail = "";
+  let scanned = 0;
+  for (const f of ADAPTER_BODY_SCAN) {
+    // CR-01 missing-file fail-red. For a derived adapter this is a TOCTOU race (it came from a
+    // readdir); for the named packaging template it is a real deletion of the upstream source.
+    // Either way the guard NAMES it rather than quietly scanning one body fewer.
+    if (!fileExists(f)) {
+      bodyFail += `\n${f}: missing — cannot check an adapter body that is not there`;
+      continue;
+    }
+    scanned += 1;
+    // One fence authority, then a whitespace normalization, so neither half's verdict depends on
+    // where an author hard-wrapped the line.
+    const body = collapseWhitespace(stripFencedBlocks(readText(f)));
+    // Case-insensitive on the negative half: a re-capitalised retired phrase is the same retired
+    // phrase. The list stores lowercase forms only (see scripts/dead-vocabulary.ts).
+    const lowered = body.toLowerCase();
+    for (const phrase of RETIRED_PROSE_FORMS) {
+      if (lowered.includes(phrase)) {
+        bodyFail += `\n${f}: carries retired memory-relay vocabulary "${phrase}" — the 17 static handoff templates were deleted in Phase 24 and the shared verified context replaced the relay`;
+      }
+    }
+    if (!body.includes(MEMORY_SENTENCE)) {
+      bodyFail += `\n${f}: body never names the shared verified context as its memory (expected the wording "${MEMORY_SENTENCE}" in live, non-fenced text) — an adapter gone stale by omission`;
+    }
+  }
+  // Vacuity floor. The adapter half of the scan set is DERIVED, and deriving a set silently deletes
+  // the fail-red branch a literal had: a body that disappears stops being a member instead of
+  // becoming a finding. A run that scanned nothing is the anomaly, never "no bodies to check,
+  // therefore fine".
+  if (scanned === 0) {
+    bodyFail += `\nthe adapter-body scan set derived nothing — refusing to report a verdict over zero bodies (${ADAPTER_DIR} + ${SKILL_DIR} + ${ADAPTER_BODY_TEMPLATE})`;
+  }
+  if (bodyFail === "") {
+    // Report WHAT WAS CHECKED, not a bare PASS: a line reading "1 adapter body" would then be
+    // visible as the anomaly it is instead of hiding behind the word PASS.
+    pass(
+      `SPAWN-05: ${scanned} adapter body/bodies scanned (${ADAPTERS.length} derived adapters + the packaging template); none carries retired relay vocabulary and every one names the shared verified context as its memory`,
+    );
+  } else {
+    fail(`SPAWN-05 adapter-body violation:${bodyFail}`);
   }
 }
 
@@ -1017,6 +1128,9 @@ function guardReferentialIntegrity(): void {
 // ---------------------------------------------------------------------------
 process.stdout.write("== Phase 10 foundation-guards gate (SDLC-02 / SC2) ==\n");
 guardWr05();
+// SPAWN-05 — runs beside guard_wr05 because both read the derived adapter corpus: one checks the
+// frontmatter grant, the other the body prose.
+guardAdapterBody();
 guardAgentsBytes();
 guardAdapterSize();
 // KIT-01: run the count guard AHEAD of the four role guards. A broken derivation is then named

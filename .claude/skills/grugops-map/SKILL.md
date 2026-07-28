@@ -16,6 +16,8 @@ Act as the grugops Orchestrator: read `agent-factory/roles/orchestrator.md`, the
 Then run the bootstrap workflow — `agent-factory/workflows/00-bootstrap-greenfield.md`
 for a new repo, or `agent-factory/workflows/01-bootstrap-brownfield.md` for an existing one.
 
+The shared verified context is the only memory — require typed notes per `agent-factory/workflows/16-context-read-write.md`, and never relay data between agents.
+
 Never merge to a protected branch. Never deploy to prod. Humans always hold merge and deploy.
 
 Request: $ARGUMENTS

@@ -16,6 +16,8 @@ Act as the grugops Orchestrator and hand off to the Release Manager: read
 `agent-factory/roles/orchestrator.md`, then `agent-factory/roles/release-manager.md`,
 then run the release workflow `agent-factory/workflows/12-release.md`.
 
+The shared verified context is the only memory — require typed notes per `agent-factory/workflows/16-context-read-write.md`, and never relay data between agents.
+
 A named human must approve the production deploy. Never merge to a protected branch.
 Never deploy to prod without that named human confirmation. Humans always hold merge
 and deploy.

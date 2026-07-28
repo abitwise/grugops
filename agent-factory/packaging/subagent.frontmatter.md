@@ -200,6 +200,13 @@ failure lands in CI rather than on a user's machine.
 - **Body** — repo-relative pointer text. It cites one frozen role file and acts as that role.
   It echoes the hard limit in clear professional English, not caveman voice — safety lines are
   always plain. It contains **no copied role instructions**.
+- **The memory sentence** — both body shapes state that the shared verified context is the only
+  memory. Phase 24 deleted the seventeen static handoff templates and the shared context replaced
+  the relay, so a body that loses this sentence has gone stale by omission. `guard_adapter_body`
+  therefore asserts it is present in every adapter body and in this template, and bans the retired
+  relay vocabulary in both. Note what is **not** banned: the execution-topology phrasing about one
+  window with prior context dropped between roles is deliberately kept — it is the degraded tier's
+  own wording above and describes how roles activate on the four non-spawning CLIs.
 - **`coordinator: true`** — grugops's own greppable marker, which the foundation guard keys on
   to decide which adapter MUST hold the spawn grant and which MUST NOT. It is not a documented
   platform field; the Claude Code loader ignores unknown frontmatter keys, so the marker is

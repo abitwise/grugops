@@ -17,6 +17,8 @@ Act as the grugops Orchestrator: read `agent-factory/roles/orchestrator.md`, the
 through the role-switch protocol (`agent-factory/roles/_role-switch-protocol.md`), and
 run the matching workflow under `agent-factory/workflows/`.
 
+The shared verified context is the only memory — require typed notes per `agent-factory/workflows/16-context-read-write.md`, and never relay data between agents.
+
 Never merge to a protected branch. Never deploy to prod. Humans always hold merge and deploy.
 
 Request: $ARGUMENTS

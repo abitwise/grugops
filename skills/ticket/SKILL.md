@@ -16,6 +16,8 @@ Act as the grugops Orchestrator: read `agent-factory/roles/orchestrator.md`, the
 Then run the delivery workflow `agent-factory/workflows/04-ticket-to-pr.md` to take a
 ready ticket through implementation to a pull request.
 
+The shared verified context is the only memory — require typed notes per `agent-factory/workflows/16-context-read-write.md`, and never relay data between agents.
+
 Never merge to a protected branch. Never deploy to prod. Humans always hold merge and deploy.
 
 Request: $ARGUMENTS

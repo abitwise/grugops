@@ -207,10 +207,15 @@ function consistentMirror(): string {
   const granted = names.filter((n) => n !== COORDINATOR);
   // One adapter file per role. Deliberately WITHOUT a `coordinator: true` marker and without a
   // spawn grant — exactly one coordinator may exist, and only it may hold the grant.
+  //
+  // (Phase 27 / plan 27-08) The fixture body carries the memory sentence, because guard_adapter_body
+  // asserts every scanned body names the shared verified context as its memory. A fixture that
+  // omitted it would be a genuinely defective adapter, and every "asserts ALL CHECKS PASSED" case
+  // built on this mirror would fail for a reason having nothing to do with what it tests. Keep it.
   for (const name of granted) {
     writeFileSync(
       adapterPath(m, name),
-      `---\nname: ${name}\ndescription: Hermetic mirror fixture adapter.\nmodel: inherit\n---\nFixture adapter.\n`,
+      `---\nname: ${name}\ndescription: Hermetic mirror fixture adapter.\nmodel: inherit\n---\nFixture adapter. The shared verified context is the only memory.\n`,
     );
   }
   // Re-point the coordinator's grant at the full 16-name set so the closure closes.
@@ -347,6 +352,111 @@ describe("check-foundation-guards.js (SDLC-02 / SC2 fail-proof harness)", () => 
     expect(out(r)).toMatch(/exactly one coordinator/i);
     expect(out(r)).toContain("found 2");
     expect(out(r)).toContain("slash-command.template.md");
+  });
+
+  // ── guard_adapter_body (Phase 27 / SPAWN-05, D-23) — BOTH directions, plus the two cases that
+  // keep the guard honest about what it must NOT fail on. ──────────────────────────────────────
+  //
+  // The negative half depends on having enumerated the retired phrases; the positive half does not,
+  // which is why it is the load-bearing one. Both are pinned here, and so are the two false-positive
+  // shapes: the execution-topology prose this phase deliberately KEEPS, and a fenced documentation
+  // example. A guard that failed on either would force a later editor to delete correct text to go
+  // green.
+
+  // NEGATIVE half. Plant the real historical line — split across a line break, exactly as an author
+  // would hard-wrap it — and assert the guard names both the file and the phrase.
+  it("guard_adapter_body planted retired relay vocabulary → nonzero + names the file and the phrase", () => {
+    const m = mirror();
+    appendFileSync(
+      adapterPath(m, COORDINATOR),
+      "\nDrain the queue via the role-switch protocol — one window, drop prior context, the handoff\nis the only memory — demand a handoff packet from each.\n",
+    );
+    const r = runIn(m);
+    expect(r.status).not.toBe(0);
+    const o = out(r);
+    expect(o).toContain("SPAWN-05 adapter-body violation");
+    expect(o).toContain("grugops-orchestrator.md");
+    expect(o).toContain('retired memory-relay vocabulary "handoff packet"');
+    // The wrapped clause is caught too — the phrase is checked over normalized whitespace, so a
+    // hard wrap in the middle of it is not an evasion.
+    expect(o).toContain(
+      'retired memory-relay vocabulary "the handoff is the only memory"',
+    );
+  });
+
+  // POSITIVE half — the half that does not depend on having guessed every retired phrase. Remove the
+  // memory sentence from one mirrored adapter body and assert the guard names that file.
+  it("guard_adapter_body memory sentence REMOVED from a body → nonzero + names the file (stale by omission)", () => {
+    const m = mirror();
+    const file = adapterPath(m, "grugops-qe-e2e");
+    writeFileSync(
+      file,
+      readFileSync(file, "utf8")
+        .split("\n")
+        .filter((l) => !l.includes("shared verified context is the only memory"))
+        .join("\n"),
+    );
+    const r = runIn(m);
+    expect(r.status).not.toBe(0);
+    const o = out(r);
+    expect(o).toContain("grugops-qe-e2e.md");
+    expect(o).toContain("never names the shared verified context as its memory");
+  });
+
+  // The KEPT text. "one window, prior context dropped between roles" describes execution topology,
+  // not memory: it is how roles activate on the four non-spawning CLIs, it is verbatim in the
+  // packaging template, and it is the degraded tier's own wording under the revised D-02. The guard
+  // must stay GREEN on it. If this case ever goes red, the fix is to shrink the retired list — never
+  // to delete the prose.
+  it("guard_adapter_body kept execution-topology prose (one window, prior context dropped) stays GREEN", () => {
+    const m = consistentMirror();
+    appendFileSync(
+      adapterPath(m, COORDINATOR),
+      "\nDrain the same queue at concurrency one — one window, prior context dropped between roles — and announce it.\n",
+    );
+    const r = runIn(m);
+    expect(r.status).toBe(0);
+    expect(out(r)).toContain("ALL CHECKS PASSED");
+  });
+
+  // Fence-immunity: a retired phrase inside a ``` block in the packaging template is DOCUMENTATION —
+  // quoting the dead vocabulary in order to explain that it is dead must not trip the ban. Shared
+  // stripFencedBlocks(), never a second parser.
+  it("guard_adapter_body FENCED retired phrase in the packaging template is ignored → guard PASSES", () => {
+    const m = consistentMirror();
+    appendFileSync(
+      join(m, "agent-factory/packaging/subagent.frontmatter.md"),
+      "\n## Retired shape (documentation only)\n\n```markdown\n— one window, drop prior context, the handoff is the only memory — demand a handoff packet from each.\n```\n",
+    );
+    const r = runIn(m);
+    expect(r.status).toBe(0);
+    expect(out(r)).toContain("ALL CHECKS PASSED");
+  });
+
+  // SCAN-SET MEMBERSHIP, PINNED. D-25 puts the packaging template in the scan set because it is the
+  // upstream source the generator is built from — a regression there is caught BEFORE it propagates
+  // into seventeen generated adapters. Before this case and the scanned-count case below, NOTHING
+  // in this file would have noticed the template being quietly dropped from ADAPTER_BODY_SCAN —
+  // verified by scratch removal during plan 27-08, where every other case still passed and only
+  // these two went red. They are what pins the membership.
+  it("guard_adapter_body scans the packaging template — unfenced retired vocabulary upstream fails red (D-25)", () => {
+    const m = mirror();
+    appendFileSync(
+      join(m, "agent-factory/packaging/subagent.frontmatter.md"),
+      "\nDemand a handoff packet from each role.\n",
+    );
+    const r = runIn(m);
+    expect(r.status).not.toBe(0);
+    const o = out(r);
+    expect(o).toContain("subagent.frontmatter.md");
+    expect(o).toContain('retired memory-relay vocabulary "handoff packet"');
+  });
+
+  // The guard reports WHAT IT CHECKED, so a run over a collapsed scan set is visible as the anomaly
+  // it is rather than hiding behind the word PASS.
+  it("guard_adapter_body reports the number of bodies scanned (25 = 17 agents + 7 skills + the template)", () => {
+    const r = spawnSync("node", [GUARD_JS], { encoding: "utf8" });
+    expect(out(r)).toContain("SPAWN-05: 25 adapter body/bodies scanned");
   });
 
   // ── guard_agents_bytes — oversize + missing (CR-01). ─────────────────────────────────────────

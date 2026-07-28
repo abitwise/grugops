@@ -17,6 +17,8 @@ Then run the planning workflow — `agent-factory/workflows/02-idea-to-epics.md`
 an idea into epics, or `agent-factory/workflows/03-epic-to-tickets.md` to break an epic
 into ready tickets.
 
+The shared verified context is the only memory — require typed notes per `agent-factory/workflows/16-context-read-write.md`, and never relay data between agents.
+
 Never merge to a protected branch. Never deploy to prod. Humans always hold merge and deploy.
 
 Request: $ARGUMENTS
