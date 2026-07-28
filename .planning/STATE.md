@@ -5,15 +5,15 @@ milestone_name: Autonomous Factory — Real Spawning, Controlled Language & Live
 current_phase: 27
 current_phase_name: spawn-correctness-kit-set-authority
 status: executing
-stopped_at: Completed 27-06-PLAN.md
-last_updated: "2026-07-28T17:54:37.479Z"
+stopped_at: Completed 27-07-PLAN.md
+last_updated: "2026-07-28T19:40:57.686Z"
 last_activity: 2026-07-28
 last_activity_desc: Phase 27 execution started
 progress:
   total_phases: 7
   completed_phases: 0
   total_plans: 9
-  completed_plans: 6
+  completed_plans: 7
   percent: 0
 ---
 
@@ -29,7 +29,7 @@ See: .planning/PROJECT.md (updated 2026-07-28 — after v2.0 milestone)
 ## Current Position
 
 Phase: 27 (spawn-correctness-kit-set-authority) — EXECUTING
-Plan: 7 of 9
+Plan: 8 of 9
 Status: Ready to execute
 Last activity: 2026-07-28 — Phase 27 execution started
 
@@ -200,6 +200,7 @@ Last activity: 2026-07-28 — Phase 27 execution started
 | Phase 27 P04 | 14 | 3 tasks | 11 files |
 | Phase 27 P05 | 35 min | 3 tasks | 3 files |
 | Phase 27 P06 | 20 min | 2 tasks | 19 files |
+| Phase 27 P07 | 95 min | 3 tasks | 23 files |
 
 ## Accumulated Context
 
@@ -466,6 +467,9 @@ Recent decisions affecting current work:
 - [Phase ?]: 27-06: capability baseline is `read edit shell` for all 17 roles; `web` only for architect-design and security-nfr (D-11 fixes the mechanism, the per-role assignment is the implementer's)
 - [Phase ?]: 27-06: guard_voice grug-meta plant re-hosted from security-nfr.md (16 B from red) to agents-md-scribe.md — a voice test must not be charged against a role's size budget
 - [Phase ?]: 27-06: coordinator body omits the Orchestrator's classify/decompose/schedule/gate/sweep spine (the role file owns it) — generated coordinator adapter measures 2951 B inside the 3072 B pointer warn tier
+- [Phase ?]: [27-07] Adapter-name collision compares case-insensitively — a role pair portable only to Linux is refused on every platform (APFS/NTFS silently collapse the two adapters)
+- [Phase ?]: [27-07] Adapter description is emitted as a double-quoted YAML scalar; the derived role prose carries colon-space, which a plain scalar cannot hold
+- [Phase ?]: [27-07] The KIT-03 RED regression fixture is CONSTRUCTED (brokenMirror), never inherited from the live tree — plain mirror() tracked the live adapters and went green with them
 
 ### Pending Todos
 
@@ -564,8 +568,8 @@ Shape of the carry: **9 of 11 are pre-v2.0 carryover** from the v1.2 block above
 
 ## Session Continuity
 
-Last session: 2026-07-28T17:54:30.637Z
-Stopped at: Completed 27-06-PLAN.md
+Last session: 2026-07-28T19:40:57.677Z
+Stopped at: Completed 27-07-PLAN.md
 Resume file: None
 
 ## Operator Next Steps
