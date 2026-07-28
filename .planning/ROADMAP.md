@@ -112,20 +112,23 @@ Full phase details + milestone summary: `milestones/v2.0-ROADMAP.md` · requirem
 ## Phase Details
 
 ### Phase 27: Spawn Correctness & Kit-Set Authority
+
 **Goal**: Role agents actually execute in their own sessions on Claude Code — and every guard and validator scan set is derived from the filesystem *before* the 17 new adapter files exist, so they land inside the guards rather than outside them.
 **Depends on**: Nothing new (builds on the v2.0 substrate, which is unchanged)
 **Requirements**: KIT-01, KIT-02, KIT-03, SPAWN-01, SPAWN-02, SPAWN-03, SPAWN-04, SPAWN-05, SPAWN-06, SPAWN-07
 **Success Criteria** (what must be TRUE):
+
   1. `scripts/kit-model.ts` answers "what roles and workflows exist" by reading the filesystem with an asserted count, and every scan set — `WR05_SCAN`, `ADAPTERS`, `CTX_WORKFLOWS`, and the validator's role and workflow lists — resolves through it, so adding a role or workflow file changes every scan set with no hand edit and no stale literal survives. (KIT-01, KIT-02)
   2. The referential-integrity oracle **fails RED against today's tree** — 1 adapter on disk, 7 names granted, 17 roles — before any adapter is authored, and turns green only when the coordinator's spawn grant, the adapter directory, and the role corpus are the same set. (KIT-03)
   3. All 17 role adapters exist at `.claude/agents/grugops-<role>.md`, are produced by the templated generator from `agent-factory/roles/*.md` as thin pointers (never copies of role text), and a byte difference between a committed adapter and a fresh regeneration fails the freshness gate closed. (SPAWN-01, SPAWN-02)
   4. On Claude Code the coordinator runs as the **main-thread** agent so its `Agent(<allowlist>)` grant is honored by the runtime, and no non-coordinator adapter carries the `Agent` tool at all — a mechanism that holds on both the main-thread and subagent paths rather than relying on a frontmatter token the runtime ignores. (SPAWN-03, SPAWN-04)
   5. `guard_adapter_body` fails red on pre-v2.0 handoff/single-window prose anywhere in an adapter body — proven against the surviving `grugops-orchestrator.md:25` reference — `orchestrator.md` sits below its **7570-byte FAIL ceiling with the ceiling unchanged**, and the advertised Claude Code floor reads **v2.1.219+ at depth 3** everywhere it appears, with the v2.1.217–218 depth-1 window documented as a known-bad range that degrades loudly. (SPAWN-05, SPAWN-06, SPAWN-07)
-**Plans**: 9 plans (6 waves)
+
+**Plans**: 1/9 plans executed
 Plans:
 **Wave 1**
 
-- [ ] 27-01-PLAN.md — `scripts/kit-model.ts` derivation authority (explicit root arg, throws on vacuity, exact two-sided counts) proven end-to-end through `ROLE_FILES`; the KIT-03 referential-integrity oracle wired in and **failing RED against today's tree**, with RED/GREEN fixture tests [KIT-01, KIT-03]
+- [x] 27-01-PLAN.md — `scripts/kit-model.ts` derivation authority (explicit root arg, throws on vacuity, exact two-sided counts) proven end-to-end through `ROLE_FILES`; the KIT-03 referential-integrity oracle wired in and **failing RED against today's tree**, with RED/GREEN fixture tests [KIT-01, KIT-03]
 - [ ] 27-02-PLAN.md — installer and uninstaller self-derive their adapter/skill sets by readdir of `$GRUGOPS_SRC`, materialize-vs-copy routed by the resolver slot, uninstall intersected with the target so user-authored agents survive [KIT-02]
 
 **Wave 2** *(blocked on 27-01)*
@@ -155,42 +158,51 @@ Plans:
 **Research flag:** plan with `--research-phase`. The main-thread-vs-subagent coordinator wiring (`--agent` flag / `settings.json` `{"agent": ...}`) must be validated against the real installed adapter flow (`install.ts`'s `materializeAdapter()`) — a genuine platform-schema integration point grugops has not used before.
 
 ### Phase 28: Kit Consistency Audit
+
 **Goal**: The kit describes the architecture it actually ships, every role and workflow has been read with a recorded verdict, and every public safety claim carries an id — so a later phase has something concrete to void.
 **Depends on**: Phase 27 (the derived scan sets and generated adapters are the tree the audit reads; auditing the stale tree would produce findings Phase 27 already dissolved)
 **Requirements**: AUDIT-01, AUDIT-02, AUDIT-03, AUDIT-04
 **Success Criteria** (what must be TRUE):
+
   1. Each of the 18 roles and 19 workflows has a recorded disposition — fixed, accepted, or deferred with a reason — so no file is reviewed-but-unrecorded and the count of dispositions equals the count of files on disk. (AUDIT-01)
   2. `CLAUDE.md` describes the v2.0 architecture the repo actually has: no handoff packets, and an Orchestrator that decomposes rather than routes. (AUDIT-02)
   3. Every public safety claim in `README.md`, `AGENTS.md`, and `agent-factory/README.md` appears in a registry with an id, so Phase 30's claim-dropping mechanism has a named target rather than a prose search. (AUDIT-03)
   4. The `@playwright/test` and `@axe-core/playwright` pins in the gate templates match versions **verified at the time of change** (1.60.0 → 1.62.0, 4.11.3 → 4.12.1 as of 2026-07-28), with the verification recorded rather than assumed. (AUDIT-04)
+
 **Plans**: TBD
 
 **Note:** the `CTX_WORKFLOWS` derivation the research assigned here is already covered by KIT-02 in Phase 27; this phase consumes the derived sets rather than re-deriving them. Standing obligations #4 (fail-safe residuals) and #5 (hygiene — `agent-factory/handoffs/.gitkeep`) are dispositioned under AUDIT-01.
 
 ### Phase 29: Controlled Language & Voice Guard Rebuild
+
 **Goal**: Procedural and agent-written prose follows one enumerated writing profile so two agents reading the same instruction reach the same act; the caveman voice lives in exactly one fenced block per role and is measured as voice, not as sentence shape.
 **Depends on**: Phase 28 (the audit produces the safety-surface exclusion list and the claim registry this rewrite must honor; rewriting first means re-rewriting text the audit would have flagged)
 **Requirements**: LANG-01, LANG-02, LANG-03, LANG-04, LANG-05, LANG-06, LANG-07, LANG-08
 **Success Criteria** (what must be TRUE):
+
   1. The kit ships a grugops-authored, ASD-STE100-**derived** writing profile — enumerated rules plus a project Technical Names/Verbs set — with a non-affiliation and not-certified disclaimer, vendoring no part of the ASD dictionary. (LANG-01)
   2. The profile governs workflow steps, checklists, memory-bank, shared-context notes, board, and traceability; it leaves the fenced caveman identity blocks alone; and a named safety-surface exclusion list keeps load-bearing security, compliance, and admission text from being reworded by a style pass. (LANG-02, LANG-03)
   3. The guard is **named for the decidable subset it checks** — lexicon membership, sentence length, banned constructions — and nowhere in the kit is ASD-STE100 conformance claimed, nor a token-economy win, nor an LLM-comprehension benefit (that one stays `UNKNOWN - verify`). (LANG-04)
   4. The rebuilt voice guard **fails RED on all 17 current caveman blocks** as acceptance evidence before the rewrite lands, measures against a committed lexicon rather than sentence shape, and publishes a number with a denominator. (LANG-06)
   5. `## One job`, the caveman block, and `## Responsibilities` each say a thing once; `guard_ste` and the rebuilt voice guard read the fence through **one** parser, never two grammars over the same bytes; and byte ceilings are re-baselined exactly once at end of phase with every file ≤ its previous value and the delta recorded — never raised mid-phase. (LANG-05, LANG-07, LANG-08)
+
 **Plans**: TBD
 
 **Honesty floor for this phase:** STE likely *increases* token count (its rules forbid the telegraphic omission caveman relies on). The profile is justified on determinism and one-term-per-concept grounds only. Caveman-as-token-economy is disproven on this artifact and must not be restated.
 
 ### Phase 30: Per-Checkpoint Autonomy Matrix
+
 **Goal**: A project decides where a human stops it, per checkpoint — including the four current safety floors — and a lowered floor is never silent: it takes a second key an agent cannot set, it shows up in the trace and in the run banner, and the public claim it backed is dropped.
 **Depends on**: Phase 29 (the controlled-language pass touches governance and config prose; doing 30 first means rewriting freshly-written governance text and re-running this phase's expensive red-team gate a second time)
 **Requirements**: AUTO-01, AUTO-02, AUTO-03, AUTO-04, AUTO-05, AUTO-06, AUTO-07
 **Success Criteria** (what must be TRUE):
+
   1. Every human stop in the kit is a member of one closed, exported checkpoint set sourced from the `## Stop conditions` and role `## Hard limits` sections — and adding a checkpoint without a default is a **compile error**, not a silent default-open. (AUTO-01)
   2. A per-checkpoint ternary matrix (`block` / `notify` / `off`) replaces the `autonomy` scalar; any unknown, malformed, or unreadable value gates **at least as strictly as `block`**; and `readGovernanceConfig` / `readGovernanceConfigResult` collapse into a **single** discriminated-result reader whose failure path is fail-closed — the second authority is deleted, not joined by a third. (AUTO-02, AUTO-06)
   3. Lowering a safety floor requires **two keys** — a declaration in config (agent-writable, form-checked only) plus authorization via a per-floor session env var the hook process reads fresh (agent-unwritable) — so an agent that writes the config alone changes nothing, and no grant is blanket. (AUTO-03)
   4. `test_integrity` is enforced at the **point of effect** — `emitVerdict()` refuses GREEN — rather than being handed a false-equivalent env-var mechanism it cannot actually enforce; the hook-enforced vs in-process tier split is stated explicitly rather than papered over. (AUTO-04)
   5. A lowered floor is visible without reading config: the generated guarantees render and a per-run banner both name every non-default checkpoint, so a lowered floor can never leave an overstated claim standing in the docs — and a zero-config repo behaves **exactly** as it does today, with no floor lowered by omission. (AUTO-05, AUTO-07)
+
 **Plans**: TBD
 
 **This is the direct successor to Phase 25** — the hardest phase in the project (8 rounds; 13 documented green-suite-insufficient bypasses across the milestone; closure required a structural fix + ≥2 independent red-teams + self-reproduction). Its **red-team rounds are budgeted as scope, not overrun.** A green suite does not close a floor here.
@@ -198,29 +210,35 @@ Plans:
 **Research flag:** plan with `--research-phase`. The two-key floor-lowering mechanism and the `test_integrity`-to-point-of-effect move both touch `emitVerdict()`, a byte-frozen safety path, and deserve their own red-team round separate from the rest of the phase.
 
 ### Phase 31: Autonomous Manual Testing
+
 **Goal**: An agent can drive a real browser to produce UAT evidence, and the only thing that counts as evidence is an artifact the §14 gate re-runs — never the agent's narration of what it saw.
 **Depends on**: Phase 30 (browser evidence enters through the verify-before-write path, and Phase 30 is where that path's dialability is settled; evidence written against a floor whose semantics change a phase later would have to be re-derived)
 **Requirements**: UATX-01, UATX-02, UATX-03, UATX-04, UATX-05, UATX-06
 **Success Criteria** (what must be TRUE):
+
   1. A committed Playwright spec, re-run by the existing §14 gate, is the machine-verifiable evidence floor; an agent's narration or an MCP tool-call transcript never produces a stamp. (UATX-01)
   2. An agent authors those specs through browser MCP tooling, with `@playwright/mcp` pinned (pre-1.0) and the setup documented for all five host CLIs — and `package.json` gains nothing, because the server is `npx`-invoked by the user's own agent. (UATX-02)
   3. Claude in Chrome is available as an optional, clearly-labelled `verified_by: <named human>` lane and is **structurally barred** from producing a `§14-gate` stamp — attended-only, force-disabled under API-key auth, Claude-Code-only, so it can never be gate evidence. (UATX-03)
   4. An evidence note carries commit SHA + gate-run id + content hash, and a note whose SHA is not the HEAD the gate ran against is refused. (UATX-04)
   5. An absent or unusable browser produces a **loud skip** that leaves the UAT `pending` (reusing the existing Tier-2 convention verbatim, never a silent pass), and a generated spec containing a conditional or caught assertion is rejected over the **TypeScript AST** rather than by regex, so the claim matches the mechanism. (UATX-05, UATX-06)
+
 **Plans**: TBD
 
 **Research flag:** plan with `--research-phase`. Whether `mcp__claude-in-chrome__*` tools are reachable from inside a subagent is explicitly `UNKNOWN - verify`; verify before designing any flow that assumes it. The phase's core recommendation (Playwright as the floor) does not depend on the answer.
 
 ### Phase 32: Board Projector & CLI Dashboard
+
 **Goal**: The operator watches the factory live from one read-only terminal view, fed by a single board-grammar authority whose typed snapshot a future web renderer could consume unchanged.
 **Depends on**: Phase 30 (the autonomy banner names every non-default checkpoint) and Phase 28 (stabilized state surfaces)
 **Requirements**: DASH-01, DASH-02, DASH-03, DASH-04, DASH-05, DASH-06, DASH-07, DASH-08
 **Success Criteria** (what must be TRUE):
+
   1. `scripts/board-model.ts` is the **only** board grammar in the tree — the column-heading parser is extracted from and **deleted in** `validate-agent-factory.ts` with the WR-03 prefix-match hardening ported verbatim — and the ticket-row and WIP-number grammars are pinned by a written spec plus a parse-oracle fuzz suite whose adversarial corpus includes the board's own large HTML-comment documentation block. (DASH-01, DASH-02)
   2. One typed `FactorySnapshot` joins board, ticket frontmatter, queue state, context notes, and traceability, and **surfaces** board-vs-frontmatter disagreement in a `conflicts[]` field rather than silently resolving it. (DASH-03)
   3. The dashboard follows a live run using directory-level `fs.watch` plus a **mandatory** polling floor and debounce (because grugops's own atomic-rename write path silently orphans a file-level watch), and never renders a torn read, a partial parse, or an ENOENT as an empty board — a stale snapshot shows a visible stale badge over the last good read. (DASH-04, DASH-05)
   4. The dashboard **cannot** write: an import-graph guard proves its module tree holds no mutating `node:fs` symbol, so read-only is mechanically enforced rather than asserted in prose. (DASH-06)
   5. `--json`, `--once`, and non-TTY modes work for CI and piping; the renderer degrades **visibly** rather than showing a confident wrong board; the snapshot shape is stable enough for a future web renderer to consume unchanged; and the dashboard adds **zero** runtime dependencies and opens no listening socket this milestone. (DASH-07, DASH-08)
+
 **Plans**: TBD
 
 **Research flag:** plan with `--research-phase`. The board ticket-row grammar is genuinely unmeasured in the wild (only two disagreeing HTML-comment examples exist) — sample real agent-written board rows before freezing the grammar, or the parser becomes a de-facto spec agents then drift away from.
@@ -228,13 +246,16 @@ Plans:
 **Windows caveat (honest, not a defect):** the `fs.watch` behavior this phase depends on is only *proven* on Windows once Phase 33 turns the `windows-latest` leg green. Until then this phase's Windows claim stays `UNKNOWN - verify` rather than asserted. This is a terminal renderer only — no web or frontend surface; the web renderer is explicitly deferred.
 
 ### Phase 33: Live Capture & Windows Portability
+
 **Goal**: The milestone's headline claims are proven by capture rather than by a green suite — one live run shows role agents executing in their own sessions, which is also the evidence the project's oldest open item has waited for since v1.0.
 **Depends on**: Phase 27 (spawning must genuinely work before it can be captured) and Phase 32 (the Windows `fs.watch` surface this phase turns green)
 **Requirements**: CAP-01, CAP-02, CAP-03
 **Success Criteria** (what must be TRUE):
+
   1. A **captured** live run shows role agents executing in their own sessions — the spawn fix proven by observation, never by the green suite that failed to detect the defect in the first place. (CAP-03)
   2. That capture (date + verdict) discharges GAP-D1: A3/DOG-02 flips together with the coupled `examples/03-ticket-to-pr.md` cleanup, in one edit — and a loud skip is never accepted as the capture. (CAP-01)
   3. The `windows-latest` CI leg exits 0 — path-assertion normalization, symlink-fixture privilege guard, buildable old-layout migrate fixture, temp-dir `tsc` mirror rebuild — which also turns the dashboard's Windows `fs.watch` surface from assumed into proven, and flips the Phase-20 human item on green. (CAP-02)
+
 **Plans**: TBD
 
 ## Progress
@@ -269,7 +290,7 @@ Plans:
 | 24. Clean Handoff Removal & Traceability Migration | v2.0 | 5/5 | Complete    | 2026-06-22 |
 | 25. Governance-on-a-Dial | v2.0 | 13/13 | Complete | 2026-06-29 |
 | 26. Dogfood, Dual-Path Oracle & A3/DOG-02 Retirement | v2.0 | 6/6 | Complete | 2026-07-24 |
-| 27. Spawn Correctness & Kit-Set Authority | v2.1 | 0/TBD | Not started | - |
+| 27. Spawn Correctness & Kit-Set Authority | v2.1 | 1/9 | In Progress|  |
 | 28. Kit Consistency Audit | v2.1 | 0/TBD | Not started | - |
 | 29. Controlled Language & Voice Guard Rebuild | v2.1 | 0/TBD | Not started | - |
 | 30. Per-Checkpoint Autonomy Matrix | v2.1 | 0/TBD | Not started | - |

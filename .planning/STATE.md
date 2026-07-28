@@ -3,16 +3,17 @@ gsd_state_version: 1.0
 milestone: v2.1
 milestone_name: Autonomous Factory — Real Spawning, Controlled Language & Live Board
 current_phase: 27
-status: planning
-stopped_at: Phase 27 planned — 9 plans ready to execute
-last_updated: "2026-07-28T15:36:09.490Z"
+current_phase_name: spawn-correctness-kit-set-authority
+status: executing
+stopped_at: Completed 27-01-PLAN.md
+last_updated: "2026-07-28T16:25:07.851Z"
 last_activity: 2026-07-28
-last_activity_desc: Phase 27 planning complete — 9 plans in 6 waves, all gates green
+last_activity_desc: Phase 27 execution started
 progress:
   total_phases: 7
   completed_phases: 0
   total_plans: 9
-  completed_plans: 0
+  completed_plans: 1
   percent: 0
 ---
 
@@ -23,14 +24,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-07-28 — after v2.0 milestone)
 
 **Core value:** A user installs grugops on top of the coding-agent CLI they already run, types `/grug`, and gets a disciplined delivery team — a visible board, a shared context where nothing is written until it is *verified*, and an auditable requirement→code→test→release trail — entirely as readable markdown, with humans always holding merge and deploy. The v2.0 differentiator: **"verified" means passed the §14 behavior gate**, recorded as a `verified_by` stamp the writing agent cannot forge or self-set.
-**Current focus:** v2.1 Autonomous Factory — Phase 27 planned (9 plans, 6 waves). Next: `/gsd-execute-phase 27` — Spawn Correctness & Kit-Set Authority.
+**Current focus:** Phase 27 — spawn-correctness-kit-set-authority
 
 ## Current Position
 
-Phase: 27 — Spawn Correctness & Kit-Set Authority (planned, not started)
-Plan: 9 plans in 6 waves (27-01 … 27-09)
+Phase: 27 (spawn-correctness-kit-set-authority) — EXECUTING
+Plan: 2 of 9
 Status: Ready to execute
-Last activity: 2026-07-28 — Phase 27 planning complete (9 plans, 6 waves; requirements 10/10, decisions 27/27, plan-checker passed)
+Last activity: 2026-07-28 — Phase 27 execution started
 
 ## Performance Metrics
 
@@ -189,6 +190,11 @@ Last activity: 2026-07-28 — Phase 27 planning complete (9 plans, 6 waves; requ
 | Phase 26 P02 | 12min | 2 tasks | 1 files |
 | Phase 26 P03 | ~15min | 2 tasks | 3 files |
 | Phase 26 P04 | 18min | 2 tasks | 2 files |
+**Per-Plan Metrics:**
+
+| Plan | Duration | Tasks | Files |
+|------|----------|-------|-------|
+| Phase 27 P01 | 22 | 3 tasks | 6 files |
 
 ## Accumulated Context
 
@@ -435,6 +441,9 @@ Recent decisions affecting current work:
 - [Phase ?]: 26-04: A3-live retargeted onto on-disk verdict-string equivalence (D-05); FROZEN_HANDOFFS + deleted-filename loop removed (Pitfall 5/Loud Flag 2)
 - [Phase ?]: 26-04: added gated A3-live-N — N real claude dispatches vs one shared queue+context root assert N un-clobbered notes + claim-once (D-09, Tier-2 confirmation only)
 - [Phase ?]: 26-04: human runbook dual-path artifact retargeted onto shared-context notes + frozen verdict; captured date+verdict is the D-01 retirement evidence
+- [Phase ?]: KIT-01: scripts/kit-model.ts is the sole filesystem-derived authority for the role/workflow corpora; kit root is an explicit parameter (D-22), and the module throws rather than returning an empty set (D-21 tier 1)
+- [Phase ?]: KIT-03: guard_referential_integrity enforces grant u {coordinator} == adapters == roles with no exception list, and is RED against the live tree until plan 27-06 lands the 17 adapters
+- [Phase ?]: D-17 upheld: roleCeiling() stays hand-listed as a measurement baseline that already fails closed on an unknown role; deriving it would convert a fail-closed table into a silently-widening one
 
 ### Pending Todos
 
@@ -533,9 +542,9 @@ Shape of the carry: **9 of 11 are pre-v2.0 carryover** from the v1.2 block above
 
 ## Session Continuity
 
-Last session: 2026-07-28T13:43:02.509Z
-Stopped at: Phase 27 context gathered
-Resume file: .planning/phases/27-spawn-correctness-kit-set-authority/27-CONTEXT.md
+Last session: 2026-07-28T16:25:01.039Z
+Stopped at: Completed 27-01-PLAN.md
+Resume file: None
 
 ## Operator Next Steps
 
