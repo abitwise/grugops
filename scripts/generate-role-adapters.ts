@@ -161,7 +161,13 @@ try {
 roleFiles = roleFiles!.slice().sort(); // explicit sort before emit (kit-model already sorts)
 
 const adapters: Adapter[] = [];
-const seenNames = new Map<string, string>(); // adapter name -> the role file that claimed it
+// Adapter name FOLDED TO LOWER CASE -> the role file that claimed it. The fold is the whole point:
+// two roles whose adapter names differ only by case are distinct files on a case-sensitive
+// filesystem and the SAME file on a case-insensitive one (APFS, NTFS), where the second write
+// silently destroys the first and the adapter directory comes up one short with no error anywhere.
+// grugops ships to Windows, so a role set that is only portable to Linux is refused on every
+// platform — including the Linux machine that would otherwise commit it happily.
+const seenNames = new Map<string, string>();
 
 for (const file of roleFiles) {
   // Encoding gate: adapter names are compared by exact string equality by the KIT-03 oracle, and the
@@ -184,13 +190,14 @@ for (const file of roleFiles) {
 
   const stem = file.replace(/\.md$/, "");
   const name = `${AGENT_PREFIX}${stem}`;
-  const claimed = seenNames.get(name);
+  const folded = name.toLowerCase();
+  const claimed = seenNames.get(folded);
   if (claimed !== undefined) {
     fail(
-      `${file}: adapter name "${name}" collides with the one already produced by ${claimed} — two roles cannot share one adapter file`,
+      `${file}: adapter name "${name}" collides with the one produced by ${claimed} — two roles cannot share one adapter file (names are compared case-insensitively: on a case-insensitive filesystem the second adapter silently overwrites the first)`,
     );
   }
-  seenNames.set(name, file);
+  seenNames.set(folded, file);
 
   // Capabilities → tools, validated against the closed vocabulary at BUILD time (T-27-29).
   const fm = parseFrontmatter(text!);
