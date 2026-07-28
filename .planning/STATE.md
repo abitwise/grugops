@@ -5,15 +5,15 @@ milestone_name: Autonomous Factory — Real Spawning, Controlled Language & Live
 current_phase: 27
 current_phase_name: spawn-correctness-kit-set-authority
 status: executing
-stopped_at: Completed 27-01-PLAN.md
-last_updated: "2026-07-28T16:25:07.851Z"
+stopped_at: Completed 27-02-PLAN.md
+last_updated: "2026-07-28T16:40:00.130Z"
 last_activity: 2026-07-28
 last_activity_desc: Phase 27 execution started
 progress:
   total_phases: 7
   completed_phases: 0
   total_plans: 9
-  completed_plans: 1
+  completed_plans: 2
   percent: 0
 ---
 
@@ -29,7 +29,7 @@ See: .planning/PROJECT.md (updated 2026-07-28 — after v2.0 milestone)
 ## Current Position
 
 Phase: 27 (spawn-correctness-kit-set-authority) — EXECUTING
-Plan: 2 of 9
+Plan: 3 of 9
 Status: Ready to execute
 Last activity: 2026-07-28 — Phase 27 execution started
 
@@ -195,6 +195,7 @@ Last activity: 2026-07-28 — Phase 27 execution started
 | Plan | Duration | Tasks | Files |
 |------|----------|-------|-------|
 | Phase 27 P01 | 22 | 3 tasks | 6 files |
+| Phase 27 P02 | 25m | 3 tasks | 5 files |
 
 ## Accumulated Context
 
@@ -444,6 +445,9 @@ Recent decisions affecting current work:
 - [Phase ?]: KIT-01: scripts/kit-model.ts is the sole filesystem-derived authority for the role/workflow corpora; kit root is an explicit parameter (D-22), and the module throws rather than returning an empty set (D-21 tier 1)
 - [Phase ?]: KIT-03: guard_referential_integrity enforces grant u {coordinator} == adapters == roles with no exception list, and is RED against the live tree until plan 27-06 lands the 17 adapters
 - [Phase ?]: D-17 upheld: roleCeiling() stays hand-listed as a measurement baseline that already fails closed on an unknown role; deriving it would convert a fail-closed table into a silently-widening one
+- [Phase ?]: Installer/uninstaller derive their kit sets by readdirSync of $GRUGOPS_SRC (D-18) — the installer stays self-contained and does NOT import scripts/kit-model.ts
+- [Phase ?]: Materialize-vs-copy routing is decided by the resolver slot line in the source body (D-06), not by filename — so all 17 adapters become resolvers with no exception list
+- [Phase ?]: Uninstall removes only the kit-source set INTERSECTED with target contents; an underivable source returns null and fails loud rather than deleting (T-27-06/T-27-09)
 
 ### Pending Todos
 
@@ -542,8 +546,8 @@ Shape of the carry: **9 of 11 are pre-v2.0 carryover** from the v1.2 block above
 
 ## Session Continuity
 
-Last session: 2026-07-28T16:25:01.039Z
-Stopped at: Completed 27-01-PLAN.md
+Last session: 2026-07-28T16:39:53.393Z
+Stopped at: Completed 27-02-PLAN.md
 Resume file: None
 
 ## Operator Next Steps
