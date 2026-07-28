@@ -121,7 +121,34 @@ Full phase details + milestone summary: `milestones/v2.0-ROADMAP.md` · requirem
   3. All 17 role adapters exist at `.claude/agents/grugops-<role>.md`, are produced by the templated generator from `agent-factory/roles/*.md` as thin pointers (never copies of role text), and a byte difference between a committed adapter and a fresh regeneration fails the freshness gate closed. (SPAWN-01, SPAWN-02)
   4. On Claude Code the coordinator runs as the **main-thread** agent so its `Agent(<allowlist>)` grant is honored by the runtime, and no non-coordinator adapter carries the `Agent` tool at all — a mechanism that holds on both the main-thread and subagent paths rather than relying on a frontmatter token the runtime ignores. (SPAWN-03, SPAWN-04)
   5. `guard_adapter_body` fails red on pre-v2.0 handoff/single-window prose anywhere in an adapter body — proven against the surviving `grugops-orchestrator.md:25` reference — `orchestrator.md` sits below its **7570-byte FAIL ceiling with the ceiling unchanged**, and the advertised Claude Code floor reads **v2.1.219+ at depth 3** everywhere it appears, with the v2.1.217–218 depth-1 window documented as a known-bad range that degrades loudly. (SPAWN-05, SPAWN-06, SPAWN-07)
-**Plans**: TBD
+**Plans**: 9 plans (6 waves)
+Plans:
+**Wave 1**
+
+- [ ] 27-01-PLAN.md — `scripts/kit-model.ts` derivation authority (explicit root arg, throws on vacuity, exact two-sided counts) proven end-to-end through `ROLE_FILES`; the KIT-03 referential-integrity oracle wired in and **failing RED against today's tree**, with RED/GREEN fixture tests [KIT-01, KIT-03]
+- [ ] 27-02-PLAN.md — installer and uninstaller self-derive their adapter/skill sets by readdir of `$GRUGOPS_SRC`, materialize-vs-copy routed by the resolver slot, uninstall intersected with the target so user-authored agents survive [KIT-02]
+
+**Wave 2** *(blocked on 27-01)*
+
+- [ ] 27-03-PLAN.md — `check-foundation-guards.ts`: derive `ADAPTERS` (+ vacuity floor and skill count), rename and derive the spawn-grant scan set to kill the cross-file `WR05_SCAN` collision, derive `CTX_WORKFLOWS` 16→19; per-consumer assertions + the committed literal inventory [KIT-02]
+- [ ] 27-04-PLAN.md — `validate-agent-factory.ts` derives its frozen 14/16 lists (extension stripped at the call site); `check-kit-refs.ts` reaches `.claude/agents` as a directory, derives `MARKER_SITES` (D-27), and restates Assertion 3 as a two-sided derived predicate [KIT-02]
+- [ ] 27-05-PLAN.md — trim `orchestrator.md` below the 7165-byte WARN tier with the ceiling unchanged and no relocation; capability-keyed spawn instruction; depth-3 + tuning env var + real concurrency cap across the remaining surfaces, table asymmetry preserved [SPAWN-06, SPAWN-07]
+
+**Wave 3** *(blocked on 27-05)*
+
+- [ ] 27-06-PLAN.md — `capabilities:` inline-scalar frontmatter on all 17 roles (closed vocabulary, background-subagent-safe); packaging template defines the specialist body, the coordinator body carrying the honest three-tier announcement (Full / Reduced / Degraded) selected by capability-sensing, and the capability→tool mapping [SPAWN-01]
+
+**Wave 4** *(blocked on 27-01, 27-03, 27-06)*
+
+- [ ] 27-07-PLAN.md — `generate-role-adapters.ts` + the 17 committed thin-pointer resolver adapters (one coordinator with a generated 16-name grant, no spawn token on any other), turning the KIT-03 oracle GREEN; `adapters-freshness.ts` byte-and-set gate [SPAWN-01, SPAWN-02, KIT-03]
+
+**Wave 5** *(blocked on 27-03, 27-04, 27-07)*
+
+- [ ] 27-08-PLAN.md — `dead-vocabulary.ts` as the one retired-vocabulary source (two justified consumers); `guard_adapter_body` both directions over the derived scan set + template; `guard_wr05` asserts tier-announcement presence and no non-coordinator spawn token [SPAWN-04, SPAWN-05]
+
+**Wave 6** *(blocked on 27-07, 27-08)*
+
+- [ ] 27-09-PLAN.md — document the three entry tiers and the deliberate absence of main-thread wiring (`claude --agent grugops-orchestrator` as the full-capability path, no settings-parity claim); assert the in-repo half by command and verify the runtime half by hand against a real session [SPAWN-03]
 
 **Ordering that is load-bearing inside this phase** — the kit-set authority and the referential-integrity oracle land **first**, the `orchestrator.md` trim lands **before** any spawn-allowlist text is added, and only then are the 17 adapters generated. Reversing that order reproduces the exact failure this phase exists to fix, with new names.
 
