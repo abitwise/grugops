@@ -4,14 +4,14 @@ milestone: v2.1
 milestone_name: Autonomous Factory — Real Spawning, Controlled Language & Live Board
 current_phase: 27
 status: planning
-stopped_at: Phase 27 context gathered
-last_updated: "2026-07-28T13:43:02.517Z"
+stopped_at: Phase 27 planned — 9 plans ready to execute
+last_updated: "2026-07-28T15:36:09.490Z"
 last_activity: 2026-07-28
-last_activity_desc: v2.1 roadmap created (7 phases 27–33, 46/46 requirements mapped, 0 unmapped)
+last_activity_desc: Phase 27 planning complete — 9 plans in 6 waves, all gates green
 progress:
   total_phases: 7
   completed_phases: 0
-  total_plans: 0
+  total_plans: 9
   completed_plans: 0
   percent: 0
 ---
@@ -23,14 +23,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-07-28 — after v2.0 milestone)
 
 **Core value:** A user installs grugops on top of the coding-agent CLI they already run, types `/grug`, and gets a disciplined delivery team — a visible board, a shared context where nothing is written until it is *verified*, and an auditable requirement→code→test→release trail — entirely as readable markdown, with humans always holding merge and deploy. The v2.0 differentiator: **"verified" means passed the §14 behavior gate**, recorded as a `verified_by` stamp the writing agent cannot forge or self-set.
-**Current focus:** v2.1 Autonomous Factory — roadmap created (7 phases, 27–33; 46/46 requirements mapped). Next: `/gsd-plan-phase 27 --research-phase` — Spawn Correctness & Kit-Set Authority.
+**Current focus:** v2.1 Autonomous Factory — Phase 27 planned (9 plans, 6 waves). Next: `/gsd-execute-phase 27` — Spawn Correctness & Kit-Set Authority.
 
 ## Current Position
 
-Phase: 27 — Spawn Correctness & Kit-Set Authority (not started)
-Plan: —
-Status: Roadmap created — awaiting phase planning
-Last activity: 2026-07-28 — v2.1 roadmap created (7 phases 27–33, 46/46 requirements mapped, 0 unmapped)
+Phase: 27 — Spawn Correctness & Kit-Set Authority (planned, not started)
+Plan: 9 plans in 6 waves (27-01 … 27-09)
+Status: Ready to execute
+Last activity: 2026-07-28 — Phase 27 planning complete (9 plans, 6 waves; requirements 10/10, decisions 27/27, plan-checker passed)
 
 ## Performance Metrics
 
