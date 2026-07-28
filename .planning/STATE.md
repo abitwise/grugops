@@ -4,17 +4,17 @@ milestone: v2.1
 milestone_name: Autonomous Factory — Real Spawning, Controlled Language & Live Board
 current_phase: 27
 current_phase_name: spawn-correctness-kit-set-authority
-status: executing
-stopped_at: Completed 27-08-PLAN.md
-last_updated: "2026-07-28T20:02:45.281Z"
+status: verifying
+stopped_at: Completed 27-09-PLAN.md (final plan of phase 27)
+last_updated: "2026-07-28T20:11:59.539Z"
 last_activity: 2026-07-28
 last_activity_desc: Phase 27 execution started
 progress:
   total_phases: 7
-  completed_phases: 0
+  completed_phases: 1
   total_plans: 9
-  completed_plans: 8
-  percent: 0
+  completed_plans: 9
+  percent: 14
 ---
 
 # Project State
@@ -30,7 +30,7 @@ See: .planning/PROJECT.md (updated 2026-07-28 — after v2.0 milestone)
 
 Phase: 27 (spawn-correctness-kit-set-authority) — EXECUTING
 Plan: 9 of 9
-Status: Ready to execute
+Status: Phase complete — ready for verification
 Last activity: 2026-07-28 — Phase 27 execution started
 
 ## Performance Metrics
@@ -202,6 +202,7 @@ Last activity: 2026-07-28 — Phase 27 execution started
 | Phase 27 P06 | 20 min | 2 tasks | 19 files |
 | Phase 27 P07 | 95 min | 3 tasks | 23 files |
 | Phase 27 P08 | 25m | 3 tasks | 22 files |
+| Phase 27 P09 | 15m | 2 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -475,6 +476,9 @@ Recent decisions affecting current work:
 - [Phase ?]: guard_adapter_body reads fence-stripped AND whitespace-collapsed text so no verdict depends on line wrapping
 - [Phase ?]: The packaging template states the memory sentence in live prose, so one uniform rule covers all 25 bodies with no per-file exemption
 - [Phase ?]: guard_wr05 asserts tier-announcement presence, never a settings-file entry (D-01: none is written into a user repo)
+- [Phase ?]: [27-09] install/README.md entry-tier section appended as §6 (not inserted as §4) — inserting would renumber Safety §5 and invalidate the hooks/guard.ts:83 cross-file citation; a forward pointer near the top preserves discoverability
+- [Phase ?]: [27-09] settings-key allowlist parity written as UNKNOWN - verify in both install/README.md and adapters.md — the platform states the enumerated-allowlist rule for the --agent flag only; D-01 removes the key from the install path so nothing depends on the answer
+- [Phase ?]: [27-09] SPAWN-03 NOT marked complete — documented + in-repo halves green, runtime half (session header names @grugops-orchestrator; a role agent actually runs) NOT PERFORMED and recorded as UNKNOWN - verify with reproduction commands; marking it complete on a green suite would repeat the defect this phase exists to fix
 
 ### Pending Todos
 
@@ -573,8 +577,8 @@ Shape of the carry: **9 of 11 are pre-v2.0 carryover** from the v1.2 block above
 
 ## Session Continuity
 
-Last session: 2026-07-28T20:02:38.156Z
-Stopped at: Completed 27-08-PLAN.md
+Last session: 2026-07-28T20:11:59.530Z
+Stopped at: Completed 27-09-PLAN.md (final plan of phase 27)
 Resume file: None
 
 ## Operator Next Steps
