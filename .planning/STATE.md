@@ -2,18 +2,18 @@
 gsd_state_version: 1.0
 milestone: v2.0
 milestone_name: Decentralized Factory — Shared Verified Context
-current_phase: 26
-status: completed
+status: Awaiting next milestone
 stopped_at: Completed 26-03-PLAN.md
-last_updated: "2026-07-24T10:50:31.883Z"
-last_activity: 2026-07-24
-last_activity_desc: Phase 26 complete
+last_updated: "2026-07-28T07:52:41.393Z"
+last_activity: 2026-07-28
+last_activity_desc: Milestone v2.0 completed and archived
 progress:
   total_phases: 7
   completed_phases: 7
   total_plans: 44
   completed_plans: 44
   percent: 100
+current_phase: 26
 current_phase_name: dogfood-dual-path-oracle-a3-dog-02-retirement
 ---
 
@@ -28,10 +28,10 @@ See: .planning/PROJECT.md (updated 2026-06-16 — after v1.2 milestone)
 
 ## Current Position
 
-Phase: 26
-Plan: Not started
-Status: All phases complete
-Last activity: 2026-07-24 — Phase 26 complete
+Phase: Milestone v2.0 complete
+Plan: —
+Status: Awaiting next milestone
+Last activity: 2026-07-28 — Milestone v2.0 completed and archived
 
 ## Performance Metrics
 
@@ -515,5 +515,4 @@ Resume file: None
 
 ## Operator Next Steps
 
-- Review the v2.0 roadmap (Phases 20–26) in .planning/ROADMAP.md; approve or request revision
-- On approval, plan the first phase: `/gsd-plan-phase 20` (Shared-Context Substrate & Concurrency Foundation)
+- Start the next milestone with /gsd-new-milestone
