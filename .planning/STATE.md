@@ -5,15 +5,15 @@ milestone_name: Autonomous Factory — Real Spawning, Controlled Language & Live
 current_phase: 27
 current_phase_name: spawn-correctness-kit-set-authority
 status: executing
-stopped_at: Completed 27-03-PLAN.md
-last_updated: "2026-07-28T17:00:29.144Z"
+stopped_at: Completed 27-04-PLAN.md
+last_updated: "2026-07-28T17:17:36.546Z"
 last_activity: 2026-07-28
 last_activity_desc: Phase 27 execution started
 progress:
   total_phases: 7
   completed_phases: 0
   total_plans: 9
-  completed_plans: 3
+  completed_plans: 4
   percent: 0
 ---
 
@@ -29,7 +29,7 @@ See: .planning/PROJECT.md (updated 2026-07-28 — after v2.0 milestone)
 ## Current Position
 
 Phase: 27 (spawn-correctness-kit-set-authority) — EXECUTING
-Plan: 4 of 9
+Plan: 5 of 9
 Status: Ready to execute
 Last activity: 2026-07-28 — Phase 27 execution started
 
@@ -197,6 +197,7 @@ Last activity: 2026-07-28 — Phase 27 execution started
 | Phase 27 P01 | 22 | 3 tasks | 6 files |
 | Phase 27 P02 | 25m | 3 tasks | 5 files |
 | Phase 27 P03 | 17min | 3 tasks | 4 files |
+| Phase 27 P04 | 14 | 3 tasks | 11 files |
 
 ## Accumulated Context
 
@@ -453,6 +454,10 @@ Recent decisions affecting current work:
 - [Phase ?]: adapters.md stays out of the spawn-grant scan (D-09) by shape rule, not by omission from a list
 - [Phase ?]: A coverage increase that surfaces a real violation is fixed in the offending TEXT, never by narrowing the scan set or weakening the safety predicate
 - [Phase ?]: Deletion detection lost to derivation is restored explicitly: a non-empty floor reporting both counts, plus SKILL_COUNT for the one set the KIT-03 oracle cannot cover
+- [Phase ?]: 27-04: extension stripped at the validator's call site, never by changing kit-model's pinned .md-bearing return shape
+- [Phase ?]: 27-04: no cardinality assertion inside the validator (it runs against arbitrary kit roots); counts stay in guard_kit_counts, deletion signal in the KIT-03 oracle
+- [Phase ?]: 27-04: Assertion 3 restated as a two-sided derived predicate keyed on the resolver slot — a hand-written adapter naming $GRUGOPS_HOME without a slot now fails red
+- [Phase ?]: 27-04: deriving a set restores its fail-red branch explicitly — check-kit-refs refuses an empty adapter set rather than passing over nothing
 
 ### Pending Todos
 
@@ -551,8 +556,8 @@ Shape of the carry: **9 of 11 are pre-v2.0 carryover** from the v1.2 block above
 
 ## Session Continuity
 
-Last session: 2026-07-28T17:00:20.894Z
-Stopped at: Completed 27-03-PLAN.md
+Last session: 2026-07-28T17:17:20.517Z
+Stopped at: Completed 27-04-PLAN.md
 Resume file: None
 
 ## Operator Next Steps
