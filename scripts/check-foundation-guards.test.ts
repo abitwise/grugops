@@ -354,6 +354,108 @@ describe("check-foundation-guards.js (SDLC-02 / SC2 fail-proof harness)", () => 
     expect(out(r)).toContain("slash-command.template.md");
   });
 
+  // ── guard_wr05 tier-announcement presence (Phase 27 / plan 27-08, the REVISED D-05). ──────────
+  //
+  // The original D-05 asserted degrade-path presence; under the revised D-02 that would guard for
+  // text which must no longer be the contract. The assertion is now tier-announcement presence: all
+  // three tier labels, the reduced-path enforcement disclosure, and the capability-sensing sentence
+  // that selects between them. One case per beat, because a coordinator that silently drops ONE tier
+  // overstates its enforcement — and "claims an enforcement it lacks" is the failure a user cannot
+  // detect by reading the announcement.
+  //
+  // Each case removes the mirrored coordinator's line carrying the beat and asserts the guard names
+  // that beat by label. Removing one beat's line never disturbs another's, so each case fails for
+  // exactly the reason it is named for.
+  const beatCases: readonly { label: string; line: string }[] = [
+    { label: "Full tier label", line: "- **Full** —" },
+    { label: "Reduced tier label", line: "- **Reduced** —" },
+    { label: "Degraded tier label", line: "- **Degraded** —" },
+    {
+      label: "reduced-path enforcement disclosure",
+      line: "runtime-enforced here",
+    },
+    { label: "capability-sensing selection signal", line: "capability-sensing" },
+  ];
+  for (const beat of beatCases) {
+    it(`guard_wr05 coordinator body missing the ${beat.label} → nonzero + names the beat (revised D-05)`, () => {
+      const m = mirror();
+      const file = adapterPath(m, COORDINATOR);
+      writeFileSync(
+        file,
+        readFileSync(file, "utf8")
+          .split("\n")
+          .filter((l) => !l.includes(beat.line))
+          .join("\n"),
+      );
+      const r = runIn(m);
+      expect(r.status).not.toBe(0);
+      const o = out(r);
+      expect(o).toContain(
+        `missing the tier-announcement beat "${beat.label}"`,
+      );
+      expect(o).toContain("grugops-orchestrator.md");
+    });
+  }
+
+  // SPAWN-04 across the FULL derived scan set. The pre-27-03 guard hand-listed four files, so a rogue
+  // grant on any of the seventeen agent adapters or seven skills was unreachable. These two plant a
+  // grant on a real non-coordinator ADAPTER — one per grant syntax — which is the surface SPAWN-04 is
+  // actually about (the existing cases above plant onto packaging/skill surfaces).
+  it("guard_wr05 spawn token planted on a non-coordinator adapter (comma form) → nonzero + rogue spawner", () => {
+    const m = mirror();
+    const file = adapterPath(m, "grugops-qe-e2e");
+    writeFileSync(
+      file,
+      readFileSync(file, "utf8").replace(
+        /^tools: .*$/m,
+        "tools: Agent(grugops-installer), Read, Grep, Glob, Edit, Write, Bash",
+      ),
+    );
+    const r = runIn(m);
+    expect(r.status).not.toBe(0);
+    expect(out(r)).toMatch(/rogue spawner/i);
+    expect(out(r)).toContain(".claude/agents/grugops-qe-e2e.md");
+  });
+
+  it("guard_wr05 spawn token planted on a non-coordinator adapter (quoted list form) → nonzero + rogue spawner", () => {
+    const m = mirror();
+    const file = adapterPath(m, "grugops-installer");
+    writeFileSync(
+      file,
+      readFileSync(file, "utf8").replace(
+        /^tools: .*$/m,
+        'allowed-tools:\n  - Read\n  - "Agent"',
+      ),
+    );
+    const r = runIn(m);
+    expect(r.status).not.toBe(0);
+    expect(out(r)).toMatch(/rogue spawner/i);
+    expect(out(r)).toContain(".claude/agents/grugops-installer.md");
+  });
+
+  // Fence-immunity for the cardinality count, planted on an ADAPTER this time (the existing case
+  // plants onto a packaging template). A coordinator-shaped example inside a ``` block in an adapter
+  // must not be counted as a second live coordinator — one fence authority, no second parser.
+  it("guard_wr05 FENCED coordinator-shaped example in an adapter does not inflate the cardinality → guard PASSES", () => {
+    const m = consistentMirror();
+    appendFileSync(
+      adapterPath(m, "grugops-factory-coach"),
+      "\n## Example coordinator frontmatter\n\n```markdown\ncoordinator: true\ntools: Agent(grugops-qe-e2e), Read\n```\n",
+    );
+    const r = runIn(m);
+    expect(r.status).toBe(0);
+    expect(out(r)).not.toContain("found 2");
+    expect(out(r)).toContain("ALL CHECKS PASSED");
+  });
+
+  // The guard reports WHAT IT CHECKED. 23 = 17 agent adapters + 7 skills - the one coordinator.
+  it("guard_wr05 PASS line reports the non-coordinator bodies checked (23) and the tier beats", () => {
+    const r = spawnSync("node", [GUARD_JS], { encoding: "utf8" });
+    const o = out(r);
+    expect(o).toContain("23 non-coordinator adapter bodies");
+    expect(o).toContain("all 5 tier-announcement beats");
+  });
+
   // ── guard_adapter_body (Phase 27 / SPAWN-05, D-23) — BOTH directions, plus the two cases that
   // keep the guard honest about what it must NOT fail on. ──────────────────────────────────────
   //

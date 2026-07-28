@@ -319,8 +319,45 @@ function matchesOutsideFences(rel, re) {
     const body = stripFencedBlocks(readText(rel));
     return body.split("\n").some((l) => re.test(l));
 }
+// ---------------------------------------------------------------------------
+// TIER-ANNOUNCEMENT BEATS (Phase 27 / SPAWN-04+SPAWN-05, the REVISED D-05).
+//
+// D-05 originally asserted DEGRADE-PATH presence. Under the revised D-02 that would guard for text
+// which must no longer be the contract: Claude Code now has three tiers, and the degrade path is
+// only the third of them. The assertion is therefore TIER-ANNOUNCEMENT PRESENCE — the coordinator
+// body carries all three tier labels, the sentence disclosing that the enumerated grant is NOT
+// runtime-enforced on the reduced path, and the sentence naming the availability of the spawn tool
+// as the signal that selects between them.
+//
+// Why these five and not fewer: a coordinator that drops a tier OVERSTATES its enforcement, which is
+// the spoofing threat this phase names (T-27-34). Claiming an enforcement you lack is worse than
+// having no announcement at all, because a user reading it cannot tell what is actually enforced.
+//
+// These beats stay LOCAL to this guard rather than being exported. They have exactly one consumer,
+// and a shared module with one consumer is a second authority with nothing to justify it. (Contrast
+// scripts/dead-vocabulary.ts, which has two genuinely different consumers and so earns the module.)
+//
+// NO SETTINGS-FILE ASSERTION IS MADE, AND A LATER PHASE MUST NOT ADD ONE. Under D-01 the installer
+// writes no main-thread wiring — no `.claude/settings.json` agent entry — into a user's repository,
+// because doing so would make every Claude session in that repo the grugops coordinator. There is
+// therefore nothing in a target repo for such an assertion to key on. Both mechanisms this guard
+// DOES assert — the enumerated grant and the tier announcement — hold on the sub-agent path and the
+// main-thread path alike, which is what makes the guard meaningful without a wiring artifact.
+const TIER_BEATS = [
+    { label: "Full tier label", needle: "- **Full** —" },
+    { label: "Reduced tier label", needle: "- **Reduced** —" },
+    { label: "Degraded tier label", needle: "- **Degraded** —" },
+    {
+        label: "reduced-path enforcement disclosure",
+        needle: "The grant is **not** runtime-enforced here",
+    },
+    {
+        label: "capability-sensing selection signal",
+        needle: "Pick it by whether the `Agent` tool is available to you — capability-sensing",
+    },
+];
 function guardWr05() {
-    process.stdout.write("\n[guard_wr05] coordinator-only spawn grant: marker-keyed both-direction enforcement (WR-05)\n");
+    process.stdout.write("\n[guard_wr05] coordinator-only spawn grant + tier-announcement presence (WR-05, revised D-05)\n");
     let wr05Fail = "";
     // Collect every SCAN file whose FENCE-STRIPPED body carries the coordinator marker. The substrate
     // has exactly ONE coordinator (the orchestrator adapter); a second marker — live or from a doc
@@ -347,8 +384,28 @@ function guardWr05() {
     if (coordinators.length !== 1) {
         wr05Fail += `\nexpected exactly one coordinator: true file in the scan set, found ${coordinators.length}${coordinators.length > 0 ? `: ${coordinators.join(", ")}` : ""}`;
     }
+    // Tier-announcement presence (revised D-05), checked on the file carrying the coordinator marker —
+    // never on a filename. It only runs when the cardinality holds: with zero or two coordinators the
+    // failure above is the finding, and reporting five absent beats against an ambiguous body would
+    // bury it.
+    if (coordinators.length === 1) {
+        // Same single fence authority, then the same whitespace normalization guard_adapter_body uses,
+        // so a beat that the template hard-wraps across two lines still reads as one sentence.
+        const coordinatorBody = collapseWhitespace(stripFencedBlocks(readText(coordinators[0])));
+        for (const beat of TIER_BEATS) {
+            if (!coordinatorBody.includes(beat.needle)) {
+                wr05Fail += `\n${coordinators[0]}: coordinator body is missing the tier-announcement beat "${beat.label}" (expected the wording \`${beat.needle}\`) — a coordinator that drops a tier overstates its enforcement`;
+            }
+        }
+    }
+    // SPAWN-04 reporting. The rogue-grant loop above walks every SPAWN_GRANT_SCAN member, but the
+    // number worth REPORTING is the adapter one: SPAWN-04 is a property of the shipped adapters, and
+    // the two packaging templates are documentation surfaces that happen to share the scan. Both
+    // numbers are printed so neither hides. With the scan set derived in plan 27-03 this now covers all
+    // 17 agent adapters and all 7 skills rather than the four files it used to hand-list.
+    const nonCoordinatorAdapters = ADAPTERS.filter((f) => !coordinators.includes(f)).length;
     if (wr05Fail === "") {
-        pass("WR-05: exactly one coordinator holds the spawn grant; no non-coordinator does");
+        pass(`WR-05: exactly one coordinator holds the spawn grant; no non-coordinator does (${nonCoordinatorAdapters} non-coordinator adapter bodies + ${PACKAGING_TEMPLATES.length} packaging template(s) checked), and the coordinator body carries all ${TIER_BEATS.length} tier-announcement beats`);
     }
     else {
         fail(`WR-05 coordinator-spawn-grant violation:${wr05Fail}`);
