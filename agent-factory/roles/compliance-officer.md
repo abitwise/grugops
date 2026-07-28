@@ -1,6 +1,7 @@
 ---
 kind: role
 tier: enterprise
+capabilities: read edit shell
 ---
 # Role: Compliance Officer
 

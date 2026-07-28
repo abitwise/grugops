@@ -540,10 +540,24 @@ describe("check-foundation-guards.js (SDLC-02 / SC2 fail-proof harness)", () => 
     );
   });
 
+  // HOST-FILE CHOICE IS LOAD-BEARING (Phase 27 / plan 27-06). The assertion here is global
+  // (`ALL CHECKS PASSED`), so this 93-byte plant is charged against the host role's guard_role_size
+  // budget as well as being read by guard_voice. It used to plant into `security-nfr.md`, the
+  // second-most bloated role, which left the whole case 16 bytes from red — any prose addition to
+  // that one file broke a test about voice discipline, for reasons having nothing to do with voice.
+  // Adding the `capabilities:` frontmatter key (D-11) spent those 16 bytes and tripped it.
+  //
+  // The host is therefore `agents-md-scribe.md`: still a ROLE_FILES member, so the caveman-fence
+  // strip path is exercised exactly as before, and the role the probe text is actually about (the
+  // Scribe writing a Mission section) — but with ~450 bytes of headroom under its ceiling, roughly
+  // five times the plant. neutralizePhrases() is file-agnostic (it rewrites `/grug`, `grug voice`
+  // and `grug wink` on every line of every voice file), so nothing about the coverage changes.
+  // Do NOT move this plant back onto a role that is near its ceiling: no byte ceiling may be raised
+  // to make a plant fit, and this case must fail for VOICE reasons or not at all.
   it("guard_voice refinement accepts clear-voice grug-meta + /grug (narrow, not weakened)", () => {
     const m = consistentMirror();
     appendFileSync(
-      rolePath(m, "security-nfr.md"),
+      rolePath(m, "agents-md-scribe.md"),
       "\nThe Scribe may add a light grug wink in Mission; route every `/grug` request to grug voice.\n",
     );
     const r = runIn(m);

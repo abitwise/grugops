@@ -1,6 +1,7 @@
 ---
 kind: role
 tier: core
+capabilities: read edit shell
 ---
 # Role: BA/PM
 
