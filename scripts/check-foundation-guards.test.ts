@@ -94,6 +94,13 @@ const GUARD_INPUTS = [
   "agent-factory/workflows/13-incident.md",
   "agent-factory/workflows/14-ui-design-to-build.md",
   "agent-factory/workflows/15-security-audit.md",
+  // Phase 27 (KIT-01): guard_kit_counts derives the workflow set from <CHECK_ROOT>/agent-factory/
+  // workflows and requires exactly WORKFLOW_COUNT (19) entries. Workflows 16/17/18 are not in the
+  // guard_context_writes SCAN set, but the mirror must still carry them or every plant case would
+  // trip the count guard on a 16-workflow mirror instead of the violation it planted.
+  "agent-factory/workflows/16-context-read-write.md",
+  "agent-factory/workflows/17-task-claim.md",
+  "agent-factory/workflows/18-context-compaction.md",
   // Phase 23 (D-19): the invoked oracleWr05Wording now scans the 5-tool tables for asymmetric-flip
   // drift, so mirror them too — otherwise the oracle's CR-01 missing-file fail-red would fire on
   // every foundation-guards plant case.
@@ -319,12 +326,24 @@ describe("check-foundation-guards.js (SDLC-02 / SC2 fail-proof harness)", () => 
   // SEC_VOICE_FILE. The surviving security surfaces (the 15-security-audit workflow + the
   // security-nfr-checklist, covered above) still prove guard_voice fails red on a SEC surface.
 
-  it("guard_voice missing file → nonzero + 'required voice file missing' (CR-02)", () => {
+  // (Phase 27 / KIT-01) The three former "missing role file" cases — one each for guard_voice,
+  // guard_caveman_preserved and guard_role_size — are SUPERSEDED and collapsed into the case below.
+  // Those cases worked because ROLE_FILES was a hand-listed array: deleting a role from the mirror
+  // left a list entry pointing at nothing, so each guard's `fileExists` branch fired naming the file.
+  // ROLE_FILES is now DERIVED, so a deleted role is simply not discovered and no per-guard branch can
+  // see it. The missing-role signal therefore moved UP to guard_kit_counts, which is strictly
+  // stronger: the hand-list version could be defeated by deleting the role AND its list entry in one
+  // commit (a fully green suite over a 16-role kit — the founding defect of this milestone), whereas
+  // the derived exact count cannot be satisfied by any edit to the guard source. The per-guard
+  // `fileExists` branches remain in place as TOCTOU defence between readdir and read.
+  it("deleted role file → nonzero + derived kit count fails red (KIT-01 supersedes the per-guard missing-file check)", () => {
     const m = mirror();
     rmSync(join(m, "agent-factory/roles/compliance-officer.md"), { force: true });
     const r = runIn(m);
     expect(r.status).not.toBe(0);
-    expect(out(r)).toContain("required voice file missing");
+    expect(out(r)).toContain("kit count");
+    expect(out(r)).toContain("derived 16 role files");
+    expect(out(r)).toContain("expected exactly 17");
   });
 
   it("guard_voice refinement accepts clear-voice grug-meta + /grug (narrow, not weakened)", () => {
@@ -438,13 +457,8 @@ describe("check-foundation-guards.js (SDLC-02 / SC2 fail-proof harness)", () => 
     expect(out(r)).toContain("sanded to prose");
   });
 
-  it("guard_caveman_preserved missing role → nonzero + 'caveman prompt block missing' (CR-02)", () => {
-    const m = mirror();
-    rmSync(join(m, "agent-factory/roles/ba-pm.md"), { force: true });
-    const r = runIn(m);
-    expect(r.status).not.toBe(0);
-    expect(out(r)).toContain("caveman prompt block missing");
-  });
+  // (Phase 27 / KIT-01) The former "missing role → caveman prompt block missing" case is superseded
+  // by the derived-kit-count case above. See the comment there.
 
   // ── guard_role_size — oversize + missing (CR-01). ────────────────────────────────────────────
   it("guard_role_size oversize role (>ceiling) → nonzero + 'bloated' (D-07)", () => {
@@ -458,12 +472,21 @@ describe("check-foundation-guards.js (SDLC-02 / SC2 fail-proof harness)", () => 
     expect(out(r)).toContain("bloated");
   });
 
-  it("guard_role_size missing role → nonzero + 'installer.md missing' (CR-01)", () => {
+  // (Phase 27 / KIT-01) The former "missing role → installer.md missing" case is superseded by the
+  // derived-kit-count case above. See the comment there.
+  //
+  // roleCeiling() is deliberately NOT derived (D-17), so the unknown-role direction still fails red
+  // naming the file: plant an EXTRA role that has no documented ceiling and guard_role_size names it.
+  it("guard_role_size undocumented role → nonzero + 'no documented ceiling' names the file (D-17)", () => {
     const m = mirror();
-    rmSync(join(m, "agent-factory/roles/installer.md"), { force: true });
+    cpSync(
+      join(ROOT, "agent-factory/roles/installer.md"),
+      join(m, "agent-factory/roles/zz-new-role.md"),
+    );
     const r = runIn(m);
     expect(r.status).not.toBe(0);
-    expect(out(r)).toContain("installer.md missing");
+    expect(out(r)).toContain("zz-new-role.md");
+    expect(out(r)).toContain("no documented ceiling");
   });
 
   // ── Phase 19 Tier-1 oracle wiring (UAT-AUTO-05 / BLOCKER 1) — the aggregator must FAIL CLOSED. ──

@@ -5,8 +5,9 @@
 // exit spine (WARN never increments FAILS), the WR05 EREs + explicit 4-file SCAN set, the
 // guard_voice fence-strip + __UNCLOSED_CAVEMAN_FENCE__ sentinel + the 3 phrase-neutralizations,
 // guard_caveman_preserved's >=2 `^You` OR >=1 idiom threshold, the per-role role_ceiling() byte
-// table, the 17-file ROLE_FILES + SEC_VOICE_FILES lists, and CR-01 missing-file-fails-red are
-// reproduced verbatim. The awk fence machinery is translated to an equivalent TS line-state loop
+// table, the SEC_VOICE_FILES list, and CR-01 missing-file-fails-red are reproduced verbatim.
+// (Phase 27 / KIT-01: ROLE_FILES is no longer one of those verbatim lists — it is DERIVED from
+// scripts/kit-model.ts. The 17 members are unchanged; only their provenance is.) The awk fence machinery is translated to an equivalent TS line-state loop
 // — SAME semantics; the anchor is NOT re-engineered (D-10 forward-compat).
 //
 // The six cross-cutting v1.2 foundation guards in ONE aggregator. Each guard fails red on a
@@ -22,6 +23,10 @@
 //   guard_agents_bytes — AGENTS.md byte budget, two-tier WARN 20480 / FAIL 28672 (D-07). FAIL
 //                        is BELOW the 32768-byte Codex `project_doc_max_bytes` cap.
 //   guard_adapter_size — per-adapter byte ceiling, two-tier WARN 3072 / FAIL 4096 (D-07).
+//   guard_kit_counts   — Phase 27 (KIT-01): the derived role/workflow cardinalities must match the
+//                        exported ROLE_COUNT / WORKFLOW_COUNT EXACTLY, in both directions (D-20).
+//                        Tier 2 of D-21 — kit-model.ts throws on a vacuous set, this guard fails red
+//                        on a wrong one. Reports both derived numbers on success.
 //   guard_voice        — voice-discipline lint over ALL 17 role files (D-05). SECTION-scoped:
 //                        strips the single fenced `## Caveman prompt` block, then greps the
 //                        clear-voice remainder for caveman markers. Uses `\bgrug\b` (word-
@@ -62,6 +67,16 @@ import {
   oracleDualPathEquivalence,
   uatOracleFails,
 } from "./check-uat-oracles.js";
+// Phase 27 (KIT-01): the role and workflow sets are DERIVED, never hand-listed. kit-model.ts is the
+// single authority; this file is one of its consumers. The kit root is passed EXPLICITLY (D-22) so
+// kit-model never re-resolves a root of its own and CHECK_ROOT stays the only override this gate
+// honors.
+import {
+  listRoles,
+  listWorkflows,
+  ROLE_COUNT,
+  WORKFLOW_COUNT,
+} from "./kit-model.js";
 
 // The .sh hard-coded repo-relative paths and assumed cwd == repo root. The TS port resolves
 // every path against the script-relative repo root, but ALSO honors a CHECK_ROOT override so the
@@ -270,34 +285,70 @@ function guardAdapterSize(): void {
 }
 
 // ---------------------------------------------------------------------------
+// guard_kit_counts — tier 2 of D-21 and the two-sided exactness of D-20 (KIT-01, Phase 27).
+//
+// kit-model.ts THROWS on a vacuous set (tier 1, because continuing is unsafe). This guard covers the
+// other failure mode: a set that is non-empty but WRONG. It compares the derived cardinalities
+// against the exported ROLE_COUNT / WORKFLOW_COUNT with strict integer equality — no tolerance band,
+// no `>=` floor, no rounding — so a kit root holding 16 roles and one holding 18 BOTH fail red. Only
+// 17 passes. The 18-role direction is the load-bearing one: adding a role must force its author to
+// walk every derived consumer before bumping the constant, which is exactly the walk that never
+// happened while the sets were hand-listed.
+//
+// On success it REPORTS BOTH DERIVED NUMBERS rather than printing a bare PASS (the established
+// "guards report what they checked" convention). A line reading `0 roles` would then be visible as
+// the anomaly it is instead of hiding behind the word PASS.
+// ---------------------------------------------------------------------------
+function guardKitCounts(): void {
+  process.stdout.write(
+    "\n[guard_kit_counts] derived kit sets match their exact expected counts (KIT-01, D-20/D-21)\n",
+  );
+  let countFail = "";
+  if (ROLE_FILES.length !== ROLE_COUNT) {
+    countFail += `\nkit count: derived ${ROLE_FILES.length} role files, expected exactly ${ROLE_COUNT} — walk every derived consumer (guard_voice, guard_caveman_preserved, guard_role_size, CTX_SCAN, roleCeiling) BEFORE updating ROLE_COUNT in scripts/kit-model.ts`;
+  }
+  if (WORKFLOW_FILES.length !== WORKFLOW_COUNT) {
+    countFail += `\nkit count: derived ${WORKFLOW_FILES.length} workflow files, expected exactly ${WORKFLOW_COUNT} — walk every derived consumer BEFORE updating WORKFLOW_COUNT in scripts/kit-model.ts`;
+  }
+  if (countFail === "") {
+    pass(
+      `kit counts: derived ${ROLE_FILES.length} roles and ${WORKFLOW_FILES.length} workflows (expected ${ROLE_COUNT} / ${WORKFLOW_COUNT})`,
+    );
+  } else {
+    fail(`kit-count violation:${countFail}`);
+  }
+}
+
+// ---------------------------------------------------------------------------
 // guard_voice — voice-discipline lint over the curated clear-voice surfaces.
 //
 // Section-scoped, never whole-file: role bodies legitimately mix a fenced `## Caveman prompt`
 // (intentionally caveman) with clear-voice sections. Strip the SINGLE fenced `## Caveman prompt`
 // block, then grep the remainder for caveman markers.
 // ---------------------------------------------------------------------------
-// The 17 role files (D-05 expansion + Phase 13 frontend-ui). `_role-switch-protocol.md` has no
-// `## Caveman prompt` block, so it is correctly EXCLUDED. This same 17-file list is the scan set
-// for all three role guards (guard_voice, guard_caveman_preserved, guard_role_size).
-const ROLE_FILES = [
-  "agent-factory/roles/agents-md-scribe.md",
-  "agent-factory/roles/architect-design.md",
-  "agent-factory/roles/ba-pm.md",
-  "agent-factory/roles/brownfield-mapper.md",
-  "agent-factory/roles/compliance-officer.md",
-  "agent-factory/roles/factory-coach.md",
-  "agent-factory/roles/frontend-ui.md",
-  "agent-factory/roles/greenfield-mapper.md",
-  "agent-factory/roles/incident-responder.md",
-  "agent-factory/roles/installer.md",
-  "agent-factory/roles/orchestrator.md",
-  "agent-factory/roles/qe-e2e.md",
-  "agent-factory/roles/release-manager.md",
-  "agent-factory/roles/security-nfr.md",
-  "agent-factory/roles/software-engineer.md",
-  "agent-factory/roles/system-analyst.md",
-  "agent-factory/roles/uat-planner.md",
-];
+// The role files, DERIVED (Phase 27, KIT-01) — no longer a hand-listed array. kit-model.listRoles()
+// reads `<ROOT>/agent-factory/roles` and drops every `_`-prefixed entry, so
+// `_role-switch-protocol.md` is excluded BY THE RULE rather than by omission from a list (it has no
+// `## Caveman prompt` block, which is why the exclusion is correct). This same derived set is the
+// scan set for all four role consumers: guard_voice, guard_caveman_preserved, guard_role_size, and
+// guard_context_writes via CTX_SCAN. Add role #18 and all four see it in the same run.
+//
+// ROOT is passed EXPLICITLY (D-22): kit-model reads no environment variable, so CHECK_ROOT keeps
+// working as this gate's single override and the hermetic mirror harness still resolves correctly.
+//
+// The derivation THROWS on an unreadable or empty roles directory (D-21 tier 1). Catch it here and
+// exit non-zero naming the directory: without a role corpus no role guard can report anything but a
+// vacuous PASS, so the gate must stop rather than continue over an empty set.
+let ROLE_FILES!: string[];
+let WORKFLOW_FILES!: string[];
+try {
+  ROLE_FILES = listRoles(ROOT).map((f) => `agent-factory/roles/${f}`);
+  WORKFLOW_FILES = listWorkflows(ROOT);
+} catch (e) {
+  process.stdout.write(`  FAIL  kit derivation failed: ${(e as Error).message}\n`);
+  process.stdout.write("\n== Result ==\n1 CHECK(S) FAILED\n");
+  process.exit(1);
+}
 // SEC_VOICE_FILES (D-10, Phase 14) — the NON-role security surfaces. They have NO
 // `## Caveman prompt` fence, so the fence-strip is a harmless no-op and they are scanned WHOLE.
 // `security-nfr.md` is ALREADY in ROLE_FILES — do NOT add it here.
@@ -469,7 +520,9 @@ function guardCavemanPreserved(): void {
     }
   }
   if (cavFail === "") {
-    pass("caveman: all 17 roles keep a non-empty markered caveman prompt block");
+    pass(
+      `caveman: all ${ROLE_FILES.length} roles keep a non-empty markered caveman prompt block`,
+    );
   } else {
     fail(`caveman-preserved violation:${cavFail}`);
   }
@@ -484,6 +537,13 @@ function guardCavemanPreserved(): void {
 // ceilings are locked, not derived. CR-01 missing-file fail-red.
 // ---------------------------------------------------------------------------
 // Per-role FAIL/WARN ceilings keyed by basename → "FAIL WARN" (verbatim from the .sh case table).
+//
+// D-17 (Phase 27): this table is DELIBERATELY NOT derived from kit-model.ts, and a later phase must
+// not "fix" it. It is a per-file MEASUREMENT BASELINE, not a discovery set — each value is a measured
+// byte count plus a documented margin, which no directory listing can produce. It also already fails
+// CLOSED on an unknown role (the `default: return ""` branch makes guard_role_size fail red naming
+// the file), so deriving it would convert a fail-closed table into a silently-widening one: role #18
+// would arrive with an automatic ceiling instead of forcing an author to measure and record one.
 function roleCeiling(base: string): string {
   switch (base) {
     case "orchestrator.md":
@@ -629,6 +689,9 @@ process.stdout.write("== Phase 10 foundation-guards gate (SDLC-02 / SC2) ==\n");
 guardWr05();
 guardAgentsBytes();
 guardAdapterSize();
+// KIT-01: run the count guard AHEAD of the four role guards. A broken derivation is then named
+// before four downstream guards report on a scan set they should never have received.
+guardKitCounts();
 guardVoice();
 guardCavemanPreserved();
 guardRoleSize();
