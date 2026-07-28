@@ -180,6 +180,87 @@ function runUninstall(target: string, home: string, ...args: string[]): { status
   return { status: r.status, stdout: r.stdout ?? "", stderr: r.stderr ?? "" };
 }
 
+// ─────────────────────────────────────────────────────────────────────────────────────────────
+// KIT-02 synthetic kit source (Plan 27-02). The derived-install / derived-uninstall cases below
+// drive the installer from a SYNTHETIC $GRUGOPS_SRC carrying seventeen adapters, never from this
+// repo's live .claude/agents directory — so they assert the derivation itself and do not depend on
+// plan 27-07 having landed the real seventeen.
+// ─────────────────────────────────────────────────────────────────────────────────────────────
+
+// MAT_SLOT — byte-identical to install.ts's resolver slot line. Its presence in a source body is
+// the ONLY routing signal the installer uses to decide materialize-vs-plain-copy (D-06).
+const MAT_SLOT = "# 1. (installed) the absolute kit path the installer wrote above this line.";
+
+// Seventeen synthetic adapters. grugops-orchestrator.md is included deliberately: it is the ONE
+// adapter an already-installed v2.0 repo carries, so the update case can pre-seed exactly that
+// single-adapter layout and prove the other sixteen are laid down by the run.
+const SYNTH_ADAPTERS: string[] = [
+  "grugops-orchestrator.md",
+  ...Array.from({ length: 16 }, (_, i) => `grugops-synthetic-role-${String(i + 1).padStart(2, "0")}.md`),
+].sort();
+
+// Seven synthetic skills; only the resolver skill carries the slot line (mirrors the real kit).
+const SYNTH_SKILLS = [
+  "grugops",
+  "grugops-gate",
+  "grugops-map",
+  "grugops-plan",
+  "grugops-release",
+  "grugops-ticket",
+  "grugops-uat",
+];
+
+// makeSyntheticSrc — a throwaway $GRUGOPS_SRC the installer can copy + materialize from: a minimal
+// agent-factory/ (kit + seed + VERSION), seventeen resolver adapters each carrying MAT_SLOT, and
+// the seven skills. Nothing here reads the live repo.
+function makeSyntheticSrc(): string {
+  const src = mkTmp();
+  mkdirSync(join(src, "agent-factory", "roles"), { recursive: true });
+  mkdirSync(join(src, "agent-factory", "seed", ".grugops"), { recursive: true });
+  mkdirSync(join(src, ".claude", "agents"), { recursive: true });
+  writeFileSync(join(src, "agent-factory", "roles", "orchestrator.md"), "SYNTHETIC KIT ROLE\n");
+  writeFileSync(join(src, "agent-factory", "VERSION"), "0.0.0-synthetic\n");
+  writeFileSync(join(src, "agent-factory", "seed", ".grugops", "factory.config.json"), '{"seed":true}\n');
+  for (const a of SYNTH_ADAPTERS) {
+    // Every adapter is a self-sufficient resolver (D-06): its body carries the slot line, so the
+    // installer materializes it WITHOUT any filename appearing in the installer's code path.
+    writeFileSync(
+      join(src, ".claude", "agents", a),
+      `> synthetic resolver adapter ${a}\n` +
+        "# resolve the kit root:\n" +
+        `${MAT_SLOT}\n` +
+        "# 2. fall back to the repo-relative kit.\n",
+    );
+  }
+  for (const s of SYNTH_SKILLS) {
+    mkdirSync(join(src, ".claude", "skills", s), { recursive: true });
+    writeFileSync(
+      join(src, ".claude", "skills", s, "SKILL.md"),
+      s === "grugops"
+        ? `> synthetic resolver skill ${s}\n# resolve the kit root:\n${MAT_SLOT}\n`
+        : `> synthetic delegating skill ${s}\n`,
+    );
+  }
+  return src;
+}
+
+// runInstallFrom / runUninstallFrom — the runInstall/runUninstall pair with an explicit
+// $GRUGOPS_SRC so a case can drive a synthetic kit instead of this repo.
+function runInstallFrom(src: string, target: string, home: string, ...args: string[]) {
+  const r = spawnSync("node", [INSTALL_JS, "--yes", ...args], {
+    encoding: "utf8",
+    env: { ...process.env, INSTALL_MODE: "copy", GRUGOPS_SRC: src, GRUGOPS_HOME: home, TARGET: target },
+  });
+  return { status: r.status, stdout: r.stdout ?? "", stderr: r.stderr ?? "" };
+}
+function runUninstallFrom(src: string, target: string, home: string, ...args: string[]) {
+  const r = spawnSync("node", [UNINSTALL_JS, ...args], {
+    encoding: "utf8",
+    env: { ...process.env, INSTALL_MODE: "copy", GRUGOPS_SRC: src, GRUGOPS_HOME: home, TARGET: target },
+  });
+  return { status: r.status, stdout: r.stdout ?? "", stderr: r.stderr ?? "" };
+}
+
 describe("install.js / uninstall.js — single-installer contract (folds install.test.sh + install.two-root.test.sh)", () => {
   // ── D-08: the retired sh-vs-Node parity check, restated as a greppable skipped case ─────────
   // The old install.test.sh "Check 4" asserted install.sh tree == install.mjs tree. It is
@@ -1145,5 +1226,107 @@ describe("install.js / uninstall.js — single-installer contract (folds install
     const r = spawnSync("node", [materialized, BAD_FIXTURE], { encoding: "utf8", cwd: target });
     expect(r.status).toBe(1); // 1 = findings on the bad fixture (the gate would block)
     expect(r.stdout).toContain("FORBIDDEN");
+  });
+
+  // ── KIT-02 (Plan 27-02) — the derived install/uninstall sets ─────────────────────────────────
+  // install.ts and uninstall.ts derive their adapter and skill sets by readdirSync of $GRUGOPS_SRC
+  // (D-18) and route materialize-vs-copy by the resolver slot line in the source body (D-06). Both
+  // cases drive a SYNTHETIC seventeen-adapter kit source, so they pin the derivation itself and are
+  // independent of plan 27-07 landing the real seventeen adapters.
+
+  // (1) THE 17-ADAPTER UPDATE. An already-installed repo carries the old single-adapter layout, so
+  // this is an install-time DATA MIGRATION, not only a code change: the run must lay down all
+  // seventeen over a target holding exactly one, materialize the resolved kit root into each, and
+  // be idempotent ACROSS the migration (a second identical run leaves the target byte-identical).
+  it("KIT-02: a 17-adapter kit source updates an old single-adapter install, and the update is idempotent", () => {
+    const src = makeSyntheticSrc();
+    const home = mkTmp();
+    const target = mkTmp();
+    writeFileSync(join(target, "CLAUDE.md"), "# User Project\n\nMy own dev instructions — must be preserved.\n");
+
+    // Pre-seed the OLD layout: ONE materialized adapter pointing at a stale kit, nothing else.
+    mkdirSync(join(target, ".claude", "agents"), { recursive: true });
+    writeFileSync(
+      join(target, ".claude", "agents", "grugops-orchestrator.md"),
+      "# <!-- grugops:materialized-kit -->\n" +
+        'KIT="/stale/previous/kit/agent-factory"\n' +
+        "# <!-- /grugops:materialized-kit -->\n" +
+        `${MAT_SLOT}\n`,
+    );
+    expect(readdirSync(join(target, ".claude", "agents"))).toEqual(["grugops-orchestrator.md"]);
+
+    expect(runInstallFrom(src, target, home).status).toBe(0);
+
+    // All SEVENTEEN destination paths are asserted — never a sampled subset.
+    const expectKit = join(home, "agent-factory");
+    for (const a of SYNTH_ADAPTERS) {
+      const p = join(target, ".claude", "agents", a);
+      expect(existsSync(p)).toBe(true);
+      const body = readFileSync(p, "utf8");
+      expect(body).toContain("grugops:materialized-kit");
+      const kitLine = body.split("\n").find((l) => l.startsWith('KIT="'));
+      expect(kitLine).toBe(`KIT="${expectKit}"`); // resolved kit root, materialized per adapter
+    }
+    expect(SYNTH_ADAPTERS.length).toBe(17);
+    // The target's adapter dir holds EXACTLY the derived set — nothing extra, nothing missing.
+    expect(readdirSync(join(target, ".claude", "agents")).sort()).toEqual([...SYNTH_ADAPTERS].sort());
+    // The stale KIT= the old layout carried is gone (strip-then-inject, not append).
+    expect(readFileSync(join(target, ".claude", "agents", "grugops-orchestrator.md"), "utf8")).not.toContain(
+      "/stale/previous/kit",
+    );
+    // D-06 routing by body content: the resolver skill materialized, the six delegators copied.
+    expect(readFileSync(join(target, ".claude", "skills", "grugops", "SKILL.md"), "utf8")).toContain(
+      "grugops:materialized-kit",
+    );
+    expect(readFileSync(join(target, ".claude", "skills", "grugops-map", "SKILL.md"), "utf8")).not.toContain(
+      "grugops:materialized-kit",
+    );
+
+    // IDEMPOTENT ACROSS THE MIGRATION: a second identical run changes nothing in either root.
+    const t1 = snapshot(target);
+    const h1 = snapshot(home);
+    expect(runInstallFrom(src, target, home).status).toBe(0);
+    expect(snapshot(target)).toBe(t1);
+    expect(snapshot(home)).toBe(h1);
+  });
+
+  // (2) USER-CONTENT SURVIVAL ON UNINSTALL (T-27-06). The fixture the suite lacked: a target whose
+  // .claude/agents/ holds a file with NO counterpart in the kit source. An uninstall whose target
+  // contains only grugops files can never catch the data-loss path where the removal set is derived
+  // from the TARGET's own directory instead of the kit source.
+  it("KIT-02/T-27-06: a user-authored .claude/agents file survives uninstall; all 17 grugops adapters are removed", () => {
+    const src = makeSyntheticSrc();
+    const home = mkTmp();
+    const target = mkTmp();
+    writeFileSync(join(target, "CLAUDE.md"), "# User Project\n");
+    expect(runInstallFrom(src, target, home).status).toBe(0);
+
+    // A user-authored adapter the kit source knows nothing about.
+    const mine = join(target, ".claude", "agents", "my-own.md");
+    const mineBody = "---\nname: my-own\n---\n\nMY OWN AGENT — uninstall must never delete this.\n";
+    writeFileSync(mine, mineBody);
+
+    expect(runUninstallFrom(src, target, home).status).toBe(0);
+
+    // All seventeen grugops adapters are gone (the derived ∩ target intersection was removed).
+    for (const a of SYNTH_ADAPTERS) {
+      expect(existsSync(join(target, ".claude", "agents", a))).toBe(false);
+    }
+    // The user's own file survives with UNCHANGED bytes, and the directory survives because it is
+    // not empty (rmdirIfEmpty never removes a directory holding user content).
+    expect(existsSync(mine)).toBe(true);
+    expect(readFileSync(mine, "utf8")).toBe(mineBody);
+    expect(existsSync(join(target, ".claude", "agents"))).toBe(true);
+    expect(existsSync(join(target, ".claude"))).toBe(true);
+    expect(readdirSync(join(target, ".claude", "agents"))).toEqual(["my-own.md"]);
+
+    // The cheaper companion assertion: .claude IS removed when it holds nothing else. Same source,
+    // a second target with no user-authored adapter — after uninstall the whole dir is gone.
+    const bare = mkTmp();
+    writeFileSync(join(bare, "CLAUDE.md"), "# User Project\n");
+    expect(runInstallFrom(src, bare, mkTmp()).status).toBe(0);
+    expect(existsSync(join(bare, ".claude"))).toBe(true);
+    expect(runUninstallFrom(src, bare, home).status).toBe(0);
+    expect(existsSync(join(bare, ".claude"))).toBe(false);
   });
 });
