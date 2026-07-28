@@ -32,8 +32,12 @@
 //   GRUGOPS_SRC=/path/to/grugops TARGET=/path/to/repo node install/install.js
 //
 // Two-root layout (INSTALL-03/04): the read-only kit is copied to resolve(os.homedir(),".grugops")
-// (or $GRUGOPS_HOME), the resolved absolute kit path is materialized into the target's two
-// resolver adapters, and the per-repo state plane is seeded into the target (skip-if-exists).
+// (or $GRUGOPS_HOME), the resolved absolute kit path is materialized into every target resolver
+// adapter, and the per-repo state plane is seeded into the target (skip-if-exists).
+//
+// KIT-02 / D-18: the adapter and skill sets are DERIVED at run time by reading $GRUGOPS_SRC — the
+// installer carries no adapter or skill name literal, and whether a source file is materialized or
+// plain-copied is decided by the resolver slot line in its own body (D-06), not by its filename.
 import { existsSync, mkdirSync, readFileSync, writeFileSync, appendFileSync, symlinkSync, copyFileSync, cpSync, rmSync, renameSync, readSync, readdirSync, lstatSync, } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { homedir } from "node:os";
@@ -160,6 +164,67 @@ const TARGET = resolveTarget();
 const MAT_OPEN = "# <!-- grugops:materialized-kit -->";
 const MAT_CLOSE = "# <!-- /grugops:materialized-kit -->";
 const MAT_SLOT = "# 1. (installed) the absolute kit path the installer wrote above this line.";
+// ---------------------------------------------------------------------------
+// Kit-set derivation (KIT-02 / D-18). The installer SELF-DERIVES the adapter and skill sets by
+// reading $GRUGOPS_SRC at run time; it carries NO hand-listed adapter or skill name. Laying down
+// seventeen adapters instead of one therefore requires no installer edit.
+//
+// D-18 is explicit that the installer stays SELF-CONTAINED: it deliberately does NOT import
+// scripts/kit-model.ts. The separation of duty is the point — the installer faithfully installs
+// whatever exists in the kit source, while kit-model plus the KIT-03 referential-integrity oracle
+// guarantee at CI time that what exists is correct. Importing the scripts layer would couple the
+// single-file installer to the scripts/ layout and force it to ship a second file.
+//
+// Both helpers wrap readdirSync in try/catch and return [] on an unreadable directory, and both
+// are called AT EACH USE SITE rather than cached into a module-level constant — the doctor and the
+// install paths run at different points in the process, so a cached snapshot could go stale.
+// ---------------------------------------------------------------------------
+// srcSkillNames: the sorted directory names under $GRUGOPS_SRC/.claude/skills that contain a
+// SKILL.md. A directory without a SKILL.md is not a skill and is never installed.
+function srcSkillNames() {
+    const root = join(GRUGOPS_SRC, ".claude", "skills");
+    try {
+        return readdirSync(root, { withFileTypes: true })
+            .filter((ent) => ent.isDirectory() && existsSync(join(root, ent.name, "SKILL.md")))
+            .map((ent) => ent.name)
+            .sort();
+    }
+    catch {
+        return [];
+    }
+}
+// srcAdapterFiles: the sorted .md filenames under $GRUGOPS_SRC/.claude/agents.
+function srcAdapterFiles() {
+    const root = join(GRUGOPS_SRC, ".claude", "agents");
+    try {
+        return readdirSync(root, { withFileTypes: true })
+            .filter((ent) => ent.isFile() && ent.name.endsWith(".md"))
+            .map((ent) => ent.name)
+            .sort();
+    }
+    catch {
+        return [];
+    }
+}
+// srcCarriesSlot: the ROUTING signal (D-06). Whether a source file is materialized or plain-copied
+// is decided by the presence of the resolver slot line in its OWN body — never by a hard-coded
+// filename. That is what makes all seventeen adapters resolvers with no name list anywhere, and it
+// removes the by-name special case the old call site used to carve out for one skill. The test is
+// whole-line equality, matching materializeAdapter's own `line === MAT_SLOT` injection test exactly,
+// so routing and injection can never disagree. Fail-closed: an unreadable source is NOT treated as
+// a resolver (it falls through to linkOrCopy, which reports the missing source).
+function srcCarriesSlot(src) {
+    try {
+        return readFileSync(src, "utf8").split("\n").includes(MAT_SLOT);
+    }
+    catch {
+        return false;
+    }
+}
+// targetAdapterFiles: the derived adapter set mapped into the TARGET's .claude/agents directory.
+function targetAdapterFiles() {
+    return srcAdapterFiles().map((f) => join(TARGET, ".claude", "agents", f));
+}
 // report / mkdirp / sameContent / isoStamp: install-side helpers declared HERE (above the doctor +
 // the early --update / --prune-old-kit / --migrate branches) so those early branches — which run
 // before the original install run — can call them (transitively, via copyKit → dirsSameContent →
@@ -289,7 +354,14 @@ function doctor() {
     console.log(`target: ${TARGET}`);
     console.log("");
     const markerFile = join(TARGET, ".grugops", "install.json");
-    const adapterFile = join(TARGET, ".claude", "agents", "grugops-orchestrator.md");
+    // The adapter the D-03 cross-check reads source (c) from is DERIVED (KIT-02), never named. Take
+    // the first derived target adapter that actually carries a materialized KIT= line; if none does,
+    // fall back to the first derived destination so the FAIL message still names a concrete path.
+    // Fail-closed is preserved: an absent file or a missing KIT line still reads as "" below.
+    const adapterCandidates = targetAdapterFiles();
+    const adapterFile = adapterCandidates.find((p) => readAdapterKit(p) !== "") ??
+        adapterCandidates[0] ??
+        join(TARGET, ".claude", "agents");
     // --- not-installed fold-into-FAIL (RESEARCH Discretion §5) --------------------------------
     // Absent/garbled marker = a dev/uninstalled checkout. Fail-closed BEFORE touching adapters:
     // print a distinct greppable "not installed" line and return nonzero. Never crash, never
@@ -446,16 +518,10 @@ if (!ALLOW_SELF) {
         process.exit(1);
     }
 }
-const SKILLS = [
-    "grugops",
-    "grugops-map",
-    "grugops-plan",
-    "grugops-ticket",
-    "grugops-gate",
-    "grugops-uat",
-    "grugops-release",
-];
-const AGENT_REL = ".claude/agents/grugops-orchestrator.md";
+// KIT-02 / D-18: the hand-listed SKILLS array and the single AGENT_REL adapter constant used to
+// live here. Both are deleted — the adapter and skill sets are now derived at run time from
+// $GRUGOPS_SRC by srcSkillNames() / srcAdapterFiles() above, so the installer carries no adapter
+// or skill name literal and needs no edit when the kit grows a new adapter.
 // CLAUDE.md sentinel block — byte-identical to uninstall.ts (GSD:grugops-start-here).
 const CLAUDE_OPEN = "<!-- GSD:grugops-start-here -->";
 const CLAUDE_PTR = "**grugops — start here:** read `AGENTS.md`, then `agent-factory/roles/orchestrator.md`, and act as the Orchestrator.";
@@ -675,7 +741,10 @@ function pruneOldKit() {
 function detectOldLayout() {
     const hasInRepoKit = existsSync(join(TARGET, "agent-factory", "roles", "orchestrator.md"));
     const marker = readMarker(join(TARGET, ".grugops", "install.json"));
-    const adapterMaterialized = readAdapterKit(join(TARGET, AGENT_REL)) !== "";
+    // KIT-02: probe the DERIVED adapter set rather than one hand-named file — the target counts as
+    // materialized when ANY derived adapter carries a KIT= line. Fail-closed posture is unchanged: an
+    // absent file, a missing KIT line, or an empty derived set all read as not-materialized.
+    const adapterMaterialized = targetAdapterFiles().some((p) => readAdapterKit(p) !== "");
     return {
         isOldLayout: hasInRepoKit && marker === null && !adapterMaterialized,
         isMigrated: marker !== null,
@@ -725,9 +794,15 @@ function migratePreSteps() {
     // 2. back up the displaced in-repo agent-factory/ (timestamped, differs-only — D-08/D-09).
     backupIfDiffers(join(TARGET, "agent-factory"), join(GRUGOPS_SRC, "agent-factory"), "in-repo agent-factory/");
     // 3. LANDMINE (Pitfall 1): unlink any SYMLINK resolver-adapter dest before re-materialize.
+    // KIT-02: the membership of this list is DERIVED — every adapter destination, plus every derived
+    // skill destination whose source body carries the resolver slot. The behaviour is unchanged (never
+    // write through a live symlink; report would-unlink under DRY_RUN); only the set is derived, so all
+    // seventeen destinations get the same protection the two hand-named ones had (T-27-07).
     const adapterDests = [
-        join(TARGET, AGENT_REL),
-        join(TARGET, ".claude", "skills", "grugops", "SKILL.md"),
+        ...targetAdapterFiles(),
+        ...srcSkillNames()
+            .filter((s) => srcCarriesSlot(join(GRUGOPS_SRC, ".claude", "skills", s, "SKILL.md")))
+            .map((s) => join(TARGET, ".claude", "skills", s, "SKILL.md")),
     ];
     for (const dest of adapterDests) {
         if (!isSymlink(dest))
@@ -1202,15 +1277,30 @@ console.log(`tools detected: ${detectTools()}`);
 console.log("\n-- kit --");
 copyKit(false);
 console.log("\n-- adapters --");
-// 1a. The 6 delegating dash skills (blockquote only, no resolver block) — plain copy.
-for (const s of SKILLS) {
-    if (s === "grugops")
-        continue;
-    linkOrCopy(join(GRUGOPS_SRC, ".claude", "skills", s, "SKILL.md"), join(TARGET, ".claude", "skills", s, "SKILL.md"), `.claude/skills/${s}/SKILL.md`);
+// 1. Lay down whatever skills and adapters the kit source carries (KIT-02 / D-18) — the sets are
+// derived by readdirSync at this call site, so a kit that grows a new adapter needs no installer
+// edit. Routing is per-file and by CONTENT (D-06): a source body carrying the resolver slot line is
+// materialized (strip-then-inject of the absolute KIT path); anything else is plain-copied. That one
+// rule replaces both the old hand-listed skill loop and its by-name skip of the single resolver
+// skill, and it is what makes every adapter a resolver with no exception list.
+for (const s of srcSkillNames()) {
+    const src = join(GRUGOPS_SRC, ".claude", "skills", s, "SKILL.md");
+    const dest = join(TARGET, ".claude", "skills", s, "SKILL.md");
+    const label = `.claude/skills/${s}/SKILL.md`;
+    if (srcCarriesSlot(src))
+        materializeAdapter(src, dest, label);
+    else
+        linkOrCopy(src, dest, label);
 }
-// 1b. The 2 resolver adapters carry the materialized absolute KIT path (strip-then-inject).
-materializeAdapter(join(GRUGOPS_SRC, ".claude", "skills", "grugops", "SKILL.md"), join(TARGET, ".claude", "skills", "grugops", "SKILL.md"), ".claude/skills/grugops/SKILL.md");
-materializeAdapter(join(GRUGOPS_SRC, AGENT_REL), join(TARGET, AGENT_REL), AGENT_REL);
+for (const f of srcAdapterFiles()) {
+    const src = join(GRUGOPS_SRC, ".claude", "agents", f);
+    const dest = join(TARGET, ".claude", "agents", f);
+    const label = `.claude/agents/${f}`;
+    if (srcCarriesSlot(src))
+        materializeAdapter(src, dest, label);
+    else
+        linkOrCopy(src, dest, label);
+}
 if (existsSync(join(TARGET, "AGENTS.md"))) {
     report("skipped", "AGENTS.md (target already has one — left untouched)");
 }
