@@ -62,8 +62,8 @@ Each requirement maps to exactly one roadmap phase (27–33). REQ-IDs continue g
 - [x] **SPAWN-01**: All 17 role subagent adapters exist at `.claude/agents/grugops-<role>.md`, **generated** from `agent-factory/roles/*.md` by a single templated generator — thin pointers, never copies of role text.
 - [x] **SPAWN-02**: `adapters-freshness.ts` byte-gates the generated adapters against a fresh regeneration, fail-closed on drift (the proven pattern from `catalog-freshness` / `context-freshness`).
 - [ ] **SPAWN-03**: The coordinator is wired as the Claude Code **main-thread** agent so its `Agent(<allowlist>)` grant is honoured by the runtime — the current subagent placement makes the grant a no-op, since Claude Code ignores the type list inside a subagent definition.
-- [ ] **SPAWN-04**: Non-coordinator role adapters omit the `Agent` tool entirely — a mechanism that holds on both the main-thread and subagent paths, rather than relying on a frontmatter token the runtime ignores.
-- [ ] **SPAWN-05**: `guard_adapter_body` fails red on pre-v2.0 handoff/single-window prose in any adapter body (defense in depth behind generation, never the structural fix), closing the surviving `grugops-orchestrator.md:25` reference.
+- [x] **SPAWN-04**: Non-coordinator role adapters omit the `Agent` tool entirely — a mechanism that holds on both the main-thread and subagent paths, rather than relying on a frontmatter token the runtime ignores.
+- [x] **SPAWN-05**: `guard_adapter_body` fails red on pre-v2.0 handoff/single-window prose in any adapter body (defense in depth behind generation, never the structural fix), closing the surviving `grugops-orchestrator.md:25` reference.
 - [x] **SPAWN-06**: `orchestrator.md` is trimmed below its **7570-byte FAIL ceiling** (currently 7562B — 8 bytes of margin) *before* this milestone adds spawn-allowlist text to it; the ceiling is never raised to accommodate growth.
 - [x] **SPAWN-07**: The advertised Claude Code floor and the `queue.wip_limit` rationale are corrected against real platform behaviour: depth is **3** on v2.1.219+ (not 5), tunable via `CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH`, with the v2.1.217–218 depth-1 window documented as a known-bad range that degrades loudly.
 
@@ -159,8 +159,8 @@ _Filled by the roadmapper 2026-07-28. Every requirement maps to exactly one phas
 | SPAWN-01 | Phase 27 | Complete |
 | SPAWN-02 | Phase 27 | Complete |
 | SPAWN-03 | Phase 27 | Pending |
-| SPAWN-04 | Phase 27 | Pending |
-| SPAWN-05 | Phase 27 | Pending |
+| SPAWN-04 | Phase 27 | Complete |
+| SPAWN-05 | Phase 27 | Complete |
 | SPAWN-06 | Phase 27 | Complete |
 | SPAWN-07 | Phase 27 | Complete |
 | AUDIT-01 | Phase 28 | Pending |

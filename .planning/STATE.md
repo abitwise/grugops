@@ -5,15 +5,15 @@ milestone_name: Autonomous Factory — Real Spawning, Controlled Language & Live
 current_phase: 27
 current_phase_name: spawn-correctness-kit-set-authority
 status: executing
-stopped_at: Completed 27-07-PLAN.md
-last_updated: "2026-07-28T19:40:57.686Z"
+stopped_at: Completed 27-08-PLAN.md
+last_updated: "2026-07-28T20:02:45.281Z"
 last_activity: 2026-07-28
 last_activity_desc: Phase 27 execution started
 progress:
   total_phases: 7
   completed_phases: 0
   total_plans: 9
-  completed_plans: 7
+  completed_plans: 8
   percent: 0
 ---
 
@@ -29,7 +29,7 @@ See: .planning/PROJECT.md (updated 2026-07-28 — after v2.0 milestone)
 ## Current Position
 
 Phase: 27 (spawn-correctness-kit-set-authority) — EXECUTING
-Plan: 8 of 9
+Plan: 9 of 9
 Status: Ready to execute
 Last activity: 2026-07-28 — Phase 27 execution started
 
@@ -201,6 +201,7 @@ Last activity: 2026-07-28 — Phase 27 execution started
 | Phase 27 P05 | 35 min | 3 tasks | 3 files |
 | Phase 27 P06 | 20 min | 2 tasks | 19 files |
 | Phase 27 P07 | 95 min | 3 tasks | 23 files |
+| Phase 27 P08 | 25m | 3 tasks | 22 files |
 
 ## Accumulated Context
 
@@ -470,6 +471,10 @@ Recent decisions affecting current work:
 - [Phase ?]: [27-07] Adapter-name collision compares case-insensitively — a role pair portable only to Linux is refused on every platform (APFS/NTFS silently collapse the two adapters)
 - [Phase ?]: [27-07] Adapter description is emitted as a double-quoted YAML scalar; the derived role prose carries colon-space, which a plain scalar cannot hold
 - [Phase ?]: [27-07] The KIT-03 RED regression fixture is CONSTRUCTED (brokenMirror), never inherited from the live tree — plain mirror() tracked the live adapters and went green with them
+- [Phase ?]: One retired-vocabulary module (dead-vocabulary.ts) serves two justified consumers; no second list
+- [Phase ?]: guard_adapter_body reads fence-stripped AND whitespace-collapsed text so no verdict depends on line wrapping
+- [Phase ?]: The packaging template states the memory sentence in live prose, so one uniform rule covers all 25 bodies with no per-file exemption
+- [Phase ?]: guard_wr05 asserts tier-announcement presence, never a settings-file entry (D-01: none is written into a user repo)
 
 ### Pending Todos
 
@@ -568,8 +573,8 @@ Shape of the carry: **9 of 11 are pre-v2.0 carryover** from the v1.2 block above
 
 ## Session Continuity
 
-Last session: 2026-07-28T19:40:57.677Z
-Stopped at: Completed 27-07-PLAN.md
+Last session: 2026-07-28T20:02:38.156Z
+Stopped at: Completed 27-08-PLAN.md
 Resume file: None
 
 ## Operator Next Steps
