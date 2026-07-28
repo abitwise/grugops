@@ -14,6 +14,7 @@
     "generate:catalog": "tsc --outDir .tmp-build && node scripts/generate-catalog.js",
     "generate:adapters": "tsc --outDir .tmp-build && node scripts/generate-role-adapters.js",
     "freshness:catalog": "tsc --outDir .tmp-build && node scripts/catalog-freshness.js",
+    "freshness:adapters": "tsc --outDir .tmp-build && node scripts/adapters-freshness.js",
     "freshness:context": "tsc --outDir .tmp-build && node scripts/context-freshness.js",
     "freshness:queue": "tsc --outDir .tmp-build && node scripts/now-running-freshness.js",
     "freshness:traceability": "tsc --outDir .tmp-build && node scripts/trace-freshness.js",
