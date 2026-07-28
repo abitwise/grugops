@@ -3,10 +3,10 @@ gsd_state_version: 1.0
 milestone: v2.1
 milestone_name: Autonomous Factory — Real Spawning, Controlled Language & Live Board
 status: planning
-last_updated: "2026-07-28T11:08:21.654Z"
+last_updated: "2026-07-28T14:40:00.000Z"
 last_activity: 2026-07-28
 progress:
-  total_phases: 0
+  total_phases: 7
   completed_phases: 0
   total_plans: 0
   completed_plans: 0
@@ -20,14 +20,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-07-28 — after v2.0 milestone)
 
 **Core value:** A user installs grugops on top of the coding-agent CLI they already run, types `/grug`, and gets a disciplined delivery team — a visible board, a shared context where nothing is written until it is *verified*, and an auditable requirement→code→test→release trail — entirely as readable markdown, with humans always holding merge and deploy. The v2.0 differentiator: **"verified" means passed the §14 behavior gate**, recorded as a `verified_by` stamp the writing agent cannot forge or self-set.
-**Current focus:** None — v2.0 shipped and archived. Next: `/gsd-new-milestone` to define the next cycle (phase numbering continues from 27).
+**Current focus:** v2.1 Autonomous Factory — roadmap created (7 phases, 27–33; 46/46 requirements mapped). Next: `/gsd-plan-phase 27 --research-phase` — Spawn Correctness & Kit-Set Authority.
 
 ## Current Position
 
-Phase: Not started (defining requirements)
+Phase: 27 — Spawn Correctness & Kit-Set Authority (not started)
 Plan: —
-Status: Defining requirements
-Last activity: 2026-07-28 — Milestone v2.1 started
+Status: Roadmap created — awaiting phase planning
+Last activity: 2026-07-28 — v2.1 roadmap created (7 phases 27–33, 46/46 requirements mapped, 0 unmapped)
 
 ## Performance Metrics
 
@@ -191,6 +191,12 @@ Last activity: 2026-07-28 — Milestone v2.1 started
 
 ### Roadmap Evolution
 
+- **v2.1 roadmap created (2026-07-28):** 7 phases (27–33), numbering CONTINUED from v2.0 (last phase 26, NOT reset). All **46** v2.1 requirements mapped to exactly one phase — 100% coverage, 0 unmapped, 0 duplicated: KIT-01..03 + SPAWN-01..07 → Phase 27; AUDIT-01..04 → Phase 28; LANG-01..08 → Phase 29; AUTO-01..07 → Phase 30; UATX-01..06 → Phase 31; DASH-01..08 → Phase 32; CAP-01..03 → Phase 33. **Count correction recorded, not silently fixed:** REQUIREMENTS.md prose says "all 41 requirements retained"; the enumerated set is 46 (the "41" predates the final category split). Scope unchanged — the milestone's own founding defect (a hand-maintained count drifting from enumerated reality) caught by counting instead of trusting.
+- **v2.1 phase order follows the research dependency spine verbatim** (SUMMARY.md "Phase Ordering Rationale" — three independent researchers converged; no deviation): (1) **27 before everything** — the kit-set authority must be derived from the filesystem BEFORE 17 new adapter files exist, or they land outside `WR05_SCAN`/`ADAPTERS`/`CTX_WORKFLOWS` entirely, which is the exact mechanism by which the current spawn defect survived a whole milestone; (2) 28 before 29 — the audit produces the safety-surface exclusion list + the public-claim registry the language rewrite consumes as inputs; (3) 29 before 30 — the language pass touches governance prose, so running it after 30 would rewrite freshly-written text and re-run Phase 30's expensive red-team gate twice; (4) **30 is deliberately the expensive phase** — direct successor to Phase 25, red-team rounds budgeted AS SCOPE not overrun; (5) 31 after 30 — browser evidence enters through verify-before-write, whose dialability 30 settles; (6) 32 last among features — read-only, lowest blast radius; (7) 33 last overall — both items are milestone-wide proofs, not features.
+- **v2.1 acknowledged ordering tension (recorded, not resequenced):** CAP-02 (Windows CI green) sits in Phase 33 but unblocks Phase 32's `fs.watch` Windows surface. Rather than resequence, Phase 32 states its Windows behaviour as `UNKNOWN - verify` until Phase 33 turns the leg green — honest pending over an assumed pass.
+- **v2.1 honesty floor baked into success criteria** (these are never asserted as shipped claims): controlled language improving LLM comprehension is `UNKNOWN - verify` (no study located); ASD-STE100 conformance is NOT mechanically decidable, so the guard is named for its decidable subset only and the dictionary is never vendored (redistribution rights `UNKNOWN - verify` — assume NO); STE likely INCREASES token count, so it is justified on determinism grounds never as a token-economy win; caveman-as-token-economy is DISPROVEN on this artifact (blocks restate rather than compress; 6% of role bytes, 3,980 / 66,208); Claude in Chrome can only ever be `verified_by: <named human>`, never a `§14-gate` stamp; the spawn fix is proven by a CAPTURED live run (Phase 33), never by a green suite — the green suite is what missed the defect.
+- **v2.1 LOCKED decisions baked into phase goals** (ratified at kickoff 2026-07-28): voice split by surface (caveman stays in the fenced identity block; an STE-derived profile governs procedural/agent-written surfaces); Out of Scope amended to permit a read-only/derived/local board view (hosted-SaaS and every write path stay out); the four safety floors become dialable behind a two-key named-human opt-in an agent cannot self-set, never deleted and never silent; Claude Code floor **v2.1.219+ at depth 3** (superseding v2.0's stale "v2.1.172, depth ≤5"; the v2.1.217–218 depth-1 window is deliberately excluded because it silently completes work inline — supporting it would mean shipping a detector for a bug rather than a floor above it); a byte ceiling is NEVER raised to accommodate growth (`orchestrator.md` has 8 bytes of margin — 7562B against a 7570B hard FAIL ceiling — and must be trimmed BEFORE Phase 27 adds spawn-allowlist text); zero new runtime dependencies (confirmed net `package.json` change: none).
+- **v2.1 research flags** (carry into planning): Phases **27, 30, 31, 32** need `/gsd-plan-phase <n> --research-phase`. 27 — the main-thread-vs-subagent coordinator wiring (`--agent` / `settings.json` `{"agent": ...}`) validated against `install.ts`'s real `materializeAdapter()` flow, a platform-schema integration point grugops has not used before. 30 — the two-key floor-lowering mechanism and the `test_integrity`-to-point-of-effect move both touch `emitVerdict()`, a byte-frozen safety path, and deserve their own red-team round separate from the rest of the phase. 31 — whether `mcp__claude-in-chrome__*` reaches a subagent is `UNKNOWN - verify`; the phase's core recommendation (Playwright as the floor) does not depend on the answer. 32 — the board ticket-row grammar is genuinely unmeasured in the wild (two disagreeing HTML-comment examples only); sample real agent-written rows BEFORE freezing the grammar, or the parser becomes a de-facto spec agents then drift away from. Phases **28, 29, 33** use established patterns — skip `--research-phase`.
 - **v2.0 roadmap created (2026-06-16):** 7 phases (20–26), numbering CONTINUED from v1.2 (last phase 19, NOT reset). All 28 v2.0 requirements mapped to exactly one phase — 100% coverage, 0 unmapped: SCTX-01..05 + CLAIM-01/02 → Phase 20; VFY-01..04 → Phase 21; CMP-01..03 → Phase 22; PAR-01..04 + CLAIM-03 → Phase 23; MIGR-01..04 → Phase 24; GOV-01/02 → Phase 25; DOGF-01..03 → Phase 26.
 - **v2.0 phase order honors the research foundation-first build spine** (SUMMARY.md "Phase Ordering Rationale"): (1) foundation before content — substrate + atomic-write helpers + verify-stamp hooks + queue + grep guard FIRST (20) before any role writes; (2) verify before remove — the §14-gate verifier wired (21) before handoffs become the sole memory; (3) compact before fan-out — two-tier compaction (22) before the first parallel run makes the 15x token tax real; (4) substrate wired before handoffs deleted — parallel + sequential both built on the one substrate (23) before clean handoff removal (24); the WR-05 inversion is one coordinated flip in 23 (guard + packaging + catalog); (5) governance last-but-one (25); (6) the equivalence oracle LAST (26) — meaningful only when both paths are wired end-to-end.
 - **v2.0 honesty floor baked into success criteria:** grugops's OWN success/cost gain is `UNKNOWN - verify` until the Phase-26 dogfood measures it — DeLM's +10.5pp / ~50% benchmark numbers are NEVER claimed as grugops's (Phase 26 SC3). "Verified" means passed the §14 behavior gate, recorded as an auditable `verified_by: §14-gate#id` stamp; refuse-self-set is a validator FAIL proven by a RED fixture (Phase 21 SC2). A3/DOG-02 is retired ONLY when the equivalence oracle passes — never on handoff deletion alone (Phase 26 SC4).
@@ -525,9 +531,11 @@ Shape of the carry: **9 of 11 are pre-v2.0 carryover** from the v1.2 block above
 ## Session Continuity
 
 Last session: 2026-07-28
-Stopped at: Milestone v2.0 closed and archived
+Stopped at: v2.1 roadmap created — 7 phases (27–33), 46/46 requirements mapped
 Resume file: None
 
 ## Operator Next Steps
 
-- Start the next milestone with /gsd-new-milestone
+- Review `.planning/ROADMAP.md` (phases 27–33) and `.planning/REQUIREMENTS.md` (traceability, 46/46)
+- Plan the first phase with `/gsd-plan-phase 27 --research-phase`
+- Phase 27 internal ordering is load-bearing: kit-set authority + RED referential-integrity oracle FIRST, then the `orchestrator.md` trim, and only then generate the 17 adapters

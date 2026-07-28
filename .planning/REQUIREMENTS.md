@@ -34,7 +34,7 @@ This is the v2.0 closure doctrine recurring in a new form — not a too-narrow *
 - **Autonomy: "settable, never silently."** All checkpoints *including the four current safety floors* become dialable. Lowering a floor requires a named-human opt-in an agent cannot self-set; defaults stay safe; the lowering is recorded in the trace and the corresponding public claim is **dropped**.
 - **Version:** v2.1. Phases continue from 27. Artifact SemVer stays 0.1.0 (D-28).
 - **Claude Code floor: v2.1.219+.** Clean floor at depth 3 (tunable via `CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH`), superseding v2.0's stale "v2.1.172, depth ≤5". This deliberately excludes the v2.1.217–218 depth-1 window, which silently completes work inline with no error — i.e. it reproduces the exact defect this milestone exists to fix, so supporting it would mean shipping a detector for a bug rather than a floor above it. No runtime version-detection code is required.
-- **Scope: all 41 requirements retained.** Phase 30 (autonomy floors) is a direct Phase-25 successor; its red-team rounds are budgeted **as scope, not overrun**.
+- **Scope: all 46 requirements retained** (KIT 3 · SPAWN 7 · AUDIT 4 · LANG 8 · AUTO 7 · UATX 6 · DASH 8 · CAP 3). An earlier draft of this block said "41" — a hand-maintained count that had drifted from the enumerated set, caught by counting rather than by trusting the number. Recorded rather than silently corrected, because it is this milestone's founding defect in miniature. Phase 30 (autonomy floors) is a direct Phase-25 successor; its red-team rounds are budgeted **as scope, not overrun**.
 
 **Honesty floor carried into this milestone:**
 
@@ -147,6 +147,82 @@ Each requirement maps to exactly one roadmap phase (27–33). REQ-IDs continue g
 
 ## Traceability
 
-<!-- Filled by the roadmapper: REQ-ID → phase. -->
+_Filled by the roadmapper 2026-07-28. Every requirement maps to exactly one phase — **46/46 mapped, 0 unmapped, 0 duplicated**._
 
-_Pending roadmap creation._
+> **Count correction (recorded, not silently fixed):** the Milestone-decisions block above says "all 41 requirements retained." The enumerated set is **46** (KIT 3 · SPAWN 7 · AUDIT 4 · LANG 8 · AUTO 7 · UATX 6 · DASH 8 · CAP 3). The "41" predates the final category split. This is the milestone's own founding defect in miniature — a hand-maintained count drifting from the enumerated reality — surfaced by counting rather than by trusting. Scope is unchanged: all 46 are retained.
+
+| Requirement | Phase | Status |
+|-------------|-------|--------|
+| KIT-01 | Phase 27 | Pending |
+| KIT-02 | Phase 27 | Pending |
+| KIT-03 | Phase 27 | Pending |
+| SPAWN-01 | Phase 27 | Pending |
+| SPAWN-02 | Phase 27 | Pending |
+| SPAWN-03 | Phase 27 | Pending |
+| SPAWN-04 | Phase 27 | Pending |
+| SPAWN-05 | Phase 27 | Pending |
+| SPAWN-06 | Phase 27 | Pending |
+| SPAWN-07 | Phase 27 | Pending |
+| AUDIT-01 | Phase 28 | Pending |
+| AUDIT-02 | Phase 28 | Pending |
+| AUDIT-03 | Phase 28 | Pending |
+| AUDIT-04 | Phase 28 | Pending |
+| LANG-01 | Phase 29 | Pending |
+| LANG-02 | Phase 29 | Pending |
+| LANG-03 | Phase 29 | Pending |
+| LANG-04 | Phase 29 | Pending |
+| LANG-05 | Phase 29 | Pending |
+| LANG-06 | Phase 29 | Pending |
+| LANG-07 | Phase 29 | Pending |
+| LANG-08 | Phase 29 | Pending |
+| AUTO-01 | Phase 30 | Pending |
+| AUTO-02 | Phase 30 | Pending |
+| AUTO-03 | Phase 30 | Pending |
+| AUTO-04 | Phase 30 | Pending |
+| AUTO-05 | Phase 30 | Pending |
+| AUTO-06 | Phase 30 | Pending |
+| AUTO-07 | Phase 30 | Pending |
+| UATX-01 | Phase 31 | Pending |
+| UATX-02 | Phase 31 | Pending |
+| UATX-03 | Phase 31 | Pending |
+| UATX-04 | Phase 31 | Pending |
+| UATX-05 | Phase 31 | Pending |
+| UATX-06 | Phase 31 | Pending |
+| DASH-01 | Phase 32 | Pending |
+| DASH-02 | Phase 32 | Pending |
+| DASH-03 | Phase 32 | Pending |
+| DASH-04 | Phase 32 | Pending |
+| DASH-05 | Phase 32 | Pending |
+| DASH-06 | Phase 32 | Pending |
+| DASH-07 | Phase 32 | Pending |
+| DASH-08 | Phase 32 | Pending |
+| CAP-01 | Phase 33 | Pending |
+| CAP-02 | Phase 33 | Pending |
+| CAP-03 | Phase 33 | Pending |
+
+### Coverage by phase
+
+| Phase | Name | Requirements | Count |
+|-------|------|--------------|-------|
+| 27 | Spawn Correctness & Kit-Set Authority | KIT-01..03, SPAWN-01..07 | 10 |
+| 28 | Kit Consistency Audit | AUDIT-01..04 | 4 |
+| 29 | Controlled Language & Voice Guard Rebuild | LANG-01..08 | 8 |
+| 30 | Per-Checkpoint Autonomy Matrix | AUTO-01..07 | 7 |
+| 31 | Autonomous Manual Testing | UATX-01..06 | 6 |
+| 32 | Board Projector & CLI Dashboard | DASH-01..08 | 8 |
+| 33 | Live Capture & Windows Portability | CAP-01..03 | 3 |
+|  | **Total** |  | **46** |
+
+### Phase ordering — why this order and not another
+
+Three independent researchers converged on this dependency-ordered spine (`research/SUMMARY.md` → "Phase Ordering Rationale"). It is followed without deviation.
+
+- **27 before everything** — the set-authority fix must land *before* 17 new adapter files exist. Author the adapters first and they land outside `guard_wr05`, `ADAPTERS`, and `CTX_WORKFLOWS` entirely, which is the exact mechanism by which the current spawn defect went undetected for a whole milestone. Creating adapters first and fixing scan sets "later" reproduces the failure with new names.
+- **28 before 29** — the audit produces the safety-surface exclusion list and the public-claim registry the language rewrite consumes as inputs.
+- **29 before 30** — the language pass touches governance prose; running it after 30 would mean rewriting freshly-written governance text and re-running Phase 30's expensive red-team gate a second time.
+- **30 after 29, and expensive on purpose** — direct successor to Phase 25 (8 rounds, 2 independent red-teams, the hardest phase in the project). Red-team rounds are budgeted **as scope, not overrun**.
+- **31 after 30** — browser evidence enters through verify-before-write, whose dialability Phase 30 settles.
+- **32 last among features** — read-only, non-load-bearing, lowest blast radius.
+- **33 last overall** — both items are milestone-wide *proofs*, not features.
+
+**One acknowledged ordering tension:** CAP-02 (Windows CI green) lands in Phase 33 but unblocks Phase 32's `fs.watch` Windows surface. Rather than resequence, Phase 32 states its Windows behaviour as `UNKNOWN - verify` until Phase 33 turns the leg green. Honest pending over an assumed pass.
