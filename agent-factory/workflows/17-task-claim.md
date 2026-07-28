@@ -10,6 +10,16 @@ Whenever a role is about to take ownership of a queued subtask, or the coordinat
 
 It builds directly on `agent-factory/workflows/16-context-read-write.md` (the read/write/admission protocol) for all note I/O and does not restate it: the claim layer owns work-ownership; WF16 owns what enters the shared verified context.
 
+## Agents involved
+- Every role that takes a queued subtask. Like Workflow 16 this is a seam, not an SDLC stage: it has no owning specialist. Whichever role is about to take ownership runs this protocol, then returns to the workflow it came from.
+- The coordinator, in one extra capacity only: it schedules the queue and runs the wall-clock stale-claim sweep. It does not claim on another role's behalf and it does not adjudicate a lost claim.
+
+## Inputs required
+- The queue root and the subtask id under `pending/`.
+- The subtask's existing shared verified context, read per Workflow 16 before the claim.
+- `queue.stale_ttl_minutes` from `.grugops/factory.config.json` — the TTL the coordinator's sweep derives `ttlMs` from.
+- The claiming identity (`by`) written into the now-running registry record.
+
 ## The claim/note seam
 Two distinct things, never blurred:
 
@@ -37,6 +47,12 @@ Run these in order.
 - The claim is lost (`claimTask` returns false / `EEXIST`) → do not proceed on that task; move to the next pending task. Do not retry the same claim in a tight loop.
 - `claimTask` throws any code other than `EEXIST` (parent missing, permission) → stop; a real error is never swallowed into a false "lost". Surface it.
 - A result cannot be honestly admitted by WF16 (no real stamp, budget exhausted) → stop and hand to a human per WF16. Do not fake a stamp; do not mark the task done on an unverified result.
+
+## Board moves
+None of its own. The queue and `plans/board.md` are two different substrates and must never be conflated: the queue tracks subtask ownership (pending → claimed → done) inside one ticket's work, while the board tracks the ticket through the delivery columns. Claiming a subtask does not move a ticket, and moving a ticket does not claim anything. The board move belongs to the invoking workflow.
+
+## Trace updates
+None of its own. Ownership is not part of the requirement→code→test→release trail — `plans/traceability.md` records what was built and verified, not who picked it up. The now-running registry record (`claimed/<task>/claim.md`) is the ownership record and is complete on its own. Any trace row this subtask's results deserve is appended by the invoking workflow from the notes admitted per Workflow 16.
 
 ## Done condition
 The subtask was claimed exactly once (atomic `mkdirSync`), transitioned pending → claimed → done by atomic rename, its results were recorded only through WF16 (`context-io.ts`) under an honest kind, and no data was relayed agent-to-agent — coordination flowed only through the on-disk queue and shared context. Any stale or tampered claim was reclaimed by the coordinator's wall-clock sweep.

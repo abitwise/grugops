@@ -10,6 +10,17 @@ Whenever a role is about to act on, or record into, the shared verified context.
 
 The only sanctioned writer of the shared context is `scripts/context-io.ts` (compiled to `scripts/context-io.js`). No role and no workflow writes the `.grugops/context/` path by any other path. The note schema this workflow records into is `agent-factory/contracts/context-note.md`.
 
+## Agents involved
+- Every role. This is a seam workflow, not an SDLC stage: it has no owning specialist and no queue of its own. Whichever role is about to act on, or record into, the shared verified context runs this protocol, then returns to the workflow it came from.
+- The §14 gate (`agent-factory/workflows/05-pr-quality-gate.md`) is the only issuer of a `§14-gate#<id>` verification stamp, and a named human is the only issuer of `human:<name>`. Neither is a participant here; both are the authorities admission checks against.
+
+## Inputs required
+- The task id whose shared context is being read or written.
+- The existing verified context for that task, read through `context-io.ts` (`readContext` / `render`) — the prior findings, decisions and recorded dead ends.
+- The note schema `agent-factory/contracts/context-note.md` — the shape a note must take to be admissible.
+- A real verification stamp when, and only when, the note is a `finding`: a live green `§14-gate#<id>` verdict, or `human:<name>` under a named human's session grant.
+- The `human_admission` dial from `.grugops/factory.config.json` when the host is Claude Code.
+
 ## Steps
 Run these in order. The order is the protocol — read the verified state first, work, then record only what verification admits.
 
@@ -35,6 +46,12 @@ The three admission outcomes, stated once:
 - A `finding`'s admission is refused and the bounded `self_fix_attempts` budget (referenced from `05-pr-quality-gate.md`) is exhausted without a real stamp → stop and hand to a human. Do not loop, do not fake a stamp.
 - The result is high-stakes and not gate-adjudicable, or agents disagree and cannot resolve it → escalate to a named human (`human:<name>`); do not self-stamp.
 - The only way to record the result would be to hand-write the `.grugops/context/` path → stop; the sanctioned writer is `context-io.ts`.
+
+## Board moves
+None of its own. This workflow is a seam every role passes through, not a column of work — running it never moves a ticket on `plans/board.md`. The board move belongs to the workflow that invoked it (04, 05, 14, 15 and the rest), and it makes that move on its own terms. A read or a write here neither advances nor holds a ticket.
+
+## Trace updates
+None of its own. The requirement→code→test→release trail in `plans/traceability.md` is rendered from the admitted notes, so this workflow feeds the trace rather than editing it: an `artifact-ref` note carries the trace ids, and the render picks them up. The invoking workflow appends and updates its own rows. Never hand-edit a traceability row to stand in for a note that admission refused — that is a faked trace.
 
 ## Done condition
 The task's verified context was read before work began, and every result was recorded via `context-io.ts` under the honest kind: a `finding` only with a real `§14-gate#<id>` or `human:<name>` stamp that admission accepts, soft results as `claim` / `observation`. No refused finding was faked into a pass or silently degraded; any refusal was resolved by earning a real stamp within budget or by honest re-record as a `claim` with `confidence: UNKNOWN - verify`.

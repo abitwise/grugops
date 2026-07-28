@@ -10,6 +10,17 @@ Whenever an agent has accumulated a verbose local trajectory for a task and is a
 
 It builds directly on `agent-factory/workflows/16-context-read-write.md` (the read/write/admission protocol) and reuses its admission rules for the re-verify; it does not restate them.
 
+## Agents involved
+- Every role that accumulated a verbose local trajectory. A third seam workflow with no owning specialist: whichever role is about to promote results runs it, then returns to the workflow it came from. The role owns the words — the semantic distillation is its intelligence and cannot be delegated to a tool.
+- `scripts/compactor.ts` owns the structure. It is the mechanical floor, not a participant: it checks the proposed promoted set, refuses, and names the fault. It cannot summarize and never does.
+- The §14 gate and a named human remain the only stamp issuers, exactly as in Workflow 16 — a re-verified finding cross-checks against them and never against this workflow.
+
+## Inputs required
+- The task id and the agent's own local trajectory for it (the ephemeral, gitignored per-task-per-agent tier).
+- The proposed promoted set — the notes the agent intends to carry into the committed shared context.
+- `context.compaction` from `.grugops/factory.config.json`; when the key or the whole file is absent, `aggressive` is the lean default.
+- The load-bearing field set and the raw `failed-attempt` ids the carve-out check compares against. Read them from the trajectory; never restate them here as protocol the agent self-polices.
+
 ## The body/structure seam
 Two distinct jobs, never blurred:
 
@@ -47,6 +58,12 @@ Run these in order.
 - The carve-out checker refuses (a dropped `failed-attempt` id, or a missing `verified_by` / `supersedes` / `by` / `at`) → stop; do not promote. Fix the distilled set so the named element survives, then re-run the checker.
 - A promoted finding's re-verify is refused and the bounded `self_fix_attempts` budget (referenced from `05-pr-quality-gate.md`) is exhausted without a real stamp → stop and hand to a human. Do not loop, do not fake a stamp.
 - The only way to promote would be to hand-write the `.grugops/context/` path → stop; the sanctioned writer is `context-io.ts` via `appendNote`.
+
+## Board moves
+None of its own. Compaction changes how much prose survives into the committed shared context; it changes nothing about a ticket's position on `plans/board.md`. A ticket never sits in a "compacting" state and compaction is never a reason to hold one. The board move belongs to the invoking workflow.
+
+## Trace updates
+None of its own, and this is a safety property rather than an omission. `plans/traceability.md` is rendered from the admitted notes, so compaction must leave the trail unchanged: an `artifact-ref` keeps its trace ids, a `finding` keeps its `verified_by`, and a `failed-attempt` id can never be compacted away. If a promoted finding can no longer cross-check a live green verdict it degrades to a `claim` carrying `confidence: UNKNOWN - verify` and the trail records that honestly. Never edit a traceability row to preserve a trace the compaction actually broke.
 
 ## Done condition
 The verbose local trajectory was distilled at the dialed body verbosity, the proposed promoted set passed the `compactor.ts` carve-out check (every `failed-attempt` id and the load-bearing fields intact), every promoted note was written only through `context-io.ts` `appendNote`, and every promoted `finding` either re-admitted against a live green verdict or was honestly degraded to a `claim` with `confidence: UNKNOWN - verify`. No load-bearing element was dropped at any dial value, and no refusal was faked into a pass.

@@ -34,6 +34,12 @@ The severity-tagged ASVS audit — its findings, evidence, and `PASS | PASS_WITH
 ## Trace updates
 Append to `plans/traceability.md`: the audit result and the reviewed ASVS requirement IDs against the row, and update `Status`.
 
+## Stop conditions
+- A checklist requirement cannot be evidenced either way → do not tick it and do not fail it silently; record it `UNKNOWN - verify` and continue. An unbacked tick is a fabricated gate.
+- A finding's severity is overridden without a stated reason and a named owner → stop; the override is not admissible until both are present.
+- The audit would have to block the change itself → stop. This workflow produces findings; `security.block_on` is read at the gate (workflow 05), and enforcement lives there.
+- `security.asvs_level` is unreadable or holds a value outside `L1 | L2 | L3` → stop and get it fixed; auditing at a guessed level misreports the coverage.
+
 ## Done condition
 The filtered checklist is walked, every pass cites evidence or reads `UNKNOWN - verify`, the findings carry their default-or-overridden severity, and the report is handed off for enforcement at the gate. This workflow honors `autonomy=pr` — the agent opens a branch and a PR; it never merges. Humans hold merge and deploy.
 

@@ -3,8 +3,10 @@
 // TypeScript port of validate-agent-factory.mjs (Phase 15, TOOL-01). This is a TRANSLATION,
 // not a redesign (RESEARCH Open Q4 — refactor nothing semantic in the resolution logic): the
 // two-root C3 no-false-green guard and the CR-03 fail-closed-on-null rejects are hard-won and
-// reproduced verbatim. Only TypeScript types were added; every env-var name, frozen name list,
-// regex, exit code, and fail-closed branch is byte-for-behavior identical to the .mjs. The
+// reproduced verbatim. Only TypeScript types were added; every env-var name, regex, exit code, and
+// fail-closed branch was byte-for-behavior identical to the .mjs. (Phase 27 / KIT-02 since changed
+// ONE thing: the two frozen role/workflow name arrays are now DERIVED through kit-model.ts — see
+// the derivation block below. Nothing else about the resolution logic moved.) The
 // committed compiled output is scripts/validate-agent-factory.js, which CI/hosts run with bare
 // Node. import.meta.dirname (stable at the Node 22+ floor) replaces dirname(fileURLToPath(...)).
 //
@@ -49,6 +51,11 @@
 
 import { readFileSync, existsSync, readdirSync } from "node:fs";
 import { join, resolve } from "node:path";
+// Phase 27 (KIT-02): the role and workflow name sets are DERIVED here, never hand-listed.
+// kit-model.ts is the single authority for "which roles and workflows exist" (KIT-01). It reads NO
+// environment variable — the kit root is an explicit parameter (D-22) — so this file keeps exactly
+// the two root conventions it already had (VALIDATE_KIT_ROOT + VALIDATE_ROOT) and gains no third.
+import { listRoles, listWorkflows } from "./kit-model.js";
 
 // ── Two-root resolution (VAL-02 / D-08 — kit root + state root, resolved separately) ─────────
 // STATE_ROOT keeps the install.ts back-compat shape: VALIDATE_ROOT, else the repo root.
@@ -113,24 +120,55 @@ const warn = (m: string): void => {
   warnings.push(m);
 };
 
-// ── Frozen name lists (reused verbatim from the Phase-4 harness — never re-derived) ──────────
-// 14 workflows (check-structure.sh:33). install has NO numbered workflow — there is no 14-*.md.
-const WORKFLOWS = [
-  "00-bootstrap-greenfield",
-  "01-bootstrap-brownfield",
-  "02-idea-to-epics",
-  "03-epic-to-tickets",
-  "04-ticket-to-pr",
-  "05-pr-quality-gate",
-  "06-uat-pack",
-  "07-backlog-refinement",
-  "08-sprint-planning",
-  "09-daily-sweep",
-  "10-sprint-review",
-  "11-retro",
-  "12-release",
-  "13-incident",
-];
+// ── Derived name lists (KIT-02, Phase 27 — the frozen arrays are DELETED) ────────────────────
+// Until Phase 27 this file froze a 14-entry workflow array and a 16-entry role array, copied from
+// the Phase-4 shell harness. Both had rotted: the kit holds 19 workflows and 17 roles, so five
+// workflows and one role were simply never validated and NOTHING reported that. A hand-maintained
+// set of names that consumers read as truth, rotting silently while the suite stays green, is the
+// exact failure class this milestone exists to delete. Membership now follows the filesystem
+// through kit-model.ts — add role #18 and this validator sees it in the same run.
+//
+// EXTENSION SHAPE — the sharpest hazard here. kit-model's pinned return shape is filenames WITH
+// the `.md` extension (`orchestrator.md`), which is what the guards that build repo-relative paths
+// from it want. These two lists are BASENAMES WITHOUT the extension, because all five consumer
+// sites below append `.md` themselves. The strip therefore happens HERE, once, at this call site —
+// never by changing the shared return shape, which would break every other consumer. A direct
+// substitution without the strip would append a SECOND extension in every path join, so every
+// existence check would fail and read as a wall of bogus findings. (The doubled form is not
+// written out even as an example here: an acceptance grep for it over the compiled output is what
+// proves the strip is in place, and a comment carrying the literal would defeat that grep.)
+//
+// VACUITY / MISSING-DIRECTORY FLOOR. Deriving a set silently deletes a fail-red branch: a role
+// file that disappears simply stops being a member, so `checkRequiredFiles`'s per-name existence
+// loop can no longer fail on it. Two things preserve the signal. kit-model THROWS on an unreadable
+// directory and on a zero-length filtered result (a library that quietly returns [] is what lets
+// every downstream loop pass vacuously); this file catches that throw and converts it into an
+// ordinary `missing required …` finding, keeping its own never-throw fail-closed posture and the
+// existing "kit root points at nothing" behaviour intact. Exact CARDINALITY is deliberately NOT
+// asserted here — the validator must run against arbitrary kit roots, including the small
+// fixtures — so the two-sided count check lives in guard_kit_counts and the deletion signal in the
+// KIT-03 referential-integrity oracle, both of which run against the real kit only.
+const stripMd = (filename: string): string => filename.replace(/\.md$/, "");
+
+// Derive one kit set through kit-model, degrading an unreadable/empty directory to a finding.
+// KIT_ROOT is passed EXPLICITLY (D-22): kit-model reads no environment variable, so the tree keeps
+// exactly the root conventions it already has and this file gains no fourth one.
+function deriveKitNames(
+  lister: (kitRoot: string) => string[],
+  kind: string,
+  subpath: string,
+): string[] {
+  try {
+    return lister(KIT_ROOT).map(stripMd);
+  } catch {
+    err(
+      `missing required ${kind} directory: ${subpath} (kit root holds no readable ${kind} set)`,
+    );
+    return [];
+  }
+}
+
+const WORKFLOWS = deriveKitNames(listWorkflows, "workflow", "agent-factory/workflows");
 
 // The 17 static handoff templates were DELETED in Phase 24 (the shared verified-context notes
 // replaced the static-handoff relay). The former FROZEN_HANDOFFS existence list is gone with them;
@@ -140,25 +178,9 @@ const WORKFLOWS = [
 // path, same ticket-id key (trace.includes(id)), only the row source changed (D-04, Pitfall 4):
 // it is preserved, never removed, so the trace-completeness guarantee is not silently weakened.
 
-// 16 role filenames — every role authored across Phases 3.
-const ROLES = [
-  "orchestrator",
-  "agents-md-scribe",
-  "brownfield-mapper",
-  "greenfield-mapper",
-  "ba-pm",
-  "system-analyst",
-  "architect-design",
-  "software-engineer",
-  "qe-e2e",
-  "security-nfr",
-  "uat-planner",
-  "release-manager",
-  "compliance-officer",
-  "incident-responder",
-  "factory-coach",
-  "installer",
-];
+// The role corpus, minus the `_`-prefixed protocol file (kit-model's own filter — the protocol is
+// asserted separately by checkRoleSwitchProtocol, which is why it must not be a ROLES member).
+const ROLES = deriveKitNames(listRoles, "role", "agent-factory/roles");
 
 // 11 checklist filenames (10 named + 00-index) — existence-only per §18.
 const CHECKLISTS = [
@@ -231,6 +253,12 @@ function checkSections(
 
 // ── Check 1: required files exist ─────────────────────────────────────────────────────────────
 function checkRequiredFiles(): void {
+  // These two loops now iterate a DERIVED set, so under normal conditions they cannot fail — a
+  // deleted role file stops being a member rather than becoming a finding. They are kept, not
+  // deleted, because they still catch a file that vanishes or becomes unreadable between the
+  // derivation above and this check. The real "the kit set is wrong" signal moved to two places
+  // that CAN see it: deriveKitNames' catch (unreadable/empty directory → a finding right here) and
+  // guard_kit_counts + the KIT-03 referential-integrity oracle (exact cardinality, real kit only).
   for (const r of ROLES) {
     const rel = `agent-factory/roles/${r}.md`;
     if (!kitExists(rel)) err(`missing required role file: ${rel}`);

@@ -35,6 +35,12 @@ On `plans/board.md`, the contract is authored before `In Development` (the desig
 ## Trace updates
 Append to `plans/traceability.md`: the design-contract link against the ticket row, and update `Status`. The code and test links are appended by the referenced build (04) and gate (05).
 
+## Stop conditions
+- The ticket has no readable acceptance scenarios and no product context to author the contract from → stop; send it back to product rather than inventing the intent.
+- A component cannot meet the WCAG 2.2 AA bar without a product decision (a contrast change, a control the design does not have) → stop and get the decision; never mark the accessibility item passed on an unmet control.
+- The gate (workflow 05) exhausts its bounded self-fix budget against the contract → stop and hand to a human, per that workflow. Never hand-set a green.
+- The built UI diverges from the contract and the contract is judged wrong → stop and re-author the contract as a recorded decision; never let the build silently redefine the contract.
+
 ## Done condition
 The design contract is written, the components are built per workflow 04, the five states and the WCAG 2.2 AA accessibility bar are met, the visual baseline is established, and the built UI is verified against the contract per workflow 05. This workflow honors `autonomy=pr` — the agent opens a branch and a PR; it never merges. Humans hold merge and deploy.
 

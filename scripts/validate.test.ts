@@ -14,6 +14,11 @@
 //       degrade to a 'not a JSON object' finding, NOT a TypeError crash
 //   (h) OPTIONAL-ENUM recognition (D-14): bad asvs_level / test_integrity=off /
 //       production_requires_human_confirmation=false each fail red + name the key; absent keys pass
+//   (i) DERIVED KIT SETS (KIT-02 / D-19, Phase 27): the role and workflow name lists follow the
+//       FILESYSTEM through kit-model, not a frozen array. Plant an 18th role and a 20th workflow
+//       into a temp kit and the validator must SEE them; pin the extension shape so no path join
+//       can produce a doubled `.md`; and prove an unreadable kit directory still degrades to a
+//       'missing required' finding rather than an unhandled kit-model throw.
 //
 // Two-root resolution (VAL-02 / D-08): KIT_ROOT comes ONLY from VALIDATE_KIT_ROOT (no default);
 // STATE_ROOT from VALIDATE_ROOT (else repo root). The single-tree fixtures point BOTH roots at the
@@ -226,6 +231,73 @@ describe("validate-agent-factory.js (VAL-01 / VAL-02 self-test)", () => {
   it("ENUM absent-keys (fixtures/good has none of the 8) → exit 0 (SC4)", () => {
     const r = runFixture(join(FIX, "good"));
     expect(r.status).toBe(0);
+  });
+
+  // ── (i) DERIVED KIT SETS — the D-19 per-consumer assertion for KIT-02 ────────────────────────
+  // Before Phase 27 this validator froze a 14-name workflow array and a 16-name role array. Both
+  // had rotted: five workflows and one role were never validated and nothing said so. These cases
+  // fail if either derivation is reverted to a literal, because a frozen array cannot name a file
+  // it was written before.
+  //
+  // The kit here is a copy of the REAL kit (17 roles + 19 workflows), so planting one more of each
+  // gives a genuine 18-role / 20-workflow tree. Both planted files are deliberately INCOMPLETE —
+  // they carry no required sections — so a validator that can SEE them must report them, while a
+  // validator reading a frozen list stays silent and green.
+  function copyRealKitPlusExtras(): { kit: string; role: string; workflow: string } {
+    const d = mkdtempSync(join(tmpdir(), "grugops-val-derived-"));
+    tmpDirs.push(d);
+    cpSync(join(ROOT, "agent-factory"), join(d, "agent-factory"), { recursive: true });
+    cpSync(join(ROOT, "AGENTS.md"), join(d, "AGENTS.md"));
+    cpSync(join(ROOT, ".claude-plugin"), join(d, ".claude-plugin"), { recursive: true });
+    // Role #18 — a plain `.md` that is not `_`-prefixed, so kit-model counts it as a role.
+    const role = "zz-derived-probe-role";
+    writeFileSync(
+      join(d, "agent-factory/roles", `${role}.md`),
+      "# Derived probe role\n\nNo required sections on purpose.\n",
+    );
+    // Workflow #20 — the `NN-` numeric prefix is what kit-model's workflow filter keys on.
+    const workflow = "19-derived-probe-workflow";
+    writeFileSync(
+      join(d, "agent-factory/workflows", `${workflow}.md`),
+      "# Derived probe workflow\n\nNo required sections on purpose.\n",
+    );
+    return { kit: d, role, workflow };
+  }
+
+  it("DERIVED roles+workflows: an 18th role and a 20th workflow are SEEN (frozen lists could not)", () => {
+    const { kit, role, workflow } = copyRealKitPlusExtras();
+    const r = runSplit(kit, ROOT);
+    expect(r.status).not.toBe(0);
+    // Named by path — the derivation followed the filesystem into files no frozen array knew.
+    expect(out(r)).toContain(`agent-factory/roles/${role}.md`);
+    expect(out(r)).toContain(`agent-factory/workflows/${workflow}.md`);
+  });
+
+  it("DERIVED shape: names are extension-stripped at the call site — no path carries a doubled .md", () => {
+    const { kit } = copyRealKitPlusExtras();
+    const r = runSplit(kit, ROOT);
+    // kit-model returns filenames WITH `.md`; this validator's consumers append `.md` themselves.
+    // If the strip were dropped, every derived path join would carry two extensions and every
+    // existence check would fail as a bogus finding. Assert on the OUTPUT, which is full of paths.
+    expect(out(r)).not.toMatch(/\.md\.md/);
+    // And the paths it does print are well-formed single-extension kit paths.
+    expect(out(r)).toMatch(/agent-factory\/(roles|workflows)\/[^\s:]+\.md:/);
+  });
+
+  it("DERIVED vacuity floor: an unreadable kit role/workflow dir → 'missing required' finding, not a throw", () => {
+    // kit-model THROWS on an unreadable or empty directory (its tier-1 fail-closed posture). This
+    // validator must convert that into an ordinary finding — its own contract is that a missing or
+    // garbled input becomes a finding, never an unhandled exception.
+    const kit = mkdtempSync(join(tmpdir(), "grugops-val-emptykit-"));
+    tmpDirs.push(kit);
+    mkdirSync(join(kit, "agent-factory"), { recursive: true });
+    const r = runSplit(kit, ROOT);
+    expect(r.status).not.toBe(0);
+    expect(out(r)).toMatch(/missing required role directory/i);
+    expect(out(r)).toMatch(/missing required workflow directory/i);
+    // Fail-closed, not fail-loud: no stack trace escaped.
+    expect(out(r)).not.toContain("kit-model: cannot read kit directory");
+    expect(out(r)).not.toContain("at Object.");
   });
 
   // (h.4) config byte-identity (the tri-file dial edit must not drift).
