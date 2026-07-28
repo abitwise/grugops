@@ -19,14 +19,14 @@ Two distinct jobs, never blurred:
 The agent owns the words; the tool owns the structure. Never ask the tool to summarize, and never let the agent quietly drop a load-bearing field — that is the tool's to refuse.
 
 ## The two tiers
-The verbose trajectory lives in the ephemeral, gitignored local tier `.grugops/context/<task>/threads/<agent>.md` — per-task-per-agent scratch, created on the agent's first write for the task, appended to as the agent works, and never committed. Only the compact, re-verified distillation promotes to the committed shared verified context (`notes/` + the derived `index.*` that `scripts/context-io.ts` produces).
+The verbose trajectory lives in the ephemeral, gitignored local tier `.grugops/context/{task}/threads/{agent}.md` — per-task-per-agent scratch, created on the agent's first write for the task, appended to as the agent works, and never committed. Only the compact, re-verified distillation promotes to the committed shared verified context (`notes/` + the derived `index.*` that `scripts/context-io.ts` produces).
 
 The local tier is local scratch, not part of the permanent audit trail. The permanent trail is the committed shared context. Unfold-on-demand operates within the live session against the local tier, not post-hoc from git history.
 
 ## Steps
 Run these in order.
 
-1. **Distill the trajectory body.** Read the local `threads/<agent>.md` trajectory and write the compact gist of each note body the agent intends to promote. Keep every load-bearing constraint — especially a recorded dead-end — and collapse only restatement and narration. This is body compression, not note dropping; which durable notes promote is fixed by the carve-out below, not by how hard you compress.
+1. **Distill the trajectory body.** Read the local `threads/{agent}.md` trajectory and write the compact gist of each note body the agent intends to promote. Keep every load-bearing constraint — especially a recorded dead-end — and collapse only restatement and narration. This is body compression, not note dropping; which durable notes promote is fixed by the carve-out below, not by how hard you compress.
 
 2. **Apply the dial to body verbosity (only).** Read `context.compaction` at point-of-use; when the key — or the whole config file — is absent, default to `aggressive`. The dial moves how much prose survives and how much raw reaches the read-by-default shared tier — nothing else:
    - `aggressive` (lean default): only the compact gist reaches the shared context; the raw trajectory stays in the local `threads/` tier, unfolded on demand. Maximum token win.

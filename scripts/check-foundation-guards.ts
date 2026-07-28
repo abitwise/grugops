@@ -2,7 +2,8 @@
 //
 // TypeScript port of check-foundation-guards.sh (Phase 15, TOOL-01). This is a TRANSLATION,
 // not a redesign: every guard is ported 1:1 (these are tuned, not arbitrary). The pass/fail/warn
-// exit spine (WARN never increments FAILS), the WR05 EREs + explicit 4-file SCAN set, the
+// exit spine (WARN never increments FAILS), the WR05 EREs (their SCAN set is now derived — Phase 27
+// / KIT-02 — but bounded exactly as before, and renamed SPAWN_GRANT_SCAN), the
 // guard_voice fence-strip + __UNCLOSED_CAVEMAN_FENCE__ sentinel + the 3 phrase-neutralizations,
 // guard_caveman_preserved's >=2 `^You` OR >=1 idiom threshold, the per-role role_ceiling() byte
 // table, the SEC_VOICE_FILES list, and CR-01 missing-file-fails-red are reproduced verbatim.
@@ -15,8 +16,9 @@
 // contract. It stands the guards up BEFORE any v1.2 content lands (Phases 11–17) so every later
 // phase writes into a guarded environment.
 //
-//   guard_wr05         — frontmatter spawn-grant grep over the 2 packaging templates + 2
-//                        materialized adapters (D-08/D-09). Two verified EREs (comma-form +
+//   guard_wr05         — frontmatter spawn-grant grep over the DERIVED SPAWN_GRANT_SCAN set: every
+//                        materialized adapter (.claude/agents + .claude/skills) plus the packaging
+//                        adapter-frontmatter templates (D-08/D-09). Two verified EREs (comma-form +
 //                        YAML-array-item, incl. scoped `Agent(worker)`). Matches the
 //                        frontmatter TOKEN only — NEVER the prose word "spawn"/"sub-agent".
 //                        `adapters.md` is deliberately OUT of this scan set (D-09).
@@ -38,8 +40,8 @@
 //                        context-write TOKEN (writeFileSync/appendFileSync/the `Write` tool/a
 //                        shell `>`/`>>`/`echo` redirect) co-occurring with the `.grugops/context/`
 //                        path on the SAME line — a bypass of the sanctioned context-io.ts helpers.
-//                        Fails RED on any hit. Explicit SCAN set (the 17 roles + 16 workflows) —
-//                        NEVER a repo-wide grep. Calibrated to a TOKEN, not the prose word "write":
+//                        Fails RED on any hit. Bounded SCAN set, DERIVED (the 17 roles + 19
+//                        workflows) — NEVER a repo-wide grep. Calibrated to a TOKEN, not "write":
 //                        text that merely NAMES `context-io.ts` or the path in prose stays GREEN
 //                        (mirror guard_wr05's token-vs-prose care, D-09; RESEARCH Assumption A3).
 //
@@ -120,6 +122,51 @@ function grepFiles(files: string[], re: RegExp): string[] {
 }
 
 // ---------------------------------------------------------------------------
+// The adapter corpus, DERIVED (Phase 27 / KIT-02, D-16).
+//
+// THREE guards read this: guard_adapter_size (byte ceilings), guard_wr05 via SPAWN_GRANT_SCAN
+// (spawn-grant enforcement) and guard_referential_integrity (the KIT-03 set equality). It is
+// declared ONCE here, ahead of all three, because the adapter directory is a single fact and three
+// hand-listed answers to it is precisely the drift class this milestone deletes.
+//
+// Derivation is still a BOUNDED scan: two fixed literal directories, one shape rule each, never a
+// repo-wide walk. Both parts are sorted, so guard output for a given tree is byte-identical across
+// runs and platforms regardless of readdirSync order.
+// ---------------------------------------------------------------------------
+// Fixed literal subpaths joined onto the already-resolved ROOT — never argv/env/content-derived
+// (ASVS V12, mirrors kit-model.ts's path-traversal posture).
+const ADAPTER_DIR = ".claude/agents";
+const SKILL_DIR = ".claude/skills";
+// The exact expected number of skill adapters. A COUNT is not the drift class this phase deletes —
+// the drift class is a LIST OF NAMES that consumers read as truth while it rots; a count is a number
+// that can only ever fail closed. Deleting a skill directory must not be able to disappear from the
+// guard's view, and the KIT-03 oracle cannot see it (a skill has no role to compare against).
+const SKILL_COUNT = 7;
+
+// Read a directory, returning [] when it cannot be read. The empty result is NOT a silent pass —
+// guardAdapterSize()'s non-empty floor fails red on it, naming the directory and both counts.
+function readAdapterDir(rel: string): string[] {
+  try {
+    return readdirSync(abs(rel));
+  } catch {
+    return [];
+  }
+}
+
+// Every `.md` file directly under .claude/agents, sorted, as repo-relative paths.
+const AGENT_ADAPTERS = readAdapterDir(ADAPTER_DIR)
+  .filter((f) => f.endsWith(".md"))
+  .sort()
+  .map((f) => `${ADAPTER_DIR}/${f}`);
+// Every `<name>/SKILL.md` under .claude/skills, sorted, as repo-relative paths. The entry is kept
+// only when the SKILL.md actually exists, so a stray non-skill directory cannot join the set.
+const SKILL_ADAPTERS = readAdapterDir(SKILL_DIR)
+  .filter((d) => existsSync(abs(`${SKILL_DIR}/${d}/SKILL.md`)))
+  .sort()
+  .map((d) => `${SKILL_DIR}/${d}/SKILL.md`);
+const ADAPTERS = [...AGENT_ADAPTERS, ...SKILL_ADAPTERS];
+
+// ---------------------------------------------------------------------------
 // guard_wr05 — both-direction coordinator-spawn-grant enforcement (Phase 23, D-15/D-16).
 //
 // INVERTED (Phase 23 WR-05 flip): the guard no longer forbids the spawn grant outright. Claude
@@ -136,8 +183,26 @@ function grepFiles(files: string[], re: RegExp): string[] {
 // retained — State-of-the-Art: the legacy alias still resolves): the comma list
 // (`tools: Read, Grep, ...`) and the YAML array (`allowed-tools:\n  - Read\n  ...`). A grant can
 // also be scoped (the parenthesized allowlist form). The two EREs catch all of them; the word
-// boundary keeps the pattern anchored to a token, not a substring. Explicit 4-file SCAN set —
-// NEVER a repo-wide grep (the established token-vs-prose care).
+// boundary keeps the pattern anchored to a token, not a substring.
+//
+// (Phase 27 / KIT-02) The SCAN set is DERIVED and RENAMED. It was a four-file hand list carrying the
+// same WR-05-derived identifier that ALSO exists, meaning something entirely different, in
+// scripts/check-uat-oracles.ts (four `.planning/` tracking documents for a separate, currently-green
+// Tier-1 oracle that this aggregator imports). Two unrelated constants sharing one identifier across
+// two files that import each other is a rename accident waiting to compile, so the guards-side one is
+// now `SPAWN_GRANT_SCAN` and that identifier now lives in exactly one file. The oracle module's
+// constant is deliberately untouched: it is a curated document list with nothing to derive it from,
+// and deriving it from kit-model would be nonsense.
+//
+// Membership derives from the adapter corpus above plus the packaging templates that carry adapter
+// FRONTMATTER (`*.frontmatter.md` / `*.template.md`). The exclusion discipline survives verbatim:
+// this stays a BOUNDED set of adapter and packaging surfaces and NEVER becomes a repo-wide grep, and
+// `agent-factory/packaging/adapters.md` remains OUT of it (D-09) — now excluded BY THE SHAPE RULE
+// rather than by omission from a list, so it cannot silently drift back in.
+//
+// Widening from four files to the ten present today is the point: the seven skill adapters were
+// never checked for a rogue spawn grant. Once plan 27-07 lands the 17 agent adapters, all of them
+// enter this scan on the same run, with no edit here.
 // ---------------------------------------------------------------------------
 const WR05_COMMA = /^(tools|allowed-tools):.*\b(Agent|Task)\b/;
 // WR-02 fix: allow an optional quote (single or double) between the dash and the token so a
@@ -147,12 +212,14 @@ const WR05_ARRAY = /^[ \t]*-[ \t]*["']?(Agent|Task)\b/;
 // D-15 marker: line-anchored match for the coordinator key set to true. This is the ONLY way the
 // guard identifies the coordinator — never a filename.
 const WR05_COORDINATOR = /^coordinator:\s*true\b/;
-const WR05_SCAN = [
-  "agent-factory/packaging/subagent.frontmatter.md",
-  "agent-factory/packaging/slash-command.template.md",
-  ".claude/skills/grugops/SKILL.md",
-  ".claude/agents/grugops-orchestrator.md",
-];
+// The packaging directory, and the shape rule that admits only the two adapter-frontmatter
+// templates. `adapters.md` is prose about adapters, not an adapter surface, and is OUT (D-09).
+const PACKAGING_DIR = "agent-factory/packaging";
+const PACKAGING_TEMPLATES = readAdapterDir(PACKAGING_DIR)
+  .filter((f) => f.endsWith(".frontmatter.md") || f.endsWith(".template.md"))
+  .sort()
+  .map((f) => `${PACKAGING_DIR}/${f}`);
+const SPAWN_GRANT_SCAN = [...ADAPTERS, ...PACKAGING_TEMPLATES];
 
 // Strip every line that sits INSIDE a ```-delimited code fence, returning only the lines OUTSIDE
 // any fence. This is a GENERAL fence operation (distinct from stripCavemanBlock, which is scoped to
@@ -200,7 +267,7 @@ function guardWr05(): void {
   // has exactly ONE coordinator (the orchestrator adapter); a second marker — live or from a doc
   // example mis-read as live — is a cardinality violation (CR-01).
   const coordinators: string[] = [];
-  for (const f of WR05_SCAN) {
+  for (const f of SPAWN_GRANT_SCAN) {
     if (!fileExists(f)) continue; // missing template/adapter is covered by guard_adapter_size (CR-01)
     const isCoordinator = matchesOutsideFences(f, WR05_COORDINATOR);
     const hasGrant =
@@ -272,40 +339,10 @@ function guardAgentsBytes(): void {
 // referential-integrity oracle (which compares the adapter directory against the role corpus and so
 // names any single deleted agent adapter). Skills have no corresponding role, so the SKILL_COUNT
 // assertion in guardKitCounts() closes the one gap the oracle cannot see.
+//
+// ADAPTERS / AGENT_ADAPTERS / SKILL_ADAPTERS are declared once, above guard_wr05, because three
+// guards share them.
 // ---------------------------------------------------------------------------
-// The two adapter directories. Fixed literal subpaths joined onto the already-resolved ROOT —
-// never argv/env/content-derived (ASVS V12, mirrors kit-model.ts's path-traversal posture).
-// ADAPTER_DIR is also the set the KIT-03 oracle compares against, so it is declared once here.
-const ADAPTER_DIR = ".claude/agents";
-const SKILL_DIR = ".claude/skills";
-// The exact expected number of skill adapters. A COUNT is not the drift class this phase deletes —
-// the drift class is a LIST OF NAMES that consumers read as truth while it rots; a count is a number
-// that can only ever fail closed. Deleting a skill directory must not be able to disappear from the
-// guard's view, and the KIT-03 oracle cannot see it (a skill has no role to compare against).
-const SKILL_COUNT = 7;
-
-// Read a directory, returning [] when it cannot be read. The empty result is NOT a silent pass —
-// guardAdapterSize()'s non-empty floor fails red on it, naming the directory and both counts.
-function readAdapterDir(rel: string): string[] {
-  try {
-    return readdirSync(abs(rel));
-  } catch {
-    return [];
-  }
-}
-
-// Every `.md` file directly under .claude/agents, sorted, as repo-relative paths.
-const AGENT_ADAPTERS = readAdapterDir(ADAPTER_DIR)
-  .filter((f) => f.endsWith(".md"))
-  .sort()
-  .map((f) => `${ADAPTER_DIR}/${f}`);
-// Every `<name>/SKILL.md` under .claude/skills, sorted, as repo-relative paths. The entry is kept
-// only when the SKILL.md actually exists, so a stray non-skill directory cannot join the set.
-const SKILL_ADAPTERS = readAdapterDir(SKILL_DIR)
-  .filter((d) => existsSync(abs(`${SKILL_DIR}/${d}/SKILL.md`)))
-  .sort()
-  .map((d) => `${SKILL_DIR}/${d}/SKILL.md`);
-const ADAPTERS = [...AGENT_ADAPTERS, ...SKILL_ADAPTERS];
 const AD_WARN = 3072; // 3 KiB
 const AD_FAIL = 4096; // 4 KiB
 
@@ -707,28 +744,21 @@ const CTX_TOKEN = String.raw`writeFileSync|appendFileSync|\bWrite\b|(?<![-<=])>>
 const CTX_WRITE_RE = new RegExp(
   `(${CTX_PATH}.*(${CTX_TOKEN}))|((${CTX_TOKEN}).*${CTX_PATH})`,
 );
-// Explicit SCAN set: the 17 shipped role files (reuse ROLE_FILES) + the 16 shipped workflows. These
-// are the files that may legitimately MENTION the context path in prose once roles are wired in
-// later phases; the guard ensures any such mention is never a raw-write bypass. NEVER a repo-wide
-// grep (mirrors guard_wr05's explicit 4-file scan set).
-const CTX_WORKFLOWS = [
-  "agent-factory/workflows/00-bootstrap-greenfield.md",
-  "agent-factory/workflows/01-bootstrap-brownfield.md",
-  "agent-factory/workflows/02-idea-to-epics.md",
-  "agent-factory/workflows/03-epic-to-tickets.md",
-  "agent-factory/workflows/04-ticket-to-pr.md",
-  "agent-factory/workflows/05-pr-quality-gate.md",
-  "agent-factory/workflows/06-uat-pack.md",
-  "agent-factory/workflows/07-backlog-refinement.md",
-  "agent-factory/workflows/08-sprint-planning.md",
-  "agent-factory/workflows/09-daily-sweep.md",
-  "agent-factory/workflows/10-sprint-review.md",
-  "agent-factory/workflows/11-retro.md",
-  "agent-factory/workflows/12-release.md",
-  "agent-factory/workflows/13-incident.md",
-  "agent-factory/workflows/14-ui-design-to-build.md",
-  "agent-factory/workflows/15-security-audit.md",
-];
+// Bounded SCAN set: the 17 derived role files (reuse ROLE_FILES) + the 19 derived workflow files.
+// These are the files that may legitimately MENTION the context path in prose; the guard ensures any
+// such mention is never a raw-write bypass. NEVER a repo-wide grep (mirrors guard_wr05's bounded
+// adapter/packaging scan set).
+//
+// (Phase 27 / KIT-02, D-16) DERIVED from listWorkflows(ROOT) — the same KIT-01 authority ROLE_FILES
+// uses, with ROOT passed explicitly (D-22). This is a genuine COVERAGE INCREASE, not a refactor: the
+// hand-listed array enumerated 16 of the 19 shipped workflows, so 16-context-read-write.md,
+// 17-task-claim.md and 18-context-compaction.md had NEVER been scanned for a raw context write, and
+// nothing reported that. Two of those three are the workflows that DEFINE the sanctioned context-io
+// path, which is precisely where a bypass would matter most. Workflow #20 will be scanned the day it
+// lands, with no edit here.
+const CTX_WORKFLOWS = WORKFLOW_FILES.map(
+  (f) => `agent-factory/workflows/${f}`,
+);
 const CTX_SCAN = [...ROLE_FILES, ...CTX_WORKFLOWS];
 
 function guardContextWrites(): void {
