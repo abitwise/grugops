@@ -5,15 +5,15 @@ milestone_name: Autonomous Factory — Real Spawning, Controlled Language & Live
 current_phase: 27
 current_phase_name: spawn-correctness-kit-set-authority
 status: executing
-stopped_at: Completed 27-05-PLAN.md
-last_updated: "2026-07-28T17:35:41.314Z"
+stopped_at: Completed 27-06-PLAN.md
+last_updated: "2026-07-28T17:54:37.479Z"
 last_activity: 2026-07-28
 last_activity_desc: Phase 27 execution started
 progress:
   total_phases: 7
   completed_phases: 0
   total_plans: 9
-  completed_plans: 5
+  completed_plans: 6
   percent: 0
 ---
 
@@ -29,7 +29,7 @@ See: .planning/PROJECT.md (updated 2026-07-28 — after v2.0 milestone)
 ## Current Position
 
 Phase: 27 (spawn-correctness-kit-set-authority) — EXECUTING
-Plan: 6 of 9
+Plan: 7 of 9
 Status: Ready to execute
 Last activity: 2026-07-28 — Phase 27 execution started
 
@@ -199,6 +199,7 @@ Last activity: 2026-07-28 — Phase 27 execution started
 | Phase 27 P03 | 17min | 3 tasks | 4 files |
 | Phase 27 P04 | 14 | 3 tasks | 11 files |
 | Phase 27 P05 | 35 min | 3 tasks | 3 files |
+| Phase 27 P06 | 20 min | 2 tasks | 19 files |
 
 ## Accumulated Context
 
@@ -462,6 +463,9 @@ Recent decisions affecting current work:
 - [Phase ?]: Byte ceilings are measurement baselines: trim the file, never raise the ceiling (27-05 took 1085 B of prose rather than touch 7570/7165)
 - [Phase ?]: Spawn instructions key on Agent-tool availability, not on a host CLI name (D-04) — corrected in both Responsibility 4 and the caveman prompt block
 - [Phase ?]: agent-factory/README.md carries no depth or width claim — verified by reading and grep, left unedited (resolves the 27-RESEARCH structural-parallel assumption)
+- [Phase ?]: 27-06: capability baseline is `read edit shell` for all 17 roles; `web` only for architect-design and security-nfr (D-11 fixes the mechanism, the per-role assignment is the implementer's)
+- [Phase ?]: 27-06: guard_voice grug-meta plant re-hosted from security-nfr.md (16 B from red) to agents-md-scribe.md — a voice test must not be charged against a role's size budget
+- [Phase ?]: 27-06: coordinator body omits the Orchestrator's classify/decompose/schedule/gate/sweep spine (the role file owns it) — generated coordinator adapter measures 2951 B inside the 3072 B pointer warn tier
 
 ### Pending Todos
 
@@ -560,8 +564,8 @@ Shape of the carry: **9 of 11 are pre-v2.0 carryover** from the v1.2 block above
 
 ## Session Continuity
 
-Last session: 2026-07-28T17:35:34.936Z
-Stopped at: Completed 27-05-PLAN.md
+Last session: 2026-07-28T17:54:30.637Z
+Stopped at: Completed 27-06-PLAN.md
 Resume file: None
 
 ## Operator Next Steps

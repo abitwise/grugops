@@ -124,7 +124,7 @@ Full phase details + milestone summary: `milestones/v2.0-ROADMAP.md` · requirem
   4. On Claude Code the coordinator runs as the **main-thread** agent so its `Agent(<allowlist>)` grant is honored by the runtime, and no non-coordinator adapter carries the `Agent` tool at all — a mechanism that holds on both the main-thread and subagent paths rather than relying on a frontmatter token the runtime ignores. (SPAWN-03, SPAWN-04)
   5. `guard_adapter_body` fails red on pre-v2.0 handoff/single-window prose anywhere in an adapter body — proven against the surviving `grugops-orchestrator.md:25` reference — `orchestrator.md` sits below its **7570-byte FAIL ceiling with the ceiling unchanged**, and the advertised Claude Code floor reads **v2.1.219+ at depth 3** everywhere it appears, with the v2.1.217–218 depth-1 window documented as a known-bad range that degrades loudly. (SPAWN-05, SPAWN-06, SPAWN-07)
 
-**Plans**: 5/9 plans executed
+**Plans**: 6/9 plans executed
 Plans:
 **Wave 1**
 
@@ -139,7 +139,7 @@ Plans:
 
 **Wave 3** *(blocked on 27-05)*
 
-- [ ] 27-06-PLAN.md — `capabilities:` inline-scalar frontmatter on all 17 roles (closed vocabulary, background-subagent-safe); packaging template defines the specialist body, the coordinator body carrying the honest three-tier announcement (Full / Reduced / Degraded) selected by capability-sensing, and the capability→tool mapping [SPAWN-01]
+- [x] 27-06-PLAN.md — `capabilities:` inline-scalar frontmatter on all 17 roles (closed vocabulary, background-subagent-safe); packaging template defines the specialist body, the coordinator body carrying the honest three-tier announcement (Full / Reduced / Degraded) selected by capability-sensing, and the capability→tool mapping [SPAWN-01]
 
 **Wave 4** *(blocked on 27-01, 27-03, 27-06)*
 
@@ -290,7 +290,7 @@ Plans:
 | 24. Clean Handoff Removal & Traceability Migration | v2.0 | 5/5 | Complete    | 2026-06-22 |
 | 25. Governance-on-a-Dial | v2.0 | 13/13 | Complete | 2026-06-29 |
 | 26. Dogfood, Dual-Path Oracle & A3/DOG-02 Retirement | v2.0 | 6/6 | Complete | 2026-07-24 |
-| 27. Spawn Correctness & Kit-Set Authority | v2.1 | 5/9 | In Progress|  |
+| 27. Spawn Correctness & Kit-Set Authority | v2.1 | 6/9 | In Progress|  |
 | 28. Kit Consistency Audit | v2.1 | 0/TBD | Not started | - |
 | 29. Controlled Language & Voice Guard Rebuild | v2.1 | 0/TBD | Not started | - |
 | 30. Per-Checkpoint Autonomy Matrix | v2.1 | 0/TBD | Not started | - |
