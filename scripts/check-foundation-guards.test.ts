@@ -467,6 +467,68 @@ describe("check-foundation-guards.js (SDLC-02 / SC2 fail-proof harness)", () => 
     expect(roleSizeLine).toContain("no documented ceiling");
   });
 
+  // ── D-19 per-consumer derivation assertions for the three sets re-pointed in plan 27-03. ──────
+  //
+  // Each proves its set is GENUINELY derived by planting a NEW file into a hermetic mirror and
+  // asserting the guard notices it. A re-listed array — the same literal wearing a new name — could
+  // never mention a file no author added to the list, so a plant that reaches the guard is the only
+  // proof of derivation that a rename cannot fake.
+  //
+  // Every case asserts on the guard line NAMING the planted file, never on the exit code alone:
+  // guard_referential_integrity is legitimately red in the same run (17 roles, 1 adapter, until plan
+  // 27-07), so a bare `status !== 0` would pass even if the derivation were reverted.
+
+  // ADAPTERS: plant an oversize `.md` under the mirror's .claude/agents and assert guard_adapter_size
+  // measures it. Membership followed the filesystem.
+  it("planted agent adapter reaches guard_adapter_size — ADAPTERS is derived, not re-listed (D-19)", () => {
+    const m = mirror();
+    writeFileSync(
+      join(m, ".claude/agents/zz-derived-probe.md"),
+      "x".repeat(5000) + "\n",
+    );
+    const lines = out(runIn(m)).split("\n");
+    const sizeLine = lines.find(
+      (l) => /^ {2}FAIL/.test(l) && l.includes("zz-derived-probe.md"),
+    );
+    expect(sizeLine).toBeDefined();
+    expect(sizeLine).toContain("adapter too large");
+  });
+
+  // SPAWN_GRANT_SCAN: plant a NON-coordinator adapter carrying a spawn grant and assert guard_wr05
+  // names it a rogue spawner. This is the load-bearing case of the three — it is what keeps all 17
+  // adapters inside the both-direction spawn-grant contract once plan 27-07 lands them, with no edit
+  // to the guard.
+  it("planted non-coordinator adapter with a spawn grant reaches guard_wr05 — SPAWN_GRANT_SCAN is derived (D-19)", () => {
+    const m = mirror();
+    writeFileSync(
+      join(m, ".claude/agents/zz-rogue-spawner.md"),
+      "---\nname: zz-rogue-spawner\ndescription: Hermetic plant.\ntools: Read, Agent\n---\nPlanted adapter.\n",
+    );
+    const o = out(runIn(m));
+    expect(o).toContain(
+      ".claude/agents/zz-rogue-spawner.md: non-coordinator carries a spawn grant",
+    );
+    expect(o).toMatch(/rogue spawner/i);
+  });
+
+  // CTX_WORKFLOWS: plant an additional workflow matching the `NN-*.md` naming rule, carrying a raw
+  // context write, and assert guard_context_writes names it. Before plan 27-03 the scan enumerated 16
+  // of the 19 shipped workflows, so a 20th could never have been seen. (The planted file also takes
+  // the corpus to 20 and so trips guard_kit_counts in the same run — which is why this asserts on the
+  // SCTX-05 line, not on the exit code.)
+  it("planted workflow reaches guard_context_writes — CTX_WORKFLOWS is derived, not re-listed (D-19)", () => {
+    const m = mirror();
+    writeFileSync(
+      join(m, "agent-factory/workflows/19-zz-derived-probe.md"),
+      "# Planted workflow\n\nwriteFileSync('.grugops/context/task-x/notes/n.md', data);\n",
+    );
+    const o = out(runIn(m));
+    expect(o).toContain("SCTX-05 raw context write");
+    expect(o).toContain(
+      "agent-factory/workflows/19-zz-derived-probe.md:3:writeFileSync",
+    );
+  });
+
   // The harness's own input set must stay derived — if DERIVED_ROLE_INPUTS ever silently emptied or
   // drifted, every mirror above would be built from an incomplete kit and the plants would be
   // measuring nothing.

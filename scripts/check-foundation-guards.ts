@@ -56,6 +56,70 @@
 //   node scripts/check-foundation-guards.js
 // Exit 0 = all seven guards GREEN; exit 1 = at least one FAIL (WARNs do NOT fail the build).
 
+// ---------------------------------------------------------------------------
+// THE SET-LITERAL INVENTORY, DISPOSITIONED (Phase 27 / KIT-02, D-19).
+//
+// The founding defect of this milestone was a hand-maintained set that rotted while the suite stayed
+// green. Deleting one instance is worthless if the others survive unrecorded, so this is the
+// committed record of EVERY enumerating literal the phase found and what was done about it. It is
+// deliberately PROSE, not a machine-checked detector: a grep-based stale-literal guard would be a
+// heuristic capable of being a strict SUBSET of the real predicate — green while a literal it cannot
+// parse rots on — which is the exact failure shape this milestone exists to close. A record a human
+// reads is honest about being a record; a detector that misses is not.
+//
+// The 14 entries are those of 27-RESEARCH.md § "The Set-Literal Inventory, Corrected".
+//
+//   #   literal                  file                            disposition
+//   ──  ───────────────────────  ──────────────────────────────  ────────────────────────────────────
+//    1  the WR05-named scan set  check-foundation-guards.ts      DERIVED + RENAMED SPAWN_GRANT_SCAN
+//                                                                (adapters ∪ packaging templates).
+//                                                                Plan 27-03.
+//    2  ADAPTERS                 check-foundation-guards.ts      DERIVED from .claude/agents +
+//                                                                .claude/skills. 2 -> 8 today, 24
+//                                                                after plan 27-07. Plan 27-03.
+//    3  CTX_WORKFLOWS            check-foundation-guards.ts      DERIVED via listWorkflows(ROOT).
+//                                                                16 of 19 -> 19. Plan 27-03.
+//    4  ROLE_FILES               check-foundation-guards.ts      DERIVED via listRoles(ROOT).
+//                                                                Plan 27-01.
+//    5  WORKFLOWS                validate-agent-factory.ts       DERIVED (was 14, stale by 5; the
+//                                                                entries are basenames WITHOUT .md).
+//                                                                Plan 27-04.
+//    6  ROLES                    validate-agent-factory.ts       DERIVED (was 16, missing
+//                                                                frontend-ui). Plan 27-04.
+//    7  SCAN                     check-kit-refs.ts               PARTIALLY derived — the file entry
+//                                                                becomes a directory entry; the
+//                                                                deliberately-omitted directories
+//                                                                stay omitted. Plan 27-04.
+//    8  GH_SCAN                  check-kit-refs.ts               Negative scan; scoped, not derived.
+//                                                                Plan 27-04.
+//    9  SKILLS / AGENT_REL       install/install.ts              DERIVED via readdirSync self-
+//                                                                derivation (D-18). Plan 27-02.
+//   10  SKILLS / AGENT_REL       install/uninstall.ts            DERIVED — a SECOND duplicated pair
+//                                                                in a second file. Plan 27-02.
+//   11  MARKER_SITES             check-kit-refs.ts               DERIVED — the literal the CONTEXT.md
+//                                                                inventory MISSED; must grow 4 -> 19+
+//                                                                under D-06/D-08. Plan 27-04.
+//   12  ASYM_TABLE_FILES         check-uat-oracles.ts            NOT a kit set. Left alone; SPAWN-07
+//                                                                edits both files it guards.
+//   13  the WR05-named constant  check-uat-oracles.ts            LEFT ALONE DELIBERATELY. Same
+//        (second, unrelated)                                     identifier as #1's FORMER name,
+//                                                                entirely unrelated meaning: four
+//                                                                .planning/ tracking documents for a
+//                                                                green Tier-1 oracle. Nothing to
+//                                                                derive it from; deriving it from
+//                                                                kit-model would be nonsense. The
+//                                                                collision was resolved by renaming
+//                                                                #1, not by touching this.
+//   14  roleCeiling()            check-foundation-guards.ts      LEFT ALONE DELIBERATELY (D-17). A
+//                                                                per-file MEASUREMENT BASELINE, not a
+//                                                                discovery set, and it already fails
+//                                                                closed on an unknown role.
+//
+// Proof that no stale literal survived is per-consumer, not global: each re-pointed set carries a
+// case in check-foundation-guards.test.ts that plants a NEW file into a hermetic mirror and asserts
+// the guard notices it. A re-listed array wearing a new name cannot pass those.
+// ---------------------------------------------------------------------------
+
 import { readFileSync, existsSync, statSync, readdirSync } from "node:fs";
 import { join, basename } from "node:path";
 // Phase 19 (UAT-AUTO-05 / BLOCKER 1 / LOCKED CONTEXT.md decision / ROADMAP SC3): the run-all block
@@ -962,14 +1026,16 @@ guardVoice();
 guardCavemanPreserved();
 guardRoleSize();
 guardContextWrites();
-// KIT-03 — THIS GUARD FAILS RED ON THE LIVE TREE FROM THIS COMMIT UNTIL PLAN 27-06.
+// KIT-03 — THIS GUARD FAILS RED ON THE LIVE TREE UNTIL PLAN 27-07.
 //
 // The tree today holds 17 roles, ONE adapter file, and a coordinator grant naming seven agents that
 // resolve to nothing. That is the structural break this milestone exists to close, and the RED is
 // the EVIDENCE for it (ROADMAP success criterion 2) — not a regression, not a bug in the guard.
-// Plan 27-06 commits the 17 adapter files and the corrected 16-name grant; that is the commit that
-// turns this guard green. Do NOT suppress it, skip it, or downgrade it to a warn() in the meantime:
-// a suppressed oracle is how the tree got here.
+// Plan 27-07 generates the 17 adapter files and the corrected 16-name grant; that is the commit that
+// turns this guard green. (Plan 27-01 wrote "27-06" here — corrected: 27-06 prepares the role
+// `capabilities:` frontmatter and the adapter body template, 27-07 is the plan that emits the
+// adapters and carries KIT-03 in its requirements.) Do NOT suppress it, skip it, or downgrade it to a
+// warn() in the meantime: a suppressed oracle is how the tree got here.
 guardReferentialIntegrity();
 
 // ---------------------------------------------------------------------------
