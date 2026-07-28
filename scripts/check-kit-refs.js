@@ -17,8 +17,10 @@
 // EXPLICIT file set:
 //
 //   Assertion 1 (D-08.1): ZERO 'agent-factory/config/' refs across the scan set.
-//   Assertion 2 (D-08.2): ZERO `agent-factory/handoffs/` refs (flipped in Phase 24 — the 17
-//                         templates were deleted, so any surviving ref is dangling).
+//   Assertion 2 (D-08.2): ZERO refs to the deleted handoff-template directory (flipped in Phase 24
+//                         — the 17 templates were deleted, so any surviving ref is dangling). The
+//                         path literal itself now lives single-source in scripts/dead-vocabulary.ts
+//                         (Phase 27 / D-24).
 //   Assertion 3 (SC4/O3): the kit-root env var appears in exactly the derived legal set — the
 //                         resolver-slot adapters plus the packaging template — and nowhere else.
 //   SC2 marker check:     the compressed kit-vs-state invariant is present at every derived
@@ -33,6 +35,10 @@
 // Exit 0 = all checks PASS; exit 1 = at least one FAIL.
 import { readFileSync, existsSync, readdirSync, statSync } from "node:fs";
 import { basename, join } from "node:path";
+// Phase 27 (SPAWN-05 / D-24): the retired-vocabulary literals are single-source. This gate takes the
+// PATH form; guard_adapter_body in check-foundation-guards.ts takes the PROSE forms. Two different
+// predicates over two different inputs, one list.
+import { RETIRED_PATH_FORMS } from "./dead-vocabulary.js";
 // The .sh assumed cwd == repo root. The TS port resolves every path against the script-relative
 // repo root, honoring a CHECK_ROOT override for hermetic harness runs.
 const ROOT = process.env.CHECK_ROOT
@@ -215,23 +221,32 @@ else {
     fail(`stray agent-factory/config/ ref(s) — config must be .grugops/factory.config.json:\n${cfg}`);
 }
 // ---------------------------------------------------------------------------
-// Assertion 2 (D-13, FLIPPED in Phase 24): ZERO agent-factory/handoffs/ refs in the SCAN set.
+// Assertion 2 (D-13, FLIPPED in Phase 24): ZERO refs to the deleted handoff-template DIRECTORY
+// across the SCAN set.
 //
 // The 17 handoff templates were deleted in Phase 24 (the shared verified-context notes replaced
 // the static-handoff relay). The former "known-template ALLOW ERE + template-dir/placeholder
-// filters" are gone: ANY surviving `agent-factory/handoffs/` ref in the shipped kit + adapters +
+// filters" are gone: ANY surviving ref to that directory in the shipped kit + adapters +
 // AGENTS.md is now a dangling reference to a deleted artifact and FAILS. This flip IS the
 // backpressure for the two-stage cut-over (D-12/D-14) — it could not go green until the Wave-1
 // rewire (Plans 24-01/24-02) drove the role/workflow/packaging/AGENTS.md SCAN set to zero. The
 // explicit SCAN set (~45-55) is preserved — never a repo-wide grep (D-13 token economy).
+//
+// (Phase 27 / SPAWN-05, D-24) The PREDICATE and the SCAN SET are unchanged; only the provenance of
+// the path literal moved. It is imported from scripts/dead-vocabulary.ts, the one module that says
+// which vocabulary is retired, so this gate and guard_adapter_body can never disagree about what
+// "retired" means. The two are different predicates over different inputs — this one greps a
+// directory path, that one greps prose containing no path — which is why a second CHECK is
+// justified and a second LIST is not. The output wording is byte-identical to the inline form.
 // ---------------------------------------------------------------------------
-process.stdout.write("\n[Assertion 2] zero agent-factory/handoffs/ refs remain (the 17 templates were deleted in Phase 24)\n");
-const stray = grepSubstring(SCAN, "agent-factory/handoffs/").join("\n");
+const retiredPaths = RETIRED_PATH_FORMS.join(", ");
+process.stdout.write(`\n[Assertion 2] zero ${retiredPaths} refs remain (the 17 templates were deleted in Phase 24)\n`);
+const stray = RETIRED_PATH_FORMS.flatMap((p) => grepSubstring(SCAN, p)).join("\n");
 if (stray === "") {
-    pass("no agent-factory/handoffs/ refs remain");
+    pass(`no ${retiredPaths} refs remain`);
 }
 else {
-    fail(`stray agent-factory/handoffs/ ref(s) — the handoff templates were deleted (Phase 24); rewire to the shared-context notes:\n${stray}`);
+    fail(`stray ${retiredPaths} ref(s) — the handoff templates were deleted (Phase 24); rewire to the shared-context notes:\n${stray}`);
 }
 // ---------------------------------------------------------------------------
 // Assertion 3 (SC4 / O3), RESTATED as a DERIVED PREDICATE (Phase 27 / KIT-02, D-07).
