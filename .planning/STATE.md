@@ -5,15 +5,15 @@ milestone_name: Autonomous Factory — Real Spawning, Controlled Language & Live
 current_phase: 27
 current_phase_name: spawn-correctness-kit-set-authority
 status: executing
-stopped_at: Completed 27-02-PLAN.md
-last_updated: "2026-07-28T16:40:00.130Z"
+stopped_at: Completed 27-03-PLAN.md
+last_updated: "2026-07-28T17:00:29.144Z"
 last_activity: 2026-07-28
 last_activity_desc: Phase 27 execution started
 progress:
   total_phases: 7
   completed_phases: 0
   total_plans: 9
-  completed_plans: 2
+  completed_plans: 3
   percent: 0
 ---
 
@@ -29,7 +29,7 @@ See: .planning/PROJECT.md (updated 2026-07-28 — after v2.0 milestone)
 ## Current Position
 
 Phase: 27 (spawn-correctness-kit-set-authority) — EXECUTING
-Plan: 3 of 9
+Plan: 4 of 9
 Status: Ready to execute
 Last activity: 2026-07-28 — Phase 27 execution started
 
@@ -196,6 +196,7 @@ Last activity: 2026-07-28 — Phase 27 execution started
 |------|----------|-------|-------|
 | Phase 27 P01 | 22 | 3 tasks | 6 files |
 | Phase 27 P02 | 25m | 3 tasks | 5 files |
+| Phase 27 P03 | 17min | 3 tasks | 4 files |
 
 ## Accumulated Context
 
@@ -448,6 +449,10 @@ Recent decisions affecting current work:
 - [Phase ?]: Installer/uninstaller derive their kit sets by readdirSync of $GRUGOPS_SRC (D-18) — the installer stays self-contained and does NOT import scripts/kit-model.ts
 - [Phase ?]: Materialize-vs-copy routing is decided by the resolver slot line in the source body (D-06), not by filename — so all 17 adapters become resolvers with no exception list
 - [Phase ?]: Uninstall removes only the kit-source set INTERSECTED with target contents; an underivable source returns null and fails loud rather than deleting (T-27-06/T-27-09)
+- [Phase ?]: The guards-side spawn-grant constant is renamed SPAWN_GRANT_SCAN; the former identifier now appears in exactly one file (check-uat-oracles.ts), including in comments
+- [Phase ?]: adapters.md stays out of the spawn-grant scan (D-09) by shape rule, not by omission from a list
+- [Phase ?]: A coverage increase that surfaces a real violation is fixed in the offending TEXT, never by narrowing the scan set or weakening the safety predicate
+- [Phase ?]: Deletion detection lost to derivation is restored explicitly: a non-empty floor reporting both counts, plus SKILL_COUNT for the one set the KIT-03 oracle cannot cover
 
 ### Pending Todos
 
@@ -546,8 +551,8 @@ Shape of the carry: **9 of 11 are pre-v2.0 carryover** from the v1.2 block above
 
 ## Session Continuity
 
-Last session: 2026-07-28T16:39:53.393Z
-Stopped at: Completed 27-02-PLAN.md
+Last session: 2026-07-28T17:00:20.894Z
+Stopped at: Completed 27-03-PLAN.md
 Resume file: None
 
 ## Operator Next Steps
