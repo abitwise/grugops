@@ -67,7 +67,10 @@
 // parse rots on — which is the exact failure shape this milestone exists to close. A record a human
 // reads is honest about being a record; a detector that misses is not.
 //
-// The 14 entries are those of 27-RESEARCH.md § "The Set-Literal Inventory, Corrected".
+// Entries 1-14 are those of 27-RESEARCH.md § "The Set-Literal Inventory, Corrected". Entry 15 was
+// added in plan 27-13: 27-REVIEW.md § WR-04 found that this record claimed to be complete while
+// omitting install.ts's RUNNABLES, and a record that says "EVERY" and is not is worse than no record
+// because it stops the next author looking.
 //
 //   #   literal                  file                            disposition
 //   ──  ───────────────────────  ──────────────────────────────  ────────────────────────────────────
@@ -114,6 +117,23 @@
 //                                                                per-file MEASUREMENT BASELINE, not a
 //                                                                discovery set, and it already fails
 //                                                                closed on an unknown role.
+//   15  RUNNABLES /              install/install.ts +            LEFT ALONE DELIBERATELY, and now
+//        RUNNABLES_MIRROR        install/uninstall.ts            PAIRED. A source->dest MAPPING, not
+//                                                                a discovery set: there is nothing to
+//                                                                derive it FROM, because the host
+//                                                                path a runnable lands at is a
+//                                                                grugops convention rather than a
+//                                                                filesystem fact. The real defect
+//                                                                (WR-04) was not that it is a
+//                                                                literal — it is that it existed on
+//                                                                the INSTALL side only, so the files
+//                                                                were installed and never removable.
+//                                                                Plan 27-13 added the mirroring
+//                                                                removal pass; the two literals are
+//                                                                byte-identical and each names the
+//                                                                other in a comment. Adding an entry
+//                                                                to one without the other is the
+//                                                                failure mode to watch for.
 //
 // Proof that no stale literal survived is per-consumer, not global: each re-pointed set carries a
 // case in check-foundation-guards.test.ts that plants a NEW file into a hermetic mirror and asserts
