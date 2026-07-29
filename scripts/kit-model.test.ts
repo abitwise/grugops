@@ -29,8 +29,10 @@ import {
   listRoles,
   listWorkflows,
   listAgentAdapters,
+  listSkillAdapters,
   ROLE_COUNT,
   WORKFLOW_COUNT,
+  SKILL_ADAPTER_COUNT,
 } from "./kit-model.js";
 
 const tmpDirs: string[] = [];
@@ -66,6 +68,23 @@ function adapterRoot(agents: string[] | null): string {
     const dir = join(root, ".claude/agents");
     mkdirSync(dir, { recursive: true });
     for (const rel of agents) {
+      const file = join(dir, rel);
+      mkdirSync(dirname(file), { recursive: true });
+      writeFileSync(file, "---\nname: fixture\n---\nplaceholder\n");
+    }
+  }
+  return root;
+}
+
+// Same shape for `.claude/skills`. Entries are relative paths, so `a/SKILL.md` is a normal skill and
+// `a/b/SKILL.md` is a nested one.
+function skillRoot(skills: string[] | null): string {
+  const root = mkdtempSync(join(tmpdir(), "grugops-kit-model-skills-"));
+  tmpDirs.push(root);
+  if (skills !== null) {
+    const dir = join(root, ".claude/skills");
+    mkdirSync(dir, { recursive: true });
+    for (const rel of skills) {
       const file = join(dir, rel);
       mkdirSync(dirname(file), { recursive: true });
       writeFileSync(file, "---\nname: fixture\n---\nplaceholder\n");
@@ -307,5 +326,74 @@ describe("kit-model listAgentAdapters (KIT-02 adapter derivation authority)", ()
     expect(adapters).toEqual([...adapters].sort());
     expect(adapters.every((rel) => !rel.includes("/"))).toBe(true);
     expect(adapters).toContain("grugops-orchestrator.md");
+  });
+});
+
+describe("kit-model listSkillAdapters (KIT-02 skill derivation authority)", () => {
+  it("keeps only files NAMED SKILL.md — the rule is the file name, not the depth", () => {
+    const root = skillRoot([
+      "grugops/SKILL.md",
+      "grugops/README.md",
+      "grugops-gate/SKILL.md",
+      "not-a-skill/notes.md",
+    ]);
+    expect(listSkillAdapters(root)).toEqual([
+      "grugops-gate/SKILL.md",
+      "grugops/SKILL.md",
+    ]);
+  });
+
+  it("returns a NESTED SKILL.md — a skill one level deeper is still a skill and is still seen", () => {
+    const root = skillRoot(["grugops/SKILL.md", "vendor/extra/SKILL.md"]);
+    expect(listSkillAdapters(root)).toEqual([
+      "grugops/SKILL.md",
+      "vendor/extra/SKILL.md",
+    ]);
+  });
+
+  it("is sorted by full relative path and two calls on the same tree are deeply equal", () => {
+    const root = skillRoot([
+      "z-skill/SKILL.md",
+      "a-skill/SKILL.md",
+      "a-skill/deeper/SKILL.md",
+    ]);
+    const first = listSkillAdapters(root);
+    const second = listSkillAdapters(root);
+    expect(first).toEqual([
+      "a-skill/SKILL.md",
+      "a-skill/deeper/SKILL.md",
+      "z-skill/SKILL.md",
+    ]);
+    expect(second).toEqual(first);
+  });
+
+  it("THROWS naming the directory when the skills directory does not exist", () => {
+    const root = skillRoot(null);
+    expect(() => listSkillAdapters(root)).toThrow(join(root, ".claude/skills"));
+    expect(() => listSkillAdapters(root)).toThrow(/cannot read kit directory/);
+  });
+
+  it("THROWS naming the directory when the skills directory is empty (never returns [])", () => {
+    const root = skillRoot([]);
+    expect(() => listSkillAdapters(root)).toThrow(join(root, ".claude/skills"));
+    expect(() => listSkillAdapters(root)).toThrow(
+      /refusing to return an empty set/,
+    );
+  });
+
+  it("THROWS when every skill directory holds no SKILL.md (filtered to empty)", () => {
+    const root = skillRoot(["one/notes.md", "two/index.md"]);
+    expect(() => listSkillAdapters(root)).toThrow(
+      /refusing to return an empty set/,
+    );
+    expect(() => listSkillAdapters(root)).toThrow(join(root, ".claude/skills"));
+  });
+
+  it("exports SKILL_ADAPTER_COUNT and the live tree derives exactly that many", () => {
+    // The forcing function for the ONE derived set the KIT-03 oracle cannot cover: a skill adapter
+    // has no role to compare against, so deleting a skill directory would otherwise just shrink the
+    // set in silence.
+    expect(SKILL_ADAPTER_COUNT).toBe(7);
+    expect(listSkillAdapters().length).toBe(SKILL_ADAPTER_COUNT);
   });
 });

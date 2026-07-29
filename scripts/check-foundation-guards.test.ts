@@ -27,13 +27,16 @@ import {
   writeFileSync,
   appendFileSync,
   readFileSync,
-  readdirSync,
-  existsSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, dirname } from "node:path";
 
-import { listRoles, listAgentAdapters, ROLE_COUNT } from "./kit-model.js";
+import {
+  listRoles,
+  listAgentAdapters,
+  listSkillAdapters,
+  ROLE_COUNT,
+} from "./kit-model.js";
 
 const ROOT = join(import.meta.dirname, "..");
 const GUARD_JS = join(ROOT, "scripts", "check-foundation-guards.js");
@@ -68,10 +71,9 @@ const DERIVED_ROLE_INPUTS = listRoles().map((f) => `agent-factory/roles/${f}`);
 const DERIVED_AGENT_ADAPTER_INPUTS = listAgentAdapters(ROOT).map(
   (rel) => `.claude/agents/${rel}`,
 );
-const DERIVED_SKILL_ADAPTER_INPUTS = readdirSync(join(ROOT, ".claude/skills"))
-  .filter((d) => existsSync(join(ROOT, ".claude/skills", d, "SKILL.md")))
-  .sort()
-  .map((d) => `.claude/skills/${d}/SKILL.md`);
+const DERIVED_SKILL_ADAPTER_INPUTS = listSkillAdapters(ROOT).map(
+  (rel) => `.claude/skills/${rel}`,
+);
 
 // The complete set of input files the guard reads (repo-relative). A mirror carries byte-faithful
 // copies of all of these; one file is then mutated to plant the violation. The derived role corpus
@@ -410,6 +412,32 @@ describe("check-foundation-guards.js (SDLC-02 / SC2 fail-proof harness)", () => 
     // The planted RELATIVE path, forward-slash separated, appears in the guard output — the
     // derivation saw it, and the guard says so.
     expect(out(r)).toContain(".claude/agents/extra/rogue.md");
+  });
+
+  // The flatness policy (plan 27-10, KIT-02). The derivation SEES a nested adapter — that is what
+  // closes the bypass above — and guard_adapter_size then REFUSES it by name, because a nested agent
+  // adapter is not a supported grugops artifact: the generator emits flat names, the freshness gate
+  // compares flat names and the installer materializes them flat. Seeing it and tolerating it would
+  // be a policy of silence.
+  it("guard_adapter_size nested adapter → nonzero + 'flat adapter directory' finding names the nested path", () => {
+    const m = consistentMirror();
+    plantNestedRogue(m, "extra/rogue.md");
+    const r = runIn(m);
+    expect(r.status).not.toBe(0);
+    expect(out(r)).toMatch(/contractually FLAT/);
+    expect(out(r)).toContain("1 nested agent adapter(s)");
+    expect(out(r)).toContain(".claude/agents/extra/rogue.md");
+  });
+
+  // Two levels down, and with a basename that collides with a real top-level adapter. Neither the
+  // depth nor the name collision may fold it into an existing member.
+  it("guard_adapter_size deeply nested adapter reusing a real basename → 'flat adapter directory' still names it", () => {
+    const m = consistentMirror();
+    plantNestedRogue(m, "a/b/grugops-orchestrator.md");
+    const r = runIn(m);
+    expect(r.status).not.toBe(0);
+    expect(out(r)).toMatch(/contractually FLAT/);
+    expect(out(r)).toContain(".claude/agents/a/b/grugops-orchestrator.md");
   });
 
   // The other direction of the same fixture: with the plant REMOVED the identical mirror is green.

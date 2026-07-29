@@ -141,8 +141,10 @@ import {
   listRoles,
   listWorkflows,
   listAgentAdapters,
+  listSkillAdapters,
   ROLE_COUNT,
   WORKFLOW_COUNT,
+  SKILL_ADAPTER_COUNT,
 } from "./kit-model.js";
 // Phase 27 (SPAWN-05 / D-24): the retired-vocabulary literals are single-source. guard_adapter_body
 // below takes the PROSE forms; check-kit-refs Assertion 2 takes the PATH form. Two genuinely
@@ -214,17 +216,21 @@ function grepFiles(files: string[], re: RegExp): string[] {
 // (ASVS V12, mirrors kit-model.ts's path-traversal posture).
 const ADAPTER_DIR = ".claude/agents";
 const SKILL_DIR = ".claude/skills";
-// The exact expected number of skill adapters. A COUNT is not the drift class this phase deletes —
-// the drift class is a LIST OF NAMES that consumers read as truth while it rots; a count is a number
-// that can only ever fail closed. Deleting a skill directory must not be able to disappear from the
-// guard's view, and the KIT-03 oracle cannot see it (a skill has no role to compare against).
-const SKILL_COUNT = 7;
+// The exact expected skill cardinality now lives beside the role and workflow cardinalities in
+// kit-model.ts (plan 27-10) — the same fact had a second home here, which is the drift class this
+// milestone deletes even when the fact is only a number. The reasoning travelled with it: a count is
+// not that drift class (a count can only ever fail closed), and the skill half needs one because the
+// KIT-03 oracle has no role corpus to compare a skill against. It is still enforced in exactly one
+// place, guardKitCounts() below.
 
 // Read a FLAT directory, returning [] when it cannot be read. The empty result is NOT a silent pass —
-// guardAdapterSize()'s non-empty floor fails red on it, naming the directory and both counts.
-// (Plan 27-10) The agent-adapter caller is gone; this now serves the skill directory and the
-// packaging-template directory only.
-function readAdapterDir(rel: string): string[] {
+// the consuming guard's own floor fails red on it and names the directory.
+// (Plan 27-10) The agent and skill callers are both gone; this now reads the PACKAGING TEMPLATE
+// directory and nothing else, and its name says so. Packaging templates are deliberately NOT derived
+// from the adapter authority: that directory is a flat literal one whose shape rule admits only
+// adapter-FRONTMATTER templates, it is not an adapter directory, and deriving it from the adapter
+// authority would be a category error.
+function readPackagingDir(rel: string): string[] {
   try {
     return readdirSync(abs(rel));
   } catch {
@@ -232,30 +238,29 @@ function readAdapterDir(rel: string): string[] {
   }
 }
 
-// Every `.md` file under .claude/agents AT ANY DEPTH, sorted, as repo-relative paths. The authority
-// returns forward-slash paths relative to the adapter directory; the fixed subpath is prefixed back
-// on here to restore the repo-relative shape the three consuming guards expect.
+// The adapter corpus, from the ONE authority (kit-model.ts). It returns forward-slash paths relative
+// to each adapter directory; the fixed subpath is prefixed back on here to restore the repo-relative
+// shape the consuming guards expect. AGENT_ADAPTER_RELS keeps the un-prefixed form, because the
+// flatness check below and the KIT-03 oracle both compare relative paths.
 //
-// The authority THROWS (D-21 tier 1) when the directory is unreadable, empty, or filtered to empty.
+// The authority THROWS (D-21 tier 1) when a directory is unreadable, empty, or filtered to empty.
 // This gate does NOT abort on that: it records the thrown message and continues with an EMPTY member
-// list, so guard_adapter_size's non-empty floor and the KIT-03 oracle's zero-adapter branch both fire
-// and NAME the condition. Aborting here would print one line and silently skip six unrelated guards.
-let ADAPTER_DERIVATION_ERROR = "";
-function deriveAgentAdapters(): string[] {
+// list, so guard_adapter_size's non-empty floor, guardKitCounts' skill cardinality and the KIT-03
+// oracle's zero-adapter branch all fire and NAME the condition. Aborting here would print one line
+// and silently skip six unrelated guards.
+const ADAPTER_DERIVATION_ERRORS: string[] = [];
+function derive(list: () => string[]): string[] {
   try {
-    return listAgentAdapters(ROOT).map((rel) => `${ADAPTER_DIR}/${rel}`);
+    return list();
   } catch (e) {
-    ADAPTER_DERIVATION_ERROR = (e as Error).message;
+    ADAPTER_DERIVATION_ERRORS.push((e as Error).message);
     return [];
   }
 }
-const AGENT_ADAPTERS = deriveAgentAdapters();
-// Every `<name>/SKILL.md` under .claude/skills, sorted, as repo-relative paths. The entry is kept
-// only when the SKILL.md actually exists, so a stray non-skill directory cannot join the set.
-const SKILL_ADAPTERS = readAdapterDir(SKILL_DIR)
-  .filter((d) => existsSync(abs(`${SKILL_DIR}/${d}/SKILL.md`)))
-  .sort()
-  .map((d) => `${SKILL_DIR}/${d}/SKILL.md`);
+const AGENT_ADAPTER_RELS = derive(() => listAgentAdapters(ROOT));
+const SKILL_ADAPTER_RELS = derive(() => listSkillAdapters(ROOT));
+const AGENT_ADAPTERS = AGENT_ADAPTER_RELS.map((rel) => `${ADAPTER_DIR}/${rel}`);
+const SKILL_ADAPTERS = SKILL_ADAPTER_RELS.map((rel) => `${SKILL_DIR}/${rel}`);
 const ADAPTERS = [...AGENT_ADAPTERS, ...SKILL_ADAPTERS];
 
 // ---------------------------------------------------------------------------
@@ -307,7 +312,7 @@ const WR05_COORDINATOR = /^coordinator:\s*true\b/;
 // The packaging directory, and the shape rule that admits only the two adapter-frontmatter
 // templates. `adapters.md` is prose about adapters, not an adapter surface, and is OUT (D-09).
 const PACKAGING_DIR = "agent-factory/packaging";
-const PACKAGING_TEMPLATES = readAdapterDir(PACKAGING_DIR)
+const PACKAGING_TEMPLATES = readPackagingDir(PACKAGING_DIR)
   .filter((f) => f.endsWith(".frontmatter.md") || f.endsWith(".template.md"))
   .sort()
   .map((f) => `${PACKAGING_DIR}/${f}`);
@@ -601,8 +606,8 @@ function guardAgentsBytes(): void {
 // restored in two places rather than pretended to still work — the non-empty floor below (which
 // covers a directory emptied outright) and, for agent adapters specifically, the KIT-03
 // referential-integrity oracle (which compares the adapter directory against the role corpus and so
-// names any single deleted agent adapter). Skills have no corresponding role, so the SKILL_COUNT
-// assertion in guardKitCounts() closes the one gap the oracle cannot see.
+// names any single deleted agent adapter). Skills have no corresponding role, so the
+// SKILL_ADAPTER_COUNT assertion in guardKitCounts() closes the one gap the oracle cannot see.
 //
 // ADAPTERS / AGENT_ADAPTERS / SKILL_ADAPTERS are declared once, above guard_wr05, because three
 // guards share them.
@@ -617,26 +622,54 @@ function guardAdapterSize(): void {
   // Non-empty floor — the deletion detection the derived set would otherwise have dropped. A run
   // that compared zero adapters is the anomaly, never "nothing to check, therefore fine". Report
   // BOTH counts so the message says which directory came back empty and what the other held.
+  let sizeFindings = 0;
   if (AGENT_ADAPTERS.length === 0 || SKILL_ADAPTERS.length === 0) {
     fail(
-      `adapter derivation returned an empty set — ${ADAPTER_DIR}: ${AGENT_ADAPTERS.length} adapter(s), ${SKILL_DIR}: ${SKILL_ADAPTERS.length} adapter(s). An empty adapter directory is never "nothing to compare, therefore fine".${ADAPTER_DERIVATION_ERROR === "" ? "" : `\n${ADAPTER_DERIVATION_ERROR}`}`,
+      `adapter derivation returned an empty set — ${ADAPTER_DIR}: ${AGENT_ADAPTERS.length} adapter(s), ${SKILL_DIR}: ${SKILL_ADAPTERS.length} adapter(s). An empty adapter directory is never "nothing to compare, therefore fine".${ADAPTER_DERIVATION_ERRORS.length === 0 ? "" : `\n${ADAPTER_DERIVATION_ERRORS.join("\n")}`}`,
     );
+    sizeFindings += 1;
+  }
+  // THE ADAPTER DIRECTORY IS CONTRACTUALLY FLAT, AND A NESTED ADAPTER IS REFUSED BY NAME.
+  //
+  // The generator emits a flat agents directory, the freshness gate's set equality is defined over
+  // those flat names, and the installer materializes them flat — so a nested agent adapter is not a
+  // supported grugops artifact. It is, however, a file the platform WILL LOAD. Those two facts
+  // together are why the derivation recurses and this guard refuses: the authority SEES the file
+  // (so it cannot sit outside every scan set, which is the CR-01 bypass), and this finding SAYS SO
+  // (so it is not merely tolerated). Silence is not a policy, and this is the sentence that makes
+  // the policy explicit.
+  const nested = AGENT_ADAPTER_RELS.filter((rel) => rel.includes("/"));
+  if (nested.length > 0) {
+    fail(
+      `${nested.length} nested agent adapter(s) under ${ADAPTER_DIR}: ${nested.map((rel) => `${ADAPTER_DIR}/${rel}`).join(", ")}. The adapter directory is contractually FLAT — the generator emits flat names, the freshness gate compares flat names and the installer materializes them flat. The listed files WOULD BE LOADED BY THE RUNTIME (Claude Code discovers this directory recursively and takes identity only from frontmatter) while sitting outside the generator, the freshness gate and the installer.`,
+    );
+    sizeFindings += 1;
   }
   for (const f of ADAPTERS) {
     // TOCTOU defence: the member came from a readdir, so a vanished file here is a race, not a
     // deletion the derivation could have seen. Kept so the guard names it rather than throwing.
     if (!fileExists(f)) {
       fail(`${f} missing (adapter required)`);
+      sizeFindings += 1;
       continue;
     }
     const b = byteLen(f);
     if (b >= AD_FAIL) {
       fail(`${f} ${b}B >= ${AD_FAIL}B — adapter too large (role body copied in?)`);
+      sizeFindings += 1;
     } else if (b >= AD_WARN) {
       warn(`${f} ${b}B >= ${AD_WARN}B — approaching pointer ceiling`);
     } else {
       pass(`${f} ${b}B pointer-sized`);
     }
+  }
+  // Report WHAT WAS DERIVED, not just what was measured. The per-file lines say nothing about the
+  // SHAPE of the set they came from, so a run over a shrunken directory would read as a shorter but
+  // equally green list. This line makes both cardinalities visible on every clean run.
+  if (sizeFindings === 0) {
+    pass(
+      `adapter derivation: ${AGENT_ADAPTERS.length} agent adapters in ${ADAPTER_DIR} (all flat) and ${SKILL_ADAPTERS.length} skill adapters in ${SKILL_DIR}, every one under the ${AD_FAIL}B ceiling`,
+    );
   }
 }
 
@@ -669,12 +702,12 @@ function guardKitCounts(): void {
   // (Phase 27 / KIT-02) The skill-adapter count. This is the deletion detector for the ONE derived
   // set the KIT-03 referential-integrity oracle cannot cover: a skill adapter has no corresponding
   // role file, so removing a skill directory would otherwise just shrink the derived set in silence.
-  if (SKILL_ADAPTERS.length !== SKILL_COUNT) {
-    countFail += `\nkit count: derived ${SKILL_ADAPTERS.length} skill adapters, expected exactly ${SKILL_COUNT} — a skill adapter has no role to compare against, so this count is the only deletion signal; walk guard_adapter_size and the spawn-grant scan BEFORE updating SKILL_COUNT`;
+  if (SKILL_ADAPTERS.length !== SKILL_ADAPTER_COUNT) {
+    countFail += `\nkit count: derived ${SKILL_ADAPTERS.length} skill adapters, expected exactly ${SKILL_ADAPTER_COUNT} — a skill adapter has no role to compare against, so this count is the only deletion signal; walk guard_adapter_size and the spawn-grant scan BEFORE updating SKILL_ADAPTER_COUNT in scripts/kit-model.ts`;
   }
   if (countFail === "") {
     pass(
-      `kit counts: derived ${ROLE_FILES.length} roles, ${WORKFLOW_FILES.length} workflows and ${SKILL_ADAPTERS.length} skill adapters (expected ${ROLE_COUNT} / ${WORKFLOW_COUNT} / ${SKILL_COUNT})`,
+      `kit counts: derived ${ROLE_FILES.length} roles, ${WORKFLOW_FILES.length} workflows and ${SKILL_ADAPTERS.length} skill adapters (expected ${ROLE_COUNT} / ${WORKFLOW_COUNT} / ${SKILL_ADAPTER_COUNT})`,
     );
   } else {
     fail(`kit-count violation:${countFail}`);

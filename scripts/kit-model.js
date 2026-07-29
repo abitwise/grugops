@@ -49,11 +49,24 @@
 // Unix. Sorting by the full relative path is what gives nested and top-level entries one specified,
 // stable order; two calls over the same tree are deeply equal.
 //
-// SHAPE RULE: an agent adapter is any `.md` file found beneath the agents directory at ANY depth.
+// SHAPE RULES: an agent adapter is any `.md` file found beneath the agents directory at ANY depth. A
+// skill adapter is any file NAMED `SKILL.md` found beneath the skills directory at ANY depth — the
+// rule is the FILE NAME, not the directory depth, so a skill nested one level deeper is still a skill
+// and is still seen.
+//
+// SKILL_ADAPTER_COUNT LIVES HERE; AN AGENT-ADAPTER COUNT DELIBERATELY DOES NOT, AND A LATER PHASE
+// MUST NOT ADD ONE. The KIT-03 referential-integrity oracle already pins the agent number by
+// comparing the adapter set against the role corpus and the coordinator's grant closure; a constant
+// asserting the same fact would be a SECOND authority for it, and the whole point of this module is
+// that a fact has one. The skill half is the opposite case: a skill adapter has NO role to compare
+// against, so the oracle is structurally blind to a deleted skill and a count is the only deletion
+// signal. A count is also not the drift class this milestone deletes — the drift class is a LIST OF
+// NAMES that consumers read as truth while it rots; a count is a number that can only ever fail
+// closed.
 //
 // Path-traversal posture (ASVS V12, mirrors generate-catalog.ts): `agent-factory/roles`,
-// `agent-factory/workflows` and `.claude/agents` are FIXED literal subpaths joined onto the supplied
-// root. None is ever taken from argv, env, or file content.
+// `agent-factory/workflows`, `.claude/agents` and `.claude/skills` are FIXED literal subpaths joined
+// onto the supplied root. None is ever taken from argv, env, or file content.
 //
 // FAIL-CLOSED POSTURE — tier 1 of D-21: this module THROWS. It throws naming the directory when the
 // directory cannot be read, and it throws naming the directory when the filtered result is length
@@ -72,6 +85,10 @@ import { join } from "node:path";
 // author to walk every derived consumer first — that walk is the whole point of the constant.
 export const ROLE_COUNT = 17;
 export const WORKFLOW_COUNT = 19;
+// The exact expected number of SKILL adapters. It sits beside the other two cardinalities because it
+// is the same kind of fact; see the module header for why the skill half earns a count and the agent
+// half deliberately does not.
+export const SKILL_ADAPTER_COUNT = 7;
 // Default kit root = this script's parent (scripts/ -> repo root). Callers with an already-resolved
 // root pass it explicitly (D-22) rather than letting this module re-resolve.
 const DEFAULT_KIT_ROOT = join(import.meta.dirname, "..");
@@ -79,6 +96,7 @@ const DEFAULT_KIT_ROOT = join(import.meta.dirname, "..");
 const ROLES_SUBPATH = "agent-factory/roles";
 const WORKFLOWS_SUBPATH = "agent-factory/workflows";
 const AGENTS_SUBPATH = ".claude/agents";
+const SKILLS_SUBPATH = ".claude/skills";
 // Read a directory, rethrowing as a NAMED error. The raw ENOENT/EACCES message does not identify
 // which kit directory failed once two call sites share this helper.
 function readDirOrThrow(dir) {
@@ -163,4 +181,19 @@ export function listAgentAdapters(kitRoot = DEFAULT_KIT_ROOT) {
         .filter((rel) => rel.endsWith(".md"))
         .sort();
     return refuseEmpty(files, dir, "agent adapter");
+}
+// The skill-adapter corpus: every file NAMED `SKILL.md` beneath `.claude/skills` AT ANY DEPTH, as
+// forward-slash relative paths, sorted by the full relative path. 7 files today, each one level down
+// (`<skill-name>/SKILL.md`).
+//
+// The shape rule is the FILE NAME, not the depth: `a/SKILL.md` and `a/b/SKILL.md` are both skills.
+// A directory holding no SKILL.md contributes nothing, so a stray non-skill directory cannot join the
+// set. Same recursive walk as the agent half — one mechanism, never a second one written to look
+// almost the same.
+export function listSkillAdapters(kitRoot = DEFAULT_KIT_ROOT) {
+    const dir = join(kitRoot, SKILLS_SUBPATH);
+    const files = walkFilesRelative(dir)
+        .filter((rel) => rel.split("/").pop() === "SKILL.md")
+        .sort();
+    return refuseEmpty(files, dir, "skill adapter");
 }
