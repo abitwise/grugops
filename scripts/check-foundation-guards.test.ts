@@ -154,6 +154,19 @@ const roleAgentNames = (): string[] =>
 const adapterPath = (root: string, name: string): string =>
   join(root, ".claude/agents", `${name}.md`);
 
+// (Plan 27-14) The ANCHORED specialist memory sentence, verbatim. guard_adapter_body's positive half
+// is no longer a fragment substring test — it counts occurrences of the FULL sentence forms the
+// generator emits, exactly one per body. Every constructed fixture adapter below therefore carries
+// this sentence verbatim; the former fixture wording ("Fixture adapter. The shared verified context
+// is the only memory.") was a fragment and is exactly the shape the guard now refuses.
+//
+// This literal is a FIXTURE, not a scan set: if it ever drifts from the guard's own constant every
+// case built on a constructed mirror goes red, so the duplication fails closed.
+const MEMORY_SENTENCE_SPECIALIST =
+  "The shared verified context is the only memory — read what earlier roles published, publish your own, and expect nothing to have been passed to you by whoever activated you.";
+const MEMORY_SENTENCE_COORDINATOR =
+  "The shared verified context is the only memory — never relay data between agents.";
+
 // (Phase 27 / plan 27-07) BOTH KIT-03 fixtures are now CONSTRUCTED, and neither inherits its shape
 // from the live tree.
 //
@@ -219,10 +232,12 @@ function consistentMirror(): string {
   // asserts every scanned body names the shared verified context as its memory. A fixture that
   // omitted it would be a genuinely defective adapter, and every "asserts ALL CHECKS PASSED" case
   // built on this mirror would fail for a reason having nothing to do with what it tests. Keep it.
+  // (Plan 27-14) It now carries the ANCHORED FULL sentence, exactly once — the fragment no longer
+  // satisfies the positive half.
   for (const name of granted) {
     writeFileSync(
       adapterPath(m, name),
-      `---\nname: ${name}\ndescription: Hermetic mirror fixture adapter.\nmodel: inherit\n---\nFixture adapter. The shared verified context is the only memory.\n`,
+      `---\nname: ${name}\ndescription: Hermetic mirror fixture adapter.\nmodel: inherit\n---\nFixture adapter. ${MEMORY_SENTENCE_SPECIALIST}\n`,
     );
   }
   // Re-point the coordinator's grant at the full 16-name set so the closure closes.
@@ -250,7 +265,7 @@ function plantNestedRogue(root: string, rel: string): string {
       "---",
       "> **Kit vs state invariant:** `agent-factory/…` = read-only KIT. If the kit dir is absent, STOP — do not hunt.",
       "",
-      "Rogue adapter with a live spawn grant. The shared verified context is the only memory.",
+      `Rogue adapter with a live spawn grant. ${MEMORY_SENTENCE_SPECIALIST}`,
       "",
     ].join("\n"),
   );
@@ -266,7 +281,7 @@ function plantPlainAdapter(root: string, rel: string, name: string): string {
   mkdirSync(dirname(file), { recursive: true });
   writeFileSync(
     file,
-    `---\nname: ${name}\ndescription: Hermetic mirror fixture adapter.\nmodel: inherit\n---\nFixture adapter. The shared verified context is the only memory.\n`,
+    `---\nname: ${name}\ndescription: Hermetic mirror fixture adapter.\nmodel: inherit\n---\nFixture adapter. ${MEMORY_SENTENCE_SPECIALIST}\n`,
   );
   return file;
 }
@@ -469,7 +484,7 @@ describe("check-foundation-guards.js (SDLC-02 / SC2 fail-proof harness)", () => 
     const file = adapterPath(m, "grugops-uat-planner");
     writeFileSync(
       file,
-      "---\ndescription: Fixture adapter with no name key.\nmodel: inherit\n---\nFixture adapter. The shared verified context is the only memory.\n",
+      `---\ndescription: Fixture adapter with no name key.\nmodel: inherit\n---\nFixture adapter. ${MEMORY_SENTENCE_SPECIALIST}\n`,
     );
     const r = runIn(m);
     expect(r.status).not.toBe(0);
@@ -752,8 +767,11 @@ describe("check-foundation-guards.js (SDLC-02 / SC2 fail-proof harness)", () => 
   });
 
   // POSITIVE half — the half that does not depend on having guessed every retired phrase. Remove the
-  // memory sentence from one mirrored adapter body and assert the guard names that file.
-  it("guard_adapter_body memory sentence REMOVED from a body → nonzero + names the file (stale by omission)", () => {
+  // memory sentence from one mirrored adapter body and assert the guard names that file AND the
+  // count it found. (Plan 27-14: the count is asserted, not just the absence — the guard now tests
+  // the NUMBER of occurrences, so a case that only asserted "names the file" would pass equally on a
+  // guard that had silently gone back to testing existence.)
+  it("guard_adapter_body memory sentence REMOVED from a body → nonzero + names the file and reports 0 (stale by omission)", () => {
     const m = mirror();
     const file = adapterPath(m, "grugops-qe-e2e");
     writeFileSync(
@@ -768,6 +786,91 @@ describe("check-foundation-guards.js (SDLC-02 / SC2 fail-proof harness)", () => 
     const o = out(r);
     expect(o).toContain("grugops-qe-e2e.md");
     expect(o).toContain("never names the shared verified context as its memory");
+    expect(o).toContain("0 occurrence(s) of a generated memory sentence");
+  });
+
+  // (Plan 27-14) EXACTLY ONCE, the upper direction. A body carrying the sentence twice is not a body
+  // the generator produces — it has been hand-edited — and the guard must say so with the count. The
+  // former existence test was blind to this entirely.
+  it("guard_adapter_body memory sentence DUPLICATED in a body → nonzero + names the file and reports 2", () => {
+    const m = mirror();
+    const file = adapterPath(m, "grugops-qe-e2e");
+    appendFileSync(file, `\n${MEMORY_SENTENCE_SPECIALIST}\n`);
+    const r = runIn(m);
+    expect(r.status).not.toBe(0);
+    const o = out(r);
+    expect(o).toContain("grugops-qe-e2e.md");
+    expect(o).toContain("states a generated memory sentence 2 time(s)");
+  });
+
+  // (Plan 27-14) THE CASE THE FRAGMENT NEEDLE PASSED. Replace the live sentence with a commented-out
+  // copy: the bytes are still in the file, so a bare substring test is satisfied, but nothing the
+  // agent reads says it. A comment about the rule must never stand in for the rule.
+  it("guard_adapter_body memory sentence present ONLY inside an HTML comment → nonzero + names the file and reports 0", () => {
+    const m = mirror();
+    const file = adapterPath(m, "grugops-qe-e2e");
+    writeFileSync(
+      file,
+      readFileSync(file, "utf8")
+        .split("\n")
+        .map((l) =>
+          l.includes("shared verified context is the only memory")
+            ? `<!-- ${l} -->`
+            : l,
+        )
+        .join("\n"),
+    );
+    const r = runIn(m);
+    expect(r.status).not.toBe(0);
+    const o = out(r);
+    expect(o).toContain("grugops-qe-e2e.md");
+    expect(o).toContain("0 occurrence(s) of a generated memory sentence");
+  });
+
+  // (Plan 27-14) THE TEMPLATE HALF, first direction. The template's two adapter body shapes are the
+  // text the generator copies, and they are deliberately FENCED — which is why the template is read
+  // RAW. Delete the specialist shape's sentence and the guard must name the SHAPE and the count.
+  it("guard_adapter_body memory sentence deleted from a template body shape → nonzero + names the shape", () => {
+    const m = mirror();
+    const file = join(m, "agent-factory/packaging/subagent.frontmatter.md");
+    writeFileSync(
+      file,
+      readFileSync(file, "utf8")
+        .split("\n")
+        .filter((l) => !l.includes(MEMORY_SENTENCE_SPECIALIST))
+        .join("\n"),
+    );
+    const r = runIn(m);
+    expect(r.status).not.toBe(0);
+    const o = out(r);
+    expect(o).toContain("subagent.frontmatter.md");
+    expect(o).toContain("the specialist body shape's memory sentence appears 0");
+  });
+
+  // (Plan 27-14) THE TEMPLATE HALF, the defect this plan closes. Before the split, the template was
+  // read fence-stripped — which deleted both real body shapes from its input — so the ONLY thing
+  // satisfying its positive half on the live tree was a documentation bullet in the same file that
+  // merely described the sentence. Reconstruct exactly that state: take the sentence OUT of the
+  // fenced body shape and restate it in live prose. The whole-file substring count is still 1, and
+  // the guard must still fail red, because a bullet is not a body shape the generator copies.
+  it("guard_adapter_body memory sentence in a template PROSE line alone does not satisfy the check → nonzero", () => {
+    const m = mirror();
+    const file = join(m, "agent-factory/packaging/subagent.frontmatter.md");
+    writeFileSync(
+      file,
+      readFileSync(file, "utf8")
+        .split("\n")
+        .filter((l) => !l.includes(MEMORY_SENTENCE_SPECIALIST))
+        .join("\n") +
+        `\n- **The memory sentence** — ${MEMORY_SENTENCE_SPECIALIST}\n`,
+    );
+    const r = runIn(m);
+    expect(r.status).not.toBe(0);
+    const o = out(r);
+    expect(o).toContain("subagent.frontmatter.md");
+    expect(o).toContain(
+      "the specialist body shape's memory sentence appears 1 time(s) OUTSIDE a fenced body shape",
+    );
   });
 
   // The KEPT text. "one window, prior context dropped between roles" describes execution topology,
@@ -786,18 +889,41 @@ describe("check-foundation-guards.js (SDLC-02 / SC2 fail-proof harness)", () => 
     expect(out(r)).toContain("ALL CHECKS PASSED");
   });
 
-  // Fence-immunity: a retired phrase inside a ``` block in the packaging template is DOCUMENTATION —
-  // quoting the dead vocabulary in order to explain that it is dead must not trip the ban. Shared
-  // stripFencedBlocks(), never a second parser.
-  it("guard_adapter_body FENCED retired phrase in the packaging template is ignored → guard PASSES", () => {
+  // Fence-immunity IN AN ADAPTER: a retired phrase inside a ``` block in an adapter body is
+  // DOCUMENTATION — quoting the dead vocabulary in order to explain that it is dead must not trip the
+  // ban. Shared stripFencedBlocks(), never a second parser.
+  //
+  // (Plan 27-14) This case used to plant into the packaging TEMPLATE. It now plants into an adapter,
+  // because the template half deliberately reads RAW text: the template's fenced blocks are the body
+  // shapes the generator copies, so a retired phrase inside one of them is the worst case there is,
+  // not documentation. The case below pins that inversion; this one keeps the adapter-side
+  // fence-immunity it always asserted.
+  it("guard_adapter_body FENCED retired phrase in an ADAPTER body is ignored → guard PASSES", () => {
     const m = consistentMirror();
     appendFileSync(
-      join(m, "agent-factory/packaging/subagent.frontmatter.md"),
+      adapterPath(m, "grugops-qe-e2e"),
       "\n## Retired shape (documentation only)\n\n```markdown\n— one window, drop prior context, the handoff is the only memory — demand a handoff packet from each.\n```\n",
     );
     const r = runIn(m);
     expect(r.status).toBe(0);
     expect(out(r)).toContain("ALL CHECKS PASSED");
+  });
+
+  // (Plan 27-14) THE INVERSION, pinned. The same fenced plant in the packaging TEMPLATE must fail
+  // red: a fenced block there is a body shape the generator copies into seventeen adapters on its
+  // next run, so "it is only an example" is exactly wrong at that one location.
+  it("guard_adapter_body FENCED retired phrase in the packaging TEMPLATE fails red (raw-text negative half)", () => {
+    const m = mirror();
+    appendFileSync(
+      join(m, "agent-factory/packaging/subagent.frontmatter.md"),
+      "\n## Retired shape\n\n```markdown\n— one window, drop prior context, the handoff is the only memory — demand a handoff packet from each.\n```\n",
+    );
+    const r = runIn(m);
+    expect(r.status).not.toBe(0);
+    const o = out(r);
+    expect(o).toContain("subagent.frontmatter.md");
+    expect(o).toContain('retired memory-relay vocabulary "handoff packet"');
+    expect(o).toContain("in its raw text (fenced body shapes included)");
   });
 
   // SCAN-SET MEMBERSHIP, PINNED. D-25 puts the packaging template in the scan set because it is the
@@ -819,11 +945,15 @@ describe("check-foundation-guards.js (SDLC-02 / SC2 fail-proof harness)", () => 
     expect(o).toContain('retired memory-relay vocabulary "handoff packet"');
   });
 
-  // The guard reports WHAT IT CHECKED, so a run over a collapsed scan set is visible as the anomaly
-  // it is rather than hiding behind the word PASS.
-  it("guard_adapter_body reports the number of bodies scanned (25 = 17 agents + 7 skills + the template)", () => {
+  // The guard reports WHAT IT CHECKED ON BOTH HALVES, so a run over a collapsed scan set is visible
+  // as the anomaly it is rather than hiding behind the word PASS. (Plan 27-14: the two halves are
+  // reported separately — 24 derived adapter bodies and 2 template body shapes — because a run that
+  // checked the template alone is precisely the failure the old single total could not show.)
+  it("guard_adapter_body reports both halves (24 adapter bodies = 17 agents + 7 skills, plus 2 template body shapes)", () => {
     const r = spawnSync("node", [GUARD_JS], { encoding: "utf8" });
-    expect(out(r)).toContain("SPAWN-05: 25 adapter body/bodies scanned");
+    expect(out(r)).toContain(
+      "SPAWN-05: 24 adapter bodies + 2 template body shapes checked",
+    );
   });
 
   // ── guard_agents_bytes — oversize + missing (CR-01). ─────────────────────────────────────────

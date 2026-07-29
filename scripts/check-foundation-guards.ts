@@ -571,23 +571,87 @@ function guardWr05(): void {
 //
 // SCAN SET (D-25): the DERIVED adapters — 17 agents + 7 skills — plus the packaging template. The
 // template is the upstream source the generator is built from, so a regression there is caught
-// BEFORE it propagates into seventeen generated files. Today that is 25 bodies. Membership follows
-// the filesystem for the adapters, so an eighteenth role is scanned the day its adapter lands.
+// BEFORE it propagates into seventeen generated files. Membership follows the filesystem for the
+// adapters, so an eighteenth role is scanned the day its adapter lands.
 //
-// ONE FENCE AUTHORITY. Both halves read the body through the SHARED stripFencedBlocks() — never a
-// second parser over the same bytes. A documentation example inside a ``` fence is documentation:
-// it can neither trip the ban nor satisfy the requirement. That is why the packaging template
-// states the memory sentence in LIVE prose as well as inside its two fenced body shapes — the
-// fenced copies are examples, and the guard is right not to count them.
+// TWO HALVES, SAME PREDICATE, DIFFERENT INPUT (plan 27-14, review finding WR-05). The scan set used
+// to be one flat list, and running the LIVE-PROSE rule over the packaging template is what let a
+// comment stand in for the rule. The template's two adapter body shapes are deliberately FENCED —
+// they are the text the generator copies — so fence-stripping the template deleted the only real
+// instances of the sentence from its input, and the check was satisfied instead by a documentation
+// bullet further down the same file that merely DESCRIBED the sentence. The guard was green because
+// prose about the rule stood in for the rule. So the halves are split by input:
+//   • LIVE-PROSE half — the derived adapters, read fence-stripped, as before. A fenced example in an
+//     adapter is documentation and neither trips the ban nor satisfies the requirement.
+//   • TEMPLATE half — the packaging template, read RAW (fences KEPT), because what must be checked
+//     there is precisely the fenced body shapes. It additionally requires that each form appear
+//     ZERO times OUTSIDE a fence, so a bullet restating the sentence can never substitute for a body
+//     shape that lost it. The negative half runs over the template's raw text too, so a retired
+//     phrase inside a body shape is caught BEFORE the generator copies it into seventeen files.
+//
+// ANCHORED AND COUNTED (plan 27-14, review finding WR-05). The positive half used to be a bare
+// substring test for a FRAGMENT of the sentence — order-independent, context-free, satisfied by any
+// occurrence anywhere. It is now the three FULL sentence forms the generator actually emits, and the
+// test is on the NUMBER of occurrences, not their existence: exactly one per adapter body. Zero is an
+// adapter gone stale by omission; more than one is a body edited into something the generator does
+// not produce.
+//
+// ONE FENCE AUTHORITY. Both halves read through the SHARED stripFencedBlocks() — never a second
+// parser over the same bytes. The template half computes "inside a fence" as raw-minus-stripped from
+// that same authority rather than re-deciding it. stripHtmlComments() below is NOT a second fence
+// implementation: it removes a different construct (`<!-- -->`), it composes with the one fence
+// authority instead of duplicating it, and it is applied to the POSITIVE half only.
 // ---------------------------------------------------------------------------
 const ADAPTER_BODY_TEMPLATE = "agent-factory/packaging/subagent.frontmatter.md";
-const ADAPTER_BODY_SCAN = [...ADAPTERS, ADAPTER_BODY_TEMPLATE];
-// The live memory wording, stated without its leading article so both body shapes and the
-// template's own prose sentence match the one needle. It has exactly ONE consumer, so it stays
-// local here rather than becoming a shared export — a shared module with a single consumer is a
-// second authority with nothing to justify it. (dead-vocabulary.ts is the opposite case: two
-// consumers, so it earns the module.)
-const MEMORY_SENTENCE = "shared verified context is the only memory";
+
+// THE ANCHORED MEMORY FORMS — the three full sentences the generated and authored adapter bodies
+// actually carry, verbatim. The first two are the packaging template's two fenced body shapes and are
+// emitted by scripts/generate-role-adapters.ts; the third is the skill adapters' own form. Anchoring
+// to a full sentence rather than a fragment is what makes "a comment describing the rule" fail: a
+// description does not restate the sentence, and a body that is not what the generator emits does not
+// match any form. These are wording CONTRACTS between the template, the generator and this guard —
+// changing one means re-cutting all three together and regenerating every adapter.
+//
+// They stay local here rather than becoming a shared export: they have exactly ONE consumer, and a
+// shared module with a single consumer is a second authority with nothing to justify it.
+// (dead-vocabulary.ts is the opposite case: two consumers, so it earns the module.)
+const MEMORY_FORM_SPECIALIST =
+  "The shared verified context is the only memory — read what earlier roles published, publish your own, and expect nothing to have been passed to you by whoever activated you.";
+const MEMORY_FORM_COORDINATOR =
+  "The shared verified context is the only memory — never relay data between agents.";
+const MEMORY_FORM_SKILL =
+  "The shared verified context is the only memory — require typed notes per `agent-factory/workflows/16-context-read-write.md`, and never relay data between agents.";
+// Every form a LIVE adapter body may legitimately carry. No form is a substring of another, so
+// summing their counts cannot double-count one sentence.
+const MEMORY_FORMS: readonly string[] = [
+  MEMORY_FORM_SPECIALIST,
+  MEMORY_FORM_COORDINATOR,
+  MEMORY_FORM_SKILL,
+];
+// The two body shapes the packaging template carries and the generator copies. The skill form is
+// deliberately absent: the skill adapters are authored, not emitted from this template.
+const TEMPLATE_BODY_FORMS: readonly { label: string; form: string }[] = [
+  { label: "specialist", form: MEMORY_FORM_SPECIALIST },
+  { label: "coordinator", form: MEMORY_FORM_COORDINATOR },
+];
+
+// A commented-out copy of the sentence is not live text. It is removed from the POSITIVE half's
+// input only — a retired phrase quoted inside a comment must still fail the NEGATIVE half, because
+// no adapter or template may carry a comment or parenthetical quoting dead vocabulary.
+const stripHtmlComments = (s: string): string => s.replace(/<!--[\s\S]*?-->/g, " ");
+
+// Non-overlapping occurrence count. Deliberately not a regex: the forms contain backticks, an em
+// dash and punctuation, and escaping them into a pattern would be a second grammar over the same
+// literal.
+function countOccurrences(hay: string, needle: string): number {
+  let n = 0;
+  let i = hay.indexOf(needle);
+  while (i !== -1) {
+    n += 1;
+    i = hay.indexOf(needle, i + needle.length);
+  }
+  return n;
+}
 
 function guardAdapterBody(): void {
   process.stdout.write(
@@ -595,10 +659,12 @@ function guardAdapterBody(): void {
   );
   let bodyFail = "";
   let scanned = 0;
-  for (const f of ADAPTER_BODY_SCAN) {
+  let templateShapes = 0;
+
+  // ── LIVE-PROSE HALF: the derived adapters. ────────────────────────────────────────────────────
+  for (const f of ADAPTERS) {
     // CR-01 missing-file fail-red. For a derived adapter this is a TOCTOU race (it came from a
-    // readdir); for the named packaging template it is a real deletion of the upstream source.
-    // Either way the guard NAMES it rather than quietly scanning one body fewer.
+    // readdir), and the guard NAMES it rather than quietly scanning one body fewer.
     if (!fileExists(f)) {
       bodyFail += `\n${f}: missing — cannot check an adapter body that is not there`;
       continue;
@@ -615,22 +681,67 @@ function guardAdapterBody(): void {
         bodyFail += `\n${f}: carries retired memory-relay vocabulary "${phrase}" — the 17 static handoff templates were deleted in Phase 24 and the shared verified context replaced the relay`;
       }
     }
-    if (!body.includes(MEMORY_SENTENCE)) {
-      bodyFail += `\n${f}: body never names the shared verified context as its memory (expected the wording "${MEMORY_SENTENCE}" in live, non-fenced text) — an adapter gone stale by omission`;
+    // Positive half: comment-stripped, so a commented-out copy of the sentence cannot stand in for
+    // the live one. Counted, not tested for existence.
+    const live = collapseWhitespace(
+      stripHtmlComments(stripFencedBlocks(readText(f))),
+    );
+    const found = MEMORY_FORMS.reduce(
+      (n, form) => n + countOccurrences(live, form),
+      0,
+    );
+    if (found === 0) {
+      bodyFail += `\n${f}: body never names the shared verified context as its memory — 0 occurrence(s) of a generated memory sentence in live, non-fenced, non-commented text; an adapter gone stale by omission`;
+    } else if (found > 1) {
+      bodyFail += `\n${f}: body states a generated memory sentence ${found} time(s) in live text — exactly 1 occurrence is required; a body edited into something the generator does not produce`;
     }
   }
+
+  // ── TEMPLATE HALF: the packaging template, read RAW. ──────────────────────────────────────────
+  if (!fileExists(ADAPTER_BODY_TEMPLATE)) {
+    // Not a TOCTOU race — this member is a named literal, so its absence is a real deletion of the
+    // upstream source every generated adapter is built from.
+    bodyFail += `\n${ADAPTER_BODY_TEMPLATE}: missing — cannot check the adapter body shapes the generator copies`;
+  } else {
+    const templateSrc = readText(ADAPTER_BODY_TEMPLATE);
+    const raw = collapseWhitespace(stripHtmlComments(templateSrc));
+    const outsideFences = collapseWhitespace(
+      stripHtmlComments(stripFencedBlocks(templateSrc)),
+    );
+    // Negative half over the RAW text — fences included. A retired phrase inside a body shape is the
+    // worst case there is: the generator would copy it into seventeen adapters on the next run.
+    const loweredRaw = collapseWhitespace(templateSrc).toLowerCase();
+    for (const phrase of RETIRED_PROSE_FORMS) {
+      if (loweredRaw.includes(phrase)) {
+        bodyFail += `\n${ADAPTER_BODY_TEMPLATE}: carries retired memory-relay vocabulary "${phrase}" in its raw text (fenced body shapes included) — the generator copies this file's body shapes into every adapter`;
+      }
+    }
+    for (const { label, form } of TEMPLATE_BODY_FORMS) {
+      templateShapes += 1;
+      const rawCount = countOccurrences(raw, form);
+      const proseCount = countOccurrences(outsideFences, form);
+      if (rawCount !== 1) {
+        bodyFail += `\n${ADAPTER_BODY_TEMPLATE}: the ${label} body shape's memory sentence appears ${rawCount} time(s) in this file's raw text — exactly 1 is required ("${form}")`;
+      } else if (proseCount !== 0) {
+        // The one occurrence is in live prose, which means the fenced body shape has lost it. Prose
+        // describing the rule must never stand in for the body shape the generator copies.
+        bodyFail += `\n${ADAPTER_BODY_TEMPLATE}: the ${label} body shape's memory sentence appears ${proseCount} time(s) OUTSIDE a fenced body shape — the sentence belongs to the shape the generator copies, and a documentation line restating it can never substitute for it ("${form}")`;
+      }
+    }
+  }
+
   // Vacuity floor. The adapter half of the scan set is DERIVED, and deriving a set silently deletes
   // the fail-red branch a literal had: a body that disappears stops being a member instead of
   // becoming a finding. A run that scanned nothing is the anomaly, never "no bodies to check,
   // therefore fine".
-  if (scanned === 0) {
+  if (scanned + templateShapes === 0) {
     bodyFail += `\nthe adapter-body scan set derived nothing — refusing to report a verdict over zero bodies (${ADAPTER_DIR} + ${SKILL_DIR} + ${ADAPTER_BODY_TEMPLATE})`;
   }
   if (bodyFail === "") {
-    // Report WHAT WAS CHECKED, not a bare PASS: a line reading "1 adapter body" would then be
-    // visible as the anomaly it is instead of hiding behind the word PASS.
+    // Report WHAT WAS CHECKED on BOTH halves, not a bare PASS: a line reading "1 adapter body" or
+    // "0 template body shapes" is then visible as the anomaly it is instead of hiding behind PASS.
     pass(
-      `SPAWN-05: ${scanned} adapter body/bodies scanned (${ADAPTERS.length} derived adapters + the packaging template); none carries retired relay vocabulary and every one names the shared verified context as its memory`,
+      `SPAWN-05: ${scanned} adapter bodies + ${templateShapes} template body shapes checked; none carries retired relay vocabulary, every adapter body states a generated memory sentence exactly once, and each template body shape states its own exactly once inside its fence`,
     );
   } else {
     fail(`SPAWN-05 adapter-body violation:${bodyFail}`);
