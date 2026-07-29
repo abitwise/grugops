@@ -427,9 +427,25 @@ const collapseWhitespace = (s: string): string => s.replace(/\s+/g, " ");
 // runtime-enforced on the reduced path, and the sentence naming the availability of the spawn tool
 // as the signal that selects between them.
 //
-// Why these five and not fewer: a coordinator that drops a tier OVERSTATES its enforcement, which is
+// Why these beats and not fewer: a coordinator that drops a tier OVERSTATES its enforcement, which is
 // the spoofing threat this phase names (T-27-34). Claiming an enforcement you lack is worse than
 // having no announcement at all, because a user reading it cannot tell what is actually enforced.
+//
+// THE SIXTH BEAT — THE COMMAND NAME — AND WHY IT WAS ADDED LATE (plan 27-15, 27-REVIEW § WR-03).
+// The five beats above pin the tier LABELS and the two sentences around them. Plan 27-09 shipped its
+// announcement claiming "one vocabulary across two surfaces", and the labels did agree — so the claim
+// looked checked. The COMMAND NAME inside the reduced-tier line was never compared, and it said
+// `/grug`, which no install form ships: the standalone entry is `.claude/skills/grugops` (so
+// `/grugops`) and the plugin form namespaces with a colon (`/grugops:plan`). A capability-and-safety
+// announcement is the worst place for that, because a reader being told what a tier gets cannot map
+// it onto anything they can type. This beat closes the gap between what was PINNED and what was
+// CLAIMED, and it is deliberately a beat rather than prose: prose is what failed.
+//
+// NO OTHER GUARD IN THIS TREE CAN SEE THIS DIFFERENCE. guardVoice() runs neutralizePhrases() over
+// every clear-voice surface, and its first substitution rewrites `/grug` to the marker-free filler
+// `BRANDCMD` BEFORE any inspection happens — so the command token is invisible to the voice guard by
+// construction. guard_adapter_body's negative half only knows retired memory-relay vocabulary, and a
+// wrong command name is not in that vocabulary. Nothing else reads this sentence at all.
 //
 // These beats stay LOCAL to this guard rather than being exported. They have exactly one consumer,
 // and a shared module with one consumer is a second authority with nothing to justify it. (Contrast
@@ -441,7 +457,10 @@ const collapseWhitespace = (s: string): string => s.replace(/\s+/g, " ");
 // therefore nothing in a target repo for such an assertion to key on. Both mechanisms this guard
 // DOES assert — the enumerated grant and the tier announcement — hold on the sub-agent path and the
 // main-thread path alike, which is what makes the guard meaningful without a wiring artifact.
-const TIER_BEATS: readonly { label: string; needle: string }[] = [
+// `why` is the consequence clause appended to a missing beat's finding. It is OPTIONAL and defaults
+// to the drops-a-tier wording the five original beats have always carried, so their messages stay
+// byte-identical; only a beat whose consequence is genuinely different states its own.
+const TIER_BEATS: readonly { label: string; needle: string; why?: string }[] = [
   { label: "Full tier label", needle: "- **Full** —" },
   { label: "Reduced tier label", needle: "- **Reduced** —" },
   { label: "Degraded tier label", needle: "- **Degraded** —" },
@@ -454,7 +473,14 @@ const TIER_BEATS: readonly { label: string; needle: string }[] = [
     needle:
       "Pick it by whether the `Agent` tool is available to you — capability-sensing",
   },
+  {
+    label: "reduced-tier command name",
+    needle: "a default main thread, what `/grugops` gets",
+    why: "the coordinator body names a command the kit does not ship, so a reader told what this tier gets cannot map it onto anything they can type — the announcement becomes unactionable in the one place it must not be",
+  },
 ];
+const BEAT_DEFAULT_WHY =
+  "a coordinator that drops a tier overstates its enforcement";
 
 function guardWr05(): void {
   process.stdout.write(
@@ -531,7 +557,7 @@ function guardWr05(): void {
     );
     for (const beat of TIER_BEATS) {
       if (!coordinatorBody.includes(beat.needle)) {
-        wr05Fail += `\n${coordinators[0]}: coordinator body is missing the tier-announcement beat "${beat.label}" (expected the wording \`${beat.needle}\`) — a coordinator that drops a tier overstates its enforcement`;
+        wr05Fail += `\n${coordinators[0]}: coordinator body is missing the tier-announcement beat "${beat.label}" (expected the wording \`${beat.needle}\`) — ${beat.why ?? BEAT_DEFAULT_WHY}`;
       }
     }
   }

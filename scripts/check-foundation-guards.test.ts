@@ -677,6 +677,46 @@ describe("check-foundation-guards.js (SDLC-02 / SC2 fail-proof harness)", () => 
     });
   }
 
+  // ── The SIXTH beat: the reduced-tier COMMAND NAME (plan 27-15, 27-REVIEW § WR-03). ────────────
+  //
+  // The five cases above are REMOVAL cases; this beat needs REPLACEMENT cases, because the failure it
+  // exists to catch is not a dropped line but a line naming the WRONG command. Two directions, both
+  // required:
+  //   • the STALE value (`/grug`) — the exact string that shipped in plan 27-09 and survived a guard
+  //     whose PASS line already claimed one vocabulary across the surfaces;
+  //   • an ARBITRARY other value — without this, the beat could be satisfied by any needle that
+  //     merely excludes the stale token, and it would go green on the next wrong name instead of on
+  //     the right one. The beat must be pinned TO the shipped command, not AGAINST one typo.
+  //
+  // No other guard in the tree sees this: guardVoice()'s neutralizePhrases() rewrites `/grug` to
+  // `BRANDCMD` before it inspects anything, so the token is invisible there by construction.
+  const wrongCommandCases: readonly { what: string; replacement: string }[] = [
+    { what: "the stale `/grug`", replacement: "`/grug`" },
+    { what: "an arbitrary other command", replacement: "`/factory`" },
+  ];
+  for (const wrong of wrongCommandCases) {
+    it(`guard_wr05 coordinator body names ${wrong.what} instead of the shipped command name → nonzero + names the beat`, () => {
+      const m = mirror();
+      const file = adapterPath(m, COORDINATOR);
+      const before = readFileSync(file, "utf8");
+      // Guard the fixture itself: if the shipped body ever stops carrying the token, this case would
+      // silently become a no-op plant that fails for an unrelated reason.
+      expect(before).toContain("`/grugops`");
+      writeFileSync(
+        file,
+        before.replace(/`\/grugops`/g, wrong.replacement),
+      );
+      const r = runIn(m);
+      expect(r.status).not.toBe(0);
+      const o = out(r);
+      expect(o).toContain(
+        'missing the tier-announcement beat "reduced-tier command name"',
+      );
+      expect(o).toContain("grugops-orchestrator.md");
+      expect(o).toContain("names a command the kit does not ship");
+    });
+  }
+
   // SPAWN-04 across the FULL derived scan set. The pre-27-03 guard hand-listed four files, so a rogue
   // grant on any of the seventeen agent adapters or seven skills was unreachable. These two plant a
   // grant on a real non-coordinator ADAPTER — one per grant syntax — which is the surface SPAWN-04 is
@@ -733,7 +773,8 @@ describe("check-foundation-guards.js (SDLC-02 / SC2 fail-proof harness)", () => 
     const r = spawnSync("node", [GUARD_JS], { encoding: "utf8" });
     const o = out(r);
     expect(o).toContain("23 non-coordinator adapter bodies");
-    expect(o).toContain("all 5 tier-announcement beats");
+    // 6 since plan 27-15 added the reduced-tier command-name beat (was 5).
+    expect(o).toContain("all 6 tier-announcement beats");
   });
 
   // ── guard_adapter_body (Phase 27 / SPAWN-05, D-23) — BOTH directions, plus the two cases that
