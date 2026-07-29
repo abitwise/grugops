@@ -1187,6 +1187,13 @@ function seedState() {
 //
 // RUNNABLES: each entry is [source-relative-to-GRUGOPS_SRC, dest-relative-to-TARGET]. The
 // reference routine is the only kit-shipped runnable today; Phase 16's checker appends here.
+//
+// REVERSAL COUNTERPART (WR-04, plan 27-13): this mapping is MIRRORED by RUNNABLES_MIRROR in
+// install/uninstall.ts, in the "removing grugops runnables" pass. Every file this loop writes into
+// the user's repository has a removal counterpart there, guarded by the isProtected denylist and by
+// a byte-identical-to-source check so a user-edited helper is preserved. An entry ADDED here without
+// being added there is installed and never removable, which is exactly the reversibility gap that
+// pass exists to close — edit the two together.
 const RUNNABLES = [
     ["scripts/runnable-ref/reference-check.js", "tools/grugops/reference-check.js"],
     ["scripts/runnable-ref/test-skip-integrity.js", "tools/grugops/test-skip-integrity.js"],

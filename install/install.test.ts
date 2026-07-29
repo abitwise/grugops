@@ -1513,6 +1513,129 @@ describe("install.js / uninstall.js — single-installer contract (folds install
     expect(authority.filter((m) => !m.includes("/"))).toEqual(installedAdapters(target));
   });
 
+  // ── WR-04 (Plan 27-13) — `runnable removal`: every installed file has a removal counterpart ───
+  //
+  // install.ts's materializeRunnable() writes tools/grugops/*.js into the user's repository.
+  // uninstall.ts never mentioned tools/ at all, so those files were installed and never removed —
+  // a reversibility gap against the CLAUDE.md installer constraint. These cases pin the three
+  // states of the guarded removal pass that closes it.
+
+  const RUNNABLE_RELS = ["tools/grugops/reference-check.js", "tools/grugops/test-skip-integrity.js"];
+
+  it("runnable removal: a scratch install followed by a scratch uninstall leaves no runnable behind", () => {
+    const target = makeFixture();
+    const home = mkTmp();
+    expect(runInstall(target, home).status).toBe(0);
+    // Precondition: the install really did materialize them (else the uninstall proves nothing).
+    for (const rel of RUNNABLE_RELS) expect(existsSync(join(target, rel))).toBe(true);
+
+    const r = runUninstall(target, home);
+    expect(r.status).toBe(0);
+    for (const rel of RUNNABLE_RELS) {
+      expect(existsSync(join(target, rel))).toBe(false);
+      expect(r.stdout).toContain(`${rel} (grugops runnable, byte-identical to source)`);
+    }
+    // Asserted by LISTING the destination directory, not only by per-file existence: the directory
+    // is gone because it is empty, and tools/ itself (the user's directory) is left alone.
+    expect(existsSync(join(target, "tools", "grugops"))).toBe(false);
+    // tools/ itself survives — grugops owns tools/grugops/, not the generic tools/ directory — and
+    // the run SAYS SO rather than leaving the one un-reversed artifact to be discovered later.
+    expect(readdirSync(join(target, "tools"))).toEqual([]);
+    expect(r.stdout).toContain("tools/ (grugops owns tools/grugops/ only");
+  });
+
+  it("runnable removal: a user-modified runnable is PRESERVED and the skip is reported with its reason", () => {
+    const target = makeFixture();
+    const home = mkTmp();
+    expect(runInstall(target, home).status).toBe(0);
+
+    // Edit one helper after install; leave the other untouched as the in-case control.
+    const edited = join(target, RUNNABLE_RELS[0]);
+    const editedBody = "// USER-EDITED RUNNABLE — an uninstall must never destroy this.\n";
+    writeFileSync(edited, editedBody);
+
+    const r = runUninstall(target, home);
+    expect(r.status).toBe(0);
+    // Preserved with UNCHANGED bytes, and the skip names the file and says why.
+    expect(existsSync(edited)).toBe(true);
+    expect(readFileSync(edited, "utf8")).toBe(editedBody);
+    expect(r.stdout).toContain(`${RUNNABLE_RELS[0]} (user-modified — left untouched`);
+    // The untouched one is still removed, so the guard is per-file and not a blanket bail-out.
+    expect(existsSync(join(target, RUNNABLE_RELS[1]))).toBe(false);
+    // The directory survives because it still holds the user's file (rmdirIfEmpty never forces).
+    expect(existsSync(join(target, "tools", "grugops"))).toBe(true);
+  });
+
+  it("runnable removal: no protected path is reachable — identical copies under every denylisted dir survive", () => {
+    const target = makeFixture();
+    const home = mkTmp();
+    expect(runInstall(target, home).status).toBe(0);
+
+    // Byte-identical decoys of the real runnable planted in every isProtected() directory. If the
+    // pass ever discovered its work by scanning the target instead of mirroring the installer's
+    // fixed mapping, or if the denylist stopped gating it, these are what would be destroyed.
+    const sourceBytes = readFileSync(join(REPO_ROOT, "scripts", "runnable-ref", "reference-check.js"));
+    const decoys = ["agent-factory", "plans", ".planning", ".grugops", "docs", "src"].map((d) => {
+      const p = join(target, d, "reference-check.js");
+      mkdirSync(join(target, d), { recursive: true });
+      writeFileSync(p, sourceBytes);
+      return p;
+    });
+
+    const r = runUninstall(target, home);
+    expect(r.status).toBe(0);
+
+    // Every decoy survives BYTE-IDENTICAL; only the mapped destination is removed.
+    for (const p of decoys) {
+      expect(existsSync(p)).toBe(true);
+      expect(readFileSync(p)).toEqual(sourceBytes);
+    }
+    for (const rel of RUNNABLE_RELS) expect(existsSync(join(target, rel))).toBe(false);
+    // The pre-existing frozen-core and user-data guarantees still hold alongside the new pass.
+    expect(readFileSync(join(target, "agent-factory", "roles", "orchestrator.md"), "utf8")).toContain("FROZEN CORE");
+    expect(readFileSync(join(target, "plans", "board.md"), "utf8")).toBe("user board\n");
+  });
+
+  it("runnable removal: an unreadable SOURCE is a verify finding, and the run does not claim completion", () => {
+    const src = makeSyntheticSrc();
+    const target = mkTmp();
+    const home = mkTmp();
+    writeFileSync(join(target, "CLAUDE.md"), "# User Project\n");
+    expect(runInstallFrom(src, target, home).status).toBe(0);
+
+    // The synthetic source ships no runnables, so materializeRunnable() skipped them on install.
+    // Plant one at the destination anyway — the shape of a repo installed from a complete kit and
+    // then uninstalled against an incomplete one. Byte identity cannot be established, so the file
+    // must be LEFT and the human told, never removed on a guess.
+    mkdirSync(join(target, "tools", "grugops"), { recursive: true });
+    const planted = join(target, RUNNABLE_RELS[0]);
+    writeFileSync(planted, "// installed earlier from a complete kit\n");
+
+    const r = runUninstallFrom(src, target, home);
+    expect(r.status).toBe(0);
+    expect(existsSync(planted)).toBe(true);
+    expect(r.stdout).toContain("cannot read the source it was installed from");
+    expect(r.stdout).toContain(RUNNABLE_RELS[0]);
+    expect(r.stdout).not.toContain("== uninstall complete");
+    expect(r.stdout).toContain("uninstall INCOMPLETE");
+  });
+
+  it("runnable removal: DRY_RUN narrates the removal and deletes nothing", () => {
+    const target = makeFixture();
+    const home = mkTmp();
+    expect(runInstall(target, home).status).toBe(0);
+    const before = snapshot(target);
+
+    const r = spawnSync("node", [UNINSTALL_JS], {
+      encoding: "utf8",
+      env: { ...process.env, INSTALL_MODE: "copy", GRUGOPS_SRC: REPO_ROOT, GRUGOPS_HOME: home, TARGET: target, DRY_RUN: "1" },
+    });
+    expect(r.status).toBe(0);
+    expect(r.stdout ?? "").toContain("would-remove");
+    expect(r.stdout ?? "").toContain(`${RUNNABLE_RELS[0]} (grugops runnable, byte-identical to source)`);
+    expect(snapshot(target)).toBe(before);
+  });
+
   it("source derivation: an UNREADABLE source skill directory is reported and no completion is claimed", () => {
     const src = makeSyntheticSrc();
     const target = mkTmp();

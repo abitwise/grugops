@@ -79,6 +79,17 @@ const COPILOT_REL = ".github/copilot-instructions.md";
 const COPILOT_OPEN = "<!-- GSD:grugops-copilot-start-here -->";
 const COPILOT_CLOSE = "<!-- GSD:grugops-copilot-start-here-end -->";
 const report = (label, msg) => console.log(`  ${label.padEnd(14)} ${msg}`);
+// verify (27-13): a `verify`-status finding — something the run could NOT do and the human must
+// resolve. Byte-identical in shape to install.ts's verify(), and it COUNTS the findings for the
+// same reason: neither half may claim success over a no-op it did not perform. The uninstaller
+// already reported an unreadable source directory; what it also did was print
+// "== uninstall complete ==" immediately afterwards, which is the same repudiation failure the
+// installer had, wearing the other hat.
+let VERIFY_FINDINGS = 0;
+const verify = (msg) => {
+    VERIFY_FINDINGS += 1;
+    report("verify", msg);
+};
 // ---------------------------------------------------------------------------
 // Kit-set derivation (KIT-02 / T-27-06) — the mirror of install.ts's srcSkillNames() /
 // srcAdapterFiles(). The hand-listed SKILLS array and the single AGENT_REL constant that used to
@@ -471,7 +482,7 @@ console.log("\n-- removing grugops adapters (only what install.js added) --");
 // 1. Skills + empty dirs. Derived from the kit source, intersected with the target: a skill the
 //    kit ships but the target never had is reported and skipped, never "removed".
 if (SRC_SKILLS === null) {
-    report("verify", `.claude/skills/ — cannot read ${join(GRUGOPS_SRC, ".claude", "skills")}, so the removal set is unknown. ` +
+    verify(`.claude/skills/ — cannot read ${join(GRUGOPS_SRC, ".claude", "skills")}, so the removal set is unknown. ` +
         `No skill was removed. Remove any leftover grugops skill directories by hand.`);
 }
 else {
@@ -491,7 +502,7 @@ else {
 //    survives. The directory itself is only rmdir'd when it is empty, so a surviving user file also
 //    keeps the directory.
 if (SRC_ADAPTERS === null) {
-    report("verify", `.claude/agents/ — cannot read ${join(GRUGOPS_SRC, ".claude", "agents")}, so the removal set is unknown. ` +
+    verify(`.claude/agents/ — cannot read ${join(GRUGOPS_SRC, ".claude", "agents")}, so the removal set is unknown. ` +
         `No adapter was removed. Remove any leftover grugops adapters by hand.`);
 }
 else {
@@ -555,7 +566,65 @@ rmdirIfEmpty(`${TARGET}/.gemini`);
 removeSentinelBlock(`${TARGET}/${COPILOT_REL}`, COPILOT_OPEN, COPILOT_CLOSE, `${COPILOT_REL} pointer`);
 removeIfEmpty(`${TARGET}/${COPILOT_REL}`, COPILOT_REL);
 rmdirIfEmpty(`${TARGET}/.github`);
-// 7. The grugops-owned install marker (D-06). Removes ONLY .grugops/install.json via the narrow
+// 7. The kit-shipped RUNNABLES the installer materializes into the user's repository (WR-04,
+//    plan 27-13). This pass is the missing half of the installer's reversibility constraint: before
+//    it, install.ts's materializeRunnable() wrote tools/grugops/*.js into the user's repo and this
+//    file never mentioned tools/ at all, so those files were installed and never removed.
+//
+//    THE MAPPING IS MIRRORED FROM THE INSTALLER, NOT RE-DERIVED FROM THE TARGET. Listing whatever
+//    happens to be in the target's tools/grugops/ and deleting it would delete the user's own files
+//    — the same data-loss shape the adapter pass avoids by deriving from the kit source. This is a
+//    source→dest MAPPING (not a discovery set), so a literal is the right shape for it; it is kept
+//    byte-identical to install.ts's RUNNABLES, and each file points at the other in a comment.
+//
+//    GUARDED TWICE, because these files land OUTSIDE the directories this uninstaller normally
+//    owns:
+//      1. every candidate goes through removeFile(), which checks the isProtected denylist BEFORE
+//         touching anything, so no frozen-core or user-data path is reachable from this pass; and
+//      2. a file is removed ONLY when its bytes are identical to the source it was installed from.
+//         A user-edited helper is PRESERVED and the skip is reported with its reason — the exact
+//         mirror of the installer's own never-overwrite rule for the same file (T-27-60).
+//    An unreadable/missing SOURCE is a verify finding, not a silent skip: without the source we
+//    cannot establish byte identity, so we cannot safely remove, and the human must be told.
+const RUNNABLES_MIRROR = [
+    ["scripts/runnable-ref/reference-check.js", "tools/grugops/reference-check.js"],
+    ["scripts/runnable-ref/test-skip-integrity.js", "tools/grugops/test-skip-integrity.js"],
+];
+console.log("\n-- removing grugops runnables (only what install.js materialized) --");
+for (const [srcRel, destRel] of RUNNABLES_MIRROR) {
+    const src = `${GRUGOPS_SRC}/${srcRel}`;
+    const dest = `${TARGET}/${destRel}`;
+    if (isProtected(dest)) {
+        report("refused", `${destRel} (protected path — never removed)`);
+        continue;
+    }
+    if (!pathExists(dest)) {
+        report("skipped", `${destRel} (not present)`);
+        continue;
+    }
+    if (!isFile(src)) {
+        verify(`${destRel} — cannot read the source it was installed from (${src}), so byte identity cannot ` +
+            `be established and the file was NOT removed. Remove it by hand once you have confirmed it ` +
+            `is unmodified.`);
+        continue;
+    }
+    if (!sameFileBytes(src, dest)) {
+        report("skipped", `${destRel} (user-modified — left untouched, never-delete-user-content)`);
+        continue;
+    }
+    removeFile(dest, `${destRel} (grugops runnable, byte-identical to source)`);
+}
+// Only the CONTAINING directory, and only when empty — never a recursive removal.
+rmdirIfEmpty(`${TARGET}/tools/grugops`);
+// tools/ itself is deliberately NOT removed, even when the pass above just left it empty. grugops
+// owns tools/grugops/; it does not own tools/, which is an ordinary directory name a project is very
+// likely to own itself, and mkdirp created it only as a side effect of creating the namespaced
+// child. Deleting it would be deleting a directory that is not ours. It is REPORTED as left rather
+// than passing silently, so the one artifact this pass cannot reverse is visible to the reader.
+if (isDir(`${TARGET}/tools`)) {
+    report("left", "tools/ (grugops owns tools/grugops/ only — the directory itself is left in place)");
+}
+// 8. The grugops-owned install marker (D-06). Removes ONLY .grugops/install.json via the narrow
 //    named exception; the rest of .grugops/ (seeded user state) is protected and survives. The
 //    .grugops/ dir is intentionally NOT rmdir'd — the seeded factory.config.json keeps it
 //    populated, and even an empty .grugops/ is the user's state dir, not grugops' to remove.
@@ -564,4 +633,14 @@ removeMarker();
 console.log("\n-- preserved (never touched) --");
 console.log("  agent-factory/  plans/  .planning/  docs/  src/  .grugops/ (seeded state; only the");
 console.log("  install.json marker is removed)  the shared kit at $GRUGOPS_HOME  and every user file.");
-console.log(`\n== uninstall complete${DRY_RUN ? " (DRY_RUN — nothing changed)" : ""} ==`);
+// THE CLOSING CLAIM IS CONDITIONAL (27-13) — the same rule as install.ts's banner. A run that could
+// not read a source directory has skipped a whole removal class; saying "complete" over that is a
+// claim it did not earn. The `verify` lines above name what was left behind and what to do about it.
+if (VERIFY_FINDINGS > 0) {
+    console.log(`\n== uninstall INCOMPLETE — ${VERIFY_FINDINGS} item(s) need verification` +
+        `${DRY_RUN ? " (DRY_RUN — nothing changed)" : ""} ==`);
+    console.log("  Each `verify` line above names what was NOT removed and the remedy for it.");
+}
+else {
+    console.log(`\n== uninstall complete${DRY_RUN ? " (DRY_RUN — nothing changed)" : ""} ==`);
+}
