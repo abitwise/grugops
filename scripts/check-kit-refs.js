@@ -34,11 +34,14 @@
 //   node scripts/check-kit-refs.js
 // Exit 0 = all checks PASS; exit 1 = at least one FAIL.
 import { readFileSync, existsSync, readdirSync, statSync } from "node:fs";
-import { basename, join } from "node:path";
+import { join } from "node:path";
 // Phase 27 (SPAWN-05 / D-24): the retired-vocabulary literals are single-source. This gate takes the
 // PATH form; guard_adapter_body in check-foundation-guards.ts takes the PROSE forms. Two different
 // predicates over two different inputs, one list.
 import { RETIRED_PATH_FORMS } from "./dead-vocabulary.js";
+// Phase 27 (KIT-02 / plan 27-11): the adapter set is derived ONCE, in scripts/kit-model.ts. This
+// gate used to carry its own recursive copy of the rule; the copy is deleted, not kept in sync.
+import { listAgentAdapters, listSkillAdapters } from "./kit-model.js";
 // The .sh assumed cwd == repo root. The TS port resolves every path against the script-relative
 // repo root, honoring a CHECK_ROOT override for hermetic harness runs.
 const ROOT = process.env.CHECK_ROOT
@@ -96,8 +99,11 @@ const RESOLVER_SLOT = "# 1. (installed) the absolute kit path the installer wrot
 // single named file, not a set, so it stays a literal.
 const PACKAGING_TEMPLATE = "agent-factory/packaging/subagent.frontmatter.md";
 // The two adapter directories the installer materializes into a target repo. Both the derived
-// marker-site set and the derived Assertion-3 legal set read from these.
-const ADAPTER_DIRS = [".claude/agents", ".claude/skills"];
+// marker-site set and the derived Assertion-3 legal set read from these. They are the fixed
+// subpaths the adapter authority returns paths RELATIVE TO, re-prefixed at the call site below.
+const AGENT_ADAPTER_DIR = ".claude/agents";
+const SKILL_ADAPTER_DIR = ".claude/skills";
+const ADAPTER_DIRS = [AGENT_ADAPTER_DIR, SKILL_ADAPTER_DIR];
 // The two SINGLE DOCUMENTS carrying the compressed kit-vs-state invariant. Each is one specific
 // file rather than a set, so each stays a literal: the root substrate document, and the one role
 // file that carries the blockquote.
@@ -162,7 +168,14 @@ function readText(rel) {
 }
 // ---------------------------------------------------------------------------
 // Derived adapter set (Phase 27 / KIT-02, D-27). Every `.md` under .claude/agents plus every
-// SKILL.md under .claude/skills. Declared HERE, below the helpers, because it calls walk().
+// SKILL.md under .claude/skills — taken from scripts/kit-model.ts, the ONE answer in this tree to
+// "what is an adapter".
+//
+// This file's own derivation (plan 27-11) is DELETED rather than kept beside the authority. It was
+// the derivation that was already RECURSIVE and already correct, so nothing observable changes
+// here; what changes is that there is no longer a second implementation of the rule for the first
+// one to drift away from. The authority is called with the root THIS gate already resolved, so a
+// CHECK_ROOT mirror is judged as a whole.
 //
 // D-06/D-08 put the compressed kit-vs-state invariant blockquote in EVERY adapter, so the former
 // four-entry hand-maintained MARKER_SITES list would have gone stale by fifteen the moment plan
@@ -178,19 +191,29 @@ function readText(rel) {
 // the Assertion-3 equality below — where, carrying no resolver slot, it could only ever appear on
 // the illegal side.
 // ---------------------------------------------------------------------------
-function derivedAdapterFiles() {
-    const files = [];
-    for (const rel of walk(".claude/agents", [])) {
-        if (rel.endsWith(".md"))
-            files.push(rel);
+// The authority returns paths relative to each adapter directory; this gate's marker-site set and
+// every message it prints are repo-relative, so the fixed subpath is prefixed back on HERE rather
+// than the authority's pinned return shape being changed for one consumer. join() (not a `/`
+// template) keeps these byte-identical to the paths walk() produces on Windows as well as Unix —
+// Assertion 3 compares the two sets directly, so a separator mismatch would break it silently.
+//
+// The authority THROWS on an unreadable or empty directory instead of returning []. The thrown
+// message is RECORDED, not swallowed and not allowed to abort the process: one unreadable adapter
+// directory must not skip Assertions 1-3, which read a different scan set entirely.
+const derivationErrors = [];
+const derive = (list, subpath) => {
+    try {
+        return list(ROOT).map((rel) => join(subpath, rel));
     }
-    for (const rel of walk(".claude/skills", [])) {
-        if (basename(rel) === "SKILL.md")
-            files.push(rel);
+    catch (e) {
+        derivationErrors.push(e instanceof Error ? e.message : String(e));
+        return [];
     }
-    return files.sort();
-}
-const ADAPTER_FILES = derivedAdapterFiles();
+};
+const ADAPTER_FILES = [
+    ...derive(listAgentAdapters, AGENT_ADAPTER_DIR),
+    ...derive(listSkillAdapters, SKILL_ADAPTER_DIR),
+].sort();
 // Every site that must carry the invariant blockquote: the two named documents plus every adapter.
 const MARKER_SITES = [...MARKER_NAMED_SITES, ...ADAPTER_FILES];
 process.stdout.write("== Phase 7 kit-ref gate (SHOME-03 / SC5) ==\n");
@@ -202,7 +225,14 @@ process.stdout.write("== Phase 7 kit-ref gate (SHOME-03 / SC5) ==\n");
 // the role corpus; this gate only refuses the vacuous case, which is all it can honestly assert
 // against an arbitrary CHECK_ROOT mirror.
 // ---------------------------------------------------------------------------
+//
+// A derivation that THREW is its own finding, reported whether or not the surviving set is empty:
+// if one adapter directory is unreadable and the other is populated, the vacuity floor below passes
+// and the failure would otherwise be silent.
 process.stdout.write(`\n[derivation] adapter set derived from ${ADAPTER_DIRS.join(" + ")}\n`);
+for (const message of derivationErrors) {
+    fail(`adapter derivation failed — ${message}`);
+}
 if (ADAPTER_FILES.length === 0) {
     fail(`no adapter files found under ${ADAPTER_DIRS.join(" or ")} — refusing to check a vacuous set (every derived assertion below would pass over nothing)`);
 }

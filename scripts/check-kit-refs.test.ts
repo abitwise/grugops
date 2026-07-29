@@ -239,6 +239,23 @@ describe("check-kit-refs derived sets — D-19 per-consumer assertions (KIT-02, 
     expect(r.stdout).toContain("no adapter files found");
   });
 
+  it("derivation failure: ONE unreadable adapter directory fails red naming it, even though the other still populates the set", () => {
+    // (Phase 27 / plan 27-11) The vacuity floor above only catches the case where BOTH directories
+    // are gone. With the agent directory removed and the skills directory intact, the derived set is
+    // still 7 files, the floor passes, and every derived assertion below runs over a set that lost
+    // seventeen members — silently, under the pre-27-11 derivation, which returned [] on an
+    // unreadable directory. The shared authority THROWS instead, and that throw is now its own
+    // finding rather than being swallowed.
+    const mirror = makeMirror("ckr-derivation-partial-");
+    rmSync(join(mirror, ".claude", "agents"), { recursive: true, force: true });
+    const r = runGate(mirror);
+    expect(r.status).toBe(1);
+    expect(r.stdout).toContain("adapter derivation failed");
+    expect(r.stdout).toContain(join(".claude", "agents"));
+    // The surviving half still derives, proving this is not merely the vacuity floor re-firing.
+    expect(r.stdout).not.toContain("no adapter files found");
+  });
+
   // ── Assertion 3: the derived legal set keyed on the resolver slot (D-07) ────────────────────
   it("Assertion 3 RED: a hand-written adapter naming the kit-root env var without a resolver slot fails red", () => {
     const mirror = makeMirror("ckr-gh-red-");

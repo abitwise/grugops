@@ -55,7 +55,7 @@ jobs:
       - name: Vitest (e2e lane excluded)
         run: npx vitest run --exclude '**/scripts/e2e/**'
 
-      # ubuntu-only: the three freshness gates + the foundation-guard aggregator. Scoped to one OS to
+      # ubuntu-only: the four freshness gates + the foundation-guard aggregator. Scoped to one OS to
       # avoid path-separator drift in the freshness diffs; Windows stays scoped to the atomicity proof.
       - name: Freshness gates + foundation guards (ubuntu only)
         if: matrix.os == 'ubuntu-latest'
@@ -63,4 +63,8 @@ jobs:
           npm run freshness
           npm run freshness:catalog
           npm run freshness:context
+          # SPAWN-02 — the gate that makes a hand-edited .claude/agents adapter unrepresentable.
+          # It existed and passed for a whole phase while being invoked by nothing, so a committed
+          # hand-edit to an adapter cleared every gate in the repository (27-REVIEW CR-01/CR-02).
+          npm run freshness:adapters
           node scripts/check-foundation-guards.js
