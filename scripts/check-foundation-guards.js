@@ -135,6 +135,13 @@ import { listRoles, listWorkflows, listAgentAdapters, listSkillAdapters, ROLE_CO
 // below takes the PROSE forms; check-kit-refs Assertion 2 takes the PATH form. Two genuinely
 // different predicates over different inputs — one list, never two.
 import { RETIRED_PROSE_FORMS } from "./dead-vocabulary.js";
+// Phase 27 (SPAWN-04 / KIT-03, plan 27-12): the ONE authority for "what does this file's frontmatter
+// say". The spawn-grant guard below and the KIT-03 oracle at the foot of this file both read the
+// grant, and the coordinator marker, from a RECONSTRUCTED frontmatter value rather than from a
+// line-anchored regular expression — the two expressions they used to share could not see a folded
+// scalar, and that bypass was reproduced on a role adapter and on a skill file (27-REVIEW § CR-02).
+// stripFencedBlocks travels with it so the tree keeps exactly one fence implementation.
+import { stripFencedBlocks, } from "./frontmatter.js";
 // The .sh hard-coded repo-relative paths and assumed cwd == repo root. The TS port resolves
 // every path against the script-relative repo root, but ALSO honors a CHECK_ROOT override so the
 // Vitest harness can point the guard at a hermetic mirror dir (mirrors how the .test.sh harness
@@ -302,34 +309,11 @@ const PACKAGING_TEMPLATES = readPackagingDir(PACKAGING_DIR)
     .sort()
     .map((f) => `${PACKAGING_DIR}/${f}`);
 const SPAWN_GRANT_SCAN = [...ADAPTERS, ...PACKAGING_TEMPLATES];
-// Strip every line that sits INSIDE a ```-delimited code fence, returning only the lines OUTSIDE
-// any fence. This is a GENERAL fence operation (distinct from stripCavemanBlock, which is scoped to
-// the single `## Caveman prompt` section); it shares the SAME line-state toggle pattern (D-10: the
-// fence anchor is not re-engineered). Packaging templates legitimately SHOW frontmatter inside
-// ``` fences (e.g. a coordinator example carrying `coordinator: true` + `Agent(...)`); the WR-05
-// guard must read those illustrative lines as documentation, never as a live marker/grant.
-//
-// Toggle: every line matching /^```/ flips the inside/outside state, then is itself dropped. Lines
-// while inside are dropped; lines while outside are kept. FAIL-SAFE on an unterminated fence (the
-// state is still "inside" at EOF): the tail was opened but never closed, so it is treated as
-// inside-fence and never exposed — a malformed doc can never leak an unguarded live grant past the
-// strip. (CR-01: a fenced documentation example must not be mis-read as a second live coordinator.)
-function stripFencedBlocks(text) {
-    const out = [];
-    let inside = false;
-    for (const line of text.split("\n")) {
-        if (/^```/.test(line)) {
-            inside = !inside;
-            continue; // the fence delimiter line is never emitted
-        }
-        if (inside)
-            continue; // lines inside a fence are dropped (documentation, not live frontmatter)
-        out.push(line);
-    }
-    // An unterminated fence leaves `inside` set at EOF. The tail was inside an opened-but-unclosed
-    // fence and was already dropped above — fail-safe: we never emit it. Nothing more to do.
-    return out.join("\n");
-}
+// (Plan 27-12) stripFencedBlocks MOVED to scripts/frontmatter.ts and is imported at the top of this
+// file. The tree still has exactly ONE implementation of "which lines are inside a ``` block"; it
+// simply lives beside the frontmatter parser that also needs a fence-safe input, rather than being
+// duplicated there. Behavior is unchanged, including its fail-safe treatment of an unterminated
+// fence, so every prose check below reads the same body it read before.
 // Collapse every run of whitespace — including newlines — to a single space. Applied AFTER
 // stripFencedBlocks() so the prose checks below read a body the way a human reads it, not the way
 // an author happened to hard-wrap it. This is a normalization, NOT a second parser: the fence
