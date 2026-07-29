@@ -5,15 +5,15 @@ milestone_name: Autonomous Factory — Real Spawning, Controlled Language & Live
 current_phase: 27
 current_phase_name: spawn-correctness-kit-set-authority
 status: executing
-stopped_at: Completed 27-12-PLAN.md
-last_updated: "2026-07-29T08:31:45.122Z"
+stopped_at: Completed 27-13-PLAN.md
+last_updated: "2026-07-29T09:30:04.400Z"
 last_activity: 2026-07-29
 last_activity_desc: 27-11 complete (adapter freshness gate wired into CI + a five-case test file; nested-orphan bypass closed)
 progress:
   total_phases: 7
   completed_phases: 0
   total_plans: 17
-  completed_plans: 12
+  completed_plans: 13
   percent: 0
 ---
 
@@ -29,7 +29,7 @@ See: .planning/PROJECT.md (updated 2026-07-28 — after v2.0 milestone)
 ## Current Position
 
 Phase: 27 (spawn-correctness-kit-set-authority) — EXECUTING
-Plan: 13 of 17
+Plan: 14 of 17
 Status: Ready to execute
 Last activity: 2026-07-29 — 27-11 complete (adapter freshness gate wired into CI + a five-case test file; nested-orphan bypass closed)
 
@@ -206,6 +206,7 @@ Last activity: 2026-07-29 — 27-11 complete (adapter freshness gate wired into 
 | Phase 27 P10 | 25m | 3 tasks | 6 files |
 | Phase 27 P11 | 15m | 3 tasks | 7 files |
 | Phase 27 P12 | 20m | 3 tasks | 6 files |
+| Phase 27 P13 | 55m | 3 tasks | 8 files |
 
 ## Accumulated Context
 
@@ -492,6 +493,9 @@ Recent decisions affecting current work:
 - [Phase ?]: A frontmatter parse failure is a discriminated arm and its own guard finding — it can never read as an absence of a grant
 - [Phase ?]: Duplicate frontmatter keys: neither wins; every occurrence is retained and the grant predicate tests all of them, because discarding one is a bypass
 - [Phase ?]: The spawn grant is a FRONTMATTER fact — scoped to the tools keys; a token in a description or in body prose is documentation, not a grant
+- [Phase ?]: Installer and uninstaller now hold ONE fail-loud contract: null on an unreadable source directory, [] on an empty one, and each reported distinctly — a completion banner is withheld over any verify finding
+- [Phase ?]: The installer's deliberate second adapter derivation (D-18 locked) is bought back by a conformance assertion against kit-model — set equality AND integer cardinality — never by an import
+- [Phase ?]: tools/ is left in place and reported as left: grugops owns tools/grugops/, not the generic directory name a project likely owns
 
 ### Pending Todos
 
@@ -590,8 +594,8 @@ Shape of the carry: **9 of 11 are pre-v2.0 carryover** from the v1.2 block above
 
 ## Session Continuity
 
-Last session: 2026-07-29T08:31:37.686Z
-Stopped at: Completed 27-12-PLAN.md
+Last session: 2026-07-29T09:29:57.167Z
+Stopped at: Completed 27-13-PLAN.md
 Resume file: None
 
 ## Operator Next Steps
