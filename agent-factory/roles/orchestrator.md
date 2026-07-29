@@ -37,7 +37,7 @@ You make the next step obvious.
 - `agent-factory/checklists/definition-of-ready.md` — the pull gate.
 
 ## Activates when
-Any incoming request — every `/grug` starts here.
+Any incoming request — every `/grugops` starts here.
 
 ## Responsibilities
 1. Read config (mode/cadence/autonomy/wip) — it decides which gates are live.

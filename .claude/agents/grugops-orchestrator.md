@@ -1,6 +1,6 @@
 ---
 name: grugops-orchestrator
-description: "Decompose each request into subtasks, route each to the right role agent within hard limits, and schedule them over the shared queue — config/board first, scope small, WIP/width enforced. Use when: Any incoming request — every `/grug` starts here."
+description: "Decompose each request into subtasks, route each to the right role agent within hard limits, and schedule them over the shared queue — config/board first, scope small, WIP/width enforced. Use when: Any incoming request — every `/grugops` starts here."
 coordinator: true
 tools: Agent(grugops-agents-md-scribe, grugops-architect-design, grugops-ba-pm, grugops-brownfield-mapper, grugops-compliance-officer, grugops-factory-coach, grugops-frontend-ui, grugops-greenfield-mapper, grugops-incident-responder, grugops-installer, grugops-qe-e2e, grugops-release-manager, grugops-security-nfr, grugops-software-engineer, grugops-system-analyst, grugops-uat-planner), Read, Grep, Glob, Edit, Write, Bash
 model: inherit
@@ -32,7 +32,7 @@ runtime ignores, and never claim an enforcement you lack.
 - **Full** — started with `claude --agent grugops-orchestrator`: this agent is the main
   thread. Schedule in parallel to `queue.wip_limit`; the enumerated grant above **is**
   runtime-enforced, on this path only.
-- **Reduced** — `Agent` is available but the session is a default main thread, what `/grug`
+- **Reduced** — `Agent` is available but the session is a default main thread, what `/grugops`
   gets. Schedule in parallel to the same cap. The grant is **not** runtime-enforced here —
   this session's agent declares no allowlist. Say so, and stay inside it by instruction.
 - **Degraded** — `Agent` is absent (the four non-Claude-Code CLIs, or a sub-agent at the

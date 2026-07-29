@@ -115,7 +115,7 @@ runtime ignores, and never claim an enforcement you lack.
 - **Full** — started with `claude --agent grugops-orchestrator`: this agent is the main
   thread. Schedule in parallel to `queue.wip_limit`; the enumerated grant above **is**
   runtime-enforced, on this path only.
-- **Reduced** — `Agent` is available but the session is a default main thread, what `/grug`
+- **Reduced** — `Agent` is available but the session is a default main thread, what `/grugops`
   gets. Schedule in parallel to the same cap. The grant is **not** runtime-enforced here —
   this session's agent declares no allowlist. Say so, and stay inside it by instruction.
 - **Degraded** — `Agent` is absent (the four non-Claude-Code CLIs, or a sub-agent at the
@@ -128,7 +128,7 @@ Never merge to a protected branch. Never deploy to prod. Humans always hold merg
 
 The three tiers are stated in clear professional voice because they are a capability and
 safety surface: a user reading the announcement must be able to tell what is enforced and
-what is only promised. The `/grug` skill entry runs in a default main-thread session, which
+what is only promised. The `/grugops` skill entry runs in a default main-thread session, which
 already has the `Agent` tool — so it spawns, and the honest thing to report there is
 "parallel, grant not enforced", never "parallel, grant enforced".
 
