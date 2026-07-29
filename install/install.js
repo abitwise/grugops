@@ -567,8 +567,17 @@ function dirsSameContent(a, b) {
                 out.push(...rel(root, r));
             else if (ent.isFile())
                 out.push(r);
+            // PRINTABLE impossible-path sentinel (27-13; closes deferred-items D1 / review IN-01). This
+            // value used to be a literal NUL byte. It forced the mismatch correctly, but it also made
+            // every byte-oriented tool classify install.ts as BINARY and suppress its output, silently
+            // disabling grep-based verification over the installer. The replacement preserves the
+            // guarantee without the byte: `<` and `>` are illegal in a Windows path element, and the
+            // trailing `/` makes join(root, sentinel) unreadable as a file on POSIX (ENOENT if absent,
+            // EISDIR if a directory, ENOTDIR if a file), so even when BOTH trees yield the sentinel the
+            // sameContent() compare below still fails and `identical` is never declared. VALUE ONLY —
+            // the comparison itself is a load-bearing fail-safe and is deliberately NOT redesigned.
             else
-                return [" differs"]; // symlink/special → force a mismatch (fail-safe-to-differs)
+                return ["<<grugops:dirs-differ>>/"]; // symlink/special → force a mismatch (fail-safe-to-differs)
         }
         return out;
     };
