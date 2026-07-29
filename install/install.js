@@ -175,12 +175,25 @@ const MAT_SLOT = "# 1. (installed) the absolute kit path the installer wrote abo
 // guarantee at CI time that what exists is correct. Importing the scripts layer would couple the
 // single-file installer to the scripts/ layout and force it to ship a second file.
 //
-// Both helpers wrap readdirSync in try/catch and return [] on an unreadable directory, and both
-// are called AT EACH USE SITE rather than cached into a module-level constant — the doctor and the
-// install paths run at different points in the process, so a cached snapshot could go stale.
+// FAIL-LOUD CONTRACT (27-13) — ONE contract for ONE derivation, shared with install/uninstall.ts.
+// Both helpers return NULL, never [], when the source directory cannot be read. Null is the
+// fail-LOUD signal, exactly as it already is in uninstall.ts: the caller reports the condition and
+// skips that whole install class rather than looping zero times and reporting completion anyway.
+// They previously returned [] on any read failure, so a tarball that dropped dot directories, a
+// partial checkout or a permissions problem produced a SILENT no-op install that still printed a
+// completion banner (T-27-59).
+//
+// THREE STATES, THREE MESSAGES. `null` = the directory could not be read. `[]` = the directory was
+// read successfully and holds nothing. A populated array = the install set. The two failure states
+// need different remedies (restore the checkout vs. investigate an empty kit), so they are reported
+// distinctly and never folded into one line.
+//
+// Both are called AT EACH USE SITE rather than cached into a module-level constant — the doctor and
+// the install paths run at different points in the process, so a cached snapshot could go stale.
 // ---------------------------------------------------------------------------
 // srcSkillNames: the sorted directory names under $GRUGOPS_SRC/.claude/skills that contain a
-// SKILL.md. A directory without a SKILL.md is not a skill and is never installed.
+// SKILL.md. A directory without a SKILL.md is not a skill and is never installed. Null on an
+// unreadable root (fail-loud); [] on a root that exists and holds no skill.
 function srcSkillNames() {
     const root = join(GRUGOPS_SRC, ".claude", "skills");
     try {
@@ -190,10 +203,11 @@ function srcSkillNames() {
             .sort();
     }
     catch {
-        return [];
+        return null;
     }
 }
-// srcAdapterFiles: the sorted .md filenames under $GRUGOPS_SRC/.claude/agents.
+// srcAdapterFiles: the sorted TOP-LEVEL .md filenames under $GRUGOPS_SRC/.claude/agents. Null on an
+// unreadable root (fail-loud); [] on a root that exists and holds no adapter.
 function srcAdapterFiles() {
     const root = join(GRUGOPS_SRC, ".claude", "agents");
     try {
@@ -203,8 +217,52 @@ function srcAdapterFiles() {
             .sort();
     }
     catch {
-        return [];
+        return null;
     }
+}
+// srcNestedAdapterFiles: every `.md` entry BELOW the top level of $GRUGOPS_SRC/.claude/agents, as
+// forward-slash relative paths, sorted.
+//
+// THE FLAT-DIRECTORY CONTRACT, AND WHY THE INSTALLER MUST SEE PAST IT. The adapter directory is flat
+// by contract: the generator, the freshness gate and this installer all work over a flat directory,
+// and the foundation guards REFUSE a nested adapter by name. But Claude Code discovers
+// `.claude/agents/` RECURSIVELY, so a nested file is loaded by the platform. srcAdapterFiles() above
+// is deliberately non-recursive — it is the INSTALL set, and installing a nested file would
+// contradict the contract — which means without this helper a nested source adapter would simply
+// vanish from the run with no comment. The installer must not be the one place a file disappears
+// silently, so it detects the nested entry and REFUSES it by name (T-27-62).
+//
+// THE POLICY IS DEFINED BY scripts/kit-model.ts (listAgentAdapters), NOT HERE. That module is the
+// single authority for "what is an adapter"; this file deliberately does NOT import it (D-18 — the
+// installer stays a self-contained single file). The two derivations are asserted EQUAL by a test
+// instead of bought by coupling: see the `source derivation` conformance case in install.test.ts,
+// which compares this installer's real installed set against listAgentAdapters() over the same
+// fixture and asserts the cardinality as a number. If the locked decision is ever revisited, that
+// conformance case is what to delete along with the duplicate.
+//
+// A read failure at any level yields [] here rather than null: an unreadable root is already the
+// srcAdapterFiles() null branch's finding, and reporting the same condition twice would be noise.
+function srcNestedAdapterFiles() {
+    const root = join(GRUGOPS_SRC, ".claude", "agents");
+    const walk = (base) => {
+        const out = [];
+        let ents;
+        try {
+            ents = readdirSync(join(root, base), { withFileTypes: true });
+        }
+        catch {
+            return out;
+        }
+        for (const ent of ents) {
+            const rel = base ? `${base}/${ent.name}` : ent.name;
+            if (ent.isDirectory())
+                out.push(...walk(rel));
+            else if (ent.isFile() && ent.name.endsWith(".md") && rel.includes("/"))
+                out.push(rel);
+        }
+        return out;
+    };
+    return walk("").sort();
 }
 // srcCarriesSlot: the ROUTING signal (D-06). Whether a source file is materialized or plain-copied
 // is decided by the presence of the resolver slot line in its OWN body — never by a hard-coded
@@ -222,8 +280,11 @@ function srcCarriesSlot(src) {
     }
 }
 // targetAdapterFiles: the derived adapter set mapped into the TARGET's .claude/agents directory.
+// Propagates the null (it is the same derivation wearing a different path prefix); each caller
+// decides what an unknown set means for it, rather than the helper deciding for all of them.
 function targetAdapterFiles() {
-    return srcAdapterFiles().map((f) => join(TARGET, ".claude", "agents", f));
+    const files = srcAdapterFiles();
+    return files === null ? null : files.map((f) => join(TARGET, ".claude", "agents", f));
 }
 // report / mkdirp / sameContent / isoStamp: install-side helpers declared HERE (above the doctor +
 // the early --update / --prune-old-kit / --migrate branches) so those early branches — which run
@@ -232,6 +293,17 @@ function targetAdapterFiles() {
 // the doctor). copyKit is reached from the early --update branch, and it walks dirsSameContent
 // (D-09 differs-only no-op), which calls sameContent — so sameContent MUST be initialized first.
 const report = (label, msg) => console.log(`  ${label.padEnd(14)} ${msg}`);
+// verify (27-13): a `verify`-status finding — something the run could NOT do and the human must
+// resolve. Mirrors uninstall.ts's `report("verify", ...)` shape exactly, and additionally COUNTS the
+// findings so the closing banner cannot claim completion over a class the run silently installed
+// nothing for (T-27-59). Declared here beside report/mkdirp/sameContent, above the doctor and the
+// early --update / --prune-old-kit / --migrate branches, so those branches can call it without
+// tripping the const temporal dead zone.
+let VERIFY_FINDINGS = 0;
+const verify = (msg) => {
+    VERIFY_FINDINGS += 1;
+    report("verify", msg);
+};
 const mkdirp = (dir) => {
     if (!existsSync(dir) && !DRY_RUN)
         mkdirSync(dir, { recursive: true });
@@ -358,7 +430,11 @@ function doctor() {
     // the first derived target adapter that actually carries a materialized KIT= line; if none does,
     // fall back to the first derived destination so the FAIL message still names a concrete path.
     // Fail-closed is preserved: an absent file or a missing KIT line still reads as "" below.
-    const adapterCandidates = targetAdapterFiles();
+    // `?? []` here is the doctor's EXISTING fail-closed posture made explicit, not a swallowed null:
+    // an unreadable source adapter directory leaves no candidate, the fallback below still names a
+    // concrete path, and the KIT= cross-check still reads as "" → FAIL. The doctor is a read-only
+    // reporter with its own FAIL surface, so it does not also emit the install path's verify finding.
+    const adapterCandidates = targetAdapterFiles() ?? [];
     const adapterFile = adapterCandidates.find((p) => readAdapterKit(p) !== "") ??
         adapterCandidates[0] ??
         join(TARGET, ".claude", "agents");
@@ -753,7 +829,9 @@ function detectOldLayout() {
     // KIT-02: probe the DERIVED adapter set rather than one hand-named file — the target counts as
     // materialized when ANY derived adapter carries a KIT= line. Fail-closed posture is unchanged: an
     // absent file, a missing KIT line, or an empty derived set all read as not-materialized.
-    const adapterMaterialized = targetAdapterFiles().some((p) => readAdapterKit(p) !== "");
+    // `?? []` preserves the fail-closed posture stated directly above: an unreadable source, an absent
+    // file, a missing KIT line and an empty derived set all read as NOT materialized.
+    const adapterMaterialized = (targetAdapterFiles() ?? []).some((p) => readAdapterKit(p) !== "");
     return {
         isOldLayout: hasInRepoKit && marker === null && !adapterMaterialized,
         isMigrated: marker !== null,
@@ -807,9 +885,20 @@ function migratePreSteps() {
     // skill destination whose source body carries the resolver slot. The behaviour is unchanged (never
     // write through a live symlink; report would-unlink under DRY_RUN); only the set is derived, so all
     // seventeen destinations get the same protection the two hand-named ones had (T-27-07).
+    //
+    // FAIL-LOUD (27-13): an unreadable source directory here means the unlink pre-step cannot know
+    // which destinations to protect. That is REPORTED rather than silently degrading into a
+    // zero-iteration loop, because the very next step writes through whatever symlinks it missed.
+    const migrateAdapterDests = targetAdapterFiles();
+    const migrateSkillNames = srcSkillNames();
+    if (migrateAdapterDests === null || migrateSkillNames === null) {
+        verify(`symlink pre-step — cannot read ${join(GRUGOPS_SRC, ".claude")}, so the resolver-adapter ` +
+            `destination set is unknown. No symlink destination was unlinked. Re-run the installer from ` +
+            `a complete kit checkout before continuing.`);
+    }
     const adapterDests = [
-        ...targetAdapterFiles(),
-        ...srcSkillNames()
+        ...(migrateAdapterDests ?? []),
+        ...(migrateSkillNames ?? [])
             .filter((s) => srcCarriesSlot(join(GRUGOPS_SRC, ".claude", "skills", s, "SKILL.md")))
             .map((s) => join(TARGET, ".claude", "skills", s, "SKILL.md")),
     ];
@@ -1292,23 +1381,60 @@ console.log("\n-- adapters --");
 // materialized (strip-then-inject of the absolute KIT path); anything else is plain-copied. That one
 // rule replaces both the old hand-listed skill loop and its by-name skip of the single resolver
 // skill, and it is what makes every adapter a resolver with no exception list.
-for (const s of srcSkillNames()) {
-    const src = join(GRUGOPS_SRC, ".claude", "skills", s, "SKILL.md");
-    const dest = join(TARGET, ".claude", "skills", s, "SKILL.md");
-    const label = `.claude/skills/${s}/SKILL.md`;
-    if (srcCarriesSlot(src))
-        materializeAdapter(src, dest, label);
-    else
-        linkOrCopy(src, dest, label);
+//
+// THREE STATES, BRANCHED EXPLICITLY (27-13). Each derivation is now taken ONCE here and branched on
+// all three of its states, mirroring uninstall.ts's wording so a reader moving between the two files
+// sees ONE contract rather than two. Before this the helpers returned [] on an unreadable directory,
+// these loops ran zero times, and the run still printed a completion banner — a silent no-op install.
+const SRC_SKILLS = srcSkillNames();
+const SRC_ADAPTERS = srcAdapterFiles();
+const SRC_NESTED_ADAPTERS = srcNestedAdapterFiles();
+if (SRC_SKILLS === null) {
+    verify(`.claude/skills/ — cannot read ${join(GRUGOPS_SRC, ".claude", "skills")}, so the install set is ` +
+        `unknown. No skill was installed. Re-run the installer from a complete kit checkout.`);
 }
-for (const f of srcAdapterFiles()) {
-    const src = join(GRUGOPS_SRC, ".claude", "agents", f);
-    const dest = join(TARGET, ".claude", "agents", f);
-    const label = `.claude/agents/${f}`;
-    if (srcCarriesSlot(src))
-        materializeAdapter(src, dest, label);
-    else
-        linkOrCopy(src, dest, label);
+else if (SRC_SKILLS.length === 0) {
+    verify(`.claude/skills/ — ${join(GRUGOPS_SRC, ".claude", "skills")} was read successfully but holds no ` +
+        `skill, so there was nothing to install. This is a different condition from an unreadable ` +
+        `directory and needs a different remedy: check the kit source, not the checkout.`);
+}
+else {
+    for (const s of SRC_SKILLS) {
+        const src = join(GRUGOPS_SRC, ".claude", "skills", s, "SKILL.md");
+        const dest = join(TARGET, ".claude", "skills", s, "SKILL.md");
+        const label = `.claude/skills/${s}/SKILL.md`;
+        if (srcCarriesSlot(src))
+            materializeAdapter(src, dest, label);
+        else
+            linkOrCopy(src, dest, label);
+    }
+}
+if (SRC_ADAPTERS === null) {
+    verify(`.claude/agents/ — cannot read ${join(GRUGOPS_SRC, ".claude", "agents")}, so the install set is ` +
+        `unknown. No adapter was installed. Re-run the installer from a complete kit checkout.`);
+}
+else if (SRC_ADAPTERS.length === 0) {
+    verify(`.claude/agents/ — ${join(GRUGOPS_SRC, ".claude", "agents")} was read successfully but holds no ` +
+        `adapter, so there was nothing to install. This is a different condition from an unreadable ` +
+        `directory and needs a different remedy: check the kit source, not the checkout.`);
+}
+else {
+    for (const f of SRC_ADAPTERS) {
+        const src = join(GRUGOPS_SRC, ".claude", "agents", f);
+        const dest = join(TARGET, ".claude", "agents", f);
+        const label = `.claude/agents/${f}`;
+        if (srcCarriesSlot(src))
+            materializeAdapter(src, dest, label);
+        else
+            linkOrCopy(src, dest, label);
+    }
+}
+// The flat-directory contract, refused BY NAME rather than silently skipped (T-27-62). See
+// srcNestedAdapterFiles() for why the install set stays flat while the platform recurses.
+for (const rel of SRC_NESTED_ADAPTERS) {
+    verify(`.claude/agents/${rel} — the adapter directory is FLAT BY CONTRACT, so this nested adapter was ` +
+        `NOT installed. Claude Code would load it from a nested path, which is exactly why it is ` +
+        `refused here by name instead of skipped. Move it to the top level of the adapter directory.`);
 }
 if (existsSync(join(TARGET, "AGENTS.md"))) {
     report("skipped", "AGENTS.md (target already has one — left untouched)");
@@ -1337,4 +1463,15 @@ console.log("    /plugin install grugops@grugops           (UNKNOWN - verify aga
 console.log("  Safety: the mechanical prod-deploy guard is Claude-Code-only (plugin hooks/hooks.json).");
 console.log("          The other four tools rely on the autonomy=pr procedural fallback. See install/README.md.");
 console.log("  This installer NEVER sets the deploy-approval env var — only a human may approve a deploy.");
-console.log(`\n== install complete${DRY_RUN ? " (DRY_RUN — nothing changed)" : ""} ==`);
+// THE CLOSING CLAIM IS CONDITIONAL (27-13, T-27-59). A run that could not read a source directory,
+// or that refused a nested adapter, has NOT completed — it installed nothing for that class. Saying
+// "complete" over that is the repudiation failure this plan closes, so the banner reports the real
+// outcome and points at the `verify` lines that name what was left undone.
+if (VERIFY_FINDINGS > 0) {
+    console.log(`\n== install INCOMPLETE — ${VERIFY_FINDINGS} item(s) need verification` +
+        `${DRY_RUN ? " (DRY_RUN — nothing changed)" : ""} ==`);
+    console.log("  Each `verify` line above names what was NOT installed and the remedy for it.");
+}
+else {
+    console.log(`\n== install complete${DRY_RUN ? " (DRY_RUN — nothing changed)" : ""} ==`);
+}

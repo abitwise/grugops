@@ -40,10 +40,23 @@ import {
   existsSync,
   statSync,
   lstatSync,
+  chmodSync,
 } from "node:fs";
 import { join, resolve } from "node:path";
 import { tmpdir } from "node:os";
 import { createHash } from "node:crypto";
+
+// THE SHARED ADAPTER AUTHORITY — imported HERE, IN THE TEST ONLY (KIT-02 / D-18).
+//
+// install.ts deliberately does NOT import scripts/kit-model.ts: the locked decision is that the
+// installer stays a self-contained single file, so two implementations of "what is an adapter"
+// continue to exist. That is a deliberate exception to the one-authority-per-predicate doctrine,
+// and this import is what buys it back — the `source derivation` conformance case below asserts the
+// installer's REAL installed set equals the authority's set over the same fixture, with the
+// cardinality asserted as a number so a derivation that silently shrinks fails the COUNT rather
+// than only the comparison. If the locked decision is ever revisited, this import and that case are
+// what to delete along with the duplicate. Drives the COMMITTED .js — the repo idiom.
+import { listAgentAdapters, listSkillAdapters } from "../scripts/kit-model.js";
 
 // The repo root (install/ is one level under it) and the committed compiled installer/uninstaller.
 const REPO_ROOT = resolve(import.meta.dirname, "..");
@@ -1328,5 +1341,194 @@ describe("install.js / uninstall.js — single-installer contract (folds install
     expect(existsSync(join(bare, ".claude"))).toBe(true);
     expect(runUninstallFrom(src, bare, home).status).toBe(0);
     expect(existsSync(join(bare, ".claude"))).toBe(false);
+  });
+
+  // ── KIT-02 (Plan 27-13) — `source derivation`: conformance + the three fail-loud states ───────
+  //
+  // The installer answers "what adapters and skills exist in the kit source" with its OWN
+  // derivation (D-18: it never imports the scripts layer). These cases assert that answer is the
+  // SAME answer scripts/kit-model.ts gives, and that each way the derivation can fail is REPORTED
+  // rather than silently degrading into a zero-iteration loop under a completion banner.
+  //
+  // The installed set is read back off disk after a real run, so what is compared is the
+  // installer's actual behaviour — never a re-implementation of its rule inside the test.
+
+  // installedAdapters / installedSkills — the installer's derivation made observable, in the exact
+  // shape kit-model returns (forward-slash relative paths, sorted by full relative path).
+  function installedAdapters(target: string): string[] {
+    const dir = join(target, ".claude", "agents");
+    if (!existsSync(dir)) return [];
+    const out: string[] = [];
+    const walk = (base: string): void => {
+      for (const ent of readdirSync(join(dir, base), { withFileTypes: true })) {
+        const rel = base ? `${base}/${ent.name}` : ent.name;
+        if (ent.isDirectory()) walk(rel);
+        else if (ent.isFile() && ent.name.endsWith(".md")) out.push(rel);
+      }
+    };
+    walk("");
+    return out.sort();
+  }
+  function installedSkills(target: string): string[] {
+    const dir = join(target, ".claude", "skills");
+    if (!existsSync(dir)) return [];
+    return readdirSync(dir, { withFileTypes: true })
+      .filter((ent) => ent.isDirectory() && existsSync(join(dir, ent.name, "SKILL.md")))
+      .map((ent) => `${ent.name}/SKILL.md`)
+      .sort();
+  }
+
+  it("source derivation: the installer's installed set equals kit-model's authority set, by member AND by count", () => {
+    const src = makeSyntheticSrc();
+    const target = mkTmp();
+    const home = mkTmp();
+    writeFileSync(join(target, "CLAUDE.md"), "# User Project\n");
+    expect(runInstallFrom(src, target, home).status).toBe(0);
+
+    // SET EQUALITY against the shared authority, over the same fixture source tree.
+    const authorityAdapters = listAgentAdapters(src);
+    const authoritySkills = listSkillAdapters(src);
+    expect(installedAdapters(target)).toEqual(authorityAdapters);
+    expect(installedSkills(target)).toEqual(authoritySkills);
+
+    // CARDINALITY AS A NUMBER. Set equality alone passes when BOTH sides shrink together; the
+    // integer is what makes a silently shrinking derivation fail the count instead.
+    expect(authorityAdapters.length).toBe(17);
+    expect(installedAdapters(target).length).toBe(17);
+    expect(authoritySkills.length).toBe(7);
+    expect(installedSkills(target).length).toBe(7);
+
+    // A clean run makes the completion claim; the fail-loud cases below prove it is withheld.
+    const out = runInstallFrom(src, target, home).stdout;
+    expect(out).toContain("== install complete");
+    expect(out).not.toContain("install INCOMPLETE");
+  });
+
+  it("source derivation: an UNREADABLE source adapter directory is reported and no completion is claimed", () => {
+    const src = makeSyntheticSrc();
+    const target = mkTmp();
+    const home = mkTmp();
+    writeFileSync(join(target, "CLAUDE.md"), "# User Project\n");
+
+    // Unreadable shape #1 — a FILE where the adapter directory should be (readdirSync → ENOTDIR).
+    // Chosen over chmod as the primary fixture because it is deterministic on every platform and
+    // does not silently stop being a fixture when the suite runs as root. It is also a real-world
+    // shape: an archive that dropped a directory and left a file behind.
+    rmSync(join(src, ".claude", "agents"), { recursive: true, force: true });
+    writeFileSync(join(src, ".claude", "agents"), "not a directory\n");
+
+    const r = runInstallFrom(src, target, home);
+    expect(r.status).toBe(0);
+    expect(r.stdout).toContain("cannot read");
+    expect(r.stdout).toContain(join(src, ".claude", "agents"));
+    expect(r.stdout).toContain("No adapter was installed");
+    // RED DIRECTION: the run must NOT claim it finished, and must NOT have installed adapters.
+    expect(r.stdout).not.toContain("== install complete");
+    expect(r.stdout).toContain("install INCOMPLETE");
+    expect(installedAdapters(target)).toEqual([]);
+    // The skill class is UNAFFECTED — one unreadable directory does not suppress the other class.
+    expect(installedSkills(target).length).toBe(7);
+  });
+
+  it("source derivation: an unreadable-by-PERMISSIONS adapter directory is reported the same way", () => {
+    // The second unreadable shape (EACCES). Skipped where the fixture cannot exist: Windows does
+    // not honour POSIX mode bits, and root bypasses them — in either case a chmod 000 directory is
+    // still readable and the case would assert nothing.
+    const rootish = typeof process.getuid === "function" && process.getuid() === 0;
+    if (process.platform === "win32" || rootish) return;
+
+    const src = makeSyntheticSrc();
+    const target = mkTmp();
+    const home = mkTmp();
+    writeFileSync(join(target, "CLAUDE.md"), "# User Project\n");
+    const agents = join(src, ".claude", "agents");
+    chmodSync(agents, 0o000);
+    try {
+      const r = runInstallFrom(src, target, home);
+      expect(r.status).toBe(0);
+      expect(r.stdout).toContain("cannot read");
+      expect(r.stdout).toContain("No adapter was installed");
+      expect(r.stdout).not.toContain("== install complete");
+      expect(installedAdapters(target)).toEqual([]);
+    } finally {
+      chmodSync(agents, 0o755); // restore so afterEach can clean the fixture up
+    }
+  });
+
+  it("source derivation: an EMPTY source adapter directory is a DISTINCT condition from an unreadable one", () => {
+    const src = makeSyntheticSrc();
+    const target = mkTmp();
+    const home = mkTmp();
+    writeFileSync(join(target, "CLAUDE.md"), "# User Project\n");
+
+    rmSync(join(src, ".claude", "agents"), { recursive: true, force: true });
+    mkdirSync(join(src, ".claude", "agents"), { recursive: true });
+
+    const r = runInstallFrom(src, target, home);
+    expect(r.status).toBe(0);
+    // The two failure states need different remedies, so they carry different wording. Both
+    // substrings are asserted SEPARATELY: the empty message must appear and the unreadable
+    // message must not, or the two conditions have been folded into one and the remedy is lost.
+    expect(r.stdout).toContain("was read successfully but holds no adapter");
+    expect(r.stdout).not.toContain("cannot read");
+    expect(r.stdout).toContain(join(src, ".claude", "agents"));
+    expect(r.stdout).not.toContain("== install complete");
+    expect(installedAdapters(target)).toEqual([]);
+  });
+
+  it("source derivation: a NESTED source adapter is refused by name, not silently skipped", () => {
+    const src = makeSyntheticSrc();
+    const target = mkTmp();
+    const home = mkTmp();
+    writeFileSync(join(target, "CLAUDE.md"), "# User Project\n");
+
+    // Claude Code discovers .claude/agents recursively, so this file WOULD be loaded by the
+    // platform; the adapter directory is flat by contract, so the installer must say so out loud.
+    mkdirSync(join(src, ".claude", "agents", "nested"), { recursive: true });
+    writeFileSync(
+      join(src, ".claude", "agents", "nested", "deep-adapter.md"),
+      `> synthetic nested adapter\n${MAT_SLOT}\n`,
+    );
+
+    const r = runInstallFrom(src, target, home);
+    expect(r.status).toBe(0);
+    // Refused BY NAME, at its relative path.
+    expect(r.stdout).toContain("nested/deep-adapter.md");
+    expect(r.stdout).toContain("FLAT BY CONTRACT");
+    expect(r.stdout).toContain("NOT installed");
+    expect(r.stdout).not.toContain("== install complete");
+    // The flat seventeen still install; only the nested plant is refused, and it never lands.
+    expect(installedAdapters(target)).toEqual([...SYNTH_ADAPTERS].sort());
+    expect(installedAdapters(target).length).toBe(17);
+    expect(existsSync(join(target, ".claude", "agents", "nested"))).toBe(false);
+
+    // CONFORMANCE UNDER THE NESTED SHAPE: the authority SEES the nested file (it recurses, because
+    // the platform does) while the installer's install set deliberately does not — so the two sets
+    // differ by exactly the refused member, and nothing else. That difference is the contract, and
+    // asserting it here is what stops a future "fix" from quietly installing nested adapters or
+    // from teaching the authority to ignore them.
+    const authority = listAgentAdapters(src);
+    expect(authority.length).toBe(18);
+    expect(authority.filter((m) => m.includes("/"))).toEqual(["nested/deep-adapter.md"]);
+    expect(authority.filter((m) => !m.includes("/"))).toEqual(installedAdapters(target));
+  });
+
+  it("source derivation: an UNREADABLE source skill directory is reported and no completion is claimed", () => {
+    const src = makeSyntheticSrc();
+    const target = mkTmp();
+    const home = mkTmp();
+    writeFileSync(join(target, "CLAUDE.md"), "# User Project\n");
+
+    rmSync(join(src, ".claude", "skills"), { recursive: true, force: true });
+    writeFileSync(join(src, ".claude", "skills"), "not a directory\n");
+
+    const r = runInstallFrom(src, target, home);
+    expect(r.status).toBe(0);
+    expect(r.stdout).toContain("No skill was installed");
+    expect(r.stdout).toContain(join(src, ".claude", "skills"));
+    expect(r.stdout).not.toContain("== install complete");
+    expect(installedSkills(target)).toEqual([]);
+    // The adapter class is unaffected — the two derivations fail independently.
+    expect(installedAdapters(target).length).toBe(17);
   });
 });
