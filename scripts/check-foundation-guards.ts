@@ -248,17 +248,21 @@ function readPackagingDir(rel: string): string[] {
 // list, so guard_adapter_size's non-empty floor, guardKitCounts' skill cardinality and the KIT-03
 // oracle's zero-adapter branch all fire and NAME the condition. Aborting here would print one line
 // and silently skip six unrelated guards.
-const ADAPTER_DERIVATION_ERRORS: string[] = [];
-function derive(list: () => string[]): string[] {
+function derive(list: () => string[]): { files: string[]; error: string } {
   try {
-    return list();
+    return { files: list(), error: "" };
   } catch (e) {
-    ADAPTER_DERIVATION_ERRORS.push((e as Error).message);
-    return [];
+    return { files: [], error: (e as Error).message };
   }
 }
-const AGENT_ADAPTER_RELS = derive(() => listAgentAdapters(ROOT));
-const SKILL_ADAPTER_RELS = derive(() => listSkillAdapters(ROOT));
+const AGENT_DERIVATION = derive(() => listAgentAdapters(ROOT));
+const SKILL_DERIVATION = derive(() => listSkillAdapters(ROOT));
+const AGENT_ADAPTER_RELS = AGENT_DERIVATION.files;
+const SKILL_ADAPTER_RELS = SKILL_DERIVATION.files;
+const ADAPTER_DERIVATION_ERRORS = [
+  AGENT_DERIVATION.error,
+  SKILL_DERIVATION.error,
+].filter((m) => m !== "");
 const AGENT_ADAPTERS = AGENT_ADAPTER_RELS.map((rel) => `${ADAPTER_DIR}/${rel}`);
 const SKILL_ADAPTERS = SKILL_ADAPTER_RELS.map((rel) => `${SKILL_DIR}/${rel}`);
 const ADAPTERS = [...AGENT_ADAPTERS, ...SKILL_ADAPTERS];
@@ -1100,8 +1104,24 @@ function guardContextWrites(): void {
 // coordinator is located by the WR05_COORDINATOR marker, matching how guard_wr05 already identifies
 // it — never by filename.
 // ---------------------------------------------------------------------------
-// ADAPTER_DIR is declared once, up at the guard_adapter_size derivation — the adapter directory is
-// a single fact and this oracle reads the SAME one guard_adapter_size scans.
+// THE ORACLE'S SOUNDNESS DEPENDS ENTIRELY ON THE DERIVATION SEEING WHAT THE PLATFORM LOADS.
+//
+// This guard compares three sets, and every one of them is now derived from ONE authority
+// (scripts/kit-model.ts). That is the whole basis of the claim: an equality over three sets is only
+// as true as the sets are complete, and a set that cannot see a file the runtime loads makes the
+// equality hold over the wrong members while printing a true-looking PASS.
+//
+// The specific way this oracle WAS unsound (plan 27-10, closed): it ran its own second, NON-RECURSIVE
+// readdir of the adapter directory. Claude Code discovers that directory recursively and takes agent
+// identity only from frontmatter, so a live second coordinator planted at `.claude/agents/<sub>/x.md`
+// was loaded by the platform, absent from this comparison, and the oracle printed
+// "17 roles == 17 adapters == 17 grant-closure names" over a tree carrying eighteen loaded agents.
+// The second read is deleted; this guard consumes the same member list guard_adapter_size,
+// guard_wr05 and guard_adapter_body consume. A nested entry now compares as its full relative stem
+// and so appears in the "adapter with no role file" direction.
+//
+// ADAPTER_DIR is declared once, up at the adapter derivation — the adapter directory is a single
+// fact and this oracle reads the SAME set every other adapter guard scans.
 // Every role's agent name is its role filename stem under the `grugops-` namespace:
 // `orchestrator.md` -> `grugops-orchestrator`. Comparison is exact JavaScript string equality over
 // these names throughout — no case folding, no normalisation, no substring matching.
@@ -1141,21 +1161,20 @@ function guardReferentialIntegrity(): void {
   // Set 1 — the role corpus, from the KIT-01 derivation.
   const roleNames = ROLE_FILES.map((p) => `${AGENT_PREFIX}${stem(basename(p))}`).sort();
 
-  // Set 2 — the adapter directory.
-  let adapterFiles: string[];
-  try {
-    adapterFiles = readdirSync(abs(ADAPTER_DIR))
-      .filter((f) => f.endsWith(".md"))
-      .sort();
-  } catch {
-    fail(
-      `KIT-03: cannot read the adapter directory ${ADAPTER_DIR} — refusing to compare against an unreadable set (${roleNames.length} roles have no adapter to match)`,
-    );
-    return;
-  }
+  // Set 2 — the adapter set, from the SAME authority-derived member list the other three guards
+  // consume. This guard used to run its own non-recursive readdir here, which is what made its
+  // soundness claim false: a nested file was loaded by the platform and invisible to this comparison,
+  // so the equality held over the wrong members and printed a true-looking PASS. The fixed adapter
+  // subpath is stripped back off so the members are the relative paths, and a nested entry therefore
+  // compares as its FULL relative stem — landing in the "adapter with no role file" direction rather
+  // than vanishing.
+  const adapterFiles = AGENT_ADAPTER_RELS;
   if (adapterFiles.length === 0) {
+    // The unreadable and the empty case are now the SAME branch, because the authority distinguishes
+    // them in its thrown message and that message NAMES THE DIRECTORY. Reporting it here is the
+    // difference between the oracle stating the condition and swallowing it.
     fail(
-      `KIT-03: ${ADAPTER_DIR} holds no adapter files — an empty adapter directory is NEVER "nothing to compare, therefore fine". All ${roleNames.length} role(s) are unbacked: ${roleNames.join(", ")}`,
+      `KIT-03: ${ADAPTER_DIR} yielded no adapter files — an empty or unreadable adapter directory is NEVER "nothing to compare, therefore fine". All ${roleNames.length} role(s) are unbacked: ${roleNames.join(", ")}${AGENT_DERIVATION.error === "" ? "" : `\n  ${AGENT_DERIVATION.error}`}`,
     );
     return;
   }
@@ -1164,16 +1183,50 @@ function guardReferentialIntegrity(): void {
   // Encoding assertion: every name in the corpus is ASCII today. Asserting it removes any
   // byte-vs-codepoint-vs-normalisation ambiguity from the string comparisons below rather than
   // leaving it latent for a future non-ASCII filename to expose.
-  const nonAscii = [
-    ...ROLE_FILES.map((p) => basename(p)),
-    ...adapterFiles,
-  ].filter((n) =>
+  const roleBasenames = ROLE_FILES.map((p) => basename(p));
+  const nonAscii = [...roleBasenames, ...adapterFiles].filter((n) =>
     // eslint-disable-next-line no-control-regex
     /[^\x00-\x7F]/.test(n),
   );
   if (nonAscii.length > 0) {
     fail(
       `KIT-03: non-ASCII byte in a role/adapter filename — set membership is exact string equality and must stay unambiguous: ${nonAscii.sort().join(", ")}`,
+    );
+    return;
+  }
+
+  // The adjacent case the ASCII assertion does not cover: two FILENAMES in the same corpus that
+  // differ ONLY by letter case. On a case-insensitive filesystem those two cannot both exist, so one
+  // silently replaced the other; on a case-sensitive one they are two distinct agents whose names a
+  // reader will confuse. Either way, folding them together would make the equality claim below
+  // ambiguous, so the oracle refuses and NAMES BOTH.
+  //
+  // Compared per corpus (roles among roles, adapters among adapters) rather than across the two:
+  // role filenames are bare stems and adapter filenames carry the `grugops-` namespace, so a
+  // cross-corpus fold could only ever raise a false alarm. Compared on the FILENAME, not the relative
+  // path — that is what makes a nested `extra/grugops-QE-E2E.md` a case variant of a top-level
+  // `grugops-qe-e2e.md` rather than two unrelated strings. BYTE-IDENTICAL names are deliberately NOT
+  // reported here: two adapters at different depths with the same filename are distinct members, and
+  // the set comparison below is what names them.
+  const caseVariants = (names: string[]): string[][] => {
+    const folded = new Map<string, Set<string>>();
+    for (const n of names) {
+      const k = n.toLowerCase();
+      if (!folded.has(k)) folded.set(k, new Set<string>());
+      folded.get(k)!.add(n);
+    }
+    return [...folded.values()]
+      .filter((s) => s.size > 1)
+      .map((s) => [...s].sort())
+      .sort((a, b) => a[0].localeCompare(b[0]));
+  };
+  const variantGroups = [
+    ...caseVariants(roleBasenames),
+    ...caseVariants(adapterFiles.map((rel) => basename(rel))),
+  ];
+  if (variantGroups.length > 0) {
+    fail(
+      `KIT-03: ${variantGroups.length} role/adapter filename(s) differing only by letter case — a case-insensitive filesystem cannot hold both, and a case-sensitive one holds two names a reader will confuse; set membership must stay exact string equality: ${variantGroups.map((g) => g.join(" vs ")).join("; ")}`,
     );
     return;
   }
@@ -1262,16 +1315,14 @@ guardVoice();
 guardCavemanPreserved();
 guardRoleSize();
 guardContextWrites();
-// KIT-03 — THIS GUARD FAILS RED ON THE LIVE TREE UNTIL PLAN 27-07.
+// KIT-03 — the three-way set equality.
 //
-// The tree today holds 17 roles, ONE adapter file, and a coordinator grant naming seven agents that
-// resolve to nothing. That is the structural break this milestone exists to close, and the RED is
-// the EVIDENCE for it (ROADMAP success criterion 2) — not a regression, not a bug in the guard.
-// Plan 27-07 generates the 17 adapter files and the corrected 16-name grant; that is the commit that
-// turns this guard green. (Plan 27-01 wrote "27-06" here — corrected: 27-06 prepares the role
-// `capabilities:` frontmatter and the adapter body template, 27-07 is the plan that emits the
-// adapters and carries KIT-03 in its requirements.) Do NOT suppress it, skip it, or downgrade it to a
-// warn() in the meantime: a suppressed oracle is how the tree got here.
+// (Plan 27-10) This comment used to say the guard FAILS RED on the live tree until plan 27-07
+// generated the adapters. That is stale: the adapters exist, the equality holds, and the guard is
+// green. The current contract is the one in its header — it compares three sets all derived from the
+// single kit-model authority, and its soundness rests on that authority seeing everything the
+// platform loads. Do NOT suppress it, skip it, or downgrade it to a warn() if it goes red: a
+// suppressed oracle is how the tree got into the state this milestone exists to close.
 guardReferentialIntegrity();
 
 // ---------------------------------------------------------------------------

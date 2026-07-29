@@ -257,6 +257,20 @@ function plantNestedRogue(root: string, rel: string): string {
   return file;
 }
 
+// Plant a PLAIN (non-coordinator, no spawn grant) adapter at a path relative to the mirror's
+// `.claude/agents`. The oracle's coordinator-cardinality branch returns early, so a case that needs
+// to reach the three-way set comparison must plant a file that is unremarkable in every way except
+// its existence. Body carries the memory sentence so guard_adapter_body has nothing to say about it.
+function plantPlainAdapter(root: string, rel: string, name: string): string {
+  const file = join(root, ".claude/agents", rel);
+  mkdirSync(dirname(file), { recursive: true });
+  writeFileSync(
+    file,
+    `---\nname: ${name}\ndescription: Hermetic mirror fixture adapter.\nmodel: inherit\n---\nFixture adapter. The shared verified context is the only memory.\n`,
+  );
+  return file;
+}
+
 // Run the compiled guard with CHECK_ROOT pointed at the mirror; capture status + combined output.
 function runIn(checkRoot: string): SpawnSyncReturns<string> {
   return spawnSync("node", [GUARD_JS], {
@@ -1144,8 +1158,92 @@ describe("check-foundation-guards.js (SDLC-02 / SC2 fail-proof harness)", () => 
     mkdirSync(join(m, ".claude/agents"), { recursive: true });
     const r = runIn(m);
     expect(r.status).not.toBe(0);
-    expect(out(r)).toContain("holds no adapter files");
+    expect(out(r)).toContain("yielded no adapter files");
     expect(out(r)).toContain("All 17 role(s) are unbacked");
+    // The authority's own throw is REPORTED, not swallowed — and it names the directory.
+    expect(out(r)).toMatch(/refusing to return an empty set/);
+  });
+
+  it("referential integrity UNREADABLE adapter directory fails red naming the directory", () => {
+    // The directory is absent, not merely empty. Both conditions land on the same branch now, because
+    // the authority distinguishes them in the message it throws and that message names the path.
+    const m = mirror();
+    rmSync(join(m, ".claude/agents"), { recursive: true, force: true });
+    const r = runIn(m);
+    expect(r.status).not.toBe(0);
+    expect(out(r)).toContain("yielded no adapter files");
+    expect(out(r)).toMatch(/cannot read kit directory/);
+    expect(out(r)).toContain(".claude/agents");
+  });
+
+  // ── The KIT-03 cases plan 27-10 adds: one step either side of the cardinality, the nested plant
+  // the oracle used to be blind to, a case-variant duplicate, and a basename collision across
+  // depths. Every fixture is CONSTRUCTED — none inherits its shape from the live tree, which is the
+  // mistake recorded in the fixture comment at the top of this file. ──────────────────────────────
+
+  it("referential integrity fails RED one step BELOW the role cardinality (16 adapters vs 17 roles)", () => {
+    const m = consistentMirror();
+    rmSync(adapterPath(m, "grugops-installer"), { force: true });
+    const r = runIn(m);
+    expect(r.status).not.toBe(0);
+    const o = out(r);
+    expect(o).toContain("17 roles, 16 adapters");
+    expect(o).toContain("1 role(s) with no adapter file: grugops-installer");
+  });
+
+  it("referential integrity fails RED one step ABOVE the role cardinality (18 adapters vs 17 roles)", () => {
+    const m = consistentMirror();
+    plantPlainAdapter(m, "grugops-extra.md", "grugops-extra");
+    const r = runIn(m);
+    expect(r.status).not.toBe(0);
+    const o = out(r);
+    expect(o).toContain("17 roles, 18 adapters");
+    expect(o).toContain("1 adapter(s) with no role file: grugops-extra");
+  });
+
+  it("referential integrity names a NESTED adapter as an adapter with no role file (it used to be invisible)", () => {
+    // Deliberately NOT a coordinator: the coordinator-cardinality branch returns early, and this case
+    // has to reach the set comparison to prove the nested member is actually IN the compared set.
+    const m = consistentMirror();
+    plantPlainAdapter(m, "extra/grugops-rogue.md", "grugops-rogue");
+    const r = runIn(m);
+    expect(r.status).not.toBe(0);
+    const o = out(r);
+    expect(o).toContain("17 roles, 18 adapters");
+    expect(o).toContain(
+      "1 adapter(s) with no role file: extra/grugops-rogue",
+    );
+  });
+
+  it("referential integrity reports a nested adapter sharing a top-level BASENAME as a DISTINCT extra member", () => {
+    // `extra/grugops-installer.md` alongside `grugops-installer.md`. A derivation that compared
+    // basenames — or deduplicated on the file name — would report 17 adapters here and lose the
+    // planted one entirely. Both must survive as distinct members.
+    const m = consistentMirror();
+    plantPlainAdapter(m, "extra/grugops-installer.md", "grugops-installer");
+    const r = runIn(m);
+    expect(r.status).not.toBe(0);
+    const o = out(r);
+    expect(o).toContain("17 roles, 18 adapters");
+    expect(o).toContain(
+      "1 adapter(s) with no role file: extra/grugops-installer",
+    );
+    // The top-level one is NOT reported missing — it is still a member in its own right.
+    expect(o).not.toContain("role(s) with no adapter file: grugops-installer");
+  });
+
+  it("referential integrity fails RED on a CASE-VARIANT duplicate filename, naming both", () => {
+    // Planted at a nested path on purpose: on a case-insensitive filesystem two case-variant names
+    // cannot coexist in ONE directory, so the only way to build this fixture portably is at two
+    // depths — which is also exactly the shape a case-insensitive filesystem could otherwise use to
+    // make two distinct names compare equal.
+    const m = consistentMirror();
+    plantPlainAdapter(m, "extra/grugops-INSTALLER.md", "grugops-installer-2");
+    const r = runIn(m);
+    expect(r.status).not.toBe(0);
+    const o = out(r);
+    expect(o).toMatch(/differing only by letter case/);
+    expect(o).toContain("grugops-INSTALLER.md vs grugops-installer.md");
   });
 
   it("referential integrity ignores a FENCED coordinator grant — no second fence parser (T-27-02)", () => {
