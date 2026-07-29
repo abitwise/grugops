@@ -4,10 +4,10 @@ requirement: SPAWN-03
 kind: runtime-observation-record
 # The one machine-readable fact in this file. It stays at this value until a human performs the
 # observation and fills the slots below. No command in this repository may change it.
-status: unperformed-pending-human-verification
-observation_performed: false
-observed_by:
-observed_date:
+status: performed-observation-matches-expected
+observation_performed: true
+observed_by: Olger Oeselg
+observed_date: 2026-07-29
 precheck: node scripts/coordinator-resolution-precheck.js
 created: 2026-07-29
 plan: 27-16
@@ -68,14 +68,43 @@ commands it prints can be pasted without editing.
 Fill each from what you saw. Paste the block the precheck prints; these slots match it field for
 field.
 
-- **platform version observed:** _(empty — UNVERIFIED)_
-- **session startup header text observed (verbatim):** _(empty — UNVERIFIED)_
-- **did that header name the coordinator agent:** _(empty — UNVERIFIED)_
-- **request made:** _(empty — UNVERIFIED)_
-- **role agent that resolved and ran:** _(empty — UNVERIFIED)_
-- **did the coordinator work the task inline instead:** _(empty — UNVERIFIED)_
-- **date observed:** _(empty — UNVERIFIED)_
-- **observed by:** _(empty — UNVERIFIED)_
+- **platform version observed:** `2.1.220 (Claude Code)`
+- **session startup header text observed (verbatim):** `grugops-orchestr` — the header line was
+  truncated by terminal width at the point the observer read it, so the trailing characters and the
+  presence or absence of a leading `@` are **not** established by this observation. What is
+  established is that the header carried the coordinator's agent name. Recorded as seen; not
+  reconstructed into `@grugops-orchestrator`.
+- **did that header name the coordinator agent:** yes.
+- **request made:** `audit current architecture`
+- **role agent that resolved and ran:** three distinct role agents resolved and ran —
+  `grugops-brownfield-mapper`, `grugops-architect-design`, `grugops-security-nfr`. All three are
+  members of the coordinator's enumerated grant. The coordinator announced `Tier: Full` and
+  `width 3/3 — at queue.wip_limit, not over`.
+- **did the coordinator work the task inline instead:** no.
+- **date observed:** 2026-07-29
+- **observed by:** Olger Oeselg
+
+**Target and session.** Observed against the installed target
+`/Users/olgeroeselg/Projects/hacks/grugops-examples/cli-chess-example` in a **fresh** session
+(`claude --agent grugops-orchestrator`), after a re-install brought that repository from a stale
+Jul-22 install to the current adapter set. Session id `9bcd8d66-091d-4387-aef0-04319f4d4015`.
+
+**Provenance of each slot.** The header, the request, the role agents and the inline question were
+observed by the named human in the interactive session and reported in their own words. The
+platform version was read from `claude --version` on the same machine. The session transcript was
+inspected afterwards only to corroborate what the observer reported — it did not originate any slot
+above, and it contradicted none of them.
+
+**A prior non-observation, recorded so it is not mistaken for this one.** An earlier attempt on
+2026-07-29 against the same repository produced the *opposite* behaviour — zero `Agent` calls and a
+fall back to `_role-switch-protocol.md` (`▶ entering ARCHITECT/DESIGN`). That attempt is **not** a
+mismatch and is not recorded as one: the target then carried a Jul-22 install with one adapter file
+and a 7-name grant of which **0 names resolved**, so nothing was spawnable and the single-window
+degrade was correct behaviour. `coordinator-resolution-precheck.js --inspect-target` exits 1 on that
+tree naming exactly that condition. The attempt was therefore a non-observation against a tree the
+precheck rejects, not an observation that disagreed. Re-observing after fixing the precondition is
+not the prohibited "re-run until it agrees"; the specified test had not yet been run against a
+conforming target.
 
 ### Recorded only if encountered
 
@@ -84,9 +113,13 @@ they are **recorded if encountered, never required**. Each asks for what was see
 for a rule to be inferred: if the edge did not occur, leave the slot empty and claim nothing about how
 the runtime would have behaved.
 
-- **same agent name at project scope and at user scope: which scope the runtime resolved:** _(empty — UNVERIFIED)_
-- **no adapter matches the requested name: the exact error text emitted:** _(empty — UNVERIFIED)_
-- **more than one role agent routed in one turn: the observed order, and whether it was stable:** _(empty — UNVERIFIED)_
+- **same agent name at project scope and at user scope: which scope the runtime resolved:** _(empty — UNVERIFIED)_ — not encountered; this observation exercised no scope collision, and nothing is claimed about how the runtime would resolve one.
+- **no adapter matches the requested name: the exact error text emitted:** _(empty — UNVERIFIED)_ — not encountered in this observation. Note that the *prior* non-observation above stood on a tree where 7 of 7 granted names resolved to no adapter file, yet no runtime error text was captured from it either, because the coordinator degraded to the single-window protocol rather than attempting a spawn. The error text remains unobserved.
+- **more than one role agent routed in one turn: the observed order, and whether it was stable:**
+  **Encountered.** Three role agents were routed in a single turn, in this order:
+  `grugops-brownfield-mapper` → `grugops-architect-design` → `grugops-security-nfr`.
+  **Stability is NOT established.** Only one such turn was observed, in one session. A single
+  occurrence cannot show whether the order is stable, and no ordering guarantee is claimed from it.
 
 ---
 
