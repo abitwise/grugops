@@ -4,15 +4,15 @@ milestone: v2.1
 milestone_name: Autonomous Factory — Real Spawning, Controlled Language & Live Board
 current_phase: 27
 current_phase_name: spawn-correctness-kit-set-authority
-status: verifying
+status: executing
 stopped_at: Completed 27-09-PLAN.md (final plan of phase 27)
-last_updated: "2026-07-28T20:11:59.539Z"
+last_updated: "2026-07-29T07:28:51.107Z"
 last_activity: 2026-07-28
 last_activity_desc: Phase 27 execution started
 progress:
   total_phases: 7
   completed_phases: 1
-  total_plans: 9
+  total_plans: 17
   completed_plans: 9
   percent: 14
 ---
@@ -30,7 +30,7 @@ See: .planning/PROJECT.md (updated 2026-07-28 — after v2.0 milestone)
 
 Phase: 27 (spawn-correctness-kit-set-authority) — EXECUTING
 Plan: 9 of 9
-Status: Phase complete — ready for verification
+Status: Ready to execute
 Last activity: 2026-07-28 — Phase 27 execution started
 
 ## Performance Metrics
