@@ -1520,7 +1520,38 @@ describe("install.js / uninstall.js — single-installer contract (folds install
   // a reversibility gap against the CLAUDE.md installer constraint. These cases pin the three
   // states of the guarded removal pass that closes it.
 
-  const RUNNABLE_RELS = ["tools/grugops/reference-check.js", "tools/grugops/test-skip-integrity.js"];
+  // DERIVE THE SET, ASSERT THE COUNT. RUNNABLES (install.ts) and RUNNABLES_MIRROR (uninstall.ts) are
+  // a hand-maintained PAIR — dispositioned as a source→dest mapping rather than a discovery set in
+  // the check-foundation-guards.ts inventory, entry 15 — and a hand-maintained pair is exactly the
+  // thing that rots while the suite stays green. So this test does NOT keep a third hand-copy of the
+  // list: it reads both literals out of the two sources, asserts they AGREE, and drives every case
+  // below off the result. An entry added to one file and not the other fails here, and an entry
+  // added to both is automatically covered by the round-trip case.
+  function mappingDests(file: string, constName: string): string[] {
+    const src = readFileSync(join(import.meta.dirname, file), "utf8");
+    const block = new RegExp(`const ${constName}: Array<\\[string, string\\]> = \\[([\\s\\S]*?)\\n\\];`).exec(src);
+    if (!block) throw new Error(`${file}: could not find the ${constName} mapping literal`);
+    return [...block[1].matchAll(/\[\s*"([^"]+)"\s*,\s*"([^"]+)"\s*\]/g)].map((m) => m[2]).sort();
+  }
+  const RUNNABLE_RELS = mappingDests("install.ts", "RUNNABLES");
+
+  it("runnable removal: the installer's RUNNABLES and the uninstaller's RUNNABLES_MIRROR are the same mapping", () => {
+    const mirror = mappingDests("uninstall.ts", "RUNNABLES_MIRROR");
+    expect(mirror).toEqual(RUNNABLE_RELS);
+    // The integer, so a pair that shrinks together still fails.
+    expect(RUNNABLE_RELS.length).toBe(2);
+    expect(mirror.length).toBe(2);
+    // Sources too — a mirrored dest removed on the strength of the WRONG source's bytes would be a
+    // byte-identity check that proves nothing.
+    const srcSideInstall = [...readFileSync(join(import.meta.dirname, "install.ts"), "utf8").matchAll(
+      /\["(scripts\/runnable-ref\/[^"]+)",\s*"tools\/grugops\/[^"]+"\]/g,
+    )].map((m) => m[1]).sort();
+    const srcSideUninstall = [...readFileSync(join(import.meta.dirname, "uninstall.ts"), "utf8").matchAll(
+      /\["(scripts\/runnable-ref\/[^"]+)",\s*"tools\/grugops\/[^"]+"\]/g,
+    )].map((m) => m[1]).sort();
+    expect(srcSideUninstall).toEqual(srcSideInstall);
+    expect(srcSideInstall.length).toBe(2);
+  });
 
   it("runnable removal: a scratch install followed by a scratch uninstall leaves no runnable behind", () => {
     const target = makeFixture();
