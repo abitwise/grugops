@@ -59,7 +59,7 @@ Each requirement maps to exactly one roadmap phase (27–33). REQ-IDs continue g
 
 ### SPAWN — Spawn Correctness
 
-- [ ] **SPAWN-01**: All 17 role subagent adapters exist at `.claude/agents/grugops-<role>.md`, **generated** from `agent-factory/roles/*.md` by a single templated generator — thin pointers, never copies of role text.
+- [x] **SPAWN-01**: All 17 role subagent adapters exist at `.claude/agents/grugops-<role>.md`, **generated** from `agent-factory/roles/*.md` by a single templated generator — thin pointers, never copies of role text.
 - [x] **SPAWN-02**: `adapters-freshness.ts` byte-gates the generated adapters against a fresh regeneration, fail-closed on drift (the proven pattern from `catalog-freshness` / `context-freshness`).
 - [ ] **SPAWN-03**: The coordinator is wired as the Claude Code **main-thread** agent so its `Agent(<allowlist>)` grant is honoured by the runtime — the current subagent placement makes the grant a no-op, since Claude Code ignores the type list inside a subagent definition.
 - [x] **SPAWN-04**: Non-coordinator role adapters omit the `Agent` tool entirely — a mechanism that holds on both the main-thread and subagent paths, rather than relying on a frontmatter token the runtime ignores.

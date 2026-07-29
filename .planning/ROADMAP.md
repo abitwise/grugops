@@ -124,7 +124,7 @@ Full phase details + milestone summary: `milestones/v2.0-ROADMAP.md` · requirem
   4. On Claude Code the coordinator runs as the **main-thread** agent so its `Agent(<allowlist>)` grant is honored by the runtime, and no non-coordinator adapter carries the `Agent` tool at all — a mechanism that holds on both the main-thread and subagent paths rather than relying on a frontmatter token the runtime ignores. (SPAWN-03, SPAWN-04)
   5. `guard_adapter_body` fails red on pre-v2.0 handoff/single-window prose anywhere in an adapter body — proven against the surviving `grugops-orchestrator.md:25` reference — `orchestrator.md` sits below its **7570-byte FAIL ceiling with the ceiling unchanged**, and the advertised Claude Code floor reads **v2.1.219+ at depth 3** everywhere it appears, with the v2.1.217–218 depth-1 window documented as a known-bad range that degrades loudly. (SPAWN-05, SPAWN-06, SPAWN-07)
 
-**Plans**: 14/17 plans executed
+**Plans**: 15/17 plans executed
 Plans:
 **Wave 1**
 
@@ -171,7 +171,7 @@ Plans:
 
 **Gap wave 4** *(blocked on 27-14)*
 
-- [ ] 27-15-PLAN.md — the shipped capability announcement names a command that exists; three sources corrected, adapters regenerated inside a stated byte budget with both ceilings unchanged, and the command name pinned by a guard beat [SPAWN-01]
+- [x] 27-15-PLAN.md — the shipped capability announcement names a command that exists; three sources corrected, adapters regenerated inside a stated byte budget with both ceilings unchanged, and the command name pinned by a guard beat [SPAWN-01]
 
 **Gap wave 5** *(blocked on 27-15)*
 
@@ -318,7 +318,7 @@ Plans:
 | 24. Clean Handoff Removal & Traceability Migration | v2.0 | 5/5 | Complete    | 2026-06-22 |
 | 25. Governance-on-a-Dial | v2.0 | 13/13 | Complete | 2026-06-29 |
 | 26. Dogfood, Dual-Path Oracle & A3/DOG-02 Retirement | v2.0 | 6/6 | Complete | 2026-07-24 |
-| 27. Spawn Correctness & Kit-Set Authority | v2.1 | 14/17 | In Progress|  |
+| 27. Spawn Correctness & Kit-Set Authority | v2.1 | 15/17 | In Progress|  |
 | 28. Kit Consistency Audit | v2.1 | 0/TBD | Not started | - |
 | 29. Controlled Language & Voice Guard Rebuild | v2.1 | 0/TBD | Not started | - |
 | 30. Per-Checkpoint Autonomy Matrix | v2.1 | 0/TBD | Not started | - |
