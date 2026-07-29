@@ -33,7 +33,7 @@ import {
 import { tmpdir } from "node:os";
 import { join, dirname } from "node:path";
 
-import { listRoles, ROLE_COUNT } from "./kit-model.js";
+import { listRoles, listAgentAdapters, ROLE_COUNT } from "./kit-model.js";
 
 const ROOT = join(import.meta.dirname, "..");
 const GUARD_JS = join(ROOT, "scripts", "check-foundation-guards.js");
@@ -59,10 +59,15 @@ const DERIVED_ROLE_INPUTS = listRoles().map((f) => `agent-factory/roles/${f}`);
 // membership from `.claude/agents` and `.claude/skills`, so a mirror carrying a hand-picked SUBSET
 // of those directories would trip the count floor on every plant case instead of the violation it
 // planted. Deriving here mirrors the guard's own rule, so the two can never disagree.
-const DERIVED_AGENT_ADAPTER_INPUTS = readdirSync(join(ROOT, ".claude/agents"))
-  .filter((f) => f.endsWith(".md"))
-  .sort()
-  .map((f) => `.claude/agents/${f}`);
+//
+// (Plan 27-10, KIT-02) The AGENT half now calls the SAME authority the guard calls. It used to be a
+// third non-recursive readdir of `.claude/agents` living in the harness — "mirrors the guard's own
+// rule" was a promise kept by hand, and a hand-kept promise is the drift class this milestone
+// deletes. A mirror can no longer carry a different adapter set than the guard will scan, and a
+// nested adapter in the live tree would be mirrored rather than quietly dropped from every fixture.
+const DERIVED_AGENT_ADAPTER_INPUTS = listAgentAdapters(ROOT).map(
+  (rel) => `.claude/agents/${rel}`,
+);
 const DERIVED_SKILL_ADAPTER_INPUTS = readdirSync(join(ROOT, ".claude/skills"))
   .filter((d) => existsSync(join(ROOT, ".claude/skills", d, "SKILL.md")))
   .sort()
@@ -223,6 +228,33 @@ function consistentMirror(): string {
   return m;
 }
 
+// Plant the reproduced CR-01 rogue adapter at a path RELATIVE to the mirror's `.claude/agents`.
+// `rel` may carry directory segments — that is the whole point, and mkdirSync({recursive:true})
+// needs no new machinery for it. The body is deliberately complete: a live `coordinator: true`
+// marker, an enumerated spawn grant, the kit-vs-state invariant blockquote, and the shared-context
+// memory sentence. Nothing about it is malformed; only its LOCATION was ever hiding it.
+function plantNestedRogue(root: string, rel: string): string {
+  const file = join(root, ".claude/agents", rel);
+  mkdirSync(dirname(file), { recursive: true });
+  writeFileSync(
+    file,
+    [
+      "---",
+      "name: grugops-rogue",
+      'description: "Rogue spawner planted in a subdirectory."',
+      "coordinator: true",
+      "tools: Agent(grugops-installer, grugops-security-nfr), Read, Grep, Glob, Edit, Write, Bash",
+      "model: inherit",
+      "---",
+      "> **Kit vs state invariant:** `agent-factory/…` = read-only KIT. If the kit dir is absent, STOP — do not hunt.",
+      "",
+      "Rogue adapter with a live spawn grant. The shared verified context is the only memory.",
+      "",
+    ].join("\n"),
+  );
+  return file;
+}
+
 // Run the compiled guard with CHECK_ROOT pointed at the mirror; capture status + combined output.
 function runIn(checkRoot: string): SpawnSyncReturns<string> {
   return spawnSync("node", [GUARD_JS], {
@@ -352,6 +384,42 @@ describe("check-foundation-guards.js (SDLC-02 / SC2 fail-proof harness)", () => 
     expect(out(r)).toMatch(/exactly one coordinator/i);
     expect(out(r)).toContain("found 2");
     expect(out(r)).toContain("slash-command.template.md");
+  });
+
+  // ── The CR-01 NESTED-ADAPTER bypass, reproduced and now closed (plan 27-10, KIT-02). ──────────
+  //
+  // Claude Code discovers `.claude/agents/` RECURSIVELY and takes agent identity ONLY from
+  // frontmatter, so `.claude/agents/extra/rogue.md` IS LOADED BY THE PLATFORM. Every derivation in
+  // this file used to read that directory NON-recursively, so the planted file was simultaneously
+  // outside guard_wr05's scan set, guard_adapter_body's, guard_adapter_size's and the KIT-03
+  // oracle's — and the whole gate printed ALL CHECKS PASSED over a tree carrying a second live
+  // coordinator with its own enumerated spawn grant.
+  //
+  // The plant below is the reproduction transcript's file byte-for-byte in substance, and
+  // deliberately MAXIMALLY STEALTHY: it carries the invariant blockquote (which is what let the
+  // original reproduction slip past the kit-reference gate) and the shared-context memory sentence
+  // (so guard_adapter_body has nothing to say about it). The ONLY thing left to catch it is the
+  // derivation seeing it at all.
+  it("guard_wr05 nested adapter planted under .claude/agents → nonzero + 'found 2' coordinators naming the nested path (CR-01)", () => {
+    const m = consistentMirror();
+    plantNestedRogue(m, "extra/rogue.md");
+    const r = runIn(m);
+    expect(r.status).not.toBe(0);
+    expect(out(r)).toMatch(/exactly one coordinator/i);
+    expect(out(r)).toContain("found 2");
+    // The planted RELATIVE path, forward-slash separated, appears in the guard output — the
+    // derivation saw it, and the guard says so.
+    expect(out(r)).toContain(".claude/agents/extra/rogue.md");
+  });
+
+  // The other direction of the same fixture: with the plant REMOVED the identical mirror is green.
+  // Without this, the case above would still pass if the mirror were broken for some unrelated
+  // reason, and the RED evidence would be worthless.
+  it("guard_wr05 nested adapter removed → the same mirror is GREEN (the plant is what turns it red)", () => {
+    const m = consistentMirror();
+    const r = runIn(m);
+    expect(r.status).toBe(0);
+    expect(out(r)).toContain("ALL CHECKS PASSED");
   });
 
   // ── guard_wr05 tier-announcement presence (Phase 27 / plan 27-08, the REVISED D-05). ──────────

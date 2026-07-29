@@ -23,11 +23,12 @@
 import { describe, it, expect, afterAll } from "vitest";
 import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, dirname } from "node:path";
 
 import {
   listRoles,
   listWorkflows,
+  listAgentAdapters,
   ROLE_COUNT,
   WORKFLOW_COUNT,
 } from "./kit-model.js";
@@ -51,6 +52,24 @@ function kitRoot(roles: string[] | null, workflows: string[] | null): string {
     const dir = join(root, sub);
     mkdirSync(dir, { recursive: true });
     for (const f of files) writeFileSync(join(dir, f), "# placeholder\n");
+  }
+  return root;
+}
+
+// Build a throwaway root carrying ONLY `.claude/agents`. Entries are relative paths, so a nested
+// plant is written as `extra/rogue.md` and the parent directories are created for it. `null` means
+// "do not create the directory at all" (unreadable), `[]` means "create it empty" (vacuous).
+function adapterRoot(agents: string[] | null): string {
+  const root = mkdtempSync(join(tmpdir(), "grugops-kit-model-adapters-"));
+  tmpDirs.push(root);
+  if (agents !== null) {
+    const dir = join(root, ".claude/agents");
+    mkdirSync(dir, { recursive: true });
+    for (const rel of agents) {
+      const file = join(dir, rel);
+      mkdirSync(dirname(file), { recursive: true });
+      writeFileSync(file, "---\nname: fixture\n---\nplaceholder\n");
+    }
   }
   return root;
 }
@@ -185,5 +204,108 @@ describe("kit-model (KIT-01 kit-set derivation authority)", () => {
     expect(roles).not.toContain("_role-switch-protocol.md");
     expect(roles).toContain("orchestrator.md");
     expect(roles).toEqual([...roles].sort());
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────────────────────────
+// KIT-02 — the ADAPTER authority. The property that matters here is RECURSION, and it is not a
+// stylistic preference: Claude Code discovers `.claude/agents/` recursively and takes agent identity
+// only from frontmatter, so a file one directory deeper IS LOADED BY THE PLATFORM. Four separate
+// non-recursive derivations could not see it, and a live coordinator planted there was reproduced
+// passing the entire guard suite (27-REVIEW.md § CR-01). These cases pin the derivation that closes
+// it: nested entries are members, nesting distinguishes members, and a vacuous set throws.
+// ─────────────────────────────────────────────────────────────────────────────────────────────────
+describe("kit-model listAgentAdapters (KIT-02 adapter derivation authority)", () => {
+  it("returns a NESTED .md entry as a forward-slash relative path (the CR-01 bypass)", () => {
+    const root = adapterRoot(["grugops-orchestrator.md", "extra/rogue.md"]);
+    expect(listAgentAdapters(root)).toEqual([
+      "extra/rogue.md",
+      "grugops-orchestrator.md",
+    ]);
+  });
+
+  it("keeps only .md entries, at any depth", () => {
+    const root = adapterRoot([
+      "grugops-ba-pm.md",
+      "README.txt",
+      "nested/notes.txt",
+      "nested/deeper/grugops-rogue.md",
+    ]);
+    expect(listAgentAdapters(root)).toEqual([
+      "grugops-ba-pm.md",
+      "nested/deeper/grugops-rogue.md",
+    ]);
+  });
+
+  it("two adapter paths differing ONLY by nesting are DISTINCT members, never merged", () => {
+    // The same basename at two depths. A derivation that compared basenames — or that deduplicated
+    // on the file name — would report one member here and silently lose the planted one.
+    const root = adapterRoot([
+      "grugops-orchestrator.md",
+      "extra/grugops-orchestrator.md",
+    ]);
+    const got = listAgentAdapters(root);
+    expect(got).toEqual([
+      "extra/grugops-orchestrator.md",
+      "grugops-orchestrator.md",
+    ]);
+    expect(got.length).toBe(2);
+  });
+
+  it("is sorted by FULL relative path and two calls on the same tree are deeply equal", () => {
+    // Planted in deliberately non-alphabetical order so an unsorted implementation would differ, and
+    // mixing depths so the specified order covers nested-vs-top-level rather than leaving it to
+    // readdirSync.
+    const root = adapterRoot([
+      "z-last.md",
+      "extra/deep/a.md",
+      "a-first.md",
+      "extra/b.md",
+    ]);
+    const first = listAgentAdapters(root);
+    const second = listAgentAdapters(root);
+    expect(first).toEqual([
+      "a-first.md",
+      "extra/b.md",
+      "extra/deep/a.md",
+      "z-last.md",
+    ]);
+    expect(second).toEqual(first);
+    expect(first).toEqual([...first].sort());
+  });
+
+  it("THROWS naming the directory when the agents directory does not exist", () => {
+    const root = adapterRoot(null);
+    expect(() => listAgentAdapters(root)).toThrow(join(root, ".claude/agents"));
+    expect(() => listAgentAdapters(root)).toThrow(/cannot read kit directory/);
+  });
+
+  it("THROWS naming the directory when the agents directory is empty (never returns [])", () => {
+    const root = adapterRoot([]);
+    expect(() => listAgentAdapters(root)).toThrow(join(root, ".claude/agents"));
+    expect(() => listAgentAdapters(root)).toThrow(
+      /refusing to return an empty set/,
+    );
+  });
+
+  it("THROWS when the agents directory holds only non-markdown entries (filtered to empty)", () => {
+    // Readable and non-empty, but every entry is filtered out — including a nested one, so the
+    // recursion cannot rescue a naive "did readdir return something?" check.
+    const root = adapterRoot(["README.txt", "nested/notes.json"]);
+    expect(() => listAgentAdapters(root)).toThrow(
+      /refusing to return an empty set/,
+    );
+    expect(() => listAgentAdapters(root)).toThrow(join(root, ".claude/agents"));
+  });
+
+  it("the live tree derives one adapter per role, all top-level and sorted", () => {
+    // Read-only over the real tree. Deliberately NOT asserted against a separate adapter-count
+    // constant: the KIT-03 oracle owns that number by comparing against the role corpus, and a second
+    // constant asserting the same fact would be a second authority for it.
+    const adapters = listAgentAdapters();
+    expect(adapters.length).toBe(ROLE_COUNT);
+    expect(adapters).toEqual([...adapters].sort());
+    expect(adapters.every((rel) => !rel.includes("/"))).toBe(true);
+    expect(adapters).toContain("grugops-orchestrator.md");
   });
 });

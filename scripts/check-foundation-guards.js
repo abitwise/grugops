@@ -130,7 +130,7 @@ import { oracleWr05Wording, oracleHooksWiring, oracleDualPathEquivalence, uatOra
 // single authority; this file is one of its consumers. The kit root is passed EXPLICITLY (D-22) so
 // kit-model never re-resolves a root of its own and CHECK_ROOT stays the only override this gate
 // honors.
-import { listRoles, listWorkflows, ROLE_COUNT, WORKFLOW_COUNT, } from "./kit-model.js";
+import { listRoles, listWorkflows, listAgentAdapters, ROLE_COUNT, WORKFLOW_COUNT, } from "./kit-model.js";
 // Phase 27 (SPAWN-05 / D-24): the retired-vocabulary literals are single-source. guard_adapter_body
 // below takes the PROSE forms; check-kit-refs Assertion 2 takes the PATH form. Two genuinely
 // different predicates over different inputs — one list, never two.
@@ -185,6 +185,14 @@ function grepFiles(files, re) {
 // Derivation is still a BOUNDED scan: two fixed literal directories, one shape rule each, never a
 // repo-wide walk. Both parts are sorted, so guard output for a given tree is byte-identical across
 // runs and platforms regardless of readdirSync order.
+//
+// (Plan 27-10, KIT-02) The AGENT half is no longer derived here at all. This file's own
+// non-recursive read of `.claude/agents` was DELETED — not taught to recurse — and replaced by
+// kit-model.listAgentAdapters(), which is now the single answer to "what is an agent adapter".
+// The deleted read could not see a file at `.claude/agents/<subdir>/<x>.md`, which Claude Code
+// LOADS (it discovers the directory recursively and takes identity only from frontmatter). A live
+// coordinator planted there was reproduced passing this entire gate. One format-aware authority per
+// predicate, and the duplicate grammar deleted rather than corrected in place.
 // ---------------------------------------------------------------------------
 // Fixed literal subpaths joined onto the already-resolved ROOT — never argv/env/content-derived
 // (ASVS V12, mirrors kit-model.ts's path-traversal posture).
@@ -195,8 +203,10 @@ const SKILL_DIR = ".claude/skills";
 // that can only ever fail closed. Deleting a skill directory must not be able to disappear from the
 // guard's view, and the KIT-03 oracle cannot see it (a skill has no role to compare against).
 const SKILL_COUNT = 7;
-// Read a directory, returning [] when it cannot be read. The empty result is NOT a silent pass —
+// Read a FLAT directory, returning [] when it cannot be read. The empty result is NOT a silent pass —
 // guardAdapterSize()'s non-empty floor fails red on it, naming the directory and both counts.
+// (Plan 27-10) The agent-adapter caller is gone; this now serves the skill directory and the
+// packaging-template directory only.
 function readAdapterDir(rel) {
     try {
         return readdirSync(abs(rel));
@@ -205,11 +215,25 @@ function readAdapterDir(rel) {
         return [];
     }
 }
-// Every `.md` file directly under .claude/agents, sorted, as repo-relative paths.
-const AGENT_ADAPTERS = readAdapterDir(ADAPTER_DIR)
-    .filter((f) => f.endsWith(".md"))
-    .sort()
-    .map((f) => `${ADAPTER_DIR}/${f}`);
+// Every `.md` file under .claude/agents AT ANY DEPTH, sorted, as repo-relative paths. The authority
+// returns forward-slash paths relative to the adapter directory; the fixed subpath is prefixed back
+// on here to restore the repo-relative shape the three consuming guards expect.
+//
+// The authority THROWS (D-21 tier 1) when the directory is unreadable, empty, or filtered to empty.
+// This gate does NOT abort on that: it records the thrown message and continues with an EMPTY member
+// list, so guard_adapter_size's non-empty floor and the KIT-03 oracle's zero-adapter branch both fire
+// and NAME the condition. Aborting here would print one line and silently skip six unrelated guards.
+let ADAPTER_DERIVATION_ERROR = "";
+function deriveAgentAdapters() {
+    try {
+        return listAgentAdapters(ROOT).map((rel) => `${ADAPTER_DIR}/${rel}`);
+    }
+    catch (e) {
+        ADAPTER_DERIVATION_ERROR = e.message;
+        return [];
+    }
+}
+const AGENT_ADAPTERS = deriveAgentAdapters();
 // Every `<name>/SKILL.md` under .claude/skills, sorted, as repo-relative paths. The entry is kept
 // only when the SKILL.md actually exists, so a stray non-skill directory cannot join the set.
 const SKILL_ADAPTERS = readAdapterDir(SKILL_DIR)
@@ -556,7 +580,7 @@ function guardAdapterSize() {
     // that compared zero adapters is the anomaly, never "nothing to check, therefore fine". Report
     // BOTH counts so the message says which directory came back empty and what the other held.
     if (AGENT_ADAPTERS.length === 0 || SKILL_ADAPTERS.length === 0) {
-        fail(`adapter derivation returned an empty set — ${ADAPTER_DIR}: ${AGENT_ADAPTERS.length} adapter(s), ${SKILL_DIR}: ${SKILL_ADAPTERS.length} adapter(s). An empty adapter directory is never "nothing to compare, therefore fine".`);
+        fail(`adapter derivation returned an empty set — ${ADAPTER_DIR}: ${AGENT_ADAPTERS.length} adapter(s), ${SKILL_DIR}: ${SKILL_ADAPTERS.length} adapter(s). An empty adapter directory is never "nothing to compare, therefore fine".${ADAPTER_DERIVATION_ERROR === "" ? "" : `\n${ADAPTER_DERIVATION_ERROR}`}`);
     }
     for (const f of ADAPTERS) {
         // TOCTOU defence: the member came from a readdir, so a vanished file here is a race, not a
