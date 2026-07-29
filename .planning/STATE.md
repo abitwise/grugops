@@ -5,15 +5,15 @@ milestone_name: Autonomous Factory — Real Spawning, Controlled Language & Live
 current_phase: 27
 current_phase_name: spawn-correctness-kit-set-authority
 status: executing
-stopped_at: Completed 27-11-PLAN.md
-last_updated: "2026-07-29T08:08:44.398Z"
+stopped_at: Completed 27-12-PLAN.md
+last_updated: "2026-07-29T08:31:45.122Z"
 last_activity: 2026-07-29
 last_activity_desc: 27-11 complete (adapter freshness gate wired into CI + a five-case test file; nested-orphan bypass closed)
 progress:
   total_phases: 7
   completed_phases: 0
   total_plans: 17
-  completed_plans: 11
+  completed_plans: 12
   percent: 0
 ---
 
@@ -29,7 +29,7 @@ See: .planning/PROJECT.md (updated 2026-07-28 — after v2.0 milestone)
 ## Current Position
 
 Phase: 27 (spawn-correctness-kit-set-authority) — EXECUTING
-Plan: 12 of 17
+Plan: 13 of 17
 Status: Ready to execute
 Last activity: 2026-07-29 — 27-11 complete (adapter freshness gate wired into CI + a five-case test file; nested-orphan bypass closed)
 
@@ -205,6 +205,7 @@ Last activity: 2026-07-29 — 27-11 complete (adapter freshness gate wired into 
 | Phase 27 P09 | 15m | 2 tasks | 2 files |
 | Phase 27 P10 | 25m | 3 tasks | 6 files |
 | Phase 27 P11 | 15m | 3 tasks | 7 files |
+| Phase 27 P12 | 20m | 3 tasks | 6 files |
 
 ## Accumulated Context
 
@@ -487,6 +488,10 @@ Recent decisions affecting current work:
 - [Phase ?]: Wire a gate at BOTH ends — CI step + a test file that spawns it — so a workflow refactor cannot silently un-gate it (SPAWN-02)
 - [Phase ?]: adapters-freshness splits SCRIPT_ROOT (committed twins under test) from KIT_ROOT (tree judged, CHECK_ROOT-overridable); CHECK_ROOT is stripped from the mirrored generator's env
 - [Phase ?]: KIT-02 stays open — 27-13 (installer/uninstaller) still carries its own adapter derivation; SPAWN-02 marked complete
+- [Phase ?]: SPAWN-04/KIT-03: the grant is read from a reconstructed frontmatter VALUE through one module; the two line-anchored expressions and the marker expression are DELETED, not extended
+- [Phase ?]: A frontmatter parse failure is a discriminated arm and its own guard finding — it can never read as an absence of a grant
+- [Phase ?]: Duplicate frontmatter keys: neither wins; every occurrence is retained and the grant predicate tests all of them, because discarding one is a bypass
+- [Phase ?]: The spawn grant is a FRONTMATTER fact — scoped to the tools keys; a token in a description or in body prose is documentation, not a grant
 
 ### Pending Todos
 
@@ -585,8 +590,8 @@ Shape of the carry: **9 of 11 are pre-v2.0 carryover** from the v1.2 block above
 
 ## Session Continuity
 
-Last session: 2026-07-29T08:08:36.664Z
-Stopped at: Completed 27-11-PLAN.md
+Last session: 2026-07-29T08:31:37.686Z
+Stopped at: Completed 27-12-PLAN.md
 Resume file: None
 
 ## Operator Next Steps
