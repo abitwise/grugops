@@ -5,15 +5,15 @@ milestone_name: Autonomous Factory — Real Spawning, Controlled Language & Live
 current_phase: 27
 current_phase_name: spawn-correctness-kit-set-authority
 status: executing
-stopped_at: Completed 27-15-PLAN.md
-last_updated: "2026-07-29T10:40:34.978Z"
+stopped_at: Completed 27-16-PLAN.md
+last_updated: "2026-07-29T10:56:06.276Z"
 last_activity: 2026-07-29
 last_activity_desc: 27-11 complete (adapter freshness gate wired into CI + a five-case test file; nested-orphan bypass closed)
 progress:
   total_phases: 7
   completed_phases: 0
   total_plans: 17
-  completed_plans: 15
+  completed_plans: 16
   percent: 0
 ---
 
@@ -29,7 +29,7 @@ See: .planning/PROJECT.md (updated 2026-07-28 — after v2.0 milestone)
 ## Current Position
 
 Phase: 27 (spawn-correctness-kit-set-authority) — EXECUTING
-Plan: 16 of 17
+Plan: 17 of 17
 Status: Ready to execute
 Last activity: 2026-07-29 — 27-11 complete (adapter freshness gate wired into CI + a five-case test file; nested-orphan bypass closed)
 
@@ -209,6 +209,7 @@ Last activity: 2026-07-29 — 27-11 complete (adapter freshness gate wired into 
 | Phase 27 P13 | 55m | 3 tasks | 8 files |
 | Phase 27 P14 | 25m | 2 tasks | 4 files |
 | Phase 27 P15 | 40m | 2 tasks | 8 files |
+| Phase 27 P16 | 30m | 2 tasks | 5 files |
 
 ## Accumulated Context
 
@@ -505,6 +506,7 @@ Recent decisions affecting current work:
 - [Phase ?]: [27-15] The shipped command is `/grugops`, confirmed from the tree (7 skill dirs + their name keys), not adopted from the finding; `/grug` exists in no install form. Four surfaces now agree with identical inline-code formatting.
 - [Phase ?]: [27-15] The coordinator adapter BODY is emitted from an inline string in scripts/generate-role-adapters.ts, NOT from the packaging template — the plan named three sources, the real count is four. Correcting only the template leaves the shipped body stale while adapters-freshness stays green (it compares against the same stale generator).
 - [Phase ?]: [27-15] TIER_BEATS gains a sixth beat pinning the reduced-tier command name, plus an optional per-beat `why` clause (default preserves the five original findings byte-identically). Pinned TO the shipped command via an arbitrary-wrong RED case, not merely AGAINST the stale token.
+- [Phase ?]: [27-16] SPAWN-03's observable half is discharged by one command (scripts/coordinator-resolution-precheck.js); its runtime half stays unperformed and lands in 27-SPAWN-03-RUNTIME-EVIDENCE.md, shipped empty and marked unverified
 
 ### Pending Todos
 
@@ -603,8 +605,8 @@ Shape of the carry: **9 of 11 are pre-v2.0 carryover** from the v1.2 block above
 
 ## Session Continuity
 
-Last session: 2026-07-29T10:40:23.045Z
-Stopped at: Completed 27-15-PLAN.md
+Last session: 2026-07-29T10:56:06.266Z
+Stopped at: Completed 27-16-PLAN.md
 Resume file: None
 
 ## Operator Next Steps
