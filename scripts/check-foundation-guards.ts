@@ -61,16 +61,25 @@
 //
 // The founding defect of this milestone was a hand-maintained set that rotted while the suite stayed
 // green. Deleting one instance is worthless if the others survive unrecorded, so this is the
-// committed record of EVERY enumerating literal the phase found and what was done about it. It is
+// committed record of what the phase's sweep found and what was done about it. It is
 // deliberately PROSE, not a machine-checked detector: a grep-based stale-literal guard would be a
 // heuristic capable of being a strict SUBSET of the real predicate — green while a literal it cannot
 // parse rots on — which is the exact failure shape this milestone exists to close. A record a human
 // reads is honest about being a record; a detector that misses is not.
 //
+// WHAT THIS RECORD CLAIMS, AND WHAT IT DOES NOT (plan 27-14, review finding WR-04). It records every
+// enumerating literal the phase's sweep found in scripts/ and install/ — the tooling that decides KIT
+// MEMBERSHIP, which is where the founding defect lived. That is the claim the fifteen rows below can
+// actually support. It does NOT claim the repository holds no other enumerating literal: the sweep
+// did not cover hooks/ (whose DEPLOY pattern list is a detection vocabulary, not a membership set)
+// nor the shipped kit markdown, and a literal there is OUTSIDE this record rather than certified
+// absent. The narrowing is deliberate. This record already failed once by claiming more than it
+// held — WR-04 found it saying "EVERY" while omitting install.ts's RUNNABLES — and a record that
+// overclaims is worse than no record, because it stops the next author looking. Scoping the claim
+// tells that author exactly where the sweep ended and where their own has to begin.
+//
 // Entries 1-14 are those of 27-RESEARCH.md § "The Set-Literal Inventory, Corrected". Entry 15 was
-// added in plan 27-13: 27-REVIEW.md § WR-04 found that this record claimed to be complete while
-// omitting install.ts's RUNNABLES, and a record that says "EVERY" and is not is worse than no record
-// because it stops the next author looking.
+// added in plan 27-13, for the omission WR-04 named.
 //
 //   #   literal                  file                            disposition
 //   ──  ───────────────────────  ──────────────────────────────  ────────────────────────────────────
@@ -730,12 +739,21 @@ function guardAdapterBody(): void {
     }
   }
 
-  // Vacuity floor. The adapter half of the scan set is DERIVED, and deriving a set silently deletes
-  // the fail-red branch a literal had: a body that disappears stops being a member instead of
-  // becoming a finding. A run that scanned nothing is the anomaly, never "no bodies to check,
-  // therefore fine".
-  if (scanned + templateShapes === 0) {
-    bodyFail += `\nthe adapter-body scan set derived nothing — refusing to report a verdict over zero bodies (${ADAPTER_DIR} + ${SKILL_DIR} + ${ADAPTER_BODY_TEMPLATE})`;
+  // Vacuity floor, over the DERIVED half. The adapter half of the scan set is DERIVED, and deriving
+  // a set silently deletes the fail-red branch a literal had: a body that disappears stops being a
+  // member instead of becoming a finding. A run that derived no adapters is the anomaly, never "no
+  // bodies to check, therefore fine".
+  //
+  // (Plan 27-14, review finding WR-01) The floor used to test the TOTAL number of bodies scanned.
+  // That quantity always included the packaging template, which is a named literal and always
+  // present, so the branch could never be reached and a tree with BOTH adapter directories emptied
+  // reported a PASS over the template alone. A floor written over the wrong quantity is worse than
+  // no floor, because the phase counts it as restored while it never runs — so the condition is now
+  // the derived MEMBER LIST being empty, which is exactly the thing whose disappearance the floor
+  // exists to catch. The total is still reported in the pass line; reporting what was checked is a
+  // separate and still-useful property, but it was never a fail-red condition.
+  if (ADAPTERS.length === 0) {
+    bodyFail += `\nthe adapter-body scan set derived NO adapters — refusing to report a verdict over the packaging template alone (${ADAPTER_DIR}: ${AGENT_ADAPTERS.length} adapter(s), ${SKILL_DIR}: ${SKILL_ADAPTERS.length} adapter(s))${ADAPTER_DERIVATION_ERRORS.length === 0 ? "" : `\n${ADAPTER_DERIVATION_ERRORS.join("\n")}`}`;
   }
   if (bodyFail === "") {
     // Report WHAT WAS CHECKED on BOTH halves, not a bare PASS: a line reading "1 adapter body" or

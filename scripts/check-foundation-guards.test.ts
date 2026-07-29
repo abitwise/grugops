@@ -956,6 +956,47 @@ describe("check-foundation-guards.js (SDLC-02 / SC2 fail-proof harness)", () => 
     );
   });
 
+  // ── THE VACUITY FLOOR THAT COULD NOT FIRE (plan 27-14, review finding WR-01). ─────────────────
+  //
+  // The floor used to test the TOTAL number of bodies scanned. That total always included the
+  // packaging template — a named literal, always present — so the branch was unreachable, and a tree
+  // with BOTH adapter directories emptied printed a PASS over the template alone. Verified
+  // first-hand on a mirror before the fix: the guard's SPAWN-05 line read PASS over 1 body.
+  //
+  // The assertion below keys on THIS guard's own finding text, not merely on the non-zero exit.
+  // Another guard (guard_adapter_size's non-empty floor) also fails on an emptied tree, so a case
+  // that only asserted `status !== 0` would pass on somebody else's finding and would go on passing
+  // if this floor were deleted outright.
+  it("guard_adapter_body derived half empty (both adapter directories emptied) → nonzero + this guard's own floor names both directories", () => {
+    const m = mirror();
+    rmSync(join(m, ".claude/agents"), { recursive: true, force: true });
+    rmSync(join(m, ".claude/skills"), { recursive: true, force: true });
+    const r = runIn(m);
+    expect(r.status).not.toBe(0);
+    const o = out(r);
+    expect(o).toContain(
+      "the adapter-body scan set derived NO adapters — refusing to report a verdict over the packaging template alone",
+    );
+    expect(o).toContain(".claude/agents: 0 adapter(s)");
+    expect(o).toContain(".claude/skills: 0 adapter(s)");
+    // And the guard must NOT have printed a passing SPAWN-05 line over the template alone — the
+    // exact behaviour the unreachable floor allowed.
+    expect(o).not.toContain("PASS  SPAWN-05:");
+  });
+
+  // The floor is SCOPED to the empty case: a derived half that still holds an adapter must not trip
+  // it. Deleting the skills directory alone leaves 17 agent adapters derived, so this guard's floor
+  // stays silent (guard_adapter_size's own per-directory floor is what fails that tree, and it is a
+  // different finding).
+  it("guard_adapter_body derived half empty floor does NOT fire while an adapter remains", () => {
+    const m = mirror();
+    rmSync(join(m, ".claude/skills"), { recursive: true, force: true });
+    const r = runIn(m);
+    expect(out(r)).not.toContain(
+      "the adapter-body scan set derived NO adapters",
+    );
+  });
+
   // ── guard_agents_bytes — oversize + missing (CR-01). ─────────────────────────────────────────
   it("guard_agents_bytes oversize (>28672B) → nonzero + 'AGENTS.md'", () => {
     const m = mirror();
