@@ -15,14 +15,34 @@
 // of the mirror-spawn pattern already working in this tree (build output, catalog, context, queue,
 // traceability), and it is modelled near-verbatim on scripts/catalog-freshness.ts.
 //
+// WHO INVOKES IT (Phase 27 / SPAWN-02). Until plan 27-11 the answer was "nobody": the
+// package.json entry existed, but the continuous-integration workflow's gate block named this
+// gate's three siblings and not this one, and it was the only freshness gate in the tree without a
+// test file. A gate nothing re-runs fails nothing closed — it was the single gate that would have
+// caught either of the two reproduced hand-edit bypasses, and a committed hand-edit to an adapter
+// passed every gate. It is now wired at BOTH ends, deliberately:
+//   • .github/workflows/ci.yml — the "Freshness gates + foundation guards (ubuntu only)" block runs
+//     `npm run freshness:adapters` alongside its three siblings, so drift turns the build red;
+//   • scripts/adapters-freshness.test.ts — spawns this committed .js directly, so the drift lane
+//     survives a workflow refactor that drops or renames the step.
+//
 // TWO HALVES, not one. The analogs compare a single file; this gate compares a DIRECTORY, so it
 // checks both:
 //   • BYTES — every committed adapter against its regenerated counterpart;
-//   • SET   — the two directory listings for exact set equality, reporting which names are EXTRA and
-//             which are MISSING rather than only that the sets differ.
+//   • SET   — the two directory listings for exact set equality, reporting which members are EXTRA
+//             and which are MISSING rather than only that the sets differ.
 // Without the set half an orphaned adapter left behind by a deleted role passes freshness because
 // nothing regenerates over it, and a missing adapter passes because nothing compares against it.
 // Neither is visible to a byte comparison alone.
+//
+// SET MEMBERS ARE RELATIVE PATHS, not bare names (Phase 27 / KIT-02). Both listings come from
+// scripts/kit-model.ts's listAgentAdapters(), the ONE answer in this tree to "what is an agent
+// adapter". That authority recurses, because Claude Code discovers .claude/agents recursively and
+// takes agent identity only from frontmatter — so a NESTED file the generator never produced is a
+// live adapter, and it is inside this comparison as a named EXTRA member. Comparing full relative
+// paths is also what keeps a nested entry from ever being folded into a top-level entry that
+// happens to share a basename. This file carries NO directory listing of its own: a second
+// derivation of the adapter rule is exactly the drift this gate exists to refuse.
 //
 // The generator keeps its OUT_DIR a fixed literal (.claude/agents) as a path-traversal mitigation
 // (ASVS V12, T-27-28) and accepts no output flag. The gate never overrides it; instead it
@@ -49,19 +69,28 @@
 // surface, never caveman voice).
 
 import { spawnSync } from "node:child_process";
-import {
-  mkdtempSync,
-  mkdirSync,
-  cpSync,
-  rmSync,
-  readdirSync,
-  readFileSync,
-} from "node:fs";
+import { mkdtempSync, mkdirSync, cpSync, rmSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { listAgentAdapters } from "./kit-model.js";
 
-// Repo root = this script's parent (scripts/ -> repo root).
-const ROOT = join(import.meta.dirname, "..");
+// TWO ROOTS, deliberately separated (Phase 27 / SPAWN-02). They were implicitly one before, which
+// is what made this gate impossible to point at a hermetic mirror.
+//
+// SCRIPT_ROOT stays fixed and script-relative: it is where the committed compiled twins the
+// mirror-spawn copies (generate-role-adapters.js, kit-model.js) actually live, and those must be the
+// ones continuous integration and host machines run — never a copy from an arbitrary mirror.
+const SCRIPT_ROOT = join(import.meta.dirname, "..");
+
+// KIT_ROOT is the tree whose adapters are being judged: the role and packaging sources fed to the
+// mirrored generator, and the committed .claude/agents directory read back for comparison. It
+// honors the SAME CHECK_ROOT override that check-foundation-guards.ts and check-kit-refs.ts already
+// honor. Reusing the existing gate convention rather than inventing a fourth root variable is the
+// point: the planted-bypass cases in scripts/adapters-freshness.test.ts mutate a temporary mirror
+// and never the committed tree.
+const KIT_ROOT = process.env.CHECK_ROOT
+  ? process.env.CHECK_ROOT
+  : SCRIPT_ROOT;
 
 // The generator's fixed-literal output directory, mirrored here as a fixed literal too.
 const ADAPTER_DIR = ".claude/agents";
@@ -90,24 +119,39 @@ function die(message: string): never {
 // future revision that consults it finds it here. Note that omitting an input would not have been
 // silently unsafe either — an absent input makes the mirrored generator exit non-zero, which this
 // gate reports as "did not run cleanly" rather than as fresh.
+//
+// The SCRIPT twins come from SCRIPT_ROOT (the committed compiled output under test); the KIT
+// sources come from KIT_ROOT (the tree being judged, which may be a hermetic mirror).
 mkdirSync(join(tmp, "scripts"), { recursive: true });
 mkdirSync(join(tmp, ADAPTER_DIR), { recursive: true });
 cpSync(
-  join(ROOT, "scripts", "generate-role-adapters.js"),
+  join(SCRIPT_ROOT, "scripts", "generate-role-adapters.js"),
   join(tmp, "scripts", "generate-role-adapters.js"),
 );
-cpSync(join(ROOT, "scripts", "kit-model.js"), join(tmp, "scripts", "kit-model.js"));
-cpSync(join(ROOT, "agent-factory", "roles"), join(tmp, "agent-factory", "roles"), {
+cpSync(
+  join(SCRIPT_ROOT, "scripts", "kit-model.js"),
+  join(tmp, "scripts", "kit-model.js"),
+);
+cpSync(join(KIT_ROOT, "agent-factory", "roles"), join(tmp, "agent-factory", "roles"), {
   recursive: true,
 });
 cpSync(
-  join(ROOT, "agent-factory", "packaging"),
+  join(KIT_ROOT, "agent-factory", "packaging"),
   join(tmp, "agent-factory", "packaging"),
   { recursive: true },
 );
 
+// CHECK_ROOT is stripped from the child's environment on purpose. The mirrored generator resolves
+// its own fixed-literal paths against its own location inside <tmp>, and it must keep doing so: if
+// a future revision ever learned the same override, an inherited CHECK_ROOT would silently point
+// the "fresh regeneration" back at the very tree it is meant to be compared against, and the gate
+// would compare a tree with itself and always pass.
+const childEnv = { ...process.env };
+delete childEnv.CHECK_ROOT;
+
 const r = spawnSync("node", [join(tmp, "scripts", "generate-role-adapters.js")], {
   encoding: "utf8",
+  env: childEnv,
 });
 
 // ── Fail-closed: a non-zero regeneration NEVER falls through to "fresh" ──────────
@@ -119,32 +163,42 @@ if (r.status !== 0) {
   );
 }
 
-// ── List both directories ────────────────────────────────────────────────────────
-const listAdapters = (dir: string, what: string): string[] => {
+// ── List both sides through the ONE adapter authority ────────────────────────────
+// listAgentAdapters() is asked twice with two explicit roots: the tree under judgement, and the
+// fresh regeneration. It THROWS rather than returning an empty array on a missing, unreadable or
+// zero-entry directory, so each call is wrapped to keep this gate's own fail-closed wording — which
+// names the directory and tells the reader what to run — while CARRYING the thrown message through
+// rather than discarding the one piece of information that says which directory failed and why.
+const listAdapters = (root: string, what: string): string[] => {
   try {
-    return readdirSync(dir)
-      .filter((f) => f.endsWith(".md"))
-      .sort();
-  } catch {
+    return listAgentAdapters(root);
+  } catch (e) {
     die(
-      `Adapter freshness check FAILED: cannot read the ${what} adapter directory ${dir} — run \`${REGEN_CMD}\` and commit the result.`,
+      `Adapter freshness check FAILED: cannot read the ${what} adapter directory ${join(root, ADAPTER_DIR)} — ${e instanceof Error ? e.message : String(e)}\nRun \`${REGEN_CMD}\` and commit the result.`,
     );
   }
 };
 
-const committedNames = listAdapters(join(ROOT, ADAPTER_DIR), "committed");
-const rebuiltNames = listAdapters(join(tmp, ADAPTER_DIR), "regenerated");
+const committedNames = listAdapters(KIT_ROOT, "committed");
+const rebuiltNames = listAdapters(tmp, "regenerated");
 
 // A regeneration that produced nothing is the anomaly, never "nothing to compare, therefore fine".
+// This branch is KEPT even though the authority's own vacuity refusal normally fires first: that
+// refusal covers "the directory is unreadable or holds no adapters", while this covers the distinct
+// condition of a generator that exited 0 and emitted nothing into a directory this gate itself
+// created. Both directions fail closed, and a run that compared zero adapters is reported as the
+// anomaly it is rather than reading as success.
 if (rebuiltNames.length === 0) {
   die(
     `Adapter freshness check FAILED: the generator ran cleanly but produced no adapters in ${ADAPTER_DIR} — refusing to report an empty regeneration as fresh.`,
   );
 }
 
-// ── Half one: SET equality, reporting extras and missing by NAME ─────────────────
+// ── Half one: SET equality, reporting extras and missing by RELATIVE PATH ────────
 // An orphan left behind by a deleted role is invisible to a byte comparison (nothing regenerates
 // over it) and so is a deleted adapter (nothing compares against it). Both are named here.
+// Members are FULL relative paths, so a nested orphan is its own named member and can never be
+// folded into a top-level entry sharing its basename.
 const extra = committedNames.filter((n) => !rebuiltNames.includes(n));
 const missing = rebuiltNames.filter((n) => !committedNames.includes(n));
 if (extra.length > 0 || missing.length > 0) {
@@ -158,12 +212,14 @@ if (extra.length > 0 || missing.length > 0) {
   die(`${why}\nRun \`${REGEN_CMD}\` and commit the result.`);
 }
 
-// ── Half two: BYTE comparison over the (now provably equal) name set ─────────────
+// ── Half two: BYTE comparison over the (now provably equal) member set ───────────
+// Both sides are read by the SAME relative path, so a nested member is byte-compared at its own
+// depth rather than by basename.
 const differing: string[] = [];
 for (const name of committedNames) {
   let committed: Buffer;
   try {
-    committed = readFileSync(join(ROOT, ADAPTER_DIR, name));
+    committed = readFileSync(join(KIT_ROOT, ADAPTER_DIR, name));
   } catch {
     // Fail-closed: an unreadable committed adapter is never treated as absent-and-therefore-fine.
     die(
