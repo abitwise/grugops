@@ -1,0 +1,48 @@
+---
+schema_version: 1
+open_count: 2
+waived_count: 0
+fixed_count: 0
+total_count: 2
+last_updated: 2026-07-29T10:56:31.277Z
+---
+
+# Broken Windows Ledger
+
+> Cross-phase defect register. `/gsd-ship` blocks while `open_count > 0`.
+> Waive with `gsd-tools windows waive <id> "<reason>"` (reason required).
+> Mark fixed with `gsd-tools windows fixed <id>`.
+
+| id | phase | kind | file | line | description | status | reason | recorded_at | resolved_at |
+|----|-------|------|------|------|-------------|--------|--------|-------------|-------------|
+| 1 | 27 | unrun-verify | .planning/phases/27-spawn-correctness-kit-set-authority/27-SPAWN-03-RUNTIME-EVIDENCE.md |  | SPAWN-03 runtime half unobserved: the session startup header and whether a distinct role agent resolves and runs; slots empty in the recording surface | open |  | 2026-07-29T10:56:31.216Z |  |
+| 2 | 27 | deviation | scripts/coordinator-resolution-precheck.ts |  | The materialized-kit sentinel reader is duplicated from install/install.ts readAdapterKit (install.ts installs at module load, so it cannot be imported) | open |  | 2026-07-29T10:56:31.277Z |  |
+
+````json
+[
+  {
+    "id": 1,
+    "kind": "unrun-verify",
+    "phase": "27",
+    "file": ".planning/phases/27-spawn-correctness-kit-set-authority/27-SPAWN-03-RUNTIME-EVIDENCE.md",
+    "line": null,
+    "description": "SPAWN-03 runtime half unobserved: the session startup header and whether a distinct role agent resolves and runs; slots empty in the recording surface",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-07-29T10:56:31.216Z",
+    "resolved_at": null
+  },
+  {
+    "id": 2,
+    "kind": "deviation",
+    "phase": "27",
+    "file": "scripts/coordinator-resolution-precheck.ts",
+    "line": null,
+    "description": "The materialized-kit sentinel reader is duplicated from install/install.ts readAdapterKit (install.ts installs at module load, so it cannot be imported)",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-07-29T10:56:31.277Z",
+    "resolved_at": null
+  }
+]
+````
