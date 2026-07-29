@@ -294,11 +294,41 @@ const ADAPTERS = [...AGENT_ADAPTERS, ...SKILL_ADAPTERS];
 // orchestrator that loses its marker but keeps its grant fails the non-coordinator direction — a
 // rename/marker-loss can never silently downgrade the coordinator.
 //
-// Two grant shapes catch every form (kept verbatim from the pre-flip guard, both alias tokens
-// retained — State-of-the-Art: the legacy alias still resolves): the comma list
-// (`tools: Read, Grep, ...`) and the YAML array (`allowed-tools:\n  - Read\n  ...`). A grant can
-// also be scoped (the parenthesized allowlist form). The two EREs catch all of them; the word
-// boundary keeps the pattern anchored to a token, not a substring.
+// HOW THE GRANT AND THE MARKER ARE READ (Phase 27 / SPAWN-04, plan 27-12 — REWRITTEN, because what
+// this paragraph used to claim was false).
+//
+// It used to say two line-anchored EREs "catch every form": a comma list requiring the key and the
+// token on ONE physical line, and a YAML array item requiring a leading dash. They do not. A valid
+// YAML folded scalar puts the fold indicator on the key line and the value on an indented
+// continuation line that begins with neither:
+//
+//     tools: >-
+//       Read, Grep, Glob, Edit, Write, Bash, Agent(grugops-installer, grugops-security-nfr)
+//
+// That shape was REPRODUCED passing this entire gate, twice, on hermetic mirrors — once on a
+// non-coordinator role adapter and once on a skill file (27-REVIEW § CR-02). The same file already
+// read a whitespace-collapsed body for its prose checks precisely so a hard wrap could not change a
+// verdict; the grant half stayed line-anchored, and that asymmetry WAS the bypass.
+//
+// Both predicates now read a RECONSTRUCTED frontmatter value through scripts/frontmatter.ts, so
+// wrapping, folding, literal blocks, chomping, quoting, flow sequences and block sequences cannot
+// change the verdict — they do not change the VALUE, and the value is what the platform grants on.
+// The two line-anchored grant expressions and the line-anchored marker expression are DELETED, not
+// kept as a second opinion: two grammars for one predicate is the defect being closed, and a weaker
+// duplicate that still votes is worse than none.
+//
+// A PARSE FAILURE IS ITS OWN FINDING. The parser returns a discriminated result, and the loop below
+// branches on the failure arm EXPLICITLY rather than letting it fall through to "carries no grant".
+// The fall-through is precisely the bug; writing the branch by hand is what keeps it from coming
+// back.
+//
+// ONE DELIBERATE NARROWING, RECORDED. The old array expression matched a dashed line ANYWHERE in the
+// file, so a body bullet merely naming the spawn tool would have failed the guard, and the old comma
+// expression matched a `tools:` line anywhere in the body. Reading the grant from the FRONTMATTER
+// BLOCK removes both false positives: a grant is a frontmatter fact about the `tools` /
+// `allowed-tools` key, and prose that names the tool is documentation. Three harness cases pinned
+// the old body-anywhere behavior by appending their plant to the END of a scan file; they now plant
+// into the frontmatter block and say why in the case.
 //
 // (Phase 27 / KIT-02) The SCAN set is DERIVED and RENAMED. It was a four-file hand list carrying the
 // same WR-05-derived identifier that ALSO exists, meaning something entirely different, in
@@ -319,14 +349,12 @@ const ADAPTERS = [...AGENT_ADAPTERS, ...SKILL_ADAPTERS];
 // never checked for a rogue spawn grant. Once plan 27-07 lands the 17 agent adapters, all of them
 // enter this scan on the same run, with no edit here.
 // ---------------------------------------------------------------------------
-const WR05_COMMA = /^(tools|allowed-tools):.*\b(Agent|Task)\b/;
-// WR-02 fix: allow an optional quote (single or double) between the dash and the token so a
-// QUOTED YAML array item (`- "Agent"`, `- 'Agent'`) — valid YAML, a real spawn-grant shape — is
-// caught, not just the bare `- Agent`. Mirrors WR05_COMMA's permissiveness.
-const WR05_ARRAY = /^[ \t]*-[ \t]*["']?(Agent|Task)\b/;
-// D-15 marker: line-anchored match for the coordinator key set to true. This is the ONLY way the
-// guard identifies the coordinator — never a filename.
-const WR05_COORDINATOR = /^coordinator:\s*true\b/;
+// D-15 marker: the coordinator key set to true, read through the SAME parser as the grant so a
+// marker in an unusual but valid scalar form can neither demote the real coordinator nor promote a
+// rogue file out of the must-not-spawn set. This is still the ONLY way the guard identifies the
+// coordinator — never a filename.
+const COORDINATOR_KEY = "coordinator";
+const COORDINATOR_VALUE = "true";
 // The packaging directory, and the shape rule that admits only the two adapter-frontmatter
 // templates. `adapters.md` is prose about adapters, not an adapter surface, and is OUT (D-09).
 const PACKAGING_DIR = "agent-factory/packaging";
@@ -355,14 +383,10 @@ const SPAWN_GRANT_SCAN = [...ADAPTERS, ...PACKAGING_TEMPLATES];
 // across a line break" evasion on the negative half.
 const collapseWhitespace = (s: string): string => s.replace(/\s+/g, " ");
 
-// Apply a line-anchored ERE to the fence-stripped body of a file, returning true if any surviving
-// (non-fenced) line matches. The EREs are byte-identical to the pre-fix guard — only the INPUT
-// changes (fenced lines removed), so the real adapter's REAL (non-fenced) frontmatter marker/grant
-// remains detected while an illustrative fenced example is ignored.
-function matchesOutsideFences(rel: string, re: RegExp): boolean {
-  const body = stripFencedBlocks(readText(rel));
-  return body.split("\n").some((l) => re.test(l));
-}
+// (Plan 27-12) matchesOutsideFences() is DELETED. Its only two callers were the spawn-grant test and
+// the coordinator-marker test, and both now read a reconstructed frontmatter VALUE rather than
+// applying a line-anchored expression to a body. Keeping the helper around for a predicate nobody
+// asks it any more is how a second grammar survives a fix.
 
 // ---------------------------------------------------------------------------
 // TIER-ANNOUNCEMENT BEATS (Phase 27 / SPAWN-04+SPAWN-05, the REVISED D-05).
@@ -408,20 +432,55 @@ function guardWr05(): void {
     "\n[guard_wr05] coordinator-only spawn grant + tier-announcement presence (WR-05, revised D-05)\n",
   );
   let wr05Fail = "";
-  // Collect every SCAN file whose FENCE-STRIPPED body carries the coordinator marker. The substrate
-  // has exactly ONE coordinator (the orchestrator adapter); a second marker — live or from a doc
-  // example mis-read as live — is a cardinality violation (CR-01).
+  // Collect every SCAN file whose FENCE-STRIPPED FRONTMATTER carries the coordinator marker. The
+  // substrate has exactly ONE coordinator (the orchestrator adapter); a second marker — live or from
+  // a doc example mis-read as live — is a cardinality violation (CR-01).
   const coordinators: string[] = [];
+  // Every scan file that PARSED, so the name-key floor below reads the same parse this loop did
+  // rather than re-reading and re-parsing the file (one parse per file, one grammar).
+  const parsedScan = new Map<string, FrontmatterKeys>();
   for (const f of SPAWN_GRANT_SCAN) {
     if (!fileExists(f)) continue; // missing template/adapter is covered by guard_adapter_size (CR-01)
-    const isCoordinator = matchesOutsideFences(f, WR05_COORDINATOR);
-    const hasGrant =
-      matchesOutsideFences(f, WR05_COMMA) || matchesOutsideFences(f, WR05_ARRAY);
+    const parsed = parseFrontmatter(readText(f));
+    if (!parsed.ok) {
+      // THE BRANCH THAT MUST BE WRITTEN BY HAND. An unreadable frontmatter block is a PARSE ARTIFACT,
+      // never a verdict: this file is NOT then treated as carrying no grant, and it is NOT downgraded
+      // to a warning. It becomes its own finding naming the file and the reason, and the guard goes
+      // red. Letting it fall through to the no-grant branch is the exact class of silent bypass the
+      // parser exists to close.
+      wr05Fail += `\n${f}: frontmatter parse failure — ${parsed.reason}. An unreadable adapter cannot be reported on, so it is NEVER read as "carries no grant"`;
+      continue;
+    }
+    parsedScan.set(f, parsed.value);
+    const isCoordinator = keyHasValue(
+      parsed.value,
+      COORDINATOR_KEY,
+      COORDINATOR_VALUE,
+    );
+    const hasGrant = keysHaveSpawnGrant(parsed.value);
     if (isCoordinator) coordinators.push(f);
     if (isCoordinator && !hasGrant) {
       wr05Fail += `\n${f}: coordinator carries no spawn grant — a dropped grant kills Claude Code parallelism (the coordinator MUST hold the enumerated role-agent grant)`;
     } else if (!isCoordinator && hasGrant) {
       wr05Fail += `\n${f}: non-coordinator carries a spawn grant — rogue spawner (only the coordinator: true file may hold the grant)`;
+    }
+  }
+  // THE FAIL-CLOSED FLOOR THE PARSER MAKES POSSIBLE (plan 27-12). Every derived agent adapter must
+  // carry a parseable frontmatter block containing a `name` key. Claude Code takes agent identity
+  // ONLY from frontmatter, so a file in the adapter directory without one is not a loadable agent —
+  // and it is also not a file this guard can honestly report on, because "no frontmatter" and "no
+  // grant" would otherwise print the same silence. It fails red naming the file.
+  //
+  // SCOPED TO THE AGENT ADAPTERS on purpose. The packaging templates carry frontmatter of a
+  // different kind (`kind: packaging` / `tier: core`) and the skills carry their own; neither is an
+  // agent identity and neither needs a name key asserted here. A file that failed to parse above
+  // already produced its own finding and is deliberately not double-reported.
+  for (const f of AGENT_ADAPTERS) {
+    if (!fileExists(f)) continue;
+    const keys = parsedScan.get(f);
+    if (keys === undefined) continue; // already reported as a parse failure
+    if (!keys.has("name")) {
+      wr05Fail += `\n${f}: agent adapter carries no \`name\` key in its frontmatter — Claude Code takes agent identity only from frontmatter, so this is not a loadable agent and its spawn-grant verdict cannot be trusted`;
     }
   }
   // Cardinality (CR-01): exactly one coordinator across the SCAN set. A fenced documentation example
@@ -1090,11 +1149,20 @@ function guardContextWrites(): void {
 // fine" is exactly the bug), a coordinator count that is not exactly one, and a coordinator whose
 // grant enumerates nothing (an unscoped `Agent` grant has no computable closure).
 //
-// The grant parser runs the text through the SHARED stripFencedBlocks() first — never a second fence
-// parser. agent-factory/packaging/subagent.frontmatter.md ships a coordinator example INSIDE a
-// fenced block; a non-fence-aware parser would read that documentation as a live grant. The
-// coordinator is located by the WR05_COORDINATOR marker, matching how guard_wr05 already identifies
-// it — never by filename.
+// The grant closure and the coordinator marker are both read through scripts/frontmatter.ts — the
+// SAME module guard_wr05 reads, so the oracle and the guard can never disagree about whether a file
+// grants spawn or about which file is the coordinator. (Plan 27-12: this used to filter lines with
+// the same two line-anchored expressions guard_wr05 used, which made it the SECOND consumer of one
+// broken grammar. A folded-scalar grant was invisible to both simultaneously.) That module runs the
+// text through the SHARED stripFencedBlocks() first — never a second fence parser.
+// agent-factory/packaging/subagent.frontmatter.md ships a coordinator example INSIDE a fenced block;
+// a non-fence-aware parser would read that documentation as a live grant. The coordinator is located
+// by the marker, matching how guard_wr05 identifies it — never by filename.
+//
+// A PARSE FAILURE FAILS THIS ORACLE RED, naming the file. It must NEVER reduce to a zero-length
+// closure: the oracle already treats an empty closure as its own failure for a DIFFERENT reason (an
+// unscoped grant has nothing to enumerate), and collapsing the two would report the wrong cause and
+// hide the unreadable file behind a plausible-looking message.
 // ---------------------------------------------------------------------------
 // THE ORACLE'S SOUNDNESS DEPENDS ENTIRELY ON THE DERIVATION SEEING WHAT THE PLATFORM LOADS.
 //
@@ -1119,27 +1187,6 @@ function guardContextWrites(): void {
 // these names throughout — no case folding, no normalisation, no substring matching.
 const AGENT_PREFIX = "grugops-";
 const stem = (file: string): string => file.replace(/\.md$/, "");
-
-// Extract the ENUMERATED names from a scoped spawn grant:
-//   `tools: Agent(grugops-qe-e2e, grugops-installer), Read`  ->  [grugops-installer, grugops-qe-e2e]
-// Only grant-shaped lines are read (the same two EREs guard_wr05 uses), so prose that merely names
-// an agent cannot inflate the closure. Returns sorted, de-duplicated names.
-function parseAgentGrant(text: string): string[] {
-  const body = stripFencedBlocks(text); // SHARED fence strip — fail-safe on an unterminated fence
-  const names = new Set<string>();
-  for (const line of body.split("\n")) {
-    if (!WR05_COMMA.test(line) && !WR05_ARRAY.test(line)) continue;
-    const re = /\b(?:Agent|Task)\(([^)]*)\)/g;
-    let m: RegExpExecArray | null;
-    while ((m = re.exec(line)) !== null) {
-      for (const raw of m[1].split(",")) {
-        const n = raw.trim().replace(/^["']|["']$/g, "");
-        if (n !== "") names.add(n);
-      }
-    }
-  }
-  return [...names].sort();
-}
 
 // Members of `a` absent from `b`, order-independent and sorted for byte-identical reporting.
 const missingFrom = (a: string[], b: string[]): string[] =>
@@ -1223,9 +1270,25 @@ function guardReferentialIntegrity(): void {
     return;
   }
 
-  // Set 3 — the coordinator grant closure. Locate the coordinator by MARKER, never by filename.
+  // Set 3 — the coordinator grant closure. Locate the coordinator by MARKER, never by filename, and
+  // read that marker through the SAME parser guard_wr05 reads. Parse every adapter once, up front:
+  // an unreadable frontmatter block is reported HERE, by name, and stops the oracle — it can never
+  // silently become "this file is not the coordinator" or "the closure is empty".
+  const parsedAdapters = new Map<string, FrontmatterKeys>();
+  const parseFailures: string[] = [];
+  for (const f of adapterFiles) {
+    const parsed = parseFrontmatter(readText(`${ADAPTER_DIR}/${f}`));
+    if (!parsed.ok) parseFailures.push(`${ADAPTER_DIR}/${f}: ${parsed.reason}`);
+    else parsedAdapters.set(f, parsed.value);
+  }
+  if (parseFailures.length > 0) {
+    fail(
+      `KIT-03: ${parseFailures.length} adapter(s) whose frontmatter could not be parsed — an unreadable adapter is NEVER a zero-length grant closure and NEVER a non-coordinator; the set equality cannot be checked over a file that cannot be read:\n    ${parseFailures.sort().join("\n    ")}`,
+    );
+    return;
+  }
   const coordinators = adapterFiles.filter((f) =>
-    matchesOutsideFences(`${ADAPTER_DIR}/${f}`, WR05_COORDINATOR),
+    keyHasValue(parsedAdapters.get(f)!, COORDINATOR_KEY, COORDINATOR_VALUE),
   );
   if (coordinators.length !== 1) {
     fail(
@@ -1234,7 +1297,7 @@ function guardReferentialIntegrity(): void {
     return;
   }
   const coordinatorName = stem(coordinators[0]);
-  const granted = parseAgentGrant(readText(`${ADAPTER_DIR}/${coordinators[0]}`));
+  const granted = keysGrantedAgentNames(parsedAdapters.get(coordinators[0])!);
   if (granted.length === 0) {
     fail(
       `KIT-03: the coordinator ${ADAPTER_DIR}/${coordinators[0]} carries no ENUMERATED Agent(...) grant — an unscoped grant has no computable closure, so the D-09 equality cannot be checked`,

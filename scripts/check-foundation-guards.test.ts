@@ -271,6 +271,40 @@ function plantPlainAdapter(root: string, rel: string, name: string): string {
   return file;
 }
 
+// (Plan 27-12) Insert lines INTO a mirrored file's frontmatter block, immediately before its closing
+// `---` delimiter.
+//
+// Why this helper now exists: the spawn grant and the coordinator marker are read from the
+// FRONTMATTER BLOCK, not from anywhere in the body. That is a deliberate narrowing recorded in the
+// guard's design comment — the old array expression matched a dashed line anywhere in the file, so a
+// body bullet merely NAMING the spawn tool would have failed the guard, which is a false positive
+// that forces a later author to delete correct documentation to go green. The three cases below used
+// to append their plant to the END of a scan file and so pinned that old body-anywhere behavior;
+// they now plant a REAL frontmatter grant, which is both the shape the platform actually acts on and
+// a strictly stronger fixture.
+function plantInFrontmatter(file: string, lines: string[]): void {
+  const src = readFileSync(file, "utf8").split("\n");
+  const close = src.indexOf("---", 1);
+  if (src[0] !== "---" || close === -1) {
+    throw new Error(`plantInFrontmatter: ${file} has no frontmatter block to plant into`);
+  }
+  src.splice(close, 0, ...lines);
+  writeFileSync(file, src.join("\n"));
+}
+
+// Rewrite a mirrored file's frontmatter `tools:` / `allowed-tools:` key into an arbitrary YAML shape.
+// The replacement lines REPLACE the single key line, so the surrounding frontmatter stays valid and
+// the only thing that changed is the SCALAR FORM the value is expressed in. This is what the folded-
+// scalar bypass cases need: the semantic value is a real grant either way, and the question is
+// whether the guard reads the value or the bytes of one line.
+function reshapeToolsKey(file: string, shape: string[]): void {
+  const src = readFileSync(file, "utf8").split("\n");
+  const at = src.findIndex((l) => /^(tools|allowed-tools):/.test(l));
+  if (at === -1) throw new Error(`reshapeToolsKey: ${file} has no tools key`);
+  src.splice(at, 1, ...shape);
+  writeFileSync(file, src.join("\n"));
+}
+
 // Run the compiled guard with CHECK_ROOT pointed at the mirror; capture status + combined output.
 function runIn(checkRoot: string): SpawnSyncReturns<string> {
   return spawnSync("node", [GUARD_JS], {
@@ -299,11 +333,18 @@ describe("check-foundation-guards.js (SDLC-02 / SC2 fail-proof harness)", () => 
 
   // RED fixture (a): planted grant on a NON-coordinator SCAN file → rogue spawner. Plant onto a
   // packaging template (no coordinator: true marker) so the non-coordinator direction fires.
+  //
+  // (Plan 27-12) The plant moved from the END of the file INTO the frontmatter block. The old
+  // placement pinned a behavior that has been deliberately narrowed: the grant is a frontmatter fact
+  // about the `tools` / `allowed-tools` key, and a `tools:`-shaped line in the body is prose. The
+  // narrowing removes a false positive (a body bullet naming the spawn tool used to fail the guard);
+  // the fixture is strictly stronger for it, because a frontmatter grant is the shape the platform
+  // actually acts on.
   it("guard_wr05 planted grant on non-coordinator (comma-form) → nonzero + 'rogue spawner' names the file", () => {
     const m = mirror();
-    appendFileSync(
+    plantInFrontmatter(
       join(m, "agent-factory/packaging/slash-command.template.md"),
-      "\ntools: Read, Agent\n",
+      ["tools: Read, Agent"],
     );
     const r = runIn(m);
     expect(r.status).not.toBe(0);
@@ -313,7 +354,7 @@ describe("check-foundation-guards.js (SDLC-02 / SC2 fail-proof harness)", () => 
 
   it("guard_wr05 planted grant on non-coordinator (array-item) → nonzero + 'rogue spawner'", () => {
     const m = mirror();
-    appendFileSync(join(m, ".claude/skills/grugops/SKILL.md"), "\n  - Agent\n");
+    plantInFrontmatter(join(m, ".claude/skills/grugops/SKILL.md"), ["  - Agent"]);
     const r = runIn(m);
     expect(r.status).not.toBe(0);
     expect(out(r)).toMatch(/rogue spawner/i);
@@ -322,11 +363,118 @@ describe("check-foundation-guards.js (SDLC-02 / SC2 fail-proof harness)", () => 
 
   it("guard_wr05 planted grant on non-coordinator (quoted array-item) → nonzero + 'rogue spawner' (WR-02)", () => {
     const m = mirror();
-    appendFileSync(join(m, ".claude/skills/grugops/SKILL.md"), '\n  - "Agent"\n');
+    plantInFrontmatter(join(m, ".claude/skills/grugops/SKILL.md"), ['  - "Agent"']);
     const r = runIn(m);
     expect(r.status).not.toBe(0);
     expect(out(r)).toMatch(/rogue spawner/i);
     expect(out(r)).toContain("SKILL.md");
+  });
+
+  // ── The CR-02 FOLDED-SCALAR bypass, reproduced and now closed (plan 27-12, SPAWN-04). ─────────
+  //
+  // `WR05_COMMA` required the key and the spawn token on ONE physical line; `WR05_ARRAY` required a
+  // leading dash. A YAML folded scalar has neither: the key line carries only the fold indicator and
+  // the value arrives on an indented continuation line. It is valid YAML and it produces exactly the
+  // comma-string value the platform expects — so the platform granted the spawn tool while the guard
+  // printed ALL CHECKS PASSED. Reproduced twice on hermetic mirrors (27-REVIEW § CR-02), and the two
+  // shapes below are those reproductions verbatim.
+  //
+  // The skill case is the worse of the two: a skill adapter has no role to compare against, so KIT-03
+  // is structurally blind to it and the skill count only checks cardinality. Nothing else in the
+  // suite could have caught it.
+  it("guard_wr05 folded grant on a non-coordinator ROLE ADAPTER → nonzero + 'rogue spawner' (CR-02, reproduced)", () => {
+    const m = mirror();
+    reshapeToolsKey(adapterPath(m, "grugops-qe-e2e"), [
+      "tools: >-",
+      "  Read, Grep, Glob, Edit, Write, Bash, Agent(grugops-installer, grugops-security-nfr)",
+    ]);
+    const r = runIn(m);
+    expect(r.status).not.toBe(0);
+    expect(out(r)).toMatch(/rogue spawner/i);
+    expect(out(r)).toContain(".claude/agents/grugops-qe-e2e.md");
+  });
+
+  it("guard_wr05 folded grant on a SKILL file → nonzero + 'rogue spawner' (CR-02, reproduced — no role corpus can cross-check a skill)", () => {
+    const m = mirror();
+    reshapeToolsKey(join(m, ".claude/skills/grugops/SKILL.md"), [
+      "allowed-tools: >-",
+      "  Read, Grep, Glob, Agent(grugops-software-engineer)",
+    ]);
+    const r = runIn(m);
+    expect(r.status).not.toBe(0);
+    expect(out(r)).toMatch(/rogue spawner/i);
+    expect(out(r)).toContain(".claude/skills/grugops/SKILL.md");
+  });
+
+  // The third form the product oracle in frontmatter.test.ts also covers, pinned here at the
+  // AGGREGATOR level: a block sequence whose spawn item is quoted. The old array expression happened
+  // to catch a quoted item; this case exists so that deleting it cannot silently lose the coverage.
+  it("guard_wr05 folded grant as a QUOTED BLOCK SEQUENCE item → nonzero + 'rogue spawner'", () => {
+    const m = mirror();
+    reshapeToolsKey(adapterPath(m, "grugops-installer"), [
+      "tools:",
+      "  - Read",
+      "  - Grep",
+      '  - "Agent(grugops-qe-e2e)"',
+    ]);
+    const r = runIn(m);
+    expect(r.status).not.toBe(0);
+    expect(out(r)).toMatch(/rogue spawner/i);
+    expect(out(r)).toContain(".claude/agents/grugops-installer.md");
+  });
+
+  // The OTHER direction of the same key scoping, so the narrowing is pinned in both directions: a
+  // spawn token in a `description:` value — including one expressed as a folded scalar, the very form
+  // that closed the bypass above — is NOT a grant. Widening the test to the whole frontmatter would
+  // make this case fail, and a guard that fails on correct documentation teaches authors to delete
+  // documentation.
+  it("guard_wr05 folded grant WORDING inside a description value is NOT a grant → guard PASSES (key scoping)", () => {
+    const m = consistentMirror();
+    const file = adapterPath(m, "grugops-factory-coach");
+    writeFileSync(
+      file,
+      readFileSync(file, "utf8").replace(
+        /^description: .*$/m,
+        "description: >-\n  Coaches the factory. Never uses Agent(grugops-qe-e2e) — this sentence merely\n  names the spawn tool and is documentation, not a grant.",
+      ),
+    );
+    const r = runIn(m);
+    expect(r.status).toBe(0);
+    expect(out(r)).toContain("ALL CHECKS PASSED");
+  });
+
+  // A parse that cannot complete is a PARSE ARTIFACT, never a verdict. Strip the coordinator
+  // adapter's closing `---` so its frontmatter block opens and never closes, and assert the guard
+  // names the file with a parse-failure finding AND does not print a passing spawn-grant line. The
+  // failure arm must never collapse into "carries no grant".
+  it("guard_wr05 UNTERMINATED frontmatter block on the coordinator → nonzero + parse-failure names the file, no passing WR-05 line", () => {
+    const m = mirror();
+    const file = adapterPath(m, COORDINATOR);
+    const src = readFileSync(file, "utf8").split("\n");
+    src.splice(src.indexOf("---", 1), 1); // remove the CLOSING delimiter only
+    writeFileSync(file, src.join("\n"));
+    const r = runIn(m);
+    expect(r.status).not.toBe(0);
+    const o = out(r);
+    expect(o).toMatch(/frontmatter parse failure/);
+    expect(o).toContain(".claude/agents/grugops-orchestrator.md");
+    expect(o).toMatch(/NEVER read as "carries no grant"/);
+    expect(o).not.toContain("PASS  WR-05:");
+  });
+
+  // The name-key floor the parser makes possible: a file in the agent-adapter set with no `name` key
+  // is not a loadable agent, and is also not a file this guard can honestly report on.
+  it("guard_wr05 agent adapter with NO name key → nonzero + the missing-name floor names the file", () => {
+    const m = consistentMirror();
+    const file = adapterPath(m, "grugops-uat-planner");
+    writeFileSync(
+      file,
+      "---\ndescription: Fixture adapter with no name key.\nmodel: inherit\n---\nFixture adapter. The shared verified context is the only memory.\n",
+    );
+    const r = runIn(m);
+    expect(r.status).not.toBe(0);
+    expect(out(r)).toMatch(/carries no `name` key in its frontmatter/);
+    expect(out(r)).toContain(".claude/agents/grugops-uat-planner.md");
   });
 
   // RED fixture (b): the coordinator with its spawn grant DROPPED → a half-flip that silently kills
@@ -374,6 +522,12 @@ describe("check-foundation-guards.js (SDLC-02 / SC2 fail-proof harness)", () => 
   // which has no live marker/grant) and assert the aggregator stays GREEN. (Phase 27: built on a
   // consistentMirror so the green run is pinned to a CONSTRUCTED fixture rather than to whatever the
   // live adapter directory happens to hold on the day.)
+  //
+  // (Plan 27-12) This case is now OVER-DETERMINED and is kept anyway: the example is ignored both
+  // because it is fenced AND because it sits outside the frontmatter block. The fence authority's
+  // remaining LOAD-BEARING contribution — a fenced `---` must not be read as the closing delimiter of
+  // an unterminated real block — is pinned precisely in scripts/frontmatter.test.ts, where the shape
+  // can be constructed rather than appended to a real file.
   it("guard_wr05 FENCED coordinator example (marker+grant inside ```) is ignored → guard PASSES (CR-01 fence-immunity)", () => {
     const m = consistentMirror();
     appendFileSync(
@@ -388,12 +542,13 @@ describe("check-foundation-guards.js (SDLC-02 / SC2 fail-proof harness)", () => 
   // CR-01 cardinality: a SCAN file with a LIVE (non-fenced) second coordinator: true + grant must
   // FAIL the exactly-one-coordinator cardinality check (found 2). Plant a real frontmatter marker +
   // grant (NOT inside a fence) into slash-command.template.md; with the orchestrator adapter already
-  // a coordinator, the count becomes 2.
+  // a coordinator, the count becomes 2. (Plan 27-12: planted INTO the frontmatter block rather than
+  // appended to the body — same deliberate narrowing recorded above.)
   it("guard_wr05 LIVE second coordinator (non-fenced) → nonzero + 'found 2' cardinality fail (CR-01)", () => {
     const m = mirror();
-    appendFileSync(
+    plantInFrontmatter(
       join(m, "agent-factory/packaging/slash-command.template.md"),
-      "\ncoordinator: true\ntools: Agent(grugops-software-engineer), Read\n",
+      ["coordinator: true", "tools: Agent(grugops-software-engineer), Read"],
     );
     const r = runIn(m);
     expect(r.status).not.toBe(0);
