@@ -5,15 +5,15 @@ milestone_name: Autonomous Factory — Real Spawning, Controlled Language & Live
 current_phase: 27
 current_phase_name: spawn-correctness-kit-set-authority
 status: executing
-stopped_at: Completed 27-13-PLAN.md
-last_updated: "2026-07-29T09:30:04.400Z"
+stopped_at: Completed 27-14-PLAN.md
+last_updated: "2026-07-29T09:59:29.094Z"
 last_activity: 2026-07-29
 last_activity_desc: 27-11 complete (adapter freshness gate wired into CI + a five-case test file; nested-orphan bypass closed)
 progress:
   total_phases: 7
   completed_phases: 0
   total_plans: 17
-  completed_plans: 13
+  completed_plans: 14
   percent: 0
 ---
 
@@ -29,7 +29,7 @@ See: .planning/PROJECT.md (updated 2026-07-28 — after v2.0 milestone)
 ## Current Position
 
 Phase: 27 (spawn-correctness-kit-set-authority) — EXECUTING
-Plan: 14 of 17
+Plan: 15 of 17
 Status: Ready to execute
 Last activity: 2026-07-29 — 27-11 complete (adapter freshness gate wired into CI + a five-case test file; nested-orphan bypass closed)
 
@@ -207,6 +207,7 @@ Last activity: 2026-07-29 — 27-11 complete (adapter freshness gate wired into 
 | Phase 27 P11 | 15m | 3 tasks | 7 files |
 | Phase 27 P12 | 20m | 3 tasks | 6 files |
 | Phase 27 P13 | 55m | 3 tasks | 8 files |
+| Phase 27 P14 | 25m | 2 tasks | 4 files |
 
 ## Accumulated Context
 
@@ -496,6 +497,10 @@ Recent decisions affecting current work:
 - [Phase ?]: Installer and uninstaller now hold ONE fail-loud contract: null on an unreadable source directory, [] on an empty one, and each reported distinctly — a completion banner is withheld over any verify finding
 - [Phase ?]: The installer's deliberate second adapter derivation (D-18 locked) is bought back by a conformance assertion against kit-model — set equality AND integer cardinality — never by an import
 - [Phase ?]: tools/ is left in place and reported as left: grugops owns tools/grugops/, not the generic directory name a project likely owns
+- [Phase ?]: The positive half is anchored to the FULL generated sentence and counted exactly once — a fragment substring test is satisfied by anything that mentions the topic
+- [Phase ?]: When one predicate is right but its input is wrong, split the scan set by input rather than weakening the predicate
+- [Phase ?]: A vacuity floor must be written over the quantity whose disappearance it exists to catch, never over a total that always includes a constant
+- [Phase ?]: Pin a floor with a case asserting its OWN finding text — a case keyed only on the exit code passes on another guard's failure
 
 ### Pending Todos
 
@@ -594,8 +599,8 @@ Shape of the carry: **9 of 11 are pre-v2.0 carryover** from the v1.2 block above
 
 ## Session Continuity
 
-Last session: 2026-07-29T09:29:57.167Z
-Stopped at: Completed 27-13-PLAN.md
+Last session: 2026-07-29T09:59:22.602Z
+Stopped at: Completed 27-14-PLAN.md
 Resume file: None
 
 ## Operator Next Steps
