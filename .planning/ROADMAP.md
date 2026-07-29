@@ -124,7 +124,7 @@ Full phase details + milestone summary: `milestones/v2.0-ROADMAP.md` · requirem
   4. On Claude Code the coordinator runs as the **main-thread** agent so its `Agent(<allowlist>)` grant is honored by the runtime, and no non-coordinator adapter carries the `Agent` tool at all — a mechanism that holds on both the main-thread and subagent paths rather than relying on a frontmatter token the runtime ignores. (SPAWN-03, SPAWN-04)
   5. `guard_adapter_body` fails red on pre-v2.0 handoff/single-window prose anywhere in an adapter body — proven against the surviving `grugops-orchestrator.md:25` reference — `orchestrator.md` sits below its **7570-byte FAIL ceiling with the ceiling unchanged**, and the advertised Claude Code floor reads **v2.1.219+ at depth 3** everywhere it appears, with the v2.1.217–218 depth-1 window documented as a known-bad range that degrades loudly. (SPAWN-05, SPAWN-06, SPAWN-07)
 
-**Plans**: 9/9 plans executed
+**Plans**: 9/9 executed + 8 gap-closure plans (27-10 … 27-17) from the `gaps_found` verification
 Plans:
 **Wave 1**
 
@@ -152,6 +152,34 @@ Plans:
 **Wave 6** *(blocked on 27-07, 27-08)*
 
 - [x] 27-09-PLAN.md — document the three entry tiers and the deliberate absence of main-thread wiring (`claude --agent grugops-orchestrator` as the full-capability path, no settings-parity claim); assert the in-repo half by command and verify the runtime half by hand against a real session [SPAWN-03]
+
+**Gap closure** *(from `27-VERIFICATION.md` — 5 failed truths, 1 human-needed, 7 warning-class items; waves restart at 1 because the nine plans above are complete)*
+
+**Gap wave 1**
+
+- [ ] 27-10-PLAN.md — TRACER: one recursive adapter-set authority in `kit-model.ts` (`listAgentAdapters`/`listSkillAdapters`), the foundation guards' two duplicate directory reads deleted, a nested adapter refused by name, and the planted nested-coordinator bypass turned RED [KIT-02, KIT-03]
+
+**Gap wave 2** *(blocked on 27-10)*
+
+- [ ] 27-11-PLAN.md — the adapter freshness gate consumes the authority, gains a hermetic kit root, gets a five-case test file, and is wired into the ubuntu-only CI gate block; `check-kit-refs` drops its duplicate derivation [KIT-02, SPAWN-02]
+- [ ] 27-12-PLAN.md — `scripts/frontmatter.ts` as the one format-aware frontmatter-value and fence authority; the line-anchored grant grammar deleted from both consumers; the folded-scalar bypasses turned RED; parser-oracle fuzz across the YAML scalar forms [SPAWN-04, KIT-03]
+- [ ] 27-13-PLAN.md — installer/uninstaller symmetry: one fail-loud contract for one derivation, a nested-source refusal, the runnable mirror made removable, and the control byte that broke grep over the installer replaced [KIT-02]
+
+**Gap wave 3** *(blocked on 27-12)*
+
+- [ ] 27-14-PLAN.md — `guard_adapter_body` hardened: the positive half anchored to full sentences and counted exactly once, the packaging template checked against the fenced body shapes the generator copies, a vacuity floor that can fire, and the literal inventory's completeness claim made true [SPAWN-05]
+
+**Gap wave 4** *(blocked on 27-14)*
+
+- [ ] 27-15-PLAN.md — the shipped capability announcement names a command that exists; three sources corrected, adapters regenerated inside a stated byte budget with both ceilings unchanged, and the command name pinned by a guard beat [SPAWN-01]
+
+**Gap wave 5** *(blocked on 27-15)*
+
+- [ ] 27-16-PLAN.md — `coordinator-resolution-precheck.ts` discharges every observable precondition of the runtime check and prints the two human-only steps verbatim; one recording surface shipped empty and marked unverified [SPAWN-03]
+
+**Gap wave 6** *(blocked on 27-16)*
+
+- [ ] 27-17-PLAN.md — blocking human-verify checkpoint: observe a real session, transcribe the observation verbatim, and update the requirement's status only if it matched [SPAWN-03]
 
 **Ordering that is load-bearing inside this phase** — the kit-set authority and the referential-integrity oracle land **first**, the `orchestrator.md` trim lands **before** any spawn-allowlist text is added, and only then are the 17 adapters generated. Reversing that order reproduces the exact failure this phase exists to fix, with new names.
 
