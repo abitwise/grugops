@@ -5,16 +5,16 @@ milestone_name: Autonomous Factory — Real Spawning, Controlled Language & Live
 current_phase: 27
 current_phase_name: spawn-correctness-kit-set-authority
 status: executing
-stopped_at: Completed 27-09-PLAN.md (final plan of phase 27)
-last_updated: "2026-07-29T07:28:51.107Z"
-last_activity: 2026-07-28
-last_activity_desc: Phase 27 execution started
+stopped_at: Completed 27-10-PLAN.md
+last_updated: "2026-07-29T07:54:02.930Z"
+last_activity: 2026-07-29
+last_activity_desc: 27-10 complete (adapter set given a single recursive authority; CR-01 nested-coordinator bypass closed)
 progress:
   total_phases: 7
-  completed_phases: 1
+  completed_phases: 0
   total_plans: 17
-  completed_plans: 9
-  percent: 14
+  completed_plans: 10
+  percent: 0
 ---
 
 # Project State
@@ -29,9 +29,9 @@ See: .planning/PROJECT.md (updated 2026-07-28 — after v2.0 milestone)
 ## Current Position
 
 Phase: 27 (spawn-correctness-kit-set-authority) — EXECUTING
-Plan: 9 of 9
+Plan: 11 of 17
 Status: Ready to execute
-Last activity: 2026-07-28 — Phase 27 execution started
+Last activity: 2026-07-29 — 27-10 complete (adapter set given a single recursive authority; CR-01 nested-coordinator bypass closed)
 
 ## Performance Metrics
 
@@ -203,6 +203,7 @@ Last activity: 2026-07-28 — Phase 27 execution started
 | Phase 27 P07 | 95 min | 3 tasks | 23 files |
 | Phase 27 P08 | 25m | 3 tasks | 22 files |
 | Phase 27 P09 | 15m | 2 tasks | 2 files |
+| Phase 27 P10 | 25m | 3 tasks | 6 files |
 
 ## Accumulated Context
 
@@ -479,6 +480,9 @@ Recent decisions affecting current work:
 - [Phase ?]: [27-09] install/README.md entry-tier section appended as §6 (not inserted as §4) — inserting would renumber Safety §5 and invalidate the hooks/guard.ts:83 cross-file citation; a forward pointer near the top preserves discoverability
 - [Phase ?]: [27-09] settings-key allowlist parity written as UNKNOWN - verify in both install/README.md and adapters.md — the platform states the enumerated-allowlist rule for the --agent flag only; D-01 removes the key from the install path so nothing depends on the answer
 - [Phase ?]: [27-09] SPAWN-03 NOT marked complete — documented + in-repo halves green, runtime half (session header names @grugops-orchestrator; a role agent actually runs) NOT PERFORMED and recorded as UNKNOWN - verify with reproduction commands; marking it complete on a green suite would repeat the defect this phase exists to fix
+- [Phase ?]: Recursion is the module contract for the adapter set (27-10): Claude Code discovers .claude/agents recursively and takes identity only from frontmatter, so a non-recursive derivation leaves loaded files outside every guard
+- [Phase ?]: No agent-adapter cardinality constant exists and a later phase must not add one (27-10): the KIT-03 oracle already pins that number; SKILL_ADAPTER_COUNT is the deliberate exception because a skill has no role to compare against
+- [Phase ?]: A nested agent adapter is refused by a named finding in guard_adapter_size (27-10) — the derivation sees it and the guard says so; silence is not a policy
 
 ### Pending Todos
 
@@ -577,8 +581,8 @@ Shape of the carry: **9 of 11 are pre-v2.0 carryover** from the v1.2 block above
 
 ## Session Continuity
 
-Last session: 2026-07-28T20:11:59.530Z
-Stopped at: Completed 27-09-PLAN.md (final plan of phase 27)
+Last session: 2026-07-29T07:53:40.294Z
+Stopped at: Completed 27-10-PLAN.md
 Resume file: None
 
 ## Operator Next Steps
