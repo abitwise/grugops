@@ -5,15 +5,15 @@ milestone_name: Autonomous Factory — Real Spawning, Controlled Language & Live
 current_phase: 27
 current_phase_name: spawn-correctness-kit-set-authority
 status: executing
-stopped_at: Completed 27-16-PLAN.md
-last_updated: "2026-07-29T10:56:06.276Z"
-last_activity: 2026-07-29
-last_activity_desc: 27-11 complete (adapter freshness gate wired into CI + a five-case test file; nested-orphan bypass closed)
+stopped_at: Completed 27-17-PLAN.md; 27-18..27-23 planned (gap-closure round 2)
+last_updated: "2026-07-30T00:00:00.000Z"
+last_activity: 2026-07-30
+last_activity_desc: "gap-closure round 2 planned — 6 plans (27-18..27-23) covering all 10 findings in 27-REVIEW-GAPS.md; 3 criticals are reproducible guard bypasses printing ALL CHECKS PASSED"
 progress:
   total_phases: 7
   completed_phases: 0
-  total_plans: 17
-  completed_plans: 16
+  total_plans: 23
+  completed_plans: 17
   percent: 0
 ---
 
@@ -29,9 +29,9 @@ See: .planning/PROJECT.md (updated 2026-07-28 — after v2.0 milestone)
 ## Current Position
 
 Phase: 27 (spawn-correctness-kit-set-authority) — EXECUTING
-Plan: 17 of 17
-Status: Ready to execute
-Last activity: 2026-07-29 — 27-11 complete (adapter freshness gate wired into CI + a five-case test file; nested-orphan bypass closed)
+Plan: 17 of 23 executed; 27-18..27-23 planned, not started
+Status: Ready to execute (gap-closure round 2, gap waves 7–9)
+Last activity: 2026-07-30 — gap-closure round 2 planned from `27-REVIEW-GAPS.md` (3 critical / 5 warning / 2 info, all 10 in scope)
 
 ## Performance Metrics
 

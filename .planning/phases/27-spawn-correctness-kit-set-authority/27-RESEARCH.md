@@ -813,9 +813,10 @@ Everything else in this document is tagged `[VERIFIED]` (read from the live docs
 
 ---
 
-## Open Questions
+## Open Questions (RESOLVED)
 
-The four questions CONTEXT.md flagged for research, answered:
+The four questions CONTEXT.md flagged for research, answered. Questions 5 and 6, opened by that
+research, were resolved through CONTEXT.md's D-02 revision and D-27 respectively.
 
 1. **Is a skill's `allowed-tools: Agent(a, b, c)` honored as a scoped grant in the main thread?**
    **ANSWERED — NO, and the question's premise is inverted.** `allowed-tools` is a per-turn *permission pre-approval*, not a tool allowlist: "It does not restrict which tools are available: every tool remains callable." So the skill neither grants nor withholds capability. `/grug` already has `Agent` from the default main-thread session, so it **can** spawn, unscoped. The scoped-allowlist form belongs to agent `tools:` frontmatter on the `--agent` path only. See `## The One Premise That Did Not Survive Verification` — this reopens D-02.
