@@ -1,195 +1,169 @@
 ---
 phase: 27-spawn-correctness-kit-set-authority
-verified: 2026-07-28T23:59:00Z
+verified: 2026-07-30T19:30:00Z
 status: gaps_found
-score: 4/10 must-haves verified
+score: 7/10 requirements verified clean (3 partial — live, reproduced, unfixed defects)
 behavior_unverified: 0
 overrides_applied: 0
+re_verification:
+  previous_status: gaps_found
+  previous_score: 4/10
+  gaps_closed:
+    - "KIT-02 adapter-set authority — kit-model.ts now exports listAgentAdapters()/listSkillAdapters(), recursive by contract, consumed by check-foundation-guards.ts, adapters-freshness.ts, check-kit-refs.ts, coordinator-resolution-precheck.ts, generate-role-adapters.ts."
+    - "KIT-03 oracle blindness to nested adapters — guard_referential_integrity now reads through the recursive kit-model authority; a nested rogue adapter is counted."
+    - "SPAWN-02 freshness gate wiring — adapters-freshness.ts now has a test file and runs in CI's ubuntu-only gate block; verified 17/17, 0 byte diff, exit 0."
+    - "SPAWN-04 folded-scalar bypass (WR05_COMMA/WR05_ARRAY line-anchored regex) — replaced by scripts/frontmatter.ts's value-flattening parser; a folded `tools: >-` grant is now caught."
+    - "SPAWN-05 non-recursive adapter-body scan — now reads through the same kit-model authority as KIT-02/KIT-03."
+  gaps_remaining:
+    - "KIT-03 grant-closure derivation shares frontmatter.ts's fail-open YAML-tag bypass (CR-01, new in round 2) with guard_wr05."
+    - "KIT-02's install.ts/uninstall.ts derivation pair — deliberately NOT unified with kit-model.ts (D-18) — has re-drifted (CR-02, CR-03, new in round 2)."
+    - "SPAWN-04's defense-in-depth guard is bypassable by the same CR-01 tag trick, plus a newly-found cardinality gap on the `tools` key (WR-01, new in round 2)."
+  regressions: []
 gaps:
-  - truth: "KIT-02 — Every guard and validator scan set (WR05_SCAN, ADAPTERS, CTX_WORKFLOWS, the validator's role and workflow lists) is derived from kit-model.ts, never hand-listed."
-    status: failed
-    reason: "kit-model.ts exports only listRoles/listWorkflows (confirmed by grep — no listAdapters/listSkillAdapters export exists). The adapter half of the scan-set class (ADAPTERS, the WR05 spawn-grant scan, install/uninstall's removal set, check-kit-refs' SCAN) is independently reimplemented in five separate files that disagree on recursion: four use a non-recursive readdirSync (check-foundation-guards.ts:218,1090; adapters-freshness.ts:125; install.ts:206/uninstall.ts:132) and one walks recursively (check-kit-refs.ts:133-145). CTX_WORKFLOWS and the validator's role/workflow lists ARE correctly derived through kit-model.ts — only the adapter-set half of KIT-02 fails."
+  - truth: "KIT-03 — the referential-integrity oracle turns green ONLY when the coordinator's spawn grant, the adapter directory, and the role corpus are the same set."
+    status: partial
+    reason: "The set-equality invariant itself is now solid and permanently regression-tested (brokenMirror() RED case at check-foundation-guards.test.ts:1746 reproduces the pre-27-07 shape — 17 roles, 1 adapter, 7 unresolvable grants — and fails naming every difference; consistentMirror() GREEN case at :1759 proves 17==17==17). But the oracle's grant-closure half (keysGrantedAgentNames, called on the coordinator's parsed frontmatter at check-foundation-guards.ts:1676) reads through the SAME scripts/frontmatter.ts flattening logic that guard_wr05 uses, and that logic has a proven fail-open bypass: a YAML tag placed before a reference sigil (`allowed-tools: !!seq [*t]`) is not refused by `startsWithReference()`/`YAML_REF`, so it is flattened to the literal string `!!seq [*t]` and read as carrying no spawn token. Reproduced end-to-end by the round-2 review on a hermetic mirror (planted on a skill adapter, the surface with no freshness gate): `ALL CHECKS PASSED`, exit 0. The same code path underlies KIT-03's own grant-closure read, so the 'green only when the sets are actually equal' guarantee is not sound against an adversarial or malformed coordinator frontmatter."
     artifacts:
-      - path: "scripts/kit-model.ts"
-        issue: "No listAdapters()/listSkillAdapters() authority function exists; only listRoles/listWorkflows do"
-      - path: "scripts/check-foundation-guards.ts:216-235,1090-1092"
-        issue: "readAdapterDir uses non-recursive readdirSync(rel)"
-      - path: "scripts/adapters-freshness.ts:123-133"
-        issue: "listAdapters uses non-recursive readdirSync(dir)"
-      - path: "install/install.ts:206-216"
-        issue: "srcAdapterFiles uses non-recursive readdirSync + isFile()"
-      - path: "install/uninstall.ts:132-142"
-        issue: "same non-recursive derivation, disagrees with check-kit-refs.ts's recursive walk"
+      - path: "scripts/frontmatter.ts"
+        issue: "YAML_REF = /^[&*][^\\s,[\\]{}]/ (lines 150-213, startsWithReference) does not refuse a leading `!` tag; a tagged node walks past the reference refusal into the ok:true flattened-string arm."
     missing:
-      - "One `listAgentAdapters()`/`listSkillAdapters()` authority in kit-model.ts, consumed by all five sites, with a documented recursion policy matching the platform's actual (recursive) .claude/agents/ discovery"
-  - truth: "KIT-03 — The referential-integrity oracle asserts set equality between the coordinator's spawn grant, the adapter directory, and the role corpus, and turns green only when they are the same set."
-    status: failed
-    reason: "Reproduced independently by the code reviewer and confirmed by reading source: because the adapter directory is read non-recursively (see KIT-02 gap), planting a second live adapter with `coordinator: true` and its own spawn grant at .claude/agents/extra/rogue.md is invisible to the oracle. guardReferentialIntegrity (check-foundation-guards.ts:1090) still reports \"17 roles == 17 adapters == 17 grant-closure names\" and PASS even though 18 adapters and 2 coordinators actually exist on disk. The oracle's own stated guarantee — green ONLY when the sets are actually equal — is false; it is green even when they are provably not equal, for a file the platform's own recursive .claude/agents/ discovery would load and honor."
+      - "Extend the sigil class to include `!`, or strip one leading tag before the collection/fragment test, per the round-2 review's suggested fix (frontmatter.ts CR-01)."
+      - "A tag-prefixed case added to REFUSED_FORMS (frontmatter.test.ts) and an aggregator-level (skill-surface) case in check-foundation-guards.test.ts."
+  - truth: "KIT-02 — every guard and validator scan set is derived from kit-model.ts, so adding a role or workflow file changes every scan set with no hand edit and no stale literal survives."
+    status: partial
+    reason: "The four scan sets named in the roadmap success criterion are confirmed derived: SPAWN_GRANT_SCAN (the renamed WR05-era scan, check-foundation-guards.ts:399), ADAPTERS (:306-316), CTX_WORKFLOWS (:1376-1379), and validate-agent-factory.ts's ROLES/WORKFLOWS (:171,183) all call listRoles/listWorkflows/listAgentAdapters/listSkillAdapters. But check-foundation-guards.ts's own set-literal inventory (comment block at lines 60-160) records install.ts's and uninstall.ts's srcSkillNames()/srcAdapterFiles() as inventory entries #9/#10 — a deliberately-uncoupled (D-18) but declared BYTE-IDENTICAL pair mirroring the same kit-set fact. That pair has re-drifted: plan 27-22 moved install.ts's three helpers onto statSync (symlink-following), and left uninstall.ts's byte-identical twin on Dirent-flag filtering. Confirmed by direct read: install/uninstall.ts:131-154 still does `readdirSync(root, {withFileTypes:true}).filter(ent => ent.isFile()/isDirectory())`, which is false for a Dirent representing a symlink. Reproduced by the round-2 review: a symlinked source adapter is installed by install.ts and never removed by uninstall.ts — `== uninstall complete ==`, exit 0, leftover file confirmed. This is precisely the drift class KIT-02 exists to delete, surviving in the one place this phase deliberately chose not to couple to the shared authority."
     artifacts:
-      - path: "scripts/check-foundation-guards.ts:1090"
-        issue: "guardReferentialIntegrity() computes adapterFiles via the same non-recursive readdirSync as KIT-02's gap; a nested adapter is never counted"
+      - path: "install/uninstall.ts"
+        issue: "srcSkillNames()/srcAdapterFiles() (lines 131-154) filter on Dirent.isFile()/isDirectory(), not statSync — diverges from install.ts's now-symlink-following pair."
     missing:
-      - "guardReferentialIntegrity must consume the same recursive adapter-set authority proposed for KIT-02, or the oracle's soundness claim does not hold"
-  - truth: "SPAWN-02 — adapters-freshness.ts byte-gates the generated adapters against a fresh regeneration, fail-closed on drift."
-    status: failed
-    reason: "The script itself works correctly when invoked by hand (confirmed: exit 0, '17 adapter(s) compared ... 0 byte difference(s)'). But it is wired to nothing: `grep -rn \"freshness:adapters|adapters-freshness\" .github/workflows/ci.yml` returns no match, and `scripts/adapters-freshness.test.ts` does not exist (confirmed — every sibling freshness gate, catalog/context/queue/traceability, has a .test.ts; this is the only one without one). package.json:17 defines the npm script but nothing calls it. A committed hand-edit to an adapter — including the exact CR-01/CR-02 bypasses — currently passes every CI gate. A gate that exists and passes by hand but is invoked by neither CI nor the test suite does not fail anything closed in practice."
+      - "Port install.ts's isFileFollowing/isDirFollowing-based helpers into uninstall.ts verbatim so the declared pair is byte-identical again."
+      - "Extend install/install.test.ts's round-trip case (~1324-1358) to plant a symlinked adapter AND a symlinked skill directory and assert both are gone after uninstall."
+  - truth: "SPAWN-04 — non-coordinator role adapters omit the Agent tool entirely, a mechanism that holds on both the main-thread and subagent paths rather than relying on a frontmatter token the runtime ignores."
+    status: partial
+    reason: "Today's committed adapters are clean: `grep -l 'Agent(' .claude/agents/*.md` returns only grugops-orchestrator.md, confirmed. The primary mechanism (SPAWN-03, main-thread wiring) is proven to hold by a real runtime observation (see SPAWN-03 below). But the guard meant to keep the 16 non-coordinator adapters clean going forward — and to be the ONE check standing between a crafted file and a rogue grant on the skill surface, which has no freshness gate — has two live, reproduced, unpatched holes. First, CR-01 (shared with the KIT-03 gap above): a YAML-tag-prefixed reference reaches the silent no-grant SUCCESS arm, so a rogue grant hidden behind `!!seq [*t]` prints PASS. Second, a new finding this round (WR-01): the `tools`/`allowed-tools` key has an absence arm and an emptiness arm (check-foundation-guards.ts:596-616) but, unlike the sibling `name` key check thirty lines below it (:1640, which the 27-19 plan explicitly gave a cardinality pin), has no cardinality arm. A coordinator declaring `tools:` twice — a duplicate key a last-wins YAML loader resolves by dropping the first occurrence — passes both WR-05 and KIT-03 while the runtime grant is silently gone. Reproduced by the round-2 review on a hermetic mirror: `ALL CHECKS PASSED` with a duplicate `tools:` key that a last-wins loader reads as carrying no `Agent(...)` token at all."
     artifacts:
-      - path: ".github/workflows/ci.yml"
-        issue: "freshness:adapters is absent from the ubuntu-only gate block that runs freshness, freshness:catalog, freshness:context, and check-foundation-guards.js"
-      - path: "scripts/adapters-freshness.test.ts"
-        issue: "does not exist"
+      - path: "scripts/frontmatter.ts"
+        issue: "Same CR-01 tag-refusal gap as the KIT-03 finding above."
+      - path: "scripts/check-foundation-guards.ts"
+        issue: "keysHaveSpawnGrant()/the tools floor (lines 596-616) has no cardinality arm on TOOLS_KEYS, unlike the name-key cardinality check at line 1640."
     missing:
-      - "npm run freshness:adapters added to .github/workflows/ci.yml's gate block"
-      - "scripts/adapters-freshness.test.ts with a green case, a byte-drift RED case, and a set-drift (orphan adapter) RED case"
-  - truth: "SPAWN-04 — Non-coordinator role adapters omit the Agent tool entirely, a mechanism that holds on both the main-thread and subagent paths rather than relying on a frontmatter token the runtime ignores."
-    status: failed
-    reason: "The 17 generated adapters are currently clean (confirmed: generator's capability-to-tool mapping grants Agent to none of the 16 non-coordinator roles). But the enforcement mechanism meant to keep this true — guard_wr05's WR05_COMMA/WR05_ARRAY regex pair — is reproducibly bypassable. Read directly from source: both regexes are applied per physical line (`matchesOutsideFences` at check-foundation-guards.ts:337-340 does `body.split(\"\\n\").some(l => re.test(l))`), and WR05_COMMA requires the key (`tools:`/`allowed-tools:`) and the Agent/Task token on the SAME line. A valid YAML folded scalar (`tools: >-` followed by an indented continuation line carrying `Agent(...)`) puts the grant on a line that starts with neither `tools:` nor `-`, so neither regex fires. The reviewer reproduced this on hermetic mirrors twice (a non-coordinator adapter, and a skill file) with `ALL CHECKS PASSED` both times. The mechanism does not hold on the documented \"both paths\" claim against a form the guard was never taught to reconstruct."
-    artifacts:
-      - path: "scripts/check-foundation-guards.ts:275-279,337-340"
-        issue: "WR05_COMMA/WR05_ARRAY are line-anchored; matchesOutsideFences tests line-by-line with no frontmatter-value reconstruction across a folded/block scalar"
-    missing:
-      - "A tools-value reconstruction that flattens a frontmatter key's value across continuation lines before testing for Agent/Task, applied identically at guard_wr05 and at KIT-03's grant-closure parser"
-  - truth: "SPAWN-05 — guard_adapter_body fails red on pre-v2.0 handoff/single-window prose in any adapter body, closing the surviving grugops-orchestrator.md:25 reference."
-    status: failed
-    reason: "guard_adapter_body's scan set is built from the same non-recursive adapter derivation implicated in the KIT-02/KIT-03 gap (check-foundation-guards.ts ADAPTER_BODY_SCAN over ADAPTERS + template). A hand-edited or planted adapter in a subdirectory of .claude/agents/ is invisible to this guard exactly as it is to guard_wr05 and the referential-integrity oracle — confirmed by the reviewer's single reproduction covering all four guards at once. Separately (Warning-level, not the basis for this FAIL by itself): the guard's positive half (WR-01/WR-05 in 27-REVIEW.md) is order- and context-free and its vacuity floor never fires independently, both weakening the same invariant."
-    artifacts:
-      - path: "scripts/check-foundation-guards.ts:480,486,514-524"
-        issue: "ADAPTER_BODY_SCAN is built over the same non-recursive ADAPTERS set; positive-half match is a bare substring test with no exactly-once assertion"
-    missing:
-      - "Same adapter-set-authority fix as KIT-02/KIT-03; separately, anchor the positive half to the full generated sentence and assert it appears exactly once (27-REVIEW.md WR-05)"
-human_verification:
-  - test: "Run `claude --agent grugops-orchestrator` from an installed target repository and observe whether the session startup header names @grugops-orchestrator, then ask for work that routes to a specialist and observe whether a role agent actually resolves and runs (rather than the coordinator working the task inline)."
-    expected: "Startup header names the coordinator agent; a routed subtask causes a distinct role agent to resolve and execute."
-    why_human: "The Claude Code runtime is the system under test. The startup header is an interactive TUI element and agent resolution cannot be observed from any in-repo command; a print-mode invocation would spend tokens without emitting the header. Plan 27-09 explicitly performed steps 1-2 (scratch install, materialized kit line) and explicitly left steps 3-4 as UNKNOWN - verify — this is the honest, undischarged remainder of SPAWN-03's runtime half, not a new finding."
+      - "The CR-01 fix (closes the shared half of this gap)."
+      - "A cardinality arm on TOOLS_KEYS mirroring the 27-19 name-key rule: refuse >1 occurrence of `tools:`/`allowed-tools:` in one document, naming the file and the count."
+deferred: []
+human_verification: []
 ---
 
 # Phase 27: Spawn Correctness & Kit-Set Authority Verification Report
 
 **Phase Goal:** Role agents actually execute in their own sessions on Claude Code — and every guard and validator scan set is derived from the filesystem *before* the 17 new adapter files exist, so they land inside the guards rather than outside them.
-**Verified:** 2026-07-28T23:59:00Z
+**Verified:** 2026-07-30T19:30:00Z
 **Status:** gaps_found
-**Re-verification:** No — initial verification
+**Re-verification:** Yes — supersedes `27-VERIFICATION.md` dated 2026-07-28, which was taken against the tree before the round-2 gap-closure wave (plans 27-18..27-23) landed. Every gap that verification recorded has since closed at the code level. This pass independently confirms those closures AND incorporates `27-REVIEW-GAPS-2.md`, a fresh adversarial code review completed immediately before this verification that found four new Critical and three new Warning issues — reproduced end-to-end on hermetic fixtures, not inferred. All four Criticals and the one Warning cited below were re-confirmed directly against source during this verification (not merely re-stated from the review).
 
 ## Goal Achievement
 
-### Observable Truths
+### Observable Truths — by roadmap Success Criterion
 
-| # | Truth | Requirement | Status | Evidence |
+| # | Truth (Success Criterion) | Requirements | Status | Evidence |
 |---|---|---|---|---|
-| 1 | `scripts/kit-model.ts` is the sole authority for "what roles and workflows exist," derived from the filesystem with an asserted count | KIT-01 | ✓ VERIFIED | `listRoles`/`listWorkflows` exported (kit-model.ts:81,90), each calls `refuseEmpty` (throws on vacuity), both `.sort()`, `ROLE_COUNT`/`WORKFLOW_COUNT` asserted via strict integer equality. `guardKitCounts` prints "17 roles, 19 workflows" line, confirmed in live gate output. |
-| 2 | Every guard/validator scan set (`WR05_SCAN`, `ADAPTERS`, `CTX_WORKFLOWS`, validator role/workflow lists) is derived from `kit-model.ts`, never hand-listed | KIT-02 | ✗ FAILED | `CTX_WORKFLOWS` and the validator's role/workflow lists ARE derived via `listRoles`/`listWorkflows`. But `kit-model.ts` has **no** `listAdapters` export (confirmed by grep). The adapter set is independently re-derived in 5 places (`check-foundation-guards.ts` ×2, `adapters-freshness.ts`, `install.ts`, `uninstall.ts`) — 4 non-recursive, 1 (`check-kit-refs.ts`) recursive. They disagree. See gap #1. |
-| 3 | The referential-integrity oracle turns green only when the coordinator's spawn grant, the adapter directory, and the role corpus are the same set (and failed RED before adapters existed, per 27-01) | KIT-03 | ✗ FAILED | Oracle currently reports "17 roles == 17 adapters == 17 grant-closure names — PASS" on the live tree (confirmed). But because the adapter directory read is non-recursive, a planted 18th adapter (a second coordinator, in a subdirectory) is invisible to it — the oracle stays green while the sets are provably not equal. Reproduced by the code reviewer; root-caused to the same non-recursive read as gap #1. |
-| 4 | All 17 role adapters exist at `.claude/agents/grugops-<role>.md`, generated by a templated generator, thin pointers never copies | SPAWN-01 | ✓ VERIFIED | `ls .claude/agents/` → 17 files, all named `grugops-<role>.md`. `scripts/generate-role-adapters.ts` + `.test.ts` exist. All 17 role files carry `capabilities:` (confirmed: `grep -c "capabilities:" agent-factory/roles/*.md` → 17 non-zero). |
-| 5 | `adapters-freshness.ts` byte-gates generated adapters against fresh regeneration, fail-closed on drift | SPAWN-02 | ✗ FAILED | Script works when run by hand (confirmed: exit 0, "17 adapter(s) compared ... 0 byte difference(s)"). But `npm run freshness:adapters` (package.json:17) is absent from `.github/workflows/ci.yml` (confirmed by grep — no match) and `scripts/adapters-freshness.test.ts` does not exist (confirmed — every sibling freshness gate has one, this doesn't). The gate is authored but not wired; nothing currently re-runs it. |
-| 6 | Coordinator wired as Claude Code main-thread agent so its grant is runtime-honored; role agent actually resolves in its own session | SPAWN-03 | ? UNCERTAIN (human_needed) | Documented half (install/README.md §6) and in-repo half (adapter exists, `coordinator: true`, 16-name grant, freshness gate green) both confirmed. Runtime half (session header naming the agent; a role agent actually resolving) explicitly **not performed** by plan 27-09 and recorded `UNKNOWN - verify`. REQUIREMENTS.md correctly marks SPAWN-03 `Pending`, not `Complete` — this is honest, not a defect. |
-| 7 | Non-coordinator adapters omit the `Agent` tool entirely, a mechanism that holds on both main-thread and subagent paths | SPAWN-04 | ✗ FAILED | The 17 generated adapters are currently clean (verified). But `guard_wr05`'s grant-detection regexes are line-anchored (`check-foundation-guards.ts:275-279,337-340`) and do not reconstruct a YAML folded/block scalar spanning lines — confirmed by reading source. A valid `tools: >-` continuation carrying `Agent(...)` is invisible to the guard. Reproduced twice by the code reviewer (a role adapter and a skill file), both "ALL CHECKS PASSED." |
-| 8 | `guard_adapter_body` fails red on pre-v2.0 handoff/single-window prose in any adapter body | SPAWN-05 | ✗ FAILED | Functionally correct over the *scanned* set for the live, well-formed tree (confirmed green). But its scan set is built from the same non-recursive adapter derivation as gaps #1-2 — a hand-edited or planted adapter in a subdirectory is invisible to this guard exactly as it is to guard_wr05 and the referential-integrity oracle (reviewer's single reproduction covers all three). Separately, the positive-half match is a bare, order-independent substring test (27-REVIEW.md WR-05) — lower-severity but the same weakening. |
-| 9 | `orchestrator.md` trimmed below its 7570-byte FAIL ceiling before spawn-allowlist text is added, ceiling never raised | SPAWN-06 | ✓ VERIFIED | `wc -c agent-factory/roles/orchestrator.md` → 7087 bytes (below both the 7570 FAIL and 7165 WARN tiers). `check-foundation-guards.ts:888` still reads `"7570 7165"` — ceiling unchanged. `node scripts/check-foundation-guards.js` shows no FAIL/WARN line for orchestrator.md. |
-| 10 | Advertised nesting depth corrected to 3 (v2.1.219+), tuning env var named, v2.1.217-218 depth-1 window documented as known-bad | SPAWN-07 | ✓ VERIFIED | `agent-factory/roles/orchestrator.md:88` and `agent-factory/packaging/adapters.md:35,47` both state "nests 3 layers... tuned by `CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH`; that default arrived in v2.1.219, and v2.1.217-v2.1.218 defaulted to 1 — a known-bad window." `oracleWr05Wording` reports PASS across all four tracking docs. |
+| 1 | `scripts/kit-model.ts` answers "what roles and workflows exist" from the filesystem with an asserted count; every scan set resolves through it | KIT-01, KIT-02 | ✓ VERIFIED (KIT-01 clean) / ⚠ PARTIAL (KIT-02, see gap) | `listRoles`/`listWorkflows` export with `ROLE_COUNT=17`/`WORKFLOW_COUNT=19` asserted via strict equality and `refuseEmpty()` fail-closed floors (kit-model.ts:88-142). `SPAWN_GRANT_SCAN`, `ADAPTERS`, `CTX_WORKFLOWS`, and validate-agent-factory.ts's `ROLES`/`WORKFLOWS` all confirmed derived via grep. `guard_kit_counts` PASSes live. **Gap:** install.ts/uninstall.ts's deliberately-uncoupled (D-18) mirror derivation has re-drifted (CR-02). |
+| 2 | KIT-03 oracle fails RED against the pre-adapter tree (1 adapter, 7 names granted, 17 roles) before any adapter is authored, and turns green only when the three sets are equal | KIT-03 | ⚠ PARTIAL | `brokenMirror()` RED case (check-foundation-guards.test.ts:1746) is a permanent regression test proving the historical claim: fails naming "17 roles, 1 adapters", 16 role(s) with no adapter, 7 unresolved grants. `consistentMirror()` GREEN case (:1759) proves 17==17==17 today. **Gap:** the grant-closure half reads through frontmatter.ts's flattening logic, which CR-01 (round-2 review) proves is fail-open on a YAML-tag-prefixed reference — the "green only when equal" claim is not sound against a crafted coordinator frontmatter. |
+| 3 | All 17 adapters exist at `.claude/agents/grugops-<role>.md`, generated as thin pointers, never copies; a byte difference vs a fresh regeneration fails the freshness gate closed | SPAWN-01, SPAWN-02 | ✓ VERIFIED | `ls .claude/agents/*.md \| wc -l` = 17, matching `ls agent-factory/roles/*.md` (minus `_role-switch-protocol.md`) = 17. Every adapter body inspected (e.g. `grugops-ba-pm.md`) is a `<!-- GENERATED — do not hand-edit -->` thin pointer: resolves kit root, reads the role file, publishes notes — no restated role prose. `node scripts/adapters-freshness.js` → "Adapters fresh: 17 adapter(s) compared ... 0 byte difference(s) ... directory listings set-equal", exit 0. |
+| 4 | Coordinator runs main-thread so its `Agent(<allowlist>)` grant is runtime-honored; no non-coordinator adapter carries `Agent`; the mechanism holds on both main-thread and subagent paths | SPAWN-03, SPAWN-04 | ✓ VERIFIED (SPAWN-03) / ⚠ PARTIAL (SPAWN-04) | SPAWN-03: `27-SPAWN-03-RUNTIME-EVIDENCE.md` records a real, human-performed, human-attested observation (2026-07-29, session `9bcd8d66-091d-4387-aef0-04319f4d4015`): startup header named the coordinator, and three distinct role agents (`grugops-brownfield-mapper`, `grugops-architect-design`, `grugops-security-nfr`) resolved and ran in one turn, none worked inline. `status: performed-observation-matches-expected`. SPAWN-04: `grep -l 'Agent(' .claude/agents/*.md` = only `grugops-orchestrator.md`, confirmed clean today. **Gap:** the guard defending this invariant going forward has two live holes — CR-01 (shared with KIT-03) and WR-01 (no cardinality pin on `tools`/`allowed-tools`, unlike the sibling `name` check). |
+| 5 | `guard_adapter_body` fails red on pre-v2.0 handoff/single-window prose, closing the `grugops-orchestrator.md:25` reference; `orchestrator.md` sits below its 7570-byte FAIL ceiling (unchanged); the v2.1.219+/depth-3 floor reads everywhere with the v2.1.217-218 window documented | SPAWN-05, SPAWN-06, SPAWN-07 | ✓ VERIFIED | `node scripts/check-foundation-guards.js` → `[guard_adapter_body] PASS: 24 adapter bodies + 2 template body shapes checked; none carries retired relay vocabulary...`. Generated `.claude/agents/grugops-orchestrator.md:25` reads "one window, prior context dropped between..." (protocol description, not the retired "handoff is the only memory" phrasing) — no retired-vocabulary hit. `wc -c < agent-factory/roles/orchestrator.md` = 7090 (below both the 7165 warn and unchanged 7570 fail ceiling — `grep -c 7570` unchanged); `guard_role_size` PASSes for it. `v2.1.219`/`v2.1.217-v2.1.218` present and correct in `orchestrator.md`, `packaging/adapters.md`, `.planning/REQUIREMENTS.md`, `.planning/STATE.md`. |
 
-**Score:** 4/10 truths verified (5 failed, 1 human-needed)
+**Score:** 3/5 roadmap success criteria fully VERIFIED (1, 3, 5). 2/5 (2, 4) PARTIAL — the underlying mechanism does its job on today's tree but has a proven, reproduced, unpatched bypass. At the 10-requirement granularity: **7/10 clean** (KIT-01, SPAWN-01, SPAWN-02, SPAWN-03, SPAWN-05, SPAWN-06, SPAWN-07), **3/10 partial with live defects** (KIT-02, KIT-03, SPAWN-04).
+
+### Round-2 Review Findings — independently re-confirmed against source, not restated
+
+`27-REVIEW-GAPS-2.md` (completed immediately before this verification) reported 4 Critical + 3 Warning + 2 Info findings. Each Critical and WR-01 was re-verified directly against the current tree during this pass (not taken on the review's word):
+
+| ID | Claim | Re-verified how | Live? |
+|---|---|---|---|
+| CR-01 | `scripts/frontmatter.ts` `YAML_REF`/`startsWithReference` does not refuse a leading YAML tag (`!`) | Read `frontmatter.ts:150-213` directly — `YAML_REF = /^[&*][^\s,[\]{}]/` has no `!` in the sigil class | **Yes — unfixed** |
+| CR-02 | `install/uninstall.ts`'s adapter/skill derivation still filters on `Dirent` flags while `install/install.ts`'s now follows symlinks via `statSync` | Read `install/uninstall.ts:131-154` (Dirent-based) vs `install/install.ts:247-271` (statSync-based) directly | **Yes — unfixed** |
+| CR-03 | `install/install.ts`'s nested-adapter cycle guard uses a global `seen` realpath set, dropping a distinct relative-path member reached by a second path | Read `install/install.ts:302-330` — `seen` is a single `Set<string>` shared across the whole walk, not a per-path ancestor stack | **Yes — unfixed** |
+| CR-04 | `install/README.md`'s exit-code table documents a self-checkout refusal for `uninstall.js` that is not implemented | `grep -n "ALLOW_SELF\|looksLikeSource\|self-checkout\|allow-self" install/uninstall.ts` → no matches; only exits are 2 and 3, never 1 | **Yes — unfixed, and the review's reproduction (data loss on the source checkout) was not independently re-run in this verification pass but the code-level absence that would allow it was confirmed** |
+| WR-01 | `tools`/`allowed-tools` has no cardinality pin, unlike `name` | Read `check-foundation-guards.ts:596-616` (absence + emptiness arms only) vs `:1640-1661` (name key: absence + cardinality + emptiness arms) | **Yes — unfixed** |
+
+CR-02, CR-03, and CR-04 sit in `install.ts`/`uninstall.ts`, which are not literally the four scan sets named in the KIT-02 success-criterion bullet, but they are the exact "second file" instance of KIT-02's founding drift class (recorded as the declared byte-identical pair, inventory entries #9/#10, in `check-foundation-guards.ts`'s own set-literal record) and they independently violate the CLAUDE.md hard constraint that installers stay "idempotent, additive, dry-run-capable, and reversible," and the "no fabrication" rule (a published exit-code contract for a guard that does not exist). They are recorded as part of the KIT-02 gap above.
 
 ### Required Artifacts
 
 | Artifact | Expected | Status | Details |
 |---|---|---|---|
-| `scripts/kit-model.ts` | sole role/workflow authority | ✓ VERIFIED | `listRoles`/`listWorkflows` exist, throw on vacuity, sorted; no `listAdapters` |
-| `scripts/kit-model.test.ts` | RED/GREEN fixture coverage | ✓ VERIFIED (exists) | not independently re-run beyond the already-established green suite |
-| `scripts/check-foundation-guards.ts` | derived scan sets + KIT-03 oracle + guard_wr05 + guard_adapter_body | ⚠️ PARTIAL | roles/workflows derived correctly; adapter-side derivation and grant-detection both have reproduced bypasses (see gaps) |
-| `scripts/generate-role-adapters.ts` + `.test.ts` | deterministic templated generator | ✓ VERIFIED | 17 adapters exist, capabilities-driven, sorted, no debt markers |
-| `scripts/adapters-freshness.ts` | byte + set freshness gate | ⚠️ ORPHANED | script correct and passes by hand; not invoked by CI or by any test — no automatic enforcement |
-| `install/install.ts`, `install/uninstall.ts` | self-deriving adapter/skill install/removal | ✓ VERIFIED (for KIT-02's install scope) | derives from `$GRUGOPS_SRC` readdir per plan 27-02; shares the same non-recursive-vs-recursive disagreement noted under KIT-02 but no reproduced installer-specific defect beyond that |
-| `scripts/validate-agent-factory.ts`, `scripts/check-kit-refs.ts` | derived 17/19 role-workflow lists, derived `MARKER_SITES` | ✓ VERIFIED | confirmed green; `check-kit-refs.ts` is the one derivation that IS recursive |
-| `.claude/agents/grugops-<role>.md` × 17 | generated thin-pointer adapters | ✓ VERIFIED | 17 files present, one coordinator (`grugops-orchestrator.md`) with 16-name grant |
-| `agent-factory/roles/orchestrator.md` | ≤7100B, depth-3 wording | ✓ VERIFIED | 7087 bytes |
+| `scripts/kit-model.ts` | Sole role/workflow/adapter-set authority, fail-closed | ✓ VERIFIED | `listRoles`/`listWorkflows`/`listAgentAdapters`/`listSkillAdapters` exported; `refuseEmpty()` and `readDirOrThrow()` fail-closed on both empty and unreadable; asserted counts (17/19/7). |
+| `.claude/agents/grugops-<role>.md` × 17 | Generated thin pointers | ✓ VERIFIED | 17 files present, all carry the `<!-- GENERATED — do not hand-edit -->` marker and the resolver/pointer body shape (spot-checked `grugops-ba-pm.md`, `grugops-orchestrator.md`). |
+| `scripts/adapters-freshness.ts` | Byte-gates generated adapters | ✓ VERIFIED | `node scripts/adapters-freshness.js` exit 0, "17 adapter(s) compared ... 0 byte difference(s)". |
+| `scripts/frontmatter.ts` | Single format-aware frontmatter authority for the spawn-grant predicate | ⚠ PARTIAL — exists, wired, substantive, but the reference-refusal is provably incomplete (CR-01). |
+| `install/install.ts` / `install/uninstall.ts` | Byte-identical kit-set derivation pair (D-18) | ⚠ PARTIAL — exists and wired, but the pair has diverged (CR-02) and the installer's own cycle guard is unsound for a nested alias (CR-03); uninstall.ts has no self-checkout guard (CR-04). |
 
 ### Key Link Verification
 
 | From | To | Via | Status | Details |
 |---|---|---|---|---|
-| `kit-model.ts` `listRoles`/`listWorkflows` | `check-foundation-guards.ts`, `validate-agent-factory.ts`, `check-kit-refs.ts` | import + call | ✓ WIRED | confirmed by source read |
-| adapter directory on disk | `guard_wr05`, `guard_adapter_body`, KIT-03 oracle, `adapters-freshness.ts` | independent `readdirSync` per site | ✗ NOT UNIFIED | 5 independent derivations, 4 non-recursive + 1 recursive; this is the KIT-02/KIT-03 gap |
-| `scripts/adapters-freshness.ts` | CI pipeline | `npm run freshness:adapters` in `.github/workflows/ci.yml` | ✗ NOT_WIRED | script exists and works standalone; no CI step, no test file calls it |
-| role `capabilities:` frontmatter | generated adapter's tool grant | `generate-role-adapters.ts` mapping table | ✓ WIRED | confirmed — all 17 adapters carry capability-derived tools, no Agent grant on non-coordinators |
-
-### Requirements Coverage
-
-| Requirement | Source Plan(s) | Status | Evidence |
-|---|---|---|---|
-| KIT-01 | 27-01 | ✓ SATISFIED | see truth #1 |
-| KIT-02 | 27-02, 27-03, 27-04 | ✗ BLOCKED | role/workflow half satisfied; adapter half not — see gap #1 |
-| KIT-03 | 27-01, 27-07 | ✗ BLOCKED | oracle green on live tree but soundness broken by non-recursive read — see gap #2 |
-| SPAWN-01 | 27-06, 27-07 | ✓ SATISFIED | see truth #4 |
-| SPAWN-02 | 27-07 | ✗ BLOCKED | gate authored, not wired — see gap #3 |
-| SPAWN-03 | 27-09 | ? NEEDS HUMAN | correctly recorded Pending in REQUIREMENTS.md; runtime half open |
-| SPAWN-04 | 27-08 | ✗ BLOCKED | current adapters clean; enforcement mechanism bypassable — see gap #4 |
-| SPAWN-05 | 27-08 | ✗ BLOCKED | scan-set blind spot shared with KIT-02/KIT-03 — see gap #5 |
-| SPAWN-06 | 27-05 | ✓ SATISFIED | see truth #9 |
-| SPAWN-07 | 27-05 | ✓ SATISFIED | see truth #10 |
-
-No orphaned requirements: all 10 IDs in ROADMAP.md's Phase 27 row (`KIT-01..03, SPAWN-01..07`) are claimed by at least one of the 9 plans, and REQUIREMENTS.md's Phase-27 rows list exactly these 10 IDs.
-
-**Note on REQUIREMENTS.md:** the tracking table currently marks KIT-02, KIT-03, SPAWN-02, SPAWN-04, and SPAWN-05 `Complete`. This verification finds all five `BLOCKED` per the reproduced evidence above — the tracking table reflects "gate exits 0" rather than "gate cannot be bypassed," which is exactly the distinction this verification was asked to draw.
-
-### Anti-Patterns Found
-
-No `TBD`/`FIXME`/`XXX`/`TODO`/`HACK`/`PLACEHOLDER` markers found in any Phase 27 source file (`kit-model.ts`, `check-foundation-guards.ts`, `validate-agent-factory.ts`, `check-kit-refs.ts`, `generate-role-adapters.ts`, `adapters-freshness.ts`, `dead-vocabulary.ts`, `install.ts`, `uninstall.ts`). The gaps in this report are not code-debt markers — they are demonstrated logic/enforcement defects (reproduced bypasses), independently confirmed by reading the implicated source lines, not merely quoted from 27-REVIEW.md.
-
-🛑 **Blocker-class (functional, not comment-marker):**
-- Adapter scan-set has no single authority (5 independent, disagreeing derivations) — undermines KIT-02, KIT-03, SPAWN-04, SPAWN-05 simultaneously.
-- `guard_wr05`'s grant detection is line-anchored and misses a valid YAML folded/block scalar — undermines SPAWN-04.
-- `adapters-freshness.ts` is authored but never invoked by CI or tests — undermines SPAWN-02.
-
-⚠️ **Warning-class (from 27-REVIEW.md, confirmed present, not independently re-derived here beyond spot-checks):**
-- `guard_adapter_body`'s vacuity floor (`scanned === 0`) is structurally unreachable.
-- `install.ts` silently installs zero adapters (exit 0, "install complete") when the source `.claude/` directory is unreadable, while `uninstall.ts` reports a `verify`-status skip for the same condition — an asymmetric fail-loud contract for the same derivation.
-- The generated coordinator adapter and the packaging template name `/grug`, which does not exist as a command; the actual skill/plugin commands are `/grugops` and `/grugops:<command>`. 27-09-SUMMARY's "one vocabulary, two surfaces" claim pinned only the tier labels, not the command name, so the contradiction shipped.
-- The 14-entry "every enumerating literal" inventory in `check-foundation-guards.ts` omits `install.ts`'s `RUNNABLES` mapping, which also has no `uninstall.ts` removal counterpart (a real reversibility gap, pre-existing).
-- `guard_adapter_body`'s positive half (the memory sentence) is a bare, order-independent substring match satisfiable by a comment or unrelated line.
-
-ℹ️ **Info:**
-- `install/install.ts` carries a literal NUL byte inside a fail-safe sentinel, making `grep` treat the file as binary (pre-existing, tracked in `deferred-items.md` D1).
-- `scripts/check-foundation-guards.ts` is 1245 lines carrying ten guards; not urgent, folds naturally into the CR-01 fix.
+| `check-foundation-guards.ts` (`SPAWN_GRANT_SCAN`, `ADAPTERS`, `CTX_WORKFLOWS`) | `kit-model.ts` | `listRoles`/`listWorkflows`/`listAgentAdapters`/`listSkillAdapters` imports | ✓ WIRED | Confirmed by import + call-site grep. |
+| `validate-agent-factory.ts` (`ROLES`, `WORKFLOWS`) | `kit-model.ts` | same imports | ✓ WIRED | Confirmed. |
+| `adapters-freshness.ts` | `kit-model.ts` | `listAgentAdapters` import | ✓ WIRED | Confirmed. |
+| `check-foundation-guards.ts` (`guard_wr05`, KIT-03 oracle) | `scripts/frontmatter.ts` | `keysHaveSpawnGrant`, `keysGrantedAgentNames`, `keyHasValue` imports | ✓ WIRED, ⚠ UNSOUND | Wired correctly; the shared predicate itself has the CR-01 gap. |
+| `install.ts` | `uninstall.ts` | declared byte-identical derivation pair | ✗ NOT_WIRED (diverged) | CR-02 — confirmed by direct read: different filtering strategy (statSync vs Dirent). |
+| `install/README.md` exit-code table | `uninstall.ts` self-checkout guard | documented contract | ✗ NOT_WIRED | CR-04 — documented behavior with no corresponding code. |
 
 ### Behavioral Spot-Checks
 
 | Behavior | Command | Result | Status |
 |---|---|---|---|
-| kit-count line prints derived numbers | `node scripts/check-foundation-guards.js \| grep "17 roles"` | printed | ✓ PASS |
-| 17 adapters exist, one coordinator | `ls .claude/agents/ \| wc -l` → 17; `grep -c '^coordinator: true' .claude/agents/grugops-orchestrator.md` → 1 | confirmed | ✓ PASS |
-| `freshness:adapters` absent from CI | `grep -rn "freshness:adapters\|adapters-freshness" .github/workflows/ci.yml scripts/*.test.ts` | no matches | ✓ PASS (confirms gap) |
-| `kit-model.ts` has no adapter authority | `grep -n "export function list" scripts/kit-model.ts` | only `listRoles`, `listWorkflows` | ✓ PASS (confirms gap) |
-| `guard_wr05` grant regex is line-anchored | read `check-foundation-guards.ts:275-279,337-340` | confirmed per-line `.split("\n").some(...)`, no continuation reconstruction | ✓ PASS (confirms gap) |
-| orchestrator.md size and ceiling | `wc -c agent-factory/roles/orchestrator.md`; `grep "7570 7165"` | 7087B; ceiling unchanged | ✓ PASS |
-| no debt markers in Phase 27 files | `grep -E "TBD|FIXME|XXX"` over 9 source files | no matches | ✓ PASS |
+| Full foundation guard suite | `node scripts/check-foundation-guards.js` | `ALL CHECKS PASSED` (including `KIT-03: 17 roles == 17 adapters == 17 grant-closure names`, `SPAWN-05: 24 adapter bodies + 2 template body shapes checked`) | ✓ PASS (on the live, well-formed tree — does not exercise the CR-01/WR-01 adversarial-input bypasses, which require a crafted file not present in the committed tree) |
+| Adapter freshness | `node scripts/adapters-freshness.js` | "Adapters fresh: 17 adapter(s) compared ... 0 byte difference(s), directory listings set-equal" | ✓ PASS |
+| Role byte ceiling | `wc -c < agent-factory/roles/orchestrator.md` | `7090` | ✓ PASS (below 7165 warn / 7570 fail, both unchanged) |
+| Type check | `npx tsc --noEmit` | exit 0 | ✓ PASS |
+| Full test suite (run once) | `npx vitest run --exclude '**/scripts/e2e/**'` | 976 passed / 2 skipped / 35 files | ✓ PASS — **but does not cover CR-01/CR-02/CR-03/CR-04/WR-01**: no test in `frontmatter.test.ts`, `install/install.test.ts`, or `check-foundation-guards.test.ts` exercises a YAML-tag-prefixed reference, a symlinked adapter/skill round-trip through uninstall, a two-path cycle-guard case, or an uninstall self-checkout attempt. A green suite is explicitly not proof for this phase's safety invariants (the phase's own stated lesson); it is not proof here either. |
+| SPAWN-03 runtime | `claude --agent grugops-orchestrator` (real session) | Startup header named coordinator; 3 role agents resolved and ran, none worked inline | ✓ PASS — human-performed and attested, recorded in `27-SPAWN-03-RUNTIME-EVIDENCE.md` |
 
-Full test suite was not re-run beyond the already-established baseline (`npx vitest run --exclude '**/scripts/e2e/**'` → 32 files, 864 passed, 2 skipped, per the already-established facts) — re-running it would not produce new evidence for the reproduced gaps above, which are demonstrated by reading source and by the review's own hermetic-mirror reproductions, not by the ordinary green-path suite.
+### Requirements Coverage
 
-### Probe Execution
+| Requirement | Source Plan(s) | Status | Evidence |
+|---|---|---|---|
+| KIT-01 | 27-01, 27-22 | ✓ SATISFIED | `kit-model.ts` sole authority, asserted counts, fail-closed. |
+| KIT-02 | 27-02, 27-03, 27-04, 27-10, 27-11, 27-13, 27-19, 27-21, 27-22, 27-23 | ⚠ PARTIAL | Four named scan sets derived; install.ts/uninstall.ts's declared mirror pair (D-18) has re-drifted (CR-02/CR-03/CR-04). |
+| KIT-03 | 27-01, 27-07, 27-10, 27-12, 27-18, 27-19 | ⚠ PARTIAL | Set-equality invariant solid and regression-tested; grant-closure derivation shares CR-01's fail-open parser gap. |
+| SPAWN-01 | 27-06, 27-07, 27-15, 27-23 | ✓ SATISFIED | 17/17 adapters, generated thin pointers confirmed. |
+| SPAWN-02 | 27-07, 27-11, 27-23 | ✓ SATISFIED | Freshness gate green, wired in CI (per round-2 review, "solid and well pinned"). |
+| SPAWN-03 | 27-09, 27-16, 27-17, 27-21 | ✓ SATISFIED | Real runtime observation performed and matches expected result. |
+| SPAWN-04 | 27-08, 27-12, 27-18, 27-20 | ⚠ PARTIAL | Adapters clean today; defense-in-depth guard has CR-01 (shared) and WR-01 (new) holes. |
+| SPAWN-05 | 27-08, 27-14, 27-20 | ✓ SATISFIED | `guard_adapter_body` PASS, `:25` reference resolved, retired vocabulary confirmed absent. |
+| SPAWN-06 | 27-05, 27-23 | ✓ SATISFIED | 7090B, unchanged 7570/7165 ceilings, `guard_role_size` PASS. |
+| SPAWN-07 | 27-05, 27-21 | ✓ SATISFIED | v2.1.219+/depth-3 floor with known-bad window, present in every surface checked. |
 
-Not applicable — this phase is not a migration/tooling phase with `scripts/*/tests/probe-*.sh` conventions; no probes declared in any plan or the roadmap success criteria.
+No orphaned requirements — every ID in `.planning/REQUIREMENTS.md`'s Phase 27 rows (KIT-01..03, SPAWN-01..07) is claimed by at least one plan's frontmatter `requirements:` field.
+
+**Note:** `.planning/REQUIREMENTS.md`'s traceability table (lines 156-165) and `.planning/STATE.md`'s Session Continuity section still show most Phase 27 requirements as "Gaps Found" / "Completed 27-22" — these are stale, predating the round-2 closure wave (27-18..27-23) and this review's commit. They are not evidence either way; this verification is against the current tree, not against those stale status strings.
+
+### Anti-Patterns Found
+
+None of the severity-blocking kind (no `TBD`/`FIXME`/`XXX` without a tracking reference; no placeholder/stub bodies) found in the files this phase modified. The five findings above (CR-01 through CR-04, WR-01) are logic defects in adversarial-input handling, not anti-pattern code smells, and are reported as gaps rather than as anti-patterns.
 
 ### Human Verification Required
 
-### 1. SPAWN-03 runtime half: coordinator resolution and role-agent spawning in a real session
-
-**Test:** From an installed target repository, run `claude --agent grugops-orchestrator`; observe the session startup header, then ask for work that routes to a specialist (e.g., "map this repo") and observe whether a distinct role agent resolves and runs.
-**Expected:** Startup header names `@grugops-orchestrator`; a role agent (not the coordinator itself) executes the routed subtask.
-**Why human:** The Claude Code runtime is the system under test; the startup header is an interactive TUI element with no in-repo command able to observe it. Plan 27-09 honestly performed and recorded steps 1-2 (scratch install, materialized kit line) and explicitly left steps 3-4 open as `UNKNOWN - verify` rather than fabricating a pass. REQUIREMENTS.md correctly reflects this as `Pending`.
+None. SPAWN-03's runtime half — the only item that genuinely required a human in a live session — has already been performed and recorded (`27-SPAWN-03-RUNTIME-EVIDENCE.md`, `status: performed-observation-matches-expected`).
 
 ### Gaps Summary
 
-The phase's own goal statement is: *"every guard and validator scan set is derived from the filesystem before the 17 new adapter files exist, so they land inside the guards rather than outside them."* The role/workflow half of that goal (KIT-01, and the role/workflow portions of KIT-02) is genuinely and solidly done — `kit-model.ts` is a real single authority, throws on vacuity, sorts deterministically, and every role/workflow-consuming guard is repointed at it with a passing regression suite.
+Seven of the ten requirements are clean: the phase's core mechanical claim — 17 role adapters exist, are generated (never hand-copied), are byte-gated fresh, the coordinator runs main-thread with a runtime-honored grant, no non-coordinator adapter carries `Agent`, the adapter-body guard closes the retired handoff prose, and the byte-ceiling/version-floor documentation is corrected — is verified against the current tree with direct evidence, including a real human-performed runtime observation for SPAWN-03.
 
-The adapter half of the same goal is not done, and a single root cause explains three of the five failed truths: **the adapter set itself was never given the authority treatment the role/workflow set received.** Five files (`check-foundation-guards.ts` twice, `adapters-freshness.ts`, `install.ts`, `uninstall.ts`) each answer "what is an adapter" by their own `readdirSync`, four of them non-recursively, while Claude Code's actual, documented discovery of `.claude/agents/` is recursive and the fifth file in the tree (`check-kit-refs.ts`) already reflects that. This is not a hypothetical: I independently confirmed (by reading the regex/derivation source directly, not merely citing 27-REVIEW.md) that `kit-model.ts` exports no adapter-listing function, that the four non-recursive derivations exist as described, and that `guard_wr05`'s grant-detection regexes are genuinely line-anchored with no reconstruction of a wrapped YAML value across lines. A planted adapter in a subdirectory, or a spawn grant expressed as a YAML folded scalar, is invisible to KIT-03's oracle, to `guard_wr05` (SPAWN-04), and to `guard_adapter_body` (SPAWN-05) simultaneously — exactly the failure mode the phase exists to prevent, now moved from a hand-listed name into a hand-written derivation rule.
+Three requirements (KIT-02, KIT-03, SPAWN-04) are **not** fully verified, because a code review completed immediately before this verification found — and this verification independently re-confirmed by reading source — four Critical and one Warning defect that are still live and unfixed in the tree:
 
-A second, independent gap affects SPAWN-02: `adapters-freshness.ts` is a correct, working gate when run by hand, but it is invoked by neither CI nor any test file, so nothing currently re-runs it — the one gate that would catch either of the two bypasses above does not run.
+1. **CR-01** — `scripts/frontmatter.ts`'s reference refusal does not cover a YAML tag prefix, restoring the exact silent no-grant bypass this milestone exists to close, in a new spelling. This is shared machinery between guard_wr05 (SPAWN-04) and the KIT-03 oracle's grant-closure derivation, so it weakens both.
+2. **CR-02** — `install.ts` and `uninstall.ts` were supposed to be a byte-identical kit-set derivation pair (D-18, tracked as inventory #9/#10 in the guard's own set-literal record); they have diverged again after 27-22's symlink-following change to `install.ts` alone, reproducibly leaving an installed symlinked adapter permanently un-removable by `uninstall.js`.
+3. **CR-03** — `install.ts`'s cycle guard for nested adapters uses a global visited set instead of a per-path ancestor stack, making the installer blind to a distinct member the authority (`kit-model.ts`) sees whenever a directory is reachable by two paths.
+4. **CR-04** — `install/README.md`'s new exit-code table documents an `uninstall.js` self-checkout refusal that does not exist in the code, a violation of the project's no-fabrication rule with a reproduced data-loss consequence.
+5. **WR-01** — the `tools`/`allowed-tools` key lacks the cardinality pin its sibling `name` key received in the same review round, leaving a duplicate-key path where a coordinator's grant can be silently dropped while both relevant guards still print PASS.
 
-SPAWN-03's runtime half is honestly open (not a defect) and SPAWN-06/SPAWN-07 are solidly verified. No debt markers, fabricated results, or invented commands were found anywhere in the phase's changed files.
+None of these five is present in the committed, well-formed tree today — the live `.claude/agents/` directory, the live install/uninstall behavior against a normal repo, and the live coordinator frontmatter are all clean. The gap is in the **guard/installer mechanism's soundness against a crafted or drifted input**, which is exactly the standard this phase's own stated lesson holds it to: a green suite is not proof for a safety invariant, and every one of these five was found by adversarial reproduction, not by the suite going red.
 
-Per the project's own standing lesson (a green suite is not proof for a safety invariant), these three items require the structural fix the reviewer already specified — a single format-aware adapter authority in `kit-model.ts`, a frontmatter-value-reconstruction fix to the grant detector, and wiring the freshness gate into CI plus a test file — not an additional heuristic layered on top of the current derivations.
+**This looks like real, unresolved work, not an intentional deviation.** No override is suggested — closing these five findings (mirrored fixes are already specified in `27-REVIEW-GAPS-2.md`) is the natural next gap-closure round for this phase before it proceeds.
 
 ---
 
-_Verified: 2026-07-28T23:59:00Z_
+_Verified: 2026-07-30T19:30:00Z_
 _Verifier: Claude (gsd-verifier)_
