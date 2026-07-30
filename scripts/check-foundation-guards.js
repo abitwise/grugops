@@ -1412,12 +1412,36 @@ function guardReferentialIntegrity() {
     // same sentence for both is the "one silence for two facts" mistake guard_wr05's floor at :533-540
     // was written to avoid. That floor also reports absence — but this oracle must not depend on another
     // guard's finding to be sound, so it states the fact itself.
+    //
+    // AND THE CARDINALITY OF THE ANSWER IS PINNED, not just its value. Found by self red-team on this
+    // plan's own first draft, which read `declaredValues[0]`: a DUPLICATE `name:` key whose FIRST value
+    // matches the filename made the whole gate print ALL CHECKS PASSED over a document declaring two
+    // identities —
+    //
+    //     name: grugops-installer
+    //     name: totally-different-name
+    //
+    // The draft read the first answer and called the mapping proven. That is the same "two answers to
+    // one predicate" class this whole round exists to delete, reproduced inside the fix for it: which of
+    // the two the platform's YAML loader honours (first, last, or a duplicate-key throw that stops the
+    // agent loading at all) is not this oracle's to guess. So a `name` key carrying anything other than
+    // EXACTLY ONE value is refused by name.
+    //
+    // Safe against false reds: the parser JOINS a wrapped plain scalar into a single value
+    // (`name: grugops-\n  installer` -> `["grugops- installer"]`), so more than one value means the key
+    // genuinely appears more than once. It also already strips quotes, trims trailing whitespace, drops
+    // a trailing `# comment` and flattens `>`/`|` scalars — every legitimate spelling of one name
+    // arrives here as one value, and none of them is a false red. Verified by probe, plan 27-19.
     const nameMismatch = [];
     for (const f of adapterFiles) {
         const expectedName = stem(basename(f));
         const declaredValues = parsedAdapters.get(f).get("name");
         if (declaredValues === undefined) {
             nameMismatch.push(`${ADAPTER_DIR}/${f}: carries NO \`name\` key at all — expected \`name: ${expectedName}\``);
+            continue;
+        }
+        if (declaredValues.length !== 1) {
+            nameMismatch.push(`${ADAPTER_DIR}/${f}: declares ${declaredValues.length} \`name\` values (${declaredValues.map((v) => `\`${v}\``).join(", ")}) — identity has ONE authority and must have ONE answer; reading the first would let a matching decoy hide the identity the platform actually loads`);
             continue;
         }
         const declared = declaredValues[0] ?? "";

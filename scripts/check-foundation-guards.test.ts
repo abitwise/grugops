@@ -1768,6 +1768,49 @@ describe("check-foundation-guards.js (SDLC-02 / SC2 fail-proof harness)", () => 
     expect(o).not.toContain("PASS  KIT-03");
   });
 
+  it("referential integrity RED: a DUPLICATE `name` key whose FIRST value matches is refused (27-19 red-team)", () => {
+    // Found by attacking this plan's own first draft, which read `declaredValues[0]`. A second `name:`
+    // line below a matching one made the ENTIRE gate print ALL CHECKS PASSED over a document declaring
+    // two identities — the "two answers to one predicate" class reproduced inside the fix for it.
+    // Which answer the platform's loader honours (first, last, or a duplicate-key throw that stops the
+    // agent loading at all) is not the oracle's to guess, so the CARDINALITY of the answer is pinned.
+    const m = consistentMirror();
+    const file = adapterPath(m, "grugops-installer");
+    plantInFrontmatter(file, ["name: totally-different-name"]);
+    const r = runIn(m);
+    expect(r.status).not.toBe(0);
+    const o = out(r);
+    expect(o).toContain("KIT-03:");
+    expect(o).toContain(".claude/agents/grugops-installer.md");
+    expect(o).toContain("declares 2 `name` values");
+    expect(o).toContain("`grugops-installer`, `totally-different-name`");
+    expect(o).toContain("identity has ONE authority and must have ONE answer");
+    expect(o).not.toContain("PASS  KIT-03");
+  });
+
+  // The no-false-positive half of the cardinality pin: every LEGITIMATE spelling of one name is one
+  // value, so none of them is refused. A wrapped plain scalar is JOINED by the parser rather than
+  // becoming a second value, which is what makes `length !== 1` mean "the key genuinely appears twice"
+  // instead of "the value was long".
+  it("referential integrity GREEN: a quoted / trailing-comment / folded `name` is still ONE matching value", () => {
+    for (const spelling of [
+      `"grugops-installer"`,
+      `'grugops-installer'`,
+      `grugops-installer   `,
+      `grugops-installer # the installer role`,
+    ]) {
+      const m = consistentMirror();
+      renameAdapterIdentity(adapterPath(m, "grugops-installer"), spelling);
+      const r = runIn(m);
+      const o = out(r);
+      expect(o).not.toContain("FAIL  KIT-03");
+      expect(o).toContain(
+        "PASS  KIT-03: 17 roles == 17 adapters == 17 grant-closure names",
+      );
+      expect(r.status).toBe(0);
+    }
+  });
+
   // ── Smoke — the REAL guard over the REAL tree. ────────────────────────────────────────────────
   //
   // (Phase 27) This case was INVERTED between plans 27-01 and 27-07, deliberately and temporarily.
