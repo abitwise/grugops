@@ -38,7 +38,7 @@
 // KIT-02 / D-18: the adapter and skill sets are DERIVED at run time by reading $GRUGOPS_SRC — the
 // installer carries no adapter or skill name literal, and whether a source file is materialized or
 // plain-copied is decided by the resolver slot line in its own body (D-06), not by its filename.
-import { existsSync, mkdirSync, readFileSync, writeFileSync, appendFileSync, symlinkSync, copyFileSync, cpSync, rmSync, renameSync, readSync, readdirSync, lstatSync, } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync, appendFileSync, symlinkSync, copyFileSync, cpSync, rmSync, renameSync, readSync, readdirSync, lstatSync, statSync, realpathSync, } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { homedir } from "node:os";
 // --- argument parsing (INSTALL-03), layered over the TARGET/INSTALL_MODE env overrides ---
@@ -190,16 +190,55 @@ const MAT_SLOT = "# 1. (installed) the absolute kit path the installer wrote abo
 //
 // Both are called AT EACH USE SITE rather than cached into a module-level constant — the doctor and
 // the install paths run at different points in the process, so a cached snapshot could go stale.
+//
+// FILE-NESS IS DECIDED BY statSync, DELIBERATELY, BECAUSE THAT IS THE AUTHORITY'S TEST (WR-02).
+// These three helpers used to filter on `Dirent` flags from `readdirSync(…, { withFileTypes: true })`.
+// A Dirent for a SYMLINK reports `isSymbolicLink()` and is therefore NEITHER `isFile()` NOR
+// `isDirectory()`, so a symlinked adapter failed every filter here — while
+// scripts/kit-model.ts's walkFilesRelative() uses `statSync`, which FOLLOWS the link, matching how
+// the platform resolves a symlinked adapter. The two derivations disagreed, and the losing side was
+// this one: the symlinked file was not installed, not refused by name, not counted, and the run
+// still printed `== install complete ==`.
+//
+// THE INVARIANT, IN ONE SENTENCE. The installer's INSTALL set may deliberately be NARROWER than the
+// authority's set — that is the flat-directory contract below — but it may never be BLIND to a
+// member the authority sees, because a member it cannot see is a member it cannot refuse by name.
+//
+// A statSync that THROWS makes the entry a non-member and never aborts the derivation, the same way
+// the surrounding code treats a vanished entry (and the same way walkFilesRelative does). The
+// direction is safe here: a dangling link is not a file the platform can load either, so excluding
+// it cannot hide a loadable adapter — while aborting the walk WOULD hide every entry after it.
 // ---------------------------------------------------------------------------
+// isFileFollowing / isDirFollowing — the authority's file-ness and directory-ness test, in the one
+// place the three derivations below share. `false` on any stat failure (ENOENT for a dangling link,
+// ELOOP for a link cycle, EACCES for an unreadable parent).
+function isFileFollowing(p) {
+    try {
+        return statSync(p).isFile();
+    }
+    catch {
+        return false;
+    }
+}
+function isDirFollowing(p) {
+    try {
+        return statSync(p).isDirectory();
+    }
+    catch {
+        return false;
+    }
+}
 // srcSkillNames: the sorted directory names under $GRUGOPS_SRC/.claude/skills that contain a
 // SKILL.md. A directory without a SKILL.md is not a skill and is never installed. Null on an
 // unreadable root (fail-loud); [] on a root that exists and holds no skill.
+//
+// Directory-ness is statSync's, not the Dirent's (see the header): a SYMLINKED skill directory that
+// holds a SKILL.md is a skill, because the platform loads it as one.
 function srcSkillNames() {
     const root = join(GRUGOPS_SRC, ".claude", "skills");
     try {
-        return readdirSync(root, { withFileTypes: true })
-            .filter((ent) => ent.isDirectory() && existsSync(join(root, ent.name, "SKILL.md")))
-            .map((ent) => ent.name)
+        return readdirSync(root)
+            .filter((name) => isDirFollowing(join(root, name)) && existsSync(join(root, name, "SKILL.md")))
             .sort();
     }
     catch {
@@ -208,12 +247,13 @@ function srcSkillNames() {
 }
 // srcAdapterFiles: the sorted TOP-LEVEL .md filenames under $GRUGOPS_SRC/.claude/agents. Null on an
 // unreadable root (fail-loud); [] on a root that exists and holds no adapter.
+//
+// File-ness is statSync's, not the Dirent's (see the header, WR-02).
 function srcAdapterFiles() {
     const root = join(GRUGOPS_SRC, ".claude", "agents");
     try {
-        return readdirSync(root, { withFileTypes: true })
-            .filter((ent) => ent.isFile() && ent.name.endsWith(".md"))
-            .map((ent) => ent.name)
+        return readdirSync(root)
+            .filter((name) => name.endsWith(".md") && isFileFollowing(join(root, name)))
             .sort();
     }
     catch {
@@ -242,22 +282,41 @@ function srcAdapterFiles() {
 //
 // A read failure at any level yields [] here rather than null: an unreadable root is already the
 // srcAdapterFiles() null branch's finding, and reporting the same condition twice would be noise.
+//
+// Both the recursion test and the collection test go through statSync (see the header, WR-02), so a
+// symlinked nested DIRECTORY is descended into and a symlinked nested FILE is collected — and each
+// one is therefore refused BY NAME at its relative path instead of vanishing. Following links is
+// what makes a cycle reachable, so realpath'd directories are visited at most once: a directory
+// already walked under an earlier path contributes no member the walk has not already seen, so
+// skipping the repeat removes an unbounded recursion without narrowing the set.
 function srcNestedAdapterFiles() {
     const root = join(GRUGOPS_SRC, ".claude", "agents");
+    const seen = new Set();
     const walk = (base) => {
         const out = [];
-        let ents;
+        const here = join(root, base);
         try {
-            ents = readdirSync(join(root, base), { withFileTypes: true });
+            const real = realpathSync(here);
+            if (seen.has(real))
+                return out;
+            seen.add(real);
         }
         catch {
             return out;
         }
-        for (const ent of ents) {
-            const rel = base ? `${base}/${ent.name}` : ent.name;
-            if (ent.isDirectory())
+        let names;
+        try {
+            names = readdirSync(here);
+        }
+        catch {
+            return out;
+        }
+        for (const name of names) {
+            const rel = base ? `${base}/${name}` : name;
+            const full = join(here, name);
+            if (isDirFollowing(full))
                 out.push(...walk(rel));
-            else if (ent.isFile() && ent.name.endsWith(".md") && rel.includes("/"))
+            else if (name.endsWith(".md") && rel.includes("/") && isFileFollowing(full))
                 out.push(rel);
         }
         return out;

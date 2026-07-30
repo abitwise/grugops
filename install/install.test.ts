@@ -41,6 +41,7 @@ import {
   statSync,
   lstatSync,
   chmodSync,
+  symlinkSync,
 } from "node:fs";
 import { join, resolve } from "node:path";
 import { tmpdir } from "node:os";
@@ -1422,6 +1423,57 @@ describe("install.js / uninstall.js — single-installer contract (folds install
     expect(clean.status).toBe(0);
   });
 
+  it("source derivation: a SYMLINKED source adapter is a member of BOTH derivations, not silently dropped (WR-02)", () => {
+    // SKIPPED WHERE THE FIXTURE CANNOT EXIST. Creating a symlink on Windows requires the
+    // SeCreateSymbolicLink privilege, which an unprivileged CI runner does not hold and which
+    // makes symlinkSync throw EPERM — the case would then assert nothing at all. The WR-02 claim
+    // is therefore proven on the POSIX legs only; Windows behaviour is `UNKNOWN - verify`. This
+    // mirrors, deliberately, how the permissions case above skips and says why.
+    if (process.platform === "win32") return;
+
+    const src = makeSyntheticSrc();
+    const target = mkTmp();
+    const home = mkTmp();
+    writeFileSync(join(target, "CLAUDE.md"), "# User Project\n");
+
+    // THE SHAPE THAT SPLIT THE TWO DERIVATIONS (WR-02). readdirSync(withFileTypes) reports a
+    // symlink as isSymbolicLink() — NEITHER isFile() NOR isDirectory() — so the installer's old
+    // Dirent-flag filter dropped it, while kit-model's walkFilesRelative uses statSync, which
+    // FOLLOWS the link, because that is how the platform resolves a symlinked adapter. The file
+    // was therefore not installed, not refused by name, not counted, and the run still printed
+    // `== install complete ==`: the exact silent disappearance srcNestedAdapterFiles exists to
+    // prevent. This is a NEW case rather than an edit to the conformance case above, so that
+    // case's seventeen-member cardinality pin survives untouched as its own forcing function.
+    const linkName = "grugops-linked-role.md";
+    symlinkSync(
+      join(src, ".claude", "agents", SYNTH_ADAPTERS[0]),
+      join(src, ".claude", "agents", linkName),
+    );
+
+    const r = runInstallFrom(src, target, home);
+    // The link is a flat, top-level `.md` — the flat-directory contract admits it, so the correct
+    // outcome is INSTALLED, and the run is complete.
+    expect(r.status).toBe(0);
+    expect(r.stdout).toContain("== install complete");
+    expect(r.stdout).not.toContain("install INCOMPLETE");
+
+    // SET EQUALITY over the shape that used to split them, plus explicit membership on both sides
+    // so a future regression that dropped the link from BOTH could not pass by shrinking together.
+    const authorityAdapters = listAgentAdapters(src);
+    expect(installedAdapters(target)).toEqual(authorityAdapters);
+    expect(authorityAdapters).toContain(linkName);
+    expect(installedAdapters(target)).toContain(linkName);
+    expect(authorityAdapters.length).toBe(18);
+    expect(installedAdapters(target).length).toBe(18);
+
+    // The link's TARGET is still installed too — a symlink and its target in the same directory
+    // are two distinct members of the set, never one merged member (KIT-01 adjacency edge).
+    expect(installedAdapters(target)).toContain(SYNTH_ADAPTERS[0]);
+
+    // A symlinked SKILL directory is a skill for the same reason, and by the same test.
+    expect(installedSkills(target)).toEqual(listSkillAdapters(src));
+  });
+
   it("source derivation: an UNREADABLE source adapter directory is reported and no completion is claimed", () => {
     const src = makeSyntheticSrc();
     const target = mkTmp();
@@ -1534,6 +1586,46 @@ describe("install.js / uninstall.js — single-installer contract (folds install
     expect(authority.length).toBe(18);
     expect(authority.filter((m) => m.includes("/"))).toEqual(["nested/deep-adapter.md"]);
     expect(authority.filter((m) => !m.includes("/"))).toEqual(installedAdapters(target));
+  });
+
+  it("source derivation: a NESTED SYMLINKED source adapter is refused BY NAME, not silently skipped (WR-02)", () => {
+    // Same Windows skip and the same reason as the top-level symlink case above: symlinkSync
+    // needs a privilege the runner may not hold, and a case that cannot build its fixture asserts
+    // nothing. Proven on the POSIX legs only.
+    if (process.platform === "win32") return;
+
+    const src = makeSyntheticSrc();
+    const target = mkTmp();
+    const home = mkTmp();
+    writeFileSync(join(target, "CLAUDE.md"), "# User Project\n");
+
+    // The nested direction of WR-02: a symlinked FILE one level below `.claude/agents`, reached
+    // through a symlinked DIRECTORY. The old walk tested `ent.isDirectory()` and `ent.isFile()`,
+    // both false for a link, so BOTH levels were invisible — the plant could not even be reached,
+    // let alone refused. The platform recurses into `.claude/agents`, so it would have loaded
+    // this file; the installer must therefore say its name out loud rather than drop it.
+    mkdirSync(join(src, "outside-nest"), { recursive: true });
+    writeFileSync(join(src, "outside-nest", "real-deep.md"), `> synthetic deep adapter\n${MAT_SLOT}\n`);
+    symlinkSync(join(src, "outside-nest"), join(src, ".claude", "agents", "linked-nest"));
+    mkdirSync(join(src, ".claude", "agents", "nested"), { recursive: true });
+    symlinkSync(
+      join(src, ".claude", "agents", SYNTH_ADAPTERS[0]),
+      join(src, ".claude", "agents", "nested", "linked-deep.md"),
+    );
+
+    const r = runInstallFrom(src, target, home);
+    expect(r.status).toBe(3); // INCOMPLETE (27-21) — a refused member is not a complete run.
+    // REFUSED BY NAME, at the relative path, for both the linked file and the file reached
+    // through the linked directory. Matching the plain nested-refusal case's assertions exactly.
+    expect(r.stdout).toContain("nested/linked-deep.md");
+    expect(r.stdout).toContain("linked-nest/real-deep.md");
+    expect(r.stdout).toContain("FLAT BY CONTRACT");
+    expect(r.stdout).toContain("NOT installed");
+    expect(r.stdout).not.toContain("== install complete");
+    // The flat seventeen still install; neither plant lands in the target.
+    expect(installedAdapters(target)).toEqual([...SYNTH_ADAPTERS].sort());
+    expect(existsSync(join(target, ".claude", "agents", "nested"))).toBe(false);
+    expect(existsSync(join(target, ".claude", "agents", "linked-nest"))).toBe(false);
   });
 
   // ── WR-04 (Plan 27-13) — `runnable removal`: every installed file has a removal counterpart ───
