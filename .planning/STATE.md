@@ -5,15 +5,15 @@ milestone_name: Autonomous Factory — Real Spawning, Controlled Language & Live
 current_phase: 27
 current_phase_name: spawn-correctness-kit-set-authority
 status: executing
-stopped_at: Completed 27-18-PLAN.md
-last_updated: "2026-07-30T13:06:23.341Z"
+stopped_at: Completed 27-19-PLAN.md
+last_updated: "2026-07-30T13:29:17.803Z"
 last_activity: 2026-07-30
-last_activity_desc: "gap-closure round 2 executing — 27-18 (TRACER) closed CR-01: the frontmatter authority now refuses YAML anchors/aliases; a self red-team found and closed 4 further bypasses in the first draft"
+last_activity_desc: "gap-closure round 2 executing — 27-19 closed CR-02: KIT-03 now asserts the frontmatter-name to filename mapping before comparing namespaces; a self red-team found and closed a duplicate-name-key bypass in the fix's own first draft"
 progress:
   total_phases: 7
   completed_phases: 0
   total_plans: 23
-  completed_plans: 18
+  completed_plans: 19
   percent: 0
 ---
 
@@ -29,9 +29,9 @@ See: .planning/PROJECT.md (updated 2026-07-28 — after v2.0 milestone)
 ## Current Position
 
 Phase: 27 (spawn-correctness-kit-set-authority) — EXECUTING
-Plan: 18 of 23 executed; 27-19..27-23 planned, not started
-Status: Executing (gap-closure round 2, gap waves 7-9); gap wave 8 was blocked on 27-18 and is now unblocked
-Last activity: 2026-07-30 — 27-18 closed CR-01 (anchor/alias spawn grants refused at the parsing authority)
+Plan: 19 of 23 executed; 27-20..27-23 planned, not started
+Status: Executing (gap-closure round 2, gap waves 7-9); gap wave 8 complete (27-19), gap wave 9 next
+Last activity: 2026-07-30 — 27-19 closed CR-02 (KIT-03 asserts the frontmatter-name to filename mapping before any set comparison; identity has one authority)
 
 ## Performance Metrics
 
@@ -211,6 +211,7 @@ Last activity: 2026-07-30 — 27-18 closed CR-01 (anchor/alias spawn grants refu
 | Phase 27 P15 | 40m | 2 tasks | 8 files |
 | Phase 27 P16 | 30m | 2 tasks | 5 files |
 | Phase 27 P18 | 35 min | 2 tasks | 4 files |
+| Phase 27 P19 | 35 min | 2 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -510,6 +511,9 @@ Recent decisions affecting current work:
 - [Phase ?]: [27-16] SPAWN-03's observable half is discharged by one command (scripts/coordinator-resolution-precheck.js); its runtime half stays unperformed and lands in 27-SPAWN-03-RUNTIME-EVIDENCE.md, shipped empty and marked unverified
 - [Phase ?]: [27-18] A YAML reference construct in a value position is a parse artifact, refused by name — never resolved (a second grammar with more surface) and never read as plain text (the silent no-grant arm). CR-01.
 - [Phase ?]: [27-18] A safety predicate's alphabet must come from the grammar's SPEC, not be hand-chosen. The review-suggested `[A-Za-z0-9_-]` anchor-name charset was itself a live bypass (YAML 1.2 allows any non-space non-flow-indicator char); set-literal drift in a character class.
+- [Phase ?]: [27-19] Identity has ONE authority: the frontmatter `name` key. KIT-03's filename-keyed set 2 is legal only because the mapping to that key is asserted first (CR-02); coordinator-resolution-precheck.ts already resolved by name, so the two consumers now agree.
+- [Phase ?]: [27-19] A `name` key with anything other than EXACTLY ONE value is refused — self red-team proved reading `[0]` let a matching decoy hide the real identity while the gate printed ALL CHECKS PASSED. Pin the cardinality of the answer, not just its value.
+- [Phase ?]: [27-19] Expected adapter name is the filename stem, NOT AGENT_PREFIX joined to it — the review's suggested patch double-prefixed and would have failed all 17 shipped adapters.
 
 ### Pending Todos
 
@@ -608,8 +612,8 @@ Shape of the carry: **9 of 11 are pre-v2.0 carryover** from the v1.2 block above
 
 ## Session Continuity
 
-Last session: 2026-07-30T13:06:08.097Z
-Stopped at: Completed 27-18-PLAN.md
+Last session: 2026-07-30T13:29:17.792Z
+Stopped at: Completed 27-19-PLAN.md
 Resume file: None
 
 ## Operator Next Steps
