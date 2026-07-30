@@ -55,9 +55,9 @@ jobs:
       - name: Vitest (e2e lane excluded)
         run: npx vitest run --exclude '**/scripts/e2e/**'
 
-      # ubuntu-only: the four freshness gates + the foundation-guard aggregator. Scoped to one OS to
-      # avoid path-separator drift in the freshness diffs; Windows stays scoped to the atomicity proof.
-      - name: Freshness gates + foundation guards (ubuntu only)
+      # ubuntu-only: the four freshness gates + the three repo gates. Scoped to one OS to avoid
+      # path-separator drift in the freshness diffs; Windows stays scoped to the atomicity proof.
+      - name: Freshness gates + repo gates (ubuntu only)
         if: matrix.os == 'ubuntu-latest'
         run: |
           npm run freshness
@@ -68,3 +68,23 @@ jobs:
           # hand-edit to an adapter cleared every gate in the repository (27-REVIEW CR-01/CR-02).
           npm run freshness:adapters
           node scripts/check-foundation-guards.js
+          # IN-02 (plan 27-23) — WIRED AT BOTH ENDS. Until this line, check-kit-refs and
+          # validate-agent-factory ran in continuous integration solely as a SIDE EFFECT of their
+          # .test.ts files spawning them inside the vitest step above. That is one --exclude pattern
+          # away from being un-gated, and it is exactly the state freshness:adapters was in before
+          # plan 27-11 wired it here — minus the missing test, which these two do have. A gate that
+          # runs only because some other step happens to run it is not wired; it is borrowed.
+          #
+          # THE FINDING IS PRE-EXISTING and was scoped into plan 27-23 deliberately. It is not repair
+          # of a regression that plan introduced — a later reader should not read these two lines as
+          # a fix for something the same diff broke.
+          #
+          # ROOTS: check-kit-refs resolves its root correctly from the repository root, where this
+          # workflow runs (CHECK_ROOT is an override for hermetic mirrors, never a requirement), so
+          # it is invoked bare. validate-agent-factory deliberately has NO default for its KIT root
+          # — the C3 no-false-green guard makes an unset VALIDATE_KIT_ROOT a hard error rather than a
+          # silent '.' fallback — so the value is supplied explicitly here. VALIDATE_ROOT is left
+          # unset on purpose and falls back to the repository root, which is the state root of this
+          # single-tree checkout.
+          node scripts/check-kit-refs.js
+          VALIDATE_KIT_ROOT=. node scripts/validate-agent-factory.js
