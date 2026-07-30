@@ -46,11 +46,21 @@
 // illustrative frontmatter example inside a fenced block from being read as a live marker or grant.
 // No second fence parser is written, here or anywhere.
 //
-// DELIBERATELY NOT A YAML ENGINE. Anchors, aliases and merge keys are not resolved. No shipped
-// adapter or skill uses one, the generator cannot emit one, and resolving them would mean writing a
-// second grammar with MORE surface rather than less. An anchor form lands in the parse-failure arm
-// (an unrecognized key shape is unreadable, never a silent no-grant), which is the correct place for
-// it: the guard goes red and a human decides.
+// DELIBERATELY NOT A YAML ENGINE, AND THE REFERENCE CONSTRUCTS ARE REFUSED BY NAME. Anchors,
+// aliases and merge keys are not resolved. No shipped adapter or skill uses one, the generator
+// cannot emit one, and resolving them would mean writing a second grammar with MORE surface rather
+// than less. So `YAML_REF` (below) detects a reference sigil in a value position and returns the
+// PARSE-FAILURE arm: the guard goes red and a human decides.
+//
+//   This paragraph previously claimed the refusal happened for free, on the theory that an anchor
+//   line was "an unrecognized key shape". It was not. `KEY_LINE` matches `_t: &t Read, …, Agent(x)`
+//   and `tools: *t` perfectly well, so the parse SUCCEEDED and the flattened value of `tools` was the
+//   literal two-character string `*t`, which carries no spawn token — `{ ok: true, value: false }`,
+//   the silent-no-grant arm this module exists to make impossible. Reproduced end-to-end on a
+//   hermetic mirror with the plant on a skill adapter (the surface with no freshness gate and no role
+//   corpus to cross-check) and the whole gate printed ALL CHECKS PASSED (27-REVIEW-GAPS § CR-01).
+//   The refusal is now CODE, applied before the value is flattened, and it is pinned by a product in
+//   the parser oracle and by an aggregator-level case.
 //
 // Node stdlib ONLY — in fact no imports at all. Zero npm dependencies.
 //
@@ -132,6 +142,32 @@ const BLOCK_INDICATOR = /^[|>][0-9]*[+-]?[ \t]*(?:#.*)?$|^[|>][+-]?[0-9]*[ \t]*(
 // A block-sequence item on a continuation line: a dash, then either end-of-line or the item text.
 const SEQ_ITEM = /^-(?:[ \t]+(.*))?$/;
 
+// A YAML REFERENCE SIGIL AT A TOKEN START: an `&` (anchor) or `*` (alias) that begins a value, a
+// flow-sequence item or a block-sequence item and is immediately followed by a name character.
+//
+// WHY REFUSE RATHER THAN RESOLVE. A reference means the value this document EXPRESSES is not the text
+// these lines carry. There are only three things this module could do with one, and two of them are
+// wrong: resolving it would be a second grammar with more surface (the thing this module exists to
+// delete, not to grow), and reading `*t` as the plain two-character string `*t` is the silent
+// no-grant arm — `{ ok: true, value: false }` on a document that grants the spawn tool. Refusing is
+// the only honest reading: an unresolvable reference is a PARSE ARTIFACT, so it goes to the `ok:
+// false` arm, the guard goes red and a human decides.
+//
+// WHY THE TOKEN-START ANCHOR. `^`, `,`, `[` and `{` are the STRUCTURAL positions where YAML would
+// read a node, and a name character must follow immediately. Whitespace is deliberately NOT a
+// token-start here, so ordinary prose keeps parsing: `R&D` in a description, a bare `*` between
+// words, and markdown `*emphasis*` are all left alone. A guard that failed on correct documentation
+// would teach the next author to delete the documentation.
+//
+// WHERE IT IS NOT APPLIED. Never inside a `|` or `>` block scalar. There YAML gives `&` and `*` no
+// reference meaning at all — they are literal text, the platform reads them literally, and so must
+// this module. Refusing there would be a false red on correct content.
+//
+// THE MERGE KEY NEEDS NO BRANCH. `<<: *x` never reaches here: `KEY_LINE` requires `[A-Za-z_]` at the
+// key start, so `<` fails it and the line is already refused as unreadable. Do not add a second path
+// for the merge key — it is pinned by a named case in scripts/frontmatter.test.ts.
+const YAML_REF = /(?:^|[,[{])[ \t]*[&*][A-Za-z0-9_-]/;
+
 // Drop a trailing unquoted comment. A `#` only starts a comment when it is outside quotes AND at the
 // start or preceded by whitespace, so `Agent(a#b)` keeps its hash and `Read # note` loses the note.
 // Quote state is tracked WITHIN one piece; a `#` inside a quoted value that wraps across lines can
@@ -202,6 +238,14 @@ function flattenBlock(
   const keys: FrontmatterKeys = new Map();
   let cur: Accumulator | null = null;
 
+  // The refusal for a YAML reference construct. Returned from three places — the key line, a
+  // block-sequence item and a plain continuation line — so a reference is refused the same way
+  // wherever it sits, and always BEFORE the text is flattened into a value.
+  const refuseRef = (line: string): Parsed<FrontmatterKeys> => ({
+    ok: false,
+    reason: `\`${excerpt(line)}\` uses a YAML anchor or alias; the value this document expresses is not the text on this line, and this module deliberately does not resolve a reference — it is refused rather than read as "carries no grant"`,
+  });
+
   const flush = (): void => {
     if (cur === null) return;
     const joined = cur.block
@@ -236,11 +280,15 @@ function flattenBlock(
       }
       const item = t.match(SEQ_ITEM);
       if (item !== null) {
+        // A block-sequence ITEM is its own node, so the token start is the text after the dash.
+        const itemText = (item[1] ?? "").trim();
+        if (YAML_REF.test(itemText)) return refuseRef(t);
         cur.seq = true;
-        const v = unquote(stripComment((item[1] ?? "").trim()).trim());
+        const v = unquote(stripComment(itemText).trim());
         if (v !== "") cur.parts.push(v);
         continue;
       }
+      if (YAML_REF.test(t)) return refuseRef(t);
       cur.parts.push(stripComment(t).trim());
       continue;
     }
@@ -257,6 +305,9 @@ function flattenBlock(
     }
     flush();
     const rest = (kv[2] ?? "").trim();
+    // Refuse BEFORE flattening, and refuse on ANY key — an anchor parked under `_tools:` exists only
+    // to be aliased from a real one, so the document as a whole is what becomes unreadable.
+    if (YAML_REF.test(rest)) return refuseRef(t);
     if (BLOCK_INDICATOR.test(rest)) {
       cur = { key: kv[1], parts: [], block: true, seq: false };
     } else {
