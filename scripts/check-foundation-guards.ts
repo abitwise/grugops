@@ -1357,6 +1357,45 @@ function guardContextWrites(): void {
 //
 // ADAPTER_DIR is declared once, up at the adapter derivation — the adapter directory is a single
 // fact and this oracle reads the SAME set every other adapter guard scans.
+// ---------------------------------------------------------------------------
+// IDENTITY HAS ONE AUTHORITY: THE FRONTMATTER `name` KEY. NOTHING ELSE. (CR-02, plan 27-19.)
+//
+// Claude Code takes agent identity ONLY from frontmatter — this file already says so twice (:537-538,
+// :1350-1352) — and the coordinator's grant enumerates AGENT NAMES. But set 2 below is keyed on
+// FILENAMES (`adapterFiles.map(stem)`), so the three-way equality mixes two namespaces. Until this
+// round nothing asserted the two coincide; guard_wr05's floor at :533-540 checks only that a `name`
+// key EXISTS, never what it says.
+//
+// Reproduced (27-REVIEW-GAPS.md § CR-02). Hermetic mirror of the live tree, one byte-level edit:
+//
+//     sed -i 's/^name: grugops-installer$/name: totally-different-name/' \
+//         $MIRROR/.claude/agents/grugops-installer.md
+//     CHECK_ROOT=$MIRROR node scripts/check-foundation-guards.js
+//       PASS  KIT-03: 17 roles == 17 adapters == 17 grant-closure names (D-09, no exception list)
+//     ALL CHECKS PASSED        (exit 0)
+//
+// The coordinator's `Agent(…, grugops-installer, …)` there enumerates a name NO INSTALLED AGENT
+// CARRIES — the milestone's founding defect, in the one namespace this oracle did not look at, with
+// the oracle green.
+//
+// So: the name-mismatch refusal below runs BEFORE the coordinator lookup and before any set
+// comparison. The filename-keyed comparison further down is LEGAL ONLY BECAUSE THAT ASSERTION RAN
+// FIRST. If it is ever deleted, the equality silently reverts to a claim about two different sets.
+//
+// This also settles a surviving SECOND ANSWER to one predicate — this project's first named systemic
+// failure class. scripts/coordinator-resolution-precheck.ts:393-403 resolves the same grant closure
+// by frontmatter `name` (`installedNames`) and correctly failed on the mirror above, but it is a
+// human-invoked precheck while THIS oracle is what CI runs: the weaker answer was the wired one.
+// Both consumers now answer "what is an adapter's identity" the same way — the frontmatter `name` —
+// so there is no second grammar left to delete, only one mapping asserted at the point where the two
+// namespaces meet (D-19: a per-consumer assertion, never a global detector).
+//
+// Scoped to the BASENAME on purpose. Nested adapters are a separate, already-covered direction:
+// `extra/grugops-rogue.md` declaring `name: grugops-rogue` matches its own basename and so is NOT
+// caught here — it lands in the existing "adapter with no role file" difference, keyed on its full
+// relative stem, exactly as before. Only a file whose declared identity disagrees with its own
+// filename is refused here.
+// ---------------------------------------------------------------------------
 // Every role's agent name is its role filename stem under the `grugops-` namespace:
 // `orchestrator.md` -> `grugops-orchestrator`. Comparison is exact JavaScript string equality over
 // these names throughout — no case folding, no normalisation, no substring matching.
@@ -1462,6 +1501,52 @@ function guardReferentialIntegrity(): void {
     );
     return;
   }
+  // THE MAPPING ASSERTION THE COMPARISON BELOW SILENTLY ASSUMED (CR-02, plan 27-19). Reads
+  // `parsedAdapters` — the map the loop directly above just built — so there is ONE parse per adapter
+  // and ONE grammar; runs before the coordinator lookup so no set comparison can precede it.
+  //
+  // The expected name is the adapter's OWN FILENAME STEM. It is not `AGENT_PREFIX` joined to that
+  // stem: an adapter filename ALREADY carries the namespace (`grugops-installer.md`, never
+  // `installer.md`) — AGENT_PREFIX is joined once, up at `roleNames`, to the bare ROLE stem, and
+  // `adapterNames` deliberately does not re-join it. (The review's suggested patch joined it a second
+  // time; that compares against `grugops-grugops-installer` and would fail all seventeen shipped
+  // adapters. Recorded here so the next reader does not "restore" it.)
+  //
+  // Absence and emptiness are reported as THEIR OWN facts, never folded into a plain mismatch. A
+  // missing `name` key and a `name:` with nothing after it are two different defects, and printing the
+  // same sentence for both is the "one silence for two facts" mistake guard_wr05's floor at :533-540
+  // was written to avoid. That floor also reports absence — but this oracle must not depend on another
+  // guard's finding to be sound, so it states the fact itself.
+  const nameMismatch: string[] = [];
+  for (const f of adapterFiles) {
+    const expectedName = stem(basename(f));
+    const declaredValues = parsedAdapters.get(f)!.get("name");
+    if (declaredValues === undefined) {
+      nameMismatch.push(
+        `${ADAPTER_DIR}/${f}: carries NO \`name\` key at all — expected \`name: ${expectedName}\``,
+      );
+      continue;
+    }
+    const declared = declaredValues[0] ?? "";
+    if (declared === "") {
+      nameMismatch.push(
+        `${ADAPTER_DIR}/${f}: \`name\` key present with an EMPTY value — an empty identity is never a matching one; expected \`name: ${expectedName}\``,
+      );
+      continue;
+    }
+    if (declared !== expectedName) {
+      nameMismatch.push(
+        `${ADAPTER_DIR}/${f}: declares \`name: ${declared}\`, expected \`name: ${expectedName}\``,
+      );
+    }
+  }
+  if (nameMismatch.length > 0) {
+    fail(
+      `KIT-03: ${nameMismatch.length} adapter(s) whose frontmatter \`name\` does not equal their own filename stem — the platform resolves the coordinator's grant by NAME while this oracle compares FILENAMES, so the equality below would hold over two different namespaces and a granted name could resolve to no loaded agent while this guard printed a pass:\n    ${nameMismatch.sort().join("\n    ")}`,
+    );
+    return;
+  }
+
   const coordinators = adapterFiles.filter((f) =>
     keyHasValue(parsedAdapters.get(f)!, COORDINATOR_KEY, COORDINATOR_VALUE),
   );
