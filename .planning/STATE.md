@@ -5,15 +5,15 @@ milestone_name: Autonomous Factory — Real Spawning, Controlled Language & Live
 current_phase: 27
 current_phase_name: spawn-correctness-kit-set-authority
 status: executing
-stopped_at: Completed 27-20-PLAN.md
-last_updated: "2026-07-30T15:05:46.435Z"
+stopped_at: Completed 27-22-PLAN.md (last plan of phase 27)
+last_updated: "2026-07-30T15:19:17.482Z"
 last_activity: 2026-07-30
-last_activity_desc: "27-20 closed CR-03 and WR-05 inside `guardWr05()`: the tier-beat check now reads the coordinator body through exactly the composition `guard_adapter_body`'s positive half uses (one fence authority, comments removed, occurrences counted), and every agent adapter must DECLARE a tool allow-list. Both review reproductions flipped from `ALL CHECKS PASSED` to exit 1. Self-review found TWO more live bypasses of the same finding by another route — an unterminated `<!--` stripped nothing, and `tools:` with an empty value defeated the key-presence floor — both fixed structurally from precedent already in the tree (the unterminated-fence rule; 27-19's absence-vs-emptiness split). 89 cases, 0 assertions deleted. One residual recorded, not claimed closed: an agent adapter declaring only `allowed-tools` still satisfies the floor."
+last_activity_desc: "27-22 closed WR-02 and WR-04, the last two plans-worth of gap-closure round 2. The installer's three source derivations now decide file-ness and directory-ness with `statSync`, matching `kit-model.walkFilesRelative` and the way the platform resolves a symlinked adapter, so a symlinked source adapter is INSTALLED or REFUSED BY NAME instead of vanishing under `== install complete ==`. Proven RED-before/GREEN-after on both synthetic and REAL repo sources, plus four adversarial probes; a symlink CYCLE would have hung the new walk and was closed with a realpath-visited-once guard (Rule 2). `mappingDests` now derives its own cardinality from the `[` openings the author wrote and refuses an entry it cannot read, naming the file, constant and both counts — the plan's stated RED does not reproduce, the review's does, and both transcripts are recorded. All 23 plans of phase 27 are executed; phase 27 is NOT verified complete."
 progress:
   total_phases: 7
   completed_phases: 0
   total_plans: 23
-  completed_plans: 22
+  completed_plans: 23
   percent: 0
 ---
 
@@ -29,9 +29,9 @@ See: .planning/PROJECT.md (updated 2026-07-28 — after v2.0 milestone)
 ## Current Position
 
 Phase: 27 (spawn-correctness-kit-set-authority) — EXECUTING
-Plan: 22 of 23 executed (27-01..27-21 + 27-23); **27-22 is the only plan not started** — the last of gap wave 9
-Status: Executing (gap-closure round 2, gap waves 7-9); gap wave 8 COMPLETE (27-19, 27-21, 27-23); **gap wave 9 half done** — 27-20 landed, 27-22 remains
-Last activity: 2026-07-30 — 27-20 closed CR-03 and WR-05 inside `guardWr05()`: the tier-beat check now reads the coordinator body through exactly the composition `guard_adapter_body`'s positive half uses (one fence authority, comments removed, occurrences counted), and every agent adapter must DECLARE a tool allow-list. Both review reproductions flipped from `ALL CHECKS PASSED` to exit 1. Self-review found TWO more live bypasses of the same finding by another route — an unterminated `<!--` stripped nothing, and `tools:` with an empty value defeated the key-presence floor — both fixed structurally from precedent already in the tree (the unterminated-fence rule; 27-19's absence-vs-emptiness split). 89 cases, 0 assertions deleted. One residual recorded, not claimed closed: an agent adapter declaring only `allowed-tools` still satisfies the floor.
+Plan: 23 of 23 executed (27-01..27-23) — **every plan of phase 27 has run**; the phase itself is not yet verified
+Status: Executing — all of gap-closure round 2 has landed (gap waves 7-9 COMPLETE: 27-18, 27-19, 27-20, 27-21, 27-22, 27-23). Next: verification of phase 27
+Last activity: 2026-07-30 — 27-22 closed WR-02 and WR-04, the last two plans-worth of gap-closure round 2. The installer's three source derivations now decide file-ness and directory-ness with `statSync`, matching `kit-model.walkFilesRelative` and the way the platform resolves a symlinked adapter, so a symlinked source adapter is INSTALLED or REFUSED BY NAME instead of vanishing under `== install complete ==`. Proven RED-before/GREEN-after on both synthetic and REAL repo sources, plus four adversarial probes; a symlink CYCLE would have hung the new walk and was closed with a realpath-visited-once guard (Rule 2). `mappingDests` now derives its own cardinality from the `[` openings the author wrote and refuses an entry it cannot read, naming the file, constant and both counts — the plan's stated RED does not reproduce, the review's does, and both transcripts are recorded. All 23 plans of phase 27 are executed; phase 27 is NOT verified complete.
 
 ## Performance Metrics
 
@@ -215,6 +215,7 @@ Last activity: 2026-07-30 — 27-20 closed CR-03 and WR-05 inside `guardWr05()`:
 | Phase 27 P23 | 15 min | 3 tasks | 7 files |
 | Phase 27 P21 | 35m | 2 tasks | 8 files |
 | Phase 27 P20 | 30m | 2 tasks | 3 files |
+| Phase 27 P22 | ~45m | 2 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -527,6 +528,8 @@ Recent decisions affecting current work:
 - [Phase ?]: [27-20] The tier-beat ZERO arm keeps its existing wording byte-for-byte — a finding's wording is a CONTRACT with the eight cases that pin it; the split gains a >1 arm rather than churning the message.
 - [Phase ?]: [27-20] An unterminated construct extends to EOF and is never emitted — ONE rule for both strippers, taken from stripFencedBlocks' own stated unterminated-fence treatment rather than invented as a second heuristic.
 - [Phase ?]: [27-20] Absence and emptiness are two findings, never one silence: the tools floor has both arms, reusing 27-19's split on the name key. What the platform does with a null allow-list is UNKNOWN and not the guard's to guess.
+- [Phase ?]: 27-22: file-ness in install.ts's source derivations is statSync's, matching kit-model and the platform (WR-02)
+- [Phase ?]: 27-22: mapping literals are parsed once, with a declared-vs-parsed cardinality refusal; the literal count stays as the somebody-added-one forcing function (WR-04)
 
 ### Pending Todos
 
@@ -625,8 +628,8 @@ Shape of the carry: **9 of 11 are pre-v2.0 carryover** from the v1.2 block above
 
 ## Session Continuity
 
-Last session: 2026-07-30T15:05:46.424Z
-Stopped at: Completed 27-20-PLAN.md
+Last session: 2026-07-30T15:19:17.471Z
+Stopped at: Completed 27-22-PLAN.md (last plan of phase 27)
 Resume file: None
 
 ## Operator Next Steps
