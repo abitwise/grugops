@@ -409,7 +409,20 @@ const collapseWhitespace = (s) => s.replace(/\s+/g, " ");
 // the POSITIVE/presence direction of both callers only — a retired phrase quoted inside a comment
 // must still fail guard_adapter_body's NEGATIVE half, because no adapter or template may carry a
 // comment or parenthetical quoting dead vocabulary.
-const stripHtmlComments = (s) => s.replace(/<!--[\s\S]*?-->/g, " ");
+//
+// FAIL-SAFE ON AN UNTERMINATED COMMENT (plan 27-20 self-review, probe E). An `<!--` with no closing
+// `-->` used to strip NOTHING, so every beat and every memory sentence after it counted as live and
+// the guard passed — while a reader of the rendered markdown sees an HTML block swallowing the rest
+// of the document. That is the guard claiming an announcement nobody can read, which is the exact
+// failure CR-03 named. The treatment is taken from this tree's own settled precedent rather than
+// invented: stripFencedBlocks() states that an unterminated fence leaves the tail INSIDE and never
+// emits it, "a malformed doc can never leak an unguarded live grant past the strip". One rule for
+// both strippers — an unterminated construct extends to EOF — so a malformed comment fails CLOSED.
+const stripHtmlComments = (s) => {
+    const closed = s.replace(/<!--[\s\S]*?-->/g, " ");
+    const dangling = closed.indexOf("<!--");
+    return dangling === -1 ? closed : `${closed.slice(0, dangling)} `;
+};
 // Non-overlapping occurrence count. Deliberately not a regex: the forms contain backticks, an em
 // dash and punctuation, and escaping them into a pattern would be a second grammar over the same
 // literal.
@@ -552,8 +565,19 @@ function guardWr05() {
         if (!keys.has("name")) {
             wr05Fail += `\n${f}: agent adapter carries no \`name\` key in its frontmatter — Claude Code takes agent identity only from frontmatter, so this is not a loadable agent and its spawn-grant verdict cannot be trusted`;
         }
-        if (!TOOLS_KEYS.some((k) => keys.has(k))) {
+        // TWO ARMS, ABSENCE AND EMPTINESS, for the reason plan 27-19 gave when it split the same pair on
+        // the `name` key (self-review, probe F): `tools:` with no value parses to a PRESENT key carrying
+        // `""`, so a key-presence test alone passes it while the value declares nothing. What the
+        // platform does with a null allow-list is UNKNOWN — if it reads null as absent, the sub-agent
+        // inherits every tool and this is the very bypass above, reachable by deleting a value instead of
+        // a line. An empty declaration prints the same silence as no declaration, which is this floor's
+        // own founding argument, so it is refused as its own finding rather than guessed at.
+        const declaredToolsValues = TOOLS_KEYS.flatMap((k) => keys.get(k) ?? []);
+        if (declaredToolsValues.length === 0) {
             wr05Fail += `\n${f}: agent adapter declares no \`tools\` key — omitting it makes the platform grant every main-conversation tool INCLUDING the spawn tool, so an absent key is a grant by inheritance and this guard cannot report on it`;
+        }
+        else if (declaredToolsValues.every((v) => v.trim() === "")) {
+            wr05Fail += `\n${f}: agent adapter has a \`tools\` key present with an EMPTY value — an empty allow-list declares nothing, and whether the platform reads it as "no tools" or as an absent key (inherit everything, spawn tool included) is not this guard's to guess`;
         }
     }
     // Cardinality (CR-01): exactly one coordinator across the SCAN set. A fenced documentation example

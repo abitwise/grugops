@@ -611,6 +611,56 @@ describe("check-foundation-guards.js (SDLC-02 / SC2 fail-proof harness)", () => 
     expect(o).not.toContain("PASS  WR-05:");
   });
 
+  // (Plan 27-20 self-review, probe F) The EMPTINESS arm, the same split plan 27-19 made on the `name`
+  // key. `tools:` with no value parses to a PRESENT key carrying "", so a bare key-presence test
+  // passed it — the WR-05 bypass reachable by deleting a VALUE instead of a LINE. Asserted as its OWN
+  // wording and explicitly NOT the absent-key arm, so neither can drift into the other.
+  it("guard_wr05 agent adapter with a tools key present but EMPTY → nonzero + its OWN finding, not the absent-key one (WR-05 self-review)", () => {
+    const m = mirror();
+    const file = adapterPath(m, "grugops-qe-e2e");
+    const before = readFileSync(file, "utf8");
+    expect(before).toMatch(/^tools: .+$/m);
+    writeFileSync(file, before.replace(/^tools: .*$/m, "tools:"));
+    const r = runIn(m);
+    expect(r.status).not.toBe(0);
+    const o = out(r);
+    expect(o).toContain("`tools` key present with an EMPTY value");
+    expect(o).toContain(".claude/agents/grugops-qe-e2e.md");
+    expect(o).not.toMatch(/declares no `tools` key/);
+  });
+
+  // (Plan 27-20 self-review, probe E) An UNTERMINATED `<!--` used to strip nothing, so every beat
+  // after it counted as live and the guard PASSED — while a reader of the rendered markdown sees an
+  // HTML block swallowing the rest of the file. The guard would be claiming an announcement nobody
+  // can read, which is CR-03 by another route. stripHtmlComments() now treats an unterminated comment
+  // the way stripFencedBlocks() has always treated an unterminated fence: it extends to EOF and is
+  // never emitted. One rule for both strippers, taken from this tree's own precedent.
+  it("guard_wr05 tier announcement behind an UNTERMINATED HTML comment → nonzero + names the beats (CR-03 self-review)", () => {
+    const m = mirror();
+    const file = adapterPath(m, COORDINATOR);
+    const before = readFileSync(file, "utf8");
+    expect(before).toContain("**Announce your tier before scheduling.**");
+    expect(before).not.toContain("<!-- UNTERMINATED");
+    writeFileSync(
+      file,
+      before.replace(
+        "**Announce your tier before scheduling.**",
+        "<!-- UNTERMINATED\n**Announce your tier before scheduling.**",
+      ),
+    );
+    const r = runIn(m);
+    expect(r.status).not.toBe(0);
+    const o = out(r);
+    for (const label of [
+      "Full tier label",
+      "Reduced tier label",
+      "Degraded tier label",
+    ]) {
+      expect(o).toContain(`missing the tier-announcement beat "${label}"`);
+    }
+    expect(o).not.toContain("carries all 6 tier-announcement beats");
+  });
+
   // RED fixture (b): the coordinator with its spawn grant DROPPED → a half-flip that silently kills
   // CC parallelism. Rewrite the orchestrator adapter to keep coordinator: true but strip every grant.
   it("guard_wr05 coordinator grant DROPPED → nonzero + 'dropped grant kills Claude Code parallelism' names the file (D-16)", () => {
