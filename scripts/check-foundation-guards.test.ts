@@ -786,6 +786,95 @@ describe("check-foundation-guards.js (SDLC-02 / SC2 fail-proof harness)", () => 
     });
   }
 
+  // ── CR-03: the tier-beat check is satisfiable by a comment (plan 27-20, 27-REVIEW § CR-03). ────
+  //
+  // The eight cases above all DELETE or REPLACE the beat's bytes. None of them could catch the
+  // failure the review reproduced, where every byte survives and none of it is live text: the check
+  // was a bare `.includes()` over a body that was fence-stripped but never comment-stripped, so
+  // wrapping the WHOLE tier announcement in `<!-- -->` printed
+  // `carries all 6 tier-announcement beats` with zero of the six visible to the agent that loads the
+  // file — a false claim about a capability-and-safety announcement (T-27-34).
+  //
+  // Every beat label is asserted, not just one: the failure is that the ENTIRE announcement went
+  // dark, and a case naming a single beat would still pass if the fix only reached that one.
+  it("guard_wr05 the WHOLE tier announcement wrapped in an HTML comment → nonzero + names all 6 beats (CR-03, reproduced)", () => {
+    const m = mirror();
+    const file = adapterPath(m, COORDINATOR);
+    const before = readFileSync(file, "utf8");
+    // Guard the fixture the way the wrongCommandCases do. If the shipped body ever stops carrying
+    // these markers this case would silently become a no-op plant asserting against an unmodified
+    // tree — a fixture that pins nothing.
+    expect(before).toContain("**Announce your tier before scheduling.**");
+    expect(before).toContain("- **Full** —");
+    expect(before).toContain("- **Degraded** —");
+    const lines = before.split("\n");
+    const start = lines.findIndex((l) =>
+      l.includes("**Announce your tier before scheduling.**"),
+    );
+    const last = lines.reduce(
+      (acc, l, i) => (l.includes("and announce it.") ? i : acc),
+      -1,
+    );
+    expect(start).toBeGreaterThan(-1);
+    expect(last).toBeGreaterThan(start);
+    writeFileSync(
+      file,
+      [
+        ...lines.slice(0, start),
+        "<!--",
+        ...lines.slice(start, last + 1),
+        "-->",
+        ...lines.slice(last + 1),
+      ].join("\n"),
+    );
+    // Nothing but the wrap changed: every byte of the announcement is still in the file.
+    const after = readFileSync(file, "utf8");
+    expect(after).toContain("**Announce your tier before scheduling.**");
+    expect(after).toContain("- **Full** —");
+
+    const r = runIn(m);
+    expect(r.status).not.toBe(0);
+    const o = out(r);
+    for (const label of [
+      "Full tier label",
+      "Reduced tier label",
+      "Degraded tier label",
+      "reduced-path enforcement disclosure",
+      "capability-sensing selection signal",
+      "reduced-tier command name",
+    ]) {
+      expect(o).toContain(`missing the tier-announcement beat "${label}"`);
+    }
+    expect(o).toContain("grugops-orchestrator.md");
+    // And the guard never claims what it did not check.
+    expect(o).not.toContain("carries all 6 tier-announcement beats");
+  });
+
+  // The other half of the same predicate: PRESENCE is not enough, the count is one. A body stating a
+  // tier line twice is a body the generator does not produce, and a reader told the same tier twice
+  // cannot tell which statement is current. This is the arm guard_adapter_body's positive half has
+  // always had and the tier-beat check did not.
+  it("guard_wr05 a tier beat stated TWICE in live text → nonzero + names the beat and the count (CR-03)", () => {
+    const m = mirror();
+    const file = adapterPath(m, COORDINATOR);
+    const before = readFileSync(file, "utf8");
+    const lines = before.split("\n");
+    const at = lines.findIndex((l) => l.includes("- **Degraded** —"));
+    expect(at).toBeGreaterThan(-1);
+    // Duplicate the line carrying the beat, in LIVE text — no comment, no fence.
+    lines.splice(at, 0, lines[at]);
+    writeFileSync(file, lines.join("\n"));
+
+    const r = runIn(m);
+    expect(r.status).not.toBe(0);
+    const o = out(r);
+    expect(o).toContain(
+      'states the tier-announcement beat "Degraded tier label" 2 time(s)',
+    );
+    expect(o).toContain("exactly 1 occurrence is required");
+    expect(o).toContain("grugops-orchestrator.md");
+  });
+
   // SPAWN-04 across the FULL derived scan set. The pre-27-03 guard hand-listed four files, so a rogue
   // grant on any of the seventeen agent adapters or seven skills was unreachable. These two plant a
   // grant on a real non-coordinator ADAPTER — one per grant syntax — which is the surface SPAWN-04 is

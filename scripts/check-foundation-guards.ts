@@ -412,6 +412,42 @@ const SPAWN_GRANT_SCAN = [...ADAPTERS, ...PACKAGING_TEMPLATES];
 // across a line break" evasion on the negative half.
 const collapseWhitespace = (s: string): string => s.replace(/\s+/g, " ");
 
+// (Plan 27-20 / 27-REVIEW § CR-03) stripHtmlComments and countOccurrences are declared HERE, beside
+// the fence authority and the whitespace normalization, because they are SHARED: guard_wr05's
+// tier-beat check and guard_adapter_body's positive half ask the SAME question of the SAME
+// coordinator body — "does this live text state this sentence, and how many times" — and they now
+// read it through one composition. They used to live 260 lines down, next to guard_adapter_body,
+// with a comment saying the strip applied to that positive half only; that placement is what made it
+// natural for the sibling check inside the same aggregator to be written as a bare `.includes()`
+// over a body that was never comment-stripped and never counted. One predicate, one treatment: the
+// helpers sit where the shared normalizations sit, not beside one of their two callers.
+//
+// Why a comment must be stripped before either predicate reads the body: a comment quoting an
+// announcement is not an announcement. Commented-out bytes are invisible to the agent that loads the
+// file, so text surviving only inside `<!-- -->` cannot satisfy a claim about what the body says —
+// and a guard that counts it is asserting a capability-and-safety disclosure the reader will never
+// see (T-27-34, the spoofing threat this guard names at its own tier-beat header).
+//
+// This is NOT a second fence implementation: it removes a different construct (`<!-- -->`) and it
+// COMPOSES with the one stripFencedBlocks() authority instead of duplicating it. It is applied to
+// the POSITIVE/presence direction of both callers only — a retired phrase quoted inside a comment
+// must still fail guard_adapter_body's NEGATIVE half, because no adapter or template may carry a
+// comment or parenthetical quoting dead vocabulary.
+const stripHtmlComments = (s: string): string => s.replace(/<!--[\s\S]*?-->/g, " ");
+
+// Non-overlapping occurrence count. Deliberately not a regex: the forms contain backticks, an em
+// dash and punctuation, and escaping them into a pattern would be a second grammar over the same
+// literal.
+function countOccurrences(hay: string, needle: string): number {
+  let n = 0;
+  let i = hay.indexOf(needle);
+  while (i !== -1) {
+    n += 1;
+    i = hay.indexOf(needle, i + needle.length);
+  }
+  return n;
+}
+
 // (Plan 27-12) matchesOutsideFences() is DELETED. Its only two callers were the spawn-grant test and
 // the coordinator-marker test, and both now read a reconstructed frontmatter VALUE rather than
 // applying a line-anchored expression to a body. Keeping the helper around for a predicate nobody
@@ -550,14 +586,33 @@ function guardWr05(): void {
   // failure above is the finding, and reporting five absent beats against an ambiguous body would
   // bury it.
   if (coordinators.length === 1) {
-    // Same single fence authority, then the same whitespace normalization guard_adapter_body uses,
-    // so a beat that the template hard-wraps across two lines still reads as one sentence.
+    // ONE PREDICATE, ONE TREATMENT (plan 27-20 / 27-REVIEW § CR-03). This is byte-for-byte the
+    // composition guard_adapter_body's positive half builds — the single stripFencedBlocks()
+    // authority, then stripHtmlComments(), then collapseWhitespace() — followed by
+    // countOccurrences(). It used to be a bare `.includes()` over a body that was fence-stripped but
+    // NEITHER comment-stripped NOR counted, which is the WR-05 hole plan 27-14 closed in the sibling
+    // check inside this same aggregator, left open here. Wrapping the whole tier announcement in
+    // `<!-- -->` then printed `carries all 6 tier-announcement beats` with zero of the six live: a
+    // false claim about a capability-and-safety announcement, the T-27-34 spoofing threat this guard
+    // names in its own beat header. Two checks reading one body must read it the same way, or the
+    // weaker one is the one guarding CI.
     const coordinatorBody = collapseWhitespace(
-      stripFencedBlocks(readText(coordinators[0])),
+      stripHtmlComments(stripFencedBlocks(readText(coordinators[0]))),
     );
     for (const beat of TIER_BEATS) {
-      if (!coordinatorBody.includes(beat.needle)) {
+      const found = countOccurrences(coordinatorBody, beat.needle);
+      // THE SPLIT MIRRORS guard_adapter_body's OWN zero-versus-more-than-one split.
+      //
+      // The ZERO arm keeps its EXISTING wording byte-for-byte, `why` clause and BEAT_DEFAULT_WHY
+      // fallback included. This is a deliberate deviation from the review's single-message patch:
+      // five removal cases and three command-name cases in check-foundation-guards.test.ts assert
+      // that wording, they are correct pins on a real failure, and rewriting them to accommodate a
+      // cosmetically tidier message would be weakening working coverage for nothing. A finding's
+      // wording is a contract with the cases that pin it.
+      if (found === 0) {
         wr05Fail += `\n${coordinators[0]}: coordinator body is missing the tier-announcement beat "${beat.label}" (expected the wording \`${beat.needle}\`) — ${beat.why ?? BEAT_DEFAULT_WHY}`;
+      } else if (found > 1) {
+        wr05Fail += `\n${coordinators[0]}: coordinator body states the tier-announcement beat "${beat.label}" ${found} time(s) in live, non-fenced, non-commented text — exactly 1 occurrence is required; a body the generator does not produce is not a body this guard may pass, and a duplicated tier line means a reader is told the same tier twice and cannot tell which statement is current`;
       }
     }
   }
@@ -571,7 +626,11 @@ function guardWr05(): void {
   ).length;
   if (wr05Fail === "") {
     pass(
-      `WR-05: exactly one coordinator holds the spawn grant; no non-coordinator does (${nonCoordinatorAdapters} non-coordinator adapter bodies + ${PACKAGING_TEMPLATES.length} packaging template(s) checked), and the coordinator body carries all ${TIER_BEATS.length} tier-announcement beats`,
+      // The claim NAMES THE INPUT IT READ (plan 27-20 / CR-03, T-27-101). The `all N
+      // tier-announcement beats` phrase is kept verbatim — a case pins it — and the clause that makes
+      // the claim true is APPENDED rather than replacing it: a PASS line must never state a check
+      // that was not performed over the input it names.
+      `WR-05: exactly one coordinator holds the spawn grant; no non-coordinator does (${nonCoordinatorAdapters} non-coordinator adapter bodies + ${PACKAGING_TEMPLATES.length} packaging template(s) checked), and the coordinator body carries all ${TIER_BEATS.length} tier-announcement beats, each exactly once in live, non-fenced, non-commented text`,
     );
   } else {
     fail(`WR-05 coordinator-spawn-grant violation:${wr05Fail}`);
@@ -633,9 +692,11 @@ function guardWr05(): void {
 //
 // ONE FENCE AUTHORITY. Both halves read through the SHARED stripFencedBlocks() — never a second
 // parser over the same bytes. The template half computes "inside a fence" as raw-minus-stripped from
-// that same authority rather than re-deciding it. stripHtmlComments() below is NOT a second fence
-// implementation: it removes a different construct (`<!-- -->`), it composes with the one fence
-// authority instead of duplicating it, and it is applied to the POSITIVE half only.
+// that same authority rather than re-deciding it. stripHtmlComments() — declared at the top of this
+// file beside collapseWhitespace(), and SHARED with guard_wr05's tier-beat check since plan 27-20 —
+// is NOT a second fence implementation: it removes a different construct (`<!-- -->`), it composes
+// with the one fence authority instead of duplicating it, and within THIS guard it is applied to the
+// POSITIVE half only (the negative half must still see a retired phrase quoted inside a comment).
 // ---------------------------------------------------------------------------
 const ADAPTER_BODY_TEMPLATE = "agent-factory/packaging/subagent.frontmatter.md";
 
@@ -670,23 +731,11 @@ const TEMPLATE_BODY_FORMS: readonly { label: string; form: string }[] = [
   { label: "coordinator", form: MEMORY_FORM_COORDINATOR },
 ];
 
-// A commented-out copy of the sentence is not live text. It is removed from the POSITIVE half's
-// input only — a retired phrase quoted inside a comment must still fail the NEGATIVE half, because
-// no adapter or template may carry a comment or parenthetical quoting dead vocabulary.
-const stripHtmlComments = (s: string): string => s.replace(/<!--[\s\S]*?-->/g, " ");
-
-// Non-overlapping occurrence count. Deliberately not a regex: the forms contain backticks, an em
-// dash and punctuation, and escaping them into a pattern would be a second grammar over the same
-// literal.
-function countOccurrences(hay: string, needle: string): number {
-  let n = 0;
-  let i = hay.indexOf(needle);
-  while (i !== -1) {
-    n += 1;
-    i = hay.indexOf(needle, i + needle.length);
-  }
-  return n;
-}
+// (Plan 27-20 / CR-03) stripHtmlComments() and countOccurrences() were declared HERE and are now
+// declared beside collapseWhitespace() at the top of this file, unchanged in behavior. They are
+// SHARED with guard_wr05's tier-beat check, which asks the same question of the same coordinator
+// body; keeping them next to one of their two callers is what made the sibling check easy to write
+// without them. There is still exactly ONE of each — a relocation, never a copy.
 
 function guardAdapterBody(): void {
   process.stdout.write(
