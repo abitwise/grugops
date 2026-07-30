@@ -478,12 +478,25 @@ describe("install.js / uninstall.js — single-installer contract (folds install
     expect(refused.status).not.toBe(0);
     expect(refused.stderr).toContain("--allow-self");
 
-    // (b) --allow-self overrides — the same invocation proceeds (exit 0).
+    // (b) --allow-self overrides — the same invocation PROCEEDS PAST THE GUARD.
     const allowed = spawnSync("node", [INSTALL_JS, "--yes", "--allow-self"], {
       encoding: "utf8",
       env: { ...process.env, GRUGOPS_SRC: fake, GRUGOPS_HOME: mkTmp(), TARGET: fake },
     });
-    expect(allowed.status).toBe(0);
+    // WHAT THIS ARM PINS IS THE GUARD, NOT COMPLETENESS (27-21, WR-01). The throwaway fixture is a
+    // source-SHAPED stub: it carries the two source markers and nothing else, so it has no
+    // .claude/agents and no .claude/skills and the run is legitimately INCOMPLETE (exit 3) for a
+    // reason that has nothing to do with the guard. Before the exit code was conditional this
+    // asserted 0, which passed only because 0 was returned unconditionally — the assertion never
+    // distinguished "the guard let it through" from "the install finished". It does now:
+    //   - status 3, NOT 1  → the guard did not refuse (1 is the refusal code),
+    //   - no --allow-self hint on stderr → the refusal message was not printed,
+    //   - the banner tail was reached → the run got all the way through the install classes.
+    // The fixture is left exactly as written; only the assertion is made honest about it.
+    expect(allowed.status).toBe(3);
+    expect(allowed.status).not.toBe(1);
+    expect(allowed.stderr ?? "").not.toContain("--allow-self");
+    expect(allowed.stdout ?? "").toContain("install INCOMPLETE");
   });
 
   // ── never-delete: uninstall preserves a USER-owned AGENTS.md symlink (install.test.sh Check 5, CR-01) ─
@@ -1399,9 +1412,14 @@ describe("install.js / uninstall.js — single-installer contract (folds install
     expect(installedSkills(target).length).toBe(7);
 
     // A clean run makes the completion claim; the fail-loud cases below prove it is withheld.
-    const out = runInstallFrom(src, target, home).stdout;
-    expect(out).toContain("== install complete");
-    expect(out).not.toContain("install INCOMPLETE");
+    // POSITIVE CONTROL FOR THE EXIT-CODE CONTRACT (27-21, WR-01): the banner and the status are
+    // read off the SAME run, so this proves exit 3 is returned only on the INCOMPLETE branch and
+    // never unconditionally. KIT-02 empty edge: zero verify findings exits 0; exactly one exits 3;
+    // there is no threshold between them.
+    const clean = runInstallFrom(src, target, home);
+    expect(clean.stdout).toContain("== install complete");
+    expect(clean.stdout).not.toContain("install INCOMPLETE");
+    expect(clean.status).toBe(0);
   });
 
   it("source derivation: an UNREADABLE source adapter directory is reported and no completion is claimed", () => {
@@ -1418,7 +1436,9 @@ describe("install.js / uninstall.js — single-installer contract (folds install
     writeFileSync(join(src, ".claude", "agents"), "not a directory\n");
 
     const r = runInstallFrom(src, target, home);
-    expect(r.status).toBe(0);
+    // EXIT 3 = INCOMPLETE (27-21, WR-01). The pin moves WITH the contract: the machine-readable
+    // signal must agree with the banner, so a fail-loud run no longer reports the success code.
+    expect(r.status).toBe(3);
     expect(r.stdout).toContain("cannot read");
     expect(r.stdout).toContain(join(src, ".claude", "agents"));
     expect(r.stdout).toContain("No adapter was installed");
@@ -1445,7 +1465,7 @@ describe("install.js / uninstall.js — single-installer contract (folds install
     chmodSync(agents, 0o000);
     try {
       const r = runInstallFrom(src, target, home);
-      expect(r.status).toBe(0);
+      expect(r.status).toBe(3); // INCOMPLETE (27-21, WR-01)
       expect(r.stdout).toContain("cannot read");
       expect(r.stdout).toContain("No adapter was installed");
       expect(r.stdout).not.toContain("== install complete");
@@ -1465,7 +1485,7 @@ describe("install.js / uninstall.js — single-installer contract (folds install
     mkdirSync(join(src, ".claude", "agents"), { recursive: true });
 
     const r = runInstallFrom(src, target, home);
-    expect(r.status).toBe(0);
+    expect(r.status).toBe(3); // INCOMPLETE (27-21, WR-01)
     // The two failure states need different remedies, so they carry different wording. Both
     // substrings are asserted SEPARATELY: the empty message must appear and the unreadable
     // message must not, or the two conditions have been folded into one and the remedy is lost.
@@ -1491,7 +1511,10 @@ describe("install.js / uninstall.js — single-installer contract (folds install
     );
 
     const r = runInstallFrom(src, target, home);
-    expect(r.status).toBe(0);
+    // KIT-02 ADJACENCY: seventeen adapters installed and ONE nested source file refused is
+    // INCOMPLETE, not complete — the two adjacent outcomes carry different banners AND different
+    // exit codes (27-21, WR-01).
+    expect(r.status).toBe(3);
     // Refused BY NAME, at its relative path.
     expect(r.stdout).toContain("nested/deep-adapter.md");
     expect(r.stdout).toContain("FLAT BY CONTRACT");
@@ -1643,7 +1666,7 @@ describe("install.js / uninstall.js — single-installer contract (folds install
     writeFileSync(planted, "// installed earlier from a complete kit\n");
 
     const r = runUninstallFrom(src, target, home);
-    expect(r.status).toBe(0);
+    expect(r.status).toBe(3); // INCOMPLETE — the uninstaller mirrors install.ts's code list (27-21)
     expect(existsSync(planted)).toBe(true);
     expect(r.stdout).toContain("cannot read the source it was installed from");
     expect(r.stdout).toContain(RUNNABLE_RELS[0]);
@@ -1677,7 +1700,7 @@ describe("install.js / uninstall.js — single-installer contract (folds install
     writeFileSync(join(src, ".claude", "skills"), "not a directory\n");
 
     const r = runInstallFrom(src, target, home);
-    expect(r.status).toBe(0);
+    expect(r.status).toBe(3); // INCOMPLETE (27-21, WR-01)
     expect(r.stdout).toContain("No skill was installed");
     expect(r.stdout).toContain(join(src, ".claude", "skills"));
     expect(r.stdout).not.toContain("== install complete");

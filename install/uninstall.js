@@ -640,6 +640,12 @@ if (VERIFY_FINDINGS > 0) {
     console.log(`\n== uninstall INCOMPLETE — ${VERIFY_FINDINGS} item(s) need verification` +
         `${DRY_RUN ? " (DRY_RUN — nothing changed)" : ""} ==`);
     console.log("  Each `verify` line above names what was NOT removed and the remedy for it.");
+    // THE MACHINE-READABLE HALF OF THE CONDITIONAL CLAIM (27-21, WR-01) — the same rule and the same
+    // code list as install.ts's tail: 0 complete, 1 refused or aborted, 2 bad usage, 3 incomplete.
+    // Set on the SAME branch that prints the banner so the two signals cannot diverge. The two
+    // banners were written as one rule; applying the exit code to only one half would leave the pair
+    // disagreeing.
+    process.exit(3);
 }
 else {
     console.log(`\n== uninstall complete${DRY_RUN ? " (DRY_RUN — nothing changed)" : ""} ==`);

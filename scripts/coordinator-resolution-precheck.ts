@@ -275,10 +275,22 @@ function runScratchInstall(): Installed {
       env: { ...process.env, GRUGOPS_HOME: home },
     },
   );
+  // TWO SIGNALS, EITHER ONE A REFUSAL (27-21, WR-01). The installer's exit code list is 0 complete,
+  // 1 refused or aborted, 2 bad usage, 3 incomplete; the banner is the human-readable half of the
+  // same claim. Both are checked against the SAME captured run, and the message names which of the
+  // two fired, because the `ran cleanly` line below is a claim a human acts on — narrating it over
+  // a run that refused a whole class is the spoofing failure this gate exists to prevent. The
+  // banner check is not redundant with the status check: it is the backstop for a future edit that
+  // reintroduces a success exit under the INCOMPLETE branch.
+  const detail = `${r.stdout ?? ""}${r.stderr ?? ""}`.trim();
   if (r.status !== 0) {
-    const detail = `${r.stdout ?? ""}${r.stderr ?? ""}`.trim();
     fail(
-      `the scratch install did not complete (exit ${String(r.status)}). Installer output follows:\n${detail}`,
+      `the scratch install did not complete (exit ${String(r.status)}${r.status === 3 ? " = INCOMPLETE" : ""}). Installer output follows:\n${detail}`,
+    );
+  }
+  if (detail.includes("install INCOMPLETE")) {
+    fail(
+      `the scratch install printed the INCOMPLETE banner while exiting ${String(r.status)} — the banner and the exit status disagree, so the install refused a whole class. Installer output follows:\n${detail}`,
     );
   }
   return {

@@ -1478,6 +1478,12 @@ if (VERIFY_FINDINGS > 0) {
     console.log(`\n== install INCOMPLETE — ${VERIFY_FINDINGS} item(s) need verification` +
         `${DRY_RUN ? " (DRY_RUN — nothing changed)" : ""} ==`);
     console.log("  Each `verify` line above names what was NOT installed and the remedy for it.");
+    // THE MACHINE-READABLE HALF OF THE CONDITIONAL CLAIM (27-21, WR-01). Exit codes: 0 complete,
+    // 1 refused or aborted, 2 bad usage, 3 incomplete. Set on the SAME branch that prints the banner
+    // so the human-readable and machine-readable signals cannot diverge — a chained `install.js &&
+    // next-step`, a CI step, or scripts/coordinator-resolution-precheck.ts must stop here, not
+    // proceed over a class that was never installed.
+    process.exit(3);
 }
 else {
     console.log(`\n== install complete${DRY_RUN ? " (DRY_RUN — nothing changed)" : ""} ==`);

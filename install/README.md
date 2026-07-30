@@ -61,6 +61,25 @@ DRY_RUN=1 node install/install.js
 GRUGOPS_HOME=/opt/grugops node install/install.js --target /path/to/repo
 ```
 
+### Exit codes — what the installer tells a script
+
+If you chain anything after the installer (`node install/install.js --yes && next-step`, a CI
+step, a Makefile), read the exit code. Both `install.js` and `uninstall.js` use the same list:
+
+| Code | Meaning |
+|------|---------|
+| `0` | **complete** — every class installed (or removed); the run printed `== install complete ==`. |
+| `1` | **refused or aborted** — the run changed nothing. The self-checkout guard (target looks like the grugops source checkout) is the usual cause. `--check` also reports `1` on a doctor FAIL. |
+| `2` | **bad usage** — an unknown argument. Nothing was read or written. |
+| `3` | **incomplete** — the run went ahead but could not finish a whole class, and printed `== install INCOMPLETE — N item(s) need verification ==`. Every `verify` line in the output names what was left undone and the remedy for it. |
+
+Code `3` is the important one: grug not lie about finish. A run that could not read a source
+directory, or that refused an adapter, installed **nothing for that class** — so it does not
+claim completion, and it does not return the success code either. **A chained command stops
+here.** That is deliberate: proceeding over a partial install is how a broken install reaches
+production looking fine. Read the `verify` lines, fix the source, re-run (the installer is
+idempotent, so re-running is safe).
+
 ### Choosing the target (`--target`, the prompt, `--yes`)
 
 Where the install lands is resolved in this precedence: **`--target <repo>`** wins, then the
