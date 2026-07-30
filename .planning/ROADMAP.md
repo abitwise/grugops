@@ -124,7 +124,7 @@ Full phase details + milestone summary: `milestones/v2.0-ROADMAP.md` · requirem
   4. On Claude Code the coordinator runs as the **main-thread** agent so its `Agent(<allowlist>)` grant is honored by the runtime, and no non-coordinator adapter carries the `Agent` tool at all — a mechanism that holds on both the main-thread and subagent paths rather than relying on a frontmatter token the runtime ignores. (SPAWN-03, SPAWN-04)
   5. `guard_adapter_body` fails red on pre-v2.0 handoff/single-window prose anywhere in an adapter body — proven against the surviving `grugops-orchestrator.md:25` reference — `orchestrator.md` sits below its **7570-byte FAIL ceiling with the ceiling unchanged**, and the advertised Claude Code floor reads **v2.1.219+ at depth 3** everywhere it appears, with the v2.1.217–218 depth-1 window documented as a known-bad range that degrades loudly. (SPAWN-05, SPAWN-06, SPAWN-07)
 
-**Plans**: 17/17 plans executed
+**Plans**: 17/23 plans executed (27-18 … 27-23 planned from `27-REVIEW-GAPS.md`)
 Plans:
 **Wave 1**
 
@@ -180,6 +180,25 @@ Plans:
 **Gap wave 6** *(blocked on 27-16)*
 
 - [x] 27-17-PLAN.md — blocking human-verify checkpoint: observe a real session, transcribe the observation verbatim, and update the requirement's status only if it matched [SPAWN-03]
+
+**Gap closure round 2** *(from `27-REVIEW-GAPS.md` — a code review of the gap-closure half itself, diff `7f8d016..HEAD`: 3 critical, 5 warning, 2 info, all 10 scoped in. Every critical was reproduced on a hermetic mirror printing `ALL CHECKS PASSED`.)*
+
+**Gap wave 7**
+
+- [ ] 27-18-PLAN.md — TRACER: the frontmatter authority refuses YAML anchors, aliases and merge keys instead of reading them as a clean no-grant, proven end-to-end from the module through the committed `.js` to the aggregator on the skill surface; the parser oracle gains a refused-form product with its own cardinality pin [SPAWN-04, KIT-03] *(CR-01)*
+
+**Gap wave 8** *(blocked on 27-18)*
+
+- [ ] 27-19-PLAN.md — KIT-03 stops comparing filenames against frontmatter names without asserting the two agree; the identity authority is named, the founding defect stops reproducing, and the fixtures can express the namespace split [KIT-03, KIT-02] *(CR-02)*
+- [ ] 27-21-PLAN.md — the installers' INCOMPLETE banner gains a machine-readable exit code behind a blocking decision checkpoint, every test pin is enumerated from source and moved with the contract, and the coordinator precheck refuses on the banner as well as the status [KIT-02, SPAWN-03, SPAWN-07] *(WR-01)*
+- [ ] 27-23-PLAN.md — the adapter generator's second frontmatter grammar is deleted for byte-identical output, the freshness gate stops leaking its temp mirror, and `check-kit-refs` + `validate-agent-factory` gain direct CI steps [SPAWN-01, SPAWN-02, KIT-02, SPAWN-06] *(WR-03, IN-01, IN-02)*
+
+**Gap wave 9** *(blocked on 27-19 and 27-21 — shared files, not shared logic)*
+
+- [ ] 27-20-PLAN.md — `guard_wr05`'s tier beats get the same comment-stripped, occurrence-counted treatment `guard_adapter_body` already has, and an agent adapter declaring no `tools` key becomes a named finding rather than a compliant silence [SPAWN-05, SPAWN-04] *(CR-03, WR-05)*
+- [ ] 27-22-PLAN.md — the installer's source derivation resolves a symlink the way the authority and the platform do, with a conformance fixture that can see the shape; `mappingDests` derives its own cardinality so a missed entry fails the parse [KIT-01, KIT-02] *(WR-02, WR-04)*
+
+**Ordering that is load-bearing in gap-closure round 2** — `scripts/frontmatter.ts` is the identity and grant parsing authority. CR-01 changes what it answers and CR-02 and WR-03 both read from it, so 27-18 lands and is proven before any consumer moves. Waves 8 and 9 are split by shared FILE rather than by shared logic: 27-19 and 27-20 both edit `check-foundation-guards.ts`, and 27-21 and 27-22 both edit `install/install.ts`.
 
 **Ordering that is load-bearing inside this phase** — the kit-set authority and the referential-integrity oracle land **first**, the `orchestrator.md` trim lands **before** any spawn-allowlist text is added, and only then are the 17 adapters generated. Reversing that order reproduces the exact failure this phase exists to fix, with new names.
 
