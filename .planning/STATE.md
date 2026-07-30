@@ -5,15 +5,15 @@ milestone_name: Autonomous Factory — Real Spawning, Controlled Language & Live
 current_phase: 27
 current_phase_name: spawn-correctness-kit-set-authority
 status: executing
-stopped_at: Completed 27-23-PLAN.md
-last_updated: "2026-07-30T13:49:07.695Z"
+stopped_at: Completed 27-21-PLAN.md
+last_updated: "2026-07-30T14:44:21.810Z"
 last_activity: 2026-07-30
-last_activity_desc: 27-19 closed CR-02 (KIT-03 asserts the frontmatter-name to filename mapping before any set comparison; identity has one authority)
+last_activity_desc: "27-21 closed WR-01: both installers exit **3** on the same branch that prints the INCOMPLETE banner, so the machine signal agrees with the human one. Seven test pins moved (the review said four — the seventh, the `--allow-self` guard arm, was findable only by running the suite). The coordinator precheck now refuses on the banner as well as on the status, verified adversarially by patching `exit 3` back out. Exit ladder documented in `install/README.md`: 0 complete, 1 refused/aborted, 2 bad usage, 3 incomplete."
 progress:
   total_phases: 7
   completed_phases: 0
   total_plans: 23
-  completed_plans: 20
+  completed_plans: 21
   percent: 0
 ---
 
@@ -29,9 +29,9 @@ See: .planning/PROJECT.md (updated 2026-07-28 — after v2.0 milestone)
 ## Current Position
 
 Phase: 27 (spawn-correctness-kit-set-authority) — EXECUTING
-Plan: 20 of 23 executed (27-01..27-19 + 27-23); 27-21 is 27-23's wave-8 sibling, 27-20 and 27-22 are wave 9 — all three not started
-Status: Executing (gap-closure round 2, gap waves 7-9); gap wave 8 in progress — 27-23 complete, 27-21 outstanding
-Last activity: 2026-07-30 — 27-23 closed WR-03/IN-01/IN-02 (the generator's second frontmatter grammar deleted with byte-identical adapters; the freshness gate cleans up on every exit path; check-kit-refs and validate-agent-factory wired into CI at both ends)
+Plan: 21 of 23 executed (27-01..27-19 + 27-21 + 27-23); 27-20 and 27-22 are gap wave 9 — both not started
+Status: Executing (gap-closure round 2, gap waves 7-9); **gap wave 8 COMPLETE** (27-19, 27-21, 27-23) — gap wave 9 (27-20, 27-22) is now unblocked
+Last activity: 2026-07-30 — 27-21 closed WR-01: both installers exit **3** on the same branch that prints the INCOMPLETE banner, so the machine signal agrees with the human one. Seven test pins moved (the review said four — the seventh, the `--allow-self` guard arm, was findable only by running the suite). The coordinator precheck now refuses on the banner as well as on the status, verified adversarially by patching `exit 3` back out. Exit ladder documented in `install/README.md`: 0 complete, 1 refused/aborted, 2 bad usage, 3 incomplete.
 
 ## Performance Metrics
 
@@ -213,6 +213,7 @@ Last activity: 2026-07-30 — 27-23 closed WR-03/IN-01/IN-02 (the generator's se
 | Phase 27 P18 | 35 min | 2 tasks | 4 files |
 | Phase 27 P19 | 35 min | 2 tasks | 3 files |
 | Phase 27 P23 | 15 min | 3 tasks | 7 files |
+| Phase 27 P21 | 35m | 2 tasks | 8 files |
 
 ## Accumulated Context
 
@@ -521,6 +522,7 @@ Recent decisions affecting current work:
 - [Phase 27]: 27-23 (IN-01): adapters-freshness registers cleanup on process exit immediately after mkdtempSync; the explicit cleanup() calls stay because 'exit' does not fire on a signal or process.abort()
 - [Phase 27]: 27-23 (IN-02): check-kit-refs.js and validate-agent-factory.js now have their own CI steps; validate-agent-factory needs VALIDATE_KIT_ROOT set explicitly (the C3 no-false-green guard gives it no default)
 - [Phase 27]: 27-23: the gate's mirror twin list stays hand-written (deriving it would be a second grammar inside a build-safety gate) but the oracle's scratch() now DERIVES the generator's import closure — asymmetric on purpose, and the gate's direction is fail-loud
+- [Phase ?]: 27-21 (human, blocking checkpoint): option-a — a run that printed the INCOMPLETE banner exits 3. Ladder: 0 complete, 1 refused/aborted, 2 bad usage (already in use at install.ts:100 / uninstall.ts:71 — the plan's claim that option-a 'reserves 2 for a usage error that does not exist yet' was factually wrong), 3 incomplete. Chained consumers that proceed today now stop; accepted knowingly.
 
 ### Pending Todos
 
@@ -619,8 +621,8 @@ Shape of the carry: **9 of 11 are pre-v2.0 carryover** from the v1.2 block above
 
 ## Session Continuity
 
-Last session: 2026-07-30T13:48:56.006Z
-Stopped at: Completed 27-23-PLAN.md
+Last session: 2026-07-30T14:44:21.799Z
+Stopped at: Completed 27-21-PLAN.md
 Resume file: None
 
 ## Operator Next Steps
