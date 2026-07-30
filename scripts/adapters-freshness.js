@@ -92,11 +92,26 @@ const KIT_ROOT = process.env.CHECK_ROOT
 // The generator's fixed-literal output directory, mirrored here as a fixed literal too.
 const ADAPTER_DIR = ".claude/agents";
 const REGEN_CMD = "npm run generate:adapters";
-// Unique temp mirror per run; cleaned up before every process.exit.
+// Unique temp mirror per run; cleaned up on EVERY exit path, including an uncaught throw.
 const tmp = mkdtempSync(join(tmpdir(), "grugops-adapters-fresh-"));
 function cleanup() {
     rmSync(tmp, { recursive: true, force: true });
 }
+// Registered IMMEDIATELY after the directory exists, so there is no window in which a throw can
+// escape without removing it (IN-01). Everything below runs at module top level: the three cpSync
+// calls and the rebuilt-adapter read are all unguarded, and an absent `agent-factory/packaging` in a
+// CHECK_ROOT mirror threw past every handler and left <tmpdir>/grugops-adapters-fresh-* behind —
+// reproduced before this line was added. A gate that accumulates state outside its own lifetime is a
+// slow denial of service on the host (T-27-117).
+//
+// The exit HANDLER rather than a try/finally around the module body: this file is top-level script
+// code, and wrapping it would re-indent every declaration for a two-line fix, burying the diff.
+//
+// The explicit cleanup() calls in die() and in the two tails are KEPT. rmSync with `force` is
+// idempotent, so removing twice is harmless, and deleting them would leave the module depending
+// entirely on a handler — 'exit' does not fire on a signal, on process.abort(), or when the process
+// is torn down by the host, so the direct calls remain the primary path and this is the backstop.
+process.on("exit", cleanup);
 function die(message) {
     cleanup();
     console.log(message);

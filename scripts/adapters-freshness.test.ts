@@ -27,14 +27,35 @@ import {
   mkdirSync,
   cpSync,
   rmSync,
+  readdirSync,
   readFileSync,
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { basename, join } from "node:path";
 
 const ROOT = join(import.meta.dirname, "..");
 const GATE_JS = join(ROOT, "scripts", "adapters-freshness.js");
+
+// The gate's own temp-mirror prefix, RECOVERED from the committed .js rather than restated here. A
+// hand-copied prefix would make the IN-01 leftover assertion vacuously true the moment the gate
+// renamed its directory — the failure mode Case 7 of coordinator-resolution-precheck.test.ts guards
+// against by asserting its prefix is live. Recovering it is the stronger form of the same idea.
+const GATE_TMP_PREFIX = ((): string => {
+  const m = readFileSync(GATE_JS, "utf8").match(
+    /mkdtempSync\(join\(tmpdir\(\),\s*"([^"]+)"\)\)/,
+  );
+  if (m === null) {
+    throw new Error(
+      "scripts/adapters-freshness.js: could not recover the temp-mirror prefix — the IN-01 leftover assertion would be filtering on nothing",
+    );
+  }
+  return m[1];
+})();
+
+// Every entry in the system temp directory carrying the gate's prefix, right now.
+const tempEntries = (): string[] =>
+  readdirSync(tmpdir()).filter((n) => n.startsWith(GATE_TMP_PREFIX));
 
 // The kit inputs the gate reads from its KIT root: the two generator sources it mirror-spawns over,
 // and the committed adapter directory it compares. The compiled script twins deliberately do NOT
@@ -162,5 +183,44 @@ describe("adapters-freshness.js (SPAWN-02 adapter drift gate)", () => {
     expect(r.status).not.toBe(0);
     expect(r.stdout).not.toContain(FRESH_MARKER);
     expect(r.stdout).toContain("did not run cleanly");
+  });
+
+  it("Case 6 (IN-01, no leftovers): a run that throws before any handler still removes its temp mirror", () => {
+    // The review's named input: a CHECK_ROOT mirror with agent-factory/packaging ABSENT. The gate
+    // cpSyncs that directory at module top level, so the throw escapes both die() paths and both
+    // tails. Before the exit handler was registered this run left <tmpdir>/<prefix>* behind every
+    // time — reproduced, then re-run green. A gate that accumulates state outside its own lifetime
+    // is a slow denial of service on the host and on CI runners (T-27-117).
+    //
+    // The mirror deliberately does NOT use mirror(): that helper copies every kit input, and the
+    // whole point here is that one of them is missing. Its prefix is deliberately distinct from the
+    // gate's, so this case's own scaffolding can never be counted as the gate's leak.
+    const m = mkdtempSync(join(tmpdir(), "grugops-adapters-in01-"));
+    tmpDirs.push(m);
+    for (const rel of KIT_INPUTS.filter((r) => r !== "agent-factory/packaging")) {
+      cpSync(join(ROOT, rel), join(m, rel), { recursive: true });
+    }
+
+    // Set difference, not a count: a concurrently running gate with its own mirror cannot influence
+    // the verdict, and neither can an entry left by something outside this suite.
+    const before = tempEntries();
+    const r = runGate(m);
+    const added = tempEntries().filter((n) => !before.includes(n));
+    expect(added).toEqual([]);
+
+    // ...and the run must still FAIL. A gate that cleaned up by quietly succeeding would satisfy the
+    // assertion above for entirely the wrong reason, so the exit code is asserted beside it.
+    expect(r.status).not.toBe(0);
+    expect(r.stdout).not.toContain(FRESH_MARKER);
+
+    // Anti-vacuity: the assertion above is a set difference over a FILTER, and a filter that matches
+    // nothing passes forever. Prove the filter can actually see a directory carrying the gate's
+    // prefix before trusting its silence.
+    const sentinel = mkdtempSync(join(tmpdir(), GATE_TMP_PREFIX));
+    try {
+      expect(tempEntries()).toContain(basename(sentinel));
+    } finally {
+      rmSync(sentinel, { recursive: true, force: true });
+    }
   });
 });
