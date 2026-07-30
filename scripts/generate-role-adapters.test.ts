@@ -55,8 +55,26 @@ function out(r: SpawnSyncReturns<string>): string {
   return `${r.stdout ?? ""}${r.stderr ?? ""}`;
 }
 
+// ── The generator's in-repo import closure, DERIVED rather than hand-listed ─────────────────────
+// The mirror must carry every `./x.js` the committed generator imports, transitively. That set was
+// two hand-written cpSync calls until plan 27-23 moved the frontmatter read onto the shared authority
+// (WR-03) and made it three — i.e. it was a set literal in a mirror, of exactly the kind this
+// milestone deletes. It is now read out of the committed sources, so a fourth import needs no edit
+// here. The walk throws on an unresolvable module and on a zero-length result, so it can never
+// silently mirror nothing.
+function importClosure(entry: string, seen = new Set<string>()): Set<string> {
+  const src = readFileSync(join(ROOT, "scripts", entry), "utf8");
+  for (const m of src.matchAll(/from\s+"\.\/([A-Za-z0-9._-]+\.js)"/g)) {
+    if (seen.has(m[1])) continue;
+    seen.add(m[1]);
+    importClosure(m[1], seen);
+  }
+  return seen;
+}
+const GEN_MODULES = [...importClosure("generate-role-adapters.js")].sort();
+
 // ── Scratch world ──────────────────────────────────────────────────────────────────────────────
-// A mirror carrying the generator, the kit-model module it imports, a roles directory and an empty
+// A mirror carrying the generator, every in-repo module it imports, a roles directory and an empty
 // output directory. `roles` selects which live role files to copy; the coordinator role must always
 // be among them or the generator refuses (correctly) on coordinator cardinality.
 function scratch(roles: string[]): string {
@@ -66,7 +84,17 @@ function scratch(roles: string[]): string {
   mkdirSync(join(m, "agent-factory", "roles"), { recursive: true });
   mkdirSync(join(m, ".claude", "agents"), { recursive: true });
   cpSync(GEN_JS, join(m, "scripts", "generate-role-adapters.js"));
-  cpSync(join(ROOT, "scripts", "kit-model.js"), join(m, "scripts", "kit-model.js"));
+  // Not vacuous: the generator imports at least kit-model and frontmatter, so an empty closure means
+  // the derivation read the wrong file and every case below would be running a generator that cannot
+  // start. Assert it here rather than letting seventeen cases fail with a module-resolution error.
+  if (GEN_MODULES.length < 2) {
+    throw new Error(
+      `the generator's import closure came back as [${GEN_MODULES.join(", ")}] — the derivation is reading the wrong file`,
+    );
+  }
+  for (const mod of GEN_MODULES) {
+    cpSync(join(ROOT, "scripts", mod), join(m, "scripts", mod));
+  }
   for (const r of roles) {
     cpSync(join(LIVE_ROLES, r), join(m, "agent-factory", "roles", r));
   }
@@ -390,6 +418,70 @@ describe("generate-role-adapters.js (SPAWN-01 adapter generator)", () => {
       expectRefusal(m, "collides with the one produced by");
     },
   );
+
+  // ── WR-03 — the three shapes the DELETED local frontmatter grammar got wrong ──────────────────
+  // These are RED cases for the deleted duplicate, not restatements of the authority's own oracle:
+  // each was measured against the pre-change committed .js on a scratch mirror, and the recorded
+  // pre-change behaviour is in the case comment. The first two EMITTED an adapter and exited 0 —
+  // the finding expected every divergence to land in a fail-closed branch, and two did not.
+  it("refuses `capabilities:` written with NO space after the colon, naming the role file", () => {
+    // PRE-CHANGE: the local grammar's `\s*` matched zero whitespace, so `capabilities:read edit shell`
+    // read as a mapping entry and the generator emitted `tools: Read, Grep, Glob, Edit, Write, Bash`
+    // and exited 0 — a shipped spawn-posture line built from a key the platform does not see. YAML
+    // calls a colon with no following space a plain scalar, so `scripts/frontmatter.ts` refuses the
+    // line, and the two shapes are now adjacent inputs with opposite verdicts (SPAWN-01 adjacency).
+    const m = scratch(SAMPLE_ROLES);
+    expect(runIn(m).status).toBe(0);
+    const p = join(m, "agent-factory", "roles", "qe-e2e.md");
+    const before = readFileSync(p, "utf8");
+    // The whitespace-bearing twin must be there to remove, or the plant is a silent no-op.
+    expect(before).toContain("capabilities: read edit shell");
+    writeFileSync(p, before.replace(/^capabilities: .*$/m, "capabilities:read edit shell"));
+    expectRefusal(m, "qe-e2e.md: frontmatter is unreadable");
+    expectRefusal(m, "capabilities:read edit shell");
+  });
+
+  it("refuses two `capabilities:` keys, naming the count rather than keeping the last", () => {
+    // PRE-CHANGE: the local grammar wrote each key into a plain object, so the SECOND occurrence
+    // silently overwrote the first — `capabilities: read` followed by `capabilities: shell` shipped
+    // `tools: Bash` and exited 0, with the first declaration discarded and nothing said about it.
+    // The authority retains every occurrence in document order precisely because discarding one is a
+    // bypass, so a count other than exactly one is a refusal here and the count is in the message.
+    const m = scratch(SAMPLE_ROLES);
+    expect(runIn(m).status).toBe(0);
+    const p = join(m, "agent-factory", "roles", "qe-e2e.md");
+    writeFileSync(
+      p,
+      readFileSync(p, "utf8").replace(
+        /^capabilities: .*$/m,
+        "capabilities: read\ncapabilities: shell",
+      ),
+    );
+    expectRefusal(m, "qe-e2e.md: 2 `capabilities:` keys in one role frontmatter, expected exactly 1");
+    // The refusal must NOT be the empty-value finding: last-wins would have produced a perfectly
+    // usable single value, so a message about an empty key would mean the duplicate went unnoticed.
+    const r = runIn(m);
+    expect(out(r)).not.toContain("is absent or empty");
+  });
+
+  it("refuses an unterminated frontmatter block as UNREADABLE, not as empty capabilities", () => {
+    // PRE-CHANGE: the local grammar's `/^---\n([\s\S]*?)\n---\n/` simply failed to match and it
+    // returned an EMPTY map, so the generator reported "`capabilities:` is absent or empty" about a
+    // file whose frontmatter could not be read at all. "I cannot read this" and "this declares no
+    // capabilities" are different facts and only one of them tells the author what to fix; the
+    // authority's `ok: false` arm is branched on explicitly so they stay distinct.
+    const m = scratch(SAMPLE_ROLES);
+    expect(runIn(m).status).toBe(0);
+    const p = join(m, "agent-factory", "roles", "qe-e2e.md");
+    const lines = readFileSync(p, "utf8").split("\n");
+    expect(lines[4]).toBe("---"); // the closing delimiter must be where we think it is
+    lines.splice(4, 1);
+    writeFileSync(p, lines.join("\n"));
+    expectRefusal(m, "qe-e2e.md: frontmatter is unreadable");
+    expectRefusal(m, "is never closed by a `---` delimiter");
+    const r = runIn(m);
+    expect(out(r)).not.toContain("is absent or empty");
+  });
 
   it("refuses a kit with no coordinator role, rather than emitting a grantless adapter set", () => {
     const m = scratch(SAMPLE_ROLES);

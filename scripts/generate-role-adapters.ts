@@ -9,9 +9,39 @@
 // the same authority the KIT-03 referential-integrity oracle consumes, so the generator and the
 // oracle can never disagree about what a role is.
 //
-// Mirrors the proven shape of scripts/generate-catalog.ts: fixed literal paths, zero-dependency
-// frontmatter parse, section-body + first-sentence extraction, explicit sort before emit, provenance
-// header, build-everything-then-write, single trailing newline, clear professional voice.
+// Mirrors the proven shape of scripts/generate-catalog.ts: fixed literal paths, section-body +
+// first-sentence extraction, explicit sort before emit, provenance header,
+// build-everything-then-write, single trailing newline, clear professional voice.
+//
+// THE FRONTMATTER GRAMMAR IS scripts/frontmatter.ts, AND THERE IS NO SECOND ONE IN THIS FILE.
+// This file used to carry its own eight-line `parseFrontmatter`, and that duplicate is what finding
+// WR-03 named: `frontmatter.ts` declares itself "the single authority for what does this file's
+// frontmatter SAY", and this module — the one that COMPOSES THE SHIPPED `tools:` LINE, i.e. the spawn
+// grant itself — answered the same question with a weaker grammar that nothing tested. Three concrete
+// divergences were REMOVED with it, and two of them were NOT the harmless fail-closed cases the
+// finding expected (measured against the pre-change committed .js, on a scratch mirror):
+//
+//   1. Key charset. The local `[A-Za-z_]+` excluded digits and hyphens; the authority's `KEY_LINE`
+//      accepts YAML's own `[A-Za-z_][A-Za-z0-9_-]*`.
+//   2. `capabilities:read edit shell` — a colon with NO following space. The local `\s*` matched zero
+//      whitespace and read the value happily; YAML calls that a plain scalar, not a mapping entry, so
+//      the platform sees no `capabilities` key there and the authority deliberately refuses the line.
+//      The pre-change generator EMITTED `tools: Read, Grep, Glob, Edit, Write, Bash` from it and
+//      exited 0. That is a shipped spawn-posture line derived from a key the platform would not read.
+//   3. A DUPLICATE `capabilities:` key. The local map silently kept the LAST value — two keys,
+//      `read` then `shell`, shipped `tools: Bash` and exited 0. The authority retains EVERY
+//      occurrence precisely because discarding one is the bypass shape this project refuses, so a
+//      count other than exactly one is now a refusal that names the count.
+//
+// A fourth divergence was a mis-blamed finding rather than a bypass: an unterminated frontmatter
+// block made the local parser return an EMPTY map, so the generator reported "`capabilities:` is
+// absent or empty" about a file whose frontmatter could not be read at all. Those are different facts
+// and only one of them is actionable; the authority's `ok: false` arm is now branched on explicitly
+// and reported as unreadable.
+//
+// The remedy for two answers to one predicate in this project is to DELETE the second grammar, never
+// to teach it an extra case — a weaker second opinion that still votes is worse than none. So the
+// local function is gone rather than renamed, commented out or flag-guarded.
 //
 //   node scripts/generate-role-adapters.js   # exit 0 on success, 1 on any structural miss
 //
@@ -36,11 +66,15 @@
 // other adapter simply OMITS the spawn tool from its `tools` line, which is the vendor-documented
 // path-independent way to stop a sub-agent from spawning.
 //
-// Node stdlib ONLY — node:fs + node:path, plus the in-repo kit-model module. Zero npm dependencies.
+// Node stdlib ONLY — node:fs + node:path, plus the in-repo kit-model and frontmatter modules. The
+// claim still holds after WR-03: `frontmatter.ts` has no imports at all, and `kit-model.ts` imports
+// only node:fs + node:path, so reading through the authority adds no dependency, no new file and no
+// npm package. Zero npm dependencies.
 
 import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { listRoles } from "./kit-model.js";
+import { parseFrontmatter } from "./frontmatter.js";
 
 // ── Fixed literal paths (never argv/env/content-derived — ASVS V12) ───────────────────────────
 const ROOT = join(import.meta.dirname, "..");
@@ -53,7 +87,12 @@ const AGENT_PREFIX = "grugops-";
 const COORDINATOR_ROLE = "orchestrator";
 
 // ── Fail-closed helper (a structural miss is a finding, never an unhandled throw) ──────────────
-const fail = (m: string): never => {
+// The VARIABLE carries the `=> never` annotation, not just the arrow: TypeScript only lets a
+// never-returning call narrow control flow when the callee is a function declaration or a const with
+// an explicit type annotation. That narrowing is what lets the parse-failure branch below read the
+// authority's success arm without a cast, instead of a redundant second `ok` test that would read as
+// a fallback for a state that cannot be reached.
+const fail: (m: string) => never = (m: string): never => {
   console.error(`  ERROR    ${m}`);
   process.exit(1);
 };
@@ -71,18 +110,6 @@ const CAPABILITY_TOOLS: readonly { readonly token: string; readonly tools: reado
   { token: "plan", tools: ["TodoWrite"] },
 ];
 const VOCABULARY = CAPABILITY_TOOLS.map((c) => c.token);
-
-// ── Flat key:value frontmatter parse (stdlib slice+regex — NO js-yaml/gray-matter) ────────────
-function parseFrontmatter(text: string): Record<string, string> {
-  const m = text.match(/^---\n([\s\S]*?)\n---\n/); // fence at byte 0
-  const fm: Record<string, string> = {};
-  if (!m) return fm; // empty → caller treats as a fail-closed signal where a field is required
-  for (const line of m[1].split("\n")) {
-    const kv = line.match(/^([A-Za-z_]+):\s*(.*)$/);
-    if (kv) fm[kv[1]] = kv[2].trim();
-  }
-  return fm;
-}
 
 // ── First-sentence summary: split on ". " (period-SPACE), KEEP its period, never re-append ────
 // Splitting on a bare "." would truncate `AGENTS.md` (agents-md-scribe). `indexOf(". ") === -1`
@@ -199,10 +226,38 @@ for (const file of roleFiles) {
   }
   seenNames.set(folded, file);
 
-  // Capabilities → tools, validated against the closed vocabulary at BUILD time (T-27-29).
-  const fm = parseFrontmatter(text!);
-  const rawCaps = (fm.capabilities ?? "").trim();
+  // Capabilities → tools, read through the ONE frontmatter authority (WR-03) and validated against
+  // the closed vocabulary at BUILD time (T-27-29). Three distinct facts, three distinct findings:
+  // an unreadable role file, a role with no capabilities key, and a role declaring the key twice are
+  // not the same problem and must not print the same sentence.
+  const parsed = parseFrontmatter(text!);
+  if (!parsed.ok) {
+    // A PARSE FAILURE IS A PARSE ARTIFACT, NEVER A VERDICT (frontmatter.ts header). An unreadable
+    // role file is a different fact from a role with no capabilities, and the deleted grammar
+    // conflated them: it returned an empty map on an unterminated block, so this generator blamed a
+    // missing `capabilities:` key on a file whose frontmatter could not be read at all.
+    fail(`${file}: frontmatter is unreadable — ${parsed.reason}`);
+  }
+  const caps = parsed.value.get("capabilities") ?? [];
+  if (caps.length === 0) {
+    fail(
+      `${file}: no \`capabilities:\` key in the role frontmatter — an adapter whose \`tools\` resolve to nothing is refused by the platform at launch; declare at least one of: ${VOCABULARY.join(", ")}`,
+    );
+  }
+  if (caps.length > 1) {
+    // The authority retains EVERY occurrence of a key. Picking one here would re-introduce the
+    // last-wins reading the deleted grammar had, and a `capabilities:` declaration that is silently
+    // discarded is the bypass shape this project refuses. The count is named so the author can see
+    // how many were found rather than being told to look for "a duplicate" that may be three.
+    fail(
+      `${file}: ${caps.length} \`capabilities:\` keys in one role frontmatter, expected exactly 1 — every occurrence is retained rather than last-wins, because silently discarding a declaration is a bypass; delete the extra key`,
+    );
+  }
+  const rawCaps = caps[0].trim();
   if (rawCaps === "") {
+    // Wording retained VERBATIM from before the WR-03 switch: a committed refusal case pins this
+    // string, and the empty-value fact has not changed. The "absent" half of the sentence is now
+    // covered by its own finding above; this arm is reached only by a key that is present and empty.
     fail(
       `${file}: \`capabilities:\` is absent or empty — an adapter whose \`tools\` resolve to nothing is refused by the platform at launch; declare at least one of: ${VOCABULARY.join(", ")}`,
     );

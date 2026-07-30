@@ -76,8 +76,9 @@ import { listAgentAdapters } from "./kit-model.js";
 // is what made this gate impossible to point at a hermetic mirror.
 //
 // SCRIPT_ROOT stays fixed and script-relative: it is where the committed compiled twins the
-// mirror-spawn copies (generate-role-adapters.js, kit-model.js) actually live, and those must be the
-// ones continuous integration and host machines run — never a copy from an arbitrary mirror.
+// mirror-spawn copies (generate-role-adapters.js and the modules it imports) actually live, and those
+// must be the ones continuous integration and host machines run — never a copy from an arbitrary
+// mirror.
 const SCRIPT_ROOT = join(import.meta.dirname, "..");
 // KIT_ROOT is the tree whose adapters are being judged: the role and packaging sources fed to the
 // mirrored generator, and the committed .claude/agents directory read back for comparison. It
@@ -102,9 +103,18 @@ function die(message) {
     process.exit(1);
 }
 // ── Mirror-spawn regeneration ────────────────────────────────────────────────────
-// Lay out <tmp>/scripts/{generate-role-adapters,kit-model}.js + <tmp>/agent-factory/{roles,packaging}
-// + <tmp>/.claude/agents, then run the mirrored generator so its fixed-literal OUT_DIR resolves
-// inside the mirror.
+// Lay out <tmp>/scripts/{generate-role-adapters,kit-model,frontmatter}.js +
+// <tmp>/agent-factory/{roles,packaging} + <tmp>/.claude/agents, then run the mirrored generator so
+// its fixed-literal OUT_DIR resolves inside the mirror.
+//
+// THE TWIN LIST BELOW IS THE GENERATOR'S IMPORT CLOSURE AND MUST TRACK IT. It is hand-written rather
+// than derived, and that is a deliberate trade: deriving it would mean writing a grammar for "what
+// does this module import" inside a build-safety gate, which is a second grammar of exactly the kind
+// finding WR-03 exists to delete. The trade is only acceptable because the failure direction is LOUD:
+// an unmirrored import makes the mirrored generator fail to resolve it and exit non-zero, which the
+// fail-closed branch below reports as "did not run cleanly" and the gate goes red. It can never pass
+// while one file short. `frontmatter.js` joined the list in plan 27-23, when WR-03 moved the
+// generator's frontmatter read onto the shared authority.
 //
 // agent-factory/packaging is mirrored although the generator does not currently OPEN it: it is the
 // declared upstream source for both adapter body shapes and for the capability vocabulary, so a
@@ -118,6 +128,7 @@ mkdirSync(join(tmp, "scripts"), { recursive: true });
 mkdirSync(join(tmp, ADAPTER_DIR), { recursive: true });
 cpSync(join(SCRIPT_ROOT, "scripts", "generate-role-adapters.js"), join(tmp, "scripts", "generate-role-adapters.js"));
 cpSync(join(SCRIPT_ROOT, "scripts", "kit-model.js"), join(tmp, "scripts", "kit-model.js"));
+cpSync(join(SCRIPT_ROOT, "scripts", "frontmatter.js"), join(tmp, "scripts", "frontmatter.js"));
 cpSync(join(KIT_ROOT, "agent-factory", "roles"), join(tmp, "agent-factory", "roles"), {
     recursive: true,
 });
