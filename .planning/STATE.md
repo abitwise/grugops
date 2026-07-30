@@ -5,15 +5,15 @@ milestone_name: Autonomous Factory — Real Spawning, Controlled Language & Live
 current_phase: 27
 current_phase_name: spawn-correctness-kit-set-authority
 status: executing
-stopped_at: Completed 27-17-PLAN.md; 27-18..27-23 planned (gap-closure round 2)
-last_updated: "2026-07-30T00:00:00.000Z"
+stopped_at: Completed 27-18-PLAN.md
+last_updated: "2026-07-30T13:06:23.341Z"
 last_activity: 2026-07-30
-last_activity_desc: "gap-closure round 2 planned — 6 plans (27-18..27-23) covering all 10 findings in 27-REVIEW-GAPS.md; 3 criticals are reproducible guard bypasses printing ALL CHECKS PASSED"
+last_activity_desc: "gap-closure round 2 executing — 27-18 (TRACER) closed CR-01: the frontmatter authority now refuses YAML anchors/aliases; a self red-team found and closed 4 further bypasses in the first draft"
 progress:
   total_phases: 7
   completed_phases: 0
   total_plans: 23
-  completed_plans: 17
+  completed_plans: 18
   percent: 0
 ---
 
@@ -29,9 +29,9 @@ See: .planning/PROJECT.md (updated 2026-07-28 — after v2.0 milestone)
 ## Current Position
 
 Phase: 27 (spawn-correctness-kit-set-authority) — EXECUTING
-Plan: 17 of 23 executed; 27-18..27-23 planned, not started
-Status: Ready to execute (gap-closure round 2, gap waves 7–9)
-Last activity: 2026-07-30 — gap-closure round 2 planned from `27-REVIEW-GAPS.md` (3 critical / 5 warning / 2 info, all 10 in scope)
+Plan: 18 of 23 executed; 27-19..27-23 planned, not started
+Status: Executing (gap-closure round 2, gap waves 7-9); gap wave 8 was blocked on 27-18 and is now unblocked
+Last activity: 2026-07-30 — 27-18 closed CR-01 (anchor/alias spawn grants refused at the parsing authority)
 
 ## Performance Metrics
 
@@ -210,6 +210,7 @@ Last activity: 2026-07-30 — gap-closure round 2 planned from `27-REVIEW-GAPS.m
 | Phase 27 P14 | 25m | 2 tasks | 4 files |
 | Phase 27 P15 | 40m | 2 tasks | 8 files |
 | Phase 27 P16 | 30m | 2 tasks | 5 files |
+| Phase 27 P18 | 35 min | 2 tasks | 4 files |
 
 ## Accumulated Context
 
@@ -507,6 +508,8 @@ Recent decisions affecting current work:
 - [Phase ?]: [27-15] The coordinator adapter BODY is emitted from an inline string in scripts/generate-role-adapters.ts, NOT from the packaging template — the plan named three sources, the real count is four. Correcting only the template leaves the shipped body stale while adapters-freshness stays green (it compares against the same stale generator).
 - [Phase ?]: [27-15] TIER_BEATS gains a sixth beat pinning the reduced-tier command name, plus an optional per-beat `why` clause (default preserves the five original findings byte-identically). Pinned TO the shipped command via an arbitrary-wrong RED case, not merely AGAINST the stale token.
 - [Phase ?]: [27-16] SPAWN-03's observable half is discharged by one command (scripts/coordinator-resolution-precheck.js); its runtime half stays unperformed and lands in 27-SPAWN-03-RUNTIME-EVIDENCE.md, shipped empty and marked unverified
+- [Phase ?]: [27-18] A YAML reference construct in a value position is a parse artifact, refused by name — never resolved (a second grammar with more surface) and never read as plain text (the silent no-grant arm). CR-01.
+- [Phase ?]: [27-18] A safety predicate's alphabet must come from the grammar's SPEC, not be hand-chosen. The review-suggested `[A-Za-z0-9_-]` anchor-name charset was itself a live bypass (YAML 1.2 allows any non-space non-flow-indicator char); set-literal drift in a character class.
 
 ### Pending Todos
 
@@ -605,8 +608,8 @@ Shape of the carry: **9 of 11 are pre-v2.0 carryover** from the v1.2 block above
 
 ## Session Continuity
 
-Last session: 2026-07-29T10:56:06.266Z
-Stopped at: Completed 27-16-PLAN.md
+Last session: 2026-07-30T13:06:08.097Z
+Stopped at: Completed 27-18-PLAN.md
 Resume file: None
 
 ## Operator Next Steps
