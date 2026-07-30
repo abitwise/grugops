@@ -191,6 +191,11 @@ import {
   keysHaveSpawnGrant,
   keysGrantedAgentNames,
   keyHasValue,
+  // (Plan 27-20 / 27-REVIEW § WR-05) The two key names that grant a tool. IMPORTED, never restated:
+  // the tools-key floor in guardWr05() asks "is a tool allow-list DECLARED at all", and that question
+  // must be scoped by the same list keysHaveSpawnGrant() reads, or the floor could pass a file whose
+  // grant the grant test never looks at.
+  TOOLS_KEYS,
   type FrontmatterKeys,
 } from "./frontmatter.js";
 
@@ -566,12 +571,25 @@ function guardWr05(): void {
   // different kind (`kind: packaging` / `tier: core`) and the skills carry their own; neither is an
   // agent identity and neither needs a name key asserted here. A file that failed to parse above
   // already produced its own finding and is deliberately not double-reported.
+  //
+  // (Plan 27-20 / 27-REVIEW § WR-05) THE SECOND FLOOR IS THE SAME ARGUMENT AS THE FIRST. An adapter
+  // must also DECLARE a tool allow-list. Per this project's own stack notes (CLAUDE.md § "3.
+  // Subagent"): `tools` is optional and omitting it inherits ALL main-conversation tools — the spawn
+  // tool included. keysHaveSpawnGrant() returns false for an absent key, so the rogue-grant loop
+  // above reads a MAXIMAL grant as compliant. An absent key is a grant BY INHERITANCE, never a
+  // no-grant: an absent key and a declared no-spawn key print the same silence and mean opposite
+  // things, which is precisely why the `name` floor above exists. The scoping argument carries over
+  // unchanged — a packaging template and a skill are not sub-agent identities, and the skills that
+  // do carry `allowed-tools` are covered by the grant test itself.
   for (const f of AGENT_ADAPTERS) {
     if (!fileExists(f)) continue;
     const keys = parsedScan.get(f);
     if (keys === undefined) continue; // already reported as a parse failure
     if (!keys.has("name")) {
       wr05Fail += `\n${f}: agent adapter carries no \`name\` key in its frontmatter — Claude Code takes agent identity only from frontmatter, so this is not a loadable agent and its spawn-grant verdict cannot be trusted`;
+    }
+    if (!TOOLS_KEYS.some((k) => keys.has(k))) {
+      wr05Fail += `\n${f}: agent adapter declares no \`tools\` key — omitting it makes the platform grant every main-conversation tool INCLUDING the spawn tool, so an absent key is a grant by inheritance and this guard cannot report on it`;
     }
   }
   // Cardinality (CR-01): exactly one coordinator across the SCAN set. A fenced documentation example

@@ -259,10 +259,18 @@ function consistentMirror(): string {
   // plantPlainAdapter()'s `name` argument) to make the declared identity disagree with the filename.
   // Before that assertion existed, all eleven KIT-03 cases would have passed identically against a
   // comparison that ignored `name` entirely.
+  //
+  // (Plan 27-20 / WR-05) The `tools:` line is LOAD-BEARING, not decoration — the same note this
+  // fixture already carries for the memory sentence. guard_wr05 now floors every agent adapter on
+  // DECLARING a tool allow-list, because omitting the key makes the platform grant every
+  // main-conversation tool including the spawn tool. An adapter without the line is therefore a
+  // genuinely defective adapter, and every "asserts ALL CHECKS PASSED" case built on this mirror
+  // would fail for a reason having nothing to do with what it tests. It is deliberately SPAWN-FREE:
+  // only the coordinator may hold the grant, so the list names ordinary tools and no `Agent`.
   for (const name of granted) {
     writeFileSync(
       adapterPath(m, name),
-      `---\nname: ${name}\ndescription: Hermetic mirror fixture adapter.\nmodel: inherit\n---\nFixture adapter. ${MEMORY_SENTENCE_SPECIALIST}\n`,
+      `---\nname: ${name}\ndescription: Hermetic mirror fixture adapter.\ntools: Read, Grep, Glob, Edit, Write, Bash\nmodel: inherit\n---\nFixture adapter. ${MEMORY_SENTENCE_SPECIALIST}\n`,
     );
   }
   // Re-point the coordinator's grant at the full 16-name set so the closure closes.
@@ -307,12 +315,19 @@ function plantNestedRogue(root: string, rel: string): string {
 // stem, the shape the review found no fixture could produce. Existing callers pass a matching pair on
 // purpose, because that match is what the oracle now ASSERTS; the fixture-expressed-mismatch case at
 // the end of the KIT-03 block is the inverse and is what would fail if the assertion were deleted.
+//
+// (Plan 27-20 / WR-05) Like consistentMirror()'s fixture bodies, the `tools:` line here is
+// LOAD-BEARING. guard_wr05 floors every agent adapter on DECLARING a tool allow-list — an absent key
+// is a grant by inheritance of every main-conversation tool, the spawn tool included — so a planted
+// adapter without one would fail for a reason having nothing to do with the case that planted it.
+// Deliberately spawn-free: this helper's whole point is a file unremarkable in every way except its
+// existence.
 function plantPlainAdapter(root: string, rel: string, name: string): string {
   const file = join(root, ".claude/agents", rel);
   mkdirSync(dirname(file), { recursive: true });
   writeFileSync(
     file,
-    `---\nname: ${name}\ndescription: Hermetic mirror fixture adapter.\nmodel: inherit\n---\nFixture adapter. ${MEMORY_SENTENCE_SPECIALIST}\n`,
+    `---\nname: ${name}\ndescription: Hermetic mirror fixture adapter.\ntools: Read, Grep, Glob, Edit, Write, Bash\nmodel: inherit\n---\nFixture adapter. ${MEMORY_SENTENCE_SPECIALIST}\n`,
   );
   return file;
 }
@@ -548,17 +563,52 @@ describe("check-foundation-guards.js (SDLC-02 / SC2 fail-proof harness)", () => 
 
   // The name-key floor the parser makes possible: a file in the agent-adapter set with no `name` key
   // is not a loadable agent, and is also not a file this guard can honestly report on.
+  //
+  // (Plan 27-20 / WR-05) The fixture DECLARES a `tools` line so it fails for exactly ONE reason. Once
+  // the sibling tools-key floor landed, a fixture missing both keys would go red either way — and a
+  // case that stays red after the assertion it names is deleted has stopped pinning that assertion.
+  // The added line makes this case STRICTLY more precise, and the final assertion states so.
   it("guard_wr05 agent adapter with NO name key → nonzero + the missing-name floor names the file", () => {
     const m = consistentMirror();
     const file = adapterPath(m, "grugops-uat-planner");
     writeFileSync(
       file,
-      `---\ndescription: Fixture adapter with no name key.\nmodel: inherit\n---\nFixture adapter. ${MEMORY_SENTENCE_SPECIALIST}\n`,
+      `---\ndescription: Fixture adapter with no name key.\ntools: Read, Grep, Glob, Edit, Write, Bash\nmodel: inherit\n---\nFixture adapter. ${MEMORY_SENTENCE_SPECIALIST}\n`,
     );
     const r = runIn(m);
     expect(r.status).not.toBe(0);
     expect(out(r)).toMatch(/carries no `name` key in its frontmatter/);
     expect(out(r)).toContain(".claude/agents/grugops-uat-planner.md");
+    // The name floor is the ONLY reason this tree is red — the tools floor has nothing to say.
+    expect(out(r)).not.toMatch(/declares no `tools` key/);
+  });
+
+  // (Plan 27-20 / 27-REVIEW § WR-05) The tools-key floor: the same argument as the name floor above.
+  // An agent adapter that declares NO tool allow-list is not "carrying no grant" — the platform hands
+  // it every main-conversation tool, `Agent` included, so an absent key is a grant BY INHERITANCE.
+  // keysHaveSpawnGrant() returns false for a missing key, so before this floor the rogue-grant
+  // direction read a maximal grant as compliant and the PASS line asserted something it never checked.
+  it("guard_wr05 agent adapter with NO tools key → nonzero + names the file and the grant-by-inheritance consequence (WR-05, reproduced)", () => {
+    const m = mirror();
+    const file = adapterPath(m, "grugops-qe-e2e");
+    const before = readFileSync(file, "utf8");
+    // Guard the fixture: without this, a shipped adapter that stopped carrying the line would turn
+    // this case into a no-op deletion asserting against an unmodified tree.
+    expect(before).toMatch(/^tools:/m);
+    writeFileSync(
+      file,
+      before
+        .split("\n")
+        .filter((l) => !/^tools:/.test(l))
+        .join("\n"),
+    );
+    const r = runIn(m);
+    expect(r.status).not.toBe(0);
+    const o = out(r);
+    expect(o).toMatch(/declares no `tools` key/);
+    expect(o).toContain("an absent key is a grant by inheritance");
+    expect(o).toContain(".claude/agents/grugops-qe-e2e.md");
+    expect(o).not.toContain("PASS  WR-05:");
   });
 
   // RED fixture (b): the coordinator with its spawn grant DROPPED → a half-flip that silently kills
