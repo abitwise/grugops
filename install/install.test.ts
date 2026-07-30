@@ -1642,11 +1642,69 @@ describe("install.js / uninstall.js — single-installer contract (folds install
   // list: it reads both literals out of the two sources, asserts they AGREE, and drives every case
   // below off the result. An entry added to one file and not the other fails here, and an entry
   // added to both is automatically covered by the round-trip case.
-  function mappingDests(file: string, constName: string): string[] {
+  //
+  // WR-04 (plan 27-22) — AND THEN THE DERIVE-THE-SET IDIOM WAS CAUGHT WITH ITS OWN DERIVATION
+  // BLIND. Refusing the third hand-copy was right. But the list is recovered by a REGEX OVER
+  // TYPESCRIPT SOURCE, and a regex over source is a PARSER — one that can silently under-match.
+  // The old pair matcher read DOUBLE-QUOTED pairs only, and the count beside it was a hardcoded
+  // literal. So a third runnable added TO BOTH FILES in any other shape left both derived sets at
+  // the same two members, `toBe(2)` still passed, and the new runnable was covered by NONE of the
+  // five cases below that are driven off RUNNABLE_RELS. Reproduced exactly that way before this
+  // change, whole suite green; transcript in 27-22-SUMMARY.md.
+  //
+  // THE REMEDY IS TO DERIVE THE CARDINALITY, NOT TO ADD A SECOND MATCHER. Widening the matcher
+  // alone just moves the blind spot to the next shape nobody thought of. Counting the entries the
+  // AUTHOR wrote and comparing that against the entries the matcher RECOVERED turns every future
+  // unreadable shape from a silent coverage loss into a loud parse failure naming the file, the
+  // constant, both counts and the cause. The matcher IS also widened to single quotes and
+  // backticks — but as a convenience, not as the guarantee.
+  //
+  // BOTH THE DERIVED CARDINALITY AND THE LITERAL INTEGER ARE WANTED; neither replaces the other.
+  // The derived cardinality closes the blind spot (the matcher missed an entry that IS there); the
+  // `toBe(2)` in the case below is the somebody-added-one forcing function (an entry was
+  // legitimately added and the humans reading this test must be told). The literals are therefore
+  // left exactly as written.
+
+  // parseMappingBody — the ONE place a `[source, dest]` mapping literal is recovered from source
+  // text, and the one place the declared-versus-parsed refusal lives. Takes the block body rather
+  // than a file so the refusal itself is testable against a synthetic string.
+  //
+  // "Declared" is the count of `[` openings inside the block. That is the shape-INDEPENDENT count
+  // of entries the author wrote: every entry is a tuple literal, so every entry opens exactly one
+  // bracket, whatever quoting or spelling it uses. Counting brackets rather than commas or lines is
+  // what makes this a floor the matcher cannot slip under. It errs toward failing: a stray `[`
+  // inside a comment in the block would also trip it, which is the safe direction for a coverage
+  // claim.
+  function parseMappingBody(file: string, constName: string, body: string): Array<[string, string]> {
+    const pairs = [...body.matchAll(/\[\s*["'`]([^"'`]+)["'`]\s*,\s*["'`]([^"'`]+)["'`]\s*\]/g)].map(
+      (m) => [m[1], m[2]] as [string, string],
+    );
+    const declared = (body.match(/\[/g) ?? []).length;
+    if (pairs.length !== declared) {
+      throw new Error(
+        `${file}: ${constName} declares ${declared} entr(ies) but only ${pairs.length} were parsed — ` +
+          "an entry is in a shape this test cannot read, so the set derived here would cover less " +
+          "than the source does while every count beside it still passed",
+      );
+    }
+    return pairs;
+  }
+  function parseMapping(file: string, constName: string): Array<[string, string]> {
     const src = readFileSync(join(import.meta.dirname, file), "utf8");
     const block = new RegExp(`const ${constName}: Array<\\[string, string\\]> = \\[([\\s\\S]*?)\\n\\];`).exec(src);
     if (!block) throw new Error(`${file}: could not find the ${constName} mapping literal`);
-    return [...block[1].matchAll(/\[\s*"([^"]+)"\s*,\s*"([^"]+)"\s*\]/g)].map((m) => m[2]).sort();
+    return parseMappingBody(file, constName, block[1]);
+  }
+  function mappingDests(file: string, constName: string): string[] {
+    return parseMapping(file, constName).map(([, dest]) => dest).sort();
+  }
+  // The source half of the same mapping. ROUTED THROUGH THE SAME HELPER rather than given a
+  // parallel declared-versus-parsed check of its own: the source side had the identical blind spot
+  // in a second place (its own hand-written regex plus its own hardcoded `2`), and a second
+  // implementation of one predicate is the failure class this phase exists to delete. One parser,
+  // one refusal, two projections.
+  function mappingSources(file: string, constName: string): string[] {
+    return parseMapping(file, constName).map(([source]) => source).sort();
   }
   const RUNNABLE_RELS = mappingDests("install.ts", "RUNNABLES");
 
@@ -1657,15 +1715,62 @@ describe("install.js / uninstall.js — single-installer contract (folds install
     expect(RUNNABLE_RELS.length).toBe(2);
     expect(mirror.length).toBe(2);
     // Sources too — a mirrored dest removed on the strength of the WRONG source's bytes would be a
-    // byte-identity check that proves nothing.
-    const srcSideInstall = [...readFileSync(join(import.meta.dirname, "install.ts"), "utf8").matchAll(
-      /\["(scripts\/runnable-ref\/[^"]+)",\s*"tools\/grugops\/[^"]+"\]/g,
-    )].map((m) => m[1]).sort();
-    const srcSideUninstall = [...readFileSync(join(import.meta.dirname, "uninstall.ts"), "utf8").matchAll(
-      /\["(scripts\/runnable-ref\/[^"]+)",\s*"tools\/grugops\/[^"]+"\]/g,
-    )].map((m) => m[1]).sort();
+    // byte-identity check that proves nothing. Through the same declared-versus-parsed helper, so
+    // this half can no longer come back short while its own integer still passes.
+    const srcSideInstall = mappingSources("install.ts", "RUNNABLES");
+    const srcSideUninstall = mappingSources("uninstall.ts", "RUNNABLES_MIRROR");
     expect(srcSideUninstall).toEqual(srcSideInstall);
     expect(srcSideInstall.length).toBe(2);
+    // The path SHAPES the old hand-written source-side regex used to encode inline. Kept as
+    // explicit assertions so routing both halves through one parser lost none of what it checked:
+    // every source lives under the runnable reference directory and every dest under the one
+    // directory grugops owns inside the user's repo.
+    for (const s of srcSideInstall) expect(s.startsWith("scripts/runnable-ref/")).toBe(true);
+    for (const d of RUNNABLE_RELS) expect(d.startsWith("tools/grugops/")).toBe(true);
+  });
+
+  it("runnable removal: an entry in a shape the mapping parser cannot read FAILS LOUDLY, it does not shrink the set (WR-04)", () => {
+    // THE REFUSAL IS PROVEN HERE, IN THE SUITE — not by a one-off manual edit to the real sources.
+    // The check runs against in-memory block bodies, so neither install.ts nor uninstall.ts is
+    // touched by this case.
+
+    // Control: the shapes the matcher CAN read parse cleanly, including the widened ones. If this
+    // arm ever went red the refusal below would be vacuous.
+    const readable =
+      '  ["a/one.js", "b/one.js"],\n' +
+      "  ['a/two.js', 'b/two.js'],\n" +
+      "  [`a/three.js`, `b/three.js`],\n";
+    expect(parseMappingBody("synthetic.ts", "RUNNABLES", readable).map(([, d]) => d)).toEqual([
+      "b/one.js",
+      "b/two.js",
+      "b/three.js",
+    ]);
+
+    // The refusal: a third entry whose first element is an EXPRESSION rather than a literal — a
+    // shape no amount of quote-widening reaches, which is the whole point of counting declared
+    // entries instead of trusting the matcher.
+    const unreadable = readable + '  [REF_DIR + "four.js", "b/four.js"],\n';
+    expect(() => parseMappingBody("synthetic.ts", "RUNNABLES", unreadable)).toThrow(
+      /synthetic\.ts: RUNNABLES declares 4 entr\(ies\) but only 3 were parsed/,
+    );
+    // The message must NAME things, or a future reader gets a count with no way to act on it.
+    let msg = "";
+    try {
+      parseMappingBody("synthetic.ts", "RUNNABLES", unreadable);
+    } catch (e) {
+      msg = (e as Error).message;
+    }
+    expect(msg).toContain("synthetic.ts"); // the file
+    expect(msg).toContain("RUNNABLES"); // the constant
+    expect(msg).toContain("4"); // declared
+    expect(msg).toContain("3"); // parsed
+    expect(msg).toContain("a shape this test cannot read"); // the cause
+
+    // And the second half of the finding: a trailing comment inside the brackets, the other shape
+    // the review named, is refused rather than silently dropped.
+    expect(() =>
+      parseMappingBody("synthetic.ts", "RUNNABLES", '  ["a/one.js" /* why */, "b/one.js"],\n'),
+    ).toThrow(/declares 1 entr\(ies\) but only 0 were parsed/);
   });
 
   it("runnable removal: a scratch install followed by a scratch uninstall leaves no runnable behind", () => {
