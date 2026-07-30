@@ -210,6 +210,23 @@ function repointGrant(file: string, granted: string[]): void {
   writeFileSync(file, rewritten);
 }
 
+// (Plan 27-19 / CR-02) Rewrite a mirrored adapter's single frontmatter `name:` line.
+//
+// Claude Code takes agent identity ONLY from that key, so this is the only way to build a fixture
+// whose DECLARED identity disagrees with its FILENAME — the namespace split the review reproduced,
+// and the shape no KIT-03 fixture could previously express. Modelled on reshapeToolsKey()'s
+// find-then-splice, and it THROWS when the key is absent: a helper that silently no-ops leaves the
+// case asserting against an unmodified tree, which is a fixture that pins nothing.
+function renameAdapterIdentity(file: string, newName: string): void {
+  const src = readFileSync(file, "utf8").split("\n");
+  const at = src.findIndex((l) => /^name:/.test(l));
+  if (at === -1) {
+    throw new Error(`renameAdapterIdentity: ${file} has no \`name:\` line to rewrite`);
+  }
+  src.splice(at, 1, `name: ${newName}`);
+  writeFileSync(file, src.join("\n"));
+}
+
 // The RED fixture: the structurally broken tree this milestone exists to close.
 function brokenMirror(): string {
   const m = mirror();
@@ -234,6 +251,14 @@ function consistentMirror(): string {
   // built on this mirror would fail for a reason having nothing to do with what it tests. Keep it.
   // (Plan 27-14) It now carries the ANCHORED FULL sentence, exactly once — the fragment no longer
   // satisfies the positive half.
+  //
+  // (Plan 27-19 / CR-02) `name:` is written EQUAL TO THE FILENAME STEM, and that match is now
+  // ASSERTED by the oracle rather than merely assumed by this fixture — which is why the default is
+  // kept: every existing case depends on this mirror running green. The INVERSE is expressed by the
+  // three cases at the end of the KIT-03 block, which use renameAdapterIdentity() (and
+  // plantPlainAdapter()'s `name` argument) to make the declared identity disagree with the filename.
+  // Before that assertion existed, all eleven KIT-03 cases would have passed identically against a
+  // comparison that ignored `name` entirely.
   for (const name of granted) {
     writeFileSync(
       adapterPath(m, name),
@@ -276,6 +301,12 @@ function plantNestedRogue(root: string, rel: string): string {
 // `.claude/agents`. The oracle's coordinator-cardinality branch returns early, so a case that needs
 // to reach the three-way set comparison must plant a file that is unremarkable in every way except
 // its existence. Body carries the memory sentence so guard_adapter_body has nothing to say about it.
+//
+// (Plan 27-19 / CR-02) `name` is a SEPARATE ARGUMENT from `rel` and callers may now legally disagree
+// them — that is what lets a fixture express a declared identity differing from its own filename
+// stem, the shape the review found no fixture could produce. Existing callers pass a matching pair on
+// purpose, because that match is what the oracle now ASSERTS; the fixture-expressed-mismatch case at
+// the end of the KIT-03 block is the inverse and is what would fail if the assertion were deleted.
 function plantPlainAdapter(root: string, rel: string, name: string): string {
   const file = join(root, ".claude/agents", rel);
   mkdirSync(dirname(file), { recursive: true });
@@ -1662,6 +1693,79 @@ describe("check-foundation-guards.js (SDLC-02 / SC2 fail-proof harness)", () => 
     const r = runIn(m);
     expect(r.status).toBe(0);
     expect(out(r)).not.toContain("grugops-not-a-real-role");
+  });
+
+  // ── The IDENTITY-NAMESPACE cases plan 27-19 adds (CR-02). ─────────────────────────────────────
+  //
+  // Set 2 of the three-way equality is keyed on FILENAMES; set 3 is the coordinator's frontmatter
+  // grant, i.e. platform AGENT NAMES. Claude Code takes identity only from frontmatter, and until this
+  // round nothing asserted the two namespaces coincide — so the milestone's founding defect (a grant
+  // enumerating a name no installed agent carries) reproduced with the oracle printing
+  // "17 roles == 17 adapters == 17 grant-closure names" and exiting 0.
+  //
+  // These three are the fixtures the review found missing. Every one of them fails if the
+  // `nameMismatch` block is removed from scripts/check-foundation-guards.ts.
+
+  it("referential integrity RED: one adapter's frontmatter `name` rewritten → nonzero + KIT-03 names it (CR-02, reproduced)", () => {
+    const m = consistentMirror();
+    // Green FIRST on the IDENTICAL mirror, so the rename is provably what turns it red rather than
+    // some unrelated defect in the fixture. Without this the case would still pass over a mirror that
+    // was broken for any other reason and the RED evidence would be worthless.
+    const before = runIn(m);
+    expect(before.status).toBe(0);
+    expect(out(before)).toContain("ALL CHECKS PASSED");
+
+    // The review's exact reproduction: one byte-level edit to one NON-COORDINATOR adapter's `name`
+    // value and nothing else. The coordinator's grant still enumerates `grugops-installer`, which now
+    // resolves to no loaded agent.
+    renameAdapterIdentity(
+      adapterPath(m, "grugops-installer"),
+      "totally-different-name",
+    );
+    const r = runIn(m);
+    expect(r.status).not.toBe(0);
+    const o = out(r);
+    expect(o).toContain("KIT-03:");
+    expect(o).toContain(".claude/agents/grugops-installer.md");
+    expect(o).toContain("declares `name: totally-different-name`");
+    expect(o).toContain("expected `name: grugops-installer`");
+    // The oracle returns early, so the equality is NEVER claimed over two namespaces.
+    expect(o).not.toContain("PASS  KIT-03");
+  });
+
+  it("referential integrity RED: a fixture-PLANTED adapter declaring a name ≠ its filename stem fails the same way", () => {
+    // This is the case that proves the FIXTURE GENERATOR can express the failure at all — the review's
+    // finding was that it could not, because consistentMirror(), plantPlainAdapter() and
+    // plantNestedRogue() all wrote `name:` equal to the filename stem by construction.
+    const m = consistentMirror();
+    plantPlainAdapter(m, "grugops-extra.md", "grugops-something-else");
+    const r = runIn(m);
+    expect(r.status).not.toBe(0);
+    const o = out(r);
+    expect(o).toContain("KIT-03:");
+    expect(o).toContain(".claude/agents/grugops-extra.md");
+    expect(o).toContain("declares `name: grugops-something-else`");
+    expect(o).toContain("expected `name: grugops-extra`");
+    // The mapping refusal PRECEDES the set comparison, so the 18-vs-17 cardinality is not what is
+    // reported here. A mismatch must be fixed before the equality means anything.
+    expect(o).not.toContain("17 roles, 18 adapters");
+  });
+
+  it("referential integrity RED: an EMPTY `name` value is its OWN finding, never read as a match", () => {
+    const m = consistentMirror();
+    renameAdapterIdentity(adapterPath(m, "grugops-qe-e2e"), "");
+    const r = runIn(m);
+    expect(r.status).not.toBe(0);
+    const o = out(r);
+    expect(o).toContain("KIT-03:");
+    expect(o).toContain(".claude/agents/grugops-qe-e2e.md");
+    // Reported as EMPTINESS, distinctly: not folded into the plain "declares X, expected Y" mismatch
+    // and not folded into the absent-key arm. Printing one silence for two different facts is exactly
+    // what guard_wr05's `name`-key floor was written to avoid, and this oracle must not repeat it.
+    expect(o).toContain("`name` key present with an EMPTY value");
+    expect(o).not.toContain("declares `name: `");
+    expect(o).not.toContain("carries NO `name` key at all");
+    expect(o).not.toContain("PASS  KIT-03");
   });
 
   // ── Smoke — the REAL guard over the REAL tree. ────────────────────────────────────────────────
