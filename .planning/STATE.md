@@ -5,15 +5,15 @@ milestone_name: Autonomous Factory — Real Spawning, Controlled Language & Live
 current_phase: 27
 current_phase_name: spawn-correctness-kit-set-authority
 status: executing
-stopped_at: Completed 27-19-PLAN.md
-last_updated: "2026-07-30T13:29:17.803Z"
+stopped_at: Completed 27-23-PLAN.md
+last_updated: "2026-07-30T13:49:07.695Z"
 last_activity: 2026-07-30
-last_activity_desc: "gap-closure round 2 executing — 27-19 closed CR-02: KIT-03 now asserts the frontmatter-name to filename mapping before comparing namespaces; a self red-team found and closed a duplicate-name-key bypass in the fix's own first draft"
+last_activity_desc: 27-19 closed CR-02 (KIT-03 asserts the frontmatter-name to filename mapping before any set comparison; identity has one authority)
 progress:
   total_phases: 7
   completed_phases: 0
   total_plans: 23
-  completed_plans: 19
+  completed_plans: 20
   percent: 0
 ---
 
@@ -29,9 +29,9 @@ See: .planning/PROJECT.md (updated 2026-07-28 — after v2.0 milestone)
 ## Current Position
 
 Phase: 27 (spawn-correctness-kit-set-authority) — EXECUTING
-Plan: 19 of 23 executed; 27-20..27-23 planned, not started
-Status: Executing (gap-closure round 2, gap waves 7-9); gap wave 8 complete (27-19), gap wave 9 next
-Last activity: 2026-07-30 — 27-19 closed CR-02 (KIT-03 asserts the frontmatter-name to filename mapping before any set comparison; identity has one authority)
+Plan: 20 of 23 executed (27-01..27-19 + 27-23); 27-21 is 27-23's wave-8 sibling, 27-20 and 27-22 are wave 9 — all three not started
+Status: Executing (gap-closure round 2, gap waves 7-9); gap wave 8 in progress — 27-23 complete, 27-21 outstanding
+Last activity: 2026-07-30 — 27-23 closed WR-03/IN-01/IN-02 (the generator's second frontmatter grammar deleted with byte-identical adapters; the freshness gate cleans up on every exit path; check-kit-refs and validate-agent-factory wired into CI at both ends)
 
 ## Performance Metrics
 
@@ -212,6 +212,7 @@ Last activity: 2026-07-30 — 27-19 closed CR-02 (KIT-03 asserts the frontmatter
 | Phase 27 P16 | 30m | 2 tasks | 5 files |
 | Phase 27 P18 | 35 min | 2 tasks | 4 files |
 | Phase 27 P19 | 35 min | 2 tasks | 3 files |
+| Phase 27 P23 | 15 min | 3 tasks | 7 files |
 
 ## Accumulated Context
 
@@ -514,6 +515,12 @@ Recent decisions affecting current work:
 - [Phase ?]: [27-19] Identity has ONE authority: the frontmatter `name` key. KIT-03's filename-keyed set 2 is legal only because the mapping to that key is asserted first (CR-02); coordinator-resolution-precheck.ts already resolved by name, so the two consumers now agree.
 - [Phase ?]: [27-19] A `name` key with anything other than EXACTLY ONE value is refused — self red-team proved reading `[0]` let a matching decoy hide the real identity while the gate printed ALL CHECKS PASSED. Pin the cardinality of the answer, not just its value.
 - [Phase ?]: [27-19] Expected adapter name is the filename stem, NOT AGENT_PREFIX joined to it — the review's suggested patch double-prefixed and would have failed all 17 shipped adapters.
+- [Phase 27]: 27-23 (WR-03): the adapter generator's local frontmatter grammar is DELETED — it reads through scripts/frontmatter.ts, the single authority, and the 17 shipped adapters are byte-identical after the switch
+- [Phase 27]: 27-23: two of WR-03's three divergences were NOT fail-closed as the review rated them — the no-space shape shipped a full six-tool line and the duplicate-key shape shipped the LAST value, both exiting 0; measured on the pre-change committed .js
+- [Phase 27]: 27-23: three distinct generator refusals for three distinct facts (unreadable frontmatter / no capabilities key / N capabilities keys); the present-but-empty wording is retained verbatim so the committed RED case still pins
+- [Phase 27]: 27-23 (IN-01): adapters-freshness registers cleanup on process exit immediately after mkdtempSync; the explicit cleanup() calls stay because 'exit' does not fire on a signal or process.abort()
+- [Phase 27]: 27-23 (IN-02): check-kit-refs.js and validate-agent-factory.js now have their own CI steps; validate-agent-factory needs VALIDATE_KIT_ROOT set explicitly (the C3 no-false-green guard gives it no default)
+- [Phase 27]: 27-23: the gate's mirror twin list stays hand-written (deriving it would be a second grammar inside a build-safety gate) but the oracle's scratch() now DERIVES the generator's import closure — asymmetric on purpose, and the gate's direction is fail-loud
 
 ### Pending Todos
 
@@ -612,8 +619,8 @@ Shape of the carry: **9 of 11 are pre-v2.0 carryover** from the v1.2 block above
 
 ## Session Continuity
 
-Last session: 2026-07-30T13:29:17.792Z
-Stopped at: Completed 27-19-PLAN.md
+Last session: 2026-07-30T13:48:56.006Z
+Stopped at: Completed 27-23-PLAN.md
 Resume file: None
 
 ## Operator Next Steps
