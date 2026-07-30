@@ -49,8 +49,9 @@
 // DELIBERATELY NOT A YAML ENGINE, AND THE REFERENCE CONSTRUCTS ARE REFUSED BY NAME. Anchors,
 // aliases and merge keys are not resolved. No shipped adapter or skill uses one, the generator
 // cannot emit one, and resolving them would mean writing a second grammar with MORE surface rather
-// than less. So `YAML_REF` (below) detects a reference sigil in a value position and returns the
-// PARSE-FAILURE arm: the guard goes red and a human decides.
+// than less. So `YAML_REF` / `startsWithReference` (below) detect a reference sigil at a node start
+// in a value position, and `flattenBlock` returns the PARSE-FAILURE arm for it — before the value is
+// flattened, so the refusal cannot be dodged by moving the anchor. The guard goes red; a human decides.
 //
 //   This paragraph previously claimed the refusal happened for free, on the theory that an anchor
 //   line was "an unrecognized key shape". It was not. `KEY_LINE` matches `_t: &t Read, …, Agent(x)`
@@ -114,8 +115,24 @@ const KEY_LINE = /^([A-Za-z_][A-Za-z0-9_-]*):(?:[ \t]+(.*))?[ \t]*$/;
 const BLOCK_INDICATOR = /^[|>][0-9]*[+-]?[ \t]*(?:#.*)?$|^[|>][+-]?[0-9]*[ \t]*(?:#.*)?$/;
 // A block-sequence item on a continuation line: a dash, then either end-of-line or the item text.
 const SEQ_ITEM = /^-(?:[ \t]+(.*))?$/;
-// A YAML REFERENCE SIGIL AT A TOKEN START: an `&` (anchor) or `*` (alias) that begins a value, a
-// flow-sequence item or a block-sequence item and is immediately followed by a name character.
+// A YAML REFERENCE SIGIL AT A TOKEN START: an `&` (anchor) or `*` (alias) that BEGINS a node and is
+// immediately followed by a name character. Anchored with `^` on purpose — see `startsWithReference`
+// for how the three token starts (a value, a flow item, a sequence item) are each reduced to a string
+// whose position 0 is that node's start, so this one pattern serves all of them.
+//
+// THE NAME CHARSET IS YAML'S, NOT `\w`. YAML 1.2 defines an anchor name as one or more
+// `ns-anchor-char`, which is `ns-char` MINUS the flow indicators — i.e. ANY non-space character that
+// is not `,`, `[`, `]`, `{` or `}`. So `&.t`, `&@t`, `&a/b` and `&ét` are all legal anchor names.
+// A first draft of this constant used `[A-Za-z0-9_-]` and a self red-team immediately walked through
+// it: `_t: &.t <grant>` / `tools: *.t` parsed clean and returned the no-grant SUCCESS arm — the very
+// bypass being closed, in a new spelling. The charset below is YAML's own, so there is no "name that
+// YAML accepts and this test does not".
+//
+// AND A PLAIN SCALAR CANNOT BEGIN WITH `&` OR `*` ANYWAY. Both are YAML indicator characters; an
+// unquoted value starting with one is either a reference or invalid YAML. That is why refusing on
+// sight at position 0 is not an over-broad reading — there is no legitimate plain scalar it can
+// swallow. A value that genuinely starts with those bytes must be quoted, and a quoted value is a
+// literal string that this test correctly leaves alone (`tools: "*t"` parses and grants nothing).
 //
 // WHY REFUSE RATHER THAN RESOLVE. A reference means the value this document EXPRESSES is not the text
 // these lines carry. There are only three things this module could do with one, and two of them are
@@ -125,12 +142,6 @@ const SEQ_ITEM = /^-(?:[ \t]+(.*))?$/;
 // the only honest reading: an unresolvable reference is a PARSE ARTIFACT, so it goes to the `ok:
 // false` arm, the guard goes red and a human decides.
 //
-// WHY THE TOKEN-START ANCHOR. `^`, `,`, `[` and `{` are the STRUCTURAL positions where YAML would
-// read a node, and a name character must follow immediately. Whitespace is deliberately NOT a
-// token-start here, so ordinary prose keeps parsing: `R&D` in a description, a bare `*` between
-// words, and markdown `*emphasis*` are all left alone. A guard that failed on correct documentation
-// would teach the next author to delete the documentation.
-//
 // WHERE IT IS NOT APPLIED. Never inside a `|` or `>` block scalar. There YAML gives `&` and `*` no
 // reference meaning at all — they are literal text, the platform reads them literally, and so must
 // this module. Refusing there would be a false red on correct content.
@@ -138,7 +149,43 @@ const SEQ_ITEM = /^-(?:[ \t]+(.*))?$/;
 // THE MERGE KEY NEEDS NO BRANCH. `<<: *x` never reaches here: `KEY_LINE` requires `[A-Za-z_]` at the
 // key start, so `<` fails it and the line is already refused as unreadable. Do not add a second path
 // for the merge key — it is pinned by a named case in scripts/frontmatter.test.ts.
-const YAML_REF = /(?:^|[,[{])[ \t]*[&*][A-Za-z0-9_-]/;
+const YAML_REF = /^[&*][^\s,[\]{}]/;
+// Does this value-position text BEGIN with a YAML reference, at its own start or at the start of any
+// node nested inside it?
+//
+// WHY THIS IS NOT ONE LOOSER REGEX. The obvious shortcut is to treat any `,`-preceded sigil as a
+// token start, and it is wrong: `description: Reads, *writes* nothing` would then fail red, and a
+// guard that fails on correct documentation teaches the next author to delete the documentation.
+// A comma only introduces a node INSIDE a flow collection, so the split below happens only when the
+// value actually opens with `[` or `{`. Everywhere else the sigil must be at position 0. That is what
+// keeps `R&D` in a description, a bare `*` between words and markdown `*emphasis*` parsing.
+//
+// THE SPLIT IS ON EVERY FLOW DELIMITER, NOT JUST THE COMMA. `,`, `[` and `{` each introduce a node,
+// so all three are separators. A self red-team walked through the comma-only version with
+// `tools: [[*t]]` — the alias sits at the start of a NESTED sequence, so no comma precedes it, and the
+// document parsed clean into the no-grant SUCCESS arm. Splitting on all three closes the nesting at
+// any depth without tracking depth, because only each fragment's START is tested.
+//
+// The split is deliberately naive about quoting: splitting `["Agent(a, b)"]` at its delimiters yields
+// fragments that begin with neither sigil, so a quoted item can only ever produce MORE fragments to
+// check, never fewer. The error direction is a redundant check, never a missed one.
+function startsWithReference(text) {
+    const t = text.trim();
+    if (YAML_REF.test(t))
+        return true;
+    if (!/^[[{]/.test(t))
+        return false;
+    for (const fragment of t.split(/[,[{]/)) {
+        const node = fragment.trim();
+        if (YAML_REF.test(node))
+            return true;
+        // A flow MAPPING entry is `key: value`, so the value after the separator is its own node start.
+        const sep = node.indexOf(": ");
+        if (sep !== -1 && YAML_REF.test(node.slice(sep + 2).trim()))
+            return true;
+    }
+    return false;
+}
 // Drop a trailing unquoted comment. A `#` only starts a comment when it is outside quotes AND at the
 // start or preceded by whitespace, so `Agent(a#b)` keeps its hash and `Read # note` loses the note.
 // Quote state is tracked WITHIN one piece; a `#` inside a quoted value that wraps across lines can
@@ -237,7 +284,7 @@ function flattenBlock(block, baseIndent) {
             if (item !== null) {
                 // A block-sequence ITEM is its own node, so the token start is the text after the dash.
                 const itemText = (item[1] ?? "").trim();
-                if (YAML_REF.test(itemText))
+                if (startsWithReference(itemText))
                     return refuseRef(t);
                 cur.seq = true;
                 const v = unquote(stripComment(itemText).trim());
@@ -245,7 +292,7 @@ function flattenBlock(block, baseIndent) {
                     cur.parts.push(v);
                 continue;
             }
-            if (YAML_REF.test(t))
+            if (startsWithReference(t))
                 return refuseRef(t);
             cur.parts.push(stripComment(t).trim());
             continue;
@@ -265,7 +312,7 @@ function flattenBlock(block, baseIndent) {
         const rest = (kv[2] ?? "").trim();
         // Refuse BEFORE flattening, and refuse on ANY key — an anchor parked under `_tools:` exists only
         // to be aliased from a real one, so the document as a whole is what becomes unreadable.
-        if (YAML_REF.test(rest))
+        if (startsWithReference(rest))
             return refuseRef(t);
         if (BLOCK_INDICATOR.test(rest)) {
             cur = { key: kv[1], parts: [], block: true, seq: false };

@@ -216,6 +216,62 @@ const FORMS: readonly { readonly label: string; readonly emit: Serializer }[] = 
   },
 ];
 
+// ---------------------------------------------------------------------------
+// The REFUSED-form serializer table — the same product discipline, for the documents that must FAIL.
+// ---------------------------------------------------------------------------
+//
+// WHY THIS TABLE HAD TO EXIST (27-REVIEW-GAPS § CR-01). The oracle above was structurally incapable of
+// catching the anchor/alias bypass, for two compounding reasons: its serializer table had no reference
+// form, and its product only generates documents it already asserts `ok === true` for. So a construct
+// whose correct outcome is REFUSAL had nowhere to live, and the module shipped a header claiming a
+// refusal it did not perform while every case stayed green.
+//
+// The fix is not a case; it is a second product with the SAME shape as the first. Every refused form
+// is walked against every indent and every value, the count is pinned, and the load-bearing assertion
+// is not merely `ok === false` — it is that `hasSpawnGrant` and `grantedAgentNames` are NOT the
+// value-false and empty-array SUCCESS arms. That distinction is the entire defect: a consumer reading
+// the two the same way is how the bypass survived.
+//
+// Each row is annotated with the application point in flattenBlock it exercises, so the five rows are
+// coverage of the five places a reference can sit rather than five spellings of one place.
+const REFUSED_FORMS: readonly {
+  readonly label: string;
+  readonly emit: Serializer;
+}[] = [
+  {
+    // KEY-LINE application point. The 27-REVIEW-GAPS § CR-01 reproduction verbatim in shape: the
+    // anchor is parked under an underscore-prefixed key that is not a tools key at all, and the real
+    // tools key carries only the alias. Reading the alias as plain text is the silent no-grant arm.
+    label: "alias in the value position, anchor parked under a second key (the CR-01 reproduction)",
+    emit: (v, k) => doc([`_tools: &t ${v}`, `${k}: *t`]),
+  },
+  {
+    // KEY-LINE application point, on the tools key's OWN value.
+    label: "anchor directly on the tools key's own value",
+    emit: (v, k) => doc([`${k}: &t ${v}`]),
+  },
+  {
+    // FLOW-ITEM node start: the sigil is neither at the start of the value nor on its own line, it is
+    // an item inside a `[...]` collection. Both the anchor and the alias sit in the flow sequence, so
+    // the document needs no separate anchor key.
+    label: "anchor and alias as flow-sequence items",
+    emit: (v, k) =>
+      doc([`${k}: [&t ${splitTopLevel(v)[0]}, *t]`]),
+  },
+  {
+    // SEQ_ITEM application point: a block-sequence item on a continuation line.
+    label: "anchor and alias as block-sequence items on continuation lines",
+    emit: (v, k, i) =>
+      doc([`${k}:`, ...splitTopLevel(v).map((x) => `${i}- &t ${x}`), `${i}- *t`]),
+  },
+  {
+    // PLAIN-CONTINUATION application point: the value wraps and the alias arrives on the wrapped line,
+    // which is the one position a key-line-only test would miss entirely.
+    label: "alias arriving on a plain continuation line of a wrapped value",
+    emit: (v, k, i) => doc([`${k}: ${halves(v)[0]}`, `${i}*t`]),
+  },
+];
+
 // Two continuation-indent widths, so indentation is part of the product rather than an assumption
 // baked into every fixture.
 const INDENTS: readonly string[] = ["  ", "    "];
@@ -231,6 +287,14 @@ describe("frontmatter — the spawn-grant parser oracle (SPAWN-04 / KIT-03)", ()
     // the count while adding no coverage.
     expect(new Set(FORMS.map((f) => f.label)).size).toBe(FORMS.length);
     expect(new Set(VALUES.map((v) => v.label)).size).toBe(VALUES.length);
+    // (CR-01) The REFUSED table is held to the same discipline, for the same reason: a refused
+    // serializer silently dropped from the table would shrink the refusal claim while every remaining
+    // assertion stayed green — the exact shape of the coverage gap that let the anchor/alias bypass
+    // ship. Five rows, five distinct labels, five distinct application points in flattenBlock.
+    expect(REFUSED_FORMS.length).toBeGreaterThanOrEqual(5);
+    expect(new Set(REFUSED_FORMS.map((f) => f.label)).size).toBe(
+      REFUSED_FORMS.length,
+    );
   });
 
   it("recovers the grant verdict and the enumerated names across all scalar forms x indents x values", () => {
@@ -256,6 +320,48 @@ describe("frontmatter — the spawn-grant parser oracle (SPAWN-04 / KIT-03)", ()
     // rather than quietly shrinking coverage while every remaining case stays green.
     expect(checked).toBe(FORMS.length * INDENTS.length * VALUES.length);
     expect(checked).toBeGreaterThanOrEqual(156);
+  });
+
+  // ── The REFUSED product (CR-01) ───────────────────────────────────────────────────────────────
+
+  it("REFUSES every YAML reference form x indents x values — and never returns the no-grant SUCCESS arm", () => {
+    let checked = 0;
+    for (const form of REFUSED_FORMS) {
+      for (const indent of INDENTS) {
+        for (const v of VALUES) {
+          const text = form.emit(v.value, "tools", indent);
+          const where = `${form.label} | indent=${indent.length} | ${v.label}`;
+          const parsed = parseFrontmatter(text);
+          expect(parsed.ok, where).toBe(false);
+          if (!parsed.ok) expect(parsed.reason, where).toMatch(/anchor or alias/);
+
+          // THE LOAD-BEARING HALF. `ok === false` alone would still be satisfied by a module that
+          // refused for the wrong reason; what the CR-01 defect actually produced was the SUCCESS arm
+          // carrying a clean no-grant verdict on a document that grants the spawn tool. So assert the
+          // success arms are absent by identity, exactly as the unterminated-block case does.
+          const grant = hasSpawnGrant(text);
+          expect(grant.ok, where).toBe(false);
+          expect(grant, where).not.toEqual({ ok: true, value: false });
+          const names = grantedAgentNames(text);
+          expect(names.ok, where).toBe(false);
+          expect(names, where).not.toEqual({ ok: true, value: [] });
+          checked += 1;
+        }
+      }
+    }
+    // Same cardinality pin as the passing product: a refused serializer dropped from the table fails
+    // THIS assertion rather than quietly shrinking what "refuses every reference form" means.
+    expect(checked).toBe(REFUSED_FORMS.length * INDENTS.length * VALUES.length);
+    expect(checked).toBeGreaterThanOrEqual(60);
+  });
+
+  it("the refusal holds identically under the skill form of the key (allowed-tools)", () => {
+    for (const form of REFUSED_FORMS) {
+      for (const v of VALUES) {
+        const text = form.emit(v.value, "allowed-tools", "  ");
+        expect(hasSpawnGrant(text).ok, `${form.label} | ${v.label}`).toBe(false);
+      }
+    }
   });
 
   it("holds identically under the skill form of the key (allowed-tools), across all scalar forms", () => {
@@ -324,6 +430,268 @@ describe("frontmatter — the spawn-grant parser oracle (SPAWN-04 / KIT-03)", ()
     expect(grantedAgentNames(text)).toEqual({
       ok: true,
       value: ["grugops-software-engineer"],
+    });
+  });
+
+  // ── The CR-01 REPRODUCED bypass, as individually named cases ──────────────────────────────────
+  //
+  // Quoted from 27-REVIEW-GAPS § CR-01. They are members of the refused product above, but a product
+  // member is anonymous; these are what a future reader greps for.
+
+  it("CR-01 reproduced bypass — an ALIAS grant on a SKILL document is refused, NOT read as no-grant", () => {
+    // The review's plant verbatim. Before the fix this returned `{ ok: true, value: false }` and the
+    // whole foundation-guards aggregator printed ALL CHECKS PASSED over a mirror carrying it.
+    const text = [
+      "---",
+      "name: grugops-gate",
+      "description: Run the grugops PR quality gate.",
+      'argument-hint: "<request>"',
+      "_tools: &t Read, Write, Bash, Glob, Grep, Agent(grugops-software-engineer)",
+      "allowed-tools: *t",
+      "---",
+      "Body.",
+      "",
+    ].join("\n");
+    const parsed = parseFrontmatter(text);
+    expect(parsed.ok).toBe(false);
+    if (parsed.ok) return;
+    expect(parsed.reason).toMatch(/anchor or alias/);
+    const grant = hasSpawnGrant(text);
+    expect(grant.ok).toBe(false);
+    expect(grant).not.toEqual({ ok: true, value: false });
+    const names = grantedAgentNames(text);
+    expect(names.ok).toBe(false);
+    expect(names).not.toEqual({ ok: true, value: [] });
+  });
+
+  it("CR-01 — a MERGE KEY document lands in the failure arm (refused by KEY_LINE, not by a second branch)", () => {
+    // ISOLATING KEY_LINE. `<<:` on its own reaches no reference test at all: `KEY_LINE` requires
+    // `[A-Za-z_]` at the key start, so `<` fails it and the line is already unreadable. Asserting the
+    // `cannot read` wording is what proves the merge key needs no branch of its own — a later reader
+    // adding one would be adding a redundant second path.
+    const bare = "---\nname: x\n<<: *base\ntools: Read\n---\nBody.\n";
+    const pBare = parseFrontmatter(bare);
+    expect(pBare.ok).toBe(false);
+    if (pBare.ok) return;
+    expect(pBare.reason).toMatch(/cannot read/);
+    expect(hasSpawnGrant(bare)).not.toEqual({ ok: true, value: false });
+
+    // And the REALISTIC merge-key document — the anchor block it merges from is what a real author
+    // would write — is refused too, one line earlier, by the reference test on the anchor's key line.
+    // Either way the document never reaches a verdict, which is the only outcome that matters.
+    const full = [
+      "---",
+      "name: x",
+      "_base: &base",
+      "  tools: Read, Agent(grugops-installer)",
+      "<<: *base",
+      "---",
+      "Body.",
+      "",
+    ].join("\n");
+    const pFull = parseFrontmatter(full);
+    expect(pFull.ok).toBe(false);
+    if (pFull.ok) return;
+    expect(pFull.reason).toMatch(/anchor or alias/);
+    expect(hasSpawnGrant(full)).not.toEqual({ ok: true, value: false });
+  });
+
+  it("CR-01 — an ANCHOR on the tools key itself is refused", () => {
+    const text = [
+      "---",
+      "name: x",
+      "tools: &t Read, Grep, Agent(grugops-installer)",
+      "---",
+      "Body.",
+      "",
+    ].join("\n");
+    const parsed = parseFrontmatter(text);
+    expect(parsed.ok).toBe(false);
+    if (parsed.ok) return;
+    expect(parsed.reason).toMatch(/anchor or alias/);
+    expect(hasSpawnGrant(text).ok).toBe(false);
+  });
+
+  // ── The two bypasses found by SELF RED-TEAM, before this fix was committed ────────────────────
+  //
+  // A green suite is not proof for a safety invariant, so the first draft of the refusal was attacked
+  // directly with eighteen hand-built probes rather than declared done. Two of them walked straight
+  // through it, in both cases because a hand-chosen character set was narrower than the grammar it
+  // claimed to cover. Both are pinned here BY NAME, because the class — "the predicate's alphabet
+  // disagrees with YAML's" — is what would generate the third one.
+
+  it("CR-01 red-team — an anchor NAME outside [A-Za-z0-9_-] is still an anchor and is still refused", () => {
+    // YAML 1.2: an anchor name is `ns-anchor-char+`, i.e. any non-space character except the flow
+    // indicators. The first draft matched `[A-Za-z0-9_-]` after the sigil, so every one of these
+    // parsed clean and returned `{ ok: true, value: false }` on a document that grants spawn.
+    for (const anchor of [".t", "@t", "a/b", "ét", "t.x", "1", "$t", "t+x"]) {
+      const text = [
+        "---",
+        "name: x",
+        `_t: &${anchor} Read, Grep, Agent(grugops-installer)`,
+        `tools: *${anchor}`,
+        "---",
+        "Body.",
+        "",
+      ].join("\n");
+      const grant = hasSpawnGrant(text);
+      expect(grant.ok, anchor).toBe(false);
+      expect(grant, anchor).not.toEqual({ ok: true, value: false });
+    }
+  });
+
+  it("CR-01 red-team — an alias at the start of a NESTED flow collection is refused at any depth", () => {
+    // No comma precedes the alias in `[[*t]]`, so a comma-only flow split missed it entirely and the
+    // document parsed clean. Splitting on every flow delimiter closes it without tracking depth.
+    for (const value of [
+      "[[*t]]",
+      "[Read, [*t]]",
+      "[[[*t]]]",
+      "{a: {b: *t}}",
+      "[{a: *t}]",
+    ]) {
+      const text = `---\nname: x\ntools: ${value}\n---\nBody.\n`;
+      const grant = hasSpawnGrant(text);
+      expect(grant.ok, value).toBe(false);
+      expect(grant, value).not.toEqual({ ok: true, value: false });
+    }
+    // And the same nesting WITHOUT a reference still parses — the split did not turn every flow
+    // collection into a refusal.
+    const clean = `---\nname: x\ntools: [Read, [Grep, Glob]]\n---\nBody.\n`;
+    expect(hasSpawnGrant(clean)).toEqual({ ok: true, value: false });
+  });
+
+  // ── The refusal stays NARROW, pinned in the other direction (SPAWN-04 adjacency edge) ─────────
+  //
+  // A refusal that fired on any `&` or `*` anywhere would be a false red on correct documentation, and
+  // a guard that fails on correct documentation teaches the next author to delete the documentation.
+  // Only a sigil at a NODE START — position 0 of a value, a flow item or a sequence item — is a
+  // reference. These two cases are what keeps that boundary from drifting wider.
+
+  it("CR-01 narrow — sigils ADJACENT to word characters are ordinary text, not references", () => {
+    const text = [
+      "---",
+      "name: grugops-factory-coach",
+      "description: The R&D lane. Reads, *writes* nothing, and a bare * between words is fine.",
+      "tools: Read, Grep",
+      "---",
+      "Body.",
+      "",
+    ].join("\n");
+    const parsed = parseFrontmatter(text);
+    expect(parsed.ok).toBe(true);
+    expect(hasSpawnGrant(text)).toEqual({ ok: true, value: false });
+    expect(grantedAgentNames(text)).toEqual({ ok: true, value: [] });
+    // And the same document with a real grant still reads as a grant — the refusal did not swallow it.
+    const granting = text.replace(
+      "tools: Read, Grep",
+      "tools: Read, Agent(grugops-installer)",
+    );
+    expect(hasSpawnGrant(granting)).toEqual({ ok: true, value: true });
+  });
+
+  it("CR-01 narrow — a sigil inside a BLOCK SCALAR is literal text and is deliberately NOT refused", () => {
+    // YAML gives `&` and `*` no reference meaning inside a `|` or `>` scalar: those bytes are content.
+    // The platform reads them literally, so this module must too. Refusing here would be a false red,
+    // and the value it flattens to carries no spawn token, so no-grant is the honest verdict.
+    const folded = [
+      "---",
+      "name: x",
+      "description: >",
+      "  *alias-looking text that is really just prose",
+      "  and &anchor-looking text on the next line too",
+      "tools: Read, Grep",
+      "---",
+      "Body.",
+      "",
+    ].join("\n");
+    expect(parseFrontmatter(folded).ok).toBe(true);
+    expect(hasSpawnGrant(folded)).toEqual({ ok: true, value: false });
+
+    const literal = [
+      "---",
+      "name: x",
+      "tools: |",
+      "  *t",
+      "---",
+      "Body.",
+      "",
+    ].join("\n");
+    const parsed = parseFrontmatter(literal);
+    expect(parsed.ok).toBe(true);
+    if (!parsed.ok) return;
+    expect(parsed.value.get("tools")).toEqual(["*t"]);
+    expect(hasSpawnGrant(literal)).toEqual({ ok: true, value: false });
+  });
+
+  // ── The three ADJACENT empty states print differently (SPAWN-04 empty edge) ───────────────────
+
+  it("CR-01 empty edge — absent tools key, empty tools value and an all-alias tools value are THREE distinct results", () => {
+    const absent = "---\nname: x\nmodel: inherit\n---\nBody.\n";
+    const empty = "---\nname: x\ntools:\nmodel: inherit\n---\nBody.\n";
+    const alias = "---\nname: x\n_t: &t Read, Agent(grugops-installer)\ntools: *t\n---\nBody.\n";
+
+    // 1. Absent: a legitimate document with no grant, and no `tools` key in the map at all.
+    const pAbsent = parseFrontmatter(absent);
+    expect(pAbsent.ok && pAbsent.value.has("tools")).toBe(false);
+    expect(hasSpawnGrant(absent)).toEqual({ ok: true, value: false });
+
+    // 2. Empty value: also no grant, but the key IS present carrying the empty string. "No grant"
+    //    and "no key" are different facts about the file and the map keeps them apart.
+    const pEmpty = parseFrontmatter(empty);
+    expect(pEmpty.ok && pEmpty.value.get("tools")).toEqual([""]);
+    expect(hasSpawnGrant(empty)).toEqual({ ok: true, value: false });
+
+    // 3. All-alias value: NOT a verdict at all. This is the one that used to print the same thing as
+    //    the other two, which is the whole CR-01 defect.
+    const pAlias = parseFrontmatter(alias);
+    expect(pAlias.ok).toBe(false);
+    expect(hasSpawnGrant(alias).ok).toBe(false);
+
+    // Stated as an identity, so no two of the three can ever collapse into the same printed result.
+    const results = [
+      JSON.stringify(hasSpawnGrant(absent)),
+      JSON.stringify({ present: pEmpty.ok && pEmpty.value.has("tools") }),
+      JSON.stringify(hasSpawnGrant(alias)),
+    ];
+    expect(new Set(results).size).toBe(3);
+  });
+
+  // ── The refusal is decided by POSITION, not by where in the block the offender sits ───────────
+
+  it("CR-01 ordering edge — moving the anchor within the block changes neither the verdict nor the reason category", () => {
+    const first = [
+      "---",
+      "_t: &t Read, Agent(grugops-installer)",
+      "name: x",
+      "tools: *t",
+      "---",
+      "Body.",
+      "",
+    ].join("\n");
+    const last = [
+      "---",
+      "name: x",
+      "model: inherit",
+      "_t: &t Read, Agent(grugops-installer)",
+      "tools: *t",
+      "---",
+      "Body.",
+      "",
+    ].join("\n");
+    for (const text of [first, last]) {
+      const parsed = parseFrontmatter(text);
+      expect(parsed.ok).toBe(false);
+      if (parsed.ok) continue;
+      expect(parsed.reason).toMatch(/anchor or alias/);
+    }
+    // And the enumeration contract is unaffected on documents that DO parse: de-duplicated and sorted
+    // regardless of the order the names were written in.
+    const shuffled =
+      "---\nname: x\ntools: Agent(grugops-qe-e2e, grugops-installer, grugops-qe-e2e)\n---\nBody.\n";
+    expect(grantedAgentNames(shuffled)).toEqual({
+      ok: true,
+      value: ["grugops-installer", "grugops-qe-e2e"],
     });
   });
 
