@@ -124,7 +124,7 @@ Full phase details + milestone summary: `milestones/v2.0-ROADMAP.md` · requirem
   4. On Claude Code the coordinator runs as the **main-thread** agent so its `Agent(<allowlist>)` grant is honored by the runtime, and no non-coordinator adapter carries the `Agent` tool at all — a mechanism that holds on both the main-thread and subagent paths rather than relying on a frontmatter token the runtime ignores. (SPAWN-03, SPAWN-04)
   5. `guard_adapter_body` fails red on pre-v2.0 handoff/single-window prose anywhere in an adapter body — proven against the surviving `grugops-orchestrator.md:25` reference — `orchestrator.md` sits below its **7570-byte FAIL ceiling with the ceiling unchanged**, and the advertised Claude Code floor reads **v2.1.219+ at depth 3** everywhere it appears, with the v2.1.217–218 depth-1 window documented as a known-bad range that degrades loudly. (SPAWN-05, SPAWN-06, SPAWN-07)
 
-**Plans**: 23/23 plans executed
+**Plans**: 28 plans — 23/23 executed; 5 planned in gap-closure round 3 (27-24..27-28)
 Plans:
 **Wave 1**
 
@@ -197,6 +197,27 @@ Plans:
 
 - [x] 27-20-PLAN.md — `guard_wr05`'s tier beats get the same comment-stripped, occurrence-counted treatment `guard_adapter_body` already has, and an agent adapter declaring no `tools` key becomes a named finding rather than a compliant silence [SPAWN-05, SPAWN-04] *(CR-03, WR-05)*
 - [x] 27-22-PLAN.md — the installer's source derivation resolves a symlink the way the authority and the platform do, with a conformance fixture that can see the shape; `mappingDests` derives its own cardinality so a missed entry fails the parse [KIT-01, KIT-02] *(WR-02, WR-04)*
+
+**Gap closure round 3** *(from `27-VERIFICATION.md` dated 2026-07-30T19:30:00Z — `gaps_found`, 7/10 clean, 3 partial with live reproduced defects, plus `27-REVIEW-GAPS-2.md`'s 4 Critical + 1 Warning. Waves restart at 1 because plans 27-01..27-23 are all executed. WR-03 and IN-02 are explicitly out of scope this round.)*
+
+**Gap wave 1**
+
+- [ ] 27-24-PLAN.md — TRACER: the frontmatter authority refuses a YAML **tag** standing in front of a reference, closing the fail-open that returned in a new spelling; proven end-to-end from the module through the committed `.js` to the aggregator on the skill surface, with the tag axis enumerated by shape and both cardinality pins raised [KIT-03, SPAWN-04] *(CR-01)*
+
+**Gap wave 2** *(blocked on 27-24)*
+
+- [ ] 27-25-PLAN.md — the `install.ts`/`uninstall.ts` derivation pair collapses into one shared `install/kit-source.ts` both import (D-28), still never importing `scripts/kit-model.ts`; the uninstall round-trip fixture gains the symlinked adapter and symlinked skill directory it previously only claimed [KIT-02] *(CR-02, WR-02)*
+
+**Gap wave 3** *(27-26 blocked on 27-24; 27-27 blocked on 27-25 — split by shared file, not shared logic)*
+
+- [ ] 27-26-PLAN.md — the `tools`/`allowed-tools` key gets the cardinality arm its sibling `name` key received in 27-19, so a duplicate declaration is refused by name and count on both key spellings instead of passing both guards with the grant silently gone [SPAWN-04, KIT-03] *(WR-01)*
+- [ ] 27-27-PLAN.md — one cycle answer at both walk sites (D-29): a per-path ancestor stack replaces the installer's global visited set and `kit-model`'s absent guard, so a cycle terminates by contract and a directory reachable by two paths contributes both members [KIT-01, KIT-02] *(CR-03, D-29)*
+
+**Gap wave 4** *(blocked on 27-25 and 27-27)*
+
+- [ ] 27-28-PLAN.md — the uninstaller implements the self-checkout refusal its README already publishes, on a marker that can actually fire, closing a reproduced data-loss path; every exit-code row becomes true of the binaries it claims to cover [KIT-02] *(CR-04, IN-01)*
+
+**Ordering that is load-bearing in gap-closure round 3** — the tracer (27-24) closes the shared parser fail-open and establishes the RED-before / GREEN-after proof pattern before any expansion; 27-25's structural collapse must land before 27-27 can give the moved walk its cycle treatment and before 27-28 can add a refusal to the restructured uninstaller. Waves 3 and 4 are split by shared FILE rather than shared logic: 27-24 and 27-26 both edit `check-foundation-guards.test.ts`, and 27-25, 27-27 and 27-28 all edit `install/install.test.ts`.
 
 **Ordering that is load-bearing in gap-closure round 2** — `scripts/frontmatter.ts` is the identity and grant parsing authority. CR-01 changes what it answers and CR-02 and WR-03 both read from it, so 27-18 lands and is proven before any consumer moves. Waves 8 and 9 are split by shared FILE rather than by shared logic: 27-19 and 27-20 both edit `check-foundation-guards.ts`, and 27-21 and 27-22 both edit `install/install.ts`.
 
