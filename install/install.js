@@ -38,9 +38,16 @@
 // KIT-02 / D-18: the adapter and skill sets are DERIVED at run time by reading $GRUGOPS_SRC — the
 // installer carries no adapter or skill name literal, and whether a source file is materialized or
 // plain-copied is decided by the resolver slot line in its own body (D-06), not by its filename.
-import { existsSync, mkdirSync, readFileSync, writeFileSync, appendFileSync, symlinkSync, copyFileSync, cpSync, rmSync, renameSync, readSync, readdirSync, lstatSync, statSync, realpathSync, } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync, appendFileSync, symlinkSync, copyFileSync, cpSync, rmSync, renameSync, readSync, readdirSync, lstatSync, } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { homedir } from "node:os";
+// KIT-02 / D-28: the ONE derivation of "what is in the kit source", shared with uninstall.ts. It
+// used to be defined here and hand-synced into uninstall.ts; that pair drifted twice inside phase 27
+// (CR-02), so it was collapsed into a single sibling module. kit-source.ts is inside install/ by
+// design — D-18's decoupling of the installer from the scripts/ layout is unchanged, and the module
+// still does NOT import scripts/kit-model.ts. Node stdlib only, so both binaries still run on a host
+// with nothing installed. Every call passes the source root explicitly (D-22).
+import { srcSkillNames, srcAdapterFiles, srcNestedAdapterFiles, } from "./kit-source.js";
 // --- argument parsing (INSTALL-03), layered over the TARGET/INSTALL_MODE env overrides ---
 //   --check    run the non-mutating doctor (INSTALL-05): verify every referenced path resolves,
 //              name the FIRST failure with its referencing file, mutate nothing
@@ -165,164 +172,25 @@ const MAT_OPEN = "# <!-- grugops:materialized-kit -->";
 const MAT_CLOSE = "# <!-- /grugops:materialized-kit -->";
 const MAT_SLOT = "# 1. (installed) the absolute kit path the installer wrote above this line.";
 // ---------------------------------------------------------------------------
-// Kit-set derivation (KIT-02 / D-18). The installer SELF-DERIVES the adapter and skill sets by
-// reading $GRUGOPS_SRC at run time; it carries NO hand-listed adapter or skill name. Laying down
-// seventeen adapters instead of one therefore requires no installer edit.
+// Kit-set derivation (KIT-02 / D-18, AMENDED BY D-28). The installer SELF-DERIVES the adapter and
+// skill sets by reading $GRUGOPS_SRC at run time; it carries NO hand-listed adapter or skill name.
+// Laying down seventeen adapters instead of one therefore requires no installer edit.
 //
-// D-18 is explicit that the installer stays SELF-CONTAINED: it deliberately does NOT import
-// scripts/kit-model.ts. The separation of duty is the point — the installer faithfully installs
-// whatever exists in the kit source, while kit-model plus the KIT-03 referential-integrity oracle
-// guarantee at CI time that what exists is correct. Importing the scripts layer would couple the
-// single-file installer to the scripts/ layout and force it to ship a second file.
+// THE DERIVATIONS THEMSELVES NOW LIVE IN ./kit-source.ts, AND ARE DEFINED THERE ONCE (D-28,
+// closing CR-02). They used to be defined HERE and again, hand-synced, in install/uninstall.ts —
+// the declared BYTE-IDENTICAL PAIR the foundation guards' set-literal inventory recorded. That pair
+// drifted twice inside phase 27: round 1 re-synced it, then plan 27-22 moved this file onto statSync
+// and left uninstall.ts on Dirent flags, so a symlinked source adapter installed here and was never
+// removed there. The fix is structural — one authority per predicate — so the definitions moved out
+// and both installers now ask the same module. Do not re-inline a copy; read kit-source.ts's header
+// for the full contract (fail-loud null-versus-empty, the statSync file-ness rule, the
+// flat-directory contract) and for why it still does NOT import scripts/kit-model.ts.
 //
-// FAIL-LOUD CONTRACT (27-13) — ONE contract for ONE derivation, shared with install/uninstall.ts.
-// Both helpers return NULL, never [], when the source directory cannot be read. Null is the
-// fail-LOUD signal, exactly as it already is in uninstall.ts: the caller reports the condition and
-// skips that whole install class rather than looping zero times and reporting completion anyway.
-// They previously returned [] on any read failure, so a tarball that dropped dot directories, a
-// partial checkout or a permissions problem produced a SILENT no-op install that still printed a
-// completion banner (T-27-59).
-//
-// THREE STATES, THREE MESSAGES. `null` = the directory could not be read. `[]` = the directory was
-// read successfully and holds nothing. A populated array = the install set. The two failure states
-// need different remedies (restore the checkout vs. investigate an empty kit), so they are reported
-// distinctly and never folded into one line.
-//
-// Both are called AT EACH USE SITE rather than cached into a module-level constant — the doctor and
-// the install paths run at different points in the process, so a cached snapshot could go stale.
-//
-// FILE-NESS IS DECIDED BY statSync, DELIBERATELY, BECAUSE THAT IS THE AUTHORITY'S TEST (WR-02).
-// These three helpers used to filter on `Dirent` flags from `readdirSync(…, { withFileTypes: true })`.
-// A Dirent for a SYMLINK reports `isSymbolicLink()` and is therefore NEITHER `isFile()` NOR
-// `isDirectory()`, so a symlinked adapter failed every filter here — while
-// scripts/kit-model.ts's walkFilesRelative() uses `statSync`, which FOLLOWS the link, matching how
-// the platform resolves a symlinked adapter. The two derivations disagreed, and the losing side was
-// this one: the symlinked file was not installed, not refused by name, not counted, and the run
-// still printed `== install complete ==`.
-//
-// THE INVARIANT, IN ONE SENTENCE. The installer's INSTALL set may deliberately be NARROWER than the
-// authority's set — that is the flat-directory contract below — but it may never be BLIND to a
-// member the authority sees, because a member it cannot see is a member it cannot refuse by name.
-//
-// A statSync that THROWS makes the entry a non-member and never aborts the derivation, the same way
-// the surrounding code treats a vanished entry (and the same way walkFilesRelative does). The
-// direction is safe here: a dangling link is not a file the platform can load either, so excluding
-// it cannot hide a loadable adapter — while aborting the walk WOULD hide every entry after it.
+// The root is passed EXPLICITLY on every call (D-22): kit-source resolves no root of its own, so
+// GRUGOPS_SRC as resolved above stays this file's single source of truth for where the kit is.
+// Every call is taken AT ITS USE SITE rather than cached — the doctor and the install paths run at
+// different points in the process, so a cached snapshot could go stale.
 // ---------------------------------------------------------------------------
-// isFileFollowing / isDirFollowing — the authority's file-ness and directory-ness test, in the one
-// place the three derivations below share. `false` on any stat failure (ENOENT for a dangling link,
-// ELOOP for a link cycle, EACCES for an unreadable parent).
-function isFileFollowing(p) {
-    try {
-        return statSync(p).isFile();
-    }
-    catch {
-        return false;
-    }
-}
-function isDirFollowing(p) {
-    try {
-        return statSync(p).isDirectory();
-    }
-    catch {
-        return false;
-    }
-}
-// srcSkillNames: the sorted directory names under $GRUGOPS_SRC/.claude/skills that contain a
-// SKILL.md. A directory without a SKILL.md is not a skill and is never installed. Null on an
-// unreadable root (fail-loud); [] on a root that exists and holds no skill.
-//
-// Directory-ness is statSync's, not the Dirent's (see the header): a SYMLINKED skill directory that
-// holds a SKILL.md is a skill, because the platform loads it as one.
-function srcSkillNames() {
-    const root = join(GRUGOPS_SRC, ".claude", "skills");
-    try {
-        return readdirSync(root)
-            .filter((name) => isDirFollowing(join(root, name)) && existsSync(join(root, name, "SKILL.md")))
-            .sort();
-    }
-    catch {
-        return null;
-    }
-}
-// srcAdapterFiles: the sorted TOP-LEVEL .md filenames under $GRUGOPS_SRC/.claude/agents. Null on an
-// unreadable root (fail-loud); [] on a root that exists and holds no adapter.
-//
-// File-ness is statSync's, not the Dirent's (see the header, WR-02).
-function srcAdapterFiles() {
-    const root = join(GRUGOPS_SRC, ".claude", "agents");
-    try {
-        return readdirSync(root)
-            .filter((name) => name.endsWith(".md") && isFileFollowing(join(root, name)))
-            .sort();
-    }
-    catch {
-        return null;
-    }
-}
-// srcNestedAdapterFiles: every `.md` entry BELOW the top level of $GRUGOPS_SRC/.claude/agents, as
-// forward-slash relative paths, sorted.
-//
-// THE FLAT-DIRECTORY CONTRACT, AND WHY THE INSTALLER MUST SEE PAST IT. The adapter directory is flat
-// by contract: the generator, the freshness gate and this installer all work over a flat directory,
-// and the foundation guards REFUSE a nested adapter by name. But Claude Code discovers
-// `.claude/agents/` RECURSIVELY, so a nested file is loaded by the platform. srcAdapterFiles() above
-// is deliberately non-recursive — it is the INSTALL set, and installing a nested file would
-// contradict the contract — which means without this helper a nested source adapter would simply
-// vanish from the run with no comment. The installer must not be the one place a file disappears
-// silently, so it detects the nested entry and REFUSES it by name (T-27-62).
-//
-// THE POLICY IS DEFINED BY scripts/kit-model.ts (listAgentAdapters), NOT HERE. That module is the
-// single authority for "what is an adapter"; this file deliberately does NOT import it (D-18 — the
-// installer stays a self-contained single file). The two derivations are asserted EQUAL by a test
-// instead of bought by coupling: see the `source derivation` conformance case in install.test.ts,
-// which compares this installer's real installed set against listAgentAdapters() over the same
-// fixture and asserts the cardinality as a number. If the locked decision is ever revisited, that
-// conformance case is what to delete along with the duplicate.
-//
-// A read failure at any level yields [] here rather than null: an unreadable root is already the
-// srcAdapterFiles() null branch's finding, and reporting the same condition twice would be noise.
-//
-// Both the recursion test and the collection test go through statSync (see the header, WR-02), so a
-// symlinked nested DIRECTORY is descended into and a symlinked nested FILE is collected — and each
-// one is therefore refused BY NAME at its relative path instead of vanishing. Following links is
-// what makes a cycle reachable, so realpath'd directories are visited at most once: a directory
-// already walked under an earlier path contributes no member the walk has not already seen, so
-// skipping the repeat removes an unbounded recursion without narrowing the set.
-function srcNestedAdapterFiles() {
-    const root = join(GRUGOPS_SRC, ".claude", "agents");
-    const seen = new Set();
-    const walk = (base) => {
-        const out = [];
-        const here = join(root, base);
-        try {
-            const real = realpathSync(here);
-            if (seen.has(real))
-                return out;
-            seen.add(real);
-        }
-        catch {
-            return out;
-        }
-        let names;
-        try {
-            names = readdirSync(here);
-        }
-        catch {
-            return out;
-        }
-        for (const name of names) {
-            const rel = base ? `${base}/${name}` : name;
-            const full = join(here, name);
-            if (isDirFollowing(full))
-                out.push(...walk(rel));
-            else if (name.endsWith(".md") && rel.includes("/") && isFileFollowing(full))
-                out.push(rel);
-        }
-        return out;
-    };
-    return walk("").sort();
-}
 // srcCarriesSlot: the ROUTING signal (D-06). Whether a source file is materialized or plain-copied
 // is decided by the presence of the resolver slot line in its OWN body — never by a hard-coded
 // filename. That is what makes all seventeen adapters resolvers with no name list anywhere, and it
@@ -342,7 +210,7 @@ function srcCarriesSlot(src) {
 // Propagates the null (it is the same derivation wearing a different path prefix); each caller
 // decides what an unknown set means for it, rather than the helper deciding for all of them.
 function targetAdapterFiles() {
-    const files = srcAdapterFiles();
+    const files = srcAdapterFiles(GRUGOPS_SRC);
     return files === null ? null : files.map((f) => join(TARGET, ".claude", "agents", f));
 }
 // report / mkdirp / sameContent / isoStamp: install-side helpers declared HERE (above the doctor +
@@ -949,7 +817,7 @@ function migratePreSteps() {
     // which destinations to protect. That is REPORTED rather than silently degrading into a
     // zero-iteration loop, because the very next step writes through whatever symlinks it missed.
     const migrateAdapterDests = targetAdapterFiles();
-    const migrateSkillNames = srcSkillNames();
+    const migrateSkillNames = srcSkillNames(GRUGOPS_SRC);
     if (migrateAdapterDests === null || migrateSkillNames === null) {
         verify(`symlink pre-step — cannot read ${join(GRUGOPS_SRC, ".claude")}, so the resolver-adapter ` +
             `destination set is unknown. No symlink destination was unlinked. Re-run the installer from ` +
@@ -1452,9 +1320,9 @@ console.log("\n-- adapters --");
 // all three of its states, mirroring uninstall.ts's wording so a reader moving between the two files
 // sees ONE contract rather than two. Before this the helpers returned [] on an unreadable directory,
 // these loops ran zero times, and the run still printed a completion banner — a silent no-op install.
-const SRC_SKILLS = srcSkillNames();
-const SRC_ADAPTERS = srcAdapterFiles();
-const SRC_NESTED_ADAPTERS = srcNestedAdapterFiles();
+const SRC_SKILLS = srcSkillNames(GRUGOPS_SRC);
+const SRC_ADAPTERS = srcAdapterFiles(GRUGOPS_SRC);
+const SRC_NESTED_ADAPTERS = srcNestedAdapterFiles(GRUGOPS_SRC);
 if (SRC_SKILLS === null) {
     verify(`.claude/skills/ — cannot read ${join(GRUGOPS_SRC, ".claude", "skills")}, so the install set is ` +
         `unknown. No skill was installed. Re-run the installer from a complete kit checkout.`);

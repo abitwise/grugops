@@ -43,11 +43,16 @@ import {
   unlinkSync,
   rmdirSync,
   lstatSync,
-  readdirSync,
   readlinkSync,
   realpathSync,
 } from "node:fs";
 import { join, resolve, isAbsolute } from "node:path";
+// KIT-02 / D-28: the ONE derivation of "what is in the kit source", shared with install.ts, so the
+// REMOVAL set and the INSTALL set can never be two answers to one predicate again (CR-02). Only the
+// two derivations this file uses are imported — see the kit-set derivation block below for why
+// srcNestedAdapterFiles() is not one of them. Node stdlib only, sibling module inside install/, so
+// this binary still runs on a host with nothing installed.
+import { srcSkillNames, srcAdapterFiles } from "./kit-source.js";
 
 // ---------------------------------------------------------------------------
 // Argument parsing (CR-02). Mirrors install.ts's loop so uninstall honors the surface its own
@@ -109,11 +114,21 @@ const verify = (msg: string): void => {
 };
 
 // ---------------------------------------------------------------------------
-// Kit-set derivation (KIT-02 / T-27-06) — the mirror of install.ts's srcSkillNames() /
-// srcAdapterFiles(). The hand-listed SKILLS array and the single AGENT_REL constant that used to
-// live here were DUPLICATED LITERALS in a second file, not a code mirror of install.ts: editing
-// only install.ts would have left this uninstaller removing exactly one adapter and orphaning the
-// rest. The removal set is now derived from the same $GRUGOPS_SRC root the installer installs from.
+// Kit-set derivation (KIT-02 / T-27-06). The hand-listed SKILLS array and the single AGENT_REL
+// constant that used to live here were DUPLICATED LITERALS in a second file: editing only
+// install.ts would have left this uninstaller removing exactly one adapter and orphaning the rest.
+// The removal set is derived from the same $GRUGOPS_SRC root the installer installs from.
+//
+// AND THEN THE MIRROR ITSELF WAS THE DUPLICATE (D-28, closing CR-02). Replacing the literals with a
+// hand-synced CODE mirror of install.ts's helpers only moved the drift one level up. That pair —
+// recorded in the foundation guards' set-literal inventory as a declared BYTE-IDENTICAL PAIR —
+// drifted twice inside phase 27: round 1 re-synced it, then plan 27-22 moved install.ts onto
+// statSync for WR-02 and left this file on Dirent flags. A Dirent for a symlink is NEITHER isFile()
+// NOR isDirectory(), so a symlinked source adapter was installed by install.js and never removed
+// here, under `== uninstall complete ==` and exit 0. The remedy is structural: the derivation moved
+// into ./kit-source.ts and BOTH installers import it, so THE REMOVAL SET AND THE INSTALL SET ARE
+// NOW LITERALLY THE SAME DERIVATION and the reversal cannot be narrower than the install. Do not
+// re-inline a copy of either helper here on the argument that it is small — that is the defect.
 //
 // THE REMOVAL SET IS DERIVED FROM THE KIT SOURCE, NEVER FROM THE TARGET. Listing the target's own
 // .claude/agents/ directory and deleting what is there would delete the user's own agent files —
@@ -124,34 +139,19 @@ const verify = (msg: string): void => {
 // Both helpers return NULL — not [] — when the source directory cannot be read. Null is the
 // fail-LOUD signal: the caller reports the condition and skips that removal class entirely, leaving
 // the files for the user to remove by hand. It never falls back to target-derived deletion and
-// never claims a clean uninstall it did not perform (T-27-09).
+// never claims a clean uninstall it did not perform (T-27-09). The full contract lives in
+// kit-source.ts's header.
+//
+// ONLY the two derivations this file USES are imported. srcNestedAdapterFiles() is deliberately not
+// among them: a nested source adapter is REFUSED by the installer and never installed, so there is
+// nothing in the target for the reversal to remove. Importing it here would invent a removal class
+// for files that were never laid down.
+//
+// The source root is passed EXPLICITLY on every call (D-22) — kit-source resolves no root of its
+// own, so the GRUGOPS_SRC resolved above stays this file's single source of truth for where the kit
+// is, exactly as it is install.ts's. The import itself sits with the other imports at the top of
+// the file.
 // ---------------------------------------------------------------------------
-
-// srcSkillNames: sorted directory names under $GRUGOPS_SRC/.claude/skills that contain a SKILL.md.
-function srcSkillNames(): string[] | null {
-  const root = join(GRUGOPS_SRC, ".claude", "skills");
-  try {
-    return readdirSync(root, { withFileTypes: true })
-      .filter((ent) => ent.isDirectory() && existsSync(join(root, ent.name, "SKILL.md")))
-      .map((ent) => ent.name)
-      .sort();
-  } catch {
-    return null;
-  }
-}
-
-// srcAdapterFiles: sorted .md filenames under $GRUGOPS_SRC/.claude/agents.
-function srcAdapterFiles(): string[] | null {
-  const root = join(GRUGOPS_SRC, ".claude", "agents");
-  try {
-    return readdirSync(root, { withFileTypes: true })
-      .filter((ent) => ent.isFile() && ent.name.endsWith(".md"))
-      .map((ent) => ent.name)
-      .sort();
-  } catch {
-    return null;
-  }
-}
 
 // SAFETY GUARD: refuse to ever operate on a frozen-core or user-data path. Every removal
 // target is checked against this denylist before it is touched. agent-factory/, plans/,
@@ -488,8 +488,8 @@ if (DRY_RUN) console.log("mode:   DRY_RUN (no filesystem changes)");
 // the removal sequence, BEFORE anything is removed. The uninstall sequence also tears down grugops
 // wiring, so a derivation taken later in the sequence could come back empty and silently orphan
 // every file it was supposed to remove.
-const SRC_SKILLS = srcSkillNames();
-const SRC_ADAPTERS = srcAdapterFiles();
+const SRC_SKILLS = srcSkillNames(GRUGOPS_SRC);
+const SRC_ADAPTERS = srcAdapterFiles(GRUGOPS_SRC);
 
 console.log("\n-- removing grugops adapters (only what install.js added) --");
 
