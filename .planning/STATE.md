@@ -5,14 +5,14 @@ milestone_name: Autonomous Factory — Real Spawning, Controlled Language & Live
 current_phase: 27
 current_phase_name: spawn-correctness-kit-set-authority
 status: executing
-stopped_at: Completed 27-27-PLAN.md
-last_updated: "2026-07-31T09:49:16.581Z"
+stopped_at: Completed 27-28-PLAN.md
+last_updated: "2026-07-31T12:38:44.125Z"
 progress:
   total_phases: 7
-  completed_phases: 0
+  completed_phases: 1
   total_plans: 28
-  completed_plans: 27
-  percent: 0
+  completed_plans: 28
+  percent: 14
 last_activity: 2026-07-31
 last_activity_desc: "Gap-closure round 3 PLANNED — 5 new plans (27-24..27-28) in 4 waves, plan-checker VERIFICATION PASSED. The 2026-07-30T19:30Z verification returned gaps_found at 7/10 clean: KIT-02, KIT-03 and SPAWN-04 are PARTIAL against six live, reproduced, unpatched defects. 27-24 (tracer) closes CR-01, the frontmatter.ts fail-open where a YAML tag in front of a reference (`allowed-tools: !!seq [*t]`) reaches the silent no-grant SUCCESS arm — shared machinery, so it weakens guard_wr05 and the KIT-03 oracle's grant-closure read at once. 27-25 closes CR-02 per D-28 (added today, AMENDS D-18) by COLLAPSING the install.ts/uninstall.ts derivation pair into one shared install/kit-source.ts rather than hand-syncing it a third time — the pair had drifted twice inside this phase. 27-26 closes WR-01, the missing cardinality arm on tools/allowed-tools that its sibling name key got in 27-19. 27-27 closes CR-03 plus the deferred kit-model.ts walkFilesRelative cycle defect per D-29, with ONE ancestor-stack treatment at both walk sites. 27-28 closes CR-04 by implementing the uninstaller self-checkout refusal install/README.md already publishes — the reproduction deleted 17 adapters and 7 skills at exit 0. Round-2's WR-03 and IN-02 are explicitly out of scope. Every closing task carries a RED-before/GREEN-after transcript requirement and a committed-.js freshness assertion: this phase has now shipped defects past a green suite twice, so tests-pass is not accepted as proof. 23 of 28 plans executed."
 prior_activity_desc: 27-22 closed WR-02 and WR-04, the last two plans-worth of gap-closure round 2. The installer's three source derivations now decide file-ness and directory-ness with `statSync`, matching `kit-model.walkFilesRelative` and the way the platform resolves a symlinked adapter, so a symlinked source adapter is INSTALLED or REFUSED BY NAME instead of vanishing under `== install complete ==`. Proven RED-before/GREEN-after on both synthetic and REAL repo sources, plus four adversarial probes; a symlink CYCLE would have hung the new walk and was closed with a realpath-visited-once guard (Rule 2). `mappingDests` now derives its own cardinality from the `[` openings the author wrote and refuses an entry it cannot read, naming the file, constant and both counts — the plan's stated RED does not reproduce, the review's does, and both transcripts are recorded. All 23 plans of phase 27 are executed; phase 27 is NOT verified complete.
@@ -30,7 +30,7 @@ See: .planning/PROJECT.md (updated 2026-07-28 — after v2.0 milestone)
 ## Current Position
 
 Phase: 27 (spawn-correctness-kit-set-authority) — EXECUTING (gap-closure round 3)
-Plan: 27 of 28 executed (27-01..27-26 done; 27-27..27-28 planned, not started)
+Plan: 28 of 28 executed (27-01..27-26 done; 27-27..27-28 planned, not started)
 Status: 27-26 is CLOSED — WR-01's missing cardinality arm is added to guard_wr05's tools floor, so a document declaring an allow-list key more than once is refused by name and by an exact integer count on both key spellings. The floor's loop widened from the agent adapters to the whole spawn-grant scan set so one arm covers the skill surface, with absence and emptiness keeping their agent-only scope behind an explicit gate; the two-different-key-names adjacency is dispositioned REFUSED as its own finding. `keysHaveSpawnGrant()`'s disjunction and the 27-19 name-key refusal are diff-clean. RED-before/GREEN-after transcripts recorded on both spellings against base sha `7a4b7cc`, the committed `.js` is rebuilt and freshness-green (32 outputs), and the threshold is pinned on both sides by a seven-spelling false-red control. Next: 27-27 (CR-03 + D-29).
 
 | Plan | Wave | Closes | Requirements |
@@ -232,6 +232,7 @@ Prior activity: 2026-07-30 — 27-22 closed WR-02 and WR-04, the last two plans-
 | Phase 27 P25 | 35 min | 2 tasks | 7 files |
 | Phase 27 P26 | ~40 min | 2 tasks | 3 files |
 | Phase 27 P27 | ~25 min | 2 tasks | 6 files |
+| Phase 27 P28 | ~45 min | 2 tasks | 6 files |
 
 ## Accumulated Context
 
@@ -552,6 +553,8 @@ Recent decisions affecting current work:
 - [Phase ?]: WR-01 closed: the allow-list key gets the cardinality arm its sibling name key already had; the two-different-key-names adjacency is dispositioned REFUSED as its own finding.
 - [Phase ?]: guard_wr05's tools-floor loop widened from AGENT_ADAPTERS to SPAWN_GRANT_SCAN so one arm covers the skill surface; absence and emptiness keep their agent-only scope behind an explicit isAgentAdapter gate.
 - [Phase ?]: 27-27: one cycle answer (a per-path ancestor stack) at BOTH recursive walk sites — bounds recursion without narrowing the set; the two sites name each other but do not import across the install/ to scripts/ boundary (D-29, CR-03).
+- [Phase ?]: 27-28: the uninstaller's self-checkout marker pair is install/install.ts + agent-factory/VERSION — agent-factory/VERSION alone is insufficient because README §1's minimal path puts it in ordinary target repos
+- [Phase ?]: 27-28: refuse at the TARGET boundary rather than widening isProtected() to cover .claude/ — .claude/ is the directory a normal reversal legitimately empties
 
 ### Pending Todos
 
@@ -650,8 +653,8 @@ Shape of the carry: **9 of 11 are pre-v2.0 carryover** from the v1.2 block above
 
 ## Session Continuity
 
-Last session: 2026-07-31T09:49:10.760Z
-Stopped at: Completed 27-27-PLAN.md
+Last session: 2026-07-31T12:38:38.246Z
+Stopped at: Completed 27-28-PLAN.md
 Resume file: None
 
 ## Operator Next Steps
