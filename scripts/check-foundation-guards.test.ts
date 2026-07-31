@@ -806,6 +806,121 @@ describe("check-foundation-guards.js (SDLC-02 / SC2 fail-proof harness)", () => 
     expect(o).not.toMatch(/allow-list key \d+ times/);
   });
 
+  // ── The FALSE-RED control the cardinality arm needs to be trustworthy (plan 27-26, Task 2). ─────
+  //
+  // A cardinality arm that fired on a legitimately WRAPPED declaration would red the tree on correct
+  // content — the failure mode the sibling `name` rule explicitly designed against, in the paragraph
+  // that lists every spelling the parser JOINS into a single value. Asserting one spelling and calling
+  // it coverage is how that design fails to carry across, so this walks ONE declaration through each
+  // of them (the product convention scripts/frontmatter.test.ts uses for the refused forms) and
+  // asserts the aggregator still exits 0 for every one.
+  //
+  // The block SEQUENCE is included beyond the sibling's five because it is the form the shipped SKILL
+  // adapters actually use — the spelling a false red would cost the most on.
+  const SINGLE_DECLARATION_SPELLINGS: readonly {
+    label: string;
+    shape: string[];
+  }[] = [
+    { label: "one-line plain scalar", shape: ["tools: Read, Grep, Glob"] },
+    {
+      label: "plain scalar WRAPPED across lines",
+      shape: ["tools: Read, Grep,", "  Glob"],
+    },
+    {
+      label: "quoted scalar WRAPPED across lines",
+      shape: ['tools: "Read, Grep,', '  Glob"'],
+    },
+    {
+      label: "value carrying a trailing # comment",
+      shape: ["tools: Read, Grep, Glob # no spawn tool here"],
+    },
+    {
+      label: "folded block scalar (>-)",
+      shape: ["tools: >-", "  Read, Grep,", "  Glob"],
+    },
+    {
+      label: "literal block scalar (|-)",
+      shape: ["tools: |-", "  Read, Grep, Glob"],
+    },
+    {
+      label: "block sequence (the shipped skill form)",
+      shape: ["tools:", "  - Read", "  - Grep", "  - Glob"],
+    },
+  ];
+
+  it("guard_wr05 the cardinality arm does NOT fire on ANY legitimate spelling of ONE declaration (WR-01 false-red control)", () => {
+    // Fixture guard: a control that walked zero spellings would pass vacuously.
+    expect(SINGLE_DECLARATION_SPELLINGS.length).toBe(7);
+    for (const { label, shape } of SINGLE_DECLARATION_SPELLINGS) {
+      const m = mirror();
+      reshapeToolsBlock(adapterPath(m, "grugops-qe-e2e"), shape);
+      const r = runIn(m);
+      const o = out(r);
+      expect(o, `${label}: expected no cardinality finding`).not.toMatch(
+        /allow-list key \d+ times/,
+      );
+      expect(o, `${label}: expected no two-authorities finding`).not.toMatch(
+        /DIFFERENT allow-list keys/,
+      );
+      expect(r.status, `${label}: expected a green aggregator run`).toBe(0);
+    }
+  });
+
+  // THE COUNT IS AN EXACT INTEGER, not a loose "more than one". A message reporting a wrong number
+  // would pass a `/\d+ times/` match and mislead whoever read it, so the assertion is on the integer
+  // itself and on the absence of its neighbours. (KIT-03 precision edge: occurrence counts are
+  // compared as integers with no tolerance band, and a mismatch is a failure rather than a warning.)
+  it("guard_wr05 THREE `tools` declarations report exactly 3 — the count is an exact integer (WR-01 precision)", () => {
+    const m = mirror();
+    const file = adapterPath(m, "grugops-installer");
+    const src = readFileSync(file, "utf8").split("\n");
+    const at = src.findIndex((l) => /^tools:/.test(l));
+    expect(at).not.toBe(-1);
+    src.splice(
+      at,
+      1,
+      "tools: Read, Grep, Glob",
+      "tools: Read, Grep",
+      "tools: Read",
+    );
+    writeFileSync(file, src.join("\n"));
+
+    const r = runIn(m);
+    expect(r.status).not.toBe(0);
+    const o = out(r);
+    expect(o).toContain("declares the `tools` allow-list key 3 times");
+    expect(o).not.toContain("allow-list key 2 times");
+    expect(o).not.toContain("allow-list key 4 times");
+  });
+
+  // A CHECK REPORTS WHAT IT CHECKED — the guards' established rule, asserted across the new arm. With
+  // a plant carrying BOTH a duplicate allow-list key AND a separate pre-existing finding (a rogue
+  // spawn grant on a different non-coordinator file), the run must report both rather than
+  // short-circuiting at the first. Each is asserted independently, so neither can stand in for the
+  // other.
+  it("guard_wr05 a duplicate key AND a separate finding are BOTH reported — no short-circuit (WR-01 ordering)", () => {
+    const m = mirror();
+
+    const dup = adapterPath(m, "grugops-installer");
+    const src = readFileSync(dup, "utf8").split("\n");
+    const at = src.findIndex((l) => /^tools:/.test(l));
+    expect(at).not.toBe(-1);
+    src.splice(at + 1, 0, "tools: Read, Grep, Glob");
+    writeFileSync(dup, src.join("\n"));
+
+    reshapeToolsKey(adapterPath(m, "grugops-qe-e2e"), [
+      "tools: Read, Grep, Glob, Agent(grugops-software-engineer)",
+    ]);
+
+    const r = runIn(m);
+    expect(r.status).not.toBe(0);
+    const o = out(r);
+    expect(o).toContain("declares the `tools` allow-list key 2 times");
+    expect(o).toContain(".claude/agents/grugops-installer.md");
+    expect(o).toMatch(/rogue spawner/i);
+    expect(o).toContain(".claude/agents/grugops-qe-e2e.md");
+  });
+
   // (Plan 27-20 self-review, probe E) An UNTERMINATED `<!--` used to strip nothing, so every beat
   // after it counted as live and the guard PASSED — while a reader of the rendered markdown sees an
   // HTML block swallowing the rest of the file. The guard would be claiming an announcement nobody
