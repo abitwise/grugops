@@ -78,7 +78,7 @@
 // Node stdlib ONLY — node:fs + node:path. Zero npm dependencies.
 //
 // Clear professional voice throughout (CLAUDE.md hard rule — this is a build-safety surface).
-import { readdirSync, statSync } from "node:fs";
+import { readdirSync, statSync, realpathSync } from "node:fs";
 import { join } from "node:path";
 // The exact expected cardinality of each derived set. Enforcement is two-sided (D-20): 16 roles is a
 // failure and 18 roles is a failure. Bumping either number is a DELIBERATE act that obliges the
@@ -145,10 +145,51 @@ export function listWorkflows(kitRoot = DEFAULT_KIT_ROOT) {
 // named-error helper, so an unreadable SUBdirectory throws naming that subdirectory rather than the
 // root it was reached from.
 //
+// CYCLE TERMINATION IS THIS WALK'S CONTRACT, NOT AN ACCIDENT OF THE HOST (D-29, closing the 27-22
+// deferral). The walk follows symlinks deliberately, which is what makes a cycle reachable, and it
+// previously carried no cycle answer at all. Measured on darwin / node v24 before the fix, with one
+// `loop -> ..` link planted under a ONE-adapter fixture: listAgentAdapters() returned THIRTY-TWO
+// aliased members and terminated only because the operating system's symlink-resolution limit made
+// statSync throw ELOOP; with two such links it threw `RangeError: Maximum call stack size exceeded`.
+// Both are wrong sets from a walk that does not know where it has been, neither is a clean refusal,
+// and the MANNER of termination belonged to the host rather than to this module.
+//
+// THE GUARD IS FOR BOUNDING RECURSION, NOT FOR NARROWING THE SET. `ancestors` holds the real paths
+// of the directories on the CURRENT recursion path and nothing else. A directory revisited under a
+// DIFFERENT path yields DIFFERENT relative paths, and every one of them is a distinct member this
+// module is contracted to report — the invariant the "differing ONLY by nesting are DISTINCT
+// members" case pins. Only a repeat on the SAME path is a cycle. A visited set carried across
+// sibling branches, or across the whole walk, would silently delete a legitimate member; that is
+// precisely the defect CR-03 reproduced in this walk's twin.
+//
+// ONE PREDICATE, TWO SITES, NO IMPORT. install/kit-source.ts's srcNestedAdapterFiles() answers the
+// same question — "have I already walked this real path?" — and now answers it with the same
+// ancestor stack. CR-03 is what happens when one predicate is answered in two places: the two gave
+// two DIFFERENT wrong answers, a dropped member there and an unbounded recursion here. The two
+// sites deliberately do NOT share an import: D-18 and D-28 keep the installer decoupled from the
+// scripts/ layout, so the equality is bought by CASES — the same way the `source derivation`
+// conformance case in install/install.test.ts buys the other half of that decoupling.
+//
+// A directory whose realpath cannot be resolved carries NO cycle key and falls through to
+// readDirOrThrow, which throws naming that directory. The guard must never convert an unreadable
+// directory into a silent [] — that is this module's fail-closed posture (D-21 tier 1), and a cycle
+// guard is not licensed to weaken it.
+//
 // NOT exported: this is the mechanism, not the contract. Consumers ask listAgentAdapters().
-function walkFilesRelative(dir, base = "") {
+function walkFilesRelative(dir, base = "", ancestors = []) {
     const out = [];
-    for (const name of readDirOrThrow(join(dir, base))) {
+    const here = join(dir, base);
+    let real;
+    try {
+        real = realpathSync(here);
+    }
+    catch {
+        real = null;
+    }
+    if (real !== null && ancestors.includes(real))
+        return out; // cycle on THIS path — stop descending
+    const nextAncestors = real === null ? ancestors : [...ancestors, real];
+    for (const name of readDirOrThrow(here)) {
         const rel = base === "" ? name : `${base}/${name}`;
         const full = join(dir, base, name);
         let isDir;
@@ -163,7 +204,7 @@ function walkFilesRelative(dir, base = "") {
             continue;
         }
         if (isDir)
-            out.push(...walkFilesRelative(dir, rel));
+            out.push(...walkFilesRelative(dir, rel, nextAncestors));
         else
             out.push(rel);
     }

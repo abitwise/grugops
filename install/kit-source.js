@@ -160,25 +160,48 @@ export function srcAdapterFiles(srcRoot) {
 //
 // Both the recursion test and the collection test go through statSync (see the header, WR-02), so a
 // symlinked nested DIRECTORY is descended into and a symlinked nested FILE is collected — and each
-// one is therefore refused BY NAME at its relative path instead of vanishing. Following links is
-// what makes a cycle reachable, so realpath'd directories are visited at most once: a directory
-// already walked under an earlier path contributes no member the walk has not already seen, so
-// skipping the repeat removes an unbounded recursion without narrowing the set.
+// one is therefore refused BY NAME at its relative path instead of vanishing.
+//
+// THE CYCLE GUARD IS FOR BOUNDING RECURSION, NOT FOR NARROWING THE SET (D-29, closing CR-03).
+// Following links is what makes a cycle reachable, so this walk needs a cycle answer — and the one
+// it carried was the WRONG one. It recorded the realpath of every directory it walked in a GLOBAL
+// visited set and returned nothing on a repeat, justified on the claim that "a directory already
+// walked under an earlier path contributes no member the walk has not already seen". That claim is
+// FALSE FOR THIS WALK, because members are reported at their RELATIVE paths: one physical directory
+// reached by two paths yields two different relative paths, and the authority counts each of them as
+// a distinct member. Reproduced (CR-03) on `.claude/agents/real/x.md` plus `.claude/agents/alias ->
+// real`: the authority saw `['alias/x.md','real/x.md']` while this walk reported only one of them,
+// with WHICH one decided by readdirSync ordering.
+//
+// THE INVARIANT THAT BREAKS, RESTATED. The installer's INSTALL set may deliberately be NARROWER than
+// the authority's — that is the flat-directory contract above — but it may never be BLIND to a
+// member the authority sees, because a member it cannot see is a member it cannot refuse by name.
+// A global visited set makes it blind. `ancestors` therefore holds the real paths of the directories
+// on the CURRENT recursion path and nothing else: only a repeat on the SAME path is a cycle, and
+// every distinct relative path survives to be refused by name.
+//
+// ONE PREDICATE, TWO SITES, NO IMPORT. scripts/kit-model.ts's walkFilesRelative() answers the same
+// question — "have I already walked this real path?" — and now answers it with the same ancestor
+// stack. CR-03 is what answering one predicate in two places produced: two DIFFERENT wrong answers,
+// a dropped member here and an unbounded recursion there. The two sites deliberately do NOT share an
+// import: D-18 and D-28 keep this installer decoupled from the scripts/ layout, so the equality is
+// bought by CASES — the same way the `source derivation` conformance case in install.test.ts buys
+// the other half of that decoupling.
 export function srcNestedAdapterFiles(srcRoot) {
     const root = join(srcRoot, ".claude", "agents");
-    const seen = new Set();
-    const walk = (base) => {
+    const walk = (base, ancestors) => {
         const out = [];
         const here = join(root, base);
+        let real;
         try {
-            const real = realpathSync(here);
-            if (seen.has(real))
-                return out;
-            seen.add(real);
+            real = realpathSync(here);
         }
         catch {
             return out;
         }
+        if (ancestors.includes(real))
+            return out; // cycle on THIS path — stop descending
+        const nextAncestors = [...ancestors, real];
         let names;
         try {
             names = readdirSync(here);
@@ -190,11 +213,11 @@ export function srcNestedAdapterFiles(srcRoot) {
             const rel = base ? `${base}/${name}` : name;
             const full = join(here, name);
             if (isDirFollowing(full))
-                out.push(...walk(rel));
+                out.push(...walk(rel, nextAncestors));
             else if (name.endsWith(".md") && rel.includes("/") && isFileFollowing(full))
                 out.push(rel);
         }
         return out;
     };
-    return walk("").sort();
+    return walk("", []).sort();
 }
