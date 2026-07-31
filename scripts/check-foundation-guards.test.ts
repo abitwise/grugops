@@ -366,6 +366,23 @@ function reshapeToolsKey(file: string, shape: string[]): void {
   writeFileSync(file, src.join("\n"));
 }
 
+// (Plan 27-26 / WR-01) Replace the allow-list key line AND the block-sequence items that belong to
+// it. reshapeToolsKey() above splices out exactly ONE line, which is right for the scalar-form cases
+// it was written for — but the shipped SKILL adapters express `allowed-tools` as a block SEQUENCE,
+// so replacing only the key line would leave its `  - Read` items dangling under whatever shape was
+// spliced in. A cardinality fixture must control the whole declaration or it is not counting what it
+// claims to count. THROWS when the key is absent, for the same reason renameAdapterIdentity() does:
+// a helper that silently no-ops leaves the case asserting against an unmodified tree.
+function reshapeToolsBlock(file: string, shape: string[]): void {
+  const src = readFileSync(file, "utf8").split("\n");
+  const at = src.findIndex((l) => /^(tools|allowed-tools):/.test(l));
+  if (at === -1) throw new Error(`reshapeToolsBlock: ${file} has no tools key`);
+  let end = at + 1;
+  while (end < src.length && /^\s+- /.test(src[end])) end++;
+  src.splice(at, end - at, ...shape);
+  writeFileSync(file, src.join("\n"));
+}
+
 // Run the compiled guard with CHECK_ROOT pointed at the mirror; capture status + combined output.
 function runIn(checkRoot: string): SpawnSyncReturns<string> {
   return spawnSync("node", [GUARD_JS], {
@@ -666,6 +683,127 @@ describe("check-foundation-guards.js (SDLC-02 / SC2 fail-proof harness)", () => 
     expect(o).toContain("`tools` key present with an EMPTY value");
     expect(o).toContain(".claude/agents/grugops-qe-e2e.md");
     expect(o).not.toMatch(/declares no `tools` key/);
+  });
+
+  // ── The WR-01 CARDINALITY arm: the rule the sibling `name` key already had (plan 27-26). ────────
+  //
+  // Plan 27-19 refused a `name` key carrying anything other than exactly one value — "which of the two
+  // the platform's YAML loader honours is not this oracle's to guess". Plan 27-20 gave the ALLOW-LIST
+  // answer an absence arm and an emptiness arm, thirty lines away in the same function, and no
+  // cardinality arm. keysHaveSpawnGrant() is deliberately a disjunction over ALL occurrences: correct
+  // and fail-safe in the rogue direction, fail-OPEN in the coordinator-must-hold-the-grant direction.
+  // So a coordinator declaring `tools:` twice, where a last-wins loader drops the occurrence carrying
+  // the grant, printed ALL CHECKS PASSED at exit 0 with the runtime grant silently gone
+  // (27-REVIEW-GAPS-2 § WR-01, reproduced on a hermetic mirror).
+  //
+  // The paired green run on the SAME unplanted mirror comes first, so a red run cannot be blamed on
+  // the mirror rather than on the one planted line.
+  it("guard_wr05 DUPLICATE `tools` key on the coordinator → nonzero + names the file and the count (WR-01, reproduced)", () => {
+    const clean = mirror();
+    const before = runIn(clean);
+    expect(before.status).toBe(0);
+    expect(out(before)).toContain("ALL CHECKS PASSED");
+
+    const m = mirror();
+    const file = adapterPath(m, COORDINATOR);
+    const src = readFileSync(file, "utf8").split("\n");
+    const at = src.findIndex((l) => /^tools:/.test(l));
+    expect(at).not.toBe(-1); // fixture guard: a no-op plant asserts nothing
+    // The SECOND declaration carries no spawn token. Under a last-wins loader the coordinator holds
+    // no grant at all; under a first-wins loader it holds the full one. The guard may prefer neither.
+    src.splice(at + 1, 0, "tools: Read, Grep, Glob, Edit, Write, Bash");
+    writeFileSync(file, src.join("\n"));
+
+    const r = runIn(m);
+    expect(r.status).not.toBe(0);
+    const o = out(r);
+    expect(o).toContain(".claude/agents/grugops-orchestrator.md");
+    expect(o).toContain("declares the `tools` allow-list key 2 times");
+    expect(o).toContain("must have ONE answer");
+    // It is the CARDINALITY arm that catches this and nothing else: the disjunction still sees the
+    // grant in the first occurrence, so the dropped-grant arm stays silent and would have let it pass.
+    expect(o).not.toMatch(/carries no spawn grant/);
+    expect(o).not.toContain("PASS  WR-05:");
+  });
+
+  // The same shape on the SKILL spelling of the key, planted on a skill adapter — the surface with no
+  // freshness gate, no role corpus to cross-check and only cardinality checked elsewhere. One arm
+  // covers both spellings; this case is what proves the coverage is not agent-only.
+  it("guard_wr05 DUPLICATE `allowed-tools` key on a SKILL file → nonzero + names the file and the count (WR-01, skill spelling)", () => {
+    const m = mirror();
+    const file = join(m, ".claude/skills/grugops/SKILL.md");
+    reshapeToolsBlock(file, [
+      "allowed-tools: Read, Write, Bash, Glob, Grep",
+      "allowed-tools: Read, Glob, Grep",
+    ]);
+    const r = runIn(m);
+    expect(r.status).not.toBe(0);
+    const o = out(r);
+    expect(o).toContain(".claude/skills/grugops/SKILL.md");
+    expect(o).toContain("declares the `allowed-tools` allow-list key 2 times");
+    expect(o).not.toContain("PASS  WR-05:");
+  });
+
+  // THE NON-FIRING SIDE, pinned as its own case. An arm with no proven non-firing side is a rule
+  // nobody can tell apart from an unconditional red. Every committed adapter and skill declares its
+  // allow-list key exactly ONCE, so the clean mirror must stay green AND must carry no cardinality
+  // finding — asserted on the finding text, not merely on the exit code, so a green run for some
+  // unrelated reason cannot stand in for the threshold holding at one.
+  it("guard_wr05 the cardinality arm does NOT fire at ONE occurrence — the clean mirror is GREEN and prints no allow-list-count finding", () => {
+    const m = mirror();
+    const r = runIn(m);
+    expect(r.status).toBe(0);
+    const o = out(r);
+    expect(o).toContain("ALL CHECKS PASSED");
+    expect(o).not.toMatch(/allow-list key \d+ times/);
+    expect(o).not.toMatch(/DIFFERENT allow-list keys/);
+  });
+
+  // THE EMPTINESS ARM IS NOT MASKED. The cardinality arm sits AFTER the absence/emptiness chain
+  // rather than inside it, so two EMPTY declarations produce BOTH findings. Folding it in as another
+  // `else if` would have let the new arm silence the arm it was added to join.
+  it("guard_wr05 TWO EMPTY `tools` declarations → nonzero + BOTH the emptiness finding and the cardinality finding (WR-01 interplay)", () => {
+    const m = mirror();
+    const file = adapterPath(m, "grugops-installer");
+    const src = readFileSync(file, "utf8").split("\n");
+    const at = src.findIndex((l) => /^tools:/.test(l));
+    expect(at).not.toBe(-1);
+    src.splice(at, 1, "tools:", "tools:");
+    writeFileSync(file, src.join("\n"));
+
+    const r = runIn(m);
+    expect(r.status).not.toBe(0);
+    const o = out(r);
+    expect(o).toContain("`tools` key present with an EMPTY value");
+    expect(o).toContain("declares the `tools` allow-list key 2 times");
+    expect(o).toContain(".claude/agents/grugops-installer.md");
+  });
+
+  // THE TWO-KEY-NAMES ADJACENCY, dispositioned deliberately rather than left unconsidered — an
+  // unconsidered adjacency is how the absence and emptiness arms came to be written without the
+  // cardinality one. DISPOSITION: REFUSED. The platform reads one spelling per surface (`tools` on a
+  // sub-agent, `allowed-tools` on a skill or command) while keysHaveSpawnGrant() reads BOTH as one
+  // answer, so a document carrying both hands one predicate two authorities. It is its OWN finding,
+  // not the per-key cardinality one, because "one key twice" and "two different keys once each" are
+  // different facts with different reasons.
+  it("guard_wr05 an adapter declaring BOTH `tools` and `allowed-tools` → nonzero + the two-authorities finding, not the per-key count (WR-01 adjacency)", () => {
+    const m = mirror();
+    const file = adapterPath(m, "grugops-qe-e2e");
+    const src = readFileSync(file, "utf8").split("\n");
+    const at = src.findIndex((l) => /^tools:/.test(l));
+    expect(at).not.toBe(-1);
+    src.splice(at, 1, "tools: Read, Grep, Glob", "allowed-tools: Read, Grep, Glob");
+    writeFileSync(file, src.join("\n"));
+
+    const r = runIn(m);
+    expect(r.status).not.toBe(0);
+    const o = out(r);
+    expect(o).toContain(".claude/agents/grugops-qe-e2e.md");
+    expect(o).toContain("declares 2 DIFFERENT allow-list keys");
+    expect(o).toContain("`tools`, `allowed-tools`");
+    // Each key appears ONCE, so the per-key cardinality arm must stay silent — the two findings are
+    // not interchangeable and neither may stand in for the other.
+    expect(o).not.toMatch(/allow-list key \d+ times/);
   });
 
   // (Plan 27-20 self-review, probe E) An UNTERMINATED `<!--` used to strip nothing, so every beat

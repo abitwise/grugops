@@ -615,13 +615,60 @@ function guardWr05() {
     // things, which is precisely why the `name` floor above exists. The scoping argument carries over
     // unchanged — a packaging template and a skill are not sub-agent identities, and the skills that
     // do carry `allowed-tools` are covered by the grant test itself.
-    for (const f of AGENT_ADAPTERS) {
+    //
+    // (Plan 27-26 / 27-REVIEW-GAPS-2 § WR-01) THE THIRD ARM, ADDED BECAUSE ITS SIBLING ALREADY HAD IT.
+    // Plan 27-19 refused a `name` key carrying anything other than EXACTLY ONE value, and stated the
+    // reason: which of two duplicate keys the platform's YAML loader honours (first, last, or a
+    // duplicate-key throw) is not this oracle's to guess. Plan 27-20 then gave the ALLOW-LIST answer an
+    // ABSENCE arm and an EMPTINESS arm — thirty lines from that refusal, in this same function, over the
+    // same parse — and no CARDINALITY arm. Same predicate shape, one rule short. The asymmetry was the
+    // finding: a coordinator declaring `tools:` twice, where the later occurrence carries no spawn
+    // token, printed `ALL CHECKS PASSED` at exit 0 while a last-wins loader saw no grant at all.
+    //
+    // keysHaveSpawnGrant() IS LEFT EXACTLY AS IT IS, deliberately. Its disjunction over every
+    // occurrence is CORRECT and fail-safe in the rogue direction — a rogue spawner cannot hide a grant
+    // behind a second clean declaration, because any occurrence carrying the token convicts the file.
+    // It is fail-OPEN only in the other direction (the coordinator must HOLD the grant), and narrowing
+    // the disjunction to close that direction would re-open the rogue one. The cardinality arm closes
+    // the second direction without touching the first: it refuses the DOCUMENT for having two answers,
+    // so no occurrence is ever preferred and no decoy occurrence can stand in for the honoured one.
+    //
+    // THE LOOP IS NOW THE SCAN SET, NOT THE AGENT ADAPTERS, AND THE OLD ARMS KEEP THEIR OLD SCOPE.
+    // Absence and emptiness stay AGENT-ADAPTER-ONLY behind `isAgentAdapter` for the scoping reason
+    // stated above (a skill with no `allowed-tools` is not a defective sub-agent identity; it is not a
+    // sub-agent at all). Cardinality is different in kind: declaring one key twice is a defect on ANY
+    // surface that declares it, and the SKILL surface is the one with no freshness gate, no role corpus
+    // to cross-check and only cardinality checked elsewhere — so it is exactly the surface a duplicate
+    // must not be able to hide on. One loop, one place, three arms with their scopes stated; not a
+    // second check bolted on beside the first.
+    //
+    // THE KEY NAMES ARE COUNTED INDIVIDUALLY, not through the flattened list the arms above use. The
+    // flattened list cannot tell ONE key declared twice from TWO different keys declared once, and
+    // those are different findings with different reasons.
+    //
+    // SAFE AGAINST FALSE REDS, by the same parser argument plan 27-19 verified for the `name` key: the
+    // parser JOINS a wrapped plain scalar, a wrapped quoted scalar, a `>`/`|` block scalar and a block
+    // SEQUENCE into a SINGLE value per occurrence, and strips a trailing `# comment`. Every legitimate
+    // spelling of one allow-list therefore arrives here as one value, so more than one value means the
+    // key genuinely appears more than once.
+    //
+    // THE TWO-KEY-NAMES SHAPE IS DISPOSITIONED, NOT LEFT UNCONSIDERED — an unconsidered adjacency is
+    // how the two arms above came to be written without this one. DISPOSITION: a document declaring
+    // BOTH `tools` and `allowed-tools` is REFUSED, for the same reason and by a sibling arm. The
+    // platform reads exactly ONE of the two per surface (`tools` on a sub-agent, `allowed-tools` on a
+    // skill or command) while keysHaveSpawnGrant() reads BOTH as one answer, so such a document hands
+    // two authorities to one predicate: the guard could convict on a list no loader reads, or clear a
+    // file on a list the loader ignores. Which spelling is honoured is not this guard's to guess
+    // either. The committed tree uses one spelling per surface and no file carries both, so the arm
+    // has no live cost; a case pins the disposition in both directions.
+    for (const f of SPAWN_GRANT_SCAN) {
         if (!fileExists(f))
             continue;
         const keys = parsedScan.get(f);
         if (keys === undefined)
             continue; // already reported as a parse failure
-        if (!keys.has("name")) {
+        const isAgentAdapter = AGENT_ADAPTERS.includes(f);
+        if (isAgentAdapter && !keys.has("name")) {
             wr05Fail += `\n${f}: agent adapter carries no \`name\` key in its frontmatter — Claude Code takes agent identity only from frontmatter, so this is not a loadable agent and its spawn-grant verdict cannot be trusted`;
         }
         // TWO ARMS, ABSENCE AND EMPTINESS, for the reason plan 27-19 gave when it split the same pair on
@@ -632,11 +679,25 @@ function guardWr05() {
         // a line. An empty declaration prints the same silence as no declaration, which is this floor's
         // own founding argument, so it is refused as its own finding rather than guessed at.
         const declaredToolsValues = TOOLS_KEYS.flatMap((k) => keys.get(k) ?? []);
-        if (declaredToolsValues.length === 0) {
+        if (isAgentAdapter && declaredToolsValues.length === 0) {
             wr05Fail += `\n${f}: agent adapter declares no \`tools\` key — omitting it makes the platform grant every main-conversation tool INCLUDING the spawn tool, so an absent key is a grant by inheritance and this guard cannot report on it`;
         }
-        else if (declaredToolsValues.every((v) => v.trim() === "")) {
+        else if (isAgentAdapter && declaredToolsValues.every((v) => v.trim() === "")) {
             wr05Fail += `\n${f}: agent adapter has a \`tools\` key present with an EMPTY value — an empty allow-list declares nothing, and whether the platform reads it as "no tools" or as an absent key (inherit everything, spawn tool included) is not this guard's to guess`;
+        }
+        // The cardinality arm sits AFTER the absence/emptiness chain rather than inside it, on purpose:
+        // a document with TWO EMPTY declarations must produce BOTH findings. Folding it into the chain
+        // as another `else if` would let the new arm mask the arm it was added to join, which is the
+        // opposite of the point. A check reports what it checked.
+        for (const k of TOOLS_KEYS) {
+            const occurrences = keys.get(k) ?? [];
+            if (occurrences.length > 1) {
+                wr05Fail += `\n${f}: declares the \`${k}\` allow-list key ${occurrences.length} times — a tool allow-list has ONE authority and must have ONE answer; which occurrence the platform's YAML loader honours (first, last, or a duplicate-key throw) is not this guard's to guess`;
+            }
+        }
+        const declaredToolsKeys = TOOLS_KEYS.filter((k) => keys.has(k));
+        if (declaredToolsKeys.length > 1) {
+            wr05Fail += `\n${f}: declares ${declaredToolsKeys.length} DIFFERENT allow-list keys (${declaredToolsKeys.map((k) => `\`${k}\``).join(", ")}) — the platform reads one spelling per surface (\`tools\` on a sub-agent, \`allowed-tools\` on a skill or command) while this guard reads both as one answer, so the document gives one predicate two authorities; which spelling is honoured is not this guard's to guess`;
         }
     }
     // Cardinality (CR-01): exactly one coordinator across the SCAN set. A fenced documentation example
