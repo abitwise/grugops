@@ -1321,23 +1321,75 @@ describe("install.js / uninstall.js — single-installer contract (folds install
   // .claude/agents/ holds a file with NO counterpart in the kit source. An uninstall whose target
   // contains only grugops files can never catch the data-loss path where the removal set is derived
   // from the TARGET's own directory instead of the kit source.
-  it("KIT-02/T-27-06: a user-authored .claude/agents file survives uninstall; all 17 grugops adapters are removed", () => {
+  //
+  // CR-02 (plan 27-25) — AND THE FIXTURE THAT COULD NOT SEE THE REVERSIBILITY GAP. This case
+  // iterated only the FLAT synthetic adapter list, so every member was a plain file and the case
+  // could not distinguish install.ts's statSync derivation from uninstall.ts's Dirent one. A Dirent
+  // for a symlink is NEITHER isFile() NOR isDirectory(), so a symlinked source adapter was INSTALLED
+  // and never REMOVED — `== uninstall complete ==`, exit 0, the file still in the target. The two
+  // symlinked plants below are what make that shape reachable from the suite: they are the forcing
+  // function the case was missing, not decoration.
+  it("KIT-02/T-27-06: a user-authored .claude/agents file survives uninstall; all 17 grugops adapters are removed (CR-02: including SYMLINKED source shapes)", () => {
     const src = makeSyntheticSrc();
     const home = mkTmp();
     const target = mkTmp();
     writeFileSync(join(target, "CLAUDE.md"), "# User Project\n");
+
+    // SKIPPED WHERE THE FIXTURE CANNOT EXIST. Creating a symlink on Windows requires the
+    // SeCreateSymbolicLink privilege, which an unprivileged CI runner does not hold and which makes
+    // symlinkSync throw EPERM — the plants would then assert nothing at all. The CR-02 claim is
+    // therefore proven on the POSIX legs only; Windows behaviour is `UNKNOWN - verify`. Only the two
+    // PLANTS are conditional; every pre-existing assertion in this case still runs on Windows.
+    const canSymlink = process.platform !== "win32";
+
+    // PLANT 1 — a symlinked ADAPTER inside the source .claude/agents. Flat and top-level, so the
+    // flat-directory contract admits it: the correct outcome is installed, then removed.
+    const linkedAdapter = "grugops-linked-role.md";
+    // PLANT 2 — a symlinked SKILL DIRECTORY inside the source .claude/skills whose target holds a
+    // real SKILL.md. The platform loads it as a skill, so the installer installs it and the reversal
+    // must remove it.
+    const linkedSkill = "grugops-linked-skill";
+    if (canSymlink) {
+      symlinkSync(
+        join(src, ".claude", "agents", SYNTH_ADAPTERS[0]),
+        join(src, ".claude", "agents", linkedAdapter),
+      );
+      mkdirSync(join(src, "outside-skill"), { recursive: true });
+      writeFileSync(join(src, "outside-skill", "SKILL.md"), "> synthetic linked skill\n");
+      symlinkSync(join(src, "outside-skill"), join(src, ".claude", "skills", linkedSkill));
+    }
+
     expect(runInstallFrom(src, target, home).status).toBe(0);
+
+    // The plants must actually be INSTALLED, or the removal assertions below would pass vacuously
+    // over files that were never there. This is the half that keeps "removed" from meaning "absent
+    // because it never arrived".
+    if (canSymlink) {
+      expect(existsSync(join(target, ".claude", "agents", linkedAdapter))).toBe(true);
+      expect(existsSync(join(target, ".claude", "skills", linkedSkill, "SKILL.md"))).toBe(true);
+    }
 
     // A user-authored adapter the kit source knows nothing about.
     const mine = join(target, ".claude", "agents", "my-own.md");
     const mineBody = "---\nname: my-own\n---\n\nMY OWN AGENT — uninstall must never delete this.\n";
     writeFileSync(mine, mineBody);
 
-    expect(runUninstallFrom(src, target, home).status).toBe(0);
+    const un = runUninstallFrom(src, target, home);
+    expect(un.status).toBe(0);
 
     // All seventeen grugops adapters are gone (the derived ∩ target intersection was removed).
     for (const a of SYNTH_ADAPTERS) {
       expect(existsSync(join(target, ".claude", "agents", a))).toBe(false);
+    }
+
+    // CR-02, THE ASSERTION THE OLD FIXTURE COULD NOT MAKE. Both symlinked shapes are gone from the
+    // target, and the uninstall NAMED each one it removed — a reversal that is silent about a member
+    // is the repudiation half of the same defect (T-27-120).
+    if (canSymlink) {
+      expect(existsSync(join(target, ".claude", "agents", linkedAdapter))).toBe(false);
+      expect(existsSync(join(target, ".claude", "skills", linkedSkill))).toBe(false);
+      expect(un.stdout).toContain(`.claude/agents/${linkedAdapter}`);
+      expect(un.stdout).toContain(`.claude/skills/${linkedSkill}/SKILL.md`);
     }
     // The user's own file survives with UNCHANGED bytes, and the directory survives because it is
     // not empty (rmdirIfEmpty never removes a directory holding user content).
@@ -1450,6 +1502,16 @@ describe("install.js / uninstall.js — single-installer contract (folds install
       join(src, ".claude", "agents", linkName),
     );
 
+    // THE SKILL-SIDE PLANT (WR-02, plan 27-25). A symlinked skill DIRECTORY whose target holds a
+    // real SKILL.md. Without it the skill assertion at the bottom of this case compared two
+    // UNMODIFIED derivations over a fixture containing no symlinked skill — it would have passed
+    // identically with the helper unchanged, which is to say it asserted nothing about the claim its
+    // comment made. A fixture that cannot express the failure is not coverage.
+    const linkedSkill = "grugops-linked-skill";
+    mkdirSync(join(src, "outside-skill"), { recursive: true });
+    writeFileSync(join(src, "outside-skill", "SKILL.md"), "> synthetic linked skill\n");
+    symlinkSync(join(src, "outside-skill"), join(src, ".claude", "skills", linkedSkill));
+
     const r = runInstallFrom(src, target, home);
     // The link is a flat, top-level `.md` — the flat-directory contract admits it, so the correct
     // outcome is INSTALLED, and the run is complete.
@@ -1470,8 +1532,18 @@ describe("install.js / uninstall.js — single-installer contract (folds install
     // are two distinct members of the set, never one merged member (KIT-01 adjacency edge).
     expect(installedAdapters(target)).toContain(SYNTH_ADAPTERS[0]);
 
-    // A symlinked SKILL directory is a skill for the same reason, and by the same test.
-    expect(installedSkills(target)).toEqual(listSkillAdapters(src));
+    // A symlinked SKILL directory is a skill for the same reason, and by the same test — and now
+    // over a fixture that actually contains one. Set equality against the authority is kept, but it
+    // is no longer the whole claim: MEMBERSHIP names the linked skill on both sides so a regression
+    // that dropped it from BOTH could not pass by shrinking together, and CARDINALITY pins the count
+    // as an integer — the unmodified fixture ships seven skills, so with the plant it is eight.
+    const authoritySkills = listSkillAdapters(src);
+    expect(installedSkills(target)).toEqual(authoritySkills);
+    expect(authoritySkills).toContain(`${linkedSkill}/SKILL.md`);
+    expect(installedSkills(target)).toContain(`${linkedSkill}/SKILL.md`);
+    expect(SYNTH_SKILLS.length).toBe(7);
+    expect(authoritySkills.length).toBe(8);
+    expect(installedSkills(target).length).toBe(8);
   });
 
   it("source derivation: an UNREADABLE source adapter directory is reported and no completion is claimed", () => {

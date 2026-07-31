@@ -68,7 +68,7 @@
 //
 // WHAT THIS RECORD CLAIMS, AND WHAT IT DOES NOT (plan 27-14, review finding WR-04). It records every
 // enumerating literal the phase's sweep found in scripts/ and install/ — the tooling that decides KIT
-// MEMBERSHIP, which is where the founding defect lived. That is the claim the fifteen rows below can
+// MEMBERSHIP, which is where the founding defect lived. That is the claim the rows below can
 // actually support. It does NOT claim the repository holds no other enumerating literal: the sweep
 // did not cover hooks/ (whose DEPLOY pattern list is a detection vocabulary, not a membership set)
 // nor the shipped kit markdown, and a literal there is OUTSIDE this record rather than certified
@@ -78,7 +78,10 @@
 // tells that author exactly where the sweep ended and where their own has to begin.
 //
 // Entries 1-14 are those of 27-RESEARCH.md § "The Set-Literal Inventory, Corrected". Entry 15 was
-// added in plan 27-13, for the omission WR-04 named.
+// added in plan 27-13, for the omission WR-04 named. Entry 10 was RETIRED in plan 27-25 when the
+// pair it recorded was collapsed into the single module entry 9 now names — fourteen live rows
+// under fifteen numbers, which is the honest shape and is stated at the retired row rather than
+// hidden by a renumber.
 //
 //   #   literal                  file                            disposition
 //   ──  ───────────────────────  ──────────────────────────────  ────────────────────────────────────
@@ -103,10 +106,66 @@
 //                                                                stay omitted. Plan 27-04.
 //    8  GH_SCAN                  check-kit-refs.ts               Negative scan; scoped, not derived.
 //                                                                Plan 27-04.
-//    9  SKILLS / AGENT_REL       install/install.ts              DERIVED via readdirSync self-
-//                                                                derivation (D-18). Plan 27-02.
-//   10  SKILLS / AGENT_REL       install/uninstall.ts            DERIVED — a SECOND duplicated pair
-//                                                                in a second file. Plan 27-02.
+//    9  SKILLS / AGENT_REL       install/kit-source.ts           DERIVED via readdirSync self-
+//        (formerly entries 9 AND    (imported by install/install.ts   derivation (D-18), and now
+//         10, when this predicate    and install/uninstall.ts)        derived exactly ONCE. Plan
+//         was answered in the                                         27-02 replaced the literals;
+//         two installer files                                         plan 27-25 collapsed the two
+//         separately)                                                 answers into one. THE PAIR
+//                                                                    THIS RECORD USED TO DECLARE IS
+//                                                                    GONE. Deriving the set in
+//                                                                    two hand-synced files did not
+//                                                                    delete the drift class, it
+//                                                                    moved it up one level: the
+//                                                                    pair drifted TWICE inside
+//                                                                    phase 27. Round 1 re-synced
+//                                                                    it; plan 27-22 then moved
+//                                                                    install.ts onto statSync for
+//                                                                    WR-02 and left uninstall.ts on
+//                                                                    Dirent flags. A Dirent for a
+//                                                                    symlink is NEITHER isFile()
+//                                                                    NOR isDirectory(), so a
+//                                                                    symlinked source adapter
+//                                                                    installed and never uninstalled
+//                                                                    — `== uninstall complete ==`,
+//                                                                    exit 0, file still in the
+//                                                                    target (CR-02), against the
+//                                                                    CLAUDE.md reversibility
+//                                                                    constraint. D-28 amends D-18:
+//                                                                    the derivation moved into ONE
+//                                                                    shared module inside install/
+//                                                                    and both installers import it,
+//                                                                    so the removal set and the
+//                                                                    install set are literally the
+//                                                                    same derivation and the
+//                                                                    reversal cannot be narrower
+//                                                                    than the install. It still
+//                                                                    does NOT import
+//                                                                    scripts/kit-model.ts — D-18's
+//                                                                    rationale is decoupling the
+//                                                                    installer from the scripts/
+//                                                                    layout, which a shared file
+//                                                                    INSIDE install/ preserves in
+//                                                                    full. Re-inlining a copy into
+//                                                                    either installer, on the
+//                                                                    argument that it is small,
+//                                                                    restores the defect. Contrast
+//                                                                    entry 15, which stays a PAIR
+//                                                                    deliberately and for a
+//                                                                    different reason. Plan 27-25.
+//   10  — RETIRED —              (was install/uninstall.ts)      MERGED INTO ENTRY 9 by plan 27-25.
+//                                                                This row existed only because the
+//                                                                derivation existed twice; there is
+//                                                                no second literal left to
+//                                                                disposition. The NUMBER is retired
+//                                                                rather than reused, and entries
+//                                                                11-15 keep their numbers, because
+//                                                                those numbers are cited by name
+//                                                                elsewhere in the tree (entry 15 in
+//                                                                install/install.test.ts, entry 14
+//                                                                in the phase plans) and silently
+//                                                                shifting them would make those
+//                                                                citations point at the wrong row.
 //   11  MARKER_SITES             check-kit-refs.ts               DERIVED — the literal the CONTEXT.md
 //                                                                inventory MISSED; must grow 4 -> 19+
 //                                                                under D-06/D-08. Plan 27-04.
