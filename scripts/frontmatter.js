@@ -63,6 +63,15 @@
 //   The refusal is now CODE, applied before the value is flattened, and it is pinned by a product in
 //   the parser oracle and by an aggregator-level case.
 //
+//   AND IT CAME BACK ONCE MORE, WEARING A TAG (27-REVIEW-GAPS-2 § CR-01, round 2). The refusal above
+//   tested for a SIGIL at position 0, and a YAML tag is a node PROPERTY that legally stands in front
+//   of one: `_t: !!str &t … Agent(x)` / `allowed-tools: !!seq [*t]` parsed clean and returned
+//   `{ ok: true, value: false }` — the silent no-grant arm again, on a document that grants the spawn
+//   tool. Planted on a skill adapter (no freshness gate, no role corpus) the whole gate printed ALL
+//   CHECKS PASSED, exit 0. The remedy is not a case for the reported spelling: `!` joins the sigil
+//   class and ONE leading tag is stripped at every node start, so the tag axis is refused by the same
+//   rule at every place the refusal is applied.
+//
 // Node stdlib ONLY — in fact no imports at all. Zero npm dependencies.
 //
 // Clear professional voice throughout (CLAUDE.md hard rule — this is a build-safety surface).
@@ -149,7 +158,39 @@ const SEQ_ITEM = /^-(?:[ \t]+(.*))?$/;
 // THE MERGE KEY NEEDS NO BRANCH. `<<: *x` never reaches here: `KEY_LINE` requires `[A-Za-z_]` at the
 // key start, so `<` fails it and the line is already refused as unreadable. Do not add a second path
 // for the merge key — it is pinned by a named case in scripts/frontmatter.test.ts.
-const YAML_REF = /^[&*][^\s,[\]{}]/;
+//
+// `!` JOINS `&` AND `*` (27-REVIEW-GAPS-2 § CR-01, round 2). This is the SAME fail-open this
+// milestone already closed once, returning in a new spelling. The round-1 refusal tested for a sigil
+// at position 0 of a node — but a YAML TAG is a legal node PROPERTY that may stand in front of an
+// anchor or in front of a collection, so `_t: !!str &t … Agent(x)` / `allowed-tools: !!seq [*t]`
+// walked straight past it and landed in the silent no-grant SUCCESS arm. Measured against the
+// committed parser before this edit: `{"ok":true,"value":false}` and `{"ok":true,"value":[]}` — the
+// module header's own named failure, reached by adding two characters. Planted on a skill adapter the
+// whole gate printed ALL CHECKS PASSED, exit 0.
+//
+// THE TAG ARGUMENT IS THE ANCHOR/ALIAS ARGUMENT, IN THREE PARTS, UNCHANGED:
+//   1. A tag is a node property this module does not resolve, exactly as it does not resolve an
+//      anchor or an alias. An unresolved node property means the value this document EXPRESSES is
+//      not the text these lines carry — the same fact that makes a reference unreadable here.
+//   2. A plain scalar cannot begin with `!` any more than it can begin with `&` or `*`. All three
+//      are YAML indicator characters, so refusing on sight at a node start swallows no legitimate
+//      plain scalar.
+//   3. A value that genuinely begins with those bytes must be QUOTED, and a quoted value is a
+//      literal string this test correctly leaves alone (`tools: "!!str"` parses and grants nothing).
+//      A `!` arriving MID-value is untouched too, because this pattern is `^`-anchored.
+const YAML_REF = /^[&*!][^\s,[\]{}]/;
+// ONE leading tag at a node start: the `!` indicator, then either a verbatim `<…>` tag or the tag's
+// run of non-space, non-flow characters (which covers `!!seq`'s second indicator and a named handle's
+// `!handle!suffix` form), then the separation — whitespace, or none at all when the tag butts
+// directly against the `[`/`{` it introduces.
+//
+// EXACTLY ONE, NEVER MORE. YAML permits one tag per node, so a second token stripped from the same
+// node would be CONTENT, and stripping content would be this module resolving a document it
+// deliberately does not resolve. It is applied once per node start instead — the value, each flow
+// fragment, each flow-mapping value — so nesting is covered by re-entering at the nested node's own
+// start rather than by stripping twice at one.
+const LEADING_TAG = /^!(?:<[^>]*>|[^\s[\]{},]*)(?:\s+|(?=[[{]))/;
+const stripLeadingTag = (s) => s.replace(LEADING_TAG, "");
 // Does this value-position text BEGIN with a YAML reference, at its own start or at the start of any
 // node nested inside it?
 //
@@ -169,20 +210,35 @@ const YAML_REF = /^[&*][^\s,[\]{}]/;
 // The split is deliberately naive about quoting: splitting `["Agent(a, b)"]` at its delimiters yields
 // fragments that begin with neither sigil, so a quoted item can only ever produce MORE fragments to
 // check, never fewer. The error direction is a redundant check, never a missed one.
+//
+// THE TAG IS STRIPPED BEFORE THE COLLECTION TEST, NOT SPECIAL-CASED ON ONE SERIALIZER (CR-01,
+// round 2). A tag standing in front of a collection means the value no longer OPENS with `[` or `{`,
+// so without the strip `!!seq [*t]` never reaches the fragment split and the alias inside it is never
+// tested at its own start. The strip is therefore applied at every node start this function knows
+// about — the value itself, each flow fragment, and each flow-mapping value — which is what makes the
+// refusal a property of "what is a node start" rather than a patch for the reported spelling. A bare
+// non-specific tag (`! [*t]`, `![*t]`) is exactly the shape `YAML_REF` alone cannot see, because its
+// second character is a space or a flow indicator.
 function startsWithReference(text) {
     const t = text.trim();
     if (YAML_REF.test(t))
         return true;
-    if (!/^[[{]/.test(t))
+    const afterTag = stripLeadingTag(t);
+    // A tag may introduce an anchor rather than a collection (`!!str &t …`), so re-test the node start
+    // once the node's property has been removed from in front of it.
+    if (YAML_REF.test(afterTag))
+        return true;
+    if (!/^[[{]/.test(afterTag))
         return false;
-    for (const fragment of t.split(/[,[{]/)) {
-        const node = fragment.trim();
+    for (const fragment of afterTag.split(/[,[{]/)) {
+        const node = stripLeadingTag(fragment.trim());
         if (YAML_REF.test(node))
             return true;
         // A flow MAPPING entry is `key: value`, so the value after the separator is its own node start.
         const sep = node.indexOf(": ");
-        if (sep !== -1 && YAML_REF.test(node.slice(sep + 2).trim()))
+        if (sep !== -1 && YAML_REF.test(stripLeadingTag(node.slice(sep + 2).trim()))) {
             return true;
+        }
     }
     return false;
 }
@@ -242,9 +298,14 @@ function flattenBlock(block, baseIndent) {
     // The refusal for a YAML reference construct. Returned from three places — the key line, a
     // block-sequence item and a plain continuation line — so a reference is refused the same way
     // wherever it sits, and always BEFORE the text is flattened into a value.
+    //
+    // (CR-01, round 2) The reason also names an UNRESOLVED TAG, because a tag is now refused by the
+    // same rule. The substring `anchor or alias` is deliberately kept verbatim: two shipped assertions
+    // match the reason on it (scripts/frontmatter.test.ts and scripts/check-foundation-guards.test.ts),
+    // so dropping it would silently weaken both while every case stayed green.
     const refuseRef = (line) => ({
         ok: false,
-        reason: `\`${excerpt(line)}\` uses a YAML anchor or alias; the value this document expresses is not the text on this line, and this module deliberately does not resolve a reference — it is refused rather than read as "carries no grant"`,
+        reason: `\`${excerpt(line)}\` uses a YAML anchor or alias, or an unresolved YAML tag standing in front of one; the value this document expresses is not the text on this line, and this module deliberately does not resolve a reference or a node property — it is refused rather than read as "carries no grant"`,
     });
     const flush = () => {
         if (cur === null)

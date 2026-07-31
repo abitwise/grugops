@@ -505,6 +505,45 @@ describe("check-foundation-guards.js (SDLC-02 / SC2 fail-proof harness)", () => 
     expect(o).not.toContain("PASS  WR-05:");
   });
 
+  // ── The CR-01 TAG-PREFIXED bypass, reproduced and now closed (plan 27-24, round 2). ───────────
+  //
+  // The case above closed the bare anchor/alias. The refusal it installed tested for a SIGIL at
+  // position 0 of a node — and a YAML TAG is a node PROPERTY that legally stands in front of one. So
+  // `!!str &t …` does not begin with a sigil (the anchor is behind the tag) and `!!seq [*t]` does not
+  // begin with `[` (the collection is behind the tag), and both slid past the refusal into the
+  // flattened-string arm: `allowed-tools` flattened to the literal `!!seq [*t]`, no spawn token, and
+  // the parser returned `{ ok: true, value: false }` — the silent no-grant arm, restored by adding two
+  // characters. Reproduced end-to-end on a hermetic mirror with the plant on a SKILL adapter and the
+  // whole gate printed ALL CHECKS PASSED, exit 0 (27-REVIEW-GAPS-2 § CR-01).
+  //
+  // Sibling of the case above by construction, and planted on the SAME surface for the same reason:
+  // `adapters-freshness` covers `.claude/agents` only, `SKILL_ADAPTER_COUNT` checks cardinality only,
+  // and KIT-03 has no role to compare a skill against — so the aggregator is the ONLY thing standing
+  // between a crafted SKILL.md and a rogue grant. The paired green run on the same unplanted mirror
+  // comes first, so a red run cannot be blamed on the mirror rather than on the two planted lines.
+  it("guard_wr05 TAG-PREFIXED anchor/alias grant on a SKILL file → nonzero + parse failure names the file (CR-01 round 2, reproduced)", () => {
+    const clean = mirror();
+    const before = runIn(clean);
+    expect(before.status).toBe(0);
+    expect(out(before)).toContain("ALL CHECKS PASSED");
+
+    const m = mirror();
+    reshapeToolsKey(join(m, ".claude/skills/grugops/SKILL.md"), [
+      "_tools: !!str &t Read, Write, Bash, Glob, Grep, Agent(grugops-software-engineer)",
+      "allowed-tools: !!seq [*t]",
+    ]);
+    const r = runIn(m);
+    expect(r.status).not.toBe(0);
+    const o = out(r);
+    expect(o).toMatch(/frontmatter parse failure/);
+    expect(o).toContain(".claude/skills/grugops/SKILL.md");
+    expect(o).toMatch(/anchor or alias/);
+    // The load-bearing half, identical to the sibling: the refusal must not have been folded into the
+    // no-grant branch, which would print a passing WR-05 line over a file the guard never read.
+    expect(o).toMatch(/NEVER read as "carries no grant"/);
+    expect(o).not.toContain("PASS  WR-05:");
+  });
+
   // The third form the product oracle in frontmatter.test.ts also covers, pinned here at the
   // AGGREGATOR level: a block sequence whose spawn item is quoted. The old array expression happened
   // to catch a quoted item; this case exists so that deleting it cannot silently lose the coverage.
