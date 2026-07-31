@@ -68,10 +68,10 @@ step, a Makefile), read the exit code. Both `install.js` and `uninstall.js` use 
 
 | Code | Meaning |
 |------|---------|
-| `0` | **complete** — every class installed (or removed); the run printed `== install complete ==`. |
-| `1` | **refused or aborted** — the run changed nothing. The self-checkout guard (target looks like the grugops source checkout) is the usual cause. `--check` also reports `1` on a doctor FAIL. |
+| `0` | **complete** — every class installed (or removed); the run printed `== install complete ==` (or `== uninstall complete ==`). The **non-install modes** exit `0` too, and each prints its **own** closing line rather than the install banner — `--check` on a clean doctor prints `ALL CHECKS PASSED`, `--update` prints `== update complete ==`, `--prune-old-kit` prints `== prune complete ==`, and a `--migrate` on an already-migrated repo reports *nothing was changed*. All four are **`install.js` only**. So do not test for the install banner to decide a run succeeded; test the exit code. |
+| `1` | **refused or aborted** — the run changed nothing. The self-checkout guard (the target looks like the grugops source checkout) is the usual cause, and **both binaries implement it**: each writes a refusal to stderr naming `--allow-self`, and neither writes nor removes anything. `--check` also reports `1` on a doctor FAIL — that half is **`install.js` only**, because `uninstall.js` has no doctor mode. |
 | `2` | **bad usage** — an unknown argument. Nothing was read or written. |
-| `3` | **incomplete** — the run went ahead but could not finish a whole class, and printed `== install INCOMPLETE — N item(s) need verification ==`. Every `verify` line in the output names what was left undone and the remedy for it. |
+| `3` | **incomplete** — the run went ahead but could not finish a whole class, and printed `== install INCOMPLETE — N item(s) need verification ==` (`uninstall.js` prints the same line with `uninstall` in place of `install`). Every `verify` line in the output names what was left undone and the remedy for it. |
 
 Code `3` is the important one: grug not lie about finish. A run that could not read a source
 directory, or that refused an adapter, installed **nothing for that class** — so it does not
@@ -79,6 +79,15 @@ claim completion, and it does not return the success code either. **A chained co
 here.** That is deliberate: proceeding over a partial install is how a broken install reaches
 production looking fine. Read the `verify` lines, fix the source, re-run (the installer is
 idempotent, so re-running is safe).
+
+Code `1` from `uninstall.js` means the **self-checkout refusal**: the target you named is the
+grugops source checkout itself (or a second checkout of it — it carries `install/install.ts` and
+`agent-factory/VERSION`). Uninstalling there would delete the kit's own committed adapters and
+skills under `.claude/`, which are not wiring the installer added but files the repository ships,
+so the run stops before removing anything and writes the reason to stderr. Nothing is printed on
+stdout and nothing on disk changes. Almost always the fix is to name the repo you meant
+(`--target /path/to/your-repo`); if you genuinely do mean the checkout, pass **`--allow-self`**
+(or `--force`) — the same override, spelled the same way, that `install.js` uses.
 
 ### Choosing the target (`--target`, the prompt, `--yes`)
 

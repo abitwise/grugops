@@ -505,6 +505,113 @@ describe("install.js / uninstall.js — single-installer contract (folds install
     expect(allowed.stdout ?? "").toContain("install INCOMPLETE");
   });
 
+  // ── CR-04: the SAME self-checkout guard on the UNINSTALLER — the refusal install/README.md's ──
+  // exit-code table publishes for BOTH binaries. Before this guard existed, uninstall.js had no
+  // exit-1 path at all (only 2 for bad usage and 3 for incomplete), and pointing it at a grugops
+  // checkout removed the kit's own 17 committed adapters and 7 committed skills under
+  // `== uninstall complete ==` and exit 0 — isProtected() covers agent-factory/, plans/,
+  // .planning/, .grugops/, docs/ and src/, but not .claude/, which is where they live.
+  it("CR-04 self-checkout guard: uninstall.js refuses a source-shaped target (exit 1, nothing removed); --allow-self overrides", () => {
+    // A THROWAWAY source-shaped stub — NEVER REPO_ROOT. Carries the two source markers so it
+    // reads as a checkout, and is passed as BOTH src and target so the path-equality half fires.
+    const fake = mkTmp();
+    mkdirSync(join(fake, "install"), { recursive: true });
+    mkdirSync(join(fake, "agent-factory"), { recursive: true });
+    writeFileSync(join(fake, "install", "install.ts"), "// throwaway source-marker stub\n");
+    writeFileSync(join(fake, "agent-factory", "VERSION"), "0.0.0-fake\n");
+    // Plant the shapes the reproduction destroyed, so "nothing was removed" is a claim with
+    // something behind it rather than a snapshot of an empty tree.
+    mkdirSync(join(fake, ".claude", "agents"), { recursive: true });
+    mkdirSync(join(fake, ".claude", "skills", "grugops"), { recursive: true });
+    writeFileSync(join(fake, ".claude", "agents", "grugops-orchestrator.md"), "COMMITTED KIT ADAPTER\n");
+    writeFileSync(join(fake, ".claude", "skills", "grugops", "SKILL.md"), "COMMITTED KIT SKILL\n");
+    const before = snapshot(fake);
+
+    // (a) refuse by default — exit 1 exactly (the code the README's refusal row publishes), the
+    //     refusal names the override on stderr, and the target is BYTE-IDENTICAL afterwards.
+    const refused = runUninstallFrom(fake, fake, mkTmp());
+    expect(refused.status).toBe(1);
+    expect(refused.stderr).toContain("--allow-self");
+    expect(refused.stderr).toContain("refusing");
+    // Nothing on stdout: a refused run never reaches the banner, so there is no completion line
+    // for a script to misread (the reproduced defect printed "== uninstall complete ==").
+    expect(refused.stdout).toBe("");
+    expect(snapshot(fake)).toBe(before);
+    expect(existsSync(join(fake, ".claude", "agents", "grugops-orchestrator.md"))).toBe(true);
+    expect(existsSync(join(fake, ".claude", "skills", "grugops", "SKILL.md"))).toBe(true);
+
+    // (b) --allow-self overrides — the flag REACHES the argument loop and the run PROCEEDS PAST
+    //     THE GUARD. WHAT THIS ARM PINS IS THE GUARD, NOT COMPLETENESS — the installer arm's
+    //     hard-won lesson (27-21, WR-01), applied here rather than re-learned. The assertions are
+    //     deliberately guard-shaped and NOT `toBe(0)`: a success code would couple this arm to
+    //     whatever the throwaway stub happens to make the removal sequence conclude, which has
+    //     nothing to do with whether the override worked.
+    //       - status is NOT 1  → the guard did not refuse (1 is the refusal code),
+    //       - status is NOT 2  → the flag was recognised, not rejected as an unknown argument.
+    //                            This is the load-bearing one: uninstall.js exits 2 on ANY
+    //                            unparsed argument, so an override missing from the loop would be
+    //                            rejected as bad usage before the guard it overrides ever ran,
+    //       - no refusal on stderr → the refusal message was not printed,
+    //       - the run banner was reached → it got into the removal sequence.
+    const allowed = runUninstallFrom(fake, fake, mkTmp(), "--allow-self");
+    expect(allowed.status).not.toBe(1);
+    expect(allowed.status).not.toBe(2);
+    expect(allowed.stderr).not.toContain("refusing");
+    expect(allowed.stdout).toContain("== grugops uninstall ==");
+  });
+
+  // ── CR-04, the MARKER half — the direction the path-equality half cannot cover, and the one the ─
+  // dead `install/install.sh` marker made unreachable. The target is NOT the source root (a second
+  // checkout, named by --target from a first), but it carries install/install.ts +
+  // agent-factory/VERSION, so it must still be refused.
+  it("CR-04 marker half: a NON-source-root target carrying the source markers is refused (exit 1)", () => {
+    const src = makeSyntheticSrc(); // a real, readable kit source — NOT the target
+    const marked = mkTmp();
+    mkdirSync(join(marked, "install"), { recursive: true });
+    mkdirSync(join(marked, "agent-factory"), { recursive: true });
+    writeFileSync(join(marked, "install", "install.ts"), "// second checkout of the kit\n");
+    writeFileSync(join(marked, "agent-factory", "VERSION"), "0.0.0-second-checkout\n");
+    const before = snapshot(marked);
+
+    const r = runUninstallFrom(src, marked, mkTmp());
+    expect(r.status).toBe(1);
+    expect(r.stderr).toContain("--allow-self");
+    expect(snapshot(marked)).toBe(before);
+
+    // Prove the refusal is the PAIR, not either half alone: agent-factory/VERSION on its own is a
+    // shape an ordinary repo legitimately has (install/README.md §1's minimal path tells users to
+    // copy agent-factory/ into their own repo), so refusing on it would break a real reversal.
+    const halfOnly = mkTmp();
+    mkdirSync(join(halfOnly, "agent-factory"), { recursive: true });
+    writeFileSync(join(halfOnly, "agent-factory", "VERSION"), "0.0.0-users-own-copy\n");
+    const half = runUninstallFrom(src, halfOnly, mkTmp());
+    expect(half.status).not.toBe(1);
+    expect(half.stderr).not.toContain("refusing");
+  });
+
+  // ── CR-04 NEGATIVE CONTROL — without this, the guard could be satisfied by refusing everything. ─
+  // A normal installed repository must uninstall exactly as it did before the guard landed: same
+  // exit code, adapters and skills actually removed, user content preserved.
+  it("CR-04 negative control: a normal installed target is NOT refused and still uninstalls (exit 0)", () => {
+    const target = makeFixture();
+    const home = mkTmp();
+    expect(runInstall(target, home).status).toBe(0);
+    expect(existsSync(join(target, ".claude", "agents"))).toBe(true);
+
+    const r = runUninstall(target, home);
+    // The previous exit code, unchanged — the guard buys safety without breaking the reversal.
+    expect(r.status).toBe(0);
+    expect(r.stderr).not.toContain("refusing");
+    expect(r.stdout).toContain("== uninstall complete ==");
+    // The reversal still happened...
+    expect(existsSync(join(target, ".claude", "agents"))).toBe(false);
+    expect(existsSync(join(target, ".claude", "skills"))).toBe(false);
+    // ...and the user's own content is untouched, as always.
+    expect(existsSync(join(target, "agent-factory", "roles", "orchestrator.md"))).toBe(true);
+    expect(existsSync(join(target, "plans", "board.md"))).toBe(true);
+    expect(readFileSync(join(target, "CLAUDE.md"), "utf8")).toContain("must be preserved");
+  });
+
   // ── never-delete: uninstall preserves a USER-owned AGENTS.md symlink (install.test.sh Check 5, CR-01) ─
   it("never-delete: uninstall preserves a user-owned AGENTS.md symlink; removes a grugops-source one", () => {
     // user-owned symlink into the user's own content → must survive uninstall
