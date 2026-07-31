@@ -21,7 +21,7 @@
 // artifact every consumer actually imports.
 
 import { describe, it, expect, afterAll } from "vitest";
-import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from "node:fs";
+import { mkdtempSync, mkdirSync, writeFileSync, rmSync, symlinkSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, dirname } from "node:path";
 
@@ -317,6 +317,58 @@ describe("kit-model listAgentAdapters (KIT-02 adapter derivation authority)", ()
     expect(() => listAgentAdapters(root)).toThrow(join(root, ".claude/agents"));
   });
 
+  // ── D-29 / CR-03: the cycle answer bounds recursion; it must NOT narrow the set ──────────────
+  //
+  // These two cases attack the ancestor stack from both sides, because the two sites that answer
+  // "have I already walked this real path?" previously failed in OPPOSITE directions: the
+  // installer's twin (install/kit-source.ts srcNestedAdapterFiles) carried a GLOBAL visited set
+  // that DROPPED a legitimate member, and this walk carried NO guard and recursed until the host
+  // stopped it. A treatment that fixes only one direction fails one of these two cases.
+  //
+  // Windows skip, same reason as install.test.ts's symlink cases: symlinkSync needs the
+  // SeCreateSymbolicLink privilege an unprivileged runner may not hold, and a case that cannot
+  // build its fixture asserts nothing. The symlink and cycle claims are proven on the POSIX legs
+  // only; Windows behaviour is UNKNOWN - verify.
+
+  it("a directory reachable by TWO paths contributes BOTH members — the guard bounds recursion, it does not narrow the set (CR-03)", () => {
+    if (process.platform === "win32") return;
+    const root = adapterRoot(["real/x.md"]);
+    const agents = join(root, ".claude/agents");
+    // `alias` and `real` are ONE physical directory reached two ways. Members are reported at
+    // RELATIVE paths, so these are TWO distinct members — and each is a member the installer must
+    // be able to refuse BY NAME. A global visited set reports whichever readdirSync returned first
+    // and silently drops the other, which is exactly the defect CR-03 reproduced in the twin.
+    symlinkSync(join(agents, "real"), join(agents, "alias"));
+
+    const got = listAgentAdapters(root);
+    expect(got).toEqual(["alias/x.md", "real/x.md"]);
+    expect(got.length).toBe(2);
+    expect(got).toEqual([...got].sort());
+  });
+
+  it("a symlink CYCLE terminates by the walk's own contract and yields the REAL member set, at one link and at two (D-29)", () => {
+    if (process.platform === "win32") return;
+    // The time bound exists to make NON-TERMINATION A TEST FAILURE rather than a hung suite: a
+    // regression that removes the ancestor stack must go red here, not stall CI until it is killed.
+    //
+    // Measured against the pre-fix walk on darwin / node v24: ONE `loop -> ..` link over this
+    // one-adapter fixture returned THIRTY-TWO aliased members, terminating only because the
+    // operating system's symlink-resolution limit made statSync throw ELOOP; TWO links threw
+    // `RangeError: Maximum call stack size exceeded`. Both shapes are covered because they produced
+    // DIFFERENT pre-fix behaviours, and a single shape would pin only one of them.
+    for (const links of [1, 2]) {
+      const root = adapterRoot(["real-adapter.md"]);
+      const agents = join(root, ".claude/agents");
+      // `loop -> ..` points at `.claude`, whose `agents` entry is the directory we are standing in:
+      // a genuine cycle, not a mere alias.
+      for (let i = 0; i < links; i++) symlinkSync("..", join(agents, `loop${i}`));
+
+      const got = listAgentAdapters(root);
+      expect(got).toEqual(["real-adapter.md"]);
+      expect(got.length).toBe(1);
+    }
+  }, 15_000);
+
   it("the live tree derives one adapter per role, all top-level and sorted", () => {
     // Read-only over the real tree. Deliberately NOT asserted against a separate adapter-count
     // constant: the KIT-03 oracle owns that number by comparing against the role corpus, and a second
@@ -387,6 +439,21 @@ describe("kit-model listSkillAdapters (KIT-02 skill derivation authority)", () =
       /refusing to return an empty set/,
     );
     expect(() => listSkillAdapters(root)).toThrow(join(root, ".claude/skills"));
+  });
+
+  it("a skill directory reachable by TWO paths contributes BOTH members (CR-03, the skill half)", () => {
+    if (process.platform === "win32") return;
+    // Both exported callers share walkFilesRelative, so a regression in the cycle answer would be
+    // invisible on this half if only the agent half were covered. Same Windows skip and same reason
+    // as the agent-side case; proven on the POSIX legs only.
+    const root = skillRoot(["real/SKILL.md"]);
+    const skills = join(root, ".claude/skills");
+    symlinkSync(join(skills, "real"), join(skills, "alias"));
+
+    const got = listSkillAdapters(root);
+    expect(got).toEqual(["alias/SKILL.md", "real/SKILL.md"]);
+    expect(got.length).toBe(2);
+    expect(got).toEqual([...got].sort());
   });
 
   it("exports SKILL_ADAPTER_COUNT and the live tree derives exactly that many", () => {

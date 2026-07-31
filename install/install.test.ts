@@ -1700,6 +1700,45 @@ describe("install.js / uninstall.js — single-installer contract (folds install
     expect(existsSync(join(target, ".claude", "agents", "linked-nest"))).toBe(false);
   });
 
+  it("source derivation: TWO paths to ONE directory produce TWO refusals, not one (CR-03, D-29)", () => {
+    // Same Windows skip and the same reason as the symlink cases above: symlinkSync needs a
+    // privilege the runner may not hold, and a case that cannot build its fixture asserts nothing.
+    // Proven on the POSIX legs only.
+    if (process.platform === "win32") return;
+
+    const src = makeSyntheticSrc();
+    const target = mkTmp();
+    const home = mkTmp();
+    writeFileSync(join(target, "CLAUDE.md"), "# User Project\n");
+
+    // ONE physical directory, reached two ways. The nested walk's cycle guard used to be a GLOBAL
+    // realpath visited set, so whichever of these readdirSync returned second was silently dropped
+    // — making the installer BLIND to a member the authority sees, the exact condition
+    // kit-source.ts's header forbids ("a member it cannot see is a member it cannot refuse by
+    // name"), and nondeterministic across filesystems because readdir order decided the victim.
+    mkdirSync(join(src, ".claude", "agents", "real"), { recursive: true });
+    writeFileSync(join(src, ".claude", "agents", "real", "x.md"), `> synthetic nested adapter\n${MAT_SLOT}\n`);
+    symlinkSync(join(src, ".claude", "agents", "real"), join(src, ".claude", "agents", "alias"));
+
+    const r = runInstallFrom(src, target, home);
+    expect(r.status).toBe(3); // INCOMPLETE (27-21) — a refused member is not a complete run.
+    // BOTH relative paths named. Asserted separately so dropping either one fails.
+    expect(r.stdout).toContain("alias/x.md");
+    expect(r.stdout).toContain("real/x.md");
+    expect(r.stdout).toContain("FLAT BY CONTRACT");
+    expect(r.stdout).toContain("NOT installed");
+    expect(r.stdout).not.toContain("== install complete");
+
+    // The authority sees both, and the installer's refusal set now covers both. The INSTALL set is
+    // unchanged: the refusal is the contract, and NEITHER member may be installed.
+    const authority = listAgentAdapters(src);
+    expect(authority.filter((m) => m.includes("/"))).toEqual(["alias/x.md", "real/x.md"]);
+    expect(installedAdapters(target)).toEqual([...SYNTH_ADAPTERS].sort());
+    expect(installedAdapters(target).length).toBe(17);
+    expect(existsSync(join(target, ".claude", "agents", "real"))).toBe(false);
+    expect(existsSync(join(target, ".claude", "agents", "alias"))).toBe(false);
+  });
+
   // ── WR-04 (Plan 27-13) — `runnable removal`: every installed file has a removal counterpart ───
   //
   // install.ts's materializeRunnable() writes tools/grugops/*.js into the user's repository.
