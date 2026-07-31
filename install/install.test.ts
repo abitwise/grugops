@@ -463,11 +463,16 @@ describe("install.js / uninstall.js — single-installer contract (folds install
   // ── D-07 self-checkout guard: refuse-by-default; --allow-self overrides (two-root [10]) ──────
   it("D-07 self-checkout guard: refuses a source-shaped target by default; --allow-self overrides", () => {
     // Build a THROWAWAY clone-shaped fixture that trips the source-marker predicate WITHOUT being
-    // the real repo (carries install/install.sh + agent-factory/VERSION). NEVER point at REPO_ROOT.
+    // the real repo (carries install/install.ts + agent-factory/VERSION). NEVER point at REPO_ROOT.
+    // CR-04: the planted marker was `install/install.sh` until the pair was corrected — a file
+    // deleted in f9dab9f with the POSIX installer, so this fixture asserted a marker half that
+    // could not fire and the case passed on the path-equality half alone (TARGET === GRUGOPS_SRC
+    // here). The plant is corrected so the comment above it is true; the marker half itself gets
+    // its own case below, on a target that is NOT the source root.
     const fake = mkTmp();
     mkdirSync(join(fake, "install"), { recursive: true });
     mkdirSync(join(fake, "agent-factory"), { recursive: true });
-    writeFileSync(join(fake, "install", "install.sh"), "#!/usr/bin/env sh\n");
+    writeFileSync(join(fake, "install", "install.ts"), "// throwaway source-marker stub\n");
     writeFileSync(join(fake, "agent-factory", "VERSION"), "0.0.0-fake\n");
     const home = mkTmp();
 

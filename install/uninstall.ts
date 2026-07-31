@@ -32,6 +32,7 @@
 //
 // Usage:
 //   node install/uninstall.js                       # remove grugops adapters from the current repo
+//   node install/uninstall.js --allow-self          # override the self-checkout guard (CR-04)
 //   DRY_RUN=1 node install/uninstall.js             # preview only
 //   GRUGOPS_SRC=/path TARGET=/path node install/uninstall.js
 
@@ -60,10 +61,17 @@ import { srcSkillNames, srcAdapterFiles } from "./kit-source.js";
 // documented --target flag was silently discarded and the reversal ran against the CWD — wiping
 // grugops wiring from the WRONG repo while leaving the intended target fully installed.
 //   --target <repo> / --target=<repo>   the repo to reverse (precedence: flag > TARGET env > CWD)
+//   --allow-self / --force              override the self-checkout guard below (CR-04)
 // Scope is unchanged (D-06): still removes only adapters + wiring + the .grugops/install.json
 // marker; never the shared $GRUGOPS_HOME kit nor seeded per-repo state.
+//
+// ONE VOCABULARY ACROSS THE TWO BINARIES (CR-04): --allow-self / --force are spelled and meant
+// exactly as they are in install.ts's loop. The flag MUST be recognised here or the guard below
+// would be unreachable — this loop exits 2 on any unrecognised argument, so an override that is not
+// parsed is rejected as bad usage before the guard it is meant to override can honour it.
 // ---------------------------------------------------------------------------
 let ARG_TARGET = "";
+let ALLOW_SELF = false;
 const argv = process.argv.slice(2);
 for (let i = 0; i < argv.length; i++) {
   const a = argv[i];
@@ -71,6 +79,8 @@ for (let i = 0; i < argv.length; i++) {
     ARG_TARGET = argv[++i] ?? "";
   } else if (a.startsWith("--target=")) {
     ARG_TARGET = a.slice("--target=".length);
+  } else if (a === "--allow-self" || a === "--force") {
+    ALLOW_SELF = true;
   } else {
     process.stderr.write(`uninstall.js: unknown argument: ${a}\n`);
     process.exit(2);
@@ -476,6 +486,63 @@ function sameFileBytes(a: string, b: string): boolean {
     return readFileSync(a).equals(readFileSync(b));
   } catch {
     return false;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// SELF-CHECKOUT GUARD (ALWAYS-ON) — the reversal half of install.ts's D-07 guard, closing CR-04.
+//
+// install/README.md publishes ONE exit-code list for BOTH binaries, and its code-1 row names a
+// self-checkout refusal. Until this block existed the installer implemented that refusal and this
+// file did not — it had no exit-1 path at all (only 2 for bad usage and 3 for incomplete). The
+// consequence was reproduced, not theorised: `uninstall.js --target <a grugops checkout>` removed
+// the kit's own 17 committed adapters and 7 committed skills, deleted the repo's AGENTS.md, stripped
+// its CLAUDE.md pointer block — and printed `== uninstall complete ==` with exit 0. isProtected()
+// below covers agent-factory/, plans/, .planning/, .grugops/, docs/ and src/, but NOT .claude/,
+// which is exactly where those committed adapters and skills live. Widening isProtected() to cover
+// .claude/ is not the fix: .claude/ is the directory this uninstaller legitimately empties in a
+// normal target, so protecting it would break every ordinary reversal. The right boundary is the
+// TARGET, refused as a whole and early.
+//
+// Placed here: after TARGET and GRUGOPS_SRC are resolved, BEFORE the run banner, the kit-set
+// derivation and every removal — so a refused run writes nothing to stdout at all, and "it changed
+// nothing" is unambiguous rather than inferred from a banner that also prints on success paths.
+// Always-on, exactly like install.ts's: it is a mechanical safety check, not a prompt, so DRY_RUN
+// does not exempt it and neither does any other mode.
+//
+// THE MARKER PAIR: install/install.ts AND agent-factory/VERSION. Both are present in a grugops
+// source checkout today (verified by listing them), and neither can arrive in a normal installed
+// repository — the installer writes .claude/, CLAUDE.md, .gemini/, .github/, .grugops/, plans/,
+// memory-bank/ and tools/grugops/ into a target and never an install/ directory, so a target
+// carrying install/install.ts is a checkout of the kit, not a consumer of it. agent-factory/VERSION
+// alone is NOT sufficient: README §1's minimal path tells users to copy agent-factory/ into their
+// own repo, so that half can legitimately appear in a target and the pair is required.
+//
+// It was NOT ported verbatim. install.ts's own marker half tested for `install/install.sh`, a file
+// deleted in f9dab9f when the POSIX installer was retired (D-09) — so that half could never fire and
+// only the path-equality half worked. A guard whose condition cannot fire is the same defect as a
+// refusal that is documented and absent, so install.ts's marker was corrected to this same pair in
+// the same change. Do not reintroduce a marker naming a file the repository no longer contains.
+//
+// The equality half resolves the target before comparing. abspath() above deliberately does not
+// collapse `.`/`..` (sh byte-parity), so `--target /path/to/grugops/.` would otherwise slip past a
+// raw string compare; TARGET itself is left exactly as computed, and only this comparison normalises.
+//
+// Clear professional voice, never caveman — this is a safety surface.
+// ---------------------------------------------------------------------------
+if (!ALLOW_SELF) {
+  const toPosix = (p: string): string => p.replace(/\\/g, "/");
+  const looksLikeSource =
+    toPosix(resolve(TARGET)) === toPosix(GRUGOPS_SRC) ||
+    (existsSync(join(TARGET, "install", "install.ts")) &&
+      existsSync(join(TARGET, "agent-factory", "VERSION")));
+  if (looksLikeSource) {
+    process.stderr.write(
+      `refusing: target looks like the grugops source checkout (${TARGET}) — uninstalling here would ` +
+        `delete the kit's own committed adapters and skills under .claude/. You probably meant ` +
+        `--target <your-repo>. Pass --allow-self to override.\n`,
+    );
+    process.exit(1);
   }
 }
 
