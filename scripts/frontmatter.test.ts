@@ -270,6 +270,117 @@ const REFUSED_FORMS: readonly {
     label: "alias arriving on a plain continuation line of a wrapped value",
     emit: (v, k, i) => doc([`${k}: ${halves(v)[0]}`, `${i}*t`]),
   },
+
+  // ── THE TAG AXIS (27-REVIEW-GAPS-2 § CR-01, round 2 — plan 27-24) ────────────────────────────
+  //
+  // The five rows above pin a reference sigil standing at a node start. A YAML TAG is a node
+  // PROPERTY that legally stands IN FRONT of one, so `!!str &t …` does not begin with a sigil and
+  // `!!seq [*t]` does not begin with `[` — and every one of the twelve rows below returned the
+  // no-grant SUCCESS arm against the parser as it stood before this round. That is the same
+  // fail-open this milestone already closed once, returning in a new spelling.
+  //
+  // THE REMEDY IS AN AXIS, NOT A ROW FOR THE REPORTED SPELLING. Two things are enumerated here and
+  // they are enumerated separately on purpose:
+  //
+  //   • the five APPLICATION POINTS again, now with a tag in front — because the refusal must be a
+  //     property of "what is a node start", not a patch on the one serializer the review reported;
+  //   • the STRUCTURAL SHAPES a tag can take — the double-indicator shorthand, a single-indicator
+  //     local tag, a named handle carrying a second indicator INSIDE the tag, a verbatim
+  //     angle-bracket tag, and the bare non-specific tag whose second character is a space — plus
+  //     the two adjacency shapes and the nested-node shape. An enumeration that only varied the
+  //     tag's SPELLING would prove nothing about the strip, which is the new mechanism.
+  //
+  // The bare non-specific rows are the load-bearing ones for the strip specifically: `! &t …`,
+  // `![*t]` and `[! *t]` are invisible to the widened sigil class alone (their second character is a
+  // space or a flow indicator), so only the leading-tag strip reaches them.
+  {
+    // KEY-LINE application point. The 27-REVIEW-GAPS-2 § CR-01 reproduction verbatim in shape, and
+    // also the double-indicator SHORTHAND tag shape: the anchor hides behind `!!str` on a key that is
+    // not a tools key, and the tools key carries `!!seq` in front of a flow collection holding the
+    // alias — so neither line begins with a sigil and neither begins with a flow indicator.
+    label: "TAG axis / KEY-LINE — double-indicator shorthand tag in front of the anchor, tagged flow alias on the tools key (the CR-01 round-2 reproduction)",
+    emit: (v, k) => doc([`_tools: !!str &t ${v}`, `${k}: !!seq [*t]`]),
+  },
+  {
+    // KEY-LINE application point, on the tools key's OWN value, with no reference at all. An
+    // unresolved node property is enough on its own: the value the document expresses is not the
+    // text on the line, so reading the text is not a verdict this module may return.
+    label: "TAG axis / KEY-LINE — a tag standing directly on the tools key's own value",
+    emit: (v, k) => doc([`${k}: !!str ${v}`]),
+  },
+  {
+    // FLOW-ITEM node start, behind a tag: the collection is introduced by `!!seq`, so the value no
+    // longer OPENS with `[` and the fragment split is only reached once the tag is stripped.
+    label: "TAG axis / FLOW-ITEM — a TAGGED flow collection whose items carry the anchor and the alias",
+    emit: (v, k) => doc([`${k}: !!seq [&t ${splitTopLevel(v)[0]}, *t]`]),
+  },
+  {
+    // SEQ_ITEM application point: each block-sequence item is its own node and carries its own tag.
+    label: "TAG axis / SEQ_ITEM — tagged anchor and alias as block-sequence items on continuation lines",
+    emit: (v, k, i) =>
+      doc([
+        `${k}:`,
+        ...splitTopLevel(v).map((x) => `${i}- !!str &t ${x}`),
+        `${i}- !!str *t`,
+      ]),
+  },
+  {
+    // PLAIN-CONTINUATION application point: the tag arrives on the wrapped line, the one position a
+    // key-line-only test misses entirely.
+    label: "TAG axis / PLAIN-CONTINUATION — a tagged alias arriving on a plain continuation line of a wrapped value",
+    emit: (v, k, i) => doc([`${k}: ${halves(v)[0]}`, `${i}!!str *t`]),
+  },
+  {
+    // SHAPE: a single-indicator LOCAL tag. One `!`, an ordinary name — structurally distinct from the
+    // shorthand form because there is no second indicator to key on.
+    label: "TAG shape — a single-indicator LOCAL tag",
+    emit: (v, k) => doc([`_tools: !grugops &t ${v}`, `${k}: !grugops [*t]`]),
+  },
+  {
+    // SHAPE: a NAMED HANDLE carries a second `!` INSIDE the tag token, so a strip that stopped at the
+    // second indicator would leave `!seq [*t]` behind and mis-read the remainder as content.
+    label: "TAG shape — a NAMED-HANDLE tag carrying a second indicator inside the tag",
+    emit: (v, k) => doc([`_tools: !e!scalar &t ${v}`, `${k}: !e!seq [*t]`]),
+  },
+  {
+    // SHAPE: a VERBATIM tag is delimited by angle brackets and may legally contain characters — `[`
+    // among them — that terminate every other tag form. A strip that split on flow indicators rather
+    // than honouring the delimiters would cut this tag in half.
+    label: "TAG shape — a VERBATIM tag delimited by angle brackets",
+    emit: (v, k) =>
+      doc([
+        `_tools: !<tag:grugops.dev,2026:str> &t ${v}`,
+        `${k}: !<tag:grugops.dev,2026:seq> [*t]`,
+      ]),
+  },
+  {
+    // SHAPE: the BARE NON-SPECIFIC tag. Its second character is a SPACE, so the sigil class alone
+    // cannot see it — this row is red only because one leading tag is stripped before the node start
+    // is re-tested. It is the sharpest row in the table for that reason.
+    label: "TAG shape — the BARE non-specific tag, whose second character is a space (invisible to the sigil class alone)",
+    emit: (v, k) => doc([`_tools: ! &t ${v}`, `${k}: ! [*t]`]),
+  },
+  {
+    // ADJACENCY: no whitespace at all between the tag and the collection it introduces.
+    label: "TAG adjacency — a shorthand tag butting directly against the collection, no separating whitespace",
+    emit: (v, k) => doc([`_tools: !!str &t ${v}`, `${k}: !!seq[*t]`]),
+  },
+  {
+    // ADJACENCY: a tag, then an ANCHOR, then the collection — two node properties stacked in front of
+    // the node. Stripping ONE tag must still leave the anchor visible at the node start.
+    label: "TAG adjacency — a tag followed by an ANCHOR which is itself followed by the collection",
+    emit: (v, k) => doc([`_tools: !!str &t ${v}`, `${k}: !!seq &a [*t]`]),
+  },
+  {
+    // NESTING: the tag sits on nodes INSIDE the flow collection rather than in front of it, and it is
+    // the bare form again — so this row is red only if the strip is applied at each nested node's OWN
+    // start rather than once at the value's start. Deliberately carries NO tagged key line of its
+    // own: a helper key with a tag in front of an anchor would be refused by the widened sigil class
+    // before the nesting was ever reached, and the row would then be green for a reason having
+    // nothing to do with what it claims to cover.
+    label: "TAG nesting — BARE non-specific tags on nodes INSIDE a flow collection",
+    emit: (v, k) => doc([`${k}: [! &t ${splitTopLevel(v)[0]}, ! *t]`]),
+  },
 ];
 
 // Two continuation-indent widths, so indentation is part of the product rather than an assumption
@@ -290,8 +401,14 @@ describe("frontmatter — the spawn-grant parser oracle (SPAWN-04 / KIT-03)", ()
     // (CR-01) The REFUSED table is held to the same discipline, for the same reason: a refused
     // serializer silently dropped from the table would shrink the refusal claim while every remaining
     // assertion stayed green — the exact shape of the coverage gap that let the anchor/alias bypass
-    // ship. Five rows, five distinct labels, five distinct application points in flattenBlock.
-    expect(REFUSED_FORMS.length).toBeGreaterThanOrEqual(5);
+    // ship. Five bare-sigil rows covering the five application points in flattenBlock, plus (plan
+    // 27-24) twelve TAG-axis rows: the same five application points with a tag in front, the five
+    // structural tag shapes, the two adjacency shapes and the nested-node shape.
+    //
+    // THE FLOOR MOVED WITH THE ROWS, 5 -> 17, in the same edit that added them. A floor left at 5
+    // would have let any twelve of the seventeen be deleted later without a single assertion going
+    // red — which is precisely how a refusal claim shrinks silently.
+    expect(REFUSED_FORMS.length).toBeGreaterThanOrEqual(17);
     expect(new Set(REFUSED_FORMS.map((f) => f.label)).size).toBe(
       REFUSED_FORMS.length,
     );
@@ -351,8 +468,10 @@ describe("frontmatter — the spawn-grant parser oracle (SPAWN-04 / KIT-03)", ()
     }
     // Same cardinality pin as the passing product: a refused serializer dropped from the table fails
     // THIS assertion rather than quietly shrinking what "refuses every reference form" means.
+    // (Plan 27-24) Raised 60 -> 204 in the same edit that added the twelve tag-axis rows, for the
+    // same reason the table floor moved: a floor that does not track the table counts nothing.
     expect(checked).toBe(REFUSED_FORMS.length * INDENTS.length * VALUES.length);
-    expect(checked).toBeGreaterThanOrEqual(60);
+    expect(checked).toBeGreaterThanOrEqual(204);
   });
 
   it("the refusal holds identically under the skill form of the key (allowed-tools)", () => {
@@ -361,6 +480,77 @@ describe("frontmatter — the spawn-grant parser oracle (SPAWN-04 / KIT-03)", ()
         const text = form.emit(v.value, "allowed-tools", "  ");
         expect(hasSpawnGrant(text).ok, `${form.label} | ${v.label}`).toBe(false);
       }
+    }
+  });
+
+  // ── The control in the OPPOSITE direction (plan 27-24) ────────────────────────────────────────
+  //
+  // The tag axis above widens a refusal, and a widened refusal has its own failure mode: firing on
+  // legitimate authored content. The module header already names it — "a guard that fails on correct
+  // documentation teaches the next author to delete the documentation" — and this case is what stops
+  // the NEXT widening from causing it. Both halves are real shapes a shipped file can carry: a value
+  // that genuinely begins with the tag indicator (which YAML requires be quoted, and a quoted value
+  // is a literal string), and the indicator arriving mid-sentence in a description.
+  it("does NOT refuse legitimate content carrying the tag indicator — quoted leading indicator, and mid-sentence", () => {
+    // A QUOTED value beginning with the tag indicator is a literal string, so it reaches the SUCCESS
+    // arm carrying exactly the grant verdict its text carries — the same verdict the equivalent
+    // unquoted-but-untagged list would produce.
+    const quoted: readonly {
+      readonly label: string;
+      readonly line: string;
+      readonly grant: boolean;
+      readonly names: readonly string[];
+    }[] = [
+      {
+        label: 'double-quoted, leading indicator, no grant',
+        line: 'tools: "!weird-tool, Read, Grep"',
+        grant: false,
+        names: [],
+      },
+      {
+        label: "single-quoted, leading indicator, no grant",
+        line: "tools: '!weird-tool, Read, Grep'",
+        grant: false,
+        names: [],
+      },
+      {
+        label: "double-quoted, leading indicator, SCOPED GRANT INTACT",
+        line: 'tools: "!weird-tool, Read, Agent(grugops-installer)"',
+        grant: true,
+        names: ["grugops-installer"],
+      },
+      {
+        label: "double-quoted, leading DOUBLE indicator, scoped grant intact",
+        line: 'tools: "!!weird-tool, Read, Agent(grugops-qe-e2e)"',
+        grant: true,
+        names: ["grugops-qe-e2e"],
+      },
+    ];
+    for (const q of quoted) {
+      const text = doc([q.line]);
+      const grant = hasSpawnGrant(text);
+      const names = grantedAgentNames(text);
+      expect(grant.ok, q.label).toBe(true);
+      expect(grant.ok && grant.value, q.label).toBe(q.grant);
+      expect(names.ok, q.label).toBe(true);
+      expect(names.ok ? names.value : null, q.label).toEqual([...q.names]);
+    }
+
+    // A description carrying the indicator MID-SENTENCE is ordinary prose. The refusal is anchored at
+    // a node START, so none of these may be refused — and none of them is a grant either.
+    const prose = [
+      "description: Reads the repo and warns loudly! Nothing is written.",
+      "description: Escalates on !important findings before the gate runs.",
+      "description: Uses the a!b handle and the c!d handle interchangeably.",
+      "description: Never pass ! as a bare argument.",
+    ];
+    for (const line of prose) {
+      const text = doc([line, "tools: Read, Grep, Glob"]);
+      const parsed = parseFrontmatter(text);
+      expect(parsed.ok, line).toBe(true);
+      const grant = hasSpawnGrant(text);
+      expect(grant.ok, line).toBe(true);
+      expect(grant.ok && grant.value, line).toBe(false);
     }
   });
 
