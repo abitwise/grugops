@@ -325,3 +325,8 @@ at a trust boundary; it narrows an existing one.
 |------|--------|-------------|
 | 1 (tracer) | `4dbd3ad` | fix(27-24): refuse a YAML tag standing at a node start (CR-01 round 2) |
 | 2 | `392b744` | test(27-24): enumerate the tag axis at every application point and raise both pins |
+| — | `1f2c237` | docs(27-24): record the CR-01 round-2 tag-refusal plan summary |
+
+## Self-Check: PASSED
+
+All five claimed files exist on disk; all three claimed commit hashes resolve in `git log`.
