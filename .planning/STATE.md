@@ -5,13 +5,13 @@ milestone_name: Autonomous Factory — Real Spawning, Controlled Language & Live
 current_phase: 27
 current_phase_name: spawn-correctness-kit-set-authority
 status: executing
-stopped_at: Completed 27-25-PLAN.md
-last_updated: "2026-07-31T09:21:56.563Z"
+stopped_at: Completed 27-26-PLAN.md
+last_updated: "2026-07-31T09:37:22.233Z"
 progress:
   total_phases: 7
   completed_phases: 0
   total_plans: 28
-  completed_plans: 25
+  completed_plans: 26
   percent: 0
 last_activity: 2026-07-31
 last_activity_desc: "Gap-closure round 3 PLANNED — 5 new plans (27-24..27-28) in 4 waves, plan-checker VERIFICATION PASSED. The 2026-07-30T19:30Z verification returned gaps_found at 7/10 clean: KIT-02, KIT-03 and SPAWN-04 are PARTIAL against six live, reproduced, unpatched defects. 27-24 (tracer) closes CR-01, the frontmatter.ts fail-open where a YAML tag in front of a reference (`allowed-tools: !!seq [*t]`) reaches the silent no-grant SUCCESS arm — shared machinery, so it weakens guard_wr05 and the KIT-03 oracle's grant-closure read at once. 27-25 closes CR-02 per D-28 (added today, AMENDS D-18) by COLLAPSING the install.ts/uninstall.ts derivation pair into one shared install/kit-source.ts rather than hand-syncing it a third time — the pair had drifted twice inside this phase. 27-26 closes WR-01, the missing cardinality arm on tools/allowed-tools that its sibling name key got in 27-19. 27-27 closes CR-03 plus the deferred kit-model.ts walkFilesRelative cycle defect per D-29, with ONE ancestor-stack treatment at both walk sites. 27-28 closes CR-04 by implementing the uninstaller self-checkout refusal install/README.md already publishes — the reproduction deleted 17 adapters and 7 skills at exit 0. Round-2's WR-03 and IN-02 are explicitly out of scope. Every closing task carries a RED-before/GREEN-after transcript requirement and a committed-.js freshness assertion: this phase has now shipped defects past a green suite twice, so tests-pass is not accepted as proof. 23 of 28 plans executed."
@@ -30,8 +30,8 @@ See: .planning/PROJECT.md (updated 2026-07-28 — after v2.0 milestone)
 ## Current Position
 
 Phase: 27 (spawn-correctness-kit-set-authority) — EXECUTING (gap-closure round 3)
-Plan: 25 of 28 executed (27-01..27-24 done; 27-25..27-28 planned, not started)
-Status: 27-24 (the round-3 tracer) is CLOSED — CR-01's tag-prefixed fail-open is refused in `frontmatter.ts`, the committed `.js` is rebuilt and freshness-green, the tag axis is enumerated at every application point with both cardinality pins raised, and the aggregator goes red on the unguarded skill surface where it previously printed `ALL CHECKS PASSED` at exit 0. Next: 27-25 (CR-02).
+Plan: 26 of 28 executed (27-01..27-26 done; 27-27..27-28 planned, not started)
+Status: 27-26 is CLOSED — WR-01's missing cardinality arm is added to guard_wr05's tools floor, so a document declaring an allow-list key more than once is refused by name and by an exact integer count on both key spellings. The floor's loop widened from the agent adapters to the whole spawn-grant scan set so one arm covers the skill surface, with absence and emptiness keeping their agent-only scope behind an explicit gate; the two-different-key-names adjacency is dispositioned REFUSED as its own finding. `keysHaveSpawnGrant()`'s disjunction and the 27-19 name-key refusal are diff-clean. RED-before/GREEN-after transcripts recorded on both spellings against base sha `7a4b7cc`, the committed `.js` is rebuilt and freshness-green (32 outputs), and the threshold is pinned on both sides by a seven-spelling false-red control. Next: 27-27 (CR-03 + D-29).
 
 | Plan | Wave | Closes | Requirements |
 |------|------|--------|--------------|
@@ -230,6 +230,7 @@ Prior activity: 2026-07-30 — 27-22 closed WR-02 and WR-04, the last two plans-
 | Phase 27 P22 | ~45m | 2 tasks | 3 files |
 | Phase 27 P24 | 35m | 2 tasks | 4 files |
 | Phase 27 P25 | 35 min | 2 tasks | 7 files |
+| Phase 27 P26 | ~40 min | 2 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -547,6 +548,8 @@ Recent decisions affecting current work:
 - [Phase 27]: 27-24: `!` joins `&`/`*` in frontmatter.ts's YAML_REF and ONE leading tag is stripped at every node start — a tag is a node property this module does not resolve, so a tagged reference is refused for the same reason a bare one is (CR-01 round 2).
 - [Phase 27]: 27-24: WR-03 (the refused-product's titling / axis-completeness question) is deliberately out of scope for gap-closure round 3 — the case was not retitled and the product was not restructured beyond adding rows and raising pins.
 - [Phase ?]: Set-literal inventory entry 10 RETIRED, not renumbered — entries 14/15 are cited by number in install.test.ts and the phase plans (plan 27-25)
+- [Phase ?]: WR-01 closed: the allow-list key gets the cardinality arm its sibling name key already had; the two-different-key-names adjacency is dispositioned REFUSED as its own finding.
+- [Phase ?]: guard_wr05's tools-floor loop widened from AGENT_ADAPTERS to SPAWN_GRANT_SCAN so one arm covers the skill surface; absence and emptiness keep their agent-only scope behind an explicit isAgentAdapter gate.
 
 ### Pending Todos
 
@@ -645,8 +648,8 @@ Shape of the carry: **9 of 11 are pre-v2.0 carryover** from the v1.2 block above
 
 ## Session Continuity
 
-Last session: 2026-07-31T09:21:56.552Z
-Stopped at: Completed 27-25-PLAN.md
+Last session: 2026-07-31T09:37:11.410Z
+Stopped at: Completed 27-26-PLAN.md
 Resume file: None
 
 ## Operator Next Steps
