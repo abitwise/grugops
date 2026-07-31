@@ -5,14 +5,15 @@ milestone_name: Autonomous Factory — Real Spawning, Controlled Language & Live
 current_phase: 27
 current_phase_name: spawn-correctness-kit-set-authority
 status: executing
-stopped_at: Completed 27-22-PLAN.md (last plan of phase 27)
-last_updated: "2026-07-30T15:19:17.482Z"
-last_activity: 2026-07-30
-last_activity_desc: "27-22 closed WR-02 and WR-04, the last two plans-worth of gap-closure round 2. The installer's three source derivations now decide file-ness and directory-ness with `statSync`, matching `kit-model.walkFilesRelative` and the way the platform resolves a symlinked adapter, so a symlinked source adapter is INSTALLED or REFUSED BY NAME instead of vanishing under `== install complete ==`. Proven RED-before/GREEN-after on both synthetic and REAL repo sources, plus four adversarial probes; a symlink CYCLE would have hung the new walk and was closed with a realpath-visited-once guard (Rule 2). `mappingDests` now derives its own cardinality from the `[` openings the author wrote and refuses an entry it cannot read, naming the file, constant and both counts — the plan's stated RED does not reproduce, the review's does, and both transcripts are recorded. All 23 plans of phase 27 are executed; phase 27 is NOT verified complete."
+stopped_at: Planned 27-24..27-28 (gap-closure round 3) — ready to execute
+last_updated: "2026-07-31T06:54:18.528Z"
+last_activity: 2026-07-31
+last_activity_desc: "Gap-closure round 3 PLANNED — 5 new plans (27-24..27-28) in 4 waves, plan-checker VERIFICATION PASSED. The 2026-07-30T19:30Z verification returned gaps_found at 7/10 clean: KIT-02, KIT-03 and SPAWN-04 are PARTIAL against six live, reproduced, unpatched defects. 27-24 (tracer) closes CR-01, the frontmatter.ts fail-open where a YAML tag in front of a reference (`allowed-tools: !!seq [*t]`) reaches the silent no-grant SUCCESS arm — shared machinery, so it weakens guard_wr05 and the KIT-03 oracle's grant-closure read at once. 27-25 closes CR-02 per D-28 (added today, AMENDS D-18) by COLLAPSING the install.ts/uninstall.ts derivation pair into one shared install/kit-source.ts rather than hand-syncing it a third time — the pair had drifted twice inside this phase. 27-26 closes WR-01, the missing cardinality arm on tools/allowed-tools that its sibling name key got in 27-19. 27-27 closes CR-03 plus the deferred kit-model.ts walkFilesRelative cycle defect per D-29, with ONE ancestor-stack treatment at both walk sites. 27-28 closes CR-04 by implementing the uninstaller self-checkout refusal install/README.md already publishes — the reproduction deleted 17 adapters and 7 skills at exit 0. Round-2's WR-03 and IN-02 are explicitly out of scope. Every closing task carries a RED-before/GREEN-after transcript requirement and a committed-.js freshness assertion: this phase has now shipped defects past a green suite twice, so tests-pass is not accepted as proof. 23 of 28 plans executed."
+prior_activity_desc: 27-22 closed WR-02 and WR-04, the last two plans-worth of gap-closure round 2. The installer's three source derivations now decide file-ness and directory-ness with `statSync`, matching `kit-model.walkFilesRelative` and the way the platform resolves a symlinked adapter, so a symlinked source adapter is INSTALLED or REFUSED BY NAME instead of vanishing under `== install complete ==`. Proven RED-before/GREEN-after on both synthetic and REAL repo sources, plus four adversarial probes; a symlink CYCLE would have hung the new walk and was closed with a realpath-visited-once guard (Rule 2). `mappingDests` now derives its own cardinality from the `[` openings the author wrote and refuses an entry it cannot read, naming the file, constant and both counts — the plan's stated RED does not reproduce, the review's does, and both transcripts are recorded. All 23 plans of phase 27 are executed; phase 27 is NOT verified complete.
 progress:
   total_phases: 7
   completed_phases: 0
-  total_plans: 23
+  total_plans: 28
   completed_plans: 23
   percent: 0
 ---
@@ -28,10 +29,21 @@ See: .planning/PROJECT.md (updated 2026-07-28 — after v2.0 milestone)
 
 ## Current Position
 
-Phase: 27 (spawn-correctness-kit-set-authority) — EXECUTING
-Plan: 23 of 23 executed (27-01..27-23) — **every plan of phase 27 has run**; the phase itself is not yet verified
-Status: Executing — all of gap-closure round 2 has landed (gap waves 7-9 COMPLETE: 27-18, 27-19, 27-20, 27-21, 27-22, 27-23). Next: verification of phase 27
-Last activity: 2026-07-30 — 27-22 closed WR-02 and WR-04, the last two plans-worth of gap-closure round 2. The installer's three source derivations now decide file-ness and directory-ness with `statSync`, matching `kit-model.walkFilesRelative` and the way the platform resolves a symlinked adapter, so a symlinked source adapter is INSTALLED or REFUSED BY NAME instead of vanishing under `== install complete ==`. Proven RED-before/GREEN-after on both synthetic and REAL repo sources, plus four adversarial probes; a symlink CYCLE would have hung the new walk and was closed with a realpath-visited-once guard (Rule 2). `mappingDests` now derives its own cardinality from the `[` openings the author wrote and refuses an entry it cannot read, naming the file, constant and both counts — the plan's stated RED does not reproduce, the review's does, and both transcripts are recorded. All 23 plans of phase 27 are executed; phase 27 is NOT verified complete.
+Phase: 27 (spawn-correctness-kit-set-authority) — EXECUTING (gap-closure round 3 planned)
+Plan: 23 of 28 executed (27-01..27-23 done; 27-24..27-28 planned, not started)
+Status: Ready to execute gap-closure round 3. The 2026-07-30T19:30Z verification returned `gaps_found` — 7/10 requirements clean, 3 PARTIAL (KIT-02, KIT-03, SPAWN-04) against six live, reproduced, unpatched defects. Five new plans close them in 4 waves; plan-checker returned VERIFICATION PASSED.
+
+| Plan | Wave | Closes | Requirements |
+|------|------|--------|--------------|
+| 27-24 (tracer) | 1 | CR-01 — `frontmatter.ts` does not refuse a YAML tag in front of a reference; `allowed-tools: !!seq [*t]` reaches the silent no-grant SUCCESS arm. Shared machinery, so it weakens `guard_wr05` and the KIT-03 oracle's grant-closure read at once | KIT-03, SPAWN-04 |
+| 27-25 | 2 | CR-02 — collapses the `install.ts`/`uninstall.ts` derivation pair into one shared `install/kit-source.ts` per **D-28** (added 2026-07-31, AMENDS D-18), rather than hand-syncing a pair that has now drifted twice inside this phase | KIT-02 |
+| 27-26 | 3 | WR-01 — the missing cardinality arm on `tools`/`allowed-tools`, which its sibling `name` key received in 27-19 | SPAWN-04, KIT-03 |
+| 27-27 | 3 | CR-03 + the deferred `kit-model.ts` `walkFilesRelative` cycle defect per **D-29**, with ONE ancestor-stack treatment at both walk sites | KIT-01, KIT-02 |
+| 27-28 | 4 | CR-04 — implements the uninstaller self-checkout refusal `install/README.md` already publishes; the reproduction deleted 17 adapters and 7 skills at exit 0 | KIT-02 |
+
+Round-2's WR-03 and IN-02 are explicitly out of scope (user decision). Every closing task carries a RED-before/GREEN-after transcript requirement and a committed-`.js` freshness assertion — this phase has shipped defects past a green suite twice, so "tests pass" is not accepted as proof.
+Next: `/gsd-execute-phase 27`
+Prior activity: 2026-07-30 — 27-22 closed WR-02 and WR-04, the last two plans-worth of gap-closure round 2. The installer's three source derivations now decide file-ness and directory-ness with `statSync`, matching `kit-model.walkFilesRelative` and the way the platform resolves a symlinked adapter, so a symlinked source adapter is INSTALLED or REFUSED BY NAME instead of vanishing under `== install complete ==`. Proven RED-before/GREEN-after on both synthetic and REAL repo sources, plus four adversarial probes; a symlink CYCLE would have hung the new walk and was closed with a realpath-visited-once guard (Rule 2). `mappingDests` now derives its own cardinality from the `[` openings the author wrote and refuses an entry it cannot read, naming the file, constant and both counts — the plan's stated RED does not reproduce, the review's does, and both transcripts are recorded. All 23 plans of phase 27 are executed; phase 27 is NOT verified complete.
 
 ## Performance Metrics
 
