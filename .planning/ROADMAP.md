@@ -124,7 +124,7 @@ Full phase details + milestone summary: `milestones/v2.0-ROADMAP.md` · requirem
   4. On Claude Code the coordinator runs as the **main-thread** agent so its `Agent(<allowlist>)` grant is honored by the runtime, and no non-coordinator adapter carries the `Agent` tool at all — a mechanism that holds on both the main-thread and subagent paths rather than relying on a frontmatter token the runtime ignores. (SPAWN-03, SPAWN-04)
   5. `guard_adapter_body` fails red on pre-v2.0 handoff/single-window prose anywhere in an adapter body — proven against the surviving `grugops-orchestrator.md:25` reference — `orchestrator.md` sits below its **7570-byte FAIL ceiling with the ceiling unchanged**, and the advertised Claude Code floor reads **v2.1.219+ at depth 3** everywhere it appears, with the v2.1.217–218 depth-1 window documented as a known-bad range that degrades loudly. (SPAWN-05, SPAWN-06, SPAWN-07)
 
-**Plans**: 28/28 plans executed
+**Plans**: 32 plans (28/32 executed — gap-closure round 4 adds 27-29..27-32)
 Plans:
 **Wave 1**
 
@@ -218,6 +218,23 @@ Plans:
 - [x] 27-28-PLAN.md — the uninstaller implements the self-checkout refusal its README already publishes, on a marker that can actually fire, closing a reproduced data-loss path; every exit-code row becomes true of the binaries it claims to cover [KIT-02] *(CR-04, IN-01)*
 
 **Ordering that is load-bearing in gap-closure round 3** — the tracer (27-24) closes the shared parser fail-open and establishes the RED-before / GREEN-after proof pattern before any expansion; 27-25's structural collapse must land before 27-27 can give the moved walk its cycle treatment and before 27-28 can add a refusal to the restructured uninstaller. Waves 3 and 4 are split by shared FILE rather than shared logic: 27-24 and 27-26 both edit `check-foundation-guards.test.ts`, and 27-25, 27-27 and 27-28 all edit `install/install.test.ts`.
+
+**Gap closure round 4** *(from `27-VERIFICATION.md` dated 2026-07-31T13:00:00Z — `gaps_found`, 7/10 clean, with ONE live independently-reproduced BLOCKER shared by KIT-03 and SPAWN-04 plus four warning-tier KIT-02 residuals, against `27-REVIEW-GAPS-3.md`'s 1 Critical + 4 Warnings + 3 Infos. Waves restart at 1 because plans 27-01..27-28 are all executed. **D-31: nothing from round 3 is deferred — all eight findings close this round.**)*
+
+**Gap wave 1**
+
+- [ ] 27-29-PLAN.md — TRACER: the frontmatter authority's double-quoted branch is INVERTED to an escape ALLOWLIST (D-30), so a backslash spelling nobody enumerated refuses BY DEFAULT instead of being deleted into a value no YAML loader computes; proven RED-before / GREEN-after against the committed `.js` at module and aggregator level, with an exhaustive dependency-free escape-alphabet property and both false-red controls [KIT-03, SPAWN-04] *(CR-01)*
+
+**Gap wave 2** *(both blocked on 27-29; disjoint files, run in parallel)*
+
+- [ ] 27-30-PLAN.md — the second silent-SUCCESS arm in the same module is closed: a leading YAML directive line is refused by name instead of reading as "no frontmatter, no keys" (D-34), and the agent-adapter scoping gate gets the negative control that makes it load-bearing [KIT-03, SPAWN-04] *(IN-02, IN-01)*
+- [ ] 27-31-PLAN.md — both recursive walks get a WORK bound explicitly separate from the per-path cycle answer (D-35), and the cycle arm stops dropping members silently (D-36): reported as a verification finding in the installer, thrown as a named error in the kit-set authority, each matching that side's documented floor [KIT-01, KIT-02] *(WR-01, WR-04)*
+
+**Gap wave 3** *(blocked on 27-31 — shared `install/install.ts` and `install/install.test.ts`)*
+
+- [ ] 27-32-PLAN.md — the self-checkout marker pair collapses into one exported constant naming the RUNTIME artifact, with a read-only real-repository existence assertion as the forcing function CR-04 never got (D-37); the stale duplicate-walk rationale is amended to D-28's and the equality it appeals to becomes a case (D-38); the reversal docs match the always-on refusal [KIT-02] *(WR-02, WR-03, IN-03)*
+
+**Ordering that is load-bearing in gap-closure round 4** — the tracer (27-29) is the phase's only live BLOCKER and closes KIT-03 and SPAWN-04 with one change to one module, so it is proven against the committed `.js` before any expansion task runs. Wave 2 is genuinely parallel: 27-30 owns `scripts/frontmatter.*` and 27-31 owns the two walk sites, with zero `files_modified` overlap. Wave 3 is split by shared FILE, not shared logic — 27-31 and 27-32 both edit `install/install.ts` and `install/install.test.ts`, and 27-32's equality case asserts against the exact cycle path strings 27-31 records.
 
 **Ordering that is load-bearing in gap-closure round 2** — `scripts/frontmatter.ts` is the identity and grant parsing authority. CR-01 changes what it answers and CR-02 and WR-03 both read from it, so 27-18 lands and is proven before any consumer moves. Waves 8 and 9 are split by shared FILE rather than by shared logic: 27-19 and 27-20 both edit `check-foundation-guards.ts`, and 27-21 and 27-22 both edit `install/install.ts`.
 

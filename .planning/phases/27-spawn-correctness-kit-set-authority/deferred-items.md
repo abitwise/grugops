@@ -69,6 +69,24 @@ Out-of-scope discoveries logged during execution. Not fixed; recorded so they ar
   brownfield only where the state plane is absent, stale or contradicted by the tree. The detection
   must be a real check, not an inference from a filename, and the fallback must stay loud.
 
+## From gap-closure round 4 planning (2026-07-31)
+
+- **No shared test-helper module between `install/install.test.ts` and `scripts/kit-model.test.ts`.**
+  Plans 27-31 and 27-32 need a symlink-DAG fixture builder on BOTH sides of the "one predicate, two
+  sites, no import" boundary, so `makeSymlinkDag` is written twice, once per test file. That is a
+  hand-synced duplicate helper — the same shape as the derivation pair D-28 collapsed and the marker
+  pair D-37 collapses — and it will drift the same way.
+  - **Why not fixed in round 4:** creating a shared test-helper module inside `install/` would couple
+    the installer's tests to the scripts layer, which is exactly what D-18/D-28 keep decoupled; a
+    third location would need its own home and its own freshness story. Deciding where it lives is a
+    layout decision, not a defect fix, and round 4 is scoped to the eight round-3 findings.
+  - **Suggested direction:** if a third consumer ever needs the same fixture, that is the forcing
+    signal — collapse it then, and assert the two call sites produce byte-identical trees rather than
+    promising they do.
+  - **Not a reason to skip the round-4 cases:** two copies of a FIXTURE builder are a maintenance
+    smell; two copies of a PREDICATE were the CR-02/CR-03 defect. The distinction is recorded here so
+    a later reader does not conflate them.
+
 ## From 27-22 (WR-02)
 
 - `scripts/kit-model.ts` `walkFilesRelative()` follows symlinks (deliberately) but keeps no
