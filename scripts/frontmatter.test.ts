@@ -1382,6 +1382,134 @@ describe("frontmatter — the spawn-grant parser oracle (SPAWN-04 / KIT-03)", ()
     });
   });
 
+  // ── D-34 / IN-02: the YAML DIRECTIVE PROLOGUE, the same silent-success shape one level UP ───────
+  //
+  // Everything in the CR-01 family above is about a VALUE inside the block. This one is about whether
+  // there IS a block: a legal `%TAG` / `%YAML` directive before the opening delimiter made the first
+  // non-blank line something other than `---`, so the document took the legitimately-keyless SUCCESS
+  // arm and returned a result byte-identical to a body-only file — on a document whose `tools` value
+  // is plainly a grant. Measured against the committed parser before the fix: `{"ok":true,
+  // "value":false}` (27-REVIEW-GAPS-3 § IN-02, plan 27-30).
+  //
+  // The reviewer's `UNKNOWN - verify` rides along: the platform most likely sees no frontmatter here
+  // either, so the file is probably inert rather than rogue. These cases pin the module's CONTRACT —
+  // an undecodable prologue belongs in the unreadable arm — not a reproduced live bypass.
+
+  it("D-34 — a %TAG directive before the opening delimiter is REFUSED by name, not read as no-frontmatter (IN-02, reproduced)", () => {
+    // The reviewer's verified reproduction string, verbatim.
+    const text = "%TAG !e! tag:x,2000:\n---\nname: x\ntools: Read, Agent(o)\n---\n";
+
+    const parsed = parseFrontmatter(text);
+    expect(parsed.ok).toBe(false);
+    if (parsed.ok) return;
+    // The reason NAMES the offending line rather than gesturing at the document.
+    expect(parsed.reason).toContain("%TAG !e! tag:x,2000:");
+    expect(parsed.reason).toMatch(/YAML directive line/);
+
+    // The load-bearing half: the document's tools value IS a grant, so the failure arm must be
+    // reached instead of the value-false success arm. These two assertions are what would have
+    // failed before the fix.
+    const grant = hasSpawnGrant(text);
+    expect(grant.ok).toBe(false);
+    expect(grant).not.toEqual({ ok: true, value: false });
+    const names = grantedAgentNames(text);
+    expect(names.ok).toBe(false);
+    expect(names).not.toEqual({ ok: true, value: [] });
+  });
+
+  it("D-34 — the refusal is POSITIONAL and takes no lookahead: %YAML, a two-directive prologue and a directive with no block all refuse", () => {
+    // One directive, the other legal spelling.
+    const yaml12 = "%YAML 1.2\n---\nname: x\ntools: Read, Agent(o)\n---\n";
+    // TWO directives — the shape a "next line must be `---`" test would have missed, which is why
+    // the test consults nothing after the directive. This is the round-5 spelling, closed in advance.
+    const twoDirectives =
+      "%YAML 1.2\n%TAG !e! tag:x,2000:\n---\nname: x\ntools: Read, Agent(o)\n---\n";
+    // A directive and no block at all: still a document declaring a processing context we do not
+    // implement, so still refused. No lookahead means no exception here either.
+    const noBlock = "%YAML 1.2\nJust body prose.\n";
+    // Leading blank lines are skipped before the test, exactly as they are before the delimiter test.
+    const afterBlanks = "\n\n%TAG !e! tag:x,2000:\n---\nname: x\ntools: Read, Agent(o)\n---\n";
+
+    for (const text of [yaml12, twoDirectives, noBlock, afterBlanks]) {
+      const parsed = parseFrontmatter(text);
+      expect(parsed.ok).toBe(false);
+      if (parsed.ok) continue;
+      expect(parsed.reason).toMatch(/YAML directive line/);
+    }
+  });
+
+  it("D-34 false-red control — the genuinely-keyless arm is UNTOUCHED: a body-only file, an indented percent line and a percent MID-line all still succeed", () => {
+    // 1. The arm the refusal must not swallow. A body-only file is a legitimate state.
+    const bodyOnly = "# Heading\n\nJust body prose.\n";
+    const pBody = parseFrontmatter(bodyOnly);
+    expect(pBody.ok).toBe(true);
+    if (pBody.ok) expect(pBody.value.size).toBe(0);
+
+    // 2. YAML gives `%` directive meaning only at COLUMN 0, so an indented percent line is ordinary
+    //    text and falls through to the delimiter test unchanged.
+    const indented = "  %TAG !e! tag:x,2000:\nJust body prose.\n";
+    const pIndented = parseFrontmatter(indented);
+    expect(pIndented.ok).toBe(true);
+    if (pIndented.ok) expect(pIndented.value.size).toBe(0);
+
+    // 3. A percent that is not the FIRST character is not a directive either.
+    const midLine = "100% body prose, no frontmatter here.\n";
+    const pMid = parseFrontmatter(midLine);
+    expect(pMid.ok).toBe(true);
+    if (pMid.ok) expect(pMid.value.size).toBe(0);
+
+    // 4. An ordinary document with a real block is entirely unaffected.
+    const ordinary = "---\nname: x\ntools: Read, Agent(grugops-installer)\n---\nBody.\n";
+    expect(hasSpawnGrant(ordinary)).toEqual({ ok: true, value: true });
+  });
+
+  it("D-34 — a percent line INSIDE the block keeps the EXISTING key-line reason, and one in the BODY is not read at all (one input, one reason)", () => {
+    // INSIDE the block: already refused by KEY_LINE, which requires `[A-Za-z_]` at the key start.
+    // It must keep THAT reason — a second reason for the same input is the duplicate grammar this
+    // module exists to delete.
+    const inBlock = "---\nname: x\n%TAG !e! tag:x,2000:\ntools: Read, Agent(o)\n---\n";
+    const pIn = parseFrontmatter(inBlock);
+    expect(pIn.ok).toBe(false);
+    if (!pIn.ok) {
+      expect(pIn.reason).toMatch(/cannot read/);
+      expect(pIn.reason).not.toMatch(/YAML directive line/);
+    }
+
+    // In the BODY, after a well-formed block: never read, so the block parses normally.
+    const inBody = "---\nname: x\ntools: Read, Grep\n---\n%TAG !e! tag:x,2000:\nBody.\n";
+    const pBody = parseFrontmatter(inBody);
+    expect(pBody.ok).toBe(true);
+    if (pBody.ok) expect([...pBody.value.keys()]).toEqual(["name", "tools"]);
+    expect(hasSpawnGrant(inBody)).toEqual({ ok: true, value: false });
+  });
+
+  it("D-34 empty edge — the three input states stay exactly THREE, with the directive-prefixed document moved from the second into the third", () => {
+    const withKeys = "---\nname: x\ntools: Read, Agent(o)\n---\nBody.\n";
+    const noBlock = "# Heading\n\nJust body prose.\n";
+    const unreadable = "%TAG !e! tag:x,2000:\n---\nname: x\ntools: Read, Agent(o)\n---\n";
+
+    // 1. A block that opens and closes -> ok, WITH keys.
+    const pKeys = parseFrontmatter(withKeys);
+    expect(pKeys.ok && pKeys.value.size > 0).toBe(true);
+    // 2. No block at all AND no directive prologue -> ok, with NO keys.
+    const pNone = parseFrontmatter(noBlock);
+    expect(pNone.ok && pNone.value.size === 0).toBe(true);
+    // 3. Unreadable -> NOT ok, with a reason.
+    expect(parseFrontmatter(unreadable).ok).toBe(false);
+
+    // Stated as an identity so no two of the three can collapse into one printed result — and in
+    // particular so the directive document can never again print what the body-only document prints.
+    // The `noBlock` and `unreadable` entries were BYTE-IDENTICAL before this fix; that was IN-02.
+    const shape = (text: string): string => {
+      const p = parseFrontmatter(text);
+      return JSON.stringify(p.ok ? { ok: true, keys: p.value.size > 0 } : { ok: false });
+    };
+    const results = [shape(withKeys), shape(noBlock), shape(unreadable)];
+    expect(new Set(results).size).toBe(3);
+    // The partition did not GROW — there is no fourth state.
+    expect(new Set([...results, shape("---\nname: y\n---\n")]).size).toBe(3);
+  });
+
   // ── Key scoping, pinned in BOTH directions ────────────────────────────────────────────────────
 
   it("a scoped spawn grant inside a DESCRIPTION value — even as a folded scalar — is NOT a grant", () => {

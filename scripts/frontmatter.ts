@@ -114,6 +114,44 @@
 //       That is the honest outcome: this module does not implement escaped line breaks, so a document
 //       using one expresses a value it cannot compute — the same argument made three times above.
 //
+// AND THE SAME SILENT-SUCCESS SHAPE ONE LEVEL UP: A YAML DIRECTIVE PROLOGUE (27-REVIEW-GAPS-3 § IN-02
+// — plan 27-30, D-34). Everything above is about a value inside the block. This one is about whether
+// there IS a block. `parseFrontmatter` requires the first non-blank line to be exactly `---`, so a
+// document opening with a legal YAML directive —
+//
+//     %TAG !e! tag:x,2000:
+//     ---
+//     name: x
+//     tools: Read, Agent(o)
+//     ---
+//
+// — took the "NO block at all" arm and returned `{ ok: true, value: new Map() }`: no keys, no grant,
+// no finding, and a result BYTE-IDENTICAL to a body-only file. Measured against the committed parser
+// before this edit: `{"ok":true,"value":false}`, on a document whose `tools` value is plainly a grant.
+// That is the module's own founding failure — "I could not read this" printed as "this carries no
+// grant" — reached this time by prepending one line rather than by editing a value.
+//
+//   `UNKNOWN - verify` (carried forward from the reviewer VERBATIM IN SUBSTANCE, not erased): most
+//   markdown frontmatter readers also require `---` on line 1, so the platform probably sees no
+//   frontmatter either and such a file is most likely INERT rather than rogue. That was not confirmed
+//   against Claude Code. The refusal below is therefore taken because THIS MODULE'S OWN CONTRACT puts
+//   an undecodable prologue in the unreadable arm — a document that declares a YAML processing
+//   context this module does not implement is not a document this module may report a value over. It
+//   is NOT taken because a live bypass was reproduced, and it must not be described as one.
+//
+//   THE TEST IS POSITIONAL AND TAKES NO LOOKAHEAD, deliberately. Requiring the next line to be the
+//   opening delimiter would close the reported one-directive spelling and leave the two-directive
+//   prologue YAML equally permits (`%YAML 1.2` then `%TAG …` then `---`) still landing in the keyless
+//   success arm — the enumerate-the-bad shape D-30 already declined once in this module. A directive
+//   at the document start is refused on sight; what follows it is not consulted.
+//
+//   WHERE IT IS NOT APPLIED, AND WHY THAT IS THE FALSE-RED CONTROL. The line must begin at COLUMN 0,
+//   because YAML gives `%` directive meaning nowhere else — an indented `%` is ordinary text and falls
+//   through to the delimiter test unchanged. A directive line anywhere OTHER than the document start
+//   gets no new case either: inside the block it already fails `KEY_LINE` with its own reason (one
+//   input, one reason — a second reason for the same input is the duplicate grammar this module
+//   exists to delete), and in the BODY it is never read at all. All three positions carry a case.
+//
 // Node stdlib ONLY — in fact no imports at all. Zero npm dependencies.
 //
 // Clear professional voice throughout (CLAUDE.md hard rule — this is a build-safety surface).
@@ -193,6 +231,16 @@ const BLOCK_INDICATOR = /^[|>][0-9]*[+-]?[ \t]*(?:#.*)?$|^[|>][+-]?[0-9]*[ \t]*(
 
 // A block-sequence item on a continuation line: a dash, then either end-of-line or the item text.
 const SEQ_ITEM = /^-(?:[ \t]+(.*))?$/;
+
+// (D-34) A YAML DIRECTIVE LINE AT THE DOCUMENT START: the `%` indicator at COLUMN 0 followed by at
+// least one non-space character (YAML 1.2 § 6.8 — `%` then a directive name of one or more `ns-char`).
+//
+// Anchored at column 0 with no allowance for leading whitespace, because that is where YAML gives `%`
+// its directive meaning and nowhere else. An indented `%` is ordinary text; it is not matched here and
+// falls through to the delimiter test exactly as before. That narrowness is the false-red control on
+// this whole refusal — see the header for the reproduction, the `UNKNOWN - verify` the reviewer
+// attached to it, and why the test takes no lookahead at what follows the directive.
+const YAML_DIRECTIVE = /^%\S/;
 
 // A YAML REFERENCE SIGIL AT A TOKEN START: an `&` (anchor) or `*` (alias) that BEGINS a node and is
 // immediately followed by a name character. Anchored with `^` on purpose — see `startsWithReference`
@@ -622,12 +670,28 @@ function flattenBlock(
 //
 // Three outcomes, and the difference between the last two is the point of this module:
 //   • a block that opens and closes  -> ok, with its keys;
-//   • NO block at all                -> ok, with NO keys (a legitimate document, e.g. a body-only file);
-//   • a block that opens and never closes, or whose content is unreadable -> NOT ok, with a reason.
+//   • NO block at all AND NO DIRECTIVE PROLOGUE -> ok, with NO keys (a legitimate document, e.g. a
+//     body-only file);
+//   • a block that opens and never closes, whose content is unreadable, OR a document opening with a
+//     YAML directive line -> NOT ok, with a reason.
+//
+// (D-34) THE PARTITION MOVED, IT DID NOT GROW. A directive-prefixed document used to sit in the second
+// outcome and now sits in the third; there is still no fourth state. The second outcome is otherwise
+// untouched and MUST stay that way — a body-only file is a legitimate document and turning it red to
+// simplify the directive refusal would trade a silent success for a false red, which is the worse of
+// the two. See the header for the `UNKNOWN - verify` on what the platform itself does with such a file.
 export function parseFrontmatter(text: string): Parsed<FrontmatterKeys> {
   const lines = stripFencedBlocks(text.replace(/\r\n/g, "\n")).split("\n");
   let i = 0;
   while (i < lines.length && lines[i].trim() === "") i++;
+  // (D-34) BEFORE the delimiter test, because it is precisely the delimiter test's `else` — the
+  // keyless SUCCESS arm — that a directive prologue used to fall into. One application point only.
+  if (i < lines.length && YAML_DIRECTIVE.test(lines[i])) {
+    return {
+      ok: false,
+      reason: `the document opens with the YAML directive line \`${excerpt(lines[i].trim())}\` before any \`---\` delimiter — a directive declares a YAML processing context this module does not implement, so the value this document expresses is not something this module may report on; it is refused as unreadable rather than read as "no frontmatter, no keys"`,
+    };
+  }
   if (i >= lines.length || lines[i].replace(/[ \t]+$/, "") !== "---") {
     return { ok: true, value: new Map() };
   }
