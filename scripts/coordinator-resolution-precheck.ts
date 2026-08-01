@@ -394,7 +394,18 @@ function observeTarget(targetRoot: string): string[] {
     `coordinator agent name: ${coordinator.name} (from ${coordinator.rel}, located by its marker rather than by filename).`,
   );
 
-  const granted = keysGrantedAgentNames(coordinator.keys);
+  // (Plan 27-29 / D-32) keysGrantedAgentNames returns the module's result type, because a grant
+  // fragment carrying a backslash sequence outside the escape allowlist is a PARSE ARTIFACT and never
+  // a shorter name list. This precheck branches on it explicitly for the same reason the KIT-03
+  // oracle does: a silently dropped name would make the resolution check below pass over a closure
+  // the installed adapter does not express.
+  const grantedResult = keysGrantedAgentNames(coordinator.keys);
+  if (!grantedResult.ok) {
+    fail(
+      `the coordinator adapter ${coordinator.rel} has an UNREADABLE grant enumeration — ${grantedResult.reason}. An unreadable grant is never read as "enumerates these names".`,
+    );
+  }
+  const granted = grantedResult.value;
   if (granted.length === 0) {
     fail(
       `the coordinator adapter ${coordinator.rel} enumerates no agent names in its grant — an unscoped or absent grant enumerates nothing, so there is no closure to resolve.`,

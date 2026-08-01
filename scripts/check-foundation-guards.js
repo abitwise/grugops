@@ -1675,7 +1675,17 @@ function guardReferentialIntegrity() {
         return;
     }
     const coordinatorName = stem(coordinators[0]);
-    const granted = keysGrantedAgentNames(parsedAdapters.get(coordinators[0]));
+    const grantedResult = keysGrantedAgentNames(parsedAdapters.get(coordinators[0]));
+    if (!grantedResult.ok) {
+        // (Plan 27-29 / D-32) THE BRANCH THAT MUST BE WRITTEN BY HAND, for the same reason the
+        // parseFrontmatter branch above it must. A name enumeration that could not read one of its
+        // fragments is a PARSE ARTIFACT, never "the coordinator granted fewer names": folding it into the
+        // zero-length branch below would compute the D-09 closure equality over a set the document does
+        // not express, which is the silent-success shape one level down from the parse failure.
+        fail(`KIT-03: the coordinator ${ADAPTER_DIR}/${coordinators[0]} has an UNREADABLE grant enumeration — ${grantedResult.reason}. An unreadable grant cannot be compared against the adapter set, so it is NEVER read as "grants these names"`);
+        return;
+    }
+    const granted = grantedResult.value;
     if (granted.length === 0) {
         fail(`KIT-03: the coordinator ${ADAPTER_DIR}/${coordinators[0]} carries no ENUMERATED Agent(...) grant — an unscoped grant has no computable closure, so the D-09 equality cannot be checked`);
         return;

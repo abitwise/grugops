@@ -72,6 +72,48 @@
 //   class and ONE leading tag is stripped at every node start, so the tag axis is refused by the same
 //   rule at every place the refusal is applied.
 //
+// AND A THIRD TIME, WEARING AN ESCAPE (27-REVIEW-GAPS-3 § CR-01, round 3 — plan 27-29, D-30).
+// Rounds 1 and 2 widened the refusal across YAML NODE PROPERTIES (`&`, `*`, `!`) while this module's
+// own string rewriter stayed wrong on an axis nobody enumerated. `unquote()` resolved a double-quoted
+// scalar with `.replace(/\\(.)/g, "$1")` — delete the backslash, keep the next character — which is
+// correct for `\"` and `\\` BY ACCIDENT and destroys every other escape YAML 1.2 § 5.7 defines. So
+// `allowed-tools: ["\x41gent(grugops-orchestrator)"]`, which a compliant loader resolves to
+// `Agent(grugops-orchestrator)`, flattened to `x41gent(grugops-orchestrator)`: no spawn token, and
+// `{ ok: true, value: false }` — the silent no-grant SUCCESS arm, a third time in one phase. Measured
+// against the committed parser before this edit and planted on a skill adapter in a hermetic mirror,
+// the whole gate printed ALL CHECKS PASSED at exit 0.
+//
+//   Note precisely what that was: NOT "the module left a quoted literal alone", which the arguments
+//   above correctly call safe. The module ACTIVELY REWROTE the string and got the rewrite wrong.
+//   There is no reading of YAML under which `"\x41gent(x)"` means `x41gent(x)`, so the guard returned
+//   a verdict over input it did not understand — this module's own definition of a parse artifact.
+//
+//   THE REMEDY INVERTS THE DECISION RATHER THAN ENUMERATING ONE MORE BAD SPELLING (D-30). A fourth
+//   refusal pattern matching `\xNN` / `\uNNNN` / `\UNNNNNNNN` would close the REPORTED spelling and
+//   leave `\n`, `\t`, `\e`, `\N`, `\_`, `\L`, `\P` and a dangling `\` at end-of-scalar still producing
+//   values no loader computes — round 5, already written. So `DQ_ESCAPE_ALLOWLIST` names the THREE
+//   escapes this module resolves, `resolveDoubleQuoted` walks the body and refuses BY NAME on any
+//   other backslash sequence, and a spelling nobody enumerated therefore refuses BY DEFAULT. The
+//   allowlist is the mechanism; the refusals are its complement, not a list that has to grow. An
+//   exhaustive sweep over every printable ASCII character in the escape position pins that default in
+//   both directions, so the property under test is "refusal is the default", not "these rows refuse".
+//
+//   WHERE IT IS NOT APPLIED, AND WHY THAT IS THE PRIMARY FALSE-RED CONTROL. Never inside a
+//   SINGLE-quoted scalar: in YAML a backslash there is a literal backslash and the only escape is
+//   `''`. Refusing there would fail red on correct content, which is the failure mode every widened
+//   refusal risks. Never on a plain (unquoted) scalar either, for the same reason. The single-quoted
+//   branch of `unquoteChecked` is byte-unchanged from the pre-D-30 helper, deliberately.
+//
+//   THE MULTI-LINE DOUBLE-QUOTED SCALAR HAS A DECIDED ANSWER, NOT AN ACCIDENTAL ONE (D-33). The
+//   unquote runs on the JOINED value, after continuation lines have been space-joined, so YAML's
+//   line-folding rules meet this module's join. Both halves are decided and both carry a case:
+//     • PLAIN FOLDING keeps the space join, which is what YAML folding computes for the ordinary
+//       case — `tools: "Read,` / `  Agent(x)"` resolves to `Read, Agent(x)`.
+//     • A YAML BACKSLASH LINE-CONTINUATION (a line ending in `\`) survives the join as a
+//       backslash-followed-by-space sequence, which is not on the allowlist and therefore REFUSES.
+//       That is the honest outcome: this module does not implement escaped line breaks, so a document
+//       using one expresses a value it cannot compute — the same argument made three times above.
+//
 // Node stdlib ONLY — in fact no imports at all. Zero npm dependencies.
 //
 // Clear professional voice throughout (CLAUDE.md hard rule — this is a build-safety surface).
@@ -266,16 +308,81 @@ function stripComment(s) {
     }
     return s;
 }
+// ---------------------------------------------------------------------------
+// The double-quoted ESCAPE ALLOWLIST (D-30 — 27-REVIEW-GAPS-3 § CR-01, round 3)
+// ---------------------------------------------------------------------------
+// The ONLY backslash sequences this module resolves inside a double-quoted scalar, keyed by the
+// character that FOLLOWS the backslash and valued by the single character it resolves to.
+//
+// EXACTLY THREE MEMBERS, AND THE COUNT IS ASSERTED BY A CASE. A member silently added or dropped
+// fails that count rather than only some comparison — the derive-the-set-assert-the-count rule this
+// repository adopted after the spawn-adapter drift, applied to the smallest set in the module.
+//
+// WHY THESE THREE AND NOTHING ELSE. Each is a pure BYTE SUBSTITUTION over ASCII that this module can
+// perform faithfully with no decoding, no code-point arithmetic and no Unicode question: `\"` is a
+// quote, `\\` is one backslash, `\/` is a forward slash. None of the three can INTRODUCE a spawn
+// token that the bytes do not already spell, and none can HIDE one. Every other escape YAML defines
+// either decodes a code point (`\xNN`, `\uNNNN`, `\UNNNNNNNN`) or names a control character
+// (`\n`, `\t`, `\0`, `\e`, `\N`, `\_`, `\L`, `\P`, `\a`, `\b`, `\v`, `\f`, `\r`) — resolving those
+// would be this module decoding a document it deliberately does not decode, and DELETING the
+// backslash (what the pre-D-30 `\\(.)` rewrite did) produces a string no loader computes and lands in
+// the silent no-grant SUCCESS arm. So they are refused, exactly like an anchor, an alias or a tag.
+//
+// ENCODING IS DECIDED HERE TOO, AND THE DECISION IS "NO DECODING AT ALL". The substitution is over
+// three ASCII spellings, byte for byte. Because no code-point escape is ever resolved, no Unicode
+// normalization form and no grapheme-cluster boundary can change a verdict this module returns.
+export const DQ_ESCAPE_ALLOWLIST = new Map([
+    ['"', '"'],
+    ["\\", "\\"],
+    ["/", "/"],
+]);
+// Resolve the BODY of a double-quoted scalar (the text between the wrapping quotes) against the
+// allowlist. One linear left-to-right pass, no backtracking, no regex: on a backslash it resolves the
+// two-character sequence when the following character is on `DQ_ESCAPE_ALLOWLIST` and REFUSES
+// otherwise. A backslash that is the LAST character of the body is a dangling escape and is refused
+// on the same rule — it is not on the allowlist because there is nothing after it to be on it.
+//
+// There is deliberately NO fallback branch. A fallback that passed an unknown sequence through, or
+// stripped its backslash, would be the enumerate-the-bad shape returning under a new name: the
+// default outcome must be refusal, or the next unenumerated spelling is round five.
+function resolveDoubleQuoted(body) {
+    let out = "";
+    for (let i = 0; i < body.length; i++) {
+        const c = body[i];
+        if (c !== "\\") {
+            out += c;
+            continue;
+        }
+        if (i + 1 >= body.length)
+            return { ok: false, escape: "\\" };
+        const next = body[i + 1];
+        const resolved = DQ_ESCAPE_ALLOWLIST.get(next);
+        if (resolved === undefined)
+            return { ok: false, escape: `\\${next}` };
+        out += resolved;
+        i += 1; // the escaped character is consumed, never re-examined as a backslash of its own
+    }
+    return { ok: true, value: out };
+}
 // Remove ONE matched pair of wrapping quotes and undo the quoting style's escapes. Only a pair that
 // actually wraps the whole string is removed, so `Agent(a), "b"` is left alone.
-function unquote(s) {
+//
+// (D-30) Returns a RESULT rather than a string, because the double-quoted branch can now refuse and a
+// string-returning helper has nowhere honest to put that. Every call site is routed through here —
+// the flush join, the block-sequence item and the scoped-grant name split (D-32) — so there is one
+// escape decision in the module and it is enforced everywhere a quoted scalar is read.
+//
+// THE SINGLE-QUOTED BRANCH IS BYTE-UNCHANGED and must stay that way. In YAML a backslash inside single
+// quotes is a literal backslash and the only escape is the doubled `''`; refusing there would be a
+// false red on correct content. It is the primary control on this whole change.
+function unquoteChecked(s) {
     if (s.length >= 2 && s.startsWith('"') && s.endsWith('"')) {
-        return s.slice(1, -1).replace(/\\(.)/g, "$1");
+        return resolveDoubleQuoted(s.slice(1, -1));
     }
     if (s.length >= 2 && s.startsWith("'") && s.endsWith("'")) {
-        return s.slice(1, -1).replace(/''/g, "'");
+        return { ok: true, value: s.slice(1, -1).replace(/''/g, "'") };
     }
-    return s;
+    return { ok: true, value: s };
 }
 const indentOf = (line) => line.length - line.replace(/^[ \t]*/, "").length;
 // A short, safe excerpt of an unreadable line for the failure reason. Long enough to identify the
@@ -307,21 +414,38 @@ function flattenBlock(block, baseIndent) {
         ok: false,
         reason: `\`${excerpt(line)}\` uses a YAML anchor or alias, or an unresolved YAML tag standing in front of one; the value this document expresses is not the text on this line, and this module deliberately does not resolve a reference or a node property — it is refused rather than read as "carries no grant"`,
     });
+    // (D-30) The refusal for a backslash sequence outside `DQ_ESCAPE_ALLOWLIST`, beside `refuseRef`
+    // and built to the same contract. It names (a) the offending sequence verbatim, (b) an excerpt of
+    // the offending line, and (c) keeps the substring `anchor or alias` in its closing clause — two
+    // shipped assertions match a refusal reason on that substring, and an escape refusal that dropped
+    // it would silently weaken both while every case stayed green.
+    const refuseEscape = (line, escape) => ({
+        ok: false,
+        reason: `\`${excerpt(line)}\` carries the backslash sequence \`${escape}\` inside a double-quoted scalar, and that sequence is not one of the three escapes this module resolves; the value this document expresses is not the text these bytes spell, so it is refused on the same argument as an anchor or alias — never read as "carries no grant"`,
+    });
+    // Returns a REFUSAL to propagate, or null when there was nothing to report. `flush` used to return
+    // nothing; the checked unquote can now fail, and a failure swallowed here would be the silent
+    // no-grant arm one level down.
     const flush = () => {
         if (cur === null)
-            return;
+            return null;
         const joined = cur.block
             ? cur.parts.join(" ")
             : cur.seq
                 ? cur.parts.join(", ")
                 : cur.parts.join(" ");
-        const value = unquote(joined.trim());
+        const trimmed = joined.trim();
+        const resolved = unquoteChecked(trimmed);
+        if (!resolved.ok) {
+            return refuseEscape(`${cur.key}: ${trimmed}`, resolved.escape);
+        }
         const seen = keys.get(cur.key);
         if (seen === undefined)
-            keys.set(cur.key, [value]);
+            keys.set(cur.key, [resolved.value]);
         else
-            seen.push(value);
+            seen.push(resolved.value);
         cur = null;
+        return null;
     };
     for (const raw of block) {
         if (raw.trim() === "")
@@ -348,7 +472,12 @@ function flattenBlock(block, baseIndent) {
                 if (startsWithReference(itemText))
                     return refuseRef(t);
                 cur.seq = true;
-                const v = unquote(stripComment(itemText).trim());
+                // (D-30) The escape refusal fires HERE, at the same node-start point the reference refusal
+                // already fires from, and returns directly rather than being deferred to the flush.
+                const resolved = unquoteChecked(stripComment(itemText).trim());
+                if (!resolved.ok)
+                    return refuseEscape(t, resolved.escape);
+                const v = resolved.value;
                 if (v !== "")
                     cur.parts.push(v);
                 continue;
@@ -369,7 +498,9 @@ function flattenBlock(block, baseIndent) {
                 reason: `cannot read \`${excerpt(t)}\` as a frontmatter key line or as a continuation of the previous key`,
             };
         }
-        flush();
+        const flushed = flush();
+        if (flushed !== null)
+            return flushed;
         const rest = (kv[2] ?? "").trim();
         // Refuse BEFORE flattening, and refuse on ANY key — an anchor parked under `_tools:` exists only
         // to be aliased from a real one, so the document as a whole is what becomes unreadable.
@@ -385,7 +516,9 @@ function flattenBlock(block, baseIndent) {
                 cur.parts.push(v);
         }
     }
-    flush();
+    const flushed = flush();
+    if (flushed !== null)
+        return flushed;
     return { ok: true, value: keys };
 }
 // Read a markdown document's frontmatter into key -> flattened values.
@@ -450,8 +583,17 @@ export function keysHaveSpawnGrant(keys) {
 // The ENUMERATED names from a scoped grant:
 //   `tools: Agent(grugops-qe-e2e, grugops-installer), Read` -> [grugops-installer, grugops-qe-e2e]
 // De-duplicated and sorted, so two runs over the same tree produce byte-identical output. An
-// UNSCOPED grant (`tools: Read, Agent`) enumerates nothing and returns [] — that is a real fact
-// about the grant, and the KIT-03 oracle treats a zero-length closure as its own named failure.
+// UNSCOPED grant (`tools: Read, Agent`) enumerates nothing and returns an EMPTY LIST on the success
+// arm — that is a real fact about the grant, and the KIT-03 oracle treats a zero-length closure as
+// its own named failure.
+//
+// (D-32) RETURNS A RESULT, NOT A BARE ARRAY. An individual grant fragment can still be quoted after
+// the whole value was flattened (`Agent("a", b)`), so the escape allowlist is enforced here too — and
+// a refusal must reach the caller as a PARSE ARTIFACT. Dropping the offending name, or resolving it
+// to something no loader computes, would be the module's founding failure one level down: a shorter
+// or altered name list is a silent success, and the KIT-03 closure equality would then be computed
+// over a set the document does not express. The call sites branch on the failure arm by hand, exactly
+// as they already branch on `parseFrontmatter`'s.
 export function keysGrantedAgentNames(keys) {
     const names = new Set();
     for (const v of toolsValues(keys)) {
@@ -459,13 +601,20 @@ export function keysGrantedAgentNames(keys) {
         let m;
         while ((m = SCOPED_GRANT.exec(v)) !== null) {
             for (const raw of m[1].split(",")) {
-                const n = unquote(raw.trim());
+                const resolved = unquoteChecked(raw.trim());
+                if (!resolved.ok) {
+                    return {
+                        ok: false,
+                        reason: `the grant fragment \`${excerpt(raw.trim())}\` carries the backslash sequence \`${resolved.escape}\` inside a double-quoted scalar, and that sequence is not one of the three escapes this module resolves; the granted name this document expresses is not the text these bytes spell, so the enumeration is refused on the same argument as an anchor or alias — a name is never silently dropped or altered`,
+                    };
+                }
+                const n = resolved.value;
                 if (n !== "")
                     names.add(n);
             }
         }
     }
-    return [...names].sort();
+    return { ok: true, value: [...names].sort() };
 }
 // Does `key` carry `value` in any of its occurrences? This is how the `coordinator: true` marker is
 // read, so the marker and the grant go through the SAME parser: a marker written as `coordinator:
@@ -484,7 +633,10 @@ export function hasSpawnGrant(text) {
 }
 export function grantedAgentNames(text) {
     const p = parseFrontmatter(text);
-    return p.ok ? { ok: true, value: keysGrantedAgentNames(p.value) } : p;
+    // (D-32) Two distinct failure arms flow through here — the document did not parse, or a grant
+    // fragment carried a sequence the enumeration will not resolve — and BOTH are returned as
+    // failures. Collapsing either into `{ ok: true, value: [] }` is the silent-success shape.
+    return p.ok ? keysGrantedAgentNames(p.value) : p;
 }
 export function frontmatterValueIs(text, key, value) {
     const p = parseFrontmatter(text);

@@ -561,6 +561,66 @@ describe("check-foundation-guards.js (SDLC-02 / SC2 fail-proof harness)", () => 
     expect(o).not.toContain("PASS  WR-05:");
   });
 
+  // ── The CR-01 ESCAPED bypass, reproduced and now closed (plan 27-29, round 3, D-30). ──────────
+  //
+  // Third sibling, third axis. Rounds 1 and 2 widened the refusal across YAML NODE PROPERTIES while
+  // the parser's own string rewriter stayed wrong somewhere else entirely: `unquote()` resolved a
+  // double-quoted scalar by deleting every backslash, which is correct for `\"` and `\\` by accident
+  // and destroys every numeric escape YAML 1.2 § 5.7 defines. So a block-sequence item spelled
+  // `"\x41gent(grugops-orchestrator)"` — ONE backslash, a value a compliant loader resolves to
+  // `Agent(grugops-orchestrator)` — flattened to `x41gent(grugops-orchestrator)`, carried no spawn
+  // token, and returned `{ ok: true, value: false }`. Planted on this exact surface in a hermetic
+  // mirror the whole gate printed ALL CHECKS PASSED at exit 0 (27-REVIEW-GAPS-3 § CR-01).
+  //
+  // The fix is STRUCTURAL, not another refusal pattern (D-30): the module now resolves exactly three
+  // allowlisted escapes and refuses every other backslash sequence by name, so the next unenumerated
+  // spelling refuses BY DEFAULT rather than becoming round five. `scripts/frontmatter.test.ts` proves
+  // that default exhaustively over the printable-ASCII escape alphabet; THIS case proves the whole
+  // gate acts on it.
+  //
+  // Same surface as its two siblings and for the same reason: `adapters-freshness` covers
+  // `.claude/agents` only, `SKILL_ADAPTER_COUNT` checks cardinality only, and KIT-03 has no role to
+  // compare a skill against — the aggregator is the only thing between a crafted SKILL.md and a rogue
+  // grant. The paired green run on the same unplanted mirror comes first, so a red run cannot be
+  // blamed on the mirror. The escaped item is built from a CHAR CODE, never a source-literal
+  // backslash, so neither this file's own escaping nor a future reformat can silently double it.
+  it("guard_wr05 ESCAPED grant item on a SKILL file → nonzero + parse failure names the file (CR-01 round 3, reproduced)", () => {
+    const clean = mirror();
+    const before = runIn(clean);
+    expect(before.status).toBe(0);
+    expect(out(before)).toContain("ALL CHECKS PASSED");
+
+    const BACKSLASH = String.fromCharCode(92);
+    const escapedItem = `  - "${BACKSLASH}x41gent(grugops-orchestrator)"`;
+    // The plant carries EXACTLY ONE backslash byte. Asserted, not assumed — the review's reproduction
+    // instruction was to verify the bytes with `od -c` precisely because a doubled backslash is a
+    // different (and allowlisted) document that proves nothing.
+    expect(escapedItem.split(BACKSLASH).length - 1).toBe(1);
+
+    const m = mirror();
+    reshapeToolsBlock(join(m, ".claude/skills/grugops/SKILL.md"), [
+      "allowed-tools:",
+      "  - Read",
+      "  - Write",
+      "  - Bash",
+      "  - Glob",
+      "  - Grep",
+      escapedItem,
+    ]);
+    const r = runIn(m);
+    expect(r.status).not.toBe(0);
+    const o = out(r);
+    expect(o).toMatch(/frontmatter parse failure/);
+    expect(o).toContain(".claude/skills/grugops/SKILL.md");
+    // The reason names the offending sequence, and keeps the substring every shipped matcher reads.
+    expect(o).toContain(`backslash sequence \`${BACKSLASH}x\``);
+    expect(o).toMatch(/anchor or alias/);
+    // The load-bearing half, identical to both siblings: the refusal must not have been folded into
+    // the no-grant branch, which would print a passing WR-05 line over a file the guard never read.
+    expect(o).toMatch(/NEVER read as "carries no grant"/);
+    expect(o).not.toContain("PASS  WR-05:");
+  });
+
   // The third form the product oracle in frontmatter.test.ts also covers, pinned here at the
   // AGGREGATOR level: a block sequence whose spawn item is quoted. The old array expression happened
   // to catch a quoted item; this case exists so that deleting it cannot silently lose the coverage.
