@@ -96,3 +96,33 @@ Out-of-scope discoveries logged during execution. Not fixed; recorded so they ar
   Not fixed in 27-22: the plan scoped `files_modified` to the installer surface, and editing the
   shared authority mid-phase would put 27-18 / 27-19 / 27-20 / 27-23 at risk.
   Reproduction: `ln -s .. .claude/agents/loop` then call `listAgentAdapters(root)`.
+
+## From 27-30 (IN-02 / D-34) — found by adversarial probe, NOT by the plan
+
+- **A UTF-8 BOM before the opening delimiter reaches the legitimately-keyless SUCCESS arm.**
+  `parseFrontmatter` skips blank lines, then tests the directive pattern and the `---` delimiter
+  against the raw line. A BOM (`EF BB BF`) sits at position 0, so `"﻿---"` is neither a
+  directive nor the delimiter, and the document takes the "NO block at all" arm:
+  `{ ok: true, value: new Map() }` — no keys, no grant, no finding.
+  - **Measured, both directions, against the committed `scripts/frontmatter.js`:**
+    - `"﻿%TAG !e! t\n---\nname: x\ntools: Read, Agent(o)\n---\n"` → `{"ok":true,"value":false}`
+    - `"﻿---\nname: x\ntools: Read, Agent(o)\n---\n"` → `{"ok":true,"value":false}`
+    The second is the load-bearing one: it needs **no directive at all**. A BOM alone reaches the
+    silent-success arm, so this is NOT a gap in D-34 — it sits one step in front of it.
+  - **Confirmed PRE-EXISTING.** Byte-identical behavior against `5d040d4:scripts/frontmatter.js`
+    (wave-1 HEAD, before this plan's first commit). Plan 27-30 neither introduced nor widened it.
+  - **Live exposure today: zero.** No tracked `.md` file in the repo begins with a BOM (checked all
+    tracked markdown via `head -c3 | od`). The generator does not emit one.
+  - **Why not fixed in round 4:** adding a BOM arm is a DECISION, not a defect fix, and it carries its
+    own `UNKNOWN - verify` of exactly the D-34 kind — whether Claude Code's own reader strips a BOM
+    before looking for `---` decides whether such a file is inert or rogue, and that was not
+    confirmed. There are two defensible answers (strip the BOM and parse normally, which is what most
+    readers do and what a `﻿`-tolerant loader would see; or refuse it by name as an undecodable
+    prologue like D-34 does) and choosing between them is a planning decision with a reversibility
+    note, not something an executor should settle mid-wave. Round 4 is scoped to the eight round-3
+    findings and this is a ninth.
+  - **Suggested direction for round 5:** prefer STRIPPING a single leading BOM before the directive
+    and delimiter tests, then letting the existing three-outcome partition decide — that is the
+    structural answer (normalize the input once, at the same place CRLF is already normalized) rather
+    than a fourth refusal arm. Note that `text.replace(/\r\n/g, "\n")` already establishes the
+    precedent of input normalization at exactly that point.
