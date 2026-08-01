@@ -2021,6 +2021,37 @@ describe("install.js / uninstall.js — single-installer contract (folds install
     expect(installedAdapters(target)).toEqual([...SYNTH_ADAPTERS].sort());
   }, 120_000);
 
+  // ── THE REPORT ABOVE MUST SURVIVE THE EXIT THAT FOLLOWS IT (D-35, WR-01) ──────────────────────
+  //
+  // The case above asserts the installer SAYS `MAX_WALK_ENTRIES=…`. It said it, and then threw it
+  // away. `process.exit()` discards anything still queued on an ASYNCHRONOUS stdout — which is what
+  // stdout IS when it is a pipe — and this branch is reached only after the by-name refusals, which
+  // on this fixture run to ~1 MB. Reproduced against the committed install.js: 8 runs, 2 truncated
+  // at 223102 and 520729 bytes against a full 1065689, `status` 3 in all eight. The machine-readable
+  // half survived; the human-readable half — the work-bound line, the INCOMPLETE banner, three whole
+  // sections — vanished. Only on a pipe, so CI and `install.js | tee` were exposed and a TTY was not.
+  //
+  // WHY THIS ASSERTION IS STRUCTURAL AND NOT A REPEAT-RUN LOOP. The truncation is a RACE: the case
+  // above passed 11 of 12 runs against the broken build, so a behavioural probe is a coin that lands
+  // green most times and would have to be run dozens of times to be load-bearing — the definition of
+  // a flaky gate, and the reason this defect survived a green suite in the first place. The exit
+  // shape is not a race. `process.exit(3)` occurred EXACTLY ONCE in each file, so its absence is an
+  // exact anchor rather than a heuristic, and the paired positive assertion stops the fix from being
+  // "deleted" instead of "corrected". Both files are asserted because the committed .js is what runs
+  // on a host and the freshness gate cannot tell a faithful build of a WRONG source from a right one.
+  it("the INCOMPLETE exit sets exitCode so an async stdout pipe FLUSHES — never process.exit (D-35, WR-01)", () => {
+    for (const [label, path] of [
+      ["install.ts", join(import.meta.dirname, "install.ts")],
+      ["install.js", INSTALL_JS],
+    ] as const) {
+      const src = readFileSync(path, "utf8");
+      // The defect, by name: exit(3) is the INCOMPLETE branch's exit and nothing else's.
+      expect(`${label}: ${src.includes("process.exit(3)")}`).toBe(`${label}: false`);
+      // The fix, by name: the code is still SET, so a chained `install.js && next-step` still stops.
+      expect(`${label}: ${src.includes("process.exitCode = 3")}`).toBe(`${label}: true`);
+    }
+  });
+
   // ── WR-04 (Plan 27-13) — `runnable removal`: every installed file has a removal counterpart ───
   //
   // install.ts's materializeRunnable() writes tools/grugops/*.js into the user's repository.

@@ -1455,7 +1455,37 @@ if (VERIFY_FINDINGS > 0) {
     // so the human-readable and machine-readable signals cannot diverge — a chained `install.js &&
     // next-step`, a CI step, or scripts/coordinator-resolution-precheck.ts must stop here, not
     // proceed over a class that was never installed.
-    process.exit(3);
+    //
+    // AND IT IS `exitCode`, NOT AN EXIT CALL, BECAUSE THE EXIT CALL TRUNCATED THE REPORT IT WAS
+    // PAIRED WITH. Node's `process.stdout` is ASYNCHRONOUS when it is a PIPE, and an exit call
+    // discards whatever is still queued. This branch is reached after the by-name refusals, which on
+    // a cross-linked symlink DAG run to ~1 MB — so the exit call dropped the tail: the
+    // MAX_WALK_ENTRIES work-bound line, the `-- state seed --` / `-- runnables --` / `-- notes --`
+    // sections, and THIS VERY BANNER. Reproduced against the committed .js: 8 runs of the D-35 DAG
+    // fixture, 2 truncated at 223102 and 520729 bytes against a full 1065689, exit status 3 intact
+    // in every one. So the machine-readable half survived and the human-readable half vanished —
+    // silently, and only when stdout is a pipe (CI, `install.js | tee`, any wrapping script), which
+    // is why a TTY-run installer never showed it. That is the exact disappearance this module's own
+    // header forbids twice, landing on WR-01's own deliverable: a work bound that reports nothing is
+    // not a reported work bound.
+    //
+    // DO NOT SPELL THE OLD CALL ANYWHERE IN THIS FILE, EVEN IN PROSE. The regression case in
+    // install.test.ts is a deliberately DUMB exact-substring scan for it, because a scan smart enough
+    // to tell code from a comment is a parser, and a parser that can under-match is the failure this
+    // phase has now shipped three times. The first draft of that case went red on this very comment.
+    // The scan stays exact and the prose works around it; a future author who writes the literal back
+    // in — in code or in a comment — gets a loud red naming the file, which is the safe direction.
+    //
+    // This assignment is safe here and ONLY here without further thought: the if/else it closes is
+    // the LAST statement of the module, so setting the code and falling off the end is byte-for-byte
+    // the same control flow, and Node flushes stdout before exiting on its own. The six other
+    // `process.exit()` sites (lines ~111, 509, 528, 544, 576, 1386) are mid-script and rely on
+    // exit()'s stop-here semantics, so a blind sweep to `exitCode` would let the script RUN ON past
+    // a refusal — a worse defect than the one being fixed. They carry the same truncation hazard in
+    // principle and none of them is proven to reach a flush boundary today (each emits kilobytes,
+    // not megabytes). RECORDED AS A KNOWN RESIDUAL, not silently left: closing them needs one
+    // `finish(code)` authority that sets the code AND still halts, which is a separate change.
+    process.exitCode = 3;
 }
 else {
     console.log(`\n== install complete${DRY_RUN ? " (DRY_RUN — nothing changed)" : ""} ==`);
