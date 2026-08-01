@@ -5,13 +5,13 @@ milestone_name: Autonomous Factory — Real Spawning, Controlled Language & Live
 current_phase: 27
 current_phase_name: spawn-correctness-kit-set-authority
 status: executing
-stopped_at: Completed 27-29-PLAN.md (CR-01 round-3 closed, wave 1)
-last_updated: "2026-08-01T18:08:51.085Z"
+stopped_at: Completed 27-30-PLAN.md
+last_updated: "2026-08-01T18:30:00.751Z"
 progress:
   total_phases: 7
   completed_phases: 0
   total_plans: 32
-  completed_plans: 29
+  completed_plans: 30
   percent: 0
 last_activity: 2026-07-31
 last_activity_desc: "Gap-closure round 4 PLANNED — 4 plans (27-29..27-32) in 3 waves, plan-checker VERIFICATION PASSED, against the round-3 verification (2026-07-31T13:00Z) that returned gaps_found at 7/10 clean with KIT-02, KIT-03 and SPAWN-04 PARTIAL. Round 4 closes ALL EIGHT round-3 findings by explicit user decision (D-31) — nothing deferred. The blocker is CR-01 arriving a THIRD time in one phase, now on the YAML escape axis: unquote() deletes every backslash, so a numeric escape resolves to a string no compliant loader produces and reaches the silent no-grant SUCCESS arm; planted on a skill adapter the whole gate printed ALL CHECKS PASSED at exit 0. D-30 (NEW, user-confirmed) REJECTS the review's proposed NUMERIC_ESCAPE regex as the fourth enumerate-the-bad patch on the same fail-open, and inverts unquote() to an escape ALLOWLIST instead — resolve only the escapes the module implements faithfully, refuse every other backslash sequence by name, so an un-enumerated spelling refuses BY DEFAULT. Pinned by an exhaustive alphabet property test, dependency-free (the typescript+vitest dev-dep fence holds). The single-quoted branch stays byte-unchanged as the primary false-red control and the reason string keeps its anchor-or-alias substring. Waves: 27-29 tracer (CR-01, KIT-03+SPAWN-04) then 27-30 (IN-02 directive arm, IN-01 scoping control) parallel with 27-31 (WR-01 walk work bound, WR-04 named cycle report) then 27-32 (WR-02 marker over the real repo, WR-03 stale comment plus the equality case, IN-03 README). Wave-2 parallelism was verified against actual files_modified, not taken on the planner's word. D-36 AMENDS D-29's kit-model half — a currently-passing case must become a named throw, flagged so an executor cannot weaken it to keep the old assertion green. D-37 collapses a marker duplicate the review never named. Gates: requirements 10/10, CONTEXT.md decisions 29/29, post-planning gap analysis 39/39, all 29 probe rows reconciled (14 covered + 0 backstop + 3 flagged + 12 settled by prior rounds). Every closing task carries a RED-before/GREEN-after transcript requirement against the committed .js and a freshness assertion, because this phase has now shipped defects past a green suite three times."
@@ -30,7 +30,7 @@ See: .planning/PROJECT.md (updated 2026-07-28 — after v2.0 milestone)
 ## Current Position
 
 Phase: 27 (spawn-correctness-kit-set-authority) — EXECUTING gap-closure round 4
-Plan: 29 of 32 executed; 27-29..27-32 in flight across 3 waves
+Plan: 30 of 32 executed; 27-29..27-32 in flight across 3 waves
 Status: Round 4 closes **all eight** round-3 findings by explicit user decision — nothing deferred. Plan-checker returned **VERIFICATION PASSED**. Gates at plan time: requirements **10/10**, CONTEXT.md decisions **29/29**, post-planning gap analysis **39/39**, all 29 probe rows reconciled (14 covered + 0 backstop + 3 flagged + 12 settled by prior rounds). Baselines to beat at execution: **993 passed / 2 skipped** across 35 files; **32** committed `.js`, all fresh; foundation guards exit 0; live kit intact at 17 adapters / 7 skills.
 
 | Plan | Wave | Closes | Requirements |
@@ -239,6 +239,7 @@ Prior activity: 2026-07-30 — 27-22 closed WR-02 and WR-04, the last two plans-
 | Phase 27 P27 | ~25 min | 2 tasks | 6 files |
 | Phase 27 P28 | ~45 min | 2 tasks | 6 files |
 | Phase 27 P29 | 35 min | 3 tasks | 8 files |
+| Phase 27 P30 | ~30 min | 2 tasks | 5 files |
 
 ## Accumulated Context
 
@@ -565,6 +566,9 @@ Recent decisions affecting current work:
 - [Phase ?]: The escape allowlist reached only 3 of 5 application points after the first draft; scanEmbeddedDoubleQuoted closes the flow-item and plain-continuation points by VALIDATING a double-quoted region inside a composite value without resolving it (Rule 2, caught by writing the application-point rows before believing the fix)
 - [Phase ?]: keysGrantedAgentNames' D-32 contract change propagated to a FOURTH call site the plan did not list — scripts/coordinator-resolution-precheck.ts — branched explicitly rather than folded into the no-names arm (Rule 3)
 - [Phase ?]: KIT-03 and SPAWN-04 deliberately NOT marked Complete in REQUIREMENTS.md: plan 27-30 also carries both and has not executed, and round-4 verification has not run
+- [Phase ?]: D-34: a leading YAML directive line is refused BY NAME and POSITIONALLY (no lookahead), closing the second silent-SUCCESS arm in the frontmatter reader (IN-02). Honest-pending: platform inertness stays UNKNOWN - verify.
+- [Phase ?]: The agent-adapter scoping gate is proven load-bearing by a negative control plus a captured failure against a gate-removed build (IN-01).
+- [Phase ?]: KIT-03 and SPAWN-04 STILL not marked Complete after 27-30: both plans carrying them (27-29, 27-30) have now executed, but round-4 verification has not run and plans 27-31/27-32 remain. Marking them here is the exact revert wave 1 had to make.
 
 ### Pending Todos
 
@@ -603,6 +607,7 @@ None yet.
   - It was **re-verified GREEN** after the **Phase 11** 16-role persona rewrite, proving the overhaul did not silently re-arm sub-agent spawning.
   - **v2.0 reversed the underlying decision for Claude Code (PAR-04).** `guard_wr05` was inverted from "no role grants `Agent`" to "**exactly one coordinator** grants `Agent(<allowlist>)`", proven RED against the committed `.js` and flipped atomically with the packaging templates + docs catalog. A phase code-review caught the inverted guard mis-reading a fenced coordinator example as a live coordinator; fixed structurally with fence-stripping + exactly-one-coordinator cardinality. **Do not reintroduce a "no spawn anywhere" assertion — it is now wrong.** The four non-Claude-Code CLIs keep sequential no-spawn role-load, and the 5-tool tables are intentionally asymmetric (the oracle asserts that too).
 - ~~[v1.2 Research flags]~~ — all three resolved in their phases (ASVS 5.0.0 pinned, Playwright pins verified, frontmatter completeness confirmed by the catalog generator).
+- Pre-existing (NOT from 27-30): a UTF-8 BOM before the opening delimiter reaches the legitimately-keyless SUCCESS arm in parseFrontmatter, with or without a directive. Zero live exposure; logged in 27 deferred-items.md as a round-5 decision.
 
 ### Quick Tasks Completed
 
@@ -663,8 +668,8 @@ Shape of the carry: **9 of 11 are pre-v2.0 carryover** from the v1.2 block above
 
 ## Session Continuity
 
-Last session: 2026-08-01T18:08:18.176Z
-Stopped at: Completed 27-29-PLAN.md (CR-01 round-3 closed, wave 1)
+Last session: 2026-08-01T18:29:21.124Z
+Stopped at: Completed 27-30-PLAN.md
 Resume file: None
 
 ## Operator Next Steps
