@@ -47,16 +47,30 @@ import { join, resolve, dirname } from "node:path";
 import { tmpdir } from "node:os";
 import { createHash } from "node:crypto";
 
-// THE SHARED ADAPTER AUTHORITY — imported HERE, IN THE TEST ONLY (KIT-02 / D-18).
+// THE SHARED ADAPTER AUTHORITY — imported HERE, IN THE TEST ONLY (KIT-02 / D-18 as amended by
+// D-28).
 //
-// install.ts deliberately does NOT import scripts/kit-model.ts: the locked decision is that the
-// installer stays a self-contained single file, so two implementations of "what is an adapter"
-// continue to exist. That is a deliberate exception to the one-authority-per-predicate doctrine,
-// and this import is what buys it back — the `source derivation` conformance case below asserts the
-// installer's REAL installed set equals the authority's set over the same fixture, with the
-// cardinality asserted as a number so a derivation that silently shrinks fails the COUNT rather
-// than only the comparison. If the locked decision is ever revisited, this import and that case are
-// what to delete along with the duplicate. Drives the COMMITTED .js — the repo idiom.
+// THE REASON IS THE LAYOUT, NOT A FILE COUNT (WR-03). install.ts deliberately does not import
+// scripts/kit-model.ts, and the locked reason is D-18's actual rationale: the installer stays
+// decoupled from the `scripts/` LAYOUT, so a host can run the committed installer without the
+// CI-side tree existing at all. It is emphatically NOT that the installer is a single file — as of
+// D-28 the installer side is TWO files, the compiled entry point plus the shared install/
+// kit-source.ts derivation module that both binaries import. This comment used to give the
+// file-count reason, and it went stale the moment D-28 landed. The false version is deleted rather
+// than softened: the only place a future reader finds the argument for answering one predicate in
+// two implementations is right here, and a rationale that no longer holds is exactly how a
+// deliberate exception quietly becomes an accident.
+//
+// WHAT BUYS THE EXCEPTION BACK. Three things, all in this file:
+//   1. this import, which puts the authority's real answer in reach of the installer's cases;
+//   2. the `source derivation` conformance case below, asserting the installer's REAL installed set
+//      equals the authority's set over the same fixture, cardinality asserted as a NUMBER so a
+//      derivation that silently shrinks fails the count and not only the comparison;
+//   3. the two WR-03 equality cases below, which pin the NESTED walks against each other — member
+//      equality over the two-path fixture, and same-path-named refusal over the cycle fixture,
+//      because D-36 gives each side its own documented floor and one of them throws.
+// If the locked decision is ever revisited, this import and those cases are what to delete along
+// with the duplicate. Drives the COMMITTED .js — the repo idiom.
 import { listAgentAdapters, listSkillAdapters } from "../scripts/kit-model.js";
 
 // THE INSTALLER-SIDE WALK, IMPORTED DIRECTLY (D-35/D-36). The boundary cases below need to examine
@@ -2035,6 +2049,95 @@ describe("install.js / uninstall.js — single-installer contract (folds install
     }
     expect(thrown).toContain("real/loop");
     expect(thrown).toMatch(/^kit-model: symlink cycle at real\/loop/);
+  });
+
+  // ── WR-03: THE EQUALITY BOTH WALK HEADERS PROMISE, WRITTEN DOWN AS A CASE ─────────────────────
+  //
+  // install/kit-source.ts and scripts/kit-model.ts both concede ONE PREDICATE, TWO SITES, NO IMPORT
+  // in the same words, and both discharge it the same way: "the equality is bought by CASES". Until
+  // now the only case that existed compared the installer's INSTALL set (the flat top level) with
+  // the authority's set. The NESTED walks — the two recursive implementations that have between
+  // them produced every defect this phase has fixed — were compared by nothing. A promise in two
+  // headers is not a forcing function; this is.
+  //
+  // It is in TWO PARTS because after D-36 the two sides answer a cycle DIFFERENTLY BY DESIGN, each
+  // through its own documented floor: the installer REPORTS so it can finish its other classes, the
+  // CI authority THROWS so a vacuous scan set cannot pass a guard. Member-set equality is therefore
+  // structurally unavailable over a cycle, and asserting it anyway would only be satisfiable by
+  // weakening one of the two floors — which is the opposite of what these cases are for. So the
+  // honest formulation is: equal MEMBERS where the two agree, and the same PATH NAMED where they
+  // deliberately differ.
+  it("WR-03 part 1: over the two-path fixture the installer's NESTED walk equals the authority's nested subset, by member AND by count", () => {
+    // Same Windows skip and reason as every symlink case here: symlinkSync needs a privilege the
+    // runner may not hold, and a case that cannot build its fixture asserts nothing.
+    if (process.platform === "win32") return;
+
+    const src = makeSyntheticSrc();
+
+    // The CR-03 shape: ONE physical directory holding a leaf, reached by TWO relative paths. No
+    // cycle anywhere, so both sides are on their normal arm and full member equality is available.
+    mkdirSync(join(src, ".claude", "agents", "real"), { recursive: true });
+    writeFileSync(join(src, ".claude", "agents", "real", "x.md"), `> synthetic nested adapter\n${MAT_SLOT}\n`);
+    symlinkSync(join(src, ".claude", "agents", "real"), join(src, ".claude", "agents", "alias"));
+
+    // The authority answers "what is an adapter" for the WHOLE tree; the installer's nested walk
+    // answers it for everything BELOW the top level. Narrow the authority's set at the CALL SITE
+    // rather than re-deriving it — a second derivation of "nested" here would be a third
+    // implementation of the predicate these cases exist to keep down to two.
+    const authorityNested = listAgentAdapters(src).filter((m) => m.includes("/"));
+    const walk = srcNestedAdapterFiles(src);
+
+    expect(walk.files).toEqual(authorityNested);
+    // Cardinality as a NUMBER, on both sides: two empty arrays are `toEqual`, so without this a
+    // derivation that silently shrinks to nothing would pass the comparison above.
+    expect(walk.files.length).toBe(2);
+    expect(authorityNested.length).toBe(2);
+    // ...and this is the non-cycle arm on both sides, which is why the equality above is available.
+    expect(walk.cycles).toEqual([]);
+    expect(walk.overflow).toBeNull();
+  });
+
+  it("WR-03 part 2: over the CYCLE fixture the two sides name the SAME declined path and neither is silent (D-36)", () => {
+    if (process.platform === "win32") return;
+
+    const src = makeSyntheticSrc();
+
+    // The WR-04 reproduction: a leaf under `real/`, plus a link in that directory pointing at its
+    // own parent, so walking `real/loop` arrives back at a directory already on the recursion path.
+    mkdirSync(join(src, ".claude", "agents", "real"), { recursive: true });
+    writeFileSync(join(src, ".claude", "agents", "real", "x.md"), `> synthetic nested adapter\n${MAT_SLOT}\n`);
+    symlinkSync("..", join(src, ".claude", "agents", "real", "loop"));
+
+    const walk = srcNestedAdapterFiles(src);
+    let thrown = "";
+    try {
+      listAgentAdapters(src);
+    } catch (e) {
+      thrown = (e as Error).message;
+    }
+
+    // NEITHER SIDE IS SILENT. Asserted before the equality, because two silences are trivially
+    // "equal" and that is the exact failure both floors exist to prevent.
+    expect(`installer named a cycle: ${walk.cycles.length > 0}`).toBe("installer named a cycle: true");
+    expect(`authority threw: ${thrown !== ""}`).toBe("authority threw: true");
+
+    // THE SAME PATH, EXTRACTED FROM EACH SIDE RATHER THAN RESTATED INTO BOTH. The authority's name
+    // is pulled out of its message by capture, so if either side stops naming the path this fails —
+    // which is the difference between asserting the naming and asserting a literal twice.
+    const reported = walk.cycles[0];
+    const m = /^kit-model: symlink cycle at (.+?) while walking /.exec(thrown);
+    expect(`authority message names a path: ${m !== null}`).toBe("authority message names a path: true");
+    const namedByAuthority = m![1];
+    expect(`authority=${namedByAuthority} installer=${reported}`).toBe(`authority=${reported} installer=${reported}`);
+
+    // Only NOW pin the observed literal, as a sanity check on the fixture rather than as the
+    // equality itself. `real/loop` is the value measured against the committed .js in 27-31.
+    expect(reported).toBe("real/loop");
+    expect(walk.cycles.length).toBe(1);
+    // The rest of the walk is unaffected on both sides: the cycle arm stops a DESCENT, it does not
+    // narrow anything else, and the work bound did not fire.
+    expect(walk.files).toEqual(["real/x.md"]);
+    expect(walk.overflow).toBeNull();
   });
 
   // ── D-35 / WR-01: the WORK bound, pinned on BOTH sides of its threshold ──────────────────────

@@ -150,9 +150,15 @@ in your target are never modified beyond the additive edits above.
 
 ```sh
 node install/uninstall.js --target /path/to/repo
-# preview the reversal first:
+# preview the reversal first (read the note below before previewing inside a grugops checkout):
 DRY_RUN=1 node install/uninstall.js --target /path/to/repo
 ```
+
+**The self-checkout guard is always on, and `DRY_RUN=1` does not exempt it.** It is a mechanical
+safety check rather than a prompt, so pointing either binary at a target that is a grugops source
+checkout — *including the preview above* — **exits `1` and prints nothing at all**. An empty preview
+there is the refusal, not a reversal with nothing to undo. To preview a reversal inside a grugops
+checkout, add **`--allow-self`** (or `--force`), the same override the installer takes.
 
 `uninstall.js` removes **only** the grugops-owned wiring it added to the target: the skills, the
 Orchestrator wrapper, the materialized resolver adapters, the sentinel-delimited `CLAUDE.md` and
