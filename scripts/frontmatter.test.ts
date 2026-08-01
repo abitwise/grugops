@@ -216,6 +216,155 @@ const FORMS: readonly { readonly label: string; readonly emit: Serializer }[] = 
   },
 ];
 
+// ── THE ESCAPE AXIS (27-REVIEW-GAPS-3 § CR-01, round 3 — plan 27-29, D-30) ────────────────────────
+//
+// Seventeen rows above pin YAML NODE PROPERTIES: a reference sigil at a node start, and a tag
+// standing in front of one. The parser's own STRING REWRITER was wrong on a different axis entirely
+// and nobody had enumerated it. `unquote()` resolved a double-quoted scalar by deleting every
+// backslash, which is right for `\"` and `\\` by accident and destroys every other escape YAML 1.2
+// § 5.7 defines, so `"\x41gent(grugops-orchestrator)"` — a value a compliant loader resolves to
+// `Agent(grugops-orchestrator)` — flattened to `x41gent(grugops-orchestrator)` and returned the
+// no-grant SUCCESS arm on a document that grants the spawn tool.
+//
+// THE SAME DISCIPLINE THE TAG AXIS RECORDS APPLIES HERE, AND FOR THE SAME REASON. Two things are
+// enumerated separately below:
+//
+//   • the five APPLICATION POINTS again, now carrying an escape — because the refusal must be a
+//     property of "wherever a quoted scalar is read", not a patch on the one serializer the review
+//     reported. Writing these five FIRST is what caught the first draft of the D-30 fix: it routed
+//     the wholly-quoted scalar through the allowlist and left the FLOW-ITEM and PLAIN-CONTINUATION
+//     points returning `{ ok: true, value: false }` — the same fail-open, at two of five points.
+//   • the STRUCTURAL SPELLINGS — the three numeric widths in both placements, five non-numeric YAML
+//     escapes, a truncated numeric form and a dangling backslash — because an enumeration that only
+//     varied the reported spelling would prove nothing about the allowlist, which is the mechanism.
+//
+// AND NEITHER OF THOSE IS THE LOAD-BEARING PROOF. A fixed table proves that the spellings SOMEONE
+// THOUGHT OF refuse; the exhaustive escape-alphabet property further down proves that a spelling
+// NOBODY thought of refuses BY DEFAULT. These rows exist so the reported regressions are addressable
+// by name; the property is what ends the round-per-spelling series.
+
+// ONE backslash byte, from a char code. NEVER a source literal: a doubled backslash is a different
+// (and allowlisted) document, so a fixture that accidentally doubles it proves the opposite of what
+// it claims. The review's reproduction instruction was to verify the bytes with `od -c` for exactly
+// this reason, and the length assertion in the table-size case is that instruction in code.
+const BS = String.fromCharCode(92);
+
+// The escaped spelling of a spawn grant, for a given escape sequence. `\x41` is `A`, so this is the
+// review's reproduction verbatim; the other spellings are the same shape on a different escape.
+const escapedGrant = (esc: string): string =>
+  `${esc}gent(grugops-orchestrator)`;
+
+// The reported spelling, used by the five application-point rows so those rows vary the PLACE and
+// hold the spelling fixed — the converse of the spelling rows, which hold the place fixed.
+const ESC_GRANT = escapedGrant(`${BS}x41`);
+
+// A refused row for one escape sequence in the LEADING placement (the escape produces the first
+// character of the grant token) and one in the MID-VALUE placement (the escape sits inside an
+// otherwise plain value). Built by a helper so a spelling cannot be added to one placement and
+// silently forgotten in the other.
+const escapeSpellingRows = (
+  name: string,
+  esc: string,
+): readonly { readonly label: string; readonly emit: Serializer }[] => [
+  {
+    label: `ESCAPE spelling — ${name}, LEADING (the escape produces the grant token's first character)`,
+    emit: (v, k) => doc([`${k}: "${escapedGrant(esc)}, ${v}"`]),
+  },
+  {
+    label: `ESCAPE spelling — ${name}, MID-VALUE (the escape sits inside an otherwise plain value)`,
+    emit: (v, k) => doc([`${k}: "${v}, Re${esc}ad"`]),
+  },
+];
+
+const ESCAPE_FORMS: readonly {
+  readonly label: string;
+  readonly emit: Serializer;
+}[] = [
+  // ── The five APPLICATION POINTS, one spelling, five places ──────────────────────────────────
+  {
+    // KEY-LINE application point, on the tools key's OWN value. The review's reproduction in shape.
+    label: "ESCAPE axis / KEY-LINE — an escaped grant in the tools key's own double-quoted value (the CR-01 round-3 reproduction)",
+    emit: (v, k) => doc([`${k}: "${ESC_GRANT}, ${v}"`]),
+  },
+  {
+    // KEY-LINE application point on a HELPER key that is aliased NOWHERE — so the row is red for the
+    // escape and not, as a tag/anchor row would be, for a reference. Deliberately carries a clean
+    // tools key: the refusal must come from the helper's own unreadable value.
+    label: "ESCAPE axis / KEY-LINE — an escaped value under a helper key aliased nowhere (red for the escape, not for a reference)",
+    emit: (v, k) => doc([`_helper: "${ESC_GRANT}"`, `${k}: ${v}`]),
+  },
+  {
+    // FLOW-ITEM node start: the escape is inside a quoted item of a `[...]` collection, so the VALUE
+    // is not one wholly-quoted scalar and the wrapping-quote strip never sees it. One of the two
+    // points the first draft of the fix missed.
+    label: "ESCAPE axis / FLOW-ITEM — an escaped grant as a quoted item inside a flow collection",
+    emit: (v, k) => doc([`${k}: [${splitTopLevel(v)[0]}, "${ESC_GRANT}"]`]),
+  },
+  {
+    // SEQ_ITEM application point: a block-sequence item on a continuation line, which IS a wholly
+    // quoted scalar at its own node start. This is the shape the aggregator case plants.
+    label: "ESCAPE axis / SEQ_ITEM — an escaped grant as a quoted block-sequence item on a continuation line",
+    emit: (v, k, i) =>
+      doc([
+        `${k}:`,
+        ...splitTopLevel(v).map((x) => `${i}- ${x}`),
+        `${i}- "${ESC_GRANT}"`,
+      ]),
+  },
+  {
+    // PLAIN-CONTINUATION application point: the escaped fragment arrives on the wrapped line, so the
+    // joined value is a composite that no wrapping-quote strip matches. The second point the first
+    // draft missed, and the one a key-line-only test misses entirely.
+    label: "ESCAPE axis / PLAIN-CONTINUATION — an escaped quoted fragment arriving on a plain continuation line",
+    emit: (v, k, i) => doc([`${k}: ${halves(v)[0]}`, `${i}"${ESC_GRANT}"`]),
+  },
+
+  // ── The STRUCTURAL SPELLINGS, one place, many spellings ─────────────────────────────────────
+  //
+  // The three NUMERIC widths YAML defines, each in both placements. These are the ones the pre-D-30
+  // rewrite silently mangled into a string no loader computes.
+  ...escapeSpellingRows("8-bit numeric (\\xNN)", `${BS}x41`),
+  ...escapeSpellingRows("16-bit numeric (\\uNNNN)", `${BS}u0041`),
+  ...escapeSpellingRows("32-bit numeric (\\UNNNNNNNN)", `${BS}U00000041`),
+  // NON-NUMERIC escapes. The pre-D-30 rewrite mangled these too — it turned `\n` into a literal `n`,
+  // which is not a newline and not a backslash-n either. They are enumerated because the axis is
+  // "what does this module do that YAML does not", not "which escapes carry hex digits".
+  {
+    label: "ESCAPE spelling — the line-feed escape (\\n), which the old rewrite turned into a literal `n`",
+    emit: (v, k) => doc([`${k}: "${v},${BS}nAgent-free tail"`]),
+  },
+  {
+    label: "ESCAPE spelling — the tab escape (\\t)",
+    emit: (v, k) => doc([`${k}: "${v},${BS}tAgent-free tail"`]),
+  },
+  {
+    label: "ESCAPE spelling — the escape-character escape (\\e), a YAML-only spelling",
+    emit: (v, k) => doc([`${k}: "${v},${BS}e tail"`]),
+  },
+  {
+    label: "ESCAPE spelling — the next-line escape (\\N), whose UPPERCASE letter distinguishes it from \\n",
+    emit: (v, k) => doc([`${k}: "${v},${BS}N tail"`]),
+  },
+  {
+    label: "ESCAPE spelling — the non-breaking-space escape (\\_), whose second character is punctuation",
+    emit: (v, k) => doc([`${k}: "${v},${BS}_ tail"`]),
+  },
+  // PRECISION: a numeric escape whose hex-digit count is SHORT. It carries no special case in the
+  // module — it is simply not on the allowlist — which is exactly the point: the hex-digit count can
+  // never be miscounted into a resolution, because no count is ever counted.
+  {
+    label: "ESCAPE precision — a TRUNCATED numeric escape (one hex digit where two are required)",
+    emit: (v, k) => doc([`${k}: "${BS}x4gent(grugops-orchestrator), ${v}"`]),
+  },
+  // BOUNDARY: a backslash that is the LAST character of the scalar body. There is nothing after it to
+  // be on the allowlist, so a scanner that read `body[i + 1]` without a bounds check would resolve
+  // `undefined` and pass.
+  {
+    label: "ESCAPE boundary — a DANGLING backslash at the very end of the scalar body",
+    emit: (v, k) => doc([`${k}: "${v}${BS}"`]),
+  },
+];
+
 // ---------------------------------------------------------------------------
 // The REFUSED-form serializer table — the same product discipline, for the documents that must FAIL.
 // ---------------------------------------------------------------------------
@@ -381,6 +530,11 @@ const REFUSED_FORMS: readonly {
     label: "TAG nesting — BARE non-specific tags on nodes INSIDE a flow collection",
     emit: (v, k) => doc([`${k}: [! &t ${splitTopLevel(v)[0]}, ! *t]`]),
   },
+
+  // ── THE ESCAPE AXIS (plan 27-29, round 3) ────────────────────────────────────────────────────
+  // Spread in rather than restated, so the eighteen rows are defined ONCE beside their own recorded
+  // argument and cannot drift from it. The table-size floor below moved with them, 17 -> 35.
+  ...ESCAPE_FORMS,
 ];
 
 // Two continuation-indent widths, so indentation is part of the product rather than an assumption
@@ -408,10 +562,23 @@ describe("frontmatter — the spawn-grant parser oracle (SPAWN-04 / KIT-03)", ()
     // THE FLOOR MOVED WITH THE ROWS, 5 -> 17, in the same edit that added them. A floor left at 5
     // would have let any twelve of the seventeen be deleted later without a single assertion going
     // red — which is precisely how a refusal claim shrinks silently.
-    expect(REFUSED_FORMS.length).toBeGreaterThanOrEqual(17);
+    //
+    // (Plan 27-29) AND AGAIN, 17 -> 35, for the eighteen ESCAPE-axis rows: five application points,
+    // three numeric widths in two placements each, five non-numeric spellings, one truncated numeric
+    // form and one dangling backslash.
+    expect(REFUSED_FORMS.length).toBeGreaterThanOrEqual(35);
     expect(new Set(REFUSED_FORMS.map((f) => f.label)).size).toBe(
       REFUSED_FORMS.length,
     );
+    // The escape rows are counted on their own too, so a future edit that removed the whole axis
+    // while adding an unrelated row elsewhere could not keep the combined floor satisfied.
+    expect(ESCAPE_FORMS.length).toBeGreaterThanOrEqual(18);
+    // ONE backslash byte, asserted rather than assumed — a doubled backslash is an ALLOWLISTED
+    // document, so a fixture that silently doubled it would prove the opposite of what it claims.
+    // This is the review's `od -c` instruction, in code.
+    expect(BS.length).toBe(1);
+    expect(BS.charCodeAt(0)).toBe(92);
+    expect(ESC_GRANT.split(BS).length - 1).toBe(1);
   });
 
   it("recovers the grant verdict and the enumerated names across all scalar forms x indents x values", () => {
@@ -470,8 +637,9 @@ describe("frontmatter — the spawn-grant parser oracle (SPAWN-04 / KIT-03)", ()
     // THIS assertion rather than quietly shrinking what "refuses every reference form" means.
     // (Plan 27-24) Raised 60 -> 204 in the same edit that added the twelve tag-axis rows, for the
     // same reason the table floor moved: a floor that does not track the table counts nothing.
+    // (Plan 27-29) Raised 204 -> 420 with the eighteen escape-axis rows.
     expect(checked).toBe(REFUSED_FORMS.length * INDENTS.length * VALUES.length);
-    expect(checked).toBeGreaterThanOrEqual(204);
+    expect(checked).toBeGreaterThanOrEqual(420);
   });
 
   it("the refusal holds identically under the skill form of the key (allowed-tools)", () => {
@@ -552,6 +720,148 @@ describe("frontmatter — the spawn-grant parser oracle (SPAWN-04 / KIT-03)", ()
       expect(grant.ok, line).toBe(true);
       expect(grant.ok && grant.value, line).toBe(false);
     }
+  });
+
+  // ── The ESCAPE-axis controls in the OPPOSITE direction (plan 27-29, D-30) ─────────────────────
+  //
+  // The escape axis widens a refusal, and every widened refusal risks the same failure: firing on
+  // legitimate authored content. These are the PRIMARY controls on the D-30 change, and both assert a
+  // RESOLVED VALUE rather than only an ok flag — a control that checked the flag alone would pass on a
+  // document that parsed to nothing, which is precisely the silent-success shape this module exists
+  // to close.
+  //
+  //   • SINGLE-QUOTED is the load-bearing one. In YAML a backslash inside single quotes is a LITERAL
+  //     backslash and the only escape is the doubled `''`, so the very text that must refuse inside
+  //     double quotes must PARSE here — and the grant it plainly carries must still be enumerated.
+  //   • DOUBLE-BACKSLASH is the just-touching adjacency control: `\\` IS on the allowlist, so it
+  //     resolves to one backslash and the character after it is ordinary text, not an escape. A
+  //     module that refused it would be refusing a sequence it implements correctly.
+  it("does NOT refuse a backslash where YAML makes it literal, and RESOLVES the two allowlisted spellings — with the value asserted", () => {
+    const controls: readonly {
+      readonly label: string;
+      readonly line: string;
+      readonly flattened: string;
+      readonly grant: boolean;
+      readonly names: readonly string[];
+    }[] = [
+      {
+        label:
+          "SINGLE-QUOTED — the same escaped text that refuses in double quotes is literal here, and the real grant beside it is still ENUMERATED",
+        line: `tools: 'Read, ${BS}x41gent(not-a-grant), Agent(grugops-installer)'`,
+        flattened: `Read, ${BS}x41gent(not-a-grant), Agent(grugops-installer)`,
+        grant: true,
+        names: ["grugops-installer"],
+      },
+      {
+        label:
+          "SINGLE-QUOTED — a lone backslash, which has no meaning at all inside single quotes",
+        line: `tools: 'Read, Grep${BS}'`,
+        flattened: `Read, Grep${BS}`,
+        grant: false,
+        names: [],
+      },
+      {
+        label:
+          "DOUBLE-BACKSLASH — allowlisted, resolves to exactly ONE backslash, so `x` after it is text and not an escape",
+        line: `tools: "Read, ${BS}${BS}x41gent(o), Agent(grugops-qe-e2e)"`,
+        flattened: `Read, ${BS}x41gent(o), Agent(grugops-qe-e2e)`,
+        grant: true,
+        names: ["grugops-qe-e2e"],
+      },
+      {
+        label:
+          "ESCAPED QUOTE — allowlisted, resolves to a bare double quote and the grant survives it",
+        line: `tools: "Read, ${BS}"quoted${BS}", Agent(grugops-installer)"`,
+        flattened: `Read, "quoted", Agent(grugops-installer)`,
+        grant: true,
+        names: ["grugops-installer"],
+      },
+      {
+        label:
+          "ESCAPED SLASH — allowlisted, resolves to a bare forward slash",
+        line: `tools: "Read, a${BS}/b, Agent(grugops-qe-e2e)"`,
+        flattened: "Read, a/b, Agent(grugops-qe-e2e)",
+        grant: true,
+        names: ["grugops-qe-e2e"],
+      },
+      {
+        label:
+          "PLAIN SCALAR — a backslash outside any quoting is literal text in YAML and must not refuse",
+        line: `tools: Read, ${BS}x41gent(not-a-grant), Agent(grugops-installer)`,
+        flattened: `Read, ${BS}x41gent(not-a-grant), Agent(grugops-installer)`,
+        grant: true,
+        names: ["grugops-installer"],
+      },
+    ];
+    let checked = 0;
+    for (const c of controls) {
+      const text = doc([c.line]);
+      const parsed = parseFrontmatter(text);
+      expect(parsed.ok, c.label).toBe(true);
+      if (!parsed.ok) continue;
+      // THE LOAD-BEARING HALF: the RESOLVED value, not the ok flag.
+      expect(parsed.value.get("tools"), c.label).toEqual([c.flattened]);
+      expect(hasSpawnGrant(text), c.label).toEqual({
+        ok: true,
+        value: c.grant,
+      });
+      expect(grantedAgentNames(text), c.label).toEqual({
+        ok: true,
+        value: [...c.names],
+      });
+      checked += 1;
+    }
+    expect(checked).toBe(controls.length);
+    expect(checked).toBeGreaterThanOrEqual(6);
+    // The two allowlisted resolutions carry exactly ONE backslash / ONE quote in their flattened
+    // form, stated as a count so a rewrite that dropped or doubled the character fails here.
+    expect(controls[2].flattened.split(BS).length - 1).toBe(1);
+    expect(controls[3].flattened.split('"').length - 1).toBe(2);
+  });
+
+  // ── The MULTI-LINE double-quoted scalar, DECIDED in both directions (plan 27-29, D-33) ────────
+  //
+  // The round-3 reviewer flagged this as "the same class and it is unpinned": `unquote` runs on the
+  // JOINED value, so YAML's line-folding rules meet this module's space join and nobody had said what
+  // that means. D-33 decides it rather than leaving it to emerge, and both halves carry a case here.
+  it("D-33 — a multi-line double-quoted scalar FOLDS plainly, and a backslash line-continuation REFUSES", () => {
+    // HALF ONE: plain folding. The space join reproduces what YAML folding computes for the ordinary
+    // case, so the value resolves and the grant inside it is enumerated.
+    const folded = doc([
+      'tools: "Read, Grep,',
+      '  Agent(grugops-installer)"',
+    ]);
+    const pFolded = parseFrontmatter(folded);
+    expect(pFolded.ok).toBe(true);
+    if (!pFolded.ok) return;
+    expect(pFolded.value.get("tools")).toEqual([
+      "Read, Grep, Agent(grugops-installer)",
+    ]);
+    expect(grantedAgentNames(folded)).toEqual({
+      ok: true,
+      value: ["grugops-installer"],
+    });
+
+    // HALF TWO: a YAML BACKSLASH LINE-CONTINUATION. It survives the space join as a
+    // backslash-followed-by-space sequence, which is not on the allowlist, so the document refuses.
+    // That is the honest outcome: this module does not implement escaped line breaks, so a document
+    // using one expresses a value it cannot compute — the same argument the reference refusals make.
+    const continued = doc([
+      `tools: "Read, Grep, ${BS}`,
+      '  Agent(grugops-installer)"',
+    ]);
+    const pCont = parseFrontmatter(continued);
+    expect(pCont.ok).toBe(false);
+    if (pCont.ok) return;
+    expect(pCont.reason).toContain(`backslash sequence \`${BS} \``);
+    expect(pCont.reason).toMatch(/anchor or alias/);
+    // And the load-bearing half: NOT the no-grant success arm, on a document that grants spawn.
+    const grant = hasSpawnGrant(continued);
+    expect(grant.ok).toBe(false);
+    expect(grant).not.toEqual({ ok: true, value: false });
+    const names = grantedAgentNames(continued);
+    expect(names.ok).toBe(false);
+    expect(names).not.toEqual({ ok: true, value: [] });
   });
 
   it("holds identically under the skill form of the key (allowed-tools), across all scalar forms", () => {

@@ -398,6 +398,50 @@ function resolveDoubleQuoted(body: string): Unquoted {
   return { ok: true, value: out };
 }
 
+// The SAME allowlist decision, for a value that is NOT one wholly-quoted scalar.
+//
+// WHY THIS EXISTS, AND WHY IT IS NOT A SECOND GRAMMAR. `unquoteChecked` only removes a quote pair that
+// wraps the WHOLE string, so a flow sequence (`[Read, "…"]`) and a wrapped plain value whose
+// continuation line is quoted (`Read,` / `  "…"`) never reach `resolveDoubleQuoted` — and the first
+// draft of the D-30 fix therefore still returned `{ ok: true, value: false }` for
+// `allowed-tools: [Read, "\x41gent(grugops-orchestrator)"]`. That is the SAME fail-open at two of the
+// five application points, which is why the escape decision is applied at every point rather than at
+// the one the review reported. Caught by writing the application-point rows of the refused-forms
+// table before believing the fix (plan 27-29, task 2).
+//
+// It VALIDATES and does not resolve. This module does not decode a partially-quoted composite value —
+// that would be the second grammar it exists to delete — but it must not return a value it cannot
+// vouch for either. So an embedded double-quoted region is walked, a non-allowlisted backslash inside
+// one is REFUSED BY NAME, and the string is otherwise returned byte-unchanged. Leaving the three
+// allowlisted escapes unresolved cannot change a grant verdict: each resolves to a NON-WORD character
+// (`"`, `\`, `/`), so it can neither create nor destroy a `\bAgent\b` / `\bTask\b` token boundary.
+//
+// A backslash OUTSIDE a double-quoted region is literal text in YAML — in a plain scalar and inside
+// single quotes alike — so it is untouched here. That is the same false-red discipline the
+// single-quoted branch below carries, and it is swept exhaustively by the parser oracle.
+//
+// The quote-state walk is the SAME line-state pattern `stripComment` already uses (D-10: the existing
+// anchor is not re-engineered), so there is one way this module decides "am I inside quotes".
+function scanEmbeddedDoubleQuoted(s: string): Unquoted {
+  let sq = false;
+  let dq = false;
+  for (let i = 0; i < s.length; i++) {
+    const c = s[i];
+    if (dq && c === "\\") {
+      if (i + 1 >= s.length) return { ok: false, escape: "\\" };
+      const next = s[i + 1];
+      if (!DQ_ESCAPE_ALLOWLIST.has(next)) {
+        return { ok: false, escape: `\\${next}` };
+      }
+      i += 1; // an allowlisted escape is consumed whole; its second character never toggles a quote
+      continue;
+    }
+    if (c === '"' && !sq) dq = !dq;
+    else if (c === "'" && !dq) sq = !sq;
+  }
+  return { ok: true, value: s };
+}
+
 // Remove ONE matched pair of wrapping quotes and undo the quoting style's escapes. Only a pair that
 // actually wraps the whole string is removed, so `Agent(a), "b"` is left alone.
 //
@@ -416,7 +460,9 @@ function unquoteChecked(s: string): Unquoted {
   if (s.length >= 2 && s.startsWith("'") && s.endsWith("'")) {
     return { ok: true, value: s.slice(1, -1).replace(/''/g, "'") };
   }
-  return { ok: true, value: s };
+  // Not one wholly-quoted scalar: a flow collection, a composite, or a plain value. Nothing is
+  // unquoted here, but any double-quoted region INSIDE it answers to the same allowlist.
+  return scanEmbeddedDoubleQuoted(s);
 }
 
 const indentOf = (line: string): number => line.length - line.replace(/^[ \t]*/, "").length;
