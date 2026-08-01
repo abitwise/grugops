@@ -383,6 +383,28 @@ function reshapeToolsBlock(file: string, shape: string[]): void {
   writeFileSync(file, src.join("\n"));
 }
 
+// (Plan 27-30 / IN-01) Remove a mirrored SKILL adapter's allow-list declaration ENTIRELY — the
+// `allowed-tools:` key line and every block-sequence item belonging to it.
+//
+// This is the fixture the agent-adapter SCOPING GATE needs and never had. guard_wr05's absence and
+// emptiness arms are gated behind `isAgentAdapter`, and all seven committed skills declare an
+// allow-list today, so deleting that gate would change nothing on the live tree — the scoping
+// decision plan 27-26 called load-bearing was decided by a branch no case exercised. Producing the
+// input the gate is scoped AGAINST is the only way to tell a scoped rule apart from an absent one.
+//
+// It DELEGATES to reshapeToolsBlock() with an empty shape rather than re-implementing the find-and-
+// splice. That helper already owns "which lines are this declaration" — the key line plus its
+// dangling `  - item` continuations, the distinction reshapeToolsKey() cannot make — and a second
+// copy of that walk is precisely the duplicate-set shape this phase exists to delete. It therefore
+// also inherits the THROW when the key is absent, for the reason reshapeToolsBlock() and
+// renameAdapterIdentity() both record: a helper that silently no-ops leaves the case asserting
+// against an unmodified tree, which is a fixture that pins nothing.
+function plantSkillWithoutToolsKey(root: string, skill: string): string {
+  const file = join(root, ".claude/skills", skill, "SKILL.md");
+  reshapeToolsBlock(file, []);
+  return file;
+}
+
 // Run the compiled guard with CHECK_ROOT pointed at the mirror; capture status + combined output.
 function runIn(checkRoot: string): SpawnSyncReturns<string> {
   return spawnSync("node", [GUARD_JS], {
@@ -743,6 +765,53 @@ describe("check-foundation-guards.js (SDLC-02 / SC2 fail-proof harness)", () => 
     expect(o).toContain("`tools` key present with an EMPTY value");
     expect(o).toContain(".claude/agents/grugops-qe-e2e.md");
     expect(o).not.toMatch(/declares no `tools` key/);
+  });
+
+  // (Plan 27-30 / 27-REVIEW-GAPS-3 § IN-01) THE SCOPING CONTROL for the two arms directly above.
+  //
+  // Both of those arms are gated behind `isAgentAdapter`, and plan 27-26 recorded that scoping as a
+  // deliberate, load-bearing decision when it widened the loop from AGENT_ADAPTERS to
+  // SPAWN_GRANT_SCAN: a skill with no `allowed-tools` is not a defective sub-agent identity, it is
+  // not a sub-agent at all, so floors written about agent identity must not fire on it.
+  //
+  // WHY THE DECISION NEEDED A CASE. All seven committed skills declare an allow-list today, so
+  // `declaredToolsValues` is non-empty for every skill on the live tree — deleting the gate outright
+  // would change NOTHING that the suite or the live run could see. Whether a future skill omitting
+  // the key reds the gate was therefore decided by an untested branch, and a scoped rule with no
+  // exercised non-firing side is indistinguishable from a rule that simply never fires. This case
+  // produces the one input the gate is scoped against and asserts the tree stays GREEN.
+  //
+  // THE PAIRED DIRECTION IS NOT DUPLICATED HERE. That the SAME omission on an AGENT adapter reds the
+  // guard and names the file is already asserted, unchanged, by "guard_wr05 agent adapter with NO
+  // tools key → nonzero + names the file and the grant-by-inheritance consequence (WR-05,
+  // reproduced)" immediately above. A second copy of that assertion is the duplicate-set shape this
+  // phase exists to delete; the two cases together are what prove the gate SCOPED rather than
+  // DISABLED. The clean-mirror green run comes first so a green result cannot be blamed on the plant
+  // never having been applied — plantSkillWithoutToolsKey() throws rather than no-op if it were.
+  it("guard_wr05 SKILL with its allow-list declaration REMOVED → still GREEN: the agent-adapter scoping gate, exercised (IN-01)", () => {
+    const m = mirror();
+    const before = runIn(m);
+    expect(before.status).toBe(0);
+    expect(out(before)).toContain("ALL CHECKS PASSED");
+
+    const file = plantSkillWithoutToolsKey(m, "grugops-map");
+    // Fixture guard: the declaration is really gone, so the assertion below is about the gate and
+    // not about a plant that quietly did nothing.
+    expect(readFileSync(file, "utf8")).not.toMatch(/^allowed-tools:/m);
+
+    const r = runIn(m);
+    const o = out(r);
+    expect(r.status).toBe(0);
+    expect(o).toContain("ALL CHECKS PASSED");
+    // Asserted on the FINDING TEXT and not merely on the exit code: a green run for some unrelated
+    // reason must not be able to stand in for the gate holding. NEITHER gated arm fired.
+    expect(o).not.toMatch(/declares no `tools` key/);
+    expect(o).not.toContain("`tools` key present with an EMPTY value");
+    // And guard_wr05 genuinely RAN over this tree rather than being skipped — the PASS line is the
+    // guard's own statement that it reached a verdict. Without this, "no finding" and "no check"
+    // would print the same thing, which is the confusion this whole phase is about. Deliberately NOT
+    // asserted on the skill's filename: it legitimately appears in other guards' PASS lines.
+    expect(o).toContain("PASS  WR-05:");
   });
 
   // ── The WR-01 CARDINALITY arm: the rule the sibling `name` key already had (plan 27-26). ────────
