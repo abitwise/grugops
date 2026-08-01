@@ -33,6 +33,7 @@ import {
   ROLE_COUNT,
   WORKFLOW_COUNT,
   SKILL_ADAPTER_COUNT,
+  MAX_WALK_ENTRIES,
 } from "./kit-model.js";
 
 const tmpDirs: string[] = [];
@@ -91,6 +92,26 @@ function skillRoot(skills: string[] | null): string {
     }
   }
   return root;
+}
+
+// makeSymlinkDag — the WR-01 shape: a CROSS-LINKED DIRECTORY DAG WITH NO CYCLE ANYWHERE.
+//
+// `d0 .. dn` are real sibling directories under `dir`; each `di` holds TWO forward symlinks (`a`
+// and `b`) pointing at `d(i+1)`, and `dn` holds one leaf `.md` file. Every link points FORWARD, so
+// no directory ever repeats on a recursion path and the per-path ancestor stack correctly answers
+// "no cycle" at every single step. The number of DISTINCT RELATIVE PATHS to the leaf nevertheless
+// DOUBLES with each added directory. That is the entire WR-01 argument in one fixture: a correct
+// cycle answer is not a work bound, and only a separate work bound bounds this.
+//
+// install/install.test.ts carries a helper of the same name and shape. The two test files share no
+// helper module today; adding one is out of scope for this round.
+function makeSymlinkDag(dir: string, n: number): void {
+  for (let i = 0; i <= n; i++) mkdirSync(join(dir, `d${i}`), { recursive: true });
+  for (let i = 0; i < n; i++) {
+    symlinkSync(join("..", `d${i + 1}`), join(dir, `d${i}`, "a"));
+    symlinkSync(join("..", `d${i + 1}`), join(dir, `d${i}`, "b"));
+  }
+  writeFileSync(join(dir, `d${n}`, "leaf.md"), "---\nname: leaf\n---\n");
 }
 
 describe("kit-model (KIT-01 kit-set derivation authority)", () => {
@@ -346,12 +367,28 @@ describe("kit-model listAgentAdapters (KIT-02 adapter derivation authority)", ()
     expect(got).toEqual([...got].sort());
   });
 
-  it("a symlink CYCLE terminates by the walk's own contract and yields the REAL member set, at one link and at two (D-29)", () => {
+  // AMENDED BY D-36 (WR-04), DELIBERATELY. This case previously asserted that a cycle "yields the
+  // REAL member set" — i.e. that the walk terminated and returned the members it could still see.
+  // D-36 amends D-29's half of kit-model: termination that says NOTHING is this module's own
+  // fail-closed posture inverted. Every other arm here that cannot fully account for a directory
+  // throws naming it (readDirOrThrow, refuseEmpty, MAX_WALK_ENTRIES); the cycle arm was the one that
+  // quietly returned a SHORTER set, and a short scan set passes every downstream guard exactly the
+  // way a vacuous one does. The asserted OUTCOME therefore changes from a returned member set to a
+  // NAMED THROW.
+  //
+  // WHAT THE ORIGINAL CASE WAS PINNING IS PRESERVED IN FULL, and that is why the shape below is
+  // unchanged: the MANNER of termination belongs to this module and not to the host's
+  // symlink-resolution limit or to the call stack. That is why both the one-link and the two-link
+  // shapes are still exercised — pre-fix they failed DIFFERENTLY (ELOOP vs. RangeError), so a single
+  // shape would pin only one of them — and why the time bound is still here.
+  //
+  // Do NOT weaken this to a returned set to make the old assertion pass again; that reverses D-36.
+  it("a symlink CYCLE throws a NAMED error carrying the declined relative path, at one link and at two (D-36 amends D-29)", () => {
     if (process.platform === "win32") return;
     // The time bound exists to make NON-TERMINATION A TEST FAILURE rather than a hung suite: a
     // regression that removes the ancestor stack must go red here, not stall CI until it is killed.
     //
-    // Measured against the pre-fix walk on darwin / node v24: ONE `loop -> ..` link over this
+    // Measured against the pre-D-29 walk on darwin / node v24: ONE `loop -> ..` link over this
     // one-adapter fixture returned THIRTY-TWO aliased members, terminating only because the
     // operating system's symlink-resolution limit made statSync throw ELOOP; TWO links threw
     // `RangeError: Maximum call stack size exceeded`. Both shapes are covered because they produced
@@ -360,14 +397,82 @@ describe("kit-model listAgentAdapters (KIT-02 adapter derivation authority)", ()
       const root = adapterRoot(["real-adapter.md"]);
       const agents = join(root, ".claude/agents");
       // `loop -> ..` points at `.claude`, whose `agents` entry is the directory we are standing in:
-      // a genuine cycle, not a mere alias.
+      // a genuine cycle, not a mere alias. The declined path is therefore `loopN/agents` — asserted
+      // by pattern rather than by a fixed N because readdirSync order decides which link is reached
+      // first, and pinning the order would pin the filesystem rather than the contract.
       for (let i = 0; i < links; i++) symlinkSync("..", join(agents, `loop${i}`));
 
-      const got = listAgentAdapters(root);
-      expect(got).toEqual(["real-adapter.md"]);
-      expect(got.length).toBe(1);
+      // NAMED, not merely thrown: the message must carry the relative path the walk declined, or
+      // the member set has disappeared without a name and WR-04 is back.
+      expect(() => listAgentAdapters(root)).toThrow(/symlink cycle at loop\d\/agents/);
+      // ...and it must be THIS module's error, not the host's ELOOP or a RangeError from the stack.
+      expect(() => listAgentAdapters(root)).toThrow(/^kit-model: /);
+      let caught: unknown;
+      try {
+        listAgentAdapters(root);
+      } catch (e) {
+        caught = e;
+      }
+      expect(caught).toBeInstanceOf(Error);
+      expect((caught as Error).message).not.toMatch(/ELOOP|Maximum call stack/);
     }
   }, 15_000);
+
+  // ── D-35 / WR-01: the WORK bound is a SEPARATE mechanism, pinned on BOTH sides of its threshold ─
+  //
+  // The ancestor stack above answers "is this a cycle on THIS path" and answers nothing about cost.
+  // A symlink DAG has NO cycle and still yields exponentially many distinct relative paths — 15
+  // directories each holding two forward links to their successor measured 32,767 members in 12.2
+  // seconds against the pre-fix walk. This walk runs inside check-foundation-guards.js in CI, where
+  // an unbounded walk HANGS the gate rather than failing it.
+  //
+  // Both fixtures below are sized FROM the imported MAX_WALK_ENTRIES constant, never from a
+  // restated number: a later change to the bound must move these fixtures with it rather than leave
+  // them asserting against a stale threshold.
+
+  it(`a walk examining EXACTLY MAX_WALK_ENTRIES (${MAX_WALK_ENTRIES}) entries succeeds — the bound does not narrow membership (D-35)`, () => {
+    // Exactly at the bound: the Nth entry examined is still under it. One entry fewer than the
+    // refusal case below, so the two cases straddle the threshold with nothing between them.
+    const root = adapterRoot([]);
+    const dir = join(root, ".claude/agents");
+    for (let i = 0; i < MAX_WALK_ENTRIES; i++) {
+      writeFileSync(join(dir, `a${String(i).padStart(6, "0")}.md`), "---\nname: f\n---\n");
+    }
+    const got = listAgentAdapters(root);
+    expect(got.length).toBe(MAX_WALK_ENTRIES);
+    expect(got).toEqual([...got].sort());
+  }, 60_000);
+
+  it(`a walk examining ONE entry beyond MAX_WALK_ENTRIES (${MAX_WALK_ENTRIES + 1}) refuses BY NAME (D-35)`, () => {
+    const root = adapterRoot([]);
+    const dir = join(root, ".claude/agents");
+    for (let i = 0; i < MAX_WALK_ENTRIES + 1; i++) {
+      writeFileSync(join(dir, `a${String(i).padStart(6, "0")}.md`), "---\nname: f\n---\n");
+    }
+    // The refusal NAMES the bound and the directory. A silent truncation to MAX_WALK_ENTRIES
+    // members would pass every downstream guard, which is the whole reason this throws.
+    expect(() => listAgentAdapters(root)).toThrow(
+      new RegExp(`examined more than MAX_WALK_ENTRIES=${MAX_WALK_ENTRIES}`),
+    );
+    expect(() => listAgentAdapters(root)).toThrow(dir);
+  }, 60_000);
+
+  it("the work bound refuses a CYCLE-FREE cross-linked DAG in bounded time, and the DAG is genuinely cycle-free (D-35, WR-01)", () => {
+    if (process.platform === "win32") return;
+    // makeSymlinkDag builds the exact WR-01 shape. Its links all point FORWARD, so no directory
+    // ever repeats on a recursion path: the ancestor stack correctly reports "no cycle" at every
+    // step, which is precisely why the cycle answer cannot be what bounds this walk. Proof that the
+    // two mechanisms are separate: this refusal must be the OVERFLOW error, never the cycle error.
+    const root = adapterRoot([]);
+    makeSymlinkDag(join(root, ".claude/agents"), 14);
+    const t0 = Date.now();
+    expect(() => listAgentAdapters(root)).toThrow(/examined more than MAX_WALK_ENTRIES/);
+    expect(() => listAgentAdapters(root)).not.toThrow(/symlink cycle/);
+    // Pre-fix this fixture enumerated 32,767 members in 12.2s and grew by a factor of two per added
+    // directory. The wall-clock assertion is deliberately generous — it pins BOUNDEDNESS, not a
+    // performance number that would go flaky on a loaded runner.
+    expect(Date.now() - t0).toBeLessThan(30_000);
+  }, 60_000);
 
   it("the live tree derives one adapter per role, all top-level and sorted", () => {
     // Read-only over the real tree. Deliberately NOT asserted against a separate adapter-count

@@ -214,11 +214,33 @@ export function srcAdapterFiles(srcRoot: string): string[] | null {
 // bought by CASES — the same way the `source derivation` conformance case in install.test.ts buys
 // the other half of that decoupling.
 //
-// THE WALK NOW REPORTS WHAT IT COULD NOT DO, NOT JUST WHAT IT FOUND (D-35). The return value is no
-// longer a bare array, because a bare array can only say "here is the member set" — and this walk
-// has a second thing it must be able to say: "I stopped after MAX_WALK_ENTRIES entries." Saying it
-// by returning fewer members and nothing else is the one behaviour this module's header forbids
-// outright, so it travels back in the result and the caller reports it.
+// THE WALK NOW REPORTS WHAT IT COULD NOT DO, NOT JUST WHAT IT FOUND (D-35/D-36). The return value
+// is no longer a bare array, because a bare array can only say "here is the member set" — and this
+// walk has two other things it must be able to say: "I stopped after MAX_WALK_ENTRIES entries" and
+// "I declined to descend into <path>". Saying either by returning fewer members and nothing else is
+// the one behaviour this module's header forbids outright, so both travel back in the result and
+// the caller reports them.
+//
+// THE CYCLE ARM IS A REPORTED EVENT, NOT A SILENT RETURN (D-36, closing WR-04, AMENDING D-29).
+// D-29 gave this walk a correct cycle ANSWER and left it with no cycle VOICE: it stopped descending
+// and said nothing — no name, no count, no verification line. That is the same silent-disappearance
+// shape the header above rejects twice in its own words ("the installer must not be the one place a
+// file disappears silently"; "a member it cannot see is a member it cannot refuse by name"). So the
+// arm now records the relative path it declined to descend into, and the caller names it.
+//
+// THE SCOPING IS RECORDED HONESTLY, BECAUSE OVER-CLAIMING IT WOULD BE THE SAME DISHONESTY IN THE
+// OTHER DIRECTION. Both walk sites decline the SAME set on a cycle, so this is NOT a case of the
+// installer being blind to a member the authority sees, and install/uninstall stay symmetric
+// because they share this one derivation (D-28). It is therefore strictly WEAKER than CR-03, which
+// was a real asymmetry with a reproduced install-without-reversal. It is closed as an HONESTY fix —
+// the module must not be the one place a file disappears without a name — not as a reproduced
+// divergence.
+//
+// `UNKNOWN - verify`: whether Claude Code actually LOADS the adapter paths reachable only through a
+// symlink cycle under `.claude/agents`. If it does, a silently dropped cycle member is a member the
+// platform sees and every guard does not; if it does not, this remains an honesty fix and nothing
+// more. The premise is recorded as pending rather than asserted, because the fix does not depend on
+// it and asserting an unverified platform behaviour is the fabrication CLAUDE.md forbids.
 
 // The work bound's overflow marker: the bound that was exceeded and the relative directory the walk
 // had reached when it tripped (`""` = the adapter root itself).
@@ -259,7 +281,13 @@ export function srcNestedAdapterFiles(srcRoot: string): NestedWalkResult {
     } catch {
       return;
     }
-    if (ancestors.includes(real)) return; // cycle on THIS path — stop descending
+    if (ancestors.includes(real)) {
+      // Cycle on THIS path — stop descending, and NAME the path declined (D-36). Reported rather
+      // than thrown: this side's documented floor is report-not-throw so the installer finishes its
+      // other classes. `base` is never "" here, because the root call starts with no ancestors.
+      cycles.push(base);
+      return;
+    }
     const nextAncestors = [...ancestors, real];
     let names: string[];
     try {

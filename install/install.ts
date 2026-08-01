@@ -1486,6 +1486,20 @@ for (const rel of SRC_NESTED_ADAPTERS) {
   );
 }
 
+// THE CYCLE ARM, NAMED RATHER THAN SILENT (D-36, WR-04). The walk declined to descend into these
+// relative paths because each repeats on its own recursion path. Declining is correct — descending
+// would not terminate — but declining WITHOUT SAYING SO is the silent disappearance kit-source.ts's
+// header forbids. Reported through the same single `verify` channel every other refusal uses, so
+// the run reports INCOMPLETE instead of claiming a completion over a subtree it never examined.
+for (const rel of SRC_NESTED.cycles) {
+  verify(
+    `.claude/agents/${rel} — the nested-adapter walk DECLINED TO DESCEND here: this directory ` +
+      `already appears on its own recursion path, so following it would not terminate. Anything ` +
+      `below it was therefore neither installed nor refused by name. Break the symlink cycle under ` +
+      `the adapter directory and re-run.`,
+  );
+}
+
 // THE WORK BOUND, SURFACED THROUGH THE ONE REPORTING CHANNEL THIS INSTALLER HAS (D-35, WR-01). The
 // nested walk stopped after MAX_WALK_ENTRIES directory entries, so the adapter directory was NOT
 // fully examined and any member past that point was neither installed nor refused by name. That is

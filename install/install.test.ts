@@ -59,6 +59,13 @@ import { createHash } from "node:crypto";
 // what to delete along with the duplicate. Drives the COMMITTED .js — the repo idiom.
 import { listAgentAdapters, listSkillAdapters } from "../scripts/kit-model.js";
 
+// THE INSTALLER-SIDE WALK, IMPORTED DIRECTLY (D-35/D-36). The boundary cases below need to examine
+// MAX_WALK_ENTRIES+1 directory entries; driving that through a full installer subprocess would
+// print ten thousand verification lines to prove one threshold. The cycle-REPORT case still runs
+// the compiled installer end to end, because what it pins is the reporting channel and the banner.
+// Sized FROM the constant, never from a restated number. Drives the COMMITTED .js — the repo idiom.
+import { srcNestedAdapterFiles, MAX_WALK_ENTRIES } from "./kit-source.js";
+
 // The repo root (install/ is one level under it) and the committed compiled installer/uninstaller.
 const REPO_ROOT = resolve(import.meta.dirname, "..");
 const INSTALL_JS = join(import.meta.dirname, "install.js");
@@ -227,6 +234,26 @@ const SYNTH_SKILLS = [
 // makeSyntheticSrc — a throwaway $GRUGOPS_SRC the installer can copy + materialize from: a minimal
 // agent-factory/ (kit + seed + VERSION), seventeen resolver adapters each carrying MAT_SLOT, and
 // the seven skills. Nothing here reads the live repo.
+// makeSymlinkDag — the WR-01 shape: a CROSS-LINKED DIRECTORY DAG WITH NO CYCLE ANYWHERE.
+//
+// `d0 .. dn` are real sibling directories under `dir`; each `di` holds TWO forward symlinks (`a`
+// and `b`) pointing at `d(i+1)`, and `dn` holds one leaf `.md` file. Every link points FORWARD, so
+// no directory ever repeats on a recursion path and the per-path ancestor stack correctly answers
+// "no cycle" at every single step. The number of DISTINCT RELATIVE PATHS to the leaf nevertheless
+// DOUBLES with each added directory. That is the entire WR-01 argument in one fixture: a correct
+// cycle answer is not a work bound, and only a separate work bound bounds this.
+//
+// scripts/kit-model.test.ts carries a helper of the same name and shape. The two test files share
+// no helper module today; adding one is out of scope for this round.
+function makeSymlinkDag(dir: string, n: number): void {
+  for (let i = 0; i <= n; i++) mkdirSync(join(dir, `d${i}`), { recursive: true });
+  for (let i = 0; i < n; i++) {
+    symlinkSync(join("..", `d${i + 1}`), join(dir, `d${i}`, "a"));
+    symlinkSync(join("..", `d${i + 1}`), join(dir, `d${i}`, "b"));
+  }
+  writeFileSync(join(dir, `d${n}`, "leaf.md"), "---\nname: leaf\n---\n");
+}
+
 function makeSyntheticSrc(): string {
   const src = mkTmp();
   mkdirSync(join(src, "agent-factory", "roles"), { recursive: true });
@@ -263,6 +290,12 @@ function makeSyntheticSrc(): string {
 function runInstallFrom(src: string, target: string, home: string, ...args: string[]) {
   const r = spawnSync("node", [INSTALL_JS, "--yes", ...args], {
     encoding: "utf8",
+    // spawnSync's default maxBuffer is 1 MB, and exceeding it KILLS the child and reports
+    // `status: null` — an outcome indistinguishable from a crash. The D-35 DAG case legitimately
+    // produces thousands of by-name refusals before the work bound trips, so the cap is raised to
+    // keep a truthful exit code readable. This changes what the HARNESS can capture, never what the
+    // installer does.
+    maxBuffer: 64 * 1024 * 1024,
     env: { ...process.env, INSTALL_MODE: "copy", GRUGOPS_SRC: src, GRUGOPS_HOME: home, TARGET: target },
   });
   return { status: r.status, stdout: r.stdout ?? "", stderr: r.stderr ?? "" };
@@ -1850,6 +1883,143 @@ describe("install.js / uninstall.js — single-installer contract (folds install
     expect(existsSync(join(target, ".claude", "agents", "real"))).toBe(false);
     expect(existsSync(join(target, ".claude", "agents", "alias"))).toBe(false);
   });
+
+  // ── D-36 / WR-04: the cycle arm NAMES the path it declined to descend into ───────────────────
+  //
+  // D-29 gave this walk a correct cycle ANSWER and left it with no cycle VOICE: it stopped
+  // descending and said nothing at all — no name, no count, no verification line, and the run went
+  // on to whatever banner the other classes earned. Measured against the pre-fix committed .js over
+  // exactly this fixture: srcNestedAdapterFiles returned `["real/x.md"]` and `real/loop` appeared
+  // nowhere in the installer's output. That is the silent disappearance kit-source.ts's header
+  // forbids twice in its own words, so the arm now records the declined path and the installer
+  // names it through the SAME single `verify` channel every other refusal uses.
+  //
+  // SCOPED HONESTLY (and this scoping is part of what the case pins): both walk sites decline the
+  // SAME set on a cycle, so this is NOT the installer being blind to a member the authority sees,
+  // and install/uninstall stay symmetric because they share this one derivation. It is strictly
+  // weaker than CR-03 and is closed as an honesty fix. Whether the platform LOADS the paths
+  // reachable only through such a cycle is `UNKNOWN - verify`; nothing here rests on it.
+  it("source derivation: a symlink CYCLE is reported BY NAME and blocks the completion banner (WR-04, D-36)", () => {
+    // Same Windows skip and the same reason as the symlink cases above: symlinkSync needs a
+    // privilege the runner may not hold, and a case that cannot build its fixture asserts nothing.
+    if (process.platform === "win32") return;
+
+    const src = makeSyntheticSrc();
+    const target = mkTmp();
+    const home = mkTmp();
+    writeFileSync(join(target, "CLAUDE.md"), "# User Project\n");
+
+    // The WR-04 reproduction: a leaf adapter under `real/`, plus a link in that same directory
+    // pointing at its own parent. Walking `real/loop` arrives back at `.claude/agents`, which is
+    // already on this recursion path — a genuine cycle, not a mere alias.
+    mkdirSync(join(src, ".claude", "agents", "real"), { recursive: true });
+    writeFileSync(join(src, ".claude", "agents", "real", "x.md"), `> synthetic nested adapter\n${MAT_SLOT}\n`);
+    symlinkSync("..", join(src, ".claude", "agents", "real", "loop"));
+
+    const r = runInstallFrom(src, target, home);
+    expect(r.status).toBe(3); // INCOMPLETE (27-21) — a declined subtree is not a complete run.
+    // THE NAME. `real/loop` is the exact relative path the walk declined, and it must appear.
+    expect(r.stdout).toContain("real/loop");
+    expect(r.stdout).toContain("DECLINED TO DESCEND");
+    expect(r.stdout).not.toContain("== install complete");
+    // The leaf below the cycle's own directory is still seen and still refused by name — the cycle
+    // arm stops the DESCENT, it does not narrow the rest of the walk.
+    expect(r.stdout).toContain("real/x.md");
+    // Membership is untouched: the flat seventeen install, neither planted path lands.
+    expect(installedAdapters(target)).toEqual([...SYNTH_ADAPTERS].sort());
+    expect(existsSync(join(target, ".claude", "agents", "real"))).toBe(false);
+
+    // THE TWO SIDES NAME THE SAME PATH THROUGH THEIR OWN FLOORS — reported here, thrown there.
+    // Member-set equality is unavailable once one side throws, so the equality asserted is "both
+    // name the same relative path and NEITHER is silent". Recorded for the WR-03 equality case.
+    const walk = srcNestedAdapterFiles(src);
+    expect(walk.cycles).toEqual(["real/loop"]);
+    expect(walk.files).toEqual(["real/x.md"]);
+    expect(walk.overflow).toBeNull();
+    let thrown = "";
+    try {
+      listAgentAdapters(src);
+    } catch (e) {
+      thrown = (e as Error).message;
+    }
+    expect(thrown).toContain("real/loop");
+    expect(thrown).toMatch(/^kit-model: symlink cycle at real\/loop/);
+  });
+
+  // ── D-35 / WR-01: the WORK bound, pinned on BOTH sides of its threshold ──────────────────────
+  //
+  // The ancestor stack answers "is this a cycle on THIS path" and answers nothing about cost. A
+  // symlink DAG has NO cycle and still yields exponentially many distinct relative paths. Measured
+  // against the pre-fix committed .js over a 15-directory forward-linked DAG: 32,767 members in
+  // 11.3 seconds, doubling per added directory, from a tree the cycle answer correctly calls
+  // cycle-free at every step. The installer walks a USER-SUPPLIED source root, so that shape is
+  // reachable from outside.
+  //
+  // Both fixtures are sized FROM the imported MAX_WALK_ENTRIES constant, never from a restated
+  // number: a later change to the bound moves them with it rather than leaving them asserting
+  // against a stale threshold.
+
+  it(`source derivation: a walk examining EXACTLY MAX_WALK_ENTRIES (${MAX_WALK_ENTRIES}) entries succeeds — the bound does not narrow membership (D-35)`, () => {
+    const src = mkTmp();
+    const dir = join(src, ".claude", "agents", "nest");
+    mkdirSync(dir, { recursive: true });
+    // Top-level `.claude/agents` contributes ONE examined entry (`nest`), so the nested directory
+    // holds one fewer than the bound and the walk examines exactly the bound's worth.
+    for (let i = 0; i < MAX_WALK_ENTRIES - 1; i++) {
+      writeFileSync(join(dir, `a${String(i).padStart(6, "0")}.md`), "x\n");
+    }
+    const walk = srcNestedAdapterFiles(src);
+    expect(walk.overflow).toBeNull();
+    expect(walk.cycles).toEqual([]);
+    expect(walk.files.length).toBe(MAX_WALK_ENTRIES - 1);
+    expect(walk.files).toEqual([...walk.files].sort());
+  }, 60_000);
+
+  it(`source derivation: a walk examining ONE entry beyond MAX_WALK_ENTRIES (${MAX_WALK_ENTRIES + 1}) refuses, naming the bound (D-35)`, () => {
+    const src = mkTmp();
+    const dir = join(src, ".claude", "agents", "nest");
+    mkdirSync(dir, { recursive: true });
+    for (let i = 0; i < MAX_WALK_ENTRIES; i++) {
+      writeFileSync(join(dir, `a${String(i).padStart(6, "0")}.md`), "x\n");
+    }
+    const walk = srcNestedAdapterFiles(src);
+    // REPORTED, never a silent truncation: the marker carries the bound and the directory reached.
+    expect(walk.overflow).not.toBeNull();
+    expect(walk.overflow!.limit).toBe(MAX_WALK_ENTRIES);
+    expect(walk.overflow!.at).toBe("nest");
+  }, 60_000);
+
+  it("source derivation: a CYCLE-FREE cross-linked DAG is refused by the WORK bound, not by the cycle answer, and the installer says so (D-35, WR-01)", () => {
+    if (process.platform === "win32") return;
+
+    const src = makeSyntheticSrc();
+    const target = mkTmp();
+    const home = mkTmp();
+    writeFileSync(join(target, "CLAUDE.md"), "# User Project\n");
+
+    // Every link points FORWARD, so no directory ever repeats on a recursion path: the cycle answer
+    // is correct and reports nothing, which is exactly why it cannot be what bounds this walk. The
+    // refusal below must therefore come from the WORK bound and the cycle list must stay EMPTY —
+    // that assertion is what keeps the two mechanisms from being collapsed back into one.
+    makeSymlinkDag(join(src, ".claude", "agents"), 12);
+
+    const walk = srcNestedAdapterFiles(src);
+    expect(walk.cycles).toEqual([]);
+    expect(walk.overflow).not.toBeNull();
+    expect(walk.overflow!.limit).toBe(MAX_WALK_ENTRIES);
+
+    const t0 = Date.now();
+    const r = runInstallFrom(src, target, home);
+    // Bounded: pre-fix this fixture grew by a factor of two per added directory. The wall-clock
+    // assertion pins BOUNDEDNESS, not a performance number that would go flaky on a loaded runner.
+    expect(Date.now() - t0).toBeLessThan(60_000);
+    expect(r.status).toBe(3); // INCOMPLETE — a directory not fully examined is not a complete run.
+    expect(r.stdout).toContain(`MAX_WALK_ENTRIES=${MAX_WALK_ENTRIES}`);
+    expect(r.stdout).toContain("NOT fully examined");
+    expect(r.stdout).not.toContain("== install complete");
+    // The flat seventeen still install — the bound refused the walk, it did not narrow the install.
+    expect(installedAdapters(target)).toEqual([...SYNTH_ADAPTERS].sort());
+  }, 120_000);
 
   // ── WR-04 (Plan 27-13) — `runnable removal`: every installed file has a removal counterpart ───
   //

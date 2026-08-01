@@ -165,8 +165,14 @@ function walkLevel(dir, base, ancestors, budget) {
     catch {
         real = null;
     }
-    if (real !== null && ancestors.includes(real))
-        return out; // cycle on THIS path — stop descending
+    if (real !== null && ancestors.includes(real)) {
+        // Cycle on THIS path — stop descending, and REFUSE BY NAME (D-36). `base` is never "" here:
+        // the root call starts with no ancestors, so the first repeat is always at least one level in.
+        throw new Error(`kit-model: symlink cycle at ${base} while walking ${dir} — this directory already appears ` +
+            `on its own recursion path, so descending would not terminate. Refusing to return a member ` +
+            `set that silently omits everything below it: a short scan set passes every downstream ` +
+            `guard exactly the way a vacuous one does.`);
+    }
     const nextAncestors = real === null ? ancestors : [...ancestors, real];
     for (const name of readDirOrThrow(here)) {
         // Count the entry BEFORE deciding whether to descend into it or collect it, so the bound limits

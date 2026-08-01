@@ -208,6 +208,26 @@ export function listWorkflows(kitRoot: string = DEFAULT_KIT_ROOT): string[] {
 // directory into a silent [] — that is this module's fail-closed posture (D-21 tier 1), and a cycle
 // guard is not licensed to weaken it.
 //
+// THE CYCLE ARM THROWS, NAMING THE PATH (D-36, closing WR-04). THIS AMENDS D-29's HALF OF THIS
+// MODULE. D-29 required TERMINATION and got it — but termination that says nothing is this module's
+// own fail-closed posture inverted. Everywhere else here, a directory this walk cannot fully
+// account for throws naming that directory: readDirOrThrow does it for an unreadable directory,
+// refuseEmpty does it for a vacuous result, and the MAX_WALK_ENTRIES bound above does it for an
+// unbounded one. A cycle was the single remaining arm that quietly returned a SHORTER member set,
+// and a short scan set passes every downstream guard exactly the way a vacuous one does. So it
+// throws too, carrying the relative path it declined to descend into.
+//
+// THE TWIN DIVERGES BY DESIGN, NOT BY DRIFT. install/kit-source.ts's srcNestedAdapterFiles()
+// answers the same cycle predicate and REPORTS the same relative path instead of throwing, because
+// its documented floor is report-not-throw (a user-facing installer must finish its other classes).
+// Same predicate, same named path, two different floors — that difference is the contract, so an
+// equality test between the two sites asserts "both name the same relative path and neither is
+// silent", never member-set equality, which is unavailable once one side throws.
+//
+// SCOPED HONESTLY: both sites decline the same set, so this is not an asymmetry like CR-03 and
+// install/uninstall stay symmetric. It is closed as an honesty fix. Whether the platform loads the
+// paths reachable only through such a cycle is `UNKNOWN - verify` and the fix does not rest on it.
+//
 // THE WORK BOUND IS THREADED, NOT RE-DERIVED PER LEVEL (D-35). `budget` is ONE mutable tally shared
 // by the whole walk, in deliberate contrast to `ancestors`, which is per path by contract. The two
 // answer different questions and are kept in different variables with different lifetimes; the old
@@ -236,7 +256,16 @@ function walkLevel(
   } catch {
     real = null;
   }
-  if (real !== null && ancestors.includes(real)) return out; // cycle on THIS path — stop descending
+  if (real !== null && ancestors.includes(real)) {
+    // Cycle on THIS path — stop descending, and REFUSE BY NAME (D-36). `base` is never "" here:
+    // the root call starts with no ancestors, so the first repeat is always at least one level in.
+    throw new Error(
+      `kit-model: symlink cycle at ${base} while walking ${dir} — this directory already appears ` +
+        `on its own recursion path, so descending would not terminate. Refusing to return a member ` +
+        `set that silently omits everything below it: a short scan set passes every downstream ` +
+        `guard exactly the way a vacuous one does.`,
+    );
+  }
   const nextAncestors = real === null ? ancestors : [...ancestors, real];
   for (const name of readDirOrThrow(here)) {
     // Count the entry BEFORE deciding whether to descend into it or collect it, so the bound limits

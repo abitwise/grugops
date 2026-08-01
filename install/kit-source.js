@@ -182,8 +182,13 @@ export function srcNestedAdapterFiles(srcRoot) {
         catch {
             return;
         }
-        if (ancestors.includes(real))
-            return; // cycle on THIS path — stop descending
+        if (ancestors.includes(real)) {
+            // Cycle on THIS path — stop descending, and NAME the path declined (D-36). Reported rather
+            // than thrown: this side's documented floor is report-not-throw so the installer finishes its
+            // other classes. `base` is never "" here, because the root call starts with no ancestors.
+            cycles.push(base);
+            return;
+        }
         const nextAncestors = [...ancestors, real];
         let names;
         try {
