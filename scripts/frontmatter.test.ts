@@ -38,6 +38,7 @@ import {
   grantedAgentNames,
   frontmatterValueIs,
   stripFencedBlocks,
+  DQ_ESCAPE_ALLOWLIST,
 } from "./frontmatter.js";
 
 // ---------------------------------------------------------------------------
@@ -862,6 +863,151 @@ describe("frontmatter — the spawn-grant parser oracle (SPAWN-04 / KIT-03)", ()
     const names = grantedAgentNames(continued);
     expect(names.ok).toBe(false);
     expect(names).not.toEqual({ ok: true, value: [] });
+  });
+
+  // ── THE EXHAUSTIVE ESCAPE-ALPHABET PROPERTY (plan 27-29, D-30) ────────────────────────────────
+  //
+  // WHY THIS BLOCK EXISTS IN THE SHAPE IT HAS. Everything above is a table: it proves that the
+  // spellings SOMEONE ENUMERATED refuse. That is exactly the coverage shape that let CR-01 ship three
+  // times — round 1 enumerated the bare sigil, round 2 the tag in front of it, round 3 the numeric
+  // escape, and each round's table was complete for the spelling it had been shown. A fourth table
+  // would buy a fourth round.
+  //
+  // This product proves the DIFFERENT property, the one that ends the series: a backslash spelling
+  // NOBODY enumerated refuses BY DEFAULT. It sweeps EVERY printable ASCII character in the escape
+  // position, in every placement, and demands exactly two outcomes with no third and no exception —
+  // resolve if and only if the character is on the allowlist, refuse otherwise. That is what makes
+  // D-30's inversion structural rather than a fourth patch: the property is a statement about the
+  // COMPLEMENT of a three-member set, not about a list of known-bad rows.
+  //
+  // DEPENDENCY-FREE BY CONSTRUCTION (CLAUDE.md dev-dependency fence). No property-testing library, no
+  // YAML library, nothing but the Node standard library and vitest. The alphabet is a code-point
+  // range, the product is two nested loops, and the observation count is asserted as a number.
+  //
+  // THE EXPECTATION IS BOUND TO A RESTATED CONSTANT, NOT TO THE MODULE'S MAP. If the sweep asked the
+  // module which characters resolve, it would agree with the module by construction and prove
+  // nothing. So `ALLOWLISTED_ESCAPES` is written by hand here and the module's exported map is
+  // asserted EQUAL to it — member for member and size for size. A fourth entry added to the module
+  // therefore fails twice: the equality, and every observation for that character.
+
+  // Every printable ASCII character, space (0x20) through tilde (0x7E), GENERATED from the code-point
+  // range rather than hand-listed — a hand-listed alphabet is the set-literal drift this repository
+  // deletes on sight, and a silently shortened one would quietly narrow the claim.
+  const ESCAPE_ALPHABET: readonly string[] = Array.from(
+    { length: 0x7e - 0x20 + 1 },
+    (_unused, n) => String.fromCharCode(0x20 + n),
+  );
+
+  // The three characters the module resolves, and what each resolves to. Restated by hand on purpose
+  // (see above), then asserted equal to the module's exported allowlist.
+  const ALLOWLISTED_ESCAPES: ReadonlyMap<string, string> = new Map([
+    ['"', '"'],
+    [BS, BS],
+    ["/", "/"],
+  ]);
+
+  // The three positions an escape can occupy relative to the value's content. A property that only
+  // swept one position would be a table with more rows.
+  const ESCAPE_PLACEMENTS: readonly {
+    readonly label: string;
+    readonly at: (base: string, seq: string) => string;
+  }[] = [
+    { label: "leading", at: (b, s) => `${s}${b}` },
+    { label: "mid-value", at: (b, s) => b.replace("Grep", `${s}Grep`) },
+    { label: "trailing", at: (b, s) => `${b}${s}` },
+  ];
+
+  // One ordinary tool list carrying a real scoped grant, so a resolution that silently altered the
+  // value would show up as an altered flattened string rather than only as an ok flag.
+  const SWEEP_BASE = "Read, Grep, Agent(grugops-installer)";
+
+  it("ESCAPE ALPHABET — refusal is the DEFAULT for every printable ASCII escape, resolution is the enumerated exception", () => {
+    // The test and the module must not be able to disagree about what is on the allowlist.
+    expect(DQ_ESCAPE_ALLOWLIST.size).toBe(ALLOWLISTED_ESCAPES.size);
+    expect(DQ_ESCAPE_ALLOWLIST.size).toBe(3);
+    for (const [c, resolvedTo] of ALLOWLISTED_ESCAPES) {
+      expect(DQ_ESCAPE_ALLOWLIST.get(c), `allowlist member ${c}`).toBe(
+        resolvedTo,
+      );
+    }
+    expect(ESCAPE_ALPHABET.length).toBe(95);
+    expect(ESCAPE_ALPHABET[0]).toBe(" ");
+    expect(ESCAPE_ALPHABET[ESCAPE_ALPHABET.length - 1]).toBe("~");
+    // Every allowlisted character is inside the swept alphabet, or the "resolves" half of the
+    // property would be vacuous.
+    for (const c of ALLOWLISTED_ESCAPES.keys()) {
+      expect(ESCAPE_ALPHABET, `allowlisted ${c} must be swept`).toContain(c);
+    }
+
+    let checked = 0;
+
+    // ── SWEEP 1: inside a DOUBLE-QUOTED scalar, both directions of the property. ───────────────
+    for (const c of ESCAPE_ALPHABET) {
+      const seq = `${BS}${c}`;
+      const resolvedTo = ALLOWLISTED_ESCAPES.get(c);
+      for (const p of ESCAPE_PLACEMENTS) {
+        const where = `double-quoted | escape=\\u{${c.charCodeAt(0).toString(16)}} | ${p.label}`;
+        const text = doc([`tools: "${p.at(SWEEP_BASE, seq)}"`]);
+        const parsed = parseFrontmatter(text);
+        if (resolvedTo === undefined) {
+          // NOT on the allowlist: refuse, and name the sequence.
+          expect(parsed.ok, where).toBe(false);
+          if (parsed.ok) continue;
+          expect(parsed.reason, where).toContain("backslash sequence");
+          expect(parsed.reason, where).toContain(seq);
+          // The load-bearing half, as everywhere else in this suite: NOT the success arms.
+          expect(hasSpawnGrant(text), where).not.toEqual({
+            ok: true,
+            value: false,
+          });
+          expect(grantedAgentNames(text), where).not.toEqual({
+            ok: true,
+            value: [],
+          });
+        } else {
+          // ON the allowlist: resolve to exactly the documented character, and change nothing else.
+          expect(parsed.ok, where).toBe(true);
+          if (!parsed.ok) continue;
+          expect(parsed.value.get("tools"), where).toEqual([
+            p.at(SWEEP_BASE, resolvedTo),
+          ]);
+        }
+        checked += 1;
+      }
+    }
+
+    // ── SWEEP 2: the SAME alphabet inside a SINGLE-QUOTED scalar — never refuses. ──────────────
+    // In YAML a backslash inside single quotes is a literal backslash; the only escape is the doubled
+    // `''`. Refusing here would be a false red on correct content, and this sweep is what stops the
+    // next widening from causing one.
+    for (const c of ESCAPE_ALPHABET) {
+      for (const p of ESCAPE_PLACEMENTS) {
+        const where = `single-quoted | escape=\\u{${c.charCodeAt(0).toString(16)}} | ${p.label}`;
+        const text = doc([`tools: '${p.at(SWEEP_BASE, `${BS}${c}`)}'`]);
+        expect(parseFrontmatter(text).ok, where).toBe(true);
+        expect(hasSpawnGrant(text).ok, where).toBe(true);
+        checked += 1;
+      }
+    }
+
+    // ── SWEEP 3: the SAME alphabet inside an UNQUOTED PLAIN scalar — never refuses. ────────────
+    // A backslash outside any quoting is literal text too, for the same reason.
+    for (const c of ESCAPE_ALPHABET) {
+      for (const p of ESCAPE_PLACEMENTS) {
+        const where = `plain | escape=\\u{${c.charCodeAt(0).toString(16)}} | ${p.label}`;
+        const text = doc([`tools: ${p.at(SWEEP_BASE, `${BS}${c}`)}`]);
+        expect(parseFrontmatter(text).ok, where).toBe(true);
+        expect(hasSpawnGrant(text).ok, where).toBe(true);
+        checked += 1;
+      }
+    }
+
+    // Derive the set, assert the count: a silently shrunk alphabet, a dropped placement or a deleted
+    // sweep fails HERE rather than passing with less coverage.
+    expect(checked).toBe(
+      ESCAPE_ALPHABET.length * ESCAPE_PLACEMENTS.length * 3,
+    );
+    expect(checked).toBe(855);
   });
 
   it("holds identically under the skill form of the key (allowed-tools), across all scalar forms", () => {
