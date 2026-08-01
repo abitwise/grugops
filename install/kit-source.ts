@@ -86,6 +86,63 @@
 import { existsSync, readdirSync, statSync, realpathSync } from "node:fs";
 import { join } from "node:path";
 
+// ---------------------------------------------------------------------------
+// SOURCE_MARKERS / hasSourceMarkers — the D-07/CR-04 self-checkout predicate, answered ONCE
+// (D-37, closing WR-02).
+//
+// WHY THIS LIVES HERE AND NOT IN EITHER BINARY. Until D-37 this pair was two byte-identical string
+// literals, one in install.ts and one in uninstall.ts, twenty lines away from the header above that
+// exists to say a hand-synced duplicate of one predicate is the exact drift class KIT-02 deletes.
+// It is the same shape as the SKILLS/AGENT_REL pair D-28 collapsed, and it was left standing. So it
+// is collapsed the same way: ONE exported set, ONE predicate, both binaries importing it and
+// neither holding a literal. There is no longer a pair to re-sync, because there is no longer a
+// pair.
+//
+// WHAT IS DELIBERATELY *NOT* COLLAPSED. Only the MARKER half moves here. Each binary's
+// path-equality half stays where it is, because the two resolve the target DIFFERENTLY on purpose:
+// uninstall.ts normalises with resolve() before comparing (its abspath() does not collapse `.`/`..`
+// for sh byte-parity, so `--target /path/to/grugops/.` would slip past a raw compare), while
+// install.ts compares the target as computed. Merging those two would silently pick one behaviour
+// for both. Two halves, one shared, one not — and the difference is the load-bearing part.
+//
+// WHY THIS PAIR. A grugops source checkout carries both; a normal installed target can carry
+// neither together. The installer writes .claude/, CLAUDE.md, .gemini/, .github/, .grugops/,
+// plans/, memory-bank/ and tools/grugops/ into a target and NEVER an install/ directory — so a
+// target carrying the installer artifact is a checkout of the kit, not a consumer of it.
+// agent-factory/VERSION alone is deliberately NOT enough: install/README.md §1's minimal path tells
+// users to copy agent-factory/ into their own repo, so that half legitimately appears in an
+// ordinary target and refusing on it would break the very install this guard protects. BOTH are
+// required; either alone is not a checkout.
+//
+// WHY THE RUNTIME ARTIFACT AND NOT THE TYPESCRIPT SOURCE (D-37). The marker names the COMPILED
+// install/install.js, not install/install.ts. The compiled artifact is the file whose presence is
+// already guaranteed wherever either binary can run at all — a host runs the committed .js with
+// nothing installed (CLAUDE.md's zero-runtime-dependency constraint), so a directory that can host
+// this guard has it by construction. The .ts is present only because this repository happens to
+// commit both, which makes it a fact about the repo's layout rather than about the artifact the
+// guard is protecting.
+//
+// THE FORCING FUNCTION IS THE POINT, NOT THE FILENAME. This marker half named `install/install.sh`
+// for about a hundred commits after f9dab9f deleted that file with the POSIX installer (D-09). The
+// condition could never fire, which is the same defect as a refusal that is documented and absent.
+// Round 3 corrected WHICH file it names and added nothing that would catch the next rename: all
+// three shipped fixtures manufacture their own stub, so every assertion is about the predicate over
+// a fixture and every one of them stays green when the real file moves. The remedy is this
+// repository's terminal lesson — DERIVE THE SET, ASSERT THE COUNT, and assert it over the REAL
+// repository: install.test.ts carries a read-only case that walks THIS constant over the actual
+// repo root, asserts every entry exists and asserts the length as a number. Restating either path
+// as a literal anywhere else — in a binary, in a fixture, in a document — re-creates what was just
+// deleted. Import the constant instead.
+export const SOURCE_MARKERS: readonly string[] = ["install/install.js", "agent-factory/VERSION"];
+
+// hasSourceMarkers: true only when EVERY entry of SOURCE_MARKERS exists beneath `dir`. Membership
+// is an AND over the whole set and is therefore order-independent: no single entry can decide the
+// answer, and checking them in any order yields the same result.
+export function hasSourceMarkers(dir: string): boolean {
+  return SOURCE_MARKERS.every((rel) => existsSync(join(dir, ...rel.split("/"))));
+}
+// ---------------------------------------------------------------------------
+
 // MAX_WALK_ENTRIES — the recursive walk's WORK bound (D-35, closing WR-01).
 //
 // THIS IS A SECOND, SEPARATE MECHANISM FROM THE CYCLE ANSWER, AND KEEPING THEM SEPARATE IS THE

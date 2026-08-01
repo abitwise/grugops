@@ -43,7 +43,7 @@ import {
   chmodSync,
   symlinkSync,
 } from "node:fs";
-import { join, resolve } from "node:path";
+import { join, resolve, dirname } from "node:path";
 import { tmpdir } from "node:os";
 import { createHash } from "node:crypto";
 
@@ -64,7 +64,7 @@ import { listAgentAdapters, listSkillAdapters } from "../scripts/kit-model.js";
 // print ten thousand verification lines to prove one threshold. The cycle-REPORT case still runs
 // the compiled installer end to end, because what it pins is the reporting channel and the banner.
 // Sized FROM the constant, never from a restated number. Drives the COMMITTED .js — the repo idiom.
-import { srcNestedAdapterFiles, MAX_WALK_ENTRIES } from "./kit-source.js";
+import { srcNestedAdapterFiles, MAX_WALK_ENTRIES, SOURCE_MARKERS, hasSourceMarkers } from "./kit-source.js";
 
 // The repo root (install/ is one level under it) and the committed compiled installer/uninstaller.
 const REPO_ROOT = resolve(import.meta.dirname, "..");
@@ -84,6 +84,27 @@ afterEach(() => {
     rmSync(d, { recursive: true, force: true });
   }
 });
+
+// plantSourceMarkers — make a throwaway directory read as a grugops source checkout, by writing
+// EVERY entry of the imported SOURCE_MARKERS set (D-37). Derived, never restated: the marker paths
+// appear in exactly one place in the tree (install/kit-source.ts) and every fixture below reads
+// them from there, so a later change to the marker moves these stubs with it instead of leaving
+// them manufacturing a stub for a marker nobody checks any more — which is the shape that let a
+// marker naming a file deleted in f9dab9f survive about a hundred commits (CR-04, WR-02).
+//
+// `only` restricts the plant to a single entry, for the negative half: either marker ALONE must not
+// read as a checkout, because agent-factory/VERSION legitimately appears in an ordinary target.
+// NEVER call this on REPO_ROOT — every marker probe below runs on a mkTmp throwaway.
+function plantSourceMarkers(dir: string, note: string, only?: string): void {
+  for (const rel of SOURCE_MARKERS) {
+    if (only !== undefined && rel !== only) continue;
+    const p = join(dir, ...rel.split("/"));
+    mkdirSync(dirname(p), { recursive: true });
+    // A VERSION file is read back as a version STRING by the installer's marker writer, so it gets
+    // a version-shaped body; anything else in the set is inert to every code path here.
+    writeFileSync(p, rel.endsWith("VERSION") ? `0.0.0-${note}\n` : `// throwaway source-marker stub — ${note}\n`);
+  }
+}
 
 // make_fixture — a minimal fake user repo: a user-owned CLAUDE.md (to prove additive installs),
 // plus a stand-in "frozen core" under agent-factory/ (to prove uninstall never deletes it) and a
@@ -496,17 +517,15 @@ describe("install.js / uninstall.js — single-installer contract (folds install
   // ── D-07 self-checkout guard: refuse-by-default; --allow-self overrides (two-root [10]) ──────
   it("D-07 self-checkout guard: refuses a source-shaped target by default; --allow-self overrides", () => {
     // Build a THROWAWAY clone-shaped fixture that trips the source-marker predicate WITHOUT being
-    // the real repo (carries install/install.ts + agent-factory/VERSION). NEVER point at REPO_ROOT.
+    // the real repo. NEVER point at REPO_ROOT.
     // CR-04: the planted marker was `install/install.sh` until the pair was corrected — a file
     // deleted in f9dab9f with the POSIX installer, so this fixture asserted a marker half that
     // could not fire and the case passed on the path-equality half alone (TARGET === GRUGOPS_SRC
-    // here). The plant is corrected so the comment above it is true; the marker half itself gets
-    // its own case below, on a target that is NOT the source root.
+    // here). D-37 goes further: the plant is now DERIVED from the imported SOURCE_MARKERS set, so
+    // it cannot go stale against the guard the way the literal did. The marker half itself gets its
+    // own cases below, on targets that are NOT the source root.
     const fake = mkTmp();
-    mkdirSync(join(fake, "install"), { recursive: true });
-    mkdirSync(join(fake, "agent-factory"), { recursive: true });
-    writeFileSync(join(fake, "install", "install.ts"), "// throwaway source-marker stub\n");
-    writeFileSync(join(fake, "agent-factory", "VERSION"), "0.0.0-fake\n");
+    plantSourceMarkers(fake, "fake");
     const home = mkTmp();
 
     // (a) refuse by default — installing INTO the clone must exit nonzero and name --allow-self.
@@ -545,13 +564,11 @@ describe("install.js / uninstall.js — single-installer contract (folds install
   // `== uninstall complete ==` and exit 0 — isProtected() covers agent-factory/, plans/,
   // .planning/, .grugops/, docs/ and src/, but not .claude/, which is where they live.
   it("CR-04 self-checkout guard: uninstall.js refuses a source-shaped target (exit 1, nothing removed); --allow-self overrides", () => {
-    // A THROWAWAY source-shaped stub — NEVER REPO_ROOT. Carries the two source markers so it
-    // reads as a checkout, and is passed as BOTH src and target so the path-equality half fires.
+    // A THROWAWAY source-shaped stub — NEVER REPO_ROOT. Carries the source markers (derived from
+    // the imported set, D-37) so it reads as a checkout, and is passed as BOTH src and target so
+    // the path-equality half fires too.
     const fake = mkTmp();
-    mkdirSync(join(fake, "install"), { recursive: true });
-    mkdirSync(join(fake, "agent-factory"), { recursive: true });
-    writeFileSync(join(fake, "install", "install.ts"), "// throwaway source-marker stub\n");
-    writeFileSync(join(fake, "agent-factory", "VERSION"), "0.0.0-fake\n");
+    plantSourceMarkers(fake, "fake");
     // Plant the shapes the reproduction destroyed, so "nothing was removed" is a claim with
     // something behind it rather than a snapshot of an empty tree.
     mkdirSync(join(fake, ".claude", "agents"), { recursive: true });
@@ -595,15 +612,12 @@ describe("install.js / uninstall.js — single-installer contract (folds install
 
   // ── CR-04, the MARKER half — the direction the path-equality half cannot cover, and the one the ─
   // dead `install/install.sh` marker made unreachable. The target is NOT the source root (a second
-  // checkout, named by --target from a first), but it carries install/install.ts +
-  // agent-factory/VERSION, so it must still be refused.
+  // checkout, named by --target from a first), but it carries the SOURCE_MARKERS set, so it must
+  // still be refused.
   it("CR-04 marker half: a NON-source-root target carrying the source markers is refused (exit 1)", () => {
     const src = makeSyntheticSrc(); // a real, readable kit source — NOT the target
     const marked = mkTmp();
-    mkdirSync(join(marked, "install"), { recursive: true });
-    mkdirSync(join(marked, "agent-factory"), { recursive: true });
-    writeFileSync(join(marked, "install", "install.ts"), "// second checkout of the kit\n");
-    writeFileSync(join(marked, "agent-factory", "VERSION"), "0.0.0-second-checkout\n");
+    plantSourceMarkers(marked, "second-checkout");
     const before = snapshot(marked);
 
     const r = runUninstallFrom(src, marked, mkTmp());
@@ -615,12 +629,89 @@ describe("install.js / uninstall.js — single-installer contract (folds install
     // shape an ordinary repo legitimately has (install/README.md §1's minimal path tells users to
     // copy agent-factory/ into their own repo), so refusing on it would break a real reversal.
     const halfOnly = mkTmp();
-    mkdirSync(join(halfOnly, "agent-factory"), { recursive: true });
-    writeFileSync(join(halfOnly, "agent-factory", "VERSION"), "0.0.0-users-own-copy\n");
+    plantSourceMarkers(halfOnly, "users-own-copy", "agent-factory/VERSION");
     const half = runUninstallFrom(src, halfOnly, mkTmp());
     expect(half.status).not.toBe(1);
     expect(half.stderr).not.toContain("refusing");
   });
+
+  // ── D-37 / WR-02: THE FORCING FUNCTION. Read-only, over the REAL repository, NO fixture. ──────
+  //
+  // This is the case whose ABSENCE is WR-02. Every other assertion about the self-checkout guard in
+  // this file — all three above — manufactures its own stub, so each one asserts something about
+  // the PREDICATE over a FIXTURE and every one of them stays green when the real file moves. That
+  // is precisely how a marker naming `install/install.sh` survived about a hundred commits after
+  // f9dab9f deleted it (D-09): the guard's condition could not fire, and nothing anywhere asked
+  // whether the file it named was real. Round 3 corrected the literal and added no forcing
+  // function, which is the same defect one rename away.
+  //
+  // So: walk the IMPORTED constant over the ACTUAL repo root and require every entry to be there.
+  // Importing rather than restating is load-bearing — a restated copy would pass while the guard
+  // pointed at a ghost, which is the bug. The LENGTH is asserted as a number alongside the loop,
+  // per this repository's derive-the-set-assert-the-count rule: an empty or shortened set makes the
+  // `every`-shaped loop vacuously green, so the count is what catches a member silently dropped.
+  //
+  // Nothing here writes, and REPO_ROOT is never passed to a binary as a target — this case reads.
+  it("SOURCE_MARKERS: every marker EXISTS in the real repository, and the set is exactly two (D-37, WR-02)", () => {
+    for (const rel of SOURCE_MARKERS) {
+      // Interpolated so a failure NAMES the missing marker instead of reporting `false !== true`.
+      expect(`${rel}: ${existsSync(join(REPO_ROOT, ...rel.split("/")))}`).toBe(`${rel}: true`);
+    }
+    // The count, as a number — a dropped member fails HERE even when the loop above is vacuous.
+    expect(SOURCE_MARKERS.length).toBe(2);
+    // And the predicate itself, over the real checkout it exists to recognise.
+    expect(hasSourceMarkers(REPO_ROOT)).toBe(true);
+  });
+
+  // ── D-37: the marker half is the SHARED predicate, and BOTH binaries answer it identically ────
+  //
+  // Until D-37 each binary carried its own byte-identical copy of the marker strings. The pair is
+  // now one imported predicate, so this case pins the consequence: a throwaway carrying ONLY the
+  // markers (no path equality with the source root) is refused with exit 1 by install.js AND by
+  // uninstall.js, and a throwaway carrying exactly ONE marker is refused by neither.
+  //
+  // The negative half loops over EVERY member rather than testing one, which also pins that the
+  // membership test is order-independent: no single entry can decide the answer, whichever it is.
+  it("D-37: the shared marker predicate refuses BOTH binaries on the full set, and neither on a half", () => {
+    const src = makeSyntheticSrc(); // a real, readable kit source — never the target
+
+    // (a) the FULL set on a target that is NOT the source root → both binaries refuse with 1.
+    const marked = mkTmp();
+    plantSourceMarkers(marked, "marker-only");
+    const before = snapshot(marked);
+
+    const inst = spawnSync("node", [INSTALL_JS, "--yes"], {
+      encoding: "utf8",
+      env: { ...process.env, INSTALL_MODE: "copy", GRUGOPS_SRC: src, GRUGOPS_HOME: mkTmp(), TARGET: marked },
+    });
+    expect(`install.js: ${inst.status}`).toBe("install.js: 1");
+    expect(inst.stderr).toContain("--allow-self");
+
+    const unin = runUninstallFrom(src, marked, mkTmp());
+    expect(`uninstall.js: ${unin.status}`).toBe("uninstall.js: 1");
+    expect(unin.stderr).toContain("--allow-self");
+
+    // Neither refusal touched the target — a refused run changes nothing, in either direction.
+    expect(snapshot(marked)).toBe(before);
+
+    // (b) EXACTLY ONE marker, for every member in turn → neither binary refuses on the marker half.
+    for (const only of SOURCE_MARKERS) {
+      const halfOnly = mkTmp();
+      plantSourceMarkers(halfOnly, "half", only);
+      expect(hasSourceMarkers(halfOnly)).toBe(false);
+
+      const i = spawnSync("node", [INSTALL_JS, "--yes"], {
+        encoding: "utf8",
+        env: { ...process.env, INSTALL_MODE: "copy", GRUGOPS_SRC: src, GRUGOPS_HOME: mkTmp(), TARGET: halfOnly },
+      });
+      expect(`install.js/${only}: ${i.status === 1}`).toBe(`install.js/${only}: false`);
+      expect(i.stderr ?? "").not.toContain("--allow-self");
+
+      const u = runUninstallFrom(src, halfOnly, mkTmp());
+      expect(`uninstall.js/${only}: ${u.status === 1}`).toBe(`uninstall.js/${only}: false`);
+      expect(u.stderr ?? "").not.toContain("refusing");
+    }
+  }, 60_000);
 
   // ── CR-04 NEGATIVE CONTROL — without this, the guard could be satisfied by refusing everything. ─
   // A normal installed repository must uninstall exactly as it did before the guard landed: same

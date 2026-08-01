@@ -47,7 +47,7 @@ import { homedir } from "node:os";
 // design — D-18's decoupling of the installer from the scripts/ layout is unchanged, and the module
 // still does NOT import scripts/kit-model.ts. Node stdlib only, so both binaries still run on a host
 // with nothing installed. Every call passes the source root explicitly (D-22).
-import { srcSkillNames, srcAdapterFiles, srcNestedAdapterFiles, } from "./kit-source.js";
+import { srcSkillNames, srcAdapterFiles, srcNestedAdapterFiles, hasSourceMarkers, } from "./kit-source.js";
 // --- argument parsing (INSTALL-03), layered over the TARGET/INSTALL_MODE env overrides ---
 //   --check    run the non-mutating doctor (INSTALL-05): verify every referenced path resolves,
 //              name the FIRST failure with its referencing file, mutate nothing
@@ -510,28 +510,24 @@ if (PRUNE_OLD_KIT) {
 }
 // --- D-07 self-checkout guard (ALWAYS-ON): runs unconditionally after TARGET resolution, before
 // any write, independent of TTY / --yes (Pitfall 3). Refuse when EITHER resolved TARGET ==
-// resolved GRUGOPS_SRC, OR the target carries grugops SOURCE markers (install/install.ts AND
-// agent-factory/VERSION both present). --allow-self / --force overrides. ---
+// resolved GRUGOPS_SRC, OR the target carries grugops SOURCE markers. --allow-self / --force
+// overrides. ---
 //
-// THE MARKER PAIR WAS CORRECTED (CR-04). This test named `install/install.sh` — a file deleted in
-// f9dab9f when the POSIX installer was retired (D-09). No grugops checkout has contained it since,
-// so the marker half of this guard could NEVER fire and only the path-equality half worked: a
-// SECOND checkout of the kit, named by --target from a first one, was not recognised as source at
-// all. A guard whose condition cannot fire is the same defect as a refusal that is documented and
-// absent, which is why it is fixed here rather than left as a comment.
+// THE MARKER HALF NO LONGER LIVES HERE (D-37, closing WR-02). It is hasSourceMarkers() in
+// ./kit-source.ts, imported above, and uninstall.ts calls the SAME function — neither binary holds
+// a path literal any more. Round 1 of this phase corrected the pair from the long-dead
+// `install/install.sh` (deleted in f9dab9f with the POSIX installer, D-09) to a pair that exists,
+// but left it a hand-synced byte-identical literal in two files with nothing asserting the named
+// files are real. That is CR-04's root cause with a different filename waiting to happen, so the
+// remedy is structural: ONE constant, and a case in install.test.ts that walks it over the ACTUAL
+// repository root and fails when a named file is not there. The full choice-of-pair reasoning and
+// the runtime-artifact argument live with the constant; do not restate either here.
 //
-// Why THIS pair: install/install.ts and agent-factory/VERSION are both present in a grugops source
-// checkout today (verified by listing them), and the pair cannot arrive in a normal installed
-// repository — the installer writes .claude/, CLAUDE.md, .gemini/, .github/, .grugops/, plans/,
-// memory-bank/ and tools/grugops/ into a target and never an install/ directory. agent-factory/
-// VERSION alone is deliberately NOT enough: install/README.md §1's minimal path tells users to copy
-// agent-factory/ into their own repo, so that half can legitimately appear in an ordinary target and
-// refusing on it would break the install this guard exists to protect. uninstall.ts carries the same
-// pair, for the same reasons; the two are one vocabulary.
+// THE PATH-EQUALITY HALF STAYS HERE, DELIBERATELY. It is not shared, because this binary and
+// uninstall.ts resolve the target differently on purpose (uninstall.ts normalises with resolve()
+// first; see its guard). Merging the two halves would silently pick one behaviour for both.
 if (!ALLOW_SELF) {
-    const looksLikeSource = TARGET === toPosix(GRUGOPS_SRC) ||
-        (existsSync(join(TARGET, "install", "install.ts")) &&
-            existsSync(join(TARGET, "agent-factory", "VERSION")));
+    const looksLikeSource = TARGET === toPosix(GRUGOPS_SRC) || hasSourceMarkers(TARGET);
     if (looksLikeSource) {
         process.stderr.write("refusing: target looks like the grugops source checkout — you probably meant --target <your-repo>. Pass --allow-self to override.\n");
         process.exit(1);

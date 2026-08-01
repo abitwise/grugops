@@ -42,7 +42,7 @@ import { join, resolve, isAbsolute } from "node:path";
 // two derivations this file uses are imported — see the kit-set derivation block below for why
 // srcNestedAdapterFiles() is not one of them. Node stdlib only, sibling module inside install/, so
 // this binary still runs on a host with nothing installed.
-import { srcSkillNames, srcAdapterFiles } from "./kit-source.js";
+import { srcSkillNames, srcAdapterFiles, hasSourceMarkers } from "./kit-source.js";
 // ---------------------------------------------------------------------------
 // Argument parsing (CR-02). Mirrors install.ts's loop so uninstall honors the surface its own
 // README advertises (`node install/uninstall.js --target /path/to/repo`). Without this loop the
@@ -500,31 +500,27 @@ function sameFileBytes(a, b) {
 // Always-on, exactly like install.ts's: it is a mechanical safety check, not a prompt, so DRY_RUN
 // does not exempt it and neither does any other mode.
 //
-// THE MARKER PAIR: install/install.ts AND agent-factory/VERSION. Both are present in a grugops
-// source checkout today (verified by listing them), and neither can arrive in a normal installed
-// repository — the installer writes .claude/, CLAUDE.md, .gemini/, .github/, .grugops/, plans/,
-// memory-bank/ and tools/grugops/ into a target and never an install/ directory, so a target
-// carrying install/install.ts is a checkout of the kit, not a consumer of it. agent-factory/VERSION
-// alone is NOT sufficient: README §1's minimal path tells users to copy agent-factory/ into their
-// own repo, so that half can legitimately appear in a target and the pair is required.
+// THE MARKER HALF IS NOT WRITTEN HERE (D-37, closing WR-02). It is hasSourceMarkers() in
+// ./kit-source.ts, imported above with the other derivations, and install.ts calls the SAME
+// function. This block used to carry its own byte-identical copy of the two marker strings — the
+// exact hand-synced-duplicate shape D-28 had already deleted for the skill and adapter derivations
+// twenty lines from here, left standing. Round 1 corrected the pair (install.ts's half had tested
+// for `install/install.sh`, deleted in f9dab9f with the POSIX installer, D-09, so it could never
+// fire) but corrected the LITERAL rather than the absence of a forcing function. Now there is one
+// constant and a case that asserts its entries exist in the real repository. The choice-of-pair
+// reasoning and the runtime-artifact argument live with the constant, not restated here.
 //
-// It was NOT ported verbatim. install.ts's own marker half tested for `install/install.sh`, a file
-// deleted in f9dab9f when the POSIX installer was retired (D-09) — so that half could never fire and
-// only the path-equality half worked. A guard whose condition cannot fire is the same defect as a
-// refusal that is documented and absent, so install.ts's marker was corrected to this same pair in
-// the same change. Do not reintroduce a marker naming a file the repository no longer contains.
-//
-// The equality half resolves the target before comparing. abspath() above deliberately does not
-// collapse `.`/`..` (sh byte-parity), so `--target /path/to/grugops/.` would otherwise slip past a
-// raw string compare; TARGET itself is left exactly as computed, and only this comparison normalises.
+// The equality half stays HERE, and it resolves the target before comparing. abspath() above
+// deliberately does not collapse `.`/`..` (sh byte-parity), so `--target /path/to/grugops/.` would
+// otherwise slip past a raw string compare; TARGET itself is left exactly as computed, and only
+// this comparison normalises. install.ts's equality half does NOT normalise — the two binaries
+// resolve the target differently on purpose, so that half is not shared and must not be merged.
 //
 // Clear professional voice, never caveman — this is a safety surface.
 // ---------------------------------------------------------------------------
 if (!ALLOW_SELF) {
     const toPosix = (p) => p.replace(/\\/g, "/");
-    const looksLikeSource = toPosix(resolve(TARGET)) === toPosix(GRUGOPS_SRC) ||
-        (existsSync(join(TARGET, "install", "install.ts")) &&
-            existsSync(join(TARGET, "agent-factory", "VERSION")));
+    const looksLikeSource = toPosix(resolve(TARGET)) === toPosix(GRUGOPS_SRC) || hasSourceMarkers(TARGET);
     if (looksLikeSource) {
         process.stderr.write(`refusing: target looks like the grugops source checkout (${TARGET}) — uninstalling here would ` +
             `delete the kit's own committed adapters and skills under .claude/. You probably meant ` +
