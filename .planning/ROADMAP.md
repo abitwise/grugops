@@ -124,7 +124,7 @@ Full phase details + milestone summary: `milestones/v2.0-ROADMAP.md` · requirem
   4. On Claude Code the coordinator runs as the **main-thread** agent so its `Agent(<allowlist>)` grant is honored by the runtime, and no non-coordinator adapter carries the `Agent` tool at all — a mechanism that holds on both the main-thread and subagent paths rather than relying on a frontmatter token the runtime ignores. (SPAWN-03, SPAWN-04)
   5. `guard_adapter_body` fails red on pre-v2.0 handoff/single-window prose anywhere in an adapter body — proven against the surviving `grugops-orchestrator.md:25` reference — `orchestrator.md` sits below its **7570-byte FAIL ceiling with the ceiling unchanged**, and the advertised Claude Code floor reads **v2.1.219+ at depth 3** everywhere it appears, with the v2.1.217–218 depth-1 window documented as a known-bad range that degrades loudly. (SPAWN-05, SPAWN-06, SPAWN-07)
 
-**Plans**: 31/32 plans executed
+**Plans**: 32/32 plans executed
 Plans:
 **Wave 1**
 
@@ -232,7 +232,7 @@ Plans:
 
 **Gap wave 3** *(blocked on 27-31 — shared `install/install.ts` and `install/install.test.ts`)*
 
-- [ ] 27-32-PLAN.md — the self-checkout marker pair collapses into one exported constant naming the RUNTIME artifact, with a read-only real-repository existence assertion as the forcing function CR-04 never got (D-37); the stale duplicate-walk rationale is amended to D-28's and the equality it appeals to becomes a case (D-38); the reversal docs match the always-on refusal [KIT-02] *(WR-02, WR-03, IN-03)*
+- [x] 27-32-PLAN.md — the self-checkout marker pair collapses into one exported constant naming the RUNTIME artifact, with a read-only real-repository existence assertion as the forcing function CR-04 never got (D-37); the stale duplicate-walk rationale is amended to D-28's and the equality it appeals to becomes a case (D-38); the reversal docs match the always-on refusal [KIT-02] *(WR-02, WR-03, IN-03)*
 
 **Ordering that is load-bearing in gap-closure round 4** — the tracer (27-29) is the phase's only live BLOCKER and closes KIT-03 and SPAWN-04 with one change to one module, so it is proven against the committed `.js` before any expansion task runs. Wave 2 is genuinely parallel: 27-30 owns `scripts/frontmatter.*` and 27-31 owns the two walk sites, with zero `files_modified` overlap. Wave 3 is split by shared FILE, not shared logic — 27-31 and 27-32 both edit `install/install.ts` and `install/install.test.ts`, and 27-32's equality case asserts against the exact cycle path strings 27-31 records.
 
@@ -375,7 +375,7 @@ Plans:
 | 24. Clean Handoff Removal & Traceability Migration | v2.0 | 5/5 | Complete    | 2026-06-22 |
 | 25. Governance-on-a-Dial | v2.0 | 13/13 | Complete | 2026-06-29 |
 | 26. Dogfood, Dual-Path Oracle & A3/DOG-02 Retirement | v2.0 | 6/6 | Complete | 2026-07-24 |
-| 27. Spawn Correctness & Kit-Set Authority | v2.1 | 31/32 | In Progress|  |
+| 27. Spawn Correctness & Kit-Set Authority | v2.1 | 32/32 | In Progress|  |
 | 28. Kit Consistency Audit | v2.1 | 0/TBD | Not started | - |
 | 29. Controlled Language & Voice Guard Rebuild | v2.1 | 0/TBD | Not started | - |
 | 30. Per-Checkpoint Autonomy Matrix | v2.1 | 0/TBD | Not started | - |

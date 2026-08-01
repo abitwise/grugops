@@ -5,14 +5,14 @@ milestone_name: Autonomous Factory — Real Spawning, Controlled Language & Live
 current_phase: 27
 current_phase_name: spawn-correctness-kit-set-authority
 status: executing
-stopped_at: Completed 27-31-PLAN.md
-last_updated: "2026-08-01T19:20:16.763Z"
+stopped_at: Completed 27-32-PLAN.md (last plan of gap-closure round 4)
+last_updated: "2026-08-01T19:55:28.023Z"
 progress:
   total_phases: 7
-  completed_phases: 0
+  completed_phases: 1
   total_plans: 32
-  completed_plans: 31
-  percent: 0
+  completed_plans: 32
+  percent: 14
 last_activity: 2026-07-31
 last_activity_desc: "Gap-closure round 4 PLANNED — 4 plans (27-29..27-32) in 3 waves, plan-checker VERIFICATION PASSED, against the round-3 verification (2026-07-31T13:00Z) that returned gaps_found at 7/10 clean with KIT-02, KIT-03 and SPAWN-04 PARTIAL. Round 4 closes ALL EIGHT round-3 findings by explicit user decision (D-31) — nothing deferred. The blocker is CR-01 arriving a THIRD time in one phase, now on the YAML escape axis: unquote() deletes every backslash, so a numeric escape resolves to a string no compliant loader produces and reaches the silent no-grant SUCCESS arm; planted on a skill adapter the whole gate printed ALL CHECKS PASSED at exit 0. D-30 (NEW, user-confirmed) REJECTS the review's proposed NUMERIC_ESCAPE regex as the fourth enumerate-the-bad patch on the same fail-open, and inverts unquote() to an escape ALLOWLIST instead — resolve only the escapes the module implements faithfully, refuse every other backslash sequence by name, so an un-enumerated spelling refuses BY DEFAULT. Pinned by an exhaustive alphabet property test, dependency-free (the typescript+vitest dev-dep fence holds). The single-quoted branch stays byte-unchanged as the primary false-red control and the reason string keeps its anchor-or-alias substring. Waves: 27-29 tracer (CR-01, KIT-03+SPAWN-04) then 27-30 (IN-02 directive arm, IN-01 scoping control) parallel with 27-31 (WR-01 walk work bound, WR-04 named cycle report) then 27-32 (WR-02 marker over the real repo, WR-03 stale comment plus the equality case, IN-03 README). Wave-2 parallelism was verified against actual files_modified, not taken on the planner's word. D-36 AMENDS D-29's kit-model half — a currently-passing case must become a named throw, flagged so an executor cannot weaken it to keep the old assertion green. D-37 collapses a marker duplicate the review never named. Gates: requirements 10/10, CONTEXT.md decisions 29/29, post-planning gap analysis 39/39, all 29 probe rows reconciled (14 covered + 0 backstop + 3 flagged + 12 settled by prior rounds). Every closing task carries a RED-before/GREEN-after transcript requirement against the committed .js and a freshness assertion, because this phase has now shipped defects past a green suite three times."
 prior_activity_desc: "Gap-closure round 3 EXECUTED — all 5 plans (27-24..27-28) landed across 4 waves and round-3 verification returned gaps_found at 7/10 clean. All five round-2 findings are genuinely closed, four confirmed by reproduction rather than by reading: CR-01's node-property axis (27-24), CR-02's install/uninstall derivation collapse into install/kit-source.ts per D-28 (27-25), WR-01's cardinality arm widened to the whole spawn-grant scan (27-26), CR-03 plus the deferred walkFilesRelative cycle defect via ONE per-path ancestor stack at both walk sites per D-29 (27-27), and CR-04's uninstaller self-checkout refusal (27-28). Suite grew 978 to 993 passed / 2 skipped across 35 files, freshness 31 to 32 committed .js all fresh, foundation guards exit 0 throughout. BUT a deep review found CR-01 returning a THIRD time on the YAML escape axis, reproduced independently three times against the committed scripts/frontmatter.js."
@@ -30,7 +30,7 @@ See: .planning/PROJECT.md (updated 2026-07-28 — after v2.0 milestone)
 ## Current Position
 
 Phase: 27 (spawn-correctness-kit-set-authority) — EXECUTING gap-closure round 4
-Plan: 31 of 32 executed; 27-29..27-32 in flight across 3 waves
+Plan: 32 of 32 executed; 27-29..27-32 in flight across 3 waves
 Status: Round 4 closes **all eight** round-3 findings by explicit user decision — nothing deferred. Plan-checker returned **VERIFICATION PASSED**. Gates at plan time: requirements **10/10**, CONTEXT.md decisions **29/29**, post-planning gap analysis **39/39**, all 29 probe rows reconciled (14 covered + 0 backstop + 3 flagged + 12 settled by prior rounds). Baselines to beat at execution: **993 passed / 2 skipped** across 35 files; **32** committed `.js`, all fresh; foundation guards exit 0; live kit intact at 17 adapters / 7 skills.
 
 | Plan | Wave | Closes | Requirements |
@@ -241,6 +241,7 @@ Prior activity: 2026-07-30 — 27-22 closed WR-02 and WR-04, the last two plans-
 | Phase 27 P29 | 35 min | 3 tasks | 8 files |
 | Phase 27 P30 | ~30 min | 2 tasks | 5 files |
 | Phase 27 P31 | 45 min | 2 tasks | 8 files |
+| Phase 27 P32 | 11min | 2 tasks | 8 files |
 
 ## Accumulated Context
 
@@ -572,6 +573,11 @@ Recent decisions affecting current work:
 - [Phase ?]: KIT-03 and SPAWN-04 STILL not marked Complete after 27-30: both plans carrying them (27-29, 27-30) have now executed, but round-4 verification has not run and plans 27-31/27-32 remain. Marking them here is the exact revert wave 1 had to make.
 - [Phase ?]: D-35: the work bound is a SEPARATE mechanism from the per-path cycle answer — MAX_WALK_ENTRIES=10000 as a per-walk tally at both walk sites, reported by the installer and thrown by the kit-set authority
 - [Phase ?]: D-36: the cycle arm names the path it declined to descend into — reported in install/kit-source.ts, thrown in scripts/kit-model.ts, AMENDING D-29's kit-model half (the shipped 'yields the REAL member set' case is now a named-throw case)
+- [Phase ?]: D-37: the self-checkout marker pair collapses into ONE exported SOURCE_MARKERS constant plus hasSourceMarkers() in install/kit-source.ts; both binaries import it, neither keeps a literal, and it names the RUNTIME artifact install/install.js rather than the TypeScript source
+- [Phase ?]: D-37's forcing function is a read-only case over the REAL repository root walking the IMPORTED constant and asserting the count as a number — a fixture that manufactures its own stub proves the predicate and never proves the constant
+- [Phase ?]: Only the marker half is shared; each binary's path-equality half stays local because uninstall.ts normalises with resolve() and install.ts does not, and merging them would silently pick one behaviour for both
+- [Phase ?]: D-38: the stale file-count rationale for the duplicate walk is DELETED not softened, and the equality it appeals to becomes two cases — member equality over the two-path fixture, same-path-named refusal over the cycle fixture
+- [Phase ?]: IN-03 closed as documentation only: the always-on self-checkout refusal is a mechanical safety check, so documenting that DRY_RUN does not exempt it is the fix, not weakening it
 
 ### Pending Todos
 
@@ -671,8 +677,8 @@ Shape of the carry: **9 of 11 are pre-v2.0 carryover** from the v1.2 block above
 
 ## Session Continuity
 
-Last session: 2026-08-01T19:20:09.341Z
-Stopped at: Completed 27-31-PLAN.md
+Last session: 2026-08-01T19:55:18.847Z
+Stopped at: Completed 27-32-PLAN.md (last plan of gap-closure round 4)
 Resume file: None
 
 ## Operator Next Steps
