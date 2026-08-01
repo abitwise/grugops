@@ -101,12 +101,12 @@ Out-of-scope discoveries logged during execution. Not fixed; recorded so they ar
 
 - **A UTF-8 BOM before the opening delimiter reaches the legitimately-keyless SUCCESS arm.**
   `parseFrontmatter` skips blank lines, then tests the directive pattern and the `---` delimiter
-  against the raw line. A BOM (`EF BB BF`) sits at position 0, so `"﻿---"` is neither a
+  against the raw line. A BOM (`EF BB BF`) sits at position 0, so `"\uFEFF---"` is neither a
   directive nor the delimiter, and the document takes the "NO block at all" arm:
   `{ ok: true, value: new Map() }` — no keys, no grant, no finding.
   - **Measured, both directions, against the committed `scripts/frontmatter.js`:**
-    - `"﻿%TAG !e! t\n---\nname: x\ntools: Read, Agent(o)\n---\n"` → `{"ok":true,"value":false}`
-    - `"﻿---\nname: x\ntools: Read, Agent(o)\n---\n"` → `{"ok":true,"value":false}`
+    - `"\uFEFF%TAG !e! t\n---\nname: x\ntools: Read, Agent(o)\n---\n"` → `{"ok":true,"value":false}`
+    - `"\uFEFF---\nname: x\ntools: Read, Agent(o)\n---\n"` → `{"ok":true,"value":false}`
     The second is the load-bearing one: it needs **no directive at all**. A BOM alone reaches the
     silent-success arm, so this is NOT a gap in D-34 — it sits one step in front of it.
   - **Confirmed PRE-EXISTING.** Byte-identical behavior against `5d040d4:scripts/frontmatter.js`
@@ -117,7 +117,7 @@ Out-of-scope discoveries logged during execution. Not fixed; recorded so they ar
     own `UNKNOWN - verify` of exactly the D-34 kind — whether Claude Code's own reader strips a BOM
     before looking for `---` decides whether such a file is inert or rogue, and that was not
     confirmed. There are two defensible answers (strip the BOM and parse normally, which is what most
-    readers do and what a `﻿`-tolerant loader would see; or refuse it by name as an undecodable
+    readers do and what a `\uFEFF`-tolerant loader would see; or refuse it by name as an undecodable
     prologue like D-34 does) and choosing between them is a planning decision with a reversibility
     note, not something an executor should settle mid-wave. Round 4 is scoped to the eight round-3
     findings and this is a ninth.
