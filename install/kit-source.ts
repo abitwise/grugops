@@ -86,6 +86,31 @@
 import { existsSync, readdirSync, statSync, realpathSync } from "node:fs";
 import { join } from "node:path";
 
+// MAX_WALK_ENTRIES — the recursive walk's WORK bound (D-35, closing WR-01).
+//
+// THIS IS A SECOND, SEPARATE MECHANISM FROM THE CYCLE ANSWER, AND KEEPING THEM SEPARATE IS THE
+// WHOLE POINT. The `ancestors` stack below answers exactly one question — "is this directory
+// already on THIS recursion path?" — and answers it correctly. It answers NOTHING about cost. A
+// symlink DAG has NO cycle at all and still yields exponentially many distinct relative paths: 15
+// directories each holding two forward links to their successor measured 32,767 members in 11.3
+// seconds here (and 12.2 seconds in the twin), doubling with every directory added. The ancestor
+// stack is right at every step of that walk; it simply is not the mechanism that bounds it.
+//
+// Conflating the two is what produced BOTH defects in this walk's history — the old global visited
+// set tried to make one mechanism answer both questions and silently deleted a legitimate member to
+// do it (CR-03). So: the ancestor stack stays PER PATH and answers membership; this counter is a
+// single mutable tally threaded across the WHOLE walk and answers cost. Neither is allowed to do
+// the other's job. The counter never removes a member the walk would otherwise report while it is
+// under the bound.
+//
+// EXCEEDING IT IS A REPORTED REFUSAL, NEVER A SILENT TRUNCATION. A member that disappears without a
+// name is the exact failure this module's header exists to prevent, twice over. On this side the
+// documented floor is report-not-throw, so the overflow travels back in the walk's result and the
+// caller surfaces it as a verification finding — the run reports INCOMPLETE rather than claiming a
+// completion it did not perform. The twin in scripts/kit-model.ts carries the same constant at the
+// same value and refuses through ITS floor, which is to throw.
+export const MAX_WALK_ENTRIES = 10000;
+
 // isFileFollowing / isDirFollowing — the authority's file-ness and directory-ness test, in the one
 // place the three derivations below share. `false` on any stat failure (ENOENT for a dangling link,
 // ELOOP for a link cycle, EACCES for an unreadable parent).
@@ -188,32 +213,78 @@ export function srcAdapterFiles(srcRoot: string): string[] | null {
 // import: D-18 and D-28 keep this installer decoupled from the scripts/ layout, so the equality is
 // bought by CASES — the same way the `source derivation` conformance case in install.test.ts buys
 // the other half of that decoupling.
-export function srcNestedAdapterFiles(srcRoot: string): string[] {
+//
+// THE WALK NOW REPORTS WHAT IT COULD NOT DO, NOT JUST WHAT IT FOUND (D-35). The return value is no
+// longer a bare array, because a bare array can only say "here is the member set" — and this walk
+// has a second thing it must be able to say: "I stopped after MAX_WALK_ENTRIES entries." Saying it
+// by returning fewer members and nothing else is the one behaviour this module's header forbids
+// outright, so it travels back in the result and the caller reports it.
+
+// The work bound's overflow marker: the bound that was exceeded and the relative directory the walk
+// had reached when it tripped (`""` = the adapter root itself).
+export interface NestedWalkOverflow {
+  limit: number;
+  at: string;
+}
+
+// What the nested walk found, and what it could not do. `files` is the member set — unchanged in
+// meaning: sorted, forward-slash relative paths. `cycles` names every directory the walk declined
+// to descend into because it repeats on the current recursion path. `overflow` is non-null when the
+// walk hit the MAX_WALK_ENTRIES work bound. Callers must report `cycles` and `overflow`; leaving
+// either unreported reinstates the silent drop this module exists to prevent.
+export interface NestedWalkResult {
+  files: string[];
+  cycles: string[];
+  overflow: NestedWalkOverflow | null;
+}
+
+export function srcNestedAdapterFiles(srcRoot: string): NestedWalkResult {
   const root = join(srcRoot, ".claude", "agents");
-  const walk = (base: string, ancestors: readonly string[]): string[] => {
-    const out: string[] = [];
+  const files: string[] = [];
+  const cycles: string[] = [];
+  // ONE tally for the WHOLE walk, deliberately NOT per path. The contrast with `ancestors` below —
+  // which is per path by contract — is the exact distinction whose absence produced both defects
+  // in this walk's history (D-35), so the two live in different variables with different lifetimes
+  // and neither is allowed to answer the other's question.
+  const budget: { examined: number; overflow: NestedWalkOverflow | null } = {
+    examined: 0,
+    overflow: null,
+  };
+  const walk = (base: string, ancestors: readonly string[]): void => {
+    if (budget.overflow !== null) return;
     const here = join(root, base);
     let real: string;
     try {
       real = realpathSync(here);
     } catch {
-      return out;
+      return;
     }
-    if (ancestors.includes(real)) return out; // cycle on THIS path — stop descending
+    if (ancestors.includes(real)) return; // cycle on THIS path — stop descending
     const nextAncestors = [...ancestors, real];
     let names: string[];
     try {
       names = readdirSync(here);
     } catch {
-      return out;
+      return;
     }
     for (const name of names) {
+      // Count the entry BEFORE deciding whether to descend into it or collect it, so the bound
+      // limits WORK directly and is independent of the DAG's shape. Exact integer comparison at the
+      // named constant: the 10000th entry examined is still under the bound and the 10001st trips
+      // it, so the threshold cannot be crossed by an off-by-one or by a rounding of any kind.
+      budget.examined += 1;
+      if (budget.examined > MAX_WALK_ENTRIES) {
+        budget.overflow = { limit: MAX_WALK_ENTRIES, at: base };
+        return;
+      }
       const rel = base ? `${base}/${name}` : name;
       const full = join(here, name);
-      if (isDirFollowing(full)) out.push(...walk(rel, nextAncestors));
-      else if (name.endsWith(".md") && rel.includes("/") && isFileFollowing(full)) out.push(rel);
+      if (isDirFollowing(full)) {
+        walk(rel, nextAncestors);
+        if (budget.overflow !== null) return;
+      } else if (name.endsWith(".md") && rel.includes("/") && isFileFollowing(full)) files.push(rel);
     }
-    return out;
   };
-  return walk("", []).sort();
+  walk("", []);
+  return { files: files.sort(), cycles: cycles.sort(), overflow: budget.overflow };
 }

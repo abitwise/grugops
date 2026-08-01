@@ -89,6 +89,27 @@ export const WORKFLOW_COUNT = 19;
 // is the same kind of fact; see the module header for why the skill half earns a count and the agent
 // half deliberately does not.
 export const SKILL_ADAPTER_COUNT = 7;
+// MAX_WALK_ENTRIES — the recursive walk's WORK bound (D-35, closing WR-01).
+//
+// A SECOND MECHANISM, DELIBERATELY SEPARATE FROM THE CYCLE ANSWER. The `ancestors` stack in
+// walkFilesRelative answers exactly one question — "is this directory already on THIS recursion
+// path?" — and answers it correctly. It answers NOTHING about cost. A symlink DAG contains NO
+// cycle and still yields exponentially many distinct relative paths: measured here on darwin /
+// node v24, 15 directories each holding two forward links to their successor produced 32,767
+// members in 12.2 seconds, doubling with every directory added. The ancestor stack is right at
+// every step of that walk; it is simply not the mechanism that bounds it.
+//
+// WHY THAT MATTERS MORE ON THIS SIDE. This walk runs inside scripts/check-foundation-guards.js in
+// CI. A walk that does not terminate promptly HANGS THE GATE RATHER THAN FAILING IT, and a hung
+// gate is not a red gate — it is a gate with no verdict at all. So the bound exists to convert an
+// unbounded cost into a loud, named refusal.
+//
+// EXCEEDING IT THROWS, MATCHING THIS MODULE'S FLOOR. D-21 tier 1: this module throws rather than
+// reports, because a vacuous or truncated scan set here passes every downstream guard. Silently
+// returning the members collected so far would be exactly that truncation. The twin in
+// install/kit-source.ts carries the same constant at the same value and refuses through ITS
+// documented floor, which is to report.
+export const MAX_WALK_ENTRIES = 10000;
 // Default kit root = this script's parent (scripts/ -> repo root). Callers with an already-resolved
 // root pass it explicitly (D-22) rather than letting this module re-resolve.
 const DEFAULT_KIT_ROOT = join(import.meta.dirname, "..");
@@ -131,52 +152,10 @@ export function listWorkflows(kitRoot = DEFAULT_KIT_ROOT) {
         .sort();
     return refuseEmpty(files, dir, "workflow");
 }
-// ---------------------------------------------------------------------------
-// The adapter half (KIT-02). See the recursion policy in the module header — it is the contract,
-// not an implementation detail.
-// ---------------------------------------------------------------------------
-// Every FILE beneath `dir`, at any depth, as a path relative to `dir`. Segments are joined with a
-// literal `/` rather than the platform separator so the returned values are byte-identical on
-// Windows and on Unix, and every guard message built from them is too.
-//
-// The recursion shape is lifted from scripts/check-kit-refs.ts's walk() — the one derivation in the
-// tree that was already correct — including its use of statSync (which FOLLOWS symlinks, matching
-// how the platform would resolve a symlinked adapter). Each directory level goes through the shared
-// named-error helper, so an unreadable SUBdirectory throws naming that subdirectory rather than the
-// root it was reached from.
-//
-// CYCLE TERMINATION IS THIS WALK'S CONTRACT, NOT AN ACCIDENT OF THE HOST (D-29, closing the 27-22
-// deferral). The walk follows symlinks deliberately, which is what makes a cycle reachable, and it
-// previously carried no cycle answer at all. Measured on darwin / node v24 before the fix, with one
-// `loop -> ..` link planted under a ONE-adapter fixture: listAgentAdapters() returned THIRTY-TWO
-// aliased members and terminated only because the operating system's symlink-resolution limit made
-// statSync throw ELOOP; with two such links it threw `RangeError: Maximum call stack size exceeded`.
-// Both are wrong sets from a walk that does not know where it has been, neither is a clean refusal,
-// and the MANNER of termination belonged to the host rather than to this module.
-//
-// THE GUARD IS FOR BOUNDING RECURSION, NOT FOR NARROWING THE SET. `ancestors` holds the real paths
-// of the directories on the CURRENT recursion path and nothing else. A directory revisited under a
-// DIFFERENT path yields DIFFERENT relative paths, and every one of them is a distinct member this
-// module is contracted to report — the invariant the "differing ONLY by nesting are DISTINCT
-// members" case pins. Only a repeat on the SAME path is a cycle. A visited set carried across
-// sibling branches, or across the whole walk, would silently delete a legitimate member; that is
-// precisely the defect CR-03 reproduced in this walk's twin.
-//
-// ONE PREDICATE, TWO SITES, NO IMPORT. install/kit-source.ts's srcNestedAdapterFiles() answers the
-// same question — "have I already walked this real path?" — and now answers it with the same
-// ancestor stack. CR-03 is what happens when one predicate is answered in two places: the two gave
-// two DIFFERENT wrong answers, a dropped member there and an unbounded recursion here. The two
-// sites deliberately do NOT share an import: D-18 and D-28 keep the installer decoupled from the
-// scripts/ layout, so the equality is bought by CASES — the same way the `source derivation`
-// conformance case in install/install.test.ts buys the other half of that decoupling.
-//
-// A directory whose realpath cannot be resolved carries NO cycle key and falls through to
-// readDirOrThrow, which throws naming that directory. The guard must never convert an unreadable
-// directory into a silent [] — that is this module's fail-closed posture (D-21 tier 1), and a cycle
-// guard is not licensed to weaken it.
-//
-// NOT exported: this is the mechanism, not the contract. Consumers ask listAgentAdapters().
-function walkFilesRelative(dir, base = "", ancestors = []) {
+function walkFilesRelative(dir) {
+    return walkLevel(dir, "", [], { examined: 0 });
+}
+function walkLevel(dir, base, ancestors, budget) {
     const out = [];
     const here = join(dir, base);
     let real;
@@ -190,6 +169,19 @@ function walkFilesRelative(dir, base = "", ancestors = []) {
         return out; // cycle on THIS path — stop descending
     const nextAncestors = real === null ? ancestors : [...ancestors, real];
     for (const name of readDirOrThrow(here)) {
+        // Count the entry BEFORE deciding whether to descend into it or collect it, so the bound limits
+        // WORK directly and is independent of the tree's shape. Exact integer comparison at the named
+        // constant: the 10000th entry examined is still under the bound and the 10001st trips it, so
+        // the threshold cannot be crossed by an off-by-one or by a rounding of any kind.
+        budget.examined += 1;
+        if (budget.examined > MAX_WALK_ENTRIES) {
+            throw new Error(`kit-model: the walk of ${dir} examined more than MAX_WALK_ENTRIES=${MAX_WALK_ENTRIES} ` +
+                `directory entries, reaching ${here} — refusing to continue. A symlink DAG with no cycle ` +
+                `at all can still expand into exponentially many distinct relative paths, so the ` +
+                `per-path cycle answer cannot bound this walk and a separate work bound does. Returning ` +
+                `the members collected so far would be a silent truncation, and a truncated scan set ` +
+                `passes every downstream guard.`);
+        }
         const rel = base === "" ? name : `${base}/${name}`;
         const full = join(dir, base, name);
         let isDir;
@@ -204,7 +196,7 @@ function walkFilesRelative(dir, base = "", ancestors = []) {
             continue;
         }
         if (isDir)
-            out.push(...walkFilesRelative(dir, rel, nextAncestors));
+            out.push(...walkLevel(dir, rel, nextAncestors, budget));
         else
             out.push(rel);
     }

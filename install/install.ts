@@ -1428,7 +1428,11 @@ console.log("\n-- adapters --");
 // these loops ran zero times, and the run still printed a completion banner — a silent no-op install.
 const SRC_SKILLS = srcSkillNames(GRUGOPS_SRC);
 const SRC_ADAPTERS = srcAdapterFiles(GRUGOPS_SRC);
-const SRC_NESTED_ADAPTERS = srcNestedAdapterFiles(GRUGOPS_SRC);
+// The nested walk returns THREE things, not one (D-35/D-36): the member set, the paths it declined
+// to descend into, and whether it hit its work bound. All three are reported below — a walk that
+// reported only the first would be back to dropping members without naming them.
+const SRC_NESTED = srcNestedAdapterFiles(GRUGOPS_SRC);
+const SRC_NESTED_ADAPTERS = SRC_NESTED.files;
 
 if (SRC_SKILLS === null) {
   verify(
@@ -1479,6 +1483,23 @@ for (const rel of SRC_NESTED_ADAPTERS) {
     `.claude/agents/${rel} — the adapter directory is FLAT BY CONTRACT, so this nested adapter was ` +
       `NOT installed. Claude Code would load it from a nested path, which is exactly why it is ` +
       `refused here by name instead of skipped. Move it to the top level of the adapter directory.`,
+  );
+}
+
+// THE WORK BOUND, SURFACED THROUGH THE ONE REPORTING CHANNEL THIS INSTALLER HAS (D-35, WR-01). The
+// nested walk stopped after MAX_WALK_ENTRIES directory entries, so the adapter directory was NOT
+// fully examined and any member past that point was neither installed nor refused by name. That is
+// an incomplete run, and `verify` is what makes it print the INCOMPLETE banner and exit 3 rather
+// than claiming a completion it did not perform.
+if (SRC_NESTED.overflow !== null) {
+  const at = SRC_NESTED.overflow.at === "" ? "" : `/${SRC_NESTED.overflow.at}`;
+  verify(
+    `.claude/agents${at} — the nested-adapter walk stopped after examining ` +
+      `MAX_WALK_ENTRIES=${SRC_NESTED.overflow.limit} directory entries, so the adapter directory ` +
+      `was NOT fully examined and anything past that point was neither installed nor refused by ` +
+      `name. A symlink DAG with no cycle at all can expand into exponentially many distinct ` +
+      `relative paths, which is what this bound exists to stop. Remove the cross-linked symlinks ` +
+      `under the adapter directory and re-run.`,
   );
 }
 

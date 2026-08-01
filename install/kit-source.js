@@ -84,6 +84,30 @@
 // ---------------------------------------------------------------------------
 import { existsSync, readdirSync, statSync, realpathSync } from "node:fs";
 import { join } from "node:path";
+// MAX_WALK_ENTRIES — the recursive walk's WORK bound (D-35, closing WR-01).
+//
+// THIS IS A SECOND, SEPARATE MECHANISM FROM THE CYCLE ANSWER, AND KEEPING THEM SEPARATE IS THE
+// WHOLE POINT. The `ancestors` stack below answers exactly one question — "is this directory
+// already on THIS recursion path?" — and answers it correctly. It answers NOTHING about cost. A
+// symlink DAG has NO cycle at all and still yields exponentially many distinct relative paths: 15
+// directories each holding two forward links to their successor measured 32,767 members in 11.3
+// seconds here (and 12.2 seconds in the twin), doubling with every directory added. The ancestor
+// stack is right at every step of that walk; it simply is not the mechanism that bounds it.
+//
+// Conflating the two is what produced BOTH defects in this walk's history — the old global visited
+// set tried to make one mechanism answer both questions and silently deleted a legitimate member to
+// do it (CR-03). So: the ancestor stack stays PER PATH and answers membership; this counter is a
+// single mutable tally threaded across the WHOLE walk and answers cost. Neither is allowed to do
+// the other's job. The counter never removes a member the walk would otherwise report while it is
+// under the bound.
+//
+// EXCEEDING IT IS A REPORTED REFUSAL, NEVER A SILENT TRUNCATION. A member that disappears without a
+// name is the exact failure this module's header exists to prevent, twice over. On this side the
+// documented floor is report-not-throw, so the overflow travels back in the walk's result and the
+// caller surfaces it as a verification finding — the run reports INCOMPLETE rather than claiming a
+// completion it did not perform. The twin in scripts/kit-model.ts carries the same constant at the
+// same value and refuses through ITS floor, which is to throw.
+export const MAX_WALK_ENTRIES = 10000;
 // isFileFollowing / isDirFollowing — the authority's file-ness and directory-ness test, in the one
 // place the three derivations below share. `false` on any stat failure (ENOENT for a dangling link,
 // ELOOP for a link cycle, EACCES for an unreadable parent).
@@ -135,89 +159,60 @@ export function srcAdapterFiles(srcRoot) {
         return null;
     }
 }
-// srcNestedAdapterFiles: every `.md` entry BELOW the top level of <srcRoot>/.claude/agents, as
-// forward-slash relative paths, sorted.
-//
-// THE FLAT-DIRECTORY CONTRACT, AND WHY THE INSTALLER MUST SEE PAST IT. The adapter directory is flat
-// by contract: the generator, the freshness gate and the installer all work over a flat directory,
-// and the foundation guards REFUSE a nested adapter by name. But Claude Code discovers
-// `.claude/agents/` RECURSIVELY, so a nested file is loaded by the platform. srcAdapterFiles() above
-// is deliberately non-recursive — it is the INSTALL set, and installing a nested file would
-// contradict the contract — which means without this helper a nested source adapter would simply
-// vanish from the run with no comment. The installer must not be the one place a file disappears
-// silently, so it detects the nested entry and REFUSES it by name (T-27-62).
-//
-// THE POLICY IS DEFINED BY scripts/kit-model.ts (listAgentAdapters), NOT HERE. That module is the
-// single authority for "what is an adapter"; this file deliberately does NOT import it (D-18/D-28 —
-// the installer stays decoupled from the scripts/ layout). The two derivations are asserted EQUAL by
-// a test instead of bought by coupling: see the `source derivation` conformance case in
-// install.test.ts, which compares the installer's real installed set against listAgentAdapters()
-// over the same fixture and asserts the cardinality as a number. If the locked decision is ever
-// revisited, that conformance case is what to delete along with the duplicate.
-//
-// A read failure at any level yields [] here rather than null: an unreadable root is already the
-// srcAdapterFiles() null branch's finding, and reporting the same condition twice would be noise.
-//
-// Both the recursion test and the collection test go through statSync (see the header, WR-02), so a
-// symlinked nested DIRECTORY is descended into and a symlinked nested FILE is collected — and each
-// one is therefore refused BY NAME at its relative path instead of vanishing.
-//
-// THE CYCLE GUARD IS FOR BOUNDING RECURSION, NOT FOR NARROWING THE SET (D-29, closing CR-03).
-// Following links is what makes a cycle reachable, so this walk needs a cycle answer — and the one
-// it carried was the WRONG one. It recorded the realpath of every directory it walked in a GLOBAL
-// visited set and returned nothing on a repeat, justified on the claim that "a directory already
-// walked under an earlier path contributes no member the walk has not already seen". That claim is
-// FALSE FOR THIS WALK, because members are reported at their RELATIVE paths: one physical directory
-// reached by two paths yields two different relative paths, and the authority counts each of them as
-// a distinct member. Reproduced (CR-03) on `.claude/agents/real/x.md` plus `.claude/agents/alias ->
-// real`: the authority saw `['alias/x.md','real/x.md']` while this walk reported only one of them,
-// with WHICH one decided by readdirSync ordering.
-//
-// THE INVARIANT THAT BREAKS, RESTATED. The installer's INSTALL set may deliberately be NARROWER than
-// the authority's — that is the flat-directory contract above — but it may never be BLIND to a
-// member the authority sees, because a member it cannot see is a member it cannot refuse by name.
-// A global visited set makes it blind. `ancestors` therefore holds the real paths of the directories
-// on the CURRENT recursion path and nothing else: only a repeat on the SAME path is a cycle, and
-// every distinct relative path survives to be refused by name.
-//
-// ONE PREDICATE, TWO SITES, NO IMPORT. scripts/kit-model.ts's walkFilesRelative() answers the same
-// question — "have I already walked this real path?" — and now answers it with the same ancestor
-// stack. CR-03 is what answering one predicate in two places produced: two DIFFERENT wrong answers,
-// a dropped member here and an unbounded recursion there. The two sites deliberately do NOT share an
-// import: D-18 and D-28 keep this installer decoupled from the scripts/ layout, so the equality is
-// bought by CASES — the same way the `source derivation` conformance case in install.test.ts buys
-// the other half of that decoupling.
 export function srcNestedAdapterFiles(srcRoot) {
     const root = join(srcRoot, ".claude", "agents");
+    const files = [];
+    const cycles = [];
+    // ONE tally for the WHOLE walk, deliberately NOT per path. The contrast with `ancestors` below —
+    // which is per path by contract — is the exact distinction whose absence produced both defects
+    // in this walk's history (D-35), so the two live in different variables with different lifetimes
+    // and neither is allowed to answer the other's question.
+    const budget = {
+        examined: 0,
+        overflow: null,
+    };
     const walk = (base, ancestors) => {
-        const out = [];
+        if (budget.overflow !== null)
+            return;
         const here = join(root, base);
         let real;
         try {
             real = realpathSync(here);
         }
         catch {
-            return out;
+            return;
         }
         if (ancestors.includes(real))
-            return out; // cycle on THIS path — stop descending
+            return; // cycle on THIS path — stop descending
         const nextAncestors = [...ancestors, real];
         let names;
         try {
             names = readdirSync(here);
         }
         catch {
-            return out;
+            return;
         }
         for (const name of names) {
+            // Count the entry BEFORE deciding whether to descend into it or collect it, so the bound
+            // limits WORK directly and is independent of the DAG's shape. Exact integer comparison at the
+            // named constant: the 10000th entry examined is still under the bound and the 10001st trips
+            // it, so the threshold cannot be crossed by an off-by-one or by a rounding of any kind.
+            budget.examined += 1;
+            if (budget.examined > MAX_WALK_ENTRIES) {
+                budget.overflow = { limit: MAX_WALK_ENTRIES, at: base };
+                return;
+            }
             const rel = base ? `${base}/${name}` : name;
             const full = join(here, name);
-            if (isDirFollowing(full))
-                out.push(...walk(rel, nextAncestors));
+            if (isDirFollowing(full)) {
+                walk(rel, nextAncestors);
+                if (budget.overflow !== null)
+                    return;
+            }
             else if (name.endsWith(".md") && rel.includes("/") && isFileFollowing(full))
-                out.push(rel);
+                files.push(rel);
         }
-        return out;
     };
-    return walk("", []).sort();
+    walk("", []);
+    return { files: files.sort(), cycles: cycles.sort(), overflow: budget.overflow };
 }

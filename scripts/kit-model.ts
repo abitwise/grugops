@@ -92,6 +92,28 @@ export const WORKFLOW_COUNT = 19;
 // half deliberately does not.
 export const SKILL_ADAPTER_COUNT = 7;
 
+// MAX_WALK_ENTRIES — the recursive walk's WORK bound (D-35, closing WR-01).
+//
+// A SECOND MECHANISM, DELIBERATELY SEPARATE FROM THE CYCLE ANSWER. The `ancestors` stack in
+// walkFilesRelative answers exactly one question — "is this directory already on THIS recursion
+// path?" — and answers it correctly. It answers NOTHING about cost. A symlink DAG contains NO
+// cycle and still yields exponentially many distinct relative paths: measured here on darwin /
+// node v24, 15 directories each holding two forward links to their successor produced 32,767
+// members in 12.2 seconds, doubling with every directory added. The ancestor stack is right at
+// every step of that walk; it is simply not the mechanism that bounds it.
+//
+// WHY THAT MATTERS MORE ON THIS SIDE. This walk runs inside scripts/check-foundation-guards.js in
+// CI. A walk that does not terminate promptly HANGS THE GATE RATHER THAN FAILING IT, and a hung
+// gate is not a red gate — it is a gate with no verdict at all. So the bound exists to convert an
+// unbounded cost into a loud, named refusal.
+//
+// EXCEEDING IT THROWS, MATCHING THIS MODULE'S FLOOR. D-21 tier 1: this module throws rather than
+// reports, because a vacuous or truncated scan set here passes every downstream guard. Silently
+// returning the members collected so far would be exactly that truncation. The twin in
+// install/kit-source.ts carries the same constant at the same value and refuses through ITS
+// documented floor, which is to report.
+export const MAX_WALK_ENTRIES = 10000;
+
 // Default kit root = this script's parent (scripts/ -> repo root). Callers with an already-resolved
 // root pass it explicitly (D-22) rather than letting this module re-resolve.
 const DEFAULT_KIT_ROOT = join(import.meta.dirname, "..");
@@ -186,8 +208,26 @@ export function listWorkflows(kitRoot: string = DEFAULT_KIT_ROOT): string[] {
 // directory into a silent [] — that is this module's fail-closed posture (D-21 tier 1), and a cycle
 // guard is not licensed to weaken it.
 //
+// THE WORK BOUND IS THREADED, NOT RE-DERIVED PER LEVEL (D-35). `budget` is ONE mutable tally shared
+// by the whole walk, in deliberate contrast to `ancestors`, which is per path by contract. The two
+// answer different questions and are kept in different variables with different lifetimes; the old
+// global-visited-set defect is what happens when one mechanism is asked to answer both.
+//
 // NOT exported: this is the mechanism, not the contract. Consumers ask listAgentAdapters().
-function walkFilesRelative(dir: string, base = "", ancestors: readonly string[] = []): string[] {
+interface WalkBudget {
+  examined: number;
+}
+
+function walkFilesRelative(dir: string): string[] {
+  return walkLevel(dir, "", [], { examined: 0 });
+}
+
+function walkLevel(
+  dir: string,
+  base: string,
+  ancestors: readonly string[],
+  budget: WalkBudget,
+): string[] {
   const out: string[] = [];
   const here = join(dir, base);
   let real: string | null;
@@ -199,6 +239,21 @@ function walkFilesRelative(dir: string, base = "", ancestors: readonly string[] 
   if (real !== null && ancestors.includes(real)) return out; // cycle on THIS path — stop descending
   const nextAncestors = real === null ? ancestors : [...ancestors, real];
   for (const name of readDirOrThrow(here)) {
+    // Count the entry BEFORE deciding whether to descend into it or collect it, so the bound limits
+    // WORK directly and is independent of the tree's shape. Exact integer comparison at the named
+    // constant: the 10000th entry examined is still under the bound and the 10001st trips it, so
+    // the threshold cannot be crossed by an off-by-one or by a rounding of any kind.
+    budget.examined += 1;
+    if (budget.examined > MAX_WALK_ENTRIES) {
+      throw new Error(
+        `kit-model: the walk of ${dir} examined more than MAX_WALK_ENTRIES=${MAX_WALK_ENTRIES} ` +
+          `directory entries, reaching ${here} — refusing to continue. A symlink DAG with no cycle ` +
+          `at all can still expand into exponentially many distinct relative paths, so the ` +
+          `per-path cycle answer cannot bound this walk and a separate work bound does. Returning ` +
+          `the members collected so far would be a silent truncation, and a truncated scan set ` +
+          `passes every downstream guard.`,
+      );
+    }
     const rel = base === "" ? name : `${base}/${name}`;
     const full = join(dir, base, name);
     let isDir: boolean;
@@ -211,7 +266,7 @@ function walkFilesRelative(dir: string, base = "", ancestors: readonly string[] 
       // empty".
       continue;
     }
-    if (isDir) out.push(...walkFilesRelative(dir, rel, nextAncestors));
+    if (isDir) out.push(...walkLevel(dir, rel, nextAncestors, budget));
     else out.push(rel);
   }
   return out;
