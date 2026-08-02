@@ -1,0 +1,8 @@
+Next ideas todo:
+
+- Incorporate more good and widely used skills like superpowers
+-- Figure out how roles can select skills for their tasks
+-- Investigate skills: code-simplifier, feature-dev, commit-commands
+- Develop designer role - set design strategy and guidelines
+-- Frontend-ui role to use ui-ux-pro-max (https://github.com/nextlevelbuilder/ui-ux-pro-max-skill)
+--- Investigate skills: frontend-design, 
