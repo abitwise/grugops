@@ -124,7 +124,7 @@ Full phase details + milestone summary: `milestones/v2.0-ROADMAP.md` · requirem
   4. On Claude Code the coordinator runs as the **main-thread** agent so its `Agent(<allowlist>)` grant is honored by the runtime, and no non-coordinator adapter carries the `Agent` tool at all — a mechanism that holds on both the main-thread and subagent paths rather than relying on a frontmatter token the runtime ignores. (SPAWN-03, SPAWN-04)
   5. `guard_adapter_body` fails red on pre-v2.0 handoff/single-window prose anywhere in an adapter body — proven against the surviving `grugops-orchestrator.md:25` reference — `orchestrator.md` sits below its **7570-byte FAIL ceiling with the ceiling unchanged**, and the advertised Claude Code floor reads **v2.1.219+ at depth 3** everywhere it appears, with the v2.1.217–218 depth-1 window documented as a known-bad range that degrades loudly. (SPAWN-05, SPAWN-06, SPAWN-07)
 
-**Plans**: 32/32 plans executed
+**Plans**: 35 plans — 32 executed; 3 planned for gap-closure round 5 (27-33 … 27-35)
 Plans:
 **Wave 1**
 
@@ -233,6 +233,17 @@ Plans:
 **Gap wave 3** *(blocked on 27-31 — shared `install/install.ts` and `install/install.test.ts`)*
 
 - [x] 27-32-PLAN.md — the self-checkout marker pair collapses into one exported constant naming the RUNTIME artifact, with a read-only real-repository existence assertion as the forcing function CR-04 never got (D-37); the stale duplicate-walk rationale is amended to D-28's and the equality it appeals to becomes a case (D-38); the reversal docs match the always-on refusal [KIT-02] *(WR-02, WR-03, IN-03)*
+
+**Gap wave — round 5, wave 1** *(no dependencies; zero `files_modified` overlap between the two)*
+
+- [ ] 27-33-PLAN.md — the delimiter region of `scripts/frontmatter.ts` gets ONE normalization point and ONE declared whitespace class, and the complement of the delimiter test stops being a silent success: a line carrying the delimiter payload plus nothing but invisible code points is refused by name at BOTH delimiter positions, pinned by an exhaustive property sweep over a derived Unicode-category alphabet and by the mandatory zero-refusal control over the real repository (D-39, D-42); the grant enumeration refuses a nested paren or a quote instead of returning a short or altered list (D-41) [KIT-03, SPAWN-04] *(CR-01, WR-02)*
+- [ ] 27-35-PLAN.md — the nested-adapter walk gains a fourth channel for directories it cannot read, both bare returns route through it, and the installer refuses them by name at exit 3, so a less readable tree no longer produces a more confident installer; the cross-site equality case extends to the unreadable arm, and both remaining exit-after-report tails set the exit code with the regression scan extended from two paths to four (D-41) [KIT-02] *(CR-02, WR-01)*
+
+**Gap wave — round 5, wave 2** *(blocked on 27-33 — its aggregator-level case exercises the parser refusal 27-33 lands)*
+
+- [ ] 27-34-PLAN.md — the shipped plugin-form `skills/` tree is derived from `kit-model` with an asserted cardinality, folded into `SPAWN_GRANT_SCAN`, and named in `guard_wr05`'s PASS line, pinned by a plant case that targets a SKILL adapter; the relationship between the two distribution forms is asserted mechanically with the one legitimate divergence exempted by name and its reason recorded (D-40); the name floor stops reporting "no name key" over a document with no frontmatter block at all (D-41) [KIT-02, KIT-03, SPAWN-04] *(CR-03, name-floor misdiagnosis)*
+
+**Ordering that is load-bearing in gap-closure round 5** — round 5 closes only the three requirements that FAILED round-4 verification (KIT-02, KIT-03, SPAWN-04); the other seven are verified clean and out of scope. 27-33 leads because CR-01 is the parser-level bypass both KIT-03 and SPAWN-04 inherit, and because 27-34's aggregator case plants a mark-prefixed grant that only refuses once 27-33 has landed. 27-35 is genuinely parallel with 27-33: the two share no source file, no test file and no committed artifact. **A recorded amendment rides on this round:** D-39 point 3 spells the near-delimiter predicate as `line.trim() === "---"`, and that spelling was measured to miss 458 of 506 swept positions — including the zero-width space D-39's own rationale names — because `trim()` does not strip the Unicode format-character class. D-42 keeps D-39's polarity and widens only the alphabet; plan 27-33 records the measurement in place so an executor cannot narrow it back.
 
 **Ordering that is load-bearing in gap-closure round 4** — the tracer (27-29) is the phase's only live BLOCKER and closes KIT-03 and SPAWN-04 with one change to one module, so it is proven against the committed `.js` before any expansion task runs. Wave 2 is genuinely parallel: 27-30 owns `scripts/frontmatter.*` and 27-31 owns the two walk sites, with zero `files_modified` overlap. Wave 3 is split by shared FILE, not shared logic — 27-31 and 27-32 both edit `install/install.ts` and `install/install.test.ts`, and 27-32's equality case asserts against the exact cycle path strings 27-31 records.
 
