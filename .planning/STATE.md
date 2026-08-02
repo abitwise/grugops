@@ -5,8 +5,8 @@ milestone_name: Autonomous Factory — Real Spawning, Controlled Language & Live
 current_phase: 27
 current_phase_name: spawn-correctness-kit-set-authority
 status: executing
-stopped_at: Round-4 verification returned gaps_found (7/10) — 3 new blockers, phase NOT complete
-last_updated: "2026-08-02T02:00:00.000Z"
+stopped_at: Round-5 PLANNED — 3 plans (27-33..27-35), plan-checker VERIFICATION PASSED after 2 revisions
+last_updated: "2026-08-03T00:00:00.000Z"
 progress:
   total_phases: 7
   completed_phases: 1
@@ -44,7 +44,22 @@ Status: Round-4 verification (2026-08-02) returns **gaps_found at 7/10**. All **
 **The structural read, which round 5 should act on rather than patch around:** three of four rounds have ended with a NEW spelling of the SAME fail-open in `frontmatter.ts`. The two fixes that HELD (D-30 escape allowlist, D-36 named throw) both work by making refusal the default for the *complement*. The delimiter test is the last place in that module where the complement is a silent success. CR-03 is the [[set-literal drift]] class, not the parser class: a shipped surface sitting outside the set that claims to cover it — which is KIT-02's exact wording.
 
 Full report: `27-VERIFICATION.md` (round 4, 2026-08-02 — supersedes the round-3 record). Review: `27-REVIEW-GAPS-4.md`.
-Next: `/gsd-plan-phase 27 --gaps`
+
+## Gap-closure round 5 — PLANNED 2026-08-03, ready to execute
+
+3 plans, 3 single-plan waves: **27-33 → 27-34 → 27-35**. Plan-checker returned **VERIFICATION PASSED** at iteration 2 of a 3-iteration cap (2 blockers found and closed in iteration 1, 1 blocker found and closed in iteration 2, 3 residual warnings fixed by the orchestrator). Gates: requirements **10/10**, decision coverage **32/32**, post-planning gap analysis **42/42**, zero glued `D-NN` citations.
+
+| Plan | Wave | Closes | Requirements |
+|------|------|--------|--------------|
+| 27-33 | 1 | **CR-01** delimiter region per **D-43**; **WR-02** grant-enumeration refusal; relocates the scan composition into `kit-model` as one authority | KIT-02, KIT-03, SPAWN-04 |
+| 27-34 | 2 | **CR-03** plugin-form `skills/` tree derived and scanned per **D-40**; the pair rule; the plugin-default absence floor; the name-floor misdiagnosis | KIT-02, KIT-03, SPAWN-04 |
+| 27-35 | 3 | **CR-02** unreadable-walk channel; **WR-01** `process.exit` tails. Wave 3 is **serialization only** (concurrent `tsc` emit would tear a committed `.js`), not a logical dependency | KIT-02 |
+
+**The predicate was written wrong three times before any code was cut.** D-39 (orchestrator) defined the near-delimiter test as `line.trim() === "---"` and called it a derivation; `trim()` strips ECMAScript WhiteSpace but not the Unicode format class, so ZWSP — **a spelling D-39's own rationale cited** — would have survived. D-42 (planner) replaced it with `[\s\p{Cf}\p{Cc}]`; that is a wider denylist, and combining marks, unassigned, private-use, `----` and `--- foo` all survived it. **D-43** (plan-checker) is the first formulation that enumerates the LEGAL spelling and refuses the complement — the polarity all three claimed. Each catch was independently reproduced against the committed `.js` before ratification. False-red cost of the strict rule, measured: **zero** across all 33 scan surfaces and all 1115 tracked markdown files.
+
+**Two decisions an executor must not quietly undo.** (a) **D-43's arm 1 consults no character class at all** — "begins with the payload and is not legal, full stop"; the invisible test belongs to arm 2 (leading residue) and may never decide trailing legality. Implementing arm 1 with a character class reproduces D-42 and is a defect, not a shortcut. (b) The relocated composition carries an **exact two-sided cardinality pin (26 in 27-33, 33 in 27-34) plus per-part SET equality against each lister** — not counts. Three integer comparisons pass while a decoy displaces a real adapter within a part. Set-equality between the control's corpus and the guard's scan is **documentation, not a check**: after the relocation it compares one object with itself and can never fail.
+
+Next: `/gsd-execute-phase 27`
 Prior activity: 2026-07-30 — 27-22 closed WR-02 and WR-04, the last two plans-worth of gap-closure round 2. The installer's three source derivations now decide file-ness and directory-ness with `statSync`, matching `kit-model.walkFilesRelative` and the way the platform resolves a symlinked adapter, so a symlinked source adapter is INSTALLED or REFUSED BY NAME instead of vanishing under `== install complete ==`. Proven RED-before/GREEN-after on both synthetic and REAL repo sources, plus four adversarial probes; a symlink CYCLE would have hung the new walk and was closed with a realpath-visited-once guard (Rule 2). `mappingDests` now derives its own cardinality from the `[` openings the author wrote and refuses an entry it cannot read, naming the file, constant and both counts — the plan's stated RED does not reproduce, the review's does, and both transcripts are recorded. All 23 plans of phase 27 are executed; phase 27 is NOT verified complete.
 
 ## Performance Metrics
