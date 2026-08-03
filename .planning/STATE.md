@@ -5,13 +5,13 @@ milestone_name: Autonomous Factory — Real Spawning, Controlled Language & Live
 current_phase: 27
 current_phase_name: spawn-correctness-kit-set-authority
 status: executing
-stopped_at: Round-5 PLANNED — 3 plans (27-33..27-35), plan-checker VERIFICATION PASSED after 2 revisions
-last_updated: "2026-08-03T00:00:00.000Z"
+stopped_at: Completed 27-33-PLAN.md (round-5 wave 1) — CR-01 delimiter axis and WR-02 closed
+last_updated: "2026-08-03T05:07:37.000Z"
 progress:
   total_phases: 7
   completed_phases: 1
-  total_plans: 32
-  completed_plans: 32
+  total_plans: 35
+  completed_plans: 33
   percent: 14
 last_activity: 2026-08-02
 last_activity_desc: "Gap-closure round 4 EXECUTED, UAT PASSED, and round-4 VERIFICATION returned gaps_found at 7/10 — phase 27 is NOT complete. All 32 plans carry SUMMARYs; UAT 71/71 with 0 issues; suite 1015 passed / 2 skipped across 35 files; 32 committed .js all fresh; foundation guards ALL CHECKS PASSED exit 0. Every one of the EIGHT round-3 findings is genuinely closed, each re-checked by running the round-3 reproduction against the committed .js rather than by reading the SUMMARY that claimed it: D-30 held as an ALLOWLIST (DQ_ESCAPE_ALLOWLIST at scripts/frontmatter.ts:409, three entries, refuse-by-default; grep -c NUMERIC_ESCAPE = 0, so the regex D-30 rejected stayed rejected) and D-36 landed (kit-model.test.ts:386 asserts toThrow(/symlink cycle at loop\\d\\/agents/)). THREE NEW BLOCKERS, each reproduced independently twice against committed artifacts. CR-01 arrives a FOURTH time, now on the DELIMITER axis: scripts/frontmatter.ts:695 tests the trimmed line against '---' and routes the complement into the keyless SUCCESS arm, so a 3-byte UTF-8 BOM or a trailing NBSP after the opening --- turns a document plainly carrying Agent(grugops-orchestrator) into {ok:true,value:false} with no refusal and no error — D-34 enumerated ONE bad prologue (%directive) and left the complement silent, the exact enumerate-the-bad shape D-30 declined thirty lines above. CR-03 is the set-literal class rather than the parser class: SPAWN_GRANT_SCAN at check-foundation-guards.ts:458 covers only .claude/agents and .claude/skills, so the shipped plugin-form skills/ tree (7 SKILL.md files, ALL modified by this phase) sits outside every scan set — a rogue grant planted in skills/plan/SKILL.md prints PASS WR-05 'no non-coordinator does' then ALL CHECKS PASSED at exit 0, which is KIT-02's wording failing on its own terms. CR-02: two bare return arms at install/kit-source.ts:335-340,349-354 drop an unreadable nested directory with no name and the installer prints == install complete == at exit 0, while the same tree at chmod 755 exits 3 naming the file and the kit-model twin throws. Warnings: WR-01 (uninstall.ts:730 still process.exit(3), D-35 flush reached one of three tail sites, truncation unreproduced) and WR-02 (keysGrantedAgentNames drops c from Agent(a(b), c) and splits Agent(\"a,b\", c) into three wrong names, both on the ok:true arm feeding the KIT-03 equality). Structural read for round 5: three of four rounds ended with a NEW spelling of the SAME fail-open in frontmatter.ts, and the only two fixes that HELD both work by making refusal the default for the complement. Reports: 27-VERIFICATION.md (round 4) and 27-REVIEW-GAPS-4.md."
@@ -29,9 +29,10 @@ See: .planning/PROJECT.md (updated 2026-07-28 — after v2.0 milestone)
 
 ## Current Position
 
-Phase: 27 (spawn-correctness-kit-set-authority) — round 4 EXECUTED and VERIFIED; **gaps found, phase NOT complete**
-Plan: 32 of 32 executed (27-29..27-32 landed 2026-08-01); UAT complete 71/71, 0 issues
-Status: Round-4 verification (2026-08-02) returns **gaps_found at 7/10**. All **eight** round-3 findings are GENUINELY closed — each re-checked by running the round-3 reproduction against the committed `.js`, not by reading the SUMMARY. **D-30 held as an allowlist** (`DQ_ESCAPE_ALLOWLIST`, `scripts/frontmatter.ts:409`, three entries, refuse-by-default; `grep -c NUMERIC_ESCAPE` = 0 — the rejected regex stayed rejected) and **D-36 landed** (`kit-model.test.ts:386` asserts `toThrow(/symlink cycle at loop\d\/agents/)`). Suite **1015 passed / 2 skipped** across 35 files, **32** committed `.js` all fresh, foundation guards exit 0 — and green proved nothing again. Three NEW blockers, every one reproduced independently twice (reviewer + orchestrator, or reviewer + verifier) against the committed artifacts.
+Phase: 27 (spawn-correctness-kit-set-authority) — round 5 EXECUTING
+Plan: 33 of 35 executed (27-33 landed 2026-08-03; 27-34 and 27-35 remain)
+Round 5 so far: **27-33 closes CR-01's fourth spelling (the DELIMITER axis) and WR-02.** The delimiter positions now declare ONE legal spelling and refuse everything else; arm 1 consults no character class at all. Proven by transcript against the committed `.js` at both ends: every ratified row (including `----`, `--- foo`, U+FE0F, U+0301, U+0378, U+E000 — the six D-42's alphabet would still have missed) went from a SILENT no-grant to a named refusal, and a mark-prefixed rogue spawn grant planted on `.claude/skills/grugops-map/SKILL.md` in a hermetic mirror went from `ALL CHECKS PASSED` at exit 0 to exit 1 naming the file. False-red cost re-measured at **0** across all 1115 tracked markdown files. The spawn-grant scan composition moved to ONE authority (`kit-model.spawnGrantScan`), pinned two-sided at **26** plus per-part SET equality — a scratch build holding the total at 26 while dropping the skills part fails red. The negative-space sweep is proven non-circular: narrowed to D-42's own alphabet it FAILS naming U+0302, a combining mark that alphabet does not contain. Suite **1035 passed / 2 skipped** across 35 files; 32 committed `.js` all fresh; foundation guards, coordinator-resolution-precheck, check-kit-refs and validate-agent-factory all exit 0.
+Prior status: Round-4 verification (2026-08-02) returns **gaps_found at 7/10**. All **eight** round-3 findings are GENUINELY closed — each re-checked by running the round-3 reproduction against the committed `.js`, not by reading the SUMMARY. **D-30 held as an allowlist** (`DQ_ESCAPE_ALLOWLIST`, `scripts/frontmatter.ts:409`, three entries, refuse-by-default; `grep -c NUMERIC_ESCAPE` = 0 — the rejected regex stayed rejected) and **D-36 landed** (`kit-model.test.ts:386` asserts `toThrow(/symlink cycle at loop\d\/agents/)`). Suite **1015 passed / 2 skipped** across 35 files, **32** committed `.js` all fresh, foundation guards exit 0 — and green proved nothing again. Three NEW blockers, every one reproduced independently twice (reviewer + orchestrator, or reviewer + verifier) against the committed artifacts.
 
 | Finding | Where | Fails |
 |---------|-------|-------|
@@ -254,6 +255,7 @@ Prior activity: 2026-07-30 — 27-22 closed WR-02 and WR-04, the last two plans-
 | Phase 27 P30 | ~30 min | 2 tasks | 5 files |
 | Phase 27 P31 | 45 min | 2 tasks | 8 files |
 | Phase 27 P32 | 11min | 2 tasks | 8 files |
+| Phase 27 P33 | 35m | 3 tasks | 8 files |
 
 ## Accumulated Context
 
@@ -276,6 +278,11 @@ Prior activity: 2026-07-30 — 27-22 closed WR-02 and WR-04, the last two plans-
 
 Decisions are logged in PROJECT.md Key Decisions table.
 Recent decisions affecting current work:
+
+- [27-33]: D-43 arm 1 consults NO character class — implemented as `startsWith(payload) && !isLegalDelimiter(...)`; the declared class is used only to NAME the offending code point in the message, and a message cannot change a verdict.
+- [27-33]: D-43 arm 2's invisible class is the complement of `{L, N, P, S}`, deliberately NOT Unicode's own `graphic` (`{L, M, N, P, S, Zs}`), which includes combining marks and would let a leading U+0301 through.
+- [27-33]: Set equality between the guard's scan and the false-red control's corpus is DOCUMENTATION OF INTENT, never an assertion — after the relocation it compares one object with itself. The two-sided cardinality (26) plus per-part SET equality against each lister are what can actually fail.
+- [27-33]: The measured coordinator grant closure is **16**, not the 17 plan 27-33 stated — the coordinator does not grant a spawn of itself. The case asserts the measured fact and derives it from that rule.
 
 - [26-06]: A2 prod-deploy-deny matcher anchored STRUCTURALLY on `"permissionDecision":"deny"` (hooks/guard.ts:90-100), NOT on quotable prose — the offline RED test proved a prose anchor false-TRUEs the `docs/dogfood-human-runbook.md:129` verbatim deny block-quote; the structural anchor closes the doc-quotation vacuity vector (T-26-A2, the terminal STRUCTURAL-fix lesson).
 - [26-06]: `claude -p --output-format json` hook-decision reachability left `UNKNOWN - verify` (help documents json only as a "single result"; a captured authed run is out of scope, GAP-D1). Structured anchor PREFERRED because it fails CLOSED (honest pending), never a vacuous prose TRUE.
