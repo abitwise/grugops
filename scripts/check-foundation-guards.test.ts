@@ -2124,6 +2124,121 @@ describe("check-foundation-guards.js (SDLC-02 / SC2 fail-proof harness)", () => 
     expect(out(r)).toContain("the pair rule compared ZERO pairs");
   });
 
+  // ── SPAWN-04: the AGGREGATOR-LEVEL mark-prefixed rogue grant, on a SKILL surface ───────────────
+  //
+  // Two independent SPAWN-04 bypasses meet here: a scan set narrower than the shipped surface (closed
+  // by task 1) and a mark-prefixed delimiter that made the parser take a silent no-grant arm (closed
+  // by plan 27-33). This case drives both through the whole aggregator rather than through either
+  // unit, on a SKILL adapter — the agent-adapter path would be caught incidentally by the unrelated
+  // `name`/`tools` floors with a WRONG diagnosis, which is exactly how such a case passes for the
+  // wrong reason.
+  //
+  // MEASURED, NOT ASSUMED, WHICH MARK PLACEMENT REFUSES. A SINGLE leading U+FEFF is the one byte this
+  // parser NORMALIZES (D-39 point 1) — it does not refuse, so the grant behind it is read and the file
+  // is convicted as a rogue spawner. TWO leading marks, and a mark TRAILING the delimiter payload,
+  // both refuse. All three outcomes are pinned below, because the difference between them is the whole
+  // content of the claim: "a mark-prefixed grant fails the gate" is true for a different REASON in
+  // each, and a case that did not distinguish them could pass while the parse-failure branch was dead.
+  const MARK = "﻿";
+  const plantMarkedGrant = (
+    root: string,
+    rel: string,
+    mode: "lead1" | "lead2" | "trail",
+  ): void => {
+    const file = join(root, rel);
+    let src = readFileSync(file, "utf8").replace(
+      /^allowed-tools:\n/m,
+      "allowed-tools:\n  - Agent(grugops-software-engineer, grugops-qe-e2e)\n",
+    );
+    if (mode === "lead1") src = `${MARK}${src}`;
+    else if (mode === "lead2") src = `${MARK}${MARK}${src}`;
+    else src = src.replace("---\n", `---${MARK}\n`);
+    writeFileSync(file, src);
+  };
+
+  for (const rel of [".claude/skills/grugops-map/SKILL.md", "skills/map/SKILL.md"]) {
+    it(`a mark-REFUSED rogue grant on ${rel} exits non-zero with the PARSE-FAILURE finding, not the name floor (SPAWN-04)`, () => {
+      for (const mode of ["lead2", "trail"] as const) {
+        const m = mirror();
+        plantMarkedGrant(m, rel, mode);
+        const r = runIn(m);
+        expect(r.status, mode).not.toBe(0);
+        const o = out(r);
+        expect(o, mode).toContain(`${rel}: frontmatter parse failure`);
+        expect(o, mode).toContain("U+FEFF");
+        // It must be the PARSE-FAILURE finding and NOT a name-floor one. Without this the case would
+        // pass on any red run, including one where the parser silently took the no-grant arm and some
+        // unrelated floor fired instead — which is the bypass shape, not its absence.
+        expect(o, mode).not.toContain(`${rel}: agent adapter carries`);
+        // And it is NEVER read as "carries no grant": the file is named, with a reason.
+        expect(o, mode).toContain(
+          'An unreadable adapter cannot be reported on, so it is NEVER read as "carries no grant"',
+        );
+      }
+    });
+
+    it(`a SINGLE leading mark on ${rel} is NORMALIZED, so the grant behind it is convicted as a rogue spawner`, () => {
+      // The one normalization this module declares (D-39 point 1). Pinned deliberately: it is the
+      // input a reader would assume refuses, and the difference between "refused" and "normalized then
+      // convicted" is the difference between two branches. Both are red; only one is the parse-failure
+      // branch.
+      const m = mirror();
+      plantMarkedGrant(m, rel, "lead1");
+      const r = runIn(m);
+      expect(r.status).not.toBe(0);
+      const o = out(r);
+      expect(o).toContain(`${rel}: non-coordinator carries a spawn grant`);
+      expect(o).not.toContain(`${rel}: frontmatter parse failure`);
+    });
+  }
+
+  // ── D-41 item 4: the name floor reports the fact it OBSERVED ───────────────────────────────────
+  //
+  // "Carries no `name` key" over a document with no frontmatter block at all sends the next author to
+  // add a key to a block that is not there. A block declaring keys without a name and a document with
+  // no block are different facts with different remedies, and telling two different facts apart is
+  // this module's founding argument.
+  const NO_BLOCK_FINDING = "agent adapter carries NO FRONTMATTER BLOCK at all";
+  const NO_NAME_FINDING = "agent adapter carries no `name` key in its frontmatter";
+
+  it("an agent adapter with NO frontmatter block produces the no-block finding", () => {
+    const m = mirror();
+    writeFileSync(
+      join(m, ".claude/agents/zz-no-block.md"),
+      "Just a body. No frontmatter block anywhere in this document.\n",
+    );
+    const o = out(runIn(m));
+    expect(o).toContain(`.claude/agents/zz-no-block.md: ${NO_BLOCK_FINDING}`);
+    expect(o).not.toContain(`.claude/agents/zz-no-block.md: ${NO_NAME_FINDING}`);
+  });
+
+  it("an agent adapter whose block declares keys but no name produces the missing-name finding", () => {
+    const m = mirror();
+    writeFileSync(
+      join(m, ".claude/agents/zz-no-name.md"),
+      "---\ndescription: A block that declares keys and no name.\ntools: Read\n---\nBody.\n",
+    );
+    const o = out(runIn(m));
+    expect(o).toContain(`.claude/agents/zz-no-name.md: ${NO_NAME_FINDING}`);
+    expect(o).not.toContain(`.claude/agents/zz-no-name.md: ${NO_BLOCK_FINDING}`);
+  });
+
+  it("the two name-floor arms produce DIFFERENT message strings", () => {
+    // Asserted as strings so a future author cannot collapse the split back into one message and keep
+    // both cases above green.
+    expect(NO_BLOCK_FINDING).not.toBe(NO_NAME_FINDING);
+    const m = mirror();
+    writeFileSync(join(m, ".claude/agents/zz-no-block.md"), "Body only.\n");
+    writeFileSync(
+      join(m, ".claude/agents/zz-no-name.md"),
+      "---\ndescription: Keys, no name.\ntools: Read\n---\nBody.\n",
+    );
+    const o = out(runIn(m));
+    // Both arms fire independently in ONE run; neither masks the other.
+    expect(o).toContain(`.claude/agents/zz-no-block.md: ${NO_BLOCK_FINDING}`);
+    expect(o).toContain(`.claude/agents/zz-no-name.md: ${NO_NAME_FINDING}`);
+  });
+
   // CTX_WORKFLOWS: plant an additional workflow matching the `NN-*.md` naming rule, carrying a raw
   // context write, and assert guard_context_writes names it. Before plan 27-03 the scan enumerated 16
   // of the 19 shipped workflows, so a 20th could never have been seen. (The planted file also takes

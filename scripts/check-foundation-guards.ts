@@ -753,7 +753,26 @@ function guardWr05(): void {
     const keys = parsedScan.get(f);
     if (keys === undefined) continue; // already reported as a parse failure
     const isAgentAdapter = AGENT_ADAPTERS.includes(f);
-    if (isAgentAdapter && !keys.has("name")) {
+    // THE NAME FLOOR, SPLIT INTO TWO ARMS (plan 27-34, D-41 item 4).
+    //
+    // It used to report "carries no `name` key in its frontmatter" for BOTH a document whose block
+    // declares keys but not a name AND a document with NO FRONTMATTER BLOCK AT ALL, which the parser
+    // returns as a successful parse with an EMPTY key set (the keyless success arm — a body-only, empty
+    // or blank-lines-only document). Those are different facts with different remedies: the first
+    // author must add a key to a block that exists, the second must add the block. Sending the second
+    // author to add a `name:` line to a block that is not there is the wrong instruction, and telling
+    // two different facts apart is this module's founding argument — the same argument the absence and
+    // emptiness arms below already make about the allow-list, and the one guard_wr05's parse-failure
+    // branch makes about a file it cannot read.
+    //
+    // WHAT CAN STILL REACH THE ZERO-KEY ARM, after plan 27-33. A near-delimiter document — an opening
+    // line that begins with the delimiter payload but is not the one legal spelling — now REFUSES in
+    // the parser and is reported by the parse-failure branch above; it never arrives here. So the
+    // zero-key arm is reached by documents that genuinely carry no frontmatter block, which is exactly
+    // what its message now says.
+    if (isAgentAdapter && keys.size === 0) {
+      wr05Fail += `\n${f}: agent adapter carries NO FRONTMATTER BLOCK at all — the parse returned zero keys for the whole document, which is a different fact from a block that declares keys without a \`name\`; Claude Code takes agent identity only from frontmatter, so add the block rather than a key to a block that is not there`;
+    } else if (isAgentAdapter && !keys.has("name")) {
       wr05Fail += `\n${f}: agent adapter carries no \`name\` key in its frontmatter — Claude Code takes agent identity only from frontmatter, so this is not a loadable agent and its spawn-grant verdict cannot be trusted`;
     }
     // TWO ARMS, ABSENCE AND EMPTINESS, for the reason plan 27-19 gave when it split the same pair on
