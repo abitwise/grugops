@@ -889,15 +889,58 @@ export function keysHaveSpawnGrant(keys) {
 // or altered name list is a silent success, and the KIT-03 closure equality would then be computed
 // over a set the document does not express. The call sites branch on the failure arm by hand, exactly
 // as they already branch on `parseFrontmatter`'s.
+//
+// (D-41 item 3, plan 27-33 — WR-02) AND THE CONTRACT ABOVE IS NOW HONOURED ON ITS OWN SUCCESS ARM.
+// The paragraph above has promised since D-32 that a name is never silently dropped or altered, and
+// the code beneath it did both. Measured against the committed parser before this edit:
+//
+//   tools: Agent(alpha, Task(beta), gamma)  ->  {ok:true, value:["Task(beta","alpha"]}
+//   tools: Agent("alpha, beta", gamma)      ->  {ok:true, value:["\"alpha","beta\"","gamma"]}
+//
+// The first DROPPED `gamma` and invented `Task(beta`, because the scoped-grant expression's class stops
+// at the first `)` and the capture truncates mid-enumeration. The second SPLIT one quoted name into
+// two altered ones, because a comma inside a quoted scalar is content and not a separator. Both
+// returned the SUCCESS arm, so the KIT-03 closure equality and coordinator-resolution-precheck's set
+// equality would each have been computed over a set the document does not express — this module's
+// founding failure, one level down, on the arm that claims to be safe.
+//
+// SO THE ENUMERATION IS EXAMINED BEFORE IT IS SPLIT, AND REFUSED RATHER THAN PARSED BETTER. A
+// quote-aware, nesting-aware split is a SECOND GRAMMAR for a value the platform's own loader reads
+// with a first, and this module's rule is one authority per predicate. Refusing is the answer that
+// cannot be wrong; parsing better is the answer that can. The scoped-grant expression itself is
+// deliberately untouched — its truncation is what this check DETECTS, and making the expression
+// cleverer would move the defect rather than close it, and would put a second grammar back where this
+// phase just deleted one.
 export function keysGrantedAgentNames(keys) {
     const names = new Set();
     for (const v of toolsValues(keys)) {
         SCOPED_GRANT.lastIndex = 0;
         let m;
         while ((m = SCOPED_GRANT.exec(v)) !== null) {
+            // (D-41 item 3) The two shapes this module cannot vouch for, named separately so the reason
+            // says which one was found.
+            if (m[1].includes("(")) {
+                return {
+                    ok: false,
+                    reason: `the grant enumeration \`${excerpt(m[1])}\` carries a nested opening parenthesis, so the capture ended at the first closing parenthesis and the tail of the enumeration would have been discarded; the granted names this document expresses are not the names these bytes were read as, so the enumeration is refused rather than returned short — a name is never silently dropped or altered`,
+                };
+            }
+            if (/["']/.test(m[1])) {
+                return {
+                    ok: false,
+                    reason: `the grant enumeration \`${excerpt(m[1])}\` carries a quote character, so the comma split is not the separator the document expresses and a quoted name containing a comma would have been returned as two altered names; the granted names this document expresses are not the names these bytes were read as, so the enumeration is refused rather than returned altered — a name is never silently dropped or altered`,
+                };
+            }
             for (const raw of m[1].split(",")) {
                 const resolved = unquoteChecked(raw.trim());
                 if (!resolved.ok) {
+                    // (Plan 27-33) NOTE FOR A FUTURE READER: the quote refusal above is strictly broader than
+                    // "this fragment is quoted", so within THIS function the escape refusal below is now
+                    // unreachable — an enumeration carrying a backslash sequence inside a quoted scalar carries
+                    // the quote first and refuses there, with a reason naming the quote rather than the escape.
+                    // It is kept rather than deleted because it enforces the D-32 allowlist decision at this
+                    // call site and would become reachable again the moment the check above is narrowed. It is
+                    // NOT a second opinion: it cannot disagree with the check above, only follow it.
                     return {
                         ok: false,
                         reason: `the grant fragment \`${excerpt(raw.trim())}\` carries the backslash sequence \`${resolved.escape}\` inside a double-quoted scalar, and that sequence is not one of the three escapes this module resolves; the granted name this document expresses is not the text these bytes spell, so the enumeration is refused on the same argument as an anchor or alias — a name is never silently dropped or altered`,

@@ -47,6 +47,7 @@ import {
 // answered a second time, which is the class D-28, D-37 and D-40 each collapsed once inside this phase
 // and the class CR-03 itself belongs to.
 import {
+  listAgentAdapters,
   spawnGrantScan,
   SPAWN_GRANT_SCAN_COUNT,
   SPAWN_GRANT_SCAN_PARTS,
@@ -1019,6 +1020,99 @@ describe("frontmatter — the spawn-grant parser oracle (SPAWN-04 / KIT-03)", ()
       ESCAPE_ALPHABET.length * ESCAPE_PLACEMENTS.length * 3,
     );
     expect(checked).toBe(855);
+  });
+
+  // ── WR-02 / D-41 item 3 — the grant enumeration this module cannot vouch for ───────────────────
+  //
+  // These sit beside the escape-refusal sweep above because they are the same argument one level
+  // down: a value this module reads WRONG must reach the caller as a parse artifact, never as a
+  // shorter or altered success. `keysGrantedAgentNames`'s doc block has promised since D-32 that a
+  // name is never silently dropped or altered; measured against the committed parser before this
+  // edit, it did both.
+
+  it("D-41 item 3 — a grant enumeration carrying a NESTED PARENTHESIS refuses instead of returning a name list short (WR-02, reproduced)", () => {
+    // RED, measured against the committed .js before this edit:
+    //   {"ok":true,"value":["Task(beta","alpha"]}  —  `gamma` DROPPED, `Task(beta` invented.
+    // SCOPED_GRANT's character class stops at the first `)`, so the capture truncates mid-enumeration.
+    const text = "---\nname: x\ntools: Agent(alpha, Task(beta), gamma)\n---\nBody.\n";
+    const names = grantedAgentNames(text);
+    expect(names.ok).toBe(false);
+    if (names.ok) return;
+    expect(names.reason).toContain("nested opening parenthesis");
+    expect(names.reason).toContain("discarded");
+    // The module's established closing clause, kept verbatim so this refusal reads as the same
+    // argument the escape refusal already makes.
+    expect(names.reason).toContain("a name is never silently dropped or altered");
+    // The arm that would have been taken before the fix.
+    expect(names).not.toEqual({ ok: true, value: ["Task(beta", "alpha"] });
+
+    // The grant itself is still a grant — only the ENUMERATION is unreadable, and this file is still
+    // a rogue spawner if it is not the coordinator.
+    expect(hasSpawnGrant(text)).toEqual({ ok: true, value: true });
+  });
+
+  it("D-41 item 3 — a grant enumeration carrying a QUOTE refuses instead of returning altered names (WR-02, reproduced)", () => {
+    // RED, measured against the committed .js before this edit:
+    //   {"ok":true,"value":["\"alpha","beta\"","gamma"]}  —  ONE name split into TWO altered ones.
+    // A comma inside a quoted scalar is content, not a separator.
+    const dq = '---\nname: x\ntools: Agent("alpha, beta", gamma)\n---\nBody.\n';
+    const sq = "---\nname: x\ntools: Agent('alpha, beta', gamma)\n---\nBody.\n";
+    for (const text of [dq, sq]) {
+      const names = grantedAgentNames(text);
+      expect(names.ok, text).toBe(false);
+      if (names.ok) continue;
+      expect(names.reason, text).toContain("quote character");
+      expect(names.reason, text).toContain("not the separator the document expresses");
+      expect(names.reason, text).toContain(
+        "a name is never silently dropped or altered",
+      );
+    }
+    expect(grantedAgentNames(dq)).not.toEqual({
+      ok: true,
+      value: ['"alpha', 'beta"', "gamma"],
+    });
+  });
+
+  it("D-41 item 3 false-red control — the REAL coordinator's own enumeration still returns the success arm, by count and by membership", () => {
+    // The enumerated grant the live coordinator ships. If the refusal above were even slightly too
+    // broad this is the file it would break, and it is the file whose grant closure the KIT-03 oracle
+    // and coordinator-resolution-precheck both compute set equality over.
+    //
+    // THE MEASURED CARDINALITY IS 16, NOT 17. Plan 27-33 called it "the seventeen-name grant"; the
+    // live file grants the seventeen agent adapters MINUS THE COORDINATOR ITSELF, because a
+    // coordinator does not spawn a second copy of itself. The membership assertion below states that
+    // rule rather than restating a number, so the count follows from the rule instead of being a
+    // magic literal that the next adapter added would silently falsify.
+    const root = join(import.meta.dirname, "..");
+    const coordinator = readFileSync(
+      join(root, ".claude/agents/grugops-orchestrator.md"),
+      "utf8",
+    );
+    const names = grantedAgentNames(coordinator);
+    expect(names.ok).toBe(true);
+    if (!names.ok) return;
+    const expectedClosure = listAgentAdapters(root)
+      .map((rel) => rel.replace(/\.md$/, ""))
+      .filter((n) => n !== "grugops-orchestrator")
+      .sort();
+    expect(names.value).toEqual(expectedClosure);
+    expect(names.value.length).toBe(16);
+    expect(names.value).toContain("grugops-software-engineer");
+    expect(names.value).toEqual([...names.value].sort());
+
+    // Every ordinary enumeration the generator actually emits still succeeds, de-duplicated + sorted.
+    const ordinary =
+      "---\nname: x\ntools: Read, Agent(grugops-qe-e2e, grugops-installer, grugops-qe-e2e), Bash\n---\n";
+    expect(grantedAgentNames(ordinary)).toEqual({
+      ok: true,
+      value: ["grugops-installer", "grugops-qe-e2e"],
+    });
+
+    // An UNSCOPED grant still enumerates nothing and still returns the SUCCESS arm with an empty
+    // list — that is a real fact about the grant, and the KIT-03 oracle names a zero-length closure
+    // as its own failure rather than treating it as a parse artifact.
+    const unscoped = "---\nname: x\ntools: Read, Agent\n---\n";
+    expect(grantedAgentNames(unscoped)).toEqual({ ok: true, value: [] });
   });
 
   it("holds identically under the skill form of the key (allowed-tools), across all scalar forms", () => {
