@@ -1483,6 +1483,233 @@ describe("frontmatter — the spawn-grant parser oracle (SPAWN-04 / KIT-03)", ()
     expect(hasSpawnGrant(inBody)).toEqual({ ok: true, value: false });
   });
 
+  // ── THE DELIMITER AXIS (D-39 + D-43 — 27-REVIEW-GAPS-4 § CR-01, round 4) ──────────────────────
+  //
+  // The FOURTH spelling of this module's founding failure, and the last silent-success arm it had.
+  // `parseFrontmatter` routed the whole COMPLEMENT of its delimiter test into the keyless success arm,
+  // so `----`, `--- foo` and a delimiter carrying any invisible, combining, unassigned or private-use
+  // code point all returned `{ ok: true, value: false }` on a document carrying a live spawn grant.
+  //
+  // THE ROWS BELOW ARE THE RATIFIED TABLE, and four of them are the ones D-42's alphabet would still
+  // have missed — that is why they are named individually rather than only swept. Each row carries the
+  // code point its refusal must NAME, so a future narrowing fails on the reason and not merely on the
+  // arm.
+
+  // The offending opening/closing lines, with the code point the refusal must name. Built with
+  // String.fromCodePoint rather than pasted literals so the intent survives an editor normalizing the
+  // source file (a combining mark next to a dash is exactly the byte an editor is tempted to move).
+  const DELIMITER_ROWS: readonly {
+    label: string;
+    line: string;
+    codePoint: string;
+    arm: 1 | 2;
+  }[] = [
+    // Arm 1 — begins with the payload and is not the one legal spelling.
+    {
+      label: "U+FE0F VARIATION SELECTOR-16 (Mn — OUTSIDE D-42's alphabet)",
+      line: `---${String.fromCodePoint(0xfe0f)}`,
+      codePoint: "U+FE0F",
+      arm: 1,
+    },
+    {
+      label: "U+0301 COMBINING ACUTE (Mn — OUTSIDE D-42's alphabet)",
+      line: `---${String.fromCodePoint(0x301)}`,
+      codePoint: "U+0301",
+      arm: 1,
+    },
+    {
+      label: "U+0378 unassigned (Cn — OUTSIDE D-42's alphabet)",
+      line: `---${String.fromCodePoint(0x378)}`,
+      codePoint: "U+0378",
+      arm: 1,
+    },
+    {
+      label: "U+E000 private use (Co — OUTSIDE D-42's alphabet)",
+      line: `---${String.fromCodePoint(0xe000)}`,
+      codePoint: "U+E000",
+      arm: 1,
+    },
+    // The two payload variants carrying NO unusual code point at all. Common frontmatter readers
+    // accept both, and no prior decision or review in this phase named either.
+    { label: "`----` (an extra dash)", line: "----", codePoint: "U+002D", arm: 1 },
+    {
+      label: "`--- foo` (the payload followed by ordinary text)",
+      line: "--- foo",
+      codePoint: "U+0066",
+      arm: 1,
+    },
+    // The two D-42 DID cover — kept so this set is a superset of what the rejected alphabet swept.
+    {
+      label: "U+E0020 TAG SPACE (Cf — inside D-42's alphabet)",
+      line: `---${String.fromCodePoint(0xe0020)}`,
+      codePoint: "U+E0020",
+      arm: 1,
+    },
+    {
+      label: "U+200B ZERO WIDTH SPACE (Cf — inside D-42's alphabet)",
+      line: `---${String.fromCodePoint(0x200b)}`,
+      codePoint: "U+200B",
+      arm: 1,
+    },
+    // Arm 2 — leading residue that renders no glyph, in front of an otherwise legal delimiter.
+    {
+      label: "a LEADING space",
+      line: " ---",
+      codePoint: "U+0020",
+      arm: 2,
+    },
+    {
+      label: "a LEADING combining acute (arm 2's class must not be D-42's)",
+      line: `${String.fromCodePoint(0x301)}---`,
+      codePoint: "U+0301",
+      arm: 2,
+    },
+    {
+      label: "a LEADING private-use code point",
+      line: `${String.fromCodePoint(0xe000)}---`,
+      codePoint: "U+E000",
+      arm: 2,
+    },
+  ];
+
+  // The rest of a document whose `tools` value is unambiguously a grant. The load-bearing half of
+  // every row below is that the REFUSAL arm is reached instead of `{ ok: true, value: false }`.
+  const GRANTING_TAIL = "name: x\ntools: Read, Agent(grugops-installer)\n";
+
+  it("D-43 — every ratified offending row REFUSES at the OPENING position, naming its code point (four of them OUTSIDE D-42's alphabet)", () => {
+    for (const row of DELIMITER_ROWS) {
+      const text = `${row.line}\n${GRANTING_TAIL}---\nBody.\n`;
+      const parsed = parseFrontmatter(text);
+      expect(parsed.ok, row.label).toBe(false);
+      if (parsed.ok) continue;
+      expect(parsed.reason, row.label).toContain("opening delimiter position");
+      expect(parsed.reason, row.label).toContain(row.codePoint);
+
+      // The arm that would have been taken before the fix. `not.toEqual` is the assertion that
+      // actually encodes the defect: a shorter or absent grant is the silent-success arm.
+      const grant = hasSpawnGrant(text);
+      expect(grant.ok, row.label).toBe(false);
+      expect(grant, row.label).not.toEqual({ ok: true, value: false });
+      expect(grantedAgentNames(text), row.label).not.toEqual({
+        ok: true,
+        value: [],
+      });
+    }
+  });
+
+  it("D-39 point 5 — the SAME line at the CLOSING position produces the SAME named refusal, not the `opened and never closed` diagnosis", () => {
+    for (const row of DELIMITER_ROWS) {
+      // Arm 2's leading-residue rows are constructed at the closing position too: an invisible prefix
+      // in front of a legal closing delimiter is the same fact one position over.
+      const text = `---\n${GRANTING_TAIL}${row.line}\nBody.\n`;
+      const parsed = parseFrontmatter(text);
+      expect(parsed.ok, row.label).toBe(false);
+      if (parsed.ok) continue;
+      expect(parsed.reason, row.label).toContain("closing delimiter position");
+      expect(parsed.reason, row.label).toContain(row.codePoint);
+      // The asymmetry that is now dead: the identical byte used to fail OPEN with a keyless success
+      // and fail CLOSED with a misleading unterminated-block reason.
+      expect(parsed.reason, row.label).not.toMatch(/never closed/);
+    }
+  });
+
+  it("D-43 — the `...` closing payload answers to the SAME rule as `---` (no second grammar in the delimiter region)", () => {
+    // Legal: the document-end payload with only declared-class residue.
+    const legal = "---\nname: x\ntools: Read, Agent(grugops-installer)\n...  \nBody.\n";
+    expect(hasSpawnGrant(legal)).toEqual({ ok: true, value: true });
+
+    // Illegal: it begins with the payload and is not legal, so it refuses like every other row.
+    for (const [line, cp] of [
+      ["....", "U+002E"],
+      ["... foo", "U+0066"],
+      [`...${String.fromCodePoint(0x301)}`, "U+0301"],
+    ] as const) {
+      const text = `---\nname: x\ntools: Read, Agent(grugops-installer)\n${line}\nBody.\n`;
+      const parsed = parseFrontmatter(text);
+      expect(parsed.ok, line).toBe(false);
+      if (!parsed.ok) expect(parsed.reason, line).toContain(cp);
+    }
+  });
+
+  it("D-43 positive controls — a bare delimiter, trailing spaces and a trailing tab each OPEN a block and return their keys", () => {
+    for (const [label, open] of [
+      ["bare", "---"],
+      ["trailing spaces", "---   "],
+      ["trailing tab", "---\t"],
+      ["trailing space AND tab", "--- \t "],
+    ] as const) {
+      const text = `${open}\nname: x\ntools: Read, Agent(grugops-installer)\n${open}\nBody.\n`;
+      const parsed = parseFrontmatter(text);
+      expect(parsed.ok, label).toBe(true);
+      if (!parsed.ok) continue;
+      expect([...parsed.value.keys()], label).toEqual(["name", "tools"]);
+      expect(hasSpawnGrant(text), label).toEqual({ ok: true, value: true });
+      expect(grantedAgentNames(text), label).toEqual({
+        ok: true,
+        value: ["grugops-installer"],
+      });
+    }
+  });
+
+  it("D-39 point 1 — ONE leading byte-order mark parses identically to the same document without it; a SECOND one refuses", () => {
+    const BOM = String.fromCodePoint(0xfeff);
+    const plain = "---\nname: x\ntools: Read, Agent(grugops-installer)\n---\nBody.\n";
+
+    // The normalization: one mark, at position zero, removed once. A mark-prefixed adapter is LOADED
+    // by the platform rather than inert, so reading it as keyless would be the silent-success arm.
+    const marked = `${BOM}${plain}`;
+    expect(parseFrontmatter(marked)).toEqual(parseFrontmatter(plain));
+    expect(hasSpawnGrant(marked)).toEqual({ ok: true, value: true });
+
+    // The deliberate non-normalization: a SECOND mark is not stripped. "Strip every mark" would be a
+    // decode this module does not perform, so the residue falls to arm 2 and refuses by name.
+    const twice = `${BOM}${BOM}${plain}`;
+    const parsed = parseFrontmatter(twice);
+    expect(parsed.ok).toBe(false);
+    if (!parsed.ok) {
+      expect(parsed.reason).toContain("U+FEFF");
+      expect(parsed.reason).toContain("opening delimiter position");
+    }
+    expect(hasSpawnGrant(twice)).not.toEqual({ ok: true, value: false });
+
+    // The mark is removed only at POSITION ZERO. One sitting after the payload is arm-1 residue.
+    const trailing = `---${BOM}\nname: x\ntools: Read, Agent(grugops-installer)\n---\n`;
+    const pTrailing = parseFrontmatter(trailing);
+    expect(pTrailing.ok).toBe(false);
+    if (!pTrailing.ok) expect(pTrailing.reason).toContain("U+FEFF");
+  });
+
+  it("D-39 point 4 / D-34 false-red control — a body-only document, an EMPTY document and a document of blank lines only all still reach the keyless SUCCESS arm", () => {
+    // None of these BEGINS with the payload, which is precisely what the refusal keys on. Turning one
+    // of them red would trade a silent success for a false red — the worse of the two.
+    for (const [label, text] of [
+      ["body-only", "# Heading\n\nJust body prose.\n"],
+      ["empty", ""],
+      ["blank lines only", "\n\n   \n\t\n"],
+      ["a body line that MENTIONS a delimiter", "See the --- separator below.\n"],
+      ["a dash bullet", "- item\n- item\n"],
+      ["a setext underline after text", "Title\n---\n"],
+    ] as const) {
+      const parsed = parseFrontmatter(text);
+      expect(parsed.ok, label).toBe(true);
+      if (parsed.ok) expect(parsed.value.size, label).toBe(0);
+      expect(hasSpawnGrant(text), label).toEqual({ ok: true, value: false });
+    }
+  });
+
+  it("D-43 ordering edge — the refusal fires on the FIRST offending position and two runs over one input are byte-identical", () => {
+    // Two offending lines in one document: the reported one must be the FIRST, deterministically.
+    const text = `----\nname: x\n--- foo\ntools: Read, Agent(grugops-installer)\n---\n`;
+    const a = parseFrontmatter(text);
+    const b = parseFrontmatter(text);
+    expect(a).toEqual(b);
+    expect(a.ok).toBe(false);
+    if (!a.ok) {
+      expect(a.reason).toContain("U+002D"); // the `----` row, not the `--- foo` one
+      expect(a.reason).toContain("opening delimiter position");
+    }
+  });
+
   it("D-34 empty edge — the three input states stay exactly THREE, with the directive-prefixed document moved from the second into the third", () => {
     const withKeys = "---\nname: x\ntools: Read, Agent(o)\n---\nBody.\n";
     const noBlock = "# Heading\n\nJust body prose.\n";
