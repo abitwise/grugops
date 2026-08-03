@@ -1608,15 +1608,43 @@ if (VERIFY_FINDINGS > 0) {
   // The scan stays exact and the prose works around it; a future author who writes the literal back
   // in — in code or in a comment — gets a loud red naming the file, which is the safe direction.
   //
-  // This assignment is safe here and ONLY here without further thought: the if/else it closes is
-  // the LAST statement of the module, so setting the code and falling off the end is byte-for-byte
-  // the same control flow, and Node flushes stdout before exiting on its own. The six other
-  // `process.exit()` sites (lines ~111, 509, 528, 544, 576, 1386) are mid-script and rely on
-  // exit()'s stop-here semantics, so a blind sweep to `exitCode` would let the script RUN ON past
-  // a refusal — a worse defect than the one being fixed. They carry the same truncation hazard in
-  // principle and none of them is proven to reach a flush boundary today (each emits kilobytes,
-  // not megabytes). RECORDED AS A KNOWN RESIDUAL, not silently left: closing them needs one
-  // `finish(code)` authority that sets the code AND still halts, which is a separate change.
+  // This assignment is safe here without further thought: the if/else it closes is the LAST
+  // statement of the module, so setting the code and falling off the end is byte-for-byte the same
+  // control flow, and Node flushes stdout before exiting on its own.
+  //
+  // EVERY TAIL POSITION ON THIS SURFACE NOW SETS THE CODE (D-41, closing WR-01). The D-35 fix
+  // reached ONE of the THREE exit-after-report tails and left the note here claiming a completeness
+  // it did not have. All three are converted now, each confirmed to be the last statement after its
+  // own reporting: THIS branch, install/uninstall.ts's INCOMPLETE branch (the last statement of that
+  // module), and scripts/coordinator-resolution-precheck.ts's tail (the last statement of that one,
+  // sitting after its cleanup block, so nothing was relying on a stop-here). The truncation on the
+  // two later conversions is NOT reproduced — both emit kilobytes rather than the megabyte that made
+  // this one's race observable — so what was fixed there is the INCOMPLETE FIX, not a measured
+  // truncation, and the record says so rather than over-claiming.
+  //
+  // THE STANDING RESIDUAL, SCOPED TO WHAT IT ACTUALLY COVERS. SIX `process.exit()` sites remain in
+  // this file. Every one of them is MID-SCRIPT and relies on stop-here semantics, so a blind sweep
+  // to `exitCode` would let the script RUN ON past a refusal — a worse defect than the one being
+  // fixed. They carry the same truncation hazard in principle and none is proven to reach a flush
+  // boundary today (each emits kilobytes, not megabytes). RECORDED AS A KNOWN RESIDUAL, not silently
+  // left: closing them needs one `finish(code)` authority that sets the code AND still halts, which
+  // is a separate change.
+  //
+  // THAT RESIDUAL IS A COUNT, NOT A LIST OF LINE NUMBERS, AND THE LIST WAS DELETED ON EVIDENCE. This
+  // note used to name each of the six by line number. Every one of those numbers had drifted from
+  // the site it named by the time anyone read them back, and one had drifted in the OPPOSITE
+  // direction to the rest, so not even a constant offset would have recovered them. The measurement
+  // is recorded in 27-35-SUMMARY.md rather than repeated here, deliberately: quoting a rotted list
+  // as evidence still puts numbers in front of a reader who may trust them, which is the failure
+  // being deleted rather than a description of it. A hand-maintained list of line numbers inside a
+  // comment is a set literal that rots exactly like the ones this milestone exists to delete — stale
+  // when it was read and stale again after the next edit above it.
+  //
+  // WHAT REPLACES IT is the COUNT plus the stable fact that identifies the class — mid-script,
+  // relying on stop-here semantics — neither of which can go out of date by a line. The count is
+  // PINNED by an assertion in install.test.ts, so a silent sweep of those six fails loudly instead
+  // of passing. That assertion filters comment lines: a raw grep returns SEVEN, because the
+  // paragraph above must spell the call once to name what it is describing.
   process.exitCode = 3;
 } else {
   console.log(`\n== install complete${DRY_RUN ? " (DRY_RUN — nothing changed)" : ""} ==`);

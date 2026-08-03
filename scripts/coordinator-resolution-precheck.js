@@ -121,8 +121,8 @@ const BACKSTOP_SLOTS = [
 // Failure carrier
 // ---------------------------------------------------------------------------
 // A failed observable precondition. Thrown rather than exited so the scratch directories are removed
-// by one finally block on every path — process.exit() inside a try skips finally, which is exactly
-// how a cleanup gets silently lost.
+// by one finally block on every path — terminating the process from inside a try skips that finally,
+// which is exactly how a cleanup gets silently lost.
 class PreconditionFailure extends Error {
 }
 // A function DECLARATION with an explicit `never` return, not a const arrow: only that form lets the
@@ -443,4 +443,17 @@ finally {
     // there is no human step to serve when a precondition failed.
     cleanup(code === 0 && keepScratch);
 }
-process.exit(code);
+// THE TAIL SETS THE CODE RATHER THAN TERMINATING IMMEDIATELY (D-41, WR-01) — the third and last of
+// the exit-after-report tails on this surface, converted with install.ts's and uninstall.ts's.
+//
+// THE MECHANISM. Node's `process.stdout` is ASYNCHRONOUS when it is a PIPE, and terminating the
+// process immediately discards whatever is still queued on it. This script REPORTS before it
+// finishes — a precondition failure, its remedy, and the observation prompts above — and every one
+// of those lines is the queued half that vanishes while the status survives. Assigning the code
+// lets Node flush and exit on its own, so the report and the status are delivered together.
+//
+// THE CONTROL FLOW IS UNCHANGED, CONFIRMED BY READING RATHER THAN ASSUMED. This is the LAST
+// statement of the module and it sits AFTER the finally block above, so the cleanup has already run
+// by the time control arrives here; there is nothing left for a stop-here semantic to protect. The
+// status for every outcome this script reports is exactly what it was.
+process.exitCode = code;

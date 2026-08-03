@@ -2458,17 +2458,106 @@ describe("install.js / uninstall.js — single-installer contract (folds install
   // exact anchor rather than a heuristic, and the paired positive assertion stops the fix from being
   // "deleted" instead of "corrected". Both files are asserted because the committed .js is what runs
   // on a host and the freshness gate cannot tell a faithful build of a WRONG source from a right one.
-  it("the INCOMPLETE exit sets exitCode so an async stdout pipe FLUSHES — never process.exit (D-35, WR-01)", () => {
+  //
+  // AND THAT LAST SENTENCE IS AN ARGUMENT FOR FOUR PATHS, NOT TWO (D-41, WR-01). The scan covered
+  // install.ts and install.js while install/uninstall.ts kept the immediate-exit form for a whole
+  // round — under a comment asserting the two signals could not diverge. "The committed .js is what
+  // runs on a host" is exactly as true of the uninstaller as of the installer, so the loop now runs
+  // over BOTH binaries in BOTH forms: source and committed artifact, installer and uninstaller. The
+  // uninstaller's banner is the same banner, its pipe is the same pipe, and it was left out of the
+  // scan for no reason anyone wrote down.
+  it("every INCOMPLETE exit sets exitCode so an async stdout pipe FLUSHES — install AND uninstall, source AND committed (D-35, D-41, WR-01)", () => {
     for (const [label, path] of [
       ["install.ts", join(import.meta.dirname, "install.ts")],
       ["install.js", INSTALL_JS],
+      ["uninstall.ts", join(import.meta.dirname, "uninstall.ts")],
+      ["uninstall.js", UNINSTALL_JS],
     ] as const) {
       const src = readFileSync(path, "utf8");
       // The defect, by name: exit(3) is the INCOMPLETE branch's exit and nothing else's.
       expect(`${label}: ${src.includes("process.exit(3)")}`).toBe(`${label}: false`);
       // The fix, by name: the code is still SET, so a chained `install.js && next-step` still stops.
+      // BOTH halves are kept for every path so the fix cannot be "deleted" instead of "corrected".
       expect(`${label}: ${src.includes("process.exitCode = 3")}`).toBe(`${label}: true`);
     }
+  });
+
+  // THE PRECHECK'S TAIL NEEDS ITS OWN ASSERTION, BECAUSE THE EXACT-SUBSTRING ANCHOR DOES NOT REACH
+  // IT (D-41, WR-01). The loop above works because `process.exit(3)` is a LITERAL that occurred
+  // exactly once per file, which makes its absence an exact anchor. The precheck's tail carried a
+  // VARIABLE — the code is computed from the run's outcome — so there is no single literal to anchor
+  // on and the same scan would say nothing about it. Asserted separately, in both its forms, for the
+  // same reason the loop asserts both of the installer's: the committed .js is what runs on a host.
+  it("the precheck's tail sets exitCode too — source AND committed (D-41, WR-01)", () => {
+    for (const [label, path] of [
+      ["coordinator-resolution-precheck.ts", join(REPO_ROOT, "scripts", "coordinator-resolution-precheck.ts")],
+      ["coordinator-resolution-precheck.js", join(REPO_ROOT, "scripts", "coordinator-resolution-precheck.js")],
+    ] as const) {
+      const src = readFileSync(path, "utf8");
+      expect(`${label}: ${src.includes("process.exit(code)")}`).toBe(`${label}: false`);
+      expect(`${label}: ${src.includes("process.exitCode = code")}`).toBe(`${label}: true`);
+    }
+  });
+
+  // THE SIX MID-SCRIPT SITES ARE PINNED AS A COUNT, BECAUSE THE RESIDUAL NOTE NO LONGER LISTS THEM
+  // (D-41). install.ts's known-residual note used to name them by LINE NUMBER — "~111, 509, 528,
+  // 544, 576, 1386" — and every one of the six had drifted by the time it was read: measured at 112,
+  // 510, 529, 545, 572 and 1382, with 576 drifting in the OPPOSITE direction to the rest. A
+  // hand-maintained list of line numbers inside a comment is a set literal that rots exactly like the
+  // ones this milestone deletes, so the list is gone and the COUNT is pinned here instead. A silent
+  // sweep of those six to `exitCode` — which would let the script run on past a refusal, a worse
+  // defect than the one being fixed — now fails loudly rather than passing.
+  //
+  // THE COUNT IS TAKEN OVER COMMENT-FILTERED LINES, DELIBERATELY. A raw count returns SEVEN, because
+  // the residual note's own prose must spell the call once to describe what it is describing. The
+  // filtered count is the one that means "call sites", and it is the one asserted.
+  it("the six MID-SCRIPT exit sites are NOT swept — the residual is a pinned count, not a rotted line list (D-41)", () => {
+    const src = readFileSync(join(import.meta.dirname, "install.ts"), "utf8");
+    const codeLines = src.split("\n").filter((l) => !/^\s*\/\//.test(l));
+    const callSites = codeLines.filter((l) => l.includes("process.exit(")).length;
+    // SIX, the MEASURED pre-task number, unchanged by this plan's conversions.
+    expect(`mid-script exit sites: ${callSites}`).toBe("mid-script exit sites: 6");
+    // ...and the raw count is SEVEN, which is the fact that makes the filter necessary rather than
+    // cosmetic. Pinned so a future author who deletes the filter sees why it was there.
+    const raw = src.split("\n").filter((l) => l.includes("process.exit(")).length;
+    expect(`raw occurrences including prose: ${raw}`).toBe("raw occurrences including prose: 7");
+    // THE ROTTED LIST IS GONE, NOT SOFTENED — and not quoted back as evidence either. A note that
+    // reprints the stale numbers to explain why it deleted them still puts numbers in front of a
+    // reader who may trust them. The measurement lives in 27-35-SUMMARY.md; this asserts that no
+    // run of three or more line-number-shaped integers survives anywhere in install.ts.
+    const numberList = /\b\d{2,4}, ~?\d{2,4}, ~?\d{2,4}/.test(src);
+    expect(`install.ts still carries a line-number list: ${numberList}`).toBe(
+      "install.ts still carries a line-number list: false",
+    );
+  });
+
+  // THE BEHAVIOURAL PIN FOR THE UNINSTALLER: THE BANNER SURVIVES A PIPE (D-41, WR-01). The scan
+  // above asserts the SHAPE; this asserts the OUTCOME the shape exists for. spawnSync gives the
+  // child a PIPE for stdout — which is the exact condition under which the discarded-output failure
+  // occurs and a terminal does not — so this case runs the committed uninstaller over a throwaway
+  // target that produces a verification finding and asserts BOTH signals arrive: the status AND the
+  // banner. The banner is the half the immediate-exit form was measured to drop.
+  it("the committed uninstaller through a PIPE delivers BOTH signals: exit 3 AND the INCOMPLETE banner (D-41, WR-01)", () => {
+    const src = makeSyntheticSrc();
+    const target = mkTmp();
+    const home = mkTmp();
+    writeFileSync(join(target, "CLAUDE.md"), "# User Project\n");
+    // Install first, so there is something to reverse and the run is a realistic one.
+    expect(runInstallFrom(src, target, home).status).toBe(0);
+
+    // Now make the uninstaller's SOURCE unreadable, which is a removal class it must skip and
+    // REPORT — the documented way this binary reaches its INCOMPLETE branch.
+    rmSync(join(src, ".claude", "agents"), { recursive: true, force: true });
+    writeFileSync(join(src, ".claude", "agents"), "not a directory\n");
+
+    const r = runUninstallFrom(src, target, home);
+    // BOTH HALVES, ASSERTED SEPARATELY. The status alone always survived — that is precisely why
+    // the defect was invisible — so asserting it without the banner would restate the bug's own
+    // best-case reading.
+    expect(r.status).toBe(3);
+    expect(r.stdout).toContain("== uninstall INCOMPLETE");
+    expect(r.stdout).toContain("item(s) need verification");
+    expect(r.stdout).not.toContain("== uninstall complete");
   });
 
   // ── WR-04 (Plan 27-13) — `runnable removal`: every installed file has a removal counterpart ───

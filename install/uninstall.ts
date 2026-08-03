@@ -727,7 +727,37 @@ if (VERIFY_FINDINGS > 0) {
   // Set on the SAME branch that prints the banner so the two signals cannot diverge. The two
   // banners were written as one rule; applying the exit code to only one half would leave the pair
   // disagreeing.
-  process.exit(3);
+  //
+  // AND THE CLAIM ABOVE IS NOW TRUE, WHICH IT WAS NOT WHEN IT WAS FIRST WRITTEN (D-41, WR-01). The
+  // paragraph above has always asserted that the human-readable banner and the machine-readable
+  // status CANNOT DIVERGE. Under the immediate-exit form they could, and this file kept that form
+  // for a whole round after D-35 fixed its twin — so the comment asserted a parity the code beneath
+  // it did not have, which is worse than no comment: a reader who trusts it stops checking.
+  //
+  // THE MECHANISM THAT MAKES THE PARITY REAL, STATED HERE RATHER THAN ASSUMED. Node's
+  // `process.stdout` is ASYNCHRONOUS when it is a PIPE, and terminating the process immediately
+  // discards whatever is still queued on it. That drops the human-readable half — up to and
+  // INCLUDING the banner three lines above — while the status is delivered by the kernel and always
+  // survives. So the two signals diverged in exactly one direction: a machine saw INCOMPLETE and a
+  // human saw nothing, silently, and only on a pipe (CI, `uninstall.js | tee`, any wrapping
+  // script), which is why a terminal never showed it. Measured on the installer's identical tail:
+  // 8 runs, 2 truncated at 223102 and 520729 bytes against a full 1065689, status 3 intact in all
+  // eight. Assigning the code instead lets Node flush stdout and exit on its own, so the banner and
+  // the status are delivered by the same completion rather than racing it — and a chained
+  // `uninstall.js && next-step` still stops, because the code is still SET.
+  //
+  // SAFE HERE FOR THE SAME REASON IT WAS SAFE THERE, CONFIRMED BY READING RATHER THAN ASSUMED: the
+  // if/else this closes is the LAST statement of this module, so setting the code and falling off
+  // the end is byte-for-byte the same control flow. The two OTHER sites in this file are mid-script
+  // and are deliberately NOT swept — they rely on stop-here semantics, and converting them blindly
+  // would let the script RUN ON past a refusal, a worse defect than the one being fixed.
+  //
+  // DO NOT SPELL THE OLD CALL ANYWHERE IN THIS FILE, EVEN IN PROSE — the same rule install.ts's
+  // tail carries and for the same reason. The regression case in install.test.ts is a deliberately
+  // DUMB exact-substring scan across all four artifacts, because a scan smart enough to tell code
+  // from a comment is a parser and a parser that can under-match is the failure this phase has
+  // shipped repeatedly. The scan stays exact and the prose works around it.
+  process.exitCode = 3;
 } else {
   console.log(`\n== uninstall complete${DRY_RUN ? " (DRY_RUN — nothing changed)" : ""} ==`);
 }
