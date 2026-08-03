@@ -1736,6 +1736,182 @@ describe("frontmatter — the spawn-grant parser oracle (SPAWN-04 / KIT-03)", ()
     }
   });
 
+  // ── THE D-44 COMPOSITE ANCHORS ────────────────────────────────────────────────────────────────
+  //
+  // Each row below was MEASURED returning `{ ok: true, value: false }` against the committed
+  // scripts/frontmatter.js before the D-44 classifier landed — a live `Agent(grugops-orchestrator)`
+  // grant read as an absence of keys — and each reported the misleading `opened and never closed`
+  // diagnosis at the CLOSING position. They carry BOTH leading invisible residue AND illegal trailing
+  // residue, which is precisely what the two refusal arms that preceded the classifier did not cover
+  // between them: arm 1 required `startsWith(payload)` at position zero, arm 2 required a FULLY LEGAL
+  // delimiter after the residue, and the composite satisfied neither.
+  //
+  // These are ANCHORS, not the pin. The pin is the three-axis cross-product below, which was built
+  // without reference to the classifier's internals. These rows exist so a future failure names the
+  // exact spelling the round-5 review reproduced, rather than only a cell index.
+  const COMPOSITE_ROWS: readonly {
+    label: string;
+    line: string;
+    leading: string;
+    trailing: string;
+  }[] = [
+    {
+      label: "ZWSP + `---` + ZWSP",
+      line: `${String.fromCodePoint(0x200b)}---${String.fromCodePoint(0x200b)}`,
+      leading: "U+200B",
+      trailing: "U+200B",
+    },
+    {
+      label: "ZWSP + `----`",
+      line: `${String.fromCodePoint(0x200b)}----`,
+      leading: "U+200B",
+      trailing: "U+002D",
+    },
+    {
+      label: "NBSP + `----`",
+      line: `${String.fromCodePoint(0xa0)}----`,
+      leading: "U+00A0",
+      trailing: "U+002D",
+    },
+    {
+      label: "BOM x2 + `---` + ZWSP",
+      line: `${String.fromCodePoint(0xfeff)}${String.fromCodePoint(0xfeff)}---${String.fromCodePoint(0x200b)}`,
+      leading: "U+FEFF",
+      trailing: "U+200B",
+    },
+    {
+      label: "ZWSP + `--- foo`",
+      line: `${String.fromCodePoint(0x200b)}--- foo`,
+      leading: "U+200B",
+      trailing: "U+0066",
+    },
+    {
+      label: "NUL + `---` + NUL",
+      line: `${String.fromCodePoint(0)}---${String.fromCodePoint(0)}`,
+      leading: "U+0000",
+      trailing: "U+0000",
+    },
+    {
+      label: "U+0301 COMBINING ACUTE + `---` + U+0301",
+      line: `${String.fromCodePoint(0x301)}---${String.fromCodePoint(0x301)}`,
+      leading: "U+0301",
+      trailing: "U+0301",
+    },
+    {
+      label: "a leading space + `----`",
+      line: " ----",
+      leading: "U+0020",
+      trailing: "U+002D",
+    },
+  ];
+
+  it("D-44 composite anchors — a line carrying BOTH leading invisible residue AND illegal trailing residue REFUSES at the OPENING position, naming BOTH facts", () => {
+    for (const row of COMPOSITE_ROWS) {
+      const text = `${row.line}\n${GRANTING_TAIL}---\nBody.\n`;
+      const parsed = parseFrontmatter(text);
+      expect(parsed.ok, row.label).toBe(false);
+      if (parsed.ok) continue;
+      expect(parsed.reason, row.label).toContain("opening delimiter position");
+      // BOTH facts, not the first one found. A doubly-offending line has two things wrong with it
+      // and a reason naming only one sends a reader to fix half the line.
+      expect(parsed.reason, `${row.label} leading fact`).toContain(row.leading);
+      expect(parsed.reason, `${row.label} trailing fact`).toContain(
+        row.trailing,
+      );
+      expect(parsed.reason, `${row.label} leading clause`).toContain(
+        "leading residue renders no glyph of its own",
+      );
+      expect(parsed.reason, `${row.label} trailing clause`).toContain(
+        "the first code point after the payload",
+      );
+
+      // THE MEASURED DEFECT, stated as the assertion that would have failed before D-44: every one
+      // of these returned the silent no-grant SUCCESS arm over a live spawn grant.
+      const grant = hasSpawnGrant(text);
+      expect(grant, row.label).not.toEqual({ ok: true, value: false });
+      expect(grant.ok, row.label).toBe(false);
+      expect(grantedAgentNames(text), row.label).not.toEqual({
+        ok: true,
+        value: [],
+      });
+    }
+  });
+
+  it("D-44 composite anchors — the SAME line at the CLOSING position produces the SAME named refusal, NOT the `opened and never closed` diagnosis", () => {
+    for (const row of COMPOSITE_ROWS) {
+      const text = `---\n${GRANTING_TAIL}${row.line}\nBody.\n`;
+      const parsed = parseFrontmatter(text);
+      expect(parsed.ok, row.label).toBe(false);
+      if (parsed.ok) continue;
+      expect(parsed.reason, row.label).toContain("closing delimiter position");
+      expect(parsed.reason, `${row.label} leading fact`).toContain(row.leading);
+      expect(parsed.reason, `${row.label} trailing fact`).toContain(
+        row.trailing,
+      );
+      // The LAST place the open/close asymmetry survived. Measured against the committed build
+      // before D-44, every row here reported the unterminated-block diagnosis instead.
+      expect(parsed.reason, row.label).not.toMatch(/never closed/);
+    }
+  });
+
+  it("KIT-03 precision edge — a SUPPLEMENTARY-PLANE code point at either position is named as ONE `U+XXXXX` label, never as a surrogate half", () => {
+    // U+E0020 TAG SPACE lives on plane 14 and is TWO UTF-16 code units. The leading run is measured
+    // in code UNITS so it can slice the line; the label is read back with codePointAt so it names a
+    // code POINT. Getting that pairing wrong reports U+D83C / U+DC20 — two halves of nothing.
+    const TAG_SPACE = String.fromCodePoint(0xe0020);
+    for (const [label, line] of [
+      ["leading only", `${TAG_SPACE}---`],
+      ["trailing only", `---${TAG_SPACE}`],
+      ["BOTH (composite)", `${TAG_SPACE}---${TAG_SPACE}`],
+    ] as const) {
+      for (const [where, text] of [
+        ["opening", `${line}\n${GRANTING_TAIL}---\nBody.\n`],
+        ["closing", `---\n${GRANTING_TAIL}${line}\nBody.\n`],
+      ] as const) {
+        const parsed = parseFrontmatter(text);
+        expect(parsed.ok, `${label} @ ${where}`).toBe(false);
+        if (parsed.ok) continue;
+        expect(parsed.reason, `${label} @ ${where}`).toContain("U+E0020");
+        // Five hexadecimal digits, and NOT a surrogate half.
+        expect(parsed.reason, `${label} @ ${where}`).toMatch(
+          /U\+[0-9A-F]{5,}/,
+        );
+        expect(parsed.reason, `${label} @ ${where}`).not.toMatch(
+          /U\+D[89AB][0-9A-F]{2}\b/,
+        );
+      }
+    }
+  });
+
+  it("D-44 adjacency edge — the three verdict kinds PARTITION every line: no line receives two verdicts and no line receives none", () => {
+    // The observable projection of each verdict at the OPENING position, read through the public
+    // surface. A line landing in two of these, or in none, is the union gap D-44 deleted.
+    const project = (line: string): "legal" | "refuse" | "not-a-delimiter" => {
+      const text = `${line}\n${GRANTING_TAIL}---\nBody.\n`;
+      const parsed = parseFrontmatter(text);
+      if (!parsed.ok) return "refuse";
+      return parsed.value.size > 0 ? "legal" : "not-a-delimiter";
+    };
+    const INVISIBLE_ONLY = `${String.fromCodePoint(0x200b)}${String.fromCodePoint(0xa0)}\t `;
+    for (const [line, expected] of [
+      ["---", "legal"],
+      ["---   ", "legal"],
+      ["---\t", "legal"],
+      [`${String.fromCodePoint(0x200b)}---${String.fromCodePoint(0x200b)}`, "refuse"],
+      ["----", "refuse"],
+      [" ---", "refuse"],
+      // A line of NOTHING BUT invisible characters carries no payload, so it separates cleanly into
+      // not-a-delimiter rather than into refuse — the leading-invisible class decides only WHERE a
+      // delimiter begins, and there is no delimiter here to begin.
+      [INVISIBLE_ONLY, "not-a-delimiter"],
+      ["--", "not-a-delimiter"],
+      [`${String.fromCodePoint(0x200b)}--`, "not-a-delimiter"],
+      ["# Heading", "not-a-delimiter"],
+    ] as const) {
+      expect(project(line), JSON.stringify(line)).toBe(expected);
+    }
+  });
+
   it("D-43 positive controls — a bare delimiter, trailing spaces and a trailing tab each OPEN a block and return their keys", () => {
     for (const [label, open] of [
       ["bare", "---"],

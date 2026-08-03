@@ -617,8 +617,8 @@ function flattenBlock(block, baseIndent) {
     return { ok: true, value: keys };
 }
 // ---------------------------------------------------------------------------
-// THE DELIMITER REGION — ONE DECLARED LEGAL SPELLING, AND EVERYTHING ELSE REFUSED
-// (D-39 + D-43 — 27-REVIEW-GAPS-4 § CR-01, round 4)
+// THE DELIMITER REGION — ONE TOTAL CLASSIFIER, THREE VERDICTS, NO SECOND PREDICATE
+// (D-39 + D-43 + D-44 — 27-REVIEW-GAPS-5 § CR-01, round 5)
 // ---------------------------------------------------------------------------
 //
 // This is the FOURTH spelling of this module's founding failure — "I could not read this" printed as
@@ -649,19 +649,56 @@ function flattenBlock(block, baseIndent) {
 //   accepting any predicate here as "derived" or "inverted", ask WHICH SET IT ENUMERATES. If it names
 //   what is illegal it is a denylist however principled its alphabet looks.
 //
-// D-43 states the LEGAL set instead, and it is finite:
+// AND A FIFTH TIME, ONE ABSTRACTION LEVEL UP FROM THE ALPHABET (27-REVIEW-GAPS-5 § CR-01, round 5 —
+// D-44). D-43 got the alphabet right AND the polarity right and STILL leaked, because it wrote the
+// rule as TWO REFUSAL PREDICATES and assumed their union was the complement of the legal set. Arm 1
+// fired only on `line.startsWith(payload)` at position zero; arm 2 fired only when the
+// residue-stripped remainder was a FULLY LEGAL delimiter. A line carrying BOTH leading invisible
+// residue AND illegal trailing residue satisfied NEITHER, fell through to `null`, and reached the
+// keyless SUCCESS arm — the silent no-grant this module exists to make impossible. Measured against
+// the committed parser before this edit, every one of `<ZWSP>---<ZWSP>`, `<ZWSP>----`, `<NBSP>----`,
+// `<BOM><BOM>---<ZWSP>`, `<ZWSP>--- foo`, `<NUL>---<NUL>`, `<U+0301>---<U+0301>` and ` ----` returned
+// `{ ok: true, value: false }` over a live `Agent(grugops-orchestrator)` grant, and each of them
+// reported the misleading `opened and never closed` diagnosis at the CLOSING position rather than
+// naming the offending byte. Planted on `skills/grugops/SKILL.md` in a hermetic mirror, the
+// single-sided spellings each exited 1 and the COMPOSITE printed ALL CHECKS PASSED at exit 0: one
+// code point flipped a red gate green.
+//
+//   THE LESSON, AND IT IS NOT ABOUT CHARACTERS. Rounds 1-4 each patched what the predicate CONTAINED.
+//   This one is about what the region IS. Before trusting any closure claim in this region, ask
+//   whether it holds ONE PREDICATE or a COMPOSITION OF PREDICATES. A predicate that is total by
+//   construction has no union to leak through; a pair always does, and its gap is invisible to a
+//   reader checking each arm in isolation — both arms below were individually correct and individually
+//   pinned by shipped cases while their composition shipped a live bypass.
+//
+//   THE INVERSION THAT CAUSED IT, NAMED SO IT IS NOT REINTRODUCED. Arm 2 let the invisible class decide
+//   WHAT MAY FOLLOW THE PAYLOAD (it demanded a legal remainder). The invisible class decides only
+//   WHERE THE DELIMITER BEGINS. That is the whole of its business and the classifier below consults it
+//   for nothing else.
+//
+// D-43 states the LEGAL set, and D-44 states it ONCE, as a TOTAL function of the line:
 //
 //     payload        = "---" at the opening position; "---" or "..." at the closing position
 //     declared class = [ \t] — the ONE class, and the ONLY thing permitted after the payload
-//     LEGAL          = the line begins with the payload AND everything after it is in that class
-//     refusal arm 1  = the line begins with the payload and is NOT legal -> refuse, whatever follows
-//     refusal arm 2  = leading residue that is entirely invisible, then a LEGAL delimiter -> refuse
-//     everything else = not a delimiter at all -> the keyless SUCCESS arm, untouched
+//     run            = the leading run of code points that render no glyph of their own
+//     rest           = the line with that run removed
 //
-// FALSE-RED COST, MEASURED: zero. All 26 files on the spawn-grant scan surface open with a byte-exact
-// `---` on line 1 and no line inside any of their frontmatter blocks refuses; across all 1115 tracked
-// markdown files in the repository the count of head lines that would refuse is also 0. The strict
-// rule costs this repository nothing, which is what makes the allowlist affordable.
+//     `rest` does NOT begin with any payload  -> not-a-delimiter (the keyless SUCCESS arm, untouched)
+//     run == 0 AND everything after the
+//         payload is in the declared class    -> legal
+//     otherwise                               -> refuse, naming every offending code point it saw
+//
+// EXACTLY THREE VERDICTS AND EVERY LINE GETS EXACTLY ONE. There is no input for which the classifier
+// returns nothing and no input for which two verdicts could apply, so there is no union left to
+// compose and no sixth spelling to slip between a pair. The two-arm helper is DELETED rather than
+// kept as a second opinion: a weaker duplicate that still votes is worse than none, which is this
+// module's own standing argument (see the fence authority and the escape allowlist above).
+//
+// FALSE-RED COST, MEASURED: zero. All 33 files on the spawn-grant scan surface open with a byte-exact
+// `---` on line 1, and under the D-44 classifier no line inside any of their frontmatter blocks
+// refuses either — asserted over head lines AND block lines by the false-red control in
+// scripts/frontmatter.test.ts, which reads the SAME `spawnGrantScan()` composition the guard reads.
+// The strict rule costs this repository nothing, which is what makes the allowlist affordable.
 //
 // (D-39 point 4 / D-34) THE KEYLESS SUCCESS ARM IS NEVER WIDENED. A document that does not begin with
 // the payload at all — a body-only file, an empty file, a file of blank lines — still succeeds with no
@@ -674,12 +711,13 @@ const CLOSE_PAYLOADS = ["---", "..."];
 // THE DECLARED WHITESPACE CLASS, DECLARED EXACTLY ONCE. Space and tab, matching what both delimiter
 // positions already accepted before this change — the class is NOT loosened to make a case pass, and
 // the trailing-space and trailing-tab controls are the only accepted non-byte-exact spellings.
-// Both positions reach it through `allDeclaredWs` / `firstOutsideDeclaredWs` below; neither carries an
-// inline whitespace expression of its own any more.
+// It is reached only through `firstOutsideDeclaredWs` below, which the ONE classifier consults; no
+// call site carries an inline whitespace expression of its own.
 const DELIMITER_WS_CHAR = /[ \t]/;
-// ARM 2's class, and ONLY arm 2's. Stated POSITIVELY: a character that renders a visible glyph of its
-// own is a letter, a number, a punctuation mark or a symbol. Residue containing none of those is
-// invisible residue.
+// THE INVISIBLE CLASS, AND IT DECIDES ONE THING ONLY: WHERE THE DELIMITER BEGINS. Stated POSITIVELY:
+// a character that renders a visible glyph of its own is a letter, a number, a punctuation mark or a
+// symbol. A leading run containing none of those is invisible residue, and its LENGTH is the whole of
+// what this class contributes to a verdict.
 //
 // DELIBERATELY NOT UNICODE'S OWN TERM `graphic`, which is {L, M, N, P, S, Zs} and therefore INCLUDES
 // COMBINING MARKS. An implementation reaching for that definition treats a leading U+0301 as a visible
@@ -687,12 +725,15 @@ const DELIMITER_WS_CHAR = /[ \t]/;
 // {L, N, P, S} is what puts marks, unassigned, private-use, surrogate, format and separator code
 // points all on the invisible side.
 //
-// This class NEVER decides whether a TRAILING byte is acceptable. That inversion is what D-42 got
-// backwards; arm 1 below consults no class at all.
+// (D-44) THIS CLASS NEVER DECIDES WHAT MAY FOLLOW THE PAYLOAD. D-42 got that backwards on the
+// TRAILING axis and D-43's arm 2 got it backwards again by demanding a LEGAL remainder after the
+// residue — which is exactly how the composite escaped both arms. The classifier below calls
+// `leadingInvisibleRun` once, uses the result to find where the payload starts, and never consults
+// this class again.
 const VISIBLE_GLYPH = /[\p{L}\p{N}\p{P}\p{S}]/u;
-const allDeclaredWs = (residue) => [...residue].every((c) => DELIMITER_WS_CHAR.test(c));
-// The index of the first code point of `residue` outside the declared class, or -1. Used only to NAME
-// the offending code point in a refusal reason — never to decide the refusal.
+// The index of the first code point of `residue` outside the declared class, or -1 when every code
+// point is inside it. ONE scan answering both halves the classifier needs: `=== -1` IS the legality
+// of what follows the payload, and any other value is the position whose code point the refusal NAMES.
 function firstOutsideDeclaredWs(residue) {
     let at = 0;
     for (const c of residue) {
@@ -702,14 +743,15 @@ function firstOutsideDeclaredWs(residue) {
     }
     return -1;
 }
-// THE ONE LEGAL SPELLING. Every delimiter decision in this module goes through this function: the
-// opening test, the closing scan and both refusal arms. There is no second grammar left in this
-// region for a fifth spelling to slip between.
-function isLegalDelimiter(line, payload) {
-    return line.startsWith(payload) && allDeclaredWs(line.slice(payload.length));
-}
 // The length of the leading run of code points that render no glyph of their own, in code UNITS so the
 // result can index the string directly. Zero for a line that starts with a visible character.
+//
+// (KIT-03 precision edge) CODE UNITS HERE, CODE POINTS IN THE LABEL. This counts UTF-16 units because
+// its only job is to slice the string, and `String.prototype.slice` indexes units. Every character
+// the refusal NAMES is read back with `codePointAt`, so a supplementary-plane code point (U+E0020, a
+// plane-14 tag space) is reported as ONE `U+XXXXX` label and never as two surrogate halves. Mixing
+// the two would either mis-slice the line or mis-name the byte, so the distinction is stated rather
+// than left to be rediscovered.
 function leadingInvisibleRun(line) {
     let n = 0;
     for (const c of line) {
@@ -721,47 +763,67 @@ function leadingInvisibleRun(line) {
 }
 // `U+` followed by four or more uppercase hexadecimal digits.
 const codePointLabel = (cp) => `U+${cp.toString(16).toUpperCase().padStart(4, "0")}`;
-// The delimiter refusal, or null when this line is not a delimiter at all.
+// (D-44 point 1) THE COMPILER-CHECKED NEVER-BRANCH. Every call site ends its switch here. Adding a
+// fourth verdict kind to `DelimiterVerdict` without handling it at a call site makes `tsc` fail on the
+// argument type — the unhandled kind is no longer assignable to `never`. That is the mechanism that
+// keeps the promote from being undone quietly: a future author cannot reintroduce a second, partially
+// consumed verdict without failing the build, rather than merely failing review.
+function assertNeverVerdict(verdict) {
+    throw new Error(`unhandled delimiter verdict ${JSON.stringify(verdict)} — a kind was added to DelimiterVerdict without being consumed at this call site`);
+}
+// (D-44) THE ONE TOTAL CLASSIFIER. Every line at either delimiter position goes through here and
+// leaves with EXACTLY ONE verdict. There is no input that returns nothing and no input for which two
+// verdicts could apply, so there is no union for a sixth spelling to leak through.
 //
-// ARM 1 CONSULTS NO CHARACTER CLASS. It is `line.startsWith(payload) && !isLegalDelimiter(...)` —
-// "begins with the payload and is not legal", full stop. It does not ask what the offending byte IS,
-// only that the line is not the one legal spelling. The class appears afterwards solely to NAME the
-// first offending code point in the message, and a message cannot change a verdict. This is the whole
-// lesson of D-39 and D-42: a predicate that names what is illegal is a denylist however principled its
-// alphabet looks, and each of those two shipped a live silent-success class while claiming the
-// opposite polarity in its own text. Do not add a class here to "tighten" it.
+// WHAT THIS REPLACED, AND WHY THE SHAPE CHANGED RATHER THAN THE CONTENTS. The region held two refusal
+// predicates. Arm 1 fired only on `line.startsWith(payload)`; arm 2 fired only when the
+// residue-stripped remainder was a FULLY LEGAL delimiter. Each was individually correct and
+// individually pinned by shipped cases. Their UNION was assumed to be the complement of the legal set
+// and was not: a line carrying BOTH leading invisible residue AND illegal trailing residue satisfied
+// neither, returned `null`, and reached the keyless SUCCESS arm — a live spawn grant read as an
+// absence of keys. Four rounds patched what the predicate CONTAINED and each shipped past a green
+// suite; this one deletes the structure that kept admitting a gap. The pair is GONE, not narrowed and
+// not retained as a second opinion, because a weaker duplicate that still votes is worse than none.
 //
-// ARM 2 is the only place the invisible class is consulted, and it describes LEADING residue standing
-// in front of an otherwise legal delimiter — a mark-prefixed or space-prefixed delimiter refuses here
-// rather than falling through to the keyless success arm.
+// THE INVISIBLE CLASS DECIDES ONLY WHERE THE DELIMITER BEGINS. It is consulted once, by
+// `leadingInvisibleRun`, to locate the payload. It never decides what may follow the payload. That
+// inversion is round 5's defect and it is deleted rather than narrowed.
 //
-// The payloads are tried in declared order and the FIRST offending position wins, so two runs over one
-// tree produce byte-identical findings.
-function delimiterRefusal(line, payloads, position) {
-    for (const payload of payloads) {
-        if (line.startsWith(payload) && !isLegalDelimiter(line, payload)) {
-            const residue = line.slice(payload.length);
-            const at = firstOutsideDeclaredWs(residue);
-            const cp = residue.codePointAt(at) ?? 0;
-            return {
-                ok: false,
-                reason: `the ${position} delimiter position carries \`${excerpt(line)}\`, which begins with the \`${payload}\` payload and then continues: the first code point after the payload, ${codePointLabel(cp)}, is outside the one whitespace class a delimiter may carry. A delimiter is the payload and nothing but space or tab after it, so this line is refused as unreadable rather than read as an absence of keys — never read as "carries no grant"`,
-            };
-        }
-    }
+// THE PAYLOADS ARE TRIED IN DECLARED ORDER, so a given line always produces the same verdict and the
+// same reason, and two runs over one tree are byte-identical.
+function classifyDelimiter(line, payloads, position) {
     const run = leadingInvisibleRun(line);
-    if (run === 0)
-        return null;
+    const rest = line.slice(run);
     for (const payload of payloads) {
-        if (isLegalDelimiter(line.slice(run), payload)) {
-            const cp = line.codePointAt(0) ?? 0;
-            return {
-                ok: false,
-                reason: `the ${position} delimiter position carries \`${excerpt(line)}\`, whose leading residue renders no glyph of its own — it begins with ${codePointLabel(cp)} — and stands in front of an otherwise legal \`${payload}\` delimiter. A delimiter begins where the line begins, so this line is refused as unreadable rather than read as an absence of keys — never read as "carries no grant"`,
-            };
+        if (!rest.startsWith(payload))
+            continue;
+        const residue = rest.slice(payload.length);
+        const outside = firstOutsideDeclaredWs(residue);
+        if (run === 0 && outside === -1)
+            return { kind: "legal", payload };
+        // REFUSE, NAMING EVERY FACT OBSERVED AND NOT THE FIRST. A doubly-offending line has two things
+        // wrong with it and a reason that mentioned only one would send a reader to fix half the line.
+        // At least one clause is always present: `run === 0 && outside === -1` is the legal verdict
+        // above, so reaching here means the run is non-zero, or the residue leaves the declared class,
+        // or both.
+        const faults = [];
+        if (run !== 0) {
+            faults.push(`its leading residue renders no glyph of its own and begins with ${codePointLabel(line.codePointAt(0) ?? 0)}, so the delimiter does not begin where the line begins`);
         }
+        if (outside !== -1) {
+            faults.push(`the first code point after the payload, ${codePointLabel(residue.codePointAt(outside) ?? 0)}, is outside the one whitespace class a delimiter may carry`);
+        }
+        return {
+            kind: "refuse",
+            reason: `the ${position} delimiter position carries \`${excerpt(line)}\`, which is not the one legal spelling of the \`${payload}\` delimiter: ${faults.join("; and ")}. A delimiter begins where the line begins and carries nothing but space or tab after its payload, so this line is refused as unreadable rather than read as an absence of keys — never read as "carries no grant"`,
+        };
     }
-    return null;
+    // (D-39 point 4 / D-34) THE GENUINELY-BODY-ONLY ARM, AND IT IS NEVER WIDENED. Reaching here means
+    // the line does not begin with a payload even after its leading invisible run is stripped: a body
+    // line, an empty line, a line of nothing but invisible characters, a dash bullet, a setext
+    // underline. Turning one of those red would trade a silent success for a FALSE red, which D-34
+    // recorded as the worse of the two.
+    return { kind: "not-a-delimiter" };
 }
 // Read a markdown document's frontmatter into key -> flattened values.
 //
@@ -771,9 +833,10 @@ function delimiterRefusal(line, payloads, position) {
 //
 // (D-39 point 1) ONE NORMALIZATION POINT, AND IT REMOVES EXACTLY ONE BYTE. A single leading byte-order
 // mark is removed in the SAME expression that normalizes CRLF, at position zero, once. It is the ONLY
-// byte this module removes. A SECOND leading mark is deliberately NOT stripped: it falls to the arm-2
-// refusal below, because "strip every mark" would be a decode this module does not perform, and this
-// module's whole contract is that it does not decode. No second normalization is ever added here.
+// byte this module removes. A SECOND leading mark is deliberately NOT stripped: it is leading residue
+// and the classifier below REFUSES it by name, because "strip every mark" would be a decode this
+// module does not perform, and this module's whole contract is that it does not decode. No second
+// normalization is ever added here.
 //
 // Three outcomes, and the difference between the last two is the point of this module:
 //   • a block that opens and closes  -> ok, with its keys;
@@ -796,9 +859,19 @@ function delimiterRefusal(line, payloads, position) {
 // the closing position. Both now sit in the THIRD outcome, with the SAME named refusal at both
 // positions: the open/close asymmetry is dead. Still three outcomes, still no fourth state.
 //
+// (D-44) AND IT MOVED A THIRD TIME, FOR THE COMPOSITE, AND STILL DID NOT GROW. A line carrying BOTH
+// leading invisible residue AND illegal trailing residue — `<ZWSP>---<ZWSP>`, `<ZWSP>----`,
+// ` ----` — used to sit in the SECOND outcome at the opening position, because it satisfied neither
+// of the two refusal arms that preceded the classifier, and it produced the misleading `opened and
+// never closed` diagnosis at the closing position for the same reason. It now sits in the THIRD
+// outcome at BOTH positions with the SAME named refusal, which is the LAST place the open/close
+// asymmetry survived. Still three outcomes, still no fourth state — and now the three are a
+// PARTITION by construction rather than by assumption, because one total classifier assigns them.
+//
 // WHAT STAYED IN THE SECOND OUTCOME, DELIBERATELY. A document that does not begin with the payload AT
-// ALL is still a keyless success — a body-only file, an empty document, a document of blank lines
-// only. Turning a body-only file red would trade a silent success for a false red, which the paragraph
+// ALL — even after its leading invisible run is stripped — is still a keyless success: a body-only
+// file, an empty document, a document of blank lines only, a line of nothing but invisible characters.
+// Turning a body-only file red would trade a silent success for a false red, which the paragraph
 // above already argues is the worse of the two. The refusal keys on BEGINNING WITH THE PAYLOAD, which
 // is precisely what a body-only document does not do.
 export function parseFrontmatter(text) {
@@ -819,29 +892,41 @@ export function parseFrontmatter(text) {
     }
     if (i >= lines.length)
         return { ok: true, value: new Map() };
-    // (D-43) The opening position: the one legal spelling opens a block, a line that BEGINS with the
-    // payload without being it refuses by name, and anything else is not a delimiter at all and takes
-    // the keyless success arm untouched.
-    if (!isLegalDelimiter(lines[i], OPEN_PAYLOADS[0])) {
-        const refusal = delimiterRefusal(lines[i], OPEN_PAYLOADS, "opening");
-        if (refusal !== null)
-            return refusal;
-        return { ok: true, value: new Map() };
+    // (D-44) CALL SITE ONE — THE OPENING POSITION. A switch over the verdict and nothing else: this
+    // branch carries no whitespace expression, no payload comparison and no residue arithmetic of its
+    // own, because a second copy of any of those is how the region grew a second grammar four times.
+    // The `default` arm is the compiler-checked never-branch.
+    const opening = classifyDelimiter(lines[i], OPEN_PAYLOADS, "opening");
+    switch (opening.kind) {
+        case "legal":
+            break;
+        case "refuse":
+            return { ok: false, reason: opening.reason };
+        case "not-a-delimiter":
+            return { ok: true, value: new Map() };
+        default:
+            return assertNeverVerdict(opening);
     }
     const openAt = i;
     let end = -1;
-    for (let j = openAt + 1; j < lines.length; j++) {
-        // (D-43) The closing scan consults THE SAME legal spelling and THE SAME refusal arms as the
-        // opening test. A line that begins with a closing payload without being legal no longer slips
-        // past the scan to be reported as an unterminated block — it produces the same named refusal it
-        // would have produced at the opening position.
-        if (CLOSE_PAYLOADS.some((p) => isLegalDelimiter(lines[j], p))) {
-            end = j;
-            break;
+    // (D-44) CALL SITE TWO — THE CLOSING SCAN. THE SAME classifier, THE SAME three verdicts, and the
+    // SAME named refusal. The open/close asymmetry is dead in both of its forms: a line that begins
+    // with a closing payload without being legal no longer slips past the scan to be reported as an
+    // unterminated block, and neither does a COMPOSITE one, which is the form that still produced that
+    // misleading diagnosis until D-44.
+    scan: for (let j = openAt + 1; j < lines.length; j++) {
+        const closing = classifyDelimiter(lines[j], CLOSE_PAYLOADS, "closing");
+        switch (closing.kind) {
+            case "legal":
+                end = j;
+                break scan;
+            case "refuse":
+                return { ok: false, reason: closing.reason };
+            case "not-a-delimiter":
+                continue scan;
+            default:
+                return assertNeverVerdict(closing);
         }
-        const refusal = delimiterRefusal(lines[j], CLOSE_PAYLOADS, "closing");
-        if (refusal !== null)
-            return refusal;
     }
     if (end === -1) {
         return {
