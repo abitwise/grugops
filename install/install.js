@@ -1334,9 +1334,11 @@ console.log("\n-- adapters --");
 // these loops ran zero times, and the run still printed a completion banner — a silent no-op install.
 const SRC_SKILLS = srcSkillNames(GRUGOPS_SRC);
 const SRC_ADAPTERS = srcAdapterFiles(GRUGOPS_SRC);
-// The nested walk returns THREE things, not one (D-35/D-36): the member set, the paths it declined
-// to descend into, and whether it hit its work bound. All three are reported below — a walk that
-// reported only the first would be back to dropping members without naming them.
+// The nested walk returns FOUR things, not one (D-35/D-36, and `unreadable` per D-41/CR-02): the
+// member set, the paths it declined to descend into, the paths it could not READ, and whether it
+// hit its work bound. All four are reported below — a walk that reported only the first would be
+// back to dropping members without naming them, and for three rounds `unreadable` was the one of
+// the four that had no channel at all.
 const SRC_NESTED = srcNestedAdapterFiles(GRUGOPS_SRC);
 const SRC_NESTED_ADAPTERS = SRC_NESTED.files;
 if (SRC_SKILLS === null) {
@@ -1396,6 +1398,22 @@ for (const rel of SRC_NESTED.cycles) {
         `already appears on its own recursion path, so following it would not terminate. Anything ` +
         `below it was therefore neither installed nor refused by name. Break the symlink cycle under ` +
         `the adapter directory and re-run.`);
+}
+// THE UNREADABLE ARM, NAMED RATHER THAN SILENT (D-41, closing CR-02). A fourth peer of the loop
+// above, in the same voice, through the same single `verify` channel. The walk could not read these
+// directories, so it does not know what is below them — and until this loop existed it said so
+// nowhere. Reproduced with its control against the committed .js: `.claude/agents/nested` at mode
+// 000 produced `== install complete ==` at exit 0 with `nested` absent from the whole output, while
+// the SAME tree at mode 755 produced `== install INCOMPLETE ==` at exit 3 naming
+// `nested/hidden.md`. Making the directory less readable made this installer more confident, which
+// is the inversion this loop deletes.
+for (const rel of SRC_NESTED.unreadable) {
+    const at = rel === "" ? "" : `/${rel}`;
+    verify(`.claude/agents${at} — the nested-adapter walk COULD NOT READ this directory, so anything below ` +
+        `it was NEITHER installed NOR refused by name. This is NOT the same fact as an empty ` +
+        `directory: an empty directory was read and held nothing, while this one was never read at ` +
+        `all, so its contents are unknown rather than known to be none. Fix the permissions on it or ` +
+        `restore the checkout, then re-run.`);
 }
 // THE WORK BOUND, SURFACED THROUGH THE ONE REPORTING CHANNEL THIS INSTALLER HAS (D-35, WR-01). The
 // nested walk stopped after MAX_WALK_ENTRIES directory entries, so the adapter directory was NOT

@@ -238,8 +238,38 @@ export function srcAdapterFiles(srcRoot: string): string[] | null {
 // over the same fixture and asserts the cardinality as a number. If the locked decision is ever
 // revisited, that conformance case is what to delete along with the duplicate.
 //
-// A read failure at any level yields [] here rather than null: an unreadable root is already the
-// srcAdapterFiles() null branch's finding, and reporting the same condition twice would be noise.
+// A READ FAILURE AT ANY LEVEL IS NOW NAMED, AND THE ARGUMENT THAT SAID OTHERWISE WAS WRITTEN FOR
+// THE ROOT AND SILENTLY EXTENDED TO EVERY LEVEL (D-41, closing CR-02). The justification this
+// paragraph replaces read: "a read failure at any level yields [] here rather than null: an
+// unreadable root is already the srcAdapterFiles() null branch's finding, and reporting the same
+// condition twice would be noise." Every word of that is true OF THE ROOT and false of everything
+// below it. srcAdapterFiles() reads ONE directory — the top level — so it never touches a nested
+// directory and never produces a finding for one. The claim "already reported" was therefore
+// carried, unexamined, from the one level where it holds to the levels where nothing reports at
+// all, and a nested directory this walk could not read was reported NOWHERE.
+//
+// WHAT THAT COST, MEASURED (CR-02). With `.claude/agents/nested` at mode 000 the walk returned
+// `files: []`, `cycles: []`, `overflow: null` and the installer printed `== install complete ==` at
+// exit 0 with the string `nested` absent from its entire output; the IDENTICAL tree at mode 755
+// printed `== install INCOMPLETE — 1 item(s) need verification ==` at exit 3 naming
+// `nested/hidden.md`. MAKING THE DIRECTORY LESS READABLE MADE THE INSTALLER MORE CONFIDENT. That
+// is both of this file's own header invariants broken at once: "the installer must not be the one
+// place a file disappears silently" (see the header) and "a member it cannot see is a member it
+// cannot refuse by name" — and a member behind a door it cannot open is the purest case of one.
+//
+// SO THE RULE NOW HAS NO EXCEPTION, DELIBERATELY, INCLUDING AT THE ROOT. Both read failures record
+// the relative path the walk had reached and the caller names it; the root call records `""`, the
+// adapter root itself. That does mean an unreadable ROOT is reported twice — once by the
+// srcAdapterFiles() null branch for the INSTALL set and once here for the NESTED set. That
+// duplication is accepted on purpose: they are two different reads of the same directory failing
+// independently, so two findings is two facts rather than one fact doubled; and more importantly a
+// rule with no exception cannot be widened by a later author the way the "already reported"
+// exception above was widened into a silence. Noise is recoverable. A silent drop is not.
+//
+// AND THE CHANNEL REPORTS A READ FAILURE, NEVER AN ABSENCE. A nested directory that is readable and
+// genuinely empty contributes NOTHING here — it was read, it held no member, and that is a complete
+// answer. Folding "could not read" together with "nothing there" would reinstate the fabricated
+// completion claim in a new spelling, which is the defect and not a detail of it.
 //
 // Both the recursion test and the collection test go through statSync (see the header, WR-02), so a
 // symlinked nested DIRECTORY is descended into and a symlinked nested FILE is collected — and each
@@ -308,12 +338,21 @@ export interface NestedWalkOverflow {
 
 // What the nested walk found, and what it could not do. `files` is the member set — unchanged in
 // meaning: sorted, forward-slash relative paths. `cycles` names every directory the walk declined
-// to descend into because it repeats on the current recursion path. `overflow` is non-null when the
-// walk hit the MAX_WALK_ENTRIES work bound. Callers must report `cycles` and `overflow`; leaving
-// either unreported reinstates the silent drop this module exists to prevent.
+// to descend into because it repeats on the current recursion path. `unreadable` names every
+// directory the walk COULD NOT READ — a read FAILURE, never an empty directory (`""` = the adapter
+// root itself), sorted like `cycles`. `overflow` is non-null when the walk hit the MAX_WALK_ENTRIES
+// work bound.
+//
+// CALLERS MUST REPORT ALL THREE FAILURE CHANNELS — `cycles`, `unreadable` AND `overflow`. Leaving
+// ANY of them unreported reinstates the silent drop this module exists to prevent, and the argument
+// is identical for each: a subtree the walk did not examine holds members that were neither
+// installed nor refused by name, so a run that says nothing about it is claiming a completion it
+// did not perform. `unreadable` is the newest of the three and was added because it was the one
+// missing (D-41, CR-02) — the walk had the condition and no channel to say it in.
 export interface NestedWalkResult {
   files: string[];
   cycles: string[];
+  unreadable: string[];
   overflow: NestedWalkOverflow | null;
 }
 
@@ -321,6 +360,7 @@ export function srcNestedAdapterFiles(srcRoot: string): NestedWalkResult {
   const root = join(srcRoot, ".claude", "agents");
   const files: string[] = [];
   const cycles: string[] = [];
+  const unreadable: string[] = [];
   // ONE tally for the WHOLE walk, deliberately NOT per path. The contrast with `ancestors` below —
   // which is per path by contract — is the exact distinction whose absence produced both defects
   // in this walk's history (D-35), so the two live in different variables with different lifetimes
@@ -336,6 +376,11 @@ export function srcNestedAdapterFiles(srcRoot: string): NestedWalkResult {
     try {
       real = realpathSync(here);
     } catch {
+      // COULD NOT RESOLVE A REAL PATH HERE — NAMED, NOT SWALLOWED (D-41, CR-02). Without a real
+      // path there is no cycle answer for this subtree, so the walk cannot descend safely and stops.
+      // Stopping is correct; stopping WITHOUT SAYING SO is the silent disappearance this module's
+      // header forbids. `base` is the relative path reached (`""` at the root call).
+      unreadable.push(base);
       return;
     }
     if (ancestors.includes(real)) {
@@ -350,6 +395,12 @@ export function srcNestedAdapterFiles(srcRoot: string): NestedWalkResult {
     try {
       names = readdirSync(here);
     } catch {
+      // COULD NOT ENUMERATE THIS DIRECTORY — NAMED, NOT SWALLOWED (D-41, CR-02). This is the arm
+      // the reproduction landed on: a mode-000 nested directory made the walk return an empty
+      // member set and the installer claim a completion. It is a READ FAILURE and it is recorded as
+      // one; a readable directory that is genuinely EMPTY reaches the loop below, contributes no
+      // member and records nothing, which is the distinction the caller's remedy turns on.
+      unreadable.push(base);
       return;
     }
     for (const name of names) {
@@ -371,5 +422,10 @@ export function srcNestedAdapterFiles(srcRoot: string): NestedWalkResult {
     }
   };
   walk("", []);
-  return { files: files.sort(), cycles: cycles.sort(), overflow: budget.overflow };
+  return {
+    files: files.sort(),
+    cycles: cycles.sort(),
+    unreadable: unreadable.sort(),
+    overflow: budget.overflow,
+  };
 }

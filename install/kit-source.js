@@ -218,6 +218,7 @@ export function srcNestedAdapterFiles(srcRoot) {
     const root = join(srcRoot, ".claude", "agents");
     const files = [];
     const cycles = [];
+    const unreadable = [];
     // ONE tally for the WHOLE walk, deliberately NOT per path. The contrast with `ancestors` below —
     // which is per path by contract — is the exact distinction whose absence produced both defects
     // in this walk's history (D-35), so the two live in different variables with different lifetimes
@@ -235,6 +236,11 @@ export function srcNestedAdapterFiles(srcRoot) {
             real = realpathSync(here);
         }
         catch {
+            // COULD NOT RESOLVE A REAL PATH HERE — NAMED, NOT SWALLOWED (D-41, CR-02). Without a real
+            // path there is no cycle answer for this subtree, so the walk cannot descend safely and stops.
+            // Stopping is correct; stopping WITHOUT SAYING SO is the silent disappearance this module's
+            // header forbids. `base` is the relative path reached (`""` at the root call).
+            unreadable.push(base);
             return;
         }
         if (ancestors.includes(real)) {
@@ -250,6 +256,12 @@ export function srcNestedAdapterFiles(srcRoot) {
             names = readdirSync(here);
         }
         catch {
+            // COULD NOT ENUMERATE THIS DIRECTORY — NAMED, NOT SWALLOWED (D-41, CR-02). This is the arm
+            // the reproduction landed on: a mode-000 nested directory made the walk return an empty
+            // member set and the installer claim a completion. It is a READ FAILURE and it is recorded as
+            // one; a readable directory that is genuinely EMPTY reaches the loop below, contributes no
+            // member and records nothing, which is the distinction the caller's remedy turns on.
+            unreadable.push(base);
             return;
         }
         for (const name of names) {
@@ -274,5 +286,10 @@ export function srcNestedAdapterFiles(srcRoot) {
         }
     };
     walk("", []);
-    return { files: files.sort(), cycles: cycles.sort(), overflow: budget.overflow };
+    return {
+        files: files.sort(),
+        cycles: cycles.sort(),
+        unreadable: unreadable.sort(),
+        overflow: budget.overflow,
+    };
 }

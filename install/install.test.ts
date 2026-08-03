@@ -320,6 +320,50 @@ function makeSyntheticSrc(): string {
   return src;
 }
 
+// ── THE CR-02 UNREADABLE-NEST FIXTURE, BUILT ONCE AND SHARED (D-41) ──────────────────────────
+//
+// TWO cases need this exact shape — the harness case that pins the installer's behaviour and WR-03
+// part 3 that pins the two derivations against each other over it — so it is built by ONE builder.
+// A second copy of a fixture is the same drift class as a second copy of a predicate: the two
+// would diverge, and the case that noticed would be whichever one was read last.
+//
+// `rel` is the nested directory's relative path as the installer names it, and `member` is the
+// adapter inside it — the member that vanished. Neither is restated at a call site.
+const UNREADABLE_NEST_REL = "nested";
+const UNREADABLE_NEST_MEMBER = "nested/hidden.md";
+function makeUnreadableNestFixture(): { src: string; nest: string } {
+  const src = makeSyntheticSrc();
+  const nest = join(src, ".claude", "agents", UNREADABLE_NEST_REL);
+  mkdirSync(nest, { recursive: true });
+  writeFileSync(join(nest, "hidden.md"), `> synthetic nested adapter\n${MAT_SLOT}\n`);
+  return { src, nest };
+}
+
+// restrictAndProbe — apply `mode` to `dir` and then PROBE whether this process can still read it.
+//
+// A CASE THAT CANNOT BUILD ITS FIXTURE ASSERTS NOTHING, and a chmod-based fixture is the kind that
+// silently stops being a fixture: root bypasses the mode bits and Windows does not honour them at
+// all, so `chmod 000` there leaves a perfectly readable directory and every assertion below it
+// becomes a statement about nothing. So the restriction is VERIFIED rather than assumed, and the
+// caller is handed the reason to PRINT when it did not take. A silently skipping case is worse
+// than no case; a case that names why it skipped is honest.
+function restrictAndProbe(dir: string, mode: number): { restricted: boolean; reason: string } {
+  chmodSync(dir, mode);
+  try {
+    readdirSync(dir);
+  } catch {
+    return { restricted: true, reason: `${dir} is unreadable at mode ${mode.toString(8)}` };
+  }
+  return {
+    restricted: false,
+    reason:
+      `SKIP: ${dir} is STILL READABLE after chmod ${mode.toString(8)} — the runner is privileged ` +
+      `(uid ${typeof process.getuid === "function" ? process.getuid() : "n/a"}) or platform ` +
+      `${process.platform} does not honour POSIX mode bits. The fixture does not exist here, so ` +
+      `this case asserts nothing rather than asserting vacuously.`,
+  };
+}
+
 // runInstallFrom / runUninstallFrom — the runInstall/runUninstall pair with an explicit
 // $GRUGOPS_SRC so a case can drive a synthetic kit instead of this repo.
 function runInstallFrom(src: string, target: string, home: string, ...args: string[]) {
@@ -2049,6 +2093,107 @@ describe("install.js / uninstall.js — single-installer contract (folds install
     }
     expect(thrown).toContain("real/loop");
     expect(thrown).toMatch(/^kit-model: symlink cycle at real\/loop/);
+  });
+
+  // ── D-41 / CR-02: AN UNREADABLE NESTED DIRECTORY IS REFUSED BY NAME, NOT SILENTLY COMPLETED ───
+  //
+  // THE DEFECT WAS AN INVERSION, WHICH IS WHY THIS CASE CARRIES ITS CONTROL. srcNestedAdapterFiles
+  // had two bare `catch { return; }` arms and a result type with three channels, so a directory it
+  // could not read produced no member, no channel and no finding — and the installer went on to
+  // claim a completion. Reproduced against the pre-fix committed .js over the fixture below:
+  //
+  //   [restricted] walk.files = []            installer status = 0   banner `== install complete ==`
+  //               'nested' appears in the installer's whole output: false
+  //   [readable]   walk.files = ["nested/hidden.md"]  status = 3      banner `== install INCOMPLETE`
+  //
+  // MAKING THE DIRECTORY LESS READABLE MADE THE INSTALLER MORE CONFIDENT. That is the fact this
+  // case pins, and it is why asserting a non-zero exit over the restricted arm ALONE would not pin
+  // it: exit 3 on one arm says nothing about the relationship between the arms. The control is not
+  // decoration, it is half the assertion.
+  it("source derivation: an UNREADABLE nested directory is named at exit 3 — the less-readable/more-confident inversion is dead (CR-02, D-41)", () => {
+    const { src, nest } = makeUnreadableNestFixture();
+    const target = mkTmp();
+    const home = mkTmp();
+    writeFileSync(join(target, "CLAUDE.md"), "# User Project\n");
+
+    try {
+      // ── ARM 1: RESTRICTED. Built, then PROBED — never asserted over a restriction that did not
+      // take. The reason is printed on the skip so the case is never silently vacuous.
+      const probe = restrictAndProbe(nest, 0o000);
+      if (!probe.restricted) {
+        console.log(probe.reason);
+      } else {
+        const walk = srcNestedAdapterFiles(src);
+        // The channel exists and the walk WRITES to it. Asserted before the installer's output,
+        // because a finding printed without a channel behind it would be a message, not a report.
+        expect(walk.unreadable).toEqual([UNREADABLE_NEST_REL]);
+        // ...and the member is still gone from `files`, which is exactly why the channel is needed:
+        // the walk genuinely cannot see it, so the honest answer is "I could not look", not "none".
+        expect(walk.files).toEqual([]);
+
+        const r = runInstallFrom(src, target, home);
+        expect(r.status).toBe(3); // INCOMPLETE — a directory never read is not a complete run.
+        expect(r.stdout).toContain(`.claude/agents/${UNREADABLE_NEST_REL}`);
+        expect(r.stdout).toContain("COULD NOT READ this directory");
+        // THE REMEDY FOLLOWS FROM A READ FAILURE, and the message says out loud that this is not an
+        // empty directory — conflating the two is the defect wearing a different spelling.
+        expect(r.stdout).toContain("NOT the same fact as an empty directory");
+        expect(r.stdout).toContain("Fix the permissions");
+        expect(r.stdout).not.toContain("== install complete");
+        // The flat seventeen are unaffected: the unreadable arm refuses a subtree, it does not
+        // narrow the install.
+        expect(installedAdapters(target)).toEqual([...SYNTH_ADAPTERS].sort());
+      }
+
+      // ── ARM 2: THE READABLE CONTROL, over the IDENTICAL tree. It also exits 3, but for the
+      // pre-existing flat-by-contract reason and naming the MEMBER rather than the directory — so
+      // the two arms are DISTINGUISHABLE rather than merely both non-zero, and the inversion is
+      // what is pinned rather than a bare exit code.
+      chmodSync(nest, 0o755);
+      const walkOk = srcNestedAdapterFiles(src);
+      expect(walkOk.unreadable).toEqual([]);
+      expect(walkOk.files).toEqual([UNREADABLE_NEST_MEMBER]);
+
+      const target2 = mkTmp();
+      const home2 = mkTmp();
+      writeFileSync(join(target2, "CLAUDE.md"), "# User Project\n");
+      const r2 = runInstallFrom(src, target2, home2);
+      expect(r2.status).toBe(3);
+      expect(r2.stdout).toContain(UNREADABLE_NEST_MEMBER);
+      expect(r2.stdout).toContain("FLAT BY CONTRACT");
+      // The control must NOT report the read failure — it read the directory fine.
+      expect(r2.stdout).not.toContain("COULD NOT READ this directory");
+      expect(r2.stdout).not.toContain("== install complete");
+    } finally {
+      // ALWAYS restore, on every path including a failed assertion, so a red case cannot leave an
+      // unremovable temporary tree behind for afterEach to trip over.
+      chmodSync(nest, 0o755);
+    }
+  });
+
+  it("source derivation: a readable but genuinely EMPTY nested directory produces NO unreadable finding (CR-02, D-41)", () => {
+    // THE CHANNEL REPORTS A READ FAILURE AND NEVER AN ABSENCE. If "could not read" and "held
+    // nothing" collapsed into one finding, the fix would have reinstated the fabricated completion
+    // claim in a new spelling — a remedy pointing at permissions on a directory whose permissions
+    // are fine. The two conditions have different remedies, so they must stay two conditions.
+    const src = makeSyntheticSrc();
+    const target = mkTmp();
+    const home = mkTmp();
+    writeFileSync(join(target, "CLAUDE.md"), "# User Project\n");
+    mkdirSync(join(src, ".claude", "agents", "empty-nest"), { recursive: true });
+
+    const walk = srcNestedAdapterFiles(src);
+    expect(walk.unreadable).toEqual([]);
+    expect(walk.files).toEqual([]);
+    expect(walk.cycles).toEqual([]);
+
+    const r = runInstallFrom(src, target, home);
+    // A readable empty nested directory is a COMPLETE run: everything below it was examined and
+    // there was nothing there. Exit 0 is the honest answer and the case pins it.
+    expect(r.status).toBe(0);
+    expect(r.stdout).not.toContain("COULD NOT READ this directory");
+    expect(r.stdout).toContain("== install complete");
+    expect(installedAdapters(target)).toEqual([...SYNTH_ADAPTERS].sort());
   });
 
   // ── WR-03: THE EQUALITY BOTH WALK HEADERS PROMISE, WRITTEN DOWN AS A CASE ─────────────────────
