@@ -353,6 +353,20 @@ the verifier to confirm or reject. It is not converted into a `backstop` truth a
 - *"No tracked markdown file outside the 33-member scan gains a NEW delimiter refusal"* — **measured**:
   1122 files, 0 refusals before and after. No new refusal to name or disposition.
 
+## Requirements — deliberately NOT marked complete
+
+The plan carries `requirements: [KIT-03, SPAWN-04]`, and `REQUIREMENTS.md` still shows both as
+**Gaps Found** for Phase 27. They were **not** checked off by this execution, on purpose:
+
+- This is a gap-closure plan inside a phase whose round-5 verification returned `gaps_found` at 7/10.
+  Round-6 closure is the verifier's call over all three plans (27-36, 27-37, 27-38), not this plan's.
+- SPAWN-04's only remaining path through this plan rests on the **flagged, unresolved** assumption
+  recorded above. Flipping it to complete would resolve that assumption by fiat.
+- This plan's own prohibitions forbid offering a green suite as evidence of closure. Marking a
+  requirement done on the strength of one plan's transcripts would be exactly that, one level up.
+
+The evidence needed to close both is in this summary; the disposition is left to round-6 verification.
+
 ## Self-Check: PASSED
 
 - `scripts/frontmatter.ts` — FOUND
