@@ -66,9 +66,17 @@ import { createHash } from "node:crypto";
 //   2. the `source derivation` conformance case below, asserting the installer's REAL installed set
 //      equals the authority's set over the same fixture, cardinality asserted as a NUMBER so a
 //      derivation that silently shrinks fails the count and not only the comparison;
-//   3. the two WR-03 equality cases below, which pin the NESTED walks against each other — member
-//      equality over the two-path fixture, and same-path-named refusal over the cycle fixture,
-//      because D-36 gives each side its own documented floor and one of them throws.
+//   3. the THREE WR-03 equality cases below, which pin the NESTED walks against each other — member
+//      equality over the two-path fixture (part 1), same-path-named refusal over the cycle fixture
+//      (part 2), and same-directory-named refusal over the UNREADABLE fixture (part 3) — because
+//      D-36 gives each side its own documented floor and one of them throws.
+//
+// THAT LIST WAS TWO PARTS LONG AND THE TWINS DIVERGED ON THE THIRD (D-41, CR-02). Part 3 is not an
+// enrichment; it is the arm the divergence was actually on. The authority threw naming an unreadable
+// directory while the installer's walk returned an empty set naming nothing, and both existing parts
+// stayed green because neither of them looked at that arm. This list is kept CURRENT for the same
+// reason the paragraph above deletes rather than softens its own stale rationale: a record of what
+// buys a deliberate exception back is worth nothing once it stops describing the cases that exist.
 // If the locked decision is ever revisited, this import and those cases are what to delete along
 // with the duplicate. Drives the COMMITTED .js — the repo idiom.
 import { listAgentAdapters, listSkillAdapters } from "../scripts/kit-model.js";
@@ -2283,6 +2291,78 @@ describe("install.js / uninstall.js — single-installer contract (folds install
     // narrow anything else, and the work bound did not fire.
     expect(walk.files).toEqual(["real/x.md"]);
     expect(walk.overflow).toBeNull();
+  });
+
+  // WHY THERE IS A PART 3, AND WHY ITS ABSENCE IS THE POINT (D-41, CR-02). Parts 1 and 2 cover the
+  // TWO-PATH arm and the CYCLE arm. The twins diverged on the THIRD arm — the one where a directory
+  // cannot be read — and a case whose entire purpose is asserting that the twins agree stayed green
+  // through it, because the arm it diverged on was not one of the arms it looked at. The authority
+  // threw and named the directory; the installer returned an empty set and named nothing. Two
+  // implementations of one predicate, one of them silent, and the equality case that exists to catch
+  // exactly that reported PASS.
+  //
+  // THE HONEST EQUALITY HERE IS "BOTH NAME THE SAME MEMBER AND NEITHER IS SILENT", NOT "BOTH RETURN
+  // THE SAME VALUE" — the same formulation part 2 uses and for the same reason. The two sides have
+  // deliberately DIFFERENT documented floors: the CI authority throws so a vacuous scan set cannot
+  // pass a guard, the installer reports so it can finish its other classes. Member-set equality is
+  // structurally unavailable once one side throws, and asserting it anyway would only be satisfiable
+  // by weakening one of the two floors — the opposite of what these cases are for.
+  it("WR-03 part 3: over the UNREADABLE fixture the two sides name the SAME directory and neither is silent (CR-02, D-41)", () => {
+    const { src, nest } = makeUnreadableNestFixture();
+    try {
+      const probe = restrictAndProbe(nest, 0o000);
+      if (!probe.restricted) {
+        console.log(probe.reason);
+        return;
+      }
+
+      const walk = srcNestedAdapterFiles(src);
+      let thrown = "";
+      let threw = false;
+      try {
+        listAgentAdapters(src);
+      } catch (e) {
+        threw = true;
+        thrown = (e as Error).message;
+      }
+
+      // NEITHER SIDE IS SILENT — ASSERTED FIRST, in this order, because two silences are trivially
+      // "equal" and that is precisely how this case's two existing parts stayed green while one
+      // side said nothing. The equality below is worthless without these two lines above it.
+      expect(`authority threw: ${threw}`).toBe("authority threw: true");
+      expect(`installer named an unreadable directory: ${walk.unreadable.length > 0}`).toBe(
+        "installer named an unreadable directory: true",
+      );
+
+      // THE SAME DIRECTORY, EXTRACTED FROM EACH SIDE RATHER THAN RESTATED INTO BOTH — the precedent
+      // part 2 sets. The authority names an ABSOLUTE path and the installer a RELATIVE one, so the
+      // substance asserted is that the authority's path ENDS at the member the installer recorded,
+      // inside the same tree. A naked `includes(rel)` would pass on a temp path that happened to
+      // contain the word; extraction plus a suffix cannot.
+      const reported = walk.unreadable[0];
+      const m = /^kit-model: cannot read kit directory (.+)$/.exec(thrown);
+      expect(`authority message names a path: ${m !== null}`).toBe("authority message names a path: true");
+      const namedByAuthority = m![1];
+      const expectedSuffix = join(".claude", "agents", reported);
+      expect(`authority path ends at the installer's member: ${namedByAuthority.endsWith(expectedSuffix)}`).toBe(
+        "authority path ends at the installer's member: true",
+      );
+      expect(`authority path is inside the fixture: ${namedByAuthority.startsWith(src)}`).toBe(
+        "authority path is inside the fixture: true",
+      );
+
+      // Only NOW pin the observed literals, as a sanity check on the FIXTURE rather than as the
+      // equality itself. Both measured against the committed .js while writing this case.
+      expect(reported).toBe(UNREADABLE_NEST_REL);
+      expect(walk.unreadable.length).toBe(1);
+      expect(thrown).toMatch(/^kit-model: cannot read kit directory /);
+      // The rest of the walk is unaffected: the unreadable arm stops a DESCENT and narrows nothing
+      // else, and neither of the other two failure channels fired.
+      expect(walk.cycles).toEqual([]);
+      expect(walk.overflow).toBeNull();
+    } finally {
+      chmodSync(nest, 0o755);
+    }
   });
 
   // ── D-35 / WR-01: the WORK bound, pinned on BOTH sides of its threshold ──────────────────────
