@@ -1598,92 +1598,149 @@ describe("frontmatter — the spawn-grant parser oracle (SPAWN-04 / KIT-03)", ()
   // THE ROWS BELOW ARE THE RATIFIED TABLE, and four of them are the ones D-42's alphabet would still
   // have missed — that is why they are named individually rather than only swept. Each row carries the
   // code point its refusal must NAME, so a future narrowing fails on the reason and not merely on the
-  // arm.
+  // verdict.
+
+  // ── THE ONE CONSTRUCTION AND THE ONE PROJECTION, SHARED BY EVERY SWEEP BELOW ───────────────────
+  //
+  // (D-45) EVERY document in this region is built here and read back here. Round 5's sweep wrote its
+  // constructions BY ARM — one per declared refusal arm — so every member landed inside exactly one
+  // arm by construction and the sweep was structurally incapable of failing on a member outside both.
+  // A corpus generated per-arm is circular over the arm structure exactly as a corpus generated from
+  // the alphabet is circular over the alphabet. That is the SECOND circularity axis this phase has
+  // found, and the corollary is now structural: A CORPUS GENERATED FROM THE THING UNDER TEST PROVES
+  // NOTHING, AT WHICHEVER LEVEL THE THING UNDER TEST IS DEFINED.
+  //
+  // So there is ONE builder taking a delimiter LINE and a POSITION, and it knows nothing about arms,
+  // verdicts or classes. Every construction below — the named rows, the composite anchors, the
+  // three-axis cross-product and the character sweep — goes through it.
+  const KEYS = "name: x\ntools: Read, Agent(grugops-installer)\n";
+
+  const buildDelimiterDoc = (
+    line: string,
+    position: "opening" | "closing",
+  ): string =>
+    position === "opening"
+      ? `${line}\n${KEYS}---\nBody.\n`
+      : `---\n${KEYS}${line}\nBody.\n`;
+
+  // THE OBSERVABLE PROJECTION OF A VERDICT, read through the PUBLIC surface only. The classifier is
+  // module-private on purpose: a correct-but-unconsumed verdict would hide a live bypass, so what is
+  // asserted is what the guards actually see.
+  //
+  //   legal            -> the block opens/closes, the keys survive, the grant is reported
+  //   refuse           -> the failure arm, with a reason naming the position
+  //   not-a-delimiter  -> at the OPENING position the keyless SUCCESS arm (an ungranted success);
+  //                       at the CLOSING position nothing closes the block, so the unterminated-block
+  //                       refusal is what a reader observes.
+  const projectVerdict = (
+    line: string,
+    position: "opening" | "closing",
+  ): "legal" | "refuse" | "not-a-delimiter" => {
+    const text = buildDelimiterDoc(line, position);
+    const parsed = parseFrontmatter(text);
+    if (parsed.ok) {
+      // Only the OPENING position can succeed without a delimiter verdict of `legal`: a keyless
+      // success is what a document that never opened a block returns.
+      return parsed.value.size > 0 ? "legal" : "not-a-delimiter";
+    }
+    if (/never closed/.test(parsed.reason)) return "not-a-delimiter";
+    return "refuse";
+  };
 
   // The offending opening/closing lines, with the code point the refusal must name. Built with
   // String.fromCodePoint rather than pasted literals so the intent survives an editor normalizing the
   // source file (a combining mark next to a dash is exactly the byte an editor is tempted to move).
+  //
+  // (D-44 RECONCILIATION — recorded, not silent) THE `arm: 1 | 2` TAG IS GONE AND IS RESTATED AS THE
+  // VERDICT KIND THE ROW EXPECTS. The tag named a position inside a TWO-ARM IMPLEMENTATION that no
+  // longer exists; a tag describing a deleted structure is a comment claiming a property, which this
+  // module's own rule forbids leaving standing. RESTATED rather than DROPPED because the tag is now
+  // LOAD-BEARING: `projectVerdict` is compared against it, so a row retagged without changing its
+  // behaviour fails instead of drifting into decoration, and a future row expecting `legal` or
+  // `not-a-delimiter` must say so rather than inheriting "refuse" by position in the table. The
+  // leading/trailing distinction the old tag also carried survives in each row's own label, where it
+  // describes the INPUT rather than the implementation.
   const DELIMITER_ROWS: readonly {
     label: string;
     line: string;
     codePoint: string;
-    arm: 1 | 2;
+    verdict: "legal" | "refuse" | "not-a-delimiter";
   }[] = [
-    // Arm 1 — begins with the payload and is not the one legal spelling.
+    // TRAILING residue — begins with the payload and is not the one legal spelling.
     {
       label: "U+FE0F VARIATION SELECTOR-16 (Mn — OUTSIDE D-42's alphabet)",
       line: `---${String.fromCodePoint(0xfe0f)}`,
       codePoint: "U+FE0F",
-      arm: 1,
+      verdict: "refuse",
     },
     {
       label: "U+0301 COMBINING ACUTE (Mn — OUTSIDE D-42's alphabet)",
       line: `---${String.fromCodePoint(0x301)}`,
       codePoint: "U+0301",
-      arm: 1,
+      verdict: "refuse",
     },
     {
       label: "U+0378 unassigned (Cn — OUTSIDE D-42's alphabet)",
       line: `---${String.fromCodePoint(0x378)}`,
       codePoint: "U+0378",
-      arm: 1,
+      verdict: "refuse",
     },
     {
       label: "U+E000 private use (Co — OUTSIDE D-42's alphabet)",
       line: `---${String.fromCodePoint(0xe000)}`,
       codePoint: "U+E000",
-      arm: 1,
+      verdict: "refuse",
     },
     // The two payload variants carrying NO unusual code point at all. Common frontmatter readers
     // accept both, and no prior decision or review in this phase named either.
-    { label: "`----` (an extra dash)", line: "----", codePoint: "U+002D", arm: 1 },
+    { label: "`----` (an extra dash)", line: "----", codePoint: "U+002D", verdict: "refuse" },
     {
       label: "`--- foo` (the payload followed by ordinary text)",
       line: "--- foo",
       codePoint: "U+0066",
-      arm: 1,
+      verdict: "refuse",
     },
     // The two D-42 DID cover — kept so this set is a superset of what the rejected alphabet swept.
     {
       label: "U+E0020 TAG SPACE (Cf — inside D-42's alphabet)",
       line: `---${String.fromCodePoint(0xe0020)}`,
       codePoint: "U+E0020",
-      arm: 1,
+      verdict: "refuse",
     },
     {
       label: "U+200B ZERO WIDTH SPACE (Cf — inside D-42's alphabet)",
       line: `---${String.fromCodePoint(0x200b)}`,
       codePoint: "U+200B",
-      arm: 1,
+      verdict: "refuse",
     },
-    // Arm 2 — leading residue that renders no glyph, in front of an otherwise legal delimiter.
+    // LEADING residue that renders no glyph, standing in front of an otherwise legal delimiter.
     {
       label: "a LEADING space",
       line: " ---",
       codePoint: "U+0020",
-      arm: 2,
+      verdict: "refuse",
     },
     {
       label: "a LEADING combining acute (arm 2's class must not be D-42's)",
       line: `${String.fromCodePoint(0x301)}---`,
       codePoint: "U+0301",
-      arm: 2,
+      verdict: "refuse",
     },
     {
       label: "a LEADING private-use code point",
       line: `${String.fromCodePoint(0xe000)}---`,
       codePoint: "U+E000",
-      arm: 2,
+      verdict: "refuse",
     },
   ];
 
-  // The rest of a document whose `tools` value is unambiguously a grant. The load-bearing half of
-  // every row below is that the REFUSAL arm is reached instead of `{ ok: true, value: false }`.
-  const GRANTING_TAIL = "name: x\ntools: Read, Agent(grugops-installer)\n";
-
   it("D-43 — every ratified offending row REFUSES at the OPENING position, naming its code point (four of them OUTSIDE D-42's alphabet)", () => {
     for (const row of DELIMITER_ROWS) {
-      const text = `${row.line}\n${GRANTING_TAIL}---\nBody.\n`;
+      const text = buildDelimiterDoc(row.line, "opening");
+      // (D-44) THE TAG IS LOAD-BEARING. The row states the verdict kind it expects and the observed
+      // projection is compared against it, so a row retagged without changing its behaviour FAILS
+      // rather than becoming decoration — which is what the deleted `arm: 1 | 2` tag had become.
+      expect(projectVerdict(row.line, "opening"), row.label).toBe(row.verdict);
       const parsed = parseFrontmatter(text);
       expect(parsed.ok, row.label).toBe(false);
       if (parsed.ok) continue;
@@ -1704,9 +1761,10 @@ describe("frontmatter — the spawn-grant parser oracle (SPAWN-04 / KIT-03)", ()
 
   it("D-39 point 5 — the SAME line at the CLOSING position produces the SAME named refusal, not the `opened and never closed` diagnosis", () => {
     for (const row of DELIMITER_ROWS) {
-      // Arm 2's leading-residue rows are constructed at the closing position too: an invisible prefix
-      // in front of a legal closing delimiter is the same fact one position over.
-      const text = `---\n${GRANTING_TAIL}${row.line}\nBody.\n`;
+      // The leading-residue rows are constructed at the closing position too: an invisible prefix in
+      // front of a legal closing delimiter is the same fact one position over.
+      const text = buildDelimiterDoc(row.line, "closing");
+      expect(projectVerdict(row.line, "closing"), row.label).toBe(row.verdict);
       const parsed = parseFrontmatter(text);
       expect(parsed.ok, row.label).toBe(false);
       if (parsed.ok) continue;
@@ -1807,7 +1865,7 @@ describe("frontmatter — the spawn-grant parser oracle (SPAWN-04 / KIT-03)", ()
 
   it("D-44 composite anchors — a line carrying BOTH leading invisible residue AND illegal trailing residue REFUSES at the OPENING position, naming BOTH facts", () => {
     for (const row of COMPOSITE_ROWS) {
-      const text = `${row.line}\n${GRANTING_TAIL}---\nBody.\n`;
+      const text = buildDelimiterDoc(row.line, "opening");
       const parsed = parseFrontmatter(text);
       expect(parsed.ok, row.label).toBe(false);
       if (parsed.ok) continue;
@@ -1839,7 +1897,7 @@ describe("frontmatter — the spawn-grant parser oracle (SPAWN-04 / KIT-03)", ()
 
   it("D-44 composite anchors — the SAME line at the CLOSING position produces the SAME named refusal, NOT the `opened and never closed` diagnosis", () => {
     for (const row of COMPOSITE_ROWS) {
-      const text = `---\n${GRANTING_TAIL}${row.line}\nBody.\n`;
+      const text = buildDelimiterDoc(row.line, "closing");
       const parsed = parseFrontmatter(text);
       expect(parsed.ok, row.label).toBe(false);
       if (parsed.ok) continue;
@@ -1865,8 +1923,8 @@ describe("frontmatter — the spawn-grant parser oracle (SPAWN-04 / KIT-03)", ()
       ["BOTH (composite)", `${TAG_SPACE}---${TAG_SPACE}`],
     ] as const) {
       for (const [where, text] of [
-        ["opening", `${line}\n${GRANTING_TAIL}---\nBody.\n`],
-        ["closing", `---\n${GRANTING_TAIL}${line}\nBody.\n`],
+        ["opening", buildDelimiterDoc(line, "opening")],
+        ["closing", buildDelimiterDoc(line, "closing")],
       ] as const) {
         const parsed = parseFrontmatter(text);
         expect(parsed.ok, `${label} @ ${where}`).toBe(false);
@@ -1884,14 +1942,8 @@ describe("frontmatter — the spawn-grant parser oracle (SPAWN-04 / KIT-03)", ()
   });
 
   it("D-44 adjacency edge — the three verdict kinds PARTITION every line: no line receives two verdicts and no line receives none", () => {
-    // The observable projection of each verdict at the OPENING position, read through the public
-    // surface. A line landing in two of these, or in none, is the union gap D-44 deleted.
-    const project = (line: string): "legal" | "refuse" | "not-a-delimiter" => {
-      const text = `${line}\n${GRANTING_TAIL}---\nBody.\n`;
-      const parsed = parseFrontmatter(text);
-      if (!parsed.ok) return "refuse";
-      return parsed.value.size > 0 ? "legal" : "not-a-delimiter";
-    };
+    // The observable projection of each verdict at the OPENING position, read through the ONE shared
+    // projection above. A line landing in two of these, or in none, is the union gap D-44 deleted.
     const INVISIBLE_ONLY = `${String.fromCodePoint(0x200b)}${String.fromCodePoint(0xa0)}\t `;
     for (const [line, expected] of [
       ["---", "legal"],
@@ -1908,7 +1960,7 @@ describe("frontmatter — the spawn-grant parser oracle (SPAWN-04 / KIT-03)", ()
       [`${String.fromCodePoint(0x200b)}--`, "not-a-delimiter"],
       ["# Heading", "not-a-delimiter"],
     ] as const) {
-      expect(project(line), JSON.stringify(line)).toBe(expected);
+      expect(projectVerdict(line, "opening"), JSON.stringify(line)).toBe(expected);
     }
   });
 
@@ -2101,56 +2153,78 @@ describe("frontmatter — the spawn-grant parser oracle (SPAWN-04 / KIT-03)", ()
       }
     }
 
-    const KEYS = "name: x\ntools: Read, Agent(grugops-installer)\n";
+    // (D-45 / WR-02) THE PER-ARM CONSTRUCTIONS ARE GONE. Round 5 built exactly FOUR documents per
+    // member — trailing@opening, leading@opening, trailing@closing, leading@closing — and every one
+    // of them placed its member inside exactly ONE declared refusal arm. 1048 members x 4
+    // constructions = 4192 green assertions that could only ever detect a NARROWING of an arm and
+    // were structurally incapable of failing on an input outside BOTH arms, which is the CR-01
+    // composite. The residue PLACEMENT is now an axis with THREE values — leading only, trailing
+    // only, and BOTH — so the composite is a construction the sweep produces by default rather than
+    // one an author had to think to add.
+    const PLACEMENTS = ["leading", "trailing", "both"] as const;
     for (const cp of offending) {
       const ch = String.fromCodePoint(cp);
-      // Four constructions per member: trailing/leading x opening/closing.
-      const cases: readonly [string, string][] = [
-        ["trailing @ opening", `---${ch}\n${KEYS}---\n`],
-        ["leading @ opening", `${ch}---\n${KEYS}---\n`],
-        ["trailing @ closing", `---\n${KEYS}---${ch}\nBody.\n`],
-        ["leading @ closing", `---\n${KEYS}${ch}---\nBody.\n`],
-      ];
-      for (const [where, text] of cases) {
-        // THE ONE DECLARED EXCEPTION IN THE WHOLE SWEEP, and the sweep is what forced it to be
-        // declared rather than discovered later. U+FEFF at position zero of the DOCUMENT is the single
-        // byte this module normalizes (D-39 point 1), so a document carrying exactly one leading mark
-        // parses identically to the same document without it — that equality and the two-mark refusal
-        // are pinned by their own named case above. Every OTHER placement of U+FEFF, including the
-        // leading position of a CLOSING delimiter, still refuses and is still swept below.
-        if (cp === 0xfeff && where === "leading @ opening") {
-          expect(hasSpawnGrant(text), `${label(cp)} ${where}`).toEqual({
+      for (const placement of PLACEMENTS) {
+        for (const position of ["opening", "closing"] as const) {
+          const line =
+            placement === "leading"
+              ? `${ch}---`
+              : placement === "trailing"
+                ? `---${ch}`
+                : `${ch}---${ch}`;
+          const where = `${placement} @ ${position}`;
+          const text = buildDelimiterDoc(line, position);
+          // THE ONE DECLARED EXCEPTION IN THE WHOLE SWEEP, and the sweep is what forced it to be
+          // declared rather than discovered later. U+FEFF at position zero of the DOCUMENT is the
+          // single byte this module normalizes (D-39 point 1), so a document carrying exactly one
+          // leading mark parses identically to the same document without it — that equality and the
+          // two-mark refusal are pinned by their own named case above. It applies ONLY to the
+          // leading-only placement at the opening position: the `both` placement still carries
+          // trailing residue after the mark is removed and still refuses, and every placement at the
+          // CLOSING position is past the normalization point entirely.
+          if (cp === 0xfeff && placement === "leading" && position === "opening") {
+            expect(hasSpawnGrant(text), `${label(cp)} ${where}`).toEqual({
+              ok: true,
+              value: true,
+            });
+            continue;
+          }
+          const parsed = parseFrontmatter(text);
+          // The message names the offending code point AND the placement, so a future failure says
+          // WHICH member regressed and in WHICH construction.
+          expect(parsed.ok, `${label(cp)} ${where}`).toBe(false);
+          if (parsed.ok) continue;
+          expect(parsed.reason, `${label(cp)} ${where}`).toContain(
+            "delimiter position",
+          );
+          // The asymmetry that is dead at BOTH positions and in ALL THREE placements.
+          expect(parsed.reason, `${label(cp)} ${where}`).not.toMatch(
+            /never closed/,
+          );
+          // The load-bearing half: NOT the silent no-grant success arm.
+          expect(hasSpawnGrant(text), `${label(cp)} ${where}`).not.toEqual({
             ok: true,
-            value: true,
+            value: false,
           });
-          continue;
         }
-        const parsed = parseFrontmatter(text);
-        // The message names the offending code point, so a future failure says WHICH member regressed.
-        expect(parsed.ok, `${label(cp)} ${where}`).toBe(false);
-        if (parsed.ok) continue;
-        expect(parsed.reason, `${label(cp)} ${where}`).toContain(
-          "delimiter position",
-        );
-        // The load-bearing half: NOT the silent no-grant success arm.
-        expect(hasSpawnGrant(text), `${label(cp)} ${where}`).not.toEqual({
-          ok: true,
-          value: false,
-        });
       }
     }
 
     // Source 4: the declared class OPENS a block in the trailing position and REFUSES in the leading
-    // one, because arm 2 is about where the delimiter begins and not about what follows it.
+    // one, because the invisible class is about where the delimiter begins and not about what
+    // follows it.
     for (const cp of declaredClass) {
       const ch = String.fromCodePoint(cp);
-      const opens = `---${ch}\n${KEYS}---${ch}\nBody.\n`;
-      expect(hasSpawnGrant(opens), `${label(cp)} trailing`).toEqual({
-        ok: true,
-        value: true,
-      });
-      const leading = `${ch}---\n${KEYS}---\n`;
-      const parsed = parseFrontmatter(leading);
+      for (const position of ["opening", "closing"] as const) {
+        expect(
+          hasSpawnGrant(buildDelimiterDoc(`---${ch}`, position)),
+          `${label(cp)} trailing @ ${position}`,
+        ).toEqual({ ok: true, value: true });
+        expect(projectVerdict(`${ch}---`, position), `${label(cp)} leading @ ${position}`).toBe(
+          "refuse",
+        );
+      }
+      const parsed = parseFrontmatter(buildDelimiterDoc(`${ch}---`, "opening"));
       expect(parsed.ok, `${label(cp)} leading`).toBe(false);
       if (!parsed.ok) expect(parsed.reason).toContain(label(cp));
     }
@@ -2160,17 +2234,287 @@ describe("frontmatter — the spawn-grant parser oracle (SPAWN-04 / KIT-03)", ()
       ["----", 0x2d],
       ["--- foo", 0x66],
     ] as const) {
-      for (const [where, text] of [
-        ["opening", `${line}\n${KEYS}---\n`],
-        ["closing", `---\n${KEYS}${line}\nBody.\n`],
-      ] as const) {
-        const parsed = parseFrontmatter(text);
-        expect(parsed.ok, `${line} @ ${where}`).toBe(false);
+      for (const position of ["opening", "closing"] as const) {
+        const parsed = parseFrontmatter(buildDelimiterDoc(line, position));
+        expect(parsed.ok, `${line} @ ${position}`).toBe(false);
         if (!parsed.ok) {
-          expect(parsed.reason, `${line} @ ${where}`).toContain(label(cp));
+          expect(parsed.reason, `${line} @ ${position}`).toContain(label(cp));
         }
       }
     }
+  });
+
+  // ── THE THREE-AXIS CROSS-PRODUCT SWEEP (D-45) ─────────────────────────────────────────────────
+  //
+  // WHY THE CORPUS HAS THIS SHAPE, AND WHY THE PREVIOUS ONE COULD NOT FAIL ON WHAT IT WAS WRITTEN TO
+  // CATCH. Round 5's sweep built exactly ONE CONSTRUCTION PER DECLARED ARM. Every member therefore
+  // landed inside exactly one arm BY CONSTRUCTION, so the sweep verified "each arm fires on its own
+  // inputs" and was structurally incapable of failing on an input outside both arms — which is
+  // precisely the CR-01 composite it would have had to catch. A corpus generated per-arm is circular
+  // over the ARM STRUCTURE exactly as a corpus generated from the alphabet is circular over the
+  // ALPHABET.
+  //
+  // THAT IS THE SECOND CIRCULARITY AXIS THIS PHASE HAS FOUND, and the corollary is now structural
+  // rather than anecdotal: A CORPUS GENERATED FROM THE THING UNDER TEST PROVES NOTHING, AT WHICHEVER
+  // LEVEL THE THING UNDER TEST IS DEFINED. Round 4 learned it at the character level and round 5
+  // reproduced it one level up. The defence is to enumerate the corpus from OUTSIDE the rule: three
+  // independent axes of ordinary document facts — what stands before the payload, what the payload
+  // is, what follows it — crossed exhaustively. Nothing about the classifier's internals selects a
+  // member, so no cell can land inside a declared arm by construction.
+  //
+  // Each axis is a plain data literal of code points and strings, and every cell's EXPECTED verdict
+  // is computed by a small pure function of the three axis LABELS. That function never calls the
+  // code under test.
+
+  const NUL = String.fromCodePoint(0);
+
+  // AXIS 1 — what stands in front of the payload. Nine members: nothing, the byte-order mark once and
+  // twice, two zero-width/no-break invisibles, the two members of the declared class, a combining
+  // mark (outside D-42's alphabet, and the row that formulation shipped green), and a C0 control.
+  const SWEEP_LEADING: readonly { label: string; text: string }[] = [
+    { label: "none", text: "" },
+    { label: "one byte-order mark", text: String.fromCodePoint(0xfeff) },
+    {
+      label: "two byte-order marks",
+      text: `${String.fromCodePoint(0xfeff)}${String.fromCodePoint(0xfeff)}`,
+    },
+    { label: "ZERO WIDTH SPACE", text: String.fromCodePoint(0x200b) },
+    { label: "NO-BREAK SPACE", text: String.fromCodePoint(0xa0) },
+    { label: "one space", text: " " },
+    { label: "one tab", text: "\t" },
+    { label: "COMBINING ACUTE ACCENT", text: String.fromCodePoint(0x301) },
+    { label: "the NUL control", text: NUL },
+  ];
+
+  // AXIS 2 — the payload itself, stated as a KIND so the same four shapes can be spelled in either
+  // payload family. `spell` takes the family's character and returns the token as it appears on the
+  // line; the near-payload is two characters and is therefore not a payload at all.
+  const SWEEP_PAYLOAD: readonly {
+    label: string;
+    spell: (c: string) => string;
+  }[] = [
+    { label: "exact payload", spell: (c) => c.repeat(3) },
+    { label: "payload plus one more of the same character", spell: (c) => c.repeat(4) },
+    { label: "exact payload then a space and ordinary text", spell: (c) => `${c.repeat(3)} foo` },
+    { label: "near-payload (two characters)", spell: (c) => c.repeat(2) },
+  ];
+
+  // AXIS 3 — what follows the payload. Six members: nothing, two invisibles, the declared class's
+  // space, a space carrying ordinary text after it, and a C0 control.
+  const SWEEP_TRAILING: readonly { label: string; text: string }[] = [
+    { label: "none", text: "" },
+    { label: "ZERO WIDTH SPACE", text: String.fromCodePoint(0x200b) },
+    { label: "NO-BREAK SPACE", text: String.fromCodePoint(0xa0) },
+    { label: "one space", text: " " },
+    { label: "one space then ordinary text", text: " foo" },
+    { label: "the NUL control", text: NUL },
+  ];
+
+  // The position-and-token families swept. The OPENING position accepts only the three-hyphen
+  // payload; the CLOSING position accepts both closing tokens, and BOTH are swept so the open/close
+  // asymmetry cannot reappear in one position or one token only.
+  const SWEEP_FAMILIES: readonly {
+    position: "opening" | "closing";
+    familyChar: string;
+    token: string;
+  }[] = [
+    { position: "opening", familyChar: "-", token: "---" },
+    { position: "closing", familyChar: "-", token: "---" },
+    { position: "closing", familyChar: ".", token: "..." },
+  ];
+
+  // The ONE trailing-axis subset that lives inside the declared whitespace class. Stated as LABELS,
+  // because the expected-verdict rule below must reason about the corpus and never about characters
+  // the module also reasons about.
+  const DECLARED_CLASS_TRAILING_LABELS: ReadonlySet<string> = new Set([
+    "none",
+    "one space",
+  ]);
+
+  // THE EXPECTED VERDICT, DERIVED FROM THE STATED RULE AND NEVER FROM THE CODE UNDER TEST.
+  //
+  //   `rest` does not begin with any payload -> not-a-delimiter
+  //   no leading residue AND everything after the payload is in the declared class -> legal
+  //   otherwise -> refuse
+  //
+  // IT MUST NEVER CALL `parseFrontmatter`, `hasSpawnGrant`, `projectVerdict` OR ANY MODULE EXPORT.
+  // Doing so is what makes a corpus circular, and this phase has now shipped once past each of the
+  // two levels at which that can happen. The non-circularity is ASSERTED below, not merely stated.
+  //
+  // THE ONE CARVE-OUT, DECLARED HERE RATHER THAN DISCOVERED AS A FAILING CELL: a SINGLE leading
+  // byte-order mark at the OPENING position is removed by this module's one normalization point
+  // (D-39 point 1 — position zero of the document, one byte, once), so that cell's EFFECTIVE leading
+  // residue is absent. Two marks are not normalized and are not carved out, and no leading residue at
+  // the CLOSING position is carved out, because the closing scan is past the normalization point.
+  const expectedVerdict = (
+    leadingLabel: string,
+    payloadLabel: string,
+    trailingLabel: string,
+    position: "opening" | "closing",
+  ): "legal" | "refuse" | "not-a-delimiter" => {
+    if (payloadLabel === "near-payload (two characters)") {
+      return "not-a-delimiter";
+    }
+    const effectiveLeading =
+      position === "opening" && leadingLabel === "one byte-order mark"
+        ? "none"
+        : leadingLabel;
+    if (effectiveLeading !== "none") return "refuse";
+    if (payloadLabel !== "exact payload") return "refuse";
+    return DECLARED_CLASS_TRAILING_LABELS.has(trailingLabel)
+      ? "legal"
+      : "refuse";
+  };
+
+  it("D-45 non-circularity — the expected-verdict rule names nothing from the module under test and is a pure function of its four arguments", () => {
+    // The claim "this corpus was not generated from the rule under test" is CHECKABLE, not merely
+    // asserted: the rule's own source is read back and must mention no symbol of the module.
+    const MODULE_SYMBOLS = [
+      "parseFrontmatter",
+      "hasSpawnGrant",
+      "grantedAgentNames",
+      "classifyDelimiter",
+      "DelimiterVerdict",
+      "assertNeverVerdict",
+      "leadingInvisibleRun",
+      "firstOutsideDeclaredWs",
+      "DELIMITER_WS_CHAR",
+      "VISIBLE_GLYPH",
+      "OPEN_PAYLOADS",
+      "CLOSE_PAYLOADS",
+      "codePointLabel",
+      "projectVerdict",
+      "buildDelimiterDoc",
+    ] as const;
+    const source = expectedVerdict.toString();
+    for (const symbol of MODULE_SYMBOLS) {
+      expect(source, symbol).not.toContain(symbol);
+    }
+
+    // Purity: same arguments, same answer, no hidden state.
+    for (const leading of SWEEP_LEADING) {
+      for (const payload of SWEEP_PAYLOAD) {
+        for (const trailing of SWEEP_TRAILING) {
+          for (const position of ["opening", "closing"] as const) {
+            const a = expectedVerdict(leading.label, payload.label, trailing.label, position);
+            const b = expectedVerdict(leading.label, payload.label, trailing.label, position);
+            expect(a, `${leading.label}/${payload.label}/${trailing.label}/${position}`).toBe(b);
+          }
+        }
+      }
+    }
+
+    // AND A SECOND, INDEPENDENTLY WRITTEN TRUTH TABLE for a named subset — every composite spelling
+    // the round-5 review reproduced that this corpus can express, plus the positive controls and the
+    // near-payload. Written out by hand from the stated rule rather than by evaluating anything, so
+    // the rule and the table are two independent statements of the same fact.
+    const TRUTH_TABLE: readonly [string, string, string, "opening" | "closing", string][] = [
+      // The seven of the eight measured composites this corpus expresses. (The eighth,
+      // U+0301 + `---` + U+0301, needs a combining mark on the TRAILING axis, which this corpus does
+      // not carry; it is pinned by the named composite anchors and by the character sweep's `both`
+      // placement instead.)
+      ["ZERO WIDTH SPACE", "exact payload", "ZERO WIDTH SPACE", "opening", "refuse"],
+      ["ZERO WIDTH SPACE", "payload plus one more of the same character", "none", "opening", "refuse"],
+      ["NO-BREAK SPACE", "payload plus one more of the same character", "none", "opening", "refuse"],
+      ["two byte-order marks", "exact payload", "ZERO WIDTH SPACE", "opening", "refuse"],
+      ["ZERO WIDTH SPACE", "exact payload then a space and ordinary text", "none", "opening", "refuse"],
+      ["the NUL control", "exact payload", "the NUL control", "opening", "refuse"],
+      ["one space", "payload plus one more of the same character", "none", "opening", "refuse"],
+      // The positive controls, and the carve-out stated as its own row.
+      ["none", "exact payload", "none", "opening", "legal"],
+      ["none", "exact payload", "one space", "opening", "legal"],
+      ["one byte-order mark", "exact payload", "none", "opening", "legal"],
+      ["one byte-order mark", "exact payload", "none", "closing", "refuse"],
+      // The genuinely-body-only arm, at both positions.
+      ["none", "near-payload (two characters)", "none", "opening", "not-a-delimiter"],
+      ["ZERO WIDTH SPACE", "near-payload (two characters)", "one space then ordinary text", "closing", "not-a-delimiter"],
+    ];
+    expect(TRUTH_TABLE.length).toBeGreaterThanOrEqual(12);
+    for (const [leading, payload, trailing, position, expected] of TRUTH_TABLE) {
+      expect(
+        expectedVerdict(leading, payload, trailing, position),
+        `${leading} | ${payload} | ${trailing} | ${position}`,
+      ).toBe(expected);
+    }
+  });
+
+  it("D-45 cross-product sweep — 9 leading x 4 payload x 6 trailing, at the OPENING position and at the CLOSING position for BOTH closing payload tokens", () => {
+    // DERIVE THE SET, ASSERT THE COUNT (this repository's own rule). A table silently emptied by a
+    // later edit shrinks the sweep LOUDLY rather than quietly.
+    expect(SWEEP_LEADING.length).toBe(9);
+    expect(SWEEP_PAYLOAD.length).toBe(4);
+    expect(SWEEP_TRAILING.length).toBe(6);
+    expect(SWEEP_FAMILIES.length).toBe(3);
+    const CELLS_PER_FAMILY =
+      SWEEP_LEADING.length * SWEEP_PAYLOAD.length * SWEEP_TRAILING.length;
+    expect(CELLS_PER_FAMILY).toBe(216);
+
+    let swept = 0;
+    for (const family of SWEEP_FAMILIES) {
+      for (const leading of SWEEP_LEADING) {
+        for (const payload of SWEEP_PAYLOAD) {
+          for (const trailing of SWEEP_TRAILING) {
+            const line = `${leading.text}${payload.spell(family.familyChar)}${trailing.text}`;
+            // A failing cell names ALL THREE axis labels, the position and the token family, so a
+            // future failure says WHICH CELL regressed rather than only that a count moved.
+            const where = `leading=[${leading.label}] payload=[${payload.label}] trailing=[${trailing.label}] position=[${family.position}] token=[${family.token}]`;
+            const expectedKind = expectedVerdict(
+              leading.label,
+              payload.label,
+              trailing.label,
+              family.position,
+            );
+            const text = buildDelimiterDoc(line, family.position);
+            expect(projectVerdict(line, family.position), where).toBe(expectedKind);
+
+            // The observable projection, asserted on the PUBLIC surface the guards consume.
+            const parsed = parseFrontmatter(text);
+            switch (expectedKind) {
+              case "legal":
+                expect(hasSpawnGrant(text), where).toEqual({
+                  ok: true,
+                  value: true,
+                });
+                break;
+              case "refuse":
+                expect(parsed.ok, where).toBe(false);
+                if (!parsed.ok) {
+                  expect(parsed.reason, where).toContain(
+                    `${family.position} delimiter position`,
+                  );
+                  expect(parsed.reason, where).not.toMatch(/never closed/);
+                }
+                // The load-bearing half, for the OPENING position: NOT the silent no-grant arm.
+                expect(hasSpawnGrant(text), where).not.toEqual({
+                  ok: true,
+                  value: false,
+                });
+                break;
+              case "not-a-delimiter":
+                if (family.position === "opening") {
+                  // The keyless SUCCESS arm, deliberately untouched: this document never opened a
+                  // block, so its `tools:` line is body prose and carries no grant.
+                  expect(hasSpawnGrant(text), where).toEqual({
+                    ok: true,
+                    value: false,
+                  });
+                } else {
+                  // Nothing closes the block, so the unterminated-block refusal is what is observed.
+                  expect(parsed.ok, where).toBe(false);
+                  if (!parsed.ok) {
+                    expect(parsed.reason, where).toMatch(/never closed/);
+                  }
+                }
+                break;
+            }
+            swept += 1;
+          }
+        }
+      }
+    }
+    // The TOTAL cell count, asserted as a number.
+    expect(swept).toBe(648);
+    expect(swept).toBe(CELLS_PER_FAMILY * SWEEP_FAMILIES.length);
   });
 
   // ── THE FALSE-RED CONTROL, OVER THE ONE SCAN COMPOSITION ──────────────────────────────────────
@@ -2203,15 +2547,51 @@ describe("frontmatter — the spawn-grant parser oracle (SPAWN-04 / KIT-03)", ()
       expect(inComposition, part.name).toEqual(expected);
     }
 
-    // The control itself. Parsing a real file exercises BOTH delimiter positions under the new rule:
-    // the head line goes through the opening test, and every line of the block goes through the
-    // closing scan, which refuses on the same rule. A non-empty key set is asserted so a member that
-    // silently took the keyless success arm cannot be counted as "did not refuse".
+    // THE CONTROL ITSELF, IN TWO HALVES, AND IT REPORTS WHAT IT ACTUALLY READ.
+    //
+    // Half one: parsing a real file exercises BOTH delimiter positions under the D-44 classifier —
+    // the head line goes through the opening call site, and every line of the block goes through the
+    // closing scan, which classifies on the same rule. A non-empty key set is asserted so a member
+    // that silently took the keyless success arm cannot be counted as "did not refuse".
+    //
+    // Half two: EVERY LINE INSIDE EACH BLOCK IS RE-PROBED AT THE CLOSING POSITION ON ITS OWN. The
+    // whole-file parse stops at the first offending line, so a later block line's verdict would ride
+    // on an earlier line's silence. Re-probing each line standalone removes that dependence. What is
+    // asserted there is the absence of a DELIMITER refusal specifically: a lone `description: >-`
+    // line closes nothing, so the unterminated-block refusal is expected and is not a false red.
+    //
+    // The counts it read are REPORTED in the assertion message, so a control passing over a shrunken
+    // corpus is visible rather than silently reassuring.
+    let blockLinesProbed = 0;
+    const delimiterRefusals: string[] = [];
     for (const rel of members) {
-      const parsed = parseFrontmatter(readFileSync(join(root, rel), "utf8"));
+      const src = readFileSync(join(root, rel), "utf8");
+      const parsed = parseFrontmatter(src);
       expect(parsed.ok, rel).toBe(true);
-      if (parsed.ok) expect(parsed.value.size, rel).toBeGreaterThan(0);
+      if (!parsed.ok) {
+        delimiterRefusals.push(`${rel} (whole file): ${parsed.reason}`);
+        continue;
+      }
+      expect(parsed.value.size, rel).toBeGreaterThan(0);
+
+      const lines = src.replace(/^﻿/, "").replace(/\r\n/g, "\n").split("\n");
+      const close = lines.indexOf("---", 1);
+      for (const line of lines.slice(1, close === -1 ? 1 : close)) {
+        blockLinesProbed += 1;
+        const probe = parseFrontmatter(buildDelimiterDoc(line, "closing"));
+        if (!probe.ok && /delimiter position/.test(probe.reason)) {
+          delimiterRefusals.push(`${rel} block line \`${line}\`: ${probe.reason}`);
+        }
+      }
     }
+    expect(
+      delimiterRefusals,
+      `read ${members.length} scan members and ${blockLinesProbed} block lines; the strict D-44 rule must cost this repository ZERO false reds`,
+    ).toEqual([]);
+    expect(members.length, "scan members read").toBe(SPAWN_GRANT_SCAN_COUNT);
+    expect(blockLinesProbed, "block lines probed").toBeGreaterThan(
+      members.length,
+    );
   });
 
   it("D-43 ordering edge — the refusal fires on the FIRST offending position and two runs over one input are byte-identical", () => {
