@@ -240,7 +240,7 @@ Plans:
 
 **Gap wave — round 5, wave 2** *(blocked on 27-33 — its aggregator-level case exercises the parser refusal 27-33 lands, and it widens the composition 27-33 creates)*
 
-- [ ] 27-34-PLAN.md — the shipped plugin-form `skills/` tree is derived from `kit-model` with an asserted cardinality, folded into the single exported spawn-grant scan composition, and named in `guard_wr05`'s PASS line, pinned by a plant case that targets a SKILL adapter; the plugin-default component directories `agents/` and `commands/` get an absence-or-coverage floor that closes the CLASS rather than the instance; the two distribution forms' relationship is asserted mechanically with a discriminating wrong-name case and the one legitimate divergence exempted by name (D-40); the name floor stops reporting "no name key" over a document with no frontmatter block at all (D-41) [KIT-02, KIT-03, SPAWN-04] *(CR-03, name-floor misdiagnosis)*
+- [x] 27-34-PLAN.md — the shipped plugin-form `skills/` tree is derived from `kit-model` with an asserted cardinality, folded into the single exported spawn-grant scan composition, and named in `guard_wr05`'s PASS line, pinned by a plant case that targets a SKILL adapter; the plugin-default component directories `agents/` and `commands/` get an absence-or-coverage floor that closes the CLASS rather than the instance; the two distribution forms' relationship is asserted mechanically with a discriminating wrong-name case and the one legitimate divergence exempted by name (D-40); the name floor stops reporting "no name key" over a document with no frontmatter block at all (D-41) [KIT-02, KIT-03, SPAWN-04] *(CR-03, name-floor misdiagnosis)*
 
 **Gap wave — round 5, wave 3** *(BUILD serialization, not a logical dependency — see below)*
 
