@@ -35,7 +35,10 @@ import {
   listRoles,
   listAgentAdapters,
   listSkillAdapters,
+  listPluginSkillAdapters,
+  spawnGrantScan,
   ROLE_COUNT,
+  PLUGIN_SKILL_ADAPTER_COUNT,
 } from "./kit-model.js";
 
 const ROOT = join(import.meta.dirname, "..");
@@ -75,6 +78,15 @@ const DERIVED_SKILL_ADAPTER_INPUTS = listSkillAdapters(ROOT).map(
   (rel) => `.claude/skills/${rel}`,
 );
 
+// (Plan 27-34, closing CR-03) The PLUGIN-FORM skill tree. A mirror that did not carry it would make
+// the plant case below pass because the file is ABSENT — guard_wr05 skips a scan member that does not
+// exist — rather than because the guard convicted it, which is a case that pins nothing. It would also
+// trip the new plugin cardinality floor on every unrelated plant case. Derived from the same authority
+// the guard derives from, so the mirror and the scan can never disagree about membership.
+const DERIVED_PLUGIN_SKILL_INPUTS = listPluginSkillAdapters(ROOT).map(
+  (rel) => `skills/${rel}`,
+);
+
 // The complete set of input files the guard reads (repo-relative). A mirror carries byte-faithful
 // copies of all of these; one file is then mutated to plant the violation. The derived role corpus
 // plus the derived adapter corpus (agents + skills) plus the SEC_VOICE surfaces plus AGENTS.md and
@@ -83,6 +95,7 @@ const GUARD_INPUTS = [
   ...DERIVED_ROLE_INPUTS,
   ...DERIVED_AGENT_ADAPTER_INPUTS,
   ...DERIVED_SKILL_ADAPTER_INPUTS,
+  ...DERIVED_PLUGIN_SKILL_INPUTS,
   "AGENTS.md",
   "agent-factory/packaging/subagent.frontmatter.md",
   "agent-factory/packaging/slash-command.template.md",
@@ -1919,6 +1932,90 @@ describe("check-foundation-guards.js (SDLC-02 / SC2 fail-proof harness)", () => 
       ".claude/agents/zz-rogue-spawner.md: non-coordinator carries a spawn grant",
     );
     expect(o).toMatch(/rogue spawner/i);
+  });
+
+  // ── (Plan 27-34, closing CR-03) THE PLUGIN-FORM DISTRIBUTION SURFACE ──────────────────────────
+  //
+  // The plant targets a SKILL adapter DELIBERATELY. Planting on an agent adapter would be caught
+  // incidentally by the unrelated `name`/`tools` floors even if the scan set were wrong, giving such a
+  // case a false green with a wrong diagnosis. A plugin-form skill is subject to NO floor other than
+  // the spawn-grant test itself, so a conviction here can only mean the file is genuinely in the scan.
+  //
+  // Reproduced against the committed `.js` before the fix: this exact plant printed the WR-05 pass line
+  // and ALL CHECKS PASSED at exit 0.
+  it("planted spawn grant on a PLUGIN-form skill reaches guard_wr05 — the shipped plugin tree is in the scan (CR-03)", () => {
+    const m = mirror();
+    const target = join(m, "skills/plan/SKILL.md");
+    writeFileSync(
+      target,
+      readFileSync(target, "utf8").replace(
+        /^allowed-tools:\n/m,
+        "allowed-tools:\n  - Agent(grugops-software-engineer, grugops-qe-e2e)\n",
+      ),
+    );
+    const r = runIn(m);
+    expect(r.status).not.toBe(0);
+    const o = out(r);
+    expect(o).toContain(
+      "skills/plan/SKILL.md: non-coordinator carries a spawn grant",
+    );
+    expect(o).toMatch(/rogue spawner/i);
+  });
+
+  it("the UNMODIFIED mirror is green — the negative control for the plugin-form plant", () => {
+    const r = runIn(mirror());
+    expect(out(r)).toContain("ALL CHECKS PASSED");
+    expect(r.status).toBe(0);
+  });
+
+  // THE MIRROR-COMPLETENESS CASE. Without it the plant above could pass because the file is ABSENT
+  // from the mirror rather than because the guard convicted it — guard_wr05 skips a scan member that
+  // does not exist. Measured: with the plugin tree dropped, the SAME plant yields ZERO occurrences of
+  // the conviction line, so the case would have proven nothing. This is what makes the plant known to
+  // test the guard rather than the mirror.
+  it("GUARD_INPUTS carries the plugin-form tree, at exactly the derived cardinality", () => {
+    expect(DERIVED_PLUGIN_SKILL_INPUTS.length).toBe(PLUGIN_SKILL_ADAPTER_COUNT);
+    expect(DERIVED_PLUGIN_SKILL_INPUTS).toContain("skills/plan/SKILL.md");
+    expect(GUARD_INPUTS).toEqual(
+      expect.arrayContaining(DERIVED_PLUGIN_SKILL_INPUTS),
+    );
+    // …and every one of them is a member of the scan the guard actually reads, so the mirror and the
+    // scan cannot disagree about what a plant lands on.
+    const scan = spawnGrantScan(ROOT);
+    for (const rel of DERIVED_PLUGIN_SKILL_INPUTS) expect(scan).toContain(rel);
+  });
+
+  // THE PLUGIN-DEFAULT COMPONENT FLOOR, proven to have teeth rather than to be vacuously true.
+  // `agents/` and `commands/` at plugin root are what Claude Code's DEFAULT discovery loads when the
+  // manifest declares no override — which it does not. Both are absent today, so the floor is free;
+  // this case is what shows it would fire the day one lands unscanned.
+  it("a granted file at the plugin-default `agents/` reaches guard_wr05 — absence-or-coverage, not assumption", () => {
+    const m = mirror();
+    mkdirSync(join(m, "agents"), { recursive: true });
+    writeFileSync(
+      join(m, "agents/rogue.md"),
+      "---\nname: rogue\ntools: Agent(grugops-qe-e2e)\n---\nPlanted plugin-root component.\n",
+    );
+    const r = runIn(m);
+    expect(r.status).not.toBe(0);
+    const o = out(r);
+    expect(o).toContain("agents/rogue.md");
+    expect(o).toContain("sit OUTSIDE the spawn-grant scan");
+  });
+
+  it("the live gate reports both plugin-default component directories ABSENT and names the plugin-skill count", () => {
+    // The claim NAMES THE INPUT IT READ. Before this plan the WR-05 pass line asserted "no
+    // non-coordinator does" while naming only the adapter and packaging counts, over a set that
+    // structurally could not see the seven plugin-form skills.
+    const o = out(runIn(ROOT));
+    expect(o).toContain(`${PLUGIN_SKILL_ADAPTER_COUNT} plugin-form skill(s)`);
+    expect(o).toContain(
+      "plugin-default component directories: agents/ ABSENT, commands/ ABSENT",
+    );
+    // The tier-announcement phrase is kept byte-for-byte; the new clauses were APPENDED.
+    expect(o).toContain(
+      "the coordinator body carries all 6 tier-announcement beats, each exactly once in live, non-fenced, non-commented text",
+    );
   });
 
   // CTX_WORKFLOWS: plant an additional workflow matching the `NN-*.md` naming rule, carrying a raw

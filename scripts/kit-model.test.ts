@@ -31,12 +31,15 @@ import {
   listAgentAdapters,
   listSkillAdapters,
   listPackagingTemplates,
+  listPluginSkillAdapters,
+  listPluginDefaultComponentFiles,
   spawnGrantScan,
   spawnGrantScanPrefix,
   SPAWN_GRANT_SCAN_PARTS,
   ROLE_COUNT,
   WORKFLOW_COUNT,
   SKILL_ADAPTER_COUNT,
+  PLUGIN_SKILL_ADAPTER_COUNT,
   SPAWN_GRANT_SCAN_COUNT,
   MAX_WALK_ENTRIES,
 } from "./kit-model.js";
@@ -576,6 +579,129 @@ describe("kit-model listSkillAdapters (KIT-02 skill derivation authority)", () =
 });
 
 // ---------------------------------------------------------------------------
+// The PLUGIN-FORM skill lister (plan 27-34, closing CR-03's named instance).
+//
+// `skills/<n>/SKILL.md` at the repository root is what Claude Code loads for every `/plugin install`
+// user. It sat in no derivation and no scan set at all, while guard_wr05's pass line asserted "no
+// non-coordinator holds the spawn grant" over it.
+// ---------------------------------------------------------------------------
+
+// Build a throwaway root carrying ONLY the plugin-form `skills` tree. `null` means "do not create the
+// directory at all" (unreadable), `[]` means "create it empty" (vacuous).
+function pluginSkillRoot(skills: string[] | null): string {
+  const root = mkdtempSync(join(tmpdir(), "grugops-kit-model-plugin-"));
+  tmpDirs.push(root);
+  if (skills !== null) {
+    const dir = join(root, "skills");
+    mkdirSync(dir, { recursive: true });
+    for (const rel of skills) {
+      const file = join(dir, rel);
+      mkdirSync(dirname(file), { recursive: true });
+      writeFileSync(file, "---\nname: fixture\n---\nplaceholder\n");
+    }
+  }
+  return root;
+}
+
+describe("kit-model listPluginSkillAdapters (the plugin-form distribution surface)", () => {
+  it("returns the derived member set over a fixture — the rule is the FILE NAME, at any depth", () => {
+    const root = pluginSkillRoot([
+      "plan/SKILL.md",
+      "plan/README.md",
+      "gate/SKILL.md",
+      "vendor/nested/SKILL.md",
+      "not-a-skill/notes.md",
+    ]);
+    const got = listPluginSkillAdapters(root);
+    expect(got).toEqual([
+      "gate/SKILL.md",
+      "plan/SKILL.md",
+      "vendor/nested/SKILL.md",
+    ]);
+    // Sorted, so the scan order and every message built from it are byte-identical across runs and
+    // platforms.
+    expect(got).toEqual([...got].sort());
+  });
+
+  it("THROWS naming the directory when the plugin skills directory does not exist", () => {
+    const root = pluginSkillRoot(null);
+    expect(() => listPluginSkillAdapters(root)).toThrow(join(root, "skills"));
+    expect(() => listPluginSkillAdapters(root)).toThrow(/cannot read kit directory/);
+  });
+
+  it("THROWS naming the directory when it is empty (never returns [])", () => {
+    const root = pluginSkillRoot([]);
+    expect(() => listPluginSkillAdapters(root)).toThrow(join(root, "skills"));
+    expect(() => listPluginSkillAdapters(root)).toThrow(
+      /refusing to return an empty set/,
+    );
+  });
+
+  it("THROWS when the directory reads fine but the shape rule FILTERS it to empty", () => {
+    // A vacuous scan set passes every downstream guard. The refusal is what keeps an empty plugin
+    // tree from being read as "no plugin skills, therefore nothing to check".
+    const root = pluginSkillRoot(["one/notes.md", "two/index.md"]);
+    expect(() => listPluginSkillAdapters(root)).toThrow(
+      /refusing to return an empty set/,
+    );
+    expect(() => listPluginSkillAdapters(root)).toThrow(join(root, "skills"));
+  });
+
+  it("exports PLUGIN_SKILL_ADAPTER_COUNT and the live tree derives exactly that many, both directions", () => {
+    // The plugin tree has NO role corpus for the KIT-03 oracle to cross-check and no freshness gate,
+    // so this count is its only deletion signal — the same argument SKILL_ADAPTER_COUNT makes, on a
+    // surface with even less around it.
+    expect(PLUGIN_SKILL_ADAPTER_COUNT).toBe(7);
+    const live = listPluginSkillAdapters();
+    expect(live.length).toBe(PLUGIN_SKILL_ADAPTER_COUNT);
+    expect(live.length).not.toBe(PLUGIN_SKILL_ADAPTER_COUNT - 1);
+    expect(live.length).not.toBe(PLUGIN_SKILL_ADAPTER_COUNT + 1);
+  });
+});
+
+describe("kit-model listPluginDefaultComponentFiles (the plugin-default absence-or-coverage probe)", () => {
+  it("reports ABSENT for a directory that does not exist, and PRESENT-but-empty for one that does", () => {
+    // Absence is the EXPECTED and correct state, so this probe deliberately does not carry the
+    // refuse-empty floor every membership lister here carries. Reporting `present: false` is the
+    // answer; a throw would fail the live tree, where both directories are absent by design. An
+    // EXISTING but empty directory is a third, distinct answer and must not collapse into either.
+    const root = mkdtempSync(join(tmpdir(), "grugops-kit-model-defaults-"));
+    tmpDirs.push(root);
+    mkdirSync(join(root, "agents"), { recursive: true });
+    expect(listPluginDefaultComponentFiles(root)).toEqual([
+      { subpath: "agents", present: true, files: [] },
+      { subpath: "commands", present: false, files: [] },
+    ]);
+  });
+
+  it("reports every file it finds, at any depth and regardless of extension", () => {
+    const root = mkdtempSync(join(tmpdir(), "grugops-kit-model-defaults-"));
+    tmpDirs.push(root);
+    mkdirSync(join(root, "commands/nested"), { recursive: true });
+    writeFileSync(join(root, "commands/rogue.md"), "x");
+    writeFileSync(join(root, "commands/nested/thing.txt"), "x");
+    const got = listPluginDefaultComponentFiles(root);
+    // Not narrowed to `.md`: the question is "would the platform load something no guard scans", and
+    // an extension filter would let the next author drop a granted file under a name it cannot see.
+    expect(got.find((p) => p.subpath === "commands")).toEqual({
+      subpath: "commands",
+      present: true,
+      files: ["commands/nested/thing.txt", "commands/rogue.md"],
+    });
+    expect(got.find((p) => p.subpath === "agents")!.present).toBe(false);
+  });
+
+  it("the LIVE tree has both plugin-default component directories absent", () => {
+    // The condition the guard's floor asserts mechanically. Both are absent today, which is why the
+    // floor costs nothing — and exactly why it is worth writing before the first one lands.
+    for (const probe of listPluginDefaultComponentFiles()) {
+      expect(probe.present, probe.subpath).toBe(false);
+      expect(probe.files, probe.subpath).toEqual([]);
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
 // The packaging lister and THE ONE SPAWN-GRANT SCAN COMPOSITION (plan 27-33, closing CR-03).
 //
 // This composition was previously assembled inside check-foundation-guards.ts, and the false-red
@@ -653,13 +779,16 @@ describe("kit-model spawnGrantScan (the ONE spawn-grant scan composition)", () =
     plant(".claude/agents/one.md");
     plant(".claude/agents/nested/two.md");
     plant(".claude/skills/alpha/SKILL.md");
+    // (Plan 27-34) The PLUGIN-form part. Without it the composition fixture would be a strict subset
+    // of what the guard scans, which is the class of gap this whole round exists to delete.
+    plant("skills/beta/SKILL.md");
     plant("agent-factory/packaging/x.frontmatter.md");
     plant("agent-factory/packaging/y.template.md");
     plant("agent-factory/packaging/adapters.md");
     return root;
   }
 
-  it("equals the union of its three parts over a fixture, each prefixed back to its repo-relative shape", () => {
+  it("equals the union of its FOUR parts over a fixture, each prefixed back to its repo-relative shape", () => {
     const root = compositionRoot();
     const got = spawnGrantScan(root);
     expect(got).toEqual([
@@ -668,16 +797,27 @@ describe("kit-model spawnGrantScan (the ONE spawn-grant scan composition)", () =
       ".claude/skills/alpha/SKILL.md",
       "agent-factory/packaging/x.frontmatter.md",
       "agent-factory/packaging/y.template.md",
+      "skills/beta/SKILL.md",
     ]);
     // Sorted, so two runs over one tree produce byte-identical output for every consumer.
     expect(got).toEqual([...got].sort());
-    // The union really is the three parts and nothing else.
+    // The union really is the four parts and nothing else.
     const union = [
       ...listAgentAdapters(root).map((r) => `.claude/agents/${r}`),
       ...listSkillAdapters(root).map((r) => `.claude/skills/${r}`),
+      ...listPluginSkillAdapters(root).map((r) => `skills/${r}`),
       ...listPackagingTemplates(root).map((f) => `agent-factory/packaging/${f}`),
     ].sort();
     expect(got).toEqual(union);
+    // The two skill prefixes are DISJOINT — neither is a prefix of the other — so partitioning the
+    // composition on either literal is unambiguous and a plugin member can never be counted as a
+    // standalone one.
+    expect(
+      got.filter((f) => f.startsWith(spawnGrantScanPrefix("skill"))),
+    ).toEqual([".claude/skills/alpha/SKILL.md"]);
+    expect(
+      got.filter((f) => f.startsWith(spawnGrantScanPrefix("plugin-skill"))),
+    ).toEqual(["skills/beta/SKILL.md"]);
   });
 
   it("propagates a part's THROW rather than returning a short composition", () => {
@@ -690,23 +830,51 @@ describe("kit-model spawnGrantScan (the ONE spawn-grant scan composition)", () =
   });
 
   it("exports SPAWN_GRANT_SCAN_COUNT and the live tree derives exactly that many, failing in BOTH directions", () => {
-    // D-19 / D-20: two-sided. 25 is a failure and 27 is a failure; only 26 passes. This count is the
+    // D-19 / D-20: two-sided. 32 is a failure and 34 is a failure; only 33 passes. This count is the
     // ONLY signal that can catch a part dropped from the composition, because its two consumers read
     // one object and set equality between them compares an object with itself.
-    expect(SPAWN_GRANT_SCAN_COUNT).toBe(26);
+    //
+    // (Plan 27-34) RAISED 26 -> 33 in the same edit that folded the plugin-form skill tree in. Raising
+    // it is the deliberate act D-20 requires — it obliges the author to walk every consumer before the
+    // number moves.
+    expect(SPAWN_GRANT_SCAN_COUNT).toBe(33);
     const live = spawnGrantScan();
     expect(live.length).toBe(SPAWN_GRANT_SCAN_COUNT);
     expect(live.length).not.toBe(SPAWN_GRANT_SCAN_COUNT - 1);
     expect(live.length).not.toBe(SPAWN_GRANT_SCAN_COUNT + 1);
-    // The per-part breakdown the count is composed of: 17 + 7 + 2.
+    // The per-part breakdown the count is composed of: 17 + 7 + 7 + 2.
     expect(listAgentAdapters().length).toBe(17);
     expect(listSkillAdapters().length).toBe(7);
+    expect(listPluginSkillAdapters().length).toBe(7);
     expect(listPackagingTemplates().length).toBe(2);
+    // …and the parts really do exhaust the total, so the four numbers above cannot each be right while
+    // the composition holds something none of them describes.
+    expect(
+      listAgentAdapters().length +
+        listSkillAdapters().length +
+        listPluginSkillAdapters().length +
+        listPackagingTemplates().length,
+    ).toBe(SPAWN_GRANT_SCAN_COUNT);
   });
 
   it("PER-PART membership is SET equality against each lister, which a swap between parts cannot satisfy", () => {
     const root = compositionRoot();
     const members = spawnGrantScan(root);
+    // (Plan 27-34) ALL FOUR PARTS, and the parts EXHAUST the composition. A membership claim about
+    // only the part being ADDED says nothing about the parts already there, so a widening that
+    // silently swapped one part for another would hold the total and pass. Asserting that the four
+    // partitions cover every member is what makes "all four" checkable rather than assumed.
+    expect(SPAWN_GRANT_SCAN_PARTS.map((p) => p.name)).toEqual([
+      "agent",
+      "skill",
+      "plugin-skill",
+      "packaging",
+    ]);
+    expect(
+      members.filter((f) =>
+        SPAWN_GRANT_SCAN_PARTS.some((p) => f.startsWith(p.prefix)),
+      ).length,
+    ).toBe(members.length);
     for (const part of SPAWN_GRANT_SCAN_PARTS) {
       const inComposition = members.filter((f) => f.startsWith(part.prefix)).sort();
       const expected = part.list(root).map((rel) => `${part.prefix}${rel}`).sort();

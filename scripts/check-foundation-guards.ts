@@ -230,12 +230,15 @@ import {
   listWorkflows,
   listAgentAdapters,
   listSkillAdapters,
+  listPluginSkillAdapters,
+  listPluginDefaultComponentFiles,
   spawnGrantScan,
   spawnGrantScanPrefix,
   SPAWN_GRANT_SCAN_PARTS,
   ROLE_COUNT,
   WORKFLOW_COUNT,
   SKILL_ADAPTER_COUNT,
+  PLUGIN_SKILL_ADAPTER_COUNT,
   SPAWN_GRANT_SCAN_COUNT,
 } from "./kit-model.js";
 // Phase 27 (SPAWN-05 / D-24): the retired-vocabulary literals are single-source. guard_adapter_body
@@ -377,6 +380,29 @@ const AGENT_ADAPTERS = AGENT_ADAPTER_RELS.map((rel) => `${ADAPTER_DIR}/${rel}`);
 const SKILL_ADAPTERS = SKILL_ADAPTER_RELS.map((rel) => `${SKILL_DIR}/${rel}`);
 const ADAPTERS = [...AGENT_ADAPTERS, ...SKILL_ADAPTERS];
 
+// (Plan 27-34) THE PLUGIN-FORM SKILL LIST — A SECOND CALL SITE OF ONE AUTHORITY, NEVER A SECOND SCAN
+// COMPOSITION. It is derived here for exactly two consumers: the CARDINALITY floor in
+// guardKitCounts() and the PAIR RULE in guardDistributionPair(). The SCAN widened inside
+// kit-model.spawnGrantScan() itself, so the guard and the false-red control in
+// scripts/frontmatter.test.ts cannot answer "what is scanned" differently — splicing the plugin tree
+// into a composition local to THIS file would have left that control vouching for a strict subset,
+// which is the hole plan 27-33 closed by relocating the composition.
+//
+// It is DELIBERATELY NOT ADDED TO `ADAPTERS` above. That list feeds guard_adapter_size's byte ceilings
+// and the KIT-03 role-corpus equality, and both ask a different question: `ADAPTERS` is an AGENT
+// IDENTITY corpus (one adapter per role, one grant closure), while the plugin tree is a DISTRIBUTION
+// MIRROR of the standalone skills with no role behind it. Folding it in would break a currently-clean
+// requirement — KIT-03 would compare 17 roles against 31 members — and the byte ceilings would start
+// reporting the same skill twice. The scoping is recorded here rather than left as an accident of
+// where the constant was spliced.
+//
+// Goes through the SAME `derive()` wrapper as its siblings: kit-model throws (D-21 tier 1) on an
+// absent, unreadable or filtered-empty plugin skills directory, and the wrapper records the message so
+// the count floor NAMES the condition instead of the gate dying on an unhandled exception and silently
+// skipping every guard after it.
+const PLUGIN_SKILL_DERIVATION = derive(() => listPluginSkillAdapters(ROOT));
+const PLUGIN_SKILL_RELS = PLUGIN_SKILL_DERIVATION.files;
+
 // ---------------------------------------------------------------------------
 // guard_wr05 — both-direction coordinator-spawn-grant enforcement (Phase 23, D-15/D-16).
 //
@@ -444,6 +470,20 @@ const ADAPTERS = [...AGENT_ADAPTERS, ...SKILL_ADAPTERS];
 // Widening from four files to the ten present today is the point: the seven skill adapters were
 // never checked for a rogue spawn grant. Once plan 27-07 lands the 17 agent adapters, all of them
 // enter this scan on the same run, with no edit here.
+//
+// (PLAN 27-34) THE PLUGIN-FORM SKILL TREE IS AN INCLUSION, AND THE COMMENT MUST SAY SO RATHER THAN
+// ONLY ARGUE THE EXCLUSIONS. `skills/<n>/SKILL.md` at the repository root is a REAL, PLATFORM-LOADED
+// distribution surface: `.claude-plugin/plugin.json` declares no component-path override and the
+// marketplace entry sources the repository root, so Claude Code's default discovery loads all seven of
+// those files for every `/plugin install` user. Until this plan they were outside EVERY scan set in
+// the repository — this guard's, adapters-freshness.ts's, and generate-role-adapters.ts's alike —
+// while the pass line below asserted "no non-coordinator holds the spawn grant" over them. A grant
+// planted on `skills/plan/SKILL.md` was reproduced printing ALL CHECKS PASSED at exit 0. They are now
+// members of the one composition, so the claim and the input finally agree.
+//
+// AND THEY ARE DELIBERATELY NOT IN `ADAPTERS`. That list feeds the byte ceilings and the KIT-03
+// role-corpus equality; those ask about AGENT IDENTITY, and a distribution mirror of the standalone
+// skills has no role behind it. See the note at PLUGIN_SKILL_DERIVATION above.
 // ---------------------------------------------------------------------------
 // D-15 marker: the coordinator key set to true, read through the SAME parser as the grant so a
 // marker in an unusual but valid scalar form can neither demote the real coordinator nor promote a
@@ -791,8 +831,50 @@ function guardWr05(): void {
   // the two packaging templates are documentation surfaces that happen to share the scan. Both
   // numbers are printed so neither hides. With the scan set derived in plan 27-03 this now covers all
   // 17 agent adapters and all 7 skills rather than the four files it used to hand-list.
+  // THE PLUGIN-DEFAULT COMPONENT FLOOR (plan 27-34) — ABSENCE OR COVERAGE, never assumption.
+  //
+  // This closes the CLASS the plugin-skill hole belongs to rather than only the instance CR-03 named.
+  // `.claude-plugin/plugin.json` declares no component-path override and the marketplace entry sources
+  // the repository root, so Claude Code's DEFAULT discovery would load `agents/` and `commands/` at
+  // plugin root for every plugin-install user. Neither exists today and, until this line, nothing
+  // asserted they stay absent — so a `commands/rogue.md` carrying a spawn grant would have been loaded
+  // by the platform and seen by no scan set at all, exactly as `skills/plan/SKILL.md` was.
+  //
+  // The floor is deliberately weak in the right direction: a directory that EXISTS is fine, provided
+  // every file in it is inside SPAWN_GRANT_SCAN, so a future phase may legitimately ship plugin-root
+  // components by first putting them in the scan. What it forbids is a loadable surface nobody scans.
+  //
+  // It costs nothing today, which is exactly when a class-level floor should be written — after the
+  // instance has already shipped once and before the next one does.
+  const pluginDefaults: string[] = [];
+  try {
+    for (const probe of listPluginDefaultComponentFiles(ROOT)) {
+      if (!probe.present) {
+        pluginDefaults.push(`${probe.subpath}/ ABSENT`);
+        continue;
+      }
+      const unscanned = probe.files.filter((f) => !SPAWN_GRANT_SCAN.includes(f));
+      pluginDefaults.push(
+        `${probe.subpath}/ PRESENT with ${probe.files.length} file(s), all in the spawn-grant scan`,
+      );
+      if (unscanned.length > 0) {
+        wr05Fail += `\n${unscanned.length} file(s) under the plugin-default component directory \`${probe.subpath}/\` sit OUTSIDE the spawn-grant scan: ${unscanned.join(", ")}. The plugin manifest declares no component-path override and the marketplace entry sources the repository root, so Claude Code's default discovery LOADS this directory for every plugin-install user — a granted file here is live on a real machine while no guard can see it. Either the directory stays absent, or its contents enter the scan`;
+      }
+    }
+  } catch (e) {
+    // The probe walks a directory that exists, so a throw means it became unreadable mid-run. That is
+    // a condition to NAME, never to treat as "absent, therefore fine" — absence is the one answer this
+    // floor accepts, and an unreadable directory is not evidence of it.
+    wr05Fail += `\nthe plugin-default component probe failed: ${(e as Error).message} — an unreadable plugin-root component directory is NEVER read as "absent, therefore fine"`;
+  }
   const nonCoordinatorAdapters = ADAPTERS.filter(
     (f) => !coordinators.includes(f),
+  ).length;
+  // The plugin-form skill members of the scan, partitioned out of the ONE composition on the same
+  // prefix the composition was built from — never a second read, and never the derivation above (which
+  // exists for the count and the pair rule). What this number reports is what the scan actually held.
+  const pluginSkillsScanned = SPAWN_GRANT_SCAN.filter((f) =>
+    f.startsWith(spawnGrantScanPrefix("plugin-skill")),
   ).length;
   if (wr05Fail === "") {
     pass(
@@ -800,7 +882,15 @@ function guardWr05(): void {
       // tier-announcement beats` phrase is kept verbatim — a case pins it — and the clause that makes
       // the claim true is APPENDED rather than replacing it: a PASS line must never state a check
       // that was not performed over the input it names.
-      `WR-05: exactly one coordinator holds the spawn grant; no non-coordinator does (${nonCoordinatorAdapters} non-coordinator adapter bodies + ${PACKAGING_TEMPLATES.length} packaging template(s) checked), and the coordinator body carries all ${TIER_BEATS.length} tier-announcement beats, each exactly once in live, non-fenced, non-commented text`,
+      //
+      // (Plan 27-34) The plugin-skill count and the plugin-default component dispositions are APPENDED
+      // for the same reason, and it is the reason this plan exists: the line used to assert "no
+      // non-coordinator does" while naming only the adapter and packaging counts, over a set that
+      // structurally could not see the seven plugin-form skills. A both-direction claim printed over an
+      // input the guard cannot read is a fabricated completion claim. The dispositions are printed even
+      // when both directories are ABSENT so a reader sees which surfaces were CONSIDERED, rather than
+      // only that something passed.
+      `WR-05: exactly one coordinator holds the spawn grant; no non-coordinator does (${nonCoordinatorAdapters} non-coordinator adapter bodies + ${pluginSkillsScanned} plugin-form skill(s) + ${PACKAGING_TEMPLATES.length} packaging template(s) checked), and the coordinator body carries all ${TIER_BEATS.length} tier-announcement beats, each exactly once in live, non-fenced, non-commented text; plugin-default component directories: ${pluginDefaults.join(", ")}`,
     );
   } else {
     fail(`WR-05 coordinator-spawn-grant violation:${wr05Fail}`);
@@ -1154,6 +1244,13 @@ function guardKitCounts(): void {
   if (SKILL_ADAPTERS.length !== SKILL_ADAPTER_COUNT) {
     countFail += `\nkit count: derived ${SKILL_ADAPTERS.length} skill adapters, expected exactly ${SKILL_ADAPTER_COUNT} — a skill adapter has no role to compare against, so this count is the only deletion signal; walk guard_adapter_size and the spawn-grant scan BEFORE updating SKILL_ADAPTER_COUNT in scripts/kit-model.ts`;
   }
+  // (Plan 27-34) The PLUGIN-FORM skill count. Same argument as the standalone skill count directly
+  // above, and if anything stronger: the plugin tree has no role corpus for the KIT-03 oracle to
+  // compare against AND no freshness gate, so deleting `skills/<n>/` would otherwise shrink the
+  // spawn-grant scan in complete silence while every guard stayed green.
+  if (PLUGIN_SKILL_RELS.length !== PLUGIN_SKILL_ADAPTER_COUNT) {
+    countFail += `\nkit count: derived ${PLUGIN_SKILL_RELS.length} plugin-form skill adapters, expected exactly ${PLUGIN_SKILL_ADAPTER_COUNT} — the plugin tree has no role corpus and no freshness gate, so this count is its only deletion signal; walk guard_wr05's scan, guard_distribution_pair and the false-red control in scripts/frontmatter.test.ts BEFORE updating PLUGIN_SKILL_ADAPTER_COUNT in scripts/kit-model.ts${PLUGIN_SKILL_DERIVATION.error === "" ? "" : `\n  derivation error: ${PLUGIN_SKILL_DERIVATION.error}`}`;
+  }
   // (Plan 27-33, D-19/D-20) THE RELOCATED SPAWN-GRANT SCAN COMPOSITION'S OWN PIN, two-sided.
   //
   // This is the ONLY thing that can catch a part dropped during the relocation. The guard and the
@@ -1202,7 +1299,7 @@ function guardKitCounts(): void {
   }
   if (countFail === "") {
     pass(
-      `kit counts: derived ${ROLE_FILES.length} roles, ${WORKFLOW_FILES.length} workflows and ${SKILL_ADAPTERS.length} skill adapters (expected ${ROLE_COUNT} / ${WORKFLOW_COUNT} / ${SKILL_ADAPTER_COUNT}); the spawn-grant scan composition holds exactly ${SPAWN_GRANT_SCAN.length} members (${partBreakdown}), each part set-equal to its own lister`,
+      `kit counts: derived ${ROLE_FILES.length} roles, ${WORKFLOW_FILES.length} workflows, ${SKILL_ADAPTERS.length} skill adapters and ${PLUGIN_SKILL_RELS.length} plugin-form skill adapters (expected ${ROLE_COUNT} / ${WORKFLOW_COUNT} / ${SKILL_ADAPTER_COUNT} / ${PLUGIN_SKILL_ADAPTER_COUNT}); the spawn-grant scan composition holds exactly ${SPAWN_GRANT_SCAN.length} members (${partBreakdown}), each part set-equal to its own lister`,
     );
   } else {
     fail(`kit-count violation:${countFail}`);

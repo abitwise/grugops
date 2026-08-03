@@ -64,9 +64,22 @@
 // NAMES that consumers read as truth while it rots; a count is a number that can only ever fail
 // closed.
 //
+// THE PLUGIN-FORM HALF (KIT-02, plan 27-34, closing CR-03). grugops ships TWO distribution forms of
+// the same skills: the standalone `.claude/skills/grugops-<n>/SKILL.md` tree and the PLUGIN-form
+// `skills/<n>/SKILL.md` tree at the repository root, which is what Claude Code loads for every
+// `/plugin install` user (the manifest declares no component-path override and the marketplace entry
+// sources the repository root, so default discovery applies). The plugin tree sat in NO derivation
+// and NO scan set at all, while guard_wr05's pass line asserted "no non-coordinator holds the spawn
+// grant" over a set that structurally could not see it — a membership set narrower than the fact it
+// claims to describe, which is this milestone's founding defect. Reproduced end to end: a grant
+// planted on `skills/plan/SKILL.md` printed ALL CHECKS PASSED at exit 0.
+//
+// The plugin half uses the SAME shape rule and the SAME walk as the standalone skill half — one
+// mechanism, never a second one written to look almost the same.
+//
 // Path-traversal posture (ASVS V12, mirrors generate-catalog.ts): `agent-factory/roles`,
-// `agent-factory/workflows`, `.claude/agents` and `.claude/skills` are FIXED literal subpaths joined
-// onto the supplied root. None is ever taken from argv, env, or file content.
+// `agent-factory/workflows`, `.claude/agents`, `.claude/skills` and `skills` are FIXED literal
+// subpaths joined onto the supplied root. None is ever taken from argv, env, or file content.
 //
 // FAIL-CLOSED POSTURE — tier 1 of D-21: this module THROWS. It throws naming the directory when the
 // directory cannot be read, and it throws naming the directory when the filtered result is length
@@ -78,7 +91,7 @@
 // Node stdlib ONLY — node:fs + node:path. Zero npm dependencies.
 //
 // Clear professional voice throughout (CLAUDE.md hard rule — this is a build-safety surface).
-import { readdirSync, statSync, realpathSync } from "node:fs";
+import { readdirSync, statSync, realpathSync, existsSync } from "node:fs";
 import { join } from "node:path";
 // The exact expected cardinality of each derived set. Enforcement is two-sided (D-20): 16 roles is a
 // failure and 18 roles is a failure. Bumping either number is a DELIBERATE act that obliges the
@@ -89,8 +102,19 @@ export const WORKFLOW_COUNT = 19;
 // is the same kind of fact; see the module header for why the skill half earns a count and the agent
 // half deliberately does not.
 export const SKILL_ADAPTER_COUNT = 7;
+// The exact expected number of PLUGIN-FORM skill adapters (plan 27-34). It earns a count for exactly
+// the reason the standalone skill count does — see the module header's argument at SKILL_ADAPTER_COUNT
+// above and the paragraph it points at: the plugin tree has NO role corpus for the KIT-03 oracle to
+// cross-check it against, so the oracle is structurally blind to a deleted plugin skill and a count is
+// its ONLY deletion signal. It is if anything the weaker of the two surfaces: the standalone tree at
+// least has a freshness gate over its siblings, and the plugin tree has nothing.
+//
+// AND THIS IS A COUNT, NOT A LIST OF NAMES, so it is not the drift class this milestone deletes. The
+// drift class is an enumeration consumers read as truth while it rots; a number can only ever fail
+// closed. The membership itself is DERIVED by listPluginSkillAdapters() below — never written down.
+export const PLUGIN_SKILL_ADAPTER_COUNT = 7;
 // The exact expected cardinality of the SPAWN-GRANT SCAN COMPOSITION below: 17 agent adapters +
-// 7 standalone skill adapters + 2 packaging templates.
+// 7 standalone skill adapters + 7 plugin-form skill adapters + 2 packaging templates.
 //
 // THIS PIN IS MANDATORY, NOT NICE TO HAVE, AND THE REASON IS SPECIFIC (D-19 / D-20, plan 27-33).
 // The composition exists so that check-foundation-guards.ts's spawn-grant scan and the false-red
@@ -110,7 +134,15 @@ export const SKILL_ADAPTER_COUNT = 7;
 // integer comparisons pass while a decoy under `.claude/agents` displaces a real adapter; a swap
 // between parts nets out to the right total. The per-part assertion is SET equality against each
 // lister, never a count.
-export const SPAWN_GRANT_SCAN_COUNT = 26;
+//
+// RAISED 26 -> 33 BY PLAN 27-34, in the same edit that folded the PLUGIN-FORM skill tree in. Raising
+// the constant is the deliberate act D-20 requires: it obliges the author to walk every consumer
+// before the number moves, which is the whole point of the number. The per-part membership assertion
+// was extended to ALL FOUR parts in the same edit — asserting membership of only the part being ADDED
+// says nothing about the parts already there, so a widening that silently SWAPPED one part for another
+// would keep the total at 33 and pass. That gap is CR-03's own shape and it has now appeared three
+// times in this phase; the four-part assertion is what closes it.
+export const SPAWN_GRANT_SCAN_COUNT = 33;
 // MAX_WALK_ENTRIES — the recursive walk's WORK bound (D-35, closing WR-01).
 //
 // A SECOND MECHANISM, DELIBERATELY SEPARATE FROM THE CYCLE ANSWER. The `ancestors` stack in
@@ -141,6 +173,12 @@ const WORKFLOWS_SUBPATH = "agent-factory/workflows";
 const AGENTS_SUBPATH = ".claude/agents";
 const SKILLS_SUBPATH = ".claude/skills";
 const PACKAGING_SUBPATH = "agent-factory/packaging";
+// The PLUGIN-form skill tree at the repository root (plan 27-34). Distinct from SKILLS_SUBPATH above
+// and never a prefix of it, so partitioning the composition on either literal is unambiguous.
+const PLUGIN_SKILLS_SUBPATH = "skills";
+// The component directories Claude Code's DEFAULT discovery would load at plugin root. Neither exists
+// today; see listPluginDefaultComponentFiles() below for why they are probed rather than assumed.
+const PLUGIN_DEFAULT_COMPONENT_SUBPATHS = ["agents", "commands"];
 // Read a directory, rethrowing as a NAMED error. The raw ENOENT/EACCES message does not identify
 // which kit directory failed once two call sites share this helper.
 function readDirOrThrow(dir) {
@@ -259,6 +297,58 @@ export function listSkillAdapters(kitRoot = DEFAULT_KIT_ROOT) {
         .sort();
     return refuseEmpty(files, dir, "skill adapter");
 }
+// The PLUGIN-FORM skill corpus: every file NAMED `SKILL.md` beneath the repository-root `skills`
+// directory AT ANY DEPTH, as forward-slash relative paths, sorted by the full relative path. 7 files
+// today, each one level down (`<skill-name>/SKILL.md`).
+//
+// SAME SHAPE RULE, SAME WALK, SAME FLOOR as listSkillAdapters() above — deliberately, because these
+// are two distribution forms of one artifact and answering "what is a skill entry point" twice with
+// two almost-identical rules is the drift class this module deletes. What differs is only WHICH
+// directory is asked.
+//
+// WHY THIS SURFACE MATTERS (module header, the plugin-form half): this tree is what the platform
+// loads for every `/plugin install` user, and until plan 27-34 it was in no derivation and no scan set
+// anywhere in the repository. A rogue spawn grant planted here was live on a real user's machine while
+// the whole gate printed ALL CHECKS PASSED.
+export function listPluginSkillAdapters(kitRoot = DEFAULT_KIT_ROOT) {
+    const dir = join(kitRoot, PLUGIN_SKILLS_SUBPATH);
+    const files = walkFilesRelative(dir)
+        .filter((rel) => rel.split("/").pop() === "SKILL.md")
+        .sort();
+    return refuseEmpty(files, dir, "plugin skill adapter");
+}
+// THE PLUGIN-DEFAULT COMPONENT PROBE (plan 27-34) — an ABSENCE-OR-COVERAGE floor, not a corpus.
+//
+// `.claude-plugin/plugin.json` declares no component-path override and the marketplace entry sources
+// the repository root, so Claude Code's DEFAULT discovery would load `agents/` and `commands/` at
+// plugin root for every plugin-install user. Neither directory exists today, and until now NOTHING
+// asserted they stay absent — which is the CLASS the plugin-skill hole belongs to rather than the one
+// instance CR-03 named. A `commands/rogue.md` carrying a spawn grant would be loaded by the platform
+// and seen by no scan set, exactly as `skills/plan/SKILL.md` was.
+//
+// DELIBERATELY NOT refuseEmpty AND DELIBERATELY NOT A THROW. Every other lister here refuses an empty
+// result because an empty MEMBERSHIP set passes every guard vacuously. This is the opposite kind of
+// question: absence is the EXPECTED and correct state on the live tree, and the consumer's finding is
+// about files that exist, not about files that do not. Reporting `present: false` is the answer, never
+// a failure. An unreadable directory still throws, through readDirOrThrow inside the shared walk.
+//
+// Returns every file it finds, not only `.md`: the question is "would the platform load something we
+// do not scan", and narrowing the probe by extension would let the next author drop a granted file
+// under a name the filter cannot see.
+export function listPluginDefaultComponentFiles(kitRoot = DEFAULT_KIT_ROOT) {
+    return PLUGIN_DEFAULT_COMPONENT_SUBPATHS.map((subpath) => {
+        const dir = join(kitRoot, subpath);
+        if (!existsSync(dir))
+            return { subpath, present: false, files: [] };
+        return {
+            subpath,
+            present: true,
+            files: walkFilesRelative(dir)
+                .map((rel) => `${subpath}/${rel}`)
+                .sort(),
+        };
+    });
+}
 // ---------------------------------------------------------------------------
 // The packaging templates, and THE ONE SPAWN-GRANT SCAN COMPOSITION (plan 27-33)
 // ---------------------------------------------------------------------------
@@ -288,8 +378,15 @@ export function listPackagingTemplates(kitRoot = DEFAULT_KIT_ROOT) {
 }
 // THE ONE COMPOSITION ANSWERING "WHAT DOES THE SPAWN-GRANT SCAN COVER" (plan 27-33, closing CR-03).
 //
-// Agent adapters, standalone skill adapters and packaging templates, each prefixed back to its
-// REPO-RELATIVE shape (the form every consuming guard message is built from) and sorted.
+// Agent adapters, standalone skill adapters, PLUGIN-FORM skill adapters and packaging templates, each
+// prefixed back to its REPO-RELATIVE shape (the form every consuming guard message is built from) and
+// sorted.
+//
+// THE PLUGIN PART WAS FOLDED IN HERE, NOT IN THE GUARD (plan 27-34, closing CR-03). Splicing it into a
+// composition local to check-foundation-guards.ts would have left the false-red control in
+// scripts/frontmatter.test.ts vouching for a strict SUBSET of what the guard scans — the exact hole
+// plan 27-33 closed by moving the composition here in the first place. One composition, widened once,
+// and both consumers widen with it in the same run.
 //
 // WHY THIS EXISTS. check-foundation-guards.ts held this composition locally, and the false-red control
 // that vouches for it would otherwise have had to restate it — a hand-listed directory set one
@@ -308,15 +405,26 @@ export function spawnGrantScan(kitRoot = DEFAULT_KIT_ROOT) {
     return [
         ...listAgentAdapters(kitRoot).map((rel) => `${AGENTS_SUBPATH}/${rel}`),
         ...listSkillAdapters(kitRoot).map((rel) => `${SKILLS_SUBPATH}/${rel}`),
+        ...listPluginSkillAdapters(kitRoot).map((rel) => `${PLUGIN_SKILLS_SUBPATH}/${rel}`),
         ...listPackagingTemplates(kitRoot).map((f) => `${PACKAGING_SUBPATH}/${f}`),
     ].sort();
 }
-// The repo-relative directory prefixes the composition's three parts live under. Exported so a
+// The repo-relative directory prefixes the composition's FOUR parts live under. Exported so a
 // consumer asserting PER-PART membership partitions the composition by the SAME literals the
 // composition was built from, rather than restating them — the set-literal drift this module deletes.
+//
+// The consumer must assert EVERY part, not only the one it just added: a claim about the new part says
+// nothing about the parts already there, and a widening that swapped one part for another would hold
+// the total at SPAWN_GRANT_SCAN_COUNT and pass. Iterating this array is what makes "all four" the
+// default and forgetting a part impossible.
 export const SPAWN_GRANT_SCAN_PARTS = [
     { name: "agent", prefix: `${AGENTS_SUBPATH}/`, list: listAgentAdapters },
     { name: "skill", prefix: `${SKILLS_SUBPATH}/`, list: listSkillAdapters },
+    {
+        name: "plugin-skill",
+        prefix: `${PLUGIN_SKILLS_SUBPATH}/`,
+        list: listPluginSkillAdapters,
+    },
     {
         name: "packaging",
         prefix: `${PACKAGING_SUBPATH}/`,
