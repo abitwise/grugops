@@ -208,7 +208,7 @@
 // the guard notices it. A re-listed array wearing a new name cannot pass those.
 // ---------------------------------------------------------------------------
 
-import { readFileSync, existsSync, statSync, readdirSync } from "node:fs";
+import { readFileSync, existsSync, statSync } from "node:fs";
 import { join, basename } from "node:path";
 // Phase 19 (UAT-AUTO-05 / BLOCKER 1 / LOCKED CONTEXT.md decision / ROADMAP SC3): the run-all block
 // invokes the three Tier-1 auto-UAT oracles so this aggregator fails closed when any one fails. The
@@ -230,9 +230,13 @@ import {
   listWorkflows,
   listAgentAdapters,
   listSkillAdapters,
+  spawnGrantScan,
+  spawnGrantScanPrefix,
+  SPAWN_GRANT_SCAN_PARTS,
   ROLE_COUNT,
   WORKFLOW_COUNT,
   SKILL_ADAPTER_COUNT,
+  SPAWN_GRANT_SCAN_COUNT,
 } from "./kit-model.js";
 // Phase 27 (SPAWN-05 / D-24): the retired-vocabulary literals are single-source. guard_adapter_body
 // below takes the PROSE forms; check-kit-refs Assertion 2 takes the PATH form. Two genuinely
@@ -330,20 +334,19 @@ const SKILL_DIR = ".claude/skills";
 // KIT-03 oracle has no role corpus to compare a skill against. It is still enforced in exactly one
 // place, guardKitCounts() below.
 
-// Read a FLAT directory, returning [] when it cannot be read. The empty result is NOT a silent pass —
-// the consuming guard's own floor fails red on it and names the directory.
-// (Plan 27-10) The agent and skill callers are both gone; this now reads the PACKAGING TEMPLATE
-// directory and nothing else, and its name says so. Packaging templates are deliberately NOT derived
-// from the adapter authority: that directory is a flat literal one whose shape rule admits only
-// adapter-FRONTMATTER templates, it is not an adapter directory, and deriving it from the adapter
-// authority would be a category error.
-function readPackagingDir(rel: string): string[] {
-  try {
-    return readdirSync(abs(rel));
-  } catch {
-    return [];
-  }
-}
+// (Plan 27-33) THE LOCAL PACKAGING READ IS DELETED, NOT KEPT AS A SECOND OPINION. It used to be a
+// flat `readdirSync` here that returned [] on an unreadable directory, feeding a packaging-template
+// shape rule declared locally and composed locally into this file's own spawn-grant scan. That
+// composition is now the ONE exported `spawnGrantScan()` in kit-model.ts, which the false-red control
+// in scripts/frontmatter.test.ts also consumes — one predicate, one place. A weaker duplicate that
+// still votes is worse than none, which this file's own guard_wr05 header already argues at length.
+//
+// The empty-on-unreadable behavior travelled too, and it is load-bearing: the relocated lister goes
+// through kit-model's `refuseEmpty` and THROWS (D-21 tier 1), so its call site below goes through
+// `derive()` exactly as the agent and skill derivations do. The wrapper records the thrown message and
+// the run continues with an EMPTY list that the count floor then NAMES. A call site NOT wrapped in
+// `derive()` would convert a named red into an unhandled exception — fail-closed in direction, but it
+// would print one line and silently skip six unrelated guards, which is the discipline argued below.
 
 // The adapter corpus, from the ONE authority (kit-model.ts). It returns forward-slash paths relative
 // to each adapter directory; the fixed subpath is prefixed back on here to restore the repo-relative
@@ -448,14 +451,20 @@ const ADAPTERS = [...AGENT_ADAPTERS, ...SKILL_ADAPTERS];
 // coordinator — never a filename.
 const COORDINATOR_KEY = "coordinator";
 const COORDINATOR_VALUE = "true";
-// The packaging directory, and the shape rule that admits only the two adapter-frontmatter
-// templates. `adapters.md` is prose about adapters, not an adapter surface, and is OUT (D-09).
-const PACKAGING_DIR = "agent-factory/packaging";
-const PACKAGING_TEMPLATES = readPackagingDir(PACKAGING_DIR)
-  .filter((f) => f.endsWith(".frontmatter.md") || f.endsWith(".template.md"))
-  .sort()
-  .map((f) => `${PACKAGING_DIR}/${f}`);
-const SPAWN_GRANT_SCAN = [...ADAPTERS, ...PACKAGING_TEMPLATES];
+// (Plan 27-33) THE SCAN IS THE ONE EXPORTED COMPOSITION, read through `derive()` like its siblings.
+// The packaging directory literal, its shape rule and the composition itself all moved to
+// kit-model.ts; nothing here restates any of them. The false-red control in
+// scripts/frontmatter.test.ts consumes THE SAME function, so the guard and the control cannot answer
+// "what is scanned" differently — and because it is one object, set equality between them is a
+// tautology rather than a check. What catches a part dropped in the move is SPAWN_GRANT_SCAN_COUNT
+// plus the per-part membership assertion in guardKitCounts() below.
+const SPAWN_SCAN_DERIVATION = derive(() => spawnGrantScan(ROOT));
+const SPAWN_GRANT_SCAN = SPAWN_SCAN_DERIVATION.files;
+// The packaging half of the scan, for the WR-05 pass line's reported count. Derived by PARTITIONING
+// the one composition on the same prefix the composition was built from — never by a second read.
+const PACKAGING_TEMPLATES = SPAWN_GRANT_SCAN.filter((f) =>
+  f.startsWith(spawnGrantScanPrefix("packaging")),
+);
 
 // (Plan 27-12) stripFencedBlocks MOVED to scripts/frontmatter.ts and is imported at the top of this
 // file. The tree still has exactly ONE implementation of "which lines are inside a ``` block"; it
@@ -1145,9 +1154,55 @@ function guardKitCounts(): void {
   if (SKILL_ADAPTERS.length !== SKILL_ADAPTER_COUNT) {
     countFail += `\nkit count: derived ${SKILL_ADAPTERS.length} skill adapters, expected exactly ${SKILL_ADAPTER_COUNT} — a skill adapter has no role to compare against, so this count is the only deletion signal; walk guard_adapter_size and the spawn-grant scan BEFORE updating SKILL_ADAPTER_COUNT in scripts/kit-model.ts`;
   }
+  // (Plan 27-33, D-19/D-20) THE RELOCATED SPAWN-GRANT SCAN COMPOSITION'S OWN PIN, two-sided.
+  //
+  // This is the ONLY thing that can catch a part dropped during the relocation. The guard and the
+  // false-red control in scripts/frontmatter.test.ts now read THE SAME OBJECT, so set equality between
+  // them compares an object with itself and can never fail — it is documentation of intent, not a
+  // check. A one-line slip losing the standalone skills would otherwise leave the control passing over
+  // a subset, the gate exiting 0, the packaging-template count unchanged and the whole suite green
+  // while seven shipped skill adapters silently left the scan. That is CR-03's shape arriving through
+  // the fix for CR-03. The message names the derived total, the expected total AND the per-part
+  // breakdown, so a failure says which part moved rather than only that a number changed.
+  //
+  // The derivation error is appended when there is one: the packaging lister THROWS (D-21 tier 1) and
+  // its call site is wrapped in derive(), so an unreadable packaging directory arrives here as an
+  // EMPTY composition. This floor is what NAMES it — and the remaining guards still run, rather than
+  // the gate terminating on an unhandled exception and silently skipping six unrelated checks.
+  const partBreakdown = SPAWN_GRANT_SCAN_PARTS.map(
+    (p) =>
+      `${p.name} ${SPAWN_GRANT_SCAN.filter((f) => f.startsWith(p.prefix)).length}`,
+  ).join(" + ");
+  if (SPAWN_GRANT_SCAN.length !== SPAWN_GRANT_SCAN_COUNT) {
+    countFail += `\nkit count: the spawn-grant scan composition derived ${SPAWN_GRANT_SCAN.length} members, expected exactly ${SPAWN_GRANT_SCAN_COUNT} (derived breakdown: ${partBreakdown}) — this count is the ONLY signal that can catch a part dropped from scripts/kit-model.ts's spawnGrantScan(), because its two consumers read one object and set equality between them can never fail; walk guard_wr05 and the false-red control in scripts/frontmatter.test.ts BEFORE updating SPAWN_GRANT_SCAN_COUNT${SPAWN_SCAN_DERIVATION.error === "" ? "" : `\n  derivation error: ${SPAWN_SCAN_DERIVATION.error}`}`;
+  }
+  // PER-PART MEMBERSHIP, AS SET EQUALITY AND NEVER AS A COUNT. Three integer comparisons all pass
+  // while a decoy under `.claude/agents` DISPLACES a real adapter — a within-part substitution nets
+  // out to the right total. Comparing the composition's members under each prefix against that part's
+  // own lister is what catches it, and it also catches a swap BETWEEN parts that keeps the total at
+  // SPAWN_GRANT_SCAN_COUNT.
+  for (const part of SPAWN_GRANT_SCAN_PARTS) {
+    const inComposition = SPAWN_GRANT_SCAN.filter((f) =>
+      f.startsWith(part.prefix),
+    ).sort();
+    let expected: string[];
+    try {
+      expected = part.list(ROOT).map((rel) => `${part.prefix}${rel}`).sort();
+    } catch (e) {
+      // The lister threw. The composition is already empty for the same reason and the cardinality
+      // floor above has named it; reporting the thrown message here too would double-report one fact.
+      void e;
+      continue;
+    }
+    if (inComposition.join("\n") !== expected.join("\n")) {
+      const missing = expected.filter((f) => !inComposition.includes(f));
+      const extra = inComposition.filter((f) => !expected.includes(f));
+      countFail += `\nkit count: the spawn-grant scan composition's ${part.name} members are not exactly what ${part.prefix} derives — missing [${missing.join(", ")}], unexpected [${extra.join(", ")}]. This is SET equality on purpose: a count would pass while a decoy displaced a real member inside one part`;
+    }
+  }
   if (countFail === "") {
     pass(
-      `kit counts: derived ${ROLE_FILES.length} roles, ${WORKFLOW_FILES.length} workflows and ${SKILL_ADAPTERS.length} skill adapters (expected ${ROLE_COUNT} / ${WORKFLOW_COUNT} / ${SKILL_ADAPTER_COUNT})`,
+      `kit counts: derived ${ROLE_FILES.length} roles, ${WORKFLOW_FILES.length} workflows and ${SKILL_ADAPTERS.length} skill adapters (expected ${ROLE_COUNT} / ${WORKFLOW_COUNT} / ${SKILL_ADAPTER_COUNT}); the spawn-grant scan composition holds exactly ${SPAWN_GRANT_SCAN.length} members (${partBreakdown}), each part set-equal to its own lister`,
     );
   } else {
     fail(`kit-count violation:${countFail}`);

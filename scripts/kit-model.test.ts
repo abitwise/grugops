@@ -30,9 +30,14 @@ import {
   listWorkflows,
   listAgentAdapters,
   listSkillAdapters,
+  listPackagingTemplates,
+  spawnGrantScan,
+  spawnGrantScanPrefix,
+  SPAWN_GRANT_SCAN_PARTS,
   ROLE_COUNT,
   WORKFLOW_COUNT,
   SKILL_ADAPTER_COUNT,
+  SPAWN_GRANT_SCAN_COUNT,
   MAX_WALK_ENTRIES,
 } from "./kit-model.js";
 
@@ -567,5 +572,165 @@ describe("kit-model listSkillAdapters (KIT-02 skill derivation authority)", () =
     // set in silence.
     expect(SKILL_ADAPTER_COUNT).toBe(7);
     expect(listSkillAdapters().length).toBe(SKILL_ADAPTER_COUNT);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// The packaging lister and THE ONE SPAWN-GRANT SCAN COMPOSITION (plan 27-33, closing CR-03).
+//
+// This composition was previously assembled inside check-foundation-guards.ts, and the false-red
+// control that vouches for it had to restate the same directory set one indirection down. One
+// predicate answered in two places is the class D-28, D-37 and D-40 each collapsed once already
+// inside this phase, and the class CR-03 itself belongs to. It now lives here, with two consumers.
+//
+// BECAUSE THE TWO CONSUMERS READ ONE OBJECT, set equality between them can never fail. The cases
+// below assert the things that CAN: the exact two-sided cardinality, and PER-PART SET equality
+// against each lister.
+// ---------------------------------------------------------------------------
+
+// Build a throwaway root carrying ONLY `agent-factory/packaging`. `null` means "do not create the
+// directory at all" (unreadable), `[]` means "create it empty" (vacuous).
+function packagingRoot(entries: string[] | null): string {
+  const root = mkdtempSync(join(tmpdir(), "grugops-kit-model-packaging-"));
+  tmpDirs.push(root);
+  if (entries !== null) {
+    const dir = join(root, "agent-factory/packaging");
+    mkdirSync(dir, { recursive: true });
+    for (const name of entries) {
+      writeFileSync(join(dir, name), "---\nkind: packaging\n---\nplaceholder\n");
+    }
+  }
+  return root;
+}
+
+describe("kit-model listPackagingTemplates (the relocated packaging shape rule)", () => {
+  it("returns the derived set over a fixture: the two adapter-frontmatter suffixes, sorted", () => {
+    const root = packagingRoot([
+      "z.template.md",
+      "a.frontmatter.md",
+      // Prose ABOUT adapters is not an adapter surface and is OUT (D-09) — excluded BY THE SHAPE
+      // RULE rather than by omission from a hand list, so it cannot silently drift back in.
+      "adapters.md",
+      "notes.txt",
+    ]);
+    expect(listPackagingTemplates(root)).toEqual([
+      "a.frontmatter.md",
+      "z.template.md",
+    ]);
+  });
+
+  it("THROWS naming the directory when it cannot be read (D-21 tier 1)", () => {
+    const root = packagingRoot(null);
+    expect(() => listPackagingTemplates(root)).toThrow(/cannot read kit directory/);
+    expect(() => listPackagingTemplates(root)).toThrow(
+      join(root, "agent-factory/packaging"),
+    );
+  });
+
+  it("THROWS naming the directory when the FILTERED result is empty (a vacuous scan set passes every guard)", () => {
+    // The directory reads fine; the shape rule leaves nothing. Returning [] here would let the whole
+    // spawn-grant scan report PASS over a composition missing a part.
+    const root = packagingRoot(["adapters.md", "README.md"]);
+    expect(() => listPackagingTemplates(root)).toThrow(
+      /refusing to return an empty set/,
+    );
+    expect(() => listPackagingTemplates(root)).toThrow(
+      join(root, "agent-factory/packaging"),
+    );
+  });
+});
+
+describe("kit-model spawnGrantScan (the ONE spawn-grant scan composition)", () => {
+  // A root carrying all three parts, so the composition can be exercised away from the live tree.
+  function compositionRoot(): string {
+    const root = mkdtempSync(join(tmpdir(), "grugops-kit-model-scan-"));
+    tmpDirs.push(root);
+    const plant = (rel: string) => {
+      const file = join(root, rel);
+      mkdirSync(dirname(file), { recursive: true });
+      writeFileSync(file, "---\nname: fixture\n---\nplaceholder\n");
+    };
+    plant(".claude/agents/one.md");
+    plant(".claude/agents/nested/two.md");
+    plant(".claude/skills/alpha/SKILL.md");
+    plant("agent-factory/packaging/x.frontmatter.md");
+    plant("agent-factory/packaging/y.template.md");
+    plant("agent-factory/packaging/adapters.md");
+    return root;
+  }
+
+  it("equals the union of its three parts over a fixture, each prefixed back to its repo-relative shape", () => {
+    const root = compositionRoot();
+    const got = spawnGrantScan(root);
+    expect(got).toEqual([
+      ".claude/agents/nested/two.md",
+      ".claude/agents/one.md",
+      ".claude/skills/alpha/SKILL.md",
+      "agent-factory/packaging/x.frontmatter.md",
+      "agent-factory/packaging/y.template.md",
+    ]);
+    // Sorted, so two runs over one tree produce byte-identical output for every consumer.
+    expect(got).toEqual([...got].sort());
+    // The union really is the three parts and nothing else.
+    const union = [
+      ...listAgentAdapters(root).map((r) => `.claude/agents/${r}`),
+      ...listSkillAdapters(root).map((r) => `.claude/skills/${r}`),
+      ...listPackagingTemplates(root).map((f) => `agent-factory/packaging/${f}`),
+    ].sort();
+    expect(got).toEqual(union);
+  });
+
+  it("propagates a part's THROW rather than returning a short composition", () => {
+    // A short scan set passes every downstream guard exactly the way a vacuous one does, so the
+    // composition must not silently drop the part that refused. The guard's `derive()` wrapper is
+    // what converts this throw into a NAMED count-floor finding instead of an unhandled exception.
+    const root = compositionRoot();
+    rmSync(join(root, "agent-factory/packaging"), { recursive: true, force: true });
+    expect(() => spawnGrantScan(root)).toThrow(/cannot read kit directory/);
+  });
+
+  it("exports SPAWN_GRANT_SCAN_COUNT and the live tree derives exactly that many, failing in BOTH directions", () => {
+    // D-19 / D-20: two-sided. 25 is a failure and 27 is a failure; only 26 passes. This count is the
+    // ONLY signal that can catch a part dropped from the composition, because its two consumers read
+    // one object and set equality between them compares an object with itself.
+    expect(SPAWN_GRANT_SCAN_COUNT).toBe(26);
+    const live = spawnGrantScan();
+    expect(live.length).toBe(SPAWN_GRANT_SCAN_COUNT);
+    expect(live.length).not.toBe(SPAWN_GRANT_SCAN_COUNT - 1);
+    expect(live.length).not.toBe(SPAWN_GRANT_SCAN_COUNT + 1);
+    // The per-part breakdown the count is composed of: 17 + 7 + 2.
+    expect(listAgentAdapters().length).toBe(17);
+    expect(listSkillAdapters().length).toBe(7);
+    expect(listPackagingTemplates().length).toBe(2);
+  });
+
+  it("PER-PART membership is SET equality against each lister, which a swap between parts cannot satisfy", () => {
+    const root = compositionRoot();
+    const members = spawnGrantScan(root);
+    for (const part of SPAWN_GRANT_SCAN_PARTS) {
+      const inComposition = members.filter((f) => f.startsWith(part.prefix)).sort();
+      const expected = part.list(root).map((rel) => `${part.prefix}${rel}`).sort();
+      expect(inComposition, part.name).toEqual(expected);
+    }
+
+    // The failure this SET form catches and a count form does not: a decoy DISPLACING a real member
+    // inside one part. The totals are identical; the sets are not.
+    const displaced = members
+      .filter((f) => f !== ".claude/agents/one.md")
+      .concat(".claude/agents/decoy.md")
+      .sort();
+    expect(displaced.length).toBe(members.length); // a count check would pass here
+    const agentPrefix = spawnGrantScanPrefix("agent");
+    expect(
+      displaced.filter((f) => f.startsWith(agentPrefix)).sort(),
+    ).not.toEqual(
+      listAgentAdapters(root).map((r) => `${agentPrefix}${r}`).sort(),
+    );
+  });
+
+  it("spawnGrantScanPrefix throws on an unknown part name rather than partitioning into nothing", () => {
+    expect(spawnGrantScanPrefix("packaging")).toBe("agent-factory/packaging/");
+    // @ts-expect-error — the guard against a typo silently returning undefined.
+    expect(() => spawnGrantScanPrefix("packagin")).toThrow(/no spawn-grant scan part/);
   });
 });

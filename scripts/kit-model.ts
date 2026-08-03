@@ -92,6 +92,29 @@ export const WORKFLOW_COUNT = 19;
 // half deliberately does not.
 export const SKILL_ADAPTER_COUNT = 7;
 
+// The exact expected cardinality of the SPAWN-GRANT SCAN COMPOSITION below: 17 agent adapters +
+// 7 standalone skill adapters + 2 packaging templates.
+//
+// THIS PIN IS MANDATORY, NOT NICE TO HAVE, AND THE REASON IS SPECIFIC (D-19 / D-20, plan 27-33).
+// The composition exists so that check-foundation-guards.ts's spawn-grant scan and the false-red
+// control in scripts/frontmatter.test.ts cannot answer "what is scanned" differently. But once both
+// read THE SAME OBJECT, set equality between them compares an object with itself and can never fail —
+// so it is documentation of intent, never a check, and it must never be presented as one. A COUNT is
+// then the only thing that can catch a part dropped during the relocation.
+//
+// What the pin exists to catch, concretely: a one-line slip losing the standalone skills from the
+// composition would leave the false-red control passing over a SUBSET, that tautological set equality
+// still passing, the gate exiting 0, the packaging-template count unchanged and the whole suite green
+// — while seven shipped skill adapters silently left the spawn-grant scan. That is CR-03's own shape
+// arriving through the move that closes CR-03, and it is the third recurrence of this shape in one
+// phase. Derive the set, assert the count.
+//
+// THE COUNT ALONE IS NOT ENOUGH, WHICH IS WHY guardKitCounts ALSO ASSERTS PER-PART MEMBERSHIP. Three
+// integer comparisons pass while a decoy under `.claude/agents` displaces a real adapter; a swap
+// between parts nets out to the right total. The per-part assertion is SET equality against each
+// lister, never a count.
+export const SPAWN_GRANT_SCAN_COUNT = 26;
+
 // MAX_WALK_ENTRIES — the recursive walk's WORK bound (D-35, closing WR-01).
 //
 // A SECOND MECHANISM, DELIBERATELY SEPARATE FROM THE CYCLE ANSWER. The `ancestors` stack in
@@ -123,6 +146,7 @@ const ROLES_SUBPATH = "agent-factory/roles";
 const WORKFLOWS_SUBPATH = "agent-factory/workflows";
 const AGENTS_SUBPATH = ".claude/agents";
 const SKILLS_SUBPATH = ".claude/skills";
+const PACKAGING_SUBPATH = "agent-factory/packaging";
 
 // Read a directory, rethrowing as a NAMED error. The raw ENOENT/EACCES message does not identify
 // which kit directory failed once two call sites share this helper.
@@ -329,4 +353,91 @@ export function listSkillAdapters(kitRoot: string = DEFAULT_KIT_ROOT): string[] 
     .filter((rel) => rel.split("/").pop() === "SKILL.md")
     .sort();
   return refuseEmpty(files, dir, "skill adapter");
+}
+
+// ---------------------------------------------------------------------------
+// The packaging templates, and THE ONE SPAWN-GRANT SCAN COMPOSITION (plan 27-33)
+// ---------------------------------------------------------------------------
+
+// The packaging-template corpus: the entries of the FLAT packaging directory whose name ends in one
+// of the two adapter-FRONTMATTER template suffixes, sorted. 2 files today.
+//
+// THE SHAPE RULE TRAVELLED HERE VERBATIM from check-foundation-guards.ts, including what it excludes
+// and why. `agent-factory/packaging/adapters.md` is PROSE ABOUT adapters, not an adapter surface, and
+// is OUT of the scan (D-09) — excluded BY THE SHAPE RULE rather than by omission from a hand list, so
+// it cannot silently drift back in.
+//
+// FLAT, NOT RECURSIVE, and that is deliberate rather than an oversight: this is a flat literal
+// directory of templates, not an adapter directory the platform discovers recursively. Packaging
+// templates are also NOT derived from the adapter authority — that directory's shape rule admits only
+// adapter-frontmatter templates and deriving it from the adapter walk would be a category error.
+//
+// FAIL-CLOSED like every other lister here (D-21 tier 1): it throws naming the directory when the
+// directory cannot be read, and throws naming the directory when the filtered result is empty. A
+// caller that must survive the throw wraps it — see check-foundation-guards.ts's `derive()`, which
+// records the message and continues with an empty list that the count floor then NAMES.
+export function listPackagingTemplates(
+  kitRoot: string = DEFAULT_KIT_ROOT,
+): string[] {
+  const dir = join(kitRoot, PACKAGING_SUBPATH);
+  const files = readDirOrThrow(dir)
+    .filter((f) => f.endsWith(".frontmatter.md") || f.endsWith(".template.md"))
+    .sort();
+  return refuseEmpty(files, dir, "packaging template");
+}
+
+// THE ONE COMPOSITION ANSWERING "WHAT DOES THE SPAWN-GRANT SCAN COVER" (plan 27-33, closing CR-03).
+//
+// Agent adapters, standalone skill adapters and packaging templates, each prefixed back to its
+// REPO-RELATIVE shape (the form every consuming guard message is built from) and sorted.
+//
+// WHY THIS EXISTS. check-foundation-guards.ts held this composition locally, and the false-red control
+// that vouches for it would otherwise have had to restate it — a hand-listed directory set one
+// indirection down. That is one predicate answered in two places, the exact class D-28, D-37 and D-40
+// each collapsed once already inside this phase and the class CR-03 itself belongs to. A control
+// restating the scan can prove safety over a set the guard no longer scans. So there is ONE
+// composition and two consumers, and the guard keeps no composition of its own — a weaker duplicate
+// that still votes is worse than none.
+//
+// AND BECAUSE BOTH CONSUMERS NOW READ ONE OBJECT, SET EQUALITY BETWEEN THEM IS A TAUTOLOGY. It
+// compares an object with itself and can never fail. What actually protects this composition from a
+// part silently dropped during the relocation is SPAWN_GRANT_SCAN_COUNT above, enforced two-sided,
+// plus PER-PART SET equality against each lister in guardKitCounts. See the constant for the full
+// argument.
+export function spawnGrantScan(kitRoot: string = DEFAULT_KIT_ROOT): string[] {
+  return [
+    ...listAgentAdapters(kitRoot).map((rel) => `${AGENTS_SUBPATH}/${rel}`),
+    ...listSkillAdapters(kitRoot).map((rel) => `${SKILLS_SUBPATH}/${rel}`),
+    ...listPackagingTemplates(kitRoot).map((f) => `${PACKAGING_SUBPATH}/${f}`),
+  ].sort();
+}
+
+// The repo-relative directory prefixes the composition's three parts live under. Exported so a
+// consumer asserting PER-PART membership partitions the composition by the SAME literals the
+// composition was built from, rather than restating them — the set-literal drift this module deletes.
+export const SPAWN_GRANT_SCAN_PARTS: readonly {
+  name: "agent" | "skill" | "packaging";
+  prefix: string;
+  list: (kitRoot?: string) => string[];
+}[] = [
+  { name: "agent", prefix: `${AGENTS_SUBPATH}/`, list: listAgentAdapters },
+  { name: "skill", prefix: `${SKILLS_SUBPATH}/`, list: listSkillAdapters },
+  {
+    name: "packaging",
+    prefix: `${PACKAGING_SUBPATH}/`,
+    list: listPackagingTemplates,
+  },
+];
+
+// The prefix of one named part, for a consumer that must partition the composition rather than
+// restate a directory literal. Throws on an unknown name so a typo cannot silently return undefined
+// and partition the composition into nothing.
+export function spawnGrantScanPrefix(
+  name: (typeof SPAWN_GRANT_SCAN_PARTS)[number]["name"],
+): string {
+  const part = SPAWN_GRANT_SCAN_PARTS.find((p) => p.name === name);
+  if (part === undefined) {
+    throw new Error(`kit-model: no spawn-grant scan part named ${name}`);
+  }
+  return part.prefix;
 }

@@ -31,6 +31,8 @@
 // memory.
 
 import { describe, it, expect } from "vitest";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 
 import {
   parseFrontmatter,
@@ -40,6 +42,15 @@ import {
   stripFencedBlocks,
   DQ_ESCAPE_ALLOWLIST,
 } from "./frontmatter.js";
+// (Plan 27-33) The false-red control's corpus is THE ONE SPAWN-GRANT SCAN COMPOSITION the guard reads
+// — not a directory list restated here. A hand-listed set at this call site would be the guard's scan
+// answered a second time, which is the class D-28, D-37 and D-40 each collapsed once inside this phase
+// and the class CR-03 itself belongs to.
+import {
+  spawnGrantScan,
+  SPAWN_GRANT_SCAN_COUNT,
+  SPAWN_GRANT_SCAN_PARTS,
+} from "./kit-model.js";
 
 // ---------------------------------------------------------------------------
 // The value corpus — semantic values with HAND-WRITTEN expectations.
@@ -1694,6 +1705,242 @@ describe("frontmatter — the spawn-grant parser oracle (SPAWN-04 / KIT-03)", ()
       expect(parsed.ok, label).toBe(true);
       if (parsed.ok) expect(parsed.value.size, label).toBe(0);
       expect(hasSpawnGrant(text), label).toEqual({ ok: true, value: false });
+    }
+  });
+
+  // ── THE NON-CIRCULAR NEGATIVE-SPACE SWEEP (D-43) ──────────────────────────────────────────────
+  //
+  // WHY THE CORPUS IS BUILT FROM THE NEGATIVE SPACE OF THE REJECTED ALPHABET, AND NOT FROM THE RULE
+  // UNDER TEST. A sweep whose members are generated from the alphabet the predicate consults is
+  // TAUTOLOGICAL: it can detect a NARROWING of that alphabet and is structurally incapable of failing
+  // on anything outside it. That is exactly how D-42 would have shipped green over a live
+  // combining-mark bypass — its sweep and its predicate drew from one set, so the four classes it
+  // missed were never candidates for a case.
+  //
+  // So the corpus is built from FOUR sources, and each is here for a stated reason:
+  //   1. THE NEGATIVE SPACE of D-42's `[\s\p{Cf}\p{Cc}]` alphabet — combining marks, unassigned,
+  //      private-use and surrogate code points. These are the members no alphabet under test contains,
+  //      which is what makes the completeness claim non-circular.
+  //   2. THE CODE POINTS D-42 DID COVER — format, control and space-separator — taken EXHAUSTIVELY, so
+  //      this sweep is a strict superset of what the rejected formulation would have swept.
+  //   3. THE PAYLOAD VARIANTS THAT CARRY NO UNUSUAL CODE POINT AT ALL — an extra dash, and the payload
+  //      followed by ordinary text. Neither is exotic, common frontmatter readers accept both, and no
+  //      prior decision or review in this phase named either.
+  //   4. THE POSITIVE CONTROLS — the declared class itself, which must still OPEN a block.
+  //
+  // Source 1 is sampled by a FIXED STRIDE so the sample is identical on every run and on every
+  // platform; the sweep is a pin, and a pin whose corpus varies between runs pins nothing.
+
+  const SWEEP_STRIDE = 7;
+  const NEGATIVE_SPACE_CAP = 200;
+  // Line-structural and declared-class code points are excluded from the sampled corpus and handled
+  // as their own named cases: U+000A ends a line, U+000D is the CRLF normalization's business rather
+  // than the delimiter rule's, and U+0009 / U+0020 ARE the declared class (source 4).
+  const SWEEP_EXCLUDED = new Set([0x09, 0x0a, 0x0d, 0x20]);
+
+  const NEGATIVE_SPACE_CLASSES = [
+    { name: "M (combining marks)", re: /\p{M}/u },
+    { name: "Cn (unassigned)", re: /\p{Cn}/u },
+    { name: "Co (private use)", re: /\p{Co}/u },
+    { name: "Cs (surrogates)", re: /\p{Cs}/u },
+  ] as const;
+  const D42_ALPHABET_CLASSES = [
+    { name: "Cf (format)", re: /\p{Cf}/u },
+    { name: "Cc (control)", re: /\p{Cc}/u },
+    { name: "Zs (space separators)", re: /\p{Zs}/u },
+  ] as const;
+
+  function sampleByStride(
+    classes: readonly { name: string; re: RegExp }[],
+    stride: number,
+    cap: number,
+  ): Map<string, number[]> {
+    const buckets = new Map(classes.map((c) => [c.name, [] as number[]]));
+    for (let cp = 0; cp <= 0x10ffff; cp += stride) {
+      if (SWEEP_EXCLUDED.has(cp)) continue;
+      const ch = String.fromCodePoint(cp);
+      for (const c of classes) {
+        const bucket = buckets.get(c.name)!;
+        if (bucket.length >= cap) continue;
+        if (c.re.test(ch)) {
+          bucket.push(cp);
+          break;
+        }
+      }
+    }
+    return buckets;
+  }
+
+  function sampleExhaustive(
+    classes: readonly { name: string; re: RegExp }[],
+  ): Map<string, number[]> {
+    const buckets = new Map(classes.map((c) => [c.name, [] as number[]]));
+    for (let cp = 0; cp <= 0x10ffff; cp++) {
+      if (SWEEP_EXCLUDED.has(cp)) continue;
+      const ch = String.fromCodePoint(cp);
+      for (const c of classes) {
+        if (c.re.test(ch)) {
+          buckets.get(c.name)!.push(cp);
+          break;
+        }
+      }
+    }
+    return buckets;
+  }
+
+  const label = (cp: number): string =>
+    `U+${cp.toString(16).toUpperCase().padStart(4, "0")}`;
+
+  it("D-43 non-circular sweep — every corpus member REFUSES at both delimiter positions and in both placements, and only the declared class opens a block", () => {
+    const negative = sampleByStride(
+      NEGATIVE_SPACE_CLASSES,
+      SWEEP_STRIDE,
+      NEGATIVE_SPACE_CAP,
+    );
+    const covered = sampleExhaustive(D42_ALPHABET_CLASSES);
+
+    // DERIVE THE SET, ASSERT THE COUNT (this repository's own rule, applied to the corpus itself).
+    // A class silently emptied by a future regex edit would otherwise shrink the sweep in silence.
+    for (const c of NEGATIVE_SPACE_CLASSES) {
+      expect(negative.get(c.name)!.length, c.name).toBe(NEGATIVE_SPACE_CAP);
+    }
+    expect(covered.get("Cf (format)")!.length).toBe(170);
+    expect(covered.get("Cc (control)")!.length).toBe(62);
+    expect(covered.get("Zs (space separators)")!.length).toBe(16);
+
+    const offending: number[] = [
+      ...NEGATIVE_SPACE_CLASSES.flatMap((c) => negative.get(c.name)!),
+      ...D42_ALPHABET_CLASSES.flatMap((c) => covered.get(c.name)!),
+    ];
+    // Source 4 — the declared class. These are the ONLY members that may open a block, and only in
+    // the TRAILING position.
+    const declaredClass = [0x20, 0x09];
+
+    // The corpus SIZE, asserted as a number: 4 x 200 negative-space + 170 + 62 + 16 covered + 2
+    // declared-class controls.
+    expect(offending.length).toBe(1048);
+    expect(offending.length + declaredClass.length).toBe(1050);
+    // And the negative space really is OUTSIDE D-42's alphabet — the property that makes this
+    // corpus non-circular rather than a restatement of the rule.
+    const D42_ALPHABET = /[\s\p{Cf}\p{Cc}]/u;
+    for (const c of NEGATIVE_SPACE_CLASSES) {
+      for (const cp of negative.get(c.name)!) {
+        expect(D42_ALPHABET.test(String.fromCodePoint(cp)), label(cp)).toBe(
+          false,
+        );
+      }
+    }
+
+    const KEYS = "name: x\ntools: Read, Agent(grugops-installer)\n";
+    for (const cp of offending) {
+      const ch = String.fromCodePoint(cp);
+      // Four constructions per member: trailing/leading x opening/closing.
+      const cases: readonly [string, string][] = [
+        ["trailing @ opening", `---${ch}\n${KEYS}---\n`],
+        ["leading @ opening", `${ch}---\n${KEYS}---\n`],
+        ["trailing @ closing", `---\n${KEYS}---${ch}\nBody.\n`],
+        ["leading @ closing", `---\n${KEYS}${ch}---\nBody.\n`],
+      ];
+      for (const [where, text] of cases) {
+        // THE ONE DECLARED EXCEPTION IN THE WHOLE SWEEP, and the sweep is what forced it to be
+        // declared rather than discovered later. U+FEFF at position zero of the DOCUMENT is the single
+        // byte this module normalizes (D-39 point 1), so a document carrying exactly one leading mark
+        // parses identically to the same document without it — that equality and the two-mark refusal
+        // are pinned by their own named case above. Every OTHER placement of U+FEFF, including the
+        // leading position of a CLOSING delimiter, still refuses and is still swept below.
+        if (cp === 0xfeff && where === "leading @ opening") {
+          expect(hasSpawnGrant(text), `${label(cp)} ${where}`).toEqual({
+            ok: true,
+            value: true,
+          });
+          continue;
+        }
+        const parsed = parseFrontmatter(text);
+        // The message names the offending code point, so a future failure says WHICH member regressed.
+        expect(parsed.ok, `${label(cp)} ${where}`).toBe(false);
+        if (parsed.ok) continue;
+        expect(parsed.reason, `${label(cp)} ${where}`).toContain(
+          "delimiter position",
+        );
+        // The load-bearing half: NOT the silent no-grant success arm.
+        expect(hasSpawnGrant(text), `${label(cp)} ${where}`).not.toEqual({
+          ok: true,
+          value: false,
+        });
+      }
+    }
+
+    // Source 4: the declared class OPENS a block in the trailing position and REFUSES in the leading
+    // one, because arm 2 is about where the delimiter begins and not about what follows it.
+    for (const cp of declaredClass) {
+      const ch = String.fromCodePoint(cp);
+      const opens = `---${ch}\n${KEYS}---${ch}\nBody.\n`;
+      expect(hasSpawnGrant(opens), `${label(cp)} trailing`).toEqual({
+        ok: true,
+        value: true,
+      });
+      const leading = `${ch}---\n${KEYS}---\n`;
+      const parsed = parseFrontmatter(leading);
+      expect(parsed.ok, `${label(cp)} leading`).toBe(false);
+      if (!parsed.ok) expect(parsed.reason).toContain(label(cp));
+    }
+
+    // Source 3: the payload variants that carry no unusual code point at all.
+    for (const [line, cp] of [
+      ["----", 0x2d],
+      ["--- foo", 0x66],
+    ] as const) {
+      for (const [where, text] of [
+        ["opening", `${line}\n${KEYS}---\n`],
+        ["closing", `---\n${KEYS}${line}\nBody.\n`],
+      ] as const) {
+        const parsed = parseFrontmatter(text);
+        expect(parsed.ok, `${line} @ ${where}`).toBe(false);
+        if (!parsed.ok) {
+          expect(parsed.reason, `${line} @ ${where}`).toContain(label(cp));
+        }
+      }
+    }
+  });
+
+  // ── THE FALSE-RED CONTROL, OVER THE ONE SCAN COMPOSITION ──────────────────────────────────────
+
+  it("D-43 false-red control — every member of the ONE spawn-grant scan composition parses, head line and block lines alike", () => {
+    const root = join(import.meta.dirname, "..");
+    const members = spawnGrantScan(root);
+
+    // WHY THE CORPUS IS THE COMPOSITION AND NOT A DIRECTORY LIST. A hand-listed set here would be the
+    // guard's scan answered a second time, one indirection down — a control restating the scan can
+    // prove safety over a set the guard no longer scans. It consumes scripts/kit-model.ts's
+    // spawnGrantScan(), which is the same function check-foundation-guards.ts consumes.
+    //
+    // WHAT ACTUALLY CAN FAIL HERE. Because the guard and this control now read THE SAME OBJECT, set
+    // equality between the control's corpus and the guard's scan compares an object with itself and
+    // can never fail — it is DOCUMENTATION OF INTENT and is deliberately not written as an assertion.
+    // The two things below CAN fail: the exact two-sided cardinality, and PER-PART set equality
+    // against each lister.
+    expect(members.length).toBe(SPAWN_GRANT_SCAN_COUNT);
+    for (const part of SPAWN_GRANT_SCAN_PARTS) {
+      const inComposition = members
+        .filter((f) => f.startsWith(part.prefix))
+        .sort();
+      const expected = part
+        .list(root)
+        .map((rel) => `${part.prefix}${rel}`)
+        .sort();
+      // SET equality, never a count: three integer comparisons all pass while a decoy under
+      // `.claude/agents/` displaces a real adapter, which is a within-part substitution a count misses.
+      expect(inComposition, part.name).toEqual(expected);
+    }
+
+    // The control itself. Parsing a real file exercises BOTH delimiter positions under the new rule:
+    // the head line goes through the opening test, and every line of the block goes through the
+    // closing scan, which refuses on the same rule. A non-empty key set is asserted so a member that
+    // silently took the keyless success arm cannot be counted as "did not refuse".
+    for (const rel of members) {
+      const parsed = parseFrontmatter(readFileSync(join(root, rel), "utf8"));
+      expect(parsed.ok, rel).toBe(true);
+      if (parsed.ok) expect(parsed.value.size, rel).toBeGreaterThan(0);
     }
   });
 
