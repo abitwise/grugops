@@ -1219,6 +1219,147 @@ function guardKitCounts() {
     }
 }
 // ---------------------------------------------------------------------------
+// guard_distribution_pair — the two distribution forms of one skill are byte-identical modulo the
+// `name` value (Phase 27 / plan 27-34, D-40 point 3).
+//
+// grugops ships every command skill TWICE: the standalone `.claude/skills/grugops-<n>/SKILL.md` form
+// that gives an un-namespaced `/grugops-<n>` command, and the plugin `skills/<n>/SKILL.md` form the
+// platform namespaces as `/grugops:<n>`. The two are hand-maintained near-mirrors, which is exactly
+// the shape that has now drifted TWICE inside this phase alone: the install/uninstall derivation pair
+// (D-28, CR-02 — a symlinked adapter installed and never removed) and the RUNNABLES/RUNNABLES_MIRROR
+// pair (WR-04 — files installed with no removal side at all). Two hand-synced copies of one artifact
+// do not stay synced; the only question is which direction the drift goes and how long it stays green.
+//
+// So the relationship is asserted MECHANICALLY rather than left as a convention. Measured on the live
+// tree today: all six command skills are byte-identical to their standalone twins after swapping the
+// value of the `name` key, and one pair legitimately is not.
+//
+// THE NORMALIZATION IS A REWRITE, NEVER A DELETION, AND THAT IS THE WHOLE POINT. "Drop the `name` line
+// from both sides before comparing" satisfies every same-name control in this guard identically while
+// ACCEPTING a plugin form whose declared name is simply wrong — and a wrong `name` on a skill is not
+// cosmetic, it is the command a user types. So each side's declared name is asserted against the name
+// its own directory implies FIRST, and only then is the plugin form's name line rewritten to the
+// twin's and the two documents compared byte for byte. A discriminating case plants a third, arbitrary
+// name and requires a red; it is the case that makes this rule mean anything.
+//
+// THE NAMING RULE, and what it deliberately refuses. A plugin skill at `skills/<d>/SKILL.md` maps to
+// `.claude/skills/grugops-<d>/SKILL.md`, except the root skill whose own name IS the namespace
+// (`skills/grugops/` -> `.claude/skills/grugops/`). A NESTED plugin skill maps to a twin directory
+// that does not exist and is reported as a MISSING TWIN rather than skipped — a pair the rule cannot
+// express is a finding, never a silence, which is this module's standing posture.
+//
+// A missing twin, a divergent pair and a ZERO-PAIR RUN are three distinct named findings. The
+// zero-pair arm exists because this guard's membership is derived: an empty plugin tree would
+// otherwise make it report a clean pass over nothing, which is the vacuity every derived set in this
+// file is guarded against.
+// ---------------------------------------------------------------------------
+// THE EXEMPTION, BY NAME, WITH ITS REASON AND ITS BOUND RECORDED.
+//
+// `skills/grugops/SKILL.md` and `.claude/skills/grugops/SKILL.md` differ by a measured 448 bytes, and
+// the difference is legitimate: the STANDALONE form carries a fenced kit-root resolver block ("Resolve
+// the kit root (this adapter is the sole resolver)" — the installer writes the absolute kit path above
+// it, with a `GRUGOPS_HOME` self-heal fallback) that the plugin form does not need, because a plugin
+// is installed to a known cache root. The pair rule therefore cannot hold for it, and exempting it BY
+// NAME is a considered decision rather than an oversight.
+//
+// THE BOUND: the exemption forgoes ONLY the mirror assertion. The exempted file remains a member of
+// SPAWN_GRANT_SCAN, so its spawn grant is still checked exactly like every other plugin skill's — a
+// case asserts that membership rather than leaving it to be assumed.
+//
+// THE FORBIDDEN ALTERNATIVE, NAMED SO IT IS NOT REDISCOVERED AS A GOOD IDEA: loosening the comparison
+// so this one file passes — comparing only a prefix, only a size, or only the frontmatter — would
+// delete the check for ALL SEVEN pairs to accommodate one. That is the failure mode this exemption
+// exists to avoid. If the divergence ever becomes structural rather than a single block, the answer is
+// to widen the EXEMPTION LIST, never to weaken the assertion.
+const DISTRIBUTION_PAIR_EXEMPT = ["skills/grugops/SKILL.md"];
+// The standalone tree's namespace. `.claude/skills` holds `grugops` itself and `grugops-<n>` for each
+// command skill; the plugin tree drops the namespace because the platform supplies it.
+const STANDALONE_NAMESPACE = "grugops";
+// Rewrite the ONE `name: <from>` line to `name: <to>`, returning null if that exact line is not
+// present. A mechanical splice, deliberately not a second frontmatter grammar: the VERDICT-bearing
+// facts (how many `name` values a document declares, and what they are) come from parseFrontmatter,
+// the one authority. This only performs the edit those facts have already licensed, and fails closed
+// if it cannot find the line to edit.
+function rewriteNameLine(src, from, to) {
+    const lines = src.split("\n");
+    const at = lines.indexOf(`name: ${from}`);
+    if (at === -1)
+        return null;
+    lines[at] = `name: ${to}`;
+    return lines.join("\n");
+}
+function guardDistributionPair() {
+    process.stdout.write("\n[guard_distribution_pair] plugin-form and standalone skills are byte-identical modulo the `name` value (D-40)\n");
+    let pairFail = "";
+    let compared = 0;
+    let exempted = 0;
+    const pluginPrefix = spawnGrantScanPrefix("plugin-skill");
+    for (const rel of PLUGIN_SKILL_RELS) {
+        const pluginRel = `${pluginPrefix}${rel}`;
+        if (DISTRIBUTION_PAIR_EXEMPT.includes(pluginRel)) {
+            exempted += 1;
+            continue;
+        }
+        const dir = rel.slice(0, rel.lastIndexOf("/"));
+        const twinDir = dir === STANDALONE_NAMESPACE ? dir : `${STANDALONE_NAMESPACE}-${dir}`;
+        const twinRel = `${SKILL_DIR}/${twinDir}/SKILL.md`;
+        if (!fileExists(twinRel)) {
+            pairFail += `\n${pluginRel}: its standalone twin ${twinRel} does not exist — a pair with a missing side is a FINDING, never a skipped comparison; the two distribution forms of one skill must both ship or neither must`;
+            continue;
+        }
+        const pluginSrc = readText(pluginRel);
+        const twinSrc = readText(twinRel);
+        const pluginParsed = parseFrontmatter(pluginSrc);
+        const twinParsed = parseFrontmatter(twinSrc);
+        if (!pluginParsed.ok) {
+            pairFail += `\n${pluginRel}: frontmatter parse failure — ${pluginParsed.reason}. An unreadable side is NEVER read as "the pair matches"`;
+            continue;
+        }
+        if (!twinParsed.ok) {
+            pairFail += `\n${twinRel}: frontmatter parse failure on the standalone twin of ${pluginRel} — ${twinParsed.reason}. An unreadable side is NEVER read as "the pair matches"`;
+            continue;
+        }
+        const pluginNames = pluginParsed.value.get("name") ?? [];
+        const twinNames = twinParsed.value.get("name") ?? [];
+        if (pluginNames.length !== 1 || twinNames.length !== 1) {
+            pairFail += `\n${pluginRel}: the pair declares ${pluginNames.length} and ${twinNames.length} \`name\` value(s) (plugin, standalone) — the normalization rewrites exactly one name line per side, so anything other than one answer per side is refused rather than guessed at`;
+            continue;
+        }
+        // THE VALUE ASSERTION THAT MAKES THE NORMALIZATION MEAN SOMETHING. Each side must already declare
+        // the name its own directory implies. Without this, rewriting the plugin form's name to the twin's
+        // would launder a WRONG plugin name into a passing comparison — and the plugin name is the command
+        // a user types.
+        if (pluginNames[0] !== dir) {
+            pairFail += `\n${pluginRel}: declares \`name: ${pluginNames[0]}\`, expected \`name: ${dir}\` — the plugin form's name is the command the platform namespaces, so a wrong value is a wrong command, and normalizing it away would hide exactly that`;
+            continue;
+        }
+        if (twinNames[0] !== twinDir) {
+            pairFail += `\n${twinRel}: declares \`name: ${twinNames[0]}\`, expected \`name: ${twinDir}\` — the standalone form's name is the command a user types directly`;
+            continue;
+        }
+        const normalized = rewriteNameLine(pluginSrc, pluginNames[0], twinNames[0]);
+        if (normalized === null) {
+            pairFail += `\n${pluginRel}: the \`name: ${pluginNames[0]}\` line could not be located for normalization — the parser reports one value the text does not express as a plain line, so the comparison is refused rather than performed on an unnormalized document`;
+            continue;
+        }
+        compared += 1;
+        if (normalized !== twinSrc) {
+            pairFail += `\n${pluginRel} and ${twinRel} DIVERGE beyond the \`name\` value (${pluginSrc.length}B vs ${twinSrc.length}B) — the two distribution forms of one skill are hand-maintained near-mirrors, and a hand-synced pair is the drift class that already produced CR-02 and WR-04 inside this phase. Re-sync the pair, or add it to DISTRIBUTION_PAIR_EXEMPT with its reason recorded; do NOT loosen this comparison`;
+        }
+    }
+    if (compared === 0) {
+        pairFail += `\nthe pair rule compared ZERO pairs (${exempted} exempted, ${PLUGIN_SKILL_RELS.length} plugin-form skill(s) derived) — a run that compared nothing is the anomaly, never "no pairs to check, therefore fine"${PLUGIN_SKILL_DERIVATION.error === "" ? "" : `\n  derivation error: ${PLUGIN_SKILL_DERIVATION.error}`}`;
+    }
+    if (pairFail === "") {
+        // Report BOTH numbers — the established "a guard reports what it checked" convention. A line
+        // reading `1 pair compared` is then visible as the anomaly it is instead of hiding behind PASS.
+        pass(`D-40: ${compared} plugin/standalone skill pair(s) byte-identical after normalizing the \`name\` value, ${exempted} exempted by name (${DISTRIBUTION_PAIR_EXEMPT.join(", ")} — the standalone form carries a kit-root resolver block the plugin form does not need; the exempted file is still inside the spawn-grant scan)`);
+    }
+    else {
+        fail(`D-40 distribution-pair violation:${pairFail}`);
+    }
+}
+// ---------------------------------------------------------------------------
 // guard_voice — voice-discipline lint over the curated clear-voice surfaces.
 //
 // Section-scoped, never whole-file: role bodies legitimately mix a fenced `## Caveman prompt`
@@ -1874,6 +2015,9 @@ guardAdapterSize();
 // KIT-01: run the count guard AHEAD of the four role guards. A broken derivation is then named
 // before four downstream guards report on a scan set they should never have received.
 guardKitCounts();
+// D-40 (plan 27-34): the two distribution forms of one skill. Runs after the count guard so a plugin
+// tree that failed to derive is NAMED there before this guard reports zero pairs over it.
+guardDistributionPair();
 guardVoice();
 guardCavemanPreserved();
 guardRoleSize();

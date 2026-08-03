@@ -412,9 +412,21 @@ function reshapeToolsBlock(file: string, shape: string[]): void {
 // also inherits the THROW when the key is absent, for the reason reshapeToolsBlock() and
 // renameAdapterIdentity() both record: a helper that silently no-ops leaves the case asserting
 // against an unmodified tree, which is a fixture that pins nothing.
+//
+// (Plan 27-34) IT NOW PLANTS ON BOTH DISTRIBUTION FORMS, and that is not incidental. The new
+// guard_distribution_pair asserts the plugin form and its standalone twin are byte-identical modulo
+// the `name` value, so removing the declaration from ONE side is a real divergence and reds that guard
+// — correctly, but for a reason having nothing to do with the scoping gate this fixture exists to
+// exercise. Planting on both sides keeps the input to guard_wr05 exactly what it was (a skill with no
+// allow-list, on both surfaces the guard scans) while leaving the pair intact, so the case's
+// `ALL CHECKS PASSED` assertion stays honest rather than being weakened to accommodate a real finding.
+// It returns the STANDALONE path, which is what the case's fixture guard reads.
 function plantSkillWithoutToolsKey(root: string, skill: string): string {
   const file = join(root, ".claude/skills", skill, "SKILL.md");
   reshapeToolsBlock(file, []);
+  // The plugin-form twin of `grugops-<n>` is `skills/<n>`; `grugops` itself is its own twin.
+  const twin = skill === "grugops" ? "grugops" : skill.replace(/^grugops-/, "");
+  reshapeToolsBlock(join(root, "skills", twin, "SKILL.md"), []);
   return file;
 }
 
@@ -2016,6 +2028,100 @@ describe("check-foundation-guards.js (SDLC-02 / SC2 fail-proof harness)", () => 
     expect(o).toContain(
       "the coordinator body carries all 6 tier-announcement beats, each exactly once in live, non-fenced, non-commented text",
     );
+  });
+
+  // ── guard_distribution_pair (plan 27-34, D-40 point 3) ────────────────────────────────────────
+  //
+  // The two distribution forms of one skill are hand-maintained near-mirrors — the shape that already
+  // drifted twice inside this phase (CR-02's install/uninstall pair, WR-04's RUNNABLES pair). The rule
+  // is asserted mechanically, with one file exempted by name.
+  //
+  // The exemption's cardinality is asserted through the guard's OWN pass line rather than by importing
+  // the constant: check-foundation-guards.js is a script with a top-level process.exit, so it cannot be
+  // imported. The pass line reports both numbers, and the case below asserts they EXHAUST the derived
+  // plugin set — so a plugin skill that was neither compared nor exempted is impossible to hide.
+
+  it("the live tree passes the pair rule with 6 compared and 1 exempted, and the two numbers exhaust the plugin set", () => {
+    const o = out(runIn(ROOT));
+    expect(o).toContain(
+      "D-40: 6 plugin/standalone skill pair(s) byte-identical after normalizing the `name` value, 1 exempted by name",
+    );
+    expect(6 + 1).toBe(PLUGIN_SKILL_ADAPTER_COUNT);
+    // The recorded reason names the ACTUAL delta — the kit-root resolver block — not a paraphrase.
+    expect(o).toContain(
+      "the standalone form carries a kit-root resolver block the plugin form does not need",
+    );
+  });
+
+  it("the EXEMPTED file is still inside the spawn-grant scan — the exemption forgoes only the mirror assertion", () => {
+    // The bound on the exemption, asserted rather than promised. Its spawn grant is checked exactly
+    // like every other plugin skill's; what it forgoes is the byte comparison alone.
+    expect(spawnGrantScan(ROOT)).toContain("skills/grugops/SKILL.md");
+  });
+
+  it("a one-BYTE body change in a plugin form fails red and NAMES the pair", () => {
+    const m = mirror();
+    const f = join(m, "skills/plan/SKILL.md");
+    writeFileSync(
+      f,
+      readFileSync(f, "utf8").replace(
+        "Never merge to a protected branch.",
+        "Never merge to a protected branch!",
+      ),
+    );
+    const r = runIn(m);
+    expect(r.status).not.toBe(0);
+    const o = out(r);
+    expect(o).toContain(
+      "skills/plan/SKILL.md and .claude/skills/grugops-plan/SKILL.md DIVERGE beyond the `name` value",
+    );
+  });
+
+  it("a DELETED standalone twin fails red naming the missing twin, never a skipped comparison", () => {
+    const m = mirror();
+    rmSync(join(m, ".claude/skills/grugops-ticket"), {
+      recursive: true,
+      force: true,
+    });
+    const r = runIn(m);
+    expect(r.status).not.toBe(0);
+    expect(out(r)).toContain(
+      "skills/ticket/SKILL.md: its standalone twin .claude/skills/grugops-ticket/SKILL.md does not exist",
+    );
+  });
+
+  // THE DISCRIMINATING CASE. Without it the normalization is satisfiable by simply deleting or
+  // ignoring the name line — which passes every OTHER control in this block identically while
+  // accepting a plugin form whose declared name is wrong, and a skill's name IS the command a user
+  // types. Measured: a scratch build implementing the normalization as "drop the name line from both
+  // sides" prints ALL CHECKS PASSED on this exact mirror, and passes every other case here unchanged.
+  // This case is the one that makes the rule mean anything.
+  it("a plugin form declaring a THIRD, wrong name fails red — the rule is not satisfiable by deleting the name line", () => {
+    const m = mirror();
+    renameAdapterIdentity(join(m, "skills/plan/SKILL.md"), "zzz-wrong");
+    const r = runIn(m);
+    expect(r.status).not.toBe(0);
+    expect(out(r)).toContain(
+      "skills/plan/SKILL.md: declares `name: zzz-wrong`, expected `name: plan`",
+    );
+  });
+
+  it("a pair differing ONLY in the name value still passes — the guard normalizes rather than byte-matching raw", () => {
+    // The live tree IS this control: all six command skills differ from their twins by exactly the
+    // `name` value and nothing else. A guard requiring a raw byte match would fail all six.
+    const r = runIn(mirror());
+    expect(out(r)).toContain("6 plugin/standalone skill pair(s) byte-identical");
+    expect(r.status).toBe(0);
+  });
+
+  it("an EMPTY plugin tree produces a named zero-pair failure, never a vacuous pass", () => {
+    const m = mirror();
+    for (const rel of DERIVED_PLUGIN_SKILL_INPUTS) {
+      rmSync(join(m, rel), { force: true });
+    }
+    const r = runIn(m);
+    expect(r.status).not.toBe(0);
+    expect(out(r)).toContain("the pair rule compared ZERO pairs");
   });
 
   // CTX_WORKFLOWS: plant an additional workflow matching the `NN-*.md` naming rule, carrying a raw
