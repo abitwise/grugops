@@ -42,6 +42,7 @@ import {
   stripFencedBlocks,
   DQ_ESCAPE_ALLOWLIST,
   ENUMERATION_LEGAL_CHARS,
+  TOOLS_KEYS,
 } from "./frontmatter.js";
 // (Plan 27-33) The false-red control's corpus is THE ONE SPAWN-GRANT SCAN COMPOSITION the guard reads
 // — not a directory list restated here. A hand-listed set at this call site would be the guard's scan
@@ -2955,5 +2956,322 @@ describe("frontmatter — the spawn-grant parser oracle (SPAWN-04 / KIT-03)", ()
     const crlf = lf.replace(/\n/g, "\r\n");
     expect(hasSpawnGrant(crlf)).toEqual(hasSpawnGrant(lf));
     expect(grantedAgentNames(crlf)).toEqual(grantedAgentNames(lf));
+  });
+});
+
+// ---------------------------------------------------------------------------
+// D-47 item 2 — the grant enumeration's legal character set, swept from OUTSIDE
+// ---------------------------------------------------------------------------
+//
+// `keysGrantedAgentNames` states one legal character set and refuses everything else. This block pins
+// that rule in BOTH directions from a corpus drawn from outside the rule itself, and then measures
+// what the rule costs across every real grant this repository ships.
+//
+// WHY THE CORPUS IS DRAWN FROM THE GENERAL CATEGORIES AND NOT FROM THE FINDINGS. An allowlist swept
+// only by the characters prior findings named can detect a NARROWING of the set and is structurally
+// incapable of failing on a character no finding has yet reported. That is the same circularity this
+// phase found twice already — once over D-42's alphabet (a sweep and a predicate drawing from one
+// set, which would have shipped green over a live combining-mark bypass) and once over D-44's arm
+// structure (one test construction per declared arm, so no input outside both arms was ever a
+// candidate for a case). Drawing the corpus from the YAML indicator set and from the punctuation and
+// symbol GENERAL CATEGORIES is what makes the completeness claim non-circular: `¶`, `฿` and `܇` are
+// members here, and no finding in this phase has ever mentioned them.
+describe("frontmatter — the grant enumeration's legal character set (D-47 item 2 / KIT-03)", () => {
+  // ── THE CORPUS, AS NAMED DATA ─────────────────────────────────────────────────────────────────
+  //
+  // Part one: every YAML indicator character, listed explicitly WITH ITS YAML MEANING. Two of them
+  // (`-` and `,`) are MEMBERS OF THE LEGAL SET, and they are kept in the corpus deliberately — they
+  // are what makes this sweep pin both directions instead of only the refusing one.
+  const YAML_INDICATORS = [
+    { char: "-", name: "block sequence entry" },
+    { char: "?", name: "mapping key" },
+    { char: ":", name: "mapping value" },
+    { char: ",", name: "flow collection entry separator" },
+    { char: "[", name: "flow sequence start" },
+    { char: "]", name: "flow sequence end" },
+    { char: "{", name: "flow mapping start" },
+    { char: "}", name: "flow mapping end" },
+    { char: "#", name: "comment" },
+    { char: "&", name: "anchor" },
+    { char: "*", name: "alias" },
+    { char: "!", name: "tag" },
+    { char: "|", name: "literal block scalar" },
+    { char: ">", name: "folded block scalar" },
+    { char: "'", name: "single quote" },
+    { char: '"', name: "double quote" },
+    { char: "%", name: "directive" },
+    { char: "@", name: "reserved" },
+    { char: "`", name: "reserved" },
+  ] as const;
+
+  // Part two: a bounded, deterministic stride sample of the punctuation and symbol general
+  // categories. A FIXED stride and a FIXED cap, so the sample is byte-identical on every run and on
+  // every platform — a pin whose corpus varies between runs pins nothing.
+  const ENUM_SWEEP_STRIDE = 7;
+  const ENUM_SWEEP_CAP = 60;
+  const ENUM_SWEEP_CLASSES = [
+    { name: "P (punctuation)", re: /\p{P}/u },
+    { name: "S (symbols)", re: /\p{S}/u },
+  ] as const;
+
+  // A STRUCTURAL NOTE ON `(` AND `)`, recorded rather than left to be rediscovered. Neither is in the
+  // sampled corpus: their code points (0x28, 0x29) are not multiples of the stride. That is luck, not
+  // design, and `)` could not be swept by this construction anyway — `)` TERMINATES the scoped-grant
+  // expression, so `Agent(alpha)b, gamma)` carries the complete enumeration `alpha` and correctly
+  // returns the success arm. `(` is swept by its own named case in the oracle block above. A future
+  // author changing the stride should expect `)` to need that carve-out stated, not silently widened.
+
+  function sampleEnumSweep(): { char: string; name: string; cp: number }[] {
+    const out: { char: string; name: string; cp: number }[] = [];
+    const filled = new Map(ENUM_SWEEP_CLASSES.map((c) => [c.name, 0]));
+    for (let cp = 0; cp <= 0x10ffff; cp += ENUM_SWEEP_STRIDE) {
+      const ch = String.fromCodePoint(cp);
+      for (const c of ENUM_SWEEP_CLASSES) {
+        if (filled.get(c.name)! >= ENUM_SWEEP_CAP) continue;
+        if (c.re.test(ch)) {
+          filled.set(c.name, filled.get(c.name)! + 1);
+          out.push({ char: ch, name: `${c.name} ${cp}`, cp });
+          break;
+        }
+      }
+    }
+    return out;
+  }
+
+  const CORPUS = [
+    ...YAML_INDICATORS.map((i) => ({
+      char: i.char,
+      name: `YAML indicator: ${i.name}`,
+    })),
+    ...sampleEnumSweep().map((s) => ({ char: s.char, name: s.name })),
+  ];
+
+  // THE LEGAL SET, RESTATED INDEPENDENTLY AS DATA. This is deliberately NOT `ENUMERATION_LEGAL_CHARS`
+  // and deliberately NOT computed by calling the module's predicate: an expectation taken from the
+  // thing under test moves whenever the thing under test moves, so a widened legal set would relax
+  // this sweep in silence instead of failing it. The two are pinned EQUAL by its own case below, so a
+  // widening fails loudly there rather than dissolving here.
+  const LEGAL_AS_DATA = new Set(
+    "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_-., ",
+  );
+
+  const cpLabel = (c: string): string =>
+    `U+${(c.codePointAt(0) ?? 0).toString(16).toUpperCase().padStart(4, "0")}`;
+  const enumDoc = (tools: string): string =>
+    `---\nname: x\ntools: ${tools}\n---\nBody.\n`;
+
+  it("the corpus is DERIVED and its size is ASSERTED, and the independently-stated legal set matches the module's constant", () => {
+    // DERIVE THE SET, ASSERT THE COUNT — this repository's own rule, applied to the corpus itself. A
+    // class silently emptied by a future regex or engine change would otherwise shrink the sweep in
+    // silence, and a shrunken sweep passes for the wrong reason.
+    const sampled = sampleEnumSweep();
+    for (const c of ENUM_SWEEP_CLASSES) {
+      expect(
+        sampled.filter((s) => s.name.startsWith(c.name)).length,
+        c.name,
+      ).toBe(ENUM_SWEEP_CAP);
+    }
+    expect(YAML_INDICATORS.length, "YAML indicator characters").toBe(19);
+    expect(sampled.length, "stride-sampled general-category members").toBe(120);
+    expect(CORPUS.length, "total corpus members").toBe(139);
+
+    // Determinism: the sample is a pure function of the stride and the cap, so two builds agree.
+    expect(sampleEnumSweep()).toEqual(sampled);
+
+    // Four indicators (`#`, `*`, `?`, `[`) are ALSO stride-sampled under their general category. The
+    // duplication is retained on purpose — an indicator swept under both its YAML meaning and its
+    // Unicode class names the failure twice with two different reasons, which is more useful than a
+    // deduplicated corpus.
+    const dupes = CORPUS.filter(
+      (m, i) => CORPUS.findIndex((o) => o.char === m.char) !== i,
+    );
+    expect(dupes.map((d) => d.char).sort()).toEqual(["#", "*", "?", "["]);
+
+    // THE DRIFT PIN. The sweep's expectations come from `LEGAL_AS_DATA`; the module refuses against
+    // `ENUMERATION_LEGAL_CHARS`. If they ever diverge, this case fails and names the divergence —
+    // which is exactly what must happen if someone widens the legal set to make a real enumeration
+    // pass, since this plan's prohibitions forbid that resolution.
+    expect([...LEGAL_AS_DATA].sort()).toEqual([...ENUMERATION_LEGAL_CHARS].sort());
+    expect(LEGAL_AS_DATA.size).toBe(67);
+  });
+
+  it("D-47 item 2 sweep — every corpus member OUTSIDE the legal set refuses by name, and every member INSIDE it does not", () => {
+    // RED, measured against the PRE-TASK-1 committed scripts/frontmatter.js on a `git archive HEAD`
+    // mirror: of the 137 non-legal members, 135 did NOT refuse — they returned the SUCCESS arm
+    // carrying a name no loader computes (`alpha?b`, `alpha[b`, `alpha¶b`, `alpha฿b`, …). Only the
+    // two quote characters refused, through the enumerated check now deleted. That ratio — 2 refusals
+    // out of 137 — is what "a denylist that grows one reported spelling at a time" measures as.
+    const refusedByName: string[] = [];
+    const wronglyAccepted: string[] = [];
+    const legalMembersChecked: string[] = [];
+
+    for (const member of CORPUS) {
+      const tools = `Agent(alpha${member.char}b, gamma)`;
+      const names = grantedAgentNames(enumDoc(tools));
+      const where = `${cpLabel(member.char)} ${JSON.stringify(member.char)} [${member.name}]`;
+
+      // The expected verdict is decided from DATA, never by asking the code under test.
+      if (LEGAL_AS_DATA.has(member.char)) {
+        // DIRECTION TWO: a legal character must NOT refuse. This is the half that catches a
+        // narrowing, and it is why `-` and `,` are corpus members rather than carve-outs.
+        expect(names.ok, `${where} is IN the legal set and must not refuse`).toBe(
+          true,
+        );
+        legalMembersChecked.push(where);
+        continue;
+      }
+
+      // DIRECTION ONE: everything else refuses, and the reason NAMES the offending character.
+      if (names.ok) {
+        wronglyAccepted.push(`${where} -> ok:true ${JSON.stringify(names.value)}`);
+        continue;
+      }
+      expect(names.reason, `${where} must be NAMED by the refusal`).toContain(
+        `\`${member.char}\` (${cpLabel(member.char)})`,
+      );
+      expect(names.reason, where).toContain(
+        "outside the legal character set of a grant enumeration",
+      );
+      refusedByName.push(where);
+    }
+
+    expect(
+      wronglyAccepted,
+      `swept ${CORPUS.length} corpus members; every member outside the legal set must refuse`,
+    ).toEqual([]);
+    // The sweep's own size, so a corpus that shrank cannot pass vacuously.
+    expect(
+      refusedByName.length,
+      `members outside the legal set that refused by name (of ${CORPUS.length} swept)`,
+    ).toBe(137);
+    expect(legalMembersChecked.length, "legal-set members swept").toBe(2);
+    expect(refusedByName.length + legalMembersChecked.length).toBe(
+      CORPUS.length,
+    );
+  });
+
+  it("D-47 item 2 false-red control — every scoped grant enumeration in ALL 33 spawn-grant scan members still returns its full name list", () => {
+    const root = join(import.meta.dirname, "..");
+    const members = spawnGrantScan(root);
+
+    // The corpus is THE ONE SCAN COMPOSITION the guard reads, imported — never a second directory
+    // list restated here. A hand-listed corpus over a derived production set is the same drift class
+    // with the sides swapped: the set would rot in this file instead of the source file, and stay
+    // just as green while it did.
+    expect(members.length, "scan members read").toBe(SPAWN_GRANT_SCAN_COUNT);
+
+    // AN INDEPENDENTLY WRITTEN READING OF WHAT EACH FILE EXPRESSES. This is the naive comma split the
+    // production function performs only AFTER its allowlist passes — which is exactly the reading
+    // that is correct when every character is legal. Writing it out here rather than calling
+    // `grantedAgentNames` twice is what lets the control catch an ALTERED name rather than merely a
+    // refused one.
+    const expressed = (
+      keys: Map<string, string[]>,
+    ): { names: string[]; count: number } => {
+      const names = new Set<string>();
+      let count = 0;
+      for (const k of TOOLS_KEYS) {
+        for (const v of keys.get(k) ?? []) {
+          for (const m of v.matchAll(/\b(?:Agent|Task)\(([^)]*)\)/g)) {
+            count += 1;
+            for (const raw of m[1].split(",")) {
+              const n = raw.trim();
+              if (n !== "") names.add(n);
+            }
+          }
+        }
+      }
+      return { names: [...names].sort(), count };
+    };
+
+    let enumerationsFound = 0;
+    let filesWithEnumerations = 0;
+    const refusals: string[] = [];
+    const altered: string[] = [];
+
+    for (const rel of members) {
+      const src = readFileSync(join(root, rel), "utf8");
+      const parsed = parseFrontmatter(src);
+      expect(parsed.ok, rel).toBe(true);
+      if (!parsed.ok) continue;
+
+      const want = expressed(parsed.value);
+      enumerationsFound += want.count;
+      if (want.count > 0) filesWithEnumerations += 1;
+
+      const got = grantedAgentNames(src);
+      if (!got.ok) {
+        // A REAL enumeration refusing is a FINDING about that enumeration — never a licence to widen
+        // the legal set. It is collected and named here so it is raised rather than resolved.
+        refusals.push(`${rel}: ${got.reason}`);
+        continue;
+      }
+      // By MEMBERSHIP, not merely by count: two equal counts pass while one name is substituted for
+      // another, which is the whole failure class this predicate exists to prevent.
+      if (JSON.stringify(got.value) !== JSON.stringify(want.names)) {
+        altered.push(
+          `${rel}: got ${JSON.stringify(got.value)} want ${JSON.stringify(want.names)}`,
+        );
+      }
+    }
+
+    // The control REPORTS WHAT IT READ, so a control passing over a shrunken corpus is visible as the
+    // anomaly it would be rather than silently reassuring.
+    const read = `read ${members.length} scan members carrying ${enumerationsFound} scoped grant enumeration(s) across ${filesWithEnumerations} file(s)`;
+    expect(refusals, `${read}; the allowlist must cost this repository ZERO false reds`).toEqual([]);
+    expect(altered, `${read}; every name list must match the naive reading exactly`).toEqual([]);
+    expect(members.length, `${read}; scan member count`).toBe(33);
+
+    // THE MEASURED THINNESS OF THIS CORPUS, PINNED RATHER THAN GLOSSED. Across all 33 scan members
+    // there is exactly ONE scoped grant enumeration — the coordinator's — carrying 16 names. The
+    // other 32 members either grant nothing or grant unscoped, and for them this control asserts the
+    // weaker (still real) fact that `grantedAgentNames` does not refuse and returns an empty list.
+    //
+    // So "measured zero false reds across 33 members" must not be read as "33 enumerations were
+    // exercised". It was one, and that is why the coordinator's case below is load-bearing rather
+    // than decorative. The numbers are asserted so a SECOND enumeration shipping in this repository
+    // fails this case and forces a reader to notice the corpus changed, instead of quietly making
+    // the control look broader than it is.
+    expect(enumerationsFound, `${read}; scoped enumerations found`).toBe(1);
+    expect(filesWithEnumerations, `${read}; files carrying one`).toBe(1);
+  });
+
+  it("D-47 item 2 false-red control — the COORDINATOR's own multi-name enumeration, by count AND by membership", () => {
+    // The single most important false-red case in the repository: the one enumeration with more than
+    // a handful of names, and the one whose closure the KIT-03 oracle and
+    // coordinator-resolution-precheck both compute set equality over. If the allowlist were even
+    // slightly too narrow, this is the file it would break.
+    const root = join(import.meta.dirname, "..");
+    const coordinator = readFileSync(
+      join(root, ".claude/agents/grugops-orchestrator.md"),
+      "utf8",
+    );
+    const names = grantedAgentNames(coordinator);
+    expect(names.ok, "the coordinator's own grant must not refuse").toBe(true);
+    if (!names.ok) return;
+
+    // BY MEMBERSHIP: the rule (every agent adapter except the coordinator itself), derived from the
+    // kit-model authority rather than restated as a literal list.
+    const expectedClosure = listAgentAdapters(root)
+      .map((rel) => rel.replace(/\.md$/, ""))
+      .filter((n) => n !== "grugops-orchestrator")
+      .sort();
+    expect(names.value, `the coordinator grants ${names.value.length} name(s)`).toEqual(
+      expectedClosure,
+    );
+    // AND BY COUNT, so a closure that collapsed to a handful cannot satisfy the membership check
+    // against an equally-collapsed derivation.
+    expect(names.value.length, "coordinator granted-name count").toBe(16);
+
+    // Every character of that real enumeration is inside the legal set — the measured reason the
+    // allowlist costs this repository nothing.
+    for (const n of names.value) {
+      for (const c of n) {
+        expect(
+          LEGAL_AS_DATA.has(c),
+          `${n} carries ${cpLabel(c)}, which the legal set would refuse`,
+        ).toBe(true);
+      }
+    }
   });
 });
