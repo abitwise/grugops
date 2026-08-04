@@ -1425,9 +1425,33 @@ function guardKitCounts(): void {
     try {
       expected = part.list(ROOT).map((rel) => `${part.prefix}${rel}`).sort();
     } catch (e) {
-      // The lister threw. The composition is already empty for the same reason and the cardinality
-      // floor above has named it; reporting the thrown message here too would double-report one fact.
-      void e;
+      // (Plan 27-37, D-47 item 1) THE ONE FAILURE PATH IN THIS FILE THAT DID NOT REPORT. It now does.
+      //
+      // THE JUSTIFICATION THIS REPLACES, AND WHY IT WAS FALSE FOR ITS REACHABLE CASE. The old comment
+      // read: "the composition is already empty for the same reason and the cardinality floor above
+      // has named it; reporting the thrown message here too would double-report one fact." That holds
+      // only when the two reads fail TOGETHER — and they are two INDEPENDENT filesystem reads
+      // separated in time. SPAWN_SCAN_DERIVATION runs through derive() at MODULE LOAD, near the top of
+      // this file; `part.list(ROOT)` runs later, inside this guard, after several other guards have
+      // run. The window where the composition derived cleanly and the directory became unreadable
+      // afterwards is precisely the window in which this catch can actually fire, and it is exactly
+      // the window the justification denied.
+      //
+      // AND THE TWO FACTS ARE DIFFERENT FACTS, so this is not a second copy of the cardinality
+      // finding. That one says "the composition is short". This one says "a check was NOT PERFORMED" —
+      // which is the fact the PASS line twenty lines below would otherwise go on to claim.
+      //
+      // Reproduced against the committed build before the fix, with one part's lister replaced by a
+      // throwing stub in a scratch copy of the compiled kit-model.js: the gate exited 0, printed
+      // ALL CHECKS PASSED, produced NO finding for the skipped part, listed it in the breakdown as
+      // `<part> 0`, and still asserted `each part set-equal to its own lister`.
+      //
+      // THE FILE'S OWN DISCIPLINE, restated because this was the one place it lapsed: a check that
+      // could not be performed is NAMED, never silent. The plugin-root component probe's catch twenty
+      // lines above reports. The adapter derivations report through derive(). Every other failure path
+      // here reports. `continue` is kept so one unreadable directory cannot hide the other three
+      // parts' results.
+      countFail += `\nkit count: the spawn-grant scan composition's ${part.name} part could not be re-derived for the per-part membership check — ${(e as Error).message}. This part's SET EQUALITY WAS NOT PERFORMED, and it must not be reported as if it were: the composition derives at module load and this read happens later inside the guard, so the composition may have derived cleanly before this directory became unreadable. That is a DIFFERENT fact from the cardinality floor above, which reports a SHORT composition rather than a skipped check`;
       continue;
     }
     if (inComposition.join("\n") !== expected.join("\n")) {
@@ -1437,6 +1461,16 @@ function guardKitCounts(): void {
     }
   }
   if (countFail === "") {
+    // (Plan 27-37, D-47 item 1) WHY `each part set-equal to its own lister` IS NOW LITERALLY TRUE
+    // WHENEVER THIS LINE IS PRINTED, and why no wording change was needed to make it so.
+    //
+    // The clause was NOT false as written; it was UNGROUNDED. The only state that could falsify it —
+    // a part whose lister threw, so its equality was never performed — used to be swallowed by the
+    // catch above and left `countFail` empty, so this line printed and claimed the skipped check.
+    // That catch now appends to `countFail`, which makes this branch UNREACHABLE in exactly that
+    // state. The claim is therefore true by construction rather than by hope, and the fix is
+    // structural (the falsifying state routes to the failure channel) rather than a hedge in the
+    // wording. A PASS line must never state a check that was not performed.
     pass(
       `kit counts: derived ${ROLE_FILES.length} roles, ${WORKFLOW_FILES.length} workflows, ${SKILL_ADAPTERS.length} skill adapters and ${PLUGIN_SKILL_RELS.length} plugin-form skill adapters (expected ${ROLE_COUNT} / ${WORKFLOW_COUNT} / ${SKILL_ADAPTER_COUNT} / ${PLUGIN_SKILL_ADAPTER_COUNT}); the spawn-grant scan composition holds exactly ${SPAWN_GRANT_SCAN.length} members (${partBreakdown}), each part set-equal to its own lister; the plugin-manifest component schema carries ${schemaKeys.length} entries partitioned into ${pluginForbiddenComponentKeys().length} forbidden + ${coveredKeys.length} covered-elsewhere (${PLUGIN_COMPONENT_COVERED_ELSEWHERE.map((c) => `${c.manifestKey} by ${c.coverer}`).join(", ")}) + ${exemptKeys.length} exempt by name (${exemptKeys.join(", ")})`,
     );

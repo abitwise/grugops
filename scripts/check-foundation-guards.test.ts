@@ -2228,6 +2228,81 @@ describe("check-foundation-guards.js (SDLC-02 / SC2 fail-proof harness)", () => 
     expect(o).toContain("unclaimed by any bucket [outputStyles]");
   });
 
+  // ── guard_kit_counts: A THROWN PER-PART LISTER IS REPORTED, NOT SWALLOWED (plan 27-37, D-47.1) ──
+  //
+  // THE ROUTE, RECORDED. The real condition is a TOCTOU window: the spawn-grant composition derives
+  // cleanly at MODULE LOAD, and a part's directory becomes unreadable before the per-part membership
+  // loop reads it again inside the guard. That window is the only one in which this catch can fire —
+  // and it cannot be produced deterministically from outside a single synchronous child process,
+  // because reproducing it would mean unlinking a directory at an instant between two statements of a
+  // process this harness only spawns. So the EQUIVALENT state is produced instead, exactly as the plan
+  // licenses: a STUB PART whose lister throws is spliced into a scratch copy of the compiled
+  // kit-model.js. Its prefix matches nothing, so the composition, its cardinality and every real
+  // part's membership are untouched — the ONLY thing the stub changes is that one lister throws inside
+  // the loop, which is precisely the state under test.
+  //
+  // Measured against the COMMITTED build before the fix, with this exact stub: exit 0,
+  // `ALL CHECKS PASSED`, NO finding for the skipped part, the part listed in the breakdown as
+  // `stub-throwing 0`, and the PASS line still asserting `each part set-equal to its own lister`.
+  const THROWING_STUB_PART =
+    '    { name: "stub-throwing", prefix: "stub-throwing/", list: () => { throw new Error("kit-model: cannot read kit directory /scratch/stub-throwing"); } },\n';
+  const MISMATCHING_STUB_PART =
+    '    { name: "stub-mismatch", prefix: "stub-mismatch/", list: () => ["x.md"] },\n';
+
+  it("a part whose lister THROWS is NAMED, the gate goes red, and the per-part set-equality claim disappears", () => {
+    const guardJs = scratchGuard((src) =>
+      src.replace(
+        "export const SPAWN_GRANT_SCAN_PARTS = [\n",
+        `export const SPAWN_GRANT_SCAN_PARTS = [\n${THROWING_STUB_PART}`,
+      ),
+    );
+    const r = runScratch(guardJs, mirror());
+    expect(r.status).not.toBe(0);
+    const o = out(r);
+    // The part is named, the thrown message is carried, and the finding states the fact the PASS line
+    // would otherwise have claimed: this equality was NOT performed.
+    expect(o).toContain(
+      "the spawn-grant scan composition's stub-throwing part could not be re-derived for the per-part membership check",
+    );
+    expect(o).toContain("cannot read kit directory /scratch/stub-throwing");
+    expect(o).toContain("SET EQUALITY WAS NOT PERFORMED");
+    // AND THE CLAIM IS GONE. A PASS line must never state a check that was not performed; the fix is
+    // structural — the falsifying state now routes to the failure channel, making the PASS branch
+    // unreachable — rather than a hedge in the wording.
+    expect(o).not.toContain("each part set-equal to its own lister");
+  });
+
+  it("the per-part loop CONTINUES past a throwing part — a later part's genuine mismatch is reported in the same run", () => {
+    // One unreadable directory must not hide the other parts' results, which is why the `continue` is
+    // kept. The mismatching stub is placed AFTER the throwing one, so its finding appearing is proof
+    // the loop reached it.
+    const guardJs = scratchGuard((src) =>
+      src.replace(
+        "export const SPAWN_GRANT_SCAN_PARTS = [\n",
+        `export const SPAWN_GRANT_SCAN_PARTS = [\n${THROWING_STUB_PART}${MISMATCHING_STUB_PART}`,
+      ),
+    );
+    const r = runScratch(guardJs, mirror());
+    expect(r.status).not.toBe(0);
+    const o = out(r);
+    expect(o).toContain(
+      "the spawn-grant scan composition's stub-throwing part could not be re-derived",
+    );
+    expect(o).toContain(
+      "the spawn-grant scan composition's stub-mismatch members are not exactly what stub-mismatch/ derives",
+    );
+    expect(o).toContain("missing [stub-mismatch/x.md]");
+  });
+
+  it("with every real lister healthy the finding is ABSENT and the per-part claim IS printed (the complement)", () => {
+    // The other direction, and the one that keeps the case above from passing for the wrong reason: a
+    // finding that fired unconditionally would satisfy the first case and mean nothing.
+    const o = out(runIn(mirror()));
+    expect(o).not.toContain("could not be re-derived for the per-part membership check");
+    expect(o).toContain("each part set-equal to its own lister");
+    expect(o).toContain("ALL CHECKS PASSED");
+  });
+
   // ── guard_distribution_pair (plan 27-34, D-40 point 3) ────────────────────────────────────────
   //
   // The two distribution forms of one skill are hand-maintained near-mirrors — the shape that already
