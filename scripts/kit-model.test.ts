@@ -21,7 +21,15 @@
 // artifact every consumer actually imports.
 
 import { describe, it, expect, afterAll } from "vitest";
-import { mkdtempSync, mkdirSync, writeFileSync, rmSync, symlinkSync } from "node:fs";
+import {
+  mkdtempSync,
+  mkdirSync,
+  writeFileSync,
+  rmSync,
+  symlinkSync,
+  chmodSync,
+  readdirSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join, dirname } from "node:path";
 
@@ -33,9 +41,16 @@ import {
   listPackagingTemplates,
   listPluginSkillAdapters,
   listPluginDefaultComponentFiles,
+  listPluginExemptComponentFiles,
+  pluginForbiddenComponentKeys,
+  pluginForbiddenComponentSubpaths,
   spawnGrantScan,
   spawnGrantScanPrefix,
   SPAWN_GRANT_SCAN_PARTS,
+  PLUGIN_MANIFEST_COMPONENT_SCHEMA,
+  PLUGIN_MANIFEST_COMPONENT_COUNT,
+  PLUGIN_COMPONENT_COVERED_ELSEWHERE,
+  PLUGIN_COMPONENT_EXEMPT,
   ROLE_COUNT,
   WORKFLOW_COUNT,
   SKILL_ADAPTER_COUNT,
@@ -659,14 +674,186 @@ describe("kit-model listPluginSkillAdapters (the plugin-form distribution surfac
   });
 });
 
-describe("kit-model listPluginDefaultComponentFiles (the plugin-default absence-or-coverage probe)", () => {
-  it("reports ABSENT for a directory that does not exist, and PRESENT-but-empty for one that does", () => {
-    // Absence is the EXPECTED and correct state, so this probe deliberately does not carry the
-    // refuse-empty floor every membership lister here carries. Reporting `present: false` is the
-    // answer; a throw would fail the live tree, where both directories are absent by design. An
-    // EXISTING but empty directory is a third, distinct answer and must not collapse into either.
+// ---------------------------------------------------------------------------
+// THE PLUGIN-MANIFEST COMPONENT SCHEMA, ITS BUCKET PARTITION AND THE `hooks/` EXEMPTION
+// (plan 27-37, D-46)
+// ---------------------------------------------------------------------------
+//
+// WHAT THESE CASES REPLACE. Round 5 pinned this surface with three cases built over the hand-written
+// two-element literal `["agents", "commands"]` — including a live-tree case asserting "both
+// plugin-default component directories are absent". Its problem was never that it was wrong; it was
+// TAUTOLOGICAL over the very literal under test, so it could only ever confirm the literal and never
+// the class the floor's comment claimed to close. A case built over the thing under test proves the
+// thing under test exists.
+//
+// The replacements are built over the DERIVED set and over the PARTITION, so they fail when the claim
+// is broken rather than when the literal is edited.
+describe("kit-model plugin-manifest component schema (D-46: derived, counted two-sided, partitioned)", () => {
+  it("the schema's cardinality equals its constant, and the constant is 9", () => {
+    // The two-sided FLOOR that makes this constant mean something lives in guard_kit_counts and is
+    // exercised in scripts/check-foundation-guards.test.ts against scratch builds with an entry
+    // removed and an entry added. This case pins the agreement; that one pins that the floor fires.
+    expect(PLUGIN_MANIFEST_COMPONENT_COUNT).toBe(9);
+    expect(PLUGIN_MANIFEST_COMPONENT_SCHEMA.length).toBe(
+      PLUGIN_MANIFEST_COMPONENT_COUNT,
+    );
+    expect(PLUGIN_MANIFEST_COMPONENT_SCHEMA.length).not.toBe(
+      PLUGIN_MANIFEST_COMPONENT_COUNT - 1,
+    );
+    expect(PLUGIN_MANIFEST_COMPONENT_SCHEMA.length).not.toBe(
+      PLUGIN_MANIFEST_COMPONENT_COUNT + 1,
+    );
+  });
+
+  it("the schema's keys are exactly the component-path fields CLAUDE.md documents as DIRECTORIES", () => {
+    // Written out here as an INDEPENDENT reading of CLAUDE.md's "Format Schemas §1" field
+    // enumeration, not by mapping over the schema — a corpus derived from the thing under test
+    // confirms only that the thing exists. The eleven-field list minus `userConfig` (a configuration
+    // schema) and `dependencies` (a dependency list); neither names a directory of loadable files.
+    expect(PLUGIN_MANIFEST_COMPONENT_SCHEMA.map((e) => e.manifestKey)).toEqual([
+      "agents",
+      "commands",
+      "skills",
+      "hooks",
+      "mcpServers",
+      "lspServers",
+      "outputStyles",
+      "experimental.themes",
+      "experimental.monitors",
+    ]);
+    // Every probe path is a FIXED LITERAL (ASVS V12) — non-empty, relative, and free of any traversal
+    // segment, so joining it onto a supplied root can never escape that root.
+    for (const entry of PLUGIN_MANIFEST_COMPONENT_SCHEMA) {
+      expect(entry.probeDirs.length, entry.manifestKey).toBeGreaterThan(0);
+      for (const d of entry.probeDirs) {
+        expect(d, entry.manifestKey).not.toMatch(/(^\/)|(^\.\.)|(\/\.\.)|(^~)/);
+        expect(d.length, entry.manifestKey).toBeGreaterThan(0);
+      }
+    }
+    // The two `experimental.` keys probe BOTH candidate spellings, because the platform's default
+    // directory name for them is an `UNKNOWN - verify` in this repository. Probing an absent
+    // directory costs nothing; missing a loaded one is the defect class this schema closes.
+    expect(
+      PLUGIN_MANIFEST_COMPONENT_SCHEMA.find(
+        (e) => e.manifestKey === "experimental.themes",
+      )!.probeDirs,
+    ).toEqual(["themes", "experimental/themes"]);
+    expect(
+      PLUGIN_MANIFEST_COMPONENT_SCHEMA.find(
+        (e) => e.manifestKey === "experimental.monitors",
+      )!.probeDirs,
+    ).toEqual(["monitors", "experimental/monitors"]);
+  });
+
+  it("the three buckets PARTITION the schema — set identities, NEVER three counts summing to nine", () => {
+    // WHY SET IDENTITIES AND NOT A COUNT IDENTITY, recorded in the case because it is the whole
+    // reason the case is shaped this way: `|forbidden| + |covered| + |exempt| === |schema|` passes
+    // while one member is claimed by TWO buckets and another by NONE. That is the same
+    // within-part-substitution failure the spawn-grant composition's per-part SET equality exists to
+    // catch, one level up, and a count would be blind to it in exactly the same way.
+    const schemaKeys = PLUGIN_MANIFEST_COMPONENT_SCHEMA.map(
+      (e) => e.manifestKey,
+    );
+    const forbidden = pluginForbiddenComponentKeys();
+    const covered = PLUGIN_COMPONENT_COVERED_ELSEWHERE.map((c) => c.manifestKey);
+    const exempt = PLUGIN_COMPONENT_EXEMPT.map((e) => e.manifestKey);
+
+    // (1) the union of the three buckets IS the schema's key set — nothing unclaimed, nothing foreign
+    expect([...forbidden, ...covered, ...exempt].sort()).toEqual(
+      [...schemaKeys].sort(),
+    );
+    // (2) all three pairwise intersections are empty
+    expect(forbidden.filter((k) => covered.includes(k))).toEqual([]);
+    expect(forbidden.filter((k) => exempt.includes(k))).toEqual([]);
+    expect(covered.filter((k) => exempt.includes(k))).toEqual([]);
+    // (3) the forbidden set is exactly schema minus the other two, over the REAL values
+    expect(forbidden).toEqual(
+      schemaKeys.filter((k) => !covered.includes(k) && !exempt.includes(k)),
+    );
+    expect(forbidden).toEqual([
+      "agents",
+      "commands",
+      "mcpServers",
+      "lspServers",
+      "outputStyles",
+      "experimental.themes",
+      "experimental.monitors",
+    ]);
+  });
+
+  it("`skills` is excluded by a STATED RULE naming its coverer, and `hooks` is exempt by name with a reason and a bound", () => {
+    // The exclusion must be readable as deliberate, never as an omission from a list — that
+    // difference is the entire D-46 point 1 argument. A named coverer is what makes it checkable.
+    expect(PLUGIN_COMPONENT_COVERED_ELSEWHERE).toHaveLength(1);
+    expect(PLUGIN_COMPONENT_COVERED_ELSEWHERE[0].manifestKey).toBe("skills");
+    expect(PLUGIN_COMPONENT_COVERED_ELSEWHERE[0].coverer).toBe(
+      "listPluginSkillAdapters",
+    );
+    expect(PLUGIN_COMPONENT_COVERED_ELSEWHERE[0].reason).toMatch(
+      /spawn-grant scan/,
+    );
+    // …and the named coverer really does cover it: every file the plugin-skill lister derives is
+    // inside the one spawn-grant scan composition. The rule is not just stated, it holds.
+    const scan = spawnGrantScan();
+    for (const rel of listPluginSkillAdapters()) {
+      expect(scan).toContain(`${spawnGrantScanPrefix("plugin-skill")}${rel}`);
+    }
+
+    expect(PLUGIN_COMPONENT_EXEMPT).toHaveLength(1);
+    expect(PLUGIN_COMPONENT_EXEMPT[0].manifestKey).toBe("hooks");
+    // The reason and the bound are recorded IN SOURCE, in the DISTRIBUTION_PAIR_EXEMPT shape. An
+    // exemption without both is a hole with a comment.
+    expect(PLUGIN_COMPONENT_EXEMPT[0].reason).toMatch(/prod-deploy guard/);
+    expect(PLUGIN_COMPONENT_EXEMPT[0].bound).toMatch(/SPAWN_GRANT_SCAN/);
+    expect(PLUGIN_COMPONENT_EXEMPT[0].bound).toMatch(/ZERO markdown adapters/);
+    // ONE exempt member. Two hand-listed members is a list, and this repository's own record says a
+    // hand-maintained list rots — so a second exemption must force the promote to a derived
+    // predicate rather than arriving quietly.
+    expect(PLUGIN_COMPONENT_EXEMPT.map((e) => e.manifestKey)).toEqual(["hooks"]);
+  });
+
+  it("the forbidden SUBPATHS are the forbidden keys' probe dirs, flattened and sorted (ordering edge)", () => {
+    const subpaths = pluginForbiddenComponentSubpaths();
+    expect(subpaths).toEqual([...subpaths].sort());
+    expect(subpaths).toEqual(pluginForbiddenComponentSubpaths());
+    // Nine directories from seven keys: both `experimental.` keys carry two candidate spellings.
+    expect(subpaths).toEqual([
+      "agents",
+      "commands",
+      "experimental/monitors",
+      "experimental/themes",
+      "lspServers",
+      "mcpServers",
+      "monitors",
+      "outputStyles",
+      "themes",
+    ]);
+    // Neither bucket's directory is probed as forbidden — the adjacency edge, at the exact boundary.
+    expect(subpaths).not.toContain("skills");
+    expect(subpaths).not.toContain("hooks");
+  });
+});
+
+describe("kit-model listPluginDefaultComponentFiles (the forbidden absence-or-coverage probe)", () => {
+  // A throwaway root carrying only what a case plants. `plant` writes a file, creating parents.
+  function defaultsRoot(): string {
     const root = mkdtempSync(join(tmpdir(), "grugops-kit-model-defaults-"));
     tmpDirs.push(root);
+    return root;
+  }
+  const plant = (root: string, rel: string, body = "x"): void => {
+    const file = join(root, rel);
+    mkdirSync(dirname(file), { recursive: true });
+    writeFileSync(file, body);
+  };
+
+  it("ABSENT for a directory that does not exist, PRESENT-with-zero-files for one that does (empty edge)", () => {
+    // Absence is the EXPECTED and correct state for all seven forbidden keys, so this probe
+    // deliberately does not carry the refuse-empty floor every membership lister here carries.
+    // Reporting `present: false` is the answer; a throw would fail the live tree by design. An
+    // EXISTING but EMPTY directory is a THIRD, distinct answer and must not collapse into either —
+    // the guard prints its measured zero rather than a vacuous coverage claim.
+    const root = defaultsRoot();
     mkdirSync(join(root, "agents"), { recursive: true });
     const probed = listPluginDefaultComponentFiles(root);
     expect(probed.find((p) => p.subpath === "agents")).toEqual({
@@ -679,32 +866,193 @@ describe("kit-model listPluginDefaultComponentFiles (the plugin-default absence-
       present: false,
       files: [],
     });
+    // Every forbidden subpath is probed on every call — the probe iterates the DERIVED set, so a
+    // directory added to the schema is probed the same run.
+    expect(probed.map((p) => p.subpath)).toEqual(
+      pluginForbiddenComponentSubpaths(),
+    );
   });
 
-  it("reports every file it finds, at any depth and regardless of extension", () => {
-    const root = mkdtempSync(join(tmpdir(), "grugops-kit-model-defaults-"));
-    tmpDirs.push(root);
-    mkdirSync(join(root, "commands/nested"), { recursive: true });
-    writeFileSync(join(root, "commands/rogue.md"), "x");
-    writeFileSync(join(root, "commands/nested/thing.txt"), "x");
+  it("reports every file it finds, at any depth and regardless of extension, prefixed and sorted", () => {
+    const root = defaultsRoot();
+    // Planted in deliberately non-alphabetical order and at more than one depth.
+    plant(root, "commands/zeta.md");
+    plant(root, "commands/nested/deeper/thing.txt");
+    plant(root, "commands/alpha.yaml");
+    plant(root, "outputStyles/rogue.md");
     const got = listPluginDefaultComponentFiles(root);
     // Not narrowed to `.md`: the question is "would the platform load something no guard scans", and
     // an extension filter would let the next author drop a granted file under a name it cannot see.
     expect(got.find((p) => p.subpath === "commands")).toEqual({
       subpath: "commands",
       present: true,
-      files: ["commands/nested/thing.txt", "commands/rogue.md"],
+      files: [
+        "commands/alpha.yaml",
+        "commands/nested/deeper/thing.txt",
+        "commands/zeta.md",
+      ],
     });
+    // outputStyles was invisible to the round-5 two-element literal; it is a first-class member now.
+    expect(got.find((p) => p.subpath === "outputStyles")!.files).toEqual([
+      "outputStyles/rogue.md",
+    ]);
     expect(got.find((p) => p.subpath === "agents")!.present).toBe(false);
   });
 
-  it("the LIVE tree has both plugin-default component directories absent", () => {
-    // The condition the guard's floor asserts mechanically. Both are absent today, which is why the
-    // floor costs nothing — and exactly why it is worth writing before the first one lands.
-    for (const probe of listPluginDefaultComponentFiles()) {
-      expect(probe.present, probe.subpath).toBe(false);
-      expect(probe.files, probe.subpath).toEqual([]);
+  it("THROWS naming the directory when a present subpath cannot be READ — absence is not inferred from it", () => {
+    // Absence is the one answer this floor accepts, and a directory it cannot read is NOT evidence of
+    // absence. The condition is produced by planting a FILE where the probe expects a directory —
+    // deterministic on every host and in every privilege context, unlike chmod (a no-op for root and
+    // unreliable on Windows). The chmod route is exercised as a second case below, skipped with a
+    // recorded reason when the host will not honour it.
+    const root = defaultsRoot();
+    writeFileSync(join(root, "commands"), "not a directory");
+    expect(() => listPluginDefaultComponentFiles(root)).toThrow(
+      /cannot read kit directory/,
+    );
+    expect(() => listPluginDefaultComponentFiles(root)).toThrow(
+      join(root, "commands"),
+    );
+  });
+
+  it("THROWS naming the directory when a present subpath is permission-denied", () => {
+    const root = defaultsRoot();
+    const dir = join(root, "outputStyles");
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(join(dir, "rogue.md"), "x");
+    chmodSync(dir, 0o000);
+    let restricted = true;
+    try {
+      readdirSync(dir);
+      restricted = false;
+    } catch {
+      restricted = true;
     }
+    if (!restricted) {
+      // SKIPPED WITH ITS REASON, never silently passed: chmod does not restrict for a privileged
+      // user, and a case that cannot produce its own precondition must say so rather than assert
+      // over a state it failed to create.
+      chmodSync(dir, 0o755);
+      expect(
+        `SKIPPED: this host did not honour chmod 000 on ${dir} (privileged user?), so the ` +
+          `permission-denied precondition could not be produced; the deterministic route is pinned ` +
+          `by the file-where-a-directory-belongs case above`,
+      ).toMatch(/^SKIPPED:/);
+      return;
+    }
+    try {
+      expect(() => listPluginDefaultComponentFiles(root)).toThrow(
+        /cannot read kit directory/,
+      );
+      expect(() => listPluginDefaultComponentFiles(root)).toThrow(dir);
+    } finally {
+      // Restored so the afterAll cleanup can remove the temp root.
+      chmodSync(dir, 0o755);
+    }
+  });
+
+  it("the LIVE tree's disposition for EVERY derived forbidden subpath — absent, or fully inside the scan", () => {
+    // THE REPLACEMENT for round 5's tautological live-tree case. That one asserted absence over the
+    // two-element literal being deleted, so it could only ever confirm the literal. This one is built
+    // over the DERIVED set and states the floor's real rule: a forbidden directory is legal when it
+    // is ABSENT, or when every file in it is already inside the spawn-grant scan.
+    const scan = spawnGrantScan();
+    const probed = listPluginDefaultComponentFiles();
+    expect(probed.map((p) => p.subpath)).toEqual(
+      pluginForbiddenComponentSubpaths(),
+    );
+    for (const probe of probed) {
+      if (!probe.present) {
+        expect(probe.files, probe.subpath).toEqual([]);
+        continue;
+      }
+      for (const f of probe.files) expect(scan, f).toContain(f);
+    }
+    // Measured today: all nine are absent. Asserted with the observed dispositions in the message so
+    // a future present-and-covered directory reads as the deliberate change it would be.
+    expect(
+      probed.filter((p) => p.present).map((p) => p.subpath),
+      `forbidden subpaths PRESENT on the live tree: ${JSON.stringify(
+        probed.filter((p) => p.present),
+      )}`,
+    ).toEqual([]);
+  });
+});
+
+describe("kit-model listPluginExemptComponentFiles (the `hooks/` exemption's two bounds)", () => {
+  function exemptRoot(): string {
+    const root = mkdtempSync(join(tmpdir(), "grugops-kit-model-exempt-"));
+    tmpDirs.push(root);
+    return root;
+  }
+
+  it("reports ABSENT for an absent exempt directory rather than throwing", () => {
+    const got = listPluginExemptComponentFiles(exemptRoot());
+    expect(got).toHaveLength(1);
+    expect(got[0].manifestKey).toBe("hooks");
+    expect(got[0].subpath).toBe("hooks");
+    expect(got[0].present).toBe(false);
+    expect(got[0].files).toEqual([]);
+    expect(got[0].markdownFiles).toEqual([]);
+  });
+
+  it("reports the files and an EMPTY markdown subset when the directory holds no markdown", () => {
+    // The bound-A-is-vacuous case. The guard prints this measured zero instead of claiming coverage,
+    // because an assertion passing over an empty set has proven nothing and must not read as if it
+    // had.
+    const root = exemptRoot();
+    mkdirSync(join(root, "hooks"), { recursive: true });
+    writeFileSync(join(root, "hooks/hooks.json"), "{}");
+    writeFileSync(join(root, "hooks/guard.js"), "x");
+    const got = listPluginExemptComponentFiles(root)[0];
+    expect(got.present).toBe(true);
+    expect(got.files).toEqual(["hooks/guard.js", "hooks/hooks.json"]);
+    expect(got.markdownFiles).toEqual([]);
+  });
+
+  it("reports a NON-EMPTY markdown subset naming the file — the bound that fails closed", () => {
+    const root = exemptRoot();
+    mkdirSync(join(root, "hooks/nested"), { recursive: true });
+    writeFileSync(join(root, "hooks/hooks.json"), "{}");
+    writeFileSync(join(root, "hooks/rogue.md"), "---\nname: rogue\n---\n");
+    writeFileSync(join(root, "hooks/nested/deep.md"), "---\nname: deep\n---\n");
+    const got = listPluginExemptComponentFiles(root)[0];
+    expect(got.files).toEqual([
+      "hooks/hooks.json",
+      "hooks/nested/deep.md",
+      "hooks/rogue.md",
+    ]);
+    // At ANY depth, sorted, prefixed — a markdown adapter one directory deeper is exactly the shape
+    // the recursive walk exists to see.
+    expect(got.markdownFiles).toEqual([
+      "hooks/nested/deep.md",
+      "hooks/rogue.md",
+    ]);
+  });
+
+  it("carries the exemption's recorded reason and bound through to the consumer", () => {
+    const got = listPluginExemptComponentFiles(exemptRoot())[0];
+    expect(got.reason).toBe(PLUGIN_COMPONENT_EXEMPT[0].reason);
+    expect(got.bound).toBe(PLUGIN_COMPONENT_EXEMPT[0].bound);
+  });
+
+  it("the LIVE `hooks/` directory carries ZERO markdown adapters", () => {
+    const got = listPluginExemptComponentFiles();
+    expect(got).toHaveLength(1);
+    const hooks = got[0];
+    expect(hooks.present, "hooks/ must exist — the exemption exists BECAUSE it does").toBe(
+      true,
+    );
+    // THE MEASURED FILE COUNT IS IN THE MESSAGE so a SHRUNKEN directory is visible rather than
+    // silently making the zero-markdown assertion easier to satisfy. Today: 7 files, 0 markdown.
+    expect(
+      hooks.markdownFiles,
+      `hooks/ holds ${hooks.files.length} file(s): ${hooks.files.join(", ")}`,
+    ).toEqual([]);
+    expect(
+      hooks.files.length,
+      `hooks/ holds ${hooks.files.length} file(s): ${hooks.files.join(", ")}`,
+    ).toBe(7);
   });
 });
 

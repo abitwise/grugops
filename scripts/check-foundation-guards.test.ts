@@ -27,6 +27,7 @@ import {
   writeFileSync,
   appendFileSync,
   readFileSync,
+  readdirSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, dirname } from "node:path";
@@ -36,9 +37,12 @@ import {
   listAgentAdapters,
   listSkillAdapters,
   listPluginSkillAdapters,
+  listPluginExemptComponentFiles,
+  pluginForbiddenComponentSubpaths,
   spawnGrantScan,
   ROLE_COUNT,
   PLUGIN_SKILL_ADAPTER_COUNT,
+  PLUGIN_MANIFEST_COMPONENT_COUNT,
 } from "./kit-model.js";
 
 const ROOT = join(import.meta.dirname, "..");
@@ -441,6 +445,54 @@ function runIn(checkRoot: string): SpawnSyncReturns<string> {
 // The combined stdout+stderr of a guard run (findings print to stdout).
 function out(r: SpawnSyncReturns<string>): string {
   return `${r.stdout ?? ""}${r.stderr ?? ""}`;
+}
+
+// (Plan 27-37, D-46) THE SCRATCH-BUILD HARNESS — how a FLOOR is proven to fire.
+//
+// Several claims this plan makes are about the guard's own derivation rather than about the tree it
+// reads: the schema's two-sided cardinality, and the three buckets partitioning it. Neither can be
+// broken by planting a file, so neither can be exercised through mirror() alone — and a case that
+// asserts two numbers agree proves the numbers agree, not that anything fails when they do not.
+//
+// So the case builds a SCRATCH copy of the compiled scripts (the flat `.js` import graph the guard
+// actually runs), applies one textual mutation to the scratch `kit-model.js`, and runs the scratch
+// guard against a normal hermetic mirror. NOTHING in the repository is mutated: the mutation lives in
+// a temp directory that afterAll removes.
+//
+// The mutation is asserted to have APPLIED before the guard runs. A `replace` that silently matched
+// nothing would leave an unmutated build passing, and the case would report a green floor it never
+// exercised — which is the fabricated-completion shape this whole phase exists to delete.
+function scratchGuard(mutate: (kitModelJs: string) => string): string {
+  const dir = mkdtempSync(join(tmpdir(), "grugops-fg-scratch-"));
+  tmpDirs.push(dir);
+  const scriptsDir = join(dir, "scripts");
+  mkdirSync(scriptsDir, { recursive: true });
+  for (const name of readdirSync(join(ROOT, "scripts"))) {
+    if (!name.endsWith(".js")) continue;
+    cpSync(join(ROOT, "scripts", name), join(scriptsDir, name));
+  }
+  const kitModelPath = join(scriptsDir, "kit-model.js");
+  const before = readFileSync(kitModelPath, "utf8");
+  const after = mutate(before);
+  if (after === before) {
+    throw new Error(
+      "scratchGuard: the mutation matched nothing, so the scratch build is identical to the " +
+        "committed one — a floor 'proven' against an unmutated build is proven against nothing",
+    );
+  }
+  writeFileSync(kitModelPath, after);
+  return join(scriptsDir, "check-foundation-guards.js");
+}
+
+// Run a scratch guard against a hermetic mirror of the real inputs.
+function runScratch(
+  guardJs: string,
+  checkRoot: string,
+): SpawnSyncReturns<string> {
+  return spawnSync("node", [guardJs], {
+    encoding: "utf8",
+    env: { ...process.env, CHECK_ROOT: checkRoot },
+  });
 }
 
 afterAll(() => {
@@ -1018,7 +1070,13 @@ describe("check-foundation-guards.js (SDLC-02 / SC2 fail-proof harness)", () => 
       );
       expect(r.status, `${label}: expected a green aggregator run`).toBe(0);
     }
-  });
+    // (Plan 27-37) EXPLICIT TIMEOUT, recorded rather than left to the 5s default. This one case
+    // builds SEVEN mirrors and spawns the compiled guard seven times — roughly 3s on an idle host and
+    // demonstrably over 5s once this file's other spawn-heavy cases have churned the filesystem ahead
+    // of it. It timed out for exactly that reason when plan 27-37 added its nine derived-corpus plant
+    // cases, and a wall-clock flake in a control that asserts "no false red" is the worst possible
+    // place to leave a coin flip: it reads as a real finding. Nothing about the assertion changed.
+  }, 60_000);
 
   // THE COUNT IS AN EXACT INTEGER, not a loose "more than one". A message reporting a wrong number
   // would pass a `/\d+ times/` match and mislead whoever read it, so the assertion is on the integer
@@ -1997,37 +2055,177 @@ describe("check-foundation-guards.js (SDLC-02 / SC2 fail-proof harness)", () => 
     for (const rel of DERIVED_PLUGIN_SKILL_INPUTS) expect(scan).toContain(rel);
   });
 
-  // THE PLUGIN-DEFAULT COMPONENT FLOOR, proven to have teeth rather than to be vacuously true.
-  // `agents/` and `commands/` at plugin root are what Claude Code's DEFAULT discovery loads when the
-  // manifest declares no override — which it does not. Both are absent today, so the floor is free;
-  // this case is what shows it would fire the day one lands unscanned.
-  it("a granted file at the plugin-default `agents/` reaches guard_wr05 — absence-or-coverage, not assumption", () => {
+  // ── THE PLUGIN-ROOT COMPONENT FLOOR (plan 27-37, D-46) ────────────────────────────────────────
+  //
+  // Round 5 proved this floor with ONE plant, at `agents/`, chosen from the hand-written two-element
+  // literal the floor iterated. It was a real case over a real conviction — and it was structurally
+  // incapable of catching that SEVEN other surfaces the platform loads sat outside every scan set.
+  // Measured on hermetic mirrors before this plan, with one identical plant: `commands/rogue.md`
+  // exited 1 and named the file; `outputStyles/rogue.md` and `hooks/rogue.md` each exited 0 with
+  // `ALL CHECKS PASSED` and never named it.
+  //
+  // THE CORPUS IS ITERATED FROM THE PRODUCTION SET, NEVER HAND-LISTED HERE, and the reason is the
+  // defect itself: a hand-listed test corpus over a derived production set is the SAME drift class
+  // with the sides swapped — the set would rot in the test file instead of in the source file, and
+  // stay just as green while it did.
+  const ROGUE_COMPONENT = [
+    "---",
+    "name: rogue",
+    "description: planted plugin-root component",
+    "allowed-tools: Read, Agent(grugops-orchestrator)",
+    "---",
+    "",
+    "Planted plugin-root component.",
+    "",
+  ].join("\n");
+
+  it.each(pluginForbiddenComponentSubpaths())(
+    "a granted file planted at the FORBIDDEN plugin-root directory `%s/` turns the gate red naming it",
+    (subpath) => {
+      const m = mirror();
+      const rel = `${subpath}/rogue.md`;
+      mkdirSync(join(m, subpath), { recursive: true });
+      writeFileSync(join(m, rel), ROGUE_COMPONENT);
+      const r = runIn(m);
+      expect(r.status, `${rel} left the gate at exit 0`).not.toBe(0);
+      const o = out(r);
+      expect(o).toContain(rel);
+      expect(o).toContain("sit OUTSIDE the spawn-grant scan");
+    },
+    30_000,
+  );
+
+  it("the forbidden corpus is DERIVED, at the cardinality the schema implies", () => {
+    // Without this, the it.each above could silently iterate a shrunken set and every one of its
+    // cases would still pass — the vacuous-corpus failure this file guards against everywhere else.
+    const subpaths = pluginForbiddenComponentSubpaths();
+    expect(subpaths.length).toBe(9);
+    expect(subpaths).toContain("commands");
+    expect(subpaths).toContain("outputStyles");
+    // The two members the buckets claim are NOT in the forbidden corpus — the adjacency edge.
+    expect(subpaths).not.toContain("skills");
+    expect(subpaths).not.toContain("hooks");
+  });
+
+  // ── THE `hooks/` EXEMPTION'S TWO BOUNDS, asserted in BOTH directions ───────────────────────────
+  it("a MARKDOWN adapter planted in the EXEMPT `hooks/` turns the gate red naming the file", () => {
+    // The bound that makes the exemption fail closed. Before this plan the identical plant printed
+    // ALL CHECKS PASSED at exit 0 and never named the file.
     const m = mirror();
-    mkdirSync(join(m, "agents"), { recursive: true });
-    writeFileSync(
-      join(m, "agents/rogue.md"),
-      "---\nname: rogue\ntools: Agent(grugops-qe-e2e)\n---\nPlanted plugin-root component.\n",
-    );
+    writeFileSync(join(m, "hooks/rogue.md"), ROGUE_COMPONENT);
     const r = runIn(m);
     expect(r.status).not.toBe(0);
     const o = out(r);
-    expect(o).toContain("agents/rogue.md");
-    expect(o).toContain("sit OUTSIDE the spawn-grant scan");
+    expect(o).toContain("hooks/rogue.md");
+    expect(o).toContain("carries 1 markdown adapter(s)");
+    // Both bounds fire, and they state DIFFERENT facts: the file is unscanned, and it exists at all.
+    expect(o).toContain(
+      "markdown (frontmatter-bearing) file(s) under the EXEMPT plugin-root component directory",
+    );
   });
 
-  it("the live gate reports both plugin-default component directories ABSENT and names the plugin-skill count", () => {
-    // The claim NAMES THE INPUT IT READ. Before this plan the WR-05 pass line asserted "no
-    // non-coordinator does" while naming only the adapter and packaging counts, over a set that
-    // structurally could not see the seven plugin-form skills.
+  it("a NON-markdown file in the EXEMPT `hooks/` leaves the gate green — bounded, not absent", () => {
+    // The other direction, and it is the half that keeps the exemption honest: if ANY plant in
+    // `hooks/` went red, the directory would be forbidden in effect and the CLAUDE.md-mandated
+    // prod-deploy guard could not live there. The exemption exempts exactly what it says it exempts.
+    const m = mirror();
+    writeFileSync(join(m, "hooks/rogue.js"), 'console.log("planted");\n');
+    const r = runIn(m);
+    expect(out(r)).toContain("ALL CHECKS PASSED");
+    expect(r.status).toBe(0);
+  });
+
+  it("the live gate PRINTS the measured numbers for every plugin-root component surface", () => {
+    // The PASS-line wording is a CONTRACT with this case, not prose. The disposition line reports
+    // what it counted — including zeros — so a vacuous assertion is visible as the anomaly it is
+    // rather than hiding behind a coverage claim.
     const o = out(runIn(ROOT));
     expect(o).toContain(`${PLUGIN_SKILL_ADAPTER_COUNT} plugin-form skill(s)`);
+    // All nine forbidden subpaths are named, in sorted order, with their disposition.
+    for (const subpath of pluginForbiddenComponentSubpaths()) {
+      expect(o, subpath).toContain(`${subpath}/ ABSENT`);
+    }
     expect(o).toContain(
       "plugin-default component directories: agents/ ABSENT, commands/ ABSENT",
+    );
+    // The exempt directory's MEASURED counts — today 7 files, 0 markdown adapters. Read from the
+    // production probe rather than restated, so a shrunken directory fails the case instead of
+    // quietly satisfying it.
+    const hooks = listPluginExemptComponentFiles(ROOT)[0];
+    expect(hooks.files.length).toBe(7);
+    expect(hooks.markdownFiles.length).toBe(0);
+    expect(o).toContain(
+      `hooks/ EXEMPT-BY-NAME, PRESENT with ${hooks.files.length} file(s) and ${hooks.markdownFiles.length} markdown adapter(s), 0 of those inside the spawn-grant scan`,
     );
     // The tier-announcement phrase is kept byte-for-byte; the new clauses were APPENDED.
     expect(o).toContain(
       "the coordinator body carries all 6 tier-announcement beats, each exactly once in live, non-fenced, non-commented text",
     );
+    // guard_kit_counts reports the partition it asserted.
+    expect(o).toContain(
+      `the plugin-manifest component schema carries ${PLUGIN_MANIFEST_COMPONENT_COUNT} entries partitioned into 7 forbidden + 1 covered-elsewhere (skills by listPluginSkillAdapters) + 1 exempt by name (hooks)`,
+    );
+  });
+
+  // ── THE SCHEMA'S TWO-SIDED CARDINALITY FLOOR, exercised rather than merely agreed with ─────────
+  it("guard_kit_counts fails red when a schema entry is REMOVED from a scratch build", () => {
+    const guardJs = scratchGuard((src) =>
+      src.replace('    { manifestKey: "lspServers", probeDirs: ["lspServers"] },\n', ""),
+    );
+    const r = runScratch(guardJs, mirror());
+    expect(r.status).not.toBe(0);
+    expect(out(r)).toContain(
+      `the plugin-manifest component schema carries 8 entries, expected exactly ${PLUGIN_MANIFEST_COMPONENT_COUNT}`,
+    );
+  });
+
+  it("guard_kit_counts fails red when a schema entry is ADDED to a scratch build", () => {
+    // The load-bearing direction. Adding a plugin-root component surface must force its author to
+    // walk the partition, the probe, the exemption bound and the disposition line BEFORE the count
+    // moves — which is the walk that never happened while the set was a two-element literal.
+    const guardJs = scratchGuard((src) =>
+      src.replace(
+        '    { manifestKey: "lspServers", probeDirs: ["lspServers"] },',
+        '    { manifestKey: "lspServers", probeDirs: ["lspServers"] },\n    { manifestKey: "scratchTenth", probeDirs: ["scratchTenth"] },',
+      ),
+    );
+    const r = runScratch(guardJs, mirror());
+    expect(r.status).not.toBe(0);
+    expect(out(r)).toContain(
+      `the plugin-manifest component schema carries 10 entries, expected exactly ${PLUGIN_MANIFEST_COMPONENT_COUNT}`,
+    );
+  });
+
+  // ── THE BUCKET PARTITION, exercised in both violation directions ───────────────────────────────
+  it("guard_kit_counts fails red when a scratch build claims one schema member in TWO buckets", () => {
+    const guardJs = scratchGuard((src) =>
+      src.replace(
+        "export const PLUGIN_COMPONENT_EXEMPT = [",
+        'export const PLUGIN_COMPONENT_EXEMPT = [\n    { manifestKey: "skills", reason: "scratch double claim", bound: "scratch" },',
+      ),
+    );
+    const r = runScratch(guardJs, mirror());
+    expect(r.status).not.toBe(0);
+    const o = out(r);
+    expect(o).toContain("three buckets do not PARTITION it");
+    expect(o).toContain("claimed by more than one [skills]");
+  });
+
+  it("guard_kit_counts fails red when a scratch build leaves one schema member in NO bucket", () => {
+    // Today's forbidden set is COMPUTED, so this state cannot arise from the current code. The floor
+    // is what makes a LATER hand-edit of that computation impossible to land silently — which is
+    // precisely the drift this plan deletes, arriving through the fix for it.
+    const guardJs = scratchGuard((src) =>
+      src.replace(
+        "return PLUGIN_MANIFEST_COMPONENT_SCHEMA.map((e) => e.manifestKey).filter((k) => !claimed.has(k));",
+        'return PLUGIN_MANIFEST_COMPONENT_SCHEMA.map((e) => e.manifestKey).filter((k) => !claimed.has(k) && k !== "outputStyles");',
+      ),
+    );
+    const r = runScratch(guardJs, mirror());
+    expect(r.status).not.toBe(0);
+    const o = out(r);
+    expect(o).toContain("three buckets do not PARTITION it");
+    expect(o).toContain("unclaimed by any bucket [outputStyles]");
   });
 
   // ── guard_distribution_pair (plan 27-34, D-40 point 3) ────────────────────────────────────────
