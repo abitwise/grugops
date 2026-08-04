@@ -124,7 +124,7 @@ Full phase details + milestone summary: `milestones/v2.0-ROADMAP.md` · requirem
   4. On Claude Code the coordinator runs as the **main-thread** agent so its `Agent(<allowlist>)` grant is honored by the runtime, and no non-coordinator adapter carries the `Agent` tool at all — a mechanism that holds on both the main-thread and subagent paths rather than relying on a frontmatter token the runtime ignores. (SPAWN-03, SPAWN-04)
   5. `guard_adapter_body` fails red on pre-v2.0 handoff/single-window prose anywhere in an adapter body — proven against the surviving `grugops-orchestrator.md:25` reference — `orchestrator.md` sits below its **7570-byte FAIL ceiling with the ceiling unchanged**, and the advertised Claude Code floor reads **v2.1.219+ at depth 3** everywhere it appears, with the v2.1.217–218 depth-1 window documented as a known-bad range that degrades loudly. (SPAWN-05, SPAWN-06, SPAWN-07)
 
-**Plans**: 37/38 plans executed
+**Plans**: 38/38 plans executed
 Plans:
 **Wave 1**
 
@@ -256,7 +256,7 @@ Plans:
 
 **Gap wave — round 6, wave 3** *(shares `scripts/frontmatter.ts` with 27-36; also build-serialized behind 27-37)*
 
-- [ ] 27-38-PLAN.md — the grant enumeration states ONE legal character set and refuses everything else, replacing the two ENUMERATED checks for a nested paren and a quote, so a flow-collection delimiter stops returning split, altered names on the success arm — measured today, `Agent(alpha[,]b, gamma)` yields three names, one invented and one lost, on the arm whose doc block promises a name is never dropped or altered; the unreachable escape branch's note is made true by a case rather than a comment, and the false-red cost is measured across every real enumeration in all 33 scan members (D-47) [KIT-03, SPAWN-04] *(round-5 IN-04)*
+- [x] 27-38-PLAN.md — the grant enumeration states ONE legal character set and refuses everything else, replacing the two ENUMERATED checks for a nested paren and a quote, so a flow-collection delimiter stops returning split, altered names on the success arm — measured today, `Agent(alpha[,]b, gamma)` yields three names, one invented and one lost, on the arm whose doc block promises a name is never dropped or altered; the unreachable escape branch's note is made true by a case rather than a comment, and the false-red cost is measured across every real enumeration in all 33 scan members (D-47) [KIT-03, SPAWN-04] *(round-5 IN-04)*
 
 **Ordering that is load-bearing in gap-closure round 6** — round 6 closes only the three requirements that FAILED round-5 verification (KIT-02, KIT-03, SPAWN-04); the other seven are verified clean and out of scope, and all five round-4 findings are confirmed closed and are not re-litigated. 27-36 leads because the composite-delimiter gap is the parser-level bypass both KIT-03 and SPAWN-04 inherit through the shared `keysHaveSpawnGrant`/`parseFrontmatter` path — one fix closes both requirements. 27-37 is logically independent and file-disjoint; its wave-2 placement is **build serialization only**, for the same reason recorded for round 5: `npm run build` is a whole-project `tsc` emit. 27-38 genuinely shares `scripts/frontmatter.ts` with 27-36.
 
@@ -407,7 +407,7 @@ Plans:
 | 24. Clean Handoff Removal & Traceability Migration | v2.0 | 5/5 | Complete    | 2026-06-22 |
 | 25. Governance-on-a-Dial | v2.0 | 13/13 | Complete | 2026-06-29 |
 | 26. Dogfood, Dual-Path Oracle & A3/DOG-02 Retirement | v2.0 | 6/6 | Complete | 2026-07-24 |
-| 27. Spawn Correctness & Kit-Set Authority | v2.1 | 37/38 | In Progress|  |
+| 27. Spawn Correctness & Kit-Set Authority | v2.1 | 38/38 | In Progress|  |
 | 28. Kit Consistency Audit | v2.1 | 0/TBD | Not started | - |
 | 29. Controlled Language & Voice Guard Rebuild | v2.1 | 0/TBD | Not started | - |
 | 30. Per-Checkpoint Autonomy Matrix | v2.1 | 0/TBD | Not started | - |
