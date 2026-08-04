@@ -668,10 +668,17 @@ describe("kit-model listPluginDefaultComponentFiles (the plugin-default absence-
     const root = mkdtempSync(join(tmpdir(), "grugops-kit-model-defaults-"));
     tmpDirs.push(root);
     mkdirSync(join(root, "agents"), { recursive: true });
-    expect(listPluginDefaultComponentFiles(root)).toEqual([
-      { subpath: "agents", present: true, files: [] },
-      { subpath: "commands", present: false, files: [] },
-    ]);
+    const probed = listPluginDefaultComponentFiles(root);
+    expect(probed.find((p) => p.subpath === "agents")).toEqual({
+      subpath: "agents",
+      present: true,
+      files: [],
+    });
+    expect(probed.find((p) => p.subpath === "commands")).toEqual({
+      subpath: "commands",
+      present: false,
+      files: [],
+    });
   });
 
   it("reports every file it finds, at any depth and regardless of extension", () => {

@@ -182,9 +182,215 @@ const PACKAGING_SUBPATH = "agent-factory/packaging";
 // The PLUGIN-form skill tree at the repository root (plan 27-34). Distinct from SKILLS_SUBPATH above
 // and never a prefix of it, so partitioning the composition on either literal is unambiguous.
 const PLUGIN_SKILLS_SUBPATH = "skills";
-// The component directories Claude Code's DEFAULT discovery would load at plugin root. Neither exists
-// today; see listPluginDefaultComponentFiles() below for why they are probed rather than assumed.
-const PLUGIN_DEFAULT_COMPONENT_SUBPATHS = ["agents", "commands"] as const;
+// The markdown extension. Named once because two rules below turn on it — "is this a frontmatter-
+// bearing adapter surface" and "does the exempt directory carry an adapter" — and a second spelling
+// of one fact is the drift class this module deletes even when the fact is three characters long.
+const MARKDOWN_EXT = ".md";
+
+// ---------------------------------------------------------------------------
+// THE PLUGIN-MANIFEST COMPONENT SCHEMA (plan 27-37, D-46) — DERIVED, COUNTED TWO-SIDED, PARTITIONED
+// ---------------------------------------------------------------------------
+//
+// WHAT THIS REPLACES, AND WHY IT IS A REPLACEMENT RATHER THAN AN EXTENSION. Until this plan the
+// plugin-root component probe iterated a hand-written two-element literal — `["agents", "commands"]`
+// — carrying NO derivation and NO cardinality pin, fifteen lines below ROLE_COUNT, WORKFLOW_COUNT,
+// SKILL_ADAPTER_COUNT, PLUGIN_SKILL_ADAPTER_COUNT and SPAWN_GRANT_SCAN_COUNT, every one of which is
+// derived and pinned two-sided. It was this module's own diagnosed set-literal drift recurring ONE
+// LEVEL INSIDE the fix meant to delete the pattern's third instance, and it shipped underneath a
+// comment in check-foundation-guards.ts claiming to close the CLASS rather than the instance.
+//
+// REPRODUCED BEFORE THE REPLACEMENT, on hermetic `git archive HEAD` mirrors, with one identical plant
+// (`name: rogue` / `allowed-tools: Read, Agent(grugops-orchestrator)`) written to `<dir>/rogue.md`:
+//
+//     commands/rogue.md      exit 1   `1 CHECK(S) FAILED`   the planted stem named 1 time
+//     outputStyles/rogue.md  exit 0   `ALL CHECKS PASSED`   the planted stem named 0 times
+//     hooks/rogue.md         exit 0   `ALL CHECKS PASSED`   the planted stem named 0 times
+//
+// Two of the three surfaces the platform loads for every `/plugin install` user were outside every
+// scan set in this repository, and the gate said so by saying nothing.
+//
+// THE SOURCE OF THE SET IS A DOCUMENT THIS REPOSITORY MAINTAINS: CLAUDE.md's "Format Schemas §1
+// `.claude-plugin/plugin.json` (manifest)" section, whose component-path field enumeration reads
+// `agents`, `commands`, `skills`, `hooks`, `mcpServers`, `lspServers`, `outputStyles`,
+// `experimental.themes`, `experimental.monitors`, `userConfig`, `dependencies`.
+//
+// ELEVEN FIELDS, NINE COMPONENT DIRECTORIES — AND THE DELTA IS NAMED HERE RATHER THAN SILENTLY
+// TRIMMED, because "nine of an eleven-item list" written down without its rule is precisely the shape
+// this block exists to delete. `userConfig` declares a configuration SCHEMA and `dependencies`
+// declares a dependency LIST; neither names a directory of loadable component files, so neither has a
+// plugin-root surface to probe. Every remaining field does.
+//
+// WHY THE PROBE APPLIES AT ALL. `.claude-plugin/plugin.json` declares no component-path OVERRIDE (it
+// carries `name`, `version`, `description`, `author`, `homepage`, `repository`, `license`, `keywords`
+// and an INLINE `mcpServers` server map — a server declaration, not a path string), and
+// `.claude-plugin/marketplace.json`'s single plugin entry sources `"./"`, the repository root. So
+// Claude Code's DEFAULT discovery applies to every component directory, at the repository root.
+//
+// RECORDED RESIDUAL, NOT CLAIMED AWAY (`UNKNOWN - verify`): this schema is derived from a document
+// THIS repository maintains, and a document can lag a platform. A tenth component directory added
+// platform-side would be outside this schema, and PLUGIN_MANIFEST_COMPONENT_COUNT cannot detect it —
+// the count fires only when THIS repository's own list changes. That is a genuine residual of the
+// shape, and it is written down rather than papered over.
+export interface PluginManifestComponentEntry {
+  /** The manifest key, spelled exactly as CLAUDE.md's component-path field enumeration spells it. */
+  readonly manifestKey: string;
+  /**
+   * The directory path(s) at plugin root that key would be discovered under. Every one is a FIXED
+   * LITERAL joined onto the supplied root — never argv, env or file-content derived (ASVS V12).
+   */
+  readonly probeDirs: readonly string[];
+}
+
+export const PLUGIN_MANIFEST_COMPONENT_SCHEMA: readonly PluginManifestComponentEntry[] =
+  [
+    { manifestKey: "agents", probeDirs: ["agents"] },
+    { manifestKey: "commands", probeDirs: ["commands"] },
+    { manifestKey: "skills", probeDirs: [PLUGIN_SKILLS_SUBPATH] },
+    { manifestKey: "hooks", probeDirs: ["hooks"] },
+    { manifestKey: "mcpServers", probeDirs: ["mcpServers"] },
+    { manifestKey: "lspServers", probeDirs: ["lspServers"] },
+    { manifestKey: "outputStyles", probeDirs: ["outputStyles"] },
+    // `UNKNOWN - verify`: the platform's default-discovery DIRECTORY NAME for the two `experimental.`
+    // keys is not documented in this repository. BOTH spellings are probed — the flattened `themes/`
+    // and the nested `experimental/themes/` — because probing an absent directory costs nothing while
+    // missing a loaded one is the exact defect class this block closes. Probing both is the cheap
+    // answer to a genuine unknown; guessing one would be the expensive one.
+    {
+      manifestKey: "experimental.themes",
+      probeDirs: ["themes", "experimental/themes"],
+    },
+    {
+      manifestKey: "experimental.monitors",
+      probeDirs: ["monitors", "experimental/monitors"],
+    },
+  ];
+
+// The schema's exact cardinality, enforced TWO-SIDED in guard_kit_counts exactly as ROLE_COUNT,
+// WORKFLOW_COUNT, SKILL_ADAPTER_COUNT, PLUGIN_SKILL_ADAPTER_COUNT and SPAWN_GRANT_SCAN_COUNT are:
+// eight entries is a failure and ten entries is a failure, only nine passes. Bumping the number is a
+// DELIBERATE act that obliges the author to walk every consumer first — the bucket partition, the
+// forbidden-set computation, the probe, the exemption bound and the gate's disposition line — and
+// that walk is the whole point of the constant.
+export const PLUGIN_MANIFEST_COMPONENT_COUNT = 9;
+
+// THE COVERED-ELSEWHERE BUCKET — a STATED RULE WITH A NAMED COVERER, never an omission from a list.
+//
+// `skills` is not forbidden and it is not exempt: it is already derived, already counted and already
+// folded into the spawn-grant scan by the function named here. Recording that as a rule with the
+// coverer's own name is what makes the exclusion readable as deliberate. Left as an absence from a
+// literal — which is how it was expressed until this plan — it is indistinguishable from an oversight
+// and it can silently widen the day a second directory quietly stops being listed.
+export interface PluginComponentCoveredElsewhere {
+  readonly manifestKey: string;
+  /** The exported function in this module that already derives and scans the surface. */
+  readonly coverer: string;
+  readonly reason: string;
+}
+
+export const PLUGIN_COMPONENT_COVERED_ELSEWHERE: readonly PluginComponentCoveredElsewhere[] =
+  [
+    {
+      manifestKey: "skills",
+      coverer: "listPluginSkillAdapters",
+      reason:
+        "the plugin-form skill tree is derived by listPluginSkillAdapters(), pinned two-sided by " +
+        "PLUGIN_SKILL_ADAPTER_COUNT and folded into spawnGrantScan(), so every file the platform " +
+        "loads from it is already inside the spawn-grant scan that guard_wr05 walks",
+    },
+  ];
+
+// THE EXEMPT BUCKET — BY NAME, WITH ITS REASON AND ITS BOUND RECORDED IN SOURCE.
+//
+// The shape is copied from check-foundation-guards.ts's DISTRIBUTION_PAIR_EXEMPT rather than invented
+// as a second exemption idiom: this repository already records exactly one legitimate divergence by
+// name, with its reason and with a bound that keeps the exempted surface inside the spawn-grant scan.
+//
+// WHY `hooks/` IS BOUNDED RATHER THAN FORBIDDEN. It EXISTS on the live tree today, it holds the
+// `PreToolUse` prod-deploy guard, and CLAUDE.md makes that mechanical guard a HARD safety constraint
+// ("prefer enforcing this *mechanically* … not just by prompt"). Relocating a CLAUDE.md-mandated
+// safety surface in order to satisfy a guard rule would be the guard bending the product, which is
+// the wrong direction for a guard to bend anything.
+//
+// THE EXEMPTION IS ITS TWO BOUNDS. Without them it is a hole with a comment. They are asserted live in
+// guard_wr05, on MEASURED numbers the gate prints, and they are deliberately overlapping rather than
+// disjoint: the coverage bound is the one that survives if the shape bound is ever legitimately
+// relaxed, and the shape bound is the one that fails closed today.
+//
+// ACCEPTED DEBT, NAMED (plan 27-37's assumption-delta record): this bucket is a BY-NAME list sitting
+// beside a derived schema, not itself derived from it — because no rule in the manifest schema
+// distinguishes a legitimately-shipped component directory from a rogue one. What would force a later
+// promote to a derived predicate: a SECOND directory needing exemption (two hand-listed members is a
+// list, and this repository's own record says a hand-maintained list rots), or `hooks/` legitimately
+// gaining a markdown adapter, at which point "zero markdown adapters" stops being the bound that fails
+// closed.
+export interface PluginComponentExemption {
+  readonly manifestKey: string;
+  readonly reason: string;
+  readonly bound: string;
+}
+
+export const PLUGIN_COMPONENT_EXEMPT: readonly PluginComponentExemption[] = [
+  {
+    manifestKey: "hooks",
+    reason:
+      "hooks/ exists on the live tree and holds the PreToolUse prod-deploy guard; CLAUDE.md makes " +
+      "that mechanical guard a hard safety constraint, so relocating it to satisfy a guard rule " +
+      "would be the guard bending the product",
+    bound:
+      "every markdown (frontmatter-bearing) member of hooks/ must be inside SPAWN_GRANT_SCAN, AND " +
+      "hooks/ must carry ZERO markdown adapters — the first is vacuous today (0 markdown members, a " +
+      "measured number the gate prints rather than a coverage claim), the second is what fails " +
+      "closed the moment a markdown adapter appears there",
+  },
+];
+
+// THE FORBIDDEN SET — COMPUTED as schema minus covered minus exempt, and NEVER written down a second
+// time. A reviewer reading this file finds exactly ONE enumeration of component keys, which is what
+// makes the partition a derivation rather than a list with a comment beside it.
+export function pluginForbiddenComponentKeys(): string[] {
+  const claimed = new Set<string>([
+    ...PLUGIN_COMPONENT_COVERED_ELSEWHERE.map((c) => c.manifestKey),
+    ...PLUGIN_COMPONENT_EXEMPT.map((e) => e.manifestKey),
+  ]);
+  return PLUGIN_MANIFEST_COMPONENT_SCHEMA.map((e) => e.manifestKey).filter(
+    (k) => !claimed.has(k),
+  );
+}
+
+// The forbidden keys' probe directories, flattened and sorted. Sorted so two gate runs over one tree
+// produce byte-identical dispositions; more directories than keys, because the two `experimental.`
+// keys each carry both candidate spellings of an `UNKNOWN - verify` directory name.
+export function pluginForbiddenComponentSubpaths(): string[] {
+  const keys = new Set(pluginForbiddenComponentKeys());
+  return PLUGIN_MANIFEST_COMPONENT_SCHEMA.filter((e) =>
+    keys.has(e.manifestKey),
+  )
+    .flatMap((e) => [...e.probeDirs])
+    .sort();
+}
+
+// The schema entries the exemption names. Throws when an exemption names a key the schema does not
+// carry: an exemption for a surface outside the schema is an exemption for nothing, and silently
+// returning an empty list would make the bound vacuous in exactly the way the bound exists to
+// prevent. (guard_kit_counts' partition floor names the same condition from the other side.)
+function pluginExemptComponentEntries(): {
+  entry: PluginManifestComponentEntry;
+  exemption: PluginComponentExemption;
+}[] {
+  return PLUGIN_COMPONENT_EXEMPT.map((exemption) => {
+    const entry = PLUGIN_MANIFEST_COMPONENT_SCHEMA.find(
+      (e) => e.manifestKey === exemption.manifestKey,
+    );
+    if (entry === undefined) {
+      throw new Error(
+        `kit-model: the plugin component exemption names \`${exemption.manifestKey}\`, which is not ` +
+          `in PLUGIN_MANIFEST_COMPONENT_SCHEMA — an exemption for a surface outside the schema ` +
+          `bounds nothing, and returning an empty list would make the exemption's own bound vacuous`,
+      );
+    }
+    return { entry, exemption };
+  });
+}
 
 // Read a directory, rethrowing as a NAMED error. The raw ENOENT/EACCES message does not identify
 // which kit directory failed once two call sites share this helper.
@@ -416,20 +622,20 @@ export function listPluginSkillAdapters(
   return refuseEmpty(files, dir, "plugin skill adapter");
 }
 
-// THE PLUGIN-DEFAULT COMPONENT PROBE (plan 27-34) — an ABSENCE-OR-COVERAGE floor, not a corpus.
+// THE PLUGIN-DEFAULT COMPONENT PROBE (plan 27-34, rewritten by plan 27-37 / D-46) — an
+// ABSENCE-OR-COVERAGE floor, not a corpus.
 //
-// `.claude-plugin/plugin.json` declares no component-path override and the marketplace entry sources
-// the repository root, so Claude Code's DEFAULT discovery would load `agents/` and `commands/` at
-// plugin root for every plugin-install user. Neither directory exists today, and until now NOTHING
-// asserted they stay absent — which is the CLASS the plugin-skill hole belongs to rather than the one
-// instance CR-03 named. A `commands/rogue.md` carrying a spawn grant would be loaded by the platform
-// and seen by no scan set, exactly as `skills/plan/SKILL.md` was.
+// WHAT CHANGED AND WHAT DID NOT. Only the SET it iterates changed: it now walks the COMPUTED
+// forbidden subpaths (schema minus covered-elsewhere minus exempt) rather than the deleted
+// two-element literal. Every posture below is preserved deliberately and none of it is an accident.
 //
 // DELIBERATELY NOT refuseEmpty AND DELIBERATELY NOT A THROW. Every other lister here refuses an empty
 // result because an empty MEMBERSHIP set passes every guard vacuously. This is the opposite kind of
-// question: absence is the EXPECTED and correct state on the live tree, and the consumer's finding is
-// about files that exist, not about files that do not. Reporting `present: false` is the answer, never
-// a failure. An unreadable directory still throws, through readDirOrThrow inside the shared walk.
+// question: absence is the EXPECTED and correct state for all seven forbidden surfaces on the live
+// tree, and the consumer's finding is about files that exist, not about files that do not. Reporting
+// `present: false` is the answer, never a failure. An unreadable directory still throws, through
+// readDirOrThrow inside the shared walk — absence is the one answer the floor accepts and an
+// unreadable directory is not evidence of it.
 //
 // Returns every file it finds, not only `.md`: the question is "would the platform load something we
 // do not scan", and narrowing the probe by extension would let the next author drop a granted file
@@ -437,17 +643,70 @@ export function listPluginSkillAdapters(
 export function listPluginDefaultComponentFiles(
   kitRoot: string = DEFAULT_KIT_ROOT,
 ): { subpath: string; present: boolean; files: string[] }[] {
-  return PLUGIN_DEFAULT_COMPONENT_SUBPATHS.map((subpath) => {
-    const dir = join(kitRoot, subpath);
-    if (!existsSync(dir)) return { subpath, present: false, files: [] };
-    return {
-      subpath,
-      present: true,
-      files: walkFilesRelative(dir)
-        .map((rel) => `${subpath}/${rel}`)
-        .sort(),
-    };
-  });
+  return pluginForbiddenComponentSubpaths().map((subpath) =>
+    probeComponentDir(kitRoot, subpath),
+  );
+}
+
+// The one directory probe both surfaces share. Kept in one place so the forbidden floor and the
+// exemption bound cannot answer "what is in this directory" two different ways.
+function probeComponentDir(
+  kitRoot: string,
+  subpath: string,
+): { subpath: string; present: boolean; files: string[] } {
+  const dir = join(kitRoot, subpath);
+  if (!existsSync(dir)) return { subpath, present: false, files: [] };
+  return {
+    subpath,
+    present: true,
+    files: walkFilesRelative(dir)
+      .map((rel) => `${subpath}/${rel}`)
+      .sort(),
+  };
+}
+
+// THE EXEMPT-DIRECTORY PROBE (plan 27-37, D-46 point 3) — what makes the exemption a BOUND rather
+// than a hole with a comment.
+//
+// Returns the exempt directory's files AND, separately, the MARKDOWN subset, so the guard can assert
+// both bounds on MEASURED numbers and print them — including when they are zero — rather than
+// asserting coverage before the test that could falsify it.
+//
+// "FRONTMATTER-BEARING" IS SPELLED AS "ENDS IN `.md`", ON PURPOSE. Every adapter surface this
+// repository ships is a markdown document carrying a YAML frontmatter block, and markdown is the only
+// extension the platform loads as an adapter — so the markdown subset IS the frontmatter-bearing
+// subset. Deciding it by extension keeps this module free of a SECOND frontmatter grammar; the one
+// authority on what a frontmatter block is lives in scripts/frontmatter.ts (D-44), and a probe that
+// re-answered that question here would be the two-answers-to-one-fact shape this phase has collapsed
+// four times already.
+//
+// Same non-throwing, absence-is-an-answer posture as the forbidden probe above; same shared walk, so
+// an unreadable exempt directory still throws naming the directory.
+export function listPluginExemptComponentFiles(
+  kitRoot: string = DEFAULT_KIT_ROOT,
+): {
+  manifestKey: string;
+  subpath: string;
+  present: boolean;
+  files: string[];
+  markdownFiles: string[];
+  reason: string;
+  bound: string;
+}[] {
+  return pluginExemptComponentEntries().flatMap(({ entry, exemption }) =>
+    entry.probeDirs.map((subpath) => {
+      const probe = probeComponentDir(kitRoot, subpath);
+      return {
+        manifestKey: entry.manifestKey,
+        subpath: probe.subpath,
+        present: probe.present,
+        files: probe.files,
+        markdownFiles: probe.files.filter((f) => f.endsWith(MARKDOWN_EXT)),
+        reason: exemption.reason,
+        bound: exemption.bound,
+      };
+    }),
+  );
 }
 
 // ---------------------------------------------------------------------------

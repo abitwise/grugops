@@ -232,9 +232,15 @@ import {
   listSkillAdapters,
   listPluginSkillAdapters,
   listPluginDefaultComponentFiles,
+  listPluginExemptComponentFiles,
+  pluginForbiddenComponentKeys,
   spawnGrantScan,
   spawnGrantScanPrefix,
   SPAWN_GRANT_SCAN_PARTS,
+  PLUGIN_MANIFEST_COMPONENT_SCHEMA,
+  PLUGIN_MANIFEST_COMPONENT_COUNT,
+  PLUGIN_COMPONENT_COVERED_ELSEWHERE,
+  PLUGIN_COMPONENT_EXEMPT,
   ROLE_COUNT,
   WORKFLOW_COUNT,
   SKILL_ADAPTER_COUNT,
@@ -850,21 +856,40 @@ function guardWr05(): void {
   // the two packaging templates are documentation surfaces that happen to share the scan. Both
   // numbers are printed so neither hides. With the scan set derived in plan 27-03 this now covers all
   // 17 agent adapters and all 7 skills rather than the four files it used to hand-list.
-  // THE PLUGIN-DEFAULT COMPONENT FLOOR (plan 27-34) — ABSENCE OR COVERAGE, never assumption.
+  // THE PLUGIN-ROOT COMPONENT FLOOR (plan 27-34, rewritten by plan 27-37 / D-46) — ABSENCE OR
+  // COVERAGE, never assumption.
   //
-  // This closes the CLASS the plugin-skill hole belongs to rather than only the instance CR-03 named.
-  // `.claude-plugin/plugin.json` declares no component-path override and the marketplace entry sources
-  // the repository root, so Claude Code's DEFAULT discovery would load `agents/` and `commands/` at
-  // plugin root for every plugin-install user. Neither exists today and, until this line, nothing
-  // asserted they stay absent — so a `commands/rogue.md` carrying a spawn grant would have been loaded
-  // by the platform and seen by no scan set at all, exactly as `skills/plan/SKILL.md` was.
+  // WHAT THIS COMMENT CLAIMS IS EXACTLY WHAT THE CODE BENEATH IT ASSERTS. The round-5 wording claimed
+  // to close "the CLASS the plugin-skill hole belongs to" while iterating a hand-written TWO-element
+  // literal over a NINE-surface manifest schema — a class-level claim over a 2-of-9 set, which is a
+  // claim without the assertion that would make it true. That is recorded here rather than quietly
+  // rewritten, because a comment that overclaimed once is evidence about how comments here are read.
   //
-  // The floor is deliberately weak in the right direction: a directory that EXISTS is fine, provided
-  // every file in it is inside SPAWN_GRANT_SCAN, so a future phase may legitimately ship plugin-root
-  // components by first putting them in the scan. What it forbids is a loadable surface nobody scans.
+  // WHAT IS ACTUALLY ASSERTED NOW:
+  //   • the plugin-root component surface is DERIVED from the manifest component-path field
+  //     enumeration CLAUDE.md documents (kit-model.ts's PLUGIN_MANIFEST_COMPONENT_SCHEMA, 9 entries);
+  //   • its cardinality is pinned TWO-SIDED at 9 in guard_kit_counts, like every sibling count;
+  //   • the schema partitions EXHAUSTIVELY and DISJOINTLY into three buckets, also asserted in
+  //     guard_kit_counts — 7 forbidden, 1 covered elsewhere by a NAMED function
+  //     (`skills` / listPluginSkillAdapters), 1 exempt BY NAME with two live bounds (`hooks`);
+  //   • the 7 forbidden keys' directories are probed here, and a present one is legal only when every
+  //     file in it is already inside SPAWN_GRANT_SCAN;
+  //   • the exempt directory's two bounds are asserted below on MEASURED numbers this line prints.
   //
-  // It costs nothing today, which is exactly when a class-level floor should be written — after the
-  // instance has already shipped once and before the next one does.
+  // THE RESIDUAL, RECORDED RATHER THAN CLAIMED AWAY. The schema is derived from a document THIS
+  // repository maintains, and a document can lag a platform. A tenth component directory added
+  // platform-side is outside the schema, and the two-sided count cannot detect it — the count fires
+  // only when THIS repository's own list changes. That is an honest limit of the shape, not a hole
+  // this floor has closed.
+  //
+  // The floor stays deliberately weak in the right direction: a directory that EXISTS is fine,
+  // provided every file in it is inside SPAWN_GRANT_SCAN, so a future phase may legitimately ship
+  // plugin-root components by first putting them in the scan. What it forbids is a LOADABLE SURFACE
+  // NOBODY SCANS.
+  //
+  // Reproduced before the rewrite on hermetic `git archive HEAD` mirrors: `commands/rogue.md` exited 1
+  // and named the file; the IDENTICAL plant at `outputStyles/rogue.md` and at `hooks/rogue.md` each
+  // exited 0 with `ALL CHECKS PASSED` and never named the file at all.
   const pluginDefaults: string[] = [];
   try {
     for (const probe of listPluginDefaultComponentFiles(ROOT)) {
@@ -873,18 +898,70 @@ function guardWr05(): void {
         continue;
       }
       const unscanned = probe.files.filter((f) => !SPAWN_GRANT_SCAN.includes(f));
+      // MEASURED NUMBERS, NOT A COVERAGE CLAIM. This line used to read "all in the spawn-grant scan"
+      // and it was BUILT BEFORE the filter that can falsify it — a completion claim printed ahead of
+      // its own evidence. It now prints what was counted: how many files were found and how many of
+      // those were inside the scan. An assertion passing vacuously over an empty directory is then
+      // visible as `0 file(s), 0 inside the spawn-grant scan` rather than as a reassuring "all".
       pluginDefaults.push(
-        `${probe.subpath}/ PRESENT with ${probe.files.length} file(s), all in the spawn-grant scan`,
+        `${probe.subpath}/ PRESENT with ${probe.files.length} file(s), ${probe.files.length - unscanned.length} inside the spawn-grant scan`,
       );
       if (unscanned.length > 0) {
-        wr05Fail += `\n${unscanned.length} file(s) under the plugin-default component directory \`${probe.subpath}/\` sit OUTSIDE the spawn-grant scan: ${unscanned.join(", ")}. The plugin manifest declares no component-path override and the marketplace entry sources the repository root, so Claude Code's default discovery LOADS this directory for every plugin-install user — a granted file here is live on a real machine while no guard can see it. Either the directory stays absent, or its contents enter the scan`;
+        wr05Fail += `\n${unscanned.length} file(s) under the plugin-root component directory \`${probe.subpath}/\` sit OUTSIDE the spawn-grant scan: ${unscanned.join(", ")}. The plugin manifest declares no component-path override and the marketplace entry sources the repository root, so Claude Code's default discovery LOADS this directory for every plugin-install user — a granted file here is live on a real machine while no guard can see it. Either the directory stays absent, or its contents enter the scan`;
       }
     }
   } catch (e) {
     // The probe walks a directory that exists, so a throw means it became unreadable mid-run. That is
     // a condition to NAME, never to treat as "absent, therefore fine" — absence is the one answer this
     // floor accepts, and an unreadable directory is not evidence of it.
-    wr05Fail += `\nthe plugin-default component probe failed: ${(e as Error).message} — an unreadable plugin-root component directory is NEVER read as "absent, therefore fine"`;
+    wr05Fail += `\nthe plugin-root component probe failed: ${(e as Error).message} — an unreadable plugin-root component directory is NEVER read as "absent, therefore fine"`;
+  }
+  // THE EXEMPT DIRECTORY'S TWO BOUNDS (plan 27-37, D-46 point 3). `hooks/` is a plugin-root component
+  // surface the platform loads and it is NOT forbidden, because it exists on the live tree holding the
+  // PreToolUse prod-deploy guard that CLAUDE.md makes a hard safety constraint. Relocating a mandated
+  // safety surface to satisfy a guard rule would be the guard bending the product.
+  //
+  // SO IT IS BOUNDED INSTEAD, AND THE BOUNDS ARE THE EXEMPTION. Without them it is a hole with a
+  // comment — which is precisely what it was until this plan, and what let `hooks/rogue.md` print
+  // ALL CHECKS PASSED.
+  //
+  //   BOUND A (coverage): every markdown — i.e. frontmatter-bearing — member of the exempt directory
+  //     is inside SPAWN_GRANT_SCAN. VACUOUS TODAY: the directory holds ZERO markdown files, so this
+  //     assertion passes over an empty set. The disposition line therefore prints the MEASURED ZERO
+  //     rather than a coverage claim; a vacuous assertion reported as if it proved something is the
+  //     failure this whole plan exists to delete.
+  //   BOUND B (shape): the directory carries ZERO markdown adapters, naming any that appear. This is
+  //     the bound that FAILS CLOSED the moment a markdown adapter lands there.
+  //
+  // THE TWO OVERLAP ON PURPOSE and that overlap is not double-reporting one fact: an unscanned
+  // markdown member is wrong in two distinct ways (it exists at all, and nothing scans it), and BOUND A
+  // is the one that survives if BOUND B is ever legitimately relaxed — see the exemption's recorded
+  // "what would force a later promote" note in kit-model.ts.
+  //
+  // A NON-markdown file in the exempt directory is deliberately NOT a finding: that is what the
+  // exemption exempts, and a transcript on a fourth hermetic mirror shows the gate correctly staying
+  // green for one. The exemption is bounded, not absent.
+  try {
+    for (const ex of listPluginExemptComponentFiles(ROOT)) {
+      if (!ex.present) {
+        pluginDefaults.push(`${ex.subpath}/ EXEMPT-BY-NAME but ABSENT`);
+        continue;
+      }
+      const unscannedMarkdown = ex.markdownFiles.filter(
+        (f) => !SPAWN_GRANT_SCAN.includes(f),
+      );
+      pluginDefaults.push(
+        `${ex.subpath}/ EXEMPT-BY-NAME, PRESENT with ${ex.files.length} file(s) and ${ex.markdownFiles.length} markdown adapter(s), ${ex.markdownFiles.length - unscannedMarkdown.length} of those inside the spawn-grant scan`,
+      );
+      if (unscannedMarkdown.length > 0) {
+        wr05Fail += `\n${unscannedMarkdown.length} markdown (frontmatter-bearing) file(s) under the EXEMPT plugin-root component directory \`${ex.subpath}/\` sit OUTSIDE the spawn-grant scan: ${unscannedMarkdown.join(", ")}. The exemption forgoes ONLY the "must be absent" rule; it never admits a loadable adapter surface no guard reads. Exemption reason on record: ${ex.reason}`;
+      }
+      if (ex.markdownFiles.length > 0) {
+        wr05Fail += `\nthe EXEMPT plugin-root component directory \`${ex.subpath}/\` carries ${ex.markdownFiles.length} markdown adapter(s): ${ex.markdownFiles.join(", ")}. Zero markdown adapters is the bound that makes this exemption fail closed — the directory is exempted because it holds the mechanical prod-deploy guard, NOT because it may hold adapters. Bound on record: ${ex.bound}`;
+      }
+    }
+  } catch (e) {
+    wr05Fail += `\nthe exempt plugin-root component probe failed: ${(e as Error).message} — an unreadable EXEMPT component directory is NEVER read as "absent, therefore fine"; the exemption is its bounds, and an unmeasurable bound is not a bound`;
   }
   const nonCoordinatorAdapters = ADAPTERS.filter(
     (f) => !coordinators.includes(f),
@@ -1270,6 +1347,49 @@ function guardKitCounts(): void {
   if (PLUGIN_SKILL_RELS.length !== PLUGIN_SKILL_ADAPTER_COUNT) {
     countFail += `\nkit count: derived ${PLUGIN_SKILL_RELS.length} plugin-form skill adapters, expected exactly ${PLUGIN_SKILL_ADAPTER_COUNT} — the plugin tree has no role corpus and no freshness gate, so this count is its only deletion signal; walk guard_wr05's scan, guard_distribution_pair and the false-red control in scripts/frontmatter.test.ts BEFORE updating PLUGIN_SKILL_ADAPTER_COUNT in scripts/kit-model.ts${PLUGIN_SKILL_DERIVATION.error === "" ? "" : `\n  derivation error: ${PLUGIN_SKILL_DERIVATION.error}`}`;
   }
+  // (Plan 27-37, D-46) THE PLUGIN-MANIFEST COMPONENT SCHEMA: TWO-SIDED CARDINALITY, THEN AN
+  // EXHAUSTIVE DISJOINT BUCKET PARTITION.
+  //
+  // The schema replaced a hand-written two-element literal that carried neither a derivation nor a
+  // count while every sibling set in kit-model.ts carried both. The count gets the same treatment they
+  // get — eight entries fails and ten entries fails — and it is enforced HERE rather than in the
+  // library for the same reason every other count is: continuing is safe, and CI going red is the
+  // right signal.
+  //
+  // THE PARTITION IS ASSERTED AS SET MEMBERSHIP, NEVER AS THREE COUNTS SUMMING TO NINE. A count
+  // identity passes while one member is claimed by TWO buckets and another by NONE — the same
+  // within-part substitution the per-part membership loop below exists to catch, one level up. So the
+  // three claims are compared against the schema's key set directly: a key claimed twice is named, a
+  // key claimed by nobody is named, and a bucket naming a key the schema does not carry is named.
+  //
+  // The forbidden set is COMPUTED (schema minus covered minus exempt), so "claimed by nobody" cannot
+  // arise from today's code — this floor is what makes it impossible for a LATER hand-edit of that
+  // computation to reintroduce it silently, which is exactly the drift this plan deletes.
+  const schemaKeys = PLUGIN_MANIFEST_COMPONENT_SCHEMA.map((e) => e.manifestKey);
+  if (schemaKeys.length !== PLUGIN_MANIFEST_COMPONENT_COUNT) {
+    countFail += `\nkit count: the plugin-manifest component schema carries ${schemaKeys.length} entries, expected exactly ${PLUGIN_MANIFEST_COMPONENT_COUNT} (derived: ${schemaKeys.join(", ")}) — this is the surface Claude Code's DEFAULT discovery loads for every plugin-install user; walk guard_wr05's plugin-root component floor, the bucket partition, the exemption bound and the disposition line BEFORE updating PLUGIN_MANIFEST_COMPONENT_COUNT in scripts/kit-model.ts`;
+  }
+  const coveredKeys = PLUGIN_COMPONENT_COVERED_ELSEWHERE.map(
+    (c) => c.manifestKey,
+  );
+  const exemptKeys = PLUGIN_COMPONENT_EXEMPT.map((e) => e.manifestKey);
+  const claimedKeys = [
+    ...pluginForbiddenComponentKeys(),
+    ...coveredKeys,
+    ...exemptKeys,
+  ];
+  const unclaimedKeys = schemaKeys.filter((k) => !claimedKeys.includes(k));
+  const doubleClaimedKeys = schemaKeys.filter(
+    (k) => claimedKeys.filter((c) => c === k).length > 1,
+  );
+  const foreignKeys = claimedKeys.filter((k) => !schemaKeys.includes(k));
+  if (
+    unclaimedKeys.length > 0 ||
+    doubleClaimedKeys.length > 0 ||
+    foreignKeys.length > 0
+  ) {
+    countFail += `\nkit count: the plugin-manifest component schema's three buckets do not PARTITION it — unclaimed by any bucket [${unclaimedKeys.join(", ")}], claimed by more than one [${doubleClaimedKeys.join(", ")}], claimed but outside the schema [${foreignKeys.join(", ")}]. Every schema member must land in exactly one of forbidden / covered-elsewhere / exempt: an unclaimed member is a plugin-root surface the platform loads and nothing probes, and a doubly-claimed one is exempted and forbidden at once. This is asserted as SET membership rather than as three counts summing to ${PLUGIN_MANIFEST_COMPONENT_COUNT}, because a count identity passes while one member is claimed twice and another not at all`;
+  }
   // (Plan 27-33, D-19/D-20) THE RELOCATED SPAWN-GRANT SCAN COMPOSITION'S OWN PIN, two-sided.
   //
   // This is the ONLY thing that can catch a part dropped during the relocation. The guard and the
@@ -1318,7 +1438,7 @@ function guardKitCounts(): void {
   }
   if (countFail === "") {
     pass(
-      `kit counts: derived ${ROLE_FILES.length} roles, ${WORKFLOW_FILES.length} workflows, ${SKILL_ADAPTERS.length} skill adapters and ${PLUGIN_SKILL_RELS.length} plugin-form skill adapters (expected ${ROLE_COUNT} / ${WORKFLOW_COUNT} / ${SKILL_ADAPTER_COUNT} / ${PLUGIN_SKILL_ADAPTER_COUNT}); the spawn-grant scan composition holds exactly ${SPAWN_GRANT_SCAN.length} members (${partBreakdown}), each part set-equal to its own lister`,
+      `kit counts: derived ${ROLE_FILES.length} roles, ${WORKFLOW_FILES.length} workflows, ${SKILL_ADAPTERS.length} skill adapters and ${PLUGIN_SKILL_RELS.length} plugin-form skill adapters (expected ${ROLE_COUNT} / ${WORKFLOW_COUNT} / ${SKILL_ADAPTER_COUNT} / ${PLUGIN_SKILL_ADAPTER_COUNT}); the spawn-grant scan composition holds exactly ${SPAWN_GRANT_SCAN.length} members (${partBreakdown}), each part set-equal to its own lister; the plugin-manifest component schema carries ${schemaKeys.length} entries partitioned into ${pluginForbiddenComponentKeys().length} forbidden + ${coveredKeys.length} covered-elsewhere (${PLUGIN_COMPONENT_COVERED_ELSEWHERE.map((c) => `${c.manifestKey} by ${c.coverer}`).join(", ")}) + ${exemptKeys.length} exempt by name (${exemptKeys.join(", ")})`,
     );
   } else {
     fail(`kit-count violation:${countFail}`);

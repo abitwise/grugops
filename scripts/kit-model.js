@@ -176,9 +176,94 @@ const PACKAGING_SUBPATH = "agent-factory/packaging";
 // The PLUGIN-form skill tree at the repository root (plan 27-34). Distinct from SKILLS_SUBPATH above
 // and never a prefix of it, so partitioning the composition on either literal is unambiguous.
 const PLUGIN_SKILLS_SUBPATH = "skills";
-// The component directories Claude Code's DEFAULT discovery would load at plugin root. Neither exists
-// today; see listPluginDefaultComponentFiles() below for why they are probed rather than assumed.
-const PLUGIN_DEFAULT_COMPONENT_SUBPATHS = ["agents", "commands"];
+// The markdown extension. Named once because two rules below turn on it — "is this a frontmatter-
+// bearing adapter surface" and "does the exempt directory carry an adapter" — and a second spelling
+// of one fact is the drift class this module deletes even when the fact is three characters long.
+const MARKDOWN_EXT = ".md";
+export const PLUGIN_MANIFEST_COMPONENT_SCHEMA = [
+    { manifestKey: "agents", probeDirs: ["agents"] },
+    { manifestKey: "commands", probeDirs: ["commands"] },
+    { manifestKey: "skills", probeDirs: [PLUGIN_SKILLS_SUBPATH] },
+    { manifestKey: "hooks", probeDirs: ["hooks"] },
+    { manifestKey: "mcpServers", probeDirs: ["mcpServers"] },
+    { manifestKey: "lspServers", probeDirs: ["lspServers"] },
+    { manifestKey: "outputStyles", probeDirs: ["outputStyles"] },
+    // `UNKNOWN - verify`: the platform's default-discovery DIRECTORY NAME for the two `experimental.`
+    // keys is not documented in this repository. BOTH spellings are probed — the flattened `themes/`
+    // and the nested `experimental/themes/` — because probing an absent directory costs nothing while
+    // missing a loaded one is the exact defect class this block closes. Probing both is the cheap
+    // answer to a genuine unknown; guessing one would be the expensive one.
+    {
+        manifestKey: "experimental.themes",
+        probeDirs: ["themes", "experimental/themes"],
+    },
+    {
+        manifestKey: "experimental.monitors",
+        probeDirs: ["monitors", "experimental/monitors"],
+    },
+];
+// The schema's exact cardinality, enforced TWO-SIDED in guard_kit_counts exactly as ROLE_COUNT,
+// WORKFLOW_COUNT, SKILL_ADAPTER_COUNT, PLUGIN_SKILL_ADAPTER_COUNT and SPAWN_GRANT_SCAN_COUNT are:
+// eight entries is a failure and ten entries is a failure, only nine passes. Bumping the number is a
+// DELIBERATE act that obliges the author to walk every consumer first — the bucket partition, the
+// forbidden-set computation, the probe, the exemption bound and the gate's disposition line — and
+// that walk is the whole point of the constant.
+export const PLUGIN_MANIFEST_COMPONENT_COUNT = 9;
+export const PLUGIN_COMPONENT_COVERED_ELSEWHERE = [
+    {
+        manifestKey: "skills",
+        coverer: "listPluginSkillAdapters",
+        reason: "the plugin-form skill tree is derived by listPluginSkillAdapters(), pinned two-sided by " +
+            "PLUGIN_SKILL_ADAPTER_COUNT and folded into spawnGrantScan(), so every file the platform " +
+            "loads from it is already inside the spawn-grant scan that guard_wr05 walks",
+    },
+];
+export const PLUGIN_COMPONENT_EXEMPT = [
+    {
+        manifestKey: "hooks",
+        reason: "hooks/ exists on the live tree and holds the PreToolUse prod-deploy guard; CLAUDE.md makes " +
+            "that mechanical guard a hard safety constraint, so relocating it to satisfy a guard rule " +
+            "would be the guard bending the product",
+        bound: "every markdown (frontmatter-bearing) member of hooks/ must be inside SPAWN_GRANT_SCAN, AND " +
+            "hooks/ must carry ZERO markdown adapters — the first is vacuous today (0 markdown members, a " +
+            "measured number the gate prints rather than a coverage claim), the second is what fails " +
+            "closed the moment a markdown adapter appears there",
+    },
+];
+// THE FORBIDDEN SET — COMPUTED as schema minus covered minus exempt, and NEVER written down a second
+// time. A reviewer reading this file finds exactly ONE enumeration of component keys, which is what
+// makes the partition a derivation rather than a list with a comment beside it.
+export function pluginForbiddenComponentKeys() {
+    const claimed = new Set([
+        ...PLUGIN_COMPONENT_COVERED_ELSEWHERE.map((c) => c.manifestKey),
+        ...PLUGIN_COMPONENT_EXEMPT.map((e) => e.manifestKey),
+    ]);
+    return PLUGIN_MANIFEST_COMPONENT_SCHEMA.map((e) => e.manifestKey).filter((k) => !claimed.has(k));
+}
+// The forbidden keys' probe directories, flattened and sorted. Sorted so two gate runs over one tree
+// produce byte-identical dispositions; more directories than keys, because the two `experimental.`
+// keys each carry both candidate spellings of an `UNKNOWN - verify` directory name.
+export function pluginForbiddenComponentSubpaths() {
+    const keys = new Set(pluginForbiddenComponentKeys());
+    return PLUGIN_MANIFEST_COMPONENT_SCHEMA.filter((e) => keys.has(e.manifestKey))
+        .flatMap((e) => [...e.probeDirs])
+        .sort();
+}
+// The schema entries the exemption names. Throws when an exemption names a key the schema does not
+// carry: an exemption for a surface outside the schema is an exemption for nothing, and silently
+// returning an empty list would make the bound vacuous in exactly the way the bound exists to
+// prevent. (guard_kit_counts' partition floor names the same condition from the other side.)
+function pluginExemptComponentEntries() {
+    return PLUGIN_COMPONENT_EXEMPT.map((exemption) => {
+        const entry = PLUGIN_MANIFEST_COMPONENT_SCHEMA.find((e) => e.manifestKey === exemption.manifestKey);
+        if (entry === undefined) {
+            throw new Error(`kit-model: the plugin component exemption names \`${exemption.manifestKey}\`, which is not ` +
+                `in PLUGIN_MANIFEST_COMPONENT_SCHEMA — an exemption for a surface outside the schema ` +
+                `bounds nothing, and returning an empty list would make the exemption's own bound vacuous`);
+        }
+        return { entry, exemption };
+    });
+}
 // Read a directory, rethrowing as a NAMED error. The raw ENOENT/EACCES message does not identify
 // which kit directory failed once two call sites share this helper.
 function readDirOrThrow(dir) {
@@ -317,37 +402,71 @@ export function listPluginSkillAdapters(kitRoot = DEFAULT_KIT_ROOT) {
         .sort();
     return refuseEmpty(files, dir, "plugin skill adapter");
 }
-// THE PLUGIN-DEFAULT COMPONENT PROBE (plan 27-34) — an ABSENCE-OR-COVERAGE floor, not a corpus.
+// THE PLUGIN-DEFAULT COMPONENT PROBE (plan 27-34, rewritten by plan 27-37 / D-46) — an
+// ABSENCE-OR-COVERAGE floor, not a corpus.
 //
-// `.claude-plugin/plugin.json` declares no component-path override and the marketplace entry sources
-// the repository root, so Claude Code's DEFAULT discovery would load `agents/` and `commands/` at
-// plugin root for every plugin-install user. Neither directory exists today, and until now NOTHING
-// asserted they stay absent — which is the CLASS the plugin-skill hole belongs to rather than the one
-// instance CR-03 named. A `commands/rogue.md` carrying a spawn grant would be loaded by the platform
-// and seen by no scan set, exactly as `skills/plan/SKILL.md` was.
+// WHAT CHANGED AND WHAT DID NOT. Only the SET it iterates changed: it now walks the COMPUTED
+// forbidden subpaths (schema minus covered-elsewhere minus exempt) rather than the deleted
+// two-element literal. Every posture below is preserved deliberately and none of it is an accident.
 //
 // DELIBERATELY NOT refuseEmpty AND DELIBERATELY NOT A THROW. Every other lister here refuses an empty
 // result because an empty MEMBERSHIP set passes every guard vacuously. This is the opposite kind of
-// question: absence is the EXPECTED and correct state on the live tree, and the consumer's finding is
-// about files that exist, not about files that do not. Reporting `present: false` is the answer, never
-// a failure. An unreadable directory still throws, through readDirOrThrow inside the shared walk.
+// question: absence is the EXPECTED and correct state for all seven forbidden surfaces on the live
+// tree, and the consumer's finding is about files that exist, not about files that do not. Reporting
+// `present: false` is the answer, never a failure. An unreadable directory still throws, through
+// readDirOrThrow inside the shared walk — absence is the one answer the floor accepts and an
+// unreadable directory is not evidence of it.
 //
 // Returns every file it finds, not only `.md`: the question is "would the platform load something we
 // do not scan", and narrowing the probe by extension would let the next author drop a granted file
 // under a name the filter cannot see.
 export function listPluginDefaultComponentFiles(kitRoot = DEFAULT_KIT_ROOT) {
-    return PLUGIN_DEFAULT_COMPONENT_SUBPATHS.map((subpath) => {
-        const dir = join(kitRoot, subpath);
-        if (!existsSync(dir))
-            return { subpath, present: false, files: [] };
+    return pluginForbiddenComponentSubpaths().map((subpath) => probeComponentDir(kitRoot, subpath));
+}
+// The one directory probe both surfaces share. Kept in one place so the forbidden floor and the
+// exemption bound cannot answer "what is in this directory" two different ways.
+function probeComponentDir(kitRoot, subpath) {
+    const dir = join(kitRoot, subpath);
+    if (!existsSync(dir))
+        return { subpath, present: false, files: [] };
+    return {
+        subpath,
+        present: true,
+        files: walkFilesRelative(dir)
+            .map((rel) => `${subpath}/${rel}`)
+            .sort(),
+    };
+}
+// THE EXEMPT-DIRECTORY PROBE (plan 27-37, D-46 point 3) — what makes the exemption a BOUND rather
+// than a hole with a comment.
+//
+// Returns the exempt directory's files AND, separately, the MARKDOWN subset, so the guard can assert
+// both bounds on MEASURED numbers and print them — including when they are zero — rather than
+// asserting coverage before the test that could falsify it.
+//
+// "FRONTMATTER-BEARING" IS SPELLED AS "ENDS IN `.md`", ON PURPOSE. Every adapter surface this
+// repository ships is a markdown document carrying a YAML frontmatter block, and markdown is the only
+// extension the platform loads as an adapter — so the markdown subset IS the frontmatter-bearing
+// subset. Deciding it by extension keeps this module free of a SECOND frontmatter grammar; the one
+// authority on what a frontmatter block is lives in scripts/frontmatter.ts (D-44), and a probe that
+// re-answered that question here would be the two-answers-to-one-fact shape this phase has collapsed
+// four times already.
+//
+// Same non-throwing, absence-is-an-answer posture as the forbidden probe above; same shared walk, so
+// an unreadable exempt directory still throws naming the directory.
+export function listPluginExemptComponentFiles(kitRoot = DEFAULT_KIT_ROOT) {
+    return pluginExemptComponentEntries().flatMap(({ entry, exemption }) => entry.probeDirs.map((subpath) => {
+        const probe = probeComponentDir(kitRoot, subpath);
         return {
-            subpath,
-            present: true,
-            files: walkFilesRelative(dir)
-                .map((rel) => `${subpath}/${rel}`)
-                .sort(),
+            manifestKey: entry.manifestKey,
+            subpath: probe.subpath,
+            present: probe.present,
+            files: probe.files,
+            markdownFiles: probe.files.filter((f) => f.endsWith(MARKDOWN_EXT)),
+            reason: exemption.reason,
+            bound: exemption.bound,
         };
-    });
+    }));
 }
 // ---------------------------------------------------------------------------
 // The packaging templates, and THE ONE SPAWN-GRANT SCAN COMPOSITION (plan 27-33)
