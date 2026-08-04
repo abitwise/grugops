@@ -5,7 +5,7 @@ milestone_name: Autonomous Factory — Real Spawning, Controlled Language & Live
 current_phase: 27
 current_phase_name: spawn-correctness-kit-set-authority
 status: executing
-stopped_at: Round-6 gap closure EXECUTED — all 3 plans (27-36..27-38) landed, all gates green; phase-level verification pending
+stopped_at: Round-6 gap closure EXECUTED (all 3 plans landed, all gates green) but round-6 CODE REVIEW returned issues_found with 1 CRITICAL — the SIXTH spelling, reproduced end-to-end: a multi-line quoted YAML scalar hides an Agent() grant from the guard while a real loader returns it. Phase NOT complete; KIT-03 and SPAWN-04 remain open.
 last_updated: "undefined"
 progress:
   total_phases: 7
@@ -29,7 +29,7 @@ See: .planning/PROJECT.md (updated 2026-07-28 — after v2.0 milestone)
 
 ## Current Position
 
-Phase: 27 (spawn-correctness-kit-set-authority) — round 6 EXECUTED (all 3 waves landed), verification pending
+Phase: 27 (spawn-correctness-kit-set-authority) — round 6 EXECUTED, round-6 review found 1 CRITICAL; round 7 needed
 Plan: 38 of 38 executed (27-36, 27-37, 27-38 all landed 2026-08-04)
 
 **Round-5 verification (2026-08-03) returns gaps_found at 7/10.** All five round-4 findings are GENUINELY closed, each confirmed by reading the shipped code rather than the SUMMARY that claimed it: CR-01's two single-sided delimiter spellings both refuse, CR-02's installer unreadable-walk channel names the directory at exit 3, CR-03's plugin-form `skills/` tree is derived into the one scan composition, WR-01's three exit-after-report tails all set the exit code, and WR-02's grant enumeration refuses what it cannot vouch for. Suite **1068 passed / 2 skipped** across 35 files, 32 committed `.js` all fresh, every repo gate exit 0 — and green proved nothing for the fifth round running. TWO NEW BLOCKERS, both reproduced independently by the reviewer and again by the orchestrator against the committed `.js` on hermetic mirrors.
