@@ -949,6 +949,50 @@ export const TOOLS_KEYS = ["tools", "allowed-tools"];
 // substring is not (`Agents`, `Taskmaster` are not grants).
 const SPAWN_TOKEN = /\b(?:Agent|Task)\b/;
 const SCOPED_GRANT = /\b(?:Agent|Task)\(([^)]*)\)/g;
+// (D-47 item 2) THE LEGAL CHARACTER SET OF A GRANT ENUMERATION, STATED ONCE AND POSITIVELY.
+//
+// This is D-30's shape one function over: a finite legal set, everything outside it refused, declared
+// in exactly one place. It replaces a PAIR of checks that each named a character a prior finding
+// happened to report — see the refusal site below for why they are deleted rather than kept beside it.
+//
+// WHAT EACH MEMBER IS FOR, so a later reader can tell which members are load-bearing and which are
+// latitude:
+//
+//   `,`              THE SEPARATOR. This is the one structurally load-bearing member: it is the
+//                    character `keysGrantedAgentNames` splits on, and the whole point of the refusal
+//                    is that a comma must be reliably the separator before that split can be trusted.
+//   ` ` (space)      The separator's conventional padding (`Agent(a, b)`). Every enumeration this
+//                    repository ships writes comma-space, and the fragments are trimmed after the
+//                    split.
+//   `A`-`Z` `a`-`z`  Name content — the letters of an adapter name.
+//   `0`-`9`          Name content — digits, which no adapter name uses today but which cost nothing
+//                    and which a future `grugops-uat-2` would need.
+//   `_` `-` `.`      Name content — the only punctuation a role/skill/command name uses. `-` is the
+//                    kebab-case joint every adapter name carries; `_` and `.` are latitude.
+//
+// The set is LATITUDE, not a grammar. Narrowing it costs a false red on a name this repository does
+// not yet ship; widening it costs the opposite, and is forbidden by this plan's prohibitions — a real
+// enumeration that refuses is a finding about that enumeration, never a licence to add its character
+// here.
+//
+// Exported for one reason only: the case that pins the escape branch's unreachability asserts the
+// quote characters and the backslash are outside THIS constant. A test re-typing the set would be a
+// second statement of it, which is the drift class this repository's own record names. It is not part
+// of the parsing API — no consumer outside this module's tests reads it, exactly as with
+// `DQ_ESCAPE_ALLOWLIST`.
+export const ENUMERATION_LEGAL_CHARS = new Set("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_-., ");
+function firstOutsideEnumerationLegal(enumeration) {
+    for (const c of enumeration) {
+        if (!ENUMERATION_LEGAL_CHARS.has(c)) {
+            return {
+                found: true,
+                char: c,
+                label: codePointLabel(c.codePointAt(0) ?? 0),
+            };
+        }
+    }
+    return { found: false };
+}
 // Every flattened value living under a tools key, across all occurrences of those keys.
 function toolsValues(keys) {
     const out = [];
@@ -989,6 +1033,21 @@ export function keysHaveSpawnGrant(keys) {
 // equality would each have been computed over a set the document does not express — this module's
 // founding failure, one level down, on the arm that claims to be safe.
 //
+// (D-47 item 2, plan 27-38 — round-5 IN-04) AND THE TWO CHECKS ABOVE WERE A DENYLIST. They named the
+// two characters the round-4 finding happened to report, and the complement was assumed safe.
+// Measured against the committed parser before this edit:
+//
+//   tools: Agent(alpha[,]b, gamma)  ->  {ok:true, value:["]b","alpha[","gamma"]}
+//   tools: Agent(alpha{,}b, gamma)  ->  {ok:true, value:["alpha{","gamma","}b"]}
+//
+// A flow-collection delimiter is a character for which a comma is content rather than a separator,
+// exactly like the quote — so one name was SPLIT INTO TWO ALTERED ONES on the arm this doc block
+// promises is safe. `:`, `|`, `&` and `*` likewise returned altered names no loader computes.
+//
+// SO THE CHECK IS NOW AN ALLOWLIST: `ENUMERATION_LEGAL_CHARS` states the legal character set once,
+// every other character refuses by name and by code point, and the two enumerated checks are DELETED
+// because the allowlist is strictly broader than both. The reasoning is at the refusal site.
+//
 // SO THE ENUMERATION IS EXAMINED BEFORE IT IS SPLIT, AND REFUSED RATHER THAN PARSED BETTER. A
 // quote-aware, nesting-aware split is a SECOND GRAMMAR for a value the platform's own loader reads
 // with a first, and this module's rule is one authority per predicate. Refusing is the answer that
@@ -1002,27 +1061,45 @@ export function keysGrantedAgentNames(keys) {
         SCOPED_GRANT.lastIndex = 0;
         let m;
         while ((m = SCOPED_GRANT.exec(v)) !== null) {
-            // (D-41 item 3) The two shapes this module cannot vouch for, named separately so the reason
-            // says which one was found.
-            if (m[1].includes("(")) {
+            // (D-47 item 2) ONE ENUMERATION CHECK, AGAINST THE STATED LEGAL SET. A reviewer reading this
+            // function finds one enumeration check, not three.
+            //
+            // WHY THE TWO ENUMERATED CHECKS ARE DELETED RATHER THAN KEPT BESIDE THIS ONE. D-41 item 3
+            // added two refusals, one naming a nested opening parenthesis and one naming a quote — each a
+            // character that a finding had happened to report. `ENUMERATION_LEGAL_CHARS` is STRICTLY
+            // BROADER than both: `(`, `"` and `'` are all outside the legal set, so every input the two
+            // checks refused this one refuses too, and reverting to them could not restore a refusal this
+            // loses. Keeping them beside it would be a pair of predicates where one suffices — and a pair
+            // whose union is ASSUMED to be the complement of the legal set is exactly the shape that
+            // produced this round's blocking finding one function away in this same module (the two-arm
+            // delimiter refusal D-44 deleted). A denylist grows one reported spelling at a time: round 4
+            // added two members, round-5 IN-04 reported a third class (a flow-collection delimiter), and a
+            // fourth was only ever a report away. Stating the legal set closes every character no finding
+            // has yet named, which is what makes this the last round for this predicate.
+            const outside = firstOutsideEnumerationLegal(m[1]);
+            if (outside.found) {
                 return {
                     ok: false,
-                    reason: `the grant enumeration \`${excerpt(m[1])}\` carries a nested opening parenthesis, so the capture ended at the first closing parenthesis and the tail of the enumeration would have been discarded; the granted names this document expresses are not the names these bytes were read as, so the enumeration is refused rather than returned short — a name is never silently dropped or altered`,
-                };
-            }
-            if (/["']/.test(m[1])) {
-                return {
-                    ok: false,
-                    reason: `the grant enumeration \`${excerpt(m[1])}\` carries a quote character, so the comma split is not the separator the document expresses and a quoted name containing a comma would have been returned as two altered names; the granted names this document expresses are not the names these bytes were read as, so the enumeration is refused rather than returned altered — a name is never silently dropped or altered`,
+                    reason: `the grant enumeration \`${excerpt(m[1])}\` carries \`${outside.char}\` (${outside.label}), which is outside the legal character set of a grant enumeration; a character outside that set means the comma is not reliably the separator the document expresses, so the names these bytes were read as are not the names the document expresses, and the enumeration is refused rather than returned split, short or altered — a name is never silently dropped or altered`,
                 };
             }
             for (const raw of m[1].split(",")) {
                 const resolved = unquoteChecked(raw.trim());
                 if (!resolved.ok) {
-                    // (Plan 27-33) NOTE FOR A FUTURE READER: the quote refusal above is strictly broader than
-                    // "this fragment is quoted", so within THIS function the escape refusal below is now
-                    // unreachable — an enumeration carrying a backslash sequence inside a quoted scalar carries
-                    // the quote first and refuses there, with a reason naming the quote rather than the escape.
+                    // (D-47 item 2, superseding plan 27-33's note) WHY THIS BRANCH IS UNREACHABLE THROUGH THIS
+                    // FUNCTION, STATED ACCURATELY AND PINNED BY A CASE.
+                    //
+                    // The check that dominates it is the `ENUMERATION_LEGAL_CHARS` refusal above — no longer
+                    // the quote check, which is deleted. Reaching here requires a fragment carrying a backslash
+                    // inside a double-quoted region, so the enumeration must carry at least one of `"`, `'` or
+                    // `\`; none of those three is a member of `ENUMERATION_LEGAL_CHARS`, so the enumeration
+                    // refuses above and never reaches the split. The reason names the offending character and
+                    // its code point rather than the escape sequence.
+                    //
+                    // THAT DOMINATION IS ASSERTED BY A CASE, not claimed here: the test file asserts each of
+                    // those three characters is outside the constant. A code comment claiming a property is not
+                    // the property, and this module has now corrected exactly that shape twice.
+                    //
                     // It is kept rather than deleted because it enforces the D-32 allowlist decision at this
                     // call site and would become reachable again the moment the check above is narrowed. It is
                     // NOT a second opinion: it cannot disagree with the check above, only follow it.

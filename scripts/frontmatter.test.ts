@@ -41,6 +41,7 @@ import {
   frontmatterValueIs,
   stripFencedBlocks,
   DQ_ESCAPE_ALLOWLIST,
+  ENUMERATION_LEGAL_CHARS,
 } from "./frontmatter.js";
 // (Plan 27-33) The false-red control's corpus is THE ONE SPAWN-GRANT SCAN COMPOSITION the guard reads
 // — not a directory list restated here. A hand-listed set at this call site would be the guard's scan
@@ -1030,16 +1031,23 @@ describe("frontmatter — the spawn-grant parser oracle (SPAWN-04 / KIT-03)", ()
   // name is never silently dropped or altered; measured against the committed parser before this
   // edit, it did both.
 
-  it("D-41 item 3 — a grant enumeration carrying a NESTED PARENTHESIS refuses instead of returning a name list short (WR-02, reproduced)", () => {
-    // RED, measured against the committed .js before this edit:
+  it("D-41 item 3 — a grant enumeration carrying a NESTED PARENTHESIS refuses instead of returning a name list short (WR-02, reproduced; now through the ONE allowlist)", () => {
+    // RED, measured against the committed .js before the D-41 edit:
     //   {"ok":true,"value":["Task(beta","alpha"]}  —  `gamma` DROPPED, `Task(beta` invented.
     // SCOPED_GRANT's character class stops at the first `)`, so the capture truncates mid-enumeration.
+    //
+    // (D-47 item 2) This still refuses, but no longer through a check that names a parenthesis. `(`
+    // is simply outside ENUMERATION_LEGAL_CHARS. The assertions below moved from the deleted check's
+    // wording to the allowlist refusal's wording FOR THAT REASON — a case still asserting
+    // "nested opening parenthesis" would be pinning a predicate that no longer exists.
     const text = "---\nname: x\ntools: Agent(alpha, Task(beta), gamma)\n---\nBody.\n";
     const names = grantedAgentNames(text);
     expect(names.ok).toBe(false);
     if (names.ok) return;
-    expect(names.reason).toContain("nested opening parenthesis");
-    expect(names.reason).toContain("discarded");
+    expect(names.reason).toContain("`(` (U+0028)");
+    expect(names.reason).toContain(
+      "outside the legal character set of a grant enumeration",
+    );
     // The module's established closing clause, kept verbatim so this refusal reads as the same
     // argument the escape refusal already makes.
     expect(names.reason).toContain("a name is never silently dropped or altered");
@@ -1051,18 +1059,27 @@ describe("frontmatter — the spawn-grant parser oracle (SPAWN-04 / KIT-03)", ()
     expect(hasSpawnGrant(text)).toEqual({ ok: true, value: true });
   });
 
-  it("D-41 item 3 — a grant enumeration carrying a QUOTE refuses instead of returning altered names (WR-02, reproduced)", () => {
-    // RED, measured against the committed .js before this edit:
+  it("D-41 item 3 — a grant enumeration carrying a QUOTE refuses instead of returning altered names (WR-02, reproduced; now through the ONE allowlist)", () => {
+    // RED, measured against the committed .js before the D-41 edit:
     //   {"ok":true,"value":["\"alpha","beta\"","gamma"]}  —  ONE name split into TWO altered ones.
     // A comma inside a quoted scalar is content, not a separator.
+    //
+    // (D-47 item 2) Both quote characters are outside ENUMERATION_LEGAL_CHARS, so both still refuse
+    // — through the one allowlist rather than through a dedicated quote check.
     const dq = '---\nname: x\ntools: Agent("alpha, beta", gamma)\n---\nBody.\n';
     const sq = "---\nname: x\ntools: Agent('alpha, beta', gamma)\n---\nBody.\n";
+    const expectedLabel = new Map([
+      [dq, '`"` (U+0022)'],
+      [sq, "`'` (U+0027)"],
+    ]);
     for (const text of [dq, sq]) {
       const names = grantedAgentNames(text);
       expect(names.ok, text).toBe(false);
       if (names.ok) continue;
-      expect(names.reason, text).toContain("quote character");
-      expect(names.reason, text).toContain("not the separator the document expresses");
+      expect(names.reason, text).toContain(expectedLabel.get(text));
+      expect(names.reason, text).toContain(
+        "the comma is not reliably the separator the document expresses",
+      );
       expect(names.reason, text).toContain(
         "a name is never silently dropped or altered",
       );
@@ -1071,6 +1088,136 @@ describe("frontmatter — the spawn-grant parser oracle (SPAWN-04 / KIT-03)", ()
       ok: true,
       value: ['"alpha', 'beta"', "gamma"],
     });
+  });
+
+  // ── D-47 item 2 / round-5 IN-04 — the flow-collection residual, and the ONE allowlist ──────────
+  //
+  // Round 4 closed a nested parenthesis and a quote by naming them. Those two checks were a DENYLIST:
+  // the complement was assumed safe, and it was not. These cases pin the promote to a stated legal
+  // set. Every input below returned the SUCCESS arm against the committed .js before this edit; the
+  // measured values are recorded per row so a future reader can see what was actually returned rather
+  // than being told it was wrong.
+
+  it("D-47 item 2 — a FLOW-COLLECTION DELIMITER inside an enumeration refuses instead of returning SPLIT, ALTERED names (IN-04, reproduced)", () => {
+    const rows: ReadonlyArray<{
+      tools: string;
+      redValue: string[];
+      char: string;
+      label: string;
+    }> = [
+      {
+        tools: "Agent(alpha[,]b, gamma)",
+        redValue: ["]b", "alpha[", "gamma"],
+        char: "[",
+        label: "U+005B",
+      },
+      {
+        tools: "Agent(alpha{,}b, gamma)",
+        redValue: ["alpha{", "gamma", "}b"],
+        char: "{",
+        label: "U+007B",
+      },
+    ];
+
+    for (const row of rows) {
+      const text = `---\nname: x\ntools: ${row.tools}\n---\nBody.\n`;
+      const names = grantedAgentNames(text);
+
+      // The arm this returned before the fix: THREE names where the document expresses two, one of
+      // them invented and the document's own name lost.
+      expect(names, row.tools).not.toEqual({ ok: true, value: row.redValue });
+
+      expect(names.ok, row.tools).toBe(false);
+      if (names.ok) continue;
+      expect(names.reason, row.tools).toContain(
+        `\`${row.char}\` (${row.label})`,
+      );
+      expect(names.reason, row.tools).toContain(
+        "outside the legal character set of a grant enumeration",
+      );
+      expect(names.reason, row.tools).toContain(
+        "a name is never silently dropped or altered",
+      );
+
+      // The grant is still a grant — only the ENUMERATION is unreadable.
+      expect(hasSpawnGrant(text), row.tools).toEqual({ ok: true, value: true });
+    }
+  });
+
+  it("D-47 item 2 — four characters NO FINDING NAMED refuse too, which is the whole point of stating the legal set", () => {
+    // Measured against the committed .js before this edit, each returned the SUCCESS arm carrying a
+    // name no loader computes:
+    //   Agent(alpha:b, gamma) -> ["alpha:b","gamma"]   Agent(alpha|b, gamma) -> ["alpha|b","gamma"]
+    //   Agent(&alpha, gamma)  -> ["&alpha","gamma"]    Agent(*alpha, gamma)  -> ["*alpha","gamma"]
+    // A denylist would have needed four more members. The allowlist needed none.
+    const rows: ReadonlyArray<[string, string, string, string[]]> = [
+      ["Agent(alpha:b, gamma)", ":", "U+003A", ["alpha:b", "gamma"]],
+      ["Agent(alpha|b, gamma)", "|", "U+007C", ["alpha|b", "gamma"]],
+      ["Agent(&alpha, gamma)", "&", "U+0026", ["&alpha", "gamma"]],
+      ["Agent(*alpha, gamma)", "*", "U+002A", ["*alpha", "gamma"]],
+    ];
+    for (const [tools, char, label, redValue] of rows) {
+      const text = `---\nname: x\ntools: ${tools}\n---\nBody.\n`;
+      const names = grantedAgentNames(text);
+      expect(names, tools).not.toEqual({ ok: true, value: redValue });
+      expect(names.ok, tools).toBe(false);
+      if (names.ok) continue;
+      expect(names.reason, tools).toContain(`\`${char}\` (${label})`);
+    }
+  });
+
+  it("D-47 item 2 — the escape branch's UNREACHABILITY is asserted against the constant, not claimed in a comment", () => {
+    // `keysGrantedAgentNames` keeps an `unquoteChecked` escape refusal beneath the comma split, with
+    // a note saying it cannot be reached through that function. The note's argument is exactly this:
+    // reaching it requires a backslash inside a double-quoted region, so the enumeration must carry
+    // at least one of `"`, `'` or `\` — and none of those three is a member of the legal set, so the
+    // allowlist refuses first.
+    //
+    // THIS IS THE ASSERTION THAT MAKES THE NOTE TRUE. A comment claiming a property is not the
+    // property; if a future author adds any of these three to the legal set, this case fails and the
+    // note is corrected rather than silently becoming false.
+    for (const c of ['"', "'", "\\"]) {
+      const cp = `U+${(c.codePointAt(0) ?? 0).toString(16).toUpperCase().padStart(4, "0")}`;
+      expect(
+        ENUMERATION_LEGAL_CHARS.has(c),
+        `${c} (${cp}) must be OUTSIDE the legal set for the escape branch's unreachability note to be true`,
+      ).toBe(false);
+    }
+
+    // And the domination is observable END TO END. Each of the two carriers that could otherwise
+    // reach the escape refusal is refused by the ALLOWLIST instead, naming the character and its code
+    // point rather than an escape sequence.
+    //
+    //   `Agent("al\\x41pha", gamma)` — a DOUBLED backslash is on DQ_ESCAPE_ALLOWLIST, so the value
+    //   survives the flattener and reaches the enumeration, where the QUOTE refuses it.
+    //   `Agent(alpha\b, gamma)` — outside quotes a backslash is literal YAML text, so nothing upstream
+    //   touches it and the BACKSLASH itself refuses at the enumeration.
+    const dominated: ReadonlyArray<[string, string]> = [
+      ['Agent("al\\\\x41pha", gamma)', '`"` (U+0022)'],
+      ["Agent(alpha\\b, gamma)", "`\\` (U+005C)"],
+    ];
+    for (const [tools, expected] of dominated) {
+      const names = grantedAgentNames(`---\nname: x\ntools: ${tools}\n---\nBody.\n`);
+      expect(names.ok, tools).toBe(false);
+      if (names.ok) continue;
+      expect(names.reason, tools).toContain(expected);
+      // Not the escape refusal's wording — that branch was not the one that fired.
+      expect(names.reason, tools).not.toContain("backslash sequence");
+    }
+
+    // THE THIRD PATH, RECORDED RATHER THAN GLOSSED. A NON-allowlisted escape inside a double-quoted
+    // region (`\x`) never reaches `keysGrantedAgentNames` at all: the D-30 escape decision is applied
+    // at EVERY application point, so the value flattener refuses it first, and the reason names the
+    // sequence. So the in-function escape branch is dominated TWICE — upstream by the flattener for a
+    // non-allowlisted escape, and here by the allowlist for the quote or backslash that carries it.
+    // Discovered by this case failing on its first draft, which asserted the allowlist fired for this
+    // input too; the assertion was corrected to the measured behaviour rather than the assumed one.
+    const upstream = grantedAgentNames(
+      '---\nname: x\ntools: Agent("al\\x41pha", gamma)\n---\nBody.\n',
+    );
+    expect(upstream.ok).toBe(false);
+    if (upstream.ok) return;
+    expect(upstream.reason).toContain("backslash sequence `\\x`");
   });
 
   it("D-41 item 3 false-red control — the REAL coordinator's own enumeration still returns the success arm, by count and by membership", () => {
