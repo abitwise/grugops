@@ -55,14 +55,14 @@ Each requirement maps to exactly one roadmap phase (27–33). REQ-IDs continue g
 
 - [ ] **KIT-01**: `scripts/kit-model.ts` is the sole authority for "what roles and workflows exist," derived from the filesystem via `readdirSync` with an asserted count — replacing all five stale hard-coded lists.
 - [ ] **KIT-02**: Every guard and validator scan set (`WR05_SCAN`, `ADAPTERS`, `CTX_WORKFLOWS`, the validator's role and workflow lists) is derived from `kit-model.ts`, never hand-listed.
-- [ ] **KIT-03**: A referential-integrity oracle asserts set equality between the coordinator's spawn grant, the adapter directory, and the role corpus — and **fails RED against today's tree** (1 adapter present, 7 names granted, 17 roles) before it is trusted.
+- [x] **KIT-03**: A referential-integrity oracle asserts set equality between the coordinator's spawn grant, the adapter directory, and the role corpus — and **fails RED against today's tree** (1 adapter present, 7 names granted, 17 roles) before it is trusted.
 
 ### SPAWN — Spawn Correctness
 
 - [ ] **SPAWN-01**: All 17 role subagent adapters exist at `.claude/agents/grugops-<role>.md`, **generated** from `agent-factory/roles/*.md` by a single templated generator — thin pointers, never copies of role text.
 - [ ] **SPAWN-02**: `adapters-freshness.ts` byte-gates the generated adapters against a fresh regeneration, fail-closed on drift (the proven pattern from `catalog-freshness` / `context-freshness`).
 - [ ] **SPAWN-03**: The coordinator is wired as the Claude Code **main-thread** agent so its `Agent(<allowlist>)` grant is honoured by the runtime — the current subagent placement makes the grant a no-op, since Claude Code ignores the type list inside a subagent definition.
-- [ ] **SPAWN-04**: Non-coordinator role adapters omit the `Agent` tool entirely — a mechanism that holds on both the main-thread and subagent paths, rather than relying on a frontmatter token the runtime ignores.
+- [x] **SPAWN-04**: Non-coordinator role adapters omit the `Agent` tool entirely — a mechanism that holds on both the main-thread and subagent paths, rather than relying on a frontmatter token the runtime ignores.
 - [ ] **SPAWN-05**: `guard_adapter_body` fails red on pre-v2.0 handoff/single-window prose in any adapter body (defense in depth behind generation, never the structural fix), closing the surviving `grugops-orchestrator.md:25` reference.
 - [ ] **SPAWN-06**: `orchestrator.md` is trimmed below its **7570-byte FAIL ceiling** (currently 7562B — 8 bytes of margin) *before* this milestone adds spawn-allowlist text to it; the ceiling is never raised to accommodate growth.
 - [ ] **SPAWN-07**: The advertised Claude Code floor and the `queue.wip_limit` rationale are corrected against real platform behaviour: depth is **3** on v2.1.219+ (not 5), tunable via `CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH`, with the v2.1.217–218 depth-1 window documented as a known-bad range that degrades loudly.
@@ -155,11 +155,11 @@ _Filled by the roadmapper 2026-07-28. Every requirement maps to exactly one phas
 |-------------|-------|--------|
 | KIT-01 | Phase 27 | Gaps Found |
 | KIT-02 | Phase 27 | Gaps Found |
-| KIT-03 | Phase 27 | Gaps Found |
+| KIT-03 | Phase 27 | Complete |
 | SPAWN-01 | Phase 27 | Gaps Found |
 | SPAWN-02 | Phase 27 | Gaps Found |
 | SPAWN-03 | Phase 27 | Gaps Found |
-| SPAWN-04 | Phase 27 | Gaps Found |
+| SPAWN-04 | Phase 27 | Complete |
 | SPAWN-05 | Phase 27 | Gaps Found |
 | SPAWN-06 | Phase 27 | Gaps Found |
 | SPAWN-07 | Phase 27 | Gaps Found |

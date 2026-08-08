@@ -124,7 +124,7 @@ Full phase details + milestone summary: `milestones/v2.0-ROADMAP.md` · requirem
   4. On Claude Code the coordinator runs as the **main-thread** agent so its `Agent(<allowlist>)` grant is honored by the runtime, and no non-coordinator adapter carries the `Agent` tool at all — a mechanism that holds on both the main-thread and subagent paths rather than relying on a frontmatter token the runtime ignores. (SPAWN-03, SPAWN-04)
   5. `guard_adapter_body` fails red on pre-v2.0 handoff/single-window prose anywhere in an adapter body — proven against the surviving `grugops-orchestrator.md:25` reference — `orchestrator.md` sits below its **7570-byte FAIL ceiling with the ceiling unchanged**, and the advertised Claude Code floor reads **v2.1.219+ at depth 3** everywhere it appears, with the v2.1.217–218 depth-1 window documented as a known-bad range that degrades loudly. (SPAWN-05, SPAWN-06, SPAWN-07)
 
-**Plans**: 38/38 plans executed
+**Plans**: 39/42 plans executed
 Plans:
 **Wave 1**
 
@@ -262,7 +262,7 @@ Plans:
 
 **Gap wave — round 7, wave 1**
 
-- [ ] 27-39-PLAN.md — TRACER: quote state is a property of the YAML SCALAR and not of the physical line, so it is CARRIED across a scalar's continuation lines instead of re-derived at every line boundary (D-48), closing all THREE directions of one defect in one edit — a `#` on a continuation line deleting a live `Agent(grugops-orchestrator)` grant (measured: three spellings return `{ok:true,value:false}` while libyaml returns the grant; the block-sequence spelling is the exact idiom all 7 skills and all 17 adapters use, and planted on both distribution twins it prints `ALL CHECKS PASSED` at exit 0), `*`/`!`/`&` on a continuation line failing RED on documentation a real loader accepts, and a `-` on a continuation line read as a new sequence item, which flips the whole key's join separator and makes `keysGrantedAgentNames` INVENT a name on its success arm; pinned by a FOURTH AXIS the three D-45 axes cannot see — scalar style × sigil × placement, 90 cells enumerated from outside the rule with every continuation cell RED before and GREEN after and every platform claim resolved against a real YAML 1.2 loader (D-49) [KIT-03, SPAWN-04] *(round-6 CR-01, WR-01, + the JOIN direction named in no review)*
+- [x] 27-39-PLAN.md — TRACER: quote state is a property of the YAML SCALAR and not of the physical line, so it is CARRIED across a scalar's continuation lines instead of re-derived at every line boundary (D-48), closing all THREE directions of one defect in one edit — a `#` on a continuation line deleting a live `Agent(grugops-orchestrator)` grant (measured: three spellings return `{ok:true,value:false}` while libyaml returns the grant; the block-sequence spelling is the exact idiom all 7 skills and all 17 adapters use, and planted on both distribution twins it prints `ALL CHECKS PASSED` at exit 0), `*`/`!`/`&` on a continuation line failing RED on documentation a real loader accepts, and a `-` on a continuation line read as a new sequence item, which flips the whole key's join separator and makes `keysGrantedAgentNames` INVENT a name on its success arm; pinned by a FOURTH AXIS the three D-45 axes cannot see — scalar style × sigil × placement, 90 cells enumerated from outside the rule with every continuation cell RED before and GREEN after and every platform claim resolved against a real YAML 1.2 loader (D-49) [KIT-03, SPAWN-04] *(round-6 CR-01, WR-01, + the JOIN direction named in no review)*
 
 **Gap wave — round 7, wave 2** *(shares all three `scripts/frontmatter.*` files with 27-39)*
 
@@ -429,7 +429,7 @@ Plans:
 | 24. Clean Handoff Removal & Traceability Migration | v2.0 | 5/5 | Complete    | 2026-06-22 |
 | 25. Governance-on-a-Dial | v2.0 | 13/13 | Complete | 2026-06-29 |
 | 26. Dogfood, Dual-Path Oracle & A3/DOG-02 Retirement | v2.0 | 6/6 | Complete | 2026-07-24 |
-| 27. Spawn Correctness & Kit-Set Authority | v2.1 | 38/38 | In Progress|  |
+| 27. Spawn Correctness & Kit-Set Authority | v2.1 | 39/42 | In Progress|  |
 | 28. Kit Consistency Audit | v2.1 | 0/TBD | Not started | - |
 | 29. Controlled Language & Voice Guard Rebuild | v2.1 | 0/TBD | Not started | - |
 | 30. Per-Checkpoint Autonomy Matrix | v2.1 | 0/TBD | Not started | - |
