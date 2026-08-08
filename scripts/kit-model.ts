@@ -357,6 +357,60 @@ export function pluginForbiddenComponentKeys(): string[] {
   );
 }
 
+// THE PARTITION CHECK, AS A PURE FUNCTION OF FOUR KEY-LISTS (plan 27-42, D-50, closing IN-03).
+//
+// WHY IT IS A FUNCTION RATHER THAN INLINE IN THE GUARD. The guard's partition floor has three arms —
+// a schema key claimed by NOBODY, a key claimed by MORE THAN ONE bucket, and a claimed key OUTSIDE
+// the schema. Two of them are falsifiable from the live code and do fail closed. The first is not:
+// `pluginForbiddenComponentKeys()` above computes `schema \ (covered U exempt)`, so the union of the
+// three claims IS the schema by construction and the unclaimed arm is provably empty for every
+// possible input to today's code. The guard's own comment already discloses that, correctly, and
+// that disclosure stays.
+//
+// What was missing is that the arm the disclosure defends could not be EXERCISED AT ALL, so nobody
+// knew whether it would fire when the later hand-edit it exists for arrives. A future-proofing arm
+// nobody can test is a promise, not a floor — and this repository's standing rule is that a comment
+// claiming a property never ships without the assertion that makes it true. Lifting the predicate out
+// of the guard is what lets a case hand it a claim set with a hole and watch the arm fire, without
+// making that state reachable in production.
+//
+// THIS CHANGES WHERE THE PREDICATE LIVES AND NEVER WHAT IT DECIDES. The body is the guard's former
+// inline computation moved verbatim, including the ORDER each arm reports in (the schema's order for
+// the first two, the claim order for the third), because the guard's failure message interpolates
+// these arrays and a reader depends on that wording. It is proven behaviour-preserving rather than
+// asserted: the gate's `kit counts:` PASS line is byte-identical before and after, and a permanent
+// control in scripts/check-foundation-guards.test.ts re-runs the gate against a scratch build whose
+// call to this function is replaced by an INDEPENDENT restatement of the same predicate and compares
+// the two lines byte for byte.
+//
+// PURE BY CONSTRUCTION, WHICH IS THE WHOLE CONTRACT. It reads no filesystem, holds no module-level
+// state and calls no derivation — it is a function of its arguments, because that is exactly what
+// lets a case reach an arm production cannot.
+export interface PluginComponentClaimPartition {
+  /** Schema keys no bucket claimed. Unreachable from today's code; see the block comment above. */
+  readonly unclaimed: string[];
+  /** Schema keys more than one bucket claimed. */
+  readonly doubleClaimed: string[];
+  /** Claimed keys the schema does not carry. */
+  readonly foreign: string[];
+}
+
+export function partitionPluginComponentClaims(
+  schemaKeys: readonly string[],
+  forbiddenKeys: readonly string[],
+  coveredKeys: readonly string[],
+  exemptKeys: readonly string[],
+): PluginComponentClaimPartition {
+  const claimedKeys = [...forbiddenKeys, ...coveredKeys, ...exemptKeys];
+  return {
+    unclaimed: schemaKeys.filter((k) => !claimedKeys.includes(k)),
+    doubleClaimed: schemaKeys.filter(
+      (k) => claimedKeys.filter((c) => c === k).length > 1,
+    ),
+    foreign: claimedKeys.filter((k) => !schemaKeys.includes(k)),
+  };
+}
+
 // The forbidden keys' probe directories, flattened and sorted. Sorted so two gate runs over one tree
 // produce byte-identical dispositions; more directories than keys, because the two `experimental.`
 // keys each carry both candidate spellings of an `UNKNOWN - verify` directory name.

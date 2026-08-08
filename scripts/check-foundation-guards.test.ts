@@ -463,6 +463,22 @@ function out(r: SpawnSyncReturns<string>): string {
 // nothing would leave an unmutated build passing, and the case would report a green floor it never
 // exercised — which is the fabricated-completion shape this whole phase exists to delete.
 function scratchGuard(mutate: (kitModelJs: string) => string): string {
+  return scratchGuardFiles({ "kit-model.js": mutate });
+}
+
+// (Plan 27-42, D-50) The same harness, generalized to mutate ANY of the compiled files in the scratch
+// import graph — and more than one of them in a single build.
+//
+// Why the generalization was needed: the IN-03 faithfulness control mutates the GUARD (it replaces the
+// call to the extracted partition predicate with an inline restatement of the same predicate) and, for
+// its non-vacuous half, mutates KIT-MODEL in the same build (so the partition actually fires). One
+// scratch build must therefore carry both mutations.
+//
+// Every mutation is still asserted to have APPLIED. A `replace` that silently matched nothing would
+// leave an unmutated build passing and the case would report a control it never exercised.
+function scratchGuardFiles(
+  mutations: Record<string, (src: string) => string>,
+): string {
   const dir = mkdtempSync(join(tmpdir(), "grugops-fg-scratch-"));
   tmpDirs.push(dir);
   const scriptsDir = join(dir, "scripts");
@@ -471,16 +487,18 @@ function scratchGuard(mutate: (kitModelJs: string) => string): string {
     if (!name.endsWith(".js")) continue;
     cpSync(join(ROOT, "scripts", name), join(scriptsDir, name));
   }
-  const kitModelPath = join(scriptsDir, "kit-model.js");
-  const before = readFileSync(kitModelPath, "utf8");
-  const after = mutate(before);
-  if (after === before) {
-    throw new Error(
-      "scratchGuard: the mutation matched nothing, so the scratch build is identical to the " +
-        "committed one — a floor 'proven' against an unmutated build is proven against nothing",
-    );
+  for (const [name, mutate] of Object.entries(mutations)) {
+    const path = join(scriptsDir, name);
+    const before = readFileSync(path, "utf8");
+    const after = mutate(before);
+    if (after === before) {
+      throw new Error(
+        `scratchGuard: the mutation of ${name} matched nothing, so the scratch build is identical ` +
+          "to the committed one — a floor 'proven' against an unmutated build is proven against nothing",
+      );
+    }
+    writeFileSync(path, after);
   }
-  writeFileSync(kitModelPath, after);
   return join(scriptsDir, "check-foundation-guards.js");
 }
 
@@ -2226,6 +2244,103 @@ describe("check-foundation-guards.js (SDLC-02 / SC2 fail-proof harness)", () => 
     const o = out(r);
     expect(o).toContain("three buckets do not PARTITION it");
     expect(o).toContain("unclaimed by any bucket [outputStyles]");
+  });
+
+  // ── (Plan 27-42, D-50, closing IN-03) THE EXTRACTION IS PROVEN FAITHFUL, NOT ASSERTED ──────────
+  //
+  // The partition check moved out of this guard and into kit-model.ts's pure
+  // `partitionPluginComponentClaims`, so a case can hand it a claim set carrying a hole and watch the
+  // unclaimed arm fire — an arm that is unreachable from today's production code. That extraction
+  // changed WHERE the predicate lives and must never change WHAT it decides.
+  //
+  // "Must never" is a claim, so it ships with the assertion that makes it true. These two controls
+  // build a scratch guard in which the CALL to the extracted predicate is replaced by an INLINE
+  // RESTATEMENT of the same predicate — written here, deliberately in a different idiom
+  // (`indexOf`/`reduce` rather than `includes`/`filter().length`) so it is an independent statement
+  // rather than a copy — and compare the two builds' output byte for byte.
+  //
+  // WHY THIS RATHER THAN A FROZEN BASELINE LITERAL. A case pinning today's PASS line as a string
+  // ("derived 17 roles, 19 workflows, …") would go red the next time the kit legitimately gains a
+  // role, and would then be "fixed" by updating the literal — which is the narrow-until-it-passes
+  // shape this phase's own record warns about. Both builds here read the SAME tree in the SAME run,
+  // so the control stays true across every legitimate count change and can only fail when the two
+  // formulations of the predicate disagree.
+  const INLINED_PARTITION_CALL =
+    "const { unclaimed: unclaimedKeys, doubleClaimed: doubleClaimedKeys, foreign: foreignKeys, } = " +
+    "partitionPluginComponentClaims(schemaKeys, pluginForbiddenComponentKeys(), coveredKeys, exemptKeys);";
+  const inlinePartitionRestatement = (src: string): string =>
+    src.replace(
+      INLINED_PARTITION_CALL,
+      [
+        "const claimedRestated = [].concat(pluginForbiddenComponentKeys(), coveredKeys, exemptKeys);",
+        "const unclaimedKeys = schemaKeys.filter((k) => claimedRestated.indexOf(k) === -1);",
+        "const doubleClaimedKeys = schemaKeys.filter((k) => claimedRestated.reduce((n, c) => (c === k ? n + 1 : n), 0) > 1);",
+        "const foreignKeys = claimedRestated.filter((k) => schemaKeys.indexOf(k) === -1);",
+      ].join("\n    "),
+    );
+  // ONE mutation that fires ALL THREE ARMS at once, so the firing control compares three formulas
+  // rather than one. It rewrites the computed forbidden set to: drop `outputStyles` (nothing then
+  // claims it → the UNCLAIMED arm), append `scratchForeign` (claimed but not in the schema → the
+  // FOREIGN arm), and append `hooks` (already exempt → the DOUBLE-CLAIMED arm). It deliberately does
+  // not touch the covered-elsewhere or exempt buckets, whose SHAPE other plans change.
+  const fireAllThreeArms = (src: string): string =>
+    src.replace(
+      "return PLUGIN_MANIFEST_COMPONENT_SCHEMA.map((e) => e.manifestKey).filter((k) => !claimed.has(k));",
+      'return PLUGIN_MANIFEST_COMPONENT_SCHEMA.map((e) => e.manifestKey).filter((k) => !claimed.has(k) && k !== "outputStyles").concat(["scratchForeign", "hooks"]);',
+    );
+
+  it("the extracted partition predicate is byte-faithful to an inline restatement of it — PASSING tree", () => {
+    const m = mirror();
+    const inlined = runScratch(
+      scratchGuardFiles({
+        "check-foundation-guards.js": inlinePartitionRestatement,
+      }),
+      m,
+    );
+    // The control side is ALSO a scratch build, so both runs execute from a temp scripts directory
+    // and any path-derived byte in the output is identical by construction. It carries a deliberate
+    // NO-OP mutation (an appended comment) purely to satisfy the harness's mutation-applied floor;
+    // the floor exists so a `replace` that matched nothing cannot pass as a control, and waiving it
+    // here would waive it everywhere.
+    const committed = runScratch(
+      scratchGuardFiles({
+        "kit-model.js": (s) => `${s}\n// scratch control build — no semantic change\n`,
+      }),
+      m,
+    );
+    expect(committed.status).toBe(0);
+    expect(inlined.status).toBe(committed.status);
+    expect(out(inlined)).toBe(out(committed));
+    // Non-vacuous: the line the extraction could have changed really is in the compared output.
+    expect(out(committed)).toContain("kit counts: derived");
+    expect(out(committed)).toContain("covered-elsewhere");
+  });
+
+  it("the extracted partition predicate is byte-faithful to an inline restatement of it — ALL THREE ARMS FIRING", () => {
+    // A control that only ever compares two PASS lines proves the predicate agrees where it does
+    // nothing. This half compares the two formulations in the state where ALL THREE arms fire at
+    // once, so each arm's formula — not only whichever one happens to be reachable — is compared.
+    const m = mirror();
+    const inlined = runScratch(
+      scratchGuardFiles({
+        "kit-model.js": fireAllThreeArms,
+        "check-foundation-guards.js": inlinePartitionRestatement,
+      }),
+      m,
+    );
+    const committed = runScratch(
+      scratchGuardFiles({ "kit-model.js": fireAllThreeArms }),
+      m,
+    );
+    expect(committed.status).not.toBe(0);
+    expect(inlined.status).toBe(committed.status);
+    expect(out(inlined)).toBe(out(committed));
+    // Non-vacuous: all three arms really fired, each naming its key, in BOTH builds.
+    for (const o of [out(committed), out(inlined)]) {
+      expect(o).toContain("unclaimed by any bucket [outputStyles]");
+      expect(o).toContain("claimed by more than one [hooks]");
+      expect(o).toContain("claimed but outside the schema [scratchForeign]");
+    }
   });
 
   // ── guard_kit_counts: A THROWN PER-PART LISTER IS REPORTED, NOT SWALLOWED (plan 27-37, D-47.1) ──

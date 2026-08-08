@@ -234,6 +234,7 @@ import {
   listPluginDefaultComponentFiles,
   listPluginExemptComponentFiles,
   pluginForbiddenComponentKeys,
+  partitionPluginComponentClaims,
   spawnGrantScan,
   spawnGrantScanPrefix,
   SPAWN_GRANT_SCAN_PARTS,
@@ -1365,6 +1366,28 @@ function guardKitCounts(): void {
   // The forbidden set is COMPUTED (schema minus covered minus exempt), so "claimed by nobody" cannot
   // arise from today's code — this floor is what makes it impossible for a LATER hand-edit of that
   // computation to reintroduce it silently, which is exactly the drift this plan deletes.
+  //
+  // TWO LIVE ARMS PLUS ONE PINNED FUTURE-PROOFING ARM — READ THE PASS LINE AS THAT, NOT AS THREE
+  // CHECKS (plan 27-42, D-50, closing IN-03). The `doubleClaimed` and `foreign` arms are falsifiable
+  // from today's code and do fail closed: a key present in BOTH the covered-elsewhere and the exempt
+  // bucket is excluded from the computed forbidden set, appears twice in `claimedKeys` and is named;
+  // a bucket naming a key outside the schema is named. The `unclaimed` arm is NOT reachable from
+  // today's code, for the reason the paragraph above gives, and it is kept for the LATER hand-edit
+  // that would otherwise reintroduce the hole silently.
+  //
+  // That arm now has an assertion behind it rather than only a comment. The predicate lives in
+  // kit-model.ts's `partitionPluginComponentClaims` — a pure function of four key-lists, reading no
+  // filesystem and calling no derivation — so a case can hand it a claim set carrying a hole and
+  // watch the arm fire without the state ever becoming reachable here. The cases are in
+  // scripts/kit-model.test.ts: "the live schema and the live claims partition cleanly — three empty
+  // arms", "a claim set with a HOLE fires the unclaimed arm by name", "a claim set naming one key
+  // TWICE fires the double-claimed arm by name", "a claim set naming a key OUTSIDE the schema fires
+  // the foreign arm by name" and "the verdict is invariant under permutation of each input list".
+  //
+  // The extraction changed WHERE the predicate lives and never WHAT it decides, and that is proven
+  // rather than asserted: the `kit counts:` PASS line below is byte-identical before and after, and
+  // the control "the extracted partition predicate is byte-faithful to an inline restatement of it"
+  // in scripts/check-foundation-guards.test.ts keeps it so.
   const schemaKeys = PLUGIN_MANIFEST_COMPONENT_SCHEMA.map((e) => e.manifestKey);
   if (schemaKeys.length !== PLUGIN_MANIFEST_COMPONENT_COUNT) {
     countFail += `\nkit count: the plugin-manifest component schema carries ${schemaKeys.length} entries, expected exactly ${PLUGIN_MANIFEST_COMPONENT_COUNT} (derived: ${schemaKeys.join(", ")}) — this is the surface Claude Code's DEFAULT discovery loads for every plugin-install user; walk guard_wr05's plugin-root component floor, the bucket partition, the exemption bound and the disposition line BEFORE updating PLUGIN_MANIFEST_COMPONENT_COUNT in scripts/kit-model.ts`;
@@ -1373,16 +1396,19 @@ function guardKitCounts(): void {
     (c) => c.manifestKey,
   );
   const exemptKeys = PLUGIN_COMPONENT_EXEMPT.map((e) => e.manifestKey);
-  const claimedKeys = [
-    ...pluginForbiddenComponentKeys(),
-    ...coveredKeys,
-    ...exemptKeys,
-  ];
-  const unclaimedKeys = schemaKeys.filter((k) => !claimedKeys.includes(k));
-  const doubleClaimedKeys = schemaKeys.filter(
-    (k) => claimedKeys.filter((c) => c === k).length > 1,
+  // Destructured back to the names the failure message below interpolates, so that message's
+  // template literal — which a reader depends on, and which names all three arms — is byte-unchanged
+  // by the extraction.
+  const {
+    unclaimed: unclaimedKeys,
+    doubleClaimed: doubleClaimedKeys,
+    foreign: foreignKeys,
+  } = partitionPluginComponentClaims(
+    schemaKeys,
+    pluginForbiddenComponentKeys(),
+    coveredKeys,
+    exemptKeys,
   );
-  const foreignKeys = claimedKeys.filter((k) => !schemaKeys.includes(k));
   if (
     unclaimedKeys.length > 0 ||
     doubleClaimedKeys.length > 0 ||

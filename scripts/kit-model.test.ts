@@ -43,6 +43,7 @@ import {
   listPluginDefaultComponentFiles,
   listPluginExemptComponentFiles,
   pluginForbiddenComponentKeys,
+  partitionPluginComponentClaims,
   pluginForbiddenComponentSubpaths,
   spawnGrantScan,
   spawnGrantScanPrefix,
@@ -779,6 +780,150 @@ describe("kit-model plugin-manifest component schema (D-46: derived, counted two
       "experimental.themes",
       "experimental.monitors",
     ]);
+  });
+
+  // ── (Plan 27-42, D-50, closing IN-03) THE PARTITION FLOOR'S THIRD ARM, MADE FALSIFIABLE ────────
+  //
+  // Two of the guard's three partition arms are falsifiable from the live code and do fail closed.
+  // The third — a schema key claimed by NOBODY — is provably empty for every possible input to
+  // today's code, because `pluginForbiddenComponentKeys()` computes `schema \ (covered U exempt)`.
+  // The guard discloses that, correctly. What it could not do was EXERCISE the arm, so nobody knew
+  // whether it would fire when the later hand-edit it exists for arrives. A future-proofing arm
+  // nobody can test is a promise, not a floor.
+  //
+  // The predicate is therefore a pure function of four key-lists, and these cases hand it claim sets
+  // it cannot receive in production. Every argument below is HAND-WRITTEN and names no derivation, so
+  // the cases cannot follow the module if the module moves.
+
+  it("the extracted partition predicate is PURE BY CONSTRUCTION — no filesystem call, no module-level derived constant", () => {
+    // Source-inspected on the FUNCTION THAT ACTUALLY RUNS (the compiled .js this suite imports),
+    // never on the .ts. Purity is what lets a case reach the arm production cannot; if the body ever
+    // grows a read or reaches for a module constant, the arm stops being reachable from a case and
+    // the floor quietly reverts to a promise.
+    const body = partitionPluginComponentClaims.toString();
+    for (const forbidden of [
+      "readdirSync",
+      "readFileSync",
+      "statSync",
+      "existsSync",
+      "realpathSync",
+      "process.",
+      "import.meta",
+      "PLUGIN_MANIFEST_COMPONENT_SCHEMA",
+      "PLUGIN_COMPONENT_COVERED_ELSEWHERE",
+      "PLUGIN_COMPONENT_EXEMPT",
+      "pluginForbiddenComponentKeys",
+      "DEFAULT_KIT_ROOT",
+    ]) {
+      expect(body, forbidden).not.toContain(forbidden);
+    }
+    // …and it is deterministic: same arguments, same answer, twice.
+    const args = [
+      ["a", "b", "c"],
+      ["a"],
+      ["b"],
+      ["c"],
+    ] as const;
+    expect(partitionPluginComponentClaims(...args)).toEqual(
+      partitionPluginComponentClaims(...args),
+    );
+  });
+
+  it("the live schema and the live claims partition cleanly — three empty arms", () => {
+    const result = partitionPluginComponentClaims(
+      PLUGIN_MANIFEST_COMPONENT_SCHEMA.map((e) => e.manifestKey),
+      pluginForbiddenComponentKeys(),
+      PLUGIN_COMPONENT_COVERED_ELSEWHERE.map((c) => c.manifestKey),
+      PLUGIN_COMPONENT_EXEMPT.map((e) => e.manifestKey),
+    );
+    expect(result).toEqual({ unclaimed: [], doubleClaimed: [], foreign: [] });
+  });
+
+  it("a claim set with a HOLE fires the unclaimed arm by name — the arm production cannot reach", () => {
+    // `commands` is in the schema and in NO bucket. This is the state the guard's floor exists for
+    // and the state today's computed forbidden set makes impossible; the case reaches it anyway.
+    const result = partitionPluginComponentClaims(
+      ["agents", "commands", "skills", "hooks"],
+      ["agents"],
+      ["skills"],
+      ["hooks"],
+    );
+    expect(result.unclaimed).toEqual(["commands"]);
+    expect(result.doubleClaimed).toEqual([]);
+    expect(result.foreign).toEqual([]);
+  });
+
+  it("a claim set naming one key TWICE fires the double-claimed arm by name", () => {
+    // `hooks` claimed as BOTH covered-elsewhere and exempt — exempted and covered at once.
+    const result = partitionPluginComponentClaims(
+      ["agents", "commands", "skills", "hooks"],
+      ["agents", "commands"],
+      ["skills", "hooks"],
+      ["hooks"],
+    );
+    expect(result.doubleClaimed).toEqual(["hooks"]);
+    expect(result.unclaimed).toEqual([]);
+    expect(result.foreign).toEqual([]);
+  });
+
+  it("a claim set naming a key OUTSIDE the schema fires the foreign arm by name", () => {
+    // A bucket claiming `themes` — a probe DIRECTORY name, not a manifest key. An exemption for a
+    // surface the schema does not carry bounds nothing.
+    const result = partitionPluginComponentClaims(
+      ["agents", "commands", "skills", "hooks"],
+      ["agents", "commands"],
+      ["skills"],
+      ["hooks", "themes"],
+    );
+    expect(result.foreign).toEqual(["themes"]);
+    expect(result.unclaimed).toEqual([]);
+    expect(result.doubleClaimed).toEqual([]);
+  });
+
+  it("the VERDICT is invariant under permutation of each input list (ordering edge)", () => {
+    // WHAT IS INVARIANT AND WHAT DELIBERATELY IS NOT, stated so the next reader does not "fix" the
+    // wrong half. The VERDICT — which keys land in which arm — is a set fact and is invariant. The
+    // ORDER each arm reports in is NOT invariant and must not be: the first two arms report in the
+    // SCHEMA's order and the third in the CLAIM order, because the guard interpolates these arrays
+    // into a failure message a reader reads in schema order. So the comparison here is on sorted
+    // sets, and the order-dependence is a documented property rather than an unnoticed one.
+    const schema = ["agents", "commands", "skills", "hooks", "mcpServers"];
+    const forbidden = ["agents", "commands"];
+    const covered = ["skills", "mcpServers"];
+    const exempt = ["hooks", "mcpServers", "themes"];
+    const sorted = (r: ReturnType<typeof partitionPluginComponentClaims>) => ({
+      unclaimed: [...r.unclaimed].sort(),
+      doubleClaimed: [...r.doubleClaimed].sort(),
+      foreign: [...r.foreign].sort(),
+    });
+    const base = sorted(
+      partitionPluginComponentClaims(schema, forbidden, covered, exempt),
+    );
+    // A non-vacuous baseline: this claim set really does fire an arm, so "invariant" is a statement
+    // about a verdict that exists rather than about three empty lists staying empty.
+    expect(base).toEqual({
+      unclaimed: [],
+      doubleClaimed: ["mcpServers"],
+      foreign: ["themes"],
+    });
+    // Every reversal, and one rotation of each, compared against that baseline.
+    const rot = (xs: string[]): string[] => [...xs.slice(1), ...xs.slice(0, 1)];
+    for (const perm of [
+      (xs: string[]) => [...xs].reverse(),
+      rot,
+      (xs: string[]) => [...xs].sort(),
+    ]) {
+      expect(
+        sorted(
+          partitionPluginComponentClaims(
+            perm(schema),
+            perm(forbidden),
+            perm(covered),
+            perm(exempt),
+          ),
+        ),
+      ).toEqual(base);
+    }
   });
 
   it("`skills` is excluded by a STATED RULE naming its coverer, and `hooks` is exempt by name with a reason and a bound", () => {

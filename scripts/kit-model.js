@@ -240,6 +240,14 @@ export function pluginForbiddenComponentKeys() {
     ]);
     return PLUGIN_MANIFEST_COMPONENT_SCHEMA.map((e) => e.manifestKey).filter((k) => !claimed.has(k));
 }
+export function partitionPluginComponentClaims(schemaKeys, forbiddenKeys, coveredKeys, exemptKeys) {
+    const claimedKeys = [...forbiddenKeys, ...coveredKeys, ...exemptKeys];
+    return {
+        unclaimed: schemaKeys.filter((k) => !claimedKeys.includes(k)),
+        doubleClaimed: schemaKeys.filter((k) => claimedKeys.filter((c) => c === k).length > 1),
+        foreign: claimedKeys.filter((k) => !schemaKeys.includes(k)),
+    };
+}
 // The forbidden keys' probe directories, flattened and sorted. Sorted so two gate runs over one tree
 // produce byte-identical dispositions; more directories than keys, because the two `experimental.`
 // keys each carry both candidate spellings of an `UNKNOWN - verify` directory name.
