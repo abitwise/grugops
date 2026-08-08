@@ -124,7 +124,7 @@ Full phase details + milestone summary: `milestones/v2.0-ROADMAP.md` · requirem
   4. On Claude Code the coordinator runs as the **main-thread** agent so its `Agent(<allowlist>)` grant is honored by the runtime, and no non-coordinator adapter carries the `Agent` tool at all — a mechanism that holds on both the main-thread and subagent paths rather than relying on a frontmatter token the runtime ignores. (SPAWN-03, SPAWN-04)
   5. `guard_adapter_body` fails red on pre-v2.0 handoff/single-window prose anywhere in an adapter body — proven against the surviving `grugops-orchestrator.md:25` reference — `orchestrator.md` sits below its **7570-byte FAIL ceiling with the ceiling unchanged**, and the advertised Claude Code floor reads **v2.1.219+ at depth 3** everywhere it appears, with the v2.1.217–218 depth-1 window documented as a known-bad range that degrades loudly. (SPAWN-05, SPAWN-06, SPAWN-07)
 
-**Plans**: 41/42 plans executed
+**Plans**: 42/42 plans executed
 Plans:
 **Wave 1**
 
@@ -274,7 +274,7 @@ Plans:
 
 **Gap wave — round 7, wave 4** *(Task 3 edits `scripts/frontmatter.ts`, which all three earlier plans own; also build-serialized)*
 
-- [ ] 27-42-PLAN.md — the three claim-accuracy findings get their assertions rather than better sentences: the partition floor's `unclaimedKeys` arm, unfalsifiable by construction because the forbidden set is computed as `schema \ (covered ∪ exempt)`, is extracted into a pure function so a case can feed it a hole and watch the arm fire, with the extraction proven faithful by a BYTE-IDENTICAL gate PASS line; `coverer` stops being a free-text string the gate prints as a coverage claim and becomes the lister FUNCTION resolved against `SPAWN_GRANT_SCAN_PARTS` by object identity, with the printed label derived from the resolution, and both bucket cardinalities move from vitest into the GATE two-sided so the exemption's own recorded promote trigger fires where it stops a release; and `frontmatter.ts`'s tree-wide one-grammar claim is SCOPED to the surfaces a guard reads with that scope DERIVED by a pattern scan — a third grammar fails red — rather than reworded, with the decision not to migrate `generate-catalog.ts` recorded with its reason (D-50) [KIT-02, KIT-03] *(round-6 IN-03, IN-04, IN-05)*
+- [x] 27-42-PLAN.md — the three claim-accuracy findings get their assertions rather than better sentences: the partition floor's `unclaimedKeys` arm, unfalsifiable by construction because the forbidden set is computed as `schema \ (covered ∪ exempt)`, is extracted into a pure function so a case can feed it a hole and watch the arm fire, with the extraction proven faithful by a BYTE-IDENTICAL gate PASS line; `coverer` stops being a free-text string the gate prints as a coverage claim and becomes the lister FUNCTION resolved against `SPAWN_GRANT_SCAN_PARTS` by object identity, with the printed label derived from the resolution, and both bucket cardinalities move from vitest into the GATE two-sided so the exemption's own recorded promote trigger fires where it stops a release; and `frontmatter.ts`'s tree-wide one-grammar claim is SCOPED to the surfaces a guard reads with that scope DERIVED by a pattern scan — a third grammar fails red — rather than reworded, with the decision not to migrate `generate-catalog.ts` recorded with its reason (D-50) [KIT-02, KIT-03] *(round-6 IN-03, IN-04, IN-05)*
 
 **Ordering that is load-bearing in gap-closure round 7** — round 7 closes only the requirements the round-6 findings touch (KIT-03 and SPAWN-04 for the parser work, KIT-02 where a plan reaches the kit-set authority); the reviewer explicitly checked and found SOUND `classifyDelimiter`'s totality, `ENUMERATION_LEGAL_CHARS`' polarity, the nine-key schema derivation and its partition, the `hooks/` exemption bounds, `guardKitCounts`' per-part catch, the D-45 sweep's non-circularity and the D-47 enumeration sweep, and none of those is re-litigated. 27-39 leads because the multi-line scalar reset is BELOW every round-6 predicate — `classifyDelimiter` reasons about a line and is correct, `ENUMERATION_LEGAL_CHARS` reasons about a captured enumeration and is correct, and the value they reason about is assembled from several physical lines by a flattener whose per-line helpers reset at every boundary. **All four waves are single-plan and every wave boundary is a genuine shared file**, not merely build serialization: 27-39, 27-40 and 27-41 each edit `scripts/frontmatter.ts`, `.js` and `.test.ts`, and 27-42's IN-05 task edits `scripts/frontmatter.ts` after all three have finished with it. The whole-project `tsc` emit forces the same sequence independently.
 
@@ -429,7 +429,7 @@ Plans:
 | 24. Clean Handoff Removal & Traceability Migration | v2.0 | 5/5 | Complete    | 2026-06-22 |
 | 25. Governance-on-a-Dial | v2.0 | 13/13 | Complete | 2026-06-29 |
 | 26. Dogfood, Dual-Path Oracle & A3/DOG-02 Retirement | v2.0 | 6/6 | Complete | 2026-07-24 |
-| 27. Spawn Correctness & Kit-Set Authority | v2.1 | 41/42 | In Progress|  |
+| 27. Spawn Correctness & Kit-Set Authority | v2.1 | 42/42 | In Progress|  |
 | 28. Kit Consistency Audit | v2.1 | 0/TBD | Not started | - |
 | 29. Controlled Language & Voice Guard Rebuild | v2.1 | 0/TBD | Not started | - |
 | 30. Per-Checkpoint Autonomy Matrix | v2.1 | 0/TBD | Not started | - |

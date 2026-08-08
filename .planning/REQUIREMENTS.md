@@ -54,7 +54,7 @@ Each requirement maps to exactly one roadmap phase (27–33). REQ-IDs continue g
 ### KIT — Kit-Set Authority (the foundational structural fix)
 
 - [ ] **KIT-01**: `scripts/kit-model.ts` is the sole authority for "what roles and workflows exist," derived from the filesystem via `readdirSync` with an asserted count — replacing all five stale hard-coded lists.
-- [ ] **KIT-02**: Every guard and validator scan set (`WR05_SCAN`, `ADAPTERS`, `CTX_WORKFLOWS`, the validator's role and workflow lists) is derived from `kit-model.ts`, never hand-listed.
+- [x] **KIT-02**: Every guard and validator scan set (`WR05_SCAN`, `ADAPTERS`, `CTX_WORKFLOWS`, the validator's role and workflow lists) is derived from `kit-model.ts`, never hand-listed.
 - [x] **KIT-03**: A referential-integrity oracle asserts set equality between the coordinator's spawn grant, the adapter directory, and the role corpus — and **fails RED against today's tree** (1 adapter present, 7 names granted, 17 roles) before it is trusted.
 
 ### SPAWN — Spawn Correctness
@@ -154,7 +154,7 @@ _Filled by the roadmapper 2026-07-28. Every requirement maps to exactly one phas
 | Requirement | Phase | Status |
 |-------------|-------|--------|
 | KIT-01 | Phase 27 | Gaps Found |
-| KIT-02 | Phase 27 | Gaps Found |
+| KIT-02 | Phase 27 | Complete |
 | KIT-03 | Phase 27 | Complete |
 | SPAWN-01 | Phase 27 | Gaps Found |
 | SPAWN-02 | Phase 27 | Gaps Found |

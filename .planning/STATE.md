@@ -5,13 +5,13 @@ milestone_name: Autonomous Factory — Real Spawning, Controlled Language & Live
 current_phase: 27
 current_phase_name: spawn-correctness-kit-set-authority
 status: executing
-stopped_at: Completed 27-41-PLAN.md
-last_updated: "2026-08-08T19:38:44.018Z"
+stopped_at: Completed 27-42-PLAN.md
+last_updated: "2026-08-08T20:25:34.772Z"
 progress:
   total_phases: 7
   completed_phases: 1
   total_plans: 42
-  completed_plans: 41
+  completed_plans: 42
   percent: 14
 last_activity: 2026-08-08
 last_activity_desc: "Gap-closure round 7 wave 3 EXECUTED — 27-41 closed WR-03 and IN-01 (D-50), the second half of round 6s carried warnings and both instances of ONE theme: the gate never saw the value, CR-01s shape on two different predicates. WR-03: SCOPED_GRANTs class stops at the first close paren and produces NO MATCH when none follows, so every check keysGrantedAgentNames performs ran on a capture that FORMED and an occurrence for which no capture existed was examined by nothing. Measured RED against the committed .js on a git archive mirror of 68c67bb: Agent(alpha, gamma — a truncated enumeration — Agent(alpha, #b, gamma) — a capture destroyed upstream by comment stripping — and Read, Agent — a genuinely unscoped grant — ALL THREE returned ok true with the empty list, three different facts sharing one answer on the arm the KIT-03 closure equality is computed over, while Agent(alpha), Task(beta returned the single name alpha, a list that LOOKS complete. Closed by promoting the spawn-token OCCURRENCE to the unit and demoting the formed capture to one of three stated buckets — scoped, unscoped, neither — enumerated from SPAWN_TOKEN and never from the capture expression being audited, with the partition asserted as a COUNT IDENTITY over 810 multi-token values so a bucket that stops matching fails arithmetically rather than reclassifying in silence. SCOPED_GRANT and keysHaveSpawnGrant are BYTE-UNCHANGED by function-scoped diff and the boolean is invariant on all 12 probe rows. The EXAMINED BEFORE IT IS SPLIT doc claim, which had no assertion behind it for the input class that never reached the examination, is corrected and ships with its case in the same commit. IN-01: parseFrontmatters prologue skip decided which lines of a document EXIST using String.prototype.trim, whose alphabet contains U+00A0 but not U+200B, U+00AD or U+2060 — the THIRD application point of the exact defect D-39, D-42 and D-43 spent two rounds correcting at the delimiter positions. A lone zero-width-space prologue over a real block carrying a live Agent(grugops-orchestrator) grant returned zero keys and no grant, while NBSP and an ordinary blank line parsed and found it. Closed by consulting the modules ONE invisible authority, VISIBLE_GLYPH, at the skip; exactly one class declaration and one class literal remain in the file, asserted by source inspection. RED-TEAM FOUND WHAT NO PLAN AND NO REVIEW NAMED: the same one code point ALSO bypassed D-34 entirely — a ZWSP before a %TAG line made the directive refusal vanish into the keyless success arm — and likewise hid an illegal ---- open, a --- foo open, an indented --- open and an UNTERMINATED block. All five closed by the same one-line change. The two in-block trim sites are DELIBERATELY unchanged with the DIRECTION recorded at each and asserted by a control case: there the narrow alphabet routes an invisible-only line to a REFUSAL, which libyaml agrees with — measured, it rejects the same document outright as a syntax error. GATE-LEVEL REPRODUCTIONS on hermetic mirrors, honest rather than oversold: a truncated coordinator enumeration was already red before, but with the WRONG diagnosis (carries no ENUMERATED grant — an unscoped grant) and is now named as an UNREADABLE grant enumeration; a rogue Agent grant planted behind a ZWSP prologue on BOTH gate-skill twins produced ZERO WR-05 findings before, red only via a D-40 pair violation reading the pair declares 0 and 0 name values, and after produces WR-05 coordinator-spawn-grant violation naming both twins. Neither is a green-gate bypass; both masks are incidental and carried the wrong diagnosis, which is why both were closed rather than recorded. 48 unnamed red-team spellings diffed row by row across both builds: 24 rows moved, EVERY one out of a silent success and NOT ONE into the keyless success arm — argued structurally too, since the skip can only advance past lines that could never be a delimiter or a directive. ONE EXECUTOR DEVIATION: the plans acceptance criterion demanded Agent() and Read, Agent be pairwise distinguishable while the plans own observable-projection table said both stay unchanged on the empty list; the table wins, because splitting them means refusing Agent(), a NEW false red on content a real loader accepts. The distinction is preserved one level down and asserted there. Every platform claim carries a /usr/bin/ruby -ryaml transcript (Ruby 2.6.10 / Psych 3.1.0 / libyaml 0.2.1), including two outright loader rejections recorded as data points. Repository-wide refusals 0 before and 0 after over a corpus DERIVED at run time on both sides (1133 = 1133), outcome map byte-identical over all 1133 tracked markdown files; the self-deriving suite control was EXTENDED a third time rather than duplicated. Suite 1162 passing / 2 skipped; build, freshness, guards, precheck, kit-refs and validator all exit 0; KIT-03 verdict unchanged at 17 roles == 17 adapters == 17 grant-closure names; kit intact at 17 adapters, 7 skills, 7 plugin skills. All four round-7 plans of waves 1-3 are landed. Next: 27-42 (wave 4)."
@@ -30,7 +30,7 @@ See: .planning/PROJECT.md (updated 2026-07-28 — after v2.0 milestone)
 ## Current Position
 
 Phase: 27 (spawn-correctness-kit-set-authority) — **gap-closure round 7 EXECUTING**
-Plan: 41 of 42 executed; 27-41..27-42 planned, not yet executed
+Plan: 42 of 42 executed; all four round-7 plans landed — awaiting the round-7 verification gate
 
 ## Gap-closure round 7 — PLANNED 2026-08-06, ready to execute
 
@@ -292,6 +292,7 @@ Prior activity: 2026-07-30 — 27-22 closed WR-02 and WR-04, the last two plans-
 | Phase 27 P39 | 40m | 2 tasks | 3 files |
 | Phase 27 P40 | ~50 min | 2 tasks | 3 files |
 | Phase 27 P41 | ~55 min | 2 tasks | 3 files |
+| Phase 27 P42 | ~50 min | 3 tasks | 9 files |
 
 ## Accumulated Context
 
@@ -652,6 +653,9 @@ Recent decisions affecting current work:
 - [Phase ?]: A wholly-quote-wrapped block scalar carrying a non-allowlisted escape moves refuse -> no-grant. KEPT after measurement, not assumed: the value is byte-equal to libyaml and libyaml finds no word boundary either, three sibling spellings already landed there, and the same construct with the token on a boundary CONVICTS (executor deviation, found by red-team).
 - [Phase ?]: D-50 implemented for WR-03 and IN-01: both are the gate never saw the value, on two different predicates, and both closed in round 7
 - [Phase ?]: Agent() and Read, Agent deliberately share one name-list answer; splitting them would mean a new false red on content a real loader accepts
+- [Phase 27]: D-50 closed in full: IN-03, IN-04 and IN-05 all fixed in round 7, each with an explicit disposition; none deferred
+- [Phase 27]: The byte-identical PASS-line control compares against an INLINE RESTATEMENT of the predicate, not a frozen baseline literal — a literal carrying today's kit counts would go red on the next legitimate role addition and get 'fixed' until it passed
+- [Phase 27]: The plan's verification:backstop premise that both out-of-scope frontmatter grammars sit outside every spawn-grant guard's import graph is DISPROVEN — context-io.ts is reached from check-foundation-guards.ts via check-uat-oracles.ts. The scoped claim survives because it is about the PREDICATE and the document class, not about which files share a process
 
 ### Pending Todos
 
@@ -751,8 +755,8 @@ Shape of the carry: **9 of 11 are pre-v2.0 carryover** from the v1.2 block above
 
 ## Session Continuity
 
-Last session: 2026-08-08T19:38:43.998Z
-Stopped at: Completed 27-41-PLAN.md
+Last session: 2026-08-08T20:24:24.531Z
+Stopped at: Completed 27-42-PLAN.md
 Resume file: None
 
 ## Operator Next Steps
