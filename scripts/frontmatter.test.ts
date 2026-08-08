@@ -3150,8 +3150,14 @@ describe("frontmatter — the spawn-grant parser oracle (SPAWN-04 / KIT-03)", ()
   // WHAT IT WOULD MISS, NAMED RATHER THAN LEFT UNDISCLOSED: a grammar that builds either regex from
   // concatenated fragments or a `new RegExp(...)` string; one that finds the delimiter by scanning
   // lines rather than by anchoring at byte 0; one that splits the block on something other than a
-  // colon (an `=` or a tab-separated form); and one living outside `scripts/` altogether. The pattern
-  // is a floor against the shapes a third grammar plausibly takes, not a proof that none can exist.
+  // colon (an `=` or a tab-separated form); and one written in a language this scan does not read.
+  // The pattern is a floor against the shapes a third grammar plausibly takes, not a proof that none
+  // can exist.
+  //
+  // THE CORPUS IS EVERY TRACKED `.ts` IN THE REPOSITORY, NOT `scripts/` (found by red-teaming this
+  // change). A scan scoped to `scripts/` would let a third grammar land in `install/` or `hooks/` —
+  // both of which hold shipped TypeScript — and pass. The compiled `.js` twins are excluded by the
+  // extension filter alone, so they are not a second copy of each fact.
   //
   // TWO EXCLUSIONS, EACH BY NAME WITH ITS REASON — neither is a hand-listed allowlist of the answer:
   //   • `frontmatter.ts` itself, because it IS the one authority and a set of "files other than the
@@ -3169,55 +3175,81 @@ describe("frontmatter — the spawn-grant parser oracle (SPAWN-04 / KIT-03)", ()
     /\^[^\n/]{0,60}\\s\*:\\s\*/, // …with whitespace allowed before the colon
     /split\(\s*["'`]:["'`]\s*\)/, // a key split on the first colon
   ];
-  const grammarSites = (scriptsDir: string): string[] =>
-    readdirSync(scriptsDir)
-      .filter(
-        (n) =>
-          n.endsWith(".ts") && !n.endsWith(".test.ts") && n !== "frontmatter.ts",
-      )
-      .filter((n) => {
-        const src = readFileSync(join(scriptsDir, n), "utf8");
-        return (
-          HEAD_DELIMITER_CONSTRUCTS.some((r) => r.test(src)) &&
-          KEY_LINE_CONSTRUCTS.some((r) => r.test(src))
-        );
-      })
+  const isGrammarSite = (src: string): boolean =>
+    HEAD_DELIMITER_CONSTRUCTS.some((r) => r.test(src)) &&
+    KEY_LINE_CONSTRUCTS.some((r) => r.test(src));
+  // A pure classifier over supplied paths, so the live corpus and the planted-third-grammar corpus
+  // go through THE SAME rule rather than through two spellings of it.
+  const grammarSitesAmong = (
+    paths: string[],
+    read: (p: string) => string,
+  ): string[] =>
+    paths
+      .filter((p) => p.endsWith(".ts") && !p.endsWith(".test.ts"))
+      .filter((p) => !/(^|\/)frontmatter\.ts$/.test(p))
+      .filter((p) => isGrammarSite(read(p)))
       .sort();
+  const REPO_ROOT = join(import.meta.dirname, "..");
+  const trackedTs = (): string[] =>
+    execFileSync("git", ["ls-files", "*.ts"], {
+      cwd: REPO_ROOT,
+      encoding: "utf8",
+    })
+      .trim()
+      .split("\n")
+      .filter((p) => p !== "");
+  const liveGrammarSites = (): string[] =>
+    grammarSitesAmong(trackedTs(), (p) =>
+      readFileSync(join(REPO_ROOT, p), "utf8"),
+    );
 
-  it("D-50 IN-05 — the set of scripts/*.ts files carrying a LOCAL frontmatter-parsing construct is exactly the two named non-guard files", () => {
-    const sites = grammarSites(join(import.meta.dirname));
-    // Sorted before comparison, so a readdirSync order change cannot flip the assertion.
+  it("D-50 IN-05 — the set of tracked .ts files carrying a LOCAL frontmatter-parsing construct is exactly the two named non-guard files", () => {
+    const tracked = trackedTs();
+    // Non-vacuity: the corpus was really enumerated, and it really contains this module — a scan
+    // over an empty file list would otherwise satisfy every assertion below.
+    expect(tracked.length).toBeGreaterThan(10);
+    expect(tracked).toContain("scripts/frontmatter.ts");
+
+    const sites = liveGrammarSites();
+    // Sorted before comparison, so a `git ls-files` order change cannot flip the assertion.
     expect(sites).toEqual([...sites].sort());
-    expect(sites).toEqual(["context-io.ts", "generate-catalog.ts"]);
+    expect(sites).toEqual([
+      "scripts/context-io.ts",
+      "scripts/generate-catalog.ts",
+    ]);
     // Cardinality pinned as a NUMBER, so a scan that silently stops matching shrinks loudly rather
     // than passing over an empty set.
     expect(sites).toHaveLength(2);
     // Neither is a second opinion on THIS module's predicate: neither imports it, and this module
     // imports nothing relative at all, so the two grammars cannot be consulted for one question.
     for (const site of sites) {
-      expect(
-        readFileSync(join(import.meta.dirname, site), "utf8"),
-        site,
-      ).not.toMatch(/from\s+["']\.\/frontmatter\.js["']/);
+      expect(readFileSync(join(REPO_ROOT, site), "utf8"), site).not.toMatch(
+        /from\s+["']\.\/frontmatter\.js["']/,
+      );
     }
-    expect(readFileSync(join(import.meta.dirname, "frontmatter.ts"), "utf8"))
-      .not.toMatch(/^import .* from "\.\//m);
+    expect(
+      readFileSync(join(REPO_ROOT, "scripts/frontmatter.ts"), "utf8"),
+    ).not.toMatch(/^import .* from "\.\//m);
   });
 
   it("D-50 IN-05 — a THIRD local frontmatter grammar makes that set fail, by name", () => {
     // An assertion that was never made to fail is not a pin. Exercised against a temp directory
     // rather than by writing into the live scripts/ tree, so nothing outside the temp dir is touched.
     const dir = mkdtempSync(join(tmpdir(), "grugops-grammar-"));
+    const inDir = (): string[] =>
+      grammarSitesAmong(readdirSync(dir), (p) =>
+        readFileSync(join(dir, p), "utf8"),
+      );
     try {
-      for (const real of grammarSites(join(import.meta.dirname))) {
+      for (const real of liveGrammarSites()) {
         writeFileSync(
-          join(dir, real),
-          readFileSync(join(import.meta.dirname, real), "utf8"),
+          join(dir, real.replace(/^.*\//, "")),
+          readFileSync(join(REPO_ROOT, real), "utf8"),
         );
       }
       // A control FIRST: the copied pair alone reproduces the live answer, so the failure below is
       // caused by the plant and not by the temp directory.
-      expect(grammarSites(dir)).toEqual(["context-io.ts", "generate-catalog.ts"]);
+      expect(inDir()).toEqual(["context-io.ts", "generate-catalog.ts"]);
       writeFileSync(
         join(dir, "scratch-third-grammar.ts"),
         [
@@ -3234,7 +3266,7 @@ describe("frontmatter — the spawn-grant parser oracle (SPAWN-04 / KIT-03)", ()
           "",
         ].join("\n"),
       );
-      const withThird = grammarSites(dir);
+      const withThird = inDir();
       expect(withThird).toContain("scratch-third-grammar.ts");
       expect(withThird).toHaveLength(3);
       expect(withThird).not.toEqual(["context-io.ts", "generate-catalog.ts"]);
@@ -3292,7 +3324,9 @@ describe("frontmatter — the spawn-grant parser oracle (SPAWN-04 / KIT-03)", ()
     expect(closure.size).toBeGreaterThan(consumers.length);
     // The measured shape, asserted in BOTH directions so either changing fails red.
     expect(
-      grammarSites(scriptsDir).filter((s) => closure.has(s)),
+      liveGrammarSites()
+        .map((p) => p.replace(/^.*\//, ""))
+        .filter((s) => closure.has(s)),
     ).toEqual(["context-io.ts"]);
     expect(closure.has("generate-catalog.ts")).toBe(false);
   });

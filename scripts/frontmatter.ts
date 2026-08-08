@@ -34,11 +34,15 @@
 //
 // NEITHER FEEDS A SPAWN-GRANT GUARD, so this is a CLAIM-ACCURACY correction and NOT a security
 // finding — a later reader must not escalate it into one. What makes the scope mechanical rather than
-// a promise is the derived assertion `D-50 IN-05 — the set of scripts/*.ts files carrying a LOCAL
+// a promise is the derived assertion `D-50 IN-05 — the set of tracked .ts files carrying a LOCAL
 // frontmatter-parsing construct is exactly the two named non-guard files` in scripts/frontmatter.test.ts:
-// it scans `scripts/*.ts` by PATTERN, sorts the result, compares it to exactly those two paths and
-// pins its cardinality, so a THIRD grammar fails red by name. That citation is the whole difference
-// between this and a rewording.
+// it scans every TRACKED `.ts` in the repository by PATTERN (not `scripts/` alone — `install/` and
+// `hooks/` ship TypeScript too), sorts the result, compares it to exactly those two paths and pins its
+// cardinality, so a THIRD grammar fails red by name wherever it lands. Its sibling case measures how
+// far the two reach into the guard import graph: `generate-catalog.ts` is outside every frontmatter
+// consumer's closure, and `context-io.ts` is NOT — it is reached through check-uat-oracles.ts — which
+// is why the claim above is about the PREDICATE and the document class rather than about which files
+// happen to share a process. That citation is the whole difference between this and a rewording.
 //
 // AND THE DECISION NOT TO MIGRATE THEM IS RECORDED SO THE OMISSION READS AS A DECISION. Migrating
 // generate-catalog.ts onto this module would change what a byte-frozen generated artifact contains,
