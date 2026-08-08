@@ -4431,6 +4431,52 @@ describe("frontmatter — the multi-line scalar sweep (D-49 / SPAWN-04 + KIT-03)
       keyless,
       `a scan member reaching the KEYLESS success arm is a silent no-grant, not a pass:\n${keyless.join("\n")}`,
     ).toEqual([]);
+
+    // (D-50 / IN-01) EXTENDED A SECOND TIME, AND AGAIN OVER THE SAME ALREADY-DERIVED CORPUS. A second
+    // control walking the same files would be a weaker duplicate; this is one more property asked of
+    // the corpus this control already read.
+    //
+    // THE PROPERTY: no tracked markdown file that INDEPENDENTLY opens a frontmatter block may reach
+    // the keyless success arm. That is precisely the IN-01 defect measured over the real repository
+    // rather than over constructed rows — a prologue skip that stops one line too early sends such a
+    // file to the keyless arm, which is where every silent no-grant in this phase has landed.
+    //
+    // "INDEPENDENTLY" MEANS THE PREMISE IS NOT COMPUTED BY THE CODE UNDER TEST. The invisible class is
+    // re-typed here as data for the same reason `LEGAL_AS_DATA` is: a premise taken from the module
+    // moves whenever the module moves, and a narrowed skip would then quietly narrow this check with
+    // it instead of failing it.
+    const VISIBLE_AS_DATA = /[\p{L}\p{N}\p{P}\p{S}]/u;
+    const opensABlock = (body: string): boolean => {
+      const lines = body.replace(/^﻿/, "").replace(/\r\n/g, "\n").split("\n");
+      let n = 0;
+      while (n < lines.length && !VISIBLE_AS_DATA.test(lines[n])) n += 1;
+      return n < lines.length && lines[n] === "---";
+    };
+
+    let opensCount = 0;
+    const silentlyKeyless: string[] = [];
+    for (const rel of tracked) {
+      let body: string;
+      try {
+        body = readFileSync(join(root, rel), "utf8");
+      } catch {
+        continue;
+      }
+      if (!opensABlock(body)) continue;
+      opensCount += 1;
+      const parsed = parseFrontmatter(body);
+      if (parsed.ok && parsed.value.size === 0) silentlyKeyless.push(rel);
+    }
+    expect(
+      silentlyKeyless,
+      `${silentlyKeyless.length} tracked file(s) plainly open a frontmatter block yet reached the KEYLESS success arm:\n${silentlyKeyless.join("\n")}`,
+    ).toEqual([]);
+    // Both numbers derived in THIS run; neither compared against anything written down. A premise that
+    // silently stopped matching would make the property vacuous, and this says so in the message.
+    expect(
+      opensCount,
+      `files that independently open a block, of ${read} read`,
+    ).toBeGreaterThan(0);
   });
 
   // ── D-50 / IN-02: THE QUOTING RULE IS APPLIED ONLY WHERE YAML GIVES THE CONSTRUCT QUOTING ──────
@@ -5025,5 +5071,215 @@ describe("frontmatter — the spawn-token occurrence accounting (D-50 / WR-03 / 
       refusals,
       `the occurrence accounting must cost the ${SPAWN_GRANT_SCAN_COUNT}-member scan surface ZERO false reds`,
     ).toEqual([]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// D-50 / IN-01 — "IS THIS LINE EMPTY" IS ANSWERED BY THE ALPHABET THIS MODULE
+// DECLARES, NOT BY THE ONE A BUILT-IN HAPPENS TO CARRY
+// (27-REVIEW-GAPS-6 § IN-01, round 6)
+// ---------------------------------------------------------------------------
+//
+// THE THIRD APPLICATION POINT of the exact defect D-39, D-42 and D-43 spent two rounds correcting at
+// the delimiter positions. `parseFrontmatter`'s prologue skip decided which lines of a document exist
+// by asking `String.prototype.trim()`, whose alphabet is ECMAScript WhiteSpace — which CONTAINS
+// U+00A0 and does NOT contain U+200B, U+00AD or U+2060.
+//
+// EVERY ROW BELOW WAS MEASURED AGAINST THE COMMITTED `scripts/frontmatter.js` AS PLAN 27-41 TASK 1
+// LEFT IT (commit 0cd71e9), BEFORE THIS CHANGE, and every platform claim carries a transcript from a
+// REAL YAML 1.2 LOADER (`/usr/bin/ruby -ryaml` — Ruby 2.6.10 / Psych 3.1.0 / libyaml 0.2.1). libyaml
+// reads an invisible prologue as its own document and the `---` block as a SECOND document CARRYING
+// THE MAPPING AND ITS LIVE GRANT, in every one of the spellings below — so the module's silent
+// no-grant disagreed with the platform, and the fix makes them agree.
+describe("frontmatter — the invisible prologue and the one invisible authority (D-50 / IN-01)", () => {
+  const TOKEN = "Agent(grugops-orchestrator)";
+  const BLOCK = `---\nname: x\ntools: Read, ${TOKEN}\n---\nBody.\n`;
+
+  // Named by code point rather than pasted as a mystery byte, so a reader can see what each row is.
+  const ZWSP = "​"; // ZERO WIDTH SPACE      — Cf, NOT in ECMAScript WhiteSpace
+  const SHY = "­"; // SOFT HYPHEN           — Cf, NOT in ECMAScript WhiteSpace
+  const WJ = "⁠"; // WORD JOINER           — Cf, NOT in ECMAScript WhiteSpace
+  const ACUTE = "́"; // COMBINING ACUTE       — Mn, NOT in ECMAScript WhiteSpace
+  const NBSP = " "; // NO-BREAK SPACE        — Zs, IS in ECMAScript WhiteSpace
+
+  it("D-50 IN-01 — an invisible-only prologue line no longer hides a live spawn grant, in EVERY spelling", () => {
+    // RED for the first four rows was `{ok:true, keys:[]}` with `hasSpawnGrant` `{ok:true,false}` —
+    // the silent no-grant arm, over a document whose `---` block one line down carries a live grant.
+    const HIDDEN: readonly [string, string][] = [
+      ["a lone U+200B ZERO WIDTH SPACE", ZWSP],
+      ["a lone U+00AD SOFT HYPHEN", SHY],
+      ["a lone U+2060 WORD JOINER", WJ],
+      ["a lone U+0301 COMBINING ACUTE (a mark, not a glyph of its own)", ACUTE],
+    ];
+    for (const [label, prologue] of HIDDEN) {
+      const text = `${prologue}\n${BLOCK}`;
+      const parsed = parseFrontmatter(text);
+      expect(parsed.ok, `${label}: RED was ok with ZERO keys`).toBe(true);
+      if (parsed.ok) {
+        expect([...parsed.value.keys()].sort(), label).toEqual(["name", "tools"]);
+      }
+      expect(hasSpawnGrant(text), `${label}: RED was {ok:true,value:false}`).toEqual({
+        ok: true,
+        value: true,
+      });
+      expect(grantedAgentNames(text), label).toEqual({
+        ok: true,
+        value: ["grugops-orchestrator"],
+      });
+    }
+
+    // MULTI-LINE PROLOGUES, which no row of the finding named: the skip must consume a RUN of them.
+    const RUNS: readonly [string, string][] = [
+      ["an invisible line then an ordinary blank line", `${ZWSP}\n\n`],
+      ["two invisible lines", `${ZWSP}\n${ZWSP}\n`],
+      ["an invisible line then a NO-BREAK SPACE line", `${WJ}\n${NBSP}\n`],
+    ];
+    for (const [label, prologue] of RUNS) {
+      expect(hasSpawnGrant(`${prologue}${BLOCK}`), label).toEqual({
+        ok: true,
+        value: true,
+      });
+    }
+  });
+
+  it("D-50 IN-01 — the rows that already parsed are BYTE-UNCHANGED: an ordinary blank line and a NO-BREAK SPACE", () => {
+    // These two are the module's OWN existing answer, and they are the whole argument for skipping
+    // rather than refusing: the module had already decided that a prologue the skip considers blank
+    // does not prevent frontmatter. If either of these moved, the fix would have changed the rule
+    // instead of applying it consistently.
+    for (const [label, prologue] of [
+      ["an ordinary blank line", ""],
+      ["a lone U+00A0 NO-BREAK SPACE", NBSP],
+      ["a run of spaces and tabs", "  \t "],
+    ] as const) {
+      const text = `${prologue}\n${BLOCK}`;
+      const parsed = parseFrontmatter(text);
+      expect(parsed.ok, label).toBe(true);
+      if (parsed.ok) {
+        expect([...parsed.value.keys()].sort(), label).toEqual(["name", "tools"]);
+      }
+      expect(hasSpawnGrant(text), label).toEqual({ ok: true, value: true });
+    }
+  });
+
+  it("D-50 IN-01 — the KEYLESS SUCCESS arm's membership is UNCHANGED for every document that does not open a block", () => {
+    // The arm where every silent no-grant in this phase has landed. D-34 records that turning a
+    // body-only file red is the worse of the two, and this fix must not widen the arm either — it must
+    // leave it exactly as it found it. Each row below passed before this change and passes after.
+    const KEYLESS: readonly [string, string][] = [
+      ["a genuinely body-only document", "Just prose, and no frontmatter at all.\n"],
+      ["an empty document", ""],
+      ["a document of blank lines only", "\n\n\n"],
+      // The row this fix could plausibly have broken: skipping EVERY line lands past the end, which
+      // is the same `i >= lines.length` return the blank-only document takes.
+      ["a document of nothing but invisible lines", `${ZWSP}\n${SHY}\n${WJ}\n`],
+      ["a document of one invisible line", `${ZWSP}\n`],
+      ["a dash bullet, not a delimiter", "- an item\n- another\n"],
+      ["a setext underline", "Title\n===\n"],
+    ];
+    for (const [label, text] of KEYLESS) {
+      const parsed = parseFrontmatter(text);
+      expect(parsed.ok, label).toBe(true);
+      if (parsed.ok) expect(parsed.value.size, label).toBe(0);
+      expect(hasSpawnGrant(text), label).toEqual({ ok: true, value: false });
+      expect(grantedAgentNames(text), label).toEqual({ ok: true, value: [] });
+    }
+  });
+
+  it("D-50 IN-01 — the prologue skip decides which lines EXIST, never what a delimiter may carry", () => {
+    // A DIRECTLY-ATTACHED invisible residue is a property of the DELIMITER LINE, and the delimiter
+    // region spent rounds 4 and 5 establishing that it refuses. Skipping a whole invisible LINE must
+    // not soften that by one byte. libyaml rejects this document outright (Psych::SyntaxError),
+    // measured — so the refusal agrees with the platform.
+    const attached = `${ZWSP}---\nname: x\ntools: Read, ${TOKEN}\n---\nB\n`;
+    const p = parseFrontmatter(attached);
+    expect(p.ok, "an invisible glyph attached to the delimiter must still refuse").toBe(
+      false,
+    );
+    if (!p.ok) {
+      expect(p.reason).toContain("U+200B");
+      expect(p.reason).toContain("opening delimiter position");
+    }
+
+    // The D-34 directive refusal, still by name.
+    const tag = `%TAG ! tag:x\n${BLOCK}`;
+    const t = parseFrontmatter(tag);
+    expect(t.ok, "a %TAG prologue must still refuse").toBe(false);
+    if (!t.ok) expect(t.reason).toContain("YAML directive line");
+
+    // AND THE ROW THE FINDING NEVER NAMED, found by red-team and closed by the same change: ONE
+    // invisible code point in front of the directive made D-34's refusal DISAPPEAR. Measured RED
+    // against the committed build as Task 1 left it: `{ok:true, keys:[]}` — the keyless success arm.
+    // The skip stopped on the invisible line and the directive one line down was never examined. A
+    // predicate is only as total as the input it is handed.
+    const hiddenTag = `${ZWSP}\n%TAG ! tag:x\n${BLOCK}`;
+    const h = parseFrontmatter(hiddenTag);
+    expect(h.ok, "RED was {ok:true, keys:[]} — D-34 bypassed by one code point").toBe(
+      false,
+    );
+    if (!h.ok) expect(h.reason).toContain("YAML directive line");
+  });
+
+  it("D-50 IN-01 — THE IN-BLOCK ASYMMETRY IS DELIBERATE, and it is asserted rather than claimed in a comment", () => {
+    // INSIDE the block the narrow `trim()` alphabet routes an invisible-only line to a REFUSAL, which
+    // is the SAFE direction — and it is the one a real YAML 1.2 loader agrees with: libyaml rejects
+    // this exact document outright as a syntax error (`could not find expected ':' while scanning a
+    // simple key`), measured at execution time. Widening blankness there would trade a loud refusal
+    // for a silent skip on a document the platform will not load. This case exists so the asymmetry
+    // reads as the decision it is and is not "fixed" later into a bypass.
+    const inBlock = `---\nname: x\n${ZWSP}\ntools: Read, ${TOKEN}\n---\nB\n`;
+    const r = parseFrontmatter(inBlock);
+    expect(r.ok, "an invisible-only line INSIDE the block must still refuse").toBe(false);
+    if (!r.ok) {
+      expect(r.reason).toContain("as a frontmatter key line");
+    }
+
+    // THE CONTROL THAT MAKES THE ASYMMETRY MEANINGFUL: an ORDINARY blank line inside the block is
+    // still a paragraph break and still parses. The two in-block sites were not simply frozen — they
+    // keep the behaviour they had, and this pair shows the pre-existing split they encode.
+    const blankInBlock = `---\nname: x\n\ntools: Read, ${TOKEN}\n---\nB\n`;
+    expect(hasSpawnGrant(blankInBlock)).toEqual({ ok: true, value: true });
+
+    // AND THE DIRECTION STATED AS A PAIR: the SAME code point, at the two positions, reaching the two
+    // opposite arms — skipped at the prologue, refused inside the block. That is the whole rule.
+    expect(hasSpawnGrant(`${ZWSP}\n${BLOCK}`)).toEqual({ ok: true, value: true });
+    expect(parseFrontmatter(inBlock).ok).toBe(false);
+  });
+
+  it("D-50 IN-01 — the module declares EXACTLY ONE invisible-glyph class, by source inspection", () => {
+    // A second character class beside the first is a defect in this fix, not a refinement of it: two
+    // statements of what invisible means can disagree, and the disagreement is invisible to a reader
+    // checking either in isolation. This is the same drift class the leading-run label closed one
+    // round ago, so it is checked mechanically rather than by review.
+    const source = readFileSync(
+      join(import.meta.dirname, "frontmatter.ts"),
+      "utf8",
+    );
+
+    // The declaration itself, counted. Exactly one `const … = /[\p{L}\p{N}\p{P}\p{S}]/u;`.
+    const declarations = source.match(
+      /^const \w+ = \/\[\\p\{L\}\\p\{N\}\\p\{P\}\\p\{S\}\]\/u;$/gm,
+    );
+    expect(
+      declarations?.length,
+      `invisible-glyph class DECLARATIONS in scripts/frontmatter.ts: ${JSON.stringify(declarations)}`,
+    ).toBe(1);
+
+    // And the class LITERAL, anywhere in the file, appears only in that one declaration — so the
+    // prologue-skip predicate consults the constant rather than re-typing the expression.
+    const literals = source.match(/\/\[\\p\{L\}\\p\{N\}\\p\{P\}\\p\{S\}\]\/u/g);
+    expect(
+      literals?.length,
+      "occurrences of the invisible-glyph class literal in scripts/frontmatter.ts",
+    ).toBe(1);
+
+    // The two in-block `trim()`-based blank tests are still THERE and still `trim()`-based. Freezing
+    // them is the decision; this counts them so a later edit that "harmonises" them fails here and
+    // has to read the direction argument recorded beside each.
+    const inBlockTrims = source.match(/\.trim\(\) [=!]== ""/g);
+    expect(
+      inBlockTrims?.length,
+      "trim()-based blank tests remaining in scripts/frontmatter.ts (the two deliberate in-block sites)",
+    ).toBe(2);
   });
 });

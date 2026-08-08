@@ -630,8 +630,19 @@ function flattenBlock(block, baseIndent) {
         return null;
     };
     for (const raw of block) {
+        // A blank line is a paragraph break, never a key boundary.
+        //
+        // (D-50 — IN-01) THIS `trim()` IS DELIBERATELY NOT WIDENED TO THIS MODULE'S INVISIBLE CLASS, AND
+        // THE REASON IS THE DIRECTION. At `parseFrontmatter`'s PROLOGUE skip the narrow alphabet routed an
+        // invisible-only line to a SILENT SUCCESS, so widening there removes a silent no-grant. HERE the
+        // narrow alphabet routes an invisible-only line past this `continue` and into the key-line
+        // refusal below — a LOUD refusal, and the one libyaml agrees with: measured, a real YAML 1.2
+        // loader rejects `---` / `name: x` / `<ZWSP>` / `tools: …` outright as a syntax error. Widening
+        // blankness here would trade that refusal for a silent skip on a document the platform will not
+        // load, which is the wrong direction. Asserted by the in-block asymmetry control in
+        // scripts/frontmatter.test.ts, so this is not read as an oversight and not "fixed" into a bypass.
         if (raw.trim() === "")
-            continue; // a blank line is a paragraph break, never a key boundary
+            continue;
         const indent = indentOf(raw);
         if (indent > baseIndent) {
             if (cur === null) {
@@ -983,6 +994,35 @@ function flattenBlock(block, baseIndent) {
 //   and before trusting any rule, ask at which POSITIONS the format gives the construct the meaning
 //   the rule assumes. A rule that is total, correctly polarised and correctly assembled is still
 //   wrong everywhere the format does not grant it jurisdiction.
+//
+// AND AN EIGHTH TIME — THE `trim()` ALPHABET, AT ITS THIRD APPLICATION POINT
+// (27-REVIEW-GAPS-6 § IN-01, round 6 — D-50). THIS ENTRY IS NOT A NEW LESSON. It is the SAME defect
+// D-39, D-42 and D-43 spent two rounds correcting at the delimiter positions, surviving at the one
+// site those corrections did not reach: `parseFrontmatter`'s PROLOGUE SKIP, which decides which lines
+// of a document exist at all.
+//
+//   The skip answered "is this line empty" with `String.prototype.trim()`. That built-in's alphabet
+//   is ECMAScript WhiteSpace, which CONTAINS U+00A0 and does NOT contain U+200B, U+00AD or U+2060 —
+//   narrower than the class this module declares two hundred lines below. So a document whose first
+//   line was a lone ZERO WIDTH SPACE, with a real `---` block one line down carrying a live
+//   `Agent(grugops-orchestrator)` grant, reached the KEYLESS SUCCESS arm and reported no grant, while
+//   the same document with a NO-BREAK SPACE parsed and reported it. Two documents differing by which
+//   alphabet a built-in happens to carry, given opposite answers by a module that declares its own.
+//
+//   AND THE SAME ONE-CODE-POINT PROLOGUE BYPASSED D-34 ENTIRELY: a ZWSP in front of a `%TAG` line
+//   stopped the skip on the invisible line, so the directive one line down was never examined and the
+//   document took the keyless arm instead of the directive refusal. A predicate is only as total as
+//   the input it is handed — which is exactly the WR-03 lesson in the same round, one region over.
+//
+//   THE FIX SKIPS RATHER THAN REFUSES, AND THE IN-BLOCK SITES ARE DELIBERATELY LEFT ALONE. At the
+//   prologue the narrow alphabet routes an invisible-only line to a SILENT SUCCESS; inside the block
+//   it routes one to a REFUSAL, which is the safe direction AND the one a real YAML 1.2 loader agrees
+//   with. The asymmetry is stated at both sites and asserted by a control case.
+//
+//   THE STANDING QUESTION THIS LEAVES FOR THE NEXT READER. When a predicate asks whether something is
+//   EMPTY, ABSENT or BLANK, ask WHOSE ALPHABET ANSWERS IT — and whether that alphabet is the one this
+//   module declares. A built-in carries its own, and where the built-in's alphabet is narrower than
+//   the format's, the derivation is a denylist wearing a derivation's clothes (D-43's own words).
 // The payload at each delimiter position. Declared here as data so both positions consult the same
 // tokens in the same order, which is what makes the reported refusal deterministic for a given input.
 const OPEN_PAYLOADS = ["---"];
@@ -1016,6 +1056,30 @@ const DELIMITER_WS_CHAR = /[ \t]/;
 // `leadingInvisibleRun` once, uses the result to find where the payload starts, and never consults
 // this class again.
 const VISIBLE_GLYPH = /[\p{L}\p{N}\p{P}\p{S}]/u;
+// (D-50 — 27-REVIEW-GAPS-6 § IN-01, round 6) "DOES THIS LINE RENDER ANYTHING AT ALL", ASKED WITH THE
+// CLASS THIS MODULE DECLARES INSTEAD OF THE ONE A BUILT-IN HAPPENS TO CARRY.
+//
+// ONE STATEMENT OF WHAT INVISIBLE MEANS. This consults `VISIBLE_GLYPH` — the SAME expression
+// `leadingInvisibleRun` above bounds its run with — so a reviewer finds one statement of the class and
+// not two. NO SECOND CHARACTER CLASS IS DECLARED HERE, and none may be: a second invisible class
+// beside this one would be a defect in this fix rather than a refinement of it.
+//
+// WHY IT EXISTS. `parseFrontmatter`'s prologue skip asked "is this line empty" with
+// `String.prototype.trim()`, whose alphabet is ECMAScript WhiteSpace — which CONTAINS U+00A0 and does
+// NOT contain U+200B, U+00AD or U+2060. So a document whose first line was a lone ZERO WIDTH SPACE,
+// followed one line down by a real `---` block carrying a live `Agent(grugops-orchestrator)` grant,
+// reached the KEYLESS SUCCESS arm and reported no grant, while the same document with a NO-BREAK
+// SPACE or an ordinary blank line parsed and reported the grant. Measured against the committed build
+// before this change, and cross-checked against libyaml, which reads the prologue as its own document
+// and the block as a second one CARRYING THE MAPPING AND ITS GRANT in every one of those spellings.
+// Rows a and b differed from rows c and d only by which alphabet a built-in happens to carry.
+//
+// THIS IS A STRICT SUPERSET OF `trim() === ""`, WHICH IS WHY IT CANNOT COST A PARSE. Every character
+// in ECMAScript WhiteSpace is a separator or a format code point, so none of them is a letter, number,
+// punctuation mark or symbol; every line the old test skipped this one skips too. The change can only
+// SKIP MORE, never fewer — and skipping more can only ever move a document from the keyless success
+// arm towards its real frontmatter.
+const rendersNoVisibleGlyph = (line) => !VISIBLE_GLYPH.test(line);
 // The index of the first code point of `residue` outside the declared class, or -1 when every code
 // point is inside it. ONE scan answering both halves the classifier needs: `=== -1` IS the legality
 // of what follows the payload, and any other value is the position whose code point the refusal NAMES.
@@ -1191,10 +1255,38 @@ export function parseFrontmatter(text) {
     // SECOND leading mark is deliberately left to the refusal instead of being stripped too.
     const lines = stripFencedBlocks(text.replace(/^\uFEFF/, "").replace(/\r\n/g, "\n")).split("\n");
     let i = 0;
-    while (i < lines.length && lines[i].trim() === "")
+    // (D-50 — 27-REVIEW-GAPS-6 § IN-01, round 6) THE PROLOGUE SKIP DECIDES WHICH LINES EXIST, SO IT
+    // ASKS THE QUESTION WITH THIS MODULE'S OWN ALPHABET.
+    //
+    // WHY THE FIX SKIPS RATHER THAN REFUSES — read this before "fixing" it to match D-34's directive
+    // refusal one line below. The module HAD ALREADY DECIDED that a prologue line the skip considers
+    // blank does not prevent frontmatter: an ordinary blank line parses, and so does a NO-BREAK SPACE.
+    // A ZERO WIDTH SPACE got the opposite answer for one reason only — `trim()`'s alphabet is narrower
+    // than the one this module declares. Skipping makes the module consistent WITH ITSELF, removes a
+    // silent no-grant, and creates zero new refusals on legitimate content; refusing would invent a new
+    // red class on a population no measurement shows this repository carries, which D-34 records as the
+    // worse of the two. The direction is what makes this safe: it converts a silent no-grant into a
+    // correct grant, and it cannot convert anything into a silent no-grant.
+    //
+    // WHY THE TWO IN-BLOCK `trim()` SITES ARE DELIBERATELY LEFT ALONE — `flattenBlock`'s blank-line
+    // `continue` and the `firstContent` baseline below. THE DIRECTION IS OPPOSITE AT THE TWO PLACES.
+    // HERE the narrow alphabet routes an invisible-only line to a SILENT SUCCESS; INSIDE THE BLOCK it
+    // routes an invisible-only line to a REFUSAL ("cannot read `<ZWSP>` as a frontmatter key line"),
+    // which is the safe direction AND is what libyaml does with the same document — measured, it
+    // rejects it outright as a syntax error. Widening blankness inside the block would trade a refusal
+    // for a silent skip on a document a real loader will not load. The asymmetry is DELIBERATE, and it
+    // is asserted by the in-block control case in scripts/frontmatter.test.ts rather than merely
+    // claimed here.
+    while (i < lines.length && rendersNoVisibleGlyph(lines[i]))
         i++;
     // (D-34) BEFORE the delimiter test, because it is precisely the delimiter test's `else` — the
     // keyless SUCCESS arm — that a directive prologue used to fall into. One application point only.
+    //
+    // (D-50) AND THE SKIP ABOVE IS WHAT DECIDES WHICH LINE THIS TEST EVEN SEES. Measured against the
+    // committed build before that change: a lone ZERO WIDTH SPACE placed in front of a `%TAG` line made
+    // THIS REFUSAL DISAPPEAR — the skip stopped on the invisible line, the directive one line down was
+    // never examined, and the delimiter test then returned the keyless success arm. One code point
+    // bypassed D-34 entirely. A predicate is only as total as the input it is handed.
     if (i < lines.length && YAML_DIRECTIVE.test(lines[i])) {
         return {
             ok: false,
@@ -1246,6 +1338,10 @@ export function parseFrontmatter(text) {
         };
     }
     const block = lines.slice(openAt + 1, end);
+    // (D-50 — IN-01) THE SECOND IN-BLOCK `trim()`, ALSO DELIBERATELY UNCHANGED, FOR THE SAME REASON.
+    // This picks the line whose indentation becomes the block's baseline. An invisible-only line is
+    // NOT skipped here, so it can become the baseline — and that is what carries it into the key-line
+    // refusal above rather than past it. Widening blankness here would skip such a line silently.
     const firstContent = block.find((l) => l.trim() !== "");
     return flattenBlock(block, firstContent === undefined ? 0 : indentOf(firstContent));
 }
