@@ -592,6 +592,24 @@ interface Accumulator {
   // NONE derives its own: the comment scanner, the node-start reference test and the sequence-item
   // boundary. Always null on a key line, by construction — a key line begins a new node.
   openQuote: QuoteState;
+  // (D-48) DID THIS KEY'S VALUE NODE ALREADY BEGIN ON THE KEY LINE? The SECOND fact that belongs to
+  // the node rather than to the line, and the answer to "may a node BEGIN on this continuation line".
+  //
+  // `openQuote` alone closes the QUOTED spellings and leaves the PLAIN wrapped scalar carrying all
+  // three directions of the identical defect — measured against the build that landed the quote
+  // carry: `tools: Read,` / `  *Agent(x)` was still REFUSED where libyaml returns the text as
+  // CONTENT, and `tools: "Agent(alpha, ga` written PLAIN as `tools: Agent(alpha, ga` / `  - mma)`
+  // still enumerated `[alpha, ga, mma]` where libyaml expresses `[alpha, ga - mma]` — the invented
+  // name again, on the success arm. Closing only the spelling a finding happened to report is the
+  // enumerate-the-bad shape this phase has now corrected six times, so both close here.
+  //
+  // THE RULE, AND IT IS YAML'S OWN: once a scalar has begun on the key line, every following
+  // more-indented line CONTINUES it — a `-` there is text and a sigil there is not a node property.
+  // Where the key line carries NO value, the indented lines are themselves the node starts (a block
+  // sequence, or a plain scalar's first line), which is today's behaviour byte for byte. Verified
+  // against libyaml in both directions: `tools: Read,` / `  - Write` loads as the single scalar
+  // `Read, - Write`, while `tools:` / `  - Read` / `  - Write` loads as a two-element sequence.
+  nodeOnKeyLine: boolean;
 }
 
 // Flatten one frontmatter block (the lines BETWEEN the delimiters) into key -> values.
@@ -683,13 +701,18 @@ function flattenBlock(
       // it is not a comment start, it is not a node start, and it is not an item boundary. That is
       // the whole of what the carried state decides — it never decides what a value MEANS.
       const inScalar = cur.openQuote !== null;
-      // CONSUMER 1 — THE ITEM BOUNDARY. `SEQ_ITEM` is byte-unchanged and is simply NOT ASKED while a
-      // scalar is open. Teaching the regex about quotes would be a SECOND GRAMMAR for a fact this
-      // field already holds, and this module has deleted a weaker-duplicate predicate twice.
+      // MAY A NODE BEGIN ON THIS LINE? Derived ONCE from the two carried facts and read by consumers
+      // 1 and 2 below. A line inside an open quoted scalar is content; so is a line continuing a
+      // scalar that already began on the key line. Both are properties of the NODE — neither is
+      // recoverable from the line, which is exactly why the per-line reset got all three wrong.
+      const startsNode = !inScalar && !cur.nodeOnKeyLine;
+      // CONSUMER 1 — THE ITEM BOUNDARY. `SEQ_ITEM` is byte-unchanged and is simply NOT ASKED where a
+      // node may not begin. Teaching the regex about quotes would be a SECOND GRAMMAR for a fact
+      // these fields already hold, and this module has deleted a weaker-duplicate predicate twice.
       // Measured against the committed build, the unconditional test read the `-` opening a
       // continuation line as a new item, which set `cur.seq` and flipped the join separator for the
       // WHOLE key from `" "` to `", "` — inventing a comma, hence a NAME, on the success arm.
-      const item = inScalar ? null : t.match(SEQ_ITEM);
+      const item = startsNode ? t.match(SEQ_ITEM) : null;
       if (item !== null) {
         // A block-sequence ITEM is its own node, so the token start is the text after the dash.
         const itemText = (item[1] ?? "").trim();
@@ -710,8 +733,11 @@ function flattenBlock(
         if (v !== "") cur.parts.push(v);
         continue;
       }
-      // CONSUMER 2 (continuation path) — the node-start test, DECLINED while the scalar is open.
-      if (!inScalar && startsWithReference(t)) return refuseRef(t);
+      // CONSUMER 2 (continuation path) — the node-start test, ASKED ONLY WHERE A NODE MAY BEGIN.
+      // A real anchor, alias or unresolved tag at a genuine node start is still refused by name;
+      // the same characters on a line that merely CONTINUES a scalar are content, which is what
+      // stops a red gate from falling on `description: see` / `  *emphasis* here`.
+      if (startsNode && startsWithReference(t)) return refuseRef(t);
       // CONSUMER 3 — the comment scanner, seeded from and storing back to the one carried state.
       const scanned = stripComment(t, cur.openQuote);
       // A continuation line CONTINUES a node; it never starts one, so it can only ever carry a state
@@ -753,9 +779,23 @@ function flattenBlock(
     // to be aliased from a real one, so the document as a whole is what becomes unreadable.
     if (startsWithReference(rest)) return refuseRef(t);
     if (BLOCK_INDICATOR.test(rest)) {
-      cur = { key: kv[1], parts: [], block: true, seq: false, openQuote: null };
+      cur = {
+        key: kv[1],
+        parts: [],
+        block: true,
+        seq: false,
+        openQuote: null,
+        nodeOnKeyLine: false,
+      };
     } else {
-      cur = { key: kv[1], parts: [], block: false, seq: false, openQuote: null };
+      cur = {
+        key: kv[1],
+        parts: [],
+        block: false,
+        seq: false,
+        openQuote: null,
+        nodeOnKeyLine: false,
+      };
       // (D-48) THE KEY LINE SEEDS FROM NULL, AND THE ASYMMETRY WITH THE TWO CONTINUATION POINTS IS
       // DELIBERATE — DO NOT "FIX" IT TO MATCH THEM. A key line begins a NEW NODE, so no scalar from
       // the previous key can still be open across it; seeding from anything else would let one key's
@@ -766,6 +806,10 @@ function flattenBlock(
       const scanned = stripComment(rest, null);
       cur.openQuote = nodeStartQuote(rest) === null ? null : scanned.openQuote;
       const v = scanned.text.trim();
+      // The node begins HERE only if the key line actually carries text. A key line whose value is
+      // wholly a comment (`tools: # x`) begins nothing, so the following indented lines are still
+      // node starts — libyaml agrees: it takes the value from the continuation line.
+      cur.nodeOnKeyLine = v !== "";
       if (v !== "") cur.parts.push(v);
     }
   }

@@ -610,13 +610,18 @@ function flattenBlock(block, baseIndent) {
             // it is not a comment start, it is not a node start, and it is not an item boundary. That is
             // the whole of what the carried state decides — it never decides what a value MEANS.
             const inScalar = cur.openQuote !== null;
-            // CONSUMER 1 — THE ITEM BOUNDARY. `SEQ_ITEM` is byte-unchanged and is simply NOT ASKED while a
-            // scalar is open. Teaching the regex about quotes would be a SECOND GRAMMAR for a fact this
-            // field already holds, and this module has deleted a weaker-duplicate predicate twice.
+            // MAY A NODE BEGIN ON THIS LINE? Derived ONCE from the two carried facts and read by consumers
+            // 1 and 2 below. A line inside an open quoted scalar is content; so is a line continuing a
+            // scalar that already began on the key line. Both are properties of the NODE — neither is
+            // recoverable from the line, which is exactly why the per-line reset got all three wrong.
+            const startsNode = !inScalar && !cur.nodeOnKeyLine;
+            // CONSUMER 1 — THE ITEM BOUNDARY. `SEQ_ITEM` is byte-unchanged and is simply NOT ASKED where a
+            // node may not begin. Teaching the regex about quotes would be a SECOND GRAMMAR for a fact
+            // these fields already hold, and this module has deleted a weaker-duplicate predicate twice.
             // Measured against the committed build, the unconditional test read the `-` opening a
             // continuation line as a new item, which set `cur.seq` and flipped the join separator for the
             // WHOLE key from `" "` to `", "` — inventing a comma, hence a NAME, on the success arm.
-            const item = inScalar ? null : t.match(SEQ_ITEM);
+            const item = startsNode ? t.match(SEQ_ITEM) : null;
             if (item !== null) {
                 // A block-sequence ITEM is its own node, so the token start is the text after the dash.
                 const itemText = (item[1] ?? "").trim();
@@ -640,8 +645,11 @@ function flattenBlock(block, baseIndent) {
                     cur.parts.push(v);
                 continue;
             }
-            // CONSUMER 2 (continuation path) — the node-start test, DECLINED while the scalar is open.
-            if (!inScalar && startsWithReference(t))
+            // CONSUMER 2 (continuation path) — the node-start test, ASKED ONLY WHERE A NODE MAY BEGIN.
+            // A real anchor, alias or unresolved tag at a genuine node start is still refused by name;
+            // the same characters on a line that merely CONTINUES a scalar are content, which is what
+            // stops a red gate from falling on `description: see` / `  *emphasis* here`.
+            if (startsNode && startsWithReference(t))
                 return refuseRef(t);
             // CONSUMER 3 — the comment scanner, seeded from and storing back to the one carried state.
             const scanned = stripComment(t, cur.openQuote);
@@ -687,10 +695,24 @@ function flattenBlock(block, baseIndent) {
         if (startsWithReference(rest))
             return refuseRef(t);
         if (BLOCK_INDICATOR.test(rest)) {
-            cur = { key: kv[1], parts: [], block: true, seq: false, openQuote: null };
+            cur = {
+                key: kv[1],
+                parts: [],
+                block: true,
+                seq: false,
+                openQuote: null,
+                nodeOnKeyLine: false,
+            };
         }
         else {
-            cur = { key: kv[1], parts: [], block: false, seq: false, openQuote: null };
+            cur = {
+                key: kv[1],
+                parts: [],
+                block: false,
+                seq: false,
+                openQuote: null,
+                nodeOnKeyLine: false,
+            };
             // (D-48) THE KEY LINE SEEDS FROM NULL, AND THE ASYMMETRY WITH THE TWO CONTINUATION POINTS IS
             // DELIBERATE — DO NOT "FIX" IT TO MATCH THEM. A key line begins a NEW NODE, so no scalar from
             // the previous key can still be open across it; seeding from anything else would let one key's
@@ -701,6 +723,10 @@ function flattenBlock(block, baseIndent) {
             const scanned = stripComment(rest, null);
             cur.openQuote = nodeStartQuote(rest) === null ? null : scanned.openQuote;
             const v = scanned.text.trim();
+            // The node begins HERE only if the key line actually carries text. A key line whose value is
+            // wholly a comment (`tools: # x`) begins nothing, so the following indented lines are still
+            // node starts — libyaml agrees: it takes the value from the continuation line.
+            cur.nodeOnKeyLine = v !== "";
             if (v !== "")
                 cur.parts.push(v);
         }

@@ -428,12 +428,16 @@ const REFUSED_FORMS: readonly {
     emit: (v, k, i) =>
       doc([`${k}:`, ...splitTopLevel(v).map((x) => `${i}- &t ${x}`), `${i}- *t`]),
   },
-  {
-    // PLAIN-CONTINUATION application point: the value wraps and the alias arrives on the wrapped line,
-    // which is the one position a key-line-only test would miss entirely.
-    label: "alias arriving on a plain continuation line of a wrapped value",
-    emit: (v, k, i) => doc([`${k}: ${halves(v)[0]}`, `${i}*t`]),
-  },
+  // (D-48 — 27-REVIEW-GAPS-6 § WR-01, round 6) THE PLAIN-CONTINUATION ROW THAT USED TO SIT HERE HAS
+  // MOVED, NOT BEEN DELETED. It asserted that an alias sigil arriving on a plain CONTINUATION line is
+  // refused. Measured against a real YAML 1.2 loader (Ruby 2.6.10 / Psych 3.1.0 / libyaml 0.2.1),
+  // `tools: Read, Grep,` / `  *t` loads to the plain string `Read, Grep, *t` — the `*t` is TEXT,
+  // because a continuation line is not a node start and no alias is resolved there. The refusal was
+  // therefore a FALSE RED on a document the platform reads as carrying no grant, which is WR-01
+  // itself. It now lives in `WR01_FALSE_RED_FORMS` below, asserted in the OPPOSITE direction with its
+  // loader transcript, so the coverage is inverted rather than lost. The genuine node starts — an
+  // alias on a KEY LINE (which libyaml RESOLVES to the granting value) and an anchor on a
+  // BLOCK-SEQUENCE ITEM — are untouched above and still refuse.
 
   // ── THE TAG AXIS (27-REVIEW-GAPS-2 § CR-01, round 2 — plan 27-24) ────────────────────────────
   //
@@ -488,12 +492,10 @@ const REFUSED_FORMS: readonly {
         `${i}- !!str *t`,
       ]),
   },
-  {
-    // PLAIN-CONTINUATION application point: the tag arrives on the wrapped line, the one position a
-    // key-line-only test misses entirely.
-    label: "TAG axis / PLAIN-CONTINUATION — a tagged alias arriving on a plain continuation line of a wrapped value",
-    emit: (v, k, i) => doc([`${k}: ${halves(v)[0]}`, `${i}!!str *t`]),
-  },
+  // (D-48) The TAG axis's PLAIN-CONTINUATION row has moved to `WR01_FALSE_RED_FORMS` for the same
+  // measured reason as the alias row above: libyaml loads `tools: Read, Grep,` / `  !!str *t` to the
+  // plain string `Read, Grep, !!str *t`. A tag is a node PROPERTY and a continuation line is not a
+  // node, so there is no tag there to leave unresolved. Inverted, not dropped.
   {
     // SHAPE: a single-indicator LOCAL tag. One `!`, an ordinary name — structurally distinct from the
     // shorthand form because there is no second indicator to key on.
@@ -552,6 +554,40 @@ const REFUSED_FORMS: readonly {
   ...ESCAPE_FORMS,
 ];
 
+// (D-48 — 27-REVIEW-GAPS-6 § WR-01, round 6) THE TWO ROWS THAT MOVED OUT OF `REFUSED_FORMS`, KEPT AS
+// A CONTROL IN THE OPPOSITE DIRECTION.
+//
+// Each of these was a shipped assertion that a reference sigil arriving on a PLAIN CONTINUATION line
+// is refused. A real YAML 1.2 loader says otherwise, and the transcript is recorded beside each row:
+// a continuation line is not a node start, so the sigil there is ordinary text and the document
+// carries no grant. Refusing it was a red gate over correct documentation — WR-01 — whose only cure
+// is deleting the documentation, which D-34 records as the worse of the two directions.
+//
+// THEY ARE INVERTED RATHER THAN DELETED, ON THIS FILE'S OWN RULE. A refusal claim that shrinks
+// silently is exactly what the moving table-size floor exists to prevent, so the rows keep asserting
+// something: that the module now agrees with the loader BYTE FOR BYTE, and that it lands on the
+// no-grant SUCCESS arm rather than on either the refusal arm or a granted verdict.
+const WR01_FALSE_RED_FORMS: readonly {
+  readonly label: string;
+  readonly lines: readonly string[];
+  readonly loaderValue: string;
+}[] = [
+  {
+    label:
+      "an alias sigil arriving on a plain continuation line of a wrapped value",
+    lines: ["tools: Read, Grep,", "  *t"],
+    // /usr/bin/ruby -ryaml => {"tools"=>"Read, Grep, *t"}
+    loaderValue: "Read, Grep, *t",
+  },
+  {
+    label:
+      "TAG axis / PLAIN-CONTINUATION — a tagged alias arriving on a plain continuation line",
+    lines: ["tools: Read, Grep,", "  !!str *t"],
+    // /usr/bin/ruby -ryaml => {"tools"=>"Read, Grep, !!str *t"}
+    loaderValue: "Read, Grep, !!str *t",
+  },
+];
+
 // Two continuation-indent widths, so indentation is part of the product rather than an assumption
 // baked into every fixture.
 const INDENTS: readonly string[] = ["  ", "    "];
@@ -581,9 +617,21 @@ describe("frontmatter — the spawn-grant parser oracle (SPAWN-04 / KIT-03)", ()
     // (Plan 27-29) AND AGAIN, 17 -> 35, for the eighteen ESCAPE-axis rows: five application points,
     // three numeric widths in two placements each, five non-numeric spellings, one truncated numeric
     // form and one dangling backslash.
-    expect(REFUSED_FORMS.length).toBeGreaterThanOrEqual(35);
+    //
+    // (Plan 27-39 / D-48) AND DOWN, 35 -> 33, for the two PLAIN-CONTINUATION rows that a real YAML
+    // 1.2 loader proved were FALSE REDS. The floor tracks the table in BOTH directions or it is not
+    // a floor: leaving it at 35 would make this edit fail for the right reason but with the wrong
+    // message, and raising the remaining rows to meet it would be padding. The two rows did not
+    // vanish — `WR01_FALSE_RED_FORMS` asserts them in the opposite direction with its own floor
+    // below, so the total number of pinned plain-continuation constructs is unchanged at two.
+    expect(REFUSED_FORMS.length).toBeGreaterThanOrEqual(33);
     expect(new Set(REFUSED_FORMS.map((f) => f.label)).size).toBe(
       REFUSED_FORMS.length,
+    );
+    // The inverted rows carry a floor of their own, so they cannot be quietly dropped either.
+    expect(WR01_FALSE_RED_FORMS.length).toBeGreaterThanOrEqual(2);
+    expect(new Set(WR01_FALSE_RED_FORMS.map((f) => f.label)).size).toBe(
+      WR01_FALSE_RED_FORMS.length,
     );
     // The escape rows are counted on their own too, so a future edit that removed the whole axis
     // while adding an unrelated row elsewhere could not keep the combined floor satisfied.
@@ -653,8 +701,34 @@ describe("frontmatter — the spawn-grant parser oracle (SPAWN-04 / KIT-03)", ()
     // (Plan 27-24) Raised 60 -> 204 in the same edit that added the twelve tag-axis rows, for the
     // same reason the table floor moved: a floor that does not track the table counts nothing.
     // (Plan 27-29) Raised 204 -> 420 with the eighteen escape-axis rows.
+    // (Plan 27-39 / D-48) Lowered 420 -> 396 with the two loader-disproven plain-continuation rows.
     expect(checked).toBe(REFUSED_FORMS.length * INDENTS.length * VALUES.length);
-    expect(checked).toBeGreaterThanOrEqual(420);
+    expect(checked).toBeGreaterThanOrEqual(396);
+  });
+
+  // ── The two rows that moved, asserted in the OPPOSITE direction (D-48 / WR-01) ─────────────────
+
+  it("WR-01 — a reference sigil on a PLAIN CONTINUATION line is content, and the module now agrees with the loader byte for byte", () => {
+    for (const form of WR01_FALSE_RED_FORMS) {
+      const text = doc([...form.lines]);
+      const parsed = parseFrontmatter(text);
+      // Direction one: the refusal is GONE. A red gate here can only be cured by deleting correct
+      // documentation, which is how a guard teaches the next author to weaken it.
+      expect(
+        parsed.ok,
+        `${form.label}: expected the success arm, got: ${parsed.ok ? "" : parsed.reason}`,
+      ).toBe(true);
+      // Direction two: it did not become a GRANT either. The value is exactly what libyaml computes,
+      // so the module's reading and the platform's reading are the same string — the only definition
+      // of "correct" this module has.
+      expect(parsed.ok && parsed.value.get("tools"), form.label).toEqual([
+        form.loaderValue,
+      ]);
+      expect(hasSpawnGrant(text), form.label).toEqual({
+        ok: true,
+        value: false,
+      });
+    }
   });
 
   it("the refusal holds identically under the skill form of the key (allowed-tools)", () => {
@@ -3489,6 +3563,66 @@ describe("frontmatter — the carried scalar quote state (D-48 / SPAWN-04 + KIT-
       expect(p.ok && p.value.get("tools")).toEqual([`Read, # x, ${TOKEN}`]);
       expect(hasSpawnGrant(text)).toEqual({ ok: true, value: true });
     }
+  });
+
+  // ── THE PLAIN WRAPPED SCALAR — THE SAME THREE DIRECTIONS, THE SAME ROOT CAUSE ─────────────────
+  //
+  // `openQuote` alone closes only the QUOTED spellings. Measured against the build that landed the
+  // quote carry, the PLAIN wrapped scalar still carried all three directions, so `nodeOnKeyLine`
+  // closes them here rather than in a later plan: closing only the spelling a finding happened to
+  // report is the enumerate-the-bad shape this phase has now corrected six times.
+  //
+  // The rule is YAML's own and was resolved against libyaml in both directions: once a scalar has
+  // begun on the key line every following indented line CONTINUES it, and where the key line carries
+  // no value the indented lines are themselves the node starts.
+
+  it("plain wrapped — a `*` / `!` / `&` opening a continuation line is CONTENT, not a node property", () => {
+    // Measured RED against the quote-carry build: each was REFUSED as an anchor or alias. libyaml
+    // loads all three to a plain string, so the refusal was a red gate over correct documentation.
+    const expectations: ReadonlyArray<readonly [string, string]> = [
+      [`*${TOKEN}`, `Read, *${TOKEN}`],
+      [`!${TOKEN}`, `Read, !${TOKEN}`],
+      [`&${TOKEN}`, `Read, &${TOKEN}`],
+    ];
+    for (const [continuation, loaderValue] of expectations) {
+      const text = doc(`tools: Read,\n  ${continuation}`);
+      const p = parseFrontmatter(text);
+      expect(p.ok, continuation).toBe(true);
+      expect(p.ok && p.value.get("tools"), continuation).toEqual([loaderValue]);
+    }
+  });
+
+  it("plain wrapped — a leading `-` on a continuation line is CONTENT, so no name is invented", () => {
+    // Measured RED against the quote-carry build: the wrapped form enumerated ["alpha","ga","mma"]
+    // where the document — and libyaml — express ["alpha","ga - mma"]. This direction reaches a set
+    // equality with no comment and no reference anywhere in it.
+    const wrapped = doc("tools: Agent(alpha, ga\n  - mma)");
+    const single = doc("tools: Agent(alpha, ga - mma)");
+    expect(grantedAgentNames(wrapped)).toEqual(grantedAgentNames(single));
+    const p = parseFrontmatter(wrapped);
+    // libyaml: {"tools"=>"Agent(alpha, ga - mma)"} — byte-equal.
+    expect(p.ok && p.value.get("tools")).toEqual(["Agent(alpha, ga - mma)"]);
+  });
+
+  it("plain wrapped — a `#` opening a continuation line IS still a comment (the quote state, not the node, decides that)", () => {
+    // The two carried facts are genuinely different and must not be collapsed into one. libyaml:
+    // {"tools"=>"Read,"} — the token is a comment and the module must agree.
+    const text = doc(`tools: Read,\n  # ${TOKEN}`);
+    const p = parseFrontmatter(text);
+    expect(p.ok && p.value.get("tools")).toEqual(["Read,"]);
+    expect(hasSpawnGrant(text)).toEqual({ ok: true, value: false });
+  });
+
+  it("a key line carrying ONLY a comment begins no node, so the following lines are still node starts", () => {
+    // libyaml takes the value from the continuation line: {"tools"=>"Agent(grugops-orchestrator)"}.
+    const text = doc(`tools: # x\n  ${TOKEN}`);
+    const p = parseFrontmatter(text);
+    expect(p.ok && p.value.get("tools")).toEqual([TOKEN]);
+    // And a genuine anchor arriving there is still at a node start, so it is still refused.
+    const anchored = doc("tools: # x\n  &t Read");
+    const r = parseFrontmatter(anchored);
+    expect(r.ok).toBe(false);
+    expect(!r.ok && r.reason).toContain("anchor or alias");
   });
 
   it("the ESCAPE allowlist still fires on a continuation line of an open double-quoted scalar", () => {
