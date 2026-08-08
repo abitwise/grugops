@@ -4722,3 +4722,308 @@ describe("frontmatter — the multi-line scalar sweep (D-49 / SPAWN-04 + KIT-03)
     }
   });
 });
+
+// ---------------------------------------------------------------------------
+// D-50 / WR-03 — THE SPAWN-TOKEN OCCURRENCE IS THE UNIT, AND THE CAPTURE IS ONE
+// OF THREE THINGS AN OCCURRENCE CAN BE (27-REVIEW-GAPS-6 § WR-03, round 6)
+// ---------------------------------------------------------------------------
+//
+// `ENUMERATION_LEGAL_CHARS` is a genuine positive allowlist and it leaks nothing on the path it
+// guards. It simply NEVER RUNS when the capture it examines fails to form: `SCOPED_GRANT`'s class is
+// `[^)]*`, so an `Agent(` with no `)` after it produces no match at all, the loop examines nothing,
+// and the function returns the SUCCESS arm with an empty list. Measured against the committed
+// `scripts/frontmatter.js` on a `git archive HEAD` mirror of 68c67bb BEFORE this change:
+//
+//   tools: Agent(alpha, gamma       ->  {ok:true, value:[]}   an enumeration truncated by an author
+//   tools: Agent(alpha, #b, gamma)  ->  {ok:true, value:[]}   a capture destroyed by comment stripping
+//   tools: Read, Agent              ->  {ok:true, value:[]}   a GENUINELY unscoped grant
+//   tools: Agent(alpha, gamma)      ->  {ok:true, value:["alpha","gamma"]}   the control
+//
+// THREE DIFFERENT FACTS, ONE ANSWER — on the arm whose name list the KIT-03 closure equality and
+// coordinator-resolution-precheck's set equality are computed over. This is CR-01's shape ("the gate
+// never saw the value") on a second predicate: the check was correct and the input never reached it.
+describe("frontmatter — the spawn-token occurrence accounting (D-50 / WR-03 / KIT-03)", () => {
+  const doc = (tools: string): string =>
+    `---\nname: x\ntools: ${tools}\n---\nBody.\n`;
+  const UNCLOSED = "opens a scoped enumeration that is never closed in this value";
+
+  it("D-50 WR-03 — the truncated enumeration and the comment-destroyed capture REFUSE by name, and the genuinely unscoped grant and the well-formed control are byte-unchanged", () => {
+    // Row by row, with the RED value each replaces stated beside it. A case that was never red is not
+    // a pin, so the pre-change value is recorded here rather than remembered.
+    const truncated = grantedAgentNames(doc("Agent(alpha, gamma"));
+    expect(truncated.ok, "RED was {ok:true,value:[]} — the silent success arm").toBe(
+      false,
+    );
+    if (!truncated.ok) {
+      expect(truncated.reason).toContain(UNCLOSED);
+      // The FRAGMENT is named, not merely the fault, so a reader is sent to the right bytes.
+      expect(truncated.reason).toContain("`Agent(alpha, gamma`");
+      expect(truncated.reason).toContain("the `(` after `Agent` has no matching `)`");
+      // The shipped refusal-reason contract is kept: two assertions elsewhere in this repository
+      // match a refusal reason on this substring, and a new refusal that dropped it would silently
+      // weaken both while every case stayed green.
+      expect(truncated.reason).toContain("anchor or alias");
+      expect(truncated.reason).toContain("a name is never silently dropped or altered");
+    }
+
+    // The capture destroyed UPSTREAM, by the comment scanner rather than by the author. The flattened
+    // value is `Agent(alpha,` — the enumeration this module was handed is not the enumeration the
+    // document carries, and the occurrence accounting is what notices.
+    const destroyed = grantedAgentNames(doc("Agent(alpha, #b, gamma)"));
+    expect(destroyed.ok, "RED was {ok:true,value:[]}").toBe(false);
+    if (!destroyed.ok) {
+      expect(destroyed.reason).toContain(UNCLOSED);
+      expect(destroyed.reason).toContain("`Agent(alpha,`");
+    }
+
+    // BYTE-UNCHANGED, both directions. These two are the halves that catch an over-conviction.
+    expect(grantedAgentNames(doc("Read, Agent"))).toEqual({ ok: true, value: [] });
+    expect(grantedAgentNames(doc("Agent(alpha, gamma)"))).toEqual({
+      ok: true,
+      value: ["alpha", "gamma"],
+    });
+  });
+
+  it("D-50 WR-03 — the three facts, and WHICH fact distinguishes each pair", () => {
+    // THE FINDING IS THE FIRST TWO PAIRS. "The module could not read the enumeration" and "the
+    // document never wrote one" shared ONE answer, and that answer was the success arm.
+    const truncated = grantedAgentNames(doc("Agent(alpha, gamma"));
+    const emptyClosed = grantedAgentNames(doc("Agent()"));
+    const unscoped = grantedAgentNames(doc("Read, Agent"));
+
+    // PAIR 1 — truncated vs empty-but-closed. Distinguished by WHETHER THE ENUMERATION WAS CAPTURED:
+    // `Agent()` forms a capture whose content is the empty string, `Agent(alpha, gamma` forms none.
+    expect(truncated.ok, "pair 1: the truncated enumeration must refuse").toBe(false);
+    expect(emptyClosed, "pair 1: a CLOSED enumeration granting zero names is a real fact").toEqual({
+      ok: true,
+      value: [],
+    });
+    expect(truncated).not.toEqual(emptyClosed);
+
+    // PAIR 2 — truncated vs genuinely unscoped. Distinguished by the SAME fact, and this is the pair
+    // that mattered: a truncated enumeration impersonated a bare grant on the success arm.
+    expect(unscoped, "pair 2: a bare grant enumerates nothing, and that is not an error").toEqual({
+      ok: true,
+      value: [],
+    });
+    expect(truncated).not.toEqual(unscoped);
+
+    // PAIR 3 — empty-but-closed vs genuinely unscoped. THESE TWO DELIBERATELY SHARE ONE ANSWER AT THE
+    // NAME-LIST LEVEL, and the reason is recorded here rather than left as an omission a later reader
+    // "fixes". Both express the SAME fact — this grant enumerates ZERO names — and every consumer
+    // treats a zero-length closure as its own named failure (the KIT-03 oracle and
+    // coordinator-resolution-precheck each fail by name on `granted.length === 0`). Splitting them
+    // would mean refusing `Agent()`, which is content a real loader accepts and which no measurement
+    // shows this repository carries: a NEW false red, the direction D-34 records as the worse of the
+    // two. See this plan's SUMMARY for the deviation note.
+    expect(emptyClosed).toEqual(unscoped);
+
+    // AND THEY ARE NOT CONFLATED BY THE MODULE — the distinction is PRESERVED one level down, where
+    // it is a fact about the document rather than about the grant closure. The parser keeps both
+    // values byte-for-byte, so nothing is lost; the name list simply does not invent a difference
+    // where the two documents express the same closure.
+    const valueOf = (tools: string): string[] => {
+      const p = parseFrontmatter(doc(tools));
+      expect(p.ok, tools).toBe(true);
+      return p.ok ? (p.value.get("tools") ?? []) : [];
+    };
+    expect(valueOf("Agent()")).toEqual(["Agent()"]);
+    expect(valueOf("Read, Agent")).toEqual(["Read, Agent"]);
+    expect(valueOf("Agent()")).not.toEqual(valueOf("Read, Agent"));
+  });
+
+  it("D-50 WR-03 — `hasSpawnGrant` is INVARIANT: a file carrying an unterminated `Agent(` is still convicted as a grant-carrier", () => {
+    // The boolean was already right and is NOT what this change touches. The refusal belongs on the
+    // arm that returns NAMES, because names are what the closure equality is computed over. RED and
+    // GREEN transcripts recorded the same value for every row below.
+    const CONVICTED = [
+      "Agent(alpha, gamma",
+      "Agent(alpha, #b, gamma)",
+      "Read, Agent",
+      "Agent(alpha, gamma)",
+      "Agent()",
+      "Agent(alpha), Task(beta",
+      "Agent, Task(beta",
+      "Task(beta, Agent",
+    ];
+    for (const tools of CONVICTED) {
+      expect(hasSpawnGrant(doc(tools)), tools).toEqual({ ok: true, value: true });
+    }
+    // The discriminating control: no token, no conviction. A predicate that convicted here would be
+    // reporting `true` for everything and this case would prove nothing.
+    expect(hasSpawnGrant(doc("Read, Write"))).toEqual({ ok: true, value: false });
+  });
+
+  it("D-50 WR-03 — the accounting is ORDER-INDEPENDENT: a closed occurrence neither absolves nor is absolved by an unterminated one", () => {
+    // A partition that only works when the good occurrence comes first is not a partition. RED for
+    // both rows below was the SUCCESS arm — the first carrying `["alpha"]`, which is worse than the
+    // empty list because it looks like a complete answer.
+    const closedFirst = grantedAgentNames(doc("Agent(alpha), Task(beta"));
+    expect(closedFirst.ok, "RED was {ok:true,value:[\"alpha\"]}").toBe(false);
+    if (!closedFirst.ok) expect(closedFirst.reason).toContain("`Task(beta`");
+
+    const bareFirst = grantedAgentNames(doc("Agent, Task(beta"));
+    expect(bareFirst.ok, "RED was {ok:true,value:[]}").toBe(false);
+
+    const unterminatedFirst = grantedAgentNames(doc("Task(beta, Agent"));
+    expect(unterminatedFirst.ok, "RED was {ok:true,value:[]}").toBe(false);
+    if (!unterminatedFirst.ok) {
+      expect(unterminatedFirst.reason).toContain("the `(` after `Task` has no matching `)`");
+    }
+
+    // AND THE OTHER DIRECTION, so this is not simply "any multi-token value refuses": two closed
+    // occurrences, and a closed one beside a bare one, both still return their full name lists.
+    expect(grantedAgentNames(doc("Agent(alpha), Task(beta)"))).toEqual({
+      ok: true,
+      value: ["alpha", "beta"],
+    });
+    expect(grantedAgentNames(doc("Agent(alpha), Task"))).toEqual({
+      ok: true,
+      value: ["alpha"],
+    });
+  });
+
+  it("D-50 WR-03 — THE COUNT IDENTITY, as a property over a corpus of multi-token values built from OUTSIDE the module", () => {
+    // THE FRAGMENTS, WRITTEN AS DATA WITH THEIR OWN EXPECTED BUCKET. The expectation is stated here,
+    // never computed by asking the code under test — an expectation taken from the thing under test
+    // moves whenever the thing under test moves, and this repository has shipped past that twice.
+    const FRAGMENTS: readonly { text: string; label: string }[] = [
+      { text: "Agent(alpha)", label: "a closed enumeration with one name" },
+      { text: "Task(beta)", label: "a closed enumeration, legacy token" },
+      { text: "Agent()", label: "a CLOSED enumeration granting zero names" },
+      { text: "Agent", label: "a bare unscoped grant" },
+      { text: "Task", label: "a bare unscoped grant, legacy token" },
+      { text: "Agent(alpha", label: "an UNTERMINATED enumeration" },
+      { text: "Task(beta", label: "an UNTERMINATED enumeration, legacy token" },
+      { text: "Read", label: "no spawn token at all" },
+      { text: "Write", label: "no spawn token at all" },
+    ];
+
+    // THE ACCOUNTING, RESTATED INDEPENDENTLY. This is deliberately not imported: the module's own
+    // classifier is the thing under test, and a property that asks it to grade itself proves nothing.
+    // The token test is re-typed as data for the same reason `expressed()` re-types the capture
+    // expression in the D-47 control above.
+    const account = (
+      value: string,
+    ): { occurrences: number; scoped: number; unscoped: number; neither: number } => {
+      let occurrences = 0;
+      let scoped = 0;
+      let unscoped = 0;
+      let neither = 0;
+      for (const m of value.matchAll(/\b(?:Agent|Task)\b/g)) {
+        occurrences += 1;
+        const after = m.index + m[0].length;
+        if (value[after] !== "(") {
+          unscoped += 1;
+        } else if (value.indexOf(")", after + 1) === -1) {
+          neither += 1;
+        } else {
+          scoped += 1;
+        }
+      }
+      return { occurrences, scoped, unscoped, neither };
+    };
+
+    // THE CORPUS: every ordered PAIR and every ordered TRIPLE of fragments, joined the way an author
+    // writes a tools list. Ordered, so both orderings of every pair are present by construction
+    // rather than by a hand-picked row.
+    const values: { text: string; label: string }[] = [];
+    for (const a of FRAGMENTS) {
+      for (const b of FRAGMENTS) {
+        values.push({ text: `${a.text}, ${b.text}`, label: `${a.label} + ${b.label}` });
+        for (const c of FRAGMENTS) {
+          values.push({
+            text: `${a.text}, ${b.text}, ${c.text}`,
+            label: `${a.label} + ${b.label} + ${c.label}`,
+          });
+        }
+      }
+    }
+
+    // DERIVE THE SET, ASSERT THE COUNT. 9 fragments -> 81 pairs + 729 triples = 810 values. A corpus
+    // that silently shrank would otherwise make this property cheap while it stayed green.
+    expect(FRAGMENTS.length, "fragments").toBe(9);
+    expect(values.length, "corpus of multi-token values").toBe(9 * 9 + 9 * 9 * 9);
+    expect(values.length).toBe(810);
+
+    let withNeither = 0;
+    let withoutNeither = 0;
+    let totalOccurrences = 0;
+    const wrong: string[] = [];
+
+    for (const v of values) {
+      const a = account(v.text);
+
+      // THE IDENTITY ITSELF, over every corpus member: the occurrences of the spawn token equal the
+      // scoped plus the unscoped plus the neither. Stated as arithmetic so a bucket that stopped
+      // matching fails here rather than reclassifying in silence.
+      expect(a.scoped + a.unscoped + a.neither, `identity: ${v.text}`).toBe(
+        a.occurrences,
+      );
+      totalOccurrences += a.occurrences;
+
+      const got = grantedAgentNames(doc(v.text));
+      const refusedAsUnterminated = !got.ok && got.reason.includes(UNCLOSED);
+
+      if (a.neither > 0) {
+        // BUCKET THREE IS REACHED WHENEVER THE INDEPENDENT ACCOUNTING SAYS IT SHOULD BE.
+        if (!refusedAsUnterminated) {
+          wrong.push(
+            `${v.text} [${v.label}] has ${a.neither} unterminated occurrence(s) but got ${JSON.stringify(got)}`,
+          );
+        }
+        withNeither += 1;
+      } else {
+        // AND IS NOT REACHED OTHERWISE. The value may still refuse for the D-47 allowlist reason —
+        // `Agent(, Task(beta)` captures `, Task(beta`, which carries a `(` — so the property is
+        // stated precisely: never the UNTERMINATED refusal, not "never a refusal".
+        if (refusedAsUnterminated) {
+          wrong.push(
+            `${v.text} [${v.label}] has NO unterminated occurrence but was refused as one`,
+          );
+        }
+        withoutNeither += 1;
+      }
+    }
+
+    expect(wrong, `mismatches over ${values.length} multi-token values`).toEqual([]);
+    // Both directions are genuinely exercised — a property where one side never fires is half a
+    // property, and the numbers say so rather than being taken on trust.
+    expect(withNeither, "corpus members carrying an unterminated occurrence").toBeGreaterThan(0);
+    expect(withoutNeither, "corpus members carrying none").toBeGreaterThan(0);
+    expect(withNeither + withoutNeither).toBe(values.length);
+    expect(totalOccurrences, "spawn-token occurrences accounted for").toBeGreaterThan(
+      values.length,
+    );
+  });
+
+  it("D-50 WR-03 — the coordinator's real enumeration is byte-identical after the accounting", () => {
+    // THE FALSE-RED HALF. The accounting can only ever ADD a refusal, so the one enumeration in this
+    // repository whose closure the KIT-03 equality is computed over is the file it would break first.
+    const root = join(import.meta.dirname, "..");
+    const coordinator = readFileSync(
+      join(root, ".claude/agents/grugops-orchestrator.md"),
+      "utf8",
+    );
+    const names = grantedAgentNames(coordinator);
+    expect(names.ok, "the coordinator's own grant must not refuse").toBe(true);
+    if (!names.ok) return;
+    const expectedClosure = listAgentAdapters(root)
+      .map((rel) => rel.replace(/\.md$/, ""))
+      .filter((n) => n !== "grugops-orchestrator")
+      .sort();
+    expect(names.value).toEqual(expectedClosure);
+
+    // AND EVERY OTHER SCAN MEMBER, over the ONE scan composition the guard reads — derived, never
+    // listed here. Zero new refusals across the whole spawn-grant surface.
+    const refusals: string[] = [];
+    for (const rel of spawnGrantScan(root)) {
+      const got = grantedAgentNames(readFileSync(join(root, rel), "utf8"));
+      if (!got.ok) refusals.push(`${rel}: ${got.reason}`);
+    }
+    expect(
+      refusals,
+      `the occurrence accounting must cost the ${SPAWN_GRANT_SCAN_COUNT}-member scan surface ZERO false reds`,
+    ).toEqual([]);
+  });
+});

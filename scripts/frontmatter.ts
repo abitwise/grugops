@@ -1412,6 +1412,84 @@ export const TOOLS_KEYS: readonly string[] = ["tools", "allowed-tools"];
 const SPAWN_TOKEN = /\b(?:Agent|Task)\b/;
 const SCOPED_GRANT = /\b(?:Agent|Task)\(([^)]*)\)/g;
 
+// (D-50 — 27-REVIEW-GAPS-6 § WR-03, round 7) THE SPAWN-TOKEN OCCURRENCE IS THE UNIT, AND THE FORMED
+// CAPTURE IS ONE OF THREE THINGS AN OCCURRENCE CAN BE.
+//
+// WHY THIS EXISTS AT ALL. `SCOPED_GRANT`'s class is `[^)]*`, so it stops at the first `)` and
+// produces NO MATCH AT ALL when none follows. Every check `keysGrantedAgentNames` performs runs on
+// `m[1]` — the content of a capture that FORMED. An occurrence for which no `m` exists is therefore
+// examined by nothing, and the loop simply finds no matches and returns the SUCCESS arm with an
+// empty list. Measured against the committed build before this change:
+//
+//   tools: Agent(alpha, gamma       ->  {ok:true, value:[]}   an enumeration truncated by an author
+//   tools: Agent(alpha, #b, gamma)  ->  {ok:true, value:[]}   a capture destroyed by comment stripping
+//   tools: Read, Agent              ->  {ok:true, value:[]}   a GENUINELY unscoped grant
+//
+// THREE DIFFERENT FACTS, ONE ANSWER, on the arm that claims to be safe. The first two are "this
+// module could not read the enumeration"; the third is "this document never wrote one". Collapsing
+// them means the KIT-03 closure equality and coordinator-resolution-precheck's set equality can each
+// be computed over a set the document does not express — this module's founding failure, one
+// predicate over.
+//
+// SO THE ACCOUNTING IS TOTAL BY CONSTRUCTION, NOT A TEST FOR THE SHAPE A FINDING REPORTED. Every
+// occurrence of the spawn token in a value lands in EXACTLY ONE of three stated buckets, and the
+// third is the complement of the first two rather than an enumerated list of bad spellings — D-30's
+// polarity and D-44's totality argument, applied to the grant predicate. That is why a fourth
+// spelling of "the capture did not form" cannot arrive as a later round's finding: there is no union
+// of partial predicates for it to leak through.
+//
+// THE OCCURRENCES ARE ENUMERATED FROM `SPAWN_TOKEN`, NEVER FROM `SCOPED_GRANT`. The capture
+// expression is the thing being audited; enumerating from it would ask the suspect to count itself.
+// The scanning form is DERIVED from the one declared token test (source and flags), so there is one
+// statement of what a spawn token is and no second one to drift.
+type GrantOccurrenceKind = "scoped" | "unscoped" | "neither";
+
+// The three buckets, stated ONCE as data so the identity below counts what this list names. A fourth
+// kind added to the type without being added here makes the identity fail arithmetically instead of
+// being silently unclassified — this repository's derive-the-set-assert-the-count rule applied to a
+// partition.
+const GRANT_OCCURRENCE_KINDS: readonly GrantOccurrenceKind[] = [
+  "scoped",
+  "unscoped",
+  "neither",
+];
+
+interface GrantOccurrence {
+  kind: GrantOccurrenceKind;
+  // The token as it was spelled (`Agent` or the retained legacy `Task`), for the refusal reason.
+  token: string;
+  // The bytes this occurrence covers: through its closing `)` when it has one, otherwise to the end
+  // of the value — which is precisely the fragment a reader must be shown for an unterminated one.
+  fragment: string;
+}
+
+function accountSpawnOccurrences(value: string): GrantOccurrence[] {
+  const scan = new RegExp(SPAWN_TOKEN.source, `${SPAWN_TOKEN.flags}g`);
+  const out: GrantOccurrence[] = [];
+  let m: RegExpExecArray | null;
+  while ((m = scan.exec(value)) !== null) {
+    const at = m.index;
+    const after = at + m[0].length;
+    // BUCKET TWO — a bare token. `tools: Read, Agent` grants spawn without scoping it, which is a
+    // real fact about the grant and is returned unchanged on the success arm.
+    if (value[after] !== "(") {
+      out.push({ kind: "unscoped", token: m[0], fragment: m[0] });
+      continue;
+    }
+    // BUCKET ONE vs BUCKET THREE — the `(` either closes in this value or it does not. The close
+    // test is `indexOf(")")` from just past the `(`, which is exactly the extent `SCOPED_GRANT`'s
+    // `[^)]*` reaches: the accounting and the capture agree on WHERE a scoped grant ends, and
+    // disagree only about what to do when there is no end at all.
+    const close = value.indexOf(")", after + 1);
+    if (close === -1) {
+      out.push({ kind: "neither", token: m[0], fragment: value.slice(at) });
+      continue;
+    }
+    out.push({ kind: "scoped", token: m[0], fragment: value.slice(at, close + 1) });
+  }
+  return out;
+}
+
 // (D-47 item 2) THE LEGAL CHARACTER SET OF A GRANT ENUMERATION, STATED ONCE AND POSITIVELY.
 //
 // This is D-30's shape one function over: a finite legal set, everything outside it refused, declared
@@ -1527,16 +1605,69 @@ export function keysHaveSpawnGrant(keys: FrontmatterKeys): boolean {
 // every other character refuses by name and by code point, and the two enumerated checks are DELETED
 // because the allowlist is strictly broader than both. The reasoning is at the refusal site.
 //
-// SO THE ENUMERATION IS EXAMINED BEFORE IT IS SPLIT, AND REFUSED RATHER THAN PARSED BETTER. A
-// quote-aware, nesting-aware split is a SECOND GRAMMAR for a value the platform's own loader reads
-// with a first, and this module's rule is one authority per predicate. Refusing is the answer that
-// cannot be wrong; parsing better is the answer that can. The scoped-grant expression itself is
-// deliberately untouched — its truncation is what this check DETECTS, and making the expression
-// cleverer would move the defect rather than close it, and would put a second grammar back where this
-// phase just deleted one.
+// (D-50, plan 27-41 — round-6 WR-03) AND ALL THREE PARAGRAPHS ABOVE ASSUMED THE CAPTURE EXISTED.
+// D-32 made this function return a result; D-41 item 3 stopped it dropping and altering names; D-47
+// item 2 replaced two enumerated checks with an allowlist. Each of those three asked a better
+// question ABOUT `m[1]`. None of them asked whether there was an `m` at all — and for an occurrence
+// whose capture never formed, the loop below finds no match, examines nothing, and returns the
+// SUCCESS arm with an empty list. So the sentence this paragraph replaced — "THE ENUMERATION IS
+// EXAMINED BEFORE IT IS SPLIT" — was true of every enumeration that could be captured and had no
+// assertion behind it for the input class that never reached the examination. It is now true for
+// every occurrence, because the OCCURRENCE is the unit and the capture is one of three things an
+// occurrence can be (see `accountSpawnOccurrences`).
+//
+// THE STANDING QUESTION THIS LEAVES FOR THE NEXT READER. Before trusting a predicate's closure
+// claim, ask which set it ENUMERATES — and then ask what happens to an input that never reaches it
+// at all. A predicate can be provably total over its own input and still be defeated by a value that
+// never becomes its input. That is the same shape as CR-01 one round earlier, where the predicates
+// were correct and the value handed to them had been assembled wrong.
+//
+// SO THE ENUMERATION IS EXAMINED BEFORE IT IS SPLIT, AND REFUSED RATHER THAN PARSED BETTER — AND THE
+// OCCURRENCE IS ACCOUNTED FOR BEFORE THE ENUMERATION IS SOUGHT. A quote-aware, nesting-aware split
+// is a SECOND GRAMMAR for a value the platform's own loader reads with a first, and this module's
+// rule is one authority per predicate. Refusing is the answer that cannot be wrong; parsing better is
+// the answer that can. The scoped-grant expression itself is deliberately untouched — its truncation
+// is what these checks DETECT, and making the expression cleverer would move the defect rather than
+// close it, and would put a second grammar back where this phase just deleted one.
+//
+// `keysHaveSpawnGrant` IS DELIBERATELY NOT CHANGED BY ANY OF THIS. A file carrying an unterminated
+// `Agent(` still carries the spawn token and is still convicted as a grant-carrier, which is correct
+// and was correct before. The refusal belongs on the arm that returns NAMES, because names are what
+// the KIT-03 closure equality is computed over.
 export function keysGrantedAgentNames(keys: FrontmatterKeys): Parsed<string[]> {
   const names = new Set<string>();
   for (const v of toolsValues(keys)) {
+    // (D-50) THE TOTAL ACCOUNTING, RUN BEFORE THE CAPTURE LOOP CONSUMES THIS VALUE.
+    const occurrences = accountSpawnOccurrences(v);
+
+    // THE COUNT IDENTITY, ASSERTED RATHER THAN ARGUED. This is what makes the three buckets an
+    // ACCOUNTING instead of three tests standing next to each other: a bucket that silently stops
+    // matching shows up as arithmetic that does not balance, not as a quiet reclassification. An
+    // accounting that cannot balance is a check that was not performed, and this module's discipline
+    // is that such a check is NAMED and never silent.
+    const classified = GRANT_OCCURRENCE_KINDS.reduce(
+      (n, kind) => n + occurrences.filter((o) => o.kind === kind).length,
+      0,
+    );
+    if (classified !== occurrences.length) {
+      return {
+        ok: false,
+        reason: `the spawn-token accounting over \`${excerpt(v)}\` does not balance: ${occurrences.length} occurrence(s) of the grant token were found but ${classified} were classified as scoped, unscoped or neither; an accounting that cannot balance is a check that was NOT performed, so the value is refused rather than read as a name list — a name is never silently dropped or altered`,
+      };
+    }
+
+    // BUCKET THREE REFUSES BY NAME. An occurrence that opens an enumeration the value never closes is
+    // neither a scoped grant this module can read nor a bare grant the document actually wrote, and
+    // returning the empty list for it would make those two facts indistinguishable from each other
+    // and from a third — the whole of WR-03.
+    const unclosed = occurrences.find((o) => o.kind === "neither");
+    if (unclosed) {
+      return {
+        ok: false,
+        reason: `the grant occurrence \`${excerpt(unclosed.fragment)}\` opens a scoped enumeration that is never closed in this value — the \`(\` after \`${unclosed.token}\` has no matching \`)\` — so the enumeration was never captured and the names these bytes were read as are not the names the document expresses; it is refused rather than returned as the empty list of an unscoped grant, on the same argument as an anchor or alias — a name is never silently dropped or altered`,
+      };
+    }
+
     SCOPED_GRANT.lastIndex = 0;
     let m: RegExpExecArray | null;
     while ((m = SCOPED_GRANT.exec(v)) !== null) {
