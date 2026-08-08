@@ -124,7 +124,7 @@ Full phase details + milestone summary: `milestones/v2.0-ROADMAP.md` · requirem
   4. On Claude Code the coordinator runs as the **main-thread** agent so its `Agent(<allowlist>)` grant is honored by the runtime, and no non-coordinator adapter carries the `Agent` tool at all — a mechanism that holds on both the main-thread and subagent paths rather than relying on a frontmatter token the runtime ignores. (SPAWN-03, SPAWN-04)
   5. `guard_adapter_body` fails red on pre-v2.0 handoff/single-window prose anywhere in an adapter body — proven against the surviving `grugops-orchestrator.md:25` reference — `orchestrator.md` sits below its **7570-byte FAIL ceiling with the ceiling unchanged**, and the advertised Claude Code floor reads **v2.1.219+ at depth 3** everywhere it appears, with the v2.1.217–218 depth-1 window documented as a known-bad range that degrades loudly. (SPAWN-05, SPAWN-06, SPAWN-07)
 
-**Plans**: 40/42 plans executed
+**Plans**: 41/42 plans executed
 Plans:
 **Wave 1**
 
@@ -270,7 +270,7 @@ Plans:
 
 **Gap wave — round 7, wave 3** *(shares all three `scripts/frontmatter.*` files with 27-39 and 27-40)*
 
-- [ ] 27-41-PLAN.md — `keysGrantedAgentNames` ACCOUNTS for every spawn-token occurrence in a value instead of only examining captures that formed, so a truncated enumeration stops impersonating a genuine unscoped grant — measured, `Agent(alpha, gamma`, `Agent(alpha, #b, gamma)` and `Read, Agent` are three different facts returning one answer on the success arm, while the function's own doc block claims the enumeration is examined before it is split; every occurrence lands in exactly one of three stated buckets with the arithmetic identity asserted, `SCOPED_GRANT` and `keysHaveSpawnGrant` byte-unchanged; and the prologue blank-line skip stops asking *is this line empty* with `String.prototype.trim()`, whose alphabet is narrower than the one this module declares — the THIRD application point of the defect D-39/D-42/D-43 spent two rounds correcting, measured as a lone ZWSP or SOFT HYPHEN hiding a live grant behind a keyless success while a lone NBSP does not (D-50) [KIT-03, SPAWN-04] *(round-6 WR-03, IN-01)*
+- [x] 27-41-PLAN.md — `keysGrantedAgentNames` ACCOUNTS for every spawn-token occurrence in a value instead of only examining captures that formed, so a truncated enumeration stops impersonating a genuine unscoped grant — measured, `Agent(alpha, gamma`, `Agent(alpha, #b, gamma)` and `Read, Agent` are three different facts returning one answer on the success arm, while the function's own doc block claims the enumeration is examined before it is split; every occurrence lands in exactly one of three stated buckets with the arithmetic identity asserted, `SCOPED_GRANT` and `keysHaveSpawnGrant` byte-unchanged; and the prologue blank-line skip stops asking *is this line empty* with `String.prototype.trim()`, whose alphabet is narrower than the one this module declares — the THIRD application point of the defect D-39/D-42/D-43 spent two rounds correcting, measured as a lone ZWSP or SOFT HYPHEN hiding a live grant behind a keyless success while a lone NBSP does not (D-50) [KIT-03, SPAWN-04] *(round-6 WR-03, IN-01)*
 
 **Gap wave — round 7, wave 4** *(Task 3 edits `scripts/frontmatter.ts`, which all three earlier plans own; also build-serialized)*
 
@@ -429,7 +429,7 @@ Plans:
 | 24. Clean Handoff Removal & Traceability Migration | v2.0 | 5/5 | Complete    | 2026-06-22 |
 | 25. Governance-on-a-Dial | v2.0 | 13/13 | Complete | 2026-06-29 |
 | 26. Dogfood, Dual-Path Oracle & A3/DOG-02 Retirement | v2.0 | 6/6 | Complete | 2026-07-24 |
-| 27. Spawn Correctness & Kit-Set Authority | v2.1 | 40/42 | In Progress|  |
+| 27. Spawn Correctness & Kit-Set Authority | v2.1 | 41/42 | In Progress|  |
 | 28. Kit Consistency Audit | v2.1 | 0/TBD | Not started | - |
 | 29. Controlled Language & Voice Guard Rebuild | v2.1 | 0/TBD | Not started | - |
 | 30. Per-Checkpoint Autonomy Matrix | v2.1 | 0/TBD | Not started | - |
