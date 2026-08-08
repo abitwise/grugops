@@ -38,6 +38,7 @@ import { join } from "node:path";
 import {
   parseFrontmatter,
   hasSpawnGrant,
+  keysHaveSpawnGrant,
   grantedAgentNames,
   frontmatterValueIs,
   stripFencedBlocks,
@@ -2601,6 +2602,11 @@ describe("frontmatter — the spawn-grant parser oracle (SPAWN-04 / KIT-03)", ()
     { label: "NO-BREAK SPACE", text: String.fromCodePoint(0xa0) },
     { label: "one space", text: " " },
     { label: "one tab", text: "\t" },
+    // (D-50) A MIXED RUN OF BOTH DECLARED MEMBERS. The single space and single tab were already here;
+    // what this member adds is a run whose INDENTATION verdict cannot be reached by looking at one
+    // character — the label is a property of the WHOLE run, and a scan that decided on the first code
+    // point would still pass on the two single-character members.
+    { label: "a space and a tab", text: " \t" },
     { label: "COMBINING ACUTE ACCENT", text: String.fromCodePoint(0x301) },
     { label: "the NUL control", text: NUL },
   ];
@@ -2795,16 +2801,21 @@ describe("frontmatter — the spawn-grant parser oracle (SPAWN-04 / KIT-03)", ()
     }
   });
 
-  it("D-45 cross-product sweep — 9 leading x 4 payload x 6 trailing, at the OPENING position and at the CLOSING position for BOTH closing payload tokens", () => {
+  it("D-45 cross-product sweep — 10 leading x 4 payload x 6 trailing, at the OPENING position and at the CLOSING position for BOTH closing payload tokens", () => {
     // DERIVE THE SET, ASSERT THE COUNT (this repository's own rule). A table silently emptied by a
     // later edit shrinks the sweep LOUDLY rather than quietly.
-    expect(SWEEP_LEADING.length).toBe(9);
+    //
+    // (D-50) THE CARDINALITY MOVED DELIBERATELY AND THE NEW NUMBERS ARE STATED: axis 1 grew from 9 to
+    // 10 members with the mixed space-and-tab run, so the per-family cell count moved 216 -> 240 and
+    // the total 648 -> 720. A number that changed for no recorded reason is exactly what these
+    // assertions exist to prevent, so the reason is recorded beside it rather than in a commit message.
+    expect(SWEEP_LEADING.length).toBe(10);
     expect(SWEEP_PAYLOAD.length).toBe(4);
     expect(SWEEP_TRAILING.length).toBe(6);
     expect(SWEEP_FAMILIES.length).toBe(3);
     const CELLS_PER_FAMILY =
       SWEEP_LEADING.length * SWEEP_PAYLOAD.length * SWEEP_TRAILING.length;
-    expect(CELLS_PER_FAMILY).toBe(216);
+    expect(CELLS_PER_FAMILY).toBe(240);
 
     let swept = 0;
     for (const family of SWEEP_FAMILIES) {
@@ -2869,8 +2880,8 @@ describe("frontmatter — the spawn-grant parser oracle (SPAWN-04 / KIT-03)", ()
         }
       }
     }
-    // The TOTAL cell count, asserted as a number.
-    expect(swept).toBe(648);
+    // The TOTAL cell count, asserted as a number. (D-50: 648 -> 720 with axis 1's tenth member.)
+    expect(swept).toBe(720);
     expect(swept).toBe(CELLS_PER_FAMILY * SWEEP_FAMILIES.length);
   });
 
@@ -4392,5 +4403,322 @@ describe("frontmatter — the multi-line scalar sweep (D-49 / SPAWN-04 + KIT-03)
       tracked.length,
     );
     expect(read, "the derived corpus must not be empty").toBeGreaterThan(0);
+
+    // (D-50) EXTENDED, NOT DUPLICATED. The `FALSE-RED COST` paragraph in scripts/frontmatter.ts now
+    // CITES this control instead of quoting a remembered count, so the claim it makes must actually
+    // be checkable here. Two additions, both over the SAME already-derived corpus — a second control
+    // walking the same files would be a weaker duplicate, which this module deletes on sight:
+    //
+    //   1. the corpus is not merely non-empty but genuinely COVERS the surface the guards read, so a
+    //      `git ls-files` that silently stopped matching cannot leave this passing over a handful of
+    //      files. Compared against `spawnGrantScan()`'s own composition — DERIVED, never listed.
+    //   2. every member of that surface parses to a NON-EMPTY key set, so a file that took the
+    //      keyless success arm cannot be counted here as "did not refuse".
+    const scanned = spawnGrantScan(root);
+    const trackedSet = new Set(tracked);
+    const missing = scanned.filter((rel) => !trackedSet.has(rel));
+    expect(
+      missing,
+      `every spawn-grant scan member must be inside the derived corpus; ${missing.length} were not`,
+    ).toEqual([]);
+
+    const keyless: string[] = [];
+    for (const rel of scanned) {
+      const parsed = parseFrontmatter(readFileSync(join(root, rel), "utf8"));
+      if (parsed.ok && parsed.value.size === 0) keyless.push(rel);
+    }
+    expect(
+      keyless,
+      `a scan member reaching the KEYLESS success arm is a silent no-grant, not a pass:\n${keyless.join("\n")}`,
+    ).toEqual([]);
+  });
+
+  // ── D-50 / IN-02: THE QUOTING RULE IS APPLIED ONLY WHERE YAML GIVES THE CONSTRUCT QUOTING ──────
+
+  it("D-50 IN-02 — inside a `|` / `>` block scalar the value is the text the document carries: no quote pair removed, no escape resolved or refused", () => {
+    // Every row was measured against the committed `scripts/frontmatter.js` BEFORE this change and
+    // against /usr/bin/ruby -ryaml (Ruby 2.6.10 / Psych 3.1.0 / libyaml 0.2.1). The `loader` field is
+    // what the platform computes for the value, with the block scalar's trailing newline folded away
+    // by this module's declared join contract.
+    const ROWS: readonly {
+      label: string;
+      doc: string;
+      key: string;
+      value: string;
+      before: string;
+    }[] = [
+      {
+        label: "I2-a a non-allowlisted backslash inside a block scalar",
+        doc: '---\nname: x\ntools: |\n  Read, "Agent(x\\q)"\n---\nBody.\n',
+        key: "tools",
+        // libyaml: {"tools"=>"Read, \"Agent(x\\q)\""} — there is no escape here, so nothing to refuse.
+        value: 'Read, "Agent(x\\q)"',
+        before: "REFUSED, naming the backslash sequence `\\q`",
+      },
+      {
+        label: "I2-b a wholly quote-wrapped block-scalar value",
+        doc: '---\nname: x\ndescription: |\n  "alpha"\n---\nBody.\n',
+        key: "description",
+        // libyaml: {"description"=>"\"alpha\""} — the quotes are CONTENT.
+        value: '"alpha"',
+        before: "parsed with the quotes STRIPPED to `alpha`",
+      },
+      {
+        label: "I2-c a block-scalar coordinator marker carrying a quoted true",
+        doc: '---\nname: x\ncoordinator: |\n  "true"\n---\nBody.\n',
+        key: "coordinator",
+        // libyaml: {"coordinator"=>"\"true\""} — the literal text, NOT the bare token.
+        value: '"true"',
+        before: "flattened to the bare `true`, so the marker MATCHED",
+      },
+    ];
+
+    for (const row of ROWS) {
+      const parsed = parseFrontmatter(row.doc);
+      expect(parsed.ok, `${row.label} (before: ${row.before})`).toBe(true);
+      if (parsed.ok) {
+        expect(parsed.value.get(row.key), row.label).toEqual([row.value]);
+      }
+    }
+
+    // I2-a's DESTINATION ARM, named: parse-failure -> CONVICTION. The value plainly carries the
+    // token, so it is a grant. It must never land on the no-grant arm.
+    expect(hasSpawnGrant(ROWS[0].doc)).toEqual({ ok: true, value: true });
+
+    // I2-c's security consequence, on both sides. A non-coordinator file could claim the coordinator
+    // marker through a construct the platform reads as the literal text `"true"`. Masked on the tree
+    // as it stood by guard_wr05's exactly-one-coordinator cardinality check — defence in depth, not a
+    // property of this parser.
+    expect(frontmatterValueIs(ROWS[2].doc, "coordinator", "true")).toEqual({
+      ok: true,
+      value: false,
+    });
+  });
+
+  it("D-50 IN-02 control — the escape allowlist is NOT narrowed: every NON-block value answers to it exactly as before", () => {
+    // THE PRIMARY CONTROL ON THIS WHOLE CHANGE. It was passing before this task and is passing after.
+    const outsideBlock = parseFrontmatter(
+      '---\nname: x\ntools: Read, "Agent(x\\q)"\n---\nBody.\n',
+    );
+    expect(outsideBlock.ok).toBe(false);
+    if (!outsideBlock.ok) {
+      expect(outsideBlock.reason).toContain("backslash sequence");
+      expect(outsideBlock.reason).toContain("\\q");
+    }
+    // A NON-block quoted marker still flattens to the bare token and still matches — the exemption is
+    // scoped to the construct, not to the key.
+    expect(
+      frontmatterValueIs(
+        '---\nname: x\ncoordinator: "true"\n---\nBody.\n',
+        "coordinator",
+        "true",
+      ),
+    ).toEqual({ ok: true, value: true });
+    // The single-quoted branch, byte-unchanged, on a non-block value.
+    const single = parseFrontmatter(
+      "---\nname: x\ndescription: 'it''s fine'\n---\nBody.\n",
+    );
+    expect(single.ok).toBe(true);
+    if (single.ok) {
+      expect(single.value.get("description")).toEqual(["it's fine"]);
+    }
+    // A block scalar carrying a single-quoted-looking value keeps its quotes, because inside a block
+    // scalar there is no quoting to undo in EITHER style.
+    const blockSingle = parseFrontmatter(
+      "---\nname: x\ndescription: |\n  'alpha'\n---\nBody.\n",
+    );
+    expect(blockSingle.ok).toBe(true);
+    if (blockSingle.ok) {
+      expect(blockSingle.value.get("description")).toEqual(["'alpha'"]);
+    }
+  });
+
+  // ── THE ARM-MOVEMENT TABLE: THE ONE PROPERTY THAT MAKES BOTH OF THIS PLAN'S FIXES SAFE ─────────
+
+  it("D-50 arm movement — every input class this plan changes moves to a NAMED arm, and NO class moves into the keyless SUCCESS arm", () => {
+    // WHY THIS IS A TABLE AND NOT PROSE. "No row moves into the keyless success arm" is the single
+    // property that makes both fixes safe, and a property argued in a plan is not checkable. Written
+    // as data, the claim is asserted per row AND as a property over the whole table, so a row added
+    // later whose destination IS the silent arm fails here rather than being reviewed by eye.
+    //
+    // The observed arm is read through the PUBLIC surface, exactly as the guards see it.
+    type Arm =
+      | "refuse-delimiter"
+      | "refuse-unterminated"
+      | "refuse-escape"
+      | "parse-no-grant"
+      | "parse-grant"
+      | "keyless-success";
+
+    const observe = (doc: string): Arm => {
+      const parsed = parseFrontmatter(doc);
+      if (!parsed.ok) {
+        if (/never closed/.test(parsed.reason)) return "refuse-unterminated";
+        if (/delimiter position carries/.test(parsed.reason))
+          return "refuse-delimiter";
+        return "refuse-escape";
+      }
+      if (parsed.value.size === 0) return "keyless-success";
+      return keysHaveSpawnGrant(parsed.value) ? "parse-grant" : "parse-no-grant";
+    };
+
+    const G = "Agent(grugops-orchestrator)";
+    const ZWSP = String.fromCodePoint(0x200b);
+
+    const MOVEMENTS: readonly {
+      label: string;
+      doc: string;
+      from: Arm;
+      to: Arm;
+    }[] = [
+      {
+        label: "indented payload line inside an open block, closing position",
+        doc: `---\ntools: Read, ${G}\n  ---\nname: x\n---\nBody.\n`,
+        from: "refuse-delimiter",
+        to: "parse-grant",
+      },
+      {
+        label: "indented payload line with NO legal close anywhere after it",
+        doc: `---\ntools: Read, ${G}\n  ---\nBody.\n`,
+        from: "refuse-delimiter",
+        to: "refuse-unterminated",
+      },
+      {
+        label: "indented payload line at the OPENING position (unchanged)",
+        doc: `  ---\ntools: Read, ${G}\n---\nBody.\n`,
+        from: "refuse-delimiter",
+        to: "refuse-delimiter",
+      },
+      {
+        label: "leading run carrying residue, closing position (unchanged)",
+        doc: `---\ntools: Read, ${G}\n${ZWSP}---\nBody.\n`,
+        from: "refuse-delimiter",
+        to: "refuse-delimiter",
+      },
+      {
+        label: "leading run carrying residue, opening position (unchanged)",
+        doc: `${ZWSP}---\ntools: Read, ${G}\n---\nBody.\n`,
+        from: "refuse-delimiter",
+        to: "refuse-delimiter",
+      },
+      {
+        label: "block scalar carrying a non-allowlisted backslash",
+        doc: '---\nname: x\ntools: |\n  Read, "Agent(x\\q)"\n---\nBody.\n',
+        from: "refuse-escape",
+        to: "parse-grant",
+      },
+      {
+        label: "block scalar whose joined value is wholly quote-wrapped",
+        doc: '---\nname: x\ndescription: |\n  "alpha"\n---\nBody.\n',
+        from: "parse-no-grant",
+        to: "parse-no-grant",
+      },
+      {
+        label: "the same backslash value OUTSIDE a block scalar (unchanged)",
+        doc: '---\nname: x\ntools: Read, "Agent(x\\q)"\n---\nBody.\n',
+        from: "refuse-escape",
+        to: "refuse-escape",
+      },
+      // (FOUND BY RED-TEAM, NOT BY THE PLAN — named rather than accepted silently.) The ONE row whose
+      // destination is a NO-GRANT success, which is the direction that needs an argument. It has one,
+      // and the argument is measured on three sides:
+      //
+      //   1. the module's value is BYTE-EQUAL to what libyaml computes, and libyaml's own value has
+      //      NO `\bAgent\b` boundary either — the `n` of the literal `\n` is glued to the `A`. Module
+      //      and platform agree on the value AND on the token's absence, so there is no disagreement
+      //      for a bypass to live in;
+      //   2. THREE sibling spellings of the identical value — an unquoted block scalar, a plain
+      //      scalar and a single-quoted scalar — ALREADY landed here before this change. The
+      //      wholly-quote-wrapped block scalar was the only spelling that refused, and it refused by
+      //      naming a "double-quoted scalar" that does not exist inside a block scalar. This removes
+      //      an inconsistency rather than opening a path (asserted by its own case below);
+      //   3. the DISCRIMINATING control on the next row: the same construct with the token after a
+      //      comma CONVICTS. The exemption reports the value faithfully; it does not suppress a token.
+      {
+        label:
+          "block scalar, wholly quoted, non-allowlisted escape gluing the token to a word character",
+        doc: '---\nname: x\ntools: |\n  "Read\\nAgent(grugops-orchestrator)"\n---\nBody.\n',
+        from: "refuse-escape",
+        to: "parse-no-grant",
+      },
+      {
+        label:
+          "the DISCRIMINATING control — the same construct with the token on a boundary CONVICTS",
+        doc: '---\nname: x\ntools: |\n  "Read\\n, Agent(grugops-orchestrator)"\n---\nBody.\n',
+        from: "refuse-escape",
+        to: "parse-grant",
+      },
+      {
+        label: "a legal document, untouched",
+        doc: `---\ntools: Read, ${G}\n---\nBody.\n`,
+        from: "parse-grant",
+        to: "parse-grant",
+      },
+      {
+        label: "a body-only document, deliberately still keyless",
+        doc: "# Heading\n\nprose\n",
+        from: "keyless-success",
+        to: "keyless-success",
+      },
+    ];
+
+    // DERIVE THE SET, ASSERT THE COUNT. A row deleted later shrinks this LOUDLY.
+    expect(MOVEMENTS.length).toBe(12);
+
+    for (const row of MOVEMENTS) {
+      expect(observe(row.doc), `${row.label}: ${row.from} -> ${row.to}`).toBe(
+        row.to,
+      );
+    }
+
+    // THE PROPERTY, OVER THE WHOLE TABLE. No input class this plan CHANGES may arrive at the keyless
+    // success arm. The one row that sits there was already there and did not move — a body-only file
+    // is a legitimate document, and turning it red would trade a silent success for a false red,
+    // which D-34 records as the worse of the two.
+    const arrivedSilently = MOVEMENTS.filter(
+      (r) => r.to === "keyless-success" && r.from !== r.to,
+    );
+    expect(
+      arrivedSilently.map((r) => r.label),
+      "no input class may MOVE into the keyless success arm",
+    ).toEqual([]);
+
+    // And every row that DID move, moved out of a refusal into something at least as loud.
+    const moved = MOVEMENTS.filter((r) => r.from !== r.to);
+    expect(moved.length, "the plan changes at least three input classes").toBeGreaterThanOrEqual(3);
+    for (const row of moved) {
+      expect(row.to, `${row.label} destination`).not.toBe("keyless-success");
+    }
+  });
+
+  it("D-50 — the four scalar spellings of ONE value now agree, which is what the block-scalar exemption actually bought", () => {
+    // The wholly-quote-wrapped block scalar was the ODD ONE OUT: three sibling spellings of the exact
+    // same text already reported no grant, and only this one refused — naming a "double-quoted
+    // scalar" that a block scalar does not contain. This case is the reason the no-grant destination
+    // in the arm-movement table above is a consistency repair and not a new path: after the change
+    // all four spellings return the SAME verdict over the SAME text.
+    const TOKEN = "Agent(grugops-orchestrator)";
+    const SPELLINGS: readonly [string, string][] = [
+      ["block, wholly quoted", `---\nname: x\ntools: |\n  "Read\\n${TOKEN}"\n---\nB\n`],
+      ["block, unquoted", `---\nname: x\ntools: |\n  Read\\n${TOKEN}\n---\nB\n`],
+      ["plain scalar", `---\nname: x\ntools: Read\\n${TOKEN}\n---\nB\n`],
+      ["single-quoted scalar", `---\nname: x\ntools: 'Read\\n${TOKEN}'\n---\nB\n`],
+    ];
+    for (const [label, doc] of SPELLINGS) {
+      // No `\bAgent\b` boundary exists in this text — the `n` of the LITERAL `\n` is glued to the
+      // `A`. libyaml computes the same value and finds the same absence, verified at execution time.
+      expect(hasSpawnGrant(doc), label).toEqual({ ok: true, value: false });
+    }
+    // THE DISCRIMINATING CONTROL, in all four spellings: put the token on a boundary and every one
+    // convicts. A predicate that reported no-grant here would be the silent arm for real.
+    const ON_BOUNDARY: readonly [string, string][] = [
+      ["block, wholly quoted", `---\nname: x\ntools: |\n  "Read\\n, ${TOKEN}"\n---\nB\n`],
+      ["block, unquoted", `---\nname: x\ntools: |\n  Read\\n, ${TOKEN}\n---\nB\n`],
+      ["plain scalar", `---\nname: x\ntools: Read\\n, ${TOKEN}\n---\nB\n`],
+      ["single-quoted scalar", `---\nname: x\ntools: 'Read\\n, ${TOKEN}'\n---\nB\n`],
+    ];
+    for (const [label, doc] of ON_BOUNDARY) {
+      expect(hasSpawnGrant(doc), label).toEqual({ ok: true, value: true });
+    }
   });
 });

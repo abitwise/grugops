@@ -566,6 +566,41 @@ function flattenBlock(block, baseIndent) {
     // Returns a REFUSAL to propagate, or null when there was nothing to report. `flush` used to return
     // nothing; the checked unquote can now fail, and a failure swallowed here would be the silent
     // no-grant arm one level down.
+    //
+    // (D-50 — 27-REVIEW-GAPS-6 § IN-02, round 6) THE BLOCK-SCALAR EXEMPTION: A RULE IS APPLIED ONLY
+    // WHERE THE FORMAT GIVES THE CONSTRUCT THAT MEANING.
+    //
+    // Inside a `|` or `>` block scalar YAML applies NO quoting rules AT ALL — there is no wrapping
+    // quote pair to remove and no escape sequence to resolve, because every character between the
+    // indicator and the end of the block is CONTENT. This closure applied `unquoteChecked` regardless,
+    // and got it wrong in both directions. Measured against the committed build, with the loader column
+    // from /usr/bin/ruby -ryaml (Ruby 2.6.10 / Psych 3.1.0 / libyaml 0.2.1):
+    //
+    //   tools: |          REFUSED, naming the backslash sequence `\q` "inside a double-quoted scalar" —
+    //     Read, "Agent(x\q)"     a scalar the loader never sees. libyaml: `Read, "Agent(x\\q)"`.
+    //   description: |    parsed, and the quotes were STRIPPED to `alpha`.
+    //     "alpha"                libyaml keeps them: `"alpha"`.
+    //   coordinator: |    flattened to the bare `true`, so `keyHasValue(keys, "coordinator", "true")`
+    //     "true"                 MATCHED. libyaml: the literal text `"true"`. See `keyHasValue`.
+    //
+    // THIS IS THE SAME DISCIPLINE `startsWithReference`'s doc block ALREADY STATES, ten lines above, in
+    // its "where it is NOT applied" paragraph — and this closure is the site that was missing it. Such
+    // a paragraph is not documentation; it is part of the rule, and a rule shipped without it is a rule
+    // applied everywhere.
+    //
+    // THIS IS NOT THE ESCAPE ALLOWLIST BEING NARROWED, and it must never become that. Every value that
+    // is NOT a block scalar still answers to `unquoteChecked` byte for byte — the allowlist, the
+    // single-quoted branch and the embedded-region scan are all untouched, and the same `\q` value
+    // written OUTSIDE a block scalar still refuses, pinned by a control that passed before this change
+    // and passes after it. What this does is make the flush AGREE WITH THE BRANCH THAT FED IT: the
+    // block-scalar continuation branch below already treats every character as content and strips no
+    // comment, and the flush then contradicted it at the join.
+    //
+    // THE DIRECTION IS LOUD. A block scalar carrying a spawn token moves from the parse-FAILURE arm to
+    // the CONVICTION arm — the value plainly carries the token, so it is a grant. It cannot move to the
+    // no-grant arm: the three allowlisted escapes each resolve to a NON-WORD character (`"`, `\`, `/`)
+    // and are non-word unresolved too, so leaving them alone can neither create nor destroy an
+    // `\bAgent\b` / `\bTask\b` boundary, and removing a wrapping quote pair never could either.
     const flush = () => {
         if (cur === null)
             return null;
@@ -575,15 +610,22 @@ function flattenBlock(block, baseIndent) {
                 ? cur.parts.join(", ")
                 : cur.parts.join(" ");
         const trimmed = joined.trim();
-        const resolved = unquoteChecked(trimmed);
-        if (!resolved.ok) {
-            return refuseEscape(`${cur.key}: ${trimmed}`, resolved.escape);
+        let value;
+        if (cur.block) {
+            value = trimmed;
+        }
+        else {
+            const resolved = unquoteChecked(trimmed);
+            if (!resolved.ok) {
+                return refuseEscape(`${cur.key}: ${trimmed}`, resolved.escape);
+            }
+            value = resolved.value;
         }
         const seen = keys.get(cur.key);
         if (seen === undefined)
-            keys.set(cur.key, [resolved.value]);
+            keys.set(cur.key, [value]);
         else
-            seen.push(resolved.value);
+            seen.push(value);
         cur = null;
         return null;
     };
@@ -1389,6 +1431,21 @@ export function keysGrantedAgentNames(keys) {
 // read, so the marker and the grant go through the SAME parser: a marker written as `coordinator:
 // "true"` or as a folded scalar flattens to the same `true` and can neither demote the real
 // coordinator nor promote a rogue file out of the must-not-spawn set.
+//
+// (D-50 — 27-REVIEW-GAPS-6 § IN-02, round 6) AND ONE SPELLING DEFEATED THAT ARGUMENT, RECORDED HERE
+// WITH ITS MASKING RATHER THAN OVERSOLD. The paragraph above was true of every spelling except a
+// BLOCK SCALAR. `coordinator: |` / `  "true"` flattened to the bare `true` — because the flush
+// applied the quoting rule inside a construct YAML gives no quoting — so this predicate MATCHED on a
+// document a real loader reads as the literal text `"true"`. A non-coordinator file could therefore
+// claim the coordinator marker.
+//
+// IT WAS MASKED ON THE TREE AS IT STOOD, AND THE MASK IS NOT A PROPERTY OF THIS PARSER.
+// `guard_wr05` checks that there is EXACTLY ONE coordinator, so a second file claiming the marker
+// would have been caught by the cardinality check rather than by this predicate. That is defence in
+// depth, and defence in depth is exactly the thing that must not be mistaken for correctness: the
+// mask evaporates for ANY consumer of `keyHasValue` that does not also count coordinators. Closed at
+// the source in `flush` (see the block-scalar exemption there) and pinned by a case that was RED
+// against the committed build before that change.
 export function keyHasValue(keys, key, value) {
     return (keys.get(key) ?? []).some((v) => v === value);
 }
