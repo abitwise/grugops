@@ -3275,3 +3275,229 @@ describe("frontmatter — the grant enumeration's legal character set (D-47 item
     }
   });
 });
+
+// ---------------------------------------------------------------------------
+// D-48 — QUOTE STATE IS A PROPERTY OF THE SCALAR, NOT OF THE PHYSICAL LINE
+// (27-REVIEW-GAPS-6 § CR-01 + § WR-01, round 6, plus the JOIN direction)
+// ---------------------------------------------------------------------------
+//
+// The SIXTH spelling of this module's founding failure, and the first that is not inside a predicate
+// at all. `stripComment`, `startsWithReference` and the `SEQ_ITEM` item boundary each decided their
+// state per PHYSICAL LINE while `flattenBlock` handed them one line at a time. A YAML scalar does not
+// end at a line boundary, so a multi-line quoted scalar was analysed as N independent single-line
+// documents — and the module got it wrong in THREE DIRECTIONS AT ONCE.
+//
+// EVERY ROW BELOW WAS MEASURED RED AGAINST THE COMMITTED `scripts/frontmatter.js` ON A
+// `git archive HEAD` MIRROR BEFORE THE FIX, and every "platform" expectation was resolved against a
+// REAL YAML 1.2 LOADER (`/usr/bin/ruby -ryaml` — Ruby 2.6.10 / Psych 3.1.0 / libyaml 0.2.1) rather
+// than asserted from reading. A case that was never red is not a pin; a platform claim with no loader
+// behind it is an assertion, not a verification.
+describe("frontmatter — the carried scalar quote state (D-48 / SPAWN-04 + KIT-03)", () => {
+  const doc = (body: string): string => `---\nname: x\n${body}\n---\nBody.\n`;
+  const TOKEN = "Agent(grugops-orchestrator)";
+
+  // ── CR-01 — the `#` direction: a hidden token on the silent no-grant SUCCESS arm ───────────────
+  //
+  // Measured RED: each of the three returned `{ok:true,value:false}` with NO refusal, while libyaml
+  // returned the grant. The scanner returned the empty string for a continuation line whose first
+  // character was `#`, so the continuation was discarded WHOLE and the token on it was hidden.
+
+  it("CR-01 A — a `#` on the continuation line of a wrapped DOUBLE-quoted scalar is content, not a comment", () => {
+    const text = doc(`tools: "Read,\n  # x, ${TOKEN}"`);
+    expect(hasSpawnGrant(text)).toEqual({ ok: true, value: true });
+    const p = parseFrontmatter(text);
+    // libyaml: {"tools"=>"Read, # x, Agent(grugops-orchestrator)"} — byte-equal.
+    expect(p.ok && p.value.get("tools")).toEqual([`Read, # x, ${TOKEN}`]);
+  });
+
+  it("CR-01 B — the same, in a wrapped SINGLE-quoted scalar", () => {
+    const text = doc(`tools: 'Read,\n  # x, ${TOKEN}'`);
+    expect(hasSpawnGrant(text)).toEqual({ ok: true, value: true });
+    const p = parseFrontmatter(text);
+    expect(p.ok && p.value.get("tools")).toEqual([`Read, # x, ${TOKEN}`]);
+  });
+
+  it("CR-01 C — the same inside a wrapped BLOCK-SEQUENCE item, which is the shipped idiom", () => {
+    // All 7 shipped skills and all 17 shipped agent adapters write `allowed-tools:` / `tools:` as a
+    // block sequence of `  - Item` lines, so this is the spelling a drifting author would actually
+    // write. Planted on BOTH distribution twins of skills/plan/SKILL.md it printed ALL CHECKS PASSED
+    // at exit 0 against the committed build, while the identical grant WITHOUT the line break exited 1.
+    const text = doc(`tools:\n  - Read\n  - "Write,\n    # x, ${TOKEN}"`);
+    expect(hasSpawnGrant(text)).toEqual({ ok: true, value: true });
+    const p = parseFrontmatter(text);
+    expect(p.ok && p.value.get("tools")?.[0]).toContain(TOKEN);
+  });
+
+  it("CR-01 control — the identical value on ONE line was ALWAYS granted, so the line break was the whole defect", () => {
+    const text = doc(`tools: "Read, # x, ${TOKEN}"`);
+    expect(hasSpawnGrant(text)).toEqual({ ok: true, value: true });
+  });
+
+  // ── WR-01 — the `*` / `!` / `&` direction: the same reset, failing RED on correct documentation ─
+  //
+  // Measured RED: each returned the failure arm with a reason containing `anchor or alias`, over a
+  // document libyaml loads to a plain description string. A false red is a red gate whose only cure
+  // is deleting correct documentation, which D-34 records as the worse of the two directions.
+
+  const WR01: ReadonlyArray<readonly [string, string, string]> = [
+    ["a — markdown emphasis", "*emphasis* here", "see *emphasis* here"],
+    ["b — a bare `!`", "!important stuff", "see !important stuff"],
+    ["c — `R&D`-shaped text", "&D work", "see &D work"],
+  ];
+
+  for (const [label, continuation, expected] of WR01) {
+    it(`WR-01 ${label} — a sigil at position 0 of a CONTINUATION line is content, and the document parses`, () => {
+      const text = doc(`description: "see\n  ${continuation}"`);
+      const p = parseFrontmatter(text);
+      expect(p.ok, `expected the success arm, got: ${p.ok ? "" : p.reason}`).toBe(true);
+      // libyaml loads each of these to exactly this plain string.
+      expect(p.ok && p.value.get("description")).toEqual([expected]);
+      expect(hasSpawnGrant(text)).toEqual({ ok: true, value: false });
+    });
+  }
+
+  // ── The JOIN direction — the item boundary, named in NO review and reproduced by the planner ────
+  //
+  // `SEQ_ITEM` was tested against the trimmed text of EVERY indented line with no knowledge of
+  // whether a quoted scalar was open, so a `-` opening a continuation line was read as a NEW item:
+  // it re-routed that line through the item path (where the comment scanner then deleted it) AND it
+  // set `cur.seq`, flipping the join separator for the WHOLE key from `" "` to `", "`.
+
+  it("JOIN a — a `-` opening the continuation line of an open quoted scalar is CONTENT, and the grant survives", () => {
+    const text = doc(`tools: "Read,\n  - # n, ${TOKEN}"`);
+    expect(hasSpawnGrant(text)).toEqual({ ok: true, value: true });
+    const p = parseFrontmatter(text);
+    // libyaml: {"tools"=>"Read, - # n, Agent(grugops-orchestrator)"} — byte-equal. Measured RED, the
+    // flattened value was the truncated `"Read,`.
+    expect(p.ok && p.value.get("tools")).toEqual([`Read, - # n, ${TOKEN}`]);
+  });
+
+  it("JOIN b — the same inside a wrapped block-sequence item", () => {
+    const text = doc(`tools:\n  - Read\n  - "Write,\n    - # n, ${TOKEN}"`);
+    expect(hasSpawnGrant(text)).toEqual({ ok: true, value: true });
+    const p = parseFrontmatter(text);
+    // Measured RED, the flattened value was the truncated `Read, "Write,`.
+    expect(p.ok && p.value.get("tools")?.[0]).toContain(TOKEN);
+  });
+
+  it("JOIN c — the item boundary INVENTED A NAME with no comment and no reference involved", () => {
+    // This direction never passes through a comment or a node-start test. The dash alone changed the
+    // join separator, which changed where `keysGrantedAgentNames` splits, which produced a name the
+    // document does not express — on the `ok: true` arm the enumerator's own doc block promises is
+    // safe. That set feeds the KIT-03 closure equality and the coordinator-resolution precheck.
+    const wrapped = doc('tools: "Agent(alpha, ga\n  - mma)"');
+    const single = doc("tools: Agent(alpha, ga - mma)");
+    // Measured RED: wrapped enumerated ["alpha","ga","mma"] where single enumerated ["alpha","ga - mma"].
+    // libyaml loads BOTH documents to the identical value `Agent(alpha, ga - mma)`.
+    expect(grantedAgentNames(wrapped)).toEqual(grantedAgentNames(single));
+    expect(grantedAgentNames(wrapped)).toEqual({
+      ok: true,
+      value: ["alpha", "ga - mma"],
+    });
+  });
+
+  // ── ADJACENCY, ASSERTED IN BOTH DIRECTIONS AND AT BOTH KINDS OF BOUNDARY ───────────────────────
+  //
+  // Where a quote closes exactly at end-of-line the NEXT line starts OUTSIDE the scalar, so a `#` on
+  // it is a comment again AND a leading `-` on it is an item boundary again. The just-touching cases
+  // are asserted rather than assumed to fall out of the carry.
+
+  it("adjacency — a quote closing exactly at END-OF-LINE leaves the next line's `#` a comment again", () => {
+    const text = doc('description: "see\n  more"\n  # this really is a comment');
+    const p = parseFrontmatter(text);
+    expect(p.ok && p.value.get("description")).toEqual(["see more"]);
+  });
+
+  it("adjacency — a quote closing exactly at END-OF-LINE leaves the next line's leading `-` an ITEM BOUNDARY again", () => {
+    // The quoted scalar closes on its own line; what follows is a genuine sibling item, so the key's
+    // separator is the block sequence's `", "` and NOT the scalar fold's `" "`.
+    const text = doc('tools:\n  - "Read,\n    Grep"\n  - Write');
+    const p = parseFrontmatter(text);
+    expect(p.ok && p.value.get("tools")).toEqual(['"Read, Grep", Write']);
+  });
+
+  it("adjacency — a quote closing immediately before a `#` on the SAME line leaves that `#` a comment", () => {
+    const text = doc('description: "see\n  more" # and this is a comment');
+    const p = parseFrontmatter(text);
+    expect(p.ok && p.value.get("description")).toEqual(["see more"]);
+  });
+
+  // ── THE CONTROLS: what the carry must NOT have narrowed ────────────────────────────────────────
+
+  it("a genuine multi-item block sequence with NO open quote flattens byte-identically", () => {
+    // This is the shipped `allowed-tools:` idiom. If the carry had narrowed it, every skill and
+    // adapter in the kit would have changed value at once.
+    const text = doc("allowed-tools:\n  - Read\n  - Write\n  - Bash\n  - Glob\n  - Grep");
+    const p = parseFrontmatter(text);
+    expect(p.ok && p.value.get("allowed-tools")).toEqual([
+      "Read, Write, Bash, Glob, Grep",
+    ]);
+  });
+
+  it("a real anchor, alias and unresolved tag at a GENUINE node start are still refused BY NAME", () => {
+    const refused = [
+      "_t: &t Read, Agent(grugops-orchestrator)\ntools: Read",
+      "tools: *t",
+      "tools: !!seq [*t]",
+      "tools:\n  - &t Read",
+    ];
+    for (const body of refused) {
+      const r = parseFrontmatter(doc(body));
+      expect(r.ok, body).toBe(false);
+      expect(!r.ok && r.reason, body).toContain("anchor or alias");
+    }
+  });
+
+  it("a single-line trailing comment is still stripped, byte for byte", () => {
+    const p = parseFrontmatter(doc("tools: Read, Grep   # not part of the value"));
+    expect(p.ok && p.value.get("tools")).toEqual(["Read, Grep"]);
+  });
+
+  // ── THE REGRESSION THE VALUE MAP CAUGHT, PINNED SO IT CANNOT RETURN ────────────────────────────
+
+  it("an apostrophe inside a PLAIN scalar opens nothing across a line boundary (the carry is gated on the NODE START)", () => {
+    // A quote character is only a quote where a node may BEGIN. The first draft of the carry stored
+    // the scanner's exiting flags unconditionally, so this lone apostrophe propagated a phantom open
+    // quote and swallowed the NEXT line's item boundary — MERGING two genuine sibling list items.
+    // Invisible to every case in this suite and to all nine CR-01/WR-01/JOIN anchors above; caught
+    // only by comparing the flattened value map over all tracked markdown files before and after,
+    // which named 10 real `.planning/` documents. A change this far upstream is proven by the values
+    // it produces over the real corpus, not by the rows it was written to repair.
+    const text = doc(
+      "provides:\n  - headroom for 27-06's frontmatter key\n  - capability-keyed spawn instruction",
+    );
+    const p = parseFrontmatter(text);
+    expect(p.ok && p.value.get("provides")).toEqual([
+      "headroom for 27-06's frontmatter key, capability-keyed spawn instruction",
+    ]);
+  });
+
+  it("an ODD number of apostrophes in a plain scalar still cannot leak state into the NEXT key", () => {
+    const text = doc(
+      "summary: the orchestrator's job\ntools: Read # a real comment\ncoordinator: true",
+    );
+    const p = parseFrontmatter(text);
+    expect(p.ok && p.value.get("tools")).toEqual(["Read"]);
+    expect(p.ok && p.value.get("coordinator")).toEqual(["true"]);
+  });
+
+  it("a `|` / `>` block scalar is untouched — its continuation lines were already exempt", () => {
+    const folded = doc(`tools: >-\n  Read, # x, ${TOKEN}`);
+    const literal = doc(`tools: |-\n  Read, # x, ${TOKEN}`);
+    for (const text of [folded, literal]) {
+      const p = parseFrontmatter(text);
+      expect(p.ok && p.value.get("tools")).toEqual([`Read, # x, ${TOKEN}`]);
+      expect(hasSpawnGrant(text)).toEqual({ ok: true, value: true });
+    }
+  });
+
+  it("the ESCAPE allowlist still fires on a continuation line of an open double-quoted scalar", () => {
+    // The carry must not have created a new application point where D-30's refusal is skipped: a
+    // non-allowlisted escape arriving on a continuation line is still refused rather than flattened
+    // into a value no loader computes.
+    const text = doc('tools:\n  - "Read,\n    \\x41gent(grugops-orchestrator)"');
+    const r = parseFrontmatter(text);
+    expect(r.ok).toBe(false);
+    expect(!r.ok && r.reason).toContain("\\x");
+  });
+});

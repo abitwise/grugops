@@ -290,6 +290,16 @@ const stripLeadingTag = (s) => s.replace(LEADING_TAG, "");
 // value actually opens with `[` or `{`. Everywhere else the sigil must be at position 0. That is what
 // keeps `R&D` in a description, a bare `*` between words and markdown `*emphasis*` parsing.
 //
+// (D-48 — 27-REVIEW-GAPS-6 § WR-01, round 6) AND POSITION 0 OF **A NODE START**, WHICH A CONTINUATION
+// LINE OF AN OPEN QUOTED SCALAR IS NOT. The sentence above was true of a single-line value and FALSE
+// the moment the value wrapped, because `flattenBlock` handed this function one physical line at a
+// time with no knowledge of whether a scalar was still open. Measured against the committed build,
+// all three of `description: "see` / `  *emphasis* here"`, `  !important stuff"` and `  &D work"`
+// were REFUSED as an anchor, alias or unresolved tag — documents libyaml loads to a plain string. A
+// false red is a red gate whose only cure is deleting correct documentation, which D-34 records as
+// the worse of the two directions. This function is UNCHANGED; its callers now decline to ask it
+// about a line that is scalar CONTENT (see `flattenBlock`'s carried quote state).
+//
 // THE SPLIT IS ON EVERY FLOW DELIMITER, NOT JUST THE COMMA. `,`, `[` and `{` each introduce a node,
 // so all three are separators. A self red-team walked through the comma-only version with
 // `tools: [[*t]]` — the alias sits at the start of a NESTED sequence, so no comma precedes it, and the
@@ -331,14 +341,46 @@ function startsWithReference(text) {
     }
     return false;
 }
+// WHICH QUOTE, IF ANY, THIS NODE'S SCALAR IS WRITTEN IN — decided ONCE, at the NODE START, and the
+// only thing that licenses a quote state to cross a line boundary.
+//
+// IN YAML A QUOTE CHARACTER IS ONLY A QUOTE WHERE A NODE MAY BEGIN. Inside a PLAIN scalar an
+// apostrophe is ordinary text: `- headroom for 27-06's frontmatter key` is a complete plain scalar
+// and the next `- item` line is a genuine sibling. Caught by this plan's own before/after value map
+// over all 1131 tracked markdown files, which named 10 real `.planning/` documents whose sibling
+// list items were being MERGED — the first draft of the carry stored the scanner's exiting flags
+// unconditionally, so one apostrophe in a plain scalar propagated a phantom open quote and swallowed
+// the following line's item boundary. The carry is therefore gated on the node start, which is the
+// same rule `startsWithReference` already applies to a sigil, applied to a quote.
+//
+// The scanner's WITHIN-LINE quote tracking is untouched by this gate: a quoted region opening
+// mid-line (a flow collection's `["a # b"]`) must still hide its hash on that line. This decides only
+// what CROSSES a line boundary, which is exactly the fact the physical-line reset got wrong.
+const nodeStartQuote = (nodeText) => nodeText.startsWith('"') ? '"' : nodeText.startsWith("'") ? "'" : null;
 // Drop a trailing unquoted comment. A `#` only starts a comment when it is outside quotes AND at the
 // start or preceded by whitespace, so `Agent(a#b)` keeps its hash and `Read # note` loses the note.
-// Quote state is tracked WITHIN one piece; a `#` inside a quoted value that wraps across lines can
-// therefore truncate that piece early, which only ever makes a value SHORTER on that line while the
-// following line's text still joins in — the error direction is a longer value, never a hidden token.
-function stripComment(s) {
-    let sq = false;
-    let dq = false;
+//
+// (D-48 — 27-REVIEW-GAPS-6 § CR-01, round 6) QUOTE STATE IS A PROPERTY OF THE SCALAR, NOT OF THE
+// LINE, so this scanner is SEEDED with the state the previous line of the same key left open and
+// RETURNS the state it leaves open. One walk, one answer, carried across the lines a scalar occupies.
+//
+//   THE COMMENT THAT STOOD HERE FOR THREE ROUNDS SAID THE OPPOSITE OF THE MEASURED TRUTH. It claimed
+//   that a `#` inside a quoted value wrapping across lines "only ever makes a value SHORTER on that
+//   line while the following line's text still joins in — the error direction is a longer value,
+//   never a hidden token." The following line's text did NOT join in: seeded from nothing, this
+//   scanner returned the EMPTY STRING for a continuation line whose first character was `#`, so the
+//   whole continuation was discarded and the token on it was HIDDEN. Measured against the committed
+//   build: `tools: "Read,` / `  # x, Agent(grugops-orchestrator)"` returned `{ok:true,value:false}`
+//   while libyaml returned `Read, # x, Agent(grugops-orchestrator)` — the silent no-grant arm, over
+//   a live spawn grant. A comment claiming a property is never left standing without the assertion
+//   that makes it true; the replacement above ships with its cases in the same commit.
+//
+// While the entering state is open, no `#` on this line can start a comment — the seeded flags say so
+// directly, so the exemption needs no second rule. Where the quote CLOSES mid-line, the state is
+// closed from that character on and a `#` after it is a comment again, at the same line.
+function stripComment(s, entering) {
+    let sq = entering === "'";
+    let dq = entering === '"';
     for (let i = 0; i < s.length; i++) {
         const c = s[i];
         if (dq && c === "\\") {
@@ -350,10 +392,13 @@ function stripComment(s) {
         else if (c === "'" && !dq)
             sq = !sq;
         else if (c === "#" && !sq && !dq && (i === 0 || /[ \t]/.test(s[i - 1]))) {
-            return s.slice(0, i);
+            // A comment runs to end-of-line and is only ever entered from OUTSIDE quotes, so nothing is
+            // left open behind it. The exiting state is derived from the same two flags as the fall-through
+            // below rather than being asserted a second way.
+            return { text: s.slice(0, i), openQuote: dq ? '"' : sq ? "'" : null };
         }
     }
-    return s;
+    return { text: s, openQuote: dq ? '"' : sq ? "'" : null };
 }
 // ---------------------------------------------------------------------------
 // The double-quoted ESCAPE ALLOWLIST (D-30 — 27-REVIEW-GAPS-3 § CR-01, round 3)
@@ -560,16 +605,34 @@ function flattenBlock(block, baseIndent) {
                 cur.parts.push(t);
                 continue;
             }
-            const item = t.match(SEQ_ITEM);
+            // (D-48) THE CARRIED SCALAR STATE, READ ONCE AND CONSULTED BY ALL THREE CONSUMERS BELOW. While
+            // a quoted scalar opened on an earlier line of this key is still open, THIS LINE IS CONTENT:
+            // it is not a comment start, it is not a node start, and it is not an item boundary. That is
+            // the whole of what the carried state decides — it never decides what a value MEANS.
+            const inScalar = cur.openQuote !== null;
+            // CONSUMER 1 — THE ITEM BOUNDARY. `SEQ_ITEM` is byte-unchanged and is simply NOT ASKED while a
+            // scalar is open. Teaching the regex about quotes would be a SECOND GRAMMAR for a fact this
+            // field already holds, and this module has deleted a weaker-duplicate predicate twice.
+            // Measured against the committed build, the unconditional test read the `-` opening a
+            // continuation line as a new item, which set `cur.seq` and flipped the join separator for the
+            // WHOLE key from `" "` to `", "` — inventing a comma, hence a NAME, on the success arm.
+            const item = inScalar ? null : t.match(SEQ_ITEM);
             if (item !== null) {
                 // A block-sequence ITEM is its own node, so the token start is the text after the dash.
                 const itemText = (item[1] ?? "").trim();
+                // CONSUMER 2 (item path) — the node-start test. Reached only with the scalar CLOSED, so the
+                // node start is real; the seed below is `cur.openQuote` rather than a literal null so this
+                // path reads the carried state like every other, with no per-line derivation of its own.
                 if (startsWithReference(itemText))
                     return refuseRef(t);
                 cur.seq = true;
                 // (D-30) The escape refusal fires HERE, at the same node-start point the reference refusal
                 // already fires from, and returns directly rather than being deferred to the flush.
-                const resolved = unquoteChecked(stripComment(itemText).trim());
+                const scanned = stripComment(itemText, cur.openQuote);
+                // The item is its own node, so its node start decides whether a state may cross the boundary.
+                cur.openQuote =
+                    nodeStartQuote(itemText) === null ? null : scanned.openQuote;
+                const resolved = unquoteChecked(scanned.text.trim());
                 if (!resolved.ok)
                     return refuseEscape(t, resolved.escape);
                 const v = resolved.value;
@@ -577,9 +640,31 @@ function flattenBlock(block, baseIndent) {
                     cur.parts.push(v);
                 continue;
             }
-            if (startsWithReference(t))
+            // CONSUMER 2 (continuation path) — the node-start test, DECLINED while the scalar is open.
+            if (!inScalar && startsWithReference(t))
                 return refuseRef(t);
-            cur.parts.push(stripComment(t).trim());
+            // CONSUMER 3 — the comment scanner, seeded from and storing back to the one carried state.
+            const scanned = stripComment(t, cur.openQuote);
+            // A continuation line CONTINUES a node; it never starts one, so it can only ever carry a state
+            // FORWARD (until the scalar closes) and never OPEN one. A quote first seen here belongs to a
+            // plain scalar's text or to a region inside a flow collection — neither is a quoted scalar, and
+            // treating one as if it were is how the plain-scalar apostrophe swallowed a sibling item.
+            if (inScalar)
+                cur.openQuote = scanned.openQuote;
+            const text = scanned.text.trim();
+            if (inScalar && cur.parts.length > 0) {
+                // A continuation of an OPEN scalar is the SAME node, so it folds into the part it continues
+                // rather than becoming a part of its own. Pushing it would hand a block sequence's `", "`
+                // join a boundary the document does not express — the invented-comma direction again, this
+                // time one layer below the item boundary. YAML folds the line break to a single space and so
+                // does this, which is why the flattened value matches the loader's byte for byte.
+                cur.parts[cur.parts.length - 1] =
+                    text === ""
+                        ? cur.parts[cur.parts.length - 1]
+                        : `${cur.parts[cur.parts.length - 1]} ${text}`;
+                continue;
+            }
+            cur.parts.push(text);
             continue;
         }
         // At the baseline: either a comment line, or a new key, or something unreadable.
@@ -602,11 +687,20 @@ function flattenBlock(block, baseIndent) {
         if (startsWithReference(rest))
             return refuseRef(t);
         if (BLOCK_INDICATOR.test(rest)) {
-            cur = { key: kv[1], parts: [], block: true, seq: false };
+            cur = { key: kv[1], parts: [], block: true, seq: false, openQuote: null };
         }
         else {
-            cur = { key: kv[1], parts: [], block: false, seq: false };
-            const v = stripComment(rest).trim();
+            cur = { key: kv[1], parts: [], block: false, seq: false, openQuote: null };
+            // (D-48) THE KEY LINE SEEDS FROM NULL, AND THE ASYMMETRY WITH THE TWO CONTINUATION POINTS IS
+            // DELIBERATE — DO NOT "FIX" IT TO MATCH THEM. A key line begins a NEW NODE, so no scalar from
+            // the previous key can still be open across it; seeding from anything else would let one key's
+            // unterminated quote silence the next key's comment stripping. It is also why the node-start
+            // reference test a few lines above stays UNGUARDED here while both continuation points guard
+            // theirs: the entering state at a key line is null by construction, so there is nothing to
+            // guard against, and adding a guard would imply a state that cannot exist.
+            const scanned = stripComment(rest, null);
+            cur.openQuote = nodeStartQuote(rest) === null ? null : scanned.openQuote;
+            const v = scanned.text.trim();
             if (v !== "")
                 cur.parts.push(v);
         }
@@ -704,6 +798,68 @@ function flattenBlock(block, baseIndent) {
 // the payload at all — a body-only file, an empty file, a file of blank lines — still succeeds with no
 // keys. Turning one of those red would trade a silent success for a FALSE red, which D-34 already
 // recorded as the worse of the two.
+//
+// AND A SIXTH TIME, BELOW EVERY PREDICATE ABOVE — IN THE ASSEMBLY THAT PRODUCES THE VALUE THEY REASON
+// ABOUT (27-REVIEW-GAPS-6 § CR-01 + § WR-01, round 6 — D-48). Rounds 1-5 each sat INSIDE a predicate:
+// the escape alphabet, the delimiter alphabet, the delimiter arm split, the delimiter arm
+// composition, the enumeration alphabet. `classifyDelimiter` reasons about a LINE and is correct.
+// `ENUMERATION_LEGAL_CHARS` reasons about a captured ENUMERATION and is correct. The value they
+// reason about is assembled from SEVERAL PHYSICAL LINES by `flattenBlock`, and the assembly reset its
+// state at every line boundary — so a name mangled upstream never reached the allowlist that would
+// have refused it.
+//
+//   `stripComment`, `startsWithReference` and the `SEQ_ITEM` item boundary each decided their state
+//   per PHYSICAL LINE while `flattenBlock` handed them one line at a time. A YAML SCALAR DOES NOT END
+//   AT A LINE BOUNDARY, so a multi-line quoted scalar was analysed as N independent single-line
+//   documents and the module got it wrong in THREE DIRECTIONS AT ONCE — one root cause, three sides:
+//
+//     • the `#` direction (CR-01): a `#` on a continuation line was deleted as a comment when YAML
+//       says it is content, discarding the continuation WHOLE and hiding a live spawn grant. Three
+//       spellings — a wrapped double-quoted scalar, a wrapped single-quoted scalar, and a wrapped
+//       double-quoted BLOCK-SEQUENCE ITEM (the idiom all 7 shipped skills and all 17 shipped agent
+//       adapters use) — each returned `{ok:true,value:false}` over a live
+//       `Agent(grugops-orchestrator)` while libyaml returned the grant. Planted on BOTH distribution
+//       twins of `skills/plan/SKILL.md`, the whole foundation gate printed ALL CHECKS PASSED at exit
+//       0, while the identical grant WITHOUT the line break exited 1. One line break flipped a red
+//       gate green.
+//     • the `*` / `!` / `&` direction (WR-01): the same reset in the OPPOSITE direction. A sigil at
+//       the start of a continuation line was refused as a YAML node property when YAML says it is
+//       content, so `description: "see` / `  *emphasis* here"` — which libyaml loads to a plain
+//       string — failed RED on correct documentation.
+//     • the `-` direction (the JOIN defect, reproduced by the planner and named in no review): a `-`
+//       at the start of a continuation line was read as a NEW BLOCK-SEQUENCE ITEM, which re-routed
+//       that line through the item path AND flipped the join separator for the whole key. It needs no
+//       comment and no reference at all: `tools: "Agent(alpha, ga` / `  - mma)"` enumerated
+//       `[alpha, ga, mma]` where the document expresses `[alpha, ga - mma]`, so the name set feeding
+//       the KIT-03 closure equality had a name INVENTED in it, on the `ok:true` arm.
+//
+//   THE LESSON, AND IT IS NOT ABOUT PREDICATES AT ALL. Round 5 asked whether a region held ONE
+//   predicate or a COMPOSITION of them. This one is a level below that question. Before trusting any
+//   predicate's closure claim, ASK WHAT PRODUCED THE VALUE IT REASONS ABOUT, AND WHETHER THAT
+//   PRODUCER'S STATE SURVIVES THE CONSTRUCT'S BOUNDARIES. A predicate provably total over its own
+//   input is still defeated by a value mangled upstream of it, and no sweep generated over a smaller
+//   unit than the construct under test can see that — the round-6 sweep was non-circular over its own
+//   alphabet and its own arm structure, and was structurally incapable of failing here because all
+//   three of its axes were properties of ONE LINE.
+//
+//   THE FIX IS STRUCTURAL AND HAS NO SECOND OPINION. Quote state is promoted to a property of the
+//   SCALAR (`Accumulator.openQuote`), seeded into and returned from ONE walk, and consulted by all
+//   three consumers. No call site keeps a per-line derivation beside it and `SEQ_ITEM` is
+//   byte-unchanged: a quote-aware sequence regex would be a second grammar for a fact the carried
+//   state already holds. FALSE-RED COST, RE-MEASURED at the time of the edit over every tracked
+//   markdown file with the corpus enumerated by `git ls-files '*.md'` in the same run: zero before,
+//   zero after. The fix can only ever REMOVE a refusal, so any NEW refusal is a defect in the fix.
+//
+//   AND THE CARRY IS GATED ON THE NODE START, WHICH THE FIRST DRAFT OF IT WAS NOT. A quote character
+//   is only a quote where a node may BEGIN; inside a plain scalar it is text. The first draft stored
+//   the scanner's exiting flags unconditionally, so a lone apostrophe in a plain scalar
+//   (`- headroom for 27-06's frontmatter key`) propagated a phantom open quote and swallowed the
+//   NEXT line's item boundary — merging two genuine sibling list items. That regression was invisible
+//   to every case in the suite and to all nine named CR-01/WR-01/JOIN anchors; it was caught only by
+//   comparing the flattened value map over all 1131 tracked markdown files before and after, which
+//   named 10 real `.planning/` documents. The lesson is the plan's own, turned on the fix: a change
+//   this far upstream is proven by the values it produces over the real corpus, not by the rows it
+//   was written to repair. See `nodeStartQuote` above.
 // The payload at each delimiter position. Declared here as data so both positions consult the same
 // tokens in the same order, which is what makes the reported refusal deterministic for a given input.
 const OPEN_PAYLOADS = ["---"];
