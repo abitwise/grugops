@@ -32,6 +32,7 @@
 
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
+import { execFileSync } from "node:child_process";
 import { join } from "node:path";
 
 import {
@@ -3633,5 +3634,468 @@ describe("frontmatter — the carried scalar quote state (D-48 / SPAWN-04 + KIT-
     const r = parseFrontmatter(text);
     expect(r.ok).toBe(false);
     expect(!r.ok && r.reason).toContain("\\x");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// D-49 — THE FOURTH SWEEP AXIS: a corpus enumerated over a construct that SPANS LINES
+// ---------------------------------------------------------------------------
+//
+// WHY A FOURTH AXIS AT ALL, AND WHY IT SITS BESIDE THE D-45 CROSS-PRODUCT RATHER THAN INSIDE IT.
+// `SWEEP_LEADING`, `SWEEP_PAYLOAD` and `SWEEP_TRAILING` each describe a DELIMITER LINE. The three
+// axes below describe a VALUE THAT SPANS LINES. Folding them into one product would multiply two
+// unrelated corpora and make any failure unreadable, so they are a corpus BESIDE that one.
+//
+// THIS IS THE THIRD CIRCULARITY AXIS THIS PHASE HAS FOUND, AND IT IS THE MOST EXPENSIVE.
+//
+//   • Round 4 found the ALPHABET axis — a sweep and a predicate drawing from one character set.
+//   • Round 5 found the ARM-STRUCTURE axis — one construction per declared arm, so no input outside
+//     both arms was ever a candidate for a case.
+//   • Round 6 found THE UNIT THE CORPUS IS GENERATED OVER. The round-6 sweep was non-circular over
+//     its own alphabet AND over its own arm structure, and was STRUCTURALLY INCAPABLE of failing on
+//     the D-48 defect, because all three of its axes are properties of ONE PHYSICAL LINE and the
+//     defect lives BETWEEN two. It passed, green, over a live spawn-grant bypass.
+//
+//   THE COROLLARY, STATED FOR THE NEXT READER: a corpus generated over a SMALLER UNIT than the
+//   construct under test proves nothing about the construct. Before trusting a sweep's completeness
+//   claim, ask what its cells are made of and whether the defect class can even be expressed in one.
+describe("frontmatter — the multi-line scalar sweep (D-49 / SPAWN-04 + KIT-03)", () => {
+  const TOKEN = "Agent(grugops-orchestrator)";
+  const L1_BASE = "Read,";
+
+  // ── AXIS 1: SCALAR STYLE (6) ──────────────────────────────────────────────────────────────────
+  //
+  // Every way a `tools:` value can occupy MORE THAN ONE LINE. The last member is the shipped idiom:
+  // all 7 shipped skills and all 17 shipped agent adapters write their tool list as a block sequence.
+  const SWEEP_SCALAR_STYLE: readonly {
+    readonly label: string;
+    readonly build: (l1: string, l2: string) => string;
+  }[] = [
+    {
+      label: "plain wrapped scalar",
+      build: (l1, l2) => `tools: ${l1}\n  ${l2}`,
+    },
+    {
+      label: "double-quoted wrapped scalar",
+      build: (l1, l2) => `tools: "${l1}\n  ${l2}"`,
+    },
+    {
+      label: "single-quoted wrapped scalar",
+      build: (l1, l2) => `tools: '${l1}\n  ${l2}'`,
+    },
+    {
+      label: "literal block scalar",
+      build: (l1, l2) => `tools: |-\n  ${l1}\n  ${l2}`,
+    },
+    {
+      label: "folded block scalar",
+      build: (l1, l2) => `tools: >-\n  ${l1}\n  ${l2}`,
+    },
+    {
+      label: "wrapped block-sequence item",
+      build: (l1, l2) => `tools:\n  - Read\n  - "${l1}\n    ${l2}"`,
+    },
+  ];
+
+  // ── AXIS 2: SIGIL (5) ─────────────────────────────────────────────────────────────────────────
+  //
+  // A character whose MEANING is decided by whether the position it occupies is a node boundary —
+  // which is exactly the question the module answered per physical line. The block-sequence dash
+  // belongs here for the same reason as the other four, and it is the one direction NO REVIEW NAMED:
+  // omitting it would leave this sweep blind to the JOIN defect.
+  //
+  // EACH SIGIL IN ITS GENUINE YAML SPELLING, WHICH IS PART OF THE CORPUS AND NOT A DETAIL. A node
+  // property binds TIGHT to its name (`*t`, `!tag`, `&t`) while a comment and a sequence entry take a
+  // SEPARATING SPACE (`# note`, `- item`). Spelling them all the same way was the first draft of this
+  // sweep and it was measurably wrong: `* Read,` is not an alias at all, so the cell tested a mangled
+  // construct instead of the sigil it names, and a real loader rejects the document outright.
+  const SWEEP_SIGIL: readonly {
+    readonly label: string;
+    readonly prefix: string;
+  }[] = [
+    { label: "comment `#`", prefix: "# " },
+    { label: "alias `*`", prefix: "*" },
+    { label: "tag `!`", prefix: "!" },
+    { label: "anchor `&`", prefix: "&" },
+    { label: "sequence dash `-`", prefix: "- " },
+  ];
+
+  // ── AXIS 3: PLACEMENT (3) ─────────────────────────────────────────────────────────────────────
+  const SWEEP_PLACEMENT: readonly {
+    readonly label: string;
+    readonly onLine1: boolean;
+    readonly onContinuation: boolean;
+  }[] = [
+    { label: "line 1", onLine1: true, onContinuation: false },
+    { label: "continuation", onLine1: false, onContinuation: true },
+    { label: "both", onLine1: true, onContinuation: true },
+  ];
+
+  // ── THE EXPECTED-OUTCOME RULE, STATED FROM YAML AND FROM NOTHING ELSE ──────────────────────────
+  //
+  // A pure function of the THREE AXIS LABELS. It never calls the module under test and never calls
+  // the loader — both would make the corpus circular, which is the failure this whole block exists
+  // to prevent. Its source text is read back and asserted to name no module symbol (below).
+  //
+  // The rules, each traceable to YAML 1.2 rather than to the implementation:
+  //
+  //   1. Inside a QUOTED scalar and inside a BLOCK scalar every character is content. No sigil at any
+  //      placement can be a comment, a node property or an item boundary, so the document parses and
+  //      the value is intact — the token on the continuation line always survives.
+  //   2. In a PLAIN scalar a `#` preceded by whitespace starts a comment ON ANY LINE, so it eats the
+  //      rest of the line it opens. The value is then whatever the other line contributes.
+  //   3. In a PLAIN scalar `*`, `!` and `&` are node properties ONLY AT A NODE START. The key line's
+  //      value position IS a node start; a continuation line is NOT.
+  //   4. In a PLAIN scalar a `-` begins a block-sequence item only where a node may begin, which
+  //      inside a scalar that already began on the key line it may not.
+  //
+  // ONE OF THE FOUR IS A MODULE CONTRACT RATHER THAN A YAML FACT, AND IT IS NAMED AS SUCH. YAML's
+  // rules decide WHETHER a character at a position is content, a comment, a node property or an item
+  // marker — that is rule 1-4 above and it is the whole of what this sweep pins, because it is where
+  // the defect lived. What the module then DOES with a genuine node property at a genuine node start
+  // is its own declared policy: D-30 refuses rather than resolves, because the value such a document
+  // expresses is not the text its bytes spell. The rule below states that policy for the `refuse`
+  // arm. It is a documented contract read from the module's HEADER, never from its implementation.
+  //
+  // THE ONE MEASURED DIVERGENCE FROM THE LOADER, RECORDED RATHER THAN HIDDEN. Of the 90 cells, the
+  // loader accepts 84 and rejects 6 outright (a bare `*`, `&` or `-` at a plain scalar's node start
+  // is invalid YAML — the module accepts three of those as text, which is a LONGER value and never a
+  // hidden token). Of the 84 it accepts, module and loader agree on token presence in 83. The one
+  // exception is `plain wrapped scalar / tag !/ line 1`: libyaml reads `! Read,` as a NON-SPECIFIC
+  // TAG and loads the value, while this module refuses the unresolved tag. That refusal PRE-DATES
+  // this plan, is D-30's declared policy, and points in the safe direction — a loud refusal, never a
+  // hidden grant. It is named here so the next reader finds it recorded rather than "discovered".
+  const expectedOutcome = (
+    styleLabel: string,
+    sigilLabel: string,
+    placementLabel: string,
+  ): { arm: "ok" | "refuse"; grant: boolean } => {
+    const contentEverywhere =
+      styleLabel === "double-quoted wrapped scalar" ||
+      styleLabel === "single-quoted wrapped scalar" ||
+      styleLabel === "wrapped block-sequence item" ||
+      styleLabel === "literal block scalar" ||
+      styleLabel === "folded block scalar";
+    // Rule 1.
+    if (contentEverywhere) return { arm: "ok", grant: true };
+
+    const onLine1 = placementLabel === "line 1" || placementLabel === "both";
+    const onContinuation =
+      placementLabel === "continuation" || placementLabel === "both";
+
+    // Rule 2. A comment eats the line it opens. The token sits on the continuation line, so it
+    // survives exactly when the continuation line is NOT commented out.
+    if (sigilLabel === "comment `#`") return { arm: "ok", grant: !onContinuation };
+
+    // Rule 3. A node property at the key line's value position has no resolvable target, so the
+    // document is refused (a real loader rejects it outright). On a continuation line it is text.
+    if (
+      sigilLabel === "alias `*`" ||
+      sigilLabel === "tag `!`" ||
+      sigilLabel === "anchor `&`"
+    ) {
+      return onLine1 ? { arm: "refuse", grant: false } : { arm: "ok", grant: true };
+    }
+
+    // Rule 4. The dash. On a continuation line of a scalar that already began, it is text. On the key
+    // line it is the first character of the value's text — this module reads it that way, where a
+    // real loader rejects the document instead. That divergence is deliberate and is recorded in the
+    // loader cross-check below: the direction is a LONGER value, never a hidden token.
+    return { arm: "ok", grant: true };
+  };
+
+  const cellDoc = (
+    style: (typeof SWEEP_SCALAR_STYLE)[number],
+    sigil: (typeof SWEEP_SIGIL)[number],
+    placement: (typeof SWEEP_PLACEMENT)[number],
+  ): string => {
+    const l1 = placement.onLine1 ? `${sigil.prefix}${L1_BASE}` : L1_BASE;
+    const l2 = placement.onContinuation ? `${sigil.prefix}${TOKEN}` : TOKEN;
+    return `---\nname: x\n${style.build(l1, l2)}\n---\nBody.\n`;
+  };
+
+  // ── THE SWEEP ─────────────────────────────────────────────────────────────────────────────────
+
+  it("D-49 cross-product sweep — 6 scalar styles x 5 sigils x 3 placements", () => {
+    // DERIVE THE SET, ASSERT THE COUNT. A table silently emptied by a later edit shrinks the sweep
+    // LOUDLY rather than quietly.
+    expect(SWEEP_SCALAR_STYLE.length).toBe(6);
+    expect(SWEEP_SIGIL.length).toBe(5);
+    expect(SWEEP_PLACEMENT.length).toBe(3);
+    const CELLS =
+      SWEEP_SCALAR_STYLE.length * SWEEP_SIGIL.length * SWEEP_PLACEMENT.length;
+    expect(CELLS).toBe(90);
+
+    let swept = 0;
+    for (const style of SWEEP_SCALAR_STYLE) {
+      for (const sigil of SWEEP_SIGIL) {
+        for (const placement of SWEEP_PLACEMENT) {
+          // A failing cell names ALL THREE axis labels, so a future failure says WHICH CELL
+          // regressed rather than only that a count moved.
+          const where = `style=${style.label} | sigil=${sigil.label} | placement=${placement.label}`;
+          const expected = expectedOutcome(
+            style.label,
+            sigil.label,
+            placement.label,
+          );
+          const text = cellDoc(style, sigil, placement);
+          const parsed = parseFrontmatter(text);
+          expect(parsed.ok, where).toBe(expected.arm === "ok");
+          const grant = hasSpawnGrant(text);
+          if (expected.arm === "ok") {
+            expect(grant, where).toEqual({ ok: true, value: expected.grant });
+            // The VALUE and the verdict are tied together: the flattened value carries the token
+            // exactly when the verdict says it grants.
+            const flat = parsed.ok ? (parsed.value.get("tools") ?? []).join("") : "";
+            expect(flat.includes(TOKEN), where).toBe(expected.grant);
+          } else {
+            expect(grant.ok, where).toBe(false);
+          }
+          swept += 1;
+        }
+      }
+    }
+    expect(swept).toBe(CELLS);
+  });
+
+  // ── PIN ONE: NON-CIRCULARITY, BY SOURCE INSPECTION. MANDATORY, NO SUBSTITUTE ───────────────────
+
+  it("D-49 non-circularity — the expected-outcome rule names nothing from the module under test and is a pure function of its three arguments", () => {
+    // The claim "this corpus was not generated from the code under test" is CHECKABLE, not merely
+    // asserted. If this cannot be written cleanly, that is not a finding about the corpus — it is a
+    // signal that the rule was written in terms of the module, which is the circularity this
+    // assertion exists to catch, and the correct response is to rewrite the rule.
+    const MODULE_SYMBOLS = [
+      "parseFrontmatter",
+      "hasSpawnGrant",
+      "grantedAgentNames",
+      "keysHaveSpawnGrant",
+      "keysGrantedAgentNames",
+      "stripComment",
+      "startsWithReference",
+      "unquoteChecked",
+      "nodeStartQuote",
+      "openQuote",
+      "nodeOnKeyLine",
+      "flattenBlock",
+      "Accumulator",
+      "SEQ_ITEM",
+      "QuoteState",
+      "cellDoc",
+    ] as const;
+    const source = expectedOutcome.toString();
+    for (const symbol of MODULE_SYMBOLS) {
+      expect(source, symbol).not.toContain(symbol);
+    }
+
+    // Purity: same arguments, same answer, no hidden state.
+    for (const style of SWEEP_SCALAR_STYLE) {
+      for (const sigil of SWEEP_SIGIL) {
+        for (const placement of SWEEP_PLACEMENT) {
+          const where = `${style.label}/${sigil.label}/${placement.label}`;
+          expect(
+            expectedOutcome(style.label, sigil.label, placement.label),
+            where,
+          ).toEqual(expectedOutcome(style.label, sigil.label, placement.label));
+        }
+      }
+    }
+  });
+
+  // ── PIN TWO: A SECOND, INDEPENDENTLY WRITTEN TRUTH TABLE. ADDITIONAL, NEVER AN ALTERNATIVE ─────
+
+  it("D-49 second pin — an independently written truth table covering EVERY continuation-column cell", () => {
+    // Written out by hand from YAML's rules rather than by evaluating anything, so a single wrong
+    // idea in `expectedOutcome` has to be made TWICE to survive. This covers all 30 cells of the
+    // continuation column — the column that was RED before the fix and the one the three round-6
+    // axes were structurally incapable of reaching.
+    const TRUTH: readonly (readonly [string, string, "ok" | "refuse", boolean])[] = [
+      // plain wrapped: the only style where a continuation sigil changes anything.
+      ["plain wrapped scalar", "comment `#`", "ok", false],
+      ["plain wrapped scalar", "alias `*`", "ok", true],
+      ["plain wrapped scalar", "tag `!`", "ok", true],
+      ["plain wrapped scalar", "anchor `&`", "ok", true],
+      ["plain wrapped scalar", "sequence dash `-`", "ok", true],
+      // double-quoted: every character is content.
+      ["double-quoted wrapped scalar", "comment `#`", "ok", true],
+      ["double-quoted wrapped scalar", "alias `*`", "ok", true],
+      ["double-quoted wrapped scalar", "tag `!`", "ok", true],
+      ["double-quoted wrapped scalar", "anchor `&`", "ok", true],
+      ["double-quoted wrapped scalar", "sequence dash `-`", "ok", true],
+      // single-quoted: same.
+      ["single-quoted wrapped scalar", "comment `#`", "ok", true],
+      ["single-quoted wrapped scalar", "alias `*`", "ok", true],
+      ["single-quoted wrapped scalar", "tag `!`", "ok", true],
+      ["single-quoted wrapped scalar", "anchor `&`", "ok", true],
+      ["single-quoted wrapped scalar", "sequence dash `-`", "ok", true],
+      // literal block scalar: content is literal.
+      ["literal block scalar", "comment `#`", "ok", true],
+      ["literal block scalar", "alias `*`", "ok", true],
+      ["literal block scalar", "tag `!`", "ok", true],
+      ["literal block scalar", "anchor `&`", "ok", true],
+      ["literal block scalar", "sequence dash `-`", "ok", true],
+      // folded block scalar: same.
+      ["folded block scalar", "comment `#`", "ok", true],
+      ["folded block scalar", "alias `*`", "ok", true],
+      ["folded block scalar", "tag `!`", "ok", true],
+      ["folded block scalar", "anchor `&`", "ok", true],
+      ["folded block scalar", "sequence dash `-`", "ok", true],
+      // the shipped idiom, wrapped: the item is a quoted scalar, so content again.
+      ["wrapped block-sequence item", "comment `#`", "ok", true],
+      ["wrapped block-sequence item", "alias `*`", "ok", true],
+      ["wrapped block-sequence item", "tag `!`", "ok", true],
+      ["wrapped block-sequence item", "anchor `&`", "ok", true],
+      ["wrapped block-sequence item", "sequence dash `-`", "ok", true],
+    ];
+
+    // The table covers the WHOLE continuation column, asserted rather than assumed.
+    expect(TRUTH.length).toBe(SWEEP_SCALAR_STYLE.length * SWEEP_SIGIL.length);
+    expect(TRUTH.length).toBeGreaterThanOrEqual(12);
+
+    for (const [styleLabel, sigilLabel, arm, grant] of TRUTH) {
+      const where = `style=${styleLabel} | sigil=${sigilLabel} | placement=continuation`;
+      const style = SWEEP_SCALAR_STYLE.find((s) => s.label === styleLabel);
+      const sigil = SWEEP_SIGIL.find((s) => s.label === sigilLabel);
+      const placement = SWEEP_PLACEMENT.find((p) => p.label === "continuation");
+      expect(style && sigil && placement, where).toBeTruthy();
+      if (!style || !sigil || !placement) continue;
+
+      // Half one: the two independent statements of the expectation agree with each other.
+      expect(expectedOutcome(styleLabel, sigilLabel, "continuation"), where).toEqual({
+        arm,
+        grant,
+      });
+      // Half two: the module agrees with the hand-written table directly, not only via the rule.
+      const text = cellDoc(style, sigil, placement);
+      const parsed = parseFrontmatter(text);
+      expect(parsed.ok, where).toBe(arm === "ok");
+      if (arm === "ok") {
+        expect(hasSpawnGrant(text), where).toEqual({ ok: true, value: grant });
+      }
+    }
+  });
+
+  // ── PIN THREE: THE LOADER CROSS-CHECK, AS A SEPARATE AND EXPLICITLY-SKIPPABLE CASE ─────────────
+
+  it("D-49 loader cross-check — six named cells spanning all six scalar styles agree with a real YAML 1.2 loader on TOKEN PRESENCE", () => {
+    // WHY THIS IS NOT FOLDED INTO THE SWEEP. The sweep must run everywhere; this needs a Ruby on the
+    // box. Folding them would either make the sweep skip wholesale on a machine without Ruby, or make
+    // this silently never run — and a silent skip is exactly the degradation these plans warn about.
+    // So it probes first and PRINTS its reason when it skips, following the chmod-fixture precedent.
+    let loader: string;
+    try {
+      loader = execFileSync(
+        "/usr/bin/ruby",
+        ["-ryaml", "-e", "print RUBY_VERSION"],
+        { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] },
+      );
+    } catch {
+      console.warn(
+        "SKIPPED D-49 loader cross-check: /usr/bin/ruby with the yaml (Psych/libyaml) library is not runnable on this machine. This is a PRINTED skip, never a silent one — the sweep and both pins above still ran.",
+      );
+      return;
+    }
+    expect(loader.length).toBeGreaterThan(0);
+
+    // WHAT IS ASSERTED, AND WHAT IS DELIBERATELY NOT. Byte equality with the loader is NOT the
+    // predicate: this module joins a block sequence with a comma-space BY CONTRACT so that one token
+    // test serves every scalar form, and the loader returns a real sequence instead. The agreed
+    // predicate is the single question this module actually asks — DOES THE VALUE CARRY THE SPAWN
+    // TOKEN. Comparing bytes would fail on a contract difference and teach the next author to delete
+    // the case.
+    const NAMED_CELLS: readonly (readonly [string, string])[] = [
+      ["plain wrapped scalar", "alias `*`"],
+      ["double-quoted wrapped scalar", "comment `#`"],
+      ["single-quoted wrapped scalar", "comment `#`"],
+      ["literal block scalar", "sequence dash `-`"],
+      ["folded block scalar", "anchor `&`"],
+      ["wrapped block-sequence item", "comment `#`"],
+    ];
+    // One cell per scalar style, asserted rather than assumed, so a later edit cannot quietly narrow
+    // the cross-check to the styles that happen to be easy.
+    expect(NAMED_CELLS.length).toBe(SWEEP_SCALAR_STYLE.length);
+    expect(new Set(NAMED_CELLS.map(([st]) => st)).size).toBe(
+      SWEEP_SCALAR_STYLE.length,
+    );
+
+    const placement = SWEEP_PLACEMENT.find((p) => p.label === "continuation");
+    expect(placement).toBeTruthy();
+    if (!placement) return;
+
+    for (const [styleLabel, sigilLabel] of NAMED_CELLS) {
+      const style = SWEEP_SCALAR_STYLE.find((s) => s.label === styleLabel);
+      const sigil = SWEEP_SIGIL.find((s) => s.label === sigilLabel);
+      expect(style && sigil, `${styleLabel}/${sigilLabel}`).toBeTruthy();
+      if (!style || !sigil) continue;
+
+      const where = `style=${styleLabel} | sigil=${sigilLabel} | placement=${placement.label}`;
+      const text = cellDoc(style, sigil, placement);
+      // The frontmatter block only, which is what the platform hands its YAML loader.
+      const block = text.split("---\n")[1];
+      const loaded = execFileSync(
+        "/usr/bin/ruby",
+        [
+          "-ryaml",
+          "-e",
+          'v = YAML.safe_load(STDIN.read)["tools"]; print(v.is_a?(Array) ? v.join("|") : v.to_s)',
+        ],
+        { input: block, encoding: "utf8", stdio: ["pipe", "pipe", "ignore"] },
+      );
+      const loaderGrants = loaded.includes(TOKEN);
+      const moduleGrant = hasSpawnGrant(text);
+      expect(moduleGrant.ok, where).toBe(true);
+      expect(moduleGrant.ok && moduleGrant.value, where).toBe(loaderGrants);
+    }
+  });
+
+  // ── PIN FOUR: THE SELF-DERIVING REPOSITORY-WIDE CONTROL. NO BASELINE, NO LITERAL, NO MIRROR ────
+
+  it("D-49 false-red control — every tracked markdown file in this repository parses, over a corpus DERIVED at run time", () => {
+    // WHY THIS CONTROL HAS NO BASELINE IMAGE. The obvious control — compare the flattened value map
+    // against the pre-fix build — cannot live in a suite: its `before` image is a build that stops
+    // existing the moment the fix lands, and it would have to be held on a throwaway mirror. A case
+    // asserting against that either fails once the mirror is cleaned up or gets "fixed" later by
+    // narrowing it until it passes, which is the degradation mode this plan's own prohibitions name.
+    // That comparison was therefore run ONCE at execution time and recorded in the plan's SUMMARY.
+    //
+    // WHAT LIVES HERE INSTEAD IS SELF-DERIVING: it enumerates its own corpus at run time and needs no
+    // number written down in advance. NO CORPUS-SIZE LITERAL APPEARS IN ANY ASSERTION BELOW. The
+    // tracked-markdown count grows on every planning commit, so a literal is stale before it is
+    // executed — a hand-maintained number that reads authoritative while being wrong is this
+    // repository's second systemic failure class, and it is not reintroduced here to pin a control
+    // written to close the first one.
+    const root = join(import.meta.dirname, "..");
+    const tracked = execFileSync("git", ["ls-files", "*.md"], {
+      cwd: root,
+      encoding: "utf8",
+    })
+      .split("\n")
+      .filter((s) => s !== "");
+
+    let read = 0;
+    const refusals: string[] = [];
+    for (const rel of tracked) {
+      let body: string;
+      try {
+        body = readFileSync(join(root, rel), "utf8");
+      } catch {
+        continue; // tracked but absent from the working tree; not this control's business
+      }
+      read += 1;
+      const parsed = parseFrontmatter(body);
+      if (!parsed.ok) refusals.push(`${rel}: ${parsed.reason}`);
+    }
+
+    // The fix can only ever REMOVE a refusal, so ANY refusal here is a defect in the fix, named.
+    expect(
+      refusals,
+      `refusals over ${read} tracked markdown files:\n${refusals.join("\n")}`,
+    ).toEqual([]);
+    // A shrunken corpus is visible in the message rather than silently making the control cheap. The
+    // two numbers compared are BOTH derived in this same run — never one derived and one written down.
+    expect(read, `derived corpus size: ${read} tracked markdown file(s) read`).toBe(
+      tracked.length,
+    );
+    expect(read, "the derived corpus must not be empty").toBeGreaterThan(0);
   });
 });
