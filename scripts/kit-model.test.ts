@@ -52,6 +52,8 @@ import {
   PLUGIN_MANIFEST_COMPONENT_COUNT,
   PLUGIN_COMPONENT_COVERED_ELSEWHERE,
   PLUGIN_COMPONENT_EXEMPT,
+  PLUGIN_COMPONENT_COVERED_ELSEWHERE_COUNT,
+  PLUGIN_COMPONENT_EXEMPT_COUNT,
   ROLE_COUNT,
   WORKFLOW_COUNT,
   SKILL_ADAPTER_COUNT,
@@ -929,22 +931,57 @@ describe("kit-model plugin-manifest component schema (D-46: derived, counted two
   it("`skills` is excluded by a STATED RULE naming its coverer, and `hooks` is exempt by name with a reason and a bound", () => {
     // The exclusion must be readable as deliberate, never as an omission from a list — that
     // difference is the entire D-46 point 1 argument. A named coverer is what makes it checkable.
-    expect(PLUGIN_COMPONENT_COVERED_ELSEWHERE).toHaveLength(1);
+    // (Plan 27-42, D-50) The cardinality is restated here against the GATE-ENFORCED constant rather
+    // than against a literal `1`. The module keeps its own statement of intent; the enforcement that
+    // stops a release now lives in guard_kit_counts, two-sided, like its six siblings.
+    expect(PLUGIN_COMPONENT_COVERED_ELSEWHERE).toHaveLength(
+      PLUGIN_COMPONENT_COVERED_ELSEWHERE_COUNT,
+    );
     expect(PLUGIN_COMPONENT_COVERED_ELSEWHERE[0].manifestKey).toBe("skills");
+    // (Plan 27-42, D-50, closing IN-04) THE COVERER IS THE FUNCTION, AND IT IS THE SAME OBJECT the
+    // spawn-grant scan composition is built from — asserted by IDENTITY, never by name. The former
+    // assertion compared a string to the literal "listPluginSkillAdapters" while a separate
+    // assertion below checked the lister's output; two independent facts with nothing tying them
+    // together, which is the finding.
     expect(PLUGIN_COMPONENT_COVERED_ELSEWHERE[0].coverer).toBe(
-      "listPluginSkillAdapters",
+      listPluginSkillAdapters,
     );
     expect(PLUGIN_COMPONENT_COVERED_ELSEWHERE[0].reason).toMatch(
       /spawn-grant scan/,
     );
-    // …and the named coverer really does cover it: every file the plugin-skill lister derives is
+    // …and it resolves against the scan's parts by identity, which is what the gate does.
+    const resolved = SPAWN_GRANT_SCAN_PARTS.find(
+      (p) => p.list === PLUGIN_COMPONENT_COVERED_ELSEWHERE[0].coverer,
+    );
+    expect(resolved).toBeDefined();
+    expect(resolved!.name).toBe("plugin-skill");
+    // NAME EQUALITY IS NOT IDENTITY, and the difference is asserted rather than argued. A distinct
+    // function object carrying the SAME printed label resolves to nothing — so a later author who
+    // "simplifies" the gate's `p.list === coverer` into a name comparison reintroduces IN-04 under a
+    // new spelling and this case says so.
+    const impostor = {
+      listPluginSkillAdapters: (kitRoot?: string): string[] =>
+        listPluginSkillAdapters(kitRoot),
+    }.listPluginSkillAdapters;
+    expect(impostor.name).toBe(listPluginSkillAdapters.name);
+    expect(impostor).not.toBe(listPluginSkillAdapters);
+    expect(
+      SPAWN_GRANT_SCAN_PARTS.find((p) => p.list === impostor),
+    ).toBeUndefined();
+    // The resolution uses `find`, so it is only unambiguous while the parts' listers are PAIRWISE
+    // DISTINCT. Derived and counted rather than eyeballed: if two parts ever shared one lister,
+    // `find` would silently return the first and the printed label could name the wrong surface.
+    expect(new Set(SPAWN_GRANT_SCAN_PARTS.map((p) => p.list)).size).toBe(
+      SPAWN_GRANT_SCAN_PARTS.length,
+    );
+    // …and the resolved coverer really does cover it: every file the plugin-skill lister derives is
     // inside the one spawn-grant scan composition. The rule is not just stated, it holds.
     const scan = spawnGrantScan();
     for (const rel of listPluginSkillAdapters()) {
       expect(scan).toContain(`${spawnGrantScanPrefix("plugin-skill")}${rel}`);
     }
 
-    expect(PLUGIN_COMPONENT_EXEMPT).toHaveLength(1);
+    expect(PLUGIN_COMPONENT_EXEMPT).toHaveLength(PLUGIN_COMPONENT_EXEMPT_COUNT);
     expect(PLUGIN_COMPONENT_EXEMPT[0].manifestKey).toBe("hooks");
     // The reason and the bound are recorded IN SOURCE, in the DISTRIBUTION_PAIR_EXEMPT shape. An
     // exemption without both is a hole with a comment.

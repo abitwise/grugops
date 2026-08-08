@@ -212,12 +212,28 @@ export const PLUGIN_MANIFEST_COMPONENT_COUNT = 9;
 export const PLUGIN_COMPONENT_COVERED_ELSEWHERE = [
     {
         manifestKey: "skills",
-        coverer: "listPluginSkillAdapters",
+        coverer: listPluginSkillAdapters,
         reason: "the plugin-form skill tree is derived by listPluginSkillAdapters(), pinned two-sided by " +
             "PLUGIN_SKILL_ADAPTER_COUNT and folded into spawnGrantScan(), so every file the platform " +
             "loads from it is already inside the spawn-grant scan that guard_wr05 walks",
     },
 ];
+// The covered-elsewhere bucket's exact cardinality, enforced TWO-SIDED in guard_kit_counts exactly as
+// ROLE_COUNT, WORKFLOW_COUNT, SKILL_ADAPTER_COUNT, PLUGIN_SKILL_ADAPTER_COUNT, SPAWN_GRANT_SCAN_COUNT
+// and PLUGIN_MANIFEST_COMPONENT_COUNT are: zero entries is a failure and two entries is a failure,
+// only one passes.
+//
+// WHY IT MOVED FROM VITEST INTO THE GATE (plan 27-42, D-50). This cardinality was pinned only in
+// scripts/kit-model.test.ts while all six sibling counts were pinned in the GUARD. A count that fires
+// in CI but not in the gate does not fire on the surface that stops a release, and every entry in this
+// bucket EXCLUDES a plugin-root component key from the forbidden set — the set whose members the
+// platform would load unprobed. Measured on a hermetic mirror of the committed build before this
+// change: adding a second covered-elsewhere entry left the gate at exit 0 printing ALL CHECKS PASSED.
+//
+// Bumping this number is a DELIBERATE act that obliges the author to walk every consumer first: the
+// bucket partition, the forbidden-set computation, the coverer resolution in guard_kit_counts and
+// guard_wr05's plugin-root component probe.
+export const PLUGIN_COMPONENT_COVERED_ELSEWHERE_COUNT = 1;
 export const PLUGIN_COMPONENT_EXEMPT = [
     {
         manifestKey: "hooks",
@@ -230,6 +246,24 @@ export const PLUGIN_COMPONENT_EXEMPT = [
             "closed the moment a markdown adapter appears there",
     },
 ];
+// The exempt bucket's exact cardinality, enforced TWO-SIDED in guard_kit_counts exactly as its six
+// siblings are: zero entries is a failure and two entries is a failure, only one passes.
+//
+// THIS CONSTANT AND THE PROMOTE TRIGGER RECORDED ABOVE ARE ONE DECISION (plan 27-42, D-50). The block
+// comment on PLUGIN_COMPONENT_EXEMPT records that a SECOND directory needing exemption is what forces
+// a promote from this by-name list to a derived predicate — and until this plan that trigger fired
+// only in scripts/kit-model.test.ts, so it fired in CI and not on the surface that stops a release.
+// Measured on a hermetic mirror of the committed build before this change: adding a second exemption
+// left the gate at exit 0 printing ALL CHECKS PASSED with `2 exempt by name (outputStyles, hooks)`.
+// The zero direction is the other half — an emptied bucket printed `0 exempt by name ()` from a
+// PASSING guard_kit_counts, which is the vacuous pass D-21 names.
+//
+// Bumping this number is a DELIBERATE act that obliges the author to walk every consumer first: the
+// bucket partition, the forbidden-set computation, pluginExemptComponentEntries()' schema-membership
+// throw, and guard_wr05's exemption bounds (every markdown member inside the spawn-grant scan, and
+// zero markdown adapters) — and, per the trigger above, to decide whether a hand-listed bucket is
+// still the right shape at all.
+export const PLUGIN_COMPONENT_EXEMPT_COUNT = 1;
 // THE FORBIDDEN SET — COMPUTED as schema minus covered minus exempt, and NEVER written down a second
 // time. A reviewer reading this file finds exactly ONE enumeration of component keys, which is what
 // makes the partition a derivation rather than a list with a comment beside it.
@@ -544,6 +578,9 @@ export function spawnGrantScan(kitRoot = DEFAULT_KIT_ROOT) {
 // nothing about the parts already there, and a widening that swapped one part for another would hold
 // the total at SPAWN_GRANT_SCAN_COUNT and pass. Iterating this array is what makes "all four" the
 // default and forgetting a part impossible.
+// `list` carries the SpawnGrantScanLister type declared beside the covered-elsewhere bucket, so the
+// lister signature is stated ONCE and the covered-elsewhere resolution (`p.list === coverer`) is an
+// identity comparison the type system already agrees is well-formed.
 export const SPAWN_GRANT_SCAN_PARTS = [
     { name: "agent", prefix: `${AGENTS_SUBPATH}/`, list: listAgentAdapters },
     { name: "skill", prefix: `${SKILLS_SUBPATH}/`, list: listSkillAdapters },

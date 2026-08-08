@@ -273,17 +273,45 @@ export const PLUGIN_MANIFEST_COMPONENT_SCHEMA: readonly PluginManifestComponentE
 // that walk is the whole point of the constant.
 export const PLUGIN_MANIFEST_COMPONENT_COUNT = 9;
 
-// THE COVERED-ELSEWHERE BUCKET — a STATED RULE WITH A NAMED COVERER, never an omission from a list.
+// THE COVERED-ELSEWHERE BUCKET — a STATED RULE HOLDING ITS COVERER, never an omission from a list.
 //
 // `skills` is not forbidden and it is not exempt: it is already derived, already counted and already
-// folded into the spawn-grant scan by the function named here. Recording that as a rule with the
-// coverer's own name is what makes the exclusion readable as deliberate. Left as an absence from a
-// literal — which is how it was expressed until this plan — it is indistinguishable from an oversight
-// and it can silently widen the day a second directory quietly stops being listed.
+// folded into the spawn-grant scan by the function this entry HOLDS. Recording that as a rule with
+// its coverer is what makes the exclusion readable as deliberate. Left as an absence from a literal —
+// which is how it was expressed until plan 27-37 — it is indistinguishable from an oversight and it
+// can silently widen the day a second directory quietly stops being listed.
+//
+// THE COVERER IS THE FUNCTION, NOT ITS NAME (plan 27-42, D-50, closing IN-04).
+//
+// Until this plan `coverer` was `readonly coverer: string` holding the literal
+// `"listPluginSkillAdapters"`, and NOTHING anywhere resolved that string to an exported function.
+// guardKitCounts' PASS line interpolated it verbatim, so the gate printed *"1 covered-elsewhere
+// (skills by listPluginSkillAdapters)"* — a coverage relationship whose named coverer it never
+// checked existed. Rename the export and the string keeps printing. Reproduced on a hermetic mirror
+// of the committed build with the lister renamed everywhere and only the string left behind: the gate
+// exited 0, printed ALL CHECKS PASSED, and printed the coverage clause naming a function that existed
+// nowhere in that build.
+//
+// A NAME AND THE THING IT NAMES DRIFT THE MOMENT EITHER IS EDITED ALONE, which is this repository's
+// diagnosed second systemic failure class — the same class the derived role set, the derived adapter
+// set and the derived component schema each exist to delete. Object identity cannot drift, and a
+// printed label DERIVED from the resolution cannot disagree with it.
+//
+// THE STRING FIELD IS DELETED RATHER THAN KEPT BESIDE THE REFERENCE "for the output line". Two
+// statements of which function covers the surface is precisely the two-independent-facts shape this
+// finding reports, preserved under a new spelling. The gate reads the printed name off the RESOLVED
+// part, so there is one fact and one place it comes from.
+export type SpawnGrantScanLister = (kitRoot?: string) => string[];
+
 export interface PluginComponentCoveredElsewhere {
   readonly manifestKey: string;
-  /** The exported function in this module that already derives and scans the surface. */
-  readonly coverer: string;
+  /**
+   * THE EXPORTED LISTER ITSELF. guardKitCounts resolves it against SPAWN_GRANT_SCAN_PARTS by OBJECT
+   * IDENTITY (`p.list === coverer`) — never by name equality, because two distinct functions can
+   * share a printed label while one function referenced twice is one fact. A coverer that resolves
+   * to no part is a named gate failure.
+   */
+  readonly coverer: SpawnGrantScanLister;
   readonly reason: string;
 }
 
@@ -291,13 +319,30 @@ export const PLUGIN_COMPONENT_COVERED_ELSEWHERE: readonly PluginComponentCovered
   [
     {
       manifestKey: "skills",
-      coverer: "listPluginSkillAdapters",
+      coverer: listPluginSkillAdapters,
       reason:
         "the plugin-form skill tree is derived by listPluginSkillAdapters(), pinned two-sided by " +
         "PLUGIN_SKILL_ADAPTER_COUNT and folded into spawnGrantScan(), so every file the platform " +
         "loads from it is already inside the spawn-grant scan that guard_wr05 walks",
     },
   ];
+
+// The covered-elsewhere bucket's exact cardinality, enforced TWO-SIDED in guard_kit_counts exactly as
+// ROLE_COUNT, WORKFLOW_COUNT, SKILL_ADAPTER_COUNT, PLUGIN_SKILL_ADAPTER_COUNT, SPAWN_GRANT_SCAN_COUNT
+// and PLUGIN_MANIFEST_COMPONENT_COUNT are: zero entries is a failure and two entries is a failure,
+// only one passes.
+//
+// WHY IT MOVED FROM VITEST INTO THE GATE (plan 27-42, D-50). This cardinality was pinned only in
+// scripts/kit-model.test.ts while all six sibling counts were pinned in the GUARD. A count that fires
+// in CI but not in the gate does not fire on the surface that stops a release, and every entry in this
+// bucket EXCLUDES a plugin-root component key from the forbidden set — the set whose members the
+// platform would load unprobed. Measured on a hermetic mirror of the committed build before this
+// change: adding a second covered-elsewhere entry left the gate at exit 0 printing ALL CHECKS PASSED.
+//
+// Bumping this number is a DELIBERATE act that obliges the author to walk every consumer first: the
+// bucket partition, the forbidden-set computation, the coverer resolution in guard_kit_counts and
+// guard_wr05's plugin-root component probe.
+export const PLUGIN_COMPONENT_COVERED_ELSEWHERE_COUNT = 1;
 
 // THE EXEMPT BUCKET — BY NAME, WITH ITS REASON AND ITS BOUND RECORDED IN SOURCE.
 //
@@ -343,6 +388,25 @@ export const PLUGIN_COMPONENT_EXEMPT: readonly PluginComponentExemption[] = [
       "closed the moment a markdown adapter appears there",
   },
 ];
+
+// The exempt bucket's exact cardinality, enforced TWO-SIDED in guard_kit_counts exactly as its six
+// siblings are: zero entries is a failure and two entries is a failure, only one passes.
+//
+// THIS CONSTANT AND THE PROMOTE TRIGGER RECORDED ABOVE ARE ONE DECISION (plan 27-42, D-50). The block
+// comment on PLUGIN_COMPONENT_EXEMPT records that a SECOND directory needing exemption is what forces
+// a promote from this by-name list to a derived predicate — and until this plan that trigger fired
+// only in scripts/kit-model.test.ts, so it fired in CI and not on the surface that stops a release.
+// Measured on a hermetic mirror of the committed build before this change: adding a second exemption
+// left the gate at exit 0 printing ALL CHECKS PASSED with `2 exempt by name (outputStyles, hooks)`.
+// The zero direction is the other half — an emptied bucket printed `0 exempt by name ()` from a
+// PASSING guard_kit_counts, which is the vacuous pass D-21 names.
+//
+// Bumping this number is a DELIBERATE act that obliges the author to walk every consumer first: the
+// bucket partition, the forbidden-set computation, pluginExemptComponentEntries()' schema-membership
+// throw, and guard_wr05's exemption bounds (every markdown member inside the spawn-grant scan, and
+// zero markdown adapters) — and, per the trigger above, to decide whether a hand-listed bucket is
+// still the right shape at all.
+export const PLUGIN_COMPONENT_EXEMPT_COUNT = 1;
 
 // THE FORBIDDEN SET — COMPUTED as schema minus covered minus exempt, and NEVER written down a second
 // time. A reviewer reading this file finds exactly ONE enumeration of component keys, which is what
@@ -838,10 +902,13 @@ export function spawnGrantScan(kitRoot: string = DEFAULT_KIT_ROOT): string[] {
 // nothing about the parts already there, and a widening that swapped one part for another would hold
 // the total at SPAWN_GRANT_SCAN_COUNT and pass. Iterating this array is what makes "all four" the
 // default and forgetting a part impossible.
+// `list` carries the SpawnGrantScanLister type declared beside the covered-elsewhere bucket, so the
+// lister signature is stated ONCE and the covered-elsewhere resolution (`p.list === coverer`) is an
+// identity comparison the type system already agrees is well-formed.
 export const SPAWN_GRANT_SCAN_PARTS: readonly {
   name: "agent" | "skill" | "plugin-skill" | "packaging";
   prefix: string;
-  list: (kitRoot?: string) => string[];
+  list: SpawnGrantScanLister;
 }[] = [
   { name: "agent", prefix: `${AGENTS_SUBPATH}/`, list: listAgentAdapters },
   { name: "skill", prefix: `${SKILLS_SUBPATH}/`, list: listSkillAdapters },

@@ -2179,9 +2179,13 @@ describe("check-foundation-guards.js (SDLC-02 / SC2 fail-proof harness)", () => 
     expect(o).toContain(
       "the coordinator body carries all 6 tier-announcement beats, each exactly once in live, non-fenced, non-commented text",
     );
-    // guard_kit_counts reports the partition it asserted.
+    // guard_kit_counts reports the partition it asserted. (Plan 27-42, D-50) The covered-elsewhere
+    // clause's label is now DERIVED FROM THE RESOLVED PART — the part's name, its lister's own
+    // function name, and the measured member count read off the composition — rather than
+    // interpolated from a free-text string nothing resolved. Every number in it is derived here too,
+    // so the case cannot agree with a shrunken tree.
     expect(o).toContain(
-      `the plugin-manifest component schema carries ${PLUGIN_MANIFEST_COMPONENT_COUNT} entries partitioned into 7 forbidden + 1 covered-elsewhere (skills by listPluginSkillAdapters) + 1 exempt by name (hooks)`,
+      `the plugin-manifest component schema carries ${PLUGIN_MANIFEST_COMPONENT_COUNT} entries partitioned into 7 forbidden + 1 covered-elsewhere (skills by the plugin-skill part's lister ${listPluginSkillAdapters.name}, ${listPluginSkillAdapters(ROOT).length} member(s) of it in the scan) + 1 exempt by name (hooks)`,
     );
   });
 
@@ -2341,6 +2345,158 @@ describe("check-foundation-guards.js (SDLC-02 / SC2 fail-proof harness)", () => 
       expect(o).toContain("claimed by more than one [hooks]");
       expect(o).toContain("claimed but outside the schema [scratchForeign]");
     }
+  });
+
+  // ── (Plan 27-42, D-50, closing IN-04) THE COVERER IS RESOLVED, AND BOTH BUCKET CARDINALITIES ────
+  //    ARE ENFORCED BY THE GATE RATHER THAN ONLY BY THIS FILE.
+  //
+  // Measured on hermetic `git archive HEAD` mirrors of the build these cases replace, and recorded so
+  // the cases read as closures of a demonstrated hole rather than as new opinions:
+  //
+  //   the lister renamed EVERYWHERE, only the coverer string left behind → exit 0, ALL CHECKS PASSED,
+  //     still printing `covered-elsewhere (skills by listPluginSkillAdapters)`
+  //   a coverer string naming a function that never existed          → exit 0, ALL CHECKS PASSED
+  //   a SECOND exempt entry (the bucket's own promote trigger)       → exit 0, ALL CHECKS PASSED
+  //   a SECOND covered-elsewhere entry                               → exit 0, ALL CHECKS PASSED
+  //
+  // Each of the four is a named gate failure below.
+
+  it("guard_kit_counts fails red when a scratch build's coverer resolves to NO scan part", () => {
+    const guardJs = scratchGuard((src) =>
+      src.replace(
+        "coverer: listPluginSkillAdapters,",
+        "coverer: () => [],",
+      ),
+    );
+    const r = runScratch(guardJs, mirror());
+    expect(r.status).not.toBe(0);
+    const o = out(r);
+    expect(o).toContain(
+      "its coverer is NOT one of the listers the spawn-grant scan is composed from",
+    );
+    expect(o).toContain("`skills`");
+  });
+
+  it("guard_kit_counts fails red when a scratch build's coverer is a DISTINCT function carrying the same printed name", () => {
+    // THE PRECISION EDGE. Resolution is by object identity, so a coverer whose `.name` is exactly
+    // `listPluginSkillAdapters` — and which even delegates to the real lister — still resolves to
+    // nothing. If this ever passes, the gate has been "simplified" into a name comparison and IN-04
+    // is back under a new spelling.
+    const guardJs = scratchGuard((src) =>
+      src.replace(
+        "coverer: listPluginSkillAdapters,",
+        "coverer: { listPluginSkillAdapters: (r) => listPluginSkillAdapters(r) }.listPluginSkillAdapters,",
+      ),
+    );
+    const r = runScratch(guardJs, mirror());
+    expect(r.status).not.toBe(0);
+    expect(out(r)).toContain(
+      "Resolution is by FUNCTION IDENTITY, never by name",
+    );
+  });
+
+  it("guard_kit_counts fails red when a coverer resolves to a REAL part that scans a DIFFERENT surface", () => {
+    // Found by red-teaming this change, not by the finding it closes. `commands` claimed as covered
+    // by the plugin-skill lister: the coverer RESOLVES (it is a real part's lister) and its part has
+    // members in the scan, so every other check here passes — while `commands/` leaves the forbidden
+    // set on coverage that scans `skills/`. Resolving is not covering, and covering something is not
+    // covering THIS key.
+    const guardJs = scratchGuard((src) =>
+      src.replace(
+        'manifestKey: "skills",\n        coverer: listPluginSkillAdapters,',
+        'manifestKey: "commands",\n        coverer: listPluginSkillAdapters,',
+      ),
+    );
+    const r = runScratch(guardJs, mirror());
+    expect(r.status).not.toBe(0);
+    const o = out(r);
+    expect(o).toContain(
+      "is NOT one of the probe directories the schema gives that key",
+    );
+    expect(o).toContain("scans somewhere else");
+  });
+
+  it("guard_kit_counts fails red when a scratch build EMPTIES the covered-elsewhere bucket (zero direction)", () => {
+    const guardJs = scratchGuard((src) =>
+      src.replace(
+        /export const PLUGIN_COMPONENT_COVERED_ELSEWHERE = \[[\s\S]*?\n\];/,
+        "export const PLUGIN_COMPONENT_COVERED_ELSEWHERE = [];",
+      ),
+    );
+    const r = runScratch(guardJs, mirror());
+    expect(r.status).not.toBe(0);
+    expect(out(r)).toContain(
+      "the covered-elsewhere bucket holds 0 entr(ies), expected exactly 1",
+    );
+  });
+
+  it("guard_kit_counts fails red when a scratch build ADDS a second covered-elsewhere entry (two direction)", () => {
+    const guardJs = scratchGuard((src) =>
+      src.replace(
+        "export const PLUGIN_COMPONENT_COVERED_ELSEWHERE = [",
+        'export const PLUGIN_COMPONENT_COVERED_ELSEWHERE = [\n    { manifestKey: "outputStyles", coverer: listPluginSkillAdapters, reason: "scratch second covered entry" },',
+      ),
+    );
+    const r = runScratch(guardJs, mirror());
+    expect(r.status).not.toBe(0);
+    expect(out(r)).toContain(
+      "the covered-elsewhere bucket holds 2 entr(ies), expected exactly 1",
+    );
+  });
+
+  it("guard_kit_counts fails red when a scratch build EMPTIES the exempt bucket (zero direction)", () => {
+    // Measured before this plan: the emptied bucket left guard_kit_counts PASSING and printing
+    // `0 exempt by name ()`; the gate only went red through guard_wr05's `hooks/` probe, which is a
+    // different finding about a different fact. The count is now named in its own right.
+    const guardJs = scratchGuard((src) =>
+      src.replace(
+        /export const PLUGIN_COMPONENT_EXEMPT = \[[\s\S]*?\n\];/,
+        "export const PLUGIN_COMPONENT_EXEMPT = [];",
+      ),
+    );
+    const r = runScratch(guardJs, mirror());
+    expect(r.status).not.toBe(0);
+    expect(out(r)).toContain(
+      "the exempt-by-name bucket holds 0 entr(ies), expected exactly 1",
+    );
+  });
+
+  it("guard_kit_counts fails red when a scratch build ADDS a second exemption — the bucket's own recorded promote trigger", () => {
+    const guardJs = scratchGuard((src) =>
+      src.replace(
+        "export const PLUGIN_COMPONENT_EXEMPT = [",
+        'export const PLUGIN_COMPONENT_EXEMPT = [\n    { manifestKey: "outputStyles", reason: "scratch second exemption", bound: "scratch" },',
+      ),
+    );
+    const r = runScratch(guardJs, mirror());
+    expect(r.status).not.toBe(0);
+    const o = out(r);
+    expect(o).toContain(
+      "the exempt-by-name bucket holds 2 entr(ies), expected exactly 1",
+    );
+    expect(o).toContain("A SECOND DIRECTORY NEEDING EXEMPTION");
+  });
+
+  it("guard_kit_counts fails red when the coverer's part could not be re-derived — a coverage claim on a check that did not happen", () => {
+    // The third of the three separate facts. The part RESOLVES, but its lister throws, so its set
+    // equality was never performed — and the covered-elsewhere claim would otherwise be printed on
+    // the strength of it.
+    const guardJs = scratchGuard((src) =>
+      src.replace(
+        "export function listPluginSkillAdapters(",
+        'export function listPluginSkillAdapters() { throw new Error("kit-model: scratch unreadable plugin skills"); }\nfunction unusedListPluginSkillAdapters(',
+      ),
+    );
+    const r = runScratch(guardJs, mirror());
+    expect(r.status).not.toBe(0);
+    const o = out(r);
+    expect(o).toContain("SET EQUALITY AGAINST ITS OWN LISTER WAS NOT PERFORMED");
+  });
+
+  it("the unmodified control mirror stays exit 0 — the six cases above fail for their planted reason, not because a mirror is broken", () => {
+    const r = runIn(mirror());
+    expect(r.status).toBe(0);
+    expect(out(r)).toContain("ALL CHECKS PASSED");
   });
 
   // ── guard_kit_counts: A THROWN PER-PART LISTER IS REPORTED, NOT SWALLOWED (plan 27-37, D-47.1) ──

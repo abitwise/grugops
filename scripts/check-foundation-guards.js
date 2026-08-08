@@ -218,7 +218,7 @@ import { oracleWr05Wording, oracleHooksWiring, oracleDualPathEquivalence, uatOra
 // single authority; this file is one of its consumers. The kit root is passed EXPLICITLY (D-22) so
 // kit-model never re-resolves a root of its own and CHECK_ROOT stays the only override this gate
 // honors.
-import { listRoles, listWorkflows, listAgentAdapters, listSkillAdapters, listPluginSkillAdapters, listPluginDefaultComponentFiles, listPluginExemptComponentFiles, pluginForbiddenComponentKeys, partitionPluginComponentClaims, spawnGrantScan, spawnGrantScanPrefix, SPAWN_GRANT_SCAN_PARTS, PLUGIN_MANIFEST_COMPONENT_SCHEMA, PLUGIN_MANIFEST_COMPONENT_COUNT, PLUGIN_COMPONENT_COVERED_ELSEWHERE, PLUGIN_COMPONENT_EXEMPT, ROLE_COUNT, WORKFLOW_COUNT, SKILL_ADAPTER_COUNT, PLUGIN_SKILL_ADAPTER_COUNT, SPAWN_GRANT_SCAN_COUNT, } from "./kit-model.js";
+import { listRoles, listWorkflows, listAgentAdapters, listSkillAdapters, listPluginSkillAdapters, listPluginDefaultComponentFiles, listPluginExemptComponentFiles, pluginForbiddenComponentKeys, partitionPluginComponentClaims, spawnGrantScan, spawnGrantScanPrefix, SPAWN_GRANT_SCAN_PARTS, PLUGIN_MANIFEST_COMPONENT_SCHEMA, PLUGIN_MANIFEST_COMPONENT_COUNT, PLUGIN_COMPONENT_COVERED_ELSEWHERE, PLUGIN_COMPONENT_COVERED_ELSEWHERE_COUNT, PLUGIN_COMPONENT_EXEMPT_COUNT, PLUGIN_COMPONENT_EXEMPT, ROLE_COUNT, WORKFLOW_COUNT, SKILL_ADAPTER_COUNT, PLUGIN_SKILL_ADAPTER_COUNT, SPAWN_GRANT_SCAN_COUNT, } from "./kit-model.js";
 // Phase 27 (SPAWN-05 / D-24): the retired-vocabulary literals are single-source. guard_adapter_body
 // below takes the PROSE forms; check-kit-refs Assertion 2 takes the PATH form. Two genuinely
 // different predicates over different inputs — one list, never two.
@@ -1336,6 +1336,12 @@ function guardKitCounts() {
     // out to the right total. Comparing the composition's members under each prefix against that part's
     // own lister is what catches it, and it also catches a swap BETWEEN parts that keeps the total at
     // SPAWN_GRANT_SCAN_COUNT.
+    //
+    // (Plan 27-42, D-50) WHICH PARTS' EQUALITY WAS ACTUALLY PERFORMED IS RECORDED, because the
+    // covered-elsewhere resolution below rests on it. A part whose lister throws routes to the catch
+    // and `continue`s, so its equality is NOT performed — and a coverage claim standing on a check that
+    // did not happen is the same fact the D-47 item 1 catch exists to name, one consumer further on.
+    const partsChecked = new Set();
     for (const part of SPAWN_GRANT_SCAN_PARTS) {
         const inComposition = SPAWN_GRANT_SCAN.filter((f) => f.startsWith(part.prefix)).sort();
         let expected;
@@ -1372,11 +1378,79 @@ function guardKitCounts() {
             countFail += `\nkit count: the spawn-grant scan composition's ${part.name} part could not be re-derived for the per-part membership check — ${e.message}. This part's SET EQUALITY WAS NOT PERFORMED, and it must not be reported as if it were: the composition derives at module load and this read happens later inside the guard, so the composition may have derived cleanly before this directory became unreadable. That is a DIFFERENT fact from the cardinality floor above, which reports a SHORT composition rather than a skipped check`;
             continue;
         }
+        partsChecked.add(part.name);
         if (inComposition.join("\n") !== expected.join("\n")) {
             const missing = expected.filter((f) => !inComposition.includes(f));
             const extra = inComposition.filter((f) => !expected.includes(f));
             countFail += `\nkit count: the spawn-grant scan composition's ${part.name} members are not exactly what ${part.prefix} derives — missing [${missing.join(", ")}], unexpected [${extra.join(", ")}]. This is SET equality on purpose: a count would pass while a decoy displaced a real member inside one part`;
         }
+    }
+    // (Plan 27-42, D-50, closing IN-04) THE COVERER IS RESOLVED, BY OBJECT IDENTITY, BEFORE THE PASS
+    // LINE IS ALLOWED TO PRINT A COVERAGE RELATIONSHIP.
+    //
+    // Every covered-elsewhere entry EXCLUDES a plugin-root component key from the forbidden set — the
+    // set whose directories the plugin-root probe refuses to find on the tree — on the strength of
+    // "something else already scans it". Until this plan the something-else was a free-text STRING and
+    // this line printed it verbatim, so the gate asserted a coverage relationship whose named coverer it
+    // never checked existed. A name and the thing it names drift the moment either is edited alone.
+    //
+    // THREE SEPARATE FACTS, CHECKED SEPARATELY, because `resolves` is not `covers`:
+    //   (1) the coverer RESOLVES to one of the scan's parts, compared with `===` on the FUNCTION rather
+    //       than on its name — two distinct functions can share a printed label, so name equality would
+    //       recreate the finding under a new spelling;
+    //   (2) that part's per-part SET EQUALITY was actually PERFORMED in this run, not skipped by the
+    //       catch above — a coverage claim resting on a check that did not happen is exactly the shape
+    //       D-47 item 1 closed one consumer earlier;
+    //   (3) the resolved part's PREFIX is one of the probe directories the SCHEMA gives that manifest
+    //       key — otherwise the entry resolves to a real lister that scans a DIFFERENT surface, and the
+    //       gate would print `commands by the plugin-skill part's lister …` as a coverage claim while
+    //       `commands/` sat outside every probe. Resolving is not covering, and covering something is
+    //       not covering THIS key. (Found by red-teaming this change rather than named by the finding.)
+    //   (4) the composition holds at least one member under that part's prefix — an empty set is
+    //       trivially "all scanned", and that vacuous pass is what the bucket exists to make impossible.
+    //
+    // The printed label is then DERIVED from the resolved part (its name and its lister's own function
+    // name), so the claim and the checked fact are one fact with one source.
+    const coveredLabels = [];
+    for (const covered of PLUGIN_COMPONENT_COVERED_ELSEWHERE) {
+        const part = SPAWN_GRANT_SCAN_PARTS.find((p) => p.list === covered.coverer);
+        if (part === undefined) {
+            countFail += `\nkit count: the covered-elsewhere bucket claims \`${covered.manifestKey}\` is already covered, but its coverer is NOT one of the listers the spawn-grant scan is composed from (${SPAWN_GRANT_SCAN_PARTS.map((p) => p.name).join(", ")}). That claim is what excludes \`${covered.manifestKey}\` from the FORBIDDEN set, so an unresolved coverer leaves a plugin-root surface the platform loads outside every probe AND outside the scan. Resolution is by FUNCTION IDENTITY, never by name: two distinct functions can share a printed label, and a label that merely matches is still two independent facts`;
+            continue;
+        }
+        if (!partsChecked.has(part.name)) {
+            countFail += `\nkit count: the covered-elsewhere bucket claims \`${covered.manifestKey}\` is covered by the ${part.name} part, but that part's SET EQUALITY AGAINST ITS OWN LISTER WAS NOT PERFORMED in this run (its lister threw above). The coverage claim would rest on a check that did not happen, which is a DIFFERENT fact from a short composition and must not be printed as coverage`;
+            continue;
+        }
+        const schemaEntry = PLUGIN_MANIFEST_COMPONENT_SCHEMA.find((e) => e.manifestKey === covered.manifestKey);
+        // A key the schema does not carry is already named by the partition floor's foreign arm above;
+        // guarding here keeps this loop from claiming coverage for a key nothing else knows about.
+        if (schemaEntry === undefined ||
+            !schemaEntry.probeDirs.some((d) => part.prefix === `${d}/`)) {
+            countFail += `\nkit count: the covered-elsewhere bucket claims \`${covered.manifestKey}\` is covered by the ${part.name} part, whose prefix ${part.prefix} is NOT one of the probe directories the schema gives that key (${schemaEntry === undefined ? "the key is not in the schema at all" : schemaEntry.probeDirs.join(", ")}). The coverer resolves to a real lister of a DIFFERENT surface, so the key would be excluded from the forbidden set on coverage that scans somewhere else`;
+            continue;
+        }
+        const inScan = SPAWN_GRANT_SCAN.filter((f) => f.startsWith(part.prefix));
+        if (inScan.length === 0) {
+            countFail += `\nkit count: the covered-elsewhere bucket claims \`${covered.manifestKey}\` is covered by the ${part.name} part, but the spawn-grant scan composition holds ZERO members under ${part.prefix}. "The set was empty, therefore everything in it is scanned" is the vacuous pass this bucket exists to make impossible`;
+            continue;
+        }
+        coveredLabels.push(`${covered.manifestKey} by the ${part.name} part's lister ${part.list.name}, ${inScan.length} member(s) of it in the scan`);
+    }
+    // (Plan 27-42, D-50) BOTH BUCKET CARDINALITIES, TWO-SIDED, IN THE GATE — where they stop a release.
+    //
+    // Six sibling sets in scripts/kit-model.ts are pinned two-sided by the GUARD; these two were pinned
+    // only by vitest, so the exemption's own recorded promote trigger ("a SECOND directory needing
+    // exemption") fired in CI and not here. Measured on hermetic mirrors of the committed build before
+    // this change: a second exemption and a second covered-elsewhere entry each left the gate at exit 0
+    // printing ALL CHECKS PASSED, and an emptied exempt bucket left guard_kit_counts PASSING with
+    // `0 exempt by name ()`.
+    if (PLUGIN_COMPONENT_COVERED_ELSEWHERE.length !==
+        PLUGIN_COMPONENT_COVERED_ELSEWHERE_COUNT) {
+        countFail += `\nkit count: the covered-elsewhere bucket holds ${PLUGIN_COMPONENT_COVERED_ELSEWHERE.length} entr(ies), expected exactly ${PLUGIN_COMPONENT_COVERED_ELSEWHERE_COUNT} (derived: ${coveredKeys.join(", ")}) — every entry EXCLUDES a plugin-root component key from the forbidden set, and an emptied bucket is the vacuous direction while a second entry is the widening one; walk the bucket partition, pluginForbiddenComponentKeys(), the coverer resolution above and guard_wr05's plugin-root component probe BEFORE updating PLUGIN_COMPONENT_COVERED_ELSEWHERE_COUNT in scripts/kit-model.ts`;
+    }
+    if (PLUGIN_COMPONENT_EXEMPT.length !== PLUGIN_COMPONENT_EXEMPT_COUNT) {
+        countFail += `\nkit count: the exempt-by-name bucket holds ${PLUGIN_COMPONENT_EXEMPT.length} entr(ies), expected exactly ${PLUGIN_COMPONENT_EXEMPT_COUNT} (derived: ${exemptKeys.join(", ")}) — the bucket's own recorded promote trigger is A SECOND DIRECTORY NEEDING EXEMPTION, because two hand-listed members is a list and this repository's record says a hand-maintained list rots; walk the bucket partition, pluginExemptComponentEntries()' schema-membership throw and guard_wr05's two exemption bounds, and decide whether a by-name bucket is still the right shape, BEFORE updating PLUGIN_COMPONENT_EXEMPT_COUNT in scripts/kit-model.ts`;
     }
     if (countFail === "") {
         // (Plan 27-37, D-47 item 1) WHY `each part set-equal to its own lister` IS NOW LITERALLY TRUE
@@ -1389,7 +1463,7 @@ function guardKitCounts() {
         // state. The claim is therefore true by construction rather than by hope, and the fix is
         // structural (the falsifying state routes to the failure channel) rather than a hedge in the
         // wording. A PASS line must never state a check that was not performed.
-        pass(`kit counts: derived ${ROLE_FILES.length} roles, ${WORKFLOW_FILES.length} workflows, ${SKILL_ADAPTERS.length} skill adapters and ${PLUGIN_SKILL_RELS.length} plugin-form skill adapters (expected ${ROLE_COUNT} / ${WORKFLOW_COUNT} / ${SKILL_ADAPTER_COUNT} / ${PLUGIN_SKILL_ADAPTER_COUNT}); the spawn-grant scan composition holds exactly ${SPAWN_GRANT_SCAN.length} members (${partBreakdown}), each part set-equal to its own lister; the plugin-manifest component schema carries ${schemaKeys.length} entries partitioned into ${pluginForbiddenComponentKeys().length} forbidden + ${coveredKeys.length} covered-elsewhere (${PLUGIN_COMPONENT_COVERED_ELSEWHERE.map((c) => `${c.manifestKey} by ${c.coverer}`).join(", ")}) + ${exemptKeys.length} exempt by name (${exemptKeys.join(", ")})`);
+        pass(`kit counts: derived ${ROLE_FILES.length} roles, ${WORKFLOW_FILES.length} workflows, ${SKILL_ADAPTERS.length} skill adapters and ${PLUGIN_SKILL_RELS.length} plugin-form skill adapters (expected ${ROLE_COUNT} / ${WORKFLOW_COUNT} / ${SKILL_ADAPTER_COUNT} / ${PLUGIN_SKILL_ADAPTER_COUNT}); the spawn-grant scan composition holds exactly ${SPAWN_GRANT_SCAN.length} members (${partBreakdown}), each part set-equal to its own lister; the plugin-manifest component schema carries ${schemaKeys.length} entries partitioned into ${pluginForbiddenComponentKeys().length} forbidden + ${coveredKeys.length} covered-elsewhere (${coveredLabels.join(", ")}) + ${exemptKeys.length} exempt by name (${exemptKeys.join(", ")})`);
     }
     else {
         fail(`kit-count violation:${countFail}`);
