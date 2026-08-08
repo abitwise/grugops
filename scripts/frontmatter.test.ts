@@ -31,8 +31,15 @@
 // memory.
 
 import { describe, it, expect } from "vitest";
-import { readFileSync } from "node:fs";
+import {
+  readFileSync,
+  readdirSync,
+  writeFileSync,
+  mkdtempSync,
+  rmSync,
+} from "node:fs";
 import { execFileSync } from "node:child_process";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import {
@@ -3121,6 +3128,173 @@ describe("frontmatter — the spawn-grant parser oracle (SPAWN-04 / KIT-03)", ()
     expect(blockLinesProbed, "block lines probed").toBeGreaterThan(
       members.length,
     );
+  });
+
+  // ── (Plan 27-42, D-50, closing IN-05) THE ONE-GRAMMAR CLAIM'S SCOPE, DERIVED RATHER THAN STATED ──
+  //
+  // The module header claims "one format-aware authority per predicate, and the duplicate grammar
+  // DELETED". A reader checks a claim like that with `grep`, and `grep` finds two more flat
+  // frontmatter grammars in scripts/. The claim is true when SCOPED — one grammar answers "what does
+  // this file's frontmatter SAY", the question this module exists for — and a scoped sentence with
+  // nothing behind it is the comment-without-a-pin shape this phase has corrected twice already.
+  //
+  // So the scope is DERIVED. The set of `scripts/*.ts` files carrying a local frontmatter-parsing
+  // construct is built by PATTERN — never from a hand-listed file name set, which is this
+  // repository's second systemic failure class and would be its third recursion inside one phase —
+  // sorted, compared to exactly the two named non-guard files, and its cardinality pinned.
+  //
+  // WHAT THE PATTERN RECOGNISES: a file that BOTH anchors a three-dash delimiter at the document head
+  // (a `/^---` regex literal, a `startsWith("---")`, or an `indexOf("---") === 0`) AND carries an
+  // anchored key-line match (a `^…:\s*` regex literal, or a split on the first colon).
+  //
+  // WHAT IT WOULD MISS, NAMED RATHER THAN LEFT UNDISCLOSED: a grammar that builds either regex from
+  // concatenated fragments or a `new RegExp(...)` string; one that finds the delimiter by scanning
+  // lines rather than by anchoring at byte 0; one that splits the block on something other than a
+  // colon (an `=` or a tab-separated form); and one living outside `scripts/` altogether. The pattern
+  // is a floor against the shapes a third grammar plausibly takes, not a proof that none can exist.
+  //
+  // TWO EXCLUSIONS, EACH BY NAME WITH ITS REASON — neither is a hand-listed allowlist of the answer:
+  //   • `frontmatter.ts` itself, because it IS the one authority and a set of "files other than the
+  //     authority" that contains the authority measures nothing;
+  //   • `*.test.ts`, because a case's independently-restated predicate is an INPUT to the authority
+  //     rather than a second authority a consumer reads — this repository deliberately restates
+  //     predicates in cases as evidence (27-41's own token regex), and no guard imports a `.test.ts`.
+  const HEAD_DELIMITER_CONSTRUCTS = [
+    /\/\^-{3}/, // a regex literal anchored at the document head: /^---
+    /startsWith\(\s*["'`]-{3}/, // text.startsWith("---")
+    /indexOf\(\s*["'`]-{3}["'`]\s*\)\s*===\s*0/, // text.indexOf("---") === 0
+  ];
+  const KEY_LINE_CONSTRUCTS = [
+    /\^[^\n/]{0,60}:\\s\*/, // an anchored key-shaped regex literal: ^(...):\s*
+    /\^[^\n/]{0,60}\\s\*:\\s\*/, // …with whitespace allowed before the colon
+    /split\(\s*["'`]:["'`]\s*\)/, // a key split on the first colon
+  ];
+  const grammarSites = (scriptsDir: string): string[] =>
+    readdirSync(scriptsDir)
+      .filter(
+        (n) =>
+          n.endsWith(".ts") && !n.endsWith(".test.ts") && n !== "frontmatter.ts",
+      )
+      .filter((n) => {
+        const src = readFileSync(join(scriptsDir, n), "utf8");
+        return (
+          HEAD_DELIMITER_CONSTRUCTS.some((r) => r.test(src)) &&
+          KEY_LINE_CONSTRUCTS.some((r) => r.test(src))
+        );
+      })
+      .sort();
+
+  it("D-50 IN-05 — the set of scripts/*.ts files carrying a LOCAL frontmatter-parsing construct is exactly the two named non-guard files", () => {
+    const sites = grammarSites(join(import.meta.dirname));
+    // Sorted before comparison, so a readdirSync order change cannot flip the assertion.
+    expect(sites).toEqual([...sites].sort());
+    expect(sites).toEqual(["context-io.ts", "generate-catalog.ts"]);
+    // Cardinality pinned as a NUMBER, so a scan that silently stops matching shrinks loudly rather
+    // than passing over an empty set.
+    expect(sites).toHaveLength(2);
+    // Neither is a second opinion on THIS module's predicate: neither imports it, and this module
+    // imports nothing relative at all, so the two grammars cannot be consulted for one question.
+    for (const site of sites) {
+      expect(
+        readFileSync(join(import.meta.dirname, site), "utf8"),
+        site,
+      ).not.toMatch(/from\s+["']\.\/frontmatter\.js["']/);
+    }
+    expect(readFileSync(join(import.meta.dirname, "frontmatter.ts"), "utf8"))
+      .not.toMatch(/^import .* from "\.\//m);
+  });
+
+  it("D-50 IN-05 — a THIRD local frontmatter grammar makes that set fail, by name", () => {
+    // An assertion that was never made to fail is not a pin. Exercised against a temp directory
+    // rather than by writing into the live scripts/ tree, so nothing outside the temp dir is touched.
+    const dir = mkdtempSync(join(tmpdir(), "grugops-grammar-"));
+    try {
+      for (const real of grammarSites(join(import.meta.dirname))) {
+        writeFileSync(
+          join(dir, real),
+          readFileSync(join(import.meta.dirname, real), "utf8"),
+        );
+      }
+      // A control FIRST: the copied pair alone reproduces the live answer, so the failure below is
+      // caused by the plant and not by the temp directory.
+      expect(grammarSites(dir)).toEqual(["context-io.ts", "generate-catalog.ts"]);
+      writeFileSync(
+        join(dir, "scratch-third-grammar.ts"),
+        [
+          "export function parseFrontmatter(text: string): Record<string, string> {",
+          "  const m = text.match(/^---\\n([\\s\\S]*?)\\n---\\n/);",
+          "  const fm: Record<string, string> = {};",
+          "  if (!m) return fm;",
+          "  for (const line of m[1].split('\\n')) {",
+          "    const kv = line.match(/^([A-Za-z_]+):\\s*(.*)$/);",
+          "    if (kv) fm[kv[1]] = kv[2].trim();",
+          "  }",
+          "  return fm;",
+          "}",
+          "",
+        ].join("\n"),
+      );
+      const withThird = grammarSites(dir);
+      expect(withThird).toContain("scratch-third-grammar.ts");
+      expect(withThird).toHaveLength(3);
+      expect(withThird).not.toEqual(["context-io.ts", "generate-catalog.ts"]);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("D-50 IN-05 — the two out-of-scope grammars' reach into the guard import graph is MEASURED, not assumed", () => {
+    // THE PLAN'S OWN PREMISE HERE WAS `UNKNOWN - verify`, AND VERIFYING IT DISPROVED HALF OF IT.
+    // The premise read: "generate-catalog.ts and context-io.ts are outside the import graph of every
+    // guard that reads a spawn grant". Measured: `generate-catalog.ts` is outside every one of them;
+    // `context-io.ts` is NOT — check-foundation-guards.ts -> check-uat-oracles.ts -> context-io.ts.
+    //
+    // That does not make the scoped claim false, and it is not oversold as a bypass. context-io's
+    // flat grammar parses a DIFFERENT DOCUMENT CLASS — `.grugops/context/` notes, with their own
+    // documented format — and is never asked about a member of the spawn-grant scan, which is why
+    // the header's claim is about the PREDICATE ("what does this file's frontmatter say") and not
+    // about which files happen to share a process. What the measurement buys is that the real shape
+    // is asserted: if `generate-catalog.ts` ever enters a guard's closure, this fails red.
+    //
+    // The guard set is DERIVED — every non-test `scripts/*.ts` that imports this module — rather than
+    // named, so a new consumer is covered the day it lands.
+    const scriptsDir = join(import.meta.dirname);
+    const tsFiles = readdirSync(scriptsDir).filter(
+      (n) => n.endsWith(".ts") && !n.endsWith(".test.ts"),
+    );
+    const consumers = tsFiles.filter((n) =>
+      /from\s+["']\.\/frontmatter\.js["']/.test(
+        readFileSync(join(scriptsDir, n), "utf8"),
+      ),
+    );
+    expect(consumers.length).toBeGreaterThan(0);
+    expect(consumers).toContain("check-foundation-guards.ts");
+    expect(consumers).toContain("coordinator-resolution-precheck.ts");
+
+    const relativeImports = (n: string): string[] =>
+      [
+        ...readFileSync(join(scriptsDir, n), "utf8").matchAll(
+          /from\s+["']\.\/([A-Za-z0-9._-]+)\.js["']/g,
+        ),
+      ]
+        .map((m) => `${m[1]}.ts`)
+        .filter((f) => tsFiles.includes(f));
+    const closure = new Set<string>();
+    const stack = [...consumers];
+    while (stack.length > 0) {
+      const f = stack.pop()!;
+      if (closure.has(f)) continue;
+      closure.add(f);
+      for (const d of relativeImports(f)) if (!closure.has(d)) stack.push(d);
+    }
+    // Non-vacuity: the closure really was walked and really does contain this module.
+    expect(closure.has("frontmatter.ts")).toBe(true);
+    expect(closure.size).toBeGreaterThan(consumers.length);
+    // The measured shape, asserted in BOTH directions so either changing fails red.
+    expect(
+      grammarSites(scriptsDir).filter((s) => closure.has(s)),
+    ).toEqual(["context-io.ts"]);
+    expect(closure.has("generate-catalog.ts")).toBe(false);
   });
 
   it("D-43 ordering edge — the refusal fires on the FIRST offending position and two runs over one input are byte-identical", () => {

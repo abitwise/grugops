@@ -22,6 +22,31 @@
 // One format-aware authority per predicate, and the duplicate grammar DELETED rather than taught an
 // extra case — a weaker second opinion that still votes is worse than none.
 //
+// THE SCOPE THAT CLAIM HOLDS OVER, STATED RATHER THAN LEFT TO BE CHECKED WITH `grep` (plan 27-42,
+// D-50, closing IN-05). The claim is: EXACTLY ONE GRAMMAR ON EVERY SURFACE A GUARD READS. It is not a
+// claim about every `.ts` file in the tree, and a reader who checks it that way finds two others:
+//
+//   scripts/generate-catalog.ts — an eight-line local `parseFrontmatter` (`/^---\n([\s\S]*?)\n---\n/`
+//     plus `^([A-Za-z_]+):\s*(.*)$`), with no folding, no quoting, no fence stripping and no failure
+//     arm. Its only output is `docs/catalog/README.md` and its only gate is catalog-freshness.ts.
+//   scripts/context-io.ts — a documented extension of that same flat key:value idiom, adding a
+//     `refs:` list block, serving the `.grugops/context/` note format.
+//
+// NEITHER FEEDS A SPAWN-GRANT GUARD, so this is a CLAIM-ACCURACY correction and NOT a security
+// finding — a later reader must not escalate it into one. What makes the scope mechanical rather than
+// a promise is the derived assertion `D-50 IN-05 — the set of scripts/*.ts files carrying a LOCAL
+// frontmatter-parsing construct is exactly the two named non-guard files` in scripts/frontmatter.test.ts:
+// it scans `scripts/*.ts` by PATTERN, sorts the result, compares it to exactly those two paths and
+// pins its cardinality, so a THIRD grammar fails red by name. That citation is the whole difference
+// between this and a rewording.
+//
+// AND THE DECISION NOT TO MIGRATE THEM IS RECORDED SO THE OMISSION READS AS A DECISION. Migrating
+// generate-catalog.ts onto this module would change what a byte-frozen generated artifact contains,
+// drag catalog-freshness.ts into a parser change, and buy nothing on any guard surface — while the
+// scoped-and-asserted claim buys the same protection (a third grammar cannot arrive quietly, and
+// neither of the two can enter a guard's import graph unnoticed) at a fraction of the blast radius. A
+// later phase that wants the migration starts from a claim that is already mechanically true.
+//
 // A PARSE FAILURE IS A PARSE ARTIFACT AND NEVER A VERDICT.
 //
 //   The failure arm of every result here exists so that a consumer cannot quietly turn "I could not
@@ -1628,7 +1653,11 @@ export function keyHasValue(keys, key, value) {
     return (keys.get(key) ?? []).some((v) => v === value);
 }
 // Text-level convenience wrappers. They are thin — each parses once and delegates to the map-level
-// predicate above, so there is still exactly ONE grammar. A consumer asking several questions about
+// predicate above, so THESE WRAPPERS ADD NO SECOND GRAMMAR: they answer from the value this module's
+// one parser produced, never from bytes they re-read themselves. (Plan 27-42, D-50: narrowed from
+// "so there is still exactly ONE grammar", which read as a claim about the tree. The tree-wide scope
+// is stated once, in the module header, with the derived assertion that makes it mechanical — one
+// statement of the scope, in the place a reader looks for it.) A consumer asking several questions about
 // one file (the spawn-grant guard does) calls parseFrontmatter once and uses the map-level forms;
 // these exist for call sites and tests that ask a single question.
 export function hasSpawnGrant(text) {
