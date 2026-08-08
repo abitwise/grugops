@@ -1883,77 +1883,103 @@ describe("frontmatter — the spawn-grant parser oracle (SPAWN-04 / KIT-03)", ()
   // `not-a-delimiter` must say so rather than inheriting "refuse" by position in the table. The
   // leading/trailing distinction the old tag also carried survives in each row's own label, where it
   // describes the INPUT rather than the implementation.
+  // (D-50 RECONCILIATION — INVERTED, NOT DELETED) THE TAG IS NOW TWO-SIDED, BECAUSE EXACTLY ONE ROW'S
+  // TWO POSITIONS GENUINELY DIFFER. The single tag asserted that every row behaves identically at both
+  // positions, and for `a LEADING space` that assertion WAS the WR-02 false red, enshrined: measured
+  // against libyaml, `description: |` / `  intro` / `  ---` / `  outro` loads to
+  // `"intro\n---\noutro\n"` — the indented `---` is CONTENT — while this module refused the whole
+  // document. The row is inverted at the closing position and kept at the opening one rather than
+  // being dropped, exactly as `27-39` inverted the two `REFUSED_FORMS` rows a loader disproved.
+  //
+  // WRITING BOTH SIDES OUT ON EVERY ROW IS THE POINT. A single tag plus an optional override would
+  // let the exemption spread quietly; a required pair makes each new row declare both positions, and
+  // the count of asymmetric rows is asserted below so the exemption cannot grow past the one row the
+  // format actually justifies.
   const DELIMITER_ROWS: readonly {
     label: string;
     line: string;
     codePoint: string;
-    verdict: "legal" | "refuse" | "not-a-delimiter";
+    verdict: {
+      opening: "legal" | "refuse" | "not-a-delimiter";
+      closing: "legal" | "refuse" | "not-a-delimiter";
+    };
   }[] = [
     // TRAILING residue — begins with the payload and is not the one legal spelling.
     {
       label: "U+FE0F VARIATION SELECTOR-16 (Mn — OUTSIDE D-42's alphabet)",
       line: `---${String.fromCodePoint(0xfe0f)}`,
       codePoint: "U+FE0F",
-      verdict: "refuse",
+      verdict: { opening: "refuse", closing: "refuse" },
     },
     {
       label: "U+0301 COMBINING ACUTE (Mn — OUTSIDE D-42's alphabet)",
       line: `---${String.fromCodePoint(0x301)}`,
       codePoint: "U+0301",
-      verdict: "refuse",
+      verdict: { opening: "refuse", closing: "refuse" },
     },
     {
       label: "U+0378 unassigned (Cn — OUTSIDE D-42's alphabet)",
       line: `---${String.fromCodePoint(0x378)}`,
       codePoint: "U+0378",
-      verdict: "refuse",
+      verdict: { opening: "refuse", closing: "refuse" },
     },
     {
       label: "U+E000 private use (Co — OUTSIDE D-42's alphabet)",
       line: `---${String.fromCodePoint(0xe000)}`,
       codePoint: "U+E000",
-      verdict: "refuse",
+      verdict: { opening: "refuse", closing: "refuse" },
     },
     // The two payload variants carrying NO unusual code point at all. Common frontmatter readers
     // accept both, and no prior decision or review in this phase named either.
-    { label: "`----` (an extra dash)", line: "----", codePoint: "U+002D", verdict: "refuse" },
+    {
+      label: "`----` (an extra dash)",
+      line: "----",
+      codePoint: "U+002D",
+      verdict: { opening: "refuse", closing: "refuse" },
+    },
     {
       label: "`--- foo` (the payload followed by ordinary text)",
       line: "--- foo",
       codePoint: "U+0066",
-      verdict: "refuse",
+      verdict: { opening: "refuse", closing: "refuse" },
     },
     // The two D-42 DID cover — kept so this set is a superset of what the rejected alphabet swept.
     {
       label: "U+E0020 TAG SPACE (Cf — inside D-42's alphabet)",
       line: `---${String.fromCodePoint(0xe0020)}`,
       codePoint: "U+E0020",
-      verdict: "refuse",
+      verdict: { opening: "refuse", closing: "refuse" },
     },
     {
       label: "U+200B ZERO WIDTH SPACE (Cf — inside D-42's alphabet)",
       line: `---${String.fromCodePoint(0x200b)}`,
       codePoint: "U+200B",
-      verdict: "refuse",
+      verdict: { opening: "refuse", closing: "refuse" },
     },
     // LEADING residue that renders no glyph, standing in front of an otherwise legal delimiter.
+    //
+    // (D-50) THE ONE ASYMMETRIC ROW. A space is the DECLARED whitespace class, so this leading run is
+    // INDENTATION and not residue, and an indented line is not at a delimiter position at all. At the
+    // CLOSING position that means "keep scanning" — and the scan finding no legal close ends in the
+    // unterminated-block refusal, which is what `projectVerdict` reports as `not-a-delimiter`. At the
+    // OPENING position the same verdict IS the keyless success arm, so it still refuses there.
     {
       label: "a LEADING space",
       line: " ---",
       codePoint: "U+0020",
-      verdict: "refuse",
+      verdict: { opening: "refuse", closing: "not-a-delimiter" },
     },
     {
       label: "a LEADING combining acute (arm 2's class must not be D-42's)",
       line: `${String.fromCodePoint(0x301)}---`,
       codePoint: "U+0301",
-      verdict: "refuse",
+      verdict: { opening: "refuse", closing: "refuse" },
     },
     {
       label: "a LEADING private-use code point",
       line: `${String.fromCodePoint(0xe000)}---`,
       codePoint: "U+E000",
-      verdict: "refuse",
+      verdict: { opening: "refuse", closing: "refuse" },
     },
   ];
 
@@ -1963,7 +1989,9 @@ describe("frontmatter — the spawn-grant parser oracle (SPAWN-04 / KIT-03)", ()
       // (D-44) THE TAG IS LOAD-BEARING. The row states the verdict kind it expects and the observed
       // projection is compared against it, so a row retagged without changing its behaviour FAILS
       // rather than becoming decoration — which is what the deleted `arm: 1 | 2` tag had become.
-      expect(projectVerdict(row.line, "opening"), row.label).toBe(row.verdict);
+      expect(projectVerdict(row.line, "opening"), row.label).toBe(
+        row.verdict.opening,
+      );
       const parsed = parseFrontmatter(text);
       expect(parsed.ok, row.label).toBe(false);
       if (parsed.ok) continue;
@@ -1982,15 +2010,44 @@ describe("frontmatter — the spawn-grant parser oracle (SPAWN-04 / KIT-03)", ()
     }
   });
 
-  it("D-39 point 5 — the SAME line at the CLOSING position produces the SAME named refusal, not the `opened and never closed` diagnosis", () => {
+  it("D-39 point 5 / D-50 — the SAME line at the CLOSING position produces the SAME named refusal, except for the ONE row whose two positions genuinely differ", () => {
+    // (D-50) THE EXEMPTION IS BOUNDED BY AN ASSERTION, NOT BY INTENT. Exactly one row's two positions
+    // differ, it is named here, and a second row acquiring an asymmetry fails LOUDLY rather than
+    // riding in on this one's justification. D-39 point 5 killed an asymmetry that was the SAME BYTE
+    // refusing loudly at one position and succeeding silently at the other for no stated reason; the
+    // row below is a stated difference in what the two positions MEAN, and it points the only way it
+    // safely can — toward another refusal.
+    const asymmetric = DELIMITER_ROWS.filter(
+      (r) => r.verdict.opening !== r.verdict.closing,
+    ).map((r) => r.label);
+    expect(asymmetric).toEqual(["a LEADING space"]);
+
     for (const row of DELIMITER_ROWS) {
       // The leading-residue rows are constructed at the closing position too: an invisible prefix in
       // front of a legal closing delimiter is the same fact one position over.
       const text = buildDelimiterDoc(row.line, "closing");
-      expect(projectVerdict(row.line, "closing"), row.label).toBe(row.verdict);
+      expect(projectVerdict(row.line, "closing"), row.label).toBe(
+        row.verdict.closing,
+      );
       const parsed = parseFrontmatter(text);
+      // EVERY ROW STILL FAILS AT THIS POSITION, including the asymmetric one — what changed is WHICH
+      // refusal it lands in, never THAT it refuses. Nothing here reaches a success arm.
       expect(parsed.ok, row.label).toBe(false);
       if (parsed.ok) continue;
+      if (row.verdict.closing === "not-a-delimiter") {
+        // (D-50) The indented line is CONTENT, so the scan continues past it and — this document
+        // having no other close — lands in the EXISTING unterminated-block refusal. The destination
+        // arm is asserted by name so a future change routing it anywhere else fails here.
+        expect(parsed.reason, row.label).toMatch(/never closed/);
+        expect(parsed.reason, row.label).not.toContain(
+          "closing delimiter position",
+        );
+        expect(hasSpawnGrant(text), row.label).not.toEqual({
+          ok: true,
+          value: false,
+        });
+        continue;
+      }
       expect(parsed.reason, row.label).toContain("closing delimiter position");
       expect(parsed.reason, row.label).toContain(row.codePoint);
       // The asymmetry that is now dead: the identical byte used to fail OPEN with a keyless success
@@ -2118,12 +2175,38 @@ describe("frontmatter — the spawn-grant parser oracle (SPAWN-04 / KIT-03)", ()
     }
   });
 
-  it("D-44 composite anchors — the SAME line at the CLOSING position produces the SAME named refusal, NOT the `opened and never closed` diagnosis", () => {
+  it("D-44 / D-50 composite anchors — the SAME line at the CLOSING position produces the SAME named refusal, except where the leading run is INDENTATION rather than residue", () => {
+    // (D-50 RECONCILIATION — INVERTED, NOT DELETED) The `a leading space + ----` row's leading run is
+    // the DECLARED whitespace class, so it is indentation and not residue, and at the CLOSING
+    // position an indented line is content. It is derived here from the row's own `leading` code
+    // point rather than matched on its label, so a row added later with a space or tab prefix is
+    // classified by the same rule instead of inheriting the wrong column silently.
+    const INDENTATION_LEADING: ReadonlySet<string> = new Set([
+      "U+0020",
+      "U+0009",
+    ]);
+    const indented = COMPOSITE_ROWS.filter((r) =>
+      INDENTATION_LEADING.has(r.leading),
+    ).map((r) => r.label);
+    expect(indented).toEqual(["a leading space + `----`"]);
+
     for (const row of COMPOSITE_ROWS) {
       const text = buildDelimiterDoc(row.line, "closing");
       const parsed = parseFrontmatter(text);
+      // Every row still REFUSES here; only the refusal it lands in moves.
       expect(parsed.ok, row.label).toBe(false);
       if (parsed.ok) continue;
+      if (INDENTATION_LEADING.has(row.leading)) {
+        // The scan continues past the content line and lands in the unterminated-block refusal —
+        // another refusal, never a success. The trailing fault is genuinely no longer reported,
+        // because the line was never at a delimiter position for a fault to be found on.
+        expect(parsed.reason, row.label).toMatch(/never closed/);
+        expect(hasSpawnGrant(text), row.label).not.toEqual({
+          ok: true,
+          value: false,
+        });
+        continue;
+      }
       expect(parsed.reason, row.label).toContain("closing delimiter position");
       expect(parsed.reason, `${row.label} leading fact`).toContain(row.leading);
       expect(parsed.reason, `${row.label} trailing fact`).toContain(
@@ -2433,9 +2516,15 @@ describe("frontmatter — the spawn-grant parser oracle (SPAWN-04 / KIT-03)", ()
       }
     }
 
-    // Source 4: the declared class OPENS a block in the trailing position and REFUSES in the leading
-    // one, because the invisible class is about where the delimiter begins and not about what
-    // follows it.
+    // Source 4: the declared class OPENS a block in the trailing position; in the LEADING position it
+    // is INDENTATION, which means different things at the two delimiter positions.
+    //
+    // (D-50 RECONCILIATION — INVERTED, NOT DELETED) This loop asserted `refuse` at BOTH positions,
+    // and the closing half of that assertion WAS the WR-02 false red written down as an oracle: a
+    // real YAML 1.2 loader reads an indented `---` inside a block scalar as CONTENT
+    // (`{"description"=>"intro\n---\noutro\n"}`), which is precisely why the line must not be treated
+    // as a close. The opening half is unchanged and is the control that proves the change did not
+    // simply loosen the class: there, `not-a-delimiter` IS the keyless success arm.
     for (const cp of declaredClass) {
       const ch = String.fromCodePoint(cp);
       for (const position of ["opening", "closing"] as const) {
@@ -2443,9 +2532,16 @@ describe("frontmatter — the spawn-grant parser oracle (SPAWN-04 / KIT-03)", ()
           hasSpawnGrant(buildDelimiterDoc(`---${ch}`, position)),
           `${label(cp)} trailing @ ${position}`,
         ).toEqual({ ok: true, value: true });
-        expect(projectVerdict(`${ch}---`, position), `${label(cp)} leading @ ${position}`).toBe(
-          "refuse",
-        );
+        expect(
+          projectVerdict(`${ch}---`, position),
+          `${label(cp)} leading @ ${position}`,
+        ).toBe(position === "opening" ? "refuse" : "not-a-delimiter");
+        // Neither position reaches the silent no-grant arm: the opening one refuses by name, and the
+        // closing one falls through to the unterminated-block refusal.
+        expect(
+          hasSpawnGrant(buildDelimiterDoc(`${ch}---`, position)),
+          `${label(cp)} leading @ ${position}`,
+        ).not.toEqual({ ok: true, value: false });
       }
       const parsed = parseFrontmatter(buildDelimiterDoc(`${ch}---`, "opening"));
       expect(parsed.ok, `${label(cp)} leading`).toBe(false);
@@ -2554,10 +2650,23 @@ describe("frontmatter — the spawn-grant parser oracle (SPAWN-04 / KIT-03)", ()
     "one space",
   ]);
 
+  // (D-50) The AXIS-1 subset that is INDENTATION — a leading run made of nothing but the declared
+  // whitespace class. Stated as LABELS for the same reason as the trailing set above: the rule must
+  // reason about the corpus and never about characters the module also reasons about.
+  const DECLARED_CLASS_LEADING_LABELS: ReadonlySet<string> = new Set([
+    "one space",
+    "one tab",
+    "a space and a tab",
+  ]);
+
   // THE EXPECTED VERDICT, DERIVED FROM THE STATED RULE AND NEVER FROM THE CODE UNDER TEST.
   //
   //   `rest` does not begin with any payload -> not-a-delimiter
-  //   no leading residue AND everything after the payload is in the declared class -> legal
+  //   NO leading run at all AND everything after the payload is in the declared class -> legal
+  //   (D-50) a leading run of nothing but the declared class is INDENTATION, and an indented line is
+  //     not at a delimiter position at all -> not-a-delimiter at the CLOSING position, where that
+  //     verdict means "keep scanning"; refuse at the OPENING position, where it means the keyless
+  //     SUCCESS arm and where routing indentation would trade a loud refusal for a silent one
   //   otherwise -> refuse
   //
   // IT MUST NEVER CALL `parseFrontmatter`, `hasSpawnGrant`, `projectVerdict` OR ANY MODULE EXPORT.
@@ -2582,7 +2691,15 @@ describe("frontmatter — the spawn-grant parser oracle (SPAWN-04 / KIT-03)", ()
       position === "opening" && leadingLabel === "one byte-order mark"
         ? "none"
         : leadingLabel;
-    if (effectiveLeading !== "none") return "refuse";
+    if (effectiveLeading !== "none") {
+      // (D-50) The position asymmetry, stated here as the FORMAT rule rather than read off the
+      // module: indentation says "this line is content", which the closing scan can act on by
+      // continuing, and which the opening test cannot act on without inventing a keyless success.
+      return DECLARED_CLASS_LEADING_LABELS.has(effectiveLeading) &&
+        position === "closing"
+        ? "not-a-delimiter"
+        : "refuse";
+    }
     if (payloadLabel !== "exact payload") return "refuse";
     return DECLARED_CLASS_TRAILING_LABELS.has(trailingLabel)
       ? "legal"
@@ -2600,6 +2717,7 @@ describe("frontmatter — the spawn-grant parser oracle (SPAWN-04 / KIT-03)", ()
       "DelimiterVerdict",
       "assertNeverVerdict",
       "leadingInvisibleRun",
+      "LeadingRun",
       "firstOutsideDeclaredWs",
       "DELIMITER_WS_CHAR",
       "VISIBLE_GLYPH",
@@ -2651,8 +2769,24 @@ describe("frontmatter — the spawn-grant parser oracle (SPAWN-04 / KIT-03)", ()
       // The genuinely-body-only arm, at both positions.
       ["none", "near-payload (two characters)", "none", "opening", "not-a-delimiter"],
       ["ZERO WIDTH SPACE", "near-payload (two characters)", "one space then ordinary text", "closing", "not-a-delimiter"],
+      // (D-50) INDENTATION, AND THE POSITION ASYMMETRY WRITTEN OUT AS DATA RATHER THAN ARGUED. The
+      // same three leading runs appear at both positions, so a future edit that "simplified" the
+      // asymmetry away would fail on one column or the other rather than on neither.
+      ["one space", "exact payload", "none", "closing", "not-a-delimiter"],
+      ["one tab", "exact payload", "none", "closing", "not-a-delimiter"],
+      ["a space and a tab", "exact payload", "none", "closing", "not-a-delimiter"],
+      ["one tab", "exact payload then a space and ordinary text", "none", "closing", "not-a-delimiter"],
+      ["one space", "payload plus one more of the same character", "none", "closing", "not-a-delimiter"],
+      ["one space", "exact payload", "none", "opening", "refuse"],
+      ["one tab", "exact payload", "none", "opening", "refuse"],
+      ["a space and a tab", "exact payload", "none", "opening", "refuse"],
+      // Indentation is the DECLARED class only. An invisible that is not space or tab is residue and
+      // refuses at BOTH positions, which is what keeps the D-50 label from widening into "anything
+      // that renders no glyph".
+      ["NO-BREAK SPACE", "exact payload", "none", "closing", "refuse"],
+      ["ZERO WIDTH SPACE", "exact payload", "none", "closing", "refuse"],
     ];
-    expect(TRUTH_TABLE.length).toBeGreaterThanOrEqual(12);
+    expect(TRUTH_TABLE.length).toBeGreaterThanOrEqual(23);
     for (const [leading, payload, trailing, position, expected] of TRUTH_TABLE) {
       expect(
         expectedVerdict(leading, payload, trailing, position),
@@ -2738,6 +2872,167 @@ describe("frontmatter — the spawn-grant parser oracle (SPAWN-04 / KIT-03)", ()
     // The TOTAL cell count, asserted as a number.
     expect(swept).toBe(648);
     expect(swept).toBe(CELLS_PER_FAMILY * SWEEP_FAMILIES.length);
+  });
+
+  // ── D-50 / WR-02: INDENTATION DECIDES WHETHER A LINE IS AT A DELIMITER POSITION AT ALL ────────
+  //
+  // Every row below was RED against the committed `scripts/frontmatter.js` before this change, with a
+  // reason containing `delimiter position carries`, and the values asserted here are the ones a real
+  // YAML 1.2 loader computes (Ruby 2.6.10 / Psych 3.1.0 / libyaml 0.2.1), modulo this module's
+  // DECLARED join contract: a block scalar's lines are joined with a single space, so where libyaml
+  // returns `"intro\n---\noutro\n"` this module returns `intro --- outro`. Token PRESENCE — which is
+  // the only thing any consumer asks — is identical, and the join contract is the same one the
+  // fourth-axis sweep already cross-checks against the loader.
+
+  it("D-50 WR-02 — an indented `---` or `...` inside a block scalar is CONTENT, so the document parses instead of turning the gate red", () => {
+    const ROWS: readonly {
+      label: string;
+      doc: string;
+      description: string;
+    }[] = [
+      {
+        label: "W2-a literal block scalar containing an indented `---`",
+        doc: "---\ndescription: |\n  intro\n  ---\n  outro\nname: x\n---\nBody.\n",
+        // libyaml: {"description"=>"intro\n---\noutro\n", "name"=>"x"}
+        description: "intro --- outro",
+      },
+      {
+        label: "W2-b wrapped plain description whose continuation begins with an ellipsis",
+        doc: "---\ndescription: Read the docs\n  ...and then some\nname: x\n---\nBody.\n",
+        // libyaml: {"description"=>"Read the docs ...and then some", "name"=>"x"}
+        description: "Read the docs ...and then some",
+      },
+      {
+        label: "W2-c folded block scalar containing an indented `...`",
+        doc: "---\ndescription: >\n  intro\n  ...\n  outro\nname: x\n---\nBody.\n",
+        // libyaml: {"description"=>"intro ... outro\n", "name"=>"x"}
+        description: "intro ... outro",
+      },
+    ];
+
+    // W2-b IS THE CHEAP ONE and it is why this is not an exotic edge: an author wrapping a long
+    // `description:` whose continuation happens to start with an ellipsis turned the WHOLE foundation
+    // gate red on a file the platform loads fine, and the only route back to green was deleting
+    // correct documentation.
+    for (const row of ROWS) {
+      const parsed = parseFrontmatter(row.doc);
+      expect(parsed.ok, row.label).toBe(true);
+      if (parsed.ok) {
+        expect(parsed.value.get("description"), row.label).toEqual([
+          row.description,
+        ]);
+        expect(parsed.value.get("name"), row.label).toEqual(["x"]);
+      }
+    }
+
+    // THE CONTROLS, both of which parsed BEFORE this change and must still parse: a payload too short
+    // to be a payload, and a legal close at column 0 with its grant intact.
+    const shortPayload = parseFrontmatter(
+      "---\ndescription: |\n  intro\n  --\n  outro\nname: x\n---\nBody.\n",
+    );
+    expect(shortPayload.ok).toBe(true);
+    if (shortPayload.ok) {
+      expect(shortPayload.value.get("description")).toEqual(["intro -- outro"]);
+    }
+    expect(
+      hasSpawnGrant("---\nname: x\ntools: Read, Agent(grugops-installer)\n---\nBody.\n"),
+    ).toEqual({ ok: true, value: true });
+  });
+
+  it("D-50 WR-02 — the change routes a refusal to ANOTHER REFUSAL and never to a keyless success: an indented line is not a close", () => {
+    // THE PROPERTY THAT MAKES THE CLOSING-POSITION CHANGE SAFE, asserted rather than argued. A
+    // document whose ONLY payload-bearing line after the opening delimiter is indented has no legal
+    // close, so the scan runs off the end and lands in the EXISTING unterminated-block refusal.
+    //
+    // RED-irrelevant and GREEN-mandatory: before this change the same document refused for a
+    // different reason, so this case pins the DESTINATION arm, not the refusal itself.
+    const doc =
+      "---\nname: x\ntools: Read, Agent(grugops-orchestrator)\n  ---\nBody.\n";
+    const parsed = parseFrontmatter(doc);
+    expect(parsed.ok).toBe(false);
+    if (!parsed.ok) {
+      expect(parsed.reason).toMatch(/opened at line \d+ .* never closed/);
+      expect(parsed.reason).not.toContain("delimiter position carries");
+    }
+    // And it is NOT the silent no-grant arm — the failure this whole phase exists to close.
+    expect(hasSpawnGrant(doc)).not.toEqual({ ok: true, value: false });
+  });
+
+  it("D-50 WR-02 — the OPENING position still refuses an indented delimiter, space and tab alike, because there `not-a-delimiter` IS the keyless success arm", () => {
+    // The asymmetry, measured on BOTH sides rather than assumed. Both rows were RED before this
+    // change and are RED after it; an asymmetry that was never measured on both sides is an
+    // assumption, and this module has shipped one of those before.
+    for (const [label, indent] of [
+      ["space-indented opening delimiter", " "],
+      ["tab-indented opening delimiter", "\t"],
+    ] as const) {
+      const doc = `${indent}---\nname: x\ntools: Read, Agent(grugops-orchestrator)\n---\nBody.\n`;
+      const parsed = parseFrontmatter(doc);
+      expect(parsed.ok, label).toBe(false);
+      if (!parsed.ok) {
+        expect(parsed.reason, label).toContain(
+          "opening delimiter position carries",
+        );
+        expect(parsed.reason, label).toContain(
+          "so the delimiter does not begin where the line begins",
+        );
+      }
+      expect(hasSpawnGrant(doc), label).not.toEqual({ ok: true, value: false });
+    }
+  });
+
+  it("D-50 KIT-03 boundary — a mixed leading run is RESIDUE in BOTH orders, and refuses by name at BOTH positions", () => {
+    // WHERE INDENTATION ENDS AND THE PAYLOAD BEGINS IS DECIDED ONCE. A run is indentation only when
+    // it is ENTIRELY inside the declared class; one code point outside it makes the whole run residue,
+    // whichever end that code point sits at. Both orders are asserted rather than assumed to fall out
+    // of the split — the two spellings exercise different characters of the run and a scan that
+    // stopped labelling early would pass one and fail the other.
+    const ZWSP = String.fromCodePoint(0x200b);
+    const ROWS: readonly { label: string; line: string; names: string }[] = [
+      { label: "residue then indentation", line: `${ZWSP} ---`, names: "U+200B" },
+      { label: "indentation then residue", line: ` ${ZWSP}---`, names: "U+0020" },
+    ];
+    for (const row of ROWS) {
+      for (const position of ["opening", "closing"] as const) {
+        const where = `${row.label} @ ${position}`;
+        const parsed = parseFrontmatter(buildDelimiterDoc(row.line, position));
+        expect(parsed.ok, where).toBe(false);
+        if (!parsed.ok) {
+          expect(parsed.reason, where).toContain(
+            `${position} delimiter position carries`,
+          );
+          // A refusal this plan PRESERVES still names the offending code point in the same
+          // `U+XXXXX` label shape.
+          expect(parsed.reason, where).toContain(row.names);
+        }
+        expect(projectVerdict(row.line, position), where).toBe("refuse");
+      }
+    }
+  });
+
+  it("D-50 — indentation is the DECLARED class only, and the legal column-0 delimiter is byte-unchanged at both positions", () => {
+    // The label must not widen into "anything that renders no glyph". A no-break space and a
+    // zero-width space are invisible but are NOT the declared class, so they stay residue and refuse
+    // at the closing position too — which is the position this change loosened.
+    for (const [label, ch] of [
+      ["NO-BREAK SPACE", String.fromCodePoint(0xa0)],
+      ["ZERO WIDTH SPACE", String.fromCodePoint(0x200b)],
+    ] as const) {
+      expect(projectVerdict(`${ch}---`, "closing"), label).toBe("refuse");
+    }
+    // The positive controls: a legal delimiter at column 0, and the trailing-space and trailing-tab
+    // spellings, all unchanged at both positions.
+    for (const position of ["opening", "closing"] as const) {
+      for (const line of ["---", "--- ", "---\t"]) {
+        expect(projectVerdict(line, position), `${JSON.stringify(line)} @ ${position}`).toBe(
+          "legal",
+        );
+      }
+    }
+    // `--- foo` carries NO leading run, so the empty run must not be mistaken for indentation — the
+    // one boundary a two-way indentation/residue split would have got wrong at this position.
+    expect(projectVerdict("--- foo", "closing")).toBe("refuse");
+    expect(projectVerdict("... foo", "closing")).toBe("refuse");
   });
 
   // ── THE FALSE-RED CONTROL, OVER THE ONE SCAN COMPOSITION ──────────────────────────────────────

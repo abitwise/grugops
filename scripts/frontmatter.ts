@@ -882,12 +882,17 @@ function flattenBlock(
 //
 //     payload        = "---" at the opening position; "---" or "..." at the closing position
 //     declared class = [ \t] — the ONE class, and the ONLY thing permitted after the payload
-//     run            = the leading run of code points that render no glyph of their own
+//     run            = the leading run of code points that render no glyph of their own, LABELLED
+//                      (D-50) by what it is made of: `none`, `indentation` (entirely inside the
+//                      declared class), or `residue` (carrying anything else)
 //     rest           = the line with that run removed
 //
 //     `rest` does NOT begin with any payload  -> not-a-delimiter (the keyless SUCCESS arm, untouched)
-//     run == 0 AND everything after the
+//     run is `none` AND everything after the
 //         payload is in the declared class    -> legal
+//     run is `indentation`, CLOSING position  -> not-a-delimiter (D-50: "keep scanning" — the line is
+//                                                CONTENT, and the fallback when no legal close is ever
+//                                                found is the EXISTING unterminated-block REFUSAL)
 //     otherwise                               -> refuse, naming every offending code point it saw
 //
 // EXACTLY THREE VERDICTS AND EVERY LINE GETS EXACTLY ONE. There is no input for which the classifier
@@ -896,11 +901,28 @@ function flattenBlock(
 // kept as a second opinion: a weaker duplicate that still votes is worse than none, which is this
 // module's own standing argument (see the fence authority and the escape allowlist above).
 //
-// FALSE-RED COST, MEASURED: zero. All 33 files on the spawn-grant scan surface open with a byte-exact
-// `---` on line 1, and under the D-44 classifier no line inside any of their frontmatter blocks
-// refuses either — asserted over head lines AND block lines by the false-red control in
-// scripts/frontmatter.test.ts, which reads the SAME `spawnGrantScan()` composition the guard reads.
-// The strict rule costs this repository nothing, which is what makes the allowlist affordable.
+// FALSE-RED COST — A MEASUREMENT, NOT A PROPERTY OF THE RULE, AND IT IS CITED RATHER THAN REMEMBERED.
+//
+// (D-50) THE SENTENCE THAT STOOD HERE CLAIMED MORE THAN IT HAD. It read: "All 33 files on the
+// spawn-grant scan surface open with a byte-exact `---` … The strict rule costs this repository
+// nothing, which is what makes the allowlist affordable." That is a POINT-IN-TIME COUNT over one
+// surface doing the work of a CLASS-LEVEL property, and this repository's second systemic failure
+// class is exactly a hand-carried number that reads authoritative while being wrong. It was also
+// false in substance while it stood: WR-02 was a false red on THREE document shapes a real YAML
+// loader accepts, none of which any file on that 33-member surface happens to use.
+//
+// WHAT IS TRUE, AND WHERE TO CHECK IT RATHER THAN TRUST IT. The cost is re-measured on EVERY RUN, by
+// two controls in scripts/frontmatter.test.ts, and neither carries a corpus-size literal:
+//
+//   • the D-43 false-red control, over the ONE `spawnGrantScan()` composition the guard itself reads
+//     — head lines AND every block line, re-probed at the closing position on its own;
+//   • the SELF-DERIVING repository-wide control, whose corpus is enumerated by `git ls-files '*.md'`
+//     AT RUN TIME and which asserts zero refusals over a non-empty corpus, reporting the size it
+//     derived. It needs no baseline, no literal and no mirror, so it cannot go stale.
+//
+// A code comment claiming a property is never left standing without the assertion that makes it true.
+// The strict rule is affordable because those two controls say so on every run — not because of a
+// number written down once.
 //
 // (D-39 point 4 / D-34) THE KEYLESS SUCCESS ARM IS NEVER WIDENED. A document that does not begin with
 // the payload at all — a body-only file, an empty file, a file of blank lines — still succeeds with no
@@ -968,6 +990,39 @@ function flattenBlock(
 //   named 10 real `.planning/` documents. The lesson is the plan's own, turned on the fix: a change
 //   this far upstream is proven by the values it produces over the real corpus, not by the rows it
 //   was written to repair. See `nodeStartQuote` above.
+//
+// AND A SEVENTH TIME — AND THIS ONE DID NOT GET THE LEGAL SET WRONG, IT GOT THE QUESTION WRONG
+// (27-REVIEW-GAPS-6 § WR-02 + § IN-02, round 6 — D-50). Every entry above is about WHAT THE RULE
+// COVERS: the escape alphabet, the delimiter alphabet, the arm split, the arm composition, the
+// enumeration alphabet, the assembly that produced the value. This one is about WHERE THE RULE
+// APPLIES AT ALL.
+//
+//   `classifyDelimiter` asked "does this line begin with a payload" WITHOUT FIRST ASKING "is this
+//   line at a delimiter POSITION". It stripped the leading run in order to find the payload, and the
+//   thing it stripped — indentation — WAS ITSELF THE ANSWER. So an indented `---` inside a literal
+//   block scalar, an indented `...` inside a folded one, and a wrapped `description:` whose
+//   continuation begins with an ellipsis were all REFUSED, on documents libyaml loads cleanly.
+//
+//   The SAME shape, ten lines below `startsWithReference`'s doc block, in the value flattener: the
+//   flush applied `unquoteChecked` to the joined value of a `|` / `>` block scalar, where YAML gives
+//   the construct NO quoting and NO escapes at all. So `tools: |` / `  Read, "Agent(x\q)"` was
+//   refused naming a backslash sequence the loader never sees, and `description: |` / `  "alpha"`
+//   had its quotes STRIPPED where the loader keeps them. That second direction is not merely a false
+//   red: `coordinator: |` / `  "true"` flattened to the bare `true`, so `keyHasValue` matched the
+//   coordinator marker on a construct the platform reads as the literal text `"true"` — masked on
+//   today's tree only by `guard_wr05`'s exactly-one-coordinator cardinality check, which is defence
+//   in depth and not a property of this parser.
+//
+//   THE DISCIPLINE ALREADY EXISTED IN THIS FILE AND NEITHER SITE CARRIED IT. `startsWithReference`'s
+//   doc block has a "WHERE IT IS NOT APPLIED" paragraph that correctly exempts the constructs YAML
+//   gives no such meaning. The lesson is that such a paragraph is not documentation — it is part of
+//   the rule, and a rule shipped without it is a rule applied everywhere.
+//
+//   THE STANDING QUESTION THIS LEAVES FOR THE NEXT READER. Before trusting a classifier's verdict,
+//   ASK WHETHER THE THING IT STRIPPED IN ORDER TO FIND ITS SUBJECT WAS ITSELF PART OF THE ANSWER —
+//   and before trusting any rule, ask at which POSITIONS the format gives the construct the meaning
+//   the rule assumes. A rule that is total, correctly polarised and correctly assembled is still
+//   wrong everywhere the format does not grant it jurisdiction.
 
 // The payload at each delimiter position. Declared here as data so both positions consult the same
 // tokens in the same order, which is what makes the reported refusal deterministic for a given input.
@@ -981,10 +1036,16 @@ const CLOSE_PAYLOADS: readonly string[] = ["---", "..."];
 // call site carries an inline whitespace expression of its own.
 const DELIMITER_WS_CHAR = /[ \t]/;
 
-// THE INVISIBLE CLASS, AND IT DECIDES ONE THING ONLY: WHERE THE DELIMITER BEGINS. Stated POSITIVELY:
-// a character that renders a visible glyph of its own is a letter, a number, a punctuation mark or a
-// symbol. A leading run containing none of those is invisible residue, and its LENGTH is the whole of
-// what this class contributes to a verdict.
+// THE INVISIBLE CLASS, AND IT BOUNDS THE LEADING RUN — NOTHING MORE. Stated POSITIVELY: a character
+// that renders a visible glyph of its own is a letter, a number, a punctuation mark or a symbol. A
+// leading run containing none of those is where the delimiter has not begun yet.
+//
+// (D-50) WHAT THIS CLASS CONTRIBUTES IS THE RUN'S EXTENT; WHAT THE RUN IS MADE OF IS DECIDED BY
+// `DELIMITER_WS_CHAR`. The sentence that stood here said the run's LENGTH was "the whole of what this
+// class contributes to a verdict", and that was the WR-02 defect written down as a design statement:
+// length alone cannot tell indentation from residue, and indentation is what distinguishes a
+// delimiter from content. This class still never decides what may FOLLOW the payload — that
+// inversion is round 5's defect and stays deleted — and it still never decides a verdict by itself.
 //
 // DELIBERATELY NOT UNICODE'S OWN TERM `graphic`, which is {L, M, N, P, S, Zs} and therefore INCLUDES
 // COMBINING MARKS. An implementation reaching for that definition treats a leading U+0301 as a visible
@@ -1011,22 +1072,63 @@ function firstOutsideDeclaredWs(residue: string): number {
   return -1;
 }
 
-// The length of the leading run of code points that render no glyph of their own, in code UNITS so the
-// result can index the string directly. Zero for a line that starts with a visible character.
+// (D-50 — 27-REVIEW-GAPS-6 § WR-02, round 6) THE LEADING RUN, LABELLED BY WHAT IT IS MADE OF.
+// ONE scan, ONE result, THREE kinds, and every run gets exactly one of them.
 //
-// (KIT-03 precision edge) CODE UNITS HERE, CODE POINTS IN THE LABEL. This counts UTF-16 units because
-// its only job is to slice the string, and `String.prototype.slice` indexes units. Every character
-// the refusal NAMES is read back with `codePointAt`, so a supplementary-plane code point (U+E0020, a
-// plane-14 tag space) is reported as ONE `U+XXXXX` label and never as two surrogate halves. Mixing
-// the two would either mis-slice the line or mis-name the byte, so the distinction is stated rather
-// than left to be rediscovered.
-function leadingInvisibleRun(line: string): number {
-  let n = 0;
+// WHAT THIS REPLACED AND WHY. This function used to return the run's LENGTH alone, and the classifier
+// sliced that length off before asking "does `rest` begin with a payload". Space and tab render no
+// glyph, so INDENTATION was inside the run and was therefore invisible to that question — an indented
+// `---` answered YES — and the indentation reappeared only as the `run !== 0` clause, which is a
+// REFUSAL. But indentation is exactly what distinguishes a delimiter from CONTENT: in YAML and in
+// every markdown frontmatter reader the delimiter is at column 0, and an indented `---` inside a
+// block scalar or a wrapped value is text. Measured against the committed build, three documents
+// libyaml loads cleanly were REFUSED — `description: |` / `  intro` / `  ---` / `  outro`, the same
+// with a folded `>` and an indented `...`, and the cheap one, an author wrapping a long
+// `description:` whose continuation happens to begin with an ellipsis. A false red is a red gate
+// whose only cure is deleting correct documentation, which D-34 records as the worse of the two.
+//
+// COMPOSITION IS PRIMARY, LENGTH IS A SLICING DETAIL — AND THERE IS NO SECOND OPINION. A length test
+// and a composition test can DISAGREE (a run of length 2 is indentation or residue depending on what
+// those two code points are), and the disagreement is invisible to a reader checking either in
+// isolation. Two answers to "is this line indented" is precisely the pair-of-predicates shape D-44
+// deleted from the classifier below after its union shipped a live bypass. So the composition is
+// decided HERE, once, in the same walk that measures the length, and no call site re-derives it.
+//
+// THE EMPTY RUN IS ITS OWN KIND AND IS DELIBERATELY NOT "INDENTATION". A run of nothing is vacuously
+// "entirely inside the declared class", and a two-way indentation/residue split would therefore label
+// it indentation and route `--- foo` at the closing position out of its refusal — a real regression
+// hiding inside a true-sounding sentence. `none` is stated as a kind so that boundary is decided ONCE
+// here rather than patched with a length test at the point of use.
+//
+// (KIT-03 precision edge) CODE UNITS IN THE LENGTH, CODE POINTS IN THE LABEL. The length counts UTF-16
+// units because its only job is to slice the string, and `String.prototype.slice` indexes units. The
+// composition is decided per CODE POINT (`for...of`), and every character the refusal NAMES is read
+// back with `codePointAt`, so a supplementary-plane code point (U+E0020, a plane-14 tag space) is
+// reported as ONE `U+XXXXX` label and never as two surrogate halves. Mixing the two would either
+// mis-slice the line or mis-name the byte, so the distinction is stated rather than left to be
+// rediscovered.
+//
+// THE TWO CLASSES COMPARED HERE ARE BOTH ALREADY DECLARED IN THIS REGION — `VISIBLE_GLYPH`'s
+// complement bounds the run, and `DELIMITER_WS_CHAR` labels it. No THIRD character class is
+// introduced, and none may be: a second whitespace class beside `DELIMITER_WS_CHAR` would be a
+// defect in this fix, not a refinement of it.
+type LeadingRun =
+  | { kind: "none"; length: 0 }
+  | { kind: "indentation"; length: number }
+  | { kind: "residue"; length: number };
+
+function leadingInvisibleRun(line: string): LeadingRun {
+  let length = 0;
+  let allDeclared = true;
   for (const c of line) {
     if (VISIBLE_GLYPH.test(c)) break;
-    n += c.length;
+    if (!DELIMITER_WS_CHAR.test(c)) allDeclared = false;
+    length += c.length;
   }
-  return n;
+  if (length === 0) return { kind: "none", length: 0 };
+  return allDeclared
+    ? { kind: "indentation", length }
+    : { kind: "residue", length };
 }
 
 // `U+` followed by four or more uppercase hexadecimal digits.
@@ -1070,6 +1172,14 @@ function assertNeverVerdict(verdict: never): never {
 // `leadingInvisibleRun`, to locate the payload. It never decides what may follow the payload. That
 // inversion is round 5's defect and it is deleted rather than narrowed.
 //
+// (D-50) AND THE RUN IT LOCATED IS ALSO ASKED WHAT IT IS MADE OF — ONCE, IN THAT SAME SCAN, AND READ
+// HERE FROM ONE LABELLED RESULT. A run that is entirely declared whitespace is INDENTATION, and
+// indentation means this line is not at a delimiter position at all. That is ONE EXTRA LABEL on the
+// existing result, never a second composable predicate: this function stays a single total function
+// with the same three verdicts and the same compiler-checked never-branch, and no call site keeps a
+// length test beside the label as a second opinion. See the branch below for why the label is
+// consumed at the CLOSING position only, and why that is not the asymmetry D-39 point 5 killed.
+//
 // THE PAYLOADS ARE TRIED IN DECLARED ORDER, so a given line always produces the same verdict and the
 // same reason, and two runs over one tree are byte-identical.
 function classifyDelimiter(
@@ -1078,19 +1188,39 @@ function classifyDelimiter(
   position: "opening" | "closing",
 ): DelimiterVerdict {
   const run = leadingInvisibleRun(line);
-  const rest = line.slice(run);
+  const rest = line.slice(run.length);
   for (const payload of payloads) {
     if (!rest.startsWith(payload)) continue;
     const residue = rest.slice(payload.length);
     const outside = firstOutsideDeclaredWs(residue);
-    if (run === 0 && outside === -1) return { kind: "legal", payload };
+    if (run.kind === "none" && outside === -1) return { kind: "legal", payload };
+    // (D-50) INDENTATION MEANS THIS LINE IS NOT AT A DELIMITER POSITION AT ALL — AT THE CLOSING
+    // POSITION, AND PROVABLY NOT AT THE OPENING ONE.
+    //
+    // THE ASYMMETRY IS MECHANICAL, NOT A PREFERENCE, AND ITS REASON IS THAT THE TWO CALL SITES
+    // CONSUME `not-a-delimiter` DIFFERENTLY. At the CLOSING position it means `continue scan`, and a
+    // scan that never finds a legal close ends in the EXISTING `opened and never closed` REFUSAL — so
+    // routing indentation there can only ever turn one refusal into another refusal or into a correct
+    // parse, never into a success this module cannot vouch for. At the OPENING position the same
+    // verdict IS the keyless SUCCESS arm, so routing indentation there would trade a loud refusal for
+    // the silent no-grant arm this whole module exists to make impossible. It is therefore not routed
+    // there, and the opening-position rows are pinned by cases that were red before this change and
+    // are red after it.
+    //
+    // THIS IS NOT THE OPEN/CLOSE ASYMMETRY D-39 POINT 5 KILLED — read the difference before "fixing"
+    // it to match. That one was the SAME BYTE refusing loudly at one position and succeeding silently
+    // at the other, with no stated reason: an accident of two code paths. This one is a stated
+    // difference in WHAT THE TWO POSITIONS MEAN, and it points the only way it safely can.
+    if (run.kind === "indentation" && position === "closing") {
+      return { kind: "not-a-delimiter" };
+    }
     // REFUSE, NAMING EVERY FACT OBSERVED AND NOT THE FIRST. A doubly-offending line has two things
     // wrong with it and a reason that mentioned only one would send a reader to fix half the line.
-    // At least one clause is always present: `run === 0 && outside === -1` is the legal verdict
-    // above, so reaching here means the run is non-zero, or the residue leaves the declared class,
-    // or both.
+    // At least one clause is always present: `run.kind === "none" && outside === -1` is the legal
+    // verdict above, so reaching here means the run is non-empty, or the residue leaves the declared
+    // class, or both.
     const faults: string[] = [];
-    if (run !== 0) {
+    if (run.kind !== "none") {
       faults.push(
         `its leading residue renders no glyph of its own and begins with ${codePointLabel(line.codePointAt(0) ?? 0)}, so the delimiter does not begin where the line begins`,
       );
