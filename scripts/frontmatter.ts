@@ -405,23 +405,52 @@ function startsWithReference(text: string): boolean {
 // shape that produced this defect one function away.
 export type QuoteState = '"' | "'" | null;
 
-// WHICH QUOTE, IF ANY, THIS NODE'S SCALAR IS WRITTEN IN — decided ONCE, at the NODE START, and the
-// only thing that licenses a quote state to cross a line boundary.
+// ---------------------------------------------------------------------------
+// (D-51 — 27-REVIEW-GAPS-7 § CR-01, round 8) THE SCANNER'S CARRIED STATE: ONE RECORD, ONE AUTHORITY
+// ---------------------------------------------------------------------------
 //
-// IN YAML A QUOTE CHARACTER IS ONLY A QUOTE WHERE A NODE MAY BEGIN. Inside a PLAIN scalar an
-// apostrophe is ordinary text: `- headroom for 27-06's frontmatter key` is a complete plain scalar
-// and the next `- item` line is a genuine sibling. Caught by this plan's own before/after value map
-// over all 1131 tracked markdown files, which named 10 real `.planning/` documents whose sibling
-// list items were being MERGED — the first draft of the carry stored the scanner's exiting flags
-// unconditionally, so one apostrophe in a plain scalar propagated a phantom open quote and swallowed
-// the following line's item boundary. The carry is therefore gated on the node start, which is the
-// same rule `startsWithReference` already applies to a sigil, applied to a quote.
+// EVERYTHING THAT MAY CROSS A LINE BOUNDARY, DECIDED INSIDE THE ONE WALK THAT VISITS THE POSITION.
+// D-48 promoted quote state to a property of the SCALAR and gated the carry on a node start. Both
+// moves were right and both were verified against libyaml. What was wrong was WHERE the gate was
+// applied: a separate helper re-derived "is this text a node start" from the FIRST TOKEN OF A LINE,
+// at three call sites, and the union of those three arms was not the set of node starts. Measured
+// against the committed build, two whole families of live `Agent(grugops-orchestrator)` grants came
+// back on the silent no-grant SUCCESS arm:
 //
-// The scanner's WITHIN-LINE quote tracking is untouched by this gate: a quoted region opening
-// mid-line (a flow collection's `["a # b"]`) must still hide its hash on that line. This decides only
-// what CROSSES a line boundary, which is exactly the fact the physical-line reset got wrong.
-const nodeStartQuote = (nodeText: string): QuoteState =>
-  nodeText.startsWith('"') ? '"' : nodeText.startsWith("'") ? "'" : null;
+//   family (a)  the key line carries NO value, so the CONTINUATION line is the node start.
+//               `tools:` / `  "Read,` / `  # x, Agent(grugops-orchestrator)"` -> {ok:true,value:false}
+//   family (b)  the quoted scalar opens MID-LINE inside a flow collection.
+//               `tools: [Read,` / `  "Write,` / `  # x, Agent(…)"]`           -> {ok:true,value:false}
+//
+// They are ONE FACT: *may a node begin at THIS OFFSET* is a property of the position, and the only
+// place the position is known is inside the walk that reaches it. So the three fields below travel
+// together through the scanner and the three sites store what it returns, unconditionally.
+export interface ScalarState {
+  // The quote a scalar has left OPEN across the boundary — and ALREADY GATED. It is non-null only
+  // when the still-open quote was opened at an offset where a node may begin, which is what keeps an
+  // apostrophe inside a plain scalar (`- headroom for 27-06's frontmatter key`) from propagating a
+  // phantom open quote and swallowing the next line's item boundary. That regression was caught only
+  // by the before/after value map over every tracked markdown file, so the fact survives here as
+  // CODE at the character where the quote opens rather than as a second opinion beside the walk.
+  openQuote: QuoteState;
+  // Unclosed `[` and `{` seen OUTSIDE quotes. A comma introduces a node only inside a flow
+  // collection — the same rule `startsWithReference` already applies to a sigil — so the depth is
+  // what makes that question answerable at the character rather than at the line.
+  flowDepth: number;
+  // May a node begin at the position the walk has REACHED? True after an opener, after a comma and
+  // after a flow mapping's `: ` separator; false once a content character of a node is consumed.
+  nodeMayBegin: boolean;
+}
+
+// The state a KEY LINE seeds from: nothing open, no collection, and a node may begin at offset 0. A
+// key line begins a new node, so no scalar from the previous key can still be open across it — this
+// is the asymmetry D-48 recorded, now expressed as a value instead of as a literal `null` seed plus
+// a paragraph explaining it.
+const FRESH_NODE: ScalarState = {
+  openQuote: null,
+  flowDepth: 0,
+  nodeMayBegin: true,
+};
 
 // Drop a trailing unquoted comment. A `#` only starts a comment when it is outside quotes AND at the
 // start or preceded by whitespace, so `Agent(a#b)` keeps its hash and `Read # note` loses the note.
@@ -444,28 +473,113 @@ const nodeStartQuote = (nodeText: string): QuoteState =>
 // While the entering state is open, no `#` on this line can start a comment — the seeded flags say so
 // directly, so the exemption needs no second rule. Where the quote CLOSES mid-line, the state is
 // closed from that character on and a `#` after it is a comment again, at the same line.
-function stripComment(
+//
+// (D-51 — 27-REVIEW-GAPS-7 § CR-01, round 8) AND THIS WALK IS NOW THE MODULE'S ONE AUTHORITY ON WHAT
+// MAY CROSS A LINE BOUNDARY. It is TOLD whether offset 0 of the line it is handed is a node start in
+// the BLOCK structure (a fact only the flattener's loop can know), it TRACKS flow-collection depth
+// and whether a node may begin at the offset it has reached, and it RETURNS an ALREADY-GATED state.
+// The three call sites perform ONE assignment each — store what came back — and re-decide nothing.
+//
+//   WHY THE SEPARATE GATE WAS DELETED RATHER THAN KEPT BESIDE THIS WALK. The deleted helper asked
+//   "does this TEXT start with a quote", i.e. it re-derived the node start from the first token of a
+//   line. Its argument was right — a quote character is only a quote where a node may begin, and an
+//   apostrophe inside a plain scalar is ordinary text — and its VANTAGE POINT was wrong: a node also
+//   begins on a continuation line when the key line carried no value (family a), and mid-line after
+//   a `[`, a `{`, a `,` or a `: ` inside a flow collection (family b). Neither is visible from the
+//   first token of a line, so the union of the three arms it served was NOT the set of node starts —
+//   this repository's own recurring defect class, in the very file that names it. A weaker duplicate
+//   that still votes is worse than none, and this module has now deleted one three times. The
+//   argument survives as the `openedAtNodeStart` flag below, decided at the character where the
+//   quote opens, which is the only place the position is actually known.
+//
+// WITHIN-LINE BEHAVIOUR IS BYTE-UNCHANGED, AND THAT IS ASSERTED RATHER THAN CLAIMED. The escaped-
+// character skip, both quote toggles and the comment condition are exactly what they were; the
+// additions below decide only what SURVIVES the boundary, never what the line MEANS. A differential
+// over a generated single-line corpus asserts the returned `text` equals the pre-D-51 build's output
+// for every input and every entering quote state (scripts/frontmatter.test.ts, the single-line
+// byte-identity differential, against scripts/fixtures/frontmatter-singleline-pre-d51.json).
+//
+// Exported for that differential: the claim is about THIS function's output, so the case calls THIS
+// function rather than inferring its behaviour from a value three transformations downstream.
+export function stripComment(
   s: string,
-  entering: QuoteState,
-): { text: string; openQuote: QuoteState } {
-  let sq = entering === "'";
-  let dq = entering === '"';
+  entering: ScalarState,
+  nodeStartAtOffsetZero: boolean,
+): { text: string; state: ScalarState } {
+  let sq = entering.openQuote === "'";
+  let dq = entering.openQuote === '"';
+  let depth = entering.flowDepth;
+  // A quote that is already open was gated when it opened, so the scalar it belongs to began at a
+  // node start by construction; there is nothing left to decide about it here.
+  let openedAtNodeStart = entering.openQuote !== null;
+  // Inside an open scalar every character is content, so no node may begin. Otherwise the walk
+  // resumes from the answer it left at the end of the previous line, RAISED to true when the block
+  // structure says this whole line is itself a node start. Two different inputs to one question,
+  // combined ONCE, here — never re-derived at a call site.
+  let mayBegin =
+    entering.openQuote !== null
+      ? false
+      : nodeStartAtOffsetZero || entering.nodeMayBegin;
+
+  const exiting = (): ScalarState => ({
+    // THE WHOLE GATE, IN ONE EXPRESSION: a still-open quote crosses the boundary only when it was
+    // opened where a node may begin.
+    openQuote: dq && openedAtNodeStart ? '"' : sq && openedAtNodeStart ? "'" : null,
+    flowDepth: depth,
+    nodeMayBegin: mayBegin,
+  });
+
   for (let i = 0; i < s.length; i++) {
     const c = s[i];
     if (dq && c === "\\") {
       i += 1; // an escaped character inside double quotes is never a delimiter
       continue;
     }
-    if (c === '"' && !sq) dq = !dq;
-    else if (c === "'" && !dq) sq = !sq;
-    else if (c === "#" && !sq && !dq && (i === 0 || /[ \t]/.test(s[i - 1]))) {
+    if (c === '"' && !sq) {
+      if (!dq) openedAtNodeStart = mayBegin;
+      dq = !dq;
+      mayBegin = false;
+    } else if (c === "'" && !dq) {
+      if (!sq) openedAtNodeStart = mayBegin;
+      sq = !sq;
+      mayBegin = false;
+    } else if (c === "#" && !sq && !dq && (i === 0 || /[ \t]/.test(s[i - 1]))) {
       // A comment runs to end-of-line and is only ever entered from OUTSIDE quotes, so nothing is
-      // left open behind it. The exiting state is derived from the same two flags as the fall-through
-      // below rather than being asserted a second way.
-      return { text: s.slice(0, i), openQuote: dq ? '"' : sq ? "'" : null };
+      // left open behind it. The exiting state is derived from the same flags as the fall-through
+      // below rather than being asserted a second way — and a comment consumes no CONTENT, so a node
+      // may still begin on the next line of an open flow collection, which libyaml agrees with.
+      return { text: s.slice(0, i), state: exiting() };
+    } else if (!sq && !dq) {
+      // OUTSIDE quotes: the flow structure decides where the next node may begin.
+      if (c === "[" || c === "{") {
+        depth += 1;
+        mayBegin = true;
+      } else if (c === "]" || c === "}") {
+        depth = depth > 0 ? depth - 1 : 0;
+        mayBegin = false;
+      } else if (c === "," && depth > 0) {
+        // A comma introduces a node only INSIDE a flow collection. At depth 0 it is content — the
+        // same distinction `startsWithReference` makes, and what keeps `tools: Read,` / `  don't`
+        // from licensing a crossing on the apostrophe.
+        mayBegin = true;
+      } else if (
+        c === ":" &&
+        depth > 0 &&
+        (i + 1 >= s.length || /[ \t]/.test(s[i + 1]))
+      ) {
+        // A flow MAPPING entry is `key: value`, so the value after the separator is its own node
+        // start — the same rule `startsWithReference` applies to its `": "` split.
+        mayBegin = true;
+      } else if (c !== " " && c !== "\t") {
+        // A content character of a node has been consumed; whitespace consumes nothing.
+        mayBegin = false;
+      }
+    } else {
+      // Inside a quoted scalar every character is content.
+      mayBegin = false;
     }
   }
-  return { text: s, openQuote: dq ? '"' : sq ? "'" : null };
+  return { text: s, state: exiting() };
 }
 
 // ---------------------------------------------------------------------------
@@ -614,13 +728,19 @@ interface Accumulator {
   parts: string[];
   block: boolean; // a `|` / `>` scalar: continuation lines are literal text, never sequence items
   seq: boolean; // at least one continuation line was a `- item`
-  // (D-48) The quote state the PREVIOUS line of this key left open. THE UNIT OF PARSING IS THE
-  // SCALAR, NOT THE PHYSICAL LINE — a YAML scalar does not end at a line boundary, so the state that
-  // decides what a character on the next line MEANS belongs to the scalar and is carried here rather
-  // than re-derived by each helper from the line it happens to be handed. Three consumers read it and
-  // NONE derives its own: the comment scanner, the node-start reference test and the sequence-item
-  // boundary. Always null on a key line, by construction — a key line begins a new node.
-  openQuote: QuoteState;
+  // (D-48, widened by D-51) The state the PREVIOUS line of this key left behind. THE UNIT OF PARSING
+  // IS THE SCALAR, NOT THE PHYSICAL LINE — a YAML scalar does not end at a line boundary, so the
+  // state that decides what a character on the next line MEANS belongs to the scalar and is carried
+  // here rather than re-derived by each helper from the line it happens to be handed. Three consumers
+  // read it and NONE derives its own: the comment scanner, the node-start reference test and the
+  // sequence-item boundary. Seeded from `FRESH_NODE` on a key line, by construction.
+  //
+  // (D-51) IT IS THE SCANNER'S RECORD, NOT A BARE QUOTE. The quote alone answered only "am I inside a
+  // scalar"; the flow depth and the node-may-begin answer are what let the ONE walk decide, at the
+  // character, whether a quote opening MID-LINE or on a continuation line is a node's quote. Each of
+  // the three sites below assigns this field exactly once, from what the scanner returned, and
+  // conditions that assignment on nothing.
+  state: ScalarState;
   // (D-48) DID THIS KEY'S VALUE NODE ALREADY BEGIN ON THE KEY LINE? The SECOND fact that belongs to
   // the node rather than to the line, and the answer to "may a node BEGIN on this continuation line".
   //
@@ -781,7 +901,7 @@ function flattenBlock(
       // a quoted scalar opened on an earlier line of this key is still open, THIS LINE IS CONTENT:
       // it is not a comment start, it is not a node start, and it is not an item boundary. That is
       // the whole of what the carried state decides — it never decides what a value MEANS.
-      const inScalar = cur.openQuote !== null;
+      const inScalar = cur.state.openQuote !== null;
       // MAY A NODE BEGIN ON THIS LINE? Derived ONCE from the two carried facts and read by consumers
       // 1 and 2 below. A line inside an open quoted scalar is content; so is a line continuing a
       // scalar that already began on the key line. Both are properties of the NODE — neither is
@@ -798,16 +918,17 @@ function flattenBlock(
         // A block-sequence ITEM is its own node, so the token start is the text after the dash.
         const itemText = (item[1] ?? "").trim();
         // CONSUMER 2 (item path) — the node-start test. Reached only with the scalar CLOSED, so the
-        // node start is real; the seed below is `cur.openQuote` rather than a literal null so this
-        // path reads the carried state like every other, with no per-line derivation of its own.
+        // node start is real.
         if (startsWithReference(itemText)) return refuseRef(t);
         cur.seq = true;
         // (D-30) The escape refusal fires HERE, at the same node-start point the reference refusal
         // already fires from, and returns directly rather than being deferred to the flush.
-        const scanned = stripComment(itemText, cur.openQuote);
-        // The item is its own node, so its node start decides whether a state may cross the boundary.
-        cur.openQuote =
-          nodeStartQuote(itemText) === null ? null : scanned.openQuote;
+        //
+        // (D-51) SEEDING SITE 2 OF 3 — one assignment, no gate. The item is its own node, so offset 0
+        // of `itemText` is a node start and the scanner is told so; whether anything crosses the
+        // boundary is then the scanner's answer and nobody else's.
+        const scanned = stripComment(itemText, cur.state, true);
+        cur.state = scanned.state;
         const resolved = unquoteChecked(scanned.text.trim());
         if (!resolved.ok) return refuseEscape(t, resolved.escape);
         const v = resolved.value;
@@ -820,12 +941,16 @@ function flattenBlock(
       // stops a red gate from falling on `description: see` / `  *emphasis* here`.
       if (startsNode && startsWithReference(t)) return refuseRef(t);
       // CONSUMER 3 — the comment scanner, seeded from and storing back to the one carried state.
-      const scanned = stripComment(t, cur.openQuote);
-      // A continuation line CONTINUES a node; it never starts one, so it can only ever carry a state
-      // FORWARD (until the scalar closes) and never OPEN one. A quote first seen here belongs to a
-      // plain scalar's text or to a region inside a flow collection — neither is a quoted scalar, and
-      // treating one as if it were is how the plain-scalar apostrophe swallowed a sibling item.
-      if (inScalar) cur.openQuote = scanned.openQuote;
+      //
+      // (D-51) SEEDING SITE 3 OF 3 — one assignment, no gate. The sentence that stood here said a
+      // continuation line "never starts a node, so it can only ever carry a state FORWARD and never
+      // OPEN one", and the file contradicted it twelve lines above: `startsNode` is computed
+      // precisely because a continuation line CAN be a node start when the key line carried no value
+      // (family a) — and a node can also begin MID-LINE inside a flow collection (family b), which no
+      // line-level expression can see at all. Both are now the scanner's business: it is handed the
+      // line-level answer for offset 0 and decides the rest at the character.
+      const scanned = stripComment(t, cur.state, startsNode);
+      cur.state = scanned.state;
       const text = scanned.text.trim();
       if (inScalar && cur.parts.length > 0) {
         // A continuation of an OPEN scalar is the SAME node, so it folds into the part it continues
@@ -865,7 +990,7 @@ function flattenBlock(
         parts: [],
         block: true,
         seq: false,
-        openQuote: null,
+        state: FRESH_NODE,
         nodeOnKeyLine: false,
       };
     } else {
@@ -874,18 +999,21 @@ function flattenBlock(
         parts: [],
         block: false,
         seq: false,
-        openQuote: null,
+        state: FRESH_NODE,
         nodeOnKeyLine: false,
       };
-      // (D-48) THE KEY LINE SEEDS FROM NULL, AND THE ASYMMETRY WITH THE TWO CONTINUATION POINTS IS
-      // DELIBERATE — DO NOT "FIX" IT TO MATCH THEM. A key line begins a NEW NODE, so no scalar from
-      // the previous key can still be open across it; seeding from anything else would let one key's
-      // unterminated quote silence the next key's comment stripping. It is also why the node-start
-      // reference test a few lines above stays UNGUARDED here while both continuation points guard
-      // theirs: the entering state at a key line is null by construction, so there is nothing to
-      // guard against, and adding a guard would imply a state that cannot exist.
-      const scanned = stripComment(rest, null);
-      cur.openQuote = nodeStartQuote(rest) === null ? null : scanned.openQuote;
+      // (D-48) THE KEY LINE SEEDS FROM A FRESH NODE, AND THE ASYMMETRY WITH THE TWO CONTINUATION
+      // POINTS IS DELIBERATE — DO NOT "FIX" IT TO MATCH THEM. A key line begins a NEW NODE, so no
+      // scalar from the previous key can still be open across it; seeding from anything else would
+      // let one key's unterminated quote silence the next key's comment stripping. It is also why the
+      // node-start reference test a few lines above stays UNGUARDED here while both continuation
+      // points guard theirs: the entering state at a key line is `FRESH_NODE` by construction, so
+      // there is nothing to guard against, and adding a guard would imply a state that cannot exist.
+      //
+      // (D-51) SEEDING SITE 1 OF 3 — one assignment, no gate. Offset 0 of `rest` is the value node's
+      // start, so the scanner is told so and its answer is stored.
+      const scanned = stripComment(rest, FRESH_NODE, true);
+      cur.state = scanned.state;
       const v = scanned.text.trim();
       // The node begins HERE only if the key line actually carries text. A key line whose value is
       // wholly a comment (`tools: # x`) begins nothing, so the following indented lines are still
@@ -1070,7 +1198,7 @@ function flattenBlock(
 //   comparing the flattened value map over all 1131 tracked markdown files before and after, which
 //   named 10 real `.planning/` documents. The lesson is the plan's own, turned on the fix: a change
 //   this far upstream is proven by the values it produces over the real corpus, not by the rows it
-//   was written to repair. See `nodeStartQuote` above.
+//   was written to repair. See `ScalarState.openQuote` above, which is where that gate now lives.
 //
 // AND A SEVENTH TIME — AND THIS ONE DID NOT GET THE LEGAL SET WRONG, IT GOT THE QUESTION WRONG
 // (27-REVIEW-GAPS-6 § WR-02 + § IN-02, round 6 — D-50). Every entry above is about WHAT THE RULE

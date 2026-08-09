@@ -49,6 +49,7 @@ import {
   grantedAgentNames,
   frontmatterValueIs,
   stripFencedBlocks,
+  stripComment,
   DQ_ESCAPE_ALLOWLIST,
   ENUMERATION_LEGAL_CHARS,
   TOOLS_KEYS,
@@ -5489,5 +5490,162 @@ describe("frontmatter — the invisible prologue and the one invisible authority
       inBlockTrims?.length,
       "trim()-based blank tests remaining in scripts/frontmatter.ts (the two deliberate in-block sites)",
     ).toBe(2);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// D-51 — THE ONE AUTHORITY ON WHAT CROSSES A LINE BOUNDARY (27-REVIEW-GAPS-7 § CR-01, round 8)
+// ---------------------------------------------------------------------------
+//
+// D-48 promoted quote state to a property of the SCALAR and gated the carry on a node start. Both
+// moves were right. What was wrong was that the SEEDING was wired into two of the three places a
+// node can begin, and into NONE of the places a node begins mid-line — so the union of the arms was
+// not the set of node starts, and two whole families of live spawn grants came back on the silent
+// no-grant SUCCESS arm. The remedy was not a fourth arm; it was deleting the split so the answer is
+// decided once, at the character where the position is known.
+//
+// EVERY ROW BELOW WAS MEASURED, NOT REASONED. Each carries the verdict the COMMITTED pre-D-51 build
+// returned (RED) and the loader's value from `/usr/bin/ruby -ryaml` (Ruby 2.6.10 / Psych 3.1.0 /
+// libyaml 0.2.1). A row that was never red is not a pin; the RED transcripts are recorded verbatim
+// in 27-43-SUMMARY.md, captured on a `git archive HEAD` mirror BEFORE the edit.
+describe("frontmatter — D-51: one walk decides what crosses a line boundary (CR-01, round 8)", () => {
+  const TOKEN = "Agent(grugops-orchestrator)";
+  const doc = (region: string): string =>
+    `---\nname: probe\n${region}\n---\nBody.\n`;
+  const toolsOf = (text: string): string => {
+    const parsed = parseFrontmatter(text);
+    return parsed.ok ? (parsed.value.get("tools") ?? []).join("|") : "REFUSED";
+  };
+
+  // ── FAMILY (a): THE KEY LINE CARRIES NO VALUE, SO THE CONTINUATION LINE IS THE NODE START ──────
+
+  it("D-51 row a1 — `tools:` / `  \"Read,` / `  # x, TOKEN\"` grants; pre-D-51 it returned the no-grant SUCCESS arm", () => {
+    // pre-D-51 committed build: {ok:true,value:false}, tools=["\"Read,"]
+    // libyaml:                   "Read, # x, Agent(grugops-orchestrator)"
+    const text = doc(`tools:\n  "Read,\n  # x, ${TOKEN}"`);
+    expect(hasSpawnGrant(text)).toEqual({ ok: true, value: true });
+    // The flattened value is byte-identical to what the loader computes, not merely token-bearing.
+    expect(toolsOf(text)).toBe(`Read, # x, ${TOKEN}`);
+  });
+
+  // ── FAMILY (b): THE QUOTED SCALAR OPENS MID-LINE INSIDE A FLOW COLLECTION ───────────────────────
+  //
+  // The family the reviewer's measured one-liner LEAVES OPEN. Mirroring the item path's gate in the
+  // continuation path closes (a) and returns (b) on the no-grant success arm, because inside a flow
+  // collection `nodeOnKeyLine` is already true and no line-level expression can see the node start.
+
+  it("D-51 row b1 — `tools: [Read,` / `  \"Write,` / `  # x, TOKEN\"]` grants; the family the naive one-liner does NOT close", () => {
+    // pre-D-51 committed build: {ok:true,value:false}, tools=["[Read, \"Write,"]
+    // libyaml:                   ["Read", "Write, # x, Agent(grugops-orchestrator)"]
+    const text = doc(`tools: [Read,\n  "Write,\n  # x, ${TOKEN}"]`);
+    expect(hasSpawnGrant(text)).toEqual({ ok: true, value: true });
+    expect(toolsOf(text)).toBe(`[Read, "Write, # x, ${TOKEN}"]`);
+  });
+
+  // ── THE ONE-LINE CONTROL: THE FIX MOVED THE BOUNDARY CASE AND NOTHING ELSE ─────────────────────
+
+  it("D-51 control — the same grant on ONE line is unchanged, value byte-for-byte", () => {
+    // pre-D-51 committed build: {ok:true,value:true}, tools=["Read, # x, Agent(grugops-orchestrator)"]
+    const text = doc(`tools: "Read, # x, ${TOKEN}"`);
+    expect(hasSpawnGrant(text)).toEqual({ ok: true, value: true });
+    expect(toolsOf(text)).toBe(`Read, # x, ${TOKEN}`);
+  });
+
+  // ── THE D-48 APOSTROPHE REGRESSION STAYS CLOSED, BY CONSTRUCTION ────────────────────────────────
+  //
+  // This is the regression NO case in this suite caught: it was found only by the before/after value
+  // map over every tracked markdown file, which named 10 real `.planning/` documents whose sibling
+  // list items were being MERGED. It stays closed here for a STRUCTURAL reason rather than a lucky
+  // one: the gate is decided at the character where the quote opens, and an apostrophe inside a plain
+  // scalar is never at a position where a node may begin — so it can never license a crossing,
+  // whatever line it sits on.
+
+  it("D-51 apostrophe control — a plain scalar's apostrophe licenses no crossing and swallows no sibling item", () => {
+    // Both values measured on the pre-D-51 committed build and reproduced byte-for-byte after.
+    const seq = doc(`tools:\n  - headroom for 27-06's frontmatter key\n  - Write`);
+    expect(toolsOf(seq)).toBe("headroom for 27-06's frontmatter key, Write");
+    // The `, ` join proves the second `- Write` was still read as its OWN item: a swallowed boundary
+    // folds it into the first part with a space instead.
+    const seqParsed = parseFrontmatter(seq);
+    expect(seqParsed.ok && seqParsed.value.get("tools")).toEqual([
+      "headroom for 27-06's frontmatter key, Write",
+    ]);
+
+    const key = doc(`description: it's fine\ntools: Read`);
+    const keyParsed = parseFrontmatter(key);
+    expect(keyParsed.ok && keyParsed.value.get("description")).toEqual([
+      "it's fine",
+    ]);
+    // The apostrophe did not silence the NEXT key's scanning either.
+    expect(keyParsed.ok && keyParsed.value.get("tools")).toEqual(["Read"]);
+
+    // And on a plain continuation line, where the carried node-may-begin answer is false because the
+    // key line's trailing comma sits at flow depth 0 — a comma introduces a node only INSIDE a flow
+    // collection, which is the same distinction `startsWithReference` already makes.
+    const cont = doc(`tools: Read,\n  don't\n  Write`);
+    expect(toolsOf(cont)).toBe("Read, don't Write");
+  });
+
+  // ── WITHIN-LINE BEHAVIOUR IS BYTE-UNCHANGED, ASSERTED AGAINST THE BUILD THAT SHIPPED ───────────
+
+  it("D-51 single-line byte-identity differential — the scanner's TEXT is byte-identical to the pre-D-51 build for every single-line input", () => {
+    // WHAT THIS FIXTURE IS, AND THE ONE WAY IT MUST NEVER BE MAINTAINED. It is a CAPTURE of the
+    // pre-D-51 committed `scripts/frontmatter.js` — taken on a `git archive HEAD` mirror before the
+    // edit, by appending one `export { stripComment }` line to a COPY of the committed bytes and
+    // importing it, so what was recorded is the scanner that actually shipped rather than a
+    // reimplementation of it. It is a FROZEN historical measurement.
+    //
+    // IF THIS CASE GOES RED, THE FIXTURE IS NOT THE THING TO REGENERATE. Regenerating it from the
+    // current build would make the assertion say "the build equals itself", which is the degradation
+    // mode this repository's prohibitions name by hand. A red here means the within-line rules moved,
+    // and the within-line rules are exactly what D-51 promised NOT to move: the escaped-character
+    // skip, both quote toggles and the comment condition. Adjudicate the change against
+    // `/usr/bin/ruby -ryaml` first.
+    const fixture = JSON.parse(
+      readFileSync(
+        join(import.meta.dirname, "fixtures", "frontmatter-singleline-pre-d51.json"),
+        "utf8",
+      ),
+    ) as { entering: (string | null)[]; cells: { input: string; text: string[] }[] };
+
+    // NO CORPUS SIZE IS WRITTEN INTO AN ASSERTION. The two numbers compared are both derived in this
+    // run; the floor exists only so a fixture emptied by a later edit cannot make this pass vacuously.
+    const inputs = fixture.cells.length;
+    expect(inputs, "the captured single-line corpus must not be empty").toBeGreaterThan(500);
+    expect(fixture.entering.length, "entering quote states captured").toBeGreaterThan(0);
+
+    let compared = 0;
+    const mismatches: string[] = [];
+    for (const { input, text } of fixture.cells) {
+      fixture.entering.forEach((q, k) => {
+        // The NODE-START INPUT IS SWEPT TOO. The claim is that the new argument changes only what
+        // SURVIVES the boundary, so the returned text must be independent of it — a property worth
+        // measuring rather than assuming, since it is the whole basis for "within-line unchanged".
+        for (const nodeStartAtOffsetZero of [true, false]) {
+          const got = stripComment(
+            input,
+            {
+              openQuote: q as '"' | "'" | null,
+              flowDepth: 0,
+              nodeMayBegin: true,
+            },
+            nodeStartAtOffsetZero,
+          ).text;
+          compared += 1;
+          if (got !== text[k]) {
+            mismatches.push(
+              `${JSON.stringify(input)} entering=${JSON.stringify(q)} nodeStart=${nodeStartAtOffsetZero}: pre=${JSON.stringify(text[k])} post=${JSON.stringify(got)}`,
+            );
+          }
+        }
+      });
+    }
+
+    expect(
+      mismatches,
+      `within-line TEXT differential over ${inputs} generated single-line input(s), ${compared} comparison(s):\n${mismatches.slice(0, 20).join("\n")}`,
+    ).toEqual([]);
+    // Both numbers derived in this same run — never one derived and one written down.
+    expect(compared).toBe(inputs * fixture.entering.length * 2);
   });
 });
