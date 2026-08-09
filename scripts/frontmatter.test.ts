@@ -3630,12 +3630,20 @@ describe("frontmatter — the spawn-grant parser oracle (SPAWN-04 / KIT-03)", ()
     });
   });
 
-  it("a FENCED `---` cannot close a real unterminated block — the fence strip runs before the block scan", () => {
+  it("a FENCED `---` cannot close a real unterminated block — the region refuses at the fence before it can reach one", () => {
     // This is the case that DISCRIMINATES: a fence-blind reader would take the `---` inside the
     // fenced example as the closing delimiter of the real (unterminated) block, parse the fenced
-    // example's lines as frontmatter, and report a grant that is documentation. Fence-aware, the real
-    // block is unterminated and the result is the parse-failure arm — the guard goes red and a human
-    // decides, which is the correct outcome for a malformed file.
+    // example's lines as frontmatter, and report a grant that is documentation. The result is the
+    // parse-failure arm — the guard goes red and a human decides, which is the correct outcome for a
+    // malformed file.
+    //
+    // (Plan 27-45, D-53 — WR-02) THE MECHANISM CHANGED AND THE OUTCOME DID NOT, WHICH IS WHY THIS
+    // CASE'S TITLE MOVED. It used to hold because the fence strip ran BEFORE the block scan and
+    // deleted the fenced example outright. That ordering is the WR-02 defect: a deletion running
+    // before the region is located deletes lines inside the region too. Now the region is located
+    // first and the fenced example's OPENING fence line — which is inside the still-open region — is
+    // refused by name, so the `---` beneath it is never reached. The protection is preserved by a
+    // REFUSAL rather than by a deletion, which is the direction this module's contract requires.
     const text = [
       "---",
       "name: x",
@@ -3649,9 +3657,192 @@ describe("frontmatter — the spawn-grant parser oracle (SPAWN-04 / KIT-03)", ()
     ].join("\n");
     const parsed = parseFrontmatter(text);
     expect(parsed.ok).toBe(false);
+    expect(parsed.ok ? "" : parsed.reason).toContain(
+      "carries the code-fence delimiter line",
+    );
     expect(hasSpawnGrant(text).ok).toBe(false);
-    // And the fence helper itself is the one authority both halves read through.
+    // And the fence helper itself is STILL the one authority, byte-unchanged, for the consumers that
+    // legitimately want a fence-stripped PROSE body — it is simply no longer applied to the region.
     expect(stripFencedBlocks(text)).not.toContain("grugops-not-a-real-role");
+  });
+
+  // ── WR-02 (plan 27-45, D-53): the region is located BEFORE anything is deleted from it ─────────
+  //
+  // THE DEFECT, STATED ONCE FOR ALL FOUR CASES BELOW. The fence authority was applied to the RAW
+  // document inside `parseFrontmatter`, before the frontmatter region was located. Its line-dropping
+  // therefore applied inside the region as readily as inside the body: a column-0 fence line inside
+  // the region deleted content and the TRUNCATED result was returned on the SUCCESS arm. That is this
+  // module's founding failure wearing a fence — "I could not read this" reported as a value.
+  //
+  // HOW IT IS SCOPED, HONESTLY. This is a CONTRACT defect and NOT a confirmed live bypass. Both
+  // documents that exhibit it are rejected outright by libyaml, and the one spelling libyaml accepts
+  // the module already refuses in the safe direction. The loader column below was taken with
+  // /usr/bin/ruby -ryaml (ruby 2.6.10 / psych 3.1.0 / libyaml 0.2.1) at execution time.
+  const WR02_FENCE = "`".repeat(3);
+  const WR02_TOKEN = "Agent(grugops-orchestrator)";
+
+  it("WR-02 d1: a fence around a whole `tools` key REFUSES — the key used to VANISH and `{ok:true,value:false}` was reported (libyaml: Psych::SyntaxError)", () => {
+    // BEFORE (measured against the committed build at HEAD b24d980-descendant, plan 27-45 execution):
+    //   {"arm":"ok","keys":{"name":["r"]},"grant":false}   — the whole `tools` key is GONE.
+    // LOADER: REJECT — "found character that cannot start any token ... at line 2 column 1".
+    // So the refusal direction is the loader's direction; nothing the platform loads turns red.
+    const text = [
+      "---",
+      "name: r",
+      WR02_FENCE,
+      `tools: Read, ${WR02_TOKEN}`,
+      WR02_FENCE,
+      "---",
+      "",
+      "body",
+    ].join("\n");
+    const parsed = parseFrontmatter(text);
+    expect(parsed.ok).toBe(false);
+    const reason = parsed.ok ? "" : parsed.reason;
+    // The refusal NAMES the fence, the line number in the DOCUMENT, and why a fence is not content
+    // this module may account for.
+    expect(reason).toContain("carries the code-fence delimiter line");
+    expect(reason).toContain("at line 3");
+    expect(reason).toContain("not a legal node in a top-level block mapping");
+    // And it is never the shorter-value arm: a name is never silently dropped, and neither is a key.
+    expect(hasSpawnGrant(text).ok).toBe(false);
+    expect(grantedAgentNames(text).ok).toBe(false);
+  });
+
+  it("WR-02 d2: a fence around a CONTINUATION line REFUSES — the token used to be DELETED from the value, leaving tools=[\"Read,\"] (libyaml: Psych::SyntaxError)", () => {
+    // BEFORE (measured against the committed build):
+    //   {"arm":"ok","keys":{"name":["r"],"tools":["Read,"]},"grant":false}  — the token DELETED.
+    // LOADER: REJECT — "found character that cannot start any token ... at line 3 column 1".
+    const text = [
+      "---",
+      "name: r",
+      "tools: Read,",
+      WR02_FENCE,
+      `  ${WR02_TOKEN}`,
+      WR02_FENCE,
+      "---",
+      "",
+      "body",
+    ].join("\n");
+    const parsed = parseFrontmatter(text);
+    expect(parsed.ok).toBe(false);
+    const reason = parsed.ok ? "" : parsed.reason;
+    expect(reason).toContain("carries the code-fence delimiter line");
+    expect(reason).toContain("at line 4");
+    // The refusal says in words what the defect WAS, so a later reader cannot re-introduce it by
+    // "simplifying" the message.
+    expect(reason).toContain(
+      "rather than having those lines DELETED and the shorter remainder reported as a value",
+    );
+    expect(hasSpawnGrant(text).ok).toBe(false);
+  });
+
+  it("WR-02 d3 (the SAFE-DIRECTION CONTROL): fences inside a double-quoted scalar still REFUSE, where libyaml ACCEPTS the document as a grant", () => {
+    // This is the one spelling of the three where the module and the loader DISAGREE, and it
+    // disagrees in the safe direction — the module refuses, the loader grants. It was already refused
+    // before this change (for a different reason: the trailing lone `"` was an unreadable key line)
+    // and it is still refused after it (the fence inside the region is reached first). The SUBSTANCE
+    // is unchanged: this document never reaches the success arm, so no grant is ever silently lost.
+    //
+    // LOADER: ACCEPT — {"name"=>"r", "tools"=>"Read ``` Agent(grugops-orchestrator) ``` "}, which
+    // CARRIES the spawn token. Recorded rather than "fixed": making the module parse it would mean
+    // implementing multi-line double-quoted scalars containing fence text, i.e. a second grammar for
+    // a value the platform's own loader reads with a first. Refusing is the answer that cannot be
+    // wrong; parsing better is the answer that can.
+    const text = [
+      "---",
+      "name: r",
+      `tools: "Read`,
+      WR02_FENCE,
+      WR02_TOKEN,
+      WR02_FENCE,
+      `"`,
+      "---",
+      "",
+      "body",
+    ].join("\n");
+    const parsed = parseFrontmatter(text);
+    expect(parsed.ok).toBe(false);
+    // Substance, asserted rather than the exact wording: the failure arm, and never a value.
+    expect(hasSpawnGrant(text).ok).toBe(false);
+    expect(grantedAgentNames(text).ok).toBe(false);
+  });
+
+  it("WR-02 control: a fenced frontmatter EXAMPLE in the BODY of a document with a real region still contributes NOTHING to the parsed keys", () => {
+    // The false-red control, and the reason the strip's scope shrank rather than the refusal widening.
+    // The packaging templates legitimately SHOW frontmatter inside a fence. With the region located
+    // first, the region ENDS at its own closing delimiter and the body is never read at all — so the
+    // example contributes nothing, exactly as before, WITHOUT any line being deleted to achieve it.
+    const text = [
+      "---",
+      "name: r",
+      "tools: Read",
+      "---",
+      "",
+      "Here is an example of an adapter that DOES hold the grant:",
+      "",
+      WR02_FENCE,
+      "---",
+      "name: example",
+      "coordinator: true",
+      `tools: Read, ${WR02_TOKEN}`,
+      "---",
+      WR02_FENCE,
+      "",
+      "end",
+    ].join("\n");
+    const parsed = parseFrontmatter(text);
+    expect(parsed.ok).toBe(true);
+    expect(parsed.ok ? [...parsed.value.keys()].sort() : []).toEqual([
+      "name",
+      "tools",
+    ]);
+    expect(parsed.ok ? parsed.value.get("tools") : null).toEqual(["Read"]);
+    expect(hasSpawnGrant(text)).toEqual({ ok: true, value: false });
+    expect(frontmatterValueIs(text, "coordinator", "true")).toEqual({
+      ok: true,
+      value: false,
+    });
+  });
+
+  it("WR-02 invariant: `parseFrontmatter` consults the fence authority on NOTHING — the region is located before any line is dropped", () => {
+    // (Plan 27-45 assumption delta) The source-inspection pin. It goes RED if a future phase moves a
+    // strip back in front of the region location, which is the exact regression this plan corrects.
+    // A comment claiming a property is not the property — this module has corrected that shape twice.
+    const src = readFileSync(
+      join(import.meta.dirname, "frontmatter.ts"),
+      "utf8",
+    );
+    const start = src.indexOf("export function parseFrontmatter(");
+    expect(start).toBeGreaterThan(0);
+    const end = src.indexOf("\n// ------", start);
+    expect(end).toBeGreaterThan(start);
+    // COMMENT LINES ARE REMOVED FIRST, deliberately: the fence scan inside this function CITES
+    // `stripFencedBlocks` in prose (it must — that is where the one class is declared), and the
+    // property under test is about CODE, not about whether the name is mentioned.
+    const body = src
+      .slice(start, end)
+      .split("\n")
+      .filter((l) => !l.trimStart().startsWith("//"))
+      .join("\n");
+    expect(
+      body,
+      "parseFrontmatter must not apply the fence authority to anything: the strip's scope shrank to the guards' PROSE checks, and re-applying it here is the WR-02 defect",
+    ).not.toContain("stripFencedBlocks");
+    // And the fence-delimiter CLASS is declared exactly once in the module, so the region scan and
+    // the strip cannot come to disagree about what a fence delimiter line is.
+    const code = src
+      .split("\n")
+      .filter((l) => !l.trimStart().startsWith("//"))
+      .join("\n");
+    expect(
+      code.split("/^```/").length - 1,
+      "the fence-delimiter line class must be written out exactly ONCE IN CODE (as FENCE_DELIMITER_LINE); a second spelling is the set-literal drift this repository has corrected three times",
+    ).toBe(1);
+    expect(src).toContain("const FENCE_DELIMITER_LINE = /^```/;");
+    // The strip itself must still be the ONE state machine, unchanged and still exported for the
+    // guards' prose checks.
+    expect(src).toContain("export function stripFencedBlocks(text: string)");
   });
 
   // ── Duplicate keys ────────────────────────────────────────────────────────────────────────────

@@ -69,11 +69,52 @@
 // documentation to go green. Equally, a token under a differently named key is not a grant and must
 // not be smuggled in as one. Both directions are pinned by cases.
 //
-// THIS IS ALSO THE ONE FENCE AUTHORITY. `stripFencedBlocks` lives here and is imported by
+// THIS IS ALSO THE ONE FENCE AUTHORITY, AND THE TEXT IT IS APPLIED TO IS NOW STATED PRECISELY
+// (plan 27-45, D-53 — 27-REVIEW-GAPS-7 § WR-02). `stripFencedBlocks` lives here and is imported by
 // check-foundation-guards.ts, so the whole tree still has exactly one implementation of "which lines
-// are inside a ``` block". Every consumer reads a fence-stripped body, which is what keeps an
-// illustrative frontmatter example inside a fenced block from being read as a live marker or grant.
-// No second fence parser is written, here or anywhere.
+// are inside a ``` block". No second fence parser is written, here or anywhere.
+//
+//   WHICH TEXT IT IS APPLIED TO: the PROSE BODY the guards check. Their adapter-body, tier-beat and
+//   packaging-template checks each call it directly on the whole file they are about to read as
+//   prose, exactly as before, and their behaviour is byte-unchanged.
+//
+//   WHICH TEXT IT IS NOT APPLIED TO: the FRONTMATTER REGION. `parseFrontmatter` no longer strips
+//   anything; it locates the region on normalized text and hands the region's lines to the flattener
+//   as written. A COLUMN-0 FENCE LINE IS NOT A LEGAL NODE IN A TOP-LEVEL BLOCK MAPPING — libyaml
+//   rejects such a document outright with a syntax error — so a fence inside the region is content
+//   this module CANNOT ACCOUNT FOR rather than documentation, and content this module cannot account
+//   for goes to the failure arm. See the region scan for the refusal and its measurement.
+//
+//   WHAT THE ARGUMENT ABOVE REPLACED. This paragraph used to say "every consumer reads a
+//   fence-stripped body, which is what keeps an illustrative frontmatter example inside a fenced
+//   block from being read as a live marker or grant". The SECOND half of that is still true and still
+//   load-bearing for the packaging templates, which legitimately SHOW frontmatter inside a fence: an
+//   illustrative example in the BODY contributes nothing to the parsed keys, and a control case pins
+//   it. What was wrong was the FIRST half as a mechanism — deleting lines is how the example was kept
+//   out, and a deletion applied before the region was located deleted lines INSIDE the region too.
+//   The example is now kept out by the region ENDING at its closing delimiter, and a fence reached
+//   before that closing delimiter REFUSES. The strip's scope SHRANK; it was not widened.
+//
+//   SCOPED HONESTLY: THIS IS A CONTRACT DEFECT AND NOT A CONFIRMED LIVE BYPASS, and a later reader
+//   must not escalate it into one. Measured against the committed build before this change, with
+//   /usr/bin/ruby -ryaml (ruby 2.6.10 / psych 3.1.0 / libyaml 0.2.1) as the loader column:
+//
+//     d1  `name: r` / ``` / `tools: Read, Agent(o)` / ```      module {ok:true,value:false}, the whole
+//                                                              `tools` key VANISHED   libyaml REJECTS
+//     d2  `name: r` / `tools: Read,` / ``` / `  Agent(o)` / ``` module {ok:true, tools=["Read,"]}, the
+//                                                              token DELETED          libyaml REJECTS
+//     d3  `name: r` / `tools: "Read` / ``` / `Agent(o)` / ``` / `"`
+//                                                              module REFUSES         libyaml ACCEPTS
+//                                                              it as a grant
+//
+//   BOTH documents that exhibit the defect are rejected by a real loader, and the one spelling the
+//   loader accepts (`d3`) the module ALREADY refuses — the safe direction, and it stays. No platform
+//   impact was demonstrated and none is claimed. What IS defective is that content the module cannot
+//   account for was silently REMOVED and the truncated remainder reported as a value on the SUCCESS
+//   arm, when this module's own founding rule routes such content to the failure arm. The repository
+//   cost of the reordering was measured at ZERO with the module's own classifier: over 1142 tracked
+//   markdown files, 0 files' located region differs under the two orderings, and 0 of the 563 files
+//   opening with a legal raw delimiter carry a column-0 fence inside their region.
 //
 // DELIBERATELY NOT A YAML ENGINE, AND THE REFERENCE CONSTRUCTS ARE REFUSED BY NAME. Anchors,
 // aliases and merge keys are not resolved. No shipped adapter or skill uses one, the generator
@@ -224,14 +265,38 @@ export type FrontmatterKeys = Map<string, string[]>;
 // inside-fence and never exposed — a malformed doc can never leak an unguarded live grant past the
 // strip. (CR-01: a fenced documentation example must not be mis-read as a second live coordinator.)
 //
+// (Plan 27-45, D-53) WHAT A FENCE DELIMITER LINE IS, DECLARED EXACTLY ONCE.
+//
+// This is the SAME expression `stripFencedBlocks` has always carried inline; it is hoisted, not
+// rewritten, and the strip's behaviour is byte-unchanged. It is hoisted because the frontmatter
+// region scan below must be able to ask the strictly simpler question "is THIS LINE a fence
+// delimiter" without acquiring a second opinion about it.
+//
+// THIS IS NOT A SECOND FENCE PARSER, AND THE DIFFERENCE IS THE QUESTION EACH ASKS. `stripFencedBlocks`
+// owns "WHICH LINES ARE INSIDE a fence" — the toggle, the state, the fail-safe on an unterminated
+// fence — and it remains the only implementation of that in the tree. This constant is the CHARACTER
+// CLASS the toggle keys on, declared once in the module's established style (`DELIMITER_WS_CHAR`,
+// `VISIBLE_GLYPH`, `ENUMERATION_LEGAL_CHARS` are the same shape) so that two consumers cannot come to
+// disagree about what a fence delimiter line looks like. Writing the expression out a second time at
+// the region scan is the set-literal drift this repository has corrected three times; declaring the
+// state machine a second time anywhere is forbidden outright.
+const FENCE_DELIMITER_LINE = /^```/;
+
 // (Plan 27-12) Moved here from check-foundation-guards.ts unchanged, so the frontmatter parser gets
 // a fence-safe input without a second implementation and every existing prose check in the guards
 // keeps behaving byte-identically. The guards import it back.
+//
+// (Plan 27-45, D-53 — 27-REVIEW-GAPS-7 § WR-02) AND THIS FUNCTION IS NO LONGER APPLIED TO THE
+// FRONTMATTER REGION. `parseFrontmatter` used to hand it the WHOLE document before locating anything,
+// so its line-dropping applied inside the region as readily as inside the body — see the parse entry
+// point for the measurement and the reason. The body of this function is BYTE-UNCHANGED, its other
+// consumers are byte-unaffected, and the strip's SCOPE SHRANK rather than grew: nothing here is
+// widened, duplicated or applied twice.
 export function stripFencedBlocks(text: string): string {
   const out: string[] = [];
   let inside = false;
   for (const line of text.split("\n")) {
-    if (/^```/.test(line)) {
+    if (FENCE_DELIMITER_LINE.test(line)) {
       inside = !inside;
       continue; // the fence delimiter line is never emitted
     }
@@ -1636,9 +1701,15 @@ function classifyDelimiter(
 
 // Read a markdown document's frontmatter into key -> flattened values.
 //
-// The input is fence-stripped FIRST (one fence authority), so frontmatter shown inside a ``` block
-// is documentation and contributes nothing. CRLF is normalized so a Windows checkout parses
-// identically to a Unix one.
+// (Plan 27-45, D-53 — 27-REVIEW-GAPS-7 § WR-02) THE REGION IS LOCATED BEFORE ANYTHING IS DELETED FROM
+// IT, AND NOTHING IS DELETED FROM IT AT ALL. This entry point used to fence-strip its input FIRST and
+// locate the region afterwards, which meant an operation that DROPS LINES ran before the boundary
+// that decides which lines belong to which grammar. The order is now: normalize, locate, flatten. The
+// fence authority is not consulted here; its scope shrank to the guards' prose checks, which is the
+// only place a fence means "documentation". See the module header for the measurement, the loader
+// column and the honest scoping (a contract defect, not a confirmed live bypass).
+//
+// CRLF is normalized so a Windows checkout parses identically to a Unix one.
 //
 // (D-39 point 1) ONE NORMALIZATION POINT, AND IT REMOVES EXACTLY ONE BYTE. A single leading byte-order
 // mark is removed in the SAME expression that normalizes CRLF, at position zero, once. It is the ONLY
@@ -1653,7 +1724,8 @@ function classifyDelimiter(
 //     body-only file);
 //   • a block that opens and never closes, whose content is unreadable, OR a document opening with a
 //     YAML directive line, OR a line at either DELIMITER POSITION that begins with the payload
-//     without being the one legal spelling -> NOT ok, with a reason.
+//     without being the one legal spelling, OR a CODE-FENCE DELIMITER LINE inside the located region
+//     -> NOT ok, with a reason.
 //
 // (D-34) THE PARTITION MOVED, IT DID NOT GROW. A directive-prefixed document used to sit in the second
 // outcome and now sits in the third; there is still no fourth state. The second outcome is otherwise
@@ -1677,6 +1749,17 @@ function classifyDelimiter(
 // asymmetry survived. Still three outcomes, still no fourth state — and now the three are a
 // PARTITION by construction rather than by assumption, because one total classifier assigns them.
 //
+// (D-53) AND IT MOVED A FOURTH TIME, FOR THE FENCE, AND STILL DID NOT GROW. A column-0 code-fence
+// delimiter line inside the located region used to sit in the FIRST outcome wearing a shorter value:
+// the strip ran before the location, dropped the fence lines AND every line between them, and the
+// truncated remainder was returned as a successful parse — `d1` lost its whole `tools` key and `d2`
+// lost the token out of its value, both on `{ok:true}`. It now sits in the THIRD outcome with a named
+// refusal, on the same argument every other in-region unreadable line already gets: a fence delimiter
+// is not a legal node in a top-level block mapping, so it is content this module cannot account for,
+// and content this module cannot account for is never reported as a value. Still three outcomes,
+// still no fourth state — and the move is the same shape as the three above it: the partition MOVED,
+// it did not grow.
+//
 // WHAT STAYED IN THE SECOND OUTCOME, DELIBERATELY. A document that does not begin with the payload AT
 // ALL — even after its leading invisible run is stripped — is still a keyless success: a body-only
 // file, an empty document, a document of blank lines only, a line of nothing but invisible characters.
@@ -1687,9 +1770,11 @@ export function parseFrontmatter(text: string): Parsed<FrontmatterKeys> {
   // (D-39 point 1) THE ONE NORMALIZATION POINT: a single leading byte-order mark, then CRLF. One
   // expression, one removed byte, position zero only. See the delimiter-region header above for why a
   // SECOND leading mark is deliberately left to the refusal instead of being stripped too.
-  const lines = stripFencedBlocks(
-    text.replace(/^\uFEFF/, "").replace(/\r\n/g, "\n"),
-  ).split("\n");
+  //
+  // (D-53) AND THE FENCE STRIP THAT USED TO WRAP THIS EXPRESSION IS GONE FROM HERE. Nothing in this
+  // function deletes a line any more. That is the whole of the WR-02 fix: an operation that drops
+  // lines must not run before the boundary that decides which lines belong to which grammar.
+  const lines = text.replace(/^\uFEFF/, "").replace(/\r\n/g, "\n").split("\n");
   let i = 0;
   // (D-50 — 27-REVIEW-GAPS-6 § IN-01, round 6) THE PROLOGUE SKIP DECIDES WHICH LINES EXIST, SO IT
   // ASKS THE QUESTION WITH THIS MODULE'S OWN ALPHABET.
@@ -1752,6 +1837,36 @@ export function parseFrontmatter(text: string): Parsed<FrontmatterKeys> {
   // unterminated block, and neither does a COMPOSITE one, which is the form that still produced that
   // misleading diagnosis until D-44.
   scan: for (let j = openAt + 1; j < lines.length; j++) {
+    // (D-53 — 27-REVIEW-GAPS-7 § WR-02) A CODE-FENCE DELIMITER LINE INSIDE THE REGION IS CONTENT THIS
+    // MODULE CANNOT ACCOUNT FOR, AND IT IS REFUSED HERE RATHER THAN DELETED UPSTREAM.
+    //
+    // WHY THIS IS THE RIGHT PLACE. The region is everything between the opening delimiter and the
+    // first legal closing delimiter, and this loop IS the region. A line reaching here is inside the
+    // region by construction, so the question "is this fence in the frontmatter or in the body" is
+    // already answered — it cannot be asked correctly anywhere earlier, which is precisely why the
+    // old strip-first ordering got it wrong.
+    //
+    // WHY REFUSE RATHER THAN SKIP OR STRIP. A column-0 fence line is not a legal node in a top-level
+    // block mapping; libyaml rejects both measured documents outright with `Psych::SyntaxError`. So
+    // there is no value for this module to report, and reporting the remainder after deleting the
+    // fence and its contents is this module's founding failure — "I could not read this" printed as
+    // "this carries no grant", with the shorter value standing in for the real one.
+    //
+    // AND IT ALSO SUBSUMES THE CASE THE OLD ORDERING EXISTED TO CATCH, which is why removing the
+    // strip loses nothing. A real block that is never closed, followed by a fenced example whose
+    // `---` a fence-blind reader would take as the close, cannot reach that `---` at all: the fenced
+    // example's OPENING fence line is inside the region and refuses first. Documentation is still
+    // never read as a live marker or grant — it is now kept out by a refusal instead of by a
+    // deletion, which is the direction this module's contract requires.
+    //
+    // THE CLASS IS THE ONE `stripFencedBlocks` KEYS ON, read from the single declaration above. No
+    // second fence state machine is introduced here and none may be.
+    if (FENCE_DELIMITER_LINE.test(lines[j])) {
+      return {
+        ok: false,
+        reason: `the frontmatter block opened at line ${openAt + 1} of the document carries the code-fence delimiter line \`${excerpt(lines[j])}\` at line ${j + 1}, before any closing \`---\` delimiter — a line beginning with three backticks is not a legal node in a top-level block mapping, so the region carries content this module cannot account for; it is refused as unreadable rather than having those lines DELETED and the shorter remainder reported as a value — never read as "carries no grant"`,
+      };
+    }
     const closing = classifyDelimiter(lines[j], CLOSE_PAYLOADS, "closing");
     switch (closing.kind) {
       case "legal":
@@ -1768,7 +1883,11 @@ export function parseFrontmatter(text: string): Parsed<FrontmatterKeys> {
   if (end === -1) {
     return {
       ok: false,
-      reason: `frontmatter block opened at line ${openAt + 1} of the fence-stripped body and is never closed by a \`---\` delimiter — an unterminated block is unreadable, NOT an absence of keys`,
+      // (D-53) "of the fence-stripped body" was corrected to "of the document": this entry point no
+      // longer strips anything, so the line number the reader is handed is now the line number in the
+      // file they will open. A diagnosis that names a line in a text the reader cannot see is a
+      // diagnosis that sends them to the wrong place.
+      reason: `frontmatter block opened at line ${openAt + 1} of the document and is never closed by a \`---\` delimiter — an unterminated block is unreadable, NOT an absence of keys`,
     };
   }
   const block = lines.slice(openAt + 1, end);

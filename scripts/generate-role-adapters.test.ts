@@ -470,16 +470,53 @@ describe("generate-role-adapters.js (SPAWN-01 adapter generator)", () => {
     // file whose frontmatter could not be read at all. "I cannot read this" and "this declares no
     // capabilities" are different facts and only one of them tells the author what to fix; the
     // authority's `ok: false` arm is branched on explicitly so they stay distinct.
+    //
+    // (Plan 27-45, D-53 — WR-02) THE FIXTURE NOW REMOVES THE BODY'S CODE FENCES TOO, AND THAT IS A
+    // REAL CHANGE IN THE MODULE RATHER THAN A TEST BEING MADE TO PASS. `parseFrontmatter` used to
+    // fence-strip the whole document BEFORE locating the region, so this role file's fenced body
+    // vanished and the region ran to EOF unterminated. It now locates the region first and REFUSES a
+    // code-fence delimiter line found inside it — so leaving the fences in place would exercise the
+    // FENCE refusal, not the unterminated one. Both are the failure arm; they are different findings
+    // and each gets its own case. This one keeps pinning the UNTERMINATED diagnosis, byte-for-byte as
+    // before, by making the region genuinely run to EOF with nothing else in it the module cannot
+    // read. The sibling case below pins the fence refusal.
     const m = scratch(SAMPLE_ROLES);
     expect(runIn(m).status).toBe(0);
     const p = join(m, "agent-factory", "roles", "qe-e2e.md");
     const lines = readFileSync(p, "utf8").split("\n");
     expect(lines[4]).toBe("---"); // the closing delimiter must be where we think it is
     lines.splice(4, 1);
-    writeFileSync(p, lines.join("\n"));
+    const noFences = lines.filter((l) => !l.startsWith("```"));
+    expect(noFences.length).toBeLessThan(lines.length); // the fixture really did carry fences
+    writeFileSync(p, noFences.join("\n"));
     expectRefusal(m, "qe-e2e.md: frontmatter is unreadable");
     expectRefusal(m, "is never closed by a `---` delimiter");
     const r = runIn(m);
+    expect(out(r)).not.toContain("is absent or empty");
+  });
+
+  it("refuses a CODE FENCE inside the located frontmatter region as UNREADABLE — the lines are never deleted and a shorter value never reported (27-45, D-53, WR-02)", () => {
+    // The discriminating sibling of the case above, and the whole of WR-02 at the aggregator level.
+    // Delete the closing delimiter and LEAVE the body's fences in place: the region now runs into the
+    // body and meets a column-0 fence. The pre-fix module deleted those lines and every line between
+    // them, then reported whatever remained; this module refuses, names the fence line and names its
+    // line number IN THE DOCUMENT (not in a stripped text the author cannot see).
+    const m = scratch(SAMPLE_ROLES);
+    expect(runIn(m).status).toBe(0);
+    const p = join(m, "agent-factory", "roles", "qe-e2e.md");
+    const lines = readFileSync(p, "utf8").split("\n");
+    expect(lines[4]).toBe("---");
+    lines.splice(4, 1);
+    expect(lines.some((l) => l.startsWith("```"))).toBe(true);
+    writeFileSync(p, lines.join("\n"));
+    expectRefusal(m, "qe-e2e.md: frontmatter is unreadable");
+    expectRefusal(m, "carries the code-fence delimiter line");
+    expectRefusal(
+      m,
+      "not a legal node in a top-level block mapping",
+    );
+    const r = runIn(m);
+    // The failure arm, never the silent one: a truncated value is exactly what WR-02 was.
     expect(out(r)).not.toContain("is absent or empty");
   });
 
