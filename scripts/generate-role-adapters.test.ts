@@ -162,6 +162,89 @@ function tmpIsCaseSensitive(): boolean {
 }
 const CASE_SENSITIVE = tmpIsCaseSensitive();
 
+// ── (27-50, IN-04 / D-56 item 8) THE FENCE-STRIPPING FIXTURE, AND ITS PREMISE IS CHECKED ───────
+//
+// WHAT WAS WRONG. The unterminated-region case built its fixture with
+// `lines.filter((l) => !l.startsWith("```"))` — it removed the fence DELIMITER lines and left
+// everything that was INSIDE the fences live in a role file whose frontmatter region now runs to
+// EOF. The only guard was `expect(noFences.length).toBeLessThan(lines.length)`: "at least one line
+// was removed". That is a guard on the fixture having DONE something, never on it having done the
+// RIGHT thing. The day a fenced example inside a SAMPLE_ROLES file gains a column-0 `---` or a
+// column-0 key line, the case silently begins pinning a DIFFERENT refusal — or a successful parse —
+// while staying green, and the sibling case below, which depends on the same fixture in the exactly
+// OPPOSITE direction, drifts apart from it without either failing.
+//
+// THE RULE THIS APPLIES IS THE MODULE'S OWN. `stripFencedBlocks` in scripts/frontmatter.ts toggles
+// on `/^```/`, never emits the delimiter line, and drops every line while the toggle is set. This
+// helper states the same rule in the fixture's own terms. It is deliberately NOT an import of the
+// module under test's neighbour: a fixture built by calling the production stripper would make the
+// case's input a function of the code the suite is about, which is the circularity axis this
+// repository has already found twice.
+//
+// THE COUNTS ARE DERIVED AND RETURNED AS DATA, never asserted as remembered literals — the caller
+// asserts the properties it needs from them.
+interface FenceStrip {
+  readonly kept: string[];
+  readonly linesRemoved: number;
+  readonly blocksRemoved: number;
+  /** True when a fence was opened and never closed — the toggle swallowed the tail. */
+  readonly unterminatedFence: boolean;
+}
+
+function stripFencedBlockLines(lines: readonly string[]): FenceStrip {
+  const kept: string[] = [];
+  let inside = false;
+  let blocksRemoved = 0;
+  for (const line of lines) {
+    if (line.startsWith("```")) {
+      if (!inside) blocksRemoved += 1;
+      inside = !inside;
+      continue; // the delimiter line is never kept
+    }
+    if (inside) continue; // …and neither is anything between two delimiters
+    kept.push(line);
+  }
+  return {
+    kept,
+    linesRemoved: lines.length - kept.length,
+    blocksRemoved,
+    unterminatedFence: inside,
+  };
+}
+
+// The fixture's PREMISE, stated once and consulted twice — by the case that writes the file, and by
+// the case that proves the premise can fire. A premise restated at its proof site proves something
+// about the copy.
+//
+// WHAT IT ASSERTS AND WHY EACH HALF IS LOAD-BEARING:
+//   • a fenced block really was removed        — the fixture is not a no-op on a role file that lost
+//                                                its fences upstream;
+//   • the fences were BALANCED                 — an unterminated fence means the toggle swallowed the
+//                                                tail, so the file the case writes is not the file it
+//                                                thinks it wrote;
+//   • NO delimiter line survives after line 0  — this is the whole point. The case exists to make the
+//                                                region genuinely run to EOF with nothing in it the
+//                                                module cannot read. A surviving column-0 `---` or
+//                                                `...` would close the region or land the case in a
+//                                                different refusal.
+function assertFenceStripPremise(strip: FenceStrip, where: string): void {
+  expect(
+    strip.blocksRemoved,
+    `${where}: PREMISE — the fixture must really have carried a fenced block`,
+  ).toBeGreaterThan(0);
+  expect(
+    strip.unterminatedFence,
+    `${where}: PREMISE — the fences must be balanced, or the strip swallowed the file's tail`,
+  ).toBe(false);
+  const survivors = strip.kept
+    .map((l, i) => [l, i] as const)
+    .filter(([l, i]) => i > 0 && (l === "---" || l === "..."));
+  expect(
+    survivors,
+    `${where}: PREMISE — no delimiter line may survive after line 0, or the region does not run to EOF and this case is pinning a different refusal`,
+  ).toEqual([]);
+}
+
 // ── Refusal helper: assert non-zero exit, the named role file, and an UNCHANGED output dir ─────
 function expectRefusal(m: string, needle: string): void {
   const before = snapshot(agentsDir(m));
@@ -480,19 +563,80 @@ describe("generate-role-adapters.js (SPAWN-01 adapter generator)", () => {
     // and each gets its own case. This one keeps pinning the UNTERMINATED diagnosis, byte-for-byte as
     // before, by making the region genuinely run to EOF with nothing else in it the module cannot
     // read. The sibling case below pins the fence refusal.
+    // (27-50, IN-04 — 27-REVIEW-GAPS-8 § IN-04, round 9 — D-56 item 8) THE FIXTURE NOW REMOVES
+    // FENCED BLOCKS WITH THEIR CONTENTS, AND ITS PREMISE IS ASSERTED BEFORE THE FILE IS WRITTEN.
+    // The delimiter-only filter left every fenced line live in the region, guarded by nothing more
+    // than "at least one line was removed" — see the helper above for the full statement of what
+    // that could not see.
     const m = scratch(SAMPLE_ROLES);
     expect(runIn(m).status).toBe(0);
     const p = join(m, "agent-factory", "roles", "qe-e2e.md");
     const lines = readFileSync(p, "utf8").split("\n");
     expect(lines[4]).toBe("---"); // the closing delimiter must be where we think it is
     lines.splice(4, 1);
-    const noFences = lines.filter((l) => !l.startsWith("```"));
-    expect(noFences.length).toBeLessThan(lines.length); // the fixture really did carry fences
-    writeFileSync(p, noFences.join("\n"));
+    const strip = stripFencedBlockLines(lines);
+    assertFenceStripPremise(strip, "the unterminated-region fixture");
+    // The removal is DETERMINISTIC: the same input produces the same bytes on two runs, so the two
+    // sibling cases cannot drift apart through an order-dependent strip.
+    expect(stripFencedBlockLines(lines).kept.join("\n")).toBe(
+      strip.kept.join("\n"),
+    );
+    writeFileSync(p, strip.kept.join("\n"));
     expectRefusal(m, "qe-e2e.md: frontmatter is unreadable");
     expectRefusal(m, "is never closed by a `---` delimiter");
+    // This case pins the UNTERMINATED diagnosis and NOT the fence one — asserted on the text, so a
+    // fixture that silently began exercising the sibling's refusal fails here rather than passing on
+    // the shared "is unreadable" prefix.
     const r = runIn(m);
     expect(out(r)).not.toContain("is absent or empty");
+    expect(out(r)).not.toContain("carries the code-fence delimiter line");
+  });
+
+  it("IN-04 — the fixture's PREMISE is LOAD-BEARING: a fenced example carrying a column-0 delimiter is REFUSED by it (27-50, D-56 item 8)", () => {
+    // The day this fires for real, the fixture above would have silently started pinning a different
+    // refusal. Constructed here so the premise is proven capable of failing rather than asserted to
+    // be, and constructed as the two shapes that actually threaten it.
+    const withDelimiterInsideFence = [
+      "---",
+      "name: x",
+      "---",
+      "",
+      "## Example",
+      "```",
+      "---",
+      "a: b",
+      "```",
+      "",
+      "tail",
+    ];
+    const strip = stripFencedBlockLines(withDelimiterInsideFence);
+    // The block IS removed with its contents, so this premise holds on the STRIPPED text…
+    expect(strip.blocksRemoved).toBe(1);
+    expect(strip.linesRemoved).toBe(4);
+    // …and the surviving line-2 `---` is a real delimiter of the document, which the premise names.
+    expect(() =>
+      assertFenceStripPremise(strip, "a constructed input"),
+    ).toThrow(/no delimiter line may survive after line 0/);
+
+    // The second threat: an UNBALANCED fence. The toggle swallows the tail, so the file written is
+    // not the file the case believes it wrote.
+    const unbalanced = ["---", "name: x", "```", "body", "more"];
+    const open = stripFencedBlockLines(unbalanced);
+    expect(open.unterminatedFence).toBe(true);
+    expect(() => assertFenceStripPremise(open, "an unbalanced fence")).toThrow(
+      /fences must be balanced/,
+    );
+
+    // And the third: a file carrying NO fence at all, where the fixture would be a silent no-op.
+    const noFence = ["---", "name: x", "---", "body"];
+    expect(() =>
+      assertFenceStripPremise(stripFencedBlockLines(noFence), "no fence"),
+    ).toThrow(/must really have carried a fenced block/);
+
+    // Non-vacuity: the premise is a DISCRIMINATOR, not a refusal of everything. The shape the
+    // unterminated-region case actually builds passes it.
+    const good = ["---", "name: x", "", "## Example", "```", "prose", "```"];
+    assertFenceStripPremise(stripFencedBlockLines(good), "the good shape");
   });
 
   it("refuses a CODE FENCE inside the located frontmatter region as UNREADABLE — the lines are never deleted and a shorter value never reported (27-45, D-53, WR-02)", () => {

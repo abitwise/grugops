@@ -310,3 +310,154 @@ Out-of-scope discoveries logged during execution. Not fixed; recorded so they ar
   - **Suggested direction:** if round 10 wants it back, derive the per-rule ceiling from a quantity
     the rule does not read — for example the count of loader-accepted cells whose DISAGREEMENT the
     rule is stated about — rather than from the axis flags the rule itself matches on.
+
+## From 27-50 (D-56 items 9 and 10, round 9) — TWO RECORDED DECISIONS, each with its reason
+
+**These are DECISIONS, not defects, and neither is a silent drop.** They are written here rather
+than only in a plan summary because a retirement or a deferral that lives only in a summary is
+indistinguishable, to a later reader, from an item that was forgotten. Both answer a question the
+round-8 verification record (`27-VERIFICATION.md` § `human_verification`) left explicitly open.
+
+### DECISION 1 — the `27-43` acceptance criterion is RETIRED
+
+- **The criterion, quoted verbatim** from `27-VERIFICATION.md:73`:
+
+  > "`scripts/validate-agent-factory.ts` goes from exit 0 to a named non-zero failure on the
+  > non-coordinator adapter surface"
+
+  Its original form, from `27-43-PLAN.md:493`:
+
+  > "A non-coordinator role-agent adapter carrying the family (a) shape takes both the foundation
+  > gate and the validator from exit 0 to a named non-zero failure."
+
+- **Status: RETIRED.** Carried open and owned by NO plan across `27-43` → `27-46`, with a consistent
+  "retire it" recommendation in all four round-8 summaries. **User decision, ratified in the round-9
+  decision block as D-56 item 9**, recorded here on **2026-08-09** by plan `27-50`.
+
+- **REASON, PART ONE — MEASURED AT EXECUTION TIME, NOT ASSUMED.** The structure validator carries
+  none of the spawn-grant vocabulary. Counted over `scripts/validate-agent-factory.ts` with comment
+  lines excluded, at the time this record was written:
+
+  ```
+  node -e 'const fs=require("fs");
+    const code=fs.readFileSync("scripts/validate-agent-factory.ts","utf8")
+      .split("\n").filter(l=>!l.trimStart().startsWith("//")).join("\n");
+    for (const t of ["spawn","Spawn","SPAWN","Agent(","frontmatter","Frontmatter",
+                     "parseFrontmatter","hasSpawnGrant","grantedAgentNames",
+                     "keysHaveSpawnGrant","keysGrantedAgentNames","WR-05","wr05",
+                     "guard_wr05","coordinator"])
+      console.log((code.split(t).length-1)+"  "+t);'
+  ```
+
+  | term | occurrences |
+  |---|---|
+  | `spawn` / `Spawn` / `SPAWN` | 0 / 0 / 0 |
+  | `Agent(` | 0 |
+  | `frontmatter` / `Frontmatter` | 0 / 0 |
+  | `parseFrontmatter` | 0 |
+  | `hasSpawnGrant` | 0 |
+  | `grantedAgentNames` | 0 |
+  | `keysHaveSpawnGrant` / `keysGrantedAgentNames` | 0 / 0 |
+  | `WR-05` / `wr05` / `guard_wr05` | 0 / 0 / 0 |
+  | `coordinator` | 0 |
+  | **TOTAL over the 15-term vocabulary** | **0** |
+
+  406 lines of code (of 584 lines in the file). Its ONLY in-repo import is `./kit-model.js` — it
+  does not import `./frontmatter.js` at all, so it has no way to read a document's frontmatter, let
+  alone adjudicate a grant in one. It is a **structure** validator: required files exist, role and
+  workflow sections are present, the config parses, board and ticket statuses match, traceability is
+  complete, packaging is present. It is not, and has never been, a spawn-grant surface.
+
+- **REASON, PART TWO — SATISFYING IT WOULD BUILD THE SHAPE THIS PHASE HAS SPENT NINE ROUNDS
+  DELETING.** The only way to make the criterion true is to add a spawn-grant predicate to a SECOND
+  file. `guard_wr05` in `scripts/check-foundation-guards.ts` already holds that predicate, over the
+  derived 33-member `spawnGrantScan()` composition. A second, necessarily weaker copy in a validator
+  that cannot even parse frontmatter is a weaker duplicate that still votes — which this module's
+  own record calls "worse than none" at four separate sites (the fence authority, the escape
+  allowlist, D-44's deleted two-arm helper, D-51's collapsed node-start split). Nine rounds of this
+  phase were spent deleting exactly that shape.
+
+- **`scripts/validate-agent-factory.ts` IS DELIBERATELY UNTOUCHED by plan `27-50`.** It is absent
+  from the plan's `files_modified`, and `git diff --name-only` for the plan's commits does not list
+  it. The retirement is effected by this record, never by code.
+
+- **What is NOT retired.** The foundation gate's half of the original `27-43` criterion stands and
+  is exercised every round: a non-coordinator adapter or skill carrying a spawn grant takes
+  `node scripts/check-foundation-guards.js` from exit 0 to exit 1 naming
+  `WR-05 coordinator-spawn-grant violation`. Rounds `27-47` and `27-48` both re-reproduced that
+  transcript. Only the VALIDATOR half is retired.
+
+### DECISION 2 — SPAWN-03's live-platform capture stays DEFERRED to Phase 33 (GAP-D1)
+
+- **The item, quoted verbatim** from `27-VERIFICATION.md:70-72`:
+
+  > **test:** "Start a real Claude Code session with `claude --agent grugops-orchestrator` (or the
+  > equivalent main-thread wiring) on this repository and observe whether the Orchestrator's
+  > `Agent(<allowlist>)` grant is actually runtime-enforced — i.e., that it can spawn a role
+  > subagent and that a role subagent cannot spawn a further subagent."
+  >
+  > **expected:** "The coordinator, running as the main-thread agent, successfully invokes the Agent
+  > tool to delegate to a named role subagent; a role subagent invoked this way has no Agent tool
+  > available to it."
+  >
+  > **why_human:** "This is a live-platform runtime behavior claim … that no static grep or gate can
+  > confirm; the phase's own SUMMARYs mark it `UNKNOWN - verify` and defer the capture to Phase 33 /
+  > GAP-D1."
+
+- **Status: DEFERRED, and its status stays `UNKNOWN - verify`.** **User decision, ratified in the
+  round-9 decision block as D-56 item 10**, recorded here on **2026-08-09** by plan `27-50`.
+
+- **OWNER, read from `.planning/ROADMAP.md` rather than from memory:**
+
+  | field | value | where it is stated |
+  |---|---|---|
+  | owning phase | **Phase 33: Live Capture & Windows Portability** | `ROADMAP.md:431` |
+  | standing obligation | **GAP-D1** — "one captured live dual-path run → flip A3/DOG-02 + the coupled `examples/03-ticket-to-pr.md` edit" | `ROADMAP.md:106`, standing-obligations table row 1 |
+  | requirement id | **CAP-01** (the discharge of GAP-D1); the capture itself is **CAP-03** | `ROADMAP.md:435`, success criteria 1 and 2 |
+  | phase requirements | CAP-01, CAP-02, CAP-03 | `ROADMAP.md:435` |
+
+- **REASON — NO STATIC GATE CAN PRODUCE IT, AND INVENTING ONE WOULD BE FABRICATION.** The claim is
+  about what the Claude Code runtime does with an `Agent(<allowlist>)` grant on the main-thread path
+  and on the subagent path. Every artifact this repository can inspect — the adapter files, the
+  packaging templates, the platform's published documentation — is evidence about what was WRITTEN,
+  never about what the platform DOES. `CLAUDE.md`'s constraints name this by name: *"Unknown commands
+  are marked `UNKNOWN - verify`; never fake a passing gate, a test result, or a citation — the trace
+  is the proof."* A static check standing in for a live capture would be a faked gate, and
+  ROADMAP Phase 33's own success criterion 2 already states that **"a loud skip is never accepted as
+  the capture."**
+
+- **THIS IS NOT A SILENT DROP.** The item is open, owned, dated and reasoned. Phase 27 closes with
+  Success Criterion 4's SPAWN-03 half explicitly unmet rather than quietly recorded as met, and this
+  entry is the durable record of why — carried in the phase's own deferred-items artifact so it
+  survives a milestone archive move rather than living only in a plan summary that scrolls out of
+  view.
+
+## From 27-50 (D-56 items 4-8, round 9) — the family G/G2 bypass RE-MEASURED, STILL OPEN
+
+- **`27-50` touched `scripts/frontmatter.ts` (the `LeadingRun` residue arm and the leading-residue
+  refusal's interpolation) and `scripts/kit-model.ts` (a constant's call sites and one filter
+  domain), so it is re-measured here rather than assumed unchanged.** Against the rebuilt
+  `scripts/frontmatter.js`, with the pre-`27-50` committed build (`b222de9`) as the control and
+  `/usr/bin/ruby -ryaml` (ruby 2.6.10 / psych 3.1.0 / libyaml 0.2.1) as the loader column:
+
+  | row | region under `tools:` | pre-`27-50` (`b222de9`) | post-`27-50` | loader |
+  |---|---|---|---|---|
+  | G  | `  nested: >-` / `    Read,` / `    # x, TOKEN` | `{ok:true,value:false}`, names `[]` | `{ok:true,value:false}`, names `[]` — **STILL OPEN** | `ACCEPT {"nested"=>"Read, # x, Agent(grugops-orchestrator)"}` |
+  | G2 | `  - >-` / `    Read,` / `    # x, TOKEN` | `{ok:true,value:false}`, names `[]` | `{ok:true,value:false}`, names `[]` — **STILL OPEN** | `ACCEPT ["Read, # x, Agent(grugops-orchestrator)"]` |
+
+  Byte-identical on both builds. **`27-50` neither opened nor closed this family**, and nothing in
+  `27-50` may be read as evidence that the module is bypass-free. `BLOCK_INDICATOR` is still tested
+  at exactly ONE of the places YAML allows a block-scalar header — `flattenBlock`'s top-level key
+  line — so a nested `|` / `>` scalar's literal content still reaches `stripComment` and a leading
+  `#` still hides a live spawn grant on the SUCCESS arm.
+
+- **The WR-05 fix is orthogonal to it, and that is stated so the two are not conflated.** WR-05
+  changes which code point a REFUSAL names; family G/G2 is a document that never refuses at all. A
+  refusal's wording cannot reach a document that takes the silent no-grant arm.
+
+- **Round 10 owns it.** The false-red cost of the obvious alternative is already quantified in the
+  `27-47` entry above (4 of 570 frontmatter-bearing tracked markdown files carry a nested
+  block-scalar header today, none of them an adapter, a skill or a packaging template), and the
+  suggested direction from `27-49` stands: **close family G first, then add the nested-block-scalar
+  header to `AXIS_KEY_LINE` in the SAME plan**, so the corpus grows with the fix rather than after
+  it.
