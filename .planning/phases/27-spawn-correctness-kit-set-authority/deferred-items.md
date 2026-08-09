@@ -874,3 +874,113 @@ twins (exit 0 -> exit 1). Its loader column is
   loader's value byte for byte); the residual is the flattener's declared token-presence contract
   meeting deeply nested metadata, which is IN scope for this module and explicitly NOT a defect,
   because a value map is not a YAML tree. It is not to be re-opened from a third symptom.
+
+## From 27-53 (round 10, 27-REVIEW § WR-02 + WR-03 + IN-01) — three harness-integrity findings, all three instances of the SET-LITERAL-DRIFT class
+
+Every one of round 9's own code-review findings was a hand-maintained set or a hand-scoped pin that
+stayed green while the thing it claimed to bound grew. All three are closed here; the measurements
+each closure rests on are recorded below rather than left implicit, because a closure whose
+measurement is not written down is a claim again.
+
+### WR-02 — the fence-authority scope, DERIVED, and the review's own hand-list measured INCOMPLETE
+
+- **The claim that was false.** `scripts/frontmatter.ts:75` asserted that no second fence parser was
+  written "here or anywhere", and `scripts/check-foundation-guards.ts:519` restated the same
+  tree-wide uniqueness. Both were false when written.
+- **The measurement.** The classifier (a delimiter RECOGNISER **and** a state TOGGLE in the same
+  file, over comment-stripped code, across all **69** tracked `.ts`) returns **4** members:
+
+  | # | member | recogniser | toggle | kind |
+  |---|--------|-----------|--------|------|
+  | 1 | `scripts/check-foundation-guards.test.ts` | anchored regex literal | fence-named counter | harness-local |
+  | 2 | `scripts/check-foundation-guards.ts` | anchored regex literal | fence-named counter | production, `## Caveman prompt`-gated |
+  | 3 | `scripts/frontmatter.ts` | anchored regex literal | self-negating flip | production, THE authority |
+  | 4 | `scripts/generate-role-adapters.test.ts` | prefix test | self-negating flip | harness-local |
+
+- **DISAGREEMENT WITH THE REVIEW, RECORDED.** The review proposed
+  `{frontmatter.ts, generate-role-adapters.test.ts, check-foundation-guards.ts (x2)}` — **three**
+  files. The measurement returns **four**: `scripts/check-foundation-guards.test.ts` carries three
+  further fence-toggle sites (around `:2875`, `:2903`, `:2940`) and the review's list omits it
+  entirely. Transcribing that list would have shipped the drift defect inside its own fix. The
+  planner's independent measurement at HEAD had flagged the same omission; both agree.
+- **The conjunction is proven to discriminate, by measurement.** `scripts/frontmatter.test.ts`
+  matches the recogniser arm (it names the delimiter class twice **in code**, inside string literals
+  in the WR-02 invariant case) and matches **no** toggle construct. It is therefore a textual
+  REFERENCE and not a machine, and both halves of that are asserted.
+- **Every construct is load-bearing on the LIVE corpus** — not merely on planted fixtures:
+
+  | construct dropped | derived set becomes | moved |
+  |---|---|---|
+  | recogniser[0] anchored regex literal | 1 member (`generate-role-adapters.test.ts`) | yes |
+  | recogniser[1] prefix test | 3 members (both guards files + `frontmatter.ts`) | yes |
+  | toggle[0] self-negating flip | 2 members (both guards files) | yes |
+  | toggle[1] fence-named counter/flag | 2 members (`frontmatter.ts` + `generate-role-adapters.test.ts`) | yes |
+
+- **The pin is proven able to fail on the REAL tree**, not only in a temp directory. A fence state
+  machine appended to the tracked `scripts/dead-vocabulary.ts` turned all three new cases red, each
+  naming `scripts/dead-vocabulary.ts` in the diff; reverted with `git checkout --` on that one file.
+  The temp-directory control passes first (the four copies alone reproduce the live answer at
+  cardinality 4) so a planted-fifth failure is attributable to the plant.
+- **Residual, named so it is not rediscovered as a finding.** The classifier is a FLOOR, and its
+  disclosure lists what it misses: a recogniser built from concatenated fragments or `new RegExp`; a
+  `slice(0, 3)` or `indexOf` form; a state variable neither self-negated nor named for the fence
+  (`toggle[1]` is deliberately variable-name-sensitive, because the two awk-derived caveman scopers
+  advance a counter rather than flip a boolean); and a machine in a language the scan does not read.
+- **The single-spelling count at `frontmatter.test.ts` was KEPT, not replaced** — with its message
+  narrowed. It still states something true (inside `frontmatter.ts` the class is declared exactly
+  once, which is what keeps the region scan and the strip from disagreeing), but its old message read
+  as a tree-wide claim. It now says so explicitly and points at the derived set for the tree-wide
+  question.
+
+### WR-03 — the assertion that could not fail, and a SECOND one found while replacing it
+
+- The deleted assertion compared two calls of a pure function on one unmutated `readonly string[]`:
+  `f(x) === f(x)`, green for every implementation. Its stated purpose — guarding the two sibling
+  fixtures against drift — was also unmet, because the sibling never called the function.
+- **Found while writing the replacement, and worth recording:** the review's own proposed
+  replacement, "kept plus removed equals the input length", was ALSO vacuous as the code stood,
+  because `linesRemoved` was DERIVED as `lines.length - kept.length` — an identity. The fix counts
+  removals as the lines are dropped, and the source shape is pinned so the derivation cannot return.
+- **Proven able to fail against broken variants**, run against the live fixture case and reverted:
+
+  | variant | named assertion that went red |
+  |---|---|
+  | keeps the fence delimiter lines | `the unterminated-region fixture: no fence delimiter line may survive the strip: expected [ '```', '```' ] to deeply equal []` |
+  | drops lines without counting them | `the unterminated-region fixture: the strip must PARTITION its input — kept plus removed is the input length…: expected 47 to be 52` |
+
+- The sibling pair is now joined by `spliceClosingDelimiter()`, one construction both cases call,
+  with the closing-delimiter index assertion travelling inside it; the stripped case asserts an
+  independently built mirror yields byte-identical splice output.
+
+### IN-01 — the dead local, and the compiler measurement
+
+- **Pre-enable measurement, verbatim and complete** (`npx tsc --noEmit --noUnusedLocals --noUnusedParameters`
+  on HEAD before the deletion), exit **2**:
+
+  ```
+  scripts/validate-agent-factory.ts(88,7): error TS6133: 'kitListDir' is declared but its value is never read.
+  ```
+
+  One error, and it AGREES with the review's claim that the tree is otherwise clean under both flags.
+- `readdirSync` stays imported: `stateListDir` still uses it, confirmed by reading the function.
+- **The flags are proven able to fire.** An unused function, an unused parameter and an unused local
+  appended to a scratch copy of `scripts/freshness.ts` produced three `TS6133` errors
+  (`'scratchProbe'`, `'unusedParam'`, `'unusedLocal'`); reverted, `tsc --noEmit` back to exit 0.
+- **SCOPE, RECORDED RATHER THAN LEFT TO BE INFERRED.** `tsconfig.json` excludes `**/*.test.ts`, so
+  the two flags cover the SHIPPED sources (`install/`, `scripts/`, `hooks/` non-test) and **not** the
+  harness. An unused local in a `.test.ts` still passes `npx tsc --noEmit` today.
+- `node scripts/validate-agent-factory.js` output is **byte-identical** before and after the
+  deletion — one line, `ALL CHECKS PASSED`, sha256 `6852d6da8a2e1b3d2ca426438cb3473548fe1d9670ce0f64537e4a7d23d4ef9c`, exit 0 on both sides.
+
+### Residual this plan's own dispositions create
+
+- **The fence classifier's floor** (above) — it is not a proof that no fifth machine can exist, only
+  that the four shapes it recognises are counted. Suggested direction if it ever matters: classify
+  from a TypeScript AST rather than from source text, which would also delete the comment-stripping
+  step and the string-literal false-positive it exists to suppress.
+- **`toggle[1]` is variable-name-sensitive.** A caveman-style scoper written with a differently named
+  counter would not be counted. It is recorded here rather than widened, because widening the toggle
+  arm to any counter increment makes the conjunction stop discriminating (`frontmatter.test.ts` then
+  enters the answer through its own `depth += 1` at an unrelated paren-balance loop — measured, not
+  supposed).
+- **The two compiler flags do not cover the harness** (above). Nothing in this plan claims they do.

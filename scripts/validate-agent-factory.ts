@@ -85,13 +85,11 @@ const kitRead = (rel: string): string | null => {
     return null;
   }
 };
-const kitListDir = (rel: string): string[] => {
-  try {
-    return existsSync(join(KIT_ROOT, rel)) ? readdirSync(join(KIT_ROOT, rel)) : [];
-  } catch {
-    return [];
-  }
-};
+// (27-53, IN-01) THE KIT-SIDE LIST HELPER IS GONE. Its callers left with the kit sets when those
+// moved to scripts/kit-model.ts (KIT-01), and it was this repository's ONLY `--noUnusedLocals`
+// error — the single thing standing between the tree and two compiler flags that keep the next
+// migration's residue from surviving silently. The `readdirSync` import STAYS: `stateListDir`
+// below still uses it, confirmed by reading rather than assumed.
 
 const stateExists = (rel: string): boolean => existsSync(join(STATE_ROOT, rel));
 const stateRead = (rel: string): string | null => {

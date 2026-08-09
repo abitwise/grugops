@@ -12,6 +12,8 @@
     "esModuleInterop": true,
     "skipLibCheck": true,
     "noEmitOnError": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
     "types": ["node"]
   },
   "include": ["install/**/*.ts", "scripts/**/*.ts", "hooks/**/*.ts"],
