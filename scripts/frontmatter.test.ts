@@ -4468,14 +4468,313 @@ describe("frontmatter — the spawn-grant parser oracle (SPAWN-04 / KIT-03)", ()
       .split("\n")
       .filter((l) => !l.trimStart().startsWith("//"))
       .join("\n");
+    // (27-53, WR-02) THIS COUNT IS SCOPED TO THIS MODULE AND ITS MESSAGE NOW SAYS SO. It was kept
+    // rather than replaced because it still states something true — inside `frontmatter.ts` the
+    // class is declared once — but it counts ONE spelling in ONE file, so it never was, and must
+    // not read as, an answer to "how many fence state machines does this tree carry". That question
+    // is answered by the DERIVED set below, over every tracked `.ts` and over both spellings.
     expect(
       code.split("/^```/").length - 1,
-      "the fence-delimiter line class must be written out exactly ONCE IN CODE (as FENCE_DELIMITER_LINE); a second spelling is the set-literal drift this repository has corrected three times",
+      "WITHIN THIS MODULE the fence-delimiter line class must be written out exactly ONCE IN CODE (as FENCE_DELIMITER_LINE), so the region scan and the strip cannot disagree; the TREE-WIDE question is the derived fence-machine set, not this count",
     ).toBe(1);
     expect(src).toContain("const FENCE_DELIMITER_LINE = /^```/;");
     // The strip itself must still be the ONE state machine, unchanged and still exported for the
     // guards' prose checks.
     expect(src).toContain("export function stripFencedBlocks(text: string)");
+  });
+
+  // ── (Plan 27-53, D-50 / D-53, closing round 9 § WR-02) THE FENCE AUTHORITY'S SCOPE, DERIVED ────
+  //
+  // THE CLAIM THIS REPLACES WAS UNQUALIFIED AND FALSE WHEN IT WAS WRITTEN. `scripts/frontmatter.ts`
+  // asserted that no second fence parser existed, "here or anywhere", and
+  // `scripts/check-foundation-guards.ts` restated the same tree-wide uniqueness at its own header.
+  // Three other tracked `.ts` files carry a fence state machine of their own, and ONE OF THEM IS
+  // check-foundation-guards.ts ITSELF. A prose claim wider than the assertion behind it is this
+  // repository's SECOND SYSTEMIC FAILURE CLASS wearing a sentence instead of a set literal.
+  //
+  // THE PIN THAT WAS SUPPOSED TO CATCH THIS — the WR-02 invariant case one screen up — IS DOUBLY
+  // BLIND: it slices `frontmatter.ts` alone, and it counts ONE spelling of the delimiter class. So
+  // it cannot see a machine in another file, and it cannot see the `startsWith("```")` spelling
+  // anywhere at all. Both blindnesses close here, by the mechanism this module already applies
+  // correctly to the frontmatter grammar (the D-50 / IN-05 assertion above): DERIVE the set, SORT
+  // it, compare it to a set MEASURED in the same run, PIN the cardinality as a number, and PROVE
+  // the pin can fail.
+  //
+  // WHAT COUNTS AS A FENCE STATE MACHINE, AND WHY IT IS A CONJUNCTION. A machine needs both a
+  // DELIMITER RECOGNISER and a piece of MUTABLE STATE the recogniser advances. Requiring both is
+  // what keeps a file that merely NAMES the delimiter class — in a string literal, an assertion
+  // message or a comment — out of the answer. That discrimination is MEASURED rather than assumed:
+  // THIS file names the class twice in code (in the WR-02 invariant case above) and carries no
+  // toggle, and the first case below asserts both halves of that, so the conjunction is proven to
+  // be doing the work rather than merely believed to.
+  //
+  // COMMENT LINES ARE STRIPPED BEFORE CLASSIFICATION, for the reason the WR-02 invariant case
+  // already gives: the property is about CODE, not about whether a name is mentioned. The strip is
+  // also load-bearing for the recogniser arm — `generate-role-adapters.test.ts` CITES the
+  // regex-literal spelling in a comment and IMPLEMENTS the prefix-test spelling in code, so without
+  // the strip it would be recognised through the wrong construct and the second construct would be
+  // decoration.
+  //
+  // `*.test.ts` IS **NOT** EXCLUDED HERE, AND THAT IS A DELIBERATE DIFFERENCE FROM THE IN-05 SCAN
+  // ABOVE RATHER THAN A COPY OF IT. IN-05 excludes them because a case's independently restated
+  // PREDICATE is an INPUT to the authority rather than a second authority a consumer reads. That
+  // reason does not transfer: WR-02's unaccounted machine LIVES in a `.test.ts`, so applying the
+  // same exclusion here would reproduce exactly the blindness the finding is about. Two scans, two
+  // exclusion rules, each with its own stated reason; neither inherits the other's.
+  //
+  // WHAT THIS FLOOR WOULD MISS, NAMED RATHER THAN LEFT UNDISCLOSED: a recogniser built from
+  // concatenated fragments or a `new RegExp(...)` string; one that tests `slice(0, 3)` or an
+  // `indexOf` form; a state variable that is neither self-negated nor named for the fence (the
+  // toggle arm's second construct is variable-name-sensitive ON PURPOSE, because the two
+  // awk-derived caveman scopers in check-foundation-guards.ts advance a COUNTER rather than flip a
+  // boolean); and a machine written in a language this scan does not read. It is a floor against
+  // the shapes a second machine plausibly takes, not a proof that none can exist.
+  const FENCE_RECOGNISER_CONSTRUCTS = [
+    /\/\^```/, // an anchored regex literal at the head of a line
+    /startsWith\(\s*["'`]```/, // a prefix test: line.startsWith(...) on the delimiter run
+  ];
+  const FENCE_TOGGLE_CONSTRUCTS = [
+    /\b(\w+)\s*=\s*!\1\b/, // a boolean flipped by negating itself (inside/outside)
+    /\b(?:in)?fence\w*\s*(?:\+\+|\+=\s*1|=\s*(?:true|false))/, // a fence-named counter or flag advanced
+  ];
+  const codeLinesOf = (src: string): string =>
+    src
+      .split("\n")
+      .filter((l) => !l.trimStart().startsWith("//"))
+      .join("\n");
+  // ONE classifier, called with different construct sets — the same reason the IN-05 classifier
+  // above takes its arrays as parameters: the per-construct liveness probe must run THE RULE with a
+  // construct removed, and a second spelling of the rule would measure the copy instead.
+  const isFenceMachine = (
+    src: string,
+    rec: readonly RegExp[] = FENCE_RECOGNISER_CONSTRUCTS,
+    tog: readonly RegExp[] = FENCE_TOGGLE_CONSTRUCTS,
+  ): boolean => {
+    const code = codeLinesOf(src);
+    return rec.some((r) => r.test(code)) && tog.some((r) => r.test(code));
+  };
+  const fenceMachinesAmong = (
+    paths: string[],
+    read: (p: string) => string,
+    rec: readonly RegExp[] = FENCE_RECOGNISER_CONSTRUCTS,
+    tog: readonly RegExp[] = FENCE_TOGGLE_CONSTRUCTS,
+  ): string[] =>
+    paths
+      .filter((p) => p.endsWith(".ts"))
+      .filter((p) => isFenceMachine(read(p), rec, tog))
+      .sort();
+  const liveFenceMachines = (
+    rec: readonly RegExp[] = FENCE_RECOGNISER_CONSTRUCTS,
+    tog: readonly RegExp[] = FENCE_TOGGLE_CONSTRUCTS,
+  ): string[] =>
+    fenceMachinesAmong(
+      trackedTs(),
+      (p) => readFileSync(join(REPO_ROOT, p), "utf8"),
+      rec,
+      tog,
+    );
+  // THE NAMED SET IS THE MEASUREMENT, WRITTEN DOWN. It was produced by running the classifier above
+  // over the live tree in the SAME session that wrote this line — not transcribed from the review,
+  // whose proposed hand-list named three files and omitted `check-foundation-guards.test.ts`
+  // entirely. Transcribing it would have shipped the set-literal-drift defect inside its own fix.
+  const FENCE_MACHINES = [
+    "scripts/check-foundation-guards.test.ts",
+    "scripts/check-foundation-guards.ts",
+    "scripts/frontmatter.ts",
+    "scripts/generate-role-adapters.test.ts",
+  ];
+  // The planted machine is ASSEMBLED from character codes rather than written out literally, so
+  // THIS file's own source never carries a recogniser-and-toggle pair. The self-reference is real
+  // and not hypothetical: this file already names the delimiter class in code, so a literal
+  // self-negating toggle beside it would make this file a fifth member and fail the live assertion
+  // on itself — the harness defeating its own premise, three rounds running.
+  const TICKS = String.fromCharCode(96, 96, 96);
+  const BANG = String.fromCharCode(33);
+  const plantedFenceMachine = (fn: string): string =>
+    [
+      `export function ${fn}(lines: readonly string[]): string[] {`,
+      "  const kept: string[] = [];",
+      "  let open = false;",
+      "  for (const line of lines) {",
+      `    if (line.startsWith("${TICKS}")) {`,
+      `      open = ${BANG}open;`,
+      "      continue;",
+      "    }",
+      "    if (open) continue;",
+      "    kept.push(line);",
+      "  }",
+      "  return kept;",
+      "}",
+      "",
+    ].join("\n");
+
+  it("27-53 WR-02 — the set of tracked `.ts` files carrying a FENCE STATE MACHINE is derived, sorted and pinned at exactly the four named members", () => {
+    const tracked = trackedTs();
+    // NON-VACUITY FIRST: the corpus was really enumerated, and it really contains the authority
+    // module. Without this every assertion below is satisfied by an empty file list.
+    expect(
+      tracked.length,
+      "the tracked-`.ts` corpus must really have been enumerated before anything is claimed about its contents",
+    ).toBeGreaterThan(10);
+    expect(tracked).toContain("scripts/frontmatter.ts");
+
+    const machines = liveFenceMachines();
+    // Sorted before comparison, so a `git ls-files` output-order change on another filesystem
+    // cannot flip the assertion.
+    expect(machines).toEqual([...machines].sort());
+    expect(machines).toEqual(FENCE_MACHINES);
+    // Cardinality pinned as a NUMBER, so a scan that silently stops matching shrinks LOUDLY rather
+    // than passing over an empty set.
+    expect(machines).toHaveLength(4);
+
+    // THE CONJUNCTION IS PROVEN TO DISCRIMINATE, ON THIS FILE. It matches the recogniser arm and
+    // NOT the toggle arm — a textual reference to the delimiter class, not a machine.
+    const self = codeLinesOf(
+      readFileSync(join(REPO_ROOT, "scripts/frontmatter.test.ts"), "utf8"),
+    );
+    expect(
+      FENCE_RECOGNISER_CONSTRUCTS.some((r) => r.test(self)),
+      "this file names the delimiter class IN CODE, so the recogniser arm alone would count it",
+    ).toBe(true);
+    expect(
+      FENCE_TOGGLE_CONSTRUCTS.some((r) => r.test(self)),
+      "…and it carries no fence toggle, which is the half that keeps it out of the answer",
+    ).toBe(false);
+    expect(machines).not.toContain("scripts/frontmatter.test.ts");
+
+    // WHAT BACKS THE NARROWED PROSE AT THE TWO CLAIM SITES. The other PRODUCTION member's two fence
+    // machines are each GATED on a `## Caveman prompt` heading, so neither is a second general
+    // answer to "which lines of a document are inside a ``` block" — they answer where the caveman
+    // block starts and ends, and cannot run on a document without that heading.
+    const guards = codeLinesOf(
+      readFileSync(join(REPO_ROOT, "scripts/check-foundation-guards.ts"), "utf8"),
+    );
+    expect(
+      [...guards.matchAll(/if \((\w+) && \/\^```\/\.test\(line\)\)/g)].map(
+        (m) => m[1],
+      ),
+      "both fence sites in the guards must be gated by a state flag, never bare",
+    ).toEqual(["skip", "seen"]);
+    expect(guards.split("/^## Caveman prompt/").length - 1).toBe(2);
+    // Two production members and two harness-local ones — the partition the narrowed prose states.
+    expect(machines.filter((p) => !p.endsWith(".test.ts"))).toEqual([
+      "scripts/check-foundation-guards.ts",
+      "scripts/frontmatter.ts",
+    ]);
+
+    // AND THE TWO PROSE CLAIMS ARE NARROWED TO WHAT THIS ASSERTION HOLDS. A claim is only worth the
+    // mechanism that keeps it honest, so the unqualified wording is pinned ABSENT at both sites and
+    // the narrowed wording pinned PRESENT.
+    const authority = readFileSync(
+      join(REPO_ROOT, "scripts/frontmatter.ts"),
+      "utf8",
+    );
+    expect(
+      authority,
+      "the unqualified 'here or anywhere' claim must not survive — it was false when written",
+    ).not.toContain("No second fence parser is written, here or anywhere");
+    expect(authority).toContain(
+      "exactly one implementation in this tree answers the GENERAL question",
+    );
+    const guardsRaw = readFileSync(
+      join(REPO_ROOT, "scripts/check-foundation-guards.ts"),
+      "utf8",
+    );
+    expect(
+      guardsRaw,
+      "…and neither must its tree-wide restatement at the second site",
+    ).not.toContain(
+      "The tree still has exactly ONE implementation",
+    );
+    expect(guardsRaw).toContain(
+      "this file itself carries two more fence state machines",
+    );
+  });
+
+  it("27-53 WR-02 — a FIFTH fence state machine makes that set fail, BY NAME", () => {
+    // An assertion that was never made to fail is not a pin. Exercised in a temp directory so
+    // nothing outside it is touched, and with its own control first.
+    const dir = mkdtempSync(join(tmpdir(), "grugops-fence-"));
+    const inDir = (): string[] =>
+      fenceMachinesAmong(readdirSync(dir), (p) =>
+        readFileSync(join(dir, p), "utf8"),
+      );
+    try {
+      for (const real of liveFenceMachines()) {
+        writeFileSync(
+          join(dir, real.replace(/^.*\//, "")),
+          readFileSync(join(REPO_ROOT, real), "utf8"),
+        );
+      }
+      // THE CONTROL FIRST: the copies alone reproduce the live answer, so the failure below is
+      // caused by the plant and not by the temp directory.
+      const control = inDir();
+      expect(control).toEqual(
+        FENCE_MACHINES.map((p) => p.replace(/^.*\//, "")).sort(),
+      );
+      expect(control).toHaveLength(4);
+
+      writeFileSync(
+        join(dir, "scratch-fifth-fence-machine.ts"),
+        plantedFenceMachine("stripFences"),
+      );
+      const withFifth = inDir();
+      expect(withFifth).toContain("scratch-fifth-fence-machine.ts");
+      expect(withFifth).toHaveLength(5);
+      expect(withFifth).not.toEqual(control);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("27-53 WR-02 — both construct arrays are pinned by cardinality, and EVERY construct is load-bearing on the LIVE corpus", () => {
+    expect(
+      FENCE_RECOGNISER_CONSTRUCTS,
+      "a recogniser construct dropped silently narrows the fence-machine set",
+    ).toHaveLength(2);
+    expect(
+      FENCE_TOGGLE_CONSTRUCTS,
+      "a toggle construct dropped silently narrows the fence-machine set",
+    ).toHaveLength(2);
+
+    const base = liveFenceMachines();
+    expect(base).toEqual(FENCE_MACHINES);
+    for (let i = 0; i < FENCE_RECOGNISER_CONSTRUCTS.length; i += 1) {
+      expect(
+        liveFenceMachines(
+          FENCE_RECOGNISER_CONSTRUCTS.filter((_, j) => j !== i),
+          FENCE_TOGGLE_CONSTRUCTS,
+        ),
+        `dropping recogniser construct [${i}] must MOVE the derived set — a construct that can be deleted with the answer unchanged is decoration`,
+      ).not.toEqual(base);
+    }
+    for (let i = 0; i < FENCE_TOGGLE_CONSTRUCTS.length; i += 1) {
+      expect(
+        liveFenceMachines(
+          FENCE_RECOGNISER_CONSTRUCTS,
+          FENCE_TOGGLE_CONSTRUCTS.filter((_, j) => j !== i),
+        ),
+        `dropping toggle construct [${i}] must MOVE the derived set — a construct that can be deleted with the answer unchanged is decoration`,
+      ).not.toEqual(base);
+    }
+
+    // EACH MEMBER MATCHES EXACTLY ONE CONSTRUCT IN EACH ARRAY, asserted rather than assumed — which
+    // is what makes each removal above attributable to the construct removed and to nothing else.
+    for (const p of base) {
+      const code = codeLinesOf(readFileSync(join(REPO_ROOT, p), "utf8"));
+      expect(
+        FENCE_RECOGNISER_CONSTRUCTS.map((r, i) => (r.test(code) ? i : -1)).filter(
+          (i) => i !== -1,
+        ),
+        `${p}: recogniser constructs matched`,
+      ).toHaveLength(1);
+      expect(
+        FENCE_TOGGLE_CONSTRUCTS.map((r, i) => (r.test(code) ? i : -1)).filter(
+          (i) => i !== -1,
+        ),
+        `${p}: toggle constructs matched`,
+      ).toHaveLength(1);
+    }
   });
 
   // ── Duplicate keys ────────────────────────────────────────────────────────────────────────────
