@@ -5900,6 +5900,97 @@ describe("frontmatter — the loader differential over a GENERATED corpus (D-52 
       danglingNodeProperty: false,
       flowNodeStartAtEndOfKeyLine: false,
     },
+    // ── (27-49, WR-01 / D-56 item 1) THE SEVEN SHAPES YAML'S GRAMMAR NAMES ─────────────────────
+    //
+    // WHY THESE SEVEN AND WHY NOW. Round 8's thesis — "a corpus and an expectation both written by
+    // hand over the same axes cannot fail on an axis nobody thought of" — was applied to the
+    // EXPECTATION only. The corpus stayed three hand-listed arrays, and CR-01's four gate families
+    // were therefore NOT EXPRESSIBLE in its cells rather than merely untested. The harness reported
+    // ZERO disagreements over a live, gate-level, exit-0 bypass, not because it disagreed with the
+    // loader but because IT NEVER GENERATED THE INPUT. A differential is complete only over the
+    // inputs it generates; the loader is never asked about a shape the builder cannot compose.
+    //
+    // EACH ENDS AT A MID-LINE NODE START WITH THE QUOTE ALREADY OPEN, which is the position CR-01
+    // exposed and is NOT the position offset 0 of a continuation line occupies. The distinction is
+    // the whole defect and it is measured: with the quote opened at offset 0 of the continuation
+    // instead, the same seven constructs produce ZERO silent cells against the pre-27-47 build —
+    // the shapes look identical in prose and only one of them is red. Recorded in 27-49-SUMMARY.md
+    // with both transcripts, because "we added the family" is exactly the claim this phase keeps
+    // finding to be false.
+    //
+    // MEASURED, PRE-27-47 (a `git archive` mirror of 62b8b53) vs HEAD: 336 cells (7 x 6 x 4 x 2),
+    // 196 loader-rejected, and MODULE-SILENT-WHILE-LOADER-GRANTS 54 -> 0. Every one of the seven is
+    // red there; none is red here.
+    //
+    // THE DECLARED YAML FACTS ARE THE SAME FOR ALL SEVEN, and they are facts about the shape rather
+    // than observations: the key line CARRIES the value node (the quoted scalar opened on it), so
+    // `valueNodeOnContinuation` is false; it ends with no node property, so `danglingNodeProperty`
+    // is false; and it ends INSIDE an open quoted scalar rather than at a position a flow collection
+    // admits a node, so `flowNodeStartAtEndOfKeyLine` is false. The two 27-43 red-team members above
+    // declare the identical triple for the identical reason.
+    {
+      label: "nested block mapping, mid-line quote",
+      lines: ["tools:", `  nested: "${FIRST}`],
+      indent: "  ",
+      tail: '"',
+      valueNodeOnContinuation: false,
+      danglingNodeProperty: false,
+      flowNodeStartAtEndOfKeyLine: false,
+    },
+    {
+      label: "compact nested sequence, mid-line quote",
+      lines: ["tools:", `  - - "${FIRST}`],
+      indent: "    ",
+      tail: '"',
+      valueNodeOnContinuation: false,
+      danglingNodeProperty: false,
+      flowNodeStartAtEndOfKeyLine: false,
+    },
+    {
+      label: "block explicit key, mid-line quote",
+      lines: ["tools:", `  ? "${FIRST}`],
+      indent: "  ",
+      tail: '"\n  : v',
+      valueNodeOnContinuation: false,
+      danglingNodeProperty: false,
+      flowNodeStartAtEndOfKeyLine: false,
+    },
+    {
+      label: "JSON-adjacent flow mapping, unspaced",
+      lines: [`tools: {"a":"${FIRST}`],
+      indent: "  ",
+      tail: '"}',
+      valueNodeOnContinuation: false,
+      danglingNodeProperty: false,
+      flowNodeStartAtEndOfKeyLine: false,
+    },
+    {
+      label: "JSON-adjacent flow mapping, spaced",
+      lines: [`tools: {"a" :"${FIRST}`],
+      indent: "  ",
+      tail: '"}',
+      valueNodeOnContinuation: false,
+      danglingNodeProperty: false,
+      flowNodeStartAtEndOfKeyLine: false,
+    },
+    {
+      label: "block mapping inside a sequence item, mid-line quote",
+      lines: ["tools:", `  - a: "${FIRST}`],
+      indent: "    ",
+      tail: '"',
+      valueNodeOnContinuation: false,
+      danglingNodeProperty: false,
+      flowNodeStartAtEndOfKeyLine: false,
+    },
+    {
+      label: "flow mapping inside a flow sequence",
+      lines: [`tools: [{"a":"${FIRST}`],
+      indent: "  ",
+      tail: '"}]',
+      valueNodeOnContinuation: false,
+      danglingNodeProperty: false,
+      flowNodeStartAtEndOfKeyLine: false,
+    },
   ];
 
   // ── AXIS 2: THE FIRST CONTINUATION'S SHAPE ────────────────────────────────────────────────────
@@ -5980,30 +6071,64 @@ describe("frontmatter — the loader differential over a GENERATED corpus (D-52 
     },
   ];
 
+  // ── AXIS 4: THE CONTINUATION DEPTH (27-49, WR-01 / D-56 item 1) ───────────────────────────────
+  //
+  // DEPTH WAS A CONSTANT BAKED INTO THE BUILDER AND IT IS NOW AN AXIS. `buildCellRegion` emitted the
+  // key line plus EXACTLY TWO continuation lines, so a value whose node begins on continuation 1 and
+  // is STILL GOING on continuation 3 could not be built — which is precisely the shape CR-02's
+  // directions (a) and (b) occupy. A constant in a builder is an axis nobody wrote down, and an axis
+  // nobody wrote down is the round-8 lesson one level in.
+  //
+  // The depth is the number of CONTINUATION LINES the builder emits: the first-continuation shape,
+  // then `depth - 2` filler lines, then the token-carrying line LAST. Depth 2 is byte-identical to
+  // what this builder emitted before, which is what makes the widening additive rather than a re-cut.
+  const AXIS_CONTINUATION_DEPTH: readonly number[] = [2, 3];
+  // The filler line's text. It closes nothing and opens nothing, so it CONTINUES whatever node the
+  // first continuation began — which is the only property depth 3 exists to exercise.
+  const FILLER = "Third,";
+
   // ── THE CELL BUILDER. NAMES NO MODULE SYMBOL; ASSERTED SO, BELOW ──────────────────────────────
+  //
+  // IT RETURNS ITS CONTINUATION LINES RATHER THAN ONLY THE JOINED REGION, so the emitted count can be
+  // COUNTED instead of trusted. The builder is now the thing in this block most likely to silently
+  // produce the wrong shape — a builder trusted rather than checked is exactly how the fixed two-line
+  // shape survived a round — and the count assertion has its own case below.
+  const buildCellParts = (
+    keyLine: KeyLineShape,
+    first: ContinuationOneShape,
+    second: ContinuationTwoShape,
+    depth: number,
+  ): { readonly continuations: readonly string[]; readonly region: string } => {
+    const continuations = [`${keyLine.indent}${first.text}`];
+    for (let n = 0; n < depth - 2; n += 1) continuations.push(`${keyLine.indent}${FILLER}`);
+    continuations.push(
+      `${keyLine.indent}${second.build(first.closesWith, keyLine.tail)}`,
+    );
+    return {
+      continuations,
+      region: ["name: x", ...keyLine.lines, ...continuations, ""].join("\n"),
+    };
+  };
+
   const buildCellRegion = (
     keyLine: KeyLineShape,
     first: ContinuationOneShape,
     second: ContinuationTwoShape,
-  ): string =>
-    [
-      "name: x",
-      ...keyLine.lines,
-      `${keyLine.indent}${first.text}`,
-      `${keyLine.indent}${second.build(first.closesWith, keyLine.tail)}`,
-      "",
-    ].join("\n");
+    depth: number,
+  ): string => buildCellParts(keyLine, first, second, depth).region;
 
   const buildCellDocument = (
     keyLine: KeyLineShape,
     first: ContinuationOneShape,
     second: ContinuationTwoShape,
-  ): string => `---\n${buildCellRegion(keyLine, first, second)}---\nBody.\n`;
+    depth: number,
+  ): string => `---\n${buildCellRegion(keyLine, first, second, depth)}---\nBody.\n`;
 
   interface Cell {
     readonly keyLine: KeyLineShape;
     readonly first: ContinuationOneShape;
     readonly second: ContinuationTwoShape;
+    readonly depth: number;
     readonly where: string;
   }
   const enumerateCells = (): Cell[] => {
@@ -6011,12 +6136,15 @@ describe("frontmatter — the loader differential over a GENERATED corpus (D-52 
     for (const keyLine of AXIS_KEY_LINE) {
       for (const first of AXIS_CONTINUATION_1) {
         for (const second of AXIS_CONTINUATION_2) {
-          out.push({
-            keyLine,
-            first,
-            second,
-            where: `${keyLine.label} | ${first.label} | ${second.label}`,
-          });
+          for (const depth of AXIS_CONTINUATION_DEPTH) {
+            out.push({
+              keyLine,
+              first,
+              second,
+              depth,
+              where: `${keyLine.label} | ${first.label} | ${second.label} | depth ${depth}`,
+            });
+          }
         }
       }
     }
@@ -6062,7 +6190,8 @@ describe("frontmatter — the loader differential over a GENERATED corpus (D-52 
       bound:
         DANGLING_PROPERTY_SHAPES *
         AXIS_CONTINUATION_1.length *
-        AXIS_CONTINUATION_2.length,
+        AXIS_CONTINUATION_2.length *
+        AXIS_CONTINUATION_DEPTH.length,
       matches: (keyLine) => keyLine.danglingNodeProperty,
     },
     {
@@ -6070,7 +6199,10 @@ describe("frontmatter — the loader differential over a GENERATED corpus (D-52 
         "E2 — a YAML anchor at the value's node start on the first continuation line",
       reason:
         "The first continuation line is a NODE START, by either of the two routes YAML gives: the key line carried no value node at all (`valueNodeOnContinuation`), or it ended INSIDE a flow collection just after `[`, `{`, `,` or `?` (`flowNodeStartAtEndOfKeyLine`). `&w` at a node start is a genuine YAML anchor rather than text. D-30 refuses it; the loader resolves the anchor and reads the token behind it. SAFE DIRECTION: a loud refusal, never a hidden grant.\n\n(27-48) THE SECOND ROUTE WAS MISSING AND THE OMISSION WAS THE EXEMPTION'S, NOT THE MODULE'S. This rule was written when `valueNodeOnContinuation` was the only declared route, so it was a claim about ONE of the two ways a continuation line can be a node start — the same shape as the (c) framing D-55 retires one screen up. The module reached the flow route only after D-55 made the line-level node-start answer agree with the walk's own; before that it read a genuine anchor inside a flow collection as TEXT, silently, which is the direction that is never exemptible.",
-      bound: CONTINUATION_START_SHAPES * AXIS_CONTINUATION_2.length,
+      bound:
+        CONTINUATION_START_SHAPES *
+        AXIS_CONTINUATION_2.length *
+        AXIS_CONTINUATION_DEPTH.length,
       matches: (keyLine, first) =>
         (keyLine.valueNodeOnContinuation ||
           keyLine.flowNodeStartAtEndOfKeyLine) &&
@@ -6176,20 +6308,31 @@ describe("frontmatter — the loader differential over a GENERATED corpus (D-52 
     // FLOORS AGAINST SHRINKING, AND EXPLICITLY NOT THE COMPLETENESS CLAIM. An axis emptied by a later
     // edit shrinks this harness LOUDLY. What makes the corpus's coverage checkable is not these three
     // numbers — it is that the answer for every cell comes from the loader below.
-    expect(AXIS_KEY_LINE.length).toBe(13);
+    // (27-49, WR-01) THE FLOORS MOVED DELIBERATELY: 13 -> 20 key-line shapes (the seven YAML's
+    // grammar names) and a FOURTH axis. Old corpus 13 x 6 x 4 = 312; new corpus 20 x 6 x 4 x 2 = 960.
+    // Both totals are the product of the axis lengths and neither is written down.
+    expect(AXIS_KEY_LINE.length).toBe(20);
     expect(AXIS_CONTINUATION_1.length).toBe(6);
     expect(AXIS_CONTINUATION_2.length).toBe(4);
+    expect(AXIS_CONTINUATION_DEPTH.length).toBe(2);
+    // The depth axis must carry a value PAST the two the builder used to hard-code, or the fourth
+    // axis is a rename of the constant it replaced.
+    expect(
+      Math.max(...AXIS_CONTINUATION_DEPTH),
+      "the depth axis must reach at least 3 — a node beginning on continuation 1 and still running on continuation 3 is the shape CR-02's directions (a) and (b) occupy",
+    ).toBeGreaterThanOrEqual(3);
 
     // THE CELL TOTAL IS DERIVED. No cell-count literal exists in this block except as the right-hand
     // side of this comparison, and the left-hand side is the length of the enumeration itself.
     const CELLS =
       AXIS_KEY_LINE.length *
       AXIS_CONTINUATION_1.length *
-      AXIS_CONTINUATION_2.length;
+      AXIS_CONTINUATION_2.length *
+      AXIS_CONTINUATION_DEPTH.length;
     const corpus = enumerateCells();
     expect(
       corpus.length,
-      `the enumerated corpus must be the product of the three axis lengths (${AXIS_KEY_LINE.length} x ${AXIS_CONTINUATION_1.length} x ${AXIS_CONTINUATION_2.length})`,
+      `the enumerated corpus must be the product of the FOUR axis lengths (${AXIS_KEY_LINE.length} x ${AXIS_CONTINUATION_1.length} x ${AXIS_CONTINUATION_2.length} x ${AXIS_CONTINUATION_DEPTH.length})`,
     ).toBe(CELLS);
     // Every cell key is distinct, so a collision cannot make two cells look like one.
     expect(new Set(corpus.map((c) => c.where)).size).toBe(CELLS);
@@ -6201,7 +6344,7 @@ describe("frontmatter — the loader differential over a GENERATED corpus (D-52 
     // module. This is round 6's lesson one level out — ask what the predicate's INPUT is assembled
     // from — applied to a harness whose expectation is otherwise beyond reproach.
     const ambiguous = corpus.filter((c) =>
-      buildCellRegion(c.keyLine, c.first, c.second)
+      buildCellRegion(c.keyLine, c.first, c.second, c.depth)
         .split("\n")
         .some((line) => line.trimEnd() === "---"),
     );
@@ -6228,7 +6371,7 @@ describe("frontmatter — the loader differential over a GENERATED corpus (D-52 
     // loader verdict fails arithmetically at the length assertion below rather than silently.
     const BATCH = CELLS + NAMED_REGIONS.length;
     const regions = [
-      ...corpus.map((c) => buildCellRegion(c.keyLine, c.first, c.second)),
+      ...corpus.map((c) => buildCellRegion(c.keyLine, c.first, c.second, c.depth)),
       ...NAMED_REGIONS.map((n) => n.region),
     ];
     expect(regions.length, "the loader batch is the product plus the named regions").toBe(BATCH);
@@ -6295,7 +6438,7 @@ describe("frontmatter — the loader differential over a GENERATED corpus (D-52 
         continue;
       }
       const loaderGrants = (verdict.value ?? "").includes(HARNESS_TOKEN);
-      const document = buildCellDocument(cell.keyLine, cell.first, cell.second);
+      const document = buildCellDocument(cell.keyLine, cell.first, cell.second, cell.depth);
       const answer = hasSpawnGrant(document);
       // A PARSE FAILURE IS NEVER FOLDED INTO THE NO-GRANT COLUMN. Three module verdicts, not two.
       const moduleVerdict = answer.ok
@@ -6561,6 +6704,221 @@ describe("frontmatter — the loader differential over a GENERATED corpus (D-52 
     }
   });
 
+  // ── (27-49, WR-01 / D-56 item 1) THE BUILDER IS COUNTED, NOT TRUSTED ─────────────────────────
+
+  it("WR-01 the cell builder emits EXACTLY the requested continuation depth — counted from its own output over every cell", () => {
+    // WHY THIS CASE EXISTS AT ALL. Depth was a CONSTANT baked into the builder for a whole round, and
+    // a constant nobody wrote down is invisible to every assertion over the axes — the axis-length
+    // floors, the cell-total derivation and the distinct-key check were all green while the builder
+    // could only ever emit two continuation lines. Now that depth is an axis, the builder is the
+    // single most likely place in this block for a silently wrong shape, so its output is COUNTED.
+    let checked = 0;
+    for (const keyLine of AXIS_KEY_LINE) {
+      for (const first of AXIS_CONTINUATION_1) {
+        for (const second of AXIS_CONTINUATION_2) {
+          for (const depth of AXIS_CONTINUATION_DEPTH) {
+            const where = `${keyLine.label} | ${first.label} | ${second.label} | depth ${depth}`;
+            const parts = buildCellParts(keyLine, first, second, depth);
+            expect(parts.continuations.length, where).toBe(depth);
+            // Each continuation carries its key-line shape's own indent, so a "depth" can never be a
+            // column-0 line that changed the document's structure instead of continuing its value.
+            for (const line of parts.continuations) {
+              expect(line.startsWith(keyLine.indent), `${where}: ${JSON.stringify(line)}`).toBe(true);
+            }
+            // The token-carrying line is LAST. That is the whole point of depth 3: the node begins on
+            // continuation 1 and is still running when the token arrives two lines later.
+            expect(
+              parts.continuations[parts.continuations.length - 1],
+              `${where}: the token must ride the LAST continuation`,
+            ).toContain(HARNESS_TOKEN);
+            // The joined region really carries them — the array and the region could only disagree
+            // if the join lost a line, which is exactly the failure a count over the array misses.
+            const expectedRegionLines =
+              1 +
+              keyLine.lines.length +
+              parts.continuations.reduce((n, c) => n + c.split("\n").length, 0) +
+              1;
+            expect(parts.region.split("\n").length, where).toBe(expectedRegionLines);
+            checked += 1;
+          }
+        }
+      }
+    }
+    expect(checked).toBe(
+      AXIS_KEY_LINE.length *
+        AXIS_CONTINUATION_1.length *
+        AXIS_CONTINUATION_2.length *
+        AXIS_CONTINUATION_DEPTH.length,
+    );
+    expect(checked).toBeGreaterThan(0);
+  });
+
+  // ── (27-49, WR-01 / D-56 item 1) THE EXPRESSIBILITY FLOOR, READ FROM THE MODULE'S OWN LEDGER ──
+
+  it("WR-01 the expressibility floor — every failure family the module's OWN LEDGER names is BUILDABLE by this generator, derived from the ledger at run time", () => {
+    // A COMMENT SAYING "THIS CORPUS COVERS THE FAMILIES THE MODULE HAS FAILED ON" IS THE THING THAT
+    // FAILED NINE TIMES. The ledger in scripts/frontmatter.ts's header is the module's own list of
+    // those families, it grows by one entry per round, and it is the only list in this repository a
+    // reviewer maintains deliberately. Reading it AT RUN TIME and asserting each family is buildable
+    // turns "this corpus is complete enough" from a claim into a mechanism: a TENTH-round family
+    // written into the ledger without a corpus shape to match it fails HERE, by name.
+    //
+    // WHAT SET THIS DERIVATION ENUMERATES, STATED SO IT IS NOT GUESSED. It enumerates the ledger's
+    // FAMILY ROWS: comment lines at the header's five-space family indent whose text is a short
+    // label followed by a backtick-quoted document sketch naming the `tools:` key. That is the
+    // module's own uniform format for "here is a concrete failure shape".
+    //
+    // AND IT DELIBERATELY DOES NOT COUNT THE LEDGER'S ORDINAL ENTRY HEADINGS, because those are NOT
+    // uniformly spelled and a count over them would be wrong while reading authoritative — this
+    // repository's own diagnosed second systemic failure class. MEASURED: seven of the ten entries
+    // carry an `AND A <ORDINAL> TIME` heading; entries one and two are introduced as prose and entry
+    // four as "This is the FOURTH spelling". A heading-derived count returns 7 for a ten-entry
+    // ledger. The family rows are the set this floor needs and they have one format.
+    const moduleSource = readFileSync(
+      join(import.meta.dirname, "frontmatter.ts"),
+      "utf8",
+    );
+    const FAMILY_ROW = /^\/\/ {5}(\S+(?: \([a-z]\))?) {2,}(`.*)$/;
+    const LEDGER_FAMILIES = moduleSource
+      .split("\n")
+      .map((line) => FAMILY_ROW.exec(line))
+      .filter((m): m is RegExpExecArray => m !== null && m[2].includes("`tools:"))
+      .map((m) => ({ label: m[1], sketch: m[2] }));
+
+    // TWO-SIDED, SO THE FLOOR CANNOT PASS BY FINDING ZERO — and cannot pass by finding a set that
+    // quietly shrank either. A row added or removed in the module header fails HERE first.
+    expect(
+      LEDGER_FAMILIES.length,
+      `family rows derived from scripts/frontmatter.ts's header:\n${LEDGER_FAMILIES.map((f) => `${f.label}  ${f.sketch}`).join("\n")}`,
+    ).toBe(9);
+    expect(LEDGER_FAMILIES.length).toBeGreaterThan(0);
+    expect(new Set(LEDGER_FAMILIES.map((f) => f.label)).size).toBe(
+      LEDGER_FAMILIES.length,
+    );
+
+    // THE ONE CLASS THIS GENERATOR CANNOT REACH, AND THE REASON IS DERIVED FROM THE ROW ITSELF RATHER
+    // THAN ASSERTED ABOUT IT. A family row whose own sketch contains a COLUMN-0 CODE FENCE needs a
+    // fence line INSIDE the frontmatter region; this builder emits every continuation at its
+    // key-line shape's indent, so a column-0 line is outside its shape space BY CONSTRUCTION — not
+    // omitted, unreachable. The module header records the loader column for exactly those rows (two
+    // of the three are documents libyaml REJECTS outright, and the one it accepts the module ALREADY
+    // refuses), and a cell family whose members are all loader-rejected is not coverage. Counted
+    // two-sided so the exclusion cannot silently grow into a place to hide a new family.
+    const outside = LEDGER_FAMILIES.filter((f) => f.sketch.includes("```"));
+    const inside = LEDGER_FAMILIES.filter((f) => !f.sketch.includes("```"));
+    expect(
+      outside.map((f) => f.label),
+      "the column-0-fence families are the ONLY ones outside this generator's shape space",
+    ).toEqual(["d1", "d2", "d3"]);
+    expect(outside.length).toBe(3);
+    expect(inside.length).toBe(6);
+    expect(outside.length + inside.length).toBe(LEDGER_FAMILIES.length);
+
+    // THE AXIS-MEMBER COMBINATION THAT BUILDS EACH FAMILY, NAMED BY LABEL. This is the only
+    // hand-written fact in the floor and it is checked at BOTH ends: a label the ledger stops
+    // carrying fails as an orphan, and a label the ledger starts carrying with no entry here fails
+    // by name. The axis members are looked up BY LABEL in the real axes, so renaming one fails red.
+    const EXPRESSED_BY: Readonly<
+      Record<string, { keyLine: string; first: string; second: string; depth: number }>
+    > = {
+      "family (a)": {
+        keyLine: "no value",
+        first: "opens a double-quoted scalar",
+        second: "the token after a hash",
+        depth: 2,
+      },
+      "family (b)": {
+        keyLine: "flow-sequence opener",
+        first: "opens a double-quoted scalar",
+        second: "the token after a hash",
+        depth: 2,
+      },
+      A: {
+        keyLine: "nested block mapping, mid-line quote",
+        first: "plain text",
+        second: "the token after a hash",
+        depth: 2,
+      },
+      B: {
+        keyLine: "compact nested sequence, mid-line quote",
+        first: "plain text",
+        second: "the token after a hash",
+        depth: 2,
+      },
+      C: {
+        keyLine: "JSON-adjacent flow mapping, unspaced",
+        first: "plain text",
+        second: "the token after a hash",
+        depth: 2,
+      },
+      F: {
+        keyLine: "block explicit key, mid-line quote",
+        first: "plain text",
+        second: "the token after a hash",
+        depth: 2,
+      },
+    };
+
+    // A LEDGER FAMILY WITH NO CORPUS SHAPE FAILS BY NAME. This is the mechanism the whole case
+    // exists for: the tenth round's family cannot be written into the module header and quietly not
+    // be generated.
+    expect(
+      inside.filter((f) => !(f.label in EXPRESSED_BY)).map((f) => `${f.label}  ${f.sketch}`),
+      "a failure family named in the module's ledger with NO axis-member combination that builds it — the corpus cannot express a defect the module has already shipped",
+    ).toEqual([]);
+    expect(
+      Object.keys(EXPRESSED_BY).filter(
+        (label) => !LEDGER_FAMILIES.some((f) => f.label === label),
+      ),
+      "an ORPHAN expression: this names a family the ledger no longer carries, which is a vacuous entry reading like coverage",
+    ).toEqual([]);
+
+    const corpusKeys = new Set(enumerateCells().map((c) => c.where));
+    for (const family of inside) {
+      const spec = EXPRESSED_BY[family.label];
+      const keyLine = AXIS_KEY_LINE.find((k) => k.label === spec.keyLine);
+      const first = AXIS_CONTINUATION_1.find((c) => c.label === spec.first);
+      const second = AXIS_CONTINUATION_2.find((c) => c.label === spec.second);
+      expect(keyLine, `${family.label}: key-line member "${spec.keyLine}"`).toBeDefined();
+      expect(first, `${family.label}: continuation-1 member "${spec.first}"`).toBeDefined();
+      expect(second, `${family.label}: continuation-2 member "${spec.second}"`).toBeDefined();
+      expect(
+        AXIS_CONTINUATION_DEPTH.includes(spec.depth),
+        `${family.label}: depth ${spec.depth} must be a member of the depth axis`,
+      ).toBe(true);
+      if (!keyLine || !first || !second) continue;
+
+      // THE EXPRESSIBILITY PROOF IS DERIVED, NOT ASSERTED. The ledger row spells its document as a
+      // `/`-separated list of backticked LINES; the named key-line member's own lines must equal that
+      // row's LEADING lines BYTE FOR BYTE. Nothing here is a hand-written "marker" that a later edit
+      // could quietly stop matching — the claim is a comparison against the module's own text.
+      const fragments = [...family.sketch.matchAll(/`([^`]*)`/g)].map((m) => m[1]);
+      expect(
+        fragments.slice(0, keyLine.lines.length),
+        `${family.label}: the key-line member "${keyLine.label}" must spell this ledger row's leading document lines exactly`,
+      ).toEqual([...keyLine.lines]);
+
+      // ...and the cell it builds is really a member of the enumerated corpus, so the family is
+      // adjudicated against the loader by the differential above rather than merely constructible.
+      const where = `${keyLine.label} | ${first.label} | ${second.label} | depth ${spec.depth}`;
+      expect(
+        corpusKeys.has(where),
+        `${family.label}: the cell that expresses it must be IN the enumerated corpus, or the loader is never asked about it`,
+      ).toBe(true);
+      const region = buildCellRegion(keyLine, first, second, spec.depth);
+      for (const line of keyLine.lines) {
+        expect(region, `${family.label}: ${JSON.stringify(line)}`).toContain(line);
+      }
+      expect(region, `${family.label}: the built cell must carry the spawn token`).toContain(
+        HARNESS_TOKEN,
+      );
+    }
+
+    console.log(
+      `WR-01 expressibility floor — ledger family rows derived ${LEDGER_FAMILIES.length} | expressible ${inside.length} (${inside.map((f) => f.label).join(", ")}) | outside the generator's shape space ${outside.length} (${outside.map((f) => f.label).join(", ")})`,
+    );
+  });
+
   it("D-52 the no-loader skip path is EXERCISED — a machine without the loader produces a PRINTED reason, and that is measured here rather than assumed", () => {
     // T-27-08-08: "a harness that silently never runs" is the repudiation threat this case closes. The
     // probe is parameterised precisely so this branch can be DRIVEN, with a path that cannot exist.
@@ -6595,7 +6953,11 @@ describe("frontmatter — the loader differential over a GENERATED corpus (D-52 
     // The claim "this corpus was not generated from the code under test" is CHECKABLE. The symbol list
     // is the file-scope `MODULE_SYMBOLS` shared with the D-49 pin — reused, never retyped, because two
     // hand-kept copies of a safety set is the drift class this phase has corrected three times.
+    // (27-49, WR-01) THE NEW GENERATOR SURFACE IS INSPECTED TOO. `buildCellParts` is where the depth
+    // axis is composed, and the depth axis is itself corpus; a widening whose new parts escaped this
+    // pin would be a corpus generator with an unexamined half.
     const generatorSource = [
+      buildCellParts.toString(),
       buildCellRegion.toString(),
       buildCellDocument.toString(),
       enumerateCells.toString(),
@@ -6604,6 +6966,8 @@ describe("frontmatter — the loader differential over a GENERATED corpus (D-52 
       AXIS_CONTINUATION_2.map((s) => `${s.label} ${s.build.toString()}`).join(
         "\n",
       ),
+      JSON.stringify(AXIS_CONTINUATION_DEPTH),
+      FILLER,
     ].join("\n");
     for (const symbol of MODULE_SYMBOLS) {
       expect(generatorSource, symbol).not.toContain(symbol);
