@@ -230,3 +230,44 @@ Out-of-scope discoveries logged during execution. Not fixed; recorded so they ar
     a CRLF spelling of family A — all six return the GRANT arm and agree with the loader. A flow
     sequence opened inside a block mapping value (`nested: [Read,` / `  # x, TOKEN]`) is REJECTED by
     the loader, and the module is silent there — the safe direction, no value to disagree with.
+
+## From 27-48 (D-55 / CR-02, round 9) — the 27-47 family G/G2 bypass RE-MEASURED, still OPEN
+
+- **`27-48` neither opened nor closed the nested-block-scalar family, and that is measured rather
+  than assumed.** Re-run against the rebuilt `scripts/frontmatter.js`, with the pre-27-48 committed
+  build (`89705ba`) as the control:
+
+  | row | pre-27-48 | post-27-48 |
+  |---|---|---|
+  | G  `  nested: >-` / `    Read,` / `    # x, TOKEN` | `{ok:true,value:false}` | `{ok:true,value:false}` — **STILL OPEN** |
+  | G2 `  - >-` / `    Read,` / `    # x, TOKEN`       | `{ok:true,value:false}` | `{ok:true,value:false}` — **STILL OPEN** |
+  | g5 `  nested: \|` / `    Agent(alpha, ga` / `    - mma)` | names `["alpha","ga","mma"]` | names `["alpha","ga - mma"]` |
+
+  The GRANT-HIDING half of the family is untouched: `BLOCK_INDICATOR` is still tested at exactly one
+  of the places YAML allows a block-scalar header, so a nested `|`/`>` scalar's literal content still
+  reaches `stripComment` and a leading `#` still hides a token. Round 10 owns it, with the false-red
+  cost of the obvious alternative already quantified in the `27-47` entry above.
+
+  The INVENTED-NAME half of row g5 closes as a side effect and is recorded so the next reader does
+  not re-derive it: the nested header is not recognised, so its content takes the ordinary
+  continuation path, which D-55 taught to FOLD. The module now flattens it to
+  `Agent(alpha, ga - mma)` where libyaml expresses `Agent(alpha, ga\n- mma)` — a SPACE where the
+  loader has a line break, so the two name sets are `["alpha","ga - mma"]` against
+  `["alpha","ga\n- mma"]`. **Still not equal**, and it is only not a third invented name because the
+  header is being mis-read in the first place. Closing family G properly is what makes this row
+  correct rather than merely less wrong.
+
+## From 27-48 — an ACCOUNTED, NON-DEFECT divergence the repository-wide value map surfaced
+
+- **Eleven of 649 loader-accepted `(file, key)` cells whose flattened value moved disagree with the
+  loader's content signature on BOTH builds.** `PRE signature == loader 638 / POST 638 / both 638 /
+  worse 0` over a run-time-derived corpus of 1150 tracked markdown files. The eleven are IDENTICAL on
+  both builds, so `27-48` neither created nor closed them, and none is a `tools` / `allowed-tools` /
+  `coordinator` / `name` key: `files whose GRANT verdict moved 0`, `files whose NAME SET moved 0`,
+  `guard-read keys that moved 0`.
+  - **Why not chased here:** they are the flattener's declared token-presence contract meeting deeply
+    nested `.planning/` metadata (a value map is not a YAML tree), which is the same scope question
+    the `27-47` entry above already raises — "the D-49 control's claim over `.planning/` prose exceeds
+    this module's declared scope". Deciding that scope is a planning decision.
+  - **Suggested direction:** settle the scope question ONCE, with the `27-47` flattener-nesting entry,
+    rather than twice from two different symptoms.
