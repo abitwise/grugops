@@ -63,6 +63,7 @@ import {
 import type {
   GrantOccurrence,
   GrantOccurrenceKind,
+  Parsed,
 } from "./frontmatter.js";
 // (Plan 27-33) The false-red control's corpus is THE ONE SPAWN-GRANT SCAN COMPOSITION the guard reads
 // — not a directory list restated here. A hand-listed set at this call site would be the guard's scan
@@ -4590,6 +4591,40 @@ const MODULE_SYMBOLS = [
 ] as const;
 
 // ---------------------------------------------------------------------------
+// (27-48, WR-03 — 27-REVIEW-GAPS-8, round 9) THE NAME SET, EXTRACTED FROM THE LOADER'S OWN FLATTENED
+// VALUE BY THE MODULE'S OWN ENUMERATION.
+// ---------------------------------------------------------------------------
+//
+// WHY THIS EXISTS. `hasSpawnGrant` is a BOOLEAN, and every differential in this file agreed with the
+// loader on that boolean alone. The fact the KIT-03 closure equality and coordinator-resolution-
+// precheck are computed over is the NAME SET, and both of those consumers are SET EQUALITIES. Round
+// 8's CR-02 row a1 — `tools:` / `  Agent(alpha, ga` / `  - mma)` — enumerated ["alpha","ga","mma"]
+// where libyaml expresses ["alpha","ga - mma"], and it passed BOTH harnesses, because an invented
+// name does not move a boolean.
+//
+// WHY IT DELEGATES RATHER THAN RE-IMPLEMENTS, AND WHY THAT IS NOT CIRCULAR. `keysGrantedAgentNames` is
+// NOT the thing under test here — the FLATTENED VALUE is. Extracting names two different ways would
+// make every disagreement ambiguous: the difference could be the flattener's or the extractor's, and
+// the harness could not say which. Delegating to ONE extractor makes the two sides differ in exactly
+// one variable, which is the whole of what a differential is for. (The extractor has its own pins
+// elsewhere in this file — the value-corpus product, the enumeration-legality cases and the
+// grant-occurrence accounting — so it is not unchecked; it is checked SOMEWHERE ELSE, which is the
+// only way a differential over it can mean anything.)
+//
+// ONE COPY, READ BY BOTH HARNESSES. Two hand-kept copies of one safety predicate is the drift class
+// this phase has now corrected four times, so these live at file scope beside `MODULE_SYMBOLS`.
+const loaderGrantedNames = (loaderFlat: string): Parsed<string[]> =>
+  keysGrantedAgentNames(new Map([["tools", [loaderFlat]]]));
+
+// THREE VERDICTS, NOT TWO, AND THE THIRD IS NOT THE EMPTY SET. A refusal says "I will not read this
+// value"; an empty list says "I read it and it grants nothing". Folding the first into the second is
+// this module's founding failure wearing a harness's clothes, so they render as DIFFERENT STRINGS and
+// can never compare equal. Sorted and de-duplicated, so the comparison is over SETS and never over
+// cardinality: three names matching three names over two different sets still fails red.
+const nameVerdict = (r: Parsed<string[]>): string =>
+  r.ok ? JSON.stringify([...new Set(r.value)].sort()) : "refuse";
+
+// ---------------------------------------------------------------------------
 // D-49 — THE FOURTH SWEEP AXIS: a corpus enumerated over a construct that SPANS LINES
 // ---------------------------------------------------------------------------
 //
@@ -5220,12 +5255,16 @@ describe("frontmatter — the multi-line scalar sweep (D-49 / SPAWN-04 + KIT-03)
       const text = cellDoc(style, sigil, placement);
       // The frontmatter block only, which is what the platform hands its YAML loader.
       const block = text.split("---\n")[1];
+      // (27-48, WR-03) THE LOADER'S VALUE IS FLATTENED THE WAY THIS MODULE FLATTENS — a sequence
+      // joined with a COMMA-SPACE, a mapping written back as `k: v` — so the two sides of the
+      // name-set comparison below differ only in WHOSE value they read. The join moved from `|` to
+      // `, ` for that reason; token presence cannot notice, because the token is a whole element.
       const loaded = execFileSync(
         "/usr/bin/ruby",
         [
           "-ryaml",
           "-e",
-          'v = YAML.safe_load(STDIN.read)["tools"]; print(v.is_a?(Array) ? v.join("|") : v.to_s)',
+          'def flat(v); case v; when Array then v.map { |e| flat(e) }.join(", "); when Hash then v.map { |k, x| "#{k}: #{flat(x)}" }.join(", "); when nil then ""; else v.to_s; end; end; print flat(YAML.safe_load(STDIN.read)["tools"])',
         ],
         { input: block, encoding: "utf8", stdio: ["pipe", "pipe", "ignore"] },
       );
@@ -5233,6 +5272,22 @@ describe("frontmatter — the multi-line scalar sweep (D-49 / SPAWN-04 + KIT-03)
       const moduleGrant = hasSpawnGrant(text);
       expect(moduleGrant.ok, where).toBe(true);
       expect(moduleGrant.ok && moduleGrant.value, where).toBe(loaderGrants);
+
+      // (27-48, WR-03) AND THE SECOND FACT, AT THE SECOND HARNESS. Same predicate, same file-scope
+      // helpers, over the value this cell ALREADY loaded — no second ruby process. Scoped to the
+      // `ok:true` arm for the reason stated at the D-52 site: a refusal reaches neither consumer, so
+      // no name can be invented on it, while a name set returned on the success arm reaches both.
+      const moduleNames = grantedAgentNames(text);
+      const loaderNames = loaderGrantedNames(loaded);
+      if (moduleNames.ok) {
+        expect(
+          nameVerdict(moduleNames),
+          `${where}: the module's NAME SET must EQUAL the set the same enumeration extracts from the loader's own flattened value (loader-flat=${JSON.stringify(loaded)})`,
+        ).toBe(nameVerdict(loaderNames));
+      } else {
+        // A refusal is RENDERED as a refusal and never as the empty set.
+        expect(nameVerdict(moduleNames), where).toBe("refuse");
+      }
     }
   });
 
@@ -6004,19 +6059,65 @@ describe("frontmatter — the loader differential over a GENERATED corpus (D-52 
   // is a harness that will be narrowed, so the whole corpus crosses the boundary as a JSON array and
   // the verdicts come back as a JSON array. The returned length is asserted equal to the cell count,
   // so a truncated batch fails arithmetically instead of silently shortening the differential.
+  //
+  // (27-48, WR-03) THE SECOND FIELD, AND WHY IT IS A SECOND FIELD RATHER THAN A SECOND PROCESS.
+  // `value` is `to_s`, which is all token presence needs. The NAME SET needs the loader's value
+  // flattened THE WAY THIS MODULE FLATTENS — a sequence joined with a comma-space, a mapping written
+  // back as `k: v` — so that the two sides differ only in WHOSE value they read and not in how it was
+  // rendered. It is computed in the SAME batched process, over the SAME already-parsed value, so the
+  // name-set comparison adds no loader invocation at all.
   const LOADER_PROGRAM = [
     "require 'yaml'; require 'json'",
+    "def flat(v)",
+    "  case v",
+    "  when Array then v.map { |e| flat(e) }.join(', ')",
+    "  when Hash  then v.map { |k, x| \"#{k}: #{flat(x)}\" }.join(', ')",
+    "  when nil   then ''",
+    "  else v.to_s",
+    "  end",
+    "end",
     "out = JSON.parse(STDIN.read).map do |d|",
     "  begin",
     "    y = YAML.safe_load(d)",
     "    v = y.is_a?(Hash) ? y['tools'] : nil",
-    "    { 'accepted' => true, 'value' => v.nil? ? '' : v.to_s }",
+    "    { 'accepted' => true, 'value' => v.nil? ? '' : v.to_s, 'flat' => flat(v) }",
     "  rescue Exception => e",
     "    { 'accepted' => false, 'error' => e.class.to_s }",
     "  end",
     "end",
     "print JSON.generate(out)",
   ].join("\n");
+
+  // ── (27-48, WR-03) NAMED REGIONS: THE SHAPES THE PRODUCT CANNOT EXPRESS, CARRIED IN AS CORPUS ──
+  //
+  // WHY A HAND-LISTED SET SITS BESIDE A GENERATED ONE, AND WHY THAT IS NOT THE DRIFT CLASS. The three
+  // axes above compose a key-line shape with two continuation shapes, and EVERY second-continuation
+  // shape carries the harness token `Agent(grugops-orchestrator)`. So a key-line shape that OPENS a
+  // grant enumeration always meets that token's `(` before its own `)`, which takes both the module
+  // and the loader-side extractor to the refusal arm — MEASURED, over all 48 cells of two candidate
+  // key-line members, and recorded in 27-48-SUMMARY.md. CR-02 row a1 is therefore NOT EXPRESSIBLE as
+  // a product member, and adding a token-free continuation shape to make it expressible would put 78
+  // cells carrying no token into a token-presence differential.
+  //
+  // These regions run through the SAME batched loader process, the SAME two predicates and the SAME
+  // three-verdict discipline as every generated cell. They are ADDITIONAL and never an alternative:
+  // the product's size is still asserted against its axis lengths, and the total handed to the loader
+  // is DERIVED as `product + NAMED_REGIONS.length` rather than written down.
+  //
+  // The precedent is this file's own: two key-line members are already 27-43's red team carried in as
+  // corpus, for exactly the reason these are — so the harness's expressible space contains the
+  // defects this phase actually shipped, not only the ones its axes happen to reach.
+  const NAMED_REGIONS: readonly { readonly label: string; readonly region: string }[] = [
+    {
+      label:
+        "CR-02 row a1 — a grant enumeration opened on a continuation line and split by a dash on the next",
+      region: "name: x\ntools:\n  Agent(alpha, ga\n  - mma)\n",
+    },
+    {
+      label: "CR-02 row a1, the block-sequence spelling",
+      region: "name: x\ntools:\n  - Agent(alpha, ga\n    - mma)\n",
+    },
+  ];
 
   // Parameterised on the interpreter path for ONE reason: so the SKIP branch can be EXERCISED by a
   // case rather than assumed reachable. A harness that silently never runs is worse than no harness,
@@ -6097,9 +6198,23 @@ describe("frontmatter — the loader differential over a GENERATED corpus (D-52 
     // committed case cannot import a module that stopped existing. "The outside run used the same
     // corpus" is therefore a claim, and a claim gets a measurement: both runs print this digest, so a
     // transcript over a different corpus is visible instead of persuasive.
-    const regions = corpus.map((c) =>
-      buildCellRegion(c.keyLine, c.first, c.second),
-    );
+    // (27-48, WR-03) THE NAMED REGIONS RIDE THE SAME BATCH. The total handed to the loader is
+    // DERIVED — the product plus the named list's own length — so a named region added without its
+    // loader verdict fails arithmetically at the length assertion below rather than silently.
+    const BATCH = CELLS + NAMED_REGIONS.length;
+    const regions = [
+      ...corpus.map((c) => buildCellRegion(c.keyLine, c.first, c.second)),
+      ...NAMED_REGIONS.map((n) => n.region),
+    ];
+    expect(regions.length, "the loader batch is the product plus the named regions").toBe(BATCH);
+    // The same-bytes check covers the named regions too: a named region carrying its own `---` line
+    // would hand the loader and the module different text exactly as a generated cell would.
+    expect(
+      NAMED_REGIONS.filter((n) =>
+        n.region.split("\n").some((line) => line.trimEnd() === "---"),
+      ).map((n) => n.label),
+      "a named region carrying its own `---` line would hand the loader and the module different text",
+    ).toEqual([]);
     // A NUL cannot occur in any cell, so it is the one separator that cannot make two different
     // corpora hash alike. IT IS SPELLED AS AN ESCAPE AND NEVER EMBEDDED RAW: a literal NUL byte in a
     // source file makes BSD `grep` classify the whole file as binary and report ZERO matches with no
@@ -6125,18 +6240,23 @@ describe("frontmatter — the loader differential over a GENERATED corpus (D-52 
     const verdicts = JSON.parse(raw) as {
       accepted: boolean;
       value?: string;
+      flat?: string;
       error?: string;
     }[];
     expect(
       verdicts.length,
       "a truncated loader batch must fail arithmetically rather than silently shorten the differential",
-    ).toBe(CELLS);
+    ).toBe(BATCH);
 
     let rejected = 0;
     const disagreements: string[] = [];
     const unsafe: string[] = [];
     const expectedExempt: string[] = [];
     const rowsMatched = new Map<string, number>();
+    // (27-48, WR-03) THE SECOND FACT'S OWN LIST, KEPT SEPARATELY SO A FAILURE SAYS WHICH FACT MOVED.
+    const nameSetDisagreements: string[] = [];
+    // Every cell on which the module REFUSED, with the string its name column rendered.
+    const refusedNameColumns: string[] = [];
 
     for (let i = 0; i < corpus.length; i += 1) {
       const cell = corpus[i];
@@ -6171,6 +6291,44 @@ describe("frontmatter — the loader differential over a GENERATED corpus (D-52 
       const exempt = EXEMPTIONS.some((e) => e.matches(cell.keyLine, cell.first));
       if (exempt) expectedExempt.push(cell.where);
 
+      // ── (27-48, WR-03) THE SECOND PREDICATE, OVER THE SAME ALREADY-LOADED VALUES ──────────────
+      //
+      // WHY TOKEN PRESENCE IS NOT ENOUGH, STATED AT THE SITE. `hasSpawnGrant` is a BOOLEAN. The fact
+      // the KIT-03 closure equality and coordinator-resolution-precheck are computed over is the
+      // NAME SET, and those two consumers are set equalities. Round 8's CR-02 row a1 — `tools:` /
+      // `  Agent(alpha, ga` / `  - mma)` — enumerated ["alpha","ga","mma"] where libyaml expresses
+      // ["alpha","ga - mma"], an INVENTED NAME on the `ok:true` arm, and it passed BOTH round-8
+      // harnesses because both of them agreed with the loader on the boolean alone.
+      //
+      // THIS IS NOT A SECOND WAY OF DECIDING WHETHER A DOCUMENT GRANTS. It is a SECOND FACT compared
+      // over the SAME already-loaded value: no second loader process, no second parse, no second
+      // grant decision path. `answer` above and `moduleNames` below both come from the one
+      // `parseFrontmatter` this module exposes.
+      //
+      // SET EQUALITY, NEVER CARDINALITY. Three names matching three names over two different sets
+      // must still fail red, so the comparison is over sorted, de-duplicated LISTS.
+      const moduleNames = grantedAgentNames(document);
+      const loaderNames = loaderGrantedNames(verdict.flat ?? "");
+      const moduleNameVerdict = nameVerdict(moduleNames);
+      const loaderNameVerdict = nameVerdict(loaderNames);
+      // THE EMPTY EDGE, ASSERTED AND NOT ASSUMED. Where the module refuses, the name column says so;
+      // it can never read as the empty list of a value that was read and granted nothing.
+      if (!moduleNames.ok) {
+        refusedNameColumns.push(`${cell.where}\t${moduleNameVerdict}`);
+      }
+      // THE COMPARISON IS SCOPED TO THE `ok:true` ARM, DELIBERATELY, AND THE SCOPE IS THE POINT.
+      // WR-03's defect — and the only direction a name set can hide in — is a name set returned on
+      // the SUCCESS arm and consumed by a set equality. Where the module REFUSES, no name reaches
+      // either consumer at all: the refusal is a loud red, it is already adjudicated cell-for-cell by
+      // the exemption machinery above, and counting it a second time under a second name would let
+      // one fact satisfy two assertions. The refusals are still RENDERED (above) so they can never be
+      // mistaken for agreement with a loader that enumerated nothing.
+      if (moduleNames.ok && moduleNameVerdict !== loaderNameVerdict) {
+        nameSetDisagreements.push(
+          `${cell.where}\tmodule-names=${moduleNameVerdict}\tloader-names=${loaderNameVerdict}\tloader-flat=${JSON.stringify(verdict.flat)}`,
+        );
+      }
+
       if (moduleVerdict === loaderVerdict) continue;
       disagreements.push(
         `${cell.where}\tmodule=${moduleVerdict}\tloader=${loaderVerdict}\tvalue=${JSON.stringify(verdict.value)}`,
@@ -6179,9 +6337,68 @@ describe("frontmatter — the loader differential over a GENERATED corpus (D-52 
       if (moduleVerdict !== "refuse") unsafe.push(`${cell.where}\tmodule=${moduleVerdict}\tloader=${loaderVerdict}`);
     }
 
+    // ── (27-48, WR-03) THE NAMED REGIONS, THROUGH THE SAME TWO PREDICATES ────────────────────────
+    //
+    // Same loader batch, same three-verdict discipline, same two lists. They are OUTSIDE the exemption
+    // machinery by construction: an exemption is stated from an axis shape's declared YAML facts, and
+    // these regions have no axis. A token-presence disagreement on one of them is therefore recorded
+    // in its own list and asserted EMPTY — there is no shape here for a reason to be written about.
+    const namedTokenDisagreements: string[] = [];
+    for (let i = 0; i < NAMED_REGIONS.length; i += 1) {
+      const named = NAMED_REGIONS[i];
+      const verdict = verdicts[CELLS + i];
+      // A named region the loader will not read pins nothing, so its acceptance is asserted rather
+      // than skipped — the opposite of the generated cells, which may legitimately be rejected.
+      expect(
+        verdict.accepted,
+        `${named.label}: the loader must ACCEPT a named region, or it pins nothing`,
+      ).toBe(true);
+      const document = `---\n${named.region}---\nBody.\n`;
+      const answer = hasSpawnGrant(document);
+      const moduleVerdict = answer.ok
+        ? answer.value
+          ? "grant"
+          : "no-grant"
+        : "refuse";
+      // THE LOADER'S TOKEN VERDICT IS DELEGATED HERE, NOT SUBSTRING-TESTED. The generated cells all
+      // carry `HARNESS_TOKEN` verbatim, so a plain `includes` is a non-circular predicate for them.
+      // A named region carries the token spelling ITS FINDING took — row a1's is `Agent(alpha, ga`
+      // split across two lines — so the same substring test would report "no-grant" for a loader
+      // value that plainly grants. The delegation is the same one the name set already makes, and
+      // rests on the same argument: `keysHaveSpawnGrant` is not the thing under test here, the
+      // FLATTENED VALUE is, and reading the two sides two different ways would make every
+      // disagreement ambiguous.
+      const loaderVerdict = keysHaveSpawnGrant(
+        new Map([["tools", [verdict.flat ?? ""]]]),
+      )
+        ? "grant"
+        : "no-grant";
+      if (moduleVerdict !== loaderVerdict) {
+        namedTokenDisagreements.push(
+          `${named.label}\tmodule=${moduleVerdict}\tloader=${loaderVerdict}\tvalue=${JSON.stringify(verdict.value)}`,
+        );
+      }
+      const moduleNames = grantedAgentNames(document);
+      const loaderNames = loaderGrantedNames(verdict.flat ?? "");
+      const moduleNameVerdict = nameVerdict(moduleNames);
+      if (!moduleNames.ok) {
+        refusedNameColumns.push(`${named.label}\t${moduleNameVerdict}`);
+      }
+      if (moduleNames.ok && moduleNameVerdict !== nameVerdict(loaderNames)) {
+        nameSetDisagreements.push(
+          `${named.label}\tmodule-names=${moduleNameVerdict}\tloader-names=${nameVerdict(loaderNames)}\tloader-flat=${JSON.stringify(verdict.flat)}`,
+        );
+      }
+    }
+    expect(
+      namedTokenDisagreements,
+      `a named region is carried in BECAUSE a finding took its shape; it is never exempt:\n${namedTokenDisagreements.join("\n")}`,
+    ).toEqual([]);
+
     const elapsed = Date.now() - started;
+    // FIVE DERIVED NUMBERS, ALL COUNTED AT RUN TIME AND NONE WRITTEN DOWN IN ADVANCE.
     console.log(
-      `D-52 loader differential — loader ${probe.version} | corpus ${digest} | cells enumerated ${CELLS} | loader-rejected (skipped) ${rejected} | disagreements ${disagreements.length} | ${elapsed}ms`,
+      `D-52 loader differential — loader ${probe.version} | corpus ${digest} | cells enumerated ${CELLS} + ${NAMED_REGIONS.length} named = ${BATCH} | loader-rejected (skipped) ${rejected} | token-presence disagreements ${disagreements.length} | NAME-SET disagreements ${nameSetDisagreements.length} | ${elapsed}ms`,
     );
 
     // NOT ASSERTED EMPTY BY FIAT — the disagreement set is DATA, listed with its three axis labels and
@@ -6196,6 +6413,27 @@ describe("frontmatter — the loader differential over a GENERATED corpus (D-52 
       unsafe,
       `a module GRANT where the loader has none, or a module NO-GRANT where the loader grants, is NEVER exemptible:\n${unsafe.join("\n")}`,
     ).toEqual([]);
+
+    // (27-48, WR-03) AND THE NAME SET IS ASSERTED SEPARATELY FROM TOKEN PRESENCE, SO A FAILURE SAYS
+    // WHICH FACT DIVERGED. It is asserted EMPTY rather than "equal to a named exemption set": there
+    // is no direction in which a name set the document does not express is acceptable. The two
+    // consumers are set equalities, and a name invented, dropped or altered on the `ok:true` arm
+    // changes what the KIT-03 oracle proves without changing any boolean anywhere.
+    expect(
+      nameSetDisagreements,
+      `the module's NAME SET must EQUAL the set the same enumeration extracts from the loader's own flattened value. Token presence agreeing while the name sets differ is round 8's CR-02 row a1 exactly.\nNAME-SET DISAGREEMENTS (${nameSetDisagreements.length}):\n${nameSetDisagreements.join("\n")}`,
+    ).toEqual([]);
+
+    // A REFUSAL IS NEVER RENDERED AS AN EMPTY NAME SET, over the cells that actually produced one.
+    expect(
+      refusedNameColumns.filter((r) => !r.endsWith("\trefuse")),
+      "a module refusal rendered as `[]` would be indistinguishable from a value that was read and granted nothing",
+    ).toEqual([]);
+    // ...and the check is NON-VACUOUS: this corpus really does contain module refusals.
+    expect(
+      refusedNameColumns.length,
+      "cells on which the module refused — if this is 0 the empty-edge check asserted nothing",
+    ).toBeGreaterThan(0);
 
     // Every exemption is still doing work and still inside the bound its shape can produce. A rule
     // matching nothing is dead weight that reads like a guard.
@@ -6220,6 +6458,83 @@ describe("frontmatter — the loader differential over a GENERATED corpus (D-52 
   });
 
   // ── THE SKIP BRANCH, EXERCISED RATHER THAN ASSUMED REACHABLE ──────────────────────────────────
+
+  // ── (27-48, WR-03) THE NAME-SET PREDICATE'S OWN THREE PROPERTIES, PINNED ─────────────────────
+
+  it("WR-03 the name-set predicate — a REFUSAL and an EMPTY NAME SET are constructed side by side and record DIFFERENT verdicts", () => {
+    // THE EMPTY EDGE, WITH BOTH SIDES BUILT RATHER THAN ARGUED. If a refusal rendered as `[]`, a
+    // module that could not read a value would be indistinguishable from one that read it and found
+    // no grant — this module's founding failure, moved into the harness that exists to catch it.
+    //
+    // A refusal: the enumeration opens and is never closed, so `keysGrantedAgentNames` returns the
+    // "neither" arm by name rather than the empty list of an unscoped grant.
+    const refusal = loaderGrantedNames("Read, Agent(alpha");
+    expect(refusal.ok).toBe(false);
+    expect(nameVerdict(refusal)).toBe("refuse");
+    // A value that was READ and enumerates nothing.
+    const empty = loaderGrantedNames("Read, Write");
+    expect(empty).toEqual({ ok: true, value: [] });
+    expect(nameVerdict(empty)).toBe("[]");
+    // The two can never compare equal.
+    expect(nameVerdict(refusal)).not.toBe(nameVerdict(empty));
+  });
+
+  it("WR-03 the name-set predicate — SET equality, never cardinality: three names matching three names over two different sets still fails", () => {
+    // The precision edge. A count-based comparison would call these two agreements.
+    const a = loaderGrantedNames("Agent(alpha, beta, gamma)");
+    const b = loaderGrantedNames("Agent(alpha, beta, delta)");
+    expect(a.ok && a.value.length).toBe(3);
+    expect(b.ok && b.value.length).toBe(3);
+    expect(nameVerdict(a)).not.toBe(nameVerdict(b));
+    // Sorted and de-duplicated, so ORDER and REPETITION are not differences.
+    expect(nameVerdict(loaderGrantedNames("Agent(beta, alpha, beta)"))).toBe(
+      nameVerdict(loaderGrantedNames("Agent(alpha, beta)")),
+    );
+  });
+
+  it("WR-03 the name-set predicate DELEGATES to the module's own enumeration, asserted rather than described", () => {
+    // The helper's whole non-circularity argument is that BOTH sides use ONE extractor, so a
+    // disagreement is unambiguously about the flattened value. That is checkable, not merely stated.
+    for (const flat of [
+      "Read, Agent(alpha, beta)",
+      "Agent(alpha)",
+      "Read, Write",
+      "Read, Agent(alpha",
+    ]) {
+      expect(loaderGrantedNames(flat), flat).toEqual(
+        keysGrantedAgentNames(new Map([["tools", [flat]]])),
+      );
+    }
+  });
+
+  it("WR-03 the predicate is LOAD-BEARING — the row a1 shapes are in the corpus, and this build agrees with the loader on them", () => {
+    // WHY THE RED HALF OF THIS PROOF IS NOT HERE. A committed case cannot import a module that
+    // stopped existing, so the RED transcript is produced OUT of suite against a `git archive` mirror
+    // of the pre-27-48 build and recorded verbatim in 27-48-SUMMARY.md:
+    //
+    //   PRE  (mirror of 89705ba) : NAME-SET disagreements 2 — both row a1 spellings,
+    //                              module ["alpha","ga","mma"] vs loader ["alpha","ga - mma"]
+    //   POST (this build)        : NAME-SET disagreements 0
+    //
+    // A PREDICATE THAT WAS NEVER RED IS NOT A PIN. What lives here is the GREEN half plus the pin
+    // that the shapes are still in the corpus — so a later edit that deletes them shrinks the harness
+    // loudly instead of quietly.
+    expect(NAMED_REGIONS.length).toBeGreaterThan(0);
+    expect(
+      NAMED_REGIONS.map((n) => n.region),
+      "the row a1 spellings are the shapes this predicate exists to catch; removing them makes it decoration",
+    ).toEqual([
+      "name: x\ntools:\n  Agent(alpha, ga\n  - mma)\n",
+      "name: x\ntools:\n  - Agent(alpha, ga\n    - mma)\n",
+    ]);
+    for (const named of NAMED_REGIONS) {
+      const document = `---\n${named.region}---\nBody.\n`;
+      expect(grantedAgentNames(document), named.label).toEqual({
+        ok: true,
+        value: ["alpha", "ga - mma"],
+      });
+    }
+  });
 
   it("D-52 the no-loader skip path is EXERCISED — a machine without the loader produces a PRINTED reason, and that is measured here rather than assumed", () => {
     // T-27-08-08: "a harness that silently never runs" is the repudiation threat this case closes. The
