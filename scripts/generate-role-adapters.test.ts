@@ -245,6 +245,47 @@ function assertFenceStripPremise(strip: FenceStrip, where: string): void {
   ).toEqual([]);
 }
 
+// (27-53, WR-03 — round 9's own code review) THE STRIP'S OWN PROPERTIES, STATED ONCE AND PROVEN
+// ABLE TO FAIL. What stood here before was, in the unterminated-region case:
+//
+//     expect(stripFencedBlockLines(lines).kept.join("\n")).toBe(strip.kept.join("\n"));
+//
+// two calls of a PURE function on the same unmutated `readonly string[]`, compared to each other.
+// That is `f(x) === f(x)`: it is green for every implementation, correct or catastrophic, and it
+// carries no information at all into CI while reading exactly like a check that does. Its stated
+// purpose — keeping the two sibling fixtures from drifting apart — was not met either, because the
+// sibling case never calls this function. Decoration that reads like a floor is worse than no floor
+// (D-56 item 3), so it is deleted and these three properties take its place. Each is proven capable
+// of failing against a deliberately broken variant, in the case named for it below.
+//
+//   • something really was removed  — a fixture the strip no-ops on pins nothing;
+//   • kept + removed == input       — the strip PARTITIONS its input: no line lost, none duplicated;
+//   • no delimiter line survives    — the operation the whole fixture depends on actually happened.
+//
+// THE SECOND ONE IS ONLY A REAL ASSERTION BECAUSE `linesRemoved` IS COUNTED AS THE LINES ARE
+// DROPPED. Deriving it as `lines.length - kept.length` — the shape this helper shipped with — makes
+// the equality an IDENTITY that no implementation can violate, i.e. a second `f(x) === f(x)` in the
+// same breath as the first. The counting is pinned on the source in the proof case below, because a
+// CORRECT implementation is behaviourally identical either way and only the source tells them apart.
+function assertStripPartitionsInput(
+  strip: FenceStrip,
+  input: readonly string[],
+  where: string,
+): void {
+  expect(
+    strip.linesRemoved,
+    `${where}: the strip must really have removed lines — a fixture the strip no-ops on pins nothing`,
+  ).toBeGreaterThan(0);
+  expect(
+    strip.kept.length + strip.linesRemoved,
+    `${where}: the strip must PARTITION its input — kept plus removed is the input length, so no line is lost and none is duplicated`,
+  ).toBe(input.length);
+  expect(
+    strip.kept.filter((l) => l.startsWith("```")),
+    `${where}: no fence delimiter line may survive the strip`,
+  ).toEqual([]);
+}
+
 // ── Refusal helper: assert non-zero exit, the named role file, and an UNCHANGED output dir ─────
 function expectRefusal(m: string, needle: string): void {
   const before = snapshot(agentsDir(m));
@@ -253,6 +294,32 @@ function expectRefusal(m: string, needle: string): void {
   expect(out(r)).toContain(needle);
   // T-27-32: build everything, then write. A structural miss must leave NOTHING behind.
   expect(snapshot(agentsDir(m))).toEqual(before);
+}
+
+// ── (27-53, WR-03) THE SHARED SPLICE THE TWO SIBLING FIXTURES ARE BUILT FROM ───────────────────
+// Two cases below — the unterminated-region one and the code-fence-in-region one — depend on the
+// SAME operation on the SAME generated file: delete the closing `---` at index 4 of qe-e2e.md, so
+// the frontmatter region runs on into the body. One writes the result STRIPPED of its fenced
+// blocks; the other writes it RAW. They were joined by a comment saying they were siblings, and by
+// a `f(x) === f(x)` comparison that could not check anything, while each rebuilt the splice for
+// itself with its own hard-coded index. A pair pinned by prose is not a pair: the day the generator
+// emits one more frontmatter line, one case's `lines[4]` assertion fires and the other's fixture
+// silently becomes a different document.
+//
+// So the splice lives here, once, and both cases call it. The index assertion travels with it, so
+// there is exactly one place that believes anything about where the closing delimiter is.
+function spliceClosingDelimiter(m: string): {
+  readonly path: string;
+  readonly lines: string[];
+} {
+  const path = join(m, "agent-factory", "roles", "qe-e2e.md");
+  const lines = readFileSync(path, "utf8").split("\n");
+  expect(
+    lines[4],
+    "the closing delimiter must be where BOTH sibling fixtures believe it is",
+  ).toBe("---");
+  lines.splice(4, 1);
+  return { path, lines };
 }
 
 describe("generate-role-adapters.js (SPAWN-01 adapter generator)", () => {
@@ -568,19 +635,25 @@ describe("generate-role-adapters.js (SPAWN-01 adapter generator)", () => {
     // The delimiter-only filter left every fenced line live in the region, guarded by nothing more
     // than "at least one line was removed" — see the helper above for the full statement of what
     // that could not see.
+    // (27-53, WR-03) THE FIXTURE IS BUILT BY THE SHARED SPLICE, AND THE SIBLING RELATIONSHIP IS
+    // ASSERTED RATHER THAN CLAIMED. What used to stand where the two assertions below stand was a
+    // comparison of two calls of a pure function on one unmutated array — see the helper's header
+    // for why that could not fail and why it did not guard the pair it named.
     const m = scratch(SAMPLE_ROLES);
     expect(runIn(m).status).toBe(0);
-    const p = join(m, "agent-factory", "roles", "qe-e2e.md");
-    const lines = readFileSync(p, "utf8").split("\n");
-    expect(lines[4]).toBe("---"); // the closing delimiter must be where we think it is
-    lines.splice(4, 1);
+    const { path: p, lines } = spliceClosingDelimiter(m);
     const strip = stripFencedBlockLines(lines);
     assertFenceStripPremise(strip, "the unterminated-region fixture");
-    // The removal is DETERMINISTIC: the same input produces the same bytes on two runs, so the two
-    // sibling cases cannot drift apart through an order-dependent strip.
-    expect(stripFencedBlockLines(lines).kept.join("\n")).toBe(
-      strip.kept.join("\n"),
-    );
+    assertStripPartitionsInput(strip, lines, "the unterminated-region fixture");
+    // THE PAIR, JOINED BY A CONSTRUCTION. The sibling case below writes THIS array raw; asserting
+    // that an independently built mirror yields byte-identical splice output is what makes "the
+    // same splice of the same source file" a measured property instead of a sentence.
+    const siblingMirror = scratch(SAMPLE_ROLES);
+    expect(runIn(siblingMirror).status).toBe(0);
+    expect(
+      spliceClosingDelimiter(siblingMirror).lines,
+      "the two sibling fixtures must be the SAME splice of the SAME source file",
+    ).toEqual(lines);
     writeFileSync(p, strip.kept.join("\n"));
     expectRefusal(m, "qe-e2e.md: frontmatter is unreadable");
     expectRefusal(m, "is never closed by a `---` delimiter");
@@ -639,18 +712,131 @@ describe("generate-role-adapters.js (SPAWN-01 adapter generator)", () => {
     assertFenceStripPremise(stripFencedBlockLines(good), "the good shape");
   });
 
+  it("WR-03 — the three replacement assertions are each PROVEN ABLE TO FAIL against a deliberately broken strip (27-53)", () => {
+    // The assertion these replaced could not fail for ANY implementation. Replacing it with three
+    // that also cannot fail would be the same defect with more words, so each is run against a
+    // variant built to violate exactly one of them, and the variants are written as their own loops
+    // rather than as mutations of the real result — a failure caused by tampering with the output
+    // proves nothing about the implementation.
+    const input = ["---", "name: x", "", "## Example", "```", "prose", "```", "tail"];
+
+    // THE CONTROL FIRST: the real strip satisfies all three, so a red below is the variant's doing.
+    assertStripPartitionsInput(
+      stripFencedBlockLines(input),
+      input,
+      "the real strip",
+    );
+
+    // VARIANT 1 — a silent no-op: it never removes anything.
+    const noOp = (lines: readonly string[]): FenceStrip => ({
+      kept: [...lines],
+      linesRemoved: 0,
+      blocksRemoved: 0,
+      unterminatedFence: false,
+    });
+    expect(() =>
+      assertStripPartitionsInput(noOp(input), input, "variant 1"),
+    ).toThrow(/really have removed lines/);
+
+    // VARIANT 2 — it keeps the fence delimiter lines and accounts for them honestly, so ONLY the
+    // survivor assertion may fire. That the partition assertion stays green here is the point: the
+    // three properties are independent, not three spellings of one.
+    const keepsDelimiters = (lines: readonly string[]): FenceStrip => {
+      const kept: string[] = [];
+      let inside = false;
+      let blocksRemoved = 0;
+      let linesRemoved = 0;
+      for (const line of lines) {
+        if (line.startsWith("```")) {
+          if (!inside) blocksRemoved += 1;
+          inside = !inside;
+          kept.push(line); // the defect: the delimiter line survives
+          continue;
+        }
+        if (inside) {
+          linesRemoved += 1;
+          continue;
+        }
+        kept.push(line);
+      }
+      return { kept, linesRemoved, blocksRemoved, unterminatedFence: inside };
+    };
+    expect(() =>
+      assertStripPartitionsInput(keepsDelimiters(input), input, "variant 2"),
+    ).toThrow(/no fence delimiter line may survive/);
+
+    // VARIANT 3 — it drops one extra line after each closing fence and never accounts for it.
+    const dropsAnExtraLine = (lines: readonly string[]): FenceStrip => {
+      const kept: string[] = [];
+      let inside = false;
+      let blocksRemoved = 0;
+      let linesRemoved = 0;
+      let skipNext = false;
+      for (const line of lines) {
+        if (skipNext) {
+          skipNext = false;
+          continue; // the defect: dropped, and never counted
+        }
+        if (line.startsWith("```")) {
+          if (!inside) blocksRemoved += 1;
+          else skipNext = true;
+          inside = !inside;
+          linesRemoved += 1;
+          continue;
+        }
+        if (inside) {
+          linesRemoved += 1;
+          continue;
+        }
+        kept.push(line);
+      }
+      return { kept, linesRemoved, blocksRemoved, unterminatedFence: inside };
+    };
+    expect(() =>
+      assertStripPartitionsInput(dropsAnExtraLine(input), input, "variant 3"),
+    ).toThrow(/must PARTITION its input/);
+
+    // AND THE REASON VARIANT 3 IS DETECTABLE AT ALL, stated as a measurement rather than trusted.
+    // A strip that DERIVES its removal count from `kept.length` satisfies the partition equality
+    // identically — for the correct implementation and for the broken one alike. Same defect, same
+    // input, derived accounting: the assertion goes green.
+    const derivedAccounting = (lines: readonly string[]): FenceStrip => {
+      const broken = dropsAnExtraLine(lines);
+      return { ...broken, linesRemoved: lines.length - broken.kept.length };
+    };
+    expect(
+      derivedAccounting(input).kept.length +
+        derivedAccounting(input).linesRemoved,
+      "the derived shape makes the partition equality an IDENTITY — this is why the real strip counts",
+    ).toBe(input.length);
+
+    // So the real strip's accounting is pinned ON THE SOURCE. A correct implementation is
+    // behaviourally identical under both shapes, so nothing but the source can tell them apart.
+    const src = readFileSync(
+      join(ROOT, "scripts", "generate-role-adapters.test.ts"),
+      "utf8",
+    );
+    const start = src.indexOf("function stripFencedBlockLines(");
+    expect(start).toBeGreaterThan(0);
+    const body = src.slice(start, src.indexOf("\n}", start));
+    expect(
+      body,
+      "stripFencedBlockLines must COUNT removals as it makes them, never derive them from kept.length — deriving turns the partition assertion into a second thing that cannot fail",
+    ).not.toContain("lines.length - kept.length");
+    expect(body).toContain("linesRemoved += 1");
+  });
+
   it("refuses a CODE FENCE inside the located frontmatter region as UNREADABLE — the lines are never deleted and a shorter value never reported (27-45, D-53, WR-02)", () => {
     // The discriminating sibling of the case above, and the whole of WR-02 at the aggregator level.
     // Delete the closing delimiter and LEAVE the body's fences in place: the region now runs into the
     // body and meets a column-0 fence. The pre-fix module deleted those lines and every line between
     // them, then reported whatever remained; this module refuses, names the fence line and names its
     // line number IN THE DOCUMENT (not in a stripped text the author cannot see).
+    // (27-53, WR-03) BUILT BY THE SAME SHARED SPLICE the sibling above strips — one construction,
+    // one place that believes anything about the closing delimiter's index.
     const m = scratch(SAMPLE_ROLES);
     expect(runIn(m).status).toBe(0);
-    const p = join(m, "agent-factory", "roles", "qe-e2e.md");
-    const lines = readFileSync(p, "utf8").split("\n");
-    expect(lines[4]).toBe("---");
-    lines.splice(4, 1);
+    const { path: p, lines } = spliceClosingDelimiter(m);
     expect(lines.some((l) => l.startsWith("```"))).toBe(true);
     writeFileSync(p, lines.join("\n"));
     expectRefusal(m, "qe-e2e.md: frontmatter is unreadable");
