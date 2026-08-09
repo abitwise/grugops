@@ -4153,6 +4153,41 @@ describe("frontmatter — the carried scalar quote state (D-48 / SPAWN-04 + KIT-
   });
 });
 
+// ── THE MODULE-SYMBOL LIST, DECLARED ONCE AND SHARED BY EVERY NON-CIRCULARITY PIN ─────────────────
+//
+// (D-52, round 8) HOISTED OUT OF THE D-49 PIN SO THE D-52 HARNESS BELOW REUSES IT RATHER THAN RETYPING
+// IT. Two copies of this list is the set-literal drift class wearing a safety label: the copy that is
+// not maintained goes vacuous first and reads exactly like the one that is. One list, two readers.
+//
+// `cellDoc` is the D-49 sweep's own cell builder rather than a module declaration — it is here so a
+// corpus generator cannot quietly delegate to the sweep's builder and inherit its axes. It is exempt
+// from the "must still be declared by the module" check below for that reason, by name.
+const MODULE_SYMBOLS = [
+  "parseFrontmatter",
+  "hasSpawnGrant",
+  "grantedAgentNames",
+  "keysHaveSpawnGrant",
+  "keysGrantedAgentNames",
+  "stripComment",
+  "startsWithReference",
+  "unquoteChecked",
+  "openQuote",
+  "nodeOnKeyLine",
+  "flattenBlock",
+  "Accumulator",
+  "SEQ_ITEM",
+  "QuoteState",
+  // (D-51 / D-53, round 8) RECONCILED WITH WHAT THE MODULE ACTUALLY DECLARES. `nodeStartQuote`
+  // was DELETED by D-51 and is gone from this list: a name the module no longer declares is a
+  // STALE ENTRY that passes vacuously, not an assertion, and a list of vacuous entries is the
+  // set-literal drift class wearing a safety label. The three symbols D-51 and D-53 introduced
+  // are added in its place, so the list keeps its teeth against the module as it is now.
+  "ScalarState",
+  "FRESH_NODE",
+  "assertItemPathScalarClosed",
+  "cellDoc",
+] as const;
+
 // ---------------------------------------------------------------------------
 // D-49 — THE FOURTH SWEEP AXIS: a corpus enumerated over a construct that SPANS LINES
 // ---------------------------------------------------------------------------
@@ -4470,31 +4505,10 @@ describe("frontmatter — the multi-line scalar sweep (D-49 / SPAWN-04 + KIT-03)
     // asserted. If this cannot be written cleanly, that is not a finding about the corpus — it is a
     // signal that the rule was written in terms of the module, which is the circularity this
     // assertion exists to catch, and the correct response is to rewrite the rule.
-    const MODULE_SYMBOLS = [
-      "parseFrontmatter",
-      "hasSpawnGrant",
-      "grantedAgentNames",
-      "keysHaveSpawnGrant",
-      "keysGrantedAgentNames",
-      "stripComment",
-      "startsWithReference",
-      "unquoteChecked",
-      "openQuote",
-      "nodeOnKeyLine",
-      "flattenBlock",
-      "Accumulator",
-      "SEQ_ITEM",
-      "QuoteState",
-      // (D-51 / D-53, round 8) RECONCILED WITH WHAT THE MODULE ACTUALLY DECLARES. `nodeStartQuote`
-      // was DELETED by D-51 and is gone from this list: a name the module no longer declares is a
-      // STALE ENTRY that passes vacuously, not an assertion, and a list of vacuous entries is the
-      // set-literal drift class wearing a safety label. The three symbols D-51 and D-53 introduced
-      // are added in its place, so the list keeps its teeth against the module as it is now.
-      "ScalarState",
-      "FRESH_NODE",
-      "assertItemPathScalarClosed",
-      "cellDoc",
-    ] as const;
+    //
+    // (D-52, round 8) THE LIST IS THE FILE-SCOPE `MODULE_SYMBOLS` ABOVE, shared with the D-52 loader
+    // differential's own non-circularity pin. Two hand-kept copies of one safety set is the drift
+    // class this phase has now corrected three times; there is one copy and both pins read it.
     const source = expectedOutcome.toString();
     for (const symbol of MODULE_SYMBOLS) {
       expect(source, symbol).not.toContain(symbol);
@@ -5155,6 +5169,615 @@ describe("frontmatter — the multi-line scalar sweep (D-49 / SPAWN-04 + KIT-03)
     for (const [label, doc] of ON_BOUNDARY) {
       expect(hasSpawnGrant(doc), label).toEqual({ ok: true, value: true });
     }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// D-52 — THE LOADER DIFFERENTIAL: A GENERATED CORPUS AND AN EXPECTATION THIS FILE
+// DID NOT COMPUTE (27-REVIEW-GAPS-7 § WR-01, round 8)
+// ---------------------------------------------------------------------------
+//
+// FOUR CIRCULARITY AXES. THREE WERE ALREADY PAID FOR; THIS BLOCK CLOSES THE FOURTH.
+//
+//   • Round 4 — THE ALPHABET. A sweep and the predicate it tests drawing from one character set.
+//   • Round 5 — THE ARM STRUCTURE. One construction per declared arm, so no input outside both arms
+//     was ever a candidate for a case.
+//   • Round 6 — THE UNIT THE CORPUS IS GENERATED OVER. Three axes that are all properties of ONE
+//     PHYSICAL LINE, over a defect that lives BETWEEN two.
+//   • Round 8 — THE SOURCE OF THE EXPECTATION, and it is this block's whole reason to exist. The D-49
+//     sweep above was non-circular on all three earlier axes and STILL passed green, at 90 cells, over
+//     a live spawn-grant bypass: its style axis was a hand-listed six-member set pinned by
+//     `expect(length).toBe(6)`, and its second pin was a hand-written truth table whose completeness
+//     claim was `TRUTH.length === STYLE.length * SIGIL.length`. A cardinality assertion pins a list
+//     against SHRINKING and says nothing whatsoever about INCOMPLETENESS, and a claim about the
+//     product of two hand-listed axes is a claim about the axes rather than about YAML.
+//
+//   STATED PLAINLY FOR THE NEXT READER: A CORPUS AND AN EXPECTATION BOTH WRITTEN BY HAND OVER THE SAME
+//   AXES CANNOT FAIL ON AN AXIS NOBODY THOUGHT OF. Growing the hand-listed axis (which 27-43 did, 6 ->
+//   12) makes the defect class EXPRESSIBLE and is necessary; it does not make the claim honest,
+//   because the next axis nobody thinks of is exactly as invisible as the last one was.
+//
+// SO THE EXPECTATION MOVES OUT OF THIS FILE. The corpus below is GENERATED as the cross-product of
+// three axes enumerated as data, and the expected answer for each cell is what `/usr/bin/ruby -ryaml`
+// — the platform's own loader family — computes for it. Nothing this file writes decides what the
+// right answer is. The axis LENGTHS are pinned, and those pins are floors against shrinking and are
+// EXPLICITLY NOT the completeness claim; the completeness claim is the loader.
+//
+// WHAT IS ASSERTED AND WHAT IS DELIBERATELY NOT. Byte equality with the loader is not the predicate —
+// this module joins a block sequence with a comma-space BY CONTRACT and the loader returns a real
+// sequence. The agreed predicate is the one question this module asks: DOES THE VALUE CARRY THE SPAWN
+// TOKEN. Cells the loader REJECTS are skipped and every skip is PRINTED with its three axis labels and
+// the loader's error class, following the D-49 cross-check's precedent rather than reinventing it.
+describe("frontmatter — the loader differential over a GENERATED corpus (D-52 / SPAWN-04 + KIT-03)", () => {
+  const HARNESS_TOKEN = "Agent(grugops-orchestrator)";
+  const FIRST = "Read,";
+  const SECOND = "Write,";
+  const RUBY = "/usr/bin/ruby";
+
+  // ── AXIS 1: THE KEY-LINE SHAPE ────────────────────────────────────────────────────────────────
+  //
+  // Every way the `tools:` line can leave its value's node start somewhere other than "the first token
+  // after the colon". `tail` is what must be appended at the END of the value to close whatever the
+  // key line opened, so the cell builder never has to know which shape it is composing.
+  //
+  // TWO DECLARED YAML FACTS TRAVEL WITH EACH SHAPE, and they are facts about the SHAPE rather than
+  // observations of the module — they exist so the exemptions below can be stated from YAML:
+  //   `valueNodeOnContinuation`  the key line carries no value node at all, so the FIRST CONTINUATION
+  //                              line is where the value's node begins.
+  //   `danglingNodeProperty`     the key line ENDS with a YAML node property (§ 6.9) whose node has
+  //                              not begun yet, so the property is left unresolved at a node start.
+  interface KeyLineShape {
+    readonly label: string;
+    readonly lines: readonly string[];
+    readonly indent: string;
+    readonly tail: string;
+    readonly valueNodeOnContinuation: boolean;
+    readonly danglingNodeProperty: boolean;
+  }
+  const AXIS_KEY_LINE: readonly KeyLineShape[] = [
+    {
+      label: "value on the key line",
+      lines: [`tools: ${FIRST}`],
+      indent: "  ",
+      tail: "",
+      valueNodeOnContinuation: false,
+      danglingNodeProperty: false,
+    },
+    {
+      label: "no value",
+      lines: ["tools:"],
+      indent: "  ",
+      tail: "",
+      valueNodeOnContinuation: true,
+      danglingNodeProperty: false,
+    },
+    {
+      label: "comment-only value",
+      lines: ["tools: # c"],
+      indent: "  ",
+      tail: "",
+      valueNodeOnContinuation: true,
+      danglingNodeProperty: false,
+    },
+    {
+      label: "trailing whitespace only",
+      lines: ["tools:   "],
+      indent: "  ",
+      tail: "",
+      valueNodeOnContinuation: true,
+      danglingNodeProperty: false,
+    },
+    {
+      label: "flow-sequence opener",
+      lines: [`tools: [${FIRST}`],
+      indent: "  ",
+      tail: "]",
+      valueNodeOnContinuation: false,
+      danglingNodeProperty: false,
+    },
+    {
+      label: "flow-mapping opener",
+      lines: [`tools: {a: ${FIRST}`],
+      indent: "  ",
+      tail: "}",
+      valueNodeOnContinuation: false,
+      danglingNodeProperty: false,
+    },
+    {
+      label: "flow-sequence opener with a node property",
+      lines: ["tools: [!!str"],
+      indent: "  ",
+      tail: "]",
+      valueNodeOnContinuation: false,
+      danglingNodeProperty: true,
+    },
+    {
+      label: "flow-mapping explicit-key opener",
+      lines: ["tools: {?"],
+      indent: "  ",
+      tail: ": v}",
+      valueNodeOnContinuation: false,
+      danglingNodeProperty: false,
+    },
+    // (27-43's OWN RED TEAM, CARRIED IN AS CORPUS) These two are the exact spellings that were live
+    // silent-no-grant bypasses INSIDE D-51's first draft — a node property standing in front of a
+    // mid-line node start, and the flow explicit-key indicator. A green suite, a green gate, a green
+    // byte-identity differential and a zero-delta repository value map all missed them. They are
+    // members of this corpus so the harness's expressible space contains the last two defects this
+    // phase actually shipped, not merely the two a review happened to report.
+    {
+      label: "flow-sequence opener with a node property before a mid-line quote",
+      lines: [`tools: [!!str "${FIRST}`],
+      indent: "  ",
+      tail: '"]',
+      valueNodeOnContinuation: false,
+      danglingNodeProperty: false,
+    },
+    {
+      label: "flow-mapping explicit-key opener with a mid-line quote",
+      lines: [`tools: {? "${FIRST}`],
+      indent: "  ",
+      tail: '": v}',
+      valueNodeOnContinuation: false,
+      danglingNodeProperty: false,
+    },
+    {
+      label: "literal block indicator",
+      lines: ["tools: |-"],
+      indent: "  ",
+      tail: "",
+      valueNodeOnContinuation: false,
+      danglingNodeProperty: false,
+    },
+    {
+      label: "folded block indicator",
+      lines: ["tools: >-"],
+      indent: "  ",
+      tail: "",
+      valueNodeOnContinuation: false,
+      danglingNodeProperty: false,
+    },
+    {
+      label: "block-sequence dash with no value",
+      lines: ["tools:", "  -"],
+      indent: "    ",
+      tail: "",
+      valueNodeOnContinuation: true,
+      danglingNodeProperty: false,
+    },
+  ];
+
+  // ── AXIS 2: THE FIRST CONTINUATION'S SHAPE ────────────────────────────────────────────────────
+  //
+  // `closesWith` is the quote this line leaves OPEN, appended by the cell builder at the end of the
+  // value. `referenceSigilAtNodeStart` is the declared YAML fact that this line begins with a node
+  // property, which matters only where the shape above says a node begins here.
+  interface ContinuationOneShape {
+    readonly label: string;
+    readonly text: string;
+    readonly closesWith: string;
+    readonly referenceSigilAtNodeStart: boolean;
+  }
+  const AXIS_CONTINUATION_1: readonly ContinuationOneShape[] = [
+    {
+      label: "opens a double-quoted scalar",
+      text: `"${SECOND}`,
+      closesWith: '"',
+      referenceSigilAtNodeStart: false,
+    },
+    {
+      label: "opens a single-quoted scalar",
+      text: `'${SECOND}`,
+      closesWith: "'",
+      referenceSigilAtNodeStart: false,
+    },
+    {
+      label: "plain text",
+      text: SECOND,
+      closesWith: "",
+      referenceSigilAtNodeStart: false,
+    },
+    {
+      label: "a hash at position 0",
+      text: `# ${SECOND}`,
+      closesWith: "",
+      referenceSigilAtNodeStart: false,
+    },
+    {
+      label: "a dash at position 0",
+      text: `- ${SECOND}`,
+      closesWith: "",
+      referenceSigilAtNodeStart: false,
+    },
+    {
+      label: "a reference sigil at position 0",
+      text: `&w ${SECOND}`,
+      closesWith: "",
+      referenceSigilAtNodeStart: true,
+    },
+  ];
+
+  // ── AXIS 3: THE SECOND CONTINUATION'S SHAPE ───────────────────────────────────────────────────
+  //
+  // How the line carrying the spawn token ends. The first two compose the CLOSERS the shapes above
+  // asked for, so they are the well-formed spellings; the last two close something else instead, so
+  // the document is deliberately mis-closed and the loader — not this file — decides what it means.
+  interface ContinuationTwoShape {
+    readonly label: string;
+    readonly build: (quoteClose: string, tail: string) => string;
+  }
+  const AXIS_CONTINUATION_2: readonly ContinuationTwoShape[] = [
+    {
+      label: "the token after a hash",
+      build: (quoteClose, tail) => `# x, ${HARNESS_TOKEN}${quoteClose}${tail}`,
+    },
+    {
+      label: "the token plainly",
+      build: (quoteClose, tail) => `${HARNESS_TOKEN}${quoteClose}${tail}`,
+    },
+    {
+      label: "the token followed by a closing quote",
+      build: (_quoteClose, tail) => `${HARNESS_TOKEN}"${tail}`,
+    },
+    {
+      label: "the token followed by a collection close",
+      build: (quoteClose, _tail) => `${HARNESS_TOKEN}${quoteClose}]`,
+    },
+  ];
+
+  // ── THE CELL BUILDER. NAMES NO MODULE SYMBOL; ASSERTED SO, BELOW ──────────────────────────────
+  const buildCellRegion = (
+    keyLine: KeyLineShape,
+    first: ContinuationOneShape,
+    second: ContinuationTwoShape,
+  ): string =>
+    [
+      "name: x",
+      ...keyLine.lines,
+      `${keyLine.indent}${first.text}`,
+      `${keyLine.indent}${second.build(first.closesWith, keyLine.tail)}`,
+      "",
+    ].join("\n");
+
+  const buildCellDocument = (
+    keyLine: KeyLineShape,
+    first: ContinuationOneShape,
+    second: ContinuationTwoShape,
+  ): string => `---\n${buildCellRegion(keyLine, first, second)}---\nBody.\n`;
+
+  interface Cell {
+    readonly keyLine: KeyLineShape;
+    readonly first: ContinuationOneShape;
+    readonly second: ContinuationTwoShape;
+    readonly where: string;
+  }
+  const enumerateCells = (): Cell[] => {
+    const out: Cell[] = [];
+    for (const keyLine of AXIS_KEY_LINE) {
+      for (const first of AXIS_CONTINUATION_1) {
+        for (const second of AXIS_CONTINUATION_2) {
+          out.push({
+            keyLine,
+            first,
+            second,
+            where: `${keyLine.label} | ${first.label} | ${second.label}`,
+          });
+        }
+      }
+    }
+    return out;
+  };
+
+  // ── THE EXEMPTIONS: NAMED, BOUNDED, AND SAFE-DIRECTION ONLY ───────────────────────────────────
+  //
+  // A divergence from the loader is permitted ONLY when it is this module REFUSING where the loader
+  // grants — a loud red a human adjudicates. A module GRANT where the loader has none, or a module
+  // NO-GRANT where the loader grants, is NEVER exemptible: the second of those is the silent-no-grant
+  // arm that has now been the finding in eight consecutive rounds.
+  //
+  // Each rule is written from the module's DECLARED POLICY, cited, and from the axis shapes' own
+  // declared YAML facts — never from an observed result. Both rules below are one policy: D-30, in
+  // scripts/frontmatter.ts's header under "DELIBERATELY NOT A YAML ENGINE, AND THE REFERENCE
+  // CONSTRUCTS ARE REFUSED BY NAME" — an anchor, an alias or an unresolved node property at a node
+  // start is refused before the value is flattened, because the value such a document expresses is not
+  // the text its bytes spell.
+  //
+  // The `bound` is DERIVED from the axis lengths, so a rule cannot silently come to cover more of the
+  // corpus than the shape it names can produce.
+  interface Exemption {
+    readonly label: string;
+    readonly reason: string;
+    readonly bound: number;
+    readonly matches: (keyLine: KeyLineShape, first: ContinuationOneShape) => boolean;
+  }
+  const CONTINUATION_START_SHAPES = AXIS_KEY_LINE.filter(
+    (k) => k.valueNodeOnContinuation,
+  ).length;
+  const DANGLING_PROPERTY_SHAPES = AXIS_KEY_LINE.filter(
+    (k) => k.danglingNodeProperty,
+  ).length;
+  const EXEMPTIONS: readonly Exemption[] = [
+    {
+      label:
+        "E1 — a dangling YAML node property at the flow collection's first node start",
+      reason:
+        "The key line ends with a node property (YAML 1.2 § 6.9) whose node has not begun, so the property stands unresolved at a node start. D-30's declared policy refuses a reference construct rather than resolving it; the loader resolves it instead and grants. SAFE DIRECTION: a loud refusal, never a hidden grant.",
+      bound:
+        DANGLING_PROPERTY_SHAPES *
+        AXIS_CONTINUATION_1.length *
+        AXIS_CONTINUATION_2.length,
+      matches: (keyLine) => keyLine.danglingNodeProperty,
+    },
+    {
+      label:
+        "E2 — a YAML anchor at the value's node start on the first continuation line",
+      reason:
+        "The key line carries no value node, so the first continuation IS the value's node start, and `&w` there is a genuine YAML anchor rather than text. D-30 refuses it; the loader resolves the anchor and reads the token behind it. SAFE DIRECTION: a loud refusal, never a hidden grant.",
+      bound: CONTINUATION_START_SHAPES * AXIS_CONTINUATION_2.length,
+      matches: (keyLine, first) =>
+        keyLine.valueNodeOnContinuation && first.referenceSigilAtNodeStart,
+    },
+  ];
+
+  // ── THE LOADER: PROBED ONCE, BATCHED ONCE ─────────────────────────────────────────────────────
+  //
+  // ONE PROCESS PER RUN, NOT ONE PER CELL. A harness whose runtime makes it a candidate for narrowing
+  // is a harness that will be narrowed, so the whole corpus crosses the boundary as a JSON array and
+  // the verdicts come back as a JSON array. The returned length is asserted equal to the cell count,
+  // so a truncated batch fails arithmetically instead of silently shortening the differential.
+  const LOADER_PROGRAM = [
+    "require 'yaml'; require 'json'",
+    "out = JSON.parse(STDIN.read).map do |d|",
+    "  begin",
+    "    y = YAML.safe_load(d)",
+    "    v = y.is_a?(Hash) ? y['tools'] : nil",
+    "    { 'accepted' => true, 'value' => v.nil? ? '' : v.to_s }",
+    "  rescue Exception => e",
+    "    { 'accepted' => false, 'error' => e.class.to_s }",
+    "  end",
+    "end",
+    "print JSON.generate(out)",
+  ].join("\n");
+
+  // Parameterised on the interpreter path for ONE reason: so the SKIP branch can be EXERCISED by a
+  // case rather than assumed reachable. A harness that silently never runs is worse than no harness,
+  // and "the skip prints" is itself a claim that needs a pin.
+  type LoaderProbe =
+    | { readonly ok: true; readonly version: string }
+    | { readonly ok: false; readonly reason: string };
+  const probeLoader = (rubyPath: string): LoaderProbe => {
+    try {
+      const version = execFileSync(
+        rubyPath,
+        [
+          "-ryaml",
+          "-e",
+          "print \"ruby=#{RUBY_VERSION} psych=#{Psych::VERSION} libyaml=#{Psych.libyaml_version.join('.')}\"",
+        ],
+        { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] },
+      );
+      return { ok: true, version };
+    } catch {
+      return {
+        ok: false,
+        reason: `${rubyPath} with the yaml (Psych/libyaml) library is not runnable on this machine`,
+      };
+    }
+  };
+
+  // ── THE DIFFERENTIAL ──────────────────────────────────────────────────────────────────────────
+
+  it("D-52 loader differential — every loader-accepted cell of a GENERATED corpus agrees with a real YAML 1.2 loader on token presence, except the named safe-direction exemptions", () => {
+    // FLOORS AGAINST SHRINKING, AND EXPLICITLY NOT THE COMPLETENESS CLAIM. An axis emptied by a later
+    // edit shrinks this harness LOUDLY. What makes the corpus's coverage checkable is not these three
+    // numbers — it is that the answer for every cell comes from the loader below.
+    expect(AXIS_KEY_LINE.length).toBe(13);
+    expect(AXIS_CONTINUATION_1.length).toBe(6);
+    expect(AXIS_CONTINUATION_2.length).toBe(4);
+
+    // THE CELL TOTAL IS DERIVED. No cell-count literal exists in this block except as the right-hand
+    // side of this comparison, and the left-hand side is the length of the enumeration itself.
+    const CELLS =
+      AXIS_KEY_LINE.length *
+      AXIS_CONTINUATION_1.length *
+      AXIS_CONTINUATION_2.length;
+    const corpus = enumerateCells();
+    expect(
+      corpus.length,
+      `the enumerated corpus must be the product of the three axis lengths (${AXIS_KEY_LINE.length} x ${AXIS_CONTINUATION_1.length} x ${AXIS_CONTINUATION_2.length})`,
+    ).toBe(CELLS);
+    // Every cell key is distinct, so a collision cannot make two cells look like one.
+    expect(new Set(corpus.map((c) => c.where)).size).toBe(CELLS);
+
+    // THE TWO CONSUMERS MUST READ THE SAME BYTES, AND THAT IS ASSERTED RATHER THAN ASSUMED. The
+    // loader is handed the REGION; the module is handed the whole DOCUMENT and locates the region
+    // itself. If a generated cell contained its own `---` line the two would silently be comparing
+    // different text, and the differential would be measuring the corpus builder instead of the
+    // module. This is round 6's lesson one level out — ask what the predicate's INPUT is assembled
+    // from — applied to a harness whose expectation is otherwise beyond reproach.
+    const ambiguous = corpus.filter((c) =>
+      buildCellRegion(c.keyLine, c.first, c.second)
+        .split("\n")
+        .some((line) => line.trimEnd() === "---"),
+    );
+    expect(
+      ambiguous.map((c) => c.where),
+      "a cell whose region carries its own `---` line would hand the loader and the module different text",
+    ).toEqual([]);
+
+    const probe = probeLoader(RUBY);
+    if (!probe.ok) {
+      console.warn(
+        `SKIPPED D-52 loader differential: ${probe.reason}. This is a PRINTED skip, never a silent one — the ${CELLS}-cell corpus was enumerated and no expectation was invented in the loader's absence.`,
+      );
+      return;
+    }
+
+    const started = Date.now();
+    const raw = execFileSync(RUBY, ["-e", LOADER_PROGRAM], {
+      input: JSON.stringify(
+        corpus.map((c) => buildCellRegion(c.keyLine, c.first, c.second)),
+      ),
+      encoding: "utf8",
+      maxBuffer: 64 * 1024 * 1024,
+    });
+    const verdicts = JSON.parse(raw) as {
+      accepted: boolean;
+      value?: string;
+      error?: string;
+    }[];
+    expect(
+      verdicts.length,
+      "a truncated loader batch must fail arithmetically rather than silently shorten the differential",
+    ).toBe(CELLS);
+
+    let rejected = 0;
+    const disagreements: string[] = [];
+    const unsafe: string[] = [];
+    const expectedExempt: string[] = [];
+    const rowsMatched = new Map<string, number>();
+
+    for (let i = 0; i < corpus.length; i += 1) {
+      const cell = corpus[i];
+      const verdict = verdicts[i];
+      if (!verdict.accepted) {
+        rejected += 1;
+        // PRINTED, with all three axis labels and the loader's error class.
+        console.log(
+          `D-52 SKIP (loader rejected) ${cell.where} :: ${verdict.error}`,
+        );
+        continue;
+      }
+      const loaderGrants = (verdict.value ?? "").includes(HARNESS_TOKEN);
+      const document = buildCellDocument(cell.keyLine, cell.first, cell.second);
+      const answer = hasSpawnGrant(document);
+      // A PARSE FAILURE IS NEVER FOLDED INTO THE NO-GRANT COLUMN. Three module verdicts, not two.
+      const moduleVerdict = answer.ok
+        ? answer.value
+          ? "grant"
+          : "no-grant"
+        : "refuse";
+      const loaderVerdict = loaderGrants ? "grant" : "no-grant";
+
+      for (const exemption of EXEMPTIONS) {
+        if (exemption.matches(cell.keyLine, cell.first)) {
+          rowsMatched.set(
+            exemption.label,
+            (rowsMatched.get(exemption.label) ?? 0) + 1,
+          );
+        }
+      }
+      const exempt = EXEMPTIONS.some((e) => e.matches(cell.keyLine, cell.first));
+      if (exempt) expectedExempt.push(cell.where);
+
+      if (moduleVerdict === loaderVerdict) continue;
+      disagreements.push(
+        `${cell.where}\tmodule=${moduleVerdict}\tloader=${loaderVerdict}\tvalue=${JSON.stringify(verdict.value)}`,
+      );
+      // The unsafe set is the two directions no reason can exempt.
+      if (moduleVerdict !== "refuse") unsafe.push(`${cell.where}\tmodule=${moduleVerdict}\tloader=${loaderVerdict}`);
+    }
+
+    const elapsed = Date.now() - started;
+    console.log(
+      `D-52 loader differential — loader ${probe.version} | cells enumerated ${CELLS} | loader-rejected (skipped) ${rejected} | disagreements ${disagreements.length} | ${elapsed}ms`,
+    );
+
+    // NOT ASSERTED EMPTY BY FIAT — the disagreement set is DATA, listed with its three axis labels and
+    // the loader's value, and the assertion is that it is exactly the named exemption set.
+    expect(
+      [...new Set(disagreements.map((d) => d.split("\t")[0]))].sort(),
+      `the disagreement set must EQUAL the named exemption set — not be a subset of it, so an exemption that stops being needed fails just as loudly as a new disagreement.\nDISAGREEMENTS (${disagreements.length}):\n${disagreements.join("\n")}`,
+    ).toEqual([...new Set(expectedExempt)].sort());
+
+    // THE UNSAFE DIRECTIONS ARE NOT EXEMPTIBLE, ASSERTED SEPARATELY SO THE FAILURE SAYS WHICH ONE.
+    expect(
+      unsafe,
+      `a module GRANT where the loader has none, or a module NO-GRANT where the loader grants, is NEVER exemptible:\n${unsafe.join("\n")}`,
+    ).toEqual([]);
+
+    // Every exemption is still doing work and still inside the bound its shape can produce. A rule
+    // matching nothing is dead weight that reads like a guard.
+    for (const exemption of EXEMPTIONS) {
+      const matched = rowsMatched.get(exemption.label) ?? 0;
+      expect(
+        matched,
+        `${exemption.label} matched no loader-accepted cell — a dead exemption is not an exemption.\n${exemption.reason}`,
+      ).toBeGreaterThan(0);
+      expect(
+        matched,
+        `${exemption.label} matched ${matched} cells, past the ${exemption.bound} its shape can produce`,
+      ).toBeLessThanOrEqual(exemption.bound);
+    }
+
+    // Non-vacuity: the loader must have ACCEPTED a substantial part of the corpus. A run in which the
+    // loader rejected everything would satisfy every assertion above while measuring nothing.
+    expect(
+      CELLS - rejected,
+      `loader-accepted cells, of ${CELLS} enumerated`,
+    ).toBeGreaterThan(CELLS / 2);
+  });
+
+  // ── THE SKIP BRANCH, EXERCISED RATHER THAN ASSUMED REACHABLE ──────────────────────────────────
+
+  it("D-52 the no-loader skip path is EXERCISED — a machine without the loader produces a PRINTED reason, and that is measured here rather than assumed", () => {
+    // T-27-08-08: "a harness that silently never runs" is the repudiation threat this case closes. The
+    // probe is parameterised precisely so this branch can be DRIVEN, with a path that cannot exist.
+    const absent = join(tmpdir(), "grugops-no-such-ruby-4f2a1c9e", "ruby");
+    const probe = probeLoader(absent);
+    expect(probe.ok, "a path that cannot exist must take the skip branch").toBe(
+      false,
+    );
+    expect(!probe.ok && probe.reason).toContain(absent);
+    expect(!probe.ok && probe.reason).toContain("Psych/libyaml");
+    console.warn(
+      `D-52 SKIP BRANCH EXERCISED (deliberately, with an absent interpreter): ${!probe.ok ? probe.reason : ""}`,
+    );
+
+    // And the same probe against the real interpreter takes the other branch on a machine that has
+    // one — so the two arms are both reached rather than one of them being decorative. On a machine
+    // without Ruby this prints its own skip, which is the behaviour under test one level up.
+    const real = probeLoader(RUBY);
+    if (!real.ok) {
+      console.warn(
+        `SKIPPED the D-52 positive probe arm: ${real.reason}. PRINTED, never silent.`,
+      );
+      return;
+    }
+    expect(real.version).toContain("ruby=");
+    expect(real.version).toContain("libyaml=");
+  });
+
+  // ── NON-CIRCULARITY, BY SOURCE INSPECTION ─────────────────────────────────────────────────────
+
+  it("D-52 non-circularity — the corpus generator names no symbol of the module under test, and the expectation is the loader's rather than any function of the module", () => {
+    // The claim "this corpus was not generated from the code under test" is CHECKABLE. The symbol list
+    // is the file-scope `MODULE_SYMBOLS` shared with the D-49 pin — reused, never retyped, because two
+    // hand-kept copies of a safety set is the drift class this phase has corrected three times.
+    const generatorSource = [
+      buildCellRegion.toString(),
+      buildCellDocument.toString(),
+      enumerateCells.toString(),
+      AXIS_KEY_LINE.map((s) => JSON.stringify(s)).join("\n"),
+      AXIS_CONTINUATION_1.map((s) => JSON.stringify(s)).join("\n"),
+      AXIS_CONTINUATION_2.map((s) => `${s.label} ${s.build.toString()}`).join(
+        "\n",
+      ),
+    ].join("\n");
+    for (const symbol of MODULE_SYMBOLS) {
+      expect(generatorSource, symbol).not.toContain(symbol);
+    }
+    // Non-vacuity: the inspected text is really the generator and really non-empty.
+    expect(generatorSource).toContain("tools:");
+    expect(generatorSource.length).toBeGreaterThan(500);
+
+    // AND THE EXPECTATION ITSELF IS NOT A FUNCTION OF THE MODULE. There is no expected-outcome rule in
+    // this block at all — the only expectation is `LOADER_PROGRAM`'s output — so this asserts the
+    // absence rather than inspecting a rule that does not exist.
+    for (const symbol of MODULE_SYMBOLS) {
+      expect(LOADER_PROGRAM, symbol).not.toContain(symbol);
+    }
+    expect(LOADER_PROGRAM).toContain("YAML.safe_load");
   });
 });
 
