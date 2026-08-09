@@ -25,7 +25,7 @@ gaps:
     status: failed
     reason: >
       Independently reproduced by the orchestrator this session (not merely reviewer-claimed) on
-      hermetic `git archive HEAD` mirrors, planting `allowed-tools: "Read, # x,\n  Agent(grugops-orchestrator)"`
+      hermetic `git archive HEAD` mirrors, planting `allowed-tools: "Read, # x,` / `  Agent(grugops-orchestrator)"`
       (Family A/C/F shapes — block-mapping nested value, flow-map JSON adjacency, block explicit key)
       into BOTH distribution twins of the non-coordinator skill `plan` (`skills/plan/SKILL.md` and
       `.claude/skills/grugops-plan/SKILL.md`). Control (one-line grant): exit 1, `FAIL WR-05

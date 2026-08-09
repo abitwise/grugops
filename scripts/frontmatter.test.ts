@@ -6874,20 +6874,27 @@ describe("frontmatter — D-51: one walk decides what crosses a line boundary (C
         // SURVIVES the boundary, so the returned text must be independent of it — a property worth
         // measuring rather than assuming, since it is the whole basis for "within-line unchanged".
         for (const nodeStartAtOffsetZero of [true, false]) {
-          const got = stripComment(
-            input,
-            {
-              openQuote: q as '"' | "'" | null,
-              flowDepth: 0,
-              nodeMayBegin: true,
-            },
-            nodeStartAtOffsetZero,
-          ).text;
-          compared += 1;
-          if (got !== text[k]) {
-            mismatches.push(
-              `${JSON.stringify(input)} entering=${JSON.stringify(q)} nodeStart=${nodeStartAtOffsetZero}: pre=${JSON.stringify(text[k])} post=${JSON.stringify(got)}`,
-            );
+          // (D-54) THE NEW LINE-START FACT IS SWEPT TOO, FOR THE SAME REASON THE NODE-START FACT IS:
+          // the claim is that it changes only what SURVIVES the boundary, so the returned TEXT must
+          // be independent of it, and a swept input is a measured claim where an unswept one is a
+          // remembered one.
+          for (const lineStartAtOffsetZero of [true, false]) {
+            const got = stripComment(
+              input,
+              {
+                openQuote: q as '"' | "'" | null,
+                flowDepth: 0,
+                nodeMayBegin: true,
+              },
+              nodeStartAtOffsetZero,
+              lineStartAtOffsetZero,
+            ).text;
+            compared += 1;
+            if (got !== text[k]) {
+              mismatches.push(
+                `${JSON.stringify(input)} entering=${JSON.stringify(q)} nodeStart=${nodeStartAtOffsetZero} lineStart=${lineStartAtOffsetZero}: pre=${JSON.stringify(text[k])} post=${JSON.stringify(got)}`,
+              );
+            }
           }
         }
       });
@@ -6898,7 +6905,7 @@ describe("frontmatter — D-51: one walk decides what crosses a line boundary (C
       `within-line TEXT differential over ${inputs} generated single-line input(s), ${compared} comparison(s):\n${mismatches.slice(0, 20).join("\n")}`,
     ).toEqual([]);
     // Both numbers derived in this same run — never one derived and one written down.
-    expect(compared).toBe(inputs * fixture.entering.length * 2);
+    expect(compared).toBe(inputs * fixture.entering.length * 2 * 2);
   });
 
   // ── EVERY REMAINING NODE-START PLACEMENT A VALUE CAN OCCUPY (D-52, round 8) ────────────────────
@@ -7101,6 +7108,273 @@ describe("frontmatter — D-51: one walk decides what crosses a line boundary (C
         "- Write",
       ),
     ).not.toThrow();
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────────────────────────
+// (Plan 27-47, D-54 — 27-REVIEW-GAPS-8 § CR-01, round 9) THE NODE-START ANSWER IS A PROPERTY OF THE
+// STRUCTURAL POSITION, NOT OF THE SPELLINGS A RED TEAM ENUMERATED.
+//
+// D-51 made the walk the module's ONE authority on what crosses a line boundary, and that was right.
+// What it got wrong is which positions the authority calls node starts: `mayBegin` was raised only
+// for FLOW constructs, and only where `depth > 0`. YAML gates none of those three indicators that
+// way, so the union of the chain's arms was — for the ninth time in this phase, about the ninth
+// predicate — not the set of YAML's node starts.
+//
+// EVERY ROW BELOW WAS MEASURED AGAINST THE COMMITTED BUILD, NOT REASONED. Each carries the verdict
+// the pre-D-54 `scripts/frontmatter.js` returned on a `git archive HEAD` mirror BEFORE the edit
+// (RED) and the loader's value from `/usr/bin/ruby -ryaml` (Ruby 2.6.10 / Psych 3.1.0 /
+// libyaml 0.2.1). The transcripts are recorded verbatim in 27-47-SUMMARY.md. Four of these rows also
+// took the WHOLE foundation gate from `ALL CHECKS PASSED` at exit 0 to a named failure, planted on
+// both distribution twins of a non-coordinator skill; that movement is the acceptance evidence and
+// this suite is a floor beneath it, never a substitute for it.
+describe("frontmatter — D-54: the node start is a structural position (CR-01, round 9)", () => {
+  const TOKEN = "Agent(grugops-orchestrator)";
+  const doc = (region: string): string =>
+    `---\nname: probe\n${region}\n---\nBody.\n`;
+  const toolsOf = (text: string): string => {
+    const parsed = parseFrontmatter(text);
+    return parsed.ok ? (parsed.value.get("tools") ?? []).join("|") : "REFUSED";
+  };
+
+  // ── THE MAPPING SEPARATOR IS A NODE START IN BLOCK CONTEXT TOO (D-54 point 1) ──────────────────
+
+  it("D-54 row A — a nested block mapping on a continuation line: `tools:` / `  nested: \"Read,` / `  # x, TOKEN\"`", () => {
+    // pre-D-54 committed build: {ok:true,value:false}, tools=["nested: \"Read,"]
+    // libyaml:                   {"nested"=>"Read, # x, Agent(grugops-orchestrator)"}
+    const text = doc(`tools:\n  nested: "Read,\n  # x, ${TOKEN}"`);
+    expect(hasSpawnGrant(text)).toEqual({ ok: true, value: true });
+    expect(toolsOf(text)).toBe(`nested: "Read, # x, ${TOKEN}"`);
+  });
+
+  it("D-54 row E — the block mapping nested TWO levels: `  a:` then `    b: \"Read,`", () => {
+    // pre-D-54 committed build: {ok:true,value:false}, tools=["a: b: \"Read,"]
+    // libyaml:                   {"a"=>{"b"=>"Read, # x, Agent(grugops-orchestrator)"}}
+    const text = doc(`tools:\n  a:\n    b: "Read,\n    # x, ${TOKEN}"`);
+    expect(hasSpawnGrant(text)).toEqual({ ok: true, value: true });
+    expect(toolsOf(text)).toBe(`a: b: "Read, # x, ${TOKEN}"`);
+  });
+
+  it("D-54 row D — a block mapping INSIDE a sequence item: `  - a: \"Read,`", () => {
+    // pre-D-54 committed build: {ok:true,value:false}, tools=["a: \"Read,,"]  <- note the doubled
+    //           comma: the item join separator flipped for the whole key, inventing structure the
+    //           document never expressed, which in the KIT-03 closure equality is an invented NAME.
+    // libyaml:  [{"a"=>"Read, # x, Agent(grugops-orchestrator)"}]
+    const text = doc(`tools:\n  - a: "Read,\n    # x, ${TOKEN}"`);
+    expect(hasSpawnGrant(text)).toEqual({ ok: true, value: true });
+    expect(toolsOf(text)).toBe(`a: "Read, # x, ${TOKEN}"`);
+    expect(toolsOf(text)).not.toContain(",,");
+  });
+
+  // ── THE JSON-LIKE SEPARATION RULE (D-54 point 2) ───────────────────────────────────────────────
+
+  it("D-54 row C — flow mapping with JSON adjacency: `tools: {\"a\":\"Read,` (no space after the colon)", () => {
+    // pre-D-54 committed build: {ok:true,value:false}, tools=["{\"a\":\"Read,"]
+    // libyaml:                   {"a"=>"Read, # x, Agent(grugops-orchestrator)"}
+    //
+    // THE SHARPEST OF THE ROUND-9 ROWS: it is inside the flow-collection domain D-51 was written to
+    // own. `D-51 row b2` pins `tools: {a: "Read,` — one space away — and nothing pinned this.
+    const text = doc(`tools: {"a":"Read,\n  # x, ${TOKEN}"}`);
+    expect(hasSpawnGrant(text)).toEqual({ ok: true, value: true });
+    expect(toolsOf(text)).toBe(`{"a":"Read, # x, ${TOKEN}"}`);
+  });
+
+  it("D-54 row H — whitespace BEFORE the separator does not clear the JSON-like fact: `{\"a\" :\"Read,`", () => {
+    // pre-D-54 committed build: {ok:true,value:false}, tools=["{\"a\" :\"Read,"]
+    // libyaml:                   {"a"=>"Read, # x, Agent(grugops-orchestrator)"}
+    //
+    // This is why `jsonLikeKeyJustClosed` is deliberately NOT cleared by a space or a tab: the key
+    // has still just closed, and the loader reads the entry either way.
+    const text = doc(`tools: {"a" :"Read,\n  # x, ${TOKEN}"}`);
+    expect(hasSpawnGrant(text)).toEqual({ ok: true, value: true });
+    expect(toolsOf(text)).toBe(`{"a" :"Read, # x, ${TOKEN}"}`);
+  });
+
+  it("D-54 row C2 — the same adjacency one collection deeper: `tools: [{\"a\":\"Read,`", () => {
+    // pre-D-54 committed build: {ok:true,value:false}, tools=["[{\"a\":\"Read,"]
+    // libyaml:                   [{"a"=>"Read, # x, Agent(grugops-orchestrator)"}]
+    const text = doc(`tools: [{"a":"Read,\n  # x, ${TOKEN}"}]`);
+    expect(hasSpawnGrant(text)).toEqual({ ok: true, value: true });
+    expect(toolsOf(text)).toBe(`[{"a":"Read, # x, ${TOKEN}"}]`);
+  });
+
+  it("D-54 adjacency control — a CONTENT character between the closing quote and the separator is not an entry, and the loader agrees it is not a document", () => {
+    // pre-D-54 committed build: {ok:true,value:false}, tools=["{\"a\"x:\"Read,"]
+    // libyaml:                   REJECTS — `found unexpected ':' while scanning a plain scalar`
+    //
+    // THE CASE ASSERTS THE LOADER'S ANSWER, WHICHEVER IT IS, AND THE LOADER'S ANSWER IS "THIS IS NOT
+    // A DOCUMENT". So there is no value to grant from and the module's no-grant answer agrees with a
+    // loader that computes nothing — the one row of this table whose verdict is UNCHANGED by D-54,
+    // recorded so the boundary between `{"a":` and `{"a"x:` is a measurement rather than a claim.
+    const text = doc(`tools: {"a"x:"Read,\n  # x, ${TOKEN}"}`);
+    expect(hasSpawnGrant(text)).toEqual({ ok: true, value: false });
+    expect(toolsOf(text)).toBe(`{"a"x:"Read,`);
+  });
+
+  // ── THE BLOCK EXPLICIT KEY, AND THE TWO POSITIONS THAT STAY CONTENT (D-54 point 1) ─────────────
+
+  it("D-54 row F — a block explicit key: `tools:` / `  ? \"Read,` / `  # x, TOKEN\"` / `  : v`", () => {
+    // pre-D-54 committed build: {ok:true,value:false}, tools=["? \"Read,  : v"]
+    // libyaml:                   {"Read, # x, Agent(grugops-orchestrator)"=>"v"}
+    const text = doc(`tools:\n  ? "Read,\n  # x, ${TOKEN}"\n  : v`);
+    expect(hasSpawnGrant(text)).toEqual({ ok: true, value: true });
+    expect(toolsOf(text)).toBe(`? "Read, # x, ${TOKEN}" : v`);
+  });
+
+  it("D-54 explicit-key boundary — the SAME character later on the line, and in a KEY LINE's value position, stays content", () => {
+    // BOUNDARY ONE — the structural start is spent. libyaml: `tools:` / `  a ? "Read,` /
+    // `  # x, T"` loads as the plain scalar `a ? "Read,` with the hash line taken as a COMMENT, so
+    // the quote is content and nothing crosses. The module must agree, and does.
+    const spent = doc(`tools:\n  a ? "Read,\n  # x, ${TOKEN}"`);
+    expect(hasSpawnGrant(spent)).toEqual({ ok: true, value: false });
+    expect(toolsOf(spent)).toBe(`a ? "Read,`);
+
+    // BOUNDARY TWO — the key line's VALUE position. `KEY_LINE` has already consumed `description:`,
+    // so `lineStartAtOffsetZero` is false there and the `?` is ordinary text. Its value is
+    // byte-identical to the pre-D-54 build's.
+    //
+    // AND THE OLD COMMENT'S FALSE-RED ARGUMENT IS CORRECTED HERE RATHER THAN REPEATED: it offered
+    // `description: ? maybe` as documentation "a loader accepts", and libyaml in fact REJECTS that
+    // whole document (`mapping keys are not allowed in this context`). The position is kept for the
+    // reason that survives measurement — the line did not begin there.
+    const keyLine = doc(`description: ? maybe`);
+    const parsed = parseFrontmatter(keyLine);
+    expect(parsed.ok && parsed.value.get("description")).toEqual(["? maybe"]);
+
+    // BOUNDARY THREE — a separation is REQUIRED after the indicator. libyaml reads `?"Read,` as the
+    // plain scalar `?"Read,` and the following hash line as a comment.
+    const noSpace = doc(`tools:\n  ?"Read,\n  # x, ${TOKEN}"`);
+    expect(hasSpawnGrant(noSpace)).toEqual({ ok: true, value: false });
+    expect(toolsOf(noSpace)).toBe(`?"Read,`);
+  });
+
+  it("D-54 continuation control — a line CONTINUING a scalar is not a structural start, so the module does not grant where the loader has none", () => {
+    // THE NEVER-EXEMPTIBLE DIRECTION, PINNED AT THE PLACE THE FIX COULD HAVE OPENED IT. The plan's
+    // first reading had both continuation sites pass `true` for the line-start fact. Measured:
+    //   libyaml `description: see` / `  ? maybe`            -> "see ? maybe"   (the `?` is CONTENT)
+    //   libyaml `description: see` / `  ? "quoted` / `  # x, T"`
+    //                                                       -> "see ? \"quoted"  (hash line is a
+    //                                                          COMMENT; nothing crosses)
+    // An unconditional `true` would have made this module report a GRANT on the second document
+    // where the loader has none. `startsNode` is passed instead, and these are the pins.
+    expect(
+      parseFrontmatter(doc(`description: see\n  ? maybe`)),
+    ).toMatchObject({ ok: true });
+    const cont = doc(`description: see\n  ? "quoted\n  # x, ${TOKEN}"`);
+    expect(hasSpawnGrant(cont)).toEqual({ ok: true, value: false });
+    const contParsed = parseFrontmatter(cont);
+    expect(contParsed.ok && contParsed.value.get("description")).toEqual([
+      `see ? "quoted`,
+    ]);
+  });
+
+  // ── THE CHAIN DID NOT GROW, AND THE PLAIN-SCALAR CONTROLS DID NOT MOVE ─────────────────────────
+
+  it("D-54 plain-scalar controls — the widening never CREATES a node start in ordinary prose", () => {
+    // Byte-identical to the pre-D-54 build, quoted from both in 27-47-SUMMARY.md. These are the
+    // shapes a widened node-start rule breaks first if it is wrong.
+    expect(toolsOf(doc(`tools: R&D, it's !important`))).toBe(
+      "R&D, it's !important",
+    );
+    expect(toolsOf(doc(`tools: Read,\n  don't\n  Write`))).toBe(
+      "Read, don't Write",
+    );
+    expect(toolsOf(doc(`tools:\n  - Read\n  - Write`))).toBe("Read, Write");
+    expect(toolsOf(doc(`tools: Read,\n  - Write`))).toBe("Read, - Write");
+  });
+
+  // ── WITHIN-LINE BEHAVIOUR, MEASURED RATHER THAN PROMISED ───────────────────────────────────────
+
+  it("D-54 single-line differential — the scanner's TEXT moves in exactly ONE measured place, in the fail-red direction", () => {
+    // WHAT THIS FIXTURE IS. A capture of the pre-D-54 committed `scripts/frontmatter.js`, taken on a
+    // `git archive HEAD` mirror BEFORE the edit, over a generated single-line corpus whose alphabet
+    // is WIDER than the pre-D-51 capture's — it carries `?`, a bare `:`, `!`, `&`, `<` and `>`,
+    // because a corpus without them could not see the change it is supposed to be measuring.
+    //
+    // IF THIS CASE GOES RED, THE FIXTURE IS NOT THE THING TO REGENERATE. Regenerating it from the
+    // current build makes the assertion say "the build equals itself".
+    //
+    // AND THE CLAIM IT MAKES IS NOT "BYTE-IDENTICAL", BECAUSE THE MEASUREMENT SAYS OTHERWISE. Four
+    // cells out of 148,656 move, all on the single input `a: !<x #y> z`, all at flow depth 0, and
+    // every one of them moves in the LENGTHEN direction (the pre value is a strict PREFIX of the post
+    // value) — text a `#` used to end is now kept, so a token behind that hash becomes MORE visible,
+    // never less. libyaml REJECTS that document outright (`did not find the expected '>' while
+    // scanning a tag`), so no loader value is contradicted. See `NODE_PROPERTY_AT_NODE_START` for
+    // the narrowing that would remove these four cells and the twenty worse ones it opens.
+    const fixture = JSON.parse(
+      readFileSync(
+        join(import.meta.dirname, "fixtures", "frontmatter-singleline-pre-d54.json"),
+        "utf8",
+      ),
+    ) as {
+      entering: (string | null)[];
+      depths: number[];
+      mayBegin: boolean[];
+      lineStart: boolean[];
+      inputs: string[];
+      shortened: Record<string, string[]>;
+    };
+
+    // NO CORPUS SIZE IS WRITTEN INTO AN ASSERTION. Both numbers below are derived in this run; the
+    // floors exist only so a fixture emptied by a later edit cannot make this pass vacuously.
+    const states =
+      fixture.entering.length *
+      fixture.depths.length *
+      fixture.mayBegin.length *
+      fixture.lineStart.length;
+    expect(fixture.inputs.length, "captured corpus must not be empty").toBeGreaterThan(500);
+    expect(states, "captured entering states").toBeGreaterThan(0);
+
+    let compared = 0;
+    const moved: string[] = [];
+    const movedInputs = new Set<string>();
+    const notLengthened: string[] = [];
+    fixture.inputs.forEach((input, idx) => {
+      // AN INPUT ABSENT FROM `shortened` IS ONE THE PRE-EDIT SCANNER RETURNED UNCHANGED IN EVERY
+      // STATE. The sparse form is lossless: it is expanded back to the input here, so a post-edit
+      // build that shortens a previously-unchanged input still lands in `moved`.
+      const pre = fixture.shortened[String(idx)];
+      let k = 0;
+      for (const q of fixture.entering)
+        for (const flowDepth of fixture.depths)
+          for (const nodeMayBegin of fixture.mayBegin)
+            for (const lineStart of fixture.lineStart) {
+              const got = stripComment(
+                input,
+                {
+                  openQuote: q as '"' | "'" | null,
+                  flowDepth,
+                  nodeMayBegin,
+                },
+                nodeMayBegin,
+                lineStart,
+              ).text;
+              const was = pre === undefined ? input : pre[k];
+              compared += 1;
+              k += 1;
+              if (got !== was) {
+                moved.push(
+                  `${JSON.stringify(input)} entering=${JSON.stringify(q)} depth=${flowDepth} mayBegin=${nodeMayBegin} lineStart=${lineStart}: pre=${JSON.stringify(was)} post=${JSON.stringify(got)}`,
+                );
+                movedInputs.add(input);
+                if (!got.startsWith(was)) notLengthened.push(input);
+              }
+            }
+    });
+
+    // THE EXCEPTION IS NAMED, NOT SWEPT. The set of inputs whose text moved is compared to exactly
+    // the one shape the loader rejects; a second shape appearing here fails by name.
+    expect(
+      [...movedInputs].sort(),
+      `within-line TEXT differential over ${fixture.inputs.length} input(s) x ${states} state(s) = ${compared} comparison(s); ${moved.length} cell(s) moved:\n${moved.slice(0, 20).join("\n")}`,
+    ).toEqual(["a: !<x #y> z"]);
+    // AND THE DIRECTION IS ASSERTED, because the direction is the whole safety argument.
+    expect(
+      notLengthened,
+      "a moved cell whose post value is NOT an extension of its pre value — text was DELETED, which is this module's founding failure",
+    ).toEqual([]);
+    // Both numbers derived in this same run — never one derived and one written down.
+    expect(compared).toBe(fixture.inputs.length * states);
   });
 });
 

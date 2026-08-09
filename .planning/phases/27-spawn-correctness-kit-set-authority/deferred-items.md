@@ -126,3 +126,44 @@ Out-of-scope discoveries logged during execution. Not fixed; recorded so they ar
     structural answer (normalize the input once, at the same place CRLF is already normalized) rather
     than a fourth refusal arm. Note that `text.replace(/\r\n/g, "\n")` already establishes the
     precedent of input normalization at exactly that point.
+
+## From 27-47 (D-54 / CR-01, round 9) — found by running the suite, NOT by the plan
+
+- **The flattener applies the D-30 escape refusal to text libyaml never reads as a double-quoted
+  scalar.** `.planning/phases/27-spawn-correctness-kit-set-authority/27-VERIFICATION.md` carried the
+  two characters `\` `n` inside a `reason: >` FOLDED BLOCK SCALAR nested under `gaps:`. A folded
+  block scalar performs no escape processing, so libyaml returns them literally and ACCEPTS the
+  document; the module REFUSED the whole file with
+  `carries the backslash sequence \n inside a double-quoted scalar`.
+  - **Measured, both builds, on a `git archive HEAD` mirror of `62b8b53`:**
+    pre-fix build arm `refuse`, post-fix build arm `refuse`, same reason — so this is **PRE-EXISTING
+    and not caused by D-54**. The `27-47` repository-wide value map independently reports
+    `new refusals: 0` over a run-time-derived corpus of 1149 tracked markdown files.
+  - **Loader column:** `/usr/bin/ruby -ryaml` (ruby 2.6.10 / psych 3.1.0 / libyaml 0.2.1) ACCEPTS the
+    document and returns the backslash and the `n` literally. So the refusal is a FALSE RED on
+    documentation a real loader accepts — the direction D-34 names as the worse of the two.
+  - **Why it happens:** `flattenBlock` has no nesting. It collapses every continuation line of
+    `gaps:` into ONE string, so `"` characters belonging to several different nested scalars are read
+    as one double-quoted region and `unquoteChecked` applies D-30's allowlist to text that was never
+    a double-quoted scalar.
+  - **Why not fixed in 27-47:** the module-side cure is nesting awareness in the flattener, i.e. a
+    YAML engine — which D-54 rejects by name, and which is a different root cause in a different
+    function from CR-01. Folding it in would hide which edit closed which family. `27-47` unblocked
+    its own gate by rewriting the ONE offending line into the `/` line-separator notation the rest of
+    this phase already uses (no meaning changed), and records the defect here so the notation change
+    does not stand in for the fix. **The D-49 false-red control was RED at HEAD for four commits
+    (`c28f415` .. `62b8b53`) and nobody noticed** — which is itself the WR-01/WR-02 harness-integrity
+    class `27-49` owns.
+  - **Suggested direction:** decide explicitly whether the flattener refuses less (nesting), or the
+    D-49 control's claim is scoped — "every tracked markdown file parses" is currently a claim over
+    `.planning/` prose that exceeds this module's declared scope. Either is defensible; a suite that
+    is red at HEAD is not.
+
+- **`NODE_PROPERTY_AT_NODE_START`'s verbatim alternative admits whitespace — left wide, deliberately.**
+  `<[^>]*>` admits `!<x #y>`, which YAML 1.2 § 5.6 does not define (`ns-uri-char` excludes
+  whitespace) and libyaml rejects. Narrowing to `<[^\s>]*>` was tried and REVERTED: over the same
+  148,656-cell single-line corpus the wide form moves 4 cells (all in the LENGTHEN direction, all on
+  that one loader-rejected input) while the narrow form moves 24, of which 20 are positions the
+  pre-edit build ALREADY reached and every one moves in the SHORTEN direction — deleting text at a
+  `#`, which is this module's founding failure. The measurement is recorded in the constant's own doc
+  block. A later round that wants the narrowing must first close the shorten direction it opens.

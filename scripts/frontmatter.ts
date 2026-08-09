@@ -522,6 +522,28 @@ export interface ScalarState {
 // ALREADY begin, and it never SETS that answer — it only declines to clear it. `R&D` and
 // `it's !important` sit at positions where the answer is already false, so they are content, exactly
 // as before, and the repository-wide value map is what proves it rather than this paragraph.
+// (D-54, round 9) THE VERBATIM ALTERNATIVE IS WIDER THAN YAML'S, AND IT IS LEFT THAT WAY ON PURPOSE —
+// MEASURED, NOT OVERLOOKED. `<[^>]*>` admits `!<x #y>`, a "tag" containing a space, which YAML 1.2
+// § 5.6 does not define (`ns-uri-char` excludes whitespace) and which libyaml rejects outright:
+// `did not find the expected '>' while scanning a tag`. The obvious tidy-up is `<[^\s>]*>`.
+//
+// IT WAS TRIED, MEASURED AND REVERTED, AND THE MEASUREMENT IS WHY. Over the same generated
+// single-line corpus the D-54 differential uses (6194 inputs x 24 entering states = 148656 cells):
+//
+//   with `[^>]*`   (kept)      4 cells move, all on `a: !<x #y> z`, all at flow depth 0, and every
+//                              one of them moves in the LENGTHEN direction — the module keeps text a
+//                              `#` used to end, so a token behind that hash becomes MORE visible.
+//   with `[^\s>]*` (reverted) 24 cells move, and 20 of them are positions the pre-edit build ALREADY
+//                              reached (`!<x #y> z` at offset 0, `[a, !<x #y> z]`, `{a: !<p #q> r}`).
+//                              Every one moves in the SHORTEN direction: text that was kept is now
+//                              cut at the hash, which is this module's founding failure — content it
+//                              cannot account for, deleted, and the remainder returned on the SUCCESS
+//                              arm.
+//
+// So the narrower grammar is the more correct one and the wider one is the safer one, and where those
+// disagree this module takes the safe direction on documents no loader accepts. A later reader who
+// wants the narrowing must first close the shorten direction it opens, not merely observe that YAML
+// agrees with them.
 const NODE_PROPERTY_AT_NODE_START =
   /^(?:!(?:<[^>]*>|[^\s[\]{},]*)|&[^\s[\]{},]+)(?=[\s[\]{},]|$)/;
 
@@ -584,10 +606,44 @@ const FRESH_NODE: ScalarState = {
 //
 // Exported for that differential: the claim is about THIS function's output, so the case calls THIS
 // function rather than inferring its behaviour from a value three transformations downstream.
+//
+// (D-54 — 27-REVIEW-GAPS-8 § CR-01, round 9) AND THE ANSWER IS NOW A PROPERTY OF THE STRUCTURAL
+// POSITION RATHER THAN OF THE SPELLINGS A RED TEAM ENUMERATED. The walk raised `mayBegin` only for
+// FLOW constructs, and only where `depth > 0`. YAML gates none of the three indicators that way, so
+// the union of the chain's arms was — for the ninth time in this phase, about the ninth predicate —
+// NOT the set of YAML's node starts. Measured against the committed build, seven documents libyaml
+// ACCEPTS with a live `Agent(grugops-orchestrator)` in the loaded value came back
+// `{ok:true,value:false}`, the silent no-grant SUCCESS arm, and four of them took the whole
+// foundation gate to `ALL CHECKS PASSED` at exit 0 on a non-coordinator skill. The transcripts are in
+// 27-47-SUMMARY.md; the rows are cases below.
+//
+// THE REMEDY REMOVES CONDITIONS; IT DOES NOT APPEND ARMS. The chain below has the SAME NUMBER OF ARMS
+// it had before (five), because a fifth spelling is the shape this module has now declined six times:
+//
+//   • the EXPLICIT-KEY indicator lost `depth > 0` and carries YAML's own condition instead — a `?`
+//     introduces a key node in BLOCK context at a line's structural start with a separation after it,
+//     which is why `? "Read,` on an indented line is a node start and `?"Read,` is not.
+//   • the MAPPING SEPARATOR lost `depth > 0` outright. Its separation condition is kept and widened to
+//     YAML 1.2's actual rule: whitespace, end of line, OR a JSON-like key that just closed inside a
+//     flow collection — the flow-domain half D-51 was written to own and did not reach.
+//   • `jsonLikeKeyJustClosed` is that last fact, tracked in THIS walk, at the character where the
+//     quote closes. A second opinion computed anywhere else is the weaker-duplicate shape this module
+//     deletes on sight.
+//
+// TWO FACTS THE CALLER SUPPLIES, AND THEY ARE NOT THE SAME FACT. `nodeStartAtOffsetZero` says A NODE
+// MAY BEGIN at offset 0; `lineStartAtOffsetZero` says THE PHYSICAL LINE BEGINS at offset 0. They come
+// apart at exactly one of the three seeding sites — the KEY LINE, where the flattener has already
+// consumed `key:` before calling, so a node may begin at offset 0 of what it hands over while the
+// line began several characters earlier. The block indicators need the SECOND fact, which is why a
+// single boolean could not carry both: `description: ? maybe` must stay content on a key line
+// (libyaml in fact REJECTS that whole document — `mapping keys are not allowed in this context` —
+// so the module's no-grant answer there agrees with a loader that has no value to grant from), while
+// `tools:` / `  ? "Read,` on a continuation line is the explicit key libyaml reads it as.
 export function stripComment(
   s: string,
   entering: ScalarState,
   nodeStartAtOffsetZero: boolean,
+  lineStartAtOffsetZero: boolean,
 ): { text: string; state: ScalarState } {
   let sq = entering.openQuote === "'";
   let dq = entering.openQuote === '"';
@@ -603,6 +659,22 @@ export function stripComment(
     entering.openQuote !== null
       ? false
       : nodeStartAtOffsetZero || entering.nodeMayBegin;
+  // (D-54) THE LINE'S STRUCTURAL START, CONSUMED BY THE FIRST CHARACTER THAT IS NOT WHITESPACE. A
+  // block indicator introduces a node only where the BLOCK structure allows a node to be introduced,
+  // and inside a scalar that is already open nothing on this line is structural at all. It is never
+  // raised again on the same line — a `?` further along is an ordinary plain-scalar character, which
+  // is the false-red control this arm has carried since D-51 and which the loader agrees with.
+  let atLineStructuralStart =
+    entering.openQuote === null && lineStartAtOffsetZero;
+  // (D-54) A JSON-LIKE KEY JUST CLOSED AT THIS DEPTH, so the mapping separator that follows needs no
+  // whitespace — YAML 1.2 § 7.20 lets `{"a":"v"}` omit it when the key is JSON-like. Raised where a
+  // quote CLOSES and where a `]`/`}` closes, cleared by any other content character, and DELIBERATELY
+  // NOT CLEARED BY WHITESPACE: that is the whole of why `{"a" :"v"}` behaves as the loader behaves.
+  // It does not cross the line boundary and is not in `ScalarState`, because a flow mapping split
+  // between the closing quote and its separator is a document libyaml REJECTS outright
+  // (`{"a"` / `  :"v"}` -> `did not find expected ',' or '}'`), so there is no value there to agree
+  // with — measured, not assumed, and recorded in 27-47-SUMMARY.md.
+  let jsonLikeKeyJustClosed = false;
 
   const exiting = (): ScalarState => ({
     // THE WHOLE GATE, IN ONE EXPRESSION: a still-open quote crosses the boundary only when it was
@@ -612,20 +684,38 @@ export function stripComment(
     nodeMayBegin: mayBegin,
   });
 
+  // (D-54) A SEPARATION AFTER AN INDICATOR, WRITTEN ONCE AND READ BY THE TWO ARMS THAT NEED IT.
+  // YAML separates an indicator from the node it introduces with whitespace or a line break; at the
+  // end of the string the break is the line ending itself. Two arms ask this question and there is
+  // one expression for it — the same reason the tag grammar below is reused rather than respelled.
+  const separationFollows = (i: number): boolean =>
+    i + 1 >= s.length || s[i + 1] === " " || s[i + 1] === "\t";
+
   for (let i = 0; i < s.length; i++) {
     const c = s[i];
+    // (D-54) BOTH CARRIED FACTS ARE READ FOR THIS CHARACTER AND THEN CONSUMED BY IT. Snapshotting
+    // before the update is what lets an indicator ask "was I at the line's structural start" and
+    // "did a JSON-like key just close" about the position it OCCUPIES rather than the one it leaves.
+    const atStructuralStart = atLineStructuralStart;
+    const afterJsonLikeKey = jsonLikeKeyJustClosed;
+    if (c !== " " && c !== "\t") atLineStructuralStart = false;
     if (dq && c === "\\") {
       i += 1; // an escaped character inside double quotes is never a delimiter
+      // Inside a double-quoted scalar an escape is content, so no key has just closed.
+      jsonLikeKeyJustClosed = false;
       continue;
     }
     if (c === '"' && !sq) {
       if (!dq) openedAtNodeStart = mayBegin;
       dq = !dq;
       mayBegin = false;
+      // (D-54) A CLOSING quote ends a JSON-like key; an OPENING one begins a scalar's content.
+      jsonLikeKeyJustClosed = !dq;
     } else if (c === "'" && !dq) {
       if (!sq) openedAtNodeStart = mayBegin;
       sq = !sq;
       mayBegin = false;
+      jsonLikeKeyJustClosed = !sq;
     } else if (c === "#" && !sq && !dq && (i === 0 || /[ \t]/.test(s[i - 1]))) {
       // A comment runs to end-of-line and is only ever entered from OUTSIDE quotes, so nothing is
       // left open behind it. The exiting state is derived from the same flags as the fall-through
@@ -644,42 +734,79 @@ export function stripComment(
         const property = s.slice(i).match(NODE_PROPERTY_AT_NODE_START);
         if (property !== null) {
           i += property[0].length - 1; // the loop's own `i++` consumes the last character
+          // A tag or an anchor is content standing in front of the node; no key closed here.
+          jsonLikeKeyJustClosed = false;
           continue; // `mayBegin` stays true: the node itself has still to begin
         }
       }
-      // OUTSIDE quotes: the flow structure decides where the next node may begin.
+      // OUTSIDE quotes: the structure decides where the next node may begin.
       if (c === "[" || c === "{") {
         depth += 1;
         mayBegin = true;
+        jsonLikeKeyJustClosed = false;
       } else if (c === "]" || c === "}") {
         depth = depth > 0 ? depth - 1 : 0;
         mayBegin = false;
-      } else if ((c === "," || c === "?") && depth > 0) {
+        // (D-54) A closed flow collection is a JSON-LIKE key just as a closed quote is: `{[1]:"v"}`
+        // needs no space after the separator either. Same fact, same walk, same character.
+        jsonLikeKeyJustClosed = true;
+      } else if (
+        (c === "," || c === "?") &&
         // A comma introduces a node only INSIDE a flow collection. At depth 0 it is content — the
         // same distinction `startsWithReference` makes, and what keeps `tools: Read,` / `  don't`
-        // from licensing a crossing on the apostrophe.
+        // from licensing a crossing on the apostrophe. That scoping is UNTOUCHED.
         //
-        // `?` IS THE EXPLICIT-KEY INDICATOR AND IT IS SCOPED TO FLOW FOR THE SAME REASON THE COMMA
-        // IS. Inside `{ }` a `?` introduces the KEY NODE and YAML gives it no other meaning; at depth
-        // 0 it is an ordinary plain-scalar character (`description: ? maybe`) and widening it there
-        // would be a false-red risk bought for nothing. Found by red-teaming this fix:
-        // `tools: {? "Read,` / `  # x, Agent(…)": v}` returned the silent no-grant arm.
+        // (D-54) `?` IS THE EXPLICIT-KEY INDICATOR, AND ITS `depth > 0` CONDITION WAS NEVER YAML'S.
+        // The comment that stood here said `?` is "scoped to flow for the same reason the comma is",
+        // and that was measured false: `tools:` / `  ? "Read,` / `  # x, Agent(…)"` / `  : v` loads
+        // as `{"Read, # x, Agent(grugops-orchestrator)"=>"v"}` while this module returned
+        // `{ok:true,value:false}`, and the same plant took the whole foundation gate to
+        // `ALL CHECKS PASSED` at exit 0. So the depth condition is REPLACED, not supplemented, by the
+        // condition YAML actually states — a block explicit key stands at the line's structural start
+        // with a separation after it.
+        //
+        // THE FALSE-RED ARGUMENT THE OLD COMMENT MADE SURVIVES, RESTATED AGAINST THE NEW CONDITION.
+        // Two positions keep `?` as ordinary plain-scalar content, and each has a case: the same
+        // character LATER on the line (`tools:` / `  a ? b` — the structural start is already spent),
+        // and the same character in a KEY LINE's value position (`description: ? maybe` — the
+        // flattener consumed `description:` first, so `lineStartAtOffsetZero` is false there). The
+        // old comment offered `description: ? maybe` as documentation a loader accepts; libyaml in
+        // fact REJECTS that document outright, so the position is kept for the reason that survives
+        // measurement — the line did not begin there — rather than for the one that did not.
+        (depth > 0 || (c === "?" && atStructuralStart && separationFollows(i)))
+      ) {
         mayBegin = true;
+        jsonLikeKeyJustClosed = false;
       } else if (
         c === ":" &&
-        depth > 0 &&
-        (i + 1 >= s.length || /[ \t]/.test(s[i + 1]))
+        // (D-54) THE MAPPING SEPARATOR'S `depth > 0` CONDITION IS GONE. A `key: value` entry is a
+        // mapping entry in BLOCK context exactly as it is in flow, and the value after the separator
+        // is its own node start in both — which is what `tools:` / `  nested: "Read,` expresses and
+        // what this module read as a non-node-start for nine rounds. This ONE arm now serves the
+        // block mapping, the flow mapping, and the mapping inside a sequence item alike.
+        //
+        // AND ITS SEPARATION CONDITION IS NOW YAML 1.2'S ACTUAL ONE. Whitespace or end of line, OR a
+        // JSON-LIKE KEY THAT JUST CLOSED inside a flow collection — `{"a":"v"}` is legal with no
+        // space, and `{"a" :"v"}` is the same entry with the space put somewhere the fact does not
+        // notice. That second disjunct is the flow-domain half D-51 was written to own and did not
+        // reach: `frontmatter.test.ts` pinned `tools: {a: "Read,` and nothing pinned the
+        // JSON-adjacent sibling one character away. A CONTENT character between the closing quote and
+        // the separator clears the fact, so `{"a"x:"Read,` is not a mapping entry here — and libyaml
+        // rejects that document, so the module's no-grant answer agrees with a loader that has no
+        // value to grant from.
+        (separationFollows(i) || (depth > 0 && afterJsonLikeKey))
       ) {
-        // A flow MAPPING entry is `key: value`, so the value after the separator is its own node
-        // start — the same rule `startsWithReference` applies to its `": "` split.
         mayBegin = true;
+        jsonLikeKeyJustClosed = false;
       } else if (c !== " " && c !== "\t") {
         // A content character of a node has been consumed; whitespace consumes nothing.
         mayBegin = false;
+        jsonLikeKeyJustClosed = false;
       }
     } else {
       // Inside a quoted scalar every character is content.
       mayBegin = false;
+      jsonLikeKeyJustClosed = false;
     }
   }
   return { text: s, state: exiting() };
@@ -1067,7 +1194,13 @@ function flattenBlock(
         // (D-51) SEEDING SITE 2 OF 3 — one assignment, no gate. The item is its own node, so offset 0
         // of `itemText` is a node start and the scanner is told so; whether anything crosses the
         // boundary is then the scanner's answer and nobody else's.
-        const scanned = stripComment(itemText, cur.state, true);
+        //
+        // (D-54) AND OFFSET 0 OF THE ITEM TEXT IS ALSO A LINE'S STRUCTURAL START. A sequence item may
+        // itself be a compact block mapping, including one written with an explicit key — libyaml
+        // reads `tools:` / `  - ? "Read,` / `    # x, Agent(…)"` / `    : v` as
+        // `[{"Read, # x, Agent(grugops-orchestrator)"=>"v"}]`, so the `?` there introduces a key node
+        // and the quote after it opens at a node start.
+        const scanned = stripComment(itemText, cur.state, true, true);
         cur.state = scanned.state;
         const resolved = unquoteChecked(scanned.text.trim());
         if (!resolved.ok) return refuseEscape(t, resolved.escape);
@@ -1089,7 +1222,18 @@ function flattenBlock(
       // (family a) — and a node can also begin MID-LINE inside a flow collection (family b), which no
       // line-level expression can see at all. Both are now the scanner's business: it is handed the
       // line-level answer for offset 0 and decides the rest at the character.
-      const scanned = stripComment(t, cur.state, startsNode);
+      //
+      // (D-54) THE LINE-START FACT HERE IS `startsNode`, NOT AN UNCONDITIONAL `true`, AND THE
+      // DIFFERENCE IS MEASURED RATHER THAN ARGUED. `t` is a trimmed continuation line, so offset 0 is
+      // always the first content of a physical line — but a line that CONTINUES a scalar begun
+      // earlier is not a structural position at all, and libyaml says so: `description: see` /
+      // `  ? maybe` loads as the single scalar `see ? maybe`, and `description: see` /
+      // `  ? "quoted` / `  # x, T"` loads as `see ? "quoted` with the hash line taken as a COMMENT.
+      // Passing `true` unconditionally would have made this module report a grant on that second
+      // document where the loader has none — the never-exemptible direction, opened by the fix meant
+      // to close its mirror image. `startsNode` already answers "may a node begin on this line", and
+      // where no node may begin no LINE structurally begins either.
+      const scanned = stripComment(t, cur.state, startsNode, startsNode);
       cur.state = scanned.state;
       const text = scanned.text.trim();
       if (inScalar && cur.parts.length > 0) {
@@ -1152,7 +1296,14 @@ function flattenBlock(
       //
       // (D-51) SEEDING SITE 1 OF 3 — one assignment, no gate. Offset 0 of `rest` is the value node's
       // start, so the scanner is told so and its answer is stored.
-      const scanned = stripComment(rest, FRESH_NODE, true);
+      //
+      // (D-54) AND THIS IS THE ONE SITE WHERE THE TWO FACTS COME APART. `KEY_LINE` has ALREADY
+      // consumed `key:` and the whitespace after it, so a node may begin at offset 0 of `rest` while
+      // the LINE began several characters earlier. `lineStartAtOffsetZero` is therefore `false` here
+      // and `true` at both continuation sites — one boolean could not have carried both, and merging
+      // them would put the block explicit-key indicator in a value position where YAML does not give
+      // it that meaning.
+      const scanned = stripComment(rest, FRESH_NODE, true, false);
       cur.state = scanned.state;
       const v = scanned.text.trim();
       // The node begins HERE only if the key line actually carries text. A key line whose value is
