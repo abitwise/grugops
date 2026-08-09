@@ -39,6 +39,7 @@ import {
   rmSync,
 } from "node:fs";
 import { execFileSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -4233,9 +4234,13 @@ describe("frontmatter — the multi-line scalar sweep (D-49 / SPAWN-04 + KIT-03)
   // So neither family was in this sweep's EXPRESSIBLE SPACE — not merely untested. That is the
   // set-literal drift class one level up: `expect(length).toBe(6)` pinned the list against SHRINKING
   // and nothing pinned it against INCOMPLETENESS, which is exactly the corollary the header above
-  // states and this axis then failed to apply. The completeness claim's SOURCE is replaced by a
-  // loader-derived differential in 27-44; this round adds the placements that make the defect class
+  // states and this axis then failed to apply. Round 8 adds the placements that make the defect class
   // expressible at all, so it can be RED before the fix and GREEN after it.
+  //
+  // (27-44, D-52) AND THE COMPLETENESS CLAIM HAS SINCE LEFT THIS AXIS ENTIRELY. It now lives in the
+  // "D-52 loader differential" describe further down this file, whose corpus is GENERATED and whose
+  // expected value is a real YAML 1.2 loader's. The length pin below is a floor against shrinking and
+  // is not, and never was, a statement about coverage.
   const SWEEP_SCALAR_STYLE: readonly {
     readonly label: string;
     readonly build: (l1: string, l2: string) => string;
@@ -4640,15 +4645,47 @@ describe("frontmatter — the multi-line scalar sweep (D-49 / SPAWN-04 + KIT-03)
       ["block-sequence item opening on its own continuation", "sequence dash `-`", "ok", true],
     ];
 
-    // The table covers the WHOLE continuation column, asserted rather than assumed.
+    // ── (27-44, D-52) THE COMPLETENESS CLAIM'S SOURCE IS RETIRED FROM THIS TABLE ────────────────
     //
-    // (D-52) WHAT THIS COMPLETENESS CLAIM IS AND IS NOT, RESTATED NOW THAT THE AXIS HAS GROWN. It is
-    // still a claim about the PRODUCT OF TWO HAND-LISTED AXES, not about the construct — arithmetic
-    // consistency with a longer list is not the same as coverage of YAML. Round 8 grows the list so
-    // both CR-01 families become expressible; `27-44` replaces the claim's SOURCE with a differential
-    // against a real loader over a GENERATED corpus. That hand-off is accounted, never a silent gap.
-    expect(TRUTH.length).toBe(SWEEP_SCALAR_STYLE.length * SWEEP_SIGIL.length);
-    expect(TRUTH.length).toBeGreaterThanOrEqual(12);
+    // WHAT THIS TABLE NO LONGER CLAIMS. Through round 8 the line below was this sweep's COMPLETENESS
+    // claim: `TRUTH.length === STYLE.length * SIGIL.length` was offered as evidence that the table
+    // covered the construct. It never was. It is a claim about the PRODUCT OF TWO HAND-LISTED AXES,
+    // and a claim about hand-listed axes cannot fail on an axis nobody thought of — which is exactly
+    // how a 90-cell sweep passed green over a live spawn-grant bypass. Growing the list from 6 styles
+    // to 12 corrected the ARITY of that claim and left its NATURE untouched.
+    //
+    // WHERE THE CLAIM LIVES NOW: in the case named
+    //   "D-52 loader differential — every loader-accepted cell of a GENERATED corpus agrees with a
+    //    real YAML 1.2 loader on token presence, except the named safe-direction exemptions"
+    // whose corpus is GENERATED from three axes and whose expected value is computed by
+    // `/usr/bin/ruby -ryaml` rather than by anything written in this file.
+    //
+    // WHAT THIS TABLE IS NOW, AND IT IS ADDITIONAL AND NEVER AN ALTERNATIVE: a SECOND, independently
+    // written statement of the expectation over a STATED SUBSET — the continuation column of the D-49
+    // corpus, one row per (style, sigil) pair. It is kept for one reason only: two independent
+    // statements of an expectation mean a single wrong idea has to be had TWICE to survive. It is not
+    // evidence of coverage, and a reader who deletes the harness above and leans on this table has
+    // reinstated the defect WR-01 named.
+    //
+    // The assertion below is therefore an INTERNAL CONSISTENCY FLOOR — every (style, sigil) pair of
+    // the subset this table declares is present exactly once, so a row silently dropped shrinks the
+    // table loudly. It is NOT offered as a completeness statement about YAML.
+    expect(
+      TRUTH.length,
+      "internal consistency of the stated subset (one row per style x sigil of the continuation column) — NOT a completeness claim; the completeness claim is the D-52 loader differential",
+    ).toBe(SWEEP_SCALAR_STYLE.length * SWEEP_SIGIL.length);
+    expect(new Set(TRUTH.map(([s, g]) => `${s}|${g}`)).size).toBe(TRUTH.length);
+
+    // AND THE HAND-OFF IS MECHANICAL, NOT A COMMENT. If the harness that now holds the completeness
+    // claim is deleted or renamed, this case goes RED — so the table can never quietly become the
+    // claim again by outliving the thing that replaced it. A cited case name with nothing checking it
+    // is the comment-without-a-pin shape this phase has corrected three times.
+    const HARNESS_CASE =
+      "D-52 loader differential — every loader-accepted cell of a GENERATED corpus agrees with a real YAML 1.2 loader on token presence, except the named safe-direction exemptions";
+    expect(
+      readFileSync(join(import.meta.dirname, "frontmatter.test.ts"), "utf8"),
+      "the D-52 loader differential holds this sweep's completeness claim; this table is additional and never an alternative",
+    ).toContain(HARNESS_CASE);
 
     for (const [styleLabel, sigilLabel, arm, grant] of TRUTH) {
       const where = `style=${styleLabel} | sigil=${sigilLabel} | placement=continuation`;
@@ -5613,11 +5650,33 @@ describe("frontmatter — the loader differential over a GENERATED corpus (D-52 
       return;
     }
 
+    // THE CORPUS DIGEST, PRINTED. The RED transcript that makes this harness a pin rather than
+    // decoration is produced OUTSIDE the suite, against a mirror of the pre-27-43 build, because a
+    // committed case cannot import a module that stopped existing. "The outside run used the same
+    // corpus" is therefore a claim, and a claim gets a measurement: both runs print this digest, so a
+    // transcript over a different corpus is visible instead of persuasive.
+    const regions = corpus.map((c) =>
+      buildCellRegion(c.keyLine, c.first, c.second),
+    );
+    // A NUL cannot occur in any cell, so it is the one separator that cannot make two different
+    // corpora hash alike. IT IS SPELLED AS AN ESCAPE AND NEVER EMBEDDED RAW: a literal NUL byte in a
+    // source file makes BSD `grep` classify the whole file as binary and report ZERO matches with no
+    // warning, so a reviewer's spot-check of this file would silently come back empty. That happened
+    // once while this harness was being written and is recorded here rather than quietly repaired.
+    const CELL_SEPARATOR = String.fromCharCode(0);
+    const digest = createHash("sha256")
+      .update(regions.join(CELL_SEPARATOR))
+      .digest("hex")
+      .slice(0, 16);
+    // PRINTED on request, never written: an out-of-suite RED run can diff its own corpus against this
+    // one instead of asserting the two match. Nothing touches disk, in keeping with this file's idiom.
+    if (process.env.GRUGOPS_D52_DUMP_CORPUS) {
+      console.log(`D-52 CORPUS DUMP ${JSON.stringify(regions)}`);
+    }
+
     const started = Date.now();
     const raw = execFileSync(RUBY, ["-e", LOADER_PROGRAM], {
-      input: JSON.stringify(
-        corpus.map((c) => buildCellRegion(c.keyLine, c.first, c.second)),
-      ),
+      input: JSON.stringify(regions),
       encoding: "utf8",
       maxBuffer: 64 * 1024 * 1024,
     });
@@ -5680,7 +5739,7 @@ describe("frontmatter — the loader differential over a GENERATED corpus (D-52 
 
     const elapsed = Date.now() - started;
     console.log(
-      `D-52 loader differential — loader ${probe.version} | cells enumerated ${CELLS} | loader-rejected (skipped) ${rejected} | disagreements ${disagreements.length} | ${elapsed}ms`,
+      `D-52 loader differential — loader ${probe.version} | corpus ${digest} | cells enumerated ${CELLS} | loader-rejected (skipped) ${rejected} | disagreements ${disagreements.length} | ${elapsed}ms`,
     );
 
     // NOT ASSERTED EMPTY BY FIAT — the disagreement set is DATA, listed with its three axis labels and
