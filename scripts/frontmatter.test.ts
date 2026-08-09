@@ -5707,6 +5707,108 @@ describe("frontmatter — the multi-line scalar sweep (D-49 / SPAWN-04 + KIT-03)
 });
 
 // ---------------------------------------------------------------------------
+// (27-49, WR-02 / D-56 item 2) THE FLOW-CONTEXT NODE STARTS, DERIVED FROM YAML'S
+// GRAMMAR — THE SET A UNIVERSAL CLAIM MAY STAND OVER
+// ---------------------------------------------------------------------------
+//
+// WHAT REPLACED WHAT, AND WHY. A case below was titled "no mid-line node start YAML defines returns
+// the SILENT no-grant arm" and its evidence was a HAND-LISTED array with no derivation, no
+// cardinality pin and no statement of what set it enumerated. Its length was MEASURED from the
+// committed source at 21 (the round-8 review states eleven; the executor's measurement governs and
+// both numbers are recorded in 27-49-SUMMARY.md). A universal quantifier standing over a literal is
+// this repository's diagnosed second systemic failure class wearing a safety label, and here the
+// claim was not merely unsupported — IT WAS FALSE. The array tracked the spellings a red team had
+// reported: it carried the explicit-key indicator without a space, and it did NOT carry the
+// JSON-adjacent mapping separator one character away. CR-01's families C and H are mid-line node
+// starts YAML defines, inside a flow collection, and BOTH returned the silent no-grant arm.
+//
+// WHAT THIS SET ENUMERATES, STATED SO IT IS NOT GUESSED. Every position at which YAML 1.2 § 7.4
+// admits a NODE inside a FLOW context, crossed with the node properties § 6.9 permits to stand in
+// front of one and with a nesting depth. The productions are:
+//
+//   c-flow-sequence            `[`      — the sequence opener, adjacent and with each separation
+//                                         spelling the format allows (space, tab)
+//   ns-s-flow-seq-entries      `,`      — the entry separator, adjacent and separated
+//   ns-flow-map-separate-value `: `     — the mapping separator in its SEPARATED spelling
+//   c-ns-flow-map-json-key-entry `":`   — the SAME separator in its JSON-ADJACENT spelling, which is
+//                                         a distinct production and is the one families C and H
+//                                         occupy; both its adjacencies are members
+//   c-ns-flow-map-explicit-entry `?`    — the explicit-key indicator, separated and adjacent
+//
+// THE DERIVATION IS NOT A LIST OF SPELLINGS SOMEONE REPORTED. It is the grammar's positions crossed
+// with the two things the grammar says may vary at them, and the cardinality is asserted TWO-SIDED
+// against the product of its three declared lists — so a production deleted, or an axis emptied,
+// fails arithmetically rather than shrinking a universal claim in silence.
+//
+// MEASURED WHEN IT LANDED, on both builds, with `/usr/bin/ruby -ryaml` (ruby 2.6.10 / psych 3.1.0 /
+// libyaml 0.2.1): all 360 cells ACCEPTED by the loader and all 360 carrying the token in the loaded
+// value; SILENT no-grant arm 72 against a `git archive` mirror of 62b8b53 (pre-27-47) — every one of
+// them a JSON-adjacent mapping separator, i.e. exactly the counterexamples the old claim missed —
+// and 0 against this build. THE LOADER PREMISE IS NOT LEFT AS THAT MEASUREMENT: it is re-asserted on
+// every run by `WR-02 the derived flow node-start corpus is LOADABLE` in the D-52 block below, which
+// hands this same enumeration to the same batched loader. A production added later whose documents
+// libyaml will not read fails THERE, by name, instead of quietly turning this sweep into a demand
+// made of documents no platform loads.
+interface FlowNodeStartProduction {
+  readonly label: string;
+  readonly open: string;
+  readonly close: string;
+}
+const FLOW_NODE_START_PRODUCTIONS: readonly FlowNodeStartProduction[] = [
+  { label: "flow sequence opener", open: "[", close: "]" },
+  { label: "flow sequence opener, separated by a space", open: "[ ", close: "]" },
+  { label: "flow sequence opener, separated by a tab", open: "[\t", close: "]" },
+  { label: "flow entry separator, adjacent", open: "[a,", close: "]" },
+  { label: "flow entry separator, separated", open: "[a, ", close: "]" },
+  { label: "flow mapping separator, separated", open: "{k: ", close: "}" },
+  { label: "flow mapping separator, JSON-adjacent", open: '{"k":', close: "}" },
+  {
+    label: "flow mapping separator, JSON-adjacent after a space",
+    open: '{"k" :',
+    close: "}",
+  },
+  { label: "flow explicit-key indicator, separated", open: "{? ", close: ": v}" },
+  { label: "flow explicit-key indicator, adjacent", open: "{?", close: ": v}" },
+];
+// YAML 1.2 § 6.9 — the node properties that may stand in FRONT of a node without consuming its start.
+const FLOW_NODE_PROPERTIES: readonly { readonly label: string; readonly text: string }[] = [
+  { label: "none", text: "" },
+  { label: "tag shorthand", text: "!!str " },
+  { label: "bare non-specific tag", text: "! " },
+  { label: "verbatim tag", text: "!<tag:x> " },
+  { label: "anchor", text: "&t " },
+  { label: "tag and anchor", text: "!!str &t " },
+];
+// A flow collection may nest inside another, and the node start is the same production at every
+// level. Depth is an axis rather than one "three levels deep" row appended to a list.
+const FLOW_NESTINGS: readonly { readonly label: string; readonly open: string; readonly close: string }[] = [
+  { label: "depth 1", open: "", close: "" },
+  { label: "depth 2", open: "[a, ", close: "]" },
+  { label: "depth 3", open: "[a, [b, ", close: "]]" },
+];
+interface FlowNodeStartContext {
+  readonly label: string;
+  readonly open: string;
+  readonly close: string;
+}
+const deriveFlowNodeStartContexts = (): FlowNodeStartContext[] => {
+  const out: FlowNodeStartContext[] = [];
+  for (const production of FLOW_NODE_START_PRODUCTIONS) {
+    for (const property of FLOW_NODE_PROPERTIES) {
+      for (const nesting of FLOW_NESTINGS) {
+        out.push({
+          label: `${production.label} | ${property.label} | ${nesting.label}`,
+          open: `${nesting.open}${production.open}${property.text}`,
+          close: `${production.close}${nesting.close}`,
+        });
+      }
+    }
+  }
+  return out;
+};
+const FLOW_NODE_START_CONTEXTS = deriveFlowNodeStartContexts();
+
+// ---------------------------------------------------------------------------
 // D-52 — THE LOADER DIFFERENTIAL: A GENERATED CORPUS AND AN EXPECTATION THIS FILE
 // DID NOT COMPUTE (27-REVIEW-GAPS-7 § WR-01, round 8)
 // ---------------------------------------------------------------------------
@@ -5921,6 +6023,16 @@ describe("frontmatter — the loader differential over a GENERATED corpus (D-52 
     // MEASURED, PRE-27-47 (a `git archive` mirror of 62b8b53) vs HEAD: 336 cells (7 x 6 x 4 x 2),
     // 196 loader-rejected, and MODULE-SILENT-WHILE-LOADER-GRANTS 54 -> 0. Every one of the seven is
     // red there; none is red here.
+    //
+    // AND THESE FOUR CARRY A UNIVERSAL CLAIM THAT USED TO LIVE ELSEWHERE (27-49, WR-02). The case
+    // `D-51 red-team — no FLOW-CONTEXT node start …` was titled "no MID-LINE node start YAML
+    // defines" while its evidence was a hand-listed array of flow spellings. Its derivation covers
+    // YAML's flow context; the BLOCK-context mid-line node starts — the block mapping separator, the
+    // compact nested sequence, the block explicit key and the block mapping inside a sequence item,
+    // i.e. CR-01 families A, B, F and D — are the first, second, third and sixth members below, and
+    // the loader decides their answer rather than any expectation this file writes. The pointer is
+    // written at BOTH sites deliberately: a relocation stated in one place is a hand-off that will
+    // be lost, which is the same failure mode as a coverage claim made in a comment.
     //
     // THE DECLARED YAML FACTS ARE THE SAME FOR ALL SEVEN, and they are facts about the shape rather
     // than observations: the key line CARRIES the value node (the quoted scalar opened on it), so
@@ -6702,6 +6814,79 @@ describe("frontmatter — the loader differential over a GENERATED corpus (D-52 
         value: ["alpha", "ga - mma"],
       });
     }
+  });
+
+  // ── (27-49, WR-02 / D-56 item 2) THE DERIVED SWEEP'S PREMISE, ASSERTED WHERE THE LOADER LIVES ──
+
+  it("WR-02 the derived flow node-start corpus is LOADABLE and every cell's loaded value GRANTS — the premise the universal sweep rests on", () => {
+    // WHY THIS CASE IS HERE AND NOT BESIDE THE SWEEP. The sweep asserts that no derived context
+    // returns the silent no-grant arm, and its expectation is stated from YAML: inside a quoted
+    // scalar every character is content, so the token survives. That reasoning has a PREMISE — that
+    // each generated document is one a real YAML 1.2 loader reads, with the token in the value it
+    // computes. A production added later whose documents libyaml REJECTS would silently turn the
+    // sweep into a demand made of text no platform loads, and the sweep would go on reading green
+    // while covering less. So the premise is re-measured on every run, in the block that already
+    // owns the batched loader, rather than recorded once in a comment — which is the shape of claim
+    // this module has now found to be false nine times.
+    const probe = probeLoader(RUBY);
+    if (!probe.ok) {
+      console.warn(
+        `SKIPPED WR-02 loadability premise: ${probe.reason}. PRINTED, never silent — ${FLOW_NODE_START_CONTEXTS.length} contexts were derived and no expectation was invented in the loader's absence.`,
+      );
+      return;
+    }
+    const QUOTES: readonly (readonly [string, string])[] = [
+      ["double", '"'],
+      ["single", "'"],
+    ];
+    const cells: { where: string; region: string }[] = [];
+    for (const context of FLOW_NODE_START_CONTEXTS) {
+      for (const [qLabel, q] of QUOTES) {
+        cells.push({
+          where: `${context.label} | ${qLabel}-quoted`,
+          region: `name: x\ntools: ${context.open}${q}Read,\n  # x, ${HARNESS_TOKEN}${q}${context.close}\n`,
+        });
+      }
+    }
+    expect(cells.length).toBe(FLOW_NODE_START_CONTEXTS.length * QUOTES.length);
+    expect(cells.length).toBeGreaterThan(0);
+    // Same batched one-process discipline as the differential above: one crossing of the boundary.
+    const verdicts = JSON.parse(
+      execFileSync(RUBY, ["-e", LOADER_PROGRAM], {
+        input: JSON.stringify(cells.map((c) => c.region)),
+        encoding: "utf8",
+        maxBuffer: 64 * 1024 * 1024,
+      }),
+    ) as { accepted: boolean; value?: string; error?: string }[];
+    expect(
+      verdicts.length,
+      "a truncated loader batch must fail arithmetically rather than silently shorten the premise",
+    ).toBe(cells.length);
+
+    const unreadable: string[] = [];
+    const tokenless: string[] = [];
+    for (let i = 0; i < cells.length; i += 1) {
+      if (!verdicts[i].accepted) {
+        unreadable.push(`${cells[i].where}\t${verdicts[i].error}`);
+        continue;
+      }
+      if (!(verdicts[i].value ?? "").includes(HARNESS_TOKEN)) {
+        tokenless.push(
+          `${cells[i].where}\tloader-value=${JSON.stringify(verdicts[i].value)}`,
+        );
+      }
+    }
+    expect(
+      unreadable,
+      `a derived flow node-start context whose document libyaml will not read makes the sweep a demand over text no platform loads:\n${unreadable.join("\n")}`,
+    ).toEqual([]);
+    expect(
+      tokenless,
+      `a derived context whose LOADED value does not carry the token cannot support "the token always survives" — the sweep's YAML-stated expectation does not hold there:\n${tokenless.join("\n")}`,
+    ).toEqual([]);
+    console.log(
+      `WR-02 derived flow node-start premise — loader ${probe.version} | contexts ${FLOW_NODE_START_CONTEXTS.length} (${FLOW_NODE_START_PRODUCTIONS.length} productions x ${FLOW_NODE_PROPERTIES.length} node properties x ${FLOW_NESTINGS.length} nestings) | cells ${cells.length} | loader-rejected ${unreadable.length} | token absent from the loaded value ${tokenless.length}`,
+    );
   });
 
   // ── (27-49, WR-01 / D-56 item 1) THE BUILDER IS COUNTED, NOT TRUSTED ─────────────────────────
@@ -7768,41 +7953,41 @@ describe("frontmatter — D-51: one walk decides what crosses a line boundary (C
     );
   });
 
-  it("D-51 red-team — no mid-line node start YAML defines returns the SILENT no-grant arm", () => {
+  it("D-51 red-team — no FLOW-CONTEXT node start YAML defines returns the SILENT no-grant arm, over a set DERIVED from § 7.4's productions", () => {
+    // (27-49, WR-02 / D-56 item 2) THE TITLE NAMES ITS BOUND, AND THE BOUND IS WHY. The disposition
+    // here is DERIVE — the contexts below come from YAML's grammar rather than from a hand list —
+    // and the derivation covers YAML's FLOW context. The title used to say "no mid-line node start
+    // YAML defines", which is WIDER than any flow-context derivation can be: the block mapping
+    // separator, the compact nested sequence, the block explicit key and the block mapping inside a
+    // sequence item are mid-line node starts YAML defines too, and they are CR-01 families A, B, F
+    // and D. Deriving the flow half and leaving the wider title standing would have been WR-02
+    // repeated one level out — a universal claim over a set that does not contain its own
+    // counterexamples — so the quantifier is scoped to what the evidence supports.
+    //
+    // WHERE THE BLOCK-CONTEXT HALF LIVES, NAMED HERE AND NAMED THERE. Those four families are
+    // members of the D-52 GENERATED corpus's key-line axis, where a real YAML 1.2 loader — not this
+    // file — decides the answer for each cell: see `D-52 loader differential` and, for the mechanism
+    // that keeps them there, `WR-01 the expressibility floor`, which derives the module's own ledger
+    // at run time and fails by name if a ledger family stops being buildable. The reciprocal
+    // pointer is written at the seven new key-line members, because a relocation stated in only one
+    // place is a hand-off that will be lost.
+    //
     // THE EXPECTATION IS STATED FROM YAML AND NOT FROM THE MODULE. Inside a quoted scalar every
     // character is content (YAML 1.2 § 7.3), so a token behind a `#` on the continuation line always
     // survives. The module may therefore GRANT it, or REFUSE the document loudly under its declared
     // anchor/alias policy (D-30) — but `{ok:true,value:false}` over a document that plainly carries
     // the token is this module's founding failure and is the ONE outcome forbidden here.
     //
-    // THE CONTEXT LIST IS YAML'S FLOW GRAMMAR, NOT A LIST OF REPORTED SPELLINGS: the collection
-    // openers, the entry separator, the mapping separator, the explicit-key indicator, and node
-    // properties in front of any of them, at depth 1 and nested. 27-44 replaces this hand-listed
-    // enumeration with a generated differential against a real loader; until then the property it
-    // asserts is the one that matters, over the positions this round could name.
-    const CONTEXTS: readonly (readonly [string, string, string])[] = [
-      ["flow sequence opener", "[", "]"],
-      ["flow sequence opener + space", "[ ", "]"],
-      ["flow sequence opener + tab", "[\t", "]"],
-      ["after a flow entry separator", "[a,", "]"],
-      ["after a flow entry separator + space", "[a, ", "]"],
-      ["nested flow sequence opener", "[[", "]]"],
-      ["nested flow sequence after a comma", "[a, [b,", "]]"],
-      ["after a flow mapping separator", "{k: ", "}"],
-      ["nested flow mapping separator", "{k: {j: ", "}}"],
-      ["flow mapping inside a flow sequence", "[a, {k: ", "}]"],
-      ["flow explicit-key indicator", "{? ", ": v}"],
-      ["flow explicit-key indicator, no space", "{?", ": v}"],
-      ["tag shorthand at a flow node start", "[!!str ", "]"],
-      ["bare non-specific tag at a flow node start", "[! ", "]"],
-      ["verbatim tag at a flow node start", "[!<tag:x> ", "]"],
-      ["tag after a flow mapping separator", "{k: !!str ", "}"],
-      ["tag after a flow entry separator", "[a, !!str ", "]"],
-      ["anchor at a flow node start", "[&t ", "]"],
-      ["anchor after a flow mapping separator", "{k: &t ", "}"],
-      ["tag and anchor at a flow node start", "[!!str &t ", "]"],
-      ["three levels deep", "[a, [b, {c: ", "}]]"],
-    ];
+    // (27-49, WR-02 / D-56 item 2) THE TITLE'S UNIVERSAL QUANTIFIER NOW HAS A DERIVATION UNDER IT.
+    // Its evidence used to be a hand-listed array of 21 prefixes — measured from the committed
+    // source, not taken from the review, which stated eleven — with no derivation, no cardinality
+    // pin and no statement of what set it enumerated. The claim it carried was FALSE: the array
+    // tracked reported spellings, so it held the explicit-key indicator WITHOUT a space and not the
+    // JSON-adjacent mapping separator one character away, and CR-01's families C and H both returned
+    // the silent arm. The literal list is DELETED, not kept beside the derivation. What the contexts
+    // enumerate is declared at `FLOW_NODE_START_PRODUCTIONS` above, and the cardinality is asserted
+    // two-sided below against the product of its three lists.
+    const CONTEXTS = FLOW_NODE_START_CONTEXTS;
     const QUOTES: readonly (readonly [string, string])[] = [
       ["double", '"'],
       ["single", "'"],
@@ -7810,10 +7995,12 @@ describe("frontmatter — D-51: one walk decides what crosses a line boundary (C
 
     let swept = 0;
     const silent: string[] = [];
-    for (const [label, open, close] of CONTEXTS) {
+    for (const context of CONTEXTS) {
       for (const [qLabel, q] of QUOTES) {
-        const where = `${label} | ${qLabel}-quoted`;
-        const text = doc(`tools: ${open}${q}Read,\n  # x, ${TOKEN}${q}${close}`);
+        const where = `${context.label} | ${qLabel}-quoted`;
+        const text = doc(
+          `tools: ${context.open}${q}Read,\n  # x, ${TOKEN}${q}${context.close}`,
+        );
         const verdict = hasSpawnGrant(text);
         swept += 1;
         if (verdict.ok && verdict.value === false) silent.push(where);
@@ -7823,9 +8010,34 @@ describe("frontmatter — D-51: one walk decides what crosses a line boundary (C
       silent,
       `mid-line node starts returning the SILENT no-grant arm over a live grant (${swept} cell(s) swept):\n${silent.join("\n")}`,
     ).toEqual([]);
-    // Both numbers derived here; the sweep must not be able to pass by being empty.
+    // BOTH DERIVED COUNT ASSERTIONS SURVIVE, so the sweep still cannot pass by being empty — and a
+    // THIRD is added, two-sided against the product of the three declared lists, so the derivation
+    // cannot shrink under a universal title.
     expect(swept).toBe(CONTEXTS.length * QUOTES.length);
     expect(swept).toBeGreaterThan(0);
+    expect(
+      CONTEXTS.length,
+      `the derived context count must equal the product of the enumerated productions (${FLOW_NODE_START_PRODUCTIONS.length}), the node properties (${FLOW_NODE_PROPERTIES.length}) and the nesting depths (${FLOW_NESTINGS.length})`,
+    ).toBe(
+      FLOW_NODE_START_PRODUCTIONS.length *
+        FLOW_NODE_PROPERTIES.length *
+        FLOW_NESTINGS.length,
+    );
+    // Every derived context is distinct, so a collision cannot make two look like one.
+    expect(new Set(CONTEXTS.map((c) => c.label)).size).toBe(CONTEXTS.length);
+    // THE COUNTEREXAMPLES THAT FALSIFIED THE OLD CLAIM ARE MEMBERS, asserted rather than assumed.
+    // Measured against a `git archive` mirror of 62b8b53 (pre-27-47): 72 of these cells returned the
+    // silent no-grant arm and EVERY ONE was a JSON-adjacent mapping separator — families C and H.
+    // Against this build, 0. Transcripts in 27-49-SUMMARY.md.
+    for (const spelling of [
+      "flow mapping separator, JSON-adjacent",
+      "flow mapping separator, JSON-adjacent after a space",
+    ]) {
+      expect(
+        CONTEXTS.some((c) => c.label.startsWith(`${spelling} |`)),
+        `${spelling}: the spelling that falsified this case's previous universal claim must be a member of the set it now stands over`,
+      ).toBe(true);
+    }
   });
 
   // ── IN-03 (D-53): THE ITEM PATH'S INVARIANT IS ASSERTED, AND THE ASSERTION CAN FIRE ────────────
