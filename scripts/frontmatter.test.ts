@@ -1633,6 +1633,75 @@ describe("frontmatter — the spawn-grant parser oracle (SPAWN-04 / KIT-03)", ()
     }
   });
 
+  it("CR-01 round 10 UNION — the escape combined with every mid-line node start the walk's OTHER arms decide, and with both quote styles in one value", () => {
+    // THE ROUND-8 LESSON, APPLIED TO THIS ROUND'S FIX: splitting a predicate into arms demands testing
+    // their UNION. The escape skip is one arm of `stripComment`'s character chain; the mid-line node
+    // starts (the block mapping separator, the block mapping inside a sequence item, the JSON-adjacent
+    // flow mapping, the block explicit key, the compact nested sequence) are decided by OTHER arms.
+    // Each was pinned alone; a document that exercises BOTH at once was not. Every row below carries
+    // its loader value, and every row is a document `/usr/bin/ruby -ryaml` ACCEPTS with the grant in
+    // the loaded value. The last two are the both-quote-styles-in-one-value union.
+    const UNION: readonly (readonly [string, string, string])[] = [
+      [
+        "escape + a nested block mapping's value",
+        "tools:\n  nested: 'Read'' s,\n  # x, Agent(grugops-orchestrator)'",
+        '{"nested"=>"Read\' s, # x, Agent(grugops-orchestrator)"}',
+      ],
+      [
+        "escape + a block mapping inside a sequence item",
+        "tools:\n  - a: 'Read'' s,\n    # x, Agent(grugops-orchestrator)'",
+        '[{"a"=>"Read\' s, # x, Agent(grugops-orchestrator)"}]',
+      ],
+      [
+        "escape + a JSON-adjacent flow mapping",
+        "tools: {'a':'Read'' s,\n  # x, Agent(grugops-orchestrator)'}",
+        '{"a"=>"Read\' s, # x, Agent(grugops-orchestrator)"}',
+      ],
+      [
+        "escape + a block explicit key at continuation depth 3",
+        "tools:\n  ? 'Read'' s,\n    Third,\n    # x, Agent(grugops-orchestrator)'\n  : v",
+        '{"Read\' s, Third, # x, Agent(grugops-orchestrator)"=>"v"}',
+      ],
+      [
+        "escape + a compact nested sequence",
+        "tools:\n  - - 'Read'' s,\n      # x, Agent(grugops-orchestrator)'",
+        '[["Read\' s, # x, Agent(grugops-orchestrator)"]]',
+      ],
+      [
+        "escape + a flow mapping inside a flow sequence",
+        "tools: [{'a':'Read'' s,\n  # x, Agent(grugops-orchestrator)'}]",
+        '[{"a"=>"Read\' s, # x, Agent(grugops-orchestrator)"}]',
+      ],
+      [
+        "BOTH quote styles in one value, each carrying its own escape",
+        "tools: ['Read'' s,\n  # x, Agent(grugops-orchestrator)', \"Write\\\" q\"]",
+        '["Read\' s, # x, Agent(grugops-orchestrator)", "Write\\" q"]',
+      ],
+      [
+        "a double-quote escape in the KEY and a single-quote escape in the value",
+        "tools: {\"a\\\"b\": 'Read'' s,\n  # x, Agent(grugops-orchestrator)'}",
+        '{"a\\"b"=>"Read\' s, # x, Agent(grugops-orchestrator)"}',
+      ],
+    ];
+    for (const [label, region, loaderValue] of UNION) {
+      const text = `---\nname: grugops-plan\n${region}\n---\nBody.\n`;
+      expect(
+        hasSpawnGrant(text),
+        `${label} — the loader reads this as ${loaderValue}`,
+      ).toEqual({ ok: true, value: true });
+      expect(grantedAgentNames(text), label).toEqual({
+        ok: true,
+        value: ["grugops-orchestrator"],
+      });
+    }
+    // Non-vacuity: the union set is really a set of documents that each exercise TWO arms.
+    expect(UNION.length).toBeGreaterThan(5);
+    expect(
+      UNION.filter(([, region]) => region.includes("''")).length,
+      "every union row must carry the escape arm, or it is not a union",
+    ).toBe(UNION.length);
+  });
+
   it("CR-01 — a MERGE KEY document lands in the failure arm (refused by KEY_LINE, not by a second branch)", () => {
     // ISOLATING KEY_LINE. `<<:` on its own reaches no reference test at all: `KEY_LINE` requires
     // `[A-Za-z_]` at the key start, so `<` fails it and the line is already unreadable. Asserting the

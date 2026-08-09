@@ -539,3 +539,119 @@ round-8 verification record (`27-VERIFICATION.md` § `human_verification`) left 
 - **Suggested direction:** any future corpus-wide oracle over this module should drive its expected
   value through the same normalization chain the parser applies (the BOM strip and the CRLF
   normalization at `frontmatter.ts:2229`), derived from the source rather than remembered.
+
+## From 27-51 (round 10, 27-REVIEW § CR-01 + WR-01 + IN-02) — the CR-01 escape family CLOSED, family G/G2 RE-MEASURED and STILL OPEN
+
+- **What `27-51` touched.** `scripts/frontmatter.ts` — one branch inside `stripComment`'s
+  `else if (c === "'" && !dq)` arm — plus the rebuilt `scripts/frontmatter.js`,
+  `scripts/frontmatter.test.ts` and `scripts/fixtures/frontmatter-singleline-pre-d54.json`. No other
+  production source file was edited; no dependency was added; `package.json` is byte-unchanged.
+
+- **CR-01, PRE and POST, with `/usr/bin/ruby -ryaml` (ruby 2.6.10 / psych 3.1.0 / libyaml 0.2.1) as
+  the loader column.** Every row is a document the loader ACCEPTS with `Agent(grugops-orchestrator)`
+  plainly in the loaded value. PRE is the committed build at `d5c69e0` on a `git archive` mirror;
+  POST is the rebuilt committed `.js`:
+
+  | row | region under `tools:` | loader value | PRE (`d5c69e0`) | POST |
+  |---|---|---|---|---|
+  | A | `'Read'' s,` / `  # x, TOKEN'` | `"Read' s, # x, TOKEN"` | `{ok:true,value:false}`, names `[]` | `{ok:true,value:true}`, names `["grugops-orchestrator"]` |
+  | B | `'Read''s,` / `  # x, TOKEN'` | `"Read's, # x, TOKEN"` | `{ok:true,value:false}`, names `[]` | `{ok:true,value:true}` |
+  | C | `` / `  - 'Read'' s,` / `    # x, TOKEN'` | `["Read' s, # x, TOKEN"]` | `{ok:true,value:false}`, names `[]` | `{ok:true,value:true}` |
+  | D | `['Read'' s,` / `  # x, TOKEN']` | `["Read' s, # x, TOKEN"]` | `{ok:true,value:false}`, names `[]` | `{ok:true,value:true}` |
+  | F control (no `''`) | `'Read,` / `  # x, TOKEN'` | `"Read, # x, TOKEN"` | `{ok:true,value:true}` | `{ok:true,value:true}` — **byte-identical** |
+  | `'a'''` control | — | `"a'"` | `{ok:true,value:false}` | `{ok:true,value:false}` — unmoved |
+  | `''` control | — | `""` | `{ok:true,value:false}` | `{ok:true,value:false}` — unmoved |
+
+  **At the gate**, on hermetic mirrors with the row planted on BOTH distribution twins of the
+  non-coordinator `plan` skill (`skills/plan/SKILL.md` and `.claude/skills/grugops-plan/SKILL.md`),
+  so the D-40 pair rule stays satisfied:
+
+  ```
+  PRE-FIX  unplanted   :: exit=0 :: ALL CHECKS PASSED
+  PRE-FIX  row A       :: exit=0 :: ALL CHECKS PASSED      <-- the live bypass
+  PRE-FIX  row F       :: exit=1 :: 1 CHECK(S) FAILED (WR-05)
+  POST-FIX unplanted   :: exit=0 :: ALL CHECKS PASSED
+  POST-FIX row A       :: exit=1 :: 1 CHECK(S) FAILED (WR-05 coordinator-spawn-grant violation)
+  POST-FIX row F       :: exit=1 :: 1 CHECK(S) FAILED (WR-05)
+  POST-FIX `'a'''`     :: exit=0 :: ALL CHECKS PASSED      <-- control unmoved
+  POST-FIX `''`        :: exit=0 :: ALL CHECKS PASSED      <-- control unmoved
+  ```
+
+- **THE FAMILY G/G2 BYPASS RE-MEASURED AGAINST THIS BUILD, NOT ASSUMED UNCHANGED.** `27-51` edits the
+  same file family G lives in, so it is measured rather than inherited:
+
+  | row | region under `tools:` | module on THIS build | loader |
+  |---|---|---|---|
+  | G  | `  nested: >-` / `    Read,` / `    # x, TOKEN` | `{ok:true,value:false}`, names `[]` — **STILL OPEN** | `ACCEPT "nested: Read, # x, TOKEN"` |
+  | G2 | `  - >-` / `    Read,` / `    # x, TOKEN` | `{ok:true,value:false}`, names `[]` — **STILL OPEN** | `ACCEPT ["Read, # x, TOKEN"]` |
+  | g5 | `  nested: \|` / `    Agent(alpha, ga` / `    - mma)` | names `["alpha","ga - mma"]` | `["alpha","ga\n- mma"]` — **still not equal** |
+
+  At the gate, on a hermetic mirror of the post-fix tree with the row planted on both distribution
+  twins of the same non-coordinator skill:
+
+  ```
+  FAMILY G  nested folded block scalar      :: exit=0 :: ALL CHECKS PASSED   <-- STILL OPEN
+  FAMILY G2 block scalar as a sequence item :: exit=0 :: ALL CHECKS PASSED   <-- STILL OPEN
+  ```
+
+  **`27-51` neither opened nor closed this family, and nothing in `27-51` may be read as evidence
+  that the module is bypass-free.** `BLOCK_INDICATOR` is still tested at exactly ONE of the places
+  YAML allows a block-scalar header. `27-52` owns it. The false-red cost of the obvious alternative
+  is quantified in the `27-47` entry above and is unchanged.
+
+- **THE HARNESS GAP THIS PLAN ALSO CLOSED, WITH ITS NUMBERS.** The D-52 differential's corpus opened a
+  scalar mid-line nine times and spelled the DOUBLE quote every time, so CR-01's family was outside
+  its shape space rather than untested. A quote-style axis and an in-scalar-escape axis, both DERIVED
+  from the base shapes' own fields, take the key-line axis from 20 to 47 and the corpus from 960 to
+  2256 cells (loader-accepted 565 -> 1285). Against a hermetic mirror of the pre-fix commit the SAME
+  corpus (digest `7415d65727e61642`, printed by both runs) reports **180** cells in the
+  never-exemptible `module=no-grant / loader=grant` direction and **90** name-set disagreements; the
+  pre-change 960-cell corpus reported **0 of each** over the same live bypass. The non-vacuity floor
+  is proven load-bearing: with both new axes collapsed it fails, naming `full 565 vs collapsed 565`.
+
+### The two adversarial passes this plan ran, recorded whether or not they found anything
+
+- **PASS (a) — *what does this predicate ENUMERATE that it must DERIVE?*** 20 probes over every
+  remaining place `stripComment`'s character chain names a literal character: the double-quote escape
+  arm (an escape at end-of-scalar, a dangling backslash), the comment condition (`#` after a comma,
+  after a `[`, after a `:` with no space, after a tab), the flow-collection arms (a `]` at depth 0 —
+  the underflow clamp), the node-property arm (a tag, a verbatim tag and an anchor standing in front
+  of a single-quoted scalar carrying the escape), and the mapping separator's JSON-like route in
+  BLOCK context. **0 unsafe.** The six refusals (`\` escapes, the three reference constructs, the
+  no-space `:`) are D-30's declared refuse-by-default policy — the loud direction, never a hidden
+  grant. The two block-context JSON-like-key probes are REJECTED by the loader, so the module's
+  silence there agrees with a loader that has no value to grant from.
+
+- **PASS (b) — *what is this predicate's INPUT ASSEMBLED from?*** 24 probes walking backwards from
+  `hasSpawnGrant` through `grantedAgentNames`, the flush join, `unquoteChecked`, `flattenBlock`'s
+  three seeding sites and `stripComment`: a `''` pair SPLIT by the line break, the second quote of a
+  pair at offset 0 of a continuation, a value that merely LOOKS wrapped (`'a', 'b'`), an escape
+  inside an enumerated name, an escape splitting the `Agent(` token, an open escape-carrying scalar
+  reaching the block-sequence ITEM path (a `assertItemPathScalarClosed` throw would be a regression —
+  none occurred), the `allowed-tools` spelling, and the eight UNION rows. **0 unsafe.**
+
+- **THE UNION, run as its own set because splitting a predicate into arms demands testing their
+  union (the round-8 lesson).** Eight documents that exercise the escape arm TOGETHER with an arm the
+  fix did not touch — a nested block mapping's value, a block mapping inside a sequence item, a
+  JSON-adjacent flow mapping, a block explicit key at continuation depth 3, a compact nested
+  sequence, a flow mapping inside a flow sequence, both quote styles in one value, and a
+  double-quote escape in the KEY beside a single-quote escape in the value. All eight are
+  loader-ACCEPTED with the grant in the value and all eight now return the grant arm; three of them
+  were planted at the gate on both distribution twins and each took it from exit 0 to exit 1. They
+  ship as a committed case (`CR-01 round 10 UNION`).
+
+### R1 — the red team's OWN oracle was defeated by not modelling its input, for the SECOND round running
+
+- The first run of both passes reported **three** `module grants where the loader does not`
+  divergences (`b4`, `b5`, `b23`). None was a module defect; all three were the probe's own oracle:
+  - it read only the `tools` key, so a grant under `allowed-tools` read as a module invention;
+  - it decided "the loader grants" with a substring test for ONE token spelling, while the module's
+    predicate also grants on a BARE `Agent` — so `Agent'(x)` is a grant the substring missed.
+- **This is `27-50`'s R3 entry happening again, in the same shape, one round later**, and it is
+  recorded rather than quietly repaired. The fix is the one the D-52 harness already uses: DELEGATE
+  the loader-side verdict to the module's own `keysHaveSpawnGrant` run over the LOADER'S flattened
+  value, so the two sides differ only in whose value they read and never in how it was rendered.
+  With the delegated oracle both passes report 0 unsafe over all 44 probes.
+- **Suggested direction:** the delegation is written down in three places now (the D-52 differential,
+  its named-region arm, and this plan's throwaway probe). A red team's oracle is a predicate like any
+  other and should be built from the module's declared consumers rather than re-derived per session.
