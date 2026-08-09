@@ -1,15 +1,15 @@
 ---
 schema_version: 1
-open_count: 5
+open_count: 6
 waived_count: 0
 fixed_count: 0
-total_count: 5
-last_updated: 2026-08-04T07:22:51.768Z
+total_count: 6
+last_updated: 2026-08-09T10:23:33.078Z
 ---
 
 # Broken Windows Ledger
 
-> Cross-phase defect register. `/gsd-ship` blocks while `open_count > 0`.
+> Cross-phase defect register. With `workflow.windows_enforce` enabled, `/gsd-ship` blocks while `open_count > 0`.
 > Waive with `gsd-tools windows waive <id> "<reason>"` (reason required).
 > Mark fixed with `gsd-tools windows fixed <id>`.
 
@@ -20,6 +20,7 @@ last_updated: 2026-08-04T07:22:51.768Z
 | 3 | 27 | deviation | scripts/frontmatter.ts |  | Quoted-wrapped-continuation false-red residual: a double-quoted scalar wrapping onto a line starting with & or * is refused though those bytes are literal; dispositioned accept under T-27-94 (fails closed, no shipped surface produces it) | open |  | 2026-07-30T13:06:23.456Z |  |
 | 4 | 27 | deviation | scripts/check-foundation-guards.ts |  | IN-03 (round 5) still live: guardKitCounts asserts per-part SET equality but never asserts the four parts EXHAUST the composition, so a member under no part prefix is unreported by the guard; pinned only over a fixture in kit-model.test.ts. Deliberately out of scope for 27-37 (D-47 names only the catch-swallow). | open |  | 2026-08-04T06:58:26.002Z |  |
 | 5 | 27 | deviation | scripts/frontmatter.test.ts |  | 27-38 false-red control: only 1 scoped grant enumeration exists across all 33 spawn-grant scan members, so 'zero false reds across 33 members' rests on one enumeration (the coordinator's 16-name grant), not 33 | open |  | 2026-08-04T07:22:51.768Z |  |
+| 6 | 27 | deviation | scripts/validate-agent-factory.ts |  | Not a spawn-grant surface (0 spawn / 0 frontmatter / 0 wr05); the round-7 'validator printed ALL CHECKS PASSED' criterion is unsatisfiable and is owned by no round-8 plan. 27-44-SUMMARY.md recommends retiring it. | open |  | 2026-08-09T10:23:33.078Z |  |
 
 ````json
 [
@@ -81,6 +82,18 @@ last_updated: 2026-08-04T07:22:51.768Z
     "status": "open",
     "reason": "",
     "recorded_at": "2026-08-04T07:22:51.768Z",
+    "resolved_at": null
+  },
+  {
+    "id": 6,
+    "kind": "deviation",
+    "phase": "27",
+    "file": "scripts/validate-agent-factory.ts",
+    "line": null,
+    "description": "Not a spawn-grant surface (0 spawn / 0 frontmatter / 0 wr05); the round-7 'validator printed ALL CHECKS PASSED' criterion is unsatisfiable and is owned by no round-8 plan. 27-44-SUMMARY.md recommends retiring it.",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-08-09T10:23:33.078Z",
     "resolved_at": null
   }
 ]
