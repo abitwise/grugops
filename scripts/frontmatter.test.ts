@@ -5888,6 +5888,110 @@ describe("frontmatter — D-51: one walk decides what crosses a line boundary (C
     expect(toolsOf(text)).not.toContain(",,");
   });
 
+  // ── THE RED-TEAM FINDINGS AGAINST D-51 ITSELF (round 8, self-reproduced) ───────────────────────
+  //
+  // A GREEN SUITE IS NEVER EVIDENCE OF ABSENCE, SO THE FIX WAS ATTACKED BEFORE IT WAS CALLED DONE.
+  // The first draft of D-51's scanner passed every case above and every gate, and STILL returned the
+  // silent no-grant arm on two mid-line node starts it did not enumerate:
+  //
+  //   `tools: [!!str "Read,` / `  # x, TOKEN"]`     -> {ok:true,value:false}, libyaml reads the grant
+  //   `tools: {? "Read,` / `  # x, TOKEN": v}`      -> {ok:true,value:false}, libyaml reads the grant
+  //
+  // Both are the SAME question the whole plan is about — *may a node begin at this offset* — asked of
+  // positions YAML defines and the first draft's enumeration missed: a node PROPERTY stands in front
+  // of a node start (YAML 1.2 § 6.9) and `?` introduces the key node inside a flow mapping (§ 7.4).
+  // The remedy was to complete the rule against YAML's own list, not to add the two reported cells.
+
+  it("D-51 red-team — a tag or an anchor standing in front of a mid-line node start does not consume it", () => {
+    // FIRST DRAFT of D-51: {ok:true,value:false}, tools=["[!!str \"Read,"] — a live grant on the
+    // silent no-grant arm. libyaml: ["Read, # x, Agent(grugops-orchestrator)"].
+    const tagged = doc(`tools: [!!str "Read,\n  # x, ${TOKEN}"]`);
+    expect(hasSpawnGrant(tagged)).toEqual({ ok: true, value: true });
+    expect(toolsOf(tagged)).toContain(TOKEN);
+
+    // The bare and verbatim tag spellings are the same rule, not two more cells.
+    expect(hasSpawnGrant(doc(`tools: [! "Read,\n  # x, ${TOKEN}"]`))).toEqual({
+      ok: true,
+      value: true,
+    });
+    expect(
+      hasSpawnGrant(doc(`tools: [!<tag:x> "Read,\n  # x, ${TOKEN}"]`)),
+    ).toEqual({ ok: true, value: true });
+    expect(
+      hasSpawnGrant(doc(`tools: {k: !!str "Read,\n  # x, ${TOKEN}"}`)),
+    ).toEqual({ ok: true, value: true });
+
+    // AND THE PROPERTY RULE NEVER CREATES A NODE START WHERE THERE IS NONE — it only declines to
+    // clear one. These are the plain-scalar controls that would go wrong if it did, and their values
+    // are byte-identical to the pre-D-51 build's.
+    expect(toolsOf(doc(`tools: R&D, it's !important`))).toBe(
+      "R&D, it's !important",
+    );
+    expect(toolsOf(doc(`tools: Read,\n  R&D "x,\n  # y, ${TOKEN}"`))).toBe(
+      'Read, R&D "x,',
+    );
+  });
+
+  it("D-51 red-team — no mid-line node start YAML defines returns the SILENT no-grant arm", () => {
+    // THE EXPECTATION IS STATED FROM YAML AND NOT FROM THE MODULE. Inside a quoted scalar every
+    // character is content (YAML 1.2 § 7.3), so a token behind a `#` on the continuation line always
+    // survives. The module may therefore GRANT it, or REFUSE the document loudly under its declared
+    // anchor/alias policy (D-30) — but `{ok:true,value:false}` over a document that plainly carries
+    // the token is this module's founding failure and is the ONE outcome forbidden here.
+    //
+    // THE CONTEXT LIST IS YAML'S FLOW GRAMMAR, NOT A LIST OF REPORTED SPELLINGS: the collection
+    // openers, the entry separator, the mapping separator, the explicit-key indicator, and node
+    // properties in front of any of them, at depth 1 and nested. 27-44 replaces this hand-listed
+    // enumeration with a generated differential against a real loader; until then the property it
+    // asserts is the one that matters, over the positions this round could name.
+    const CONTEXTS: readonly (readonly [string, string, string])[] = [
+      ["flow sequence opener", "[", "]"],
+      ["flow sequence opener + space", "[ ", "]"],
+      ["flow sequence opener + tab", "[\t", "]"],
+      ["after a flow entry separator", "[a,", "]"],
+      ["after a flow entry separator + space", "[a, ", "]"],
+      ["nested flow sequence opener", "[[", "]]"],
+      ["nested flow sequence after a comma", "[a, [b,", "]]"],
+      ["after a flow mapping separator", "{k: ", "}"],
+      ["nested flow mapping separator", "{k: {j: ", "}}"],
+      ["flow mapping inside a flow sequence", "[a, {k: ", "}]"],
+      ["flow explicit-key indicator", "{? ", ": v}"],
+      ["flow explicit-key indicator, no space", "{?", ": v}"],
+      ["tag shorthand at a flow node start", "[!!str ", "]"],
+      ["bare non-specific tag at a flow node start", "[! ", "]"],
+      ["verbatim tag at a flow node start", "[!<tag:x> ", "]"],
+      ["tag after a flow mapping separator", "{k: !!str ", "}"],
+      ["tag after a flow entry separator", "[a, !!str ", "]"],
+      ["anchor at a flow node start", "[&t ", "]"],
+      ["anchor after a flow mapping separator", "{k: &t ", "}"],
+      ["tag and anchor at a flow node start", "[!!str &t ", "]"],
+      ["three levels deep", "[a, [b, {c: ", "}]]"],
+    ];
+    const QUOTES: readonly (readonly [string, string])[] = [
+      ["double", '"'],
+      ["single", "'"],
+    ];
+
+    let swept = 0;
+    const silent: string[] = [];
+    for (const [label, open, close] of CONTEXTS) {
+      for (const [qLabel, q] of QUOTES) {
+        const where = `${label} | ${qLabel}-quoted`;
+        const text = doc(`tools: ${open}${q}Read,\n  # x, ${TOKEN}${q}${close}`);
+        const verdict = hasSpawnGrant(text);
+        swept += 1;
+        if (verdict.ok && verdict.value === false) silent.push(where);
+      }
+    }
+    expect(
+      silent,
+      `mid-line node starts returning the SILENT no-grant arm over a live grant (${swept} cell(s) swept):\n${silent.join("\n")}`,
+    ).toEqual([]);
+    // Both numbers derived here; the sweep must not be able to pass by being empty.
+    expect(swept).toBe(CONTEXTS.length * QUOTES.length);
+    expect(swept).toBeGreaterThan(0);
+  });
+
   // ── IN-03 (D-53): THE ITEM PATH'S INVARIANT IS ASSERTED, AND THE ASSERTION CAN FIRE ────────────
 
   it("D-53 IN-03 — the item path's carried quote is null, and the assertion that says so is load-bearing", () => {

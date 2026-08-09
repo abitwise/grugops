@@ -370,6 +370,22 @@ function startsWithReference(text) {
     }
     return false;
 }
+// (D-51, red-team round) THE NODE PROPERTIES THAT STAND IN FRONT OF A NODE START WITHOUT CONSUMING
+// IT — WRITTEN FROM THE SAME GRAMMAR `LEADING_TAG` AND `YAML_REF` ALREADY DECLARE, NEVER A SECOND ONE.
+//
+// YAML 1.2 § 6.9: a node's PROPERTIES (its tag and/or its anchor) precede the node's content. So at a
+// position where a node may begin, `!!str`, `!<verbatim>`, a bare `!` and `&name` are all still
+// BEFORE the node — the scalar that follows them opens at a node start, and its quote is a real
+// quote. The tag alternative below is `LEADING_TAG`'s body character-for-character (indicator, then
+// either a verbatim `<…>` or the run of non-space non-flow characters); the anchor alternative is
+// `YAML_REF`'s `&` arm with that same run. Two spellings of one grammar in this module would be the
+// weaker-duplicate shape it deletes on sight, so these are the SAME spellings, reused.
+//
+// WHY THIS CANNOT REOPEN THE PLAIN-SCALAR APOSTROPHE HOLE. It is consulted ONLY where a node may
+// ALREADY begin, and it never SETS that answer — it only declines to clear it. `R&D` and
+// `it's !important` sit at positions where the answer is already false, so they are content, exactly
+// as before, and the repository-wide value map is what proves it rather than this paragraph.
+const NODE_PROPERTY_AT_NODE_START = /^(?:!(?:<[^>]*>|[^\s[\]{},]*)|&[^\s[\]{},]+)(?=[\s[\]{},]|$)/;
 // The state a KEY LINE seeds from: nothing open, no collection, and a node may begin at offset 0. A
 // key line begins a new node, so no scalar from the previous key can still be open across it — this
 // is the asymmetry D-48 recorded, now expressed as a value instead of as a literal `null` seed plus
@@ -475,6 +491,20 @@ export function stripComment(s, entering, nodeStartAtOffsetZero) {
             return { text: s.slice(0, i), state: exiting() };
         }
         else if (!sq && !dq) {
+            // A NODE PROPERTY STANDS IN FRONT OF A NODE START; IT DOES NOT CONSUME ONE. Reached only where
+            // a node may ALREADY begin, so it can never CREATE a node start — `R&D` and `it's !important`
+            // in a plain scalar are content, `mayBegin` is already false there, and this leaves it false.
+            // Found by red-teaming this very fix: `tools: [!!str "Read,` / `  # x, Agent(…)"]` had the tag
+            // consumed as content, so the quote after it opened at a non-node-start and its state died at
+            // the boundary — the silent no-grant arm, a tenth time, inside the walk written to close the
+            // ninth. See `NODE_PROPERTY_AT_NODE_START` for why this reuses the declared tag grammar.
+            if (mayBegin) {
+                const property = s.slice(i).match(NODE_PROPERTY_AT_NODE_START);
+                if (property !== null) {
+                    i += property[0].length - 1; // the loop's own `i++` consumes the last character
+                    continue; // `mayBegin` stays true: the node itself has still to begin
+                }
+            }
             // OUTSIDE quotes: the flow structure decides where the next node may begin.
             if (c === "[" || c === "{") {
                 depth += 1;
@@ -484,10 +514,16 @@ export function stripComment(s, entering, nodeStartAtOffsetZero) {
                 depth = depth > 0 ? depth - 1 : 0;
                 mayBegin = false;
             }
-            else if (c === "," && depth > 0) {
+            else if ((c === "," || c === "?") && depth > 0) {
                 // A comma introduces a node only INSIDE a flow collection. At depth 0 it is content — the
                 // same distinction `startsWithReference` makes, and what keeps `tools: Read,` / `  don't`
                 // from licensing a crossing on the apostrophe.
+                //
+                // `?` IS THE EXPLICIT-KEY INDICATOR AND IT IS SCOPED TO FLOW FOR THE SAME REASON THE COMMA
+                // IS. Inside `{ }` a `?` introduces the KEY NODE and YAML gives it no other meaning; at depth
+                // 0 it is an ordinary plain-scalar character (`description: ? maybe`) and widening it there
+                // would be a false-red risk bought for nothing. Found by red-teaming this fix:
+                // `tools: {? "Read,` / `  # x, Agent(…)": v}` returned the silent no-grant arm.
                 mayBegin = true;
             }
             else if (c === ":" &&
