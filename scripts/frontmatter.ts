@@ -1766,6 +1766,45 @@ function classifyDelimiter(
 // Turning a body-only file red would trade a silent success for a false red, which the paragraph
 // above already argues is the worse of the two. The refusal keys on BEGINNING WITH THE PAYLOAD, which
 // is precisely what a body-only document does not do.
+//
+// AND WHAT A SECOND DOCUMENT IN THE STREAM MEANS — RECORDED, NOT FIXED (plan 27-45, D-53 —
+// 27-REVIEW-GAPS-7 § IN-05). Everything above enumerates DELIMITER SPELLINGS exhaustively and never
+// once says what happens when a document carries MORE THAN ONE region. That silence is why this
+// paragraph exists: an unconsidered adjacency is how the WR-05 arms came to be written one rule
+// short, and a partition argument that never named its own neighbour is exactly the shape this
+// module has had to correct four times.
+//
+//   WHAT THIS MODULE DOES, STATED PRECISELY RATHER THAN AS AN INTENTION. It reads ONE region: from
+//   the opening delimiter to the FIRST legal closing delimiter, and then it stops. A second region
+//   below that closing delimiter is body text to this module and is never read. There is no stream
+//   parser here and no lookahead past the first close.
+//
+//   MEASURED IN BOTH COLUMNS, at plan 27-45 execution time, on a document carrying THREE regions
+//   whose SECOND region's `tools` value holds the spawn token:
+//
+//     module:   {ok:true, keys={name:["r1"], tools:["Read"]}}, grant=false — the FIRST region only
+//     libyaml:  6 documents (/usr/bin/ruby -ryaml, ruby 2.6.10 / psych 3.1.0 / libyaml 0.2.1,
+//               Psych.parse_stream); doc3 = {"name"=>"r2",
+//               "tools"=>"Read, Agent(grugops-orchestrator)"} — the SECOND region carries the grant,
+//               and doc6 = "body" is read as a document too
+//
+//   `UNKNOWN - verify`, CARRIED FROM THE REVIEWER RATHER THAN ERASED: most markdown frontmatter
+//   readers also take only the first delimiter-to-delimiter region, so the platform very likely
+//   agrees with this module. That was NOT confirmed against Claude Code.
+//
+//   IT IS NOT CLAIMED AS A BYPASS AND A LATER READER MUST NOT ESCALATE IT INTO ONE. No live
+//   reproduction exists, no shipped surface carries a second region, and the loader disagreeing with
+//   a markdown frontmatter reader about a markdown file is not by itself a finding. It is recorded
+//   because the argument above enumerates everything else and never mentioned this.
+//
+//   THE DECISION: THE PLATFORM READS ONE BLOCK, A STREAM IS OUT OF SCOPE, AND THE MODULE IS NOT
+//   CHANGED TO READ FURTHER REGIONS. Reading them would WIDEN what this module reports over, on a
+//   premise no measurement supports — the opposite of the direction every other decision here takes,
+//   and the same "parse better" answer D-50 declined for the enumeration split. Refusing to widen is
+//   the answer that cannot be wrong. If the platform is ever measured reading a second region, THAT
+//   measurement is what reopens this, and it reopens as a bypass with a reproduction rather than as
+//   a tidy-up. The behaviour is pinned by a case that cites this paragraph, so it is a DECISION with
+//   a pin rather than an accident nobody wrote down.
 export function parseFrontmatter(text: string): Parsed<FrontmatterKeys> {
   // (D-39 point 1) THE ONE NORMALIZATION POINT: a single leading byte-order mark, then CRLF. One
   // expression, one removed byte, position zero only. See the delimiter-region header above for why a

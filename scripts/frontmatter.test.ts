@@ -7353,3 +7353,115 @@ describe("frontmatter — the occurrence balance arm (D-53 / IN-01 / SPAWN-04 + 
     );
   });
 });
+
+// ─────────────────────────────────────────────────────────────────────────────────────────────────
+// (Plan 27-45, D-53 — 27-REVIEW-GAPS-7 § IN-05) THE MULTI-DOCUMENT STREAM: A RECORDED DECISION WITH
+// A PIN, NOT A FIX AND NOT A CLAIMED BYPASS.
+// ─────────────────────────────────────────────────────────────────────────────────────────────────
+describe("frontmatter — the multi-document stream disposition (D-53 / IN-05 / SPAWN-04)", () => {
+  it("reads EXACTLY the first region — pinning the decision recorded in the header, not observing an accident", () => {
+    // THE DECISION THIS PINS is the header paragraph beginning "AND WHAT A SECOND DOCUMENT IN THE
+    // STREAM MEANS — RECORDED, NOT FIXED", in the three-outcomes argument above `parseFrontmatter`.
+    // Read it before changing this case: the behaviour below is chosen, not incidental, and the
+    // reason it is chosen is that widening what the module reports over — on a premise no
+    // measurement supports — is the wrong direction.
+    //
+    // MEASURED IN THIS SESSION, BOTH COLUMNS:
+    //   module:  {ok:true, keys={name:["r1"], tools:["Read"]}}, grant=false   (the first region only)
+    //   libyaml: 6 documents (/usr/bin/ruby -ryaml, ruby 2.6.10 / psych 3.1.0 / libyaml 0.2.1);
+    //            doc3 = {"name"=>"r2", "tools"=>"Read, Agent(grugops-orchestrator)"}
+    //
+    // `UNKNOWN - verify`: most markdown frontmatter readers also take only the first region, so the
+    // platform very likely agrees with the module. NOT confirmed against Claude Code, and NOT claimed
+    // as a bypass.
+    const token = "Agent(grugops-orchestrator)";
+    const text = [
+      "---",
+      "name: r1",
+      "tools: Read",
+      "---",
+      "---",
+      "name: r2",
+      `tools: Read, ${token}`,
+      "---",
+      "---",
+      "name: r3",
+      "tools: Write",
+      "---",
+      "",
+      "body",
+    ].join("\n");
+    const parsed = parseFrontmatter(text);
+    expect(parsed.ok).toBe(true);
+    expect(parsed.ok ? Object.fromEntries(parsed.value) : null).toEqual({
+      name: ["r1"],
+      tools: ["Read"],
+    });
+    // The grant on the SECOND region does not appear. This is the whole of the decision.
+    expect(keysHaveSpawnGrant(parsed.ok ? parsed.value : new Map())).toBe(
+      false,
+    );
+    expect(hasSpawnGrant(text)).toEqual({ ok: true, value: false });
+  });
+
+  it("the disposition is IN THE HEADER, carries its measurement, its `UNKNOWN - verify` and its explicit non-claim", () => {
+    // A behaviour with a case but no recorded reason is an accident with a pin. This asserts the
+    // reason exists where a reader looks for it, so the two cannot drift apart.
+    const src = readFileSync(
+      join(import.meta.dirname, "frontmatter.ts"),
+      "utf8",
+    );
+    const at = src.indexOf(
+      "AND WHAT A SECOND DOCUMENT IN THE STREAM MEANS — RECORDED, NOT FIXED",
+    );
+    expect(at).toBeGreaterThan(0);
+    // It sits INSIDE the three-outcomes partition argument — the argument that enumerates every other
+    // delimiter spelling and never mentioned this one.
+    const partitionAt = src.indexOf(
+      "// Three outcomes, and the difference between the last two is the point of this module:",
+    );
+    const entryAt = src.indexOf(
+      "export function parseFrontmatter(text: string)",
+    );
+    expect(partitionAt).toBeGreaterThan(0);
+    expect(at).toBeGreaterThan(partitionAt);
+    expect(at).toBeLessThan(entryAt);
+    const para = src.slice(at, entryAt);
+    for (const required of [
+      "It reads ONE region",
+      "libyaml:  6 documents",
+      "the SECOND region carries the grant",
+      "`UNKNOWN - verify`",
+      "IT IS NOT CLAIMED AS A BYPASS AND A LATER READER MUST NOT ESCALATE IT INTO ONE",
+      "an unconsidered adjacency is how the WR-05 arms came to be written one rule",
+      "A STREAM IS OUT OF SCOPE",
+      "THE MODULE IS NOT\n//   CHANGED TO READ FURTHER REGIONS",
+    ]) {
+      expect(para, required).toContain(required);
+    }
+  });
+
+  it("the module was NOT changed to read further regions — no stream parser exists here", () => {
+    // The prohibition, asserted rather than promised. Reading further regions is the widening this
+    // disposition explicitly declines.
+    const src = readFileSync(
+      join(import.meta.dirname, "frontmatter.ts"),
+      "utf8",
+    );
+    const code = src
+      .split("\n")
+      .filter((l) => !l.trimStart().startsWith("//"))
+      .join("\n");
+    for (const forbidden of [
+      "parse_stream",
+      "parseStream",
+      "documents",
+      "nextRegion",
+      "secondRegion",
+    ]) {
+      expect(code, forbidden).not.toContain(forbidden);
+    }
+    // The closing scan still breaks out at the FIRST legal close, and there is exactly one such scan.
+    expect(code.split("break scan;").length - 1).toBe(1);
+  });
+});
