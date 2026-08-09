@@ -167,3 +167,66 @@ Out-of-scope discoveries logged during execution. Not fixed; recorded so they ar
   pre-edit build ALREADY reached and every one moves in the SHORTEN direction — deleting text at a
   `#`, which is this module's founding failure. The measurement is recorded in the constant's own doc
   block. A later round that wants the narrowing must first close the shorten direction it opens.
+
+## From 27-47 — OPEN LIVE BYPASS found by the executor's own red team, on the POST-FIX build
+
+- **A BLOCK-SCALAR HEADER IS RECOGNISED AT EXACTLY ONE OF THE PLACES YAML ALLOWS ONE.** This is the
+  same failure class a tenth time, and it is the mirror of ledger entry ten's own standing question
+  applied to a predicate's APPLICATION SET rather than to its conditions: `BLOCK_INDICATOR` is tested
+  only against a TOP-LEVEL KEY LINE's value (`flattenBlock`'s baseline branch). A `|` or `>` header
+  appearing as a NESTED mapping's value, as a SEQUENCE ITEM, or deeper is never recognised, so
+  `cur.block` stays false and the block scalar's LITERAL content is passed through `stripComment` and
+  through the item boundary — where a leading `#` is stripped as a comment and a leading `-` invents
+  an item.
+  - **Measured against the REBUILT (post-27-47) `scripts/frontmatter.js`,** with
+    `/usr/bin/ruby -ryaml` (ruby 2.6.10 / psych 3.1.0 / libyaml 0.2.1) as the loader column. Every
+    row is a document the loader ACCEPTS with the grant plainly in the loaded value:
+
+    | # | region under `tools:` | module | libyaml |
+    |---|---|---|---|
+    | G  | `  nested: >-` / `    Read,` / `    # x, TOKEN` | `{ok:true,value:false}`, `nested: >- Read,` | `{"nested"=>"Read, # x, TOKEN"}` |
+    | G2 | `  - >-` / `    Read,` / `    # x, TOKEN`       | `{ok:true,value:false}`, `>-, Read,,`      | `["Read, # x, TOKEN"]` |
+    | g1 | `  nested: >2-` (indentation indicator)          | `{ok:true,value:false}` | `{"nested"=>"Read, # x, TOKEN"}` |
+    | g2 | `  nested: \|+` (keep chomping)                   | `{ok:true,value:false}` | `{"nested"=>"Read,\n# x, TOKEN"}` |
+    | g3 | `  nested: > # h` (header carries a comment)     | `{ok:true,value:false}` | `{"nested"=>"Read, # x, TOKEN"}` |
+    | g4 | the same under `allowed-tools:`                  | `{ok:true,value:false}` | `{"nested"=>"Read, # x, TOKEN"}` |
+    | g5 | `  nested: \|` / `    Agent(alpha, ga` / `    - mma)` | `ok:true`, names `["alpha","ga","mma"]` | `"Agent(alpha, ga\n- mma)"` — **`mma` is INVENTED and `ga` TRUNCATED** |
+
+  - **PRE-EXISTING, byte-identical on both builds.** The same seven rows return the same verdicts
+    against the committed `scripts/frontmatter.js` on a `git archive` mirror of `62b8b53`. D-54
+    neither opened nor closed this family.
+  - **REPRODUCED END TO END AT THE GATE**, the standard this phase set. Planted on BOTH distribution
+    twins of the non-coordinator skill `plan` (`skills/plan/SKILL.md` and
+    `.claude/skills/grugops-plan/SKILL.md`), on a hermetic `git archive` mirror of the post-fix
+    commit `6891699`:
+
+    ```
+    CONTROL one-line grant                    :: exit=1 :: 1 CHECK(S) FAILED (WR-05 coordinator-spawn-grant violation)
+    FAMILY A/B/C/F (closed by 27-47)          :: exit=1 :: 1 CHECK(S) FAILED (WR-05 coordinator-spawn-grant violation)
+    FAMILY G  nested folded block scalar      :: exit=0 :: ALL CHECKS PASSED
+    FAMILY G2 block scalar as a sequence item :: exit=0 :: ALL CHECKS PASSED
+    ```
+
+  - **Why not fixed in 27-47.** It is a DIFFERENT root cause in a DIFFERENT predicate's application
+    set, and D-56's own reasoning applies: folding it in would hide which edit closed which family.
+    A correct fix needs block-scalar INDENTATION tracking to know where the nested scalar ends —
+    genuine nesting in the flattener, the YAML-engine direction D-54 rejects by name — and a hasty
+    heuristic here is precisely what has failed for nine consecutive rounds. It needs its own plan,
+    its own RED/GREEN corpus, its own repository-wide value map and its own gate transcripts.
+  - **The false-red cost of the obvious alternative, MEASURED so round 10 starts from data.** The
+    module's founding rule would route content it cannot account for to the FAILURE arm, i.e. REFUSE
+    a nested block-scalar header. Over a run-time-derived corpus of 1149 tracked markdown files, 570
+    carry a locatable frontmatter block and **4** already carry a nested block-scalar header on a
+    continuation line — `.planning/milestones/v1.2-MILESTONE-AUDIT.md` (`evidence: >`),
+    `.planning/milestones/v1.2-phases/15-typescript-tooling-migration/15-VERIFICATION.md` (`note: >`),
+    `.planning/milestones/v2.0-phases/25-governance-on-a-dial/25-VERIFICATION.md` (`reason: >`) and
+    `.planning/phases/27-spawn-correctness-kit-set-authority/27-VERIFICATION.md` (`reason: >`). None
+    is an adapter, a skill or a packaging template; all four are documents libyaml accepts. So a
+    blanket refusal is NOT free, and choosing between "refuse" and "recognise" is a planning decision
+    with a reversibility note — not something an executor settles mid-plan.
+  - **What was probed and did NOT reproduce**, so round 10 does not re-walk it: the explicit key's
+    VALUE position, a mapping value on its own line, a sequence item's mapping with the value on the
+    next line, a tab after the mapping separator, an explicit key whose value is a nested mapping, and
+    a CRLF spelling of family A — all six return the GRANT arm and agree with the loader. A flow
+    sequence opened inside a block mapping value (`nested: [Read,` / `  # x, TOKEN]`) is REJECTED by
+    the loader, and the module is silent there — the safe direction, no value to disagree with.
