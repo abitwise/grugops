@@ -52,6 +52,7 @@ import {
   stripFencedBlocks,
   stripComment,
   assertItemPathScalarClosed,
+  SEQ_ITEM,
   DQ_ESCAPE_ALLOWLIST,
   ENUMERATION_LEGAL_CHARS,
   TOOLS_KEYS,
@@ -7281,6 +7282,250 @@ describe("frontmatter — D-54: the node start is a structural position (CR-01, 
     );
     expect(toolsOf(doc(`tools:\n  - Read\n  - Write`))).toBe("Read, Write");
     expect(toolsOf(doc(`tools: Read,\n  - Write`))).toBe("Read, - Write");
+  });
+
+  // ── A DASH CONSUMES EXACTLY ONE LEVEL (D-54 point 3) ──────────────────────────────────────────
+
+  it("D-54 row B — a compact nested sequence: `tools:` / `  - - \"Read,` / `    # x, TOKEN\"`", () => {
+    // pre-D-54 committed build: {ok:true,value:false}, tools=["- \"Read,,"]  <- the leading dash was
+    //           consumed as CONTENT of the item, so the quote after it opened at a non-node-start,
+    //           and the doubled comma is structure the document never expressed.
+    // libyaml:  [["Read, # x, Agent(grugops-orchestrator)"]]
+    //
+    // THE FLATTENED VALUE IS NOT THE LOADER'S NESTED VALUE, AND THAT IS THE CONTRACT, NOT A MISS.
+    // This module flattens to a TOKEN-PRESENCE surface — one string per occurrence — so that one
+    // token test serves every YAML form; the loader returns `[["…"]]`. The agreed predicate is token
+    // presence, and the difference is recorded in 27-47-SUMMARY.md as data.
+    const text = doc(`tools:\n  - - "Read,\n    # x, ${TOKEN}"`);
+    expect(hasSpawnGrant(text)).toEqual({ ok: true, value: true });
+    expect(toolsOf(text)).toBe(`Read, # x, ${TOKEN}`);
+    expect(toolsOf(text)).not.toContain(",,");
+
+    // One more level is the SAME rule re-entered once more, not a second case for a second spelling.
+    const three = doc(`tools:\n  - - - "Read,\n      # x, ${TOKEN}"`);
+    expect(hasSpawnGrant(three)).toEqual({ ok: true, value: true });
+  });
+
+  it("D-54 compact-sequence termination — `- -` terminates on the EXISTING item regex failing to match", () => {
+    // libyaml: `tools:` / `  - -` loads as [[nil]] — a sequence whose one item is a sequence whose
+    // one item is empty. The re-entry must reach that empty text and STOP rather than loop.
+    //
+    // THE TERMINATING CONDITION IS ASSERTED, NOT ASSUMED. `SEQ_ITEM` is anchored on a leading `-`
+    // (`/^-(?:[ \t]+(.*))?$/`), so it cannot match the empty string; every iteration removes at least
+    // that dash, so the text strictly shrinks and the loop is bounded by the line's length.
+    expect(SEQ_ITEM.test("")).toBe(false);
+    expect(SEQ_ITEM.test("-")).toBe(true);
+    // The parse COMPLETES — a verdict, not a timeout.
+    const empty = doc(`tools:\n  - -`);
+    expect(hasSpawnGrant(empty)).toEqual({ ok: true, value: false });
+    expect(toolsOf(empty)).toBe("");
+
+    // AND A LEADING DASH THAT IS NOT AN ITEM MARKER IS UNTOUCHED, for the same reason it always was:
+    // no whitespace and no end-of-line follows the first dash, so the regex does not match.
+    expect(toolsOf(doc(`tools:\n  - -5`))).toBe("-5");
+    expect(toolsOf(doc(`tools:\n  - --flag`))).toBe("--flag");
+  });
+
+  it("D-54 block-sequence controls — the shipped idioms do not move", () => {
+    // Byte-identical to the pre-D-54 build, quoted from both in 27-47-SUMMARY.md.
+    expect(toolsOf(doc(`tools:\n  - Read\n  - Write`))).toBe("Read, Write");
+    // The key line carried a value, so the dash there is TEXT and no item boundary exists —
+    // libyaml agrees: `tools: Read,` / `  - Write` loads as the single scalar `Read, - Write`.
+    expect(toolsOf(doc(`tools: Read,\n  - Write`))).toBe("Read, - Write");
+  });
+
+  // ── THE TWO-DIRECTIONAL ADJUDICATION: THE WIDENING IS MEASURED, NOT ARGUED ────────────────────
+
+  it("D-54 loader adjudication — over a GENERATED corpus, no cell exists where the module grants and the loader does not, nor where the module is silent and the loader grants", () => {
+    // WHY THIS EXISTS AND WHY IT IS NOT THE D-52 HARNESS. D-52's axes are scalar STYLE x sigil x
+    // placement; every position D-54 touches — a block mapping separator, a compact nested sequence,
+    // a block explicit key, a JSON-adjacent flow separator — is outside them, which is precisely why
+    // a 312-cell green differential shipped over this bypass. The axes below are the positions THIS
+    // plan changed, crossed with the two quoting styles and with the token behind a hash and in plain
+    // sight, so both directions of the change are visible.
+    //
+    // MEASURED, BOTH BUILDS (transcripts in 27-47-SUMMARY.md):
+    //   pre-D-54 committed build, mirror of 62b8b53 : 20 cells MODULE-SILENT / LOADER-GRANTS
+    //   rebuilt build                               :  0
+    // and 0 in the module-grants/loader-does-not direction on BOTH, so the widening did not open the
+    // opposite unsafe direction. A green suite is a floor; those two numbers are the claim.
+    const AXIS_SHAPE: readonly (readonly [string, (q: string, m: string) => string[]])[] = [
+      ["block mapping on a continuation line, indent 2", (q, m) =>
+        ["tools:", `  nested: ${q}Read,`, `  ${m}${TOKEN}${q}`]],
+      ["block mapping on a continuation line, indent 4", (q, m) =>
+        ["tools:", `    nested: ${q}Read,`, `    ${m}${TOKEN}${q}`]],
+      ["block mapping nested two levels", (q, m) =>
+        ["tools:", "  a:", `    b: ${q}Read,`, `    ${m}${TOKEN}${q}`]],
+      ["block sequence item, one dash", (q, m) =>
+        ["tools:", `  - ${q}Read,`, `    ${m}${TOKEN}${q}`]],
+      ["compact nested sequence, two dashes", (q, m) =>
+        ["tools:", `  - - ${q}Read,`, `    ${m}${TOKEN}${q}`]],
+      ["compact nested sequence, three dashes", (q, m) =>
+        ["tools:", `  - - - ${q}Read,`, `      ${m}${TOKEN}${q}`]],
+      ["block mapping inside a sequence item", (q, m) =>
+        ["tools:", `  - a: ${q}Read,`, `    ${m}${TOKEN}${q}`]],
+      ["block explicit key", (q, m) =>
+        ["tools:", `  ? ${q}Read,`, `  ${m}${TOKEN}${q}`, "  : v"]],
+      ["flow mapping, JSON adjacency, no space", (q, m) =>
+        [`tools: {"a":${q}Read,`, `  ${m}${TOKEN}${q}}`]],
+      ["flow mapping, JSON adjacency, space before the separator", (q, m) =>
+        [`tools: {"a" :${q}Read,`, `  ${m}${TOKEN}${q}}`]],
+      ["flow mapping, space after the separator (the D-51 control)", (q, m) =>
+        [`tools: {a: ${q}Read,`, `  ${m}${TOKEN}${q}}`]],
+      ["flow sequence of a flow mapping, JSON adjacency", (q, m) =>
+        [`tools: [{"a":${q}Read,`, `  ${m}${TOKEN}${q}}]`]],
+      // THE CONTROLS — positions that must NOT become node starts. Each is a place the widening
+      // could have overreached, and each is adjudicated by the loader rather than by an expectation.
+      ["CONTROL a line CONTINUING a plain scalar begun on the key line", (q, m) =>
+        ["tools: Read,", `  ? ${q}Write,`, `  ${m}${TOKEN}${q}`]],
+      ["CONTROL the line's structural start already spent", (q, m) =>
+        ["tools:", `  a ? ${q}Read,`, `  ${m}${TOKEN}${q}`]],
+      ["CONTROL no separation after the explicit-key indicator", (q, m) =>
+        ["tools:", `  ?${q}Read,`, `  ${m}${TOKEN}${q}`]],
+      ["CONTROL a content character before the mapping separator", (q, m) =>
+        [`tools: {"a"x:${q}Read,`, `  ${m}${TOKEN}${q}}`]],
+    ];
+    const AXIS_QUOTE: readonly (readonly [string, string])[] = [
+      ["double", '"'],
+      ["single", "'"],
+    ];
+    const AXIS_TOKEN: readonly (readonly [string, string])[] = [
+      ["token behind a hash", "# x, "],
+      ["token in plain sight", "x, "],
+    ];
+
+    // FLOORS AGAINST AN AXIS EMPTIED BY A LATER EDIT — not a completeness claim. What makes the
+    // coverage checkable is that every cell's expected answer comes from the loader below.
+    expect(AXIS_SHAPE.length).toBeGreaterThan(10);
+    expect(AXIS_QUOTE.length).toBe(2);
+    expect(AXIS_TOKEN.length).toBe(2);
+
+    // THE CELL TOTAL IS DERIVED. No cell-count literal appears in this block except as the
+    // right-hand side of this comparison.
+    const CELLS = AXIS_SHAPE.length * AXIS_QUOTE.length * AXIS_TOKEN.length;
+    const cells: { where: string; region: string }[] = [];
+    for (const [sLabel, build] of AXIS_SHAPE)
+      for (const [qLabel, q] of AXIS_QUOTE)
+        for (const [mLabel, m] of AXIS_TOKEN)
+          cells.push({
+            where: `${sLabel} | ${qLabel}-quoted | ${mLabel}`,
+            region: `${["name: x", ...build(q, m)].join("\n")}\n`,
+          });
+    expect(cells.length).toBe(CELLS);
+    expect(new Set(cells.map((c) => c.where)).size).toBe(CELLS);
+    // The loader is handed the REGION and the module the whole DOCUMENT, so a cell carrying its own
+    // `---` line would silently hand them different text — round 6's lesson, applied here too.
+    expect(
+      cells
+        .filter((c) => c.region.split("\n").some((l) => l.trimEnd() === "---"))
+        .map((c) => c.where),
+    ).toEqual([]);
+
+    let loaderVersion: string;
+    try {
+      loaderVersion = execFileSync(
+        "/usr/bin/ruby",
+        [
+          "-ryaml",
+          "-e",
+          "print \"ruby=#{RUBY_VERSION} psych=#{Psych::VERSION} libyaml=#{Psych.libyaml_version.join('.')}\"",
+        ],
+        { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] },
+      );
+    } catch {
+      console.warn(
+        `SKIPPED D-54 loader adjudication: /usr/bin/ruby with the yaml (Psych/libyaml) library is not runnable on this machine. This is a PRINTED skip, never a silent one — the ${CELLS}-cell corpus was enumerated and no expectation was invented in the loader's absence.`,
+      );
+      return;
+    }
+
+    // ONE PROCESS PER RUN, NOT ONE PER CELL — and the returned length is asserted, so a truncated
+    // batch fails arithmetically instead of silently shortening the adjudication.
+    const raw = execFileSync(
+      "/usr/bin/ruby",
+      [
+        "-e",
+        [
+          "require 'yaml'; require 'json'",
+          "out = JSON.parse(STDIN.read).map do |d|",
+          "  begin",
+          "    y = YAML.safe_load(d)",
+          "    v = y.is_a?(Hash) ? y['tools'] : nil",
+          "    { 'accepted' => true, 'value' => v.nil? ? '' : v.to_s }",
+          "  rescue Exception => e",
+          "    { 'accepted' => false, 'error' => e.class.to_s }",
+          "  end",
+          "end",
+          "print JSON.generate(out)",
+        ].join("\n"),
+      ],
+      {
+        input: JSON.stringify(cells.map((c) => c.region)),
+        encoding: "utf8",
+        maxBuffer: 64 * 1024 * 1024,
+      },
+    );
+    const verdicts = JSON.parse(raw) as {
+      accepted: boolean;
+      value?: string;
+      error?: string;
+    }[];
+    expect(verdicts.length).toBe(CELLS);
+
+    let rejected = 0;
+    const rejectedButModuleGrants: string[] = [];
+    const grantsLoaderDoesNot: string[] = [];
+    const silentWhileLoaderGrants: string[] = [];
+    const refusals: string[] = [];
+
+    cells.forEach((cell, i) => {
+      const v = verdicts[i];
+      const answer = hasSpawnGrant(`---\n${cell.region}---\nBody.\n`);
+      // THREE MODULE VERDICTS AND NOT TWO — a refusal is never folded into the no-grant column.
+      const moduleVerdict = answer.ok
+        ? answer.value
+          ? "grant"
+          : "no-grant"
+        : "refuse";
+      if (!v.accepted) {
+        // A DOCUMENT THE LOADER CANNOT READ HAS NO VALUE TO AGREE WITH, so it is counted and printed
+        // on its own rather than folded into either direction. The module granting on one of them is
+        // the fail-red direction over content no platform will load; it is REPORTED, not asserted.
+        rejected += 1;
+        if (moduleVerdict === "grant")
+          rejectedButModuleGrants.push(`${cell.where}\t${v.error}`);
+        return;
+      }
+      const loaderVerdict = (v.value ?? "").includes(TOKEN) ? "grant" : "no-grant";
+      if (moduleVerdict === "refuse") {
+        refusals.push(`${cell.where}\tloader=${loaderVerdict}`);
+        return;
+      }
+      if (moduleVerdict === "grant" && loaderVerdict === "no-grant")
+        grantsLoaderDoesNot.push(
+          `${cell.where}\tloader value=${JSON.stringify(v.value)}`,
+        );
+      if (moduleVerdict === "no-grant" && loaderVerdict === "grant")
+        silentWhileLoaderGrants.push(
+          `${cell.where}\tloader value=${JSON.stringify(v.value)}`,
+        );
+    });
+
+    console.log(
+      `D-54 loader adjudication — loader ${loaderVersion} | cells ${CELLS} (${AXIS_SHAPE.length} x ${AXIS_QUOTE.length} x ${AXIS_TOKEN.length}) | loader-rejected ${rejected} (module grants on ${rejectedButModuleGrants.length}) | module-refuses ${refusals.length} | grants-loader-does-not ${grantsLoaderDoesNot.length} | silent-while-loader-grants ${silentWhileLoaderGrants.length}`,
+    );
+
+    // THE DIRECTION A WIDENING CAN NEWLY BREAK. Never exemptible; a member here is a defect in this
+    // fix and not a finding to record.
+    expect(
+      grantsLoaderDoesNot,
+      `cells where the MODULE GRANTS and the loader does not (${grantsLoaderDoesNot.length}):\n${grantsLoaderDoesNot.join("\n")}`,
+    ).toEqual([]);
+    // AND THE DIRECTION THIS WHOLE PHASE EXISTS TO CLOSE. 20 members against the pre-D-54 build.
+    expect(
+      silentWhileLoaderGrants,
+      `cells where the MODULE IS SILENT and the loader GRANTS — this module's founding failure (${silentWhileLoaderGrants.length}):\n${silentWhileLoaderGrants.join("\n")}`,
+    ).toEqual([]);
   });
 
   // ── WITHIN-LINE BEHAVIOUR, MEASURED RATHER THAN PROMISED ───────────────────────────────────────

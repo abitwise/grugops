@@ -296,7 +296,13 @@ const KEY_LINE = /^([A-Za-z_][A-Za-z0-9_-]*):(?:[ \t]+(.*))?[ \t]*$/;
 // an optional chomping `+`/`-` in either order, then optional trailing whitespace or a comment.
 const BLOCK_INDICATOR = /^[|>][0-9]*[+-]?[ \t]*(?:#.*)?$|^[|>][+-]?[0-9]*[ \t]*(?:#.*)?$/;
 // A block-sequence item on a continuation line: a dash, then either end-of-line or the item text.
-const SEQ_ITEM = /^-(?:[ \t]+(.*))?$/;
+//
+// EXPORTED (D-54) SO THE COMPACT-NESTED-SEQUENCE TERMINATION CASE CITES THIS CONSTANT RATHER THAN A
+// COPY OF IT. The item path re-applies this regex once per dash, and the loop's termination condition
+// IS this pattern failing to match; a case that restated the pattern would be asserting against its
+// own copy — the weaker-duplicate shape this module deletes on sight — and would keep passing after
+// the real constant changed.
+export const SEQ_ITEM = /^-(?:[ \t]+(.*))?$/;
 // (D-34) A YAML DIRECTIVE LINE AT THE DOCUMENT START: the `%` indicator at COLUMN 0 followed by at
 // least one non-space character (YAML 1.2 § 6.8 — `%` then a directive name of one or more `ns-char`).
 //
@@ -1034,7 +1040,35 @@ function flattenBlock(block, baseIndent) {
             const item = startsNode ? t.match(SEQ_ITEM) : null;
             if (item !== null) {
                 // A block-sequence ITEM is its own node, so the token start is the text after the dash.
-                const itemText = (item[1] ?? "").trim();
+                let itemText = (item[1] ?? "").trim();
+                // (D-54 point 3 — 27-REVIEW-GAPS-8 § CR-01 row B) A DASH CONSUMES EXACTLY ONE LEVEL, SO A
+                // COMPACT NESTED SEQUENCE RE-ENTERS THIS RULE AT THE SECOND DASH. YAML lets a sequence whose
+                // item is itself a sequence share one line: `  - - "Read,` is `[["Read, …"]]`, and the node
+                // the quote opens belongs to the INNER item. Consuming only the first dash handed the scanner
+                // `- "Read,`, whose offset 0 is a content character, so the quote opened at a non-node-start,
+                // its state died at the line boundary, and the continuation carrying the token was stripped
+                // as a comment — `{ok:true,value:false}` over `[["Read, # x, Agent(grugops-orchestrator)"]]`,
+                // and it took the whole foundation gate to `ALL CHECKS PASSED` at exit 0.
+                //
+                // THE REGEX IS BYTE-UNCHANGED AND SIMPLY RE-APPLIED. Teaching `SEQ_ITEM` about nesting would
+                // be a SECOND GRAMMAR for a fact this loop already holds, and this module has deleted a
+                // weaker-duplicate predicate three times. The loop TERMINATES on that same regex failing to
+                // match: every iteration removes at least the leading `-`, so the text strictly shrinks, and
+                // `- -` reaches the empty string where `SEQ_ITEM` (anchored on `-`) cannot match. A leading
+                // dash that is NOT an item marker is untouched for the same reason it always was: `-5` and
+                // `--flag` have no whitespace and no end-of-line after the first dash, so they do not match.
+                //
+                // WHAT THIS DOES NOT CHANGE: `cur.seq` and the join separator are set ONCE for the key, not
+                // once per level. The flattened value is a TOKEN-PRESENCE surface, not a reconstruction of
+                // the loader's nested value — libyaml reads row B as `[["Read, # x, Agent(…)"]]` while this
+                // module flattens it to the one string `Read, # x, Agent(…)`. Both carry the token, which is
+                // the only fact any guard asks of this value, and the difference is recorded in
+                // 27-47-SUMMARY.md as data rather than hidden behind a passing assertion.
+                let nested = itemText.match(SEQ_ITEM);
+                while (nested !== null) {
+                    itemText = (nested[1] ?? "").trim();
+                    nested = itemText.match(SEQ_ITEM);
+                }
                 // CONSUMER 2 (item path) — the node-start test. Reached only with the scalar CLOSED, so the
                 // node start is real.
                 if (startsWithReference(itemText))
