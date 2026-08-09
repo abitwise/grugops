@@ -634,6 +634,32 @@ function unquoteChecked(s) {
     return scanEmbeddedDoubleQuoted(s);
 }
 const indentOf = (line) => line.length - line.replace(/^[ \t]*/, "").length;
+// (D-53 — 27-REVIEW-GAPS-7 § IN-03, round 8) THE BLOCK-SEQUENCE ITEM PATH'S INVARIANT, ASSERTED AT
+// THE SITE RATHER THAN IMPLIED BY A COMMENT.
+//
+// WHAT THE COMMENT USED TO CLAIM AND WHY THAT WAS NOT GOOD ENOUGH. The item path seeded the scanner
+// from the carried quote "rather than a literal null so this path reads the carried state like every
+// other". The reviewer showed the seed was a PROVABLE CONSTANT — the path is reached only when the
+// item boundary matched, which requires `startsNode`, which requires `!inScalar`, i.e. no open quote
+// — so the sentence described a property the code did not have. This module's own standing rule is
+// that a comment claiming a property never ships without the assertion that makes it true.
+//
+// WHAT IS TRUE AFTER D-51, AND WHAT IS STILL A CONSTANT. The state the item path reads now carries
+// the flow depth and the node-may-begin answer as well as the quote, so the seed IS a genuine read
+// of three fields. The QUOTE COMPONENT specifically is still null there, and that is not an accident
+// to be re-derived by a later reader from two expressions thirty lines apart — it is asserted here,
+// by name, so a future edit that lets an open scalar reach the item path fails loudly instead of
+// silently mixing one node's quote into another's.
+//
+// THIS THROWS RATHER THAN RETURNING A REFUSAL BECAUSE IT IS NOT A FACT ABOUT THE DOCUMENT. Every
+// refusal in this module says "this document expresses something I will not read". A violation here
+// would say "this module reached a state it proves it cannot reach", which is a programming error in
+// the flattener and not something a document author can cause or fix.
+export function assertItemPathScalarClosed(state, itemLine) {
+    if (state.openQuote !== null) {
+        throw new Error(`frontmatter internal invariant violated at the block-sequence item path: the carried scalar state must carry no open quote here, because the path is reached only where a node may begin, but ${state.openQuote} was still open at \`${excerpt(itemLine)}\``);
+    }
+}
 // A short, safe excerpt of an unreadable line for the failure reason. Long enough to identify the
 // line, short enough that a finding stays one readable line.
 const excerpt = (s) => (s.length > 60 ? `${s.slice(0, 57)}...` : s);
@@ -795,6 +821,11 @@ function flattenBlock(block, baseIndent) {
                 // (D-30) The escape refusal fires HERE, at the same node-start point the reference refusal
                 // already fires from, and returns directly rather than being deferred to the flush.
                 //
+                // (D-53 / IN-03) The invariant this path has always relied on, now stated as code. The state
+                // read below carries the flow depth and the node-may-begin answer — a genuine read of the
+                // carried record — while its QUOTE component is null, guaranteed by `startsNode` above, which
+                // is `!inScalar && !cur.nodeOnKeyLine` and so cannot be true with a quote open.
+                assertItemPathScalarClosed(cur.state, t);
                 // (D-51) SEEDING SITE 2 OF 3 — one assignment, no gate. The item is its own node, so offset 0
                 // of `itemText` is a node start and the scanner is told so; whether anything crosses the
                 // boundary is then the scanner's answer and nobody else's.

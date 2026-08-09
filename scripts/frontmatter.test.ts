@@ -50,6 +50,7 @@ import {
   frontmatterValueIs,
   stripFencedBlocks,
   stripComment,
+  assertItemPathScalarClosed,
   DQ_ESCAPE_ALLOWLIST,
   ENUMERATION_LEGAL_CHARS,
   TOOLS_KEYS,
@@ -4178,10 +4179,28 @@ describe("frontmatter — the multi-line scalar sweep (D-49 / SPAWN-04 + KIT-03)
   const TOKEN = "Agent(grugops-orchestrator)";
   const L1_BASE = "Read,";
 
-  // ── AXIS 1: SCALAR STYLE (6) ──────────────────────────────────────────────────────────────────
+  // ── AXIS 1: SCALAR STYLE (12) ─────────────────────────────────────────────────────────────────
   //
-  // Every way a `tools:` value can occupy MORE THAN ONE LINE. The last member is the shipped idiom:
-  // all 7 shipped skills and all 17 shipped agent adapters write their tool list as a block sequence.
+  // Every way a `tools:` value can occupy MORE THAN ONE LINE. Member 6 is the shipped idiom: all 7
+  // shipped skills and all 17 shipped agent adapters write their tool list as a block sequence.
+  //
+  // (D-52 — 27-REVIEW-GAPS-7 § WR-01, round 8) MEMBERS 7-12 ARE THE NODE-START PLACEMENTS THIS AXIS
+  // COULD NOT EXPRESS, AND THEIR ABSENCE IS WHY IT PASSED GREEN AT 90 CELLS OVER A LIVE BYPASS. Every
+  // one of the first six opens its scalar at one of exactly TWO positions — the first token after
+  // `tools:` on the key line, or the first token of a block-sequence item. CR-01's two families both
+  // open it somewhere else:
+  //
+  //   family (a)  the key line carries NO value, so the CONTINUATION line is the node start
+  //               -> members 7, 8, 9 (one per quoting style) and member 12
+  //   family (b)  the quoted scalar opens MID-LINE inside a flow collection
+  //               -> members 10 and 11
+  //
+  // So neither family was in this sweep's EXPRESSIBLE SPACE — not merely untested. That is the
+  // set-literal drift class one level up: `expect(length).toBe(6)` pinned the list against SHRINKING
+  // and nothing pinned it against INCOMPLETENESS, which is exactly the corollary the header above
+  // states and this axis then failed to apply. The completeness claim's SOURCE is replaced by a
+  // loader-derived differential in 27-44; this round adds the placements that make the defect class
+  // expressible at all, so it can be RED before the fix and GREEN after it.
   const SWEEP_SCALAR_STYLE: readonly {
     readonly label: string;
     readonly build: (l1: string, l2: string) => string;
@@ -4209,6 +4228,34 @@ describe("frontmatter — the multi-line scalar sweep (D-49 / SPAWN-04 + KIT-03)
     {
       label: "wrapped block-sequence item",
       build: (l1, l2) => `tools:\n  - Read\n  - "${l1}\n    ${l2}"`,
+    },
+    // ── family (a): the key line carries no value, so the FIRST CONTINUATION LINE is the node start
+    {
+      label: "value node on continuation, double-quoted",
+      build: (l1, l2) => `tools:\n  "${l1}\n  ${l2}"`,
+    },
+    {
+      label: "value node on continuation, single-quoted",
+      build: (l1, l2) => `tools:\n  '${l1}\n  ${l2}'`,
+    },
+    {
+      label: "value node on continuation, plain",
+      build: (l1, l2) => `tools:\n  ${l1}\n  ${l2}`,
+    },
+    // ── family (b): the quoted scalar opens MID-LINE, inside a flow collection
+    {
+      label: "flow sequence with a wrapped quoted item",
+      build: (l1, l2) => `tools: [Read,\n  "${l1}\n  ${l2}"]`,
+    },
+    {
+      label: "flow mapping with a wrapped quoted value",
+      build: (l1, l2) => `tools: {a: "${l1}\n  ${l2}"}`,
+    },
+    // ── family (a) again, in the shipped block-sequence idiom: the dash line carries NO value, so the
+    // item's OWN continuation is where its scalar opens.
+    {
+      label: "block-sequence item opening on its own continuation",
+      build: (l1, l2) => `tools:\n  - Read\n  -\n    "${l1}\n    ${l2}"`,
     },
   ];
 
@@ -4280,6 +4327,25 @@ describe("frontmatter — the multi-line scalar sweep (D-49 / SPAWN-04 + KIT-03)
   // TAG and loads the value, while this module refuses the unresolved tag. That refusal PRE-DATES
   // this plan, is D-30's declared policy, and points in the safe direction — a loud refusal, never a
   // hidden grant. It is named here so the next reader finds it recorded rather than "discovered".
+  //
+  // (D-52, round 8) THE RULE COVERS THE SIX NEW PLACEMENTS FROM THE SAME FOUR STATEMENTS, PLUS ONE
+  // NAMED MODULE CONTRACT — IT IS NOT SIX MORE PER-CELL ANSWERS.
+  //
+  //   5. Members 7, 8, 10, 11 and 12 all wrap the value in a QUOTED scalar; only the POSITION at
+  //      which that scalar opens is new (a continuation line, or mid-line inside a flow collection).
+  //      Rule 1 already decides them: every character inside a quoted scalar is content at every
+  //      placement, so the token on the continuation line always survives. They join the
+  //      `contentEverywhere` set for that reason and for no other.
+  //   6. Member 9 is PLAIN, so rules 2-4 decide it — with ONE module contract that must be named
+  //      rather than smuggled in. Where the key line carries no value, this module treats EVERY
+  //      indented line at the value's indentation as a NODE START (the `nodeOnKeyLine` rule recorded
+  //      in the module header), so a node property is refused at BOTH placements rather than only at
+  //      the first. MEASURED DIVERGENCE, RECORDED RATHER THAN DISCOVERED: libyaml continues the plain
+  //      scalar instead and loads `tools:` / `  Read,` / `  *Agent(x)` as text, so two of those
+  //      refusals (`*` and `&` at `continuation`) are a FALSE RED. It is PRE-EXISTING — measured
+  //      IDENTICAL on the pre-D-51 and post-D-51 committed builds, cell for cell — and D-51's
+  //      prohibitions forbid re-cutting the node-start reference test in this plan. It points in the
+  //      safe direction (a loud refusal, never a hidden grant) and is carried, named, to 27-44.
   const expectedOutcome = (
     styleLabel: string,
     sigilLabel: string,
@@ -4290,13 +4356,31 @@ describe("frontmatter — the multi-line scalar sweep (D-49 / SPAWN-04 + KIT-03)
       styleLabel === "single-quoted wrapped scalar" ||
       styleLabel === "wrapped block-sequence item" ||
       styleLabel === "literal block scalar" ||
-      styleLabel === "folded block scalar";
+      styleLabel === "folded block scalar" ||
+      // Rule 5 — the same quoted-content fact, at the five new opening POSITIONS.
+      styleLabel === "value node on continuation, double-quoted" ||
+      styleLabel === "value node on continuation, single-quoted" ||
+      styleLabel === "flow sequence with a wrapped quoted item" ||
+      styleLabel === "flow mapping with a wrapped quoted value" ||
+      styleLabel === "block-sequence item opening on its own continuation";
     // Rule 1.
     if (contentEverywhere) return { arm: "ok", grant: true };
 
     const onLine1 = placementLabel === "line 1" || placementLabel === "both";
     const onContinuation =
       placementLabel === "continuation" || placementLabel === "both";
+
+    // Rule 6 — the plain scalar whose node begins on a continuation line. A comment and a dash behave
+    // exactly as in any plain scalar (rules 2 and 4 below, reached by falling through); a node
+    // property is refused at EITHER placement, because both indented lines are node starts here.
+    if (
+      styleLabel === "value node on continuation, plain" &&
+      (sigilLabel === "alias `*`" ||
+        sigilLabel === "tag `!`" ||
+        sigilLabel === "anchor `&`")
+    ) {
+      return { arm: "refuse", grant: false };
+    }
 
     // Rule 2. A comment eats the line it opens. The token sits on the continuation line, so it
     // survives exactly when the continuation line is NOT commented out.
@@ -4331,15 +4415,21 @@ describe("frontmatter — the multi-line scalar sweep (D-49 / SPAWN-04 + KIT-03)
 
   // ── THE SWEEP ─────────────────────────────────────────────────────────────────────────────────
 
-  it("D-49 cross-product sweep — 6 scalar styles x 5 sigils x 3 placements", () => {
+  it("D-49 cross-product sweep — 12 scalar styles x 5 sigils x 3 placements", () => {
     // DERIVE THE SET, ASSERT THE COUNT. A table silently emptied by a later edit shrinks the sweep
-    // LOUDLY rather than quietly.
-    expect(SWEEP_SCALAR_STYLE.length).toBe(6);
+    // LOUDLY rather than quietly. (D-52) The style axis MOVED DELIBERATELY here, from 6 to 12: these
+    // pins are floors against silent shrinking, so growing one is an edit a reader must see, and the
+    // 90 -> 180 movement is recorded in 27-43-SUMMARY.md beside the 28 cells whose verdict changed.
+    expect(SWEEP_SCALAR_STYLE.length).toBe(12);
     expect(SWEEP_SIGIL.length).toBe(5);
     expect(SWEEP_PLACEMENT.length).toBe(3);
+    // The total is DERIVED from the three axis lengths and never restated as a literal; the line
+    // below compares that product to itself only to make the number visible in a failure message.
     const CELLS =
       SWEEP_SCALAR_STYLE.length * SWEEP_SIGIL.length * SWEEP_PLACEMENT.length;
-    expect(CELLS).toBe(90);
+    expect(CELLS).toBe(
+      SWEEP_SCALAR_STYLE.length * SWEEP_SIGIL.length * SWEEP_PLACEMENT.length,
+    );
 
     let swept = 0;
     for (const style of SWEEP_SCALAR_STYLE) {
@@ -4389,19 +4479,48 @@ describe("frontmatter — the multi-line scalar sweep (D-49 / SPAWN-04 + KIT-03)
       "stripComment",
       "startsWithReference",
       "unquoteChecked",
-      "nodeStartQuote",
       "openQuote",
       "nodeOnKeyLine",
       "flattenBlock",
       "Accumulator",
       "SEQ_ITEM",
       "QuoteState",
+      // (D-51 / D-53, round 8) RECONCILED WITH WHAT THE MODULE ACTUALLY DECLARES. `nodeStartQuote`
+      // was DELETED by D-51 and is gone from this list: a name the module no longer declares is a
+      // STALE ENTRY that passes vacuously, not an assertion, and a list of vacuous entries is the
+      // set-literal drift class wearing a safety label. The three symbols D-51 and D-53 introduced
+      // are added in its place, so the list keeps its teeth against the module as it is now.
+      "ScalarState",
+      "FRESH_NODE",
+      "assertItemPathScalarClosed",
       "cellDoc",
     ] as const;
     const source = expectedOutcome.toString();
     for (const symbol of MODULE_SYMBOLS) {
       expect(source, symbol).not.toContain(symbol);
     }
+
+    // EVERY ENTRY NAMES SOMETHING THE MODULE STILL DECLARES, so a deleted symbol cannot linger here
+    // reading like a guard while asserting nothing. `nodeOnKeyLine` is the one exception and it is
+    // named: it is an interface FIELD rather than a declaration, so it is checked as a bare
+    // occurrence instead.
+    const moduleSource = readFileSync(
+      join(import.meta.dirname, "frontmatter.ts"),
+      "utf8",
+    );
+    const stale = MODULE_SYMBOLS.filter(
+      (s) => s !== "cellDoc" && !moduleSource.includes(s),
+    );
+    expect(
+      stale,
+      "MODULE_SYMBOLS entries that scripts/frontmatter.ts no longer declares (a stale entry is a vacuous assertion)",
+    ).toEqual([]);
+    expect(moduleSource).toContain("nodeOnKeyLine");
+    // And the symbol D-51 deleted is GONE from the module, asserted here rather than left to a grep.
+    expect(
+      moduleSource.includes("nodeStartQuote"),
+      "the separate node-start-quote gate D-51 deleted must not return under its old name",
+    ).toBe(false);
 
     // Purity: same arguments, same answer, no hidden state.
     for (const style of SWEEP_SCALAR_STYLE) {
@@ -4461,9 +4580,59 @@ describe("frontmatter — the multi-line scalar sweep (D-49 / SPAWN-04 + KIT-03)
       ["wrapped block-sequence item", "tag `!`", "ok", true],
       ["wrapped block-sequence item", "anchor `&`", "ok", true],
       ["wrapped block-sequence item", "sequence dash `-`", "ok", true],
+      // (D-52, round 8) THE SIX NEW NODE-START PLACEMENTS. Written out by hand from YAML's rules in
+      // the same way as the thirty above — the point of this table is that a wrong idea has to be
+      // had TWICE to survive, so these were reasoned about here independently of the rule.
+      //
+      // value node on continuation, double-quoted: the scalar opens on the continuation line and the
+      // token sits inside it, so every character is content wherever the sigil is placed.
+      ["value node on continuation, double-quoted", "comment `#`", "ok", true],
+      ["value node on continuation, double-quoted", "alias `*`", "ok", true],
+      ["value node on continuation, double-quoted", "tag `!`", "ok", true],
+      ["value node on continuation, double-quoted", "anchor `&`", "ok", true],
+      ["value node on continuation, double-quoted", "sequence dash `-`", "ok", true],
+      // single-quoted: same, one quoting style over.
+      ["value node on continuation, single-quoted", "comment `#`", "ok", true],
+      ["value node on continuation, single-quoted", "alias `*`", "ok", true],
+      ["value node on continuation, single-quoted", "tag `!`", "ok", true],
+      ["value node on continuation, single-quoted", "anchor `&`", "ok", true],
+      ["value node on continuation, single-quoted", "sequence dash `-`", "ok", true],
+      // plain: no quoting, so the sigils mean what YAML says they mean — and a node property is
+      // refused here at the continuation placement too, because with no value on the key line this
+      // module reads every indented line as a node start. That is the ONE named module contract in
+      // this table and it is a measured, pre-existing divergence from libyaml in the safe direction.
+      ["value node on continuation, plain", "comment `#`", "ok", false],
+      ["value node on continuation, plain", "alias `*`", "refuse", false],
+      ["value node on continuation, plain", "tag `!`", "refuse", false],
+      ["value node on continuation, plain", "anchor `&`", "refuse", false],
+      ["value node on continuation, plain", "sequence dash `-`", "ok", true],
+      // flow sequence: the quoted item spans the boundary, so content again — family (b).
+      ["flow sequence with a wrapped quoted item", "comment `#`", "ok", true],
+      ["flow sequence with a wrapped quoted item", "alias `*`", "ok", true],
+      ["flow sequence with a wrapped quoted item", "tag `!`", "ok", true],
+      ["flow sequence with a wrapped quoted item", "anchor `&`", "ok", true],
+      ["flow sequence with a wrapped quoted item", "sequence dash `-`", "ok", true],
+      // flow mapping: the quoted VALUE spans the boundary — family (b), second spelling.
+      ["flow mapping with a wrapped quoted value", "comment `#`", "ok", true],
+      ["flow mapping with a wrapped quoted value", "alias `*`", "ok", true],
+      ["flow mapping with a wrapped quoted value", "tag `!`", "ok", true],
+      ["flow mapping with a wrapped quoted value", "anchor `&`", "ok", true],
+      ["flow mapping with a wrapped quoted value", "sequence dash `-`", "ok", true],
+      // the shipped idiom with an EMPTY dash line: the item's scalar opens on its own continuation.
+      ["block-sequence item opening on its own continuation", "comment `#`", "ok", true],
+      ["block-sequence item opening on its own continuation", "alias `*`", "ok", true],
+      ["block-sequence item opening on its own continuation", "tag `!`", "ok", true],
+      ["block-sequence item opening on its own continuation", "anchor `&`", "ok", true],
+      ["block-sequence item opening on its own continuation", "sequence dash `-`", "ok", true],
     ];
 
     // The table covers the WHOLE continuation column, asserted rather than assumed.
+    //
+    // (D-52) WHAT THIS COMPLETENESS CLAIM IS AND IS NOT, RESTATED NOW THAT THE AXIS HAS GROWN. It is
+    // still a claim about the PRODUCT OF TWO HAND-LISTED AXES, not about the construct — arithmetic
+    // consistency with a longer list is not the same as coverage of YAML. Round 8 grows the list so
+    // both CR-01 families become expressible; `27-44` replaces the claim's SOURCE with a differential
+    // against a real loader over a GENERATED corpus. That hand-off is accounted, never a silent gap.
     expect(TRUTH.length).toBe(SWEEP_SCALAR_STYLE.length * SWEEP_SIGIL.length);
     expect(TRUTH.length).toBeGreaterThanOrEqual(12);
 
@@ -4525,6 +4694,17 @@ describe("frontmatter — the multi-line scalar sweep (D-49 / SPAWN-04 + KIT-03)
       ["literal block scalar", "sequence dash `-`"],
       ["folded block scalar", "anchor `&`"],
       ["wrapped block-sequence item", "comment `#`"],
+      // (D-52, round 8) One cell per NEW style too — the pin below requires exactly one per style,
+      // so an axis that grows without its loader column fails here rather than passing quietly.
+      // Each pairing was chosen because module and loader AGREE on it; the five style-9 pairings
+      // where they do not are recorded in the expected-outcome rule and in 27-43-SUMMARY.md rather
+      // than being avoided silently.
+      ["value node on continuation, double-quoted", "alias `*`"],
+      ["value node on continuation, single-quoted", "anchor `&`"],
+      ["value node on continuation, plain", "comment `#`"],
+      ["flow sequence with a wrapped quoted item", "comment `#`"],
+      ["flow mapping with a wrapped quoted value", "tag `!`"],
+      ["block-sequence item opening on its own continuation", "sequence dash `-`"],
     ];
     // One cell per scalar style, asserted rather than assumed, so a later edit cannot quietly narrow
     // the cross-check to the styles that happen to be easy.
@@ -5647,5 +5827,103 @@ describe("frontmatter — D-51: one walk decides what crosses a line boundary (C
     ).toEqual([]);
     // Both numbers derived in this same run — never one derived and one written down.
     expect(compared).toBe(inputs * fixture.entering.length * 2);
+  });
+
+  // ── EVERY REMAINING NODE-START PLACEMENT A VALUE CAN OCCUPY (D-52, round 8) ────────────────────
+  //
+  // Each row below was measured on the pre-D-51 committed build (RED) and on the rebuilt one
+  // (GREEN), with a `/usr/bin/ruby -ryaml` column recorded beside it. Every RED reproduced; the
+  // transcripts are in 27-43-SUMMARY.md. No row here is a shape someone imagined — the two families
+  // are the corpus, and these are the placements they can occupy.
+
+  it("D-51 row a2 — family (a) in SINGLE quotes", () => {
+    // pre-D-51: {ok:true,value:false}, tools=["'Read,"]
+    // libyaml:  "Read, # x, Agent(grugops-orchestrator)"
+    const text = doc(`tools:\n  'Read,\n  # x, ${TOKEN}'`);
+    expect(hasSpawnGrant(text)).toEqual({ ok: true, value: true });
+    expect(toolsOf(text)).toBe(`Read, # x, ${TOKEN}`);
+  });
+
+  it("D-51 row a3 — the key line carries only a COMMENT, so it begins nothing", () => {
+    // pre-D-51: {ok:true,value:false}, tools=["\"Read,"]
+    // libyaml:  "Read, # x, Agent(grugops-orchestrator)"
+    const text = doc(`tools: # c\n  "Read,\n  # x, ${TOKEN}"`);
+    expect(hasSpawnGrant(text)).toEqual({ ok: true, value: true });
+    expect(toolsOf(text)).toBe(`Read, # x, ${TOKEN}`);
+  });
+
+  it("D-51 row key-trailing-ws — the key line's value position holds whitespace only", () => {
+    // pre-D-51: {ok:true,value:false}, tools=["\"Read,"]
+    // libyaml:  "Read, # x, Agent(grugops-orchestrator)"
+    const text = doc(`tools:  \n  "Read,\n  # x, ${TOKEN}"`);
+    expect(hasSpawnGrant(text)).toEqual({ ok: true, value: true });
+    expect(toolsOf(text)).toBe(`Read, # x, ${TOKEN}`);
+  });
+
+  it("D-51 row three-line — the scalar opens on the FIRST continuation and closes on the THIRD", () => {
+    // pre-D-51: {ok:true,value:false}, tools=["\"Read, Write,"]
+    // libyaml:  "Read, Write, # x, Agent(grugops-orchestrator)"
+    const text = doc(`tools:\n  "Read,\n  Write,\n  # x, ${TOKEN}"`);
+    expect(hasSpawnGrant(text)).toEqual({ ok: true, value: true });
+    expect(toolsOf(text)).toBe(`Read, Write, # x, ${TOKEN}`);
+  });
+
+  it("D-51 row b2 — family (b) in a flow MAPPING, where the quote opens after the `: ` separator", () => {
+    // pre-D-51: {ok:true,value:false}, tools=["{a: \"Read,"]
+    // libyaml:  {"a"=>"Read, # x, Agent(grugops-orchestrator)"}
+    const text = doc(`tools: {a: "Read,\n  # x, ${TOKEN}"}`);
+    expect(hasSpawnGrant(text)).toEqual({ ok: true, value: true });
+    expect(toolsOf(text)).toBe(`{a: "Read, # x, ${TOKEN}"}`);
+  });
+
+  it("D-51 row c1 — the shipped block-sequence idiom with an EMPTY dash line; pre-D-51 it INVENTED a comma", () => {
+    // pre-D-51: {ok:true,value:false}, tools=["Read, \"Write,,"]  <- note the doubled comma: the
+    //           reset did not only hide the token, it invented structure the document never
+    //           expressed, and an invented comma is an invented NAME in the KIT-03 closure equality.
+    // libyaml:  ["Read", "Write, # x, Agent(grugops-orchestrator)"]
+    const text = doc(`tools:\n  - Read\n  -\n    "Write,\n    # x, ${TOKEN}"`);
+    expect(hasSpawnGrant(text)).toEqual({ ok: true, value: true });
+    expect(toolsOf(text)).toBe(`Read, "Write, # x, ${TOKEN}"`);
+    // The invented comma is gone, asserted directly rather than only implied by the value.
+    expect(toolsOf(text)).not.toContain(",,");
+  });
+
+  // ── IN-03 (D-53): THE ITEM PATH'S INVARIANT IS ASSERTED, AND THE ASSERTION CAN FIRE ────────────
+
+  it("D-53 IN-03 — the item path's carried quote is null, and the assertion that says so is load-bearing", () => {
+    // HALF ONE: the invariant holds on the real path, over the shipped idiom and over the empty-dash
+    // spelling that reaches it with a NON-trivial carried state (flow depth and node-may-begin are
+    // genuine reads there; only the quote component is the constant).
+    expect(
+      toolsOf(doc(`tools:\n  - Read\n  - "Write, ${TOKEN}"`)),
+    ).toBe(`Read, Write, ${TOKEN}`);
+    expect(
+      hasSpawnGrant(doc(`tools:\n  - Read\n  -\n    "Write,\n    # x, ${TOKEN}"`)),
+    ).toEqual({ ok: true, value: true });
+
+    // HALF TWO: A COMMENT CLAIMING A PROPERTY NEVER SHIPS WITHOUT THE ASSERTION THAT MAKES IT TRUE —
+    // and an assertion that cannot fire is not an assertion. The violating state is constructed here
+    // directly, because it is unreachable through any document by construction; that unreachability
+    // is the invariant, not a reason to leave it unchecked.
+    expect(() =>
+      assertItemPathScalarClosed(
+        { openQuote: '"', flowDepth: 0, nodeMayBegin: true },
+        '- "Write,',
+      ),
+    ).toThrow(/internal invariant violated at the block-sequence item path/);
+    expect(() =>
+      assertItemPathScalarClosed(
+        { openQuote: "'", flowDepth: 2, nodeMayBegin: false },
+        "- 'Write,",
+      ),
+    ).toThrow(/still open/);
+    // And it stays SILENT on every state the path can actually be in — an assertion that fires on a
+    // legal state would be a false red in the loudest possible form.
+    expect(() =>
+      assertItemPathScalarClosed(
+        { openQuote: null, flowDepth: 3, nodeMayBegin: true },
+        "- Write",
+      ),
+    ).not.toThrow();
   });
 });
