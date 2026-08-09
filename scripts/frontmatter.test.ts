@@ -5760,6 +5760,13 @@ describe("frontmatter — the loader differential over a GENERATED corpus (D-52 
   //                              line is where the value's node begins.
   //   `danglingNodeProperty`     the key line ENDS with a YAML node property (§ 6.9) whose node has
   //                              not begun yet, so the property is left unresolved at a node start.
+  //   `flowNodeStartAtEndOfKeyLine`  (27-48) the key line ends INSIDE a flow collection at a position
+  //                              where YAML admits a node — just after `[`, `{`, `,` or `?` — so the
+  //                              first continuation line's offset 0 is a node start even though the
+  //                              key line DID carry a value node. It is a second, independent way for
+  //                              a continuation line to be a node start, and E2 below needs it: the
+  //                              exemption was written when `valueNodeOnContinuation` was the only
+  //                              way, which made it a claim about one of the two.
   interface KeyLineShape {
     readonly label: string;
     readonly lines: readonly string[];
@@ -5767,6 +5774,7 @@ describe("frontmatter — the loader differential over a GENERATED corpus (D-52 
     readonly tail: string;
     readonly valueNodeOnContinuation: boolean;
     readonly danglingNodeProperty: boolean;
+    readonly flowNodeStartAtEndOfKeyLine: boolean;
   }
   const AXIS_KEY_LINE: readonly KeyLineShape[] = [
     {
@@ -5776,6 +5784,7 @@ describe("frontmatter — the loader differential over a GENERATED corpus (D-52 
       tail: "",
       valueNodeOnContinuation: false,
       danglingNodeProperty: false,
+      flowNodeStartAtEndOfKeyLine: false,
     },
     {
       label: "no value",
@@ -5784,6 +5793,7 @@ describe("frontmatter — the loader differential over a GENERATED corpus (D-52 
       tail: "",
       valueNodeOnContinuation: true,
       danglingNodeProperty: false,
+      flowNodeStartAtEndOfKeyLine: false,
     },
     {
       label: "comment-only value",
@@ -5792,6 +5802,7 @@ describe("frontmatter — the loader differential over a GENERATED corpus (D-52 
       tail: "",
       valueNodeOnContinuation: true,
       danglingNodeProperty: false,
+      flowNodeStartAtEndOfKeyLine: false,
     },
     {
       label: "trailing whitespace only",
@@ -5800,6 +5811,7 @@ describe("frontmatter — the loader differential over a GENERATED corpus (D-52 
       tail: "",
       valueNodeOnContinuation: true,
       danglingNodeProperty: false,
+      flowNodeStartAtEndOfKeyLine: false,
     },
     {
       label: "flow-sequence opener",
@@ -5808,6 +5820,7 @@ describe("frontmatter — the loader differential over a GENERATED corpus (D-52 
       tail: "]",
       valueNodeOnContinuation: false,
       danglingNodeProperty: false,
+      flowNodeStartAtEndOfKeyLine: true,
     },
     {
       label: "flow-mapping opener",
@@ -5816,6 +5829,7 @@ describe("frontmatter — the loader differential over a GENERATED corpus (D-52 
       tail: "}",
       valueNodeOnContinuation: false,
       danglingNodeProperty: false,
+      flowNodeStartAtEndOfKeyLine: true,
     },
     {
       label: "flow-sequence opener with a node property",
@@ -5824,6 +5838,7 @@ describe("frontmatter — the loader differential over a GENERATED corpus (D-52 
       tail: "]",
       valueNodeOnContinuation: false,
       danglingNodeProperty: true,
+      flowNodeStartAtEndOfKeyLine: true,
     },
     {
       label: "flow-mapping explicit-key opener",
@@ -5832,6 +5847,7 @@ describe("frontmatter — the loader differential over a GENERATED corpus (D-52 
       tail: ": v}",
       valueNodeOnContinuation: false,
       danglingNodeProperty: false,
+      flowNodeStartAtEndOfKeyLine: true,
     },
     // (27-43's OWN RED TEAM, CARRIED IN AS CORPUS) These two are the exact spellings that were live
     // silent-no-grant bypasses INSIDE D-51's first draft — a node property standing in front of a
@@ -5846,6 +5862,7 @@ describe("frontmatter — the loader differential over a GENERATED corpus (D-52 
       tail: '"]',
       valueNodeOnContinuation: false,
       danglingNodeProperty: false,
+      flowNodeStartAtEndOfKeyLine: false,
     },
     {
       label: "flow-mapping explicit-key opener with a mid-line quote",
@@ -5854,6 +5871,7 @@ describe("frontmatter — the loader differential over a GENERATED corpus (D-52 
       tail: '": v}',
       valueNodeOnContinuation: false,
       danglingNodeProperty: false,
+      flowNodeStartAtEndOfKeyLine: false,
     },
     {
       label: "literal block indicator",
@@ -5862,6 +5880,7 @@ describe("frontmatter — the loader differential over a GENERATED corpus (D-52 
       tail: "",
       valueNodeOnContinuation: false,
       danglingNodeProperty: false,
+      flowNodeStartAtEndOfKeyLine: false,
     },
     {
       label: "folded block indicator",
@@ -5870,6 +5889,7 @@ describe("frontmatter — the loader differential over a GENERATED corpus (D-52 
       tail: "",
       valueNodeOnContinuation: false,
       danglingNodeProperty: false,
+      flowNodeStartAtEndOfKeyLine: false,
     },
     {
       label: "block-sequence dash with no value",
@@ -5878,6 +5898,7 @@ describe("frontmatter — the loader differential over a GENERATED corpus (D-52 
       tail: "",
       valueNodeOnContinuation: true,
       danglingNodeProperty: false,
+      flowNodeStartAtEndOfKeyLine: false,
     },
   ];
 
@@ -6024,8 +6045,10 @@ describe("frontmatter — the loader differential over a GENERATED corpus (D-52 
     readonly bound: number;
     readonly matches: (keyLine: KeyLineShape, first: ContinuationOneShape) => boolean;
   }
+  // (27-48) THE SHAPES WHOSE FIRST CONTINUATION IS A NODE START, BY EITHER OF THE TWO ROUTES YAML
+  // GIVES. Derived from the declared facts, never hand-counted.
   const CONTINUATION_START_SHAPES = AXIS_KEY_LINE.filter(
-    (k) => k.valueNodeOnContinuation,
+    (k) => k.valueNodeOnContinuation || k.flowNodeStartAtEndOfKeyLine,
   ).length;
   const DANGLING_PROPERTY_SHAPES = AXIS_KEY_LINE.filter(
     (k) => k.danglingNodeProperty,
@@ -6046,10 +6069,12 @@ describe("frontmatter — the loader differential over a GENERATED corpus (D-52 
       label:
         "E2 — a YAML anchor at the value's node start on the first continuation line",
       reason:
-        "The key line carries no value node, so the first continuation IS the value's node start, and `&w` there is a genuine YAML anchor rather than text. D-30 refuses it; the loader resolves the anchor and reads the token behind it. SAFE DIRECTION: a loud refusal, never a hidden grant.",
+        "The first continuation line is a NODE START, by either of the two routes YAML gives: the key line carried no value node at all (`valueNodeOnContinuation`), or it ended INSIDE a flow collection just after `[`, `{`, `,` or `?` (`flowNodeStartAtEndOfKeyLine`). `&w` at a node start is a genuine YAML anchor rather than text. D-30 refuses it; the loader resolves the anchor and reads the token behind it. SAFE DIRECTION: a loud refusal, never a hidden grant.\n\n(27-48) THE SECOND ROUTE WAS MISSING AND THE OMISSION WAS THE EXEMPTION'S, NOT THE MODULE'S. This rule was written when `valueNodeOnContinuation` was the only declared route, so it was a claim about ONE of the two ways a continuation line can be a node start — the same shape as the (c) framing D-55 retires one screen up. The module reached the flow route only after D-55 made the line-level node-start answer agree with the walk's own; before that it read a genuine anchor inside a flow collection as TEXT, silently, which is the direction that is never exemptible.",
       bound: CONTINUATION_START_SHAPES * AXIS_CONTINUATION_2.length,
       matches: (keyLine, first) =>
-        keyLine.valueNodeOnContinuation && first.referenceSigilAtNodeStart,
+        (keyLine.valueNodeOnContinuation ||
+          keyLine.flowNodeStartAtEndOfKeyLine) &&
+        first.referenceSigilAtNodeStart,
     },
   ];
 
@@ -8375,6 +8400,14 @@ describe("frontmatter — the multi-document stream disposition (D-53 / IN-05 / 
 // `scripts/frontmatter.js` returned on a `git archive HEAD` mirror of 89705ba BEFORE the edit (RED)
 // and the loader's value from `/usr/bin/ruby -ryaml` (Ruby 2.6.10 / Psych 3.1.0 / libyaml 0.2.1).
 // Both transcripts are recorded verbatim in 27-48-SUMMARY.md.
+// The scanner's entering state for a fresh node, spelled here rather than imported: `FRESH_NODE` is
+// module-internal, and a test that reconstructs it states the three fields it depends on.
+const FRESH_NODE_FOR_D55 = {
+  openQuote: null,
+  flowDepth: 0,
+  nodeMayBegin: true,
+} as const;
+
 describe("frontmatter — D-55: the node-started fact is set where the node begins (CR-02, round 9)", () => {
   const TOKEN = "Agent(grugops-orchestrator)";
   const doc = (region: string): string =>
@@ -8532,23 +8565,63 @@ describe("frontmatter — D-55: the node-started fact is set where the node begi
     );
   });
 
-  it("D-55 escape-resolution shift — a nested quoted item's allowlisted escape is now VALIDATED rather than RESOLVED, and that direction is non-word text", () => {
-    // MEASURED CONSEQUENCE, PINNED RATHER THAN DISCOVERED. Before D-55 a nested `- "…"` line became
-    // its own part, so the flush saw ONE wholly-quoted scalar and `resolveDoubleQuoted` turned `\\`
-    // into `\`. It is now folded into the composite value its document expresses, which reaches
-    // `scanEmbeddedDoubleQuoted` — the declared policy for a value that is not one wholly-quoted
-    // scalar: VALIDATE the escape against the allowlist, return the bytes unchanged.
+  it("D-55 nested quoted item under a nested mapping — still ITS OWN NODE, so its escape is still resolved; byte-identical to the pre-D-55 build", () => {
+    // A CONTROL THAT WAS A DEVIATION FIRST, AND THE MEASUREMENT IS WHY IT IS NEITHER NOW. An
+    // intermediate draft of D-55 (the one before the walk's own answer joined `startsNode`) folded
+    // this item into its parent instead of treating it as a node, so the flush stopped seeing ONE
+    // wholly-quoted scalar and `resolveDoubleQuoted` stopped turning `\\` into `\`. That draft moved
+    // 20 cells of the repository-wide value map in the leave-the-escape-alone direction. It is not
+    // what shipped: `items:` ends at a mapping separator, so the walk leaves a node start behind it
+    // and the deeper dash is an ITEM.
     //
-    // THE DIRECTION IS THE SAFE ONE AND THE MODULE ALREADY ARGUES IT: each of the three allowlisted
-    // escapes resolves to a NON-WORD character (`"`, `\`, `/`) and is non-word unresolved too, so
-    // leaving it alone can neither create nor destroy a `\bAgent\b` / `\bTask\b` boundary. Over the
-    // repository-wide value map this accounts for ALL 20 cells whose content signature moved, and
-    // with the two escape characters excluded from the signature the count is 0 (27-48-SUMMARY.md).
+    // Pinned as a CONTROL rather than deleted, because a shape that moved under one draft of a fix is
+    // exactly the shape a later draft moves again without anyone noticing.
     const text = doc(`tech_debt:\n  items:\n    - "a \\\\r b"`);
-    expect(valueOf(text, "tech_debt")).toBe(`items: - "a \\\\r b"`);
-    // libyaml: {"items"=>["a \\r b"]} — one backslash, because a double-quoted scalar resolves `\\`.
-    // The module keeps two. Neither can be part of a token.
+    // libyaml: {"items"=>["a \\r b"]}
+    expect(valueOf(text, "tech_debt")).toBe(`items:, a \\r b`);
     expect(hasSpawnGrant(text)).toEqual({ ok: true, value: false });
+  });
+
+  // ── THE WALK'S OWN ANSWER IS PART OF THE LINE-LEVEL ANSWER (found by the executor's red team) ──
+
+  it("D-55 nested sequence under a nested mapping — a deeper dash after a mapping separator is STILL an item, and the module does not go silent over a live grant", () => {
+    // THE REGRESSION AN INTERMEDIATE DRAFT OF THIS PLAN SHIPPED, PINNED SO IT CANNOT RETURN. With
+    // `startsNode` reading only `nodeStarted` and `seqIndent`, `nested:` raised the fact for the
+    // WHOLE key while `seqIndent` was still null, so the deeper dash stopped being an item, the quote
+    // after it opened at a non-node-start, its state died at the line boundary and the token line was
+    // stripped as a comment: `{ok:true,value:false}` over a document libyaml reads as
+    // {"nested"=>["Read, # x, Agent(grugops-orchestrator)"]}. That is this module's founding failure,
+    // opened by the fix meant to close its mirror image, and it was found by the executor's own
+    // adversarial sweep and not by the plan.
+    //
+    // THE CURE IS THE WALK'S ANSWER, NOT A FOURTH FACT. `stripComment` already computes offset 0 as
+    // `nodeStartAtOffsetZero || entering.nodeMayBegin`; the line-level expression was simply weaker.
+    for (const quote of ['"', "'"]) {
+      const text = doc(
+        `tools:\n  nested:\n    - ${quote}Read,\n    # x, ${TOKEN}${quote}`,
+      );
+      expect(hasSpawnGrant(text), quote).toEqual({ ok: true, value: true });
+      expect(grantedAgentNames(text), quote).toEqual({
+        ok: true,
+        value: ["grugops-orchestrator"],
+      });
+    }
+  });
+
+  it("D-55 the walk's answer is FALSE exactly where CR-02 lives, so the third disjunct cannot reopen it", () => {
+    // A plain scalar's last character takes the chain's final arm, so `nodeMayBegin` is false after
+    // it — which is why the a1 and b1 rows above still close. Asserted through the exported scanner
+    // rather than argued, so the claim is checkable at the character.
+    for (const line of ["Agent(alpha, ga", "Read,", "see the docs", "intro"]) {
+      expect(
+        stripComment(line, FRESH_NODE_FOR_D55, true, true).state.nodeMayBegin,
+        line,
+      ).toBe(false);
+    }
+    // ...and TRUE after a mapping separator, which is the position the red team found.
+    expect(
+      stripComment("nested:", FRESH_NODE_FOR_D55, true, true).state.nodeMayBegin,
+    ).toBe(true);
   });
 
   // ── THE ADJACENCY EDGE: TWO KEY LINES THAT DIFFER BY ONE CHARACTER ────────────────────────────

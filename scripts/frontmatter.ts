@@ -1217,14 +1217,38 @@ function flattenBlock(
       // scalar that already began. Both are properties of the NODE — neither is recoverable from the
       // line, which is exactly why the per-line reset got all three wrong.
       //
-      // (D-55) THE THIRD DISJUNCT IS THE BLOCK-SEQUENCE EXCEPTION, STATED ONCE HERE AND NOWHERE
+      // (D-55) THE SECOND DISJUNCT IS THE BLOCK-SEQUENCE EXCEPTION, STATED ONCE HERE AND NOWHERE
       // ELSE. `cur.seqIndent` is `null` for every key that is not a block sequence, so for those
-      // keys this expression is byte-for-byte the old `!inScalar && !nodeStarted`. Where the key IS
-      // a block sequence, a line at the ITEM INDENT re-admits a node start — because a sequence
-      // genuinely begins a new node at every item — while a more-indented line continues the item it
-      // follows. See `seqIndent`'s doc block for what breaks if this disjunct is removed.
+      // keys it contributes nothing. Where the key IS a block sequence, a line at the ITEM INDENT
+      // re-admits a node start — because a sequence genuinely begins a new node at every item —
+      // while a more-indented line continues the item it follows. See `seqIndent`'s doc block for
+      // what breaks if this disjunct is removed.
+      //
+      // (D-55, ADDED BY THE EXECUTOR'S OWN RED TEAM) THE THIRD DISJUNCT IS THE WALK'S ANSWER, AND
+      // ITS ABSENCE WAS A LIVE SILENT-NO-GRANT. `stripComment` computes offset 0's node-start answer
+      // as `nodeStartAtOffsetZero || entering.nodeMayBegin` — so the SCANNER already treats a line
+      // whose predecessor ended where a node may begin as a node start, and this line-level
+      // expression was giving the item boundary and the reference test a DIFFERENT, WEAKER answer.
+      // That is a second predicate for a fact the walk already holds, which is the class this module
+      // has now deleted four times. Measured against the build that shipped without it:
+      //
+      //   tools:              libyaml: {"nested"=>["Read, # x, Agent(grugops-orchestrator)"]}
+      //     nested:           module:  {ok:true,value:false} — SILENT NO-GRANT over a live grant.
+      //       - "Read,        `nested:` raised `nodeStarted` for the whole key and `seqIndent` was
+      //       # x, Agent(…)"  still null, so the deeper dash stopped being an item, the quote after
+      //                       it opened at a non-node-start, its state died at the line boundary and
+      //                       the token line was stripped as a comment.
+      //
+      // AND IT CANNOT REOPEN CR-02, because the walk's answer is FALSE at exactly the positions CR-02
+      // is about: a plain scalar's last character takes the chain's final arm, so `tools:` /
+      // `  Agent(alpha, ga` and `tools:` / `  Read,` both leave `nodeMayBegin` false and the dash or
+      // quote on the next line stays text. Adjudicated over an 864-cell generated corpus in both
+      // directions and over the repository-wide value map; see 27-48-SUMMARY.md.
       const startsNode =
-        !inScalar && (!cur.nodeStarted || indent === cur.seqIndent);
+        !inScalar &&
+        (!cur.nodeStarted ||
+          indent === cur.seqIndent ||
+          cur.state.nodeMayBegin);
       // CONSUMER 1 — THE ITEM BOUNDARY. `SEQ_ITEM` is byte-unchanged and is simply NOT ASKED where a
       // node may not begin. Teaching the regex about quotes would be a SECOND GRAMMAR for a fact
       // these fields already hold, and this module has deleted a weaker-duplicate predicate twice.
