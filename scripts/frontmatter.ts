@@ -1933,23 +1933,51 @@ function firstOutsideDeclaredWs(residue: string): number {
 // complement bounds the run, and `DELIMITER_WS_CHAR` labels it. No THIRD character class is
 // introduced, and none may be: a second whitespace class beside `DELIMITER_WS_CHAR` would be a
 // defect in this fix, not a refinement of it.
+// (27-50, WR-05 — 27-REVIEW-GAPS-8 § WR-05, round 9 — D-56 item 4) THE RESIDUE ARM CARRIES THE CODE
+// POINT THAT MADE IT RESIDUE, BECAUSE THIS SCAN ALREADY STOOD ON IT AND THREW IT AWAY.
+//
+// WHAT WAS WRONG, AND IT WAS THE DIAGNOSIS AND NEVER THE VERDICT. The classifier's leading-residue
+// clause interpolated `line.codePointAt(0)`. For ` <ZWSP>---` the message read "its leading residue
+// … begins with U+0020" — an ordinary space, which is INSIDE `DELIMITER_WS_CHAR` and is not why the
+// line refused. The whole purpose of the D-44/D-50 wording is to name the offending byte so a reader
+// is sent to the right character; that message sent them to a legal one.
+//
+// THE FIELD IS ON THE RESIDUE ARM ALONE, AND THAT IS THE POINT. "The offending code point of a run
+// that has none" is not merely untested here — it is UNREPRESENTABLE. An `indentation` run has no
+// code point outside the declared class and a `none` run has no code points at all, so neither arm
+// can carry a value a later reader could interpolate. A field defaulted to 0 or to the line's first
+// code point on those arms would reintroduce exactly this defect the next time someone reached for
+// it. The compiler is what enforces that, not this comment.
+//
+// NO SECOND SCAN AND NO SECOND FLAG. The boolean `allDeclared` this replaced held strictly less
+// information than the code point does, and asking a second walk for the offender would be the
+// second-opinion shape the block above forbids by name: composition is decided HERE, once, in the
+// same walk that measures the length. `firstOutsideDeclared < 0` IS "every code point was declared",
+// so there is one fact and not two.
+//
+// CODE POINTS, NOT UNITS — the pairing the block above states. The walk is `for...of`, so `c` is a
+// whole code point and `c.codePointAt(0)` names a supplementary-plane character as ONE `U+XXXXX`
+// label rather than as a surrogate half. The length keeps counting UTF-16 units because its only job
+// is to slice the string.
 type LeadingRun =
   | { kind: "none"; length: 0 }
   | { kind: "indentation"; length: number }
-  | { kind: "residue"; length: number };
+  | { kind: "residue"; length: number; firstOutsideDeclared: number };
 
 function leadingInvisibleRun(line: string): LeadingRun {
   let length = 0;
-  let allDeclared = true;
+  let firstOutsideDeclared = -1;
   for (const c of line) {
     if (VISIBLE_GLYPH.test(c)) break;
-    if (!DELIMITER_WS_CHAR.test(c)) allDeclared = false;
+    if (firstOutsideDeclared < 0 && !DELIMITER_WS_CHAR.test(c)) {
+      firstOutsideDeclared = c.codePointAt(0) ?? 0;
+    }
     length += c.length;
   }
   if (length === 0) return { kind: "none", length: 0 };
-  return allDeclared
+  return firstOutsideDeclared < 0
     ? { kind: "indentation", length }
-    : { kind: "residue", length };
+    : { kind: "residue", length, firstOutsideDeclared };
 }
 
 // `U+` followed by four or more uppercase hexadecimal digits.
@@ -2042,8 +2070,28 @@ function classifyDelimiter(
     // class, or both.
     const faults: string[] = [];
     if (run.kind !== "none") {
+      // (27-50, WR-05) NAME THE CODE POINT THAT MADE THE RUN RESIDUE, NOT THE ONE THE LINE BEGINS
+      // WITH. What stood here interpolated `line.codePointAt(0)` unconditionally, so ` <ZWSP>---`
+      // reported U+0020 — a character inside the declared class, and not the reason the line
+      // refused. The clause names where the delimiter should begin and then pointed at a character
+      // that is legal there, which is a defect in the refusal even though the verdict was right.
+      //
+      // THE CLAUSE'S WORDS ARE UNCHANGED AND ARE NOW TRUE. "Its leading RESIDUE … begins with X":
+      // the residue is the part of the run outside the declared class, and that begins at the first
+      // code point outside it. On a run whose first code point is itself the offender the two are
+      // the same value, so those reasons are byte-identical before and after.
+      //
+      // THE INDENTATION ARM STILL NAMES THE LINE'S FIRST CODE POINT, and must. It is reached only at
+      // the OPENING position (the closing position routes indentation to `not-a-delimiter` above),
+      // where the fault is POSITIONAL — the line begins with whitespace instead of the payload — and
+      // there is no code point outside the declared class for a reader to fix. The type is what
+      // stops that fallback from being written on the residue arm by accident.
       faults.push(
-        `its leading residue renders no glyph of its own and begins with ${codePointLabel(line.codePointAt(0) ?? 0)}, so the delimiter does not begin where the line begins`,
+        `its leading residue renders no glyph of its own and begins with ${codePointLabel(
+          run.kind === "residue"
+            ? run.firstOutsideDeclared
+            : (line.codePointAt(0) ?? 0),
+        )}, so the delimiter does not begin where the line begins`,
       );
     }
     if (outside !== -1) {

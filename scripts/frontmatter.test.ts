@@ -3017,10 +3017,15 @@ describe("frontmatter — the spawn-grant parser oracle (SPAWN-04 / KIT-03)", ()
     // whichever end that code point sits at. Both orders are asserted rather than assumed to fall out
     // of the split — the two spellings exercise different characters of the run and a scan that
     // stopped labelling early would pass one and fail the other.
+    // (27-50, WR-05 / D-56 item 4) THE SECOND ROW'S EXPECTED LABEL MOVED, AND THAT MOVE IS THE
+    // FINDING. It read `U+0020` — the space the line BEGINS with, which is inside
+    // `DELIMITER_WS_CHAR` and is not why the line refused. A refusal exists to send a reader to the
+    // byte to fix; this row pinned it sending them to a legal one. The offending code point is now
+    // carried out of the same scan that already visits it. See the WR-05 cases below.
     const ZWSP = String.fromCodePoint(0x200b);
     const ROWS: readonly { label: string; line: string; names: string }[] = [
       { label: "residue then indentation", line: `${ZWSP} ---`, names: "U+200B" },
-      { label: "indentation then residue", line: ` ${ZWSP}---`, names: "U+0020" },
+      { label: "indentation then residue", line: ` ${ZWSP}---`, names: "U+200B" },
     ];
     for (const row of ROWS) {
       for (const position of ["opening", "closing"] as const) {
@@ -3063,6 +3068,167 @@ describe("frontmatter — the spawn-grant parser oracle (SPAWN-04 / KIT-03)", ()
     // one boundary a two-way indentation/residue split would have got wrong at this position.
     expect(projectVerdict("--- foo", "closing")).toBe("refuse");
     expect(projectVerdict("... foo", "closing")).toBe("refuse");
+  });
+
+  // ── WR-05 (27-50, D-56 item 4) — THE REFUSAL NAMES THE OFFENDING BYTE, NEVER A LEGAL ONE ──────
+  //
+  // WHAT WAS WRONG. The leading-residue clause interpolated `line.codePointAt(0)`. For a line whose
+  // leading run is a legal space followed by a zero-width space, the message read "its leading
+  // residue … begins with U+0020" — pointing the reader at an ordinary space, which is inside
+  // `DELIMITER_WS_CHAR` and is not why the line refused. `leadingInvisibleRun` already STOOD ON the
+  // offending code point when it decided the run was residue, and discarded it.
+  //
+  // WHY THIS IS A DEFECT AND NOT A COSMETIC. The whole purpose of the D-44/D-50 wording is to name
+  // the offending byte so a reader is sent to the right character. The VERDICT was right and the
+  // DIAGNOSIS was wrong, which is the failure mode that costs an author the most: a red gate whose
+  // message describes a character that is legal there.
+  //
+  // WHAT THE CLAUSE'S WORDS NOW MEAN, so "begins with" is not read as a second defect. The clause
+  // says "its leading RESIDUE … begins with X". The residue is what makes the run residue — the part
+  // outside the declared class — and that begins at the first code point outside it. Under the old
+  // interpolation the sentence was false about a mixed run; under this one it is true about every
+  // residue run, and BYTE-IDENTICAL on every run whose first code point is itself the offender.
+
+  it("WR-05 — a leading run that BEGINS with a legal code point names the one that made it residue, not the one the line begins with", () => {
+    const ZWSP = String.fromCodePoint(0x200b);
+    const NBSP = String.fromCodePoint(0xa0);
+    const TAG_SPACE = String.fromCodePoint(0xe0020);
+    // Each row states the code point the refusal MUST name and the one it must NOT — the second
+    // column is what makes this a pin rather than a restatement, because the defect was a message
+    // that named a real code point of the line and merely the WRONG one.
+    const ROWS: readonly {
+      label: string;
+      line: string;
+      names: string;
+      never: string | null;
+    }[] = [
+      {
+        label: "a legal SPACE, then the offender (the exact WR-05 shape)",
+        line: ` ${ZWSP}---`,
+        names: "U+200B",
+        never: "U+0020",
+      },
+      {
+        label: "a legal TAB, then the offender",
+        line: `\t${ZWSP}---`,
+        names: "U+200B",
+        never: "U+0009",
+      },
+      {
+        label: "two legal spaces, then a NO-BREAK SPACE",
+        line: `  ${NBSP}---`,
+        names: "U+00A0",
+        never: "U+0020",
+      },
+      {
+        label:
+          "a legal space, then a SUPPLEMENTARY-PLANE offender (adjacency meets the code-point label)",
+        line: ` ${TAG_SPACE}---`,
+        names: "U+E0020",
+        never: "U+0020",
+      },
+      {
+        label: "a legal space, then the offender, AND illegal trailing residue",
+        line: ` ${ZWSP}---${ZWSP}`,
+        names: "U+200B",
+        never: "U+0020",
+      },
+      // THE CONTROL. The offender is already first, so the fix must not trade one wrong answer for
+      // another: this row's reason is byte-identical before and after.
+      {
+        label: "CONTROL — the offender is itself the first code point",
+        line: `${ZWSP}---`,
+        names: "U+200B",
+        never: null,
+      },
+      {
+        label: "CONTROL — a NO-BREAK SPACE first, which is NOT the declared class",
+        line: `${NBSP}---`,
+        names: "U+00A0",
+        never: null,
+      },
+    ];
+
+    for (const row of ROWS) {
+      for (const position of ["opening", "closing"] as const) {
+        const where = `${row.label} @ ${position}`;
+        const parsed = parseFrontmatter(buildDelimiterDoc(row.line, position));
+        expect(parsed.ok, where).toBe(false);
+        if (parsed.ok) continue;
+        expect(parsed.reason, where).toContain(
+          `${position} delimiter position carries`,
+        );
+        expect(parsed.reason, `${where} — leading clause`).toContain(
+          "its leading residue renders no glyph of its own and begins with",
+        );
+        expect(parsed.reason, `${where} — must NAME the offender`).toContain(
+          `begins with ${row.names}`,
+        );
+        if (row.never !== null) {
+          // The refusal must not name a code point that is INSIDE the declared class. Asserted on
+          // the clause rather than on the whole reason, because the excerpt legitimately reproduces
+          // the line's bytes and a whole-reason assertion would be about the excerpt.
+          expect(
+            parsed.reason,
+            `${where} — must NOT name the legal code point ${row.never}`,
+          ).not.toContain(`begins with ${row.never}`);
+        }
+        expect(projectVerdict(row.line, position), where).toBe("refuse");
+      }
+    }
+  });
+
+  it("WR-05 boundary — the offending code point is UNREPRESENTABLE on a run that has none: it lives on the RESIDUE arm alone", () => {
+    // THE TYPE, NOT A CONVENTION. "The offending code point of a run that has none" is not merely
+    // untested — it cannot be written. A field defaulted on the indentation arm would be a value a
+    // later reader could interpolate, and interpolating it would reintroduce exactly WR-05.
+    const src = readFileSync(
+      join(import.meta.dirname, "frontmatter.ts"),
+      "utf8",
+    );
+    const code = src
+      .split("\n")
+      .filter((l) => !l.trimStart().startsWith("//"))
+      .join("\n");
+    const at = code.indexOf("type LeadingRun =");
+    expect(at).toBeGreaterThan(0);
+    // The declaration's own bound, stated rather than guessed: a union arm carries semicolons of its
+    // own, so `indexOf(";")` lands INSIDE the first arm. The declaration ends at the first LINE that
+    // ends in a semicolon, and that premise is asserted before the slice is read — the IN-03 lesson
+    // applied to the case that closes IN-03.
+    const declLines = code.slice(at).split("\n");
+    const endIdx = declLines.findIndex((l) => l.trimEnd().endsWith(";"));
+    expect(
+      endIdx,
+      "PREMISE — the LeadingRun declaration must terminate in a line ending with `;`",
+    ).toBeGreaterThan(0);
+    const decl = declLines.slice(0, endIdx + 1).join("\n");
+    expect(decl).toContain('| { kind: "none"; length: 0 }');
+    expect(decl).toContain('| { kind: "indentation"; length: number }');
+    expect(decl).toContain(
+      '| { kind: "residue"; length: number; firstOutsideDeclared: number }',
+    );
+    // Two-sided: exactly ONE arm carries it. A one-sided "the residue arm has it" assertion would
+    // stay green on the day a defaulted copy appears on the indentation arm.
+    expect(
+      decl.split("firstOutsideDeclared").length - 1,
+      "the offending code point is declared on exactly one arm of LeadingRun",
+    ).toBe(1);
+
+    // And the observable half: a run that is ENTIRELY the declared class is INDENTATION. At the
+    // CLOSING position that is `not-a-delimiter` and there is no fault at all; at the OPENING
+    // position it still refuses (the D-50 asymmetry) naming the line's first code point, which is
+    // what "the delimiter does not begin where the line begins" is about there — and that reason is
+    // byte-unchanged by WR-05, because an indentation run has no offending code point to name.
+    for (const line of ["  ---", "\t---", " \t ---"]) {
+      expect(projectVerdict(line, "closing"), line).toBe("not-a-delimiter");
+      const opening = parseFrontmatter(buildDelimiterDoc(line, "opening"));
+      expect(opening.ok, line).toBe(false);
+      if (opening.ok) continue;
+      expect(opening.reason, line).toContain(
+        `begins with ${line.startsWith("\t") ? "U+0009" : "U+0020"}`,
+      );
+    }
   });
 
   // ── THE FALSE-RED CONTROL, OVER THE ONE SCAN COMPOSITION ──────────────────────────────────────
@@ -8977,6 +9143,47 @@ describe("frontmatter — the occurrence balance arm (D-53 / IN-01 / SPAWN-04 + 
     );
   });
 
+  // ── IN-03 (27-50, D-56 item 7) — THE SLICE STATES WHAT IT IS BEFORE IT IS INSPECTED ───────────
+  //
+  // WHAT WAS WRONG. The purity case sliced the module source with `indexOf("\n}", start)`. That is
+  // this function's body TODAY only because no closing brace inside it sits at column 0 — an
+  // incidental property of today's formatting, not a property of the function. A reformat (a
+  // prettier width change, an object literal broken differently) can shrink the slice to a few
+  // lines, and every `expect(body).not.toContain(...)` below then passes VACUOUSLY. That is the
+  // assertion-that-cannot-fail shape this phase closed twice in round 7 and once more in round 9.
+  //
+  // THE PREMISE IS STATED ONCE, HERE, AND CONSULTED TWICE — by the purity case, which needs it to
+  // hold, and by the proof case below, which needs it to FAIL on a slice that is not the function.
+  // A proof case restating the premise would prove something about the copy.
+  //
+  // WHY THESE TWO EXPRESSIONS. They are read off the function rather than remembered: the reduce
+  // over `GRANT_OCCURRENCE_KINDS` is the count identity the whole extraction exists to hold in one
+  // place, and `balanced: false` is its refusal arm. Neither appears anywhere else in the module's
+  // code, so a slice containing both is this function's body and not a neighbour's.
+  const PURITY_FORBIDDEN: readonly string[] = [
+    "readFileSync",
+    "readdirSync",
+    "existsSync",
+    "execFileSync",
+    "process.",
+    "derive(",
+  ];
+
+  const assertSliceIsBalanceBody = (body: string, where: string): void => {
+    expect(
+      body,
+      `${where}: PREMISE — the slice must contain the count identity this function exists to hold`,
+    ).toContain("GRANT_OCCURRENCE_KINDS.reduce");
+    expect(
+      body,
+      `${where}: PREMISE — the slice must contain the refusal arm`,
+    ).toContain("balanced: false");
+    expect(
+      body.split("\n").length,
+      `${where}: PREMISE — the slice must be a whole function body, not a truncation`,
+    ).toBeGreaterThan(10);
+  };
+
   it("the extracted check is PURE BY CONSTRUCTION — no filesystem, no module-level derivation, and the same answer twice", () => {
     const src = readFileSync(
       join(import.meta.dirname, "frontmatter.ts"),
@@ -8987,14 +9194,10 @@ describe("frontmatter — the occurrence balance arm (D-53 / IN-01 / SPAWN-04 + 
     const end = src.indexOf("\n}", start);
     expect(end).toBeGreaterThan(start);
     const body = src.slice(start, end);
-    for (const forbidden of [
-      "readFileSync",
-      "readdirSync",
-      "existsSync",
-      "execFileSync",
-      "process.",
-      "derive(",
-    ]) {
+    // (IN-03) THE PREMISE RUNS FIRST. Every assertion below is a NEGATIVE one, and a negative
+    // assertion over the wrong text is a green light for nothing.
+    assertSliceIsBalanceBody(body, "the purity slice");
+    for (const forbidden of PURITY_FORBIDDEN) {
       expect(body, forbidden).not.toContain(forbidden);
     }
     // Same arguments, same answer — no hidden state between calls.
@@ -9004,6 +9207,37 @@ describe("frontmatter — the occurrence balance arm (D-53 / IN-01 / SPAWN-04 + 
     expect(checkGrantOccurrenceBalance("Agent(a)", list)).toEqual(
       checkGrantOccurrenceBalance("Agent(a)", list),
     );
+  });
+
+  it("IN-03 — the purity case's PREMISE is LOAD-BEARING: a truncated slice passes every forbidden-substring check and is REFUSED by the premise", () => {
+    const src = readFileSync(
+      join(import.meta.dirname, "frontmatter.ts"),
+      "utf8",
+    );
+    const start = src.indexOf("export function checkGrantOccurrenceBalance(");
+    expect(start).toBeGreaterThan(0);
+
+    // The slice a reformat produces: the signature and a couple of lines, cut where a `}` happens to
+    // reach column 0 early. Constructed rather than simulated, because the point is that this text
+    // is what `indexOf("\n}")` can legitimately return.
+    const truncated = src.slice(start, src.indexOf("\n", start) + 1);
+    expect(truncated.split("\n").length).toBeLessThan(4);
+
+    // FIRST: every negative assertion the purity case makes passes over it. This is the vacuity.
+    for (const forbidden of PURITY_FORBIDDEN) {
+      expect(truncated, forbidden).not.toContain(forbidden);
+    }
+
+    // SECOND: the premise refuses it. Both halves are needed — the first shows the case WOULD have
+    // been green over the wrong text, the second shows it no longer can be.
+    expect(() =>
+      assertSliceIsBalanceBody(truncated, "a deliberately truncated slice"),
+    ).toThrow(/PREMISE/);
+
+    // And the premise is NOT vacuously strict: the real body passes it, so this is a discriminator
+    // rather than an assertion that refuses everything.
+    const end = src.indexOf("\n}", start);
+    assertSliceIsBalanceBody(src.slice(start, end), "the real body");
   });
 
   it("the production call site branches on the extracted result and re-decides nothing", () => {

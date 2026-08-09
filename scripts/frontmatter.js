@@ -1711,19 +1711,20 @@ function firstOutsideDeclaredWs(residue) {
 }
 function leadingInvisibleRun(line) {
     let length = 0;
-    let allDeclared = true;
+    let firstOutsideDeclared = -1;
     for (const c of line) {
         if (VISIBLE_GLYPH.test(c))
             break;
-        if (!DELIMITER_WS_CHAR.test(c))
-            allDeclared = false;
+        if (firstOutsideDeclared < 0 && !DELIMITER_WS_CHAR.test(c)) {
+            firstOutsideDeclared = c.codePointAt(0) ?? 0;
+        }
         length += c.length;
     }
     if (length === 0)
         return { kind: "none", length: 0 };
-    return allDeclared
+    return firstOutsideDeclared < 0
         ? { kind: "indentation", length }
-        : { kind: "residue", length };
+        : { kind: "residue", length, firstOutsideDeclared };
 }
 // `U+` followed by four or more uppercase hexadecimal digits.
 const codePointLabel = (cp) => `U+${cp.toString(16).toUpperCase().padStart(4, "0")}`;
@@ -1800,7 +1801,25 @@ function classifyDelimiter(line, payloads, position) {
         // class, or both.
         const faults = [];
         if (run.kind !== "none") {
-            faults.push(`its leading residue renders no glyph of its own and begins with ${codePointLabel(line.codePointAt(0) ?? 0)}, so the delimiter does not begin where the line begins`);
+            // (27-50, WR-05) NAME THE CODE POINT THAT MADE THE RUN RESIDUE, NOT THE ONE THE LINE BEGINS
+            // WITH. What stood here interpolated `line.codePointAt(0)` unconditionally, so ` <ZWSP>---`
+            // reported U+0020 — a character inside the declared class, and not the reason the line
+            // refused. The clause names where the delimiter should begin and then pointed at a character
+            // that is legal there, which is a defect in the refusal even though the verdict was right.
+            //
+            // THE CLAUSE'S WORDS ARE UNCHANGED AND ARE NOW TRUE. "Its leading RESIDUE … begins with X":
+            // the residue is the part of the run outside the declared class, and that begins at the first
+            // code point outside it. On a run whose first code point is itself the offender the two are
+            // the same value, so those reasons are byte-identical before and after.
+            //
+            // THE INDENTATION ARM STILL NAMES THE LINE'S FIRST CODE POINT, and must. It is reached only at
+            // the OPENING position (the closing position routes indentation to `not-a-delimiter` above),
+            // where the fault is POSITIONAL — the line begins with whitespace instead of the payload — and
+            // there is no code point outside the declared class for a reader to fix. The type is what
+            // stops that fallback from being written on the residue arm by accident.
+            faults.push(`its leading residue renders no glyph of its own and begins with ${codePointLabel(run.kind === "residue"
+                ? run.firstOutsideDeclared
+                : (line.codePointAt(0) ?? 0))}, so the delimiter does not begin where the line begins`);
         }
         if (outside !== -1) {
             faults.push(`the first code point after the payload, ${codePointLabel(residue.codePointAt(outside) ?? 0)}, is outside the one whitespace class a delimiter may carry`);
