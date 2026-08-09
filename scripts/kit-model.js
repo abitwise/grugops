@@ -279,7 +279,30 @@ export function partitionPluginComponentClaims(schemaKeys, forbiddenKeys, covere
     return {
         unclaimed: schemaKeys.filter((k) => !claimedKeys.includes(k)),
         doubleClaimed: schemaKeys.filter((k) => claimedKeys.filter((c) => c === k).length > 1),
-        foreign: claimedKeys.filter((k) => !schemaKeys.includes(k)),
+        // THE TWO ARMS SHARE ONE DE-DUPLICATION DISCIPLINE (plan 27-46, D-53, closing IN-04).
+        //
+        // The double-claimed arm above de-duplicates IMPLICITLY: it filters over `schemaKeys`, and a
+        // schema key appears in that list once, so each key it names is named once however many buckets
+        // claimed it. This arm filters over `claimedKeys` and therefore INHERITED their multiplicity — a
+        // key claimed by two buckets AND absent from the schema was interpolated into guard_kit_counts'
+        // failure message twice. The arm's consumer is a human reading that message, where a key printed
+        // twice reads as two findings. Both arms now answer the membership question the same way.
+        //
+        // THE MULTIPLICITY IS DROPPED, NOT PRESERVED IN A SECOND FIELD. Reporting the key once AND how
+        // many buckets claimed it is two statements of one fact — the two-independent-facts shape this
+        // round has already deleted twice, and the sibling arm answers membership without it.
+        //
+        // `claimedKeys.indexOf(k) === i` keeps the FIRST occurrence, so the order is STATED IN THE
+        // EXPRESSION rather than inherited from an iteration order that happens to be insertion-ordered
+        // today. A de-duplication whose order is an implementation detail makes the guard's message
+        // non-reproducible across two runs over one tree — a new defect traded for a cosmetic one — and
+        // every derivation in this module either sorts or preserves a stated order for exactly this
+        // reason.
+        //
+        // THIS CHANGES A FAILURE MESSAGE AND NEVER A VERDICT. The arm is non-empty only for inputs
+        // today's computed forbidden set cannot produce; the gate's `kit counts:` PASS line is
+        // byte-identical before and after on the live tree.
+        foreign: claimedKeys.filter((k, i) => !schemaKeys.includes(k) && claimedKeys.indexOf(k) === i),
     };
 }
 // The forbidden keys' probe directories, flattened and sorted. Sorted so two gate runs over one tree

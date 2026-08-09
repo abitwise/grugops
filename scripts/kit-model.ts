@@ -440,7 +440,8 @@ export function pluginForbiddenComponentKeys(): string[] {
 //
 // THIS CHANGES WHERE THE PREDICATE LIVES AND NEVER WHAT IT DECIDES. The body is the guard's former
 // inline computation moved verbatim, including the ORDER each arm reports in (the schema's order for
-// the first two, the claim order for the third), because the guard's failure message interpolates
+// the first two, the FIRST-OCCURRENCE claim order for the third — see that arm's own comment for the
+// de-duplication plan 27-46 added to it), because the guard's failure message interpolates
 // these arrays and a reader depends on that wording. It is proven behaviour-preserving rather than
 // asserted: the gate's `kit counts:` PASS line is byte-identical before and after, and a permanent
 // control in scripts/check-foundation-guards.test.ts re-runs the gate against a scratch build whose
@@ -455,7 +456,10 @@ export interface PluginComponentClaimPartition {
   readonly unclaimed: string[];
   /** Schema keys more than one bucket claimed. */
   readonly doubleClaimed: string[];
-  /** Claimed keys the schema does not carry. */
+  /**
+   * Claimed keys the schema does not carry, each reported AT MOST ONCE, in FIRST-OCCURRENCE order
+   * across the concatenated claim lists. (Plan 27-46, D-53 — see the arm's comment below.)
+   */
   readonly foreign: string[];
 }
 
@@ -471,7 +475,32 @@ export function partitionPluginComponentClaims(
     doubleClaimed: schemaKeys.filter(
       (k) => claimedKeys.filter((c) => c === k).length > 1,
     ),
-    foreign: claimedKeys.filter((k) => !schemaKeys.includes(k)),
+    // THE TWO ARMS SHARE ONE DE-DUPLICATION DISCIPLINE (plan 27-46, D-53, closing IN-04).
+    //
+    // The double-claimed arm above de-duplicates IMPLICITLY: it filters over `schemaKeys`, and a
+    // schema key appears in that list once, so each key it names is named once however many buckets
+    // claimed it. This arm filters over `claimedKeys` and therefore INHERITED their multiplicity — a
+    // key claimed by two buckets AND absent from the schema was interpolated into guard_kit_counts'
+    // failure message twice. The arm's consumer is a human reading that message, where a key printed
+    // twice reads as two findings. Both arms now answer the membership question the same way.
+    //
+    // THE MULTIPLICITY IS DROPPED, NOT PRESERVED IN A SECOND FIELD. Reporting the key once AND how
+    // many buckets claimed it is two statements of one fact — the two-independent-facts shape this
+    // round has already deleted twice, and the sibling arm answers membership without it.
+    //
+    // `claimedKeys.indexOf(k) === i` keeps the FIRST occurrence, so the order is STATED IN THE
+    // EXPRESSION rather than inherited from an iteration order that happens to be insertion-ordered
+    // today. A de-duplication whose order is an implementation detail makes the guard's message
+    // non-reproducible across two runs over one tree — a new defect traded for a cosmetic one — and
+    // every derivation in this module either sorts or preserves a stated order for exactly this
+    // reason.
+    //
+    // THIS CHANGES A FAILURE MESSAGE AND NEVER A VERDICT. The arm is non-empty only for inputs
+    // today's computed forbidden set cannot produce; the gate's `kit counts:` PASS line is
+    // byte-identical before and after on the live tree.
+    foreign: claimedKeys.filter(
+      (k, i) => !schemaKeys.includes(k) && claimedKeys.indexOf(k) === i,
+    ),
   };
 }
 
