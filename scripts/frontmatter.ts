@@ -1009,8 +1009,9 @@ interface Accumulator {
   // the three sites below assigns this field exactly once, from what the scanner returned, and
   // conditions that assignment on nothing.
   state: ScalarState;
-  // (D-48) DID THIS KEY'S VALUE NODE ALREADY BEGIN ON THE KEY LINE? The SECOND fact that belongs to
-  // the node rather than to the line, and the answer to "may a node BEGIN on this continuation line".
+  // (D-48, RENAMED AND COMPLETED BY D-55) HAS THIS KEY'S VALUE NODE BEGUN ANYWHERE YET? The SECOND
+  // fact that belongs to the node rather than to the line, and the answer to "may a node BEGIN on
+  // this continuation line".
   //
   // `openQuote` alone closes the QUOTED spellings and leaves the PLAIN wrapped scalar carrying all
   // three directions of the identical defect — measured against the build that landed the quote
@@ -1020,13 +1021,54 @@ interface Accumulator {
   // name again, on the success arm. Closing only the spelling a finding happened to report is the
   // enumerate-the-bad shape this phase has now corrected six times, so both close here.
   //
-  // THE RULE, AND IT IS YAML'S OWN: once a scalar has begun on the key line, every following
-  // more-indented line CONTINUES it — a `-` there is text and a sigil there is not a node property.
-  // Where the key line carries NO value, the indented lines are themselves the node starts (a block
-  // sequence, or a plain scalar's first line), which is today's behaviour byte for byte. Verified
-  // against libyaml in both directions: `tools: Read,` / `  - Write` loads as the single scalar
-  // `Read, - Write`, while `tools:` / `  - Read` / `  - Write` loads as a two-element sequence.
-  nodeOnKeyLine: boolean;
+  // THE RULE, AND IT IS YAML'S OWN: once a scalar has begun, every following more-indented line
+  // CONTINUES it — a `-` there is text and a sigil there is not a node property. Where the key line
+  // carries NO value, the indented lines are themselves the node starts (a block sequence, or a
+  // plain scalar's first line). Verified against libyaml in both directions: `tools: Read,` /
+  // `  - Write` loads as the single scalar `Read, - Write`, while `tools:` / `  - Read` /
+  // `  - Write` loads as a two-element sequence.
+  //
+  // (D-55 — 27-REVIEW-GAPS-8 § CR-02, round 9) THE FIELD WAS NAMED `nodeOnKeyLine` AND WAS ASSIGNED
+  // AT EXACTLY ONE OF THE TWO PLACES A NODE CAN BEGIN. The paragraph above already stated the rule
+  // in its general form — "once a scalar has begun" — and the code implemented it only for the key
+  // line. Where the key line carried no value NOTHING recorded that the node had begun on the first
+  // continuation line, so `startsNode` stayed true for every subsequent continuation line of that
+  // key. Measured against the committed build, with the loader column from /usr/bin/ruby -ryaml
+  // (Ruby 2.6.10 / Psych 3.1.0 / libyaml 0.2.1) — three directions, one omission:
+  //
+  //   tools:              names ["alpha","ga","mma"] — `mma` INVENTED and `ga` TRUNCATED, on the
+  //     Agent(alpha, ga   `ok:true` arm, straight into the KIT-03 closure equality.
+  //     - mma)            libyaml: "Agent(alpha, ga - mma)" -> ["alpha","ga - mma"].
+  //
+  //   tools:              {ok:true,value:true} — a module GRANT the loader does not have, which the
+  //     Read,             D-52 harness declares NEVER EXEMPTIBLE. The quote opens on a line that
+  //     "Write,           CONTINUES the plain scalar, so libyaml reads it as content and the hash
+  //     # x, Agent(…)"    line as a COMMENT: "Read, \"Write,". No token.
+  //
+  //   description:        REFUSED as a YAML anchor or alias — a FALSE RED on documentation libyaml
+  //     see the docs      accepts cleanly as "see the docs *emphasis* here". Same for `&` and `!`.
+  //     *emphasis* here
+  //
+  // So the field is RENAMED TO WHAT IT MEANS and set at BOTH places a node can begin: on the key
+  // line when the key line carries text, and on the continuation path once the first content-bearing
+  // line has been consumed. This is D-51's discipline applied one field over — set the fact where
+  // the fact becomes true, not where it was first convenient.
+  nodeStarted: boolean;
+  // (D-55 point 2) THE ONE DELIBERATE EXCEPTION, AND IT IS AN INDENT RATHER THAN A FLAG. `null`
+  // until this key's first block-sequence item is seen, then the indent of that item's line.
+  //
+  // A BLOCK SEQUENCE GENUINELY ADMITS A NODE START AT EVERY ITEM. If the item path let `nodeStarted`
+  // alone govern it, the SECOND item's dash would stop being an item boundary and the shipped
+  // block-sequence idiom every skill and adapter writes — `tools:` / `  - Read` / `  - Write` —
+  // would collapse into the one scalar `Read - Write`. So the item path records the INDENT at which
+  // items begin, and a line AT that indent re-enters the item rule however long the sequence runs.
+  //
+  // AND THE EXCEPTION IS BOUNDED BY THAT INDENT, WHICH IS WHAT MAKES IT AN EXCEPTION AND NOT A
+  // SECOND GRAMMAR. A dash on a MORE-INDENTED continuation of an item is text — which is what YAML
+  // says and what the loader computes: libyaml reads `tools:` / `  - Read,` / `    - still text` as
+  // the single item "Read, - still text", while the pre-D-55 build read the second dash as a second
+  // ITEM and invented a comma boundary ("Read,, still text").
+  seqIndent: number | null;
 }
 
 // Flatten one frontmatter block (the lines BETWEEN the delimiters) into key -> values.
@@ -1170,11 +1212,19 @@ function flattenBlock(
       // it is not a comment start, it is not a node start, and it is not an item boundary. That is
       // the whole of what the carried state decides — it never decides what a value MEANS.
       const inScalar = cur.state.openQuote !== null;
-      // MAY A NODE BEGIN ON THIS LINE? Derived ONCE from the two carried facts and read by consumers
+      // MAY A NODE BEGIN ON THIS LINE? Derived ONCE from the carried facts and read by consumers
       // 1 and 2 below. A line inside an open quoted scalar is content; so is a line continuing a
-      // scalar that already began on the key line. Both are properties of the NODE — neither is
-      // recoverable from the line, which is exactly why the per-line reset got all three wrong.
-      const startsNode = !inScalar && !cur.nodeOnKeyLine;
+      // scalar that already began. Both are properties of the NODE — neither is recoverable from the
+      // line, which is exactly why the per-line reset got all three wrong.
+      //
+      // (D-55) THE THIRD DISJUNCT IS THE BLOCK-SEQUENCE EXCEPTION, STATED ONCE HERE AND NOWHERE
+      // ELSE. `cur.seqIndent` is `null` for every key that is not a block sequence, so for those
+      // keys this expression is byte-for-byte the old `!inScalar && !nodeStarted`. Where the key IS
+      // a block sequence, a line at the ITEM INDENT re-admits a node start — because a sequence
+      // genuinely begins a new node at every item — while a more-indented line continues the item it
+      // follows. See `seqIndent`'s doc block for what breaks if this disjunct is removed.
+      const startsNode =
+        !inScalar && (!cur.nodeStarted || indent === cur.seqIndent);
       // CONSUMER 1 — THE ITEM BOUNDARY. `SEQ_ITEM` is byte-unchanged and is simply NOT ASKED where a
       // node may not begin. Teaching the regex about quotes would be a SECOND GRAMMAR for a fact
       // these fields already hold, and this module has deleted a weaker-duplicate predicate twice.
@@ -1217,13 +1267,25 @@ function flattenBlock(
         // node start is real.
         if (startsWithReference(itemText)) return refuseRef(t);
         cur.seq = true;
+        // (D-55 point 2) THE ITEM INDENT, RECORDED UNCONDITIONALLY. This is the whole of the block
+        // sequence exception: `startsNode` above re-admits a node start at THIS indent, so however
+        // long the sequence runs every dash at it re-enters this rule, while a dash on a
+        // more-indented continuation of an item is text — which is what YAML says and what the
+        // loader computes. It is assigned on EVERY item rather than only the first, because an item
+        // whose own value is a nested sequence moves the indent at which items begin: libyaml reads
+        // `tools:` / `  -` / `    - inner` / `    - inner2` as `[["inner", "inner2"]]`, two items at
+        // indent 4, and a first-write-wins `seqIndent` would have folded the second into the first.
+        cur.seqIndent = indent;
         // (D-30) The escape refusal fires HERE, at the same node-start point the reference refusal
         // already fires from, and returns directly rather than being deferred to the flush.
         //
         // (D-53 / IN-03) The invariant this path has always relied on, now stated as code. The state
         // read below carries the flow depth and the node-may-begin answer — a genuine read of the
-        // carried record — while its QUOTE component is null, guaranteed by `startsNode` above, which
-        // is `!inScalar && !cur.nodeOnKeyLine` and so cannot be true with a quote open.
+        // carried record — while its QUOTE component is null, guaranteed by `startsNode` above,
+        // whose first conjunct is `!inScalar` and which therefore cannot be true with a quote open.
+        // (D-55 restated the rest of that expression — the fact `nodeOnKeyLine` is now `nodeStarted`
+        // and carries a block-sequence indent exception — and the `!inScalar` conjunct, which is the
+        // only part this invariant rests on, is byte-unchanged.)
         assertItemPathScalarClosed(cur.state, t);
         // (D-51) SEEDING SITE 2 OF 3 — one assignment, no gate. The item is its own node, so offset 0
         // of `itemText` is a node start and the scanner is told so; whether anything crosses the
@@ -1239,6 +1301,15 @@ function flattenBlock(
         const resolved = unquoteChecked(scanned.text.trim());
         if (!resolved.ok) return refuseEscape(t, resolved.escape);
         const v = resolved.value;
+        // (D-55 point 1) SET-SITE TWO OF THREE, AND IT IS THE KEY LINE'S RULE SPELLED IDENTICALLY.
+        // A sequence item INTRODUCES a node exactly as a key line does, and it begins that node only
+        // if the line actually carries text: `  -` with the content on the next, more-indented line
+        // begins nothing here, so that line is the node start — which is what makes a genuine YAML
+        // anchor there still an anchor, and what keeps the shipped `  - Read` / `  -` / `    "Write,`
+        // idiom producing TWO parts rather than one. Measured: an unconditional `true` here read the
+        // anchor as text on four cells of the D-52 corpus where libyaml resolves it, which is the
+        // silent-no-grant direction this whole phase exists to close.
+        cur.nodeStarted = v !== "";
         if (v !== "") cur.parts.push(v);
         continue;
       }
@@ -1270,12 +1341,31 @@ function flattenBlock(
       const scanned = stripComment(t, cur.state, startsNode, startsNode);
       cur.state = scanned.state;
       const text = scanned.text.trim();
-      if (inScalar && cur.parts.length > 0) {
-        // A continuation of an OPEN scalar is the SAME node, so it folds into the part it continues
-        // rather than becoming a part of its own. Pushing it would hand a block sequence's `", "`
-        // join a boundary the document does not express — the invented-comma direction again, this
-        // time one layer below the item boundary. YAML folds the line break to a single space and so
-        // does this, which is why the flattened value matches the loader's byte for byte.
+      // (D-55 point 1) THE SECOND OF THE TWO PLACES A VALUE NODE CAN BEGIN, AND THE FIELD'S OWN DOC
+      // BLOCK HAS ALWAYS SAID SO. `nodeStarted` was assigned only on the key line; here is where a
+      // node begins when the key line carried none, so here is where the fact becomes true.
+      //
+      // THE GUARD IS "CONTENT WAS ACTUALLY CONSUMED", ON THE SAME ARGUMENT AS THE KEY LINE'S. A
+      // continuation line that is WHOLLY a comment begins nothing — libyaml takes the value from the
+      // line after it — so an empty `text` leaves the fact alone, exactly as `tools: # x` does one
+      // branch down. Those two spellings differ by one character and only one of them was ever
+      // exercised before D-55; both are pinned now.
+      if (text !== "") cur.nodeStarted = true;
+      if (!startsNode && cur.parts.length > 0) {
+        // A continuation of a node that has ALREADY BEGUN is the SAME node, so it folds into the
+        // part it continues rather than becoming a part of its own. Pushing it would hand a block
+        // sequence's `", "` join a boundary the document does not express — the invented-comma
+        // direction again, this time one layer below the item boundary. YAML folds the line break to
+        // a single space and so does this, which is why the flattened value matches the loader's
+        // byte for byte.
+        //
+        // (D-55) THE CONDITION IS `!startsNode`, NOT `inScalar`. It was written when the ONLY way a
+        // line could continue an already-begun node was an OPEN QUOTE, and that stopped being true
+        // the moment `nodeStarted` learned about the continuation path. Measured: with the old
+        // condition, `tools:` / `  - Agent(alpha, ga` / `    - mma)` still enumerated
+        // ["alpha","ga","mma"] where libyaml expresses ["alpha","ga - mma"] — the invented name
+        // surviving in the sequence spelling of the very direction this decision closes. `inScalar`
+        // is a strict subset of `!startsNode`, so nothing that folded before stops folding.
         cur.parts[cur.parts.length - 1] =
           text === ""
             ? cur.parts[cur.parts.length - 1]
@@ -1309,7 +1399,8 @@ function flattenBlock(
         block: true,
         seq: false,
         state: FRESH_NODE,
-        nodeOnKeyLine: false,
+        nodeStarted: false,
+        seqIndent: null,
       };
     } else {
       cur = {
@@ -1318,7 +1409,8 @@ function flattenBlock(
         block: false,
         seq: false,
         state: FRESH_NODE,
-        nodeOnKeyLine: false,
+        nodeStarted: false,
+        seqIndent: null,
       };
       // (D-48) THE KEY LINE SEEDS FROM A FRESH NODE, AND THE ASYMMETRY WITH THE TWO CONTINUATION
       // POINTS IS DELIBERATE — DO NOT "FIX" IT TO MATCH THEM. A key line begins a NEW NODE, so no
@@ -1343,7 +1435,12 @@ function flattenBlock(
       // The node begins HERE only if the key line actually carries text. A key line whose value is
       // wholly a comment (`tools: # x`) begins nothing, so the following indented lines are still
       // node starts — libyaml agrees: it takes the value from the continuation line.
-      cur.nodeOnKeyLine = v !== "";
+      //
+      // (D-55) THIS IS SET-SITE ONE OF TWO. It is byte-unchanged; what changed is that the OTHER
+      // place a node can begin — the continuation path — now sets it too, on the same "content was
+      // actually consumed" guard. The field was named `nodeOnKeyLine` for this site alone, and that
+      // name is the reason a reader could look straight at the omission and see a complete rule.
+      cur.nodeStarted = v !== "";
       if (v !== "") cur.parts.push(v);
     }
   }

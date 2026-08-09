@@ -8139,6 +8139,51 @@ describe("frontmatter — D-55: the node-started fact is set where the node begi
     );
   });
 
+  it("D-55 empty-dash item — a dash line carrying NO text begins no node, so the node starts on the first more-indented line and a genuine anchor there is STILL refused", () => {
+    // THE ITEM PATH SPELLS THE KEY LINE'S RULE, NOT A SECOND ONE. `  -` introduces a node exactly as
+    // `tools:` does and begins it only if the line carries text. Measured while writing this plan:
+    // an unconditional `nodeStarted = true` at the item path read `&w` below as TEXT on four cells of
+    // the D-52 corpus where libyaml RESOLVES the anchor — the silent-no-grant direction, opened by
+    // the edit meant to close its mirror image. Identical on the pre-D-55 build and this one.
+    expect(
+      parseFrontmatter(doc(`tools:\n  -\n    &w Write, ${TOKEN}`)).ok,
+    ).toBe(false);
+    // And the shipped two-part shape keeps TWO parts: the empty dash line's node begins below it, so
+    // the quoted scalar there is a new part rather than a continuation of the previous item.
+    // libyaml: ["Read", "Write, # x, Agent(grugops-orchestrator)"].
+    expect(
+      valueOf(doc(`tools:\n  - Read\n  -\n    "Write,\n    # x, ${TOKEN}"`), "tools"),
+    ).toBe(`Read, "Write, # x, ${TOKEN}"`);
+  });
+
+  it("D-55 nested sequence — the item indent MOVES with the sequence, so a nested sequence's items are items", () => {
+    // libyaml: [["inner", "inner2"]]. `seqIndent` is assigned on EVERY item and not only the first,
+    // because the empty dash line's node begins one level in; a first-write-wins indent would have
+    // folded `inner2` into `inner`. Byte-identical to the pre-D-55 build.
+    expect(valueOf(doc(`tools:\n  -\n    - inner\n    - inner2`), "tools")).toBe(
+      "inner, inner2",
+    );
+  });
+
+  it("D-55 escape-resolution shift — a nested quoted item's allowlisted escape is now VALIDATED rather than RESOLVED, and that direction is non-word text", () => {
+    // MEASURED CONSEQUENCE, PINNED RATHER THAN DISCOVERED. Before D-55 a nested `- "…"` line became
+    // its own part, so the flush saw ONE wholly-quoted scalar and `resolveDoubleQuoted` turned `\\`
+    // into `\`. It is now folded into the composite value its document expresses, which reaches
+    // `scanEmbeddedDoubleQuoted` — the declared policy for a value that is not one wholly-quoted
+    // scalar: VALIDATE the escape against the allowlist, return the bytes unchanged.
+    //
+    // THE DIRECTION IS THE SAFE ONE AND THE MODULE ALREADY ARGUES IT: each of the three allowlisted
+    // escapes resolves to a NON-WORD character (`"`, `\`, `/`) and is non-word unresolved too, so
+    // leaving it alone can neither create nor destroy a `\bAgent\b` / `\bTask\b` boundary. Over the
+    // repository-wide value map this accounts for ALL 20 cells whose content signature moved, and
+    // with the two escape characters excluded from the signature the count is 0 (27-48-SUMMARY.md).
+    const text = doc(`tech_debt:\n  items:\n    - "a \\\\r b"`);
+    expect(valueOf(text, "tech_debt")).toBe(`items: - "a \\\\r b"`);
+    // libyaml: {"items"=>["a \\r b"]} — one backslash, because a double-quoted scalar resolves `\\`.
+    // The module keeps two. Neither can be part of a token.
+    expect(hasSpawnGrant(text)).toEqual({ ok: true, value: false });
+  });
+
   // ── THE ADJACENCY EDGE: TWO KEY LINES THAT DIFFER BY ONE CHARACTER ────────────────────────────
 
   it("D-55 adjacency edge — a key line carrying only whitespace and one carrying only a comment both leave the node to begin on the first continuation line", () => {
