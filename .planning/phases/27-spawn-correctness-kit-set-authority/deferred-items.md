@@ -655,3 +655,222 @@ round-8 verification record (`27-VERIFICATION.md` § `human_verification`) left 
 - **Suggested direction:** the delegation is written down in three places now (the D-52 differential,
   its named-region arm, and this plan's throwaway probe). A red team's oracle is a predicate like any
   other and should be built from the module's declared consumers rather than re-derived per session.
+
+## From 27-52 (round 10, 27-REVIEW § family G/G2) — the nested block-scalar family CLOSED, and TWO further positions found by this plan's own red team
+
+- **What `27-52` touched.** `scripts/frontmatter.ts` (a new `BLOCK_MAP_EXPLICIT` production beside
+  `SEQ_ITEM`, a new `blockHeaderAt` recogniser that calls the existing `BLOCK_INDICATOR`, `KEY_LINE`
+  and `BLOCK_MAP_EXPLICIT`, four new `Accumulator` fields and an `openBlock` helper called from the
+  three header positions), the rebuilt `scripts/frontmatter.js`, `scripts/frontmatter.test.ts`, this
+  ledger and `27-CONTEXT.md` (D-57). No other production source file; no dependency; `package.json`
+  byte-unchanged.
+
+### FAMILY G / G2 — **CLOSED**, with the gate transcripts that are the closure evidence
+
+Loader column `/usr/bin/ruby -ryaml` (ruby 2.6.10 / psych 3.1.0 / libyaml 0.2.1). PRE is the
+committed build at `bac7537` on a `git archive` mirror; POST is the rebuilt committed `.js`. Every
+row is a document the loader ACCEPTS with `Agent(grugops-orchestrator)` plainly in the loaded value.
+
+| row | region under `tools:` | PRE (`bac7537`) | POST | loader |
+|---|---|---|---|---|
+| G  | `  nested: >-` / `    Read,` / `    # x, TOKEN` | `no-grant`, names `[]` | **grant**, `["grugops-orchestrator"]` | `{"nested"=>"Read, # x, TOKEN"}` |
+| G2 | `  - >-` / `    Read,` / `    # x, TOKEN` | `no-grant`, names `[]` | **grant** | `["Read, # x, TOKEN"]` |
+| g1 | `  nested: >2-` (indentation indicator) | `no-grant` | **grant** | `{"nested"=>"Read, # x, TOKEN"}` |
+| g2 | `  nested: \|+` (keep chomping) | `no-grant` | **grant** | `{"nested"=>"Read,\n# x, TOKEN\n"}` |
+| g3 | `  nested: > # h` (header carries a comment) | `no-grant` | **grant** | `{"nested"=>"Read, # x, TOKEN\n"}` |
+| g4 | the same under `allowed-tools:` | `no-grant` | **grant** | `{"nested"=>"Read, # x, TOKEN"}` |
+| g5 | `  nested: \|` / `    Agent(alpha, ga` / `    - mma)` | names `["alpha","ga - mma"]` | **`refuse`** | `refuse` — **NAME SETS NOW EQUAL** |
+
+Row g5 closes because the join is now derived from the indicator: YAML 1.2 § 8.1.2 (literal `|`)
+PRESERVES a line break and § 8.1.3 (folded `>`) folds it to a space. The loader's value carries a
+line break INSIDE the enumeration, which this module's own `ENUMERATION_LEGAL_CHARS` refuses — so
+both sides refuse and the D-09 equality holds, instead of the module returning two names on the
+success arm for a value the loader will not enumerate at all.
+
+**Gate level, planted on BOTH distribution twins of the non-coordinator `plan` skill (D-40), hermetic
+mirrors, `CHECK_ROOT` override.** The harness asserts the planted region is on disk AND that both
+twins are NAMED in the failure — a red that is not the red under test is not evidence (see R1).
+
+```
+PRE-FIX  (git archive bac7537)
+  unplanted                                :: exit=0 :: ALL CHECKS PASSED :: twins named 0/2
+  FAMILY G  nested mapping value           :: exit=0 :: ALL CHECKS PASSED :: twins named 0/2   <-- the live bypass
+  FAMILY G2 block-sequence item            :: exit=0 :: ALL CHECKS PASSED :: twins named 0/2   <-- the live bypass
+  FAMILY G3 header after a SIBLING map key :: exit=0 :: ALL CHECKS PASSED :: twins named 0/2
+  FAMILY G4 header in a seq item's map     :: exit=0 :: ALL CHECKS PASSED :: twins named 0/2
+  FAMILY G5 header two levels deep         :: exit=0 :: ALL CHECKS PASSED :: twins named 0/2
+  FAMILY G6 explicit mapping VALUE         :: exit=0 :: ALL CHECKS PASSED :: twins named 0/2
+  FAMILY G7 explicit mapping KEY           :: exit=0 :: ALL CHECKS PASSED :: twins named 0/2
+  UNION nested header + the '' escape      :: exit=0 :: ALL CHECKS PASSED :: twins named 0/2
+  CONTROL one-line grant                   :: exit=1 :: 1 CHECK(S) FAILED :: twins named 2/2
+  CONTROL nested header, NO grant          :: exit=0 :: ALL CHECKS PASSED :: twins named 0/2
+
+POST-FIX (git ls-files mirror of the worktree)
+  unplanted                                :: exit=0 :: ALL CHECKS PASSED :: twins named 0/2
+  every one of the eight family rows       :: exit=1 :: 1 CHECK(S) FAILED :: twins named 2/2   <-- CLOSED
+  CONTROL one-line grant                   :: exit=1 :: 1 CHECK(S) FAILED :: twins named 2/2   <-- unmoved
+  CONTROL nested header, NO grant          :: exit=0 :: ALL CHECKS PASSED :: twins named 0/2   <-- unmoved
+```
+
+### The D-52 corpus grew WITH the fix, and its NON-CIRCULARITY is measured
+
+`AXIS_KEY_LINE_BASE` 20 -> 22 (the nested mapping value and the block-sequence item, both carrying
+the header); derived `AXIS_KEY_LINE` 47 -> 49; cells 2258 -> 2354; loader-accepted 1285 -> 1381.
+The exemption list is **byte-unchanged** — 2 rules, `E1=32` and `E2=52` matched before and after —
+so nothing was exempted to make the new shapes pass.
+
+The SAME corpus (digest `8948822e571be20f`, printed by both runs) against a hermetic mirror of the
+pre-fix commit:
+
+```
+POST-FIX build : token-presence disagreements  78 | NAME-SET disagreements  0  -> PASSED
+PRE-FIX  build : token-presence disagreements 102 | NAME-SET disagreements 24  -> FAILED
+                 24 unexplained cells, EVERY ONE module=no-grant / loader=grant
+```
+
+**The corpus is proven able to see the family it was blind to for five consecutive plans.**
+
+### The WR-01 expressibility floor's derived set GREW, and that is the mechanism working
+
+`27-49` recorded that the floor derives its family list from the ledger in `scripts/frontmatter.ts`'s
+header, that an OPEN bypass has no ledger row, and that family G was therefore outside the derived
+set **by construction**. Closing the family earned it the eleventh ledger entry, which made the floor
+DEMAND a corpus shape for it:
+
+```
+BEFORE : ledger family rows derived  9 | expressible 6 (family (a), family (b), A, B, C, F)      | outside 3 (d1, d2, d3)
+AFTER  : ledger family rows derived 11 | expressible 8 (family (a), family (b), A, B, C, F, G, G2) | outside 3 (d1, d2, d3)
+```
+
+### The MEASURED false-red cost of D-57's option A: **0**
+
+The four tracked documents the `27-47` entry names as already carrying a nested block-scalar header
+were re-parsed against the post-fix build:
+
+| document | key | PRE | POST |
+|---|---|---|---|
+| `.planning/milestones/v1.2-MILESTONE-AUDIT.md` | `evidence: >` | parses, `no-grant` | parses, `no-grant` — UNCHANGED |
+| `.planning/milestones/v1.2-phases/15-typescript-tooling-migration/15-VERIFICATION.md` | `note: >` | parses, `no-grant` | parses, `no-grant` — UNCHANGED |
+| `.planning/milestones/v2.0-phases/25-governance-on-a-dial/25-VERIFICATION.md` | `reason: >` | parses, `no-grant` | parses, `no-grant` — UNCHANGED |
+| `.planning/phases/27-spawn-correctness-kit-set-authority/27-VERIFICATION.md` | `reason: >` | parses, `no-grant` | parses, `no-grant` — UNCHANGED |
+
+**Option A predicted 0 false reds and measured 0.** Repository-wide, over a run-time-derived corpus
+of 1158 tracked markdown files parsed by BOTH builds:
+
+```
+NEW refusals 0 | RECOVERED refusals 0 | GRANT verdict moved 0 | NAME SET moved 0
+files whose value moved 4 | cells moved 5 | cells that got SHORTER 4
+```
+
+**The four shorter cells are adjudicated against the loader rather than reported as a length.** The
+plan's prohibition is that no loader-ACCEPTED document newly returns a shorter value; the shortening
+here is the block-scalar INDICATOR, which YAML says is not content, so the honest test is direction:
+
+```
+moved cells 5 :: TOWARD the loader 3 | AWAY from the loader 0 | loader-unconstrained 2
+  15-VERIFICATION.md :: human_resolution  1021 -> 1019 (loader 1019)  TOWARD — now EQUAL to the loader
+  15-VERIFICATION.md :: human_verification 2349 -> 2345 (loader 2345) TOWARD — now EQUAL to the loader
+  27-VERIFICATION.md :: gaps               6038 -> 6017 (loader 6003) TOWARD
+  v1.2-MILESTONE-AUDIT.md :: gaps          1133 -> 1133 (loader 1115) same length; PRE carried
+    `evidence: > ` (bytes the loader never has), POST carries `evidence: B3` — which is what the
+    loader carries. Reported by the crude substring metric as "unchanged distance"; adjudicated by
+    hand and recorded here rather than left as a number.
+  25-VERIFICATION.md :: gaps_history       8436 -> 8409  the loader REJECTS this region outright
+    (`Psych::SyntaxError: mapping values are not allowed in this context`) on BOTH builds, same file
+    text — so there is no loader value to move away from. Pre-existing; not caused by this plan.
+```
+
+### TWO FURTHER LIVE POSITIONS, found by this plan's OWN adversarial pass against its OWN post-fix build
+
+**This is the finding this plan is proudest of and it must not be smoothed over.** The first build
+closed families G and G2, all seven ledger rows went green, the gate flipped exit 0 -> exit 1 on both
+twins, and the suite was 207/207. Asking pass (a)'s question — *which SET of positions does this
+predicate apply to?* — against that FIXED build found the family still live at three more positions:
+
+| position | first build | after |
+|---|---|---|
+| `tools:` / `  a: Read` / `  b: >-` (a SIBLING mapping key) | silent no-grant | grant |
+| `tools:` / `  - k: v` / `    j: >-` (a sequence item's compact mapping) | silent no-grant | grant |
+| `tools:` / `  ? k` / `  : >-` (the explicit mapping VALUE) | silent no-grant | grant |
+| `tools:` / `  ? >-` / … / `  : v` (the explicit mapping KEY) | silent no-grant | grant |
+
+The cause was the gate, not the recogniser: `startsNode` answers *"has THIS KEY's value node begun"*,
+which is FALSE for every sibling entry of a nested collection. The remedy is DERIVED rather than
+enumerated — a plain scalar cannot spell a mapping-VALUE indicator (YAML excludes `: ` from
+`ns-plain-char`), so `key: <header>` and `: <header>` need only the carried scalar to be CLOSED,
+while a bare `<header>` and `? <header>` — both of which a plain scalar CAN spell, measured:
+`tools: see` / `  >-` loads as `"see >- q,"` and `tools: see` / `  ? >-` loads as `"see ? >- q,"` —
+keep the full node-start gate. `BLOCK_MAP_EXPLICIT` was added beside `SEQ_ITEM` in the same shape,
+so all FOUR of YAML's block-context node introductions (§ 8.2.1 `-`, § 8.2.2 `key:`, `?`, `:`) are
+asked, and that set comes from the grammar rather than from the shapes a probe reported.
+
+**Standing lesson for the next round:** a fix must be re-red-teamed against its OWN output. Closing a
+family at one position and reopening it at the position immediately after is not a closure, and a
+green suite over the newly-fixed build says nothing about it.
+
+### The two adversarial passes, recorded whether or not they found anything
+
+**PASS (a) — *which SET of positions does this predicate apply to?*** 23 probes enumerating the
+positions YAML 1.2 gives a block scalar in block context: mapping value at depths 1-3, block-sequence
+item, a later item, a sequence item's compact mapping value, a sibling key of that mapping, a sibling
+key of a nested mapping, a sequence nested in a sequence, the explicit key's value, the explicit key
+itself, immediately after another block scalar's content in both the mapping and the sequence
+spelling, the literal/indentation-indicator/chomping/header-comment spellings at a nested position,
+the `allowed-tools` key form, and the block scalar as the region's last and non-last key. **2 unsafe
+on the first build (recorded above), 0 after.** 0 loader-rejected — every probe is a real document.
+
+**PASS (b) — *what is this predicate's INPUT assembled from?*** 24 probes walking the value from the
+header's recognition through `raw.trim()`, the BOM strip and CRLF normalisation, the fence strip, the
+accumulator fold, the flush's `sawBlock` exemption, `unquoteChecked` and `grantedAgentNames`:
+trailing whitespace after the header, a tab between key and header, CRLF throughout, tab-indented
+block content, an indented `---` and `...` inside the block, a blank line inside the block, the two
+UNION rows (a nested header whose content carries a single-quoted `''` escape and a double-quoted
+`\"` escape), an escape OUTSIDE the block on the same key, a reference sigil and a dash inside block
+content, a block item beside a plain item on one key, an enumeration split across a folded and a
+literal break, a header as the region's last line, a header whose content never arrives, a
+`coordinator` marker claimed through a nested block scalar, a header inside a fenced example, a
+header at a deeper indent than its content, a duplicate `tools:` key, block content that is only a
+comment line, a header under a non-tools key, and a header inside an open flow collection.
+**0 unsafe.** 1 module refusal (the fenced example, whose region the loader also rejects) and 4
+loader-rejected probes where the module has no value to disagree with.
+
+**THE UNION (the round-8 lesson).** A nested block-scalar header whose content carries wave 1's
+`AXIS_ESCAPE_IN_SCALAR` — the `''` escape inside a single-quoted scalar — is probed in both passes,
+ships as a committed row of `D-57 family G/G2`, and was planted at the gate on both distribution
+twins (exit 0 -> exit 1). Its loader column is
+`{"nested"=>"'Read'' s, # x, Agent(grugops-orchestrator)'"}`.
+
+### R1 — the red team's OWN harness was defeated by not modelling its input, for the THIRD round running
+
+- The first gate-plant harness injected with `awk -v`, **which cannot carry a multi-line value**.
+  Every plant was silently mangled; every row reported `2 CHECK(S) FAILED` and would have been
+  written up as a closure. It was caught only because the CONTROL that must stay green was red too.
+- The second version planted correctly but INSERTED a `tools:` block into a skill that already
+  declares `allowed-tools:`. Every row went red on both builds — on
+  `declares 2 DIFFERENT allow-list keys`, a **different** WR-05 sub-check, with **zero** twins named.
+  A red that is not the red under test is not evidence.
+- **This is `27-50`'s R3 and `27-51`'s R1 for the third consecutive round.** The harness now (a)
+  reads the planted file back and asserts the region it wrote is on disk, (b) asserts the file is
+  left with exactly ONE allow-list key, and (c) counts how many of the two twins are NAMED in the
+  failure text rather than trusting the exit code.
+- **Suggested direction:** a gate-plant harness should assert its own premise the way the module's
+  own cases do — the `IN-03`/`IN-04` "assert the slice is the thing before inspecting it" discipline
+  applies to throwaway probes, and three rounds of the same near-miss say it should be written once.
+
+### Still OPEN, carried forward with its owner
+
+- **The `27-49` WR-04 residual** — the deleted per-exemption bound gave up one narrow detection band,
+  and the replacement corpus-level floor fires only past roughly half the loader-accepted corpus.
+  `27-52` did not address it and does not claim to. Its suggested direction stands: derive the
+  per-rule ceiling from a quantity the rule does not read.
+- **The `27-50` R1 residual** — the leading clause calls an INDENTATION run "residue" on 1,570
+  measured cells. Unchanged by this plan; a wording decision, not a defect.
+- **SPAWN-03's live-platform capture** — deferred to Phase 33 (GAP-D1 / CAP-01) by the `27-50`
+  DECISION 2 above. Unchanged.
+- **The `27-48` scope question is SETTLED, not carried** — see D-57's closing paragraph in
+  `27-CONTEXT.md`. Of the eleven loader-accepted cells whose flattened value disagreed with the
+  loader's content signature on both builds, the block-scalar-bearing subset moved TOWARD the loader
+  under the widened contract (measured above: 3 toward, 0 away, and two of the three now EQUAL the
+  loader's value byte for byte); the residual is the flattener's declared token-presence contract
+  meeting deeply nested metadata, which is IN scope for this module and explicitly NOT a defect,
+  because a value map is not a YAML tree. It is not to be re-opened from a third symptom.

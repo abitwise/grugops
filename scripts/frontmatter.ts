@@ -351,39 +351,48 @@ interface BlockHeader {
   // The line break this scalar's content lines are joined with, DERIVED FROM THE INDICATOR'S OWN
   // FIRST CHARACTER — see `blockLineBreak`.
   readonly lineBreak: string;
-  // (D-57) WHICH OF THE TWO FORMS MATCHED — `key: <indicator>` (keyed) or a bare `<indicator>`. The
-  // two forms need DIFFERENT POSITION GATES on a continuation line, and the difference is DERIVED
-  // FROM WHAT A REAL LOADER ACCEPTS rather than chosen. Measured with `/usr/bin/ruby -ryaml`:
+  // (D-57) DOES THE INTRODUCTION IN FRONT OF THIS HEADER CARRY A MAPPING-VALUE INDICATOR? This is
+  // the ONE derived fact that decides the header's position gate on a continuation line, and it is
+  // derived from a property of YAML's grammar rather than from a list of shapes.
   //
-  //   tools: see          REJECT  mapping values are not allowed in this context
-  //     foo: >-
-  //   tools:              REJECT  mapping values are not allowed in this context
-  //     Read,
+  // THE RULE: A PLAIN SCALAR CANNOT SPELL A MAPPING-VALUE INDICATOR. YAML 1.2 excludes `:` followed
+  // by a separation from `ns-plain-char`, so a line that carries one — `key: <header>` or a bare
+  // `: <header>` — is EITHER real mapping structure or a document the loader refuses outright. There
+  // is no third case, and therefore no loader value for this module to disagree with when it is
+  // wrong. Such a line needs only the carried scalar to be CLOSED.
+  //
+  // The other two introductions — a bare `<header>` and the explicit-key `? <header>` — CAN both
+  // appear inside a plain scalar, so they keep the full `startsNode` gate. Measured with
+  // `/usr/bin/ruby -ryaml` (ruby 2.6.10 / psych 3.1.0 / libyaml 0.2.1); the first four rows are
+  // documents the loader ACCEPTS and MUST be recognised, the last four are the discriminating pairs:
+  //
+  //   tools:              ACCEPT  {"tools"=>{"a"=>"Read","b"=>"q,"}}     `b: >-` is a header
+  //     a: Read                   (`startsNode` is FALSE here — this key's node already began)
   //     b: >-
-  //   tools:              ACCEPT  {"tools"=>{"a"=>"Read", "b"=>"q,"}}      <- must be recognised
-  //     a: Read
-  //     b: >-
-  //   tools:              ACCEPT  {"tools"=>[{"k"=>"v", "j"=>"q,"}]}       <- must be recognised
+  //   tools:              ACCEPT  {"tools"=>[{"k"=>"v","j"=>"q,"}]}      `j: >-` is a header
   //     - k: v
   //       j: >-
-  //   tools: see          ACCEPT  {"tools"=>"see >- q,"}                    <- must NOT be recognised
-  //     >-
+  //   tools:              ACCEPT  {"tools"=>{"k"=>"q,"}}                 `: >-` is a header
+  //     ? k                       (`startsNode` is FALSE here too)
+  //     : >-
+  //   tools:              ACCEPT  {"tools"=>{"q,"=>"v"}}                 `? >-` is a header
+  //     ? >-
+  //     : v
   //
-  // The KEYED form is unconstrained wherever it is not a real mapping entry, because a plain scalar
-  // cannot contain `: ` (YAML 1.2 excludes it from `ns-plain-char`) — so every document in which a
-  // keyed header line is NOT a mapping entry is one the loader refuses outright, and there is no
-  // loader value there for this module to disagree with. It therefore needs only the scalar to be
-  // closed.
+  //   tools: see          REJECT  mapping values are not allowed in this context
+  //     foo: >-                   -> no loader value; recognising it costs nothing
+  //   tools: see          REJECT  did not find expected key while parsing a block mapping
+  //     : >-                      -> no loader value; recognising it costs nothing
+  //   tools: see          ACCEPT  {"tools"=>"see >- q,"}                 `>-` is CONTENT
+  //     >-                        -> recognising it would DELETE bytes from a loader-accepted value
+  //   tools: see          ACCEPT  {"tools"=>"see ? >- q,"}               `? >-` is CONTENT
+  //     ? >-                      -> same; the `?` form keeps the node-start gate
   //
-  // The BARE form is the opposite: the last row above is a document the loader ACCEPTS and reads
-  // `>-` as CONTENT. Recognising it there would DELETE those bytes from a loader-accepted value —
-  // this module's founding failure. It therefore keeps the full `startsNode` gate.
-  //
-  // ONE RECOGNISER, TWO POSITION GATES. This is not a second grammar: `blockHeaderAt` remains the
-  // only thing that decides what a header looks like, and it calls `BLOCK_INDICATOR` to do it. What
-  // differs is WHERE each form is allowed to be one, which is the question this whole decision is
-  // about.
-  readonly keyed: boolean;
+  // ONE RECOGNISER, ONE DERIVED GATE. This is not a second grammar: `blockHeaderAt` remains the only
+  // thing that decides what a header LOOKS like, and it calls `BLOCK_INDICATOR`, `KEY_LINE` and
+  // `BLOCK_MAP_EXPLICIT` to do it. What this field decides is WHERE each introduction is allowed to
+  // introduce one, which is the question D-57 is about.
+  readonly mappingValueIndicator: boolean;
 }
 
 // (D-57) HOW A BLOCK SCALAR JOINS ITS LINES, WHICH IS THE INDICATOR'S OWN MEANING AND NOT A
@@ -406,9 +415,12 @@ const blockLineBreak = (indicator: string): string =>
   indicator.startsWith("|") ? "\n" : " ";
 
 function blockHeaderAt(text: string): BlockHeader | null {
+  // INTRODUCTION 1 OF 4 — none. The header IS the whole line: a block-sequence item's text after
+  // `SEQ_ITEM` has consumed its dashes, or a continuation line that is itself the node.
   if (BLOCK_INDICATOR.test(text)) {
-    return { leading: "", lineBreak: blockLineBreak(text), keyed: false };
+    return { leading: "", lineBreak: blockLineBreak(text), mappingValueIndicator: false };
   }
+  // INTRODUCTION 2 OF 4 — the IMPLICIT block-mapping key, `key: <header>` (YAML 1.2 § 8.2.2).
   const kv = text.match(KEY_LINE);
   if (kv !== null) {
     const indicator = (kv[2] ?? "").trim();
@@ -416,7 +428,21 @@ function blockHeaderAt(text: string): BlockHeader | null {
       return {
         leading: `${kv[1]}:`,
         lineBreak: blockLineBreak(indicator),
-        keyed: true,
+        mappingValueIndicator: true,
+      };
+    }
+  }
+  // INTRODUCTIONS 3 AND 4 OF 4 — the EXPLICIT block-mapping key and value indicators.
+  const explicit = text.match(BLOCK_MAP_EXPLICIT);
+  if (explicit !== null) {
+    const indicator = (explicit[2] ?? "").trim();
+    if (BLOCK_INDICATOR.test(indicator)) {
+      return {
+        leading: explicit[1],
+        lineBreak: blockLineBreak(indicator),
+        // Only `:` is a mapping-VALUE indicator. `?` introduces a key and a plain scalar can spell
+        // it, so it keeps the node-start gate — see `BlockHeader.mappingValueIndicator`.
+        mappingValueIndicator: explicit[1] === ":",
       };
     }
   }
@@ -431,6 +457,23 @@ function blockHeaderAt(text: string): BlockHeader | null {
 // own copy — the weaker-duplicate shape this module deletes on sight — and would keep passing after
 // the real constant changed.
 export const SEQ_ITEM = /^-(?:[ \t]+(.*))?$/;
+
+// (D-57) THE EXPLICIT BLOCK-MAPPING KEY AND VALUE INDICATORS, WRITTEN IN `SEQ_ITEM`'S OWN SHAPE
+// BECAUSE THEY ARE THE SAME KIND OF PRODUCTION.
+//
+// YAML 1.2 gives block context exactly FOUR ways to introduce a node on a line: the block-sequence
+// entry `-` (§ 8.2.1, which is `SEQ_ITEM`), the implicit block-mapping key `key:` (§ 8.2.2, which is
+// `KEY_LINE`), and the explicit block-mapping key `?` and value `:` (§ 8.2.2, which is this). That
+// set is CLOSED — it comes from the grammar's four productions, not from the spellings a red team
+// happened to report — and `blockHeaderAt` below asks all four.
+//
+// FOUND BY THIS PLAN'S OWN ADVERSARIAL PASS (a), ON ITS OWN POST-FIX BUILD. Asking the question
+// "which SET of positions does this predicate apply to" against the FIXED module — rather than
+// declaring victory once the reported families went green — turned up `tools:` / `  ? k` / `  : >-`
+// and `tools:` / `  ? >-` / content / `  : v` as two further live silent-no-grants, both documents
+// libyaml ACCEPTS with the grant in the loaded value. A predicate asked at three of the four
+// positions its grammar defines is the same defect as one asked at one of them.
+const BLOCK_MAP_EXPLICIT = /^([?:])(?:[ \t]+(.*))?$/;
 
 // (D-34) A YAML DIRECTIVE LINE AT THE DOCUMENT START: the `%` indicator at COLUMN 0 followed by at
 // least one non-space character (YAML 1.2 § 6.8 — `%` then a directive name of one or more `ns-char`).
@@ -1609,23 +1652,27 @@ function flattenBlock(
       // YAML gives no comment meaning at that position; recognising the header first is what stops
       // the content from ever being offered to it.
       //
-      // THE GATE IS PER FORM, AND `startsNode` ALONE WAS NOT ENOUGH — FOUND BY THIS PLAN'S OWN RED
-      // TEAM AGAINST ITS OWN FIRST BUILD, NOT BY THE SUITE. `startsNode` answers "has THIS KEY's
-      // value node begun", which is false for every sibling entry of a nested mapping: `tools:` /
-      // `  a: Read` / `  b: >-` and `tools:` / `  - k: v` / `    j: >-` are both documents libyaml
-      // ACCEPTS with the grant in the loaded value, and both returned the silent no-grant arm on the
-      // build that gated this on `startsNode` alone. Closing a family at one position and reopening
-      // it at the position immediately after is not a closure; see `BlockHeader.keyed` for the five
-      // measured loader rows the two gates are derived from.
+      // THE GATE IS DERIVED, AND `startsNode` ALONE WAS NOT ENOUGH — FOUND TWICE BY THIS PLAN'S OWN
+      // RED TEAM AGAINST ITS OWN BUILDS, NEVER BY THE SUITE. `startsNode` answers "has THIS KEY's
+      // value node begun", which is FALSE for every sibling entry of a nested mapping: `tools:` /
+      // `  a: Read` / `  b: >-`, `tools:` / `  - k: v` / `    j: >-` and `tools:` / `  ? k` /
+      // `  : >-` are all documents libyaml ACCEPTS with the grant in the loaded value, and all
+      // returned the silent no-grant arm on builds that gated this on `startsNode` alone. Closing a
+      // family at one position and reopening it at the position immediately after is not a closure;
+      // see `BlockHeader.mappingValueIndicator` for the eight measured loader rows the gate is
+      // derived from.
       //
       // AND THE FLOW GATE IS YAML'S OWN CONTEXT RULE, NOT A MEASUREMENT. A block scalar is a
       // BLOCK-CONTEXT construct (YAML 1.2 § 8.1); inside a flow collection a `>` cannot start a
-      // token at all, which is why every keyed-header-inside-flow spelling probed is a loader
-      // syntax error. The gate states the rule rather than the measurement, so a spelling no probe
-      // reached is covered too.
+      // token at all, which is why every header-inside-flow spelling probed is a loader syntax
+      // error. The gate states the rule rather than the measurement, so a spelling no probe reached
+      // is covered too.
       if (!inScalar && cur.state.flowDepth === 0) {
         const lineHeader = blockHeaderAt(t);
-        if (lineHeader !== null && (lineHeader.keyed || startsNode)) {
+        if (
+          lineHeader !== null &&
+          (lineHeader.mappingValueIndicator || startsNode)
+        ) {
           openBlock(cur, lineHeader, indent);
           continue;
         }
@@ -1709,7 +1756,11 @@ function flattenBlock(
     // two positions, with `baseIndent` as the header line's indent — so the pre-existing behaviour
     // is one case of one rule rather than a separate rule that happens to agree.
     const keyLineHeader: BlockHeader | null = BLOCK_INDICATOR.test(rest)
-      ? { leading: "", lineBreak: blockLineBreak(rest), keyed: false }
+      ? {
+          leading: "",
+          lineBreak: blockLineBreak(rest),
+          mappingValueIndicator: false,
+        }
       : null;
     if (keyLineHeader !== null) {
       cur = {
@@ -2122,6 +2173,60 @@ function flattenBlock(
 //   later reader, and it can only be found by going back to the grammar and asking what the grammar
 //   actually gates. Entry nine's question was "what INPUT is the authority handed"; this one is "what
 //   CONDITIONS is it carrying that nobody chose".
+
+// AND AN ELEVENTH TIME — AND THIS ONE WAS NOT THE PREDICATE AT ALL. IT WAS THE SET OF POSITIONS THE
+// PREDICATE WAS ASKED AT (27-REVIEW § family G/G2, round 10 — D-57).
+//
+//   FIRST, THE COUNT, CITED AND NOT REMEMBERED. This is the ELEVENTH entry and it comes from the
+//   TENTH review round. Nothing below depends on either number; every claim names an assertion.
+//
+//   `BLOCK_INDICATOR` was CORRECT. Its pattern accepts every spelling YAML gives a block-scalar
+//   header — the indicator, an optional indentation digit, an optional chomping sign in either order,
+//   and an optional trailing comment. Nothing about it was wrong. It was asked at exactly ONE of the
+//   several positions YAML allows a header to appear: `flattenBlock`'s TOP-LEVEL KEY LINE.
+//
+//     G   `tools:` / `  nested: >-` / `    Read,` / `    # x, Agent(o)`   a nested mapping's value
+//     G2  `tools:` / `  - >-` / `    Read,` / `    # x, Agent(o)`         a block-sequence item
+//
+//   Each is a document libyaml ACCEPTS with the grant plainly in the loaded value, and each returned
+//   `{ok:true,value:false}` — the silent no-grant SUCCESS arm. `cur.block` stayed false, so the block
+//   scalar's LITERAL content was routed through `stripComment`, and the leading `#` on the token line
+//   was stripped as a comment YAML never gives that position. The same shape reaches three further
+//   positions the first draft of the remedy still missed and this plan's own red team found: the
+//   header after a SIBLING mapping key, the header inside a sequence item's compact mapping, and the
+//   header immediately after another block scalar's content.
+//
+//   THE REPRODUCTION WAS THE WHOLE GATE. Planted on BOTH distribution twins of the non-coordinator
+//   skill `plan`, on hermetic mirrors, every family shape took `node scripts/check-foundation-guards.js`
+//   to ALL CHECKS PASSED at exit 0 on the pre-fix build and to exit 1 naming both twins on the
+//   post-fix build, while the IDENTICAL grant on one line exited 1 on both. The family was
+//   re-measured byte-identical by FIVE consecutive plans (27-47 .. 27-51) before it was closed.
+//
+//   THE REMEDY ASKS THE ONE CONSTANT AT MORE PLACES AND WRITES NO SECOND GRAMMAR. `BLOCK_INDICATOR`
+//   still has exactly one definition site; `blockHeaderAt` calls it, and `KEY_LINE`, at the two
+//   further node-start positions. The scalar's END is YAML 1.2 § 8.1's own more-indented-block rule,
+//   derived from the header line's own indent rather than guessed — the top-level case is
+//   `blockIndent === baseIndent`, so the pre-existing behaviour became one case of one rule. The JOIN
+//   is derived from the indicator too (§ 8.1.2 literal PRESERVES the break, § 8.1.3 folded FOLDS it
+//   to a space), which is what makes the module's name set EQUAL the loader's on a literal scalar
+//   whose enumeration spans a line break — both refuse.
+//
+//   WHAT MAKES EACH CLAIM CHECKABLE, CITED RATHER THAN ASSERTED. In scripts/frontmatter.test.ts:
+//   `D-57 family G/G2`, twelve rows each carrying its libyaml column, with a derived non-vacuity
+//   check that every row really spells a header BELOW the key line; `D-57 row g5`, the name-set
+//   equality with the folded spelling as its one-character control; `D-57 false-red controls`, which
+//   pins the shapes libyaml accepts as CONTENT (`tools: see` / `  >-` reads `see >- q,`) and the
+//   two-item block-sequence join; and the two new `AXIS_KEY_LINE` members, which put this family
+//   inside the D-52 generated corpus so the loader adjudicates it rather than this file.
+//
+//   THE STANDING QUESTION THIS LEAVES FOR THE NEXT READER, AND IT IS THE ONE THIS ENTRY IS FOR.
+//   Entry nine asked what INPUT the authority is handed; entry ten asked what CONDITIONS it carries
+//   that nobody chose. This one asks: AT WHICH POSITIONS IS THE AUTHORITY ASKED, and is that set the
+//   set the format defines? A predicate can be total over its own input, carry only conditions the
+//   grammar states, and still be defeated by never being consulted where the construct it recognises
+//   is legal. Enumerate the positions from the grammar, then check each one is reached — and when a
+//   fix lands, re-ask the question against the FIXED build, because a family closed at one position
+//   and reopened at the position immediately after is not closed.
 
 // The payload at each delimiter position. Declared here as data so both positions consult the same
 // tokens in the same order, which is what makes the reported refusal deterministic for a given input.

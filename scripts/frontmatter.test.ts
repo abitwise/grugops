@@ -1775,6 +1775,21 @@ describe("frontmatter — the spawn-grant parser oracle (SPAWN-04 / KIT-03)", ()
         '{"a"=>"r,", "b"=>"# y, Agent(grugops-orchestrator)"}',
       ],
       [
+        "P6 — the header is an explicit block-mapping VALUE (`? k` / `: >-`)",
+        "tools:\n  ? k\n  : >-\n      q,\n      # y, Agent(grugops-orchestrator)",
+        '{"k"=>"q, # y, Agent(grugops-orchestrator)"}',
+      ],
+      [
+        "P7 — the header is the explicit block-mapping KEY itself (`? >-`)",
+        "tools:\n  ? >-\n      q,\n      # y, Agent(grugops-orchestrator)\n  : v",
+        '{"q, # y, Agent(grugops-orchestrator)"=>"v"}',
+      ],
+      [
+        "P8 — the explicit key form inside a sequence item",
+        "tools:\n  - ? >-\n        q,\n        # y, Agent(grugops-orchestrator)\n    : v",
+        '[{"q, # y, Agent(grugops-orchestrator)"=>"v"}]',
+      ],
+      [
         "UNION — a nested header whose content carries a single-quoted scalar with the `''` escape",
         "tools:\n  nested: >-\n    'Read'' s,\n    # x, Agent(grugops-orchestrator)'",
         '{"nested"=>"\'Read\'\' s, # x, Agent(grugops-orchestrator)\'"}',
@@ -1844,6 +1859,18 @@ describe("frontmatter — the spawn-grant parser oracle (SPAWN-04 / KIT-03)", ()
     );
     expect(bare.ok).toBe(true);
     if (bare.ok) expect(bare.value.get("tools")).toEqual(["see >- q,"]);
+
+    // The EXPLICIT-KEY form is the second one a plain scalar can spell: `tools: see` / `  ? >-` /
+    // `  q,` is ACCEPTED by libyaml as `"see ? >- q,"`. So `?` keeps the node-start gate while `:`
+    // and `key:` do not — the discriminator is "can a plain scalar spell this introduction", and a
+    // plain scalar cannot spell a mapping-VALUE indicator (YAML excludes `: ` from `ns-plain-char`).
+    const explicitKeyAsContent = parseFrontmatter(
+      "---\nname: x\ntools: see\n  ? >-\n  q,\n---\nBody.\n",
+    );
+    expect(explicitKeyAsContent.ok).toBe(true);
+    if (explicitKeyAsContent.ok) {
+      expect(explicitKeyAsContent.value.get("tools")).toEqual(["see ? >- q,"]);
+    }
 
     // The shipped block-sequence idiom keeps TWO items — a block scalar in one item must not collapse
     // the join separator for the whole key (D-09, the invented-name direction).
@@ -5760,12 +5787,14 @@ describe("frontmatter — the multi-line scalar sweep (D-49 / SPAWN-04 + KIT-03)
     // them used the double quote, so YAML's `''` escape — CR-01's whole family — was outside the
     // corpus rather than merely untested.
     //
-    // AND WHAT REMAINS OUTSIDE IT, NAMED HERE RATHER THAN LEFT TO BE DISCOVERED: a block-scalar header
-    // (`|` / `>`) at a NESTED position — as a nested mapping's value or as a sequence item. That is
-    // the open family G/G2 recorded in this phase's deferred-items ledger; it is `27-52`'s work under a
-    // different root cause in a different predicate (`BLOCK_INDICATOR`'s single application point), and
-    // it is STILL OUTSIDE this corpus until that plan lands. The `WR-01 expressibility floor` case
-    // below prints exactly which ledger families are outside the generator's shape space on each run.
+    // AND THE SHAPE THAT USED TO BE NAMED HERE AS OUTSIDE IT IS NOW INSIDE IT (27-52, D-57). A
+    // block-scalar header (`|` / `>`) at a NESTED position — as a nested mapping's value or as a
+    // sequence item — was the open family G/G2, recorded in this phase's deferred-items ledger and
+    // outside this corpus by construction. `27-52` closed it and added both shapes to
+    // `AXIS_KEY_LINE_BASE` in the SAME plan, so the loader now adjudicates them. The
+    // `WR-01 expressibility floor` case below still prints, on every run, exactly which ledger
+    // families are outside the generator's shape space — that print is the live answer; this comment
+    // is only the history of one of them.
     const HARNESS_CASE =
       "D-52 loader differential — every loader-accepted cell of a GENERATED corpus agrees with a real YAML 1.2 loader on token presence, except the named safe-direction exemptions";
     expect(
@@ -6717,6 +6746,47 @@ describe("frontmatter — the loader differential over a GENERATED corpus (D-52 
       danglingNodeProperty: false,
       flowNodeStartAtEndOfKeyLine: false,
     },
+    // ── (27-52, D-57) THE NESTED BLOCK-SCALAR HEADER, ADDED IN THE SAME PLAN AS ITS FIX ──────────
+    //
+    // ORDER WAS LOAD-BEARING AND IS RECORDED AS SUCH. `27-49` deliberately did NOT add these two
+    // shapes, and its reason is the reason they arrive now: a corpus shape for a LIVE silent
+    // no-grant puts the differential's never-exemptible `silentWhileLoaderGrants` direction into
+    // failure, and the only ways out would have been to exempt the new shape (forbidden — an
+    // exemption in that direction is what the differential exists to make impossible) or to leave
+    // the suite red. So the family was closed first, in task 1 of this same plan, and the corpus
+    // grows WITH the fix rather than a round after it.
+    //
+    // WHY THE TWO EXISTING BLOCK-INDICATOR MEMBERS DID NOT COVER THIS. `literal block indicator` and
+    // `folded block indicator` above carry the header on the TOP-LEVEL KEY LINE — the one position
+    // `BLOCK_INDICATOR` was ever asked at. Family G/G2 is the SAME indicator at a position the
+    // generator could not spell, so the harness reported zero disagreements over a live, gate-level,
+    // exit-0 bypass for five consecutive plans: not because it agreed with the loader, but because
+    // it never generated the input. That is 27-49's own recorded lesson, and this is the shape it
+    // was recorded about.
+    //
+    // THE DECLARED YAML FACTS. Both spell `valueNodeOnContinuation: false` for the same reason the
+    // two top-level block-indicator members do: the value node begins on the HEADER line, which is
+    // part of `lines`, so the builder-emitted continuation lines are the scalar's CONTENT and not a
+    // node start. That is what makes E2 correctly NOT apply to them — inside a block scalar a `&w`
+    // is literal text to BOTH sides, so there is no refusal to exempt.
+    {
+      label: "nested block mapping value, block-scalar header",
+      lines: ["tools:", "  nested: >-"],
+      indent: "    ",
+      tail: "",
+      valueNodeOnContinuation: false,
+      danglingNodeProperty: false,
+      flowNodeStartAtEndOfKeyLine: false,
+    },
+    {
+      label: "block-sequence item, block-scalar header",
+      lines: ["tools:", "  - >-"],
+      indent: "    ",
+      tail: "",
+      valueNodeOnContinuation: false,
+      danglingNodeProperty: false,
+      flowNodeStartAtEndOfKeyLine: false,
+    },
   ];
 
   // ── AXIS 1b: THE QUOTE STYLE (27-51, WR-01 / 27-REVIEW § WR-01, round 10) ─────────────────────
@@ -7197,7 +7267,20 @@ describe("frontmatter — the loader differential over a GENERATED corpus (D-52 
     // open no quoted scalar pass through once, and each of the nine that do is crossed with the quote
     // style and the in-scalar escape. A tenth quote-opening shape added to the base tomorrow moves
     // both sides of this identity together, which is the whole reason it is stated as an identity.
-    expect(AXIS_KEY_LINE_BASE.length).toBe(20);
+    // (27-52, D-57) 20 -> 22: the nested block-scalar header as a mapping value and as a sequence
+    // item. Neither opens a quoted scalar, so both pass through the crossing once and the derived
+    // axis moves 47 -> 49 by the same identity below.
+    expect(AXIS_KEY_LINE_BASE.length).toBe(22);
+    // THE FAMILY IS EXPRESSIBLE, DERIVED FROM THE SHAPES RATHER THAN CLAIMED IN A COMMENT. A
+    // block-scalar header must be spelled on a line BELOW the top-level key line, or family G/G2 is
+    // still outside this corpus and the completeness line is again a statement about inputs it never
+    // generated.
+    expect(
+      AXIS_KEY_LINE.filter((k) =>
+        k.lines.slice(1).some((l) => /(^|\s)[|>][0-9]*[+-]?([ \t]|$)/.test(l)),
+      ).length,
+      "the derived axis must carry a block-scalar header BELOW the top-level key line, or family G/G2 is outside the corpus",
+    ).toBeGreaterThan(0);
     const QUOTE_OPENING_SHAPES = AXIS_KEY_LINE_BASE.filter(opensAQuotedScalar).length;
     expect(
       QUOTE_OPENING_SHAPES,
@@ -7941,14 +8024,19 @@ describe("frontmatter — the loader differential over a GENERATED corpus (D-52 
     //
     // WHAT THIS FLOOR DOES NOT CLAIM, STATED HERE BECAUSE A FLOOR READ AS WIDER THAN IT IS BECOMES
     // THE COMMENT IT REPLACED. The ledger records failures the module has CLOSED, each with its
-    // remedy; an OPEN bypass is not in it and is not caught here. Measured at the time this floor
-    // was written: the nested-block-scalar family (27-47's G and G2 — `tools:` / `  nested: >-` /
-    // `    Read,` / `    # x, TOKEN`, and the same header as a sequence item) is a LIVE
-    // silent-no-grant on this build, is NOT a ledger family row, and is NOT expressible by this
-    // generator's key-line axis, which carries the block indicators only at the TOP level. It is
-    // recorded OPEN in deferred-items.md. "Every ledger family is buildable" is therefore a floor
-    // against a coverage claim going stale — it is NOT a statement that every known defect is
-    // expressible, and it must never be quoted as one.
+    // remedy; an OPEN bypass is not in it and is not caught here. "Every ledger family is buildable"
+    // is a floor against a coverage claim going stale — it is NOT a statement that every known defect
+    // is expressible, and it must never be quoted as one.
+    //
+    // (27-52, D-57) AND THE EXAMPLE THIS PARAGRAPH USED TO CARRY HAS NOW RUN ITS WHOLE COURSE, WHICH
+    // IS RECORDED RATHER THAN QUIETLY DELETED. When this floor was written, `27-49` measured the
+    // nested-block-scalar family (G — `tools:` / `  nested: >-` / `    Read,` / `    # x, TOKEN`, and
+    // G2, the same header as a sequence item) as a LIVE silent-no-grant that was NOT a ledger family
+    // row and NOT expressible by this generator's key-line axis — and named that as a property OF
+    // THIS FLOOR. `27-52` closed the family, which earned it the eleventh ledger entry, which made
+    // this floor DEMAND a corpus shape for it, which is why `AXIS_KEY_LINE_BASE` now carries the two
+    // nested-header members. The mechanism did what it was built to do; the limitation it documents
+    // is unchanged and still applies to whatever the NEXT open bypass turns out to be.
     //
     // AND IT DELIBERATELY DOES NOT COUNT THE LEDGER'S ORDINAL ENTRY HEADINGS, because those are NOT
     // uniformly spelled and a count over them would be wrong while reading authoritative — this
@@ -7969,10 +8057,14 @@ describe("frontmatter — the loader differential over a GENERATED corpus (D-52 
 
     // TWO-SIDED, SO THE FLOOR CANNOT PASS BY FINDING ZERO — and cannot pass by finding a set that
     // quietly shrank either. A row added or removed in the module header fails HERE first.
+    // (27-52, D-57) 9 -> 11: the eleventh ledger entry's two family rows, G and G2. The floor's
+    // derived set GREW because the family was CLOSED and therefore earned a ledger entry — which is
+    // exactly the property 27-49 recorded about this floor (an OPEN bypass has no ledger row and is
+    // outside the derived set by construction) reaching its intended end state.
     expect(
       LEDGER_FAMILIES.length,
       `family rows derived from scripts/frontmatter.ts's header:\n${LEDGER_FAMILIES.map((f) => `${f.label}  ${f.sketch}`).join("\n")}`,
-    ).toBe(9);
+    ).toBe(11);
     expect(LEDGER_FAMILIES.length).toBeGreaterThan(0);
     expect(new Set(LEDGER_FAMILIES.map((f) => f.label)).size).toBe(
       LEDGER_FAMILIES.length,
@@ -7993,7 +8085,7 @@ describe("frontmatter — the loader differential over a GENERATED corpus (D-52 
       "the column-0-fence families are the ONLY ones outside this generator's shape space",
     ).toEqual(["d1", "d2", "d3"]);
     expect(outside.length).toBe(3);
-    expect(inside.length).toBe(6);
+    expect(inside.length).toBe(8);
     expect(outside.length + inside.length).toBe(LEDGER_FAMILIES.length);
 
     // THE AXIS-MEMBER COMBINATION THAT BUILDS EACH FAMILY, NAMED BY LABEL. This is the only
@@ -8035,6 +8127,23 @@ describe("frontmatter — the loader differential over a GENERATED corpus (D-52 
       },
       F: {
         keyLine: "block explicit key, mid-line quote",
+        first: "plain text",
+        second: "the token after a hash",
+        depth: 2,
+      },
+      // (27-52, D-57) The eleventh ledger entry's two family rows. This is the mechanism working as
+      // designed and it is worth naming: the family was OPEN, so it had no ledger row and this floor
+      // could not see it — a property of the floor 27-49 recorded rather than left to be discovered.
+      // Closing it earns the ledger row, and the row's arrival is what makes the floor DEMAND the
+      // corpus shape that task 2 of the same plan added.
+      G: {
+        keyLine: "nested block mapping value, block-scalar header",
+        first: "plain text",
+        second: "the token after a hash",
+        depth: 2,
+      },
+      G2: {
+        keyLine: "block-sequence item, block-scalar header",
         first: "plain text",
         second: "the token after a hash",
         depth: 2,
