@@ -4477,9 +4477,10 @@ describe("frontmatter — the carried scalar quote state (D-48 / SPAWN-04 + KIT-
   // ── THE PLAIN WRAPPED SCALAR — THE SAME THREE DIRECTIONS, THE SAME ROOT CAUSE ─────────────────
   //
   // `openQuote` alone closes only the QUOTED spellings. Measured against the build that landed the
-  // quote carry, the PLAIN wrapped scalar still carried all three directions, so `nodeOnKeyLine`
-  // closes them here rather than in a later plan: closing only the spelling a finding happened to
-  // report is the enumerate-the-bad shape this phase has now corrected six times.
+  // quote carry, the PLAIN wrapped scalar still carried all three directions, so the node-started
+  // fact (D-48's `nodeOnKeyLine`, renamed `nodeStarted` by D-55) closes them here rather than in a
+  // later plan: closing only the spelling a finding happened to report is the enumerate-the-bad
+  // shape this phase has now corrected six times.
   //
   // The rule is YAML's own and was resolved against libyaml in both directions: once a scalar has
   // begun on the key line every following indented line CONTINUES it, and where the key line carries
@@ -4564,7 +4565,15 @@ const MODULE_SYMBOLS = [
   "startsWithReference",
   "unquoteChecked",
   "openQuote",
-  "nodeOnKeyLine",
+  // (27-48, D-55) `nodeOnKeyLine` WAS RENAMED AND ITS ENTRY IS RENAMED WITH IT. Leaving the old name
+  // here would have passed vacuously in the worst possible way: the module still MENTIONS it, in the
+  // comment that narrates the rename, so the "every entry names something the module still declares"
+  // check below would have gone on printing green over a name no code carries. That is the same
+  // stale-entry class the paragraph a few lines down already names, one round later and one letter
+  // subtler. `seqIndent` joins it, because the block-sequence exception is a fact this rule must
+  // never be written in terms of either.
+  "nodeStarted",
+  "seqIndent",
   "flattenBlock",
   "Accumulator",
   "SEQ_ITEM",
@@ -4759,24 +4768,36 @@ describe("frontmatter — the multi-line scalar sweep (D-49 / SPAWN-04 + KIT-03)
   // this plan, is D-30's declared policy, and points in the safe direction — a loud refusal, never a
   // hidden grant. It is named here so the next reader finds it recorded rather than "discovered".
   //
-  // (D-52, round 8) THE RULE COVERS THE SIX NEW PLACEMENTS FROM THE SAME FOUR STATEMENTS, PLUS ONE
-  // NAMED MODULE CONTRACT — IT IS NOT SIX MORE PER-CELL ANSWERS.
+  // (D-52, round 8) THE RULE COVERS THE SIX NEW PLACEMENTS FROM THE SAME FOUR STATEMENTS — IT IS NOT
+  // SIX MORE PER-CELL ANSWERS.
   //
   //   5. Members 7, 8, 10, 11 and 12 all wrap the value in a QUOTED scalar; only the POSITION at
   //      which that scalar opens is new (a continuation line, or mid-line inside a flow collection).
   //      Rule 1 already decides them: every character inside a quoted scalar is content at every
   //      placement, so the token on the continuation line always survives. They join the
   //      `contentEverywhere` set for that reason and for no other.
-  //   6. Member 9 is PLAIN, so rules 2-4 decide it — with ONE module contract that must be named
-  //      rather than smuggled in. Where the key line carries no value, this module treats EVERY
-  //      indented line at the value's indentation as a NODE START (the `nodeOnKeyLine` rule recorded
-  //      in the module header), so a node property is refused at BOTH placements rather than only at
-  //      the first. MEASURED DIVERGENCE, RECORDED RATHER THAN DISCOVERED: libyaml continues the plain
-  //      scalar instead and loads `tools:` / `  Read,` / `  *Agent(x)` as text, so two of those
-  //      refusals (`*` and `&` at `continuation`) are a FALSE RED. It is PRE-EXISTING — measured
-  //      IDENTICAL on the pre-D-51 and post-D-51 committed builds, cell for cell — and D-51's
-  //      prohibitions forbid re-cutting the node-start reference test in this plan. It points in the
-  //      safe direction (a loud refusal, never a hidden grant) and is carried, named, to 27-44.
+  //   6. Member 9 is PLAIN, so rules 2-4 decide it — and, since D-55, they decide it with NO module
+  //      contract standing beside them.
+  //
+  // (27-48, D-55 point 3 — 27-REVIEW-GAPS-8 § CR-02 direction (c)) A SIXTH RULE STOOD HERE AND IT IS
+  // RETIRED. It said this module treats EVERY indented line of a valueless key as a node start, named
+  // the resulting refusals a MEASURED DIVERGENCE in the safe direction, and carried them forward.
+  //
+  //   WHAT WAS MEASURED WAS REAL. `tools:` / `  Read,` / `  *Agent(x)` was refused and libyaml loads
+  //   it as text. That has been re-measured against the D-55 build and the loader, cell by cell, and
+  //   is recorded in 27-48-SUMMARY.md.
+  //
+  //   WHAT THE FRAMING DID IS WHY IT IS GONE. The refusals shared ONE root cause with two directions
+  //   that are neither safe nor recorded: an INVENTED NAME on the `ok:true` arm (`tools:` /
+  //   `  Agent(alpha, ga` / `  - mma)` enumerated ["alpha","ga","mma"] where libyaml expresses
+  //   ["alpha","ga - mma"]) and a MODULE GRANT THE LOADER DOES NOT HAVE (`tools:` / `  Read,` /
+  //   `  "Write,` / `  # x, TOKEN"`). Naming one direction and calling it "the ONE named module
+  //   contract" retired the only signal that its siblings existed, and both were live for a further
+  //   round. A measured divergence is RECORDED AS A DIVERGENCE; it is never promoted to a contract.
+  //
+  //   AND NO REPLACEMENT ONE-DIRECTION CLAIM IS WRITTEN HERE, deliberately. The reason this paragraph
+  //   replaced a rule rather than restating it is that a rule naming one direction made its siblings
+  //   invisible; a new one would do the same thing to whatever direction is next.
   const expectedOutcome = (
     styleLabel: string,
     sigilLabel: string,
@@ -4801,17 +4822,11 @@ describe("frontmatter — the multi-line scalar sweep (D-49 / SPAWN-04 + KIT-03)
     const onContinuation =
       placementLabel === "continuation" || placementLabel === "both";
 
-    // Rule 6 — the plain scalar whose node begins on a continuation line. A comment and a dash behave
-    // exactly as in any plain scalar (rules 2 and 4 below, reached by falling through); a node
-    // property is refused at EITHER placement, because both indented lines are node starts here.
-    if (
-      styleLabel === "value node on continuation, plain" &&
-      (sigilLabel === "alias `*`" ||
-        sigilLabel === "tag `!`" ||
-        sigilLabel === "anchor `&`")
-    ) {
-      return { arm: "refuse", grant: false };
-    }
+    // Rule 6 — the plain scalar whose node begins on a continuation line NEEDS NO BRANCH. Rules 2-4
+    // below decide it from YAML alone: the FIRST indented line is the value's node start and the ones
+    // after it continue the scalar it began, which is exactly what rules 3 and 4 already say about a
+    // key line and its continuations. The branch that stood here is retired with D-55; see the
+    // paragraph above the rule for what it claimed and why the claim did not survive its siblings.
 
     // Rule 2. A comment eats the line it opens. The token sits on the continuation line, so it
     // survives exactly when the continuation line is NOT commented out.
@@ -4911,21 +4926,32 @@ describe("frontmatter — the multi-line scalar sweep (D-49 / SPAWN-04 + KIT-03)
     }
 
     // EVERY ENTRY NAMES SOMETHING THE MODULE STILL DECLARES, so a deleted symbol cannot linger here
-    // reading like a guard while asserting nothing. `nodeOnKeyLine` is the one exception and it is
-    // named: it is an interface FIELD rather than a declaration, so it is checked as a bare
-    // occurrence instead.
+    // reading like a guard while asserting nothing. `nodeStarted` and `seqIndent` are the two
+    // exceptions and they are named: each is an interface FIELD rather than a declaration, so it is
+    // checked as a bare occurrence instead.
+    //
+    // (27-48, D-55) AND THE OCCURRENCE CHECK IS RUN OVER THE CODE, NOT OVER THE FILE. `includes` on
+    // the whole source would be satisfied by a COMMENT — which is precisely how the entry this list
+    // used to carry (`nodeOnKeyLine`) would have survived its own rename reading green.
     const moduleSource = readFileSync(
       join(import.meta.dirname, "frontmatter.ts"),
       "utf8",
     );
+    const moduleCode = moduleSource
+      .split("\n")
+      .filter((l) => !l.trimStart().startsWith("//"))
+      .join("\n");
     const stale = MODULE_SYMBOLS.filter(
-      (s) => s !== "cellDoc" && !moduleSource.includes(s),
+      (s) => s !== "cellDoc" && !moduleCode.includes(s),
     );
     expect(
       stale,
-      "MODULE_SYMBOLS entries that scripts/frontmatter.ts no longer declares (a stale entry is a vacuous assertion)",
+      "MODULE_SYMBOLS entries that scripts/frontmatter.ts no longer declares in CODE (a stale entry is a vacuous assertion, and a comment mention is not a declaration)",
     ).toEqual([]);
-    expect(moduleSource).toContain("nodeOnKeyLine");
+    expect(
+      moduleCode.includes("nodeOnKeyLine"),
+      "the key-line-only spelling of the node-started fact D-55 renamed must not return under its old name",
+    ).toBe(false);
     // And the symbol D-51 deleted is GONE from the module, asserted here rather than left to a grep.
     expect(
       moduleSource.includes("nodeStartQuote"),
@@ -5007,14 +5033,27 @@ describe("frontmatter — the multi-line scalar sweep (D-49 / SPAWN-04 + KIT-03)
       ["value node on continuation, single-quoted", "tag `!`", "ok", true],
       ["value node on continuation, single-quoted", "anchor `&`", "ok", true],
       ["value node on continuation, single-quoted", "sequence dash `-`", "ok", true],
-      // plain: no quoting, so the sigils mean what YAML says they mean — and a node property is
-      // refused here at the continuation placement too, because with no value on the key line this
-      // module reads every indented line as a node start. That is the ONE named module contract in
-      // this table and it is a measured, pre-existing divergence from libyaml in the safe direction.
+      // plain: no quoting, so the sigils mean what YAML says they mean. The FIRST indented line is
+      // the value's node start; the line after it CONTINUES that scalar, so a sigil there is content
+      // — the same thing rules 3 and 4 say about a key line and its continuations.
+      //
+      // (27-48, D-55 point 3) THESE FIVE ROWS ARE RE-ADJUDICATED AGAINST THE LOADER, INCLUDING THE
+      // TWO THAT DID NOT MOVE. Region `tools:` / `  Read,` / `  <sigil>Agent(grugops-orchestrator)`,
+      // run through /usr/bin/ruby -ryaml (2.6.10 / psych 3.1.0 / libyaml 0.2.1); the full transcript
+      // is in 27-48-SUMMARY.md. A row that was re-measured and did not move is evidence; a row that
+      // was assumed not to move is not, which is how the three below stayed wrong for a round.
+      //
+      //   comment `#`        loader "Read,"                          -> no grant   (UNCHANGED)
+      //   alias   `*`        loader "Read, *Agent(grugops-…)"        -> grant      (was `refuse`)
+      //   tag     `!`        loader "Read, !Agent(grugops-…)"        -> grant      (was `refuse`)
+      //   anchor  `&`        loader "Read, &Agent(grugops-…)"        -> grant      (was `refuse`)
+      //   dash    `-`        loader "Read, - Agent(grugops-…)"       -> grant      (UNCHANGED)
+      //
+      // The module's flattened value equals the loader's byte for byte on all five.
       ["value node on continuation, plain", "comment `#`", "ok", false],
-      ["value node on continuation, plain", "alias `*`", "refuse", false],
-      ["value node on continuation, plain", "tag `!`", "refuse", false],
-      ["value node on continuation, plain", "anchor `&`", "refuse", false],
+      ["value node on continuation, plain", "alias `*`", "ok", true],
+      ["value node on continuation, plain", "tag `!`", "ok", true],
+      ["value node on continuation, plain", "anchor `&`", "ok", true],
       ["value node on continuation, plain", "sequence dash `-`", "ok", true],
       // flow sequence: the quoted item spans the boundary, so content again — family (b).
       ["flow sequence with a wrapped quoted item", "comment `#`", "ok", true],
@@ -5061,6 +5100,13 @@ describe("frontmatter — the multi-line scalar sweep (D-49 / SPAWN-04 + KIT-03)
     // The assertion below is therefore an INTERNAL CONSISTENCY FLOOR — every (style, sigil) pair of
     // the subset this table declares is present exactly once, so a row silently dropped shrinks the
     // table loudly. It is NOT offered as a completeness statement about YAML.
+    //
+    // (27-48, D-55 point 3) THE ARITHMETIC DID NOT MOVE AND THAT IS RECORDED RATHER THAN ASSUMED.
+    // Retiring the (c) framing changed THREE ROW VALUES and no row count: 12 x 5 = 60 rows before and
+    // 60 after, both derived from the same two axis lengths by the expression below. And the claim's
+    // NATURE is unchanged too — it is still a product of HAND-LISTED AXES. Replacing its SOURCE with
+    // a generated corpus is `27-49`'s (WR-01/WR-02) work, not this plan's; the hand-off is written
+    // down here so a reader finds an ACCOUNTED gap rather than a silent one.
     expect(
       TRUTH.length,
       "internal consistency of the stated subset (one row per style x sigil of the continuation column) — NOT a completeness claim; the completeness claim is the D-52 loader differential",
@@ -5138,9 +5184,14 @@ describe("frontmatter — the multi-line scalar sweep (D-49 / SPAWN-04 + KIT-03)
       ["wrapped block-sequence item", "comment `#`"],
       // (D-52, round 8) One cell per NEW style too — the pin below requires exactly one per style,
       // so an axis that grows without its loader column fails here rather than passing quietly.
-      // Each pairing was chosen because module and loader AGREE on it; the five style-9 pairings
-      // where they do not are recorded in the expected-outcome rule and in 27-43-SUMMARY.md rather
-      // than being avoided silently.
+      // Each pairing was chosen because module and loader AGREE on it.
+      //
+      // (27-48, D-55 point 3) THE SENTENCE THAT FOLLOWED THIS ONE IS RETIRED WITH THE FRAMING IT
+      // CITED. It said "the five style-9 pairings where they do not are recorded in the
+      // expected-outcome rule", which stopped being true the moment those pairings were
+      // re-adjudicated: module and loader now agree on ALL FIVE, and the two that never disagreed
+      // were re-measured rather than assumed. A cross-reference that outlives the thing it points at
+      // reads like a record and asserts nothing — the same shape as the framing it pointed to.
       ["value node on continuation, double-quoted", "alias `*`"],
       ["value node on continuation, single-quoted", "anchor `&`"],
       ["value node on continuation, plain", "comment `#`"],
@@ -6785,7 +6836,8 @@ describe("frontmatter — D-51: one walk decides what crosses a line boundary (C
   //
   // The family the reviewer's measured one-liner LEAVES OPEN. Mirroring the item path's gate in the
   // continuation path closes (a) and returns (b) on the no-grant success arm, because inside a flow
-  // collection `nodeOnKeyLine` is already true and no line-level expression can see the node start.
+  // collection the node-started fact (D-48's `nodeOnKeyLine`, renamed `nodeStarted` by D-55) is
+  // already true and no line-level expression can see the node start.
 
   it("D-51 row b1 — `tools: [Read,` / `  \"Write,` / `  # x, TOKEN\"]` grants; the family the naive one-liner does NOT close", () => {
     // pre-D-51 committed build: {ok:true,value:false}, tools=["[Read, \"Write,"]
