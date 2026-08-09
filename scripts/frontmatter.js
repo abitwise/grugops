@@ -295,6 +295,40 @@ const KEY_LINE = /^([A-Za-z_][A-Za-z0-9_-]*):(?:[ \t]+(.*))?[ \t]*$/;
 // A block-scalar header: the literal `|` or folded `>` indicator, an optional indentation digit and
 // an optional chomping `+`/`-` in either order, then optional trailing whitespace or a comment.
 const BLOCK_INDICATOR = /^[|>][0-9]*[+-]?[ \t]*(?:#.*)?$|^[|>][+-]?[0-9]*[ \t]*(?:#.*)?$/;
+// (D-57) HOW A BLOCK SCALAR JOINS ITS LINES, WHICH IS THE INDICATOR'S OWN MEANING AND NOT A
+// FORMATTING CHOICE. YAML 1.2 § 8.1.2 (literal `|`) PRESERVES each line break; § 8.1.3 (folded `>`)
+// FOLDS it to a single space. This module joined BOTH with a space, and row g5 measured what that
+// costs: `nested: |` / `    Agent(alpha, ga` / `    - mma)` enumerated `["alpha","ga - mma"]` while
+// `/usr/bin/ruby -ryaml` expresses `Agent(alpha, ga\n- mma)`, whose enumeration this module's own
+// `ENUMERATION_LEGAL_CHARS` REFUSES (a line break is outside the legal set). So the module returned
+// two names on the success arm for a value the loader will not enumerate at all — the KIT-03 / D-09
+// direction, one spelling over.
+//
+// THE DIRECTION OF THIS CHANGE IS MEASURED, NOT ARGUED. Swapping a space for a line break BETWEEN
+// two content lines cannot move a grant verdict: `SPAWN_TOKEN` tests a WORD BOUNDARY, and a space
+// and a line break are both non-word characters, so every `\bAgent\b` / `\bTask\b` boundary that
+// existed before exists after. The value's LENGTH is
+// unchanged, so no loader-accepted document returns a SHORTER value. What moves is the NAME SET,
+// and it moves from a possibly-invented list to a REFUSAL — the loud arm, and the one the loader
+// agrees with.
+const blockLineBreak = (indicator) => indicator.startsWith("|") ? "\n" : " ";
+function blockHeaderAt(text) {
+    if (BLOCK_INDICATOR.test(text)) {
+        return { leading: "", lineBreak: blockLineBreak(text), keyed: false };
+    }
+    const kv = text.match(KEY_LINE);
+    if (kv !== null) {
+        const indicator = (kv[2] ?? "").trim();
+        if (BLOCK_INDICATOR.test(indicator)) {
+            return {
+                leading: `${kv[1]}:`,
+                lineBreak: blockLineBreak(indicator),
+                keyed: true,
+            };
+        }
+    }
+    return null;
+}
 // A block-sequence item on a continuation line: a dash, then either end-of-line or the item text.
 //
 // EXPORTED (D-54) SO THE COMPACT-NESTED-SEQUENCE TERMINATION CASE CITES THIS CONSTANT RATHER THAN A
@@ -996,14 +1030,18 @@ function flattenBlock(block, baseIndent) {
     const flush = () => {
         if (cur === null)
             return null;
-        const joined = cur.block
-            ? cur.parts.join(" ")
-            : cur.seq
-                ? cur.parts.join(", ")
-                : cur.parts.join(" ");
+        // (D-57) THE JOIN FOLLOWS `seq`, AND THE QUOTING EXEMPTION FOLLOWS `sawBlock`. These were one
+        // expression while a block scalar could only ever be the WHOLE of a key's value: `block` implied
+        // `!seq` by construction, so `block ? " " : seq ? ", " : " "` and `seq ? ", " : " "` were the
+        // same function. A nested header makes them come apart — a block sequence one of whose ITEMS is a
+        // block scalar is both — and reading `block` for the join would have dropped the item boundary
+        // between `- >-` / `    alpha` and `- beta`, merging two nodes into one and inventing the name
+        // `alpha beta`. That is the D-09 direction, so the two facts are read from the two fields that
+        // actually hold them.
+        const joined = cur.seq ? cur.parts.join(", ") : cur.parts.join(" ");
         const trimmed = joined.trim();
         let value;
-        if (cur.block) {
+        if (cur.sawBlock) {
             value = trimmed;
         }
         else {
@@ -1020,6 +1058,33 @@ function flattenBlock(block, baseIndent) {
             seen.push(value);
         cur = null;
         return null;
+    };
+    // (D-57) OPEN A BLOCK SCALAR, WRITTEN ONCE AND CALLED FROM ALL THREE POSITIONS A HEADER CAN
+    // APPEAR — the top-level key line, a block-sequence item and a continuation line (a nested
+    // mapping's value, at any depth). Three call sites and ONE statement of what opening a block
+    // scalar means: exactly the discipline D-51 applied to the three scalar-state seeding sites, and
+    // the reason this decision adds no second opinion about block scalars anywhere in the module.
+    //
+    // `headerIndent` is the indentation of the LINE the header appeared on — `baseIndent` at the key
+    // line, the item's own indent at a sequence item, the continuation line's indent otherwise. It is
+    // the sole input to the end condition above.
+    const openBlock = (a, header, headerIndent) => {
+        a.block = true;
+        a.sawBlock = true;
+        a.blockIndent = headerIndent;
+        a.blockLineBreak = header.lineBreak;
+        a.blockHasContent = false;
+        // The node BEGAN here: the header introduces the scalar even when its first content line is
+        // still to come. Set on the same argument as the key line's and the item path's own assignments.
+        a.nodeStarted = true;
+        // Nothing crosses INTO a block scalar. Every header is recognised only where a node may begin,
+        // which requires the carried quote to be closed already, so this reset can only ever clear a
+        // flow depth or a node-may-begin answer that the scalar's own content does not read.
+        a.state = FRESH_NODE;
+        // The part this scalar owns. Pushed unconditionally — including as the empty string for a bare
+        // header — so the content branch has exactly one part to fold into and never has to decide
+        // whether to create one.
+        a.parts.push(header.leading);
     };
     for (const raw of block) {
         // A blank line is a paragraph break, never a key boundary.
@@ -1045,10 +1110,48 @@ function flattenBlock(block, baseIndent) {
             }
             const t = raw.trim();
             if (cur.block) {
-                // Inside a literal/folded scalar every continuation line is content. A leading dash is part
-                // of the text, not a sequence marker, and a `#` is literal — no comment stripping here.
-                cur.parts.push(t);
-                continue;
+                // (D-57) THE END OF THE SCALAR IS YAML'S OWN RULE, DERIVED FROM THE HEADER LINE'S OWN INDENT.
+                // YAML 1.2 § 8.1 keeps a line inside a block scalar while it is MORE INDENTED than the line
+                // the header appeared on, and ends the scalar at the first line that is not. `blockIndent` is
+                // `baseIndent` for a top-level header, so this branch is byte-identical to the unconditional
+                // `cur.parts.push(t)` it replaces for every document that parsed before this decision — the
+                // outer `indent > baseIndent` has already established the strict inequality there.
+                //
+                // NOTHING HERE GUESSES. There is no fixed depth, no line-shape heuristic and no "read to the
+                // end of the key's region" fallback; the two candidate dispositions that would have required
+                // one were considered and rejected by name in D-57, with their reasons recorded.
+                if (indent > cur.blockIndent) {
+                    // Inside a literal/folded scalar every continuation line is content. A leading dash is part
+                    // of the text, not a sequence marker, and a `#` is literal — no comment stripping here.
+                    //
+                    // (D-57) CONTENT FOLDS INTO THE ONE PART THIS SCALAR OWNS rather than becoming a part of
+                    // its own. A block scalar is ONE node however many lines it spans, and the flush joins a
+                    // block sequence's parts with `", "` — so pushing per-line parts would hand a sequence
+                    // whose item is a block scalar a comma boundary at every line break, inventing names inside
+                    // the very construct this decision exists to read correctly (D-09). For a top-level block
+                    // the two are the same string: `["a","b"].join(" ")` and `"a b"` are equal, which is why
+                    // this is not a behaviour change for any document that already parsed.
+                    const i = cur.parts.length - 1;
+                    cur.parts[i] = cur.blockHasContent
+                        ? `${cur.parts[i]}${cur.blockLineBreak}${t}`
+                        : cur.parts[i] === ""
+                            ? t
+                            : `${cur.parts[i]} ${t}`;
+                    cur.blockHasContent = true;
+                    continue;
+                }
+                // The scalar ENDED at this line, so this line is a sibling node at the header's own indent —
+                // a following key, a following item, or a comment. It is a genuine node start by YAML's rule,
+                // so `nodeStarted` is cleared and the carried scanner state is reset: nothing crosses out of
+                // a block scalar, because a block scalar has no open quote and no flow depth to carry.
+                //
+                // WITHOUT THIS RESET the sibling line folded into the block's part as content, and a SECOND
+                // nested header on it was never recognised — measured, as row U5 (`a: >-` / content / `b: >-`
+                // / content), which returned the silent no-grant arm over a live grant. A fix that closes a
+                // family at one position and reopens it at the position immediately after is not a closure.
+                cur.block = false;
+                cur.state = FRESH_NODE;
+                cur.nodeStarted = false;
             }
             // (D-48) THE CARRIED SCALAR STATE, READ ONCE AND CONSULTED BY ALL THREE CONSUMERS BELOW. While
             // a quoted scalar opened on an earlier line of this key is still open, THIS LINE IS CONTENT:
@@ -1154,6 +1257,20 @@ function flattenBlock(block, baseIndent) {
                 // and carries a block-sequence indent exception — and the `!inScalar` conjunct, which is the
                 // only part this invariant rests on, is byte-unchanged.)
                 assertItemPathScalarClosed(cur.state, t);
+                // (D-57) POSITION 2 OF 3 — A BLOCK-SEQUENCE ITEM IS A NODE START, SO IT MAY CARRY A HEADER.
+                // `tools:` / `  - >-` / `    Read,` / `    # x, Agent(…)` is family G2: libyaml reads a
+                // one-element sequence whose item carries the grant, and this module read `>-, Read,,` and
+                // returned no grant. The item's own indent is the header's line indent, so the content is
+                // everything more indented than the dash — and a following `  - Write` at the item indent
+                // ends the scalar and re-enters the item rule exactly as `seqIndent` already provides.
+                //
+                // It is asked HERE, after the dashes are consumed, because a compact nested sequence
+                // (`  - - >-`) puts the header on the INNER item and `itemText` is the text of that item.
+                const itemHeader = blockHeaderAt(itemText);
+                if (itemHeader !== null) {
+                    openBlock(cur, itemHeader, indent);
+                    continue;
+                }
                 // (D-51) SEEDING SITE 2 OF 3 — one assignment, no gate. The item is its own node, so offset 0
                 // of `itemText` is a node start and the scanner is told so; whether anything crosses the
                 // boundary is then the scanner's answer and nobody else's.
@@ -1188,6 +1305,44 @@ function flattenBlock(block, baseIndent) {
             // stops a red gate from falling on `description: see` / `  *emphasis* here`.
             if (startsNode && startsWithReference(t))
                 return refuseRef(t);
+            // (D-57) POSITION 3 OF 3 — A CONTINUATION LINE AT A NODE START MAY CARRY A HEADER, AT ANY
+            // DEPTH. This is family G: `tools:` / `  nested: >-` / `    Read,` / `    # x, Agent(…)`,
+            // where libyaml reads a mapping whose `nested` value carries the grant and this module read
+            // `nested: >- Read,` and returned no grant. It is the same rule two levels down
+            // (`tools:` / `  a:` / `    b: >-`) because the test is on the LINE's position, not on a depth.
+            //
+            // GATED ON `startsNode`, WHICH IS THE ANSWER THE MODULE ALREADY HOLDS. Inside an open quoted
+            // scalar, or on a line that merely continues a scalar already begun, a `>` is an ordinary
+            // content character and libyaml agrees — `description: see` / `  foo: >-` loads as the single
+            // scalar `see foo: >-`. Re-deciding that here would be a second opinion about a fact
+            // `startsNode` states once, twelve lines above.
+            //
+            // ASKED BEFORE `stripComment`, BECAUSE `stripComment` IS THE STAGE THIS DEFECT RAN THROUGH.
+            // The whole of family G is a block scalar's literal content reaching a comment scanner that
+            // YAML gives no comment meaning at that position; recognising the header first is what stops
+            // the content from ever being offered to it.
+            //
+            // THE GATE IS PER FORM, AND `startsNode` ALONE WAS NOT ENOUGH — FOUND BY THIS PLAN'S OWN RED
+            // TEAM AGAINST ITS OWN FIRST BUILD, NOT BY THE SUITE. `startsNode` answers "has THIS KEY's
+            // value node begun", which is false for every sibling entry of a nested mapping: `tools:` /
+            // `  a: Read` / `  b: >-` and `tools:` / `  - k: v` / `    j: >-` are both documents libyaml
+            // ACCEPTS with the grant in the loaded value, and both returned the silent no-grant arm on the
+            // build that gated this on `startsNode` alone. Closing a family at one position and reopening
+            // it at the position immediately after is not a closure; see `BlockHeader.keyed` for the five
+            // measured loader rows the two gates are derived from.
+            //
+            // AND THE FLOW GATE IS YAML'S OWN CONTEXT RULE, NOT A MEASUREMENT. A block scalar is a
+            // BLOCK-CONTEXT construct (YAML 1.2 § 8.1); inside a flow collection a `>` cannot start a
+            // token at all, which is why every keyed-header-inside-flow spelling probed is a loader
+            // syntax error. The gate states the rule rather than the measurement, so a spelling no probe
+            // reached is covered too.
+            if (!inScalar && cur.state.flowDepth === 0) {
+                const lineHeader = blockHeaderAt(t);
+                if (lineHeader !== null && (lineHeader.keyed || startsNode)) {
+                    openBlock(cur, lineHeader, indent);
+                    continue;
+                }
+            }
             // CONSUMER 3 — the comment scanner, seeded from and storing back to the one carried state.
             //
             // (D-51) SEEDING SITE 3 OF 3 — one assignment, no gate. The sentence that stood here said a
@@ -1265,22 +1420,38 @@ function flattenBlock(block, baseIndent) {
         // to be aliased from a real one, so the document as a whole is what becomes unreadable.
         if (startsWithReference(rest))
             return refuseRef(t);
-        if (BLOCK_INDICATOR.test(rest)) {
+        // (D-57) POSITION 1 OF 3 — the top-level key line, which is where `BLOCK_INDICATOR` was asked
+        // and was the ONLY place it was asked. It now routes through the same `openBlock` as the other
+        // two positions, with `baseIndent` as the header line's indent — so the pre-existing behaviour
+        // is one case of one rule rather than a separate rule that happens to agree.
+        const keyLineHeader = BLOCK_INDICATOR.test(rest)
+            ? { leading: "", lineBreak: blockLineBreak(rest), keyed: false }
+            : null;
+        if (keyLineHeader !== null) {
             cur = {
                 key: kv[1],
                 parts: [],
-                block: true,
+                block: false,
+                blockIndent: baseIndent,
+                blockLineBreak: " ",
+                blockHasContent: false,
+                sawBlock: false,
                 seq: false,
                 state: FRESH_NODE,
                 nodeStarted: false,
                 seqIndent: null,
             };
+            openBlock(cur, keyLineHeader, baseIndent);
         }
         else {
             cur = {
                 key: kv[1],
                 parts: [],
                 block: false,
+                blockIndent: baseIndent,
+                blockLineBreak: " ",
+                blockHasContent: false,
+                sawBlock: false,
                 seq: false,
                 state: FRESH_NODE,
                 nodeStarted: false,

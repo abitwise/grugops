@@ -1702,6 +1702,176 @@ describe("frontmatter — the spawn-grant parser oracle (SPAWN-04 / KIT-03)", ()
     ).toBe(UNION.length);
   });
 
+  // ── (D-57, round 10) FAMILY G / G2 — A BLOCK-SCALAR HEADER AT EVERY POSITION YAML ALLOWS ONE ───
+  //
+  // Five consecutive plans (27-47 .. 27-51) re-measured this family byte-identical against the
+  // committed build and left it OPEN in `deferred-items.md`. `BLOCK_INDICATOR` was asked at exactly
+  // ONE of the positions YAML allows a header — `flattenBlock`'s top-level key line — so a `|` / `>`
+  // header nested as a mapping value or as a sequence item was never recognised, its LITERAL content
+  // reached `stripComment`, and a leading `#` deleted a live `Agent(grugops-orchestrator)` on the
+  // `{ok:true, value:false}` SUCCESS arm. Planted on both distribution twins of the non-coordinator
+  // `plan` skill on a hermetic mirror, the whole foundation gate printed ALL CHECKS PASSED at exit 0.
+  //
+  // EVERY ROW IS A DOCUMENT `/usr/bin/ruby -ryaml` ACCEPTS (ruby 2.6.10 / psych 3.1.0 / libyaml
+  // 0.2.1) WITH THE GRANT IN THE LOADED VALUE, and each carries that value verbatim. The rows are the
+  // seven the ledger measured plus the five POSITIONS this plan's own red team found still open
+  // against its FIRST build — a fix that closes a family at one position and reopens it at the
+  // position immediately after is not a closure.
+  it("D-57 family G/G2 — a nested block-scalar header GRANTS where the loader grants, at every position YAML allows one", () => {
+    const ROWS: readonly (readonly [string, string, string])[] = [
+      [
+        "G — a nested mapping's value, folded",
+        "tools:\n  nested: >-\n    Read,\n    # x, Agent(grugops-orchestrator)",
+        '{"nested"=>"Read, # x, Agent(grugops-orchestrator)"}',
+      ],
+      [
+        "G2 — a block-sequence item",
+        "tools:\n  - >-\n    Read,\n    # x, Agent(grugops-orchestrator)",
+        '["Read, # x, Agent(grugops-orchestrator)"]',
+      ],
+      [
+        "g1 — the indentation-indicator spelling `>2-`",
+        "tools:\n  nested: >2-\n    Read,\n    # x, Agent(grugops-orchestrator)",
+        '{"nested"=>"Read, # x, Agent(grugops-orchestrator)"}',
+      ],
+      [
+        "g2 — the keep-chomping spelling `|+`",
+        "tools:\n  nested: |+\n    Read,\n    # x, Agent(grugops-orchestrator)",
+        '{"nested"=>"Read,\\n# x, Agent(grugops-orchestrator)\\n"}',
+      ],
+      [
+        "g3 — a header carrying its own comment",
+        "tools:\n  nested: > # h\n    Read,\n    # x, Agent(grugops-orchestrator)",
+        '{"nested"=>"Read, # x, Agent(grugops-orchestrator)\\n"}',
+      ],
+      [
+        "g4 — the same shape under the `allowed-tools:` key form",
+        "allowed-tools:\n  nested: >-\n    Read,\n    # x, Agent(grugops-orchestrator)",
+        '{"nested"=>"Read, # x, Agent(grugops-orchestrator)"}',
+      ],
+      [
+        "P1 — the header follows a SIBLING mapping key, so this key's node has already begun",
+        "tools:\n  a: Read\n  b: >-\n    q,\n    # y, Agent(grugops-orchestrator)",
+        '{"a"=>"Read", "b"=>"q, # y, Agent(grugops-orchestrator)"}',
+      ],
+      [
+        "P2 — the header is a LATER item of a block sequence",
+        "tools:\n  - Read\n  - >-\n    q,\n    # y, Agent(grugops-orchestrator)",
+        '["Read", "q, # y, Agent(grugops-orchestrator)"]',
+      ],
+      [
+        "P3 — the header is a key inside a sequence item's compact mapping",
+        "tools:\n  - k: v\n    j: >-\n      q,\n      # y, Agent(grugops-orchestrator)",
+        '[{"k"=>"v", "j"=>"q, # y, Agent(grugops-orchestrator)"}]',
+      ],
+      [
+        "P4 — the header is TWO levels deep",
+        "tools:\n  a:\n    b: >-\n      q,\n      # y, Agent(grugops-orchestrator)",
+        '{"a"=>{"b"=>"q, # y, Agent(grugops-orchestrator)"}}',
+      ],
+      [
+        "P5 — the header immediately follows ANOTHER block scalar's content",
+        "tools:\n  a: >-\n    r,\n  b: >-\n    # y, Agent(grugops-orchestrator)",
+        '{"a"=>"r,", "b"=>"# y, Agent(grugops-orchestrator)"}',
+      ],
+      [
+        "UNION — a nested header whose content carries a single-quoted scalar with the `''` escape",
+        "tools:\n  nested: >-\n    'Read'' s,\n    # x, Agent(grugops-orchestrator)'",
+        '{"nested"=>"\'Read\'\' s, # x, Agent(grugops-orchestrator)\'"}',
+      ],
+    ];
+    for (const [label, region, loaderValue] of ROWS) {
+      const text = `---\nname: grugops-plan\n${region}\n---\nBody.\n`;
+      expect(
+        hasSpawnGrant(text),
+        `${label} — the loader reads this as ${loaderValue}`,
+      ).toEqual({ ok: true, value: true });
+      expect(grantedAgentNames(text), label).toEqual({
+        ok: true,
+        value: ["grugops-orchestrator"],
+      });
+    }
+    // NON-VACUITY, DERIVED RATHER THAN CLAIMED: every row must actually carry a block-scalar header
+    // on a line that is NOT the top-level key line, or the case is testing the position that already
+    // worked. Computed from the rows themselves, so a row added without one fails here.
+    const nestedHeaderRows = ROWS.filter(([, region]) =>
+      region
+        .split("\n")
+        .slice(1)
+        .some((l) => /(^|\s)[|>][0-9]*[+-]?([ \t]|$)/.test(l)),
+    );
+    expect(
+      nestedHeaderRows.length,
+      "every row must carry a block-scalar header BELOW the top-level key line",
+    ).toBe(ROWS.length);
+  });
+
+  it("D-57 row g5 — the module's NAME SET equals the loader's, because a LITERAL `|` scalar keeps its line breaks", () => {
+    // THE OTHER HALF OF THE FAMILY, AND IT IS A NAME-SET FACT RATHER THAN A BOOLEAN. `tools:` /
+    // `  nested: |` / `    Agent(alpha, ga` / `    - mma)` is read by libyaml as
+    // `{"nested"=>"Agent(alpha, ga\n- mma)\n"}` — a line break INSIDE the enumeration. This module's
+    // own `ENUMERATION_LEGAL_CHARS` does not contain a line break, so the loader's value REFUSES.
+    //
+    // Before D-57 the module joined every block scalar's lines with a SPACE regardless of indicator,
+    // enumerated `["alpha","ga - mma"]` and returned it on the SUCCESS arm — two names for a value
+    // the loader will not enumerate at all. Now the join is derived from the indicator (YAML 1.2
+    // § 8.1.2 literal PRESERVES the break, § 8.1.3 folded FOLDS it), so both sides refuse and the
+    // D-09 "a name is never silently dropped or altered" equality holds.
+    const literal =
+      "---\nname: x\ntools:\n  nested: |\n    Agent(alpha, ga\n    - mma)\n---\nBody.\n";
+    const names = grantedAgentNames(literal);
+    expect(names.ok, "the loader refuses this enumeration, so the module must too").toBe(false);
+    if (!names.ok) expect(names.reason).toMatch(/outside the legal character set/);
+    // THE FOLDED SPELLING IS THE CONTROL, and it is the SAME document with one character changed: a
+    // folded scalar's break IS a space, so the enumeration is legal and BOTH sides read two names.
+    const folded =
+      "---\nname: x\ntools:\n  nested: >\n    Agent(alpha, ga\n    - mma)\n---\nBody.\n";
+    expect(grantedAgentNames(folded)).toEqual({
+      ok: true,
+      value: ["alpha", "ga - mma"],
+    });
+  });
+
+  it("D-57 false-red controls — the shapes a real loader ACCEPTS as CONTENT must keep their bytes", () => {
+    // THE GATE IS PER FORM, AND THIS IS THE ROW THAT MAKES IT SO. `tools: see` / `  >-` / `  q,` is a
+    // document libyaml ACCEPTS and reads as the plain scalar `"see >- q,"` — the `>-` is CONTENT
+    // there, not a header. Recognising a BARE header at that position would DELETE those bytes from a
+    // loader-accepted value, which is this module's founding failure. So the bare form keeps the full
+    // `startsNode` gate while the KEYED form does not (a plain scalar cannot contain `: `, so every
+    // document in which a keyed header line is not a mapping entry is one the loader refuses).
+    const bare = parseFrontmatter(
+      "---\nname: x\ntools: see\n  >-\n  q,\n---\nBody.\n",
+    );
+    expect(bare.ok).toBe(true);
+    if (bare.ok) expect(bare.value.get("tools")).toEqual(["see >- q,"]);
+
+    // The shipped block-sequence idiom keeps TWO items — a block scalar in one item must not collapse
+    // the join separator for the whole key (D-09, the invented-name direction).
+    const seq = parseFrontmatter(
+      "---\nname: x\ntools:\n  - >-\n    alpha\n  - beta\n---\nBody.\n",
+    );
+    expect(seq.ok).toBe(true);
+    if (seq.ok) expect(seq.value.get("tools")).toEqual(["alpha, beta"]);
+
+    // A nested block scalar carrying NO grant must not gain one.
+    expect(
+      hasSpawnGrant(
+        "---\nname: x\ntools:\n  nested: >-\n    Read,\n    # x, Write\n---\nBody.\n",
+      ),
+    ).toEqual({ ok: true, value: false });
+
+    // The TOP-LEVEL folded block scalar — the one position that already worked — is byte-unchanged.
+    const top = parseFrontmatter(
+      "---\nname: x\ntools: >-\n  Read,\n  # x, Agent(grugops-orchestrator)\n---\nBody.\n",
+    );
+    expect(top.ok).toBe(true);
+    if (top.ok) {
+      expect(top.value.get("tools")).toEqual([
+        "Read, # x, Agent(grugops-orchestrator)",
+      ]);
+    }
+  });
+
   it("CR-01 — a MERGE KEY document lands in the failure arm (refused by KEY_LINE, not by a second branch)", () => {
     // ISOLATING KEY_LINE. `<<:` on its own reaches no reference test at all: `KEY_LINE` requires
     // `[A-Za-z_]` at the key start, so `<` fails it and the line is already unreadable. Asserting the
@@ -3153,10 +3323,24 @@ describe("frontmatter — the spawn-grant parser oracle (SPAWN-04 / KIT-03)", ()
   // Every row below was RED against the committed `scripts/frontmatter.js` before this change, with a
   // reason containing `delimiter position carries`, and the values asserted here are the ones a real
   // YAML 1.2 loader computes (Ruby 2.6.10 / Psych 3.1.0 / libyaml 0.2.1), modulo this module's
-  // DECLARED join contract: a block scalar's lines are joined with a single space, so where libyaml
-  // returns `"intro\n---\noutro\n"` this module returns `intro --- outro`. Token PRESENCE — which is
-  // the only thing any consumer asks — is identical, and the join contract is the same one the
-  // fourth-axis sweep already cross-checks against the loader.
+  // DECLARED join contract.
+  //
+  // (D-57, round 10) THAT JOIN CONTRACT IS NARROWED TO YAML'S OWN, AND W2-a IS WHERE IT SHOWS. The
+  // contract used to read "a block scalar's lines are joined with a single space" for BOTH
+  // indicators, so this row asserted `intro --- outro` where libyaml returns `"intro\n---\noutro\n"`.
+  // YAML 1.2 § 8.1.2 PRESERVES a literal `|` scalar's line breaks and § 8.1.3 FOLDS a `>` scalar's to
+  // a space; the module now derives the join from the indicator's own first character, so W2-a
+  // returns the loader's value and W2-c (folded) is BYTE-UNCHANGED — which is what makes this a
+  // narrowing of the contract toward the loader rather than a new convention.
+  //
+  // WHAT MOVED AND IN WHICH DIRECTION, because a moved expectation is a finding unless it is
+  // measured: the value's LENGTH is identical (one character either way), so no loader-accepted
+  // document returns a SHORTER value; and `SPAWN_TOKEN` tests a WORD BOUNDARY, which a line break
+  // satisfies exactly as a space does, so no grant verdict can move in either direction. What the
+  // narrowing buys is row g5 of family G — `nested: |` / `    Agent(alpha, ga` / `    - mma)` — whose
+  // name set was `["alpha","ga - mma"]` on the SUCCESS arm where the loader's own value carries a
+  // line break inside the enumeration and this module's `ENUMERATION_LEGAL_CHARS` REFUSES it. Both
+  // sides now refuse, which is the D-09 equality this module promises.
 
   it("D-50 WR-02 — an indented `---` or `...` inside a block scalar is CONTENT, so the document parses instead of turning the gate red", () => {
     const ROWS: readonly {
@@ -3168,7 +3352,9 @@ describe("frontmatter — the spawn-grant parser oracle (SPAWN-04 / KIT-03)", ()
         label: "W2-a literal block scalar containing an indented `---`",
         doc: "---\ndescription: |\n  intro\n  ---\n  outro\nname: x\n---\nBody.\n",
         // libyaml: {"description"=>"intro\n---\noutro\n", "name"=>"x"}
-        description: "intro --- outro",
+        // (D-57) The module now returns the loader's own line breaks for a LITERAL `|` scalar; only
+        // the trailing break the loader keeps is absent, because the flush trims the joined value.
+        description: "intro\n---\noutro",
       },
       {
         label: "W2-b wrapped plain description whose continuation begins with an ellipsis",
@@ -3206,7 +3392,8 @@ describe("frontmatter — the spawn-grant parser oracle (SPAWN-04 / KIT-03)", ()
     );
     expect(shortPayload.ok).toBe(true);
     if (shortPayload.ok) {
-      expect(shortPayload.value.get("description")).toEqual(["intro -- outro"]);
+      // (D-57) A LITERAL `|` scalar keeps its line breaks — libyaml returns `"intro\n--\noutro\n"`.
+      expect(shortPayload.value.get("description")).toEqual(["intro\n--\noutro"]);
     }
     expect(
       hasSpawnGrant("---\nname: x\ntools: Read, Agent(grugops-installer)\n---\nBody.\n"),

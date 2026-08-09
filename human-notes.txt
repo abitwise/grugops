@@ -1,5 +1,16 @@
 Next ideas todo:
 
+- Investigate issues with memory-bank and plans. It seems the contract on how the agents share state and
+  data about epics, tickets and technical info is broken.
+-- First of all, plans should be under memory-bank folder
+-- Second there are issues with size of the plans, for example:
+--- board.md is over 500000 characters and 5000 lines.
+    How to fix: do not write ticket-related info for example the reason why a ticket is blocked
+    on the board, this info has to be written under each ticket. Keep board as an overview of the progress.
+--- nfr-catalog.md has over 120000 characters.
+--- traceability.md has over 300000 characters.
+
+
 - Incorporate more good and widely used skills like superpowers
 -- Figure out how roles can select skills for their tasks
 -- Investigate skills: code-simplifier, feature-dev, commit-commands
