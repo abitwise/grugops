@@ -1715,7 +1715,11 @@ const SCOPED_GRANT = /\b(?:Agent|Task)\(([^)]*)\)/g;
 // kind added to the type without being added here makes the identity fail arithmetically instead of
 // being silently unclassified — this repository's derive-the-set-assert-the-count rule applied to a
 // partition.
-const GRANT_OCCURRENCE_KINDS = [
+//
+// EXPORTED (plan 27-45, D-53) so a case can assert its contents and its cardinality against the type,
+// and so the fourth-kind case can state what "outside the declared three" means by reading this list
+// rather than by re-typing it.
+export const GRANT_OCCURRENCE_KINDS = [
     "scoped",
     "unscoped",
     "neither",
@@ -1745,6 +1749,16 @@ function accountSpawnOccurrences(value) {
         out.push({ kind: "scoped", token: m[0], fragment: value.slice(at, close + 1) });
     }
     return out;
+}
+export function checkGrantOccurrenceBalance(value, occurrences) {
+    const classified = GRANT_OCCURRENCE_KINDS.reduce((n, kind) => n + occurrences.filter((o) => o.kind === kind).length, 0);
+    if (classified !== occurrences.length) {
+        return {
+            balanced: false,
+            reason: `the spawn-token accounting over \`${excerpt(value)}\` does not balance: ${occurrences.length} occurrence(s) of the grant token were found but ${classified} were classified as scoped, unscoped or neither; an accounting that cannot balance is a check that was NOT performed, so the value is refused rather than read as a name list — a name is never silently dropped or altered`,
+        };
+    }
+    return { balanced: true };
 }
 // (D-47 item 2) THE LEGAL CHARACTER SET OF A GRANT ENUMERATION, STATED ONCE AND POSITIVELY.
 //
@@ -1884,12 +1898,14 @@ export function keysGrantedAgentNames(keys) {
         // matching shows up as arithmetic that does not balance, not as a quiet reclassification. An
         // accounting that cannot balance is a check that was not performed, and this module's discipline
         // is that such a check is NAMED and never silent.
-        const classified = GRANT_OCCURRENCE_KINDS.reduce((n, kind) => n + occurrences.filter((o) => o.kind === kind).length, 0);
-        if (classified !== occurrences.length) {
-            return {
-                ok: false,
-                reason: `the spawn-token accounting over \`${excerpt(v)}\` does not balance: ${occurrences.length} occurrence(s) of the grant token were found but ${classified} were classified as scoped, unscoped or neither; an accounting that cannot balance is a check that was NOT performed, so the value is refused rather than read as a name list — a name is never silently dropped or altered`,
-            };
+        //
+        // (Plan 27-45, D-53 — IN-01) THE COMPARISON MOVED OUT AND THE BRANCH DID NOT CHANGE. It is one
+        // call to the exported pure function above, branched on exactly as the inline code branched, with
+        // the same reason string reaching the caller. See that function for why the arm is unreachable
+        // here and reachable from a case.
+        const balance = checkGrantOccurrenceBalance(v, occurrences);
+        if (!balance.balanced) {
+            return { ok: false, reason: balance.reason };
         }
         // BUCKET THREE REFUSES BY NAME. An occurrence that opens an enumeration the value never closes is
         // neither a scoped grant this module can read nor a bare grant the document actually wrote, and

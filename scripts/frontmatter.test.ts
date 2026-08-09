@@ -55,6 +55,13 @@ import {
   DQ_ESCAPE_ALLOWLIST,
   ENUMERATION_LEGAL_CHARS,
   TOOLS_KEYS,
+  keysGrantedAgentNames,
+  checkGrantOccurrenceBalance,
+  GRANT_OCCURRENCE_KINDS,
+} from "./frontmatter.js";
+import type {
+  GrantOccurrence,
+  GrantOccurrenceKind,
 } from "./frontmatter.js";
 // (Plan 27-33) The false-red control's corpus is THE ONE SPAWN-GRANT SCAN COMPOSITION the guard reads
 // — not a directory list restated here. A hand-listed set at this call site would be the guard's scan
@@ -7094,5 +7101,255 @@ describe("frontmatter — D-51: one walk decides what crosses a line boundary (C
         "- Write",
       ),
     ).not.toThrow();
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────────────────────────
+// (Plan 27-45, D-53 — 27-REVIEW-GAPS-7 § IN-01) THE SPAWN-OCCURRENCE BALANCE ARM, REACHED BY A CASE
+// FOR THE FIRST TIME.
+//
+// THE FINDING. `keysGrantedAgentNames` carried an inline count identity whose refusal is PROVABLY
+// unreachable for every input today's code can produce: `accountSpawnOccurrences` pushes exactly one
+// of three string literals into `kind`, and `GRANT_OCCURRENCE_KINDS` holds those same three. A grep
+// for the refusal's own wording found only the source — no case exercised it — and neither the
+// accounting function nor the kinds array was exported, so no case COULD. A floor nobody can exercise
+// is a promise, not a floor. This is the exact shape plan 27-42 spent a plan closing in kit-model.ts
+// while 27-41 shipped it anew here in the same round.
+//
+// THE REMEDY, FOLLOWING 27-42'S PRECEDENT RATHER THAN INVENTING A SECOND SHAPE. The comparison is now
+// an exported pure function; the kind type, the kinds array and the occurrence interface are exported
+// for the single stated reason that a case must be able to construct a FOURTH, UNCLASSIFIED kind. The
+// arm stays unreachable in production, and that disclosure ships together with the assertion.
+// ─────────────────────────────────────────────────────────────────────────────────────────────────
+describe("frontmatter — the occurrence balance arm (D-53 / IN-01 / SPAWN-04 + KIT-03)", () => {
+  // The occurrence lists the accounting produces over REAL multi-token values, captured from the
+  // PRE-EXTRACTION committed build at execution time and embedded here as DATA. Every row is a value
+  // this repository ships or an adversarial multi-token spelling; `buckets` is the bucket assignment
+  // the pre-edit accounting produced, and `names` is the pre-edit `keysGrantedAgentNames` result.
+  // Comparing against captured data — rather than against whatever the current build computes — is
+  // what makes this a behaviour-PRESERVATION proof instead of a tautology.
+  const PRE_EXTRACTION: readonly {
+    value: string;
+    buckets: readonly [GrantOccurrenceKind, string, string][];
+    names: string;
+  }[] = [
+    {
+      value: "Read, Agent(a, b), Write, Task(c)",
+      buckets: [
+        ["scoped", "Agent", "Agent(a, b)"],
+        ["scoped", "Task", "Task(c)"],
+      ],
+      names: '{"ok":true,"value":["a","b","c"]}',
+    },
+    {
+      value: "Agent(a), Agent(b), Agent(c)",
+      buckets: [
+        ["scoped", "Agent", "Agent(a)"],
+        ["scoped", "Agent", "Agent(b)"],
+        ["scoped", "Agent", "Agent(c)"],
+      ],
+      names: '{"ok":true,"value":["a","b","c"]}',
+    },
+    {
+      value: "Read, Agent, Task",
+      buckets: [
+        ["unscoped", "Agent", "Agent"],
+        ["unscoped", "Task", "Task"],
+      ],
+      names: '{"ok":true,"value":[]}',
+    },
+    {
+      value: "Agent(a), Task",
+      buckets: [
+        ["scoped", "Agent", "Agent(a)"],
+        ["unscoped", "Task", "Task"],
+      ],
+      names: '{"ok":true,"value":["a"]}',
+    },
+    {
+      value: "Read, Agent(a), Task(b, c), Agent",
+      buckets: [
+        ["scoped", "Agent", "Agent(a)"],
+        ["scoped", "Task", "Task(b, c)"],
+        ["unscoped", "Agent", "Agent"],
+      ],
+      names: '{"ok":true,"value":["a","b","c"]}',
+    },
+    {
+      value: "Task, Task, Task",
+      buckets: [
+        ["unscoped", "Task", "Task"],
+        ["unscoped", "Task", "Task"],
+        ["unscoped", "Task", "Task"],
+      ],
+      names: '{"ok":true,"value":[]}',
+    },
+    {
+      value: "Agent(a) Agent(b) Agent",
+      buckets: [
+        ["scoped", "Agent", "Agent(a)"],
+        ["scoped", "Agent", "Agent(b)"],
+        ["unscoped", "Agent", "Agent"],
+      ],
+      names: '{"ok":true,"value":["a","b"]}',
+    },
+  ] as const;
+
+  const occurrencesOf = (
+    row: (typeof PRE_EXTRACTION)[number],
+  ): GrantOccurrence[] =>
+    row.buckets.map(([kind, token, fragment]) => ({ kind, token, fragment }));
+
+  it("the kinds array and the declared kind type agree, and the array is the ONLY statement of the three", () => {
+    // The floor the balance arm is a floor FOR: a fourth kind added to the type without being added
+    // here is what makes the arm fire. Pinning the cardinality in both directions is what stops the
+    // list quietly shrinking to two, which would make the arm fire on legitimate input instead.
+    expect(
+      GRANT_OCCURRENCE_KINDS,
+      "a kind dropped from this array turns a legitimate occurrence into an unbalanced accounting; a kind added to the TYPE without being added here is what the balance arm exists to catch",
+    ).toHaveLength(3);
+    expect([...GRANT_OCCURRENCE_KINDS].sort()).toEqual([
+      "neither",
+      "scoped",
+      "unscoped",
+    ]);
+    // Exact set equality in BOTH directions, never a cardinality-only comparison (KIT-03 boundary).
+    const declared: readonly GrantOccurrenceKind[] = [
+      "scoped",
+      "unscoped",
+      "neither",
+    ];
+    expect(new Set(GRANT_OCCURRENCE_KINDS)).toEqual(new Set(declared));
+    expect(new Set(declared)).toEqual(new Set(GRANT_OCCURRENCE_KINDS));
+  });
+
+  it("LIVE VALUES: the balance check reports balanced for every occurrence list the accounting produces over real multi-token values", () => {
+    // The direction that must never turn red. If the extraction had changed what the predicate
+    // decides, this is where it would show.
+    for (const row of PRE_EXTRACTION) {
+      expect(
+        checkGrantOccurrenceBalance(row.value, occurrencesOf(row)),
+        row.value,
+      ).toEqual({ balanced: true });
+    }
+    // And the empty list — a value carrying no spawn token at all — balances vacuously rather than
+    // refusing, because "this document never wrote one" is not "this check was not performed".
+    expect(checkGrantOccurrenceBalance("Read, Write", [])).toEqual({
+      balanced: true,
+    });
+  });
+
+  it("FOURTH KIND: an occurrence outside the three declared kinds makes the accounting REFUSE, and the refusal NAMES both counts", () => {
+    // THE ARM, REACHED. This is the only way to reach it — production cannot produce this occurrence,
+    // which is exactly why the export boundary exists and why its reason is recorded in source.
+    //
+    // The cast is a DOUBLE assertion on purpose: `tsc` correctly refuses the single one, and that
+    // refusal is the compiler agreeing that production cannot construct this value.
+    const fourth: GrantOccurrence = {
+      kind: "an-unclassified-fourth-kind" as unknown as GrantOccurrenceKind,
+      token: "Agent",
+      fragment: "Agent(x)",
+    };
+    const list: GrantOccurrence[] = [
+      { kind: "scoped", token: "Agent", fragment: "Agent(a)" },
+      fourth,
+      { kind: "unscoped", token: "Task", fragment: "Task" },
+    ];
+    const result = checkGrantOccurrenceBalance("Agent(a), Agent(x, Task", list);
+    expect(result.balanced).toBe(false);
+    const reason = result.balanced ? "" : result.reason;
+    // The wording, asserted against the contract a reader depends on — including BOTH interpolated
+    // counts, which is what distinguishes "an accounting that did not balance" from a bare failure.
+    expect(reason).toContain("does not balance");
+    expect(reason).toContain("3 occurrence(s) of the grant token were found");
+    expect(reason).toContain(
+      "but 2 were classified as scoped, unscoped or neither",
+    );
+    expect(reason).toContain(
+      "an accounting that cannot balance is a check that was NOT performed",
+    );
+    expect(reason).toContain("a name is never silently dropped or altered");
+    // And it excerpts the value it was asked about, so a reader is sent to the right line.
+    expect(reason).toContain("Agent(a), Agent(x, Task");
+  });
+
+  it("BEHAVIOUR PRESERVED: `keysGrantedAgentNames` reproduces the PRE-EXTRACTION result for every value in the corpus, exactly", () => {
+    // The transcript was captured from the committed build BEFORE the extraction and embedded above
+    // as data. A post-edit build that computed a different answer for any row fails here by name.
+    for (const row of PRE_EXTRACTION) {
+      const keys = new Map([["tools", [row.value]]]);
+      expect(JSON.stringify(keysGrantedAgentNames(keys)), row.value).toBe(
+        row.names,
+      );
+    }
+    // The unbalanced-by-truncation row, whose refusal comes from BUCKET THREE and not from the
+    // balance arm — the two failure modes must stay distinguishable, which is the whole of WR-03.
+    const truncated = keysGrantedAgentNames(
+      new Map([["tools", ["Agent(a, b), Agent(c"]]]),
+    );
+    expect(truncated.ok).toBe(false);
+    expect(truncated.ok ? "" : truncated.reason).toContain(
+      "opens a scoped enumeration that is never closed in this value",
+    );
+    expect(truncated.ok ? "" : truncated.reason).not.toContain(
+      "does not balance",
+    );
+  });
+
+  it("the extracted check is PURE BY CONSTRUCTION — no filesystem, no module-level derivation, and the same answer twice", () => {
+    const src = readFileSync(
+      join(import.meta.dirname, "frontmatter.ts"),
+      "utf8",
+    );
+    const start = src.indexOf("export function checkGrantOccurrenceBalance(");
+    expect(start).toBeGreaterThan(0);
+    const end = src.indexOf("\n}", start);
+    expect(end).toBeGreaterThan(start);
+    const body = src.slice(start, end);
+    for (const forbidden of [
+      "readFileSync",
+      "readdirSync",
+      "existsSync",
+      "execFileSync",
+      "process.",
+      "derive(",
+    ]) {
+      expect(body, forbidden).not.toContain(forbidden);
+    }
+    // Same arguments, same answer — no hidden state between calls.
+    const list: GrantOccurrence[] = [
+      { kind: "scoped", token: "Agent", fragment: "Agent(a)" },
+    ];
+    expect(checkGrantOccurrenceBalance("Agent(a)", list)).toEqual(
+      checkGrantOccurrenceBalance("Agent(a)", list),
+    );
+  });
+
+  it("the production call site branches on the extracted result and re-decides nothing", () => {
+    // The extraction changes where the predicate LIVES and never what it decides. A second inline
+    // count identity beside the call would be the weaker-duplicate shape this module deletes on sight.
+    const src = readFileSync(
+      join(import.meta.dirname, "frontmatter.ts"),
+      "utf8",
+    );
+    const code = src
+      .split("\n")
+      .filter((l) => !l.trimStart().startsWith("//"))
+      .join("\n");
+    expect(
+      code.split("GRANT_OCCURRENCE_KINDS.reduce").length - 1,
+      "the count identity must be computed in exactly ONE place — the exported pure function",
+    ).toBe(1);
+    expect(code).toContain(
+      "const balance = checkGrantOccurrenceBalance(v, occurrences);",
+    );
+    // And each new export carries its stated reason in SOURCE, so a later reader can tell latitude
+    // from contract at the boundary.
+    expect(src).toContain(
+      "THE THREE DECLARATIONS BELOW ARE EXPORTED, FOR ONE\n// STATED REASON AND NO OTHER",
+    );
+    expect(src).toContain(
+      "EXPORTED (plan 27-45, D-53) so a case can CONSTRUCT an occurrence at the test boundary",
+    );
   });
 });

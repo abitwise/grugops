@@ -1943,19 +1943,40 @@ const SCOPED_GRANT = /\b(?:Agent|Task)\(([^)]*)\)/g;
 // expression is the thing being audited; enumerating from it would ask the suspect to count itself.
 // The scanning form is DERIVED from the one declared token test (source and flags), so there is one
 // statement of what a spawn token is and no second one to drift.
-type GrantOccurrenceKind = "scoped" | "unscoped" | "neither";
+//
+// (Plan 27-45, D-53 — 27-REVIEW-GAPS-7 § IN-01) THE THREE DECLARATIONS BELOW ARE EXPORTED, FOR ONE
+// STATED REASON AND NO OTHER. The balance check further down is provably unreachable in production:
+// the accounting pushes exactly one of three string literals into `kind`, and `GRANT_OCCURRENCE_KINDS`
+// holds those same three, so the comparison is false for every input today's code can produce. That
+// is a FLOOR AGAINST A FUTURE EDIT, and a floor nobody can exercise is a promise rather than a floor —
+// the exact shape plan 27-42 spent a plan closing in kit-model.ts while 27-41 shipped it anew in this
+// module in the same round. A case must therefore be able to construct an occurrence whose kind is
+// OUTSIDE the declared three, and that is the only way the arm can be reached at all.
+//
+// These are NOT part of the parsing API. No consumer outside this module's tests reads them, exactly
+// as with `DQ_ESCAPE_ALLOWLIST` and `ENUMERATION_LEGAL_CHARS` — the module's established shape for
+// telling latitude from contract at an export boundary.
+export type GrantOccurrenceKind = "scoped" | "unscoped" | "neither";
 
 // The three buckets, stated ONCE as data so the identity below counts what this list names. A fourth
 // kind added to the type without being added here makes the identity fail arithmetically instead of
 // being silently unclassified — this repository's derive-the-set-assert-the-count rule applied to a
 // partition.
-const GRANT_OCCURRENCE_KINDS: readonly GrantOccurrenceKind[] = [
+//
+// EXPORTED (plan 27-45, D-53) so a case can assert its contents and its cardinality against the type,
+// and so the fourth-kind case can state what "outside the declared three" means by reading this list
+// rather than by re-typing it.
+export const GRANT_OCCURRENCE_KINDS: readonly GrantOccurrenceKind[] = [
   "scoped",
   "unscoped",
   "neither",
 ];
 
-interface GrantOccurrence {
+// EXPORTED (plan 27-45, D-53) so a case can CONSTRUCT an occurrence at the test boundary. Production
+// occurrences are only ever produced by `accountSpawnOccurrences`, which remains module-private:
+// exporting the shape lets a case reach the refusal arm without exporting a second way to produce
+// real occurrences.
+export interface GrantOccurrence {
   kind: GrantOccurrenceKind;
   // The token as it was spelled (`Agent` or the retained legacy `Task`), for the refusal reason.
   token: string;
@@ -1989,6 +2010,48 @@ function accountSpawnOccurrences(value: string): GrantOccurrence[] {
     out.push({ kind: "scoped", token: m[0], fragment: value.slice(at, close + 1) });
   }
   return out;
+}
+
+// (Plan 27-45, D-53 — 27-REVIEW-GAPS-7 § IN-01) THE COUNT IDENTITY, AS A PURE FUNCTION A CASE CAN
+// REACH. Extracted VERBATIM from `keysGrantedAgentNames` below, following the precedent
+// `scripts/kit-model.ts`'s partition function set in plan 27-42 rather than inventing a second shape.
+//
+// WHAT THE EXTRACTION CHANGES AND WHAT IT DOES NOT. It changes where the predicate LIVES. It changes
+// NOTHING about what the predicate decides: the computation is the same reduce over the same declared
+// kinds array, and the refusal's wording is moved byte-for-byte, interpolations included. An
+// "improvement" to that wording here would invalidate the behaviour-preserving proof, and a reader
+// depends on both interpolated counts, so it is deliberately not touched.
+//
+// THE ARM REMAINS UNREACHABLE IN PRODUCTION AND IS NOW EXERCISED BY A CASE — the disclosure and the
+// assertion ship together, because either alone is the shape this module keeps correcting. Today's
+// `accountSpawnOccurrences` can only emit the three declared kinds, so `classified` always equals
+// `occurrences.length` and this function always reports balanced on real input. It becomes reachable
+// the moment a fourth kind is added to the type without being added to the kinds array, which is
+// precisely the edit the floor exists to catch.
+//
+// WHY IT TAKES THE VALUE AS WELL AS THE LIST. The refusal excerpts the value, and moving the wording
+// byte-unchanged is a hard requirement of this extraction. Passing it costs nothing: the function
+// reads no filesystem, holds no module-level state, calls no derivation, and returns the same answer
+// for the same two arguments — pure by construction, not by assertion.
+export type GrantBalance =
+  | { balanced: true }
+  | { balanced: false; reason: string };
+
+export function checkGrantOccurrenceBalance(
+  value: string,
+  occurrences: readonly GrantOccurrence[],
+): GrantBalance {
+  const classified = GRANT_OCCURRENCE_KINDS.reduce(
+    (n, kind) => n + occurrences.filter((o) => o.kind === kind).length,
+    0,
+  );
+  if (classified !== occurrences.length) {
+    return {
+      balanced: false,
+      reason: `the spawn-token accounting over \`${excerpt(value)}\` does not balance: ${occurrences.length} occurrence(s) of the grant token were found but ${classified} were classified as scoped, unscoped or neither; an accounting that cannot balance is a check that was NOT performed, so the value is refused rather than read as a name list — a name is never silently dropped or altered`,
+    };
+  }
+  return { balanced: true };
 }
 
 // (D-47 item 2) THE LEGAL CHARACTER SET OF A GRANT ENUMERATION, STATED ONCE AND POSITIVELY.
@@ -2146,15 +2209,14 @@ export function keysGrantedAgentNames(keys: FrontmatterKeys): Parsed<string[]> {
     // matching shows up as arithmetic that does not balance, not as a quiet reclassification. An
     // accounting that cannot balance is a check that was not performed, and this module's discipline
     // is that such a check is NAMED and never silent.
-    const classified = GRANT_OCCURRENCE_KINDS.reduce(
-      (n, kind) => n + occurrences.filter((o) => o.kind === kind).length,
-      0,
-    );
-    if (classified !== occurrences.length) {
-      return {
-        ok: false,
-        reason: `the spawn-token accounting over \`${excerpt(v)}\` does not balance: ${occurrences.length} occurrence(s) of the grant token were found but ${classified} were classified as scoped, unscoped or neither; an accounting that cannot balance is a check that was NOT performed, so the value is refused rather than read as a name list — a name is never silently dropped or altered`,
-      };
+    //
+    // (Plan 27-45, D-53 — IN-01) THE COMPARISON MOVED OUT AND THE BRANCH DID NOT CHANGE. It is one
+    // call to the exported pure function above, branched on exactly as the inline code branched, with
+    // the same reason string reaching the caller. See that function for why the arm is unreachable
+    // here and reachable from a case.
+    const balance = checkGrantOccurrenceBalance(v, occurrences);
+    if (!balance.balanced) {
+      return { ok: false, reason: balance.reason };
     }
 
     // BUCKET THREE REFUSES BY NAME. An occurrence that opens an enumeration the value never closes is
