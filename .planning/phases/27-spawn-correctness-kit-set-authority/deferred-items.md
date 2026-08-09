@@ -461,3 +461,81 @@ round-8 verification record (`27-VERIFICATION.md` § `human_verification`) left 
   suggested direction from `27-49` stands: **close family G first, then add the nested-block-scalar
   header to `AXIS_KEY_LINE` in the SAME plan**, so the corpus grows with the fix rather than after
   it.
+
+## From 27-50 — found by the executor's own red team, AFTER all three tasks were green
+
+### R1 — the leading clause calls an INDENTATION run "residue", and names a code point inside the declared class
+
+- **Measured over the 98,596-cell derived delimiter corpus, on the POST-`27-50` build**, modelling
+  the document-level BOM strip the classifier's input passes through:
+
+  ```
+  cells carrying a leading clause, RESIDUE run    : 50868
+    naming anything but the first outside code point (must be 0): 0
+  cells carrying a leading clause, INDENTATION run:  1570
+    the labels they name: ["U+0009","U+0020"]
+  ```
+
+  So WR-05's invariant holds totally on the arm it is about. The **1,570 indentation cells** are the
+  residual: at the OPENING position an indented `---` still refuses with
+  *"its leading **residue** renders no glyph of its own and begins with U+0020"*, and U+0020 is
+  inside `DELIMITER_WS_CHAR`.
+
+- **This is NOT a WR-05 recurrence, and the distinction is the reason it is recorded rather than
+  fixed.** On the indentation arm the fault is POSITIONAL — the line begins with whitespace where
+  the payload should begin — and the code point named is exactly the byte a reader must delete. The
+  diagnosis is actionable and points at the right character. What is wrong is the **noun**: D-50
+  declares three run kinds (`none`, `indentation`, `residue`) and this clause applies the word
+  "residue" to a run the module itself labels `indentation`.
+
+- **Why not fixed in `27-50`:** the plan's acceptance criteria require every OTHER delimiter
+  refusal's wording to be byte-unchanged, proven over that corpus, and the `D-44 composite anchors`
+  case pins the ` ----` row's leading label. Splitting the clause into a residue arm and an
+  indentation arm changes that wording — a real change to a shipped refusal, and a DECISION about
+  diagnosis text rather than a defect fix. Folding it into a plan whose whole proof is
+  "7,536 reasons moved and every one of them is the residue shape" would have destroyed that proof.
+
+- **Suggested direction:** if a later round splits it, say *"the delimiter is indented by U+0020, so
+  it does not begin where the line begins"* on the indentation arm and keep the residue wording on
+  the residue arm — and re-take the corpus comparison with the changed-reason count stated for BOTH
+  shapes, so the two moves stay separable.
+
+### R2 — a MEASURED CORRECTION to the round-8 IN-04 finding's stated mechanism
+
+- **The review said** the fixture would *"silently start pinning a different refusal (or a
+  successful parse) while staying green"* the day a fenced example gained a column-0 `---` or a
+  column-0 key line. **Measured out of suite against the committed generator**, planting each shape
+  inside `qe-e2e.md`'s fenced example and running BOTH fixtures:
+
+  | plant inside the fenced example | OLD fixture (delimiters only) | NEW fixture (blocks WITH contents) |
+  |---|---|---|
+  | `---` | **RED, loudly** — 1 delimiter survives, the region closes early, diagnosis becomes `cannot read \`Break the feature — …\` as a frontmatter key line`; the case's own `is never closed by a \`---\` delimiter` needle FAILS | unterminated diagnosis, case green |
+  | `...` | **RED, loudly** — same shape | unterminated diagnosis, case green |
+  | `tools: Read, Agent(grugops-orchestrator)` | **GREEN, silently** — 0 delimiters survive, same unterminated diagnosis; the case passes over a role file whose frontmatter region now carries a **live spawn grant** it never looks at | grant removed with the block, case green |
+  | `capabilities: read` | **GREEN, silently** — same | removed with the block, case green |
+
+- **So the finding's SUBSTANCE holds and its stated MECHANISM does not.** The delimiter shapes make
+  the old fixture fail LOUDLY, not silently. The genuinely silent shape is a column-0 **key line**,
+  and its worst form is the one measured above: the fixture would have written a live
+  `Agent(grugops-orchestrator)` into the frontmatter region of a non-coordinator role file, inside a
+  suite that exists to detect exactly that, with every assertion green. The premise assertion
+  `27-50` adds covers the delimiter shapes by construction; the KEY-LINE shape is covered because
+  the fenced block is now removed with its contents, so no fenced line reaches the region at all.
+- **The correction is recorded rather than left standing** because "this case would have silently
+  drifted" was going to be repeated from the review into a summary, and the delimiter half of it is
+  false. The executor's measurement governs.
+
+### R3 — the red team's OWN oracle was defeated by not modelling its input, one round after that lesson was written down
+
+- The first run of the corpus-wide WR-05 invariant reported **1,727 violations**, every one of them
+  a line beginning with a BOM. They were not violations: `parseFrontmatter` strips ONE leading BOM
+  at document position 0 (`scripts/frontmatter.ts:2229`), so at the OPENING position the classifier
+  is handed a line the corpus row does not literally contain. The probe computed the expected label
+  from the RAW row.
+- **This is `27-47`'s own standing question — "ask what the predicate's INPUT is ASSEMBLED from" —
+  landing on the red team's oracle instead of on the module.** Recorded because the near-miss was a
+  false RED that could as easily have been a false GREEN: an oracle that models the wrong input is
+  wrong in both directions, and this one was checked only because its answer was implausible.
+- **Suggested direction:** any future corpus-wide oracle over this module should drive its expected
+  value through the same normalization chain the parser applies (the BOM strip and the CRLF
+  normalization at `frontmatter.ts:2229`), derived from the source rather than remembered.
