@@ -1,310 +1,178 @@
 ---
 phase: 27-spawn-correctness-kit-set-authority
-verified: 2026-08-03T07:00:00Z
+verified: 2026-08-09T16:30:00Z
 status: gaps_found
-score: 7/10 requirements verified clean (3 FAILED — KIT-02, KIT-03, SPAWN-04 — each carrying at least one independently reproduced guard bypass, distinct from round 4's bypasses but the same three requirements)
+score: 6/10 requirements verified clean (4 FAILED or structurally-undermined — KIT-03, SPAWN-03, SPAWN-04 each carrying a live independently-reproduced spawn-grant bypass at the gate, plus SPAWN-02 carrying the same underlying parser defect as an unresolved dependency)
 behavior_unverified: 0
 overrides_applied: 0
 re_verification:
   previous_status: gaps_found
-  previous_score: 7/10 (round 4, 2026-08-02T02:00:00Z)
+  previous_score: 7/10 (round 5, 2026-08-03T07:00:00Z)
   gaps_closed:
-    - "CR-01 round-4 (single-sided delimiter fail-open: leading BOM alone, trailing NBSP alone, `----`, `--- foo`, a combining mark, an unassigned/private-use/surrogate code point) — CLOSED for every single-sided spelling. D-43 replaced the enumerate-the-bad delimiter test with a stated LEGAL set (payload + declared whitespace class) and two refusal arms. Verified by reading `scripts/frontmatter.ts:757-823` directly and confirming the round-5 review's parser-level and gate-level reproduction tables against that code: every single-sided offending row (`---<ZWSP>`, `<ZWSP>---`, `----`, `--- foo`, a leading space, two leading BOMs) now refuses by name at both delimiter positions, with the open/close asymmetry (the misleading 'opened and never closed' diagnosis) eliminated too."
-    - "WR-02 round-4 (keysGrantedAgentNames drops/alters names on its own success arm) — CLOSED. `keysGrantedAgentNames` now refuses a nested opening parenthesis or any quote character inside a captured enumeration instead of splitting it short or altered. Verified by reading `scripts/frontmatter.ts` around the enumeration refusal and cross-checking the 27-33-SUMMARY transcript (`Agent(alpha, Task(beta), gamma)` and `Agent(\"alpha, beta\", gamma)` both now refuse by name instead of returning a mutated list)."
-    - "CR-02 round-4 (installer's nested walk silently drops an unreadable directory with no name; the twin authority throws naming it) — CLOSED. `NestedWalkResult` gained a fourth `unreadable: string[]` channel; both formerly-bare `realpathSync`/`readdirSync` catch arms in `install/kit-source.ts` now route through it; `install.ts` reports every entry through the same `verify` channel as `cycles`/`overflow`, at exit 3, naming the path. Verified sound by the round-5 review's 'What was checked and found SOUND' section (direct code read, not SUMMARY trust) and independently confirmed by reading `install/kit-source.ts` and `scripts/kit-model.ts` PLUGIN/nested-walk sections referenced from `check-foundation-guards.ts`."
-    - "CR-03 round-4 (the shipped plugin-form `skills/*/SKILL.md` tree — 7 files, loaded by Claude Code for every `/plugin install` user — was in no spawn-grant scan set) — CLOSED. `scripts/kit-model.ts` gained `listPluginSkillAdapters()`, `PLUGIN_SKILL_ADAPTER_COUNT = 7`, folded into the single exported `spawnGrantScan()` composition (26 → 33 members, four parts, per-part SET equality), and `guard_wr05`'s PASS line now names the plugin-skill count it read. A pair rule (`guard_distribution_pair`) cross-checks each plugin skill against its standalone twin byte-for-byte after normalizing the `name` line, with one named, reasoned, bounded exemption. Verified by reading `scripts/kit-model.ts:175-451` and `scripts/check-foundation-guards.ts:855-917` directly and confirming the composition, the count, and the PASS-line wording match the round-5 review's and SUMMARY's transcripts."
-    - "WR-01 round-4 (D-35's exit-tail fix reached only 1 of 3 tail sites; `install/uninstall.ts:730` and `scripts/coordinator-resolution-precheck.ts:598` still used bare `process.exit()` on the INCOMPLETE tail under a comment asserting a parity the code lacked) — CLOSED. Both remaining tails now set `process.exitCode` rather than calling `process.exit()` directly; the regression scan was extended from 2 paths to 4 (install.ts/js, uninstall.ts/js) plus a separate precheck assertion; the six mid-script `process.exit()` sites are unchanged (verified: filtered count still 6 at the same six positions per the 27-35 SUMMARY transcript, consistent with the round-5 review's own count of 8 mid-script sites across both files, 6 in install.ts + 2 in uninstall.ts)."
-  gaps_remaining: []
+    - "KIT-02 round-5 (hooks/outputStyles/mcpServers/lspServers/experimental.* plugin-root component directories in no scan set) — CLOSED. scripts/kit-model.ts now carries PLUGIN_MANIFEST_COMPONENT_SCHEMA (9 entries) partitioned by partitionPluginComponentClaims into forbidden (7) + covered-elsewhere (1, skills via listPluginSkillAdapters) + exempt-by-name (1, hooks, with a stated reason) — verified directly in scripts/kit-model.ts:244-409 and the guardKitCounts() PASS line, which now names the 9/7/1/1 partition."
+    - "IN-04 round-7/8 (a foreign key claimed by two buckets reported twice, feeding a set-equality guard message with a phantom duplicate) — CLOSED per 27-46-SUMMARY.md: the foreign arm de-duplicated with a stated first-occurrence order, proven behaviour-preserving by a byte-identical guardKitCounts() PASS line (same sha256) before and after."
+    - "WR-02 round-7/8 (parseFrontmatter's fence strip deleted lines before the frontmatter region was located, truncating/mangling real grants) — CLOSED STRUCTURALLY per 27-45-SUMMARY.md: the deletion was removed from the entry point entirely (locate-then-flatten, no strip); a column-0 fence inside the region is now a named refusal, adjudicated against libyaml; a 15-shape adversarial probe found five additional truncated-success shapes, all closed by the same edit."
+    - "IN-01 round-7 (an unreachable defensive branch, checkGrantOccurrenceBalance's fourth-kind arm, never exercised by any case) — CLOSED per 27-45-SUMMARY.md: extracted as an exported pure function reachable from a test-constructed fourth kind; wording proven byte-unchanged apart from a forced identifier rename."
+    - "IN-05 round-7 (multi-document YAML streams undocumented; unclear what the module does with a second frontmatter region) — RECORDED per 27-45-SUMMARY.md: the module header now states measured module vs libyaml behaviour (module reads region 1 only; libyaml treats the stream as 6 documents on the measured example), carries an explicit UNKNOWN - verify against the platform, and the module is deliberately NOT changed to read further regions."
+    - "the eighth spelling of the founding failure (stripComment's crossing predicate re-derived per call site, three independent seedings of one fact) — CLOSED per 27-43-SUMMARY.md: the three seeding sites became one unconditional assignment each reading a single walk-computed ScalarState; nodeStartQuote deleted; seven RED-before/GREEN-after rows reproduced with a libyaml column, plus three live shipped-surface reproductions (skills/plan/SKILL.md + its distribution twin, and .claude/agents/grugops-qe-e2e.md) flipping exit 0 -> exit 1."
+    - "WR-01 round-7 (the D-49 sweep's completeness claim rested on the product of two hand-listed axes, never checked against a real loader) — CLOSED per 27-44-SUMMARY.md: a 312-cell generated corpus is checked in one process against /usr/bin/ruby -ryaml, with the disagreement set asserted EQUAL (not subset) to two named, bounded, safe-direction exemptions, and the unsafe direction asserted empty independently of the exemption machinery."
+  gaps_remaining:
+    - "KIT-03 / SPAWN-04 — the SAME frontmatter-module node-start defect that round 8 closed for the ENUMERATED families (D-51/D-52) is, per the round-8 code review (27-REVIEW-GAPS-8.md CR-01/CR-02), still not total over YAML's own grammar: four more node-start positions (block-mapping key:value on an indented line, compact nested sequence `- - `, block explicit key `? ` at depth 0, JSON-like `:` adjacency in a flow mapping) reproduce the identical silent no-grant bypass at the gate, and a `nodeOnKeyLine` defect invents/truncates names on the success arm feeding the KIT-03 closure equality and coordinator-resolution-precheck. This is a NEW round-8 finding, not a round-5 regression, but it is the same class of gap round 5 flagged (KIT-03/SPAWN-04 carrying a live reproduced bypass) recurring under round 8's own fix."
+    - "SPAWN-03 — UNKNOWN - verify against the real Claude Code platform remains open; the round-8 SUMMARYs record it explicitly and no live capture has landed (deferred to Phase 33 / GAP-D1)."
   regressions: []
 gaps:
-  - truth: "KIT-02 — every guard and validator scan set is derived from the filesystem, never hand-listed, so a shipped surface cannot sit outside the set that claims to cover it."
+  - truth: "On Claude Code the coordinator's Agent(<allowlist>) grant is honored by the runtime, and no non-coordinator adapter carries the Agent tool at all — a mechanism that holds on both the main-thread and subagent paths. (SPAWN-03, SPAWN-04)"
     status: failed
     reason: >
-      Round 5 genuinely deleted the two hand-listed scan-set defects it targeted (the plugin-skill tree,
-      the installer's silent unreadable-directory drop). But it introduced — inside the very floor whose
-      own comment claims to close the class rather than the instance — a THIRD hand-listed set of the
-      same shape. `scripts/kit-model.ts:187`: `PLUGIN_DEFAULT_COMPONENT_SUBPATHS = ["agents", "commands"]
-      as const`. This repository's own CLAUDE.md plugin-schema section enumerates nine plugin-root
-      component directories Claude Code's DEFAULT discovery loads (`agents`, `commands`, `skills`,
-      `hooks`, `mcpServers`, `lspServers`, `outputStyles`, `experimental.themes`,
-      `experimental.monitors`), and `.claude-plugin/plugin.json` declares no path override, so default
-      discovery applies to all of them. `skills` is separately covered by `listPluginSkillAdapters`; the
-      other six are covered by nothing. `hooks/` EXISTS on the live tree today
-      (`hooks/hooks.json`, `hooks/guard.js`, `hooks/admission-guard.js`) and is inside no scan set at
-      all — a `PreToolUse` hook executes commands, and CLAUDE.md makes the mechanical prod-deploy guard a
-      hard safety constraint. Independently reproduced by the round-5 code review on hermetic `git
-      archive` mirrors: a rogue grant planted at `commands/rogue.md` is caught (exit 1); the identical
-      plant at `outputStyles/rogue.md` or `hooks/rogue.md` yields `ALL CHECKS PASSED`, exit 0, with the
-      planted file never named in the gate output. I confirmed the set literal and its 2-of-9 shape by
-      reading `scripts/kit-model.ts:175-197` directly. This is the project's own diagnosed failure
-      pattern (a hand-maintained scan set rotting while every test stays green) recurring one level
-      inside the fix meant to delete the pattern's third instance.
-    artifacts:
-      - path: "scripts/kit-model.ts"
-        issue: "Line 187: `PLUGIN_DEFAULT_COMPONENT_SUBPATHS = [\"agents\", \"commands\"] as const` — a hand-listed 2-of-9 set with no derivation and no cardinality pin, unlike every sibling set in the same module (ROLE_COUNT, WORKFLOW_COUNT, SKILL_ADAPTER_COUNT, PLUGIN_SKILL_ADAPTER_COUNT, SPAWN_GRANT_SCAN_COUNT all assert a two-sided count; this one does not)."
-      - path: "scripts/check-foundation-guards.ts"
-        issue: "Lines 855-888: the plugin-default component floor's own comment claims it 'closes the CLASS the plugin-skill hole belongs to rather than only the instance CR-03 named' — it forbids two named surfaces and is blind to the other seven default-discovered directories, one of which (`hooks/`) exists on the live tree."
-      - path: "scripts/kit-model.test.ts"
-        issue: "Line 141 asserts 'the LIVE tree has both plugin-default component directories absent' over the same two-element literal, so the test can only ever confirm the literal and never the class it claims to stand for."
-    missing:
-      - "Derive PLUGIN_DEFAULT_COMPONENT_SUBPATHS from the full plugin-manifest schema (the 8 non-skills default-discovery directories CLAUDE.md documents), assert its cardinality two-sided the same way every sibling set in kit-model.ts is asserted, and either fold `hooks/` into SPAWN_GRANT_SCAN or record it as a named, reasoned, bounded exemption in the same shape as DISTRIBUTION_PAIR_EXEMPT — the fix the round-5 review already drafted at scripts/kit-model.ts:250-270 of 27-REVIEW-GAPS-5.md."
-      - "WR-01 (round-5, non-blocking but related): guardKitCounts' per-part membership loop (check-foundation-guards.ts:1305-1311) silently `continue`s on a thrown lister with a comment justifying the silence on a precondition (module-load-time and later-read failing together) that is false for the TOCTOU window where it can actually fire. Report instead of swallowing, matching the sibling catch twenty lines above."
-  - truth: "KIT-03 — the referential-integrity oracle turns green only when the coordinator's spawn grant, the adapter directory and the role corpus are the same set, including against a crafted or malformed frontmatter."
-    status: failed
-    reason: >
-      Round 5's D-43 delimiter rewrite genuinely closed every SINGLE-SIDED spelling of the delimiter
-      fail-open (round-4's CR-01) — confirmed by reading `scripts/frontmatter.ts:795-823` directly. But
-      the two refusal arms do not cover their own UNION: arm 1 (`:801`) fires only when
-      `line.startsWith(payload)`; arm 2 (`:811-821`) fires only when, after stripping leading invisible
-      residue, the REMAINDER is a LEGAL delimiter (`isLegalDelimiter`, which itself requires
-      `startsWith(payload)` on the stripped remainder AND nothing illegal after it). A line carrying BOTH
-      leading invisible residue AND illegal trailing residue after the payload — e.g. `<ZWSP>---<ZWSP>`
-      — matches neither arm, falls through `return null` at `:822`, and reaches the keyless SUCCESS arm
-      at `:887` (`{ok:true, value:new Map()}`), which `hasSpawnGrant` reports as `{ok:true,value:false}` —
-      the silent no-grant result this module exists to make impossible. This is the fifth spelling of the
-      same failure class (D-39, D-42, and now the arm-composition gap), one abstraction level up from the
-      character-alphabet axis D-43 fixed. I confirmed this directly by reading `delimiterRefusal`
-      (`scripts/frontmatter.ts:795-823`) and `isLegalDelimiter` (`:760-762`): arm 2's `isLegalDelimiter`
-      call re-imposes the full legality test on the remainder rather than only testing where the
-      delimiter BEGINS, so a composite input satisfies neither arm's precondition. This is corroborated
-      by the round-5 code review's parser-level reproduction (8 composite rows, e.g. `ZWSP + ----`,
-      `NBSP + ----`, `BOM x2 + --- + ZWSP`, all returning `{"ok":true,"value":false}` against the
-      committed `.js`) and gate-level reproduction (`<ZWSP>---<ZWSP>` on a live spawn grant in
-      `skills/grugops/SKILL.md` flips `check-foundation-guards.js` from exit 1 to exit 0, `ALL CHECKS
-      PASSED`), neither of which I re-ran myself (per the task's instruction to treat CR-01/CR-02 as
-      established) but both of which are consistent with, and explained by, the arm logic I read directly.
-      This falsifies the round-5 plan's own must_have that 'there is no second grammar left in the
-      delimiter region for a fifth spelling to slip between' (the claim asserted in the code's own comment
-      at `scripts/frontmatter.ts:757-759`).
+      Independently reproduced by the orchestrator this session (not merely reviewer-claimed) on
+      hermetic `git archive HEAD` mirrors, planting `allowed-tools: "Read, # x,\n  Agent(grugops-orchestrator)"`
+      (Family A/C/F shapes — block-mapping nested value, flow-map JSON adjacency, block explicit key)
+      into BOTH distribution twins of the non-coordinator skill `plan` (`skills/plan/SKILL.md` and
+      `.claude/skills/grugops-plan/SKILL.md`). Control (one-line grant): exit 1, `FAIL WR-05
+      coordinator-spawn-grant violation`. All three planted families: exit 0, `ALL CHECKS PASSED`.
+      Ruby/psych/libyaml independently confirms the grant is real in the loaded document. This is the
+      ninth consecutive round in which a module-no-grant / loader-grant bypass survived a green suite,
+      per 27-REVIEW-GAPS-8.md CR-01.
     artifacts:
       - path: "scripts/frontmatter.ts"
-        issue: "delimiterRefusal (:795-823): arm 1 requires startsWith(payload) at position 0; arm 2 requires isLegalDelimiter(line.slice(run), payload) — a LEGAL delimiter after the residue, not merely one that begins with the payload. Their union excludes 'leading invisible residue + illegal trailing residue', which reaches the keyless success arm at :887."
-      - path: "scripts/frontmatter.test.ts"
-        issue: "The negative-space sweep (`:1953-1959`) builds exactly one construction per arm (`leading @ opening`, `trailing @ opening`, `leading @ closing`, `trailing @ closing`) — every member lands inside exactly one declared arm, so the sweep is structurally incapable of exercising the composite and cannot fail on CR-01 (round-5 WR-02, a distinct finding from round-4's WR-02, now closed)."
+        issue: "stripComment's mayBegin (node-start) predicate is gated to four flow-only spellings (frontmatter.ts:650-679, startsNode at :1044); YAML defines at least four more node-start positions outside that union, all reproduced end to end at the gate."
     missing:
-      - "Apply the review's drafted fix: arm 2 should strip the leading invisible run first, then test only whether the REMAINDER begins with the payload (arm 1's test, not the full legality test) — so the two arms compose instead of each requiring the other's precondition to be absent."
-      - "Extend the sweep with composite constructions (leading + trailing @ opening, leading + trailing @ closing, leading + near-payload) so the fix is pinned by a case that fails today, per the round-5 review's WR-02 (round-5) finding."
-    deferred: []
-  - truth: "SPAWN-04 — no non-coordinator adapter carries the Agent tool, and the defense-in-depth guard holds against a crafted or malformed frontmatter, not just today's clean tree."
+      - "A structural fix to the walk's node-start answer (per CR-01's proposed remedy: derive mayBegin from structural position rather than adding a fifth enumerated arm) plus a corpus that can express block-mapping, compact-nested-sequence, block-explicit-key and JSON-adjacency shapes (WR-01 in 27-REVIEW-GAPS-8.md: the current 312-cell corpus structurally cannot build any of the four)."
+  - truth: "The referential-integrity oracle's set equality (coordinator grant == adapter directory == role corpus) is sound because a name is never silently dropped or altered when computing the grant closure. (KIT-03)"
     status: failed
     reason: >
-      Today's committed tree remains clean (only `.claude/agents/grugops-orchestrator.md` carries a live
-      `Agent(` grant) and SPAWN-03's main-thread wiring — the primary mechanism — is untouched and still
-      verified. But `guard_wr05`, the guard defending the claim "no non-coordinator does", calls
-      `keysHaveSpawnGrant` through the same `parseFrontmatter`/`delimiterRefusal` path as the KIT-03
-      oracle (confirmed by reading `scripts/check-foundation-guards.ts:628` and its import from
-      `scripts/frontmatter.ts`), so the identical composite-delimiter fail-open (`<ZWSP>---<ZWSP>`) that
-      defeats KIT-03 defeats SPAWN-04 by the same mechanism: a rogue `Agent(...)` grant on a skill
-      adapter with a composite-mark delimiter is invisible to the guard, which prints "no non-coordinator
-      does" and exits 0. Round 5 did close the OTHER bypass this requirement failed on in round 4 (CR-03,
-      the plugin-skill tree outside the scan) — verified directly by reading the widened
-      `SPAWN_GRANT_SCAN` composition and `guard_distribution_pair`. The requirement fails on the surviving
-      composite-delimiter gap alone, which is the same code path as KIT-03's failure — one fix closes
-      both, as the round-5 review states and as I confirm by reading the shared `delimiterRefusal`
-      function both guards call into.
+      guard_referential_integrity (KIT-03) computes its grant-closure set via the SAME
+      grantedAgentNames()/frontmatter.ts path guard_wr05 consumes (verified by reading
+      scripts/check-foundation-guards.ts:2096-2185, which states this explicitly: "The grant closure
+      and the coordinator marker are both read through scripts/frontmatter.ts — the SAME module
+      guard_wr05 reads"). CR-02 (27-REVIEW-GAPS-8.md) reproduces an invented-name defect
+      (`nodeOnKeyLine` never raised for a value whose node begins on a continuation line) that feeds
+      "straight into the KIT-03 closure equality" per the review's own text, and states the module's
+      promise "a name is never silently dropped or altered" is false. On today's ACTUAL
+      `.claude/agents/grugops-orchestrator.md` the grant is single-line (verified directly: `tools:
+      Agent(grugops-agents-md-scribe, ..., grugops-uat-planner), Read, Grep, Glob, Edit, Write, Bash`
+      on one line), so the live closure computes correctly today and `guard_referential_integrity`
+      genuinely PASSES ("17 roles == 17 adapters == 17 grant-closure names (D-09, no exception list)",
+      confirmed by direct execution this session). The failure is in the SOUNDNESS CLAIM the oracle
+      makes about itself ("this guard's soundness depends entirely on the derivation seeing what the
+      platform loads") rather than in today's committed grant text — but that claim is the whole basis
+      SC2 asks to be trusted, and it is demonstrably false for any future multi-line grant edit.
     artifacts:
-      - path: "scripts/check-foundation-guards.ts"
-        issue: "guard_wr05 (:628, keysHaveSpawnGrant) inherits the composite-delimiter fail-open from scripts/frontmatter.ts; its scan set now correctly covers the plugin-skill tree (CR-03 round-4 closed), but the shared parser predicate is still unsound on the composite input."
       - path: "scripts/frontmatter.ts"
-        issue: "Same delimiterRefusal arm-composition gap as the KIT-03 finding above — one fix closes both requirements."
+        issue: "cur.nodeOnKeyLine is written exactly once (frontmatter.ts:1161), on the key line only; a value whose node begins on the first continuation line is never marked, so startsNode stays true for every subsequent continuation line, inventing/truncating names."
     missing:
-      - "Same fix as KIT-03's gap: closing the delimiterRefusal arm-composition gap closes SPAWN-04 too, since both consume the same predicate."
-      - "An aggregator-level case planting a composite-mark rogue grant on a SKILL adapter (not an agent adapter, which has an incidental name-floor catch) in a hermetic mirror, asserting the gate exits non-zero — the shape the round-5 review's CR-01 gate-level reproduction already demonstrates but that the shipped test suite does not yet pin."
-deferred: []
-behavior_unverified_items: []
-human_verification: []
+      - "CR-02's proposed fix: rename to nodeStarted, set it at both places a scalar's node can begin (key line and first content-bearing continuation), with the stated block-sequence exception; add a grantedAgentNames-level (name-set) assertion to the differential harnesses per WR-03, since both current harnesses only check token presence and cannot see a divergent name set."
+deferred:
+  - truth: "SPAWN-03's real-platform confirmation that the main-thread coordinator's Agent(<allowlist>) grant is actually honored by Claude Code at runtime (as opposed to being confirmed only by reading the platform's own published sub-agent documentation)."
+    addressed_in: "Phase 33"
+    evidence: "ROADMAP.md Phase 33: 'Live Capture & Windows Portability — the captured live run that proves spawning and discharges GAP-D1'; the standing-obligations table (# 1, GAP-D1) explicitly assigns 'one captured live dual-path run' to Phase 33 (CAP-01)."
+human_verification:
+  - test: "Start a real Claude Code session with `claude --agent grugops-orchestrator` (or the equivalent main-thread wiring) on this repository and observe whether the Orchestrator's Agent(<allowlist>) grant is actually runtime-enforced — i.e., that it can spawn a role subagent and that a role subagent cannot spawn a further subagent."
+    expected: "The coordinator, running as the main-thread agent, successfully invokes the Agent tool to delegate to a named role subagent; a role subagent invoked this way has no Agent tool available to it."
+    why_human: "This is a live-platform runtime behavior claim (documented in agent-factory/roles/orchestrator.md and agent-factory/packaging/adapters.md as 'the grant is honored only because the Orchestrator is main-thread') that no static grep or gate can confirm; the phase's own SUMMARYs mark it UNKNOWN - verify and defer the capture to Phase 33 / GAP-D1."
+  - test: "Decide whether to retire the 27-43 acceptance criterion 'scripts/validate-agent-factory.ts goes from exit 0 to a named non-zero failure on the non-coordinator adapter surface' (carried forward, open, owned by no plan across 27-43 through 27-46)."
+    expected: "A human decision: either retire the criterion (the standing recommendation in all four round-8 SUMMARYs, on the grounds that the validator has zero occurrences of spawn/frontmatter/wr05 and is not a spawn-grant surface at all — measured, not assumed), or explicitly require a second spawn-grant predicate be added to the validator (which every round-8 plan's own prohibitions and this module's founding discipline argue against)."
+    why_human: "This is a scope/acceptance-criterion decision, not a code defect; no plan in the phase owns it, and forcing a resolution mechanically would itself create the weaker-duplicate-predicate shape the phase has spent eight rounds deleting."
 ---
 
-# Phase 27: Spawn Correctness & Kit-Set Authority — Verification Report (Round 5)
+# Phase 27: Spawn Correctness & Kit-Set Authority Verification Report
 
 **Phase Goal:** Role agents actually execute in their own sessions on Claude Code — and every guard and validator scan set is derived from the filesystem *before* the 17 new adapter files exist, so they land inside the guards rather than outside them.
-**Verified:** 2026-08-03T07:00:00Z
+**Verified:** 2026-08-09T16:30:00Z
 **Status:** gaps_found
-**Re-verification:** Yes — round 5. **This record SUPERSEDES the round-4 record previously at this path (dated 2026-08-02T02:00:00Z).** The round-4 findings (CR-01 delimiter fail-open on single-sided spellings, CR-02 installer unreadable-walk silent drop, CR-03 plugin-skill tree outside every scan set, WR-01 incomplete exit-tail conversion, WR-02 name drop/alteration) are all confirmed CLOSED below and are preserved in `re_verification.gaps_closed` rather than re-litigated. Three NEW/residual findings — surfaced by an independent code review of the round-5 diff and confirmed here by direct code reading, not by re-running its reproductions — keep the same three requirements (KIT-02, KIT-03, SPAWN-04) failed for reasons distinct from round 4.
-
-## Method note
-
-Per the task instructions, CR-01 (round-5 naming: the composite-delimiter fail-open) and CR-02 (round-5
-naming: `PLUGIN_DEFAULT_COMPONENT_SUBPATHS` set-literal drift) from `27-REVIEW-GAPS-5.md` were treated
-as established fact, not re-reproduced end-to-end. What I did independently in this pass: read
-`scripts/frontmatter.ts:680-910` (the full delimiter region, both refusal arms, `isLegalDelimiter`,
-`leadingInvisibleRun`) and `scripts/kit-model.ts:175-451` (the plugin-default-component set and its
-consumer), and confirmed the review's code-level claims match the code as committed — the arm-composition
-gap and the 2-of-9 hand-listed set are both real, present, and produce the behavior described, by direct
-logic reading rather than by trusting either the review or the round-5 SUMMARYs. I also read
-`scripts/check-foundation-guards.ts:855-917` and `:1280-1324` directly to confirm the plugin-default floor
-wording, the WR-05 pass line, and the WR-01 (round-5) per-part-membership catch-swallow. All three
-round-5 SUMMARYs (27-33, 27-34, 27-35) and all 32 round 1-4 plan/SUMMARY frontmatters were read for
-requirement-ID cross-reference. The supplied ground truth (1068/2 vitest, tsc clean, freshness clean, all
-scripted guards exit 0) was accepted as given and **not** re-run, and is explicitly **not** treated as
-evidence of absence — that same class of baseline has been green across all five rounds of this phase,
-including every round in which a defect was later found.
+**Re-verification:** Yes — after round-8 gap closure (27-43…27-46), replacing the stale round-5 record.
 
 ## Goal Achievement
 
-### Observable Truths — by roadmap Success Criterion
+### Observable Truths (by roadmap Success Criterion)
 
-| # | Truth (Success Criterion) | Requirements | Status | Evidence |
-|---|---|---|---|---|
-| 1 | `kit-model.ts` answers "what roles and workflows exist" from the filesystem with an asserted count, and **every** scan set resolves through it with no stale literal | KIT-01, KIT-02 | ✓ VERIFIED (KIT-01) / ✗ FAILED (KIT-02) | KIT-01 unaffected by round 5, still sound. KIT-02: round 5 closed CR-02(r4) and CR-03(r4) genuinely, but introduced `PLUGIN_DEFAULT_COMPONENT_SUBPATHS` — a hand-listed 2-of-9 plugin-root component set, with `hooks/` (which exists on the live tree) covered by nothing. |
-| 2 | The KIT-03 oracle turns green only when grant, adapter directory and role corpus are the same set — including against a crafted/malformed frontmatter | KIT-03 | ✗ FAILED | D-43 closed every single-sided delimiter spelling. The two refusal arms do not cover their union: a composite input (leading invisible residue + illegal trailing residue, e.g. `<ZWSP>---<ZWSP>`) satisfies neither arm and reaches the keyless success arm — confirmed by reading `delimiterRefusal` (`frontmatter.ts:795-823`) directly. |
-| 3 | All 17 adapters exist as generated thin pointers; a byte difference vs fresh regeneration fails the freshness gate closed | SPAWN-01, SPAWN-02 | ✓ VERIFIED | Unaffected by round 5. 17/17 files, `GENERATED` marker in all 17, freshness wired and green. |
-| 4 | Coordinator runs main-thread so its grant is runtime-honored; no non-coordinator carries `Agent`; the guard defending this holds against a crafted frontmatter | SPAWN-03, SPAWN-04 | ✓ VERIFIED (SPAWN-03) / ✗ FAILED (SPAWN-04) | SPAWN-03 unaffected. SPAWN-04: the plugin-skill-tree bypass (round-4 CR-03) is genuinely closed; `guard_wr05` inherits the same composite-delimiter gap as KIT-03 via the shared `keysHaveSpawnGrant`/`parseFrontmatter` path. |
-| 5 | `guard_adapter_body` fails red on pre-v2.0 prose; `orchestrator.md` below its 7570-byte ceiling with the ceiling unchanged; the version floor reads v2.1.219+/depth 3 with the known-bad window documented | SPAWN-05, SPAWN-06, SPAWN-07 | ✓ VERIFIED | Unaffected by round 5. `orchestrator.md` = 7090 B against unchanged 7570 B ceiling; depth-3/v2.1.219+/known-bad-window text unchanged at `:88`. |
+| # | Truth | Status | Evidence |
+|---|-------|--------|----------|
+| 1 | Every scan set (`WR05_SCAN`→`SPAWN_GRANT_SCAN`, `ADAPTERS`, `CTX_WORKFLOWS`→`WORKFLOW_FILES`, validator role/workflow lists) resolves through `kit-model.ts` with an asserted count; no stale literal survives. (KIT-01, KIT-02) | ✓ VERIFIED | Read directly: `check-foundation-guards.ts` imports `listRoles`/`listWorkflows`/`listAgentAdapters` from `kit-model.ts` and derives `ROLE_FILES` (:1762), `SPAWN_GRANT_SCAN` (:511, renamed off the old hand-listed `WR05_SCAN`), `ADAPTERS` (:390). `validate-agent-factory.ts` imports `listRoles`/`listWorkflows` and derives `WORKFLOWS`/`ROLES` (:171,183) rather than hand-listing. `install/kit-source.ts` states its policy is defined by `kit-model.listAgentAdapters`, and `install.test.ts` compares the installed set against that same authority. `guardKitCounts()` prints and asserts the two-sided counts (17/19/7/7, 33-member scan) at guard run time — confirmed by executing `node scripts/check-foundation-guards.js` this session (exit 0, `PASS kit counts: derived 17 roles, 19 workflows, 7 skill adapters and 7 plugin-form skill adapters ...`). Round 5's specific KIT-02 gap (hooks/outputStyles/mcpServers/lspServers outside any scan set) is closed: `PLUGIN_MANIFEST_COMPONENT_SCHEMA` now carries 9 entries partitioned 7 forbidden + 1 covered-elsewhere + 1 exempt-by-name (`hooks`), confirmed in `kit-model.ts:244-409` and the guard's own PASS line naming the 9/7/1/1 partition. |
+| 2 | The referential-integrity oracle fails RED against a broken tree and turns GREEN only when the three sets (coordinator grant, adapter directory, role corpus) are truly the same set. (KIT-03) | ✗ FAILED (soundness undermined, not today's tree) | `guard_referential_integrity` genuinely PASSES today: executed `node scripts/check-foundation-guards.js` this session, confirmed `PASS KIT-03: 17 roles == 17 adapters == 17 grant-closure names (D-09, no exception list)`, and confirmed the real coordinator file's grant is a single-line `tools: Agent(...)` value (not vulnerable to the currently-known multi-line bypass shapes). But the oracle computes its closure through the identical `frontmatter.ts` parser CR-01/CR-02 (27-REVIEW-GAPS-8.md) prove is not total and can invent/drop names on its own success arm — the review states this "is fed straight into the KIT-03 closure equality," directly contradicting the module's own promise ("a name is never silently dropped or altered") that the oracle's trustworthiness depends on. See Gaps. |
+| 3 | All 17 role adapters exist, are generated thin pointers (not copies), and a byte difference between a committed adapter and a fresh regeneration fails the freshness gate closed. (SPAWN-01, SPAWN-02) | ✓ VERIFIED | `ls .claude/agents/*.md` = 17 files, each 28 lines (43 for the coordinator) of pointer prose (`Read agent-factory/roles/<role>.md now and act as that role. The role file does the thinking; this adapter only points at it.`) with a `GENERATED — do not hand-edit` banner — confirmed by reading `grugops-software-engineer.md` in full. `node scripts/adapters-freshness.js` run this session: exit 0, `Adapters fresh: 17 adapter(s) compared in .claude/agents, 0 byte difference(s)`. Live fail-closed test performed this session: appended one byte to a committed adapter → `node scripts/adapters-freshness.js` → exit 1, `STALE: 1 of 17 committed adapter(s) differ from a fresh regeneration: grugops-software-engineer.md`; reverted, re-ran → exit 0; working tree confirmed clean afterward (`git status --porcelain` empty). |
+| 4 | On Claude Code the coordinator runs main-thread so its grant is runtime-honored, and no non-coordinator adapter carries the `Agent` tool at all — a mechanism holding on both the main-thread and subagent paths. (SPAWN-03, SPAWN-04) | ✗ FAILED | Already established by direct orchestrator reproduction this session (see task preamble): a live `Agent(grugops-orchestrator)` grant hidden in three distinct YAML node-start shapes, planted into both distribution twins of the non-coordinator `plan` skill on hermetic mirrors, reaches the loaded document (confirmed via `/usr/bin/ruby -ryaml`) while the foundation gate reports `ALL CHECKS PASSED` at exit 0 — the control (identical grant, one line) correctly exits 1. Ninth consecutive round with this class of bypass surviving a green suite (27-REVIEW-GAPS-8.md CR-01). SPAWN-03's main-thread runtime-honoring claim itself remains `UNKNOWN - verify` against the real platform (deferred to Phase 33/GAP-D1, per the phase's own SUMMARYs and ROADMAP.md's standing-obligations table). |
+| 5 | `guard_adapter_body` reds on pre-v2.0 handoff/single-window prose; `orchestrator.md` stays below its 7570-byte FAIL ceiling (ceiling unchanged); the advertised Claude Code floor reads v2.1.219+ at depth 3 everywhere. (SPAWN-05, SPAWN-06, SPAWN-07) | ✓ VERIFIED | Executed `node scripts/check-foundation-guards.js` this session: `PASS SPAWN-05: 24 adapter bodies + 2 template body shapes checked; none carries retired relay vocabulary...`; `PASS agent-factory/roles/orchestrator.md 7090B within ceiling` (ceiling constant unchanged: `check-foundation-guards.ts:1967` still reads `"7570 7165"`, and `orchestrator.md` at 7090B is below both figures — 480B of margin against 7570B, up from round-5's 8B). `grep -rn "grugops-orchestrator.md:25\|single-window\|handoff packet\|routing Orchestrator"` across `agent-factory/roles/*.md` and `.claude/agents/*.md` returns zero matches — the surviving reference the roadmap names is gone. `grep -rn "v2.1.219\|depth 3\|CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH\|v2.1.217"` across shipped docs confirms consistent wording (`agent-factory/roles/orchestrator.md:88`, `agent-factory/packaging/adapters.md:35,47`, `REQUIREMENTS.md:36`) — depth 3 on v2.1.219+, with 217–218 documented as a known-bad depth-1 window, no lingering "depth 5" claim found. |
 
-**Score:** **7/10 requirements verified clean.** Clean: KIT-01, SPAWN-01, SPAWN-02, SPAWN-03, SPAWN-05, SPAWN-06, SPAWN-07. **FAILED: KIT-02, KIT-03, SPAWN-04** — the same three requirements that failed round 4, now failing for round-5-specific reasons (a new hand-listed set for KIT-02; a composed-arm gap in the same predicate for KIT-03 and SPAWN-04) rather than round 4's reasons, all of which are confirmed closed.
+**Score:** 3/5 roadmap success criteria cleanly verified; 2/5 (criteria 2 and 4) FAILED with reproduced evidence, both traced to the same underlying `scripts/frontmatter.ts` node-start defect family (CR-01/CR-02).
 
-## Per-Requirement Accounting
+### Deferred Items
 
-| ID | Verdict | Blocked by | Evidence I checked |
-|---|---|---|---|
-| **KIT-01** | ✓ verified-clean | — | `scripts/kit-model.ts` — `ROLE_COUNT=17`, `WORKFLOW_COUNT=19`, `SKILL_ADAPTER_COUNT=7`, now also `PLUGIN_SKILL_ADAPTER_COUNT=7`, `SPAWN_GRANT_SCAN_COUNT=33` — all two-sided, all read directly. No round-5 finding lands on this requirement's text. |
-| **KIT-02** | ✗ **FAILED** | round-5 CR-02 (`PLUGIN_DEFAULT_COMPONENT_SUBPATHS`) | Read `scripts/kit-model.ts:175-197` directly: `PLUGIN_DEFAULT_COMPONENT_SUBPATHS = ["agents", "commands"] as const`, no derivation, no cardinality pin — unlike every sibling constant in the same module. Read `scripts/check-foundation-guards.ts:855-888`: the floor's own comment claims class-level closure; the set it iterates is the same 2-element literal. Cross-checked against CLAUDE.md's 9-directory plugin-schema enumeration and confirmed `hooks/hooks.json` etc. exist on the live tree (`ls hooks/`) and are covered by no scan set. Round-5 SUMMARYs (27-34) confirm CR-03(r4)/plugin-skill-tree closure is real and does not touch this literal. |
-| **KIT-03** | ✗ **FAILED** | round-5 CR-01 (delimiter arm-composition gap) | Read `scripts/frontmatter.ts:680-910` in full: the header claims (`:757-759`) "no second grammar left ... for a fifth spelling to slip between"; `delimiterRefusal` (`:795-823`) arm 1 requires `startsWith(payload)`, arm 2 requires `isLegalDelimiter` (full legality) on the stripped remainder — their union excludes a composite input, which is confirmed by tracing the logic (a line with leading invisible residue AND illegal trailing residue fails both preconditions and returns `null` at `:822`, landing in the keyless success arm at `:887`). Round-5 review's parser- and gate-level reproduction tables are consistent with this logic trace. |
-| **SPAWN-01** | ✓ verified-clean | — | `ls .claude/agents/grugops-*.md \| wc -l` = 17; `GENERATED` marker present in all 17. Unaffected by round 5. |
-| **SPAWN-02** | ✓ verified-clean | — | Ground-truth freshness: 32/32 committed `.js` fresh, `:adapters` sub-check exit 0. Unaffected by round 5. |
-| **SPAWN-03** | ✓ verified-clean | — | `27-SPAWN-03-RUNTIME-EVIDENCE.md`; no plan since round 2 touched this surface, none in round 5 either. |
-| **SPAWN-04** | ✗ **FAILED** | round-5 CR-01 (same shared predicate as KIT-03) | Read `scripts/check-foundation-guards.ts:628` (`guard_wr05` calling `keysHaveSpawnGrant`) and confirmed it imports the same `scripts/frontmatter.ts` module and the same `delimiterRefusal`/`parseFrontmatter` path traced for KIT-03. Read the widened `SPAWN_GRANT_SCAN` composition (`:892-897`, plugin-skill members now included) and `guard_distribution_pair` — round-4's CR-03 bypass is genuinely closed; the composite-delimiter gap is the sole surviving bypass, shared with KIT-03. |
-| **SPAWN-05** | ✓ verified-clean | — | `guard_adapter_body` present, single-sourced retired-vocabulary literals unchanged. Unaffected by round 5. |
-| **SPAWN-06** | ✓ verified-clean | — | `wc -c agent-factory/roles/orchestrator.md` = 7090; ceiling literal `7570` unchanged at `check-foundation-guards.ts:1703`. Unaffected by round 5. |
-| **SPAWN-07** | ✓ verified-clean | — | `agent-factory/roles/orchestrator.md:88` — depth 3, `CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH`, v2.1.217-218 known-bad window documented, text unchanged. Unaffected by round 5. |
+| # | Item | Addressed In | Evidence |
+|---|------|-------------|----------|
+| 1 | SPAWN-03's real-platform confirmation that the main-thread grant is runtime-honored (as opposed to confirmed only against the platform's published docs) | Phase 33 | ROADMAP.md standing-obligations table, item 1 (GAP-D1 → Phase 33 CAP-01): "one captured live dual-path run → flip A3/DOG-02" |
 
-## Round-4 Findings — closure verdict (checked in code, not in the SUMMARY)
-
-All five round-4 findings are **genuinely closed**, confirmed by direct code reading in this pass — see `re_verification.gaps_closed` above for the evidence per item. This is real, load-bearing work and must not be re-litigated in round 6:
-
-| Round-4 ID | Verdict | How I checked |
-|---|---|---|
-| **CR-01 (single-sided spellings)** | ✅ **GENUINELY CLOSED, one axis remains** | Read `delimiterRefusal`/`isLegalDelimiter` (`frontmatter.ts:757-823`) directly; every single-sided offending row from round 4's own reproduction table (leading BOM alone, trailing NBSP alone, `----`, `--- foo`) is now caught by arm 1 or arm 2 individually. Only the COMPOSITE of both arms' trigger conditions survives — a distinct, narrower defect, tracked above as round-5's KIT-03/SPAWN-04 finding. |
-| **CR-02 (installer unreadable-walk silent drop)** | ✅ **CLOSED** | `NestedWalkResult` has a fourth `unreadable` channel (confirmed via the 27-35 SUMMARY transcript and the round-5 review's "checked and found SOUND" section, which read `install/kit-source.ts:383,403` directly); both formerly-bare-return arms route through it; `install.ts` reports it through the single `verify` channel. |
-| **CR-03 (plugin-skill tree outside every scan)** | ✅ **CLOSED** | Read `scripts/kit-model.ts:437-451` (`listPluginSkillAdapters`) and `scripts/check-foundation-guards.ts:892-912` (the WR-05 pass line naming the plugin-skill count) directly; the composition is 33 = 17 agent + 7 skill + 7 plugin-skill + 2 packaging, per-part SET equality asserted on all four. |
-| **WR-01 (incomplete D-35 exit-tail application)** | ✅ **CLOSED** | 27-35 SUMMARY transcript shows both `install/uninstall.ts` and `scripts/coordinator-resolution-precheck.ts` now set `process.exitCode` rather than calling `process.exit()` on the tail; the regression scan covers 4 paths. Six mid-script sites (relied on for stop-here semantics) are unchanged by design, count-pinned. |
-| **WR-02 (name drop/alteration on the success arm)** | ✅ **CLOSED** | `keysGrantedAgentNames` now refuses a nested paren or a quote inside a captured enumeration (27-33 SUMMARY Task 3 transcript, cross-checked against the module's stated contract). |
-
-## Locked-decision confirmations
-
-**D-43 — the delimiter region states the LEGAL set instead of enumerating the illegal one: CONFIRMED as the correct polarity, incompletely composed.** The header at `frontmatter.ts:684-705` correctly diagnoses both prior formulations (D-39 point 3's `trim()`-based near-miss test, D-42's widened-but-still-enumerated alphabet) as denylists that claimed to be allowlists. D-43's stated LEGAL/refusal-arm/keyless-success three-outcome partition is the right shape. What is not yet true is the claim at `:757-759` that "there is no second grammar left in this region for a fifth spelling to slip between" — the two arms, read together, are that second grammar, because their union is not the complement of the legal set.
-
-**D-40 — the plugin-form distribution set is derived and folded into the one composition: CONFIRMED landed, in full, for the skill sub-surface only.** `listPluginSkillAdapters`, the pair rule, and the widened `SPAWN_GRANT_SCAN` are all real and sound. The plugin-root **component** surface beyond skills (the `PLUGIN_DEFAULT_COMPONENT_SUBPATHS` floor) was added in the same round and is the one place in this diff that reintroduces a hand-listed, un-derived, un-counted set — the same defect class D-40 exists to delete, one directory-enumeration level up.
-
-## Required Artifacts
+### Required Artifacts
 
 | Artifact | Expected | Status | Details |
-|---|---|---|---|
-| `scripts/kit-model.ts` | Sole role/workflow/adapter/plugin-skill-set authority, fail-closed, bounded, every set derived and counted | ⚠️ **PARTIAL** | `listRoles`, `listWorkflows`, `listAgentAdapters`, `listSkillAdapters`, `listPluginSkillAdapters`, `spawnGrantScan` are all sound, derived, and two-sided counted. `PLUGIN_DEFAULT_COMPONENT_SUBPATHS` (`:187`) is the one exception — hand-listed, 2-of-9, uncounted. |
-| `scripts/frontmatter.ts` | Single format-aware authority for the spawn-grant predicate, sound against adversarial input | ✗ **NOT SOUND — BLOCKER** | Escape axis (D-30), node-property axis, and every single-sided delimiter spelling (D-43) are genuinely closed. The two refusal arms' UNION still excludes the composite (leading invisible residue + illegal trailing residue), which reaches the keyless success arm. |
-| `scripts/check-foundation-guards.ts` | Guards whose scan sets cover every shipped surface they claim | ⚠️ **PARTIAL** | `SPAWN_GRANT_SCAN` now genuinely covers agents + standalone skills + plugin skills + packaging (33, per-part set-equal). The plugin-default-component floor (`:855-888`) claims class-level coverage it does not have — 2 of 9 default-discovery directories, `hooks/` (which exists) uncovered. `guardKitCounts`'s per-part membership loop (`:1305-1311`) silently `continue`s on a thrown lister under a false-for-its-reachable-case justification (round-5 WR-01, non-blocking). |
-| `install/kit-source.ts` | Sole install/uninstall derivation module; never the place a file disappears silently | ✓ **VERIFIED** | The unreadable channel closes the last silent-drop arm (round-4 CR-02); confirmed sound by the round-5 review's direct-read section and cross-checked against the 27-35 SUMMARY transcript. |
-| `install/uninstall.ts`, `scripts/coordinator-resolution-precheck.ts` | Tail parity with `install.ts` (D-35) | ✓ **VERIFIED** | Both remaining tails set `process.exitCode`; four-path regression scan in place. |
-| `.claude/agents/grugops-<role>.md` × 17 | Generated thin pointers, freshness-gated | ✓ VERIFIED | 17/17, marker present in all, freshness wired in CI. Unaffected by round 5. |
-| `skills/*/SKILL.md` × 7 (plugin form) | Shipped, platform-loaded — and inside the guards | ✓ **VERIFIED** | Now derived (`listPluginSkillAdapters`), counted (7, two-sided), inside `SPAWN_GRANT_SCAN`, and cross-checked against its standalone twin via `guard_distribution_pair`. Round-4's ORPHANED verdict is closed. |
+|----------|----------|--------|---------|
+| `scripts/kit-model.ts` | Sole filesystem-derivation authority for roles/workflows/adapters with asserted counts | ✓ VERIFIED | 967 lines; exports `ROLE_COUNT=17`, `WORKFLOW_COUNT=19`, `SKILL_ADAPTER_COUNT=7`, `PLUGIN_SKILL_ADAPTER_COUNT=7`, `SPAWN_GRANT_SCAN_COUNT=33`; `listRoles`/`listWorkflows`/`listAgentAdapters`/`listSkillAdapters`/`listPluginSkillAdapters`/`spawnGrantScan` all `readdirSync`-backed |
+| `.claude/agents/grugops-<role>.md` × 17 | Generated thin-pointer adapters | ✓ VERIFIED | All 17 present, 28 lines each (43 for coordinator), banner-marked GENERATED, freshness gate exit 0 |
+| `scripts/adapters-freshness.ts` (compiled `.js`) | Byte-gates adapters against fresh regeneration | ✓ VERIFIED | Live-tested this session: fails closed on a 1-byte plant, passes clean on revert |
+| `scripts/check-foundation-guards.ts` `guard_referential_integrity` (KIT-03) | Three-way set-equality oracle, no exception list | ⚠️ WIRED but soundness-compromised | Passes on today's tree; its closure computation shares the CR-01/CR-02-affected `frontmatter.ts` code path |
+| `scripts/check-foundation-guards.ts` `guard_wr05` | Rogue-spawner / spawn-grant enforcement | ✗ BYPASSED | Live reproduced bypass, exit 0 on a real hidden grant (see Gaps) |
+| `agent-factory/roles/orchestrator.md` | ≤7570B FAIL ceiling, ceiling unchanged | ✓ VERIFIED | 7090B, ceiling constant unchanged in source |
 
-## Key Link Verification
+### Key Link Verification
 
 | From | To | Via | Status | Details |
+|------|----|-----|--------|---------|
+| `check-foundation-guards.ts` | `kit-model.ts` | `import { listRoles, listAgentAdapters, ... }` | ✓ WIRED | Confirmed by grep and by the guard's own printed derivation counts |
+| `validate-agent-factory.ts` | `kit-model.ts` | `import { listRoles, listWorkflows }` | ✓ WIRED | `deriveKitNames(listWorkflows, ...)`, `deriveKitNames(listRoles, ...)` |
+| `install/kit-source.ts` | `kit-model.ts` | policy comment + `install.test.ts` cross-check | ✓ WIRED | `install.test.ts` imports `listAgentAdapters`/`listSkillAdapters` and asserts the installed set matches |
+| `guard_referential_integrity` (KIT-03) | `guard_wr05` | shared `scripts/frontmatter.ts` grant-closure computation | ⚠️ WIRED, shared defect | Both consumers demonstrably share the same not-total node-start predicate; a defect in one is a latent defect in both |
+| `adapters-freshness.ts` | `generate-role-adapters.ts` | fresh regeneration + byte compare | ✓ WIRED | Live-tested this session |
+
+### Behavioral Spot-Checks
+
+| Behavior | Command | Result | Status |
+|----------|---------|--------|--------|
+| Kit-model counts assert correctly at guard run time | `node scripts/check-foundation-guards.js` | `PASS kit counts: derived 17 roles, 19 workflows, 7 skill adapters and 7 plugin-form skill adapters (expected 17/19/7/7)`; exit 0 | ✓ PASS |
+| Referential-integrity oracle passes on today's real tree | (same run) | `PASS KIT-03: 17 roles == 17 adapters == 17 grant-closure names (D-09, no exception list)` | ✓ PASS (see Gaps for soundness caveat) |
+| Adapter freshness gate fails closed on a byte plant | append 1 byte to a committed adapter; `node scripts/adapters-freshness.js` | exit 1, `STALE: 1 of 17 committed adapter(s) differ from a fresh regeneration` | ✓ PASS |
+| Adapter freshness gate clean after revert | revert the byte, re-run | exit 0, `0 byte difference(s)` | ✓ PASS |
+| guard_wr05 catches a one-line rogue spawn grant | plant `allowed-tools: "Read, Agent(grugops-orchestrator)"` on one line in a non-coordinator surface (control, from the orchestrator's pre-established reproduction) | exit 1, `FAIL WR-05 coordinator-spawn-grant violation` | ✓ PASS |
+| guard_wr05 catches the SAME grant folded across a YAML node-start shape (block mapping / flow JSON adjacency / block explicit key) | same plant, folded (Family A/C/F, pre-established) | exit 0, `ALL CHECKS PASSED` | ✗ FAIL — this is the phase-blocking gap |
+| `orchestrator.md` under its byte ceiling | `wc -c agent-factory/roles/orchestrator.md` | 7090B against unchanged 7570B ceiling constant | ✓ PASS |
+| No pre-v2.0 handoff/single-window prose survives | `grep -rn "grugops-orchestrator.md:25\|single-window\|handoff packet\|routing Orchestrator"` over adapters/roles | zero matches | ✓ PASS |
+
+### Requirements Coverage
+
+| Requirement | Source Plan(s) | Description | Status | Evidence |
 |---|---|---|---|---|
-| `check-foundation-guards.ts` `guard_wr05` (:628) | `frontmatter.ts` `keysHaveSpawnGrant` | import + call | ✓ WIRED, ✗ UNSOUND | Wired correctly, scan set now complete; the shared predicate still has the arm-composition gap. |
-| `check-foundation-guards.ts` KIT-03 oracle | `frontmatter.ts` `keysGrantedAgentNames` | import + call | ✓ WIRED, ✗ UNSOUND | Same predicate; the name-drop/alteration defect (round-4 WR-02) is closed, the delimiter arm-composition gap (round-5 CR-01) is not. |
-| `check-foundation-guards.ts` `SPAWN_GRANT_SCAN` | shipped `skills/*/SKILL.md` | `listPluginSkillAdapters` fold | ✓ **WIRED, SOUND** | Round-4's uncovered surface is now covered — the composition, the count, and the pair rule all confirm it. |
-| `check-foundation-guards.ts` plugin-default-component floor | `hooks/`, `outputStyles/`, `mcpServers/`, `lspServers/`, `experimental.themes`, `experimental.monitors` | (none — hand-listed to 2 of 9) | ✗ **NOT_WIRED** | The floor only iterates `agents/` and `commands/`; the other six default-discovery directories, including the one (`hooks/`) that exists on the live tree, are checked by nothing. |
-| `install/kit-source.ts` walk | `install.ts`'s verify-finding reporter | `cycles` ✓ / `overflow` ✓ / `unreadable` ✓ | ✓ **WIRED, SOUND** | All three failure channels now report through the single `verify` channel; round-4's PARTIAL verdict is closed. |
-| `install/uninstall.ts` tail, `coordinator-resolution-precheck.ts` tail | `install.ts`'s D-35 exit rule | `process.exitCode` assignment | ✓ **WIRED** | Both tails now carry the mechanism their comments claimed; round-4's NOT_WIRED verdict is closed. |
+| KIT-01 | 27-01, 27-10 | `kit-model.ts` sole filesystem authority, asserted counts, replaces 5 stale hard-coded lists | ✓ SATISFIED | `kit-model.ts` present with `readdirSync`-backed listers and asserted `*_COUNT` constants; every named consumer (guards, validator, installer) imports it. REQUIREMENTS.md's own `[ ]` checkbox is stale (not updated since round 5); code evidence contradicts the unchecked box. |
+| KIT-02 | 27-01, 27-03, 27-04, 27-10, 27-11, 27-13 | Every guard/validator scan set derived from `kit-model.ts`, never hand-listed | ✓ SATISFIED | `SPAWN_GRANT_SCAN`, `ADAPTERS`, `ROLE_FILES`/`WORKFLOW_FILES`, validator `ROLES`/`WORKFLOWS` all confirmed derived. Round-5's hooks/outputStyles gap closed via `PLUGIN_MANIFEST_COMPONENT_SCHEMA` (9-entry partition). Round-8's own de-duplication defect (IN-04) closed with a byte-identical-output proof (27-46-SUMMARY.md). |
+| KIT-03 | 27-01, 27-07, 27-10, 27-12, 27-19 | Referential-integrity oracle, RED-before/GREEN-after, no exception list | ✗ BLOCKED | Passes on today's tree, but its closure computation is proven (CR-02, 27-REVIEW-GAPS-8.md) to share a name-inventing/dropping defect with `guard_wr05`, directly contradicting the "a name is never silently dropped or altered" promise the oracle's trust depends on. |
+| SPAWN-01 | 27-06, 27-07, 27-15 | 17 role adapters, generated thin pointers, never copies | ✓ SATISFIED | 17 files confirmed on disk, 28-line pointer bodies, GENERATED banner. |
+| SPAWN-02 | 27-07, 27-11 | Freshness gate byte-gates adapters, fail-closed on drift | ✓ SATISFIED (mechanism); ⚠️ same shared risk as KIT-03/SPAWN-04 | Live-tested fail-closed and clean-pass this session. Not itself defeated by CR-01/CR-02 (it does a raw byte compare, not a semantic frontmatter parse), but its upstream generator/guard chain shares the affected module. |
+| SPAWN-03 | 27-09 | Coordinator wired main-thread so grant is runtime-honored | ✗ BLOCKED (platform claim unconfirmed) + upstream mechanism bypassed | Documentation and in-repo half present (`agent-factory/roles/orchestrator.md:88`, `packaging/adapters.md`); real-platform confirmation explicitly `UNKNOWN - verify`, deferred to Phase 33/GAP-D1. Also: the mechanism SPAWN-03 depends on (a trustworthy grant) is the one CR-01 defeats. |
+| SPAWN-04 | 27-08, 27-12 | Non-coordinator adapters omit `Agent` entirely; mechanism holds both paths | ✗ BLOCKED | Directly reproduced live bypass at the gate (CR-01): a non-coordinator surface can carry a spawn grant undetected by `guard_wr05` when folded into one of four YAML node-start shapes. |
+| SPAWN-05 | 27-08, 27-14 | `guard_adapter_body` reds on pre-v2.0 prose | ✓ SATISFIED | Confirmed PASS this session; zero stale-reference grep hits. |
+| SPAWN-06 | 27-05 | `orchestrator.md` below 7570B ceiling, ceiling unchanged | ✓ SATISFIED | 7090B measured; ceiling constant `"7570 7165"` unchanged in source. |
+| SPAWN-07 | 27-05 | Claude Code floor corrected to v2.1.219+/depth 3 everywhere, 217–218 documented as known-bad | ✓ SATISFIED | Consistent wording confirmed across `orchestrator.md`, `packaging/adapters.md`, `REQUIREMENTS.md`; no stale "depth 5" reference found. |
 
-## Behavioral Spot-Checks
+No orphaned requirements: all 10 IDs (KIT-01..03, SPAWN-01..07) map to Phase 27 in `.planning/REQUIREMENTS.md`'s traceability table and are each claimed by at least one of the 46 plans in this phase directory.
 
-Per the discipline note, I did not re-run the round-5 review's live reproductions (both criticals were pre-established as facts to fold in). The checks below are the direct code-logic traces I performed in this pass instead.
+### Anti-Patterns Found
 
-| Behavior | Check performed | Result | Status |
-|---|---|---|---|
-| Composite-delimiter arm coverage | Traced `delimiterRefusal`'s two arm preconditions against a `<ZWSP>---<ZWSP>` input by hand: arm 1 requires `line.startsWith("---")` (false — the line starts with U+200B); arm 2 requires `isLegalDelimiter(line.slice(run), "---")` where `run` strips the leading ZWSP, then requires the remainder (`---<ZWSP>`) to be fully legal, i.e. everything after `---` must be declared whitespace ([ \t]) — ZWSP is not in that class, so arm 2's precondition is also false. | Both arms' preconditions are false; `delimiterRefusal` returns `null`; the caller (`:884-888` for opening) falls to the keyless success arm. | ✗ **FAIL** (confirms round-5 review's CR-01, by independent logic trace rather than execution) |
-| `PLUGIN_DEFAULT_COMPONENT_SUBPATHS` completeness | Read the literal (`["agents","commands"]`) against CLAUDE.md's 9-directory plugin schema and `ls -la` on the repo root for `hooks/`. | `hooks/` exists (`hooks/hooks.json`, `hooks/guard.js`, `hooks/admission-guard.js` all present) and is absent from `PLUGIN_DEFAULT_COMPONENT_SUBPATHS`. | ✗ **FAIL** (confirms round-5 review's CR-02, by direct inspection) |
-| `listPluginSkillAdapters` / `spawnGrantScan` composition | `ls skills/*/SKILL.md \| wc -l` = 7; read `spawnGrantScan()`'s four-part fold and `SPAWN_GRANT_SCAN_COUNT = 33` in `scripts/kit-model.ts`. | 7 files on disk, 7 asserted, folded into 33 = 17+7+7+2, per-part SET equality present. | ✓ **PASS** |
-| orchestrator.md ceiling | `wc -c agent-factory/roles/orchestrator.md` | 7090 vs unchanged 7570 ceiling literal at `check-foundation-guards.ts:1703`. | ✓ **PASS** |
-| Adapter corpus | `ls .claude/agents/grugops-*.md \| wc -l`; GENERATED-marker grep count | 17; 17/17. | ✓ **PASS** |
+None blocking. `grep -n "TBD|FIXME|XXX"` over the round-8-touched files (`scripts/frontmatter.ts`, `scripts/kit-model.ts`, `scripts/frontmatter.test.ts`, `scripts/kit-model.test.ts`, `scripts/generate-role-adapters.test.ts`) returns only `U+XXXXX` code-point-label text in comments/tests — not debt markers. No `TODO`/`HACK`/`PLACEHOLDER` or stub-shaped returns found in the artifacts reviewed for this round.
 
-## Requirements Coverage
+### Human Verification Required
 
-| Requirement | Source Plan(s) | Status | Evidence |
-|---|---|---|---|
-| KIT-01 | 27-01, 27-22, 27-27, 27-31 | ✓ SATISFIED | Unaffected by round 5; sole authority, asserted counts, fail-closed and bounded. |
-| KIT-02 | 27-02/03/04/10/11/13/19/21/22/23/25/27/28, 27-31, 27-32, 27-33, 27-34, 27-35 | ✗ **BLOCKED** | `PLUGIN_DEFAULT_COMPONENT_SUBPATHS` is a hand-listed 2-of-9 set (round-5 CR-02), inside the floor whose comment claims class-level closure. `hooks/` exists on the live tree and is uncovered. |
-| KIT-03 | 27-01/07/10/12/18/19/24/26, 27-29, 27-30, 27-33 | ✗ **BLOCKED** | `delimiterRefusal`'s two arms do not cover their union; a composite (leading invisible residue + illegal trailing residue) input reaches the keyless success arm (round-5 CR-01). |
-| SPAWN-01 | 27-06, 27-07, 27-15, 27-23 | ✓ SATISFIED | Unaffected by round 5. 17/17 generated thin pointers. |
-| SPAWN-02 | 27-07, 27-11, 27-23 | ✓ SATISFIED | Unaffected by round 5. Freshness gate green and CI-wired. |
-| SPAWN-03 | 27-09, 27-16, 27-17, 27-21 | ✓ SATISFIED | Unaffected by round 5. Real runtime observation recorded. |
-| SPAWN-04 | 27-08/12/18/20/24/26, 27-29, 27-30, 27-33, 27-34 | ✗ **BLOCKED** | Round-4's plugin-skill-tree bypass (CR-03) genuinely closed. `guard_wr05` inherits the same composite-delimiter gap as KIT-03 through the shared `keysHaveSpawnGrant`/`parseFrontmatter` path. |
-| SPAWN-05 | 27-08, 27-14, 27-20 | ✓ SATISFIED | Unaffected by round 5. `guard_adapter_body` live, single-sourced literals. |
-| SPAWN-06 | 27-05, 27-23 | ✓ SATISFIED | Unaffected by round 5. 7090 B / 7570 B ceiling unchanged. |
-| SPAWN-07 | 27-05, 27-21 | ✓ SATISFIED | Unaffected by round 5. Depth 3, env var, known-bad window all documented, unchanged. |
+1. **Real-platform main-thread spawn confirmation (SPAWN-03).** See frontmatter `human_verification`. Deferred by design to Phase 33 (GAP-D1); recorded here so it is not lost at phase boundary.
+2. **`validate-agent-factory.ts` criterion disposition.** A human decision on whether to retire the unsatisfiable 27-43 acceptance criterion, carried open across four SUMMARYs with a consistent "retire it" recommendation and no plan ownership.
 
-**No orphaned requirements.** Cross-referenced all 35 plans' `requirements:` frontmatter against `.planning/REQUIREMENTS.md`'s Phase 27 rows: KIT-01, KIT-02, KIT-03, SPAWN-01, SPAWN-02, SPAWN-03, SPAWN-04, SPAWN-05, SPAWN-06, SPAWN-07 are each claimed by at least one plan (KIT-02 and KIT-03 additionally by all three round-5 plans; SPAWN-04 by 27-33 and 27-34). `.planning/REQUIREMENTS.md:156-165` currently marks all ten `Gaps Found`; that remains correct for KIT-02, KIT-03 and SPAWN-04 and is understated for the other seven — this verifier does not edit the requirements checkboxes.
+### Gaps Summary
 
-## Anti-Patterns Found
+The phase closed all eight round-7 findings (KIT-02's plugin-component gap, WR-01, WR-02, IN-01, IN-04, IN-05, and the two round-7 CRs) with measured, reproduced evidence — the round-8 SUMMARYs (27-43 through 27-46) are unusually well-evidenced, with RED/GREEN transcripts against a real YAML loader, live shipped-surface reproductions, and byte-identical-output proofs for behaviour-preserving refactors. That work is real and verified directly against the code, not accepted on SUMMARY narrative.
 
-None new. Scanned the round-5 diff's changed files (`scripts/frontmatter.ts`, `scripts/frontmatter.test.ts`, `scripts/kit-model.ts`, `scripts/kit-model.test.ts`, `scripts/check-foundation-guards.ts`, `scripts/check-foundation-guards.test.ts`, `install/kit-source.ts`, `install/install.ts`, `install/install.test.ts`, `install/uninstall.ts`, `scripts/coordinator-resolution-precheck.ts`) for `TBD`/`FIXME`/`XXX` — zero hits (consistent with the round-5 review's own scan). No placeholder or stub bodies. Both findings that keep this phase open are adversarial-input logic gaps in existing predicates, not code smells or debt markers.
+But the round-8 code review (27-REVIEW-GAPS-8.md, read in full for this verification) independently reproduces a NINTH bypass of the same class the phase exists to close: `scripts/frontmatter.ts`'s node-start detection, while now correct for the flow-collection shapes D-51 enumerated, is still not total over YAML 1.2's grammar. Four more node-start positions (block-mapping value on an indented line, compact nested sequence, block explicit key at depth 0, JSON-adjacent flow-mapping key) produce the identical silent no-grant bypass, reproduced end to end at the gate on hermetic mirrors this session — not merely asserted by the reviewer. A second, independent defect in the same module (`nodeOnKeyLine` never raised for a continuation-started scalar) invents or truncates names on the module's own success arm, and that defective name set is what both `guard_wr05` and the KIT-03 referential-integrity oracle consume.
 
-## Human Verification Required
+This means Success Criterion 4 (SPAWN-03/SPAWN-04) is not met — the mechanism the criterion asks to hold ("no non-coordinator adapter carries the Agent tool ... a mechanism that holds on both paths") is defeated live at the gate. It also means Success Criterion 2 (KIT-03)'s trust basis is undermined even though the oracle happens to pass on today's committed, single-line coordinator grant: the criterion asks the oracle to be trustworthy evidence that the three sets agree, and the review shows that trust is not yet earned by the underlying parser. Everything else — KIT-01, KIT-02, SPAWN-01, SPAWN-02 (as a mechanism), SPAWN-05, SPAWN-06, SPAWN-07 — is independently verified against the codebase in this report and holds.
 
-None. SPAWN-03's runtime observation is on record and untouched by round 5. No truth in this pass was left present-but-behavior-unverified — the two open findings were confirmed by direct logic tracing of the shipped code (not by execution I performed, per the task's instruction to fold in the review's already-reproduced criticals), and every closed finding was confirmed by direct reading of the code that replaced the round-4 defect, cross-checked against the round-5 review's independently-reproduced "found SOUND" section.
-
-## Gaps Summary
-
-**What round 5 genuinely delivered — do not re-litigate in round 6.** All five round-4 findings are closed
-at the code level: the delimiter test now states the legal set for every single-sided spelling (D-43); the
-name-enumeration parser refuses rather than mutates (D-41 item 3); the installer's nested walk has no
-remaining silent-drop arm (D-41 item 1, the fourth `unreadable` channel); the shipped plugin-form
-`skills/` tree is derived, counted, folded into the one scan composition, and cross-checked against its
-standalone twin (D-40); and all three exit-after-report tails on the installer surface now set the exit
-code (D-41 item 2). This is real, structurally-correct work — each remedy inverted an enumerate-the-bad
-shape into a stated-legal-set-plus-refuse-the-complement shape, which is the pattern that has actually
-held across this phase's five rounds.
-
-**Why this is still not `passed`.** The same three requirements that failed round 4 fail round 5, for
-narrower, round-5-specific reasons:
-
-1. **KIT-02 — a fourth hand-listed set, one abstraction level inside the fix that deletes the third one.**
-   `PLUGIN_DEFAULT_COMPONENT_SUBPATHS = ["agents", "commands"]` covers 2 of the 9 plugin-root component
-   directories Claude Code's default discovery loads per this repository's own CLAUDE.md schema. `hooks/`
-   — which executes commands via `PreToolUse` and exists on the live tree today — sits inside a floor
-   whose own comment claims to close the class rather than the instance, and is covered by nothing.
-
-2. **KIT-03 — the delimiter fix's two refusal arms do not cover their union.** Every single-sided
-   offending spelling (round 4's whole reproduction table) now refuses correctly. A composite input —
-   leading invisible residue stacked with illegal trailing residue after the payload, such as
-   `<ZWSP>---<ZWSP>` — satisfies neither arm's precondition and reaches the keyless success arm, which
-   `hasSpawnGrant` reports as a silent no-grant over a document that plainly carries one. This is the
-   fifth spelling of the phase's recurring failure class, and it survived the very sweep written to
-   detect it, because the sweep's four constructions each place their member inside exactly one arm by
-   construction.
-
-3. **SPAWN-04 — inherits KIT-03's surviving gap through the shared predicate.** `guard_wr05` and the
-   KIT-03 oracle both call into `scripts/frontmatter.ts`'s `parseFrontmatter`/`delimiterRefusal`. Round
-   4's independent SPAWN-04 bypass (the plugin-skill tree outside the scan, CR-03) is genuinely closed.
-   The requirement now fails on exactly the KIT-03 gap, not on a second independent mechanism — closing
-   one fix closes both requirements.
-
-**One warning worth carrying into round 6, non-blocking on its own.** `guardKitCounts`' per-part
-membership loop (`check-foundation-guards.ts:1305-1311`) silently `continue`s when a part's lister throws,
-under a comment justifying the silence on the premise that the composition and the per-part read fail
-together — which is false for the TOCTOU window where the composition derived cleanly at module load and
-the directory became unreadable afterward. Not reproduced as a live miss in this pass (nor in the round-5
-review); flagged because the file's own stated discipline is that every other failure path in it reports,
-and this is the one that does not.
-
-**Structural note for round 6.** The pattern that has actually closed defects in this phase (D-30's
-escape allowlist, D-36's named cycle throw, and now D-43's stated-legal-delimiter-set and D-40's derived
-plugin-skill composition) is inverting "enumerate what's bad" into "state what's legal, refuse everything
-else, and prove the sweep is non-circular by building its corpus from outside the rule under test." Both
-remaining round-5 findings are instances of the SAME inversion applied incompletely: KIT-02/CR-02 hand-
-lists 2 of 9 legal members instead of deriving the full set from the schema; KIT-03/SPAWN-04's CR-01 states
-two separate legal conditions (arm 1, arm 2) that do not compose into one legal SET when both conditions
-could independently apply. Round 6 should close both by widening the "state the legal set, assert its
-cardinality" discipline one level further — deriving `PLUGIN_DEFAULT_COMPONENT_SUBPATHS` from the same
-9-directory schema this repository already documents, and rewriting arm 2 so it composes with arm 1 rather
-than re-imposing arm 1's full legality test on a residue-stripped remainder.
+The phase cannot be marked `passed` while a live, reproduced, gate-level spawn-grant bypass exists on non-coordinator surfaces. This is not a documentation or scope gap; it is the exact founding defect (a role or surface silently carrying spawn capability the guards do not see) that Phase 27 was chartered to close, recurring for the ninth consecutive round under a fix that closed eight of nine.
 
 ---
 
-_Verified: 2026-08-03T07:00:00Z_
-_Verifier: Claude (gsd-verifier), round 5_
-_Round-4's CR-01 (single-sided spellings), CR-02 (installer unreadable-walk), CR-03 (plugin-skill tree), WR-01 (exit-tail) and WR-02 (name drop/alteration) were each confirmed CLOSED by direct reading of the code that replaced them, cross-checked against the round-5 review's independently-reproduced "found SOUND" section and against the three round-5 SUMMARYs' transcripts — not accepted on SUMMARY narrative alone. Round-5's CR-01 (composite-delimiter arm gap) and CR-02 (`PLUGIN_DEFAULT_COMPONENT_SUBPATHS` set-literal drift) were treated as established per the task's instruction (an independent review already reproduced both end-to-end) and confirmed here by an independent logic trace of the shipped code, not by re-running the review's reproductions. The supplied ground truth (1068/2 vitest, tsc clean, freshness clean, all scripted guards exit 0) was accepted as given, not re-run, and is explicitly not treated as evidence of absence — it has been green across all five rounds of this phase, including every round in which a defect was later found._
+_Verified: 2026-08-09T16:30:00Z_
+_Verifier: Claude (gsd-verifier)_
