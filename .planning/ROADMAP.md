@@ -124,7 +124,7 @@ Full phase details + milestone summary: `milestones/v2.0-ROADMAP.md` · requirem
   4. On Claude Code the coordinator runs as the **main-thread** agent so its `Agent(<allowlist>)` grant is honored by the runtime, and no non-coordinator adapter carries the `Agent` tool at all — a mechanism that holds on both the main-thread and subagent paths rather than relying on a frontmatter token the runtime ignores. (SPAWN-03, SPAWN-04)
   5. `guard_adapter_body` fails red on pre-v2.0 handoff/single-window prose anywhere in an adapter body — proven against the surviving `grugops-orchestrator.md:25` reference — `orchestrator.md` sits below its **7570-byte FAIL ceiling with the ceiling unchanged**, and the advertised Claude Code floor reads **v2.1.219+ at depth 3** everywhere it appears, with the v2.1.217–218 depth-1 window documented as a known-bad range that degrades loudly. (SPAWN-05, SPAWN-06, SPAWN-07)
 
-**Plans**: 46 plans — 42 executed; gap-closure round 8 (`27-43`…`27-46`) planned 2026-08-09
+**Plans**: 46 plans — 43 executed; gap-closure round 8 (`27-43`…`27-46`) planned 2026-08-09
 Plans:
 **Wave 1**
 
@@ -280,7 +280,7 @@ Plans:
 
 **Gap wave — round 8, wave 1**
 
-- [ ] 27-43-PLAN.md — TRACER: the comment scanner becomes the ONE authority on what quote state may CROSS a line boundary (D-51) — it is told whether the line's offset 0 is a node start, it tracks flow-collection depth as it walks, and it returns an ALREADY-GATED open quote, so the three seeding sites collapse to one unconditional assignment each and the separate node-start-quote predicate is DELETED rather than kept alongside; 27-39 promoted quote state to the scalar and gated the carry correctly but wired the SEEDING into only two of the three places a node can begin and into none of the places a node begins mid-line, so the union of its three arms was not the set of node starts — measured against the committed `.js` with a libyaml column, six documents carrying a live `Agent(grugops-orchestrator)` grant return `{ok:true,value:false}` (a key line with no value in both quoting styles, a key line carrying only a comment, a flow sequence, a flow mapping, and a block-sequence item whose dash line carries no value, the last of which also INVENTS a comma the document does not express), and the reviewer's measured one-liner is rejected BY NAME because it closes family (a) and leaves the flow-collection family returning the no-grant success arm; IN-03 closes in the same edit because D-51 is what makes the item path's seed a genuine read, with the invariant asserted at the site; pinned by axis 1's missing node-start placements (D-52) with every cell RED before and GREEN after, the repository-wide value map re-measured at zero new refusals, and all three shipped surfaces reproduced [KIT-03, SPAWN-04] *(round-7 CR-01, IN-03)*
+- [x] 27-43-PLAN.md — TRACER: the comment scanner becomes the ONE authority on what quote state may CROSS a line boundary (D-51) — it is told whether the line's offset 0 is a node start, it tracks flow-collection depth as it walks, and it returns an ALREADY-GATED open quote, so the three seeding sites collapse to one unconditional assignment each and the separate node-start-quote predicate is DELETED rather than kept alongside; 27-39 promoted quote state to the scalar and gated the carry correctly but wired the SEEDING into only two of the three places a node can begin and into none of the places a node begins mid-line, so the union of its three arms was not the set of node starts — measured against the committed `.js` with a libyaml column, six documents carrying a live `Agent(grugops-orchestrator)` grant return `{ok:true,value:false}` (a key line with no value in both quoting styles, a key line carrying only a comment, a flow sequence, a flow mapping, and a block-sequence item whose dash line carries no value, the last of which also INVENTS a comma the document does not express), and the reviewer's measured one-liner is rejected BY NAME because it closes family (a) and leaves the flow-collection family returning the no-grant success arm; IN-03 closes in the same edit because D-51 is what makes the item path's seed a genuine read, with the invariant asserted at the site; pinned by axis 1's missing node-start placements (D-52) with every cell RED before and GREEN after, the repository-wide value map re-measured at zero new refusals, and all three shipped surfaces reproduced [KIT-03, SPAWN-04] *(round-7 CR-01, IN-03)*
 
 **Gap wave — round 8, wave 2** *(shares `scripts/frontmatter.test.ts` with 27-43)*
 
@@ -451,7 +451,7 @@ Plans:
 | 24. Clean Handoff Removal & Traceability Migration | v2.0 | 5/5 | Complete    | 2026-06-22 |
 | 25. Governance-on-a-Dial | v2.0 | 13/13 | Complete | 2026-06-29 |
 | 26. Dogfood, Dual-Path Oracle & A3/DOG-02 Retirement | v2.0 | 6/6 | Complete | 2026-07-24 |
-| 27. Spawn Correctness & Kit-Set Authority | v2.1 | 42/42 | In Progress|  |
+| 27. Spawn Correctness & Kit-Set Authority | v2.1 | 43/46 | In Progress|  |
 | 28. Kit Consistency Audit | v2.1 | 0/TBD | Not started | - |
 | 29. Controlled Language & Voice Guard Rebuild | v2.1 | 0/TBD | Not started | - |
 | 30. Per-Checkpoint Autonomy Matrix | v2.1 | 0/TBD | Not started | - |
