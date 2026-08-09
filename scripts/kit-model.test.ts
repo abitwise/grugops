@@ -868,9 +868,15 @@ describe("kit-model plugin-manifest component schema (D-46: derived, counted two
     expect(result.foreign).toEqual([]);
   });
 
-  it("a claim set naming a key OUTSIDE the schema fires the foreign arm by name", () => {
+  it("a claim set naming a key OUTSIDE the schema fires the foreign arm by name — reported ONCE, the contract stated here once", () => {
     // A bucket claiming `themes` — a probe DIRECTORY name, not a manifest key. An exemption for a
     // surface the schema does not carry bounds nothing.
+    //
+    // (Plan 27-46, D-53, closing IN-04) THE CONTRACT THIS PIN NOW STATES. The foreign arm reports
+    // each claimed key the schema does not carry AT MOST ONCE, in FIRST-OCCURRENCE order across the
+    // concatenated claim lists. This case supplies a single occurrence, so it pinned only the
+    // one-of-one shape and could not observe a duplicate; the three cases below supply the
+    // multiplicity it does not. The contract is stated HERE, once, and the cases below exercise it.
     const result = partitionPluginComponentClaims(
       ["agents", "commands", "skills", "hooks"],
       ["agents", "commands"],
@@ -882,16 +888,100 @@ describe("kit-model plugin-manifest component schema (D-46: derived, counted two
     expect(result.doubleClaimed).toEqual([]);
   });
 
+  // ── (Plan 27-46, D-53, closing IN-04) THE TWO ARMS SHARE ONE DE-DUPLICATION DISCIPLINE ──────────
+  //
+  // The double-claimed arm de-duplicates IMPLICITLY, because it filters over the SCHEMA's keys and a
+  // schema key appears in that list once. The foreign arm filters over the CLAIMS and inherited their
+  // multiplicity, so a key claimed by two buckets AND absent from the schema was interpolated into the
+  // guard's failure message TWICE — and a key printed twice reads to a human as two findings. Only the
+  // single-occurrence shape was pinned above, so nothing observed the duplicate: this repository's
+  // standing rule is that a contract with no assertion behind it drifts, and this is a small instance
+  // of it. These cases are that assertion.
+
+  it("a foreign key claimed by TWO buckets is reported ONCE by the foreign arm", () => {
+    // The exact call the planner measured against the COMMITTED compiled build, where it returned
+    // `foreign: ["themes", "themes"]`. RED before the de-duplication, GREEN after.
+    const result = partitionPluginComponentClaims(
+      ["agents"],
+      ["themes"],
+      ["themes"],
+      [],
+    );
+    expect(result.foreign).toEqual(["themes"]);
+    expect(result.unclaimed).toEqual(["agents"]);
+    expect(result.doubleClaimed).toEqual([]);
+  });
+
+  it("BOTH arms report each key AT MOST ONCE, over inputs carrying deliberate multiplicity in each (adjacency edge)", () => {
+    // The invariant that goes red if a future edit reintroduces claim-multiplicity into EITHER arm.
+    // `agents` is in the schema and claimed by all three buckets; `themes` is outside the schema and
+    // claimed by all three. So the double-claimed arm's input and the foreign arm's input each carry
+    // deliberate multiplicity, and neither arm may pass it through.
+    const result = partitionPluginComponentClaims(
+      ["agents", "commands"],
+      ["agents", "themes"],
+      ["agents", "themes"],
+      ["agents", "themes"],
+    );
+    expect(result.doubleClaimed).toEqual(["agents"]);
+    expect(result.foreign).toEqual(["themes"]);
+    expect(result.unclaimed).toEqual(["commands"]);
+    // Stated as the general property rather than only as the two literals above, so the case reads as
+    // the invariant it is: no arm carries a key twice.
+    for (const [arm, keys] of Object.entries(result)) {
+      expect(new Set(keys).size, `${arm} reports a key more than once`).toBe(
+        keys.length,
+      );
+    }
+  });
+
+  it("the de-duplicated foreign arm's order is FIRST-OCCURRENCE across the concatenated claim lists, and reproducible", () => {
+    // The order is STATED, never incidental. A de-duplication whose iteration order is an
+    // implementation detail makes the guard's failure message non-reproducible across two runs over
+    // one tree — a new defect traded for a cosmetic one — and every derivation in kit-model.ts either
+    // sorts or preserves a stated order for exactly this reason.
+    //
+    // The expectation below is deliberately NOT sorted order: sorted would be
+    // [alpha, beta, mid, zeta]. Asserting the first-occurrence sequence is what distinguishes "the
+    // order is first-occurrence" from "the order happens to be alphabetical today".
+    const schema = ["agents"];
+    const forbidden = ["zeta", "alpha"];
+    const covered = ["alpha", "mid"];
+    const exempt = ["zeta", "beta"];
+    // concatenated claims: zeta, alpha, alpha, mid, zeta, beta
+    //   first-occurrence:  zeta, alpha,        mid,       beta
+    const result = partitionPluginComponentClaims(
+      schema,
+      forbidden,
+      covered,
+      exempt,
+    );
+    expect(result.foreign).toEqual(["zeta", "alpha", "mid", "beta"]);
+    expect(result.foreign).not.toEqual([...result.foreign].sort());
+    // …and repeated calls agree, so two gate runs over one tree produce byte-identical output.
+    expect(
+      partitionPluginComponentClaims(schema, forbidden, covered, exempt).foreign,
+    ).toEqual(result.foreign);
+  });
+
   it("the VERDICT is invariant under permutation of each input list (ordering edge)", () => {
     // WHAT IS INVARIANT AND WHAT DELIBERATELY IS NOT, stated so the next reader does not "fix" the
     // wrong half. The VERDICT — which keys land in which arm — is a set fact and is invariant. The
     // ORDER each arm reports in is NOT invariant and must not be: the first two arms report in the
-    // SCHEMA's order and the third in the CLAIM order, because the guard interpolates these arrays
-    // into a failure message a reader reads in schema order. So the comparison here is on sorted
-    // sets, and the order-dependence is a documented property rather than an unnoticed one.
+    // SCHEMA's order and the third in the FIRST-OCCURRENCE claim order, because the guard
+    // interpolates these arrays into a failure message a reader reads in schema order. So the
+    // comparison here is on sorted sets, and the order-dependence is a documented property rather
+    // than an unnoticed one.
+    //
+    // (Plan 27-46, D-53) EXTENDED SO THE DE-DUPLICATED ARM IS COVERED. `themes` is now claimed by
+    // BOTH the covered and the exempt bucket, so the foreign arm's input carries multiplicity under
+    // every permutation below. Against the pre-de-duplication build this baseline is
+    // `foreign: ["themes", "themes"]`; the de-duplicated arm makes it one member under every
+    // permutation, which is what "the verdict is a set fact" means for an arm that could previously
+    // report a key twice.
     const schema = ["agents", "commands", "skills", "hooks", "mcpServers"];
     const forbidden = ["agents", "commands"];
-    const covered = ["skills", "mcpServers"];
+    const covered = ["skills", "mcpServers", "themes"];
     const exempt = ["hooks", "mcpServers", "themes"];
     const sorted = (r: ReturnType<typeof partitionPluginComponentClaims>) => ({
       unclaimed: [...r.unclaimed].sort(),
@@ -915,16 +1005,17 @@ describe("kit-model plugin-manifest component schema (D-46: derived, counted two
       rot,
       (xs: string[]) => [...xs].sort(),
     ]) {
-      expect(
-        sorted(
-          partitionPluginComponentClaims(
-            perm(schema),
-            perm(forbidden),
-            perm(covered),
-            perm(exempt),
-          ),
-        ),
-      ).toEqual(base);
+      const permuted = partitionPluginComponentClaims(
+        perm(schema),
+        perm(forbidden),
+        perm(covered),
+        perm(exempt),
+      );
+      expect(sorted(permuted)).toEqual(base);
+      // (Plan 27-46, D-53) The de-duplicated arm stays de-duplicated under permutation — stated
+      // explicitly, because `sorted()` above compares lists and would pass a duplicate through as a
+      // difference rather than as the named property it is.
+      expect(new Set(permuted.foreign).size).toBe(permuted.foreign.length);
     }
   });
 
