@@ -3157,6 +3157,12 @@ describe("frontmatter — the spawn-grant parser oracle (SPAWN-04 / KIT-03)", ()
   // The pattern is a floor against the shapes a third grammar plausibly takes, not a proof that none
   // can exist.
   //
+  // (27-44, D-53, closing IN-02) AND EVERY CONSTRUCT IN BOTH ARRAYS IS NOW INDIVIDUALLY PINNED: each
+  // array carries a length assertion and each member carries a planted fixture that the classifier
+  // recognises THROUGH THAT MEMBER AND NO OTHER, so a member dropped by a later edit narrows the
+  // refusal claim LOUDLY instead of leaving the live assertion passing on the two real files that
+  // still match through the remaining patterns.
+  //
   // THE CORPUS IS EVERY TRACKED `.ts` IN THE REPOSITORY, NOT `scripts/` (found by red-teaming this
   // change). A scan scoped to `scripts/` would let a third grammar land in `install/` or `hooks/` —
   // both of which hold shipped TypeScript — and pass. The compiled `.js` twins are excluded by the
@@ -3178,19 +3184,27 @@ describe("frontmatter — the spawn-grant parser oracle (SPAWN-04 / KIT-03)", ()
     /\^[^\n/]{0,60}\\s\*:\\s\*/, // …with whitespace allowed before the colon
     /split\(\s*["'`]:["'`]\s*\)/, // a key split on the first colon
   ];
-  const isGrammarSite = (src: string): boolean =>
-    HEAD_DELIMITER_CONSTRUCTS.some((r) => r.test(src)) &&
-    KEY_LINE_CONSTRUCTS.some((r) => r.test(src));
+  // (27-44, D-53, closing IN-02) THE TWO ARRAYS ARE PARAMETERS RATHER THAN CLOSED-OVER CONSTANTS, for
+  // ONE reason: the per-construct load-bearing fixtures below must run the classifier with a single
+  // construct REMOVED, and doing that with a second, differently-spelled classifier would measure the
+  // copy instead of the rule. One classifier, called with different construct sets.
+  const isGrammarSite = (
+    src: string,
+    head: readonly RegExp[] = HEAD_DELIMITER_CONSTRUCTS,
+    key: readonly RegExp[] = KEY_LINE_CONSTRUCTS,
+  ): boolean => head.some((r) => r.test(src)) && key.some((r) => r.test(src));
   // A pure classifier over supplied paths, so the live corpus and the planted-third-grammar corpus
   // go through THE SAME rule rather than through two spellings of it.
   const grammarSitesAmong = (
     paths: string[],
     read: (p: string) => string,
+    head: readonly RegExp[] = HEAD_DELIMITER_CONSTRUCTS,
+    key: readonly RegExp[] = KEY_LINE_CONSTRUCTS,
   ): string[] =>
     paths
       .filter((p) => p.endsWith(".ts") && !p.endsWith(".test.ts"))
       .filter((p) => !/(^|\/)frontmatter\.ts$/.test(p))
-      .filter((p) => isGrammarSite(read(p)))
+      .filter((p) => isGrammarSite(read(p), head, key))
       .sort();
   const REPO_ROOT = join(import.meta.dirname, "..");
   const trackedTs = (): string[] =>
@@ -3276,6 +3290,184 @@ describe("frontmatter — the spawn-grant parser oracle (SPAWN-04 / KIT-03)", ()
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
+  });
+
+  // ── (27-44, D-53, closing IN-02) EVERY CONSTRUCT PINNED, AND EVERY CONSTRUCT LOAD-BEARING ───────
+
+  it("D-53 IN-02 — both construct arrays carry a cardinality pin, and EVERY construct is individually load-bearing for a planted fixture", () => {
+    // WHAT THE TWO LENGTH PINS PROTECT AGAINST, STATED RATHER THAN LEFT TO BE INFERRED. Every other
+    // set in this phase carries a cardinality assertion; these two did not. A member dropped from
+    // either array NARROWS the detector while the live assertion above keeps passing, because the two
+    // real files still match through the remaining patterns — the "refusal claim shrinks silently"
+    // shape `REFUSED_FORMS`'s own floor exists to prevent, one file over. These are FLOORS against
+    // shrinking; they are not, and cannot be, a completeness claim about the shapes a grammar can take
+    // (that disclosure is above and stands unchanged).
+    expect(
+      HEAD_DELIMITER_CONSTRUCTS,
+      "a head-delimiter construct dropped silently narrows the one-grammar refusal claim",
+    ).toHaveLength(3);
+    expect(
+      KEY_LINE_CONSTRUCTS,
+      "a key-line construct dropped silently narrows the one-grammar refusal claim",
+    ).toHaveLength(3);
+
+    // A LENGTH PIN ALONE IS STILL ONLY A PIN AGAINST SHRINKING. What makes each construct genuinely
+    // required is a fixture that the classifier recognises through THAT construct and through no
+    // other member of its array — so removing the construct makes the classifier MISS the fixture.
+    // Each fixture pairs the construct under test with a partner from the other array, and every
+    // (head, key) pairing below is distinct, so no two fixtures are the same file twice.
+    const headGuard: readonly (readonly [string, string])[] = [
+      ["const HEAD_RE = /^---\\n/;", "  if (!HEAD_RE.test(text)) return {};"],
+      ["", '  if (!text.startsWith("---")) return {};'],
+      ["", '  if (!(text.indexOf("---") === 0)) return {};'],
+    ];
+    const keyBody: readonly (readonly [string, readonly string[]])[] = [
+      [
+        "const KEY_RE = /^([A-Za-z_]+):\\s*(.*)$/;",
+        [
+          '  for (const line of text.split("\\n")) {',
+          "    const m = line.match(KEY_RE);",
+          "    if (m) out[m[1]] = m[2];",
+          "  }",
+        ],
+      ],
+      [
+        // The ONLY spelling that matches the second key-line construct without also matching the
+        // first: the first allows at most 60 characters between `^` and `:\s*`, and this alternation
+        // is 58, so adding the `\s*` before the colon pushes it past that bound. A shorter key list
+        // would match BOTH constructs and the fixture would prove nothing — which is itself the
+        // finding that the second construct is very nearly subsumed by the first.
+        "const KEY_RE = /^(name|description|tools|allowed-tools|model|disable-model)\\s*:\\s*(.*)$/;",
+        [
+          '  for (const line of text.split("\\n")) {',
+          "    const m = line.match(KEY_RE);",
+          "    if (m) out[m[1]] = m[2];",
+          "  }",
+        ],
+      ],
+      [
+        "",
+        [
+          '  for (const line of text.split("\\n")) {',
+          '    const at = line.split(":");',
+          "    if (at.length > 1) out[at[0]] = at[1];",
+          "  }",
+        ],
+      ],
+    ];
+    const buildFixture = (head: number, key: number): string =>
+      [
+        headGuard[head][0],
+        keyBody[key][0],
+        "export function readBlock(text: string): Record<string, string> {",
+        headGuard[head][1],
+        "  const out: Record<string, string> = {};",
+        ...keyBody[key][1],
+        "  return out;",
+        "}",
+        "",
+      ]
+        .filter((line) => line !== "")
+        .join("\n");
+
+    interface Fixture {
+      readonly file: string;
+      readonly array: "head" | "key";
+      readonly index: number;
+      readonly head: number;
+      readonly key: number;
+    }
+    const FIXTURES: readonly Fixture[] = [
+      { file: "head-0-anchored-regex-literal.ts", array: "head", index: 0, head: 0, key: 0 },
+      { file: "head-1-starts-with.ts", array: "head", index: 1, head: 1, key: 2 },
+      { file: "head-2-index-of.ts", array: "head", index: 2, head: 2, key: 0 },
+      { file: "key-0-anchored-colon.ts", array: "key", index: 0, head: 1, key: 0 },
+      { file: "key-1-space-before-colon.ts", array: "key", index: 1, head: 1, key: 1 },
+      { file: "key-2-split-on-colon.ts", array: "key", index: 2, head: 2, key: 2 },
+    ];
+    // ONE FIXTURE PER CONSTRUCT, DERIVED FROM THE ARRAY LENGTHS RATHER THAN COUNTED BY HAND. If either
+    // array grows, this fails until the new construct gets a fixture — which is the whole point.
+    expect(
+      FIXTURES.length,
+      "one planted fixture per construct, across both arrays",
+    ).toBe(HEAD_DELIMITER_CONSTRUCTS.length + KEY_LINE_CONSTRUCTS.length);
+    expect(new Set(FIXTURES.map((f) => `${f.array}:${f.index}`)).size).toBe(
+      FIXTURES.length,
+    );
+    expect(new Set(FIXTURES.map((f) => `${f.head}:${f.key}`)).size).toBe(
+      FIXTURES.length,
+    );
+
+    // Temp directory only — the live scripts/ tree is never written to, so a fixture cannot corrupt
+    // the corpus this detector measures.
+    const dir = mkdtempSync(join(tmpdir(), "grugops-construct-"));
+    const read = (p: string): string => readFileSync(join(dir, p), "utf8");
+    const sitesWith = (
+      head: readonly RegExp[],
+      key: readonly RegExp[],
+    ): string[] => grammarSitesAmong(readdirSync(dir), read, head, key);
+    try {
+      for (const fixture of FIXTURES) {
+        writeFileSync(
+          join(dir, fixture.file),
+          buildFixture(fixture.head, fixture.key),
+        );
+      }
+
+      // CONTROL FIRST: with both arrays whole, every fixture is recognised. Without this a fixture
+      // that is missed for an unrelated reason would satisfy the load-bearing half vacuously.
+      expect(
+        sitesWith(HEAD_DELIMITER_CONSTRUCTS, KEY_LINE_CONSTRUCTS),
+        "with both arrays whole, every planted fixture must be recognised",
+      ).toEqual([...FIXTURES.map((f) => f.file)].sort());
+
+      // EACH FIXTURE MATCHES EXACTLY ONE CONSTRUCT IN EACH ARRAY, asserted rather than assumed. This
+      // is what makes the removal below attributable to the removed construct and to nothing else.
+      for (const fixture of FIXTURES) {
+        const source = buildFixture(fixture.head, fixture.key);
+        expect(
+          HEAD_DELIMITER_CONSTRUCTS.map((r, i) => (r.test(source) ? i : -1)).filter(
+            (i) => i !== -1,
+          ),
+          `${fixture.file}: head constructs matched`,
+        ).toEqual([fixture.head]);
+        expect(
+          KEY_LINE_CONSTRUCTS.map((r, i) => (r.test(source) ? i : -1)).filter(
+            (i) => i !== -1,
+          ),
+          `${fixture.file}: key constructs matched`,
+        ).toEqual([fixture.key]);
+      }
+
+      // THE LOAD-BEARING HALF: drop the one construct and the classifier must MISS its fixture.
+      for (const fixture of FIXTURES) {
+        const head =
+          fixture.array === "head"
+            ? HEAD_DELIMITER_CONSTRUCTS.filter((_, i) => i !== fixture.index)
+            : HEAD_DELIMITER_CONSTRUCTS;
+        const key =
+          fixture.array === "key"
+            ? KEY_LINE_CONSTRUCTS.filter((_, i) => i !== fixture.index)
+            : KEY_LINE_CONSTRUCTS;
+        expect(
+          head.length + key.length,
+          "exactly one construct is removed per probe",
+        ).toBe(HEAD_DELIMITER_CONSTRUCTS.length + KEY_LINE_CONSTRUCTS.length - 1);
+        expect(
+          sitesWith(head, key),
+          `${fixture.file}: dropping ${fixture.array} construct [${fixture.index}] must make the classifier MISS it — a construct that can be deleted with the fixture still recognised is not load-bearing`,
+        ).not.toContain(fixture.file);
+      }
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+
+    // AND THE LIVE ANSWER IS UNMOVED BY ANY OF THIS. The parameterised classifier defaults to the two
+    // whole arrays, so the real corpus goes through exactly the rule it went through before.
+    expect(liveGrammarSites()).toEqual([
+      "scripts/context-io.ts",
+      "scripts/generate-catalog.ts",
+    ]);
   });
 
   it("D-50 IN-05 — the two out-of-scope grammars' reach into the guard import graph is MEASURED, not assumed", () => {
