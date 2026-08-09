@@ -7984,3 +7984,187 @@ describe("frontmatter — the multi-document stream disposition (D-53 / IN-05 / 
     expect(code.split("break scan;").length - 1).toBe(1);
   });
 });
+
+// ---------------------------------------------------------------------------
+// (Plan 27-48, D-55 — 27-REVIEW-GAPS-8 § CR-02, round 9) THE VALUE NODE BEGINS AT BOTH OF THE TWO
+// PLACES IT CAN BEGIN, NOT ONLY AT THE ONE THE FIELD WAS NAMED AFTER.
+//
+// `nodeOnKeyLine` recorded "the value node began on the KEY LINE" and was assigned exactly once, at
+// the key line. Its own doc block stated the rule correctly — once a scalar has begun, every
+// following more-indented line CONTINUES it — and the code implemented it for one of the two places
+// a scalar can begin. Where the key line carried no value the node begins on the FIRST CONTINUATION
+// LINE and nothing recorded it, so `startsNode` stayed true for every subsequent continuation line
+// of that key. THREE DIRECTIONS FELL OUT OF THAT ONE OMISSION, and they are not the same direction:
+//
+//   (a) an INVENTED NAME on the `ok:true` arm, reaching the KIT-03 closure equality and
+//       coordinator-resolution-precheck — both of which are set equalities over the enumerated
+//       names, and both of which trust this module's promise that a name is never silently dropped
+//       or altered;
+//   (b) a module GRANT the loader does not have — the D-52 harness's own declared never-exemptible
+//       direction, live on two spellings;
+//   (c) FALSE REFUSALS on documents the loader accepts cleanly.
+//
+// EVERY ROW BELOW WAS MEASURED, NOT REASONED. Each carries the verdict the pre-D-55 committed
+// `scripts/frontmatter.js` returned on a `git archive HEAD` mirror of 89705ba BEFORE the edit (RED)
+// and the loader's value from `/usr/bin/ruby -ryaml` (Ruby 2.6.10 / Psych 3.1.0 / libyaml 0.2.1).
+// Both transcripts are recorded verbatim in 27-48-SUMMARY.md.
+describe("frontmatter — D-55: the node-started fact is set where the node begins (CR-02, round 9)", () => {
+  const TOKEN = "Agent(grugops-orchestrator)";
+  const doc = (region: string): string =>
+    `---\nname: probe\n${region}\n---\nBody.\n`;
+  const valueOf = (text: string, key: string): string => {
+    const parsed = parseFrontmatter(text);
+    return parsed.ok ? (parsed.value.get(key) ?? []).join("|") : "REFUSED";
+  };
+
+  // ── DIRECTION (a): AN INVENTED NAME ON THE SUCCESS ARM ────────────────────────────────────────
+  //
+  // THE ASSERTION IS OVER THE NAME SET AND NOT OVER TOKEN PRESENCE, and that is the whole of WR-03.
+  // `hasSpawnGrant` is `true` on both builds for row a1 — the boolean cannot see this defect at all.
+  // The fact the KIT-03 closure equality is computed over is the NAME SET.
+
+  it("D-55 row a1 — the key line carries no value, so the node begins on the first continuation line: `tools:` / `  Agent(alpha, ga` / `  - mma)`", () => {
+    // pre-D-55 committed build: names ["alpha","ga","mma"]   <- `mma` is INVENTED, `ga` TRUNCATED
+    // libyaml:                  "Agent(alpha, ga - mma)"  -> names ["alpha","ga - mma"]
+    const text = doc(`tools:\n  Agent(alpha, ga\n  - mma)`);
+    expect(grantedAgentNames(text)).toEqual({
+      ok: true,
+      value: ["alpha", "ga - mma"],
+    });
+    expect(valueOf(text, "tools")).toBe("Agent(alpha, ga - mma)");
+  });
+
+  it("D-55 row a2 — the CONTROL: the same document with the value on the key line was already correct and does not move", () => {
+    // pre-D-55 committed build: names ["alpha","ga - mma"]  (already correct)
+    // libyaml:                  "Agent(alpha, ga - mma)"
+    const text = doc(`tools: Agent(alpha, ga\n  - mma)`);
+    expect(grantedAgentNames(text)).toEqual({
+      ok: true,
+      value: ["alpha", "ga - mma"],
+    });
+    expect(valueOf(text, "tools")).toBe("Agent(alpha, ga - mma)");
+  });
+
+  it("D-55 row a3 — the same invented boundary in prose: `description:` / `  intro` / `  - not an item`", () => {
+    // pre-D-55 committed build: "intro, not an item"   <- the comma is structure the document never
+    //                            expressed; the dash was read as an item boundary and the join
+    //                            separator flipped for the WHOLE key.
+    // libyaml:                  "intro - not an item"
+    const text = doc(`description:\n  intro\n  - not an item`);
+    expect(valueOf(text, "description")).toBe("intro - not an item");
+  });
+
+  it("D-55 row a1-seq — the SAME direction in the block-sequence spelling: `tools:` / `  - Agent(alpha, ga` / `    - mma)`", () => {
+    // pre-D-55 committed build: names ["alpha","ga","mma"]
+    // libyaml:                  ["Agent(alpha, ga - mma)"]  -> names ["alpha","ga - mma"]
+    //
+    // WHY THIS ROW EXISTS SEPARATELY FROM a1. Row a1's node begins on a plain continuation line;
+    // this one's begins at a block-sequence ITEM, which is the deliberate exception. The exception
+    // is bounded by INDENT, so the more-indented dash on the next line is text — and the invented
+    // name closes here for the same reason it closes in a1, not by a second rule.
+    const text = doc(`tools:\n  - Agent(alpha, ga\n    - mma)`);
+    expect(grantedAgentNames(text)).toEqual({
+      ok: true,
+      value: ["alpha", "ga - mma"],
+    });
+  });
+
+  // ── DIRECTION (b): A MODULE GRANT THE LOADER DOES NOT HAVE — NEVER EXEMPTIBLE ─────────────────
+
+  it("D-55 row b1 — the module STOPS granting where the loader has no token: `tools:` / `  Read,` / `  \"Write,` / `  # x, TOKEN\"`", () => {
+    // pre-D-55 committed build: {ok:true,value:true}, tools=["Read, \"Write, # x, Agent(…)\""]
+    // libyaml:                  "Read, \"Write,"  — the quote opens on a line that CONTINUES the
+    //                           plain scalar, so it is content and not a scalar's opening quote;
+    //                           the hash line is therefore a COMMENT and carries no token.
+    const text = doc(`tools:\n  Read,\n  "Write,\n  # x, ${TOKEN}"`);
+    expect(hasSpawnGrant(text)).toEqual({ ok: true, value: false });
+    expect(valueOf(text, "tools")).toBe(`Read, "Write,`);
+  });
+
+  it("D-55 row b2 — the same, in the block-sequence spelling: `tools:` / `  - Read,` / `    \"Write,` / `    # x, TOKEN`", () => {
+    // pre-D-55 committed build: {ok:true,value:true}, tools=["Read,, \"Write, # x, Agent(…)"]
+    // libyaml:                  ["Read, \"Write,"]
+    const text = doc(`tools:\n  - Read,\n    "Write,\n    # x, ${TOKEN}`);
+    expect(hasSpawnGrant(text)).toEqual({ ok: true, value: false });
+    expect(valueOf(text, "tools")).toBe(`Read, "Write,`);
+  });
+
+  // ── DIRECTION (c): FALSE REFUSALS ON DOCUMENTATION THE LOADER ACCEPTS ─────────────────────────
+  //
+  // The node-start reference test is UNCHANGED and still refuses an anchor, an alias or an
+  // unresolved tag at a GENUINE node start. What changed is which lines are genuine node starts.
+
+  it("D-55 rows c1/c2/c3 — a sigil on a line that merely CONTINUES a scalar is content, not a node property", () => {
+    // pre-D-55 committed build: all three REFUSED as "a YAML anchor or alias, or an unresolved tag"
+    // libyaml:  "see the docs *emphasis* here" / "see the docs &D work here" /
+    //           "see the docs !important stuff"
+    expect(valueOf(doc(`description:\n  see the docs\n  *emphasis* here`), "description")).toBe(
+      "see the docs *emphasis* here",
+    );
+    expect(valueOf(doc(`description:\n  see the docs\n  &D work here`), "description")).toBe(
+      "see the docs &D work here",
+    );
+    expect(valueOf(doc(`description:\n  see the docs\n  !important stuff`), "description")).toBe(
+      "see the docs !important stuff",
+    );
+  });
+
+  it("D-55 (c) boundary — a sigil on the FIRST continuation line of a valueless key is STILL a node start and is STILL refused", () => {
+    // The first continuation line IS where the node begins, so this direction does not move. If it
+    // did, the fix would have traded three false reds for a silently-resolved reference.
+    expect(parseFrontmatter(doc(`description:\n  *emphasis* here`)).ok).toBe(false);
+    expect(parseFrontmatter(doc(`description:\n  &anchor here`)).ok).toBe(false);
+    expect(parseFrontmatter(doc(`description:\n  !tag here`)).ok).toBe(false);
+  });
+
+  // ── THE BLOCK-SEQUENCE EXCEPTION IS BOUNDED BY INDENT ─────────────────────────────────────────
+
+  it("D-55 block-sequence controls — the shipped idiom does not move, byte for byte", () => {
+    // Quoted from BOTH builds in 27-48-SUMMARY.md. A block sequence admits a node start at EVERY
+    // dash at the item indent; if the item path simply raised the node-started fact, the second
+    // item's dash would become text and this value would collapse to one scalar.
+    expect(valueOf(doc(`tools:\n  - Read\n  - Write`), "tools")).toBe("Read, Write");
+    expect(valueOf(doc(`tools:\n  - Read,\n  - Write,\n  - Third`), "tools")).toBe(
+      "Read,, Write,, Third",
+    );
+    expect(valueOf(doc(`tools: Read,\n  - Write`), "tools")).toBe("Read, - Write");
+  });
+
+  it("D-55 item-indent boundary — a dash MORE INDENTED than the item indent is text, and the loader agrees", () => {
+    // pre-D-55 committed build: "Read,, still text"   <- the more-indented dash was read as a second
+    //                            ITEM, inventing a comma boundary.
+    // libyaml:                  ["Read, - still text"]
+    expect(valueOf(doc(`tools:\n  - Read,\n    - still text`), "tools")).toBe(
+      "Read, - still text",
+    );
+  });
+
+  // ── THE ADJACENCY EDGE: TWO KEY LINES THAT DIFFER BY ONE CHARACTER ────────────────────────────
+
+  it("D-55 adjacency edge — a key line carrying only whitespace and one carrying only a comment both leave the node to begin on the first continuation line", () => {
+    // The two spellings differ by one character and only one of them was ever exercised. libyaml
+    // reads BOTH as ["Read", "Write"].
+    const ws = doc(`tools: \n  - Read\n  - Write`);
+    const cmt = doc(`tools: # c\n  - Read\n  - Write`);
+    expect(valueOf(ws, "tools")).toBe("Read, Write");
+    expect(valueOf(cmt, "tools")).toBe("Read, Write");
+    expect(valueOf(ws, "tools")).toBe(valueOf(cmt, "tools"));
+  });
+
+  // ── THE RENAME IS COMPLETE IN CODE, NOT ONLY IN INTENT ────────────────────────────────────────
+
+  it("D-55 the old identifier survives in comments only", () => {
+    // A rename that leaves the old name in code leaves two readers with two different ideas of what
+    // the fact means, which is how the field's doc block and its implementation came apart.
+    const src = readFileSync(join(import.meta.dirname, "frontmatter.ts"), "utf8");
+    const code = src
+      .split("\n")
+      .filter((l) => !l.trimStart().startsWith("//"))
+      .join("\n");
+    expect(code).not.toContain("nodeOnKeyLine");
+    expect(code).toContain("nodeStarted");
+    expect(code).toContain("seqIndent");
+    // And the rename is NARRATED — the old name is still findable by a reader who greps for it.
+    expect(src).toContain("nodeOnKeyLine");
+  });
+});
