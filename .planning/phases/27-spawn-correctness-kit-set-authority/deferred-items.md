@@ -984,3 +984,101 @@ measurement is not written down is a claim again.
   enters the answer through its own `depth += 1` at an unrelated paren-balance loop — measured, not
   supposed).
 - **The two compiler flags do not cover the harness** (above). Nothing in this plan claims they do.
+
+## Round 10 disposition register (written 2026-08-10 by plan `27-54`) — every round-9 item accounted for
+
+**Why this table exists.** A finding that leaves a round without a written disposition is
+indistinguishable, to a later reader, from a finding that was forgotten — and this phase's own
+recorded experience is that such an item returns one abstraction level down. The register is the
+durable answer to *"what happened to everything round 9 raised?"*, carried in the phase's own
+artifact so it survives a milestone archive move rather than living only in plan summaries that
+scroll out of view. **There is no silent drop.**
+
+| # | Item | Raised in | What happened | Artifact carrying the evidence | Disposition |
+|---|---|---|---|---|---|
+| 1 | **CR-01** — `stripComment` reads YAML's `''` escape inside an open single-quoted scalar as close-then-reopen, destroying node-start provenance; silent no-grant on the SUCCESS arm | `27-REVIEW.md` § Critical Issues | Closed STRUCTURALLY by `27-51`: the `''` pair is consumed by index arithmetic and `openedAtNodeStart` is never recomputed — the arm lost its ability to decide, rather than gaining a fifth condition | `deferred-items.md` § From 27-51; `27-51-SUMMARY.md` | **CLOSED** — gate exit 0 → exit 1 on both distribution twins; 180 never-exemptible cells reported by the same corpus digest against a pre-fix mirror; **re-measured again by `27-54` on the post-`27-53` build (below)** |
+| 2 | **WR-01** — the D-52 loader differential's generated corpus cannot express CR-01's family while printing a completeness claim over it | `27-REVIEW.md` § Warnings | Closed by `27-51` (`AXIS_QUOTE_STYLE` + `AXIS_ESCAPE_IN_SCALAR`, both DERIVED from the base shapes' own fields: key-line axis 20 → 47, corpus 960 → 2256, loader-accepted 565 → 1285) and grown again by `27-52` (ledger entry eleven took the floor's derived family rows 9 → 11 and expressible 6 → 8) | `deferred-items.md` §§ From 27-51, From 27-52; `27-51-SUMMARY.md`, `27-52-SUMMARY.md` | **CLOSED** — the corpus is proven able to SEE the families it was blind to: same digest, pre-fix build reports 24 name-set disagreements, every one `module=no-grant / loader=grant`; non-vacuity floor proven load-bearing by axis collapse |
+| 3 | **WR-02** — a second fence state machine exists, falsifying the "exactly one fence authority" claim, and the pin guarding that claim cannot see it | `27-REVIEW.md` § Warnings | Closed by `27-53` with a DERIVED, sorted, cardinality-pinned classifier over all 69 tracked `.ts`. **The review's own hand-list was measured INCOMPLETE** — it named 3 files, the measurement returns 4 (`check-foundation-guards.test.ts` carries three further fence-toggle sites the list omits). Transcribing the list would have shipped the drift defect inside its own fix | `deferred-items.md` § From 27-53; `27-53-SUMMARY.md` | **CLOSED** — every construct proven load-bearing on the LIVE corpus (dropping each moves the derived set); the pin proven able to fail on the REAL tree, not only in a temp directory |
+| 4 | **WR-03** — an assertion that cannot fail, guarding a property it does not test | `27-REVIEW.md` § Warnings | Closed by `27-53`. **The review's own proposed replacement was ALSO vacuous** as the code stood (`linesRemoved` was derived as `lines.length - kept.length`, an identity); removals are now COUNTED as lines are dropped and the source shape is pinned so the derivation cannot return | `deferred-items.md` § From 27-53; `27-53-SUMMARY.md` | **CLOSED** — proven able to fail against two broken variants, each naming its own assertion |
+| 5 | **IN-01** — dead local `kitListDir` declared and never read | `27-REVIEW.md` § Info | Closed by `27-53`: deleted, and `noUnusedLocals` + `noUnusedParameters` turned on over a measured-clean shipped-source tree | `deferred-items.md` § From 27-53; `27-53-SUMMARY.md` | **CLOSED** — pre-enable measurement exit 2 with exactly one `TS6133`; flags proven able to fire; `validate-agent-factory.js` output byte-identical before and after (sha256 `6852d6da…`) |
+| 6 | **IN-02** — `stripComment`'s returned `state` is unasserted by every differential over it | `27-REVIEW.md` § Info | Closed by `27-51`: `scripts/fixtures/frontmatter-singleline-pre-d54.json` gained a `state` key captured from a hermetic `git archive` mirror of the pre-fix commit `d5c69e0`, and a new case compares `openQuote`, `flowDepth` and `nodeMayBegin` per cell over a corpus-derived moved-input set | `deferred-items.md` § From 27-51; `27-51-SUMMARY.md` | **CLOSED** — the scanner's returned `state` has its first differential |
+| 7 | **Family G / G2** — a `\|`/`>` block-scalar header recognised at exactly one of the positions YAML allows one; nested header content reaches `stripComment` where a leading `#` hides a live grant | `27-VERIFICATION.md` § gaps_remaining; open in this ledger since `27-47`, re-measured byte-identical by `27-47`…`27-51` | Closed by `27-52` under **D-57**: `blockHeaderAt` calls the existing `BLOCK_INDICATOR` at all four of YAML's block-context node introductions (§ 8.2.1 `-`, § 8.2.2 `key:`, `?`, `:`), the scalar's end DERIVED from § 8.1's more-indented-block rule and the join from the indicator itself. **Re-red-teamed against its own post-fix build**, which found the family still live at three further positions — closed in the same plan | `deferred-items.md` § From 27-52; `27-52-SUMMARY.md`; `27-CONTEXT.md` D-57 | **CLOSED** — all eight family rows exit 0 → exit 1 with twins named 2/2; measured false-red cost **0** on the four tracked documents that already carry a nested header; **re-measured again by `27-54` on the post-`27-53` build (below)** |
+| 8 | **The `REQUIREMENTS.md` traceability correction** — the table's Phase-27 rows contradicted the verification record, and no written rule governed them | `27-VERIFICATION.md` § gaps (truth 3) and § Anti-Patterns Found | Closed by `27-54` (this plan) under **D-58**: one written convention — a row is `[x]`/`Complete` exactly when the most recent verification records it SATISFIED with cited evidence — applied identically to all ten rows, with both surfaces asserted equal afterwards. **The verification's line citations were STALE**: it cited KIT-03 and SPAWN-04 as over-claimed `[x]`, but commit `47d7820` had already reverted both to `[ ]`/Gaps Found before this plan began. The file was re-read on disk and the real remaining defect was the missing RULE, not the row the report named | `27-CONTEXT.md` D-58; `.planning/REQUIREMENTS.md`; `27-54-SUMMARY.md` | **CLOSED** — 5 rows flipped on transcripts re-run in this plan, 2 held unflipped with the reason recorded in the row, 1 deferral re-affirmed; checkbox and table agree for all ten |
+| 9 | **SPAWN-03's live-platform capture** — whether the main-thread coordinator's `Agent(<allowlist>)` grant is actually honoured by the Claude Code runtime | `27-VERIFICATION.md` § deferred and § human_verification | Re-affirmed unchanged by `27-54`. No static gate can produce this evidence, and inventing one would be the faked gate `CLAUDE.md` forbids by name. `ROADMAP.md` was NOT edited; the wording was confirmed to agree across all three records | `ROADMAP.md:431` + standing-obligations row 1; `deferred-items.md` § From 27-50 DECISION 2; `.planning/REQUIREMENTS.md` SPAWN-03 row | **DEFERRED** — owner **Phase 33** (GAP-D1, requirement **CAP-01**; the capture itself is CAP-03); dated **2026-08-09**, ratified as D-56 item 10; status stays `UNKNOWN - verify` |
+
+### Completeness, asserted by count so a reader can check it
+
+- Round-9 code-review findings raised (`27-REVIEW.md`): **6** — CR-01, WR-01, WR-02, WR-03, IN-01, IN-02.
+- Round-9 verification gaps carried beyond those (`27-VERIFICATION.md`): **3** — family G/G2, the
+  `REQUIREMENTS.md` traceability correction, SPAWN-03's deferral.
+- **Total round-9 items raised: 9. Rows in the register above: 9. 9 == 9.**
+
+If those two numbers ever differ, **the register is wrong, not the count** — this is the same
+non-vacuity posture the harness applies to its own corpora, turned on the record itself. Dispositions
+partition as **8 CLOSED + 1 DEFERRED + 0 OPEN**, and `8 + 1 + 0 == 9`.
+
+### The two closures RE-MEASURED on this build, because `27-53` edited the file they live in
+
+`27-53` modified `scripts/frontmatter.ts` and the rebuilt `scripts/frontmatter.js` **after** both
+families were closed, so their closure is measured here rather than inherited — the discipline every
+plan from `27-47` onward has applied to this ledger. Loader column `/usr/bin/ruby -ryaml`
+(ruby 2.6.10 / psych 3.1.0 / libyaml 0.2.1). Every row is a document the loader ACCEPTS with
+`Agent(grugops-orchestrator)` plainly in the loaded value.
+
+| row | module on THIS build | loader | verdict |
+|---|---|---|---|
+| CONTROL one-line grant | `grant`, `["grugops-orchestrator"]` | `"Read, Agent(grugops-orchestrator)"` | premise: the probe CAN see a grant |
+| CONTROL no grant | `no-grant`, `[]` | — | premise: the probe does not grant everything |
+| CR-01 row A `'Read'' s,` / `  # x, TOKEN'` | `grant`, `["grugops-orchestrator"]` | `"Read' s, # x, Agent(grugops-orchestrator)"` | **STILL CLOSED** |
+| FAMILY G `  nested: >-` / `    Read,` / `    # x, TOKEN` | `grant`, `["grugops-orchestrator"]` | `{"nested"=>"Read, # x, Agent(grugops-orchestrator)"}` | **STILL CLOSED** |
+| FAMILY G2 `  - >-` / `    Read,` / `    # x, TOKEN` | `grant`, `["grugops-orchestrator"]` | `["Read, # x, Agent(grugops-orchestrator)"]` | **STILL CLOSED** |
+
+**At the gate**, on hermetic `git archive HEAD` mirrors, planted into the EXISTING `allowed-tools:`
+key of BOTH distribution twins of the non-coordinator `plan` skill (D-40) — never by adding a second
+allow-list key, which is `27-52`'s R1 near-miss:
+
+```
+CONTROL one-line grant   :: exit=1 :: planted 2/2 :: one allow-list key :: twins named 2/2
+CONTROL no grant         :: exit=0 :: ALL CHECKS PASSED                 :: twins named 0/2
+CR-01 row A ''-escape    :: exit=1 :: planted 2/2 :: one allow-list key :: twins named 2/2
+FAMILY G  nested map val :: exit=1 :: planted 2/2 :: one allow-list key :: twins named 2/2
+FAMILY G2 block-seq item :: exit=1 :: planted 2/2 :: one allow-list key :: twins named 2/2
+```
+
+Failure text, verbatim, for the family G plant — both twins named:
+
+```
+  FAIL  WR-05 coordinator-spawn-grant violation:
+.claude/skills/grugops-plan/SKILL.md: non-coordinator carries a spawn grant — rogue spawner …
+skills/plan/SKILL.md: non-coordinator carries a spawn grant — rogue spawner …
+```
+
+**A near-miss in THIS plan's own harness, recorded rather than quietly repaired — the fourth
+consecutive round.** The first counter reported `twins named 1/2` for the NO-GRANT control, which
+would have read as a partial red. It was not: the counter matched the twin's path anywhere in the
+output, and on a passing run the guard names that path in an ordinary `PASS … 1228B pointer-sized`
+line. The exit code was 0 and `ALL CHECKS PASSED`. The count was re-taken over the FAILURE block
+only. This is `27-50` R3 / `27-51` R1 / `27-52` R1 in the same shape once more: **a probe's oracle is
+a predicate like any other, and it must model what its input actually contains.**
+
+### Standing obligations this phase carries INTO its next verification
+
+Written here, with a named owner each, so they survive a milestone archive move.
+
+| Obligation | Measurement | Owner |
+|---|---|---|
+| **SPAWN-03's live-platform capture** | Not obtainable by any static gate. `node scripts/coordinator-resolution-precheck.js` exits 0 this round with `PRECONDITIONS HOLD`, and states in its own output that the two runtime steps are NOT PERFORMED by it | **Phase 33** — GAP-D1 / CAP-01 (capture itself CAP-03) |
+| **KIT-03 and SPAWN-04 remain unflipped** | Both underlying bypasses re-measured CLOSED on this build (table above), but a requirement's verified status is a verification round's call (D-58 item 4) | **the next verification round** for phase 27 |
+| **The `27-49` WR-04 residual** — the deleted per-exemption bound gave up one narrow detection band; the replacement corpus-level floor fires only past roughly half the loader-accepted corpus | Unchanged by `27-51`…`27-54`; none of them touched the exemption machinery, and `27-52` measured the exemption list byte-unchanged (2 rules, `E1=32`, `E2=52`, before and after). Carried figure, named as carried | **a later round** — direction stands: derive the per-rule ceiling from a quantity the rule does not read |
+| **The `27-50` R1 residual** — the leading clause calls an INDENTATION run "residue" on 1,570 measured cells | A wording decision, not a defect; unchanged by `27-51`…`27-54`. Carried figure, named as carried | **a later round** — split the clause and re-take the corpus comparison for BOTH shapes |
+| **The `27-53` fence-classifier floor** — it counts four recogniser/toggle shapes, and is not a proof that no fifth machine can exist | Its own disclosure enumerates what it misses (concatenated or `new RegExp` recognisers, `slice(0,3)`/`indexOf` forms, a counter neither self-negated nor fence-named, a machine in a language it does not read) | **a later round** — classify from a TypeScript AST |
+| **`toggle[1]` is variable-name-sensitive**, and the two compiler flags do not cover `**/*.test.ts` | Both recorded with their reasons in § From 27-53; widening `toggle[1]` measurably makes the conjunction stop discriminating | **a later round**; nothing in `27-53` claims otherwise |
+| **The `27-48` scope question is SETTLED, not carried** | Closed by D-57's closing paragraph and measured by `27-52` (3 cells moved TOWARD the loader, 0 away, 2 now byte-equal). Recorded here so it is not re-opened from a third symptom | **nobody — closed** |
+
+### Round-wide specless-probe accounting, in one checkable place
+
+**29 probe-surfaced rows == 26 resolved `explicit` + 3 resolved `backstop` + 0 unresolved + 0
+dismissed.** Distributed across round 10's four plans: `27-51` **7**, `27-52` **0**, `27-53` **7**,
+`27-54` **15** — and `7 + 0 + 7 + 15 == 29`. The 3 `backstop` rows are all SPAWN-03's (adjacency,
+empty, ordering): they describe live Claude Code runtime behaviour that no static gate can reach,
+which is consistent with row 9's Phase-33 deferral rather than a separate omission.
