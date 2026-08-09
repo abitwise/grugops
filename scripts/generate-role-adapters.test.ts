@@ -195,18 +195,28 @@ function stripFencedBlockLines(lines: readonly string[]): FenceStrip {
   const kept: string[] = [];
   let inside = false;
   let blocksRemoved = 0;
+  // (27-53, WR-03) COUNTED AS THE LINES ARE DROPPED, NEVER DERIVED FROM `kept.length`. Deriving it
+  // makes `kept.length + linesRemoved === lines.length` an IDENTITY that holds for every
+  // implementation, correct or broken — a second assertion that cannot fail, standing beside the
+  // one this plan deleted. The counting is what gives the partition assertion something to see, and
+  // the proof case measures the difference on a strip that drops an uncounted line.
+  let linesRemoved = 0;
   for (const line of lines) {
     if (line.startsWith("```")) {
       if (!inside) blocksRemoved += 1;
       inside = !inside;
+      linesRemoved += 1;
       continue; // the delimiter line is never kept
     }
-    if (inside) continue; // …and neither is anything between two delimiters
+    if (inside) {
+      linesRemoved += 1;
+      continue; // …and neither is anything between two delimiters
+    }
     kept.push(line);
   }
   return {
     kept,
-    linesRemoved: lines.length - kept.length,
+    linesRemoved,
     blocksRemoved,
     unterminatedFence: inside,
   };
