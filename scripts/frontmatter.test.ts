@@ -5493,6 +5493,23 @@ describe("frontmatter — the multi-line scalar sweep (D-49 / SPAWN-04 + KIT-03)
     // claim is deleted or renamed, this case goes RED — so the table can never quietly become the
     // claim again by outliving the thing that replaced it. A cited case name with nothing checking it
     // is the comment-without-a-pin shape this phase has corrected three times.
+    //
+    // (27-51, WR-01 / 27-REVIEW § WR-01, round 10) WHAT THAT CLAIM COVERS, NARROWED TO WHAT THE CORPUS
+    // CAN ACTUALLY EXPRESS. "Completeness" here means: over the space the D-52 generator composes —
+    // every key-line shape crossed with BOTH quote styles, with and without that style's own in-scalar
+    // escape, two continuation shapes and two continuation depths — a real YAML 1.2 loader decides
+    // every cell and the module agrees except the two named safe-direction exemptions. The quote-style
+    // and escape axes were added THIS round precisely because the previous wording claimed a space the
+    // generator could not spell: nine of its key-line shapes opened a scalar mid-line and every one of
+    // them used the double quote, so YAML's `''` escape — CR-01's whole family — was outside the
+    // corpus rather than merely untested.
+    //
+    // AND WHAT REMAINS OUTSIDE IT, NAMED HERE RATHER THAN LEFT TO BE DISCOVERED: a block-scalar header
+    // (`|` / `>`) at a NESTED position — as a nested mapping's value or as a sequence item. That is
+    // the open family G/G2 recorded in this phase's deferred-items ledger; it is `27-52`'s work under a
+    // different root cause in a different predicate (`BLOCK_INDICATOR`'s single application point), and
+    // it is STILL OUTSIDE this corpus until that plan lands. The `WR-01 expressibility floor` case
+    // below prints exactly which ledger families are outside the generator's shape space on each run.
     const HARNESS_CASE =
       "D-52 loader differential — every loader-accepted cell of a GENERATED corpus agrees with a real YAML 1.2 loader on token presence, except the named safe-direction exemptions";
     expect(
@@ -6219,7 +6236,7 @@ describe("frontmatter — the loader differential over a GENERATED corpus (D-52 
     readonly danglingNodeProperty: boolean;
     readonly flowNodeStartAtEndOfKeyLine: boolean;
   }
-  const AXIS_KEY_LINE: readonly KeyLineShape[] = [
+  const AXIS_KEY_LINE_BASE: readonly KeyLineShape[] = [
     {
       label: "value on the key line",
       lines: [`tools: ${FIRST}`],
@@ -6446,6 +6463,99 @@ describe("frontmatter — the loader differential over a GENERATED corpus (D-52 
     },
   ];
 
+  // ── AXIS 1b: THE QUOTE STYLE (27-51, WR-01 / 27-REVIEW § WR-01, round 10) ─────────────────────
+  //
+  // THE CORPUS COULD NOT SPELL THE FAMILY IT WAS SAID TO ADJUDICATE. Nine members of the base axis
+  // above open a scalar MID-LINE and every one of them spells the DOUBLE quote; the single quote was
+  // opened at exactly one position in the whole generator — offset 0 of a continuation line, where a
+  // node start is unambiguous and the module was already correct. So YAML's `''` escape, and with it
+  // round 10's CR-01, was outside this harness's shape space entirely. The differential's green line
+  // was a statement about the inputs it GENERATED, not about the grammar — which is 27-49's own
+  // recorded lesson ("not because the module agreed with the loader but because IT NEVER GENERATED
+  // THE INPUT"), arriving one round later on a different axis.
+  //
+  // THE REMEDY IS AN AXIS AND NOT FOUR ROWS. Four rows for the four spellings a review happened to
+  // report is the enumerate-the-bad shape this module has declined seven times; the property is that
+  // the QUOTE STYLE does not change a verdict, and a property is expressed by crossing an axis.
+  interface QuoteStyle {
+    readonly label: string;
+    readonly quote: string;
+    // The style's OWN escape for its own quote character, which is what makes the escape axis below
+    // derivable rather than hand-listed: YAML escapes a `"` inside double quotes with a backslash and
+    // an `'` inside single quotes by DOUBLING it. Two styles, two rules, one axis.
+    readonly escape: string;
+  }
+  const AXIS_QUOTE_STYLE: readonly QuoteStyle[] = [
+    { label: "double-quoted", quote: '"', escape: '\\"' },
+    { label: "single-quoted", quote: "'", escape: "''" },
+  ];
+
+  // ── AXIS 1c: AN IN-SCALAR ESCAPE (27-51, WR-01) ───────────────────────────────────────────────
+  //
+  // The empty member and the style's own escape, injected where the value's CONTENT begins. The
+  // property asserted by crossing it is that an in-scalar escape cannot change a verdict — where
+  // "these four documents pass" is a list.
+  interface EscapeInScalar {
+    readonly label: string;
+    readonly inject: boolean;
+  }
+  const AXIS_ESCAPE_IN_SCALAR: readonly EscapeInScalar[] = [
+    { label: "no in-scalar escape", inject: false },
+    { label: "the style's own escape at the content start", inject: true },
+  ];
+
+  // ── THE CROSSING, DERIVED FROM THE BASE SHAPE'S OWN FIELDS ────────────────────────────────────
+  //
+  // WHY DERIVED AND NOT A PARALLEL ARRAY. A hand-written single-quote twin of each shape is a second
+  // hand-maintained set beside the first — this repository's second systemic failure class, added by
+  // the very change written to close an instance of the first. Instead the crossing RECOMPUTES each
+  // shape's `lines` and `tail` from the style, so a shape added to the base axis tomorrow gets both
+  // styles by construction and no one has to remember.
+  //
+  // WHICH SHAPES ARE CROSSED IS ALSO DERIVED. A base shape participates exactly when its own text
+  // spells the double quote — i.e. when it OPENS a quoted scalar at all. The other eleven members
+  // carry no quote to restyle, so crossing them would only duplicate cells.
+  //
+  // THE IDENTITY VARIANT KEEPS THE BASE LABEL AND THE BASE BYTES. Style member 0 with escape member 0
+  // reproduces the base shape exactly, so collapsing both axes to their first member reproduces the
+  // pre-change corpus byte for byte — which is what makes this widening additive, and what the
+  // non-vacuity floor below measures against.
+  const opensAQuotedScalar = (shape: KeyLineShape): boolean =>
+    [...shape.lines, shape.tail].some((t) => t.includes('"'));
+  const deriveKeyLines = (
+    styles: readonly QuoteStyle[],
+    escapes: readonly EscapeInScalar[],
+  ): readonly KeyLineShape[] => {
+    const out: KeyLineShape[] = [];
+    for (const base of AXIS_KEY_LINE_BASE) {
+      if (!opensAQuotedScalar(base)) {
+        out.push(base);
+        continue;
+      }
+      for (const style of styles) {
+        for (const escape of escapes) {
+          const identity = style === styles[0] && escape === escapes[0];
+          const restyle = (t: string): string => t.split('"').join(style.quote);
+          const place = (t: string): string =>
+            escape.inject && t.includes(FIRST)
+              ? t.replace(FIRST, `${style.escape}${FIRST}`)
+              : t;
+          out.push({
+            ...base,
+            label: identity ? base.label : `${base.label} [${style.label}, ${escape.label}]`,
+            lines: base.lines.map((l) => place(restyle(l))),
+            tail: restyle(base.tail),
+          });
+        }
+      }
+    }
+    return out;
+  };
+  const AXIS_KEY_LINE: readonly KeyLineShape[] = deriveKeyLines(
+    AXIS_QUOTE_STYLE,
+    AXIS_ESCAPE_IN_SCALAR,
+  );
+
   // ── AXIS 2: THE FIRST CONTINUATION'S SHAPE ────────────────────────────────────────────────────
   //
   // `closesWith` is the quote this line leaves OPEN, appended by the cell builder at the end of the
@@ -6584,9 +6694,12 @@ describe("frontmatter — the loader differential over a GENERATED corpus (D-52 
     readonly depth: number;
     readonly where: string;
   }
-  const enumerateCells = (): Cell[] => {
+  // (27-51) THE KEY-LINE AXIS IS A PARAMETER WITH A DEFAULT, for exactly one reason: the non-vacuity
+  // floor below has to enumerate the SAME corpus with the two new axes COLLAPSED, in the same run, and
+  // a second enumeration written for that purpose would be measuring the copy.
+  const enumerateCells = (keyLines: readonly KeyLineShape[] = AXIS_KEY_LINE): Cell[] => {
     const out: Cell[] = [];
-    for (const keyLine of AXIS_KEY_LINE) {
+    for (const keyLine of keyLines) {
       for (const first of AXIS_CONTINUATION_1) {
         for (const second of AXIS_CONTINUATION_2) {
           for (const depth of AXIS_CONTINUATION_DEPTH) {
@@ -6823,7 +6936,37 @@ describe("frontmatter — the loader differential over a GENERATED corpus (D-52 
     // (27-49, WR-01) THE FLOORS MOVED DELIBERATELY: 13 -> 20 key-line shapes (the seven YAML's
     // grammar names) and a FOURTH axis. Old corpus 13 x 6 x 4 = 312; new corpus 20 x 6 x 4 x 2 = 960.
     // Both totals are the product of the axis lengths and neither is written down.
-    expect(AXIS_KEY_LINE.length).toBe(20);
+    // (27-51, WR-01) AND THE KEY-LINE AXIS IS NOW ITSELF A PRODUCT. Only the BASE array is pinned to a
+    // literal; the derived length is asserted as ARITHMETIC over the base — the eleven shapes that
+    // open no quoted scalar pass through once, and each of the nine that do is crossed with the quote
+    // style and the in-scalar escape. A tenth quote-opening shape added to the base tomorrow moves
+    // both sides of this identity together, which is the whole reason it is stated as an identity.
+    expect(AXIS_KEY_LINE_BASE.length).toBe(20);
+    const QUOTE_OPENING_SHAPES = AXIS_KEY_LINE_BASE.filter(opensAQuotedScalar).length;
+    expect(
+      QUOTE_OPENING_SHAPES,
+      "the crossing is vacuous unless the base axis really contains shapes that open a quoted scalar",
+    ).toBeGreaterThan(0);
+    expect(
+      AXIS_KEY_LINE.length,
+      `the derived key-line axis must be (${AXIS_KEY_LINE_BASE.length} - ${QUOTE_OPENING_SHAPES}) pass-through + ${QUOTE_OPENING_SHAPES} x ${AXIS_QUOTE_STYLE.length} styles x ${AXIS_ESCAPE_IN_SCALAR.length} escapes`,
+    ).toBe(
+      AXIS_KEY_LINE_BASE.length -
+        QUOTE_OPENING_SHAPES +
+        QUOTE_OPENING_SHAPES * AXIS_QUOTE_STYLE.length * AXIS_ESCAPE_IN_SCALAR.length,
+    );
+    expect(AXIS_QUOTE_STYLE.length).toBe(2);
+    expect(AXIS_ESCAPE_IN_SCALAR.length).toBe(2);
+    // The single quote must really be REACHED at a mid-line position — the position CR-01 exposed and
+    // the one the corpus could not spell before. Derived from the shapes, never counted by hand.
+    expect(
+      AXIS_KEY_LINE.filter((k) => k.lines.some((l) => l.includes(`'${FIRST}`))).length,
+      "the derived axis must open a SINGLE-quoted scalar mid-line, or CR-01's family is still outside the corpus",
+    ).toBeGreaterThan(0);
+    expect(
+      AXIS_KEY_LINE.filter((k) => k.lines.some((l) => l.includes(`''${FIRST}`))).length,
+      "the derived axis must carry YAML's `''` escape inside an open single-quoted scalar",
+    ).toBeGreaterThan(0);
     expect(AXIS_CONTINUATION_1.length).toBe(6);
     expect(AXIS_CONTINUATION_2.length).toBe(4);
     expect(AXIS_CONTINUATION_DEPTH.length).toBe(2);
@@ -7192,6 +7335,69 @@ describe("frontmatter — the loader differential over a GENERATED corpus (D-52 
       accepted,
       `loader-accepted cells, of ${CELLS} enumerated`,
     ).toBeGreaterThan(CELLS / 2);
+  });
+
+  // ── (27-51, WR-01 / D-56 item 1) THE NON-CIRCULARITY FLOOR FOR THE TWO NEW AXES ────────────────
+
+  it("WR-01 the quote-style and in-scalar-escape axes are EXERCISED — collapsing them to their first member strictly REDUCES the loader-accepted cell count, measured in this run", () => {
+    // WHY A FLOOR AND NOT A COMMENT. An axis that is declared but produces nothing new is a coverage
+    // claim wearing an array. The only honest way to say "these axes moved the corpus" is to build
+    // the corpus BOTH ways in ONE run and let the loader count. Neither number below is written down;
+    // both are printed, and the assertion is over their ORDER rather than their values, so a base axis
+    // that grows next round does not need this case edited.
+    const probe = probeLoader(RUBY);
+    if (!probe.ok) {
+      console.warn(
+        `SKIPPED the WR-01 non-vacuity floor: ${probe.reason}. PRINTED, never silent — no expectation is invented in the loader's absence.`,
+      );
+      return;
+    }
+
+    // COLLAPSED = both new axes at their FIRST member, which by the identity rule in `deriveKeyLines`
+    // reproduces the pre-change key-line axis byte for byte. That is asserted here rather than
+    // described, because "the widening is additive" is precisely the kind of claim this file exists
+    // to stop taking on trust.
+    const collapsedKeyLines = deriveKeyLines(
+      [AXIS_QUOTE_STYLE[0]],
+      [AXIS_ESCAPE_IN_SCALAR[0]],
+    );
+    expect(
+      collapsedKeyLines.map((k) => JSON.stringify(k)),
+      "collapsing both new axes must reproduce the BASE key-line axis exactly — otherwise the widening re-cut the corpus instead of extending it",
+    ).toEqual(AXIS_KEY_LINE_BASE.map((k) => JSON.stringify(k)));
+
+    const full = enumerateCells(AXIS_KEY_LINE);
+    const collapsed = enumerateCells(collapsedKeyLines);
+    const fullRegions = full.map((c) => buildCellRegion(c.keyLine, c.first, c.second, c.depth));
+    const collapsedRegions = collapsed.map((c) =>
+      buildCellRegion(c.keyLine, c.first, c.second, c.depth),
+    );
+    // ONE loader process for BOTH corpora, so "measured in the same run" is a fact about the
+    // measurement and not a sentence about intent.
+    const raw = execFileSync(RUBY, ["-e", LOADER_PROGRAM], {
+      input: JSON.stringify([...fullRegions, ...collapsedRegions]),
+      encoding: "utf8",
+      maxBuffer: 64 * 1024 * 1024,
+    });
+    const verdicts = JSON.parse(raw) as { accepted: boolean }[];
+    expect(verdicts.length).toBe(fullRegions.length + collapsedRegions.length);
+    const acceptedFull = verdicts
+      .slice(0, fullRegions.length)
+      .filter((v) => v.accepted).length;
+    const acceptedCollapsed = verdicts
+      .slice(fullRegions.length)
+      .filter((v) => v.accepted).length;
+
+    console.log(
+      `WR-01 non-vacuity floor — loader ${probe.version} | key-line shapes ${AXIS_KEY_LINE.length} full vs ${collapsedKeyLines.length} collapsed | cells ${fullRegions.length} vs ${collapsedRegions.length} | LOADER-ACCEPTED ${acceptedFull} full vs ${acceptedCollapsed} collapsed`,
+    );
+
+    expect(
+      acceptedFull,
+      `the two new axes must MOVE the loader-accepted cell count: full ${acceptedFull} vs collapsed ${acceptedCollapsed}. If these are equal the axes are declared and not exercised, and the differential's completeness line is again a statement about inputs it never generated.`,
+    ).toBeGreaterThan(acceptedCollapsed);
+    // And the collapsed run is not empty, so the comparison is between two real measurements.
+    expect(acceptedCollapsed).toBeGreaterThan(0);
   });
 
   // ── (27-49, WR-04 / D-56 item 3) BOTH REPLACEMENT ASSERTIONS, FIRED BY CONSTRUCTED INPUTS ──────
@@ -7681,6 +7887,14 @@ describe("frontmatter — the loader differential over a GENERATED corpus (D-52 
       buildCellRegion.toString(),
       buildCellDocument.toString(),
       enumerateCells.toString(),
+      // (27-51) THE CROSSING IS GENERATOR SURFACE TOO. `deriveKeyLines` and `opensAQuotedScalar`
+      // compose half the key-line axis now, and a derivation exempt from this pin would be a corpus
+      // generator with an unexamined half — the same gap the depth axis opened one round ago.
+      deriveKeyLines.toString(),
+      opensAQuotedScalar.toString(),
+      AXIS_QUOTE_STYLE.map((s) => JSON.stringify(s)).join("\n"),
+      AXIS_ESCAPE_IN_SCALAR.map((s) => JSON.stringify(s)).join("\n"),
+      AXIS_KEY_LINE_BASE.map((s) => JSON.stringify(s)).join("\n"),
       AXIS_KEY_LINE.map((s) => JSON.stringify(s)).join("\n"),
       AXIS_CONTINUATION_1.map((s) => JSON.stringify(s)).join("\n"),
       AXIS_CONTINUATION_2.map((s) => `${s.label} ${s.build.toString()}`).join(
@@ -9123,6 +9337,161 @@ describe("frontmatter — D-54: the node start is a structural position (CR-01, 
     ).toEqual([]);
     // Both numbers derived in this same run — never one derived and one written down.
     expect(compared).toBe(fixture.inputs.length * states);
+  });
+
+  // ── (27-51, IN-02 / 27-REVIEW § IN-02) THE OTHER HALF OF `stripComment`'S CONTRACT ─────────────
+
+  it("IN-02 single-line differential — the scanner's returned STATE is compared against a pre-fix capture, and every move RECOVERS a scalar's provenance rather than losing one", () => {
+    // WHY THIS CASE EXISTS. `stripComment` returns a PAIR — `{ text, state }` — and until this round
+    // every shipped differential over it asserted only `text`. CR-01 corrupted `state.openQuote`
+    // while leaving `text` byte-identical for EVERY input, which is precisely why 87 KB and 98 KB of
+    // fixture and nine rounds of green cases walked past it. Half the function's contract had no
+    // differential at all, so the exact field the defect moved was unasserted BY CONSTRUCTION.
+    //
+    // WHERE THE `state` BASELINE COMES FROM, AND WHY THAT MATTERS MORE THAN THE ASSERTION. It was
+    // captured from a hermetic `git archive` mirror of the PRE-fix commit, over THIS fixture's own
+    // corpus, before the edit landed. Regenerating it from the current build would make this case say
+    // "the build equals itself" — the failure mode the sibling case one screen up warns about in the
+    // same words. IF THIS GOES RED, THE FIXTURE IS NOT THE THING TO REGENERATE.
+    //
+    // THE COMPACT FORM IS LOSSLESS AND DELIBERATE. Six thousand inputs x 24 entering states is 148,656
+    // cells; the capture stores each input's 24-cell vector as one comma-joined string and de-duplicates
+    // those vectors, which is why 6,194 rows compress to a few hundred distinct ones. Each cell is
+    // `<openQuote or "-"><flowDepth><nodeMayBegin as 1/0>`, so the quote is the FIRST character, the
+    // node-may-begin answer is the LAST, and the depth is everything between — unambiguous at any depth.
+    const fixture = JSON.parse(
+      readFileSync(
+        join(import.meta.dirname, "fixtures", "frontmatter-singleline-pre-d54.json"),
+        "utf8",
+      ),
+    ) as {
+      entering: (string | null)[];
+      depths: number[];
+      mayBegin: boolean[];
+      lineStart: boolean[];
+      inputs: string[];
+      state: { vectors: string[]; rows: number[] };
+    };
+    expect(
+      fixture.state,
+      "the pre-fix STATE capture must be present — without it this case asserts nothing",
+    ).toBeDefined();
+    expect(fixture.state.rows.length).toBe(fixture.inputs.length);
+
+    const states =
+      fixture.entering.length *
+      fixture.depths.length *
+      fixture.mayBegin.length *
+      fixture.lineStart.length;
+    const code = (st: {
+      openQuote: string | null;
+      flowDepth: number;
+      nodeMayBegin: boolean;
+    }): string =>
+      `${st.openQuote === null ? "-" : st.openQuote}${st.flowDepth}${st.nodeMayBegin ? 1 : 0}`;
+    const quoteOf = (cell: string): string => cell[0];
+
+    let compared = 0;
+    const moved: string[] = [];
+    const movedInputs = new Set<string>();
+    // THE ONLY DIRECTION THAT IS A DEFECT: a scalar whose provenance the PRE build carried and the
+    // POST build drops. That is the silent-no-grant arm being re-opened, and no reason exempts it.
+    const provenanceLost: string[] = [];
+    // ...and the direction this fix is FOR, counted so the case is visibly non-vacuous.
+    let provenanceRecovered = 0;
+
+    fixture.inputs.forEach((input, idx) => {
+      const pre = fixture.state.vectors[fixture.state.rows[idx]].split(",");
+      expect(pre.length, `pre-fix capture for input ${idx}`).toBe(states);
+      let k = 0;
+      for (const q of fixture.entering)
+        for (const flowDepth of fixture.depths)
+          for (const nodeMayBegin of fixture.mayBegin)
+            for (const lineStart of fixture.lineStart) {
+              const got = stripComment(
+                input,
+                {
+                  openQuote: q as '"' | "'" | null,
+                  flowDepth,
+                  nodeMayBegin,
+                },
+                nodeMayBegin,
+                lineStart,
+              ).state;
+              const was = pre[k];
+              const now = code(got);
+              compared += 1;
+              k += 1;
+              if (now === was) continue;
+              moved.push(
+                `${JSON.stringify(input)} entering=${JSON.stringify(q)} depth=${flowDepth} mayBegin=${nodeMayBegin} lineStart=${lineStart}: pre=${was} post=${now}`,
+              );
+              movedInputs.add(input);
+              if (quoteOf(was) !== "-" && quoteOf(now) === "-") {
+                provenanceLost.push(moved[moved.length - 1]);
+              }
+              if (quoteOf(was) === "-" && quoteOf(now) !== "-") {
+                provenanceRecovered += 1;
+              }
+            }
+    });
+
+    // THE MOVED SET IS COMPARED TO A SET DERIVED FROM THE CORPUS, NEVER TO A HAND-WRITTEN LIST. The
+    // family this round closed is "an input carrying YAML's doubled apostrophe", and the fixture's own
+    // alphabet already contained it — the corpus GENERATED the input and the differential did not look
+    // at the field that moved. So the expected set is computed from `fixture.inputs` here, which means
+    // an input that starts or stops moving for any OTHER reason fails by name.
+    const DOUBLED_APOSTROPHE = `${String.fromCharCode(39)}${String.fromCharCode(39)}`;
+    const expectedMoved = fixture.inputs
+      .filter((s) => s.includes(DOUBLED_APOSTROPHE))
+      .sort();
+    expect(
+      [...movedInputs].sort(),
+      `within-line STATE differential over ${fixture.inputs.length} input(s) x ${states} state(s) = ${compared} comparison(s); ${moved.length} cell(s) moved:\n${moved.slice(0, 20).join("\n")}`,
+    ).toEqual(expectedMoved);
+    // AND THE DIRECTION IS THE WHOLE SAFETY ARGUMENT, exactly as it is for the text half above.
+    expect(
+      provenanceLost,
+      "a cell whose PRE state carried an open quote and whose POST state does not — a still-open scalar's node-start provenance was newly LOST, which is the corruption this round closed being re-opened",
+    ).toEqual([]);
+    // NON-VACUITY, both ways: the family really is in the corpus, and the moves really are recoveries.
+    expect(
+      expectedMoved.length,
+      "the fixture's own alphabet must contain the doubled apostrophe, or this case is comparing nothing",
+    ).toBeGreaterThan(0);
+    expect(
+      provenanceRecovered,
+      "cells where a still-open scalar's provenance is now PRESERVED where the pre-fix build dropped it",
+    ).toBeGreaterThan(0);
+    expect(compared).toBe(fixture.inputs.length * states);
+    console.log(
+      `IN-02 STATE differential — ${fixture.inputs.length} input(s) x ${states} state(s) = ${compared} cell(s) | moved ${moved.length} cell(s) across ${movedInputs.size} input(s) | provenance RECOVERED ${provenanceRecovered} | provenance LOST ${provenanceLost.length}`,
+    );
+  });
+
+  // ── (27-51, IN-02) THE D-51 SIBLING FIXTURE CARRIES NO STATE, AND THAT IS SAID RATHER THAN HIDDEN ──
+  //
+  // The plan asked for the same `state` half on the D-51 differential IF its fixture already carried
+  // the states it would need. IT DOES NOT: `frontmatter-singleline-pre-d51.json` was captured with a
+  // `shortened` half only, and the build it was captured from no longer exists, so a `state` half
+  // there could only be filled from a LATER build — which is the "the build equals itself" tautology
+  // this file rejects by name one screen up. Covering half and saying nothing is how a coverage claim
+  // becomes decoration, so the gap is asserted as a FACT about the fixture instead of left silent.
+  it("IN-02 residual — the pre-D-51 fixture carries NO state capture, so the D-51 differential's state half is OPEN and says so", () => {
+    const d51 = JSON.parse(
+      readFileSync(
+        join(import.meta.dirname, "fixtures", "frontmatter-singleline-pre-d51.json"),
+        "utf8",
+      ),
+    ) as Record<string, unknown>;
+    expect(
+      Object.prototype.hasOwnProperty.call(d51, "state"),
+      "if this fixture ever gains a `state` key, the D-51 differential must gain its state half in the same change — and this case must be replaced by that assertion rather than deleted",
+    ).toBe(false);
+    // Non-vacuity, and a second reason the state half could not simply be copied across: this fixture
+    // does not even share the pre-D-54 capture's SHAPE. It stores `entering` and `cells` — no `inputs`
+    // array — so there is no per-input corpus here to replay a state capture over.
+    expect(Object.keys(d51).sort()).toEqual(["cells", "entering"]);
   });
 });
 
