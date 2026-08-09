@@ -2272,25 +2272,47 @@ describe("check-foundation-guards.js (SDLC-02 / SC2 fail-proof harness)", () => 
   const INLINED_PARTITION_CALL =
     "const { unclaimed: unclaimedKeys, doubleClaimed: doubleClaimedKeys, foreign: foreignKeys, } = " +
     "partitionPluginComponentClaims(schemaKeys, pluginForbiddenComponentKeys(), coveredKeys, exemptKeys);";
+  // (27-50, IN-02 — a DEVIATION this plan records rather than leaves standing) THE RESTATEMENT HAD
+  // FROZEN AT A PREDICATE THE MODULE NO LONGER STATES, AND IT STAYED GREEN.
+  //
+  // Two arms had moved out from under it. `27-46` gave the foreign arm a de-duplication; this
+  // restatement kept `claimedRestated.filter(...)`, which inherits multiplicity. `27-50` widened the
+  // double-claim arm's domain to the union of the schema and the claims; this restatement kept
+  // `schemaKeys.filter(...)`. Both divergences read GREEN, because the only fixture driving this
+  // control plants each foreign key exactly ONCE and no input here ever produced a foreign
+  // double-claim — the control agreed with the module everywhere its fixture could look.
+  //
+  // A CONTROL THAT COMPARES TWO DIFFERENT PREDICATES AND PASSES IS WORSE THAN NO CONTROL, which is
+  // this module's own standing argument about weaker duplicates. So the restatement is UPDATED to
+  // state today's predicate — still in its own idiom (`indexOf`/`reduce`/`concat` rather than
+  // `includes`/`filter().length`/spread), so it remains an independent statement and not a copy —
+  // and the firing fixture below is widened to carry a DOUBLED foreign key so the widened arm is
+  // actually compared rather than merely restated.
   const inlinePartitionRestatement = (src: string): string =>
     src.replace(
       INLINED_PARTITION_CALL,
       [
         "const claimedRestated = [].concat(pluginForbiddenComponentKeys(), coveredKeys, exemptKeys);",
         "const unclaimedKeys = schemaKeys.filter((k) => claimedRestated.indexOf(k) === -1);",
-        "const doubleClaimedKeys = schemaKeys.filter((k) => claimedRestated.reduce((n, c) => (c === k ? n + 1 : n), 0) > 1);",
-        "const foreignKeys = claimedRestated.filter((k) => schemaKeys.indexOf(k) === -1);",
+        "const foreignKeys = claimedRestated.filter((k, i) => schemaKeys.indexOf(k) === -1 && claimedRestated.indexOf(k) === i);",
+        "const doubleClaimedKeys = schemaKeys.concat(foreignKeys).filter((k) => claimedRestated.reduce((n, c) => (c === k ? n + 1 : n), 0) > 1);",
       ].join("\n    "),
     );
   // ONE mutation that fires ALL THREE ARMS at once, so the firing control compares three formulas
   // rather than one. It rewrites the computed forbidden set to: drop `outputStyles` (nothing then
-  // claims it → the UNCLAIMED arm), append `scratchForeign` (claimed but not in the schema → the
-  // FOREIGN arm), and append `hooks` (already exempt → the DOUBLE-CLAIMED arm). It deliberately does
-  // not touch the covered-elsewhere or exempt buckets, whose SHAPE other plans change.
+  // claims it → the UNCLAIMED arm), append `scratchForeign` TWICE (claimed but not in the schema →
+  // the FOREIGN arm, and claimed more than once → the widened DOUBLE-CLAIMED arm), and append
+  // `hooks` (already exempt → the DOUBLE-CLAIMED arm's schema half). It deliberately does not touch
+  // the covered-elsewhere or exempt buckets, whose SHAPE other plans change.
+  //
+  // (27-50, IN-02) THE SECOND `scratchForeign` IS WHAT MAKES THIS CONTROL SEE THE WIDENING. With one
+  // occurrence the foreign key can only ever reach the foreign arm, so the double-claim arm's domain
+  // — the half IN-02 was about — was never compared between the two formulations. It also exercises
+  // the foreign arm's de-duplication, which `27-46` added and this control never observed.
   const fireAllThreeArms = (src: string): string =>
     src.replace(
       "return PLUGIN_MANIFEST_COMPONENT_SCHEMA.map((e) => e.manifestKey).filter((k) => !claimed.has(k));",
-      'return PLUGIN_MANIFEST_COMPONENT_SCHEMA.map((e) => e.manifestKey).filter((k) => !claimed.has(k) && k !== "outputStyles").concat(["scratchForeign", "hooks"]);',
+      'return PLUGIN_MANIFEST_COMPONENT_SCHEMA.map((e) => e.manifestKey).filter((k) => !claimed.has(k) && k !== "outputStyles").concat(["scratchForeign", "scratchForeign", "hooks"]);',
     );
 
   it("the extracted partition predicate is byte-faithful to an inline restatement of it — PASSING tree", () => {
@@ -2339,10 +2361,13 @@ describe("check-foundation-guards.js (SDLC-02 / SC2 fail-proof harness)", () => 
     expect(committed.status).not.toBe(0);
     expect(inlined.status).toBe(committed.status);
     expect(out(inlined)).toBe(out(committed));
-    // Non-vacuous: all three arms really fired, each naming its key, in BOTH builds.
+    // Non-vacuous: all three arms really fired, each naming its key, in BOTH builds. (27-50, IN-02)
+    // The double-claim arm now names BOTH a schema key and a FOREIGN one, in the stated order —
+    // schema keys first, then the foreign ones in first-occurrence order — and the foreign arm names
+    // `scratchForeign` ONCE although two buckets claimed it.
     for (const o of [out(committed), out(inlined)]) {
       expect(o).toContain("unclaimed by any bucket [outputStyles]");
-      expect(o).toContain("claimed by more than one [hooks]");
+      expect(o).toContain("claimed by more than one [hooks, scratchForeign]");
       expect(o).toContain("claimed but outside the schema [scratchForeign]");
     }
   });

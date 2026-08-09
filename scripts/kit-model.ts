@@ -182,9 +182,32 @@ const PACKAGING_SUBPATH = "agent-factory/packaging";
 // The PLUGIN-form skill tree at the repository root (plan 27-34). Distinct from SKILLS_SUBPATH above
 // and never a prefix of it, so partitioning the composition on either literal is unambiguous.
 const PLUGIN_SKILLS_SUBPATH = "skills";
-// The markdown extension. Named once because two rules below turn on it — "is this a frontmatter-
-// bearing adapter surface" and "does the exempt directory carry an adapter" — and a second spelling
-// of one fact is the drift class this module deletes even when the fact is three characters long.
+// The markdown extension, and it is now REACHED by every rule that states it.
+//
+// (27-50, IN-01 — 27-REVIEW-GAPS-8 § IN-01, round 9 — D-56 item 5) WHAT THE COMMENT HERE USED TO
+// CLAIM, AND WHY THE CORRECTION IS THE FINDING. It read "Named once because two rules below turn on
+// it", naming "is this a frontmatter-bearing adapter surface" and "does the exempt directory carry
+// an adapter". The constant was referenced at exactly ONE site, and the literal `".md"` was spelled
+// at two OTHERS — `listRoles` and `listAgentAdapters`. The anti-drift device had drifted from
+// itself, in the file whose thesis is that a fact has one statement. That is a small instance of
+// this repository's second systemic failure class, and it is small only by accident.
+//
+// THE THREE RULES THAT TURN ON IT, ENUMERATED SO THE CLAIM IS CHECKABLE RATHER THAN REMEMBERED:
+//
+//   • `listRoles`            — "is this directory entry a role file"
+//   • `listAgentAdapters`    — "is this walked entry a frontmatter-bearing agent adapter"
+//   • the exempt-directory probe — "does the exempt directory carry an adapter"
+//
+// AND THE CLAIM IS ASSERTED, NOT NARRATED. `scripts/kit-model.test.ts` DERIVES the occurrence count
+// of the exact literal in this module's comment-filtered source and asserts it is EXACTLY ONE — the
+// declaration on the line below. Two-sided, so it fails both when a new spelling appears and when
+// this declaration is renamed away. A comment claiming a property never ships here without the
+// assertion that makes it true.
+//
+// DELIBERATELY NOT WIDENED TO EVERY `.md` SUBSTRING IN THE FILE. `"SKILL.md"`, `".frontmatter.md"`
+// and `".template.md"` are DIFFERENT facts — a file NAME and two template suffixes — and the regex
+// `/^\d{2}-.+\.md$/` states the workflow shape in one expression. Collapsing those into this
+// constant would be one statement of four facts, which is the mirror image of the defect above.
 const MARKDOWN_EXT = ".md";
 
 // ---------------------------------------------------------------------------
@@ -454,7 +477,12 @@ export function pluginForbiddenComponentKeys(): string[] {
 export interface PluginComponentClaimPartition {
   /** Schema keys no bucket claimed. Unreachable from today's code; see the block comment above. */
   readonly unclaimed: string[];
-  /** Schema keys more than one bucket claimed. */
+  /**
+   * Keys more than one bucket claimed — schema keys FIRST, in the schema's order, then the
+   * non-schema ones in FIRST-OCCURRENCE claim order. (Plan 27-50, IN-02 / D-56 item 6: this arm
+   * used to be filtered over the schema alone and could therefore never name a FOREIGN key claimed
+   * twice — see the arm's comment below.)
+   */
   readonly doubleClaimed: string[];
   /**
    * Claimed keys the schema does not carry, each reported AT MOST ONCE, in FIRST-OCCURRENCE order
@@ -470,37 +498,67 @@ export function partitionPluginComponentClaims(
   exemptKeys: readonly string[],
 ): PluginComponentClaimPartition {
   const claimedKeys = [...forbiddenKeys, ...coveredKeys, ...exemptKeys];
+
+  // THE TWO ARMS SHARE ONE DE-DUPLICATION DISCIPLINE (plan 27-46, D-53, closing IN-04).
+  //
+  // The double-claimed arm below de-duplicates IMPLICITLY: it filters over a domain in which each
+  // key appears once, so each key it names is named once however many buckets claimed it. This arm
+  // filters over `claimedKeys` and therefore INHERITED their multiplicity — a key claimed by two
+  // buckets AND absent from the schema was interpolated into guard_kit_counts' failure message
+  // twice. The arm's consumer is a human reading that message, where a key printed twice reads as
+  // two findings. Both arms now answer the membership question the same way.
+  //
+  // THE MULTIPLICITY IS DROPPED, NOT PRESERVED IN A SECOND FIELD. Reporting the key once AND how
+  // many buckets claimed it is two statements of one fact — the two-independent-facts shape round 8
+  // deleted twice, and the sibling arm answers membership without it.
+  //
+  // `claimedKeys.indexOf(k) === i` keeps the FIRST occurrence, so the order is STATED IN THE
+  // EXPRESSION rather than inherited from an iteration order that happens to be insertion-ordered
+  // today. A de-duplication whose order is an implementation detail makes the guard's message
+  // non-reproducible across two runs over one tree — a new defect traded for a cosmetic one — and
+  // every derivation in this module either sorts or preserves a stated order for exactly this
+  // reason.
+  //
+  // THIS CHANGES A FAILURE MESSAGE AND NEVER A VERDICT. The arm is non-empty only for inputs
+  // today's computed forbidden set cannot produce; the gate's `kit counts:` PASS line is
+  // byte-identical before and after on the live tree.
+  const foreign = claimedKeys.filter(
+    (k, i) => !schemaKeys.includes(k) && claimedKeys.indexOf(k) === i,
+  );
+
+  // (27-50, IN-02 — 27-REVIEW-GAPS-8 § IN-02, round 9 — D-56 item 6) THE DOUBLE-CLAIM ARM'S DOMAIN
+  // IS THE UNION OF THE SCHEMA AND THE CLAIMS, BECAUSE FILTERED OVER THE SCHEMA ALONE IT COULD NOT
+  // EXPRESS THE THING IT IS FOR.
+  //
+  // WHAT WAS WRONG, AND IT WAS OPENED BY THE FIX ABOVE. `doubleClaimed` filtered over `schemaKeys`,
+  // so it could only ever name a SCHEMA key claimed twice. Before 27-46 the foreign arm's inherited
+  // multiplicity was the ONLY visible trace of a non-schema key claimed by two buckets; the
+  // de-duplication removed that trace and nothing replaced it, so the multiplicity became
+  // UNREPORTABLE rather than reported once. The comment above said "both arms now answer the
+  // membership question the same way" — true of de-duplication, and false of the DOMAIN, which is
+  // the half that decides what each arm can express at all.
+  //
+  // WHY THAT MATTERS TO THE ONE CONSUMER. This arm's reader is a human looking at
+  // guard_kit_counts' failure message with two buckets to fix. Told only that a key is "claimed but
+  // outside the schema", they fix one bucket and the other keeps its claim. Both facts are true of
+  // the same key at once, and each arm answers a different question about it, so it belongs in both.
+  //
+  // THE ORDER IS STATED, NOT INHERITED. Schema keys first, in the SCHEMA's order — the order the
+  // guard's message is read in, and the order this arm has always reported — then the non-schema
+  // ones in the foreign arm's own FIRST-OCCURRENCE order. The domain is built from `foreign`, which
+  // is already de-duplicated and disjoint from `schemaKeys` by construction, so the widening cannot
+  // introduce a duplicate and cannot double-report the schema key it already handled. Two runs over
+  // one tree stay byte-identical.
+  //
+  // NOT A SECOND MEMBERSHIP RULE. `claimedTwice` is stated once and applied to one domain; the arm
+  // did not gain a second predicate, it gained the rest of its subject.
+  const claimedTwice = (k: string): boolean =>
+    claimedKeys.filter((c) => c === k).length > 1;
+
   return {
     unclaimed: schemaKeys.filter((k) => !claimedKeys.includes(k)),
-    doubleClaimed: schemaKeys.filter(
-      (k) => claimedKeys.filter((c) => c === k).length > 1,
-    ),
-    // THE TWO ARMS SHARE ONE DE-DUPLICATION DISCIPLINE (plan 27-46, D-53, closing IN-04).
-    //
-    // The double-claimed arm above de-duplicates IMPLICITLY: it filters over `schemaKeys`, and a
-    // schema key appears in that list once, so each key it names is named once however many buckets
-    // claimed it. This arm filters over `claimedKeys` and therefore INHERITED their multiplicity — a
-    // key claimed by two buckets AND absent from the schema was interpolated into guard_kit_counts'
-    // failure message twice. The arm's consumer is a human reading that message, where a key printed
-    // twice reads as two findings. Both arms now answer the membership question the same way.
-    //
-    // THE MULTIPLICITY IS DROPPED, NOT PRESERVED IN A SECOND FIELD. Reporting the key once AND how
-    // many buckets claimed it is two statements of one fact — the two-independent-facts shape this
-    // round has already deleted twice, and the sibling arm answers membership without it.
-    //
-    // `claimedKeys.indexOf(k) === i` keeps the FIRST occurrence, so the order is STATED IN THE
-    // EXPRESSION rather than inherited from an iteration order that happens to be insertion-ordered
-    // today. A de-duplication whose order is an implementation detail makes the guard's message
-    // non-reproducible across two runs over one tree — a new defect traded for a cosmetic one — and
-    // every derivation in this module either sorts or preserves a stated order for exactly this
-    // reason.
-    //
-    // THIS CHANGES A FAILURE MESSAGE AND NEVER A VERDICT. The arm is non-empty only for inputs
-    // today's computed forbidden set cannot produce; the gate's `kit counts:` PASS line is
-    // byte-identical before and after on the live tree.
-    foreign: claimedKeys.filter(
-      (k, i) => !schemaKeys.includes(k) && claimedKeys.indexOf(k) === i,
-    ),
+    doubleClaimed: [...schemaKeys, ...foreign].filter(claimedTwice),
+    foreign,
   };
 }
 
@@ -564,7 +622,7 @@ function refuseEmpty(files: string[], dir: string, kind: string): string[] {
 export function listRoles(kitRoot: string = DEFAULT_KIT_ROOT): string[] {
   const dir = join(kitRoot, ROLES_SUBPATH);
   const files = readDirOrThrow(dir)
-    .filter((f) => f.endsWith(".md") && !f.startsWith("_"))
+    .filter((f) => f.endsWith(MARKDOWN_EXT) && !f.startsWith("_"))
     .sort();
   return refuseEmpty(files, dir, "role");
 }
@@ -725,7 +783,7 @@ function walkLevel(
 export function listAgentAdapters(kitRoot: string = DEFAULT_KIT_ROOT): string[] {
   const dir = join(kitRoot, AGENTS_SUBPATH);
   const files = walkFilesRelative(dir)
-    .filter((rel) => rel.endsWith(".md"))
+    .filter((rel) => rel.endsWith(MARKDOWN_EXT))
     .sort();
   return refuseEmpty(files, dir, "agent adapter");
 }

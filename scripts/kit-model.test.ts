@@ -29,6 +29,7 @@ import {
   symlinkSync,
   chmodSync,
   readdirSync,
+  readFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, dirname } from "node:path";
@@ -831,6 +832,55 @@ describe("kit-model plugin-manifest component schema (D-46: derived, counted two
     );
   });
 
+  // ── (27-50, IN-01 / D-56 item 5) THE MARKDOWN FACT HAS ONE STATEMENT, AND THE COUNT IS DERIVED ──
+
+  it("IN-01 — the markdown-extension literal appears EXACTLY ONCE in kit-model.ts, in the constant's own declaration", () => {
+    // WHAT THIS ENUMERATES, stated so the number is checkable rather than authoritative-sounding:
+    // the occurrences of the EXACT four-character token `".md"` — quote, dot, m, d, quote — in this
+    // module's source with COMMENT LINES REMOVED. Comments are excluded because a comment narrating
+    // the fact (including the one directly above the declaration) would otherwise invalidate its own
+    // assertion, which is the self-defeating shape this repository has already paid for once.
+    //
+    // The token is deliberately QUOTED on both sides, so `"SKILL.md"`, `".frontmatter.md"`,
+    // `".template.md"` and the workflow regex `/^\d{2}-.+\.md$/` are OUTSIDE this set. Those are
+    // different facts — a file name, two template suffixes and a shape rule — and folding them into
+    // this constant would be one statement of four facts, the mirror image of the defect IN-01
+    // names.
+    //
+    // TWO-SIDED, AND THAT IS THE POINT. `toBe(1)` fails when a new spelling of the literal appears
+    // AND when the declaration itself is renamed away. A one-sided `toBeLessThan(2)` would pass on a
+    // module that had deleted the constant entirely — an anti-drift device whose assertion goes
+    // green precisely when the device is gone.
+    const src = readFileSync(
+      join(import.meta.dirname, "kit-model.ts"),
+      "utf8",
+    );
+    const code = src
+      .split("\n")
+      .filter((l) => !l.trimStart().startsWith("//"))
+      .join("\n");
+    const LITERAL = '".md"';
+    const occurrences = code.split(LITERAL).length - 1;
+    expect(
+      occurrences,
+      `the markdown extension must be spelled exactly once — in \`const MARKDOWN_EXT = ".md";\` — and every rule must reach it through the constant`,
+    ).toBe(1);
+    // …and that one occurrence is the declaration, not some other site that happens to be alone.
+    expect(code).toContain('const MARKDOWN_EXT = ".md";');
+    // The three rules that turn on it are each present and each reach it through the constant, so
+    // the corrected comment's enumeration is asserted rather than narrated.
+    for (const site of [
+      "f.endsWith(MARKDOWN_EXT) && !f.startsWith",
+      "rel.endsWith(MARKDOWN_EXT)",
+      "probe.files.filter((f) => f.endsWith(MARKDOWN_EXT))",
+    ]) {
+      expect(code, site).toContain(site);
+    }
+    // Non-vacuity: the derivation really does find occurrences of this token in this file, so a
+    // typo in `LITERAL` cannot make the assertion pass by finding nothing anywhere.
+    expect(src.split(LITERAL).length - 1).toBeGreaterThan(0);
+  });
+
   it("the live schema and the live claims partition cleanly — three empty arms", () => {
     const result = partitionPluginComponentClaims(
       PLUGIN_MANIFEST_COMPONENT_SCHEMA.map((e) => e.manifestKey),
@@ -898,9 +948,16 @@ describe("kit-model plugin-manifest component schema (D-46: derived, counted two
   // standing rule is that a contract with no assertion behind it drifts, and this is a small instance
   // of it. These cases are that assertion.
 
-  it("a foreign key claimed by TWO buckets is reported ONCE by the foreign arm", () => {
+  it("a foreign key claimed by TWO buckets is reported ONCE by the foreign arm — and ONCE by the double-claim arm (27-50, IN-02)", () => {
     // The exact call the planner measured against the COMMITTED compiled build, where it returned
     // `foreign: ["themes", "themes"]`. RED before the de-duplication, GREEN after.
+    //
+    // (27-50, IN-02 / D-56 item 6) THE `doubleClaimed: []` EXPECTATION THAT STOOD HERE PINNED A
+    // BLIND SPOT AS BEHAVIOUR, AND THAT IS WHY IT MOVES. `themes` IS claimed by two buckets. The old
+    // arm filtered over the schema alone, so it could not express a foreign double-claim at all, and
+    // this line — added by the very plan that closed the foreign arm's duplication — recorded that
+    // inexpressibility as the expected answer. An assertion that pins what a predicate CANNOT say is
+    // not a pin, it is a lock. Both facts are now true of `themes` at once and each arm states one.
     const result = partitionPluginComponentClaims(
       ["agents"],
       ["themes"],
@@ -909,7 +966,99 @@ describe("kit-model plugin-manifest component schema (D-46: derived, counted two
     );
     expect(result.foreign).toEqual(["themes"]);
     expect(result.unclaimed).toEqual(["agents"]);
-    expect(result.doubleClaimed).toEqual([]);
+    expect(result.doubleClaimed).toEqual(["themes"]);
+  });
+
+  // ── (27-50, IN-02 / D-56 item 6) THE THREE DISCRIMINATING SHAPES, SO THE WIDENING IS A FIX AND ──
+  //    NOT A LOOSENING. Each row differs from its neighbours in exactly one respect, so a future
+  //    edit that widens or narrows the domain fails on a named case rather than on a total.
+
+  it("IN-02 discriminators — schema-and-doubled, foreign-and-doubled, foreign-and-single land in exactly the arms they belong in", () => {
+    const ROWS: readonly {
+      label: string;
+      args: [string[], string[], string[], string[]];
+      doubleClaimed: string[];
+      foreign: string[];
+      unclaimed: string[];
+    }[] = [
+      {
+        // THE PRECISION EDGE. Widening the domain must not double-report the case the arm already
+        // handled: a schema key claimed twice appears ONCE in the double-claim arm and NOT AT ALL in
+        // the foreign arm, exactly as before.
+        label: "a SCHEMA key claimed by two buckets",
+        args: [["agents"], ["agents"], ["agents"], []],
+        doubleClaimed: ["agents"],
+        foreign: [],
+        unclaimed: [],
+      },
+      {
+        label: "a FOREIGN key claimed by two buckets — the shape IN-02 named",
+        args: [["agents"], ["themes"], ["themes"], []],
+        doubleClaimed: ["themes"],
+        foreign: ["themes"],
+        unclaimed: ["agents"],
+      },
+      {
+        // The discriminator that stops the widening from becoming "every foreign key is a double
+        // claim": one claim is one claim, whichever side of the schema it falls on.
+        label: "a FOREIGN key claimed ONCE",
+        args: [["agents"], ["themes"], [], []],
+        doubleClaimed: [],
+        foreign: ["themes"],
+        unclaimed: ["agents"],
+      },
+      {
+        label: "a FOREIGN key claimed by all THREE buckets — still reported once per arm",
+        args: [["agents"], ["themes"], ["themes"], ["themes"]],
+        doubleClaimed: ["themes"],
+        foreign: ["themes"],
+        unclaimed: ["agents"],
+      },
+    ];
+    for (const row of ROWS) {
+      const result = partitionPluginComponentClaims(...row.args);
+      expect(result.doubleClaimed, `${row.label} — doubleClaimed`).toEqual(
+        row.doubleClaimed,
+      );
+      expect(result.foreign, `${row.label} — foreign`).toEqual(row.foreign);
+      expect(result.unclaimed, `${row.label} — unclaimed`).toEqual(
+        row.unclaimed,
+      );
+      for (const [arm, keys] of Object.entries(result)) {
+        expect(
+          new Set(keys).size,
+          `${row.label} — ${arm} reports a key more than once`,
+        ).toBe(keys.length);
+      }
+    }
+  });
+
+  it("IN-02 — the widened double-claim arm's ORDER is schema-order then first-occurrence, over a deliberately NON-alphabetical input", () => {
+    // The order the guard interpolates must be reproducible across two runs over one tree, and
+    // "reproducible" is only a property if the expected sequence is NOT the sorted one — otherwise
+    // the case cannot tell a stated order from an incidental alphabetical coincidence.
+    const schema = ["zulu", "alpha"];
+    const forbidden = ["zeta", "alpha", "zulu"];
+    const covered = ["zeta", "mid", "alpha"];
+    const exempt = ["zulu"];
+    // concatenated claims : zeta, alpha, zulu, zeta, mid, alpha, zulu
+    //   claimed twice     : zeta(2), alpha(2), zulu(2)   — mid(1) is not
+    //   schema order      : zulu, alpha
+    //   foreign order     : zeta, mid            (first occurrence, mid is single)
+    const result = partitionPluginComponentClaims(
+      schema,
+      forbidden,
+      covered,
+      exempt,
+    );
+    expect(result.doubleClaimed).toEqual(["zulu", "alpha", "zeta"]);
+    expect(result.doubleClaimed).not.toEqual([...result.doubleClaimed].sort());
+    expect(result.foreign).toEqual(["zeta", "mid"]);
+    expect(result.foreign).not.toEqual([...result.foreign].sort());
+    // Two calls, byte-identical arrays — the property the guard's message depends on.
+    expect(
+      partitionPluginComponentClaims(schema, forbidden, covered, exempt),
+    ).toEqual(result);
   });
 
   it("BOTH arms report each key AT MOST ONCE, over inputs carrying deliberate multiplicity in each (adjacency edge)", () => {
@@ -923,7 +1072,10 @@ describe("kit-model plugin-manifest component schema (D-46: derived, counted two
       ["agents", "themes"],
       ["agents", "themes"],
     );
-    expect(result.doubleClaimed).toEqual(["agents"]);
+    // (27-50, IN-02) `themes` is claimed by three buckets AND outside the schema, so it belongs in
+    // BOTH arms once each. Before the domain widening the double-claim arm named only `agents` here
+    // — the same inexpressibility, one case over.
+    expect(result.doubleClaimed).toEqual(["agents", "themes"]);
     expect(result.foreign).toEqual(["themes"]);
     expect(result.unclaimed).toEqual(["commands"]);
     // Stated as the general property rather than only as the two literals above, so the case reads as
@@ -993,9 +1145,12 @@ describe("kit-model plugin-manifest component schema (D-46: derived, counted two
     );
     // A non-vacuous baseline: this claim set really does fire an arm, so "invariant" is a statement
     // about a verdict that exists rather than about three empty lists staying empty.
+    // (27-50, IN-02) `themes` is claimed by BOTH the covered and the exempt bucket and is outside
+    // the schema, so the widened double-claim arm names it too. The comparison is on SORTED sets, so
+    // this baseline is a set fact and stays invariant under every permutation below.
     expect(base).toEqual({
       unclaimed: [],
-      doubleClaimed: ["mcpServers"],
+      doubleClaimed: ["mcpServers", "themes"],
       foreign: ["themes"],
     });
     // Every reversal, and one rotation of each, compared against that baseline.
