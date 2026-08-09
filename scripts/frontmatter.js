@@ -1170,6 +1170,58 @@ function flattenBlock(block, baseIndent) {
 //   EMPTY, ABSENT or BLANK, ask WHOSE ALPHABET ANSWERS IT — and whether that alphabet is the one this
 //   module declares. A built-in carries its own, and where the built-in's alphabet is narrower than
 //   the format's, the derivation is a denylist wearing a derivation's clothes (D-43's own words).
+//
+// AND A NINTH TIME — AND THIS ONE WAS NOT A PREDICATE'S CONTENTS OR A PREDICATE'S ARMS. IT WAS THE
+// SET THE ARMS COVERED (27-REVIEW-GAPS-7 § CR-01, round 8 — D-51).
+//
+//   FIRST, THE COUNT, SO IT IS CITED AND NOT REMEMBERED. This is the NINTH entry in this ledger and
+//   it comes from the EIGHTH review round; the two sequences are not the same, because round 6 alone
+//   produced the sixth, seventh and eighth entries. Neither number is load-bearing for anything below
+//   — every claim in this entry names an assertion instead.
+//
+//   Entries one through eight each sat INSIDE a rule: what an alphabet contained, how arms were split
+//   or composed, where a rule had jurisdiction, whose alphabet answered a question, and — entry six —
+//   the assembly that produced the value a rule reasoned about. D-48 fixed entry six by promoting
+//   quote state to a property of the SCALAR and gating the carry at a node start. Both moves were
+//   right, and both were verified against libyaml. What was wrong was the SET: the seeding of that
+//   gate was wired into two of the three places a node can begin, and into NONE of the places a node
+//   begins MID-LINE, so the union of the arms was not the set of node starts.
+//
+//     family (a)  `tools:` / `  "Read,` / `  # x, Agent(grugops-orchestrator)"` — the key line
+//                 carries no value, so the CONTINUATION line is the node start. -> {ok:true,value:false}
+//     family (b)  `tools: [Read,` / `  "Write,` / `  # x, Agent(…)"]` — the scalar opens MID-LINE
+//                 inside a flow collection, which no line-level expression can see. -> the same arm.
+//
+//   THE REPRODUCTION WAS THE WHOLE GATE, NOT A PARSER ROW. Planted on BOTH distribution twins of
+//   `skills/plan/SKILL.md` and on the non-coordinator adapter `.claude/agents/grugops-qe-e2e.md`, on
+//   hermetic `git archive` mirrors, the foundation gate printed ALL CHECKS PASSED at exit 0 for both
+//   families — while the IDENTICAL grant on ONE line exited 1 on the same mirror. One line break
+//   flipped a red gate green, for the second round running, in the two spellings D-48's fix did not
+//   reach. The six transcripts are recorded in 27-43-SUMMARY.md.
+//
+//   THE REMEDY WAS NOT A FOURTH ARM. Adding one would have closed family (a) and left family (b) on
+//   the no-grant success arm — the reviewer measured exactly that patch and reported exactly that
+//   result. So the SPLIT was deleted: `stripComment` is told whether offset 0 of its line is a node
+//   start, tracks flow depth and node-may-begin as it walks, and returns an ALREADY-GATED state; the
+//   three sites each perform ONE assignment and re-decide nothing; and the separate node-start-quote
+//   helper is DELETED rather than kept beside the walk, for the third time in this module's life.
+//
+//   WHAT MAKES EACH CLAIM IN THIS ENTRY CHECKABLE, CITED RATHER THAN ASSERTED. In
+//   scripts/frontmatter.test.ts: the six measured rows as named cases, each carrying its libyaml
+//   column; the single-line byte-identity differential, which asserts this walk's returned TEXT is
+//   unchanged from the pre-D-51 build over a generated corpus and reports the size it derived; the
+//   non-circularity pin, which now also asserts no entry of its symbol list names something this
+//   module no longer declares; and the SELF-DERIVING repository-wide control, which is what the
+//   false-red paragraph above already cites. The value-map comparison that has caught every
+//   regression in this predicate was run once at execution time, HEAD to HEAD, and reported zero arms
+//   changed, zero values changed and zero new refusals over a corpus derived on both sides.
+//
+//   THE STANDING QUESTION THIS LEAVES FOR THE NEXT READER, AND IT IS ONE LEVEL BELOW ENTRY SIX'S.
+//   Entry six asked what PRODUCED the value a predicate reasons about. This one asks: after
+//   collapsing a split predicate into one authority, ASK WHAT INPUT THAT AUTHORITY IS HANDED, AND
+//   WHETHER THAT INPUT CAN CARRY THE POSITION ITS ANSWER DEPENDS ON. A single authority handed a
+//   line, asked a question about an offset, is still a per-line answer wearing a single-authority
+//   label — and its arms will not look like arms, because there is only one of them.
 // The payload at each delimiter position. Declared here as data so both positions consult the same
 // tokens in the same order, which is what makes the reported refusal deterministic for a given input.
 const OPEN_PAYLOADS = ["---"];
