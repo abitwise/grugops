@@ -71,8 +71,31 @@
 //
 // THIS IS ALSO THE ONE FENCE AUTHORITY, AND THE TEXT IT IS APPLIED TO IS NOW STATED PRECISELY
 // (plan 27-45, D-53 — 27-REVIEW-GAPS-7 § WR-02). `stripFencedBlocks` lives here and is imported by
-// check-foundation-guards.ts, so the whole tree still has exactly one implementation of "which lines
-// are inside a ``` block". No second fence parser is written, here or anywhere.
+// check-foundation-guards.ts, so exactly one implementation in this tree answers the GENERAL question
+// "which lines of a document are inside a ``` block", and it is this one.
+//
+//   THE SCOPE OF THAT SENTENCE IS DERIVED, NOT ASSERTED (plan 27-53, D-53 — round 9 § WR-02). It
+//   used to end with an unqualified rider claiming no second fence parser was written "here or
+//   anywhere", and that rider was FALSE ON THE DAY IT SHIPPED: three other tracked `.ts` files carry
+//   a fence state machine of their own. A prose claim wider than the assertion behind it is this
+//   repository's second systemic failure class in sentence form, so the scope is now MEASURED. The
+//   case "the set of tracked `.ts` files carrying a FENCE STATE MACHINE is derived, sorted and
+//   pinned at exactly the four named members" in scripts/frontmatter.test.ts enumerates every
+//   tracked `.ts` by PATTERN — never by a hand-listed file name — classifies a machine as a
+//   delimiter RECOGNISER plus a state TOGGLE in the same file, sorts, compares to a named set and
+//   pins the cardinality at 4. A fifth machine fails it by name, and each construct in the
+//   classifier is proven load-bearing on the live corpus.
+//
+//   THE OTHER THREE MEMBERS, EACH WITH THE DIFFERENT QUESTION IT ANSWERS:
+//     • check-foundation-guards.ts — TWO caveman-block scopers, each GATED on a `## Caveman prompt`
+//       heading (asserted, not asserted-about). Neither answers "is this line inside a ``` block"
+//       for a document; each answers "where does the caveman block start and end", and neither can
+//       run on a document that carries no such heading.
+//     • generate-role-adapters.test.ts and check-foundation-guards.test.ts — HARNESS-LOCAL fixture
+//       machines that deliberately do NOT import this module, because a fixture built by calling the
+//       code under test makes the case's input a function of the thing being tested. That
+//       non-circularity rationale is sound and is preserved unchanged; what this plan altered is
+//       only that those machines are now MEMBERS OF A COUNTED SET instead of unaccounted grammars.
 //
 //   WHICH TEXT IT IS APPLIED TO: the PROSE BODY the guards check. Their adapter-body, tier-beat and
 //   packaging-template checks each call it directly on the whole file they are about to read as

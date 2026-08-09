@@ -516,10 +516,24 @@ const PACKAGING_TEMPLATES = SPAWN_GRANT_SCAN.filter((f) =>
 );
 
 // (Plan 27-12) stripFencedBlocks MOVED to scripts/frontmatter.ts and is imported at the top of this
-// file. The tree still has exactly ONE implementation of "which lines are inside a ``` block"; it
-// simply lives beside the frontmatter parser that also needs a fence-safe input, rather than being
-// duplicated there. Behavior is unchanged, including its fail-safe treatment of an unterminated
-// fence, so every prose check below reads the same body it read before.
+// file. It is the ONE implementation of the GENERAL question "which lines of a document are inside a
+// ``` block", every prose check below reads its output, and this file adds no second answer to THAT
+// question; it simply lives beside the frontmatter parser that also needs a fence-safe input, rather
+// than being duplicated there. Behavior is unchanged, including its fail-safe treatment of an
+// unterminated fence, so every prose check below reads the same body it read before.
+//
+// (Plan 27-53, D-53 — round 9 § WR-02) THE TREE-WIDE VERSION OF THAT SENTENCE WAS FALSE AND IS GONE.
+// It used to claim a uniqueness across the whole repository, which this file itself contradicts:
+// this file itself carries two more fence state machines — stripCavemanBlock and the caveman-block
+// extractor below — each running its own delimiter recogniser and its own counter. They are NOT a
+// second general answer, because both are GATED on a `## Caveman prompt` heading and answer only
+// "where does the caveman block start and end"; that gating is asserted mechanically rather than
+// argued. But the old sentence claimed a scope it never held, and a claim wider than its pin is the
+// set-literal-drift class this phase exists to delete. The real scope is DERIVED and COUNTED: the
+// case "the set of tracked `.ts` files carrying a FENCE STATE MACHINE is derived, sorted and pinned
+// at exactly the four named members" in scripts/frontmatter.test.ts enumerates every tracked `.ts`
+// by pattern, names the four members (this file among them), and pins the cardinality at 4. A fifth
+// fails it by name.
 
 // Collapse every run of whitespace — including newlines — to a single space. Applied AFTER
 // stripFencedBlocks() so the prose checks below read a body the way a human reads it, not the way
