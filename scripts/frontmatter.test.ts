@@ -7136,6 +7136,17 @@ describe("frontmatter — the loader differential over a GENERATED corpus (D-52 
     // label followed by a backtick-quoted document sketch naming the `tools:` key. That is the
     // module's own uniform format for "here is a concrete failure shape".
     //
+    // WHAT THIS FLOOR DOES NOT CLAIM, STATED HERE BECAUSE A FLOOR READ AS WIDER THAN IT IS BECOMES
+    // THE COMMENT IT REPLACED. The ledger records failures the module has CLOSED, each with its
+    // remedy; an OPEN bypass is not in it and is not caught here. Measured at the time this floor
+    // was written: the nested-block-scalar family (27-47's G and G2 — `tools:` / `  nested: >-` /
+    // `    Read,` / `    # x, TOKEN`, and the same header as a sequence item) is a LIVE
+    // silent-no-grant on this build, is NOT a ledger family row, and is NOT expressible by this
+    // generator's key-line axis, which carries the block indicators only at the TOP level. It is
+    // recorded OPEN in deferred-items.md. "Every ledger family is buildable" is therefore a floor
+    // against a coverage claim going stale — it is NOT a statement that every known defect is
+    // expressible, and it must never be quoted as one.
+    //
     // AND IT DELIBERATELY DOES NOT COUNT THE LEDGER'S ORDINAL ENTRY HEADINGS, because those are NOT
     // uniformly spelled and a count over them would be wrong while reading authoritative — this
     // repository's own diagnosed second systemic failure class. MEASURED: seven of the ten entries

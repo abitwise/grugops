@@ -271,3 +271,42 @@ Out-of-scope discoveries logged during execution. Not fixed; recorded so they ar
     this module's declared scope". Deciding that scope is a planning decision.
   - **Suggested direction:** settle the scope question ONCE, with the `27-47` flattener-nesting entry,
     rather than twice from two different symptoms.
+
+## From 27-49 (D-56 / WR-01, round 9) — the family G/G2 bypass RE-MEASURED on this build, STILL OPEN, and now with its harness scope named
+
+- **`27-49` touched only `scripts/frontmatter.test.ts`, so it neither opened nor closed anything. The
+  family G/G2 bypass is re-measured here rather than assumed unchanged**, against the committed
+  `scripts/frontmatter.js` at `d56aa7a`, with `/usr/bin/ruby -ryaml` (ruby 2.6.10 / psych 3.1.0 /
+  libyaml 0.2.1) as the loader column:
+
+  | row | module | loader |
+  |---|---|---|
+  | G  `tools:` / `  nested: >-` / `    Read,` / `    # x, TOKEN` | `{ok:true,value:false}` — **STILL OPEN** | `ACCEPT {"nested"=>"Read, # x, Agent(grugops-orchestrator)"}` |
+  | G2 `tools:` / `  - >-` / `    Read,` / `    # x, TOKEN`       | `{ok:true,value:false}` — **STILL OPEN** | `ACCEPT ["Read, # x, Agent(grugops-orchestrator)"]` |
+
+- **AND THE NEW EXPRESSIBILITY FLOOR DOES NOT COVER IT, WHICH IS A PROPERTY OF THE FLOOR AND IS
+  RECORDED RATHER THAN LEFT TO BE DISCOVERED.** `WR-01 the expressibility floor` derives its family
+  list from the LEDGER in `scripts/frontmatter.ts`'s header, and the ledger records failures the
+  module has CLOSED, each with its remedy. An OPEN bypass has no ledger entry, so it is outside the
+  floor's derived set by construction. Family G/G2 is also not expressible by the D-52 generator's
+  key-line axis, which carries the block indicators only at the TOP level.
+  - **Why it was NOT added to the corpus here:** a corpus shape for a LIVE silent-no-grant would put
+    the differential's never-exemptible direction into failure, and closing family G is round 10's
+    work under a different root cause in a different function (`BLOCK_INDICATOR`'s single application
+    point). `27-49`'s own prohibitions state that it adds corpus and assertions and decides nothing
+    about whether a document grants. Adding the shape and exempting it would be worse than both.
+  - **Suggested direction for round 10:** close family G first, then add the nested-block-scalar
+    header to `AXIS_KEY_LINE` in the SAME plan, so the corpus grows with the fix rather than after it.
+
+- **A residual this plan's own WR-04 disposition creates, named so it is not rediscovered as a
+  finding.** Deleting the per-exemption `bound` gave up one narrow detection: the bound DID fire when
+  a rule was edited to stop being a function of its declared axis flags and thereby matched more
+  cells than its own product (measured — E1 rewritten to `() => true` takes matched to 565 against a
+  bound of 48). The replacement corpus-level floor fires only past roughly half the loader-accepted
+  corpus, so a decoupling that widens a rule to between those two figures is no longer caught there.
+  - **Why not closed by restoring the bound:** a bound computed from the exemption's own inputs is a
+    predicate acting as its own oracle, which is the shape this module deletes on sight, and the plan
+    forbids keeping the old bound beside a new one.
+  - **Suggested direction:** if round 10 wants it back, derive the per-rule ceiling from a quantity
+    the rule does not read — for example the count of loader-accepted cells whose DISAGREEMENT the
+    rule is stated about — rather than from the axis flags the rule itself matches on.
