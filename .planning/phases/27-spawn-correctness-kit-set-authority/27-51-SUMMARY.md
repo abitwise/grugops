@@ -301,6 +301,10 @@ FAMILY G2 block scalar as a sequence item :: exit=0 :: ALL CHECKS PASSED   <-- S
 
 None. This plan installs no packages, opens no network path, adds no dependency and creates no new file. `package.json` is byte-unchanged across all three commits, so `T-27-51-SC` (supply chain) is an asserted absence rather than a silent one. `T-27-51-01` (elevation of privilege) is closed by the derived escape rule and proven by the exit 0 → exit 1 gate move; `T-27-51-02` (a completeness claim over inputs the corpus never generates) by the two axes plus the non-vacuity floor; `T-27-51-03` (the corrupted field unasserted by construction) by the pre-fix `state` capture and its differential; `T-27-51-04` (a `.ts` edit without a rebuild) by `npm run freshness` at exit 0 in every task.
 
+## Requirements — deliberately NOT marked complete
+
+The plan's frontmatter cites **KIT-03** and **SPAWN-04**. Neither is marked complete, and that is a decision rather than an omission: commit `47d7820` reverted an earlier over-claim of exactly these two because round-9 verification found them FAILED, and family G/G2 — re-measured against this build and still reaching the foundation gate at exit 0 — is a live counterexample to SPAWN-04's own wording. `27-51` closes one of the two bypasses those criteria failed on. `27-52` owns the other.
+
 ## Known Stubs
 
 None.

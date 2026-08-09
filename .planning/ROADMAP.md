@@ -124,7 +124,7 @@ Full phase details + milestone summary: `milestones/v2.0-ROADMAP.md` · requirem
   4. On Claude Code the coordinator runs as the **main-thread** agent so its `Agent(<allowlist>)` grant is honored by the runtime, and no non-coordinator adapter carries the `Agent` tool at all — a mechanism that holds on both the main-thread and subagent paths rather than relying on a frontmatter token the runtime ignores. (SPAWN-03, SPAWN-04)
   5. `guard_adapter_body` fails red on pre-v2.0 handoff/single-window prose anywhere in an adapter body — proven against the surviving `grugops-orchestrator.md:25` reference — `orchestrator.md` sits below its **7570-byte FAIL ceiling with the ceiling unchanged**, and the advertised Claude Code floor reads **v2.1.219+ at depth 3** everywhere it appears, with the v2.1.217–218 depth-1 window documented as a known-bad range that degrades loudly. (SPAWN-05, SPAWN-06, SPAWN-07)
 
-**Plans**: 51/54 plans executed — 50 executed; gap-closure round 10 (`27-51`…`27-54`) planned 2026-08-09, none executed
+**Plans**: 51/54 plans executed — gap-closure round 10 (`27-51`…`27-54`) planned 2026-08-09; `27-51` executed 2026-08-09 (CR-01 closed), `27-52`…`27-54` not yet executed. **KIT-03 and SPAWN-04 remain FAILED**: family G/G2 (a block-scalar header at a nested position) is a live silent-no-grant bypass re-measured on the `27-51` build and still reaching the foundation gate at exit 0 — `27-52` owns it.
 Plans:
 **Wave 1**
 
