@@ -6277,14 +6277,82 @@ describe("frontmatter — the loader differential over a GENERATED corpus (D-52 
   // start is refused before the value is flattened, because the value such a document expresses is not
   // the text its bytes spell.
   //
-  // The `bound` is DERIVED from the axis lengths, so a rule cannot silently come to cover more of the
-  // corpus than the shape it names can produce.
+  // (27-49, WR-04 / D-56 item 3) THE PER-EXEMPTION `bound` IS DELETED, AND THE DELETION IS STATED
+  // HERE SO A LATER READER DOES NOT RESTORE DECORATION THAT READS LIKE A FLOOR.
+  //
+  // WHAT STOOD HERE. Each exemption carried a `bound` derived from the axis lengths, with the comment
+  // "so a rule cannot silently come to cover more of the corpus than the shape it names can produce",
+  // and the differential asserted `matched <= bound`.
+  //
+  // WHY IT COULD NOT FAIL, AS ARITHMETIC RATHER THAN AS AN OPINION, AND SCOPED EXACTLY. Each `bound`
+  // WAS the full cross-product the named shape can produce, and each `matches` is a PURE FUNCTION OF
+  // THE SAME AXIS FLAGS the bound was computed from. So the number of corpus cells a rule matches is,
+  // by construction, exactly that product — and `matched` counts only the LOADER-ACCEPTED ones,
+  // making it the product MINUS the loader-rejected cells the rule covers. Over the dimension the
+  // bound's own comment named — what the corpus is, what shapes the axes carry — `matched <= bound`
+  // holds for EVERY possible corpus, forever. MEASURED at deletion: E1 matched 32 against a bound of
+  // 48, E2 matched 52 against 64, each exactly its product minus the loader-rejected cells its rule
+  // covers. Those two products are re-derived on every run and printed by the differential below, so
+  // the arithmetic stays checkable after this paragraph scrolls out of a reader's context.
+  //
+  // AND THE ONE THING IT DID CATCH, STATED RATHER THAN OMITTED, BECAUSE THE HONEST VERSION IS THE
+  // WHOLE POINT. The bound is unfailable over CORPUS variation; it is NOT unfailable over MATCH-RULE
+  // variation. If a rule is edited to stop being a function of its declared flags, `matched` can
+  // exceed its own product and the bound fires. Measured by the executor's red team: replacing E1's
+  // rule with `() => true` takes matched to 565 against a bound of 48. That is a real, narrow
+  // detection this deletion gives up, and it is recorded rather than quietly dropped.
+  //
+  // WHAT REPLACED IT, AND WHAT THE REPLACEMENT COSTS. A single corpus-level floor: the EXEMPT cell
+  // count must be a strict MINORITY of the loader-accepted corpus. Its right-hand side is what the
+  // LOADER accepted, which no exemption controls — so an exemption widened until it explains most of
+  // the corpus turns this red, which is the failure the deleted bound was DESCRIBED as catching and
+  // arithmetically could not. THE TRADE, MEASURED AND NAMED: against a decoupled rule the floor fires
+  // at roughly half the loader-accepted corpus where the old bound fired at that rule's own product,
+  // so a decoupling that widens a rule to between those two figures is no longer caught here. It is
+  // not caught by narrowing this back either — a bound computed from the exemption's own inputs is a
+  // predicate acting as its own oracle, which is the shape this module deletes on sight. The residual
+  // is recorded in 27-49-SUMMARY.md rather than closed by restoring a self-check.
+  //
+  // ONE assertion at the corpus level, then; not a per-rule bound wearing a new name, and the old
+  // form is GONE rather than kept beside it.
   interface Exemption {
     readonly label: string;
     readonly reason: string;
-    readonly bound: number;
     readonly matches: (keyLine: KeyLineShape, first: ContinuationOneShape) => boolean;
   }
+
+  // ── (27-49, WR-04) THE ADJUDICATOR: ONE PURE FUNCTION, USED BY THE DIFFERENTIAL AND BY ITS PROOF ──
+  //
+  // WHY IT IS EXTRACTED RATHER THAN WRITTEN TWICE. The two replacement assertions have to be shown
+  // CAPABLE OF FAILING, and a proof case that re-implements the rule proves something about the copy
+  // in the proof. So the rule lives once and both the live differential and the constructed-input
+  // case below call THIS. A second implementation of a safety predicate is the weaker duplicate this
+  // module deletes on sight; the discipline applies to the harness too.
+  interface ExemptionAdjudication {
+    readonly unexplained: readonly string[];
+    readonly dead: readonly string[];
+  }
+  const adjudicateExemptions = (
+    cells: readonly {
+      readonly where: string;
+      readonly disagrees: boolean;
+      readonly matched: readonly string[];
+    }[],
+    labels: readonly string[],
+  ): ExemptionAdjudication => ({
+    // NO UNEXPLAINED DISAGREEMENT: a cell where the module and the loader differ and NO exemption
+    // covers it. This is the half of the old equality that was doing real work.
+    unexplained: cells
+      .filter((c) => c.disagrees && c.matched.length === 0)
+      .map((c) => c.where),
+    // NO DEAD EXEMPTION: a rule that matched no DISAGREEING cell. Note "disagreeing" and not "corpus"
+    // — the old liveness check asked only whether the rule matched a loader-accepted cell, which any
+    // rule stated over an axis flag does by construction. A rule that no longer explains a
+    // disagreement is dead weight that reads like a guard, and it is now named as such.
+    dead: labels.filter(
+      (label) => !cells.some((c) => c.disagrees && c.matched.includes(label)),
+    ),
+  });
   // (27-48) THE SHAPES WHOSE FIRST CONTINUATION IS A NODE START, BY EITHER OF THE TWO ROUTES YAML
   // GIVES. Derived from the declared facts, never hand-counted.
   const CONTINUATION_START_SHAPES = AXIS_KEY_LINE.filter(
@@ -6299,11 +6367,6 @@ describe("frontmatter — the loader differential over a GENERATED corpus (D-52 
         "E1 — a dangling YAML node property at the flow collection's first node start",
       reason:
         "The key line ends with a node property (YAML 1.2 § 6.9) whose node has not begun, so the property stands unresolved at a node start. D-30's declared policy refuses a reference construct rather than resolving it; the loader resolves it instead and grants. SAFE DIRECTION: a loud refusal, never a hidden grant.",
-      bound:
-        DANGLING_PROPERTY_SHAPES *
-        AXIS_CONTINUATION_1.length *
-        AXIS_CONTINUATION_2.length *
-        AXIS_CONTINUATION_DEPTH.length,
       matches: (keyLine) => keyLine.danglingNodeProperty,
     },
     {
@@ -6311,10 +6374,6 @@ describe("frontmatter — the loader differential over a GENERATED corpus (D-52 
         "E2 — a YAML anchor at the value's node start on the first continuation line",
       reason:
         "The first continuation line is a NODE START, by either of the two routes YAML gives: the key line carried no value node at all (`valueNodeOnContinuation`), or it ended INSIDE a flow collection just after `[`, `{`, `,` or `?` (`flowNodeStartAtEndOfKeyLine`). `&w` at a node start is a genuine YAML anchor rather than text. D-30 refuses it; the loader resolves the anchor and reads the token behind it. SAFE DIRECTION: a loud refusal, never a hidden grant.\n\n(27-48) THE SECOND ROUTE WAS MISSING AND THE OMISSION WAS THE EXEMPTION'S, NOT THE MODULE'S. This rule was written when `valueNodeOnContinuation` was the only declared route, so it was a claim about ONE of the two ways a continuation line can be a node start — the same shape as the (c) framing D-55 retires one screen up. The module reached the flow route only after D-55 made the line-level node-start answer agree with the walk's own; before that it read a genuine anchor inside a flow collection as TEXT, silently, which is the direction that is never exemptible.",
-      bound:
-        CONTINUATION_START_SHAPES *
-        AXIS_CONTINUATION_2.length *
-        AXIS_CONTINUATION_DEPTH.length,
       matches: (keyLine, first) =>
         (keyLine.valueNodeOnContinuation ||
           keyLine.flowNodeStartAtEndOfKeyLine) &&
@@ -6533,6 +6592,17 @@ describe("frontmatter — the loader differential over a GENERATED corpus (D-52 
     const unsafe: string[] = [];
     const expectedExempt: string[] = [];
     const rowsMatched = new Map<string, number>();
+    // (27-49, WR-04) THE ADJUDICATOR'S INPUT, ONE ROW PER LOADER-ACCEPTED CELL: what it is, whether
+    // it disagreed, and which exemptions matched it. Built here and handed to ONE pure function, so
+    // the rule the harness runs is the same rule the proof case fires.
+    const adjudicationRows: {
+      where: string;
+      disagrees: boolean;
+      matched: string[];
+    }[] = [];
+    // The disagreement DETAIL, keyed by cell, so the unexplained-list failure message can carry the
+    // axis labels and the loader's value rather than a bare key.
+    const disagreementDetail = new Map<string, string>();
     // (27-48, WR-03) THE SECOND FACT'S OWN LIST, KEPT SEPARATELY SO A FAILURE SAYS WHICH FACT MOVED.
     const nameSetDisagreements: string[] = [];
     // Every cell on which the module REFUSED, with the string its name column rendered.
@@ -6560,16 +6630,18 @@ describe("frontmatter — the loader differential over a GENERATED corpus (D-52 
         : "refuse";
       const loaderVerdict = loaderGrants ? "grant" : "no-grant";
 
-      for (const exemption of EXEMPTIONS) {
-        if (exemption.matches(cell.keyLine, cell.first)) {
-          rowsMatched.set(
-            exemption.label,
-            (rowsMatched.get(exemption.label) ?? 0) + 1,
-          );
-        }
+      const matchedHere = EXEMPTIONS.filter((e) =>
+        e.matches(cell.keyLine, cell.first),
+      ).map((e) => e.label);
+      for (const label of matchedHere) {
+        rowsMatched.set(label, (rowsMatched.get(label) ?? 0) + 1);
       }
-      const exempt = EXEMPTIONS.some((e) => e.matches(cell.keyLine, cell.first));
-      if (exempt) expectedExempt.push(cell.where);
+      if (matchedHere.length > 0) expectedExempt.push(cell.where);
+      adjudicationRows.push({
+        where: cell.where,
+        disagrees: moduleVerdict !== loaderVerdict,
+        matched: matchedHere,
+      });
 
       // ── (27-48, WR-03) THE SECOND PREDICATE, OVER THE SAME ALREADY-LOADED VALUES ──────────────
       //
@@ -6610,9 +6682,9 @@ describe("frontmatter — the loader differential over a GENERATED corpus (D-52 
       }
 
       if (moduleVerdict === loaderVerdict) continue;
-      disagreements.push(
-        `${cell.where}\tmodule=${moduleVerdict}\tloader=${loaderVerdict}\tvalue=${JSON.stringify(verdict.value)}`,
-      );
+      const detail = `${cell.where}\tmodule=${moduleVerdict}\tloader=${loaderVerdict}\tvalue=${JSON.stringify(verdict.value)}`;
+      disagreements.push(detail);
+      disagreementDetail.set(cell.where, detail);
       // The unsafe set is the two directions no reason can exempt.
       if (moduleVerdict !== "refuse") unsafe.push(`${cell.where}\tmodule=${moduleVerdict}\tloader=${loaderVerdict}`);
     }
@@ -6681,12 +6753,41 @@ describe("frontmatter — the loader differential over a GENERATED corpus (D-52 
       `D-52 loader differential — loader ${probe.version} | corpus ${digest} | cells enumerated ${CELLS} + ${NAMED_REGIONS.length} named = ${BATCH} | loader-rejected (skipped) ${rejected} | token-presence disagreements ${disagreements.length} | NAME-SET disagreements ${nameSetDisagreements.length} | ${elapsed}ms`,
     );
 
-    // NOT ASSERTED EMPTY BY FIAT — the disagreement set is DATA, listed with its three axis labels and
-    // the loader's value, and the assertion is that it is exactly the named exemption set.
+    // ── (27-49, WR-04 / D-56 item 3) THE EQUALITY IS SPLIT INTO THE TWO HONEST PREDICATES ────────
+    //
+    // WHAT STOOD HERE AND WHY IT WAS THE WRONG SHAPE. One assertion required the DISAGREEMENT set to
+    // EQUAL the EXEMPT set, and `expectedExempt` was pushed for every loader-accepted cell an
+    // exemption matched WHETHER OR NOT that cell diverged. So a cell an exemption covers which
+    // happens to AGREE with the loader turned this harness RED — and the cheapest repair for that
+    // red is to narrow `matches`. An assertion whose least-effort fix is narrowing a safety rule
+    // pressures a maintainer toward exemption-shaped edits, and that is worse than no assertion,
+    // because the pressure is invisible in the diff it produces.
+    //
+    // NOTHING IS RELAXED BY THE SPLIT. The equality's real content was "every disagreement is
+    // explained AND every exemption is still needed"; both halves are asserted below, each with its
+    // own failure message, and the second is STRENGTHENED — it now demands a disagreeing cell rather
+    // than merely a matched one. What is dropped is only the part that turned agreement into a
+    // failure. Both halves come from ONE pure function so the proof case fires the same rule.
+    const adjudication = adjudicateExemptions(
+      adjudicationRows,
+      EXEMPTIONS.map((e) => e.label),
+    );
+    // NO UNEXPLAINED DISAGREEMENT. The disagreement set is DATA — listed with its axis labels and the
+    // loader's value — and this asserts every member of it is covered by a named exemption.
     expect(
-      [...new Set(disagreements.map((d) => d.split("\t")[0]))].sort(),
-      `the disagreement set must EQUAL the named exemption set — not be a subset of it, so an exemption that stops being needed fails just as loudly as a new disagreement.\nDISAGREEMENTS (${disagreements.length}):\n${disagreements.join("\n")}`,
-    ).toEqual([...new Set(expectedExempt)].sort());
+      adjudication.unexplained.map((w) => disagreementDetail.get(w) ?? w),
+      `a disagreement with the loader that NO named exemption covers. The exemptions are the only permitted divergence and each is stated from the module's declared policy; anything else is a finding.\nDISAGREEMENTS (${disagreements.length}):\n${disagreements.join("\n")}`,
+    ).toEqual([]);
+    // NO DEAD EXEMPTION. A rule that explains no DISAGREEING cell is dead weight that reads like a
+    // guard — and the old liveness check could not see that, because it asked only whether the rule
+    // matched a loader-accepted cell, which any rule stated over an axis flag does by construction.
+    expect(
+      adjudication.dead.map(
+        (label) =>
+          `${label}\n  matched ${rowsMatched.get(label) ?? 0} loader-accepted cell(s) and NO disagreeing one\n  ${EXEMPTIONS.find((e) => e.label === label)?.reason ?? ""}`,
+      ),
+      "an exemption that explains no disagreement is not an exemption — the divergence it was written for is gone, and the rule must go with it rather than stand as a reason nothing needs",
+    ).toEqual([]);
 
     // THE UNSAFE DIRECTIONS ARE NOT EXEMPTIBLE, ASSERTED SEPARATELY SO THE FAILURE SAYS WHICH ONE.
     expect(
@@ -6715,26 +6816,108 @@ describe("frontmatter — the loader differential over a GENERATED corpus (D-52 
       "cells on which the module refused — if this is 0 the empty-edge check asserted nothing",
     ).toBeGreaterThan(0);
 
-    // Every exemption is still doing work and still inside the bound its shape can produce. A rule
-    // matching nothing is dead weight that reads like a guard.
-    for (const exemption of EXEMPTIONS) {
-      const matched = rowsMatched.get(exemption.label) ?? 0;
-      expect(
-        matched,
-        `${exemption.label} matched no loader-accepted cell — a dead exemption is not an exemption.\n${exemption.reason}`,
-      ).toBeGreaterThan(0);
-      expect(
-        matched,
-        `${exemption.label} matched ${matched} cells, past the ${exemption.bound} its shape can produce`,
-      ).toBeLessThanOrEqual(exemption.bound);
-    }
+    // ── (27-49, WR-04) THE REPLACEMENT FOR THE DELETED PER-EXEMPTION BOUND ────────────────────────
+    //
+    // ITS RIGHT-HAND SIDE IS WHAT THE LOADER ACCEPTED, WHICH NO EXEMPTION CONTROLS. That is the whole
+    // difference from the bound this replaces: that one was the product of the very axis flags its
+    // own match rule read, so it held for every corpus. An exemption widened until it explains most
+    // of the corpus turns THIS red — which is the failure the deleted bound was described as catching
+    // and arithmetically could not.
+    const accepted = CELLS - rejected;
+    const exemptCells = new Set(expectedExempt).size;
+    // The two products the deleted bounds WERE, re-derived on every run rather than quoted from the
+    // paragraph at the exemption declarations — so the arithmetic that made them unfailable stays
+    // checkable after this comment scrolls out of a reader's context.
+    const E1_OLD_BOUND =
+      DANGLING_PROPERTY_SHAPES *
+      AXIS_CONTINUATION_1.length *
+      AXIS_CONTINUATION_2.length *
+      AXIS_CONTINUATION_DEPTH.length;
+    const E2_OLD_BOUND =
+      CONTINUATION_START_SHAPES *
+      AXIS_CONTINUATION_2.length *
+      AXIS_CONTINUATION_DEPTH.length;
+    console.log(
+      `D-52 exemption accounting — loader-accepted ${accepted} | exempt cells ${exemptCells} | disagreements ${disagreements.length} | per-rule matched ${EXEMPTIONS.map((e) => `${e.label.slice(0, 2)}=${rowsMatched.get(e.label) ?? 0}`).join(" ")} | the DELETED bounds would have been E1=${E1_OLD_BOUND} E2=${E2_OLD_BOUND} (each the full cross-product its own match rule reads, hence unfailable)`,
+    );
+    expect(
+      exemptCells,
+      `the exempt cells must be a strict MINORITY of the ${accepted} the loader accepted — an exemption cannot widen until it explains the corpus`,
+    ).toBeLessThan(accepted / 2);
 
     // Non-vacuity: the loader must have ACCEPTED a substantial part of the corpus. A run in which the
     // loader rejected everything would satisfy every assertion above while measuring nothing.
     expect(
-      CELLS - rejected,
+      accepted,
       `loader-accepted cells, of ${CELLS} enumerated`,
     ).toBeGreaterThan(CELLS / 2);
+  });
+
+  // ── (27-49, WR-04 / D-56 item 3) BOTH REPLACEMENT ASSERTIONS, FIRED BY CONSTRUCTED INPUTS ──────
+
+  it("WR-04 the replacement assertions are LOAD-BEARING — each is fired by a constructed input and names the offender, and an exempt cell that AGREES no longer turns the harness red", () => {
+    // A REPLACEMENT ASSERTION THAT WAS NEVER RED IS NOT A PIN. The rule under test here is the SAME
+    // `adjudicateExemptions` the differential above calls — not a copy of it — so what fires here is
+    // what runs there. Constructing the failing input is the only way to know that the two halves of
+    // the split can still fail at all, which is the exact property the deleted bound turned out to
+    // lack after standing in this file for a round reading like a floor.
+    const LABELS = ["E1", "E2"];
+
+    // ── HALF ONE FIRES: a disagreement no exemption covers, and the offender is NAMED.
+    const withUnexplained = adjudicateExemptions(
+      [
+        { where: "covered cell", disagrees: true, matched: ["E1"] },
+        { where: "PLANTED unexplained cell", disagrees: true, matched: [] },
+        { where: "covered by E2", disagrees: true, matched: ["E2"] },
+      ],
+      LABELS,
+    );
+    expect(withUnexplained.unexplained).toEqual(["PLANTED unexplained cell"]);
+    expect(withUnexplained.dead).toEqual([]);
+
+    // ── HALF TWO FIRES: an exemption that matches only AGREEING cells is DEAD, and it is named.
+    // Note what this catches that the deleted liveness check could not: E2 matches a cell here, so
+    // "matched at least one loader-accepted cell" was satisfied — and the rule still explains nothing.
+    const withDead = adjudicateExemptions(
+      [
+        { where: "a disagreement E1 explains", disagrees: true, matched: ["E1"] },
+        { where: "an AGREEING cell E2 matches", disagrees: false, matched: ["E2"] },
+      ],
+      LABELS,
+    );
+    expect(withDead.dead).toEqual(["E2"]);
+    expect(withDead.unexplained).toEqual([]);
+
+    // ── AND THE BEHAVIOUR THE OLD EQUALITY GOT WRONG, CONSTRUCTED SO IT IS NOT ARGUED. An exempt
+    // cell that AGREES with the loader must NOT turn the harness red, because the cheapest repair for
+    // that red is narrowing the exemption.
+    const rows = [
+      { where: "exempt AND agreeing", disagrees: false, matched: ["E1"] },
+      { where: "exempt AND disagreeing", disagrees: true, matched: ["E1"] },
+    ];
+    const both = adjudicateExemptions(rows, ["E1"]);
+    expect(both.unexplained, "an exempt cell that agrees is not an unexplained disagreement").toEqual([]);
+    expect(both.dead, "E1 explains a real disagreement here, so it is live").toEqual([]);
+
+    // ...and the DELETED equality is shown to have gone RED on exactly that input, so the repair is a
+    // measured correction rather than a preference. Reconstructed from its own two operands.
+    const oldDisagreementSet = rows.filter((r) => r.disagrees).map((r) => r.where).sort();
+    const oldExpectedExemptSet = rows.filter((r) => r.matched.length > 0).map((r) => r.where).sort();
+    expect(
+      oldDisagreementSet,
+      "the retired assertion required these two sets to be EQUAL; they are not, so it would have failed on a corpus in which nothing is wrong",
+    ).not.toEqual(oldExpectedExemptSet);
+
+    // NON-VACUITY: the adjudicator returns EMPTY on a clean input, so the three cases above are
+    // measuring the rule rather than a function that always reports something.
+    const clean = adjudicateExemptions(
+      [
+        { where: "agrees, unexempt", disagrees: false, matched: [] },
+        { where: "disagrees, exempt", disagrees: true, matched: ["E1"] },
+      ],
+      ["E1"],
+    );
+    expect(clean).toEqual({ unexplained: [], dead: [] });
   });
 
   // ── THE SKIP BRANCH, EXERCISED RATHER THAN ASSUMED REACHABLE ──────────────────────────────────
