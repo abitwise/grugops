@@ -634,6 +634,35 @@ export function stripComment(s, entering, nodeStartAtOffsetZero, lineStartAtOffs
             jsonLikeKeyJustClosed = !dq;
         }
         else if (c === "'" && !dq) {
+            // (D-54 remedy shape, round 10 — 27-REVIEW § CR-01) THE WALK DERIVES ITS CLOSING SET FROM THE
+            // QUOTE STYLE'S OWN ESCAPE RULE INSTEAD OF ENUMERATING `'` AS UNCONDITIONALLY CLOSING.
+            //
+            // In YAML a `''` inside an ALREADY-OPEN single-quoted scalar is the escaped apostrophe — it is
+            // CONTENT and it does not close the scalar. This arm used to toggle it as close-then-reopen, so
+            // on the second quote `sq` was momentarily false, `if (!sq)` fired, and the scalar's node-start
+            // provenance was RECOMPUTED from a `mayBegin` the FIRST quote of the pair had already set false.
+            // A scalar that genuinely opened at a node start was then recorded as not having, and
+            // `exiting()` returned `openQuote: null` for a scalar `sq` says is still open — the truncated
+            // remainder on the `{ok:true}` SUCCESS arm, this module's founding failure.
+            //
+            // THE MODULE ALREADY HELD AN AUTHORITY THAT KNOWS THIS. `unquoteChecked` has always resolved the
+            // construct correctly (`.replace(/''/g, "'")`, line ~945 below). The walk stated a SECOND,
+            // contradicting grammar for the same construct — the weaker-duplicate shape this module deletes
+            // on sight. One grammar, stated once: the walk consumes the escape, the unquote resolves what
+            // the walk left.
+            //
+            // AND THIS IS THE TREATMENT THE OTHER QUOTE STYLE ALREADY GETS, three lines up: the
+            // `dq && c === "\\"` skip owns the double-quote escape with the same index arithmetic and the
+            // same "nothing closed, so nothing is recomputed" reasoning. The asymmetry was the defect.
+            //
+            // THE REMEDY REMOVES A CONDITION'S ABILITY TO DECIDE; IT ADDS NO ARM. The `else if` count of this
+            // chain is unchanged — a fifth spelling is the shape this module has now declined seven times.
+            if (sq && s[i + 1] === "'") {
+                i += 1; // consume EXACTLY the second quote of the pair; the loop's own i++ moves past it
+                mayBegin = false;
+                jsonLikeKeyJustClosed = false;
+                continue; // `openedAtNodeStart`, `sq` and the exiting gate are UNTOUCHED — nothing closed
+            }
             if (!sq)
                 openedAtNodeStart = mayBegin;
             sq = !sq;

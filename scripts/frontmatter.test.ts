@@ -1458,6 +1458,181 @@ describe("frontmatter — the spawn-grant parser oracle (SPAWN-04 / KIT-03)", ()
     expect(names).not.toEqual({ ok: true, value: [] });
   });
 
+  // ── ROUND 10, 27-REVIEW § CR-01: YAML's `''` ESCAPE INSIDE AN OPEN SINGLE-QUOTED SCALAR ─────────
+  //
+  // WHAT THESE CASES ARE AND WHAT THEY ARE NOT. They are REGRESSION PINS on documents an independent
+  // loader decides — each carries, in its own comment, the verbatim value `/usr/bin/ruby -ryaml`
+  // (ruby 2.6.10 / psych 3.1.0 / libyaml 0.2.1) returns for it. They are NOT the fix's justification:
+  // a case per spelling is the enumerate-the-bad shape this module has declined seven times. The
+  // FIX's justification is that `stripComment` now DERIVES its scalar-closing set from the quote
+  // style's own escape rule, and that argument lives in the source comment at the arm itself.
+  //
+  // Pre-fix, every one of rows A-D returned `{ ok: true, value: false }` — the silent no-grant SUCCESS
+  // arm over a live `Agent(grugops-orchestrator)` — and a row-A plant on BOTH distribution twins of
+  // the non-coordinator `plan` skill took the whole foundation gate to ALL CHECKS PASSED at exit 0.
+
+  it("CR-01 round 10 row A — `'Read'' s,` continued behind a `#`: the `''` is CONTENT, the scalar stays open", () => {
+    // loader: {"tools"=>"Read' s, # x, Agent(grugops-orchestrator)"} — ACCEPTED, grant in the value.
+    const text = [
+      "---",
+      "name: grugops-plan",
+      "tools: 'Read'' s,",
+      "  # x, Agent(grugops-orchestrator)'",
+      "---",
+      "Body.",
+      "",
+    ].join("\n");
+    const grant = hasSpawnGrant(text);
+    expect(grant).toEqual({ ok: true, value: true });
+    expect(grantedAgentNames(text)).toEqual({
+      ok: true,
+      value: ["grugops-orchestrator"],
+    });
+  });
+
+  it("CR-01 round 10 row B — the UNSPACED spelling `'Read''s,` behaves identically", () => {
+    // loader: {"tools"=>"Read's, # x, Agent(grugops-orchestrator)"} — ACCEPTED, grant in the value.
+    const text = [
+      "---",
+      "name: grugops-plan",
+      "tools: 'Read''s,",
+      "  # x, Agent(grugops-orchestrator)'",
+      "---",
+      "Body.",
+      "",
+    ].join("\n");
+    const grant = hasSpawnGrant(text);
+    expect(grant).toEqual({ ok: true, value: true });
+    expect(grantedAgentNames(text)).toEqual({
+      ok: true,
+      value: ["grugops-orchestrator"],
+    });
+  });
+
+  it("CR-01 round 10 row C — the BLOCK-SEQUENCE ITEM path inherits the same escape rule", () => {
+    // loader: {"tools"=>["Read' s, # x, Agent(grugops-orchestrator)"]} — ACCEPTED, grant in the value.
+    // Row C is what proves the defect was never a key-line artifact: the item path seeds the same
+    // walk (`stripComment(itemText, cur.state, true, true)`) and inherited the same second grammar.
+    const text = [
+      "---",
+      "name: grugops-plan",
+      "tools:",
+      "  - 'Read'' s,",
+      "    # x, Agent(grugops-orchestrator)'",
+      "---",
+      "Body.",
+      "",
+    ].join("\n");
+    const grant = hasSpawnGrant(text);
+    expect(grant).toEqual({ ok: true, value: true });
+    expect(grantedAgentNames(text)).toEqual({
+      ok: true,
+      value: ["grugops-orchestrator"],
+    });
+  });
+
+  it("CR-01 round 10 row D — the FLOW-SEQUENCE spelling inherits it too", () => {
+    // loader: {"tools"=>["Read' s, # x, Agent(grugops-orchestrator)"]} — ACCEPTED, grant in the value.
+    const text = [
+      "---",
+      "name: grugops-plan",
+      "tools: ['Read'' s,",
+      "  # x, Agent(grugops-orchestrator)']",
+      "---",
+      "Body.",
+      "",
+    ].join("\n");
+    const grant = hasSpawnGrant(text);
+    expect(grant).toEqual({ ok: true, value: true });
+    expect(grantedAgentNames(text)).toEqual({
+      ok: true,
+      value: ["grugops-orchestrator"],
+    });
+  });
+
+  it("CR-01 round 10 row F control — the SAME document with the `''` removed was ALREADY correct and must not move", () => {
+    // loader: {"tools"=>"Read, # x, Agent(grugops-orchestrator)"} — ACCEPTED, grant in the value.
+    // This is the control that isolates the `''` as the whole of the defect: pre-fix this row already
+    // returned the grant arm with exactly this flattened value, and post-fix it is byte-identical.
+    const text = [
+      "---",
+      "name: grugops-plan",
+      "tools: 'Read,",
+      "  # x, Agent(grugops-orchestrator)'",
+      "---",
+      "Body.",
+      "",
+    ].join("\n");
+    const parsed = parseFrontmatter(text);
+    expect(parsed.ok).toBe(true);
+    if (!parsed.ok) return;
+    expect(parsed.value.get("tools")).toEqual([
+      "Read, # x, Agent(grugops-orchestrator)",
+    ]);
+    expect(hasSpawnGrant(text)).toEqual({ ok: true, value: true });
+  });
+
+  it("CR-01 round 10 false-red controls — `'a'''` and `''` are the two TOUCHING cases and neither moved", () => {
+    // The adjacency probe. `'a'''` CLOSES immediately after an escape (escape-then-close) and `''` is
+    // the EMPTY single-quoted scalar (a close that is not an escape). They sit either side of the new
+    // branch's condition, so if the escape skip over- or under-consumed by one character they would
+    // merge into one reading or collide. Loader: {"tools"=>"a'"} and {"tools"=>""} — both ACCEPTED,
+    // neither carrying a grant, so the no-grant SUCCESS arm is the AGREEING answer here and a refusal
+    // would be a new false red.
+    const escapeThenClose = [
+      "---",
+      "name: grugops-plan",
+      "tools: 'a'''",
+      "---",
+      "Body.",
+      "",
+    ].join("\n");
+    const emptyScalar = [
+      "---",
+      "name: grugops-plan",
+      "tools: ''",
+      "---",
+      "Body.",
+      "",
+    ].join("\n");
+    const pEscape = parseFrontmatter(escapeThenClose);
+    expect(pEscape.ok).toBe(true);
+    if (!pEscape.ok) return;
+    expect(pEscape.value.get("tools")).toEqual(["a'"]);
+    expect(hasSpawnGrant(escapeThenClose)).toEqual({ ok: true, value: false });
+
+    const pEmpty = parseFrontmatter(emptyScalar);
+    expect(pEmpty.ok).toBe(true);
+    if (!pEmpty.ok) return;
+    expect(pEmpty.value.get("tools")).toEqual([""]);
+    expect(hasSpawnGrant(emptyScalar)).toEqual({ ok: true, value: false });
+  });
+
+  it("CR-01 round 10 precision probe — the escape skip consumes exactly ONE character and never runs off the end", () => {
+    // The skip is index arithmetic, so its two failure modes are arithmetic ones: consuming too much
+    // (the character after the pair is swallowed) and reading past the end of the scanned string. A
+    // scalar whose LAST TWO characters are the pair puts the skip at the boundary; `s[i + 1]` is
+    // `undefined` one position further, which is why no bounds test is needed and why that fact is
+    // pinned here rather than asserted in prose.
+    const atEnd = stripComment("'a''", { openQuote: null, flowDepth: 0, nodeMayBegin: true }, true, true);
+    expect(atEnd.text).toBe("'a''");
+    expect(atEnd.state.openQuote).toBe("'");
+    // One character past the pair is CONTENT, not consumed by the skip: the `#` here is inside the
+    // still-open scalar, so no comment is stripped and the whole line survives.
+    const afterPair = stripComment("'a''b # c", { openQuote: null, flowDepth: 0, nodeMayBegin: true }, true, true);
+    expect(afterPair.text).toBe("'a''b # c");
+    expect(afterPair.state.openQuote).toBe("'");
+    // And the ESCAPE COUNT is content, never a threshold: one pair and zero pairs give the same
+    // still-open verdict, and so does a run of three pairs.
+    for (const s of ["'Read,", "'Read'' s,", "'Read'''''' s,"]) {
+      expect(
+        stripComment(s, { openQuote: null, flowDepth: 0, nodeMayBegin: true }, true, true).state
+          .openQuote,
+        `escape count must be content, not a threshold: ${JSON.stringify(s)}`,
+      ).toBe("'");
+    }
+  });
+
   it("CR-01 — a MERGE KEY document lands in the failure arm (refused by KEY_LINE, not by a second branch)", () => {
     // ISOLATING KEY_LINE. `<<:` on its own reaches no reference test at all: `KEY_LINE` requires
     // `[A-Za-z_]` at the key start, so `<` fails it and the line is already unreadable. Asserting the
