@@ -1638,6 +1638,65 @@ function flattenBlock(
 //   WHETHER THAT INPUT CAN CARRY THE POSITION ITS ANSWER DEPENDS ON. A single authority handed a
 //   line, asked a question about an offset, is still a per-line answer wearing a single-authority
 //   label — and its arms will not look like arms, because there is only one of them.
+//
+// AND A TENTH TIME — AND THIS ONE WAS NEITHER A PREDICATE'S CONTENTS, NOR ITS ARMS, NOR THE SET THE
+// ARMS COVERED. IT WAS THE CONDITIONS THE ARMS CARRIED (27-REVIEW-GAPS-8 § CR-01, round 9 — D-54).
+//
+//   FIRST, THE COUNT, CITED AND NOT REMEMBERED. This is the TENTH entry and it comes from the NINTH
+//   review round. Nothing below depends on either number; every claim names an assertion instead.
+//
+//   Entry nine collapsed the split predicate into ONE walk and answered its own standing question —
+//   the authority is handed a line AND the position facts it needs, and it decides at the character.
+//   That was right, and it is untouched. What was wrong is one level in again: the arms of that one
+//   authority carried a `depth > 0` condition on THREE indicators, and YAML gates only ONE of them
+//   that way. Nobody added those conditions as a rule; they are the shape of the examples D-51's red
+//   team happened to hold — every family it reproduced was a FLOW family, so `depth > 0` was true in
+//   every example, and a condition that is true in every example you test is indistinguishable from a
+//   condition the format states.
+//
+//     A   `tools:` / `  nested: "Read,` / `  # x, Agent(…)"`   the block mapping separator
+//     B   `tools:` / `  - - "Read,` / `    # x, Agent(…)"`     the compact nested sequence
+//     C   `tools: {"a":"Read,` / `  # x, Agent(…)"}`           JSON adjacency inside a flow mapping
+//     F   `tools:` / `  ? "Read,` / `  # x, Agent(…)"` / `  : v`  the block explicit key
+//
+//   Each is a document libyaml ACCEPTS with the grant plainly in the loaded value, and each returned
+//   `{ok:true,value:false}` — the silent no-grant SUCCESS arm — from the walk written to close the
+//   ninth. Rows D, E, H and C2 are the same four positions in four more places.
+//
+//   THE REPRODUCTION WAS THE WHOLE GATE, AND IT WAS DONE TWICE BY TWO PARTIES. Planted on BOTH
+//   distribution twins of the non-coordinator skill `plan`, on hermetic `git archive` mirrors, all
+//   four families took `node scripts/check-foundation-guards.js` to ALL CHECKS PASSED at exit 0 while
+//   the IDENTICAL grant on one line exited 1 on the same mirror. Ten transcripts — four families plus
+//   the control, times two builds — are recorded in 27-47-SUMMARY.md.
+//
+//   THE REMEDY REMOVED CONDITIONS AND ADDED NO ARM. The chain in `stripComment` has the same five
+//   arms it had before: the explicit-key indicator lost `depth > 0` for the condition YAML states (a
+//   line's structural start with a separation after it), the mapping separator lost `depth > 0`
+//   outright, and the separation rule gained YAML 1.2's actual second disjunct — a JSON-like key that
+//   just closed — tracked in the SAME walk at the character where the quote closes. The item path
+//   re-applies the BYTE-UNCHANGED `SEQ_ITEM` regex once per dash, because a compact nested sequence
+//   is a fact the flattener already holds and a second grammar for it would be the weaker duplicate
+//   this module deletes on sight.
+//
+//   WHAT MAKES EACH CLAIM CHECKABLE, CITED RATHER THAN ASSERTED. In scripts/frontmatter.test.ts, the
+//   `D-54` describe block: the eight measured rows as named cases each carrying its libyaml column;
+//   the adjacency, boundary and termination controls; `D-54 loader adjudication`, which generates its
+//   corpus from the positions this plan touched, hands every region to `/usr/bin/ruby -ryaml` in one
+//   batched process, keeps THREE module verdicts and not two, and asserts BOTH unsafe directions
+//   empty — 20 members in the silent-while-loader-grants direction against the pre-D-54 build, 0
+//   after; and `D-54 single-line differential`, which does NOT claim byte-identity but asserts the
+//   moved set is exactly one named loader-rejected input and that every move LENGTHENS. The
+//   repository-wide value map was run once at execution time with the parser isolated to identical
+//   HEAD bytes and reported 0 arms changed, 0 values changed and 0 new refusals over a corpus derived
+//   on both sides.
+//
+//   THE STANDING QUESTION THIS LEAVES FOR THE NEXT READER, AND IT IS THE ONE THIS ENTRY IS FOR.
+//   Before accepting a predicate as structural, ASK WHICH OF ITS CONDITIONS COME FROM THE FORMAT AND
+//   WHICH CAME FROM THE SHAPE OF THE LAST EXAMPLE SOMEONE TESTED. A condition satisfied by every
+//   example in the corpus is invisible to that corpus; it will read as part of the rule to every
+//   later reader, and it can only be found by going back to the grammar and asking what the grammar
+//   actually gates. Entry nine's question was "what INPUT is the authority handed"; this one is "what
+//   CONDITIONS is it carrying that nobody chose".
 
 // The payload at each delimiter position. Declared here as data so both positions consult the same
 // tokens in the same order, which is what makes the reported refusal deterministic for a given input.
