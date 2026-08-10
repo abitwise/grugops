@@ -2696,3 +2696,113 @@ against the shapes a real importer plausibly takes, not a proof that none can ex
 **No narrowing of the claim in `scripts/frontmatter.ts` was required** — all three non-authority
 members are mechanically disqualified, so the claim's scope is now fully backed. That file is
 byte-unchanged by this plan.
+
+### 6. IN-03 — the source-scan pin: an asserted bound, an identity check, and a negative that reads code
+
+The pin at `scripts/generate-role-adapters.test.ts` reads the TEXT of `stripFencedBlockLines`, because
+a correct implementation is behaviourally identical whether it COUNTS removals or DERIVES them and
+only the source tells the two apart. It was brittle in two measured ways, and both are repaired:
+
+| before | after |
+|---|---|
+| `src.slice(start, src.indexOf("\n}", start))` — assumes no body line begins at column 0 with `}` | bounded by the explicit marker `\n// ── end stripFencedBlockLines`, **asserted present before the slice is used**, with a message naming the marker |
+| the slice was never checked to BE the function | head (`startsWith("function stripFencedBlockLines(")`), tail (`unterminatedFence: inside,`) and no-overrun (`0` following top-level `function `) asserted before any negative runs |
+| `.not.toContain("lines.length - kept.length")` matched COMMENTS as well as code | the negative runs over `codeOnly` — a local twin of `codeLinesOf` — plus a floor asserting the strip left >200 characters of code behind, so a strip that ate everything cannot make the negative vacuous |
+
+**THE MARKER IS ADDED, NOT REPURPOSED, AND THAT IS STATED RATHER THAN GLOSSED.** The nearest
+pre-existing `// ──` section rule sits 76 lines past the function and would have swallowed two other
+helpers — including the block comment that quotes the forbidden shape verbatim. So a section rule in
+this file's own idiom is added immediately after the function's closing brace. Deleting or moving it
+reds the bound assertion by name; it is not decoration.
+
+### 7. IN-03 — the three plants, in a hermetic clone (baseline **25 passed / 1 skipped / 0 failed**)
+
+```
+PLANT 1  the forbidden shape as CODE inside the function
+         (`const derived = lines.length - kept.length;` feeding `linesRemoved`)
+  x AssertionError: stripFencedBlockLines must COUNT removals as it makes them, never derive
+    them from kept.length — deriving turns the partition assertion into a second thing that
+    cannot fail: expected 'function stripFencedBlockLines(lines:…' not to contain
+    'lines.length - kept.length'
+                                                          -> 1 failed | 24 passed
+
+PLANT 2  the end marker line deleted
+  x AssertionError: PREMISE — the stripFencedBlockLines body must be bounded by its own section
+    rule `// ── end stripFencedBlockLines`; without it this pin does not know where the function
+    ends and every assertion below is about an arbitrary slice: expected -1 to be greater than 9412
+                                                          -> 1 failed | 24 passed
+
+PLANT 3  the forbidden shape as a COMMENT inside the function
+         (`// NOTE: never write `lines.length - kept.length` here — see the block below for why.`)
+  ✓ 25 passed | 1 skipped | 0 failed   <- the false-red mode the repair exists to remove
+```
+
+Each plant restored and the restore verified (`cmp -s`, byte-identical) before the next.
+
+**PLANT 3 IS ONLY EVIDENCE BECAUSE THE OLD PIN IS SHOWN TO FAIL ON IT.** A comment-only plant staying
+green proves nothing if the old pin would also have stayed green. Measured directly, on the same
+planted text, running both pin shapes side by side:
+
+```
+PRE-REPAIR pin on the comment-only plant  -> negative assertion would FALSE-RED
+POST-REPAIR pin on the same plant         -> negative assertion STAYS GREEN
+and the comment IS inside the post-repair slice: true
+```
+
+### 8. IN-03 — the derived scan for other pins sharing either brittleness mode
+
+A derived scan over all **36** tracked `.test.ts` files (not a hand look), building the set of
+identifiers transitively derived from reading a `.ts` SOURCE file — **62** such identifiers, carrying a
+"was comment-stripped" flag through the derivation chain — and then asking two questions of them.
+
+| mode | question | raw hits |
+|---|---|---|
+| **A** | a `.slice()` over such an identifier bounded by an `indexOf(...)` whose result is never `expect`ed | **5**, all in `scripts/frontmatter.test.ts` |
+| **B** | a `.not.toContain` / `.not.toMatch` whose receiver is such an identifier that was never stripped (receiver resolved by walking back to its own `expect(`, not by a proximity window) | **16** negatives found over source identifiers, of which **11** unstripped, across **8** distinct receiver names |
+
+**THE SCAN'S OWN PREMISE FAILED FIRST, AND THE ASSERTION CAUGHT IT — instance 15.** The first
+paren-matching walk reported `negative assertions over them: 0`, i.e. it found no negative source
+assertions ANYWHERE in 36 files, which is plainly false. The backward walk was off by one (it
+decremented at the matching `(` and kept going to an earlier one). Reported as a count rather than as
+a bare "no other hits found", the zero was visibly wrong; as a PASS line it would have read as
+reassurance. Fixed, the same scan reports 16.
+
+**Adjudicated, with the reasons stated:**
+
+- `truncated` (mode A and B) — a **deliberate fixture**. The round-9 IN-03 proof case CONSTRUCTS a
+  truncated slice precisely to show the purity case would pass over it. True negative by design.
+- `authority` and `guardsRaw` (mode B) — **stripping would BREAK them.** These pin a PROSE claim
+  ABSENT (`not.toContain("No second fence parser is written, here or anywhere")`), and the claim
+  lives in a comment. Mode B's premise is not universal: a negative deliberately about comment text
+  must not be comment-stripped. Stated here so a later round does not "fix" them into vacuity.
+- `body` in `scripts/generate-role-adapters.test.ts` (mode B) — a **scan artifact**. That `body` is a
+  `.md` adapter file read at line 427; the scan is name-based, not scope-aware, and shadowed it with
+  the `.ts` slice at line 866. This plan's repaired negative uses `codeOnly`, which IS stripped, and
+  is correctly not a hit.
+- **`iface` in the D-59 accumulator case (`scripts/frontmatter.test.ts:14245-14247`) — CONFIRMED
+  GENUINE, on BOTH modes at once**, and recorded OPEN below rather than fixed silently.
+
+### 9. Still OPEN from 27-60, with a named owner
+
+| Item | Owner |
+|---|---|
+| **`scripts/frontmatter.test.ts:14245-14247` shares BOTH brittleness modes.** `const body = src.slice(src.indexOf("\ninterface Accumulator {"))` then `const iface = body.slice(0, body.indexOf("\n}\n"))` — neither index is asserted, the slice is never checked to BE the interface, and `expect(iface).not.toContain("sawBlock")` runs over UNSTRIPPED text while the SAME case asserts `expect(src).toContain("sawBlock")` (the deletion must stay narrated). So a comment inside the `Accumulator` interface that mentions `sawBlock` false-reds it, and a reformat that moves the closing brace makes `indexOf` return `-1`, silently slicing to `src.length - 1`. | a later round — apply this plan's three repairs (asserted bound, identity check, comment strip) to that pin; it is a `27-58`/`27-59`-owned case and was deliberately not edited here, since `27-60` must not smuggle changes into another plan's evidence |
+| **The remaining mode-A hits are NOT adjudicated:** `branch` and `block` in `scripts/frontmatter.test.ts`. Both slice a `.ts` source on an unasserted `indexOf`. Neither was inspected here. | a later round — adjudicate each as fixture, deliberate, or genuine, using the same three questions |
+| **The remaining mode-B hits are NOT adjudicated:** `source`, `body` and `block` in `scripts/frontmatter.test.ts`. | a later round — for each, decide whether the negative is about CODE (strip) or about COMMENT TEXT (do not strip), and state which at the site |
+| The derived scan is a **floor with known false positives** — it is name-based rather than scope-aware, and it cannot see a bound hoisted through a helper. It is not committed as a gate. | a later round — if it is ever promoted to a gate, it needs scope resolution first, or it will red on shadowed names |
+| KIT-03 and SPAWN-04 stay `[ ]` / `Gaps Found` | the next verification round for phase 27 (D-58 item 4) |
+| `27-55` … `27-59`'s open items | carried, unchanged — `27-60` edited no production source file, no parser, no guard and no grant computation |
+
+### 10. Gate results
+
+| check | result |
+|---|---|
+| `npm run typecheck` (BOTH targets) | **exit 0** |
+| `npm run freshness` | **exit 0** — 32 committed `.js` fresh, hashes IDENTICAL to the pre-plan baseline |
+| `npm run freshness:adapters` | **exit 0** |
+| `node scripts/check-foundation-guards.js` | **exit 0** (`ALL CHECKS PASSED`) |
+| `npx vitest run --exclude '**/scripts/e2e/**'` | **1,346 passed / 2 skipped / 0 failed** |
+
+**The regression suite is a FLOOR, not the closure evidence.** The evidence is §2's two-sided reach
+measurement and planted TS6133, §3's two mutation reds, §5's planted-import red (and the green that
+preceded it), and §7's three plants with the pre-versus-post pin comparison.

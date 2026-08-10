@@ -221,6 +221,19 @@ function stripFencedBlockLines(lines: readonly string[]): FenceStrip {
     unterminatedFence: inside,
   };
 }
+// ── end stripFencedBlockLines ──────────────────────────────────────────────────────────────────
+// (27-60, IN-03) A SECTION RULE IN THIS FILE'S OWN IDIOM THAT IS ALSO A SLICE BOUND. The WR-03
+// source pin below reads this function's TEXT — a correct implementation is behaviourally identical
+// whether it COUNTS removals or DERIVES them, so only the source tells the two apart. That pin used
+// to bound its slice with `indexOf("\n}")`, which assumes no line in the body begins at column 0
+// with a closing brace: true today, silently truncating tomorrow, and a truncated body makes the
+// pin's POSITIVE assertion fail confusingly rather than informatively.
+//
+// The nearest pre-existing `// ──` rule sits 76 lines further down and would have swallowed two
+// other helpers — including a comment that quotes the forbidden shape verbatim. So this rule is
+// ADDED here rather than an existing one repurposed, and the pin ASSERTS it is present before it
+// slices, with a message naming it. Moving or deleting this line reds that assertion by name; it is
+// not decoration.
 
 // The fixture's PREMISE, stated once and consulted twice — by the case that writes the file, and by
 // the case that proves the premise can fire. A premise restated at its proof site proves something
@@ -827,13 +840,61 @@ describe("generate-role-adapters.js (SPAWN-01 adapter generator)", () => {
       "utf8",
     );
     const start = src.indexOf("function stripFencedBlockLines(");
-    expect(start).toBeGreaterThan(0);
-    const body = src.slice(start, src.indexOf("\n}", start));
+    expect(
+      start,
+      "PREMISE — the pin must find the function it claims to read",
+    ).toBeGreaterThan(0);
+
+    // (27-60, IN-03 (a)) THE SLICE IS BOUNDED BY AN EXPLICIT MARKER, AND THE MARKER IS ASSERTED
+    // BEFORE THE SLICE IS USED. The old bound was `indexOf("\n}")` — an assumption that no line in
+    // the body begins at column 0 with a closing brace. True today; the day it stops being true the
+    // body truncates and the POSITIVE assertion below fails saying "linesRemoved += 1 not found",
+    // which sends a reader hunting for a deleted counter that is still there. A missing bound must
+    // say it is a missing bound.
+    const END_MARKER = "\n// ── end stripFencedBlockLines";
+    const end = src.indexOf(END_MARKER, start);
+    expect(
+      end,
+      `PREMISE — the stripFencedBlockLines body must be bounded by its own section rule \`${END_MARKER.trim()}\`; without it this pin does not know where the function ends and every assertion below is about an arbitrary slice`,
+    ).toBeGreaterThan(start);
+    const body = src.slice(start, end);
+
+    // (27-60, IN-03) …AND THE SLICE IS ASSERTED TO **BE** THE FUNCTION BEFORE ANY NEGATIVE RUNS.
+    // The discipline this phase has now applied three times: a `not.toContain` over a slice that is
+    // not what it claims to be passes VACUOUSLY, and passing vacuously is indistinguishable from
+    // passing correctly. Head, tail and no-overrun, so neither a truncated nor an over-long slice
+    // can reach the negative.
+    expect(body.startsWith("function stripFencedBlockLines(")).toBe(true);
     expect(
       body,
+      "IDENTITY — the slice must reach the function's own return, or it is a prefix of it",
+    ).toContain("unterminatedFence: inside,");
+    expect(
+      body.split("\nfunction ").length - 1,
+      "IDENTITY — the slice must not overrun into a following top-level function",
+    ).toBe(0);
+
+    // (27-60, IN-03 (b)) THE NEGATIVE RUNS OVER **CODE** ONLY. The claim is about what the function
+    // DOES, and a comment explaining why the derived shape is wrong is documentation — exactly the
+    // documentation the block above this function carries. A gate that reds on it teaches an author
+    // to delete the explanation, which this project records as the worse direction. This is the same
+    // comment-versus-code confusion `codeLinesOf` was introduced to solve in frontmatter.test.ts,
+    // twinned locally rather than imported, because a test importing another test's helper would
+    // make the two files' pins a single point of failure.
+    const codeOnly = body
+      .split("\n")
+      .filter((l) => !l.trimStart().startsWith("//"))
+      .join("\n");
+    expect(
+      codeOnly,
       "stripFencedBlockLines must COUNT removals as it makes them, never derive them from kept.length — deriving turns the partition assertion into a second thing that cannot fail",
     ).not.toContain("lines.length - kept.length");
-    expect(body).toContain("linesRemoved += 1");
+    expect(codeOnly).toContain("linesRemoved += 1");
+    // The strip really is load-bearing: dropping comments must not have dropped the whole body.
+    expect(
+      codeOnly.length,
+      "the comment strip must leave the function's CODE behind — a strip that eats everything makes the negative vacuous",
+    ).toBeGreaterThan(200);
   });
 
   it("refuses a CODE FENCE inside the located frontmatter region as UNREADABLE — the lines are never deleted and a shorter value never reported (27-45, D-53, WR-02)", () => {
