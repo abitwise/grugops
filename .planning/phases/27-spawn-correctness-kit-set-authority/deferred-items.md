@@ -1812,3 +1812,183 @@ reachable effect is that MORE headers are recognised, never that a value gets sh
 All **8** keep their recorded verdicts on the post-fix build, byte-identical to the pre-fix build,
 including the two the loader reads as CONTENT (g7 `tools: see` / `  >-` → `see >- q,` and g8
 `tools: see` / `  ? >-` → `see ? >- q,`) and the two the loader REJECTS (g5, g6).
+
+### 10. The DERIVED property-form x introduction axis
+
+Both axes are derived, neither transcribed. The property axis is candidate spellings **filtered
+through** the module's own `NODE_PROPERTY_AT_NODE_START` (exported for this, on `SEQ_ITEM`'s and
+`BLOCK_INDICATOR`'s recorded argument); the introduction axis is read out of the module's own
+`HEADER_INTRODUCTIONS` declaration **at run time**, so a fifth introduction changes the axis length
+and a builder missing for it fails by name.
+
+```
+D-61 axis differential [corpus 54a6d803a62cb0e4, ruby=2.6.10 psych=3.1.0 libyaml=0.2.1] —
+28 generated cells (7 property forms x 4 introductions) + 48 union cells |
+loader-rejected and SKIPPED 0 | adjudicated 76 | loud refusal arm 29 | name-set disagreements 0
+```
+
+| Fact | Value |
+|---|---|
+| `AXIS_NODE_PROPERTY_FORM` | **7** (none, anchor, shorthand tag, verbatim tag, bare non-specific tag, tag-then-anchor, anchor-then-tag), two-sided |
+| `AXIS_HEADER_INTRODUCTION` | **4**, read from `HEADER_INTRODUCTIONS` at run time, two-sided |
+| generated cells | **28**, asserted EQUAL to the product, distinct by `where` **and** by rendered region |
+| three-fix UNION cells | **48** = 4 key spellings only `27-56` admits x 6 properties only `27-57` strips x 2 escape kinds only `27-55` region-resolves, count DERIVED |
+| loader-rejected, PRINTED skip count | **0** |
+| both never-exemptible partitions | **EMPTY** |
+| loud refusal arm | **29** (5 bare-introduction property cells + 24 union sibling-escape refusals) |
+| name-set disagreements | **0** |
+| derivation liveness (property axis) | the same candidates filtered through a deliberately narrowed copy yield a strictly SHORTER axis |
+| derivation liveness (introduction axis) | the builder map's keys are asserted set-equal to the names read from the module's source |
+
+### 11. NON-CIRCULARITY, MEASURED against a hermetic pre-`27-57` mirror
+
+```
+[D-61 axis, pre-fix mirror 6189744] regions=76 skipped=0 SILENT-no-grant=43 module-grant-loader-none=0
+```
+
+**43 of 76** cells are live silent-no-grants on the build that shipped the defect; **0** post-fix. The
+mirror's identity is asserted rather than trusted — the case fails by name if the archived build
+already carries `HEADER_INTRODUCTIONS`.
+
+### 12. TWO mutation controls, each with ITS OWN control — and the harness premise producing a FALSE result for the NINTH time
+
+**The baseline first.** An UNMUTATED scratch copy of the same tree reports **11** red cases, every one
+of them a case that shells out to `git ls-files` / `git archive`, red because the copy has no `.git`.
+Every count below has that baseline subtracted, exactly as `27-56` recorded.
+
+**THE NINTH INSTANCE OF THE HARNESS-PREMISE LESSON, AND IT WAS CAUGHT ONLY BY PROBING THE BUILD.** The
+first attempt at mutation control 1 deleted the strip's call site. `tsc` then failed with
+`error TS6133: 'stripNodeProperties' is declared but its value is never read`, emitted nothing, and
+left the **unmutated** `scripts/frontmatter.js` in place. The suite duly reported the **same 11**
+baseline failures — i.e. **0 attributable**, which would have been reported as "the pin cannot see
+this mutation" and is entirely false. It was caught because the mutated build was probed DIRECTLY,
+before the suite was believed: rows A/B/F/Q still granted, which a truly mutated build cannot do. The
+mutation was rewritten to keep the symbol referenced (`split.node.length >= 0 ? split.node : strip(…)`)
+so `tsc` emits, and the build-exit code is now checked. **Assert the harness's own premise — and
+assert the BUILD STEP'S EXIT CODE, not only the harness's resolution path.**
+
+| Control | mutation | build | red cases | baseline | **attributable** |
+|---|---|---|---|---|---|
+| 1 | the property strip reverted alone | exit 0, probe confirms A/B/F/Q now REFUSE | 14 | 11 | **3** |
+| 2 | the fourth reference-refusal application point reverted alone | exit 0, probe confirms R and T3 return to the SILENT arm | 13 | 11 | **2** |
+
+Control 1's three: `D-61 rows A, B, F, Q`, `D-61 the derived property-form x introduction axis`, and
+the `D-52 loader differential` (whose corpus now carries the G4 member). One quoted failure, showing
+the case naming its own assertion:
+
+```
+AssertionError: A implicit nested key + anchor: expected { ok: false, …(1) } to deeply equal { ok: true, value: true }
++   "reason": "`nested: &a >-` uses a YAML anchor or alias, or an unresolved YAML tag standing in front of one; …"
+```
+
+Control 2's two: `D-61 CONTROL R` and `D-61 the strip honours YAML's OWN BOUND`. One quoted failure:
+
+```
+AssertionError: the SILENT success arm is the one thing this must never be: expected true to be false
+ ❯ scripts/frontmatter.test.ts  const alias = d61Doc(`tools:\n  nested: *a >-\n    ${D61_CONTENT}`)
+```
+
+**A finding worth recording from control 1.** With the strip reverted ALONE, rows A/B/F/Q do **not**
+return to the silent no-grant arm — they go to the **LOUD** arm, because the fourth application point
+now catches the property the strip no longer consumes. The two edits are complementary: the strip
+turns a legal header into a grant, and the fourth application point guarantees that whatever the strip
+cannot consume fails loud rather than quiet. Testing only their conjunction could not have said that.
+
+### 13. The expressibility floor, measured before and after by RUNNING it
+
+```
+WR-01 expressibility floor — ledger family rows derived 13 | expressible 10
+(G3, family (a), family (b), A, B, C, F, G, G2, G4) | outside the generator's shape space 3 (d1, d2, d3)
+```
+
+| Fact | before | after |
+|---|---|---|
+| ledger family rows derived | 12 | **13** |
+| expressible (`inside`) | 9 | **10** |
+| `AXIS_KEY_LINE_BASE` | 23 | **24** |
+
+**The floor went RED BY NAME, unprompted, for the third consecutive round**, and it is recorded
+because that is the whole point of the mechanism. With ledger entry thirteen landed and the
+`EXPRESSED_BY` entry deliberately withheld, the floor reported:
+
+```
+AssertionError: a failure family named in the module's ledger with NO axis-member combination that
+builds it — the corpus cannot express a defect the module has already shipped:
++   "G4  `tools:` / `  nested: &a >-` / `    Read,` / `    # x, Agent(o)`   a node property",
+```
+
+**The exemption list is UNCHANGED: 2 → 2**, membership asserted, in a case of this plan's own.
+
+### 14. Adversarial pass (a) — AT WHICH POSITIONS is the strip even ASKED?
+
+Asked of the FIXED build rather than declared closed once the reported rows went green. **It found
+SEVEN further live silent-no-grants beyond the four the review named**, all closed by the same edit
+rather than by seven additions. Each row's pre-fix column is the committed build `6189744`.
+
+| Probe | pre-fix | post-fix | libyaml |
+|---|---|---|---|
+| a1 inside a sequence item's compact mapping | silent-no-grant | **GRANT** | `[{"k"=>"v","j"=>"Read, # x, Agent(o)"}]` |
+| a2 two levels down | silent-no-grant | **GRANT** | `{"a"=>{"b"=>"Read, # x, Agent(o)"}}` |
+| a3 after a sibling mapping key | silent-no-grant | **GRANT** | `{"a"=>"Read","b"=>"Read, # x, Agent(o)"}` |
+| a4 after another block scalar's content | silent-no-grant | **GRANT** | `{"a"=>"Read","b"=>"Read, # x, Agent(o)"}` |
+| a5 after `27-56`'s nested production (a quoted key) | silent-no-grant | **GRANT** | `{"a b"=>"Read, # x, Agent(o)"}` |
+| a9 the explicit KEY form, two levels down | silent-no-grant | **GRANT** | `{"a"=>{"Read, # x, Agent(o)"=>"v"}}` |
+| a10 a TAG on the explicit VALUE form, two levels down | silent-no-grant | **GRANT** | `{"a"=>{"k"=>"Read, # x, Agent(o)"}}` |
+| a6 compact nested sequence item | LOUD | LOUD (byte-unchanged) | `[["Read, # x, Agent(o)"]]` |
+| a8 the item path, property at offset 0 | LOUD | LOUD (byte-unchanged) | `["Read, # x, Agent(o)"]` |
+| a7 inside a flow collection | not recognised | not recognised (byte-unchanged) | **REJECT** |
+
+a6 and a8 are control P's argument at the positions the review did not name: on the item path the
+property sits at offset 0 of the item's own node, so the standing anchor/alias refusal reaches it
+first. The disagreement with the loader there is in the **LOUD** direction and no grant claim is made.
+
+### 15. Adversarial pass (b) — what is the strip's INPUT ASSEMBLED FROM?
+
+One line walked from the raw block through `raw.trim()`, `indentOf`, `SEQ_ITEM`'s dash consumption,
+D-60's key/value split and the strip, asking at each stage what it has already consumed and whether
+any stage can hand the strip a string whose offset 0 is not the node start it assumes.
+
+| Probe | post-fix | libyaml | reading |
+|---|---|---|---|
+| b1 trailing space after the indicator | GRANT | grants | the split hands the strip the text intact |
+| b2 trailing comment after the indicator | GRANT | grants | `BLOCK_INDICATOR` owns the comment tail, unchanged |
+| b3 TAB between property and indicator | GRANT | grants | the declared `[ \t]` class covers the tab |
+| b5 quoted key whose TEXT contains `: ` | GRANT | `{"a: b"=>…}` | D-60's self-delimiting quoted key, crossed |
+| b8 indicator with a digit and a chomping marker | GRANT | grants | the indicator constant is untouched |
+| b4 NBSP between property and indicator | **LOUD** | **REJECT** | pre-fix: silent-no-grant |
+| b9 property butted against a flow opener | **LOUD** | **REJECT** | pre-fix: silent-no-grant |
+| b10 two TAGS on one node | **LOUD** | **REJECT** | pre-fix: silent-no-grant; the one-of-each bound holds |
+| b6 a property whose name ends in a colon (`&a: b >-`) | LOUD | `{nil=>"b >- Read,"}` | **byte-unchanged both builds — pre-existing, not D-61's** |
+| b7 leading NBSP where the separation would be | silent-no-grant, value `nested: &a >- Read,` | `"nested: &a >- Read,"` | **the module's value EQUALS the loader's** |
+
+**b7 is the finding, and it VINDICATES a choice rather than opening a gap.** `27-56` left OPEN that
+`raw.trim()`'s alphabet (Unicode WhiteSpace ∪ LineTerminator) is wider than this module's declared
+`[ \t]` class. D-61 therefore consumes the separation after a property with the **declared** class and
+not with `String.prototype.trimStart`. Measured consequence: with a NBSP standing where the
+separation after the key's colon would be, **neither libyaml nor this module sees a mapping entry**,
+so the whole line is one plain scalar to both — and this module's flattened value is byte-identical to
+libyaml's, `# …` dropped as a plain-scalar comment on both sides. Had the strip reached for
+`trimStart`, the module would have read structure libyaml does not. The 27-56 open item is
+**unchanged** and is carried, not closed.
+
+**b6 is recorded and is NOT this plan's defect.** `tools:` / `  &a: b >-` is a document libyaml
+ACCEPTS (as `{nil=>"b >- Read,"}`, carrying no grant) and this module REFUSES. The verdict is
+**byte-identical on both builds**, so it is pre-existing; it is in the LOUD direction; and it is
+carried with a named owner below rather than closed here.
+
+### 16. The regression suite is a FLOOR, not the closure evidence
+
+`npx vitest run --exclude '**/scripts/e2e/**'` reports **1324 passed | 2 skipped | 0 failed**. A green
+suite proves nothing about a safety invariant. The closure evidence is the inverted end-to-end gate
+replay with its three controls (§3, §4), the 43-of-76 pre-fix-mirror non-circularity result (§11), the
+two mutation controls each with its own baseline (§12), and the two adversarial passes (§14, §15).
+
+### 17. Still OPEN, with a named owner
+
+| Item | Owner |
+|---|---|
+| `raw.trim()`'s alphabet is wider than the module's declared `[ \t]` class (pre-existing; D-61 declined to extend it to a new site, and b7 measures why) | a later round — carried from `27-56`, unchanged |
+| `tools:` / `  &a: b >-` refuses where libyaml reads a no-grant value (pre-existing, byte-identical on both builds, LOUD direction) | a later round — decide whether a property whose name ends in a colon should be readable at all, and re-take the repository-wide value map |
+| The block-sequence item and bare-header introductions REFUSE a property libyaml accepts and grants (control P / S / a6 / a8) — deliberate, byte-unchanged, and the contrast the diagnosis rests on | not open as a defect; recorded so a later round does not read it as one |
+| `27-55` and `27-56`'s open items | carried, unchanged — `27-57` touched no exemption machinery, no fence classifier and no toggle |
+| KIT-03 and SPAWN-04 stay `[ ]` / `Gaps Found` | the next verification round for phase 27 (D-58 item 4) |

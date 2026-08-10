@@ -1048,7 +1048,14 @@ export interface ScalarState {
 // disagree this module takes the safe direction on documents no loader accepts. A later reader who
 // wants the narrowing must first close the shorten direction it opens, not merely observe that YAML
 // agrees with them.
-const NODE_PROPERTY_AT_NODE_START =
+//
+// EXPORTED (27-57, D-61) ON `SEQ_ITEM`'S AND `BLOCK_INDICATOR`'S OWN ARGUMENT. The property axis of
+// the D-61 differential is DERIVED from this constant — candidate spellings are generated and
+// FILTERED THROUGH it, so a change here changes the axis length — rather than transcribed beside it.
+// An axis built from a copy keeps passing after the real constant moves, which is the
+// weaker-duplicate shape this module deletes on sight and the set-literal drift class this repository
+// has now corrected four times.
+export const NODE_PROPERTY_AT_NODE_START =
   /^(?:!(?:<[^>]*>|[^\s[\]{},]*)|&[^\s[\]{},]+)(?=[\s[\]{},]|$)/;
 
 // The state a KEY LINE seeds from: nothing open, no collection, and a node may begin at offset 0. A

@@ -55,6 +55,7 @@ import {
   assertFoldTargetIsNotBlockOwned,
   SEQ_ITEM,
   BLOCK_INDICATOR,
+  NODE_PROPERTY_AT_NODE_START,
   DQ_ESCAPE_ALLOWLIST,
   ENUMERATION_LEGAL_CHARS,
   TOOLS_KEYS,
@@ -2100,7 +2101,8 @@ describe("frontmatter — the spawn-grant parser oracle (SPAWN-04 / KIT-03)", ()
   // transcript with both columns is in 27-57-SUMMARY.md and deferred-items.md § From 27-57. These
   // rows are the NAMED evidence; the property is pinned by `AXIS_NODE_PROPERTY_FORM` x
   // `AXIS_HEADER_INTRODUCTION` below, where the loader is the expected value for every cell.
-  const D61_CONTENT = "Read, # x, Agent(grugops-orchestrator)";
+  const D61_TOKEN = "Agent(grugops-orchestrator)";
+  const D61_CONTENT = `Read, # x, ${D61_TOKEN}`;
   const d61Doc = (region: string): string => `---\nname: x\n${region}\n---\nBody.\n`;
 
   it("D-61 rows A, B, F, Q — a node property in front of a block indicator no longer hides the header, at EVERY introduction", () => {
@@ -2264,6 +2266,100 @@ describe("frontmatter — the spawn-grant parser oracle (SPAWN-04 / KIT-03)", ()
         hasSpawnGrant(d61Doc(probe.region)),
         `${probe.introduction}: the SILENT no-grant arm is the one verdict this must never return`,
       ).not.toEqual({ ok: true, value: false });
+    }
+  });
+
+  it("D-61 adversarial pass (a) — AT WHICH POSITIONS is the strip even ASKED, re-asked against the FIXED build", () => {
+    // ENTRY ELEVEN'S STANDING QUESTION, RE-ASKED. Not "did the reported rows go green" but "is the
+    // question asked at every position the recogniser is consulted at". `blockHeaderAt` is called at
+    // two sites (the item path and the continuation path); the continuation path reaches every
+    // nesting depth. Each of the seven grants below returned the SILENT no-grant arm on the pre-fix
+    // build `6189744` while libyaml read the grant plainly — so this pass found SEVEN further live
+    // silent-no-grants beyond the four the review reported, and they are closed by the same edit
+    // rather than by seven additions.
+    const C = `Read, # x, ${D61_TOKEN}`;
+    const grants: readonly [string, string][] = [
+      ["a1 inside a sequence item's compact mapping", `tools:\n  - k: v\n    j: &a >-\n      ${C}`],
+      ["a2 two levels down", `tools:\n  a:\n    b: &a >-\n      ${C}`],
+      ["a3 after a sibling mapping key", `tools:\n  a: Read\n  b: &a >-\n    ${C}`],
+      ["a4 after another block scalar's content", `tools:\n  a: >-\n    Read\n  b: &a >-\n    ${C}`],
+      ["a5 after 27-56's nested production (a quoted key)", `tools:\n  "a b": &a >-\n    ${C}`],
+      ["a9 the explicit KEY form, two levels down", `tools:\n  a:\n    ? &a >-\n        ${C}\n    : v`],
+      ["a10 a TAG on the explicit VALUE form, two levels down", `tools:\n  a:\n    ? k\n    : !!str >-\n        ${C}`],
+    ];
+    for (const [label, region] of grants) {
+      expect(hasSpawnGrant(`---\nname: x\n${region}\n---\nBody.\n`), label).toEqual({
+        ok: true,
+        value: true,
+      });
+    }
+
+    // AND THE TWO POSITIONS WHERE THE ANSWER IS DELIBERATELY DIFFERENT, both byte-unchanged from the
+    // pre-fix build. On the ITEM path — including a compact nested sequence — the property sits at
+    // offset 0 of the item's own node, so the standing anchor/alias refusal reaches it first. Control
+    // P's argument, at the position the review did not name.
+    for (const [label, region] of [
+      ["a6 compact nested sequence item", `tools:\n  - - &a >-\n      ${C}`],
+      ["a8 the item path, property at offset 0", `tools:\n  - &a >-\n      ${C}`],
+    ] as const) {
+      const verdict = hasSpawnGrant(`---\nname: x\n${region}\n---\nBody.\n`);
+      expect(verdict.ok, `${label}: the LOUD arm, not the silent one`).toBe(false);
+    }
+
+    // AND THE ONE POSITION IT MUST NOT REACH. Inside a flow collection a `>` cannot start a token at
+    // all (YAML 1.2 § 8.1), so no header is recognised there; libyaml REJECTS the document outright,
+    // so there is no loader value being moved away from. Byte-identical on both builds.
+    const insideFlow = `---\nname: x\ntools: [Read,\n  a: &a >-\n  # x, ${D61_TOKEN}]\n---\nBody.\n`;
+    const flow = parseFrontmatter(insideFlow);
+    expect(flow.ok && flow.value.get("tools")).toEqual(["[Read, a: &a >-"]);
+  });
+
+  it("D-61 adversarial pass (b) — what is the strip's INPUT ASSEMBLED FROM, stage by stage", () => {
+    // THE QUESTION: can any stage between the raw block and the strip hand it a string whose offset 0
+    // is not the node start it assumes? The stages are `raw.trim()`, `indentOf`, `SEQ_ITEM`'s dash
+    // consumption, D-60's key/value split, and then the strip.
+    const C = `Read, # x, ${D61_TOKEN}`;
+    const doc = (region: string): string => `---\nname: x\n${region}\n---\nBody.\n`;
+
+    // The split hands the strip everything AFTER the separation, so trailing whitespace, a trailing
+    // comment, a tab separation, a self-delimiting quoted key whose TEXT contains `: `, and an
+    // indicator carrying a digit and a chomping marker all reach it intact. Each agrees with libyaml.
+    for (const [label, region] of [
+      ["b1 trailing space after the indicator", `tools:\n  nested: &a >- \n    ${C}`],
+      ["b2 trailing comment after the indicator", `tools:\n  nested: &a >- # c\n    ${C}`],
+      ["b3 a TAB between the property and the indicator", `tools:\n  nested: &a\t>-\n    ${C}`],
+      ["b5 a quoted key whose TEXT contains a mapping separator", `tools:\n  "a: b": &a >-\n    ${C}`],
+      ["b8 an indicator carrying a digit and a chomping marker", `tools:\n  nested: &a >2-\n    ${C}`],
+    ] as const) {
+      expect(hasSpawnGrant(doc(region)), label).toEqual({ ok: true, value: true });
+    }
+
+    // THE ONE REAL FINDING, AND IT VINDICATES A CHOICE RATHER THAN OPENING A GAP. 27-56 left OPEN that
+    // `raw.trim()`'s alphabet (Unicode WhiteSpace) is wider than this module's declared `[ \t]`. D-61
+    // therefore consumes the separation after a property with the DECLARED class, not with
+    // `String.prototype.trimStart`. Measured consequence: with a NBSP standing where the separation
+    // after the key's colon would be, neither libyaml nor this module sees a mapping entry, so the
+    // whole line is a plain scalar to BOTH — and the module's flattened value is byte-identical to
+    // libyaml's (`nested: &a >- Read,`, the `# …` gone as a plain-scalar comment on both sides).
+    // Had the strip reached for `trimStart`, the module would have read structure libyaml does not.
+    const nbspAfterColon = doc(`tools:\n  nested:\u00a0&a >-\n    ${C}`);
+    const parsedNbsp = parseFrontmatter(nbspAfterColon);
+    expect(
+      parsedNbsp.ok && parsedNbsp.value.get("tools"),
+      "a NBSP is not a separation to libyaml either, so no mapping entry exists on this line",
+    ).toEqual(["nested:\u00a0&a >- Read,"]);
+    expect(hasSpawnGrant(nbspAfterColon)).toEqual({ ok: true, value: false });
+
+    // AND WHERE THE STRIP CANNOT ACCOUNT FOR THE TEXT, THE VERDICT IS LOUD. A NBSP between the
+    // property and the indicator, a property butted against a flow opener, and two properties of the
+    // same kind are all documents libyaml REJECTS; each reaches the refusal arm rather than the
+    // silent success arm the pre-fix build returned for all three.
+    for (const [label, region] of [
+      ["b4 NBSP between the property and the indicator", `tools:\n  nested: &a\u00a0>-\n    ${C}`],
+      ["b9 a property butted against a flow opener", "tools:\n  nested: &a[x]"],
+      ["b10 two TAGS on one node", `tools:\n  nested: !!str !<t:x> >-\n    ${C}`],
+    ] as const) {
+      expect(hasSpawnGrant(doc(region)).ok, `${label}: must be LOUD, never silent`).toBe(false);
     }
   });
 
@@ -9511,6 +9607,437 @@ describe("frontmatter — the loader differential over a GENERATED corpus (D-52 
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
+  });
+
+  // ── (27-57, D-61) THE PROPERTY AXIS x THE RECOGNISER'S DECLARED INTRODUCTION SET ───────────────
+  //
+  // WHAT THIS ADDS THAT THE D-60 AXIS COULD NOT SPELL. Every cell above puts the indicator
+  // IMMEDIATELY after its introduction. YAML 1.2 § 6.9 lets a node's PROPERTIES stand in between, so
+  // the family CR-02 reports was outside this harness's shape space entirely and the differential
+  // reported zero disagreements over a live, gate-level, exit-0 bypass — 27-49's recorded lesson
+  // arriving a fourth time, on what stands IN FRONT of the thing being recognised.
+  //
+  // BOTH AXES ARE DERIVED, NEITHER IS TRANSCRIBED. The property axis is candidate spellings FILTERED
+  // THROUGH the module's own `NODE_PROPERTY_AT_NODE_START`; the introduction axis is read out of the
+  // module's own `HEADER_INTRODUCTIONS` declaration at run time. A fifth introduction added to the
+  // module changes this axis's length, and a builder missing for it fails by name.
+  const D61_CONTENT_1 = "Read,";
+  const D61_CONTENT_2 = `# x, ${HARNESS_TOKEN}`;
+
+  // The candidate property spellings. `""` is the no-property control and is not filtered — it is the
+  // baseline every other member is a departure from.
+  const D61_PROPERTY_CANDIDATES: readonly { label: string; text: string }[] = [
+    { label: "none", text: "" },
+    { label: "anchor", text: "&a" },
+    { label: "shorthand tag", text: "!!str" },
+    { label: "verbatim tag", text: "!<tag:x.example.com,2000:str>" },
+    { label: "bare non-specific tag", text: "!" },
+    { label: "tag THEN anchor", text: "!!str &a" },
+    { label: "anchor THEN tag", text: "&a !!str" },
+  ];
+
+  // THE FILTER IS THE MODULE'S OWN CONSTANT. A candidate whose FIRST token the declared property
+  // grammar does not recognise is not a node property and has no business on a property axis. The
+  // two-token members are admitted on their first token, which is exactly what § 6.9 permits and what
+  // `stripNodeProperties` bounds to one of each kind.
+  const AXIS_NODE_PROPERTY_FORM = D61_PROPERTY_CANDIDATES.filter(
+    (c) => c.text === "" || NODE_PROPERTY_AT_NODE_START.test(`${c.text} >-`),
+  );
+
+  // The introduction axis, DERIVED from the module's own declared set rather than listed here.
+  const D61_DECLARED_INTRODUCTIONS: readonly string[] = (() => {
+    const source = readFileSync(join(import.meta.dirname, "frontmatter.ts"), "utf8");
+    const body =
+      /const HEADER_INTRODUCTIONS: readonly HeaderIntroduction\[\] = \[([\s\S]*?)\n\];/.exec(source);
+    if (body === null) return [];
+    return [...body[1].matchAll(/^ {4}name: "([^"]+)",$/gm)].map((m) => m[1]);
+  })();
+
+  // One region builder per declared introduction. The MAP's keys are asserted equal to the declared
+  // names below, so a fifth introduction in the module fails here by name rather than silently
+  // leaving a position untested.
+  const D61_INTRODUCTION_BUILDERS: Readonly<Record<string, (property: string) => string>> = {
+    bare: (p) => ["tools:", `  ${p}>-`, `    ${D61_CONTENT_1}`, `    ${D61_CONTENT_2}`, ""].join("\n"),
+    "implicit block-mapping key": (p) =>
+      ["tools:", `  nested: ${p}>-`, `    ${D61_CONTENT_1}`, `    ${D61_CONTENT_2}`, ""].join("\n"),
+    "explicit block-mapping key": (p) =>
+      [
+        "tools:",
+        `  ? ${p}>-`,
+        `      ${D61_CONTENT_1}`,
+        `      ${D61_CONTENT_2}`,
+        "  : v",
+        "",
+      ].join("\n"),
+    "explicit block-mapping value": (p) =>
+      [
+        "tools:",
+        "  ? k",
+        `  : ${p}>-`,
+        `      ${D61_CONTENT_1}`,
+        `      ${D61_CONTENT_2}`,
+        "",
+      ].join("\n"),
+  };
+
+  const AXIS_HEADER_INTRODUCTION = D61_DECLARED_INTRODUCTIONS;
+
+  // ── THE THREE-FIX UNION CELLS ──────────────────────────────────────────────────────────────────
+  //
+  // A property in front of an indicator (27-57), under a nested key spelling only 27-56 admits, whose
+  // parent key ALSO carries a quoted sibling region with an escape only 27-55 resolves correctly.
+  // Testing three fixes separately says nothing about their conjunction, and every one of the three
+  // touched the same flattener within the same round.
+  const D61_UNION_CELLS: readonly {
+    label: string;
+    region: string;
+    expectRefusal: boolean;
+  }[] = (() => {
+    const out: { label: string; region: string; expectRefusal: boolean }[] = [];
+    const keySpellings = [
+      { label: "quoted (27-56 V1)", key: '"a b"' },
+      { label: "dotted (27-56 V2)", key: "a.b" },
+      { label: "digit-leading (27-56 V3)", key: "1a" },
+      { label: "space-containing (27-56 V4)", key: "a b" },
+    ];
+    const properties = AXIS_NODE_PROPERTY_FORM.filter((p) => p.text !== "");
+    for (const spelling of keySpellings) {
+      for (const property of properties) {
+        for (const escape of [
+          { label: "allowlisted escape (27-55)", text: '"\\"sib\\""', refuses: false },
+          { label: "non-allowlisted escape (27-55)", text: '"\\x41bc"', refuses: true },
+        ]) {
+          out.push({
+            label: `${spelling.label} | ${property.label} | ${escape.label}`,
+            region: [
+              "tools:",
+              `  sib: ${escape.text}`,
+              `  ${spelling.key}: ${property.text} >-`,
+              `    ${D61_CONTENT_1}`,
+              `    ${D61_CONTENT_2}`,
+              "",
+            ].join("\n"),
+            expectRefusal: escape.refuses,
+          });
+        }
+      }
+    }
+    return out;
+  })();
+
+  const buildD61Region = (property: string, introduction: string): string =>
+    D61_INTRODUCTION_BUILDERS[introduction](property === "" ? "" : `${property} `);
+
+  it("D-61 the derived property-form x introduction axis — every loader-accepted cell agrees with a real YAML 1.2 loader, and the two never-exemptible directions are EMPTY", () => {
+    // TWO-SIDED CARDINALITY ON BOTH NEW AXES.
+    expect(AXIS_NODE_PROPERTY_FORM.length).toBe(7);
+    expect(AXIS_NODE_PROPERTY_FORM.length).toBeGreaterThan(0);
+    expect(
+      new Set(AXIS_NODE_PROPERTY_FORM.map((p) => p.text)).size,
+      "two members rendering the same property would make one cell look like two",
+    ).toBe(AXIS_NODE_PROPERTY_FORM.length);
+    expect(AXIS_HEADER_INTRODUCTION.length).toBe(4);
+    expect(AXIS_HEADER_INTRODUCTION.length).toBeGreaterThan(0);
+
+    // THE INTRODUCTION AXIS IS LIVE, NOT A TRANSCRIPTION — proven by the same means as the axis
+    // itself: the names come from the module's own declaration, and every one of them has a builder.
+    // A fifth introduction added to the module makes this axis longer and fails the next assertion by
+    // name, which is the whole difference between a derivation and a copy.
+    expect(
+      AXIS_HEADER_INTRODUCTION,
+      "the introduction axis must be the recogniser's OWN declared set, read at run time",
+    ).toEqual([
+      "bare",
+      "implicit block-mapping key",
+      "explicit block-mapping key",
+      "explicit block-mapping value",
+    ]);
+    expect(
+      Object.keys(D61_INTRODUCTION_BUILDERS).sort(),
+      "every declared introduction must have a region builder, or a position is silently untested",
+    ).toEqual([...AXIS_HEADER_INTRODUCTION].sort());
+
+    // THE PROPERTY AXIS IS LIVE TOO, proven by narrowing the predicate over the SAME candidates. A
+    // transcribed axis keeps its length whatever the constant says.
+    const NARROWED = /^&[A-Za-z0-9]+(?=\s|$)/;
+    const narrowedAxis = D61_PROPERTY_CANDIDATES.filter(
+      (c) => c.text === "" || NARROWED.test(`${c.text} >-`),
+    );
+    expect(
+      narrowedAxis.length,
+      "the property axis must track the constant it is filtered through, not a transcription",
+    ).toBeLessThan(AXIS_NODE_PROPERTY_FORM.length);
+    // ...and the candidate space really contains all three of the alternatives the constant names, or
+    // the filter is vacuous.
+    expect(AXIS_NODE_PROPERTY_FORM.filter((p) => p.text.startsWith("&")).length).toBeGreaterThan(0);
+    expect(AXIS_NODE_PROPERTY_FORM.filter((p) => p.text.startsWith("!<")).length).toBeGreaterThan(0);
+    expect(AXIS_NODE_PROPERTY_FORM.filter((p) => p.text === "!").length).toBe(1);
+
+    const cells: { where: string; region: string }[] = [];
+    for (const property of AXIS_NODE_PROPERTY_FORM) {
+      for (const introduction of AXIS_HEADER_INTRODUCTION) {
+        cells.push({
+          where: `${property.label} | ${introduction}`,
+          region: buildD61Region(property.text, introduction),
+        });
+      }
+    }
+    const PRODUCT = AXIS_NODE_PROPERTY_FORM.length * AXIS_HEADER_INTRODUCTION.length;
+    expect(
+      cells.length,
+      `the enumerated corpus must be the product of the TWO axis lengths (${AXIS_NODE_PROPERTY_FORM.length} property forms x ${AXIS_HEADER_INTRODUCTION.length} introductions, the latter read from the module's own HEADER_INTRODUCTIONS declaration)`,
+    ).toBe(PRODUCT);
+    expect(new Set(cells.map((c) => c.where)).size).toBe(PRODUCT);
+    expect(
+      new Set(cells.map((c) => c.region)).size,
+      "two cells rendering the SAME document would inflate the count without widening the corpus",
+    ).toBe(PRODUCT);
+
+    // THE UNION COUNT IS DERIVED so a cell added without its loader verdict fails arithmetically.
+    expect(D61_UNION_CELLS.length).toBe(4 * (AXIS_NODE_PROPERTY_FORM.length - 1) * 2);
+    const BATCH = PRODUCT + D61_UNION_CELLS.length;
+
+    const regions = [...cells.map((c) => c.region), ...D61_UNION_CELLS.map((u) => u.region)];
+    expect(regions.length).toBe(BATCH);
+    expect(
+      regions.filter((r) => r.split("\n").some((l) => l.trimEnd() === "---")).length,
+      "a region carrying its own `---` line would hand the loader and the module different text",
+    ).toBe(0);
+
+    const probe = probeLoader(RUBY);
+    if (!probe.ok) {
+      console.warn(
+        `SKIPPED the D-61 axis differential: ${probe.reason}. This is a PRINTED skip, never a silent one — the ${BATCH}-cell corpus was enumerated and no expectation was invented in the loader's absence.`,
+      );
+      return;
+    }
+
+    const digest = createHash("sha256")
+      .update(regions.join(String.fromCharCode(0)))
+      .digest("hex")
+      .slice(0, 16);
+    // Written to a caller-named path, never to stdout: this repository's vitest intercepts console
+    // output, so a dump that only reaches the console is a dump that silently did not happen
+    // (27-56-SUMMARY.md, harness-premise note 3).
+    if (process.env.GRUGOPS_D61_DUMP_CORPUS) {
+      writeFileSync(
+        process.env.GRUGOPS_D61_DUMP_CORPUS,
+        JSON.stringify({ digest, product: PRODUCT, regions }),
+      );
+    }
+
+    const verdicts = JSON.parse(
+      execFileSync(RUBY, ["-e", LOADER_PROGRAM], {
+        input: JSON.stringify(regions),
+        encoding: "utf8",
+        maxBuffer: 64 * 1024 * 1024,
+      }),
+    ) as { accepted: boolean; value?: string; flat?: string; error?: string }[];
+    expect(
+      verdicts.length,
+      "a truncated loader batch must fail arithmetically rather than silently shorten the differential",
+    ).toBe(BATCH);
+
+    const silentWhileLoaderGrants: string[] = [];
+    const moduleGrantsWhileLoaderDoesNot: string[] = [];
+    const loudRefusals: string[] = [];
+    const nameSetDisagreements: string[] = [];
+    let skipped = 0;
+    const skips: string[] = [];
+
+    for (let i = 0; i < cells.length; i += 1) {
+      const cell = cells[i];
+      const verdict = verdicts[i];
+      if (!verdict.accepted) {
+        skipped += 1;
+        skips.push(`${cell.where} :: ${verdict.error}`);
+        continue;
+      }
+      const document = `---\nname: x\n${cell.region}---\nBody.\n`;
+      const answer = hasSpawnGrant(document);
+      const loaderGrants = (verdict.value ?? "").includes(HARNESS_TOKEN);
+      if (!answer.ok) {
+        loudRefusals.push(`${cell.where}\t${answer.reason.slice(0, 70)}`);
+        continue;
+      }
+      if (!answer.value && loaderGrants) {
+        silentWhileLoaderGrants.push(`${cell.where}\tloader=${JSON.stringify(verdict.value)}`);
+        continue;
+      }
+      if (answer.value && !loaderGrants) {
+        moduleGrantsWhileLoaderDoesNot.push(`${cell.where}\tloader=${JSON.stringify(verdict.value)}`);
+        continue;
+      }
+      const moduleNames = grantedAgentNames(document);
+      const loaderNames = loaderGrantedNames(verdict.flat ?? "");
+      if (moduleNames.ok && nameVerdict(moduleNames) !== nameVerdict(loaderNames)) {
+        nameSetDisagreements.push(
+          `${cell.where}\tmodule=${nameVerdict(moduleNames)}\tloader=${nameVerdict(loaderNames)}`,
+        );
+      }
+    }
+
+    const unionMisverdicts: string[] = [];
+    let unionAdjudicated = 0;
+    for (let i = 0; i < D61_UNION_CELLS.length; i += 1) {
+      const union = D61_UNION_CELLS[i];
+      const verdict = verdicts[PRODUCT + i];
+      expect(
+        verdict.accepted,
+        `a union cell the loader will not read pins nothing: ${union.label} :: ${verdict.error}`,
+      ).toBe(true);
+      unionAdjudicated += 1;
+      const document = `---\nname: x\n${union.region}---\nBody.\n`;
+      const answer = hasSpawnGrant(document);
+      const loaderGrants = (verdict.value ?? "").includes(HARNESS_TOKEN);
+      if (union.expectRefusal) {
+        // D-59's content, crossed with D-60's and D-61's: the block region's exemption covers the
+        // region it owns and nothing else, so a non-allowlisted escape in a SIBLING region still
+        // refuses — including now that the block region can be introduced by a key spelling only
+        // D-60 admits and behind a node property only D-61 strips.
+        if (answer.ok) {
+          unionMisverdicts.push(
+            `${union.label}\texpected a refusal, got ${answer.value ? "grant" : "no-grant"}`,
+          );
+        } else {
+          loudRefusals.push(`UNION ${union.label}\t${answer.reason.slice(0, 60)}`);
+        }
+        continue;
+      }
+      if (!answer.ok) {
+        unionMisverdicts.push(`${union.label}\tunexpected refusal: ${answer.reason.slice(0, 70)}`);
+        continue;
+      }
+      if (!answer.value && loaderGrants) {
+        silentWhileLoaderGrants.push(`UNION ${union.label}`);
+      } else if (answer.value && !loaderGrants) {
+        moduleGrantsWhileLoaderDoesNot.push(`UNION ${union.label}`);
+      }
+    }
+
+    // PRINTED to a caller-named file as well as to the console, for the reason above: the console
+    // print alone is invisible on a default run in this repository.
+    const report = `D-61 axis differential [corpus ${digest}, ${probe.version}] — ${PRODUCT} generated cells (${AXIS_NODE_PROPERTY_FORM.length} property forms x ${AXIS_HEADER_INTRODUCTION.length} introductions) + ${D61_UNION_CELLS.length} union cells | loader-rejected and SKIPPED ${skipped}${skips.length > 0 ? ` (${skips.join(" ;; ")})` : ""} | adjudicated ${PRODUCT - skipped + unionAdjudicated} | loud refusal arm ${loudRefusals.length} | name-set disagreements ${nameSetDisagreements.length}`;
+    console.log(report);
+    if (process.env.GRUGOPS_D61_DUMP_REPORT) {
+      writeFileSync(process.env.GRUGOPS_D61_DUMP_REPORT, report + "\n");
+    }
+
+    expect(
+      silentWhileLoaderGrants,
+      "NEVER EXEMPTIBLE: the module read a live grant as `carries no grant`. This is the direction the whole phase exists to close and no reason may be written for it.",
+    ).toEqual([]);
+    expect(
+      moduleGrantsWhileLoaderDoesNot,
+      "NEVER EXEMPTIBLE: the module reported a grant no loader computes.",
+    ).toEqual([]);
+    expect(
+      nameSetDisagreements,
+      "the NAME SET is what the KIT-03 closure equality consumes; a set that differs from the loader's is a finding even where the boolean agrees",
+    ).toEqual([]);
+    expect(
+      unionMisverdicts,
+      "a union cell whose verdict contradicts D-55's / D-59's / D-60's declared behaviour when crossed with D-61's",
+    ).toEqual([]);
+    expect(
+      PRODUCT - skipped,
+      "the axis must adjudicate a non-trivial number of loader-accepted cells",
+    ).toBeGreaterThan(PRODUCT / 2);
+  });
+
+  // The commit this plan's fix landed on top of. Asserted below rather than trusted.
+  const D61_PRE_FIX_COMMIT = "6189744";
+
+  it("D-61 the identical axis reports a NON-EMPTY never-exemptible partition against a hermetic mirror of the pre-27-57 commit", async () => {
+    // A CORPUS THAT CANNOT GENERATE THE INPUT ITS FIX NEEDED PROVES NOTHING — this phase's WR-01
+    // lesson, applied for the fourth time. The green line above is a statement about the FIX only if
+    // the same enumeration, the same loader batch and the same partition go RED against the build
+    // that shipped the defect.
+    const dir = mkdtempSync(join(tmpdir(), "grugops-d61-prefix-"));
+    try {
+      const tarball = join(dir, "pre.tar");
+      writeFileSync(
+        tarball,
+        execFileSync("git", ["archive", D61_PRE_FIX_COMMIT], {
+          cwd: join(import.meta.dirname, ".."),
+          encoding: "buffer",
+          maxBuffer: 256 * 1024 * 1024,
+        }),
+      );
+      execFileSync("tar", ["-xf", tarball, "-C", dir]);
+      const preBuild = join(dir, "scripts", "frontmatter.js");
+      // THE MIRROR REALLY IS THE PRE-FIX BUILD, ASSERTED. If it already carries the introduction set
+      // this plan added, `D61_PRE_FIX_COMMIT` is wrong and everything below is decoration.
+      expect(
+        readFileSync(preBuild, "utf8").includes("HEADER_INTRODUCTIONS"),
+        "the mirror must PRE-DATE the introduction set, or this case proves nothing",
+      ).toBe(false);
+      const pre = (await import(preBuild)) as {
+        hasSpawnGrant: (t: string) => { ok: true; value: boolean } | { ok: false; reason: string };
+      };
+
+      const regions: string[] = [];
+      for (const property of AXIS_NODE_PROPERTY_FORM) {
+        for (const introduction of AXIS_HEADER_INTRODUCTION) {
+          regions.push(buildD61Region(property.text, introduction));
+        }
+      }
+      for (const union of D61_UNION_CELLS) regions.push(union.region);
+
+      const probe = probeLoader(RUBY);
+      if (!probe.ok) {
+        console.warn(
+          `SKIPPED the D-61 non-circularity mirror: ${probe.reason}. PRINTED, never silent.`,
+        );
+        return;
+      }
+      const verdicts = JSON.parse(
+        execFileSync(RUBY, ["-e", LOADER_PROGRAM], {
+          input: JSON.stringify(regions),
+          encoding: "utf8",
+          maxBuffer: 64 * 1024 * 1024,
+        }),
+      ) as { accepted: boolean; value?: string }[];
+
+      let silent = 0;
+      let overGrant = 0;
+      let skipped = 0;
+      for (let i = 0; i < regions.length; i += 1) {
+        const verdict = verdicts[i];
+        if (!verdict.accepted) {
+          skipped += 1;
+          continue;
+        }
+        const answer = pre.hasSpawnGrant(`---\nname: x\n${regions[i]}---\nBody.\n`);
+        if (!answer.ok) continue;
+        const loaderGrants = (verdict.value ?? "").includes(HARNESS_TOKEN);
+        if (!answer.value && loaderGrants) silent += 1;
+        else if (answer.value && !loaderGrants) overGrant += 1;
+      }
+      const line = `[D-61 axis, pre-fix mirror ${D61_PRE_FIX_COMMIT}] regions=${regions.length} skipped=${skipped} SILENT-no-grant=${silent} module-grant-loader-none=${overGrant}`;
+      console.log(line);
+      if (process.env.GRUGOPS_D61_DUMP_MIRROR) {
+        writeFileSync(process.env.GRUGOPS_D61_DUMP_MIRROR, line + "\n");
+      }
+      expect(
+        silent,
+        "the pre-fix mirror must FAIL this axis on the SILENT arm, or the axis cannot see the defect it was written for",
+      ).toBeGreaterThan(0);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("D-61 the exemption list is UNCHANGED — this plan added no reason for a disagreement either", () => {
+    // THE PROHIBITION, ASSERTED A SECOND TIME IN THE SAME ROUND. "No exemption may be added to the
+    // D-52 differential's never-exemptible directions to make the new spellings pass" — the D-61 axis
+    // above carries NO exemption machinery at all, and the D-52 list is the length it has been since
+    // round 9.
+    expect(EXEMPTIONS.length, "the D-52 exemption list must not have grown for D-61").toBe(2);
+    expect(EXEMPTIONS.map((e) => e.label)).toEqual([
+      "E1 — a dangling YAML node property at the flow collection's first node start",
+      "E2 — a YAML anchor at the value's node start on the first continuation line",
+    ]);
   });
 
   it("D-60 the exemption list is UNCHANGED — this plan added no reason for a disagreement", () => {
