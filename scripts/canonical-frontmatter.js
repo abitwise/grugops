@@ -229,7 +229,11 @@ const refuse = (code, reason) => ({
 // assertion that walks the core for code assignments, which is a hole the assertion itself found
 // while this plan was being executed. A refusal decided by data is still a refusal decided by the
 // admission core, and the bound must contain it.
-const REFUSED_NODE_SIGILS = new Map([
+// IT IS EXPORTED SO A CONSUMER CAN ASSERT WHAT THE SHIPPED TABLE CONTAINS. Plan 27-63's widening
+// sweep constructs a weakened COPY of this map and asserts the copy genuinely differs from this
+// constant before believing any result the copy produces — a no-op widening yields a perfectly
+// convincing green, and this phase has been fooled by exactly that.
+export const REFUSED_NODE_SIGILS = new Map([
     ["|", "block-scalar"],
     [">", "block-scalar"],
     ["&", "node-property"],
@@ -305,7 +309,11 @@ const nodeStartOffsets = (line) => {
 // start, so the pre-pass has already refused every one of them before this function is reached;
 // restating the test would add an arm that cannot fire, and an arm that cannot fire is an arm nobody
 // maintains.
-const admitValue = (key, raw, lineNo) => {
+//
+// IT TAKES THE ALPHABET AS A PARAMETER RATHER THAN READING THE CONSTANT. `admit` always passes
+// `PLAIN_SCALAR_ALPHABET` and nothing else, so the shipped behaviour is unchanged. The parameter
+// exists for the proof-only entry point at the foot of this file, whose reason is recorded there.
+const admitValue = (key, raw, lineNo, alphabet) => {
     if (/^\s|\s$/.test(raw)) {
         return refuse("scalar-padding", `line ${lineNo}: the value of \`${key}\` is written as \`${excerpt(raw)}\`, which begins or ends with whitespace; the canonical form is exactly one space after the colon and no trailing whitespace, so the bytes of the value are unambiguous`);
     }
@@ -348,7 +356,7 @@ const admitValue = (key, raw, lineNo) => {
         if (isControl(c)) {
             return refuse("control-character", `line ${lineNo}: the value of \`${key}\` carries the control character ${codePointLabel(c)}`);
         }
-        if (!PLAIN_SCALAR_ALPHABET.has(c)) {
+        if (!alphabet.has(c)) {
             return refuse("plain-scalar-charset", `line ${lineNo}: the plain value of \`${key}\` carries \`${c}\` (${codePointLabel(c)}), which is outside the enumerated plain-scalar alphabet; the alphabet states what this module can vouch for, and every byte outside it is refused rather than interpreted`);
         }
         if (c === "(") {
@@ -370,11 +378,24 @@ const admitValue = (key, raw, lineNo) => {
     return { ok: true, scalar: raw, quoted: false };
 };
 // THE ADMISSION ENTRY POINT. Two outcomes. No third.
+//
+// ITS SIGNATURE CARRIES NO WIDENING KNOB AND MUST NEVER GAIN ONE. `AdmitOptions` can only narrow, by
+// construction. This is the function plan 27-65's cutover wires into the guard, and its inability to
+// be told to admit more is a structural property a reader can check from the type alone.
 export function admit(text, options) {
     // The effective schema is an INTERSECTION, so the option can only narrow. See `AdmitOptions`.
     const schema = options?.schema === undefined
         ? CANONICAL_SCHEMA
         : CANONICAL_SCHEMA.filter((k) => options.schema?.includes(k) === true);
+    return admitAgainst(text, {
+        schema,
+        sigils: REFUSED_NODE_SIGILS,
+        alphabet: PLAIN_SCALAR_ALPHABET,
+    });
+}
+// The admission itself, and the only implementation of it.
+function admitAgainst(text, grammar) {
+    const { schema, sigils, alphabet } = grammar;
     // CRLF is normalized to LF before anything else, so a Windows checkout is not refused for a reason
     // that has nothing to do with safety. A lone CR that survives this is a control character and is
     // refused by name below.
@@ -418,7 +439,7 @@ export function admit(text, options) {
             const first = line[off];
             if (first === undefined)
                 continue;
-            const code = REFUSED_NODE_SIGILS.get(first);
+            const code = sigils.get(first);
             if (code !== undefined) {
                 return refuse(code, `line ${lineNo}: a node starting at column ${off + 1} is introduced by \`${first}\`, which opens ${SIGIL_CONSTRUCT_NAME.get(first) ?? "a construct outside the canonical form"}; the canonical form admits a plain scalar or a double-quoted scalar and refuses every other node, so there is no indentation to compute and no second recogniser site to forget`);
             }
@@ -447,7 +468,7 @@ export function admit(text, options) {
             if (pendingKey === null) {
                 return refuse("orphan-sequence-item", `line ${lineNo}: a block-sequence item appears where no key with an empty value precedes it; a sequence item must belong to a key the document wrote as \`${LINE_PRODUCTIONS[1]}\``);
             }
-            const v = admitValue(pendingKey, item[1], lineNo);
+            const v = admitValue(pendingKey, item[1], lineNo, alphabet);
             if (!v.ok)
                 return v;
             pendingItems.push(v.scalar);
@@ -488,7 +509,7 @@ export function admit(text, options) {
         const bad = admitKeyName(k, schema, keys, lineNo);
         if (bad !== null)
             return bad;
-        const v = admitValue(k, kv[2], lineNo);
+        const v = admitValue(k, kv[2], lineNo, alphabet);
         if (!v.ok)
             return v;
         keys.set(k, { kind: "scalar", value: v.scalar, quoted: v.quoted });
@@ -519,9 +540,25 @@ function admitKeyName(key, schema, seen, lineNo) {
     }
     return null;
 }
-// ---------------------------------------------------------------------------
-// <<< ADMISSION-CORE END >>>
-// ---------------------------------------------------------------------------
+// Run the REAL admission logic against a weakened COPY of the shipped grammar. FOR PROOFS ONLY.
+//
+// Neither module constant is mutated: a fresh `Map` and a fresh `Set` are built per call, and the
+// caller is expected to assert — before believing any result — that the copy genuinely differs from
+// the constant it was derived from. A no-op weakening produces a perfectly convincing green, and an
+// empty weakening is required to be byte-equivalent to `admit`, which is the sweep's premise control.
+export function admitUnderProofWeakeningOnly(text, weakening) {
+    const sigils = new Map(REFUSED_NODE_SIGILS);
+    for (const s of weakening.dropSigils ?? [])
+        sigils.delete(s);
+    const alphabet = new Set(PLAIN_SCALAR_ALPHABET);
+    for (const c of weakening.addToAlphabet ?? [])
+        alphabet.add(c);
+    return admitAgainst(text, {
+        schema: CANONICAL_SCHEMA,
+        sigils,
+        alphabet,
+    });
+}
 // ---------------------------------------------------------------------------
 // Grant predicates over an ADMITTED document
 // ---------------------------------------------------------------------------

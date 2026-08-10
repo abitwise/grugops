@@ -5,7 +5,7 @@
 // of this phase ended with a live bypass while the suite was green, and rounds 10 and 11 each shipped
 // a regression inside their own fix. The closure evidence this file produces is the PRINTED PER-ROW
 // TRANSCRIPT — the row id, its round, its finding id, its refusal code and the refusal TEXT — plus
-// the round-coverage table. The green line is not the evidence.
+// the round-coverage table and the widening sweep at the foot. The green line is not the evidence.
 //
 // "IT FAILED" AND "IT FAILED FOR THE RIGHT REASON" ARE DIFFERENT CLAIMS. Every row declares the
 // refusal code it expects, and the replay asserts the reader's actual code EQUALS it. A row refused
@@ -27,9 +27,17 @@
 
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
+import { execFileSync } from "node:child_process";
 import { join } from "node:path";
 
-import { admit, REFUSAL_CODES, type RefusalCode } from "./canonical-frontmatter.js";
+import {
+  admit,
+  admitUnderProofWeakeningOnly,
+  PLAIN_SCALAR_ALPHABET,
+  REFUSAL_CODES,
+  REFUSED_NODE_SIGILS,
+  type RefusalCode,
+} from "./canonical-frontmatter.js";
 
 import {
   CORPUS,
@@ -307,6 +315,296 @@ describe("canonical-corpus: the rounds-1-11 bypass corpus replays as NAMED LOUD 
     );
     log(
       `canonical-corpus: rows marked UNKNOWN - verify:\n  ${unknown.map((r) => `${r.id} (round ${r.round}) — ${r.loaderNote}`).join("\n  ")}`,
+    );
+  });
+});
+// ---------------------------------------------------------------------------
+// THE FAIL-PROOF — the replay is proven able to fail (plan 27-63 task 3)
+// ---------------------------------------------------------------------------
+//
+// An all-refused result is only evidence if the replay COULD have produced something else. This
+// sweep widens a COPY of the reader's grammar, one named construct at a time, and reports exactly
+// which rows change verdict — so "91 refused" is a measurement rather than a property of a grammar
+// that refuses everything.
+//
+// THE PREMISE CONTROL IS RECORDED FIRST, and it is not a formality. This phase's record shows a sweep
+// without one producing reds that were not attributable to the edit it was measuring — fifteen reds
+// of which six had another cause. The unwidened baseline is what makes every later number
+// attributable to the WIDENING and not to the rebuild.
+//
+// NOTHING ON DISK IS MUTATED. Each widening is a local copy constructed inside this file and passed
+// to `admitUnderProofWeakeningOnly`, the reader's named proof-only entry point. The copy is asserted
+// to genuinely DIFFER from the exported constant before it is used: a no-op widening produces a
+// perfectly convincing green, and this phase has been fooled by exactly that.
+
+// A widening, named. `dropSigils` removes rows from the node-start refusal table; `addToAlphabet`
+// adds the same characters to the plain-scalar alphabet. BOTH halves are required to widen a
+// construct, because the reader refuses these bytes in two independent places — that is its stated
+// defence in depth, and a widening that touched only one half would measure the other half instead.
+type Widening = {
+  readonly name: string;
+  readonly sigils: readonly string[];
+  readonly rationale: string;
+};
+
+const WIDENINGS: readonly Widening[] = [
+  {
+    name: "admit block-scalar indicators",
+    sigils: ["|", ">"],
+    rationale:
+      "CR-01's family across rounds 10 and 11: a block scalar header whose indentation landmark the old parser computed from the wrong node.",
+  },
+  {
+    name: "admit node-property sigils",
+    sigils: ["&", "*", "!"],
+    rationale:
+      "CR-02's family and the round-1/2 reference and tag axes: an anchor, an alias or a tag standing in front of the node the grant lives on.",
+  },
+];
+
+describe("canonical-corpus: the replay is PROVEN ABLE TO FAIL", () => {
+  // THE PREMISE CONTROL, RECORDED FIRST.
+  it("premise control: with NOTHING widened, the replay is fully green and ZERO rows are admitted", () => {
+    const admitted = REPLAYED.filter((r) => r.admitted);
+    expect(
+      admitted.map((r) => r.row.id),
+      "the unwidened baseline admits row(s) — every number in the sweep below would be unattributable",
+    ).toEqual([]);
+
+    const mismatched = REPLAYED.filter(
+      (r) => !r.admitted && r.code !== r.row.expected,
+    );
+    expect(
+      mismatched.map((r) => r.row.id),
+      "the unwidened baseline already disagrees with a row's declared code",
+    ).toEqual([]);
+
+    // The proof-only entry point with an EMPTY weakening must be indistinguishable from `admit`.
+    // Without this the sweep could be measuring the entry point rather than the widening.
+    const drift = CORPUS.filter((row) => {
+      const a = admit(row.text);
+      const b = admitUnderProofWeakeningOnly(row.text, {});
+      if (a.ok !== b.ok) return true;
+      return !a.ok && !b.ok && a.code !== b.code;
+    });
+    expect(
+      drift.map((r) => r.id),
+      "the proof-only entry point with an EMPTY weakening disagrees with `admit` — the sweep would be measuring the entry point, not the widening",
+    ).toEqual([]);
+
+    log(
+      `canonical-corpus: PREMISE CONTROL — unwidened, ${REPLAYED.length} row(s) replayed, 0 admitted, 0 code mismatches; the empty weakening is byte-equivalent to admit() on all ${CORPUS.length} rows`,
+    );
+  });
+
+  it("each widening MOVES a non-empty, NAMED set of rows, and the widening genuinely differs from the shipped grammar", () => {
+    const movedByWidening = new Map<string, string[]>();
+    const admittedByWidening = new Map<string, string[]>();
+
+    for (const w of WIDENINGS) {
+      // ASSERT THE WIDENING IS REAL BEFORE BELIEVING ANY RESULT IT PRODUCES.
+      for (const s of w.sigils) {
+        expect(
+          REFUSED_NODE_SIGILS.has(s),
+          `widening \`${w.name}\` drops sigil \`${s}\`, which the shipped table does not contain — the widening would be a no-op`,
+        ).toBe(true);
+        expect(
+          PLAIN_SCALAR_ALPHABET.has(s),
+          `widening \`${w.name}\` adds \`${s}\` to the plain-scalar alphabet, which already contains it — the widening would be a no-op`,
+        ).toBe(false);
+      }
+
+      const moved: string[] = [];
+      const admittedIds: string[] = [];
+      for (const row of CORPUS) {
+        const base = admit(row.text);
+        const wide = admitUnderProofWeakeningOnly(row.text, {
+          dropSigils: w.sigils,
+          addToAlphabet: w.sigils,
+        });
+        if (wide.ok) {
+          admittedIds.push(row.id);
+          moved.push(`${row.id} (${base.ok ? "admitted" : base.code} -> ADMITTED)`);
+          continue;
+        }
+        if (base.ok) continue;
+        if (wide.code !== base.code) {
+          moved.push(`${row.id} (${base.code} -> ${wide.code})`);
+        }
+      }
+      movedByWidening.set(w.name, moved);
+      admittedByWidening.set(w.name, admittedIds);
+    }
+
+    for (const w of WIDENINGS) {
+      const moved = movedByWidening.get(w.name) ?? [];
+      const admittedIds = admittedByWidening.get(w.name) ?? [];
+      log(
+        `canonical-corpus: WIDENING \`${w.name}\` (${w.sigils.join(" ")}) — ${w.rationale}\n` +
+          `      rows MOVED    : ${moved.length}\n` +
+          `      rows ADMITTED : ${admittedIds.length}${admittedIds.length ? ` — ${admittedIds.join(", ")}` : ""}\n` +
+          `      moved rows    :\n        ${moved.join("\n        ")}`,
+      );
+    }
+
+    // A WIDENING THAT MOVES ZERO ROWS IS A FAILURE OF THIS TASK'S PREMISE, not a demonstration that
+    // the grammar is robust. Named, not counted: a count of moved rows without their ids is the shape
+    // that let a prior round report fifteen reds of which six were attributable to something else.
+    for (const w of WIDENINGS) {
+      const moved = movedByWidening.get(w.name) ?? [];
+      expect(
+        moved.length,
+        `widening \`${w.name}\` moved ZERO rows — the sweep proves nothing and must halt rather than be reported as "the grammar is robust"`,
+      ).toBeGreaterThan(0);
+    }
+
+    // AT LEAST ONE WIDENING MUST PRODUCE A GENUINE ADMIT. `moved` alone would be satisfied by a row
+    // sliding from one refusal code to another, which shows the replay's code assertion can fail but
+    // not that the reader can be made to let a historical grant through.
+    const allAdmitted = WIDENINGS.flatMap(
+      (w) => admittedByWidening.get(w.name) ?? [],
+    );
+    expect(
+      allAdmitted.length,
+      "no widening made ANY historical bypass row ADMIT — the sweep would show only that codes can change, not that the corpus can pass",
+    ).toBeGreaterThan(0);
+    log(
+      `canonical-corpus: rows ADMITTED under at least one widening (${allAdmitted.length}) = ${[...new Set(allAdmitted)].join(", ")}`,
+    );
+  });
+
+  it("the union of moved rows is a STRICT SUBSET of the corpus, and the rows neither widening moves are NAMED", () => {
+    const movedUnion = new Set<string>();
+    for (const w of WIDENINGS) {
+      for (const row of CORPUS) {
+        const base = admit(row.text);
+        const wide = admitUnderProofWeakeningOnly(row.text, {
+          dropSigils: w.sigils,
+          addToAlphabet: w.sigils,
+        });
+        if (wide.ok) movedUnion.add(row.id);
+        else if (!base.ok && wide.code !== base.code) movedUnion.add(row.id);
+      }
+    }
+
+    const unmoved = CORPUS.filter((r) => !movedUnion.has(r.id));
+
+    // STRICT SUBSET, BOTH DIRECTIONS. If the union were everything, the corpus would be testing two
+    // constructs wearing ninety-one costumes; if it were nothing, the sweep would be vacuous.
+    expect(
+      movedUnion.size,
+      "the two widenings moved NOTHING — the sweep is vacuous",
+    ).toBeGreaterThan(0);
+    expect(
+      movedUnion.size,
+      `the two widenings moved ALL ${CORPUS.length} rows, so the corpus exercises only the two headline constructs`,
+    ).toBeLessThan(CORPUS.length);
+
+    const byCode = new Map<string, string[]>();
+    for (const r of unmoved) {
+      const list = byCode.get(r.expected) ?? [];
+      list.push(r.id);
+      byCode.set(r.expected, list);
+    }
+    log(
+      `canonical-corpus: rows moved by NEITHER widening (${unmoved.length} of ${CORPUS.length}) — the corpus exercises more than the two headline constructs:\n` +
+        [...byCode]
+          .sort()
+          .map(([code, ids]) => `      ${code} (${ids.length}): ${ids.join(", ")}`)
+          .join("\n"),
+    );
+  });
+
+  it("no widening reaches the SHIPPED grammar: the exported constants are unchanged after the sweep", () => {
+    // The sweep ran in the cases above. If any widening had mutated a module constant rather than a
+    // local copy, these would now be false — and every result printed above would be describing a
+    // grammar that no longer exists.
+    for (const w of WIDENINGS) {
+      for (const s of w.sigils) {
+        expect(
+          REFUSED_NODE_SIGILS.has(s),
+          `after the sweep, \`${s}\` is missing from the SHIPPED node-start refusal table — a widening reached the module`,
+        ).toBe(true);
+        expect(
+          PLAIN_SCALAR_ALPHABET.has(s),
+          `after the sweep, \`${s}\` is present in the SHIPPED plain-scalar alphabet — a widening reached the module`,
+        ).toBe(false);
+      }
+    }
+
+    // And the shipped entry point still refuses every row, replayed fresh rather than read from the
+    // memoised baseline, so a mutation that survived the sweep cannot hide behind a cached result.
+    const admittedNow = CORPUS.filter((r) => admit(r.text).ok).map((r) => r.id);
+    expect(
+      admittedNow,
+      `after the sweep, \`admit\` ADMITS row(s): ${admittedNow.join(", ")}`,
+    ).toEqual([]);
+
+    log(
+      "canonical-corpus: post-sweep — the shipped sigil table and plain-scalar alphabet are unchanged, and admit() still refuses all " +
+        `${CORPUS.length} rows`,
+    );
+  });
+
+  it("the proof-only entry point is referenced by NO non-test module in the tree", () => {
+    // A widening knob on the module plan 27-65 will wire into the guard is a real hazard. The
+    // structural containment is that `admit` — the entry point the cutover calls — has no widening
+    // parameter at all, and the proof-only entry point is a separately named export. This case is the
+    // forcing function for that containment.
+    //
+    // THE SET IS DERIVED FROM THE TRACKED TREE AND ITS CARDINALITY IS PINNED, following the D-50
+    // idiom this repository already uses for its fence and frontmatter grammars. A hand-scoped check
+    // that reads one file stays green while the set it claims to bound grows, which is this
+    // repository's second systemic failure class by name.
+    const NAME = "admitUnderProofWeakeningOnly";
+    const tracked = execFileSync("git", ["ls-files", "*.ts"], {
+      cwd: ROOT,
+      encoding: "utf8",
+    })
+      .split("\n")
+      .filter((f) => f.length > 0);
+    expect(
+      tracked.length,
+      "the tracked TypeScript listing is empty — the derivation below would be vacuous",
+    ).toBeGreaterThan(10);
+
+    const referencing = tracked
+      .filter((rel) => readFileSync(join(ROOT, rel), "utf8").includes(NAME))
+      .sort();
+    expect(
+      referencing,
+      `\`${NAME}\` is referenced by ${referencing.join(", ")}; it must be referenced ONLY by the reader that declares it and by this test`,
+    ).toEqual(["scripts/canonical-corpus.test.ts", "scripts/canonical-frontmatter.ts"]);
+    // Cardinality pinned separately, so a rename that collapses the two into one is also a red.
+    expect(referencing.length, `\`${NAME}\` reference-site count`).toBe(2);
+
+    const nonTest = referencing.filter((rel) => !rel.endsWith(".test.ts"));
+    expect(
+      nonTest,
+      `\`${NAME}\` is referenced by NON-TEST module(s): ${nonTest.join(", ")} — a gate, guard or installer must never be handed a grammar the corpus was not measured against`,
+    ).toEqual(["scripts/canonical-frontmatter.ts"]);
+
+    const src = readFileSync(
+      join(ROOT, "scripts", "canonical-frontmatter.ts"),
+      "utf8",
+    );
+    expect(
+      src.includes(`export function ${NAME}`),
+      "the proof-only entry point is not declared where this case expects it",
+    ).toBe(true);
+
+    // `admit`'s own options type must never gain a widening field.
+    const optionsBlock = src.slice(
+      src.indexOf("export type AdmitOptions"),
+      src.indexOf("export type AdmitOptions") + 200,
+    );
+    expect(
+      /dropSigils|addToAlphabet/.test(optionsBlock),
+      "`AdmitOptions` — the option bag the CUTOVER's entry point accepts — has gained a widening field",
+    ).toBe(false);
+
+    log(
+      "canonical-corpus: containment — `admit(text, options)` carries no widening field; the widening lives only on the separately named proof-only export",
     );
   });
 });

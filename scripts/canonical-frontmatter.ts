@@ -323,7 +323,11 @@ const refuse = (code: RefusalCode, reason: string): Refusal => ({
 // assertion that walks the core for code assignments, which is a hole the assertion itself found
 // while this plan was being executed. A refusal decided by data is still a refusal decided by the
 // admission core, and the bound must contain it.
-const REFUSED_NODE_SIGILS: ReadonlyMap<string, RefusalCode> = new Map<
+// IT IS EXPORTED SO A CONSUMER CAN ASSERT WHAT THE SHIPPED TABLE CONTAINS. Plan 27-63's widening
+// sweep constructs a weakened COPY of this map and asserts the copy genuinely differs from this
+// constant before believing any result the copy produces — a no-op widening yields a perfectly
+// convincing green, and this phase has been fooled by exactly that.
+export const REFUSED_NODE_SIGILS: ReadonlyMap<string, RefusalCode> = new Map<
   string,
   RefusalCode
 >([
@@ -404,10 +408,15 @@ const nodeStartOffsets = (line: string): number[] => {
 // start, so the pre-pass has already refused every one of them before this function is reached;
 // restating the test would add an arm that cannot fire, and an arm that cannot fire is an arm nobody
 // maintains.
+//
+// IT TAKES THE ALPHABET AS A PARAMETER RATHER THAN READING THE CONSTANT. `admit` always passes
+// `PLAIN_SCALAR_ALPHABET` and nothing else, so the shipped behaviour is unchanged. The parameter
+// exists for the proof-only entry point at the foot of this file, whose reason is recorded there.
 const admitValue = (
   key: string,
   raw: string,
   lineNo: number,
+  alphabet: ReadonlySet<string>,
 ): ValueAdmission => {
   if (/^\s|\s$/.test(raw)) {
     return refuse(
@@ -477,7 +486,7 @@ const admitValue = (
         `line ${lineNo}: the value of \`${key}\` carries the control character ${codePointLabel(c)}`,
       );
     }
-    if (!PLAIN_SCALAR_ALPHABET.has(c)) {
+    if (!alphabet.has(c)) {
       return refuse(
         "plain-scalar-charset",
         `line ${lineNo}: the plain value of \`${key}\` carries \`${c}\` (${codePointLabel(c)}), which is outside the enumerated plain-scalar alphabet; the alphabet states what this module can vouch for, and every byte outside it is refused rather than interpreted`,
@@ -510,13 +519,39 @@ const admitValue = (
   return { ok: true, scalar: raw, quoted: false };
 };
 
+// THE GRAMMAR ONE ADMISSION RUN IS TAKEN AGAINST. There is exactly ONE admission implementation in
+// this tree and this record is how it is told which alphabet and which node-start table to consult.
+// `admit` — the entry point a gate calls — always fills it from the module constants, so the shipped
+// behaviour is fixed. See `admitUnderProofWeakeningOnly` at the foot of this file for the one other
+// caller and the reason it exists.
+type EffectiveGrammar = {
+  readonly schema: readonly string[];
+  readonly sigils: ReadonlyMap<string, RefusalCode>;
+  readonly alphabet: ReadonlySet<string>;
+};
+
 // THE ADMISSION ENTRY POINT. Two outcomes. No third.
+//
+// ITS SIGNATURE CARRIES NO WIDENING KNOB AND MUST NEVER GAIN ONE. `AdmitOptions` can only narrow, by
+// construction. This is the function plan 27-65's cutover wires into the guard, and its inability to
+// be told to admit more is a structural property a reader can check from the type alone.
 export function admit(text: string, options?: AdmitOptions): Admission {
   // The effective schema is an INTERSECTION, so the option can only narrow. See `AdmitOptions`.
   const schema =
     options?.schema === undefined
       ? CANONICAL_SCHEMA
       : CANONICAL_SCHEMA.filter((k) => options.schema?.includes(k) === true);
+
+  return admitAgainst(text, {
+    schema,
+    sigils: REFUSED_NODE_SIGILS,
+    alphabet: PLAIN_SCALAR_ALPHABET,
+  });
+}
+
+// The admission itself, and the only implementation of it.
+function admitAgainst(text: string, grammar: EffectiveGrammar): Admission {
+  const { schema, sigils, alphabet } = grammar;
 
   // CRLF is normalized to LF before anything else, so a Windows checkout is not refused for a reason
   // that has nothing to do with safety. A lone CR that survives this is a control character and is
@@ -580,7 +615,7 @@ export function admit(text: string, options?: AdmitOptions): Admission {
     for (const off of nodeStartOffsets(line)) {
       const first = line[off];
       if (first === undefined) continue;
-      const code = REFUSED_NODE_SIGILS.get(first);
+      const code = sigils.get(first);
       if (code !== undefined) {
         return refuse(
           code,
@@ -624,7 +659,7 @@ export function admit(text: string, options?: AdmitOptions): Admission {
           `line ${lineNo}: a block-sequence item appears where no key with an empty value precedes it; a sequence item must belong to a key the document wrote as \`${LINE_PRODUCTIONS[1]}\``,
         );
       }
-      const v = admitValue(pendingKey, item[1] as string, lineNo);
+      const v = admitValue(pendingKey, item[1] as string, lineNo, alphabet);
       if (!v.ok) return v;
       pendingItems.push(v.scalar);
       pendingQuoted.push(v.quoted);
@@ -671,7 +706,7 @@ export function admit(text: string, options?: AdmitOptions): Admission {
     const k = kv[1] as string;
     const bad = admitKeyName(k, schema, keys, lineNo);
     if (bad !== null) return bad;
-    const v = admitValue(k, kv[2] as string, lineNo);
+    const v = admitValue(k, kv[2] as string, lineNo, alphabet);
     if (!v.ok) return v;
     keys.set(k, { kind: "scalar", value: v.scalar, quoted: v.quoted });
   }
@@ -725,6 +760,74 @@ function admitKeyName(
 // ---------------------------------------------------------------------------
 // <<< ADMISSION-CORE END >>>
 // ---------------------------------------------------------------------------
+
+// ---------------------------------------------------------------------------
+// The PROOF-ONLY weakening entry point
+// ---------------------------------------------------------------------------
+//
+// WHY A FUNCTION THAT CAN MAKE THIS MODULE ADMIT MORE EXISTS AT ALL, AND WHY IT IS SAFE.
+//
+// A canonical-form reader passes plan 27-63's historical replay trivially by refusing everything, so
+// "all 91 rows refused" is only evidence if the replay COULD have produced something else. Proving
+// that requires running the REAL admission logic against a deliberately weakened grammar and showing
+// which rows change verdict. The alternatives are worse: mutating the module on disk leaves the proof
+// entangled with the production constants, and writing a second admission implementation inside the
+// test creates exactly the second grammar this module exists to abolish — the drift class that has
+// already cost this repository eleven review rounds.
+//
+// THE CONTAINMENT IS STRUCTURAL, NOT A CONVENTION.
+//
+//   * `admit` — the entry point plan 27-65's cutover wires into the guard — does not take a
+//     weakening. Its only option can intersect the schema, which can only ever NARROW. A reader can
+//     verify from `AdmitOptions`' type alone that the shipped entry point cannot be told to admit
+//     more, and `canonical-corpus.test.ts` asserts that property over this file's source.
+//   * The weakening lives on a SEPARATELY NAMED export whose name states what it is for. It is
+//     referenced by exactly one file in this tree, and that file is a test.
+//   * There is still ONE admission implementation. This function does not re-decide anything; it
+//     builds a grammar record and hands it to the same `admitAgainst` the shipped path uses, so the
+//     sweep measures the WIDENING and never a second opinion about the document.
+//
+// DO NOT CALL THIS FROM A GATE, AN INSTALLER, A GUARD OR ANY OTHER NON-TEST MODULE. Doing so hands
+// the spawn verdict a grammar the corpus was never measured against.
+
+// A weakening, expressed as the two things that must BOTH give way before a construct this module
+// refuses can be admitted.
+//
+// TWO FIELDS AND NOT ONE, BECAUSE THE MODULE REFUSES IN TWO INDEPENDENT PLACES. A block-scalar
+// indicator is refused at a node start by `REFUSED_NODE_SIGILS` AND, wherever else it appears, by
+// its absence from `PLAIN_SCALAR_ALPHABET`. That is the defence in depth 27-62 measured with its P3
+// probe: deleting the `>` row from the sigil table left CR-01 rows A and B still refused, as
+// `unrecognized-line`. A weakening that dropped only the sigil row would therefore be measuring the
+// alphabet rather than the construct, and would report a moved row as though it were an admitted one.
+export type ProofWeakening = {
+  // Sigil rows to REMOVE from the node-start refusal table.
+  readonly dropSigils?: readonly string[];
+  // Characters to ADD to the plain-scalar alphabet.
+  readonly addToAlphabet?: readonly string[];
+};
+
+// Run the REAL admission logic against a weakened COPY of the shipped grammar. FOR PROOFS ONLY.
+//
+// Neither module constant is mutated: a fresh `Map` and a fresh `Set` are built per call, and the
+// caller is expected to assert — before believing any result — that the copy genuinely differs from
+// the constant it was derived from. A no-op weakening produces a perfectly convincing green, and an
+// empty weakening is required to be byte-equivalent to `admit`, which is the sweep's premise control.
+export function admitUnderProofWeakeningOnly(
+  text: string,
+  weakening: ProofWeakening,
+): Admission {
+  const sigils = new Map(REFUSED_NODE_SIGILS);
+  for (const s of weakening.dropSigils ?? []) sigils.delete(s);
+
+  const alphabet = new Set(PLAIN_SCALAR_ALPHABET);
+  for (const c of weakening.addToAlphabet ?? []) alphabet.add(c);
+
+  return admitAgainst(text, {
+    schema: CANONICAL_SCHEMA,
+    sigils,
+    alphabet,
+  });
+}
 
 // ---------------------------------------------------------------------------
 // Grant predicates over an ADMITTED document
