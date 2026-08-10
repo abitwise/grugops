@@ -49,6 +49,21 @@ jobs:
       - name: Build (tsc → committed .js parity surface)
         run: npm run build
 
+      # (27-60 / WR-04) WIRED HONESTLY, AND THE FINDING IS THAT IT WAS NOT WIRED AT ALL.
+      # 27-REVIEW § WR-04 proposed wiring the new test-inclusive target "into the same gate that
+      # runs typecheck". There WAS no typecheck step in this workflow — the shipped source got
+      # type-checked only as a side effect of `npm run build` (tsc with noEmitOnError), and the
+      # TEST files got type-checked by nothing anywhere: tsconfig.json excludes `**/*.test.ts`
+      # (measured: `tsc --noEmit --listFiles` loaded ZERO of the 36 tracked .test.ts files) and
+      # vitest's transform strips types without checking them.
+      #
+      # `npm run typecheck` now runs BOTH targets: the shipped-source one (unchanged, exclude list
+      # byte-identical) and tsconfig.tests.json, which drops only the test exclusion. It emits
+      # nothing, so it cannot perturb the committed .js the freshness gate compares against.
+      # Both OS legs run it; it is pure type analysis with no path-separator surface.
+      - name: Typecheck (shipped source + test-inclusive target)
+        run: npm run typecheck
+
       # Run the full vitest suite EXCLUDING the live claude-CLI e2e lane (scripts/e2e). That lane
       # spends tokens and can hang on an authed box; it is NOT a CI gate. On windows-latest this is
       # the step that exercises the SC-2 unlink-then-rename branch (paths normalized via node:path).

@@ -179,10 +179,35 @@ const adapterPath = (root: string, name: string): string =>
 //
 // This literal is a FIXTURE, not a scan set: if it ever drifts from the guard's own constant every
 // case built on a constructed mirror goes red, so the duplication fails closed.
+//
+// (27-60 / WR-04) That fail-closed claim was TRUE for the specialist form — nine fixtures embed it,
+// so drift reds them — and FALSE for the coordinator form, which was read by NOTHING. The
+// test-inclusive typecheck target flagged it as an unused local, which is exactly what a duplicate
+// with no consumer IS: a second copy of a wording contract that can drift in silence, this
+// repository's diagnosed set-literal failure class. Deleting it would delete the mirror; the fix is
+// to make the claim its own comment makes actually hold, in `memory-sentence fixtures mirror the
+// guard's own constants` below, which asserts BOTH forms appear verbatim in the guard source.
 const MEMORY_SENTENCE_SPECIALIST =
   "The shared verified context is the only memory — read what earlier roles published, publish your own, and expect nothing to have been passed to you by whoever activated you.";
 const MEMORY_SENTENCE_COORDINATOR =
   "The shared verified context is the only memory — never relay data between agents.";
+
+describe("memory-sentence fixtures mirror the guard's own constants (27-60 / WR-04)", () => {
+  it("both fixture forms appear VERBATIM in scripts/check-foundation-guards.ts", () => {
+    const guardSrc = readFileSync(join(ROOT, "scripts", "check-foundation-guards.ts"), "utf8");
+    for (const [label, sentence] of [
+      ["specialist", MEMORY_SENTENCE_SPECIALIST],
+      ["coordinator", MEMORY_SENTENCE_COORDINATOR],
+    ] as const) {
+      expect(
+        guardSrc.includes(sentence),
+        `the ${label} memory sentence this harness mirrors is no longer present verbatim in ` +
+          `scripts/check-foundation-guards.ts — the wording contract drifted on one side only. ` +
+          `Re-cut the template, the generator and this fixture together. Fixture text: ${sentence}`,
+      ).toBe(true);
+    }
+  });
+});
 
 // (Phase 27 / plan 27-07) BOTH KIT-03 fixtures are now CONSTRUCTED, and neither inherits its shape
 // from the live tree.

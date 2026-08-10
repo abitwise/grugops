@@ -21,7 +21,7 @@
 // Wave-0 sequencing (the oracle is authored before the implementation).
 
 import { describe, it, expect, afterAll } from "vitest";
-import { spawnSync, type SpawnSyncReturns } from "node:child_process";
+import { spawnSync } from "node:child_process";
 import {
   mkdtempSync,
   mkdirSync,
@@ -43,9 +43,10 @@ afterAll(() => {
   for (const d of tmpDirs) rmSync(d, { recursive: true, force: true });
 });
 
-function out(r: SpawnSyncReturns<string>): string {
-  return `${r.stdout ?? ""}${r.stderr ?? ""}`;
-}
+// (27-60 / WR-04) A local `out(r)` helper lived here, read by nothing — the first thing the
+// test-inclusive typecheck target ever saw. Every call site in this file inlines
+// `${r.stdout}${r.stderr}` directly, so the helper was dead rather than merely unused-for-now.
+// Removed at its site; no assertion changed.
 
 // The 17 role display names (from each file's `# Role:` H1) — load-bearing literals.
 const ROLE_NAMES = [

@@ -38,7 +38,6 @@ import {
   rmSync,
   renameSync,
   existsSync,
-  statSync,
   lstatSync,
   chmodSync,
   symlinkSync,

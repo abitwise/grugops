@@ -1,0 +1,23 @@
+// tsconfig.tests.json — the TEST-INCLUSIVE typecheck target (27-REVIEW § WR-04).
+//
+// WHY THIS FILE EXISTS. `tsconfig.json` turned on `noUnusedLocals` / `noUnusedParameters` (IN-01's
+// remedy) but its `exclude` list carries `"**/*.test.ts"`, so `tsc --noEmit --listFiles` reported
+// ZERO test files — measured, not assumed. Vitest's transform strips types without checking them.
+// The dead-code flags therefore had no reach into the surface this phase actually grew by well over
+// a thousand lines. A flag turned on over code it cannot see is a control that reads as enforced and
+// enforces nothing.
+//
+// WHAT IT DOES NOT DO. It does not replace or loosen the shipped-source target. `tsconfig.json`
+// keeps its exclude list byte-unchanged, so `npm run build` and `npm run freshness` keep emitting
+// EXACTLY the same committed `.js` set. This target sets `noEmit` and emits nothing at all — the
+// only thing it adds is REACH.
+//
+// The `include` list is inherited from `tsconfig.json` (install/, scripts/, hooks/). The only
+// override is the exclude list, which drops the `**/*.test.ts` entry and keeps the other two.
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": true
+  },
+  "exclude": ["node_modules", ".tmp-build"]
+}

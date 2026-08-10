@@ -530,6 +530,11 @@ describe("context-io.js — replay/supersede (SCTX-04)", () => {
       confidence: "high",
       refs: [],
       supersedes: null,
+      // (27-60 / WR-04) `body` is REQUIRED by NoteRecord and was missing from both literals, so
+      // `mod.currentState([b, a])` was being handed two objects that are not NoteRecords. Vitest
+      // strips types without checking them and tsconfig.json excluded every test file, so nothing
+      // in the gate had ever seen this. Supplied here rather than widened at the interface.
+      body: "note A",
     };
     const b = {
       id: "20260617T150000Z-b-finding-bbbb",
@@ -540,6 +545,7 @@ describe("context-io.js — replay/supersede (SCTX-04)", () => {
       confidence: "high",
       refs: [],
       supersedes: a.id, // B supersedes A
+      body: "note B",
     };
     // Pass in reverse order to prove file/array position does not drive the fold.
     const live = mod.currentState([b, a]);

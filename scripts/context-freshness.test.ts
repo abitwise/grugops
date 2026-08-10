@@ -129,6 +129,27 @@ describe("context-freshness.js (SCTX-03 / SC-4 context index drift gate)", () =>
     expect(runFreshness().status).toBe(0);
   });
 
+  // (27-60 / WR-04) The test-inclusive typecheck target's FIRST catch in this file: `indexMd` was
+  // declared and assigned in beforeAll and then read by nothing. The gate's own derived set is
+  // `["index.md", "index.jsonl"]` (context-freshness.ts:125) — BOTH halves are compared — but only
+  // the .jsonl half had a planted-drift case. The unused local was the tell for a missing case, not
+  // dead weight to delete: this is the .md twin of Test 2, and it makes the local load-bearing.
+  it("Test 2b (planted-drift STALE, the .md half): exits non-zero and names index.md", () => {
+    const original = readFileSync(indexMd);
+    try {
+      writeFileSync(indexMd, Buffer.concat([original, Buffer.from("\ndrift\n")]));
+
+      const r = runFreshness();
+      expect(r.status).not.toBe(0);
+      expect(r.stdout).toContain("STALE:");
+      expect(r.stdout).toContain("index.md");
+    } finally {
+      writeFileSync(indexMd, original);
+    }
+    // Sanity: the restore returns the fixture to fresh.
+    expect(runFreshness().status).toBe(0);
+  });
+
   it("Test 3 (fail-closed): exits non-zero and never reports fresh when the regeneration fails", () => {
     // Break the regen itself: add a per-task context dir whose NAME fails the render's
     // task-name allowlist (a space → assertSafeTask throws → `context-io.js render`
