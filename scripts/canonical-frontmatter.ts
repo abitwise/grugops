@@ -49,9 +49,26 @@ import { DQ_ESCAPE_ALLOWLIST, stripFencedBlocks } from "./frontmatter.js";
 // A value this module admits. There are exactly two, matching the two value productions below: a
 // scalar, and a block sequence of scalars. There is no mapping value, because a nested mapping is
 // not part of the canonical shape and is refused.
+//
+// WHETHER THE SCALAR WAS WRITTEN QUOTED IS PART OF THE IMAGE, not an implementation detail dropped
+// on the way out. The admitted document is a faithful image of what the document wrote, and the
+// quoting is the one fact a consumer cannot recover from the resolved text — `description: "a"` and
+// `description: a` resolve to the same string. It is recorded because the two-sided cardinality case
+// asserts, over the live corpus, that the set of keys carrying a double-quoted value is EXACTLY
+// `DOUBLE_QUOTED_KEYS` and that ZERO grant-key values are quoted. Without it that case would have to
+// re-read the raw region and derive the quoting a second time, which is the second-grammar drift
+// this whole module exists to refuse.
 export type AdmittedValue =
-  | { readonly kind: "scalar"; readonly value: string }
-  | { readonly kind: "sequence"; readonly items: readonly string[] };
+  | {
+      readonly kind: "scalar";
+      readonly value: string;
+      readonly quoted: boolean;
+    }
+  | {
+      readonly kind: "sequence";
+      readonly items: readonly string[];
+      readonly quotedItems: readonly boolean[];
+    };
 
 // The admitted document: the frontmatter keys in the order the document wrote them. A duplicate key
 // is REFUSED rather than merged or last-wins, so this map is a faithful, lossless image of the
@@ -119,7 +136,24 @@ export type Admission =
   | Refusal;
 
 // The verdict on a single value. Same two-arm discipline one level down, and the same `Refusal`.
-type ValueAdmission = { readonly ok: true; readonly scalar: string } | Refusal;
+type ValueAdmission =
+  | { readonly ok: true; readonly scalar: string; readonly quoted: boolean }
+  | Refusal;
+
+// The one option `admit` accepts, and it can only ever make admission STRICTER.
+//
+// WHY AN OPTION EXISTS ON A SAFETY AUTHORITY AT ALL. The two-sided cardinality case must show that
+// the all-33-admitted result is not vacuous — that the admission loop is capable of REFUSING a live
+// file. Proving that by mutating the module's own schema would leave the proof entangled with the
+// production constant; proving it by planting a synthetic file would prove nothing about the loop
+// that runs over the real corpus.
+//
+// IT CANNOT WIDEN, BY CONSTRUCTION AND NOT BY CONVENTION. The effective schema is the INTERSECTION
+// of `CANONICAL_SCHEMA` with whatever is passed, so a caller supplying extra keys gets exactly the
+// canonical schema back. There is no validation branch and no error path, therefore no third
+// outcome: a document still has exactly two, and a caller cannot reach a state this module has to
+// report on.
+export type AdmitOptions = { readonly schema?: readonly string[] };
 
 // ---------------------------------------------------------------------------
 // The canonical schema and its alphabets — all enumerate-the-good
@@ -422,7 +456,7 @@ const admitValue = (
       resolved += sub;
       i += 1;
     }
-    return { ok: true, scalar: resolved };
+    return { ok: true, scalar: resolved, quoted: true };
   }
 
   let depth = 0;
@@ -463,11 +497,17 @@ const admitValue = (
       `line ${lineNo}: the plain value of \`${key}\` opens a \`(\` that is never closed, so any enumeration it introduces was never captured`,
     );
   }
-  return { ok: true, scalar: raw };
+  return { ok: true, scalar: raw, quoted: false };
 };
 
 // THE ADMISSION ENTRY POINT. Two outcomes. No third.
-export function admit(text: string): Admission {
+export function admit(text: string, options?: AdmitOptions): Admission {
+  // The effective schema is an INTERSECTION, so the option can only narrow. See `AdmitOptions`.
+  const schema =
+    options?.schema === undefined
+      ? CANONICAL_SCHEMA
+      : CANONICAL_SCHEMA.filter((k) => options.schema?.includes(k) === true);
+
   // CRLF is normalized to LF before anything else, so a Windows checkout is not refused for a reason
   // that has nothing to do with safety. A lone CR that survives this is a control character and is
   // refused by name below.
@@ -544,6 +584,7 @@ export function admit(text: string): Admission {
   const keys = new Map<string, AdmittedValue>();
   let pendingKey: string | null = null;
   let pendingItems: string[] = [];
+  let pendingQuoted: boolean[] = [];
   let pendingLineNo = 0;
 
   for (let r = 0; r < region.length; r += 1) {
@@ -576,6 +617,7 @@ export function admit(text: string): Admission {
       const v = admitValue(pendingKey, item[1] as string, lineNo);
       if (!v.ok) return v;
       pendingItems.push(v.scalar);
+      pendingQuoted.push(v.quoted);
       continue;
     }
 
@@ -587,18 +629,24 @@ export function admit(text: string): Admission {
           `line ${pendingLineNo}: \`${pendingKey}\` is written with an empty value and no block-sequence item follows it; the canonical form has no null value, so a key either carries a scalar or carries at least one item`,
         );
       }
-      keys.set(pendingKey, { kind: "sequence", items: pendingItems });
+      keys.set(pendingKey, {
+        kind: "sequence",
+        items: pendingItems,
+        quotedItems: pendingQuoted,
+      });
       pendingKey = null;
       pendingItems = [];
+      pendingQuoted = [];
     }
 
     const empty = KEY_EMPTY.exec(line);
     if (empty !== null) {
       const k = empty[1] as string;
-      const bad = admitKeyName(k, keys, lineNo);
+      const bad = admitKeyName(k, schema, keys, lineNo);
       if (bad !== null) return bad;
       pendingKey = k;
       pendingItems = [];
+      pendingQuoted = [];
       pendingLineNo = lineNo;
       continue;
     }
@@ -611,11 +659,11 @@ export function admit(text: string): Admission {
       );
     }
     const k = kv[1] as string;
-    const bad = admitKeyName(k, keys, lineNo);
+    const bad = admitKeyName(k, schema, keys, lineNo);
     if (bad !== null) return bad;
     const v = admitValue(k, kv[2] as string, lineNo);
     if (!v.ok) return v;
-    keys.set(k, { kind: "scalar", value: v.scalar });
+    keys.set(k, { kind: "scalar", value: v.scalar, quoted: v.quoted });
   }
 
   if (pendingKey !== null) {
@@ -625,7 +673,11 @@ export function admit(text: string): Admission {
         `line ${pendingLineNo}: \`${pendingKey}\` is written with an empty value and no block-sequence item follows it before the region closes`,
       );
     }
-    keys.set(pendingKey, { kind: "sequence", items: pendingItems });
+    keys.set(pendingKey, {
+      kind: "sequence",
+      items: pendingItems,
+      quotedItems: pendingQuoted,
+    });
   }
 
   return { ok: true, value: keys };
@@ -635,6 +687,7 @@ export function admit(text: string): Admission {
 // two places is how one of them comes to be asked in only one — which is exactly CR-02.
 function admitKeyName(
   key: string,
+  schema: readonly string[],
   seen: ReadonlyMap<string, AdmittedValue>,
   lineNo: number,
 ): Refusal | null {
@@ -644,10 +697,10 @@ function admitKeyName(
       `line ${lineNo}: \`${excerpt(key)}\` is not a canonical key name`,
     );
   }
-  if (!CANONICAL_SCHEMA.includes(key)) {
+  if (!schema.includes(key)) {
     return refuse(
       "unknown-key",
-      `line ${lineNo}: \`${key}\` is not one of the ${CANONICAL_SCHEMA.length} keys the canonical schema admits (${CANONICAL_SCHEMA.join(", ")}); an unknown key is refused rather than ignored, because an ignored key is a second place a document can hide a value`,
+      `line ${lineNo}: \`${key}\` is not one of the ${schema.length} keys the canonical schema admits (${schema.join(", ")}); an unknown key is refused rather than ignored, because an ignored key is a second place a document can hide a value`,
     );
   }
   if (seen.has(key)) {

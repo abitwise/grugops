@@ -334,7 +334,7 @@ const admitValue = (key, raw, lineNo) => {
             resolved += sub;
             i += 1;
         }
-        return { ok: true, scalar: resolved };
+        return { ok: true, scalar: resolved, quoted: true };
     }
     let depth = 0;
     for (const c of raw) {
@@ -360,10 +360,14 @@ const admitValue = (key, raw, lineNo) => {
     if (depth !== 0) {
         return refuse("unbalanced-parentheses", `line ${lineNo}: the plain value of \`${key}\` opens a \`(\` that is never closed, so any enumeration it introduces was never captured`);
     }
-    return { ok: true, scalar: raw };
+    return { ok: true, scalar: raw, quoted: false };
 };
 // THE ADMISSION ENTRY POINT. Two outcomes. No third.
-export function admit(text) {
+export function admit(text, options) {
+    // The effective schema is an INTERSECTION, so the option can only narrow. See `AdmitOptions`.
+    const schema = options?.schema === undefined
+        ? CANONICAL_SCHEMA
+        : CANONICAL_SCHEMA.filter((k) => options.schema?.includes(k) === true);
     // CRLF is normalized to LF before anything else, so a Windows checkout is not refused for a reason
     // that has nothing to do with safety. A lone CR that survives this is a control character and is
     // refused by name below.
@@ -417,6 +421,7 @@ export function admit(text) {
     const keys = new Map();
     let pendingKey = null;
     let pendingItems = [];
+    let pendingQuoted = [];
     let pendingLineNo = 0;
     for (let r = 0; r < region.length; r += 1) {
         const line = region[r];
@@ -439,6 +444,7 @@ export function admit(text) {
             if (!v.ok)
                 return v;
             pendingItems.push(v.scalar);
+            pendingQuoted.push(v.quoted);
             continue;
         }
         // A key line closes any sequence that was open.
@@ -446,18 +452,24 @@ export function admit(text) {
             if (pendingItems.length === 0) {
                 return refuse("dangling-empty-key", `line ${pendingLineNo}: \`${pendingKey}\` is written with an empty value and no block-sequence item follows it; the canonical form has no null value, so a key either carries a scalar or carries at least one item`);
             }
-            keys.set(pendingKey, { kind: "sequence", items: pendingItems });
+            keys.set(pendingKey, {
+                kind: "sequence",
+                items: pendingItems,
+                quotedItems: pendingQuoted,
+            });
             pendingKey = null;
             pendingItems = [];
+            pendingQuoted = [];
         }
         const empty = KEY_EMPTY.exec(line);
         if (empty !== null) {
             const k = empty[1];
-            const bad = admitKeyName(k, keys, lineNo);
+            const bad = admitKeyName(k, schema, keys, lineNo);
             if (bad !== null)
                 return bad;
             pendingKey = k;
             pendingItems = [];
+            pendingQuoted = [];
             pendingLineNo = lineNo;
             continue;
         }
@@ -466,30 +478,34 @@ export function admit(text) {
             return refuse("unrecognized-line", `line ${lineNo}: \`${excerpt(line)}\` matches none of the ${LINE_PRODUCTIONS.length} admitted line productions (${LINE_PRODUCTIONS.map((p) => `\`${p}\``).join(", ")})`);
         }
         const k = kv[1];
-        const bad = admitKeyName(k, keys, lineNo);
+        const bad = admitKeyName(k, schema, keys, lineNo);
         if (bad !== null)
             return bad;
         const v = admitValue(k, kv[2], lineNo);
         if (!v.ok)
             return v;
-        keys.set(k, { kind: "scalar", value: v.scalar });
+        keys.set(k, { kind: "scalar", value: v.scalar, quoted: v.quoted });
     }
     if (pendingKey !== null) {
         if (pendingItems.length === 0) {
             return refuse("dangling-empty-key", `line ${pendingLineNo}: \`${pendingKey}\` is written with an empty value and no block-sequence item follows it before the region closes`);
         }
-        keys.set(pendingKey, { kind: "sequence", items: pendingItems });
+        keys.set(pendingKey, {
+            kind: "sequence",
+            items: pendingItems,
+            quotedItems: pendingQuoted,
+        });
     }
     return { ok: true, value: keys };
 }
 // The two key-level refusals, factored out because both key productions ask them and asking them in
 // two places is how one of them comes to be asked in only one — which is exactly CR-02.
-function admitKeyName(key, seen, lineNo) {
+function admitKeyName(key, schema, seen, lineNo) {
     if (!KEY_NAME.test(key)) {
         return refuse("unrecognized-line", `line ${lineNo}: \`${excerpt(key)}\` is not a canonical key name`);
     }
-    if (!CANONICAL_SCHEMA.includes(key)) {
-        return refuse("unknown-key", `line ${lineNo}: \`${key}\` is not one of the ${CANONICAL_SCHEMA.length} keys the canonical schema admits (${CANONICAL_SCHEMA.join(", ")}); an unknown key is refused rather than ignored, because an ignored key is a second place a document can hide a value`);
+    if (!schema.includes(key)) {
+        return refuse("unknown-key", `line ${lineNo}: \`${key}\` is not one of the ${schema.length} keys the canonical schema admits (${schema.join(", ")}); an unknown key is refused rather than ignored, because an ignored key is a second place a document can hide a value`);
     }
     if (seen.has(key)) {
         return refuse("duplicate-key", `line ${lineNo}: \`${key}\` appears more than once in this region; a duplicate is refused rather than merged or resolved last-wins, so the admitted map is a faithful image of what the document wrote`);
