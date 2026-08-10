@@ -12747,6 +12747,7 @@ describe("frontmatter — D-54: the node start is a structural position (CR-01, 
       entering: (string | null)[];
       depths: number[];
       mayBegin: boolean[];
+      nodeStart: boolean[];
       lineStart: boolean[];
       inputs: string[];
       shortened: Record<string, string[]>;
@@ -12754,13 +12755,20 @@ describe("frontmatter — D-54: the node start is a structural position (CR-01, 
 
     // NO CORPUS SIZE IS WRITTEN INTO AN ASSERTION. Both numbers below are derived in this run; the
     // floors exist only so a fixture emptied by a later edit cannot make this pass vacuously.
+    // (27-59, WR-03) THE PRODUCT IS NOW FIVE FACTORS. `nodeStart` is the offset-zero node-start fact
+    // the caller supplies, and it was previously ALIASED to the entering state's own
+    // `nodeMayBegin` — see the decoupling's own case below for why the two are not one fact.
     const states =
       fixture.entering.length *
       fixture.depths.length *
       fixture.mayBegin.length *
+      fixture.nodeStart.length *
       fixture.lineStart.length;
     expect(fixture.inputs.length, "captured corpus must not be empty").toBeGreaterThan(500);
-    expect(states, "captured entering states").toBeGreaterThan(0);
+    expect(
+      states,
+      `captured entering states must be the product of ALL FIVE independent factors (${fixture.entering.length} entering quotes x ${fixture.depths.length} depths x ${fixture.mayBegin.length} carried node-may-begin x ${fixture.nodeStart.length} offset-zero node-start x ${fixture.lineStart.length} line-start)`,
+    ).toBe(48);
 
     let compared = 0;
     const moved: string[] = [];
@@ -12775,28 +12783,29 @@ describe("frontmatter — D-54: the node start is a structural position (CR-01, 
       for (const q of fixture.entering)
         for (const flowDepth of fixture.depths)
           for (const nodeMayBegin of fixture.mayBegin)
-            for (const lineStart of fixture.lineStart) {
-              const got = stripComment(
-                input,
-                {
-                  openQuote: q as '"' | "'" | null,
-                  flowDepth,
-                  nodeMayBegin,
-                },
-                nodeMayBegin,
-                lineStart,
-              ).text;
-              const was = pre === undefined ? input : pre[k];
-              compared += 1;
-              k += 1;
-              if (got !== was) {
-                moved.push(
-                  `${JSON.stringify(input)} entering=${JSON.stringify(q)} depth=${flowDepth} mayBegin=${nodeMayBegin} lineStart=${lineStart}: pre=${JSON.stringify(was)} post=${JSON.stringify(got)}`,
-                );
-                movedInputs.add(input);
-                if (!got.startsWith(was)) notLengthened.push(input);
+            for (const nodeStart of fixture.nodeStart)
+              for (const lineStart of fixture.lineStart) {
+                const got = stripComment(
+                  input,
+                  {
+                    openQuote: q as '"' | "'" | null,
+                    flowDepth,
+                    nodeMayBegin,
+                  },
+                  nodeStart,
+                  lineStart,
+                ).text;
+                const was = pre === undefined ? input : pre[k];
+                compared += 1;
+                k += 1;
+                if (got !== was) {
+                  moved.push(
+                    `${JSON.stringify(input)} entering=${JSON.stringify(q)} depth=${flowDepth} mayBegin=${nodeMayBegin} nodeStart=${nodeStart} lineStart=${lineStart}: pre=${JSON.stringify(was)} post=${JSON.stringify(got)}`,
+                  );
+                  movedInputs.add(input);
+                  if (!got.startsWith(was)) notLengthened.push(input);
+                }
               }
-            }
     });
 
     // THE EXCEPTION IS NAMED, NOT SWEPT. The set of inputs whose text moved is compared to exactly
@@ -12843,6 +12852,7 @@ describe("frontmatter — D-54: the node start is a structural position (CR-01, 
       entering: (string | null)[];
       depths: number[];
       mayBegin: boolean[];
+      nodeStart: boolean[];
       lineStart: boolean[];
       inputs: string[];
       state: { vectors: string[]; rows: number[] };
@@ -12857,6 +12867,7 @@ describe("frontmatter — D-54: the node start is a structural position (CR-01, 
       fixture.entering.length *
       fixture.depths.length *
       fixture.mayBegin.length *
+      fixture.nodeStart.length *
       fixture.lineStart.length;
     const code = (st: {
       openQuote: string | null;
@@ -12882,33 +12893,34 @@ describe("frontmatter — D-54: the node start is a structural position (CR-01, 
       for (const q of fixture.entering)
         for (const flowDepth of fixture.depths)
           for (const nodeMayBegin of fixture.mayBegin)
-            for (const lineStart of fixture.lineStart) {
-              const got = stripComment(
-                input,
-                {
-                  openQuote: q as '"' | "'" | null,
-                  flowDepth,
-                  nodeMayBegin,
-                },
-                nodeMayBegin,
-                lineStart,
-              ).state;
-              const was = pre[k];
-              const now = code(got);
-              compared += 1;
-              k += 1;
-              if (now === was) continue;
-              moved.push(
-                `${JSON.stringify(input)} entering=${JSON.stringify(q)} depth=${flowDepth} mayBegin=${nodeMayBegin} lineStart=${lineStart}: pre=${was} post=${now}`,
-              );
-              movedInputs.add(input);
-              if (quoteOf(was) !== "-" && quoteOf(now) === "-") {
-                provenanceLost.push(moved[moved.length - 1]);
+            for (const nodeStart of fixture.nodeStart)
+              for (const lineStart of fixture.lineStart) {
+                const got = stripComment(
+                  input,
+                  {
+                    openQuote: q as '"' | "'" | null,
+                    flowDepth,
+                    nodeMayBegin,
+                  },
+                  nodeStart,
+                  lineStart,
+                ).state;
+                const was = pre[k];
+                const now = code(got);
+                compared += 1;
+                k += 1;
+                if (now === was) continue;
+                moved.push(
+                  `${JSON.stringify(input)} entering=${JSON.stringify(q)} depth=${flowDepth} mayBegin=${nodeMayBegin} nodeStart=${nodeStart} lineStart=${lineStart}: pre=${was} post=${now}`,
+                );
+                movedInputs.add(input);
+                if (quoteOf(was) !== "-" && quoteOf(now) === "-") {
+                  provenanceLost.push(moved[moved.length - 1]);
+                }
+                if (quoteOf(was) === "-" && quoteOf(now) !== "-") {
+                  provenanceRecovered += 1;
+                }
               }
-              if (quoteOf(was) === "-" && quoteOf(now) !== "-") {
-                provenanceRecovered += 1;
-              }
-            }
     });
 
     // THE MOVED SET IS COMPARED TO A SET DERIVED FROM THE CORPUS, NEVER TO A HAND-WRITTEN LIST. The
@@ -12942,6 +12954,162 @@ describe("frontmatter — D-54: the node start is a structural position (CR-01, 
     console.log(
       `IN-02 STATE differential — ${fixture.inputs.length} input(s) x ${states} state(s) = ${compared} cell(s) | moved ${moved.length} cell(s) across ${movedInputs.size} input(s) | provenance RECOVERED ${provenanceRecovered} | provenance LOST ${provenanceLost.length}`,
     );
+  });
+
+  // ── (27-59, WR-03) THE TWO INPUTS ARE TWO AXES, AND THE LIVE CALL SITES ARE COVERED BY NAME ─────
+
+  // THE THREE ARGUMENT COMBINATIONS THE MODULE'S REAL CALL SITES CAN PRODUCE, READ FROM THE SITES.
+  // `stripComment` takes the ENTERING state (whose `nodeMayBegin` is carried from the previous line)
+  // and, separately, the caller's offset-zero node-start answer. Its own doc block insists these are
+  // not the same fact; until this plan the differential above passed ONE variable as both, so half
+  // the vector space — 24 of 48 — was never generated, and the combination two of the three live
+  // sites routinely produce was among the half that was missing.
+  const LIVE_CALL_SITES: readonly {
+    readonly label: string;
+    readonly mayBegin: boolean;
+    readonly nodeStart: boolean;
+    readonly lineStart: boolean;
+  }[] = [
+    // `const scanned = stripComment(rest, FRESH_NODE, true, false);` — the KEY LINE. The entering
+    // state is `FRESH_NODE`, whose `nodeMayBegin` is `true`; the line began several characters
+    // earlier because `key:` was already consumed, so the line-start fact is `false`.
+    { label: "key line", mayBegin: true, nodeStart: true, lineStart: false },
+    // `const scanned = stripComment(itemText, cur.state, true, true);` — the ITEM PATH. The entering
+    // state is CARRIED, so its `nodeMayBegin` is whatever the previous line left; the node-start and
+    // line-start facts are both unconditionally `true`. The carried-false row is the combination the
+    // coupled loop could not generate.
+    { label: "item path, carried node-may-begin true", mayBegin: true, nodeStart: true, lineStart: true },
+    { label: "item path, carried node-may-begin FALSE", mayBegin: false, nodeStart: true, lineStart: true },
+    // `const scanned = stripComment(t, cur.state, startsNode, startsNode);` — the CONTINUATION. The
+    // entering state is CARRIED and `startsNode` is computed on the line, so all four crossings of
+    // the carried fact with the line-level answer are live.
+    { label: "continuation, carried true / line answers true", mayBegin: true, nodeStart: true, lineStart: true },
+    { label: "continuation, carried FALSE / line answers TRUE", mayBegin: false, nodeStart: true, lineStart: true },
+    { label: "continuation, carried TRUE / line answers false", mayBegin: true, nodeStart: false, lineStart: false },
+    { label: "continuation, carried false / line answers false", mayBegin: false, nodeStart: false, lineStart: false },
+  ];
+
+  // ONE PURE FUNCTION, used by the live check AND by its negative control, so what fires in the
+  // control is what runs in the check rather than a copy of it.
+  const coverageGap = (
+    generated: readonly { mayBegin: boolean; nodeStart: boolean; lineStart: boolean }[],
+    live: typeof LIVE_CALL_SITES,
+  ): string[] =>
+    live
+      .filter(
+        (l) =>
+          !generated.some(
+            (g) =>
+              g.mayBegin === l.mayBegin &&
+              g.nodeStart === l.nodeStart &&
+              g.lineStart === l.lineStart,
+          ),
+      )
+      .map(
+        (l) =>
+          `${l.label}: mayBegin=${l.mayBegin} nodeStart=${l.nodeStart} lineStart=${l.lineStart}`,
+      );
+
+  it("WR-03 (27-59) the state differential generates EVERY argument combination the module's live call sites produce — and re-coupling the two axes reds it by name", () => {
+    const fixture = JSON.parse(
+      readFileSync(
+        join(import.meta.dirname, "fixtures", "frontmatter-singleline-pre-d54.json"),
+        "utf8",
+      ),
+    ) as {
+      mayBegin: boolean[];
+      nodeStart: boolean[];
+      lineStart: boolean[];
+    };
+
+    // THE SET OF CALL SITES IS DERIVED AND ITS SIZE ASSERTED, so a FOURTH site added tomorrow fails
+    // here rather than being silently uncovered. That is this repository's own "derive the set, assert
+    // the count" rule applied to the thing the coverage claim is made over.
+    const moduleSource = readFileSync(join(import.meta.dirname, "frontmatter.ts"), "utf8");
+    const callSites = moduleSource
+      .split("\n")
+      .filter((l) => !l.trimStart().startsWith("//") && /stripComment\(/.test(l))
+      // The declaration itself is not a call site.
+      .filter((l) => !/export function stripComment\(/.test(l));
+    expect(
+      callSites.map((l) => l.trim()),
+      "a call site added or removed must move this list — the coverage table below is written from it",
+    ).toEqual([
+      "const scanned = stripComment(itemText, cur.state, true, true);",
+      "const scanned = stripComment(t, cur.state, startsNode, startsNode);",
+      "const scanned = stripComment(rest, FRESH_NODE, true, false);",
+    ]);
+
+    // THE GENERATED SET, from the fixture's own axes rather than from a literal.
+    const generated: { mayBegin: boolean; nodeStart: boolean; lineStart: boolean }[] = [];
+    for (const mayBegin of fixture.mayBegin)
+      for (const nodeStart of fixture.nodeStart)
+        for (const lineStart of fixture.lineStart)
+          generated.push({ mayBegin, nodeStart, lineStart });
+    expect(
+      generated.length,
+      `the three boolean factors must cross fully (${fixture.mayBegin.length} x ${fixture.nodeStart.length} x ${fixture.lineStart.length})`,
+    ).toBe(8);
+
+    expect(
+      coverageGap(generated, LIVE_CALL_SITES),
+      "an argument combination a LIVE call site produces that the differential never generates — the corpus would agree with the capture not because the module agrees but because it never asked",
+    ).toEqual([]);
+
+    // ── THE NEGATIVE CONTROL. A pin whose failure mode nobody has seen is a promise. RE-COUPLE the
+    // two axes exactly as the loop did before this plan — the offset-zero node-start fact aliased to
+    // the entering state's own `nodeMayBegin` — and the SAME coverage rule must red and NAME the
+    // combinations it can no longer reach.
+    const recoupled = generated.filter((g) => g.nodeStart === g.mayBegin);
+    expect(recoupled.length, "re-coupling halves the vector space").toBe(4);
+    const gap = coverageGap(recoupled, LIVE_CALL_SITES);
+    expect(
+      gap.length,
+      "the re-coupled axis must FAIL the coverage rule, or the rule cannot see the defect it was written for",
+    ).toBeGreaterThan(0);
+    expect(gap).toEqual([
+      "item path, carried node-may-begin FALSE: mayBegin=false nodeStart=true lineStart=true",
+      "continuation, carried FALSE / line answers TRUE: mayBegin=false nodeStart=true lineStart=true",
+      "continuation, carried TRUE / line answers false: mayBegin=true nodeStart=false lineStart=false",
+    ]);
+  });
+
+  it("WR-03 (27-59) the pre-fix capture records its OWN provenance — two halves, two commits, both real", () => {
+    // A CAPTURE WHOSE GENERATING BUILD IS NOT WRITTEN DOWN IS AN ASSERTION AGAINST AN ANONYMOUS
+    // BASELINE. Worse here than usual: this fixture is a COMPOSITE — the `shortened` half records the
+    // pre-D-54 build and the `state` half the pre-27-51 build — and MEASURED at regeneration, neither
+    // mirror reproduces the other half (the text mirror disagrees with `state` on 1,514 cells; the
+    // state mirror disagrees with `shortened` on 4). Regenerating both from one commit would have
+    // silently re-baselined one of them. So the provenance is IN the file and checkable here.
+    const fixture = JSON.parse(
+      readFileSync(
+        join(import.meta.dirname, "fixtures", "frontmatter-singleline-pre-d54.json"),
+        "utf8",
+      ),
+    ) as {
+      provenance?: {
+        crossProduct?: string;
+        shortenedFrom?: { commit?: string };
+        stateFrom?: { commit?: string };
+      };
+    };
+    expect(fixture.provenance, "the capture must record which builds produced it").toBeDefined();
+    const shortenedFrom = fixture.provenance?.shortenedFrom?.commit;
+    const stateFrom = fixture.provenance?.stateFrom?.commit;
+    expect(shortenedFrom, "the TEXT half's generating commit").toBe("62b8b53");
+    expect(stateFrom, "the STATE half's generating commit").toBe("d5c69e0");
+    expect(
+      fixture.provenance?.crossProduct,
+      "the capture must say which cross product it was taken over",
+    ).toContain("nodeStartAtOffsetZero");
+    // AND THE RECORDED COMMITS ARE REAL, so a provenance field cannot name a build that never existed.
+    for (const commit of [shortenedFrom, stateFrom]) {
+      const type = execFileSync("git", ["cat-file", "-t", `${commit}^{commit}`], {
+        cwd: join(import.meta.dirname, ".."),
+        encoding: "utf8",
+      }).trim();
+      expect(type, `${commit} must be a real commit in this repository`).toBe("commit");
+    }
   });
 
   // ── (27-51, IN-02) THE D-51 SIBLING FIXTURE CARRIES NO STATE, AND THAT IS SAID RATHER THAN HIDDEN ──
