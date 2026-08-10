@@ -52,6 +52,7 @@ import {
   stripFencedBlocks,
   stripComment,
   assertItemPathScalarClosed,
+  assertFoldTargetIsNotBlockOwned,
   SEQ_ITEM,
   DQ_ESCAPE_ALLOWLIST,
   ENUMERATION_LEGAL_CHARS,
@@ -5510,6 +5511,17 @@ const MODULE_SYMBOLS = [
   "ScalarState",
   "FRESH_NODE",
   "assertItemPathScalarClosed",
+  // (D-59, round 11) THE REGION VOCABULARY, ADDED ON THE SAME ARGUMENT THE PARAGRAPH ABOVE MAKES
+  // ABOUT `nodeStartQuote`. The round-10 build's `sawBlock` is DELETED rather than listed: a name the
+  // module no longer declares passes vacuously. These three are what replaced it, so the list keeps
+  // its teeth against the module as it is now.
+  // Spelled `interface Part` rather than `Part`: a four-letter entry is a substring of ordinary
+  // English and matched the generator's own prose, which would have made this pin fail for a reason
+  // that has nothing to do with circularity. The entry still names a CODE declaration, which is what
+  // the stale-entry check above requires.
+  "interface Part",
+  "regionText",
+  "assertFoldTargetIsNotBlockOwned",
   "cellDoc",
 ] as const;
 
@@ -10863,5 +10875,239 @@ describe("frontmatter — D-55: the node-started fact is set where the node begi
     expect(code).toContain("seqIndent");
     // And the rename is NARRATED — the old name is still findable by a reader who greps for it.
     expect(src).toContain("nodeOnKeyLine");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// (27-55, D-59 — 27-REVIEW.md § CR-01, round 11) THE QUOTING EXEMPTION IS A PROPERTY OF THE REGION A
+// BLOCK SCALAR COVERS, NEVER OF THE KEY IT SITS IN.
+// ---------------------------------------------------------------------------
+//
+// Every row below was RED against the committed round-10 build (`3c7930b`) before this describe was
+// written, adjudicated side by side with `/usr/bin/ruby -ryaml` (ruby 2.6.10 / psych 3.1.0 /
+// libyaml 0.2.1). The transcripts are recorded verbatim in 27-55-SUMMARY.md, captured on a
+// `git archive HEAD` mirror BEFORE the edit — a row that was never red is not a pin.
+//
+// WHAT THE DEFECT WAS. D-57 carried the block-scalar quoting exemption on a STICKY PER-KEY flag, so
+// one nested block scalar anywhere in a key switched the D-30 escape refusal off for EVERY OTHER part
+// of that key. Two unrelated lines moved a refusal to `{ok:true,value:false}` over a live grant.
+describe("frontmatter — D-59: the block-scalar quoting exemption is region-scoped (CR-01, round 11)", () => {
+  const TOKEN = "Agent(grugops-orchestrator)";
+  const ESC = `\\x41gent(grugops-orchestrator)`; // NON-allowlisted: `\x`
+  const OK_ESC = `\\/Agent(grugops-orchestrator)`; // allowlisted: `\/`
+  const doc = (region: string): string =>
+    `---\nname: probe\n${region}\n---\nBody.\n`;
+  const verdict = (text: string): string => {
+    const p = parseFrontmatter(text);
+    return p.ok ? `ok:${JSON.stringify([...p.value.entries()])}` : "REFUSED";
+  };
+  const reasonOf = (text: string): string => {
+    const p = parseFrontmatter(text);
+    return p.ok ? "" : p.reason;
+  };
+
+  // ── THE PAIR, ASSERTED TOGETHER, BECAUSE EITHER ALONE PROVES NOTHING ──────────────────────────
+  //
+  // U2 alone is a row that already passed on the defective build. U1 alone cannot show that the fix
+  // is a SCOPING and not a widening. The finding IS the difference between them, so the difference
+  // is what the case asserts.
+
+  it("D-59 U1/U2 — an unrelated `b: >-` sibling cannot switch off the escape refusal, and the sibling-free control refuses BYTE-IDENTICALLY", () => {
+    const u2 = doc(`tools:\n  a: "${ESC}"`);
+    const u1 = doc(`tools:\n  a: "${ESC}"\n  b: >-\n    x`);
+    // loader: U2 -> {"a"=>"Agent(grugops-orchestrator)"}
+    //         U1 -> {"a"=>"Agent(grugops-orchestrator)","b"=>"x"}   <- a LIVE grant either way
+    // round-10 committed build: U2 REFUSED, U1 {"ok":true,"value":false} — the silent no-grant arm.
+    expect(verdict(u2)).toBe("REFUSED");
+    expect(verdict(u1)).toBe("REFUSED");
+    expect(reasonOf(u1)).toContain("\\x");
+    expect(reasonOf(u2)).toContain("\\x");
+    // Both refusals keep the substring two shipped assertions match a refusal reason on.
+    expect(reasonOf(u1)).toContain("anchor or alias");
+    expect(reasonOf(u2)).toContain("anchor or alias");
+    // And the parse-failure arm reaches the consumers, so no guard reads this as "carries no grant".
+    expect(hasSpawnGrant(u1).ok).toBe(false);
+    expect(grantedAgentNames(u1).ok).toBe(false);
+  });
+
+  it("D-59 U2 reason byte-identity — the control's reason string is the exact string the round-10 build produced", () => {
+    // Recorded from the pre-fix build. A refusal that silently reworded itself would weaken the two
+    // shipped assertions that match on it while every case stayed green (threat T-27-55-02).
+    const u2 = doc(`tools:\n  a: "${ESC}"`);
+    expect(reasonOf(u2)).toBe(
+      '`tools: a: "\\x41gent(grugops-orchestrator)"` carries the backslash sequence `\\x` inside a' +
+        " double-quoted scalar, and that sequence is not one of the three escapes this module" +
+        " resolves; the value this document expresses is not the text these bytes spell, so it is" +
+        ' refused on the same argument as an anchor or alias — never read as "carries no grant"',
+    );
+  });
+
+  // ── THE THREE SPELLINGS OF ONE DOCUMENT AGREE ─────────────────────────────────────────────────
+  //
+  // The item path resolved each item at the point it was PUSHED and therefore still refused; only the
+  // nested-mapping continuation path deferred to the flush. One document, two spellings, two
+  // verdicts — that asymmetry is what the review named as the tell, so its absence is the assertion.
+
+  it("D-59 three-spelling agreement — top-level, nested-mapping sibling and block-sequence item return the SAME verdict for the same escape", () => {
+    const topLevel = doc(`tools: "${ESC}"`);
+    const nested = doc(`tools:\n  a: "${ESC}"\n  b: >-\n    x`);
+    const item = doc(`tools:\n  - "${ESC}"\n  - >-\n    x`);
+    const verdicts = [topLevel, nested, item].map(verdict);
+    expect(verdicts).toEqual(["REFUSED", "REFUSED", "REFUSED"]);
+    // Asserted as a SET of one, so a future build that agrees on the wrong answer still fails the
+    // row above rather than passing here vacuously.
+    expect(new Set(verdicts).size).toBe(1);
+    for (const t of [topLevel, nested, item]) {
+      expect(reasonOf(t)).toContain("\\x");
+    }
+  });
+
+  // ── ADJACENCY: TWO REGIONS THAT MERELY TOUCH (KIT-03 adjacency) ───────────────────────────────
+
+  it("D-59 U4 — a block-owned region immediately FOLLOWED by a quoted sibling region: the two resolve on their own terms", () => {
+    // loader: {"b"=>"x","a"=>"Agent(grugops-orchestrator)"} — round-10 build: {"ok":true,"value":false}
+    const after = doc(`tools:\n  b: >-\n    x\n  a: "${ESC}"`);
+    expect(verdict(after)).toBe("REFUSED");
+    expect(reasonOf(after)).toContain("\\x");
+    // And the mirror order, so the pin is about touching and not about which side comes first.
+    const before = doc(`tools:\n  a: "${ESC}"\n  b: >-\n    x`);
+    expect(verdict(before)).toBe("REFUSED");
+  });
+
+  // ── EMPTINESS: A BLOCK SCALAR THAT CONSUMES ZERO CONTENT LINES (KIT-03 empty) ─────────────────
+
+  it("D-59 U5 — a nested block scalar consuming ZERO content lines still lets its sibling resolve, and alone it returns the value it always returned", () => {
+    // loader: {"b"=>"","a"=>"Agent(grugops-orchestrator)"} — round-10 build: {"ok":true,"value":false}
+    expect(verdict(doc(`tools:\n  b: >-\n  a: "${ESC}"`))).toBe("REFUSED");
+    // The empty region ALONE is untouched: `b:` is what every build since D-57 has flattened it to.
+    const alone = parseFrontmatter(doc("tools:\n  b: >-"));
+    expect(alone.ok && alone.value.get("tools")).toEqual(["b:"]);
+    expect(hasSpawnGrant(doc("tools:\n  b: >-"))).toEqual({ ok: true, value: false });
+  });
+
+  // ── THE FAIL-SAFE DIRECTION: THE EXEMPTION IS SCOPED, NEVER REMOVED (D-50 / IN-02) ────────────
+  //
+  // This is the primary false-red control. YAML applies NO quoting rules inside a `|` / `>` scalar,
+  // so a non-allowlisted backslash sequence in a block scalar's OWN content is content and refusing
+  // it would fail red on a document the loader accepts.
+
+  it("D-59 U6 — a non-allowlisted backslash inside a block scalar's own content does NOT refuse, nested or top-level", () => {
+    const nested = doc(`tools:\n  b: >-\n    Read, "Agent(x\\q)"`);
+    const top = doc(`tools: |\n  Read, "Agent(x\\q)"`);
+    // loader: {"b"=>"Read, \"Agent(x\\q)\""} and "Read, \"Agent(x\\q)\"\n" — both keep the bytes.
+    expect(hasSpawnGrant(nested)).toEqual({ ok: true, value: true });
+    expect(hasSpawnGrant(top)).toEqual({ ok: true, value: true });
+    expect(parseFrontmatter(nested).ok).toBe(true);
+    expect(parseFrontmatter(top).ok).toBe(true);
+  });
+
+  it("D-59 U7 — an ALLOWLISTED escape beside a block sibling still GRANTS; the exemption was scoped, not the allowlist narrowed", () => {
+    const text = doc(`tools:\n  a: "${OK_ESC}"\n  b: >-\n    x`);
+    expect(hasSpawnGrant(text)).toEqual({ ok: true, value: true });
+    expect(grantedAgentNames(text)).toEqual({
+      ok: true,
+      value: ["grugops-orchestrator"],
+    });
+  });
+
+  it("D-59 the allowlist is unchanged in both length and membership", () => {
+    // The prohibition, asserted rather than promised: this plan may neither narrow nor widen D-30.
+    expect(DQ_ESCAPE_ALLOWLIST.size).toBe(3);
+    expect([...DQ_ESCAPE_ALLOWLIST.keys()].sort()).toEqual(['"', "/", "\\"]);
+  });
+
+  // ── THE VALUE DOES NOT MOVE WHERE NO BLOCK SCALAR IS PRESENT (D-33 preserved) ─────────────────
+  //
+  // Resolving each REGION individually would have contradicted D-33, which puts the unquote on the
+  // JOINED value. Measured, it moved two shipped values. The resolution unit is therefore the maximal
+  // RUN of like-kind regions, and for a key with no block scalar there is exactly one run.
+
+  it("D-59 D-33 preserved — a key with no block region resolves as ONE run, so a wholly-quoted region inside a longer join keeps its quotes", () => {
+    const text = doc(`tools:\n  - Read\n  -\n    "Write,\n    # x, ${TOKEN}"`);
+    // libyaml: ["Read", "Write, # x, Agent(grugops-orchestrator)"]. The module's flattened value has
+    // always been the comma join WITH the inner quotes, because the JOIN is not a wholly-quoted
+    // scalar. Individual-region resolution produced `Read, Write, # x, …` — a value moving for a
+    // reason that has nothing to do with this defect.
+    const p = parseFrontmatter(text);
+    expect(p.ok && p.value.get("tools")).toEqual([
+      `Read, "Write, # x, ${TOKEN}"`,
+    ]);
+    expect(hasSpawnGrant(text)).toEqual({ ok: true, value: true });
+  });
+
+  // ── THE STICKY FLAG IS GONE FROM THE CODE, NOT ONLY FROM THE INTENT ───────────────────────────
+
+  it("D-59 the round-10 sticky per-key flag no longer exists in the module's code", () => {
+    // The prohibition is structural: a replacement flag whose lifetime is the key is the defect and
+    // not its tuning, so its ABSENCE is asserted rather than described.
+    const src = readFileSync(join(import.meta.dirname, "frontmatter.ts"), "utf8");
+    const code = src
+      .split("\n")
+      .filter((l) => !l.trimStart().startsWith("//"))
+      .join("\n");
+    expect(code).not.toContain("sawBlock");
+    // The ACCUMULATOR declares no such field either — checked over the interface body alone, so a
+    // narration of the deletion elsewhere in the file cannot satisfy this.
+    const body = src.slice(src.indexOf("\ninterface Accumulator {"));
+    const iface = body.slice(0, body.indexOf("\n}\n"));
+    expect(iface).not.toContain("sawBlock");
+    expect(iface).toContain("parts: Part[]");
+    // And the deletion is NARRATED — a reader who greps the old name still finds why it went.
+    expect(src).toContain("sawBlock");
+    // The fact lives on the region now.
+    expect(code).toContain("block: boolean");
+    expect(code).toContain("regionText");
+  });
+
+  // ── THE REGION-IDENTITY INVARIANT, ASSERTED RATHER THAN ASSUMED (KIT-03 ordering) ─────────────
+  //
+  // The exemption travels ON the region rather than in a table keyed by position, so no reordering,
+  // splice or removal could invalidate it. The one place a region is MUTATED after it is pushed is
+  // the continuation fold, and that site asserts its own precondition.
+
+  it("D-59 the continuation fold refuses to fold into a block-owned region", () => {
+    expect(() =>
+      assertFoldTargetIsNotBlockOwned({ intro: "", block: true }, "  x"),
+    ).toThrow(/continuation fold/);
+    expect(() =>
+      assertFoldTargetIsNotBlockOwned({ intro: "b:", block: false }, "  x"),
+    ).toThrow(/continuation fold/);
+    // And it is silent on the state the flattener actually reaches.
+    expect(() =>
+      assertFoldTargetIsNotBlockOwned({ intro: "", block: false }, "  x"),
+    ).not.toThrow();
+  });
+
+  it("D-59 no path in flattenBlock splices, reorders or removes an already-pushed region", () => {
+    // The identity model, stated AND checked. `parts` is only ever appended to and its LAST element
+    // is only ever mutated in place, so a region's kind cannot drift onto text it never described.
+    const src = readFileSync(join(import.meta.dirname, "frontmatter.ts"), "utf8");
+    const code = src
+      .split("\n")
+      .filter((l) => !l.trimStart().startsWith("//"))
+      .join("\n");
+    for (const mutator of [
+      ".parts.splice(",
+      ".parts.reverse(",
+      ".parts.sort(",
+      ".parts.shift(",
+      ".parts.pop(",
+      ".parts.unshift(",
+    ]) {
+      expect(code).not.toContain(mutator);
+    }
+    // Only `push` adds regions, and the count of push sites is pinned so a fourth one arrives loudly.
+    expect(code.split(".parts.push(").length - 1).toBe(4);
+  });
+
+  // ── A DOCUMENT THAT MIXES ALL THREE REGION KINDS UNDER ONE KEY ────────────────────────────────
+
+  it("D-59 three regions under one key — block, then plain, then quoted-with-escape: only the escape's own run refuses", () => {
+    const clean = doc(`tools:\n  b: >-\n    x\n  c: Read\n  a: "${OK_ESC}"`);
+    expect(parseFrontmatter(clean).ok).toBe(true);
+    expect(hasSpawnGrant(clean)).toEqual({ ok: true, value: true });
+    const dirty = doc(`tools:\n  b: >-\n    x\n  c: Read\n  a: "${ESC}"`);
+    expect(verdict(dirty)).toBe("REFUSED");
+    expect(reasonOf(dirty)).toContain("\\x");
   });
 });

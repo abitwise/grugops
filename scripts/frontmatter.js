@@ -245,6 +245,45 @@
 //   input, one reason — a second reason for the same input is the duplicate grammar this module
 //   exists to delete), and in the BODY it is never read at all. All three positions carry a case.
 //
+// AND THE SAME SILENT-SUCCESS SHAPE A FIFTH TIME, SHIPPED INSIDE THE FIX FOR THE FOURTH
+// (27-REVIEW.md § CR-01, round 10 -> plan 27-55, D-59). This one is not a condition bug and not an
+// alphabet bug. It is a SCOPE bug: a KEY property standing in for a REGION property.
+//
+//   THE MECHANISM. D-50 established that YAML applies no quoting rules inside a `|` / `>` scalar, so
+//   the flush skipped `unquoteChecked` for a block scalar's value. While a header could only ever be
+//   recognised on the KEY LINE, "this value is a block scalar" and "this key is a block scalar" were
+//   the same sentence. D-57 taught the module to recognise a header at all three positions a header
+//   can appear — and carried the exemption forward on a STICKY PER-KEY flag (`sawBlock`). From that
+//   moment one nested block scalar anywhere in a key switched the D-30 escape refusal off for EVERY
+//   OTHER part of that key, including ordinary double-quoted siblings with nothing to do with it.
+//   Measured against the committed build, with the loader column from /usr/bin/ruby -ryaml
+//   (ruby 2.6.10 / psych 3.1.0 / libyaml 0.2.1):
+//
+//     tools:                         REFUSED, naming `\x`. libyaml: {"a"=>"Agent(grugops-orchestrator)"}
+//       a: "\x41gent(…)"
+//
+//     tools:                         {ok:true,value:false} — the SILENT NO-GRANT arm, over a live
+//       a: "\x41gent(…)"             grant. libyaml: {"a"=>"Agent(grugops-orchestrator)","b"=>"x"}.
+//       b: >-                        Two added lines, unrelated to the escape, flipped the verdict.
+//         x
+//
+//   Adjacency and emptiness reached it too: the same escape AFTER the block scalar, and beside a
+//   block scalar consuming ZERO content lines, both returned the same silent no-grant.
+//
+//   THE MODULE'S OWN ASYMMETRY WAS THE TELL, AND IT NAMED THE REMEDY. The block-SEQUENCE item path
+//   resolved each item with `unquoteChecked` at the point it was pushed, so the item spelling of the
+//   identical content still REFUSED; only the nested-mapping continuation path deferred its
+//   resolution to the flush. One document, two spellings, two different verdicts.
+//
+//   THE REMEDY DELETES THE FLAG RATHER THAN TUNING IT. A key's value is now a list of REGIONS
+//   (`Part`), each carrying its own answer to "is this text a block scalar's content", and the flush
+//   resolves each region ON ITS OWN TERMS before the join. The exemption is a property of the region
+//   the block scalar covers and of nothing else — so it cannot reach a sibling, it cannot reach the
+//   `key:` introduction printed in front of the scalar, and there is no key-lifetime fact left for a
+//   later position to widen. The escape allowlist is untouched in both directions: every region that
+//   is not a block scalar's content answers to `unquoteChecked` byte for byte, and a backslash inside
+//   a block scalar's own content is still content (row U6).
+//
 // Node stdlib ONLY — in fact no imports at all. Zero npm dependencies.
 //
 // Clear professional voice throughout (CLAUDE.md hard rule — this is a build-safety surface).
@@ -1010,6 +1049,33 @@ export function assertItemPathScalarClosed(state, itemLine) {
 // A short, safe excerpt of an unreadable line for the failure reason. Long enough to identify the
 // line, short enough that a finding stays one readable line.
 const excerpt = (s) => (s.length > 60 ? `${s.slice(0, 57)}...` : s);
+// One region's contribution to the flattened value. This is byte-for-byte the string the pre-D-59
+// flattener built in a single `parts` slot: `openBlock` seeded the slot with `header.leading` and the
+// first content line appended `" " + t` when that seed was non-empty, or replaced it when it was
+// empty. Stated once here so the split into two fields is provably not a formatting change.
+const regionText = (intro, body) => intro === "" ? body : body === "" ? intro : `${intro} ${body}`;
+// (D-59) THE CONTINUATION FOLD'S INVARIANT, ASSERTED AT THE SITE, on the same argument as
+// `assertItemPathScalarClosed` above: a comment claiming a property never ships without the
+// assertion that makes it true.
+//
+// WHAT IS CLAIMED. A continuation line that folds into the PRECEDING region can never be folding into
+// a block scalar's region, so folding cannot smuggle text that YAML does apply quoting rules to
+// inside an exemption that was granted to different text.
+//
+// WHY IT HOLDS. While the scalar is OPEN, every more-indented line is taken by the content branch and
+// never reaches the fold. The line that ENDS the scalar clears `nodeStarted` and reseeds the scanner
+// state, which makes `startsNode` true, which routes that line to the PUSH and not to the fold. So
+// the fold's target is a region some non-block path pushed, whose `intro` is `""` by construction —
+// which is in turn what makes the fold's `${body} ${text}` byte-identical to the pre-D-59
+// `${part} ${text}`.
+//
+// IT THROWS RATHER THAN RETURNING A REFUSAL because it is not a fact about the document. A violation
+// would say "this module reached a state it proves it cannot reach", which no author can cause or fix.
+export function assertFoldTargetIsNotBlockOwned(part, line) {
+    if (part.block || part.intro !== "") {
+        throw new Error(`frontmatter internal invariant violated at the continuation fold: a continuation line may only fold into a region no block scalar owns, because the line that ends a block scalar is a node start and is pushed rather than folded, but the target region was ${part.block ? "block-owned" : "carrying a non-empty introduction"} at \`${excerpt(line)}\``);
+    }
+}
 // Flatten one frontmatter block (the lines BETWEEN the delimiters) into key -> values.
 //
 // Continuation is decided by INDENTATION relative to the block's baseline: a line indented further
@@ -1086,27 +1152,84 @@ function flattenBlock(block, baseIndent) {
     const flush = () => {
         if (cur === null)
             return null;
-        // (D-57) THE JOIN FOLLOWS `seq`, AND THE QUOTING EXEMPTION FOLLOWS `sawBlock`. These were one
-        // expression while a block scalar could only ever be the WHOLE of a key's value: `block` implied
-        // `!seq` by construction, so `block ? " " : seq ? ", " : " "` and `seq ? ", " : " "` were the
-        // same function. A nested header makes them come apart — a block sequence one of whose ITEMS is a
-        // block scalar is both — and reading `block` for the join would have dropped the item boundary
-        // between `- >-` / `    alpha` and `- beta`, merging two nodes into one and inventing the name
-        // `alpha beta`. That is the D-09 direction, so the two facts are read from the two fields that
-        // actually hold them.
-        const joined = cur.seq ? cur.parts.join(", ") : cur.parts.join(" ");
-        const trimmed = joined.trim();
-        let value;
-        if (cur.sawBlock) {
-            value = trimmed;
-        }
-        else {
-            const resolved = unquoteChecked(trimmed);
-            if (!resolved.ok) {
-                return refuseEscape(`${cur.key}: ${trimmed}`, resolved.escape);
+        // (D-57) THE JOIN FOLLOWS `seq`. This and the quoting exemption were one expression while a block
+        // scalar could only ever be the WHOLE of a key's value: `block` implied `!seq` by construction, so
+        // `block ? " " : seq ? ", " : " "` and `seq ? ", " : " "` were the same function. A nested header
+        // makes them come apart — a block sequence one of whose ITEMS is a block scalar is both — and
+        // reading `block` for the join would have dropped the item boundary between `- >-` / `    alpha`
+        // and `- beta`, merging two nodes into one and inventing the name `alpha beta`. That is the D-09
+        // direction, so the join reads the field that actually holds it.
+        const sep = cur.seq ? ", " : " ";
+        // (D-59) THE UNRESOLVED JOIN, KEPT FOR THE REFUSAL REASON AND FOR NOTHING ELSE. The reason string
+        // is matched on by two shipped assertions, and a refusal that named a REGION where it used to name
+        // the whole key's text would move bytes in a message this module treats as an interface. Built
+        // from `regionText`, so it is the exact string the pre-D-59 `parts.join(sep).trim()` produced.
+        const rawJoined = cur.parts
+            .map((p) => regionText(p.intro, p.body))
+            .join(sep)
+            .trim();
+        // (D-59) THE RESOLUTION UNIT IS THE MAXIMAL RUN OF LIKE-KIND REGIONS, AND THAT IS NOT A
+        // CONVENIENCE — IT IS THE ONLY UNIT THAT SCOPES THE EXEMPTION WITHOUT CONTRADICTING D-33.
+        //
+        // D-50 / IN-02 established that YAML applies NO quoting rules inside a `|` / `>` scalar. It
+        // established nothing about the sibling entry underneath one, about the entry above one, or about
+        // the `key:` introduction printed in front of one. Those are ordinary nodes; they answer to
+        // `unquoteChecked`, and a block scalar elsewhere in the key must not speak for them.
+        //
+        // BUT RESOLVING EACH REGION INDIVIDUALLY WOULD CONTRADICT A DECISION THIS MODULE ALREADY TOOK.
+        // D-33 states that the unquote runs on the JOINED value, so YAML's line folding meets this
+        // module's join — and the join is where a wrapping quote pair becomes recognisable at all.
+        // Measured, individual resolution moved two shipped values: `tools:` / `  - Read` / `  -` /
+        // `    "Write,` / `    # x, Agent(…)"` flattened to `Read, Write, # x, Agent(…)` where every build
+        // since D-51 has flattened it to `Read, "Write, # x, Agent(…)"`, because the second region ALONE
+        // is a wholly-quoted scalar while the joined value is not. That is a value moving for a reason
+        // that has nothing to do with this defect, which is how a scope fix becomes a second one.
+        //
+        // So a RUN of adjacent regions of the same kind is resolved as one text, exactly as the whole key
+        // was before this decision, and a run BOUNDARY is precisely a change of kind. For every key
+        // carrying no block scalar there is exactly one run and the result is byte-identical to the
+        // pre-D-59 flush. Where a block scalar IS present, its own run is exempt and every other run
+        // answers to the checked unquote on its own terms — which is the whole of the fix.
+        //
+        // THE INTRODUCTION IS VALIDATED RATHER THAN EXEMPTED, AND IT IS A NO-OP TODAY BY GRAMMAR RATHER
+        // THAN BY LUCK. `header.leading` is the `key:` a nested mapping prints in front of the scalar, or
+        // the explicit `?` / `:`; it is NOT inside the scalar, so YAML's quoting rules do apply to it and
+        // the exemption must not cover it. `KEY_LINE`'s key alphabet is `[A-Za-z_][A-Za-z0-9_-]*` and
+        // `BLOCK_MAP_EXPLICIT`'s introduction is one of two punctuation characters, so an introduction can
+        // never contain a quote or a backslash and `unquoteChecked` returns it unchanged — no document's
+        // value can move. It is checked anyway, because the RULE is "everything outside a block scalar's
+        // content answers to the checked unquote", and a rule that holds only because of an alphabet
+        // declared two hundred lines away is the kind of coincidence this family keeps reopening on.
+        const resolvedRuns = [];
+        for (let start = 0; start < cur.parts.length;) {
+            const kind = cur.parts[start].block;
+            let end = start + 1;
+            while (end < cur.parts.length && cur.parts[end].block === kind)
+                end += 1;
+            const run = cur.parts.slice(start, end);
+            const runText = run
+                .map((p) => regionText(p.intro, p.body))
+                .join(sep)
+                .trim();
+            if (kind) {
+                for (const p of run) {
+                    const intro = unquoteChecked(p.intro);
+                    if (!intro.ok) {
+                        return refuseEscape(`${cur.key}: ${rawJoined}`, intro.escape);
+                    }
+                }
+                resolvedRuns.push(runText);
             }
-            value = resolved.value;
+            else {
+                const resolved = unquoteChecked(runText);
+                if (!resolved.ok) {
+                    return refuseEscape(`${cur.key}: ${rawJoined}`, resolved.escape);
+                }
+                resolvedRuns.push(resolved.value);
+            }
+            start = end;
         }
+        const value = resolvedRuns.join(sep);
         const seen = keys.get(cur.key);
         if (seen === undefined)
             keys.set(cur.key, [value]);
@@ -1126,7 +1249,6 @@ function flattenBlock(block, baseIndent) {
     // the sole input to the end condition above.
     const openBlock = (a, header, headerIndent) => {
         a.block = true;
-        a.sawBlock = true;
         a.blockIndent = headerIndent;
         a.blockLineBreak = header.lineBreak;
         a.blockHasContent = false;
@@ -1137,10 +1259,13 @@ function flattenBlock(block, baseIndent) {
         // which requires the carried quote to be closed already, so this reset can only ever clear a
         // flow depth or a node-may-begin answer that the scalar's own content does not read.
         a.state = FRESH_NODE;
-        // The part this scalar owns. Pushed unconditionally — including as the empty string for a bare
-        // header — so the content branch has exactly one part to fold into and never has to decide
-        // whether to create one.
-        a.parts.push(header.leading);
+        // (D-59) THE REGION THIS SCALAR OWNS, PUSHED UNCONDITIONALLY — including with an empty body for a
+        // bare header — so the content branch has exactly one region to fold into and never has to decide
+        // whether to create one. `block: true` is the exemption, and it is recorded HERE, on the region,
+        // because here is where the fact becomes true and here is the only text it is true of. The
+        // header's `leading` is carried as the region's INTRODUCTION rather than as the first bytes of its
+        // body, because the introduction is not inside the scalar and YAML's quoting rules do apply to it.
+        a.parts.push({ intro: header.leading, body: "", block: true });
     };
     for (const raw of block) {
         // A blank line is a paragraph break, never a key boundary.
@@ -1187,12 +1312,16 @@ function flattenBlock(block, baseIndent) {
                     // the very construct this decision exists to read correctly (D-09). For a top-level block
                     // the two are the same string: `["a","b"].join(" ")` and `"a b"` are equal, which is why
                     // this is not a behaviour change for any document that already parsed.
-                    const i = cur.parts.length - 1;
-                    cur.parts[i] = cur.blockHasContent
-                        ? `${cur.parts[i]}${cur.blockLineBreak}${t}`
-                        : cur.parts[i] === ""
-                            ? t
-                            : `${cur.parts[i]} ${t}`;
+                    //
+                    // (D-59) THE THREE-WAY CHOICE COLLAPSED TO TWO WHEN THE INTRODUCTION MOVED OFF THE BODY.
+                    // The old `parts[i] === "" ? t : parts[i] + " " + t` arm existed only to join the FIRST
+                    // content line across the mapping's `key:` separator, and that separator is now `regionText`
+                    // at the flush. `body` is `""` for every scalar's first content line by construction, so
+                    // this is the same string with the decision made once instead of twice.
+                    const region = cur.parts[cur.parts.length - 1];
+                    region.body = cur.blockHasContent
+                        ? `${region.body}${cur.blockLineBreak}${t}`
+                        : t;
                     cur.blockHasContent = true;
                     continue;
                 }
@@ -1351,8 +1480,12 @@ function flattenBlock(block, baseIndent) {
                 // anchor as text on four cells of the D-52 corpus where libyaml resolves it, which is the
                 // silent-no-grant direction this whole phase exists to close.
                 cur.nodeStarted = v !== "";
+                // (D-59) A SEQUENCE ITEM IS ITS OWN REGION AND NO BLOCK SCALAR OWNS IT — which is why this
+                // path already refused the escape three lines above, and the continuation path did not. The
+                // asymmetry the review named as the tell is gone: both paths now record what kind of region
+                // they are pushing, and the flush honours it.
                 if (v !== "")
-                    cur.parts.push(v);
+                    cur.parts.push({ intro: "", body: v, block: false });
                 continue;
             }
             // CONSUMER 2 (continuation path) — the node-start test, ASKED ONLY WHERE A NODE MAY BEGIN.
@@ -1450,13 +1583,18 @@ function flattenBlock(block, baseIndent) {
                 // ["alpha","ga","mma"] where libyaml expresses ["alpha","ga - mma"] — the invented name
                 // surviving in the sequence spelling of the very direction this decision closes. `inScalar`
                 // is a strict subset of `!startsNode`, so nothing that folded before stops folding.
-                cur.parts[cur.parts.length - 1] =
-                    text === ""
-                        ? cur.parts[cur.parts.length - 1]
-                        : `${cur.parts[cur.parts.length - 1]} ${text}`;
+                //
+                // (D-59) AND THE REGION FOLDED INTO IS NEVER A BLOCK SCALAR'S — asserted rather than argued.
+                // See `assertFoldTargetIsNotBlockOwned` for what holds it and what would break if it stopped
+                // holding. The assertion is also what makes `${body} ${text}` below byte-identical to the
+                // pre-D-59 `${part} ${text}`: it guarantees the target's introduction is empty, so the
+                // region's text IS its body.
+                const target = cur.parts[cur.parts.length - 1];
+                assertFoldTargetIsNotBlockOwned(target, t);
+                target.body = text === "" ? target.body : `${target.body} ${text}`;
                 continue;
             }
-            cur.parts.push(text);
+            cur.parts.push({ intro: "", body: text, block: false });
             continue;
         }
         // At the baseline: either a comment line, or a new key, or something unreadable.
@@ -1497,7 +1635,6 @@ function flattenBlock(block, baseIndent) {
                 blockIndent: baseIndent,
                 blockLineBreak: " ",
                 blockHasContent: false,
-                sawBlock: false,
                 seq: false,
                 state: FRESH_NODE,
                 nodeStarted: false,
@@ -1513,7 +1650,6 @@ function flattenBlock(block, baseIndent) {
                 blockIndent: baseIndent,
                 blockLineBreak: " ",
                 blockHasContent: false,
-                sawBlock: false,
                 seq: false,
                 state: FRESH_NODE,
                 nodeStarted: false,
@@ -1548,8 +1684,10 @@ function flattenBlock(block, baseIndent) {
             // actually consumed" guard. The field was named `nodeOnKeyLine` for this site alone, and that
             // name is the reason a reader could look straight at the omission and see a complete rule.
             cur.nodeStarted = v !== "";
+            // (D-59) The key line's value is a region of its own, and no block scalar owns it — a key line
+            // that DID carry a header took the branch above and never reaches here.
             if (v !== "")
-                cur.parts.push(v);
+                cur.parts.push({ intro: "", body: v, block: false });
         }
     }
     const flushed = flush();
