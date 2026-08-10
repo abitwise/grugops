@@ -2564,3 +2564,135 @@ Recorded as a gap in the gate, not as a defect in this plan.
 | `tsconfig.json` excludes `**/*.test.ts`, so no gate typechecks the test files (§10) | a later round — either add a test-file typecheck lane or record the exclusion as deliberate |
 | `27-55`, `27-56`, `27-57` and `27-58`'s open items | carried, unchanged — `27-59` edited no production source file, no exemption machinery, no fence classifier, no toggle and no introduction set |
 | KIT-03 and SPAWN-04 stay `[ ]` / `Gaps Found` | the next verification round for phase 27 (D-58 item 4) |
+
+---
+
+## From 27-60 (round 11, WR-04 + IN-02 + IN-03) — three controls that read as floors and could not hold the weight
+
+This plan changes **no shipped behaviour**. Every committed `.js` output is byte-identical before and
+after (32/32 hashes), `tsconfig.json` is byte-unchanged, `devDependencies` is byte-unchanged and no
+package-manager install ran.
+
+### 1. WR-04 — the dead-code flags reached NOTHING, measured on both sides
+
+`tsconfig.json` turned on `noUnusedLocals` / `noUnusedParameters` and excluded `**/*.test.ts`. The
+reach, taken by listing the files the compiler actually loads:
+
+| target | `.test.ts` files compiled | total repo-local `.ts` loaded |
+|---|---|---|
+| `tsc --noEmit` (shipped source) | **0** of 36 tracked | 199 |
+| `tsc -p tsconfig.tests.json` (new) | **36** of 36 tracked | — |
+
+Vitest's transform strips types without checking them, so before this plan the harness was
+type-checked by nothing anywhere.
+
+**The finding under the finding: there was no `typecheck` step in CI at all.** The review proposed
+wiring the new target "into the same gate that runs typecheck"; that gate did not exist. Shipped
+source was type-checked only as a side effect of `npm run build`. `.github/workflows/ci.yml` now
+carries an explicit `npm run typecheck` step on both OS legs.
+
+### 2. WR-04 — the target is PROVEN able to fail, and the contrast is the finding
+
+An unused local planted at the end of `scripts/frontmatter.test.ts`:
+
+```
+new target      exit=2   scripts/frontmatter.test.ts(14531,7): error TS6133:
+                         'grugops2760UnusedPlant' is declared but its value is never read.
+shipped target  exit=0   <- the SAME plant, the SAME flags, seen by nothing
+plant removed   exit=0   (restore verified byte-identical with cmp -s)
+```
+
+### 3. WR-04 — SIX real violations, each fixed AT ITS SITE
+
+No exemption was added, no flag was loosened, no test was deleted or weakened, and the shipped-source
+config's exclude list is byte-unchanged (`["node_modules", ".tmp-build", "**/*.test.ts"]` before and
+after). The review had measured "no violations today"; that measurement is now stale — round 11's own
+plans grew the harness past it.
+
+| file | diagnostic | fix |
+|---|---|---|
+| `install/install.test.ts:41` | TS6133 `statSync` | dead import removed; `lstatSync` is the one actually used |
+| `scripts/generate-catalog.test.ts:46` | TS6133 `out` | dead helper removed, plus its now-unused `SpawnSyncReturns` type import; every call site already inlined `${r.stdout}${r.stderr}` |
+| `scripts/context-io.test.ts:545` (x2) | **TS2741** `body` missing | two object literals handed to `currentState()` were not `NoteRecord`s. A REAL type error, supplied at the site; the interface was not widened |
+| `scripts/context-freshness.test.ts:43` | TS6133 `indexMd` | the unused local was the tell for a **missing case**. The gate compares BOTH `["index.md", "index.jsonl"]` (`context-freshness.ts:125`) and only the `.jsonl` half had a planted-drift case. Added **Test 2b**, the `.md` twin |
+| `scripts/check-foundation-guards.test.ts:184` | TS6133 `MEMORY_SENTENCE_COORDINATOR` | the literal's own comment claimed the duplication "fails closed". True for the specialist form (nine fixtures embed it), **false** for the coordinator form, which was read by nothing — a wording contract with no consumer, this repository's set-literal class in miniature. Made true by a case asserting BOTH forms appear verbatim in the guard source |
+
+Both ADDED cases proven able to fail, in a hermetic `git clone --no-hardlinks` (baseline **153 passed
+/ 0 failed**; two mutations produced exactly **2** attributable reds):
+
+```
+PLANT A  derivedNames narrowed to ["index.jsonl"] in the built context-freshness.js
+  x Test 2b (planted-drift STALE, the .md half): expected +0 not to be +0
+    ...and Test 2 (the .jsonl half) stayed GREEN, so 2b measures the .md half specifically
+
+PLANT B  the guard's coordinator em-dash drifted to a hyphen
+  x AssertionError: the coordinator memory sentence this harness mirrors is no longer present
+    verbatim in scripts/check-foundation-guards.ts — the wording contract drifted on one side
+    only. Re-cut the template, the generator and this fixture together.
+```
+
+### 4. IN-02 — the fence claim's prose half, mechanised
+
+The derived fence set stays at **4** members. What changed is that the "does it answer the GENERAL
+question" half is now checked by properties instead of asserted by a comment:
+
+| class | property, mechanically | member(s) |
+|---|---|---|
+| `authority` | exports `stripFencedBlocks` — any consumer can hand it any document | `scripts/frontmatter.ts` |
+| `heading-gated` | ≥1 `## Caveman prompt` gate AND gate count **equals** delimiter-site count | `scripts/check-foundation-guards.ts` (2 sites / 2 gates), `scripts/check-foundation-guards.test.ts` (3 / 3) |
+| `harness-local` | a `.test.ts` file that **no non-test module in the tracked tree imports** | `scripts/generate-role-adapters.test.ts`, `scripts/check-foundation-guards.test.ts` |
+
+The importer corpus is **derived** — `git ls-files "*.ts"` minus `*.test.ts` minus the member itself,
+33 non-test modules — never hand-listed, and comments are stripped before matching so a comment
+mentioning an import is not counted as one.
+
+**The classification is a MEASUREMENT, not a partition, and that is a correction this case made to
+itself.** It was first written as "every member matches EXACTLY ONE class" and the live tree refused:
+`check-foundation-guards.test.ts` matches **both** `heading-gated` and `harness-local`, and both are
+true of it — it MIRRORS the guard's own scopers, which is the point of it. A partition would have had
+to suppress one true fact to keep its own arithmetic. What is asserted is what the claim actually
+needs, and it is total:
+
+- exactly one member is the `authority`, and it carries **neither** disqualifier — it really is
+  general (no heading gate) and really is reachable (3 non-test modules import it);
+- every one of the other **3** members carries **at least one** disqualifier, so none can be a second
+  general answer;
+- a member matching **no** class reds the case by name.
+
+**NON-VACUITY OF THE IMPORTER SCAN, ASSERTED FIRST.** "No non-test module imports it" is evidence only
+if the same scan can find an importer. It is asked about the authority module and must return
+`scripts/check-foundation-guards.ts` among ≥2 hits — otherwise every harness-local verdict is a broken
+regular expression reported as a safety property.
+
+### 5. IN-02 — the fail-proof, and the harness-premise failure it caught (instance 14)
+
+**The first plant did NOT red, and that is the finding.** A planted
+`import "./generate-role-adapters.test.js";` in the non-test module `scripts/kit-model.ts` left the
+case at **270 passed**. The scan matched `from "…"` and `import("…")` and missed the **bare
+side-effect import**, which carries neither `from` nor a parenthesis — the cheapest way there is to
+reach a module. Read without the plant's own outcome asserted, that green says *"nothing imports the
+harness-local machines"*, which is true today for entirely the wrong reason.
+
+With the side-effect arm added, the same plant reds by name:
+
+```
+FAIL  scripts/frontmatter.test.ts > 27-60 IN-02 — every member of the derived fence set is
+      classified MECHANICALLY, the classification is TOTAL, and harness-local is checked as
+      `imported by no non-test module`
+AssertionError: every member of the derived fence set must be accounted for by at least one
+MECHANICAL class; a member with [] is excused by nothing but a comment
++ [ "scripts/generate-role-adapters.test.ts" ]
+```
+
+Plant removed (`git checkout --`, verified by grep) → mirror back to **270 passed**. The temp-dir
+control case now exercises all five importer spellings — named, default, side-effect, re-export and
+dynamic — each asserted SEEN, plus a comment-only control asserted NOT seen.
+
+**WHAT THIS FLOOR WOULD MISS, named rather than left undisclosed:** a specifier assembled at run time
+(`import("./gen" + "erate-role-adapters.test.js")`), an importer written in a language this scan does
+not read, and a consumer that re-implements a member's machine rather than importing it. It is a floor
+against the shapes a real importer plausibly takes, not a proof that none can exist.
+
+**No narrowing of the claim in `scripts/frontmatter.ts` was required** — all three non-authority
+members are mechanically disqualified, so the claim's scope is now fully backed. That file is
+byte-unchanged by this plan.

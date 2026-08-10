@@ -5628,6 +5628,233 @@ describe("frontmatter — the spawn-grant parser oracle (SPAWN-04 / KIT-03)", ()
     );
   });
 
+  // ── (Plan 27-60, closing round 11 § IN-02) THE CLAIM'S SECOND HALF, MECHANISED ─────────────────
+  //
+  // WHAT WAS STILL PROSE. The set above is derived, sorted and pinned at four, and every classifier
+  // construct is proven load-bearing. But the CLAIM it backs is that exactly one implementation
+  // answers the GENERAL question, and that half was mechanised for only ONE of the three
+  // non-authority members: `check-foundation-guards.ts` is pinned as gated on `## Caveman prompt`,
+  // while the two `.test.ts` machines were excused as "harness-local" in a COMMENT. An edit that
+  // made either of those a general document-level fence answer would keep the set at four and keep
+  // the claim green — the finding one layer in from the finding.
+  //
+  // WHAT "HARNESS-LOCAL" ACTUALLY MEANS, WRITTEN AS A CHECK. A machine is harness-local when nothing
+  // outside the harness can reach it: no NON-TEST module in the tracked tree imports it. That is a
+  // property of the tree, checkable, and it is checked here.
+  //
+  // THE IMPORTER CORPUS IS DERIVED, NEVER HAND-LISTED — the same reason the machine set itself is
+  // derived, and the same reason `27-53` refused to transcribe the review's own hand-list (which
+  // named three files and omitted a fourth). It is `git ls-files "*.ts"` minus `*.test.ts` minus the
+  // member itself, and comments are stripped before matching so a comment MENTIONING an import is
+  // not counted as one.
+  //
+  // THE SHAPE OF THE CLASSIFICATION IS A MEASUREMENT, NOT A PARTITION, AND THAT IS A CORRECTION
+  // THIS CASE MADE TO ITSELF. It was first written as "every member matches EXACTLY ONE class", and
+  // the live tree refused: `scripts/check-foundation-guards.test.ts` matched BOTH `heading-gated`
+  // (3 delimiter sites, 3 `## Caveman prompt` gates — it MIRRORS the guard's own scopers, which is
+  // the whole point of it) and `harness-local` (no non-test module imports it). Both are TRUE of it.
+  // A partition would have had to suppress one true fact to keep its own arithmetic, which is the
+  // set-literal reflex in a new costume. So the assertion is the one the CLAIM actually needs:
+  //
+  //   • EXACTLY ONE member is the AUTHORITY, and it carries NEITHER disqualifier — it really is
+  //     general (no heading gate) and really is reachable (non-test modules really import it).
+  //   • EVERY OTHER member carries AT LEAST ONE DISQUALIFIER, so it cannot be a second general
+  //     answer: heading-gated means it cannot run on a document without that heading; harness-local
+  //     means nothing outside the harness can reach it at all.
+  //
+  // That is TOTAL over the derived set — no member is left to prose — and it is exactly as strong as
+  // "exactly one implementation answers the general question". A member matching NO class would be
+  // an unaccounted second general answer and reds the case by name.
+  //
+  // WHAT THIS FLOOR WOULD MISS, NAMED RATHER THAN LEFT UNDISCLOSED: a specifier ASSEMBLED at run
+  // time (`import("./gen" + "erate-role-adapters.test.js")`), an importer written in a language this
+  // scan does not read, and a consumer that re-implements a member's machine rather than importing
+  // it. It is a floor against the shapes a real importer plausibly takes, not a proof that none can
+  // exist. The NON-VACUITY control below is what keeps "found no importer" a MEASUREMENT rather than
+  // a broken regular expression: the same scan is asked about the authority module, which three
+  // non-test modules really do import, and it must find them.
+  const importsModule = (code: string, member: string): boolean => {
+    const base = member
+      .replace(/^.*\//, "")
+      .replace(/\.ts$/, "")
+      .replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const spec = `["'\`][^"'\`]*${base}(?:\\.[jt]s)?["'\`]`;
+    return (
+      // `import { x } from "…"` / `import x from "…"` / `export * from "…"`
+      new RegExp(`\\bfrom\\s*${spec}`).test(code) ||
+      // A BARE SIDE-EFFECT IMPORT: `import "…";`. This arm was MISSING on the first draft, and the
+      // fail-proof caught it: a planted `import "./generate-role-adapters.test.js";` in a non-test
+      // module left the case GREEN, because a side-effect import carries neither `from` nor a
+      // parenthesis. A reachability scan that cannot see the cheapest way to reach a module is a
+      // control that reads as enforced and enforces nothing — this round's own subject matter.
+      new RegExp(`\\bimport\\s*${spec}`).test(code) ||
+      // `import("…")` / `require("…")`
+      new RegExp(`\\b(?:import|require)\\(\\s*${spec}`).test(code)
+    );
+  };
+  const nonTestModules = (member: string): string[] =>
+    trackedTs()
+      .filter((p) => !p.endsWith(".test.ts") && p !== member)
+      .sort();
+  const nonTestImportersOf = (member: string): string[] =>
+    nonTestModules(member).filter((p) =>
+      importsModule(
+        codeLinesOf(readFileSync(join(REPO_ROOT, p), "utf8")),
+        member,
+      ),
+    );
+  type FenceClass = "authority" | "heading-gated" | "harness-local";
+  const classifyFenceMachine = (member: string): FenceClass[] => {
+    const code = codeLinesOf(readFileSync(join(REPO_ROOT, member), "utf8"));
+    const hit: FenceClass[] = [];
+    // AUTHORITY — it EXPORTS the general answer, so any consumer can hand it any document.
+    if (/export function stripFencedBlocks\(/.test(code)) hit.push("authority");
+    // HEADING-GATED — every delimiter recogniser site in the file is matched by a caveman-heading
+    // gate, and there is at least one gate. COUNTED, not merely present: a third, ungated site
+    // breaks the equality and the file leaves this class rather than riding on its two gated ones.
+    const sites =
+      (code.match(/\/\^```/g) ?? []).length +
+      (code.match(/startsWith\(\s*["'`]```/g) ?? []).length;
+    const gates = (code.match(/\/\^## Caveman prompt\//g) ?? []).length;
+    if (gates > 0 && gates === sites) hit.push("heading-gated");
+    // HARNESS-LOCAL — a test file that NO non-test module in the tracked tree imports.
+    if (member.endsWith(".test.ts") && nonTestImportersOf(member).length === 0)
+      hit.push("harness-local");
+    return hit;
+  };
+
+  it("27-60 IN-02 — every member of the derived fence set is classified MECHANICALLY, the classification is TOTAL, and harness-local is checked as `imported by no non-test module`", () => {
+    const machines = liveFenceMachines();
+    expect(machines).toHaveLength(4);
+
+    // NON-VACUITY OF THE IMPORTER SCAN, FIRST. "No non-test module imports it" is only evidence if
+    // the same scan can FIND an importer. It is asked about the authority module, which is imported
+    // by real non-test consumers, and must return a non-empty set — otherwise every harness-local
+    // verdict below is a broken regular expression reported as a safety property.
+    const authorityImporters = nonTestImportersOf("scripts/frontmatter.ts");
+    expect(
+      authorityImporters,
+      "PREMISE — the importer scan must be able to FIND a real importer, or `found none` means nothing",
+    ).toContain("scripts/check-foundation-guards.ts");
+    expect(authorityImporters.length).toBeGreaterThan(1);
+    expect(
+      nonTestModules("scripts/frontmatter.ts").length,
+      "PREMISE — the non-test importer corpus must really have been enumerated",
+    ).toBeGreaterThan(10);
+
+    // THE CLASSIFICATION, MEMBER BY MEMBER.
+    const classified = machines.map((m) => ({
+      member: m,
+      classes: classifyFenceMachine(m),
+    }));
+    // TOTALITY, reporting the offenders BY NAME. A member matching no class is an unaccounted
+    // second general answer — precisely the prose excuse this case exists to remove.
+    expect(
+      classified.filter((c) => c.classes.length === 0).map((c) => c.member),
+      "every member of the derived fence set must be accounted for by at least one MECHANICAL class; a member with [] is excused by nothing but a comment",
+    ).toEqual([]);
+    // The accounted-for count equals the set's PINNED cardinality — so a scan that silently shrank
+    // cannot report a total classification over three members and call it four.
+    expect(
+      classified.filter((c) => c.classes.length > 0),
+      `accounted for ${classified.length} derived fence machines with the classification [${classified
+        .map((c) => `${c.member}:${c.classes.join("+")}`)
+        .join(" | ")}]`,
+    ).toHaveLength(4);
+
+    const inClass = (k: FenceClass): string[] =>
+      classified.filter((c) => c.classes.includes(k)).map((c) => c.member);
+
+    // EXACTLY ONE AUTHORITY, AND IT IS DISQUALIFIED BY NEITHER TEST — the two-sided half. The
+    // authority must really be GENERAL (no heading gate could scope it) and really be REACHABLE
+    // (non-test modules import it), or the claim would be true only because nothing answers at all.
+    expect(inClass("authority")).toEqual(["scripts/frontmatter.ts"]);
+    expect(
+      classifyFenceMachine("scripts/frontmatter.ts"),
+      "the authority must carry NEITHER disqualifier — a heading-gated or unreachable authority is not a general answer",
+    ).toEqual(["authority"]);
+
+    // EVERY OTHER MEMBER CARRIES AT LEAST ONE DISQUALIFIER. This is the half that was prose.
+    const undisqualified = classified
+      .filter((c) => !c.classes.includes("authority"))
+      .filter(
+        (c) =>
+          !c.classes.includes("heading-gated") &&
+          !c.classes.includes("harness-local"),
+      )
+      .map((c) => c.member);
+    expect(
+      undisqualified,
+      "a non-authority fence machine that is neither heading-gated nor harness-local IS a second general answer to `which lines are inside a ``` block`",
+    ).toEqual([]);
+    expect(
+      classified.filter((c) => !c.classes.includes("authority")),
+      "three non-authority members, each disqualified mechanically",
+    ).toHaveLength(3);
+
+    // …and for each harness-local member the IMPORTER SET ITSELF is asserted empty, by name, so the
+    // failure message says which file grew a reachable consumer rather than merely that a count moved.
+    expect(inClass("harness-local")).toHaveLength(2);
+    expect(
+      inClass("harness-local").every((p) => p.endsWith(".test.ts")),
+      "the harness-local class must contain test files only",
+    ).toBe(true);
+    for (const member of inClass("harness-local")) {
+      expect(
+        nonTestImportersOf(member),
+        `${member} is claimed HARNESS-LOCAL, which means no non-test module in the tracked tree imports it — these do`,
+      ).toEqual([]);
+    }
+  });
+
+  it("27-60 IN-02 — a non-test module importing a harness-local machine makes that classification fail, BY NAME", () => {
+    // The discriminator proven able to fail, on a HERMETIC copy so the real tree is never mutated.
+    // The corpus is `git ls-files`-derived, so the plant is made in a temp git repository whose
+    // tracked set is constructed here rather than inherited.
+    const dir = mkdtempSync(join(tmpdir(), "grugops-harness-local-"));
+    try {
+      const codeOf = (p: string): string =>
+        codeLinesOf(readFileSync(join(dir, p), "utf8"));
+      // A harness-local member and a non-test module that does NOT import it.
+      writeFileSync(join(dir, "victim.test.ts"), "export const x = 1;\n");
+      writeFileSync(join(dir, "consumer.ts"), "export const y = 2;\n");
+      const importersIn = (member: string): string[] =>
+        ["consumer.ts"].filter((p) => importsModule(codeOf(p), member));
+
+      // CONTROL — with no import, the scan finds none, so the plant's red is attributable to the
+      // plant and not to a scan that reds on everything.
+      expect(importersIn("victim.test.ts")).toEqual([]);
+      // …and a COMMENT mentioning the import must not count as one, which is what stripping buys.
+      writeFileSync(
+        join(dir, "consumer.ts"),
+        '// import { x } from "./victim.test.js";\nexport const y = 2;\n',
+      );
+      expect(
+        importersIn("victim.test.ts"),
+        "a COMMENT naming the import is documentation, not a consumer",
+      ).toEqual([]);
+
+      // THE PLANTS — every spelling a real importer takes. The BARE SIDE-EFFECT form is here
+      // because the first draft of the scan MISSED it: `import "./x.js";` carries neither `from`
+      // nor a parenthesis, and a planted one on the live tree left the totality case green.
+      for (const [spelling, text] of [
+        ["named", 'import { x } from "./victim.test.js";\nexport const y = x;\n'],
+        ["default", 'import v from "./victim.test.js";\nexport const y = v;\n'],
+        ["side-effect", 'import "./victim.test.js";\nexport const y = 2;\n'],
+        ["re-export", 'export * from "./victim.test.js";\n'],
+        ["dynamic", 'export const y = () => import("./victim.test.js");\n'],
+      ] as const) {
+        writeFileSync(join(dir, "consumer.ts"), text);
+        expect(
+          importersIn("victim.test.ts"),
+          `the ${spelling} import must be SEEN — otherwise the fail-proof proves nothing`,
+        ).toEqual(["consumer.ts"]);
+      }
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
   it("27-53 WR-02 — a FIFTH fence state machine makes that set fail, BY NAME", () => {
     // An assertion that was never made to fail is not a pin. Exercised in a temp directory so
     // nothing outside it is touched, and with its own control first.
