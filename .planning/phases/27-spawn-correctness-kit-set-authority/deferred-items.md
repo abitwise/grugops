@@ -1082,3 +1082,242 @@ dismissed.** Distributed across round 10's four plans: `27-51` **7**, `27-52` **
 `27-54` **15** — and `7 + 0 + 7 + 15 == 29`. The 3 `backstop` rows are all SPAWN-03's (adjacency,
 empty, ordering): they describe live Claude Code runtime behaviour that no static gate can reach,
 which is consistent with row 9's Phase-33 deferral rather than a separate omission.
+
+---
+
+## From 27-55 — CR-01-new: the block-scalar quoting exemption was KEY-wide, not REGION-wide (round 11)
+
+**What was closed.** D-57 moved the block-scalar quoting exemption off the per-value `block` fact and
+onto a **sticky per-key** flag, so one nested block scalar anywhere in a key switched the D-30 escape
+refusal off for **every other part of that key**. Adding two unrelated lines to a document moved a
+refusal to the silent no-grant arm over a live grant. Closed **structurally**: the flag is deleted,
+`Accumulator.parts` is a list of REGIONS (`Part`), and the flush resolves maximal **runs of like-kind
+regions** on their own terms. Recorded as **D-59** in `27-CONTEXT.md`.
+
+### RED / GREEN, with the loader column
+
+Loader for every row: `/usr/bin/ruby -ryaml` (ruby 2.6.10 / psych 3.1.0 / libyaml 0.2.1).
+RED taken against the committed build `3c7930b` on a `git archive HEAD` mirror BEFORE the edit.
+
+| Row | Document (frontmatter region) | RED (`3c7930b`) | GREEN (this build) | Loader |
+|---|---|---|---|---|
+| **U2** control | `tools:` / `  a: "\x41gent(grugops-orchestrator)"` | REFUSED, names `\x` | REFUSED, **reason byte-identical** | `{"a"=>"Agent(grugops-orchestrator)"}` |
+| **U1** the finding | U2 + `  b: >-` / `    x` | `{"ok":true,"value":false}` | REFUSED, names `\x` | `{"a"=>"Agent(grugops-orchestrator)","b"=>"x"}` |
+| **U3** asymmetry control | `  - "\x41gent(…)"` / `  - >-` / `    x` | REFUSED | REFUSED (unchanged) | `["Agent(grugops-orchestrator)","x"]` |
+| **U4** adjacency | `  b: >-` / `    x` / `  a: "\x41gent(…)"` | `{"ok":true,"value":false}` | REFUSED, names `\x` | `{"b"=>"x","a"=>"Agent(grugops-orchestrator)"}` |
+| **U5** empty region | `  b: >-` / `  a: "\x41gent(…)"` | `{"ok":true,"value":false}` | REFUSED, names `\x` | `{"b"=>"","a"=>"Agent(grugops-orchestrator)"}` |
+| **U5b** empty alone | `  b: >-` | `{"ok":true,"value":false}`, flat `b:` | **unchanged** | `{"b"=>""}` |
+| **U6** fail-safe | `  b: >-` / `    Read, "Agent(x\q)"` | grants, no refusal | **unchanged** | `{"b"=>"Read, \"Agent(x\\q)\""}` |
+| **U6b** fail-safe, top level | `tools: \|` / `  Read, "Agent(x\q)"` | grants, no refusal | **unchanged** | `"Read, \"Agent(x\\q)\"\n"` |
+| **U7** allowlisted escape | `  a: "\/Agent(…)"` / `  b: >-` / `    x` | grants | **unchanged** | `{"a"=>"/Agent(grugops-orchestrator)","b"=>"x"}` |
+| **U8** intro region | `  "\x41gent(…)": >-` / `    x` | REFUSED | REFUSED (unchanged) | `{"Agent(grugops-orchestrator)"=>"x"}` |
+
+Exactly **three** rows moved — U1, U4, U5 — and all three moved from the silent no-grant arm to a
+named refusal. Seven rows are byte-identical before and after.
+
+### Gate exit codes
+
+| Mirror | Build | `node scripts/check-foundation-guards.js` |
+|---|---|---|
+| `git archive HEAD` (`3c7930b`), **unplanted** | pre-fix | **exit 0** |
+| same mirror, **unplanted** | post-fix | **exit 0** |
+| real working tree, **unplanted** | post-fix | **exit 0** |
+| same mirror, **U1's shape planted in the EXISTING `allowed-tools:` key of BOTH twins** of the non-coordinator `plan` skill | pre-fix | **exit 0** — `ALL CHECKS PASSED` over a live grant |
+| same plant, byte-identical files (sha1 `37e33e78…` / `cd07098d…` on both mirrors) | post-fix | **exit 1** — `2 CHECK(S) FAILED` |
+
+The plant never adds a second allow-list key; it replaces the block-sequence value of the existing
+`allowed-tools:` with U1's mapping shape. The loader reads that key as
+`{"a"=>"Agent(grugops-orchestrator)", "b"=>"x"}` — a live grant on a non-coordinator surface (D-40:
+both distribution twins).
+
+Failure text, verbatim, from the post-fix planted run:
+
+```
+[guard_wr05] coordinator-only spawn grant + tier-announcement presence (WR-05, revised D-05)
+  FAIL  WR-05 coordinator-spawn-grant violation:
+.claude/skills/grugops-plan/SKILL.md: frontmatter parse failure — `allowed-tools: a: "\x41gent(grugops-orchestrator)" b: x` carries the backslash sequence `\x` inside a double-quoted scalar, and that sequence is not one of the three escapes this module resolves; the value this document expresses is not the text these bytes spell, so it is refused on the same argument as an anchor or alias — never read as "carries no grant". An unreadable adapter cannot be reported on, so it is NEVER read as "carries no grant"
+skills/plan/SKILL.md: frontmatter parse failure — `allowed-tools: a: "\x41gent(grugops-orchestrator)" b: x` carries the backslash sequence `\x` inside a double-quoted scalar, and that sequence is not one of the three escapes this module resolves; the value this document expresses is not the text these bytes spell, so it is refused on the same argument as an anchor or alias — never read as "carries no grant". An unreadable adapter cannot be reported on, so it is NEVER read as "carries no grant"
+
+[guard_distribution_pair] plugin-form and standalone skills are byte-identical modulo the `name` value (D-40)
+  FAIL  D-40 distribution-pair violation:
+skills/plan/SKILL.md: frontmatter parse failure — `allowed-tools: a: "\x41gent(grugops-orchestrator)" b: x` carries the backslash sequence `\x` … An unreadable side is NEVER read as "the pair matches"
+```
+
+**Twins named, counted over the FAILURE block only and not over the whole output: 2** —
+`.claude/skills/grugops-plan/SKILL.md` and `skills/plan/SKILL.md`.
+
+### Repository-wide value map
+
+`git ls-files '*.md'` flattened under both builds and compared entry by entry:
+
+```
+files scanned (pre / post): 1170 / 1170
+files whose verdict or flattened value MOVED: 0
+NEW refusals (ok -> refused): 0
+refusals LIFTED (refused -> ok): 0
+```
+
+### Axis cardinalities, before and after
+
+There was **no** region-kind x escape-kind x spelling axis before `27-55`; it is new, so the "before"
+figure is **0 axes / 0 cells**. After:
+
+| Axis | Length | Derived from |
+|---|---|---|
+| `AXIS_REGION_KIND` | 4 | block-owned / double-quoted / single-quoted / plain |
+| `AXIS_ESCAPE_KIND` | **6** | `1 + DQ_ESCAPE_ALLOWLIST.size (3) + 1 non-allowlisted + 1 doubled single quote` |
+| `AXIS_SPELLING` | 3 | top-level / nested-mapping sibling / block-sequence item |
+| **cells** | **72** | asserted EQUAL to `4 x 6 x 3`, with the derivation in the assertion message |
+
+The escape axis is **live**, not transcribed: adding a member to `DQ_ESCAPE_ALLOWLIST` lengthens it by
+one, narrowing it to a single member shortens it to 4, and putting `x` on the allowlist moves the
+non-allowlisted arm from `\x41` to `A`. All three are asserted.
+
+Differential against the post-fix build, printed by the case:
+
+```
+[D-59 union axis] cells=72 loader-rejected(skipped)=3 adjudicated=69 refuses-while-loader-grants=3
+  SKIPPED (loader rejects) [plain region] [the doubled single-quote pair ''] [top-level key value]
+  SKIPPED (loader rejects) [plain region] [the doubled single-quote pair ''] [nested mapping sibling of a block scalar]
+  SKIPPED (loader rejects) [plain region] [the doubled single-quote pair ''] [block-sequence item beside a block-scalar item]
+  LOUD (module refuses, loader grants) [double-quoted region] [non-allowlisted double-quote escape \x41] [top-level key value]
+  LOUD (module refuses, loader grants) [double-quoted region] [non-allowlisted double-quote escape \x41] [nested mapping sibling of a block scalar]
+  LOUD (module refuses, loader grants) [double-quoted region] [non-allowlisted double-quote escape \x41] [block-sequence item beside a block-scalar item]
+```
+
+Both never-exemptible partitions are **empty**. The loud arm is **3** and is reported with its count,
+never folded into "no names" — a refusal where the loader grants is D-30's declared policy.
+**No exemption rule was added to make any cell pass; this axis declares no exemption machinery at
+all, asserted by a case that searches its own block for one.** The D-52 differential's exemption list
+is untouched at **2 rules**, before and after.
+
+### Non-circularity, MEASURED against a pre-fix mirror
+
+The identical axis, the identical loader batch and the identical partition function run against a
+hermetic `git archive` mirror of `3c7930b`:
+
+```
+[D-59 union axis, pre-fix mirror 3c7930b] silent-no-grant=1 module-grant-loader-none=0 skipped=3
+  UNSAFE on the pre-fix build [double-quoted region] [non-allowlisted double-quote escape \x41] [nested mapping sibling of a block scalar]	module=no-grant	loader=grant	flat="a: Agent(grugops-orchestrator), b: x"
+```
+
+**1** never-exemptible cell on the pre-fix build, **0** after. The case also asserts the mirror really
+is the older build (it still carries the deleted flag), so a wrong commit cannot make it pass
+vacuously. **Stated honestly: 1 of 72 is a thin margin.** The axis's three spellings all place the
+block sibling AFTER the payload, so the block-BEFORE ordering is not in its shape space; that
+direction is pinned by the U4 adjacency case instead, and by the adversarial probes below (where the
+pre-fix build fails 13 of 20).
+
+### Mutation control — the pin is PROVEN able to fail
+
+The region-scoping decision reverted **alone** (the `Part` record, `regionText`, the fold assertion and
+the intro split all kept; only the flush's run walk replaced by D-57's key-wide
+`parts.some(p => p.block)`), rebuilt, suite re-run, then restored and re-verified against `git diff`
+and `npm run freshness`:
+
+**6 cases red**, each naming its own assertion:
+
+1. `D-59 U1/U2 — an unrelated \`b: >-\` sibling cannot switch off the escape refusal…`
+2. `D-59 three-spelling agreement…`
+3. `D-59 U4 — a block-owned region immediately FOLLOWED by a quoted sibling region…`
+4. `D-59 U5 — a nested block scalar consuming ZERO content lines…`
+5. `D-59 three regions under one key…`
+6. `D-59 the union differential — both never-exemptible directions are EMPTY against the post-fix build`
+
+One failure message verbatim, showing the case names its own assertion rather than failing generically:
+
+```
+AssertionError: NEVER EXEMPTIBLE — the silent no-grant arm: the module reports no grant where the loader grants: expected [ Array(1) ] to deeply equal []
+- []
++ [
++   "[double-quoted region] [non-allowlisted double-quote escape \\x41] [nested mapping sibling of a block scalar]	module=no-grant	loader=grant	flat=\"a: Agent(grugops-orchestrator), b: x\"",
++ ]
+```
+
+**A note worth carrying:** the first attempt at this mutation control PASSED, and it passed for a
+harness reason and not a code reason — vitest resolves the test file's `./frontmatter.js` import to
+the **committed `.js`**, so mutating only the `.ts` mutated nothing the suite could see. Assert the
+harness's own premise: the mutation was only real after `npm run build`.
+
+### Adversarial pass (a) — *what is this predicate's INPUT assembled from?*
+
+Walked one key's value from each region's creation, through the fold, the run partition and the join,
+to the enumeration, asking at each hop what the next stage assumes. Eight shapes probed, all with two
+regions of DIFFERENT kinds adjacent at every boundary the flattener can produce:
+
+| Probe | Post-fix | Pre-fix |
+|---|---|---|
+| a1 block region then quoted region, quote SPANNING the run boundary | agree (no-grant/no-grant) | agree |
+| a2 block body ENDING with an open quote, sibling after | agree | agree |
+| a3 escape at the OUTER level, block scalar one level DEEPER | refuse / loader grants (loud) | **UNSAFE — silent** |
+| a4 block scalar OUTER, escape one level DEEPER | refuse (loud) | **UNSAFE — silent** |
+| a5 a block header INSIDE a block scalar's content (not a header at all) | agree | agree |
+| a6 a RUN of two block regions then a quoted region with the escape | refuse (loud) | **UNSAFE — silent** |
+| a7 quoted-with-escape BETWEEN two block regions | refuse (loud) | **UNSAFE — silent** |
+| a8 folded continuation of a quoted region FOLLOWING a block region | refuse (loud) | **UNSAFE — silent** |
+
+**Finding:** nothing new. The one hop worth naming is the run partition: two adjacent regions of the
+same kind are resolved as one text, which is deliberate — resolving each region individually
+contradicts **D-33** (the unquote runs on the JOINED value) and was measured moving two shipped
+values before being rejected. See D-59's rationale.
+
+### Adversarial pass (b) — *which set does the exemption ENUMERATE, and at WHICH positions is it asked?*
+
+The exemption is `Part.block === true`. Counted over non-comment lines of `scripts/frontmatter.ts`:
+
+- `block: true` is written at **1** site — inside `openBlock`, and nowhere else.
+- `openBlock(cur, …)` is called from **3** sites — the three positions D-57 enumerated.
+- `.parts.push(` appears at **4** sites; exactly one of them (`openBlock`) creates a block region.
+- a region's `body` is mutated at **2** sites — the block content fold and the continuation fold — and
+  the second asserts its target is **not** block-owned before touching it.
+
+So the exemption reaches exactly `{ the body of a region created by openBlock }`: not a sibling, not
+an earlier region, not the `key:` introduction printed in front of the scalar. Twelve positions probed
+against the loader:
+
+| Probe | Post-fix | Pre-fix |
+|---|---|---|
+| b1 position 1 — top-level key-line header | agree | agree |
+| b2 position 2 — block-sequence item header, escape in a sibling item | refuse (loud) | agree (the item path already resolved at push) |
+| b3 position 2 — COMPACT nested sequence header | refuse (loud) | agree |
+| b4 position 3 — nested mapping value header | refuse (loud) | **UNSAFE — silent** |
+| b5 position 3 — explicit key header `? >-` | refuse (loud) | **UNSAFE — silent** |
+| b6 position 3 — explicit value header `: >-` | refuse (loud) | **UNSAFE — silent** |
+| b7 the header's own INTRO carrying the escape | refuse (loud) | **UNSAFE — silent** |
+| b8 literal `\|` header rather than folded | refuse (loud) | **UNSAFE — silent** |
+| b9 indentation-indicator header `>2-` | refuse (loud) | **UNSAFE — silent** |
+| b10 header with a trailing comment | refuse (loud) | **UNSAFE — silent** |
+| b11 escape inside a FLOW collection beside a block sibling | refuse (loud) | **UNSAFE — silent** |
+| b12 ALLOWLISTED escape in the same shape | **grant** (not a refusal) | grant |
+
+**Across all 20 probes: 0 never-exemptible disagreements on this build; 13 on the pre-fix build.**
+
+**Finding, and it is a real one that this pass closed rather than merely reported.** Position b7 — the
+`key:` a nested header prints in FRONT of the scalar — was inside the exemption under D-57 and would
+have stayed inside it under a naive "one flag per region" fix, because the introduction was stored as
+the first bytes of the block region's own body. It is now a separate field validated through
+`unquoteChecked`. Today's `KEY_LINE` alphabet (`[A-Za-z_][A-Za-z0-9_-]*`) makes that validation a
+provable no-op, so no value moves; it is checked anyway so the rule does not rest on an alphabet
+declared two hundred lines away.
+
+### Still OPEN, with a named owner
+
+| Item | Measurement | Owner |
+|---|---|---|
+| **The union axis's spelling arm places the block sibling only AFTER the payload** | 3 spellings, so block-BEFORE ordering is outside its shape space; covered instead by the U4 adjacency case and by probes a4/a6/a7 | **a later round** — add an ORDERING member to `AXIS_SPELLING` and re-take the pre-fix-mirror count (expected to rise well above 1 of 72) |
+| **The pre-fix-mirror non-circularity count is 1 of 72** | Non-empty, so the axis provably sees the defect, but thin. Stated rather than presented as a margin it is not | **the same later round** as the row above |
+| **`27-49` WR-04 residual, `27-50` R1 residual, `27-53` fence-classifier floor, `toggle[1]` sensitivity** | Untouched by `27-55`; it changed no exemption machinery, no fence classifier and no toggle | **carried, unchanged** |
+
+### Specless-probe accounting for this plan
+
+**3 probe rows == 3 authored `explicit` + 0 backstop + 0 unresolved + 0 dismissed** — KIT-03 ordering
+(the region-identity truth), KIT-03 adjacency (the touching-regions truth) and KIT-03 empty (the
+zero-content-line block scalar truth), all authored as plain strings in `must_haves.truths` and all
+carrying a case in `scripts/frontmatter.test.ts`. Round equality is stated once, in `27-61`.
+
+### The regression suite is a FLOOR
+
+`npx vitest run --exclude '**/scripts/e2e/**'` reports **1302 passed | 2 skipped, 0 failed**. That is a
+floor and not the closure evidence. The closure evidence is the gate plant moving exit 0 → exit 1 on
+both distribution twins, the pre-fix-mirror non-circularity result, the mutation control, and the two
+adversarial passes above.

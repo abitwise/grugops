@@ -11111,3 +11111,452 @@ describe("frontmatter — D-59: the block-scalar quoting exemption is region-sco
     expect(reasonOf(dirty)).toContain("\\x");
   });
 });
+
+// ---------------------------------------------------------------------------
+// (27-55, D-59) THE UNION OF THE BLOCK ARM AND EVERY QUOTING ARM, AS A DERIVED AXIS
+// (KIT-03 + SPAWN-04)
+// ---------------------------------------------------------------------------
+//
+// WHY A UNION AND NOT A ROW TABLE. Round 10 closed the single-quote escape arm (27-51) and the nested
+// block-scalar arm (27-52) in the same round, each pinned by its own cases, and shipped a live
+// silent-no-grant in the INTERSECTION: a block-owned region and a quoted region carrying an escape,
+// under one key. Both arms were individually correct and individually pinned while their union
+// leaked. That is this module's own recorded lesson about a COMPOSITION of predicates (see the
+// delimiter region's D-44 paragraph), arriving one round later on a different pair — so the property
+// under test here is the union, and a union is expressed by crossing axes.
+//
+// THREE AXES, ENUMERATED AS DATA, and every cell's expected verdict computed from the LOADER rather
+// than from the module. A corpus whose expectation is the module's own answer measures nothing.
+describe("frontmatter — D-59: the region-kind x escape-kind x spelling union (KIT-03 / SPAWN-04)", () => {
+  const RUBY = "/usr/bin/ruby";
+  const TOKEN = "Agent(grugops-orchestrator)";
+  // The pre-`27-55` commit. The identical axis is run against a hermetic mirror of it below, and the
+  // never-exemptible partition there must be NON-empty — a corpus that cannot fail on the defect it
+  // was written for proves nothing, and this phase has shipped past that twice.
+  const PRE_FIX_COMMIT = "3c7930b";
+
+  // ── AXIS 1: THE REGION KIND ───────────────────────────────────────────────────────────────────
+  //
+  // What YAML construct holds the payload. `blockOwned` is the ONE region kind D-50 / IN-02 exempts
+  // from quoting rules; the other three are ordinary nodes that answer to `unquoteChecked`.
+  interface RegionKind {
+    readonly label: string;
+    readonly blockOwned: boolean;
+    // Render the region as the value introduced by `intro` (`tools: `, `a: ` or `- `) at `indent`.
+    readonly render: (intro: string, indent: string, payload: string) => readonly string[];
+  }
+  const AXIS_REGION_KIND: readonly RegionKind[] = [
+    {
+      label: "block-owned region (>-)",
+      blockOwned: true,
+      render: (intro, indent, payload) => [
+        `${indent}${intro}>-`,
+        `${indent}  ${payload}`,
+      ],
+    },
+    {
+      label: "double-quoted region",
+      blockOwned: false,
+      render: (intro, indent, payload) => [`${indent}${intro}"${payload}"`],
+    },
+    {
+      label: "single-quoted region",
+      blockOwned: false,
+      render: (intro, indent, payload) => [`${indent}${intro}'${payload}'`],
+    },
+    {
+      label: "plain region",
+      blockOwned: false,
+      render: (intro, indent, payload) => [`${indent}${intro}${payload}`],
+    },
+  ];
+
+  // ── AXIS 2: THE ESCAPE KIND, DERIVED FROM `DQ_ESCAPE_ALLOWLIST` ───────────────────────────────
+  //
+  // DERIVED, NOT TRANSCRIBED. The allowlist is the module's escape vocabulary; re-spelling its
+  // members here would be a second hand-maintained set beside the first — this repository's second
+  // systemic failure class — and it would go stale silently the first time the allowlist moved. So
+  // the allowlisted arm is ONE MEMBER PER ALLOWLIST ENTRY, generated from the map, and the
+  // NON-allowlisted arm is chosen by scanning candidate YAML escapes for the first whose escape
+  // letter the map does NOT carry. Both move with the map, which the liveness case below proves.
+  interface EscapeKind {
+    readonly label: string;
+    readonly category:
+      | "none"
+      | "allowlisted-dq"
+      | "non-allowlisted-dq"
+      | "doubled-sq";
+    // The raw text placed inside the region. It always spells the spawn token once resolved by a
+    // compliant loader; what varies is the escape that spells it.
+    readonly payload: string;
+  }
+  // Candidates in preference order. Each spells the token's leading `A` through a YAML 1.2 escape
+  // that a compliant loader resolves and this module deliberately does not.
+  const NON_ALLOWLISTED_CANDIDATES: readonly {
+    readonly letter: string;
+    readonly spelling: string;
+  }[] = [
+    { letter: "x", spelling: "\\x41" },
+    { letter: "u", spelling: "\\u0041" },
+    { letter: "U", spelling: "\\U00000041" },
+  ];
+  const deriveEscapeAxis = (
+    allowlist: ReadonlyMap<string, string>,
+  ): readonly EscapeKind[] => {
+    const out: EscapeKind[] = [
+      { label: "no escape", category: "none", payload: TOKEN },
+    ];
+    for (const member of [...allowlist.keys()].sort()) {
+      out.push({
+        label: `allowlisted double-quote escape \\${member}`,
+        category: "allowlisted-dq",
+        payload: `\\${member}${TOKEN}`,
+      });
+    }
+    const chosen = NON_ALLOWLISTED_CANDIDATES.find(
+      (c) => !allowlist.has(c.letter),
+    );
+    if (chosen === undefined) {
+      throw new Error(
+        "every candidate non-allowlisted escape letter is now ON the allowlist; the axis can no longer express the arm it exists for",
+      );
+    }
+    out.push({
+      label: `non-allowlisted double-quote escape ${chosen.spelling}`,
+      category: "non-allowlisted-dq",
+      payload: `${chosen.spelling}${TOKEN.slice(1)}`,
+    });
+    out.push({
+      // The arm round 10 closed (27-51). Crossing it with the block arm is the whole point of this
+      // axis: two arms that are individually pinned and whose union was never adjudicated.
+      label: "the doubled single-quote pair ''",
+      category: "doubled-sq",
+      payload: `''${TOKEN}`,
+    });
+    return out;
+  };
+  const AXIS_ESCAPE_KIND: readonly EscapeKind[] =
+    deriveEscapeAxis(DQ_ESCAPE_ALLOWLIST);
+
+  // ── AXIS 3: THE SPELLING ──────────────────────────────────────────────────────────────────────
+  //
+  // The three positions the SAME content can occupy. Two of them place the payload's region BESIDE a
+  // block-scalar region under one key — which is precisely the combination the two arms failed on.
+  interface Spelling {
+    readonly label: string;
+    readonly blockSibling: boolean;
+    readonly build: (kind: RegionKind, payload: string) => readonly string[];
+  }
+  const AXIS_SPELLING: readonly Spelling[] = [
+    {
+      label: "top-level key value",
+      blockSibling: false,
+      build: (kind, payload) => kind.render("tools: ", "", payload),
+    },
+    {
+      label: "nested mapping sibling of a block scalar",
+      blockSibling: true,
+      build: (kind, payload) => [
+        "tools:",
+        ...kind.render("a: ", "  ", payload),
+        "  b: >-",
+        "    x",
+      ],
+    },
+    {
+      label: "block-sequence item beside a block-scalar item",
+      blockSibling: true,
+      build: (kind, payload) => [
+        "tools:",
+        ...kind.render("- ", "  ", payload),
+        "  - >-",
+        "    x",
+      ],
+    },
+  ];
+
+  interface Cell {
+    readonly where: string;
+    readonly doc: string;
+  }
+  const enumerateCells = (): readonly Cell[] => {
+    const out: Cell[] = [];
+    for (const kind of AXIS_REGION_KIND) {
+      for (const escape of AXIS_ESCAPE_KIND) {
+        for (const spelling of AXIS_SPELLING) {
+          const body = spelling.build(kind, escape.payload);
+          out.push({
+            where: `[${kind.label}] [${escape.label}] [${spelling.label}]`,
+            doc: `---\nname: probe\n${body.join("\n")}\n---\nBody prose.\n`,
+          });
+        }
+      }
+    }
+    return out;
+  };
+
+  // The loader column. One process for the whole corpus, handed the SAME bytes the module is handed,
+  // so the two sides cannot silently be reading different text.
+  const LOADER = [
+    "require 'yaml'; require 'json'",
+    "def flat(v)",
+    "  case v",
+    "  when Array then v.map { |e| flat(e) }.join(', ')",
+    "  when Hash  then v.map { |k, x| \"#{k}: #{flat(x)}\" }.join(', ')",
+    "  when nil   then ''",
+    "  else v.to_s",
+    "  end",
+    "end",
+    "out = JSON.parse(STDIN.read).map do |d|",
+    "  begin",
+    "    y = Psych.load(d)",
+    "    { 'accepted' => true, 'flat' => flat(y.is_a?(Hash) ? y['tools'] : nil) }",
+    "  rescue Exception => e",
+    "    { 'accepted' => false, 'error' => e.class.to_s }",
+    "  end",
+    "end",
+    "print JSON.generate(out)",
+  ].join("\n");
+
+  // The token rule, stated HERE from the grant vocabulary rather than borrowed from the module. A
+  // differential whose expectation calls the module under test measures the module against itself.
+  const loaderGrants = (flat: string): boolean =>
+    /\bAgent\b/.test(flat) || /\bTask\b/.test(flat);
+
+  type Verdict = "grant" | "no-grant" | "refuse";
+  const moduleVerdictOf = (
+    grant: (t: string) => { ok: true; value: boolean } | { ok: false; reason: string },
+    doc: string,
+  ): Verdict => {
+    const r = grant(doc);
+    return !r.ok ? "refuse" : r.value ? "grant" : "no-grant";
+  };
+
+  interface Partitioned {
+    readonly total: number;
+    readonly skipped: number;
+    readonly skippedCells: readonly string[];
+    readonly grantsWhileLoaderDoesNot: readonly string[];
+    readonly silentWhileLoaderGrants: readonly string[];
+    readonly refusesWhileLoaderGrants: readonly string[];
+  }
+  const adjudicate = (
+    cells: readonly Cell[],
+    loader: readonly { accepted: boolean; flat?: string }[],
+    grant: (t: string) => { ok: true; value: boolean } | { ok: false; reason: string },
+  ): Partitioned => {
+    const grantsWhileLoaderDoesNot: string[] = [];
+    const silentWhileLoaderGrants: string[] = [];
+    const refusesWhileLoaderGrants: string[] = [];
+    const skippedCells: string[] = [];
+    let skipped = 0;
+    for (let i = 0; i < cells.length; i++) {
+      const ld = loader[i];
+      if (!ld.accepted) {
+        skipped += 1;
+        skippedCells.push(cells[i].where);
+        continue;
+      }
+      const loaderVerdict = loaderGrants(ld.flat ?? "");
+      const mv = moduleVerdictOf(grant, cells[i].doc);
+      const detail = `${cells[i].where}\tmodule=${mv}\tloader=${loaderVerdict ? "grant" : "no-grant"}\tflat=${JSON.stringify(ld.flat ?? "")}`;
+      if (mv === "grant" && !loaderVerdict) grantsWhileLoaderDoesNot.push(detail);
+      if (mv === "no-grant" && loaderVerdict) silentWhileLoaderGrants.push(detail);
+      if (mv === "refuse" && loaderVerdict) refusesWhileLoaderGrants.push(detail);
+    }
+    return {
+      total: cells.length,
+      skipped,
+      skippedCells,
+      grantsWhileLoaderDoesNot,
+      silentWhileLoaderGrants,
+      refusesWhileLoaderGrants,
+    };
+  };
+
+  const runLoader = (
+    cells: readonly Cell[],
+  ): readonly { accepted: boolean; flat?: string }[] => {
+    const raw = execFileSync(RUBY, ["-e", LOADER], {
+      input: JSON.stringify(cells.map((c) => c.doc)),
+      encoding: "utf8",
+      maxBuffer: 64 * 1024 * 1024,
+    });
+    const parsed = JSON.parse(raw) as {
+      accepted: boolean;
+      flat?: string;
+    }[];
+    // A truncated batch would silently shorten the differential.
+    expect(parsed.length).toBe(cells.length);
+    return parsed;
+  };
+
+  // ── THE CARDINALITY PINS ──────────────────────────────────────────────────────────────────────
+
+  it("D-59 the three axes and the enumerated cell count are pinned, and the total is DERIVED from the axis lengths", () => {
+    expect(AXIS_REGION_KIND.length).toBe(4);
+    // Derived, so this moves when the module's escape vocabulary moves: 1 (none) + one per allowlist
+    // entry + 1 (non-allowlisted) + 1 (doubled single quote).
+    expect(
+      AXIS_ESCAPE_KIND.length,
+      `the escape axis must be 1 + ${DQ_ESCAPE_ALLOWLIST.size} allowlist entries + 1 non-allowlisted + 1 doubled single quote`,
+    ).toBe(DQ_ESCAPE_ALLOWLIST.size + 3);
+    expect(AXIS_ESCAPE_KIND.length).toBe(6);
+    expect(AXIS_SPELLING.length).toBe(3);
+    // Each category is really REACHED, so a category silently emptying itself fails here.
+    for (const category of [
+      "none",
+      "allowlisted-dq",
+      "non-allowlisted-dq",
+      "doubled-sq",
+    ] as const) {
+      expect(
+        AXIS_ESCAPE_KIND.filter((e) => e.category === category).length,
+        `the escape axis must reach the ${category} arm`,
+      ).toBeGreaterThan(0);
+    }
+    // Two of the three spellings must place the payload BESIDE a block scalar, or the union this
+    // axis exists to adjudicate is outside its own shape space.
+    expect(AXIS_SPELLING.filter((s) => s.blockSibling).length).toBe(2);
+    expect(AXIS_REGION_KIND.filter((k) => k.blockOwned).length).toBe(1);
+
+    const cells = enumerateCells();
+    expect(
+      cells.length,
+      `the enumerated corpus must be the product of the THREE axis lengths (${AXIS_REGION_KIND.length} x ${AXIS_ESCAPE_KIND.length} x ${AXIS_SPELLING.length})`,
+    ).toBe(
+      AXIS_REGION_KIND.length * AXIS_ESCAPE_KIND.length * AXIS_SPELLING.length,
+    );
+    // No two cells collide, so a duplicate cannot make two cells look like one.
+    expect(new Set(cells.map((c) => c.where)).size).toBe(cells.length);
+    // Non-vacuity: every cell really carries the token's own spelling somewhere.
+    expect(
+      cells.filter((c) => c.doc.includes("gent(grugops-orchestrator)")).length,
+    ).toBe(cells.length);
+  });
+
+  it("D-59 the escape axis is DERIVED from DQ_ESCAPE_ALLOWLIST and not transcribed — adding a member changes its length", () => {
+    // Liveness, measured rather than promised. A transcription would not move.
+    const widened = new Map([...DQ_ESCAPE_ALLOWLIST, ["n", "\n"]]);
+    expect(deriveEscapeAxis(widened).length).toBe(AXIS_ESCAPE_KIND.length + 1);
+    expect(
+      deriveEscapeAxis(widened).some((e) => e.label.includes("\\n")),
+    ).toBe(true);
+    // And NARROWING it moves the axis the other way, so the derivation is not one-directional.
+    const narrowed = new Map([['"', '"']]);
+    expect(deriveEscapeAxis(narrowed).length).toBe(4);
+    // The non-allowlisted arm is CHOSEN rather than fixed: put `x` on the allowlist and it moves.
+    const withX = new Map([...DQ_ESCAPE_ALLOWLIST, ["x", "x"]]);
+    const movedArm = deriveEscapeAxis(withX).find(
+      (e) => e.category === "non-allowlisted-dq",
+    );
+    expect(movedArm?.payload.startsWith("\\u0041")).toBe(true);
+  });
+
+  // ── THE DIFFERENTIAL ──────────────────────────────────────────────────────────────────────────
+
+  it("D-59 the union differential — both never-exemptible directions are EMPTY against the post-fix build", () => {
+    const cells = enumerateCells();
+    const loader = runLoader(cells);
+    const p = adjudicate(cells, loader, hasSpawnGrant);
+    // The skipped count is PRINTED rather than hidden: cells the loader itself rejects carry no
+    // expectation, and a corpus quietly skipping most of itself would pass vacuously.
+    // eslint-disable-next-line no-console
+    console.log(
+      [
+        `[D-59 union axis] cells=${p.total} loader-rejected(skipped)=${p.skipped} adjudicated=${p.total - p.skipped} refuses-while-loader-grants=${p.refusesWhileLoaderGrants.length}`,
+        ...p.skippedCells.map((c) => `  SKIPPED (loader rejects) ${c}`),
+        ...p.refusesWhileLoaderGrants.map((c) => `  LOUD (module refuses, loader grants) ${c}`),
+      ].join("\n"),
+    );
+    expect(
+      p.skipped,
+      "the loader must accept most of this corpus, or the differential is adjudicating a handful of cells",
+    ).toBeLessThan(p.total / 2);
+    expect(
+      p.grantsWhileLoaderDoesNot,
+      "NEVER EXEMPTIBLE — a module GRANT the loader does not have",
+    ).toEqual([]);
+    expect(
+      p.silentWhileLoaderGrants,
+      "NEVER EXEMPTIBLE — the silent no-grant arm: the module reports no grant where the loader grants",
+    ).toEqual([]);
+    // The LOUD arm is reported with its count and never folded into "no names". A refusal where the
+    // loader grants is this module's declared D-30 policy, not a defect.
+    expect(p.refusesWhileLoaderGrants.length).toBeGreaterThan(0);
+  });
+
+  // ── NON-CIRCULARITY, MEASURED AGAINST A PRE-FIX MIRROR ────────────────────────────────────────
+
+  it("D-59 the identical axis reports a NON-EMPTY never-exemptible partition against a hermetic mirror of the pre-27-55 commit", async () => {
+    // A corpus that cannot fail on the defect it was written for proves nothing. This runs the SAME
+    // enumeration, the SAME loader batch and the SAME partition function against the build that
+    // shipped the regression — so the green line above is a statement about the fix and not about
+    // the corpus.
+    const dir = mkdtempSync(join(tmpdir(), "grugops-d59-prefix-"));
+    try {
+      const tarball = join(dir, "pre.tar");
+      writeFileSync(
+        tarball,
+        execFileSync("git", ["archive", PRE_FIX_COMMIT], {
+          cwd: join(import.meta.dirname, ".."),
+          encoding: "buffer",
+          maxBuffer: 256 * 1024 * 1024,
+        }),
+      );
+      execFileSync("tar", ["-xf", tarball, "-C", dir]);
+      const preBuild = join(dir, "scripts", "frontmatter.js");
+      const pre = (await import(preBuild)) as {
+        hasSpawnGrant: (t: string) => { ok: true; value: boolean } | { ok: false; reason: string };
+      };
+      // The mirror really is a DIFFERENT build, asserted rather than assumed.
+      expect(
+        readFileSync(preBuild, "utf8").includes("sawBlock"),
+        "the mirror must be the pre-D-59 build — if it no longer carries the deleted flag, PRE_FIX_COMMIT is wrong and this case proves nothing",
+      ).toBe(true);
+
+      const cells = enumerateCells();
+      const loader = runLoader(cells);
+      const p = adjudicate(cells, loader, pre.hasSpawnGrant);
+      // eslint-disable-next-line no-console
+      console.log(
+        [
+          `[D-59 union axis, pre-fix mirror ${PRE_FIX_COMMIT}] silent-no-grant=${p.silentWhileLoaderGrants.length} module-grant-loader-none=${p.grantsWhileLoaderDoesNot.length} skipped=${p.skipped}`,
+          ...p.silentWhileLoaderGrants.map((c) => `  UNSAFE on the pre-fix build ${c}`),
+          ...p.grantsWhileLoaderDoesNot.map((c) => `  UNSAFE on the pre-fix build ${c}`),
+        ].join("\n"),
+      );
+      expect(
+        p.silentWhileLoaderGrants.length +
+          p.grantsWhileLoaderDoesNot.length,
+        "the pre-fix mirror must FAIL this axis, or the axis cannot see the defect it was written for",
+      ).toBeGreaterThan(0);
+      // And it must fail on the SILENT arm specifically — that is the defect's own direction.
+      expect(p.silentWhileLoaderGrants.length).toBeGreaterThan(0);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  // ── THE DIFFERENTIAL ADDED NO EXEMPTION ───────────────────────────────────────────────────────
+
+  it("D-59 this axis declares NO exemption at all, so nothing could have been exempted to make it pass", () => {
+    // The prohibition, made structural rather than promised: there is no exemption list in this
+    // block to grow. The two never-exemptible partitions are asserted empty directly, and the loud
+    // arm is reported rather than suppressed.
+    const src = readFileSync(join(import.meta.dirname, "frontmatter.test.ts"), "utf8");
+    const block = src.slice(
+      src.indexOf("D-59: the region-kind x escape-kind x spelling union"),
+    );
+    // The needles are ASSEMBLED rather than written, because a case that searches its own file for a
+    // literal it contains can only ever fail. Split here so the spelling never appears in the source
+    // being searched — the assertion is about the harness above, not about this line.
+    for (const needle of [
+      ["EXEMPT", "IONS"].join(""),
+      ["expected", "Exempt"].join(""),
+      ["safe-", "direction exemption"].join(""),
+    ]) {
+      expect(block, `no exemption machinery may exist in this axis: ${needle}`).not.toContain(needle);
+    }
+  });
+});
