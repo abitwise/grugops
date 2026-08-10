@@ -1,10 +1,10 @@
 ---
 schema_version: 1
-open_count: 6
+open_count: 8
 waived_count: 0
 fixed_count: 0
-total_count: 6
-last_updated: 2026-08-09T10:23:33.078Z
+total_count: 8
+last_updated: 2026-08-10T12:15:03.506Z
 ---
 
 # Broken Windows Ledger
@@ -21,6 +21,8 @@ last_updated: 2026-08-09T10:23:33.078Z
 | 4 | 27 | deviation | scripts/check-foundation-guards.ts |  | IN-03 (round 5) still live: guardKitCounts asserts per-part SET equality but never asserts the four parts EXHAUST the composition, so a member under no part prefix is unreported by the guard; pinned only over a fixture in kit-model.test.ts. Deliberately out of scope for 27-37 (D-47 names only the catch-swallow). | open |  | 2026-08-04T06:58:26.002Z |  |
 | 5 | 27 | deviation | scripts/frontmatter.test.ts |  | 27-38 false-red control: only 1 scoped grant enumeration exists across all 33 spawn-grant scan members, so 'zero false reds across 33 members' rests on one enumeration (the coordinator's 16-name grant), not 33 | open |  | 2026-08-04T07:22:51.768Z |  |
 | 6 | 27 | deviation | scripts/validate-agent-factory.ts |  | Not a spawn-grant surface (0 spawn / 0 frontmatter / 0 wr05); the round-7 'validator printed ALL CHECKS PASSED' criterion is unsatisfiable and is owned by no round-8 plan. 27-44-SUMMARY.md recommends retiring it. | open |  | 2026-08-09T10:23:33.078Z |  |
+| 7 | 27 | deviation | scripts/frontmatter.test.ts |  | 27-55: AXIS_SPELLING places the block sibling only AFTER the payload, so block-BEFORE ordering is outside the union axis's shape space (covered instead by the U4 adjacency case and probes a4/a6/a7) | open |  | 2026-08-10T12:15:03.445Z |  |
+| 8 | 27 | deviation | scripts/frontmatter.test.ts |  | 27-55: the pre-fix-mirror non-circularity count is 1 of 72 cells — non-empty so the axis provably sees the defect, but thin; add an ORDERING member to AXIS_SPELLING and re-take the count | open |  | 2026-08-10T12:15:03.506Z |  |
 
 ````json
 [
@@ -94,6 +96,30 @@ last_updated: 2026-08-09T10:23:33.078Z
     "status": "open",
     "reason": "",
     "recorded_at": "2026-08-09T10:23:33.078Z",
+    "resolved_at": null
+  },
+  {
+    "id": 7,
+    "kind": "deviation",
+    "phase": "27",
+    "file": "scripts/frontmatter.test.ts",
+    "line": null,
+    "description": "27-55: AXIS_SPELLING places the block sibling only AFTER the payload, so block-BEFORE ordering is outside the union axis's shape space (covered instead by the U4 adjacency case and probes a4/a6/a7)",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-08-10T12:15:03.445Z",
+    "resolved_at": null
+  },
+  {
+    "id": 8,
+    "kind": "deviation",
+    "phase": "27",
+    "file": "scripts/frontmatter.test.ts",
+    "line": null,
+    "description": "27-55: the pre-fix-mirror non-circularity count is 1 of 72 cells — non-empty so the axis provably sees the defect, but thin; add an ORDERING member to AXIS_SPELLING and re-take the count",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-08-10T12:15:03.506Z",
     "resolved_at": null
   }
 ]
