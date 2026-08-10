@@ -1,10 +1,10 @@
 ---
 schema_version: 1
-open_count: 8
+open_count: 10
 waived_count: 0
 fixed_count: 0
-total_count: 8
-last_updated: 2026-08-10T12:15:03.506Z
+total_count: 10
+last_updated: 2026-08-10T12:53:33.273Z
 ---
 
 # Broken Windows Ledger
@@ -23,6 +23,8 @@ last_updated: 2026-08-10T12:15:03.506Z
 | 6 | 27 | deviation | scripts/validate-agent-factory.ts |  | Not a spawn-grant surface (0 spawn / 0 frontmatter / 0 wr05); the round-7 'validator printed ALL CHECKS PASSED' criterion is unsatisfiable and is owned by no round-8 plan. 27-44-SUMMARY.md recommends retiring it. | open |  | 2026-08-09T10:23:33.078Z |  |
 | 7 | 27 | deviation | scripts/frontmatter.test.ts |  | 27-55: AXIS_SPELLING places the block sibling only AFTER the payload, so block-BEFORE ordering is outside the union axis's shape space (covered instead by the U4 adjacency case and probes a4/a6/a7) | open |  | 2026-08-10T12:15:03.445Z |  |
 | 8 | 27 | deviation | scripts/frontmatter.test.ts |  | 27-55: the pre-fix-mirror non-circularity count is 1 of 72 cells — non-empty so the axis provably sees the defect, but thin; add an ORDERING member to AXIS_SPELLING and re-take the count | open |  | 2026-08-10T12:15:03.506Z |  |
+| 9 | 27 | deviation | scripts/frontmatter.ts |  | raw.trim()'s alphabet (Unicode WhiteSpace) is wider than the module's declared [ \\t] class; pre-existing, never in the silent-no-grant direction, owner named in 27-56 | open |  | 2026-08-10T12:53:33.210Z |  |
+| 10 | 27 | deviation | scripts/frontmatter.test.ts |  | this repository's vitest intercepts console output, so the file's 'PRINTED, never silent' skips are invisible on a default run | open |  | 2026-08-10T12:53:33.273Z |  |
 
 ````json
 [
@@ -120,6 +122,30 @@ last_updated: 2026-08-10T12:15:03.506Z
     "status": "open",
     "reason": "",
     "recorded_at": "2026-08-10T12:15:03.506Z",
+    "resolved_at": null
+  },
+  {
+    "id": 9,
+    "kind": "deviation",
+    "phase": "27",
+    "file": "scripts/frontmatter.ts",
+    "line": null,
+    "description": "raw.trim()'s alphabet (Unicode WhiteSpace) is wider than the module's declared [ \\t] class; pre-existing, never in the silent-no-grant direction, owner named in 27-56",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-08-10T12:53:33.210Z",
+    "resolved_at": null
+  },
+  {
+    "id": 10,
+    "kind": "deviation",
+    "phase": "27",
+    "file": "scripts/frontmatter.test.ts",
+    "line": null,
+    "description": "this repository's vitest intercepts console output, so the file's 'PRINTED, never silent' skips are invisible on a default run",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-08-10T12:53:33.273Z",
     "resolved_at": null
   }
 ]
