@@ -2093,6 +2093,201 @@ describe("frontmatter — the spawn-grant parser oracle (SPAWN-04 / KIT-03)", ()
     ).toEqual({ ok: true, value: false });
   });
 
+  // ── (27-57, D-61 — 27-REVIEW § CR-02, round 11) A NODE PROPERTY IN FRONT OF THE INDICATOR ──────
+  //
+  // Every row's loader column is `/usr/bin/ruby -ryaml` (ruby 2.6.10 / psych 3.1.0 / libyaml 0.2.1),
+  // measured on the PRE-fix committed build (`6189744`) and again on the post-fix build; the full
+  // transcript with both columns is in 27-57-SUMMARY.md and deferred-items.md § From 27-57. These
+  // rows are the NAMED evidence; the property is pinned by `AXIS_NODE_PROPERTY_FORM` x
+  // `AXIS_HEADER_INTRODUCTION` below, where the loader is the expected value for every cell.
+  const D61_CONTENT = "Read, # x, Agent(grugops-orchestrator)";
+  const d61Doc = (region: string): string => `---\nname: x\n${region}\n---\nBody.\n`;
+
+  it("D-61 rows A, B, F, Q — a node property in front of a block indicator no longer hides the header, at EVERY introduction", () => {
+    // All four returned `{ok:true,value:false}` on the committed build at 27-56 while libyaml read
+    // the grant plainly in the loaded value. The cause was neither the indicator nor the position nor
+    // the key grammar: YAML 1.2 § 6.9 lets a node's PROPERTIES stand in front of its content, so the
+    // text `BLOCK_INDICATOR` was handed began with the property rather than with the indicator.
+    const rows: readonly { readonly label: string; readonly region: string }[] = [
+      {
+        label: "A implicit nested key + anchor",
+        region: `tools:\n  nested: &a >-\n    ${D61_CONTENT}`,
+      },
+      {
+        label: "B implicit nested key + shorthand tag",
+        region: `tools:\n  nested: !!str >-\n    ${D61_CONTENT}`,
+      },
+      {
+        label: "F explicit block-mapping VALUE + anchor",
+        region: `tools:\n  ? k\n  : &a >-\n      ${D61_CONTENT}`,
+      },
+      {
+        label: "Q explicit block-mapping KEY + anchor",
+        region: `tools:\n  ? &a >-\n      ${D61_CONTENT}\n  : v`,
+      },
+      {
+        label: "T tag THEN anchor, one indicator",
+        region: `tools:\n  nested: !!str &a >-\n    ${D61_CONTENT}`,
+      },
+      {
+        label: "T2 anchor THEN tag, one indicator",
+        region: `tools:\n  nested: &a !!str >-\n    ${D61_CONTENT}`,
+      },
+      {
+        label: "R2 the bare non-specific tag",
+        region: `tools:\n  nested: ! >-\n    ${D61_CONTENT}`,
+      },
+    ];
+    for (const row of rows) {
+      const doc = d61Doc(row.region);
+      expect(hasSpawnGrant(doc), row.label).toEqual({ ok: true, value: true });
+      expect(grantedAgentNames(doc), `${row.label}: the name set is the loader's`).toEqual({
+        ok: true,
+        value: ["grugops-orchestrator"],
+      });
+    }
+  });
+
+  it("D-61 the strip honours YAML's OWN BOUND — at most one tag and one anchor, never two of a kind", () => {
+    // § 6.9's `c-ns-properties` is (tag [anchor]) | (anchor [tag]). `&a &b >-` is therefore NOT a
+    // node with two anchors — it is a document libyaml REJECTS outright ("did not find expected key
+    // while parsing a block mapping"). Stripping it anyway would be this module RESOLVING a document
+    // it deliberately does not resolve. So no header is recognised, and the fourth application point
+    // of the reference refusal takes it to the LOUD arm rather than to the silent success arm.
+    const twoAnchors = d61Doc(`tools:\n  nested: &a &b >-\n    ${D61_CONTENT}`);
+    const verdict = hasSpawnGrant(twoAnchors);
+    expect(verdict.ok, "two properties of a kind must not reach the success arm").toBe(false);
+    if (verdict.ok) return;
+    expect(verdict.reason).toMatch(/YAML anchor or alias/);
+  });
+
+  it("D-61 CONTROL R — a property the strip CANNOT handle fails LOUD, at the node start after a mapping separator", () => {
+    // THIS IS THE HALF THAT MADE THE FAMILY SILENT. `nested: *a >-` starts with `n`, so the reference
+    // refusal — asked at offset 0 of the physical line and at each flow fragment — was never asked
+    // about it, and the pre-fix build returned `{ok:true,value:false}` for a document libyaml REJECTS
+    // outright. An unreadable document reported as "carries no grant" is this module's founding
+    // failure; the fourth application point is what makes it fail by name.
+    const alias = d61Doc(`tools:\n  nested: *a >-\n    ${D61_CONTENT}`);
+    const verdict = hasSpawnGrant(alias);
+    expect(verdict.ok, "the SILENT success arm is the one thing this must never be").toBe(false);
+    if (verdict.ok) return;
+    expect(verdict.reason).toMatch(/uses a YAML anchor or alias/);
+    expect(verdict.reason).toContain("nested: *a >-");
+  });
+
+  it("D-61 CONTROL P — a BARE header carrying a property still REFUSES, and that contrast is the diagnosis", () => {
+    // THE DEFECT WAS NEVER THE SIGIL TEST. At a bare header the sigil IS at offset 0 of the node, so
+    // the module's standing anchor/alias refusal reaches it first and always did. The same is true of
+    // the block-sequence item form once `SEQ_ITEM` has consumed the dash. Both are documents libyaml
+    // ACCEPTS with the grant in the loaded value, and this module refuses them LOUDLY rather than
+    // reading them — which is its recorded disposition on an unresolved node property, not a gap.
+    // Their reasons are byte-identical pre- and post-D-61.
+    for (const [label, region] of [
+      ["P bare header + anchor", `tools:\n  &a >-\n    ${D61_CONTENT}`],
+      ["S block-sequence item + anchor", `tools:\n  - &a >-\n      ${D61_CONTENT}`],
+    ] as const) {
+      const verdict = hasSpawnGrant(d61Doc(region));
+      expect(verdict.ok, label).toBe(false);
+      if (verdict.ok) continue;
+      expect(verdict.reason, label).toMatch(/uses a YAML anchor or alias/);
+    }
+  });
+
+  it("D-61 CONTROL M — a sigil that is NOT at a node start stays content, byte for byte", () => {
+    // THE PROHIBITION THIS PINS: the strip must not be applied where a node may NOT begin. A sigil
+    // mid-scalar, a sigil on a line that merely continues a scalar, and a sigil inside a block
+    // scalar's content are all ordinary text to the loader and must stay ordinary text here. The
+    // repository-wide value map over every tracked markdown file is the wider proof (1172 files,
+    // 0 moved, 0 new refusals); these three are the named ones.
+    const mid = parseFrontmatter(d61Doc("tools: Read & Write, Agent(x)"));
+    expect(mid.ok && mid.value.get("tools")).toEqual(["Read & Write, Agent(x)"]);
+
+    const continuation = parseFrontmatter(d61Doc("description: see\n  R&D *notes* here"));
+    expect(continuation.ok && continuation.value.get("description")).toEqual([
+      "see R&D *notes* here",
+    ]);
+
+    const insideBlockScalar = parseFrontmatter(d61Doc("tools: >-\n  Read, &a *b !c, Agent(x)"));
+    expect(insideBlockScalar.ok && insideBlockScalar.value.get("tools")).toEqual([
+      "Read, &a *b !c, Agent(x)",
+    ]);
+  });
+
+  it("D-61 the strip reaches AS MANY introductions as the recogniser DECLARES — a fifth cannot be added without it", () => {
+    // THE STRUCTURAL CLAIM, ASSERTED RATHER THAN DESCRIBED. `blockHeaderAt` iterates
+    // `HEADER_INTRODUCTIONS`; there is no branch to forget. This case proves the loop is LIVE by
+    // reading the module's own source for the declared member count and then exercising a
+    // property-bearing header at every one of them, so the two numbers cannot drift apart.
+    const moduleSource = readFileSync(join(import.meta.dirname, "frontmatter.ts"), "utf8");
+    const setBody = /const HEADER_INTRODUCTIONS: readonly HeaderIntroduction\[\] = \[([\s\S]*?)\n\];/.exec(
+      moduleSource,
+    );
+    expect(setBody, "the introduction set must be a declared array in the module").not.toBeNull();
+    if (setBody === null) return;
+    const declared = [...setBody[1].matchAll(/^ {4}name: "([^"]+)",$/gm)].map((m) => m[1]);
+    expect(
+      declared,
+      "the recogniser's declared introduction set, read from its own source",
+    ).toEqual([
+      "bare",
+      "implicit block-mapping key",
+      "explicit block-mapping key",
+      "explicit block-mapping value",
+    ]);
+
+    // ONE PROPERTY-BEARING SPELLING PER DECLARED INTRODUCTION. The bare introduction's spelling ends
+    // in the LOUD refusal arm (control P above) and the other three in the grant arm; what this case
+    // pins is that NONE of them reaches the silent success arm, which is the direction the whole
+    // family failed in. The list length is asserted equal to the declared length, so a fifth
+    // introduction added to the module without a spelling here fails HERE, by count.
+    const perIntroduction: readonly { readonly introduction: string; readonly region: string }[] = [
+      { introduction: "bare", region: `tools:\n  &a >-\n    ${D61_CONTENT}` },
+      {
+        introduction: "implicit block-mapping key",
+        region: `tools:\n  nested: &a >-\n    ${D61_CONTENT}`,
+      },
+      {
+        introduction: "explicit block-mapping key",
+        region: `tools:\n  ? &a >-\n      ${D61_CONTENT}\n  : v`,
+      },
+      {
+        introduction: "explicit block-mapping value",
+        region: `tools:\n  ? k\n  : &a >-\n      ${D61_CONTENT}`,
+      },
+    ];
+    expect(
+      perIntroduction.map((p) => p.introduction),
+      "every declared introduction must carry a property-bearing spelling here",
+    ).toEqual(declared);
+    for (const probe of perIntroduction) {
+      expect(
+        hasSpawnGrant(d61Doc(probe.region)),
+        `${probe.introduction}: the SILENT no-grant arm is the one verdict this must never return`,
+      ).not.toEqual({ ok: true, value: false });
+    }
+  });
+
+  it("D-61 NO SECOND PROPERTY GRAMMAR WAS WRITTEN — the module declares exactly one node-property pattern, over code lines only", () => {
+    // THE PROHIBITION, MEASURED. A second spelling of one grammar is the weaker-duplicate shape this
+    // module deletes on sight, and the remedy for CR-02 was to REUSE the declared authority at more
+    // introductions. The count is taken over CODE lines only, because the module's header quotes
+    // these patterns in prose repeatedly and a naive grep would count the narration.
+    const codeLines = readFileSync(join(import.meta.dirname, "frontmatter.ts"), "utf8")
+      .split("\n")
+      .filter((l) => !l.trimStart().startsWith("//"));
+    const definitions = codeLines.filter((l) =>
+      /^\s*(?:export )?const (?:NODE_PROPERTY_AT_NODE_START|LEADING_TAG|YAML_REF)\b/.test(l),
+    );
+    expect(
+      definitions.length,
+      `node-property / reference pattern definition sites:\n${definitions.join("\n")}`,
+    ).toBe(3);
+    expect(
+      codeLines.filter((l) => /^\s*(?:export )?const NODE_PROPERTY_AT_NODE_START\b/.test(l)).length,
+      "exactly one node-property-at-a-node-start pattern, reused rather than copied",
+    ).toBe(1);
+  });
+
   it("CR-01 — a MERGE KEY document lands in the failure arm (refused by KEY_LINE, not by a second branch)", () => {
     // ISOLATING KEY_LINE. `<<:` on its own reaches no reference test at all: `KEY_LINE` requires
     // `[A-Za-z_]` at the key start, so `<` fails it and the line is already unreadable. Asserting the
@@ -5723,6 +5918,17 @@ const MODULE_SYMBOLS = [
   "closingQuoteIndex",
   "MAPPING_VALUE_INDICATOR",
   "BLOCK_INDICATOR",
+  // (D-61, round 11) THE INTRODUCTION SET AS DATA, AND THE TWO QUESTIONS THAT ITERATE IT. These are
+  // the names that took the four straight-line branches out of `blockHeaderAt` and made the position
+  // vocabulary a value a second question can be asked over. `NODE_PROPERTY_AT_NODE_START` earns an
+  // entry now that a second consumer cites it — the whole point of D-61 is that no SECOND property
+  // grammar was written, and a list that does not name the one grammar cannot notice a second
+  // appearing beside it.
+  "HEADER_INTRODUCTIONS",
+  "HeaderIntroduction",
+  "stripNodeProperties",
+  "mappingSeparatorNodeStarts",
+  "NODE_PROPERTY_AT_NODE_START",
   "cellDoc",
 ] as const;
 
@@ -7326,6 +7532,41 @@ describe("frontmatter — the loader differential over a GENERATED corpus (D-52 
       danglingNodeProperty: false,
       flowNodeStartAtEndOfKeyLine: false,
     },
+    // ── (27-57, D-61) A NODE PROPERTY IN FRONT OF THE HEADER, ADDED IN THE SAME PLAN AS ITS FIX ──
+    //
+    // THE SAME ORDER ARGUMENT AS G/G2 AND G3, A THIRD TIME. A corpus shape for a LIVE silent no-grant
+    // puts the differential's never-exemptible `silentWhileLoaderGrants` direction into failure, and
+    // the only ways out — exempting the shape, or leaving the suite red — are both forbidden. So the
+    // family was closed in task 1 of this plan and this member arrives with the fix.
+    //
+    // WHY G, G2 AND G3 DID NOT COVER IT. All three spell the indicator IMMEDIATELY after the
+    // introduction (`nested: >-`, `- >-`, `a b: >-`). The family CR-02 reports puts a legal YAML node
+    // PROPERTY (§ 6.9) BETWEEN the introduction and the indicator, so the text `BLOCK_INDICATOR` is
+    // handed no longer begins with the indicator at all — a position the generator could not spell,
+    // and the differential therefore reported zero disagreements over a live, gate-level, exit-0
+    // bypass. 27-49's recorded lesson arriving a fourth time: not on the position, not on the key,
+    // but on what may stand IN FRONT of the thing being recognised.
+    //
+    // THE ANCHOR SPELLING IS THE MEMBER because it carries no double quote, so it passes through the
+    // quote-style crossing exactly once (like G, G2 and G3) and the derived axis moves by one rather
+    // than by four. The tag forms, the two-property forms and the three other introductions are
+    // crossed by `AXIS_NODE_PROPERTY_FORM` x `AXIS_HEADER_INTRODUCTION` below, which adjudicates the
+    // whole product against the loader.
+    //
+    // THE DECLARED YAML FACTS. `valueNodeOnContinuation: false` for the same reason G/G2/G3 spell it:
+    // the value node begins on the HEADER line, which is part of `lines`, so the builder-emitted
+    // continuations are the scalar's CONTENT. `danglingNodeProperty: false` because the property here
+    // is CONSUMED by the header on this same line — it does not dangle at the line's end, which is
+    // the distinct condition that flag names.
+    {
+      label: "nested block mapping value, a node property before the header",
+      lines: ["tools:", "  nested: &a >-"],
+      indent: "    ",
+      tail: "",
+      valueNodeOnContinuation: false,
+      danglingNodeProperty: false,
+      flowNodeStartAtEndOfKeyLine: false,
+    },
   ];
 
   // ── AXIS 1b: THE QUOTE STYLE (27-51, WR-01 / 27-REVIEW § WR-01, round 10) ─────────────────────
@@ -7811,7 +8052,9 @@ describe("frontmatter — the loader differential over a GENERATED corpus (D-52 
     // axis moves 47 -> 49 by the same identity below.
     // (27-56, D-60) 22 -> 23: the same header behind a nested key `KEY_LINE`'s top-level alphabet
     // excluded. It opens no quoted scalar either, so the derived axis moves 49 -> 50 by that identity.
-    expect(AXIS_KEY_LINE_BASE.length).toBe(23);
+    // (27-57, D-61) 23 -> 24: the same header behind a legal YAML node PROPERTY (§ 6.9). It opens no
+    // quoted scalar either, so the derived axis moves 50 -> 51 by that identity.
+    expect(AXIS_KEY_LINE_BASE.length).toBe(24);
     // THE FAMILY IS EXPRESSIBLE, DERIVED FROM THE SHAPES RATHER THAN CLAIMED IN A COMMENT. A
     // block-scalar header must be spelled on a line BELOW the top-level key line, or family G/G2 is
     // still outside this corpus and the completeness line is again a statement about inputs it never
@@ -8606,10 +8849,14 @@ describe("frontmatter — the loader differential over a GENERATED corpus (D-52 
     // UNPROMPTED and is recorded because that is the whole point of it — the ledger row landed with
     // task 1's fix and this case went red by name, naming G3 as a family with no corpus shape, before
     // any member was added below.
+    // (27-57, D-61) 12 -> 13: the thirteenth ledger entry's family row, G4. The floor did its job
+    // UNPROMPTED for the THIRD consecutive round, on the same terms — the row landed with task 1's
+    // fix, this case went red naming G4, and the corpus member was added because of it rather than
+    // alongside it.
     expect(
       LEDGER_FAMILIES.length,
       `family rows derived from scripts/frontmatter.ts's header:\n${LEDGER_FAMILIES.map((f) => `${f.label}  ${f.sketch}`).join("\n")}`,
-    ).toBe(12);
+    ).toBe(13);
     expect(LEDGER_FAMILIES.length).toBeGreaterThan(0);
     expect(new Set(LEDGER_FAMILIES.map((f) => f.label)).size).toBe(
       LEDGER_FAMILIES.length,
@@ -8630,7 +8877,8 @@ describe("frontmatter — the loader differential over a GENERATED corpus (D-52 
       "the column-0-fence families are the ONLY ones outside this generator's shape space",
     ).toEqual(["d1", "d2", "d3"]);
     expect(outside.length).toBe(3);
-    expect(inside.length).toBe(9);
+    // (27-57, D-61) 9 -> 10: the thirteenth ledger entry's family row G4.
+    expect(inside.length).toBe(10);
     expect(outside.length + inside.length).toBe(LEDGER_FAMILIES.length);
 
     // THE AXIS-MEMBER COMBINATION THAT BUILDS EACH FAMILY, NAMED BY LABEL. This is the only
@@ -8698,6 +8946,15 @@ describe("frontmatter — the loader differential over a GENERATED corpus (D-52 
       // family the corpus could not build, and the member below is what closes it.
       G3: {
         keyLine: "nested block mapping value, a nested key YAML allows",
+        first: "plain text",
+        second: "the token after a hash",
+        depth: 2,
+      },
+      // (27-57, D-61) The thirteenth ledger entry's family row, and the mechanism working a THIRD
+      // time exactly as designed: the row landed with task 1's fix, THIS case went red naming G4 as a
+      // family the corpus could not build, and the member above is what closes it.
+      G4: {
+        keyLine: "nested block mapping value, a node property before the header",
         first: "plain text",
         second: "the token after a hash",
         depth: 2,

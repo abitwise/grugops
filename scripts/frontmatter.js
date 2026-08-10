@@ -380,41 +380,157 @@ export const BLOCK_INDICATOR = /^[|>][0-9]*[+-]?[ \t]*(?:#.*)?$|^[|>][+-]?[0-9]*
 // and it moves from a possibly-invented list to a REFUSAL — the loud arm, and the one the loader
 // agrees with.
 const blockLineBreak = (indicator) => indicator.startsWith("|") ? "\n" : " ";
-function blockHeaderAt(text) {
-    // INTRODUCTION 1 OF 4 — none. The header IS the whole line: a block-sequence item's text after
-    // `SEQ_ITEM` has consumed its dashes, or a continuation line that is itself the node.
-    if (BLOCK_INDICATOR.test(text)) {
-        return { leading: "", lineBreak: blockLineBreak(text), mappingValueIndicator: false };
+const HEADER_INTRODUCTIONS = [
+    {
+        // INTRODUCTION 1 OF 4 — none. The header IS the whole line: a block-sequence item's text after
+        // `SEQ_ITEM` has consumed its dashes, or a continuation line that is itself the node.
+        name: "bare",
+        split: (text) => ({ leading: "", node: text }),
+        mappingValueIndicator: false,
+        postSeparator: false,
+    },
+    {
+        // INTRODUCTION 2 OF 4 — the IMPLICIT block-mapping key, `key: <header>` (YAML 1.2 § 8.2.2).
+        //
+        // (D-60) ASKED THROUGH `blockMapImplicitEntry`, THE NESTED QUESTION'S OWN PRODUCTION. This used
+        // to ask `KEY_LINE`, which answers a DIFFERENT question — which TOP-LEVEL keys a frontmatter
+        // block may declare — and whose narrowness is an intended refusal there and a silent bypass here.
+        // See that production for the four measured rows, the key-end disposition and the encoding unit.
+        name: "implicit block-mapping key",
+        split: (text) => {
+            const entry = blockMapImplicitEntry(text);
+            return entry === null ? null : { leading: entry.intro, node: entry.value };
+        },
+        mappingValueIndicator: true,
+        postSeparator: true,
+    },
+    {
+        // INTRODUCTION 3 OF 4 — the EXPLICIT block-mapping KEY indicator. `?` introduces a KEY, and a
+        // plain scalar CAN spell it, so it is not a mapping-VALUE indicator and keeps the node-start gate
+        // — see `BlockHeader.mappingValueIndicator`.
+        name: "explicit block-mapping key",
+        split: (text) => explicitSplit(text, "?"),
+        mappingValueIndicator: false,
+        postSeparator: true,
+    },
+    {
+        // INTRODUCTION 4 OF 4 — the EXPLICIT block-mapping VALUE indicator.
+        name: "explicit block-mapping value",
+        split: (text) => explicitSplit(text, ":"),
+        mappingValueIndicator: true,
+        postSeparator: true,
+    },
+];
+// The two explicit arms are FILTERS ON `BLOCK_MAP_EXPLICIT`'S OWN CAPTURE, never a second regex per
+// arm. One grammar, one definition site, two members that differ in which indicator they accept.
+const explicitSplit = (text, indicator) => {
+    const explicit = text.match(BLOCK_MAP_EXPLICIT);
+    if (explicit === null || explicit[1] !== indicator)
+        return null;
+    return { leading: explicit[1], node: (explicit[2] ?? "").trim() };
+};
+// (D-61) A NODE PROPERTY NEVER HIDES A NODE START — STATED AS A PROPERTY, NOT AS THE FOUR SPELLINGS A
+// REVIEW REPORTED.
+//
+// YAML 1.2 § 6.9 lets a node's PROPERTIES — its tag and/or its anchor — stand in front of the node's
+// content. So `nested: &a >-`, `nested: !!str >-`, `: &a >-` and `? &a >-` are all legal block-scalar
+// headers, and `BLOCK_INDICATOR` — correctly — matches none of them, because the text it is handed
+// begins with the property rather than with the indicator. The header was missed, `block` stayed
+// false, the scalar's literal content reached `stripComment`, and a leading `#` deleted the rest of
+// the line: D-57's exact mechanism, one property over, reproduced end to end at `ALL CHECKS PASSED`
+// exit 0.
+//
+// THIS WRITES NO SECOND PROPERTY GRAMMAR. `NODE_PROPERTY_AT_NODE_START` already declares the tag and
+// anchor forms, written from the same grammar `LEADING_TAG` and `YAML_REF` declare, and its verbatim
+// alternative is deliberately WIDER than YAML's for a measured reason recorded at the site. It is
+// REUSED here and neither narrowed nor copied.
+//
+// AT MOST ONE OF EACH KIND, WHICH IS YAML'S OWN BOUND AND NOT A CONVENIENCE. § 6.9's
+// `c-ns-properties` is (tag [anchor]) | (anchor [tag]): one tag and one anchor, in either order, and
+// never two of a kind. Stripping more than that would be this module RESOLVING a document it
+// deliberately does not resolve, and would remove bytes from a value — the shorten direction, which
+// is this module's founding failure. Measured with `/usr/bin/ruby -ryaml`: `nested: !!str &a >-` and
+// `nested: &a !!str >-` both load with the grant plainly in the value, while `nested: &a &b >-` is a
+// document libyaml REJECTS (`did not find expected key`) — so the two-of-a-kind spelling is left
+// unstripped, no header is recognised, and it reaches the LOUD refusal arm instead.
+//
+// THE RESULT IS USED FOR EXACTLY ONE THING: asking `BLOCK_INDICATOR`. When the answer is no, the
+// stripped text is discarded and NOTHING is removed from any value. So the only reachable effect of
+// this strip is that MORE headers are recognised, never that a value gets shorter — which is why the
+// repository-wide value map over every tracked markdown file reports zero new refusals rather than a
+// paragraph claiming safety.
+//
+// The separation after a property is consumed with the module's OWN declared whitespace class rather
+// than `String.prototype.trimStart`, whose alphabet is wider (Unicode WhiteSpace ∪ LineTerminator) —
+// the open item 27-56 recorded against `raw.trim()` is not extended to a new site here.
+const stripNodeProperties = (text) => {
+    let out = text;
+    let strippedTag = false;
+    let strippedAnchor = false;
+    // Two iterations at most: § 6.9 permits two properties on one node and never three.
+    for (let n = 0; n < 2; n++) {
+        const property = out.match(NODE_PROPERTY_AT_NODE_START);
+        if (property === null)
+            break;
+        const isTag = property[0].startsWith("!");
+        if (isTag ? strippedTag : strippedAnchor)
+            break; // two of a kind: YAML forbids it, so leave it
+        if (isTag)
+            strippedTag = true;
+        else
+            strippedAnchor = true;
+        out = out.slice(property[0].length).replace(LEADING_DECLARED_WS, "");
     }
-    // INTRODUCTION 2 OF 4 — the IMPLICIT block-mapping key, `key: <header>` (YAML 1.2 § 8.2.2).
-    //
-    // (D-60) ASKED THROUGH `blockMapImplicitEntry`, THE NESTED QUESTION'S OWN PRODUCTION. This used to
-    // ask `KEY_LINE`, which answers a DIFFERENT question — which TOP-LEVEL keys a frontmatter block may
-    // declare — and whose narrowness is an intended refusal there and a silent bypass here. See that
-    // production for the four measured rows, the key-end disposition and the encoding unit.
-    const entry = blockMapImplicitEntry(text);
-    if (entry !== null && BLOCK_INDICATOR.test(entry.value)) {
+    return out;
+};
+const LEADING_DECLARED_WS = /^[ \t]+/;
+function blockHeaderAt(text) {
+    // ONE LOOP OVER THE DECLARED SET. A fifth introduction added to `HEADER_INTRODUCTIONS` inherits the
+    // property strip by construction; there is no branch here for a future author to forget.
+    for (const introduction of HEADER_INTRODUCTIONS) {
+        const split = introduction.split(text);
+        if (split === null)
+            continue;
+        const node = stripNodeProperties(split.node);
+        if (!BLOCK_INDICATOR.test(node))
+            continue;
         return {
-            leading: entry.intro,
-            lineBreak: blockLineBreak(entry.value),
-            mappingValueIndicator: true,
+            leading: split.leading,
+            lineBreak: blockLineBreak(node),
+            mappingValueIndicator: introduction.mappingValueIndicator,
         };
     }
-    // INTRODUCTIONS 3 AND 4 OF 4 — the EXPLICIT block-mapping key and value indicators.
-    const explicit = text.match(BLOCK_MAP_EXPLICIT);
-    if (explicit !== null) {
-        const indicator = (explicit[2] ?? "").trim();
-        if (BLOCK_INDICATOR.test(indicator)) {
-            return {
-                leading: explicit[1],
-                lineBreak: blockLineBreak(indicator),
-                // Only `:` is a mapping-VALUE indicator. `?` introduces a key and a plain scalar can spell
-                // it, so it keeps the node-start gate — see `BlockHeader.mappingValueIndicator`.
-                mappingValueIndicator: explicit[1] === ":",
-            };
-        }
-    }
     return null;
+}
+// (D-61) THE NODE STARTS THAT FOLLOW A RECOGNISED MAPPING SEPARATOR ON THIS LINE, PAIRED WITH THE GATE
+// EACH INTRODUCTION ALREADY CARRIES.
+//
+// This exists for the reference refusal's FOURTH application point. `startsWithReference` is asked at
+// three node starts today — the value, each flow fragment, each flow-mapping value — and the reason
+// each of those three is a node start is written at that function. The node start following a BLOCK
+// mapping's separator is a fourth one by the identical argument, and it was never asked: so
+// `nested: *a >-`, a property this module cannot strip standing in front of an indicator, matched no
+// header, matched no sigil at offset 0 of the physical line, and returned the SILENT SUCCESS arm on a
+// document the loader will not even load. An unreadable document reported as "carries no grant" is
+// this module's founding failure; the point of this fourth application is that a property the strip
+// above cannot handle fails LOUD instead of quiet.
+//
+// DERIVED FROM THE SAME SET, so it cannot fall behind the strip. `postSeparator` is false for the bare
+// introduction alone, whose node start is offset 0 and is already covered.
+function mappingSeparatorNodeStarts(text) {
+    const out = [];
+    for (const introduction of HEADER_INTRODUCTIONS) {
+        if (!introduction.postSeparator)
+            continue;
+        const split = introduction.split(text);
+        if (split === null)
+            continue;
+        out.push({
+            node: split.node,
+            mappingValueIndicator: introduction.mappingValueIndicator,
+        });
+    }
+    return out;
 }
 // A block-sequence item on a continuation line: a dash, then either end-of-line or the item text.
 //
@@ -1602,6 +1718,30 @@ function flattenBlock(block, baseIndent) {
                     openBlock(cur, lineHeader, indent);
                     continue;
                 }
+                // CONSUMER 2 (continuation path) — APPLICATION POINT 4 OF 4 FOR THE REFERENCE REFUSAL.
+                //
+                // (D-61) THE NODE START AFTER A MAPPING SEPARATOR, WHICH IS NOT OFFSET 0 OF THE PHYSICAL LINE.
+                // The test twelve lines above asks `startsWithReference(t)` — offset 0 of the trimmed line —
+                // and `startsWithReference` itself asks two more node starts inside a flow collection. That
+                // union is not the set of node starts: a BLOCK mapping's separator introduces one too, and
+                // nobody asked. Measured against the pre-fix build, `tools:` / `  nested: *a >-` / content
+                // returned `{ok:true,value:false}` — a document `/usr/bin/ruby -ryaml` REJECTS outright,
+                // reported as "carries no grant". This is the SAME argument that put the existing three
+                // application points where they are, applied at the position the strip above cannot handle.
+                //
+                // GATED WITH THE HEADER'S OWN GATE, NOT A NEW ONE. `mappingValueIndicator || startsNode` is
+                // the expression one branch above, for the reason recorded at `BlockHeader.mappingValueIndicator`:
+                // a line carrying a mapping-VALUE indicator is either real structure or a document the loader
+                // refuses, so there is no loader value to disagree with; the explicit `?` form CAN appear
+                // inside a plain scalar (`tools: see` / `  ? >-` loads as `see ? >- q,`), so it keeps the
+                // node-start gate. Restating the gate differently here would be a second opinion about a fact
+                // stated once.
+                for (const start of mappingSeparatorNodeStarts(t)) {
+                    if (!(start.mappingValueIndicator || startsNode))
+                        continue;
+                    if (startsWithReference(start.node))
+                        return refuseRef(t);
+                }
             }
             // CONSUMER 3 — the comment scanner, seeded from and storing back to the one carried state.
             //
@@ -2198,6 +2338,70 @@ function flattenBlock(block, baseIndent) {
 //   transfers a narrowness that was somebody else's intended refusal. When a predicate is called from
 //   two places, ask whether both are asking the SAME question of the SAME grammar production; where
 //   they are not, the reuse is a duplicate wearing a single definition site.
+// AND A THIRTEENTH TIME — THE PREDICATE WAS RIGHT, ITS POSITIONS WERE RIGHT, AND SOMETHING STOOD IN
+// FRONT OF THE POSITION (27-REVIEW.md § CR-02, round 11 — D-61).
+//
+//   FIRST, THE COUNT, CITED AND NOT REMEMBERED. This is the THIRTEENTH entry and it comes from the
+//   ELEVENTH review round. Nothing below depends on either number; every claim names an assertion.
+//
+//   YAML 1.2 § 6.9 LETS A NODE'S PROPERTIES STAND IN FRONT OF ITS CONTENT. A tag, an anchor, or one
+//   of each in either order, precedes the node without being the node. So the text `blockHeaderAt`
+//   handed `BLOCK_INDICATOR` began with the PROPERTY, the indicator constant — correctly — did not
+//   match, no header was recognised, `block` stayed false, the scalar's literal content was routed
+//   through `stripComment` and a leading `#` deleted the rest of the line. That is entry eleven's
+//   mechanism EXACTLY, reached by adding two characters:
+//
+//     G4  `tools:` / `  nested: &a >-` / `    Read,` / `    # x, Agent(o)`   a node property
+//
+//   Measured on the committed build with `/usr/bin/ruby -ryaml` (ruby 2.6.10 / psych 3.1.0 /
+//   libyaml 0.2.1), every row a document libyaml ACCEPTS with the grant plainly in the loaded value,
+//   every row returning `{ok:true,value:false}` — the silent no-grant SUCCESS arm:
+//
+//     nested: &a >-        anchor, implicit key      loader {"nested"=>"Read, # x, Agent(o)"}
+//     nested: !!str >-     shorthand tag, same       loader {"nested"=>"Read, # x, Agent(o)"}
+//     : &a >-              anchor, explicit VALUE    loader {"k"=>"Read, # x, Agent(o)"}
+//     ? &a >-              anchor, explicit KEY      loader {"Read, # x, Agent(o)"=>"v"}
+//     nested: !!str &a >-  tag THEN anchor           loader {"nested"=>"Read, # x, Agent(o)"}
+//     nested: ! >-         the bare non-specific tag loader {"nested"=>"Read, # x, Agent(o)"}
+//
+//   AND THE REFUSAL ARM DID NOT CATCH IT EITHER, WHICH IS THE HALF THAT MAKES IT SILENT. The
+//   reference refusal was asked at offset 0 of the physical line and at each flow fragment —
+//   `nested: &a >-` starts with `n`, so it was never asked about the node that starts after the
+//   separator. A property this module CANNOT strip therefore reached the success arm too:
+//   `nested: *a >-` returned "carries no grant" for a document libyaml REJECTS outright.
+//
+//   THE REPRODUCTION WAS THE WHOLE GATE, AND IT WAS THE VERIFIER'S, NOT THE AUTHOR'S. Planted into
+//   the EXISTING allow-list key of BOTH distribution twins of the non-coordinator skill `map` on a
+//   hermetic `git archive HEAD` mirror, `node scripts/check-foundation-guards.js` printed
+//   `ALL CHECKS PASSED` at exit 0 over a live `Agent(grugops-orchestrator)`.
+//
+//   THE REMEDY MAKES THE INTRODUCTION SET DATA AND ASKS BOTH QUESTIONS BY ITERATING IT. Entry eleven
+//   enumerated the four introductions correctly and wrote them as four straight-line branches; four
+//   branches are four places to forget, and the review reported the failure at only two of them.
+//   `HEADER_INTRODUCTIONS` is now the position vocabulary, `blockHeaderAt` loops it, the property
+//   strip REUSES `NODE_PROPERTY_AT_NODE_START` (no second grammar, and its deliberately-wide verbatim
+//   alternative is not narrowed), and the reference refusal gains its fourth application point at the
+//   node start following a mapping separator — derived from the same set, so it cannot fall behind.
+//   A fifth introduction inherits both questions by construction. What did NOT move: `BLOCK_INDICATOR`
+//   is byte-unchanged and still owns what a header looks like; `blockMapImplicitEntry`,
+//   `BLOCK_MAP_EXPLICIT` and `KEY_LINE` are byte-unchanged; the `mappingValueIndicator` position gate
+//   is byte-unchanged and all EIGHT of its measured loader rows keep their verdicts.
+//
+//   WHAT IS DELIBERATELY LEFT REFUSING, BECAUSE IT IS THE CONTRAST THAT PROVES THE DIAGNOSIS. A BARE
+//   header carrying a property (`tools:` / `  &a >-`) still REFUSES with a byte-identical reason, and
+//   so does the block-sequence item form (`  - &a >-`), because at both of those the sigil IS at
+//   offset 0 of the node and the module's standing anchor/alias refusal reaches it first. The defect
+//   was never the sigil test; it was which POSITIONS stood in front of it.
+//
+//   THE STANDING QUESTION THIS LEAVES FOR THE NEXT READER, AND IT IS THE ONE THIS ENTRY IS FOR.
+//   Entry nine asked what INPUT the authority is handed; entry ten asked what CONDITIONS it carries;
+//   entry eleven asked AT WHICH POSITIONS it is asked; entry twelve asked WHOSE QUESTION it is
+//   answering. This one asks: WHAT MAY LEGALLY STAND BETWEEN THE POSITION AND THE THING THE AUTHORITY
+//   RECOGNISES? A predicate asked at every position the grammar defines is still defeated by a
+//   construct the grammar permits IN FRONT of the thing being recognised. And when the answer is "a
+//   set of introductions", write the set down as DATA — an enumeration held in straight-line branches
+//   is an enumeration each new question must be added to by hand, which is this repository's second
+//   diagnosed systemic failure class wearing a control-flow disguise.
 // The payload at each delimiter position. Declared here as data so both positions consult the same
 // tokens in the same order, which is what makes the reported refusal deterministic for a given input.
 const OPEN_PAYLOADS = ["---"];
