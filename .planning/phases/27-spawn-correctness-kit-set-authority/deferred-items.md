@@ -3216,3 +3216,225 @@ not measured by this plan, and "borrowed" invocation through another step is exa
 and — following the both-ends rule this phase established — a check that each has a test spawning its
 committed `.js` directly. This plan deliberately did not take it: an executing plan that widens a
 workflow beyond its own gate is how an unrelated red lands in someone else's diff.
+
+---
+
+## Round 12 disposition register (written 2026-08-11 by plan `27-66`) — every round-11 item accounted for
+
+**Why this table exists.** A finding that leaves a round without a written disposition is
+indistinguishable, to a later reader, from a finding that was forgotten — and this phase's own recorded
+experience is that such an item returns one abstraction level down. The register is the durable answer
+to *"what happened to everything round 11 raised?"*, carried in the phase's own artifact so it survives
+a milestone archive move rather than living only in plan summaries that scroll out of view. **There is
+no silent drop.**
+
+**ROUND 12 IS NOT LIKE THE ELEVEN BEFORE IT, AND THE TABLE MUST NOT READ AS IF IT WERE.** Rounds 1
+through 11 each REPAIRED a defect in `scripts/frontmatter.ts`, and rounds 10 and 11 each shipped a
+regression inside their own repair. **Round 12 repaired nothing there.** Under **D-64** it changed the
+mechanism: the guard admits a canonical restricted shape and refuses everything else by name
+(`scripts/canonical-frontmatter.ts`, plan `27-62`), the seven standalone skill twins became generated
+and byte-gated (`27-64`), the historical bypass corpus was replayed against the new reader (`27-63`),
+and the parser was DEMOTED from safety authority at four verdict sites (`27-65`). The
+measurement that proves the parser is untouched is stated once here and relied on by six rows below:
+
+```
+$ git diff c842e81..bc267f9 -- scripts/frontmatter.ts | grep -E '^[+-][^+-]' \
+    | grep -vE '^[+-]\s*(//|\*|/\*|\*/)' | grep -vE '^[+-]\s*$' | wc -l
+0
+$ git diff -U0 c842e81..bc267f9 -- scripts/frontmatter.ts | grep -E '^@@'
+@@ -1,2 +1,41 @@
+```
+
+**Zero non-comment lines changed, and the single diff hunk is the file HEADER.** Every defect site
+named by round 11 — `openBlock` (CR-01), `mappingSeparatorNodeStarts`' unwired call site (CR-02),
+`raw.trim()` (WR-03), the `HEADER_INTRODUCTIONS` comment (IN-01), the block arm's discarded resolved
+introduction (IN-03) — is byte-identical to the build round 11 reviewed.
+
+### The disposition classes used below, DEFINED BEFORE THE TABLE USES THEM
+
+This round needs three classes the register has not used before. They are defined here because the
+single fact most likely to be lost by a later reader is the difference between them and **FIXED**, and
+this register uses **FIXED zero times**.
+
+- **DISSOLVED** — *the defect was not repaired at its site.* It was made **unreachable by a change of
+  mechanism**, such that the code path carrying the defect no longer renders the verdict the item was
+  about. The defect **is still present in the module**. A reader who takes DISSOLVED to mean FIXED
+  would go looking for a repair to `scripts/frontmatter.ts` that **does not exist**, and might widen
+  the parser a twelfth time on the strength of it. Every DISSOLVED row below states this explicitly
+  and cites the refusal the canonical reader now returns for that item's own document.
+- **DEMOTED** — *the item is unchanged and still true of the module it names,* and this round did not
+  touch it. What moved is not the item but its **severity**: the module it lives in
+  (`scripts/frontmatter.ts` and its harness `scripts/frontmatter.test.ts`) no longer renders a spawn
+  verdict, so the item survives on the **convenience path** rather than the verdict path. DEMOTED is
+  **not closed**. Each DEMOTED row carries an owner.
+- **SUPERSEDED** — *the item is a prescribed REMEDY, not a defect,* and D-64 declined the remedy while
+  dissolving the defect it was prescribed for. `27-VERIFICATION.md`'s three `missing` entries are all
+  of this kind: each names an edit to make to `scripts/frontmatter.ts`, and **no such edit was made,
+  deliberately**. Each SUPERSEDED row names the row it merged into.
+- **OPEN** — *the item is untouched and still fully live,* on a module that was never the parser and
+  is not demoted by anything this round did. Owner named.
+- **DEFERRED** — unchanged meaning from prior registers: dated, owned, and not fabricated as closed.
+
+**The naming hazard, stated so the rows cannot be misread.** Round 11's review spells its two
+criticals `CR-01` and `CR-02`, and there are **earlier, unrelated** `CR-01`s and `CR-02`s in rounds 9
+and 10 (round 10's own register had to spell one of them `CR-01-new` for exactly this reason). This
+register therefore spells round 11's rows **`CR-01-r11`** and **`CR-02-r11`**, and every other row
+carries its round in the same way where a collision is possible. The corpus ids in the evidence column
+(`r11-cr01-*`, `r11-cr02-*`) carry the round in the id itself and are unambiguous already.
+
+**The review's own tally reconciles, re-counted this session.** `27-REVIEW.md`'s frontmatter declares
+`critical: 2, warning: 4, info: 3, total: 9`; counting the body headings independently
+(`grep -cE '^### (CR|WR|IN)-[0-9]+' 27-REVIEW.md` → **9**) gives CR-01, CR-02, WR-01, WR-02, WR-03,
+WR-04, IN-01, IN-02, IN-03 — **2 + 4 + 3 = 9**. The two agree, so **no disagreement row is owed**.
+This was re-derived from disk rather than taken from the plan's prose, because three separate plans in
+this round had their own stated counts falsified by measurement.
+
+### Part one — the nine review items
+
+| # | Item | Raised in | What happened | Artifact carrying the evidence | Disposition |
+|---|---|---|---|---|---|
+| 1 | **CR-01-r11** — `openBlock` takes the block-scalar indentation landmark (both the auto-detection floor and the explicit-indicator base) from the physical header LINE's indent instead of the parent node's indentation (YAML 1.2 §8.1.1.1); 86 silent no-grants, one of them a REGRESSION shipped by round 11's own fix `27-58`, reproduced end-to-end through the full gate twice at exit 0 | `27-REVIEW.md` § Critical (as CR-01) | **NOT repaired.** `scripts/frontmatter.ts` is byte-unchanged in every non-comment line (transcript above), so `openBlock` still takes the landmark from `indentOf(raw)` and the defect is **still present in that module**. Under **D-64** it no longer reaches a verdict: the guard reads `canonical-frontmatter.ts`, which refuses a block-scalar header at a node start **by name** rather than parsing it. Widening the parser a twelfth time was explicitly rejected | `scripts/canonical-corpus.ts` rows `r11-cr01-a-explicit-digit`, `r11-cr01-b-no-digit`, `r11-cr01-gate-a`, `r11-cr01-gate-b` — all four expect and receive `block-scalar`; `27-63-SUMMARY.md` (the 91-row replay); `27-65-SUMMARY.md` (all four planted at the gate, exit 0 → exit 1); `27-CONTEXT.md` **D-64** | **DISSOLVED** — refusal code `block-scalar`, reason *"a node starting at column N is introduced by `>`, which opens a folded block scalar header; … so there is **no indentation to compute** and no second recogniser site to forget"* |
+| 2 | **CR-02-r11** — D-61's fourth reference-refusal application point (`mappingSeparatorNodeStarts`) is wired into only ONE of the two `blockHeaderAt` call sites, so a resolvable alias reaching a grant through a sequence item's compact mapping is unasked and silently no-grants on a loader-ACCEPTED document, at exit 0 | `27-REVIEW.md` § Critical | **NOT repaired.** The second call site is still unwired; the defect is **still present in `scripts/frontmatter.ts`**. Under **D-64** the alias never reaches a call site at all: an `&`/`*`/`!` at a node start is a named loud refusal, so the question "did we ask the reference test here?" stops existing rather than being answered correctly at one more place | `scripts/canonical-corpus.ts` rows `r11-cr02-alias-through-compact-mapping`, `r11-cr02-gate`, `r11-cr02-t3-loader-rejected`, `r11-cr02-r-loader-rejected` (bypass) and `r11-cr02-dashless-control` (control) — all five expect and receive `node-property`; `27-63-SUMMARY.md`; `27-65-SUMMARY.md`; `27-CONTEXT.md` **D-64** | **DISSOLVED** — refusal code `node-property`. **The two spellings that diverged for eleven rounds — one refused loudly, one read as "carries no grant" — now land on ONE answer, at ONE code, with ONE reason** |
+| 3 | **WR-01-r11** — the "module reports a GRANT the loader does not have" direction — the one the module's own doc block calls **never exemptible** — is live at 48 loader-accepted cells at the sequence positions CR-01 names, **and the round-11 register records that family FIXED** | `27-REVIEW.md` § Warnings | **NOT repaired** (its fix *was* CR-01's fix, and CR-01 was not repaired). Dissolved by the same mechanism. **Measured this session on the final build**, on the review's own verbatim document rather than inferred from CR-01's rows. See the amendment below this table for the register-correction half of the finding | Measured at `bc267f9`: `admit()` on `27-REVIEW.md` lines 322-330 verbatim → `{ok:false, code:"block-scalar"}`, reason *"line 4: a node starting at column 8 is introduced by `>` …"*. Corroborating corpus row `r10-wr01-overincluded-content-line` (kind **divergence**, same code) | **DISSOLVED** — refusal code `block-scalar`, measured directly on the finding's own document |
+| 4 | **WR-02-r11** — the D-52 generated corpus grew 2,544 → 16,704 cells and gained **no indentation axis and no explicit-digit axis** — the two dimensions D-62 is entirely about — so it asserts both never-exemptible partitions empty over a space that cannot spell a single one of CR-01's 134 cells | `27-REVIEW.md` § Warnings | **UNTOUCHED, and still exactly true.** Measured at `bc267f9`: `AXIS_HEADER_INDICATOR_FORM.length` is still **3**, and neither `AXIS_HEADER_PARENT_OFFSET` nor any explicit-digit axis exists in `scripts/frontmatter.test.ts`. The file's only round-12 change is `27-65`'s 10-line consumer-list edit, which touches no axis. This corpus is the **demoted parser's** harness; the corpus that must express CR-01's and CR-02's shapes before they are called closed is now a different artifact (see row **V3**) | `scripts/frontmatter.test.ts:8623` (`AXIS_HEADER_INDICATOR_FORM`, 3 members), `:9293` (the length assertion); `git diff --stat c842e81..bc267f9 -- scripts/frontmatter.test.ts` → `10 insertions(+), 1 deletion(-)`, the consumer list only | **DEMOTED** — unchanged, still true, now on the convenience path. **Owner: a later round** — add the two axes if the convenience reader's corpus is ever wanted sound, or retire the corpus with the module |
+| 5 | **WR-03-r11** — a more-indented content line loses its own leading whitespace (`const t = raw.trim()`), so the module's flattened value is **SHORTER than the loader's** on a document the loader accepts — the stated never-shorten direction, unrecorded anywhere | `27-REVIEW.md` § Warnings | **UNTOUCHED, and still exactly true.** `const t = raw.trim()` is at `scripts/frontmatter.ts:2172` at `bc267f9` (the review cited `:2133`; the 39-line demotion header moved every line number by 39 and changed no code). The review itself measured this over a 56-cell cross product and found **the name sets agree on every cell and no grant verdict moves** — a value divergence with no constructible name or verdict consequence. It is now also off the verdict path entirely | `scripts/frontmatter.ts:2172`; the zero-non-comment-line transcript above; `27-REVIEW.md` § WR-03's own 56-cell measurement | **DEMOTED** — unchanged, still true, no verdict consequence even on the convenience path. **Owner: a later round** — strip only the detected content indentation, with the loader value-equality control the review specifies |
+| 6 | **WR-04-r11** — `tsconfig.tests.json` **hand-copies** `tsconfig.json`'s exclude list instead of deriving it; a fourth entry added to the base will silently not apply to the test-inclusive target and both configs keep reporting exit 0. This repository's own diagnosed **set-literal drift** class, in the file added to close a "control that reads as enforced and enforces nothing" finding | `27-REVIEW.md` § Warnings | **UNTOUCHED and fully live.** `git diff --quiet c842e81..bc267f9 -- tsconfig.tests.json` exits **0** — byte-unchanged by this round. `tsconfig.tests.json:22` still reads `"exclude": ["node_modules", ".tmp-build"]`. This is **not** a parser item and is **not** demoted by anything D-64 did: it governs whether the type-checker reaches the test corpus, which gates every module including the new canonical reader. Round 12 planned no work for it | `tsconfig.tests.json:22`; `git diff --quiet c842e81..bc267f9 -- tsconfig.tests.json` → exit 0 | **OPEN** — latent, not live (the review verified `36 of 36` reach today). **Owner: a later round** — the set-equality case the review specifies, `tests.exclude ∪ {"**/*.test.ts"} === base.exclude`, naming the drifted entry |
+| 7 | **IN-01-r11** — `blockHeaderAt`'s *"a fifth introduction inherits both questions by construction"* comment is one introduction short of the set the module's own doc block enumerates: the block-sequence `-` is outside `HEADER_INTRODUCTIONS`, handled on a different path — **which is precisely CR-02's mechanism** | `27-REVIEW.md` § Info | **UNTOUCHED, and still exactly true.** The comment stands verbatim at `scripts/frontmatter.ts:758` and `:3135` at `bc267f9`, both outside the single diff hunk (`@@ -1,2 +1,41 @@`). It is a comment whose claim is false in the direction that mattered — and the mechanism it mis-describes is dissolved by row **2**, so the false claim can no longer mislead a safety verdict, only a reader of a convenience module | `scripts/frontmatter.ts:758`, `:3135`; the single-hunk transcript above | **DEMOTED** — unchanged, still true, now a comment-accuracy defect in a demoted module. **Owner: a later round** — scope the sentence at the site, or delete it with the module |
+| 8 | **IN-02-r11** — the `codeOnly` comment strip handles `//` only, where its stated model handles both comment forms; a `/* … */` block comment quoting the forbidden shape survives the strip and **false-reds** the case the twin was written to prevent | `27-REVIEW.md` § Info | **UNTOUCHED and fully live.** `git diff --quiet c842e81..bc267f9 -- scripts/generate-role-adapters.test.ts` exits **0**; `:886` still reads `.filter((l) => !l.trimStart().startsWith("//"))`. This is **not** a parser item and is **not** demoted: it lives in the harness of the **adapter generator**, which is one half of the mirror-spawn freshness pattern D-64 Part B explicitly extends and relies on. `27-64` modified `generate-role-adapters.ts` but deliberately not its test's strip | `scripts/generate-role-adapters.test.ts:886`; `git diff --quiet c842e81..bc267f9 -- scripts/generate-role-adapters.test.ts` → exit 0 | **OPEN** — no such block comment exists today, so latent. **Owner: a later round** — strip both forms, or assert no block comment inside the sliced body |
+| 9 | **IN-03-r11** — the block-owned run validates each region's `intro` via `unquoteChecked(p.intro)`, uses only its `ok`/`escape` and pushes the **raw** `runText`, while the comment above reads as though the introduction is resolved like any other region. The review itself recorded `UNKNOWN - verify`: it could not construct a document where this changes an observable value | `27-REVIEW.md` § Info | **UNTOUCHED, and still exactly true.** `unquoteChecked(p.intro)` stands at `scripts/frontmatter.ts:2068` at `bc267f9` (review cited `:2027-2034`; +39 from the header). A naming/contract mismatch the review explicitly declined to call a defect, now in a module that renders no verdict | `scripts/frontmatter.ts:2068`; the single-hunk transcript above; `27-REVIEW.md` § IN-03's own `UNKNOWN - verify` | **DEMOTED** — unchanged, still true, still `UNKNOWN - verify` as to observable effect. **Owner: a later round** — push the resolved introduction or rename the comment, with the indistinguishability control |
+
+**AMENDMENT owed to row 3, recorded here rather than by rewriting the round-11 register.** WR-01-r11's
+second half is not a code finding at all: it says *"the register row should not read `FIXED` while the
+family is measurable"*, naming `deferred-items.md:3024` — the **Round 11 disposition register's row
+4** — which records round 10's WR-01 as **FIXED**. That word was true over the positions round 10's
+corpus could spell and false over the 48 cells round 11 measured. **The round-11 register is left
+byte-unchanged**: rewriting a closed round's record destroys the evidence of what was believed when it
+was written, which is the more useful artifact, and this phase already chose that posture when D-64's
+own two falsified measurements were corrected by amendment rather than quietly. The correction is
+therefore stated here, in the round that discovered it: **round-11 register row 4's `FIXED` is
+scoped to the positions round 10's corpus could spell, and the family it names was live at 48 cells
+outside that set until D-64 dissolved it.** Row 3 above is the current disposition of that family.
+
+### Part one (continued) — the four items round 11's VERIFICATION raised beyond the review
+
+`27-VERIFICATION.md` § `gaps` carries **3** named `missing` fixes under its single `gaps` entry, and
+§ `deferred` carries **1** item. Counted from disk this session, inside the frontmatter only, so the
+known backstop-marker conflation in this repository cannot double-count them. Each of the three
+`missing` entries restates a critical above; **each still gets its own row naming the row it merged
+into**, because a merged disposition is still a disposition and a missing row is a silent drop.
+
+| # | Item | Raised in | What happened | Artifact carrying the evidence | Disposition |
+|---|---|---|---|---|---|
+| V1 | `missing` — *"CR-01's fix: carry the parent node's indentation into `openBlock` instead of the header line's — name the quantity per YAML's own terms (`parentIndent`) — and derive it at each of the two call sites"* | `27-VERIFICATION.md` § gaps[].missing[0] | **The prescribed edit was NOT made, deliberately.** D-64 states in its own text that it *"supersedes the round-11 verification's prescribed remedy"* and that closing CR-01 by widening the parser a twelfth time is *"explicitly rejected"* — because rounds 10 and 11 each shipped a regression inside their own fix, and CR-01 itself **is** that regression. `parentIndent` does not exist in `scripts/frontmatter.ts` at `bc267f9`. **Merged into row 1** | `27-CONTEXT.md` **D-64** (the supersession, stated by name); the zero-non-comment-line transcript above; `27-62-SUMMARY.md` (the mechanism that replaced it) | **SUPERSEDED** — merged into **row 1**. The defect is dissolved; the remedy was declined |
+| V2 | `missing` — *"CR-02's fix: ask `mappingSeparatorNodeStarts` (or an equivalent reference test) at the item path's node-start position … and pin the fix by reading the `blockHeaderAt` call-site list out of the source at test run time"* | `27-VERIFICATION.md` § gaps[].missing[1] | **The prescribed edit was NOT made, deliberately**, for the same D-64 reason. The second call site is still unwired. **The pinning half of the remedy is, however, satisfied by a different construct**: `27-62` asserts from source that the literal `ok: false` appears **exactly once** in the whole admission core, and `27-63` pins the proof-only widening entry point's reference sites at exactly **2** by a derived tree-wide scan — the same *derive-the-set, assert-the-count* discipline, applied to the module that now renders the verdict rather than to the one that does not. **Merged into row 2** | `27-CONTEXT.md` **D-64**; `27-62-SUMMARY.md` (the single-`refuse()` source assertion); `27-63-SUMMARY.md` (the 2-site derived scan) | **SUPERSEDED** — merged into **row 2**. The defect is dissolved; the remedy was declined, and its pinning half is discharged on the new authority |
+| V3 | `missing` — *"A widened D-52/corpus axis (WR-02 …) that can spell a position where the header line's indent differs from the parent node's indentation — the round-11 corpus … cannot generate the input either of the two live defects needs, which is exactly why both shipped green"* | `27-VERIFICATION.md` § gaps[].missing[2] | **The D-52 corpus was NOT widened** (row 4 measures it unchanged at 3 indicator members and no indentation axis). **The FUNCTION the widening was to serve is discharged by a different artifact**: `scripts/canonical-corpus.ts` carries **91** rows harvested with provenance from rounds 1-11 — including all nine round-11 shapes, `r11-cr01-a/b/gate-a/gate-b` and `r11-cr02-*` — and **every one is replayed to a named loud refusal on the code the row declared BEFORE the reader was run**. That is the property this item asked for: the two live defects' inputs are expressible and are exercised before anything is called closed. **Merged into row 4** | `scripts/canonical-corpus.ts` (`CORPUS_COUNT` 91, throws at module load on disagreement); `27-63-SUMMARY.md` — 91 replayed, **0 admitted, 0 code mismatches**, with the premise control recorded first; `27-65-SUMMARY.md` — **79 planted + 12 module-only = 91**, asserted two-sided | **SUPERSEDED** — merged into **row 4**. The named corpus was not widened; the requirement it encodes is met by a corpus that is on the verdict path |
+| V4 | **SPAWN-03's live-platform capture** — whether the main-thread coordinator's `Agent(<allowlist>)` grant is actually honoured by the Claude Code runtime | `27-VERIFICATION.md` § deferred and § Human Verification Required | **Carried forward unchanged. NO WORK WAS PLANNED FOR IT THIS ROUND AND NONE WAS DONE.** No static gate can produce live-platform evidence, and inventing one would be the faked gate `CLAUDE.md` forbids by name. `node scripts/coordinator-resolution-precheck.js` exits **0** on this build and states in its own output that the two runtime steps are NOT PERFORMED by it. `.planning/ROADMAP.md` and `.planning/REQUIREMENTS.md` are byte-unchanged by this plan | `ROADMAP.md:106` standing-obligations row 1 (GAP-D1 → Phase 33, CAP-01); `REQUIREMENTS.md:64` and `:161`; `27-CONTEXT.md` D-56 item 10 / D-58 item 5; `27-63-SUMMARY.md` residual 4 | **DEFERRED** — owner **Phase 33** (GAP-D1, requirement **CAP-01**; the capture itself CAP-03); dated **2026-08-09**, unchanged since round 9; status stays **`UNKNOWN - verify`** |
+
+### Part two — completeness, asserted by count so a reader can check it
+
+- Round-11 code-review findings raised (`27-REVIEW.md`): **9** — CR-01, CR-02, WR-01, WR-02, WR-03,
+  WR-04, IN-01, IN-02, IN-03. (Frontmatter tally `2 + 4 + 3 = 9`; body headings counted independently
+  by `grep -cE '^### (CR|WR|IN)-[0-9]+'`, also **9**. Reconciled — they agree.)
+- Round-11 verification items carried beyond those (`27-VERIFICATION.md`): **4** — the three named
+  `missing` fixes and the SPAWN-03 deferral. Counted inside the frontmatter only.
+- **Total round-11 items raised: 13. Rows in the register above: 13. `9 + 4 == 13` and `13 == 13`.**
+
+If those two numbers ever differ, **the register is wrong, not the count** — the same non-vacuity
+posture the harness applies to its own corpora, turned on the record itself. The plan that ordered this
+register stated 13 in its own prose; that figure was **re-derived from disk before it was adopted**,
+because three separate plans in this round had their stated counts falsified by measurement (D-64's
+31-vs-33 files and 8-vs-10 keys, `27-64`'s 5-vs-6 freshness gates, `27-65`'s 11-vs-5 consumers). It
+reconciled. Had it not, the measurement would have won and the disagreement would be a row of its own.
+
+- Dispositions partition as **3 DISSOLVED + 4 DEMOTED + 2 OPEN + 3 SUPERSEDED + 1 DEFERRED**, and
+  **`3 + 4 + 2 + 3 + 1 == 13`.**
+
+**FIXED appears zero times, and that is the whole point of this register.** Eleven rounds of rows read
+`FIXED` because eleven rounds repaired the parser. This one did not. A row reading `FIXED` here would
+tell a later reader that `scripts/frontmatter.ts` was corrected — and the transcript at the top of this
+section proves it was not, in any non-comment line.
+
+**No item is REJECTED.** Three *prescribed remedies* were declined (rows V1, V2, V3) and each has its
+own row saying so with the decision that declined it, rather than being recorded as a rejected item —
+because the ITEM in each case was dissolved or discharged by another means, not dismissed.
+
+### Part three — the re-measurement, and exactly which claims are NOT re-measured
+
+Round 12's four plans edited overlapping surfaces after the first evidence landed. Every closure claim
+in the tables above therefore either cites a measurement **taken this session at `bc267f9`** — the tip
+of round 12's code work, which this plan does not change because it edits one markdown file — or is
+**named as cited rather than re-measured**.
+
+**Re-measured this session, at `bc267f9`:**
+
+| What | Result |
+|---|---|
+| `scripts/frontmatter.ts` non-comment diff over the round | **0** lines; single hunk `@@ -1,2 +1,41 @@` (the file header) |
+| `admit()` on WR-01-r11's verbatim review document | `{ok:false, code:"block-scalar"}`, reason printed in row 3 |
+| `AXIS_HEADER_INDICATOR_FORM.length` (WR-02-r11) | **3**; no parent-offset axis, no explicit-digit axis |
+| `tsconfig.tests.json` (WR-04-r11) | byte-unchanged over the round, `git diff --quiet` exit **0** |
+| `scripts/generate-role-adapters.test.ts` (IN-02-r11) | byte-unchanged over the round, `git diff --quiet` exit **0** |
+| The nine round-11 corpus rows and their declared codes | 4 × `block-scalar`, 5 × `node-property`; read from `scripts/canonical-corpus.js` |
+| `DISTRIBUTION_PAIR_EXEMPT` membership | **1** member, `skills/grugops/SKILL.md` (`check-foundation-guards.ts:1716`) |
+| `node scripts/check-foundation-guards.js` | exit **0** |
+| `node scripts/adapters-freshness.js` | exit **0** |
+| `node scripts/skill-twins-freshness.js` | exit **0** |
+| `node scripts/coordinator-resolution-precheck.js` | exit **0** |
+| Refusal codes the historical corpus never exercises | **12 of 23** — enumerated in Part five |
+
+**CITED, NOT RE-MEASURED — flagged for the verifier rather than presented as re-measured.** Three
+transcripts in the evidence column belong to the plan that produced them and were not re-taken here,
+because re-taking them means re-running a hermetic-mirror plant sweep, which this plan's scope
+(one markdown file, no `scripts/` edit) does not carry:
+
+1. **`27-65`'s 79-row gate plant sweep** — the exit `0 → 1` pairs and the refusal text read from the
+   guard's own stdout. Its **assertions** re-execute inside this round's closing suite run and hold;
+   its **transcript** is `27-65-SUMMARY.md`'s.
+2. **`27-63`'s 91-row replay transcript and three mutation probes** — same status: the assertions
+   re-execute in the closing suite, the printed per-row refusal texts are `27-63-SUMMARY.md`'s.
+3. **`27-64`'s one-byte-drift fail-proof on the twin byte gate** — same status.
+
+Stating this distinction is the point: *"the assertions still pass"* and *"the transcript was re-taken
+on the final build"* are different claims, and eleven rounds of this phase were closed on the first
+while sounding like the second.
+
+### Part four — the exemption list, and the suite
+
+**The exemption list is stated once more at round scope and is UNCHANGED at ONE member** (D-64 vacuity
+trap 3). `DISTRIBUTION_PAIR_EXEMPT` at `scripts/check-foundation-guards.ts:1716` holds exactly
+`["skills/grugops/SKILL.md"]` — one member before round 12 and one member after. **No exemption was
+added anywhere in this round to make a cell pass**, and `27-64` and `27-65` each assert this
+independently with their own cases (`27-64` § P3/P4; `27-65`'s 1-before/1-after row).
+
+**THE ROUND'S GREEN SUITE IS A FLOOR AND IS NOT OFFERED, HERE OR ANYWHERE, AS EVIDENCE THAT ANY FAMILY
+IS CLOSED.** Eleven consecutive review rounds ended with a live bypass while the suite was green, and
+rounds 10 and 11 each shipped a regression inside their own fix. The closure evidence for this round is
+the **transcripts and the gate exit codes recorded by plans `27-62` through `27-65`** — the
+per-part admission breakdown over the 33-file live scan, the 91-row replay with its premise control,
+the widening sweep with every moved row named, the three mutation probes, the twin byte-gate
+fail-proof, and the 79-row end-to-end plant sweep with the refusal text read from the guard's stdout —
+together with the four gate exit codes re-measured above. Never the green line.
+
+### Part five — standing obligations this round carries INTO its next verification
+
+Written with a named owner each, so they survive a milestone archive move. An item with no owner and
+no date is the shape that returns one abstraction level down.
+
+| Obligation | Measurement | Owner |
+|---|---|---|
+| **SPAWN-03's live-platform capture** | Not obtainable by any static gate. `coordinator-resolution-precheck.js` exits **0** and says in its own output that the two runtime steps are NOT PERFORMED by it. **Measured this build.** `UNKNOWN - verify` | **Phase 33** — GAP-D1 / CAP-01 (capture itself CAP-03) |
+| **KIT-03 and SPAWN-04 remain unflipped** | Both rows read from disk this session in both renderings and asserted unchanged (Part six). **The rows are deliberately NOT moved** | **the next verification round** for phase 27 |
+| **The 12 corpus rows `27-65` could not plant at the gate** — the whole `no-opening-delimiter` delimiter family. They are proven at **module level only**; the family cannot be grafted into another document's frame without destroying the construct under test | `79 planted + 12 module-only = 91 = CORPUS_COUNT`, asserted two-sided by `27-65`. **`UNKNOWN - verify`** at the gate | **a later round** — a gate-level construct that can carry a malformed opening delimiter, or an explicit decision that module level is sufficient for this family |
+| **12 of the 23 refusal codes are exercised by NO historical-corpus row** — `no-closing-delimiter`, `empty-region`, `tab-in-region`, `control-character`, `bad-indentation`, `duplicate-key`, `dangling-empty-key`, `orphan-sequence-item`, `unbalanced-parentheses`, `unterminated-double-quote`, `embedded-double-quote`, `disallowed-escape`. The corpus reaches **11 of 23** | **Measured this build** by deriving the used-code set from `CORPUS` and subtracting it from `REFUSAL_CODES`. This is a property of the historical record — rounds 1-11 never produced these shapes — not a defect in the reader, whose own tests cover codes the corpus does not | **a later round** — decide whether each unexercised code needs a synthetic case, or record that the corpus is a historical artifact and code coverage belongs to `canonical-frontmatter.test.ts` |
+| **The canonical form is a NARROWING: 2 of 7 legitimate YAML spellings of one declaration survive** inside the spawn-grant scan; a quoted `name` and a folded `description` are now refused. Live cost measured **zero**; the latitude is gone | Recorded by `27-65` and to `.planning/WINDOWS.md`. **Carried** | **a later round** — accept as the intended trade, or widen the schema with the two-sided cardinality re-measured |
+| **554 of 575 out-of-scan frontmatter files would REFUSE** (`flow-collection` 416, `unknown-key` 134, `block-scalar` 4). Not exposure today — those `.planning/` artifacts are not in `spawnGrantScan` | Measured by `27-65`; **no exemption was added for it**. **Carried** as a hard constraint on anyone who later widens that scan | **a later round / anyone widening `spawnGrantScan`** |
+| **Two named diagnostic losses at the cutover**: the exact duplicate-key **count** (the cardinality loop was DELETED rather than left unable to fire), and **per-document multi-finding** reporting | Recorded by `27-65` with the property pinned at the gate instead. **Carried** | **a later round** — restore the richer diagnostics on the admission reader if a consumer needs them |
+| **`freshness:queue` and `freshness:traceability` are in `package.json` and named by NO CI step**; the workflow comment above that block reads "the four freshness gates" and is wrong by three (7 entries, 5 named) | Recorded in full by `27-64` in § *From 27-64* above. Whether either is re-run as a side effect of some `.test.ts` is **`UNKNOWN - verify`** — not measured | **a later round** — two lines in the ubuntu block, the comment corrected, plus a test spawning each committed `.js` directly (the both-ends rule) |
+| **`27-64`'s empty-regeneration branch is UNREACHABLE** and is documented as such rather than claimed exercised; two upstream refusals stand in the way and both are pinned | **`UNKNOWN - verify`** with its reason, no transcript fabricated. `27-64` flagged it for human disposition | **a human / a later round** — confirm that keeping an unreachable third-layer branch is the wanted disposition |
+| **`27-62`'s false-red cost is measured ZERO over the 33 live scanned files and UNMEASURED over hypothetical future content** — a hand-written `description` carrying an apostrophe, colon, slash or `?` refuses on `plain-scalar-charset` unless quoted | The safe direction is a loud false red and `description` is one of the two quotable keys, so an escape hatch exists. `27-65` closed the tree-wide half by measurement (181 plain scalars, 0 outside the alphabet). **Carried** for future content only | **a later round** — or the first author who trips it |
+| **A multi-document stream reads the FIRST region only** in `canonical-frontmatter.ts`, unchanged from `frontmatter.ts`'s dispositioned IN-05 | **Recorded, not escalated.** Not claimed as a bypass and must not be escalated into one without a measurement | **a later round**, only with a measurement |
+| **44 of 91 corpus rows carry NO loader verdict, by construction** — rounds 1-5's reviews never recorded one, and re-running libyaml today and attributing the result to them would be a fabricated citation | **`UNKNOWN - verify`** stands. A property of the historical record, not repairable here | **nobody — recorded so it is not rediscovered as a gap** |
+| **Whether Claude Code honours a *mapping* under `allowed-tools:` as a tool grant** remains unconfirmed against the platform, exactly as rounds 10 and 11 recorded it. Several corpus rows are mappings | **`UNKNOWN - verify`.** No live platform escalation claimed by any plan this round; the rows stand on the old module's own contract, which is how their sources scoped them | **Phase 33** — the same live-capture owner as SPAWN-03 |
+| **The two `WR01_FALSE_RED_FORMS` documents are refused by the canonical reader** — a known false red in the safe direction, folded into `27-62`'s standing false-red residual and deliberately NOT escalated, and NOT counted as bypass closures by `27-63` | **Carried, recorded.** They are excluded from the corpus as false reds rather than filed as closures — the distinction matters and is preserved | **a later round**, with `27-62`'s residual |
+| **Every DEMOTED and OPEN row in this register** — WR-02-r11, WR-03-r11, WR-04-r11, IN-01-r11, IN-02-r11, IN-03-r11 | Each measured unchanged this build, in its own row above, with its own owner | **a later round** — see the individual rows |
+| **The round-11 register's row 4 `FIXED` scope correction** | Recorded as an amendment above rather than by rewriting the historical register | **nobody — recorded, not carried** |
