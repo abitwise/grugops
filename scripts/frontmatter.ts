@@ -498,6 +498,31 @@ interface BlockHeader {
 const blockLineBreak = (indicator: string): string =>
   indicator.startsWith("|") ? "\n" : " ";
 
+// (D-62 — 27-REVIEW.md §§ WR-02 / IN-01, round 11) A RUN OF LINE BREAKS INSIDE AN OPEN BLOCK SCALAR,
+// AND THIS IS THE EXISTING DERIVATION APPLIED TO A SECOND AXIS — NOT A SECOND OPINION ABOUT IT.
+//
+// `blockLineBreak` above answers the one-break question and its measured argument is recorded there.
+// The only extra bit this needs is WHETHER THE STYLE FOLDS, and that bit is already ENCODED IN THAT
+// ANSWER: a style that folds joins one break as a SPACE, a style that does not joins it as the break
+// itself. So this reads the existing answer rather than re-asking the indicator, and a change to
+// `blockLineBreak` moves both axes together by construction.
+//
+// THE RULE, MEASURED RATHER THAN DERIVED FROM PROSE. `/usr/bin/ruby -ryaml` (ruby 2.6.10 /
+// psych 3.1.0 / libyaml 0.2.1), `n` = the number of BREAKS between two content lines (one blank line
+// between them is TWO breaks):
+//
+//   >-  a, / b,                  "a, b,"            n=1 -> the space
+//   >-  a, / (blank) / b,        "a,\nb,"           n=2 -> ONE newline
+//   >-  a, / (blank) x2 / b,     "a,\n\nb,"         n=3 -> TWO newlines
+//   |-  a, / b,                  "a,\nb,"           n=1 -> the break
+//   |-  a, / (blank) / b,        "a,\n\nb,"         n=2 -> TWO newlines
+//   |-  a, / (blank) x2 / b,     "a,\n\n\nb,"       n=3 -> THREE newlines
+//
+// A FOLDED STYLE FOLDS ONLY THE SINGLE BREAK; a run of n keeps n-1 as literal breaks (YAML 1.2
+// § 8.1.3 folds `b-l-folded` only BETWEEN non-empty lines). A literal style keeps all n (§ 8.1.2).
+const blockBreakRun = (lineBreak: string, breaks: number): string =>
+  breaks <= 1 ? lineBreak : "\n".repeat(lineBreak === "\n" ? breaks : breaks - 1);
+
 // (D-62 — 27-REVIEW.md § WR-01, round 11) THE EXPLICIT INDENTATION INDICATOR, READ INSTEAD OF
 // MATCHED-AND-DISCARDED.
 //
@@ -1718,6 +1743,35 @@ interface Accumulator {
   // there is no loader value for this module to agree or disagree with. Recorded as a measurement in
   // 27-58-SUMMARY.md rather than assumed away.
   blockContentIndent: number | null;
+  // (D-62 — 27-REVIEW.md §§ WR-02 / IN-01, round 11) BLANK LINES SEEN INSIDE THE OPEN SCALAR SINCE
+  // ITS LAST CONTENT LINE. A blank line inside a block scalar is CONTENT — YAML folds it to a line
+  // break — and this module dropped it at the paragraph-break skip and then joined the surrounding
+  // lines with a space. Measured: `tools: >` / `  Agent(alpha, ga` / (blank) / `  mma)` enumerated
+  // `["alpha","ga mma"]`, two names with one INVENTED, on the SUCCESS arm, for a value the loader
+  // expresses as `"Agent(alpha, ga\nmma)\n"` — whose line break this module's own enumeration
+  // alphabet REFUSES. The loud refusal is the loader-faithful answer and this is what reaches it.
+  //
+  // COUNTED RATHER THAN EMITTED IMMEDIATELY, because how many breaks survive depends on how many
+  // there are: see `blockBreakRun`. Counting also gives the CHOMPING behaviour this module has always
+  // had for free — a run still pending when the scalar ends is discarded, which is the `-` (strip)
+  // reading. Cleared at every content line and re-zeroed by `openBlock`.
+  blockPendingBreaks: number;
+  // (D-62, FOUND BY THIS PLAN'S OWN ADVERSARIAL PASS AGAINST ITS OWN BUILD) WAS THE SCALAR'S LAST
+  // CONTENT LINE MORE INDENTED THAN ITS DETECTED CONTENT INDENTATION?
+  //
+  // YAML 1.2 § 8.1.3 folds a line break to a space only BETWEEN lines that are at the content
+  // indentation. A MORE-INDENTED line is `s-nb-spaced-text`, and the breaks on either side of it are
+  // `b-l-spaced` — kept LITERAL, never folded. This module folded them, which is D-57's join defect a
+  // third line-shape over and in the same direction. Measured on the post-blank-line build,
+  // `/usr/bin/ruby -ryaml`:
+  //
+  //   tools: >-              module  names ["alpha","ga mma"]  — two names, one INVENTED
+  //     Agent(alpha, ga      loader  "Agent(alpha, ga\n  mma)" — a break the enumeration REFUSES
+  //       mma)
+  //
+  // Meaningful only while `block` is true, and only for a FOLDING style — a literal scalar keeps
+  // every break already, so the flag can only ever agree with it.
+  blockPrevMoreIndented: boolean;
   // (D-57) THE OPEN BLOCK SCALAR'S OWN LINE BREAK — `"\n"` for a literal `|`, `" "` for a folded
   // `>`, derived from the indicator by `blockLineBreak` and never chosen here. Meaningful only while
   // `block` is true.
@@ -1946,10 +2000,30 @@ function flattenBlock(
       let end = start + 1;
       while (end < cur.parts.length && cur.parts[end].block === kind) end += 1;
       const run = cur.parts.slice(start, end);
-      const runText = run
-        .map((p) => regionText(p.intro, p.body))
-        .join(sep)
-        .trim();
+      const joinedRun = run.map((p) => regionText(p.intro, p.body)).join(sep);
+      // (D-62 — 27-REVIEW.md § WR-02, round 11) THE TRIM IS PROVABLY A NO-OP ON A BLOCK-OWNED RUN,
+      // AND IT STOPPED BEING ONE THE MOMENT A LEADING BLANK LINE BECAME CONTENT.
+      //
+      // Every line inside a block scalar reaches its region as `raw.trim()`, and a region's `intro`
+      // is a key or one of two punctuation characters, so a block-owned run can carry no leading or
+      // trailing whitespace of its own — the trim removed nothing. What it DID remove, once blank
+      // lines started folding, was the LEADING LINE BREAK the loader itself expresses:
+      //
+      //   tools: >-          /usr/bin/ruby -ryaml -> "\nAgent(alpha, ga mma)"
+      //   (blank)            module, with the trim  -> "Agent(alpha, ga mma)"
+      //     Agent(alpha, ga  module, without it     -> "\nAgent(alpha, ga mma)"  = the loader's
+      //     mma)
+      //
+      // WHAT THIS DOES AND DOES NOT CLOSE, STATED EXACTLY. The two name sets AGREE on this row on
+      // both builds (`["alpha","ga mma"]`) — the break stands OUTSIDE the enumerated region, so no
+      // name was invented here and none is being rescued. What moves is the VALUE, from one byte
+      // SHORTER than the loader's to byte-identical with it, on a document the loader ACCEPTS. This
+      // module's founding failure is a value shorter than the loader's, so that direction is closed
+      // wherever it is cheap to close, and the trim is scoped to the runs it was written for. The
+      // NON-block arm is BYTE-UNCHANGED, which is what keeps D-33's "the unquote runs on the joined
+      // value" and D-59's run-boundary result exactly where they were. Repository-wide value map
+      // after this edit: 1173 files, 0 moved.
+      const runText = kind ? joinedRun : joinedRun.trim();
       if (kind) {
         for (const p of run) {
           const intro = unquoteChecked(p.intro);
@@ -1999,6 +2073,8 @@ function flattenBlock(
     // can appear. See `blockExplicitIndent`.
     a.blockContentIndent =
       header.explicitIndent === null ? null : headerIndent + header.explicitIndent;
+    a.blockPendingBreaks = 0;
+    a.blockPrevMoreIndented = false;
     // The node BEGAN here: the header introduces the scalar even when its first content line is
     // still to come. Set on the same argument as the key line's and the item path's own assignments.
     a.nodeStarted = true;
@@ -2027,7 +2103,24 @@ function flattenBlock(
     // blankness here would trade that refusal for a silent skip on a document the platform will not
     // load, which is the wrong direction. Asserted by the in-block asymmetry control in
     // scripts/frontmatter.test.ts, so this is not read as an oversight and not "fixed" into a bypass.
-    if (raw.trim() === "") continue;
+    //
+    // (D-62 — 27-REVIEW.md §§ WR-02 / IN-01, round 11) AND INSIDE AN OPEN BLOCK SCALAR A BLANK LINE IS
+    // NOT A PARAGRAPH BREAK AT ALL — IT IS CONTENT. YAML folds it to a line break; this skip consumed
+    // it before the scalar was ever consulted, and the surrounding lines then joined with a SPACE.
+    // Measured, `/usr/bin/ruby -ryaml`: `tools: >` / `  Agent(alpha, ga` / (blank) / `  mma)`
+    // enumerated `["alpha","ga mma"]` — two names, one INVENTED, on the SUCCESS arm — for a value the
+    // loader expresses as `"Agent(alpha, ga\nmma)\n"`, whose line break the module's own enumeration
+    // alphabet REFUSES. Same class as D-57's join defect, one line-shape over.
+    //
+    // THE ALPHABET IS NOT TOUCHED, AND THAT IS THE WHOLE OF THE SCOPING. This fires on exactly the
+    // lines the skip WOULD have consumed, reusing the skip's own emptiness expression rather than
+    // declaring a second blankness test — so D-50's recorded reasoning for the narrow class, and the
+    // in-block asymmetry control that pins it, are unaffected for every line OUTSIDE an open scalar.
+    // What changes is what happens to a blank line INSIDE one, which the accumulator already knows.
+    if (raw.trim() === "") {
+      if (cur !== null && cur.block) cur.blockPendingBreaks += 1;
+      continue;
+    }
     const indent = indentOf(raw);
 
     if (indent > baseIndent) {
@@ -2092,10 +2185,37 @@ function flattenBlock(
           // content line across the mapping's `key:` separator, and that separator is now `regionText`
           // at the flush. `body` is `""` for every scalar's first content line by construction, so
           // this is the same string with the decision made once instead of twice.
+          //
+          // (D-62) AND THE JOIN NOW COUNTS THE BREAKS RATHER THAN ASSUMING ONE. A blank line inside
+          // the scalar is CONTENT, and `blockPendingBreaks` carries how many stood between this
+          // content line and the last one. `blockBreakRun` turns that count into the text the loader
+          // computes, using the line break the indicator ALREADY derived — no second opinion about
+          // what a scalar joins with is written here.
+          //
+          // LEADING BLANK LINES ARE A DIFFERENT RULE AND THE LOADER SAYS SO. Before a scalar's FIRST
+          // content line there is no preceding line to fold against, so YAML keeps each blank as a
+          // literal break in BOTH styles. Measured, `/usr/bin/ruby -ryaml`:
+          //   >-  (blank) / Read, / # x    "\nRead, # x"      one leading blank -> ONE newline
+          //   >-  (blank) x2 / Read, / # x "\n\nRead, # x"    two -> TWO
+          //   |-  (blank) / Read, / # x    "\nRead,\n# x"     the same count for the literal style
+          // This is why the two arms below differ rather than sharing one expression: they are two
+          // different YAML rules, and writing them as one would be a coincidence, not a derivation.
+          //
+          // AND THE FOLD IS SUPPRESSED AT A MORE-INDENTED BOUNDARY, which is § 8.1.3's own condition
+          // and not a third opinion about the indicator. A more-indented line is `s-nb-spaced-text`
+          // and the breaks on EITHER side of it are `b-l-spaced` — literal, never folded — so the
+          // question is asked about this line and about the one before it. `blockBreakRun` is handed
+          // the break this boundary joins with, which for a suppressed fold is the line break itself;
+          // the style's own answer is untouched everywhere else.
+          const moreIndented = indent > cur.blockContentIndent;
+          const boundaryBreak =
+            moreIndented || cur.blockPrevMoreIndented ? "\n" : cur.blockLineBreak;
           const region = cur.parts[cur.parts.length - 1];
           region.body = cur.blockHasContent
-            ? `${region.body}${cur.blockLineBreak}${t}`
-            : t;
+            ? `${region.body}${blockBreakRun(boundaryBreak, cur.blockPendingBreaks + 1)}${t}`
+            : `${"\n".repeat(cur.blockPendingBreaks)}${t}`;
+          cur.blockPendingBreaks = 0;
+          cur.blockPrevMoreIndented = moreIndented;
           cur.blockHasContent = true;
           continue;
         }
@@ -2427,6 +2547,8 @@ function flattenBlock(
         block: false,
         blockIndent: baseIndent,
         blockContentIndent: null,
+        blockPendingBreaks: 0,
+        blockPrevMoreIndented: false,
         blockLineBreak: " ",
         blockHasContent: false,
         seq: false,
@@ -2442,6 +2564,8 @@ function flattenBlock(
         block: false,
         blockIndent: baseIndent,
         blockContentIndent: null,
+        blockPendingBreaks: 0,
+        blockPrevMoreIndented: false,
         blockLineBreak: " ",
         blockHasContent: false,
         seq: false,
@@ -2991,7 +3115,8 @@ function flattenBlock(
 //   diagnosed systemic failure class wearing a control-flow disguise.
 
 // AND A FOURTEENTH TIME — THE PREDICATE WAS RIGHT, ITS POSITIONS WERE RIGHT, NOTHING STOOD IN FRONT
-// OF IT, AND IT WAS ASKED ABOUT THE WRONG NUMBER (27-REVIEW.md § WR-01, round 11 — D-62).
+// OF IT, AND IT WAS ASKED ABOUT THE WRONG NUMBER (27-REVIEW.md §§ WR-01 / WR-02 / IN-01, round 11 —
+// D-62).
 //
 //   FIRST, THE COUNT, CITED AND NOT REMEMBERED. This is the FOURTEENTH entry and it comes from the
 //   ELEVENTH review round. Nothing below depends on either number; every claim names an assertion.
@@ -3022,6 +3147,30 @@ function flattenBlock(
 //   are related rather than one replacing the other. Both sides of the new threshold are measured
 //   against the loader — a line exactly AT the detected indentation is inside, one column less is
 //   outside — because a boundary asserted on one side only is half a boundary.
+//
+//   THE SAME MISTAKE ON A SECOND AXIS, AND ENTRY ELEVEN'S OWN REMEDY IS WHAT NAMES IT. Entry eleven
+//   derived the scalar's JOIN from the indicator, correctly, because a space join was inventing
+//   enumerable names where the loader's line break would be refused. The identical mechanism survived
+//   one line-shape over: the paragraph-break skip consumed the blank line before the scalar was ever
+//   consulted, and the surrounding lines then joined with a space.
+//
+//     G6  `tools: >` / `  Agent(alpha, ga` / `` / `  mma)`   a blank line inside an open scalar
+//
+//     module  names ["alpha","ga mma"] — two names, one INVENTED, on the SUCCESS arm
+//     loader  "Agent(alpha, ga\nmma)\n" — a line break the module's own enumeration alphabet REFUSES
+//
+//   A blank line inside an open scalar is now CONTENT, handled BEFORE the skip and folded through the
+//   line break the indicator ALREADY derives — no second opinion about what a scalar joins with is
+//   written, the axis the existing one is applied to is extended. The skip's deliberately narrow
+//   alphabet is byte-unchanged for every line OUTSIDE an open scalar, reusing the skip's own
+//   emptiness expression rather than declaring a second blankness test, and the in-block asymmetry
+//   control that pins D-50's direction argument is still green.
+//
+//   AND THE PLAN'S OWN ADVERSARIAL PASS FOUND A THIRD LINE-SHAPE, WHICH IS WHY THE PASS IS RUN
+//   AGAINST THE FIXED BUILD. § 8.1.3 folds a break only BETWEEN lines at the content indentation; a
+//   MORE-INDENTED line is `s-nb-spaced-text` and the breaks either side of it stay literal. This
+//   module folded them, so `tools: >-` / `  Agent(alpha, ga` / `    mma)` still enumerated
+//   ["alpha","ga mma"] for a loader value of "Agent(alpha, ga\n  mma)". Closed by the same construct.
 //
 //   AND THE EXPLICIT INDENTATION DIGIT STOPPED BEING SAFE TO DISCARD. `BLOCK_INDICATOR` has always
 //   matched `[0-9]` and nothing ever read it, which cost nothing while the threshold was the header

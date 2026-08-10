@@ -2512,16 +2512,20 @@ describe("frontmatter — the spawn-grant parser oracle (SPAWN-04 / KIT-03)", ()
       value: ["grugops-orchestrator"],
     });
 
-    // THE VALUE DIVERGES FROM THE LOADER'S IN WHITESPACE ONLY, AND THAT IS RECORDED RATHER THAN
-    // ASSERTED AWAY. This module TRIMS every content line (a pre-existing flattening property older
-    // than D-62), so the two leading spaces the loader preserves are not expressible here and the
-    // more-indented line's literal break is flattened to the fold. Neither can create or destroy a
-    // `\bAgent\b` boundary, so the fact any guard asks of this value is unchanged.
+    // THE VALUE DIVERGES FROM THE LOADER'S IN LEADING WHITESPACE ONLY, AND THAT IS RECORDED RATHER
+    // THAN ASSERTED AWAY. This module TRIMS every content line (a pre-existing flattening property
+    // older than D-62), so the two leading spaces the loader preserves are not expressible here. The
+    // BREAK STRUCTURE does agree: both content lines are more indented than the declared content
+    // indentation, so the fold is suppressed on both sides and the module writes the same `\n` the
+    // loader does. Leading whitespace can neither create nor destroy a `\bAgent\b` boundary, so the
+    // fact any guard asks of this value is unchanged.
+    //   loader: "  Read,\n # x, Agent(grugops-orchestrator)"
+    //   module:   "Read,\n# x, Agent(grugops-orchestrator)"
     const p = parseFrontmatter(w5);
     expect(p.ok).toBe(true);
     if (p.ok) {
       expect(p.value.get("tools")).toEqual([
-        "nested: Read, # x, Agent(grugops-orchestrator)",
+        "nested: Read,\n# x, Agent(grugops-orchestrator)",
       ]);
     }
 
@@ -2598,6 +2602,238 @@ describe("frontmatter — the spawn-grant parser oracle (SPAWN-04 / KIT-03)", ()
     });
     // And the unit itself: one column per character, a tab counted as ONE, on both sides.
     expect("\t  x".length - "\t  x".replace(/^[ \t]*/, "").length).toBe(3);
+  });
+
+  // ── (27-58, D-62 — 27-REVIEW.md §§ WR-02 / IN-01, round 11) A BLANK LINE INSIDE AN OPEN SCALAR ──
+  //
+  // Loader column is `/usr/bin/ruby -ryaml` (ruby 2.6.10 / psych 3.1.0 / libyaml 0.2.1) for every row.
+  // The verbatim RED/GREEN transcript is in 27-58-SUMMARY.md and deferred-items.md § From 27-58.
+
+  it("D-62 row B1 — a folded scalar's blank line is a LINE BREAK, so the module stops inventing a name", () => {
+    // PRE-FIX, MEASURED: grantedAgentNames -> {ok:true, value:["alpha","ga mma"]}. TWO names, one of
+    // them INVENTED, on the SUCCESS arm.
+    // LOADER:            "Agent(alpha, ga\nmma)\n" — a line break INSIDE the enumeration, and this
+    //                    module's own ENUMERATION_LEGAL_CHARS does not contain one.
+    //
+    // SO THE LOADER-FAITHFUL ANSWER IS THE LOUD REFUSAL ARM, NOT A SHORTER OR ALTERED NAME SET. A
+    // reader seeing a refusal appear where names used to be needs to know that is the intended
+    // direction: the module now reaches the same answer the loader's own value reaches, and D-09's
+    // "a name is never silently dropped or altered" holds on both sides.
+    const folded = "---\nname: x\ntools: >\n  Agent(alpha, ga\n\n  mma)\n---\nBody.\n";
+    const names = grantedAgentNames(folded);
+    expect(
+      names.ok,
+      "the loader's value carries a line break the enumeration alphabet REFUSES, so the module must refuse too — the LOUD arm is the correct answer here, not a name set",
+    ).toBe(false);
+    if (!names.ok) expect(names.reason).toMatch(/outside the legal character set/);
+    // The VALUE, beside the verdict: byte-equal to the loader's modulo the trailing newline this
+    // module's flush has never carried (the `-` chomping reading, older than D-62).
+    const p = parseFrontmatter(folded);
+    expect(p.ok).toBe(true);
+    if (p.ok) expect(p.value.get("tools")).toEqual(["Agent(alpha, ga\nmma)"]);
+  });
+
+  it("D-62 row B2 (IN-01) — the LITERAL spelling's value EQUALS the loader's, asserted in the same case as the folded one", () => {
+    // IN-01 IS THE LITERAL SPELLING OF THE SAME DROP, and the review's own disposition is that fixing
+    // WR-02 fixes it — with a control tying the two axes together so they cannot drift apart. This is
+    // that control, and it asserts VALUE EQUALITY rather than token presence: a case that only
+    // checked "the token is still there" would have passed on the pre-fix build too.
+    //
+    // The CHOMPED spellings are the equality rows, because this module's flush has never carried a
+    // block scalar's trailing newline and `-` is the indicator that says the loader should not either.
+    const rows: readonly [string, string, string][] = [
+      // label, document region, the loader's value verbatim
+      ["B2 literal, one blank", "tools: |-\n  Agent(alpha, ga\n\n  mma)", "Agent(alpha, ga\n\nmma)"],
+      ["B2c folded, one blank", "tools: >-\n  Agent(alpha, ga\n\n  mma)", "Agent(alpha, ga\nmma)"],
+      ["B4 folded, TWO blanks", "tools: >-\n  Agent(alpha, ga\n\n\n  mma)", "Agent(alpha, ga\n\nmma)"],
+      ["B4b literal, TWO blanks", "tools: |-\n  Agent(alpha, ga\n\n\n  mma)", "Agent(alpha, ga\n\n\nmma)"],
+      // B5 — a blank BEFORE the first content line. YAML has no preceding line to fold against, so
+      // each leading blank is a literal break in BOTH styles, and this is where task 1 and task 2
+      // meet: the detected content indentation is taken from the first NON-EMPTY line.
+      ["B5 folded, leading blank", "tools: >-\n\n  Agent(alpha, ga\n  mma)", "\nAgent(alpha, ga mma)"],
+      ["B5b literal, leading blank", "tools: |-\n\n  Read,\n  Agent(o)", "\nRead,\nAgent(o)"],
+      ["B5c folded, TWO leading blanks", "tools: >-\n\n\n  Read, Agent(o)", "\n\nRead, Agent(o)"],
+    ];
+    for (const [label, region, loaderValue] of rows) {
+      const p = parseFrontmatter(`---\nname: x\n${region}\n---\nBody.\n`);
+      expect(p.ok, label).toBe(true);
+      if (p.ok) {
+        expect(
+          p.value.get("tools"),
+          `${label} — the loader reads this as ${JSON.stringify(loaderValue)}`,
+        ).toEqual([loaderValue]);
+      }
+    }
+  });
+
+  it("D-62 row B3 — a blank line OUTSIDE any open block scalar is UNTOUCHED, and the D-50 asymmetry is intact", () => {
+    // THE PROHIBITION, MEASURED. D-50's reason for the paragraph-break skip's narrow alphabet is about
+    // the DIRECTION: outside a scalar it routes an invisible-only line into a LOUD refusal libyaml
+    // agrees with, and widening it would trade that refusal for a silent skip on a document the
+    // platform will not load. D-62 changes what happens to a blank line INSIDE an open scalar and
+    // nothing else — the scoping is the open-scalar fact the accumulator already holds, and the
+    // blankness EXPRESSION is the skip's own, reused rather than restated.
+    const outside = parseFrontmatter(
+      "---\nname: x\ntools: Read,\n\nname2: y\n---\nBody.\n",
+    );
+    expect(outside.ok).toBe(true);
+    if (outside.ok) expect(outside.value.get("tools")).toEqual(["Read,"]);
+
+    // The skip's branch, read from the module's own source: the class is `.trim()`-based and the
+    // increment is gated on the open-scalar fact, so no second blankness alphabet was declared.
+    const source = readFileSync(join(import.meta.dirname, "frontmatter.ts"), "utf8");
+    const branch = source.slice(
+      source.indexOf("if (raw.trim() === \"\") {"),
+      source.indexOf("const indent = indentOf(raw);"),
+    );
+    expect(branch, "the in-block arm must be gated on the OPEN-SCALAR fact and nothing else").toContain(
+      "if (cur !== null && cur.block) cur.blockPendingBreaks += 1;",
+    );
+    expect(
+      /\p{L}|\p{N}/u.test(branch.replace(/\/\/.*/g, "").replace(/[\s\S]*?\{/, "")),
+      "the branch still exists as code",
+    ).toBe(true);
+    // And no SECOND blankness class was introduced anywhere: the count of `.trim()`-based blank tests
+    // is pinned by the D-50 IN-01 source-inspection case below, unchanged by this decision.
+  });
+
+  it("D-62 row B6 — the CHOMPING spellings are each adjudicated against the loader, and the divergence is a stated number", () => {
+    // WHAT THIS MODULE DOES WITH A TRAILING BREAK RUN, STATED RATHER THAN LEFT UNMEASURED. A run of
+    // breaks still pending when the scalar ends is DISCARDED, which is the `-` (strip) reading, and
+    // that is what the flush has always done. The loader keeps one break for `clip` (the bare
+    // indicator) and all of them for `keep` (`+`). Measured, all five spellings:
+    //
+    //   >   Read, Agent(o) / (blank) / name2: y   loader "Read, Agent(o)\n"    module "Read, Agent(o)"
+    //   >-  same                                  loader "Read, Agent(o)"      module "Read, Agent(o)"
+    //   >+  same                                  loader "Read, Agent(o)\n\n"  module "Read, Agent(o)"
+    //   |   same                                  loader "Read, Agent(o)\n"    module "Read, Agent(o)"
+    //   |+  same                                  loader "Read, Agent(o)\n\n"  module "Read, Agent(o)"
+    //
+    // DIVERGENCE: 3 of 5 spellings, and in EVERY case it is a TRAILING run of line breaks and nothing
+    // else. A trailing break is a non-word character at the end of the value, so it can neither create
+    // nor destroy a `\bAgent\b` / `\bTask\b` boundary and it is outside every enumerated region — the
+    // name sets agree on all five. This is a recorded property of the flattener, not a hole: the
+    // flush's `.trim()` on a non-block run and the discard of a pending run are one behaviour with one
+    // reason, and changing it is a value-map re-cut this plan does not take.
+    const CHOMPING: readonly [string, string][] = [
+      [">", "Read, Agent(o)"],
+      [">-", "Read, Agent(o)"],
+      [">+", "Read, Agent(o)"],
+      ["|", "Read, Agent(o)"],
+      ["|+", "Read, Agent(o)"],
+    ];
+    for (const [indicator, moduleValue] of CHOMPING) {
+      const doc = `---\nname: x\ntools: ${indicator}\n  Read, Agent(o)\n\nname2: y\n---\nBody.\n`;
+      const p = parseFrontmatter(doc);
+      expect(p.ok, indicator).toBe(true);
+      if (p.ok) expect(p.value.get("tools"), indicator).toEqual([moduleValue]);
+      expect(grantedAgentNames(doc), indicator).toEqual({ ok: true, value: ["o"] });
+    }
+  });
+
+  it("D-62 adversarial pass (a) — WHICH LINES does the open-scalar fact now reach, and is each correctly inside or outside", () => {
+    // ASKED OF THE FIXED BUILD RATHER THAN DECLARED CLOSED once the reported rows went green. The
+    // question enumerates the line shapes the paragraph-break skip USED to consume and checks each is
+    // now classified as the loader classifies it. Every row's loader column is recorded beside it.
+    const ROWS: readonly [string, string, string | null][] = [
+      // label, region, the loader's `tools` value (null = the loader REJECTS the document)
+      ["a1 empty line, top-level folded", "tools: >-\n  Agent(alpha, ga\n\n  mma)", "Agent(alpha, ga\nmma)"],
+      ["a3 spaces-only line LESS indented than the content indent", "tools: >-\n    Read,\n  \n    Agent(o)", "Read,\nAgent(o)"],
+      ["a8 the scalar is a SEQUENCE ITEM", "tools:\n  - >-\n    Agent(alpha, ga\n\n    mma)", "Agent(alpha, ga\nmma)"],
+      ["a9 the scalar is a NESTED mapping value", "tools:\n  nested: >-\n    Agent(alpha, ga\n\n    mma)", "nested: Agent(alpha, ga\nmma)"],
+      ["a10 a blank, then the line that ENDS the scalar", "tools: >-\n  Read,\n\nname2: Agent(o)", "Read,"],
+      ["a12 a blank inside a scalar with an EXPLICIT digit", "tools: >-2\n  Read,\n\n  Agent(o)", "Read,\nAgent(o)"],
+    ];
+    for (const [label, region, expected] of ROWS) {
+      const p = parseFrontmatter(`---\nname: x\n${region}\n---\nBody.\n`);
+      expect(p.ok, label).toBe(true);
+      if (p.ok) expect(p.value.get("tools"), label).toEqual([expected]);
+    }
+
+    // THE TWO SHAPES THAT DELIBERATELY ANSWER DIFFERENTLY, AND THEY ARE THE CONTRAST THAT SCOPES THE
+    // CHANGE. A blank line where NO block scalar is open is byte-unchanged on both builds.
+    for (const region of ["\ntools: Read, Agent(o)", "tools: Read,\n\n  Agent(o)"]) {
+      const p = parseFrontmatter(`---\nname: x\n${region}\n---\nBody.\n`);
+      expect(p.ok, region).toBe(true);
+      if (p.ok) expect(p.value.get("tools"), region).toEqual(["Read, Agent(o)"]);
+    }
+
+    // AND THE ONE SHAPE WHOSE ANSWER IS "THE LOUD ARM, AGREEING WITH THE LOADER". A ZWSP-only line is
+    // NOT blank to `String.prototype.trim`, so it never reaches the new in-block arm at all; it falls
+    // through to the key-line refusal, and `/usr/bin/ruby -ryaml` REJECTS the same document. D-50's
+    // recorded asymmetry, working at a site D-50 did not anticipate.
+    const zwsp = parseFrontmatter(
+      "---\nname: x\ntools: >-\n  Read,\n​\n  Agent(o)\n---\nBody.\n",
+    );
+    expect(zwsp.ok, "the loader REJECTS this document; the module refuses it too").toBe(false);
+  });
+
+  it("D-62 adversarial pass (b) — what the JOIN'S INPUT is assembled from, and the residual it found", () => {
+    // WALKING ONE FOLDED SCALAR FROM ITS HEADER THROUGH EVERY CONTENT AND BLANK LINE INTO THE JOIN,
+    // THE FLUSH AND THE ENUMERATION, ASKING AT EACH HOP WHAT THE NEXT STAGE ASSUMES ABOUT SEPARATORS.
+    // It found a LIVE residual the reported rows did not reach, and this case is the pin for it.
+    //
+    // THE FINDING. YAML 1.2 § 8.1.3 folds a break to a space only BETWEEN lines at the content
+    // indentation; a MORE-INDENTED line is `s-nb-spaced-text` and the breaks on either side of it are
+    // literal. This module folded them. Measured on the post-blank-line build:
+    //
+    //   tools: >-              module  names ["alpha","ga mma"] — two names, one INVENTED
+    //     Agent(alpha, ga      loader  "Agent(alpha, ga\n  mma)" — the enumeration REFUSES that
+    //       mma)
+    //
+    // Same class as WR-02, a third line-shape over, in the same direction — so it is closed by the
+    // same construct rather than deferred.
+    const mi = "---\nname: x\ntools: >-\n  Agent(alpha, ga\n    mma)\n---\nBody.\n";
+    const names = grantedAgentNames(mi);
+    expect(names.ok, "the loader's value carries a literal break, so the module must refuse").toBe(false);
+
+    // THE BREAK STRUCTURE, ROW BY ROW, AGAINST THE LOADER. The module trims each content line, so the
+    // leading indentation the loader PRESERVES on a more-indented line is not expressible here; that
+    // is whitespace only and cannot move a word boundary. What must agree is where the BREAKS are.
+    const ROWS: readonly [string, string, string][] = [
+      ["f1 normal, MORE", "tools: >-\n  a,\n    b,", "a,\n  b,"],
+      ["f3 normal, MORE, normal", "tools: >-\n  a,\n    b,\n  c,", "a,\n  b,\nc,"],
+      ["f4 normal, MORE, MORE", "tools: >-\n  a,\n    b,\n    c,", "a,\n  b,\n  c,"],
+      ["f5 normal, normal (the fold SURVIVES)", "tools: >-\n  a,\n  b,", "a, b,"],
+      ["f6 normal, blank, MORE", "tools: >-\n  a,\n\n    b,", "a,\n\n  b,"],
+      ["f7 normal, MORE, blank, normal", "tools: >-\n  a,\n    b,\n\n  c,", "a,\n  b,\n\nc,"],
+      ["f8 LITERAL, normal, MORE (already agreed)", "tools: |-\n  a,\n    b,", "a,\n  b,"],
+    ];
+    for (const [label, region, loaderValue] of ROWS) {
+      const p = parseFrontmatter(`---\nname: x\n${region}\n---\nBody.\n`);
+      expect(p.ok, label).toBe(true);
+      if (!p.ok) continue;
+      const value = p.value.get("tools")?.[0] ?? "";
+      // The break POSITIONS must match the loader's exactly; the leading whitespace of each line is
+      // the one thing this module cannot express, so it is removed from BOTH sides before comparing
+      // rather than quietly ignored on one.
+      expect(
+        value.split("\n").map((l) => l.trimStart()),
+        `${label} — the loader reads this as ${JSON.stringify(loaderValue)}`,
+      ).toEqual(loaderValue.split("\n").map((l) => l.trimStart()));
+    }
+  });
+
+  it("D-62 the SAME shape OUTSIDE a block scalar is a recorded OPEN item, not a silent pass", () => {
+    // FOUND BY THE SAME ADVERSARIAL PASS AND DELIBERATELY NOT CLOSED HERE. A blank line inside an
+    // open PLAIN multi-line scalar is a line break to the loader and this module still folds it to a
+    // space, so the invented-name direction survives OUTSIDE the block-scalar construct:
+    //
+    //   tools: Agent(alpha, ga     module names ["alpha","ga mma"]
+    //   (blank)                    loader "Agent(alpha, ga\nmma)" — the enumeration REFUSES that
+    //     mma)
+    //
+    // IT IS NOT CLOSED HERE BECAUSE THE FIX IS IN A DIFFERENT CONSTRUCT. D-62's whole scoping argument
+    // is the open-scalar fact; the continuation fold is a separate path with its own recorded
+    // reasoning, and widening the paragraph-break skip for lines outside an open block scalar is a
+    // prohibition this plan carries. So it is PINNED AT ITS CURRENT ANSWER with a named owner, which
+    // is what stops a later round from reading the green suite as coverage of it. When it is closed,
+    // THIS case fails and has to be updated deliberately.
+    const plain = "---\nname: x\ntools: Agent(alpha, ga\n\n  mma)\n---\nBody.\n";
+    expect(
+      grantedAgentNames(plain),
+      "OPEN — carried to a later round with a named owner in deferred-items.md § From 27-58",
+    ).toEqual({ ok: true, value: ["alpha", "ga mma"] });
   });
 
   it("CR-01 — a MERGE KEY document lands in the failure arm (refused by KEY_LINE, not by a second branch)", () => {
@@ -6248,6 +6484,13 @@ const MODULE_SYMBOLS = [
   "blockContentIndent",
   "blockExplicitIndent",
   "BLOCK_EXPLICIT_INDENT",
+  // (D-62, round 11) AND THE THREE NAMES THE BLANK-LINE AXIS ADDED. `blockBreakRun` is the only place
+  // a RUN of breaks becomes text; `blockPendingBreaks` and `blockPrevMoreIndented` are the two facts
+  // it is computed from. A list that does not name them cannot notice a second answer to "how does a
+  // block scalar join its lines" appearing beside the one the indicator derives.
+  "blockBreakRun",
+  "blockPendingBreaks",
+  "blockPrevMoreIndented",
   "cellDoc",
 ] as const;
 
@@ -7925,6 +8168,31 @@ describe("frontmatter — the loader differential over a GENERATED corpus (D-52 
       danglingNodeProperty: false,
       flowNodeStartAtEndOfKeyLine: false,
     },
+    // ── (27-58, D-62) A BLANK LINE INSIDE AN OPEN BLOCK SCALAR, ADDED IN THE SAME PLAN AS ITS FIX ──
+    //
+    // THE SAME ORDER ARGUMENT A FIFTH TIME. Before the fix this shape enumerated an INVENTED name on
+    // the success arm, so a corpus member for it would have put the differential's name-set direction
+    // into failure and the only ways out are forbidden. It arrives with the fix.
+    //
+    // WHY NO EXISTING MEMBER COULD SPELL IT: NO SHAPE IN THIS AXIS CONTAINED A BLANK LINE AT ALL. The
+    // builder emits continuations from `indent` + text and never emits an empty one, so a blank line
+    // could only ever come from a shape's own `lines` — and none had one. The paragraph-break skip
+    // therefore consumed a construct the corpus could not produce, and the differential reported zero
+    // disagreements over a name the loader does not express. 27-49's recorded lesson arriving a sixth
+    // time, this time on a LINE SHAPE rather than on a position, a key, a property or a number.
+    //
+    // THE DECLARED YAML FACTS. `valueNodeOnContinuation: false` — the value node begins on the header
+    // line, which is part of `lines`, so every builder-emitted continuation is the scalar's CONTENT.
+    // The blank line inside `lines` is content too, which is the whole point of the member.
+    {
+      label: "top-level folded scalar, a blank line inside it",
+      lines: ["tools: >", "  Agent(alpha, ga", ""],
+      indent: "  ",
+      tail: "",
+      valueNodeOnContinuation: false,
+      danglingNodeProperty: false,
+      flowNodeStartAtEndOfKeyLine: false,
+    },
   ];
 
   // ── AXIS 1b: THE QUOTE STYLE (27-51, WR-01 / 27-REVIEW § WR-01, round 10) ─────────────────────
@@ -8415,7 +8683,9 @@ describe("frontmatter — the loader differential over a GENERATED corpus (D-52 
     // (27-58, D-62) 24 -> 25: the same header with its FIRST CONTENT LINE above the minimum, which is
     // the one arrangement in which the header line's indent and the scalar's own detected content
     // indentation disagree. It opens no quoted scalar either, so the derived axis moves 51 -> 52.
-    expect(AXIS_KEY_LINE_BASE.length).toBe(25);
+    // (27-58, D-62) 25 -> 26: the blank-line-inside-a-block-scalar shape. No member of this axis
+    // contained a blank line at all before it, so the construct was outside the corpus entirely.
+    expect(AXIS_KEY_LINE_BASE.length).toBe(26);
     // THE FAMILY IS EXPRESSIBLE, DERIVED FROM THE SHAPES RATHER THAN CLAIMED IN A COMMENT. A
     // block-scalar header must be spelled on a line BELOW the top-level key line, or family G/G2 is
     // still outside this corpus and the completeness line is again a statement about inputs it never
@@ -9221,7 +9491,7 @@ describe("frontmatter — the loader differential over a GENERATED corpus (D-52 
     expect(
       LEDGER_FAMILIES.length,
       `family rows derived from scripts/frontmatter.ts's header:\n${LEDGER_FAMILIES.map((f) => `${f.label}  ${f.sketch}`).join("\n")}`,
-    ).toBe(14);
+    ).toBe(15);
     expect(LEDGER_FAMILIES.length).toBeGreaterThan(0);
     expect(new Set(LEDGER_FAMILIES.map((f) => f.label)).size).toBe(
       LEDGER_FAMILIES.length,
@@ -9244,7 +9514,8 @@ describe("frontmatter — the loader differential over a GENERATED corpus (D-52 
     expect(outside.length).toBe(3);
     // (27-57, D-61) 9 -> 10: the thirteenth ledger entry's family row G4.
     // (27-58, D-62) 10 -> 11: the fourteenth ledger entry's family row G5.
-    expect(inside.length).toBe(11);
+    // (27-58, D-62) 11 -> 12: the fourteenth entry's SECOND family row G6.
+    expect(inside.length).toBe(12);
     expect(outside.length + inside.length).toBe(LEDGER_FAMILIES.length);
 
     // THE AXIS-MEMBER COMBINATION THAT BUILDS EACH FAMILY, NAMED BY LABEL. This is the only
@@ -9338,6 +9609,14 @@ describe("frontmatter — the loader differential over a GENERATED corpus (D-52 
       G5: {
         keyLine: "nested block mapping value, an over-indented first content line",
         first: "a hash at position 0",
+        second: "the token after a hash",
+        depth: 2,
+      },
+      // (27-58, D-62) The fourteenth entry's SECOND family row. Both directions of one decision earn
+      // a row, and both went red by name here before their members were added.
+      G6: {
+        keyLine: "top-level folded scalar, a blank line inside it",
+        first: "plain text",
         second: "the token after a hash",
         depth: 2,
       },

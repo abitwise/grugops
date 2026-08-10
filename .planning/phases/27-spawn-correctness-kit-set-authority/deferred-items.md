@@ -1992,3 +1992,335 @@ two mutation controls each with its own baseline (§12), and the two adversarial
 | The block-sequence item and bare-header introductions REFUSE a property libyaml accepts and grants (control P / S / a6 / a8) — deliberate, byte-unchanged, and the contrast the diagnosis rests on | not open as a defect; recorded so a later round does not read it as one |
 | `27-55` and `27-56`'s open items | carried, unchanged — `27-57` touched no exemption machinery, no fence classifier and no toggle |
 | KIT-03 and SPAWN-04 stay `[ ]` / `Gaps Found` | the next verification round for phase 27 (D-58 item 4) |
+
+---
+
+## From 27-58 — WR-01 / WR-02 / IN-01: the block-scalar machinery measured from the wrong landmarks (round 11)
+
+**Class.** Not the predicate's conditions (D-54), not its positions (D-57), not whose question it was
+answering (D-60), not what stood in front of it (D-61). **The predicate was asked about the wrong
+NUMBER.** A boundary can be at the right position, be asked the right question, and still be measured
+from the wrong landmark — and a landmark that USUALLY coincides with the right one is the worst kind,
+because it makes the corpus agree.
+
+Loader column for every row below is `/usr/bin/ruby -ryaml` (ruby 2.6.10 / psych 3.1.0 /
+libyaml 0.2.1). The pre-fix build is the committed `17c1b58`; the post-fix build is this plan's.
+
+### 1. RED — the three findings, measured on `17c1b58`
+
+| Row | region | module (pre-fix) | loader |
+|---|---|---|---|
+| **W1** over-indented first content line | `tools:` / `  nested: >-` / `        Read,` / `    # x, Agent(o)` | **GRANT**, names `["grugops-orchestrator"]` | `{"nested"=>"Read,"}` — ACCEPTED, **no grant** |
+| **W3** the same, one column less | `tools:` / `  nested: >-` / `      Read,` / `     # x, Agent(o)` | **GRANT**, names `["grugops-orchestrator"]` | `{"nested"=>"Read,"}` — ACCEPTED, **no grant** |
+| **W7** the same at the TOP-LEVEL key line | `tools: >-` / `      Read,` / `  # x, Agent(o)` | **GRANT**, names `["grugops-orchestrator"]` | `"Read,"` — ACCEPTED, **no grant** |
+| **B1** folded, a blank line inside | `tools: >` / `  Agent(alpha, ga` / (blank) / `  mma)` | names `["alpha","ga mma"]` — one **INVENTED** | `"Agent(alpha, ga\nmma)\n"` — the enumeration alphabet **REFUSES** the break |
+| **B2** literal, a blank line inside (IN-01) | `tools: \|` / `  Agent(alpha, ga` / (blank) / `  mma)` | `"Agent(alpha, ga\nmma)"` — one break SHORT | `"Agent(alpha, ga\n\nmma)\n"` |
+| **b4** the fold across a MORE-INDENTED line (found by this plan's own adversarial pass, post-blank-line build) | `tools: >-` / `  Agent(alpha, ga` / `    mma)` | names `["alpha","ga mma"]` — one **INVENTED** | `"Agent(alpha, ga\n  mma)"` — the enumeration **REFUSES** |
+
+W1/W3/W7 are the direction the module's own doc block names **never exemptible** — a module grant the
+loader does not have. B1 and b4 are the **D-09 / KIT-03** direction — a name the document does not
+express, returned on the success arm.
+
+### 2. GREEN — the same table on this build
+
+| Row | module (post-fix) | verdict |
+|---|---|---|
+| W1 | `{ok:true,value:false}`, names `[]`, value `"nested: Read, "` | agrees with the loader; the one trailing space is the module's **pre-existing** flattening of a comment-only sibling line, byte-identical on both builds (control E2) |
+| W3 | `{ok:true,value:false}`, names `[]` | agrees |
+| W7 | `{ok:true,value:false}`, names `[]` | agrees |
+| W2 (boundary, INSIDE) | `{ok:true,value:true}`, names `["grugops-orchestrator"]` | agrees — a line exactly **AT** the detected indent is inside |
+| B1 | names **REFUSE** (`outside the legal character set`) | the LOUD arm, which is the loader-faithful answer; value `"Agent(alpha, ga\nmma)"` |
+| B2 (`\|-`) | value `"Agent(alpha, ga\n\nmma)"` | **byte-equal to the loader** |
+| b4 | names **REFUSE** | the LOUD arm |
+
+### 3. The boundary, measured on BOTH sides (KIT-03's `boundary` probe row)
+
+Detected content indentation **6**, one row per column:
+
+| content line at | loader | module (post-fix) |
+|---|---|---|
+| 6 | `{"nested"=>"Read, # x, Agent(o)"}` — INSIDE | grant, names `["grugops-orchestrator"]` |
+| 5 | `{"nested"=>"Read,"}` — OUTSIDE | no grant |
+| 4 | `{"nested"=>"Read,"}` — OUTSIDE | no grant |
+
+### 4. The explicit indentation digit — HONOURED, and the alternative REJECTED BY MEASUREMENT
+
+`BLOCK_INDICATOR` has always matched `[0-9]` and nothing read it. Under the new threshold that stops
+being free. The base the digit is added to is the **header line's own indent**, measured on eight rows
+across all three positions a header can appear at:
+
+```
+tools: >-2 / `  a` / ` b`            -> "a,"                content indent 0+2 = 2
+tools: >-2 / `    a` / `   b`        -> "  a,\n b"          content indent 0+2 = 2
+tools: >-1 / `  a` / ` b`            -> " a,\n# b"          content indent 0+1 = 1
+tools: / `  nested: >-2` / 6 / 5     -> "  Read,\n # x"     content indent 2+2 = 4
+tools: / `  nested: >-2` / 4 / 3     -> "Read,"             content indent 2+2 = 4
+tools: / `  nested: >-4` / 6 / 5     -> "Read,"             content indent 2+4 = 6
+tools: / `  nested: >-1` / 6 / 5     -> "   Read,\n  # x"   content indent 2+1 = 3
+tools: / `  - >-2` / 6 / 5           -> ["  Read,\n # x"]   content indent 2+2 = 4
+```
+
+**W5, the row that forces the disposition.** `tools:` / `  nested: >-2` / `      Read,` /
+`     # x, Agent(grugops-orchestrator)` loads as
+`{"nested"=>"  Read,\n # x, Agent(grugops-orchestrator)"}` — **the loader ACCEPTS it and its value
+carries the grant.** Auto-detecting would put the content indent at 8, end the scalar at the line
+indented 7 and return `Read,` alone: a **silent no-grant created by the fix for an over-inclusion**.
+So the digit is read. Both orders § 8.1.1 permits are read (`>2-` and `>-2`, adjudicated). `>-0` and
+`>-10` are documents the loader REJECTS outright (*"an indentation indicator equal to 0"*, *"did not
+find expected comment or line break"*), so the reader returns `null` and the scalar auto-detects.
+
+The reader is **derived** from `BLOCK_INDICATOR` rather than transcribed beside it: candidate
+spellings are generated, filtered through the real constant, and the reader must agree with the
+constant's own digit run on every survivor.
+
+### 5. The indentation UNIT, and the tab measurement (KIT-03's `precision` / `backstop` probe row)
+
+The unit is `indentOf`'s: a count of leading `[ \t]` characters, one column per character, a tab
+counted as **ONE**. Both sides of the comparison are taken by that one helper from the raw line, so no
+rounding, truncation or unit mismatch is possible — they are the same function of the same shape of
+input. A tab **inside** an indentation run is not a case that has to survive, and that is a recorded
+verdict rather than an assumption:
+
+```
+tools: >-                REJECT  found a tab character where an indentation space is expected
+  Read,                          while scanning a block scalar
+<TAB>  # x, Agent(o)
+
+tools: >-                REJECT  the same error, tab on the FIRST content line
+<TAB>Read, Agent(o)
+```
+
+There is **no loader value** for this module to agree or disagree with at either spelling. The
+module's own answer for both is recorded (`{ok:true,value:true}`) rather than asserted correct.
+
+### 6. The break-run rule, measured rather than derived from prose
+
+`n` = the number of breaks between two content lines (one blank line between them is **two** breaks):
+
+| | n=1 | n=2 | n=3 |
+|---|---|---|---|
+| folded `>` | `" "` | `"\n"` | `"\n\n"` |
+| literal `\|` | `"\n"` | `"\n\n"` | `"\n\n\n"` |
+
+**Leading** blanks are a different rule and the loader says so: before the first content line there is
+no preceding line to fold against, so `k` leading blanks are `k` literal breaks in **both** styles
+(`>-` / blank / `Read,` / `# x` -> `"\nRead, # x"`; `|-` -> `"\nRead,\n# x"`). The two arms are written
+separately because they are two YAML rules; writing them as one would be a coincidence, not a
+derivation.
+
+**The fold is suppressed at a more-indented boundary** (§ 8.1.3: a more-indented line is
+`s-nb-spaced-text` and the breaks either side of it are literal). Seven rows, break positions
+byte-agreeing with the loader after the fix: `f1` normal/MORE, `f3` normal/MORE/normal, `f4`
+normal/MORE/MORE, `f5` normal/normal (the fold **survives**), `f6` normal/blank/MORE, `f7`
+normal/MORE/blank/normal, `f8` literal/normal/MORE.
+
+### 7. The chomping spellings, adjudicated — divergence stated as a number
+
+A break run still pending when the scalar ends is **discarded**, which is the `-` (strip) reading and
+what the flush has always done.
+
+| indicator | loader | module | agree? |
+|---|---|---|---|
+| `>` (clip) | `"Read, Agent(o)\n"` | `"Read, Agent(o)"` | trailing break only |
+| `>-` (strip) | `"Read, Agent(o)"` | `"Read, Agent(o)"` | **yes** |
+| `>+` (keep) | `"Read, Agent(o)\n\n"` | `"Read, Agent(o)"` | trailing breaks only |
+| `\|` (clip) | `"Read, Agent(o)\n"` | `"Read, Agent(o)"` | trailing break only |
+| `\|+` (keep) | `"Read, Agent(o)\n\n"` | `"Read, Agent(o)"` | trailing breaks only |
+
+**Divergence: 3 of 5 spellings, and in every case it is a TRAILING run of line breaks and nothing
+else.** A trailing break is a non-word character at the end of the value, outside every enumerated
+region, so it can neither create nor destroy a `\bAgent\b` / `\bTask\b` boundary — the name sets agree
+on all five. Recorded as a property of the flattener; changing it is a value-map re-cut this plan does
+not take.
+
+### 8. The gate, on a hermetic mirror — the WR-01 direction INVERTED
+
+`git archive <commit>` into a temp dir, the plant written into the **EXISTING** `allowed-tools:` key of
+**both** distribution twins of the non-coordinator `map` skill (`.claude/skills/grugops-map/SKILL.md`
+and `skills/map/SKILL.md`), never by adding a second key, and the real
+`node scripts/check-foundation-guards.js` run with `CHECK_ROOT` pointed at the mirror. Twins counted
+over the **FAILURE block only**.
+
+```
+allowed-tools:
+  nested: >-
+        Read, Write, Bash, Glob, Grep,
+    # x, Agent(grugops-orchestrator)
+
+/usr/bin/ruby -ryaml -> {"allowed-tools"=>{"nested"=>"Read, Write, Bash, Glob, Grep,"}}
+                        the loader's value carries NO grant
+```
+
+| build | result |
+|---|---|
+| pre-fix `17c1b58` | `:: exit=1 :: planted 2/2 :: twins named 2/2 :: 1 CHECK(S) FAILED` — a **FALSE RED** over a grant the loader does not express |
+| post-fix HEAD | `:: exit=0 :: planted 2/2 :: twins named 0/2 :: ALL CHECKS PASSED` |
+
+**Harness-premise controls, because a gate that goes green is exactly the result a broken harness also
+produces:**
+
+| control | pre-fix | post-fix |
+|---|---|---|
+| unplanted mirror | — | `exit=0 :: ALL CHECKS PASSED` |
+| a plain one-line grant | — | `exit=1 :: twins named 2/2` — the probe can see a grant |
+| **W6 — a GENUINE grant at the over-indented shape** (`        # x, Agent(o)` at the DETECTED indent; loader `{"nested"=>"Read, Write, Bash, Glob, Grep, # x, Agent(grugops-orchestrator)"}`) | `exit=1 :: twins named 2/2` | `exit=1 :: twins named 2/2` — **the fix removes an over-inclusion, not a grant** |
+| the same SHAPE with a harmless tool list (`# x, WebFetch`) | `exit=0` | `exit=0` — the shape alone is not what moves the gate |
+
+**The earlier rounds' plants are RE-MEASURED on this build, never inherited.** All seven still red the
+gate at `exit=1 :: planted 2/2 :: twins named 2/2`: `27-52`'s G (nested mapping value), `27-56`'s G3
+(a nested key YAML allows), and `27-57`'s five (anchor/implicit key — the round-10 reproduction —
+shorthand tag/implicit key, anchor/explicit VALUE, anchor/explicit KEY, and the `27-56` cross with a
+quoted nested key).
+
+**No gate inversion is claimed for WR-02.** The blank-line drop changes the NAME SET, not the grant
+boolean, so the foundation gate does not move on it and none is manufactured. Its evidence is the
+module-level RED/GREEN table (§1, §2) and mutation control 2 (§10).
+
+### 9. Repository-wide value map, taken separately per edit
+
+`git ls-files '*.md'`, every tracked markdown file parsed and its whole flattened value map compared.
+
+| after | files | moved | new refusals | lifted | shorter |
+|---|---|---|---|---|---|
+| task 1 (the threshold + the digit) | **1173** | **0** | **0** | **0** | **0** |
+| task 2 (the blank line + the fold suppression + the block-run trim) | **1173** | **0** | **0** | **0** | **0** |
+| both, against the pre-plan baseline | **1173** | **0** | **0** | **0** | **0** |
+
+**The list of files whose value got SHORTER is EMPTY**, so the "each shortened file confirmed as a
+move toward the loader" obligation is discharged over a set of size zero, which is stated as the
+number it is rather than as a pass.
+
+### 10. Two mutation controls, one per fix — each with its own baseline
+
+The scratch copy's **unmutated** baseline is **11 red**, every one a case shelling out to
+`git ls-files` / `git archive`, red because the copy has no `.git`. Reporting raw totals would have
+overstated both controls. `27-56` and `27-57` recorded this; it is paid forward.
+
+| control | build exit | direct probe of the mutated build | raw red | **attributable** |
+|---|---|---|---|---|
+| **1 — task 1's threshold reverted** (`indent > cur.blockIndent`) | **0** | W1 `hasSpawnGrant {ok:true,value:true}`, names `["grugops-orchestrator"]` — genuinely mutated | 15 | **4** |
+| **2 — task 2's blank-line handling reverted** | **0** (see below) | B1 names `["alpha","ga mma"]` — genuinely mutated; **W1 still `false`**, so task 1 is independent | 16 | **5** |
+
+Control 1's attributable cases: `D-62 row W1`, `D-62 rows W2 / W3`, `D-62 rows W4 / W6`, and the
+**D-52 loader differential** itself. Quoted failure:
+
+```
+FAIL scripts/frontmatter.test.ts > D-62 row W1 — a block scalar ends at its OWN detected content
+     indentation, so the over-included sibling line stops granting
+AssertionError: expected { ok: true, value: true } to deeply equal { ok: true, value: false }
+```
+
+Control 2's attributable cases: `D-62 row B1`, `D-62 row B2 (IN-01)`, `D-62 row B3`, and both
+adversarial-pass cases. Quoted failure:
+
+```
+FAIL scripts/frontmatter.test.ts > D-62 row B1 — a folded scalar's blank line is a LINE BREAK, so the
+     module stops inventing a name
+AssertionError: the loader's value carries a line break the enumeration alphabet REFUSES, so the
+module must refuse too — the LOUD arm is the correct answer here, not a name set:
+expected true to be false
+```
+
+**THE HARNESS PREMISE PRODUCED A FALSE RESULT FOR THE TENTH TIME IN THIS PHASE — AND IT WAS CAUGHT.**
+Mutation 2's first spelling was `if (cur !== null && cur.block && false)`. `tsc` failed with
+`error TS18047: 'cur' is possibly 'null'`, **emitted nothing**, and the direct probe read the
+**unmutated** `.js`: B1 still refused, which a truly mutated build cannot do. The suite would have
+reported the 11-case baseline — **0 attributable**, entirely false. `27-57`'s lesson ("assert the
+BUILD STEP'S EXIT CODE, not only the harness's resolution path") is what caught it, and it advances
+one notch: **assert the exit code AND probe the built artifact directly, because a mutation can also
+compile and simply not bite.**
+
+**And the two edits are independent, which only per-edit reverts can show.** With task 2 reverted,
+W1 still returns `{ok:true,value:false}` — task 1's threshold holds on its own. With task 1 reverted,
+the B rows stay green. Testing only their conjunction could not have said either.
+
+### 11. Adversarial pass (a) — WHICH LINES does the open-scalar fact now reach?
+
+Asked of the **fixed** build. Every shape the paragraph-break skip used to consume, classified:
+
+| shape | loader | module | verdict |
+|---|---|---|---|
+| a1 empty line, top-level folded | `"Agent(alpha, ga\nmma)"` | identical | **inside**, agrees |
+| a2 spaces-only line MORE indented than the content indent | `"Read,\n    \nAgent(o)"` | `"Read,\nAgent(o)"` | inside; diverges in the **whitespace-only content** the module's per-line trim cannot express |
+| a3 spaces-only line LESS indented | `"Read,\nAgent(o)"` | identical | **inside**, agrees |
+| a4 **NBSP**-only line | **REJECT** *could not find expected ':'* | `"Read,\nAgent(o)"` | the pre-existing `raw.trim()` wide-alphabet item, reaching a NEW site — carried OPEN below |
+| a5 **ZWSP**-only line | **REJECT** | **REFUSES** — `cannot read … as a frontmatter key line` | agrees, in the **LOUD** direction; D-50's asymmetry working at a site it did not anticipate |
+| a6 blank while NO key is open | `"Read, Agent(o)"` | identical | byte-unchanged |
+| a7 blank while a key is open but NOT a block scalar | `"Read,\nAgent(o)"` | `"Read, Agent(o)"` | byte-unchanged on both builds — **outside** the change's scope, carried OPEN below |
+| a8 the scalar is a SEQUENCE ITEM | `["Agent(alpha, ga\nmma)"]` | `"Agent(alpha, ga\nmma)"` | agrees |
+| a9 the scalar is a NESTED mapping value | `{"nested"=>"Agent(alpha, ga\nmma)"}` | `"nested: Agent(alpha, ga\nmma)"` | agrees |
+| a10 a blank, then the line that ENDS the scalar | `"Read,"` | identical | agrees |
+| a11 a blank between TWO block scalars of one key | `{"a"=>"Read,","b"=>"Agent(o)"}` | `"a: Read, b: Agent(o)"` | agrees |
+| a12 a blank inside a scalar with an EXPLICIT digit | `"Read,\nAgent(o)"` | identical | agrees — the two tasks meet here |
+
+### 12. Adversarial pass (b) — what is the JOIN'S INPUT assembled from?
+
+One folded scalar walked from its header through every content and blank line into the join, the
+flush and the enumeration, asking at each hop what the next stage assumes about separators.
+
+**It found a LIVE residual the reported rows did not reach, and it is closed by the same construct**
+(row b4 in §1, the seven `f` rows in §6): the fold must be **suppressed at a more-indented boundary**.
+The join's input is not "the previous body plus one break" — it is the previous body, the **count** of
+breaks, and **whether either side of the boundary is more indented than the content indentation**.
+Two of those three facts did not exist before this plan.
+
+**One further finding, recorded and NOT closed here.** At the flush hop, the run assembly's `.trim()`
+was eating the leading line breaks the loader itself expresses (`tools: >-` / blank / content). It is
+now scoped to **non-block** runs, where it is byte-unchanged. On a block-owned run it was **provably a
+no-op** before D-62 (every content line arrives `raw.trim()`ed and an `intro` is a key or one
+punctuation character), so nothing else moved: the repository-wide map after that edit is 1173 files,
+0 moved. The name sets on that row agree on **both** builds — the break stands outside the enumerated
+region — so this closes a **value** divergence and no name was invented; that is stated exactly rather
+than claimed as a rescue.
+
+### 13. What the corpus member does and does not buy — stated because it would otherwise read as more
+
+The **G6** key-line member puts a blank-line-inside-a-block-scalar into the generated corpus, which no
+member could spell before (the builder emits every continuation from `indent` + text and never emits
+an empty one). But the D-52 loader differential is **NOT** what catches mutation 2: on the G6 cell both
+builds grant and both refuse the enumeration — for different reasons — so the differential sees no
+disagreement. **Making a construct expressible is not the same as making every defect in it
+detectable.** The D-62 rows are what catch it, and that is recorded rather than left for a later round
+to discover by finding a green differential over a live defect.
+
+### 14. The expressibility floor did its job UNPROMPTED for the FOURTH consecutive round
+
+Both family rows landed with their fixes and this case went red **by name** before either corpus
+member existed:
+
+```
+AssertionError: family rows derived from scripts/frontmatter.ts's header:
+  … G5  `tools:` / `  nested: >-` / `      Read,` / `    # x, Agent(o)`   an over-indented first line
+    G6  `tools: >` / `  Agent(alpha, ga` / `` / `  mma)`   a blank line inside an open scalar
+: expected 15 to be 13
+```
+
+Ledger family rows **13 -> 15**, expressible **10 -> 12**, `AXIS_KEY_LINE_BASE` **24 -> 26**. The
+`outside`-the-shape-space set is **unchanged at 3** (`d1`, `d2`, `d3`), so the exclusion did not grow
+into a place to hide a new family.
+
+**The order argument, in its mirror image.** `27-52`, `27-56` and `27-57` added their members only
+after closing the family, because a corpus shape for a live **silent no-grant** would put the
+differential's never-exemptible `silentWhileLoaderGrants` direction into failure. G5 is the OPPOSITE
+direction — a module grant the loader does not have — so a shape before the fix would have failed the
+differential's OTHER never-exemptible direction. Same conclusion by the mirror-image argument.
+
+### 15. The regression suite is a FLOOR, not the closure evidence
+
+`npx vitest run --exclude '**/scripts/e2e/**'` reports **1337 passed | 2 skipped | 0 failed**. A green
+suite proves nothing about a safety invariant. The closure evidence is the inverted gate replay with
+its four controls (§8), the seven re-measured earlier plants (§8), the two mutation controls each with
+its own baseline and its own direct probe (§10), the two adversarial passes (§11, §12), and the
+per-edit repository-wide value maps (§9).
+
+### 16. Still OPEN, with a named owner
+
+| Item | Owner |
+|---|---|
+| **A blank line inside an open PLAIN (non-block) scalar is still folded to a space.** `tools: Agent(alpha, ga` / (blank) / `  mma)` returns names `["alpha","ga mma"]` where the loader expresses `"Agent(alpha, ga\nmma)"`, whose enumeration REFUSES — the **invented-name direction, on a loader-ACCEPTED document**. NOT closed here: the fix lives in the continuation-fold path, not in the block-scalar construct D-62 scopes itself to, and widening the paragraph-break skip for lines outside an open block scalar is a prohibition this plan carries. **Pinned at its current answer by a named case**, so a later round cannot read the green suite as coverage of it. | a later round — the continuation fold, with its own repository-wide value map |
+| A whitespace-only line MORE indented than the content indentation is CONTENT to the loader (`"Read,\n    \nAgent(o)"`) and a break run to this module (`"Read,\nAgent(o)"`). Whitespace only; the module's per-line `raw.trim()` cannot express it. | not open as a defect; recorded so a later round does not read it as one |
+| Trailing break runs: `clip` and `keep` chomping keep breaks this module discards (3 of 5 spellings, §7). Trailing non-word characters only; the name sets agree on all five. | a later round, if a consumer ever needs the trailing break — a value-map re-cut |
+| `raw.trim()`'s alphabet is wider than the module's declared `[ \t]` class — and it now has a NEW consequence (a4: an NBSP-only line inside an open scalar becomes a break run on a document libyaml REJECTS). Byte-different from the pre-fix build, same arm (a value on an unreadable document). | a later round — carried from `27-56` / `27-57`, now with a second site |
+| `tools:` / `  &a: b >-` refuses where libyaml reads a no-grant value (pre-existing, byte-identical, LOUD direction) | a later round — carried from `27-57`, unchanged |
+| `27-55`, `27-56` and `27-57`'s open items | carried, unchanged — `27-58` touched no exemption machinery, no fence classifier, no toggle and no introduction set |
+| KIT-03 and SPAWN-04 stay `[ ]` / `Gaps Found` | the next verification round for phase 27 (D-58 item 4 — an executing plan never promotes a row because its own tasks targeted that requirement's defect) |
