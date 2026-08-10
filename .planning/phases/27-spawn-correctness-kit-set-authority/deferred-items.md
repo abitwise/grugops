@@ -3438,3 +3438,98 @@ no date is the shape that returns one abstraction level down.
 | **The two `WR01_FALSE_RED_FORMS` documents are refused by the canonical reader** — a known false red in the safe direction, folded into `27-62`'s standing false-red residual and deliberately NOT escalated, and NOT counted as bypass closures by `27-63` | **Carried, recorded.** They are excluded from the corpus as false reds rather than filed as closures — the distinction matters and is preserved | **a later round**, with `27-62`'s residual |
 | **Every DEMOTED and OPEN row in this register** — WR-02-r11, WR-03-r11, WR-04-r11, IN-01-r11, IN-02-r11, IN-03-r11 | Each measured unchanged this build, in its own row above, with its own owner | **a later round** — see the individual rows |
 | **The round-11 register's row 4 `FIXED` scope correction** | Recorded as an amendment above rather than by rewriting the historical register | **nobody — recorded, not carried** |
+
+### Part six — the round-12 traceability HOLD (`27-66` task 2): asserted from disk, NOTHING promoted
+
+D-58 item 4's rule is applied to what the **most recent verification** already recorded, and to nothing
+else. All three rows were **read from disk this session at `111cba1`**, in **both** places each
+appears — never from a line citation in any report, including this one — because `27-54` measured last
+round's citations to be stale and this plan's own scope required re-derivation over trust.
+
+**The three rows, quoted VERBATIM, with file and line.**
+
+**KIT-03 — checkbox, `.planning/REQUIREMENTS.md:58`:**
+
+> `- [ ] **KIT-03**: A referential-integrity oracle asserts set equality between the coordinator's spawn grant, the adapter directory, and the role corpus — and **fails RED against today's tree** (1 adapter present, 7 names granted, 17 roles) before it is trusted.`
+
+**KIT-03 — traceability status cell, `.planning/REQUIREMENTS.md:158`:**
+
+> `| KIT-03 | Phase 27 | Gaps Found — held pending verification. Round 11 closed all three bypasses this row's FAILED status now rests on (`27-55` CR-01-new / D-59, `27-56` CR-03 / D-60, `27-57` CR-02 / D-61), plus WR-01 / WR-02 / IN-01 (`27-58` / D-62), each re-measured on the FINAL build `ff68c31` and still closed (`deferred-items.md` § From 27-61 § 5, fifteen rows). Round 10's `27-51` / `27-52` closures likewise still hold. Held anyway: only a verification round may flip it (D-58 item 4). |`
+
+**SPAWN-04 — checkbox, `.planning/REQUIREMENTS.md:65`:**
+
+> `- [ ] **SPAWN-04**: Non-coordinator role adapters omit the `Agent` tool entirely — a mechanism that holds on both the main-thread and subagent paths, rather than relying on a frontmatter token the runtime ignores.`
+
+**SPAWN-04 — traceability status cell, `.planning/REQUIREMENTS.md:162`:**
+
+> `| SPAWN-04 | Phase 27 | Gaps Found — held pending verification, for the same reason as KIT-03 and by the same rule (D-58 item 4). Round 11's closures include the one bypass the round-10 verifier reproduced END TO END through the full gate (CR-02): the same plant now takes `check-foundation-guards` from exit 0 to exit 1 on both distribution twins, re-run on the FINAL build `ff68c31` (`deferred-items.md` § From 27-61 § 4, plant P57). The `UNKNOWN - verify` platform bound on whether Claude Code honours a mapping under an allow-list key is UNCHANGED and no live platform escalation is claimed. Commit `47d7820` already reverted one premature flip of exactly this pair. |`
+
+**SPAWN-03 — checkbox, `.planning/REQUIREMENTS.md:64`:**
+
+> `- [ ] **SPAWN-03**: The coordinator is wired as the Claude Code **main-thread** agent so its `Agent(<allowlist>)` grant is honoured by the runtime — the current subagent placement makes the grant a no-op, since Claude Code ignores the type list inside a subagent definition.`
+
+**SPAWN-03 — traceability status cell, `.planning/REQUIREMENTS.md:161`:**
+
+> `| SPAWN-03 | Phase 27 | Gaps Found — the runtime half is DEFERRED to Phase 33 / GAP-D1 / CAP-01 and its status stays `UNKNOWN - verify` (user decision, ratified as D-56 item 10, recorded 2026-08-09 in `deferred-items.md`). Not fabricated as confirmed; not re-opened as a Phase-27 blocker. |`
+
+**THE PAIR ASSERTION, STATED AS A COUNT RATHER THAN AS A CLAIM.**
+
+| # | Requirement | round-11 verification verdict | checkbox ON DISK | traceability status cell ON DISK | agree | this plan |
+|---|---|---|---|---|---|---|
+| 1 | **KIT-03** | FAILED | `[ ]` (`:58`) | **Gaps Found** (`:158`) | YES | **HELD** — byte-unchanged |
+| 2 | **SPAWN-03** | NEEDS HUMAN (deferred) | `[ ]` (`:64`) | **Gaps Found** (`:161`) | YES | **HELD** — byte-unchanged |
+| 3 | **SPAWN-04** | FAILED | `[ ]` (`:65`) | **Gaps Found** (`:162`) | YES | **HELD** — byte-unchanged |
+
+**The checkbox and the traceability status cell agree with each other, and with the round-11
+verification's recorded verdict, for `3` of `3` rows.** Computed by reading both renderings off disk
+and comparing them, not by inspection. This is the check that catches a **half-promotion**, where one
+of the two places moves and the other does not — and it is the reason both renderings are read rather
+than one.
+
+**NO ROW WAS PROMOTED BY THIS PLAN, AND NONE WAS EDITED AT ALL.** Unlike round 11's hold, which
+updated two reason cells, **this plan changes zero bytes** of `.planning/REQUIREMENTS.md` and
+`.planning/ROADMAP.md`. Verified, not asserted in prose:
+
+```
+$ git diff --exit-code -- .planning/REQUIREMENTS.md .planning/ROADMAP.md ; echo "EXIT=$?"
+EXIT=0
+```
+
+**Why the hold, restated so it is not read as an oversight.** D-58 item 4 reserves promotion to a
+**verification** round. Round 12's four plans targeted exactly the mechanism KIT-03's and SPAWN-04's
+FAILED status rests on — which is precisely why they must not move those rows. Commit `47d7820`
+already reverted one premature flip of **exactly this pair**. A row promoted by the round that wrote
+its own fix tells a later reader that an unsound authorization control is **verified**, which is the
+failure this phase has paid for eleven times. The next verification round owns the flip, and it owns
+it with the full round-12 evidence in front of it.
+
+**SPAWN-03 is byte-unchanged and that IS the hold.** Its cell already cites the Phase-33 / GAP-D1 /
+CAP-01 deferral and already carries **`UNKNOWN - verify`**. The `ROADMAP.md` standing-obligations row
+carries the same owner and is byte-unchanged too:
+
+> `.planning/ROADMAP.md:106` — `| 1 | **GAP-D1** — one captured live dual-path run → flip A3/DOG-02 + the coupled `examples/03-ticket-to-pr.md` edit | 33 (CAP-01) |`
+
+**No work was planned for SPAWN-03 this round and none was done.** No static gate can produce
+live-platform evidence, and **inventing one would be the faked gate `CLAUDE.md` forbids by name**
+("never fake a passing gate, a test result, or a citation"). `node scripts/coordinator-resolution-precheck.js`
+exits **0** on this build and states in its own output that the two runtime steps are NOT PERFORMED by
+it — which is the correct shape for a check that stops exactly where its evidence stops.
+
+**ONE DELIBERATE NON-EDIT, RECORDED RATHER THAN QUIETLY LEFT.** KIT-03's and SPAWN-04's status
+narratives name **round 11's** closures (`27-55`/D-59, `27-56`/D-60, `27-57`/D-61, `27-58`/D-62) and
+the round-11 final build `ff68c31`. After D-64 those narratives are **stale in a specific and
+important way**: they describe the parser being repaired, and round 12 retired the parser as the
+safety authority instead. The narratives were **deliberately not updated**, and the reason is the
+verify gate itself — this plan's own success criterion is that `git diff --exit-code` over both
+planning files exits 0, so that a later reader can be certain no row moved. Rewriting a narrative and
+then asserting "only the narrative moved" is a weaker guarantee than changing nothing. **Owner: the
+next verification round**, which must rewrite both cells when it flips or re-holds them, and which
+should not read the round-11 wording as the current state of the mechanism. Recorded here so the
+staleness is a known, owned fact rather than a discovery.
+
+**The round's closing state, for the record.** All four gates re-run at round scope:
+`check-foundation-guards.js` **exit 0**, `adapters-freshness.js` **exit 0**,
+`skill-twins-freshness.js` **exit 0**, `coordinator-resolution-precheck.js` **exit 0**.
+`npx vitest run --exclude '**/scripts/e2e/**'` → **1409 passed / 2 skipped across 39 files, exit 0**.
+Bare `npm test` was **never** run: it triggers a live claude-CLI lane that spends tokens and can hang.
+**That suite line is a FLOOR and is not offered as evidence that any family is closed** — see Part four.
