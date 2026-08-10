@@ -155,11 +155,11 @@ _Filled by the roadmapper 2026-07-28. Every requirement maps to exactly one phas
 |-------------|-------|--------|
 | KIT-01 | Phase 27 | Complete |
 | KIT-02 | Phase 27 | Complete |
-| KIT-03 | Phase 27 | Gaps Found — held pending verification. `27-51` closed CR-01 and `27-52` closed family G/G2, the two bypasses this row's FAILED status rests on; only a verification round may flip it (D-58 item 4). |
+| KIT-03 | Phase 27 | Gaps Found — held pending verification. Round 11 closed all three bypasses this row's FAILED status now rests on (`27-55` CR-01-new / D-59, `27-56` CR-03 / D-60, `27-57` CR-02 / D-61), plus WR-01 / WR-02 / IN-01 (`27-58` / D-62), each re-measured on the FINAL build `ff68c31` and still closed (`deferred-items.md` § From 27-61 § 5, fifteen rows). Round 10's `27-51` / `27-52` closures likewise still hold. Held anyway: only a verification round may flip it (D-58 item 4). |
 | SPAWN-01 | Phase 27 | Complete |
 | SPAWN-02 | Phase 27 | Complete |
 | SPAWN-03 | Phase 27 | Gaps Found — the runtime half is DEFERRED to Phase 33 / GAP-D1 / CAP-01 and its status stays `UNKNOWN - verify` (user decision, ratified as D-56 item 10, recorded 2026-08-09 in `deferred-items.md`). Not fabricated as confirmed; not re-opened as a Phase-27 blocker. |
-| SPAWN-04 | Phase 27 | Gaps Found — held pending verification, for the same reason as KIT-03 and by the same rule (D-58 item 4). Commit `47d7820` already reverted one premature flip of exactly this pair. |
+| SPAWN-04 | Phase 27 | Gaps Found — held pending verification, for the same reason as KIT-03 and by the same rule (D-58 item 4). Round 11's closures include the one bypass the round-10 verifier reproduced END TO END through the full gate (CR-02): the same plant now takes `check-foundation-guards` from exit 0 to exit 1 on both distribution twins, re-run on the FINAL build `ff68c31` (`deferred-items.md` § From 27-61 § 4, plant P57). The `UNKNOWN - verify` platform bound on whether Claude Code honours a mapping under an allow-list key is UNCHANGED and no live platform escalation is claimed. Commit `47d7820` already reverted one premature flip of exactly this pair. |
 | SPAWN-05 | Phase 27 | Complete |
 | SPAWN-06 | Phase 27 | Complete |
 | SPAWN-07 | Phase 27 | Complete |

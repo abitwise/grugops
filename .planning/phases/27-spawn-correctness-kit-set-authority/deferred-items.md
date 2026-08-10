@@ -3127,3 +3127,55 @@ hunt it:**
 
 Its acceptance evidence is `27-57`'s inverted end-to-end gate replay, re-run on the final build as
 plant **P57** in § From 27-61 § 4.
+
+### Part six — the traceability HOLD (`27-61` task 3): asserted, not promoted
+
+D-58's rule is applied to what the **most recent verification** already recorded, and to nothing else.
+Both renderings of all ten rows were **read from disk**, never from a line citation in any report —
+including this one — because `27-54` measured last round's citations to be stale.
+
+| # | Requirement | round-10 verification verdict | checkbox ON DISK | traceability status cell ON DISK | agree | this plan |
+|---|---|---|---|---|---|---|
+| 1 | KIT-01 | SATISFIED | `[x]` | Complete | YES | asserted, untouched |
+| 2 | KIT-02 | SATISFIED | `[x]` | Complete | YES | asserted, untouched |
+| 3 | **KIT-03** | BLOCKED | `[ ]` | **Gaps Found** | YES | **HELD** — reason text updated only |
+| 4 | SPAWN-01 | SATISFIED | `[x]` | Complete | YES | asserted, untouched |
+| 5 | SPAWN-02 | SATISFIED | `[x]` | Complete | YES | asserted, untouched |
+| 6 | **SPAWN-03** | NEEDS HUMAN (deferred) | `[ ]` | **Gaps Found** | YES | **HELD** — byte-unchanged |
+| 7 | **SPAWN-04** | BLOCKED | `[ ]` | **Gaps Found** | YES | **HELD** — reason text updated only |
+| 8 | SPAWN-05 | SATISFIED | `[x]` | Complete | YES | asserted, untouched |
+| 9 | SPAWN-06 | SATISFIED | `[x]` | Complete | YES | asserted, untouched |
+| 10 | SPAWN-07 | SATISFIED | `[x]` | Complete | YES | asserted, untouched |
+
+**THE PAIR ASSERTION, STATED AS A COUNT RATHER THAN AS A CLAIM: the checkbox and the traceability
+status cell agree with each other and with the verification's recorded verdict for `10` of `10` rows.**
+Computed by reading both renderings off disk and comparing them, not by inspection.
+
+**NO ROW WAS PROMOTED TO COMPLETE BY THIS PLAN.** D-58 item 4 reserves promotion to a verification
+round, and this plan is an executing plan whose own tasks targeted exactly the defects KIT-03's and
+SPAWN-04's FAILED status rests on — which is precisely why it must not move them. Commit `47d7820`
+already reverted one premature flip of this exact pair.
+
+**What was edited, and the transcript that justifies each edit (D-58 item 3).** Two reason cells, and
+nothing else — no checkbox, no status word, no other row:
+
+- **KIT-03's reason** named round 10's `27-51` / `27-52` closures and had gone stale. It now names
+  round 11's closures — `27-55` (D-59), `27-56` (D-60), `27-57` (D-61) and `27-58` (D-62) — each
+  re-measured on the FINAL build `ff68c31`, citing § From 27-61 § 5's fifteen-row table.
+- **SPAWN-04's reason** now names the one bypass the round-10 verifier reproduced END TO END through
+  the full gate, citing § From 27-61 § 4's plant **P57**: `exit 0 → exit 1`, twins named 2/2, with the
+  loader's own reading of the planted value quoted. The `UNKNOWN - verify` platform bound is restated
+  as unchanged in the same cell, so a reader cannot mistake the module-level closure for a platform
+  claim.
+
+**SPAWN-03 is byte-unchanged and that IS the hold.** Its cell already cites the Phase-33 / GAP-D1 /
+CAP-01 deferral and already carries `UNKNOWN - verify`. It was **not** re-opened as a Phase-27 blocker,
+and **no static gate was invented for it** — no static check can produce live-platform evidence, and
+fabricating a passing gate is forbidden by this project's own constraints by name.
+
+**One non-status drift observed and recorded rather than fixed.** SPAWN-06's *descriptive* text still
+reads "currently 7562B" while the round-10 verification measured **7090B**. That is a figure inside the
+requirement's prose, not inside either rendering of its STATUS, so D-58's rule does not reach it and
+this plan does not edit it — an executing plan quietly rewriting requirement descriptions is a
+different failure from the one D-58 governs. Owner: **a later round**, at the same time as the ceiling
+re-baselining Phase 29 (LANG-08) already owns.
