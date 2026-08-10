@@ -202,7 +202,36 @@ $ echo "EXIT=$?"
 EXIT=0
 ```
 
-No output, exit **0**: both files are byte-unchanged. Re-confirmed after both task commits.
+No output, exit **0**: both files are byte-unchanged. Re-confirmed after both task commits, at
+`db20e74`.
+
+**ONE POST-TASK CHANGE TO `ROADMAP.md`, DISCLOSED RATHER THAN LEFT TO BE DISCOVERED.** After both
+tasks were complete and verified, the executor's own state step ran
+`roadmap update-plan-progress 27`, which edited `.planning/ROADMAP.md`. It is plan-progress
+bookkeeping and **nothing else** — the word-level diff is exactly three tokens:
+
+```
+$ git diff --word-diff=porcelain -- .planning/ROADMAP.md | grep -E '^[+-][^+-]'
+-65/66
++66/66
+-[ ]
++[x]
+-65/66
++66/66
+```
+
+`65/66` → `66/66` in the plan-count sentence and in the progress table, and the **`27-66-PLAN.md`
+line's own** checkbox. **No requirement row, no status word, no phase checkbox moved.** Specifically:
+`ROADMAP.md:94` still reads `- [ ] **Phase 27: …**` and `:551` still reads
+`| 27. … | v2.1 | 66/66 | In Progress| |` — **the phase was NOT flipped to Complete**, which is the
+premature-complete trap this repository has hit before. `.planning/REQUIREMENTS.md` remains
+byte-unchanged, `git diff --exit-code` exit **0**, verified again after the state step.
+
+**`requirements mark-complete` was deliberately NOT run.** This plan's frontmatter declares
+`requirements: [KIT-03, SPAWN-04, SPAWN-03]`, and the executor workflow's default state step would
+check those boxes off. Doing so would be exactly the premature promotion the plan's own must_haves
+forbid and that commit `47d7820` already had to revert once. The plan's constraint takes precedence
+over the default step; the command was skipped on purpose.
 
 ```
 $ grep -n '^- \[ \] \*\*KIT-03\*\*\|^- \[ \] \*\*SPAWN-04\*\*\|^- \[ \] \*\*SPAWN-03\*\*' .planning/REQUIREMENTS.md
@@ -291,7 +320,13 @@ they are visible:
    opposite of what D-64 Part B did to it. A third class, SUPERSEDED, was needed for the three
    `missing` entries, which are prescribed remedies rather than defects.
 
-No auto-fix rule was invoked. No architectural question arose.
+3. **[Rule 2 — missing critical safeguard] The default `requirements mark-complete` state step was
+   SKIPPED.** It would have checked off KIT-03, SPAWN-04 and SPAWN-03 from this plan's frontmatter —
+   the exact premature promotion the plan's must_haves forbid and that `47d7820` already reverted
+   once. Skipping it is the correctness requirement; running it would have silently falsified the
+   traceability record this plan exists to protect. Disclosed in the `git diff` section above.
+
+No architectural question arose. No package was installed.
 
 ## Known Stubs
 
