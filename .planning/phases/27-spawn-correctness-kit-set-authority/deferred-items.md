@@ -2992,3 +2992,138 @@ real tree at `ff68c31`, not against a mirror.
 transcripts and the gate exit codes: the two premise controls, the seven reverts that red a named
 assertion, the four paired plants, the eight gate rows with their loader column, and the fifteen-row
 final-build re-measurement.
+
+---
+
+## Round 11 disposition register (written 2026-08-10 by plan `27-61`) — every round-10 item accounted for
+
+**Why this table exists.** A finding that leaves a round without a written disposition is
+indistinguishable, to a later reader, from a finding that was forgotten — and this phase's own recorded
+experience is that such an item returns one abstraction level down. The register is the durable answer
+to *"what happened to everything round 10 raised?"*, carried in the phase's own artifact so it survives
+a milestone archive move rather than living only in plan summaries that scroll out of view. **There is
+no silent drop.**
+
+**Every FIXED row below cites a transcript taken on the FINAL build of this round** — § From 27-61 § 5,
+not a figure carried forward from the plan that made the claim. Five later plans edited the same files
+after the first closure landed.
+
+**The review's own tally reconciles.** `27-REVIEW.md`'s frontmatter declares `critical: 3, warning: 4,
+info: 3, total: 10`; counting the headings in the document body gives CR-01 / CR-02 / CR-03,
+WR-01 / WR-02 / WR-03 / WR-04, IN-01 / IN-02 / IN-03 — **3 + 4 + 3 = 10**. The two agree, so no
+disagreement row is owed. The review spells its first critical **CR-01**; `27-VERIFICATION.md` and this
+register spell it **CR-01-new**, to keep it distinct from round 9's separate CR-01.
+
+### Part one — the ten review items
+
+| # | Item | Raised in | What happened | Artifact carrying the evidence | Disposition |
+|---|---|---|---|---|---|
+| 1 | **CR-01-new** — the D-57 quoting exemption keys off the sticky `sawBlock`, so one nested block scalar anywhere in a key switches the D-30 escape refusal off for **every other part of that key**. A NEW regression, shipped inside round 10's own fix | `27-REVIEW.md` § Critical (as CR-01) | Closed STRUCTURALLY by `27-55` under **D-59**: the exemption becomes a property of the REGION the scalar covers, resolved in maximal RUNS of like-kind regions; the sticky flag is **DELETED**, not tuned. The review's proposed `blockParts: Set<number>` shape was **not** adopted — a per-region fact stored apart from its region makes handle-stability a property somebody must keep proving; storing it ON the region dissolves the question | `deferred-items.md` § From 27-55; `27-55-SUMMARY.md`; `27-CONTEXT.md` D-59 | **FIXED** — gate plant P55 **exit 0 → exit 1**, twins 2/2, loader `{"a"=>"Agent(grugops-orchestrator)","b"=>"x"}`; **re-measured on the final build** (§ From 27-61 § 5, row *CR-01-new U1*) and **still closed**; revert R1 reds **8** cases naming D-59 |
+| 2 | **CR-02** — a YAML node property (§ 6.9 tag / anchor) between the mapping indicator and the block indicator defeats `blockHeaderAt`; **reproduced end-to-end through the full gate at `ALL CHECKS PASSED`, exit 0** | `27-REVIEW.md` § Critical | Closed by `27-57` under **D-61**: `HEADER_INTRODUCTIONS` becomes the position vocabulary and BOTH questions iterate it, so a fifth introduction inherits the strip by construction. The review's own scope was **measured too narrow** — it named two of the four introductions; the explicit-key and explicit-value forms were live silent-no-grants too, and adversarial pass (a) found **seven further** positions, all closed by the same edit | `deferred-items.md` § From 27-57; `27-57-SUMMARY.md`; `27-CONTEXT.md` D-61 | **FIXED** — the round-10 end-to-end reproduction **INVERTED**: gate plant P57 **exit 0 → exit 1**, twins 2/2; **re-measured on the final build** (rows *CR-02 A anchor*, *B tag*) and **still closed** |
+| 3 | **CR-03** — `blockHeaderAt` reuses `KEY_LINE`, the TOP-LEVEL frontmatter key grammar, for the NESTED mapping-key question: four more silent no-grants | `27-REVIEW.md` § Critical | Closed by `27-56` under **D-60**: the nested question gets its own production (`blockMapImplicitEntry`) derived from YAML's mapping-value rule; `KEY_LINE` loses its second job rather than gaining a wider alphabet. The review's proposed `NESTED_MAP_ENTRY` used the **LAST** separating colon; LAST was **REJECTED by measurement** on two loader-REJECTED rows, and FIRST adopted | `deferred-items.md` § From 27-56; `27-56-SUMMARY.md`; `27-CONTEXT.md` D-60 | **FIXED** — **8 of 11** rows moved from the silent no-grant arm to the grant arm; gate plant P56 **exit 0 → exit 1**, twins 2/2; **re-measured on the final build** (rows *CR-03 V4*, *V1*) and **still closed** |
+| 4 | **WR-01** — a more-indented first content line makes the module report a GRANT the loader does not have — the direction its own harness calls never exemptible | `27-REVIEW.md` § Warnings | Closed by `27-58` under **D-62**: the scalar ends at its OWN detected content indentation (§ 8.1.1.1), with the header line's indent kept as the FLOOR. The explicit indentation-indicator digit is now **read** rather than matched-and-discarded, because discarding it under the new threshold would have created a **silent no-grant** — measured, and the alternative rejected on that measurement | `deferred-items.md` § From 27-58; `27-58-SUMMARY.md`; `27-CONTEXT.md` D-62 | **FIXED** — the gate's **FALSE RED** inverted: plant P58 **exit 1 → exit 0** over a loader value of `{"nested"=>"Read, Write, Bash, Glob, Grep,"}` which carries no grant; **re-measured on the final build** (rows *WR-01 W1*, *W2* — both sides of the threshold) and **still closed** |
+| 5 | **WR-02** — the `\|`/`>` line-break derivation was applied to the indicator but not to the blank line, so a folded scalar still INVENTS names | `27-REVIEW.md` § Warnings | Closed by `27-58` in the same decision (**D-62** item 5): a blank line inside an open scalar is CONTENT, handled before the paragraph-break skip and folded through the line break the indicator already derives — the axis is extended, no second opinion about joins is written. This plan's own adversarial pass then found the fold surviving one line-shape further over (a MORE-INDENTED boundary) and closed that in the same construct | `deferred-items.md` § From 27-58; `27-58-SUMMARY.md` | **FIXED** — **re-measured on the final build** (row *WR-02 B1 folded blank*): the module now takes the LOUD arm where the loader's `"Agent(alpha, ga\nmma)\n"` carries a break the enumeration alphabet refuses; revert R6 reds **5** cases naming D-62 |
+| 6 | **WR-03** — the new `state` differential couples two independent inputs, so it never generates the combination the live call site produces | `27-REVIEW.md` § Warnings | Closed by `27-59`: `nodeStartAtOffsetZero` becomes its own axis (**24 → 48** state vectors, 297,312 comparisons), the pre-fix capture was **REGENERATED**, and the live call-site LIST is derived from `scripts/frontmatter.ts` at run time so a fourth site fails by name. Regenerating exposed that the fixture was a **COMPOSITE** of two builds nobody had written down; each half was regenerated at its own commit | `deferred-items.md` § From 27-59; `27-59-SUMMARY.md` | **FIXED** — the negative control names all **3** missing combinations verbatim; **re-measured on the final build**: `IN-02 STATE differential — 6194 input(s) x 48 state(s) = 297312 cell(s) \| moved 572 \| provenance RECOVERED 572 \| provenance LOST 0`; revert R7 reds with **6,340** cells moved |
+| 7 | **WR-04** — `noUnusedLocals` / `noUnusedParameters` were enabled on a config that excludes every test file | `27-REVIEW.md` § Warnings | Closed by `27-60`: `tsconfig.tests.json` extends the shipped-source config and overrides only the exclude list; reach goes **0 of 36 → 36 of 36** tracked `.test.ts`. **The review's "there are no violations today" was measured STALE** — round 11's own plans grew the harness past it and **SIX** real violations were found, each fixed AT ITS SITE with no exemption added and no flag loosened. Two were tells for MISSING cases, not dead weight | `deferred-items.md` § From 27-60; `27-60-SUMMARY.md` | **FIXED** — planted TS6133: new target **exit 2** naming the symbol, shipped target **exit 0** on the same plant; **re-measured on the final build** (§ From 27-61 § 3, row R8) |
+| 8 | **IN-01** — blank lines inside a `\|` block scalar are dropped, so the flattened value is not the loader's | `27-REVIEW.md` § Info | Closed by `27-58` **in the same edit as row 5 (WR-02)** — the review itself said "fixing WR-02 fixes this", and it did. **This row exists because a merged disposition is still a disposition; a missing row is a silent drop.** The literal spelling was additionally pinned as a VALUE equality with the loader so the two axes stay tied together, which is what the review asked for beyond the shared fix | `deferred-items.md` § From 27-58; `27-58-SUMMARY.md` | **FIXED** — merged into **row 5**'s fix; **re-measured on the final build** (row *IN-01 B2 literal blank*): loader `"Agent(alpha, ga\n\nmma)"`, module takes the LOUD arm on the name set |
+| 9 | **IN-02** — the narrowed fence-authority claim is derived for "is there a fence machine" but still PROSE for "does it answer the GENERAL question" | `27-REVIEW.md` § Info | Closed by `27-60`: `importsModule` / `nonTestImportersOf` / `classifyFenceMachine` turn the prose half into a property over a **derived 33-module importer corpus**. Written first as "exactly one class per member", the live tree **refused** — one member legitimately carries two true properties — so the assertion became the one the claim needs (exactly one `authority` carrying neither disqualifier, every other member carrying at least one) rather than suppressing a true fact to preserve a partition | `deferred-items.md` § From 27-60; `27-60-SUMMARY.md` | **FIXED** — the fail-proof's own first green was a **FALSE PASS** (the scan missed the bare side-effect import, the cheapest spelling); with the arm added the plant reds by name. **Re-measured on the final build** (§ From 27-61 § 3, row R9), where the property proved to be asserted **twice** |
+| 10 | **IN-03** — the WR-03 source-scan pin is brittle in two ways: an unasserted `indexOf("\n}")` bound, and a negative matching COMMENTS as well as code | `27-REVIEW.md` § Info | Closed by `27-60`: bounded by an added `// ── end stripFencedBlockLines` section rule **asserted present before the slice is used**, head/tail/no-overrun identity checks, and the negative run over comment-stripped code with a >200-char non-vacuity floor. The marker was **added** in the file's own idiom rather than an existing one repurposed, and the reason is written at the site | `deferred-items.md` § From 27-60; `27-60-SUMMARY.md` | **FIXED** — **re-measured on the final build** (§ From 27-61 § 3, row R10): mode-A plant reds **by name** with the repair and is **undetected** without it; mode-B plant correctly stays green with the repair and **FALSE-REDS** without it |
+
+### Part one (continued) — the items round 10's VERIFICATION raised beyond the review
+
+`27-VERIFICATION.md` § gaps carries four named `missing` fixes and § deferred carries one item. Three
+of the four restate criticals above; each still gets its own row **naming the row it merged into**,
+because a merged disposition is still a disposition.
+
+| # | Item | Raised in | What happened | Artifact carrying the evidence | Disposition |
+|---|---|---|---|---|---|
+| V1 | `missing` — "CR-01-new's fix: track which parts of a key's value a block scalar actually owns (a region property) rather than exempting the whole key" | `27-VERIFICATION.md` § gaps[].missing[0] | Delivered by `27-55`. **Merged into row 1.** The region-property direction is exactly what D-59 adopted; only the storage shape differs from the review's sketch, and that difference is recorded with its reason | `27-CONTEXT.md` D-59; `27-55-SUMMARY.md` | **FIXED** — merged into **row 1** |
+| V2 | `missing` — "CR-02's fix: strip a node property at every header-introduction position, and ask `startsWithReference` about the node start that follows a recognised mapping separator" | `27-VERIFICATION.md` § gaps[].missing[1] | Delivered by `27-57` as **two** edits, exactly as stated. **Merged into row 2.** The two were proven **independent and complementary** by separate mutation controls, and § From 27-61 § 4 shows the same at the GATE: reverting the strip alone leaves the gate red (the fourth application point catches it LOUD), while reverting the fourth point alone reopens the silent arm | `27-CONTEXT.md` D-61; `27-57-SUMMARY.md`; § From 27-61 § 4 | **FIXED** — merged into **row 2** |
+| V3 | `missing` — "CR-03's fix: give `blockHeaderAt` a nested-key production derived from YAML's own rule … and pin it with a DERIVED axis over key spellings, not four enumerated rows" | `27-VERIFICATION.md` § gaps[].missing[2] | Delivered by `27-56`. **Merged into row 3.** The axis is derived by **filtering** candidate spellings through the real exported `BLOCK_INDICATOR`, with liveness proven by re-filtering through a deliberately narrowed copy — 624 cells + 28 union cells, not four rows | `27-CONTEXT.md` D-60; `27-56-SUMMARY.md` | **FIXED** — merged into **row 3** |
+| V4 | `missing` — "a widened D-52 loader-differential corpus that can express all three families **before** they are called closed" | `27-VERIFICATION.md` § gaps[].missing[3] | Delivered by `27-59`, and **not** by the shape five earlier rounds used. Adding one base member per reported family is circular over the FAMILY structure exactly as a per-arm corpus was circular over the ARM structure, so `27-59` adds **no base member at all**: the header is declared as PARTS and the parts are crossed. `AXIS_KEY_LINE_BASE` stays at **26** while cells go **2,544 → 16,704** | `deferred-items.md` § From 27-59; `27-59-SUMMARY.md` | **FIXED** — per-family expressibility measured on the final build: `27-55` 7,056 · `27-56` 11,232 · `27-57` 10,368 cells, with a non-empty three-way crossing; pre-round-11 mirror `3c7930b` reports **2,526** never-exemptible cells |
+| V5 | **SPAWN-03's live-platform capture** — whether the main-thread coordinator's `Agent(<allowlist>)` grant is actually honoured by the Claude Code runtime | `27-VERIFICATION.md` § deferred and § Human Verification Required | Re-affirmed unchanged by `27-61` (this plan). No static gate can produce this evidence, and inventing one would be the faked gate `CLAUDE.md` forbids by name. `ROADMAP.md` was NOT edited and the wording agrees across all three records | `ROADMAP.md` standing-obligations row 1 (GAP-D1); `27-CONTEXT.md` D-56 item 10 / D-58 item 5; `.planning/REQUIREMENTS.md` SPAWN-03 row | **DEFERRED** — owner **Phase 33** (GAP-D1, requirement **CAP-01**; the capture itself is CAP-03); dated **2026-08-09**; status stays `UNKNOWN - verify` |
+
+### Part two — completeness, asserted by count so a reader can check it
+
+- Round-10 code-review findings raised (`27-REVIEW.md`): **10** — CR-01-new, CR-02, CR-03, WR-01,
+  WR-02, WR-03, WR-04, IN-01, IN-02, IN-03. (Frontmatter tally `3 + 4 + 3 = 10`; body headings counted
+  independently, also 10. Reconciled — they agree.)
+- Round-10 verification items carried beyond those (`27-VERIFICATION.md`): **5** — the four named
+  `missing` fixes and the SPAWN-03 deferral.
+- **Total round-10 items raised: 15. Rows in the register above: 15. 15 == 15.**
+
+If those two numbers ever differ, **the register is wrong, not the count** — the same non-vacuity
+posture the harness applies to its own corpora, turned on the record itself.
+
+- Dispositions partition as **14 FIXED + 1 DEFERRED + 0 REJECTED + 0 OPEN**, and
+  **`14 + 1 + 0 + 0 == 15`.**
+
+**No item is REJECTED.** Two *proposed remedies* inside otherwise-fixed rows were rejected by
+measurement and are recorded in their rows rather than as rows of their own, because the ITEM was
+closed either way: the review's `blockParts: Set<number>` storage shape (row 1) and its LAST-colon
+key-end rule (row 3). A third, D-59's individual-region resolution, was implemented, measured and
+rejected inside row 1's own work.
+
+### Part three — the re-measurement
+
+Every closure row above cites a transcript taken on the **FINAL build of this round**, `ff68c31`, not
+on the build the plan that made the claim produced. The full table — **fifteen rows, fifteen still
+closed**, with the `/usr/bin/ruby -ryaml` loader column — is § **From 27-61 § 5** and is not duplicated
+here. It is not inherited: six plans edited these files after the first closure landed.
+
+### Part four — standing obligations this phase carries INTO its next verification
+
+Written here with a named owner each, so they survive a milestone archive move. Each is either
+**measured on this build** or explicitly named as **carried**.
+
+| Obligation | Measurement | Owner |
+|---|---|---|
+| **SPAWN-03's live-platform capture** | Not obtainable by any static gate. `node scripts/coordinator-resolution-precheck.js` exits **0** on this build, and states in its own output that the two runtime steps are NOT PERFORMED by it. **Measured this build** | **Phase 33** — GAP-D1 / CAP-01 (capture itself CAP-03) |
+| **KIT-03 and SPAWN-04 remain unflipped** | All five underlying round-11 bypasses re-measured CLOSED on the final build (§ From 27-61 § 5), but a requirement's verified status is a verification round's call (D-58 item 4). **Measured this build; the rows are deliberately NOT moved** | **the next verification round** for phase 27 |
+| **The `27-49` WR-04 exemption-bound residual** — the deleted per-exemption bound gave up one narrow detection band; the replacement corpus-level floor fires only past roughly half the loader-accepted corpus | Exemption list length **2**, membership unchanged, and the accounting **measured this build**: `loader-accepted 12349 \| exempt cells 78 \| disagreements 78 \| per-rule matched E1=32 E2=52 \| the DELETED bounds would have been E1=48 E2=64`. Direction unchanged | **a later round** — derive the per-rule ceiling from a quantity the rule does not read |
+| **The `27-50` R1 wording residual** — the leading clause calls an INDENTATION run "residue" on 1,570 measured cells | A wording decision, not a defect; untouched by `27-55`…`27-61`. **Carried figure, named as carried** | **a later round** — split the clause and re-take the corpus comparison for BOTH shapes |
+| **The `27-53` fence-classifier floor** | **MOVED by `27-60`, and here is exactly what moved.** The derived set is still **4** members and the "classify from a TypeScript AST" direction is unchanged — but the half the review called prose is now mechanical: `harness-local` is checked as *imported by no non-test module* over a derived 33-module corpus, all **3** non-authority members are mechanically disqualified, and a member matching no class reds by name. The floor's own disclosure (concatenated / `new RegExp` recognisers, `slice(0,3)` forms, a machine in a language it does not read) is **unchanged**. **Measured this build** | **a later round** — classify from a TypeScript AST |
+| **`toggle[1]` is variable-name-sensitive** | **Carried, unchanged** — no plan in round 11 touched the toggle; `scripts/frontmatter.ts`'s fence claim is byte-unchanged by `27-60` | **a later round** |
+| **"the two compiler flags do not cover `**/*.test.ts`"** — the second half of the same `27-53` obligation | **CLOSED by `27-60`.** `tsconfig.tests.json` reaches **36 of 36** tracked `.test.ts`, `npm run typecheck` runs both targets, and CI gained an explicit `typecheck` step where **none existed at all**. `npm run typecheck` exits **0** on this build | **nobody — closed** |
+| **`27-55`** — the union axis's spelling arm places the block sibling only AFTER the payload, so block-BEFORE ordering is outside its shape space; and the pre-fix-mirror non-circularity count is **1 of 72**, non-empty but thin | **Carried, unchanged** — no later plan touched `AXIS_SPELLING` | **a later round** — add an ORDERING member to `AXIS_SPELLING` |
+| **`27-56`** — `raw.trim()`'s alphabet (Unicode WhiteSpace ∪ LineTerminator) is wider than the module's declared `[ \t]` class; `AXIS_HEADER_POSITION` has 3 members and does not reach a compact nested sequence | **Carried**, and `27-57` measured that D-61 deliberately declined to extend `trimStart` to a new site (probe b7 measures why), while `27-58` added a **second site** (an NBSP-only line inside an open scalar becomes a break run on a document libyaml REJECTS). Named as carried, with the second site named | **a later round** — decide whether the continuation path should use `firstOutsideDeclaredWs`, with the repository-wide value map taken before and after |
+| **`27-56`** — this repository's vitest **intercepts console output**, so the file's "PRINTED, never silent" skips are invisible on a default run | **RE-MEASURED this build**, and still true: `npx vitest run scripts/frontmatter.test.ts` prints **0** of the three headline measurement lines; the same run with `--disableConsoleIntercept` prints **3**. The D-60 dump `27-56` added writes to a caller-named file instead; the pre-existing console-based skips are unchanged | **a later round** — switch them to a caller-named file, or set the flag in the test script |
+| **`27-57`** — `tools:` / `  &a: b >-` refuses where libyaml reads a no-grant value (pre-existing, byte-identical on both builds, LOUD direction) | **Carried, unchanged** | **a later round** — decide whether a property whose name ends in a colon should be readable at all, and re-take the repository-wide value map |
+| **`27-58`** — **a blank line inside an open PLAIN (non-block) scalar is still folded to a space**, inventing a name on a loader-ACCEPTED document | **Carried, and PINNED at its current wrong answer by a named case** so a later round cannot read the green suite as coverage of it. The fix lives in the continuation-fold path, outside the construct D-62 scopes itself to | **a later round** — the continuation fold, with its own repository-wide value map |
+| **`27-58`** — trailing break runs: `clip` and `keep` chomping keep breaks this module discards (3 of 5 spellings); a whitespace-only MORE-indented line is content to the loader and a break run here | **Carried, unchanged.** Trailing / whitespace-only characters only; name sets agree on all five chomping spellings | **a later round**, if a consumer ever needs the trailing break |
+| **`27-59`** — the shared D-52 corpus does **not** pin `27-55`'s edit (R1), `27-57`'s edit B (R4) or `27-58`'s edit B (R6) | **RE-MEASURED and RECONCILED this build.** All three ARE pinned by the whole suite (§ From 27-61 § 2 — R1 by `27-55`'s own union axis, R4 by `27-57`'s CONTROL R, R6 by `27-58`'s B rows), which is the owner `27-59` itself named. **The obligation stands unchanged**: the SHARED corpus still cannot see these three families, and that is the property `27-59` was measuring | **a later round** — a token-carrying quoted sibling; an alias member on the property axis; and for R6 a third compared fact (the VALUE), which is a decision rather than an addition |
+| **`27-59`** — the pre-fix capture is a COMPOSITE regenerated at two different commits | **Carried as a recorded FACT, not a defect.** Both commits are asserted to be real objects, the provenance is recorded IN the fixture, and the coupled sub-slice matches the capture it replaces with **0/0/0** mismatches | **nobody — recorded so it is not rediscovered** |
+| **`27-60`** — `scripts/frontmatter.test.ts:14245-14247` shares BOTH IN-03 brittleness modes | **Carried, unchanged.** `27-60` deliberately did not edit it, so it would not change another plan's evidence; `27-61` does not either, for the same reason | **a later round** — apply `27-60`'s three repairs there |
+| **`27-60`** — five further brittleness-scan hits (mode-A `branch`, `block`; mode-B `source`, `body`, `block`) are **NOT ADJUDICATED**; the scan itself is a name-based floor with known false positives and is not committed as a gate; the IN-02 importer scan has its own named floor | **Carried, unchanged** | **a later round** — classify each hit as fixture, deliberate or genuine; the scan needs scope resolution before it could be promoted |
+| **`27-61`** — the three assertion-shaped round-11 edits (R8, R9, R10) leave the suite green when reverted alone | **Measured this build** (§ From 27-61 § 3). Not a missing pin but a category fact — removing an assertion cannot red anything — and each is pinned by a paired plant instead. R9's property proved to be asserted **twice**, measured by blinding both | **a later round** — if a stronger claim is ever wanted, promote the paired plants into committed cases |
+| **The `27-48` scope question is SETTLED, not carried** | Closed by D-57's closing paragraph and measured by `27-52`. Recorded so it is not re-opened from a third symptom | **nobody — closed** |
+
+### Part five — the round-wide specless-probe equality, in one checkable place
+
+**Scoping.** The coverage report carries **27** rows across the ten requirement IDs. **20** belong to
+requirements already verified clean or validly deferred, whose edge and prohibition predicates were
+authored across plans `27-01` … `27-54`; they are not re-authored in round 11, and that is a **scoping
+decision, not a drop**. **7** bear on the round-11 gap surface — KIT-03's six and SPAWN-04's one.
+
+**The equality:**
+
+`7 gap-surface probe rows == 5 authored explicit + 1 backstop + 1 unresolved-and-flagged + 0 dismissed`
+
+**Per-plan distribution:** `27-55` **3** (KIT-03 ordering, adjacency, empty — all explicit) ·
+`27-56` **1** (KIT-03 encoding — explicit) · `27-57` **1** (SPAWN-04 unclassified — unresolved,
+surfaced as a flagged planner assumption) · `27-58` **2** (KIT-03 boundary explicit, KIT-03 precision
+backstop) · `27-59` **0** · `27-60` **0** · `27-61` **0**.
+
+**`3 + 1 + 1 + 2 + 0 + 0 + 0 == 7`**, and **`5 + 1 + 1 + 0 == 7`**. Both sums are 7.
+
+**SPAWN-04's flagged planner assumption, restated verbatim from `27-57` so a reader does not have to
+hunt it:**
+
+> **THE PLATFORM BOUND, RESTATED VERBATIM AND NOT INFERRED AWAY: `UNKNOWN - verify`.** Whether Claude
+> Code itself honours a mapping under an allow-list key as a tool grant was **not** confirmed against
+> the platform, and no live platform escalation is claimed. The finding stands on this module's own
+> stated contract — the token is in the loaded value of the allow-list key and the guard read it as a
+> no-grant, which is the guard's own failure regardless of what the platform does with the mapping.
+
+Its acceptance evidence is `27-57`'s inverted end-to-end gate replay, re-run on the final build as
+plant **P57** in § From 27-61 § 4.
