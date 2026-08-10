@@ -55,6 +55,7 @@ import {
   assertFoldTargetIsNotBlockOwned,
   SEQ_ITEM,
   BLOCK_INDICATOR,
+  BLOCK_EXPLICIT_INDENT,
   NODE_PROPERTY_AT_NODE_START,
   DQ_ESCAPE_ALLOWLIST,
   ENUMERATION_LEGAL_CHARS,
@@ -2382,6 +2383,221 @@ describe("frontmatter — the spawn-grant parser oracle (SPAWN-04 / KIT-03)", ()
       codeLines.filter((l) => /^\s*(?:export )?const NODE_PROPERTY_AT_NODE_START\b/.test(l)).length,
       "exactly one node-property-at-a-node-start pattern, reused rather than copied",
     ).toBe(1);
+  });
+
+  // ── (27-58, D-62 — 27-REVIEW.md § WR-01, round 11) THE SCALAR ENDS WHERE YAML ENDS IT ──────────
+  //
+  // Every row's loader column is `/usr/bin/ruby -ryaml` (ruby 2.6.10 / psych 3.1.0 / libyaml 0.2.1),
+  // taken against the committed build `17c1b58` BEFORE the fix and re-taken after. The verbatim
+  // transcript with both columns is in 27-58-SUMMARY.md and deferred-items.md § From 27-58.
+  //
+  // THE DIRECTION IS THE ONE THE MODULE'S OWN DOC BLOCK CALLS NEVER EXEMPTIBLE. Row W1 returned a
+  // GRANT and the name `grugops-orchestrator` for a value the loader expresses as `Read,` alone —
+  // bytes from a SIBLING node reaching `grantedAgentNames` and being enumerated as a name the
+  // document does not carry (D-09 / KIT-03).
+  const W1 =
+    "---\nname: x\ntools:\n  nested: >-\n        Read,\n    # x, Agent(grugops-orchestrator)\n---\nBody.\n";
+
+  it("D-62 row W1 — a block scalar ends at its OWN detected content indentation, so the over-included sibling line stops granting", () => {
+    // PRE-FIX, MEASURED: {"ok":true,"value":true} and ["grugops-orchestrator"].
+    // LOADER:            {"nested"=>"Read,"} — ACCEPTED, and it carries NO grant.
+    expect(hasSpawnGrant(W1)).toEqual({ ok: true, value: false });
+    expect(grantedAgentNames(W1)).toEqual({ ok: true, value: [] });
+
+    // AND THE VALUE, NOT ONLY THE VERDICT. The loader flattens the nested mapping as
+    // `nested: Read,`; this module's value is that string plus ONE trailing space, and that space is
+    // NOT this decision's doing — it is the module's pre-existing flattening of a comment-only
+    // sibling line, byte-identical on both builds. Control E2 below is what says so, and it is here
+    // rather than in a comment because a claim about "pre-existing" that nothing measures is the
+    // shape this module deletes.
+    const p = parseFrontmatter(W1);
+    expect(p.ok).toBe(true);
+    if (p.ok) {
+      expect(p.value.get("tools")).toEqual(["nested: Read, "]);
+      expect(p.value.get("tools")?.map((v) => v.trimEnd())).toEqual([
+        "nested: Read,",
+      ]);
+    }
+
+    // CONTROL E2 — the same trailing space on a document this decision does not touch, and it is
+    // present on BOTH builds: a comment-only continuation after a block scalar that ended by the
+    // OLD rule too. loader: {"nested"=>"Read,"}.
+    const e2 = parseFrontmatter(
+      "---\nname: x\ntools:\n  nested: >-\n    Read,\n  # c\n---\nBody.\n",
+    );
+    expect(e2.ok).toBe(true);
+    if (e2.ok) expect(e2.value.get("tools")).toEqual(["nested: Read, "]);
+  });
+
+  it("D-62 rows W2 / W3 — the threshold is measured on BOTH sides: a line AT the detected indent is inside, one column less is outside", () => {
+    // The scalar's first content line sits at 6, so the detected content indentation IS 6.
+    //   line at 6 -> loader {"nested"=>"Read, # x, Agent(grugops-orchestrator)"}   INSIDE
+    //   line at 5 -> loader {"nested"=>"Read,"}                                    OUTSIDE
+    //   line at 4 -> loader {"nested"=>"Read,"}                                    OUTSIDE
+    // Both sides of one threshold, each adjudicated against the loader — the KIT-03 boundary row.
+    const at6 =
+      "---\nname: x\ntools:\n  nested: >-\n      Read,\n      # x, Agent(grugops-orchestrator)\n---\nBody.\n";
+    const at5 =
+      "---\nname: x\ntools:\n  nested: >-\n      Read,\n     # x, Agent(grugops-orchestrator)\n---\nBody.\n";
+    const at4 =
+      "---\nname: x\ntools:\n  nested: >-\n      Read,\n    # x, Agent(grugops-orchestrator)\n---\nBody.\n";
+    expect(hasSpawnGrant(at6), "at the detected indent: INSIDE the scalar").toEqual({
+      ok: true,
+      value: true,
+    });
+    expect(grantedAgentNames(at6)).toEqual({
+      ok: true,
+      value: ["grugops-orchestrator"],
+    });
+    expect(hasSpawnGrant(at5), "one column less: OUTSIDE the scalar").toEqual({
+      ok: true,
+      value: false,
+    });
+    expect(hasSpawnGrant(at4), "two columns less: OUTSIDE the scalar").toEqual({
+      ok: true,
+      value: false,
+    });
+  });
+
+  it("D-62 rows W4 / W6 — the ordinary scalar is byte-unchanged and a REAL grant inside one still grants", () => {
+    // W4 — the overwhelming majority of real documents: the first content line IS at the minimum, so
+    // the detected indentation and the header line's floor agree and nothing moves. loader:
+    // {"nested"=>"Read, # x, Agent(grugops-orchestrator)"}.
+    const w4 = parseFrontmatter(
+      "---\nname: x\ntools:\n  nested: >-\n    Read,\n    # x, Agent(grugops-orchestrator)\n---\nBody.\n",
+    );
+    expect(w4.ok).toBe(true);
+    if (w4.ok) {
+      expect(w4.value.get("tools")).toEqual([
+        "nested: Read, # x, Agent(grugops-orchestrator)",
+      ]);
+    }
+
+    // W6 — the fix REMOVES an over-inclusion; it must not remove a grant. The silent-no-grant
+    // direction is the one this whole phase exists to close, and a threshold moved too far opens it.
+    const w6 =
+      "---\nname: x\ntools:\n  nested: >-\n    Read, Agent(grugops-orchestrator)\n---\nBody.\n";
+    expect(hasSpawnGrant(w6)).toEqual({ ok: true, value: true });
+    expect(grantedAgentNames(w6)).toEqual({
+      ok: true,
+      value: ["grugops-orchestrator"],
+    });
+
+    // W7 — the same over-inclusion at the TOP-LEVEL key line, which is the position that already
+    // worked before D-57 and must move with the rest. loader: {"tools"=>"Read,"}.
+    expect(
+      hasSpawnGrant(
+        "---\nname: x\ntools: >-\n      Read,\n  # x, Agent(grugops-orchestrator)\n---\nBody.\n",
+      ),
+    ).toEqual({ ok: true, value: false });
+  });
+
+  it("D-62 row W5 — the explicit indentation-indicator digit is HONOURED, because discarding it would open a SILENT NO-GRANT", () => {
+    // THE DISPOSITION, AND IT IS FORCED BY MEASUREMENT RATHER THAN CHOSEN. `BLOCK_INDICATOR` has
+    // always matched the digit and nothing read it. With the end condition moved onto the DETECTED
+    // indentation, auto-detecting this document would put the content indent at 8, end the scalar at
+    // the line indented 7, and return `Read,` alone — while the loader ACCEPTS it and its value
+    // CARRIES the grant:
+    //
+    //   /usr/bin/ruby -ryaml -> {"nested"=>"  Read,\n # x, Agent(grugops-orchestrator)"}
+    //
+    // That is the silent-no-grant direction, which is never an acceptable price for closing an
+    // over-inclusion. So the digit is read. Recorded as D-62 in 27-CONTEXT.md with the rejected
+    // alternative.
+    const w5 =
+      "---\nname: x\ntools:\n  nested: >-2\n      Read,\n     # x, Agent(grugops-orchestrator)\n---\nBody.\n";
+    expect(hasSpawnGrant(w5)).toEqual({ ok: true, value: true });
+    expect(grantedAgentNames(w5)).toEqual({
+      ok: true,
+      value: ["grugops-orchestrator"],
+    });
+
+    // THE VALUE DIVERGES FROM THE LOADER'S IN WHITESPACE ONLY, AND THAT IS RECORDED RATHER THAN
+    // ASSERTED AWAY. This module TRIMS every content line (a pre-existing flattening property older
+    // than D-62), so the two leading spaces the loader preserves are not expressible here and the
+    // more-indented line's literal break is flattened to the fold. Neither can create or destroy a
+    // `\bAgent\b` boundary, so the fact any guard asks of this value is unchanged.
+    const p = parseFrontmatter(w5);
+    expect(p.ok).toBe(true);
+    if (p.ok) {
+      expect(p.value.get("tools")).toEqual([
+        "nested: Read, # x, Agent(grugops-orchestrator)",
+      ]);
+    }
+
+    // BOTH DIGIT ORDERS YAML PERMITS ARE READ, because § 8.1.1 permits either and `BLOCK_INDICATOR`
+    // accepts both. loader for each: {"tools"=>"a,\n b,"}.
+    for (const header of ["tools: >2-", "tools: >-2"]) {
+      const doc = `---\nname: x\n${header}\n  a,\n   Agent(o)\n---\nBody.\n`;
+      expect(grantedAgentNames(doc), header).toEqual({ ok: true, value: ["o"] });
+    }
+  });
+
+  it("D-62 the digit reader is DERIVED from BLOCK_INDICATOR, not transcribed beside it", () => {
+    // THE SET-LITERAL DRIFT GUARD, IN THE SHAPE 27-56 AND 27-57 USED FOR THE SAME PROBLEM. Candidate
+    // header spellings are generated, FILTERED THROUGH the real `BLOCK_INDICATOR`, and the digit
+    // reader must agree with the constant's own `[0-9]` run on every survivor. Narrowing the constant
+    // shortens the axis, so this cannot pass over a copy that drifted.
+    const CANDIDATES: readonly string[] = [];
+    const generated = [...CANDIDATES];
+    for (const style of ["|", ">"]) {
+      for (const chomp of ["", "-", "+"]) {
+        for (const digit of ["", "1", "2", "9", "0", "10"]) {
+          generated.push(`${style}${digit}${chomp}`, `${style}${chomp}${digit}`);
+        }
+      }
+    }
+    const accepted = generated.filter((g) => BLOCK_INDICATOR.test(g));
+    expect(accepted.length, "the constant must accept a non-trivial share of the candidates")
+      .toBeGreaterThan(20);
+    for (const spelling of accepted) {
+      // The constant's own digit run, read out of the spelling by the constant's own alphabet.
+      const run = spelling.replace(/^[|>]/, "").replace(/[+-]/g, "");
+      const read = spelling.match(BLOCK_EXPLICIT_INDENT);
+      if (run.length === 1 && run !== "0") {
+        expect(read?.[1], `${spelling}: a single 1-9 run must be READ`).toBe(run);
+      } else {
+        // `0` and a two-digit run are both documents `/usr/bin/ruby -ryaml` REJECTS outright ("an
+        // indentation indicator equal to 0" / "did not find expected comment or line break"), so
+        // there is no loader value to agree with and the scalar auto-detects.
+        expect(read, `${spelling}: not a single 1-9 indicator, so nothing is read`).toBeNull();
+      }
+    }
+  });
+
+  it("D-62 the indentation UNIT is one helper's, and a TAB in an indentation run is a RECORDED loader verdict", () => {
+    // THE BACKSTOP TRUTH, DISCHARGED AS A MEASUREMENT RATHER THAN AN ASSUMED EQUIVALENCE. Both sides
+    // of the end condition are `indentOf`'s count of leading `[ \t]` characters, taken by that one
+    // helper from the raw line — literally the same function of the same shape of input, so no
+    // rounding, truncation or unit mismatch is possible between them.
+    //
+    // A TAB INSIDE AN INDENTATION RUN IS NOT A CASE THAT EQUIVALENCE HAS TO SURVIVE, and the reason
+    // is the loader's, not this file's. Measured, `/usr/bin/ruby -ryaml`, BOTH spellings:
+    //
+    //   tools: >-        REJECT  found a tab character where an indentation space is expected
+    //     Read,                  while scanning a block scalar
+    //   <TAB>  # x, Agent(o)
+    //
+    //   tools: >-        REJECT  the same error, with the tab on the FIRST content line
+    //   <TAB>Read, Agent(o)
+    //
+    // So there is no loader value for this module to agree or disagree with at either spelling. What
+    // is asserted here is the honest half: the module does not CRASH and does not silently change
+    // its answer between the two, and its answer is recorded so a later round can compare.
+    const tabLater =
+      "---\nname: x\ntools: >-\n  Read,\n\t  # x, Agent(grugops-orchestrator)\n---\nBody.\n";
+    const tabFirst =
+      "---\nname: x\ntools: >-\n\tRead, Agent(grugops-orchestrator)\n---\nBody.\n";
+    expect(hasSpawnGrant(tabLater), "loader REJECTS this document").toEqual({
+      ok: true,
+      value: true,
+    });
+    expect(hasSpawnGrant(tabFirst), "loader REJECTS this document too").toEqual({
+      ok: true,
+      value: true,
+    });
+    // And the unit itself: one column per character, a tab counted as ONE, on both sides.
+    expect("\t  x".length - "\t  x".replace(/^[ \t]*/, "").length).toBe(3);
   });
 
   it("CR-01 — a MERGE KEY document lands in the failure arm (refused by KEY_LINE, not by a second branch)", () => {
@@ -6025,6 +6241,13 @@ const MODULE_SYMBOLS = [
   "stripNodeProperties",
   "mappingSeparatorNodeStarts",
   "NODE_PROPERTY_AT_NODE_START",
+  // (D-62, round 11) THE SCALAR'S OWN CONTENT INDENTATION AND THE DIGIT THAT CAN DECLARE IT. The end
+  // condition moved off the header line's indent onto these, so a list that does not name them cannot
+  // notice a SECOND place deciding where a block scalar ends — which is exactly the fact D-62 exists
+  // to keep in one place.
+  "blockContentIndent",
+  "blockExplicitIndent",
+  "BLOCK_EXPLICIT_INDENT",
   "cellDoc",
 ] as const;
 
@@ -7663,6 +7886,45 @@ describe("frontmatter — the loader differential over a GENERATED corpus (D-52 
       danglingNodeProperty: false,
       flowNodeStartAtEndOfKeyLine: false,
     },
+    // ── (27-58, D-62) AN OVER-INDENTED FIRST CONTENT LINE, ADDED IN THE SAME PLAN AS ITS FIX ─────
+    //
+    // THE SAME ORDER ARGUMENT AS G/G2, G3 AND G4, A FOURTH TIME — AND IT POINTS THE OTHER WAY HERE,
+    // WHICH IS WORTH SAYING OUT LOUD. Those three were LIVE SILENT NO-GRANTS, so a corpus shape
+    // before the fix would have put the differential's never-exemptible `silentWhileLoaderGrants`
+    // direction into failure. G5 is the OPPOSITE direction — a module GRANT the loader does not have
+    // — so a corpus shape before the fix would have failed the differential's OTHER never-exemptible
+    // direction. Same conclusion by the mirror-image argument: the family is closed in task 1 and the
+    // member arrives with the fix.
+    //
+    // WHY G, G2, G3 AND G4 DID NOT COVER IT. All four put every content line at ONE indent, which is
+    // exactly the case in which the header line's indent and the scalar's own detected content
+    // indentation coincide — the case the pre-D-62 end condition got right. The family WR-01 reports
+    // needs the first content line ABOVE the minimum and a later line BETWEEN the two thresholds, so
+    // the generator could not spell it and the differential reported zero disagreements over a live
+    // grant-the-loader-does-not-have. 27-49's recorded lesson arriving a fifth time: not on the
+    // position, not on the key, not on what stands in front — on which NUMBER the comparison is made
+    // against.
+    //
+    // HOW THIS SHAPE EXPRESSES IT WITHIN THE BUILDER'S ONE-INDENT RULE. The over-indented FIRST
+    // content line is part of `lines`, so it is emitted verbatim; the builder's own continuations then
+    // land at `indent` (4), which is BELOW the detected content indentation (6) and ABOVE the header
+    // line's indent (2) — precisely the window in which the old and new thresholds disagree. A
+    // comment is the only construct YAML lets stand at an arbitrary indent there, which is why the
+    // family's own expression below names the hash-at-position-0 continuation: the cells that
+    // adjudicate this family are documents `/usr/bin/ruby -ryaml` ACCEPTS
+    // (`{"tools"=>{"nested"=>"Read,"}}`), not documents it rejects.
+    //
+    // THE DECLARED YAML FACTS. `valueNodeOnContinuation: false` for the same reason G/G2/G3/G4 spell
+    // it: the value node begins on the HEADER line, which is part of `lines`.
+    {
+      label: "nested block mapping value, an over-indented first content line",
+      lines: ["tools:", "  nested: >-", "      Read,"],
+      indent: "    ",
+      tail: "",
+      valueNodeOnContinuation: false,
+      danglingNodeProperty: false,
+      flowNodeStartAtEndOfKeyLine: false,
+    },
   ];
 
   // ── AXIS 1b: THE QUOTE STYLE (27-51, WR-01 / 27-REVIEW § WR-01, round 10) ─────────────────────
@@ -8150,7 +8412,10 @@ describe("frontmatter — the loader differential over a GENERATED corpus (D-52 
     // excluded. It opens no quoted scalar either, so the derived axis moves 49 -> 50 by that identity.
     // (27-57, D-61) 23 -> 24: the same header behind a legal YAML node PROPERTY (§ 6.9). It opens no
     // quoted scalar either, so the derived axis moves 50 -> 51 by that identity.
-    expect(AXIS_KEY_LINE_BASE.length).toBe(24);
+    // (27-58, D-62) 24 -> 25: the same header with its FIRST CONTENT LINE above the minimum, which is
+    // the one arrangement in which the header line's indent and the scalar's own detected content
+    // indentation disagree. It opens no quoted scalar either, so the derived axis moves 51 -> 52.
+    expect(AXIS_KEY_LINE_BASE.length).toBe(25);
     // THE FAMILY IS EXPRESSIBLE, DERIVED FROM THE SHAPES RATHER THAN CLAIMED IN A COMMENT. A
     // block-scalar header must be spelled on a line BELOW the top-level key line, or family G/G2 is
     // still outside this corpus and the completeness line is again a statement about inputs it never
@@ -8949,10 +9214,14 @@ describe("frontmatter — the loader differential over a GENERATED corpus (D-52 
     // UNPROMPTED for the THIRD consecutive round, on the same terms — the row landed with task 1's
     // fix, this case went red naming G4, and the corpus member was added because of it rather than
     // alongside it.
+    // (27-58, D-62) 13 -> 14: the fourteenth ledger entry's family row, G5. The floor did its job
+    // UNPROMPTED for the FOURTH consecutive round, and this time in the MIRROR direction — G5 is a
+    // module grant the loader does not have rather than a silent no-grant, and the same order
+    // argument applies to it unchanged.
     expect(
       LEDGER_FAMILIES.length,
       `family rows derived from scripts/frontmatter.ts's header:\n${LEDGER_FAMILIES.map((f) => `${f.label}  ${f.sketch}`).join("\n")}`,
-    ).toBe(13);
+    ).toBe(14);
     expect(LEDGER_FAMILIES.length).toBeGreaterThan(0);
     expect(new Set(LEDGER_FAMILIES.map((f) => f.label)).size).toBe(
       LEDGER_FAMILIES.length,
@@ -8974,7 +9243,8 @@ describe("frontmatter — the loader differential over a GENERATED corpus (D-52 
     ).toEqual(["d1", "d2", "d3"]);
     expect(outside.length).toBe(3);
     // (27-57, D-61) 9 -> 10: the thirteenth ledger entry's family row G4.
-    expect(inside.length).toBe(10);
+    // (27-58, D-62) 10 -> 11: the fourteenth ledger entry's family row G5.
+    expect(inside.length).toBe(11);
     expect(outside.length + inside.length).toBe(LEDGER_FAMILIES.length);
 
     // THE AXIS-MEMBER COMBINATION THAT BUILDS EACH FAMILY, NAMED BY LABEL. This is the only
@@ -9052,6 +9322,22 @@ describe("frontmatter — the loader differential over a GENERATED corpus (D-52 
       G4: {
         keyLine: "nested block mapping value, a node property before the header",
         first: "plain text",
+        second: "the token after a hash",
+        depth: 2,
+      },
+      // (27-58, D-62) The fourteenth ledger entry's family row, and the mechanism working a FOURTH
+      // consecutive time exactly as designed: the row landed with task 1's fix, THIS case went red
+      // naming G5 as a family the corpus could not build, and the member above is what closes it.
+      // The transcript is quoted in 27-58-SUMMARY.md.
+      //
+      // `first` IS THE HASH MEMBER RATHER THAN PLAIN TEXT, and that is a fact about YAML rather than
+      // a convenience. The line that expresses this family stands BETWEEN the header line's indent
+      // and the scalar's detected content indentation, and a comment is the only construct YAML
+      // permits at an arbitrary indent there — a plain-text line in that window is a document the
+      // loader REJECTS, and a family whose only cells are loader-rejected is not coverage.
+      G5: {
+        keyLine: "nested block mapping value, an over-indented first content line",
+        first: "a hash at position 0",
         second: "the token after a hash",
         depth: 2,
       },

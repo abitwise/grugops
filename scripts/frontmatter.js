@@ -380,6 +380,55 @@ export const BLOCK_INDICATOR = /^[|>][0-9]*[+-]?[ \t]*(?:#.*)?$|^[|>][+-]?[0-9]*
 // and it moves from a possibly-invented list to a REFUSAL — the loud arm, and the one the loader
 // agrees with.
 const blockLineBreak = (indicator) => indicator.startsWith("|") ? "\n" : " ";
+// (D-62 — 27-REVIEW.md § WR-01, round 11) THE EXPLICIT INDENTATION INDICATOR, READ INSTEAD OF
+// MATCHED-AND-DISCARDED.
+//
+// `BLOCK_INDICATOR` has always ACCEPTED the digit — `^[|>][0-9]*[+-]?…|^[|>][+-]?[0-9]*…`, both
+// orders, because YAML 1.2 § 8.1.1 permits either — and nothing ever read it. That was harmless while
+// the end condition was the HEADER LINE'S indent, because the digit changes only where the CONTENT
+// begins. It stops being harmless the moment the end condition becomes the content indentation, and
+// the direction it stops being harmless in is the never-exemptible one. Measured,
+// `/usr/bin/ruby -ryaml`:
+//
+//   tools:              {"nested"=>"  Read,\n # x, Agent(grugops-orchestrator)"}
+//     nested: >-2       -> the loader's value CARRIES THE GRANT
+//         Read,
+//        # x, Agent(grugops-orchestrator)
+//
+// Auto-detecting from the first content line would put the content indent at 8, END the scalar at the
+// line indented 7, and return `Read,` alone — a SILENT NO-GRANT on a document the loader accepts and
+// grants. So the alternative disposition (keep discarding the digit, auto-detect both spellings) is
+// REJECTED BY MEASUREMENT rather than by preference: it trades one over-inclusion for one silent
+// no-grant, which is the trade this module never makes. Recorded as D-62 in 27-CONTEXT.md.
+//
+// THE BASE THE DIGIT IS ADDED TO IS THE HEADER LINE'S OWN INDENT, and that is measured rather than
+// derived from prose. `/usr/bin/ruby -ryaml`, eight rows across all three positions a header can
+// appear at (top-level key line, nested mapping value, block-sequence item):
+//
+//   tools: >-2 / `  a` / ` b`             -> "a,"                 content indent 0+2 = 2
+//   tools: >-2 / `    a` / `   b`         -> "  a,\n b"           content indent 0+2 = 2
+//   tools: >-1 / `  a` / ` b`             -> " a,\n# b"           content indent 0+1 = 1
+//   tools: / `  nested: >-2` / 6 / 5      -> "  Read,\n # x"      content indent 2+2 = 4
+//   tools: / `  nested: >-2` / 4 / 3      -> "Read,"              content indent 2+2 = 4
+//   tools: / `  nested: >-4` / 6 / 5      -> "Read,"              content indent 2+4 = 6
+//   tools: / `  nested: >-1` / 6 / 5      -> "   Read,\n  # x"    content indent 2+1 = 3
+//   tools: / `  - >-2` / 6 / 5            -> ["  Read,\n # x"]    content indent 2+2 = 4
+//
+// THIS IS NOT A SECOND HEADER GRAMMAR. It decides nothing about what a header LOOKS like —
+// `BLOCK_INDICATOR` still owns that and is byte-unchanged — and it is only ever asked about text that
+// constant has ALREADY accepted. The tie is asserted rather than asserted-about: a case generates
+// candidate spellings, FILTERS them through `BLOCK_INDICATOR`, and requires this function to read the
+// digit run the constant matched for every survivor, so narrowing the constant shortens the axis.
+//
+// A digit run this function cannot read as a single 1-9 indicator returns `null` and the scalar
+// auto-detects. `>-0` and `>-10` are both documents `/usr/bin/ruby -ryaml` REJECTS outright ("an
+// indentation indicator equal to 0", "did not find expected comment or line break"), so there is no
+// loader value to disagree with at either spelling — recorded, not assumed.
+export const BLOCK_EXPLICIT_INDENT = /^[|>][+-]?([1-9])(?![0-9])/;
+const blockExplicitIndent = (indicator) => {
+    const digit = indicator.match(BLOCK_EXPLICIT_INDENT);
+    return digit === null ? null : Number(digit[1]);
+};
 const HEADER_INTRODUCTIONS = [
     {
         // INTRODUCTION 1 OF 4 — none. The header IS the whole line: a block-sequence item's text after
@@ -498,6 +547,7 @@ function blockHeaderAt(text) {
             leading: split.leading,
             lineBreak: blockLineBreak(node),
             mappingValueIndicator: introduction.mappingValueIndicator,
+            explicitIndent: blockExplicitIndent(node),
         };
     }
     return null;
@@ -1444,6 +1494,12 @@ function flattenBlock(block, baseIndent) {
         a.blockIndent = headerIndent;
         a.blockLineBreak = header.lineBreak;
         a.blockHasContent = false;
+        // (D-62) THE CONTENT INDENTATION IS UNKNOWN UNTIL THE FIRST CONTENT LINE — unless the header
+        // DECLARED it, in which case the loader never detects and neither does this. The header line's
+        // own indent is the base the digit is added to; measured, eight rows, at every position a header
+        // can appear. See `blockExplicitIndent`.
+        a.blockContentIndent =
+            header.explicitIndent === null ? null : headerIndent + header.explicitIndent;
         // The node BEGAN here: the header introduces the scalar even when its first content line is
         // still to come. Set on the same argument as the key line's and the item path's own assignments.
         a.nodeStarted = true;
@@ -1493,7 +1549,33 @@ function flattenBlock(block, baseIndent) {
                 // NOTHING HERE GUESSES. There is no fixed depth, no line-shape heuristic and no "read to the
                 // end of the key's region" fallback; the two candidate dispositions that would have required
                 // one were considered and rejected by name in D-57, with their reasons recorded.
-                if (indent > cur.blockIndent) {
+                //
+                // (D-62 — 27-REVIEW.md § WR-01, round 11) AND THE PARAGRAPH ABOVE NAMED THE WRONG THRESHOLD.
+                // YAML ends a block scalar at the first line less indented than the scalar's OWN DETECTED
+                // CONTENT INDENTATION, not at the first line not more indented than the HEADER LINE. Where
+                // the first content line sits above the minimum the two diverge, and the module OVER-INCLUDES
+                // — bytes from a sibling node land in the value a guard reads, and `  # x, Agent(…)` two
+                // columns out became a GRANT the loader does not have.
+                //
+                // THE FLOOR AND THE THRESHOLD ARE BOTH HERE, AND THEY ARE DIFFERENT FACTS. Before detection
+                // the floor decides (a line must EXCEED the header line's indent to be content at all, which
+                // is what makes it the line that DEFINES the indentation); after detection the detected
+                // indentation decides, and a line exactly AT it is INSIDE while one column less is OUTSIDE.
+                // Measured on both sides, `/usr/bin/ruby -ryaml`, detected indent 6:
+                //   line at 6 -> {"nested"=>"Read, # x"}   INSIDE
+                //   line at 5 -> {"nested"=>"Read,"}       OUTSIDE
+                //   line at 4 -> {"nested"=>"Read,"}       OUTSIDE
+                //
+                // THE UNIT IS `indentOf`'S — a count of leading `[ \t]` characters, taken by the same helper
+                // from both lines. See `Accumulator.blockContentIndent` for the tab measurement.
+                const inside = cur.blockContentIndent === null
+                    ? indent > cur.blockIndent
+                    : indent >= cur.blockContentIndent;
+                if (inside) {
+                    // DETECTION HAPPENS ONCE, HERE, at the first non-empty content line — the point the fact
+                    // becomes known. It is never re-derived and never written a second time.
+                    if (cur.blockContentIndent === null)
+                        cur.blockContentIndent = indent;
                     // Inside a literal/folded scalar every continuation line is content. A leading dash is part
                     // of the text, not a sequence marker, and a `#` is literal — no comment stripping here.
                     //
@@ -1841,6 +1923,7 @@ function flattenBlock(block, baseIndent) {
                 leading: "",
                 lineBreak: blockLineBreak(rest),
                 mappingValueIndicator: false,
+                explicitIndent: blockExplicitIndent(rest),
             }
             : null;
         if (keyLineHeader !== null) {
@@ -1849,6 +1932,7 @@ function flattenBlock(block, baseIndent) {
                 parts: [],
                 block: false,
                 blockIndent: baseIndent,
+                blockContentIndent: null,
                 blockLineBreak: " ",
                 blockHasContent: false,
                 seq: false,
@@ -1864,6 +1948,7 @@ function flattenBlock(block, baseIndent) {
                 parts: [],
                 block: false,
                 blockIndent: baseIndent,
+                blockContentIndent: null,
                 blockLineBreak: " ",
                 blockHasContent: false,
                 seq: false,
@@ -2409,6 +2494,55 @@ function flattenBlock(block, baseIndent) {
 //   set of introductions", write the set down as DATA — an enumeration held in straight-line branches
 //   is an enumeration each new question must be added to by hand, which is this repository's second
 //   diagnosed systemic failure class wearing a control-flow disguise.
+// AND A FOURTEENTH TIME — THE PREDICATE WAS RIGHT, ITS POSITIONS WERE RIGHT, NOTHING STOOD IN FRONT
+// OF IT, AND IT WAS ASKED ABOUT THE WRONG NUMBER (27-REVIEW.md § WR-01, round 11 — D-62).
+//
+//   FIRST, THE COUNT, CITED AND NOT REMEMBERED. This is the FOURTEENTH entry and it comes from the
+//   ELEVENTH review round. Nothing below depends on either number; every claim names an assertion.
+//
+//   ENTRY ELEVEN GAVE THE BLOCK SCALAR AN END CONDITION AND TOOK IT FROM THE WRONG LINE. It kept a
+//   line inside the scalar while the line was MORE INDENTED THAN THE HEADER LINE. YAML 1.2 § 8.1.1.1
+//   AUTO-DETECTS the content indentation from the scalar's FIRST NON-EMPTY CONTENT LINE and ends the
+//   scalar at the first line less indented than THAT. The two agree only where the first content line
+//   sits at the minimum — which is nearly every real document, and is why it survived a round — and
+//   diverge exactly where it does not:
+//
+//     G5  `tools:` / `  nested: >-` / `      Read,` / `    # x, Agent(o)`   an over-indented first line
+//
+//   Measured on the committed build with `/usr/bin/ruby -ryaml` (ruby 2.6.10 / psych 3.1.0 /
+//   libyaml 0.2.1), this is the OTHER direction from entries eleven to thirteen — not a silent
+//   no-grant but a module GRANT THE LOADER DOES NOT HAVE, which the doc block at `blockHeaderAt`'s
+//   own family already names as never exemptible:
+//
+//     module  {ok:true,value:true}, grantedAgentNames ["grugops-orchestrator"]
+//     loader  {"nested"=>"Read,"}  ACCEPTED, and the value carries NO grant
+//
+//   So bytes belonging to a SIBLING node reached `grantedAgentNames` and were enumerated as a name
+//   the document does not carry — the KIT-03 / D-09 direction, arrived at from the opposite side.
+//
+//   THE REMEDY DERIVES THE THRESHOLD FROM A FACT THE SCALAR ITSELF CARRIES. `blockContentIndent` is
+//   set once, at the first non-empty content line, and the end condition compares against it;
+//   `blockIndent` keeps its job as the FLOOR that the detected indent must exceed, so the two facts
+//   are related rather than one replacing the other. Both sides of the new threshold are measured
+//   against the loader — a line exactly AT the detected indentation is inside, one column less is
+//   outside — because a boundary asserted on one side only is half a boundary.
+//
+//   AND THE EXPLICIT INDENTATION DIGIT STOPPED BEING SAFE TO DISCARD. `BLOCK_INDICATOR` has always
+//   matched `[0-9]` and nothing ever read it, which cost nothing while the threshold was the header
+//   line. Under the new threshold, auto-detecting `nested: >-2` would end the scalar early on a
+//   document the loader ACCEPTS WITH THE GRANT IN ITS VALUE — a silent no-grant created by the fix
+//   for an over-inclusion. So the digit is read (`blockExplicitIndent`), and the alternative is
+//   recorded as rejected-by-measurement rather than left unwritten.
+//
+//   THE STANDING QUESTION THIS LEAVES FOR THE NEXT READER, AND IT IS THE ONE THIS ENTRY IS FOR.
+//   Entry nine asked what INPUT the authority is handed; entry ten asked what CONDITIONS it carries;
+//   entry eleven asked AT WHICH POSITIONS it is asked; entry twelve asked WHOSE QUESTION it answers;
+//   entry thirteen asked WHAT MAY STAND IN FRONT of it. This one asks: WHICH OF THE FORMAT'S OWN
+//   QUANTITIES IS THIS COMPARISON ACTUALLY MADE AGAINST? A boundary can be at the right position, be
+//   asked the right question, and still be measured from the wrong landmark — and a landmark that
+//   USUALLY coincides with the right one is the worst kind, because it makes the corpus agree. When a
+//   rule names a number, find the number the FORMAT names and check they are the same number, not
+//   merely equal on the documents to hand.
 // The payload at each delimiter position. Declared here as data so both positions consult the same
 // tokens in the same order, which is what makes the reported refusal deterministic for a given input.
 const OPEN_PAYLOADS = ["---"];
