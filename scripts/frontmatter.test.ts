@@ -1908,7 +1908,7 @@ describe("frontmatter — the spawn-grant parser oracle (SPAWN-04 / KIT-03)", ()
   // Every row's loader column is `/usr/bin/ruby -ryaml` (ruby 2.6.10 / psych 3.1.0 / libyaml 0.2.1),
   // measured on the PRE-fix committed build and again on the post-fix build; the full transcript with
   // both columns is in 27-56-SUMMARY.md and deferred-items.md § From 27-56. These rows are the
-  // NAMED evidence; the property is pinned by `AXIS_NESTED_KEY_SPELLING` below, where the loader is
+  // NAMED evidence; the property is pinned by `AXIS_HEADER_KEY_SPELLING` below, where the loader is
   // the expected value for every cell rather than anything written in this file.
   const D60_PAYLOAD = "    Read,\n    # x, Agent(grugops-orchestrator)\n";
   const d60Doc = (headerLine: string): string =>
@@ -7792,6 +7792,39 @@ describe("frontmatter — the loader differential over a GENERATED corpus (D-52 
   //                              a continuation line to be a node start, and E2 below needs it: the
   //                              exemption was written when `valueNodeOnContinuation` was the only
   //                              way, which made it a claim about one of the two.
+  //
+  //   (27-59) `blockHeader`  the block-scalar header this shape spells, DECLARED AS PARTS rather than
+  //                          left implicit inside `lines`. It is the fifth declared YAML fact and it
+  //                          exists so the header dimensions below can be DERIVED from the shape's own
+  //                          fields — a shape that declares its header gets every nested key spelling,
+  //                          every node-property form and every indicator form by construction, and a
+  //                          shape added tomorrow gets them without anyone remembering. `null` where
+  //                          the shape spells no block-scalar header at all.
+  //   (27-59) `siblingQuotedRegion`  a QUOTED region carrying YAML's own escape stands beside the
+  //                          block-owned region under the SAME key. This is the fact the round-11
+  //                          region/escape union family is stated over, and it is a declared fact
+  //                          rather than a substring test so the expressibility predicate below reads
+  //                          a fact instead of sniffing text.
+  interface BlockHeaderParts {
+    // Index into `lines`. A header at index 0 is spelled on the TOP-LEVEL key line, which is the one
+    // position whose key this whole harness looks up — so the nested-key-spelling crossing is derived
+    // to skip it rather than told to.
+    readonly line: number;
+    readonly indent: string;
+    // What INTRODUCES the header's node on that line: "" for a mapping key, "- " for a sequence item.
+    readonly intro: string;
+    // The nested mapping key, or `null` where the intro carries none (a sequence item).
+    readonly key: string | null;
+    // "" or a YAML node property (§ 6.9) INCLUDING its trailing separation space.
+    readonly property: string;
+    // The block-scalar indicator with its chomping and any explicit indentation digit.
+    readonly indicator: string;
+  }
+  // The header line, RECOMPUTED from its declared parts. Asserted below to reproduce every declaring
+  // shape's own `lines[line]` byte for byte, which is what makes the parts a DERIVATION of the shape
+  // rather than a second description of it that can drift.
+  const spellHeader = (h: BlockHeaderParts): string =>
+    `${h.indent}${h.intro}${h.key === null ? "" : `${h.key}: `}${h.property}${h.indicator}`;
   interface KeyLineShape {
     readonly label: string;
     readonly lines: readonly string[];
@@ -7800,6 +7833,8 @@ describe("frontmatter — the loader differential over a GENERATED corpus (D-52 
     readonly valueNodeOnContinuation: boolean;
     readonly danglingNodeProperty: boolean;
     readonly flowNodeStartAtEndOfKeyLine: boolean;
+    readonly blockHeader: BlockHeaderParts | null;
+    readonly siblingQuotedRegion: boolean;
   }
   const AXIS_KEY_LINE_BASE: readonly KeyLineShape[] = [
     {
@@ -7810,6 +7845,8 @@ describe("frontmatter — the loader differential over a GENERATED corpus (D-52 
       valueNodeOnContinuation: false,
       danglingNodeProperty: false,
       flowNodeStartAtEndOfKeyLine: false,
+      blockHeader: null,
+      siblingQuotedRegion: false,
     },
     {
       label: "no value",
@@ -7819,6 +7856,8 @@ describe("frontmatter — the loader differential over a GENERATED corpus (D-52 
       valueNodeOnContinuation: true,
       danglingNodeProperty: false,
       flowNodeStartAtEndOfKeyLine: false,
+      blockHeader: null,
+      siblingQuotedRegion: false,
     },
     {
       label: "comment-only value",
@@ -7828,6 +7867,8 @@ describe("frontmatter — the loader differential over a GENERATED corpus (D-52 
       valueNodeOnContinuation: true,
       danglingNodeProperty: false,
       flowNodeStartAtEndOfKeyLine: false,
+      blockHeader: null,
+      siblingQuotedRegion: false,
     },
     {
       label: "trailing whitespace only",
@@ -7837,6 +7878,8 @@ describe("frontmatter — the loader differential over a GENERATED corpus (D-52 
       valueNodeOnContinuation: true,
       danglingNodeProperty: false,
       flowNodeStartAtEndOfKeyLine: false,
+      blockHeader: null,
+      siblingQuotedRegion: false,
     },
     {
       label: "flow-sequence opener",
@@ -7846,6 +7889,8 @@ describe("frontmatter — the loader differential over a GENERATED corpus (D-52 
       valueNodeOnContinuation: false,
       danglingNodeProperty: false,
       flowNodeStartAtEndOfKeyLine: true,
+      blockHeader: null,
+      siblingQuotedRegion: false,
     },
     {
       label: "flow-mapping opener",
@@ -7855,6 +7900,8 @@ describe("frontmatter — the loader differential over a GENERATED corpus (D-52 
       valueNodeOnContinuation: false,
       danglingNodeProperty: false,
       flowNodeStartAtEndOfKeyLine: true,
+      blockHeader: null,
+      siblingQuotedRegion: false,
     },
     {
       label: "flow-sequence opener with a node property",
@@ -7864,6 +7911,8 @@ describe("frontmatter — the loader differential over a GENERATED corpus (D-52 
       valueNodeOnContinuation: false,
       danglingNodeProperty: true,
       flowNodeStartAtEndOfKeyLine: true,
+      blockHeader: null,
+      siblingQuotedRegion: false,
     },
     {
       label: "flow-mapping explicit-key opener",
@@ -7873,6 +7922,8 @@ describe("frontmatter — the loader differential over a GENERATED corpus (D-52 
       valueNodeOnContinuation: false,
       danglingNodeProperty: false,
       flowNodeStartAtEndOfKeyLine: true,
+      blockHeader: null,
+      siblingQuotedRegion: false,
     },
     // (27-43's OWN RED TEAM, CARRIED IN AS CORPUS) These two are the exact spellings that were live
     // silent-no-grant bypasses INSIDE D-51's first draft — a node property standing in front of a
@@ -7888,6 +7939,8 @@ describe("frontmatter — the loader differential over a GENERATED corpus (D-52 
       valueNodeOnContinuation: false,
       danglingNodeProperty: false,
       flowNodeStartAtEndOfKeyLine: false,
+      blockHeader: null,
+      siblingQuotedRegion: false,
     },
     {
       label: "flow-mapping explicit-key opener with a mid-line quote",
@@ -7897,6 +7950,8 @@ describe("frontmatter — the loader differential over a GENERATED corpus (D-52 
       valueNodeOnContinuation: false,
       danglingNodeProperty: false,
       flowNodeStartAtEndOfKeyLine: false,
+      blockHeader: null,
+      siblingQuotedRegion: false,
     },
     {
       label: "literal block indicator",
@@ -7906,6 +7961,8 @@ describe("frontmatter — the loader differential over a GENERATED corpus (D-52 
       valueNodeOnContinuation: false,
       danglingNodeProperty: false,
       flowNodeStartAtEndOfKeyLine: false,
+      blockHeader: { line: 0, indent: "", intro: "", key: "tools", property: "", indicator: "|-" },
+      siblingQuotedRegion: false,
     },
     {
       label: "folded block indicator",
@@ -7915,6 +7972,8 @@ describe("frontmatter — the loader differential over a GENERATED corpus (D-52 
       valueNodeOnContinuation: false,
       danglingNodeProperty: false,
       flowNodeStartAtEndOfKeyLine: false,
+      blockHeader: { line: 0, indent: "", intro: "", key: "tools", property: "", indicator: ">-" },
+      siblingQuotedRegion: false,
     },
     {
       label: "block-sequence dash with no value",
@@ -7924,6 +7983,8 @@ describe("frontmatter — the loader differential over a GENERATED corpus (D-52 
       valueNodeOnContinuation: true,
       danglingNodeProperty: false,
       flowNodeStartAtEndOfKeyLine: false,
+      blockHeader: null,
+      siblingQuotedRegion: false,
     },
     // ── (27-49, WR-01 / D-56 item 1) THE SEVEN SHAPES YAML'S GRAMMAR NAMES ─────────────────────
     //
@@ -7971,6 +8032,8 @@ describe("frontmatter — the loader differential over a GENERATED corpus (D-52 
       valueNodeOnContinuation: false,
       danglingNodeProperty: false,
       flowNodeStartAtEndOfKeyLine: false,
+      blockHeader: null,
+      siblingQuotedRegion: false,
     },
     {
       label: "compact nested sequence, mid-line quote",
@@ -7980,6 +8043,8 @@ describe("frontmatter — the loader differential over a GENERATED corpus (D-52 
       valueNodeOnContinuation: false,
       danglingNodeProperty: false,
       flowNodeStartAtEndOfKeyLine: false,
+      blockHeader: null,
+      siblingQuotedRegion: false,
     },
     {
       label: "block explicit key, mid-line quote",
@@ -7989,6 +8054,8 @@ describe("frontmatter — the loader differential over a GENERATED corpus (D-52 
       valueNodeOnContinuation: false,
       danglingNodeProperty: false,
       flowNodeStartAtEndOfKeyLine: false,
+      blockHeader: null,
+      siblingQuotedRegion: false,
     },
     {
       label: "JSON-adjacent flow mapping, unspaced",
@@ -7998,6 +8065,8 @@ describe("frontmatter — the loader differential over a GENERATED corpus (D-52 
       valueNodeOnContinuation: false,
       danglingNodeProperty: false,
       flowNodeStartAtEndOfKeyLine: false,
+      blockHeader: null,
+      siblingQuotedRegion: false,
     },
     {
       label: "JSON-adjacent flow mapping, spaced",
@@ -8007,6 +8076,8 @@ describe("frontmatter — the loader differential over a GENERATED corpus (D-52 
       valueNodeOnContinuation: false,
       danglingNodeProperty: false,
       flowNodeStartAtEndOfKeyLine: false,
+      blockHeader: null,
+      siblingQuotedRegion: false,
     },
     {
       label: "block mapping inside a sequence item, mid-line quote",
@@ -8016,6 +8087,8 @@ describe("frontmatter — the loader differential over a GENERATED corpus (D-52 
       valueNodeOnContinuation: false,
       danglingNodeProperty: false,
       flowNodeStartAtEndOfKeyLine: false,
+      blockHeader: null,
+      siblingQuotedRegion: false,
     },
     {
       label: "flow mapping inside a flow sequence",
@@ -8025,6 +8098,8 @@ describe("frontmatter — the loader differential over a GENERATED corpus (D-52 
       valueNodeOnContinuation: false,
       danglingNodeProperty: false,
       flowNodeStartAtEndOfKeyLine: false,
+      blockHeader: null,
+      siblingQuotedRegion: false,
     },
     // ── (27-52, D-57) THE NESTED BLOCK-SCALAR HEADER, ADDED IN THE SAME PLAN AS ITS FIX ──────────
     //
@@ -8057,6 +8132,8 @@ describe("frontmatter — the loader differential over a GENERATED corpus (D-52 
       valueNodeOnContinuation: false,
       danglingNodeProperty: false,
       flowNodeStartAtEndOfKeyLine: false,
+      blockHeader: { line: 1, indent: "  ", intro: "", key: "nested", property: "", indicator: ">-" },
+      siblingQuotedRegion: false,
     },
     {
       label: "block-sequence item, block-scalar header",
@@ -8066,6 +8143,8 @@ describe("frontmatter — the loader differential over a GENERATED corpus (D-52 
       valueNodeOnContinuation: false,
       danglingNodeProperty: false,
       flowNodeStartAtEndOfKeyLine: false,
+      blockHeader: { line: 1, indent: "  ", intro: "- ", key: null, property: "", indicator: ">-" },
+      siblingQuotedRegion: false,
     },
     // ── (27-56, D-60) THE NESTED KEY YAML ALLOWS, ADDED IN THE SAME PLAN AS ITS FIX ──────────────
     //
@@ -8084,7 +8163,7 @@ describe("frontmatter — the loader differential over a GENERATED corpus (D-52 
     // THE SPACE-CONTAINING SPELLING IS THE MEMBER because it carries NO double quote, so it passes
     // through the quote-style crossing exactly once (like G and G2) and the derived axis moves by one
     // rather than by four. The quoted, dotted and digit-leading spellings are crossed by
-    // `AXIS_NESTED_KEY_SPELLING` below, which adjudicates all eight against the loader.
+    // `AXIS_HEADER_KEY_SPELLING` below, which adjudicates all eight against the loader.
     {
       label: "nested block mapping value, a nested key YAML allows",
       lines: ["tools:", "  a b: >-"],
@@ -8093,6 +8172,8 @@ describe("frontmatter — the loader differential over a GENERATED corpus (D-52 
       valueNodeOnContinuation: false,
       danglingNodeProperty: false,
       flowNodeStartAtEndOfKeyLine: false,
+      blockHeader: { line: 1, indent: "  ", intro: "", key: "a b", property: "", indicator: ">-" },
+      siblingQuotedRegion: false,
     },
     // ── (27-57, D-61) A NODE PROPERTY IN FRONT OF THE HEADER, ADDED IN THE SAME PLAN AS ITS FIX ──
     //
@@ -8128,6 +8209,8 @@ describe("frontmatter — the loader differential over a GENERATED corpus (D-52 
       valueNodeOnContinuation: false,
       danglingNodeProperty: false,
       flowNodeStartAtEndOfKeyLine: false,
+      blockHeader: { line: 1, indent: "  ", intro: "", key: "nested", property: "&a ", indicator: ">-" },
+      siblingQuotedRegion: false,
     },
     // ── (27-58, D-62) AN OVER-INDENTED FIRST CONTENT LINE, ADDED IN THE SAME PLAN AS ITS FIX ─────
     //
@@ -8167,6 +8250,8 @@ describe("frontmatter — the loader differential over a GENERATED corpus (D-52 
       valueNodeOnContinuation: false,
       danglingNodeProperty: false,
       flowNodeStartAtEndOfKeyLine: false,
+      blockHeader: { line: 1, indent: "  ", intro: "", key: "nested", property: "", indicator: ">-" },
+      siblingQuotedRegion: false,
     },
     // ── (27-58, D-62) A BLANK LINE INSIDE AN OPEN BLOCK SCALAR, ADDED IN THE SAME PLAN AS ITS FIX ──
     //
@@ -8192,6 +8277,8 @@ describe("frontmatter — the loader differential over a GENERATED corpus (D-52 
       valueNodeOnContinuation: false,
       danglingNodeProperty: false,
       flowNodeStartAtEndOfKeyLine: false,
+      blockHeader: { line: 0, indent: "", intro: "", key: "tools", property: "", indicator: ">" },
+      siblingQuotedRegion: false,
     },
   ];
 
@@ -8236,6 +8323,240 @@ describe("frontmatter — the loader differential over a GENERATED corpus (D-52 
     { label: "the style's own escape at the content start", inject: true },
   ];
 
+  // ── AXES 1d-1g: THE BLOCK-SCALAR HEADER'S OWN FOUR DIMENSIONS (27-59, WR-01 round 11) ─────────
+  //
+  // WHY FOUR AXES AND NOT THREE ROWS. Round 11 reported three critical families — a block-owned
+  // region beside a quoted region under one key, a nested key spelling outside the top-level
+  // charset, and a node property standing in front of a block indicator. Each was fixed, and each
+  // fix's own plan pinned it with an axis of its own. NONE of them was expressible in THIS corpus,
+  // which is the shared one the completeness claim is made over. Adding three hand-written members
+  // for the three families a review happened to report would be circular over the FAMILY structure
+  // exactly as a per-arm corpus was circular over the ARM structure: the fourth family, the one
+  // nobody has reported yet, would be outside the shape space again and the differential would go
+  // on printing a green line about inputs it never generated. So the header becomes a PRODUCT of
+  // its own parts, read off each shape's declared `blockHeader`, and a shape that declares a header
+  // gets every combination by construction.
+  //
+  // EVERY MEMBER IS A TRANSFORM OF THE SHAPE'S DECLARED PART, NEVER AN ABSOLUTE VALUE. That is not a
+  // style preference: an absolute override collides with the declaration wherever the two coincide
+  // (an "indicator = |-" member applied to a shape that already declares `|-` produces a duplicate
+  // cell and breaks the distinct-key floor), so the members are stated as functions and the identity
+  // member is literally the identity function. Collapsing every axis to member 0 therefore
+  // reproduces the base axis byte for byte, which the non-vacuity floor asserts rather than assumes.
+  //
+  // NO MEMBER INTRODUCES A DOUBLE QUOTE, and that is deliberate arithmetic rather than an accident:
+  // the quote-style crossing below participates exactly on shapes whose text spells `"`, so a
+  // double-quoted nested key would put every header variant through a further x4 and quadruple the
+  // corpus for a spelling the single quote already reaches. The base axis makes this same argument
+  // for its own `a b` member in as many words.
+
+  // AXIS 1d — THE NESTED KEY'S SPELLING (the `27-56` family). Applied only where the header is
+  // spelled BELOW the top-level key line and its intro carries a key: the top-level key is the one
+  // this whole harness looks up, so respelling it would change what the loader is asked about.
+  interface HeaderKeySpelling {
+    readonly label: string;
+    readonly spell: (key: string) => string;
+  }
+  const AXIS_HEADER_KEY_SPELLING: readonly HeaderKeySpelling[] = [
+    { label: "the key as declared", spell: (k) => k },
+    { label: "a single-quoted key", spell: (k) => `'${k}'` },
+    { label: "a dotted key", spell: (k) => `${k}.v` },
+    { label: "a digit-leading key", spell: (k) => `9${k}` },
+  ];
+
+  // AXIS 1e — WHAT STANDS IN FRONT OF THE INDICATOR (the `27-57` family). A YAML node property
+  // (§ 6.9) between the introduction and the block indicator, so the text a recogniser is handed no
+  // longer begins with the indicator at all.
+  interface HeaderPropertyForm {
+    readonly label: string;
+    readonly respell: (property: string) => string;
+  }
+  const AXIS_HEADER_PROPERTY_FORM: readonly HeaderPropertyForm[] = [
+    { label: "the property as declared", respell: (p) => p },
+    { label: "an anchor before the indicator", respell: () => "&p " },
+    { label: "a tag before the indicator", respell: () => "!!str " },
+  ];
+
+  // AXIS 1f — THE INDICATOR'S OWN FORM. Stated as transforms for the collision reason above: the
+  // style swap and the chomping change are both total and both injective on the three spellings this
+  // axis's declaring shapes carry (`>-`, `|-`, `>`), so no variant can coincide with another.
+  interface HeaderIndicatorForm {
+    readonly label: string;
+    readonly respell: (indicator: string) => string;
+  }
+  const AXIS_HEADER_INDICATOR_FORM: readonly HeaderIndicatorForm[] = [
+    { label: "the indicator as declared", respell: (i) => i },
+    {
+      label: "the other block style",
+      respell: (i) => (i.startsWith(">") ? `|${i.slice(1)}` : `>${i.slice(1)}`),
+    },
+    { label: "chomping kept", respell: (i) => `${i.replace(/[-+]$/, "")}+` },
+  ];
+
+  // AXIS 1g — A QUOTED SIBLING REGION BESIDE THE BLOCK-OWNED ONE (the `27-55` family). One key, two
+  // regions: a quoted scalar carrying YAML's own `''` escape, then the block-owned region. It is
+  // inserted BEFORE the header line so every builder-emitted continuation is still the block
+  // scalar's content — a sibling AFTER the header would close the scalar and change what the rest
+  // of the corpus is measuring. Applied only where the header stands below the top-level key line,
+  // because a top-level `tools: >-` has no room for a sibling under the same key.
+  interface SiblingRegionForm {
+    readonly label: string;
+    readonly present: boolean;
+  }
+  const AXIS_SIBLING_REGION: readonly SiblingRegionForm[] = [
+    { label: "no sibling region", present: false },
+    { label: "a quoted sibling region carrying YAML's own escape", present: true },
+  ];
+
+  // WHICH SHAPES PARTICIPATE IN WHICH HEADER AXIS — DERIVED FROM THE DECLARED PARTS, never listed.
+  const headerIsNested = (h: BlockHeaderParts): boolean => h.line > 0;
+  const headerTakesAKeySpelling = (h: BlockHeaderParts): boolean =>
+    headerIsNested(h) && h.key !== null;
+  const headerTakesASibling = (h: BlockHeaderParts): boolean => headerIsNested(h);
+  // THE PROPERTY CROSSING IS SCOPED TO THE MAPPING-SEPARATOR INTRODUCTION, AND THE SCOPE IS A
+  // MEASUREMENT RATHER THAN A CONVENIENCE — the whole of it is stated here because a narrowing that
+  // makes a red go away is the one edit this file exists to make visible.
+  //
+  // WHAT THE OTHER TWO INTRODUCTIONS DO, MEASURED ON THIS BUILD. A node property at a BARE header
+  // (`tools: &p >-`) or at a BLOCK-SEQUENCE ITEM (`  - &p >-`) is at offset 0 of the node, so D-30's
+  // standing anchor/alias refusal reaches it first and the module REFUSES BY NAME where libyaml
+  // accepts and grants. `27-57` measured exactly that as its controls P and S and recorded it as
+  // "deliberate, byte-unchanged, and the contrast the diagnosis rests on … not open as a defect".
+  // It is the LOUD direction — never a bypass.
+  //
+  // WHY IT IS NOT IN THIS PRODUCT. The D-52 differential requires every divergence to be covered by a
+  // NAMED exemption, and covering 1,440 loud refusals would mean adding a third exemption rule to a
+  // list this plan is forbidden to grow. So they are NOT swept: the SAME generator produces them
+  // through the complement predicate below, and a case of this plan's own adjudicates them against
+  // the same loader under the discipline this phase has converged on — both never-exemptible
+  // partitions asserted EMPTY, the loud refusal arm REPORTED with its count.
+  //
+  // AND THE FAMILY IS STILL EXPRESSED. `27-57`'s family is a property standing between a MAPPING
+  // INDICATOR and a block indicator, which is this predicate's own introduction.
+  const headerTakesAProperty = (h: BlockHeaderParts): boolean =>
+    headerIsNested(h) && h.key !== null;
+  // The sibling line is spelled from the SAME parts the header is, so it lands at the header's own
+  // indent and takes the header's own kind of introduction.
+  const spellSibling = (h: BlockHeaderParts): string =>
+    `${h.indent}${h.intro}${h.key === null ? "" : "sib: "}'${FIRST.slice(0, -1)}'', '`;
+
+  const deriveHeaderShapes = (
+    keys: readonly HeaderKeySpelling[],
+    properties: readonly HeaderPropertyForm[],
+    indicators: readonly HeaderIndicatorForm[],
+    siblings: readonly SiblingRegionForm[],
+    // The property crossing's participation rule, a PARAMETER so the complement set below is produced
+    // by THIS generator rather than by a second one written to describe it.
+    takesProperty: (h: BlockHeaderParts) => boolean = headerTakesAProperty,
+  ): readonly KeyLineShape[] => {
+    const out: KeyLineShape[] = [];
+    for (const base of AXIS_KEY_LINE_BASE) {
+      const h = base.blockHeader;
+      if (h === null) {
+        out.push(base);
+        continue;
+      }
+      const keyMembers = headerTakesAKeySpelling(h) ? keys : keys.slice(0, 1);
+      const propertyMembers = takesProperty(h) ? properties : properties.slice(0, 1);
+      const siblingMembers = headerTakesASibling(h) ? siblings : siblings.slice(0, 1);
+      for (const key of keyMembers) {
+        for (const property of propertyMembers) {
+          for (const indicator of indicators) {
+            for (const sibling of siblingMembers) {
+              const identity =
+                key === keys[0] &&
+                property === properties[0] &&
+                indicator === indicators[0] &&
+                sibling === siblings[0];
+              const parts: BlockHeaderParts = {
+                ...h,
+                key: h.key === null ? null : key.spell(h.key),
+                property: property.respell(h.property),
+                indicator: indicator.respell(h.indicator),
+              };
+              const lines = [...base.lines];
+              lines[h.line] = spellHeader(parts);
+              if (sibling.present) lines.splice(h.line, 0, spellSibling(h));
+              out.push({
+                ...base,
+                label: identity
+                  ? base.label
+                  : `${base.label} [${key.label}, ${property.label}, ${indicator.label}, ${sibling.label}]`,
+                lines,
+                blockHeader: sibling.present ? { ...parts, line: parts.line + 1 } : parts,
+                siblingQuotedRegion: sibling.present,
+              });
+            }
+          }
+        }
+      }
+    }
+    return out;
+  };
+  const AXIS_KEY_LINE_HEADER: readonly KeyLineShape[] = deriveHeaderShapes(
+    AXIS_HEADER_KEY_SPELLING,
+    AXIS_HEADER_PROPERTY_FORM,
+    AXIS_HEADER_INDICATOR_FORM,
+    AXIS_SIBLING_REGION,
+  );
+  // The derived length, as ARITHMETIC over the base shapes' own declared parts. Written as a function
+  // so the assertion below and the non-vacuity floor can both call it with COLLAPSED axes and get the
+  // collapsed count, rather than one of them re-deriving the sum.
+  const headerDerivedLength = (
+    keys: readonly HeaderKeySpelling[],
+    properties: readonly HeaderPropertyForm[],
+    indicators: readonly HeaderIndicatorForm[],
+    siblings: readonly SiblingRegionForm[],
+  ): number =>
+    AXIS_KEY_LINE_BASE.reduce((n, base) => {
+      const h = base.blockHeader;
+      if (h === null) return n + 1;
+      return (
+        n +
+        (headerTakesAKeySpelling(h) ? keys.length : 1) *
+          (headerTakesAProperty(h) ? properties.length : 1) *
+          indicators.length *
+          (headerTakesASibling(h) ? siblings.length : 1)
+      );
+    }, 0);
+
+  // ── (27-59) THE THREE ROUND-11 FAMILIES AS PREDICATES OVER THE DECLARED FACTS ──────────────────
+  //
+  // "The corpus can express it" is the claim this phase has now found to be false six times, and
+  // every time it was written in a comment. Here it is a MEASUREMENT: one predicate per family,
+  // stated over the shapes' DECLARED facts rather than over their labels or their text, asserted
+  // non-empty with its matched cell count printed, and reused by the pre-round mirror below so the
+  // "which family did the mirror fail on" breakdown is computed by the same rule.
+  //
+  // THE NESTED-KEY CHARSET IS THIS AXIS'S OWN FACT, not the module's. A key outside the plain
+  // top-level alphabet is what the `27-56` family is about, and the alphabet is spelled here so the
+  // predicate never has to ask the code under test what it accepts.
+  const PLAIN_TOP_LEVEL_KEY = /^[A-Za-z_][A-Za-z0-9_-]*$/;
+  const ROUND_11_FAMILIES: readonly {
+    readonly label: string;
+    readonly matches: (k: KeyLineShape) => boolean;
+  }[] = [
+    {
+      label:
+        "27-55 — a block-owned region beside a QUOTED region carrying an escape, under one key",
+      matches: (k) => k.blockHeader !== null && k.siblingQuotedRegion,
+    },
+    {
+      label:
+        "27-56 — a NESTED mapping key outside the plain top-level alphabet, introducing a block-scalar header",
+      matches: (k) =>
+        k.blockHeader !== null &&
+        k.blockHeader.key !== null &&
+        k.blockHeader.line > 0 &&
+        !PLAIN_TOP_LEVEL_KEY.test(k.blockHeader.key),
+    },
+    {
+      label:
+        "27-57 — a node PROPERTY standing between the introduction and the block indicator",
+      matches: (k) => k.blockHeader !== null && k.blockHeader.property !== "",
+    },
+  ];
+
   // ── THE CROSSING, DERIVED FROM THE BASE SHAPE'S OWN FIELDS ────────────────────────────────────
   //
   // WHY DERIVED AND NOT A PARALLEL ARRAY. A hand-written single-quote twin of each shape is a second
@@ -8254,12 +8575,16 @@ describe("frontmatter — the loader differential over a GENERATED corpus (D-52 
   // non-vacuity floor below measures against.
   const opensAQuotedScalar = (shape: KeyLineShape): boolean =>
     [...shape.lines, shape.tail].some((t) => t.includes('"'));
+  // (27-59) THE BASE IS A PARAMETER WITH A DEFAULT, for the same reason the cell enumerator's axis is:
+  // the non-vacuity floor has to cross the quote axes over a COLLAPSED header base in the same run,
+  // and a second crossing written for that purpose would be measuring the copy.
   const deriveKeyLines = (
     styles: readonly QuoteStyle[],
     escapes: readonly EscapeInScalar[],
+    base_: readonly KeyLineShape[] = AXIS_KEY_LINE_HEADER,
   ): readonly KeyLineShape[] => {
     const out: KeyLineShape[] = [];
-    for (const base of AXIS_KEY_LINE_BASE) {
+    for (const base of base_) {
       if (!opensAQuotedScalar(base)) {
         out.push(base);
         continue;
@@ -8685,6 +9010,15 @@ describe("frontmatter — the loader differential over a GENERATED corpus (D-52 
     // indentation disagree. It opens no quoted scalar either, so the derived axis moves 51 -> 52.
     // (27-58, D-62) 25 -> 26: the blank-line-inside-a-block-scalar shape. No member of this axis
     // contained a blank line at all before it, so the construct was outside the corpus entirely.
+    // (27-59, WR-01 round 11) AND HERE THE NUMBER DELIBERATELY DOES NOT MOVE. Round 11 reported three
+    // critical families that this corpus could not express, and the previous five rounds each closed
+    // such a report by adding ONE MEMBER for the one shape a review named. That is a corpus grown per
+    // reported family, which is circular over the FAMILY structure exactly as a per-arm corpus was
+    // circular over the ARM structure — the fourth family, the one nobody has reported yet, would be
+    // outside the shape space again. So `27-59` adds NO base member at all: it declares each header
+    // shape's PARTS and crosses them, taking the derived axis 53 -> 348 and the corpus 2,544 -> 16,704
+    // cells. A base length that stays 26 while the corpus grows sixfold is the whole claim of this
+    // widening, stated as the number it is.
     expect(AXIS_KEY_LINE_BASE.length).toBe(26);
     // THE FAMILY IS EXPRESSIBLE, DERIVED FROM THE SHAPES RATHER THAN CLAIMED IN A COMMENT. A
     // block-scalar header must be spelled on a line BELOW the top-level key line, or family G/G2 is
@@ -8696,21 +9030,114 @@ describe("frontmatter — the loader differential over a GENERATED corpus (D-52 
       ).length,
       "the derived axis must carry a block-scalar header BELOW the top-level key line, or family G/G2 is outside the corpus",
     ).toBeGreaterThan(0);
-    const QUOTE_OPENING_SHAPES = AXIS_KEY_LINE_BASE.filter(opensAQuotedScalar).length;
+    // ── (27-59, WR-01 round 11) THE HEADER PRODUCT, PINNED TWO-SIDED AND DERIVED FROM THE PARTS ──
+    //
+    // THE PARTS MUST REALLY SPELL THE SHAPE, ASSERTED FIRST. `blockHeader` is a SECOND description of
+    // a line whose bytes already exist in `lines`, and a second description that can drift from the
+    // first is this repository's diagnosed set-literal failure class wearing a struct. So every
+    // declaring base shape's header line is RECOMPUTED from its own parts and compared byte for byte.
+    // A part mistyped here fails HERE, before it can quietly generate 350 wrong documents.
+    const HEADER_SHAPES = AXIS_KEY_LINE_BASE.filter((k) => k.blockHeader !== null);
+    expect(
+      HEADER_SHAPES.length,
+      "the header crossing is vacuous unless the base axis really declares block-scalar headers",
+    ).toBe(8);
+    for (const shape of HEADER_SHAPES) {
+      const h = shape.blockHeader;
+      if (h === null) continue;
+      expect(
+        spellHeader(h),
+        `${shape.label}: the declared header PARTS must spell this shape's own header line exactly`,
+      ).toBe(shape.lines[h.line]);
+    }
+    // Each new axis pinned EXACTLY — a floor against shrinking and a ceiling against a member added
+    // without the arithmetic below moving with it.
+    expect(AXIS_HEADER_KEY_SPELLING.length).toBe(4);
+    expect(AXIS_HEADER_PROPERTY_FORM.length).toBe(3);
+    expect(AXIS_HEADER_INDICATOR_FORM.length).toBe(3);
+    expect(AXIS_SIBLING_REGION.length).toBe(2);
+    // ...and the derived header axis is the SUM over the base shapes of each one's own participation
+    // product, with the arithmetic written into the message. 18 shapes declare no header and pass
+    // through once; 4 declare a NESTED header behind a mapping separator (4 spellings x 3 properties
+    // x 3 indicators x 2 siblings = 72 each); 1 declares a nested header at a sequence item, which
+    // takes neither the key spelling nor the property (1 x 1 x 3 x 2 = 6); 3 declare a TOP-LEVEL
+    // header, whose key this harness looks up, whose property D-30 refuses and whose sibling has
+    // nowhere to stand (1 x 1 x 3 x 1 = 3 each). 18 + 288 + 6 + 9 = 321.
+    expect(
+      AXIS_KEY_LINE_HEADER.length,
+      `the derived header axis must be the sum over the ${AXIS_KEY_LINE_BASE.length} base shapes of (key spellings where the header is nested and keyed) x (properties where the header follows a nested mapping separator) x ${AXIS_HEADER_INDICATOR_FORM.length} indicators x (siblings where the header is nested), non-declaring shapes passing through once`,
+    ).toBe(
+      headerDerivedLength(
+        AXIS_HEADER_KEY_SPELLING,
+        AXIS_HEADER_PROPERTY_FORM,
+        AXIS_HEADER_INDICATOR_FORM,
+        AXIS_SIBLING_REGION,
+      ),
+    );
+    // THE DERIVATION TRACKS THE BASE RATHER THAN A CONSTANT, PROVEN BY MOVING THE BASE. Dropping one
+    // axis member must move the derived length by exactly the arithmetic above — which is the only
+    // way to tell a derivation from a number that happens to agree with one today.
+    expect(
+      deriveHeaderShapes(
+        AXIS_HEADER_KEY_SPELLING.slice(0, 1),
+        AXIS_HEADER_PROPERTY_FORM,
+        AXIS_HEADER_INDICATOR_FORM,
+        AXIS_SIBLING_REGION,
+      ).length,
+      "collapsing the key-spelling axis must move the derived length BY THE DERIVATION, not by a constant",
+    ).toBe(
+      headerDerivedLength(
+        AXIS_HEADER_KEY_SPELLING.slice(0, 1),
+        AXIS_HEADER_PROPERTY_FORM,
+        AXIS_HEADER_INDICATOR_FORM,
+        AXIS_SIBLING_REGION,
+      ),
+    );
+    // Every derived shape carries a DISTINCT label, or two shapes would collide into one cell key and
+    // the corpus would silently be smaller than its own product says.
+    expect(new Set(AXIS_KEY_LINE_HEADER.map((k) => k.label)).size).toBe(
+      AXIS_KEY_LINE_HEADER.length,
+    );
+
+    const QUOTE_OPENING_SHAPES = AXIS_KEY_LINE_HEADER.filter(opensAQuotedScalar).length;
     expect(
       QUOTE_OPENING_SHAPES,
       "the crossing is vacuous unless the base axis really contains shapes that open a quoted scalar",
     ).toBeGreaterThan(0);
     expect(
       AXIS_KEY_LINE.length,
-      `the derived key-line axis must be (${AXIS_KEY_LINE_BASE.length} - ${QUOTE_OPENING_SHAPES}) pass-through + ${QUOTE_OPENING_SHAPES} x ${AXIS_QUOTE_STYLE.length} styles x ${AXIS_ESCAPE_IN_SCALAR.length} escapes`,
+      `the derived key-line axis must be (${AXIS_KEY_LINE_HEADER.length} - ${QUOTE_OPENING_SHAPES}) pass-through + ${QUOTE_OPENING_SHAPES} x ${AXIS_QUOTE_STYLE.length} styles x ${AXIS_ESCAPE_IN_SCALAR.length} escapes`,
     ).toBe(
-      AXIS_KEY_LINE_BASE.length -
+      AXIS_KEY_LINE_HEADER.length -
         QUOTE_OPENING_SHAPES +
         QUOTE_OPENING_SHAPES * AXIS_QUOTE_STYLE.length * AXIS_ESCAPE_IN_SCALAR.length,
     );
     expect(AXIS_QUOTE_STYLE.length).toBe(2);
     expect(AXIS_ESCAPE_IN_SCALAR.length).toBe(2);
+
+    // ── (27-59) THE THREE ROUND-11 FAMILIES, MECHANICALLY EXPRESSIBLE AND COUNTED ────────────────
+    const familyCounts = ROUND_11_FAMILIES.map((f) => ({
+      label: f.label,
+      shapes: AXIS_KEY_LINE.filter(f.matches).length,
+      cells: enumerateCells().filter((c) => f.matches(c.keyLine)).length,
+    }));
+    console.log(
+      `D-52 EXPRESSIBILITY (27-59) — ${familyCounts
+        .map((f) => `${f.label.slice(0, 6)} shapes=${f.shapes} cells=${f.cells}`)
+        .join(" | ")}`,
+    );
+    for (const f of familyCounts) {
+      expect(
+        f.cells,
+        `${f.label}: the generator must be able to BUILD this family from its axes alone — a corpus that cannot express a family cannot prove the fix that family needed`,
+      ).toBeGreaterThan(0);
+    }
+    // AND THE CROSSINGS OF ALL THREE, which is the shape no per-family row set can reach: three rows
+    // written for three reported families produce three cells, never their product.
+    expect(
+      enumerateCells().filter((c) => ROUND_11_FAMILIES.every((f) => f.matches(c.keyLine))).length,
+      "the three families must CROSS — a corpus grown by one row per reported family cannot express a document that is all three at once",
+    ).toBeGreaterThan(0);
     // The single quote must really be REACHED at a mid-line position — the position CR-01 exposed and
     // the one the corpus could not spell before. Derived from the shapes, never counted by hand.
     expect(
@@ -9010,6 +9437,22 @@ describe("frontmatter — the loader differential over a GENERATED corpus (D-52 
       adjudicationRows,
       EXEMPTIONS.map((e) => e.label),
     );
+    // (27-59) THE FULL LISTS GO TO A CALLER-NAMED FILE ON REQUEST, NEVER TO THE CONSOLE. Vitest
+    // intercepts console output, and a runner's failure message truncates a list this long — so an
+    // investigation that needs every row would otherwise be reading a silently shortened one. Nothing
+    // is written unless a caller asks by setting the variable, in keeping with this file's idiom.
+    if (process.env.GRUGOPS_D52_DUMP_DISAGREEMENTS) {
+      writeFileSync(
+        process.env.GRUGOPS_D52_DUMP_DISAGREEMENTS,
+        [
+          `cells ${CELLS} rejected ${rejected} disagreements ${disagreements.length}`,
+          `UNEXPLAINED ${adjudication.unexplained.length}`,
+          ...adjudication.unexplained.map((w) => disagreementDetail.get(w) ?? w),
+          `NAME-SET ${nameSetDisagreements.length}`,
+          ...nameSetDisagreements,
+        ].join("\n"),
+      );
+    }
     // NO UNEXPLAINED DISAGREEMENT. The disagreement set is DATA — listed with its axis labels and the
     // loader's value — and this asserts every member of it is covered by a named exemption.
     expect(
@@ -9111,47 +9554,319 @@ describe("frontmatter — the loader differential over a GENERATED corpus (D-52 
     // reproduces the pre-change key-line axis byte for byte. That is asserted here rather than
     // described, because "the widening is additive" is precisely the kind of claim this file exists
     // to stop taking on trust.
+    // (27-59) COLLAPSED NOW MEANS ALL SIX NEW AXES AT THEIR FIRST MEMBER — the two quoting ones and
+    // the four header ones. Each header axis's member 0 is the IDENTITY transform of the shape's own
+    // declared part, so the collapse still reproduces `AXIS_KEY_LINE_BASE` byte for byte.
+    const collapsedHeaders = deriveHeaderShapes(
+      [AXIS_HEADER_KEY_SPELLING[0]],
+      [AXIS_HEADER_PROPERTY_FORM[0]],
+      [AXIS_HEADER_INDICATOR_FORM[0]],
+      [AXIS_SIBLING_REGION[0]],
+    );
     const collapsedKeyLines = deriveKeyLines(
       [AXIS_QUOTE_STYLE[0]],
       [AXIS_ESCAPE_IN_SCALAR[0]],
+      collapsedHeaders,
     );
     expect(
       collapsedKeyLines.map((k) => JSON.stringify(k)),
-      "collapsing both new axes must reproduce the BASE key-line axis exactly — otherwise the widening re-cut the corpus instead of extending it",
+      "collapsing all six new axes must reproduce the BASE key-line axis exactly — otherwise the widening re-cut the corpus instead of extending it",
     ).toEqual(AXIS_KEY_LINE_BASE.map((k) => JSON.stringify(k)));
+
+    // (27-59) AND THE FOUR HEADER AXES ARE MEASURED ON THEIR OWN, not only inside the union. A floor
+    // that passes with the new axes collapsed is not measuring them: with the quoting axes left FULL
+    // and only the header axes collapsed, the loader-accepted count must still fall. Two comparisons,
+    // so a header axis that turned out to add nothing cannot hide behind the quoting axes' movement.
+    const headerCollapsedKeyLines = deriveKeyLines(
+      AXIS_QUOTE_STYLE,
+      AXIS_ESCAPE_IN_SCALAR,
+      collapsedHeaders,
+    );
 
     const full = enumerateCells(AXIS_KEY_LINE);
     const collapsed = enumerateCells(collapsedKeyLines);
+    const headerCollapsed = enumerateCells(headerCollapsedKeyLines);
     const fullRegions = full.map((c) => buildCellRegion(c.keyLine, c.first, c.second, c.depth));
     const collapsedRegions = collapsed.map((c) =>
       buildCellRegion(c.keyLine, c.first, c.second, c.depth),
     );
-    // ONE loader process for BOTH corpora, so "measured in the same run" is a fact about the
+    const headerCollapsedRegions = headerCollapsed.map((c) =>
+      buildCellRegion(c.keyLine, c.first, c.second, c.depth),
+    );
+    // ONE loader process for ALL THREE corpora, so "measured in the same run" is a fact about the
     // measurement and not a sentence about intent.
     const raw = execFileSync(RUBY, ["-e", LOADER_PROGRAM], {
-      input: JSON.stringify([...fullRegions, ...collapsedRegions]),
+      input: JSON.stringify([
+        ...fullRegions,
+        ...collapsedRegions,
+        ...headerCollapsedRegions,
+      ]),
       encoding: "utf8",
-      maxBuffer: 64 * 1024 * 1024,
+      maxBuffer: 256 * 1024 * 1024,
     });
     const verdicts = JSON.parse(raw) as { accepted: boolean }[];
-    expect(verdicts.length).toBe(fullRegions.length + collapsedRegions.length);
+    expect(verdicts.length).toBe(
+      fullRegions.length + collapsedRegions.length + headerCollapsedRegions.length,
+    );
     const acceptedFull = verdicts
       .slice(0, fullRegions.length)
       .filter((v) => v.accepted).length;
     const acceptedCollapsed = verdicts
-      .slice(fullRegions.length)
+      .slice(fullRegions.length, fullRegions.length + collapsedRegions.length)
+      .filter((v) => v.accepted).length;
+    const acceptedHeaderCollapsed = verdicts
+      .slice(fullRegions.length + collapsedRegions.length)
       .filter((v) => v.accepted).length;
 
     console.log(
-      `WR-01 non-vacuity floor — loader ${probe.version} | key-line shapes ${AXIS_KEY_LINE.length} full vs ${collapsedKeyLines.length} collapsed | cells ${fullRegions.length} vs ${collapsedRegions.length} | LOADER-ACCEPTED ${acceptedFull} full vs ${acceptedCollapsed} collapsed`,
+      `WR-01 non-vacuity floor — loader ${probe.version} | key-line shapes ${AXIS_KEY_LINE.length} full vs ${collapsedKeyLines.length} all-collapsed vs ${headerCollapsedKeyLines.length} header-collapsed | cells ${fullRegions.length} vs ${collapsedRegions.length} vs ${headerCollapsedRegions.length} | LOADER-ACCEPTED ${acceptedFull} full vs ${acceptedCollapsed} all-collapsed vs ${acceptedHeaderCollapsed} header-collapsed`,
     );
 
     expect(
       acceptedFull,
-      `the two new axes must MOVE the loader-accepted cell count: full ${acceptedFull} vs collapsed ${acceptedCollapsed}. If these are equal the axes are declared and not exercised, and the differential's completeness line is again a statement about inputs it never generated.`,
+      `the six new axes must MOVE the loader-accepted cell count: full ${acceptedFull} vs collapsed ${acceptedCollapsed}. If these are equal the axes are declared and not exercised, and the differential's completeness line is again a statement about inputs it never generated.`,
     ).toBeGreaterThan(acceptedCollapsed);
-    // And the collapsed run is not empty, so the comparison is between two real measurements.
+    expect(
+      acceptedFull,
+      `the FOUR HEADER axes must move the loader-accepted count ON THEIR OWN: full ${acceptedFull} vs header-collapsed ${acceptedHeaderCollapsed}. A floor that passes with the new dimensions collapsed is not measuring them.`,
+    ).toBeGreaterThan(acceptedHeaderCollapsed);
+    // And the collapsed runs are not empty, so every comparison is between two real measurements.
     expect(acceptedCollapsed).toBeGreaterThan(0);
+    expect(acceptedHeaderCollapsed).toBeGreaterThan(acceptedCollapsed);
+  });
+
+  // ── (27-59) NON-CIRCULARITY, MEASURED AGAINST THE PRE-ROUND-11 BUILD ──────────────────────────
+
+  // The commit immediately BEFORE `27-55`, i.e. the tree round 11's code review was taken against and
+  // the one all four of this round's source edits were made on top of.
+  const PRE_ROUND_11_COMMIT = "3c7930b";
+
+  it("WR-01 (27-59) the WIDENED corpus reports a NON-EMPTY never-exemptible partition against a hermetic mirror of the pre-round-11 commit, broken down by family", async () => {
+    // WHY THIS CASE IS THE POINT OF THE WHOLE WIDENING. A corpus that cannot fail on the defects the
+    // round fixed proves nothing about them, and this phase has now shipped three live bypasses past a
+    // green differential for exactly that reason: not because the module agreed with the loader, but
+    // because the generator never produced the input. So the SAME axes, the SAME cell builder and the
+    // SAME loader batch are run against the build that shipped the regressions, and the two directions
+    // no reason exempts are asserted NON-EMPTY there.
+    const probe = probeLoader(RUBY);
+    if (!probe.ok) {
+      console.warn(
+        `SKIPPED the 27-59 pre-round-11 mirror: ${probe.reason}. PRINTED, never silent.`,
+      );
+      return;
+    }
+    const dir = mkdtempSync(join(tmpdir(), "grugops-27-59-preround-"));
+    try {
+      const tarball = join(dir, "pre.tar");
+      writeFileSync(
+        tarball,
+        execFileSync("git", ["archive", PRE_ROUND_11_COMMIT], {
+          cwd: join(import.meta.dirname, ".."),
+          encoding: "buffer",
+          maxBuffer: 256 * 1024 * 1024,
+        }),
+      );
+      execFileSync("tar", ["-xf", tarball, "-C", dir]);
+      const preBuild = join(dir, "scripts", "frontmatter.js");
+      const pre = (await import(preBuild)) as {
+        hasSpawnGrant: (t: string) => { ok: true; value: boolean } | { ok: false; reason: string };
+      };
+      // THE MIRROR REALLY IS A DIFFERENT BUILD, ASSERTED RATHER THAN ASSUMED. `sawBlock` is the flag
+      // D-59 DELETED in `27-55`; if the mirror no longer carries it, the commit is wrong and this
+      // case would print a reassuring green over a comparison with itself.
+      expect(
+        readFileSync(preBuild, "utf8").includes("sawBlock"),
+        `the mirror must be the pre-round-11 build — if it no longer carries the flag D-59 deleted, ${PRE_ROUND_11_COMMIT} is wrong and this case proves nothing`,
+      ).toBe(true);
+
+      const corpus = enumerateCells();
+      const regions = corpus.map((c) =>
+        buildCellRegion(c.keyLine, c.first, c.second, c.depth),
+      );
+      const verdicts = JSON.parse(
+        execFileSync(RUBY, ["-e", LOADER_PROGRAM], {
+          input: JSON.stringify(regions),
+          encoding: "utf8",
+          maxBuffer: 256 * 1024 * 1024,
+        }),
+      ) as { accepted: boolean; value?: string }[];
+      expect(verdicts.length).toBe(corpus.length);
+
+      let rejected = 0;
+      let refusals = 0;
+      const unsafe: { where: string; keyLine: KeyLineShape; detail: string }[] = [];
+      corpus.forEach((cell, i) => {
+        const v = verdicts[i];
+        if (!v.accepted) {
+          rejected += 1;
+          return;
+        }
+        const answer = pre.hasSpawnGrant(
+          buildCellDocument(cell.keyLine, cell.first, cell.second, cell.depth),
+        );
+        if (!answer.ok) {
+          refusals += 1;
+          return;
+        }
+        const loaderGrants = (v.value ?? "").includes(HARNESS_TOKEN);
+        if (answer.value === loaderGrants) return;
+        unsafe.push({
+          where: cell.where,
+          keyLine: cell.keyLine,
+          detail: `${cell.where}\tmodule=${answer.value ? "grant" : "no-grant"}\tloader=${loaderGrants ? "grant" : "no-grant"}`,
+        });
+      });
+
+      const byFamily = ROUND_11_FAMILIES.map((f) => ({
+        label: f.label,
+        cells: unsafe.filter((u) => f.matches(u.keyLine)).length,
+      }));
+      const silent = unsafe.filter((u) => u.detail.includes("module=no-grant")).length;
+      console.log(
+        [
+          `27-59 PRE-ROUND-11 MIRROR ${PRE_ROUND_11_COMMIT} — cells ${corpus.length} | loader-rejected ${rejected} | pre-build refusals ${refusals} | NEVER-EXEMPTIBLE ${unsafe.length} (silent-while-loader-grants ${silent}, grants-while-loader-does-not ${unsafe.length - silent})`,
+          ...byFamily.map((f) => `  by family: ${f.label} -> ${f.cells} cell(s)`),
+          ...unsafe.slice(0, 10).map((u) => `  UNSAFE on the pre-round build ${u.detail}`),
+        ].join("\n"),
+      );
+
+      expect(
+        unsafe.length,
+        "the pre-round-11 mirror must FAIL this corpus, or the widening cannot see the defects the round fixed and every closure claim resting on it is vacuous",
+      ).toBeGreaterThan(0);
+      // AND IT MUST FAIL ON EACH FAMILY, not merely somewhere. A corpus that reds on the round's
+      // conjunction but on only one family cannot say which pin holds which fact.
+      for (const f of byFamily) {
+        expect(
+          f.cells,
+          `${f.label}: the widened corpus must catch this family on the pre-round build`,
+        ).toBeGreaterThan(0);
+      }
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  // ── (27-59) THE PROPERTY AT THE OTHER TWO INTRODUCTIONS: GENERATED, ADJUDICATED, AND REPORTED ──
+
+  it("WR-01 (27-59) a node property at the BARE-HEADER and BLOCK-SEQUENCE-ITEM introductions — both never-exemptible partitions EMPTY, and the LOUD refusal arm is reported with its count", () => {
+    // WHY THIS IS A CASE AND NOT AN OMISSION. The header product above scopes its property crossing to
+    // the MAPPING-SEPARATOR introduction, because at the other two the property sits at offset 0 of
+    // the node and D-30's standing anchor/alias refusal reaches it first — 1,440 cells on which this
+    // module REFUSES BY NAME where libyaml accepts and grants. `27-57` measured that as its controls
+    // P and S and recorded it as deliberate, byte-unchanged and NOT a defect.
+    //
+    // Covering them inside the D-52 product would require a THIRD exemption rule, which this plan is
+    // forbidden to add. Leaving them ungenerated would be the exact failure this whole plan exists to
+    // stop. So they are generated by the SAME `deriveHeaderShapes` through its complement predicate,
+    // built by the SAME cell builder, and adjudicated against the SAME loader under the discipline
+    // this phase has converged on: the two never-exemptible directions asserted EMPTY, the loud
+    // refusal arm REPORTED with its count rather than exempted or hidden.
+    const probe = probeLoader(RUBY);
+    if (!probe.ok) {
+      console.warn(
+        `SKIPPED the 27-59 loud-arm adjudication: ${probe.reason}. PRINTED, never silent.`,
+      );
+      return;
+    }
+    const complement = deriveHeaderShapes(
+      [AXIS_HEADER_KEY_SPELLING[0]],
+      AXIS_HEADER_PROPERTY_FORM,
+      AXIS_HEADER_INDICATOR_FORM,
+      AXIS_SIBLING_REGION,
+      (h) => !headerTakesAProperty(h),
+    ).filter(
+      (k) =>
+        k.blockHeader !== null &&
+        k.blockHeader.property !== "" &&
+        // ...and NOT one the product's own crossing already covers. The `&a` base member declares a
+        // property and IS a mapping-separator introduction, so without this the complement would
+        // re-adjudicate a shape the D-52 differential already owns and this case would be measuring
+        // an overlap rather than the set it names.
+        !headerTakesAProperty(k.blockHeader),
+    );
+    // The complement is really the OTHER introductions and really non-empty — a filter that quietly
+    // matched nothing would make every assertion below vacuous.
+    expect(
+      complement.length,
+      "the complement must carry the bare-header and block-sequence-item introductions with a property",
+    ).toBeGreaterThan(0);
+    // ...and it is DISJOINT from the product, so nothing is adjudicated twice under two disciplines.
+    const productLabels = new Set(AXIS_KEY_LINE_HEADER.map((k) => k.label));
+    expect(
+      complement.filter((k) => productLabels.has(k.label)).map((k) => k.label),
+      "a complement shape that is also in the D-52 product would be adjudicated under two different disciplines at once",
+    ).toEqual([]);
+
+    const cells = enumerateCells(complement);
+    const regions = cells.map((c) => buildCellRegion(c.keyLine, c.first, c.second, c.depth));
+    const verdicts = JSON.parse(
+      execFileSync(RUBY, ["-e", LOADER_PROGRAM], {
+        input: JSON.stringify(regions),
+        encoding: "utf8",
+        maxBuffer: 256 * 1024 * 1024,
+      }),
+    ) as { accepted: boolean; value?: string }[];
+    expect(verdicts.length).toBe(cells.length);
+
+    let rejected = 0;
+    const refuses: string[] = [];
+    const grantsWhileLoaderDoesNot: string[] = [];
+    const silentWhileLoaderGrants: string[] = [];
+    cells.forEach((cell, i) => {
+      const v = verdicts[i];
+      if (!v.accepted) {
+        rejected += 1;
+        return;
+      }
+      const answer = hasSpawnGrant(
+        buildCellDocument(cell.keyLine, cell.first, cell.second, cell.depth),
+      );
+      const loaderGrants = (v.value ?? "").includes(HARNESS_TOKEN);
+      if (!answer.ok) {
+        refuses.push(`${cell.where}\tloader=${loaderGrants ? "grant" : "no-grant"}`);
+        return;
+      }
+      if (answer.value && !loaderGrants)
+        grantsWhileLoaderDoesNot.push(`${cell.where}\tloader value=${JSON.stringify(v.value)}`);
+      if (!answer.value && loaderGrants)
+        silentWhileLoaderGrants.push(`${cell.where}\tloader value=${JSON.stringify(v.value)}`);
+    });
+
+    console.log(
+      `27-59 LOUD-ARM adjudication — loader ${probe.version} | shapes ${complement.length} | cells ${cells.length} | loader-rejected (skipped) ${rejected} | module REFUSES ${refuses.length} | grants-while-loader-does-not ${grantsWhileLoaderDoesNot.length} | silent-while-loader-grants ${silentWhileLoaderGrants.length}`,
+    );
+
+    expect(
+      grantsWhileLoaderDoesNot,
+      `a module GRANT the loader does not have (${grantsWhileLoaderDoesNot.length}):\n${grantsWhileLoaderDoesNot.join("\n")}`,
+    ).toEqual([]);
+    expect(
+      silentWhileLoaderGrants,
+      `a module NO-GRANT where the loader GRANTS — this module's founding failure (${silentWhileLoaderGrants.length}):\n${silentWhileLoaderGrants.join("\n")}`,
+    ).toEqual([]);
+    // The LOUD arm is REPORTED and asserted non-empty, so this case cannot go quietly vacuous if a
+    // later edit stops generating the refusals it exists to account for.
+    expect(
+      refuses.length,
+      "the loud refusal arm is the whole reason this set is adjudicated separately; an empty one means the shapes stopped being generated",
+    ).toBeGreaterThan(0);
+  });
+
+  // ── (27-59) THE EXEMPTION LIST DID NOT GROW ───────────────────────────────────────────────────
+
+  it("WR-01 (27-59) the exemption list is UNCHANGED — the widened corpus added no reason for a disagreement", () => {
+    // THE PROHIBITION, ASSERTED FOR THE WIDENING ITSELF. Nothing here was made to pass by naming a new
+    // permitted divergence: the list is the same two rules it has carried since round 9, and the 1,440
+    // loud refusals the widening surfaced are adjudicated in their own case above rather than exempted.
+    expect(
+      EXEMPTIONS.length,
+      "the D-52 exemption list must not have grown for the 27-59 widening",
+    ).toBe(2);
+    expect(EXEMPTIONS.map((e) => e.label)).toEqual([
+      "E1 — a dangling YAML node property at the flow collection's first node start",
+      "E2 — a YAML anchor at the value's node start on the first continuation line",
+    ]);
   });
 
   // ── (27-49, WR-04 / D-56 item 3) BOTH REPLACEMENT ASSERTIONS, FIRED BY CONSTRUCTED INPUTS ──────
@@ -10635,6 +11350,23 @@ describe("frontmatter — the loader differential over a GENERATED corpus (D-52 
       // generator with an unexamined half — the same gap the depth axis opened one round ago.
       deriveKeyLines.toString(),
       opensAQuotedScalar.toString(),
+      // (27-59) THE HEADER DERIVATION IS GENERATOR SURFACE TOO, and it is now the LARGER half of the
+      // key-line axis — 321 of the 348 shapes come through it. A derivation exempt from this pin
+      // would be a corpus generator with an unexamined majority, which is the same gap the depth axis
+      // opened two rounds ago and the quote crossing opened one round ago.
+      deriveHeaderShapes.toString(),
+      headerDerivedLength.toString(),
+      spellHeader.toString(),
+      spellSibling.toString(),
+      headerIsNested.toString(),
+      headerTakesAKeySpelling.toString(),
+      headerTakesAProperty.toString(),
+      headerTakesASibling.toString(),
+      AXIS_HEADER_KEY_SPELLING.map((s) => `${s.label} ${s.spell.toString()}`).join("\n"),
+      AXIS_HEADER_PROPERTY_FORM.map((s) => `${s.label} ${s.respell.toString()}`).join("\n"),
+      AXIS_HEADER_INDICATOR_FORM.map((s) => `${s.label} ${s.respell.toString()}`).join("\n"),
+      AXIS_SIBLING_REGION.map((s) => JSON.stringify(s)).join("\n"),
+      AXIS_KEY_LINE_HEADER.map((s) => JSON.stringify(s)).join("\n"),
       AXIS_QUOTE_STYLE.map((s) => JSON.stringify(s)).join("\n"),
       AXIS_ESCAPE_IN_SCALAR.map((s) => JSON.stringify(s)).join("\n"),
       AXIS_KEY_LINE_BASE.map((s) => JSON.stringify(s)).join("\n"),
