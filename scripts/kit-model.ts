@@ -211,6 +211,57 @@ const PLUGIN_SKILLS_SUBPATH = "skills";
 const MARKDOWN_EXT = ".md";
 
 // ---------------------------------------------------------------------------
+// THE TWO SHARED ADAPTER-BODY BLOCKS (plan 27-64, D-64 Part B) — ONE STATEMENT, TWO GENERATORS
+// ---------------------------------------------------------------------------
+//
+// WHY THEY LIVE HERE AND NOT IN A GENERATOR. Both constants used to be private to
+// scripts/generate-role-adapters.ts. That file is TOP-LEVEL SCRIPT CODE — it writes seventeen files
+// the moment it is imported — so a second generator cannot import from it, and the only way to reuse
+// its text would be to RETYPE it. Retyping ten lines of shell and a 400-byte blockquote into a second
+// generator is precisely this repository's second systemic failure class (a hand-maintained literal
+// that rots while the suite stays green), and this phase exists because that class has already been
+// paid for twice. So the two blocks move to the kit authority — the module whose whole thesis is that
+// a kit fact has exactly one statement — and BOTH generators import them.
+//
+// THE MOVE IS PROVABLY BEHAVIOR-PRESERVING, not asserted to be. `npm run freshness:adapters`
+// regenerates all seventeen agent adapters into a temp mirror and compares them BYTE for BYTE against
+// the committed ones; it was run immediately after this move and exited 0. A refactor of generated
+// output that is not byte-checked is a claim, not a change.
+//
+// NEITHER IS A POLICY. They are the literal bytes two generated artifacts must contain, and the
+// guards that reason ABOUT them (check-kit-refs Assertion 3's resolver-slot derivation,
+// check-foundation-guards' invariant-marker sites) deliberately keep their own independent spellings
+// of the marker substrings they key on — a guard that imported the thing it judges would be checking
+// a constant against itself.
+
+// The kit-vs-state invariant blockquote. Byte-identical in all 17 agent adapters and all 14 SKILL.md
+// files (7 plugin-form sources + 7 standalone twins) — verified by exact line equality across all
+// seven skill sources when this constant moved.
+export const INVARIANT =
+  "> **Kit vs state invariant:** `agent-factory/…` = read-only KIT (from the kit root, never written); `plans/`, `memory-bank/`, `.grugops/` = STATE in this repo. Roles pull shared context and publish typed notes per Workflow 16 — referenced, never restated. If the kit dir is absent, STOP — do not hunt. (Full rule: AGENTS.md § Kit vs state.)";
+
+// The resolver block (D-06) — byte-identical in all 17 agent adapters and in the ONE standalone skill
+// twin that carries it (.claude/skills/grugops/SKILL.md).
+//
+// Line 1 is the installer's materialization slot (install/install.ts MAT_SLOT): the installer writes
+// the absolute kit path ABOVE it, so every adapter has a target to inject into. Carrying this line is
+// also what makes a file a legal site for the kit-root environment variable under check-kit-refs
+// Assertion 3 — the predicate is two-sided, so the slot and the variable travel together or the gate
+// fails red.
+export const RESOLVER: readonly string[] = [
+  "Resolve the kit root (this adapter is the sole resolver):",
+  "",
+  "```sh",
+  "# 1. (installed) the absolute kit path the installer wrote above this line.",
+  "# 2. if absent, self-heal:",
+  'KIT="${GRUGOPS_HOME:-$HOME/.grugops}/agent-factory"',
+  '# 3. if "$KIT" still does not exist: STOP. Print:',
+  '#    "grugops kit not found at $KIT. Run node install/install.js (or node install/install.js --check) to install the kit."',
+  "#    Do NOT hunt the repo for agent-factory/… .",
+  "```",
+];
+
+// ---------------------------------------------------------------------------
 // THE PLUGIN-MANIFEST COMPONENT SCHEMA (plan 27-37, D-46) — DERIVED, COUNTED TWO-SIDED, PARTITIONED
 // ---------------------------------------------------------------------------
 //

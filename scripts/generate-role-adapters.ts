@@ -73,7 +73,7 @@
 
 import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
-import { listRoles } from "./kit-model.js";
+import { listRoles, INVARIANT, RESOLVER } from "./kit-model.js";
 import { parseFrontmatter } from "./frontmatter.js";
 
 // ── Fixed literal paths (never argv/env/content-derived — ASVS V12) ───────────────────────────
@@ -140,28 +140,18 @@ function yamlQuote(s: string): string {
   return `"${s.replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"`;
 }
 
-// ── The resolver block (D-06) — byte-identical in all 17 adapters ─────────────────────────────
-// Line 1 is the installer's materialization slot (install/install.ts MAT_SLOT): the installer writes
-// the absolute kit path ABOVE it, so every adapter has a target to inject into. Carrying this line
-// is also what makes an adapter a legal site for the kit-root environment variable under
-// check-kit-refs Assertion 3 — the predicate is two-sided, so the slot and the variable travel
-// together or the gate fails red.
-const INVARIANT =
-  "> **Kit vs state invariant:** `agent-factory/…` = read-only KIT (from the kit root, never written); `plans/`, `memory-bank/`, `.grugops/` = STATE in this repo. Roles pull shared context and publish typed notes per Workflow 16 — referenced, never restated. If the kit dir is absent, STOP — do not hunt. (Full rule: AGENTS.md § Kit vs state.)";
-
-const RESOLVER: readonly string[] = [
-  "Resolve the kit root (this adapter is the sole resolver):",
-  "",
-  "```sh",
-  "# 1. (installed) the absolute kit path the installer wrote above this line.",
-  "# 2. if absent, self-heal:",
-  'KIT="${GRUGOPS_HOME:-$HOME/.grugops}/agent-factory"',
-  '# 3. if "$KIT" still does not exist: STOP. Print:',
-  '#    "grugops kit not found at $KIT. Run node install/install.js (or node install/install.js --check) to install the kit."',
-  "#    Do NOT hunt the repo for agent-factory/… .",
-  "```",
-];
-
+// ── The invariant blockquote and the resolver block (D-06) ────────────────────────────────────
+// Both are IMPORTED from scripts/kit-model.ts (plan 27-64, D-64 Part B) and are no longer declared
+// here. They used to be private constants in this file, which made them unreachable by any second
+// generator: this module is top-level script code that writes seventeen files when imported, so a
+// consumer could only have RETYPED the text. A second copy of ten lines of shell and a 400-byte
+// blockquote is the hand-maintained-literal drift class this phase exists to close, and
+// scripts/generate-skill-twins.ts needs both blocks — the resolver to insert into the root skill
+// twin, the invariant to LOCATE the insertion point.
+//
+// The move was proven behavior-preserving before anything depended on it: `npm run
+// freshness:adapters` regenerated all seventeen adapters into a temp mirror and byte-compared them
+// against the committed ones, exiting 0.
 const HARD_LIMIT =
   "Never merge to a protected branch. Never deploy to prod. Humans always hold merge and deploy.";
 

@@ -13,6 +13,7 @@
     "freshness": "tsc --outDir .tmp-build && node scripts/freshness.js",
     "generate:catalog": "tsc --outDir .tmp-build && node scripts/generate-catalog.js",
     "generate:adapters": "tsc --outDir .tmp-build && node scripts/generate-role-adapters.js",
+    "generate:skill-twins": "tsc --outDir .tmp-build && node scripts/generate-skill-twins.js",
     "freshness:catalog": "tsc --outDir .tmp-build && node scripts/catalog-freshness.js",
     "freshness:adapters": "tsc --outDir .tmp-build && node scripts/adapters-freshness.js",
     "freshness:context": "tsc --outDir .tmp-build && node scripts/context-freshness.js",
