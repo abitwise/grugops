@@ -1,10 +1,10 @@
 ---
 schema_version: 1
-open_count: 10
+open_count: 13
 waived_count: 0
 fixed_count: 0
-total_count: 10
-last_updated: 2026-08-10T12:53:33.273Z
+total_count: 13
+last_updated: 2026-08-10T16:41:24.238Z
 ---
 
 # Broken Windows Ledger
@@ -25,6 +25,9 @@ last_updated: 2026-08-10T12:53:33.273Z
 | 8 | 27 | deviation | scripts/frontmatter.test.ts |  | 27-55: the pre-fix-mirror non-circularity count is 1 of 72 cells — non-empty so the axis provably sees the defect, but thin; add an ORDERING member to AXIS_SPELLING and re-take the count | open |  | 2026-08-10T12:15:03.506Z |  |
 | 9 | 27 | deviation | scripts/frontmatter.ts |  | raw.trim()'s alphabet (Unicode WhiteSpace) is wider than the module's declared [ \\t] class; pre-existing, never in the silent-no-grant direction, owner named in 27-56 | open |  | 2026-08-10T12:53:33.210Z |  |
 | 10 | 27 | deviation | scripts/frontmatter.test.ts |  | this repository's vitest intercepts console output, so the file's 'PRINTED, never silent' skips are invisible on a default run | open |  | 2026-08-10T12:53:33.273Z |  |
+| 11 | 27 | unrun-verify | scripts/frontmatter.test.ts | 14245 | 27-60 IN-03 brittleness: unasserted indexOf bounds, no identity check, and a negative over unstripped text; carried OPEN by 27-60 and 27-61 so neither edits another plan's evidence | open |  | 2026-08-10T16:41:24.108Z |  |
+| 12 | 27 | unrun-verify | .planning/phases/27-spawn-correctness-kit-set-authority/deferred-items.md |  | 27-59's three families the SHARED D-52 corpus cannot see (R1/R4/R6) — pinned by the whole suite but not by the corpus; reconciled, not closed, by 27-61 | open |  | 2026-08-10T16:41:24.174Z |  |
+| 13 | 27 | stub | scripts/frontmatter.ts |  | a blank line inside an open PLAIN (non-block) scalar still folds to a space, inventing a name on a loader-ACCEPTED document; PINNED at its current wrong answer by a named case (27-58) | open |  | 2026-08-10T16:41:24.238Z |  |
 
 ````json
 [
@@ -146,6 +149,42 @@ last_updated: 2026-08-10T12:53:33.273Z
     "status": "open",
     "reason": "",
     "recorded_at": "2026-08-10T12:53:33.273Z",
+    "resolved_at": null
+  },
+  {
+    "id": 11,
+    "kind": "unrun-verify",
+    "phase": "27",
+    "file": "scripts/frontmatter.test.ts",
+    "line": 14245,
+    "description": "27-60 IN-03 brittleness: unasserted indexOf bounds, no identity check, and a negative over unstripped text; carried OPEN by 27-60 and 27-61 so neither edits another plan's evidence",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-08-10T16:41:24.108Z",
+    "resolved_at": null
+  },
+  {
+    "id": 12,
+    "kind": "unrun-verify",
+    "phase": "27",
+    "file": ".planning/phases/27-spawn-correctness-kit-set-authority/deferred-items.md",
+    "line": null,
+    "description": "27-59's three families the SHARED D-52 corpus cannot see (R1/R4/R6) — pinned by the whole suite but not by the corpus; reconciled, not closed, by 27-61",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-08-10T16:41:24.174Z",
+    "resolved_at": null
+  },
+  {
+    "id": 13,
+    "kind": "stub",
+    "phase": "27",
+    "file": "scripts/frontmatter.ts",
+    "line": null,
+    "description": "a blank line inside an open PLAIN (non-block) scalar still folds to a space, inventing a name on a loader-ACCEPTED document; PINNED at its current wrong answer by a named case (27-58)",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-08-10T16:41:24.238Z",
     "resolved_at": null
   }
 ]
