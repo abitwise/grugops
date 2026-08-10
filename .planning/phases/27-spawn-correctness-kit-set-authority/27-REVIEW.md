@@ -1,430 +1,496 @@
 ---
 phase: 27-spawn-correctness-kit-set-authority
-reviewed: 2026-08-10T01:55:00Z
+reviewed: 2026-08-10T17:11:24Z
 depth: standard
-round: 10
-diff_base: d5c69e01042e445768c67b198e1e560c8c023961
-files_reviewed: 7
+round: 11
+diff_base: 3c7930b
+files_reviewed: 13
 files_reviewed_list:
   - scripts/frontmatter.ts
+  - scripts/frontmatter.js
   - scripts/frontmatter.test.ts
-  - scripts/check-foundation-guards.ts
-  - scripts/generate-role-adapters.test.ts
-  - scripts/validate-agent-factory.ts
   - scripts/fixtures/frontmatter-singleline-pre-d54.json
-  - tsconfig.json
+  - scripts/check-foundation-guards.test.ts
+  - scripts/context-freshness.test.ts
+  - scripts/context-io.test.ts
+  - scripts/generate-catalog.test.ts
+  - scripts/generate-role-adapters.test.ts
+  - install/install.test.ts
+  - tsconfig.tests.json
+  - package.json
+  - .github/workflows/ci.yml
 findings:
-  critical: 3
+  critical: 2
   warning: 4
   info: 3
-  total: 10
+  total: 9
 status: issues_found
 ---
 
-# Phase 27: Code Review Report (round 10)
+# Phase 27: Code Review Report (round 11)
 
-**Reviewed:** 2026-08-10T01:55:00Z
+**Reviewed:** 2026-08-10T17:11:24Z
 **Depth:** standard
-**Files Reviewed:** 7
+**Files Reviewed:** 13
 **Status:** issues_found
 
 ## Summary
 
-Round 10 closed five of the six round-9 items cleanly (CR-01's `''` escape, WR-02's prose scope,
-WR-03's `f(x) === f(x)`, IN-01's dead helper, and IN-02's `state` differential — the last two with
-residue, noted below). It also **introduced one new silent-no-grant regression** and **left the
-family it claims to close (D-57 / family G) live in at least six spellings**.
+Round 11's four source edits each close what they say they close **at the positions they were
+measured at**. The two Critical findings below are both about the positions nobody measured, and
+both reduce to the question this module's own ledger has now asked six times (entries nine through
+fourteen: what INPUT, what CONDITIONS, at which POSITIONS, WHOSE question, what may stand IN FRONT,
+and against which NUMBER):
 
-Evidence, not argument. All rows below were measured against the committed build at HEAD with
-`/usr/bin/ruby -ryaml` (ruby 2.6.10 / psych 3.1.0 / libyaml 0.2.1) as the loader column, and:
+- **CR-01** — D-62 asked the right question about the wrong quantity a second time. `27-58` moved the
+  block-scalar end condition off the header line's indent and onto the scalar's own detected content
+  indentation, which is correct; but it then took the **base for the explicit indentation indicator**
+  and the **floor for detection** from the *physical header line's* indent, where YAML 1.2 § 8.1.1.1
+  defines both relative to the **parent node's** indentation. The two coincide at `key: <header>` and
+  at the top-level key line — every position `27-58` measured, and every position the corpus can
+  spell — and diverge at every sequence-related position. **134 disagreeing cells over a 2,835-cell
+  indentation cross-product, 86 of them silent no-grants**, one of them a **regression against
+  `3c7930b`**, and **two independent end-to-end gate reproductions at `ALL CHECKS PASSED`, exit 0**.
+- **CR-02** — D-61's fourth application point for the reference refusal is asked at **one of the two
+  sites `blockHeaderAt` is called from**. The introduction *set* became data, as the plan says; the
+  *call sites* did not. `27-56`'s own adversarial pass wrote the two sites down
+  (`deferred-items.md:1559`) and `27-57` wired only the continuation one. Reproduced as a live silent
+  no-grant on a document `/usr/bin/ruby -ryaml` **accepts**, with the grant in the loaded
+  `allowed-tools` value, at `ALL CHECKS PASSED`, exit 0.
 
-- `npx vitest run scripts/frontmatter.test.ts` → **210 passed**
-- `node scripts/check-foundation-guards.js` → **ALL CHECKS PASSED, exit 0**
-- A hermetic `git archive HEAD` mirror with **one** grant planted on the non-coordinator skill
-  adapter `.claude/skills/grugops-map/SKILL.md` (and its distribution twin `skills/map/SKILL.md`,
-  so `guard_distribution_pair` stays green) → **ALL CHECKS PASSED, exit 0**, with libyaml reading
-  `allowed-tools => {"nested"=>"Read, Write, Bash, Glob, Grep, # x, Agent(grugops-orchestrator)"}`.
+Everything below was measured against the committed build at HEAD, with the loader column from
+`/usr/bin/ruby -ryaml` (ruby 2.6.10 / psych 3.1.0 / libyaml 0.2.1).
 
-The 210-green / gate-green / bypass-live combination is the eleventh instance of this phase's own
-standing lesson. Weight the findings accordingly: the suite did not fail on any of them.
+**Harness premises asserted before any result was believed**, per this phase's standing lesson:
 
-Round-9 disposition, judged against the code rather than the SUMMARY:
-
-| Round-9 item | Verdict |
+| Premise | Result |
 |---|---|
-| CR-01 `stripComment` `''` corrupts `state.openQuote` | **CLOSED** — verified live on both the top-level (`tools: 'Read, isn''t` / `  # x, Agent(…)'`) and nested spellings; both now agree with libyaml |
-| WR-01 D-52 corpus missing quote-style / in-scalar-escape axes | **CLOSED** (axes are derived, not hand-listed) |
-| IN-02 unasserted `state` field | **PARTIAL** — see WR-03 below; the differential covers 24 of the 48 reachable seeding combinations and omits the one the live continuation call site produces |
-| WR-02 unqualified fence-authority prose | **CLOSED at the "fence machine" level**; see IN-02 for the residue |
-| WR-03 `f(x) === f(x)` in generate-role-adapters.test.ts | **CLOSED** — the three replacements are each proven able to fail, and `linesRemoved` is now counted rather than derived, which is what makes the partition assertion non-identity |
-| IN-01 dead `kitListDir` + `noUnusedLocals`/`noUnusedParameters` | **PARTIAL** — helper deleted, flags on, but they reach zero test files (WR-04) |
+| `scripts/frontmatter.js` is a faithful build of the `.ts` | `tsc --outDir <tmp>` exit **0**; `/usr/bin/diff` over all **32** emitted `.js` files → **0 drift**. The committed build is provably its own source; every probe below therefore measures the shipped artifact |
+| the probe can see a grant at all | a plain one-line `allowed-tools: …, Agent(grugops-orchestrator)` planted on both twins of the non-coordinator `map` skill → gate **exit 1** |
+| the unplanted mirror is green | `git archive HEAD` mirror, `node scripts/check-foundation-guards.js` → **exit 0** |
+| the pre-round build behaves differently where a regression is claimed | `git archive 3c7930b`, same plant → **exit 1** (CR-01 row A) |
+| the suite is a floor and nothing more | `npx vitest run --exclude '**/scripts/e2e/**'` → **1346 passed \| 2 skipped**, `npm run typecheck` → **exit 0**, `tsc -p tsconfig.tests.json --listFiles` reaches **36 of 36** tracked `.test.ts` files. **None of this is offered as evidence of anything.** Every finding below is live under all of it |
+
+Round-10 disposition, judged against the code rather than the SUMMARYs:
+
+| Round-10 item | Verdict |
+|---|---|
+| CR-01 `sawBlock` sticky exemption | **CLOSED** — the flag is gone (`interface Part`, `frontmatter.ts:1630-1638`); the run-boundary resolution at `frontmatter.ts:1997-2043` is byte-identical for a key with no block scalar |
+| CR-02 node property before a block indicator | **CLOSED on the continuation path, OPEN on the item path** — see CR-02 below. The *strip* is complete; the *refusal* is not |
+| CR-03 `KEY_LINE` borrowed for the nested key | **CLOSED** — `blockMapImplicitEntry` (`frontmatter.ts:888-911`) owns the nested spelling; `KEY_LINE` has one code use again |
+| WR-01 over-included content line | **PARTIAL** — closed where the header line's indent equals the parent node's, live at every other position; see CR-01 / WR-01. The register (`deferred-items.md:3024`) records it **FIXED** |
+| WR-02 / IN-01 folded blank line | **CLOSED** — 56-cell fold/blank-line/more-indented cross product, **0** name-set disagreements against the loader |
+| WR-03 coupled `state` differential | **CLOSED** — 24 → 48 vectors, capture regenerated, negative control quoted verbatim |
+| WR-04 `noUnusedLocals` reaching zero test files | **CLOSED** — 0 → **36 of 36**, wired into CI, six real violations fixed |
+| IN-02 fence-authority prose half | **CLOSED** — mechanical discriminator added |
+| IN-03 source-scan brittleness | **CLOSED** — asserted bound + identity + comment-stripped negative |
 
 ---
 
 ## Critical Issues
 
-### CR-01: `sawBlock` silently disables the D-30 escape refusal for the whole key — a NEW regression that turns a loud refusal into a silent no-grant
+### CR-01: the block scalar's indentation landmark is the physical header LINE, not the parent node — 86 silent no-grants, one of them a round-11 regression, reproduced through the full gate twice at exit 0
 
-**File:** `scripts/frontmatter.ts:1215-1225` (the `sawBlock` field), `scripts/frontmatter.ts:1397-1405` (the flush)
+**File:** `scripts/frontmatter.ts:2061-2092` (`openBlock`), specifically `:2067`
+(`a.blockIndent = headerIndent`) and `:2074-2075`
+(`a.blockContentIndent = headerIndent + header.explicitIndent`); the end condition at `:2164-2167`;
+the two call sites that supply the wrong number, `:2350` (`openBlock(cur, itemHeader, indent)`) and
+`:2426` (`openBlock(cur, lineHeader, indent)`).
 
 **Issue:**
-D-57 changed the flush's quoting exemption from `cur.block` to `cur.sawBlock`. `block` was a
-property of the **whole** value (a header could only ever appear on the key line); `sawBlock` is
-sticky and true if a block scalar appeared **anywhere** in the key's region. So a key that contains
-one nested block scalar now skips `unquoteChecked` for **every other part of that key's value**,
-including parts that are ordinary double-quoted scalars. The D-30 escape refusal — the module's
-allowlist-by-default mechanism, the one that exists precisely because `"\x41gent(x)"` resolves to
-`Agent(x)` under a real loader — is therefore switched off by an unrelated sibling entry.
+YAML 1.2 § 8.1.1.1 defines *both* block-scalar indentation quantities relative to the **parent
+node's** indentation: the auto-detection floor ("more indented than the parent node") and the base
+the explicit indentation indicator is added to. `openBlock` is handed `headerIndent`, and every call
+site passes the **indentation of the physical line the header appeared on**.
 
-Measured at HEAD, one row and its control:
+Those two numbers are equal at `tools: >-` (top level), at `  nested: >-` (a mapping key's own indent
+*is* the mapping's indentation) and at `  - >-` (a dash's indent *is* the sequence's). They are
+**not** equal wherever a block-context construct consumes columns on the header line:
+
+| shape | header line's indent | parent node's indentation |
+|---|---|---|
+| `  -` newline `    >-` (bare header on its own line under a dash) | 4 | **2** (the sequence) |
+| `  - k: >-` (compact mapping inside a sequence item) | 2 | **4** (the mapping) |
+| `  - - >-` (compact nested sequence) | 2 | **4** (the inner sequence) |
+
+`27-58` measured the digit "on **eight** rows across all three positions a header can appear at" —
+and all eight sit in the coinciding column. This is `27-58`'s own stated defect class, one plan
+later: *"a landmark that USUALLY coincides with the right one is the worst kind, because it makes the
+corpus agree."*
+
+**Row A — the regression. `>-2` at a bare header under a dash.**
 
 ```
-U2 (control)              module: REFUSES, naming `\x`            libyaml: {"a"=>"Agent(grugops-orchestrator)"}
 ---
 name: r
 tools:
-  a: "\x41gent(grugops-orchestrator)"
----
-
-U1 (add one sibling)      module: {"ok":true,"value":false}       libyaml: {"a"=>"Agent(grugops-orchestrator)","b"=>"x"}
----                               ^^^ SILENT NO-GRANT
-name: r
-tools:
-  a: "\x41gent(grugops-orchestrator)"
-  b: >-
-    x
+  -
+    >-2
+      Read,
+     # x, Agent(grugops-orchestrator)
 ---
 ```
 
-This is a **regression introduced by this round**: the pre-round build (`d5c69e0`,
-`scripts/frontmatter.js`) returns `{ok:false, reason:"… backslash sequence \`\\x\` …"}` for U1.
-It is the module's own founding failure — "I could not read this" printed as "this carries no
-grant" — reached by adding two lines to a document.
+| build | `hasSpawnGrant` | flattened `tools` |
+|---|---|---|
+| **HEAD** | `{"ok":true,"value":false}` — **SILENT NO-GRANT** | `"Read,, "` (the seq join over an empty block region plus the truncated content) |
+| `3c7930b` (pre-round) | `{"ok":true,"value":true}`, names `["grugops-orchestrator"]` | `Read, # x, Agent(grugops-orchestrator)` |
+| `/usr/bin/ruby -ryaml` | — | `["  Read,\n # x, Agent(grugops-orchestrator)"]` — **the grant is in the loaded value** |
 
-The block-sequence spelling (U3) still refuses, because the item path calls `unquoteChecked` per
-item before the flush ever runs. Only the nested-mapping continuation path defers to the flush, so
-only it is exposed. That asymmetry is itself the tell.
+The module computes `blockContentIndent = 4 + 2 = 6`; the loader computes `2 + 2 = 4`. The line at
+column 5 is inside the scalar for the loader and outside it for the module, so the scalar ends, the
+line is re-offered to `stripComment`, and its leading `#` deletes the grant. This is the module's
+founding failure — "I could not read this" printed as "this carries no grant" — **introduced by this
+round's own fix for the mirror-image defect**.
 
-**Fix:** the quoting exemption is a property of a **region**, not of a key. Track which parts came
-from a block scalar and exempt only those, rather than making the flush all-or-nothing. Minimal
-shape — record the part indices `openBlock` owns and skip only those in the flush:
-
-```ts
-// Accumulator
-blockParts: Set<number>;   // indices of `parts` that a block scalar owns
-
-// openBlock
-a.parts.push(header.leading);
-a.blockParts.add(a.parts.length - 1);
-
-// flush — resolve each part on its own terms, then join
-const resolvedParts: string[] = [];
-for (const [i, part] of cur.parts.entries()) {
-  if (cur.blockParts.has(i)) { resolvedParts.push(part); continue; }
-  const r = unquoteChecked(part);
-  if (!r.ok) return refuseEscape(`${cur.key}: ${part}`, r.escape);
-  resolvedParts.push(r.value);
-}
-const value = (cur.seq ? resolvedParts.join(", ") : resolvedParts.join(" ")).trim();
-```
-
-Whichever shape is chosen, the case that pins it must be the **pair** (U1 and U2 together): U2
-alone passes today and proves nothing, because the defect is that U2's own refusal disappears when
-a sibling is added.
-
----
-
-### CR-02: a YAML node property between the mapping indicator and the block-scalar indicator defeats `blockHeaderAt` — reproduced end-to-end through the full gate at ALL CHECKS PASSED
-
-**File:** `scripts/frontmatter.ts:440-473` (`blockHeaderAt`), `scripts/frontmatter.ts:618-636` (`startsWithReference`), `scripts/frontmatter.ts:1693-1702` (the continuation gate)
-
-**Issue:**
-`blockHeaderAt` asks `BLOCK_INDICATOR` about the text immediately after the introduction. YAML 1.2
-§ 6.9 lets a node's **properties** (tag and/or anchor) stand in front of the node's content, so
-`nested: &a >-`, `nested: !!str >-`, `: &a >-` and `? &a >-` are all legal headers that
-`blockHeaderAt` does not recognise. The header is missed, `block` stays false, the scalar's literal
-content is routed through `stripComment`, and a leading `#` deletes the rest of the line — the
-exact mechanism D-57 was written to close, one property over.
-
-Worse, the reference **refusal** does not catch it either: `startsWithReference` is asked about
-position 0 of the line (`nested: &a >-` does not start with a sigil) and about flow fragments, but
-never about the node start that follows a block mapping's `: ` separator. So the document does not
-even fail red — it succeeds with no grant.
-
-Measured at HEAD:
-
-| row | document | module | libyaml |
-|---|---|---|---|
-| A | `tools:` / `  nested: &a >-` / `    Read, # x, Agent(grugops-orchestrator)` | `{ok:true,value:false}` | `{"nested"=>"Read, # x, Agent(grugops-orchestrator)"}` |
-| B | same with `!!str` instead of `&a` | `{ok:true,value:false}` | same grant |
-| F | `tools:` / `  ? k` / `  : &a >-` / `      Read, # x, Agent(…)` | `{ok:true,value:false}` | `{"k"=>"Read, # x, Agent(…)"}` |
-| Q | `tools:` / `  ? &a >-` / `      Read, # x, Agent(…)` / `  : v` | `{ok:true,value:false}` | `{"Read, # x, Agent(…)"=>"v"}` |
-
-Control (row P, `tools:` / `  &a >-` — a **bare** header with a property) correctly refuses,
-because there the sigil *is* at position 0. That contrast is the proof this is the introduction set
-and not the sigil test.
-
-**Gate-level reproduction.** On a `git archive HEAD` mirror, row A's shape planted on the
-non-coordinator skill adapter `.claude/skills/grugops-map/SKILL.md` (and its twin
-`skills/map/SKILL.md`):
+**Gate reproduction, row A.** `git archive HEAD` mirror, the same shape planted in the *existing*
+`allowed-tools:` key of both twins of the non-coordinator `map` skill
+(`.claude/skills/grugops-map/SKILL.md` and `skills/map/SKILL.md`, so `guard_distribution_pair` stays
+green):
 
 ```
 allowed-tools:
-  nested: &a >-
-    Read, Write, Bash, Glob, Grep, # x, Agent(grugops-orchestrator)
+  -
+    >-2
+      Read, Write, Bash, Glob, Grep,
+     # x, Agent(grugops-orchestrator)
 ```
 
-`node scripts/check-foundation-guards.js` → `ALL CHECKS PASSED`, **exit 0**. `guard_wr05`'s
-`!isCoordinator && hasGrant` arm never fires because `keysHaveSpawnGrant` reads the flattened value
-`nested: &a >- Read,`.
+- `/usr/bin/ruby -ryaml` reads `allowed-tools` as
+  `["  Read, Write, Bash, Glob, Grep,\n # x, Agent(grugops-orchestrator)"]`
+- `node scripts/check-foundation-guards.js` on **HEAD** → `ALL CHECKS PASSED`, **exit 0**
+- the identical plant on a `git archive 3c7930b` mirror → `1 CHECK(S) FAILED`, **exit 1**
 
-`UNKNOWN - verify`: whether Claude Code itself honours a **mapping** under `allowed-tools:` as a
-tool grant was not confirmed against the platform, so no live platform escalation is claimed. The
-finding stands on the module's own stated contract — the token is in the loaded value of the
-`allowed-tools` key and the guard reads it as a no-grant — which is exactly the standard rows g1–g5
-were judged by five plans ago.
+**Row B — no digit required. The auto-detection FLOOR is the same wrong number.**
 
-**Fix:** strip node properties at the header position with the module's **existing** authorities
-rather than a new pattern, and ask the reference refusal at that node start so a property that
-cannot be stripped still fails loud instead of quiet:
+```
+---
+name: r
+tools:
+  -
+    >-
+   Read,
+   # x, Agent(grugops-orchestrator)
+---
+```
+
+- module: `{"ok":true,"value":false}`, `tools` flattened to `", Read,"` (the block region is empty)
+- loader: `["Read, # x, Agent(grugops-orchestrator)"]`
+
+Content at column 3 must exceed the *parent's* 2 (loader: inside) and the module requires it to
+exceed the *header line's* 4 (module: outside). **Gate reproduction:** the same shape planted on the
+same two twins → `ALL CHECKS PASSED`, **exit 0**. Row B is pre-existing rather than a regression, but
+it is the family `27-58`/D-62 exists to close and it survives the fix untouched, at both indicator
+spellings (`>-` and `|-`).
+
+**Blast radius, measured rather than asserted.** A 2,835-cell cross product — 7 header positions ×
+5 indicator spellings (`>-`, `|-`, `>-1`, `>-2`, `>-3`) × the two content lines' indentation each
+varying independently over columns 1-9 — of which **1,926 cells are loader-ACCEPTED**:
+
+| direction | position | cells |
+|---|---|---|
+| SILENT NO-GRANT | `bareundash` (`  -` / `    <header>`) | **86** (`>-` 13, `\|-` 13, `>-1` 24, `>-2` 20, `>-3` 16) |
+| MODULE GRANT / LOADER NONE | `seqcompact` (`  - k: <header>`) | 24 (`>-1` 10, `>-2` 8, `>-3` 6) |
+| MODULE GRANT / LOADER NONE | `seqnested` (`  - - <header>`) | 24 (same distribution) |
+| — | `topkey`, `nested`, `seqitem`, `explicitval` | **0** — the coinciding column, which is the whole corpus's column |
+
+**Fix:** carry the **parent node's indentation** into `openBlock` instead of the header line's, and
+derive it at each call site from what that site already knows rather than from `indentOf(raw)`:
 
 ```ts
-function blockHeaderAt(text: string): BlockHeader | null {
+// openBlock signature — name the quantity YAML names.
+const openBlock = (a: Accumulator, header: BlockHeader, parentIndent: number): void => {
+  a.blockIndent = parentIndent;                       // the DETECTION FLOOR (§ 8.1.1.1)
+  a.blockContentIndent =
+    header.explicitIndent === null ? null : parentIndent + header.explicitIndent;
   // …
-  const kv = text.match(KEY_LINE);
-  if (kv !== null) {
-    const raw = (kv[2] ?? "").trim();
-    // ONE leading property, exactly as LEADING_TAG / NODE_PROPERTY_AT_NODE_START already declare it.
-    const afterProps = raw.replace(NODE_PROPERTY_AT_NODE_START, "").trimStart();
-    if (BLOCK_INDICATOR.test(afterProps)) { /* header, with lineBreak from afterProps */ }
-  }
-  // …same for BLOCK_MAP_EXPLICIT's `?` and `:` arms
-}
+};
+
+// :2350 item path — the dashes were consumed; the node's parent is the sequence, whose
+// indentation is the DASH's indent, but a compact mapping/sequence on the same line moves it.
+// The item path already computes how many columns it consumed; pass `indent + consumedColumns`
+// when the header sits behind a `k:` or a second `-`, and `indent` when it does not.
+
+// :2426 continuation path — a header on its own line under a `-` belongs to the SEQUENCE,
+// not to the line: pass `cur.seqIndent ?? indent` rather than `indent` when the previous line
+// was a content-free sequence item.
 ```
 
-and, at the continuation path in `flattenBlock`, ask `startsWithReference` about the value node
-after a recognised mapping separator, not only about offset 0 of the line. Do **not** close only
-the four spellings in the table — that is the enumerate-the-bad shape this module has declined
-seven times; the property is "a node property never hides a node start", asked at every
-introduction `blockHeaderAt` knows about.
+Whatever shape is chosen, the pin must be an **axis over the header line's indent versus the parent
+node's indentation**, not the three rows in the table above — the corpus cannot currently spell a
+single cell where the two differ (WR-02), which is exactly why 134 disagreements shipped green.
 
 ---
 
-### CR-03: `blockHeaderAt` reuses `KEY_LINE`, whose key charset is the top-level frontmatter grammar, not YAML's nested mapping-key grammar — four more silent no-grants
+### CR-02: D-61's fourth application point for the reference refusal is asked at one of the two sites `blockHeaderAt` is called from — a live silent no-grant on a loader-ACCEPTED document, at exit 0
 
-**File:** `scripts/frontmatter.ts:446-457`, `scripts/frontmatter.ts:343` (`KEY_LINE`)
+**File:** `scripts/frontmatter.ts:751-765` (`mappingSeparatorNodeStarts`), its **single** call site at
+`:2447-2450`; the sequence-item path's own reference test at `:2317`
+(`if (startsWithReference(itemText)) return refuseRef(t)`), which asks only offset 0 of the item text.
 
 **Issue:**
-`KEY_LINE` is `/^([A-Za-z_][A-Za-z0-9_-]*):(?:[ \t]+(.*))?[ \t]*$/`. That is a deliberately narrow
-grammar for the **top-level** keys a frontmatter block may declare, and reusing it for
-INTRODUCTION 2 of `blockHeaderAt` silently transfers that narrowness to **nested** mapping keys,
-where YAML allows any scalar. Every nested key that is quoted, contains a dot, starts with a digit
-or contains a space therefore fails to be recognised as introducing a header, and the whole family-G
-mechanism reopens:
+D-61's argument is that the introduction set became **data**, so "a fifth introduction inherits both
+questions by construction" (`frontmatter.ts:719-720`). That is true of the introductions and false of
+the **call sites**. `blockHeaderAt` is called from exactly two places — `27-56`'s own adversarial pass
+enumerated them from the code and wrote them down
+(`deferred-items.md:1559`: *"`scripts/frontmatter.ts:1936` the block-sequence item path, `:2009` the
+continuation path"*) — and `mappingSeparatorNodeStarts` was wired into only the second. So every
+node start that follows a mapping separator **inside a sequence item** is still unasked, and a node
+property the strip cannot consume still reaches the silent success arm there.
 
-| row | nested key | module | libyaml |
-|---|---|---|---|
-| V1 | `"a b": >-` | `{ok:true,value:false}` | `{"a b"=>"Read, # x, Agent(grugops-orchestrator)"}` |
-| V2 | `a.b: >-` | `{ok:true,value:false}` | `{"a.b"=>"Read, # x, Agent(…)"}` |
-| V3 | `1a: >-` | `{ok:true,value:false}` | `{"1a"=>"Read, # x, Agent(…)"}` |
-| V4 | `a b: >-` | `{ok:true,value:false}` | `{"a b"=>"Read, # x, Agent(…)"}` |
+**Row — a resolvable alias reaching a grant through a sequence item's compact mapping. The loader
+ACCEPTS this document.**
 
-The module comment at `frontmatter.ts:363-365` says "this function CALLS the one constant rather
-than restating it … nothing here decides what a header LOOKS like." That is true of the *indicator*
-and false of the *position*: reusing `KEY_LINE` is a decision about which nested keys can carry a
-header, and it is the wrong grammar for that question. This is the same class as CR-02 — the
-predicate's application set, one level down.
-
-**Fix:** give `blockHeaderAt` its own nested-key production derived from YAML's rule (a mapping
-value indicator is `:` followed by a separation, and everything before the **last** such `: ` on the
-line is the key), instead of borrowing the frontmatter-key charset:
-
-```ts
-// A nested block-mapping entry: any key text, then the mapping-value indicator.
-const NESTED_MAP_ENTRY = /^(.*?):(?:[ \t]+(.*))?$/;
+```
+---
+name: r
+_x:
+  - k: &a Agent(grugops-orchestrator)
+allowed-tools:
+  - j: *a
+---
 ```
 
-and keep `KEY_LINE` for the top-level baseline where its narrowness is the intended refusal. The
-pin must be a derived axis over key spellings (quoted / dotted / digit-leading / space-containing /
-bare), not four rows: the same argument that made the D-52 quote-style axis an axis and not four
-rows.
+| | verdict |
+|---|---|
+| module | `{"ok":true,"value":false}`; `allowed-tools` flattened to `j: *a` |
+| `/usr/bin/ruby -ryaml` | `"allowed-tools"=>[{"j"=>"Agent(grugops-orchestrator)"}]` |
+| **control**, the identical alias one spelling over (`  j: *a`, no dash) | **REFUSED** by name — *"uses a YAML anchor or alias …"* |
+
+The control is the proof this is the call-site set and not the sigil test: the same alias, the same
+key, the same loader value, refused loudly on the continuation path and read as "carries no grant"
+one dash over. Both spellings were silent on `3c7930b`; round 11 closed one of them.
+
+**Gate reproduction.** `git archive HEAD` mirror, planted on both twins of the non-coordinator `map`
+skill:
+
+```
+_x:
+  - k: &a Agent(grugops-orchestrator)
+allowed-tools:
+  - Read
+  - Write
+  - Bash
+  - Glob
+  - Grep
+  - j: *a
+```
+
+`/usr/bin/ruby -ryaml` reads `allowed-tools` as
+`["Read", "Write", "Bash", "Glob", "Grep", {"j"=>"Agent(grugops-orchestrator)"}]`.
+`node scripts/check-foundation-guards.js` → `ALL CHECKS PASSED`, **exit 0**.
+
+The loader-REJECTED half of the same gap is visible too and is the same asymmetry: `tools:` /
+`  - k: *a >-` and `tools:` / `  - k: &a &b >-` both return `{"ok":true,"value":false}` on documents
+libyaml refuses to load, where their dash-less twins refuse loudly — the exact disposition
+`27-57-SUMMARY.md` records for rows T3 and R ("moved to the LOUD arm"), true at one position only.
+
+`UNKNOWN - verify`: whether Claude Code itself honours a **mapping** under `allowed-tools:` as a tool
+grant was not confirmed against the platform, and no live platform escalation is claimed. The finding
+stands on the module's own contract — the token is in the loaded value of the allow-list key and the
+guard read it as a no-grant.
+
+**Fix:** ask the fourth application point wherever `blockHeaderAt` is asked, and derive the site list
+from the code rather than from memory:
+
+```ts
+// item path, immediately after the dashes are consumed and before `blockHeaderAt(itemText)`:
+if (startsWithReference(itemText)) return refuseRef(t);          // existing — offset 0 only
+for (const start of mappingSeparatorNodeStarts(itemText)) {      // ADD
+  // No extra gate: offset 0 of `itemText` is unconditionally a node start on this path
+  // (`assertItemPathScalarClosed` already proves the carried scalar is closed here), so the
+  // continuation path's `mappingValueIndicator || startsNode` has nothing to decide.
+  if (startsWithReference(start.node)) return refuseRef(t);
+}
+```
+
+and pin it the way `27-59` pinned the `stripComment` call sites: **read the `blockHeaderAt` call-site
+list out of `scripts/frontmatter.ts` at run time and assert every member also calls
+`mappingSeparatorNodeStarts`**, so a third recogniser site fails by name. Closing only the compact
+mapping is the enumerate-the-bad shape this module has now declined twelve times.
 
 ---
 
 ## Warnings
 
-### WR-01: a more-indented first content line makes the module report a grant the loader does not have — the direction its own harness calls "never exemptible"
+### WR-01: the "module GRANT the loader does not have" direction is still live at 48 cells, and the disposition register records it FIXED
 
-**File:** `scripts/frontmatter.ts:1479-1498`
+**File:** `scripts/frontmatter.ts:2074-2075`; `deferred-items.md:3024` (register row 4).
 
-**Issue:** the end condition is `indent > cur.blockIndent`, i.e. "more indented than the header
-line". YAML auto-detects the scalar's content indentation from the **first non-empty content line**,
-and ends the scalar at the first line less indented than *that*. Where the first content line is
-more indented than the minimum, the two rules diverge and the module over-includes:
+**Issue:** the register states round-10 WR-01 is *"**FIXED** — the gate's **FALSE RED** inverted"*, and
+`27-58-SUMMARY.md` states *"3 module-grants-the-loader-lacks closed"*. Both are true at the positions
+measured. At the sequence positions CR-01 names, the direction the module's own doc block calls
+**never exemptible** (`frontmatter.ts:1709-1711`) is live in 48 loader-accepted cells:
 
 ```
-tools:                 module: {"nested"=>"Read, # x, Agent(grugops-orchestrator)"}  -> GRANT
-  nested: >-           libyaml: {"nested"=>"Read,"}                                  -> no grant
-        Read,
+---
+name: r
+allowed-tools:
+  - k: >-2
+      Read,
     # x, Agent(grugops-orchestrator)
+---
 ```
 
-`grantedAgentNames` returns `["grugops-orchestrator"]` for a value the loader does not express.
-The module's own doc block at `frontmatter.ts:1271-1274` names this direction ("a module GRANT the
-loader does not have, which the D-52 harness declares NEVER EXEMPTIBLE"). It is a false **red**, not
-a hole, which is why this is a Warning and not a Critical — but it is a stated invariant violation
-shipped by the change that stated it.
+- module: `{"ok":true,"value":true}`, `grantedAgentNames` → `["grugops-orchestrator"]`
+- loader: `[{"k"=>"Read,"}]` — **no grant**
 
-**Fix:** record the detected content indent on the first content line (or honour the explicit
-indentation indicator digit `BLOCK_INDICATOR` already matches and currently discards), and end the
-scalar at `indent < detectedContentIndent`:
+`grantedAgentNames` returns a name for a document that expresses none. This is a false **red** rather
+than a hole, which is why it is a Warning and not a Critical — but the fix is CR-01's fix, and the
+register row should not read `FIXED` while the family is measurable.
+
+**Fix:** CR-01's. Then re-cut register row 4 with the position column stated, so "closed" carries the
+set it is closed over.
+
+### WR-02: the corpus grew 2,544 → 16,704 cells and gained no indentation axis and no explicit-digit axis — the two dimensions D-62 is entirely about
+
+**File:** `scripts/frontmatter.test.ts:8614-8621` (`AXIS_HEADER_INDICATOR_FORM`);
+`scripts/frontmatter.test.ts:8191, 8202, 8362, 8373, 8402, 8439, 8480, 8507` (the eight
+header-declaring base shapes).
+
+**Issue:** `27-59`'s claim is that the header became a **product of its own parts** so an unreported
+family is inside the shape space by construction. The parts are `line`, `indent`, `intro`, `key`,
+`property`, `indicator` — and only **key**, **property**, **indicator** and a sibling region are
+crossed. `indent` and `intro` are declared per base shape and **never varied**, and
+`AXIS_HEADER_INDICATOR_FORM`'s three members are `identity`, `the other block style` and
+`chomping kept` — **no member ever produces an indentation digit**. Read off the eight declaring
+shapes: every `indent` is `""` or `"  "`, every `intro` is `""` or `"- "`, and there is no shape in
+which the header line's indent differs from the parent node's indentation.
+
+So the corpus asserts *both never-exemptible partitions EMPTY* (`27-59-SUMMARY.md`) over a space that
+cannot spell a single one of CR-01's 134 cells — which is `27-49`'s own recorded lesson ("not because
+the module agreed with the loader but because IT NEVER GENERATED THE INPUT") arriving for the seventh
+time, on the axis the round's fourth plan created.
+
+**Fix:** two members, both transforms so they compose with the existing axes:
 
 ```ts
-// content branch, first content line only
-if (!cur.blockHasContent) cur.blockContentIndent = indent;
-if (indent >= (cur.blockContentIndent ?? cur.blockIndent + 1)) { /* content */ }
+// AXIS 1h — the header's INDENTATION RELATIVE TO ITS PARENT NODE.
+const AXIS_HEADER_PARENT_OFFSET = [
+  { label: "the header line's indent IS the parent's", respell: (h) => h },
+  { label: "a compact mapping consumes columns on the header line", respell: (h) => ({ ...h, intro: `- ${h.intro}` }) },
+  { label: "the header stands on its own line under a dash",       respell: (h) => ({ ...h, indent: `${h.indent}  `, prefixLine: `${h.indent}-` }) },
+];
+// AXIS 1i — the EXPLICIT INDENTATION DIGIT, derived by filtering candidates through BLOCK_INDICATOR
+// (already exported) so narrowing the constant shortens the axis.
 ```
 
-### WR-02: the `|`/`>` line-break derivation was applied to the indicator but not to the blank line, so a folded scalar still invents names
+and assert the crossing of `27-58`'s family with the other three is **non-empty**, exactly as
+`27-59` already does for `27-55` × `27-56` × `27-57`.
 
-**File:** `scripts/frontmatter.ts:437-438` (`blockLineBreak`), `scripts/frontmatter.ts:1457` (the blank-line `continue`)
+### WR-03: a more-indented content line loses its own leading whitespace, so the module's value is SHORTER than the loader's on a document the loader accepts
 
-**Issue:** D-57 correctly derived the join from the indicator (`|` → `"\n"`, `>` → `" "`) because
-row g5 showed a space join inventing an enumerable name where the loader's `\n` would be refused by
-`ENUMERATION_LEGAL_CHARS`. The identical mechanism survives on the **blank-line** axis of a folded
-scalar: YAML folds a blank line inside `>` to a line break, and this module drops the blank line at
-`flattenBlock`'s `raw.trim() === ""` guard and then joins with a space.
+**File:** `scripts/frontmatter.ts:2133` (`const t = raw.trim()`), consumed at `:2214-2216`.
+
+**Issue:** every line inside a block scalar reaches its region as `raw.trim()`. YAML keeps the
+indentation a content line carries **beyond** the detected content indentation (`s-nb-spaced-text`),
+and `27-58` derived the fold-suppression rule from exactly that production — but not the text:
 
 ```
-tools: >                module names: ["alpha","ga mma"]
-  Agent(alpha, ga       libyaml:      "Agent(alpha, ga\nmma)\n"
-                                       ^ the module's own ENUMERATION_LEGAL_CHARS refuses a line break
-  mma)
+tools: |-             loader: "Agent(alpha,\n    beta)"
+  Agent(alpha,        module: "Agent(alpha,\nbeta)"
+      beta)
 ```
 
-So the module enumerates two names, one of them invented, for a value the loader-faithful reading
-would send to the loud refusal arm. That is the KIT-03 / D-09 direction the `blockLineBreak` change
-was made to move away from.
+`27-58`'s own deviation 2 closed this direction for leading breaks on the argument that *"this
+module's founding failure is a value shorter than the loader's, so that direction is closed wherever
+it is cheap to close"*. The recorded open item covers **whitespace-only** lines
+(`27-58-SUMMARY.md`, "Still OPEN"); a more-indented **content** line is not recorded anywhere.
 
-**Fix:** inside an open block scalar, a blank line is content. Handle it before the blank-line skip:
+Measured over a 56-cell fold/blank-line/more-indented cross product the **name sets agree on every
+cell**, and no grant verdict moves: the fold is suppressed at a more-indented boundary, so the
+surrounding break is always `"\n"`, which `ENUMERATION_LEGAL_CHARS` refuses on both sides. So this is
+a value divergence with no constructible name or verdict consequence — reported because it is the
+stated never-shorten direction and it is unrecorded, not because a bypass was found.
+
+**Fix:** inside an open block scalar, strip only the detected content indentation rather than all
+leading whitespace:
 
 ```ts
-if (raw.trim() === "") {
-  if (cur !== null && cur.block && cur.blockHasContent) {
-    cur.parts[cur.parts.length - 1] += "\n";   // a folded blank line IS a line break
-  }
-  continue;
-}
+const content = cur.blockContentIndent === null ? raw.trim() : raw.slice(cur.blockContentIndent).replace(/[ \t]+$/, "");
 ```
 
-### WR-03: the new `state` differential couples two independent inputs, so it never generates the combination the live call site produces
+and pin it with a control asserting value equality with the loader for the `|-` spelling, so the
+`s-nb-spaced-text` rule is tied to both the fold and the text.
 
-**File:** `scripts/frontmatter.test.ts:10067-10084`
+### WR-04: `tsconfig.tests.json` hand-copies `tsconfig.json`'s exclude list instead of deriving it
 
-**Issue:** the loop passes `nodeMayBegin` as **both** `entering.nodeMayBegin` and
-`nodeStartAtOffsetZero`:
+**File:** `tsconfig.tests.json:22`.
+
+**Issue:** the file's own comment says *"The only override is the exclude list, which drops the
+`**/*.test.ts` entry and keeps the other two."* It does so by **restating** them:
+`"exclude": ["node_modules", ".tmp-build"]`. A fourth entry added to `tsconfig.json`'s exclude
+(a vendored dir, a generated fixture tree, a second build dir) will silently not apply to the
+test-inclusive target, and both configs will keep reporting exit 0. This is the repository's own
+diagnosed **set-literal drift** class — the same shape `27-56` and `27-57` exported `BLOCK_INDICATOR`
+and `NODE_PROPERTY_AT_NODE_START` to avoid — in the file added to close a "control that reads as
+enforced and enforces nothing" finding.
+
+Verified live: `tsc -p tsconfig.tests.json --listFiles` reaches **36 of 36** tracked `.test.ts` files
+and `npm run typecheck` exits 0 today, so this is latent rather than live.
+
+**Fix:** there is no `extends`-time list subtraction in tsconfig, so make the duplication fail
+closed — a case asserting `tests.exclude ∪ {"**/*.test.ts"} === base.exclude` as sets, with the
+message naming the entry that drifted:
 
 ```ts
-const got = stripComment(
-  input,
-  { openQuote: q, flowDepth, nodeMayBegin },
-  nodeMayBegin,     // <- nodeStartAtOffsetZero, coupled to the entering state
-  lineStart,
-).state;
-```
-
-`stripComment`'s own doc block (`frontmatter.ts:805-813`) insists these are *not the same fact*, and
-the live continuation call site is `stripComment(t, cur.state, startsNode, startsNode)` — where
-`cur.state.nodeMayBegin` is routinely `false` while `startsNode` is `true`. That combination is
-never generated: `states` is `3 × 2 × 2 × 2 = 24`, not `3 × 2 × 2 × 2 × 2 = 48`. The case therefore
-reproduces exactly the trap its sibling names at `frontmatter.test.ts:7098` — "not because the
-module agreed with the loader but because IT NEVER GENERATED THE INPUT" — inside the fix for it.
-
-**Fix:** make `nodeStartAtOffsetZero` its own axis, regenerate the pre-fix capture from the same
-hermetic mirror over the widened cross product (the capture format already de-duplicates vectors,
-so the cost is one more factor of two), and pin `states` at 48 with the derivation written out.
-
-### WR-04: `noUnusedLocals` / `noUnusedParameters` were enabled on a config that excludes every test file
-
-**File:** `tsconfig.json:15-20`
-
-**Issue:** the flags are on, but `"exclude": ["node_modules", ".tmp-build", "**/*.test.ts"]` means
-`tsc --noEmit --listFiles` reports **zero** `.test.ts` files (verified), and `vitest.config.ts`
-declares no `typecheck` block, so vitest transpiles the harness without type checking. The dead-code
-flags therefore have no reach into the surface this phase actually grew — `frontmatter.test.ts`
-gained 1250 lines this round and `generate-role-adapters.test.ts` 226.
-
-There are no violations today (a temporary config including the tests compiles with zero TS6133 /
-TS6196 / TS6198), so this is latent rather than live. But IN-01's remedy was stated as "turn on
-noUnusedLocals + noUnusedParameters", and as configured it cannot see the code the round added.
-
-**Fix:** add a test-inclusive typecheck target and wire it into the same gate that runs `typecheck`:
-
-```jsonc
-// tsconfig.tests.json
-{ "extends": "./tsconfig.json",
-  "compilerOptions": { "noEmit": true, "types": ["node", "vitest/globals"] },
-  "include": ["scripts/**/*.ts", "install/**/*.ts", "hooks/**/*.ts"],
-  "exclude": ["node_modules", ".tmp-build"] }
-```
-
-```jsonc
-"typecheck": "tsc --noEmit && tsc -p tsconfig.tests.json"
+const base = JSON.parse(stripJsonComments(readFileSync("tsconfig.json", "utf8")));
+const tests = JSON.parse(stripJsonComments(readFileSync("tsconfig.tests.json", "utf8")));
+expect(new Set([...tests.exclude, "**/*.test.ts"]), "tsconfig.tests.json's exclude list drifted from tsconfig.json's").toEqual(new Set(base.exclude));
 ```
 
 ---
 
 ## Info
 
-### IN-01: blank lines inside a `|` block scalar are dropped, so the flattened value is not the loader's
+### IN-01: `blockHeaderAt`'s "a fifth introduction inherits both questions by construction" comment is one introduction short of the set the module's own doc block enumerates
 
-**File:** `scripts/frontmatter.ts:1457`
+**File:** `scripts/frontmatter.ts:719-720`, `scripts/frontmatter.ts:612-652`
+(`HEADER_INTRODUCTIONS`), against `scripts/frontmatter.ts:778-783`.
 
-**Issue:** `tools: |` / `  Read,` / `` / `  Agent(x)` flattens to `"Read,\nAgent(x)"` where libyaml
-expresses `"Read,\n\nAgent(x)\n"`. Both carry the token and both enumerate the same names, so the
-direction is safe — but the divergence is undocumented and unasserted, and it shares a root cause
-with WR-02 above. Fixing WR-02 fixes this.
+**Issue:** `BLOCK_MAP_EXPLICIT`'s doc block states YAML gives block context **four** node
+introductions — `-` (§ 8.2.1), `key:`, `?` and `:` (§ 8.2.2) — and calls that set CLOSED.
+`HEADER_INTRODUCTIONS` contains the last three plus a synthetic `bare`; the block-sequence `-` is
+**outside** the set, handled by `SEQ_ITEM` pre-consuming the dash on a different code path. That is a
+sound design, but it makes the comment's claim false in the direction that matters: the item path's
+introduction inherits nothing the set gains, which is precisely CR-02's mechanism.
 
-**Fix:** covered by WR-02's patch; add a control row pinning the value equality with the loader for
-the `|` spelling so the two axes stay tied together.
+**Fix:** state the scope at the site — "every introduction reachable *from the continuation path*" —
+and add the assertion CR-02 asks for, so the sentence is backed rather than believed.
 
-### IN-02: the narrowed fence-authority claim is derived for "is there a fence machine" but still prose for "does it answer the GENERAL question"
+### IN-02: the new `codeOnly` comment strip handles `//` only, where its stated model handles both comment forms
 
-**File:** `scripts/frontmatter.ts:77-98`, `scripts/frontmatter.test.ts:4611-4692`
+**File:** `scripts/generate-role-adapters.test.ts:884-887`.
 
-**Issue:** the derived set is a genuine improvement — sorted, cardinality-pinned at 4, proven to
-fail on a fifth plant, and every classifier construct proven load-bearing. But the *claim* it backs
-is "exactly one implementation answers the GENERAL question". That half is mechanised for only one
-of the three non-authority members: `check-foundation-guards.ts` is pinned as gated on
-`## Caveman prompt` (`frontmatter.test.ts:4649-4658`), while `generate-role-adapters.test.ts` and
-`check-foundation-guards.test.ts` are excused as "harness-local" in prose only. A future edit that
-makes either of those a general document-level fence answer keeps the set at 4 and the claim green.
+**Issue:** the strip is introduced as *"the same comment-versus-code confusion `codeLinesOf` was
+introduced to solve in frontmatter.test.ts, twinned locally"*, and it filters lines whose trimmed
+start is `//`. A `/* … */` block comment quoting `lines.length - kept.length` — the exact shape the
+negative forbids — survives the strip and false-reds the case, which is the failure mode the twin was
+written to prevent. No such comment exists today.
 
-**Fix:** add a mechanical discriminator for the harness-local pair — e.g. assert that neither is
-imported by any non-test module (`git grep` over tracked `.ts` for an import of the file), which is
-the property "harness-local" actually means.
+**Fix:** strip both forms, or assert in the same case that the file contains no block comment inside
+the sliced body.
 
-### IN-03: the WR-03 source-scan pin is brittle in two ways
+### IN-03: the block-owned run validates each region's `intro` and then discards the resolved value
 
-**File:** `scripts/generate-role-adapters.test.ts:829-836`
+**File:** `scripts/frontmatter.ts:2027-2034`.
 
-**Issue:** (a) `src.slice(start, src.indexOf("\n}", start))` assumes no line in the function body
-begins with `}` at column 0 — true today, silently truncating tomorrow, and a truncated body makes
-`toContain("linesRemoved += 1")` fail confusingly rather than informatively. (b)
-`.not.toContain("lines.length - kept.length")` matches **comments** as well as code, so a future
-comment explaining why the derived shape is wrong will false-red the case — the same
-comment-vs-code confusion `codeLinesOf` was introduced to solve in `frontmatter.test.ts`.
+**Issue:** the non-block arm pushes `resolved.value`; the block arm calls `unquoteChecked(p.intro)`,
+uses only its `ok`/`escape`, and pushes the **raw** `runText`. The comment above it
+(`:1984-1996`) reads as though the introduction is resolved like any other non-block region. It is
+not — it is escape-*checked* only.
 
-**Fix:** reuse the `codeLinesOf` comment-stripping helper (or a local twin) before the
-`not.toContain`, and bound the slice with an explicit end marker rather than `"\n}"`:
+`UNKNOWN - verify`: I could not construct a document where this changes an observable value.
+`tools:` / `  "a\"b": >-` / `    Read, Agent(x)` produces the identical string on both arms, because
+the joined non-block run is not itself a wholly-quoted scalar either. Reported as a naming/contract
+mismatch rather than as a defect, with what was tried stated.
 
-```ts
-const end = src.indexOf("\n// ──", start);
-expect(end, "the stripFencedBlockLines body must be bounded by its own section marker").toBeGreaterThan(start);
-```
+**Fix:** either push the resolved introduction (`regionText(intro.value, p.body)`) so the two arms
+mean the same thing, or rename the comment to say "escape-checked, never resolved" and add the
+control that shows the two are indistinguishable.
 
 ---
 
-_Reviewed: 2026-08-10T01:55:00Z_
+_Reviewed: 2026-08-10T17:11:24Z_
 _Reviewer: Claude (gsd-code-reviewer)_
 _Depth: standard_
