@@ -1,10 +1,10 @@
 ---
 schema_version: 1
-open_count: 13
+open_count: 14
 waived_count: 0
 fixed_count: 0
-total_count: 13
-last_updated: 2026-08-10T16:41:24.238Z
+total_count: 14
+last_updated: 2026-08-10T19:53:28.868Z
 ---
 
 # Broken Windows Ledger
@@ -28,6 +28,7 @@ last_updated: 2026-08-10T16:41:24.238Z
 | 11 | 27 | unrun-verify | scripts/frontmatter.test.ts | 14245 | 27-60 IN-03 brittleness: unasserted indexOf bounds, no identity check, and a negative over unstripped text; carried OPEN by 27-60 and 27-61 so neither edits another plan's evidence | open |  | 2026-08-10T16:41:24.108Z |  |
 | 12 | 27 | unrun-verify | .planning/phases/27-spawn-correctness-kit-set-authority/deferred-items.md |  | 27-59's three families the SHARED D-52 corpus cannot see (R1/R4/R6) — pinned by the whole suite but not by the corpus; reconciled, not closed, by 27-61 | open |  | 2026-08-10T16:41:24.174Z |  |
 | 13 | 27 | stub | scripts/frontmatter.ts |  | a blank line inside an open PLAIN (non-block) scalar still folds to a space, inventing a name on a loader-ACCEPTED document; PINNED at its current wrong answer by a named case (27-58) | open |  | 2026-08-10T16:41:24.238Z |  |
+| 14 | 27 | unrun-verify | scripts/canonical-frontmatter.ts |  | 27-62: false-red cost of the strict plain-scalar alphabet is measured 0 over the 33 live scanned files but UNMEASURED tree-wide; 27-65 owns that measurement at cutover | open |  | 2026-08-10T19:53:28.868Z |  |
 
 ````json
 [
@@ -185,6 +186,18 @@ last_updated: 2026-08-10T16:41:24.238Z
     "status": "open",
     "reason": "",
     "recorded_at": "2026-08-10T16:41:24.238Z",
+    "resolved_at": null
+  },
+  {
+    "id": 14,
+    "kind": "unrun-verify",
+    "phase": "27",
+    "file": "scripts/canonical-frontmatter.ts",
+    "line": null,
+    "description": "27-62: false-red cost of the strict plain-scalar alphabet is measured 0 over the 33 live scanned files but UNMEASURED tree-wide; 27-65 owns that measurement at cutover",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-08-10T19:53:28.868Z",
     "resolved_at": null
   }
 ]
