@@ -1900,6 +1900,198 @@ describe("frontmatter — the spawn-grant parser oracle (SPAWN-04 / KIT-03)", ()
     }
   });
 
+  // ── (27-56, D-60 — 27-REVIEW § CR-03, round 11) THE NESTED KEY THE TOP-LEVEL GRAMMAR EXCLUDED ──
+  //
+  // Every row's loader column is `/usr/bin/ruby -ryaml` (ruby 2.6.10 / psych 3.1.0 / libyaml 0.2.1),
+  // measured on the PRE-fix committed build and again on the post-fix build; the full transcript with
+  // both columns is in 27-56-SUMMARY.md and deferred-items.md § From 27-56. These rows are the
+  // NAMED evidence; the property is pinned by `AXIS_NESTED_KEY_SPELLING` below, where the loader is
+  // the expected value for every cell rather than anything written in this file.
+  const D60_PAYLOAD = "    Read,\n    # x, Agent(grugops-orchestrator)\n";
+  const d60Doc = (headerLine: string): string =>
+    `---\nname: x\ntools:\n${headerLine}\n${D60_PAYLOAD}---\nBody.\n`;
+
+  it("D-60 V1-V4 — a quoted, dotted, digit-leading or space-containing nested key carries a header, where the pre-fix build returned the SILENT no-grant arm over a live grant", () => {
+    // Each of these four returned `{ok:true,value:false}` on the committed build at 27-55 while
+    // libyaml read the grant plainly in the loaded value. The cause was not the indicator and not the
+    // position: it was `KEY_LINE`, the TOP-LEVEL key grammar, borrowed to answer the NESTED question.
+    const rows: readonly { readonly label: string; readonly header: string }[] = [
+      { label: "V1 quoted", header: '  "a b": >-' },
+      { label: "V2 dotted", header: "  a.b: >-" },
+      { label: "V3 digit-leading", header: "  1a: >-" },
+      { label: "V4 space-containing", header: "  a b: >-" },
+      { label: "V5a single-quoted", header: "  'a b': >-" },
+      { label: "V5b colon inside the quotes", header: '  "a: b": >-' },
+    ];
+    for (const row of rows) {
+      const doc = d60Doc(row.header);
+      expect(hasSpawnGrant(doc), row.label).toEqual({ ok: true, value: true });
+      expect(grantedAgentNames(doc), `${row.label}: the name set is the loader's`).toEqual({
+        ok: true,
+        value: ["grugops-orchestrator"],
+      });
+    }
+  });
+
+  it("D-60 V6 encoding — a multi-byte nested key and a combining-mark nested key are decided in the SAME declared unit, and the unit cannot move the boundary", () => {
+    // THE PRODUCTION'S DECLARED UNIT IS THE UTF-16 CODE UNIT and it compares no key to a set and
+    // measures no key against a bound — see `blockMapImplicitEntry`. These two rows differ in BOTH
+    // code units and bytes for the same rendered key, so a verdict that depended on the unit would
+    // come apart here. libyaml reads the grant under `été` for both.
+    const precomposed = "  \u00e9t\u00e9: >-"; // é as U+00E9
+    const decomposed = "  e\u0301te\u0301: >-"; // e + U+0301 combining acute
+    expect(precomposed.length, "the two rows must differ in UTF-16 code units").not.toBe(
+      decomposed.length,
+    );
+    expect(
+      Buffer.byteLength(precomposed, "utf8"),
+      "and in bytes, so a byte-vs-code-unit difference is actually exercised",
+    ).not.toBe(Buffer.byteLength(decomposed, "utf8"));
+    for (const header of [precomposed, decomposed]) {
+      expect(hasSpawnGrant(d60Doc(header)), JSON.stringify(header)).toEqual({
+        ok: true,
+        value: true,
+      });
+    }
+  });
+
+  it("D-60 the key-end disposition — the key ends at the FIRST colon carrying a separation, and a QUOTED key ends at its own closing quote", () => {
+    // THE REJECTED ALTERNATIVE WAS THE LAST SUCH COLON, AND THE LOADER SETTLES IT. `tools:` /
+    // `  a: b: >-` and `tools:` / `  a b: c: >-` are documents libyaml REJECTS outright ("mapping
+    // values are not allowed in this context") — exactly what FIRST predicts and LAST does not. FIRST
+    // is also the direction that removes no bytes from any value, which is this module's tie-break.
+    for (const header of ["  a: b: >-", "  a b: c: >-"]) {
+      const p = parseFrontmatter(d60Doc(header));
+      expect(p.ok, header).toBe(true);
+      if (p.ok) {
+        expect(p.value.get("tools"), `${header}: no header is recognised here`).toEqual([
+          `${header.trim()} Read,`,
+        ]);
+      }
+    }
+
+    // A colon NOT followed by a separation is ordinary key text: libyaml loads `a:b: >-` under the
+    // key `a:b`. The test is on the SEPARATION, which is why this grants.
+    expect(hasSpawnGrant(d60Doc("  a:b: >-"))).toEqual({ ok: true, value: true });
+
+    // A quoted key delimits itself, and optional separation may sit between it and the indicator.
+    expect(hasSpawnGrant(d60Doc('  "a b" : >-'))).toEqual({ ok: true, value: true });
+    // ...including the empty key, which libyaml loads under `""`.
+    expect(hasSpawnGrant(d60Doc('  "": >-'))).toEqual({ ok: true, value: true });
+    // ...and YAML's `''` escape inside a single-quoted key, which libyaml loads under `a'b`.
+    expect(hasSpawnGrant(d60Doc("  'a''b': >-"))).toEqual({ ok: true, value: true });
+
+    // AN UNTERMINATED QUOTE CLOSES NOTHING, so there is no implicit key on that line and no header is
+    // introduced. libyaml rejects the document outright, so there is no loader value to disagree with,
+    // and refusing to recognise a header there removes no bytes.
+    const unterminated = parseFrontmatter(d60Doc("  'a b: >-"));
+    expect(unterminated.ok).toBe(true);
+    if (unterminated.ok) {
+      expect(unterminated.value.get("tools")).toEqual([
+        "'a b: >- Read, # x, Agent(grugops-orchestrator)",
+      ]);
+    }
+  });
+
+  it("D-60 the nested key's own QUOTING still answers to the escape allowlist — the introduction is validated, not exempted", () => {
+    // D-59 routed the block header's `key:` introduction through `unquoteChecked` and recorded that
+    // it was a provable no-op under `KEY_LINE`'s alphabet, checked anyway because a rule resting on an
+    // alphabet declared two hundred lines away is a coincidence. One round later the alphabet moved:
+    // a nested key may now be quoted. libyaml loads this under the key `aAb`; this module refuses BY
+    // NAME rather than reading a value it cannot compute.
+    const p = parseFrontmatter(d60Doc('  "a\\x41b": >-'));
+    expect(p.ok).toBe(false);
+    if (p.ok) return;
+    expect(p.reason).toContain("`\\x`");
+    expect(p.reason).toContain("double-quoted scalar");
+  });
+
+  it("D-60 the top-level grammar is NOT widened — a top-level line KEY_LINE refuses still refuses, with a byte-identical reason", () => {
+    // THE PROHIBITION THIS CASE ENFORCES. Widening `KEY_LINE` to serve the nested question would have
+    // changed which TOP-LEVEL lines are refused — a separate contract with its own recorded reason.
+    // The four nested spellings above are exactly the spellings this line is NOT allowed to gain.
+    for (const line of ['"a b": value', "a.b: value", "1bad: value", "a b: value"]) {
+      const p = parseFrontmatter(`---\nname: x\n${line}\n---\nBody.\n`);
+      expect(p.ok, line).toBe(false);
+      if (p.ok) continue;
+      expect(p.reason).toBe(
+        `cannot read \`${line}\` as a frontmatter key line or as a continuation of the previous key`,
+      );
+    }
+  });
+
+  it("D-60 the position gate is UNCHANGED — a line that merely LOOKS like a nested entry inside a plain scalar keeps its bytes", () => {
+    // The nested-key production changed which KEYS reach the `mappingValueIndicator` gate; it changed
+    // nothing about what the gate answers. These are the two rows of the gate's eight that libyaml
+    // ACCEPTS as CONTENT, and recognising a header on either would DELETE bytes from a value the
+    // loader computes. Both are byte-identical to the D-57 false-red controls above, re-asserted here
+    // because this plan is what could have moved them.
+    const bare = parseFrontmatter("---\nname: x\ntools: see\n  >-\n  q,\n---\nBody.\n");
+    expect(bare.ok).toBe(true);
+    if (bare.ok) expect(bare.value.get("tools")).toEqual(["see >- q,"]);
+
+    const explicit = parseFrontmatter("---\nname: x\ntools: see\n  ? >-\n  q,\n---\nBody.\n");
+    expect(explicit.ok).toBe(true);
+    if (explicit.ok) expect(explicit.value.get("tools")).toEqual(["see ? >- q,"]);
+
+    // And the bare nested key D-57 already closed is byte-unchanged.
+    const c1 = parseFrontmatter(d60Doc("  nested: >-"));
+    expect(c1.ok).toBe(true);
+    if (c1.ok) {
+      expect(c1.value.get("tools")).toEqual([
+        "nested: Read, # x, Agent(grugops-orchestrator)",
+      ]);
+    }
+  });
+
+  it("D-60 the production is reached at EVERY position the recogniser knows about — adversarial pass (a), asked of the FIXED build", () => {
+    // "AT WHICH POSITIONS IS THE AUTHORITY ASKED" is entry eleven's standing question, re-asked
+    // against this plan's own post-fix build rather than declared closed once the reported rows went
+    // green. `blockHeaderAt` is consulted at three positions; a nested mapping key can appear at two
+    // of them (the third is the top-level key line, where `KEY_LINE` legitimately owns the key), and
+    // both are exercised here at depth.
+    const inSequenceItem =
+      "---\nname: x\ntools:\n  - k: v\n    j.x: >-\n      Read,\n      # x, Agent(grugops-orchestrator)\n---\nBody.\n";
+    expect(hasSpawnGrant(inSequenceItem), "inside a block-sequence item's compact mapping").toEqual(
+      { ok: true, value: true },
+    );
+
+    const twoLevelsDown =
+      "---\nname: x\ntools:\n  a:\n    b c: >-\n      Read,\n      # x, Agent(grugops-orchestrator)\n---\nBody.\n";
+    expect(hasSpawnGrant(twoLevelsDown), "two levels down").toEqual({ ok: true, value: true });
+
+    const afterASibling =
+      "---\nname: x\ntools:\n  a: Read\n  b.c: >-\n    # x, Agent(grugops-orchestrator)\n---\nBody.\n";
+    expect(hasSpawnGrant(afterASibling), "after a sibling mapping key").toEqual({
+      ok: true,
+      value: true,
+    });
+
+    const afterAnotherBlockScalar =
+      "---\nname: x\ntools:\n  a: >-\n    Read\n  b c: >-\n    # x, Agent(grugops-orchestrator)\n---\nBody.\n";
+    expect(
+      hasSpawnGrant(afterAnotherBlockScalar),
+      "immediately after another block scalar's content",
+    ).toEqual({ ok: true, value: true });
+
+    // AND THE ONE POSITION IT MUST NOT REACH: inside a flow collection a `>` cannot start a token at
+    // all (YAML 1.2 § 8.1 makes a block scalar a BLOCK-context construct), so the flow gate still
+    // holds and no header is recognised there. Measured BOTH ways on this plan's own two builds — the
+    // value is byte-identical pre- and post-D-60 — and libyaml REJECTS the document outright ("found
+    // character that cannot start any token"), so there is no loader value being moved away from.
+    const insideFlow =
+      "---\nname: x\ntools: [Read,\n  a b: >-\n  # x, Agent(grugops-orchestrator)]\n---\nBody.\n";
+    const flow = parseFrontmatter(insideFlow);
+    expect(flow.ok, "a flow-context document must not gain a block-scalar header").toBe(true);
+    if (flow.ok) {
+      expect(flow.value.get("tools")).toEqual(["[Read, a b: >-"]);
+    }
+    expect(
+      hasSpawnGrant(insideFlow),
+      "and no grant is reported over a document no loader accepts",
+    ).toEqual({ ok: true, value: false });
+  });
+
   it("CR-01 — a MERGE KEY document lands in the failure arm (refused by KEY_LINE, not by a second branch)", () => {
     // ISOLATING KEY_LINE. `<<:` on its own reaches no reference test at all: `KEY_LINE` requires
     // `[A-Za-z_]` at the key start, so `<` fails it and the line is already unreadable. Asserting the
@@ -7098,6 +7290,33 @@ describe("frontmatter — the loader differential over a GENERATED corpus (D-52 
       danglingNodeProperty: false,
       flowNodeStartAtEndOfKeyLine: false,
     },
+    // ── (27-56, D-60) THE NESTED KEY YAML ALLOWS, ADDED IN THE SAME PLAN AS ITS FIX ──────────────
+    //
+    // THE SAME ORDER ARGUMENT AS G/G2 ONE ROUND LATER. `27-52` added the two shapes above only after
+    // closing their family, because a corpus shape for a LIVE silent no-grant puts the differential's
+    // never-exemptible `silentWhileLoaderGrants` direction into failure and the only ways out are
+    // forbidden. Same here: task 1 of this plan gave the nested question its own production, and this
+    // member arrives with it.
+    //
+    // WHY G AND G2 DID NOT COVER IT. Both spell a BARE key (`nested`, and a dash). The family CR-03
+    // reports is the SAME header behind a key spelling `KEY_LINE`'s top-level alphabet excluded —
+    // quoted, dotted, digit-leading or space-containing — so the generator could not spell it and the
+    // differential reported zero disagreements over a live, gate-level, exit-0 bypass. That is 27-49's
+    // recorded lesson arriving a third time, on the key rather than on the position or the quote style.
+    //
+    // THE SPACE-CONTAINING SPELLING IS THE MEMBER because it carries NO double quote, so it passes
+    // through the quote-style crossing exactly once (like G and G2) and the derived axis moves by one
+    // rather than by four. The quoted, dotted and digit-leading spellings are crossed by
+    // `AXIS_NESTED_KEY_SPELLING` below, which adjudicates all eight against the loader.
+    {
+      label: "nested block mapping value, a nested key YAML allows",
+      lines: ["tools:", "  a b: >-"],
+      indent: "    ",
+      tail: "",
+      valueNodeOnContinuation: false,
+      danglingNodeProperty: false,
+      flowNodeStartAtEndOfKeyLine: false,
+    },
   ];
 
   // ── AXIS 1b: THE QUOTE STYLE (27-51, WR-01 / 27-REVIEW § WR-01, round 10) ─────────────────────
@@ -7581,7 +7800,9 @@ describe("frontmatter — the loader differential over a GENERATED corpus (D-52 
     // (27-52, D-57) 20 -> 22: the nested block-scalar header as a mapping value and as a sequence
     // item. Neither opens a quoted scalar, so both pass through the crossing once and the derived
     // axis moves 47 -> 49 by the same identity below.
-    expect(AXIS_KEY_LINE_BASE.length).toBe(22);
+    // (27-56, D-60) 22 -> 23: the same header behind a nested key `KEY_LINE`'s top-level alphabet
+    // excluded. It opens no quoted scalar either, so the derived axis moves 49 -> 50 by that identity.
+    expect(AXIS_KEY_LINE_BASE.length).toBe(23);
     // THE FAMILY IS EXPRESSIBLE, DERIVED FROM THE SHAPES RATHER THAN CLAIMED IN A COMMENT. A
     // block-scalar header must be spelled on a line BELOW the top-level key line, or family G/G2 is
     // still outside this corpus and the completeness line is again a statement about inputs it never
@@ -8372,10 +8593,14 @@ describe("frontmatter — the loader differential over a GENERATED corpus (D-52 
     // derived set GREW because the family was CLOSED and therefore earned a ledger entry — which is
     // exactly the property 27-49 recorded about this floor (an OPEN bypass has no ledger row and is
     // outside the derived set by construction) reaching its intended end state.
+    // (27-56, D-60) 11 -> 12: the twelfth ledger entry's family row, G3. The floor did its job
+    // UNPROMPTED and is recorded because that is the whole point of it — the ledger row landed with
+    // task 1's fix and this case went red by name, naming G3 as a family with no corpus shape, before
+    // any member was added below.
     expect(
       LEDGER_FAMILIES.length,
       `family rows derived from scripts/frontmatter.ts's header:\n${LEDGER_FAMILIES.map((f) => `${f.label}  ${f.sketch}`).join("\n")}`,
-    ).toBe(11);
+    ).toBe(12);
     expect(LEDGER_FAMILIES.length).toBeGreaterThan(0);
     expect(new Set(LEDGER_FAMILIES.map((f) => f.label)).size).toBe(
       LEDGER_FAMILIES.length,
@@ -8396,7 +8621,7 @@ describe("frontmatter — the loader differential over a GENERATED corpus (D-52 
       "the column-0-fence families are the ONLY ones outside this generator's shape space",
     ).toEqual(["d1", "d2", "d3"]);
     expect(outside.length).toBe(3);
-    expect(inside.length).toBe(8);
+    expect(inside.length).toBe(9);
     expect(outside.length + inside.length).toBe(LEDGER_FAMILIES.length);
 
     // THE AXIS-MEMBER COMBINATION THAT BUILDS EACH FAMILY, NAMED BY LABEL. This is the only
@@ -8455,6 +8680,15 @@ describe("frontmatter — the loader differential over a GENERATED corpus (D-52 
       },
       G2: {
         keyLine: "block-sequence item, block-scalar header",
+        first: "plain text",
+        second: "the token after a hash",
+        depth: 2,
+      },
+      // (27-56, D-60) The twelfth ledger entry's family row, and the mechanism working a second time
+      // exactly as designed: the row landed with task 1's fix, THIS case went red naming G3 as a
+      // family the corpus could not build, and the member below is what closes it.
+      G3: {
+        keyLine: "nested block mapping value, a nested key YAML allows",
         first: "plain text",
         second: "the token after a hash",
         depth: 2,

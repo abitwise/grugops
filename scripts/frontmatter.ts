@@ -399,9 +399,16 @@ const BLOCK_INDICATOR = /^[|>][0-9]*[+-]?[ \t]*(?:#.*)?$|^[|>][+-]?[0-9]*[ \t]*(
 //
 // THE DEFECT WAS THE PREDICATE'S APPLICATION SET, NOT ITS CONDITIONS — the same failure class one
 // abstraction level up from D-54, and the D-30 question ("which set does this enumerate?") asked
-// about POSITIONS. So this function CALLS the one constant rather than restating it, and calls
-// `KEY_LINE` for the `key: <header>` spelling rather than respelling a key grammar. Both are the
-// module's existing authorities; nothing here decides what a header LOOKS LIKE.
+// about POSITIONS. So this function CALLS the one constant rather than restating it; nothing here
+// decides what a header LOOKS LIKE.
+//
+// (D-60) AND EACH INTRODUCTION NOW ASKS ITS OWN PRODUCTION. The `key: <header>` spelling used to be
+// asked through `KEY_LINE` — "both are the module's existing authorities" is what the sentence above
+// used to say, and it was true of the INDICATOR and false of the POSITION. Choosing the top-level key
+// charset is a decision about which NESTED keys may carry a header, and it is the wrong grammar for
+// that question: one grammar doing two jobs, the weaker-duplicate shape this module deletes on sight.
+// The nested question has its own production (`blockMapImplicitEntry`) derived from YAML's own
+// mapping-value rule, and `KEY_LINE` keeps its first job alone.
 //
 // `leading` is the text that precedes the indicator and is NOT part of the scalar — the `key:` of a
 // nested mapping entry, or the empty string for a bare header. It is kept because the loader keeps
@@ -451,9 +458,13 @@ interface BlockHeader {
   //     ? >-                      -> same; the `?` form keeps the node-start gate
   //
   // ONE RECOGNISER, ONE DERIVED GATE. This is not a second grammar: `blockHeaderAt` remains the only
-  // thing that decides what a header LOOKS like, and it calls `BLOCK_INDICATOR`, `KEY_LINE` and
-  // `BLOCK_MAP_EXPLICIT` to do it. What this field decides is WHERE each introduction is allowed to
-  // introduce one, which is the question D-57 is about.
+  // thing that decides what a header LOOKS like, and it calls `BLOCK_INDICATOR`,
+  // `blockMapImplicitEntry` and `BLOCK_MAP_EXPLICIT` to do it. What this field decides is WHERE each
+  // introduction is allowed to introduce one, which is the question D-57 is about.
+  //
+  // (D-60) THIS GATE IS UNCHANGED, AND THAT IS THE POINT. The nested-key production changed which
+  // KEYS reach the gate; it changed nothing about what the gate answers. All eight rows above were
+  // re-run against the post-D-60 build and keep their recorded verdicts.
   readonly mappingValueIndicator: boolean;
 }
 
@@ -483,16 +494,18 @@ function blockHeaderAt(text: string): BlockHeader | null {
     return { leading: "", lineBreak: blockLineBreak(text), mappingValueIndicator: false };
   }
   // INTRODUCTION 2 OF 4 — the IMPLICIT block-mapping key, `key: <header>` (YAML 1.2 § 8.2.2).
-  const kv = text.match(KEY_LINE);
-  if (kv !== null) {
-    const indicator = (kv[2] ?? "").trim();
-    if (BLOCK_INDICATOR.test(indicator)) {
-      return {
-        leading: `${kv[1]}:`,
-        lineBreak: blockLineBreak(indicator),
-        mappingValueIndicator: true,
-      };
-    }
+  //
+  // (D-60) ASKED THROUGH `blockMapImplicitEntry`, THE NESTED QUESTION'S OWN PRODUCTION. This used to
+  // ask `KEY_LINE`, which answers a DIFFERENT question — which TOP-LEVEL keys a frontmatter block may
+  // declare — and whose narrowness is an intended refusal there and a silent bypass here. See that
+  // production for the four measured rows, the key-end disposition and the encoding unit.
+  const entry = blockMapImplicitEntry(text);
+  if (entry !== null && BLOCK_INDICATOR.test(entry.value)) {
+    return {
+      leading: entry.intro,
+      lineBreak: blockLineBreak(entry.value),
+      mappingValueIndicator: true,
+    };
   }
   // INTRODUCTIONS 3 AND 4 OF 4 — the EXPLICIT block-mapping key and value indicators.
   const explicit = text.match(BLOCK_MAP_EXPLICIT);
@@ -536,6 +549,126 @@ export const SEQ_ITEM = /^-(?:[ \t]+(.*))?$/;
 // libyaml ACCEPTS with the grant in the loaded value. A predicate asked at three of the four
 // positions its grammar defines is the same defect as one asked at one of them.
 const BLOCK_MAP_EXPLICIT = /^([?:])(?:[ \t]+(.*))?$/;
+
+// (D-60 — 27-REVIEW.md § CR-03, round 11) THE IMPLICIT BLOCK-MAPPING ENTRY (YAML 1.2 § 8.2.2),
+// WRITTEN IN `SEQ_ITEM`'S AND `BLOCK_MAP_EXPLICIT`'S OWN SHAPE BECAUSE IT IS THE SAME KIND OF
+// PRODUCTION — AND IT EXISTS BECAUSE ONE GRAMMAR WAS DOING TWO JOBS.
+//
+// `blockHeaderAt`'s implicit-key introduction used to ask `KEY_LINE`. `KEY_LINE` is the deliberately
+// narrow grammar for the TOP-LEVEL keys a frontmatter block may declare, and its narrowness is an
+// intended refusal: a top-level line outside it is unreadable and fails red with its own reason.
+// Borrowing it for the NESTED question silently transferred that narrowness to nested mapping keys,
+// where YAML allows ANY scalar. So every nested key that is quoted, contains a dot, starts with a
+// digit or contains a space failed to introduce a header, `block` stayed false, and the scalar's
+// literal content was handed to `stripComment` where a leading `#` deleted the rest of the line.
+// Measured on the committed build, with the loader column from `/usr/bin/ruby -ryaml` (ruby 2.6.10 /
+// psych 3.1.0 / libyaml 0.2.1), each carrying `Read, # x, Agent(grugops-orchestrator)` on a
+// more-indented line under the header:
+//
+//     G3  `tools:` / `  a b: >-` / `    Read,` / `    # x, Agent(o)`   a nested key YAML allows
+//
+//     "a b": >-    module {ok:true,value:false}   libyaml {"a b"=>"Read, # x, Agent(…)"}
+//     a.b: >-      module {ok:true,value:false}   libyaml {"a.b"=>"Read, # x, Agent(…)"}
+//     1a: >-       module {ok:true,value:false}   libyaml {"1a"=>"Read, # x, Agent(…)"}
+//     a b: >-      module {ok:true,value:false}   libyaml {"a b"=>"Read, # x, Agent(…)"}
+//
+// THIS IS NOT A SECOND BLOCK-INDICATOR GRAMMAR AND IT DOES NOT WIDEN `KEY_LINE`. `BLOCK_INDICATOR`
+// remains the one authority on what a header LOOKS like; this decides only where a nested mapping's
+// key ENDS so the text after it can be offered to that constant. `KEY_LINE` keeps its first job and
+// loses its second: the top-level key line still asks it, and a top-level line it refuses still
+// refuses with a byte-identical reason.
+//
+// WHERE THE KEY ENDS, WHICH IS YAML'S OWN RULE AND NOT A PREFERENCE (the D-60 disposition). YAML's
+// implicit key is a scalar, and a scalar DELIMITS ITSELF:
+//
+//   • A PLAIN key cannot contain a `:` followed by a separation — YAML 1.2 excludes that sequence
+//     from `ns-plain-char` — so the key ends at the FIRST such colon. The rejected alternative was
+//     the LAST such colon. Adjudicated: `tools:` / `  a: b: >-` and `tools:` / `  a b: c: >-` are
+//     both documents libyaml REJECTS ("mapping values are not allowed in this context"), which is
+//     precisely what FIRST predicts and LAST does not, so LAST would be reading structure into a
+//     document no loader accepts. FIRST is also the safe direction where the two disagree: it
+//     recognises no header there, so no bytes are removed from any value.
+//   • A colon NOT followed by a separation is ordinary key text, measured: `tools:` / `  a:b: >-`
+//     loads as `{"a:b"=>…}`. The test is therefore on the SEPARATION, never on the colon alone.
+//   • A QUOTED key is a JSON-like key (§ 7.4.2) and ends at its own closing quote, after which
+//     optional separation may precede the indicator: `"a: b": >-` loads under the key `a: b` and
+//     `"a b" : >-` loads under `a b`. An UNTERMINATED quote closes nothing, so there is no implicit
+//     key on that line and this returns null — the safe direction again, and byte-unchanged for
+//     `'a b: >-`, a document libyaml rejects outright.
+//
+// THE ENCODING UNIT, STATED RATHER THAN IMPLIED (KIT-03). Every index here is a UTF-16 CODE UNIT,
+// which is JavaScript's native string index and the same unit `indentOf`, `excerpt` and
+// `resolveDoubleQuoted` already use. Nothing in this production COMPARES a key to a set or MEASURES
+// a key against a bound — the key is sliced out and carried verbatim, never normalised — so the only
+// operation the unit could affect is where a boundary falls. It cannot: every delimiter scanned for
+// is ASCII (`:` U+003A, ` ` U+0020, `\t` U+0009, `"` U+0022, `'` U+0027, `\` U+005C), and no UTF-16
+// code unit of any non-ASCII character can equal one (non-ASCII BMP code points are >= U+0080 and
+// surrogates are U+D800..U+DFFF). So a boundary this production finds is the same position under
+// bytes, code units or code points, and no slice can split a character or a surrogate pair. A
+// multi-byte key and a key carrying a combining mark are pinned against the loader for this reason
+// rather than on faith.
+interface BlockMapImplicitEntry {
+  // The document's own bytes up to and INCLUDING the mapping-value colon. For a bare key this is
+  // byte-identical to the `${key}:` the borrowed grammar produced, which is what makes every
+  // document that already parsed byte-unchanged.
+  readonly intro: string;
+  // Everything after the separation that follows the colon, trimmed. `""` when the colon ends the
+  // line.
+  readonly value: string;
+}
+
+// The index of the quote that CLOSES the flow scalar starting at offset 0, or -1 if none does.
+// Each style's own escape and no other: a backslash pair inside double quotes (§ 7.3.1) and the
+// doubled quote inside single quotes (§ 7.3.2). This is a self-delimiting scan for a boundary, not a
+// second unquoter — `unquoteChecked` remains the one place a quoted scalar's VALUE is resolved, and
+// the intro this production carries is routed through it at the flush like every other non-block
+// region.
+const closingQuoteIndex = (text: string): number => {
+  const quote = text[0];
+  for (let i = 1; i < text.length; i++) {
+    if (quote === '"' && text[i] === "\\") {
+      i += 1; // the escaped character is consumed and can never be read as the closing quote
+      continue;
+    }
+    if (text[i] !== quote) continue;
+    if (quote === "'" && text[i + 1] === "'") {
+      i += 1; // `''` is one escaped quote inside a single-quoted scalar, not a close
+      continue;
+    }
+    return i;
+  }
+  return -1;
+};
+
+// The mapping-value indicator itself, at the position the key ended: a colon followed by a
+// separation (or by end-of-line). Declared once, in the module's established style, so both arms
+// below ask the same question about it.
+const MAPPING_VALUE_INDICATOR = /^:(?:[ \t]+(.*))?$/;
+
+function blockMapImplicitEntry(text: string): BlockMapImplicitEntry | null {
+  // ARM 1 — A JSON-LIKE (QUOTED) KEY, which delimits itself.
+  if (text.startsWith('"') || text.startsWith("'")) {
+    const close = closingQuoteIndex(text);
+    if (close < 0) return null;
+    let i = close + 1;
+    while (text[i] === " " || text[i] === "\t") i += 1;
+    const indicator = text.slice(i).match(MAPPING_VALUE_INDICATOR);
+    if (indicator === null) return null;
+    return { intro: text.slice(0, i + 1), value: (indicator[1] ?? "").trim() };
+  }
+  // ARM 2 — A PLAIN KEY, ending at the first colon that carries a separation after it.
+  for (let i = 0; i < text.length; i++) {
+    if (text[i] !== ":") continue;
+    const after = text[i + 1];
+    if (after !== undefined && after !== " " && after !== "\t") continue;
+    // A colon at offset 0 introduces no key: `: <value>` is the EXPLICIT value indicator, and
+    // `BLOCK_MAP_EXPLICIT` owns that spelling. Returning null here rather than continuing the scan
+    // keeps that ownership undivided.
+    if (i === 0) return null;
+    return { intro: text.slice(0, i + 1), value: text.slice(i + 1).trim() };
+  }
+  return null;
+}
 
 // (D-34) A YAML DIRECTIVE LINE AT THE DOCUMENT START: the `%` indicator at COLUMN 0 followed by at
 // least one non-space character (YAML 1.2 § 6.8 — `%` then a directive name of one or more `ns-char`).
@@ -1527,15 +1660,19 @@ function flattenBlock(
     // pre-D-59 flush. Where a block scalar IS present, its own run is exempt and every other run
     // answers to the checked unquote on its own terms — which is the whole of the fix.
     //
-    // THE INTRODUCTION IS VALIDATED RATHER THAN EXEMPTED, AND IT IS A NO-OP TODAY BY GRAMMAR RATHER
-    // THAN BY LUCK. `header.leading` is the `key:` a nested mapping prints in front of the scalar, or
-    // the explicit `?` / `:`; it is NOT inside the scalar, so YAML's quoting rules do apply to it and
-    // the exemption must not cover it. `KEY_LINE`'s key alphabet is `[A-Za-z_][A-Za-z0-9_-]*` and
-    // `BLOCK_MAP_EXPLICIT`'s introduction is one of two punctuation characters, so an introduction can
-    // never contain a quote or a backslash and `unquoteChecked` returns it unchanged — no document's
-    // value can move. It is checked anyway, because the RULE is "everything outside a block scalar's
-    // content answers to the checked unquote", and a rule that holds only because of an alphabet
-    // declared two hundred lines away is the kind of coincidence this family keeps reopening on.
+    // THE INTRODUCTION IS VALIDATED RATHER THAN EXEMPTED. `header.leading` is the `key:` a nested
+    // mapping prints in front of the scalar, or the explicit `?` / `:`; it is NOT inside the scalar,
+    // so YAML's quoting rules do apply to it and the exemption must not cover it.
+    //
+    // (D-60) AND IT HAS STOPPED BEING A NO-OP, WHICH IS EXACTLY WHY IT WAS CHECKED ANYWAY. When D-59
+    // landed, the introduction came from `KEY_LINE`'s `[A-Za-z_][A-Za-z0-9_-]*` alphabet or from one
+    // of `BLOCK_MAP_EXPLICIT`'s two punctuation characters, so it could not contain a quote or a
+    // backslash and this call provably returned it unchanged. D-59 recorded that it was checked
+    // anyway because "a rule that holds only because of an alphabet declared two hundred lines away
+    // is the kind of coincidence this family keeps reopening on" — and one round later the alphabet
+    // moved. A nested key may now be quoted, so `tools:` / `  "a\x41b": >-` reaches
+    // `unquoteChecked` here and REFUSES by name, which is the loud arm and the same verdict the
+    // pre-D-60 build reached by a different route.
     const resolvedRuns: string[] = [];
     for (let start = 0; start < cur.parts.length; ) {
       const kind = cur.parts[start].block;
@@ -2402,8 +2539,10 @@ function flattenBlock(
 //   re-measured byte-identical by FIVE consecutive plans (27-47 .. 27-51) before it was closed.
 //
 //   THE REMEDY ASKS THE ONE CONSTANT AT MORE PLACES AND WRITES NO SECOND GRAMMAR. `BLOCK_INDICATOR`
-//   still has exactly one definition site; `blockHeaderAt` calls it, and `KEY_LINE`, at the two
-//   further node-start positions. The scalar's END is YAML 1.2 § 8.1's own more-indented-block rule,
+//   still has exactly one definition site; `blockHeaderAt` calls it at the two further node-start
+//   positions. (It called `KEY_LINE` for the `key:` spelling until D-60 replaced that borrowing with
+//   the nested question's own production — see entry twelve.) The scalar's END is YAML 1.2 § 8.1's
+//   own more-indented-block rule,
 //   derived from the header line's own indent rather than guessed — the top-level case is
 //   `blockIndent === baseIndent`, so the pre-existing behaviour became one case of one rule. The JOIN
 //   is derived from the indicator too (§ 8.1.2 literal PRESERVES the break, § 8.1.3 folded FOLDS it
@@ -2426,6 +2565,41 @@ function flattenBlock(
 //   is legal. Enumerate the positions from the grammar, then check each one is reached — and when a
 //   fix lands, re-ask the question against the FIXED build, because a family closed at one position
 //   and reopened at the position immediately after is not closed.
+
+// AND A TWELFTH TIME — AND THIS ONE WAS NEITHER THE PREDICATE NOR THE POSITIONS. IT WAS A SECOND
+// GRAMMAR BORROWED TO ANSWER A QUESTION IT WAS NOT WRITTEN FOR (27-REVIEW § CR-03, round 11 — D-60).
+//
+//   FIRST, THE COUNT, CITED AND NOT REMEMBERED. This is the TWELFTH entry and it comes from the
+//   ELEVENTH review round. Nothing below depends on either number; every claim names an assertion.
+//
+//   ENTRY ELEVEN CLOSED THE POSITIONS AND LEFT A GRAMMAR DOING TWO JOBS. `blockHeaderAt` asks four
+//   introductions, and its comment claimed it "CALLS the one constant rather than restating it …
+//   nothing here decides what a header LOOKS like". That was true of the INDICATOR and false of the
+//   KEY: the implicit-key introduction asked `KEY_LINE`, which is the deliberately narrow grammar for
+//   the TOP-LEVEL keys a frontmatter block may declare. Choosing that charset IS a decision about
+//   which nested keys can carry a header, and YAML allows any scalar as a nested mapping key. Every
+//   nested key that is quoted, dotted, digit-leading or space-containing therefore introduced no
+//   header, `block` stayed false, the scalar's literal content reached `stripComment`, and a leading
+//   `#` deleted the rest of the line. The family row and its four measured loader columns live at
+//   `blockMapImplicitEntry`; each returned `{ok:true,value:false}` over a grant libyaml reads plainly.
+//
+//   THE REMEDY DELETES THE SECOND JOB RATHER THAN WIDENING THE GRAMMAR. Widening `KEY_LINE` would
+//   have changed which TOP-LEVEL lines are refused — a separate contract with its own recorded reason
+//   — to serve a question that is a different YAML production. So the nested question got its own
+//   production, derived from § 8.2.2's mapping-value indicator and § 7.4.2's JSON-like key, written
+//   in `SEQ_ITEM`'s and `BLOCK_MAP_EXPLICIT`'s shape beside them. `KEY_LINE` is byte-unchanged and
+//   still owns the baseline key line; `BLOCK_INDICATOR` is byte-unchanged and still owns what a
+//   header looks like; the `mappingValueIndicator` position gate is byte-unchanged and its eight
+//   measured rows keep their verdicts. What moved is only WHICH KEYS reach that gate.
+//
+//   THE STANDING QUESTION THIS LEAVES FOR THE NEXT READER, AND IT IS THE ONE THIS ENTRY IS FOR.
+//   Entry nine asked what INPUT the authority is handed; entry ten asked what CONDITIONS it carries
+//   that nobody chose; entry eleven asked AT WHICH POSITIONS it is asked. This one asks: WHOSE
+//   QUESTION IS THIS AUTHORITY ANSWERING? A constant reused at a second site looks like the opposite
+//   of duplication and can be worse than it — a copy drifts visibly, while a borrowing silently
+//   transfers a narrowness that was somebody else's intended refusal. When a predicate is called from
+//   two places, ask whether both are asking the SAME question of the SAME grammar production; where
+//   they are not, the reuse is a duplicate wearing a single definition site.
 
 // The payload at each delimiter position. Declared here as data so both positions consult the same
 // tokens in the same order, which is what makes the reported refusal deterministic for a given input.
