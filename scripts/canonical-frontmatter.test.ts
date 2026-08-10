@@ -36,7 +36,9 @@ import {
   DOUBLE_QUOTED_KEYS,
   GRANT_KEYS,
   LINE_PRODUCTIONS,
+  REFUSAL_CODES,
   type AdmittedDocument,
+  type RefusalCode,
 } from "./canonical-frontmatter.js";
 
 const ROOT = join(import.meta.dirname, "..");
@@ -296,6 +298,313 @@ describe("canonical-frontmatter: two-sided cardinality over the live spawn-grant
     // eslint-disable-next-line no-console
     console.log(
       `canonical-frontmatter: narrowed-schema floor — dropping \`${dropped}\` REFUSES ${refused.length}/${SCAN.length} live files by \`unknown-key\``,
+    );
+  });
+});
+
+// ---------------------------------------------------------------------------
+// The refusal vocabulary: complete, named, construct-specific, and catch-all-free
+// ---------------------------------------------------------------------------
+
+const doc = (...lines: string[]): string => `${lines.join("\n")}\n`;
+
+// Every invisible or control byte below is written as a SOURCE ESCAPE, never as a literal. A raw NUL
+// byte checked into a test file of this phase was found once already, and a literal control
+// character also makes `grep` classify the file as binary and silently report zero matches.
+const TAB = String.fromCharCode(0x09);
+const BOM = String.fromCharCode(0xfeff);
+const NUL = String.fromCharCode(0x00);
+
+// ONE DOCUMENT PER EXPORTED REFUSAL CODE, filed under the code it must produce.
+//
+// The reachability case below is a DERIVATION over `REFUSAL_CODES`, never a hand-kept list walked in
+// parallel: it iterates the exported array and looks each member up here, failing BY NAME on any
+// code with no document and on any document whose actual code differs from the code it is filed
+// under. A code added to the module without a document fails by name — that is the set-literal drift
+// failure class this repository has already paid for once, with seven granted names and zero
+// resolving files.
+const REFUSAL_DOCUMENTS: Readonly<Record<RefusalCode, string>> = {
+  "no-opening-delimiter": doc(`${BOM}---`, "name: r", "---"),
+  "no-closing-delimiter": doc("---", "name: r"),
+  "empty-region": doc("---", "---"),
+  "tab-in-region": doc("---", `name:${TAB}r`, "---"),
+  "control-character": doc("---", `name: r${NUL}`, "---"),
+  // CR-01 row A, verbatim from 27-REVIEW.md (round 11, CR-01) — the round-11 regression document.
+  "block-scalar": doc(
+    "---",
+    "name: r",
+    "tools:",
+    "  -",
+    "    >-2",
+    "      Read,",
+    "     # x, Agent(grugops-orchestrator)",
+    "---",
+  ),
+  // CR-02's row, verbatim from 27-REVIEW.md (round 11, CR-02) — the alias reaching a grant through
+  // a sequence item's compact mapping.
+  "node-property": doc(
+    "---",
+    "name: r",
+    "_x:",
+    "  - k: &a Agent(grugops-orchestrator)",
+    "allowed-tools:",
+    "  - j: *a",
+    "---",
+  ),
+  "flow-collection": doc("---", "tools: [Read]", "---"),
+  "single-quoted": doc("---", "description: 'x'", "---"),
+  "reserved-indicator": doc("---", "name: %x", "---"),
+  "bad-indentation": doc("---", "name: r", "   model: inherit", "---"),
+  "unrecognized-line": doc("---", "name: r", "tools:", "  -", "---"),
+  "unknown-key": doc("---", "foo: bar", "---"),
+  "duplicate-key": doc("---", "name: r", "name: s", "---"),
+  "dangling-empty-key": doc("---", "tools:", "name: r", "---"),
+  "orphan-sequence-item": doc("---", "name: r", "  - Read", "---"),
+  "scalar-padding": doc("---", "name:  r", "---"),
+  "plain-scalar-charset": doc("---", "name: r#x", "---"),
+  "unbalanced-parentheses": doc("---", "tools: Agent(a", "---"),
+  "quoted-on-plain-only-key": doc("---", 'tools: "Read"', "---"),
+  "unterminated-double-quote": doc("---", 'description: "abc', "---"),
+  "embedded-double-quote": doc("---", 'description: "a"b"', "---"),
+  "disallowed-escape": doc("---", 'description: "a\\nb"', "---"),
+};
+
+// The four documents 27-REVIEW.md's two critical findings turn on, cited by round and finding id.
+// These four are the MINIMUM here: plan 27-63 owns the full historical corpus of every bypass shape
+// from rounds 1 through 11, and it must not be pre-empted or duplicated in this file.
+const REVIEW_ROWS: readonly {
+  label: string;
+  text: string;
+  code: RefusalCode;
+}[] = [
+  {
+    label:
+      "27-REVIEW round 11 CR-01 row A — `>-2` at a bare header under a dash (the regression)",
+    text: REFUSAL_DOCUMENTS["block-scalar"],
+    code: "block-scalar",
+  },
+  {
+    label:
+      "27-REVIEW round 11 CR-01 row B — bare `>-` under a dash, no explicit digit",
+    text: doc(
+      "---",
+      "name: r",
+      "tools:",
+      "  -",
+      "    >-",
+      "   Read,",
+      "   # x, Agent(grugops-orchestrator)",
+      "---",
+    ),
+    code: "block-scalar",
+  },
+  {
+    label:
+      "27-REVIEW round 11 CR-02 — an alias reaching a grant through a sequence item's compact mapping",
+    text: REFUSAL_DOCUMENTS["node-property"],
+    code: "node-property",
+  },
+  {
+    label:
+      "27-REVIEW round 11 CR-02 control — the identical alias one spelling over, no dash",
+    text: doc(
+      "---",
+      "name: r",
+      "_x:",
+      "  - k: &a Agent(grugops-orchestrator)",
+      "allowed-tools:",
+      "  j: *a",
+      "---",
+    ),
+    code: "node-property",
+  },
+];
+
+describe("canonical-frontmatter: the refusal vocabulary is complete, named and catch-all-free", () => {
+  it("every exported refusal code is REACHABLE by a construct-specific document", () => {
+    expect(REFUSAL_CODES.length).toBeGreaterThan(0);
+    const missing: string[] = [];
+    const misfiled: string[] = [];
+    const produced = new Set<string>();
+    for (const code of REFUSAL_CODES) {
+      const text = REFUSAL_DOCUMENTS[code];
+      if (text === undefined) {
+        missing.push(code);
+        continue;
+      }
+      const a = admit(text);
+      if (a.ok) {
+        misfiled.push(`${code}: the document filed under it was ADMITTED`);
+        continue;
+      }
+      if (a.code !== code) {
+        misfiled.push(
+          `${code}: the document filed under it refused as \`${a.code}\``,
+        );
+        continue;
+      }
+      produced.add(a.code);
+      // eslint-disable-next-line no-console
+      console.log(`  [${a.code}] ${a.reason}`);
+    }
+    expect(
+      missing,
+      `exported refusal code(s) reached by no document: ${missing.join(", ")}`,
+    ).toEqual([]);
+    expect(
+      misfiled,
+      `document(s) do not produce the code they are filed under:\n${misfiled.join("\n")}`,
+    ).toEqual([]);
+    // ONTO AND ONE-TO-ONE. Every member is produced, and one distinct document produces each — which
+    // a catch-all member could not satisfy, because a catch-all is by definition the code several
+    // unrelated constructs would share.
+    expect([...produced].sort()).toEqual([...REFUSAL_CODES].sort());
+    expect(produced.size).toBe(REFUSAL_CODES.length);
+    expect(Object.keys(REFUSAL_DOCUMENTS).length).toBe(REFUSAL_CODES.length);
+    // eslint-disable-next-line no-console
+    console.log(
+      `canonical-frontmatter: ${produced.size}/${REFUSAL_CODES.length} refusal codes reached by a construct-specific document`,
+    );
+  });
+
+  it("no refusal produced by any document in this file carries a code outside the exported set", () => {
+    const texts = [
+      ...Object.values(REFUSAL_DOCUMENTS),
+      ...REVIEW_ROWS.map((r) => r.text),
+    ];
+    expect(texts.length).toBeGreaterThan(0);
+    const outside: string[] = [];
+    for (const text of texts) {
+      const a = admit(text);
+      if (a.ok) continue;
+      if (!(REFUSAL_CODES as readonly string[]).includes(a.code)) {
+        outside.push(`${a.code}: ${a.reason}`);
+      }
+    }
+    expect(
+      outside,
+      `refusal(s) carry a code outside REFUSAL_CODES:\n${outside.join("\n")}`,
+    ).toEqual([]);
+  });
+
+  for (const row of REVIEW_ROWS) {
+    it(`REFUSES: ${row.label}`, () => {
+      const a = admit(row.text);
+      expect(a.ok, "this document was ADMITTED — it must be refused").toBe(
+        false,
+      );
+      if (a.ok) return;
+      expect(a.code).toBe(row.code);
+      // The refusal TEXT is printed, not merely the code: "it failed" and "it failed for the right
+      // reason" are different claims, and this phase has confused them before.
+      // eslint-disable-next-line no-console
+      console.log(`  [${a.code}] ${a.reason}`);
+      expect(a.reason.length).toBeGreaterThan(40);
+    });
+  }
+
+  // THE BOUNDED, COMMENT-STRIPPED SOURCE ASSERTION FOR THE ABSENCE OF A CATCH-ALL.
+  //
+  // Follows the idiom 27-59 established for the `stripComment` call sites and 27-60 for the bounded
+  // source slice: read the module at run time, bound the inspected region by an explicit section
+  // marker asserted present BEFORE the slice is used, strip comments so the negative reads code and
+  // not prose, and assert a non-vacuity floor on the length of what was scanned. A negative
+  // assertion over an unbounded or comment-bearing slice is the brittleness round-10 IN-03 named,
+  // and it is not reintroduced here.
+  it("source: the admission core assigns an enumerated code on every decline, with no default branch", () => {
+    const src = readFileSync(
+      join(ROOT, "scripts", "canonical-frontmatter.ts"),
+      "utf8",
+    );
+    const BEGIN = "<<< ADMISSION-CORE BEGIN >>>";
+    const END = "<<< ADMISSION-CORE END >>>";
+    // The markers are asserted present and UNIQUE before the slice is taken, so a moved, renamed or
+    // duplicated marker fails by name instead of silently narrowing what was scanned to nothing.
+    expect(src.split(BEGIN).length - 1, `marker \`${BEGIN}\``).toBe(1);
+    expect(src.split(END).length - 1, `marker \`${END}\``).toBe(1);
+    const region = src.slice(
+      src.indexOf(BEGIN) + BEGIN.length,
+      src.indexOf(END),
+    );
+
+    // Strip block comments then line comments, so every assertion below reads CODE.
+    const code = region
+      .replace(/\/\*[\s\S]*?\*\//g, "")
+      .split("\n")
+      .map((l) => l.replace(/\/\/.*$/, ""))
+      .join("\n");
+
+    // NON-VACUITY FLOOR, stated rather than assumed: the slice must still contain the entry point
+    // and a substantial amount of code, or a negative over it proves nothing.
+    expect(code).toContain("export function admit(");
+    expect(code).toContain("function admitKeyName(");
+    const scanned = code.replace(/\s+/g, "").length;
+    expect(
+      scanned,
+      "the comment-stripped admission core slice is too small to be the admission core",
+    ).toBeGreaterThan(3000);
+
+    // Every decline routes through `refuse`, so the literal `ok: false` appears exactly once in the
+    // whole core — inside `refuse` itself. A second occurrence is a path that constructs a refusal
+    // without going through the one place a code is required.
+    expect(
+      code.split("ok: false").length - 1,
+      "the literal `ok: false` must appear exactly once in the admission core — inside `refuse`",
+    ).toBe(1);
+
+    // No default branch anywhere in the core: a `default:` is where an unenumerated construct would
+    // acquire a code nobody chose for it.
+    expect(code).not.toContain("default:");
+
+    // A CODE IS ASSIGNED IN THE CORE IN EXACTLY TWO WAYS, AND BOTH ARE DERIVED FROM THE SOURCE.
+    //
+    // The first draft of this case looked only at `refuse("...")` literals and FAILED, naming the
+    // five codes the node-start sigil table assigns — the pass-2 call site passes a variable, so
+    // those five appear at no literal call site. That failure is the reason the table now lives
+    // inside the marked region: a refusal decided by DATA is still a refusal decided by the core,
+    // and a completeness claim that silently omits a whole assignment mechanism is the shape this
+    // phase keeps paying for.
+    const called = [...code.matchAll(/refuse\(\s*"([a-z-]+)"/g)].map(
+      (m) => m[1] as string,
+    );
+    expect(called.length).toBeGreaterThan(0);
+
+    // The sigil table, bounded by its own declaration and asserted present before it is sliced.
+    const TABLE = "const REFUSED_NODE_SIGILS";
+    expect(code.split(TABLE).length - 1, `declaration \`${TABLE}\``).toBe(1);
+    const tableStart = code.indexOf(TABLE);
+    const tableEnd = code.indexOf("]);", tableStart);
+    expect(tableEnd, "the sigil table declaration is never closed").toBeGreaterThan(
+      tableStart,
+    );
+    const tabled = [
+      ...code
+        .slice(tableStart, tableEnd)
+        .matchAll(/,\s*"([a-z-]+)"\s*\]/g),
+    ].map((m) => m[1] as string);
+    expect(
+      tabled.length,
+      "the node-start sigil table yielded no code assignments",
+    ).toBeGreaterThan(0);
+
+    const assigned = [...called, ...tabled];
+    const unknown = [...new Set(assigned)].filter(
+      (c) => !(REFUSAL_CODES as readonly string[]).includes(c),
+    );
+    expect(
+      unknown,
+      `the admission core assigns code(s) outside REFUSAL_CODES: ${unknown.join(", ")}`,
+    ).toEqual([]);
+    // And every exported member is actually assigned somewhere in the core — an exported code no
+    // assignment site produces is dead vocabulary.
+    const unassigned = REFUSAL_CODES.filter((c) => !assigned.includes(c));
+    expect(
+      unassigned,
+      `exported refusal code(s) assigned by no site in the admission core: ${unassigned.join(", ")}`,
+    ).toEqual([]);
+    // eslint-disable-next-line no-console
+    console.log(
+      `canonical-frontmatter: admission core scanned = ${scanned} non-space chars, ${called.length} refuse() literal site(s) + ${tabled.length} sigil-table site(s) = ${assigned.length} assignments over ${new Set(assigned).size} distinct codes, 1 \`ok: false\`, 0 default branches`,
     );
   });
 });

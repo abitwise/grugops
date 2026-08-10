@@ -165,42 +165,6 @@ export const PLAIN_SCALAR_ALPHABET = new Set([
     "(),-.;",
     "—", // EM DASH — used in every skill `description` this kit ships
 ].join(""));
-// THE NODE-START SIGILS, EACH MAPPED TO ITS OWN NAMED CODE.
-//
-// A YAML construct this module refuses to reason about is introduced by a single byte at a NODE
-// START. Rather than trying to work out what such a construct means — which is what the block-scalar
-// indentation landmark of CR-01 tried to do, and got wrong — this module names the construct and
-// stops. The map is the enumeration; there is no fallthrough.
-const REFUSED_NODE_SIGILS = new Map([
-    ["|", "block-scalar"],
-    [">", "block-scalar"],
-    ["&", "node-property"],
-    ["*", "node-property"],
-    ["!", "node-property"],
-    ["[", "flow-collection"],
-    ["{", "flow-collection"],
-    ["'", "single-quoted"],
-    ["%", "reserved-indicator"],
-    ["`", "reserved-indicator"],
-    ["@", "reserved-indicator"],
-    ["?", "reserved-indicator"],
-]);
-// A human-readable name for each refused construct, so the refusal reason says what was found rather
-// than only which byte was found.
-const SIGIL_CONSTRUCT_NAME = new Map([
-    ["|", "a literal block scalar header"],
-    [">", "a folded block scalar header"],
-    ["&", "a YAML anchor"],
-    ["*", "a YAML alias"],
-    ["!", "a YAML tag"],
-    ["[", "a flow sequence"],
-    ["{", "a flow mapping"],
-    ["'", "a single-quoted scalar"],
-    ["%", "a YAML directive indicator"],
-    ["`", "the reserved indicator `` ` ``"],
-    ["@", "the reserved indicator `@`"],
-    ["?", "a complex mapping key indicator"],
-]);
 // The document delimiter, spelled once. A line is a delimiter if and only if it is these three bytes
 // and nothing else — no leading residue, no trailing residue, no invisible characters. Every other
 // spelling of "nearly a delimiter" is simply not one, which is why this module needs no character
@@ -252,6 +216,49 @@ const refuse = (code, reason) => ({
     code,
     reason,
 });
+// THE NODE-START SIGILS, EACH MAPPED TO ITS OWN NAMED CODE.
+//
+// A YAML construct this module refuses to reason about is introduced by a single byte at a NODE
+// START. Rather than trying to work out what such a construct means — which is what the block-scalar
+// indentation landmark of CR-01 tried to do, and got wrong — this module names the construct and
+// stops. The map is the enumeration; there is no fallthrough.
+//
+// IT LIVES INSIDE THE ADMISSION CORE BECAUSE IT IS AN ASSIGNMENT SITE. Five of the enumerated codes
+// are assigned HERE and not by a `refuse("...")` literal — the call site in pass 2 passes a
+// variable. Leaving this table outside the marked region made those five invisible to the source
+// assertion that walks the core for code assignments, which is a hole the assertion itself found
+// while this plan was being executed. A refusal decided by data is still a refusal decided by the
+// admission core, and the bound must contain it.
+const REFUSED_NODE_SIGILS = new Map([
+    ["|", "block-scalar"],
+    [">", "block-scalar"],
+    ["&", "node-property"],
+    ["*", "node-property"],
+    ["!", "node-property"],
+    ["[", "flow-collection"],
+    ["{", "flow-collection"],
+    ["'", "single-quoted"],
+    ["%", "reserved-indicator"],
+    ["`", "reserved-indicator"],
+    ["@", "reserved-indicator"],
+    ["?", "reserved-indicator"],
+]);
+// A human-readable name for each refused construct, so the refusal reason says what was found rather
+// than only which byte was found.
+const SIGIL_CONSTRUCT_NAME = new Map([
+    ["|", "a literal block scalar header"],
+    [">", "a folded block scalar header"],
+    ["&", "a YAML anchor"],
+    ["*", "a YAML alias"],
+    ["!", "a YAML tag"],
+    ["[", "a flow sequence"],
+    ["{", "a flow mapping"],
+    ["'", "a single-quoted scalar"],
+    ["%", "a YAML directive indicator"],
+    ["`", "the reserved indicator backtick"],
+    ["@", "the reserved indicator at-sign"],
+    ["?", "a complex mapping key indicator"],
+]);
 // The node-start offsets of one physical line: the first non-space column, and then the column after
 // each block-sequence marker and each mapping-key prefix the line carries.
 //
