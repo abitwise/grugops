@@ -32,6 +32,12 @@ import {
 import { tmpdir } from "node:os";
 import { join, dirname } from "node:path";
 
+// (27-65 task 3) The gate-level sweep plants rows from plan 27-63's corpus BY ID, and adjudicates
+// which rows are graftable with the same admission reader the gate now uses — so the module-level
+// replay and the gate-level replay cannot disagree about which bytes were tested.
+import { CORPUS, CORPUS_COUNT, rowById } from "./canonical-corpus.js";
+import { admit } from "./canonical-frontmatter.js";
+
 import {
   listRoles,
   listAgentAdapters,
@@ -3852,5 +3858,283 @@ describe("check-foundation-guards.js (SDLC-02 / SC2 fail-proof harness)", () => 
       join(ROOT, "agent-factory/seed/.grugops/factory.config.json"),
     );
     expect(a.equals(b)).toBe(true);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// (27-65, task 3) THE END-TO-END GATE SWEEP — plan 27-63's historical corpus, planted on the LIVE
+// distribution pair, driven through the REAL compiled gate, in BOTH directions.
+//
+// WHY THIS EXISTS SEPARATELY FROM THE MODULE-LEVEL REPLAY. Plan 27-63 proved every reproduced bypass
+// shape from rounds 1-11 lands on a named refusal FROM THE MODULE. That is a property of a module.
+// This sweep proves the same rows fail THE SHIPPED GATE, reading its own stdout — the difference
+// between "the reader would refuse this" and "the kit refuses this", which is the only difference
+// that mattered for eleven rounds. The rows are addressed BY ID from the same corpus, so the
+// module-level and gate-level replays cannot disagree about which bytes were tested.
+//
+// THE TWO-SIDED CLAIM. A gate that reds everything passes a bypass sweep vacuously — D-64's vacuity
+// trap 1, and this phase's single most repeated failure. So the premise controls run FIRST and are
+// asserted BEFORE any planted result is read: an unplanted mirror exits 0, and a mirror carrying a
+// COMMENT-ONLY plant also exits 0. Only then is a refusal believed to be about the plant.
+//
+// THE 27-64 INTERACTION, RECORDED. With the seven standalone twins now generated and byte-gated, a
+// plant on the twin ALONE would also be caught by `freshness:skill-twins`. That is a genuine
+// strengthening and worth knowing — but it would make a red here unattributable, so this sweep plants
+// on BOTH distribution forms (keeping guard_distribution_pair green) and runs
+// check-foundation-guards.js in ISOLATION. The resulting red is the spawn guard's alone.
+// ---------------------------------------------------------------------------
+
+// The two distribution forms of ONE non-coordinator skill — the exact pair the round-11 review's own
+// gate reproductions used. Derived from the scan rather than restated, so a renamed skill fails here
+// by name instead of silently planting into nothing.
+const SWEEP_PAIR = [
+  "skills/map/SKILL.md",
+  ".claude/skills/grugops-map/SKILL.md",
+] as const;
+
+// A row's frontmatter payload: its region minus its own `name:` line (the skill keeps its identity),
+// with a `tools:` key line rewritten to the skill surface's `allowed-tools` spelling. Returns null
+// when the row carries no graftable grant key — those rows are the DELIMITER family, whose shape IS
+// the document frame and therefore cannot survive being spliced into another document's frame.
+function sweepRowPayload(text: string): string[] | null {
+  const lines = text.split("\n");
+  if (lines[0] !== "---") return null;
+  const close = lines.indexOf("---", 1);
+  if (close === -1) return null;
+  const body = lines
+    .slice(1, close)
+    .filter((l) => !/^name:/.test(l))
+    .map((l) => l.replace(/^tools:/, "allowed-tools:"));
+  if (!body.some((l) => /^allowed-tools:/.test(l))) return null;
+  return body;
+}
+
+// Splice a payload over a SKILL.md's own `allowed-tools` region, preserving its `name`,
+// `description` and `argument-hint`. Returns null if the target has no such region.
+function sweepPlant(skillSrc: string, payload: string[]): string | null {
+  const lines = skillSrc.split("\n");
+  const at = lines.findIndex((l) => /^allowed-tools:/.test(l));
+  if (at === -1) return null;
+  let end = at + 1;
+  while (end < lines.length && /^\s/.test(lines[end]) && lines[end] !== "---") {
+    end++;
+  }
+  return [...lines.slice(0, at), ...payload, ...lines.slice(end)].join("\n");
+}
+
+describe("27-65 end-to-end gate sweep: the rounds-1-11 corpus planted on the live distribution pair", () => {
+  // ── PREMISE CONTROLS, RECORDED FIRST. ─────────────────────────────────────────────────────────
+  it("PREMISE CONTROL 1 — an UNPLANTED mirror exits 0: the gate is strict, not broken", () => {
+    const m = mirror();
+    const r = runIn(m);
+    expect(
+      r.status,
+      "the unplanted mirror must be GREEN, or every red below is the mirror rather than the plant",
+    ).toBe(0);
+    expect(out(r)).toContain("ALL CHECKS PASSED");
+    // The pair rule must also be green on the unplanted mirror, since the sweep's attribution claim
+    // depends on it staying green through every plant.
+    expect(out(r)).toContain("PASS  D-40:");
+  });
+
+  it("PREMISE CONTROL 2 — a COMMENT-ONLY plant on both forms exits 0: the sweep measures the PLANT, not the mirror construction", () => {
+    const m = mirror();
+    for (const rel of SWEEP_PAIR) {
+      const p = join(m, rel);
+      const src = readFileSync(p, "utf8");
+      // A body-level comment: it changes bytes on both sides equally, so the pair rule stays green
+      // and nothing about the frontmatter moves.
+      writeFileSync(p, `${src}\n<!-- 27-65 premise control: comment-only -->\n`);
+      // The plant must have LANDED, or this control proves nothing about the harness.
+      expect(readFileSync(p, "utf8")).toContain("27-65 premise control");
+    }
+    const r = runIn(m);
+    expect(
+      r.status,
+      "a comment-only plant must stay GREEN — otherwise the sweep is measuring mirror construction",
+    ).toBe(0);
+    expect(out(r)).toContain("ALL CHECKS PASSED");
+  });
+
+  // ── THE SELECTION RULE, STATED AND SELF-VERIFYING. ────────────────────────────────────────────
+  //
+  // A row is GATE-PLANTABLE iff (a) its document carries a graftable grant key, and (b) the SPLICED
+  // document refuses under the SAME enumerated code the row declares. Clause (b) is what makes the
+  // rule a rule rather than a taste: it mechanically guarantees the plant still tests the shape the
+  // row is about, so a row whose construct is destroyed by the graft is excluded BY MEASUREMENT
+  // rather than by judgement. Rows failing either clause are recorded MODULE-ONLY with the reason.
+  //
+  // Measured: 79 gate-plantable, 12 module-only, 91 total. The 12 are the delimiter family — rows
+  // whose bypass IS the document frame (a BOM, a directive, a four-dash head line), which cannot
+  // survive being grafted into another document's frame and are therefore proven at module level by
+  // 27-63 and nowhere else.
+  const sweepSplit = () => {
+    const skill = readFileSync(join(ROOT, SWEEP_PAIR[0]), "utf8");
+    const planted: { row: (typeof CORPUS)[number]; payload: string[] }[] = [];
+    const moduleOnly: { id: string; why: string }[] = [];
+    for (const row of CORPUS) {
+      const payload = sweepRowPayload(row.text);
+      if (payload === null) {
+        moduleOnly.push({
+          id: row.id,
+          why: "no graftable grant key — the row's construct is the document frame itself",
+        });
+        continue;
+      }
+      const doc = sweepPlant(skill, payload);
+      if (doc === null) {
+        moduleOnly.push({ id: row.id, why: "target skill has no allowed-tools region" });
+        continue;
+      }
+      const a = admit(doc);
+      if (a.ok) {
+        moduleOnly.push({ id: row.id, why: "the grafted form ADMITS — shape not preserved" });
+        continue;
+      }
+      if (a.code !== row.expected) {
+        moduleOnly.push({
+          id: row.id,
+          why: `the grafted form refuses as ${a.code}, not ${row.expected} — shape not preserved`,
+        });
+        continue;
+      }
+      planted.push({ row, payload });
+    }
+    return { planted, moduleOnly };
+  };
+
+  it("the planted / module-only split reconciles TWO-SIDED against the corpus total — no row is silently dropped", () => {
+    const { planted, moduleOnly } = sweepSplit();
+    expect(planted.length, "gate-plantable rows").toBe(79);
+    expect(moduleOnly.length, "module-only rows").toBe(12);
+    // THE TWO-SIDED EQUALITY. A row appearing in NEITHER bucket is a silent drop, which is the
+    // failure this assertion exists to make impossible.
+    expect(planted.length + moduleOnly.length).toBe(CORPUS.length);
+    expect(CORPUS.length).toBe(CORPUS_COUNT);
+    // Every module-only row carries a stated reason; a reason-less exclusion is an unexplained one.
+    for (const m of moduleOnly) {
+      expect(m.why.length, `${m.id}: module-only rows must carry a reason`).toBeGreaterThan(20);
+    }
+    // THE FOUR DOCUMENTS D-64 NAMES, plus their gate-reproduction spellings, must all be PLANTED —
+    // they are the two findings 27-VERIFICATION.md records and the two D-64 dissolves. Asserted by
+    // ID against the corpus, so this cannot pass over a differently-spelled near-twin.
+    const plantedIds = new Set(planted.map((p) => p.row.id));
+    for (const id of [
+      "r11-cr01-a-explicit-digit",
+      "r11-cr01-b-no-digit",
+      "r11-cr01-gate-a",
+      "r11-cr01-gate-b",
+      "r11-cr02-alias-through-compact-mapping",
+      "r11-cr02-dashless-control",
+      "r11-cr02-gate",
+    ]) {
+      expect(rowById(id), `${id} must exist in the corpus`).toBeDefined();
+      expect(plantedIds.has(id), `${id} must be GATE-planted, not module-only`).toBe(true);
+    }
+  });
+
+  // ── THE SWEEP ITSELF. ─────────────────────────────────────────────────────────────────────────
+  it("every gate-plantable corpus row moves the gate from exit 0 to exit 1, with the refusal TEXT read from the gate's own output", () => {
+    const { planted } = sweepSplit();
+    expect(planted.length, "a sweep over zero rows proves nothing").toBeGreaterThan(0);
+
+    const transcript: string[] = [];
+    for (const { row, payload } of planted) {
+      const m = mirror();
+
+      // EXIT CODE BEFORE THE PLANT, on this very mirror. Recorded per row rather than once, so a
+      // mirror that was broken before the plant cannot be reported as a row that failed because of it.
+      const before = runIn(m);
+      expect(before.status, `${row.id}: the pre-plant mirror must be GREEN`).toBe(0);
+
+      // Plant on BOTH distribution forms so guard_distribution_pair stays green and the red is
+      // attributable to the spawn guard alone.
+      for (const rel of SWEEP_PAIR) {
+        const p = join(m, rel);
+        const doc = sweepPlant(readFileSync(p, "utf8"), payload);
+        expect(doc, `${row.id}: ${rel} has no allowed-tools region to plant into`).not.toBeNull();
+        writeFileSync(p, doc as string);
+        // THE PLANT MUST HAVE LANDED IN THE FILE THE GATE READS. A plant that did not land produces
+        // a convincing green, and this phase has been fooled by exactly that. Re-read from disk and
+        // confirm a distinctive byte-run of the payload is present.
+        const reread = readFileSync(p, "utf8");
+        const witness = payload.find((l) => l.trim().length > 3) as string;
+        expect(reread, `${row.id}: the plant did not land in ${rel}`).toContain(witness);
+      }
+
+      const after = runIn(m);
+      const o = out(after);
+
+      // EXIT CODE AFTER: 0 -> 1. The direction is the claim.
+      expect(after.status, `${row.id}: the planted mirror must be RED`).not.toBe(0);
+
+      // THE REFUSAL TEXT, READ FROM THE GATE'S OUTPUT — not merely the exit code. The code and the
+      // reason both appear, and both name the canonical-form refusal rather than a no-grant verdict.
+      expect(o, `${row.id}: expected the code [${row.expected}]`).toContain(`[${row.expected}]`);
+      expect(o, `${row.id}: the refusal must name the file`).toContain(SWEEP_PAIR[0]);
+      expect(o, `${row.id}: a refusal is NEVER "carries no grant"`).toMatch(
+        /NEVER read as "carries no grant"/,
+      );
+
+      // ATTRIBUTION — AND A PLACE THE PLAN'S OWN PREMISE WAS FALSIFIED BY MEASUREMENT.
+      //
+      // 27-65-PLAN.md task 3 says to plant on both distribution forms "so guard_distribution_pair
+      // stays green and the resulting red is attributable to the spawn guard alone". That was true
+      // for the round-11 reproductions this sweep inherits, because back then the pair rule read
+      // frontmatter through a parser that SUCCEEDED on these documents and simply compared the two
+      // sides byte for byte.
+      //
+      // It is no longer true, and it is no longer true BECAUSE OF THE CUTOVER THIS SAME PLAN
+      // MANDATES. Task 2 moved guard_distribution_pair onto the admission reader as its third verdict
+      // call site, so a non-canonical document now refuses there too. The plan asks for two things
+      // that cannot both hold; the measurement wins, and the attribution claim is made in the form
+      // that is actually true rather than the form the plan predicted.
+      //
+      // WHAT IS ASSERTED INSTEAD IS STRICTLY STRONGER THAN "exactly one FAIL". The EXACT SET of
+      // failing checks is pinned at {WR-05, D-40} — so KIT-03, the kit counts, the adapter bodies and
+      // every other guard must stay green — AND the pair rule's failure is asserted to be the SAME
+      // canonical-form refusal rather than a divergence finding. That last assertion is what
+      // preserves the original intent of planting both sides: the twins really did stay in sync, and
+      // the red is about the planted bytes, not about the pair drifting apart.
+      const fails = o.split("\n").filter((l) => l.startsWith("  FAIL"));
+      expect(
+        fails.length,
+        `${row.id}: expected exactly TWO failing checks (WR-05 + D-40, both reading the same admission reader), got:\n${fails.join("\n")}`,
+      ).toBe(2);
+      expect(fails.some((l) => l.includes("WR-05")), `${row.id}: WR-05 must fail`).toBe(true);
+      expect(fails.some((l) => l.includes("D-40")), `${row.id}: D-40 must fail`).toBe(true);
+      // The pair rule refused for the SAME reason — not because the two forms diverged. A divergence
+      // finding here would mean the plant landed unevenly and the sweep would be measuring its own
+      // fixture rather than the corpus row.
+      expect(
+        o,
+        `${row.id}: the twins must NOT be reported as diverging — the plant landed evenly on both`,
+      ).not.toContain("DIVERGE beyond the `name` value");
+
+      // Capture the reason line for the transcript the summary reproduces.
+      const reasonLine = o
+        .split("\n")
+        .find((l) => l.includes(`[${row.expected}]`) && l.includes(SWEEP_PAIR[0]));
+      transcript.push(`${row.id} | ${row.expected} | ${(reasonLine ?? "").trim().slice(0, 200)}`);
+    }
+
+    // PRINT THE PER-ROW TRANSCRIPT. An exit code alone is not the claim; the refusal text is.
+    process.stdout.write(
+      `\n27-65 GATE SWEEP — ${transcript.length} row(s), each 0 -> 1 with the refusal text read from the gate:\n${transcript.join("\n")}\n`,
+    );
+  }, 600_000);
+
+  // ── RESTORATION, PROVEN. ──────────────────────────────────────────────────────────────────────
+  it("the sweep leaves NO residue — the committed tree still exits 0", () => {
+    // Every plant above went into a temp mirror via CHECK_ROOT; nothing outside tmpdir was written.
+    // Proven rather than asserted in a comment: run the gate on the REAL tree with no override.
+    const r = spawnSync("node", [GUARD_JS], { encoding: "utf8" });
+    expect(r.status, "the committed tree must still be green after the sweep").toBe(0);
+    expect(out(r)).toContain("ALL CHECKS PASSED");
+    // And the two files the sweep plants into are byte-unchanged on disk.
+    for (const rel of SWEEP_PAIR) {
+      const src = readFileSync(join(ROOT, rel), "utf8");
+      expect(src, `${rel} must carry no planted residue`).not.toContain("Agent(grugops-orchestrator)");
+    }
   });
 });
