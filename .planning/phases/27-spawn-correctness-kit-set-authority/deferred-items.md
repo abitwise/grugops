@@ -2806,3 +2806,189 @@ reassurance. Fixed, the same scan reports 16.
 **The regression suite is a FLOOR, not the closure evidence.** The evidence is §2's two-sided reach
 measurement and planted TS6133, §3's two mutation reds, §5's planted-import red (and the green that
 preceded it), and §7's three plants with the pre-versus-post pin comparison.
+
+---
+
+## From 27-61 (round 11) — the CONSOLIDATED mutation sweep, on the FINAL build
+
+Six plans (`27-55` … `27-60`) each carried its own local mutation control, and each was taken on the
+build that plan produced. Five later plans then edited the same files. **A closure inherited across
+six edits is a memory, not a measurement**, so every pin this round added is re-proved here, once, on
+the shipped build — `ff68c31`, `scripts/frontmatter.js` as committed, `/usr/bin/ruby -ryaml`
+(ruby 2.6.10 / psych 3.1.0 / libyaml 0.2.1) as the loader column throughout.
+
+**Method, with every step's own premise asserted.** A hermetic `git clone --no-hardlinks` of this
+repository — `.git` present, so the git-dependent cases keep working and the unmutated baseline is
+**0**, not the 6-to-15-case noise a `.git`-less scratch copy produces (`27-56` / `27-57` measured
+that). One edit reverted at a time. Each mutation **asserts its own target text occurs exactly once
+before it is applied and is absent afterwards**, so a mutation that silently did not apply cannot be
+read as "the pin does not exist" (`27-59`'s eleventh false result). For every source edit `npx tsc`
+runs and **its exit code is asserted** (`27-57`'s ninth), and the **built artifact is probed
+directly** before the suite is believed (`27-58`'s tenth). The tree is restored with
+`git checkout -- <path>` between reverts; `git clean` is never used.
+
+### 1. The two premise controls, recorded FIRST — the sweep measures the EDIT, not the rebuild
+
+A sweep that reds on any rebuild certifies nothing. Both controls were taken before any revert result
+was looked at, and the order here is the order they were run in.
+
+| # | control | rebuild | suite |
+|---|---|---|---|
+| **C1** | **revert NOTHING** — the clone as cloned | `npx tsc` exit **0** | **35 files, 1346 passed / 2 skipped / 0 failed** |
+| **C2** | **revert a COMMENT-ONLY change** — D-60's three-line "THIS GATE IS UNCHANGED, AND THAT IS THE POINT" comment block deleted, and the `.js` rebuilt from it | `npx tsc` exit **0** | **35 files, 1346 passed / 2 skipped / 0 failed** |
+
+C1 also fixes the attributable baseline at **0**: every red below is the mutation's, with nothing to
+subtract.
+
+### 2. The ten reverts
+
+`scripts/frontmatter.js` is what vitest resolves the tests' `./frontmatter.js` import to, so every
+source revert is rebuilt before it is measured; the four test/config reverts are seen directly.
+
+| # | edit reverted | file | build | direct probe of the MUTATED artifact | suite | named assertion that reds |
+|---|---|---|---|---|---|---|
+| **R1** | `27-55` / **D-59** — the region-scoped quoting exemption made STICKY per key again | `frontmatter.ts` | exit **0** | U1 → `{"ok":true,"value":false}` — **the original CR-01-new silent no-grant, reproduced** (control still grants) | **8 failed** / 1338 passed | `D-59 U1/U2 — an unrelated \`b: >-\` sibling cannot switch off the escape refusal…` |
+| **R2** | `27-56` / **D-60** — the nested key restricted back to the top-level `KEY_LINE` alphabet | `frontmatter.ts` | exit **0** | V4 → `{"ok":true,"value":false}` — the original CR-03 silent no-grant | **9 failed** / 1337 passed | `D-60 V1-V4 — a quoted, dotted, digit-leading or space-containing nested key carries a header…` |
+| **R3** | `27-57` edit A / **D-61** — the node-property strip removed at the header position | `frontmatter.ts` | exit **0** | A → `{ok:false, "…uses a YAML anchor or alias…"}` — the **LOUD** arm, not the silent one | **5 failed** / 1341 passed | `D-61 rows A, B, F, Q — a node property in front of a block indicator no longer hides the header, at EVERY introduction` |
+| **R4** | `27-57` edit B / **D-61** — the reference refusal's FOURTH application point removed | `frontmatter.ts` | exit **0** | `nested: *a >-` → `{"ok":true,"value":false}` — silent success on a document libyaml **REJECTS** | **3 failed** / 1343 passed | `D-61 CONTROL R — a property the strip CANNOT handle fails LOUD, at the node start after a mapping separator` |
+| **R5** | `27-58` edit A / **D-62** — the end condition measured from the HEADER LINE again | `frontmatter.ts` | exit **0** | W1 → `GRANT ["grugops-orchestrator"]` for a value the loader reads as `{"nested"=>"Read,"}` — the original WR-01 never-exemptible direction | **4 failed** / 1342 passed | `D-62 row W1 — a block scalar ends at its OWN detected content indentation, so the over-included sibling line stops granting` |
+| **R6** | `27-58` edit B / **D-62** — a blank line inside an open scalar consumed again | `frontmatter.ts` | exit **0** | B1 → names `["alpha","ga mma"]` — the original WR-02 **INVENTED** name | **5 failed** / 1341 passed | `D-62 row B1 — a folded scalar's blank line is a LINE BREAK, so the module stops inventing a name` |
+| **R7** | `27-59` — the offset-zero node-start axis RE-COUPLED to the entering state | `frontmatter.test.ts` | (test file — seen directly) | — | **1 failed** / 1345 passed | `IN-02 single-line differential — …every move RECOVERS a scalar's provenance rather than losing one`, message: **`6340 cell(s) moved`** of 297,312 |
+| **R8** | `27-60` — the test-inclusive typecheck target removed from the gate | `package.json` | (config) | — | **0 failed** — see §3 | none — assertion-shaped edit, pinned by the paired plant |
+| **R9** | `27-60` — the fence claim's mechanical harness-local discriminator weakened | `frontmatter.test.ts` | (test file) | — | **0 failed** — see §3 | none — assertion-shaped edit, pinned by the paired plant |
+| **R10** | `27-60` — the IN-03 source-scan pin's section-rule bound reverted to `indexOf("\n}")` | `generate-role-adapters.test.ts` | (test file) | — | **0 failed** — see §3 | none — assertion-shaped edit, pinned by the paired plant |
+
+**Verbatim failure messages**, one per red revert, showing each names its own family or property
+rather than failing somewhere generic:
+
+```
+R1   AssertionError: expected 'ok:[["name",["probe"]],["tools",["a: …' to be 'REFUSED'
+     Received: "ok:[[\"name\",[\"probe\"]],[\"tools\",[\"a: \\\"\\\\x41gent(grugops-orchestrator)\\\" b: x\"]]]"
+     ❯ scripts/frontmatter.test.ts:14116:25
+R1   AssertionError: a union cell whose verdict contradicts D-59's declared region scoping:
+     expected [ …(14) ] to deeply equal []
+R2   AssertionError: V1 quoted: expected { ok: true, value: false } to deeply equal { ok: true, value: true }
+R2   AssertionError: "  été: >-": expected { ok: true, value: false } to deeply equal { ok: true, value: true }
+R3   AssertionError: A implicit nested key + anchor: expected { ok: false, …(1) } to deeply equal { ok: true, value: true }
+R3   AssertionError: a1 inside a sequence item's compact mapping: expected { ok: false, …(1) } to deeply equal { ok: true, value: true }
+R4   AssertionError: the SILENT success arm is the one thing this must never be: expected true to be false
+R4   AssertionError: two properties of a kind must not reach the success arm: expected true to be false
+R5   AssertionError: one column less: OUTSIDE the scalar: expected { ok: true, value: true } to deeply equal { ok: true, value: false }
+R6   AssertionError: the loader's value carries a line break the enumeration alphabet REFUSES, so the
+     module must refuse too — the LOUD arm is the correct answer here, not a name set: expected true to be false
+R6   AssertionError: B2 literal, one blank — the loader reads this as "Agent(alpha, ga\n\nmma)":
+     expected [ 'Agent(alpha, ga\nmma)' ] to deeply equal [ 'Agent(alpha, ga\n\nmma)' ]
+R7   AssertionError: within-line STATE differential over 6194 input(s) x 48 state(s) = 297312
+     comparison(s); 6340 cell(s) moved: "\"" entering=null depth=0 mayBegin=false nodeStart=true …
+```
+
+**R1 and R6 reconcile a difference with `27-59`'s sweep rather than contradict it.** `27-59` measured
+R1, R4 and R6 as **NOT PINNED** — and that measurement was over the **shared D-52 corpus only**. This
+sweep runs the **whole suite**, and all three are pinned there: R1 by `27-55`'s own region-kind ×
+escape-kind × spelling union axis (exactly the owner `27-59` named), R4 by `27-57`'s CONTROL R, R6 by
+`27-58`'s own B rows. **`27-59`'s three OPEN items stand unchanged** — the shared corpus still cannot
+see these three families, which is the property `27-59` was measuring and this sweep does not touch.
+
+### 3. The three assertion-shaped edits, pinned by their paired plant
+
+`R8`, `R9` and `R10` are not behaviour changes; they are **assertions and gate reach**. Reverting an
+assertion cannot red anything — that is a tautology, not a finding. So each is measured in the shape
+that can carry evidence: **plant the defect the edit exists to catch, and compare the outcome with the
+edit present and with it reverted.** Recorded here as OPEN under the plan's own rule (revert-alone
+green) with the paired result stated beside it, rather than dressed up as a red.
+
+| # | plant | edit PRESENT | edit REVERTED |
+|---|---|---|---|
+| **R8** | an unused local (`const unread = 1;`) added to `scripts/context-io.test.ts` | `npm run typecheck` **exit 2** — `scripts/context-io.test.ts(2100,9): error TS6133: 'unread' is declared but its value is never read.` | **exit 0** — the same plant, seen by nothing |
+| **R9** | `import "./generate-role-adapters.test.js";` appended to the non-test module `scripts/kit-model.ts` | **exit 1**, `every member of the derived fence set must be accounted for by at least one MECHANICAL class; a member with [] is excused by nothing but a comment` | **exit 1** *still* — caught by a SECOND, independent statement of the same property in the same case |
+| **R10** mode A | the `// ── end stripFencedBlockLines` section rule deleted | **exit 1**, `PREMISE — the stripFencedBlockLines body must be bounded by its own section rule …; expected -1 to be greater than 9412` | **exit 0** — 25 passed, undetected |
+| **R10** mode B | the forbidden shape `lines.length - kept.length` planted as a **COMMENT** inside the pin's own slice | **exit 0** — correctly stays green | **exit 1** — **FALSE RED**: `expected 'function stripFencedBlockLines(lines:…' not to contain 'lines.length - kept.length'` |
+
+**R9's result is a finding worth stating exactly.** The harness-local property is asserted **twice** —
+once as a condition inside `classifyFenceMachine`, and once as a direct loop over the claimed
+harness-local members. Reverting either arm alone still catches the plant through the other. Blinding
+**both** (the classifier condition removed *and* the direct loop replaced by `void nonTestImportersOf;`)
+takes the same plant to **exit 0, 9 passed** — measured, so the redundancy is a measured fact and not
+an assumption. `R10`'s mode-A plant and the `PLANT 3` premise were both re-asserted before use, and
+one of those assertions **fired**: the first attempt looked for the end marker in
+`scripts/generate-role-adapters.ts` when the pinned twin lives in
+`scripts/generate-role-adapters.test.ts`. It halted with `PLANT-2 PREMISE FAILED: marker absent`
+instead of quietly measuring a plant that was never applied. **That is the sixteenth instance of this
+phase's harness-premise lesson, and the first in which the assertion caught the error before a number
+was written down rather than after.**
+
+### 4. The gate, on the four parser edits — hermetic mirror, exit code before and after
+
+Planted into the **EXISTING** `allowed-tools:` key of BOTH distribution twins of the non-coordinator
+`plan` skill (D-40), never by adding a second allow-list key (`27-52`'s R1 near-miss). Twins counted
+over the **FAILURE block only** (`27-54`'s near-miss: a passing run names the same paths in ordinary
+`PASS … pointer-sized` lines). Every plant's loaded value is quoted from the loader rather than assumed.
+
+| plant | shape | FINAL BUILD | edit REVERTED | loader reads |
+|---|---|---|---|---|
+| — | unplanted mirror | **exit 0** | **exit 0** under every one of R1…R5 | — |
+| CTL | one-line `Read, …, Agent(grugops-orchestrator)` | **exit 1**, twins 2/2 | — | `"Read, Write, Bash, Glob, Grep, Agent(grugops-orchestrator)"` |
+| CTLSHAPE | the same YAML SHAPE, harmless tool list | **exit 0**, twins 0/2 | — | `{"nested"=>"… # x, WebFetch"}` |
+| **P55** | `a: "\x41gent(…)"` + `b: >-` sibling | **exit 1**, twins 2/2 | **exit 0**, twins 0/2 — the bypass reopens | `{"a"=>"Agent(grugops-orchestrator)", "b"=>"x"}` |
+| **P56** | `a b: >-` spaced nested key | **exit 1**, twins 2/2 | **exit 0**, twins 0/2 — the bypass reopens | `{"a b"=>"… # x, Agent(grugops-orchestrator)"}` |
+| **P57** | `nested: &a >-` node property | **exit 1**, twins 2/2 | **exit 1**, twins 2/2 — **the gate does NOT move** | `{"nested"=>"… # x, Agent(grugops-orchestrator)"}` |
+| **P57B** | `nested: *a >-` alias | **exit 1**, twins 2/2 | **exit 0**, twins 0/2 — the silent arm reopens | **REJECT** *did not find expected key* |
+| **P58** | over-indented first content line | **exit 0**, twins 0/2 — **correct: the loader carries NO grant** | **exit 1**, twins 2/2 — the **FALSE RED** reopens | `{"nested"=>"Read, Write, Bash, Glob, Grep,"}` |
+
+**P57's gate not moving under R3 is a result, not a hole, and it confirms at the GATE what `27-57`
+argued at the module level.** With the strip reverted, the property the strip no longer consumes is
+caught by the **fourth application point** (R4's edit) and the document fails **LOUD** — so the gate
+stays red for a different and correct reason. The two edits are complementary rather than redundant,
+which is exactly why `27-57` insisted on two separate controls; `P57B` under `R4` is the other half of
+that pair and does reopen the silent arm.
+
+**`R6` is measured at the module level only, and the reason is stated rather than left as a gap.** Its
+divergence is a **value / name-set** divergence, not a token-presence one — `27-58` recorded this in
+advance and `27-59`'s R6 confirmed it — so `check-foundation-guards`, which asks about the grant token
+and the name set, is not the instrument that can see it. Pinning it at the gate needs a third compared
+fact (the VALUE), which is a decision rather than an addition. Owner: **a later round**, carried from
+`27-59` unchanged.
+
+### 5. Every family closed by rounds 9, 10 and 11, RE-MEASURED on the final build
+
+Loader column `/usr/bin/ruby -ryaml` (ruby 2.6.10 / psych 3.1.0 / libyaml 0.2.1), taken against the
+real tree at `ff68c31`, not against a mirror.
+
+| round | family / row | module on THIS build | loader | verdict |
+|---|---|---|---|---|
+| — | CONTROL one-line grant | `GRANT ["grugops-orchestrator"]` | `"Read, Agent(grugops-orchestrator)"` | premise: the probe CAN see a grant |
+| — | CONTROL no grant | `no-grant []` | `"Read, Write"` | premise: it does not grant everything |
+| 9 | **CR-01** `'Read'' s,` / `  # x, TOKEN'` | `GRANT ["grugops-orchestrator"]` | `"Read' s, # x, Agent(grugops-orchestrator)"` | **STILL CLOSED** |
+| 10 | **FAMILY G** nested mapping value | `GRANT ["grugops-orchestrator"]` | `{"nested"=>"Read, # x, Agent(grugops-orchestrator)"}` | **STILL CLOSED** |
+| 10 | **FAMILY G2** block-sequence item | `GRANT ["grugops-orchestrator"]` | `["Read, # x, Agent(grugops-orchestrator)"]` | **STILL CLOSED** |
+| 11 | **CR-01-new** (`27-55`) U1 | `REFUSE` (loud, naming `\x`) | `{"a"=>"Agent(grugops-orchestrator)", "b"=>"x"}` | **STILL CLOSED** |
+| 11 | **CR-03** (`27-56`) V4 spaced key | `GRANT ["grugops-orchestrator"]` | `{"a b"=>"Read, # x, Agent(grugops-orchestrator)"}` | **STILL CLOSED** |
+| 11 | **CR-03** (`27-56`) V1 quoted key | `GRANT ["grugops-orchestrator"]` | `{"a b"=>"Read, # x, Agent(grugops-orchestrator)"}` | **STILL CLOSED** |
+| 11 | **CR-02** (`27-57`) A anchor | `GRANT ["grugops-orchestrator"]` | `{"nested"=>"Read, # x, Agent(grugops-orchestrator)"}` | **STILL CLOSED** |
+| 11 | **CR-02** (`27-57`) B shorthand tag | `GRANT ["grugops-orchestrator"]` | `{"nested"=>"Read, # x, Agent(grugops-orchestrator)"}` | **STILL CLOSED** |
+| 11 | **CR-02** (`27-57`) R alias | `REFUSE` (loud) | **REJECT** *did not find expected key* | **STILL CLOSED** |
+| 11 | **WR-01** (`27-58`) W1 over-indent | `no-grant []` | `{"nested"=>"Read,"}` | **STILL CLOSED** |
+| 11 | **WR-01** (`27-58`) W2 at-indent | `GRANT ["grugops-orchestrator"]` | `{"nested"=>"Read, # x, Agent(grugops-orchestrator)"}` | **STILL CLOSED** — both sides of the threshold |
+| 11 | **WR-02** (`27-58`) B1 folded blank | `names REFUSE` (loud) | `"Agent(alpha, ga\nmma)\n"` | **STILL CLOSED** |
+| 11 | **IN-01** (`27-58`) B2 literal blank | `names REFUSE` (loud) | `"Agent(alpha, ga\n\nmma)"` | **STILL CLOSED** |
+
+**Fifteen rows, fifteen still closed. Not one closure was inherited.**
+
+### 6. Restoration — the sweep leaves no residue
+
+`git status --short` on the real tree reports only the two pre-existing, unrelated entries
+(`M human-notes.txt`, `?? .gsd/`). Neither was touched by this plan. On the restored tree:
+
+| gate | result |
+|---|---|
+| `npx vitest run --exclude '**/scripts/e2e/**'` | **35 files, 1346 passed / 2 skipped / 0 failed** |
+| `npm run typecheck` (both targets) | **exit 0** |
+| `npm run freshness` | **exit 0**, 32 committed `.js` match a fresh rebuild |
+| `node scripts/check-foundation-guards.js` | **exit 0**, `ALL CHECKS PASSED` |
+| `node scripts/adapters-freshness.js` | **exit 0** |
+| `node scripts/coordinator-resolution-precheck.js` | **exit 0** |
+
+**The green suite is a FLOOR, not the closure evidence.** The closure evidence in this section is the
+transcripts and the gate exit codes: the two premise controls, the seven reverts that red a named
+assertion, the four paired plants, the eight gate rows with their loader column, and the fifteen-row
+final-build re-measurement.
