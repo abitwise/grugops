@@ -1645,3 +1645,170 @@ measured against the loader for a multi-byte key and a combining mark). Authored
 a floor and not the closure evidence. The closure evidence is the gate plant moving exit 0 → exit 1 on
 both distribution twins, the 560-of-652 pre-fix-mirror non-circularity result, the mutation control
 with its own control, and the two adversarial passes above.
+
+---
+
+## From 27-57 — CR-02: a legal YAML node PROPERTY stood in front of the block indicator (round 11)
+
+**Class.** Not the predicate's conditions (D-54), not its positions (D-57), not whose question it was
+answering (D-60). **Something the grammar permits stood IN FRONT of the thing the authority
+recognises.** YAML 1.2 § 6.9 lets a node's properties — its tag and/or its anchor — precede the node's
+content, so the text `blockHeaderAt` handed `BLOCK_INDICATOR` began with the property. The constant —
+correctly — did not match, `block` stayed false, the scalar's literal content reached `stripComment`,
+and a leading `#` deleted the rest of the line: **D-57's exact mechanism, one property over.**
+
+And the refusal arm did not catch it either. `startsWithReference` was asked at offset 0 of the
+physical line and at each flow fragment; a BLOCK mapping's separator introduces a node start too, and
+nobody asked. So the document did not fail red — it **succeeded with no grant**.
+
+Loader column throughout: `/usr/bin/ruby -ryaml`, **ruby 2.6.10 / psych 3.1.0 / libyaml 0.2.1**.
+Pre-fix build = commit `6189744` (the wave-2 build). Post-fix build = commit `6e25695`.
+
+### 1. RED, against the wave-2 build, with both columns
+
+Every row is `---` / `name: x` / `<region>` / `---`. Content line is
+`Read, # x, Agent(grugops-orchestrator)` throughout, abbreviated `Read, # x, Agent(o)` in the table.
+
+| Row | region | module (pre-fix) | `/usr/bin/ruby -ryaml` |
+|---|---|---|---|
+| A anchor, implicit nested key | `tools:` / `  nested: &a >-` / content | `{"ok":true,"value":false}` | `{"tools"=>{"nested"=>"Read, # x, Agent(o)"}}` |
+| B shorthand tag, implicit nested key | `tools:` / `  nested: !!str >-` / content | `{"ok":true,"value":false}` | `{"tools"=>{"nested"=>"Read, # x, Agent(o)"}}` |
+| F anchor, explicit block-mapping VALUE | `tools:` / `  ? k` / `  : &a >-` / content | `{"ok":true,"value":false}` | `{"tools"=>{"k"=>"Read, # x, Agent(o)"}}` |
+| Q anchor, explicit block-mapping KEY | `tools:` / `  ? &a >-` / content / `  : v` | `{"ok":true,"value":false}` | `{"tools"=>{"Read, # x, Agent(o)"=>"v"}}` |
+| T tag THEN anchor | `tools:` / `  nested: !!str &a >-` / content | `{"ok":true,"value":false}` | `{"tools"=>{"nested"=>"Read, # x, Agent(o)"}}` |
+| T2 anchor THEN tag | `tools:` / `  nested: &a !!str >-` / content | `{"ok":true,"value":false}` | `{"tools"=>{"nested"=>"Read, # x, Agent(o)"}}` |
+| R2 the bare non-specific tag | `tools:` / `  nested: ! >-` / content | `{"ok":true,"value":false}` | `{"tools"=>{"nested"=>"Read, # x, Agent(o)"}}` |
+| T3 TWO anchors (YAML forbids) | `tools:` / `  nested: &a &b >-` / content | `{"ok":true,"value":false}` | **REJECT** *did not find expected key while parsing a block mapping* |
+| R CONTROL, an alias the strip cannot handle | `tools:` / `  nested: *a >-` / content | `{"ok":true,"value":false}` | **REJECT** *did not find expected key while parsing a block mapping* |
+| P CONTROL, a BARE header + anchor | `tools:` / `  &a >-` / content | `{"ok":false,"reason":"`&a >-` uses a YAML anchor or alias, …"}` | `{"tools"=>"Read, # x, Agent(o)"}` |
+| S the block-SEQUENCE item + anchor | `tools:` / `  - &a >-` / content | `{"ok":false,"reason":"`- &a >-` uses a YAML anchor or alias, …"}` | `{"tools"=>["Read, # x, Agent(o)"]}` |
+| M1 CONTROL, sigil MID-scalar | `tools: Read & Write, Agent(x)` | `{"ok":true,"value":true}`, `["x"]` | `{"tools"=>"Read & Write, Agent(x)"}` |
+| M2 CONTROL, sigil on a continuation line | `description: see` / `  R&D *notes* here` | `{"ok":true,"value":false}`, value `see R&D *notes* here` | `{"description"=>"see R&D *notes* here"}` |
+| M3 CONTROL, sigil inside a block scalar | `tools: >-` / `  Read, &a *b !c, Agent(x)` | `{"ok":true,"value":true}`, `["x"]` | `{"tools"=>"Read, &a *b !c, Agent(x)"}` |
+
+**SEVEN live silent no-grants on loader-ACCEPTED documents** (A, B, F, Q, T, T2, R2). Two further
+silent successes (T3, R) on documents libyaml **rejects outright** — "carries no grant" over a
+document that cannot be read at all, which is this module's founding failure.
+
+### 2. GREEN, against the post-fix build, same table
+
+A, B, F, Q, T, T2 and R2 all move to `{"ok":true,"value":true}`, and `grantedAgentNames` returns
+exactly `["grugops-orchestrator"]` for each. T3 and R move from the SILENT success arm to the **LOUD**
+refusal arm, each naming its own line. P, S, M1, M2 and M3 are **byte-identical**, including P's and
+S's reason strings.
+
+**Rows S and T adjudicated, and no grant claim is made where the module and the loader differ.** The
+loader ACCEPTS `  - &a >-` and reads the grant (`{"tools"=>["Read, # x, Agent(o)"]}`); this module
+REFUSES it, on both builds, byte-identically. That disagreement is in the **LOUD** direction and it is
+the same disposition control P records: at a bare header and at a sequence item the sigil IS at offset
+0 of the node, so the module's standing anchor/alias refusal reaches it first — which is precisely the
+contrast that proves the finding is about the introduction set and not about the sigil test. T and T2
+(one tag and one anchor, either order) are loader-ACCEPTED and now grant; T3 (two of a kind) is
+loader-REJECTED and is left unstripped so it fails loud.
+
+### 3. The end-to-end reproduction, REPLAYED ON A HERMETIC MIRROR AND INVERTED
+
+The verifier's own method, reproduced rather than reinvented: `git archive <commit>` into a temp dir,
+the plant written into the **EXISTING** `allowed-tools:` key of **both** distribution twins of the
+non-coordinator `map` skill — `.claude/skills/grugops-map/SKILL.md` and `skills/map/SKILL.md` — never
+by adding a second allow-list key, and the real `node scripts/check-foundation-guards.js` run against
+the mirror with `CHECK_ROOT` pointed at it.
+
+The round-10 reproduction's exact planted text:
+
+```
+allowed-tools:
+  nested: &a >-
+    Read, Write, Bash, Glob, Grep, # x, Agent(grugops-orchestrator)
+```
+
+| Spelling | pre-fix `6189744` | post-fix `6e25695` |
+|---|---|---|
+| anchor / implicit nested key (**the round-10 reproduction**) | `:: exit=0 :: planted 2/2 :: one allow-list key :: twins named 0/2 :: ALL CHECKS PASSED` | `:: exit=1 :: planted 2/2 :: one allow-list key :: twins named 2/2 :: 1 CHECK(S) FAILED` |
+| shorthand tag / implicit nested key | `:: exit=0 :: planted 2/2 :: one allow-list key :: twins named 0/2 :: ALL CHECKS PASSED` | `:: exit=1 :: planted 2/2 :: one allow-list key :: twins named 2/2 :: 1 CHECK(S) FAILED` |
+| anchor / explicit block-mapping VALUE | `:: exit=0 :: planted 2/2 :: one allow-list key :: twins named 0/2 :: ALL CHECKS PASSED` | `:: exit=1 :: planted 2/2 :: one allow-list key :: twins named 2/2 :: 1 CHECK(S) FAILED` |
+| anchor / explicit block-mapping KEY | `:: exit=0 :: planted 2/2 :: one allow-list key :: twins named 0/2 :: ALL CHECKS PASSED` | `:: exit=1 :: planted 2/2 :: one allow-list key :: twins named 2/2 :: 1 CHECK(S) FAILED` |
+| CROSS with `27-56`: anchor behind a QUOTED nested key `"a b": &a >-` | `:: exit=0 :: planted 2/2 :: one allow-list key :: twins named 0/2 :: ALL CHECKS PASSED` | `:: exit=1 :: planted 2/2 :: one allow-list key :: twins named 2/2 :: 1 CHECK(S) FAILED` |
+
+**The round-10 end-to-end reproduction is INVERTED: exit 0 → exit 1.**
+
+Verbatim failure block (identical for all five spellings):
+
+```
+  FAIL  WR-05 coordinator-spawn-grant violation:
+.claude/skills/grugops-map/SKILL.md: non-coordinator carries a spawn grant — rogue spawner (only the coordinator: true file may hold the grant)
+skills/map/SKILL.md: non-coordinator carries a spawn grant — rogue spawner (only the coordinator: true file may hold the grant)
+```
+
+**Twins named, counted over the FAILURE block only: 2.** This ledger's recorded near-miss from
+`27-54` is honoured mechanically: the extractor takes the FAIL stanza alone and stops at the next
+guard heading, `PASS`/`WARN` line or blank line, because on a **passing** run the guard names those
+same two paths in ordinary `PASS  … pointer-sized` lines and a whole-transcript count would report
+`2` for a green gate.
+
+### 4. THE HARNESS'S OWN PREMISE, ASSERTED — three controls in the same session
+
+This round's record shows the probe's oracle producing a false result in six instances across four
+straight rounds, so the plant is never believed on its own.
+
+| Control | question it answers | pre-fix | post-fix |
+|---|---|---|---|
+| (a) a one-line plain grant on both twins | can this probe SEE a grant at all? | **exit 1**, twins named 2/2 | **exit 1**, twins named 2/2 |
+| (b) an unplanted mirror | is the plant what moved it? | **exit 0** | **exit 0** |
+| (c) the same YAML SHAPE with a harmless tool list (`# x, WebFetch`) | is the shape alone what reds the gate? | **exit 0** | **exit 0** |
+
+Control (c) is the one that matters most here: it is byte-for-byte the winning plant with the grant
+token swapped for `WebFetch`, and it stays green on **both** builds — so the post-fix red is the
+grant being read, not the anchor being noticed.
+
+### 5. The loader column PER PLANT
+
+A plant nobody checked against a loader is a claim, not evidence. Every planted twin was loaded with
+`/usr/bin/ruby -ryaml` and its `allowed-tools` value quoted:
+
+```
+anchor / implicit nested key
+  .claude/skills/grugops-map/SKILL.md -> {"nested"=>"Read, Write, Bash, Glob, Grep, # x, Agent(grugops-orchestrator)"}
+  skills/map/SKILL.md                 -> {"nested"=>"Read, Write, Bash, Glob, Grep, # x, Agent(grugops-orchestrator)"}
+shorthand tag / implicit nested key
+  both twins -> {"nested"=>"Read, Write, Bash, Glob, Grep, # x, Agent(grugops-orchestrator)"}
+anchor / explicit block-mapping VALUE
+  both twins -> {"k"=>"Read, Write, Bash, Glob, Grep, # x, Agent(grugops-orchestrator)"}
+anchor / explicit block-mapping KEY
+  both twins -> {"Read, Write, Bash, Glob, Grep, # x, Agent(grugops-orchestrator)"=>"v"}
+CROSS with 27-56, quoted nested key
+  both twins -> {"a b"=>"Read, Write, Bash, Glob, Grep, # x, Agent(grugops-orchestrator)"}
+CONTROL (a) one-line plain grant
+  both twins -> "Read, Write, Bash, Glob, Grep, Agent(grugops-orchestrator)"
+CONTROL (c) same shape, harmless list
+  both twins -> {"nested"=>"Read, Write, Bash, Glob, Grep, # x, WebFetch"}
+```
+
+### 6. The `UNKNOWN - verify` platform bound, carried forward VERBATIM
+
+Whether **Claude Code itself** honours a mapping under an allow-list key as a tool grant was **NOT**
+confirmed against the platform. That stays `UNKNOWN - verify`; **no live platform escalation is
+claimed here**. The finding stands on this module's own stated contract — the token is in the loaded
+value of the allow-list key and the guard read it as a no-grant, which is the guard's own failure
+regardless of what the platform does with the mapping.
+
+### 7. The gate on the REAL tree, and the sibling gates
+
+`node scripts/check-foundation-guards.js` → **exit 0**, `ALL CHECKS PASSED` on the real, unmodified
+tree after every plant was cleaned up (each plant lives in its own `mktemp` mirror, deleted at the end
+of its own row). `node scripts/adapters-freshness.js` → exit 0 (17 adapters, 0 byte differences).
+`node scripts/coordinator-resolution-precheck.js` → exit 0. `npm run freshness` → exit 0 (32 committed
+`.js` match a fresh `tsc` rebuild). `npx tsc --noEmit` → exit 0.
+
+### 8. The repository-wide value map
+
+`git ls-files '*.md'` → **1172** files, parsed by the pre-fix build `6189744` and the post-fix build
+and compared as full key/value maps: **0 moved, 0 new refusals, 0 lifted.** The strip's result is used
+for exactly one thing — asking `BLOCK_INDICATOR` — and is discarded when the answer is no, so the only
+reachable effect is that MORE headers are recognised, never that a value gets shorter.
+
+### 9. The eight `mappingValueIndicator` position-gate rows, re-run
+
+All **8** keep their recorded verdicts on the post-fix build, byte-identical to the pre-fix build,
+including the two the loader reads as CONTENT (g7 `tools: see` / `  >-` → `see >- q,` and g8
+`tools: see` / `  ? >-` → `see ? >- q,`) and the two the loader REJECTS (g5, g6).
