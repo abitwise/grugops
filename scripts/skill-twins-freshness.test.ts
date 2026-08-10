@@ -269,3 +269,159 @@ describe("skill-twins-freshness.js (D-64 Part B skill-twin drift gate)", () => {
     expect(block).toContain("npm run freshness:skill-twins");
   });
 });
+
+// ─────────────────────────────────────────────────────────────────────────────────────────────
+// THE GATE IS PROVEN ABLE TO FAIL (plan 27-64 task 3 — D-64 vacuity trap 4)
+// ─────────────────────────────────────────────────────────────────────────────────────────────
+//
+// An assertion that was never made to fail is not a pin, and this phase's record is the reason the
+// sentence is written that plainly: the verification harness produced a FALSE result SIXTEEN times
+// across this phase, in six instances over four straight rounds. So every plant below asserts its
+// OWN premise before it is believed.
+//
+// THE ORDER IS THE ORDER THEY RUN IN, AND THE PREMISE CONTROL IS RECORDED FIRST. A plant whose
+// baseline was not recorded is the arrangement that produced reds nobody could attribute. P0 fixes
+// the attributable baseline at exit 0 on an unmutated mirror; every red below is the plant's, with
+// nothing to subtract.
+describe("skill-twins-freshness.js — FAIL-PROOFS (the byte gate can go red, and for the right reason)", () => {
+  // One mirror, reused across P0 and P1 in that order, so the control and the plant are measured on
+  // THE SAME tree. Two separate mirrors would leave "was the mirror itself different" unmeasured.
+  const m = mirror();
+  const VICTIM_REL = "grugops/SKILL.md";
+  const victim = join(m, ".claude/skills", VICTIM_REL);
+
+  // The ROOT twin is the deliberate victim. guard_distribution_pair EXEMPTS exactly this file — its
+  // 448-byte resolver divergence from the plugin form is legitimate and the pair rule cannot express
+  // it — so before this plan the root twin's 1733 bytes were under NO byte check anywhere in the
+  // tree. It is the file this gate protects that nothing else did.
+  let controlStatus: number | null = null;
+
+  it("P0 (premise control, recorded FIRST): the unmutated mirror exits 0 with seven compared and zero differences", () => {
+    const r = runGate(m);
+    controlStatus = r.status;
+    expect(r.status).toBe(0);
+    expect(r.stdout).toContain(FRESH_MARKER);
+    expect(r.stdout).toContain("7 twin(s) compared");
+    expect(r.stdout).toContain("0 byte difference(s)");
+  });
+
+  it("P1 (ONE-BYTE drift): the gate moves from exit 0 to non-zero and NAMES the drifted file", () => {
+    // The control must have run and passed, or this case is measuring an unknown baseline.
+    expect(controlStatus, "P0 must run first and exit 0").toBe(0);
+
+    const before = readFileSync(victim);
+    // Mutate EXACTLY ONE BYTE: the last content byte before the trailing newline, flipped to a
+    // different value. Length is preserved, so nothing here could be caught by a size comparison.
+    const idx = before.length - 2;
+    const after = Buffer.from(before);
+    after[idx] = before[idx] === 0x41 ? 0x42 : 0x41; // 'A' unless it already is, then 'B'
+    writeFileSync(victim, after);
+
+    // ASSERT THE PLANT LANDED. A plant that did not land produces a perfectly convincing green, and
+    // that is precisely how this phase's harness lied sixteen times.
+    const reread = readFileSync(victim);
+    expect(reread.length, "the mutation must preserve length").toBe(before.length);
+    const differingBytes = [...reread].filter((b, i) => b !== before[i]).length;
+    expect(differingBytes, "exactly one byte must differ").toBe(1);
+
+    const r = runGate(m);
+    // The claim is NOT "it exited non-zero". The claim is that it failed for the right reason and
+    // named the right file.
+    expect(r.status).not.toBe(0);
+    expect(r.stdout).toContain("STALE:");
+    expect(r.stdout).toContain(VICTIM_REL);
+    expect(r.stdout).toContain("differ from a fresh regeneration");
+    expect(r.stdout).not.toContain(FRESH_MARKER);
+
+    // Restore, and prove the restoration restored: the same mirror must go green again. A gate that
+    // stayed red would mean the red was the mirror's, not the plant's.
+    writeFileSync(victim, before);
+    const back = runGate(m);
+    expect(back.status).toBe(0);
+    expect(back.stdout).toContain(FRESH_MARKER);
+  });
+
+  it("P2 (empty regeneration): the gate's named branch is UNREACHABLE, and the two upstream refusals that make it so are pinned here", () => {
+    // UNKNOWN - verify, WITH ITS REASON, rather than a fabricated transcript. The gate's
+    // `rebuiltNames.length === 0` branch prints its own named refusal, but no input can reach it:
+    // the branch needs a generator that exits 0 having emitted nothing, and two refusals stand in
+    // the way. Both are measured here rather than asserted about, and the branch is kept as a third
+    // layer because layers one and two live in OTHER modules — if either is later relaxed, that
+    // branch becomes the live one instead of a silence.
+    //
+    // Refusal 1 — the GENERATOR refuses its own empty render (also pinned as Case 10 of
+    // scripts/generate-skill-twins.test.ts, from the generator's side).
+    // Refusal 2 — listSkillAdapters() refuses an empty directory by THROWING, which this gate
+    // converts into its fail-closed "cannot read the regenerated skill directory" verdict.
+    const empty = mkdtempSync(join(tmpdir(), "grugops-skill-twins-empty-"));
+    tmpDirs.push(empty);
+    mkdirSync(join(empty, "skills"), { recursive: true });
+    cpSync(join(ROOT, ".claude/skills"), join(empty, ".claude/skills"), {
+      recursive: true,
+    });
+
+    const r = runGate(empty);
+    expect(r.status).not.toBe(0);
+    expect(r.stdout).not.toContain(FRESH_MARKER);
+    // It failed CLOSED, and it failed BEFORE reaching the unreachable arm — the message is the
+    // generator's own, carried through, not the empty-regeneration wording.
+    expect(r.stdout).toContain("did not run cleanly");
+    expect(r.stdout).not.toContain("produced no twins");
+
+    // And the unreachable arm's wording IS present in the shipped gate, so this case is describing a
+    // branch that exists rather than one that was quietly deleted.
+    expect(readFileSync(GATE_JS, "utf8")).toContain(
+      "refusing to report an empty regeneration as fresh",
+    );
+  });
+
+  it("P3 (no exemption may be added to make a cell pass): DISTRIBUTION_PAIR_EXEMPT has exactly one member", () => {
+    // D-64 vacuity trap 3. The cheapest way to make a byte gate green is to exempt the file that
+    // fails it, so the exemption list's LENGTH is asserted from the committed guard source — a
+    // source this plan does not edit at all.
+    //
+    // A BOUNDED slice whose section marker is asserted present BEFORE the slice is used. An
+    // unbounded scan of a 4000-line file is the brittleness IN-03 named: it would match a mention of
+    // the constant in any comment anywhere and quietly measure the wrong text.
+    const src = readFileSync(join(ROOT, "scripts/check-foundation-guards.ts"), "utf8");
+    const MARKER = "const DISTRIBUTION_PAIR_EXEMPT";
+    const at = src.indexOf(MARKER);
+    // The marker is asserted PRESENT, and asserted UNIQUE: two declarations would make the slice
+    // below measure whichever came first, silently.
+    expect(at, "the exemption declaration must exist").toBeGreaterThanOrEqual(0);
+    expect(src.indexOf(MARKER, at + 1), "exactly one declaration").toBe(-1);
+
+    // Non-vacuity floor on what was scanned. A slice taken from a truncated or empty read satisfies
+    // every assertion below by matching nothing.
+    expect(src.length).toBeGreaterThan(50000);
+
+    // Bound: from the marker to the first semicolon that terminates the declaration, capped so a
+    // missing terminator cannot swallow the rest of the file.
+    const MAX_DECL_CHARS = 400;
+    const window = src.slice(at, at + MAX_DECL_CHARS);
+    const end = window.indexOf(";");
+    expect(end, "the declaration must terminate inside the bound").toBeGreaterThan(0);
+    const decl = window.slice(0, end);
+
+    const members = [...decl.matchAll(/"([^"]+)"/g)].map((mm) => mm[1]);
+    expect(members).toEqual(["skills/grugops/SKILL.md"]);
+    // Cardinality pinned as a NUMBER, so a list that silently stops matching shrinks loudly rather
+    // than passing over an empty set.
+    expect(members).toHaveLength(1);
+  });
+
+  it("P4 (this plan removed nothing): guard_distribution_pair is still present and still compares the pair", () => {
+    // The new byte gate and guard_distribution_pair now ask overlapping questions from two
+    // directions, and the byte gate is the stronger of the two because it compares against a
+    // REGENERATION rather than against the pair's sibling. That is not a reason to delete the pair
+    // guard in the same round that introduces its overlap, so this case pins that nothing was
+    // weakened. Any consolidation is a later decision, made on purpose.
+    const src = readFileSync(join(ROOT, "scripts/check-foundation-guards.ts"), "utf8");
+    expect(src).toContain("function guardDistributionPair()");
+    // Matched WITHOUT the backticks: the guard's finding embeds them as escaped backticks inside a
+    // template literal, so a comparison spelling them literally would fail on a guard that is
+    // perfectly intact — a false red, which on a safety surface is as corrosive as a false green.
+    expect(src).toContain("DIVERGE beyond the");
+    expect(src).toContain("Re-sync the pair, or add it to DISTRIBUTION_PAIR_EXEMPT");
+  });
+});

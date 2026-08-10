@@ -3179,3 +3179,40 @@ requirement's prose, not inside either rendering of its STATUS, so D-58's rule d
 this plan does not edit it — an executing plan quietly rewriting requirement descriptions is a
 different failure from the one D-58 governs. Owner: **a later round**, at the same time as the ceiling
 re-baselining Phase 29 (LANG-08) already owns.
+
+---
+
+## From 27-64 — two freshness gates exist in `package.json` and are named by NO continuous-integration step
+
+**Observed while wiring `freshness:skill-twins` into `.github/workflows/ci.yml` (plan 27-64, D-64
+Part B). Recorded, NOT fixed — it is outside this plan's scope, which was to add one gate, not to
+audit the wiring of the other six.**
+
+The two-sided count after 27-64 is **7 freshness entries in `package.json`**, and the ubuntu-only gate
+block in `.github/workflows/ci.yml` names **5** of them:
+
+| entry | in `package.json` | named by a CI step |
+|---|---|---|
+| `freshness` (build output) | yes | yes |
+| `freshness:catalog` | yes | yes |
+| `freshness:context` | yes | yes |
+| `freshness:adapters` | yes | yes (wired by plan 27-11) |
+| `freshness:skill-twins` | yes | yes (wired by plan 27-64) |
+| **`freshness:queue`** | yes | **NO** |
+| **`freshness:traceability`** | yes | **NO** |
+
+The workflow's own comment above that block still reads "the four freshness gates", which was already
+wrong before this plan and is now wrong by three.
+
+**Why this matters and is not cosmetic.** This is the SAME shape as the single most expensive omission
+of this phase: `freshness:adapters` existed and passed for a whole phase while being invoked by
+nothing, and a committed hand-edit to an adapter cleared every gate in the repository (27-REVIEW
+CR-01/CR-02). A gate nothing re-runs fails nothing closed. Whether `freshness:queue` and
+`freshness:traceability` are re-run by some `.test.ts` as a side effect is **UNKNOWN - verify** — it was
+not measured by this plan, and "borrowed" invocation through another step is exactly the state plan
+27-23 named as not-wired anyway.
+
+**Owner:** a later round. The fix is two lines in the ubuntu block plus a correction to its comment,
+and — following the both-ends rule this phase established — a check that each has a test spawning its
+committed `.js` directly. This plan deliberately did not take it: an executing plan that widens a
+workflow beyond its own gate is how an unrelated red lands in someone else's diff.

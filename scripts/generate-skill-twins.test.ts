@@ -41,7 +41,6 @@ import { join } from "node:path";
 import { INVARIANT, RESOLVER } from "./kit-model.js";
 
 const ROOT = join(import.meta.dirname, "..");
-const GEN_JS = join(ROOT, "scripts", "generate-skill-twins.js");
 const OVERWRITE_FLAG = "--overwrite-committed-twins";
 
 // The generator's compiled import closure. Hand-written for the same reason the gate's is, and with
