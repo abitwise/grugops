@@ -1321,3 +1321,327 @@ carrying a case in `scripts/frontmatter.test.ts`. Round equality is stated once,
 floor and not the closure evidence. The closure evidence is the gate plant moving exit 0 → exit 1 on
 both distribution twins, the pre-fix-mirror non-circularity result, the mutation control, and the two
 adversarial passes above.
+
+---
+
+## From 27-56 — CR-03: the header recogniser borrowed the TOP-LEVEL key grammar for the NESTED question (round 11)
+
+**Class.** Neither a condition bug (D-54) nor a position bug (D-57). **One grammar doing two jobs.**
+`blockHeaderAt`'s implicit-key introduction asked `KEY_LINE`, the deliberately narrow grammar for the
+**top-level** keys a frontmatter block may declare, where narrowness is an *intended refusal*.
+Borrowing it silently transferred that narrowness to **nested** mapping keys, where YAML allows any
+scalar. The module's own comment said the recogniser "CALLS the one constant rather than restating it
+… nothing here decides what a header LOOKS like" — true of the *indicator*, false of the *position*.
+
+Loader column throughout: `/usr/bin/ruby -ryaml`, **ruby 2.6.10 / psych 3.1.0 / libyaml 0.2.1**.
+Pre-fix build = commit `ac6653c` (the wave-1 build). Post-fix build = commit `0131600`.
+
+### 1. RED, against the wave-1 build, with both columns
+
+Every row is `---` / `name: x` / `tools:` / `<header line>` / `    Read,` / `    # x, Agent(grugops-orchestrator)` / `---`.
+
+| Row | header line | module (pre-fix) | `/usr/bin/ruby -ryaml` |
+|---|---|---|---|
+| V1 quoted | `  "a b": >-` | `{"ok":true,"value":false}` | `{"tools"=>{"a b"=>"Read, # x, Agent(grugops-orchestrator)"}}` |
+| V2 dotted | `  a.b: >-` | `{"ok":true,"value":false}` | `{"tools"=>{"a.b"=>"Read, # x, Agent(grugops-orchestrator)"}}` |
+| V3 digit-leading | `  1a: >-` | `{"ok":true,"value":false}` | `{"tools"=>{"1a"=>"Read, # x, Agent(grugops-orchestrator)"}}` |
+| V4 space-containing | `  a b: >-` | `{"ok":true,"value":false}` | `{"tools"=>{"a b"=>"Read, # x, Agent(grugops-orchestrator)"}}` |
+| V5a single-quoted | `  'a b': >-` | `{"ok":true,"value":false}` | `{"tools"=>{"a b"=>"Read, # x, Agent(grugops-orchestrator)"}}` |
+| V5b colon in quotes | `  "a: b": >-` | `{"ok":true,"value":false}` | `{"tools"=>{"a: b"=>"Read, # x, Agent(grugops-orchestrator)"}}` |
+| V6a multi-byte | `  été: >-` (precomposed, 9 code units / 11 bytes) | `{"ok":true,"value":false}` | `{"tools"=>{"été"=>"Read, # x, Agent(grugops-orchestrator)"}}` |
+| V6b combining mark | `  été: >-` (decomposed, 11 code units / 13 bytes) | `{"ok":true,"value":false}` | `{"tools"=>{"été"=>"Read, # x, Agent(grugops-orchestrator)"}}` |
+| C1 bare nested key | `  nested: >-` | `{"ok":true,"value":true}` | `{"tools"=>{"nested"=>"Read, # x, Agent(grugops-orchestrator)"}}` |
+| C2 top-level refusal | `1bad: value` at the baseline | `{"ok":false,"reason":"cannot read \`1bad: value\` as a frontmatter key line or as a continuation of the previous key"}` | `{"1bad"=>"value"}` |
+| C3 plain-scalar lookalike | `description: see` / `  foo: >-` | `{"ok":true,"value":false}`, value `see foo: Read, # x, Agent(grugops-orchestrator)` | **REJECT** `Psych::SyntaxError: mapping values are not allowed in this context` |
+
+**Eight live silent no-grants.** C1 and C2 are the byte-unchanged controls.
+
+*C3's plan wording is corrected here rather than repeated:* the plan describes `description: see` /
+`  foo: >-` as a document "the loader reads as one scalar". Measured, libyaml **REJECTS** it. The
+row that libyaml really reads as one scalar is `tools: see` / `  >-`, which loads as `see >- q,` —
+that is the true one-scalar control and it is asserted separately (see §4, rows g7/g8).
+
+### 2. GREEN, against the post-fix build, same table
+
+V1–V6b all move to `{"ok":true,"value":true}` and `grantedAgentNames` returns exactly
+`["grugops-orchestrator"]` for each. C1, C2 and C3 are **byte-identical**, including C2's reason
+string.
+
+### 3. The key-end disposition, adjudicated against the loader (D-60)
+
+| Row | header line | module (post-fix) | `/usr/bin/ruby -ryaml` | reading |
+|---|---|---|---|---|
+| K1 | `  a: b: >-` | no header, value `a: b: >- Read,` | **REJECT** *mapping values are not allowed in this context* | FIRST predicts this; LAST does not |
+| K5 | `  a b: c: >-` | no header, value `a b: c: >- Read,` | **REJECT** *same* | FIRST predicts this; LAST does not |
+| K4 | `  a:b: >-` | grant | `{"a:b"=>"Read, # x, Agent(…)"}` | a colon with no separation is key text |
+| K3 | `  "a b" : >-` | grant | `{"a b"=>"Read, # x, Agent(…)"}` | separation may precede the indicator |
+| K6 | `  "": >-` | grant | `{""=>"Read, # x, Agent(…)"}` | the empty quoted key |
+| K8 | `  'a''b': >-` | grant | `{"a'b"=>"Read, # x, Agent(…)"}` | YAML's `''` escape inside the key |
+| K13 | `  "a":"b": >-` | no header, byte-unchanged | **REJECT** *did not find expected key* | no separation after the quoted key |
+| K14 | `  'a b: >-` | byte-unchanged (grants, as pre-fix) | **REJECT** *unexpected end of stream while scanning a quoted scalar* | an unterminated quote closes nothing |
+| K9 | `  "a\x41b": >-` | **REFUSES**, naming `` `\x` `` | `{"aAb"=>"Read, # x, Agent(…)"}` | the loud arm; see §7 |
+| K10 | `  a:` / `    b c: >-` | grant | `{"a"=>{"b c"=>"Read, # x, Agent(…)"}}` | two levels down |
+| K11 | `  - k: v` / `    j.x: >-` | grant | `[{"k"=>"v","j.x"=>"Read, # x, Agent(…)"}]` | inside a sequence item |
+| K12 | `  a b: >- # c` | grant | `{"a b"=>"Read, # x, Agent(…)"}` | trailing comment after the indicator |
+
+**CHOSEN: FIRST.** **REJECTED: LAST**, on K1 and K5 — two documents libyaml refuses outright, which
+is exactly what FIRST predicts. FIRST is also the direction that removes no bytes from any value.
+
+### 4. The eight `mappingValueIndicator` position-gate rows, re-run post-fix
+
+| Row | document | module value | loader |
+|---|---|---|---|
+| g1 | `tools:` / `  a: Read` / `  b: >-` / `    q,` | `a: Read b: q,` | `{"a"=>"Read","b"=>"q,"}` |
+| g2 | `tools:` / `  - k: v` / `    j: >-` / `      q,` | `k: v, j: q,` | `[{"k"=>"v","j"=>"q,"}]` |
+| g3 | `tools:` / `  ? k` / `  : >-` / `    q,` | `? k : q,` | `{"k"=>"q,"}` |
+| g4 | `tools:` / `  ? >-` / `    q,` / `  : v` | `? q, : v` | `{"q,"=>"v"}` |
+| g5 | `tools: see` / `  foo: >-` / `    q,` | `see foo: q,` | **REJECT** — no loader value; recognising costs nothing |
+| g6 | `tools: see` / `  : >-` / `    q,` | `see : q,` | **REJECT** — same |
+| g7 | `tools: see` / `  >-` / `    q,` | `see >- q,` | `"see >- q,"` — **CONTENT, not a header** |
+| g8 | `tools: see` / `  ? >-` / `    q,` | `see ? >- q,` | `"see ? >- q,"` — **CONTENT, not a header** |
+
+**All eight keep their recorded verdicts.** The gate is byte-unchanged; only which KEYS reach it moved.
+
+### 5. The gate plant, on hermetic `git archive` mirrors
+
+Planted into the **EXISTING** `allowed-tools:` key of **both** distribution twins of the
+non-coordinator `plan` skill — never by adding a second allow-list key:
+
+```
+allowed-tools:
+  a b: >-
+    Read,
+    # x, Agent(grugops-orchestrator)
+```
+
+| Mirror | build | `node scripts/check-foundation-guards.js` |
+|---|---|---|
+| planted | pre-fix `ac6653c` | **exit 0** — `ALL CHECKS PASSED` over a live grant |
+| planted | post-fix | **exit 1** — `1 CHECK(S) FAILED` |
+| unplanted | pre-fix | exit 0 |
+| unplanted | post-fix | exit 0 |
+| the real tree | post-fix | exit 0 |
+
+Verbatim failure text:
+
+```
+  FAIL  WR-05 coordinator-spawn-grant violation:
+.claude/skills/grugops-plan/SKILL.md: non-coordinator carries a spawn grant — rogue spawner (only the coordinator: true file may hold the grant)
+skills/plan/SKILL.md: non-coordinator carries a spawn grant — rogue spawner (only the coordinator: true file may hold the grant)
+```
+
+**Twins named, counted over the FAILURE block only: 2.**
+
+### 6. The repository-wide value map
+
+`git ls-files '*.md'` → **1171** files, parsed by both builds and compared as full key/value maps:
+**0 moved, 0 new refusals, 0 lifted.** Re-run after the task-2 test edits: unchanged.
+
+### 7. The one refusal whose MESSAGE moved, stated rather than hidden
+
+K9 (`  "a\x41b": >-`) refuses on **both** builds, naming `` `\x` `` on both. The embedded excerpt in
+the reason changed, because post-fix the flattened text the reason quotes is the block scalar's real
+content:
+
+- pre-fix: ``` `tools: "a\x41b": >- Read,` carries the backslash sequence `\x` … ```
+- post-fix: ``` `tools: "a\x41b": Read, # x, Agent(grugops-orchestrator)` carries the backslash sequence `\x` … ```
+
+Refusal → refusal, same named escape. This is the *only* verdict-adjacent string this plan moves, and
+the repository-wide map above confirms no tracked document is affected.
+
+### 8. The derived axis (task 2)
+
+`AXIS_NESTED_KEY_SPELLING` (8) × `AXIS_BLOCK_INDICATOR_FORM` (26, **derived**) ×
+`AXIS_HEADER_POSITION` (3) = **624** generated cells, plus **28** union cells crossing wave 1's
+region axis = **652** regions, adjudicated cell by cell against `/usr/bin/ruby -ryaml` in one batched
+process.
+
+```
+D-60 axis differential [corpus 4c50004dedcc7e81, ruby=2.6.10 psych=3.1.0 libyaml=0.2.1] — 624 generated cells (8 x 26 x 3) + 28 union cells | loader-rejected and SKIPPED 0 | adjudicated 652 | loud refusal arm 14 | name-set disagreements 0
+```
+
+- Both never-exemptible partitions **EMPTY**: `silentWhileLoaderGrants` 0, `moduleGrantsWhileLoaderDoesNot` 0.
+- Loader-rejected **skip count printed: 0**.
+- Loud refusal arm **14** — the 14 union cells whose sibling region carries a non-allowlisted `\x41`,
+  which D-59 requires to refuse even though a block scalar is present in the same key.
+- Name-set disagreements **0** (the second fact, over the same already-loaded value — D-09 / KIT-03).
+- **The indicator axis is DERIVED, not transcribed.** Candidates are composed from the three things
+  `BLOCK_INDICATOR`'s own pattern names (indicator character, indentation digit, chomping sign, in
+  either order) and then FILTERED through the exported constant. Liveness is proven by re-filtering
+  the identical candidate set through a deliberately narrowed copy and asserting the axis gets
+  strictly shorter — a transcription would not move.
+- **The union cells are 28** = 7 spellings × 2 escape kinds × 2 orderings, count asserted as that
+  arithmetic. They cross D-59 at exactly the point the two fixes meet: a block region introduced by a
+  key spelling that could not produce one before, adjacent to a quoted sibling carrying an escape.
+
+### 9. NON-CIRCULARITY, measured against a hermetic pre-`27-56` mirror
+
+The **identical corpus** (same digest `4c50004dedcc7e81`, dumped from the suite itself via
+`GRUGOPS_D60_DUMP_CORPUS` and fed to the mirror run, so "the outside run used the same corpus" is a
+measurement and not a claim):
+
+| build | regions | skipped | agreed | loud | **SILENT-no-grant** | module-grant-loader-none |
+|---|---|---|---|---|---|---|
+| pre-fix mirror `ac6653c` | 652 | 0 | 78 | 14 | **560** | 0 |
+| post-fix `0131600` | 652 | 0 | 638 | 14 | **0** | 0 |
+
+Also committed as an in-suite case (`D-60 the identical axis reports a NON-EMPTY never-exemptible
+partition against a hermetic mirror of the pre-27-56 commit`), which asserts the mirror really
+pre-dates the production before believing anything it reports:
+
+```
+[D-60 axis, pre-fix mirror ac6653c] regions=652 skipped=0 SILENT-no-grant=560 module-grant-loader-none=0
+```
+
+**560 of 652.** `27-55` recorded its own count of **1 of 72** as thin and stated rather than
+presented as a margin; this one is not thin, and the difference is that the axis crosses the defect's
+own dimension (the key spelling) rather than meeting it incidentally.
+
+### 10. MUTATION CONTROL — the pin is proven able to FAIL
+
+In a scratch copy, the nested production was reverted **alone** (`blockHeaderAt`'s introduction 2 put
+back onto `KEY_LINE`, everything else byte-identical) **and the copy was rebuilt with `tsc`**.
+
+**The harness premise was asserted first.** vitest resolves the test file's `./frontmatter.js` import
+to the **committed `.js`**, so a mutation applied only to the `.ts` mutates nothing the suite can see.
+Before running the suite, the mutated build was probed directly and confirmed to return
+`{"ok":true,"value":false}` for V1–V4. This is the eighth instance in this phase of the
+"assert the verification harness's own premise" lesson.
+
+**And the control was itself controlled.** An UNMUTATED scratch copy was run first, because the copy
+has no `.git` and nine cases read `git ls-files` / `git archive`:
+
+| run | cases red |
+|---|---|
+| unmutated scratch copy (harness baseline) | **9** — all of them `git`-dependent, red for a copy reason and not a code reason |
+| mutated scratch copy | **15** |
+| **attributable to the mutation** | **6** |
+
+The six, by name:
+
+1. `D-60 V1-V4 — a quoted, dotted, digit-leading or space-containing nested key carries a header …`
+2. `D-60 V6 encoding — a multi-byte nested key and a combining-mark nested key …`
+3. `D-60 the key-end disposition — the key ends at the FIRST colon carrying a separation …`
+4. `D-60 the production is reached at EVERY position the recogniser knows about — adversarial pass (a) …`
+5. `D-52 loader differential — every loader-accepted cell of a GENERATED corpus agrees with a real YAML 1.2 loader …`
+6. `D-60 the derived key-spelling x indicator x position axis — every loader-accepted cell agrees …`
+
+One failure message, quoted, showing the case names its own assertion:
+
+```
+AssertionError: NEVER EXEMPTIBLE: the module read a live grant as `carries no grant`. This is the
+direction the whole phase exists to close and no reason may be written for it.
+```
+
+Had the naive count of **15** been reported, it would have overstated the control by more than
+double. Recorded because the overstatement was available and was measured away.
+
+### 11. The expressibility floor, before and after, measured by running it
+
+| | ledger family rows derived | expressible | outside the generator's shape space |
+|---|---|---|---|
+| before | **11** | 8 | 3 (d1, d2, d3) |
+| after | **12** | **9** | 3 (d1, d2, d3) |
+
+```
+WR-01 expressibility floor — ledger family rows derived 12 | expressible 9 (G3, family (a), family (b), A, B, C, F, G, G2) | outside the generator's shape space 3 (d1, d2, d3)
+```
+
+**The floor did its job unprompted, and that is the fact worth recording.** The G3 ledger row landed
+with task 1's fix, and the floor immediately went **red by name** — `a failure family named in the
+module's ledger with NO axis-member combination that builds it` — before any corpus member was added.
+`AXIS_KEY_LINE_BASE` grew **22 → 23** and the derived key-line axis **49 → 50**, both by the same
+identity the file already asserts.
+
+### 12. ADVERSARIAL PASS (a) — which set of nested keys does the production ENUMERATE, and at which positions is it asked?
+
+**The positions are enumerated from the code, not remembered.** `blockHeaderAt` is called at exactly
+**two** sites (`scripts/frontmatter.ts:1936` the block-sequence item path, `:2009` the continuation
+path). The third header position — the top-level key line — asks `BLOCK_INDICATOR` directly and its
+key is `KEY_LINE`'s by contract, so the nested production is correctly *not* asked there.
+
+| probe | shape | result |
+|---|---|---|
+| a1 | continuation at depth 1 | grants |
+| a2 | two levels down (`  a:` / `    b c: >-`) | grants |
+| a3 | after a sibling mapping key (`  a: Read` / `  b.c: >-`) | grants |
+| a4 | immediately after another block scalar's content | grants |
+| a5 | inside a block-sequence item's compact mapping | grants |
+| a6 | inside a **compact nested** sequence (`  - - a b: >-`) | grants; loader REJECTS the document |
+| a7 | inside a flow collection | **NOT** recognised — the flow gate holds; byte-identical pre and post; loader REJECTS |
+
+**Pass (a) found nothing new**, and is recorded with its question and its shapes anyway. All seven are
+committed as cases.
+
+### 13. ADVERSARIAL PASS (b) — what is the production's INPUT assembled from?
+
+Walked one line from the raw block into the recogniser and asked what each stage had already consumed:
+
+1. `raw.trim()` (continuation path) — removes leading **and** trailing whitespace using
+   `String.prototype.trim`'s alphabet (Unicode WhiteSpace ∪ LineTerminator), which is **wider than
+   this module's own declared `[ \t]` class**.
+2. `indentOf(raw)` counts leading `[ \t]` only; a tab counts as 1.
+3. `SEQ_ITEM` (item path) — the dashes are consumed before `blockHeaderAt` sees the text.
+4. `stripComment` has **not** run: the header is recognised first (D-57), so a `#` inside the key text
+   is intact.
+5. `stripFencedBlocks` is no longer applied to the frontmatter region at all (D-53).
+
+| probe | shape | module (post) | loader |
+|---|---|---|---|
+| b1 | NBSP before the key | grants; key text `a b` | `{" a b"=>…}` — key text differs by one character |
+| b2 | NBSP after the indicator | grants | **REJECT** |
+| b3 | ZWNBSP after the indicator | grants | **REJECT** |
+| b4 | TAB indentation on the header line | grants | **REJECT** |
+| b5 | `#` inside a bare key (`a#b`) | grants | `{"a#b"=>…}` — agrees |
+| b6 | `#` inside a quoted key (`"a #b"`) | grants | `{"a #b"=>…}` — agrees |
+| b7 | compact nested sequence | grants | **REJECT** |
+| b8 | trailing spaces after the indicator | grants | agrees |
+| b9 | CRLF on the header line | grants | agrees |
+| b10 | `' ': >-` (a whitespace-only quoted key) | grants | `{" "=>…}` — agrees |
+
+**Finding, stated as OPEN rather than closed here.** The production's input has already had
+`String.prototype.trim`'s Unicode whitespace set removed from both ends, and that alphabet is wider
+than the `[ \t]` class this module declares. Two measured consequences: b1, where the module's
+flattened key text differs from the loader's by one character on a document the loader **accepts**;
+and b2/b3, where the module sees a clean indicator on documents the loader **rejects**.
+
+**It is not a new defect and not this plan's.** `raw.trim()` is byte-unchanged and fed `KEY_LINE`
+identically before D-60 — measured: b1's pre-fix flattened value is already `a b: >- Read,` with the
+NBSP gone. Neither consequence is in the silent-no-grant direction: b1 moves a value by one character
+without moving the grant, and b2/b3/b4/b7 make the module *more* willing than the loader on documents
+no platform loads, which is over-refusal at the gate rather than a bypass. Owner named below.
+
+### Still OPEN, with a named owner
+
+| Item | Measurement | Owner |
+|---|---|---|
+| **`raw.trim()`'s alphabet is wider than the module's declared `[ \t]` class** | b1 (value differs by one character on a loader-ACCEPTED document), b2/b3 (module recognises an indicator on loader-REJECTED documents). Pre-existing, byte-unchanged by this plan, never in the silent-no-grant direction | **a later round** — decide whether the continuation path's trim should use the module's declared class (D-50's `firstOutsideDeclaredWs` already exists for the delimiter scan) and take the repository-wide value map before and after |
+| **`AXIS_HEADER_POSITION` has 3 members and does not reach a compact nested sequence** | Covered instead by probe a6, which the loader rejects anyway | **a later round** — add the member if a loader-accepted spelling of it is found |
+| **`27-55`'s two open items** (the union axis's ORDERING arm, and its 1-of-72 mirror count) | Untouched by `27-56` | **carried, unchanged** |
+| **`27-49` WR-04 residual, `27-50` R1 residual, `27-53` fence-classifier floor, `toggle[1]` sensitivity** | Untouched by `27-56`; it changed no exemption machinery, no fence classifier and no toggle | **carried, unchanged** |
+| **KIT-03 and SPAWN-04 stay `[ ]` / `Gaps Found`** | Not promoted by this plan | **the next verification round** (D-58 item 4 — an executing plan never promotes a row because its own tasks targeted that requirement's defect) |
+
+### A harness-premise note worth carrying, found by this plan
+
+**This repository's vitest intercepts console output, so every `console.log` this file calls for a
+"PRINTED, never silent" skip is invisible on a default `npx vitest run`.** Measured: the D-52 corpus
+dump (`GRUGOPS_D52_DUMP_CORPUS`) and the WR-01 floor's summary line both produce **zero** lines
+without `--disableConsoleIntercept` on vitest 4.1.8. The prints are real and reappear with that flag.
+The D-60 corpus dump added by this plan therefore writes to a **caller-named file** rather than to
+stdout, so a dump that cannot be seen cannot be mistaken for a dump that happened. The existing
+`console.log`-based skips are left as they are (changing them is out of this plan's scope) and are
+recorded here so the next round does not read "PRINTED" as "visible".
+
+### Specless-probe accounting for this plan
+
+**1 probe row == 1 authored `explicit` + 0 backstop + 0 unresolved + 0 dismissed** — KIT-03 encoding
+(key equality and key length inside the nested-key production are decided in ONE declared unit,
+measured against the loader for a multi-byte key and a combining mark). Authored as a plain string in
+`must_haves.truths` and carrying a case (`D-60 V6 encoding`). Round equality is stated once, in `27-61`.
+
+### The regression suite is a FLOOR
+
+`npx vitest run --exclude '**/scripts/e2e/**'` reports **1312 passed | 2 skipped | 0 failed**. That is
+a floor and not the closure evidence. The closure evidence is the gate plant moving exit 0 → exit 1 on
+both distribution twins, the 560-of-652 pre-fix-mirror non-circularity result, the mutation control
+with its own control, and the two adversarial passes above.

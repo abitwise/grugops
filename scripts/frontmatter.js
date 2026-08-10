@@ -356,7 +356,13 @@ export function stripFencedBlocks(text) {
 const KEY_LINE = /^([A-Za-z_][A-Za-z0-9_-]*):(?:[ \t]+(.*))?[ \t]*$/;
 // A block-scalar header: the literal `|` or folded `>` indicator, an optional indentation digit and
 // an optional chomping `+`/`-` in either order, then optional trailing whitespace or a comment.
-const BLOCK_INDICATOR = /^[|>][0-9]*[+-]?[ \t]*(?:#.*)?$|^[|>][+-]?[0-9]*[ \t]*(?:#.*)?$/;
+//
+// EXPORTED (27-56, D-60) ON `SEQ_ITEM`'S OWN ARGUMENT. The indicator axis of the D-60 differential is
+// DERIVED from this constant — candidate spellings are generated and filtered THROUGH it, so a
+// change here changes the axis length — rather than transcribed beside it. An axis built from a copy
+// would keep passing after the real constant moved, which is the weaker-duplicate shape this module
+// deletes on sight.
+export const BLOCK_INDICATOR = /^[|>][0-9]*[+-]?[ \t]*(?:#.*)?$|^[|>][+-]?[0-9]*[ \t]*(?:#.*)?$/;
 // (D-57) HOW A BLOCK SCALAR JOINS ITS LINES, WHICH IS THE INDICATOR'S OWN MEANING AND NOT A
 // FORMATTING CHOICE. YAML 1.2 § 8.1.2 (literal `|`) PRESERVES each line break; § 8.1.3 (folded `>`)
 // FOLDS it to a single space. This module joined BOTH with a space, and row g5 measured what that

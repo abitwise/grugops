@@ -54,6 +54,7 @@ import {
   assertItemPathScalarClosed,
   assertFoldTargetIsNotBlockOwned,
   SEQ_ITEM,
+  BLOCK_INDICATOR,
   DQ_ESCAPE_ALLOWLIST,
   ENUMERATION_LEGAL_CHARS,
   TOOLS_KEYS,
@@ -5714,6 +5715,14 @@ const MODULE_SYMBOLS = [
   "interface Part",
   "regionText",
   "assertFoldTargetIsNotBlockOwned",
+  // (D-60, round 11) THE NESTED-KEY PRODUCTION'S OWN VOCABULARY. `KEY_LINE` stays on this list — it
+  // still exists and still owns the baseline key line — and these three are the names that took its
+  // SECOND job away. `BLOCK_INDICATOR` earns an entry now that it is exported and cited by the
+  // derived indicator axis rather than transcribed.
+  "blockMapImplicitEntry",
+  "closingQuoteIndex",
+  "MAPPING_VALUE_INDICATOR",
+  "BLOCK_INDICATOR",
   "cellDoc",
 ] as const;
 
@@ -8781,6 +8790,481 @@ describe("frontmatter — the loader differential over a GENERATED corpus (D-52 
     }
     expect(real.version).toContain("ruby=");
     expect(real.version).toContain("libyaml=");
+  });
+
+  // ── (27-56, D-60) THE NESTED KEY-SPELLING x INDICATOR FORM x POSITION AXIS ────────────────────
+  //
+  // FOUR ROWS IS NOT A CLOSURE. `27-REVIEW` § CR-03 reports four spellings; a case list naming those
+  // four and nothing else is the shape this module has declined to ship eight times. The property is
+  // that a nested mapping key's SPELLING does not change a verdict, and a property is expressed by
+  // crossing an axis and letting a real loader adjudicate every cell.
+  //
+  // NOTHING HERE REFERS TO THE RECOGNISER'S INTERNALS. The key spellings are YAML scalar shapes, the
+  // positions are YAML structural positions, and the expected answer for every cell is what
+  // `/usr/bin/ruby -ryaml` computes. The one thing derived FROM the module is the indicator axis, and
+  // it is derived by FILTERING candidate spellings THROUGH the exported constant, so a change to the
+  // constant changes the axis length — see the liveness assertion below.
+
+  interface NestedKeySpelling {
+    readonly label: string;
+    readonly key: string;
+  }
+  const AXIS_NESTED_KEY_SPELLING: readonly NestedKeySpelling[] = [
+    { label: "bare", key: "nested" },
+    { label: "quoted", key: '"a b"' },
+    { label: "dotted", key: "a.b" },
+    { label: "digit-leading", key: "1a" },
+    { label: "space-containing", key: "a b" },
+    { label: "colon inside the quotes", key: '"a: b"' },
+    { label: "multi-byte", key: "été" },
+    { label: "empty quoted", key: '""' },
+  ];
+
+  // THE INDICATOR AXIS, DERIVED FROM `BLOCK_INDICATOR` RATHER THAN TRANSCRIBED BESIDE IT. Candidate
+  // spellings are composed from the three things the constant's own pattern names — the indicator
+  // character, an indentation digit and a chomping sign, in EITHER order — and then FILTERED through
+  // the imported constant. The axis is therefore a function of the constant: narrow the constant and
+  // this axis shrinks, which is asserted below with a deliberately narrowed copy.
+  const INDICATOR_CANDIDATES: readonly string[] = (() => {
+    const out: string[] = [];
+    for (const indicator of ["|", ">"]) {
+      for (const digit of ["", "1", "2"]) {
+        for (const chomp of ["", "+", "-"]) {
+          out.push(`${indicator}${digit}${chomp}`, `${indicator}${chomp}${digit}`);
+        }
+      }
+    }
+    return [...new Set(out)];
+  })();
+  const AXIS_BLOCK_INDICATOR_FORM: readonly string[] = INDICATOR_CANDIDATES.filter(
+    (s) => BLOCK_INDICATOR.test(s),
+  );
+
+  // The indentation digit a spelling carries, if any. YAML gives it meaning relative to the PARENT
+  // node's indentation, so the builder below places the scalar's content accordingly — otherwise the
+  // digit members would all be documents the loader rejects and the axis would be decorative.
+  const indentationDigit = (indicator: string): number => {
+    const m = indicator.match(/[0-9]/);
+    return m === null ? 2 : Number(m[0]);
+  };
+
+  interface HeaderPosition {
+    readonly label: string;
+    // The indent of the line the nested key sits on, which is also its parent mapping's indentation.
+    readonly mapIndent: number;
+    readonly prefix: readonly string[];
+  }
+  const AXIS_HEADER_POSITION: readonly HeaderPosition[] = [
+    {
+      label: "nested mapping value on a continuation line",
+      mapIndent: 2,
+      prefix: ["tools:"],
+    },
+    {
+      label: "the same one level deeper",
+      mapIndent: 4,
+      prefix: ["tools:", "  outer:"],
+    },
+    {
+      label: "a nested mapping value inside a block-sequence item",
+      mapIndent: 4,
+      prefix: ["tools:", "  - k: v"],
+    },
+  ];
+
+  const D60_FIRST = "Read,";
+  const buildD60Region = (
+    spelling: NestedKeySpelling,
+    indicator: string,
+    position: HeaderPosition,
+  ): string => {
+    const map = " ".repeat(position.mapIndent);
+    const content = " ".repeat(position.mapIndent + indentationDigit(indicator));
+    return [
+      ...position.prefix,
+      `${map}${spelling.key}: ${indicator}`,
+      `${content}${D60_FIRST}`,
+      `${content}# x, ${HARNESS_TOKEN}`,
+      "",
+    ].join("\n");
+  };
+
+  // ── THE UNION CELLS: THIS PLAN'S FIX CROSSED WITH WAVE 1's ────────────────────────────────────
+  //
+  // `27-55` (D-59) scoped the block-scalar quoting exemption to the REGION the scalar covers. This
+  // plan creates NEW regions, at key spellings that could not produce one before, so the two edits
+  // meet at the flush and must be adjudicated together rather than each in its own file. Each cell
+  // puts a newly recognised nested key's block scalar beside a QUOTED SIBLING carrying an escape,
+  // both orderings, with the escape allowlisted in one arm and not in the other.
+  interface UnionCell {
+    readonly label: string;
+    readonly region: string;
+    // Does the module's declared policy REFUSE this document? A non-allowlisted escape in a sibling
+    // region must still refuse — that is the whole of D-59 — even though a block scalar is present.
+    readonly expectRefusal: boolean;
+  }
+  const D60_UNION_CELLS: readonly UnionCell[] = (() => {
+    const out: UnionCell[] = [];
+    const spellings = AXIS_NESTED_KEY_SPELLING.filter((s) => s.label !== "bare");
+    for (const spelling of spellings) {
+      for (const escape of [
+        { label: "allowlisted escape", text: '"\\"sibling\\""', refuses: false },
+        { label: "non-allowlisted escape", text: '"\\x41bc"', refuses: true },
+      ]) {
+        for (const order of ["sibling BEFORE the block", "sibling AFTER the block"]) {
+          const sibling = `  sib: ${escape.text}`;
+          const block = [
+            `  ${spelling.key}: >-`,
+            `    ${D60_FIRST}`,
+            `    # x, ${HARNESS_TOKEN}`,
+          ];
+          const body =
+            order === "sibling BEFORE the block"
+              ? [sibling, ...block]
+              : [...block, sibling];
+          out.push({
+            label: `${spelling.label} | ${escape.label} | ${order}`,
+            region: ["tools:", ...body, ""].join("\n"),
+            expectRefusal: escape.refuses,
+          });
+        }
+      }
+    }
+    return out;
+  })();
+
+  it("D-60 the derived key-spelling x indicator x position axis — every loader-accepted cell agrees with a real YAML 1.2 loader, and the two never-exemptible directions are EMPTY", () => {
+    // TWO-SIDED CARDINALITY ON EVERY AXIS, so an axis emptied or quietly grown by a later edit fails
+    // HERE first rather than shrinking the differential in silence.
+    expect(AXIS_NESTED_KEY_SPELLING.length).toBe(8);
+    expect(AXIS_NESTED_KEY_SPELLING.length).toBeGreaterThan(0);
+    expect(
+      new Set(AXIS_NESTED_KEY_SPELLING.map((s) => s.key)).size,
+      "two spellings that render the same key would make one cell look like two",
+    ).toBe(AXIS_NESTED_KEY_SPELLING.length);
+    expect(AXIS_HEADER_POSITION.length).toBe(3);
+    expect(AXIS_BLOCK_INDICATOR_FORM.length).toBe(26);
+    expect(AXIS_BLOCK_INDICATOR_FORM.length).toBeGreaterThan(0);
+
+    // THE DERIVATION IS LIVE, PROVEN BY NARROWING THE PREDICATE RATHER THAN BY CLAIMING IT. A
+    // transcribed axis would keep its length whatever the constant said; this one is the candidate
+    // set filtered through `BLOCK_INDICATOR`, so a narrower predicate over the SAME candidates yields
+    // a strictly shorter axis. That is the only difference between a derivation and a copy.
+    const NARROWED = /^[|>][+-]?$/;
+    const narrowedAxis = INDICATOR_CANDIDATES.filter((s) => NARROWED.test(s));
+    expect(
+      narrowedAxis.length,
+      "the indicator axis must track the predicate it is filtered through, not a transcription",
+    ).toBeLessThan(AXIS_BLOCK_INDICATOR_FORM.length);
+    // ...and the candidate space really contains the two things the constant's pattern names, or the
+    // filter above is vacuous.
+    expect(
+      AXIS_BLOCK_INDICATOR_FORM.filter((s) => /[0-9]/.test(s)).length,
+      "the axis must carry indentation-digit spellings",
+    ).toBeGreaterThan(0);
+    expect(
+      AXIS_BLOCK_INDICATOR_FORM.filter((s) => /[+-]/.test(s)).length,
+      "the axis must carry chomping spellings",
+    ).toBeGreaterThan(0);
+    expect(
+      AXIS_BLOCK_INDICATOR_FORM.filter((s) => /[0-9][+-]/.test(s)).length,
+      "and both ORDERS of digit and chomping, which is what the constant's two alternatives are for",
+    ).toBeGreaterThan(0);
+    expect(
+      AXIS_BLOCK_INDICATOR_FORM.filter((s) => /[+-][0-9]/.test(s)).length,
+    ).toBeGreaterThan(0);
+
+    // THE CELL TOTAL IS THE PRODUCT, ASSERTED AS ARITHMETIC WITH THE DERIVATION IN THE MESSAGE.
+    const cells: {
+      where: string;
+      region: string;
+      spelling: NestedKeySpelling;
+    }[] = [];
+    for (const spelling of AXIS_NESTED_KEY_SPELLING) {
+      for (const indicator of AXIS_BLOCK_INDICATOR_FORM) {
+        for (const position of AXIS_HEADER_POSITION) {
+          cells.push({
+            where: `${spelling.label} | ${JSON.stringify(indicator)} | ${position.label}`,
+            region: buildD60Region(spelling, indicator, position),
+            spelling,
+          });
+        }
+      }
+    }
+    const PRODUCT =
+      AXIS_NESTED_KEY_SPELLING.length *
+      AXIS_BLOCK_INDICATOR_FORM.length *
+      AXIS_HEADER_POSITION.length;
+    expect(
+      cells.length,
+      `the enumerated corpus must be the product of the THREE axis lengths (${AXIS_NESTED_KEY_SPELLING.length} spellings x ${AXIS_BLOCK_INDICATOR_FORM.length} indicator forms x ${AXIS_HEADER_POSITION.length} positions)`,
+    ).toBe(PRODUCT);
+    expect(new Set(cells.map((c) => c.where)).size).toBe(PRODUCT);
+
+    // THE UNION CELLS RIDE THE SAME BATCH, and their count is DERIVED so one added without its
+    // loader verdict fails arithmetically rather than silently.
+    expect(D60_UNION_CELLS.length).toBe(
+      (AXIS_NESTED_KEY_SPELLING.length - 1) * 2 * 2,
+    );
+    const BATCH = PRODUCT + D60_UNION_CELLS.length;
+
+    // THE TWO CONSUMERS MUST READ THE SAME BYTES — round 6's lesson, applied to this harness too.
+    const regions = [...cells.map((c) => c.region), ...D60_UNION_CELLS.map((u) => u.region)];
+    expect(regions.length).toBe(BATCH);
+    expect(
+      regions.filter((r) => r.split("\n").some((l) => l.trimEnd() === "---")).length,
+      "a region carrying its own `---` line would hand the loader and the module different text",
+    ).toBe(0);
+
+    const probe = probeLoader(RUBY);
+    if (!probe.ok) {
+      console.warn(
+        `SKIPPED the D-60 axis differential: ${probe.reason}. This is a PRINTED skip, never a silent one — the ${BATCH}-cell corpus was enumerated and no expectation was invented in the loader's absence.`,
+      );
+      return;
+    }
+
+    // THE CORPUS DIGEST, PRINTED, so the out-of-suite pre-fix-mirror run and the mutation control can
+    // be shown to have used THIS corpus rather than a differently-shaped one. Same NUL separator and
+    // same escape-never-raw discipline as the D-52 digest above.
+    const digest = createHash("sha256")
+      .update(regions.join(String.fromCharCode(0)))
+      .digest("hex")
+      .slice(0, 16);
+    // DUMPED ON REQUEST so the pre-fix-mirror run and the mutation control consume THIS corpus's own
+    // bytes rather than a replica of it — "the outside run used the same corpus" is otherwise a claim.
+    // Written to a path the caller names, not to stdout, because this repository's vitest intercepts
+    // console output by default (see the harness-premise note in 27-56-SUMMARY.md): a dump that only
+    // reaches an intercepted console is a dump that silently did not happen.
+    if (process.env.GRUGOPS_D60_DUMP_CORPUS) {
+      writeFileSync(
+        process.env.GRUGOPS_D60_DUMP_CORPUS,
+        JSON.stringify({ digest, product: PRODUCT, regions }),
+      );
+    }
+
+    const raw = execFileSync(RUBY, ["-e", LOADER_PROGRAM], {
+      input: JSON.stringify(regions),
+      encoding: "utf8",
+      maxBuffer: 64 * 1024 * 1024,
+    });
+    const verdicts = JSON.parse(raw) as {
+      accepted: boolean;
+      value?: string;
+      flat?: string;
+      error?: string;
+    }[];
+    expect(
+      verdicts.length,
+      "a truncated loader batch must fail arithmetically rather than silently shorten the differential",
+    ).toBe(BATCH);
+
+    // THE THREE DECLARED DIRECTIONS, REPORTED SEPARATELY. Two are never exemptible and are asserted
+    // empty; the third — the module refusing where the loader reads a value — is the loud arm this
+    // module's policy chooses on purpose, so it is COUNTED rather than folded into "no names".
+    const silentWhileLoaderGrants: string[] = [];
+    const moduleGrantsWhileLoaderDoesNot: string[] = [];
+    const loudRefusals: string[] = [];
+    const nameSetDisagreements: string[] = [];
+    let skipped = 0;
+
+    for (let i = 0; i < cells.length; i += 1) {
+      const cell = cells[i];
+      const verdict = verdicts[i];
+      if (!verdict.accepted) {
+        skipped += 1;
+        console.log(`D-60 SKIP (loader rejected) ${cell.where} :: ${verdict.error}`);
+        continue;
+      }
+      const document = `---\nname: x\n${cell.region}---\nBody.\n`;
+      const answer = hasSpawnGrant(document);
+      const loaderGrants = (verdict.value ?? "").includes(HARNESS_TOKEN);
+      if (!answer.ok) {
+        loudRefusals.push(`${cell.where}\t${answer.reason.slice(0, 80)}`);
+        continue;
+      }
+      if (!answer.value && loaderGrants) {
+        silentWhileLoaderGrants.push(
+          `${cell.where}\tloader=${JSON.stringify(verdict.value)}`,
+        );
+        continue;
+      }
+      if (answer.value && !loaderGrants) {
+        moduleGrantsWhileLoaderDoesNot.push(
+          `${cell.where}\tloader=${JSON.stringify(verdict.value)}`,
+        );
+        continue;
+      }
+      // THE SECOND FACT, over the SAME already-loaded value: the NAME SET, which is what the KIT-03
+      // closure equality actually consumes (D-09). No second loader process and no second parse.
+      const moduleNames = grantedAgentNames(document);
+      const loaderNames = loaderGrantedNames(verdict.flat ?? "");
+      if (moduleNames.ok && nameVerdict(moduleNames) !== nameVerdict(loaderNames)) {
+        nameSetDisagreements.push(
+          `${cell.where}\tmodule=${nameVerdict(moduleNames)}\tloader=${nameVerdict(loaderNames)}`,
+        );
+      }
+    }
+
+    // THE UNION CELLS, THROUGH THE SAME THREE DIRECTIONS plus their own declared expectation.
+    const unionMisverdicts: string[] = [];
+    let unionAdjudicated = 0;
+    for (let i = 0; i < D60_UNION_CELLS.length; i += 1) {
+      const union = D60_UNION_CELLS[i];
+      const verdict = verdicts[PRODUCT + i];
+      expect(
+        verdict.accepted,
+        `a union cell the loader will not read pins nothing: ${union.label} :: ${verdict.error}`,
+      ).toBe(true);
+      unionAdjudicated += 1;
+      const document = `---\nname: x\n${union.region}---\nBody.\n`;
+      const answer = hasSpawnGrant(document);
+      const loaderGrants = (verdict.value ?? "").includes(HARNESS_TOKEN);
+      if (union.expectRefusal) {
+        // D-59's whole content: a block scalar's exemption covers the region it owns and nothing
+        // else, so a non-allowlisted escape in a SIBLING region still refuses — including now that
+        // the block region can be introduced by a key spelling that could not produce one before.
+        if (answer.ok) {
+          unionMisverdicts.push(
+            `${union.label}\texpected a refusal, got ${answer.value ? "grant" : "no-grant"}`,
+          );
+        } else {
+          loudRefusals.push(`UNION ${union.label}\t${answer.reason.slice(0, 60)}`);
+        }
+        continue;
+      }
+      if (!answer.ok) {
+        unionMisverdicts.push(`${union.label}\tunexpected refusal: ${answer.reason.slice(0, 80)}`);
+        continue;
+      }
+      if (!answer.value && loaderGrants) {
+        silentWhileLoaderGrants.push(`UNION ${union.label}`);
+      } else if (answer.value && !loaderGrants) {
+        moduleGrantsWhileLoaderDoesNot.push(`UNION ${union.label}`);
+      }
+    }
+
+    console.log(
+      `D-60 axis differential [corpus ${digest}, ${probe.version}] — ${PRODUCT} generated cells (${AXIS_NESTED_KEY_SPELLING.length} x ${AXIS_BLOCK_INDICATOR_FORM.length} x ${AXIS_HEADER_POSITION.length}) + ${D60_UNION_CELLS.length} union cells | loader-rejected and SKIPPED ${skipped} | adjudicated ${PRODUCT - skipped + unionAdjudicated} | loud refusal arm ${loudRefusals.length} | name-set disagreements ${nameSetDisagreements.length}`,
+    );
+
+    expect(
+      silentWhileLoaderGrants,
+      "NEVER EXEMPTIBLE: the module read a live grant as `carries no grant`. This is the direction the whole phase exists to close and no reason may be written for it.",
+    ).toEqual([]);
+    expect(
+      moduleGrantsWhileLoaderDoesNot,
+      "NEVER EXEMPTIBLE: the module reported a grant no loader computes.",
+    ).toEqual([]);
+    expect(
+      nameSetDisagreements,
+      "the NAME SET is what the KIT-03 closure equality consumes; a set that differs from the loader's is a finding even where the boolean agrees",
+    ).toEqual([]);
+    expect(
+      unionMisverdicts,
+      "a union cell whose verdict contradicts D-59's declared region scoping",
+    ).toEqual([]);
+    // NON-VACUITY: the corpus must actually reach the loader, or every list above is empty for the
+    // wrong reason.
+    expect(
+      PRODUCT - skipped,
+      "the axis must adjudicate a non-trivial number of loader-accepted cells",
+    ).toBeGreaterThan(PRODUCT / 2);
+  });
+
+  // The commit this plan's fix landed on top of. The mirror's identity is ASSERTED below rather than
+  // trusted, so a stale value fails by name instead of quietly proving nothing.
+  const D60_PRE_FIX_COMMIT = "ac6653c";
+
+  it("D-60 the identical axis reports a NON-EMPTY never-exemptible partition against a hermetic mirror of the pre-27-56 commit", async () => {
+    // A CORPUS THAT CANNOT GENERATE THE INPUT ITS FIX NEEDED PROVES NOTHING — this phase's own WR-01
+    // lesson, applied for the third time. The green line above is a statement about the FIX only if
+    // the same enumeration, the same loader batch and the same partition RED against the build that
+    // shipped the defect.
+    const dir = mkdtempSync(join(tmpdir(), "grugops-d60-prefix-"));
+    try {
+      const tarball = join(dir, "pre.tar");
+      writeFileSync(
+        tarball,
+        execFileSync("git", ["archive", D60_PRE_FIX_COMMIT], {
+          cwd: join(import.meta.dirname, ".."),
+          encoding: "buffer",
+          maxBuffer: 256 * 1024 * 1024,
+        }),
+      );
+      execFileSync("tar", ["-xf", tarball, "-C", dir]);
+      const preBuild = join(dir, "scripts", "frontmatter.js");
+      // THE MIRROR REALLY IS THE PRE-FIX BUILD, ASSERTED. If it already carries the production this
+      // plan added, `D60_PRE_FIX_COMMIT` is wrong and everything below is decoration.
+      expect(
+        readFileSync(preBuild, "utf8").includes("blockMapImplicitEntry"),
+        "the mirror must PRE-DATE the nested-key production, or this case proves nothing",
+      ).toBe(false);
+      const pre = (await import(preBuild)) as {
+        hasSpawnGrant: (t: string) => { ok: true; value: boolean } | { ok: false; reason: string };
+      };
+
+      const regions: string[] = [];
+      for (const spelling of AXIS_NESTED_KEY_SPELLING) {
+        for (const indicator of AXIS_BLOCK_INDICATOR_FORM) {
+          for (const position of AXIS_HEADER_POSITION) {
+            regions.push(buildD60Region(spelling, indicator, position));
+          }
+        }
+      }
+      for (const union of D60_UNION_CELLS) regions.push(union.region);
+
+      const probe = probeLoader(RUBY);
+      if (!probe.ok) {
+        console.warn(
+          `SKIPPED the D-60 non-circularity mirror: ${probe.reason}. PRINTED, never silent.`,
+        );
+        return;
+      }
+      const verdicts = JSON.parse(
+        execFileSync(RUBY, ["-e", LOADER_PROGRAM], {
+          input: JSON.stringify(regions),
+          encoding: "utf8",
+          maxBuffer: 64 * 1024 * 1024,
+        }),
+      ) as { accepted: boolean; value?: string }[];
+
+      let silent = 0;
+      let overGrant = 0;
+      let skipped = 0;
+      for (let i = 0; i < regions.length; i += 1) {
+        const verdict = verdicts[i];
+        if (!verdict.accepted) {
+          skipped += 1;
+          continue;
+        }
+        const answer = pre.hasSpawnGrant(`---\nname: x\n${regions[i]}---\nBody.\n`);
+        if (!answer.ok) continue;
+        const loaderGrants = (verdict.value ?? "").includes(HARNESS_TOKEN);
+        if (!answer.value && loaderGrants) silent += 1;
+        else if (answer.value && !loaderGrants) overGrant += 1;
+      }
+      console.log(
+        `[D-60 axis, pre-fix mirror ${D60_PRE_FIX_COMMIT}] regions=${regions.length} skipped=${skipped} SILENT-no-grant=${silent} module-grant-loader-none=${overGrant}`,
+      );
+      expect(
+        silent,
+        "the pre-fix mirror must FAIL this axis on the SILENT arm, or the axis cannot see the defect it was written for",
+      ).toBeGreaterThan(0);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("D-60 the exemption list is UNCHANGED — this plan added no reason for a disagreement", () => {
+    // THE PROHIBITION, ASSERTED. "No exemption may be added to the D-52 differential's
+    // never-exemptible directions to make the new spellings pass" — the axis above carries NO
+    // exemption machinery at all, and the D-52 differential's list is the same length it was.
+    expect(EXEMPTIONS.length, "the D-52 exemption list must not have grown for D-60").toBe(2);
+    expect(EXEMPTIONS.map((e) => e.label)).toEqual([
+      "E1 — a dangling YAML node property at the flow collection's first node start",
+      "E2 — a YAML anchor at the value's node start on the first continuation line",
+    ]);
   });
 
   // ── NON-CIRCULARITY, BY SOURCE INSPECTION ─────────────────────────────────────────────────────
