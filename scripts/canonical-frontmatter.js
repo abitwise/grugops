@@ -581,18 +581,37 @@ export function admitUnderProofWeakeningOnly(text, weakening) {
 // grant.
 const SPAWN_TOKEN = /\b(?:Agent|Task)\b/;
 const SCOPED_GRANT = /\b(?:Agent|Task)\(([^)]*)\)/g;
+// The flattened values a key carries, as a list: [] when the key is absent, one entry for a scalar,
+// one per item for a block sequence.
+//
+// A PROJECTION OF AN ADMITTED VALUE, AND EMPHATICALLY NOT A SECOND GRAMMAR. It re-reads no bytes and
+// re-decides nothing; it reshapes a value admission has already established. It exists because plan
+// 27-65's cutover moves guard arms that were written against `frontmatter.ts`'s multi-occurrence
+// `Map<string, string[]>` onto this module's single-value map, and the arms' wording is a contract
+// with the cases that pin it — rewriting each arm's shape as well as its reader would have moved the
+// SCOPE in the same edit that moved the READER, which is T-27-156.
+//
+// THE LIST IT RETURNS CAN NEVER BE LONGER THAN THE DOCUMENT WROTE, because a duplicate key is
+// REFUSED at admission (`duplicate-key`) rather than merged. That is the structural difference from
+// the parser's list, whose length was the number of times a key appeared.
+export function admittedValuesFor(doc, key) {
+    const v = doc.get(key);
+    if (v === undefined)
+        return [];
+    return v.kind === "scalar" ? [v.value] : [...v.items];
+}
+// Does this admitted document write exactly this value for this key? The admitted counterpart of
+// `keyHasValue` in `scripts/frontmatter.ts`, computed over a value no unadmitted byte can reach.
+// Exact string equality, no folding and no normalisation — the same comparison discipline the
+// coordinator-marker consumers already use.
+export function admittedKeyHasValue(doc, key, value) {
+    return admittedValuesFor(doc, key).some((v) => v === value);
+}
 // Every flattened value living under a grant key, across both grant keys.
 export function admittedGrantValues(doc) {
     const out = [];
-    for (const k of GRANT_KEYS) {
-        const v = doc.get(k);
-        if (v === undefined)
-            continue;
-        if (v.kind === "scalar")
-            out.push(v.value);
-        else
-            out.push(...v.items);
-    }
+    for (const k of GRANT_KEYS)
+        out.push(...admittedValuesFor(doc, k));
     return out;
 }
 // Does this admitted document grant the spawn tool?

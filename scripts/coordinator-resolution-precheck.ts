@@ -60,12 +60,26 @@ import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { listAgentAdapters } from "./kit-model.js";
+// Phase 27 (D-64 Part A, plan 27-65): THE FOURTH VERDICT CALL SITE, brought into the cutover.
+//
+// 27-65-PLAN.md enumerated three sites, all inside check-foundation-guards.ts. This file is a fourth:
+// it reads a coordinator adapter's marker and its grant enumeration and calls `fail()` on the result,
+// which is a spawn verdict by any definition. It was found while gathering evidence for the plan's
+// own decision checkpoint, and the scope amendment that added it was authorized there.
+//
+// WHY IT MATTERED THAT THIS FILE IS NOT IN CI. It is not — `.github/workflows/ci.yml` runs only
+// check-foundation-guards.js — and that is precisely the argument FOR cutting it over rather than
+// against. A verdict surface nobody watches is where a demoted authority survives quietly; the guard
+// source at check-foundation-guards.ts already recorded that this file "resolves the same grant
+// closure" and that "the weaker answer was the wired one". Leaving it on the old reader would have
+// left T-27-153 live behind an assertion scoped to the other file.
 import {
-  keyHasValue,
-  keysGrantedAgentNames,
-  parseFrontmatter,
-  type FrontmatterKeys,
-} from "./frontmatter.js";
+  admit,
+  admittedGrantedNames,
+  admittedKeyHasValue,
+  admittedValuesFor,
+  type AdmittedDocument,
+} from "./canonical-frontmatter.js";
 
 // ---------------------------------------------------------------------------
 // Fixed literals. None is ever taken from argv, env or file content (ASVS V12).
@@ -306,13 +320,14 @@ function runScratchInstall(): Installed {
 
 interface Adapter {
   rel: string;
-  keys: FrontmatterKeys;
+  keys: AdmittedDocument;
   name: string | null;
 }
 
-// Read one adapter's frontmatter through the shared parser. A PARSE FAILURE IS A PARSE ARTIFACT AND
-// NEVER A VERDICT: an unreadable adapter fails this precheck by name rather than being folded into
-// "carries no marker", which is the silent-bypass shape frontmatter.ts exists to refuse.
+// Read one adapter's frontmatter through the CANONICAL ADMISSION READER. A REFUSAL IS NEVER A
+// VERDICT: an adapter outside the canonical form fails this precheck by name, carrying the enumerated
+// refusal code and its reason, rather than being folded into "carries no marker" — the silent-bypass
+// shape that cost this phase eleven review rounds.
 function readAdapter(targetRoot: string, rel: string): Adapter {
   const path = join(targetRoot, ADAPTER_DIR, rel);
   let text: string;
@@ -321,13 +336,13 @@ function readAdapter(targetRoot: string, rel: string): Adapter {
   } catch {
     return fail(`the installed adapter ${rel} could not be read at ${path}.`);
   }
-  const parsed = parseFrontmatter(text);
+  const parsed = admit(text);
   if (!parsed.ok) {
     return fail(
-      `the installed adapter ${rel} has unreadable frontmatter — ${parsed.reason}. An unreadable adapter is not the same fact as an adapter without a marker, so this precheck refuses rather than assuming.`,
+      `the installed adapter ${rel} has frontmatter that is NOT in the canonical form [${parsed.code}] — ${parsed.reason}. An unreadable adapter is not the same fact as an adapter without a marker, so this precheck refuses rather than assuming.`,
     );
   }
-  const names = parsed.value.get("name") ?? [];
+  const names = admittedValuesFor(parsed.value, "name");
   return { rel, keys: parsed.value, name: names[0] ?? null };
 }
 
@@ -372,7 +387,7 @@ function observeTarget(targetRoot: string): string[] {
   // The coordinator is located by its MARKER, never by filename — the platform takes identity from
   // frontmatter, so a filename-keyed search would answer a different question than the runtime asks.
   const coordinators = adapters.filter((a) =>
-    keyHasValue(a.keys, "coordinator", "true"),
+    admittedKeyHasValue(a.keys, "coordinator", "true"),
   );
   if (coordinators.length === 0) {
     fail(
@@ -394,18 +409,15 @@ function observeTarget(targetRoot: string): string[] {
     `coordinator agent name: ${coordinator.name} (from ${coordinator.rel}, located by its marker rather than by filename).`,
   );
 
-  // (Plan 27-29 / D-32) keysGrantedAgentNames returns the module's result type, because a grant
-  // fragment carrying a backslash sequence outside the escape allowlist is a PARSE ARTIFACT and never
-  // a shorter name list. This precheck branches on it explicitly for the same reason the KIT-03
-  // oracle does: a silently dropped name would make the resolution check below pass over a closure
-  // the installed adapter does not express.
-  const grantedResult = keysGrantedAgentNames(coordinator.keys);
-  if (!grantedResult.ok) {
-    fail(
-      `the coordinator adapter ${coordinator.rel} has an UNREADABLE grant enumeration — ${grantedResult.reason}. An unreadable grant is never read as "enumerates these names".`,
-    );
-  }
-  const granted = grantedResult.value;
+  // (Plan 27-29 / D-32, RE-SITED BY 27-65 / D-64) The unreadable-grant branch has moved UP, not away,
+  // exactly as it did in the KIT-03 oracle. `keysGrantedAgentNames` returned a result because a grant
+  // fragment carrying a backslash sequence outside the escape allowlist was a parse artifact and never
+  // a shorter name list. `admittedGrantedNames` is TOTAL: it runs over a document admission has
+  // already vouched for, whose plain-scalar alphabet contains no backslash at all, so the fragment
+  // that made the old failure arm necessary can no longer be admitted. The condition is checked
+  // earlier and more widely, in readAdapter above, which fails this precheck by name before any
+  // closure is computed.
+  const granted = admittedGrantedNames(coordinator.keys);
   if (granted.length === 0) {
     fail(
       `the coordinator adapter ${coordinator.rel} enumerates no agent names in its grant — an unscoped or absent grant enumerates nothing, so there is no closure to resolve.`,

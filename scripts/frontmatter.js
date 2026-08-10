@@ -1,5 +1,44 @@
-// frontmatter.ts — the single authority for "what does this file's frontmatter SAY" (Phase 27 /
-// SPAWN-04 + KIT-03).
+// frontmatter.ts — a convenience reader for "what does this file's frontmatter SAY".
+//
+// ===========================================================================================
+// DEMOTED (Phase 27 / plan 27-65 / D-64 Part C). THIS MODULE IS NO LONGER THE SAFETY AUTHORITY
+// FOR THE SPAWN VERDICT. That verdict is rendered by scripts/canonical-frontmatter.ts.
+// ===========================================================================================
+//
+// WHAT THE DEMOTION IS. Every consumer that decides "does this document grant the spawn tool, and to
+// whom" now calls the canonical admission reader instead: guard_wr05, the KIT-03 referential-integrity
+// oracle and guard_distribution_pair in scripts/check-foundation-guards.ts, and the coordinator
+// resolution precheck in scripts/coordinator-resolution-precheck.ts. Those four were the verdict call
+// sites. None of them takes a grant predicate from this file any more, and a derived source assertion
+// in scripts/check-foundation-guards.test.ts fails red if one ever does again.
+//
+// WHY, IN ONE PARAGRAPH. The module below is a good-faith YAML-ish reader, and its founding fix was
+// correct: it replaced two line-anchored regular expressions that could not see a folded scalar. But
+// an interpreting grammar has a THIRD OUTCOME its type does not show — "parsed fine, carries no
+// grant" — reachable by any construct the grammar does not model. Eleven consecutive review rounds
+// found a construct it did not model, and rounds 10 and 11 each shipped a regression inside their own
+// fix. The defect was never a spelling; it was that a reader cannot enumerate the constructs nobody
+// has thought of yet. D-64 inverts the question: the canonical reader ADMITS a restricted shape and
+// REFUSES every other byte by an enumerated name. Two outcomes, no third, nothing to widen.
+//
+// THIS IS A DEMOTION AND NOT A DELETION, and the distinction is load-bearing. The module keeps every
+// one of its non-test consumers — scripts/canonical-frontmatter.ts (which takes stripFencedBlocks and
+// DQ_ESCAPE_ALLOWLIST from it), scripts/check-foundation-guards.ts (stripFencedBlocks only),
+// scripts/coordinator-resolution-precheck.ts, scripts/generate-role-adapters.ts and
+// scripts/generate-skill-twins.ts. It remains a legitimate convenience reader for transformation
+// work: the two adapter generators READ a document in order to rewrite it, which is not a verdict,
+// and their output is byte-gated by freshness checks that would catch a misread.
+//
+// DO NOT WIDEN THE PARSING LOGIC BELOW TO CLOSE A NEWLY REPORTED BYPASS. That is the twelfth repair
+// D-64 exists to refuse, and this round changed not one byte of it — the only edit plan 27-65 made to
+// this file is the header block you are reading. If a bypass is found in a spawn verdict, the fix
+// belongs in the canonical reader's admitted grammar, where it is an explicit, loud, enumerated
+// decision about what the kit may contain.
+//
+// The rest of this header is the module's own history and remains accurate about what it does.
+//
+// (Formerly: the single authority for "what does this file's frontmatter SAY" — Phase 27 /
+// SPAWN-04 + KIT-03.)
 //
 // Two guards need one predicate: does a shipped adapter, skill or packaging template carry a spawn
 // grant, and if so, to whom. Before this module they each answered it with the SAME PAIR of

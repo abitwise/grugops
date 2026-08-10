@@ -5066,7 +5066,16 @@ describe("frontmatter — the spawn-grant parser oracle (SPAWN-04 / KIT-03)", ()
     );
     expect(consumers.length).toBeGreaterThan(0);
     expect(consumers).toContain("check-foundation-guards.ts");
-    expect(consumers).toContain("coordinator-resolution-precheck.ts");
+    // (27-65 / D-64 Part C) `coordinator-resolution-precheck.ts` USED to be named here and no longer
+    // is, because it no longer imports this module at all. Everything it took — parseFrontmatter,
+    // keysGrantedAgentNames, keyHasValue — was verdict-bearing, and the cutover moved all three to
+    // scripts/canonical-frontmatter.js. It is not missing; it stopped being a consumer.
+    //
+    // THE MEMBER IS REPLACED, NOT DELETED, so this case keeps a named consumer beyond the guard and
+    // cannot pass on the guard alone. `generate-role-adapters.ts` reads a document in order to REWRITE
+    // it, which is a transformation and not a verdict, so it legitimately stays on this module.
+    expect(consumers).toContain("generate-role-adapters.ts");
+    expect(consumers).not.toContain("coordinator-resolution-precheck.ts");
 
     const relativeImports = (n: string): string[] =>
       [

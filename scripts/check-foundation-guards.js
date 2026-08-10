@@ -223,18 +223,41 @@ import { listRoles, listWorkflows, listAgentAdapters, listSkillAdapters, listPlu
 // below takes the PROSE forms; check-kit-refs Assertion 2 takes the PATH form. Two genuinely
 // different predicates over different inputs — one list, never two.
 import { RETIRED_PROSE_FORMS } from "./dead-vocabulary.js";
-// Phase 27 (SPAWN-04 / KIT-03, plan 27-12): the ONE authority for "what does this file's frontmatter
-// say". The spawn-grant guard below and the KIT-03 oracle at the foot of this file both read the
-// grant, and the coordinator marker, from a RECONSTRUCTED frontmatter value rather than from a
-// line-anchored regular expression — the two expressions they used to share could not see a folded
-// scalar, and that bypass was reproduced on a role adapter and on a skill file (27-REVIEW § CR-02).
-// stripFencedBlocks travels with it so the tree keeps exactly one fence implementation.
-import { stripFencedBlocks, parseFrontmatter, keysHaveSpawnGrant, keysGrantedAgentNames, keyHasValue, 
-// (Plan 27-20 / 27-REVIEW § WR-05) The two key names that grant a tool. IMPORTED, never restated:
-// the tools-key floor in guardWr05() asks "is a tool allow-list DECLARED at all", and that question
-// must be scoped by the same list keysHaveSpawnGrant() reads, or the floor could pass a file whose
-// grant the grant test never looks at.
-TOOLS_KEYS, } from "./frontmatter.js";
+// Phase 27 (D-64 Part A, plan 27-65): stripFencedBlocks is the ONE fence authority and travels with
+// every consumer, so the tree keeps exactly one definition of where a frontmatter region begins.
+//
+// IT IS NOW THE ONLY THING THIS GUARD TAKES FROM THAT MODULE. The grant predicates, the coordinator
+// marker read and the parse entry point moved to ./canonical-frontmatter.js below. A fence is not a
+// verdict; the demotion is about who renders the verdict, not about who finds the region.
+import { stripFencedBlocks } from "./frontmatter.js";
+// Phase 27 (SPAWN-04 / KIT-03, D-64 Part A, plan 27-65): THE MODULE THAT RENDERS THE SPAWN VERDICT.
+//
+// WHAT CHANGED, AND WHY IT IS STRUCTURAL RATHER THAN A TWELFTH REPAIR. Plan 27-12 made
+// scripts/frontmatter.ts the one authority for "what does this file's frontmatter say", replacing a
+// pair of line-anchored regular expressions that could not see a folded scalar. That was correct and
+// it closed the bypass in front of it — but eleven consecutive review rounds then found an twelfth
+// spelling, a thirteenth, and rounds 10 and 11 each shipped a regression INSIDE their own fix. The
+// defect was never any single spelling. It was that an open YAML-ish grammar has a THIRD outcome the
+// type system does not show: "parsed fine, carries no grant", reachable by any construct the grammar
+// does not model. A guard cannot enumerate the constructs it has not thought of.
+//
+// So the verdict is no longer computed by interpreting a document. `admit()` ADMITS a restricted
+// canonical shape and REFUSES every other byte under one of 23 enumerated codes, with no catch-all
+// and no default branch. There are exactly two outcomes and no third: "canonical, here are the
+// values", or "not canonical, and here is the named reason". The silent-no-grant arm does not exist
+// on this path — not because a predicate now looks for it, but because there is nowhere for it to be.
+//
+// A REFUSAL IS A NAMED GATE FAILURE AT EVERY CALL SITE BELOW, never "carries no grant". That is the
+// founding failure mode of the thing this replaces, and the hand-written parse-failure branch
+// guard_wr05 already carried is the precedent — its wording is kept and now covers the whole refusal
+// vocabulary instead of one parse failure.
+import { admit, admittedHasSpawnGrant, admittedGrantedNames, admittedValuesFor, admittedKeyHasValue, 
+// (Plan 27-20 / 27-REVIEW § WR-05, re-pointed by 27-65) The two key names that grant a tool.
+// IMPORTED, never restated: the tools-key floor in guardWr05() asks "is a tool allow-list DECLARED
+// at all", and that question must be scoped by the same list the grant test reads, or the floor
+// could pass a file whose grant the grant test never looks at. It now comes from the canonical
+// module so the floor and the grant test are scoped by ONE list on ONE side of the cutover.
+GRANT_KEYS, } from "./canonical-frontmatter.js";
 // The .sh hard-coded repo-relative paths and assumed cwd == repo root. The TS port resolves
 // every path against the script-relative repo root, but ALSO honors a CHECK_ROOT override so the
 // Vitest harness can point the guard at a hermetic mirror dir (mirrors how the .test.sh harness
@@ -619,25 +642,31 @@ function guardWr05() {
     // substrate has exactly ONE coordinator (the orchestrator adapter); a second marker — live or from
     // a doc example mis-read as live — is a cardinality violation (CR-01).
     const coordinators = [];
-    // Every scan file that PARSED, so the name-key floor below reads the same parse this loop did
-    // rather than re-reading and re-parsing the file (one parse per file, one grammar).
+    // Every scan file that was ADMITTED, so the name-key floor below reads the same admission this loop
+    // did rather than re-reading and re-admitting the file (one admission per file, one grammar).
     const parsedScan = new Map();
     for (const f of SPAWN_GRANT_SCAN) {
         if (!fileExists(f))
             continue; // missing template/adapter is covered by guard_adapter_size (CR-01)
-        const parsed = parseFrontmatter(readText(f));
+        const parsed = admit(readText(f));
         if (!parsed.ok) {
-            // THE BRANCH THAT MUST BE WRITTEN BY HAND. An unreadable frontmatter block is a PARSE ARTIFACT,
-            // never a verdict: this file is NOT then treated as carrying no grant, and it is NOT downgraded
-            // to a warning. It becomes its own finding naming the file and the reason, and the guard goes
-            // red. Letting it fall through to the no-grant branch is the exact class of silent bypass the
-            // parser exists to close.
-            wr05Fail += `\n${f}: frontmatter parse failure — ${parsed.reason}. An unreadable adapter cannot be reported on, so it is NEVER read as "carries no grant"`;
+            // THE BRANCH THAT MUST BE WRITTEN BY HAND. Its WORDING IS KEPT VERBATIM from the parse-failure
+            // branch it replaces (plan 27-12), because it was already the right sentence: a document this
+            // guard cannot read is NOT then treated as carrying no grant, and it is NOT downgraded to a
+            // warning. It becomes its own finding naming the file and the reason, and the guard goes red.
+            //
+            // WHAT THE CUTOVER CHANGED IS ITS REACH, NOT ITS SHAPE. It used to fire only when an open
+            // grammar could not assemble a value — a narrow condition that eleven rounds of valid-YAML
+            // constructs sailed straight past into the no-grant branch. It now fires on EVERY byte outside
+            // the canonical form, under one of 23 enumerated codes. The code is printed alongside the
+            // reason so a reader can tell a block scalar from an anchor from an unknown key without
+            // re-deriving it from the prose.
+            wr05Fail += `\n${f}: frontmatter is NOT in the canonical form [${parsed.code}] — ${parsed.reason}. An unreadable adapter cannot be reported on, so it is NEVER read as "carries no grant"`;
             continue;
         }
         parsedScan.set(f, parsed.value);
-        const isCoordinator = keyHasValue(parsed.value, COORDINATOR_KEY, COORDINATOR_VALUE);
-        const hasGrant = keysHaveSpawnGrant(parsed.value);
+        const isCoordinator = admittedKeyHasValue(parsed.value, COORDINATOR_KEY, COORDINATOR_VALUE);
+        const hasGrant = admittedHasSpawnGrant(parsed.value);
         if (isCoordinator)
             coordinators.push(f);
         if (isCoordinator && !hasGrant) {
@@ -718,7 +747,7 @@ function guardWr05() {
             continue;
         const keys = parsedScan.get(f);
         if (keys === undefined)
-            continue; // already reported as a parse failure
+            continue; // already reported as a refusal
         const isAgentAdapter = AGENT_ADAPTERS.includes(f);
         // THE NAME FLOOR, SPLIT INTO TWO ARMS (plan 27-34, D-41 item 4).
         //
@@ -737,6 +766,13 @@ function guardWr05() {
         // the parser and is reported by the parse-failure branch above; it never arrives here. So the
         // zero-key arm is reached by documents that genuinely carry no frontmatter block, which is exactly
         // what its message now says.
+        //
+        // (27-65) AND AFTER THE CUTOVER IT IS UNREACHABLE, WHICH IS WHY IT IS KEPT. The canonical form has
+        // no keyless success: a document with no opening delimiter refuses as `no-opening-delimiter` and
+        // an empty region refuses as `empty-region`, both above, both by name. This arm is therefore a
+        // residual floor that costs nothing and fails closed. It is deliberately NOT deleted — this round
+        // moves the reader and removes nothing, and an arm removed because "the new module handles it"
+        // is exactly the reasoning that would have to be re-verified if the reader ever moved again.
         if (isAgentAdapter && keys.size === 0) {
             wr05Fail += `\n${f}: agent adapter carries NO FRONTMATTER BLOCK at all — the parse returned zero keys for the whole document, which is a different fact from a block that declares keys without a \`name\`; Claude Code takes agent identity only from frontmatter, so add the block rather than a key to a block that is not there`;
         }
@@ -750,7 +786,12 @@ function guardWr05() {
         // inherits every tool and this is the very bypass above, reachable by deleting a value instead of
         // a line. An empty declaration prints the same silence as no declaration, which is this floor's
         // own founding argument, so it is refused as its own finding rather than guessed at.
-        const declaredToolsValues = TOOLS_KEYS.flatMap((k) => keys.get(k) ?? []);
+        //
+        // (27-65) THE EMPTINESS ARM IS ALSO SUBSUMED BY ADMISSION AND ALSO KEPT. `tools:` written with no
+        // value and no sequence item beneath it refuses as `dangling-empty-key` above — the canonical form
+        // has no null value, so a key either carries a scalar or carries at least one item. The arm stays
+        // for the same reason the zero-key arm stays.
+        const declaredToolsValues = GRANT_KEYS.flatMap((k) => admittedValuesFor(keys, k));
         if (isAgentAdapter && declaredToolsValues.length === 0) {
             wr05Fail += `\n${f}: agent adapter declares no \`tools\` key — omitting it makes the platform grant every main-conversation tool INCLUDING the spawn tool, so an absent key is a grant by inheritance and this guard cannot report on it`;
         }
@@ -761,13 +802,27 @@ function guardWr05() {
         // a document with TWO EMPTY declarations must produce BOTH findings. Folding it into the chain
         // as another `else if` would let the new arm mask the arm it was added to join, which is the
         // opposite of the point. A check reports what it checked.
-        for (const k of TOOLS_KEYS) {
-            const occurrences = keys.get(k) ?? [];
-            if (occurrences.length > 1) {
-                wr05Fail += `\n${f}: declares the \`${k}\` allow-list key ${occurrences.length} times — a tool allow-list has ONE authority and must have ONE answer; which occurrence the platform's YAML loader honours (first, last, or a duplicate-key throw) is not this guard's to guess`;
-            }
-        }
-        const declaredToolsKeys = TOOLS_KEYS.filter((k) => keys.has(k));
+        //
+        // (27-65) THE CARDINALITY ARM IS THE ONE THE CUTOVER GENUINELY DISSOLVES, and the dissolution is
+        // worth stating precisely because it is D-64's whole thesis in miniature. This arm existed because
+        // the parser returned a LIST PER KEY — a key declared twice produced two entries, and the guard
+        // had to notice. The canonical form REFUSES a duplicate key outright (`duplicate-key`), so the
+        // admitted map cannot represent the defect this arm was written to detect. It is not that the
+        // check was removed; it is that the state it checked for can no longer be admitted.
+        //
+        // ADMISSION IS STRICTLY WIDER HERE, IN THE REFUSING DIRECTION: it refuses a duplicate of ANY key,
+        // where this arm only looked at the two grant keys. Wider-and-louder is the safe direction, and it
+        // is measured harmless — all 33 live scanned files admit.
+        //
+        // THE LOOP IS GONE RATHER THAN LEFT AS A BRANCH THAT CANNOT FIRE, and that is a deliberate choice
+        // against the easier one. The first draft of this cutover kept the loop written as
+        // `v.kind === "scalar" && occurrences.length > 1` — which is dead, because a scalar yields exactly
+        // one value, but which READS like a live floor to anyone scanning the function. A dead branch
+        // wearing the costume of a live one is worse than no branch: it is a check a future reader will
+        // count as covering something. The property is instead pinned where it can actually be observed —
+        // `check-foundation-guards.test.ts` plants a duplicate `tools:` key into a live scan file and
+        // asserts the GATE fails naming `duplicate-key`. An assertion that runs beats a branch that cannot.
+        const declaredToolsKeys = GRANT_KEYS.filter((k) => keys.has(k));
         if (declaredToolsKeys.length > 1) {
             wr05Fail += `\n${f}: declares ${declaredToolsKeys.length} DIFFERENT allow-list keys (${declaredToolsKeys.map((k) => `\`${k}\``).join(", ")}) — the platform reads one spelling per surface (\`tools\` on a sub-agent, \`allowed-tools\` on a skill or command) while this guard reads both as one answer, so the document gives one predicate two authorities; which spelling is honoured is not this guard's to guess`;
         }
@@ -1574,18 +1629,32 @@ function guardDistributionPair() {
         }
         const pluginSrc = readText(pluginRel);
         const twinSrc = readText(twinRel);
-        const pluginParsed = parseFrontmatter(pluginSrc);
-        const twinParsed = parseFrontmatter(twinSrc);
+        // (27-65 / D-64 Part A) MOVED TO THE ADMISSION READER, AND THE REASON IS WRITTEN AT THE SITE.
+        //
+        // "How many `name` values does each side declare, and what are they" is a VERDICT — the value
+        // decides whether the pair is compared at all, and which bytes the normalization rewrites. A
+        // verdict read through the demoted parser is a verdict rendered by the module D-64 retires, so it
+        // moves here with the other three.
+        //
+        // AND THIS GUARD IS DELIBERATELY KEPT RATHER THAN REMOVED. Plan 27-64 made the seven standalone
+        // twins GENERATED and byte-gated by `freshness:skill-twins`, so the byte-gate now answers this
+        // guard's question more strongly than this guard does: a hand-edited twin fails freshness before
+        // it reaches here. That makes this check redundant, not wrong — and THIS ROUND REMOVES NOTHING.
+        // Removing a redundant safety check in the same round that moves the verdict mechanism would mean
+        // the round changed two things and could only prove one. If it is ever retired, that is its own
+        // decision with its own evidence.
+        const pluginParsed = admit(pluginSrc);
+        const twinParsed = admit(twinSrc);
         if (!pluginParsed.ok) {
-            pairFail += `\n${pluginRel}: frontmatter parse failure — ${pluginParsed.reason}. An unreadable side is NEVER read as "the pair matches"`;
+            pairFail += `\n${pluginRel}: frontmatter is NOT in the canonical form [${pluginParsed.code}] — ${pluginParsed.reason}. An unreadable side is NEVER read as "the pair matches"`;
             continue;
         }
         if (!twinParsed.ok) {
-            pairFail += `\n${twinRel}: frontmatter parse failure on the standalone twin of ${pluginRel} — ${twinParsed.reason}. An unreadable side is NEVER read as "the pair matches"`;
+            pairFail += `\n${twinRel}: frontmatter is NOT in the canonical form on the standalone twin of ${pluginRel} [${twinParsed.code}] — ${twinParsed.reason}. An unreadable side is NEVER read as "the pair matches"`;
             continue;
         }
-        const pluginNames = pluginParsed.value.get("name") ?? [];
-        const twinNames = twinParsed.value.get("name") ?? [];
+        const pluginNames = admittedValuesFor(pluginParsed.value, "name");
+        const twinNames = admittedValuesFor(twinParsed.value, "name");
         if (pluginNames.length !== 1 || twinNames.length !== 1) {
             pairFail += `\n${pluginRel}: the pair declares ${pluginNames.length} and ${twinNames.length} \`name\` value(s) (plugin, standalone) — the normalization rewrites exactly one name line per side, so anything other than one answer per side is refused rather than guessed at`;
             continue;
@@ -2135,17 +2204,23 @@ function guardReferentialIntegrity() {
     // read that marker through the SAME parser guard_wr05 reads. Parse every adapter once, up front:
     // an unreadable frontmatter block is reported HERE, by name, and stops the oracle — it can never
     // silently become "this file is not the coordinator" or "the closure is empty".
+    //
+    // (27-65 / D-64 Part A) THE SAME PARSER GUARD_WR05 READS IS NOW THE CANONICAL ADMISSION READER, and
+    // the sentence above still describes what happens: every refusal is reported HERE, by name, with its
+    // enumerated code, and it stops the oracle. A name enumeration that could not read one of its inputs
+    // must NEVER be compared for set equality — comparing it would compute the D-09 closure over a set
+    // the document does not express, which is the silent-success shape one level down from the refusal.
     const parsedAdapters = new Map();
     const parseFailures = [];
     for (const f of adapterFiles) {
-        const parsed = parseFrontmatter(readText(`${ADAPTER_DIR}/${f}`));
+        const parsed = admit(readText(`${ADAPTER_DIR}/${f}`));
         if (!parsed.ok)
-            parseFailures.push(`${ADAPTER_DIR}/${f}: ${parsed.reason}`);
+            parseFailures.push(`${ADAPTER_DIR}/${f}: [${parsed.code}] ${parsed.reason}`);
         else
             parsedAdapters.set(f, parsed.value);
     }
     if (parseFailures.length > 0) {
-        fail(`KIT-03: ${parseFailures.length} adapter(s) whose frontmatter could not be parsed — an unreadable adapter is NEVER a zero-length grant closure and NEVER a non-coordinator; the set equality cannot be checked over a file that cannot be read:\n    ${parseFailures.sort().join("\n    ")}`);
+        fail(`KIT-03: ${parseFailures.length} adapter(s) whose frontmatter is NOT in the canonical form — an unreadable adapter is NEVER a zero-length grant closure and NEVER a non-coordinator; the set equality cannot be checked over a file that cannot be read:\n    ${parseFailures.sort().join("\n    ")}`);
         return;
     }
     // THE MAPPING ASSERTION THE COMPARISON BELOW SILENTLY ASSUMED (CR-02, plan 27-19). Reads
@@ -2187,7 +2262,9 @@ function guardReferentialIntegrity() {
     const nameMismatch = [];
     for (const f of adapterFiles) {
         const expectedName = stem(basename(f));
-        const declaredValues = parsedAdapters.get(f).get("name");
+        const declaredValues = parsedAdapters.get(f).has("name")
+            ? admittedValuesFor(parsedAdapters.get(f), "name")
+            : undefined;
         if (declaredValues === undefined) {
             nameMismatch.push(`${ADAPTER_DIR}/${f}: carries NO \`name\` key at all — expected \`name: ${expectedName}\``);
             continue;
@@ -2209,23 +2286,31 @@ function guardReferentialIntegrity() {
         fail(`KIT-03: ${nameMismatch.length} adapter(s) whose frontmatter \`name\` does not equal their own filename stem — the platform resolves the coordinator's grant by NAME while this oracle compares FILENAMES, so the equality below would hold over two different namespaces and a granted name could resolve to no loaded agent while this guard printed a pass:\n    ${nameMismatch.sort().join("\n    ")}`);
         return;
     }
-    const coordinators = adapterFiles.filter((f) => keyHasValue(parsedAdapters.get(f), COORDINATOR_KEY, COORDINATOR_VALUE));
+    const coordinators = adapterFiles.filter((f) => admittedKeyHasValue(parsedAdapters.get(f), COORDINATOR_KEY, COORDINATOR_VALUE));
     if (coordinators.length !== 1) {
         fail(`KIT-03: expected exactly one \`coordinator: true\` adapter in ${ADAPTER_DIR}, found ${coordinators.length}${coordinators.length > 0 ? `: ${coordinators.join(", ")}` : " — a zero-coordinator tree is not \"no grant to check, therefore fine\""}`);
         return;
     }
     const coordinatorName = stem(coordinators[0]);
-    const grantedResult = keysGrantedAgentNames(parsedAdapters.get(coordinators[0]));
-    if (!grantedResult.ok) {
-        // (Plan 27-29 / D-32) THE BRANCH THAT MUST BE WRITTEN BY HAND, for the same reason the
-        // parseFrontmatter branch above it must. A name enumeration that could not read one of its
-        // fragments is a PARSE ARTIFACT, never "the coordinator granted fewer names": folding it into the
-        // zero-length branch below would compute the D-09 closure equality over a set the document does
-        // not express, which is the silent-success shape one level down from the parse failure.
-        fail(`KIT-03: the coordinator ${ADAPTER_DIR}/${coordinators[0]} has an UNREADABLE grant enumeration — ${grantedResult.reason}. An unreadable grant cannot be compared against the adapter set, so it is NEVER read as "grants these names"`);
-        return;
-    }
-    const granted = grantedResult.value;
+    // (Plan 27-29 / D-32, RE-SITED BY 27-65 / D-64) THE HAND-WRITTEN UNREADABLE-GRANT BRANCH HAS MOVED
+    // UP, NOT AWAY. It existed because `keysGrantedAgentNames` returned a RESULT: a grant fragment
+    // carrying a backslash sequence outside the escape allowlist was a parse artifact, never "the
+    // coordinator granted fewer names", and folding it into the zero-length branch below would compute
+    // the D-09 closure equality over a set the document does not express.
+    //
+    // `admittedGrantedNames` is TOTAL and cannot refuse — deliberately, and the reason is the whole
+    // point of the cutover. It runs over a document that has ALREADY been admitted, and admission is
+    // what establishes the invariants it relies on: the plain-scalar alphabet contains no backslash, no
+    // quote and no flow delimiter, so the comma is reliably the separator the document wrote and an
+    // enumeration can neither truncate nor split a name. A failure arm here would be a THIRD OUTCOME BY
+    // ANOTHER NAME, which is exactly what D-64 retires.
+    //
+    // So the condition this branch guarded is not unchecked; it is checked EARLIER AND MORE WIDELY, at
+    // the refusal loop above, where a document carrying such a fragment never becomes an admitted
+    // document at all. That loop fails the oracle by name and returns before any set equality is
+    // computed. `check-foundation-guards.test.ts` pins that path at the GATE rather than trusting this
+    // comment.
+    const granted = admittedGrantedNames(parsedAdapters.get(coordinators[0]));
     if (granted.length === 0) {
         fail(`KIT-03: the coordinator ${ADAPTER_DIR}/${coordinators[0]} carries no ENUMERATED Agent(...) grant — an unscoped grant has no computable closure, so the D-09 equality cannot be checked`);
         return;

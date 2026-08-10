@@ -209,6 +209,179 @@ describe("memory-sentence fixtures mirror the guard's own constants (27-60 / WR-
   });
 });
 
+// ---------------------------------------------------------------------------
+// THE D-64 CUTOVER PINS (plan 27-65) — the spawn verdict is rendered by the canonical admission
+// reader, and `scripts/frontmatter.ts` is DEMOTED from safety authority to convenience reader.
+//
+// WHY THESE ARE SOURCE ASSERTIONS AND NOT BEHAVIOUR TESTS. The behaviour is covered by the gate
+// sweep further down, which plants historical bypass shapes into live files and reads the refusal
+// text out of the gate's own output. What a behaviour test CANNOT see is a verdict call site left
+// pointing at the old reader on a path no planted document happens to traverse — T-27-153, "a live
+// bypass wearing a fresh coat". That is a property of the SOURCE, so it is asserted over the source.
+//
+// EVERY SET BELOW IS DERIVED, NONE IS HAND-LISTED. This repository's second named systemic failure
+// class is a hand-maintained set that rots while staying green; the original draft of this very
+// assertion was scoped to `check-foundation-guards.ts` alone and would have passed green while
+// `coordinator-resolution-precheck.ts` — a FOURTH verdict site the plan did not enumerate — kept
+// rendering a spawn verdict through the module this round demotes. The scope amendment that added it
+// is recorded in 27-65-SUMMARY.md under deviations.
+// ---------------------------------------------------------------------------
+
+// Non-test TypeScript under scripts/, read once. The enumeration is a directory read rather than a
+// literal list, so a consumer that lands tomorrow is covered the day it lands.
+const nonTestScripts = (): string[] =>
+  readdirSync(join(ROOT, "scripts"))
+    .filter((n) => n.endsWith(".ts") && !n.endsWith(".test.ts"))
+    .sort();
+
+// The symbols one module imports from another, with comments stripped so a NAME MENTIONED IN PROSE
+// inside the import block cannot satisfy or falsify a membership test. Returns [] when the module
+// does not import from that specifier at all.
+const importedSymbols = (file: string, specifier: string): string[] => {
+  const src = readFileSync(join(ROOT, "scripts", file), "utf8");
+  const re = new RegExp(
+    `import\\s*\\{([^}]*)\\}\\s*from\\s*["']\\./${specifier}\\.js["']`,
+    "g",
+  );
+  const out: string[] = [];
+  for (const m of src.matchAll(re)) {
+    const block = (m[1] as string)
+      .replace(/\/\*[\s\S]*?\*\//g, "")
+      .split("\n")
+      .map((l) => l.replace(/\/\/.*$/, ""))
+      .join("\n");
+    for (const raw of block.split(",")) {
+      const name = raw.replace(/^\s*type\s+/, "").trim();
+      if (name !== "") out.push(name);
+    }
+  }
+  return out.sort();
+};
+
+// The grant predicates and the grant-key constant: the four names whose RESULT is a spawn verdict.
+// `parseFrontmatter` is deliberately NOT in this list — it is a transformation, and the two adapter
+// generators legitimately keep using it to READ a document they then rewrite. What this list contains
+// is the names that ANSWER "does this document grant the spawn tool, and to whom".
+const GRANT_PREDICATES = [
+  "keysHaveSpawnGrant",
+  "keysGrantedAgentNames",
+  "keyHasValue",
+  "TOOLS_KEYS",
+] as const;
+
+describe("D-64 cutover: the spawn verdict is rendered by the canonical admission reader (27-65)", () => {
+  it("the parser's non-test consumer list is NON-EMPTY and unchanged in size — a DEMOTION, never a deletion", () => {
+    const consumers = nonTestScripts().filter(
+      (n) => importedSymbols(n, "frontmatter").length > 0,
+    );
+    // NON-VACUITY FLOOR FIRST: an enumeration that found nothing cannot report "unchanged".
+    expect(
+      consumers.length,
+      "zero non-test consumers of ./frontmatter.js — the derivation found nothing and no claim below means anything",
+    ).toBeGreaterThan(0);
+
+    // THE COUNT IS MEASURED, NOT TAKEN FROM THE PLAN'S PROSE.
+    //
+    // 27-65-PLAN.md's must_haves say the parser "keeps its eleven non-test consumers". Measured with
+    //   git ls-files -z '*.ts' | xargs -0 grep -l 'from "./frontmatter.js"'
+    // the pre-cutover answer was FIVE, not eleven: the other four files the plan counted
+    // (`adapters-freshness.ts`, `canonical-corpus.ts`, `kit-model.ts`, `skill-twins-freshness.ts`)
+    // only MENTION the module in prose comments and import nothing from it. Widening this derivation
+    // until it reached eleven would be the set-literal drift this phase exists to delete, so the
+    // measurement wins — exactly as 27-62 did when D-64's own eight-key, thirty-one-file premise was
+    // falsified by measurement.
+    //
+    // AND THE CUTOVER MOVED IT FROM FIVE TO FOUR, WHICH IS RECORDED RATHER THAN ROUNDED AWAY.
+    // `coordinator-resolution-precheck.ts` took NOTHING from the parser except verdict-bearing
+    // symbols — `parseFrontmatter`, `keysGrantedAgentNames`, `keyHasValue` — so when those moved to
+    // the canonical reader it stopped importing the module at all. That is a consumer genuinely lost,
+    // not a demotion failure: the module is still consumed by four non-test modules including the
+    // guard itself, so it is emphatically not dead code, and D-64 Part C's "keeps its consumers, is
+    // not deleted" holds. Stating four while the plan says eleven is the honest reading of both.
+    expect(consumers).toEqual([
+      "canonical-frontmatter.ts",
+      "check-foundation-guards.ts",
+      "generate-role-adapters.ts",
+      "generate-skill-twins.ts",
+    ]);
+  });
+
+  it("NO non-test module imports a GRANT PREDICATE from ./frontmatter.js — the parser renders no spawn verdict anywhere", () => {
+    // Tree-wide and fully derived: there is no allow-list here and no file is exempted by name, so
+    // the assertion cannot rot as the tree grows. After the cutover the correct answer is ZERO.
+    const offenders: string[] = [];
+    let scanned = 0;
+    for (const f of nonTestScripts()) {
+      const symbols = importedSymbols(f, "frontmatter");
+      if (symbols.length === 0) continue;
+      scanned += 1;
+      for (const p of GRANT_PREDICATES) {
+        if (symbols.includes(p)) offenders.push(`${f} imports ${p}`);
+      }
+    }
+    // NON-VACUITY FLOOR: the loop really did inspect import blocks.
+    expect(
+      scanned,
+      "the grant-predicate scan inspected zero import blocks — a negative over nothing proves nothing",
+    ).toBeGreaterThan(0);
+    expect(
+      offenders,
+      "a module still imports a grant predicate from the DEMOTED parser. D-64 Part C retires " +
+        "scripts/frontmatter.ts as the safety authority for the spawn verdict; the module that " +
+        "renders it is scripts/canonical-frontmatter.ts. Import the admission reader instead.",
+    ).toEqual([]);
+  });
+
+  it("every module that renders a spawn verdict reads the CANONICAL module, and takes NO verdict-bearing symbol from the parser", () => {
+    // The verdict-renderer set is DERIVED as "non-test modules importing ./canonical-frontmatter.js",
+    // never hand-listed. That is what makes this assertion cover a fifth verdict site the day one
+    // lands, and it is the specific correction that brought coordinator-resolution-precheck.ts into
+    // this plan's scope.
+    const cutover = nonTestScripts().filter(
+      (n) =>
+        n !== "canonical-frontmatter.ts" &&
+        importedSymbols(n, "canonical-frontmatter").length > 0,
+    );
+    expect(
+      cutover.length,
+      "no module imports ./canonical-frontmatter.js — the cutover did not happen",
+    ).toBeGreaterThan(0);
+    expect(cutover).toEqual([
+      "check-foundation-guards.ts",
+      "coordinator-resolution-precheck.ts",
+    ]);
+
+    for (const f of cutover) {
+      // `stripFencedBlocks` is the ONE fence authority and stays imported from the parser by design —
+      // it is not a verdict, it is the shared definition of where a frontmatter region begins. Every
+      // OTHER symbol taken from the parser by a verdict renderer is a finding.
+      const fromParser = importedSymbols(f, "frontmatter").filter(
+        (s) => s !== "stripFencedBlocks",
+      );
+      expect(
+        fromParser,
+        `${f} renders a spawn verdict and still takes ${fromParser.join(", ")} from ./frontmatter.js`,
+      ).toEqual([]);
+      // And it really does take the admission entry point, not merely some constant.
+      expect(importedSymbols(f, "canonical-frontmatter")).toContain("admit");
+    }
+  });
+
+  it("scripts/frontmatter.ts records its DEMOTION in its header, and its parsing logic is unchanged", () => {
+    const src = readFileSync(join(ROOT, "scripts", "frontmatter.ts"), "utf8");
+    // Bounded to the header: the note must be in the module's own header, where a reader arriving at
+    // the file sees it, not buried beside some function.
+    const header = src.slice(0, src.indexOf("\nimport "));
+    expect(
+      header.length,
+      "the frontmatter.ts header slice is too small to be the header",
+    ).toBeGreaterThan(2000);
+    expect(header).toContain("DEMOTED");
+    expect(header).toContain("scripts/canonical-frontmatter.ts");
+    expect(header).toContain("D-64");
+  });
+});
+
 // (Phase 27 / plan 27-07) BOTH KIT-03 fixtures are now CONSTRUCTED, and neither inherits its shape
 // from the live tree.
 //
@@ -408,6 +581,53 @@ function reshapeToolsKey(file: string, shape: string[]): void {
   writeFileSync(file, src.join("\n"));
 }
 
+// ---------------------------------------------------------------------------
+// (27-65 / D-64 Part A) THE REFUSAL ASSERTION, and the narrowing it exists to make visible.
+//
+// READ THIS BEFORE CONCLUDING A CASE BELOW WAS WEAKENED. Many cases in this file were written when
+// the spawn verdict came from scripts/frontmatter.ts, an INTERPRETING reader whose job was to see
+// THROUGH a folded scalar, a wrapped quoted scalar or a trailing comment to the value underneath.
+// Their plants are therefore written in those spellings, and they asserted the specific arm that
+// convicted the resulting value — "rogue spawner", "declares the `tools` key 3 times".
+//
+// After the cutover the verdict comes from a CANONICAL-FORM reader. It does not see through those
+// spellings; it REFUSES them by name, before the grant question is asked. So the gate still goes red
+// on every one of those plants — the bypass-closure property each case was written to prove is
+// intact, and is now stronger, because the document is refused whether or not it carries a grant.
+// What changed is the DIAGNOSIS, and the cases say so.
+//
+// THE NARROWING, STATED AS A MEASUREMENT RATHER THAN IMPLIED. Of the seven legitimate YAML spellings
+// of ONE declaration that `SINGLE_DECLARATION_SPELLINGS` below walks, the canonical form admits TWO —
+// the one-line plain scalar and the block sequence. The other five (wrapped plain, wrapped quoted,
+// trailing `#` comment, folded `>-`, literal `|-`) are now REFUSED inside the spawn-grant scan. The
+// live kit uses only the two admitted spellings, so the measured false-red cost today is ZERO across
+// all 33 scanned files — but the LATITUDE is genuinely gone, and a future author who writes a folded
+// `tools:` will be refused. That is D-64's intent (a canonical form is a narrowing, or it is not
+// canonical), it is recorded in 27-65-SUMMARY.md, and it must not be discovered by surprise here.
+//
+// WHAT WAS LOST AND IS NOT PRETENDED OTHERWISE: the duplicate-key arm used to report an EXACT COUNT
+// ("3 times"). Admission refuses at the SECOND occurrence, so the count is no longer computed. Both
+// spellings go red; the newer one is diagnostically weaker by exactly that one number.
+// ---------------------------------------------------------------------------
+
+// Assert the gate REFUSED a named file under a named canonical-form refusal code, and that no
+// passing WR-05 line was printed. The refusal TEXT is read out of the gate's own output — an exit
+// code alone is not the claim this phase accepts.
+function expectRefused(o: string, file: string, code: string): void {
+  expect(o, `expected the refusal to name ${file}`).toContain(file);
+  expect(o, `expected the refusal code [${code}]`).toContain(`[${code}]`);
+  expect(o, "expected the canonical-form refusal wording").toContain(
+    "frontmatter is NOT in the canonical form",
+  );
+  expect(
+    o,
+    "a refusal must NEVER be reported as carrying no grant",
+  ).toMatch(/NEVER read as "carries no grant"/);
+  expect(o, "no passing WR-05 line may accompany a refusal").not.toContain(
+    "PASS  WR-05:",
+  );
+}
+
 // (Plan 27-26 / WR-01) Replace the allow-list key line AND the block-sequence items that belong to
 // it. reshapeToolsKey() above splices out exactly ONE line, which is right for the scalar-form cases
 // it was written for — but the shipped SKILL adapters express `allowed-tools` as a block SEQUENCE,
@@ -581,13 +801,44 @@ describe("check-foundation-guards.js (SDLC-02 / SC2 fail-proof harness)", () => 
     expect(out(r)).toContain("SKILL.md");
   });
 
-  it("guard_wr05 planted grant on non-coordinator (quoted array-item) → nonzero + 'rogue spawner' (WR-02)", () => {
+  it("guard_wr05 planted grant on non-coordinator (quoted array-item) → nonzero + REFUSED `quoted-on-plain-only-key` (WR-02, re-sited by 27-65)", () => {
     const m = mirror();
     plantInFrontmatter(join(m, ".claude/skills/grugops/SKILL.md"), ['  - "Agent"']);
     const r = runIn(m);
     expect(r.status).not.toBe(0);
-    expect(out(r)).toMatch(/rogue spawner/i);
-    expect(out(r)).toContain("SKILL.md");
+    // A QUOTED value on a grant key is refused before the grant test runs — the double-quoted escape
+    // alphabet is permanently outside the path that renders a spawn verdict, which is what keeps the
+    // whole D-30 attack family off this path. The plant is still convicted; it is convicted earlier.
+    expectRefused(out(r), "SKILL.md", "quoted-on-plain-only-key");
+  });
+
+  // THE ROGUE-SPAWNER ARM ITSELF, PLANTED IN CANONICAL FORM — added by 27-65 because without it the
+  // arm would have lost its last live plant.
+  //
+  // Every pre-existing rogue-spawner fixture in this file expresses its grant in a spelling the
+  // canonical form now refuses, so after the cutover each of them convicts at the refusal instead of
+  // at the arm. That is correct behaviour, and it would ALSO have left `non-coordinator carries a
+  // spawn grant` with no case that reaches it — an arm turned green by the disappearance of its own
+  // fixtures, which is precisely the silent coverage loss this repository has already paid for.
+  //
+  // This plant is a plain one-line scalar: the canonical form ADMITS it, so the document reaches the
+  // grant test and is convicted by the arm, by name.
+  it("guard_wr05 CANONICAL-FORM grant on a non-coordinator → ADMITTED, then convicted as 'rogue spawner' (27-65 arm-reachability)", () => {
+    const m = mirror();
+    reshapeToolsBlock(adapterPath(m, "grugops-qe-e2e"), [
+      "tools: Read, Grep, Glob, Agent(grugops-software-engineer)",
+    ]);
+    const r = runIn(m);
+    expect(r.status).not.toBe(0);
+    const o = out(r);
+    expect(o).toMatch(/rogue spawner/i);
+    expect(o).toContain(".claude/agents/grugops-qe-e2e.md");
+    // NON-VACUITY: it was convicted by the ARM, not by a refusal. If this document were refused the
+    // case would prove nothing about the arm, and the whole point of adding it would be lost.
+    expect(
+      o,
+      "the canonical plant must be ADMITTED and convicted by the arm, never refused",
+    ).not.toContain("frontmatter is NOT in the canonical form");
   });
 
   // ── The CR-02 FOLDED-SCALAR bypass, reproduced and now closed (plan 27-12, SPAWN-04). ─────────
@@ -602,7 +853,7 @@ describe("check-foundation-guards.js (SDLC-02 / SC2 fail-proof harness)", () => 
   // The skill case is the worse of the two: a skill adapter has no role to compare against, so KIT-03
   // is structurally blind to it and the skill count only checks cardinality. Nothing else in the
   // suite could have caught it.
-  it("guard_wr05 folded grant on a non-coordinator ROLE ADAPTER → nonzero + 'rogue spawner' (CR-02, reproduced)", () => {
+  it("guard_wr05 folded grant on a non-coordinator ROLE ADAPTER → nonzero + REFUSED `block-scalar` (CR-02, reproduced; re-sited by 27-65)", () => {
     const m = mirror();
     reshapeToolsKey(adapterPath(m, "grugops-qe-e2e"), [
       "tools: >-",
@@ -610,11 +861,13 @@ describe("check-foundation-guards.js (SDLC-02 / SC2 fail-proof harness)", () => 
     ]);
     const r = runIn(m);
     expect(r.status).not.toBe(0);
-    expect(out(r)).toMatch(/rogue spawner/i);
-    expect(out(r)).toContain(".claude/agents/grugops-qe-e2e.md");
+    // CR-02's original bytes, unchanged. The old reader had to SEE THROUGH the fold to convict; the
+    // canonical form refuses the fold itself, so the conviction no longer depends on a recogniser
+    // getting the indentation right — which is the exact mechanism that regressed in round 11.
+    expectRefused(out(r), ".claude/agents/grugops-qe-e2e.md", "block-scalar");
   });
 
-  it("guard_wr05 folded grant on a SKILL file → nonzero + 'rogue spawner' (CR-02, reproduced — no role corpus can cross-check a skill)", () => {
+  it("guard_wr05 folded grant on a SKILL file → nonzero + REFUSED `block-scalar` (CR-02, reproduced — no role corpus can cross-check a skill)", () => {
     const m = mirror();
     reshapeToolsKey(join(m, ".claude/skills/grugops/SKILL.md"), [
       "allowed-tools: >-",
@@ -622,8 +875,11 @@ describe("check-foundation-guards.js (SDLC-02 / SC2 fail-proof harness)", () => 
     ]);
     const r = runIn(m);
     expect(r.status).not.toBe(0);
-    expect(out(r)).toMatch(/rogue spawner/i);
-    expect(out(r)).toContain(".claude/skills/grugops/SKILL.md");
+    expectRefused(
+      out(r),
+      ".claude/skills/grugops/SKILL.md",
+      "block-scalar",
+    );
   });
 
   // ── The CR-01 ANCHOR/ALIAS bypass, reproduced and now closed (plan 27-18, SPAWN-04). ──────────
@@ -655,9 +911,8 @@ describe("check-foundation-guards.js (SDLC-02 / SC2 fail-proof harness)", () => 
     const r = runIn(m);
     expect(r.status).not.toBe(0);
     const o = out(r);
-    expect(o).toMatch(/frontmatter parse failure/);
-    expect(o).toContain(".claude/skills/grugops/SKILL.md");
-    expect(o).toMatch(/anchor or alias/);
+    expectRefused(o, ".claude/skills/grugops/SKILL.md", "node-property");
+    expect(o).toMatch(/which opens a YAML anchor/);
     // And the load-bearing half at the AGGREGATOR level: the refusal must not have been quietly
     // folded into the no-grant branch, which would print a passing WR-05 line over an unread file.
     expect(o).toMatch(/NEVER read as "carries no grant"/);
@@ -694,9 +949,11 @@ describe("check-foundation-guards.js (SDLC-02 / SC2 fail-proof harness)", () => 
     const r = runIn(m);
     expect(r.status).not.toBe(0);
     const o = out(r);
-    expect(o).toMatch(/frontmatter parse failure/);
-    expect(o).toContain(".claude/skills/grugops/SKILL.md");
-    expect(o).toMatch(/anchor or alias/);
+    // The TAG sigil is reached first here — `!!str` opens a YAML tag before the anchor that follows
+    // it. Same enumerated code, and the reason names the construct that was actually seen rather
+    // than the one the case is nicknamed after.
+    expectRefused(o, ".claude/skills/grugops/SKILL.md", "node-property");
+    expect(o).toMatch(/which opens a YAML tag/);
     // The load-bearing half, identical to the sibling: the refusal must not have been folded into the
     // no-grant branch, which would print a passing WR-05 line over a file the guard never read.
     expect(o).toMatch(/NEVER read as "carries no grant"/);
@@ -752,11 +1009,21 @@ describe("check-foundation-guards.js (SDLC-02 / SC2 fail-proof harness)", () => 
     const r = runIn(m);
     expect(r.status).not.toBe(0);
     const o = out(r);
-    expect(o).toMatch(/frontmatter parse failure/);
-    expect(o).toContain(".claude/skills/grugops/SKILL.md");
-    // The reason names the offending sequence, and keeps the substring every shipped matcher reads.
-    expect(o).toContain(`backslash sequence \`${BACKSLASH}x\``);
-    expect(o).toMatch(/anchor or alias/);
+    // (27-65) THE WHOLE D-30 ESCAPE FAMILY IS NOW REFUSED WITHOUT THE ESCAPE ALPHABET BEING CONSULTED
+    // AT ALL, and that is a structural result rather than a re-worded one. The old reader had to
+    // resolve `\x41` and then decide whether the resolved bytes were a grant, which is why it needed
+    // an escape allowlist and why round 3 found this shape. The canonical form refuses a DOUBLE-QUOTED
+    // value on a grant key outright — `tools` and `allowed-tools` admit plain scalars only — so the
+    // escape is never resolved, the allowlist is never reached, and every 8-, 16- and 32-bit escape
+    // width, the truncated escape and the dangling backslash all land here identically. 27-63 measured
+    // exactly this over the historical corpus: every escape-axis row refuses as
+    // `quoted-on-plain-only-key`, not as `disallowed-escape`.
+    expectRefused(
+      o,
+      ".claude/skills/grugops/SKILL.md",
+      "quoted-on-plain-only-key",
+    );
+    expect(o).toMatch(/admit plain scalars only/);
     // The load-bearing half, identical to both siblings: the refusal must not have been folded into
     // the no-grant branch, which would print a passing WR-05 line over a file the guard never read.
     expect(o).toMatch(/NEVER read as "carries no grant"/);
@@ -766,7 +1033,7 @@ describe("check-foundation-guards.js (SDLC-02 / SC2 fail-proof harness)", () => 
   // The third form the product oracle in frontmatter.test.ts also covers, pinned here at the
   // AGGREGATOR level: a block sequence whose spawn item is quoted. The old array expression happened
   // to catch a quoted item; this case exists so that deleting it cannot silently lose the coverage.
-  it("guard_wr05 folded grant as a QUOTED BLOCK SEQUENCE item → nonzero + 'rogue spawner'", () => {
+  it("guard_wr05 grant as a QUOTED BLOCK SEQUENCE item → nonzero + REFUSED `quoted-on-plain-only-key` (re-sited by 27-65)", () => {
     const m = mirror();
     reshapeToolsKey(adapterPath(m, "grugops-installer"), [
       "tools:",
@@ -776,8 +1043,11 @@ describe("check-foundation-guards.js (SDLC-02 / SC2 fail-proof harness)", () => 
     ]);
     const r = runIn(m);
     expect(r.status).not.toBe(0);
-    expect(out(r)).toMatch(/rogue spawner/i);
-    expect(out(r)).toContain(".claude/agents/grugops-installer.md");
+    expectRefused(
+      out(r),
+      ".claude/agents/grugops-installer.md",
+      "quoted-on-plain-only-key",
+    );
   });
 
   // The OTHER direction of the same key scoping, so the narrowing is pinned in both directions: a
@@ -785,7 +1055,40 @@ describe("check-foundation-guards.js (SDLC-02 / SC2 fail-proof harness)", () => 
   // that closed the bypass above — is NOT a grant. Widening the test to the whole frontmatter would
   // make this case fail, and a guard that fails on correct documentation teaches authors to delete
   // documentation.
-  it("guard_wr05 folded grant WORDING inside a description value is NOT a grant → guard PASSES (key scoping)", () => {
+  // (27-65) RE-EXPRESSED IN CANONICAL FORM, AND THE REASON MATTERS MORE THAN THE EDIT.
+  //
+  // This case's PROPERTY is key scoping: a spawn token inside a `description:` value is documentation,
+  // not a grant, and a guard that reds on it teaches authors to delete correct documentation. That
+  // property is unchanged and still worth pinning.
+  //
+  // Its old FIXTURE expressed the description as a folded scalar (`>-`), which the canonical form now
+  // refuses — so as written it had become a case asserting a green run over a document the gate
+  // correctly reds. It is re-expressed as the DOUBLE-QUOTED form, which is what every one of the 17
+  // live agent adapters actually uses and which the canonical form admits on `description` precisely
+  // because the corpus measured 17 of them.
+  //
+  // THE NARROWING IS NOT HIDDEN BY THE RE-EXPRESSION: the sibling case directly below pins that the
+  // folded spelling is now REFUSED by name, so both halves of the truth are asserted rather than one
+  // being quietly replaced by the other.
+  it("guard_wr05 grant WORDING inside a double-quoted description value is NOT a grant → guard PASSES (key scoping)", () => {
+    const m = consistentMirror();
+    const file = adapterPath(m, "grugops-factory-coach");
+    writeFileSync(
+      file,
+      readFileSync(file, "utf8").replace(
+        /^description: .*$/m,
+        'description: "Coaches the factory. Never uses Agent(grugops-qe-e2e) — this sentence merely names the spawn tool and is documentation, not a grant."',
+      ),
+    );
+    const r = runIn(m);
+    expect(r.status).toBe(0);
+    expect(out(r)).toContain("ALL CHECKS PASSED");
+  });
+
+  // The other half of the truth: the FOLDED description this case used to plant is now refused. Not a
+  // bypass and not a regression — a documented narrowing, pinned so it cannot be discovered by
+  // accident, and stated in 27-65-SUMMARY.md as a cost of the canonical form rather than a free win.
+  it("guard_wr05 a FOLDED description is now REFUSED `block-scalar` — the narrowing, pinned (27-65)", () => {
     const m = consistentMirror();
     const file = adapterPath(m, "grugops-factory-coach");
     writeFileSync(
@@ -796,8 +1099,12 @@ describe("check-foundation-guards.js (SDLC-02 / SC2 fail-proof harness)", () => 
       ),
     );
     const r = runIn(m);
-    expect(r.status).toBe(0);
-    expect(out(r)).toContain("ALL CHECKS PASSED");
+    expect(r.status).not.toBe(0);
+    expectRefused(
+      out(r),
+      ".claude/agents/grugops-factory-coach.md",
+      "block-scalar",
+    );
   });
 
   // A parse that cannot complete is a PARSE ARTIFACT, never a verdict. Strip the coordinator
@@ -813,10 +1120,12 @@ describe("check-foundation-guards.js (SDLC-02 / SC2 fail-proof harness)", () => 
     const r = runIn(m);
     expect(r.status).not.toBe(0);
     const o = out(r);
-    expect(o).toMatch(/frontmatter parse failure/);
-    expect(o).toContain(".claude/agents/grugops-orchestrator.md");
-    expect(o).toMatch(/NEVER read as "carries no grant"/);
-    expect(o).not.toContain("PASS  WR-05:");
+    expectRefused(
+      o,
+      ".claude/agents/grugops-orchestrator.md",
+      "no-closing-delimiter",
+    );
+    expect(o).toMatch(/is never closed by a `---` line/);
   });
 
   // The name-key floor the parser makes possible: a file in the agent-adapter set with no `name` key
@@ -882,8 +1191,14 @@ describe("check-foundation-guards.js (SDLC-02 / SC2 fail-proof harness)", () => 
     const r = runIn(m);
     expect(r.status).not.toBe(0);
     const o = out(r);
-    expect(o).toContain("`tools` key present with an EMPTY value");
-    expect(o).toContain(".claude/agents/grugops-qe-e2e.md");
+    // (27-65) The emptiness arm's PROPERTY — an empty declaration is its own fact and never the
+    // absent-key one — survives the cutover intact, and is now enforced one level earlier: the
+    // canonical form has no null value, so `tools:` with nothing beneath it is refused by name
+    // instead of being admitted as a present key carrying "".
+    expectRefused(o, ".claude/agents/grugops-qe-e2e.md", "dangling-empty-key");
+    expect(o).toMatch(/written with an empty value/);
+    // The load-bearing half is unchanged: this must NOT be reported as the absent-key finding. Two
+    // different facts, two different remedies, and conflating them is what this case exists to stop.
     expect(o).not.toMatch(/declares no `tools` key/);
   });
 
@@ -966,19 +1281,21 @@ describe("check-foundation-guards.js (SDLC-02 / SC2 fail-proof harness)", () => 
     const r = runIn(m);
     expect(r.status).not.toBe(0);
     const o = out(r);
-    expect(o).toContain(".claude/agents/grugops-orchestrator.md");
-    expect(o).toContain("declares the `tools` allow-list key 2 times");
-    expect(o).toContain("must have ONE answer");
-    // It is the CARDINALITY arm that catches this and nothing else: the disjunction still sees the
-    // grant in the first occurrence, so the dropped-grant arm stays silent and would have let it pass.
+    // (27-65) The document is now REFUSED for declaring one key twice, before either loader-preference
+    // question is asked. The property this case exists for is unchanged and is arguably better served:
+    // the guard still refuses to prefer an occurrence, and it now refuses the DOCUMENT rather than
+    // reasoning about which occurrence a loader would honour.
+    expectRefused(o, ".claude/agents/grugops-orchestrator.md", "duplicate-key");
+    expect(o).toMatch(/appears more than once in this region/);
+    // Still the case that no OTHER arm claims this document: the dropped-grant arm must stay silent,
+    // or the refusal would be masking a second, wrong diagnosis.
     expect(o).not.toMatch(/carries no spawn grant/);
-    expect(o).not.toContain("PASS  WR-05:");
   });
 
   // The same shape on the SKILL spelling of the key, planted on a skill adapter — the surface with no
   // freshness gate, no role corpus to cross-check and only cardinality checked elsewhere. One arm
   // covers both spellings; this case is what proves the coverage is not agent-only.
-  it("guard_wr05 DUPLICATE `allowed-tools` key on a SKILL file → nonzero + names the file and the count (WR-01, skill spelling)", () => {
+  it("guard_wr05 DUPLICATE `allowed-tools` key on a SKILL file → nonzero + REFUSED `duplicate-key` (WR-01 skill spelling, narrowed by 27-65)", () => {
     const m = mirror();
     const file = join(m, ".claude/skills/grugops/SKILL.md");
     reshapeToolsBlock(file, [
@@ -988,9 +1305,10 @@ describe("check-foundation-guards.js (SDLC-02 / SC2 fail-proof harness)", () => 
     const r = runIn(m);
     expect(r.status).not.toBe(0);
     const o = out(r);
-    expect(o).toContain(".claude/skills/grugops/SKILL.md");
-    expect(o).toContain("declares the `allowed-tools` allow-list key 2 times");
-    expect(o).not.toContain("PASS  WR-05:");
+    // The property this case exists for — one arm covers BOTH key spellings, so the coverage is not
+    // agent-only — is preserved exactly. The skill surface is still the one with no freshness gate and
+    // no role corpus to cross-check, and it is still convicted here, by name.
+    expectRefused(o, ".claude/skills/grugops/SKILL.md", "duplicate-key");
   });
 
   // THE NON-FIRING SIDE, pinned as its own case. An arm with no proven non-firing side is a rule
@@ -1011,7 +1329,7 @@ describe("check-foundation-guards.js (SDLC-02 / SC2 fail-proof harness)", () => 
   // THE EMPTINESS ARM IS NOT MASKED. The cardinality arm sits AFTER the absence/emptiness chain
   // rather than inside it, so two EMPTY declarations produce BOTH findings. Folding it in as another
   // `else if` would have let the new arm silence the arm it was added to join.
-  it("guard_wr05 TWO EMPTY `tools` declarations → nonzero + BOTH the emptiness finding and the cardinality finding (WR-01 interplay)", () => {
+  it("guard_wr05 TWO EMPTY `tools` declarations → nonzero + REFUSED at the FIRST defect; the per-document both-findings property is narrowed (WR-01 interplay, 27-65)", () => {
     const m = mirror();
     const file = adapterPath(m, "grugops-installer");
     const src = readFileSync(file, "utf8").split("\n");
@@ -1023,9 +1341,18 @@ describe("check-foundation-guards.js (SDLC-02 / SC2 fail-proof harness)", () => 
     const r = runIn(m);
     expect(r.status).not.toBe(0);
     const o = out(r);
-    expect(o).toContain("`tools` key present with an EMPTY value");
-    expect(o).toContain("declares the `tools` allow-list key 2 times");
-    expect(o).toContain(".claude/agents/grugops-installer.md");
+    // (27-65) BOTH defects are still present in the document, but the canonical form refuses at the
+    // FIRST one it meets — the dangling empty key on line one of the pair — and never reaches the
+    // duplicate. The "report BOTH findings" property this case was written for is therefore NOT
+    // preserved for this input, and that is recorded rather than asserted around: an admission reader
+    // returns one refusal per document by construction, because a second refusal would require
+    // continuing to interpret a document it has already declined to vouch for.
+    //
+    // The no-short-circuit property still holds where it can hold — ACROSS files, which is where it
+    // actually matters for a gate that must report every offending file. The sibling case
+    // "a duplicate key AND a separate finding are BOTH reported" pins exactly that.
+    expectRefused(o, ".claude/agents/grugops-installer.md", "dangling-empty-key");
+    expect(o).toMatch(/written with an empty value/);
   });
 
   // THE TWO-KEY-NAMES ADJACENCY, dispositioned deliberately rather than left unconsidered — an
@@ -1066,45 +1393,93 @@ describe("check-foundation-guards.js (SDLC-02 / SC2 fail-proof harness)", () => 
   //
   // The block SEQUENCE is included beyond the sibling's five because it is the form the shipped SKILL
   // adapters actually use — the spelling a false red would cost the most on.
+  //
+  // (27-65) THE TABLE NOW CARRIES ITS OWN VERDICT COLUMN, AND THAT COLUMN IS THE NARROWING.
+  //
+  // All seven spellings below are legitimate YAML expressing ONE declaration, and the old
+  // interpreting reader resolved every one of them to a single value — which is what made this a
+  // false-red control. The canonical form ADMITS TWO of the seven and REFUSES FIVE. Rather than
+  // deleting the five (which would erase the evidence that the latitude ever existed) or asserting
+  // green over them (which is now false), each row states which side it is on and the case below
+  // asserts BOTH sides in one walk. The two-sided count is asserted so a row cannot be silently
+  // dropped from either bucket.
+  //
+  // MEASURED CONSEQUENCE ON THE LIVE KIT: zero. The 17 agent adapters use the one-line plain scalar
+  // and the 7 skills use the block sequence — the two admitted spellings — so all 33 scanned files
+  // admit. The cost is paid by future content, loudly and with a named reason, not silently.
   const SINGLE_DECLARATION_SPELLINGS: readonly {
     label: string;
     shape: string[];
+    // The canonical-form verdict. `null` = ADMITTED; a string = the enumerated refusal code.
+    refusedAs: string | null;
   }[] = [
-    { label: "one-line plain scalar", shape: ["tools: Read, Grep, Glob"] },
+    {
+      label: "one-line plain scalar",
+      shape: ["tools: Read, Grep, Glob"],
+      refusedAs: null,
+    },
     {
       label: "plain scalar WRAPPED across lines",
       shape: ["tools: Read, Grep,", "  Glob"],
+      refusedAs: "unrecognized-line",
     },
     {
       label: "quoted scalar WRAPPED across lines",
       shape: ['tools: "Read, Grep,', '  Glob"'],
+      refusedAs: "quoted-on-plain-only-key",
     },
     {
       label: "value carrying a trailing # comment",
       shape: ["tools: Read, Grep, Glob # no spawn tool here"],
+      refusedAs: "plain-scalar-charset",
     },
     {
       label: "folded block scalar (>-)",
       shape: ["tools: >-", "  Read, Grep,", "  Glob"],
+      refusedAs: "block-scalar",
     },
     {
       label: "literal block scalar (|-)",
       shape: ["tools: |-", "  Read, Grep, Glob"],
+      refusedAs: "block-scalar",
     },
     {
       label: "block sequence (the shipped skill form)",
       shape: ["tools:", "  - Read", "  - Grep", "  - Glob"],
+      refusedAs: null,
     },
   ];
 
-  it("guard_wr05 the cardinality arm does NOT fire on ANY legitimate spelling of ONE declaration (WR-01 false-red control)", () => {
+  it("guard_wr05 the ADMITTED spellings of ONE declaration do not trip the arm, and the REFUSED ones fail by name (WR-01 false-red control, re-sited by 27-65)", () => {
     // Fixture guard: a control that walked zero spellings would pass vacuously.
     expect(SINGLE_DECLARATION_SPELLINGS.length).toBe(7);
-    for (const { label, shape } of SINGLE_DECLARATION_SPELLINGS) {
+    // TWO-SIDED COUNT, asserted before the walk. A row silently moved from one bucket to the other —
+    // or dropped from the table — changes these numbers and fails by name rather than by absence.
+    const admitted = SINGLE_DECLARATION_SPELLINGS.filter(
+      (s) => s.refusedAs === null,
+    );
+    const refused = SINGLE_DECLARATION_SPELLINGS.filter(
+      (s) => s.refusedAs !== null,
+    );
+    expect(admitted.length, "spellings the canonical form ADMITS").toBe(2);
+    expect(refused.length, "spellings the canonical form REFUSES").toBe(5);
+    expect(admitted.length + refused.length).toBe(
+      SINGLE_DECLARATION_SPELLINGS.length,
+    );
+
+    for (const { label, shape, refusedAs } of SINGLE_DECLARATION_SPELLINGS) {
       const m = mirror();
       reshapeToolsBlock(adapterPath(m, "grugops-qe-e2e"), shape);
       const r = runIn(m);
       const o = out(r);
+      if (refusedAs !== null) {
+        // THE NARROWING HALF. A refusal is loud, named and carries its reason — the safe direction.
+        expect(r.status, `${label}: expected the canonical form to REFUSE`).not.toBe(0);
+        expectRefused(o, ".claude/agents/grugops-qe-e2e.md", refusedAs);
+        continue;
+      }
+      // THE SURVIVING FALSE-RED CONTROL. The two spellings the live kit actually uses must still not
+      // trip the cardinality or two-authorities arms, and must still exit 0.
       expect(o, `${label}: expected no cardinality finding`).not.toMatch(
         /allow-list key \d+ times/,
       );
@@ -1125,7 +1500,18 @@ describe("check-foundation-guards.js (SDLC-02 / SC2 fail-proof harness)", () => 
   // would pass a `/\d+ times/` match and mislead whoever read it, so the assertion is on the integer
   // itself and on the absence of its neighbours. (KIT-03 precision edge: occurrence counts are
   // compared as integers with no tolerance band, and a mismatch is a failure rather than a warning.)
-  it("guard_wr05 THREE `tools` declarations report exactly 3 — the count is an exact integer (WR-01 precision)", () => {
+  // (27-65) WHAT THIS CASE LOST, STATED PLAINLY RATHER THAN QUIETLY DROPPED.
+  //
+  // It used to assert the guard reported an EXACT INTEGER — "3 times", and not 2 or 4 — because a
+  // message carrying a wrong number would satisfy a loose `/\d+ times/` match and mislead its reader.
+  // The canonical form refuses at the SECOND occurrence of a key and never counts to three, so that
+  // integer is no longer computed anywhere and the precision property cannot be asserted.
+  //
+  // This is a real diagnostic loss and it is recorded as one in 27-65-SUMMARY.md. It is not a safety
+  // loss: both the old and the new behaviour take the gate to a red exit naming the file, and the new
+  // one refuses a duplicate of ANY key rather than only the two grant keys. A reader now learns "this
+  // key appears more than once" instead of "this key appears three times".
+  it("guard_wr05 THREE `tools` declarations → REFUSED `duplicate-key` naming the file (WR-01 precision, narrowed by 27-65)", () => {
     const m = mirror();
     const file = adapterPath(m, "grugops-installer");
     const src = readFileSync(file, "utf8").split("\n");
@@ -1143,9 +1529,15 @@ describe("check-foundation-guards.js (SDLC-02 / SC2 fail-proof harness)", () => 
     const r = runIn(m);
     expect(r.status).not.toBe(0);
     const o = out(r);
-    expect(o).toContain("declares the `tools` allow-list key 3 times");
-    expect(o).not.toContain("allow-list key 2 times");
-    expect(o).not.toContain("allow-list key 4 times");
+    expectRefused(o, ".claude/agents/grugops-installer.md", "duplicate-key");
+    expect(o).toMatch(/appears more than once in this region/);
+    // The count is gone, so assert it is gone rather than leaving a reader to assume it is still
+    // there. A stale assertion for "3 times" would have failed; a silently deleted one would have
+    // left the loss invisible.
+    expect(
+      o,
+      "the exact-occurrence count is no longer computed by the canonical form",
+    ).not.toMatch(/allow-list key \d+ times/);
   });
 
   // A CHECK REPORTS WHAT IT CHECKED — the guards' established rule, asserted across the new arm. With
@@ -1170,8 +1562,13 @@ describe("check-foundation-guards.js (SDLC-02 / SC2 fail-proof harness)", () => 
     const r = runIn(m);
     expect(r.status).not.toBe(0);
     const o = out(r);
-    expect(o).toContain("declares the `tools` allow-list key 2 times");
-    expect(o).toContain(".claude/agents/grugops-installer.md");
+    // (27-65) THE CROSS-FILE NO-SHORT-CIRCUIT PROPERTY, WHICH IS THE ONE THAT MATTERS FOR A GATE, IS
+    // FULLY PRESERVED — and this case is now the place it is pinned. Two different files, two
+    // different defects, both reported in one run: the duplicate key is REFUSED by name, and the
+    // second file's canonical-form grant is convicted by the rogue-spawner ARM. Neither stands in for
+    // the other, and the refusal loop deliberately `continue`s rather than returning so every
+    // offending file is named.
+    expectRefused(o, ".claude/agents/grugops-installer.md", "duplicate-key");
     expect(o).toMatch(/rogue spawner/i);
     expect(o).toContain(".claude/agents/grugops-qe-e2e.md");
   });
@@ -1542,7 +1939,7 @@ describe("check-foundation-guards.js (SDLC-02 / SC2 fail-proof harness)", () => 
     expect(out(r)).toContain(".claude/agents/grugops-qe-e2e.md");
   });
 
-  it("guard_wr05 spawn token planted on a non-coordinator adapter (quoted list form) → nonzero + rogue spawner", () => {
+  it("guard_wr05 spawn token planted on a non-coordinator adapter (quoted list form) → nonzero + REFUSED `quoted-on-plain-only-key` (re-sited by 27-65)", () => {
     const m = mirror();
     const file = adapterPath(m, "grugops-installer");
     writeFileSync(
@@ -1554,8 +1951,11 @@ describe("check-foundation-guards.js (SDLC-02 / SC2 fail-proof harness)", () => 
     );
     const r = runIn(m);
     expect(r.status).not.toBe(0);
-    expect(out(r)).toMatch(/rogue spawner/i);
-    expect(out(r)).toContain(".claude/agents/grugops-installer.md");
+    expectRefused(
+      out(r),
+      ".claude/agents/grugops-installer.md",
+      "quoted-on-plain-only-key",
+    );
   });
 
   // Fence-immunity for the cardinality count, planted on an ADAPTER this time (the existing case
@@ -2751,38 +3151,44 @@ describe("check-foundation-guards.js (SDLC-02 / SC2 fail-proof harness)", () => 
   };
 
   for (const rel of [".claude/skills/grugops-map/SKILL.md", "skills/map/SKILL.md"]) {
-    it(`a mark-REFUSED rogue grant on ${rel} exits non-zero with the PARSE-FAILURE finding, not the name floor (SPAWN-04)`, () => {
+    it(`a mark-prefixed rogue grant on ${rel} exits non-zero REFUSED by name, not by the name floor (SPAWN-04)`, () => {
       for (const mode of ["lead2", "trail"] as const) {
         const m = mirror();
         plantMarkedGrant(m, rel, mode);
         const r = runIn(m);
         expect(r.status, mode).not.toBe(0);
         const o = out(r);
-        expect(o, mode).toContain(`${rel}: frontmatter parse failure`);
-        expect(o, mode).toContain("U+FEFF");
-        // It must be the PARSE-FAILURE finding and NOT a name-floor one. Without this the case would
-        // pass on any red run, including one where the parser silently took the no-grant arm and some
-        // unrelated floor fired instead — which is the bypass shape, not its absence.
+        expectRefused(o, rel, "no-opening-delimiter");
+        // It must be the REFUSAL and NOT a name-floor finding. Without this the case would pass on any
+        // red run, including one where the reader silently took a no-grant arm and some unrelated
+        // floor fired instead — which is the bypass shape, not its absence.
         expect(o, mode).not.toContain(`${rel}: agent adapter carries`);
-        // And it is NEVER read as "carries no grant": the file is named, with a reason.
-        expect(o, mode).toContain(
-          'An unreadable adapter cannot be reported on, so it is NEVER read as "carries no grant"',
-        );
       }
     });
 
-    it(`a SINGLE leading mark on ${rel} is NORMALIZED, so the grant behind it is convicted as a rogue spawner`, () => {
-      // The one normalization this module declares (D-39 point 1). Pinned deliberately: it is the
-      // input a reader would assume refuses, and the difference between "refused" and "normalized then
-      // convicted" is the difference between two branches. Both are red; only one is the parse-failure
-      // branch.
+    // (27-65) THE THIRD OUTCOME THIS PAIR USED TO PIN IS GONE, AND ITS DISAPPEARANCE IS THE POINT.
+    //
+    // The old reader NORMALIZED a single leading U+FEFF (D-39 point 1) and refused two of them or a
+    // trailing one — three inputs, two branches, and the case above existed precisely because "a
+    // mark-prefixed grant fails the gate" was true for a DIFFERENT REASON in each. That asymmetry is
+    // the same shape as CR-01 and CR-02: one spelling refused loudly, its near-twin taking a quieter
+    // path, and eleven rounds spent finding which twin was which.
+    //
+    // The canonical form has no normalization step at all. A delimiter line is exactly `---` or it is
+    // not one, so all three mark placements land on ONE code with ONE reason. This case is rewritten
+    // from "the single mark is normalized then convicted" to "the single mark is refused like the
+    // other two", and the three-way collapse is asserted rather than described.
+    it(`a SINGLE leading mark on ${rel} is now REFUSED like the other two placements — no normalization branch (27-65)`, () => {
       const m = mirror();
       plantMarkedGrant(m, rel, "lead1");
       const r = runIn(m);
       expect(r.status).not.toBe(0);
       const o = out(r);
-      expect(o).toContain(`${rel}: non-coordinator carries a spawn grant`);
-      expect(o).not.toContain(`${rel}: frontmatter parse failure`);
+      expectRefused(o, rel, "no-opening-delimiter");
+      // The branch that used to make this input different from its two siblings no longer exists, so
+      // the conviction must NOT come from the rogue-grant arm any more. Asserted, so a future
+      // re-introduction of a normalization step fails here by name.
+      expect(o).not.toContain(`${rel}: non-coordinator carries a spawn grant`);
     });
   }
 
@@ -2795,15 +3201,31 @@ describe("check-foundation-guards.js (SDLC-02 / SC2 fail-proof harness)", () => 
   const NO_BLOCK_FINDING = "agent adapter carries NO FRONTMATTER BLOCK at all";
   const NO_NAME_FINDING = "agent adapter carries no `name` key in its frontmatter";
 
-  it("an agent adapter with NO frontmatter block produces the no-block finding", () => {
+  // (27-65) THE NO-BLOCK ARM IS NOW UNREACHABLE, AND THE FACT IT WAS WRITTEN FOR IS STILL REPORTED.
+  //
+  // The old reader returned a KEYLESS SUCCESS for a document with no frontmatter block, which is why
+  // guard_wr05 needed an arm to tell "a block declaring keys without a name" apart from "no block at
+  // all" — two facts with two different remedies. The canonical form has no keyless success: a first
+  // line that is not exactly `---` refuses as `no-opening-delimiter`, naming the line it actually saw.
+  // The distinction the arm existed to preserve therefore survives — the two documents still produce
+  // two visibly different findings — but the second one is now a refusal rather than a floor.
+  //
+  // The arm itself is deliberately KEPT in the guard as a residual floor that costs nothing and fails
+  // closed; this case is what records that it can no longer be reached.
+  it("an agent adapter with NO frontmatter block is REFUSED `no-opening-delimiter`, naming the line it saw", () => {
     const m = mirror();
     writeFileSync(
       join(m, ".claude/agents/zz-no-block.md"),
       "Just a body. No frontmatter block anywhere in this document.\n",
     );
     const o = out(runIn(m));
-    expect(o).toContain(`.claude/agents/zz-no-block.md: ${NO_BLOCK_FINDING}`);
+    expectRefused(o, ".claude/agents/zz-no-block.md", "no-opening-delimiter");
+    // The refusal names the offending first line, so the author is still told the right thing.
+    expect(o).toContain("Just a body. No frontmatter block anywhere");
+    // And it is still NOT the missing-name finding: the two facts stay distinguishable, which is the
+    // whole property this case and its sibling exist to protect.
     expect(o).not.toContain(`.claude/agents/zz-no-block.md: ${NO_NAME_FINDING}`);
+    expect(o).not.toContain(`.claude/agents/zz-no-block.md: ${NO_BLOCK_FINDING}`);
   });
 
   it("an agent adapter whose block declares keys but no name produces the missing-name finding", () => {
@@ -2817,9 +3239,9 @@ describe("check-foundation-guards.js (SDLC-02 / SC2 fail-proof harness)", () => 
     expect(o).not.toContain(`.claude/agents/zz-no-name.md: ${NO_BLOCK_FINDING}`);
   });
 
-  it("the two name-floor arms produce DIFFERENT message strings", () => {
-    // Asserted as strings so a future author cannot collapse the split back into one message and keep
-    // both cases above green.
+  it("the two no-name facts stay DISTINGUISHABLE in one run — a refusal for the blockless file, the floor for the keyed one (27-65)", () => {
+    // The string inequality is still asserted, so a future author cannot collapse the guard's two
+    // messages back into one and keep the sibling cases green.
     expect(NO_BLOCK_FINDING).not.toBe(NO_NAME_FINDING);
     const m = mirror();
     writeFileSync(join(m, ".claude/agents/zz-no-block.md"), "Body only.\n");
@@ -2828,9 +3250,17 @@ describe("check-foundation-guards.js (SDLC-02 / SC2 fail-proof harness)", () => 
       "---\ndescription: Keys, no name.\ntools: Read\n---\nBody.\n",
     );
     const o = out(runIn(m));
-    // Both arms fire independently in ONE run; neither masks the other.
-    expect(o).toContain(`.claude/agents/zz-no-block.md: ${NO_BLOCK_FINDING}`);
+    // Both facts are reported independently in ONE run and neither masks the other — which is the
+    // property that matters. The blockless file is refused by name; the keyed file is ADMITTED and
+    // then convicted by the floor, proving the floor is still reachable after the cutover.
+    expectRefused(o, ".claude/agents/zz-no-block.md", "no-opening-delimiter");
     expect(o).toContain(`.claude/agents/zz-no-name.md: ${NO_NAME_FINDING}`);
+    // NON-VACUITY: the keyed file must NOT have been refused, or this case would no longer prove the
+    // floor fires at all.
+    expect(
+      o,
+      "the keyed fixture must be ADMITTED so the name floor is proven reachable",
+    ).not.toContain(".claude/agents/zz-no-name.md: frontmatter is NOT");
   });
 
   // CTX_WORKFLOWS: plant an additional workflow matching the `NN-*.md` naming rule, carrying a raw
@@ -3273,19 +3703,30 @@ describe("check-foundation-guards.js (SDLC-02 / SC2 fail-proof harness)", () => 
     expect(o).not.toContain("17 roles, 18 adapters");
   });
 
-  it("referential integrity RED: an EMPTY `name` value is its OWN finding, never read as a match", () => {
+  it("referential integrity RED: an EMPTY `name` value is REFUSED `unrecognized-line`, never read as a match (27-65)", () => {
     const m = consistentMirror();
     renameAdapterIdentity(adapterPath(m, "grugops-qe-e2e"), "");
     const r = runIn(m);
     expect(r.status).not.toBe(0);
     const o = out(r);
-    expect(o).toContain("KIT-03:");
+    // The KIT-03 oracle's own refusal wording (it differs from guard_wr05's on purpose — this one is
+    // about a set equality that must not be computed, not about a grant that must not be assumed).
+    expect(o).toContain(
+      "KIT-03: 1 adapter(s) whose frontmatter is NOT in the canonical form",
+    );
     expect(o).toContain(".claude/agents/grugops-qe-e2e.md");
-    // Reported as EMPTINESS, distinctly: not folded into the plain "declares X, expected Y" mismatch
-    // and not folded into the absent-key arm. Printing one silence for two different facts is exactly
-    // what guard_wr05's `name`-key floor was written to avoid, and this oracle must not repeat it.
-    expect(o).toContain("`name` key present with an EMPTY value");
-    expect(o).not.toContain("declares `name: `");
+    // MEASURED, NOT GUESSED. The fixture writes `name: ` — key, colon, ONE trailing space — which is
+    // neither the `key: value` production (there is no value) nor the `key:` production (there is a
+    // trailing space). The canonical form refuses it as an unrecognized line and quotes the line back.
+    // The first draft of this assertion guessed `dangling-empty-key` and failed red, which is the
+    // assertion doing its job: the code is read off the gate, never assumed from the fixture's intent.
+    expect(o).toContain("[unrecognized-line]");
+    expect(o).toContain("`name: ` matches none of the 3 admitted line productions");
+    // The load-bearing half is untouched: an unreadable adapter is NEVER a zero-length grant closure
+    // and NEVER a non-coordinator, and no set equality is computed over it.
+    expect(o).toContain(
+      "the set equality cannot be checked over a file that cannot be read",
+    );
     expect(o).not.toContain("carries NO `name` key at all");
     expect(o).not.toContain("PASS  KIT-03");
   });
@@ -3302,11 +3743,18 @@ describe("check-foundation-guards.js (SDLC-02 / SC2 fail-proof harness)", () => 
     const r = runIn(m);
     expect(r.status).not.toBe(0);
     const o = out(r);
-    expect(o).toContain("KIT-03:");
+    // (27-65) The document is REFUSED for declaring `name` twice, before either value is read — so
+    // the red-team finding this case pins is closed one level EARLIER than it was. The oracle never
+    // reaches `declaredValues[0]` because it never receives a document with two `name` values at all.
+    expect(o).toContain(
+      "KIT-03: 1 adapter(s) whose frontmatter is NOT in the canonical form",
+    );
     expect(o).toContain(".claude/agents/grugops-installer.md");
-    expect(o).toContain("declares 2 `name` values");
-    expect(o).toContain("`grugops-installer`, `totally-different-name`");
-    expect(o).toContain("identity has ONE authority and must have ONE answer");
+    expect(o).toContain("[duplicate-key]");
+    expect(o).toContain("appears more than once in this region");
+    // The old message reported both values; the canonical form refuses at the second occurrence and
+    // never collects them. Asserted absent so the diagnostic loss is visible rather than assumed away.
+    expect(o).not.toContain("`grugops-installer`, `totally-different-name`");
     expect(o).not.toContain("PASS  KIT-03");
   });
 
@@ -3314,24 +3762,60 @@ describe("check-foundation-guards.js (SDLC-02 / SC2 fail-proof harness)", () => 
   // value, so none of them is refused. A wrapped plain scalar is JOINED by the parser rather than
   // becoming a second value, which is what makes `length !== 1` mean "the key genuinely appears twice"
   // instead of "the value was long".
-  it("referential integrity GREEN: a quoted / trailing-comment / folded `name` is still ONE matching value", () => {
-    for (const spelling of [
-      `"grugops-installer"`,
-      `'grugops-installer'`,
-      `grugops-installer   `,
-      `grugops-installer # the installer role`,
-    ]) {
+  // (27-65) THE SHARPEST EDGE OF THE NARROWING, AND THE ONE MOST WORTH KNOWING ABOUT.
+  //
+  // `name` is NOT a member of `DOUBLE_QUOTED_KEYS` — only `description` and `argument-hint` are,
+  // because those are the only two keys the live corpus writes quoted (17 and 14 occurrences). So
+  // ALL FOUR spellings this control used to walk are now refused: the double-quoted form, the
+  // single-quoted form, the trailing-whitespace form and the trailing-`#`-comment form. The old
+  // reader JOINED each of them to one value, which is what made "length !== 1 means the key genuinely
+  // appears twice" a safe inference; the canonical form gets that inference from admission instead,
+  // by refusing every spelling that is not a bare plain scalar.
+  //
+  // MEASURED COST ON THE LIVE KIT: zero. All 17 adapters write `name: grugops-<role>` as a plain
+  // scalar, which is what the generator emits. But a hand-written adapter with a quoted name will now
+  // be refused, and that is a real constraint a future author must be told about rather than discover.
+  //
+  // The case is rewritten two-sided: every refused spelling is asserted refused BY NAME, and the
+  // plain spelling that the kit actually uses is asserted still GREEN — so the control still proves
+  // the oracle does not red on correct content, over the content that can now be correct.
+  it("referential integrity: the PLAIN `name` spelling is GREEN, and the four previously-legitimate spellings are REFUSED by name (27-65 narrowing)", () => {
+    const REFUSED_NAME_SPELLINGS: readonly [string, string][] = [
+      [`"grugops-installer"`, "quoted-on-plain-only-key"],
+      [`'grugops-installer'`, "single-quoted"],
+      [`grugops-installer   `, "scalar-padding"],
+      [`grugops-installer # the installer role`, "plain-scalar-charset"],
+    ];
+    // Two-sided count, asserted before the walk so a dropped row is visible.
+    expect(REFUSED_NAME_SPELLINGS.length).toBe(4);
+
+    for (const [spelling, code] of REFUSED_NAME_SPELLINGS) {
       const m = consistentMirror();
       renameAdapterIdentity(adapterPath(m, "grugops-installer"), spelling);
       const r = runIn(m);
       const o = out(r);
-      expect(o).not.toContain("FAIL  KIT-03");
-      expect(o).toContain(
-        "PASS  KIT-03: 17 roles == 17 adapters == 17 grant-closure names",
+      expect(r.status, `${spelling}: expected a refusal`).not.toBe(0);
+      expect(o, `${spelling}: expected [${code}]`).toContain(`[${code}]`);
+      expect(o, `${spelling}: must name the file`).toContain(
+        ".claude/agents/grugops-installer.md",
       );
-      expect(r.status).toBe(0);
     }
-  });
+
+    // THE SURVIVING GREEN CONTROL — the spelling the kit actually ships. Without this the case would
+    // be an all-red walk, which proves the oracle can fail but not that it can pass.
+    const green = consistentMirror();
+    renameAdapterIdentity(
+      adapterPath(green, "grugops-installer"),
+      "grugops-installer",
+    );
+    const gr = runIn(green);
+    const go = out(gr);
+    expect(go).not.toContain("FAIL  KIT-03");
+    expect(go).toContain(
+      "PASS  KIT-03: 17 roles == 17 adapters == 17 grant-closure names",
+    );
+    expect(gr.status).toBe(0);
+  }, 60_000);
 
   // ── Smoke — the REAL guard over the REAL tree. ────────────────────────────────────────────────
   //
