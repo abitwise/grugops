@@ -2324,3 +2324,243 @@ per-edit repository-wide value maps (§9).
 | `tools:` / `  &a: b >-` refuses where libyaml reads a no-grant value (pre-existing, byte-identical, LOUD direction) | a later round — carried from `27-57`, unchanged |
 | `27-55`, `27-56` and `27-57`'s open items | carried, unchanged — `27-58` touched no exemption machinery, no fence classifier, no toggle and no introduction set |
 | KIT-03 and SPAWN-04 stay `[ ]` / `Gaps Found` | the next verification round for phase 27 (D-58 item 4 — an executing plan never promotes a row because its own tasks targeted that requirement's defect) |
+
+## From 27-59 (round 11, WR-01 + WR-03) — the corpus grows by DERIVATION, and the round's fixes are swept one at a time
+
+`27-59` changes **no shipped behaviour**. It touches `scripts/frontmatter.test.ts` and
+`scripts/fixtures/frontmatter-singleline-pre-d54.json` only. No production source file was edited, no
+dependency was added, `package.json` is byte-unchanged, and the exemption list is the same length
+before and after.
+
+### 1. The corpus cardinalities, before and after
+
+| | before | after | how |
+|---|---|---|---|
+| `AXIS_KEY_LINE_BASE` (hand-written base shapes) | **26** | **26** — DELIBERATELY UNMOVED | the widening is a derivation, not one row per reported family |
+| header-derived shapes | (n/a) | **321** | 18 non-declaring pass-through + 4 nested keyed shapes x (4 key spellings x 3 properties x 3 indicators x 2 siblings) + 1 sequence-item shape x (1 x 1 x 3 x 2) + 3 top-level shapes x (1 x 1 x 3 x 1) |
+| derived key-line axis (after the quote crossing) | **53** | **348** | `(321 - 9) + 9 x 2 styles x 2 escapes` |
+| enumerated cells | **2,544** | **16,704** | `348 x 6 x 4 x 2` |
+| loader-REJECTED (printed skips) | — | **4,355** | printed per cell with its axis labels and error class |
+| loader-ACCEPTED | **1,526** | **12,349** | |
+| token-presence disagreements | — | **78** | every one covered by E1 or E2 |
+| NAME-SET disagreements | — | **0** | |
+| exemption list length | **2** | **2** | asserted, by a case of this plan's own |
+
+The base length staying at 26 while the corpus grows sixfold **is** the claim. The five previous
+rounds each closed a "the corpus could not express this" report by adding ONE member for the ONE shape
+a review named; that is a corpus grown per reported family, circular over the family structure exactly
+as a per-arm corpus was circular over the arm structure.
+
+### 2. The three round-11 families, MECHANICALLY expressible
+
+Predicates over the shapes' **declared** facts (`blockHeader`, `siblingQuotedRegion`), never over
+their labels or their text. Each asserted non-empty; the counts are PRINTED on every run:
+
+```
+D-52 EXPRESSIBILITY (27-59) — 27-55  shapes=147 cells=7056 | 27-56  shapes=234 cells=11232 | 27-57  shapes=216 cells=10368
+```
+
+The **crossing of all three at once** is also asserted non-empty — the shape no per-family row set can
+reach, because three rows written for three reported families produce three cells and never a product.
+
+### 3. Non-circularity against a pre-round-11 mirror (`git archive 3c7930b`)
+
+```
+27-59 PRE-ROUND-11 MIRROR 3c7930b — cells 16704 | loader-rejected 4355 | pre-build refusals 78
+  | NEVER-EXEMPTIBLE 2526 (silent-while-loader-grants 2520, grants-while-loader-does-not 6)
+  by family: 27-55 — a block-owned region beside a QUOTED region carrying an escape -> 1263 cell(s)
+  by family: 27-56 — a NESTED mapping key outside the plain top-level alphabet     -> 2160 cell(s)
+  by family: 27-57 — a node PROPERTY between the introduction and the indicator    -> 2016 cell(s)
+```
+
+The mirror is asserted to BE the pre-round build (it must still carry `sawBlock`, the flag D-59
+deleted), so the case cannot pass by comparing the build with itself.
+
+### 4. The axis-collapse non-vacuity floor still discriminates
+
+```
+WR-01 non-vacuity floor — key-line shapes 348 full vs 26 all-collapsed vs 53 header-collapsed
+  | cells 16704 vs 1248 vs 2544 | LOADER-ACCEPTED 12349 full vs 806 all-collapsed vs 1526 header-collapsed
+```
+
+Two comparisons, not one. `full > all-collapsed` (12,349 > 806) is the old floor extended; the new
+`full > header-collapsed` (12,349 > 1,526) measures the FOUR HEADER AXES **on their own**, because a
+floor that passes with the new dimensions collapsed is not measuring them. Collapsing all six new axes
+is asserted to reproduce `AXIS_KEY_LINE_BASE` **byte for byte**.
+
+### 5. The 1,440 loud refusals the widening surfaced — generated, adjudicated, NOT exempted
+
+The header product scopes its property crossing to the **mapping-separator** introduction. At the
+BARE-HEADER (`tools: &p >-`) and BLOCK-SEQUENCE-ITEM (`  - &p >-`) introductions the property sits at
+offset 0 of the node, D-30's standing anchor/alias refusal reaches it first, and this module REFUSES
+BY NAME where libyaml accepts and grants. Measured directly:
+
+| document | module | loader |
+|---|---|---|
+| `tools:` / `  nested: &p >-` / … | `{ok:true,value:true}` | grants |
+| `tools:` / `  nested: !!str >-` / … | `{ok:true,value:true}` | grants |
+| `tools: &p >-` / … | **REFUSE by name** | grants |
+| `tools: !!str >-` / … | **REFUSE by name** | grants |
+| `tools:` / `  - &p >-` / … | **REFUSE by name** | grants |
+
+`27-57` recorded exactly this as its controls P and S — *"deliberate, byte-unchanged, and the contrast
+the diagnosis rests on … not open as a defect"*. Covering 1,440 such cells inside the D-52 product
+would have required a THIRD exemption rule, which this plan is forbidden to add. They are **not swept**:
+the SAME `deriveHeaderShapes` produces them through its complement predicate and a case of this plan's
+own adjudicates them against the same loader, asserting the complement is DISJOINT from the product:
+
+```
+27-59 LOUD-ARM adjudication — shapes 30 | cells 1440 | loader-rejected (skipped) 0
+  | module REFUSES 1440 | grants-while-loader-does-not 0 | silent-while-loader-grants 0
+```
+
+### 6. WR-03 — the state differential's two inputs become two axes
+
+`stripComment` takes the ENTERING state (whose `nodeMayBegin` is carried from the previous line) and,
+separately, the caller's offset-zero node-start answer. The loop passed **one variable as both**.
+
+| | before | after |
+|---|---|---|
+| state vectors | **24** | **48** — `3 entering quotes x 2 depths x 2 carried node-may-begin x 2 offset-zero node-start x 2 line-start` |
+| comparisons per differential | 148,656 | **297,312** |
+| STATE differential moved cells | 286 | **572** across 36 inputs, provenance RECOVERED 572, LOST **0** |
+| TEXT differential moved cells | 4 | **4**, still the single input `a: !<x #y> z` |
+
+**The live call sites, read from the module and named.** The call-site LIST is derived from
+`scripts/frontmatter.ts` at run time and its contents pinned, so a fourth site fails by name:
+
+| site | source | (carried `nodeMayBegin`, `nodeStartAtOffsetZero`, `lineStartAtOffsetZero`) |
+|---|---|---|
+| key line | `stripComment(rest, FRESH_NODE, true, false)` | (true, true, false) |
+| item path | `stripComment(itemText, cur.state, true, true)` | (true, true, true) **and (FALSE, true, true)** |
+| continuation | `stripComment(t, cur.state, startsNode, startsNode)` | all four crossings, incl. **(FALSE, true, true)** and **(TRUE, false, false)** |
+
+**The negative control fires.** Re-coupling the two axes (`nodeStart: mayBegin`) reds the coverage rule
+and NAMES the three combinations it can no longer reach — verbatim:
+
+```
+AssertionError: an argument combination a LIVE call site produces that the differential never
+generates — the corpus would agree with the capture not because the module agrees but because it
+never asked: expected [ …(3) ] to deeply equal []
++ [
++   "item path, carried node-may-begin FALSE: mayBegin=false nodeStart=true lineStart=true",
++   "continuation, carried FALSE / line answers TRUE: mayBegin=false nodeStart=true lineStart=true",
++   "continuation, carried TRUE / line answers false: mayBegin=true nodeStart=false lineStart=false",
++ ]
+```
+
+And re-coupling the two **differential loops** (while the fixture carries all 48 states) reds both
+halves: TEXT moved **4 -> 12** cells, STATE moved **572 -> 6,340** cells. The widened capture really
+pins the decoupling.
+
+### 7. The capture's provenance — and the COMPOSITE nobody had written down
+
+`scripts/fixtures/frontmatter-singleline-pre-d54.json` was **REGENERATED**, never hand-edited and never
+extrapolated. Regenerating it exposed a fact no summary states in one place: **the fixture is a
+COMPOSITE of two builds.** Measured over the committed 24-state cross product:
+
+| mirror | reproduces `shortened` | reproduces `state` |
+|---|---|---|
+| `git archive 62b8b53` (pre-D-54) | **0 mismatches** | 1,514 mismatches |
+| `git archive d5c69e0` (pre-`27-51`) | 4 mismatches | **0 mismatches** |
+
+Regenerating both halves from ONE commit would have silently re-baselined the other — the "the build
+equals itself" tautology this file rejects by name. So **each half was regenerated at its own commit**,
+and the fixture now records both in a `provenance` key a case asserts (including that both commits are
+real objects in this repository).
+
+**The command, quoted:**
+
+```
+git archive 62b8b53 | tar -x -C <textMirror>
+git archive d5c69e0 | tar -x -C <stateMirror>
+node regen48.mjs <textMirror> <stateMirror> 62b8b53 d5c69e0 <out>
+```
+
+**The regeneration is verified against the capture it replaces.** The new 48-state capture's COUPLED
+sub-slice (the cells where `nodeStartAtOffsetZero === entering.nodeMayBegin`) equals the committed
+24-state capture exactly: **0 text mismatches, 0 state mismatches, 0 sparse-presence mismatches** over
+all 6,194 inputs. Nothing is `UNKNOWN - verify`; every cell of the new dimension was OBSERVED.
+
+### 8. The five-row revert sweep, with its two premise controls
+
+Method: a hermetic `git clone --no-hardlinks` of this repository (so the git-dependent cases keep
+working — `.git` is present and the unmutated baseline is therefore **0**, not the 6-to-15-case noise a
+`.git`-less scratch copy produces), one edit reverted at a time, `npx tsc` rebuilt, the built artifact
+**probed directly**, then the widened corpus run. Every step's exit code is asserted.
+
+| # | revert | mutate | build | shared corpus: never-exemptible partition | family | one quoted message |
+|---|---|---|---|---|---|---|
+| C1 | **revert NOTHING** | 0 | 0 | both **EMPTY** (78 disagreements, all exemption-covered; NAME-SET 0) | — | *(green — 268 passed)* |
+| C2 | **revert a COMMENT-ONLY change** (2 comment lines) | 0 | 0 | both **EMPTY**, corpus digest `0087999390cb4258` unchanged | — | *(green — 268 passed)* |
+| R1 | `27-55` / D-59 — the region-scoped quoting exemption made STICKY again | 0 | 0 | **both EMPTY — NOT PINNED** (78 / 0, unchanged) | 27-55 | `a union cell whose verdict contradicts D-59's declared region scoping: expected [ …(14) ] to deeply equal []` (its OWN axis, not the shared corpus) |
+| R2 | `27-56` / D-60 — the nested key restricted to the top-level alphabet | 0 | 0 | **silent-while-loader-grants = 2,160** cells, plus **2,160 NAME-SET** disagreements | 27-56 | `V1 quoted: expected { ok: true, value: false } to deeply equal { ok: true, value: true }` |
+| R3 | `27-57` / D-61 edit A — the node-property strip | 0 | 0 | never-exemptible **EMPTY**; **8,112 unexplained disagreements** (8,064 refuse-while-loader-grants + 48 refuse-while-loader-no-grant) — RED, in the LOUD direction | 27-57 | `a disagreement with the loader that NO named exemption covers …` |
+| R4 | `27-57` / D-61 edit B — the reference refusal's 4th application point | 0 | 0 | **both EMPTY — NOT PINNED** (78 / 0) | 27-57 | `the SILENT success arm is the one thing this must never be: expected true to be false` (its OWN axis) |
+| R5 | `27-58` / D-62 edit A — the block-scalar end condition | 0 | 0 | **grants-while-loader-does-not = 72** cells, plus **72 NAME-SET** disagreements | 27-58 | `a disagreement with the loader that NO named exemption covers …` |
+| R6 | `27-58` / D-62 edit B — a blank line inside an open block scalar | 0 | 0 | **both EMPTY — NOT PINNED** (78 / 0) | 27-58 | `B2 literal, one blank — the loader reads this as "Agent(alpha, ga\n\nmma)": expected [ 'Agent(alpha, ga\nmma)' ] to deeply equal [ 'Agent(alpha, ga\n\nmma)' ]` (its OWN axis) |
+
+**Both premise controls hold**, so the sweep is measuring the EDIT and not the rebuild.
+
+### 9. The harness premise produced a FALSE result TWICE MORE, and both were caught
+
+This is the eleventh and twelfth instance in this phase, and neither would have been visible without
+the exit-code assertions the record already demands.
+
+1. **The inverse-patch approach silently did not apply.** `git show 8a2f435 -- scripts/frontmatter.ts |
+   git apply -R` failed (`patch does not apply` — later commits moved the same regions), and the row
+   still printed **`268 passed`**. Read without `mutate exit=1` it says *"the corpus does not pin
+   27-55"* — which happens to be TRUE, but for entirely the wrong reason. Replaced by targeted
+   mutations that assert their own target text before and after.
+2. **`npx tsc` failed with `TS6133: 'stripNodeProperties' is declared but its value is never read`**,
+   emitted NOTHING, left the UNMUTATED `scripts/frontmatter.js` in place, and the row printed
+   **`268 passed`**. The direct probe caught it in the same breath: `27-57 property` still returned
+   `{ok:true,value:true}`, which a truly mutated build cannot do. After adding a `void
+   stripNodeProperties;` reference so the build EMITS, the same revert reds with **8,190** disagreements
+   and the probe returns a refusal.
+
+**And a third, smaller one, recorded because it produced a wrong number in a transcript.** `diff` is a
+shell FUNCTION in this environment (`git diff --no-index --color-words`), so `diff a b | grep -c '^>'`
+counted **0** for a mutation that had plainly applied — git's diff marks lines with `+`/`-`. Every
+later comparison uses `cmp -s` or `/usr/bin/diff`.
+
+### 10. A harness-premise fact about the gate itself
+
+`tsconfig.json` **excludes `**/*.test.ts`**, so `npx tsc --noEmit` — which this plan's `<verify>` block
+lists and which is green — **does not typecheck `scripts/frontmatter.test.ts` at all**, and Vitest's
+oxc transform strips types without checking them. A type error in the largest test file in this
+repository is therefore caught by NOTHING in the standard gate. This plan's test-file changes were
+typechecked explicitly and pass:
+
+```
+npx tsc --noEmit --ignoreConfig --skipLibCheck --module nodenext --moduleResolution nodenext \
+  --target es2022 --strict --types node scripts/frontmatter.test.ts     ->  exit 0
+```
+
+Recorded as a gap in the gate, not as a defect in this plan.
+
+### 11. Gate results on the restored tree
+
+| check | result |
+|---|---|
+| `npx tsc --noEmit` | **exit 0** |
+| explicit typecheck of `scripts/frontmatter.test.ts` | **exit 0** |
+| `npm run freshness` | **exit 0** |
+| `node scripts/check-foundation-guards.js` | **exit 0** (`ALL CHECKS PASSED`) |
+| the fixture parses | yes, `48` states |
+| `npx vitest run --exclude '**/scripts/e2e/**'` | **1,342 passed / 2 skipped / 0 failed** |
+
+**The regression suite is a FLOOR, not the closure evidence.** The evidence is §3's pre-round mirror,
+§4's two-comparison floor, §6's negative control and §8's revert sweep with its two premise controls.
+
+### 12. Still OPEN, with a named owner
+
+| Item | Owner |
+|---|---|
+| **The shared D-52 corpus does NOT pin `27-55`'s edit (R1).** With D-59's region scoping made sticky again, the corpus's two never-exemptible partitions stay EMPTY and its NAME-SET differential stays at 0. The revert is caught only by `27-55`'s own union axis (14 cells) and by the D-60/D-61 derived axes. **The construct is expressible (7,056 cells) and the defect in it is not detectable** — `27-58` recorded that distinction and this is a second instance of it. | a later round — either a token-carrying QUOTED sibling (the current sibling's escape sits outside the enumerated region, so its resolution moves no name and no boolean), or an explicit acceptance that the shared corpus defers this family to its own axis |
+| **The shared D-52 corpus does NOT pin `27-57`'s edit B (R4)** — the reference refusal's fourth application point. Caught only by three cases on `27-57`'s own axis. The corpus generates no `*alias`-before-a-header shape, because a property form that is an ALIAS was not among this plan's three derived members. | a later round — an alias member on `AXIS_HEADER_PROPERTY_FORM`, whose loader verdict must be measured first (`nested: *a >-` is loader-REJECTED without a matching anchor) |
+| **The shared D-52 corpus does NOT pin `27-58`'s edit B (R6)** — the blank line inside an open block scalar. Caught only by five cases on `27-58`'s own axis. **This CONFIRMS a finding `27-58` recorded in advance**: on the G6 cell both builds grant and both refuse the enumeration, for different reasons, so the differential sees no disagreement. | a later round — the differential compares token presence and the NAME SET; this family moves neither, so pinning it in the shared corpus needs a third compared fact (the VALUE), which is a decision rather than an addition |
+| A node property at the BARE-HEADER and BLOCK-SEQUENCE-ITEM introductions refuses where libyaml grants (1,440 cells, §5) | not open as a defect — `27-57`'s recorded, deliberate, byte-unchanged behaviour; adjudicated by its own case and REPORTED rather than exempted |
+| `tsconfig.json` excludes `**/*.test.ts`, so no gate typechecks the test files (§10) | a later round — either add a test-file typecheck lane or record the exclusion as deliberate |
+| `27-55`, `27-56`, `27-57` and `27-58`'s open items | carried, unchanged — `27-59` edited no production source file, no exemption machinery, no fence classifier, no toggle and no introduction set |
+| KIT-03 and SPAWN-04 stay `[ ]` / `Gaps Found` | the next verification round for phase 27 (D-58 item 4) |
