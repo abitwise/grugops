@@ -388,6 +388,15 @@ Three things a later round should know:
 *Phase: 27-spawn-correctness-kit-set-authority*
 *Completed: 2026-08-10*
 
+## Requirement status — DELIBERATELY NOT FLIPPED
+
+`requirements-completed: [KIT-03, SPAWN-04]` above records which requirements this plan *worked on*.
+Neither checkbox in `.planning/REQUIREMENTS.md` was flipped, and that is correct rather than an
+omission: both rows read **"Gaps Found — held pending verification"**, and the traceability table
+states the rule in place — *only a verification round may flip it (D-58 item 4)*. Commit `47d7820`
+already reverted one premature flip of exactly this pair. `requirements mark-complete` was invoked
+and made no change; the no-op is the intended outcome and was not forced.
+
 ## Self-Check: PASSED
 
 All six created source/test artifacts and this summary exist on disk. All three task commits
