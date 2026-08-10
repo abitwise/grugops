@@ -16,6 +16,7 @@
     "generate:skill-twins": "tsc --outDir .tmp-build && node scripts/generate-skill-twins.js",
     "freshness:catalog": "tsc --outDir .tmp-build && node scripts/catalog-freshness.js",
     "freshness:adapters": "tsc --outDir .tmp-build && node scripts/adapters-freshness.js",
+    "freshness:skill-twins": "tsc --outDir .tmp-build && node scripts/skill-twins-freshness.js",
     "freshness:context": "tsc --outDir .tmp-build && node scripts/context-freshness.js",
     "freshness:queue": "tsc --outDir .tmp-build && node scripts/now-running-freshness.js",
     "freshness:traceability": "tsc --outDir .tmp-build && node scripts/trace-freshness.js",

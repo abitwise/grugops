@@ -82,6 +82,14 @@ jobs:
           # It existed and passed for a whole phase while being invoked by nothing, so a committed
           # hand-edit to an adapter cleared every gate in the repository (27-REVIEW CR-01/CR-02).
           npm run freshness:adapters
+          # KIT-03 / SPAWN-04 (plan 27-64, D-64 Part B) — the same mechanism, extended to the
+          # surface that kept failing. Every bypass reproduced in eleven review rounds landed in a
+          # SKILL.md; the seventeen generated-and-byte-gated agent adapters were never bypassed
+          # once. The seven standalone skill twins are now generated and byte-gated too, so a
+          # hand-edit to one is unrepresentable in a green build. Wired HERE and in
+          # scripts/skill-twins-freshness.test.ts, deliberately at both ends — freshness:adapters
+          # was un-wired for a whole phase and that was this phase's most expensive omission.
+          npm run freshness:skill-twins
           node scripts/check-foundation-guards.js
           # IN-02 (plan 27-23) — WIRED AT BOTH ENDS. Until this line, check-kit-refs and
           # validate-agent-factory ran in continuous integration solely as a SIDE EFFECT of their
