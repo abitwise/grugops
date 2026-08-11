@@ -13,6 +13,7 @@
     "freshness": "tsc --outDir .tmp-build && node scripts/freshness.js",
     "check:public-docs": "tsc --outDir .tmp-build && node scripts/check-public-docs-vocabulary.js",
     "check:audit-register": "tsc --outDir .tmp-build && node scripts/check-audit-register.js",
+    "check:claim-anchors": "tsc --outDir .tmp-build && node scripts/check-claim-anchors.js",
     "audit:prepass": "tsc --outDir .tmp-build && node scripts/audit-prepass.js",
     "generate:catalog": "tsc --outDir .tmp-build && node scripts/generate-catalog.js",
     "generate:adapters": "tsc --outDir .tmp-build && node scripts/generate-role-adapters.js",

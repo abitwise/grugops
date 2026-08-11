@@ -155,4 +155,31 @@ jobs:
           # are reading this beside a red build, check whether 28-06 and 28-07 have landed before
           # treating it as breakage.
           node scripts/check-audit-register.js
+          # AUDIT-03 (plan 28-04, D-16) — the claim-registry anchor gate, third and last of this
+          # phase's audit gates, sitting after the register gate so a reader meets all three
+          # together.
+          #
+          # WHAT IT HOLDS. docs/audit/28-claim-registry.md maps every public claim to the safety
+          # floor whose lowering would falsify it, and its only consumer is Phase 30's
+          # claim-dropping, which voids claims BY ID. PHASE 29 SITS BETWEEN THE TWO AND REWRITES
+          # PROSE FOR A LIVING. Without this gate a Phase 29 rewrite silently invalidates the
+          # registry: the rows keep parsing, the ids keep resolving, and every one of them points
+          # at a sentence that moved or changed. This asserts anchors and rows are a bijection and
+          # that each row's text is byte-identical at its anchor.
+          #
+          # WIRED HERE **AND** IN scripts/check-claim-anchors.test.ts, DELIBERATELY AT BOTH ENDS,
+          # for the same reason recorded above the two gates before it: freshness:adapters ran for
+          # an entire phase solely as a side effect of a test spawning it.
+          #
+          # UNLIKE THE OTHER TWO PHASE 28 GATES, THIS ONE IS EXPECTED **GREEN** ON LANDING — the
+          # registry was authored against today's text, so there is nothing for it to catch yet.
+          # Measured at the commit that introduced it: exit 0, 38 registry rows (37 markdown, 1
+          # unanchorable), 37 verbatim comparisons, all 4 safety floors mapped.
+          #
+          # IT IS EXPECTED TO GO **RED INSIDE PLAN 28-05** if that plan rewrites an anchored
+          # sentence without updating its row in the same commit. That is not breakage; it is the
+          # mechanism D-25 relies on, demonstrated on a real commit rather than on a fixture. Six
+          # rows ship `status: false` and eight ship `status: overstated` precisely so that trail
+          # exists.
+          node scripts/check-claim-anchors.js
           VALIDATE_KIT_ROOT=. node scripts/validate-agent-factory.js
