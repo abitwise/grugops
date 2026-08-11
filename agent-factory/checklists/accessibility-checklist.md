@@ -17,8 +17,9 @@ for the project.
 ## Automated checks (axe-core)
 
 The manual checks above are necessary but not sufficient. Add an automated accessibility
-assertion to the UI/E2E suite using `@axe-core/playwright` `4.11.3`, which runs the axe-core
-engine inside a Playwright test. The `.withTags` set below maps to the WCAG 2.2 AA bar.
+assertion to the UI/E2E suite using `@axe-core/playwright` `4.12.1`, which runs the axe-core
+engine inside a Playwright test (version verified against the npm registry 2026-08-11; check for
+a newer one before you pin it). The `.withTags` set below maps to the WCAG 2.2 AA bar.
 
 ```typescript
 // Source: playwright.dev/docs/accessibility-testing

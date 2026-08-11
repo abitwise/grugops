@@ -14,8 +14,10 @@ restate the recipe. Accessibility (axe-core) assertions live in `accessibility-c
 
 ## Tooling
 
-- `@playwright/test` `1.60.0` — the native runner provides screenshots, fixtures, and parallelism.
-- `@axe-core/playwright` `4.11.3` — used for the a11y assertions (see `accessibility-checklist.md`).
+- `@playwright/test` `1.62.1` — the native runner provides screenshots, fixtures, and parallelism.
+  (version verified against the npm registry 2026-08-11; check for a newer one before you pin it)
+- `@axe-core/playwright` `4.12.1` — used for the a11y assertions (see `accessibility-checklist.md`).
+  (version verified against the npm registry 2026-08-11; check for a newer one before you pin it)
 
 Users install these in their own repository; grugops installs nothing and only recommends them:
 
