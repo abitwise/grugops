@@ -1,26 +1,32 @@
 # grugops — the agent factory
 
+<!-- claim: C-28-021 -->
 grugops is a file-based **agent factory** for software delivery. It is a small kit of
 markdown — role prompts, workflows, handoff packets, checklists, a config dial, a visible
 Kanban/Sprint board, and a traceability trail — that drops on top of a coding-agent CLI you
+<!-- claim: C-28-022 -->
 already use. One **Orchestrator** routes work through the full software-delivery lifecycle
 (business analysis → product → system analysis → architecture → engineering → QE/E2E →
 security/NFR/compliance → UAT → release), while a few single-job "grug" agents execute
 within hard limits. The intelligence lives in the host coding agent; grugops only supplies
+<!-- claim: C-28-023 -->
 the role, the guardrail, the memory, the state, the dial, the proof, and the gates. Humans
 always hold merge and deploy.
 
 ## Start here
 
+<!-- claim: C-28-024 -->
 **All work starts at `agent-factory/roles/orchestrator.md`.** Tell your coding agent:
 
 > Read `agent-factory/roles/orchestrator.md`, then `.grugops/factory.config.json`,
 > then `plans/board.md`. Act as the Orchestrator.
 
+<!-- claim: C-28-025 -->
 The Orchestrator reads the config, classifies your request, respects the board's WIP limits,
 activates the right specialist roles, requires each to publish typed notes into the shared
 verified context, updates the board and traceability, and produces the next action.
 
+<!-- claim: C-28-026 -->
 > **Note:** The portable root `AGENTS.md` substrate — the other entry point most host tools
 > read automatically — ships now at the repo root, so most tools can pick up grugops from
 > `AGENTS.md` directly; pointing your agent at `agent-factory/roles/orchestrator.md` as shown
@@ -30,11 +36,13 @@ verified context, updates the board and traceability, and produces the next acti
 
 ## Usage across the five tools
 
+<!-- claim: C-28-027 -->
 grugops works on Claude Code, Codex CLI, Gemini CLI, OpenCode, and GitHub Copilot CLI. The
 single rule to remember: **only the dispatch differs, never the content.** The roles, the
 handoffs, and the gates are identical everywhere. The only difference is whether the host
 tool can *spawn* sub-agents or must *load* role files into context one at a time.
 
+<!-- claim: C-28-028 -->
 | Tool                  | Entry file it reads                              | Role dispatch                                            |
 | --------------------- | ------------------------------------------------ | -------------------------------------------------------- |
 | **Claude Code**       | `CLAUDE.md` (+ portable `AGENTS.md`)             | Coordinator spawns role agents — the `coordinator: true` adapter holds the grant |
@@ -43,11 +51,13 @@ tool can *spawn* sub-agents or must *load* role files into context one at a time
 | **OpenCode**          | `AGENTS.md` (+ its agent config)                 | Sequential role-load (or its own native agents)          |
 | **GitHub Copilot CLI**| `AGENTS.md` (+ `.github/copilot-instructions.md`)| Sequential role-load — no spawn                          |
 
+<!-- claim: C-28-029 -->
 On Claude Code the coordinator (the `coordinator: true` orchestrator adapter) spawns a role
 agent when it would otherwise "wake" that role. On the four non-spawning CLIs the Orchestrator
 is a single agent that *loads the relevant role file into context* at that moment. Same roles,
 same handoffs, same gates — only the dispatch differs.
 
+<!-- claim: C-28-030 -->
 The detailed per-tool **adapters** (thin wrappers, slash commands, entry-file pointers, and
 the Claude Code plugin form) ship now — the installer (`node install/install.js`) lays them
 down. This table is the usage overview; the adapters are the mechanical conveniences layered
@@ -55,6 +65,7 @@ on top.
 
 ## Configuration
 
+<!-- claim: C-28-031 -->
 At runtime the Orchestrator reads the per-repo config dial at `.grugops/factory.config.json`.
 The kit ships the lean default as the **seed source** at `agent-factory/seed/.grugops/factory.config.json`
 (the installer walks `seed/**` and seeds it into the target's `.grugops/`; D-01/D-02). A
@@ -62,6 +73,7 @@ byte-identical copy lives at `agent-factory/config/factory.config.json` as the f
 companion to `agent-factory/config/factory.config.md`. The config is visible and editable —
 change a value, change the factory's behavior.
 
+<!-- claim: C-28-032 -->
 The **zero-config baseline** is `mode=lean`, `cadence=kanban`, `autonomy=pr`. grugops runs
 lean with no config at all, because every role falls back to these same documented defaults
 when the file is absent. Edit the dial to scale up to enterprise governance (scrum cadence,
@@ -69,6 +81,7 @@ compliance regimes, release gates) on a single flag.
 
 ## How work flows
 
+<!-- claim: C-28-033 -->
 - **The board** — `plans/board.md` is the visible state of the factory: WIP-limited columns
   that every ticket moves through, from Ready to Done (or to Ready to Release in enterprise
   mode). The board *is* the state; the column an item sits in is its status.
@@ -118,10 +131,12 @@ Use the Orchestrator. Prepare release <version> for these tickets.
 
 ## Install
 
+<!-- claim: C-28-034 -->
 The minimal "just install the markdown" path works for any tool: copy the portable
 `AGENTS.md` and the `agent-factory/` folder into your repo, then tell the agent *"start at
 `agent-factory/roles/orchestrator.md`."* That is the floor — no scripts required.
 
+<!-- claim: C-28-035 -->
 For per-tool conveniences (thin sub-agent wrappers, a slash command, entry-file pointers, and
 the Claude Code plugin form), grugops ships a single idempotent, additive, dry-run-capable,
 reversible installer. **Node 22+ is a prerequisite** for the scripted path:
@@ -130,10 +145,12 @@ reversible installer. **Node 22+ is a prerequisite** for the scripted path:
 node install/install.js --target /path/to/repo
 ```
 
+<!-- claim: C-28-036 -->
 See **[`install/README.md`](../install/README.md)** for the full flag set (`--target`,
 `--yes`, `DRY_RUN`, `--symlink`, `--migrate`, `--update`, `--prune-old-kit`) and the two-root
 kit/state layout.
 
+<!-- claim: C-28-037 -->
 The Claude Code plugin form (colon-namespaced `/grugops:<op>` commands) installs from the
 marketplace; its exact install commands move with the plugin schema, so confirm them against
 current tool docs — `UNKNOWN - verify`.

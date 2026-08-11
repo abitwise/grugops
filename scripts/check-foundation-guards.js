@@ -552,6 +552,37 @@ const collapseWhitespace = (s) => s.replace(/\s+/g, " ");
 // invented: stripFencedBlocks() states that an unterminated fence leaves the tail INSIDE and never
 // emits it, "a malformed doc can never leak an unguarded live grant past the strip". One rule for
 // both strippers — an unterminated construct extends to EOF — so a malformed comment fails CLOSED.
+//
+// ---------------------------------------------------------------------------------------------
+// (Plan 28-04 / D-16) THE ONE CLASS OF HTML COMMENT IN THIS REPOSITORY THAT CARRIES MEANING.
+//
+// WHAT THIS HELPER IS FOR, restated in one line so the rest of this note has a reference point: a
+// commented-out copy of a required or forbidden string must not stand in for LIVE text in
+// guardAdapterBody or in guard_wr05's tier-beat check. Every HTML comment those predicates meet is
+// text hiding from a reader, and removing it is the whole point.
+//
+// AS OF THIS PHASE THAT IS NO LONGER TRUE OF EVERY HTML COMMENT HERE. AUDIT-03 put
+// `<!-- claim: C-28-NNN -->` anchors into README.md, AGENTS.md and agent-factory/README.md. Those
+// anchors do not HIDE text; they NAME the line beneath them, and scripts/check-claim-anchors.js
+// reads them as its entire input. They are the first HTML comments in this repository that must
+// NOT be stripped.
+//
+// THE TWO ARE NOT IN CONFLICT TODAY, and the reason is MEMBERSHIP, not luck: none of those three
+// documents is a member of any scan this helper feeds. guardAdapterBody reads spawnGrantScan()
+// (.claude/agents, .claude/skills, skills, agent-factory/packaging) plus the packaging template;
+// guard_wr05's tier-beat check reads the coordinator adapter body. A case in
+// scripts/check-claim-anchors.test.ts asserts that absence directly, rather than leaving it to be
+// re-derived by a reader who would have to know to look.
+//
+// WHAT A FUTURE EDITOR MUST CHECK BEFORE WIDENING ANY stripHtmlComments CONSUMER'S SCAN SET TO
+// INCLUDE A PUBLIC DOCUMENT. Adding one of the three anchored documents to a scan that flows
+// through this helper is HARMLESS to that consumer — the anchors simply become invisible to it,
+// which is the correct treatment, because an anchor is not an announcement. What must NEVER happen
+// is the reverse direction: this helper, or any other normalizing transform, being introduced into
+// the ANCHOR gate's own read path. Stripping there would delete that gate's entire input, and it
+// would then pass green over a document with no anchors left in it — a fail-open wearing the shape
+// of a clean run. The anchor gate therefore reads RAW BYTES, and says so in its own header.
+// ---------------------------------------------------------------------------------------------
 const stripHtmlComments = (s) => {
     const closed = s.replace(/<!--[\s\S]*?-->/g, " ");
     const dangling = closed.indexOf("<!--");

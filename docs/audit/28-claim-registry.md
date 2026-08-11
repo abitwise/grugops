@@ -545,14 +545,15 @@ compliance regimes, release gates) on a single flag.
 ### C-28-033
 
 - file: agent-factory/README.md
-- line: 84-94
+- line: 85-94
 - kind: architecture
 - depends_on: —
-- status: true
-- mechanism: Three assertions, each measured. The board: `agent-factory/seed/plans/board.md` ships WIP-limited columns and `factory.config.json` `wip_limits` names all ten. Traceability: `agent-factory/seed/plans/traceability.md` ships with the requirement→ticket→code→test→UAT→release row shape. The lifecycle: `agent-factory/workflows/16-context-read-write.md` is the pull/publish contract the third bullet names, and it is the corrected v2.0 flow rather than the deleted relay. Registered as one slice because an anchor between two list items would split the rendered list.
+- status: overstated
+- mechanism: Three assertions, measured separately. The board HOLDS — `agent-factory/seed/plans/board.md` ships WIP-limited columns and `factory.config.json` `wip_limits` names all ten. Traceability HOLDS — `agent-factory/seed/plans/traceability.md` ships with the requirement→ticket→code→test→UAT→release row shape. THE LIFECYCLE BULLET DOES NOT: `the Orchestrator routes each request through the relevant stages (analysis → design → engineering → QE → security/NFR → UAT → release)` is the SAME arrow-chain relay narration D-10 names, measured against `AGENTS.md:21` and `orchestrator.md:88`. It is `overstated` rather than `false` because the hedge `relevant stages` and the clause that immediately follows — each role pulls the shared verified context and publishes typed notes back into it (Workflow 16) — are the correct v2.0 flow, so the sentence is directionally right while its arrow chain still narrates a sequential pass. FOUND BY THE ANCHOR PASS, NOT BY THE TASK-1 READ: this bullet is a third D-10 site that neither the drift guard nor the initial claim sweep reached. Registered as one slice because an anchor between two list items would split the rendered list.
+- disposition: fixed
+- finding_id: F-28-214
 
 ```
-
 - **The board** — `plans/board.md` is the visible state of the factory: WIP-limited columns
   that every ticket moves through, from Ready to Done (or to Ready to Release in enterprise
   mode). The board *is* the state; the column an item sits in is its status.
@@ -678,8 +679,8 @@ the join, and it is written here rather than resolved by mislabelling a row.
 
 ## Findings (AUDIT-01), and why they are not Table B rows
 
-Every row whose `status` is not `true` carries a `disposition` and a `finding_id`. Thirteen rows
-qualify — 6 `false` and 7 `overstated` out of 38.
+Every row whose `status` is not `true` carries a `disposition` and a `finding_id`. Fourteen rows
+qualify — 6 `false` and 8 `overstated` out of 38.
 
 | Finding | Claim | Status | Disposition | Where it is answered |
 |---|---|---|---|---|
@@ -696,6 +697,7 @@ qualify — 6 `false` and 7 `overstated` out of 38.
 | F-28-211 | C-28-029 | false | fixed | 28-05 — *"same handoffs"* |
 | F-28-212 | C-28-032 | overstated | deferred → 29 | *"every role falls back"* — measured at zero of 18 |
 | F-28-213 | C-28-038 | false | deferred → 28-05 | the manifest `description` carries the same drift; **unanchorable**, so the verbatim gate cannot catch a missed flip — see the section above |
+| F-28-214 | C-28-033 | overstated | fixed | 28-05 — a **third** D-10 arrow-chain site, in the § *How work flows* lifecycle bullet, that neither the drift guard nor the task-1 sweep reached |
 
 **Why these are NOT rows in `docs/audit/28-disposition-register.md` Table B.** They cannot be.
 `readRegister()` refuses a Table B row naming a file with no Table A row, and Table A is the
