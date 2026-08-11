@@ -428,14 +428,36 @@ Plans:
   4. The `@playwright/test` and `@axe-core/playwright` pins in the gate templates match versions **verified at the time of change** (1.60.0 → 1.62.0, 4.11.3 → 4.12.1 as of 2026-07-28), with the verification recorded rather than assumed. (AUDIT-04)
 
 **Plans**: 8 plans (8 waves, strictly sequential — every plan either rebuilds committed `.js` or edits an artifact an adjacent plan reads, so the ordering is a real dependency rather than build serialization)
+**Wave 1**
 
 - [ ] 28-01-PLAN.md — TRACER: the AUDIT-02 drift guard, landed FIRST and watched failing RED against today's tree (D-24), as a third consumer of `dead-vocabulary.ts` with a derived, count-asserted scan set (D-09)
+
+**Wave 2** *(blocked on Wave 1 completion)*
+
 - [ ] 28-02-PLAN.md — Fail-safe residuals: the `oracleWr05Wording` quadratic hang closed on all three D-20 axes, AUDIT-04's pins re-measured with `npm show` at execution time (D-23), and residuals #1/#2 sized — the measurement that decides whether 28-08 runs
+
+**Wave 3** *(blocked on Wave 2 completion)*
+
 - [ ] 28-03-PLAN.md — The audit machinery: one fail-closed parse authority, the D-06 mechanical pre-pass, and the D-03 two-equality completeness gate, landed RED against an unfilled register
+
+**Wave 4** *(blocked on Wave 3 completion)*
+
 - [ ] 28-04-PLAN.md — The claim registry authored, anchored and floor-mapped BEFORE the drift fixes (D-25), with the D-16 anchor↔row bijection and verbatim gate
+
+**Wave 5** *(blocked on Wave 4 completion)*
+
 - [ ] 28-06-PLAN.md — The read pass, part 1: 17 derived role files plus the out-of-set protocol file (D-02), each with a substantive recorded verdict and a safety-surface flag
+
+**Wave 6** *(blocked on Wave 5 completion)*
+
 - [ ] 28-05-PLAN.md — The AUDIT-02 drift fixes: four top-level docs reconciled, all five examples re-narrated (D-11), both hygiene directories deleted (D-12), registry rows flipped in the same commit — turns 28-01's guard GREEN
+
+**Wave 7** *(blocked on Wave 6 completion)*
+
 - [ ] 28-07-PLAN.md — The read pass, part 2: 19 workflows, the register gate turned GREEN, and Phase 29's safety-surface exclusion list derived and freshness-gated (D-18)
+
+**Wave 8** *(blocked on Wave 7 completion)*
+
 - [ ] 28-08-PLAN.md — CONDITIONAL on 28-02's sizing: the D-21 adversarial round on the canonical admission reader at D-22's full closure bar
 
 **Note:** the `CTX_WORKFLOWS` derivation the research assigned here is already covered by KIT-02 in Phase 27; this phase consumes the derived sets rather than re-deriving them. Standing obligations #4 (fail-safe residuals) and #5 (hygiene — `agent-factory/handoffs/.gitkeep`) are dispositioned under AUDIT-01.

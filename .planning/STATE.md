@@ -4,13 +4,13 @@ milestone: v2.1
 milestone_name: Autonomous Factory — Real Spawning, Controlled Language & Live Board
 current_phase: 28
 current_phase_name: Kit Consistency Audit
-status: ready_to_plan
-stopped_at: Phase 28 context gathered
-last_updated: "2026-08-11T12:50:46.286Z"
+status: ready_to_execute
+stopped_at: Phase 28 planned — 8 plans, 8 waves
+last_updated: "2026-08-11T13:37:21.120Z"
 progress:
   total_phases: 7
   completed_phases: 1
-  total_plans: 66
+  total_plans: 74
   completed_plans: 66
   percent: 14
 last_activity: 2026-08-11
