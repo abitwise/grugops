@@ -110,4 +110,25 @@ jobs:
           # unset on purpose and falls back to the repository root, which is the state root of this
           # single-tree checkout.
           node scripts/check-kit-refs.js
+          # AUDIT-02 (plan 28-01, D-09) — the THIRD consumer of scripts/dead-vocabulary.ts, sitting
+          # beside check-kit-refs on purpose so a reader meets the two consumers of the one
+          # retired-vocabulary authority as a pair. check-kit-refs's SCAN deliberately EXCLUDES the
+          # user-visible public documents (root README.md, CLAUDE.md, examples/,
+          # agent-factory/README.md) under its never-a-repo-wide-grep contract; this gate covers
+          # exactly that surface, with its own derived and two-sided-pinned scan set. That contract
+          # is untouched — no entry was added to or removed from SCAN or GH_SCAN.
+          #
+          # WIRED HERE **AND** IN scripts/check-public-docs-vocabulary.test.ts, DELIBERATELY AT BOTH
+          # ENDS. This repository shipped freshness:adapters for an entire phase while it ran solely
+          # as a side effect of a test spawning it — one --exclude pattern away from being un-gated.
+          # A gate that runs only because some other step happens to run it is not wired; it is
+          # borrowed.
+          #
+          # THIS GATE IS **EXPECTED TO FAIL RED** UNTIL THE AUDIT-02 DRIFT FIXES LAND IN PLAN 28-05.
+          # That is deliberate, and it is the ACCEPTANCE EVIDENCE for D-24, not a regression: a guard
+          # that passes the moment it appears has never been watched fail, so its ability to catch
+          # this drift would be asserted rather than demonstrated. Measured at the commit that
+          # introduced it: exit 1, 18 hits across 8 of the 10 scanned documents. If you are reading
+          # this beside a red build, check whether 28-05 has landed before treating it as breakage.
+          node scripts/check-public-docs-vocabulary.js
           VALIDATE_KIT_ROOT=. node scripts/validate-agent-factory.js
