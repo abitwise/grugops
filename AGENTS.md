@@ -3,7 +3,7 @@
 ## Mission
 
 <!-- claim: C-28-010 -->
-This repo runs a file-based agent factory for software delivery. One Orchestrator (the head grug) routes work through the full lifecycle; a few single-job grug agents execute within hard limits. The role is the intelligence. The workflow is the guardrail. The shared verified context is the memory. The board is the state. The gate is the backpressure. Humans decide; agents execute.
+This repo runs a file-based agent factory for software delivery. One Orchestrator (the head grug) decomposes each request into subtasks and enqueues them on a shared queue; a few single-job grug agents claim that work and execute within hard limits. The role is the intelligence. The workflow is the guardrail. The shared verified context is the memory. The board is the state. The gate is the backpressure. Humans decide; agents execute.
 
 ## How to work here
 

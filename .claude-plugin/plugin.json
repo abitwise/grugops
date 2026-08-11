@@ -1,7 +1,7 @@
 {
   "name": "grugops",
   "version": "0.1.0",
-  "description": "grugops — a file-based agent factory for disciplined software delivery. The Orchestrator routes work through the full lifecycle; humans always hold merge and deploy.",
+  "description": "grugops — a file-based agent factory for disciplined software delivery. The Orchestrator decomposes each request into subtasks and enqueues them on a shared queue, with a shared verified context as the only memory between roles; humans always hold merge and deploy.",
   "author": {
     "name": "Olger Oeselg",
     "email": "abitwise@gmail.com"

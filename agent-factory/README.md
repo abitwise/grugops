@@ -2,13 +2,15 @@
 
 <!-- claim: C-28-021 -->
 grugops is a file-based **agent factory** for software delivery. It is a small kit of
-markdown — role prompts, workflows, handoff packets, checklists, a config dial, a visible
-Kanban/Sprint board, and a traceability trail — that drops on top of a coding-agent CLI you
+markdown — role prompts, workflows, a shared verified context, checklists, a config dial,
+a visible Kanban/Sprint board, and a traceability trail — that drops on top of a coding-agent CLI you
 <!-- claim: C-28-022 -->
-already use. One **Orchestrator** routes work through the full software-delivery lifecycle
-(business analysis → product → system analysis → architecture → engineering → QE/E2E →
-security/NFR/compliance → UAT → release), while a few single-job "grug" agents execute
-within hard limits. The intelligence lives in the host coding agent; grugops only supplies
+already use. One **Orchestrator** decomposes each request into subtasks and enqueues them on
+a shared queue, drawing on whichever specialist roles the work needs (business analysis,
+product, system analysis, architecture, engineering, QE/E2E, security/NFR/compliance, UAT,
+release), while a few single-job "grug" agents claim that work and execute within hard
+limits. No agent hands data to another — the shared verified context is the only channel.
+The intelligence lives in the host coding agent; grugops only supplies
 <!-- claim: C-28-023 -->
 the role, the guardrail, the memory, the state, the dial, the proof, and the gates. Humans
 always hold merge and deploy.
@@ -39,7 +41,7 @@ verified context, updates the board and traceability, and produces the next acti
 <!-- claim: C-28-027 -->
 grugops works on Claude Code, Codex CLI, Gemini CLI, OpenCode, and GitHub Copilot CLI. The
 single rule to remember: **only the dispatch differs, never the content.** The roles, the
-handoffs, and the gates are identical everywhere. The only difference is whether the host
+workflows, and the gates are identical everywhere. The only difference is whether the host
 tool can *spawn* sub-agents or must *load* role files into context one at a time.
 
 <!-- claim: C-28-028 -->
@@ -55,7 +57,7 @@ tool can *spawn* sub-agents or must *load* role files into context one at a time
 On Claude Code the coordinator (the `coordinator: true` orchestrator adapter) spawns a role
 agent when it would otherwise "wake" that role. On the four non-spawning CLIs the Orchestrator
 is a single agent that *loads the relevant role file into context* at that moment. Same roles,
-same handoffs, same gates — only the dispatch differs.
+same workflows, same gates, same shared verified context — only the dispatch differs.
 
 <!-- claim: C-28-030 -->
 The detailed per-tool **adapters** (thin wrappers, slash commands, entry-file pointers, and
@@ -88,10 +90,11 @@ compliance regimes, release gates) on a single flag.
 - **Traceability** — `plans/traceability.md` is the audit trail: one row per requirement,
   linking requirement → ticket → code → test → UAT → release, so every shipped change is
   accountable end to end.
-- **The lifecycle** — the Orchestrator routes each request through the relevant stages
-  (analysis → design → engineering → QE → security/NFR → UAT → release); each role pulls the
-  shared verified context and publishes typed notes back into it (Workflow 16), so the next
-  role inherits exactly what it needs.
+- **The lifecycle** — the Orchestrator decomposes each request into subtasks and enqueues
+  them for whichever stages the work actually needs (analysis, design, engineering, QE,
+  security/NFR, UAT, release); each role claims its subtask, pulls the shared verified
+  context and publishes typed notes back into it (Workflow 16), so the next role inherits
+  exactly what it needs — never a relay from the role before it.
 
 ## Copy-paste Orchestrator prompts
 

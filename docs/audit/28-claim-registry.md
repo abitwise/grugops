@@ -62,13 +62,13 @@ Three consequences, recorded rather than left to be discovered:
 - line: 4
 - kind: safety
 - depends_on: autonomy, production_requires_human_confirmation, protected_branch_merge
-- status: false
-- mechanism: Three assertions in one hard-wrapped line, each measured separately. (1) `handoff packets` — `agent-factory/handoffs/` holds only `.gitkeep`; the seventeen static templates were deleted in Phase 24, so the sentence names an artifact class that does not ship. (2) `One Orchestrator routes work through the full software-delivery lifecycle — business analysis → … → release` — `AGENTS.md:21` states the shipped architecture as decompose→enqueue over a shared verified context, and `agent-factory/roles/orchestrator.md:88` states the Orchestrator `does NOT relay data between agents`; the arrow-chain describes the linear relay v2.0 replaced. (3) `Humans always hold merge and deploy` — independently overstated; see C-28-023 for the full measurement. The row takes the WORST of the three.
-- disposition: fixed
+- status: overstated
+- mechanism: Three assertions in one hard-wrapped line, each measured separately, and the row takes the WORST of the three — which is why fixing two of them moves this row from `false` to `overstated` rather than to `true`. (1) `handoff packets` — was FIXED in 28-05; the phrase now reads `a shared verified context`, which is the artifact class that actually ships (`.grugops/context/<task>/notes/`, sole writer `scripts/context-io.ts`). (2) The linear arrow chain `business analysis → … → release` — was FIXED in 28-05; the sentence now states decompose-and-enqueue over a shared queue with the shared verified context as the only memory, matching `AGENTS.md:21` and `agent-factory/roles/orchestrator.md`'s § *Responsibilities* step 4 (`Decompose → enqueue → schedule → gate → sweep`) and its § *Hard limits* (`does NOT relay data between agents — the shared verified context is the only channel`). (3) `Humans always hold merge and deploy` — UNCHANGED and still overstated, for exactly the reason measured in full at C-28-023: the failing word is `always`, the mechanical guard is Claude-Code-plugin-only (`hooks/hooks.json`, `install/install.ts:1571`), and `.planning/PROJECT.md` records an irreducible same-uid / no-hook / direct-filesystem forgery residual. It is backstopped by the `autonomy=pr` floor, which is why it is overstated rather than false. Assertion (3) is ACCEPTED here on the same basis and with the same named residual as C-28-023 / F-28-208; it was deliberately not reworded, because C-28-023 registers the identical claim and is an `accepted` row this plan is not permitted to touch.
+- disposition: accepted
 - finding_id: F-28-201
 
 ```
-grugops is a file-based agent factory for software delivery. It is a small kit of readable markdown — role prompts, workflows, handoff packets, checklists, a config dial, a visible Kanban/Sprint board, and a traceability trail — plus per-tool installers, that drops on top of a coding-agent CLI you already use (Claude Code, Codex CLI, Gemini CLI, OpenCode, GitHub Copilot CLI). One Orchestrator routes work through the full software-delivery lifecycle — business analysis → product → system analysis → architecture → engineering → QE/E2E → security/NFR/compliance → UAT → release — while a few single-job "grug" agents execute within hard limits. It is lean by default and scales to enterprise governance on a single config flag. Humans always hold merge and deploy.
+grugops is a file-based agent factory for software delivery. It is a small kit of readable markdown — role prompts, workflows, a shared verified context, checklists, a config dial, a visible Kanban/Sprint board, and a traceability trail — plus per-tool installers, that drops on top of a coding-agent CLI you already use (Claude Code, Codex CLI, Gemini CLI, OpenCode, GitHub Copilot CLI). One Orchestrator decomposes each request into subtasks and enqueues them on a shared queue, drawing on whichever specialist roles the work needs — business analysis, product, system analysis, architecture, engineering, QE/E2E, security/NFR/compliance, UAT, release — while a few single-job "grug" agents claim that work and execute within hard limits. No agent hands data to another; the shared verified context is the only memory between them. It is lean by default and scales to enterprise governance on a single config flag. Humans always hold merge and deploy.
 ```
 
 ### C-28-002
@@ -184,13 +184,13 @@ The release history lives in [`CHANGELOG.md`](CHANGELOG.md) and follows Keep a C
 - line: 6
 - kind: safety
 - depends_on: autonomy, production_requires_human_confirmation, protected_branch_merge
-- status: false
-- mechanism: `One Orchestrator (the head grug) routes work through the full lifecycle` is contradicted BY THIS SAME FILE sixteen lines later: `AGENTS.md:21` states `the Orchestrator sequences by decompose→enqueue`. One document asserting both is the drift D-10 records as unreachable by any grep, because `routes` is still-correct English elsewhere. `Humans decide; agents execute` carries the same overstatement measured at C-28-023. The row takes the worst of the two.
-- disposition: fixed
+- status: overstated
+- mechanism: Two assertions, and the row takes the worse of them. (1) The self-contradiction is FIXED in 28-05: this line now states `decomposes each request into subtasks and enqueues them on a shared queue`, which is the same fact `AGENTS.md:21` states as `the Orchestrator sequences by decompose→enqueue`. The two lines agreed nowhere before and agree exactly now. (2) `Humans decide; agents execute` is UNCHANGED and still carries the overstatement measured in full at C-28-023 — the mechanical guard is Claude-Code-plugin-only and the same-uid / no-hook forgery residual is irreducible. Accepted here on the same basis and with the same named residual as C-28-023 / F-28-208. The motto is the project's own framing of the `autonomy=pr` floor and was deliberately not reworded; the residual is recorded rather than papered over.
+- disposition: accepted
 - finding_id: F-28-203
 
 ```
-This repo runs a file-based agent factory for software delivery. One Orchestrator (the head grug) routes work through the full lifecycle; a few single-job grug agents execute within hard limits. The role is the intelligence. The workflow is the guardrail. The shared verified context is the memory. The board is the state. The gate is the backpressure. Humans decide; agents execute.
+This repo runs a file-based agent factory for software delivery. One Orchestrator (the head grug) decomposes each request into subtasks and enqueues them on a shared queue; a few single-job grug agents claim that work and execute within hard limits. The role is the intelligence. The workflow is the guardrail. The shared verified context is the memory. The board is the state. The gate is the backpressure. Humans decide; agents execute.
 ```
 
 ### C-28-011
@@ -341,15 +341,13 @@ Andrej Karpathy's coding-agent rules — 12 rules grouped under four principles.
 - line: 4-6
 - kind: architecture
 - depends_on: —
-- status: false
-- mechanism: `handoff packets` names the seventeen static templates deleted in Phase 24; `agent-factory/handoffs/` now holds only `.gitkeep`. This is the hit `scripts/check-public-docs-vocabulary.js` already reports at `agent-factory/README.md:4` against the `handoff packet` literal in `scripts/dead-vocabulary.ts`, and it is the one occurrence in this file that a grep CAN hold.
-- disposition: fixed
-- finding_id: F-28-206
+- status: true
+- mechanism: FIXED in 28-05. `handoff packets` named the seventeen static templates deleted in Phase 24 and was the one occurrence in this file a grep COULD hold — the hit `scripts/check-public-docs-vocabulary.js` reported at `agent-factory/README.md:5` against the `handoff packet` literal in `scripts/dead-vocabulary.ts`. The phrase now reads `a shared verified context`, measured against the artifact that ships: `.grugops/context/<task>/` with `notes/` as the source of truth and `index.md` / `index.jsonl` as derived renders, sole sanctioned writer `scripts/context-io.ts`, schema `agent-factory/contracts/context-note.md`. Every other item the sentence lists was re-verified unchanged — `agent-factory/roles/` (18 files), `agent-factory/workflows/` (19), `agent-factory/checklists/`, `agent-factory/config/factory.config.json`, `agent-factory/seed/plans/board.md` and `traceability.md` all ship. The gate now reports zero hits in this file.
 
 ```
 grugops is a file-based **agent factory** for software delivery. It is a small kit of
-markdown — role prompts, workflows, handoff packets, checklists, a config dial, a visible
-Kanban/Sprint board, and a traceability trail — that drops on top of a coding-agent CLI you
+markdown — role prompts, workflows, a shared verified context, checklists, a config dial,
+a visible Kanban/Sprint board, and a traceability trail — that drops on top of a coding-agent CLI you
 ```
 
 ### C-28-022
@@ -358,16 +356,16 @@ Kanban/Sprint board, and a traceability trail — that drops on top of a coding-
 - line: 8-11
 - kind: architecture
 - depends_on: —
-- status: false
-- mechanism: The arrow chain `business analysis → product → … → release` describes the linear relay v2.0 replaced with decompose→enqueue over a shared queue. Measured against `AGENTS.md:21` and `agent-factory/roles/orchestrator.md:88`, which state the shipped architecture. D-10 records that this specific claim cannot be held by any grep, because `routes` is still-correct English at three live sites; it is registry material by construction.
-- disposition: fixed
-- finding_id: F-28-207
+- status: true
+- mechanism: FIXED in 28-05. The arrow chain `business analysis → product → … → release` described the linear relay v2.0 replaced, and D-10 records that no grep can hold it because `routes` is still-correct English at three live sites — it was registry material by construction. The passage now states decompose-and-enqueue over a shared queue, with the roles named as a comma list of what the Orchestrator draws on rather than as a chain it walks, and it states the non-relay invariant explicitly. Measured against `agent-factory/roles/orchestrator.md` § *Responsibilities* step 4 (`Decompose → enqueue → schedule → gate → sweep (the spine)` — subtasks enqueued as thin `pending/` files holding only a `ref:`) and § *Hard limits* (`does NOT relay data between agents — the shared verified context is the only channel`), and against `AGENTS.md:21`. The verb `routes` was NOT removed from the repository: D-10's three live sites are untouched.
 
 ```
-already use. One **Orchestrator** routes work through the full software-delivery lifecycle
-(business analysis → product → system analysis → architecture → engineering → QE/E2E →
-security/NFR/compliance → UAT → release), while a few single-job "grug" agents execute
-within hard limits. The intelligence lives in the host coding agent; grugops only supplies
+already use. One **Orchestrator** decomposes each request into subtasks and enqueues them on
+a shared queue, drawing on whichever specialist roles the work needs (business analysis,
+product, system analysis, architecture, engineering, QE/E2E, security/NFR/compliance, UAT,
+release), while a few single-job "grug" agents claim that work and execute within hard
+limits. No agent hands data to another — the shared verified context is the only channel.
+The intelligence lives in the host coding agent; grugops only supplies
 ```
 
 ### C-28-023
@@ -438,15 +436,13 @@ verified context, updates the board and traceability, and produces the next acti
 - line: 40-43
 - kind: architecture
 - depends_on: —
-- status: false
-- mechanism: CARRIED-IN CANDIDATE, RE-MEASURED RATHER THAN TRANSCRIBED. `The roles, the handoffs, and the gates are identical everywhere` names `handoffs` as a thing that still exists and is shipped identically; `agent-factory/handoffs/` holds only `.gitkeep`, so the sentence asserts sameness of a deleted artifact class. `scripts/check-public-docs-vocabulary.js` deliberately did NOT flag this line — the bare word `handoffs` is not a `RETIRED_PROSE_FORMS` literal and D-10 forbids widening the matcher to chase it — which is precisely why it is a registry row.
-- disposition: fixed
-- finding_id: F-28-209
+- status: true
+- mechanism: FIXED in 28-05. The sentence asserted sameness of a DELETED artifact class — `handoffs` — and `scripts/check-public-docs-vocabulary.js` deliberately could not flag it, because the bare word is not a `RETIRED_PROSE_FORMS` literal and D-10 forbids widening the matcher to chase it. The noun is now `workflows`, and the parity assertion is measured against what actually ships identically: `agent-factory/roles/` and `agent-factory/workflows/` are copied whole to the kit root of every install by `install/install.ts`'s `cpSync` of the `agent-factory` tree, so no host tool receives a different role or workflow body. The companion clause `only the dispatch differs, never the content` is held mechanically by `scripts/generate-skill-twins.ts` and `npm run freshness:skill-twins` (see C-28-007). The spawn-versus-load sentence that follows is unchanged and independently correct against `orchestrator.md` § *Hard limits*.
 
 ```
 grugops works on Claude Code, Codex CLI, Gemini CLI, OpenCode, and GitHub Copilot CLI. The
 single rule to remember: **only the dispatch differs, never the content.** The roles, the
-handoffs, and the gates are identical everywhere. The only difference is whether the host
+workflows, and the gates are identical everywhere. The only difference is whether the host
 tool can *spawn* sub-agents or must *load* role files into context one at a time.
 ```
 
@@ -477,16 +473,14 @@ tool can *spawn* sub-agents or must *load* role files into context one at a time
 - line: 55-58
 - kind: architecture
 - depends_on: —
-- status: false
-- mechanism: `same handoffs` at line 49 asserts parity of the deleted artifact class, the same defect as C-28-027 at a second location in the same file. The spawn-versus-load distinction the passage draws is otherwise correct and matches `orchestrator.md:88`'s `PARALLEL where Agent is available; SEQUENTIAL where it is not`.
-- disposition: fixed
-- finding_id: F-28-211
+- status: true
+- mechanism: FIXED in 28-05. `same handoffs` asserted parity of the deleted artifact class — the same defect as C-28-027, at a second location in the same file, which is why both had to move together. The clause now reads `same workflows, same gates, same shared verified context`, naming the memory channel that replaced the relay rather than the relay itself; the parity is measured against the same `cpSync` of the whole `agent-factory` tree that C-28-027 cites. The spawn-versus-load distinction the passage draws was already correct and is unchanged — it matches `orchestrator.md` § *Hard limits*: `PARALLEL where Agent is available; SEQUENTIAL where it is not (concurrency-1, same queue, degrade-never-break)`.
 
 ```
 On Claude Code the coordinator (the `coordinator: true` orchestrator adapter) spawns a role
 agent when it would otherwise "wake" that role. On the four non-spawning CLIs the Orchestrator
 is a single agent that *loads the relevant role file into context* at that moment. Same roles,
-same handoffs, same gates — only the dispatch differs.
+same workflows, same gates, same shared verified context — only the dispatch differs.
 ```
 
 ### C-28-030
@@ -548,10 +542,8 @@ compliance regimes, release gates) on a single flag.
 - line: 85-94
 - kind: architecture
 - depends_on: —
-- status: overstated
-- mechanism: Three assertions, measured separately. The board HOLDS — `agent-factory/seed/plans/board.md` ships WIP-limited columns and `factory.config.json` `wip_limits` names all ten. Traceability HOLDS — `agent-factory/seed/plans/traceability.md` ships with the requirement→ticket→code→test→UAT→release row shape. THE LIFECYCLE BULLET DOES NOT: `the Orchestrator routes each request through the relevant stages (analysis → design → engineering → QE → security/NFR → UAT → release)` is the SAME arrow-chain relay narration D-10 names, measured against `AGENTS.md:21` and `orchestrator.md:88`. It is `overstated` rather than `false` because the hedge `relevant stages` and the clause that immediately follows — each role pulls the shared verified context and publishes typed notes back into it (Workflow 16) — are the correct v2.0 flow, so the sentence is directionally right while its arrow chain still narrates a sequential pass. FOUND BY THE ANCHOR PASS, NOT BY THE TASK-1 READ: this bullet is a third D-10 site that neither the drift guard nor the initial claim sweep reached. Registered as one slice because an anchor between two list items would split the rendered list.
-- disposition: fixed
-- finding_id: F-28-214
+- status: true
+- mechanism: FIXED in 28-05. Three assertions, measured separately. The board HOLDS, unchanged — `agent-factory/seed/plans/board.md` ships WIP-limited columns and `factory.config.json` `wip_limits` names all ten. Traceability HOLDS, unchanged — `agent-factory/seed/plans/traceability.md` ships with the requirement→ticket→code→test→UAT→release row shape (that arrow chain is a TABLE ROW SHAPE, not a routing order, and was correctly left standing). THE LIFECYCLE BULLET WAS THE DEFECT and is the one that moved: it narrated `the Orchestrator routes each request through the relevant stages (analysis → design → … → release)`, the third D-10 arrow-chain site, found by the anchor pass and reached by neither the drift guard nor the task-1 read. It now states decompose-and-enqueue for `whichever stages the work actually needs`, adds the claim step, and closes on `never a relay from the role before it` — measured against `orchestrator.md` § *Responsibilities* step 4, `agent-factory/workflows/17-task-claim.md` (the pending → claimed → done transitions and `Coordination is ONLY through the on-disk substrate — never relay data agent-to-agent`), and `agent-factory/workflows/16-context-read-write.md` (pull-before-act, publish-after-verify). The already-correct Workflow 16 clause is retained verbatim. Registered as one slice because an anchor between two list items would split the rendered list.
 
 ```
 - **The board** — `plans/board.md` is the visible state of the factory: WIP-limited columns
@@ -560,10 +552,11 @@ compliance regimes, release gates) on a single flag.
 - **Traceability** — `plans/traceability.md` is the audit trail: one row per requirement,
   linking requirement → ticket → code → test → UAT → release, so every shipped change is
   accountable end to end.
-- **The lifecycle** — the Orchestrator routes each request through the relevant stages
-  (analysis → design → engineering → QE → security/NFR → UAT → release); each role pulls the
-  shared verified context and publishes typed notes back into it (Workflow 16), so the next
-  role inherits exactly what it needs.
+- **The lifecycle** — the Orchestrator decomposes each request into subtasks and enqueues
+  them for whichever stages the work actually needs (analysis, design, engineering, QE,
+  security/NFR, UAT, release); each role claims its subtask, pulls the shared verified
+  context and publishes typed notes back into it (Workflow 16), so the next role inherits
+  exactly what it needs — never a relay from the role before it.
 ```
 
 ### C-28-034
@@ -631,14 +624,13 @@ current tool docs — `UNKNOWN - verify`.
 - line: 4
 - kind: safety
 - depends_on: autonomy, production_requires_human_confirmation, protected_branch_merge
-- status: false
-- mechanism: ADJUDICATED AS A CLAIM AND REGISTERED, WITH ITS FRESHNESS RESIDUAL NAMED — see the section below. The manifest `description` is public and shipped: it is what a user reads in the plugin manager. It carries the SAME two defects measured at C-28-001 and C-28-010. `The Orchestrator routes work through the full lifecycle` is the linear relay v2.0 replaced with decompose→enqueue (`AGENTS.md:21`, `orchestrator.md:88`), and `humans always hold merge and deploy` carries the overstatement measured in full at C-28-023. Status takes the worse of the two.
-- disposition: deferred
+- status: overstated
+- mechanism: ADJUDICATED AS A CLAIM AND REGISTERED, WITH ITS FRESHNESS RESIDUAL NAMED — see the section below. The manifest `description` is public and shipped: it is what a user reads in the plugin manager. It carried the SAME two defects measured at C-28-001 and C-28-010, and the deferral named 28-05 as its target because no gate can reach it. THE DEFERRAL WAS DISCHARGED IN 28-05, BY HAND, IN THE SAME COMMIT AS THE FOUR ANCHORED DOCUMENTS. (1) `The Orchestrator routes work through the full lifecycle` — FIXED; the description now states decompose-and-enqueue on a shared queue with the shared verified context as the only memory between roles, matching `AGENTS.md:21` and `orchestrator.md` § *Responsibilities* step 4. (2) `humans always hold merge and deploy` — UNCHANGED and still overstated for the reason measured in full at C-28-023; accepted here on the same basis and with the same named residual as C-28-023 / F-28-208. The row therefore takes the worse of the two and lands `overstated`, not `true`. `.claude-plugin/plugin.json` was re-parsed as JSON after the edit and remains well formed.
+- disposition: accepted
 - finding_id: F-28-213
-- target_phase: 28-05
 
 ```
-  "description": "grugops — a file-based agent factory for disciplined software delivery. The Orchestrator routes work through the full lifecycle; humans always hold merge and deploy.",
+  "description": "grugops — a file-based agent factory for disciplined software delivery. The Orchestrator decomposes each request into subtasks and enqueues them on a shared queue, with a shared verified context as the only memory between roles; humans always hold merge and deploy.",
 ```
 
 ## The unanchorable claim — `.claude-plugin/plugin.json`
@@ -649,11 +641,19 @@ registry row alone.
 
 **This is an honest gap, recorded, not a reason to leave the claim unregistered.** The file is
 public and shipped: it is the manifest a user installs from the marketplace, and its `description`
-carries the *same* linear-pipeline claim C-28-001 and C-28-010 measure false. Concretely, the
+carried the *same* linear-pipeline claim C-28-001 and C-28-010 measured false. Concretely, the
 residual is this: if plan 28-05 rewrites `README.md:4` and forgets `plugin.json`, the verbatim gate
 catches the README and says nothing about the manifest. The gate prints the count of unanchorable
 rows in its PASS line for exactly that reason — so the exclusion is visible on every run rather than
 silent.
+
+**What 28-05 did about it, recorded because nothing mechanical records it.** The named residual was
+the whole reason this row existed, so 28-05 rewrote `.claude-plugin/plugin.json`'s `description`
+in the SAME COMMIT as `README.md`, `AGENTS.md`, `CLAUDE.md` and `agent-factory/README.md`, and
+verified it by hand rather than by gate: the manifest was re-parsed as JSON, and its `description`
+was diffed against this row's verbatim block character for character. **The residual is unchanged
+for the next editor.** A future rewrite of `README.md:4` that forgets the manifest will still pass
+every gate in this repository green. The only defence is that this row exists and says so.
 
 ## Two-sided completeness (D-14)
 
@@ -679,25 +679,41 @@ the join, and it is written here rather than resolved by mislabelling a row.
 
 ## Findings (AUDIT-01), and why they are not Table B rows
 
-Every row whose `status` is not `true` carries a `disposition` and a `finding_id`. Fourteen rows
-qualify — 6 `false` and 8 `overstated` out of 38.
+Every row whose `status` is not `true` carries a `disposition` and a `finding_id`. **As committed by
+28-05, nine rows qualify — 0 `false` and 9 `overstated` out of 38.** Five rows that 28-04 recorded
+`false` are now `true`; three that 28-04 recorded `false` are now `overstated`, for the reason the
+next paragraph names.
+
+**Why three drift rows landed `overstated` and not `true`.** C-28-001, C-28-010 and C-28-038 are
+each a hard-wrapped region carrying MORE THAN ONE assertion, and each row's own rule — stated in its
+`mechanism` since 28-04 — is that it takes the WORST of them. 28-05 fixed the drift assertion in all
+three. The remaining assertion in each is the *"humans always hold merge and deploy"* / *"humans
+decide; agents execute"* absolute, which C-28-023 already measures `overstated` and disposes
+`accepted` against an irreducible same-uid / no-hook forgery residual. Recording these three `true`
+would have required either rewording a sentence C-28-023 registers as an `accepted` row this plan
+must not touch, or asserting a status the row's own worst-of rule refuses. Both were declined. The
+drift is fixed; the residual is named, and it is the same one residual in all four places.
 
 | Finding | Claim | Status | Disposition | Where it is answered |
 |---|---|---|---|---|
-| F-28-201 | C-28-001 | false | fixed | 28-05 — `README.md` drift rewrite |
+| F-28-201 | C-28-001 | overstated | accepted | 28-05 — `README.md` drift rewritten; the `always` residual is C-28-023's, named in the row |
 | F-28-202 | C-28-003 | overstated | deferred → 29 | the grug voice has drifted out of all 18 caveman blocks; Phase 29 rebuilds the voice guard |
-| F-28-203 | C-28-010 | false | fixed | 28-05 — `AGENTS.md:5` contradicts `AGENTS.md:21` |
+| F-28-203 | C-28-010 | overstated | accepted | 28-05 — `AGENTS.md:6` now agrees with `AGENTS.md:21`; the *"humans decide"* residual is C-28-023's |
 | F-28-204 | C-28-012 | overstated | deferred → 29 | no role file states a when-absent config fallback |
 | F-28-205 | C-28-018 | overstated | accepted | the mechanical guard is Claude-Code-plugin-only; residual named in the row |
-| F-28-206 | C-28-021 | false | fixed | 28-05 — the `handoff packet` hit the drift guard already reports |
-| F-28-207 | C-28-022 | false | fixed | 28-05 — the linear-pipeline claim |
+| F-28-206 | C-28-021 | **true** | — | 28-05 — the `handoff packet` hit the drift guard reported; CLOSED |
+| F-28-207 | C-28-022 | **true** | — | 28-05 — the linear-pipeline claim; CLOSED |
 | F-28-208 | C-28-023 | overstated | accepted | **D-19 item 4** — the irreducible same-uid / no-hook forgery residual |
-| F-28-209 | C-28-027 | false | fixed | 28-05 — *"the roles, the handoffs, and the gates are identical everywhere"* |
+| F-28-209 | C-28-027 | **true** | — | 28-05 — *"the roles, the handoffs, and the gates are identical everywhere"*; CLOSED |
 | F-28-210 | C-28-028 | overstated | accepted | KIT-03 / SPAWN-03 / SPAWN-04 are still `[ ]` |
-| F-28-211 | C-28-029 | false | fixed | 28-05 — *"same handoffs"* |
+| F-28-211 | C-28-029 | **true** | — | 28-05 — *"same handoffs"*; CLOSED |
 | F-28-212 | C-28-032 | overstated | deferred → 29 | *"every role falls back"* — measured at zero of 18 |
-| F-28-213 | C-28-038 | false | deferred → 28-05 | the manifest `description` carries the same drift; **unanchorable**, so the verbatim gate cannot catch a missed flip — see the section above |
-| F-28-214 | C-28-033 | overstated | fixed | 28-05 — a **third** D-10 arrow-chain site, in the § *How work flows* lifecycle bullet, that neither the drift guard nor the task-1 sweep reached |
+| F-28-213 | C-28-038 | overstated | accepted | 28-05 — the manifest `description` was rewritten by hand; **unanchorable**, so no gate catches a future missed flip — see the section above |
+| F-28-214 | C-28-033 | **true** | — | 28-05 — a **third** D-10 arrow-chain site, in the § *How work flows* lifecycle bullet, that neither the drift guard nor the task-1 sweep reached; CLOSED |
+
+**A `true` row carries no `disposition` and no `finding_id`, by the gate's own rule** — the
+`—` cells above are the finding closing, not a field left blank. The finding id stays in this table
+so the closure is quotable; the row it names no longer needs one.
 
 **Why these are NOT rows in `docs/audit/28-disposition-register.md` Table B.** They cannot be.
 `readRegister()` refuses a Table B row naming a file with no Table A row, and Table A is the
