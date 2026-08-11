@@ -22,11 +22,11 @@
 
 import { describe, it, expect, afterAll } from "vitest";
 import { spawnSync } from "node:child_process";
-import { mkdtempSync, mkdirSync, writeFileSync, rmSync, readFileSync } from "node:fs";
+import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { ROLE_COUNT, WORKFLOW_COUNT } from "./kit-model.js";
-import { REGISTER_PATH } from "./audit-model.js";
+import { ROLE_COUNT, WORKFLOW_COUNT, listRoles, listWorkflows } from "./kit-model.js";
+import { REGISTER_PATH, readRegister } from "./audit-model.js";
 import { PROTOCOL_FILE } from "./audit-prepass.js";
 
 const REPO_ROOT = join(import.meta.dirname, "..");
@@ -356,13 +356,34 @@ describe("check-audit-register: the committed skeleton is RED, by design", () =>
   });
 
   it("the committed register's 36 counted paths equal the LIVE listers' output", () => {
-    // Generated at run time from the listers and compared, rather than eyeballed.
-    const text = readFileSync(join(REPO_ROOT, REGISTER_PATH), "utf8");
-    const counted = text
-      .split("\n")
-      .filter((l) => l.startsWith("| agent-factory/") && l.includes("| yes |"))
-      .map((l) => l.split("|")[1].trim());
-    expect(counted.length).toBe(36);
-    expect(new Set(counted).size).toBe(36);
+    // THIS CASE READ THE REGISTER WITH A SECOND GRAMMAR UNTIL PLAN 28-06, AND THE SECOND GRAMMAR WAS
+    // WRONG. It selected counted rows by the SUBSTRING `| yes |` over the raw row text. That
+    // predicate is only accidentally equivalent to "the `counted` column says yes": it holds while
+    // every row's `safety_surface` is the unfilled marker `—`, and stops holding the moment a row
+    // carries `safety_surface: yes`, because the substring then matches the WRONG CELL. The instant
+    // 28-06 filled the protocol row (`| no | yes |`) the case reported 37 against 36 — an uncounted
+    // row counted, by a text predicate, inside a file whose whole subject is a register that must
+    // not be read twice by two grammars. That is this repository's named duplicate-grammar failure
+    // class, committed inside the harness for the gate that exists to prevent it.
+    //
+    // Fixed by asking the ONE parse authority for the column instead of pattern-matching the row.
+    // `readRegister()` reads columns POSITIONALLY and already refuses a `counted` value outside
+    // [yes, no], so no substring can reach the wrong cell.
+    //
+    // AND THE CASE'S OWN COMMENT WAS FALSE TOO. It said "generated at run time from the listers and
+    // compared", but the body compared nothing against any lister — it asserted two cardinalities
+    // and never looked at `listRoles()` or `listWorkflows()`, so a register naming 36 wrong paths
+    // passed it. It now does what it always claimed: SET equality against the live listers, both
+    // directions, which is the property a count cannot buy.
+    const counted = readRegister()
+      .rows.filter((r) => r.counted)
+      .map((r) => r.file);
+    const derived = [
+      ...listRoles().map((f) => `agent-factory/roles/${f}`),
+      ...listWorkflows().map((f) => `agent-factory/workflows/${f}`),
+    ];
+    expect(counted.length).toBe(ROLE_COUNT + WORKFLOW_COUNT);
+    expect(new Set(counted).size).toBe(ROLE_COUNT + WORKFLOW_COUNT);
+    expect([...counted].sort()).toEqual([...derived].sort());
   });
 });

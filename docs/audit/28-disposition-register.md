@@ -5,11 +5,13 @@ in **Table A**; one row per finding in **Table B**. `scripts/check-audit-registe
 two D-03 completeness equalities against the derived listers on every CI run, so the completeness of
 this register is a **check** rather than a claim.
 
-**This register is filled by the read pass in plans 28-06 and 28-07.** Until then every
-`observation` is empty and every `safety_surface` carries the unfilled marker `—`, so the gate is
-RED. That is deliberate, and it is the same posture the AUDIT-02 drift guard takes for the same
-reason: a completeness gate that goes green the moment it appears has never been watched distinguish
-a complete register from an empty one.
+**This register is filled by the read pass in plans 28-06 and 28-07.** It shipped from 28-03 with
+every `observation` empty and every `safety_surface` carrying the unfilled marker `—`, so the gate
+was RED before a single file had been read. That is deliberate, and it is the same posture the
+AUDIT-02 drift guard takes for the same reason: a completeness gate that goes green the moment it
+appears has never been watched distinguish a complete register from an empty one. **Plan 28-06 has
+filled 18 of the 37 rows — the 17 derived roles and the protocol row. The 19 workflow rows are plan
+28-07's and are still unfilled, so the gate is still RED, and it should be.**
 
 **It lives under `docs/` and not under `agent-factory/`,** so it reaches no host repository —
 `install/install.ts` copies the whole `agent-factory/` tree into every install, and an internal
@@ -82,6 +84,17 @@ uncounted row on every run rather than letting its absence pass for completeness
 That makes it one of the likeliest drift carriers in the tree, and being out of set for counting is
 not a reason to leave it unread.
 
+**What the read found, recorded as a measurement rather than left as a suspicion.** Plan 28-06 read
+the file whole and the carried-in candidate is **refuted**: step 4 now reads *"RECORD the work
+output as typed notes per Workflow 16"*, and the file carries **zero** occurrences of `handoff`,
+case-insensitively, in any form — not the retired path `agent-factory/handoffs/` that
+`RETIRED_PATH_FORMS` already asserts to zero across this file's SCAN membership, and not a prose
+form naming the retired concept without naming its path, which is the gap nothing covers here and
+which was the specific reason D-02 demanded the read. `shared-install.md` records a historical
+state; Phase 24's rewrite reached this file. **The value of the read is not that it found nothing —
+it is that the absence is now measured rather than assumed, and it found two OTHER claims this file
+makes about the rest of the kit that no longer hold (F-28-021, F-28-022).**
+
 **Equality one filters on `counted: yes` before counting, and that filter is load-bearing rather
 than decorative.** `scripts/check-audit-register.test.ts` proves it in both directions: a fixture
 planting a second uncounted row keeps equality one green at 36, and a fixture flipping this row to
@@ -141,7 +154,7 @@ reason. Plan 28-05 fills this section with the Phase 33 / GAP-D1 coupling on
 | agent-factory/workflows/16-context-read-write.md | workflow | yes | — | 0 |  |
 | agent-factory/workflows/17-task-claim.md | workflow | yes | — | 0 |  |
 | agent-factory/workflows/18-context-compaction.md | workflow | yes | — | 0 |  |
-| agent-factory/roles/_role-switch-protocol.md | protocol | no | — | 0 |  |
+| agent-factory/roles/_role-switch-protocol.md | protocol | no | yes | 2 | The single source for HOW a role activates — five ordered steps plus the invariant that a role's only memory of earlier roles is the shared verified context. It is out-of-set for COUNTING because `listRoles()` drops underscore-prefixed entries by derivation, which is what makes the role count 17 rather than the 18 files on disk; it is in-set for READING because a derivation not reaching a file is not a reason to leave it unread, and this file was the likeliest drift carrier in the tree. The read settles that: the carried-in candidate is REFUTED — step 4 no longer demands a handoff file, it says "RECORD the work output as typed notes per Workflow 16", and the file carries zero occurrences of `handoff` in any form, including forms `RETIRED_PATH_FORMS` cannot match. What the read did find is two claims the file makes about the rest of the kit that no longer hold (F-28-021, F-28-022). It is a safety surface: it states the coordinator-only spawn rule and the shared-context-is-the-only-channel invariant, both admission text. |
 
 **`—` is the unfilled `safety_surface` marker**: the parser admits it and the gate refuses to pass
 while any row still carries it. Writing `no` into an unread row would record a verdict nobody
@@ -181,6 +194,8 @@ column look discriminating would be the unearned verdict this register exists to
 | F-28-018 | agent-factory/roles/installer.md | 6 | deferred | 29 | § Responsibilities 1-2 (lines 30-31) say "Detect the host coding agent" and "Lay down the right adapter and entry file for that tool" with no detection procedure and no pointer to the per-tool table that does exist and does ship, at `agent-factory/packaging/adapters.md`. Line 36 says the mechanics are "packaging concerns owned elsewhere" without naming where. The gap is the POINTER, not the artifact — two agents given this file alone would detect differently and lay down different adapters. RECORD-ONLY (D-07 category 6). |
 | F-28-019 | agent-factory/roles/architect-design.md | 6 | deferred | 29 | Line 31: "write ADRs for the choices a future maintainer will curse you for if the *why* is missing, not every minor pick" states the ADR threshold as a judgement with no test. `memory-bank/50-decisions/ADR-template.md` supplies a shape, not a trigger, and the one trigger that does exist in the kit — `agent-factory/checklists/definition-of-done-enterprise.md:21`, "ADR written for any structural decision" — is a different test and is not in this role's § Reads. Two agents produce different ADR sets from one design. RECORD-ONLY (D-07 category 6). |
 | F-28-020 | agent-factory/roles/qe-e2e.md | 6 | deferred | 29 | Line 31: "Write E2E where it pays for its upkeep" carries no test for when that holds. The dial that actually decides it — `quality.ui_e2e` (`off` / `ui-or-critical-path` / `always`, consumed at `agent-factory/workflows/05-pr-quality-gate.md:35`) — appears zero times in this file and zero times in `seed/plans/board.md`, and this file references workflow 05 zero times, so nothing in its § Reads set reaches the dial either. RECORD-ONLY (D-07 category 6). |
+| F-28-021 | agent-factory/roles/_role-switch-protocol.md | 3 | deferred | 29 | Lines 17-18 assert as fact: "Every entry point (the Orchestrator's responsibilities, every workflow's 'Agents involved' block) references THIS file by path. Nobody else inlines the steps." MEASURED FALSE on the first half. 16 of the 19 workflows reference `_role-switch-protocol`; `16-context-read-write.md`, `17-task-claim.md` and `18-context-compaction.md` do not — and all 19 carry an `Agents involved` block, so the exception is not that those three lack the block the sentence keys on. The second half holds: no file inlines the five steps. Deferred rather than fixed because the correction is a choice between weakening the claim and adding the reference to three workflow files, and those three files are plan 28-07's read set — fixing here would settle a question in a file this plan has not read. |
+| F-28-022 | agent-factory/roles/_role-switch-protocol.md | 1 | deferred | 29 | Lines 7-15 call the single-window sequential role-load "the default substrate" and present coordinator spawning as what Claude Code "may instead" do, and lines 54-57 repeat the framing. v2.0 reversed that ordering for Claude Code: parallel scheduling is the shipped norm there and sequential is the third of three announced tiers (`agent-factory/packaging/adapters.md:35`). Like `orchestrator.md:88` this file names two modes and carries no tier vocabulary, which matters more here because the Degraded tier is the tier that points AT this file — a reader arriving from the tier announcement finds the tier it came from described as the default. Same class as F-28-008, and the two should be corrected together so one vocabulary lands in both files at once. |
 
 **Finding ids are `F-28-NNN`, three zero-padded digits, and the parser refuses anything else.** This
 is a canonical form with a refusal outside it rather than a pattern widened once per surprise.
