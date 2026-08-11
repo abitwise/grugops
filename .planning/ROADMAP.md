@@ -427,9 +427,22 @@ Plans:
   3. Every public safety claim in `README.md`, `AGENTS.md`, and `agent-factory/README.md` appears in a registry with an id, so Phase 30's claim-dropping mechanism has a named target rather than a prose search. (AUDIT-03)
   4. The `@playwright/test` and `@axe-core/playwright` pins in the gate templates match versions **verified at the time of change** (1.60.0 → 1.62.0, 4.11.3 → 4.12.1 as of 2026-07-28), with the verification recorded rather than assumed. (AUDIT-04)
 
-**Plans**: TBD
+**Plans**: 8 plans (8 waves, strictly sequential — every plan either rebuilds committed `.js` or edits an artifact an adjacent plan reads, so the ordering is a real dependency rather than build serialization)
+
+- [ ] 28-01-PLAN.md — TRACER: the AUDIT-02 drift guard, landed FIRST and watched failing RED against today's tree (D-24), as a third consumer of `dead-vocabulary.ts` with a derived, count-asserted scan set (D-09)
+- [ ] 28-02-PLAN.md — Fail-safe residuals: the `oracleWr05Wording` quadratic hang closed on all three D-20 axes, AUDIT-04's pins re-measured with `npm show` at execution time (D-23), and residuals #1/#2 sized — the measurement that decides whether 28-08 runs
+- [ ] 28-03-PLAN.md — The audit machinery: one fail-closed parse authority, the D-06 mechanical pre-pass, and the D-03 two-equality completeness gate, landed RED against an unfilled register
+- [ ] 28-04-PLAN.md — The claim registry authored, anchored and floor-mapped BEFORE the drift fixes (D-25), with the D-16 anchor↔row bijection and verbatim gate
+- [ ] 28-06-PLAN.md — The read pass, part 1: 17 derived role files plus the out-of-set protocol file (D-02), each with a substantive recorded verdict and a safety-surface flag
+- [ ] 28-05-PLAN.md — The AUDIT-02 drift fixes: four top-level docs reconciled, all five examples re-narrated (D-11), both hygiene directories deleted (D-12), registry rows flipped in the same commit — turns 28-01's guard GREEN
+- [ ] 28-07-PLAN.md — The read pass, part 2: 19 workflows, the register gate turned GREEN, and Phase 29's safety-surface exclusion list derived and freshness-gated (D-18)
+- [ ] 28-08-PLAN.md — CONDITIONAL on 28-02's sizing: the D-21 adversarial round on the canonical admission reader at D-22's full closure bar
 
 **Note:** the `CTX_WORKFLOWS` derivation the research assigned here is already covered by KIT-02 in Phase 27; this phase consumes the derived sets rather than re-deriving them. Standing obligations #4 (fail-safe residuals) and #5 (hygiene — `agent-factory/handoffs/.gitkeep`) are dispositioned under AUDIT-01.
+
+**Ordering that is load-bearing inside this phase, both demonstrated over asserted:** the AUDIT-02 drift guard lands **first** and must be watched failing RED against the real tree with its hit counts recorded before any drift is fixed (D-24), and the claim registry is authored and anchored **before** the drift fixes so the drift-affected claims are recorded `status: false` and corrected in the same commit, with the bijection gate catching a missed flip on a real commit rather than a fixture (D-25). A guard that passes the moment it appears has never been watched fail.
+
+**Success criterion 1 is amended by D-01:** "18 roles" becomes **17**, because `kit-model.listRoles()` drops the `_`-prefixed protocol file by derivation. `_role-switch-protocol.md` is recorded as a 37th register row, explicitly uncounted and still read once. Plan 28-07 makes that amendment in `ROADMAP.md` and `REQUIREMENTS.md` together.
 
 ### Phase 29: Controlled Language & Voice Guard Rebuild
 
