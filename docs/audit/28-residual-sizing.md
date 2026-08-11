@@ -336,16 +336,18 @@ assume the verdict was a judgement call. It was not; it was a computation over t
 
 **`deferred` → Phase 30.**
 
-**Named reason:** the fix is now fully sized and demonstrably cheap — one inserted line, 132 → 0
-measured on a 30,000-input fuzz, changing no predicate and producing zero fail-closure verdict
-changes — but it edits the fail-closure path of the module whose parser class took Phase 22 eight
-rounds, and this plan's own charter is to *measure* reach and not edit that module (threat T-28-11).
-Phase 30 carries the red-team budget that makes a change to a fail-closure path provable rather than
-merely green. The residual fails CLOSED today and the invented byte lives only in a refused remainder
-that is never byte-compared against a promoted note, so nothing is at risk in the interval. **The
-reproduction harness and the exact patch are recorded above, so the cost at that point is minutes,
-not a re-investigation.** If the human at the 28-02 checkpoint elects to pull it forward, the evidence
-to do so safely is already here.
+**`deferred` → Phase 28, plan 28-08 — PULLED FORWARD at the 28-02 checkpoint.**
+
+The disposition initially recorded here was `deferred → Phase 30`. The user overrode it at the
+checkpoint and pulled it forward into this phase. See the checkpoint-resolution section below for the
+decision, the reason, and why it lands on 28-08 rather than inside the checkpoint task itself.
+
+**Named reason:** the fix is fully sized and demonstrably cheap — one inserted line, 132 → 0 measured
+on a 30,000-input fuzz, changing no predicate and producing zero fail-closure verdict changes. It was
+deferred for **charter purity**, not for cost or risk: this plan's job was to measure reach without
+editing modules outside its declared file set. The residual fails CLOSED today and the invented byte
+lives only in a refused remainder that is never byte-compared against a promoted note, so nothing was
+at risk in the interval — but nothing is gained by waiting either, now that the evidence is complete.
 
 ---
 
@@ -357,8 +359,8 @@ row names a target phase **and** a reason; every `accepted` row names a reason.
 | # | Item | Disposition | Target phase | Reason / owner |
 |---|---|---|---|---|
 | 1 | Phase-22 WR-03 usability false-positive | `deferred` | Phase 30 | Reproduced above with a discriminating control. The fix narrows a **fail-closure predicate**, and rounds 10 and 11 of Phase 27 each shipped a new regression inside such a narrowing. Phase 30 carries red-team rounds as scope; Phase 28 does not. Fails SAFE today, so deferral costs usability, not safety. |
-| 2 | `---\n--- \n…` byte-round-trip adjacency | `deferred` | Phase 30 | Reproduced above; the recorded shape did **not** reproduce and the live shape is an empty-leading-slice byte invention at `context-io.ts:400-403`. Sized at one inserted line, 132 → 0 on a 30,000-input fuzz with 0 verdict changes. Deferred because this plan's charter is to measure reach and not edit the module (T-28-11), and because a fail-closure-path edit belongs beside a red-team budget. **D-21's conditional is resolved NOT REQUIRED — plan 28-08 does not run.** |
-| 3 | `floor-invariance.test.ts` spawn-heavy timeout | `deferred` | Phase 28, plan **unassigned** | **D-19 dispositions this `fix` and no plan in phase 28 owns it** — surfaced here as a planning gap for assignment at the 28-02 checkpoint. Measured 2026-08-11: 128 tests, 1.29 s total, slowest single test **84 ms** against vitest's 5,000 ms default per-test timeout (no explicit `testTimeout` in the file, none in `vitest.config.ts`). The risk is latent, not live: ~60× headroom on this box, less on a slower CI runner, and `PITFALLS.md:801` records it *"will get worse when Phase 30 adds checkpoints"* — which is precisely why deferring it **to** Phase 30 would invert D-19's rationale. |
+| 2 | `---\n--- \n…` byte-round-trip adjacency | `deferred` | Phase 28, plan **28-08** *(pulled forward at the checkpoint)* | Reproduced above; the recorded shape did **not** reproduce and the live shape is an empty-leading-slice byte invention at `context-io.ts:400-403`. Sized at one inserted line, 132 → 0 on a 30,000-input fuzz with 0 verdict changes. **D-21's conditional is resolved NOT REQUIRED on reach** — but 28-08 runs on independent grounds, and this rides with it, carrying the patch and the RED-first control specified below. |
+| 3 | `floor-invariance.test.ts` spawn-heavy timeout | `deferred` | Phase 28, plan **28-08** *(assigned at the checkpoint)* | **Was ownerless — F-28-E.** D-19 dispositions it `fix` and no plan in the phase owned it; the checkpoint assigned it to 28-08, which is already touching test files. Measured 2026-08-11: 128 tests, 1.29 s total, slowest single test **84 ms** against vitest's 5,000 ms default per-test timeout (no explicit `testTimeout` in the file, none in `vitest.config.ts`). Latent, not live: ~60× headroom on this box, less on a slower CI runner. `PITFALLS.md:801` records it *"will get worse when Phase 30 adds checkpoints"*, which is exactly why deferring it **to** Phase 30 would invert D-19's rationale — it is cheap now and progressively more expensive later. |
 | 4 | same-uid / no-hook direct-FS forgery residual | `accepted` | — | **Irreducible.** Reason: an agent running as the same uid with no hook can write the filesystem directly; no in-process mechanism can prevent it. Backstopped by `autonomy=pr`. Per D-19 and D-17 it becomes the `status: overstated` registry row on *"Humans always hold merge and deploy"* — owned by plan **28-04**. |
 | 5 | `agent-factory/handoffs/.gitkeep` + empty `agent-factory/examples/` | `deferred` | Phase 28, plan **28-05** | Owned: both paths appear in `28-05-PLAN.md`'s `files_modified`. Deferred only in the sense of landing beside its owner (D-12); it is fixed within this phase. |
 | 6 | AUDIT-04 pins | `fixed` | — | Fixed in this plan (28-02). Measured with `npm show` at execution time; transcript, exit statuses and date recorded above. Divergence F-28-A against the roadmap's `1.62.0` recorded. |
@@ -380,3 +382,100 @@ lost.
 | F-28-D | 5 — strangeness | `scripts/check-uat-oracles.ts:110-134` | `oracleWr05Wording` asserts four `.planning/` documents narrate a story from two milestones ago, in a repository that archives `.planning/` at milestone close. Whether it is still load-bearing is open. Recorded at its site in this plan; **deliberately not settled inside the D-20 bug fix.** |
 | F-28-E | 4 — internal consistency | `.planning/phases/28-kit-consistency-audit/` | D-19 item 3 is dispositioned `fix` and no plan in the phase owns it (see row 3 above). |
 | F-28-F | 3 — claim honesty | `28-02-PLAN.md` `must_haves` / D-20 item 1 | The closed-class premise "exactly three pure-lookahead regexes … and no other anywhere in `scripts/`" measured **four**. The fourth is sanctioned with its reason; the assertion in `check-uat-oracles.test.ts` is written over the measured class, not the assumed one. |
+| F-28-G | 5 — strangeness | `scripts/context-io.ts` ↔ `scripts/frontmatter.ts:71-72` | `context-io.ts` writes `refs:\n  - …` list blocks and parses its own notes back with its own grammar. `frontmatter.ts:71-72` names it *"a documented extension of that same flat key:value idiom"* — a **second grammar for the same idiom**, which is the structural class that took Phase 27 twelve rounds. **Informational, for Phase 29/30 — not actionable and not to be actioned in phase 28.** Two facts bound it: it is genuinely unreachable from the parser today (measured below), and it is *already* a named, mechanically-pinned exemption — `frontmatter.ts:76-84` cites the derived assertion `D-50 IN-05` in `frontmatter.test.ts`, which scans every tracked `.ts` by pattern, compares to exactly two named non-guard files and pins the cardinality, so a **third** grammar fails red by name wherever it lands. This is a register row, not a fix. |
+
+---
+
+## Checkpoint resolution (task 4) — the decisions taken
+
+The blocking checkpoint returned **"approved — 28-08 runs, assign D-19 item 3, pull residual 2
+forward."** The three decisions and their reasons are recorded here because two of them override what
+this document said an hour earlier, and a register that quietly absorbs an override is worth less than
+no register.
+
+### The NOT REQUIRED verdict was independently corroborated, not merely accepted
+
+The user did **not** dispute the reach measurement. It was re-derived by the orchestrator before the
+decision was taken, by a **stronger route** than this document originally reported:
+
+| Claim | Verified |
+|---|---|
+| `scripts/frontmatter.ts` has **zero** imports | `grep -E 'from "'` returns nothing |
+| its two `context-io` mentions (`:71`, `:82`) are **comments only** | both lines begin `//` |
+| `scripts/canonical-frontmatter.ts` imports **only** `./frontmatter.js` | one `from "./…"` at `:43` |
+| `scripts/context-io.ts` imports **only** node builtins | `node:crypto`, `node:fs`, `node:path`, `node:url` |
+
+The **data paths** are disjoint too, which the import graph alone does not establish: `context-io.ts`
+writes `.grugops/context/<task>/notes/*.md` and `.grugops/audit/`, while every `canonical-frontmatter`
+consumer scans `agent-factory/roles/`, `skills/*/SKILL.md`, `.claude/agents/` and `.claude/skills/`.
+**Disjoint by import AND by directory.**
+
+**The strongest objection, stated and answered.** `frontmatter.ts:82-83` says in its own comment that
+*"`context-io.ts` is NOT [outside every frontmatter consumer's closure] — it is reached through
+check-uat-oracles.ts."* Read carelessly that looks like a contradiction. Measured, it is not:
+
+```
+closure(scripts/check-uat-oracles.ts)  -> context-io.ts YES | frontmatter.ts NO | canonical-frontmatter.ts NO
+closure(scripts/check-foundation-guards.ts) -> context-io.ts YES | frontmatter.ts YES | canonical-frontmatter.ts YES
+```
+
+`check-foundation-guards.ts` is a **common consumer** that imports both sides, so the two modules
+share a *process*. Neither imports the other in either direction, so there is no path *between* them.
+That is exactly the distinction `frontmatter.ts:83-84` draws for itself — *"which is why the claim
+above is about the PREDICATE and the document class rather than about which files happen to share a
+process."* Sharing a consumer is not reach. **The verdict stands.**
+
+### Decision 1 — plan 28-08 RUNS, on independent grounds
+
+**28-08 is not running because the reach measurement was doubted.** It was not doubted; it was
+corroborated. 28-08's charter is the adversarial round on the frontmatter parser, and that value never
+depended on residual 2 landing there.
+
+The decisive argument is one this plan supplied against itself: **it found two of its own premises
+wrong.**
+
+1. The first fuzz property was the module's own **stated contract** (`context-io.ts:533-537`), and
+   that contract is false — `refused` accumulates the *leading* region, so the documented
+   concatenation order does not hold. It reported **42 phantom survivors** and would have recorded the
+   fix as incomplete had the premise not been re-examined.
+2. D-20's closed-class premise miscounted the pure-lookahead class as **3** when it is **4**.
+
+That is the *"assert the verification harness's own premise"* failure class recurring **twice inside a
+single plan**, on a project where it is already on record six times, and where Phase 27 needed twelve
+rounds and closed on named user override with KIT-03 and SPAWN-04 still unverified. A scheduled
+adversarial round is **not droppable in a phase that has just demonstrated its own premises are
+unreliable.** That, and not reach, is why 28-08 runs.
+
+### Decision 2 — D-19 item 3 gets an owner inside phase 28: plan 28-08
+
+F-28-E was that nothing owned it. It is now written into row 3 of the disposition table above with
+`28-08` named, so the gap cannot be lost a second time. It is **not** deferred to Phase 30: Phase 30
+is the phase that makes the timeout worse, so deferring to it inverts D-19's rationale. It is latent
+and cheap today and gets more expensive on exactly the schedule that would justify waiting.
+
+### Decision 3 — residual 2 is pulled forward, and lands on 28-08 rather than in this task
+
+**What was done: assigned to plan 28-08, inside phase 28, with the measured evidence attached.** Not
+applied inside task 4. The checkpoint sanctioned either, on condition that the choice be stated with
+its reason.
+
+**Why 28-08 and not here.** Task 4 is a `checkpoint:human-verify` task — a verification gate with no
+`<files>` and no `<action>`. `scripts/context-io.ts` is not in this plan's `files_modified`, and the
+edit sits on a **fail-closure path**. More decisively, this phase's own governing pattern is that a
+fix is not closed until a control has been **watched failing** — D-24 for the AUDIT-02 guard, D-20
+item 2 for the oracle repaired earlier in this very plan. A one-line change committed inside a
+checkpoint task, with no test file in scope and no RED-first transcript, would violate the doctrine
+this plan spent its first task demonstrating. The honest home is the plan that has the budget to do it
+properly, and 28-08 both runs and already edits `docs/audit/28-residual-sizing.md`, so this handoff is
+a file it is guaranteed to read.
+
+**What 28-08 needs — everything is above, nothing needs re-investigating:**
+
+| | |
+|---|---|
+| Patch | insert `if (from >= to) return "";` as the first statement of `sliceBytes`, `scripts/context-io.ts:400-403` |
+| Rebuild | `npm run build`, commit the `.js` twin — `npm run freshness` fails red on drift |
+| RED-first control | the fuzz harness in this document: property is **byte count**, not the module's stated concatenation order (see F-28-C) — RED at **132** distinct invented-byte breaks over 30,000 inputs against the pre-fix build, GREEN at **0** after |
+| Must not change | fail-closure verdicts — measured **0** changes across the same 30,000 inputs; assert this, do not assume it |
+| Expected survivors | **2** documented blank-region drops, identical before and after (`context-io.ts:506`, `:538`) — these are a stated contract, not the residual |
+| Also fix the wording | F-28-C — `context-io.ts:533-537` states a contract the code does not honour, and `trailingMalformed` is a misleading name for a remainder that may be *leading* |
