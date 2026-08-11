@@ -124,12 +124,18 @@ jobs:
           # A gate that runs only because some other step happens to run it is not wired; it is
           # borrowed.
           #
-          # THIS GATE IS **EXPECTED TO FAIL RED** UNTIL THE AUDIT-02 DRIFT FIXES LAND IN PLAN 28-05.
-          # That is deliberate, and it is the ACCEPTANCE EVIDENCE for D-24, not a regression: a guard
-          # that passes the moment it appears has never been watched fail, so its ability to catch
-          # this drift would be asserted rather than demonstrated. Measured at the commit that
-          # introduced it: exit 1, 18 hits across 8 of the 10 scanned documents. If you are reading
-          # this beside a red build, check whether 28-05 has landed before treating it as breakage.
+          # WHAT IT HOLDS, AND WHAT A RED MEANS. It asserts that the ten scanned public documents
+          # carry ZERO retired grugops vocabulary, reading the literals from the one authority in
+          # scripts/dead-vocabulary.ts. A red here means a document reintroduced a retired path form
+          # or a retired prose form — most likely a v1.x description of the deleted handoff relay
+          # written back into text a user reads. Fix the DOCUMENT. Do not add an exemption and do not
+          # narrow the scan set: PUBLIC_DOCS_SCAN_COUNT is two-sided pinned precisely so removing a
+          # member to reach green is not available.
+          #
+          # It was landed RED on purpose (D-24) and turned GREEN by plan 28-05 — exit 1 with 18 hits
+          # across 8 of 10 documents at the commit that introduced it, exit 0 after, with the gate
+          # itself byte-unchanged across the transition. That history is why a red here is credible:
+          # this guard has been watched catching the exact drift it exists for.
           node scripts/check-public-docs-vocabulary.js
           # AUDIT-01 (plan 28-03, D-03 / D-05) — the disposition-register completeness gate. It
           # sits after the drift guard because both are Phase 28 audit gates and a reader should
@@ -145,15 +151,25 @@ jobs:
           # for the same reason recorded above the public-docs gate: freshness:adapters ran for an
           # entire phase solely as a side effect of a test spawning it.
           #
-          # THIS GATE IS **EXPECTED TO FAIL RED** UNTIL THE READ PASS IN PLANS 28-06 AND 28-07
-          # FILLS THE REGISTER. That is deliberate, and it is the acceptance evidence for the same
-          # argument D-24 makes about the drift guard above: a completeness gate that goes green the
-          # moment it appears has never been watched distinguish a complete register from an empty
-          # one. Measured at the commit that introduced it: exit 1, `2 CHECK(S) FAILED` — 37 blank
-          # observations and 37 unfilled safety_surface flags. BOTH D-03 equalities were already
-          # GREEN at that commit, so the red is precisely the unread files and nothing else. If you
-          # are reading this beside a red build, check whether 28-06 and 28-07 have landed before
-          # treating it as breakage.
+          # WHAT IT HOLDS, AND WHAT A RED MEANS. Three things, on every run. (1) Every file the
+          # derived listers return has a register row, by SET equality in both directions — a red
+          # here means a role or workflow was added, removed or renamed without its row, or a row
+          # names a file that no longer exists. (2) The findings each row DECLARES equals the Table B
+          # rows naming it, per file and in total — a red means a finding was added or deleted
+          # without its count. (3) The derived D-18 exclusion list at
+          # docs/audit/28-safety-surface-exclusions.md is byte-identical to a fresh regeneration — a
+          # red means a `safety_surface` flag or a `kind: safety` claim moved and the list was not
+          # rebuilt; run `npm run generate:safety-surface` and commit the result. It also refuses a
+          # blank observation, a bare-word observation, a disposition outside the closed set, a
+          # deferral with no target phase and a category-6 finding disposed as anything but
+          # deferred-to-29.
+          #
+          # It was landed RED on purpose (D-05, the same argument D-24 makes about the drift guard
+          # above) and turned GREEN by the read pass in plans 28-06 and 28-07 — exit 1 with
+          # `2 CHECK(S) FAILED` over 37 blank observations at the commit that introduced it, exit 0
+          # once all 37 rows were filled. BOTH D-03 equalities were already green at that commit, so
+          # the red was precisely the unread files and nothing else. Nothing was loosened and no row
+          # was dropped to reach green; the register was filled.
           node scripts/check-audit-register.js
           # AUDIT-03 (plan 28-04, D-16) — the claim-registry anchor gate, third and last of this
           # phase's audit gates, sitting after the register gate so a reader meets all three

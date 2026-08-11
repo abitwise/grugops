@@ -26,8 +26,31 @@ import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { ROLE_COUNT, WORKFLOW_COUNT, listRoles, listWorkflows } from "./kit-model.js";
-import { REGISTER_PATH, readRegister } from "./audit-model.js";
+import { REGISTER_PATH, REGISTRY_PATH, readRegister } from "./audit-model.js";
 import { PROTOCOL_FILE } from "./audit-prepass.js";
+import {
+  renderSafetySurface,
+  OUT as SAFETY_SURFACE_PATH,
+} from "./generate-safety-surface.js";
+
+/** A minimal parseable registry with one `kind: safety` row, so the D-18 union is never empty. */
+const MIRROR_REGISTRY = [
+  "# Registry",
+  "",
+  "### C-28-001",
+  "",
+  "- file: README.md",
+  "- line: 4",
+  "- kind: safety",
+  "- depends_on: autonomy",
+  "- status: true",
+  "- mechanism: measured against the live config value.",
+  "",
+  "```",
+  "A sentence.",
+  "```",
+  "",
+].join("\n");
 
 const REPO_ROOT = join(import.meta.dirname, "..");
 const GATE_JS = join(REPO_ROOT, "scripts", "check-audit-register.js");
@@ -133,6 +156,20 @@ function buildMirror(
     registerText ?? renderRegister(rows, findingRows),
     "utf8",
   );
+  // The gate also folds the D-18 exclusion-list freshness guard (plan 28-07), which derives from
+  // this register AND the claim registry. A mirror therefore needs both, plus a list generated FROM
+  // this mirror, or the guard fails closed — which is the correct behaviour and would otherwise red
+  // every case here for a reason none of them is about. The registry carries one `kind: safety` row
+  // so the union is non-empty even when every register row is `safety_surface: no`.
+  writeFileSync(join(dir, REGISTRY_PATH), MIRROR_REGISTRY, "utf8");
+  try {
+    writeFileSync(join(dir, SAFETY_SURFACE_PATH), renderSafetySurface(dir), "utf8");
+  } catch {
+    // A deliberately malformed register cannot be regenerated from. Those cases assert a PARSE
+    // refusal, and the gate returns before the freshness guard runs, so the placeholder is never
+    // compared. Writing something rather than nothing keeps the mirror shape uniform.
+    writeFileSync(join(dir, SAFETY_SURFACE_PATH), "unreachable\n", "utf8");
+  }
   return dir;
 }
 
@@ -344,15 +381,26 @@ describe("check-audit-register: it REPORTS a parse refusal rather than crashing"
 });
 
 describe("check-audit-register: the committed skeleton is RED, by design", () => {
-  it("exits 1 against the real committed register and names the empty observations", () => {
-    // This is D-24's posture applied to AUDIT-01: the gate is watched failing against an UNFILLED
-    // register before plans 28-06 and 28-07 fill it.
+  it("exits 0 against the real committed register, now that every row is filled", () => {
+    // THE RED-TO-GREEN TRANSITION, AND WHY THIS CASE CHANGED. Plan 28-03 landed this gate RED
+    // against an unfilled register (D-24's posture applied to AUDIT-01) and this case asserted that
+    // red. Plans 28-06 and 28-07 filled all 37 rows, so the assertion was inverted here rather than
+    // deleted: keeping a case that demands exit 1 would have made the completed register look like
+    // a regression, and deleting it would have dropped the only case that runs the gate against the
+    // REAL artifact instead of a mirror.
+    //
+    // The green is a property of the REGISTER, not of the gate. Every refusal case in this file
+    // still reds on its planted shape, and each was watched doing so; this case only adds that the
+    // shipped artifact is one the gate accepts.
     const r = spawnSync("node", [GATE_JS], { encoding: "utf8" });
-    expect(r.status).toBe(1);
     const out = `${r.stdout}${r.stderr}`;
-    expect(out).toMatch(/observation/i);
-    // The two equalities are NOT the reason it is red — they already hold against the skeleton.
-    expect(out).not.toMatch(/equality one .*is not/i);
+    expect(r.status).toBe(0);
+    expect(out).toContain("ALL CHECKS PASSED");
+    // The PASS line states both equalities and the folded freshness verdict, so a green that
+    // skipped one of them would not match.
+    expect(out).toMatch(/equality one holds/);
+    expect(out).toMatch(/equality two holds/);
+    expect(out).toContain(SAFETY_SURFACE_PATH);
   });
 
   it("the committed register's 36 counted paths equal the LIVE listers' output", () => {

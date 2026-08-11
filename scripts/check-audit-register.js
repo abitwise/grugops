@@ -33,10 +33,12 @@
 // cannot vouch for. This is a GATE and must REPORT: a stack trace is not a verdict, and a gate that
 // dies is not a gate that failed. Every parse refusal is caught below and printed through fail().
 // ---------------------------------------------------------------------------------------------
+import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { readRegister, REGISTER_PATH, } from "./audit-model.js";
 import { listRoles, listWorkflows } from "./kit-model.js";
+import { renderSafetySurface, OUT as SAFETY_SURFACE_PATH, REGEN_COMMAND as SAFETY_SURFACE_REGEN, } from "./generate-safety-surface.js";
 // CHECK_ROOT override is load-bearing: the Vitest harness builds a hermetic mirror and points
 // CHECK_ROOT at it, then spawns this committed .js against the mirror.
 const ROOT = process.env.CHECK_ROOT
@@ -218,19 +220,71 @@ function runAll() {
     const uncountedReport = uncounted
         .map((r) => `${r.file} — ${describeUncounted(r)}`)
         .join("; ");
+    // The D-18 derived exclusion list is checked against a fresh regeneration on the same run, from
+    // the same ROOT, so a flag flipped in the register above cannot leave a stale list downstream.
+    checkSafetySurfaceFreshness();
     if (FAILS === 0) {
         // A PASS line must never state a check that was not performed. Every number below is read from
         // the run that just happened: the derived counts come from the listers, the register counts
         // from the parsed rows, and the findings totals from the two tables that were just compared.
+        // The freshness clause is only reachable when checkSafetySurfaceFreshness() regenerated the
+        // list and byte-compared it — it fails and returns on every other path.
         pass(`AUDIT-01 completeness: equality one holds — ${countedPaths.length} counted register row(s) ` +
             `set-equal in both directions to ${derived.length} derived file(s) ` +
             `(${derivedRoles.length} roles + ${derivedWorkflows.length} workflows); equality two holds ` +
             `— Table A declares ${declaredSum} finding(s) and Table B carries ${register.findings.length}, ` +
             `agreeing per file across all ${register.rows.length} row(s); ${uncounted.length} uncounted ` +
             `row(s) recorded by name (${uncountedReport}); every observation substantive and every ` +
-            `safety_surface recorded`);
+            `safety_surface recorded; and ${SAFETY_SURFACE_PATH} is byte-identical to a fresh ` +
+            `regeneration of the D-18 union`);
     }
     finish();
+}
+// ── The D-18 exclusion-list freshness guard ──────────────────────────────────────────────────
+//
+// WHY IT LIVES IN THIS GATE AND NOT IN A SEVENTH SCRIPT. `docs/audit/28-safety-surface-exclusions.md`
+// is derived from two artifacts — this register and the claim registry — and a separate module
+// would need its own reader for at least one of them, which is the second-grammar-over-one-file
+// class this phase exists to refuse. It belongs HERE specifically because this gate is the one that
+// enforces the `safety_surface` column's completeness, and that column is the exclusion list's
+// larger arm: the check that every flag is recorded and the check that the derived list matches
+// those flags are two halves of one question. (The claim registry's own completeness stays with
+// scripts/check-claim-anchors.js; this guard consults it only through the one parse authority, via
+// renderSafetySurface, and never parses it here.)
+//
+// FAIL CLOSED. A missing, unreadable, or divergent list is a FAIL, never a skip. A guard that
+// quietly passes when the artifact it protects is absent is worse than no guard, because the phase
+// counts it as present while it can never fire.
+//
+// The comparison is a BYTE compare against an in-memory regeneration — no normalization, no trim.
+// A trailing space is a divergence, because the consumer of this file is a reader deciding whether
+// a path is on the list and the only way to be sure the list is current is that it is byte-exact.
+function checkSafetySurfaceFreshness() {
+    let rebuilt;
+    try {
+        rebuilt = renderSafetySurface(ROOT);
+    }
+    catch (e) {
+        fail(`${SAFETY_SURFACE_PATH} could not be regenerated — ${e.message}. Freshness cannot ` +
+            `be proven, so it is reported as a failure rather than assumed`);
+        return;
+    }
+    let committed;
+    try {
+        committed = readFileSync(join(ROOT, SAFETY_SURFACE_PATH), "utf8");
+    }
+    catch {
+        fail(`${SAFETY_SURFACE_PATH} could not be read — the derived safety-surface exclusion list is ` +
+            `missing or unreadable. Phase 29's LANG-02 and LANG-03 consult it before rewording any kit ` +
+            `text, and an absent list reads as "nothing is excluded". Run \`${SAFETY_SURFACE_REGEN}\` ` +
+            `and commit the result`);
+        return;
+    }
+    if (committed !== rebuilt) {
+        fail(`${SAFETY_SURFACE_PATH} is STALE — the committed list differs from a fresh regeneration, so a ` +
+            `\`safety_surface\` flag or a \`kind: safety\` claim moved without the derived list being ` +
+            `rebuilt. Run \`${SAFETY_SURFACE_REGEN}\` and commit the result`);
+    }
 }
 function describeUncounted(row) {
     const obs = row.observation.trim();
