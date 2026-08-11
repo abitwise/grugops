@@ -479,3 +479,204 @@ a file it is guaranteed to read.
 | Must not change | fail-closure verdicts — measured **0** changes across the same 30,000 inputs; assert this, do not assume it |
 | Expected survivors | **2** documented blank-region drops, identical before and after (`context-io.ts:506`, `:538`) — these are a stated contract, not the residual |
 | Also fix the wording | F-28-C — `context-io.ts:533-537` states a contract the code does not honour, and `trailingMalformed` is a misleading name for a remainder that may be *leading* |
+
+---
+
+## Residual 2 — reproduction at fix time (28-08)
+
+**Produced by:** plan 28-08, task 1. **Date:** 2026-08-11.
+
+Everything below was constructed and run in the session that wrote it, against the **committed**
+`scripts/context-io.js`. Nothing is read from 28-02's transcript above; that section is compared to
+afterwards, not copied from. This repository's record is that a prior transcript and a fresh run give
+different answers often enough that reuse is a defect.
+
+### Harness premise, asserted before any verdict is believed
+
+Phase 27's record is that the verification harness produced a false result in **six** instances across
+four straight rounds, and every one was found by checking the harness rather than the code. Phase 28
+has now hit that class in every plan. So the harness is checked first.
+
+| Premise | How it was asserted | Result |
+|---|---|---|
+| The build under test is the committed one, not a stale artifact | `npm run freshness` **before** any edit | exit 0 — 42 committed `.js` match a fresh `tsc` rebuild |
+| The module actually loaded is the repository's | `require.resolve` printed | `/Users/…/grugops/scripts/context-io.js` |
+| The file under test is the one measured | sha256 + byte count printed | 91213 B, `62d79864a1a4503a…` |
+| `splitNotes` is reached, not a silently-undefined export | `typeof` printed | `function` |
+| The input is the bytes intended | full hexdump with offsets, below | matches intent |
+| The loader process ran and did not fail silently | byte count echoed to stderr from inside the loader, exit status captured | `read 10B` / `read 11B`, exit `0` both |
+
+### The constructed input, printed with byte offsets
+
+The minimal input that exhibits the defect is 10 bytes:
+
+```
+[  0]=0x2d'-' [  1]=0x2d'-' [  2]=0x2d'-' [  3]=0x0a'\n' [  4]=0x69'i' [  5]=0x64'd'
+[  6]=0x3a':' [  7]=0x20'SP' [  8]=0x6e'n' [  9]=0x31'1'
+```
+
+That is `---\nid: n1` — a boundary-shaped line at **line index 0**, opening a note attempt.
+
+### The module's verdict
+
+```
+notes.length        = 0
+trailingMalformed   = "\n---\nid: n1"
+```
+
+The remainder, with offsets — note the byte at `[0]` that is in no position of the input:
+
+```
+[  0]=0x0a'\n' [  1]=0x2d'-' [  2]=0x2d'-' [  3]=0x2d'-' [  4]=0x0a'\n' [  5]=0x69'i'
+[  6]=0x64'd' [  7]=0x3a':' [  8]=0x20'SP' [  9]=0x6e'n' [ 10]=0x31'1'
+```
+
+**11 bytes out for 10 bytes in. One byte invented.** The fail-closure verdict itself is `REFUSED`
+(`notes=0` plus a non-null remainder routes to the unparseable channel), and that verdict is correct;
+what is wrong is the bytes it carries.
+
+### The full case set, with a discriminating control
+
+| | Input | notes | trailingMalformed | in | out | delta |
+|---|---|---|---|---|---|---|
+| RECORDED | `"---\n--- "` | 0 | `"---\n--- "` | 8 | 8 | **+0 — round-trips** |
+| RECORDED | `"---\n--- \n"` | 0 | `"---\n--- \n"` | 9 | 9 | **+0 — round-trips** |
+| LIVE | `"---\nid: n1"` | 0 | `"\n---\nid: n1"` | 10 | 11 | **+1** |
+| LIVE | `"---\nid: n1\n"` | 0 | `"\n---\nid: n1\n"` | 11 | 12 | **+1** |
+| LIVE | `"---\nid: n1\nid: n2"` | 0 | `"\n---\nid: n1\nid: n2"` | 17 | 18 | **+1** |
+| **CONTROL** | `"x\n---\nid: n1"` | 0 | `"x\n---\nid: n1"` | 12 | 12 | **+0** |
+
+The control is what makes the attribution exact rather than plausible. It is the same boundary, the
+same note-open attempt and the same refusal — differing only in that one prose line precedes the
+boundary, so the boundary is no longer at line index 0. It round-trips. The defect is therefore
+attributable to the boundary being **first**, and to nothing else.
+
+### The real YAML loader's verdict
+
+Loader: `/usr/bin/ruby -ryaml` — ruby 2.6.10p210 (universal.arm64e-darwin25), **Psych 3.1.0, libyaml
+0.2.1**. Run in a separate process, over the exact bytes written to disk by the harness.
+
+| Bytes handed to the loader | `YAML.load_stream` | exit |
+|---|---|---|
+| the module's **input**, 10 B | `[{"id"=>"n1"}]` | `0` |
+| the module's **output remainder**, 11 B | `[{"id"=>"n1"}]` | `0` |
+
+### The divergence, stated precisely and not overstated
+
+**The divergence is not a meaning divergence, and this section will not claim one.** The loader loads
+both byte strings to the *same* value: a leading `\n` before a `---` document-start marker is
+insignificant to YAML. The module and the loader **agree** on what the bytes mean.
+
+The divergence is a **byte-identity** divergence against the module's own contract, and its direction
+is: **the module invents a byte the input never contained.** Neither of the two unsafe directions the
+plan enumerates obtains — this is not module-accepts-loader-refuses, and it is not
+module-sees-no-grant-loader-sees-a-grant. Both sides refuse in the same direction and read the same
+value.
+
+Saying so is the honest result. Residual 2 is a **byte-fidelity defect in a refused remainder**, not a
+parser bypass. It is worth fixing because the remainder is surfaced to a human through the unparseable
+channel and a byte that no one wrote is a lie told to that human — and because a byte-round-trip
+contract that is false is a contract a later reviewer will reason from. It is *not* worth dressing up
+as a safety bypass; this phase exists to stop claims from outrunning their evidence.
+
+### The three structural questions, answered before any fix was proposed
+
+The plan requires these three answered **in writing** before a fix is proposed, because they are the
+questions that closed Phase 27's rounds 6, 10 and 11 respectively. The first answer is that the thing
+at fault is not a predicate at all.
+
+**1 — Which set does it enumerate?**
+
+`sliceBytes(from, to)` reconstitutes the verbatim bytes of line indices `[from, to)`. `split("\n")`
+drops every separator, so the function must decide how many to put back. Its rule is:
+
+```ts
+return to < lines.length ? segment + "\n" : segment;
+```
+
+The set this enumerates is *"slices whose last line is not the final line of the document"* — for
+those, one separator follows the slice in the original and must be restored. The rule is written over
+`to` **alone**. An **empty** slice (`from === to`) has no last line and no separators at all, yet
+`to < lines.length` still evaluates true whenever `to === 0` and the document is non-empty. The set
+the rule enumerates silently includes a member that has no last line to reason about. That is the
+entire defect: a separator-count question answered by a bounds test that coincides with it on every
+non-empty slice and diverges on the empty one.
+
+**2 — At which positions is it asked?**
+
+Five call sites, and only one can be reached with `from === to`:
+
+| Site | Call | Can `from === to`? |
+|---|---|---|
+| `candidateRegionFrom` | `sliceBytes(i, j + 1)` | no — `j > i`, so `j + 1 > i` |
+| `candidateRegionFrom` | `sliceBytes(i, lines.length)` | no — reached only while `i < lines.length` |
+| no-boundary path | `sliceBytes(0, lines.length)` | no — `lines.length ≥ 1` for a non-empty normalized input |
+| region walk | `sliceBytes(start, end)` | no — boundaries are strictly increasing, so `end > start` |
+| **leading region** | **`sliceBytes(0, boundaries[0])`** | **yes — exactly when `boundaries[0] === 0`** |
+
+So the question is asked at exactly one position with an empty range, and only when the **first line
+of the document is a note boundary**. That is precisely what the control above measures from the other
+side: move one prose line in front, `boundaries[0]` becomes 1, the range is non-empty, and the byte
+stops being invented.
+
+**3 — What is its input assembled from?**
+
+`from` and `to` are **line indices** into `lines = normalized.split("\n")`, where `normalized` is the
+CRLF/CR-folded input. `boundaries[0]` is assembled by the boundary walk over `[0, lines.length)`, so
+it can be `0` for any document opening on a boundary-shaped line that opens a note attempt. The
+comparand `lines.length` is an array length, not a separator count; for a non-empty string
+`split("\n")` always yields at least one element, so `0 < lines.length` is unconditionally true at
+that call site. The predicate's input therefore cannot express the case it needs to distinguish: an
+index-into-lines cannot say "this slice contains no lines."
+
+**What follows from those three answers.** The correct fix is the function's missing **base case** —
+an empty slice contributes no bytes — stated once inside the function that owns the byte-slicing
+question. It is not a character-level special case, it is not a new arm on a boundary predicate, and
+it touches no predicate that decides refuse-versus-admit. That distinction is what task 2 has to
+preserve.
+
+### Agreement with 28-02's earlier reproduction — and the disagreement that is with the plan
+
+**This reproduction AGREES with 28-02's, on every point it tests.** The recorded `---\n--- \n…` shape
+does not reproduce (confirming **F-28-B**); the live class is a single `\n` invented at the front of
+the refused remainder; the cause is the empty leading slice at `context-io.ts:400-403` reached from
+`:508`. Independently re-derived, not read across.
+
+The disagreement is with **`28-08-PLAN.md` itself**, and per the plan's own instruction it is reported
+here rather than reconciled by adjusting either transcript.
+
+> **Finding F-28-041 (claim honesty, category 3) — `28-08-PLAN.md` task 1 mislocates residual 2.**
+> The plan directs the executor to *"read the region of `scripts/canonical-frontmatter.ts` the bypass
+> reaches"*, and its `files_modified`, `must_haves`, `key_links` and threat register are all written as
+> though residual 2 lives in the canonical admission reader. **It does not, and 28-02 measured that
+> before this plan ran.** The plan text was written before that measurement existed and was never
+> reconciled to it.
+
+The reach measurement was **recomputed in this session** from the sources, not inherited:
+
+```
+closure(scripts/context-io.ts)            = 1: context-io.ts
+closure(scripts/compactor.ts)             = 2: compactor.ts, context-io.ts
+closure(scripts/canonical-frontmatter.ts) = 2: canonical-frontmatter.ts, frontmatter.ts
+closure(scripts/frontmatter.ts)           = 1: frontmatter.ts
+
+context-io closure contains canonical-frontmatter?  false
+context-io closure contains frontmatter?            false
+canonical-frontmatter closure contains context-io?  false
+```
+
+Disjoint in both directions, reproducing 28-02's result by an independently written walker.
+
+**The consequence for this plan, stated plainly.** There is no bypass in
+`scripts/canonical-frontmatter.ts` to reproduce, so there is nothing there to fix. Editing a
+safety-critical parser that took twelve rounds to close, in order to satisfy a plan sentence rather
+than a measured defect, would be the exact act D-64 and this phase's whole doctrine forbid — and it is
+the one thing the plan's own prohibitions rule out most emphatically (*"If the only fix you can find is
+a widening, stop and record that as the finding rather than shipping it"*). `git diff` on
+`scripts/canonical-frontmatter.ts` and `scripts/frontmatter.ts` is therefore expected to be **empty
+across every commit of this plan**, and is asserted as such in the summary.
+
+D-22's four-part bar is not discarded on that account. It is applied to the fix that **is** owed — the
+`context-io.ts` byte-fidelity defect — at full strength: a structural fix, parser-oracle fuzz against
+a real YAML loader, independent red teams, and the executor's own reproduction before and after.
+
