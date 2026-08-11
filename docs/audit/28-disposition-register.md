@@ -161,7 +161,73 @@ the only record that the residual exists.
 
 ### `agent-factory/handoffs/` and `agent-factory/examples/` — two deleted hygiene directories
 
-*(Recorded by plan 28-05, task 3 — see below.)*
+**Deleted by plan 28-05, 2026-08-12, under D-12.** Both are directories, so neither has a Table A
+row — Table A is derived from `listRoles()` and `listWorkflows()` and admits only `role` |
+`workflow` | `protocol`. The record belongs here for the same reason the coupling above does.
+
+| Directory | Held | Why it was deleted |
+|---|---|---|
+| `agent-factory/handoffs/` | one empty `.gitkeep`, nothing else | Named for a concept **Phase 24 deleted**: the seventeen static handoff templates were removed and the shared verified context replaced the relay. A directory that ships to every user, named for an artifact class that no longer exists, invites the next reader to put something in it. |
+| `agent-factory/examples/` | one empty `.gitkeep`, nothing else | Empty. It has never held content, and the narrative examples live at the repository root in `examples/`, which is a different path and is untouched. |
+
+**Both shipped to every user until now, and that was MEASURED rather than inferred.**
+`install/install.ts:1065` does `cpSync(join(GRUGOPS_SRC, "agent-factory"), tmp, {recursive: true})`,
+and a run against a scratch target with `GRUGOPS_HOME` redirected produced
+`agent-factory/handoffs/.gitkeep` and `agent-factory/examples/.gitkeep` in the installed kit. The
+listing was read, not assumed.
+
+#### The installer's indifference was measured, not concluded from reading the code
+
+D-12's code-context note expected that no installer literal would need editing. That expectation was
+treated as a hypothesis to test. The installer and uninstaller were run against a scratch target
+**before** the deletion and again against a fresh scratch target **after** it, with all four outputs
+and all four filesystem listings captured:
+
+| Comparison | Result |
+|---|---|
+| installer stdout, before vs after | **byte-identical, zero lines differ** |
+| installer exit code | `0` → `0` |
+| installed KIT listing | differs by **exactly four lines** — `./agent-factory/examples`, `./agent-factory/examples/.gitkeep`, `./agent-factory/handoffs`, `./agent-factory/handoffs/.gitkeep`. Nothing else. |
+| installed TARGET listing | identical |
+| uninstaller stdout, before vs after | **byte-identical, zero lines differ** |
+| uninstaller exit code | `0` → `0` |
+| TARGET listing after uninstall | identical |
+
+No new warning, no new unreadable-path finding, no changed exit code.
+
+#### The literal grep, recorded with its result whatever that result was
+
+`install/`, `scripts/` and `hooks/` were grepped for any literal naming either directory. **Zero
+hits name either directory as a path that is read, written, required or removed.** Every hit is one
+of four harmless classes: the `RETIRED_PATH_FORMS` literal in `scripts/dead-vocabulary.ts`, which
+asserts **zero** occurrences and is therefore *strengthened* by the deletion; synthetic RED fixtures
+in `*.test.ts` that plant the string into hermetic mirrors and never read the real directory;
+comments recording Phase 24 and the wave-1 measurement; and `scripts/check-kit-refs.ts:55`, a
+comment noting that `agent-factory/examples/` is excluded **by not being listed** — so removing a
+non-member cannot change that walk.
+
+**Two near-misses are recorded because a careless reader would score them as hits and be wrong:**
+
+- `install/install.ts:735` — `backupDir(join(TARGET, "plans", "handoffs"), "plans/handoffs/")`. This
+  is `plans/handoffs/` in the **target repo's per-repo STATE**, a different path from the kit
+  directory deleted here. It is untouched and must stay.
+- `scripts/check-public-docs-vocabulary.ts:97` — `const EXAMPLES_DIR = "examples"`. This is the
+  **repository-root** `examples/` directory holding the five narrative files, not
+  `agent-factory/examples/`. Confusing the two would have predicted that this deletion empties the
+  drift guard's scan set. It does not: the guard still derives five members from root `examples/`,
+  and `PUBLIC_DOCS_SCAN_COUNT` is still 10.
+
+#### One correction to the code-context note, recorded rather than smoothed over
+
+D-12's note says the installer's `cpSync` and *"the uninstall mirror"* both track by derivation. The
+`cpSync` half is right. The uninstall half is **stronger than derivation and differently shaped**:
+`install/uninstall.ts` never touches the kit tree at all. Its header states it *"NEVER deletes
+agent-factory/, plans/, .planning/, docs/, src/, the seeded per-repo state … [or] the shared kit at
+$GRUGOPS_HOME"*, and removing that kit is a manual `rm` with no flag for it. So the uninstaller is
+indifferent to this deletion **by construction, not by derivation** — it could not have carried a
+literal for either directory, because it removes nothing from the kit whatsoever. The conclusion the
+note reached is correct; one of its two stated reasons is not, and the difference is written down
+here so the next reader does not inherit it.
 
 ## Table A — audited files
 
