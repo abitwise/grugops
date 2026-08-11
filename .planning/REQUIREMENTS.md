@@ -72,7 +72,7 @@ Each requirement maps to exactly one roadmap phase (27–33). REQ-IDs continue g
 - [ ] **AUDIT-01**: A correctness-and-strangeness pass over all 18 roles + 19 workflows, with each finding recorded and dispositioned (fixed / accepted / deferred with reason).
 - [ ] **AUDIT-02**: The `CLAUDE.md` drift is reconciled — it still describes handoff packets and a routing Orchestrator, both removed in v2.0.
 - [ ] **AUDIT-03**: A registry of every public safety claim in `README.md` / `AGENTS.md` / `agent-factory/README.md`, each with an id, so the autonomy milestone's claim-dropping mechanism has something to void.
-- [ ] **AUDIT-04**: Stale third-party pins refreshed (`@playwright/test` 1.60.0 → 1.62.0, `@axe-core/playwright` 4.11.3 → 4.12.1) with versions verified at time of change, never assumed.
+- [x] **AUDIT-04**: Stale third-party pins refreshed (`@playwright/test` 1.60.0 → 1.62.0, `@axe-core/playwright` 4.11.3 → 4.12.1) with versions verified at time of change, never assumed.
 
 ### LANG — Controlled Language & Voice Guard Rebuild
 
@@ -166,7 +166,7 @@ _Filled by the roadmapper 2026-07-28. Every requirement maps to exactly one phas
 | AUDIT-01 | Phase 28 | Pending |
 | AUDIT-02 | Phase 28 | Pending |
 | AUDIT-03 | Phase 28 | Pending |
-| AUDIT-04 | Phase 28 | Pending |
+| AUDIT-04 | Phase 28 | Complete |
 | LANG-01 | Phase 29 | Pending |
 | LANG-02 | Phase 29 | Pending |
 | LANG-03 | Phase 29 | Pending |
