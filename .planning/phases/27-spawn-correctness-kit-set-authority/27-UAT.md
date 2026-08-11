@@ -683,21 +683,23 @@ verified_by: self-run: importer set derived from disk and matched against the te
 
 ### 85. Editorial — the phase closes with two OPEN register rows, one of them this phase's own diagnosed failure class
 expected: A judgment for the user, not a mechanical check.
-result: skipped
-reason: "Editorial judgment carried to Residual Open Items — user may overrule. Two of the 13 register rows are OPEN with no owner beyond 'a later round': WR-04-r11 (tsconfig.tests.json hand-copies tsconfig.json's exclude list instead of deriving it — the set-literal drift class this phase exists to delete, landing in the file added to close a 'control that reads as enforced and enforces nothing' finding) and IN-02-r11 (generate-role-adapters.test.ts's codeOnly strip handles // only, so a /* */ comment quoting the forbidden shape false-reds). Both are verified LATENT, not live: 36 of 36 test files reach the typechecker today, and no block comment of that shape exists. Both are outside the D-64 cutover's scope and neither touches the verdict path."
+result: pass
+adjudicated_by: "user, 2026-08-11 — shown both rows in full, decided to close the phase and carry them forward: 'mark phase 27 as completed, i think we can continue.' ACCEPTED AS CARRIED-FORWARD RESIDUALS, not as fixed. Both remain listed in Residual Open Items and in deferred-items.md as OPEN with owner 'a later round'."
+reason: "Two of the 13 register rows are OPEN with no owner beyond 'a later round': WR-04-r11 (tsconfig.tests.json hand-copies tsconfig.json's exclude list instead of deriving it — the set-literal drift class this phase exists to delete, landing in the file added to close a 'control that reads as enforced and enforces nothing' finding) and IN-02-r11 (generate-role-adapters.test.ts's codeOnly strip handles // only, so a /* */ comment quoting the forbidden shape false-reds). Both are verified LATENT, not live: 36 of 36 test files reach the typechecker today, and no block comment of that shape exists. Both are outside the D-64 cutover's scope and neither touches the verdict path."
 
 ### 86. Editorial — the fourth verdict site is not a standalone CI step
 expected: A judgment for the user, not a mechanical check.
-result: skipped
-reason: "Editorial judgment carried to Residual Open Items — user may overrule. `coordinator-resolution-precheck.js` is not referenced anywhere in .github/workflows/ (confirmed by grep); it runs in CI only because scripts/coordinator-resolution-precheck.test.ts spawns the committed artifact under the vitest step. The repository's own ci.yml comment calls exactly this shape 'borrowed, not wired' and 'this phase's most expensive omission' — while also noting that the mitigating factor for check-kit-refs and validate-agent-factory was that they DO have their own tests, which the precheck also has. So this sits on the acceptable side of the repo's own line, but on the side the repo chose to wire anyway for the other two."
+result: pass
+adjudicated_by: "user, 2026-08-11 — same decision as test 85. ACCEPTED: the precheck does reach CI through its own .test.ts, which is the mitigating factor the repo's own ci.yml comment names. Carried forward in Residual Open Items as a wiring improvement, not a defect."
+reason: "`coordinator-resolution-precheck.js` is not referenced anywhere in .github/workflows/ (confirmed by grep); it runs in CI only because scripts/coordinator-resolution-precheck.test.ts spawns the committed artifact under the vitest step. The repository's own ci.yml comment calls exactly this shape 'borrowed, not wired' and 'this phase's most expensive omission' — while also noting that the mitigating factor for check-kit-refs and validate-agent-factory was that they DO have their own tests, which the precheck also has. So this sits on the acceptable side of the repo's own line, but on the side the repo chose to wire anyway for the other two."
 
 ## Summary
 
 total: 86
-passed: 84
+passed: 86
 issues: 0
 pending: 0
-skipped: 2
+skipped: 0
 blocked: 0
 
 <!-- Round 1 (tests 1-71): 71 passed. 59 were coverage-verified deliverables auto-passed per #1602.

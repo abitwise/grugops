@@ -1,10 +1,14 @@
 ---
 phase: 27-spawn-correctness-kit-set-authority
 verified: 2026-08-10T20:30:00Z
-status: gaps_found
+status: passed
+status_note: "OVERRIDE, not a re-verification. Was `gaps_found`; moved to `passed` on 2026-08-11 by named user decision so Phase 27 could close. NO gap below was re-measured into a pass and no round-12 verification was run. This file is the ROUND-11 record and PREDATES the D-64 cutover that supersedes it. KIT-03 and SPAWN-04 remain `[ ]` / Gaps Found in REQUIREMENTS.md and are NOT promoted by this. Read § Acknowledged Gaps before trusting this field."
+overridden_from: gaps_found
+overridden_at: 2026-08-11
+overridden_by: user
 score: 8/10 requirements verified clean (2 FAILED — KIT-03, SPAWN-04 — each independently reproduced this round, at module level AND end-to-end through the full gate, to still carry a live silent-no-grant bypass; SPAWN-03's deferral is not counted as a phase-27 blocker)
 behavior_unverified: 0
-overrides_applied: 0
+overrides_applied: 1
 re_verification:
   previous_status: gaps_found
   previous_score: 8/10 (round 10, 2026-08-10T02:10:00Z)
@@ -222,5 +226,75 @@ should have been closed alongside its sibling site was not.
 
 ---
 
+## Acknowledged Gaps — human override, 2026-08-11
+
+**This section does NOT re-verify anything. It records a named human decision to close the
+phase over open gaps, and preserves exactly what remains open so a later reader is not
+misled by the `status: passed` above.**
+
+**Who and what.** The user, on 2026-08-11, after being shown the blockers below in full,
+directed: *"mark phase 27 as completed, i think we can continue."* The concern was raised
+once and reaffirmed. `status` moved `gaps_found → passed` and `overrides_applied` moved
+`0 → 1` **for that reason and no other** — no gap below was re-measured into a pass, and no
+verification round was run.
+
+**What this verification report is, and is not.** It is the **round-11** record, written
+2026-08-10T20:30Z. It **predates the D-64 cutover** (`27-62` … `27-65`, commits `cdc7fde` /
+`64a383f`, 2026-08-11) that supersedes it. Its two FAILED requirements rest on
+`scripts/frontmatter.ts` being non-total — which is **still true and was never repaired** —
+but that module no longer renders the spawn verdict. **The findings below were not fixed;
+they were structurally dissolved.** The remedies this report prescribes in `gaps[].missing`
+were deliberately declined (see `deferred-items.md` § Round 12 disposition register, rows
+V1–V3): implementing them would have been a twelfth parser widening, and rounds 10 and 11
+each shipped a regression inside their own fix.
+
+**What UAT round 2 independently established** (`27-UAT.md` tests 72–84, run 2026-08-11 at
+HEAD `d6a3a30`, executed against the live tree and hermetic `git archive` mirrors, NOT read
+off the SUMMARYs):
+
+| Claim | Evidence |
+|---|---|
+| Both round-11 bypasses now fail closed | pre-cutover mirror `8d8187e` exit **0** on all three plants; HEAD exit **1**, codes `[block-scalar]` ×2 / `[node-property]`, both twins named; unplanted + no-op controls exit 0 both sides |
+| Every rounds-1–11 bypass is refused | 85/85 corpus bypass rows refused at their declared code, 0 admitted, 0 code mismatches |
+| No silent no-grant survives in the admitted space | 2016 libyaml-adjudicated fuzz cells → **0 unsafe, 0 names dropped, 0 names invented** |
+| The narrowing costs the live kit nothing | 33/33 derived scan entries admitted |
+| The demotion is enforced, not asserted | a planted re-promotion of `keysHaveSpawnGrant` was caught by name by the tree-wide derived guard |
+| Whole repo green | suite 39 files / 1409 passed / 0 failed; 12 gate invocations all exit 0 |
+
+**What remains open, and is NOT closed by this override:**
+
+1. **KIT-03 and SPAWN-04 stay `[ ]` / Gaps Found in `REQUIREMENTS.md`.** They are
+   deliberately **not** promoted. D-58 item 4 reserves that flip to a verification round,
+   and no round-12 verification was run. Commit `47d7820` already reverted one premature
+   flip of exactly this pair — this override does not repeat it. **A phase marked complete
+   is not a requirement marked verified.**
+2. **The round-11 defects are still live in `scripts/frontmatter.ts`.** Register rows 1, 2,
+   3, 5, 7 and 9 each read "NOT repaired" / "UNTOUCHED": `openBlock` still takes the
+   block-scalar landmark from the header line's indent, and `blockHeaderAt`'s second call
+   site is still unwired. Safe **only** while the demotion holds. The demotion is
+   mechanically enforced and proven able to fail — that guard is now load-bearing.
+3. **Two register rows are OPEN with no owner** beyond "a later round": `WR-04-r11`
+   (`tsconfig.tests.json:22` hand-copies the exclude list — this phase's own set-literal
+   drift class) and `IN-02-r11` (`generate-role-adapters.test.ts:886` strips `//` only).
+   Both verified latent, not live.
+4. **SPAWN-03's runtime half is unverified** and unchanged — deferred to Phase 33
+   (GAP-D1, CAP-01), status `UNKNOWN - verify`. No static gate can produce live-platform
+   evidence and none was fabricated.
+5. **`coordinator-resolution-precheck.js` — the fourth verdict site — is in no CI workflow.**
+   It reaches CI only via its own `.test.ts` under the vitest step.
+6. **A round-12 verification was never run.** Nothing in this file has been re-measured
+   against the cutover. The `score: 8/10` line above is the round-11 score and should be
+   read as such.
+
+**Recommended follow-up, carried forward:** run a verification round that adjudicates the
+D-64 cutover on its own terms before KIT-03 or SPAWN-04 is ever promoted. A verifier
+checking for the round-11 prescribed remedy (`parentIndent` in `openBlock`) will report a
+false gap — the remedy was superseded by decision, not skipped by omission.
+
+_Override recorded: 2026-08-11 · authority: user (named decision) · gaps closed by this override: **none**_
+
+---
+
 _Verified: 2026-08-10T20:30:00Z_
 _Verifier: Claude (gsd-verifier)_
+_Override appended: 2026-08-11 — see § Acknowledged Gaps_

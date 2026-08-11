@@ -91,7 +91,7 @@ Full phase details + milestone summary: `milestones/v2.0-ROADMAP.md` · requirem
 
 **Milestone goal:** Make the decentralized factory v2.0 designed actually *run* unattended — fix the spawn path so role agents execute in their own sessions, replace ambiguous agent-written prose with a controlled-language profile, let each project decide where a human is involved, and give the operator a live view of the board.
 
-- [ ] **Phase 27: Spawn Correctness & Kit-Set Authority** — derive every guard/validator scan set from the filesystem, then generate all 17 role adapters and wire the coordinator where the runtime honors its allowlist
+- [x] **Phase 27: Spawn Correctness & Kit-Set Authority** — derive every guard/validator scan set from the filesystem, then generate all 17 role adapters and wire the coordinator where the runtime honors its allowlist (completed 2026-08-11)
 - [ ] **Phase 28: Kit Consistency Audit** — a real correctness-and-strangeness pass over 18 roles + 19 workflows, the `CLAUDE.md` v2.0 drift reconciled, and every public safety claim given an id
 - [ ] **Phase 29: Controlled Language & Voice Guard Rebuild** — an ASD-STE100-derived writing profile for procedural/agent-written surfaces, a de-duplicated role skeleton, and a voice guard that measures voice instead of sentence shape
 - [ ] **Phase 30: Per-Checkpoint Autonomy Matrix** — every human stop enumerated and dialable, the four safety floors lowerable only behind two keys, with mechanical claim-dropping
@@ -548,7 +548,7 @@ Plans:
 | 24. Clean Handoff Removal & Traceability Migration | v2.0 | 5/5 | Complete    | 2026-06-22 |
 | 25. Governance-on-a-Dial | v2.0 | 13/13 | Complete | 2026-06-29 |
 | 26. Dogfood, Dual-Path Oracle & A3/DOG-02 Retirement | v2.0 | 6/6 | Complete | 2026-07-24 |
-| 27. Spawn Correctness & Kit-Set Authority | v2.1 | 66/66 | In Progress|  |
+| 27. Spawn Correctness & Kit-Set Authority | v2.1 | 66/66 | Complete    | 2026-08-11 |
 | 28. Kit Consistency Audit | v2.1 | 0/TBD | Not started | - |
 | 29. Controlled Language & Voice Guard Rebuild | v2.1 | 0/TBD | Not started | - |
 | 30. Per-Checkpoint Autonomy Matrix | v2.1 | 0/TBD | Not started | - |
