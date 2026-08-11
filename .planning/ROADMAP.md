@@ -92,7 +92,7 @@ Full phase details + milestone summary: `milestones/v2.0-ROADMAP.md` · requirem
 **Milestone goal:** Make the decentralized factory v2.0 designed actually *run* unattended — fix the spawn path so role agents execute in their own sessions, replace ambiguous agent-written prose with a controlled-language profile, let each project decide where a human is involved, and give the operator a live view of the board.
 
 - [x] **Phase 27: Spawn Correctness & Kit-Set Authority** — derive every guard/validator scan set from the filesystem, then generate all 17 role adapters and wire the coordinator where the runtime honors its allowlist (completed 2026-08-11)
-- [ ] **Phase 28: Kit Consistency Audit** — a real correctness-and-strangeness pass over 18 roles + 19 workflows, the `CLAUDE.md` v2.0 drift reconciled, and every public safety claim given an id
+- [ ] **Phase 28: Kit Consistency Audit** — a real correctness-and-strangeness pass over 17 roles + 19 workflows (17, not 18: `kit-model.listRoles()` drops the `_`-prefixed `_role-switch-protocol.md` by derivation — it is read once and recorded as an explicitly uncounted 37th register row), the `CLAUDE.md` v2.0 drift reconciled, and every public safety claim given an id
 - [ ] **Phase 29: Controlled Language & Voice Guard Rebuild** — an ASD-STE100-derived writing profile for procedural/agent-written surfaces, a de-duplicated role skeleton, and a voice guard that measures voice instead of sentence shape
 - [ ] **Phase 30: Per-Checkpoint Autonomy Matrix** — every human stop enumerated and dialable, the four safety floors lowerable only behind two keys, with mechanical claim-dropping
 - [ ] **Phase 31: Autonomous Manual Testing** — browser-driven UAT where the committed Playwright spec is the evidence and the agent's narration never is
@@ -422,7 +422,7 @@ Plans:
 **Requirements**: AUDIT-01, AUDIT-02, AUDIT-03, AUDIT-04
 **Success Criteria** (what must be TRUE):
 
-  1. Each of the 18 roles and 19 workflows has a recorded disposition — fixed, accepted, or deferred with a reason — so no file is reviewed-but-unrecorded and the count of dispositions equals the count of files on disk. (AUDIT-01)
+  1. Each of the 17 roles and 19 workflows has a recorded disposition — fixed, accepted, or deferred with a reason — so no file is reviewed-but-unrecorded and the count of dispositions equals the count of files the derivation returns. **17, not 18, and the number carries its reason so it cannot be "corrected" back:** `kit-model.listRoles()` drops `_`-prefixed entries by derivation, so `_role-switch-protocol.md` is out of set for COUNTING. It is not dropped — it is read once and recorded as an explicitly uncounted 37th register row, which is why the register holds 37 rows while the completeness equality is 36. (AUDIT-01)
   2. `CLAUDE.md` describes the v2.0 architecture the repo actually has: no handoff packets, and an Orchestrator that decomposes rather than routes. (AUDIT-02)
   3. Every public safety claim in `README.md`, `AGENTS.md`, and `agent-factory/README.md` appears in a registry with an id, so Phase 30's claim-dropping mechanism has a named target rather than a prose search. (AUDIT-03)
   4. The `@playwright/test` and `@axe-core/playwright` pins in the gate templates match versions **verified at the time of change** (1.60.0 → 1.62.0, 4.11.3 → 4.12.1 as of 2026-07-28), with the verification recorded rather than assumed. (AUDIT-04)
@@ -464,7 +464,7 @@ Plans:
 
 **Ordering that is load-bearing inside this phase, both demonstrated over asserted:** the AUDIT-02 drift guard lands **first** and must be watched failing RED against the real tree with its hit counts recorded before any drift is fixed (D-24), and the claim registry is authored and anchored **before** the drift fixes so the drift-affected claims are recorded `status: false` and corrected in the same commit, with the bijection gate catching a missed flip on a real commit rather than a fixture (D-25). A guard that passes the moment it appears has never been watched fail.
 
-**Success criterion 1 is amended by D-01:** "18 roles" becomes **17**, because `kit-model.listRoles()` drops the `_`-prefixed protocol file by derivation. `_role-switch-protocol.md` is recorded as a 37th register row, explicitly uncounted and still read once. Plan 28-07 makes that amendment in `ROADMAP.md` and `REQUIREMENTS.md` together.
+**Success criterion 1 was amended by D-01, and plan 28-07 made the amendment:** "18 roles" is now **17** at all three sites that carried the stale count — this phase entry above, success criterion 1, and `REQUIREMENTS.md`'s AUDIT-01 text — because `kit-model.listRoles()` drops the `_`-prefixed protocol file by derivation. Each site now carries the derivation rule alongside the number, so the count cannot be "corrected" back by a reader who counts the files on disk. `_role-switch-protocol.md` is recorded as a 37th register row, explicitly uncounted and still read once.
 
 ### Phase 29: Controlled Language & Voice Guard Rebuild
 

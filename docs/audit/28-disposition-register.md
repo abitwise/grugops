@@ -159,6 +159,35 @@ hits on this file, because neither line contains an `agent-factory/handoffs/` pa
 `handoff packet` — and D-10 forbids widening the matcher to chase the bare word. This paragraph is
 the only record that the residual exists.
 
+### The D-01 count amendment — "18 roles" corrected to 17 at three sites
+
+**Made by plan 28-07, 2026-08-12.** `ROADMAP.md`'s phase entry, its success criterion 1, and
+`REQUIREMENTS.md`'s AUDIT-01 text each described this phase as a pass over *"18 roles + 19
+workflows"*. The derivation returns **17**: `kit-model.listRoles()` drops `_`-prefixed entries, so
+`_role-switch-protocol.md` is out of set for counting. All three now say 17, and **each carries the
+derivation rule in the same sentence as the number** — a bare `17` beside 18 files on disk invites
+the next reader to "fix" it back, which is how the count became wrong in the first place. A fourth
+site, the D-01 note under the phase's success criteria, instructed the amendment and now records
+that it was made.
+
+**Why this is recorded here and not as a Table B row.** The plan directs recording the amendment as
+a finding row with disposition `fixed`. That is structurally impossible, and the refusal was watched
+on a mirror before anything was written to the tree:
+
+```
+audit-model: refusing to parse docs/audit/28-disposition-register.md — Table B's row at line 387
+(F-28-040) names file ".planning/ROADMAP.md", which has no row in Table A. A finding against a file
+the register does not audit cannot be counted by either D-03 equality. If the note is about a file
+with no Table A row, it belongs in `## Recorded couplings and out-of-set notes`, which exists for
+exactly that case
+```
+
+The parse authority names this section as the correct home, so that is where the record went. This
+is the **third** plan in the phase to meet this same instruction class — 28-04 was told to file claim
+findings in Table B, 28-06 was told to renumber `F-28-A`…`F-28-G` into it, and this plan was told to
+file a `.planning/` amendment. One constraint, three plans, three refusals, and the grammar was not
+widened once.
+
 ### `agent-factory/handoffs/` and `agent-factory/examples/` — two deleted hygiene directories
 
 **Deleted by plan 28-05, 2026-08-12, under D-12.** Both are directories, so neither has a Table A
