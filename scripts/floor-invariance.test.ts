@@ -34,7 +34,7 @@
 //
 // Vitest globals:false (the repo default) → import test fns explicitly.
 
-import { describe, it, expect, afterAll } from "vitest";
+import { describe, it, expect, afterAll, vi } from "vitest";
 import { execFileSync, spawnSync } from "node:child_process";
 import {
   mkdtempSync,
@@ -46,6 +46,41 @@ import {
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
+
+// ── THE EXPLICIT PER-TEST TIMEOUT (D-19 item 3, closing F-28-E; landed by plan 28-08) ─────────────
+//
+// WHY THIS FILE NEEDS AN EXPLICIT NUMBER AND THE OTHERS DO NOT. This is the most spawn-heavy oracle
+// in the suite: it sweeps EVERY governance dial value and, for a share of them, spawns the COMMITTED
+// .js in a child process rather than importing it — the spawn-the-artifact discipline the header
+// describes. Process spawn cost is the one cost in this suite that is set by the MACHINE rather than
+// by the code, so this file's runtime is the one that moves most between a developer's box and a
+// loaded CI runner.
+//
+// WITHOUT THIS LINE THE FILE INHERITED VITEST'S 5,000 ms DEFAULT — silently, and from a config that
+// does not mention timeouts at all (`vitest.config.ts` sets only `fileParallelism`). An inherited
+// default is a number nobody chose: it can be changed by a vitest upgrade or by a config edit made
+// for an unrelated reason, and the failure it produces is a timeout on a SAFETY-FLOOR sweep, which
+// reads as a flake and gets retried rather than read.
+//
+// THE VALUE IS DERIVED FROM A MEASUREMENT, NOT PICKED. Measured 2026-08-11 (28-02) and re-measured
+// independently 2026-08-12 (28-08) on darwin 25.5.0 / node v24.12.0: 128 tests, 1.3 s for the whole
+// file, slowest SINGLE test 81-84 ms. Against the inherited 5,000 ms that is roughly 60x headroom on
+// this box — comfortable here, and exactly the kind of margin that is comfortable until it is not.
+// 30,000 ms is ~370x the measured slowest test and 6x the inherited default.
+//
+// THE DIRECTION IS DELIBERATE: THIS RAISES THE CEILING, IT DOES NOT LOWER IT. D-19 dispositions this
+// item `fix` because `PITFALLS.md:801` records that the pressure gets WORSE when Phase 30 adds
+// checkpoints — more spawns, on runners this repository does not control. Deferring the item TO
+// Phase 30 would therefore invert its own rationale: it is cheap now and progressively more
+// expensive later. A tighter timeout would be a different change with a different argument, and this
+// is not it.
+//
+// WHAT A RED HERE MEANS. If a test in this file ever exceeds 30 s, do NOT raise this number. At 370x
+// the measured cost the honest reading is that a spawn is hanging — a child process waiting on
+// input, a guard blocking, a lock never released — and raising the ceiling would convert a hang into
+// a slower hang. Find the spawn.
+export const FLOOR_INVARIANCE_TEST_TIMEOUT_MS = 30_000;
+vi.setConfig({ testTimeout: FLOOR_INVARIANCE_TEST_TIMEOUT_MS });
 
 const ROOT = join(import.meta.dirname, "..");
 const CONTEXT_IO_JS = join(ROOT, "scripts", "context-io.js");
