@@ -427,7 +427,7 @@ Plans:
   3. Every public safety claim in `README.md`, `AGENTS.md`, and `agent-factory/README.md` appears in a registry with an id, so Phase 30's claim-dropping mechanism has a named target rather than a prose search. (AUDIT-03)
   4. The `@playwright/test` and `@axe-core/playwright` pins in the gate templates match versions **verified at the time of change** (1.60.0 → 1.62.0, 4.11.3 → 4.12.1 as of 2026-07-28), with the verification recorded rather than assumed. (AUDIT-04)
 
-**Plans**: 7/8 plans executed (8 waves, strictly sequential — every plan either rebuilds committed `.js` or edits an artifact an adjacent plan reads, so the ordering is a real dependency rather than build serialization)
+**Plans**: 8/8 plans executed (8 waves, strictly sequential — every plan either rebuilds committed `.js` or edits an artifact an adjacent plan reads, so the ordering is a real dependency rather than build serialization)
 **Wave 1**
 
 - [x] 28-01-PLAN.md — TRACER: the AUDIT-02 drift guard, landed FIRST and watched failing RED against today's tree (D-24), as a third consumer of `dead-vocabulary.ts` with a derived, count-asserted scan set (D-09)
@@ -458,7 +458,7 @@ Plans:
 
 **Wave 8** *(blocked on Wave 7 completion)*
 
-- [ ] 28-08-PLAN.md — CONDITIONAL on 28-02's sizing: the D-21 adversarial round on the canonical admission reader at D-22's full closure bar
+- [x] 28-08-PLAN.md — CONDITIONAL on 28-02's sizing: the D-21 adversarial round on the canonical admission reader at D-22's full closure bar
 
 **Note:** the `CTX_WORKFLOWS` derivation the research assigned here is already covered by KIT-02 in Phase 27; this phase consumes the derived sets rather than re-deriving them. Standing obligations #4 (fail-safe residuals) and #5 (hygiene — `agent-factory/handoffs/.gitkeep`) are dispositioned under AUDIT-01.
 
@@ -584,7 +584,7 @@ Plans:
 | 25. Governance-on-a-Dial | v2.0 | 13/13 | Complete | 2026-06-29 |
 | 26. Dogfood, Dual-Path Oracle & A3/DOG-02 Retirement | v2.0 | 6/6 | Complete | 2026-07-24 |
 | 27. Spawn Correctness & Kit-Set Authority | v2.1 | 66/66 | Complete    | 2026-08-11 |
-| 28. Kit Consistency Audit | v2.1 | 7/8 | In Progress|  |
+| 28. Kit Consistency Audit | v2.1 | 8/8 | In Progress|  |
 | 29. Controlled Language & Voice Guard Rebuild | v2.1 | 0/TBD | Not started | - |
 | 30. Per-Checkpoint Autonomy Matrix | v2.1 | 0/TBD | Not started | - |
 | 31. Autonomous Manual Testing | v2.1 | 0/TBD | Not started | - |
