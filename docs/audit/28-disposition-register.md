@@ -258,6 +258,57 @@ literal for either directory, because it removes nothing from the kit whatsoever
 note reached is correct; one of its two stated reasons is not, and the difference is written down
 here so the next reader does not inherit it.
 
+### `28-08-PLAN.md` mislocates residual 2 — F-28-041, and why it is recorded rather than followed
+
+**Recorded by plan 28-08, 2026-08-12.** This note lives here for the reason the section header
+states: it names `.planning/phases/28-kit-consistency-audit/28-08-PLAN.md`, a file with no Table A
+row. **Fourth plan in the phase to meet this constraint** — 28-04 was told to file claim findings in
+Table B, 28-06 to renumber `F-28-A`…`F-28-G` into it, 28-07 to file a `.planning/` amendment, and now
+this. Four plans, four times the grammar was not widened.
+
+**The finding.** `28-08-PLAN.md` task 1 directs its executor to *"read the region of
+`scripts/canonical-frontmatter.ts` the bypass reaches"*, and the plan's `files_modified`,
+`must_haves`, `key_links` and threat register are written throughout as though residual 2 — the
+byte-round-trip adjacency — lives in the canonical admission reader. **It does not.** Plan 28-02
+measured the live class at `scripts/context-io.ts:400-403`, reached from `:508`, and computed the
+import closures that put the two modules in disjoint graphs. The plan text predates that measurement
+and was never reconciled to it.
+
+**Recomputed in 28-08's own session by an independently written walker**, because inheriting the
+number would be the defect this phase is auditing for:
+
+```
+closure(scripts/context-io.ts)            = 1: context-io.ts
+closure(scripts/compactor.ts)             = 2: compactor.ts, context-io.ts
+closure(scripts/canonical-frontmatter.ts) = 2: canonical-frontmatter.ts, frontmatter.ts
+closure(scripts/frontmatter.ts)           = 1: frontmatter.ts
+```
+
+Disjoint in both directions, reproducing 28-02's result.
+
+**Why the plan was not followed on this point.** There is no bypass in
+`scripts/canonical-frontmatter.ts` to reproduce, so there is nothing there to fix. Editing a
+safety-critical parser that took Phase 27 twelve rounds to close — two of which shipped a new
+regression inside their own fix — in order to satisfy a plan sentence rather than a measured defect
+is precisely what D-64 forbids, and the plan's own prohibitions say so: *"If the only fix you can
+find is a widening, stop and record that as the finding rather than shipping it — that outcome is a
+legitimate result of this task."* `git diff` on `scripts/canonical-frontmatter.ts` and
+`scripts/frontmatter.ts` is empty across every commit of plan 28-08.
+
+**What was done instead.** D-22's four-part bar was applied at full strength to the defect that does
+exist, in `scripts/context-io.ts`. See `docs/audit/28-residual-sizing.md` §
+*Residual 2 — reproduction at fix time (28-08)* for the reproduction, the loader differential, and
+the three structural answers.
+
+**One part of that bar is NOT satisfied, and it is recorded here rather than in a summary that a
+later reader may not open.** D-22 part 3 requires **two independent red teams** — adversarial passes
+by agents that did not author the fix. Plan 28-08's executor had no agent-spawning tool available in
+its tool set, so no independent pass was commissioned. What exists is a five-attempt adversarial pass
+run by the fix's **author**, which is explicitly the thing the plan's own threat register calls
+insufficient (T-28-50: *"a red team run by the fix's author reviews the author's own assumptions"*).
+The pass and its results are recorded in `28-08-SUMMARY.md`, labelled as non-independent. **The
+independence gap is real and is the central question at this plan's blocking checkpoint.**
+
 ## Table A — audited files
 
 | file | kind | counted | safety_surface | findings | observation |
