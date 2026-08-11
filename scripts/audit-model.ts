@@ -293,6 +293,24 @@ export interface ClaimRow {
   readonly kind: ClaimKind;
   readonly dependsOn: readonly string[];
   readonly status: ClaimStatus;
+  /**
+   * D-17: the specific thing this row's `status` was MEASURED against — a config value, a guard, a
+   * hook, a test, a requirement checkbox. `""` when the key is absent.
+   *
+   * WHY THE PARSER ADMITS A BLANK ONE AND THE GATE REFUSES IT. This is the same split
+   * `safety_surface: —` already records twenty lines above: the two answer different questions. An
+   * unreadable value would make the registry unparseable rather than incomplete, so the gate could
+   * not report on it at all; a blank one parses and is refused by scripts/check-claim-anchors.js,
+   * which is where D-17's completeness belongs. This module is a LIBRARY and reports STRUCTURE; a
+   * gate decides whether the build is green.
+   */
+  readonly mechanism: string;
+  /** One of DISPOSITIONS when `status` is not `true`. `""` when absent — the gate refuses that. */
+  readonly disposition: string;
+  /** The F-28-NNN finding this non-`true` row is recorded as. `""` when absent. */
+  readonly findingId: string;
+  /** The phase a `deferred` disposition names. `""` when absent. */
+  readonly targetPhase: string;
   /** The fenced block's contents, BYTE-FOR-BYTE. Never trimmed, collapsed or line-ending rewritten. */
   readonly verbatim: string;
 }
@@ -880,6 +898,13 @@ function parseClaimBlock(lines: readonly string[], start: number, end: number): 
     kind: kind as ClaimKind,
     dependsOn,
     status: status as ClaimStatus,
+    // Passthrough, never defaulted to a VALUE. `""` means "the author wrote nothing here", which is
+    // a fact the gate reports; substituting a plausible default would manufacture the very
+    // unearned-verdict shape T-28-21 names.
+    mechanism: meta["mechanism"] ?? "",
+    disposition: meta["disposition"] ?? "",
+    findingId: meta["finding_id"] ?? "",
+    targetPhase: meta["target_phase"] ?? "",
     verbatim,
   };
 }

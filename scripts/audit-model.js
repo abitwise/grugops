@@ -624,6 +624,13 @@ function parseClaimBlock(lines, start, end) {
         kind: kind,
         dependsOn,
         status: status,
+        // Passthrough, never defaulted to a VALUE. `""` means "the author wrote nothing here", which is
+        // a fact the gate reports; substituting a plausible default would manufacture the very
+        // unearned-verdict shape T-28-21 names.
+        mechanism: meta["mechanism"] ?? "",
+        disposition: meta["disposition"] ?? "",
+        findingId: meta["finding_id"] ?? "",
+        targetPhase: meta["target_phase"] ?? "",
         verbatim,
     };
 }
