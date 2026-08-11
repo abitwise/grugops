@@ -1,12 +1,23 @@
 ---
 status: complete
 phase: 27-spawn-correctness-kit-set-authority
-source: 27-01-SUMMARY.md … 27-32-SUMMARY.md (all 32)
+source: 27-01-SUMMARY.md … 27-66-SUMMARY.md (all 66)
 started: 2026-08-01T23:40:00Z
-updated: 2026-08-02T00:20:00Z
-coverage_mode: 13 summaries structured (80 deliverables), 19 legacy (prose-extracted)
-suite_ground_truth: "npx vitest run --exclude '**/scripts/e2e/**' → 35 files, 1015 passed, 2 skipped, 0 failed (2026-08-01)"
-execution_note: "User directed the assistant to complete the verifications itself and escalate only where it must. Tests 1-9 and 12(b) were executed by the assistant against the live tree; test 10 was discharged by a pre-existing human observation record; test 11 is an assistant editorial judgment the user may overrule."
+updated: 2026-08-11T09:10:00Z
+rounds:
+  - round: 1
+    tests: 1-71
+    source: 27-01-SUMMARY.md … 27-32-SUMMARY.md (32)
+    run: 2026-08-01
+    result: 71 passed, 0 issues
+  - round: 2
+    tests: 72-86
+    source: 27-33-SUMMARY.md … 27-66-SUMMARY.md (34 — gap-closure rounds 7-12)
+    run: 2026-08-11
+    result: 13 passed, 0 issues, 2 skipped (editorial, carried to Residual Open Items)
+coverage_mode: "round 1 — 13 summaries structured (80 deliverables), 19 legacy; round 2 — 1 structured (27-64, 5 auto-passed), 1 malformed (27-42), 32 legacy (prose-extracted from `provides:`)"
+suite_ground_truth: "round 1: 35 files, 1015 passed, 2 skipped, 0 failed (2026-08-01) · round 2: npx vitest run --exclude '**/scripts/e2e/**' → 39 files, 1409 passed, 2 skipped, 0 failed, exit 0 (2026-08-11, HEAD d6a3a30)"
+execution_note: "User directed the assistant to complete the verifications itself and escalate only where it must. Round 1: tests 1-9 and 12(b) executed by the assistant against the live tree; test 10 discharged by a pre-existing human observation record; test 11 an assistant editorial judgment. Round 2: every checkpoint 72-84 executed by the assistant against the live tree or a hermetic `git archive` mirror, with a premise control recorded BEFORE each planted result; 85-86 are editorial judgments the user may overrule. The shipped sweep harness was deliberately NOT reused — its own premise is what round 2 tests."
 ---
 
 ## Current Test
@@ -571,14 +582,147 @@ coverage_id: 27-32-D7
 verified_by: integration+other
 requirement: KIT-02
 
+## Round 2 — Tests (27-33 … 27-66; gap-closure rounds 7-12)
+
+<!-- Round 2 covers the 34 summaries executed after round 1's session. Its subject is the
+     D-64 CUTOVER (27-62 … 27-65): the canonical admission reader replaced scripts/frontmatter.ts
+     as the authority that renders the spawn verdict. Rounds 7-11 (27-33 … 27-61) are the
+     eleven parser-widening rounds that preceded it and are covered here by outcome — the
+     91-row corpus replay (test 73) is the artifact that carries every one of their bypasses. -->
+
+### 72. The two bypasses that survived eleven rounds are CLOSED at the gate — and the closure is attributable to the cutover, not to the mirror
+expected: The round-11 shapes the last verification reproduced end-to-end at `ALL CHECKS PASSED` (CR-01 rows A and B — a folded block header on its own line under a bare dash; CR-02 — a resolvable alias reaching a grant through a sequence item's compact mapping) must now take `node scripts/check-foundation-guards.js` from exit 0 to exit 1, naming the offending file and its enumerated refusal code. A pre-cutover mirror must still exit 0 on the same plants, or the red is not attributable.
+observed: Independent reproduction on two hermetic `git archive` mirrors, plants grafted into the live `allowed-tools` key of BOTH distribution twins (`skills/map/SKILL.md` + `.claude/skills/grugops-map/SKILL.md`). **PRE (8d8187e, cutover parent): all three plants → exit 0**, `PASS WR-05: … no non-coordinator does`, while `Agent(grugops-orchestrator)` sits at line 9 of the planted file — the bypass, verbatim. **HEAD (d6a3a30): all three → exit 1**, `2 CHECK(S) FAILED`, codes `[block-scalar]` ×2 and `[node-property]` ×1, each twin named. Controls: unplanted mirror → exit 0 both sides; a graft that rewrites the same block with identical content → exit 0 both sides (the graft machinery does not itself red the gate).
+covers: 27-62, 27-65, and the round-11 CR-01/CR-02 findings
+result: pass
+verified_by: self-run: 2 mirrors × (1 unplanted control + 3 plants + 1 no-op control); pre 0/0/0, head 1/1/1 with codes read from the gate's own stdout
+
+### 73. Every bypass harvested from rounds 1-11 is refused by the new authority, at the code its row declared
+expected: `scripts/canonical-corpus.ts` carries the historical bypass corpus with provenance. Replaying every row through `admit()` must refuse each bypass row at exactly the code the row declares — zero admitted, zero code mismatches. An admitted bypass row would be a live silent-no-grant at the new authority.
+observed: Replayed independently (not through the shipped test). `CORPUS_COUNT = 91`, actual rows 91, spanning rounds 1-11 (6/12/12/2/9/3/10/8/6/14/9); kinds 85 bypass, 4 control, 2 divergence. **85 of 85 bypass rows REFUSED with the declared code. 0 admitted. 0 code mismatches.**
+covers: 27-63, and by outcome the bypass classes closed across 27-33 … 27-61
+result: pass
+verified_by: self-run: independent replay of all 91 rows through admit(), asserting code equality per row
+
+### 74. The new authority is TOTAL in the safety direction — no admitted document silently no-grants a grant a real loader sees
+expected: The historical failure class is a document the guard reads as carrying no grant while a real YAML loader plainly sees `Agent(…)` in a grant key. Against libyaml as oracle, that cell count must be zero — and it must be zero over a space the corpus did not author, or the property is only "the corpus passes its own test."
+observed: Two independently authored fuzzes, adjudicated cell-by-cell against `/usr/bin/ruby -ryaml` (ruby 2.6.10 / psych 3.1.0 / libyaml 0.2.1). **Fuzz 1** — 9 document frames × 2 grant keys × 32 value spellings = 576 cells; 482 refused, 94 admitted; **0 UNSAFE** (admitted + module says no-grant + loader sees the grant), 0 false-red, 0 throws. **Fuzz 2**, focused inside the admitted grammar and comparing NAME SETS rather than booleans — 3 frames × 2 keys × 6 shapes × 40 payloads = 1440 cells; 972 admitted; **0 names DROPPED, 0 names INVENTED**. Harness premise asserted and corrected first: my initial oracle produced 36 false "dropped" (`XAgent(a)` matched a regex lacking a word boundary) and 36 false "invented" (`Task(…)`, the legacy alias for `Agent(…)`, which the module correctly honors and my oracle did not) — both were defects in MY oracle, and both vanished on correction.
+covers: 27-62, 27-65
+result: pass
+verified_by: self-run: 2016 generated cells across two fuzzes, libyaml-adjudicated; 0 unsafe, 0 dropped, 0 invented after the harness's own premise was corrected
+
+### 75. The narrowing a canonical form imposes costs the live kit nothing
+expected: A canonical form is a narrowing or it is not canonical — 27-65 records that of seven legitimate YAML spellings of one declaration it now admits two and refuses five. That latitude is genuinely gone. The claim under test is that the cost on the shipped kit is zero: every file in the spawn-grant scan set must still be admitted.
+observed: `admit()` run over the derived scan set at HEAD: **33 entries, 33 ADMITTED, 0 REFUSED.** The gate's own PASS line agrees — 23 non-coordinator adapter bodies + 7 plugin-form skills + 2 packaging templates checked, exit 0. The narrowing is real and is stated loudly in 27-65 § THE NARROWING; a future author hand-writing a folded `tools:` will be refused by name.
+covers: 27-65
+result: pass
+verified_by: self-run: admit() over all 33 derived scan entries → 33/33 admitted; gate exit 0 on the live tree
+
+### 76. A refusal is a NAMED gate failure — never reported as "carries no grant"
+expected: The eleven-round failure mode was a refusal and a no-grant being indistinguishable at the gate. Every refusal must surface as a failure naming the file, the enumerated code and the reason, and must never be rendered as an absence of a grant.
+observed: Read verbatim from the gate's own stdout on the planted mirrors: `FAIL WR-05 coordinator-spawn-grant violation:` / `skills/map/SKILL.md: frontmatter is NOT in the canonical form [block-scalar] — line 7: a node starting at column 5 is introduced by \`>\`, which opens a folded block scalar header; … so there is no indentation to compute and no second recogniser site to forget. An unreadable adapter cannot be reported on, so it is NEVER read as "carries no grant"`. Both twins named, not just the first. `guard_distribution_pair` fails alongside with its own parallel sentence (`An unreadable side is NEVER read as "the pair matches"`). The refusal vocabulary is 23 enumerated codes, catch-all-free.
+covers: 27-62, 27-65
+result: pass
+verified_by: self-run: refusal text read from gate stdout on 3 planted mirrors; both twins named in each
+
+### 77. The seven standalone skill twins are generated and byte-gated, and the gate is PROVEN able to fail
+expected: Every bypass reproduced in eleven review rounds landed in a `SKILL.md`. Making a hand-edit to a committed twin unrepresentable in a green build closes that surface structurally. The gate must pass clean AND be shown to fail on a one-byte drift — a gate never seen red is not a gate.
+observed: Live tree → `Skill twins fresh: 7 twin(s) compared in .claude/skills, 0 byte difference(s), directory listings set-equal`, exit 0. Premise control recorded first on a hermetic mirror: unmodified → exit 0. One byte then changed in a committed twin (`scaffold` → `scaffolX` in `.claude/skills/grugops-map/SKILL.md`) → **exit 1**, `STALE: 1 of 7 committed skill twin(s) differ from a fresh regeneration: grugops-map/SKILL.md`. Wired at both ends: the CI ubuntu block and a test that spawns the committed `.js` directly.
+covers: 27-64
+result: pass
+verified_by: self-run: live 7/7 fresh exit 0; mirror control exit 0; one-byte drift exit 1 naming the file
+
+### 78. The parser is DEMOTED, not deleted — and re-promotion is prevented mechanically, not by a comment
+expected: D-64 Part C retires `scripts/frontmatter.ts` as the safety authority. Two things must hold: the demotion changed no parsing logic (so nothing else moved with it), and a future plan cannot quietly route a spawn verdict back through it. A header comment is not a mechanism.
+observed: **Comment-only, verified independently:** the restricted diff of `scripts/frontmatter.ts` across the cutover commit `cdc7fde` has ZERO non-comment changed lines, and code-only line counts are 899 → 899. **The mechanism exists and is structurally right:** a tree-wide test derives the non-test module set with `readdirSync` (no allow-list, no file exempted by name) and asserts that NO non-test module imports a grant predicate (`keysHaveSpawnGrant`, `keysGrantedAgentNames`, `keyHasValue`, `TOOLS_KEYS`) from `./frontmatter.js`, with a non-vacuity floor on the scan. **Proven able to fail:** I planted `scripts/zz-uat-probe.ts` re-importing `keysHaveSpawnGrant`; the test went red naming it — `zz-uat-probe.ts imports keysHaveSpawnGrant` — with the guidance to import the admission reader instead. Probe removed; `git status scripts/` clean.
+covers: 27-65
+result: pass
+verified_by: self-run: 0 non-comment lines / 899→899 code lines across cdc7fde; planted re-promotion caught by name and reverted
+
+### 79. Whole-repo green on the live tree — suite, build, typecheck, six freshness gates, three repo gates, precheck
+expected: Every gate the repository ships exits 0 at HEAD, and the numbers each reports are the derived ones.
+observed: All at HEAD `d6a3a30`. Suite `npx vitest run --exclude '**/scripts/e2e/**'` → **39 files, 1409 passed, 2 skipped, 0 failed, exit 0**. `npm run build` 0 · `npm run typecheck` 0 (both targets) · `freshness` 0 (**36** committed `.js` match a fresh rebuild) · `freshness:catalog` 0 · `freshness:adapters` 0 (**17** adapters, 0 byte differences) · `freshness:skill-twins` 0 (**7** twins) · `freshness:context` 0 (vacuous — no tree yet) · `freshness:traceability` 0 (vacuous) · `check-foundation-guards` 0 (`ALL CHECKS PASSED`; KIT-03: **17 roles == 17 adapters == 17 grant-closure names**, no exception list) · `check-kit-refs` 0 (**26** marker sites, **19** derived `$GRUGOPS_HOME` sites) · `validate-agent-factory` 0 · `coordinator-resolution-precheck` 0.
+covers: all of 27-33 … 27-66
+result: pass
+verified_by: self-run: 12 gate invocations + the suite, every one exit 0, counts read from each gate's own output
+
+### 80. A green suite is recorded as a FLOOR, not as proof
+expected: This phase's standing lesson is that eleven consecutive rounds shipped a live bypass behind a green suite. The round-12 artifacts must say so rather than present green as closure.
+observed: `27-65-SUMMARY.md` opens with a section titled `## THE GREEN SUITE IS A FLOOR`. The disposition register states of each dissolved row that the defect is **still present** in `scripts/frontmatter.ts` and is dissolved by no longer reaching a verdict — not by repair. That is the honest framing, and it is why tests 72-74 were executed independently rather than read off the SUMMARY.
+covers: 27-63, 27-65, 27-66
+result: pass
+verified_by: self-run: section read from 27-65-SUMMARY.md; register rows 1/2/3 read from deferred-items.md
+
+### 81. The traceability hold is intact — round 12 promoted nothing
+expected: KIT-03 and SPAWN-04 are held at `[ ]` / Gaps Found pending a verification round (D-58 item 4); only a verification round may flip them. SPAWN-03 stays deferred with `UNKNOWN - verify`. A round that closes its own requirements is the failure this convention exists to prevent — commit `47d7820` already reverted one premature flip of exactly this pair.
+observed: Read from `.planning/REQUIREMENTS.md` at HEAD. Checkbox half: `- [ ] KIT-03`, `- [ ] SPAWN-03`, `- [ ] SPAWN-04`; `- [x]` on KIT-01, KIT-02, SPAWN-01, SPAWN-02. Table half: KIT-03 `Gaps Found — held pending verification`, SPAWN-04 `Gaps Found — held pending verification, for the same reason as KIT-03 and by the same rule`, SPAWN-03 `Gaps Found — the runtime half is DEFERRED to Phase 33 / GAP-D1 / CAP-01`. Both renderings agree. The cells cite round 11, not round 12 — consistent with nothing having been promoted.
+covers: 27-54, 27-61, 27-66
+result: pass
+verified_by: self-run: both renderings of all 7 rows read from REQUIREMENTS.md on disk
+
+### 82. The round-12 disposition register accounts for every round-11 item, by count
+expected: 13 items, 13 rows, each with what happened, the artifact carrying the evidence, and a named disposition class.
+observed: `deferred-items.md` § Round 12 disposition register (line 3222): **9 rows** for the round-11 review items (CR-01, CR-02, WR-01…WR-04, IN-01…IN-03) + **4 rows** (V1-V4) for the remedies the round-11 VERIFICATION.md prescribed = **13**. Disposition classes are named and defined: DISSOLVED / DEMOTED / SUPERSEDED, plus OPEN and DEFERRED. Rows V1-V3 record that the verification's prescribed edits were **deliberately not made** — D-64 supersedes them by name, because rounds 10 and 11 each shipped a regression inside their own fix.
+covers: 27-66
+result: pass
+verified_by: self-run: 9 + 4 rows counted from disk at deferred-items.md:3222
+
+### 83. SPAWN-03's runtime half is still honestly unverified — no static gate fakes it
+expected: No static check can produce live-platform evidence. The precheck must discharge the observable preconditions and say plainly that it does not perform the runtime steps.
+observed: `node scripts/coordinator-resolution-precheck.js` → exit 0, `PRECONDITIONS HOLD: every observable precondition of the coordinator-resolution check is satisfied on this tree. The two runtime steps above are NOT PERFORMED by this command, and SPAWN-03's runtime half stays unverified until a human observes it and records the observation in …27-SPAWN-03-RUNTIME-EVIDENCE.md.` Register row V4 carries it as DEFERRED to Phase 33 (GAP-D1, CAP-01), dated 2026-08-09, status `UNKNOWN - verify`.
+covers: 27-16, 27-61, 27-66
+result: pass
+verified_by: self-run: precheck exit 0 with the not-performed statement in its own output
+
+### 84. The cutover reaches all FOUR verdict sites, and a fifth would be covered the day it lands
+expected: The verdict-renderer set must be derived rather than hand-listed, so a new verdict site cannot appear outside the assertion.
+observed: Four sites cut over — `guardWr05`, the KIT-03 referential-integrity oracle, `guardDistributionPair` (all in `check-foundation-guards.ts`) and `coordinator-resolution-precheck.ts`. The covering test derives the set as "non-test modules importing `./canonical-frontmatter.js`" with a non-vacuity floor, never a hand-list — which is what brought the precheck into scope in the first place. Confirmed on disk: the non-test importers of the canonical reader are exactly `check-foundation-guards.ts` and `coordinator-resolution-precheck.ts`.
+covers: 27-65
+result: pass
+verified_by: self-run: importer set derived from disk and matched against the test's derivation
+
+### 85. Editorial — the phase closes with two OPEN register rows, one of them this phase's own diagnosed failure class
+expected: A judgment for the user, not a mechanical check.
+result: skipped
+reason: "Editorial judgment carried to Residual Open Items — user may overrule. Two of the 13 register rows are OPEN with no owner beyond 'a later round': WR-04-r11 (tsconfig.tests.json hand-copies tsconfig.json's exclude list instead of deriving it — the set-literal drift class this phase exists to delete, landing in the file added to close a 'control that reads as enforced and enforces nothing' finding) and IN-02-r11 (generate-role-adapters.test.ts's codeOnly strip handles // only, so a /* */ comment quoting the forbidden shape false-reds). Both are verified LATENT, not live: 36 of 36 test files reach the typechecker today, and no block comment of that shape exists. Both are outside the D-64 cutover's scope and neither touches the verdict path."
+
+### 86. Editorial — the fourth verdict site is not a standalone CI step
+expected: A judgment for the user, not a mechanical check.
+result: skipped
+reason: "Editorial judgment carried to Residual Open Items — user may overrule. `coordinator-resolution-precheck.js` is not referenced anywhere in .github/workflows/ (confirmed by grep); it runs in CI only because scripts/coordinator-resolution-precheck.test.ts spawns the committed artifact under the vitest step. The repository's own ci.yml comment calls exactly this shape 'borrowed, not wired' and 'this phase's most expensive omission' — while also noting that the mitigating factor for check-kit-refs and validate-agent-factory was that they DO have their own tests, which the precheck also has. So this sits on the acceptable side of the repo's own line, but on the side the repo chose to wire anyway for the other two."
+
 ## Summary
 
-total: 71
-passed: 71
+total: 86
+passed: 84
 issues: 0
 pending: 0
-skipped: 0
+skipped: 2
 blocked: 0
+
+<!-- Round 1 (tests 1-71): 71 passed. 59 were coverage-verified deliverables auto-passed per #1602.
+     Round 2 (tests 72-86): 13 passed, 2 skipped as editorial judgments carried to Residual Open
+     Items. Backing suite re-run at round-2 session start: 39 files, 1409 passed, 2 skipped, 0
+     failed, exit 0 at HEAD d6a3a30. Round 2 asserted its OWN harness premise first and found it
+     defective twice (test 74) before trusting any result from it. -->
+
+## Round 2 — Coverage Notes
+
+- **`27-42-SUMMARY.md` carries a MALFORMED `coverage:` block** — 21 schema errors
+  (`missing_id`, `missing_description`, `invalid_kind`). The classifier reports
+  `mode: coverage, total: 5, auto_passed: 0` and every entry falls to a human
+  checkpoint. Per the fail-safe rule nothing was dropped. This is a SUMMARY schema
+  defect, not a coverage gap — the same class as round 1's 18 `kind: manual` entries.
+- **`27-64-SUMMARY.md` is the only clean structured summary in the range**: 6
+  deliverables, 5 auto-passed by their verification refs (all folded into test 77),
+  1 (`D6`, the gate's unreachable empty-regeneration branch) routed to human
+  judgment with reason `human_judgment` — recorded as `UNKNOWN - verify` by design.
+- **32 of the 34 summaries carry no `coverage:` block** and were prose-extracted
+  from `provides:`. Round 2 groups them by deliverable surface rather than one
+  checkpoint per summary: rounds 7-11 (27-33 … 27-61) are 29 plans of parser
+  widening whose outcome is carried entirely by the 91-row corpus replay (test 73),
+  and testing them one summary at a time would have re-litigated eleven rounds of
+  work that D-64 deliberately superseded rather than repaired.
 
 <!-- 59 of 71 are coverage-verified deliverables auto-passed per #1602 (source: automated).
      Backing suite re-run at session start: 35 files, 1015 passed, 2 skipped, 0 failed.
@@ -612,6 +756,46 @@ blocked: 0
   uat-planner approaching their ceiling). Guard is green; this is headroom pressure,
   not a failure.
 
+## Residual Open Items — round 2 (not gaps)
+
+- **Two register rows are OPEN with no owner beyond "a later round"** (test 85).
+  `WR-04-r11`: `tsconfig.tests.json:22` hand-copies `tsconfig.json`'s exclude list
+  instead of deriving it, so a fourth entry added to the base silently would not
+  apply to the test-inclusive target and both configs keep reporting exit 0 — this
+  phase's own diagnosed **set-literal drift** class, in the file added to close a
+  "control that reads as enforced and enforces nothing" finding. `IN-02-r11`:
+  `generate-role-adapters.test.ts:886`'s `codeOnly` strip handles `//` only, so a
+  `/* … */` comment quoting the forbidden shape survives and false-reds. **Both
+  verified latent, not live** — 36 of 36 test files reach the typechecker today and
+  no block comment of that shape exists. Neither touches the verdict path.
+- **The demoted parser still carries its round-11 defects, by decision.** Register
+  rows 1, 2, 3, 5, 7 and 9 each read "NOT repaired" / "UNTOUCHED" — `openBlock`
+  still takes the block-scalar landmark from the header line's indent, and
+  `blockHeaderAt`'s second call site is still unwired. They are DISSOLVED only in
+  that `scripts/frontmatter.ts` no longer renders a verdict. This is safe exactly
+  as long as the demotion holds, and the demotion IS mechanically enforced (test 78,
+  proven able to fail). Worth restating because it is the load-bearing assumption of
+  the whole cutover: **the defects were superseded, not fixed.**
+- **The fourth verdict site is not a standalone CI step** (test 86).
+  `coordinator-resolution-precheck.js` appears nowhere in `.github/workflows/`; it
+  reaches CI only via its own `.test.ts` under the vitest step.
+- **`,Agent(a)` — a module/loader divergence in the SAFE direction, newly observed.**
+  `admit()` accepts `tools: ,Agent(a)` and reports the grant; `/usr/bin/ruby -ryaml`
+  rejects the same document with `Psych::SyntaxError`. The module is stricter than
+  the loader here, so the failure mode is a false RED on a file no host tool could
+  load — never a bypass. 36 of 972 admitted fuzz cells, all this one payload.
+  Recorded rather than smoothed over; not a gap.
+- **SPAWN-03's runtime half remains unverified** and is unchanged from round 1 —
+  deferred to Phase 33 (GAP-D1, CAP-01), status `UNKNOWN - verify`, carried as
+  register row V4 (test 83).
+
 ## Gaps
 
 [none]
+
+<!-- Round 2 recorded zero issues. The phase nevertheless does NOT transition: all three
+     *-VERIFICATION.md files read status: gaps_found, and the most recent (round 11,
+     2026-08-10T20:30Z) PREDATES the D-64 cutover it would have to adjudicate. UAT cannot
+     close KIT-03 or SPAWN-04 — D-58 item 4 reserves that to a verification round. The
+     blocker is a stale verification, not a failed test. -->
+
