@@ -1,0 +1,368 @@
+// check-audit-register.test.ts — the hermetic harness for the D-05 completeness gate.
+//
+// THE ONE PROPERTY THIS FILE EXISTS TO BUY. The gate is RED against the register committed in plan
+// 28-03, and a RED verdict proves nothing by itself: a gate that always fails is trivially red.
+// These cases turn that verdict into a MEASUREMENT — the same committed .js exits 0 against a
+// FILLED register on a clean mirror, and exits 1 on each planted shape, naming what it found.
+// The clean-mirror case was written and confirmed green FIRST, which is what makes the RED
+// transcript in the plan summary a statement about the register rather than about the gate.
+//
+// THE ADJACENCY PAIR IS THE POINT. Equality one filters on `counted: yes` before counting. A filter
+// that is merely PRESENT is not a filter that is load-bearing, so both directions are exercised: a
+// second uncounted row must keep equality one green at 36, and flipping the protocol row to
+// `counted: yes` must turn it red at 37. Either case alone would leave the other direction asserted
+// rather than demonstrated.
+//
+// Every behavioural case drives the COMMITTED .js via spawnSync against a hermetic CHECK_ROOT
+// mirror under the OS temp dir — never the .ts, and never the real tree.
+//
+// NOT in the e2e lane. Run with:
+//   npx vitest run --exclude '**/scripts/e2e/**' scripts/check-audit-register.test.ts
+// Vitest globals:false -> import explicitly.
+
+import { describe, it, expect, afterAll } from "vitest";
+import { spawnSync } from "node:child_process";
+import { mkdtempSync, mkdirSync, writeFileSync, rmSync, readFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { ROLE_COUNT, WORKFLOW_COUNT } from "./kit-model.js";
+import { REGISTER_PATH } from "./audit-model.js";
+import { PROTOCOL_FILE } from "./audit-prepass.js";
+
+const REPO_ROOT = join(import.meta.dirname, "..");
+const GATE_JS = join(REPO_ROOT, "scripts", "check-audit-register.js");
+
+const tmpDirs: string[] = [];
+function freshTmp(prefix: string): string {
+  const d = mkdtempSync(join(tmpdir(), prefix));
+  tmpDirs.push(d);
+  return d;
+}
+afterAll(() => {
+  for (const d of tmpDirs) rmSync(d, { recursive: true, force: true });
+});
+
+const SUBSTANTIVE = "Read in full against all six rubric categories; no finding.";
+
+interface RowSpec {
+  file: string;
+  kind: string;
+  counted: string;
+  safety: string;
+  findings: string;
+  observation: string;
+}
+
+function defaultRows(): RowSpec[] {
+  const rows: RowSpec[] = [];
+  for (let i = 1; i <= ROLE_COUNT; i++) {
+    rows.push({
+      file: `agent-factory/roles/role-${String(i).padStart(2, "0")}.md`,
+      kind: "role",
+      counted: "yes",
+      safety: "no",
+      findings: "0",
+      observation: SUBSTANTIVE,
+    });
+  }
+  for (let i = 0; i < WORKFLOW_COUNT; i++) {
+    rows.push({
+      file: `agent-factory/workflows/${String(i).padStart(2, "0")}-flow.md`,
+      kind: "workflow",
+      counted: "yes",
+      safety: "no",
+      findings: "0",
+      observation: SUBSTANTIVE,
+    });
+  }
+  rows.push({
+    file: PROTOCOL_FILE,
+    kind: "protocol",
+    counted: "no",
+    safety: "no",
+    findings: "0",
+    observation: "Out-of-set by derivation; read once for the drift check.",
+  });
+  return rows;
+}
+
+function renderRegister(rows: readonly RowSpec[], findingRows: readonly string[]): string {
+  return [
+    "# Register",
+    "",
+    "## Table A — audited files",
+    "",
+    "| file | kind | counted | safety_surface | findings | observation |",
+    "|---|---|---|---|---|---|",
+    ...rows.map(
+      (r) =>
+        `| ${r.file} | ${r.kind} | ${r.counted} | ${r.safety} | ${r.findings} | ${r.observation} |`,
+    ),
+    "",
+    "## Table B — findings",
+    "",
+    "| finding_id | file | category | disposition | target_phase | reason |",
+    "|---|---|---|---|---|---|",
+    ...findingRows,
+    "",
+  ].join("\n");
+}
+
+/** A mirror carrying the kit SHAPE the listers derive from, plus a register. */
+function buildMirror(
+  rows: readonly RowSpec[] = defaultRows(),
+  findingRows: readonly string[] = [],
+  registerText?: string,
+): string {
+  const dir = freshTmp("grugops-audit-register-");
+  mkdirSync(join(dir, "agent-factory", "roles"), { recursive: true });
+  mkdirSync(join(dir, "agent-factory", "workflows"), { recursive: true });
+  mkdirSync(join(dir, "docs", "audit"), { recursive: true });
+  for (let i = 1; i <= ROLE_COUNT; i++) {
+    writeFileSync(join(dir, "agent-factory", "roles", `role-${String(i).padStart(2, "0")}.md`), "x");
+  }
+  for (let i = 0; i < WORKFLOW_COUNT; i++) {
+    writeFileSync(
+      join(dir, "agent-factory", "workflows", `${String(i).padStart(2, "0")}-flow.md`),
+      "x",
+    );
+  }
+  writeFileSync(join(dir, PROTOCOL_FILE), "x");
+  writeFileSync(
+    join(dir, REGISTER_PATH),
+    registerText ?? renderRegister(rows, findingRows),
+    "utf8",
+  );
+  return dir;
+}
+
+function runGate(root: string): { status: number | null; out: string } {
+  const r = spawnSync("node", [GATE_JS], {
+    encoding: "utf8",
+    env: { ...process.env, CHECK_ROOT: root },
+  });
+  return { status: r.status, out: `${r.stdout}${r.stderr}` };
+}
+
+describe("check-audit-register: the green baseline", () => {
+  it("exits 0 against a FILLED register on a clean mirror", () => {
+    // Written and confirmed green FIRST. Without it the RED transcript below would be consistent
+    // with a gate that cannot pass at all.
+    const r = runGate(buildMirror());
+    expect(r.status).toBe(0);
+    expect(r.out).toContain("ALL CHECKS PASSED");
+  });
+
+  it("the PASS line names every count it actually read", () => {
+    const r = runGate(buildMirror());
+    expect(r.out).toContain(String(ROLE_COUNT));
+    expect(r.out).toContain(String(WORKFLOW_COUNT));
+    expect(r.out).toMatch(/36/); // counted register rows
+    expect(r.out).toMatch(/uncounted/i); // the uncounted row is named, never invisible
+    expect(r.out).toContain(PROTOCOL_FILE);
+  });
+
+  it("produces BYTE-IDENTICAL output on two runs over one fixture", () => {
+    const dir = buildMirror();
+    expect(runGate(dir).out).toBe(runGate(dir).out);
+  });
+});
+
+describe("check-audit-register: equality one — SET equality, both directions", () => {
+  it("fails naming BOTH a missing list and an unexpected list", () => {
+    const rows = defaultRows();
+    // Displace a real member with a decoy: the COUNT is unchanged, so only set equality catches it.
+    rows[0] = { ...rows[0], file: "agent-factory/roles/decoy.md" };
+    const r = runGate(buildMirror(rows));
+    expect(r.status).toBe(1);
+    expect(r.out).toMatch(/missing \[/);
+    expect(r.out).toMatch(/unexpected \[/);
+    expect(r.out).toContain("agent-factory/roles/decoy.md");
+    expect(r.out).toContain("agent-factory/roles/role-01.md");
+  });
+
+  it("fails when a derived file has no row at all", () => {
+    const rows = defaultRows().filter((r) => r.file !== "agent-factory/roles/role-05.md");
+    const r = runGate(buildMirror(rows));
+    expect(r.status).toBe(1);
+    expect(r.out).toContain("agent-factory/roles/role-05.md");
+  });
+
+  it("reports the missing and unexpected members in DERIVED SORTED order", () => {
+    const rows = defaultRows().filter(
+      (r) =>
+        r.file !== "agent-factory/roles/role-05.md" &&
+        r.file !== "agent-factory/roles/role-02.md",
+    );
+    const r = runGate(buildMirror(rows));
+    const m = /missing \[([^\]]*)\]/.exec(r.out);
+    expect(m).not.toBeNull();
+    expect((m as RegExpExecArray)[1]).toBe(
+      "agent-factory/roles/role-02.md, agent-factory/roles/role-05.md",
+    );
+  });
+});
+
+describe("check-audit-register: the ADJACENCY pair — the counted filter is load-bearing", () => {
+  it("a SECOND uncounted row keeps equality one GREEN at 36", () => {
+    const rows = defaultRows();
+    rows.push({
+      file: "agent-factory/roles/_another-protocol.md",
+      kind: "protocol",
+      counted: "no",
+      safety: "no",
+      findings: "0",
+      observation: "A second out-of-set file, recorded rather than dropped.",
+    });
+    const r = runGate(buildMirror(rows));
+    expect(r.status).toBe(0);
+    expect(r.out).toContain("ALL CHECKS PASSED");
+    // And it is reported as uncounted rather than silently absorbed.
+    expect(r.out).toContain("_another-protocol.md");
+  });
+
+  it("flipping the protocol row to counted: yes turns equality one RED at 37 against 36", () => {
+    const rows = defaultRows().map((r) =>
+      r.file === PROTOCOL_FILE ? { ...r, counted: "yes" } : r,
+    );
+    const r = runGate(buildMirror(rows));
+    expect(r.status).toBe(1);
+    expect(r.out).toMatch(/37/);
+    expect(r.out).toMatch(/36/);
+    expect(r.out).toContain(PROTOCOL_FILE);
+  });
+});
+
+describe("check-audit-register: equality two — independent, at two granularities", () => {
+  it("fails when the declared findings sum disagrees with the finding row count", () => {
+    const rows = defaultRows();
+    rows[0] = { ...rows[0], findings: "2" };
+    const r = runGate(
+      buildMirror(rows, [
+        "| F-28-001 | agent-factory/roles/role-01.md | 1 | fixed | — | — |",
+      ]),
+    );
+    expect(r.status).toBe(1);
+    expect(r.out).toMatch(/2/);
+    expect(r.out).toMatch(/1/);
+  });
+
+  it("fails PER FILE when a row's declared count disagrees with its own finding rows", () => {
+    // The totals can agree while two individual files are each wrong in opposite directions. The
+    // per-file granularity is what catches that, and it is why one conflated tally is refused.
+    const rows = defaultRows();
+    rows[0] = { ...rows[0], findings: "2" };
+    rows[1] = { ...rows[1], findings: "0" };
+    const r = runGate(
+      buildMirror(rows, [
+        "| F-28-001 | agent-factory/roles/role-01.md | 1 | fixed | — | — |",
+        "| F-28-002 | agent-factory/roles/role-02.md | 1 | fixed | — | — |",
+      ]),
+    );
+    expect(r.status).toBe(1);
+    expect(r.out).toContain("agent-factory/roles/role-01.md");
+    expect(r.out).toContain("agent-factory/roles/role-02.md");
+  });
+
+  it("reports the two equalities INDEPENDENTLY, never as one tally", () => {
+    const rows = defaultRows();
+    rows[0] = { ...rows[0], file: "agent-factory/roles/decoy.md", findings: "3" };
+    const r = runGate(buildMirror(rows));
+    expect(r.status).toBe(1);
+    // Both failures present in one run: neither absorbed the other.
+    expect(r.out).toMatch(/equality one/i);
+    expect(r.out).toMatch(/equality two/i);
+  });
+});
+
+describe("check-audit-register: the substantive-observation requirement", () => {
+  it("fails a BLANK observation, naming the file", () => {
+    const rows = defaultRows();
+    rows[3] = { ...rows[3], observation: "" };
+    const r = runGate(buildMirror(rows));
+    expect(r.status).toBe(1);
+    expect(r.out).toContain(rows[3].file);
+    expect(r.out).toMatch(/blank|empty/i);
+  });
+
+  it("fails a BARE-WORD observation standing in for one", () => {
+    for (const bare of ["clean", "Clean.", "none", "n/a", "no findings", "OK"]) {
+      const rows = defaultRows();
+      rows[3] = { ...rows[3], observation: bare };
+      const r = runGate(buildMirror(rows));
+      expect(r.status).toBe(1);
+      expect(r.out).toMatch(/observation/i);
+    }
+  });
+
+  it("accepts a substantive observation that happens to CONTAIN a bare word", () => {
+    // The check must not become a word ban: "the file is clean of retired vocabulary, but ..." is a
+    // real observation. Banning the token would make correct text unsayable.
+    const rows = defaultRows();
+    rows[3] = {
+      ...rows[3],
+      observation:
+        "Clean of retired vocabulary; the tier table at line 40 still predates the tier names.",
+    };
+    expect(runGate(buildMirror(rows)).status).toBe(0);
+  });
+});
+
+describe("check-audit-register: the unfilled safety_surface marker", () => {
+  it("fails while any row still carries the unfilled marker, naming the file", () => {
+    const rows = defaultRows();
+    rows[2] = { ...rows[2], safety: "—" };
+    const r = runGate(buildMirror(rows));
+    expect(r.status).toBe(1);
+    expect(r.out).toContain(rows[2].file);
+    expect(r.out).toMatch(/safety_surface/);
+  });
+});
+
+describe("check-audit-register: it REPORTS a parse refusal rather than crashing", () => {
+  it("names the parse refusal and exits 1 on a malformed register", () => {
+    // audit-model is a LIBRARY and throws; this is a GATE and must report. A stack trace is not a
+    // gate verdict, and a gate that dies is not a gate that failed.
+    const rows = defaultRows();
+    const text = renderRegister(rows, []).replace(
+      "| agent-factory/roles/role-01.md | role | yes | no | 0 |",
+      "| agent-factory/roles/role-01.md | role | yes |",
+    );
+    const r = runGate(buildMirror(rows, [], text));
+    expect(r.status).toBe(1);
+    expect(r.out).toMatch(/refus/i);
+    expect(r.out).not.toMatch(/at Object\.|node:internal/);
+  });
+
+  it("names a missing register rather than reporting a vacuous pass", () => {
+    const dir = buildMirror();
+    rmSync(join(dir, REGISTER_PATH));
+    const r = runGate(dir);
+    expect(r.status).toBe(1);
+    expect(r.out).toContain(REGISTER_PATH);
+  });
+});
+
+describe("check-audit-register: the committed skeleton is RED, by design", () => {
+  it("exits 1 against the real committed register and names the empty observations", () => {
+    // This is D-24's posture applied to AUDIT-01: the gate is watched failing against an UNFILLED
+    // register before plans 28-06 and 28-07 fill it.
+    const r = spawnSync("node", [GATE_JS], { encoding: "utf8" });
+    expect(r.status).toBe(1);
+    const out = `${r.stdout}${r.stderr}`;
+    expect(out).toMatch(/observation/i);
+    // The two equalities are NOT the reason it is red — they already hold against the skeleton.
+    expect(out).not.toMatch(/equality one .*is not/i);
+  });
+
+  it("the committed register's 36 counted paths equal the LIVE listers' output", () => {
+    // Generated at run time from the listers and compared, rather than eyeballed.
+    const text = readFileSync(join(REPO_ROOT, REGISTER_PATH), "utf8");
+    const counted = text
+      .split("\n")
+      .filter((l) => l.startsWith("| agent-factory/") && l.includes("| yes |"))
+      .map((l) => l.split("|")[1].trim());
+    expect(counted.length).toBe(36);
+    expect(new Set(counted).size).toBe(36);
+  });
+});

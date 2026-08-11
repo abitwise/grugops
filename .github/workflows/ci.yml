@@ -131,4 +131,28 @@ jobs:
           # introduced it: exit 1, 18 hits across 8 of the 10 scanned documents. If you are reading
           # this beside a red build, check whether 28-05 has landed before treating it as breakage.
           node scripts/check-public-docs-vocabulary.js
+          # AUDIT-01 (plan 28-03, D-03 / D-05) — the disposition-register completeness gate. It
+          # sits after the drift guard because both are Phase 28 audit gates and a reader should
+          # meet them together, and because this one is the slower of the two to reason about.
+          #
+          # WHY THIS IS A CHECK AND NOT A CLAIM. Phase 29 declares a dependency on
+          # docs/audit/28-disposition-register.md, and a .planning/phases/28-.../ artifact is
+          # ARCHIVED at milestone close and invisible to CI — so "the register is complete" written
+          # in a planning document is a sentence that stops being true without anything going red.
+          # The register is a durable docs/ artifact and this gate holds its completeness here.
+          #
+          # WIRED HERE **AND** IN scripts/check-audit-register.test.ts, DELIBERATELY AT BOTH ENDS,
+          # for the same reason recorded above the public-docs gate: freshness:adapters ran for an
+          # entire phase solely as a side effect of a test spawning it.
+          #
+          # THIS GATE IS **EXPECTED TO FAIL RED** UNTIL THE READ PASS IN PLANS 28-06 AND 28-07
+          # FILLS THE REGISTER. That is deliberate, and it is the acceptance evidence for the same
+          # argument D-24 makes about the drift guard above: a completeness gate that goes green the
+          # moment it appears has never been watched distinguish a complete register from an empty
+          # one. Measured at the commit that introduced it: exit 1, `2 CHECK(S) FAILED` — 37 blank
+          # observations and 37 unfilled safety_surface flags. BOTH D-03 equalities were already
+          # GREEN at that commit, so the red is precisely the unread files and nothing else. If you
+          # are reading this beside a red build, check whether 28-06 and 28-07 have landed before
+          # treating it as breakage.
+          node scripts/check-audit-register.js
           VALIDATE_KIT_ROOT=. node scripts/validate-agent-factory.js
