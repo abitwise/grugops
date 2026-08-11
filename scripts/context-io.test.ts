@@ -2095,3 +2095,268 @@ describe("context-io.js — GAP-R6-1 path-containment (shared writeNoteFile chok
     expect(id).toMatch(/^20260617T142305Z-software-engineer-claim-[0-9a-f]{8}$/);
   });
 });
+
+// ── RESIDUAL 2 (28-08): BYTE-COUNT FIDELITY WHEN THE FIRST LINE IS A NOTE BOUNDARY ────────────────
+//
+// WHAT THIS BLOCK PINS, AND WHY THE PROPERTY IS A BYTE **COUNT**.
+//
+// splitNotes' stated contract (context-io.ts, "Contract" property 2) is that recovered notes plus
+// the refused remainder reproduce the CRLF-normalized input byte-for-byte. Phase 22 recorded a
+// residual against it as an `---\n--- \n…` adjacency; plan 28-02 reproduced that recorded shape and
+// found it ROUND-TRIPS CLEANLY on the current build (F-28-B), and that the LIVE class is different:
+// one `\n` invented at the FRONT of the refused remainder whenever the document's FIRST line is a
+// note boundary. Plan 28-08 reproduced both again independently before writing this block.
+//
+// THE PROPERTY IS BYTE COUNT AND NOT THE MODULE'S OWN STATED CONCATENATION ORDER, DELIBERATELY.
+// 28-02's first harness asserted `notes.join("") + trailingMalformed === normalized` — the module's
+// own words — and reported 42 phantom survivors after a fix that was in fact complete. Every survivor
+// had delta 0: no byte invented and none lost, only a different ORDER, because `refused` accumulates
+// the LEADING region first and is concatenated AFTER the notes. The module's stated order is false
+// as written for a leading refused region (F-28-C, corrected in the source by this plan). Asserting
+// over byte COUNT measures the actual invariant — no byte invented, none dropped — instead of
+// measuring a sentence that was wrong.
+//
+// THE CONTROL IS PART OF THE PIN. `x\n---\nid: n1` is the same boundary, the same note-open attempt
+// and the same REFUSED verdict, differing only in that one prose line precedes the boundary so it is
+// no longer at line index 0. It round-trips on BOTH builds. A future change that "fixes" the leading
+// case by loosening the separator rule generally would break it.
+describe("context-io.js — byte-count fidelity for a leading boundary (28-08, residual 2)", () => {
+  // A complete, valid, id-bearing note — the local mirror of the builder the round-7/8 blocks use.
+  // Local rather than imported so this block's corpus cannot be silently reshaped by an edit made for
+  // a different block's reasons.
+  const noteText = (id: string, body: string): string =>
+    "---\n" +
+    `id: ${id}\n` +
+    "kind: finding\n" +
+    "by: engineer\n" +
+    "at: 2026-06-17T14:23:05Z\n" +
+    "verified_by: \u00a714-gate#RUN8\n" +
+    "confidence: high\n" +
+    "refs:\n  - A\n" +
+    "supersedes: \n" +
+    "---\n\n" +
+    body +
+    "\n";
+
+  // Reconstitute what the splitter says the document was, and measure it against the input in BYTES.
+  const delta = (input: string): number => {
+    const r = mod.splitNotes(input);
+    const rejoined = r.notes.join("") + (r.trailingMalformed ?? "");
+    return Buffer.byteLength(rejoined, "utf8") - Buffer.byteLength(input, "utf8");
+  };
+
+  it("RED→GREEN: a document whose FIRST line is a note boundary invents no byte", () => {
+    // The minimal reproduction, 10 bytes: `---` at line index 0 opening a note attempt.
+    // Pre-fix this returned an 11-byte remainder `"\n---\nid: n1"` — a leading `\n` present at no
+    // offset of the input.
+    expect(delta("---\nid: n1"), "one byte invented at the front of the refused remainder").toBe(0);
+    expect(delta("---\nid: n1\n")).toBe(0);
+    expect(delta("---\nid: n1\nid: n2")).toBe(0);
+  });
+
+  it("CONTROL (green on both builds): the same boundary NOT at line index 0 already round-trips", () => {
+    // Differs from the case above by one prose line. If this ever goes red, the fix reached past the
+    // empty slice and started changing slices that have lines in them.
+    expect(delta("x\n---\nid: n1")).toBe(0);
+    expect(delta("\n---\nid: n1")).toBe(0);
+  });
+
+  it("CONTROL (green on both builds): the RECORDED Phase-22 shape round-trips — F-28-B", () => {
+    // 22-VERIFICATION.md:141 records the residual as a trailing-space `--- ` adjacency. Measured on
+    // this build it round-trips; the record was accurate for the round-8 build it was written
+    // against. Pinned so the divergence is a test rather than a paragraph.
+    expect(delta("---\n--- ")).toBe(0);
+    expect(delta("---\n--- \n")).toBe(0);
+  });
+
+  it("THE FAIL-CLOSURE VERDICT IS UNCHANGED — the fix moves bytes, never a refuse/admit decision", () => {
+    // This is the half that matters for safety. The defect is byte fidelity inside a remainder that
+    // is ALREADY being refused; a fix that also changed which documents are refused would be a
+    // different and far more dangerous change. Both halves asserted explicitly.
+    const r = mod.splitNotes("---\nid: n1");
+    expect(r.notes.length, "still recovers zero notes").toBe(0);
+    expect(r.trailingMalformed, "still refuses — non-null remainder, fail-closed").not.toBeNull();
+    // And the remainder is now exactly the input rather than the input plus an invented byte.
+    expect(r.trailingMalformed).toBe("---\nid: n1");
+
+    // The blank-region contract at the `.trim()` test is untouched: a document that is only a
+    // separator still nulls its remainder rather than refusing.
+    expect(mod.splitNotes("\n").trailingMalformed).toBeNull();
+  });
+
+  it("NON-VACUITY: a clean multi-note document is still ADMITTED and still tiles exactly", () => {
+    // Refusing everything and admitting everything are both trivially achievable. This half says the
+    // splitter still does its job: real notes recover, nothing is refused, and no byte moves.
+    const n1 = noteText("20260617T142305Z-engineer-finding-nv1", "Body one.");
+    const n2 = noteText("20260617T150000Z-engineer-finding-nv2", "Body two.");
+    const r = mod.splitNotes(n1 + n2);
+    expect(r.notes.length).toBe(2);
+    expect(r.trailingMalformed).toBeNull();
+    expect(delta(n1 + n2)).toBe(0);
+    // A document that OPENS on a real note is the very shape the defect's call site sees — and it
+    // must be admitted, not merely byte-preserved.
+    expect(mod.splitNotes(n1).notes.length).toBe(1);
+    expect(delta(n1)).toBe(0);
+  });
+
+  // ── THE GENERATED FAMILY, WITH A REAL YAML LOADER AS THE ORACLE ────────────────────────────────
+  //
+  // NOT THE SINGLE REPRODUCED INPUT — THE FAMILY IT BELONGS TO. The defect's call site is
+  // `sliceBytes(0, boundaries[0])`, reachable with an empty range only when the document's first
+  // line is a boundary. So the axes vary what that first line IS and what follows it, and the cells
+  // that do NOT put a boundary first are carried too — they are the discriminating controls, and a
+  // family with no negative members measures nothing.
+  //
+  // THE LOADER IS THE ORACLE FOR MEANING, AND ITS LIMIT IS STATED RATHER THAN HIDDEN. For every cell
+  // the loader is asked twice — once for the module's INPUT and once for the module's reconstituted
+  // OUTPUT — and the two must agree. That is the question a byte-fidelity defect actually raises: if
+  // the splitter invents or drops a byte, does the document still MEAN what it meant? The measured
+  // answer for the minimal shape is that libyaml is INDIFFERENT to a leading `\n` before a `---`
+  // document-start marker, so the loader alone would NOT have caught the minimal case. That is
+  // exactly why the byte-count assertion above exists and is primary, and why this fuzz is stated as
+  // the second oracle rather than the first. Claiming the loader caught this would be a claim the
+  // measurement does not support.
+  //
+  // ONE PROCESS FOR THE WHOLE CORPUS, following this repository's established batched-loader idiom in
+  // frontmatter.test.ts: the corpus crosses as a JSON array and the verdicts come back as one, with
+  // the returned length asserted equal to the cell count so a truncated batch fails arithmetically
+  // rather than silently shortening the differential.
+  const RUBY = "/usr/bin/ruby";
+  const LOADER_PROGRAM = [
+    "require 'yaml'; require 'json'",
+    "out = JSON.parse(STDIN.read).map do |d|",
+    "  begin",
+    "    { 'accepted' => true, 'value' => YAML.load_stream(d).inspect }",
+    "  rescue Exception => e",
+    "    { 'accepted' => false, 'value' => e.class.to_s }",
+    "  end",
+    "end",
+    "print JSON.generate(out)",
+  ].join("\n");
+
+  it("PARSER-ORACLE FUZZ over the leading-boundary FAMILY: no byte invented or lost, and the loader reads the module's output exactly as it reads its input", () => {
+    // ── the axes. Cell count is DERIVED from their lengths, never written down. ──
+    const firstLine = ["---", "--- ", "----", " ---", "x"] as const; // boundary-shaped and not
+    const secondLine = ["id: n1", " id: n1", "kind: finding", "---", ""] as const;
+    const tail = ["", "\n---", "\nbody text", "\n---\nid: n2"] as const;
+    const terminator = ["", "\n"] as const;
+
+    const cells: string[] = [];
+    for (const a of firstLine)
+      for (const b of secondLine)
+        for (const c of tail) for (const d of terminator) cells.push(a + "\n" + b + c + d);
+
+    // Derived, not literal — the arithmetic is the pin.
+    const expectedCells =
+      firstLine.length * secondLine.length * tail.length * terminator.length;
+    expect(cells.length, "cell count must equal the product of the axis lengths").toBe(
+      expectedCells,
+    );
+    // Non-vacuity of the corpus itself: it must actually CONTAIN members that reach the defect's call
+    // site (first line boundary-shaped) AND members that do not, or the differential is one-sided.
+    const leadingBoundary = cells.filter((c) => /^(---|--- |----)\n/.test(c)).length;
+    expect(leadingBoundary, "family must contain leading-boundary members").toBeGreaterThan(0);
+    expect(
+      cells.length - leadingBoundary,
+      "family must contain non-leading-boundary controls",
+    ).toBeGreaterThan(0);
+
+    // ── the module's side: reconstitute every cell and measure the byte delta. ──
+    const reconstituted = cells.map((c) => {
+      const r = mod.splitNotes(c);
+      return {
+        input: c,
+        output: r.notes.join("") + (r.trailingMalformed ?? ""),
+        notes: r.notes.length,
+        refused: r.trailingMalformed !== null,
+      };
+    });
+
+    // A digest of the corpus, printed so an outside transcript's same-corpus claim is a measurement
+    // rather than an assertion.
+    const digest = createHash("sha256").update(cells.join(" ")).digest("hex").slice(0, 16);
+    // eslint-disable-next-line no-console
+    console.log(
+      `[28-08 residual-2 fuzz] cells=${cells.length} leading-boundary=${leadingBoundary} digest=${digest}`,
+    );
+
+    // ── PRIMARY ORACLE: byte count. No byte invented, none dropped, on any cell. ──
+    // The `.trim()`-nulled blank remainder is a WRITTEN contract of the module, not the residual, so
+    // those cells are identified BY THAT CONTRACT and counted rather than quietly excused.
+    const byteBreaks: string[] = [];
+    let blankNulled = 0;
+    for (const r of reconstituted) {
+      const d = Buffer.byteLength(r.output, "utf8") - Buffer.byteLength(r.input, "utf8");
+      if (d === 0) continue;
+      // The documented drop: a purely-blank refused region is nulled by `refused.trim() === ""`.
+      if (d < 0 && r.input.replace(/[^\n]/g, "").length > 0 && r.output.trim() === r.input.trim()) {
+        blankNulled++;
+        continue;
+      }
+      byteBreaks.push(`${JSON.stringify(r.input)} delta=${d >= 0 ? "+" + d : d}`);
+    }
+    // eslint-disable-next-line no-console
+    console.log(
+      `[28-08 residual-2 fuzz] byte-breaks=${byteBreaks.length} documented-blank-drops=${blankNulled}`,
+    );
+    expect(byteBreaks, `bytes invented or lost:\n${byteBreaks.join("\n")}`).toEqual([]);
+
+    // ── SECOND ORACLE: a real YAML loader, batched in ONE process. ──
+    // Skipped-with-a-printed-reason rather than silently absent if the interpreter is not present, so
+    // a harness that does not run says so instead of passing vacuously.
+    const probe = spawnSync(RUBY, ["-ryaml", "-e", "print Psych::VERSION"], { encoding: "utf8" });
+    if (probe.status !== 0) {
+      // eslint-disable-next-line no-console
+      console.log(`[28-08 residual-2 fuzz] loader SKIPPED — ${RUBY} unavailable (${probe.status})`);
+      return;
+    }
+    const batch = [...reconstituted.map((r) => r.input), ...reconstituted.map((r) => r.output)];
+    const run = spawnSync(RUBY, ["-e", LOADER_PROGRAM], {
+      input: JSON.stringify(batch),
+      encoding: "utf8",
+      maxBuffer: 32 * 1024 * 1024,
+    });
+    expect(run.status, `loader process failed: ${run.stderr}`).toBe(0);
+    const verdicts = JSON.parse(run.stdout) as { accepted: boolean; value: string }[];
+    // A truncated batch fails arithmetically instead of silently shortening the differential.
+    expect(verdicts.length, "loader returned a different number of verdicts than cells sent").toBe(
+      batch.length,
+    );
+
+    let loaderRejected = 0;
+    const meaningDivergences: string[] = [];
+    for (let i = 0; i < reconstituted.length; i++) {
+      const vIn = verdicts[i];
+      const vOut = verdicts[i + reconstituted.length];
+      if (!vIn.accepted) {
+        // Printed and counted, never silently dropped: a cell the loader will not read is a cell the
+        // loader cannot be an oracle for.
+        loaderRejected++;
+        continue;
+      }
+      if (!vOut.accepted || vOut.value !== vIn.value) {
+        meaningDivergences.push(
+          `${JSON.stringify(reconstituted[i].input)} in=${vIn.value} out=${vOut.accepted ? vOut.value : "REJECTED:" + vOut.value}`,
+        );
+      }
+    }
+    // eslint-disable-next-line no-console
+    console.log(
+      `[28-08 residual-2 fuzz] loader=ruby/Psych ${probe.stdout} loader-rejected=${loaderRejected} meaning-divergences=${meaningDivergences.length}`,
+    );
+    // THE UNSAFE DIRECTION, ASSERTED EMPTY AND WITHOUT CONSULTING ANY EXEMPTION MACHINERY. There is
+    // no exemption list here on purpose: a splitter that changes what a document MEANS has no
+    // sanctioned instance, so the assertion is a bare emptiness rather than an equality against a
+    // named set.
+    expect(
+      meaningDivergences,
+      `the module's reconstitution means something different from its input:\n${meaningDivergences.join("\n")}`,
+    ).toEqual([]);
+    // And the loader must have been a real oracle for a real share of the family, not rejected into
+    // vacuity.
+    expect(
+      reconstituted.length - loaderRejected,
+      "the loader must actually read some share of the family",
+    ).toBeGreaterThan(0);
+  });
+});

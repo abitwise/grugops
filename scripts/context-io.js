@@ -313,8 +313,12 @@ function isBoundaryShapedLine(line) {
 // Contract (the single-source / no-drift / no-byte-loss guarantees the carve-out depends on):
 //   1. For each RECOVERED element, parseNote(notes[i]) is NON-NULL AND parseNote(notes[i]).body equals
 //      that note's authored body (a carved note equals a parsed note, body included).
-//   2. notes.join("") + (trailingMalformed ?? "") reproduces the CRLF-normalized input BYTE-FOR-BYTE
-//      (no byte invented, none dropped) — recovered notes first, then the refused remainder.
+//   2. The recovered notes and the refused remainder TILE the CRLF-normalized input exactly: no byte
+//      invented, none dropped. Stated as a tiling and NOT as the concatenation
+//      `notes.join("") + trailingMalformed`, because that ORDER does not hold — the refused remainder
+//      accumulates any LEADING un-fenced region first and is returned after the notes. Verify this
+//      property over the byte COUNT; a harness written against the concatenation order reports
+//      phantom failures (28-08, F-28-C — 28-02 measured 42 of them).
 // A trailing/leading non-recoverable region (free scratch from the no-`note` writeThread path, or a
 // fence-ish region that does not cleanly parse, WR-01/WR-02) is returned as trailingMalformed; the
 // caller routes it into the fail-closed channel. A single-fence file yields exactly one note (body
@@ -329,7 +333,30 @@ export function splitNotes(text) {
     // Re-join lines [from, to) into their VERBATIM byte slice. split("\n") drops each separator, so a
     // slice [from, to) is the lines joined by "\n"; a trailing "\n" is added when the slice does not run
     // to the final (possibly-empty) element, so byte round-trip is exact.
+    //
+    // THE EMPTY SLICE IS THE FUNCTION'S BASE CASE, AND ITS ABSENCE WAS THE PHASE-22 BYTE RESIDUAL
+    // (28-08, residual 2). The separator rule below asks a SEPARATOR-COUNT question — "is this slice
+    // followed by a separator in the original?" — and answers it with a BOUNDS test on `to` alone. The
+    // two coincide for every slice that contains at least one line and come apart for the one that
+    // contains none: an empty slice has no last line and no separators at all, yet `to < lines.length`
+    // is unconditionally true when `to` is 0 and the document is non-empty. So `sliceBytes(0, 0)`
+    // returned "\n" — one byte present at no offset of the input.
+    //
+    // WHERE IT WAS REACHED, MEASURED RATHER THAN ARGUED: of this function's five call sites only
+    // `sliceBytes(0, boundaries[0])` (the leading region, below) can be called with `from === to`, and
+    // only when `boundaries[0]` is 0 — i.e. when the document's FIRST line is a note boundary. Every
+    // other site has `from < to` by construction (`j + 1 > i`; `lines.length >= 1`; the boundary walk's
+    // indices strictly increase). The invented byte therefore landed at the FRONT of the refused
+    // remainder, which is why the Phase-22 record described it as a trailing-space `--- ` adjacency and
+    // why that recorded shape no longer reproduces (F-28-B).
+    //
+    // THIS IS A BASE CASE, NOT A SPECIAL CASE. It is stated once, inside the one function that owns the
+    // byte-slicing question, and it changes no predicate that decides refuse-versus-admit: an empty
+    // slice contributes no bytes because it contains no lines. A guard written at the CALL site instead
+    // would leave the same hole open for the next caller.
     const sliceBytes = (from, to) => {
+        if (from >= to)
+            return "";
         const segment = lines.slice(from, to).join("\n");
         return to < lines.length ? segment + "\n" : segment;
     };
@@ -461,9 +488,26 @@ export function splitNotes(text) {
     }
     // BYTE ROUND-TRIP (contract property 2): the splitter invents no byte and drops none. In the common
     // (clean) case every region recovers and `refused` is empty, so notes.join("") reproduces the input;
-    // when a region is refused the file is surfaced as unparseable (not promoted), and
-    // notes.join("") + refused === normalized still holds (recovered + refused regions tile the input
-    // exactly). trailingMalformed is null only when nothing non-blank was refused.
+    // when a region is refused the file is surfaced as unparseable (not promoted). The recovered notes
+    // and the refused regions TILE the input exactly — no overlap, no gap, so the byte MULTISET is
+    // preserved. trailingMalformed is null only when nothing non-blank was refused.
+    //
+    // (28-08, F-28-C) THIS COMMENT PREVIOUSLY STATED THE CONTRACT AS THE CONCATENATION
+    // `notes.join("") + refused === normalized`, AND THAT SENTENCE IS FALSE AS WRITTEN. `refused`
+    // accumulates the LEADING region (before the first boundary) first and is concatenated AFTER the
+    // notes, so for any document with a leading refused region the bytes are all present in the right
+    // counts but NOT in the stated order. The distinction is not pedantry: plan 28-02 wrote a fuzz
+    // harness against this sentence, and it reported 42 phantom survivors of a fix that was in fact
+    // complete — every one of them delta 0, reordered rather than damaged. A reader verifying this
+    // module must assert over the byte COUNT (or over the tiling), never over the concatenation order.
+    //
+    // (28-08, F-28-C) THE NAME `trailingMalformed` CARRIES THE SAME WRONG IMPLICATION. The refused
+    // remainder may be LEADING (un-fenced scratch ahead of the first note, WR-01), trailing, or both
+    // concatenated together. It is the REFUSED remainder, not a trailing one. The name is load-bearing
+    // across the compactor's fail-closed channel and its consumers' tests, so it is corrected HERE in
+    // the contract a reader consults rather than renamed in a byte-fidelity fix — renaming a field on
+    // a fail-closure path is a change that deserves its own RED-first evidence, and this plan's is
+    // spent on the byte defect.
     const trailingMalformed = refused.trim() === "" ? null : refused;
     return { notes, trailingMalformed };
 }
