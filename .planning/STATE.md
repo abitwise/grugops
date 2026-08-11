@@ -5,8 +5,8 @@ milestone_name: Autonomous Factory — Real Spawning, Controlled Language & Live
 current_phase: 28
 current_phase_name: Kit Consistency Audit
 status: ready_to_plan
-stopped_at: Phase 27 complete (66/66 plans, UAT round 2 passed, verification closed by named user override) — ready to plan Phase 28
-last_updated: "2026-08-11T08:34:43.840Z"
+stopped_at: Phase 28 context gathered
+last_updated: "2026-08-11T12:50:46.286Z"
 progress:
   total_phases: 7
   completed_phases: 1
@@ -855,9 +855,9 @@ Shape of the carry: **9 of 11 are pre-v2.0 carryover** from the v1.2 block above
 
 ## Session Continuity
 
-Last session: 2026-08-11
-Stopped at: Phase 27 complete, ready to plan Phase 28
-Resume file: None
+Last session: 2026-08-11T12:50:46.250Z
+Stopped at: Phase 28 context gathered
+Resume file: .planning/phases/28-kit-consistency-audit/28-CONTEXT.md
 
 ## Operator Next Steps
 
