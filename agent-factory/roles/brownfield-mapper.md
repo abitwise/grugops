@@ -32,7 +32,7 @@ Need repo mapping of an existing repo.
 4. Map only; never change behavior. A map that touches the territory is no longer a map.
 
 ## Output (file + format)
-`memory-bank/brownfield-map.md` — produced at **runtime** under the Phase-4 brownfield bootstrap workflow. The template is intentionally not seeded in the kit; this role names the output it will write, not pre-create it.
+`memory-bank/brownfield-map.md` — produced at **runtime** under the brownfield bootstrap workflow. The template is intentionally not seeded in the kit; this role names the output it will write, not pre-create it.
 
 ## Board moves (which column transitions this role causes)
 None — maps; does not move tickets. Its "safe first tickets" feed the backlog, but the Mapper causes no column transition on `plans/board.md`.

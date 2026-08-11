@@ -33,7 +33,7 @@ Need shaping of empty land.
 4. Propose the first 5–10 tickets plus risks and open questions — riskiest assumption first, so it fails cheap, not at launch.
 
 ## Output (file + format)
-`memory-bank/greenfield-plan.md` — produced at **runtime** under the Phase-4 greenfield bootstrap workflow. The template is intentionally not seeded in the kit; this role names the output it will write, not pre-create it.
+`memory-bank/greenfield-plan.md` — produced at **runtime** under the greenfield bootstrap workflow. The template is intentionally not seeded in the kit; this role names the output it will write, not pre-create it.
 
 ## Board moves (which column transitions this role causes)
 None — shapes empty land; does not move tickets. Its first tickets land in `Backlog` on `plans/board.md` for the Orchestrator and BA/PM to pull; it causes no column transition.

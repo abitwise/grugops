@@ -38,7 +38,7 @@ Need `AGENTS.md` created or updated (routing matrix: "Need AGENTS.md"). Typicall
 ## Output (file + format)
 Root `AGENTS.md` — the generic, project-agnostic substrate per §17.1 (clear voice; a light grug wink permitted only in Mission).
 
-This role **owns and maintains the 12 coding rules within `AGENTS.md`** — they are the single source (no other role restates them). It may echo them in grug voice inside this body for flavor, but the canonical copy lives in `AGENTS.md` in clear voice. Because the Scribe is the owner, it does not carry the generic "Follow the 12 rules in `AGENTS.md`" pointer the other 14 roles use — it authors the rules instead of inheriting them.
+This role **owns and maintains the 12 coding rules within `AGENTS.md`** — they are the single source (no other role restates them). It may echo them in grug voice inside this body for flavor, but the canonical copy lives in `AGENTS.md` in clear voice. Because the Scribe is the owner, it does not carry the generic "Follow the 12 rules in `AGENTS.md`" pointer the other 16 roles use — it authors the rules instead of inheriting them.
 
 ## Board moves (which column transitions this role causes)
 None — substrate authoring, no board transition. The Scribe writes the kit's context file; it does not pull, push, or close tickets on `plans/board.md`.
