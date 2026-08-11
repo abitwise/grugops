@@ -23,12 +23,19 @@ import {
   rmSync,
   writeFileSync,
   readFileSync,
+  readdirSync,
+  statSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, dirname } from "node:path";
 // The single-source equivalence comparator the Tier-1 oracle uses — imported here for the RED
 // non-vacuity case (proving assertEquivalent genuinely goes red on divergence, not a fabricated green).
 import { assertEquivalent, type ProjectedNote } from "./dual-path-equivalence.js";
+// The D-20 pins, imported from the gate rather than restated here. The gate's `isEntry` guard is
+// what makes this safe: importing the module for its exported pins does NOT run the check or call
+// process.exit. A restated `262144` in this file would be the duplicated-set-literal defect the
+// whole milestone has been closing.
+import { WR05_BEATS, WR05_MAX_LINE_BYTES } from "./check-uat-oracles.js";
 
 const ROOT = join(import.meta.dirname, "..");
 const GUARD_JS = join(ROOT, "scripts", "check-uat-oracles.js");
@@ -253,5 +260,282 @@ describe("check-uat-oracles.js (Phase 19 Tier-1 fail-proof harness)", () => {
     const r = spawnSync("node", [GUARD_JS], { encoding: "utf8" });
     expect(r.status).toBe(0);
     expect(out(r)).toContain("ALL CHECKS PASSED");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// D-20 — the oracle terminates, refuses an over-long line by name, and the pure-lookahead class
+// stays closed. (Phase 28 plan 02, folding todo `oracle-wr05-quadratic-lookahead-hang.md`.)
+//
+// WHAT WAS BROKEN. The three WR05_BEATS regexes were bare sequences of zero-width lookaheads with
+// no consuming atom, so a failed match was retried at every start position and each retry rescanned
+// the rest of the line — quadratic in line length. Because `.planning/STATE.md` is in WR05_SCAN and
+// is an agent-written narrative the GSD workflow appends to on every state update, a real 527 KB
+// line in it made `check-foundation-guards.js` NON-TERMINATING. The whole vitest suite depends on
+// that aggregator; check-foundation-guards.test.ts spawns it 112 times.
+//
+// WHY THIS CONTROL IS PERMANENT. Measured against the PRE-FIX committed build on this box
+// (node v24.12.0, darwin), with one synthetic non-matching line appended to a mirror's STATE.md:
+//
+//     32 KiB ->  1.97 s | 64 KiB ->  6.29 s | 128 KiB -> 23.62 s | 256 KiB -> 92.58 s
+//
+// At 256 KiB the pre-fix build was killed by SIGTERM at the 20 s budget below with no verdict at
+// all, and took 92.58 s to return when given a 300 s ceiling. After the fix the same mirror returns
+// in 0.09 s. The case is written as a wall-clock MEASUREMENT (an explicit spawn timeout that kills
+// the child), not as an assertion that the regexes look linear — a hang cannot be detected by
+// reading code, and a gate with no verdict is a fail-open, not a red gate.
+// ---------------------------------------------------------------------------
+
+// The control's wall-clock budget. The pre-fix build blew through this by ~4.6x at the size below.
+const WR05_TERMINATION_BUDGET_MS = 20_000;
+
+// Build a mirror whose .planning/STATE.md carries one synthetic line of exactly `bytes` ASCII bytes
+// that contains NONE of the three beat tokens — so every beat regex must fail on it, which is the
+// expensive direction. The rest of STATE.md is untouched, so all three beats are still present in
+// the file and the oracle's verdict is unaffected by the plant.
+function mirrorWithLongStateLine(bytes: number): string {
+  const m = mirror();
+  const file = join(m, ".planning/STATE.md");
+  writeFileSync(file, `${readFileSync(file, "utf8")}\n${"a".repeat(bytes)}\n`);
+  return m;
+}
+
+function runInBudget(checkRoot: string): SpawnSyncReturns<string> {
+  return spawnSync("node", [GUARD_JS], {
+    encoding: "utf8",
+    env: { ...process.env, CHECK_ROOT: checkRoot },
+    timeout: WR05_TERMINATION_BUDGET_MS,
+  });
+}
+
+describe("check-uat-oracles.js — D-20 termination, input bound, and the closed lookahead class", () => {
+  // ── D-20 item 2: the permanent regression control. ────────────────────────────────────────────
+  it("termination: a pathological line AT the bound returns a verdict inside the budget (RED pre-fix)", () => {
+    const m = mirrorWithLongStateLine(WR05_MAX_LINE_BYTES);
+    const r = runInBudget(m);
+    // A timeout kill surfaces as signal SIGTERM / error ETIMEDOUT and status null. Assert the
+    // ABSENCE of that explicitly rather than only asserting exit 0 — "no verdict" and "green" are
+    // different outcomes and only one of them is acceptable here.
+    expect(r.signal).toBeNull();
+    expect((r.error as NodeJS.ErrnoException | undefined)?.code).toBeUndefined();
+    expect(r.status).toBe(0);
+    expect(out(r)).toContain("ALL CHECKS PASSED");
+  });
+
+  // ── D-20 item 3: the bound fires, and it fires BY NAME. ───────────────────────────────────────
+  it("bound: a line of WR05_MAX_LINE_BYTES+1 refuses loudly, naming the file AND the constant", () => {
+    const m = mirrorWithLongStateLine(WR05_MAX_LINE_BYTES + 1);
+    const r = runInBudget(m);
+    expect(r.status).not.toBe(0);
+    // Asserting non-zero alone is insufficient — ANY failure would satisfy it. The refusal must
+    // name the offending file, the measured length, and the constant, or a reader meeting this in
+    // CI cannot tell which input the gate declined or what threshold it declined against.
+    expect(out(r)).toContain(".planning/STATE.md");
+    expect(out(r)).toContain(`WR05_MAX_LINE_BYTES=${WR05_MAX_LINE_BYTES}`);
+    expect(out(r)).toContain(`${WR05_MAX_LINE_BYTES + 1} bytes long`);
+    // A refusal must never read as a beat verdict: the oracle returns before the beat scan, so the
+    // PASS line asserting the beats are present must be absent.
+    expect(out(r)).not.toMatch(/PASS\s+WR-05 wording/);
+  });
+
+  // Exact integer comparison at the named constant: the WR05_MAX_LINE_BYTES-th byte is still under
+  // the bound and the next one trips it, so the threshold cannot be crossed by an off-by-one. The
+  // case above supplies the +1 half; this one supplies the exactly-at half.
+  it("bound: a line of exactly WR05_MAX_LINE_BYTES does NOT trip the bound", () => {
+    const r = runInBudget(mirrorWithLongStateLine(WR05_MAX_LINE_BYTES));
+    expect(r.status).toBe(0);
+    expect(out(r)).not.toContain("WR05_MAX_LINE_BYTES");
+  });
+
+  // ── The bound is a ceiling on the pathological case, not a change to normal operation. ────────
+  it("bound: does NOT fire on the live tree — no WR05_SCAN line is anywhere near the bound", () => {
+    const r = spawnSync("node", [GUARD_JS], { encoding: "utf8" });
+    expect(r.status).toBe(0);
+    expect(out(r)).not.toContain("WR05_MAX_LINE_BYTES");
+    // Measure the headroom directly too, so a future STATE.md that creeps toward the bound is
+    // visible here rather than only when the gate suddenly refuses.
+    const longest = Math.max(
+      ...[
+        ".planning/PROJECT.md",
+        ".planning/STATE.md",
+        ".planning/v1.2-SDLC-COVERAGE-AUDIT.md",
+        ".planning/RETROSPECTIVE.md",
+      ].flatMap((rel) =>
+        readFileSync(join(ROOT, rel), "utf8")
+          .split("\n")
+          .map((l) => Buffer.byteLength(l, "utf8")),
+      ),
+    );
+    expect(longest).toBeLessThan(WR05_MAX_LINE_BYTES);
+  });
+
+  // ── D-20 item 1: the closed class. ────────────────────────────────────────────────────────────
+  //
+  // THE PLAN'S PREMISE WAS WRONG AND THE MEASUREMENT WINS. D-20 item 1 states the class is "exactly
+  // 3 pure-lookahead regexes, all in WR05_BEATS, and no other pure-lookahead regex anywhere in
+  // scripts/". Scanning every regex literal in every .ts file under scripts/ found FOUR. The fourth
+  // is the String.split() separator below, and it is SANCTIONED rather than a defect: a split
+  // separator must be zero-width (a consuming atom would eat the delimiter it splits on), it
+  // carries `^` inside the lookahead so a non-line-start position fails in O(1) instead of
+  // rescanning, and its subject is a bounded test fixture rather than unbounded agent prose.
+  //
+  // Recording it as a NAMED exemption with its reason — rather than lowering the assertion to
+  // "at most one" or quietly excluding the file — follows this repository's established shape: an
+  // exemption expressed as absence from a list reads later as an oversight.
+  const SANCTIONED_PURE_LOOKAHEAD = {
+    file: "scripts/compactor.test.ts",
+    source: "(?=^---\\nid:)",
+    reason:
+      "a String.split() boundary separator, where zero-width IS the contract; anchored inside the " +
+      "lookahead so non-line-start positions fail in O(1); subject is a bounded test fixture",
+  };
+
+  // Extract regex LITERALS from one line, conservatively: a `/` opening a literal is preceded by
+  // one of = ( , : [ ! & | ? { ; or `return`. `//` and `/*` end the scan of the line (a comment
+  // body is not code). Escape- and character-class-aware so `/[a/b]/` and `/\//` do not terminate
+  // early. Deliberately a source scan and not a runtime one: a pure-lookahead literal that is never
+  // constructed at runtime is still a latent instance of the class.
+  function regexLiteralsInLine(line: string): string[] {
+    const found: string[] = [];
+    for (let i = 0; i < line.length; i++) {
+      if (line[i] !== "/") continue;
+      if (line[i + 1] === "/" || line[i + 1] === "*") break;
+      const prev = line.slice(0, i).replace(/\s+$/, "");
+      if (!/[=(,:[!&|?{;]$|\breturn$/.test(prev)) continue;
+      let j = i + 1;
+      let inClass = false;
+      let body = "";
+      for (; j < line.length; j++) {
+        const c = line[j];
+        if (c === "\\") {
+          body += c + (line[j + 1] ?? "");
+          j++;
+          continue;
+        }
+        if (c === "[") inClass = true;
+        else if (c === "]") inClass = false;
+        else if (c === "/" && !inClass) break;
+        body += c;
+      }
+      if (j >= line.length) continue; // unterminated on this line — division, not a literal
+      found.push(body);
+      i = j;
+    }
+    return found;
+  }
+
+  // Remove every lookaround group `(?=…) (?!…) (?<=…) (?<!…)`, depth-, escape- and class-aware.
+  // Whatever survives is the CONSUMING part. An empty remainder means the regex consumes nothing,
+  // so a failed match is retried at every start position — the class this control closes.
+  function consumingRemainder(body: string): string {
+    let out = "";
+    let i = 0;
+    while (i < body.length) {
+      if (body[i] === "\\") {
+        out += body.slice(i, i + 2);
+        i += 2;
+        continue;
+      }
+      if (
+        body.startsWith("(?=", i) ||
+        body.startsWith("(?!", i) ||
+        body.startsWith("(?<=", i) ||
+        body.startsWith("(?<!", i)
+      ) {
+        let depth = 0;
+        let inClass = false;
+        let k = i;
+        for (; k < body.length; k++) {
+          const c = body[k];
+          if (c === "\\") {
+            k++;
+            continue;
+          }
+          if (inClass) {
+            if (c === "]") inClass = false;
+            continue;
+          }
+          if (c === "[") inClass = true;
+          else if (c === "(") depth++;
+          else if (c === ")") {
+            depth--;
+            if (depth === 0) break;
+          }
+        }
+        i = k + 1;
+        continue;
+      }
+      out += body[i];
+      i++;
+    }
+    return out.trim();
+  }
+
+  function tsFilesUnder(dir: string): string[] {
+    const acc: string[] = [];
+    for (const name of readdirSync(dir).sort()) {
+      const full = join(dir, name);
+      if (statSync(full).isDirectory()) acc.push(...tsFilesUnder(full));
+      else if (name.endsWith(".ts")) acc.push(full);
+    }
+    return acc;
+  }
+
+  // Only .ts is scanned: the committed .js twins are generated from these sources and `npm run
+  // freshness` already fails red on any drift between the two, so scanning both would assert the
+  // same fact twice while doubling the chance of a scanner artifact.
+  function pureLookaheadSites(): { where: string; source: string }[] {
+    const hits: { where: string; source: string }[] = [];
+    for (const file of tsFilesUnder(join(ROOT, "scripts"))) {
+      readFileSync(file, "utf8")
+        .split("\n")
+        .forEach((line, n) => {
+          for (const body of regexLiteralsInLine(line)) {
+            if (!/^\(\?[=!<]/.test(body)) continue;
+            if (consumingRemainder(body) !== "") continue;
+            hits.push({
+              where: `${file.slice(ROOT.length + 1)}:${n + 1}`,
+              source: body,
+            });
+          }
+        });
+    }
+    return hits;
+  }
+
+  it("closed class: WR05_BEATS has exactly three members (two-sided pin)", () => {
+    expect(WR05_BEATS.length).toBe(3);
+    expect(WR05_BEATS.length).not.toBe(2);
+    expect(WR05_BEATS.length).not.toBe(4);
+  });
+
+  it("closed class: no WR05 beat regex is a pure zero-width lookahead any more", () => {
+    for (const beat of WR05_BEATS) {
+      expect(consumingRemainder(beat.re.source), beat.label).not.toBe("");
+      // Start-anchored, single-line subject (grepFiles has already split on \n), so exactly one
+      // start position is ever attempted.
+      expect(beat.re.source.startsWith("^"), beat.label).toBe(true);
+      expect(beat.re.flags).not.toContain("m");
+    }
+  });
+
+  it("closed class: the sanctioned split separator is the ONLY pure lookahead left under scripts/", () => {
+    const sites = pureLookaheadSites();
+    // Non-vacuity first: a scanner that found nothing anywhere would pass the assertion below while
+    // proving nothing at all. The sanctioned site must be FOUND, by name.
+    expect(sites.map((s) => s.where.split(":")[0])).toContain(
+      SANCTIONED_PURE_LOOKAHEAD.file,
+    );
+    expect(sites.map((s) => s.source)).toContain(
+      SANCTIONED_PURE_LOOKAHEAD.source,
+    );
+    expect(
+      sites.filter((s) => s.where.split(":")[0] !== SANCTIONED_PURE_LOOKAHEAD.file),
+      `a new pure zero-width lookahead entered scripts/ — its cost is quadratic in subject length ` +
+        `and this repository has already shipped one non-terminating CI gate that way. Give it a ` +
+        `consuming atom, or add it here with its reason as ${SANCTIONED_PURE_LOOKAHEAD.file} is ` +
+        `(${SANCTIONED_PURE_LOOKAHEAD.reason}).`,
+    ).toEqual([]);
+    expect(sites.length).toBe(1);
   });
 });

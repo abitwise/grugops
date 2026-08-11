@@ -107,6 +107,22 @@ function grepFiles(files: string[], re: RegExp): string[] {
 // per-beat regexes (each beat = the action token + its phase, present on the same line). Every file
 // must carry every beat; a missing file fails red (CR-01).
 // ---------------------------------------------------------------------------
+// CANDIDATE STRANGENESS FINDING — RECORDED HERE, DELIBERATELY NOT SETTLED HERE (Phase 28 / D-07
+// category 5, raised while fixing the D-20 hang at these same lines).
+//
+// This oracle asserts that four `.planning/` documents narrate a "dropped P8 -> guarded P10 ->
+// re-verified P11" story from two milestones ago, in a repository that ARCHIVES `.planning/` at
+// milestone close. Whether it is still load-bearing is an open question, and it is a real one.
+//
+// It is NOT answered by the D-20 bug fix. Retiring an oracle inside a bug fix is the silent
+// retirement Phase 28 exists to prevent, so this is written down at its file and line and routed
+// to the disposition register (plan 28-06) to be dispositioned in the open, with a reason, like
+// every other finding. Do not act on this note without that disposition.
+//
+//   Finding site: scripts/check-uat-oracles.ts:110-134 (WR05_SCAN + WR05_BEATS) and the
+//                 oracleWr05Wording entry point below.
+//   Category:     5 (strangeness — text with no remaining reader).
+//   Owner:        plan 28-06 (the disposition register).
 const WR05_SCAN = [
   ".planning/PROJECT.md",
   ".planning/STATE.md",
@@ -114,24 +130,118 @@ const WR05_SCAN = [
   ".planning/RETROSPECTIVE.md",
 ];
 
+// WR05_MAX_LINE_BYTES — the per-line WORK bound for this oracle's input (Phase 28 / D-20 item 3).
+//
+// WHY A BOUND IS NEEDED EVEN THOUGH THE REGEXES ARE NOW ANCHORED. `WR05_SCAN` above is a
+// hand-listed set of `.planning/` documents, and one of them — `.planning/STATE.md` — is an
+// agent-written narrative that the GSD workflow APPENDS TO ON EVERY STATE UPDATE. Its content is
+// therefore unbounded and not authored by anyone who is thinking about this gate. Anchoring makes
+// the per-line predicate LINEAR in line length; it does not stop the oracle from reading
+// arbitrarily large prose. The two mechanisms answer different questions and are deliberately kept
+// separate: the anchor answers "how expensive is one match attempt?", the bound answers "how much
+// input will this gate agree to look at at all?".
+//
+// WHY IT REFUSES RATHER THAN TRUNCATES. This oracle runs inside scripts/check-foundation-guards.js
+// in CI, and check-foundation-guards.test.ts spawns that aggregator 112 times. A gate that does not
+// terminate promptly HANGS rather than FAILS, and a hung gate is not a red gate — it is a gate with
+// no verdict at all, which in practice gets marked flaky and skipped. So the bound exists to convert
+// an unbounded cost into a loud, NAMED refusal (the same rationale kit-model.ts:150-170 records for
+// MAX_WALK_ENTRIES). Silently skipping the over-long line would be a truncated scan, and a truncated
+// scan passes every downstream check exactly the way a vacuous one does.
+//
+// FLOOR: REPORT, NEVER THROW. kit-model.ts is a library and throws; this file is a GATE and must
+// report through fail() — the same throw-versus-report split documented at kit-model.ts:744-753.
+//
+// EXACT INTEGER COMPARISON AT THE NAMED CONSTANT. A line of exactly WR05_MAX_LINE_BYTES is still
+// under the bound and a line of WR05_MAX_LINE_BYTES+1 trips it, so the threshold cannot be crossed
+// by an off-by-one. Measured in UTF-8 BYTES, which is always >= the UTF-16 code-unit count the regex
+// engine actually walks, so bounding bytes is a valid ceiling on the match work.
+//
+// VALUE. Measured 2026-08-11 at HEAD: the longest line in any WR05_SCAN file is 7,994 bytes
+// (.planning/STATE.md); PROJECT.md peaks at 6,651. 262,144 (256 KiB) leaves ~32x headroom over the
+// real tree while still refusing the 527 KB line that produced the original non-termination. A
+// single 256 KiB line in a planning markdown document is unambiguously pathological.
+//
+// THIS IS NOT A DERIVATION OF WR05_SCAN. Deriving WR05_SCAN's MEMBERSHIP is explicitly out of scope
+// (Phase 28 deferred item). This constant bounds the oracle's INPUT SIZE and says nothing about
+// which files are in the set — a later reader must not mistake the one for the other.
+export const WR05_MAX_LINE_BYTES = 262144;
+
 // Per-beat tolerant regexes. Each requires BOTH the action token AND its phase on the SAME line
 // (line-anchored lookaheads), case-insensitive, accommodating the differing prose across the four
 // files (e.g. STATE.md's `guard_wr05` is followed by `(scripts/check-foundation-guards.sh)` before
 // `in Phase 10`, so the beat2 regex must not require token adjacency).
-const WR05_BEATS: { label: string; re: RegExp }[] = [
+//
+// ANCHORED — Phase 28 / D-20 item 1. Each regex was previously a bare sequence of zero-width
+// lookaheads with NO consuming atom, so a failed match was retried at every start position and each
+// retry re-scanned the rest of the line: cost quadratic in line length. Measured on this box
+// (node v24.12.0, darwin) against the committed .js with one synthetic non-matching line in
+// .planning/STATE.md: 32 KiB -> 1.97 s, 64 KiB -> 6.29 s, 128 KiB -> 23.62 s, 256 KiB -> 92.58 s,
+// and the 527 KB line found in the wild never returned at all.
+//
+// The repair is `^` plus a consuming `[\s\S]`, matching the anchoring shape already used at the
+// ASYM_ROWS regexes below (`/^\|\s*\*\*Codex CLI\*\*/`). `^` (no `m` flag; grepFiles has already
+// split on newlines, so the subject IS one line) means exactly one start position is attempted.
+// `[\s\S]` is the consuming atom, so the linearity does not depend on any engine start-anchor
+// optimisation. `[\s\S]` rather than `.` deliberately: `.` excludes \r and the Unicode line
+// separators, which would change the verdict on a CRLF-terminated line.
+//
+// THE VERDICT IS UNCHANGED, AND THAT WAS MEASURED NOT REASONED. Both lookaheads still start their
+// `.*` at position 0, so "this line carries the action token AND its phase, anywhere, in any order,
+// case-insensitively" means exactly what it meant before; `[\s\S]` can only fail on an empty line,
+// which could never satisfy a lookahead anyway. Proof of preservation is a byte-comparison of this
+// gate's FULL output over the real tree before and after the change (empty diff), not a reading of
+// the regexes.
+//
+// THE CLASS IS CLOSED BY MEASUREMENT. Scanning every regex literal in every .ts file under scripts/
+// for a body consisting of nothing but lookaround groups found FOUR, not the three assumed: these
+// three, plus `/(?=^---\nid:)/m` at compactor.test.ts:1704. That fourth one is SANCTIONED and named
+// in WR05_SOLE_SANCTIONED_PURE_LOOKAHEAD in this file's test: it is a String.split() separator,
+// where zero-width is the whole point (a consuming atom would eat the delimiter), it carries `^`
+// inside the lookahead so a non-line-start position fails in O(1), and its subject is a bounded
+// test fixture. check-uat-oracles.test.ts asserts these three are no longer in the class and that
+// the sanctioned split separator is the only member left.
+export const WR05_BEATS: { label: string; re: RegExp }[] = [
   {
     label: "beat1: spawn grant dropped in Phase 8",
-    re: /(?=.*\bdropped\b)(?=.*\bPhase[ -]?8\b)/i,
+    re: /^(?=.*\bdropped\b)(?=.*\bPhase[ -]?8\b)[\s\S]/i,
   },
   {
     label: "beat2: guarded by guard_wr05 in Phase 10",
-    re: /(?=.*guard_wr05)(?=.*\bPhase[ -]?10\b)/i,
+    re: /^(?=.*guard_wr05)(?=.*\bPhase[ -]?10\b)[\s\S]/i,
   },
   {
     label: "beat3: re-verified GREEN after Phase 11",
-    re: /(?=.*re-verified GREEN)(?=.*\bPhase[ -]?11\b)/i,
+    re: /^(?=.*re-verified GREEN)(?=.*\bPhase[ -]?11\b)[\s\S]/i,
   },
 ];
+
+// The WR05_MAX_LINE_BYTES enforcement pass (D-20 item 3). Runs ONCE over the scan set, BEFORE any
+// beat regex touches any line, and returns one refusal message per over-long line. Running it up
+// front rather than inside grepFiles is deliberate on both counts: grepFiles is called once per
+// beat, so enforcing there would report the same line three times, and — more importantly — the
+// point of the bound is that the oversized line is never fed to a regex at all.
+function wr05LineBoundRefusals(files: string[]): string[] {
+  const refusals: string[] = [];
+  for (const rel of files) {
+    if (!fileExists(rel)) continue; // CR-01 already fail-reds a missing file, ahead of this pass
+    const lines = readText(rel).split("\n");
+    for (let i = 0; i < lines.length; i++) {
+      const bytes = Buffer.byteLength(lines[i], "utf8");
+      if (bytes > WR05_MAX_LINE_BYTES) {
+        refusals.push(
+          `${rel}:${i + 1} is ${bytes} bytes long, over WR05_MAX_LINE_BYTES=${WR05_MAX_LINE_BYTES} — ` +
+            `refusing to scan this file for the WR-05 closure beats. This oracle reads agent-written ` +
+            `.planning/ prose that grows without a ceiling, and an unbounded line makes the gate hang ` +
+            `instead of fail. Skipping just this line would be a silent truncation, and a truncated ` +
+            `scan passes every downstream check, so the whole beat scan is refused by name instead. ` +
+            `Shorten the offending line (it is almost certainly a writer defect, not real prose).`,
+        );
+      }
+    }
+  }
+  return refusals;
+}
 
 // Phase 23 asymmetry assertion (D-19 / Pitfall 3) — after the WR-05 flip the 5-tool tables in
 // adapters.md + README.md are ASYMMETRIC: only the Claude Code row carries the coordinator-spawn
@@ -184,6 +294,17 @@ export function oracleWr05Wording(): void {
     }
   }
   if (missing) return;
+
+  // D-20 item 3 input bound. Runs AFTER the CR-01 missing-file fail-red (a missing file must be
+  // named as missing, not as unbounded) and BEFORE any beat regex sees any line. A refusal here
+  // returns early: continuing would mean running the beat scan over the very input the bound just
+  // declined, and reporting a beat verdict derived from input the gate refused to read would be a
+  // fabricated verdict.
+  const boundRefusals = wr05LineBoundRefusals(WR05_SCAN);
+  if (boundRefusals.length > 0) {
+    for (const r of boundRefusals) fail(r);
+    return;
+  }
 
   let beatFail = "";
   for (const beat of WR05_BEATS) {
