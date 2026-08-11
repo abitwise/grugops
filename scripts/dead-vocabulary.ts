@@ -23,6 +23,34 @@
 // verified context is the sole memory; nothing reopens that.
 // ---------------------------------------------------------------------------------------------
 //
+// ---------------------------------------------------------------------------------------------
+// THE SECOND BOUNDARY, SAME SHAPE AS THE FIRST (Phase 28 / AUDIT-02, D-10).
+//
+// The verb describing what the Orchestrator does with work — "routes", "routing", "route each to
+// the right role agent" — is STILL CORRECT v2.0 English and must NEVER be added to
+// RETIRED_PROSE_FORMS below. A token guard banning it would fail red on three live sites this
+// project keeps on purpose:
+//
+//   1. .claude/agents/grugops-orchestrator.md's own `description:` — "Decompose each request into
+//      subtasks, ROUTE each to the right role agent within hard limits" — which is the generated
+//      adapter text describing the v2.0 decomposer accurately.
+//   2. agent-factory/roles/orchestrator.md's `### Routing matrix (subtask → role)` heading — the
+//      subtask→role mapping table, which is the mechanism v2.0 actually ships.
+//   3. CLAUDE.md's "`description` drives auto-routing: Claude reads it to decide when to delegate"
+//      — a CLAUDE CODE PLATFORM FACT about how the host tool selects a subagent. It is not a
+//      grugops claim at all, and no grugops vocabulary decision may make it unsayable.
+//
+// WHAT THE ACTUAL DRIFT IS. Not the word — ONE SPECIFIC CLAIM: "One Orchestrator routes work
+// through the full software-delivery lifecycle — business analysis → product → … → release", a
+// LINEAR PIPELINE that v2.0 replaced with decompose→enqueue over a shared queue. That is a claim
+// about topology, not a token, and a claim is held by a registry row in
+// docs/audit/28-claim-registry.md — NEVER by a grep. A grep cannot tell the true sentence from the
+// false one because both contain the same word.
+//
+// The rule both boundaries share: if going green would require deleting correct text, the literal
+// does not belong in this file.
+// ---------------------------------------------------------------------------------------------
+//
 // THIS MODULE MUST NEVER BE ADDED TO ANY GUARD'S SCAN SET. By construction it contains every
 // literal it defines, so it would fail its own check. It lives under scripts/, which is outside the
 // check-kit-refs SCAN set and outside guard_adapter_body's adapters-plus-template scan set, so the
