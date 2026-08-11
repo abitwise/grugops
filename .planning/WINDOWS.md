@@ -1,10 +1,10 @@
 ---
 schema_version: 1
-open_count: 15
+open_count: 16
 waived_count: 0
 fixed_count: 1
-total_count: 16
-last_updated: 2026-08-10T21:51:46.127Z
+total_count: 17
+last_updated: 2026-08-11T14:37:25.571Z
 ---
 
 # Broken Windows Ledger
@@ -31,6 +31,7 @@ last_updated: 2026-08-10T21:51:46.127Z
 | 14 | 27 | unrun-verify | scripts/canonical-frontmatter.ts |  | 27-62: false-red cost of the strict plain-scalar alphabet is measured 0 over the 33 live scanned files but UNMEASURED tree-wide; 27-65 owns that measurement at cutover | fixed |  | 2026-08-10T19:53:28.868Z | 2026-08-10T21:51:46.127Z |
 | 15 | 27 | deviation | scripts/canonical-frontmatter.ts |  | 27-65 narrowing: the canonical form admits 2 of 7 legitimate YAML spellings of one declaration (plain scalar, block sequence); wrapped-plain, wrapped-quoted, trailing-# comment, folded >- and literal \|- are now refused inside the spawn-grant scan, as is a quoted `name`. Live cost measured 0 (33/33 admit); the LATITUDE is gone and future hand-written kit content must be canonical. | open |  | 2026-08-10T21:51:32.443Z |  |
 | 16 | 27 | deviation | scripts/canonical-frontmatter.ts |  | 27-65: 554 of 575 frontmatter-bearing tracked .md files OUTSIDE the spawn-grant scan would refuse (flow-collection 416, unknown-key 134, block-scalar 4). Not exposure today — those .planning/ artifacts are not in spawnGrantScan and the 10-key schema is deliberately the kit's spawn schema — but a hard constraint on anyone who later widens that scan. | open |  | 2026-08-10T21:51:32.507Z |  |
+| 17 | 28 | unrun-verify | .github/workflows/ci.yml |  | check-public-docs-vocabulary is wired into CI and is RED by design (18 AUDIT-02 drift hits) until plan 28-05 lands the rewrites — intended per D-24, must not be read as breakage | open |  | 2026-08-11T14:37:25.571Z |  |
 
 ````json
 [
@@ -224,6 +225,18 @@ last_updated: 2026-08-10T21:51:46.127Z
     "status": "open",
     "reason": "",
     "recorded_at": "2026-08-10T21:51:32.507Z",
+    "resolved_at": null
+  },
+  {
+    "id": 17,
+    "kind": "unrun-verify",
+    "phase": "28",
+    "file": ".github/workflows/ci.yml",
+    "line": null,
+    "description": "check-public-docs-vocabulary is wired into CI and is RED by design (18 AUDIT-02 drift hits) until plan 28-05 lands the rewrites — intended per D-24, must not be read as breakage",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-08-11T14:37:25.571Z",
     "resolved_at": null
   }
 ]
