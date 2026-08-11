@@ -51,13 +51,22 @@ ABC-001 with acceptance criteria + size + priority; definition-of-ready.md; auto
 04-ticket-to-pr.md  (the gate loop lives in 05-pr-quality-gate.md, referenced not restated)
 ## Board moves
 Ready for Dev -> In Development -> In Review
-## Expected handoffs
-agent-factory/handoffs/implementation-handoff.md; agent-factory/handoffs/qe-handoff.md
+## Expected notes
+Software Engineer and QE/E2E each publish typed notes into the shared verified context (Workflow 16)
 ## Stop conditions
 fails Definition of Ready -> stop; XL -> SPLIT_REQUIRED (ABC-001 is XS, so neither fired)
 ## Next action
 Software Engineer implements GET /version on a branch with a test
 ```
+
+**Clear voice — one line of the block above was restated, and the restatement is recorded rather
+than made silently.** This run was captured on 2026-06-03. At that time the decision block's
+eighth heading read `## Expected handoffs` and named two static files under a shared handoff
+directory. Phase 24 deleted those seventeen templates and the shared verified context replaced the
+relay; `agent-factory/roles/orchestrator.md`'s § *Output* contract now names that heading
+`Expected notes`. Phase 28 restated the heading and its value to the shipped contract. Nothing
+else in the captured block was touched, and no gate verdict, command, or count anywhere in this
+file was rewritten.
 
 ## Board moves (real column headings)
 
@@ -74,15 +83,22 @@ board↔ticket contract at each state.
 - [ABC-001] GET /version endpoint  (PR: feat/ABC-001-version-endpoint [local branch, no remote], QE: PASS, gate: READY_FOR_HUMAN_REVIEW)
 ```
 
-## Handoffs produced (real files)
+## What the two roles published (real results)
 
-Under `agent-factory/handoffs/` on the sample tree:
+The Software Engineer and QE/E2E each recorded a result for the ticket. The capture stored those
+results as static files under a shared handoff directory; that directory is gone, and the same two
+results are now published as typed notes under `.grugops/context/ABC-001/notes/` through
+`scripts/context-io.ts`, per Workflow 16 (`agent-factory/workflows/16-context-read-write.md`).
+Neither role hands anything to the other — QE/E2E pulls the verified context, and the shared
+context is the only channel between them:
 
-- `implementation-handoff.md` (Software Engineer) — branch `feat/ABC-001-version-endpoint`,
-  files changed, the five real gate commands run.
-- `qe-handoff.md` (QE/E2E) — `Result: PASS`; e2e not triggered (`e2e_when: ui-or-critical-path`,
-  no UI/critical path); coverage instrument absent in the minimal sample, recorded honestly, not
-  faked.
+- **Software Engineer** publishes the implementation result — branch
+  `feat/ABC-001-version-endpoint`, files changed, and the five real gate commands run.
+- **QE/E2E** publishes `Result: PASS`; e2e not triggered (`e2e_when: ui-or-critical-path`, no
+  UI/critical path); the coverage instrument is absent in the minimal sample, recorded honestly as
+  absent rather than faked. A `PASS` asserted as measured is a `finding`, and `context-io.ts`
+  admits one only against a real `§14-gate#<id>` stamp from a live green gate run — which is what
+  the gate section below produced.
 
 Security/NFR was **not** triggered — a read-only, unauthenticated status route adds no
 risk-bearing surface.

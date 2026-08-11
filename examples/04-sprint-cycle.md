@@ -42,8 +42,9 @@ definition-of-ready.md
 ## Board moves
 committed items leave Ready into the SPRINT-12 commitment; Orchestrator pulls each into
 Ready for Dev as the box runs
-## Expected handoffs
-agent-factory/handoffs/refinement-notes.md; plans/sprints/SPRINT-12.md
+## Expected notes
+BA/PM publishes the refinement pass into the shared verified context (Workflow 16);
+plans/sprints/SPRINT-12.md
 ## Stop conditions
 Ready too thin to fill capacity (run 07 first); an item fails Definition of Ready
 ## Next action
@@ -53,9 +54,11 @@ write plans/sprints/SPRINT-12.md with the one-sentence goal and the committed li
 ## Refinement (07) and planning (08)
 
 BA/PM pulls the top of `Backlog`, sizes (`XS`–`XL`) and prioritizes (`P0`–`P3`), splits any
-`XL` (`SPLIT_REQUIRED` — no XL into dev), and promotes DoR-met items into `Ready`, recording
-the pass in `agent-factory/handoffs/refinement-notes.md`. Planning then commits to a goal and
-writes the sprint file (representative snippet, not the full §6.2 field list):
+`XL` (`SPLIT_REQUIRED` — no XL into dev), and promotes DoR-met items into `Ready`, publishing
+the refinement pass as a typed note in the shared verified context (Workflow 16) so planning
+starts from the verified state rather than from a summary someone passed it. Planning then
+commits to a goal and writes the sprint file (representative snippet, not the full §6.2 field
+list):
 
 ```markdown
 # SPRINT-12
@@ -102,10 +105,14 @@ headings; `In Development` runs against its WIP limit of 3:
 ## Tickets through ticket-to-pr (04)
 
 Each committed ticket follows the frozen `04-ticket-to-pr` path —
-`Ready for Dev -> In Development -> In Review (-> In Security/NFR)`. The Software Engineer
-writes `agent-factory/handoffs/implementation-handoff.md`, QE/E2E writes
-`agent-factory/handoffs/qe-handoff.md`, and the gate (per `05-pr-quality-gate.md`) returns
-`READY_FOR_HUMAN_REVIEW`. autonomy=pr — the agent opens a branch and a PR; it never merges.
+`Ready for Dev -> In Development -> In Review (-> In Security/NFR)`. The two roles exchange
+nothing directly. The Orchestrator enqueues the ticket's subtasks; the Software Engineer claims
+one (`17-task-claim.md`) and publishes its implementation result into that ticket's shared
+verified context; QE/E2E pulls that same context and publishes its own verdict back into it
+(`16-context-read-write.md`); and the gate (per `05-pr-quality-gate.md`) returns
+`READY_FOR_HUMAN_REVIEW`. A verdict asserted as measured is a `finding`, and it is admitted only
+against the gate's own green `§14-gate#<id>` stamp — the gate is the root of that chain, so no
+role can self-certify a pass. autonomy=pr — the agent opens a branch and a PR; it never merges.
 
 ## Daily sweep (09)
 
@@ -129,9 +136,9 @@ SPRINT-12 closed — Velocity 6 pts (2/2 committed accepted) · Throughput 2 · 
 ```
 
 The retro (`11-retro`) reads `plans/metrics.md`, names the top 1–3 wastes from the values
-(e.g. a `Cycle time` spike caused by a slow review), and writes
-`agent-factory/handoffs/retro-notes.md` with the metrics snapshot and Keep / Stop / Start,
-plus 1–3 improvement tickets tagged `factory` into `Backlog`. grug look at numbers, not vibes.
+(e.g. a `Cycle time` spike caused by a slow review), and publishes the metrics snapshot and
+Keep / Stop / Start as typed notes in the shared verified context (Workflow 16), plus 1–3
+improvement tickets tagged `factory` into `Backlog`. grug look at numbers, not vibes.
 
 ## Trace and done
 

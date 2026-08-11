@@ -43,8 +43,8 @@ the existing repository; factory.config.json; memory-bank/00-index.md for orient
 ## Board moves
 seed plans/board.md with its columns + WIP limits; Security/NFR owns the In Security/NFR exit
 for the high-risk scan; safe first tickets enter Backlog
-## Expected handoffs
-agent-factory/handoffs/security-nfr-handoff.md
+## Expected notes
+Security/NFR publishes its high-risk scan verdict into the shared verified context (Workflow 16)
 ## Stop conditions
 Security/NFR returns BLOCKED on a high-risk finding; or the repo cannot be mapped
 ## Next action
@@ -68,10 +68,10 @@ transition — it stands the board up. The high-risk scan resolves through the
 ## In Security/NFR (WIP 0/2)
 ```
 
-## Expected files and handoffs
+## Expected files and published notes
 
-The flow produces the brownfield substrate and one handoff (representative snippets — not
-full file dumps):
+The flow produces the brownfield substrate and one published scan verdict (representative
+snippets — not full file dumps):
 
 **`memory-bank/brownfield-map.md`** (Brownfield Mapper) — structure plus the commands it
 could actually confirm:
@@ -106,20 +106,33 @@ Scribe confirms them per-project.
 unvalidated body, and the ledger posting path has no idempotency key — and records them as
 constraints for the first tickets.
 
-**`agent-factory/handoffs/security-nfr-handoff.md`** (Security/NFR) — the high-risk scan
-result, in clear voice:
+**Security/NFR's published scan verdict** — written in clear voice, because a risk posture is a
+safety topic. Security/NFR does not hand a file to whoever runs next. It publishes into the
+**shared verified context** at `.grugops/context/<task>/notes/` through the one sanctioned writer,
+`scripts/context-io.ts`, per Workflow 16 (`agent-factory/workflows/16-context-read-write.md`), and
+BA/PM pulls that context before it cuts a single ticket:
 
 ```markdown
-# Security/NFR Handoff
-## Result
-PASS_WITH_RISKS
-## High-risk findings
+---
+id: 20260604T091200Z-security-nfr-decision-7c3d
+kind: decision
+by: security-nfr
+at: 2026-06-04T09:12:00Z
+verified_by:
+---
+# High-risk scan verdict: PASS_WITH_RISKS
+
 - RISK-001  Unvalidated request body on /charge (input validation gap)
 - RISK-002  No idempotency key on ledger posting (double-charge exposure)
-## Note
-No BLOCKED finding — adoption may proceed; the first safe tickets must not build atop
-RISK-002 until it is addressed.
+
+No BLOCKED verdict — adoption may proceed; the first safe tickets must not build atop RISK-002
+until it is addressed.
 ```
+
+The verdict is a `decision` — the role's own adjudication — so it carries no verification stamp and
+claims none. Anything the scan asserts as *measured* would be a `finding`, and `context-io.ts`
+admits a `finding` only with a real `§14-gate#<id>` or `human:<name>` stamp; a stampless one is
+refused outright and never silently rewritten into something softer.
 
 The scan returns one of `PASS | PASS_WITH_RISKS | BLOCKED`. Here it is `PASS_WITH_RISKS`, so
 adoption continues. A `BLOCKED` result would stop the flow — no first tickets that build on a
@@ -141,7 +154,8 @@ once real work begins; nothing is faked here.
 ## Done
 
 The root `AGENTS.md`, `memory-bank/brownfield-map.md`, and the updated memory-bank exist; the
-confirmed commands and the risks are documented (with the `security-nfr-handoff.md` result);
-the safe first tickets exist in `Backlog`; `plans/board.md` is seeded; the config is present.
+confirmed commands and the risks are documented (Security/NFR's `PASS_WITH_RISKS` verdict is
+published in the shared verified context, where the next role reads it rather than being handed
+it); the safe first tickets exist in `Backlog`; `plans/board.md` is seeded; the config is present.
 The `AGENTS.md` command slots stay `UNKNOWN - verify` until verified per-project. grug mapped
 before grug touched.

@@ -112,7 +112,56 @@ So notes about files and directories **outside** the audit set live here, in pro
 reason. Plan 28-05 fills this section with the Phase 33 / GAP-D1 coupling on
 `examples/03-ticket-to-pr.md` and the two deleted hygiene directories.
 
-*(Empty until 28-05.)*
+### `examples/03-ticket-to-pr.md` — the Phase 33 / GAP-D1 coupling, and a PARTIAL OVERLAP
+
+**Recorded by plan 28-05, 2026-08-12.** Standing obligation #1 (`ROADMAP.md:106`) routes GAP-D1 to
+Phase 33 / CAP-01: *"one captured live dual-path run → flip A3/DOG-02 + the coupled
+`examples/03-ticket-to-pr.md` edit."* Plan 28-05 rewrote part of that same file under D-11, so
+Phase 33 must work from the new text, not from the text its obligation was written against.
+
+**What 28-05 changed, and it is disjoint from GAP-D1's surface:**
+
+- the `## Expected notes` line inside the captured `# Orchestrator Decision` block (was
+  `## Expected handoffs`, naming two files under the deleted handoff directory), plus a
+  clear-voice paragraph directly below the fence recording that the restatement was made and why;
+- the § *What the two roles published (real results)* section (was § *Handoffs produced (real
+  files)*), re-narrated onto the shared verified context.
+
+Both were guard hits reported by `scripts/check-public-docs-vocabulary.js`. Neither sits inside the
+§ *Dual-path parity (DOG-02)* table, which is where GAP-D1's captured output lands.
+
+**Where the two edits are NOT disjoint — the reason this is a finding and not a clean note.** Plan
+28-05 was instructed to confirm disjointness by reading, and to record an overlap rather than guess
+at it. The reading found one:
+
+| Line | Text | Owner |
+|---|---|---|
+| § *Dual-path parity* intro | *"the same ticket, the **same handoff filenames**, and the same gate verdict"* | overlaps |
+| parity row *"Handoff filenames produced"* | LEFT cell names `implementation-handoff.md`, `qe-handoff.md`; RIGHT cell is `pending human` | overlaps |
+
+The RIGHT cells of that table are exactly what GAP-D1 fills with captured live-run output. The LEFT
+cell of the `Handoff filenames produced` row, and the intro sentence, still carry the retired relay
+vocabulary and are 28-05's kind of defect. **The overlap is at row granularity: one row, two
+owners.**
+
+**28-05 therefore did NOT touch either line, deliberately.** Rewriting a parity dimension's left
+cell while its right cell reads *"expect the SAME filenames"* would leave the table asserting a
+parity between a rewritten dimension and an unrun capture — a contradiction 28-05 cannot resolve,
+because resolving it requires the live run Phase 33 owns. `git diff` for 28-05 changed **zero**
+`pending human` lines, which is the mechanical evidence that the GAP-D1 surface is untouched.
+
+**What Phase 33 must do about it.** When CAP-01 fills the parity table from the captured run, it
+must ALSO retire the relay vocabulary in that table's intro sentence and in the `Handoff filenames
+produced` row — the parity dimension is now *which typed notes each path published into the shared
+verified context*, not which filenames it wrote. This is one edit, not two, and doing it in one
+pass is why 28-05 left it. **No gate holds this.** `check-public-docs-vocabulary.js` reports zero
+hits on this file, because neither line contains an `agent-factory/handoffs/` path or the literal
+`handoff packet` — and D-10 forbids widening the matcher to chase the bare word. This paragraph is
+the only record that the residual exists.
+
+### `agent-factory/handoffs/` and `agent-factory/examples/` — two deleted hygiene directories
+
+*(Recorded by plan 28-05, task 3 — see below.)*
 
 ## Table A — audited files
 

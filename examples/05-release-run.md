@@ -40,15 +40,17 @@ Release Manager
 ## Why
 grug cut release, not corner — but grug never push the big red button alone.
 ## Required inputs
-the implementation/QE/security-NFR/UAT handoffs for the included tickets; plans/nfr-catalog.md;
-release-readiness-checklist.md; factory.config.json (production_requires_human_confirmation)
+the implementation, QE, security/NFR and UAT notes published for the included tickets;
+plans/nfr-catalog.md; release-readiness-checklist.md; factory.config.json
+(production_requires_human_confirmation)
 ## Workflow
 12-release.md
 ## Board moves
 Release Manager owns the Ready to Release exit; ticket moves to Done only after a named human
 approves the deploy
-## Expected handoffs
-agent-factory/handoffs/release-handoff.md; plans/releases/REL-0007.md
+## Expected notes
+Release Manager publishes the release record into the shared verified context (Workflow 16);
+plans/releases/REL-0007.md
 ## Stop conditions
 release-readiness-checklist fails, or there is no named human approval -> BLOCKED, do not deploy
 ## Next action
@@ -68,7 +70,7 @@ confirms the production action does it move to `Done`:
 ## Done (WIP unlimited)
 ```
 
-## Expected files and handoffs
+## Expected files and published notes
 
 The Release Manager prepares the release and requires approval; it never deploys prod itself.
 It writes the release record `plans/releases/REL-0007.md` (representative snippet):
@@ -94,8 +96,10 @@ release-readiness-checklist.md — PASS (evidence attached from plans/nfr-catalo
 READY_TO_RELEASE
 ```
 
-and the handoff `agent-factory/handoffs/release-handoff.md` carrying the version, scope,
-evidence, and the approval record.
+and it publishes the same version, scope, evidence and approval record as typed notes in the
+shared verified context (Workflow 16). Nothing is handed to a next role: the release record is
+read from the verified context by whoever needs it, and the traceability trail is rendered from
+those notes rather than transcribed out of a passed-along file.
 
 ## The deploy gate (named-human confirmation)
 
@@ -137,6 +141,7 @@ definition of done is met only when the row is complete through the `Release` co
 
 `plans/metrics.md` records `Lead time` as the release clears — reported exactly as it stands,
 never faking a passing gate, a clean release, or an approval that did not happen; anything
-unverified is marked `UNKNOWN - verify`. The release is done: the release handoff and
-`plans/releases/REL-0007.md` are written, the status is `RELEASED`, the traceability row is
-complete through `Release`, and a named human approved and confirmed the production action.
+unverified is marked `UNKNOWN - verify`. The release is done: `plans/releases/REL-0007.md` is
+written and its contents are published into the shared verified context, the status is
+`RELEASED`, the traceability row is complete through `Release`, and a named human approved and
+confirmed the production action.

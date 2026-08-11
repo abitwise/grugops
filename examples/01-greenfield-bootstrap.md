@@ -74,7 +74,7 @@ landed in `Ready for Dev`:
 ## In Development (WIP 0/3)
 ```
 
-## Expected files and handoffs (real, produced on the sample)
+## Expected files and published notes (real, produced on the sample)
 
 The bootstrap produced these REAL files on the sample tree:
 
@@ -86,14 +86,25 @@ The bootstrap produced these REAL files on the sample tree:
   recorded that honestly rather than inventing an `eslint`/build command. The genuinely
   unverifiable slots — single-file eslint/prettier autofix, the formatter, and e2e — were honestly
   left `UNKNOWN - verify`, never fabricated.
-- `agent-factory/handoffs/product-handoff.md` (BA/PM) — user value, acceptance criteria, size XS,
-  priority P2.
-- `agent-factory/handoffs/system-handoff.md` (System Analyst) — the `GET /version` request/response
-  contract (`200 { "version": string }`, `APP_VERSION` override).
-- `agent-factory/handoffs/architecture-handoff.md` (Architect/Design) — inline route, no new
-  module; seeds NFR-001.
 - `memory-bank/50-decisions/ADR-0001-version-endpoint-inline.md` — the structural decision.
 - `plans/tickets/ABC-001.md` — the first ticket (status/column in lockstep with the board).
+
+The three analysis roles each recorded a result for the next role to read. **Clear voice — this
+paragraph is a correction, not an aside.** This run was captured on 2026-06-03, when a role
+recorded that result as a static file under a shared handoff directory. Phase 24 deleted those
+seventeen templates and replaced the relay with the **shared verified context**, so the same three
+results are now published as typed notes under `.grugops/context/ABC-001/notes/` through
+`scripts/context-io.ts`, per Workflow 16 (`agent-factory/workflows/16-context-read-write.md`). The
+old filenames are gone; the results are not, and they are what the next role reads:
+
+- **BA/PM** publishes a `decision` note — user value, acceptance criteria, size XS, priority P2.
+- **System Analyst** publishes a `decision` note — the `GET /version` request/response contract
+  (`200 { "version": string }`, `APP_VERSION` override).
+- **Architect/Design** publishes a `decision` note — inline route, no new module; seeds NFR-001.
+
+No role hands its output to the next one. Each pulls the verified context, does the work, and
+publishes back into it; a `finding` is admitted only with a real `§14-gate#<id>` or `human:<name>`
+stamp, and anything softer is recorded honestly as a `claim` or an `observation`.
 
 A representative slice of the greenfield plan (not a full dump):
 
@@ -114,7 +125,7 @@ NFR-001:
 |--------|-------|------|---------|------|-----------------|-------|-----|---------|--------|
 | ABC-001 | GET /version endpoint | EPIC-001 | FEAT-001 | NFR-001 | — | — | — | — | Ready for Dev |
 
-The bootstrap is done: `AGENTS.md`, the memory-bank + greenfield-plan, the three handoffs, the
-first ticket, the seeded board, and the config are all present. `node
+The bootstrap is done: `AGENTS.md`, the memory-bank + greenfield-plan, the three published notes,
+the first ticket, the seeded board, and the config are all present. `node
 scripts/validate-agent-factory.mjs` exits 0 (`ALL CHECKS PASSED`) on the resulting sample tree,
 bare and `--strict`. From here the ticket→PR slice is captured in `examples/03-ticket-to-pr.md`.
