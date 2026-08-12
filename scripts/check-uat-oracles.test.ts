@@ -472,9 +472,24 @@ describe("check-uat-oracles.js — D-20 termination, input bound, and the closed
     return found;
   }
 
-  // Remove every lookaround group `(?=…) (?!…) (?<=…) (?<!…)`, depth-, escape- and class-aware.
-  // Whatever survives is the CONSUMING part. An empty remainder means the regex consumes nothing,
-  // so a failed match is retried at every start position — the class this control closes.
+  // Remove every lookaround group `(?=…) (?!…) (?<=…) (?<!…)`, depth-, escape- and class-aware, AND
+  // then every remaining ZERO-WIDTH ASSERTION. Whatever survives is the CONSUMING part. An empty
+  // remainder means the regex consumes nothing, so a failed match is retried at every start position
+  // and each retry rescans — the class this control closes.
+  //
+  // 28-REVIEW WR-10: THE HELPER'S OWN PREMISE ABOUT "CONSUMING" WAS FALSE. It stripped lookarounds
+  // and called whatever survived the consuming part, but `^`, `$`, `\b` and `\B` all survive and are
+  // all ZERO-WIDTH. A regex such as `/\b(?=.*a)(?=.*b)/` consumes nothing, has exactly the quadratic
+  // retry behaviour this control exists to close, and was classified as consuming. Given this phase
+  // spent a whole plan discovering that a harness written against a false premise reported 42
+  // phantom failures, the premise here got the same scrutiny.
+  //
+  // NO `.trim()` ANY MORE, AND THAT WAS MEASURED RATHER THAN REASONED. The helper used to trim its
+  // remainder, but a literal space IS a consuming atom — and `String.trim()` also eats U+FEFF, which
+  // made `/^﻿/` (two real sites in frontmatter.test.ts) read as consuming NOTHING. Trimming
+  // produced a false positive in one direction while the missing zero-width strip produced a false
+  // negative in the other.
+  const ZERO_WIDTH_ASSERTION = /\\[bB]|[\^$]/g;
   function consumingRemainder(body: string): string {
     let out = "";
     let i = 0;
@@ -516,7 +531,7 @@ describe("check-uat-oracles.js — D-20 termination, input bound, and the closed
       out += body[i];
       i++;
     }
-    return out.trim();
+    return out.replace(ZERO_WIDTH_ASSERTION, "");
   }
 
   function tsFilesUnder(dir: string): string[] {
@@ -529,6 +544,15 @@ describe("check-uat-oracles.js — D-20 termination, input bound, and the closed
     return acc;
   }
 
+  // A regex is IN THE CLASS when it is built out of lookarounds and consumes nothing.
+  //
+  // 28-REVIEW WR-10: the membership test used to be `/^\(\?[=!<]/` — "the body STARTS with a
+  // lookaround" — which is a second false premise on top of the one in consumingRemainder. The
+  // review's own example, `/\b(?=.*a)(?=.*b)/`, starts with `\b` and would have been excluded before
+  // the remainder was even computed. The question the class actually asks is whether a FAILED match
+  // rescans, and that depends on what the regex CONSUMES, not on which atom it happens to open with.
+  const LOOKAROUND_OPEN = /\(\?(?:=|!|<=|<!)/;
+
   // Only .ts is scanned: the committed .js twins are generated from these sources and `npm run
   // freshness` already fails red on any drift between the two, so scanning both would assert the
   // same fact twice while doubling the chance of a scanner artifact.
@@ -539,7 +563,7 @@ describe("check-uat-oracles.js — D-20 termination, input bound, and the closed
         .split("\n")
         .forEach((line, n) => {
           for (const body of regexLiteralsInLine(line)) {
-            if (!/^\(\?[=!<]/.test(body)) continue;
+            if (!LOOKAROUND_OPEN.test(body)) continue;
             if (consumingRemainder(body) !== "") continue;
             hits.push({
               where: `${file.slice(ROOT.length + 1)}:${n + 1}`,
@@ -565,6 +589,36 @@ describe("check-uat-oracles.js — D-20 termination, input bound, and the closed
       expect(beat.re.source.startsWith("^"), beat.label).toBe(true);
       expect(beat.re.flags).not.toContain("m");
     }
+  });
+
+  // ── 28-REVIEW WR-10: the CLASSIFIER's own premise, asserted before the scan is trusted. ─────────
+  //
+  // The scan below claims the class is CLOSED. A closure claim is only worth what its membership
+  // test is worth, and this one's was false twice over — it treated `^`, `$`, `\b` and `\B` as
+  // consuming atoms, and it only looked at regexes whose first atom was a lookaround. Both are
+  // asserted here directly, on hand-written inputs, so a future edit to the helper that reopened
+  // either hole is a red test rather than a quietly narrower scan.
+  it("classifier premise: a zero-width assertion is NOT a consuming atom", () => {
+    // The review's exact example. Pre-fix this was classified as consuming and never flagged.
+    expect(consumingRemainder("\\b(?=.*a)(?=.*b)")).toBe("");
+    expect(consumingRemainder("^(?=.*a)$")).toBe("");
+    expect(consumingRemainder("\\B(?!x)")).toBe("");
+    // And the positive direction: a real atom survives, so the helper is not simply always-empty.
+    expect(consumingRemainder("^(?=.*a)[\\s\\S]")).toBe("[\\s\\S]");
+    expect(consumingRemainder("(?=x)abc")).toBe("abc");
+    // A LITERAL SPACE is a consuming atom. The helper used to `.trim()`, which said otherwise.
+    expect(consumingRemainder("(?=x) ")).toBe(" ");
+    // U+FEFF is a consuming atom too, and `String.trim()` eats it — the measured false positive that
+    // the dropped `.trim()` was producing on two real sites in frontmatter.test.ts.
+    expect(consumingRemainder("^﻿")).toBe("﻿");
+  });
+
+  it("classifier premise: membership does not depend on which atom the regex OPENS with", () => {
+    // `/\b(?=.*a)(?=.*b)/` opens with `\b`, so the old `^\(\?[=!<]` prefilter excluded it before the
+    // remainder was computed. The class asks what a regex CONSUMES, not what it starts with.
+    expect(LOOKAROUND_OPEN.test("\\b(?=.*a)(?=.*b)")).toBe(true);
+    expect(LOOKAROUND_OPEN.test("(?=^---\\nid:)")).toBe(true);
+    expect(LOOKAROUND_OPEN.test("^\\|\\s*\\*\\*Codex CLI\\*\\*")).toBe(false);
   });
 
   it("closed class: the sanctioned split separator is the ONLY pure lookahead left under scripts/", () => {
