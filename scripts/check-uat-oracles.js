@@ -302,17 +302,37 @@ export function oracleWr05Wording() {
         const lines = readText(file).split("\n");
         for (const { label, rowRe } of ASYM_ROWS) {
             // WR-03: validate EVERY matching row for the tool, not just the first. The real tree carries
-            // exactly one row per tool per file (verified 2026-06-21: adapters.md + README.md each have a
-            // single bold-tool-name row per CLI). A SECOND matching row — a drifted legacy/overview table
-            // that gained spawn wording on a duplicate row — would be invisible to a first-match `find`; a
-            // `filter` over all matches makes it visible. We assert one-per-tool so a duplicate cannot hide,
-            // then validate each matching row in its direction.
+            // exactly one row per tool per file (verified 2026-06-21 and re-measured 2026-08-12:
+            // adapters.md + README.md each have a single bold-tool-name row per CLI, 5 of 5 in each file).
+            // A SECOND matching row — a drifted legacy/overview table that gained spawn wording on a
+            // duplicate row — would be invisible to a first-match `find`; a `filter` over all matches makes
+            // it visible. We assert one-per-tool so a duplicate cannot hide, then validate each matching row
+            // in its direction.
+            //
+            // PRESENCE IS TWO-SIDED (28-REVIEW CR-01). This was `if (rows.length === 0) continue;` with the
+            // note "README's table omits headers some rows carry; absence is not drift here". That note is
+            // false — both files carry all five rows — and the `continue` made the asymmetry assertion pass
+            // VACUOUSLY on a DELETED row while the PASS line below still stated the flip is asymmetric.
+            // Reproduced against the committed .js: removing the Claude Code row from both files left the
+            // gate printing `PASS WR-05 wording: … the 5-tool-table flip is asymmetric` and exiting 0. A
+            // PASS line must never state a check that was not performed (check-audit-register.ts:272,
+            // check-nul-bytes.ts:397), and every direction of this assertion is satisfied vacuously by an
+            // absent row. So zero rows FAILS by name, exactly as the beat scan's own two-sided presence
+            // test already does (`filesWithBeat.size !== WR05_SCAN.length`).
+            //
+            // If a per-file exception is ever genuinely needed, express it as a NAMED exemption pair
+            // {file, label, reason} — the shape PUBLIC_DOCS_EXEMPT and DISTRIBUTION_PAIR_EXEMPT already use
+            // — never as a silent `continue`.
             const rows = lines.filter((l) => rowRe.test(l));
-            if (rows.length === 0)
-                continue; // README's table omits headers some rows carry; absence is not drift here
-            if (rows.length > 1) {
-                asymFail += `\n  ${file}: found ${rows.length} table rows for ${label} — a duplicate/legacy row could hide asymmetry drift (expected exactly one row per tool)`;
+            if (rows.length !== 1) {
+                asymFail +=
+                    `\n  ${file}: found ${rows.length} table row(s) for ${label} — expected exactly one. ` +
+                        `Zero rows is not "no drift": a deleted row satisfies every direction of this assertion ` +
+                        `vacuously, and the PASS line would then state a check that was not performed. More than ` +
+                        `one row means a duplicate/legacy row could hide asymmetry drift`;
             }
+            if (rows.length === 0)
+                continue; // nothing to validate; the refusal above is the finding
             const isCC = label === "Claude Code";
             for (const row of rows) {
                 if (isCC) {

@@ -187,6 +187,54 @@ describe("check-uat-oracles.js (Phase 19 Tier-1 fail-proof harness)", () => {
     expect(out(r)).toContain("README.md");
   });
 
+  // ── 28-REVIEW CR-01: a DELETED tool row must fail, not pass vacuously. ───────────────────────────
+  //
+  // RED AGAINST THE PRE-FIX BUILD, GREEN AFTER. The asymmetry loop read
+  // `if (rows.length === 0) continue;`, so removing the Claude Code row from BOTH 5-tool tables left
+  // every direction of the assertion satisfied by an absent row — and the gate still printed
+  // `PASS  WR-05 wording: … the 5-tool-table flip is asymmetric` and exited 0. That is a PASS line
+  // stating a check that was not performed, which CLAUDE.md's no-fabrication rule forbids outright.
+  //
+  // The suite covered a row that GAINED wording and a row that LOST wording; it never covered a row
+  // that was DELETED. This is that case, and it is the one the review reproduced.
+  it("wording asymmetry CR-01: the Claude Code row DELETED from both tables → nonzero + names the missing row (never a vacuous PASS)", () => {
+    const m = mirror();
+    for (const rel of ["agent-factory/packaging/adapters.md", "agent-factory/README.md"]) {
+      const file = join(m, rel);
+      const stripped = readFileSync(file, "utf8")
+        .split("\n")
+        .filter((l) => !/^\|\s*\*\*Claude Code\*\*/.test(l))
+        .join("\n");
+      writeFileSync(file, stripped);
+    }
+    const r = runIn(m);
+    expect(r.status).not.toBe(0);
+    // Non-zero alone is insufficient — ANY failure would satisfy it. The refusal must name the tool,
+    // both files, and the count it actually found.
+    expect(out(r)).toContain("Claude Code");
+    expect(out(r)).toContain("adapters.md");
+    expect(out(r)).toContain("README.md");
+    expect(out(r)).toMatch(/found 0 table row\(s\)/);
+    // And the PASS line asserting the flip is asymmetric must be ABSENT: that is the whole defect.
+    expect(out(r)).not.toMatch(/PASS\s+WR-05 wording/);
+  });
+
+  it("wording asymmetry CR-01: a DUPLICATED tool row still fails, so the pin is two-sided", () => {
+    // The `!== 1` form must keep catching the >1 direction the old `> 1` arm covered, or the fix
+    // would have traded one blind spot for another.
+    const m = mirror();
+    const file = join(m, "agent-factory/packaging/adapters.md");
+    const lines = readFileSync(file, "utf8").split("\n");
+    const idx = lines.findIndex((l) => /^\|\s*\*\*Codex CLI\*\*/.test(l));
+    expect(idx).toBeGreaterThan(-1);
+    lines.splice(idx + 1, 0, lines[idx]);
+    writeFileSync(file, lines.join("\n"));
+    const r = runIn(m);
+    expect(r.status).not.toBe(0);
+    expect(out(r)).toMatch(/found 2 table row\(s\)/);
+    expect(out(r)).toContain("Codex CLI");
+  });
+
   // ── oracleHooksWiring — break the matcher (NOT guard.js logic); the aggregator must go red. ──────
   it("wiring: hooks.json matcher mutated away from Bash → nonzero + wiring defect", () => {
     const m = mirror();
