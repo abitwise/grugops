@@ -472,6 +472,67 @@ describe("audit-model: readRegister — the refusals", () => {
     );
   });
 
+  // ── 28-REVIEW WR-02: the numeric cells hold a CANONICAL FORM, not a lenient prefix parse. ───────
+  //
+  // RED AGAINST THE PRE-FIX BUILD. `Number.parseInt` is a prefix parser, and the module declared a
+  // canonical-form doctrine for its IDS while its NUMBERS accepted anything with a leading digit.
+  // Measured on the committed build: "0 abc" -> 0, "1e9" -> 1, "6 (record-only)" -> 6, all green.
+  // "1e9" is the sharp one: D-03's equality two then compares a number the author never wrote
+  // against Table B's real count and agrees or disagrees for the wrong reason.
+  it("refuses a `findings` cell outside the bare-non-negative-integer form", () => {
+    const base = thirtySevenRows();
+    // NOT in this list: a cell padded with spaces. splitRow() trims every cell before the value is
+    // ever seen, because padding is markdown TABLE FORMATTING and not part of the value — `| 1 |`
+    // and `|1|` are the same cell. Measured, not assumed: " 1" parses green and must.
+    for (const bad of ["0 abc", "1e9", "+1", "01", "1.0", "0x1", "one"]) {
+      const rows = [...base];
+      rows[0] = rowA("agent-factory/roles/r01.md", "role", "yes", "no", bad);
+      let msg = "";
+      try {
+        readRegister(writeRegisterFixture({ rowsA: rows, rowsB: [] }));
+      } catch (e) {
+        msg = (e as Error).message;
+      }
+      expect(msg, `findings: ${JSON.stringify(bad)}`).toMatch(/bare non-negative integer/);
+      expect(msg, `findings: ${JSON.stringify(bad)}`).toContain(bad.trim());
+    }
+  });
+
+  it("refuses a `category` cell outside the bare-non-negative-integer form", () => {
+    for (const bad of ["6 (record-only)", "1e9", "+2", "02", "3."]) {
+      const dir = writeRegisterFixture({
+        rowsA: thirtySevenRows(),
+        rowsB: [rowB("F-28-001", "agent-factory/roles/r01.md", bad)],
+      });
+      let msg = "";
+      try {
+        readRegister(dir);
+      } catch (e) {
+        msg = (e as Error).message;
+      }
+      expect(msg, `category: ${JSON.stringify(bad)}`).toMatch(/bare non-negative integer/);
+    }
+  });
+
+  it("still admits the canonical numeric forms — the refusal discriminates", () => {
+    // A refusal that also rejected the real register would be a regression wearing a fix's shape.
+    // `0` and a multi-digit value are both legal; the live register carries 0..3 in `findings`.
+    const rows = thirtySevenRows();
+    rows[0] = rowA("agent-factory/roles/r01.md", "role", "yes", "no", "0");
+    rows[1] = rowA("agent-factory/roles/r02.md", "role", "yes", "no", "10");
+    const reg = readRegister(
+      writeRegisterFixture({
+        rowsA: rows,
+        rowsB: Array.from({ length: 10 }, (_, i) =>
+          rowB(`F-28-${String(i + 1).padStart(3, "0")}`, "agent-factory/roles/r02.md", "6", "deferred", "29"),
+        ),
+      }),
+    );
+    expect(reg.rows[0].findings).toBe(0);
+    expect(reg.rows[1].findings).toBe(10);
+    expect(reg.findings.length).toBe(10);
+  });
+
   it("refuses a disposition outside the legal set, printing the offending value AND the whole legal set", () => {
     const dir = writeRegisterFixture({
       rowsA: thirtySevenRows(),

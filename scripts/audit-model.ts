@@ -348,6 +348,20 @@ const TABLE_B_COLUMNS = [
 const FINDING_ID_RE = /^F-28-\d{3}$/;
 const CLAIM_ID_RE = /^C-28-\d{3}$/;
 
+// THE CANONICAL NUMERIC FORM, held to the same doctrine as the ids two lines up (28-REVIEW WR-02).
+//
+// `Number.parseInt` is a LENIENT PREFIX PARSER, and the module declared a canonical-form doctrine
+// for its ids while its numeric cells accepted anything with a leading digit. Measured on the
+// committed build: `findings: "0 abc"` parsed as 0, `findings: "1e9"` parsed as 1, and
+// `category: "6 (record-only)"` parsed as 6 — all three green. `1e9 -> 1` is the sharp one: D-03's
+// equality two then compares a number the author never wrote against Table B's real count, and
+// agrees or disagrees for the wrong reason.
+//
+// No leading `+`, no leading zeros beyond a bare `0`, no exponent, no whitespace, no suffix. The
+// existing Number.isInteger check is kept as belt-and-braces rather than replaced — the two answer
+// different questions (this one asks what the AUTHOR WROTE, that one asks what the VALUE IS).
+const NON_NEGATIVE_INT_RE = /^(?:0|[1-9]\d*)$/;
+
 interface TableLine {
   readonly cells: readonly string[];
   readonly line: number;
@@ -487,8 +501,9 @@ export function readRegister(root: string = DEFAULT_ROOT): Register {
   }
   assertColumns(REGISTER_PATH, tableB[0], TABLE_B_COLUMNS, "Table B");
 
-  const findings: FindingRow[] = tableB.slice(1).map((tl) => parseFindingRow(tl));
-  validateFindingRows(findings, new Set(rows.map((r) => r.file)));
+  const parsedB: ParsedFindingRow[] = tableB.slice(1).map((tl) => parseFindingRow(tl));
+  validateFindingRows(parsedB, new Set(rows.map((r) => r.file)));
+  const findings: FindingRow[] = parsedB.map((p) => p.row);
 
   return { rows, findings };
 }
@@ -578,6 +593,18 @@ function validateRegisterRowValues(parsed: ParsedRegisterRow): void {
         `which is outside the legal set [${SAFETY_SURFACE_VALUES.join(", ")}]`,
     );
   }
+  // The RAW cell first — see NON_NEGATIVE_INT_RE. Number.parseInt would read "1e9" as 1 and "0 abc"
+  // as 0, silently substituting a number the author did not write into D-03's equality two.
+  const rawFindings = parsed.cells[4];
+  if (!NON_NEGATIVE_INT_RE.test(rawFindings)) {
+    refuse(
+      REGISTER_PATH,
+      `Table A's row at line ${row.line} carries \`findings\` value "${rawFindings}", which is not a ` +
+        `bare non-negative integer. \`Number.parseInt\` is a lenient PREFIX parser — it reads "1e9" ` +
+        `as 1 and "0 abc" as 0 — so a cell outside the canonical form would put a number the author ` +
+        `never wrote on the left-hand side of D-03's equality two`,
+    );
+  }
   if (!Number.isInteger(row.findings) || row.findings < 0) {
     refuse(
       REGISTER_PATH,
@@ -587,7 +614,18 @@ function validateRegisterRowValues(parsed: ParsedRegisterRow): void {
   }
 }
 
-function parseFindingRow(tl: TableLine): FindingRow {
+/**
+ * A parsed finding row PAIRED WITH THE CELLS IT WAS PARSED FROM, for exactly the reason
+ * ParsedRegisterRow records: `category` is a number for every consumer, and a number cannot express
+ * "the author wrote `6 (record-only)`". The raw cells are carried alongside for the validation pass
+ * and stay INTERNAL rather than becoming a second field on FindingRow.
+ */
+interface ParsedFindingRow {
+  readonly row: FindingRow;
+  readonly cells: readonly string[];
+}
+
+function parseFindingRow(tl: TableLine): ParsedFindingRow {
   if (tl.cells.length !== TABLE_B_COLUMNS.length) {
     refuse(
       REGISTER_PATH,
@@ -597,17 +635,24 @@ function parseFindingRow(tl: TableLine): FindingRow {
     );
   }
   return {
-    findingId: tl.cells[0],
-    file: tl.cells[1],
-    category: Number.parseInt(tl.cells[2], 10),
-    disposition: tl.cells[3] as Disposition,
-    targetPhase: tl.cells[4],
-    reason: tl.cells[5],
-    line: tl.line,
+    row: {
+      findingId: tl.cells[0],
+      file: tl.cells[1],
+      category: Number.parseInt(tl.cells[2], 10),
+      disposition: tl.cells[3] as Disposition,
+      targetPhase: tl.cells[4],
+      reason: tl.cells[5],
+      line: tl.line,
+    },
+    cells: tl.cells,
   };
 }
 
-function validateFindingRows(findings: readonly FindingRow[], tableAFiles: Set<string>): void {
+function validateFindingRows(
+  parsedFindings: readonly ParsedFindingRow[],
+  tableAFiles: Set<string>,
+): void {
+  const findings = parsedFindings.map((p) => p.row);
   // 1. Id format, then 2. uniqueness. Both before anything else, because the id is how a human
   //    names the row they are about to fix.
   for (const f of findings) {
@@ -658,7 +703,22 @@ function validateFindingRows(findings: readonly FindingRow[], tableAFiles: Set<s
   }
 
   const legalCategories = RUBRIC_CATEGORIES.map((c) => c.category);
-  for (const f of findings) {
+  for (const parsed of parsedFindings) {
+    const f = parsed.row;
+    // 5a. The canonical numeric FORM, over the raw cell — see NON_NEGATIVE_INT_RE. Without it
+    //     `category: "6 (record-only)"` parses as 6 and passes membership, so the record-only rule
+    //     below fires against a value the author decorated rather than wrote.
+    const rawCategory = parsed.cells[2];
+    if (!NON_NEGATIVE_INT_RE.test(rawCategory)) {
+      refuse(
+        REGISTER_PATH,
+        `Table B's row at line ${f.line} (${f.findingId}) carries \`category\` value ` +
+          `"${rawCategory}", which is not a bare non-negative integer. \`Number.parseInt\` is a ` +
+          `lenient PREFIX parser and would read "6 (record-only)" as 6, admitting a decorated cell ` +
+          `as a canonical one`,
+      );
+    }
+
     // 5. Category membership.
     if (!legalCategories.includes(f.category)) {
       refuse(
