@@ -241,7 +241,13 @@ describe("check-audit-register: equality one — SET equality, both directions",
 });
 
 describe("check-audit-register: the ADJACENCY pair — the counted filter is load-bearing", () => {
-  it("a SECOND uncounted row keeps equality one GREEN at 36", () => {
+  it("a SECOND uncounted row leaves equality one GREEN at 36 and trips the UNCOUNTED pin instead", () => {
+    // THE CASE'S POINT IS UNCHANGED AND ITS ASSERTION IS INVERTED (28-REVIEW WR-12). It exists to
+    // demonstrate that equality one FILTERS on `counted: yes` — a second uncounted row must not move
+    // the 36. It used to prove that by asserting the whole gate stayed green, which also proved that
+    // an uncounted row was constrained by NOTHING, while feeding the D-18 exclusion list through
+    // safetySurfaceUnion(). The arm is now pinned, so the run reds — and the demonstration is
+    // sharper, not weaker: equality one is asserted to have stayed silent while the pin fired.
     const rows = defaultRows();
     rows.push({
       file: "agent-factory/roles/_another-protocol.md",
@@ -251,11 +257,32 @@ describe("check-audit-register: the ADJACENCY pair — the counted filter is loa
       findings: "0",
       observation: "A second out-of-set file, recorded rather than dropped.",
     });
-    const r = runGate(buildMirror(rows));
-    expect(r.status).toBe(0);
-    expect(r.out).toContain("ALL CHECKS PASSED");
-    // And it is reported as uncounted rather than silently absorbed.
+    const dir = buildMirror(rows);
+    writeFileSync(join(dir, "agent-factory/roles/_another-protocol.md"), "x");
+    const r = runGate(dir);
+    expect(r.status).toBe(1);
+    // EQUALITY ONE STAYED GREEN — the counted filter is load-bearing, which is what this case is for.
+    expect(r.out).not.toMatch(/equality one:/);
+    // The UNCOUNTED pin is what fired, and it names both the found set and the expected one.
+    expect(r.out).toMatch(/uncounted rows are \[/);
     expect(r.out).toContain("_another-protocol.md");
+    expect(r.out).toContain(PROTOCOL_FILE);
+  });
+
+  // ── 28-REVIEW WR-12: a register row naming a file that is not on disk. ───────────────────────────
+  it("fails an UNCOUNTED row naming a file that does not exist, which nothing else constrains", () => {
+    // The uncounted arm is invisible to equality one, so without this check a row about a file that
+    // was never there recorded a read that could not have happened — and its `safety_surface` flag
+    // still entered the D-18 exclusion list.
+    const rows = defaultRows().map((r) =>
+      r.file === PROTOCOL_FILE ? { ...r, file: "agent-factory/roles/_never-existed.md" } : r,
+    );
+    const r = runGate(buildMirror(rows));
+    expect(r.status).toBe(1);
+    expect(r.out).toContain("_never-existed.md");
+    expect(r.out).toMatch(/not on disk/);
+    // Distinguishable from equality one in the same run — the two must not be read as one failure.
+    expect(r.out).not.toMatch(/equality one:/);
   });
 
   it("flipping the protocol row to counted: yes turns equality one RED at 37 against 36", () => {

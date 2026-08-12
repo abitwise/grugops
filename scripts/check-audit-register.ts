@@ -34,7 +34,7 @@
 // dies is not a gate that failed. Every parse refusal is caught below and printed through fail().
 // ---------------------------------------------------------------------------------------------
 
-import { readFileSync } from "node:fs";
+import { readFileSync, existsSync } from "node:fs";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import {
@@ -45,6 +45,10 @@ import {
   type RegisterRow,
 } from "./audit-model.js";
 import { listRoles, listWorkflows } from "./kit-model.js";
+// The D-02 protocol file, taken from the ONE place it is declared rather than retyped here. It is
+// the single intended member of the uncounted arm, and the uncounted pin below is written against
+// this literal so the two cannot disagree (28-REVIEW WR-12).
+import { PROTOCOL_FILE } from "./audit-prepass.js";
 import {
   renderSafetySurface,
   OUT as SAFETY_SURFACE_PATH,
@@ -171,6 +175,48 @@ function runAll(): void {
 
   const counted = register.rows.filter((r) => r.counted);
   const uncounted = register.rows.filter((r) => !r.counted);
+
+  // ── EVERY ROW NAMES A FILE THAT EXISTS ───────────────────────────────────
+  //
+  // 28-REVIEW WR-12. Equality one below constrains only the `counted: yes` rows. An UNCOUNTED row
+  // was reported by name and otherwise unconstrained — nothing checked that its file existed — yet
+  // an uncounted row with `safety_surface: yes` enters safetySurfaceUnion() and therefore the D-18
+  // exclusion list Phase 29 consults. audit-prepass does a missing-file check on ITS copy of the
+  // same set; this gate did not.
+  //
+  // Checked over EVERY row rather than only the uncounted ones: a counted row naming a vanished file
+  // is already caught by equality one, and asking the cheaper question first gives the reader the
+  // precise cause rather than a set difference to interpret. The message deliberately avoids the
+  // words equality one uses, so the two failures stay distinguishable in one run.
+  const missingOnDisk = register.rows.filter((r) => !existsSync(join(ROOT, r.file)));
+  if (missingOnDisk.length > 0) {
+    fail(
+      `${missingOnDisk.length} register row(s) name a file that is not on disk — ` +
+        `${missingOnDisk.map((r) => `${r.file} (line ${r.line})`).join(", ")}. A row about a file ` +
+        `that does not exist records a read that could not have happened, and an UNCOUNTED such row ` +
+        `is constrained by nothing else while still feeding the D-18 exclusion list`,
+    );
+  }
+
+  // ── THE UNCOUNTED ARM IS PINNED, NOT LEFT OPEN ───────────────────────────
+  //
+  // SET equality against the one literal that declares this member, in both directions — never a
+  // bare count. A count would pass while a decoy displaced the protocol row, which is the same
+  // argument equality one makes about its own set twenty lines below. Adding a second out-of-set
+  // file is a real decision and it now requires an edit here, with a reason, rather than passing
+  // silently: the review measured that a second uncounted row kept this gate green.
+  const uncountedPaths = uncounted.map((r) => r.file).sort();
+  const expectedUncounted = [PROTOCOL_FILE];
+  if (uncountedPaths.join("\n") !== expectedUncounted.join("\n")) {
+    fail(
+      `the register's uncounted rows are [${uncountedPaths.join(", ")}], expected exactly ` +
+        `[${expectedUncounted.join(", ")}]. An uncounted row is invisible to equality one yet feeds ` +
+        `the D-18 exclusion list through safetySurfaceUnion(), so the arm's membership is pinned ` +
+        `rather than left open. If a second file genuinely belongs out-of-set for counting, widen ` +
+        `this expectation WITH ITS REASON — the shape PUBLIC_DOCS_EXEMPT uses — rather than ` +
+        `relaxing the check`,
+    );
+  }
 
   // ── EQUALITY ONE — SET equality, in BOTH directions ──────────────────────
   //
