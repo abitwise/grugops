@@ -36,7 +36,7 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
-import { readRegister, REGISTER_PATH, } from "./audit-model.js";
+import { readRegister, isBlank, REGISTER_PATH, } from "./audit-model.js";
 import { listRoles, listWorkflows } from "./kit-model.js";
 import { renderSafetySurface, OUT as SAFETY_SURFACE_PATH, REGEN_COMMAND as SAFETY_SURFACE_REGEN, } from "./generate-safety-surface.js";
 // CHECK_ROOT override is load-bearing: the Vitest harness builds a hermetic mirror and points
@@ -93,6 +93,14 @@ const BARE_OBSERVATIONS = [
     "verified",
     "read",
     "done",
+    // A bare NON-ANSWER rather than an absent value. `—`, `–` and `-` are handled by
+    // audit-model.isBlank (they stand where a value belongs); these stand where an ANSWER belongs and
+    // supply none, which is the same act D-06 refuses. Kept here rather than widened into isBlank,
+    // because isBlank is also what readRegister uses to decide whether a `deferred` row named a target
+    // phase — and "tbd" as a target phase is a different question from "tbd" as an observation.
+    "?",
+    "tbd",
+    "todo",
 ];
 function normalizeObservation(raw) {
     return raw
@@ -184,21 +192,31 @@ function runAll() {
             `disagrees with their own Table B rows — ${perFileMismatches.join("; ")}`);
     }
     // ── D-06's substantive-observation requirement ───────────────────────────
+    //
+    // THE BLANK TEST CONSUMES THE ONE AUTHORITY (28-REVIEW CR-04). It read
+    // `normalizeObservation(row.observation) === ""`, which is a THIRD definition of "blank" inside
+    // one phase and the only one that disagreed — on the register's OWN unfilled marker. `observation:
+    // —` was neither blank nor bare and passed as substantive, while the D-18 arm sixteen lines below
+    // caught `safety_surface: —`. audit-model.isBlank is now the single element-level authority; this
+    // gate asks it rather than re-deriving the predicate.
     const blank = [];
     const bare = [];
     for (const row of register.rows) {
-        const norm = normalizeObservation(row.observation);
-        if (norm === "") {
+        if (isBlank(row.observation)) {
             blank.push(`${row.file} (line ${row.line})`);
+            continue;
         }
-        else if (BARE_OBSERVATIONS.includes(norm)) {
+        const norm = normalizeObservation(row.observation);
+        if (BARE_OBSERVATIONS.includes(norm)) {
             bare.push(`${row.file} (line ${row.line}): "${row.observation.trim()}"`);
         }
     }
     if (blank.length > 0) {
         fail(`${blank.length} row(s) carry a BLANK observation — ${blank.join(", ")}. D-06 requires a ` +
-            `substantive observation per row: an empty observation records that nobody wrote anything, ` +
-            `which is the honest reading of an unread file and is not a completed row`);
+            `substantive observation per row: an empty observation, or a placeholder glyph standing ` +
+            `where one belongs, records that nobody wrote anything — the honest reading of an unread ` +
+            `file, and not a completed row. "Blank" is audit-model.isBlank's closed set and is not ` +
+            `re-derived here`);
     }
     if (bare.length > 0) {
         fail(`${bare.length} row(s) carry a BARE observation standing in for a substantive one — ` +

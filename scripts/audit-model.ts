@@ -703,11 +703,44 @@ function validateFindingRows(findings: readonly FindingRow[], tableAFiles: Set<s
   }
 }
 
-// A cell carrying nothing a reader could act on. `—` is the register's explicit "not applicable"
-// glyph, so it counts as blank for a field the disposition REQUIRES — writing an em dash where a
-// reason belongs is an absent reason wearing a mark.
-function isBlank(cell: string): boolean {
-  return cell.trim() === "" || cell.trim() === "—" || cell.trim() === "-";
+// ---------------------------------------------------------------------------
+// THE ELEMENT-LEVEL BLANK AUTHORITY. ONE declaration, three consumers (28-REVIEW CR-03 / CR-04).
+//
+// WHY THIS IS EXPORTED AND NOT PRIVATE. Phase 28 shipped THREE definitions of "blank" over the same
+// class of hand-authored cell, and they disagreed:
+//
+//   * this function            — "" | "—" | "-"
+//   * check-claim-anchors.ts   — `mech === "" || mech === "—" || mech === "-"`, re-derived inline
+//   * check-audit-register.ts  — `normalizeObservation(raw) === ""`, i.e. "" ONLY
+//
+// The third was the odd one out, and it was odd on the glyph that matters most: `—` is the
+// register's OWN unfilled marker for `safety_surface`, so it is the character an author is likeliest
+// to type into an unread row. `observation: —` therefore satisfied D-06's substantive-observation
+// requirement — exactly the T-28-14 unearned-observation shape D-06 exists to refuse — while the
+// D-18 arm four lines away caught `safety_surface: —`. Reproduced: `normalizeObservation("—")`
+// returned `"—"`; blank? false, bare? false.
+//
+// The fix is NOT a fourth definition. The predicate is declared here, beside the parse authority
+// that already owned it, and the two gates CONSUME it. That is the same single-source rule this
+// phase applies to RETIRED_PROSE_FORMS, MAX_WALK_ENTRIES and ROLE_COUNT.
+//
+// THE MEMBERSHIP IS A CLOSED SET WITH A PINNED CARDINALITY, never an inline disjunction that grows
+// one glyph per surprise. The en dash `–` is a member for the same reason the em dash is: it is a
+// placeholder glyph standing where a value belongs, and it was measured passing every one of the
+// three predicates above. A glyph that is a bare NON-ANSWER rather than an absent value (`?`, `tbd`)
+// is NOT blank and belongs in check-audit-register's BARE_OBSERVATIONS, which answers a different
+// question.
+//
+// WHAT IT MEANS. A cell carrying nothing a reader could act on. Writing a dash where a reason
+// belongs is an absent reason wearing a mark.
+// ---------------------------------------------------------------------------
+export const BLANK_MARKERS: readonly string[] = ["", "—", "–", "-"];
+
+/** Two-sided pin, asserted in scripts/audit-model.test.ts so the set cannot grow or shrink unseen. */
+export const BLANK_MARKER_COUNT = 4;
+
+export function isBlank(cell: string): boolean {
+  return BLANK_MARKERS.includes(cell.trim());
 }
 
 function duplicates(values: readonly string[]): string[] {
@@ -930,6 +963,31 @@ function parseClaimBlock(lines: readonly string[], start: number, end: number): 
 
   // BYTE-FOR-BYTE. Split on `\n`, rejoin on `\n`; nothing is trimmed and nothing is normalized.
   const verbatim = lines.slice(fenceStart + 1, fenceEnd).join("\n");
+
+  // THE ROW-LEVEL FORM OF THE VACUOUS BIJECTION (28-REVIEW CR-03).
+  //
+  // check-claim-anchors already refuses a registry with no markdown rows, because "a vacuous
+  // bijection is not a passing one: zero anchors and zero rows agree trivially". That argument was
+  // simply never applied at the ROW level. An empty fence gives `"".split("\n") === [""]` — ONE
+  // element — so the gate sliced the single line below the anchor, compared `""` against it, and
+  // when that line was blank (the normal markdown shape) the buffers compared EQUAL. `comparisons`
+  // incremented and the PASS line reported `1 verbatim comparison(s) performed, all byte-identical`
+  // over a comparison that proved nothing. Reproduced against the committed .js with a fence whose
+  // open and close lines are adjacent.
+  //
+  // It is refused HERE, in the parse authority, where every other malformation is refused — not at
+  // the gate, which would leave the hole open for the next consumer of readRegistry(). isBlank is
+  // the one element-level authority declared above, so this refusal cannot drift from the other two.
+  if (isBlank(verbatim)) {
+    refuse(
+      REGISTRY_PATH,
+      `claim ${id}'s fenced block at line ${fenceStart + 1} carries no claim text ` +
+        `(${JSON.stringify(verbatim)}). An empty verbatim compares byte-identical against the blank ` +
+        `line beneath its anchor, so the D-16 comparison is PERFORMED and proves nothing — the ` +
+        `row-level form of the vacuous bijection this registry's gate already refuses at the ` +
+        `document level`,
+    );
+  }
 
   return {
     id,

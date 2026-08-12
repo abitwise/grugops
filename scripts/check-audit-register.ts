@@ -39,6 +39,7 @@ import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import {
   readRegister,
+  isBlank,
   REGISTER_PATH,
   type Register,
   type RegisterRow,
@@ -108,6 +109,14 @@ const BARE_OBSERVATIONS: readonly string[] = [
   "verified",
   "read",
   "done",
+  // A bare NON-ANSWER rather than an absent value. `—`, `–` and `-` are handled by
+  // audit-model.isBlank (they stand where a value belongs); these stand where an ANSWER belongs and
+  // supply none, which is the same act D-06 refuses. Kept here rather than widened into isBlank,
+  // because isBlank is also what readRegister uses to decide whether a `deferred` row named a target
+  // phase — and "tbd" as a target phase is a different question from "tbd" as an observation.
+  "?",
+  "tbd",
+  "todo",
 ];
 
 function normalizeObservation(raw: string): string {
@@ -219,21 +228,32 @@ function runAll(): void {
   }
 
   // ── D-06's substantive-observation requirement ───────────────────────────
+  //
+  // THE BLANK TEST CONSUMES THE ONE AUTHORITY (28-REVIEW CR-04). It read
+  // `normalizeObservation(row.observation) === ""`, which is a THIRD definition of "blank" inside
+  // one phase and the only one that disagreed — on the register's OWN unfilled marker. `observation:
+  // —` was neither blank nor bare and passed as substantive, while the D-18 arm sixteen lines below
+  // caught `safety_surface: —`. audit-model.isBlank is now the single element-level authority; this
+  // gate asks it rather than re-deriving the predicate.
   const blank: string[] = [];
   const bare: string[] = [];
   for (const row of register.rows) {
-    const norm = normalizeObservation(row.observation);
-    if (norm === "") {
+    if (isBlank(row.observation)) {
       blank.push(`${row.file} (line ${row.line})`);
-    } else if (BARE_OBSERVATIONS.includes(norm)) {
+      continue;
+    }
+    const norm = normalizeObservation(row.observation);
+    if (BARE_OBSERVATIONS.includes(norm)) {
       bare.push(`${row.file} (line ${row.line}): "${row.observation.trim()}"`);
     }
   }
   if (blank.length > 0) {
     fail(
       `${blank.length} row(s) carry a BLANK observation — ${blank.join(", ")}. D-06 requires a ` +
-        `substantive observation per row: an empty observation records that nobody wrote anything, ` +
-        `which is the honest reading of an unread file and is not a completed row`,
+        `substantive observation per row: an empty observation, or a placeholder glyph standing ` +
+        `where one belongs, records that nobody wrote anything — the honest reading of an unread ` +
+        `file, and not a completed row. "Blank" is audit-model.isBlank's closed set and is not ` +
+        `re-derived here`,
     );
   }
   if (bare.length > 0) {

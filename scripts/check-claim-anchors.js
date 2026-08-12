@@ -59,7 +59,7 @@
 // ---------------------------------------------------------------------------------------------
 import { readFileSync, existsSync } from "node:fs";
 import { join } from "node:path";
-import { readRegistry, SAFETY_FLOORS, DISPOSITIONS, } from "./audit-model.js";
+import { readRegistry, isBlank, SAFETY_FLOORS, DISPOSITIONS, } from "./audit-model.js";
 // CHECK_ROOT override is load-bearing: the Vitest harness plants fixtures into a hermetic mirror
 // and points CHECK_ROOT at it, then spawns this committed .js against that mirror. When unset,
 // resolve against the script-relative repo root (cwd does not matter).
@@ -244,8 +244,11 @@ function main() {
     }
     // ── D-17: every status was MEASURED, and every non-true one was DECIDED ────────────────────
     for (const claim of claims) {
-        const mech = claim.mechanism.trim();
-        if (mech === "" || mech === "—" || mech === "-") {
+        // The blank predicate is audit-model.isBlank's closed set, ASKED rather than re-derived
+        // (28-REVIEW CR-04). This line was one of three disagreeing definitions of "blank" inside one
+        // phase; there is now one, and a fourth cannot be added by accident because the two other call
+        // sites import the same function.
+        if (isBlank(claim.mechanism)) {
             fail(`${claim.id} carries no \`mechanism\`. D-17 measures every claim against a named mechanism, ` +
                 `so a status with none is a verdict nobody reached — the same act class as recording a ` +
                 `test result that was never run`);

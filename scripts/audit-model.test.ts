@@ -32,12 +32,22 @@
 // Vitest globals:false -> import explicitly.
 
 import { describe, it, expect, afterAll } from "vitest";
-import { mkdtempSync, mkdirSync, writeFileSync, rmSync, readFileSync } from "node:fs";
+import {
+  mkdtempSync,
+  mkdirSync,
+  writeFileSync,
+  rmSync,
+  readFileSync,
+  readdirSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
   readRegister,
   readRegistry,
+  isBlank,
+  BLANK_MARKERS,
+  BLANK_MARKER_COUNT,
   DISPOSITIONS,
   CLAIM_KINDS,
   CLAIM_STATUSES,
@@ -260,6 +270,59 @@ describe("audit-model: the closed sets", () => {
 
   it("SAFETY_SURFACE_VALUES carries the unfilled marker alongside yes/no", () => {
     expect([...SAFETY_SURFACE_VALUES]).toEqual(["yes", "no", "—"]);
+  });
+
+  // ── 28-REVIEW CR-03 / CR-04: ONE element-level blank authority, and it stays one. ────────────────
+  it("BLANK_MARKERS is a closed set, pinned two-sided, and isBlank is its only reader", () => {
+    expect([...BLANK_MARKERS]).toEqual(["", "—", "–", "-"]);
+    expect(BLANK_MARKERS.length).toBe(BLANK_MARKER_COUNT);
+    expect(BLANK_MARKERS.length).not.toBe(3);
+    expect(BLANK_MARKERS.length).not.toBe(5);
+    for (const m of BLANK_MARKERS) expect(isBlank(m), JSON.stringify(m)).toBe(true);
+    // Whitespace around a marker is still blank; a real cell is not.
+    expect(isBlank("  —  ")).toBe(true);
+    expect(isBlank("\t\n ")).toBe(true);
+    expect(isBlank("Read in full; no finding.")).toBe(false);
+    // A bare NON-ANSWER is deliberately NOT blank — it belongs to check-audit-register's
+    // BARE_OBSERVATIONS, which answers a different question. Pinned so the two sets cannot merge.
+    expect(isBlank("?")).toBe(false);
+    expect(isBlank("tbd")).toBe(false);
+  });
+
+  it("no other scripts/ source re-derives the blank predicate — the fourth definition cannot land", () => {
+    // THE CONTROL, AND ITS BOUND, STATED. Phase 28 shipped THREE definitions of "blank" over one
+    // class of cell and they disagreed; collapsing them to one is worth nothing if a fourth can be
+    // written next week. A re-derivation has a recognisable shape: an equality against the empty
+    // string DISJOINED, on the same line, with an equality against a placeholder glyph. That is
+    // exactly what check-claim-anchors.ts:286 read.
+    //
+    // WHAT IT CANNOT SEE, so no reader over-reads it: a re-derivation spelled as a Set, a switch, or
+    // a regex would pass. This catches the shape that was actually shipped, three times, and it is a
+    // control rather than a proof. The positive half below is the load-bearing one.
+    const offenders: string[] = [];
+    for (const name of readdirSync(join(REPO_ROOT, "scripts")).sort()) {
+      if (!name.endsWith(".ts") || name.endsWith(".test.ts")) continue;
+      readFileSync(join(REPO_ROOT, "scripts", name), "utf8")
+        .split("\n")
+        .forEach((line, n) => {
+          if (line.trim().startsWith("//")) return;
+          if (/===\s*""/.test(line) && /===\s*"(—|–|-)"/.test(line)) {
+            offenders.push(`scripts/${name}:${n + 1}: ${line.trim()}`);
+          }
+        });
+    }
+    expect(
+      offenders,
+      `a blank predicate is being re-derived instead of asking audit-model.isBlank:\n${offenders.join("\n")}`,
+    ).toEqual([]);
+
+    // NON-VACUITY, and the positive half: the two gates that used to re-derive it now IMPORT it. A
+    // scan that found nothing anywhere would satisfy the assertion above while proving nothing.
+    for (const consumer of ["check-audit-register.ts", "check-claim-anchors.ts"]) {
+      const src = readFileSync(join(REPO_ROOT, "scripts", consumer), "utf8");
+      expect(src, consumer).toMatch(/^\s+isBlank,$/m);
+      expect(src, consumer).toMatch(/isBlank\(/);
+    }
   });
 });
 
@@ -702,6 +765,59 @@ describe("audit-model: readRegistry", () => {
     // line after the heading and another before the fence, and the live registry does the same.
     const dir = writeRegistryFixture(registryDoc(claimBlock("C-28-001")));
     expect(readRegistry(dir).claims.length).toBe(1);
+  });
+
+  // ── 28-REVIEW CR-03: an EMPTY verbatim fence is refused at the parse authority. ──────────────────
+  //
+  // RED AGAINST THE PRE-FIX BUILD. `"".split("\n")` is `[""]` — one element — so check-claim-anchors
+  // sliced the single line below the anchor, compared "" against it, and when that line was blank
+  // (the normal markdown shape) the buffers compared EQUAL. The gate then reported
+  // `1 verbatim comparison(s) performed, all byte-identical` over a comparison that proved nothing.
+  it("refuses an EMPTY fenced block — a comparison that cannot fail is not a comparison", () => {
+    const body = [
+      "# Phase 28 Claim Registry",
+      "",
+      "## Claims",
+      "",
+      "### C-28-001",
+      "",
+      "- file: README.md",
+      "- line: 3",
+      "- kind: architecture",
+      "- depends_on: —",
+      "- status: true",
+      "",
+      FENCE,
+      FENCE,
+      "",
+    ].join("\n");
+    let msg = "";
+    try {
+      readRegistry(writeRegistryFixture(body));
+    } catch (e) {
+      msg = (e as Error).message;
+    }
+    expect(msg).toMatch(/no claim text/i);
+    expect(msg).toContain("C-28-001");
+    // The refusal must state WHY an empty verbatim is dangerous, not merely that it is empty.
+    expect(msg).toMatch(/byte-identical|vacuous/i);
+  });
+
+  it("refuses a WHITESPACE-ONLY fenced block for the same reason", () => {
+    const dir = writeRegistryFixture(registryDoc(claimBlock("C-28-001", { text: "   \t  " })));
+    expect(() => readRegistry(dir)).toThrow(/no claim text/i);
+  });
+
+  it("refuses a fenced block that is only a PLACEHOLDER GLYPH", () => {
+    for (const glyph of ["—", "–", "-"]) {
+      const dir = writeRegistryFixture(registryDoc(claimBlock("C-28-001", { text: glyph })));
+      expect(() => readRegistry(dir), glyph).toThrow(/no claim text/i);
+    }
+  });
+
+  it("still admits a real one-line claim — the refusal discriminates", () => {
+    const dir = writeRegistryFixture(registryDoc(claimBlock("C-28-001", { text: "x" })));
+    expect(readRegistry(dir).claims[0].verbatim).toBe("x");
   });
 
   it("refuses a claim missing a required metadata key, naming the key", () => {

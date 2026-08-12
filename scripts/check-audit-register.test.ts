@@ -323,12 +323,32 @@ describe("check-audit-register: the substantive-observation requirement", () => 
   });
 
   it("fails a BARE-WORD observation standing in for one", () => {
-    for (const bare of ["clean", "Clean.", "none", "n/a", "no findings", "OK"]) {
+    for (const bare of ["clean", "Clean.", "none", "n/a", "no findings", "OK", "?", "TBD"]) {
       const rows = defaultRows();
       rows[3] = { ...rows[3], observation: bare };
       const r = runGate(buildMirror(rows));
       expect(r.status).toBe(1);
       expect(r.out).toMatch(/observation/i);
+    }
+  });
+
+  // ── 28-REVIEW CR-04: the register's OWN placeholder glyph is a blank observation. ────────────────
+  //
+  // RED AGAINST THE PRE-FIX BUILD. `normalizeObservation` trimmed, lowercased and stripped trailing
+  // `[.!;,]`, and nothing else — so `normalizeObservation("—")` returned `"—"`, which was neither
+  // blank nor a member of BARE_OBSERVATIONS, and a register of em dashes satisfied D-06. The glyph
+  // matters because it is this register's OWN unfilled marker for `safety_surface`: it is the
+  // character an author is likeliest to type into an unread row, and the D-18 arm sixteen lines away
+  // already caught it in the other column. The gate now asks audit-model.isBlank, the one
+  // element-level authority.
+  it("fails a PLACEHOLDER-GLYPH observation, naming the file (the register's own unfilled marker)", () => {
+    for (const glyph of ["—", "–", "-"]) {
+      const rows = defaultRows();
+      rows[3] = { ...rows[3], observation: glyph };
+      const r = runGate(buildMirror(rows));
+      expect(r.status, glyph).toBe(1);
+      expect(r.out, glyph).toContain(rows[3].file);
+      expect(r.out, glyph).toMatch(/BLANK observation/);
     }
   });
 

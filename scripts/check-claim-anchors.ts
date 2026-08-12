@@ -62,6 +62,7 @@ import { readFileSync, existsSync } from "node:fs";
 import { join } from "node:path";
 import {
   readRegistry,
+  isBlank,
   SAFETY_FLOORS,
   DISPOSITIONS,
   type ClaimRow,
@@ -282,8 +283,11 @@ function main(): void {
 
   // ── D-17: every status was MEASURED, and every non-true one was DECIDED ────────────────────
   for (const claim of claims) {
-    const mech = claim.mechanism.trim();
-    if (mech === "" || mech === "—" || mech === "-") {
+    // The blank predicate is audit-model.isBlank's closed set, ASKED rather than re-derived
+    // (28-REVIEW CR-04). This line was one of three disagreeing definitions of "blank" inside one
+    // phase; there is now one, and a fourth cannot be added by accident because the two other call
+    // sites import the same function.
+    if (isBlank(claim.mechanism)) {
       fail(
         `${claim.id} carries no \`mechanism\`. D-17 measures every claim against a named mechanism, ` +
           `so a status with none is a verdict nobody reached — the same act class as recording a ` +
