@@ -154,6 +154,89 @@ describe("check-nul-bytes — the REFUSAL half, watched failing against a real t
     expect(r.stdout).not.toContain("untracked.bin");
   });
 
+  // ── 28-REVIEW WR-11: three refusals that used to be stack traces or misnamed findings. ──────────
+  it("REPORTS a non-repository root by name instead of dying with a git stack trace", () => {
+    // RED AGAINST THE PRE-FIX BUILD: execFileSync was unguarded in both derivations, so pointing
+    // NUL_SCAN_ROOT at a directory that is not a git worktree made git exit 128 and the GATE die
+    // with a Node stack trace. A stack trace is not a verdict, and a gate that dies is not a gate
+    // that failed — the throw-versus-report split every sibling gate in this phase observes.
+    const notARepo = freshTmp("nul-gate-norepo-");
+    writeFileSync(join(notARepo, "file.md"), "# clean\n");
+    const r = runGate(notARepo);
+    expect(r.status).not.toBe(0);
+    const out = `${r.stdout}${r.stderr}`;
+    expect(out).toMatch(/git ls-files/);
+    expect(out).toMatch(/NO verdict is reported over it/);
+    expect(out).toContain("CHECK(S) FAILED");
+    // The verdict must be REPORTED, not thrown: no Node frames on the way out.
+    expect(out).not.toMatch(/at Object\.|node:internal|throw er;/);
+  });
+
+  it("names a tracked path MISSING FROM THE WORKING TREE as that, not as a NUL finding", () => {
+    // Both not-scanned cases used to land in one `unreadable` list under a message a developer could
+    // read as a NUL finding. Fail-closed was right; only the naming was wrong.
+    const root = repoWith({ "tracked.md": "# clean\n", "deleted.md": "# also clean\n" });
+    rmSync(join(root, "deleted.md"));
+    const r = runGate(root);
+    expect(r.status).not.toBe(0);
+    expect(r.stdout).toContain("deleted.md");
+    expect(r.stdout).toMatch(/MISSING FROM THE WORKING TREE/);
+    expect(r.stdout).toMatch(/This is not a NUL finding/);
+    // And it must not be reported as a NUL: the total line is about NULs and there are none.
+    expect(r.stdout).not.toMatch(/NUL total/);
+  });
+
+  it("the two git views agree on PATH BYTES, which is what -z on both calls buys", () => {
+    // ASSERT THE HARNESS'S OWN PREMISE, because the obvious one is WRONG and was measured to be.
+    //
+    // The review's stated hazard was that `out.split("\n")` in gitBinaryPaths() would break on a
+    // newline in a filename. MEASURED ON THIS BOX: it would not. `git ls-files --eol` C-QUOTES such
+    // a path — `"a\nb.md"` on one line — with or without `core.quotePath=false`, so the row count
+    // survived. Claiming a break there would be a claim the measurement does not support.
+    //
+    // The REAL divergence is quoting, and it is the reason `-z` on both calls is right: with `-z`
+    // git emits the path RAW, without `-z` it C-quotes. `trackedPaths()` already used `-z` and this
+    // twin did not, so for any path git chooses to quote the two views reported DIFFERENT STRINGS
+    // for the same file — and the cross-check below compares those strings as sets. This case
+    // measures that asymmetry directly rather than through the gate, because the gate's output
+    // prints counts and not paths.
+    const weird = "a\nb.md";
+    const root = repoWith({ "tracked.md": "# clean\n" });
+    writeFileSync(join(root, weird), "# clean\n");
+    const added = spawnSync("git", ["add", "--", weird], { cwd: root });
+    // Some filesystems refuse a newline in a name; skip rather than assert a platform fact.
+    if (added.status !== 0) return;
+
+    const zPaths = spawnSync("git", ["ls-files", "-z"], { cwd: root, encoding: "utf8" })
+      .stdout.split("\0")
+      .filter((p) => p.length > 0)
+      .sort();
+    const eolZPaths = spawnSync("git", ["ls-files", "--eol", "-z"], { cwd: root, encoding: "utf8" })
+      .stdout.split("\0")
+      .filter((r) => r.length > 0)
+      .map((r) => r.slice(r.indexOf("\t") + 1))
+      .sort();
+    const eolPlainPaths = spawnSync("git", ["ls-files", "--eol"], { cwd: root, encoding: "utf8" })
+      .stdout.split("\n")
+      .filter((r) => r.length > 0)
+      .map((r) => r.slice(r.indexOf("\t") + 1))
+      .sort();
+
+    // THE FIX'S PROPERTY: the two views this module uses now name the same bytes.
+    expect(eolZPaths).toEqual(zPaths);
+    expect(zPaths).toContain(weird);
+    // THE PRE-FIX ASYMMETRY, measured so the fix is not merely asserted: the un-`-z` view names a
+    // DIFFERENT string for the same file.
+    expect(eolPlainPaths).not.toEqual(zPaths);
+    expect(eolPlainPaths).toContain('"a\\nb.md"');
+
+    // And the shipped gate is green over that tree, both views agreeing.
+    const r = runGate(root);
+    expect(r.status, `stdout:\n${r.stdout}`).toBe(0);
+    expect(r.stdout).toMatch(/2 tracked file\(s\) scanned/);
+    expect(r.stdout).not.toMatch(/views of the tracked set disagree/);
+  });
+
   it("REFUSES an empty tracked set rather than reporting a vacuous green", () => {
     // A gate whose scan set is empty passes every check it makes. That is the failure mode a
     // '0 problems found' report hides best, so it is a named refusal rather than a silent pass.

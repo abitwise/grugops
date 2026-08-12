@@ -165,6 +165,31 @@ export const nulByteFails = () => FAILS;
 /** The forbidden byte. Named once so no call site writes a bare `0`. */
 export const NUL = 0x00;
 /**
+ * Every `git` invocation in this module, so a failure is a NAMED refusal rather than a stack trace
+ * (28-REVIEW WR-11).
+ *
+ * `execFileSync` was called unguarded in both derivations below. Outside a git worktree — or with
+ * NUL_SCAN_ROOT pointed at a non-repository — git exits 128 and the gate DIED with a Node stack
+ * trace instead of reporting a verdict. That is against the throw-versus-report split every sibling
+ * gate in this phase observes: a stack trace is not a verdict, and a gate that dies is not a gate
+ * that failed. This helper throws with the command and the root in the message; runAll() catches it
+ * and reports through fail().
+ */
+function git(args) {
+    try {
+        return execFileSync("git", [...args], {
+            cwd: ROOT,
+            encoding: "buffer",
+            maxBuffer: 64 * 1024 * 1024,
+        }).toString("utf8");
+    }
+    catch (e) {
+        throw new Error(`\`git ${args.join(" ")}\` failed at ${ROOT} — ${e.message}. The tracked set ` +
+            `cannot be derived, so NO verdict is reported over it. Confirm this is being run inside a ` +
+            `git working tree`);
+    }
+}
+/**
  * Every tracked path, DERIVED from git rather than from a walk or a list.
  *
  * `-z` and a NUL-delimited split are deliberate: a newline in a filename would corrupt a
@@ -172,13 +197,7 @@ export const NUL = 0x00;
  * (The delimiter being NUL is not a contradiction — it is git's OUTPUT framing, never file content.)
  */
 export function trackedPaths() {
-    const out = execFileSync("git", ["ls-files", "-z"], {
-        cwd: ROOT,
-        encoding: "buffer",
-        maxBuffer: 64 * 1024 * 1024,
-    });
-    return out
-        .toString("utf8")
+    return git(["ls-files", "-z"])
         .split("\0")
         .filter((p) => p.length > 0);
 }
@@ -205,14 +224,22 @@ export function trackedPaths() {
  * whitespace-delimited regex during development and produced 1450 "unparsed" rows. Rows that still
  * fail to parse are RETURNED as unparsed rather than dropped, and the caller fails on a non-zero
  * count — a classifier that silently understood nothing would otherwise agree with any byte scan.
+ *
+ * `-z` HERE TOO, AND THE STATED REASON IS THE MEASURED ONE (28-REVIEW WR-11). The header justifies
+ * `-z` on trackedPaths() because "a newline in a filename would corrupt a newline-delimited parse",
+ * and this twin then did exactly that with `out.split("\n")`. The review named that as the hazard;
+ * MEASURED, IT IS NOT THE HAZARD — `git ls-files --eol` C-QUOTES such a path (`"a\nb.md"`, on one
+ * line, with or without `core.quotePath=false`), so the row count survived.
+ *
+ * The real divergence is that same quoting. With `-z` git emits the path RAW; without it, git
+ * C-quotes anything unusual. trackedPaths() already used `-z` and this twin did not, so for any path
+ * git chose to quote the two views named DIFFERENT STRINGS for the SAME FILE — and runAll() compares
+ * those strings as sets. Both views are now framed identically, so they disagree only when the TREE
+ * disagrees. scripts/check-nul-bytes.test.ts measures the asymmetry directly rather than asserting it.
  */
 export function gitBinaryPaths() {
-    const out = execFileSync("git", ["ls-files", "--eol"], {
-        cwd: ROOT,
-        encoding: "buffer",
-        maxBuffer: 64 * 1024 * 1024,
-    }).toString("utf8");
-    const rows = out.split("\n").filter((r) => r.length > 0);
+    const out = git(["ls-files", "--eol", "-z"]);
+    const rows = out.split("\0").filter((r) => r.length > 0);
     const binary = [];
     const unparsed = [];
     for (const row of rows) {
@@ -269,27 +296,38 @@ export function nulOffsets(buf) {
  * Read every given path as RAW BYTES and report those carrying a NUL.
  *
  * No encoding argument is passed to readFileSync anywhere in this module, so no decoder is
- * interposed between the file and the check. Unreadable paths (a submodule gitlink, a broken
- * symlink) are returned separately rather than swallowed: a scan that silently skipped a file it
- * could not open would under-report and still print a green.
+ * interposed between the file and the check. Paths that cannot be read are returned separately
+ * rather than swallowed: a scan that silently skipped a file it could not open would under-report
+ * and still print a green.
+ *
+ * THE TWO NOT-SCANNED CASES ARE SEPARATED (28-REVIEW WR-11). A tracked file DELETED from the working
+ * tree and a tracked file that is present but unopenable are different situations with different
+ * fixes, and both used to land in one `unreadable` list under a message a developer could read as a
+ * NUL finding. `missing` is ENOENT — the path is tracked and not on disk (a deletion not yet staged,
+ * or an uninitialised submodule gitlink); `unreadable` is everything else (permissions, an I/O
+ * error). Both still FAIL: fail-closed is right, and only the naming was wrong.
  */
 export function scanTracked(paths) {
     const hits = [];
+    const missing = [];
     const unreadable = [];
     for (const rel of paths) {
         let buf;
         try {
             buf = readFileSync(join(ROOT, rel));
         }
-        catch {
-            unreadable.push(rel);
+        catch (e) {
+            if (e.code === "ENOENT")
+                missing.push(rel);
+            else
+                unreadable.push(rel);
             continue;
         }
         const offsets = nulOffsets(buf);
         if (offsets.length > 0)
             hits.push({ path: rel, offsets });
     }
-    return { hits, unreadable };
+    return { hits, missing, unreadable };
 }
 /** The tracked paths carrying no NUL — derived, so the test can assert the partition two-sided. */
 export function nulFreeTrackedFiles() {
@@ -300,7 +338,18 @@ export function nulFreeTrackedFiles() {
 }
 export function runAll() {
     process.stdout.write("\n[check_nul_bytes] no tracked file carries a NUL byte (28-08)\n");
-    const paths = trackedPaths();
+    // The tracked-set derivation is the one step that shells out, and it is the one step that can
+    // fail for a reason that has nothing to do with NUL bytes (28-REVIEW WR-11). Reported, never
+    // thrown past the caller — a stack trace is not a verdict.
+    let paths;
+    try {
+        paths = trackedPaths();
+    }
+    catch (e) {
+        fail(e.message);
+        finish();
+        return;
+    }
     // Premise: the tracked set is non-empty. An empty set would make every check below vacuously
     // green, which is the failure mode a "0 problems found" gate hides best.
     if (paths.length === 0) {
@@ -309,11 +358,19 @@ export function runAll() {
         finish();
         return;
     }
-    const { hits, unreadable } = scanTracked(paths);
+    const { hits, missing, unreadable } = scanTracked(paths);
+    // Named as the situation it IS, so a developer meeting it in CI does not read it as a NUL finding.
+    if (missing.length > 0) {
+        fail(`${missing.length} tracked path(s) are MISSING FROM THE WORKING TREE and were therefore NOT ` +
+            `scanned: ${missing.slice(0, 10).join(", ")}. This is not a NUL finding — the path is ` +
+            "tracked by git and absent on disk (a deletion not yet staged, or an uninitialised " +
+            "submodule). A skipped file is an unchecked file, so it fails closed rather than passing.");
+    }
     if (unreadable.length > 0) {
-        fail(`${unreadable.length} tracked path(s) could not be read as bytes and were therefore NOT ` +
-            `scanned: ${unreadable.slice(0, 10).join(", ")}. A skipped file is an unchecked file; ` +
-            "refusing to report a clean scan over a set this gate did not actually read.");
+        fail(`${unreadable.length} tracked path(s) are PRESENT BUT UNREADABLE and were therefore NOT ` +
+            `scanned: ${unreadable.slice(0, 10).join(", ")}. This is not a NUL finding — the file ` +
+            "exists and could not be opened (permissions, or an I/O error). A skipped file is an " +
+            "unchecked file; refusing to report a clean scan over a set this gate did not actually read.");
     }
     let totalNuls = 0;
     for (const hit of hits) {
@@ -333,20 +390,29 @@ export function runAll() {
     // Git decides `-text` on its own read of the file's bytes. If its verdict and this module's byte
     // scan name different files, one of the two is wrong and this module cannot know which — so it
     // reports the disagreement and fails rather than picking a winner.
-    const git = gitBinaryPaths();
-    if (git.unparsed.length > 0) {
-        fail(`${git.unparsed.length} row(s) of \`git ls-files --eol\` output could not be parsed, so ` +
-            "git's classification is not available as a cross-check on the byte scan. Refusing to " +
+    // Named `gitView` rather than `git` so it does not shadow the module's `git()` helper.
+    let gitView;
+    try {
+        gitView = gitBinaryPaths();
+    }
+    catch (e) {
+        fail(e.message);
+        finish();
+        return;
+    }
+    if (gitView.unparsed.length > 0) {
+        fail(`${gitView.unparsed.length} row(s) of \`git ls-files --eol -z\` output could not be parsed, ` +
+            "so git's classification is not available as a cross-check on the byte scan. Refusing to " +
             "report the scan corroborated when the corroborating source was not understood.");
     }
-    else if (git.rows !== paths.length) {
-        fail(`\`git ls-files --eol\` returned ${git.rows} row(s) but \`git ls-files\` returned ` +
+    else if (gitView.rows !== paths.length) {
+        fail(`\`git ls-files --eol -z\` returned ${gitView.rows} row(s) but \`git ls-files -z\` returned ` +
             `${paths.length} path(s). The two views of the tracked set disagree, so the cross-check ` +
             "cannot be trusted.");
     }
     else {
         const scanned = new Set(hits.map((h) => h.path));
-        const byGit = new Set(git.binary);
+        const byGit = new Set(gitView.binary);
         const scanOnly = [...scanned].filter((p) => !byGit.has(p));
         const gitOnly = [...byGit].filter((p) => !scanned.has(p));
         if (scanOnly.length > 0 || gitOnly.length > 0) {
@@ -368,9 +434,10 @@ export function runAll() {
         // the run that just happened.
         pass(`${paths.length} tracked file(s) scanned as raw bytes, ZERO carrying a NUL byte; the scanned ` +
             "set is every path `git ls-files` reports, with no exemption list and nothing filtered — " +
-            `git's own \`--eol\` classifier independently agrees, reporting ${git.binary.length} ` +
+            `git's own \`--eol\` classifier independently agrees, reporting ${gitView.binary.length} ` +
             `\`-text\` file(s) against this scan's ${hits.length} NUL-bearing file(s), across ` +
-            `${git.rows} parsed row(s) with 0 unparsed; ${unreadable.length} path(s) unreadable`);
+            `${gitView.rows} parsed row(s) with 0 unparsed; ${missing.length} path(s) missing from the ` +
+            `working tree and ${unreadable.length} path(s) present but unreadable`);
     }
     finish();
 }
