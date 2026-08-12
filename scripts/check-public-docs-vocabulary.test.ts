@@ -256,6 +256,29 @@ describe("check-public-docs-vocabulary — vacuity is refused by name", () => {
     expect(stdout).toContain("a vacuous scan set");
     expect(stdout).not.toContain("ALL CHECKS PASSED");
   });
+
+  // ── 28-REVIEW WR-01: an absent kitReadme is REPORTED, never a Node stack trace. ──────────────────
+  //
+  // RED AGAINST THE PRE-FIX BUILD. The kitReadme part was the bare literal `[KIT_README]` and
+  // grepSubstring calls readText() unguarded, so deleting agent-factory/README.md made the gate die
+  // with `Error: ENOENT … at readText (check-public-docs-vocabulary.js:75)` and a full Node stack.
+  // That is against this module's own throw-versus-report split, and it was the ONLY path by which
+  // this gate could notice the file was gone — the per-part vacuity floor can structurally never
+  // fire for a one-element literal.
+  it("REPORTS a missing agent-factory/README.md by name rather than crashing with ENOENT", () => {
+    const mirror = makeMirror("gops-pubdocs-nokit-");
+    rmSync(join(mirror, KIT_README), { force: true });
+    const { status, stdout } = runGate(mirror);
+    expect(status).toBe(1);
+    expect(stdout).toContain(KIT_README);
+    expect(stdout).toMatch(/refusing to report a verdict/);
+    // A stack trace is not a verdict. The sibling assertion in check-audit-register.test.ts:371.
+    expect(stdout).not.toMatch(/at Object\.|node:internal|ENOENT/);
+    // And the per-part vacuity floor is now REACHABLE for this part — it fires by name.
+    expect(stdout).toMatch(
+      /the "kitReadme" part of the public-docs scan set derived ZERO members/,
+    );
+  });
 });
 
 describe("check-public-docs-vocabulary — the derived pin and the D-10 control", () => {

@@ -225,10 +225,31 @@ function examplesMarkdown() {
 // Part `kitReadme`: one named literal. agent-factory/README.md is the start-here guide
 // install/install.ts copies into every host repo, and it is deliberately absent from
 // check-kit-refs's SCAN. It is a single file rather than a set, so it stays a literal.
+//
+// IT IS STILL DERIVED AGAINST THE DISK (28-REVIEW WR-01). The part used to be the bare literal
+// `[KIT_README]`, and grepSubstring calls readText() unguarded — so deleting agent-factory/README.md
+// made this gate die with an unhandled ENOENT and a full Node stack trace instead of reporting a
+// verdict. That is against the throw-versus-report split this module's own header records
+// ("kit-model throws… while a gate's own floor is to REPORT"), and check-audit-register.test.ts:371
+// asserts a sibling gate never emits a `node:internal` frame.
+//
+// It also closes a second hole. The per-part vacuity floor below can STRUCTURALLY never fire for a
+// literal part — a one-element array is always length 1 — so the crash was the only way this gate
+// could notice the file was gone. Returning [] on an absent file makes that floor reachable for this
+// part for the first time, and the named refusal names the file.
+function kitReadmeMembers() {
+    if (!existsSync(abs(KIT_README))) {
+        DERIVATION_REFUSALS.push(`${KIT_README} is a NAMED member of the public-docs scan set and does not exist at ` +
+            `${abs(KIT_README)} — refusing to report a verdict over a part whose one member could not ` +
+            `be read. A missing document is not a clean one`);
+        return [];
+    }
+    return [KIT_README];
+}
 export const PUBLIC_DOCS_SCAN_PARTS = [
     { name: "root", members: rootMarkdown() },
     { name: "examples", members: examplesMarkdown() },
-    { name: "kitReadme", members: [KIT_README] },
+    { name: "kitReadme", members: kitReadmeMembers() },
 ];
 // The concatenation, in part order. Exported so a consumer partitions this set by the SAME parts it
 // was built from rather than restating a directory literal.
