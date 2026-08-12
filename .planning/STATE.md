@@ -5,8 +5,8 @@ milestone_name: Autonomous Factory — Real Spawning, Controlled Language & Live
 current_phase: 29
 current_phase_name: Controlled Language & Voice Guard Rebuild
 status: ready_to_execute
-stopped_at: 28-08 complete — red-team round closed D-22 part 3; five record corrections; NUL gate landed. Phase 28 NOT complete; verification follows.
-last_updated: "2026-08-12T20:12:10.563Z"
+stopped_at: Phase 29 context gathered — 7 gray areas settled, 33 decisions locked
+last_updated: "2026-08-12T21:07:39.638Z"
 progress:
   total_phases: 7
   completed_phases: 2
@@ -898,9 +898,9 @@ Shape of the carry: **9 of 11 are pre-v2.0 carryover** from the v1.2 block above
 
 ## Session Continuity
 
-Last session: 2026-08-12T09:12:17.241Z
-Stopped at: 28-08 complete — red-team round closed D-22 part 3; five record corrections; NUL gate landed. Phase 28 NOT complete; verification follows.
-Resume file: .planning/phases/28-kit-consistency-audit/28-08-SUMMARY.md
+Last session: 2026-08-12T21:07:39.599Z
+Stopped at: Phase 29 context gathered — 7 gray areas settled, 33 decisions locked
+Resume file: .planning/phases/29-controlled-language-voice-guard-rebuild/29-CONTEXT.md
 
 ## Operator Next Steps
 
