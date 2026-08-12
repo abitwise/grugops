@@ -249,6 +249,41 @@ function main() {
             }
         }
     }
+    // ── The unanchorable rows: PRESENCE-checked, since they cannot be POSITION-checked ─────────
+    //
+    // 28-REVIEW WR-08. `anchoredDocs()` filters to `.md`, and an unanchorable row used to be merely
+    // COUNTED in the PASS line — exempt from ALL verification, not only from the anchor bijection. The
+    // stated reason for the exclusion ("a JSON file cannot carry an HTML comment") justifies dropping
+    // the ANCHOR requirement; it does not justify dropping the VERBATIM requirement, which needs no
+    // anchor at all.
+    //
+    // It matters on the one row that has it: C-28-038 names `.claude-plugin/plugin.json`, whose
+    // `description` this very phase rewrote by hand, and whose registry prose says outright that "a
+    // future rewrite of README.md:4 that forgets the manifest will still pass every gate in this
+    // repository green". That residual is now smaller by exactly the mechanical half: the position
+    // cannot be checked, and the PRESENCE can.
+    //
+    // The comparison is on BYTES, via Buffer.includes, so it inherits the exactness of the anchored
+    // comparison above — no trimming, no whitespace collapse, no line-ending rewrite.
+    for (const claim of unanchorable.slice().sort((a, b) => (a.id < b.id ? -1 : 1))) {
+        const target = join(ROOT, claim.file);
+        if (!existsSync(target)) {
+            fail(`${claim.id} names \`${claim.file}\`, which does not exist at ${target}. A missing file is ` +
+                `not an unanchorable one`);
+            continue;
+        }
+        const bytes = readFileSync(target);
+        comparisons += 1;
+        if (!bytes.includes(Buffer.from(claim.verbatim, "utf8"))) {
+            fail(`${claim.file}: ${claim.id}'s verbatim text is not present in the file. An unanchorable row ` +
+                `cannot be POSITION-checked, but it CAN be PRESENCE-checked, and presence is what Phase ` +
+                `30 needs before it voids the claim by id.\n` +
+                `        registry (${Buffer.byteLength(claim.verbatim, "utf8")} byte(s)): ` +
+                `${JSON.stringify(claim.verbatim)}\n` +
+                `        The comparison is EXACT. If this divergence is legitimate, update the registry ` +
+                `row in the SAME commit as the file change`);
+        }
+    }
     // ── D-17: every status was MEASURED, and every non-true one was DECIDED ────────────────────
     for (const claim of claims) {
         // The blank predicate is audit-model.isBlank's closed set, ASKED rather than re-derived
@@ -308,9 +343,9 @@ function main() {
         const perDoc = docs.map((d) => `${d} ${(anchorsPerDoc.get(d) ?? []).length}`).join(", ");
         pass(`${claims.length} registry row(s) — ${claims.length - unanchorable.length} markdown, ` +
             `${unanchorable.length} unanchorable (a non-markdown file cannot carry an HTML comment, so ` +
-            `its freshness is held by its registry row alone); anchors found: ${perDoc}; ` +
-            `${comparisons} verbatim comparison(s) performed, all byte-identical; all ` +
-            `${SAFETY_FLOORS.length} safety floor(s) mapped`);
+            `its POSITION is unheld; its verbatim text is still PRESENCE-checked against the file's ` +
+            `bytes); anchors found: ${perDoc}; ${comparisons} verbatim comparison(s) performed, all ` +
+            `byte-identical; all ${SAFETY_FLOORS.length} safety floor(s) mapped`);
     }
     verdict();
 }

@@ -636,13 +636,13 @@ current tool docs — `UNKNOWN - verify`.
 ## The unanchorable claim — `.claude-plugin/plugin.json`
 
 C-28-038 above is registered like every other row and is **excluded from the D-16 bijection by
-construction**, because a JSON file cannot carry an HTML comment. Its freshness is held by the
-registry row alone.
+construction**, because a JSON file cannot carry an HTML comment. Its **position** is therefore
+unheld. Its **text is not**: see *What changed after the 28 code review* below.
 
 **This is an honest gap, recorded, not a reason to leave the claim unregistered.** The file is
 public and shipped: it is the manifest a user installs from the marketplace, and its `description`
 carried the *same* linear-pipeline claim C-28-001 and C-28-010 measured false. Concretely, the
-residual is this: if plan 28-05 rewrites `README.md:4` and forgets `plugin.json`, the verbatim gate
+residual was this: if plan 28-05 rewrites `README.md:4` and forgets `plugin.json`, the verbatim gate
 catches the README and says nothing about the manifest. The gate prints the count of unanchorable
 rows in its PASS line for exactly that reason — so the exclusion is visible on every run rather than
 silent.
@@ -651,9 +651,25 @@ silent.
 the whole reason this row existed, so 28-05 rewrote `.claude-plugin/plugin.json`'s `description`
 in the SAME COMMIT as `README.md`, `AGENTS.md`, `CLAUDE.md` and `agent-factory/README.md`, and
 verified it by hand rather than by gate: the manifest was re-parsed as JSON, and its `description`
-was diffed against this row's verbatim block character for character. **The residual is unchanged
-for the next editor.** A future rewrite of `README.md:4` that forgets the manifest will still pass
-every gate in this repository green. The only defence is that this row exists and says so.
+was diffed against this row's verbatim block character for character.
+
+**What changed after the 28 code review (WR-08), and what did not.** The paragraph above used to end
+*"The residual is unchanged for the next editor. A future rewrite of `README.md:4` that forgets the
+manifest will still pass every gate in this repository green."* **That sentence is no longer true,
+and it is corrected here rather than left standing.** The exclusion's stated reason — a JSON file
+cannot carry an HTML comment — justifies dropping the **anchor** requirement, and it never justified
+dropping the **verbatim** requirement, which needs no anchor at all.
+`scripts/check-claim-anchors.js` now **presence-checks** every unanchorable row: it reads the named
+file as raw bytes and refuses when the row's verbatim block is not present in it, counting the row as
+a performed comparison rather than merely printing its number. A future rewrite that forgets the
+manifest now fails red.
+
+**The residual that remains, stated precisely.** Presence is not position, and presence is not
+uniqueness. The gate cannot say *where* in the file the text sits, and it cannot say that the file
+carries no **second, contradicting** claim — the same limit the anchored rows have and this
+registry's `## What this registry does not catch (D-16)` section already names. `UNKNOWN - verify`
+whether a position check for JSON is worth having; it would need a path expression into the parsed
+document rather than a line number, which is a different mechanism from the one this registry uses.
 
 ## Two-sided completeness (D-14)
 

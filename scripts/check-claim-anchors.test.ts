@@ -335,6 +335,74 @@ describe("check-claim-anchors: the scan set is DERIVED, not hand-listed", () => 
     expect(r.out).toContain("FOURTH.md");
   });
 
+  // ── 28-REVIEW WR-08: an unanchorable row is PRESENCE-checked, not merely counted. ────────────────
+  //
+  // RED AGAINST THE PRE-FIX BUILD. `anchoredDocs()` filters to `.md`, and a non-markdown row was
+  // exempt from ALL verification rather than only from the anchor bijection — a `plugin.json` row
+  // whose verbatim text had been edited away passed green. The stated exclusion reason ("a JSON file
+  // cannot carry an HTML comment") justifies dropping the ANCHOR requirement, not the VERBATIM one,
+  // which needs no anchor at all.
+  it("refuses an unanchorable row whose verbatim text is ABSENT from the file it names", () => {
+    const { root } = baseline();
+    writeAt(root, "plugin.json", '{\n  "description": "something else entirely"\n}\n');
+    writeAt(
+      root,
+      REGISTRY_PATH,
+      registry(
+        { id: "C-28-001", file: "PUBLIC.md", line: "4", kind: "safety", dependsOn: FLOORS, text: "Humans always hold merge and deploy." },
+        { id: "C-28-002", file: "PUBLIC.md", line: "7-8", text: "The installer never overwrites your content.\nand it removes only what it added." },
+        { id: "C-28-003", file: "plugin.json", line: "2", text: '  "description": "the text this row claims is there",' },
+      ),
+    );
+    const r = run(root);
+    expect(r.status).toBe(1);
+    expect(r.out).toMatch(/C-28-003/);
+    expect(r.out).toContain("plugin.json");
+    expect(r.out).toMatch(/not present in the file/);
+    // The message must state the asymmetry a reader needs: position cannot be checked, presence can.
+    expect(r.out).toMatch(/POSITION-checked.*PRESENCE-checked/s);
+  });
+
+  it("PASSES an unanchorable row whose verbatim text IS present, and counts it as a comparison", () => {
+    // The adjacency half. Without it the case above is consistent with a gate that reds on every
+    // unanchorable row.
+    const { root } = baseline();
+    const verbatim = '  "description": "grugops — an agent factory.",';
+    writeAt(root, "plugin.json", `{\n${verbatim}\n  "name": "grugops"\n}\n`);
+    writeAt(
+      root,
+      REGISTRY_PATH,
+      registry(
+        { id: "C-28-001", file: "PUBLIC.md", line: "4", kind: "safety", dependsOn: FLOORS, text: "Humans always hold merge and deploy." },
+        { id: "C-28-002", file: "PUBLIC.md", line: "7-8", text: "The installer never overwrites your content.\nand it removes only what it added." },
+        { id: "C-28-003", file: "plugin.json", line: "2", text: verbatim },
+      ),
+    );
+    const r = run(root);
+    expect(r.status).toBe(0);
+    // Three comparisons, not two: the unanchorable row was CHECKED rather than counted and skipped.
+    expect(r.out).toMatch(/3 verbatim comparison\(s\)/);
+    // And the PASS line no longer claims the row's freshness rests on the registry row alone.
+    expect(r.out).toMatch(/PRESENCE-checked/);
+  });
+
+  it("refuses an unanchorable row naming a file that does not exist", () => {
+    const { root } = baseline();
+    writeAt(
+      root,
+      REGISTRY_PATH,
+      registry(
+        { id: "C-28-001", file: "PUBLIC.md", line: "4", kind: "safety", dependsOn: FLOORS, text: "Humans always hold merge and deploy." },
+        { id: "C-28-002", file: "PUBLIC.md", line: "7-8", text: "The installer never overwrites your content.\nand it removes only what it added." },
+        { id: "C-28-003", file: "gone.json", line: "2", text: "anything" },
+      ),
+    );
+    const r = run(root);
+    expect(r.status).toBe(1);
+    expect(r.out).toMatch(/gone\.json/);
+    expect(r.out).toMatch(/does not exist/);
+  });
+
   it("refuses a registry whose markdown rows are empty rather than passing over an empty intersection", () => {
     const root = freshTmp();
     writeAt(root, "plugin.json", "{}");
