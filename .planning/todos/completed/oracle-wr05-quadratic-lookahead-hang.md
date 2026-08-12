@@ -4,8 +4,13 @@ created: 2026-08-04
 severity: high
 area: scripts/check-uat-oracles.ts
 found_during: phase 27 wave 1 (execute-phase 27, plan 27-36 post-merge gate)
-resolves_phase:
+resolves_phase: 28
 ---
+
+> **Closed by Phase 28, plan 28-02** (D-20, all three axes). `WR05_BEATS` regexes are now
+> `^`-anchored with a trailing `[\s\S]` instead of pure zero-width lookaheads, and
+> `WR05_MAX_LINE_BYTES` bounds the per-line work because `.planning/STATE.md` is an
+> unbounded-line input. Verified at HEAD: `scripts/check-uat-oracles.ts:204-217`.
 
 ## What
 
