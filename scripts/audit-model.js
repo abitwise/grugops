@@ -577,11 +577,45 @@ function parseClaimBlock(lines, start, end) {
     if (fenceEnd === -1) {
         refuse(REGISTRY_PATH, `claim ${id}'s fenced block opened at line ${fenceStart + 1} and was never closed`);
     }
+    // THE METADATA REGION IS READ WITH THIS MODULE'S OWN POSTURE: nothing skipped, nothing overwritten
+    // silently (28-REVIEW CR-02).
+    //
+    // The first draft read `if (m !== null) meta[m[1]] = m[2].trim();` and had two holes, both against
+    // this module's own header ("every malformation enumerated below throws… and nothing is ever
+    // skipped"):
+    //
+    //   1. A DUPLICATE KEY OVERWROTE SILENTLY, LAST-WINS. That is not cosmetic. check-claim-anchors.ts
+    //      short-circuits on `status === "true"` and skips every D-17 disposition / finding_id /
+    //      target_phase obligation, so a block carrying `- status: false` … `- status: true` LAUNDERED
+    //      an overstated or false claim into a true one. Reproduced: the parse returned
+    //      `{"id":"C-28-001","status":"true","disposition":""}`. readRegister() twenty lines up already
+    //      refuses a duplicate `file` key and a duplicate `finding_id`, and context-io.parseNote calls a
+    //      duplicate frontmatter key "the on-disk signature of a field-injection forgery"
+    //      (context-io.ts:610-617). readRegistry was the only one of the three that was silent.
+    //   2. AN UNRECOGNISED LINE WAS DROPPED. A line the parser cannot read reads downstream as an
+    //      ABSENT key, which is the silent-truncation shape this module exists to refuse.
+    //
+    // Blank lines are skipped rather than refused: the region legitimately carries them (the heading is
+    // followed by one, and one separates the last key from the fence).
     const meta = {};
+    const seenKeys = new Set();
     for (let i = start + 1; i < fenceStart; i++) {
-        const m = CLAIM_META_RE.exec(lines[i].trim());
-        if (m !== null)
-            meta[m[1]] = m[2].trim();
+        const raw = lines[i];
+        if (raw.trim() === "")
+            continue;
+        const m = CLAIM_META_RE.exec(raw.trim());
+        if (m === null) {
+            refuse(REGISTRY_PATH, `claim ${id} carries a line at ${i + 1} that is neither blank nor a \`- key: value\` ` +
+                `metadata entry: ${JSON.stringify(raw)}. A line the parser cannot read would be dropped ` +
+                `silently, and a dropped key reads downstream as an absent one`);
+        }
+        if (seenKeys.has(m[1])) {
+            refuse(REGISTRY_PATH, `claim ${id} carries duplicate metadata key \`${m[1]}\` at line ${i + 1}. The later line ` +
+                `silently overrides the earlier one, so a duplicated \`status:\` launders a \`false\` ` +
+                `claim into a \`true\` one and skips every D-17 obligation downstream`);
+        }
+        seenKeys.add(m[1]);
+        meta[m[1]] = m[2].trim();
     }
     for (const key of CLAIM_REQUIRED_KEYS) {
         if (meta[key] === undefined) {

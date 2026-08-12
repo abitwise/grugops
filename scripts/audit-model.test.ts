@@ -622,6 +622,88 @@ describe("audit-model: readRegistry", () => {
     expect(() => readRegistry(dir)).toThrow(/C-28-NNN/);
   });
 
+  // ── 28-REVIEW CR-02: the metadata region skips nothing and overwrites nothing silently. ─────────
+  //
+  // RED AGAINST THE PRE-FIX BUILD. `readRegistry` did `meta[m[1]] = m[2].trim()` with no duplicate
+  // detection and dropped any line the metadata regex did not match. The file already had a
+  // "refuses a duplicate claim id" case and had NO duplicate-metadata-key case.
+  it("refuses a DUPLICATE metadata key — a second `status:` must never launder a claim", () => {
+    // The exact laundering shape: `false` first, `true` second. Pre-fix this parsed green as
+    // {"id":"C-28-001","status":"true","disposition":""}, and check-claim-anchors.js short-circuits
+    // on status === "true", skipping every D-17 disposition / finding_id / target_phase obligation.
+    const body = [
+      "# Phase 28 Claim Registry",
+      "",
+      "## Claims",
+      "",
+      "### C-28-001",
+      "",
+      "- file: README.md",
+      "- line: 3",
+      "- kind: safety",
+      "- depends_on: autonomy",
+      "- status: false",
+      "- status: true",
+      "",
+      FENCE,
+      "A claim.",
+      FENCE,
+      "",
+    ].join("\n");
+    const dir = writeRegistryFixture(body);
+    let msg = "";
+    try {
+      readRegistry(dir);
+    } catch (e) {
+      msg = (e as Error).message;
+    }
+    expect(msg).toMatch(/duplicate metadata key/i);
+    expect(msg).toContain("status");
+    expect(msg).toContain("C-28-001");
+    // The refusal must name the LINE, so a fix is a jump rather than a search.
+    expect(msg).toContain("line 12");
+  });
+
+  it("refuses an UNRECOGNISED line in the metadata region rather than dropping it", () => {
+    // A dropped line reads downstream as an ABSENT key — the silent-truncation shape this module's
+    // header refuses. Blank lines stay legal; this one is not blank and is not `- key: value`.
+    const body = [
+      "# Phase 28 Claim Registry",
+      "",
+      "## Claims",
+      "",
+      "### C-28-001",
+      "",
+      "- file: README.md",
+      "  status: true",
+      "- line: 3",
+      "- kind: architecture",
+      "- depends_on: —",
+      "- status: true",
+      "",
+      FENCE,
+      "A claim.",
+      FENCE,
+      "",
+    ].join("\n");
+    const dir = writeRegistryFixture(body);
+    let msg = "";
+    try {
+      readRegistry(dir);
+    } catch (e) {
+      msg = (e as Error).message;
+    }
+    expect(msg).toMatch(/neither blank nor/i);
+    expect(msg).toContain("status: true");
+  });
+
+  it("still admits the blank lines the region legitimately carries", () => {
+    // The refusal above must not have made the ordinary shape unparseable: `claimBlock` emits a blank
+    // line after the heading and another before the fence, and the live registry does the same.
+    const dir = writeRegistryFixture(registryDoc(claimBlock("C-28-001")));
+    expect(readRegistry(dir).claims.length).toBe(1);
+  });
+
   it("refuses a claim missing a required metadata key, naming the key", () => {
     const body = [
       "# Phase 28 Claim Registry",
