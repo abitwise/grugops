@@ -86,12 +86,25 @@ export const EVIDENCE_PATH = "docs/audit/28-prepass-evidence.md";
  * to repo-relative form at the CALL SITE, plus the one protocol literal.
  *
  * The prefix is applied here rather than by changing either authority's pinned return shape for one
- * consumer — the rule check-kit-refs records at its own marker-site set. `join()` and not a `/`
- * template, so the paths are byte-identical on Windows and on Unix.
+ * consumer — the rule check-kit-refs records at its own marker-site set.
+ *
+ * A `/` TEMPLATE AND NOT `join()`, AND THE RATIONALE USED TO SAY THE OPPOSITE (28-REVIEW WR-03).
+ * The comment here read "`join()` and not a `/` template, so the paths are byte-identical on Windows
+ * and on Unix", which is backwards: `path.join` emits `\` on win32 and `/` on posix, and a `/`
+ * template is what is byte-identical. Concretely, on Windows this function returned
+ * `agent-factory\roles\x.md` for its DERIVED members and `agent-factory/roles/_role-switch-
+ * protocol.md` for PROTOCOL_FILE — a `/` literal twenty lines up — so one array carried two path
+ * forms.
+ *
+ * These are repo-relative POSIX paths that must be byte-identical across platforms for two concrete
+ * reasons: they land in a COMMITTED artifact (docs/audit/28-prepass-evidence.md), and they are
+ * set-compared against check-audit-register.ts's own derivation, which builds the same paths with a
+ * `/` template. Two Phase-28 modules disagreeing about path form on Windows is a difference that
+ * would surface as a spurious set-equality failure rather than as a path bug.
  */
 export function auditSetFiles(root = ROOT) {
-    const roles = listRoles(root).map((f) => join(ROLES_SUBPATH, f));
-    const workflows = listWorkflows(root).map((f) => join(WORKFLOWS_SUBPATH, f));
+    const roles = listRoles(root).map((f) => `${ROLES_SUBPATH}/${f}`);
+    const workflows = listWorkflows(root).map((f) => `${WORKFLOWS_SUBPATH}/${f}`);
     return [...roles, ...workflows, PROTOCOL_FILE];
 }
 function escapeLiteral(s) {

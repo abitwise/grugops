@@ -113,12 +113,35 @@ describe("audit-prepass: the derived audit set", () => {
 
   it("is the two listers prefixed back to repo-relative form, plus the one protocol literal", () => {
     const live = auditSetFiles();
-    const expectedRoles = listRoles().map((f) => join("agent-factory", "roles", f));
-    const expectedWorkflows = listWorkflows().map((f) => join("agent-factory", "workflows", f));
+    // A `/` TEMPLATE, NOT join() — 28-REVIEW WR-03, and this case used to encode the same wrong
+    // assumption the module's comment did. `path.join` emits `\` on win32, so on Windows the derived
+    // members and the `/`-literal PROTOCOL_FILE were two different path forms inside one array.
+    const expectedRoles = listRoles().map((f) => `agent-factory/roles/${f}`);
+    const expectedWorkflows = listWorkflows().map((f) => `agent-factory/workflows/${f}`);
     expect(live).toEqual([...expectedRoles, ...expectedWorkflows, PROTOCOL_FILE]);
     // The protocol file is out-of-set for COUNTING and in-set for READING (D-02) — it is the one
     // member no lister returns, which is exactly why it is the one member that can go missing.
     expect(expectedRoles).not.toContain(PROTOCOL_FILE);
+  });
+
+  it("emits ONE path form: repo-relative POSIX, on every platform (28-REVIEW WR-03)", () => {
+    // The artifact these paths land in is COMMITTED, and they are set-compared against
+    // check-audit-register.ts's `/`-templated derivation. A backslash on win32 would make the
+    // committed evidence non-reproducible across platforms and would surface as a spurious
+    // set-equality failure rather than as a path bug. Asserted on the VALUES, so the property holds
+    // on a posix runner too — a case that only passed on Windows would never run here.
+    for (const p of auditSetFiles()) {
+      expect(p, p).not.toContain("\\");
+      expect(p, p).toMatch(/^agent-factory\/(roles|workflows)\/[^/]+\.md$/);
+    }
+    // And the two Phase-28 modules agree, which is the property that actually matters. This is the
+    // same expression check-audit-register.ts builds its `derived` side from.
+    const registerSideDerivation = [
+      ...listRoles().map((f) => `agent-factory/roles/${f}`),
+      ...listWorkflows().map((f) => `agent-factory/workflows/${f}`),
+    ];
+    const counted = auditSetFiles().filter((p) => p !== PROTOCOL_FILE);
+    expect([...counted].sort()).toEqual([...registerSideDerivation].sort());
   });
 
   it("names the protocol file with its underscore prefix, the reason listRoles drops it", () => {
