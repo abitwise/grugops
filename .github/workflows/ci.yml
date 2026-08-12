@@ -198,4 +198,31 @@ jobs:
           # rows ship `status: false` and eight ship `status: overstated` precisely so that trail
           # exists.
           node scripts/check-claim-anchors.js
+
+          # WHAT IT HOLDS, AND WHAT A RED MEANS. It asserts that ZERO tracked files carry a NUL
+          # (0x00) byte. The scanned set is every path `git ls-files` reports — no exemption list,
+          # nothing filtered — so a red names a real file and cannot be cleared by narrowing the
+          # scan. Fix the FILE.
+          #
+          # WHY THIS GATE EXISTS AT ALL. Plan 28-08 shipped a NUL into scripts/context-io.test.ts in
+          # commit a290ee7: the source read `cells.join(" ")` and the byte between the quotes was
+          # 0x00, not 0x20. It survived tsc, the full suite, and all fourteen existing gates, because
+          # a NUL inside a string literal is valid TypeScript. It did two things. It made the digest
+          # that line computes IRREPRODUCIBLE FROM ITS OWN SOURCE — a reader reconstructing
+          # `join(" ")` hashes different bytes — which defeats the one purpose a published digest
+          # has. And it silently disabled `grep` over that file: plain `grep` returned ZERO matches
+          # for strings that were present, with an exit status indistinguishable from a genuine
+          # absence. In a repository whose value proposition is an auditable trail, a byte that makes
+          # the trail invisible to the standard search tool is a trace defect.
+          #
+          # IT WAS LANDED RED ON PURPOSE (D-24) AND AGAINST THE REAL TREE, NOT A FIXTURE — the same
+          # standard plan 28-01 set. At commit cd71344 it exited 1 naming the file, the byte offset,
+          # the line and the column; after the NUL was corrected to an explicit `\x1f` escape the
+          # same command over the same tree exits 0, with the gate byte-unchanged across the
+          # transition. The green is a property of the TREE, not of the gate.
+          #
+          # WIRED HERE **AND** IN package.json, deliberately at both ends, for the reason recorded
+          # above the gates before it: freshness:adapters once ran for an entire phase solely as a
+          # side effect of a test spawning it.
+          node scripts/check-nul-bytes.js
           VALIDATE_KIT_ROOT=. node scripts/validate-agent-factory.js

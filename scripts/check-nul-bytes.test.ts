@@ -1,0 +1,263 @@
+// check-nul-bytes.test.ts — behavioral oracle for the Phase 28 NUL-byte gate (28-08).
+//
+// Drives the COMMITTED compiled artifact scripts/check-nul-bytes.js (never the .ts) for the gate
+// path, and imports the compiled .js for the pure-function paths.
+//
+// THE POINT OF THIS FILE, STATED ONCE. A gate that has only ever been seen passing is a gate nobody
+// has watched work. This repository's recorded terminal lesson is that a green suite is not evidence
+// for a safety mechanism, so the cases below are built in two halves: the REFUSAL half plants a real
+// NUL in a real throwaway git repository and runs THE SHIPPED GATE against it, and the NON-VACUITY
+// half proves the real tree's green is a property of the TREE rather than of the gate — the same
+// split plans 28-01, 28-05 and 28-07 each used.
+//
+// Vitest globals:false (the repo default) → import test fns explicitly.
+
+import { describe, it, expect, afterAll } from "vitest";
+import { spawnSync } from "node:child_process";
+import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { pathToFileURL } from "node:url";
+
+const ROOT = join(import.meta.dirname, "..");
+const GATE_JS = join(ROOT, "scripts", "check-nul-bytes.js");
+
+const tmpDirs: string[] = [];
+function freshTmp(prefix: string): string {
+  const d = mkdtempSync(join(tmpdir(), prefix));
+  tmpDirs.push(d);
+  return d;
+}
+afterAll(() => {
+  for (const d of tmpDirs) rmSync(d, { recursive: true, force: true });
+});
+
+const mod: typeof import("./check-nul-bytes.js") = await import(
+  pathToFileURL(GATE_JS).href
+);
+
+/** Run the SHIPPED gate against an arbitrary root via the documented NUL_SCAN_ROOT override. */
+function runGate(root?: string) {
+  return spawnSync("node", [GATE_JS], {
+    cwd: root ?? ROOT,
+    encoding: "utf8",
+    env: root === undefined ? process.env : { ...process.env, NUL_SCAN_ROOT: root },
+  });
+}
+
+/** A throwaway git repository with the given files, so `git ls-files` has something to report. */
+function repoWith(files: Record<string, Buffer | string>): string {
+  const root = freshTmp("nul-gate-");
+  spawnSync("git", ["init", "-q"], { cwd: root });
+  spawnSync("git", ["config", "user.email", "t@example.com"], { cwd: root });
+  spawnSync("git", ["config", "user.name", "t"], { cwd: root });
+  for (const [rel, content] of Object.entries(files)) {
+    const abs = join(root, rel);
+    mkdirSync(join(abs, ".."), { recursive: true });
+    writeFileSync(abs, content);
+  }
+  // `git add` is what makes the files TRACKED — the gate enumerates `git ls-files`, so a file that
+  // is merely present on disk is deliberately invisible to it.
+  spawnSync("git", ["add", "-A"], { cwd: root });
+  return root;
+}
+
+describe("check-nul-bytes — the pure detector", () => {
+  it("nulOffsets finds every NUL, at the right byte offsets", () => {
+    expect(mod.nulOffsets(Buffer.from("clean text"))).toEqual([]);
+    expect(mod.nulOffsets(Buffer.from([0x61, 0x00, 0x62]))).toEqual([1]);
+    expect(mod.nulOffsets(Buffer.from([0x00, 0x61, 0x00]))).toEqual([0, 2]);
+  });
+
+  it("nulOffsets sees a NUL inside what looks like an ordinary string literal — the 28-08 defect", () => {
+    // The exact shape that shipped: `cells.join(" ")` where the byte is 0x00, not 0x20. It is
+    // reproduced here as BYTES so this case cannot itself be corrupted by an editor rendering it.
+    const defect = Buffer.concat([
+      Buffer.from('cells.join("'),
+      Buffer.from([0x00]),
+      Buffer.from('")'),
+    ]);
+    expect(mod.nulOffsets(defect)).toEqual([12]);
+    // And the control: the corrected form carries none.
+    expect(mod.nulOffsets(Buffer.from('cells.join("\x1f")'))).toEqual([]);
+  });
+
+  it("locate() counts in BYTES, not in decoded characters — the regression control for a real bug", () => {
+    // THIS CASE EXISTS BECAUSE THE FIRST 28-08 LOCATOR GOT IT WRONG. It decoded the prefix as UTF-8
+    // and counted newlines in the resulting STRING, then subtracted a character index from a byte
+    // offset — reporting column 1488 on a line 91 characters long. A line containing multi-byte
+    // characters is what separates the two implementations.
+    const line1 = "// an em dash — and an accent é\n"; // multi-byte: — is 3 bytes, é is 2
+    const buf = Buffer.concat([Buffer.from(line1), Buffer.from("ab"), Buffer.from([0x00])]);
+    const at = buf.indexOf(0x00);
+    const loc = mod.locate(buf, at);
+    expect(loc.line).toBe(2);
+    // Byte-correct: the NUL is the 3rd byte of line 2, so column 3.
+    expect(loc.column).toBe(3);
+    // The character-counting bug would report a column inflated by the multi-byte prefix; pin that
+    // the reported column cannot exceed the byte length of its own line.
+    expect(loc.column).toBeLessThanOrEqual(Buffer.byteLength("ab\0"));
+  });
+
+  it("locate() reports 1-based line and column on the first line", () => {
+    const buf = Buffer.from([0x78, 0x00]);
+    expect(mod.locate(buf, 1)).toEqual({ line: 1, column: 2 });
+  });
+});
+
+describe("check-nul-bytes — the REFUSAL half, watched failing against a real tree", () => {
+  it("REFUSES a tracked file carrying a NUL, naming the file, the offset, the line and the column", () => {
+    const root = repoWith({
+      "ok.md": "# clean\n",
+      "src/bad.ts": Buffer.concat([
+        Buffer.from('const sep = "'),
+        Buffer.from([0x00]),
+        Buffer.from('";\n'),
+      ]),
+    });
+    const r = runGate(root);
+    expect(r.status, `gate should refuse; stdout:\n${r.stdout}`).not.toBe(0);
+    expect(r.stdout).toContain("src/bad.ts");
+    expect(r.stdout).toContain("NUL byte(s)");
+    // The locator's three numbers are all reported, not just the fact of a hit.
+    expect(r.stdout).toMatch(/byte offset \d+, line \d+, column \d+/);
+    expect(r.stdout).toContain("CHECK(S) FAILED");
+    // And the refusal says what NOT to do about it — the anti-exemption instruction.
+    expect(r.stdout).toContain("Do not add an exemption");
+  });
+
+  it("REFUSES on a NUL in ANY tracked file type, not only in sources", () => {
+    const root = repoWith({
+      "docs/notes.md": Buffer.concat([Buffer.from("# heading\n"), Buffer.from([0x00])]),
+    });
+    const r = runGate(root);
+    expect(r.status).not.toBe(0);
+    expect(r.stdout).toContain("docs/notes.md");
+  });
+
+  it("counts EVERY NUL, not just the first — a truncated count would understate the damage", () => {
+    const root = repoWith({
+      "a.txt": Buffer.from([0x61, 0x00, 0x62, 0x00, 0x63, 0x00]),
+    });
+    const r = runGate(root);
+    expect(r.status).not.toBe(0);
+    expect(r.stdout).toContain("carries 3 NUL byte(s)");
+  });
+
+  it("an UNTRACKED file with a NUL does NOT fire — the scanned set is the tracked set by derivation", () => {
+    // Non-vacuity in the other direction: this proves the gate's set really is `git ls-files` and
+    // not a filesystem walk, which is what makes its membership derivable rather than incidental.
+    const root = repoWith({ "tracked.md": "# clean\n" });
+    writeFileSync(join(root, "untracked.bin"), Buffer.from([0x00, 0x00]));
+    const r = runGate(root);
+    expect(r.status, `stdout:\n${r.stdout}`).toBe(0);
+    expect(r.stdout).not.toContain("untracked.bin");
+  });
+
+  it("REFUSES an empty tracked set rather than reporting a vacuous green", () => {
+    // A gate whose scan set is empty passes every check it makes. That is the failure mode a
+    // '0 problems found' report hides best, so it is a named refusal rather than a silent pass.
+    const root = repoWith({});
+    const r = runGate(root);
+    expect(r.status).not.toBe(0);
+    expect(r.stdout).toContain("ZERO tracked paths");
+    expect(r.stdout).toContain("pass vacuously");
+  });
+});
+
+describe("check-nul-bytes — the NON-VACUITY half, against the REAL tree", () => {
+  it("the real tree is GREEN, and the PASS line reports numbers from the run that just happened", () => {
+    const r = runGate();
+    expect(r.status, `stdout:\n${r.stdout}`).toBe(0);
+    expect(r.stdout).toContain("ALL CHECKS PASSED");
+    expect(r.stdout).toMatch(/\d+ tracked file\(s\) scanned as raw bytes, ZERO carrying a NUL byte/);
+  });
+
+  it("the scanned set is DERIVED and its partition holds two-sided", () => {
+    // Two-sided: every tracked path is either NUL-free or a hit, with no path in both and none in
+    // neither. A hand-listed scan set could not make this assertion at all.
+    const tracked = mod.trackedPaths();
+    const { hits, unreadable } = mod.scanTracked(tracked);
+    const free = mod.nulFreeTrackedFiles();
+    expect(tracked.length).toBeGreaterThan(0);
+    expect(unreadable).toEqual([]);
+    expect(free.length + hits.length).toBe(tracked.length);
+    const freeSet = new Set(free);
+    const hitSet = new Set(hits.map((h) => h.path));
+    for (const p of tracked) {
+      expect(freeSet.has(p) !== hitSet.has(p), `${p} must be in exactly one side`).toBe(true);
+    }
+  });
+
+  it("THE FILE THAT CAUSED THIS GATE IS INSIDE THE SCANNED SET — the gate was not made green by exclusion", () => {
+    // The single most important case in this file. 28-08 shipped the NUL in
+    // scripts/context-io.test.ts, and the tempting implementation — deriving the scan set from
+    // git's own `--eol` text classifier — would have EXCLUDED exactly that file, because git calls
+    // a file `-text` precisely BECAUSE it contains a NUL. This pins that the offending file is
+    // scanned rather than skipped.
+    const tracked = mod.trackedPaths();
+    expect(tracked).toContain("scripts/context-io.test.ts");
+    // ...and that it is currently clean, by the pure detector rather than by the gate's own verdict.
+    const { hits } = mod.scanTracked(["scripts/context-io.test.ts"]);
+    expect(hits).toEqual([]);
+  });
+
+  it("no tracked file is exempt: the scanned set is the WHOLE tracked set, not a subset", () => {
+    const tracked = mod.trackedPaths();
+    const scannedCount = mod.nulFreeTrackedFiles().length + mod.scanTracked(tracked).hits.length;
+    expect(scannedCount).toBe(tracked.length);
+  });
+
+  it("git's own classifier is CROSS-CHECKED and parses cleanly — the corroborating source is understood", () => {
+    // A cross-check whose parser silently understood nothing would agree with any byte scan at all.
+    const git = mod.gitBinaryPaths();
+    expect(git.unparsed).toEqual([]);
+    expect(git.rows).toBe(mod.trackedPaths().length);
+    // On a clean tree both detectors name the empty set — asserted as EQUALITY, not as a subset.
+    const hitPaths = mod.scanTracked(mod.trackedPaths()).hits.map((h) => h.path).sort();
+    expect([...git.binary].sort()).toEqual(hitPaths);
+  });
+
+  it("the two detectors AGREE across a battery of constructed cases — and the disagreement arm is DEFENSIVE ONLY", () => {
+    // WHAT THIS CASE CLAIMS, AND WHAT IT DOES NOT.
+    //
+    // It claims: on every input that could be constructed, this module's byte scan and git's own
+    // working-tree verdict name the SAME set of NUL-bearing files. That is the corroboration the
+    // gate's PASS line reports.
+    //
+    // It does NOT claim the disagreement arm is covered. Four shapes were tried and NONE produced a
+    // disagreement — measured, not assumed:
+    //   * a NUL at byte 100 (inside any plausible sniff window)  -> git w/-text, scan finds it
+    //   * a NUL at byte 20000 (beyond git's documented first-few-bytes window) -> git STILL -text
+    //   * `.gitattributes` marking the file `binary` with clean content -> git w/lf, scan clean
+    //   * `.gitattributes` marking a NUL-bearing file `text` -> git STILL w/-text
+    // The `w/` column is derived from CONTENT and the attribute does not override it, so the arm is
+    // unreachable by constructed input and remains defensive. Stated here rather than left for a
+    // reader to assume the case was covered — the precedent is 28-07's de-duplication path, which
+    // was likewise unreachable by the shipped artifact and said so.
+    //
+    // The honest consequence, also recorded in the gate header: git's binary heuristic is ITSELF
+    // NUL-based, so the two detectors are not independent in concept. Their agreement corroborates
+    // this module's IMPLEMENTATION — that scanTracked reads the right files and finds what is there
+    // — and it is not a second opinion about whether NUL-detection is the right predicate.
+    const cases: Record<string, Buffer | string> = {
+      "clean.md": "# no nul here\n",
+      "early.bin": Buffer.concat([Buffer.alloc(100, 0x61), Buffer.from([0x00])]),
+      "late.bin": Buffer.concat([Buffer.alloc(20000, 0x61), Buffer.from([0x00])]),
+      "forced.md": Buffer.concat([Buffer.from("# doc\n"), Buffer.from([0x00])]),
+      ".gitattributes": "forced.md text\n",
+    };
+    const root = repoWith(cases);
+    const r = runGate(root);
+    // It refuses (three files carry NULs) and it does NOT report a detector disagreement.
+    expect(r.status, `stdout:\n${r.stdout}`).not.toBe(0);
+    expect(r.stdout).toContain("early.bin");
+    expect(r.stdout).toContain("late.bin");
+    expect(r.stdout).toContain("forced.md");
+    expect(r.stdout, "the two detectors must agree on every constructed case").not.toContain(
+      "DISAGREE",
+    );
+    // Non-vacuity of THIS case: the clean file must NOT be named, or "agreement" would be trivial.
+    expect(r.stdout).not.toContain("clean.md carries");
+  });
+});

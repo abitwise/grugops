@@ -408,7 +408,19 @@ export function splitNotes(text: string): { notes: string[]; trailingMalformed: 
   // two coincide for every slice that contains at least one line and come apart for the one that
   // contains none: an empty slice has no last line and no separators at all, yet `to < lines.length`
   // is unconditionally true when `to` is 0 and the document is non-empty. So `sliceBytes(0, 0)`
-  // returned "\n" — one byte present at no offset of the input.
+  // returned "\n".
+  //
+  // THE DEFECT IS A MULTISET STATEMENT, NOT A NOVEL-BYTE ONE, AND THE DIFFERENCE IS NOT PEDANTRY.
+  // An earlier draft of this comment said the invented byte was "present at no offset of the input".
+  // That is FALSE for every reachable case, and a 28-08 red team measured it: reaching
+  // `sliceBytes(0, 0)` requires `boundaries[0] === 0`, which requires `isBoundaryAt(0)`, which forces
+  // `lines.length >= 2` — so the input ALWAYS already contains a `\n`. Over exhaustive enumeration
+  // the site was reached 3,078 times and NOT ONCE with an input lacking `\n`.
+  //
+  // The true statement is that the output carries one MORE `\n` than the input — a count, over a
+  // multiset. The false phrasing mattered because it invites the wrong check: "does the output
+  // contain a character absent from the input?" returns CLEAN on this defect and would have
+  // certified it fixed while it was live. Verify byte COUNTS, never byte novelty.
   //
   // WHERE IT WAS REACHED, MEASURED RATHER THAN ARGUED: of this function's five call sites only
   // `sliceBytes(0, boundaries[0])` (the leading region, below) can be called with `from === to`, and

@@ -2274,7 +2274,16 @@ describe("context-io.js — byte-count fidelity for a leading boundary (28-08, r
 
     // A digest of the corpus, printed so an outside transcript's same-corpus claim is a measurement
     // rather than an assertion.
-    const digest = createHash("sha256").update(cells.join(" ")).digest("hex").slice(0, 16);
+    // THE SEPARATOR IS AN EXPLICIT ESCAPE, AND THAT IS THE WHOLE POINT (28-08 red-team finding).
+    // This line originally read `cells.join(" ")` and the byte between the quotes was 0x00, not
+    // 0x20 — a NUL that rendered as a space in every editor and in `git show`, survived every gate
+    // and the whole suite, and made this digest IRREPRODUCIBLE FROM ITS OWN SOURCE: a third party
+    // reconstructing `join(" ")` hashes a different byte string and gets a different digest, which
+    // is the exact opposite of what a published digest is for. It also silently disabled `grep`
+    // over this file. `\x1f` (ASCII Unit Separator) is written as an escape so a reader can see
+    // WHICH byte it is rather than infer it from a glyph; it cannot appear in any generated cell,
+    // so it remains an unambiguous delimiter. `scripts/check-nul-bytes.ts` now gates the class.
+    const digest = createHash("sha256").update(cells.join("\x1f")).digest("hex").slice(0, 16);
     // eslint-disable-next-line no-console
     console.log(
       `[28-08 residual-2 fuzz] cells=${cells.length} leading-boundary=${leadingBoundary} digest=${digest}`,
