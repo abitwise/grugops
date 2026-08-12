@@ -9,7 +9,7 @@
 
 import { describe, it, expect } from "vitest";
 import { spawnSync } from "node:child_process";
-import { mkdtempSync, mkdirSync, writeFileSync, readFileSync } from "node:fs";
+import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, readdirSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, dirname } from "node:path";
 import { REGISTRY_PATH } from "./audit-model.js";
@@ -445,6 +445,62 @@ describe("check-claim-anchors: the stripHtmlComments collision", () => {
       expect(scan).not.toContain(doc);
       expect(scan.filter((s) => s.endsWith(`/${doc}`))).toEqual([]);
     }
+  });
+});
+
+// ── 28-REVIEW WR-05: the entry-guard and root-override idioms are ONE shape across the set. ───────
+//
+// DERIVE THE SET, ASSERT ITS MEMBERS — never fix the one file the review happened to name and leave
+// the next divergence to be found by the next review. The set is every scripts/ source that declares
+// an `isEntry` guard, discovered by scanning rather than listed here, and its cardinality is pinned
+// two-sided so a new gate joins the assertion by EXISTING.
+describe("the standalone-gate idioms are uniform across scripts/", () => {
+  function entryGuardSources(): { name: string; src: string }[] {
+    const out: { name: string; src: string }[] = [];
+    for (const name of readdirSync(join(REPO, "scripts")).sort()) {
+      if (!name.endsWith(".ts") || name.endsWith(".test.ts")) continue;
+      const src = readFileSync(join(REPO, "scripts", name), "utf8");
+      if (/const isEntry =/.test(src)) out.push({ name, src });
+    }
+    return out;
+  }
+
+  it("every isEntry guard compares import.meta.url against pathToFileURL(argv[1])", () => {
+    const sources = entryGuardSources();
+    // Two-sided pin. A set that silently shrank would assert the property over fewer files than it
+    // names; one that grew is a gate nobody reviewed.
+    expect(sources.length).toBe(7);
+    expect(sources.length).not.toBe(6);
+    expect(sources.length).not.toBe(8);
+    const offenders = sources
+      .filter((s) => !/import\.meta\.url === pathToFileURL\(process\.argv\[1\]\)\.href/.test(s.src))
+      .map((s) => `scripts/${s.name}`);
+    expect(
+      offenders,
+      `an isEntry guard is using a weaker form than the sibling precedent. ` +
+        `\`process.argv[1].endsWith("x.js")\` matches ANY path ending in that filename, and a ` +
+        `hand-built \`file://\${argv[1]}\` does not match on Windows — which makes a direct run ` +
+        `perform ZERO checks and exit 0, a fabricated green.`,
+    ).toEqual([]);
+  });
+
+  it("every *_ROOT override uses the truthiness ternary, so an empty env var degrades to the repo root", () => {
+    // `??` and the ternary differ on exactly one input: an empty string. With `??` an empty
+    // CHECK_ROOT resolves every path against the process CWD instead of the repo root.
+    const offenders: string[] = [];
+    for (const { name, src } of entryGuardSources()) {
+      src.split("\n").forEach((line, n) => {
+        if (/process\.env\.(CHECK_ROOT|NUL_SCAN_ROOT)\s*\?\?/.test(line)) {
+          offenders.push(`scripts/${name}:${n + 1}: ${line.trim()}`);
+        }
+      });
+    }
+    expect(offenders, `a root override is using \`??\` rather than the sibling ternary`).toEqual([]);
+    // Non-vacuity: the scan must actually be reading files that DO declare a root override.
+    const withRoot = entryGuardSources().filter((s) =>
+      /process\.env\.(CHECK_ROOT|NUL_SCAN_ROOT)/.test(s.src),
+    );
+    expect(withRoot.length).toBeGreaterThan(4);
   });
 });
 

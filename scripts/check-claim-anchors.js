@@ -59,11 +59,18 @@
 // ---------------------------------------------------------------------------------------------
 import { readFileSync, existsSync } from "node:fs";
 import { join } from "node:path";
+import { pathToFileURL } from "node:url";
 import { readRegistry, isBlank, SAFETY_FLOORS, DISPOSITIONS, } from "./audit-model.js";
 // CHECK_ROOT override is load-bearing: the Vitest harness plants fixtures into a hermetic mirror
 // and points CHECK_ROOT at it, then spawns this committed .js against that mirror. When unset,
 // resolve against the script-relative repo root (cwd does not matter).
-const ROOT = process.env.CHECK_ROOT ?? join(import.meta.dirname, "..");
+//
+// THE TRUTHINESS TERNARY, NOT `??` (28-REVIEW WR-05). Every sibling gate in this phase uses the
+// ternary; this file used `??`, and the two differ on exactly one input: `CHECK_ROOT=""` degrades to
+// the repo root everywhere else and resolved every path against the process CWD here.
+const ROOT = process.env.CHECK_ROOT
+    ? process.env.CHECK_ROOT
+    : join(import.meta.dirname, "..");
 let FAILS = 0;
 const pass = (m) => {
     process.stdout.write(`  PASS  ${m}\n`);
@@ -319,6 +326,16 @@ function verdict() {
 // isEntry guard (the check-uat-oracles.ts precedent): the test file imports the exported grammar
 // and accessor, and without this the import would run the gate and call process.exit inside the
 // vitest worker.
-const isEntry = process.argv[1] !== undefined && process.argv[1].endsWith("check-claim-anchors.js");
+//
+// THE COMMENT CITED A PRECEDENT THIS FILE DID NOT FOLLOW (28-REVIEW WR-05). The named precedent is
+// the `pathToFileURL(process.argv[1]).href` comparison that audit-prepass.ts,
+// check-audit-register.ts, check-nul-bytes.ts, check-public-docs-vocabulary.ts,
+// check-uat-oracles.ts and generate-safety-surface.ts all use, each carrying its own note that the
+// string form is wrong; this file used `endsWith`, so the comment described code that was not here.
+// An `endsWith` test also answers a weaker question — any path ending in that filename matches,
+// including one in another directory — where the URL comparison asks whether THIS module is the
+// entry point.
+const isEntry = process.argv[1] !== undefined &&
+    import.meta.url === pathToFileURL(process.argv[1]).href;
 if (isEntry)
     main();

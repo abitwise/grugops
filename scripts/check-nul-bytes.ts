@@ -146,7 +146,13 @@ import { pathToFileURL } from "node:url";
 // It is an override for TESTING and it is not a scan-narrowing knob: it moves the root, it cannot
 // exclude a path, and every derivation below still enumerates the whole tracked set at whatever root
 // it is given.
-const ROOT = process.env.NUL_SCAN_ROOT ?? join(import.meta.dirname, "..");
+//
+// The truthiness ternary, not `??` — the sibling form (28-REVIEW WR-05). The two differ on exactly
+// one input: `NUL_SCAN_ROOT=""` degrades to the repo root here and would otherwise resolve every
+// path against the process CWD.
+const ROOT = process.env.NUL_SCAN_ROOT
+  ? process.env.NUL_SCAN_ROOT
+  : join(import.meta.dirname, "..");
 
 let FAILS = 0;
 const pass = (m: string): void => {
