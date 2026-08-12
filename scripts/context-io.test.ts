@@ -2221,7 +2221,25 @@ describe("context-io.js — byte-count fidelity for a leading boundary (28-08, r
   // frontmatter.test.ts: the corpus crosses as a JSON array and the verdicts come back as one, with
   // the returned length asserted equal to the cell count so a truncated batch fails arithmetically
   // rather than silently shortening the differential.
-  const RUBY = "/usr/bin/ruby";
+  // THE INTERPRETER IS RESOLVED FROM `PATH`, NOT PINNED TO AN ABSOLUTE PATH (28-REVIEW WR-13).
+  //
+  // This read `/usr/bin/ruby`. On the `windows-latest` CI leg — and on any Linux image that installs
+  // Ruby anywhere else — the probe failed, the case `return`ed after a `console.log`, and the whole
+  // test reported GREEN with only the primary byte-count oracle having run. A CI log line is not a
+  // test signal: nothing asserted the loader had run on any platform, so "the loader agrees" and
+  // "the loader was never asked" were indistinguishable in the summary.
+  //
+  // Two changes make the absence visible. The name resolves through `PATH` (overridable with
+  // YAML_ORACLE_RUBY for an unusual image), and the loader oracle is its OWN case gated with
+  // `it.skipIf`, so an image without Ruby reports a SKIP in the suite summary rather than a pass.
+  // Splitting the case rather than calling `ctx.skip()` inside the combined one is deliberate: the
+  // primary byte-count oracle must keep reporting its own green, and `ctx.skip()` would have
+  // discarded that signal along with the loader's.
+  const RUBY = process.env.YAML_ORACLE_RUBY ?? "ruby";
+  const RUBY_PROBE = spawnSync(RUBY, ["-ryaml", "-e", "print Psych::VERSION"], {
+    encoding: "utf8",
+  });
+  const HAS_RUBY = RUBY_PROBE.status === 0;
   const LOADER_PROGRAM = [
     "require 'yaml'; require 'json'",
     "out = JSON.parse(STDIN.read).map do |d|",
@@ -2234,7 +2252,67 @@ describe("context-io.js — byte-count fidelity for a leading boundary (28-08, r
     "print JSON.generate(out)",
   ].join("\n");
 
-  it("PARSER-ORACLE FUZZ over the leading-boundary FAMILY: no byte invented or lost, and the loader reads the module's output exactly as it reads its input", () => {
+  // ── THE ONE SANCTIONED BYTE DROP, TESTED AS THE CONTRACT AND NOT AS A PROXY FOR IT ──────────────
+  //
+  // 28-REVIEW WR-09. The contract being excused is narrow and specific: splitNotes nulls a
+  // PURELY-BLANK REFUSED remainder via `refused.trim() === ""`, so the bytes lost are exactly that
+  // blank refused region and the RECOVERED NOTES ARE UNTOUCHED. The predicate that used to sit
+  // inline in the byte oracle was
+  //
+  //     d < 0 && input.replace(/[^\n]/g, "").length > 0 && output.trim() === input.trim()
+  //
+  // which excuses ANY negative delta whose lost bytes are leading/trailing whitespace OF THE WHOLE
+  // DOCUMENT — including a real regression that dropped the trailing `\n` from an ADMITTED,
+  // RECOVERED note. The comment above it claimed the cells were identified "BY THAT CONTRACT"; the
+  // code did not do that. This phase spent a plan discovering that a harness written against a false
+  // premise reported 42 phantom failures, so this premise gets the same scrutiny.
+  //
+  // The conjuncts below are the contract, stated directly:
+  //   1. the remainder really was NULLED (`trailingMalformed === null`) — the only path that drops
+  //      bytes at all;
+  //   2. the loss is a PREFIX of the input (`input.endsWith(output)`) — where the nulled region
+  //      lives, since `refused` accumulates the LEADING region and every note region parsed;
+  //   3. that prefix is BLANK;
+  //   4. and its byte length ACCOUNTS FOR THE WHOLE DELTA, so a cell that satisfied the shape for
+  //      some other reason still fails.
+  // Conjunct 2 is what closes the hole: a byte lost from inside or from the END of an admitted note
+  // makes `input.endsWith(output)` false, so such a cell can never land in this branch. Both
+  // directions are exercised directly by a case below, because the corpus never reaches this branch.
+  function isDocumentedBlankDrop(
+    input: string,
+    output: string,
+    split: { notes: string[]; trailingMalformed: string | null },
+  ): boolean {
+    const d = Buffer.byteLength(output, "utf8") - Buffer.byteLength(input, "utf8");
+    if (d >= 0) return false;
+    if (split.trailingMalformed !== null) return false;
+    if (!input.endsWith(output)) return false;
+    const lostPrefix = input.slice(0, input.length - output.length);
+    if (lostPrefix.trim() !== "") return false;
+    return Buffer.byteLength(lostPrefix, "utf8") === -d;
+  }
+
+  // ── THE FAMILY, BUILT ONCE AND MEASURED BY TWO ORACLES ──────────────────────────────────────────
+  //
+  // Hoisted out of the single combined case so the byte-count oracle and the loader oracle are
+  // separate `it`s over the SAME corpus (28-REVIEW WR-13). Two cases mean the suite summary can say
+  // "byte oracle passed, loader oracle skipped" on an image without Ruby, which is the fact a reader
+  // needs and which one combined case could not express.
+  interface FamilyCell {
+    input: string;
+    output: string;
+    notes: number;
+    refused: boolean;
+    /** The splitNotes result itself, so an oracle can test the module's CONTRACT and not a proxy. */
+    split: { notes: string[]; trailingMalformed: string | null };
+  }
+
+  function buildFamily(): {
+    cells: string[];
+    reconstituted: FamilyCell[];
+    leadingBoundary: number;
+    expectedCells: number;
+  } {
     // ── the axes. Cell count is DERIVED from their lengths, never written down. ──
     const firstLine = ["---", "--- ", "----", " ---", "x"] as const; // boundary-shaped and not
     const secondLine = ["id: n1", " id: n1", "kind: finding", "---", ""] as const;
@@ -2246,22 +2324,10 @@ describe("context-io.js — byte-count fidelity for a leading boundary (28-08, r
       for (const b of secondLine)
         for (const c of tail) for (const d of terminator) cells.push(a + "\n" + b + c + d);
 
-    // Derived, not literal — the arithmetic is the pin.
     const expectedCells =
       firstLine.length * secondLine.length * tail.length * terminator.length;
-    expect(cells.length, "cell count must equal the product of the axis lengths").toBe(
-      expectedCells,
-    );
-    // Non-vacuity of the corpus itself: it must actually CONTAIN members that reach the defect's call
-    // site (first line boundary-shaped) AND members that do not, or the differential is one-sided.
     const leadingBoundary = cells.filter((c) => /^(---|--- |----)\n/.test(c)).length;
-    expect(leadingBoundary, "family must contain leading-boundary members").toBeGreaterThan(0);
-    expect(
-      cells.length - leadingBoundary,
-      "family must contain non-leading-boundary controls",
-    ).toBeGreaterThan(0);
 
-    // ── the module's side: reconstitute every cell and measure the byte delta. ──
     const reconstituted = cells.map((c) => {
       const r = mod.splitNotes(c);
       return {
@@ -2269,8 +2335,26 @@ describe("context-io.js — byte-count fidelity for a leading boundary (28-08, r
         output: r.notes.join("") + (r.trailingMalformed ?? ""),
         notes: r.notes.length,
         refused: r.trailingMalformed !== null,
+        split: r,
       };
     });
+    return { cells, reconstituted, leadingBoundary, expectedCells };
+  }
+
+  it("PARSER-ORACLE FUZZ over the leading-boundary FAMILY: no byte invented or lost", () => {
+    const { cells, reconstituted, leadingBoundary, expectedCells } = buildFamily();
+
+    // Derived, not literal — the arithmetic is the pin.
+    expect(cells.length, "cell count must equal the product of the axis lengths").toBe(
+      expectedCells,
+    );
+    // Non-vacuity of the corpus itself: it must actually CONTAIN members that reach the defect's call
+    // site (first line boundary-shaped) AND members that do not, or the differential is one-sided.
+    expect(leadingBoundary, "family must contain leading-boundary members").toBeGreaterThan(0);
+    expect(
+      cells.length - leadingBoundary,
+      "family must contain non-leading-boundary controls",
+    ).toBeGreaterThan(0);
 
     // A digest of the corpus, printed so an outside transcript's same-corpus claim is a measurement
     // rather than an assertion.
@@ -2290,15 +2374,15 @@ describe("context-io.js — byte-count fidelity for a leading boundary (28-08, r
     );
 
     // ── PRIMARY ORACLE: byte count. No byte invented, none dropped, on any cell. ──
-    // The `.trim()`-nulled blank remainder is a WRITTEN contract of the module, not the residual, so
-    // those cells are identified BY THAT CONTRACT and counted rather than quietly excused.
+    //
+    // The carve-out is `isDocumentedBlankDrop`; its declaration above states what it excuses and why
+    // the predicate it replaced excused more than the contract does (28-REVIEW WR-09).
     const byteBreaks: string[] = [];
     let blankNulled = 0;
     for (const r of reconstituted) {
       const d = Buffer.byteLength(r.output, "utf8") - Buffer.byteLength(r.input, "utf8");
       if (d === 0) continue;
-      // The documented drop: a purely-blank refused region is nulled by `refused.trim() === ""`.
-      if (d < 0 && r.input.replace(/[^\n]/g, "").length > 0 && r.output.trim() === r.input.trim()) {
+      if (isDocumentedBlankDrop(r.input, r.output, r.split)) {
         blankNulled++;
         continue;
       }
@@ -2309,16 +2393,60 @@ describe("context-io.js — byte-count fidelity for a leading boundary (28-08, r
       `[28-08 residual-2 fuzz] byte-breaks=${byteBreaks.length} documented-blank-drops=${blankNulled}`,
     );
     expect(byteBreaks, `bytes invented or lost:\n${byteBreaks.join("\n")}`).toEqual([]);
+    // THE CARVE-OUT IS UNEXERCISED BY THIS CORPUS, AND THAT IS PINNED RATHER THAN LEFT UNSAID
+    // (28-REVIEW WR-09). Measured 2026-08-12 on the committed build: all 200 cells have delta 0, so
+    // the excuse branch is never taken and every cell passes on the bare invariant. An exemption that
+    // is never reached is easy to widen unnoticed, so the count is pinned at zero here and the
+    // predicate is exercised DIRECTLY by the case below instead of relying on this corpus to reach it.
+    expect(
+      blankNulled,
+      "no cell in this corpus should need the documented-blank-drop excuse — if this is now non-zero, " +
+        "a cell started losing bytes and the excuse is doing real work; look at it before moving the pin",
+    ).toBe(0);
+  });
 
-    // ── SECOND ORACLE: a real YAML loader, batched in ONE process. ──
-    // Skipped-with-a-printed-reason rather than silently absent if the interpreter is not present, so
-    // a harness that does not run says so instead of passing vacuously.
-    const probe = spawnSync(RUBY, ["-ryaml", "-e", "print Psych::VERSION"], { encoding: "utf8" });
-    if (probe.status !== 0) {
-      // eslint-disable-next-line no-console
-      console.log(`[28-08 residual-2 fuzz] loader SKIPPED — ${RUBY} unavailable (${probe.status})`);
-      return;
-    }
+  // ── The carve-out predicate, exercised DIRECTLY in both directions (28-REVIEW WR-09). ────────────
+  it("the documented-blank-drop excuse admits the module's real contract and REFUSES a loss inside an admitted note", () => {
+    // THE ADMIT DIRECTION, against the module rather than a hand-built triple: a document that is
+    // ONLY a separator has its refused remainder nulled by `refused.trim() === ""`, which is the one
+    // sanctioned way splitNotes drops a byte. The block above already pins this behaviour
+    // ("the blank-region contract at the `.trim()` test is untouched").
+    const blankOnly = "\n";
+    const rBlank = mod.splitNotes(blankOnly);
+    expect(rBlank.trailingMalformed).toBeNull();
+    const blankOut = rBlank.notes.join("") + (rBlank.trailingMalformed ?? "");
+    expect(Buffer.byteLength(blankOut) - Buffer.byteLength(blankOnly)).toBeLessThan(0);
+    expect(isDocumentedBlankDrop(blankOnly, blankOut, rBlank)).toBe(true);
+
+    // THE REFUSE DIRECTION — the hole the old predicate left open, and the reason this case exists.
+    // A regression that dropped the trailing `\n` from an ADMITTED, RECOVERED note satisfied the old
+    // `output.trim() === input.trim()` test and was excused as a "documented blank drop". It is
+    // simulated here on a real recovered note, because no shipped code path produces it.
+    const admitted = noteText("20260617T142305Z-engineer-finding-wr09", "Body.");
+    const rAdmitted = mod.splitNotes(admitted);
+    expect(rAdmitted.notes.length, "the fixture must really be admitted").toBe(1);
+    expect(rAdmitted.trailingMalformed).toBeNull();
+    const truncated = admitted.slice(0, -1); // one byte gone from the END of an admitted note
+    expect(truncated.trim()).toBe(admitted.trim()); // …which is exactly why the OLD test excused it
+    expect(isDocumentedBlankDrop(admitted, truncated, rAdmitted)).toBe(false);
+
+    // And a loss from the MIDDLE of an admitted note is refused too — it is not a prefix loss.
+    const gutted = admitted.replace("Body.", "Body");
+    expect(isDocumentedBlankDrop(admitted, gutted, rAdmitted)).toBe(false);
+  });
+
+  // ── SECOND ORACLE: a real YAML loader, batched in ONE process. ──
+  //
+  // ITS OWN CASE, GATED WITH `it.skipIf` (28-REVIEW WR-13). It used to live at the tail of the case
+  // above behind an early `return` and a `console.log`, so an image without Ruby reported the whole
+  // case GREEN with only the byte oracle having run. A CI log line is not a test signal. As a
+  // separate case, an image without the interpreter reports a SKIP in the suite summary, and the
+  // byte-count oracle above keeps reporting its own pass.
+  it.skipIf(!HAS_RUBY)(
+    "PARSER-ORACLE FUZZ, second oracle: a real YAML loader reads the module's output exactly as it reads its input",
+    () => {
+    const { reconstituted } = buildFamily();
+    const probe = RUBY_PROBE;
     const batch = [...reconstituted.map((r) => r.input), ...reconstituted.map((r) => r.output)];
     const run = spawnSync(RUBY, ["-e", LOADER_PROGRAM], {
       input: JSON.stringify(batch),
@@ -2367,5 +2495,23 @@ describe("context-io.js — byte-count fidelity for a leading boundary (28-08, r
       reconstituted.length - loaderRejected,
       "the loader must actually read some share of the family",
     ).toBeGreaterThan(0);
+    },
+  );
+
+  // The skip must be VISIBLE and ATTRIBUTED, not merely absent (28-REVIEW WR-13). This case always
+  // runs and records which interpreter was probed and what it answered, so a green suite on an image
+  // without Ruby says so in its own output instead of looking identical to one where the loader ran.
+  it("records whether the YAML loader oracle was available, so its absence is never silent", () => {
+    // eslint-disable-next-line no-console
+    console.log(
+      `[28-08 residual-2 fuzz] loader interpreter=${RUBY} available=${HAS_RUBY}` +
+        (HAS_RUBY
+          ? ` psych=${RUBY_PROBE.stdout}`
+          : ` (status=${RUBY_PROBE.status}) — the loader oracle above is SKIPPED, not passed; ` +
+            `set YAML_ORACLE_RUBY to point at an interpreter`),
+    );
+    // The probe is a real measurement either way: a `null` status means the binary was not spawnable
+    // at all, which must be distinguishable from a non-zero exit.
+    expect(HAS_RUBY).toBe(RUBY_PROBE.status === 0);
   });
 });
