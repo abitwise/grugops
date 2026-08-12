@@ -5,8 +5,8 @@ milestone_name: Autonomous Factory — Real Spawning, Controlled Language & Live
 current_phase: 28
 current_phase_name: kit-consistency-audit
 status: ready_to_execute
-stopped_at: 28-08 tasks 1-3 complete; BLOCKING CHECKPOINT at task 4 — D-22 part 3 (two independent red teams) NOT satisfied
-last_updated: "2026-08-11T23:16:54.883Z"
+stopped_at: 28-08 complete — red-team round closed D-22 part 3; five record corrections; NUL gate landed. Phase 28 NOT complete; verification follows.
+last_updated: "2026-08-12T09:12:17.264Z"
 progress:
   total_phases: 7
   completed_phases: 2
@@ -784,6 +784,12 @@ Recent decisions affecting current work:
 - [Phase ?]: The safe direction is proven BY CONSTRUCTION — trim('\n'+X) === trim(X) — so no refusal can be dropped, then measured 0/231213 anyway
 - [Phase ?]: D-19 item 3 RAISES the timeout ceiling to 30s explicitly; the knob was watched taking effect at 1ms (43 tests timed out)
 - [Phase ?]: D-22 part 3 (two independent red teams) NOT satisfied — no agent-spawning tool available; reported as a gap in the register, not dressed as a pass
+- [Phase ?]: RED TEAMS CLOSED D-22 part 3: A=PARTIALLY REFUTED, B=EVIDENCE WEAKER THAN STATED. The fix survived untouched; the RECORD was wrong in five places
+- [Phase ?]: Plan 28-08 SHIPPED a NUL byte (a290ee7) — the only one in 1450 tracked files — and then gated the class with scripts/check-nul-bytes.ts, landed RED against the real tree
+- [Phase ?]: The NUL gate scans EVERY tracked path with no exemption list: deriving the set from git's --eol classifier would have excluded the very file it needed to read
+- [Phase ?]: D-22 part 2 is met by its byte-count half ALONE; the loader half is measurably NULL for this defect class (byte-identical on the pre-fix build)
+- [Phase ?]: A plan requiring independent red teams must name WHO commissions them — the executor may have no agent-spawning tool
+- [Phase ?]: e193027 carried .js/.ts drift; npm run freshness CANNOT catch that class because it rebuilds from the working tree, not the committed .ts
 
 ### Pending Todos
 
@@ -891,8 +897,8 @@ Shape of the carry: **9 of 11 are pre-v2.0 carryover** from the v1.2 block above
 
 ## Session Continuity
 
-Last session: 2026-08-11T23:16:42.922Z
-Stopped at: 28-08 tasks 1-3 complete; BLOCKING CHECKPOINT at task 4 — D-22 part 3 (two independent red teams) NOT satisfied
+Last session: 2026-08-12T09:12:17.241Z
+Stopped at: 28-08 complete — red-team round closed D-22 part 3; five record corrections; NUL gate landed. Phase 28 NOT complete; verification follows.
 Resume file: .planning/phases/28-kit-consistency-audit/28-08-SUMMARY.md
 
 ## Operator Next Steps

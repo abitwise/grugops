@@ -300,14 +300,29 @@ exist, in `scripts/context-io.ts`. See `docs/audit/28-residual-sizing.md` §
 *Residual 2 — reproduction at fix time (28-08)* for the reproduction, the loader differential, and
 the three structural answers.
 
-**One part of that bar is NOT satisfied, and it is recorded here rather than in a summary that a
-later reader may not open.** D-22 part 3 requires **two independent red teams** — adversarial passes
-by agents that did not author the fix. Plan 28-08's executor had no agent-spawning tool available in
-its tool set, so no independent pass was commissioned. What exists is a five-attempt adversarial pass
-run by the fix's **author**, which is explicitly the thing the plan's own threat register calls
-insufficient (T-28-50: *"a red team run by the fix's author reviews the author's own assumptions"*).
-The pass and its results are recorded in `28-08-SUMMARY.md`, labelled as non-independent. **The
-independence gap is real and is the central question at this plan's blocking checkpoint.**
+**D-22 part 3 was initially NOT satisfied, and it is now CLOSED — both states are recorded here
+rather than only the final one.** Part 3 requires **two independent red teams**. Plan 28-08's
+executor has no agent-spawning tool in its tool set, so it could not commission one and reported the
+gap rather than scoring the part met on the strength of its own author-run pass — the thing the
+plan's own threat register calls insufficient by name (T-28-50: *"a red team run by the fix's author
+reviews the author's own assumptions"*).
+
+**The orchestrator then commissioned two independent opus red teams against `a290ee7`** with
+deliberately different lenses — A: attack the fix, B: attack the evidence. **A returned PARTIALLY
+REFUTED; B returned EVIDENCE WEAKER THAN STATED.** The fix survived both and needed no change; the
+**record** did not, and five corrections followed. Full verdicts, corroborating measurements and all
+five corrections are in `docs/audit/28-residual-sizing.md` §
+*Residual 2 — the red-team round, and five corrections to the record (28-08)*.
+
+**One of the five is a defect this phase shipped and then gated.** Commit `a290ee7` introduced a NUL
+byte into `scripts/context-io.test.ts` — the only NUL in any of 1,450 tracked files. It survived
+`tsc`, the full suite and all fourteen gates, made the digest on that line irreproducible from its
+own source, and silently disabled `grep` over the file. `scripts/check-nul-bytes.ts` now gates the
+class, landed RED against the real tree at `cd71344` before the byte was removed.
+
+**A limitation worth carrying to future phases:** a plan that writes "two independent red teams" into
+its acceptance criteria is writing a requirement its executor may be structurally unable to satisfy.
+The bar is right; the assignment needs to name who commissions them.
 
 ## Table A — audited files
 

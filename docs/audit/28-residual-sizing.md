@@ -686,3 +686,204 @@ D-22's four-part bar is not discarded on that account. It is applied to the fix 
 `context-io.ts` byte-fidelity defect — at full strength: a structural fix, parser-oracle fuzz against
 a real YAML loader, independent red teams, and the executor's own reproduction before and after.
 
+
+---
+
+## Residual 2 — the red-team round, and five corrections to the record (28-08)
+
+**Produced by:** plan 28-08 after two independent opus red teams, commissioned by the orchestrator.
+**Date:** 2026-08-12.
+
+### D-22 part 3 is CLOSED, and how the independence was obtained
+
+The executor running plan 28-08 has **no agent-spawning tool in its tool set**, so it could not
+commission an adversarial pass itself and said so rather than scoring the part met. The orchestrator
+commissioned two independent opus red teams against commit `a290ee7` with deliberately different
+lenses — **A: attack the fix. B: attack the evidence.** Both returned.
+
+**That limitation is recorded here for future phases:** a plan that writes "two independent red
+teams" into its acceptance criteria is writing a requirement its executor may be structurally unable
+to satisfy. The bar is right; the assignment needs to name who commissions them.
+
+### The verdicts
+
+| Team | Lens | Verdict |
+|---|---|---|
+| A | attack the fix | **PARTIALLY REFUTED** — the fix holds; one code comment is false |
+| B | attack the evidence | **EVIDENCE WEAKER THAN STATED** — four claims overstated or wrong |
+
+**The fix itself survived both and needs no change.** Team B rebuilt the harness independently at
+200,000 documents (deterministic LCG, 32-shape alphabet with CR, tabs, indented fences and CRLF) and
+corroborated: 0 arm changes, 0 refusal null-ness changes, 0 bytes invented post-fix, **7,636
+documents (3.82%) actually reaching the changed path**, 0 hits at any non-leading call site, and 0
+`from > to` hits ever. Team A's differential over 104,898 documents agreed and proved its comparator
+non-blind by catching **44** differences against a deliberately mutated build.
+`refused_pre === "\n" + refused_post` held in all **10,933** differing cases with delta exactly 1.
+The five-call-site census is confirmed correct.
+
+### The five corrections, each verified independently before being written
+
+Every number below was re-measured by the executor in its own session. Nothing was copied from the
+red-team reports — including the digest, which is re-derived by running the test rather than
+transcribed.
+
+#### Correction 1 — plan 28-08 shipped a NUL byte, and misdiagnosed it
+
+`scripts/context-io.test.ts:2277` read `cells.join(" ")` where the byte between the quotes was
+**0x00, not 0x20**. Provenance, measured:
+
+```
+a290ee7^ : NUL count = 0
+a290ee7  : NUL count = 1     <- plan 28-08's own commit
+HEAD     : NUL count = 1
+```
+
+It was the **only NUL byte in any tracked file** — 1 across 1,450. Two harms:
+
+- **The printed digest was irreproducible from its own source.** Its stated purpose is *"printed so
+  an outside transcript's same-corpus claim is a measurement rather than an assertion"*. A third
+  party reconstructing `join(" ")` hashes different bytes. Corrected to an explicit `"\x1f"` escape
+  — explicit so a reader sees WHICH byte rather than inferring it from a glyph — and the digest
+  **re-derived by running the test**.
+- **28-08's own "false harness premise #3" was itself a false premise.** The summary recorded a
+  `grep` returning zero matches, attributed it to *"BSD grep's silent binary-classification skip, a
+  known trap in this repository"*, applied `grep -a`, and concluded no work was lost. The conclusion
+  was right and **the diagnosis was wrong**: the file was binary-classified because that same commit
+  had just introduced the NUL. The known-trap workaround was applied without checking whether its
+  premise held. Corrected in the summary.
+
+**A new gate was built for the class** — `scripts/check-nul-bytes.ts`, user-approved. See below.
+
+#### Correction 2 — a false sentence had become a permanent code comment
+
+`scripts/context-io.ts` described the invented byte as *"one byte present at no offset of the
+input"*. **False for every reachable case.** Reaching `sliceBytes(0,0)` requires
+`boundaries[0] === 0`, which requires `isBoundaryAt(0)`, which forces `lines.length >= 2` — so the
+input always already contains `0x0a`. Team A measured the site reached **3,078** times over
+exhaustive enumeration, **0** of them with an input lacking `\n`.
+
+The true statement is a **multiset** one: the output carries one MORE `\n` than the input. This is
+not pedantry — as written, the sentence invites the check *"does the output contain a character
+absent from the input?"*, which **returns clean on the real defect** and would have certified it
+fixed while it was live. A fresh instance of this phase's dominant failure class, minted into the
+fix's own documentation. Corrected at the source.
+
+#### Correction 3 — D-22 part 2's loader half has ZERO discriminating power for this defect class
+
+Team B ran 28-08's differential against the **pre-fix** build:
+
+```
+PRE : loader-rejected=84  meaning-divergences=0  verdicts=400/400
+POST: loader-rejected=84  meaning-divergences=0  verdicts=400/400
+```
+
+**Byte-identical on the defective build.** libyaml is indifferent to a leading `\n` before a `---`
+document-start marker, so the loader comparison **can never go red for this defect class** — a
+vacuous pass is indistinguishable from a real one.
+
+**Restated honestly, naming which half did the work.** D-22 part 2 has two halves. The **byte-count
+property (28 → 0) is what caught the defect**, over a generated family in which **32 of 200 cells
+genuinely reach `from >= to`**, so the family's coverage is real. The **loader half is null for this
+class** and contributes nothing to the verdict. Plan 28-08's summary conceded the loader's blindness
+for the *minimal* case but its scorecard still marked the row satisfied without saying the loader is
+null across the **entire family**. The row is **not** quietly downgraded — the part is met, and it is
+met by the byte-count half alone.
+
+**Two structural gaps Team B names, recorded rather than closed:** the harness never tests the
+reverse direction (input loader-rejected → output loader-ACCEPTED, i.e. the module manufacturing
+loadable structure — measured **0** on both builds, so unexploited but **unasserted**), and the
+non-vacuity guard `reconstituted.length - loaderRejected > 0` would still pass at 199-of-200
+rejected. Both are real weaknesses in the harness and neither is a defect in the fix.
+
+#### Correction 4 — the live-tree headline was a NULL RESULT presented as a risk finding
+
+Plan 28-08 wrote: *"over every markdown file that actually exists in this repository, the change
+alters nothing at all"* — which implies the change was exercised and found harmless. **It was never
+exercised.** Re-measured by the executor:
+
+| | |
+|---|---|
+| tracked `*.md` | 1,214 |
+| opening with a bare `---` line | 626 |
+| **actually reaching the changed path** | **0** |
+
+`boundaries[0] === 0` additionally requires that first line to open an **id-bearing note attempt**,
+which no repository markdown does. The row's own `PRE 0 / POST 0` was the tell. Reframed as the null
+result it is: it bounds the blast radius on today's tree and is **not** evidence the fix works.
+
+#### Correction 5 — the stated motivation for the fix was wrong
+
+Plan 28-08 justified the fix as *"the remainder is surfaced to a human through the unparseable
+channel and a byte that no one wrote is a lie told to that human."* Verified against the source:
+
+```
+scripts/compactor.ts:206-207
+    if (split.trailingMalformed !== null) {
+      unparseable.push(file);      // <- the FILENAME only
+    }
+```
+
+The remainder's **bytes are discarded**. `trailingMalformed` appears in exactly two non-test files
+(`compactor.ts`, `context-io.ts`) and `compactor.ts` only tests it for null-ness. It reaches no log,
+no digest, no audit ledger and no equality check. **No human ever sees those bytes.**
+
+This **strengthens** the "not a parser bypass" conclusion while **invalidating the reason given**.
+The corrected motivation: the fix is worth having because the module states a byte round-trip
+contract that other code may one day rely on, and a contract that is false is a trap for the next
+reader — not because a human was being shown a wrong byte. Nobody was.
+
+### The corrected D-22 scorecard — all four parts, and how each was met
+
+| Part | Met | By what, precisely |
+|---|---|---|
+| Structural fix | **yes** | the missing base case of `sliceBytes`' own separator rule; no predicate widened; confirmed by both teams and by a 5-site census |
+| Parser-oracle fuzz vs a real YAML loader | **yes, by its byte-count half ONLY** | 28 → 0 byte-breaks over a 200-cell family, 32 cells reaching the changed path. **The loader half is null for this class** and is stated as null |
+| Two independent red teams | **yes** | A (attack the fix) and B (attack the evidence), commissioned by the orchestrator because the executor has no agent-spawning tool |
+| Executor self-reproduction before and after | **yes** | both runs in the executor's own session, bytes hexdumped, harness premise asserted first |
+
+### The new gate — `scripts/check-nul-bytes.ts`, user-approved
+
+Nothing in the previous fourteen gates caught a NUL in a tracked text source, and one had just
+shipped. Built **RED-first against the real tree** while the defect was still at HEAD, which is the
+standard plan 28-01 set for this phase and the reason a red here is credible.
+
+| Stage | Result |
+|---|---|
+| the gate, run at commit `cd71344` with the NUL still present | **exit 1** — `2 CHECK(S) FAILED`, naming the file, byte offset 116043, line 2277, column 60 |
+| after `cells.join("\0")` → `cells.join("\x1f")` | **exit 0**, gate byte-unchanged across the transition |
+| the **final** artifact re-run against `git show a290ee7:scripts/context-io.test.ts` in a throwaway repo | **exit 1**, same offset/line/column — so the refusal is attributed to the code that ships, not to an early draft |
+
+**The scanned set is every path `git ls-files` reports — no exemption list, nothing filtered.** That
+is deliberate, and it avoids a trap that was measured before the gate was written: deriving the scan
+set from git's own `--eol` text classifier would have **excluded the very file it needed to read**,
+because git calls a file `-text` *precisely because* it contains a NUL. On the tree at 28-08, exactly
+one of 1,450 files was `-text` — the defect itself. The classifier is downstream of the property
+under test, so it cannot be the filter. It is used as a cross-check instead.
+
+**Two honesty notes on that cross-check, both found by running it rather than by reasoning:**
+
+- The first version compared against git's `i/` (**index**) column while the byte scan reads the
+  **working tree**. The instant the NUL was fixed the gate reported a disagreement — `i/-text w/lf` —
+  because the two detectors were being asked about *different objects*. The gate was right and the
+  harness was wrong; it now parses `w/`.
+- The header originally claimed "two independent detectors". **That claim is false and is corrected
+  in the source.** Git's binary heuristic is itself NUL-based, so agreement corroborates this
+  module's *implementation*, not the *concept*. The disagreement arm could not be reached by any of
+  four constructed shapes (NUL at byte 100; NUL at byte 20,000; `.gitattributes binary` on clean
+  content; `.gitattributes text` on NUL-bearing content) and is documented as **defensive only**
+  rather than implied to be covered.
+
+15 cases in `scripts/check-nul-bytes.test.ts`, split into a REFUSAL half driven through the shipped
+gate against throwaway git repositories and a NON-VACUITY half against the real tree — including the
+case that matters most: **the file that caused this gate is asserted to be INSIDE the scanned set**,
+so the green cannot have been obtained by exclusion.
+
+### What the round cost, and what it bought
+
+The fix survived. **The record did not.** Five of the corrections above are defects in evidence, not
+in code — a false code comment, an overstated scorecard row, a null result written as a finding, a
+wrong motivation, and a NUL byte shipped inside the very artifact whose job was reproducibility.
+
+That is the argument for the round, stated as a measurement rather than as a principle: **a green
+suite and a surviving fix were both true the whole time, and the record was still wrong in five
+places.**
