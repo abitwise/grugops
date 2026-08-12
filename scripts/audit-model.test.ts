@@ -881,6 +881,33 @@ describe("audit-model: readRegistry", () => {
     expect(readRegistry(dir).claims[0].verbatim).toBe("x");
   });
 
+  // ── 28-REVIEW WR-07: `line` is a REQUIRED key, so its FORM is held even though its VALUE is not.
+  //
+  // The registry documents, in its own `## Why `line` is recorded and not checked` section, that the
+  // number is advisory: asserting it would red on every unrelated edit above a claim. That decision
+  // stands. What did not stand is that a required key was never validated at all.
+  it("refuses a `line` outside the canonical `N` / `N-M` form", () => {
+    for (const bad of ["banana", "", "4a", "-4", "4-", "4 - 6", "4,6"]) {
+      const dir = writeRegistryFixture(registryDoc(claimBlock("C-28-001", { line: bad })));
+      let msg = "";
+      try {
+        readRegistry(dir);
+      } catch (e) {
+        msg = (e as Error).message;
+      }
+      expect(msg, `line: ${JSON.stringify(bad)}`).toMatch(/canonical form/);
+    }
+  });
+
+  it("admits BOTH live `line` shapes — a single line and a range", () => {
+    // Measured on the committed registry 2026-08-12: 38 rows, 19 single values and 19 ranges. A
+    // refusal that rejected either would be a regression wearing a fix's shape.
+    for (const good of ["4", "7-8", "100-103", "0"]) {
+      const dir = writeRegistryFixture(registryDoc(claimBlock("C-28-001", { line: good })));
+      expect(readRegistry(dir).claims[0].line, good).toBe(good);
+    }
+  });
+
   it("refuses a claim missing a required metadata key, naming the key", () => {
     const body = [
       "# Phase 28 Claim Registry",

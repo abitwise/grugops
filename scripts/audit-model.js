@@ -565,6 +565,12 @@ function duplicates(values) {
 const CLAIM_HEADING_RE = /^###\s+(\S+)\s*$/;
 const CLAIM_META_RE = /^-\s+([a-z_]+):\s*(.*)$/;
 const CLAIM_REQUIRED_KEYS = ["file", "line", "kind", "depends_on", "status"];
+// The canonical form of a `line:` value: a single 1-based line, or an inclusive range (28-REVIEW
+// WR-07). Both shapes are live in the committed registry — measured 2026-08-12, 38 rows carry 19
+// single values and 19 ranges, and nothing else. The VALUE is advisory by the registry's own
+// documented decision; the FORM is held here, because a required key that is never validated at all
+// admits `line: banana` while reading to a human as authoritative provenance.
+const CLAIM_LINE_RE = /^\d+(?:-\d+)?$/;
 /**
  * Parse the claim registry. Each claim is a `### <id>` heading, a metadata list, and a fenced block
  * holding the claim's VERBATIM text.
@@ -691,6 +697,13 @@ function parseClaimBlock(lines, start, end) {
             refuse(REGISTRY_PATH, `claim ${id} at line ${start + 1} is missing required metadata key \`${key}\`. The ` +
                 `required keys are [${CLAIM_REQUIRED_KEYS.join(", ")}]`);
         }
+    }
+    // The `line` FORM. See ClaimRow.line for why the VALUE is deliberately not asserted.
+    if (!CLAIM_LINE_RE.test(meta["line"])) {
+        refuse(REGISTRY_PATH, `claim ${id} carries \`line\` "${meta["line"]}", which is outside the canonical form \`N\` or ` +
+            `\`N-M\`. The value is ADVISORY — the registry records why it is not asserted — but a ` +
+            `required key that is never validated at all admits anything while reading to a human as ` +
+            `authoritative provenance`);
     }
     const kind = meta["kind"];
     if (!CLAIM_KINDS.includes(kind)) {

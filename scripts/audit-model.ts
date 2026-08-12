@@ -289,6 +289,25 @@ export interface Register {
 export interface ClaimRow {
   readonly id: string;
   readonly file: string;
+  /**
+   * The claim's position in `file`, in the CANONICAL FORM `N` or `N-M`.
+   *
+   * THE FORM IS ASSERTED; THE VALUE IS DELIBERATELY NOT (28-REVIEW WR-07). No consumer reads this
+   * field — check-claim-anchors reports positions from the anchor's actual index — and that is a
+   * DECISION the registry records in its own prose, under `## Why `line` is recorded and not
+   * checked`: "Phase 29 rewrites prose for a living, and an assertive line number would go red on
+   * every unrelated edit above a claim — training people to ignore a red gate, which is the failure
+   * mode this milestone has spent itself fighting."
+   *
+   * The review's alternative — compare the declared number against `at + 2` — was therefore
+   * DECLINED: it would overturn a documented decision to buy a gate that reds on edits it is not
+   * about. What was genuinely missing is that a REQUIRED key was never format-validated at all, so a
+   * `line: banana` parsed green while reading to a human as authoritative provenance. That half is
+   * closed here, with the same canonical-form-plus-refusal doctrine the ids carry.
+   *
+   * A reader must therefore treat this as ADVISORY: it is where the claim sat when its row was
+   * written, and nothing keeps it current.
+   */
   readonly line: string;
   readonly kind: ClaimKind;
   readonly dependsOn: readonly string[];
@@ -824,6 +843,13 @@ const CLAIM_HEADING_RE = /^###\s+(\S+)\s*$/;
 const CLAIM_META_RE = /^-\s+([a-z_]+):\s*(.*)$/;
 const CLAIM_REQUIRED_KEYS = ["file", "line", "kind", "depends_on", "status"] as const;
 
+// The canonical form of a `line:` value: a single 1-based line, or an inclusive range (28-REVIEW
+// WR-07). Both shapes are live in the committed registry — measured 2026-08-12, 38 rows carry 19
+// single values and 19 ranges, and nothing else. The VALUE is advisory by the registry's own
+// documented decision; the FORM is held here, because a required key that is never validated at all
+// admits `line: banana` while reading to a human as authoritative provenance.
+const CLAIM_LINE_RE = /^\d+(?:-\d+)?$/;
+
 /**
  * Parse the claim registry. Each claim is a `### <id>` heading, a metadata list, and a fenced block
  * holding the claim's VERBATIM text.
@@ -981,6 +1007,17 @@ function parseClaimBlock(lines: readonly string[], start: number, end: number): 
           `required keys are [${CLAIM_REQUIRED_KEYS.join(", ")}]`,
       );
     }
+  }
+
+  // The `line` FORM. See ClaimRow.line for why the VALUE is deliberately not asserted.
+  if (!CLAIM_LINE_RE.test(meta["line"])) {
+    refuse(
+      REGISTRY_PATH,
+      `claim ${id} carries \`line\` "${meta["line"]}", which is outside the canonical form \`N\` or ` +
+        `\`N-M\`. The value is ADVISORY — the registry records why it is not asserted — but a ` +
+        `required key that is never validated at all admits anything while reading to a human as ` +
+        `authoritative provenance`,
+    );
   }
 
   const kind = meta["kind"];
