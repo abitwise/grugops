@@ -182,18 +182,35 @@ function grepSubstring(scan: readonly string[], needle: string): string[] {
   return hits;
 }
 
-// The same grep over a LOWERCASED copy of each line. The retired prose list stores lowercase forms
-// only (see scripts/dead-vocabulary.ts) — a re-capitalised retired phrase is the same retired
-// phrase. The reported line is the ORIGINAL, so the hit is quotable.
-function grepSubstringInsensitive(
+// The same grep, case-INSENSITIVE on BOTH sides. A re-capitalised retired phrase is the same
+// retired phrase. The reported line is the ORIGINAL, so the hit is quotable.
+//
+// THE NEEDLE IS LOWERCASED HERE, NOT ASSUMED LOWERCASE UPSTREAM (28-REVIEW WR-06). This function
+// lowercased the SUBJECT and compared it against the needle as given, which is only correct while
+// every member of RETIRED_PROSE_FORMS happens to be lowercase. That invariant is documented in a
+// comment in dead-vocabulary.ts and was enforced nowhere: adding `"Handoff Packet"` to that array
+// would have made this gate match ZERO lines, forever, silently — a live consumer of a single-source
+// list whose enforcement quietly becomes a no-op. The `expect(RETIRED_PROSE_FORMS).toEqual([…])`
+// freeze in the test file is a guard on the DATA, and the data freeze is exactly what an editor
+// updates when adding a literal.
+//
+// The sibling consumer audit-prepass.ts builds its regex with the `i` flag and never had this
+// hazard, so the two consumers of one list disagreed about case. They no longer do: the invariant is
+// enforced at the point of use rather than assumed upstream.
+//
+// EXPORTED so the case invariant is asserted on the CONSUMER rather than only on the data. A test
+// that could only drive this through RETIRED_PROSE_FORMS would have to mutate the frozen list to
+// exercise the hazard, which is the one thing the D-10 control exists to prevent.
+export function grepSubstringInsensitive(
   scan: readonly string[],
   needle: string,
 ): string[] {
+  const lowered = needle.toLowerCase();
   const hits: string[] = [];
   for (const file of scan) {
     const lines = readText(file).split("\n");
     for (let i = 0; i < lines.length; i++) {
-      if (lines[i].toLowerCase().includes(needle)) {
+      if (lines[i].toLowerCase().includes(lowered)) {
         hits.push(`${file}:${i + 1}:${lines[i]}`);
       }
     }

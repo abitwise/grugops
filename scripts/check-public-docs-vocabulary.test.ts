@@ -37,6 +37,7 @@ import {
   PUBLIC_DOCS_EXEMPT,
   PUBLIC_DOCS_SCAN_PARTS,
   publicDocsScan,
+  grepSubstringInsensitive,
 } from "./check-public-docs-vocabulary.js";
 import {
   RETIRED_PATH_FORMS,
@@ -333,5 +334,28 @@ describe("check-public-docs-vocabulary — the derived pin and the D-10 control"
       "handoff packet",
       "the handoff is the only memory",
     ]);
+  });
+
+  // ── 28-REVIEW WR-06: the case invariant is enforced on the CONSUMER, not assumed on the data. ────
+  //
+  // RED AGAINST THE PRE-FIX BUILD. grepSubstringInsensitive lowercased the SUBJECT and compared it
+  // against the needle AS GIVEN. That is only correct while every member of RETIRED_PROSE_FORMS
+  // happens to be lowercase — an invariant documented in a comment in dead-vocabulary.ts and
+  // enforced nowhere. Adding `"Handoff Packet"` to that array would have made this gate match ZERO
+  // lines, forever, silently. The D-10 freeze above is a guard on the DATA, and the data freeze is
+  // exactly what an editor updates when adding a literal.
+  //
+  // The case is written against the CONSUMER with a synthetic mixed-case needle, because exercising
+  // it through the array would mean mutating the very list the D-10 control freezes.
+  it("grepSubstringInsensitive lowercases the NEEDLE too, so a mixed-case list entry still matches", () => {
+    const scan = ["README.md"];
+    const lower = grepSubstringInsensitive(scan, "grugops");
+    // Non-vacuity: the lowercase needle must actually find something, or the comparison below is
+    // between two empty arrays and proves nothing.
+    expect(lower.length).toBeGreaterThan(0);
+    // The hazard, exactly: a needle whose case differs from the list's convention. Pre-fix this
+    // returned []. A guard whose enforcement silently becomes a no-op is worse than no guard.
+    expect(grepSubstringInsensitive(scan, "GRUGOPS")).toEqual(lower);
+    expect(grepSubstringInsensitive(scan, "GrUgOpS")).toEqual(lower);
   });
 });
