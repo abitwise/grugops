@@ -20,6 +20,10 @@
 // read — never instead of one. This module is the mechanical half. It exists because an inline-only
 // read leaves nothing re-runnable, so a regression AFTER the audit would be invisible; the evidence
 // file it writes survives the phase precisely so a later `diff` has something to compare against.
+// That `diff` is a MANUAL act by a reader, and the artifact is a DATED point-in-time record that
+// nothing gates — see renderEvidence's note for why gating it was considered and declined, and for
+// the one line a reader must discount before treating a divergence as a tree change (28-REVIEW
+// WR-04).
 //
 // AN ABSENCE OF MECHANICAL HITS IS NOT A VERDICT OF CORRECT. The predicates below are greppable and
 // the D-07 rubric is not. Category 1 asks whether a file describes the architecture that actually
@@ -247,8 +251,14 @@ export function runPrepass(root = ROOT) {
     }
     const ctx = buildPrepassContext(root);
     // Deterministic by construction: files in the DERIVED order (both listers `.sort()` before
-    // returning), lines in file order, predicates in table order. Two runs over one tree are
-    // byte-identical, so a diff of the committed evidence means a real change in the tree.
+    // returning), lines in file order, predicates in table order — so `runPrepass()`'s ROWS are
+    // byte-identical across two runs over one tree.
+    //
+    // THE CLAIM APPLIES TO THE ROWS AND NOT TO THE RENDERED ARTIFACT (28-REVIEW WR-04). This comment
+    // used to end "…so a diff of the committed evidence means a real change in the tree", which is
+    // false as written: `renderEvidence` stamps `- **Generated:** <date>` from `new Date()`, so two
+    // runs on different days differ regardless of the tree. See renderEvidence's own note for the
+    // rest of the honest statement.
     for (const f of files) {
         const lines = readFileSync(join(root, f), "utf8").split("\n");
         for (let i = 0; i < lines.length; i++) {
@@ -268,6 +278,34 @@ export function runPrepass(root = ROOT) {
 // ---------------------------------------------------------------------------
 // The generated artifact.
 // ---------------------------------------------------------------------------
+/**
+ * WHAT THE COMMITTED ARTIFACT IS, AND WHAT IT IS NOT (28-REVIEW WR-04).
+ *
+ * IT IS A POINT-IN-TIME RECORD, NOT A LIVE INVARIANT. It is the mechanical half of the D-06 read
+ * pass as it stood on the stamped date, under a human-equivalent read that happened once. That is
+ * why the date is stamped and why the date is not a defect.
+ *
+ * IT IS THEREFORE NOT DETERMINISTIC AND NOT FRESHNESS-GATED, and both facts are stated here rather
+ * than implied away:
+ *
+ *   * NOT DETERMINISTIC. `- **Generated:**` comes from `new Date()`, so two runs on different days
+ *     differ regardless of the tree. `runPrepass()`'s ROWS are deterministic; this rendering is not.
+ *     A `diff` of the committed evidence is evidence of a tree change only once that line is
+ *     discounted.
+ *   * NOT FRESHNESS-GATED, DELIBERATELY. Unlike docs/audit/28-safety-surface-exclusions.md — whose
+ *     freshness IS folded into check-audit-register — nothing reds when this file drifts from the
+ *     tree, and it has drifted (measured 2026-08-12: the committed rows still quote kit prose that a
+ *     later plan rewrote). Gating it was CONSIDERED AND DECLINED. Phase 29 rewrites this very prose
+ *     for a living, so a freshness gate would red on every unrelated edit — the failure mode that
+ *     trains people to ignore a red gate — and the only way to clear it would be to regenerate rows
+ *     that NOBODY ADJUDICATED and publish them as the evidence for a read that did not re-happen.
+ *     That is fabricating evidence, which is worse than a stale record honestly labelled.
+ *
+ * A reader comparing this artifact against the live tree must therefore treat a divergence as
+ * "the tree moved since the read", never as "the pre-pass is broken". `UNKNOWN - verify` whether a
+ * future phase wants a re-run; if it does, the answer is a NEW dated artifact, not a gate over this
+ * one.
+ */
 function renderEvidence(result, today) {
     const out = [];
     out.push("# Phase 28 mechanical pre-pass evidence (AUDIT-01 / D-06)");

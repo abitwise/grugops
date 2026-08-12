@@ -278,15 +278,43 @@ describe("audit-prepass: the evidence rows", () => {
 });
 
 describe("audit-prepass: the generated evidence file", () => {
-  it("writes EVIDENCE_PATH and re-runs BYTE-IDENTICALLY", () => {
+  it("writes EVIDENCE_PATH and re-runs BYTE-IDENTICALLY apart from the stamped date", () => {
+    // 28-REVIEW WR-04: this case used to assert plain byte-identity, and it passed only because both
+    // runs happen within one calendar day. `renderEvidence` stamps `- **Generated:** <date>` from
+    // `new Date()`, so the ARTIFACT is not deterministic and asserting that it is would be asserting
+    // a property the module does not have. What IS deterministic is everything else, so the date
+    // line is discounted EXPLICITLY — a named exemption rather than a loosened comparison — and its
+    // presence is asserted separately so the discount cannot silently start hiding a missing line.
     const dir = buildMirror({
       "agent-factory/roles/role-01.md": "A handoff packet and UNKNOWN - verify.\n",
     });
     expect(runJs(dir).status).toBe(0);
-    const first = readFileSync(join(dir, EVIDENCE_PATH));
+    const first = readFileSync(join(dir, EVIDENCE_PATH), "utf8");
     expect(runJs(dir).status).toBe(0);
-    const second = readFileSync(join(dir, EVIDENCE_PATH));
-    expect(second.equals(first)).toBe(true);
+    const second = readFileSync(join(dir, EVIDENCE_PATH), "utf8");
+
+    const DATE_LINE = /^- \*\*Generated:\*\* \d{4}-\d{2}-\d{2}$/m;
+    expect(first).toMatch(DATE_LINE);
+    expect(second).toMatch(DATE_LINE);
+    const discount = (s: string): string => s.replace(DATE_LINE, "- **Generated:** <DISCOUNTED>");
+    expect(discount(second)).toBe(discount(first));
+    // Exactly ONE line is discounted — a discount that swallowed more would hide real drift.
+    expect(first.split("\n").filter((l) => DATE_LINE.test(l)).length).toBe(1);
+  });
+
+  it("runPrepass's ROWS are the deterministic half, and they are byte-identical across runs", () => {
+    // The property the module's comment actually holds: files in the DERIVED order, lines in file
+    // order, predicates in table order. Asserted on the rows directly, where it is true, rather than
+    // on the rendered artifact, where it is not.
+    const dir = buildMirror({
+      "agent-factory/roles/role-01.md": "A handoff packet and UNKNOWN - verify.\n",
+    });
+    const a = runPrepass(dir);
+    const b = runPrepass(dir);
+    expect(a.rows).toEqual(b.rows);
+    expect(a.rows.join("\n")).toBe(b.rows.join("\n"));
+    // Non-vacuity: an empty row set would satisfy the equality above while measuring nothing.
+    expect(a.rows.length).toBeGreaterThan(0);
   });
 
   it("heads the file with the regeneration command, the date, the set size, the predicate pin, and the not-a-verdict statement", () => {
