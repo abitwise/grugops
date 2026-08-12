@@ -2,11 +2,11 @@
 gsd_state_version: 1.0
 milestone: v2.1
 milestone_name: Autonomous Factory — Real Spawning, Controlled Language & Live Board
-current_phase: 28
-current_phase_name: kit-consistency-audit
+current_phase: 29
+current_phase_name: Controlled Language & Voice Guard Rebuild
 status: ready_to_execute
 stopped_at: 28-08 complete — red-team round closed D-22 part 3; five record corrections; NUL gate landed. Phase 28 NOT complete; verification follows.
-last_updated: "2026-08-12T09:12:17.264Z"
+last_updated: "2026-08-12T20:12:10.563Z"
 progress:
   total_phases: 7
   completed_phases: 2
@@ -29,8 +29,8 @@ See: .planning/PROJECT.md (updated 2026-07-28 — after v2.0 milestone)
 
 ## Current Position
 
-Phase: 28 (kit-consistency-audit) — EXECUTING
-Plan: 8 of 8
+Phase: 29 — Controlled Language & Voice Guard Rebuild
+Plan: Not started
 
 ## Gap-closure round 7 — PLANNED 2026-08-06, ready to execute
 
@@ -99,7 +99,7 @@ Prior activity: 2026-07-30 — 27-22 closed WR-02 and WR-04, the last two plans-
 
 **Velocity:**
 
-- Total plans completed: 175
+- Total plans completed: 183
 - Average duration: -
 - Total execution time: 0 hours
 
@@ -131,6 +131,7 @@ Prior activity: 2026-07-30 — 27-22 closed WR-02 and WR-04, the last two plans-
 | 24 | 5 | - | - |
 | 26 | 6 | - | - |
 | 27 | 66 | - | - |
+| 28 | 8 | - | - |
 
 **Recent Trend:**
 
