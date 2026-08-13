@@ -13,7 +13,7 @@ Definition of Done in `mode: lean`; in `mode: enterprise` it applies the superse
 - lint/typecheck/build run, or reason documented
 - e2e run when relevant
 - docs updated
-- handoff written
+- work output published as typed notes into the shared verified context
 - risks documented
 - traceability row updated
 - no fake command results

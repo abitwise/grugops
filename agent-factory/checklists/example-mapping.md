@@ -7,7 +7,7 @@ tier: lean
 The discovery conversation that produces the acceptance scenarios before code. The
 BA/PM runs it in `07-backlog-refinement.md` after a ticket is INVEST-shaped; the
 declarative scenarios it surfaces feed the `## Acceptance scenarios (Given/When/Then)`
-block in the product and QE handoffs.
+block in the product and QE typed notes in the shared verified context.
 
 <!-- bdd dial: off = skip this step · lean = BA self-runs all three voices · strict = named participants. Absent = lean. -->
 

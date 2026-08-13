@@ -108,7 +108,7 @@ Use the Orchestrator. Bootstrap this repo as brownfield. Create AGENTS.md, memor
 
 # Plan a new idea from scratch (greenfield)
 Use the Orchestrator. Plan this idea as greenfield: <idea>. Produce product/system/architecture
-  handoffs, epics, first tickets, and seed the board.
+  notes in the shared verified context, epics, first tickets, and seed the board.
 
 # Refine the backlog and promote ready items                       (workflow 07)
 Use the Orchestrator. Refine the backlog and promote ready items.

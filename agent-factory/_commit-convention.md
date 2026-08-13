@@ -6,7 +6,7 @@ tier: core
 
 Single source for HOW the factory commits its artifacts. Every workflow's `## Commit`
 step references THIS file by path; nobody else restates the branch guard or the message
-format. grug write the trail down — tickets, board, traceability, metrics, and handoffs
+format. grug write the trail down — tickets, board, traceability, metrics, and context notes
 are only an auditable trail once they are committed. An uncommitted artifact is not proof.
 
 ## (a) Branch guard
