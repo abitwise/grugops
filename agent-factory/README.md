@@ -157,3 +157,11 @@ kit/state layout.
 The Claude Code plugin form (colon-namespaced `/grugops:<op>` commands) installs from the
 marketplace; its exact install commands move with the plugin schema, so confirm them against
 current tool docs — `UNKNOWN - verify`.
+
+## Writing profile
+
+The kit's prose is written to a controlled-language profile that ships with it at
+[`agent-factory/writing-profile.md`](writing-profile.md). It enumerates the rules with stable ids,
+marks each one decidable or advisory, derives the project Technical Names set rather than listing
+it, and states which surfaces are gated at build time and which carry the profile as instruction.
+Read it before rewriting a workflow, a checklist, a seed template or a contract.
