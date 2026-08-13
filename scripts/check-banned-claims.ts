@@ -57,6 +57,13 @@
 //   THIS GATE PROVES that no pinned literal appears outside the one named exemption region.
 //   IT DOES NOT PROVE that no conformance, token-economy or comprehension claim exists.
 //
+// A SECOND, NARROWER RESIDUAL, RECORDED FOR THE SAME REASON. Matching is line-oriented, so a
+// pinned literal HARD-WRAPPED ACROSS A LINE BOUNDARY is not matched. The answer is deliberately NOT
+// to normalize whitespace before comparing: that would make the comparison inexact for every
+// literal in order to reach one wrapping, and an inexact comparison is how a gate starts admitting
+// shapes nobody measured. The literals are short enough to sit on one line, and a reviewer who
+// wraps one mid-token has written something no reader would parse as a claim either.
+//
 // agent-factory/writing-profile.md states the same residual in its own prose, in the section this
 // gate exempts, rather than letting a green run imply otherwise.
 //
@@ -554,6 +561,29 @@ function runAll(): void {
     );
   }
 
+  // THE EXEMPTION REGION IS ASSERTED UP FRONT, NOT INSIDE THE SCAN LOOP.
+  //
+  // Located inside the loop, the assertion could only fire while the exempt FILE was a member of
+  // the scan — so deleting the file outright skipped every one of its refusals, and the only thing
+  // left naming the loss was the aggregate pin, which says "one document short" and never says
+  // which document or that the disclaimer is gone. A vanished exemption file is not an absent
+  // exemption; it is the disclaimer that has to exist for the prohibition to be writable at all.
+  let exemptRegion: ExemptRegion | null = null;
+  const exemptAbs = abs(BANNED_CLAIM_EXEMPT_REGION.file);
+  if (!existsSync(exemptAbs)) {
+    fail(
+      `the document carrying the one named exemption region, ` +
+        `\`${BANNED_CLAIM_EXEMPT_REGION.file}\`, does not exist at ${exemptAbs}. That document is ` +
+        `the disclaimer this prohibition is only writable because of — ${BANNED_CLAIM_EXEMPT_REGION.reason}. ` +
+        `A missing exemption document is refused by name here, because every other document is ` +
+        `still scanned and the loss would otherwise read as a clean run`,
+    );
+  } else {
+    exemptRegion = locateExemptRegion(
+      readFileSync(exemptAbs, "utf8").split("\n"),
+    );
+  }
+
   // The findings, in derived-sorted scan order, then by line, then by literal declaration order.
   const findings: Finding[] = [];
   let visited = 0;
@@ -576,7 +606,7 @@ function runAll(): void {
 
     const lines = text.split("\n");
     const region =
-      file === BANNED_CLAIM_EXEMPT_REGION.file ? locateExemptRegion(lines) : null;
+      file === BANNED_CLAIM_EXEMPT_REGION.file ? exemptRegion : null;
 
     for (let i = 0; i < lines.length; i++) {
       if (

@@ -198,6 +198,40 @@ jobs:
           # rows ship `status: false` and eight ship `status: overstated` precisely so that trail
           # exists.
           node scripts/check-claim-anchors.js
+          # LANG-04 (plan 29-02, D-29 / D-44) — the banned-claim gate. It sits beside the claim
+          # anchors on purpose: the registry holds that a REGISTERED claim has not moved, and this
+          # gate holds that a FORBIDDEN claim never appears. Two different questions about the same
+          # public surface, and neither substitutes for the other.
+          #
+          # WIRED HERE **AND** IN scripts/check-banned-claims.test.ts AND IN package.json,
+          # deliberately at all the ends it has. This repository shipped freshness:adapters for an
+          # entire phase while it ran solely as a side effect of a test spawning it — one --exclude
+          # pattern away from being un-gated. A gate that runs only because some other step happens
+          # to run it is not wired; it is borrowed.
+          #
+          # WHAT IT HOLDS, AND WHAT A RED MEANS. It asserts that the 82 scanned documents — every
+          # markdown file under agent-factory/ plus the ten public documents, deduped — carry ZERO
+          # controlled-language conformance claim, ZERO token-economy win claim and ZERO
+          # comprehension-benefit claim, outside ONE named exemption region: the
+          # `## Disclaimer and honesty floor` section of agent-factory/writing-profile.md, which has
+          # to be able to name a claim in order to deny it. A red means a document asserts something
+          # this project has no evidence for, or claims conformance with a standard that publishes
+          # outright that it endorses and certifies no tool.
+          #
+          # FIX THE DOCUMENT. Delete the claim. Do NOT add an exemption — there is exactly one and
+          # it is asserted two-sided, so a duplicated region is itself a red — and do NOT narrow the
+          # scan set: BANNED_CLAIM_SCAN_COUNT is two-sided pinned precisely so removing a member to
+          # reach green is not available.
+          #
+          # IT WAS LANDED RED ON PURPOSE (D-44) AND AGAINST THE REAL TREE. Because the standard's
+          # name appeared in ZERO kit files, a check landed against this tree would have gone green
+          # having never been watched fail — so plan 29-02 wrote one deliberate conformance sentence
+          # into the profile first. At commit 20982a0 the gate exited 1 with 3 findings over 82
+          # documents; at 0fafbaf it exits 0, with the gate itself byte-unchanged across the
+          # transition. TWO of those three findings were NOT planted: the kit already claimed the
+          # caveman voice is a token economy, which project measurement disproved on this artifact.
+          # That is why a red here is credible — this guard caught real drift on its first run.
+          node scripts/check-banned-claims.js
 
           # WHAT IT HOLDS, AND WHAT A RED MEANS. It asserts that ZERO tracked files carry a NUL
           # (0x00) byte. The scanned set is every path `git ls-files` reports — no exemption list,

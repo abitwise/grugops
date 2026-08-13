@@ -14,6 +14,7 @@
     "check:public-docs": "tsc --outDir .tmp-build && node scripts/check-public-docs-vocabulary.js",
     "check:audit-register": "tsc --outDir .tmp-build && node scripts/check-audit-register.js",
     "check:claim-anchors": "tsc --outDir .tmp-build && node scripts/check-claim-anchors.js",
+    "check:banned-claims": "tsc --outDir .tmp-build && node scripts/check-banned-claims.js",
     "check:nul-bytes": "tsc --outDir .tmp-build && node scripts/check-nul-bytes.js",
     "audit:prepass": "tsc --outDir .tmp-build && node scripts/audit-prepass.js",
     "generate:safety-surface": "tsc --outDir .tmp-build && node scripts/generate-safety-surface.js",
