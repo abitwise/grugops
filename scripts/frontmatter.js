@@ -357,7 +357,13 @@
 // disagree about what a fence delimiter line looks like. Writing the expression out a second time at
 // the region scan is the set-literal drift this repository has corrected three times; declaring the
 // state machine a second time anywhere is forbidden outright.
-const FENCE_DELIMITER_LINE = /^```/;
+//
+// (Plan 29-01, D-24) EXPORTED, for the same reason it was hoisted. scripts/voice-model.ts asks a
+// THIRD question about fences — "where is the section-anchored caveman fence, and is it well-formed"
+// — and it must key on the same delimiter class rather than typing `/^```/` out a fourth time. It
+// does NOT get a copy of the state machine: `stripFencedBlocks` below remains the only implementation
+// of "which lines are inside a fence" in the tree.
+export const FENCE_DELIMITER_LINE = /^```/;
 // (Plan 27-12) Moved here from check-foundation-guards.ts unchanged, so the frontmatter parser gets
 // a fence-safe input without a second implementation and every existing prose check in the guards
 // keeps behaving byte-identically. The guards import it back.

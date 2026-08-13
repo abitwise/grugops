@@ -38,6 +38,19 @@ import { join, dirname } from "node:path";
 import { CORPUS, CORPUS_COUNT, rowById } from "./canonical-corpus.js";
 import { admit } from "./canonical-frontmatter.js";
 
+// (Plan 29-01) The two new guards' predicates, read from the authority so the mirror repair and the
+// fixtures below cannot come to disagree with the guards about what conforms.
+import {
+  readCavemanFence,
+  normalizeSentence,
+  segmentClauses,
+  countLexiconTokens,
+  countBannedConstructions,
+  CAVEMAN_LEXICON,
+  CAVEMAN_LEXICON_MIN,
+  BANNED_CONSTRUCTIONS,
+} from "./voice-model.js";
+
 import {
   listRoles,
   listAgentAdapters,
@@ -159,15 +172,205 @@ const GUARD_INPUTS = [
 
 const tmpDirs: string[] = [];
 
-// Build a temp mirror carrying byte-faithful copies of every guard input. Returns the mirror dir.
+// ---------------------------------------------------------------------------------------------
+// (Plan 29-01) WHY THE MIRROR'S ROLE FILES ARE NORMALIZED RATHER THAN COPIED BYTE-FAITHFULLY.
+//
+// Every plant case below asserts that ONE planted violation turns the gate red and that the
+// UNPLANTED mirror stays green. As of plan 29-01 the tree at HEAD is DELIBERATELY RED on two guards
+// — guard_caveman_voice on all 17 blocks and guard_role_clause_uniqueness on 12 clause groups — and
+// that RED is this plan's D-24 acceptance evidence, not a defect. A byte-faithful mirror of the real
+// role files is therefore the FAILURE case, not the baseline, and every "the unplanted mirror is
+// green" control would be measuring the tree's known drift instead of the plant.
+//
+// This is the same reasoning check-public-docs-vocabulary.test.ts already applies, and its words fit
+// unchanged: "the real public documents are the very drift this guard measures, so a copied mirror
+// would be the RED case, not the baseline." That harness synthesizes; this one repairs, because the
+// other nine guards need the real adapters, the real grant closure and the real workflow set.
+//
+// THE REPAIR IS SCOPED TO THE TWO NEW GUARDS AND IS PROVEN TO SUCCEED, NOT ASSUMED. It rewrites each
+// role file's caveman-fence INTERIOR to a conforming block and marks the second and later
+// occurrences of any repeated clause, then RE-MEASURES with the guards' own predicates from
+// voice-model.js and THROWS if a finding survives. A mirror builder that quietly stopped repairing
+// would otherwise turn every control below into a test of the drift rather than of the plant.
+//
+// It reads the predicates from voice-model.js rather than restating them — the plants-read-from-the
+// -authority rule this file already applies to the grant corpus.
+// ---------------------------------------------------------------------------------------------
+
+// A conforming caveman block: >= CAVEMAN_LEXICON_MIN lexicon terms, zero banned constructions, and
+// every line under CLAUSE_MIN_WORDS once normalized so the block contributes no clause of its own.
+// Asserted against the authority in the pin case below rather than trusted.
+const CONFORMING_CAVEMAN_BLOCK = ["You grug.", "You smash rock.", "You no think."];
+
+function repairCavemanBlock(text: string): string {
+  const lines = text.split("\n");
+  const heading = lines.findIndex((l) => /^## Caveman prompt/.test(l));
+  if (heading < 0) return text;
+  let open = -1;
+  for (let i = heading + 1; i < lines.length; i++) {
+    if (/^```/.test(lines[i])) {
+      open = i;
+      break;
+    }
+  }
+  if (open < 0) return text;
+  let close = -1;
+  for (let i = open + 1; i < lines.length; i++) {
+    if (/^```/.test(lines[i])) {
+      close = i;
+      break;
+    }
+  }
+  if (close < 0) return text;
+  return [
+    ...lines.slice(0, open + 1),
+    ...CONFORMING_CAVEMAN_BLOCK,
+    ...lines.slice(close),
+  ].join("\n");
+}
+
+// Append a marker INSIDE the clause that repeats, not at the end of its line: the repeated clause is
+// routinely the FIRST sentence of a `## Hard limits` paragraph, so a line-end suffix would leave it
+// byte-identical and the repair would silently do nothing. The line is re-split with CAPTURING
+// separators so joining reconstructs it exactly apart from the inserted marker.
+function markRepeatedClause(
+  line: string,
+  target: string,
+  marker: string,
+): { line: string; changed: boolean } {
+  let changed = false;
+  const out = line
+    .split(/((?<=[.!?])\s+)/)
+    .map((sentence, si) => {
+      if (si % 2 === 1) return sentence;
+      return sentence
+        .split(/( — | – | ; | : )/)
+        .map((frag, fi) => {
+          if (fi % 2 === 1 || changed) return frag;
+          if (normalizeSentence(frag) !== target) return frag;
+          changed = true;
+          return frag.replace(/([A-Za-z0-9])([^A-Za-z0-9]*)$/, `$1 ${marker}$2`);
+        })
+        .join("");
+    })
+    .join("");
+  return { line: out, changed };
+}
+
+function dedupeClauses(text: string, rel: string): string {
+  const lines = text.split("\n");
+  let marked = 0;
+  for (let pass = 0; pass < 8; pass++) {
+    const groups = new Map<string, number[]>();
+    for (const { clause, line } of segmentClauses(lines.join("\n"))) {
+      const seen = groups.get(clause);
+      if (seen) seen.push(line);
+      else groups.set(clause, [line]);
+    }
+    const dups = [...groups.entries()].filter(([, v]) => v.length > 1);
+    if (dups.length === 0) return lines.join("\n");
+    for (const [clause, at] of dups) {
+      for (const ln of at.slice(1)) {
+        marked += 1;
+        const r = markRepeatedClause(
+          lines[ln - 1],
+          clause,
+          `mirror variant ${marked}`,
+        );
+        if (!r.changed) {
+          throw new Error(
+            `mirror repair: could not de-duplicate "${clause}" at ${rel}:${ln} — the fixture would silently become a test of the tree's drift`,
+          );
+        }
+        lines[ln - 1] = r.line;
+      }
+    }
+  }
+  throw new Error(`mirror repair: de-duplication did not converge for ${rel}`);
+}
+
+function normalizeMirroredRole(text: string, rel: string): string {
+  const repaired = dedupeClauses(repairCavemanBlock(text), rel);
+  // RE-MEASURE with the guards' own predicates. A repair that stopped working must be LOUD.
+  const verdict = readCavemanFence(repaired);
+  if (!verdict.ok) {
+    throw new Error(`mirror repair: ${rel} fence refused (${verdict.reason})`);
+  }
+  const banned = countBannedConstructions(verdict.inside);
+  const bannedTotal =
+    banned.article + banned.copula + banned.modal + banned.subordinator;
+  if (countLexiconTokens(verdict.inside) < CAVEMAN_LEXICON_MIN || bannedTotal > 0) {
+    throw new Error(
+      `mirror repair: ${rel} caveman block still fails the two-sided predicate`,
+    );
+  }
+  const groups = new Map<string, number>();
+  for (const { clause } of segmentClauses(repaired)) {
+    groups.set(clause, (groups.get(clause) ?? 0) + 1);
+  }
+  const survivor = [...groups.entries()].find(([, n]) => n > 1);
+  if (survivor) {
+    throw new Error(
+      `mirror repair: ${rel} still repeats "${survivor[0]}" ${survivor[1]} times`,
+    );
+  }
+  return repaired;
+}
+
+const MIRRORED_ROLE_PREFIX = "agent-factory/roles/";
+
+// Build a temp mirror carrying copies of every guard input — byte-faithful for every input except
+// the 17 role files, which are normalized as argued above. Returns the mirror dir.
 function mirror(): string {
   const m = mkdtempSync(join(tmpdir(), "grugops-fg-"));
   tmpDirs.push(m);
   for (const rel of GUARD_INPUTS) {
     mkdirSync(join(m, dirname(rel)), { recursive: true });
+    if (rel.startsWith(MIRRORED_ROLE_PREFIX)) {
+      writeFileSync(
+        join(m, rel),
+        normalizeMirroredRole(readFileSync(join(ROOT, rel), "utf8"), rel),
+        "utf8",
+      );
+      continue;
+    }
     cpSync(join(ROOT, rel), join(m, rel));
   }
   return m;
+}
+
+// (Plan 29-01) Replace a mirrored role file's caveman-fence INTERIOR with the given lines, leaving
+// the heading, both delimiters and every other line of the document untouched. One helper for every
+// voice fixture, so a fixture differs from its siblings only in the bytes it plants.
+function plantCavemanBlock(
+  root: string,
+  role: string,
+  body: string[],
+): string {
+  const file = join(root, "agent-factory/roles", role);
+  const lines = readFileSync(file, "utf8").split("\n");
+  const heading = lines.findIndex((l) => /^## Caveman prompt/.test(l));
+  let open = -1;
+  for (let i = heading + 1; i < lines.length; i++) {
+    if (/^```/.test(lines[i])) {
+      open = i;
+      break;
+    }
+  }
+  let close = -1;
+  for (let i = open + 1; i < lines.length; i++) {
+    if (/^```/.test(lines[i])) {
+      close = i;
+      break;
+    }
+  }
+  const next = [
+    ...lines.slice(0, open + 1),
+    ...body,
+    ...lines.slice(close),
+  ].join("\n");
+  writeFileSync(file, next, "utf8");
+  return next;
 }
 
 // The coordinator adapter's agent name, and the full role-agent namespace derived from the kit.
@@ -304,12 +507,23 @@ describe("D-64 cutover: the spawn verdict is rendered by the canonical admission
     // not a demotion failure: the module is still consumed by four non-test modules including the
     // guard itself, so it is emphatically not dead code, and D-64 Part C's "keeps its consumers, is
     // not deleted" holds. Stating four while the plan says eleven is the honest reading of both.
+    //
+    // (Plan 29-01) AND IT MOVED FROM FOUR TO FIVE, WHICH IS A GAIN IN THE DEMOTION'S OWN DIRECTION.
+    // `voice-model.ts` imports exactly ONE symbol — `FENCE_DELIMITER_LINE`, the delimiter CLASS — and
+    // no verdict-bearing symbol at all, which the grant-predicate case immediately below asserts
+    // tree-wide. That is precisely the shape D-64 Part C wanted the parser to keep: consumers that
+    // take a declaration from it, not consumers that take a verdict from it.
     expect(consumers).toEqual([
       "canonical-frontmatter.ts",
       "check-foundation-guards.ts",
       "generate-role-adapters.ts",
       "generate-skill-twins.ts",
+      "voice-model.ts",
     ]);
+    expect(
+      importedSymbols("voice-model.ts", "frontmatter"),
+      "voice-model.ts must take the delimiter CLASS and nothing else — a second symbol is a step back toward a forked machine",
+    ).toEqual(["FENCE_DELIMITER_LINE"]);
   });
 
   it("NO non-test module imports a GRANT PREDICATE from ./frontmatter.js — the parser renders no spawn verdict anywhere", () => {
@@ -3345,82 +3559,50 @@ describe("check-foundation-guards.js (SDLC-02 / SC2 fail-proof harness)", () => 
     expect(out(r)).toContain("unterminated");
   });
 
-  // ── guard_caveman_preserved — sanded block + single-opener + missing (CR-02). ────────────────
-  it("guard_caveman_preserved sanded block → nonzero + 'no caveman marker' (D-06)", () => {
+  // ── guard_caveman_voice — the DISCRIMINATING fixtures (plan 29-01, D-43). ─────────────────────
+  //
+  // (Plan 29-01) The two `guard_caveman_preserved` plant cases that stood here were RETIRED WITH THE
+  // GUARD. They asserted the messages `no caveman marker` and `sanded to prose`, both produced by the
+  // `^You`-cadence predicate D-06 deletes; neither could distinguish the two-sided predicate from a
+  // one-sided one, because the block each planted fails BOTH arms.
+  //
+  // WHY THESE FIXTURES EXIST AND THE 17/17 RED TRANSCRIPT DOES NOT REPLACE THEM. Measured over the
+  // real corpus (29-RESEARCH §B-1), the positive arm fails 17/17 at EVERY N and the negative arm
+  // fails 17/17 independently. So a build that shipped `positive || negative`, or that dropped an arm
+  // outright, produces a BYTE-IDENTICAL transcript. Only a block that satisfies exactly one arm can
+  // tell the conjunction from the disjunction.
+  //
+  // Every plant below builds its tokens by reading CAVEMAN_LEXICON and BANNED_CONSTRUCTIONS from the
+  // authority. Retyping a term here would be a second copy of the list living in the file that
+  // polices the first.
+  it("FIXTURE A — a block passing the POSITIVE arm and failing the NEGATIVE arm is RED (D-43)", () => {
     const m = mirror();
-    const file = rolePath(m, "brownfield-mapper.md");
-    const lines = readFileSync(file, "utf8").split("\n");
-    // Replace the lines INSIDE the fenced block with marker-free professional prose (fences kept).
-    let seen = false;
-    let fence = 0;
-    let infence = false;
-    const kept: string[] = [];
-    for (const line of lines) {
-      if (/^## Caveman prompt/.test(line)) {
-        seen = true;
-        kept.push(line);
-        continue;
-      }
-      if (seen && /^```/.test(line)) {
-        fence++;
-        kept.push(line);
-        if (fence === 1) {
-          kept.push("The role evaluates the repository with professional diligence.");
-          infence = true;
-          continue;
-        }
-        if (fence === 2) {
-          infence = false;
-          seen = false;
-          continue;
-        }
-      }
-      if (infence) continue;
-      kept.push(line);
-    }
-    writeFileSync(file, kept.join("\n"));
+    plantCavemanBlock(m, "brownfield-mapper.md", [
+      // >= CAVEMAN_LEXICON_MIN lexicon terms …
+      `You ${CAVEMAN_LEXICON[0]}. You ${CAVEMAN_LEXICON[4]} ${CAVEMAN_LEXICON[2]}.`,
+      // … and one article, which is the whole difference.
+      `You find ${BANNED_CONSTRUCTIONS.article[0]} map.`,
+    ]);
     const r = runIn(m);
-    expect(r.status).not.toBe(0);
-    expect(out(r)).toContain("no caveman marker");
+    expect(r.status).toBe(1);
+    expect(out(r)).toContain("brownfield-mapper.md");
+    expect(out(r)).toContain("negative arm:");
+    // The positive arm HELD, so a guard that reported it failing would be measuring something else.
+    expect(out(r)).not.toMatch(/brownfield-mapper\.md: positive arm/);
   });
 
-  it("guard_caveman_preserved single-opener sand → nonzero + 'sanded to prose' (WR-01)", () => {
+  it("FIXTURE B — a block passing the NEGATIVE arm and failing the POSITIVE arm is RED (D-43)", () => {
     const m = mirror();
-    const file = rolePath(m, "brownfield-mapper.md");
-    const lines = readFileSync(file, "utf8").split("\n");
-    let seen = false;
-    let fence = 0;
-    let infence = false;
-    const kept: string[] = [];
-    for (const line of lines) {
-      if (/^## Caveman prompt/.test(line)) {
-        seen = true;
-        kept.push(line);
-        continue;
-      }
-      if (seen && /^```/.test(line)) {
-        fence++;
-        kept.push(line);
-        if (fence === 1) {
-          kept.push("You are the Brownfield Mapper.");
-          kept.push("This role surveys the existing repository with professional diligence,");
-          kept.push("documenting the current architecture before any change is proposed.");
-          infence = true;
-          continue;
-        }
-        if (fence === 2) {
-          infence = false;
-          seen = false;
-          continue;
-        }
-      }
-      if (infence) continue;
-      kept.push(line);
-    }
-    writeFileSync(file, kept.join("\n"));
+    plantCavemanBlock(m, "brownfield-mapper.md", [
+      // Zero lexicon terms, and zero articles, copulas, modals and subordinators.
+      "You map repo.",
+      "You write down what you found.",
+    ]);
     const r = runIn(m);
-    expect(r.status).not.toBe(0);
-    expect(out(r)).toContain("sanded to prose");
+    expect(r.status).toBe(1);
+    expect(out(r)).toContain("brownfield-mapper.md");
+    expect(out(r)).toMatch(/brownfield-mapper\.md: positive arm/);
+    expect(out(r)).not.toMatch(/brownfield-mapper\.md:.*negative arm/);
   });
 
   // (Phase 27 / KIT-01) The former "missing role → caveman prompt block missing" case is superseded
@@ -3834,15 +4016,37 @@ describe("check-foundation-guards.js (SDLC-02 / SC2 fail-proof harness)", () => 
   // zero FAIL lines and a clean exit. The RED behaviour it used to prove did not disappear with the
   // flip — it moved into the brokenMirror() fixture case above, which re-creates the pre-27-07 shape
   // explicitly and is therefore permanent.
-  it("smoke: real tree is fully green — zero FAIL lines, KIT-03 included (flipped back in plan 27-07)", () => {
+  //
+  // (Plan 29-01) IT IS INVERTED AGAIN, FOR THE SAME REASON AND UNDER THE SAME DISCIPLINE. The tree is
+  // now DELIBERATELY RED on exactly two guards — guard_caveman_voice on all 17 blocks and
+  // guard_role_clause_uniqueness on 12 clause groups — which is this plan's D-24 acceptance evidence:
+  // a guard that passes the moment it appears has never been watched fail. Plans 29-05, 29-06 and
+  // 29-07 land the rewrites that turn both green, and this case is FLIPPED BACK then.
+  //
+  // The inversion is written as a PIN ON THE EXACT TWO, not as a relaxation. The nine untouched
+  // guards must still print zero FAIL lines, so a regression anywhere else is reported by name rather
+  // than absorbed into an expected-red exit code. That is what keeps a deliberately red gate from
+  // becoming a gate nobody reads.
+  it("smoke: real tree is RED on EXACTLY the two new voice guards, and green everywhere else (plan 29-01 D-24 evidence)", () => {
     const r = spawnSync("node", [GUARD_JS], { encoding: "utf8" });
     const o = out(r);
     const fails = o.split("\n").filter((l) => l.startsWith("  FAIL"));
     // Assert on the FAIL lines BEFORE the status, so a regression reports WHICH guard broke rather
     // than only that the exit code was non-zero.
-    expect(fails).toEqual([]);
-    expect(r.status).toBe(0);
-    expect(o).toContain("ALL CHECKS PASSED");
+    expect(fails).toHaveLength(2);
+    expect(fails[0]).toContain("caveman voice: 17 finding(s) over 17 elements");
+    expect(fails[1]).toContain(
+      "role clause uniqueness: 12 finding(s) over 17 elements",
+    );
+    expect(r.status).toBe(1);
+    expect(o).toContain("2 CHECK(S) FAILED");
+    // The 17 per-block measurement lines are present and in listRoles() sorted order, so the
+    // transcript embedded in the guard's source header is reproducible byte-for-byte.
+    const detail = o
+      .split("\n")
+      .filter((l) => /^ {8}\S+\.md: tokens \d+ \/ content words \d+, banned \d+$/.test(l));
+    expect(detail).toHaveLength(ROLE_COUNT);
+    expect(detail.map((l) => l.trim().split(":")[0])).toEqual(listRoles());
     // The oracle is not merely silent — it ran and reported the three-way equality it now holds.
     expect(o).toContain(
       "KIT-03: 17 roles == 17 adapters == 17 grant-closure names",
@@ -4125,12 +4329,25 @@ describe("27-65 end-to-end gate sweep: the rounds-1-11 corpus planted on the liv
   }, 600_000);
 
   // ── RESTORATION, PROVEN. ──────────────────────────────────────────────────────────────────────
-  it("the sweep leaves NO residue — the committed tree still exits 0", () => {
+  it("the sweep leaves NO residue — the committed tree's verdict is UNCHANGED by it", () => {
     // Every plant above went into a temp mirror via CHECK_ROOT; nothing outside tmpdir was written.
     // Proven rather than asserted in a comment: run the gate on the REAL tree with no override.
+    //
+    // (Plan 29-01) The expected verdict is the tree's deliberate 2-FAIL red, not exit 0 — see the
+    // smoke case above. What this asserts is that no guard the sweep touches moved: guard_wr05 is
+    // still PASS, and the only two failures are the two voice guards this plan landed.
     const r = spawnSync("node", [GUARD_JS], { encoding: "utf8" });
-    expect(r.status, "the committed tree must still be green after the sweep").toBe(0);
-    expect(out(r)).toContain("ALL CHECKS PASSED");
+    const fails = out(r)
+      .split("\n")
+      .filter((l) => l.startsWith("  FAIL"));
+    expect(
+      fails.map((l) => l.split(":")[0].replace("  FAIL  ", "")),
+      "the sweep must leave the tree's verdict exactly as it found it",
+    ).toEqual(["caveman voice", "role clause uniqueness"]);
+    expect(r.status).toBe(1);
+    expect(out(r)).toContain(
+      "WR-05: exactly one coordinator holds the spawn grant",
+    );
     // And the two files the sweep plants into are byte-unchanged on disk.
     for (const rel of SWEEP_PAIR) {
       const src = readFileSync(join(ROOT, rel), "utf8");

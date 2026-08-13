@@ -5523,12 +5523,20 @@ describe("frontmatter — the spawn-grant parser oracle (SPAWN-04 / KIT-03)", ()
   // over the live tree in the SAME session that wrote this line — not transcribed from the review,
   // whose proposed hand-list named three files and omitted `check-foundation-guards.test.ts`
   // entirely. Transcribing it would have shipped the set-literal-drift defect inside its own fix.
+  //
+  // (Plan 29-01, LANG-07) THE SET SHRANK FROM FOUR TO THREE, AND THE SHRINK IS THE POINT.
+  // `scripts/check-foundation-guards.ts` left it because both of its caveman fence scopers were
+  // DELETED — they disagreed with each other on two of three malformed fence forms, and the caveman
+  // question moved to `scripts/voice-model.ts`, which composes `FENCE_DELIMITER_LINE` and declares no
+  // state machine. Re-measured over the live tree in the session that made the edit, by the same
+  // classifier; `voice-model.ts` matches NEITHER arm, which is the mechanical evidence that composing
+  // the delimiter class is not the same as forking the machine.
   const FENCE_MACHINES = [
     "scripts/check-foundation-guards.test.ts",
-    "scripts/check-foundation-guards.ts",
     "scripts/frontmatter.ts",
     "scripts/generate-role-adapters.test.ts",
   ];
+  const FENCE_MACHINE_COUNT = 3;
   // The planted machine is ASSEMBLED from character codes rather than written out literally, so
   // THIS file's own source never carries a recogniser-and-toggle pair. The self-reference is real
   // and not hypothetical: this file already names the delimiter class in code, so a literal
@@ -5571,7 +5579,7 @@ describe("frontmatter — the spawn-grant parser oracle (SPAWN-04 / KIT-03)", ()
     expect(machines).toEqual(FENCE_MACHINES);
     // Cardinality pinned as a NUMBER, so a scan that silently stops matching shrinks LOUDLY rather
     // than passing over an empty set.
-    expect(machines).toHaveLength(4);
+    expect(machines).toHaveLength(FENCE_MACHINE_COUNT);
 
     // THE CONJUNCTION IS PROVEN TO DISCRIMINATE, ON THIS FILE. It matches the recogniser arm and
     // NOT the toggle arm — a textual reference to the delimiter class, not a machine.
@@ -5588,10 +5596,11 @@ describe("frontmatter — the spawn-grant parser oracle (SPAWN-04 / KIT-03)", ()
     ).toBe(false);
     expect(machines).not.toContain("scripts/frontmatter.test.ts");
 
-    // WHAT BACKS THE NARROWED PROSE AT THE TWO CLAIM SITES. The other PRODUCTION member's two fence
-    // machines are each GATED on a `## Caveman prompt` heading, so neither is a second general
-    // answer to "which lines of a document are inside a ``` block" — they answer where the caveman
-    // block starts and ends, and cannot run on a document without that heading.
+    // WHAT BACKS THE NARROWED PROSE AT THE CLAIM SITE. (Plan 29-01) There is now exactly ONE
+    // production member, and it is the authority itself: `check-foundation-guards.ts` left the set
+    // when both of its caveman scopers were deleted. The claim is therefore no longer "the second
+    // production machine is heading-gated" but the stronger "there is no second production machine",
+    // and it is asserted as a set equality rather than argued.
     const guards = codeLinesOf(
       readFileSync(join(REPO_ROOT, "scripts/check-foundation-guards.ts"), "utf8"),
     );
@@ -5599,12 +5608,27 @@ describe("frontmatter — the spawn-grant parser oracle (SPAWN-04 / KIT-03)", ()
       [...guards.matchAll(/if \((\w+) && \/\^```\/\.test\(line\)\)/g)].map(
         (m) => m[1],
       ),
-      "both fence sites in the guards must be gated by a state flag, never bare",
-    ).toEqual(["skip", "seen"]);
-    expect(guards.split("/^## Caveman prompt/").length - 1).toBe(2);
-    // Two production members and two harness-local ones — the partition the narrowed prose states.
+      "the guards must carry NO gated fence site at all — both scopers were deleted, not corrected",
+    ).toEqual([]);
+    expect(guards.split("/^## Caveman prompt/").length - 1).toBe(0);
+    // AND THE MODULE THAT TOOK OVER THE QUESTION IS NOT A FIFTH MACHINE. voice-model.ts composes the
+    // delimiter class from the authority and holds no toggle, so it matches NEITHER classifier arm.
+    // Asserting this is what distinguishes "composed the constant" from "forked the machine" — the
+    // exact substitution D-24 forbids, and the one a reader would otherwise have to take on trust.
+    const voiceModel = codeLinesOf(
+      readFileSync(join(REPO_ROOT, "scripts/voice-model.ts"), "utf8"),
+    );
+    expect(
+      FENCE_RECOGNISER_CONSTRUCTS.some((r) => r.test(voiceModel)),
+      "voice-model.ts must not spell the delimiter class itself — it imports FENCE_DELIMITER_LINE",
+    ).toBe(false);
+    expect(
+      FENCE_TOGGLE_CONSTRUCTS.some((r) => r.test(voiceModel)),
+      "…and it must carry no fence toggle, which is the half that would make it a machine",
+    ).toBe(false);
+    expect(machines).not.toContain("scripts/voice-model.ts");
+    // ONE production member and two harness-local ones — the partition the narrowed prose states.
     expect(machines.filter((p) => !p.endsWith(".test.ts"))).toEqual([
-      "scripts/check-foundation-guards.ts",
       "scripts/frontmatter.ts",
     ]);
 
@@ -5632,8 +5656,14 @@ describe("frontmatter — the spawn-grant parser oracle (SPAWN-04 / KIT-03)", ()
     ).not.toContain(
       "The tree still has exactly ONE implementation",
     );
+    // (Plan 29-01) The prose moved with the code. The guards file used to be pinned as SAYING it
+    // carries two more machines; that sentence is now false, so the pin is inverted — the file must
+    // state the deletion, in the present tense, and must not claim a machine it no longer has.
     expect(guardsRaw).toContain(
-      "this file itself carries two more fence state machines",
+      "AND THIS FILE NOW CARRIES NO FENCE STATE MACHINE AT ALL",
+    );
+    expect(guardsRaw).not.toContain(
+      "this file itself carries two more fence state machines — stripCavemanBlock",
     );
   });
 
@@ -5734,7 +5764,7 @@ describe("frontmatter — the spawn-grant parser oracle (SPAWN-04 / KIT-03)", ()
 
   it("27-60 IN-02 — every member of the derived fence set is classified MECHANICALLY, the classification is TOTAL, and harness-local is checked as `imported by no non-test module`", () => {
     const machines = liveFenceMachines();
-    expect(machines).toHaveLength(4);
+    expect(machines).toHaveLength(FENCE_MACHINE_COUNT);
 
     // NON-VACUITY OF THE IMPORTER SCAN, FIRST. "No non-test module imports it" is only evidence if
     // the same scan can FIND an importer. It is asked about the authority module, which is imported
@@ -5769,7 +5799,7 @@ describe("frontmatter — the spawn-grant parser oracle (SPAWN-04 / KIT-03)", ()
       `accounted for ${classified.length} derived fence machines with the classification [${classified
         .map((c) => `${c.member}:${c.classes.join("+")}`)
         .join(" | ")}]`,
-    ).toHaveLength(4);
+    ).toHaveLength(FENCE_MACHINE_COUNT);
 
     const inClass = (k: FenceClass): string[] =>
       classified.filter((c) => c.classes.includes(k)).map((c) => c.member);
@@ -5796,10 +5826,13 @@ describe("frontmatter — the spawn-grant parser oracle (SPAWN-04 / KIT-03)", ()
       undisqualified,
       "a non-authority fence machine that is neither heading-gated nor harness-local IS a second general answer to `which lines are inside a ``` block`",
     ).toEqual([]);
+    // (Plan 29-01) TWO non-authority members, not three: `check-foundation-guards.ts` left the set
+    // when its two caveman scopers were deleted. The count is derived from the pinned cardinality
+    // rather than restated, so the two numbers cannot drift apart in opposite directions.
     expect(
       classified.filter((c) => !c.classes.includes("authority")),
-      "three non-authority members, each disqualified mechanically",
-    ).toHaveLength(3);
+      "every non-authority member must be disqualified mechanically",
+    ).toHaveLength(FENCE_MACHINE_COUNT - 1);
 
     // …and for each harness-local member the IMPORTER SET ITSELF is asserted empty, by name, so the
     // failure message says which file grew a reachable consumer rather than merely that a count moved.
@@ -5885,7 +5918,7 @@ describe("frontmatter — the spawn-grant parser oracle (SPAWN-04 / KIT-03)", ()
       expect(control).toEqual(
         FENCE_MACHINES.map((p) => p.replace(/^.*\//, "")).sort(),
       );
-      expect(control).toHaveLength(4);
+      expect(control).toHaveLength(FENCE_MACHINE_COUNT);
 
       writeFileSync(
         join(dir, "scratch-fifth-fence-machine.ts"),
@@ -5893,7 +5926,7 @@ describe("frontmatter — the spawn-grant parser oracle (SPAWN-04 / KIT-03)", ()
       );
       const withFifth = inDir();
       expect(withFifth).toContain("scratch-fifth-fence-machine.ts");
-      expect(withFifth).toHaveLength(5);
+      expect(withFifth).toHaveLength(FENCE_MACHINE_COUNT + 1);
       expect(withFifth).not.toEqual(control);
     } finally {
       rmSync(dir, { recursive: true, force: true });

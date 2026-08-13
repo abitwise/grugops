@@ -30,11 +30,14 @@
 //                        Tier 2 of D-21 — kit-model.ts throws on a vacuous set, this guard fails red
 //                        on a wrong one. Reports both derived numbers on success.
 //   guard_voice        — voice-discipline lint over ALL 17 role files (D-05). SECTION-scoped:
-//                        strips the single fenced `## Caveman prompt` block, then greps the
-//                        clear-voice remainder for caveman markers. Uses `\bgrug\b` (word-
-//                        boundary — bare `grug` false-positives on `.grugops/`, D-10).
-//   guard_caveman_preserved — the POSITIVE INVERSE of guard_voice (D-06): keeps ONLY the
-//                        block and asserts it carries caveman cadence (>=2 `^You` OR >=1 idiom).
+//                        reads the caveman fence through voice-model.readCavemanFence(), then greps
+//                        the clear-voice remainder for CAVEMAN_LEXICON terms. Word-boundary matching
+//                        (bare `grug` false-positives on `.grugops/`, D-10).
+//   guard_caveman_voice — the POSITIVE INVERSE of guard_voice (D-06/D-07/D-08), rebuilt TWO-SIDED in
+//                        Phase 29: the block must carry >= CAVEMAN_LEXICON_MIN lexicon terms AND zero
+//                        banned constructions, and the PASS line carries the measurement.
+//   guard_role_clause_uniqueness — Phase 29 (LANG-05, D-20/D-21/D-38): no normalized clause repeats
+//                        within a single role file. Intra-file only, deliberately.
 //   guard_role_size    — per-role byte ceiling, locked from the 2026-06-10 baseline (D-07).
 //   guard_context_writes — Phase 20 (SCTX-05): greps shipped role + workflow text for a raw
 //                        context-write TOKEN (writeFileSync/appendFileSync/the `Write` tool/a
@@ -261,6 +264,25 @@ import { RETIRED_PROSE_FORMS } from "./dead-vocabulary.js";
 // marker read and the parse entry point moved to ./canonical-frontmatter.js below. A fence is not a
 // verdict; the demotion is about who renders the verdict, not about who finds the region.
 import { stripFencedBlocks } from "./frontmatter.js";
+// Phase 29 (LANG-05/06/07, D-22/D-23/D-24/D-38, plan 29-01): THE VOICE AUTHORITY.
+//
+// This file declares NO voice literal and NO fence state machine of its own, and it must never start
+// again. It used to carry BOTH — `stripCavemanBlock`, `extractCavemanBlock` and a `VOICE_MARKERS`
+// regex — and the two fence machines disagreed on two of the three malformed forms over identical
+// bytes (29-RESEARCH §A-6). One reader, one lexicon, two consumers.
+import {
+  readCavemanFence,
+  CAVEMAN_LEXICON,
+  CAVEMAN_LEXICON_MIN,
+  countLexiconTokens,
+  countBannedConstructions,
+  countContentWords,
+  segmentClauses,
+} from "./voice-model.js";
+// Phase 29 (AP-1, D-08, plan 29-01): the ONE element-level vacuity rule. Every new guard below folds
+// its result through `reportMeasured`, which emits through `fail` and refuses to print a PASS line
+// for a check that visited zero elements or a scan set that came up short.
+import { reportMeasured, type Measured } from "./vacuity.js";
 // Phase 27 (SPAWN-04 / KIT-03, D-64 Part A, plan 27-65): THE MODULE THAT RENDERS THE SPAWN VERDICT.
 //
 // WHAT CHANGED, AND WHY IT IS STRUCTURAL RATHER THAN A TWELFTH REPAIR. Plan 27-12 made
@@ -546,17 +568,22 @@ const PACKAGING_TEMPLATES = SPAWN_GRANT_SCAN.filter((f) =>
 // unterminated fence, so every prose check below reads the same body it read before.
 //
 // (Plan 27-53, D-53 — round 9 § WR-02) THE TREE-WIDE VERSION OF THAT SENTENCE WAS FALSE AND IS GONE.
-// It used to claim a uniqueness across the whole repository, which this file itself contradicts:
-// this file itself carries two more fence state machines — stripCavemanBlock and the caveman-block
-// extractor below — each running its own delimiter recogniser and its own counter. They are NOT a
-// second general answer, because both are GATED on a `## Caveman prompt` heading and answer only
-// "where does the caveman block start and end"; that gating is asserted mechanically rather than
-// argued. But the old sentence claimed a scope it never held, and a claim wider than its pin is the
-// set-literal-drift class this phase exists to delete. The real scope is DERIVED and COUNTED: the
-// case "the set of tracked `.ts` files carrying a FENCE STATE MACHINE is derived, sorted and pinned
-// at exactly the four named members" in scripts/frontmatter.test.ts enumerates every tracked `.ts`
-// by pattern, names the four members (this file among them), and pins the cardinality at 4. A fifth
-// fails it by name.
+// It used to claim a uniqueness across the whole repository, which this file itself contradicted: it
+// carried two more fence state machines — `stripCavemanBlock` and the caveman-block extractor — each
+// running its own delimiter recogniser and its own counter. They were kept out of the general claim
+// by being GATED on a `## Caveman prompt` heading, asserted mechanically rather than argued. But the
+// old sentence claimed a scope it never held, and a claim wider than its pin is the set-literal-drift
+// class this phase exists to delete.
+//
+// (Plan 29-01, LANG-07 / D-22) AND THIS FILE NOW CARRIES NO FENCE STATE MACHINE AT ALL. Both caveman
+// scopers were DELETED, not corrected in place: they disagreed with each other on two of the three
+// malformed fence forms over identical bytes, and one authority per predicate means the duplicate
+// goes rather than gains a third arm. The caveman-fence question is answered once, in
+// scripts/voice-model.ts, which composes this module's `FENCE_DELIMITER_LINE` and declares no state
+// machine of its own. The real scope stays DERIVED and COUNTED: the case "the set of tracked `.ts`
+// files carrying a FENCE STATE MACHINE is derived, sorted and pinned at exactly the named members"
+// in scripts/frontmatter.test.ts enumerates every tracked `.ts` by pattern and pins the cardinality,
+// which fell from 4 to 3 with this file's departure. A new one fails it by name.
 
 // Collapse every run of whitespace — including newlines — to a single space. Applied AFTER
 // stripFencedBlocks() so the prose checks below read a body the way a human reads it, not the way
@@ -1434,7 +1461,7 @@ function guardKitCounts(): void {
   );
   let countFail = "";
   if (ROLE_FILES.length !== ROLE_COUNT) {
-    countFail += `\nkit count: derived ${ROLE_FILES.length} role files, expected exactly ${ROLE_COUNT} — walk every derived consumer (guard_voice, guard_caveman_preserved, guard_role_size, CTX_SCAN, roleCeiling) BEFORE updating ROLE_COUNT in scripts/kit-model.ts`;
+    countFail += `\nkit count: derived ${ROLE_FILES.length} role files, expected exactly ${ROLE_COUNT} — walk every derived consumer (guard_voice, guard_caveman_voice, guard_role_clause_uniqueness, guard_role_size, CTX_SCAN, roleCeiling) BEFORE updating ROLE_COUNT in scripts/kit-model.ts`;
   }
   if (WORKFLOW_FILES.length !== WORKFLOW_COUNT) {
     countFail += `\nkit count: derived ${WORKFLOW_FILES.length} workflow files, expected exactly ${WORKFLOW_COUNT} — walk every derived consumer BEFORE updating WORKFLOW_COUNT in scripts/kit-model.ts`;
@@ -1895,48 +1922,24 @@ const SEC_VOICE_FILES = [
   "agent-factory/checklists/security-nfr-checklist.md",
 ];
 const VOICE_FILES = [...ROLE_FILES, ...SEC_VOICE_FILES];
-// `\bgrug\b|\bclub\b|...` — word-boundary markers + idioms. `g`+`m` so grep-like line matching.
-const VOICE_MARKERS =
-  /\bgrug\b|\bclub\b|\brock\b|\bcave\b|\bsmash\b|\bshiny\b|brain hurt|me think|no think|big think/;
 
-// Strip the single fenced `## Caveman prompt` block, returning the clear-voice remainder.
-// This is the exact awk fence machinery translated to a TS line-state loop (D-10: the anchor is
-// NOT re-engineered). The awk:
-//   /^## Caveman prompt/ {skip=1}
-//   skip && /^```/        {fence++; if(fence==2){skip=0;fence=0}; next}
-//   skip                  {next}
-//   {print}
-//   END { if (skip) print "__UNCLOSED_CAVEMAN_FENCE__" }
-function stripCavemanBlock(text: string): string {
-  const out: string[] = [];
-  let skip = false;
-  let fence = 0;
-  for (const line of text.split("\n")) {
-    if (/^## Caveman prompt/.test(line)) {
-      skip = true;
-      // fall through (the awk action sets skip then continues to the next rule for THIS line;
-      // since skip is now true and the line does not start with ```, the `skip {next}` rule
-      // drops it — so the heading itself is NOT printed). Replicate by continuing.
-      continue;
-    }
-    if (skip && /^```/.test(line)) {
-      fence++;
-      if (fence === 2) {
-        skip = false;
-        fence = 0;
-      }
-      continue; // `next` — the fence line is never printed
-    }
-    if (skip) {
-      continue; // `next` — lines inside the block are dropped
-    }
-    out.push(line);
-  }
-  // END: an unterminated block (skip still set at EOF) emits the sentinel so the malformed-fence
-  // case fails RED instead of silently dropping the whole file tail.
-  if (skip) out.push("__UNCLOSED_CAVEMAN_FENCE__");
-  return out.join("\n");
-}
+// WHICH VOICE SURFACES CARRY A CAVEMAN FENCE, DECLARED RATHER THAN INFERRED (plan 29-01).
+//
+// SEC_VOICE_FILES's comment above has always asserted "they have NO `## Caveman prompt` fence", and
+// nothing enforced it. Under the one reader that assertion has to become mechanical, because a
+// `missing` verdict means two different things depending on which surface produced it: on a ROLE
+// file it is a defect (the block is required, and guard_caveman_voice names it), and on a security
+// surface it is the declared shape (the whole document IS the clear-voice remainder).
+//
+// This is a NAMED expectation pair, not a silent `continue`: the two-sided form means a security
+// surface that GAINS a fence is a finding too, so the declaration cannot quietly go stale.
+const EXPECTS_CAVEMAN_FENCE = new Set<string>(ROLE_FILES);
+
+// (Plan 29-01, D-22/D-23) `stripCavemanBlock` and its `__UNCLOSED_CAVEMAN_FENCE__` sentinel were
+// DELETED here rather than kept as a second opinion, and `VOICE_MARKERS` went with them. Both are
+// now `readCavemanFence` + `CAVEMAN_LEXICON` in scripts/voice-model.ts — see this file's import
+// header for the measured divergence that made the duplicate untenable. A weaker duplicate that
+// still votes is worse than none, which this file's own guard_wr05 header already argues at length.
 
 // D-05 marker refinement: neutralize the three verified clear-voice grug phrasings (`/grug`
 // brand command, "grug voice", "grug wink") per-phrase so a senior rewrite introducing NEW
@@ -1968,19 +1971,42 @@ function guardVoice(): void {
       voiceFail += `\n${f}: required voice file missing`;
       continue;
     }
-    let body = stripCavemanBlock(readText(f));
-    // WR-03: an unterminated caveman block fails red NAMING the file — the tail was never scanned.
-    if (body.split("\n").some((l) => l.includes("__UNCLOSED_CAVEMAN_FENCE__"))) {
-      voiceFail += `\n${f}: unterminated ## Caveman prompt fence — clear-voice tail not scanned (malformed fence)`;
+    // (Plan 29-01, D-22/F-5.1) THE ONE READER. This migration happens in the SAME plan that ships
+    // the reader, deliberately: leaving the old stripper live while the new reader shipped is exactly
+    // the two-grammar defect this closes, and the rewritten caveman blocks become maximally grug in
+    // later plans — so a disagreement between two readers would leak a lexicon token into the
+    // "remainder" and fail this guard RED on correct text.
+    const text = readText(f);
+    const verdict = readCavemanFence(text);
+    const expectsFence = EXPECTS_CAVEMAN_FENCE.has(f);
+    let body: string;
+    if (verdict.ok) {
+      if (!expectsFence) {
+        voiceFail += `\n${f}: a ## Caveman prompt fence appeared on a surface declared to carry none (SEC_VOICE_FILES) — the declaration and the file disagree`;
+      }
+      body = verdict.outside;
+    } else if (verdict.reason === "missing" && !expectsFence) {
+      // The declared shape for a security surface: no caveman anchor at all, so the WHOLE document
+      // is the clear-voice remainder and is scanned whole. This is the only branch that treats a
+      // refusal as expected, it is scoped to a named set, and it states its reason.
+      body = text;
+    } else {
+      // Every other refusal — on a role file, or any malformed fence anywhere — is a finding NAMING
+      // THE REASON. guard_caveman_voice below names the same file with the same reason, from the
+      // same verdict, which is LANG-07's actual acceptance evidence: not that one reader exists, but
+      // that both consumers reach an identical verdict on identical bytes.
+      voiceFail += `\n${f}: ## Caveman prompt fence refused — reason ${verdict.reason}; the clear-voice remainder was not determined, so this file was NOT scanned`;
       continue;
     }
     // D-05 marker refinement (a SEPARATE pass — does NOT touch the fence anchor above).
     body = neutralizePhrases(body);
-    // grep -nE: collect `lineno:line` for every line matching a caveman marker.
+    // grep -nE: collect `lineno:line` for every line carrying a CAVEMAN_LEXICON term. Membership is
+    // tested through voice-model's own counter, so this guard cannot come to disagree with the
+    // lexicon about what a hit is; it declares no voice literal of its own.
     const m: string[] = [];
     const bodyLines = body.split("\n");
     for (let i = 0; i < bodyLines.length; i++) {
-      if (VOICE_MARKERS.test(bodyLines[i])) m.push(`${i + 1}:${bodyLines[i]}`);
+      if (countLexiconTokens(bodyLines[i]) > 0) m.push(`${i + 1}:${bodyLines[i]}`);
     }
     if (m.length > 0) {
       voiceFail += `\n${f}:\n${m.join("\n")}`;
@@ -1993,72 +2019,255 @@ function guardVoice(): void {
   }
 }
 
-// ---------------------------------------------------------------------------
-// guard_caveman_preserved — the POSITIVE INVERSE of guard_voice (D-06). Keep ONLY the lines
-// INSIDE the fenced `## Caveman prompt` block and assert it is non-empty AND carries caveman
-// cadence — so a senior-persona rewrite cannot SAND THE GRUG VOICE OFF.
+// ---------------------------------------------------------------------------------------------
+// THE RESIDUAL THESE TWO GUARDS DO NOT CLOSE — RECORDED SO A GREEN RUN CANNOT IMPLY OTHERWISE.
 //
-// CAVEMAN_MARKERS = VOICE_MARKERS idioms PLUS `^You\b`. WR-01: require >=2 `^You`-cadence lines
-// OR >=1 bare grug idiom — a single `You are <Role>.` opener is NOT enough evidence.
-// ---------------------------------------------------------------------------
-// Keep ONLY the lines INSIDE the fenced `## Caveman prompt` block (inverse of guard_voice).
-// The awk:
-//   /^## Caveman prompt/ {seen=1; next}
-//   seen && /^```/        {fence++; if(fence==1){infence=1; next}; if(fence==2){exit}}
-//   infence               {print}
-function extractCavemanBlock(text: string): string {
-  const out: string[] = [];
-  let seen = false;
-  let fence = 0;
-  let infence = false;
-  for (const line of text.split("\n")) {
-    if (/^## Caveman prompt/.test(line)) {
-      seen = true;
-      continue; // `next`
-    }
-    if (seen && /^```/.test(line)) {
-      fence++;
-      if (fence === 1) {
-        infence = true;
-        continue; // `next`
-      }
-      if (fence === 2) {
-        break; // `exit`
-      }
-    }
-    if (infence) out.push(line);
-  }
-  return out.join("\n");
-}
+// D-19 carries a SECTION-OWNERSHIP rule: a prohibition belongs in `## Hard limits` and nowhere else,
+// so `## One job` and `## Responsibilities` stop restating limits the file already states once.
+// `UNKNOWN - verify`: that rule is NOT mechanically enforced anywhere in this tree, and nothing below
+// enforces it.
+//
+// The reason is a design refusal, not an omission. The only predicate available for "is this sentence
+// a prohibition" is a token list (`do not`, `never`, `stop`, `refuse`), which is exactly the
+// strict-subset heuristic shape D-03 rejects: it would red on `## Responsibilities` bullets that
+// legitimately say "stop and hand back", and it would miss a prohibition phrased positively. Widening
+// or narrowing it to reach green is the failure mode this phase exists to close.
+//
+// So the rule is carried by guard_role_clause_uniqueness (which catches the case where a limit is
+// RESTATED, the observable half) plus deliberate per-file review at rewrite time. The unobservable
+// half — a prohibition stated once, in the wrong section — has no detector, and a passing gate does
+// not mean it holds.
+// ---------------------------------------------------------------------------------------------
 
-function guardCavemanPreserved(): void {
+// ---------------------------------------------------------------------------
+// guard_caveman_voice — the POSITIVE INVERSE of guard_voice, rebuilt two-sided (D-06, D-07, D-08).
+//
+// THE `^You` CADENCE ARM IS DELETED, NOT SUPPLEMENTED (D-06). The predicate it replaces was
+// `>= 2 lines starting with "You" OR >= 1 caveman idiom`, and measurement showed the idiom arm was
+// DEAD: across all 17 blocks the idiom count was zero and every block passed on the `^You` arm alone
+// (29-RESEARCH §A-5). A disjunction whose weakest arm already dominates does not get a third arm —
+// it gets the weak arm removed.
+//
+// TWO SIDES, BOTH REQUIRED (D-07):
+//   positive — at least CAVEMAN_LEXICON_MIN distinct terms from the committed lexicon, so a block
+//              cannot be sanded to senior prose;
+//   negative — ZERO banned constructions (article, copula, modal, subordinator), so a block cannot be
+//              decorated with two tokens and left as senior prose around them.
+// Neither arm alone may carry a pass. This is written as a conjunction on purpose: both arms fail
+// 17/17 INDEPENDENTLY against today's tree at every N, so a build that shipped the disjunction by
+// mistake would produce a byte-identical RED transcript. The three discriminating fixtures in
+// scripts/check-foundation-guards.test.ts are what make the conjunction falsifiable; the transcript
+// alone cannot.
+//
+// THE PASS LINE CARRIES THE MEASUREMENT, NEVER AN ASSERTION (D-08). Each block emits
+// `<name>.md: tokens N / content words M, banned K` INSIDE the loop, in listRoles() sorted order so
+// the transcript is byte-diffable across runs, and the verdict folds through the shared vacuity rule
+// so a run that visited zero blocks can never print PASS. D-10 records the rejected alternative — a
+// tokens-per-content-word RATIO with a threshold — so a later phase does not re-propose a tunable
+// number. The counts here are REPORTED; only the two closed-set arms decide.
+//
+// THE D-24 RED TRANSCRIPT — this guard was watched FAILING against the real tree before a single
+// caveman block was rewritten, because a guard that passes the moment it appears has never been
+// watched fail. Measured 2026-08-13 on the tree at HEAD, `node scripts/check-foundation-guards.js`:
+//
+//   role file                   tokens  content words  banned  arms failed
+//   --------------------------  ------  -------------  ------  -----------------
+//   agents-md-scribe.md              0             45       3  positive + negative
+//   architect-design.md              0             27       1  positive + negative
+//   ba-pm.md                         0             32       2  positive + negative
+//   brownfield-mapper.md             0             27       2  positive + negative
+//   compliance-officer.md            0             41       3  positive + negative
+//   factory-coach.md                 0             31       5  positive + negative
+//   frontend-ui.md                   0             40       5  positive + negative
+//   greenfield-mapper.md             0             30       4  positive + negative
+//   incident-responder.md            0             28       3  positive + negative
+//   installer.md                     0             40       5  positive + negative
+//   orchestrator.md                  0             86       7  positive + negative
+//   qe-e2e.md                        0             29       2  positive + negative
+//   release-manager.md               0             37       5  positive + negative
+//   security-nfr.md                  0             21       1  positive + negative
+//   software-engineer.md             0             37       4  positive + negative
+//   system-analyst.md                0             26       1  positive + negative
+//   uat-planner.md                   0             20       1  positive + negative
+//   --------------------------  ------  -------------  ------  -----------------
+//   TOTAL (17)                       0            597      54  17 of 17 blocks RED
+//
+//   FAIL  caveman voice: 17 finding(s) over 17 elements
+//   exit code 1 — 2 CHECK(S) FAILED (this guard + guard_role_clause_uniqueness)
+//
+// Plans 29-05, 29-06 and 29-07 land the block rewrites (7 + 8 + 2 = 17 roles) that turn this green. A
+// red build on this guard before those land is the ACCEPTANCE EVIDENCE for Phase 28's D-24, not a
+// regression.
+//
+// AND THE TRANSCRIPT ALONE IS NOT THE EVIDENCE. Every row above fails BOTH arms, so the same 17 lines
+// would print from a build that shipped `positive || negative`, or that dropped an arm outright. Read
+// the three discriminating fixtures in scripts/check-foundation-guards.test.ts — positive-arm-only
+// RED, negative-arm-only RED, both-arms GREEN — before trusting this table.
+// ---------------------------------------------------------------------------
+type VoiceFinding = { file: string; detail: string };
+
+function guardCavemanVoice(): void {
   process.stdout.write(
-    "\n[guard_caveman_preserved] every role keeps a non-empty caveman prompt block (D-06)\n",
+    "\n[guard_caveman_voice] every role's caveman block carries >= " +
+      `${CAVEMAN_LEXICON_MIN} of the ${CAVEMAN_LEXICON.length} committed lexicon terms AND zero banned constructions — both arms required (D-06, D-07, D-08)\n`,
   );
-  let cavFail = "";
+  const findings: VoiceFinding[] = [];
+  let visited = 0;
   for (const f of ROLE_FILES) {
+    // Every role file the loop looks at counts as VISITED, including one that has gone missing since
+    // the corpus was derived: the denominator floor below measures whether the SCAN SET is short,
+    // and an unreadable member is a finding rather than a silently smaller denominator.
+    visited += 1;
+    const name = basename(f);
     if (!fileExists(f)) {
-      cavFail += `\n${f}: required role file missing (caveman prompt block missing or empty)`;
+      findings.push({
+        file: f,
+        detail: "required role file missing — no caveman block could be read",
+      });
       continue;
     }
-    const block = extractCavemanBlock(readText(f));
-    if (block === "") {
-      cavFail += `\n${f}: caveman prompt block missing or empty`;
-    } else {
-      // WR-01: require >=2 `^You`-cadence lines OR >=1 bare grug idiom — a single opener fails.
-      const youcount = block.split("\n").filter((l) => /^You\b/.test(l)).length;
-      if (youcount < 2 && !VOICE_MARKERS.test(block)) {
-        cavFail += `\n${f}: caveman voice sanded to prose (only the opener survives — no caveman marker)`;
+    const verdict = readCavemanFence(readText(f));
+    if (!verdict.ok) {
+      findings.push({
+        file: f,
+        detail: `## Caveman prompt fence refused — reason ${verdict.reason}`,
+      });
+      continue;
+    }
+    const tokens = countLexiconTokens(verdict.inside);
+    const words = countContentWords(verdict.inside);
+    const banned = countBannedConstructions(verdict.inside);
+    const bannedTotal =
+      banned.article + banned.copula + banned.modal + banned.subordinator;
+    // The per-block measurement line, emitted INSIDE the loop and BEFORE the fold — so a vacuous run
+    // prints zero detail lines AND fails its own count assertion (D-08).
+    process.stdout.write(
+      `        ${name}: tokens ${tokens} / content words ${words}, banned ${bannedTotal}\n`,
+    );
+    // THE CONJUNCTION. Both must hold; a finding is recorded when EITHER fails.
+    const positiveHolds = tokens >= CAVEMAN_LEXICON_MIN;
+    const negativeHolds = bannedTotal === 0;
+    if (!(positiveHolds && negativeHolds)) {
+      const why: string[] = [];
+      if (!positiveHolds) {
+        why.push(
+          `positive arm: ${tokens} lexicon term(s), needs >= ${CAVEMAN_LEXICON_MIN}`,
+        );
+      }
+      if (!negativeHolds) {
+        why.push(
+          `negative arm: ${bannedTotal} banned construction(s) (article ${banned.article}, copula ${banned.copula}, modal ${banned.modal}, subordinator ${banned.subordinator}), needs 0`,
+        );
+      }
+      findings.push({ file: f, detail: why.join("; ") });
+    }
+  }
+  const measured: Measured<VoiceFinding> = {
+    label: "caveman voice",
+    visited,
+    // The denominator is the INDEPENDENTLY derived cardinality, never ROLE_FILES.length — comparing
+    // the scan set against its own length is a comparison of one number with itself.
+    expected: ROLE_COUNT,
+    findings,
+  };
+  FAILS += reportMeasured(measured, { pass, fail }, (x) => `  ${x.file}: ${x.detail}`);
+}
+
+// ---------------------------------------------------------------------------
+// guard_role_clause_uniqueness — one clause, stated once per role file (LANG-05, D-20, D-38).
+//
+// D-20 requires the de-duplication be ENFORCED rather than applied as a one-time pass, because a
+// one-time pass is undone by the next edit. Clause identity is voice-model's `segmentClauses()`
+// followed by `normalizeSentence()` — the SAME pair plan 29-04's disposition gate consumes, so two
+// gates cannot come to disagree about whether two sentences are the same sentence.
+//
+// THE CHECK IS INTRA-FILE ONLY (D-21), AND THAT IS NOT A WEAKENING. Three sentence families are
+// BYTE-IDENTICAL across role files ON PURPOSE — the Workflow 16 pointer, the context-compaction
+// pointer and the AGENTS.md pointer — because they are single-sourced prose that every role must
+// state in the same words. A repo-wide version of this guard would fail red on all three and the only
+// way back to green would be to make seventeen files say the same thing differently. Do NOT "fix"
+// this by going repo-wide.
+//
+// THE D-24 RED TRANSCRIPT — measured 2026-08-13 on the tree at HEAD,
+// `node scripts/check-foundation-guards.js`:
+//
+//   role file               duplicate normalized clause                                    x  lines
+//   ----------------------  ------------------------------------------------------------  --  --------
+//   agents-md-scribe.md     do not invent fake commands                                    2  19, 50
+//   architect-design.md     make structure and boundaries                                  2  9, 14
+//   architect-design.md     keep design just enough                                        2  16, 47
+//   ba-pm.md                say no to bloat                                                2  15, 48
+//   compliance-officer.md   do not invent legal advice                                     3  9, 17, 45
+//   factory-coach.md        read metrics not vibes                                         3  9, 14, 45
+//   installer.md            make this factory usable in current tool                       2  9, 14
+//   installer.md            detect host coding agent                                       2  15, 30
+//   release-manager.md      cut releases not corners                                       2  9, 14
+//   software-engineer.md    stop if scope grows or architecture must change                2  9, 17
+//   software-engineer.md    stop and hand back if scope grows or architecture must change  2  33, 45
+//   system-analyst.md       do not choose framework                                        2  16, 44
+//   ----------------------  ------------------------------------------------------------  --  --------
+//   TOTAL                   12 duplicate group(s) across 9 of the 17 role files
+//
+//   FAIL  role clause uniqueness: 12 finding(s) over 17 elements
+//   exit code 1 — 2 CHECK(S) FAILED (this guard + guard_caveman_voice)
+//
+// THE SEGMENTATION CHOICE IS WHY THIS TABLE IS NOT EMPTY. D-20 as literally written — equality over
+// whole SENTENCES — finds 2 groups in the entire role corpus and ZERO in software-engineer.md, the
+// file this phase cites as its worked example. Clause-level segmentation (D-38 Variant C) finds the
+// 12 above, including both software-engineer.md groups. A guard that passes the moment it appears has
+// never been watched fail, and the sentence-level variant would have shipped exactly that.
+//
+// Plans 29-05, 29-06 and 29-07 land the D-19 skeleton de-duplication that turns this green. A red
+// build on this guard before those land is the ACCEPTANCE EVIDENCE for Phase 28's D-24, not a
+// regression — and this guard stays afterwards as the REGRESSION guard D-20 requires, because a
+// one-time de-duplication pass is undone by the next edit.
+// ---------------------------------------------------------------------------
+type ClauseFinding = {
+  file: string;
+  clause: string;
+  count: number;
+  lines: number[];
+};
+
+function guardRoleClauseUniqueness(): void {
+  process.stdout.write(
+    "\n[guard_role_clause_uniqueness] no normalized clause repeats within a single role file — intra-file only (D-20, D-21, D-38)\n",
+  );
+  const findings: ClauseFinding[] = [];
+  let visited = 0;
+  for (const f of ROLE_FILES) {
+    visited += 1;
+    if (!fileExists(f)) {
+      findings.push({ file: f, clause: "(file missing)", count: 0, lines: [] });
+      continue;
+    }
+    // Insertion order of a Map is first-occurrence order, so the groups below are reported in
+    // first-occurrence line order within the file, and files arrive in listRoles() sorted order —
+    // which makes the whole finding set byte-diffable across runs.
+    const groups = new Map<string, number[]>();
+    for (const { clause, line } of segmentClauses(readText(f))) {
+      const seen = groups.get(clause);
+      if (seen) seen.push(line);
+      else groups.set(clause, [line]);
+    }
+    for (const [clause, lines] of groups) {
+      if (lines.length > 1) {
+        findings.push({ file: f, clause, count: lines.length, lines });
       }
     }
   }
-  if (cavFail === "") {
-    pass(
-      `caveman: all ${ROLE_FILES.length} roles keep a non-empty markered caveman prompt block`,
-    );
-  } else {
-    fail(`caveman-preserved violation:${cavFail}`);
-  }
+  const measured: Measured<ClauseFinding> = {
+    label: "role clause uniqueness",
+    visited,
+    expected: ROLE_COUNT,
+    findings,
+  };
+  FAILS += reportMeasured(
+    measured,
+    { pass, fail },
+    (x) =>
+      `  ${basename(x.file)}: "${x.clause}" x${x.count} at line(s) ${x.lines.join(", ")}`,
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -2597,7 +2806,10 @@ guardKitCounts();
 // tree that failed to derive is NAMED there before this guard reports zero pairs over it.
 guardDistributionPair();
 guardVoice();
-guardCavemanPreserved();
+// (Plan 29-01) guard_caveman_preserved's replacement, plus the LANG-05 uniqueness guard. Both read
+// the SAME fence verdict guard_voice above just read, from the one reader in voice-model.ts.
+guardCavemanVoice();
+guardRoleClauseUniqueness();
 guardRoleSize();
 guardContextWrites();
 // KIT-03 — the three-way set equality.
