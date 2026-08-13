@@ -82,8 +82,18 @@ Each requirement maps to exactly one roadmap phase (27–33). REQ-IDs continue g
 - [ ] **LANG-04**: A guard enforces exactly the profile's **decidable** subset (lexicon membership, sentence length, banned constructions) and is named for that subset — never presented as enforcing ASD-STE100 conformance.
 - [ ] **LANG-05**: The role skeleton is de-duplicated — "say each thing once" — so `## One job`, the caveman block, and `## Responsibilities` stop being three passes over the same content.
 - [ ] **LANG-06**: The voice guard is rebuilt to measure voice against a committed lexicon rather than sentence shape, and **fails RED on all 17 current blocks** as acceptance evidence before the rewrite lands.
-- [ ] **LANG-07**: `guard_ste` and the rebuilt voice guard share **one** fence parser — never two grammars over the same bytes.
+- [x] **LANG-07**: `guard_ste` and the rebuilt voice guard share **one** fence parser — never two grammars over the same bytes.
 - [ ] **LANG-08**: Byte ceilings are re-baselined **once** at end of phase (every file ≤ its previous value, delta recorded), never raised mid-phase to accommodate a rewrite.
+
+### MODEL — Per-Role Model Assignment
+
+- [ ] **MODEL-01**: A `models` block on the config dial maps each role to a model alias, with a lean default of `inherit` for every role — so a repo with no `models` block generates adapters **byte-identical** to today's and no user's session model choice is overridden by omission.
+- [ ] **MODEL-02**: `scripts/generate-role-adapters.ts` emits the **resolved** per-role model in place of its hard-coded `model: inherit`, and `agent-factory/packaging/subagent.frontmatter.md` — the single upstream source, whose prose currently documents the `inherit` choice — is updated in the same change, never left to disagree with the generator.
+- [ ] **MODEL-03**: A named opt-in preset assigns a stronger tier to the judgment roles (orchestration, architecture, security/NFR) and a cheaper tier to the execution roles (engineering, QE/E2E, UAT), selectable with one config key; the role→tier map is **derived against `kit-model.listRoles()` with an asserted count**, so a new role cannot arrive silently unassigned.
+- [ ] **MODEL-04**: Only the aliases `inherit` / `opus` / `sonnet` / `haiku` are legal values. Full model ids are refused: they rot into the hand-maintained stale literal this milestone exists to eliminate, and an alias degrades gracefully for a user whose account lacks the stronger tier.
+- [ ] **MODEL-05**: An unknown, malformed, or absent model value is **fail-closed to `inherit`** — never to a pinned tier — and a guard asserts the emitted model of all 17 adapters equals the resolved config, derived rather than compared against a hand-listed expectation.
+- [ ] **MODEL-06**: The Claude-Code-only scope is stated rather than implied: per-subagent model selection exists on Claude Code alone, the other four host CLIs are unaffected, and `CLAUDE.md`'s "What NOT to Use" entry against non-`inherit` wrappers is amended to name this mechanism as the documented reason rather than being left to contradict it.
+- [ ] **MODEL-07**: No cost or limit-savings claim ships unmeasured — it is measured with `scripts/measure-cost.ts` or carries `UNKNOWN - verify`. A tier assignment is not evidence of a saving, and the per-role rationale is recorded so the assignment can be disputed on quality grounds, not only cost.
 
 ### AUTO — Per-Checkpoint Autonomy Matrix
 
@@ -173,8 +183,15 @@ _Filled by the roadmapper 2026-07-28. Every requirement maps to exactly one phas
 | LANG-04 | Phase 29 | Pending |
 | LANG-05 | Phase 29 | Pending |
 | LANG-06 | Phase 29 | Pending |
-| LANG-07 | Phase 29 | Pending |
+| LANG-07 | Phase 29 | Complete |
 | LANG-08 | Phase 29 | Pending |
+| MODEL-01 | Phase 29.1 | Pending |
+| MODEL-02 | Phase 29.1 | Pending |
+| MODEL-03 | Phase 29.1 | Pending |
+| MODEL-04 | Phase 29.1 | Pending |
+| MODEL-05 | Phase 29.1 | Pending |
+| MODEL-06 | Phase 29.1 | Pending |
+| MODEL-07 | Phase 29.1 | Pending |
 | AUTO-01 | Phase 30 | Pending |
 | AUTO-02 | Phase 30 | Pending |
 | AUTO-03 | Phase 30 | Pending |
@@ -207,11 +224,12 @@ _Filled by the roadmapper 2026-07-28. Every requirement maps to exactly one phas
 | 27 | Spawn Correctness & Kit-Set Authority | KIT-01..03, SPAWN-01..07 | 10 |
 | 28 | Kit Consistency Audit | AUDIT-01..04 | 4 |
 | 29 | Controlled Language & Voice Guard Rebuild | LANG-01..08 | 8 |
+| 29.1 | Per-Role Model Assignment *(inserted)* | MODEL-01..07 | 7 |
 | 30 | Per-Checkpoint Autonomy Matrix | AUTO-01..07 | 7 |
 | 31 | Autonomous Manual Testing | UATX-01..06 | 6 |
 | 32 | Board Projector & CLI Dashboard | DASH-01..08 | 8 |
 | 33 | Live Capture & Windows Portability | CAP-01..03 | 3 |
-|  | **Total** |  | **46** |
+|  | **Total** |  | **53** |
 
 ### Phase ordering — why this order and not another
 

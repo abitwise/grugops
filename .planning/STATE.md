@@ -3,10 +3,10 @@ gsd_state_version: 1.0
 milestone: v2.1
 milestone_name: Autonomous Factory — Real Spawning, Controlled Language & Live Board
 current_phase: 29
-current_phase_name: Controlled Language & Voice Guard Rebuild
+current_phase_name: controlled-language-voice-guard-rebuild
 status: ready_to_execute
-stopped_at: Phase 29 context gathered — 7 gray areas settled, 33 decisions locked
-last_updated: "2026-08-13T11:14:53.544Z"
+stopped_at: Completed 29-01-PLAN.md
+last_updated: "2026-08-13T18:02:51.932Z"
 progress:
   total_phases: 8
   completed_phases: 2
@@ -25,12 +25,12 @@ prior_activity_desc: "Gap-closure round 8 wave 2 EXECUTED — 27-44 closed WR-01
 See: .planning/PROJECT.md (updated 2026-07-28 — after v2.0 milestone)
 
 **Core value:** A user installs grugops on top of the coding-agent CLI they already run, types `/grug`, and gets a disciplined delivery team — a visible board, a shared context where nothing is written until it is *verified*, and an auditable requirement→code→test→release trail — entirely as readable markdown, with humans always holding merge and deploy. The v2.0 differentiator: **"verified" means passed the §14 behavior gate**, recorded as a `verified_by` stamp the writing agent cannot forge or self-set.
-**Current focus:** Phase 28 — kit-consistency-audit
+**Current focus:** Phase 29 — controlled-language-voice-guard-rebuild
 
 ## Current Position
 
-Phase: 29 — Controlled Language & Voice Guard Rebuild
-Plan: Not started
+Phase: 29 (controlled-language-voice-guard-rebuild) — EXECUTING
+Plan: 2 of 13
 
 ## Gap-closure round 7 — PLANNED 2026-08-06, ready to execute
 
@@ -327,6 +327,7 @@ Prior activity: 2026-07-30 — 27-22 closed WR-02 and WR-04, the last two plans-
 | Phase 28 P05 | 19m | 3 tasks | 14 files |
 | Phase 28 P07 | 35m | 3 tasks | 12 files |
 | Phase 28 P08 | ~80m | 4 tasks | 6 files |
+| Phase 29 P01 | 55m | 3 tasks | 12 files |
 
 ## Accumulated Context
 
@@ -792,6 +793,9 @@ Recent decisions affecting current work:
 - [Phase ?]: D-22 part 2 is met by its byte-count half ALONE; the loader half is measurably NULL for this defect class (byte-identical on the pre-fix build)
 - [Phase ?]: A plan requiring independent red teams must name WHO commissions them — the executor may have no agent-spawning tool
 - [Phase ?]: e193027 carried .js/.ts drift; npm run freshness CANNOT catch that class because it rebuilds from the working tree, not the committed .ts
+- [Phase ?]: D-22/D-23/D-24 shipped: scripts/voice-model.ts is the ONE caveman-fence reader; both role-prose guards call it and neither holds a fence state machine. The tracked fence-machine set falls 4 to 3.
+- [Phase ?]: D-06/D-07 shipped: guard_caveman_voice is a two-sided conjunction (>=2 lexicon terms AND zero banned constructions); the ^You cadence arm was DELETED, not supplemented.
+- [Phase ?]: AP-1 closed at the call convention: scripts/vacuity.ts reportMeasured is the single element-level rule, emitting through fail() never warn().
 
 ### Pending Todos
 
@@ -899,9 +903,9 @@ Shape of the carry: **9 of 11 are pre-v2.0 carryover** from the v1.2 block above
 
 ## Session Continuity
 
-Last session: 2026-08-12T21:07:39.599Z
-Stopped at: Phase 29 context gathered — 7 gray areas settled, 33 decisions locked
-Resume file: .planning/phases/29-controlled-language-voice-guard-rebuild/29-CONTEXT.md
+Last session: 2026-08-13T18:02:41.613Z
+Stopped at: Completed 29-01-PLAN.md
+Resume file: None
 
 ## Operator Next Steps
 
