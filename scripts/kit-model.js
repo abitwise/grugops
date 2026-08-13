@@ -91,7 +91,7 @@
 // Node stdlib ONLY — node:fs + node:path. Zero npm dependencies.
 //
 // Clear professional voice throughout (CLAUDE.md hard rule — this is a build-safety surface).
-import { readdirSync, statSync, realpathSync, existsSync } from "node:fs";
+import { readdirSync, readFileSync, statSync, realpathSync, existsSync, } from "node:fs";
 import { join } from "node:path";
 // The exact expected cardinality of each derived set. Enforcement is two-sided (D-20): 16 roles is a
 // failure and 18 roles is a failure. Bumping either number is a DELIBERATE act that obliges the
@@ -460,6 +460,66 @@ export function listWorkflows(kitRoot = DEFAULT_KIT_ROOT) {
         .filter((f) => /^\d{2}-.+\.md$/.test(f))
         .sort();
     return refuseEmpty(files, dir, "workflow");
+}
+// ---------------------------------------------------------------------------
+// THE DISPLAY-NAME DERIVATIONS (Phase 29 / D-40, correcting D-13 additively).
+//
+// D-13 specifies deriving the project's Technical Names from `listRoles()` and `listWorkflows()`.
+// Those return FILENAMES — `ba-pm.md`, `qe-e2e.md` — and the Technical Names actually used in the
+// governed prose are DISPLAY names: `BA/PM`, `QE/E2E`, `Architect/Design`. Deriving from the
+// filenames would produce a Technical Names set that matches NOTHING in the corpus, so the
+// consumer would report a clean run over a set it could never hit.
+//
+// The correction stays inside D-13's spirit — derived, never listed — by reading the display name
+// off the heading line each file already carries, and pinning the cardinality two-sided in
+// guard_kit_counts. It is NOT a second corpus derivation: each lister below enumerates its members
+// through the EXISTING lister rather than re-walking the directory, because deriving membership
+// twice is exactly how two derivations come to disagree about what a role is.
+//
+// The vacuity refusal is therefore INHERITED rather than restated: an empty or unreadable roles
+// directory throws out of `listRoles()` with its existing wording, before a single file is read.
+// ---------------------------------------------------------------------------
+// The heading prefixes the display names are read from. Declared once, beside their two consumers.
+const ROLE_HEADING_PREFIX = "# Role: ";
+const WORKFLOW_HEADING_PREFIX = "# Workflow: ";
+// Read one display name off a kit file's heading line. THROWS naming the file when the heading is
+// absent or carries an empty name — never yields a short array, because a short array IS the
+// vacuous set the D-21 tier-1 refusal exists to prevent, arriving one element at a time.
+function readDisplayName(path, prefix, kind) {
+    let text;
+    try {
+        text = readFileSync(path, "utf8");
+    }
+    catch {
+        throw new Error(`kit-model: cannot read ${kind} file ${path}`);
+    }
+    for (const line of text.split("\n")) {
+        if (line.startsWith(prefix)) {
+            const name = line.slice(prefix.length).trim();
+            if (name !== "")
+                return name;
+        }
+    }
+    throw new Error(`kit-model: ${path} carries no non-empty \`${prefix}\` heading — a ${kind} display name cannot ` +
+        `be invented, and skipping the file would return a silently SHORT set that every downstream ` +
+        `consumer would read as complete. Add the heading to the file`);
+}
+// The role DISPLAY names, one per in-set role file's `# Role: ` heading, in listRoles() order.
+// 17 today.
+export function listRoleDisplayNames(kitRoot = DEFAULT_KIT_ROOT) {
+    return listRoles(kitRoot).map((f) => readDisplayName(join(kitRoot, ROLES_SUBPATH, f), ROLE_HEADING_PREFIX, "role"));
+}
+// The workflow DISPLAY names, one per in-set workflow file's `# Workflow: ` heading, in
+// listWorkflows() order. 19 today.
+//
+// RECORDED FOR THE REWRITE PLANS, NOT FIXED HERE — a one-term-per-concept defect this derivation
+// surfaces the moment it runs. Three of the nineteen display names are lowercase (`context
+// compaction`, `context read/write`, `task claim + schedule`) while the other sixteen are
+// sentence-case. That is WP-09 drift on the kit's own Technical Names, and the fix belongs in plans
+// 29-08 through 29-10, which rewrite the workflow bodies: the heading IS that text, and moving it
+// here would edit kit prose from inside a derivation library. Named so the rewrite plans meet it.
+export function listWorkflowDisplayNames(kitRoot = DEFAULT_KIT_ROOT) {
+    return listWorkflows(kitRoot).map((f) => readDisplayName(join(kitRoot, WORKFLOWS_SUBPATH, f), WORKFLOW_HEADING_PREFIX, "workflow"));
 }
 function walkFilesRelative(dir) {
     return walkLevel(dir, "", [], { examined: 0 });

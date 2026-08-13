@@ -37,6 +37,8 @@ import { join, dirname } from "node:path";
 import {
   listRoles,
   listWorkflows,
+  listRoleDisplayNames,
+  listWorkflowDisplayNames,
   listAgentAdapters,
   listSkillAdapters,
   listPackagingTemplates,
@@ -271,6 +273,193 @@ describe("kit-model (KIT-01 kit-set derivation authority)", () => {
     expect(roles).not.toContain("_role-switch-protocol.md");
     expect(roles).toContain("orchestrator.md");
     expect(roles).toEqual([...roles].sort());
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────────────────────────
+// D-40 — the DISPLAY-NAME derivations.
+//
+// D-13 said "derive the Technical Names from listRoles()/listWorkflows()". Those return FILENAMES,
+// and the Technical Names the governed prose uses are DISPLAY names (`BA/PM`, not `ba-pm.md`). A
+// filename-derived set would match nothing in the corpus, so the consumer would report a clean run
+// over a set it structurally could never hit. These cases pin the correction's three properties:
+//
+//   (1) the display name is read off the heading, and the ORDER tracks the filename lister's;
+//   (2) a file with no heading THROWS NAMING THE FILE — never a silently short array, because a
+//       short array is the vacuous set arriving one element at a time;
+//   (3) an empty roles/workflows directory reuses the EXISTING refusal wording rather than
+//       inventing a second one, because membership is enumerated through the existing lister.
+// ─────────────────────────────────────────────────────────────────────────────────────────────────
+
+// A kit root whose files carry real headings. `roles`/`workflows` are `[filename, displayName]`
+// pairs; a `null` display name plants a file with NO heading (the throw case).
+function displayKitRoot(
+  roles: [string, string | null][],
+  workflows: [string, string | null][],
+): string {
+  const root = mkdtempSync(join(tmpdir(), "grugops-kit-model-display-"));
+  tmpDirs.push(root);
+  for (const [sub, prefix, files] of [
+    ["agent-factory/roles", "# Role: ", roles],
+    ["agent-factory/workflows", "# Workflow: ", workflows],
+  ] as const) {
+    const dir = join(root, sub);
+    mkdirSync(dir, { recursive: true });
+    for (const [f, display] of files) {
+      const body =
+        display === null
+          ? "---\nkind: fixture\n---\n# Untitled\n\nno heading here\n"
+          : `---\nkind: fixture\n---\n${prefix}${display}\n\nbody\n`;
+      writeFileSync(join(dir, f), body);
+    }
+  }
+  return root;
+}
+
+describe("kit-model display-name derivations (D-40)", () => {
+  it("listRoleDisplayNames reads the `# Role: ` heading and tracks listRoles() order", () => {
+    // Planted out of alphabetical order: the display names must come back in the order the FILENAME
+    // lister sorts to, not in the order they were written.
+    const root = displayKitRoot(
+      [
+        ["qe-e2e.md", "QE/E2E"],
+        ["ba-pm.md", "BA/PM"],
+        ["architect-design.md", "Architect/Design"],
+        ["_draft.md", "Ignored Draft"],
+      ],
+      [["00-a.md", "Bootstrap greenfield"]],
+    );
+    expect(listRoles(root)).toEqual([
+      "architect-design.md",
+      "ba-pm.md",
+      "qe-e2e.md",
+    ]);
+    expect(listRoleDisplayNames(root)).toEqual([
+      "Architect/Design",
+      "BA/PM",
+      "QE/E2E",
+    ]);
+    // The `_` exclusion is INHERITED, not restated: the excluded draft contributes no display name.
+    expect(listRoleDisplayNames(root)).not.toContain("Ignored Draft");
+  });
+
+  it("listWorkflowDisplayNames reads the `# Workflow: ` heading and tracks listWorkflows() order", () => {
+    const root = displayKitRoot(
+      [["orchestrator.md", "Orchestrator"]],
+      [
+        ["12-release.md", "Release"],
+        ["00-bootstrap.md", "Bootstrap greenfield"],
+        ["README.md", "Not A Workflow"],
+      ],
+    );
+    expect(listWorkflows(root)).toEqual(["00-bootstrap.md", "12-release.md"]);
+    expect(listWorkflowDisplayNames(root)).toEqual([
+      "Bootstrap greenfield",
+      "Release",
+    ]);
+  });
+
+  it("listRoleDisplayNames THROWS NAMING THE FILE when one heading is missing (never a short array)", () => {
+    // The load-bearing case. A `continue` here would return two names for three files, and every
+    // downstream consumer would read that set as complete — the vacuous-set defect arriving one
+    // element at a time rather than all at once.
+    const root = displayKitRoot(
+      [
+        ["architect-design.md", "Architect/Design"],
+        ["ba-pm.md", null],
+        ["qe-e2e.md", "QE/E2E"],
+      ],
+      [["00-a.md", "Bootstrap greenfield"]],
+    );
+    expect(() => listRoleDisplayNames(root)).toThrow(
+      join(root, "agent-factory/roles", "ba-pm.md"),
+    );
+    expect(() => listRoleDisplayNames(root)).toThrow(
+      /carries no non-empty `# Role: ` heading/,
+    );
+    expect(() => listRoleDisplayNames(root)).toThrow(
+      /display name cannot be invented/,
+    );
+  });
+
+  it("listWorkflowDisplayNames THROWS NAMING THE FILE when one heading is missing", () => {
+    const root = displayKitRoot(
+      [["orchestrator.md", "Orchestrator"]],
+      [
+        ["00-bootstrap.md", "Bootstrap greenfield"],
+        ["12-release.md", null],
+      ],
+    );
+    expect(() => listWorkflowDisplayNames(root)).toThrow(
+      join(root, "agent-factory/workflows", "12-release.md"),
+    );
+    expect(() => listWorkflowDisplayNames(root)).toThrow(
+      /carries no non-empty `# Workflow: ` heading/,
+    );
+  });
+
+  it("a heading present but EMPTY is refused exactly like an absent one", () => {
+    // `# Role: ` with nothing after it is not a display name; returning "" would put an empty string
+    // into a Technical Names set, which matches at every position in every line.
+    const root = mkdtempSync(join(tmpdir(), "grugops-kit-model-display-"));
+    tmpDirs.push(root);
+    mkdirSync(join(root, "agent-factory/roles"), { recursive: true });
+    mkdirSync(join(root, "agent-factory/workflows"), { recursive: true });
+    writeFileSync(join(root, "agent-factory/roles/ba-pm.md"), "# Role:    \n");
+    writeFileSync(
+      join(root, "agent-factory/workflows/00-a.md"),
+      "# Workflow: Bootstrap greenfield\n",
+    );
+    expect(() => listRoleDisplayNames(root)).toThrow(
+      /carries no non-empty `# Role: ` heading/,
+    );
+  });
+
+  it("an EMPTY roles directory reuses listRoles()' existing refusal, never a second wording", () => {
+    // Membership is enumerated THROUGH listRoles(), so the D-21 tier-1 refusal is inherited. If this
+    // case ever started reporting a new message, the derivation would have grown a second membership
+    // rule — which is how two derivations come to disagree about what a role is.
+    const root = kitRoot([], ["00-a.md"]);
+    expect(() => listRoleDisplayNames(root)).toThrow(
+      join(root, "agent-factory/roles"),
+    );
+    expect(() => listRoleDisplayNames(root)).toThrow(
+      /refusing to return an empty set/,
+    );
+    const root2 = kitRoot(["orchestrator.md"], []);
+    expect(() => listWorkflowDisplayNames(root2)).toThrow(
+      /refusing to return an empty set/,
+    );
+  });
+
+  it("the live kit derives exactly ROLE_COUNT role and WORKFLOW_COUNT workflow display names", () => {
+    // Read-only over the real tree. The two-sided pin itself lives in guard_kit_counts (the split
+    // kit-model.ts records); this is the forcing function that keeps the derivation honest.
+    const roles = listRoleDisplayNames();
+    const workflows = listWorkflowDisplayNames();
+    expect(roles.length).toBe(ROLE_COUNT);
+    expect(workflows.length).toBe(WORKFLOW_COUNT);
+    // DISPLAY names, not filenames — the whole point of D-40.
+    expect(roles).toContain("BA/PM");
+    expect(roles).toContain("QE/E2E");
+    expect(roles).toContain("Architect/Design");
+    expect(roles.some((r) => r.endsWith(".md"))).toBe(false);
+    expect(workflows.some((w) => w.endsWith(".md"))).toBe(false);
+  });
+
+  it("records the one-term-per-concept defect the workflow derivation surfaces (WP-09, for 29-08..10)", () => {
+    // NOT a fix — an OBSERVATION pinned so the rewrite plans meet it rather than rediscover it.
+    // Three of the nineteen workflow display names are lowercase while sixteen are sentence-case.
+    // The heading IS the kit prose those plans rewrite, so the correction belongs there.
+    const lower = listWorkflowDisplayNames().filter(
+      (w) => w[0] === w[0].toLowerCase() && w[0] !== w[0].toUpperCase(),
+    );
+    // In listWorkflows() order — 16-context-read-write, 17-task-claim, 18-context-compaction.
+    expect(lower).toEqual([
+      "context read/write",
+      "task claim + schedule",
+      "context compaction",
+    ]);
   });
 });
 

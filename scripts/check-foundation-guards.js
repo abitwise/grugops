@@ -251,7 +251,7 @@ import { oracleWr05Wording, oracleHooksWiring, oracleDualPathEquivalence, uatOra
 // single authority; this file is one of its consumers. The kit root is passed EXPLICITLY (D-22) so
 // kit-model never re-resolves a root of its own and CHECK_ROOT stays the only override this gate
 // honors.
-import { listRoles, listWorkflows, listAgentAdapters, listSkillAdapters, listPluginSkillAdapters, listPluginDefaultComponentFiles, listPluginExemptComponentFiles, pluginForbiddenComponentKeys, partitionPluginComponentClaims, spawnGrantScan, spawnGrantScanPrefix, SPAWN_GRANT_SCAN_PARTS, PLUGIN_MANIFEST_COMPONENT_SCHEMA, PLUGIN_MANIFEST_COMPONENT_COUNT, PLUGIN_COMPONENT_COVERED_ELSEWHERE, PLUGIN_COMPONENT_COVERED_ELSEWHERE_COUNT, PLUGIN_COMPONENT_EXEMPT_COUNT, PLUGIN_COMPONENT_EXEMPT, ROLE_COUNT, WORKFLOW_COUNT, SKILL_ADAPTER_COUNT, PLUGIN_SKILL_ADAPTER_COUNT, SPAWN_GRANT_SCAN_COUNT, } from "./kit-model.js";
+import { listRoles, listWorkflows, listRoleDisplayNames, listWorkflowDisplayNames, listAgentAdapters, listSkillAdapters, listPluginSkillAdapters, listPluginDefaultComponentFiles, listPluginExemptComponentFiles, pluginForbiddenComponentKeys, partitionPluginComponentClaims, spawnGrantScan, spawnGrantScanPrefix, SPAWN_GRANT_SCAN_PARTS, PLUGIN_MANIFEST_COMPONENT_SCHEMA, PLUGIN_MANIFEST_COMPONENT_COUNT, PLUGIN_COMPONENT_COVERED_ELSEWHERE, PLUGIN_COMPONENT_COVERED_ELSEWHERE_COUNT, PLUGIN_COMPONENT_EXEMPT_COUNT, PLUGIN_COMPONENT_EXEMPT, ROLE_COUNT, WORKFLOW_COUNT, SKILL_ADAPTER_COUNT, PLUGIN_SKILL_ADAPTER_COUNT, SPAWN_GRANT_SCAN_COUNT, } from "./kit-model.js";
 // Phase 27 (SPAWN-05 / D-24): the retired-vocabulary literals are single-source. guard_adapter_body
 // below takes the PROSE forms; check-kit-refs Assertion 2 takes the PATH form. Two genuinely
 // different predicates over different inputs — one list, never two.
@@ -1393,6 +1393,39 @@ function guardKitCounts() {
     if (WORKFLOW_FILES.length !== WORKFLOW_COUNT) {
         countFail += `\nkit count: derived ${WORKFLOW_FILES.length} workflow files, expected exactly ${WORKFLOW_COUNT} — walk every derived consumer BEFORE updating WORKFLOW_COUNT in scripts/kit-model.ts`;
     }
+    // (Plan 29-03, D-40) THE TWO DISPLAY-NAME DERIVATIONS, PINNED HERE AND NOT IN THE LISTER.
+    //
+    // Same split every sibling count in this guard uses, and for the reason kit-model.ts records at
+    // its own two-sided pins: continuing is SAFE in the library, so the library throws only on the
+    // vacuous set (tier 1) and the exact cardinality is adjudicated HERE, where a wrong number stops
+    // a release. The pins are two-sided — 16 display names is a failure and 18 is a failure — because
+    // the consumer that reads this set (check-imperative-lexicon.ts's TECHNICAL_NAMES) exempts every
+    // member from the imperative-position rule, so a SHORT set silently starts reporting findings on
+    // correct text and a GROWN set silently starts exempting text nobody reviewed.
+    //
+    // The derivations can THROW (a file with no heading), which is a DIFFERENT fact from a wrong
+    // count and is reported as such rather than collapsed into `0 display names`.
+    let roleDisplayNames = null;
+    let workflowDisplayNames = null;
+    try {
+        roleDisplayNames = listRoleDisplayNames(ROOT);
+    }
+    catch (e) {
+        countFail += `\nkit count: the ROLE display-name derivation refused — ${e.message}. This is a different fact from a wrong count: the set could not be derived at all, so its cardinality was never compared against ROLE_COUNT`;
+    }
+    try {
+        workflowDisplayNames = listWorkflowDisplayNames(ROOT);
+    }
+    catch (e) {
+        countFail += `\nkit count: the WORKFLOW display-name derivation refused — ${e.message}. This is a different fact from a wrong count: the set could not be derived at all, so its cardinality was never compared against WORKFLOW_COUNT`;
+    }
+    if (roleDisplayNames !== null && roleDisplayNames.length !== ROLE_COUNT) {
+        countFail += `\nkit count: derived ${roleDisplayNames.length} role DISPLAY names from \`# Role: \` headings, expected exactly ${ROLE_COUNT} (derived: ${roleDisplayNames.join(", ")}) — the display names are the Technical Names the governed prose actually uses, and check-imperative-lexicon.ts's TECHNICAL_NAMES exempts every one of them at imperative position; walk that consumer BEFORE updating ROLE_COUNT in scripts/kit-model.ts`;
+    }
+    if (workflowDisplayNames !== null &&
+        workflowDisplayNames.length !== WORKFLOW_COUNT) {
+        countFail += `\nkit count: derived ${workflowDisplayNames.length} workflow DISPLAY names from \`# Workflow: \` headings, expected exactly ${WORKFLOW_COUNT} (derived: ${workflowDisplayNames.join(", ")}) — walk check-imperative-lexicon.ts's TECHNICAL_NAMES BEFORE updating WORKFLOW_COUNT in scripts/kit-model.ts`;
+    }
     // (Phase 27 / KIT-02) The skill-adapter count. This is the deletion detector for the ONE derived
     // set the KIT-03 referential-integrity oracle cannot cover: a skill adapter has no corresponding
     // role file, so removing a skill directory would otherwise just shrink the derived set in silence.
@@ -1612,7 +1645,7 @@ function guardKitCounts() {
         // state. The claim is therefore true by construction rather than by hope, and the fix is
         // structural (the falsifying state routes to the failure channel) rather than a hedge in the
         // wording. A PASS line must never state a check that was not performed.
-        pass(`kit counts: derived ${ROLE_FILES.length} roles, ${WORKFLOW_FILES.length} workflows, ${SKILL_ADAPTERS.length} skill adapters and ${PLUGIN_SKILL_RELS.length} plugin-form skill adapters (expected ${ROLE_COUNT} / ${WORKFLOW_COUNT} / ${SKILL_ADAPTER_COUNT} / ${PLUGIN_SKILL_ADAPTER_COUNT}); the spawn-grant scan composition holds exactly ${SPAWN_GRANT_SCAN.length} members (${partBreakdown}), each part set-equal to its own lister; the plugin-manifest component schema carries ${schemaKeys.length} entries partitioned into ${pluginForbiddenComponentKeys().length} forbidden + ${coveredKeys.length} covered-elsewhere (${coveredLabels.join(", ")}) + ${exemptKeys.length} exempt by name (${exemptKeys.join(", ")})`);
+        pass(`kit counts: derived ${ROLE_FILES.length} roles, ${WORKFLOW_FILES.length} workflows, ${SKILL_ADAPTERS.length} skill adapters and ${PLUGIN_SKILL_RELS.length} plugin-form skill adapters (expected ${ROLE_COUNT} / ${WORKFLOW_COUNT} / ${SKILL_ADAPTER_COUNT} / ${PLUGIN_SKILL_ADAPTER_COUNT}); ${roleDisplayNames === null ? 0 : roleDisplayNames.length} role and ${workflowDisplayNames === null ? 0 : workflowDisplayNames.length} workflow DISPLAY names derived from their headings (expected ${ROLE_COUNT} / ${WORKFLOW_COUNT}); the spawn-grant scan composition holds exactly ${SPAWN_GRANT_SCAN.length} members (${partBreakdown}), each part set-equal to its own lister; the plugin-manifest component schema carries ${schemaKeys.length} entries partitioned into ${pluginForbiddenComponentKeys().length} forbidden + ${coveredKeys.length} covered-elsewhere (${coveredLabels.join(", ")}) + ${exemptKeys.length} exempt by name (${exemptKeys.join(", ")})`);
     }
     else {
         fail(`kit-count violation:${countFail}`);
