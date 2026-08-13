@@ -483,20 +483,62 @@ Plans:
 **Plans**: 13 plans
 
 Plans:
+**Wave 1**
 
 - [ ] 29-01-PLAN.md — one fence authority (`voice-model.ts`), one shared vacuity rule (`vacuity.ts`), the rebuilt two-sided voice guard and the intra-file clause-uniqueness guard, both watched RED on the real tree with three discriminating fixtures
+
+**Wave 2** *(blocked on Wave 1 completion)*
+
 - [ ] 29-02-PLAN.md — the grugops-authored writing profile with its non-affiliation disclaimer, plus `guard_banned_claims` landed RED on a deliberate draft conformance sentence, the profile's claims registered, and the guard-name and honesty-floor edits to the live planning documents
+
+**Wave 3** *(blocked on Wave 2 completion)*
+
 - [ ] 29-03-PLAN.md — `guard_imperative_lexicon` and `guard_sentence_form` over the derived 47-file corpus with a derived generated-file exclusion, plus the display-name derivations for the Technical Names set
+
+**Wave 4** *(blocked on Wave 3 completion)*
+
 - [ ] 29-04-PLAN.md — `guard_diff_disposition`: the frozen set derived from three existing gates, changed clauses enumerated from git, and the per-plan disposition directory
+
+**Wave 5** *(blocked on Wave 4 completion)*
+
 - [ ] 29-05-PLAN.md — roles batch 1 (7 files, `software-engineer.md` as the end-to-end tracer): remove-before-add with a four-point byte transcript and the generator cascade
+
+**Wave 6** *(blocked on Wave 5 completion)*
+
 - [ ] 29-06-PLAN.md — roles batch 2 (8 files), including the zero-headroom and largest-file cases
+
+**Wave 7** *(blocked on Wave 6 completion)*
+
 - [ ] 29-07-PLAN.md — the two dual-voice safety roles, plus the three claim-registry flips and count corrections Phase 28 deferred here; aggregator goes green at 17/17
+
+**Wave 8** *(blocked on Wave 7 completion)*
+
 - [ ] 29-08-PLAN.md — workflows 00–05 conformed to the profile, with the bold-label step grammar converted
+
+**Wave 9** *(blocked on Wave 8 completion)*
+
 - [ ] 29-09-PLAN.md — workflows 06–12 conformed, release workflow partitioned before it is touched
+
+**Wave 10** *(blocked on Wave 9 completion)*
+
 - [ ] 29-10-PLAN.md — workflows 13–18 conformed, single-sourced pointers reconciled; workflow part reaches zero findings
+
+**Wave 11** *(blocked on Wave 10 completion)*
+
 - [ ] 29-11-PLAN.md — the 13 hand-authored checklists conformed, plus four retired-vocabulary corrections and one recorded leave-alone
 - [ ] 29-12-PLAN.md — the 13 seed templates and 2 contracts conformed, board entry criterion corrected; governed corpus closes green
+
+**Wave 12** *(blocked on Wave 11 completion)*
+
 - [ ] 29-13-PLAN.md — the once-only byte-ceiling re-baseline behind a blocking human checkpoint, plus the corpus growth record
+
+**Cross-cutting constraints:**
+
+- Sentence form conforms at 20 words procedural and 25 descriptive, decided by section anchor, with the procedural limit winning on a `## Steps` bullet (D-35, D-14).
+- Byte growth is measured and recorded per file rather than assumed, because no ceiling exists for workflows and a later phase decides on that evidence (D-28).
+- The governed corpus membership is unchanged at 47 files in four parts (D-36, D-42).
+- Passive voice is left alone deliberately, with its reason recorded in the guard and the profile (D-15).
+- Byte growth is measured and recorded per file rather than assumed (D-28).
 
 **Honesty floor for this phase:** STE likely *increases* token count (its rules forbid the telegraphic omission caveman relies on). The profile is justified on determinism and one-term-per-concept grounds only. Caveman-as-token-economy is disproven on this artifact and must not be restated.
 
