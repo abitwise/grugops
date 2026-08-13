@@ -4039,6 +4039,73 @@ describe("check-foundation-guards.js (SDLC-02 / SC2 fail-proof harness)", () => 
   // `kit count 16 roles` case above; the D-17 undocumented-role direction is covered by the
   // `planted 18th role reaches guard_role_size` case, which asserts on the guard_role_size line.
 
+  // ── (Plan 29-13, LANG-08 / D-25) roleCeiling()'s FAIL-CLOSED DEFAULT, pinned by EXIT STATUS. ──
+  //
+  // Plan 29-13 re-baselines this switch table once, at the end of Phase 29. The property that has to
+  // survive that edit is the one D-25's own comment argues for: a role the table does not know gets
+  // NO ceiling and fails the aggregator CLOSED, rather than inheriting an automatic one. Deriving
+  // the table would hand role #18 a ceiling instead of forcing an author to measure and record one.
+  //
+  // The `planted 18th role reaches guard_role_size` case above asserts that the LINE appears, and
+  // deliberately asserts nothing about the exit code — it is a proof about DERIVATION, not about
+  // fail-closure. This case is the other half. It cannot simply assert `status !== 0`, because
+  // guard_kit_counts legitimately fails on the same 18-role mirror: a bare nonzero would be
+  // satisfied by a co-firing guard even if the default branch had been softened to return a ceiling.
+  //
+  // So it comes in three parts, and the third is the one that carries the weight:
+  //   control    the unplanted mirror is GREEN, so the plant is what turns it red;
+  //   red        the plant produces a FAIL line naming `no documented ceiling` and NO size verdict;
+  //   falsifier  the SAME mirror and the SAME plant against a scratch build whose `default:` returns
+  //              a ceiling instead of "" now yields a `within ceiling` PASS for the planted file —
+  //              which is precisely the silently-widening table D-25 refuses, and which proves the
+  //              empty string is the mechanism rather than some unrelated guard.
+  it("guard_role_size fail-closed default: an UNDOCUMENTED role FAILS closed by exit status, and a default returning a ceiling does not (D-25, LANG-08)", () => {
+    const PLANT = "zz-undocumented-role.md";
+    // A byte copy of a real role, so every prose guard is satisfied and the ONLY thing wrong with
+    // the planted file is that roleCeiling() has no case for its name.
+    const plantInto = (root: string): void => {
+      cpSync(rolePath(ROOT, "installer.md"), rolePath(root, PLANT));
+    };
+
+    // (a) Control — the same fixture, unplanted, is green. Without this the red half below would
+    //     still pass if the mirror were broken for some reason having nothing to do with the plant.
+    expect(runIn(consistentMirror()).status).toBe(0);
+
+    // (b) Red — the plant fails the aggregator CLOSED.
+    const m = consistentMirror();
+    plantInto(m);
+    const red = runIn(m);
+    expect(red.status).not.toBe(0);
+    const ceilingLine = out(red)
+      .split("\n")
+      .find((l) => l.includes(PLANT) && l.includes("no documented ceiling"));
+    expect(ceilingLine).toBeDefined();
+    expect(ceilingLine!.trimStart().startsWith("FAIL")).toBe(true);
+    // And it is never given a size verdict: the default returned "", so no ceiling was compared.
+    expect(
+      out(red)
+        .split("\n")
+        .find((l) => l.includes(PLANT) && /\d+B (within ceiling|>=)/.test(l)),
+    ).toBeUndefined();
+
+    // (c) Falsifier — soften ONLY the default branch in a scratch build. scratchGuardFiles() throws
+    //     if the replacement matches nothing, so a mutation that silently stopped applying cannot
+    //     leave this case reporting a control it never exercised.
+    const softened = scratchGuardFiles({
+      "check-foundation-guards.js": (src) =>
+        src.replace('        default:\n            return "";', '        default:\n            return "999999 999999";'),
+    });
+    const m2 = consistentMirror();
+    plantInto(m2);
+    const green = runScratch(softened, m2);
+    expect(out(green)).not.toContain("no documented ceiling");
+    const softenedLine = out(green)
+      .split("\n")
+      .find((l) => l.includes(PLANT) && l.includes("within ceiling"));
+    expect(softenedLine).toBeDefined();
+    expect(softenedLine!.trimStart().startsWith("PASS")).toBe(true);
+  }, 120_000);
+
   // ── Phase 19 Tier-1 oracle wiring (UAT-AUTO-05 / BLOCKER 1) — the aggregator must FAIL CLOSED. ──
   // Break a single Tier-1 input in the mirror and prove the aggregator goes red — i.e. `node
   // scripts/check-foundation-guards.js` exits non-zero when any one Tier-1 oracle fails, proving it
