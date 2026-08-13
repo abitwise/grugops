@@ -96,11 +96,8 @@ grugops is a file-based agent factory for software delivery. It is a small kit o
 - line: 14
 - kind: architecture
 - depends_on: —
-- status: overstated
-- mechanism: `one job` holds — every role file carries a `## One job` section. `hard limits` holds — `orchestrator.md:88` states the coordinator width/claim caps as hard limits. `short words` (the grug-brained voice) does NOT hold: the 18 fenced caveman blocks across `agent-factory/roles/*.md` total 4,036 bytes and contain ZERO occurrences of `grug` (measured 2026-08-12); they are plain second-person English. The voice guard passes because it measures sentence SHAPE, not voice.
-- disposition: deferred
-- finding_id: F-28-202
-- target_phase: 29
+- status: true
+- mechanism: All three halves now hold, and the third is measured rather than asserted. `one job` holds — every role file carries a `## One job` section, and Phase 29 rewrote all 17 to a single act of at most 20 words. `hard limits` holds — every role file carries a `## Hard limits` section, `orchestrator.md` states the coordinator width/claim caps there, and `guard_role_clause_uniqueness` reports `0 findings over 17/17 elements`, which is the observable half of the rule that a prohibition is stated in that section and nowhere else. `short words` — the grug-brained voice — is the half that failed in Phase 28 and it NOW HOLDS: `guard_caveman_voice` in `scripts/check-foundation-guards.ts` requires each role's fenced caveman block to carry at least `CAVEMAN_LEXICON_MIN` (2) distinct terms of the 16-term committed lexicon declared in `scripts/voice-model.ts` AND zero banned constructions (article, copula, modal, subordinator), and it reports `0 findings over 17/17 elements` with a published per-block measurement line — every block measures 3 to 5 distinct lexicon terms against the floor of 2, and 11 of the 17 blocks carry the literal token `grug` where the 2026-08-12 measurement found ZERO. The guard was watched failing RED on all 17 blocks in plan 29-01 before it was allowed to pass, so a green run from it is a measurement and not a construction. THE SET IS 17, NOT THE 18 FILES ON DISK: `kit-model.listRoles()` drops underscore-prefixed entries by derivation, so `agent-factory/roles/_role-switch-protocol.md` is out of set for counting and correctly carries no caveman block — it is a protocol document rather than a role an agent is activated as, which makes its exclusion principled rather than incidental. A later reader who counts 18 markdown files under `agent-factory/roles/` must not correct this number back. The 17 blocks total 2,329 bytes of fence interior, down from 3,528 before the Phase 29 rewrite. The figure this row carried through Phase 28 was produced by a different extractor over 18 files, and no command in this tree reproduces it, so it is corrected rather than carried forward; the superseded value is recoverable from this file's history and is recorded in plan 29-07's summary. Reproduce the current figure with: `node -e 'const{readCavemanFence}=require("./.tmp-build/scripts/voice-model.js");const{listRoles}=require("./.tmp-build/scripts/kit-model.js");const fs=require("fs"),p=require("path");let t=0,n=0;for(const f of listRoles(".")){t+=Buffer.byteLength(readCavemanFence(fs.readFileSync(p.join("agent-factory/roles",p.basename(f)),"utf8")).inside,"utf8");n++}console.log(n,t)'` — it prints `17 2329`. WHAT THIS ROW STILL DOES NOT CLAIM, `UNKNOWN - verify`: that the voice is *effective*. It is measured against a committed lexicon and a closed banned-construction set, and nothing here asserts a token, comprehension or model-behaviour benefit — see C-28-042.
 
 ```
 Each agent is grug-brained on purpose: one job, short words, hard limits. Lean by default, enterprise governance on a flag. File-based. No platform. No lock-in.
@@ -218,11 +215,8 @@ All work starts with the Orchestrator: `agent-factory/roles/orchestrator.md`.
 - line: 16
 - kind: architecture
 - depends_on: —
-- status: overstated
-- mechanism: `the dial (mode, cadence, autonomy, WIP limits)` holds — all four keys are present in `agent-factory/config/factory.config.json`. `Runs lean with documented defaults when absent` is stronger than the mechanism: the defaults ARE documented (`agent-factory/config/factory.config.md` carries a per-field lean-default column), but `factory.config.md:3` scopes role honouring to `when it is present`, and a grep across all 18 role files finds ZERO stating a when-absent fallback (only 4 mention `lean` at all). The fallback rests on an agent inferring it, not on any role instruction.
-- disposition: deferred
-- finding_id: F-28-204
-- target_phase: 29
+- status: true
+- mechanism: `the dial (mode, cadence, autonomy, WIP limits)` holds — all four keys are present in `agent-factory/config/factory.config.json`. `Runs lean with documented defaults when absent` NOW HOLDS TOO. The defaults are documented (`agent-factory/config/factory.config.md` carries a per-field lean-default column, and `agent-factory/README.md` § Configuration carries the public statement registered as C-28-032), and Phase 29 added one when-absent fallback sentence to the `## Reads` section of every in-set role file, reading "With no config file present, this role runs lean on the documented defaults in agent-factory/README.md." So the fallback now rests on a role instruction rather than on an agent inferring it. Measured at 17 of 17 by two independent methods — `grep -lc` in forced text mode, and a Node directory walk using `String.includes` — where the 2026-08-12 measurement was ZERO. THE DENOMINATOR IS 17, NOT THE 18 FILES ON DISK: `kit-model.listRoles()` drops underscore-prefixed entries by derivation, so `agent-factory/roles/_role-switch-protocol.md` is out of set for counting; it is a protocol document rather than a role an agent is activated as, and it reads no config, so its exclusion is principled rather than incidental. A later reader who counts 18 markdown files under `agent-factory/roles/` must not correct this number back. RESIDUAL, `UNKNOWN - verify`: the sentence is an instruction in every role file, and no gate asserts that an agent reading it actually behaves that way at run time.
 
 ```
 1. `.grugops/factory.config.json` — the dial (mode, cadence, autonomy, WIP limits). Runs lean with documented defaults when absent.
@@ -529,11 +523,8 @@ change a value, change the factory's behavior.
 - line: 77-80
 - kind: safety
 - depends_on: autonomy
-- status: overstated
-- mechanism: The baseline triple holds exactly: `factory.config.json` carries `mode: "lean"`, `cadence: "kanban"` and `autonomy: "pr"`. THE OVERSTATEMENT IS THE CAUSAL CLAUSE `because every role falls back to these same documented defaults when the file is absent`: a grep across all 18 role files finds ZERO stating a when-absent fallback, and `agent-factory/config/factory.config.md:3` scopes role honouring to `when it is present`. The defaults are documented in one place and no role is instructed to fall back to them. This is the same defect as C-28-012, stated more strongly here.
-- disposition: deferred
-- finding_id: F-28-212
-- target_phase: 29
+- status: true
+- mechanism: The baseline triple holds exactly: `factory.config.json` carries `mode: "lean"`, `cadence: "kanban"` and `autonomy: "pr"`. THE CAUSAL CLAUSE `because every role falls back to these same documented defaults when the file is absent` was the overstatement, and it NOW HOLDS: Phase 29 added one when-absent fallback sentence to the `## Reads` section of every in-set role file, reading "With no config file present, this role runs lean on the documented defaults in agent-factory/README.md." — and it points at the § Configuration section of this same document, which is where this claim lives. Measured at 17 of 17 by two independent methods (`grep -lc` in forced text mode and a Node directory walk using `String.includes`), where the 2026-08-12 measurement was ZERO. The word `every` in the claim is therefore satisfied over the set the kit actually activates. THE DENOMINATOR IS 17, NOT THE 18 FILES ON DISK: `kit-model.listRoles()` drops underscore-prefixed entries by derivation, so `agent-factory/roles/_role-switch-protocol.md` is out of set for counting; it is a protocol document rather than a role an agent is activated as, and it reads no config, so its exclusion is principled rather than incidental. A later reader who counts 18 markdown files under `agent-factory/roles/` must not correct this number back. This is the same mechanism as C-28-012, stated more strongly here, and the two rows close together. RESIDUAL, `UNKNOWN - verify`: no gate asserts that an agent reading the instruction behaves that way at run time.
 
 ```
 The **zero-config baseline** is `mode=lean`, `cadence=kanban`, `autonomy=pr`. grugops runs
@@ -789,9 +780,9 @@ drift is fixed; the residual is named, and it is the same one residual in all fo
 | Finding | Claim | Status | Disposition | Where it is answered |
 |---|---|---|---|---|
 | F-28-201 | C-28-001 | overstated | accepted | 28-05 — `README.md` drift rewritten; the `always` residual is C-28-023's, named in the row |
-| F-28-202 | C-28-003 | overstated | deferred → 29 | the grug voice has drifted out of all 18 caveman blocks; Phase 29 rebuilds the voice guard |
+| F-28-202 | C-28-003 | **true** | — | 29-07 — the voice was rebuilt across all 17 blocks and `guard_caveman_voice` reports `0 findings over 17/17 elements`, watched RED on all 17 in 29-01 first; CLOSED |
 | F-28-203 | C-28-010 | overstated | accepted | 28-05 — `AGENTS.md:6` now agrees with `AGENTS.md:21`; the *"humans decide"* residual is C-28-023's |
-| F-28-204 | C-28-012 | overstated | deferred → 29 | no role file states a when-absent config fallback |
+| F-28-204 | C-28-012 | **true** | — | 29-05/29-06/29-07 — the D-30 when-absent fallback sentence now stands in the `## Reads` section of 17 of 17 in-set role files; CLOSED |
 | F-28-205 | C-28-018 | overstated | accepted | the mechanical guard is Claude-Code-plugin-only; residual named in the row |
 | F-28-206 | C-28-021 | **true** | — | 28-05 — the `handoff packet` hit the drift guard reported; CLOSED |
 | F-28-207 | C-28-022 | **true** | — | 28-05 — the linear-pipeline claim; CLOSED |
@@ -799,7 +790,7 @@ drift is fixed; the residual is named, and it is the same one residual in all fo
 | F-28-209 | C-28-027 | **true** | — | 28-05 — *"the roles, the handoffs, and the gates are identical everywhere"*; CLOSED |
 | F-28-210 | C-28-028 | overstated | accepted | KIT-03 / SPAWN-03 / SPAWN-04 are still `[ ]` |
 | F-28-211 | C-28-029 | **true** | — | 28-05 — *"same handoffs"*; CLOSED |
-| F-28-212 | C-28-032 | overstated | deferred → 29 | *"every role falls back"* — measured at zero of 18 |
+| F-28-212 | C-28-032 | **true** | — | 29-05/29-06/29-07 — *"every role falls back"* now measures 17 of 17 in-set role files, against the derived denominator `listRoles()` produces; CLOSED |
 | F-28-213 | C-28-038 | overstated | accepted | 28-05 — the manifest `description` was rewritten by hand; **unanchorable**, so no gate catches a future missed flip — see the section above |
 | F-28-214 | C-28-033 | **true** | — | 28-05 — a **third** D-10 arrow-chain site, in the § *How work flows* lifecycle bullet, that neither the drift guard nor the task-1 sweep reached; CLOSED |
 

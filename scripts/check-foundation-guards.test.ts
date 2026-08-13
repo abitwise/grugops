@@ -86,12 +86,23 @@ const GUARD_JS = join(ROOT, "scripts", "check-foundation-guards.js");
 // with plan 29-01's RED baseline as a ceiling, so a silently-zero derivation fails and an INCREASE
 // in findings is reported as the regression it would be.
 // ---------------------------------------------------------------------------
-const roleTextsOnDisk = (): string[] =>
-  listRoles().map((n) => readFileSync(join(ROOT, "agent-factory/roles", n), "utf8"));
+//
+// (Plan 29-07) THE FLIP-BACK, AND WHY THE DERIVATIONS SURVIVED IT. This plan rewrote the last two
+// role files, so both derivations now return ZERO and 29-05's non-vacuity floor failed — exactly as
+// it was built to. That failure is the mechanism working: nobody could reach green here by retyping
+// a literal, because there was no literal to retype. The helpers are KEPT and their consumers'
+// direction is REVERSED, so a future edit that reintroduces a banned construction or a duplicate
+// clause fails BOTH the derivation and the guard's own line.
+//
+// They are also PARAMETERIZED BY ROOT. The falsifiability case below used to lean on the live tree
+// being red, which made a permanent proof depend on a transient corpus state; it now plants its own
+// red and counts it here, through the same authorities, at whatever root it planted into.
+const roleTextsIn = (root: string): string[] =>
+  listRoles().map((n) => readFileSync(join(root, "agent-factory/roles", n), "utf8"));
 
 /** Role files whose caveman block fails EITHER arm — the guard_caveman_voice finding count. */
-function derivedVoiceRedCount(): number {
-  return roleTextsOnDisk().filter((t) => {
+function voiceRedCountIn(root: string): number {
+  return roleTextsIn(root).filter((t) => {
     const v = readCavemanFence(t);
     if (!v.ok) return true;
     const b = countBannedConstructions(v.inside);
@@ -102,9 +113,11 @@ function derivedVoiceRedCount(): number {
   }).length;
 }
 
+const derivedVoiceRedCount = (): number => voiceRedCountIn(ROOT);
+
 /** Intra-file repeated normalized clauses, summed over roles — the uniqueness finding count. */
 function derivedClauseGroupCount(): number {
-  return roleTextsOnDisk().reduce((n, t) => {
+  return roleTextsIn(ROOT).reduce((n, t) => {
     const groups = new Map<string, number>();
     for (const { clause } of segmentClauses(t))
       groups.set(clause, (groups.get(clause) ?? 0) + 1);
@@ -398,16 +411,55 @@ function mirror(): string {
   return m;
 }
 
-// (Plan 29-01) The UNREPAIRED mirror — every input byte-faithful, role files included. It is the tree
-// at HEAD, so both new guards are RED on it. Exactly one case uses it: the falsifiability proof needs
-// the SAME red inputs fed to two different builds, and it cannot use the real repo root because a
-// scratch build resolves its own script-relative ROOT into a temp directory.
-function rawMirror(): string {
-  const m = mkdtempSync(join(tmpdir(), "grugops-fg-raw-"));
-  tmpDirs.push(m);
-  for (const rel of GUARD_INPUTS) {
-    mkdirSync(join(m, dirname(rel)), { recursive: true });
-    cpSync(join(ROOT, rel), join(m, rel));
+// (Plan 29-01) There used to be a `rawMirror()` here: an UNREPAIRED, byte-faithful copy of the tree
+// at HEAD. Its single consumer was the `||` falsifiability proof, which needed the same RED inputs
+// fed to two different builds, and back then the tree itself was red on all 17 blocks so a faithful
+// copy was a red fixture for free.
+//
+// (Plan 29-07) IT IS DELETED, because the property it relied on is gone. The corpus is now green, so
+// a byte-faithful mirror is a GREEN fixture, and the proof it served would have degraded into two
+// identical green transcripts matching trivially — passing while proving nothing. `allRedMirror()`
+// below replaces it by PLANTING the red rather than borrowing it, which is the same fixture argument
+// one level more durable. Keeping a fixture whose discriminating power depends on the corpus staying
+// broken is the shape this repository has corrected before; it is not kept here for symmetry.
+
+// (Plan 29-07) A block that fails BOTH arms and contributes NO clause of its own. Zero lexicon terms
+// (positive arm fails) and one copula (negative arm fails), and it normalizes to two words — below
+// CLAUSE_MIN_WORDS — so planting it cannot create or mask a uniqueness finding. Its two-sidedness is
+// asserted from the authorities in `allRedMirror()` rather than trusted from this comment.
+const BOTH_ARMS_FAILING_BLOCK: readonly string[] = ["You are here."];
+
+// (Plan 29-07) A mirror on which guard_caveman_voice is RED for EVERY role, by construction.
+//
+// It replaces the use `rawMirror()` used to serve. Until this plan the tree at HEAD was itself red on
+// all 17 blocks, so a byte-faithful copy of it was a red fixture for free — and the falsifiability
+// proof below leaned on that. The rewrite turned the corpus green, which would have quietly reduced
+// that proof to two GREEN transcripts matching trivially. Planting the red makes the fixture
+// permanent and independent of whatever the corpus says next.
+//
+// A block failing both arms is red under the committed conjunction AND under the `||` mutant, which
+// is precisely the property the transcript comparison needs.
+function allRedMirror(): string {
+  const m = mirror();
+  for (const role of listRoles()) {
+    plantCavemanBlock(m, role, [...BOTH_ARMS_FAILING_BLOCK]);
+  }
+  // The plant is two-sided by ASSERTION, not by assumption — measured through the same authorities
+  // the guard reads, so a lexicon or banned-set change that made this block conforming fails loudly
+  // here instead of silently turning the fixture green.
+  const planted = BOTH_ARMS_FAILING_BLOCK.join("\n");
+  const bannedIn = countBannedConstructions(planted);
+  if (countLexiconTokens(planted) >= CAVEMAN_LEXICON_MIN) {
+    throw new Error("allRedMirror: the planted block passes the POSITIVE arm");
+  }
+  if (
+    bannedIn.article + bannedIn.copula + bannedIn.modal + bannedIn.subordinator ===
+    0
+  ) {
+    throw new Error("allRedMirror: the planted block passes the NEGATIVE arm");
+  }
+  if (segmentClauses(planted).length !== 0) {
+    throw new Error("allRedMirror: the planted block contributes a clause");
   }
   return m;
 }
@@ -3758,22 +3810,29 @@ describe("check-foundation-guards.js (SDLC-02 / SC2 fail-proof harness)", () => 
     // and the caveman block of their output is compared byte for byte. It matches, so the transcript
     // embedded in the guard's source header cannot tell a conjunction from a disjunction.
     //
-    // (Plan 29-05) The expected count is DERIVED rather than pinned at ROLE_COUNT. Until this plan
-    // every one of the 17 blocks failed BOTH arms, so 17/17 was the only possible number; the seven
-    // roles rewritten here now pass both arms, and 29-06 and 29-07 move the number twice more. A
-    // block that passes the conjunction also passes the disjunction, so the byte-identity the case
-    // rests on is unaffected — but the PREMISE below has to keep asserting that the two transcripts
-    // being compared are genuinely red, or the comparison becomes two green blocks matching
-    // trivially. That is what the `> 0` floor is for, and it is what will fail loudly — rather than
-    // silently weaken this proof — on the plan that turns the last block green.
-    const raw = rawMirror();
+    // (Plan 29-05) The expected count is DERIVED rather than pinned at ROLE_COUNT, and the PREMISE
+    // below has to keep asserting that the two transcripts being compared are genuinely red, or the
+    // comparison becomes two green blocks matching trivially. That is what the `> 0` floor is for,
+    // and it was built to fail loudly — rather than silently weaken this proof — on the plan that
+    // turns the last block green.
+    //
+    // (Plan 29-07) IT FAILED LOUDLY, ON SCHEDULE, AND THIS IS THE REPAIR. The fixture used to be
+    // `rawMirror()` — a byte-faithful copy of the tree at HEAD — which was red only because the
+    // corpus happened to be red. This plan turned the corpus green, so that fixture stopped being
+    // evidence. The red is now PLANTED on every role rather than borrowed from the tree, which makes
+    // the proof permanent and independent of the corpus. Retyping the expected count, or dropping
+    // the floor, would each have cleared the failure by deleting the evidence for it.
+    const raw = allRedMirror();
     const committedRed = runIn(raw);
     const brokenRed = runScratch(disjunctionGuard, raw);
     const cavemanBlockOf = (o: string): string =>
       o.slice(o.indexOf("[guard_caveman_voice]"), o.indexOf("[guard_role_clause_uniqueness]"));
-    // PREMISE: the comparison is between two NON-EMPTY transcripts that really are red.
-    const rawRed = derivedVoiceRedCount();
+    // PREMISE: the comparison is between two NON-EMPTY transcripts that really are red. The count is
+    // read off THE FIXTURE, through the same authorities the guard uses — so if the plant ever
+    // stopped applying, this floor fails instead of the comparison passing on two green blocks.
+    const rawRed = voiceRedCountIn(raw);
     expect(rawRed).toBeGreaterThan(0);
+    expect(rawRed, "the plant must red EVERY role").toBe(ROLE_COUNT);
     expect(rawRed).toBeLessThanOrEqual(VOICE_RED_BASELINE_29_01);
     expect(committedRed.status).toBe(1);
     expect(cavemanBlockOf(out(committedRed))).toContain(
@@ -4383,36 +4442,47 @@ describe("check-foundation-guards.js (SDLC-02 / SC2 fail-proof harness)", () => 
   // guards must still print zero FAIL lines, so a regression anywhere else is reported by name rather
   // than absorbed into an expected-red exit code. That is what keeps a deliberately red gate from
   // becoming a gate nobody reads.
-  it("smoke: real tree is RED on EXACTLY the two new voice guards, and green everywhere else (plan 29-01 D-24 evidence)", () => {
+  //
+  // (Plan 29-07) IT IS FLIPPED BACK, ON SCHEDULE. The last two role files — the dual-voice safety
+  // pair — landed in this plan, so all 17 caveman blocks carry measured voice and no role file
+  // repeats a clause. Both derivations returned ZERO, 29-05's non-vacuity floor failed, and that
+  // failure is what forced this flip to be a DELIBERATE inversion: there was no number to retype.
+  //
+  // The derivations are KEPT and their direction REVERSED. The tree must be green FOR THE REASON THE
+  // GUARDS SAY IT IS — the derived red count and the derived clause-group count are both asserted at
+  // exactly 0, computed from the live corpus through the same voice-model.js authorities the guards
+  // read, so the case and the guard cannot come to disagree about what a red block is. Plan 29-01's
+  // RED baselines stay referenced as the journey's other end: 17 -> 0 and 12 -> 0, strictly down.
+  //
+  // The RED behaviour this case used to prove did not disappear with the flip. It lives in the three
+  // arm fixtures, the `||` falsifiability proof and the all-red planted mirror above, each of which
+  // re-creates a red shape explicitly and is therefore permanent.
+  it("smoke: real tree is FULLY GREEN and both voice derivations are zero (plan 29-07 flip-back)", () => {
     const r = spawnSync("node", [GUARD_JS], { encoding: "utf8" });
     const o = out(r);
     const fails = o.split("\n").filter((l) => l.startsWith("  FAIL"));
     // Assert on the FAIL lines BEFORE the status, so a regression reports WHICH guard broke rather
     // than only that the exit code was non-zero.
-    expect(fails).toHaveLength(2);
-    // (Plan 29-05) The two counts are DERIVED, not retyped — see the helpers at the top of this
-    // file for why. The derivation is fenced on three sides so it cannot pass vacuously:
-    //   (a) both counts must be > 0 while any role is unrewritten — a derivation that silently
-    //       returned zero would otherwise pass against a guard printing zero findings;
-    //   (b) both counts must be <= plan 29-01's RED baseline — the rewrites only ever remove
-    //       findings, so an INCREASE is a regression and is reported as one;
-    //   (c) the fold's denominator is still pinned at ROLE_COUNT.
-    // When the last rewrite plan lands, both derivations reach 0, arm (a) fails, and this case is
-    // FLIPPED BACK to a fully green tree — deliberately, rather than by editing a number.
+    expect(
+      fails.map((l) => l.split(":")[0].replace("  FAIL  ", "")),
+      "no guard may fail on the committed tree",
+    ).toEqual([]);
     const derivedVoiceRed = derivedVoiceRedCount();
     const derivedClauseGroups = derivedClauseGroupCount();
-    expect(derivedVoiceRed).toBeGreaterThan(0);
-    expect(derivedVoiceRed).toBeLessThanOrEqual(VOICE_RED_BASELINE_29_01);
-    expect(derivedClauseGroups).toBeGreaterThan(0);
-    expect(derivedClauseGroups).toBeLessThanOrEqual(CLAUSE_GROUP_BASELINE_29_01);
-    expect(fails[0]).toContain(
-      `caveman voice: ${derivedVoiceRed} finding(s) over ${ROLE_COUNT} elements`,
+    expect(derivedVoiceRed).toBe(0);
+    expect(derivedClauseGroups).toBe(0);
+    expect(derivedVoiceRed).toBeLessThan(VOICE_RED_BASELINE_29_01);
+    expect(derivedClauseGroups).toBeLessThan(CLAUSE_GROUP_BASELINE_29_01);
+    // The PASS lines carry the measurement with its full denominator (D-08) — a green that publishes
+    // what it read, rather than a green that merely says nothing.
+    expect(o).toContain(
+      `caveman voice: 0 findings over ${ROLE_COUNT}/${ROLE_COUNT} elements`,
     );
-    expect(fails[1]).toContain(
-      `role clause uniqueness: ${derivedClauseGroups} finding(s) over ${ROLE_COUNT} elements`,
+    expect(o).toContain(
+      `role clause uniqueness: 0 findings over ${ROLE_COUNT}/${ROLE_COUNT} elements`,
     );
-    expect(r.status).toBe(1);
-    expect(o).toContain("2 CHECK(S) FAILED");
+    expect(r.status).toBe(0);
+    expect(o).toContain("ALL CHECKS PASSED");
     // The 17 per-block measurement lines are present and in listRoles() sorted order, so the
     // transcript embedded in the guard's source header is reproducible byte-for-byte.
     const detail = o
@@ -4706,9 +4776,13 @@ describe("27-65 end-to-end gate sweep: the rounds-1-11 corpus planted on the liv
     // Every plant above went into a temp mirror via CHECK_ROOT; nothing outside tmpdir was written.
     // Proven rather than asserted in a comment: run the gate on the REAL tree with no override.
     //
-    // (Plan 29-01) The expected verdict is the tree's deliberate 2-FAIL red, not exit 0 — see the
-    // smoke case above. What this asserts is that no guard the sweep touches moved: guard_wr05 is
-    // still PASS, and the only two failures are the two voice guards this plan landed.
+    // (Plan 29-01) The expected verdict was the tree's deliberate 2-FAIL red, not exit 0 — see the
+    // smoke case above. What this asserts is that no guard the sweep touches moved.
+    //
+    // (Plan 29-07) The role rewrite is complete and the tree's verdict is now a clean exit 0, so the
+    // expected verdict is flipped here too. It is still written as the FULL FAIL-NAME LIST rather
+    // than as a bare status, so a regression the sweep left behind is reported BY GUARD NAME instead
+    // of as an anonymous non-zero exit.
     const r = spawnSync("node", [GUARD_JS], { encoding: "utf8" });
     const fails = out(r)
       .split("\n")
@@ -4716,8 +4790,8 @@ describe("27-65 end-to-end gate sweep: the rounds-1-11 corpus planted on the liv
     expect(
       fails.map((l) => l.split(":")[0].replace("  FAIL  ", "")),
       "the sweep must leave the tree's verdict exactly as it found it",
-    ).toEqual(["caveman voice", "role clause uniqueness"]);
-    expect(r.status).toBe(1);
+    ).toEqual([]);
+    expect(r.status).toBe(0);
     expect(out(r)).toContain(
       "WR-05: exactly one coordinator holds the spawn grant",
     );
