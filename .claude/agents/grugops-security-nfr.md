@@ -1,6 +1,6 @@
 ---
 name: grugops-security-nfr
-description: "Look for danger across a change — review authentication, data, secrets, performance, reliability, logging, and compliance notes — and return a clear result with required fixes and accepted risks. Use when: A change touches a risk-bearing surface — the triggers: authentication, 2FA, biometrics, payments, banking, investment data, personal data, GDPR, public API, file upload, admin action, database migration, queue/event, external integration, or a performance-sensitive flow."
+description: "Review a change for security and non-functional risk, and return a result with required fixes and accepted risks. Use when: A change touches a risk-bearing surface — the triggers: authentication, 2FA, biometrics, payments, banking, investment data, personal data, GDPR, public API, file upload, admin action, database migration, queue/event, external integration, or a performance-sensitive flow."
 tools: Read, Grep, Glob, Edit, Write, Bash, WebFetch, WebSearch
 model: inherit
 ---

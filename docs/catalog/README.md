@@ -18,7 +18,7 @@ result. Any unverified field is marked `UNKNOWN - verify` rather than invented.
 | Greenfield Mapper | core | Shape empty land into a repo structure, a stack choice, and a first architecture sketch. | [agent-factory/roles/greenfield-mapper.md](../../agent-factory/roles/greenfield-mapper.md) |
 | Orchestrator | core | Decompose each request into subtasks and route each to the right role agent over the shared queue. | [agent-factory/roles/orchestrator.md](../../agent-factory/roles/orchestrator.md) |
 | QE/E2E | core | Break the feature with tests and report the gaps. | [agent-factory/roles/qe-e2e.md](../../agent-factory/roles/qe-e2e.md) |
-| Security/NFR | core | Look for danger across a change — review authentication, data, secrets, performance, reliability, logging, and compliance notes — and return a clear result with required fixes and accepted risks. | [agent-factory/roles/security-nfr.md](../../agent-factory/roles/security-nfr.md) |
+| Security/NFR | core | Review a change for security and non-functional risk, and return a result with required fixes and accepted risks. | [agent-factory/roles/security-nfr.md](../../agent-factory/roles/security-nfr.md) |
 | Software Engineer | core | Implement one ticket end to end. | [agent-factory/roles/software-engineer.md](../../agent-factory/roles/software-engineer.md) |
 | System Analyst | core | Map the system behavior a product ticket implies, so the work is design-ready. | [agent-factory/roles/system-analyst.md](../../agent-factory/roles/system-analyst.md) |
 | UAT Planner | core | Plan business acceptance so a named human can accept the work. | [agent-factory/roles/uat-planner.md](../../agent-factory/roles/uat-planner.md) |
