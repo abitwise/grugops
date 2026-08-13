@@ -476,7 +476,7 @@ Plans:
 
   1. The kit ships a grugops-authored, ASD-STE100-**derived** writing profile — enumerated rules plus a project Technical Names/Verbs set — with a non-affiliation and not-certified disclaimer, vendoring no part of the ASD dictionary. (LANG-01)
   2. The profile governs workflow steps, checklists, memory-bank, shared-context notes, board, and traceability; it leaves the fenced caveman identity blocks alone; and a named safety-surface exclusion list keeps load-bearing security, compliance, and admission text from being reworded by a style pass. (LANG-02, LANG-03)
-  3. The guard is **named for the decidable subset it checks** — lexicon membership, sentence length, banned constructions — and nowhere in the kit is ASD-STE100 conformance claimed, nor a token-economy win, nor an LLM-comprehension benefit (that one stays `UNKNOWN - verify`). (LANG-04)
+  3. The guards are **named for the decidable subsets they check** — `guard_imperative_lexicon` for lexicon membership at imperative position and `guard_sentence_form` for sentence length and banned constructions — and nowhere in the kit is ASD-STE100 conformance claimed, nor a token-economy win, nor an LLM-comprehension benefit (that one stays `UNKNOWN - verify`); `guard_banned_claims` holds that prohibition mechanically rather than by discipline. (LANG-04)
   4. The rebuilt voice guard **fails RED on all 17 current caveman blocks** as acceptance evidence before the rewrite lands, measures against a committed lexicon rather than sentence shape, and publishes a number with a denominator. (LANG-06)
   5. `## One job`, the caveman block, and `## Responsibilities` each say a thing once; `guard_imperative_lexicon` (with its sibling `guard_sentence_form`) and the rebuilt voice guard read the fence through **one** parser, never two grammars over the same bytes; and byte ceilings are re-baselined exactly once at end of phase with every file ≤ its previous value and the delta recorded — never raised mid-phase. (LANG-05, LANG-07, LANG-08)
 
@@ -540,7 +540,7 @@ Plans:
 - Passive voice is left alone deliberately, with its reason recorded in the guard and the profile (D-15).
 - Byte growth is measured and recorded per file rather than assumed (D-28).
 
-**Honesty floor for this phase:** STE likely *increases* token count (its rules forbid the telegraphic omission caveman relies on). The profile is justified on determinism and one-term-per-concept grounds only. Caveman-as-token-economy is disproven on this artifact and must not be restated.
+**Honesty floor for this phase:** the profile is justified on determinism and one-term-per-concept grounds. Its effect on token count is **`UNKNOWN - verify`** in both directions and no study was located in either direction. Caveman-as-token-economy is **disproven on this artifact by measurement** and must not be restated. The profile does not govern the fenced caveman blocks, whose article density is already below the governed corpus's, so no article-restoration cost applies to them. The growth this phase produces is measured and recorded (D-28), and a later phase reasons from that measurement rather than from an estimate written before it. There is no evidence that controlled language improves comprehension for a language model, and the kit does not ship that claim.
 
 ### Phase 29.1: Per-Role Model Assignment (INSERTED)
 

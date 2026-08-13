@@ -844,8 +844,9 @@ const CLAIM_META_RE = /^-\s+([a-z_]+):\s*(.*)$/;
 const CLAIM_REQUIRED_KEYS = ["file", "line", "kind", "depends_on", "status"] as const;
 
 // The canonical form of a `line:` value: a single 1-based line, or an inclusive range (28-REVIEW
-// WR-07). Both shapes are live in the committed registry — measured 2026-08-12, 38 rows carry 19
-// single values and 19 ranges, and nothing else. The VALUE is advisory by the registry's own
+// WR-07). Both shapes are live in the committed registry — re-measured 2026-08-13, 42 rows carry 19
+// single values and 23 ranges, and nothing else (38 rows / 19 / 19 at the 2026-08-12 measurement;
+// plan 29-02's four writing-profile rows are all ranges). The VALUE is advisory by the registry's own
 // documented decision; the FORM is held here, because a required key that is never validated at all
 // admits `line: banana` while reading to a human as authoritative provenance.
 const CLAIM_LINE_RE = /^\d+(?:-\d+)?$/;

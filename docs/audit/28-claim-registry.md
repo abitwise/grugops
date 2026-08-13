@@ -1,7 +1,13 @@
 # Phase 28 — Claim Registry (AUDIT-03)
 
-Every public claim in `README.md`, `AGENTS.md` and `agent-factory/README.md`, given an id, mapped
-to the safety floor whose lowering would falsify it, and measured against a named mechanism.
+Every public claim in `README.md`, `AGENTS.md`, `agent-factory/README.md` and
+`agent-factory/writing-profile.md`, given an id, mapped to the safety floor whose lowering would
+falsify it, and measured against a named mechanism.
+
+**42 rows as committed by plan 29-02** — 38 from Phase 28, plus C-28-039..C-28-042, the writing
+profile's own four falsifiable claims about what it achieves. The id band is unchanged on purpose:
+a second registry is the defect D-15 refused, and a document that asserts what it achieves is
+exactly the class this registry exists to hold, whichever phase authored it.
 
 **This is a MAPPING, not a list (D-13).** The question a row answers is not *what is a claim* but
 *which public sentences become false if floor F is lowered* — the join Phase 30's AUTO-01 closed
@@ -633,6 +639,75 @@ current tool docs — `UNKNOWN - verify`.
   "description": "grugops — a file-based agent factory for disciplined software delivery. The Orchestrator decomposes each request into subtasks and enqueues them on a shared queue, with a shared verified context as the only memory between roles; humans always hold merge and deploy.",
 ```
 
+### C-28-039
+
+- file: agent-factory/writing-profile.md
+- line: 158-164
+- kind: architecture
+- depends_on: —
+- status: true
+- mechanism: Three assertions about grugops's own IP posture, each measured separately. (1) NO SPECIFICATION TEXT WAS AVAILABLE TO REPRODUCE, and the evidence is first-hand: `pdftotext -f 1 -l 14` against the official ASD-STE100 Issue 9 distribution returns `Permission Error: Copying of text from this document is not allowed.` — the publisher's own machine-readable copy-text permission bit — and NO attempt was made to bypass it (29-RESEARCH §C-2, command output 2026-08-13). A project whose value proposition is the trace does not circumvent a rights holder's technical measure to author a document about honest claims. (2) NO PART OF THE CONTROLLED DICTIONARY IS INCLUDED: the profile adopts no general word list at all — the one set it names, the approved step verbs, is grugops-authored and seeded from verbs this repository's own procedural steps already use in bare imperative position (29-RESEARCH §B-2), and the rule table's ten entries are written in grugops's own words against this repository's own measured corpus. (3) THE NOT-AFFILIATED / NOT-CERTIFIED HALF is the position ASD and STEMG publish themselves — `ASD and the STEMG DO NOT endorse or certify any company, organization, or individual that sells tools claimed to be 'fully compliant' with ASD-STE100` (asd-ste100.org/STE_faq.html) — so the denial restates the rights holder's own statement rather than asserting anything about it. It is modelled on this project's existing house wording at `NOTICE:4-7`. The 53-rules / Issue 9 / January 2025 citation is a widely published fact about the standard (asd-ste100.org/about_STE.html), not an extract from it, and it corrects the `~65 rules` figure this project's older planning prose carried.
+
+```
+The grugops writing profile is an independent work, authored by grugops. It is **derived from** the
+ideas of ASD-STE100 Simplified Technical English Issue 9, and it is **not** ASD-STE100. grugops is
+not affiliated with, sponsored by, endorsed by, or certified by ASD (Aerospace, Security and Defence
+Industries Association of Europe) or the Simplified Technical English Maintenance Group (STEMG), and
+neither body endorses or certifies any software tool. **No part of the ASD-STE100 specification text
+is reproduced here, in whole or in part, and no part of its controlled dictionary is included,
+vendored or redistributed.** The rules above are grugops's own, written for this kit.
+```
+
+### C-28-040
+
+- file: agent-factory/writing-profile.md
+- line: 94-96
+- kind: architecture
+- depends_on: —
+- status: true
+- mechanism: Measured 2026-08-13 over the profile document: it contains ZERO of the 17 role display names and ZERO of the 19 workflow display names that the derivation commands named in the same section return (`grep -h '^# Role: ' agent-factory/roles/*.md` and `grep -h '^# Workflow: ' agent-factory/workflows/*.md`). The three apparent config-key matches — `mode`, `quality`, `context` — are substrings of ordinary English words in the surrounding prose (`model`, `quality/trace surface`, `shared verified context`), not pasted list members. The section states the set by COMMAND and enumerates it nowhere, which is what makes the claim checkable: re-running the commands is the check, and a pasted copy would be visible as a literal list.
+
+```
+The project set is **derived, never listed**. Pasting the members into this document would create the
+stale copy this milestone exists to eliminate: the document would keep reading as authoritative while
+the kit moved underneath it.
+```
+
+### C-28-041
+
+- file: agent-factory/writing-profile.md
+- line: 32-37
+- kind: architecture
+- depends_on: —
+- status: true
+- mechanism: Measured 2026-08-13 on the document itself. `grep -oE 'WP-[0-9]{2}' agent-factory/writing-profile.md | sort -u` returns 10 ids, contiguous WP-01..WP-10; `grep -cE 'WP-[0-9]{2}.*(decidable|advisory)'` returns 10, so every id carries exactly one mark and no id is unmarked. The claim asserts what the MARK MEANS and states outright that `guard_imperative_lexicon` and `guard_sentence_form` land later in this same phase — so it does not assert a check that has not been performed, which is why this row is `true` rather than `overstated`. When plan 29-03 lands those two guards, the sentence about them becomes a statement about a live build and this row's mechanism gains a command; the sentence itself needs no rewrite, which is the point of phrasing it against the build rather than against an intention.
+
+```
+Each rule is marked **decidable** or **advisory** in the table below, and the mark is the whole of
+the promise. A decidable rule is one a gate can decide; an advisory rule is checked by a human at
+review and by nothing else. The gates that decide the decidable subset are `guard_imperative_lexicon`
+and `guard_sentence_form`, and they land with the corpus rewrite in this same phase — until they do,
+the decidable mark states which rules are gateable and not which rules are gated. `UNKNOWN - verify`
+against the build rather than against this sentence.
+```
+
+### C-28-042
+
+- file: agent-factory/writing-profile.md
+- line: 175-179
+- kind: architecture
+- depends_on: —
+- status: true
+- mechanism: `node scripts/check-banned-claims.js` — exit 0 over 82 derived documents (73 kit markdown files + 10 public documents − 1 overlap), 20 pinned literals across 3 groups, one named exemption region asserted two-sided. The gate was watched FAILING first (D-44): exit 1 with 3 findings over 82 documents at commit 20982a0, exit 0 at commit 0fafbaf, with the gate itself byte-unchanged across the transition. Two of those three findings were NOT planted — the kit already claimed the caveman voice is a token economy applied to memory, which project measurement on 2026-07-28 disproved on this artifact. RECORDED RESIDUAL, carried in the gate's source and in the profile's own prose rather than claimed away: a brand-new conformance claim written without any pinned literal is not mechanically detectable (`UNKNOWN - verify`), and a pinned literal hard-wrapped across a line boundary is not matched — the answer to which is deliberately NOT to normalize whitespace before comparing.
+
+```
+**Conformance with ASD-STE100 is not claimed, not checked, and not implied. No token-economy win is
+claimed. No comprehension benefit is claimed.** `guard_banned_claims` holds all three prohibitions
+mechanically over the shipped kit and the public documents, and it was watched failing on a real
+claim in a real file before it was allowed to pass. A green run from it says what it measured, and
+says nothing about the standard.
+```
+
 ## The unanchorable claim — `.claude-plugin/plugin.json`
 
 C-28-038 above is registered like every other row and is **excluded from the D-16 bijection by
@@ -696,7 +771,8 @@ the join, and it is written here rather than resolved by mislabelling a row.
 ## Findings (AUDIT-01), and why they are not Table B rows
 
 Every row whose `status` is not `true` carries a `disposition` and a `finding_id`. **As committed by
-28-05, nine rows qualify — 0 `false` and 9 `overstated` out of 38.** Five rows that 28-04 recorded
+28-05, nine rows qualify — 0 `false` and 9 `overstated` out of 38; plan 29-02's four additions are
+all `true`, so the figures stand at 9 of 42.** Five rows that 28-04 recorded
 `false` are now `true`; three that 28-04 recorded `false` are now `overstated`, for the reason the
 next paragraph names.
 

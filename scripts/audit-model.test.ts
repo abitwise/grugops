@@ -900,8 +900,9 @@ describe("audit-model: readRegistry", () => {
   });
 
   it("admits BOTH live `line` shapes — a single line and a range", () => {
-    // Measured on the committed registry 2026-08-12: 38 rows, 19 single values and 19 ranges. A
-    // refusal that rejected either would be a regression wearing a fix's shape.
+    // Re-measured on the committed registry 2026-08-13: 42 rows, 19 single values and 23 ranges
+    // (38 / 19 / 19 at the 2026-08-12 measurement). A refusal that rejected either shape would be a
+    // regression wearing a fix's shape.
     for (const good of ["4", "7-8", "100-103", "0"]) {
       const dir = writeRegistryFixture(registryDoc(claimBlock("C-28-001", { line: good })));
       expect(readRegistry(dir).claims[0].line, good).toBe(good);

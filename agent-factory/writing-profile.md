@@ -28,10 +28,16 @@ rule, a claim, or a disclaimer.
 Every rule carries a stable id in the form `WP-NN`. The ids are listed in ascending order, so a diff
 of this document is a diff of its rules and not of their arrangement.
 
-The **decidable** rules are exactly what `guard_imperative_lexicon` and `guard_sentence_form` check.
-The **advisory** rules are checked by a human at review and by nothing else. That split is stated
-here rather than implied, because a profile that lets a reader assume the whole of it is enforced is
-making the overstated claim this project spent a milestone removing.
+<!-- claim: C-28-041 -->
+Each rule is marked **decidable** or **advisory** in the table below, and the mark is the whole of
+the promise. A decidable rule is one a gate can decide; an advisory rule is checked by a human at
+review and by nothing else. The gates that decide the decidable subset are `guard_imperative_lexicon`
+and `guard_sentence_form`, and they land with the corpus rewrite in this same phase — until they do,
+the decidable mark states which rules are gateable and not which rules are gated. `UNKNOWN - verify`
+against the build rather than against this sentence.
+
+The split is stated rather than implied, because a profile that lets a reader assume the whole of it
+is enforced is making the overstated claim this project spent a milestone removing.
 
 | id | rule | status |
 |---|---|---|
@@ -84,6 +90,7 @@ instruction instead — see § *Governed surfaces*.
 
 ## Technical Names and Technical Verbs
 
+<!-- claim: C-28-040 -->
 The project set is **derived, never listed**. Pasting the members into this document would create the
 stale copy this milestone exists to eliminate: the document would keep reading as authoritative while
 the kit moved underneath it.
@@ -147,6 +154,7 @@ silence.
 
 ## Disclaimer and honesty floor
 
+<!-- claim: C-28-039 -->
 The grugops writing profile is an independent work, authored by grugops. It is **derived from** the
 ideas of ASD-STE100 Simplified Technical English Issue 9, and it is **not** ASD-STE100. grugops is
 not affiliated with, sponsored by, endorsed by, or certified by ASD (Aerospace, Security and Defence
@@ -163,11 +171,19 @@ document.
 A third party reports that ASD-STE100 is a registered EU trademark. That report is `UNKNOWN - verify`
 against the register, and nothing here asserts it.
 
-**Conformance with ASD-STE100 is not claimed, not checked, and not implied.** `guard_banned_claims`
-holds that prohibition mechanically over the shipped kit and the public documents.
-`guard_imperative_lexicon` and `guard_sentence_form` check the decidable subset of the rules above
-and nothing wider. A green build from any of the three says what that gate measured, and says
-nothing about the standard.
+<!-- claim: C-28-042 -->
+**Conformance with ASD-STE100 is not claimed, not checked, and not implied. No token-economy win is
+claimed. No comprehension benefit is claimed.** `guard_banned_claims` holds all three prohibitions
+mechanically over the shipped kit and the public documents, and it was watched failing on a real
+claim in a real file before it was allowed to pass. A green run from it says what it measured, and
+says nothing about the standard.
+
+**What a green `guard_banned_claims` run does not prove — `UNKNOWN - verify`.** The gate matches
+pinned literals. A brand-new conformance claim written without any of them is not mechanically
+detectable, because no grep recognizes an assertive sentence written in new words. The gate proves
+that no pinned literal appears outside this section; it does not prove that no such claim exists.
+That residual is recorded in the gate's own source as well, so neither a green build nor this
+paragraph can quietly stand in for the other.
 
 ### The honesty floor
 
