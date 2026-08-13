@@ -68,6 +68,54 @@ import {
 const ROOT = join(import.meta.dirname, "..");
 const GUARD_JS = join(ROOT, "scripts", "check-foundation-guards.js");
 
+// ---------------------------------------------------------------------------
+// (Plan 29-05) THE TWO VOICE-GUARD COUNTS, DERIVED FROM THE LIVE TREE.
+//
+// Plan 29-01 landed both guards RED and pinned their finding counts as the literals 17 and 12 — its
+// own transcript. Plans 29-05, 29-06 and 29-07 each rewrite a batch of role files, and each one
+// MOVES BOTH NUMBERS. A hand-typed literal would go stale three times, and "retype the number until
+// the suite is green" is the reflex that lets a real regression through wearing an expected change's
+// clothes. This repository has diagnosed set-literal drift as one of its two systemic failure
+// classes; a stale count literal is that defect one scalar down.
+//
+// These helpers ask the SAME question the guards ask, of the SAME corpus, through the SAME
+// authorities in voice-model.js. They are declared ONCE and read by both consumers below, so the two
+// cases cannot come to disagree about what a red block is.
+//
+// A derivation is not evidence on its own — each consumer fences it with a non-vacuity floor and
+// with plan 29-01's RED baseline as a ceiling, so a silently-zero derivation fails and an INCREASE
+// in findings is reported as the regression it would be.
+// ---------------------------------------------------------------------------
+const roleTextsOnDisk = (): string[] =>
+  listRoles().map((n) => readFileSync(join(ROOT, "agent-factory/roles", n), "utf8"));
+
+/** Role files whose caveman block fails EITHER arm — the guard_caveman_voice finding count. */
+function derivedVoiceRedCount(): number {
+  return roleTextsOnDisk().filter((t) => {
+    const v = readCavemanFence(t);
+    if (!v.ok) return true;
+    const b = countBannedConstructions(v.inside);
+    return (
+      countLexiconTokens(v.inside) < CAVEMAN_LEXICON_MIN ||
+      b.article + b.copula + b.modal + b.subordinator !== 0
+    );
+  }).length;
+}
+
+/** Intra-file repeated normalized clauses, summed over roles — the uniqueness finding count. */
+function derivedClauseGroupCount(): number {
+  return roleTextsOnDisk().reduce((n, t) => {
+    const groups = new Map<string, number>();
+    for (const { clause } of segmentClauses(t))
+      groups.set(clause, (groups.get(clause) ?? 0) + 1);
+    return n + [...groups.values()].filter((c) => c > 1).length;
+  }, 0);
+}
+
+/** Plan 29-01's RED baseline. The rewrites only ever REMOVE findings, so these are ceilings. */
+const VOICE_RED_BASELINE_29_01 = 17;
+const CLAUSE_GROUP_BASELINE_29_01 = 12;
+
 // Repo-relative path of a role file inside a mirror (or the real tree). Every plant case below goes
 // through this helper rather than restating the directory, so the role directory is named in exactly
 // one more place than the derivation itself — the set-literal drift this phase exists to delete.
@@ -3705,19 +3753,31 @@ describe("check-foundation-guards.js (SDLC-02 / SC2 fail-proof harness)", () => 
       "the disjunction build must PASS fixture B",
     ).toBe(0);
 
-    // AND THE 17/17 TRANSCRIPT IS UNMOVED BY THE SAME MUTATION — the point of the whole case. Both
-    // builds are pointed at the SAME unrepaired mirror (the tree at HEAD, where every block fails
-    // BOTH arms), and the caveman block of their output is compared byte for byte. It matches, so the
-    // transcript embedded in the guard's source header cannot tell a conjunction from a disjunction.
+    // AND THE RED TRANSCRIPT IS UNMOVED BY THE SAME MUTATION — the point of the whole case. Both
+    // builds are pointed at the SAME unrepaired mirror (a byte-faithful copy of the tree at HEAD),
+    // and the caveman block of their output is compared byte for byte. It matches, so the transcript
+    // embedded in the guard's source header cannot tell a conjunction from a disjunction.
+    //
+    // (Plan 29-05) The expected count is DERIVED rather than pinned at ROLE_COUNT. Until this plan
+    // every one of the 17 blocks failed BOTH arms, so 17/17 was the only possible number; the seven
+    // roles rewritten here now pass both arms, and 29-06 and 29-07 move the number twice more. A
+    // block that passes the conjunction also passes the disjunction, so the byte-identity the case
+    // rests on is unaffected — but the PREMISE below has to keep asserting that the two transcripts
+    // being compared are genuinely red, or the comparison becomes two green blocks matching
+    // trivially. That is what the `> 0` floor is for, and it is what will fail loudly — rather than
+    // silently weaken this proof — on the plan that turns the last block green.
     const raw = rawMirror();
     const committedRed = runIn(raw);
     const brokenRed = runScratch(disjunctionGuard, raw);
     const cavemanBlockOf = (o: string): string =>
       o.slice(o.indexOf("[guard_caveman_voice]"), o.indexOf("[guard_role_clause_uniqueness]"));
     // PREMISE: the comparison is between two NON-EMPTY transcripts that really are red.
+    const rawRed = derivedVoiceRedCount();
+    expect(rawRed).toBeGreaterThan(0);
+    expect(rawRed).toBeLessThanOrEqual(VOICE_RED_BASELINE_29_01);
     expect(committedRed.status).toBe(1);
     expect(cavemanBlockOf(out(committedRed))).toContain(
-      `caveman voice: ${ROLE_COUNT} finding(s) over ${ROLE_COUNT} elements`,
+      `caveman voice: ${rawRed} finding(s) over ${ROLE_COUNT} elements`,
     );
     expect(
       cavemanBlockOf(out(brokenRed)),
@@ -4330,9 +4390,26 @@ describe("check-foundation-guards.js (SDLC-02 / SC2 fail-proof harness)", () => 
     // Assert on the FAIL lines BEFORE the status, so a regression reports WHICH guard broke rather
     // than only that the exit code was non-zero.
     expect(fails).toHaveLength(2);
-    expect(fails[0]).toContain("caveman voice: 17 finding(s) over 17 elements");
+    // (Plan 29-05) The two counts are DERIVED, not retyped — see the helpers at the top of this
+    // file for why. The derivation is fenced on three sides so it cannot pass vacuously:
+    //   (a) both counts must be > 0 while any role is unrewritten — a derivation that silently
+    //       returned zero would otherwise pass against a guard printing zero findings;
+    //   (b) both counts must be <= plan 29-01's RED baseline — the rewrites only ever remove
+    //       findings, so an INCREASE is a regression and is reported as one;
+    //   (c) the fold's denominator is still pinned at ROLE_COUNT.
+    // When the last rewrite plan lands, both derivations reach 0, arm (a) fails, and this case is
+    // FLIPPED BACK to a fully green tree — deliberately, rather than by editing a number.
+    const derivedVoiceRed = derivedVoiceRedCount();
+    const derivedClauseGroups = derivedClauseGroupCount();
+    expect(derivedVoiceRed).toBeGreaterThan(0);
+    expect(derivedVoiceRed).toBeLessThanOrEqual(VOICE_RED_BASELINE_29_01);
+    expect(derivedClauseGroups).toBeGreaterThan(0);
+    expect(derivedClauseGroups).toBeLessThanOrEqual(CLAUSE_GROUP_BASELINE_29_01);
+    expect(fails[0]).toContain(
+      `caveman voice: ${derivedVoiceRed} finding(s) over ${ROLE_COUNT} elements`,
+    );
     expect(fails[1]).toContain(
-      "role clause uniqueness: 12 finding(s) over 17 elements",
+      `role clause uniqueness: ${derivedClauseGroups} finding(s) over ${ROLE_COUNT} elements`,
     );
     expect(r.status).toBe(1);
     expect(o).toContain("2 CHECK(S) FAILED");
