@@ -4,7 +4,7 @@ kind: index
 # Checklists — Index
 _Updated: <date>_
 
-These are the gate contracts for grugops. Each checklist is a small markdown file with a
+These checklists are the gate contracts for grugops. Each checklist is a small markdown file with a
 `kind: checklist` + `tier:` frontmatter and a verbatim list of checks. Roles read the
 relevant checklist before passing a gate; the Phase-6 validator checks each file is present.
 

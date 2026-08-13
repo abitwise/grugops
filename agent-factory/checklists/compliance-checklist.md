@@ -4,7 +4,7 @@ tier: enterprise
 ---
 # Compliance Checklist
 
-Apply this checklist when a ticket touches regulated or sensitive data. This is a safety and
+Apply this checklist when a ticket touches regulated or sensitive data. The checklist is a safety and
 compliance gate: reproduce each control exactly and record the control-to-evidence mapping
 for the frameworks in scope (SOC2 / ISO 27001 / PCI as set). Never fabricate a control or an
 evidence reference.

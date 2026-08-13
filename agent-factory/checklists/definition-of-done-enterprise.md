@@ -4,7 +4,7 @@ tier: enterprise
 ---
 # Definition of Done (enterprise)
 
-This is the enterprise superset of the lean Definition of Done. The Orchestrator applies it
+This checklist is the enterprise superset of the lean Definition of Done. The Orchestrator applies it
 in `mode: enterprise`. The coverage threshold is read from `factory.config.json` (quality
 settings); the NFR budget and SLO targets are read from `plans/nfr-catalog.md` — cite those,
 do not redefine them here.

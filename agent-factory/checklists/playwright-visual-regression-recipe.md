@@ -9,7 +9,7 @@ verified at the quality gate. The goal is a `toHaveScreenshot` test that is dete
 local, CI, and Docker runs — flaky screenshot tests erode trust in the gate, so every source of
 non-determinism below must be removed before a baseline is trusted.
 
-This is a reference how-to. The gate's UI/E2E step points to this file by name; it does not
+This document is a reference how-to. The gate's UI/E2E step points to this file by name; it does not
 restate the recipe. Accessibility (axe-core) assertions live in `accessibility-checklist.md`.
 
 ## Tooling
