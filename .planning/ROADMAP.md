@@ -480,7 +480,7 @@ Plans:
   4. The rebuilt voice guard **fails RED on all 17 current caveman blocks** as acceptance evidence before the rewrite lands, measures against a committed lexicon rather than sentence shape, and publishes a number with a denominator. (LANG-06)
   5. `## One job`, the caveman block, and `## Responsibilities` each say a thing once; `guard_imperative_lexicon` (with its sibling `guard_sentence_form`) and the rebuilt voice guard read the fence through **one** parser, never two grammars over the same bytes; and byte ceilings are re-baselined exactly once at end of phase with every file ≤ its previous value and the delta recorded — never raised mid-phase. (LANG-05, LANG-07, LANG-08)
 
-**Plans**: 3/13 plans executed
+**Plans**: 4/13 plans executed
 
 Plans:
 **Wave 1**
@@ -497,7 +497,7 @@ Plans:
 
 **Wave 4** *(blocked on Wave 3 completion)*
 
-- [ ] 29-04-PLAN.md — `guard_diff_disposition`: the frozen set derived from three existing gates, changed clauses enumerated from git, and the per-plan disposition directory
+- [x] 29-04-PLAN.md — `guard_diff_disposition`: the frozen set derived from three existing gates, changed clauses enumerated from git, and the per-plan disposition directory
 
 **Wave 5** *(blocked on Wave 4 completion)*
 
@@ -668,7 +668,7 @@ Plans:
 | 26. Dogfood, Dual-Path Oracle & A3/DOG-02 Retirement | v2.0 | 6/6 | Complete | 2026-07-24 |
 | 27. Spawn Correctness & Kit-Set Authority | v2.1 | 66/66 | Complete    | 2026-08-11 |
 | 28. Kit Consistency Audit | v2.1 | 8/8 | Complete    | 2026-08-12 |
-| 29. Controlled Language & Voice Guard Rebuild | v2.1 | 3/13 | In Progress|  |
+| 29. Controlled Language & Voice Guard Rebuild | v2.1 | 4/13 | In Progress|  |
 | 30. Per-Checkpoint Autonomy Matrix | v2.1 | 0/TBD | Not started | - |
 | 31. Autonomous Manual Testing | v2.1 | 0/TBD | Not started | - |
 | 32. Board Projector & CLI Dashboard | v2.1 | 0/TBD | Not started | - |
