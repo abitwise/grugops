@@ -374,21 +374,47 @@ export const FENCE_DELIMITER_LINE = /^```/;
 // point for the measurement and the reason. The body of this function is BYTE-UNCHANGED, its other
 // consumers are byte-unaffected, and the strip's SCOPE SHRANK rather than grew: nothing here is
 // widened, duplicated or applied twice.
-export function stripFencedBlocks(text) {
-    const out = [];
+// (Plan 29-03, LANG-02) THE ONE FENCE STATE MACHINE, NOW ANSWERING PER LINE INSTEAD OF PER
+// DOCUMENT — and `stripFencedBlocks` below is EXPRESSED THROUGH IT rather than beside it.
+//
+// WHY THIS EXISTS AT ALL. `stripFencedBlocks` DROPS lines, which is exactly right for a prose check
+// that only asks "does this text contain X" — and useless for a gate that must report `file:line`.
+// scripts/check-imperative-lexicon.ts reports a bullet's source line and a sentence's source line,
+// so it needs to know which lines are inside a fence WITHOUT losing their positions.
+//
+// THE FORBIDDEN ALTERNATIVE, NAMED SO IT IS NOT REDISCOVERED AS A GOOD IDEA: writing a second
+// recogniser-plus-toggle loop in the consumer. This tree carries exactly THREE fence state machines,
+// derived and pinned by scripts/frontmatter.test.ts, and plan 29-01 spent a whole task DELETING the
+// two that had drifted apart — they disagreed with each other on two of three malformed fence forms.
+// A fourth machine in a gate that scans 47 files would be that defect landing again, in the phase
+// whose founding rule is that a predicate has one authority.
+//
+// So the toggle lives HERE, once, and both consumers are projections of it: this function returns
+// the per-line verdict, and `stripFencedBlocks` is that verdict applied as a filter. The strip's
+// behaviour is byte-preserved — the delimiter line is never emitted, lines inside are dropped, and
+// an unterminated fence extends to EOF and is never exposed.
+//
+// Returns one boolean per line of `text.split("\n")`: true means the line is a fence DELIMITER or
+// sits INSIDE a fence, i.e. it is documentation rather than governed prose.
+export function fencedLineFlags(text) {
+    const flags = [];
     let inside = false;
     for (const line of text.split("\n")) {
         if (FENCE_DELIMITER_LINE.test(line)) {
             inside = !inside;
-            continue; // the fence delimiter line is never emitted
+            flags.push(true); // the fence delimiter line is itself never governed prose
+            continue;
         }
-        if (inside)
-            continue; // lines inside a fence are dropped (documentation, not live frontmatter)
-        out.push(line);
+        // An unterminated fence leaves `inside` set at EOF, so the tail stays flagged — fail-safe, the
+        // same direction the strip has always taken.
+        flags.push(inside);
     }
-    // An unterminated fence leaves `inside` set at EOF. The tail was inside an opened-but-unclosed
-    // fence and was already dropped above — fail-safe: we never emit it. Nothing more to do.
-    return out.join("\n");
+    return flags;
+}
+export function stripFencedBlocks(text) {
+    const lines = text.split("\n");
+    const flags = fencedLineFlags(text);
+    return lines.filter((_, i) => !flags[i]).join("\n");
 }
 // ---------------------------------------------------------------------------
 // Scalar helpers

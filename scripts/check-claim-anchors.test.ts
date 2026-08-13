@@ -539,14 +539,15 @@ describe("the standalone-gate idioms are uniform across scripts/", () => {
     // names; one that grew is a gate nobody reviewed.
     //
     // 7 → 8 (Phase 29 / plan 29-02): scripts/check-banned-claims.ts is the eighth standalone gate.
+    // 8 → 9 (Phase 29 / plan 29-03): scripts/check-imperative-lexicon.ts is the ninth.
     // THE PIN MOVED BECAUSE THE SET GREW, AND THE SET GREW BY THE MECHANISM THIS BLOCK IS FOR — the
     // new gate joined the assertion by EXISTING, and the property assertion below passed for it on
     // the first run. Moving the pin is how that entry is acknowledged; it is never how a property
     // failure is cleared. If the `offenders` assertion had failed, the fix would have been the new
     // gate's entry guard, not this number.
-    expect(sources.length).toBe(8);
-    expect(sources.length).not.toBe(7);
-    expect(sources.length).not.toBe(9);
+    expect(sources.length).toBe(9);
+    expect(sources.length).not.toBe(8);
+    expect(sources.length).not.toBe(10);
     const offenders = sources
       .filter((s) => !/import\.meta\.url === pathToFileURL\(process\.argv\[1\]\)\.href/.test(s.src))
       .map((s) => `scripts/${s.name}`);

@@ -45,7 +45,7 @@ is enforced is making the overstated claim this project spent a milestone removi
 | `WP-02` | A procedural sentence is at most 20 words. | decidable |
 | `WP-03` | A descriptive sentence is at most 25 words. | decidable |
 | `WP-04` | The section anchor decides which length limit applies to a sentence. A bullet under a steps heading is procedural. | decidable |
-| `WP-05` | A procedural step carries no modal of obligation. The step is the obligation. | decidable |
+| `WP-05` | A procedural step carries no modal verb. The step is the obligation. | decidable |
 | `WP-06` | A sentence carries no bare demonstrative as its subject unless the antecedent is in the same sentence. | decidable |
 | `WP-07` | A sentence carries no `and`-slash-`or` construction. Write the one meaning intended. | decidable |
 | `WP-08` | One instruction per sentence. Two imperatives joined by a conjunction are two sentences. | decidable |

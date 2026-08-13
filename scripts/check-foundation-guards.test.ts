@@ -538,9 +538,18 @@ describe("D-64 cutover: the spawn verdict is rendered by the canonical admission
     // no verdict-bearing symbol at all, which the grant-predicate case immediately below asserts
     // tree-wide. That is precisely the shape D-64 Part C wanted the parser to keep: consumers that
     // take a declaration from it, not consumers that take a verdict from it.
+    //
+    // (Plan 29-03) AND FROM FIVE TO SIX, IN THE SAME DIRECTION AND FOR THE SAME REASON.
+    // `check-imperative-lexicon.ts` imports exactly ONE symbol — `fencedLineFlags`, the per-line
+    // projection of the one fence state machine — and no verdict-bearing symbol at all. The new gate
+    // reports `file:line`, so it needs to know which lines are inside a fence WITHOUT losing their
+    // positions, and `stripFencedBlocks` drops lines. The answer was to make the existing machine
+    // answer per line and express the strip through it, NOT to write a fourth machine in the
+    // consumer: the derived fence-machine set in scripts/frontmatter.test.ts is still THREE.
     expect(consumers).toEqual([
       "canonical-frontmatter.ts",
       "check-foundation-guards.ts",
+      "check-imperative-lexicon.ts",
       "generate-role-adapters.ts",
       "generate-skill-twins.ts",
       "voice-model.ts",
@@ -549,6 +558,10 @@ describe("D-64 cutover: the spawn verdict is rendered by the canonical admission
       importedSymbols("voice-model.ts", "frontmatter"),
       "voice-model.ts must take the delimiter CLASS and nothing else — a second symbol is a step back toward a forked machine",
     ).toEqual(["FENCE_DELIMITER_LINE"]);
+    expect(
+      importedSymbols("check-imperative-lexicon.ts", "frontmatter"),
+      "check-imperative-lexicon.ts must take the per-line fence PROJECTION and nothing else — a second symbol is a step back toward a forked machine",
+    ).toEqual(["fencedLineFlags"]);
   });
 
   it("NO non-test module imports a GRANT PREDICATE from ./frontmatter.js — the parser renders no spawn verdict anywhere", () => {
