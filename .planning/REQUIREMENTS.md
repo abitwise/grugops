@@ -76,7 +76,7 @@ Each requirement maps to exactly one roadmap phase (27–33). REQ-IDs continue g
 
 ### LANG — Controlled Language & Voice Guard Rebuild
 
-- [ ] **LANG-01**: A grugops-authored, ASD-STE100-**derived** writing profile — enumerated rules plus a project Technical Names/Verbs set — shipped as kit documentation with a non-affiliation and not-certified disclaimer, vendoring no part of the ASD dictionary.
+- [x] **LANG-01**: A grugops-authored, ASD-STE100-**derived** writing profile — enumerated rules plus a project Technical Names/Verbs set — shipped as kit documentation with a non-affiliation and not-certified disclaimer, vendoring no part of the ASD dictionary.
 - [ ] **LANG-02**: The profile is applied to procedural and agent-written surfaces (workflow steps, checklists, memory-bank, shared-context notes, board, traceability) and explicitly **not** to the fenced caveman identity blocks.
 - [ ] **LANG-03**: A named safety-surface exclusion list is honoured so that load-bearing security, compliance, and admission text is never reworded by a style pass.
 - [ ] **LANG-04**: A guard enforces exactly the profile's **decidable** subset (lexicon membership, sentence length, banned constructions) and is named for that subset — never presented as enforcing ASD-STE100 conformance. The chosen names are `guard_imperative_lexicon` (lexicon membership at imperative position) and `guard_sentence_form` (sentence length and banned constructions) — two predicates, two names, because naming one guard for three unrelated predicates re-creates the `guard_caveman_preserved` defect at the output line. The conformance prohibition itself is mechanical, held by `guard_banned_claims`.
@@ -177,7 +177,7 @@ _Filled by the roadmapper 2026-07-28. Every requirement maps to exactly one phas
 | AUDIT-02 | Phase 28 | Complete |
 | AUDIT-03 | Phase 28 | Complete |
 | AUDIT-04 | Phase 28 | Complete |
-| LANG-01 | Phase 29 | Pending |
+| LANG-01 | Phase 29 | Complete |
 | LANG-02 | Phase 29 | Pending |
 | LANG-03 | Phase 29 | Pending |
 | LANG-04 | Phase 29 | Pending |
