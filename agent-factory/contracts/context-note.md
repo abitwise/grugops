@@ -18,8 +18,8 @@ path. This document defines the format that `context-io.ts` composes and validat
 
 ## Storage model
 
-A note is a single markdown file: **YAML frontmatter followed by a markdown body**. This is
-the same CommonMark + frontmatter shape every role, workflow, and skill file already uses.
+A note is a single markdown file: **YAML frontmatter followed by a markdown body**. Every
+role, workflow, and skill file already uses the same CommonMark + frontmatter shape.
 
 Notes live under a per-task folder:
 
@@ -31,8 +31,8 @@ Notes live under a per-task folder:
 ```
 
 The markdown files under `notes/` are the **source of truth**. `index.md` and `index.jsonl`
-are derived, byte-reproducible renders of the `notes/` frontmatter and carry no information
-that is not already in `notes/`. On any conflict, the markdown notes win and the derived
+are derived, byte-reproducible renders of the `notes/` frontmatter. Neither carries any
+information that is not already in `notes/`. On any conflict, the markdown notes win and the
 files are regenerated from them.
 
 A note file is **append-only**: recording a note writes one new file. An existing note file
@@ -92,8 +92,8 @@ A note is **structurally valid** only if all four of these required fields are p
 - `confidence`
 
 A note missing any one of them is a **structural FAIL**. The validator names the missing
-field; it never silently accepts an incomplete note. This is the no-fabrication floor: an
-unstamped note cannot enter the verified context.
+field; it never silently accepts an incomplete note. The required-field rule is the
+no-fabrication floor: an unstamped note cannot enter the verified context.
 
 `supersedes` and `refs` **may be empty** on any note. `verified_by` **may be empty** only on a
 soft or neutral kind (`claim` / `decision` / `failed-attempt` / `observation` / `artifact-ref`);
@@ -138,8 +138,8 @@ that names the offending value.
 
 ## CRITICAL DISTINCTION: the `claim` note-KIND is NOT the queue CLAIM
 
-These are two unrelated concepts that happen to share the word "claim". They must never be
-blurred in a single sentence, a shared field, or a shared code path.
+The `claim` note-KIND and the queue CLAIM are two unrelated concepts that happen to share the word
+"claim". They must never be blurred in a single sentence, a shared field, or a shared code path.
 
 **The `claim` note-KIND** is one of the six `kind:` values above. It is a soft, unverified
 assertion recorded as a note file under `.grugops/context/<task>/notes/`. It carries no

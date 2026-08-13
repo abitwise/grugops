@@ -17,8 +17,8 @@ frontmatter. It is never hand-edited. The render is:
 - **Zero-token** — it is a deterministic extraction and formatting of frontmatter, not an
   LLM summary. (Semantic distillation is the Phase-22 compaction layer, out of scope here.)
 - **Byte-reproducible** — rendering the same `notes/` twice produces a byte-identical
-  `index.md`. This is what lets the `freshness:context` drift gate (plan 20-03) prove the
-  committed `index.md` matches a fresh regeneration.
+  `index.md`. That reproducibility is what lets the `freshness:context` drift gate (plan 20-03)
+  prove the committed `index.md` matches a fresh regeneration.
 - **Freshness-gated** — a committed `index.md` that has drifted from what the current `notes/`
   would render is caught by the drift gate and fails closed. The markdown `notes/` are the
   source of truth; on any conflict `index.md` is regenerated from them.
@@ -64,8 +64,8 @@ template is what this contract locks. A conforming `index.md` contains, in order
 2. **A title** identifying the task whose context this consolidates.
 3. **A current-state section** — the live notes after superseded notes are folded out,
    ordered by the `at` + note-id sort, each shown with its `kind`, `by`, `at`, `confidence`,
-   and `verified_by` provenance and a short body excerpt. This is the at-a-glance answer to
-   "what is the verified state of this task right now."
+   and `verified_by` provenance and a short body excerpt. That section is the at-a-glance
+   answer to "what is the verified state of this task right now."
 4. **A superseded / history section** (when any note has been superseded) — the folded-out
    notes, so the audit trail remains visible without cluttering the live state.
 
