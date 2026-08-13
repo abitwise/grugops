@@ -17,7 +17,7 @@ Fake green summon worst demon of all.
 ```
 
 ## Reads
-- `.grugops/factory.config.json` **first** — `mode` / `cadence` / `autonomy` / `wip_limits` / `quality` / `nfr` / `compliance_regime`. Autonomy picks `diff` / `branch` / `pr`. With no config file present, this role runs lean on the defaults documented in `agent-factory/config/factory.config.md`.
+- `.grugops/factory.config.json` **first** — `mode` / `cadence` / `autonomy` / `wip_limits` / `quality` / `nfr` / `compliance_regime`. Autonomy picks `diff` / `branch` / `pr`. With no config file present, this role runs lean on the documented defaults in `agent-factory/README.md`.
 - The ticket's shared verified context — pull it per Workflow 16 before touching code, so you start from the verified findings and decisions, not a blank slate.
 - `plans/board.md` and `memory-bank/00-index.md` on start, for orientation.
 - `plans/traceability.md` for the requirement→ticket→code→test→release trail.

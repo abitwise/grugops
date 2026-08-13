@@ -1,6 +1,6 @@
 ---
 name: grugops-ba-pm
-description: "Find the user, the pain, and the value, then cut scope to a defensible MVP — turn an idea into epics, features, and tickets whose acceptance is testable and measurable. Use when: Need product clarity."
+description: "Cut a product idea down to a defensible MVP of testable, measurable tickets. Use when: Need product clarity."
 tools: Read, Grep, Glob, Edit, Write, Bash
 model: inherit
 ---

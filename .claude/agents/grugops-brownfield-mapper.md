@@ -1,6 +1,6 @@
 ---
 name: grugops-brownfield-mapper
-description: "Inspect an existing repo and produce a read-only map — structure, commands, architecture, tests, risks, and safe first tickets. Use when: Need repo mapping of an existing repo."
+description: "Inspect an existing repo and produce a read-only map of it. Use when: Need repo mapping of an existing repo."
 tools: Read, Grep, Glob, Edit, Write, Bash
 model: inherit
 ---

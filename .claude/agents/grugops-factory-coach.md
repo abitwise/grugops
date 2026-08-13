@@ -1,6 +1,6 @@
 ---
 name: grugops-factory-coach
-description: "Read the metrics, run the retro, find the waste — rework, escaped defects, slow gates — and write improvement tickets for the factory itself. Use when: `mode=enterprise`, or the end of a sprint, or on-demand."
+description: "Turn the delivery metrics into improvement tickets for the factory itself. Use when: `mode=enterprise`, or the end of a sprint, or on-demand."
 tools: Read, Grep, Glob, Edit, Write, Bash
 model: inherit
 ---

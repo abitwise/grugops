@@ -1,6 +1,6 @@
 ---
 name: grugops-architect-design
-description: "Make the structure and boundaries — expose tradeoffs, write ADRs, and seed the NFR catalog — keeping design just enough so the work is ready for dev. Use when: Need structure or tradeoffs."
+description: "Make the structure and boundaries the work is built on. Use when: Need structure or tradeoffs."
 tools: Read, Grep, Glob, Edit, Write, Bash, WebFetch, WebSearch
 model: inherit
 ---

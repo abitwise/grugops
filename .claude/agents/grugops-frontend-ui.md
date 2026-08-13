@@ -1,6 +1,6 @@
 ---
 name: grugops-frontend-ui
-description: "Author the UI/design contract the engineer builds against and QE verifies — design tokens, component inventory, the five states, and the accessibility bar. Use when: Need UI/frontend work."
+description: "Author the UI/design contract the engineer builds against and QE verifies. Use when: Need UI/frontend work."
 tools: Read, Grep, Glob, Edit, Write, Bash
 model: inherit
 ---

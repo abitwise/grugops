@@ -1,6 +1,6 @@
 ---
 name: grugops-agents-md-scribe
-description: "Author and maintain the root `AGENTS.md` substrate — short, high-signal, real commands only — and own the 12 coding rules that live within it. Use when: Need `AGENTS.md` created or updated (routing matrix: \"Need AGENTS.md\")."
+description: "Author and maintain the root `AGENTS.md` substrate, including the 12 coding rules it carries. Use when: Need `AGENTS.md` created or updated (routing matrix: \"Need AGENTS.md\")."
 tools: Read, Grep, Glob, Edit, Write, Bash
 model: inherit
 ---
