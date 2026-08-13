@@ -49,6 +49,7 @@ import {
   CAVEMAN_LEXICON,
   CAVEMAN_LEXICON_MIN,
   BANNED_CONSTRUCTIONS,
+  CLAUSE_MIN_WORDS,
 } from "./voice-model.js";
 
 import {
@@ -198,9 +199,19 @@ const tmpDirs: string[] = [];
 // ---------------------------------------------------------------------------------------------
 
 // A conforming caveman block: >= CAVEMAN_LEXICON_MIN lexicon terms, zero banned constructions, and
-// every line under CLAUSE_MIN_WORDS once normalized so the block contributes no clause of its own.
-// Asserted against the authority in the pin case below rather than trusted.
-const CONFORMING_CAVEMAN_BLOCK = ["You grug.", "You smash rock.", "You no think."];
+// every line under CLAUSE_MIN_WORDS once normalized, so the block contributes no clause of its own
+// and cannot manufacture a uniqueness finding while repairing a voice one.
+//
+// Every token is INTERPOLATED FROM THE AUTHORITY, never retyped: a literal here would be a second
+// copy of the lexicon living in the file that polices the first. The indices are commented because a
+// reordering of CAVEMAN_LEXICON must be visible; if one ever ceased to conform, normalizeMirroredRole
+// re-measures and THROWS rather than quietly shipping a broken baseline, and the pin case below
+// asserts all three properties directly.
+const CONFORMING_CAVEMAN_BLOCK = [
+  `You ${CAVEMAN_LEXICON[0]}.`, // grug
+  `You ${CAVEMAN_LEXICON[4]} ${CAVEMAN_LEXICON[2]}.`, // smash rock
+  `You ${CAVEMAN_LEXICON[8]}.`, // no think
+];
 
 function repairCavemanBlock(text: string): string {
   const lines = text.split("\n");
@@ -334,6 +345,20 @@ function mirror(): string {
       );
       continue;
     }
+    cpSync(join(ROOT, rel), join(m, rel));
+  }
+  return m;
+}
+
+// (Plan 29-01) The UNREPAIRED mirror — every input byte-faithful, role files included. It is the tree
+// at HEAD, so both new guards are RED on it. Exactly one case uses it: the falsifiability proof needs
+// the SAME red inputs fed to two different builds, and it cannot use the real repo root because a
+// scratch build resolves its own script-relative ROOT into a temp directory.
+function rawMirror(): string {
+  const m = mkdtempSync(join(tmpdir(), "grugops-fg-raw-"));
+  tmpDirs.push(m);
+  for (const rel of GUARD_INPUTS) {
+    mkdirSync(join(m, dirname(rel)), { recursive: true });
     cpSync(join(ROOT, rel), join(m, rel));
   }
   return m;
@@ -3604,6 +3629,264 @@ describe("check-foundation-guards.js (SDLC-02 / SC2 fail-proof harness)", () => 
     expect(out(r)).toMatch(/brownfield-mapper\.md: positive arm/);
     expect(out(r)).not.toMatch(/brownfield-mapper\.md:.*negative arm/);
   });
+
+  it("FIXTURE C — a block passing BOTH arms is GREEN: the false-red control (D-43)", () => {
+    // THE LOAD-BEARING CASE. Without it the 17/17 RED transcript proves nothing, because a gate that
+    // always fails is trivially red. The exit STATUS is asserted explicitly, not merely the presence
+    // or absence of stdout text: spawnSync does not throw on a non-zero exit, so a case that only
+    // matched stdout would pass against a guard that exits 1 unconditionally.
+    const m = mirror();
+    plantCavemanBlock(m, "brownfield-mapper.md", [
+      `You ${CAVEMAN_LEXICON[0]}. You ${CAVEMAN_LEXICON[4]} ${CAVEMAN_LEXICON[2]}.`,
+      "You map repo.",
+    ]);
+    const r = runIn(m);
+    expect(r.status).toBe(0);
+    expect(out(r)).toContain("ALL CHECKS PASSED");
+    // And the PASS line CARRIES THE MEASUREMENT with its full denominator (D-08).
+    expect(out(r)).toContain(
+      `caveman voice: 0 findings over ${ROLE_COUNT}/${ROLE_COUNT} elements`,
+    );
+    // The per-block detail line is emitted for the planted block too — the measurement is printed
+    // inside the loop, so a green run still publishes what it read.
+    expect(out(r)).toMatch(/brownfield-mapper\.md: tokens \d+ \/ content words \d+, banned 0/);
+  });
+
+  it("THE CONJUNCTION IS FALSIFIABLE: a scratch build shipping `||` turns fixtures A and B GREEN", () => {
+    // WHY THIS CASE AND NOT THE TRANSCRIPT. Both arms fail 17/17 independently at every N, so the
+    // 17-row RED table in the guard's source header would be BYTE-IDENTICAL from a build that shipped
+    // the disjunction. The three fixtures above are the only evidence that distinguishes them — and
+    // "these fixtures would catch it" is itself a claim, so it is MEASURED here rather than argued.
+    //
+    // The scratch harness asserts the mutation applied, so a `replace` that matched nothing cannot
+    // leave this case passing against the committed build.
+    const disjunctionGuard = scratchGuardFiles({
+      "check-foundation-guards.js": (src) =>
+        src.replace(
+          "if (!(positiveHolds && negativeHolds)) {",
+          "if (!(positiveHolds || negativeHolds)) {",
+        ),
+    });
+
+    // FIXTURE A on the broken build: positive holds, so the disjunction passes it. GREEN — wrong.
+    const a = mirror();
+    plantCavemanBlock(a, "brownfield-mapper.md", [
+      `You ${CAVEMAN_LEXICON[0]}. You ${CAVEMAN_LEXICON[4]} ${CAVEMAN_LEXICON[2]}.`,
+      `You find ${BANNED_CONSTRUCTIONS.article[0]} map.`,
+    ]);
+    expect(runIn(a).status, "the COMMITTED build must red fixture A").toBe(1);
+    expect(
+      runScratch(disjunctionGuard, a).status,
+      "the disjunction build must PASS fixture A — that is what makes the fixture discriminating",
+    ).toBe(0);
+
+    // FIXTURE B on the broken build: negative holds, so the disjunction passes it. GREEN — wrong.
+    const b = mirror();
+    plantCavemanBlock(b, "brownfield-mapper.md", [
+      "You map repo.",
+      "You write down what you found.",
+    ]);
+    expect(runIn(b).status, "the COMMITTED build must red fixture B").toBe(1);
+    expect(
+      runScratch(disjunctionGuard, b).status,
+      "the disjunction build must PASS fixture B",
+    ).toBe(0);
+
+    // AND THE 17/17 TRANSCRIPT IS UNMOVED BY THE SAME MUTATION — the point of the whole case. Both
+    // builds are pointed at the SAME unrepaired mirror (the tree at HEAD, where every block fails
+    // BOTH arms), and the caveman block of their output is compared byte for byte. It matches, so the
+    // transcript embedded in the guard's source header cannot tell a conjunction from a disjunction.
+    const raw = rawMirror();
+    const committedRed = runIn(raw);
+    const brokenRed = runScratch(disjunctionGuard, raw);
+    const cavemanBlockOf = (o: string): string =>
+      o.slice(o.indexOf("[guard_caveman_voice]"), o.indexOf("[guard_role_clause_uniqueness]"));
+    // PREMISE: the comparison is between two NON-EMPTY transcripts that really are red.
+    expect(committedRed.status).toBe(1);
+    expect(cavemanBlockOf(out(committedRed))).toContain(
+      `caveman voice: ${ROLE_COUNT} finding(s) over ${ROLE_COUNT} elements`,
+    );
+    expect(
+      cavemanBlockOf(out(brokenRed)),
+      "the RED transcript is byte-identical across the two builds — it is necessary evidence, never sufficient",
+    ).toBe(cavemanBlockOf(out(committedRed)));
+  }, 120_000);
+
+  it("the mirror's repair block is proven conforming against the AUTHORITY, not against this file's opinion", () => {
+    // The whole harness rests on this block being a valid baseline. If it silently stopped
+    // conforming, every "the unplanted mirror is green" control below would be measuring a broken
+    // fixture instead of the plant it thinks it is testing.
+    const block = CONFORMING_CAVEMAN_BLOCK.join("\n");
+    expect(countLexiconTokens(block)).toBeGreaterThanOrEqual(CAVEMAN_LEXICON_MIN);
+    const banned = countBannedConstructions(block);
+    expect(banned.article + banned.copula + banned.modal + banned.subordinator).toBe(0);
+    // And it contributes NO clause of its own, so it can never create a uniqueness finding.
+    expect(segmentClauses(block)).toEqual([]);
+    for (const line of CONFORMING_CAVEMAN_BLOCK) {
+      expect(
+        normalizeSentence(line).split(" ").filter(Boolean).length,
+        `"${line}" must stay under CLAUSE_MIN_WORDS`,
+      ).toBeLessThan(CLAUSE_MIN_WORDS);
+    }
+    // Every token really came from the lexicon — no bare literal slipped in.
+    for (const line of CONFORMING_CAVEMAN_BLOCK) {
+      expect(
+        CAVEMAN_LEXICON.some((t) => line.toLowerCase().includes(t)),
+        `"${line}" must carry a term from the imported lexicon`,
+      ).toBe(true);
+    }
+  });
+
+  // ── LANG-07 — the parser oracle, asserted through BOTH consumers. ─────────────────────────────
+  //
+  // This is LANG-07's actual acceptance evidence. That ONE reader exists is a code fact; that BOTH
+  // consumers reach an IDENTICAL verdict on identical malformed bytes is the property, and it is the
+  // one the two deleted machines violated on two of three forms. Each form is asserted twice: once
+  // directly against readCavemanFence in scripts/voice-model.test.ts, and once here through the
+  // committed aggregator `.js`.
+  const MALFORMED_ROLE = "brownfield-mapper.md";
+  const malformedFenceForms: {
+    name: string;
+    reason: "missing" | "unterminated" | "multiple";
+    mutate: (text: string) => string;
+  }[] = [
+    {
+      // The form on which the two deleted readers disagreed hardest: one failed red, the other
+      // returned the WHOLE FILE TAIL as "the block" and passed over it.
+      name: "unterminated — the closing delimiter removed",
+      reason: "unterminated",
+      mutate: (text) => {
+        const lines = text.split("\n");
+        const heading = lines.findIndex((l) => /^## Caveman prompt/.test(l));
+        const open = lines.findIndex((l, i) => i > heading && /^```/.test(l));
+        const close = lines.findIndex((l, i) => i > open && /^```/.test(l));
+        lines.splice(close, 1);
+        return lines.join("\n");
+      },
+    },
+    {
+      // One reader stripped BOTH blocks; the other never saw the second, because its `break` had
+      // already fired. Neither merging nor ignoring is a verdict a reader can defend.
+      name: "multiple — a second `## Caveman prompt` heading",
+      reason: "multiple",
+      mutate: (text) => {
+        const lines = text.split("\n");
+        const heading = lines.findIndex((l) => /^## Caveman prompt/.test(l));
+        const open = lines.findIndex((l, i) => i > heading && /^```/.test(l));
+        const close = lines.findIndex((l, i) => i > open && /^```/.test(l));
+        const section = lines.slice(heading, close + 1);
+        lines.splice(close + 1, 0, "", ...section);
+        return lines.join("\n");
+      },
+    },
+    {
+      // The form the two readers agreed on only BY ACCIDENT — one via its sentinel, the other via an
+      // empty return that happened to trip a different check.
+      name: "missing — the heading with no fence delimiter at all",
+      reason: "missing",
+      mutate: (text) => {
+        const lines = text.split("\n");
+        const heading = lines.findIndex((l) => /^## Caveman prompt/.test(l));
+        const open = lines.findIndex((l, i) => i > heading && /^```/.test(l));
+        const close = lines.findIndex((l, i) => i > open && /^```/.test(l));
+        return [
+          ...lines.slice(0, open),
+          ...lines.slice(open + 1, close),
+          ...lines.slice(close + 1),
+        ].join("\n");
+      },
+    },
+  ];
+
+  for (const form of malformedFenceForms) {
+    it(`LANG-07 oracle: ${form.name} — guard_voice and guard_caveman_voice name the SAME file for the SAME reason`, () => {
+      const m = mirror();
+      const file = join(m, "agent-factory/roles", MALFORMED_ROLE);
+      const before = readFileSync(file, "utf8");
+      const after = form.mutate(before);
+      // A mutation that matched nothing would leave the case asserting against an unmodified tree.
+      expect(after, "the malformed-fence plant must actually change the file").not.toBe(before);
+      writeFileSync(file, after, "utf8");
+
+      const r = runIn(m);
+      const o = out(r);
+      expect(r.status).toBe(1);
+
+      // The verdict, as each consumer prints it. The FILE and the REASON must be identical; only the
+      // surrounding sentence differs, because the two guards do different things with one verdict.
+      const rel = `agent-factory/roles/${MALFORMED_ROLE}`;
+      const voiceLine = o
+        .split("\n")
+        .find((l) => l.startsWith(`${rel}: ## Caveman prompt fence refused`));
+      const cavemanLine = o
+        .split("\n")
+        .find((l) => l.trim().startsWith(`${rel}: ## Caveman prompt fence refused`) && l.startsWith("  "));
+      expect(voiceLine, "guard_voice must refuse by name").toBeTruthy();
+      expect(cavemanLine, "guard_caveman_voice must refuse by name").toBeTruthy();
+      expect(voiceLine).toContain(`reason ${form.reason}`);
+      expect(cavemanLine).toContain(`reason ${form.reason}`);
+
+      // AND THE OLD DIVERGENCE IS GONE, ASSERTED RATHER THAN ASSUMED: neither guard passes over this
+      // file, and neither prints a measured PASS line for its check.
+      expect(o).not.toContain("voice: clear-voice surfaces free of caveman markers");
+      expect(o).not.toContain(`caveman voice: 0 findings over ${ROLE_COUNT}/${ROLE_COUNT}`);
+    });
+  }
+
+  it("FORM 4 — a well-formed fence with a ZERO-LINE interior is read, and fails the POSITIVE arm only", () => {
+    const m = mirror();
+    plantCavemanBlock(m, MALFORMED_ROLE, []);
+    const r = runIn(m);
+    expect(r.status).toBe(1);
+    const o = out(r);
+    // The reader ACCEPTED it — no refusal — and the guard then measured an empty block.
+    expect(o).not.toContain(
+      `agent-factory/roles/${MALFORMED_ROLE}: ## Caveman prompt fence refused`,
+    );
+    expect(o).toContain("brownfield-mapper.md: tokens 0 / content words 0, banned 0");
+    expect(o).toMatch(/brownfield-mapper\.md: positive arm: 0 lexicon term\(s\)/);
+    expect(o).not.toMatch(/brownfield-mapper\.md:.*negative arm/);
+  });
+
+  // ── AP-1 — the two vacuity floors, each proven to fire independently. ─────────────────────────
+  it("VACUITY: a mirror SHORT by one role file FAILS naming `visited 16 of 17`", () => {
+    // The DENOMINATOR floor, which is a different branch from the findings branch: this mirror has no
+    // findings at all in the surviving 16 blocks, so only the floor can produce a failure.
+    const m = mirror();
+    rmSync(join(m, "agent-factory/roles", MALFORMED_ROLE), { force: true });
+    const o = out(runIn(m));
+    expect(o).toContain(
+      `caveman voice: visited ${ROLE_COUNT - 1} of ${ROLE_COUNT} elements`,
+    );
+    expect(o).toContain(
+      `role clause uniqueness: visited ${ROLE_COUNT - 1} of ${ROLE_COUNT} elements`,
+    );
+    expect(o).toContain("the scan set is short");
+  });
+
+  it("VACUITY: a guard whose loop is fed NOTHING fails its own floor rather than printing PASS", () => {
+    // The ELEMENT-level floor. It cannot be reached by planting a file — kit-model refuses an empty
+    // role directory before any guard runs — so it is exercised on a scratch build whose loop
+    // iterates an empty array while the mirror still carries all 17 role files. That separation is
+    // the point: the scan set is intact and the guard still reports `visited 0`, which is exactly the
+    // "the check did not run" shape a PASS line must never cover.
+    const emptyLoopGuard = scratchGuardFiles({
+      "check-foundation-guards.js": (src) =>
+        src.replace(
+          "for (const f of ROLE_FILES) {\n        // Every role file the loop looks at counts as VISITED",
+          "for (const f of []) {\n        // Every role file the loop looks at counts as VISITED",
+        ),
+    });
+    const m = mirror();
+    const r = runScratch(emptyLoopGuard, m);
+    const o = out(r);
+    expect(r.status).toBe(1);
+    expect(o).toContain(`caveman voice: ZERO elements visited (expected ${ROLE_COUNT})`);
+    expect(o).toContain("this check was NOT performed");
+    // Zero elements ALSO means zero per-block detail lines — D-08's design, asserted.
+    expect(o).not.toMatch(/^ {8}\S+\.md: tokens /m);
+    expect(o).not.toContain(`caveman voice: 0 findings over 0/${ROLE_COUNT} elements`);
+  }, 120_000);
 
   // (Phase 27 / KIT-01) The former "missing role → caveman prompt block missing" case is superseded
   // by the derived-kit-count case above. See the comment there.

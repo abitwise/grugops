@@ -18,6 +18,8 @@
 // Vitest globals:false → import explicitly.
 
 import { describe, it, expect } from "vitest";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import {
   readCavemanFence,
   normalizeSentence,
@@ -295,5 +297,49 @@ describe("segmentClauses (D-38 Variant C)", () => {
     expect(segmentClauses("The BA/PM role owns the backlog at 9:30 sharp")[0].clause).toBe(
       "ba pm role owns backlog at 9 30 sharp",
     );
+  });
+});
+
+describe("catastrophic-backtracking floor (29-RESEARCH §F-2)", () => {
+  // WHY THIS CASE EXISTS. The superlinear-regex incident recorded in project memory — a 0.47 s guard
+  // that took 383 s — is DORMANT, not fixed, and a prose scanner is where it creeps back in. Every
+  // pattern in voice-model.ts is a single `\b(alternation)\b` group or a `split()`, and this case is
+  // what turns that authoring rule into something a regression trips over immediately rather than
+  // after a multi-minute guard run.
+  //
+  // The input is the LARGEST GOVERNED FILE, named rather than synthesized: 05-pr-quality-gate.md at
+  // 13,831 bytes. A synthetic string of the same length would not carry the em dashes, colons, code
+  // spans and links that the segmenter and the normalizer actually backtrack over.
+  const LARGEST_GOVERNED = "agent-factory/workflows/05-pr-quality-gate.md";
+
+  it("segmentClauses + normalizeSentence over the largest governed file complete under one second", () => {
+    const text = readFileSync(join(import.meta.dirname, "..", LARGEST_GOVERNED), "utf8");
+    // PREMISE FIRST: the file really is the size the reasoning above assumes. A truncated or moved
+    // file would make a fast run meaningless.
+    expect(Buffer.byteLength(text, "utf8")).toBeGreaterThan(13_000);
+
+    const started = Date.now();
+    const clauses = segmentClauses(text);
+    for (const { clause } of clauses) normalizeSentence(clause);
+    const elapsed = Date.now() - started;
+
+    // NON-VACUITY: the call must have done real work, or "it was fast" says nothing.
+    expect(clauses.length).toBeGreaterThan(50);
+    expect(elapsed).toBeLessThan(1000);
+    process.stdout.write(
+      `\n29-01 timing: segmentClauses + normalizeSentence over ${LARGEST_GOVERNED} ` +
+        `(${Buffer.byteLength(text, "utf8")} B) → ${clauses.length} clauses in ${elapsed} ms\n`,
+    );
+  });
+
+  it("the four banned-construction counters over the same file complete under one second", () => {
+    const text = readFileSync(join(import.meta.dirname, "..", LARGEST_GOVERNED), "utf8");
+    const started = Date.now();
+    const counts = countBannedConstructions(text);
+    const tokens = countLexiconTokens(text);
+    const elapsed = Date.now() - started;
+    expect(counts.article + counts.copula + counts.modal + counts.subordinator).toBeGreaterThan(0);
+    expect(tokens).toBeGreaterThanOrEqual(0);
+    expect(elapsed).toBeLessThan(1000);
   });
 });
