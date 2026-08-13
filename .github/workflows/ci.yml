@@ -36,6 +36,15 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          # FULL HISTORY IS REQUIRED BY guard_diff_disposition (LANG-03 / plan 29-04), NOT AN
+          # UNEXPLAINED SLOWDOWN. That gate resolves the base commit recorded in
+          # docs/audit/29-style-dispositions/00-base.md and takes its diff against it. The default
+          # shallow checkout fetches ONE commit, which makes that SHA unreachable — and the gate
+          # fails CLOSED on an unresolvable base, so a shallow clone would turn it red on every CI
+          # run for a reason that has nothing to do with the kit's prose. Removing this setting does
+          # not make the gate faster; it makes it permanently red.
+          fetch-depth: 0
 
       - name: Setup Node 22
         uses: actions/setup-node@v4
@@ -269,6 +278,45 @@ jobs:
           # regression — and the clean-mirror GREEN control in the test file is what proves the
           # gate is not merely always red.
           node scripts/check-imperative-lexicon.js
+
+          # ── LANG-03 / plan 29-04: guard_diff_disposition ──────────────────────────────────────
+          #
+          # WIRED HERE **AND** IN scripts/check-diff-disposition.test.ts AND IN package.json,
+          # deliberately at all the ends it has. This repository shipped freshness:adapters for an
+          # entire phase while it ran solely as a side effect of a test spawning it — one --exclude
+          # pattern away from being un-gated. A gate that runs only because some other step happens
+          # to run it is not wired; it is borrowed.
+          #
+          # WHAT IT HOLDS. Phase 28's safety-surface exclusion list names 41 files and says no text
+          # in a listed file is reworded by a style pass — and those 41 files are the whole corpus
+          # Phase 29 rewrites. The flag is per FILE and the real question is per SENTENCE, so this
+          # gate supplies the granularity the column could not: it derives what is FROZEN from three
+          # gates that already exist (the claim registry's verbatim anchors, the structural sections
+          # located by heading, and the wording two guards require present), enumerates every clause
+          # the diff CHANGED against the recorded base, and requires each one to be dispositioned.
+          # One side is derived from the filesystem and the other from git, so neither can go stale.
+          #
+          # WHAT A RED MEANS, AND WHICH FIX IS NOT ALLOWED. A red names a file, a line, the
+          # normalized clause and — when it is frozen — which source froze it and which companion
+          # edit is owed. Write the disposition row under docs/audit/29-style-dispositions/, or make
+          # the companion edit in the SAME commit. Do NOT add an override tier: there is none by
+          # design, and adding one later would mean auditing every change already admitted under the
+          # strict rule to find which would have taken the hatch. Do NOT narrow the watched corpus
+          # and do NOT move the recorded base commit forward — both clear the finding by deleting
+          # its evidence.
+          #
+          # THE ONE THING A READER WILL GET WRONG. This gate exiting 0 today does NOT mean it has
+          # never been watched fail. It means the watched corpus has no change since the recorded
+          # base — the gate says so in its own PASS line, which reports a clean tree rather than a
+          # pass. Its RED evidence necessarily comes from a PLANTED REPOSITORY rather than from
+          # today's clean tree, because the predicate reads a diff and today's diff is empty. Both
+          # reproductions are PERMANENT CASES in the test file, not a historical commit: a reworded
+          # role `## Hard limits` sentence with no companion edit exits 1 with 2 findings over 2
+          # clauses, and an undispositioned added clause exits 1 with 1 finding over 1 — each
+          # against a real git repository under the OS temp dir, each re-run on every suite run.
+          #
+          # This step needs the job's `fetch-depth: 0` checkout. See the comment on that setting.
+          node scripts/check-diff-disposition.js
 
           # WHAT IT HOLDS, AND WHAT A RED MEANS. It asserts that ZERO tracked files carry a NUL
           # (0x00) byte. The scanned set is every path `git ls-files` reports — no exemption list,

@@ -582,3 +582,31 @@ describe("check-diff-disposition — the output is diffable", () => {
     expect(first.stdout).toContain("FROZEN by structuralSections");
   });
 });
+
+describe("check-diff-disposition — wiring", () => {
+  it("is wired in CI as well as here — a gate that runs only from a test is borrowed, not wired", () => {
+    const ci = readFileSync(join(REPO, ".github", "workflows", "ci.yml"), "utf8");
+    expect(ci.split("node scripts/check-diff-disposition.js").length - 1).toBe(1);
+  });
+
+  it("CI checks out full history, which this gate's recorded base commit requires", () => {
+    // The setting and the gate are asserted TOGETHER. A `fetch-depth: 0` that survives while the
+    // gate is removed is a slowdown nobody can explain; a gate that survives while the setting is
+    // removed is permanently red on an unresolvable base. Neither is allowed to drift alone.
+    const ci = readFileSync(join(REPO, ".github", "workflows", "ci.yml"), "utf8");
+    expect(ci).toContain("fetch-depth: 0");
+    expect(ci).toContain("FULL HISTORY IS REQUIRED BY guard_diff_disposition");
+  });
+
+  it("has a package.json script with the mandatory tsc prefix its siblings carry", () => {
+    const pkg = JSON.parse(readFileSync(join(REPO, "package.json"), "utf8")) as {
+      scripts: Record<string, string>;
+      dependencies?: Record<string, string>;
+    };
+    expect(pkg.scripts["check:diff-disposition"]).toBe(
+      "tsc --outDir .tmp-build && node scripts/check-diff-disposition.js",
+    );
+    // T-29-SC: this plan installs nothing. The manifest gains one `scripts` entry and no dependency.
+    expect(pkg.dependencies).toBeUndefined();
+  });
+});
