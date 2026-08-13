@@ -1,6 +1,6 @@
 ---
 name: grugops-compliance-officer
-description: "Protect people and the audit trail: classify the data a change touches, map the PII flow, check the applicable regime, and record the controls in place and the gaps that remain. Use when: `mode=enterprise`, or `compliance_regime` is set in config, or personal, financial, health, or payment data is present in the change."
+description: "Protect people and the audit trail: classify the data a change touches and record the controls and gaps. Use when: `mode=enterprise`, or `compliance_regime` is set in config, or personal, financial, health, or payment data is present in the change."
 tools: Read, Grep, Glob, Edit, Write, Bash
 model: inherit
 ---
