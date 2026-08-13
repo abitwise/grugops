@@ -312,6 +312,117 @@ guard is **watched failing RED against the real tree before the rewrite lands** 
 which LANG-06 already writes into the requirement for the voice guard specifically, and which
 applies equally to the other three).
 
+### Plan-time resolutions (added 2026-08-13 from `29-RESEARCH.md`; D-34 to D-37 are human decisions)
+
+Research measured the tree and found six things CONTEXT.md could not have known. These resolve them.
+Each is a locked decision with the same standing as D-01 to D-33.
+
+- **D-34 (human):** The honesty floor's token claim is **softened to `UNKNOWN - verify` in both
+  directions**. `.planning/REQUIREMENTS.md:42` asserts *"STE increases token count"* as fact, ROADMAP
+  hedges to *"likely"*, `FEATURES.md:259` says `UNKNOWN - verify` — three confidence levels for one
+  claim, and research located **no evidence in either direction**. Worse, the stated reasoning
+  ("forbids the telegraphic omission caveman relies on") targets the fenced caveman blocks, which
+  **LANG-02 explicitly excludes from the profile**. Measured: caveman blocks 5.5% articles vs governed
+  workflows 11.4% — the governed corpus is already normal English, so there are no dropped articles to
+  restore and article-restoration growth is approximately zero. The measured halves **stay**:
+  caveman-as-token-economy is disproven on this artifact, and the profile is justified on determinism
+  and one-term-per-concept grounds. Real growth comes from **sentence splitting**, which D-28 already
+  requires this phase to measure and record. Edit `REQUIREMENTS.md:42` and the ROADMAP Phase 29
+  honesty floor in the same pass as D-11's rename edits.
+  — **Reversibility:** reversible.
+
+- **D-35 (human):** D-14 ships **20 words procedural / 25 words descriptive**, not one undifferentiated
+  20. STE's own published rule is the two-number split; D-14 adopted only the first. Measured over 982
+  sentences: 273 (27.8%) exceed 20, 190 (19.3%) exceed 25. Procedural-vs-descriptive is decided by
+  **section anchor** — `## Steps` bullets and numbered procedural lines are procedural, prose is
+  descriptive — which is decidable with no tuning and no per-sentence heuristic.
+
+- **D-36 (human):** The D-18 corpus is **workflows + hand-authored checklists + seed templates +
+  contracts**: `agent-factory/workflows/` (19 files, 104,094 B), the hand-authored half of
+  `agent-factory/checklists/` (13 files, 19,368 B), `agent-factory/seed/**` templates (13 files,
+  14,205 B) and `agent-factory/contracts/` (2 files, 15,185 B). **Excluded:**
+  `agent-factory/packaging/` (30,076 B), `config/factory.config.md` (18,020 B),
+  `agent-factory/README.md`, `_commit-convention.md` — these are documentation *about* the kit, not
+  instructions an agent executes, so LANG-02's "two agents reach the same act" test does not bite on
+  them. The exclusion is **stated in the profile's own claim** per D-16, never left implied by the
+  scan set's omission.
+
+- **D-37 (human):** **Remove-before-add, per role, tracked.** Measured: `security-nfr.md` breaks its
+  hard FAIL ceiling on D-19 + D-30 alone (4,992 + ~110 = 5,102 = the ceiling exactly), before the
+  rewrite adds a byte; 8 of 17 roles are above WARN today; `incident-responder.md` frees **zero** bytes
+  from D-19 (its `## One job` is one sentence, not two). D-26 forbids raising the table. Therefore, per
+  role: D-09's caveman-content removal and D-19's `## Responsibilities` #4 delete land **before**
+  D-30's fallback sentence, with a measured byte transcript at each step. A plan that adds before it
+  removes turns `security-nfr.md` RED with no legal remedy. If a role still reds after every removal,
+  **escalate to the human — never raise the table, never silently proceed**.
+
+- **D-38:** Sentence identity for D-05 and D-20 uses **clause-level segmentation (Variant C)**, not
+  exact whole-sentence equality. Measured: exact sentence equality finds duplicates in 2 of 17 role
+  files and **zero** in `software-engineer.md` — the file CONTEXT.md cites as the four-times worked
+  example — so D-20 read literally ships a guard that is GREEN the moment it appears, violating
+  Phase 28's D-24 and AP-1. Clause-level finds 12 groups across 9 of 17 files and reproduces the
+  four-times claim exactly. One function serves both the diff-disposition gate and the uniqueness
+  guard. This is the discretion CONTEXT.md already granted, exercised.
+
+- **D-39:** The guard is named **`guard_imperative_lexicon`**. D-12's imperative-position verb check
+  and D-14/D-35's sentence-form rules ship as **two names inside one module** — three unrelated
+  predicates under one name recreates at the output line exactly the problem LANG-04 exists to fix.
+  Note: `guard_ste` appears in **zero source files** — it exists only in `.planning/` prose, so D-11 is
+  three planning-document edits, not a code refactor.
+
+- **D-40:** D-13's derivation is corrected additively: `listRoles()` / `listWorkflows()` return
+  **filenames** (`ba-pm.md`), but the Technical Names used in governed prose are **display names**
+  (`BA/PM`, `QE/E2E`). Add `listRoleDisplayNames()` / `listWorkflowDisplayNames()` to
+  `scripts/kit-model.ts`, derived from the `# Role: ` / `# Workflow: ` headings, each asserting its
+  count two-sided against `ROLE_COUNT` / `WORKFLOW_COUNT`. Verified available at 17/17 and 19/19.
+  Stays inside D-13's spirit: derived, never listed.
+
+- **D-41:** The caveman opener **`You are <Role>.` is rewritten, not exempted**. D-07's zero-copula
+  rule makes it illegal in 16 of 17 blocks (the copula count is 1 in each, and it is the opener). A
+  named carve-out in a predicate whose weakest arm already dominates is the D-06 shape this milestone
+  is correcting.
+
+- **D-42:** `agent-factory/checklists/security-nfr-checklist.md` (**89,840 B — 82% of the checklists
+  directory, 345 verbatim OWASP ASVS rows**) is excluded from the governed corpus **by a derived
+  `GENERATED` marker rule**, never by a hand-listed filename. Style-rewriting it would be reverted on
+  the next `generate:asvs` run, would falsify its own verbatim-copy claim, and would triple the
+  denominator. Assert the marker set's cardinality **two-sided** so a second generated kit file cannot
+  arrive silently unexcluded.
+
+- **D-43:** LANG-06's RED-on-17/17 transcript is **necessary but not sufficient acceptance evidence**.
+  Measured: both arms of the voice predicate fail 17/17 **independently**, at every N from 1 to 4 — so
+  a guard that shipped `positive || negative`, or dropped an arm entirely, produces a byte-identical
+  transcript. The voice guard therefore also ships **three discriminating fixtures**: one passing the
+  positive arm and failing the negative (must be RED), one passing the negative and failing the
+  positive (must be RED), and one passing both (must be GREEN — the false-red control).
+
+- **D-44:** The D-29 banned-claim check is **vacuous against today's tree** — `ASD-STE100` appears in
+  zero kit files, so it lands GREEN having never been watched fail. It ships in this order: author the
+  profile document containing a **deliberate draft conformance sentence**; land the guard RED naming
+  that line and capture the transcript; remove the sentence to GREEN; and keep a **planted hermetic
+  fixture** in the guard's test so it is provably non-vacuous forever, not just at the moment it
+  landed. Step four is the durable half — the tree will never again contain the claim.
+
+- **D-45:** D-32's count corrections extend to the **byte figure in the same field**. C-28-003's
+  mechanism field carries *"total 4,036 bytes"*; measured block-interior total is **3,528 B**. Leaving
+  it uncorrected leaves the row carrying a number no command reproduces — the defect D-32 exists to
+  fix, one clause to the right. Mechanism field, not a verbatim anchor, so `check-claim-anchors` does
+  not trip.
+
+- **D-46:** Six kit files still carry **retired v1.x `handoff` vocabulary** outside Phase 28's audited
+  surface (that audit covered roles and workflows only, and both are clean). Two are load-bearing and
+  are fixed here: `agent-factory/checklists/definition-of-done.md:16` (`- handoff written`, a DoD item
+  requiring an artifact deleted in Phase 24) and `agent-factory/seed/plans/board.md:64` (a board-column
+  entry criterion on a shipped template). `example-mapping.md:10`, `_commit-convention.md:9` and
+  `README.md:111` are corrected as prose. `packaging/subagent.frontmatter.md:204` is **left alone** —
+  it is accurate history. They survived because `dead-vocabulary.ts`'s `RETIRED_PATH_FORMS` is the
+  *path* form and `check-kit-refs`'s `SCAN` deliberately excludes `agent-factory/seed/`.
+
+- **D-47:** `## One job` feeds **three byte-gated generators** — 17 role adapters, 7 skill twins, and
+  the catalog — each under the freshness contract. D-19's rewrite of that section therefore
+  **regenerates all three in the same commit as the role edit**, or three freshness gates fire. This
+  is the same seam Phase 29.1 depends on.
+
 ### Claude's Discretion
 
 - The exact caveman lexicon membership and the value of N in D-07, subject to it failing RED on all
@@ -331,6 +442,14 @@ conform, the when-absent fallback added to 17 roles, three registry flips plus t
 corrections plus new profile rows, requirement- and roadmap-text edits for the D-11 rename, and the
 D-26 re-baseline as the final plan. Expect **10–14 plans**, not the usual handful. The full-corpus
 scope in D-18 was chosen deliberately with this cost visible.
+
+**Sizing update (2026-08-13, post-research).** D-36 bounded the corpus (excluding 48 KB of packaging
+and config documentation) and D-42 removed 89,840 B of generated ASVS checklist from it, so the
+governed corpus is **47 files / 152,852 B**, not the larger figure a naive read of D-18 implies. Against
+that, D-37's remove-before-add ordering, D-43's three fixtures, D-44's author-claim-first sequence,
+D-46's six-file vocabulary fix and D-47's three-generator regeneration all add work CONTEXT.md had not
+priced. Net: **still 10–14 plans**, with the byte-budget sequencing (D-37) as the binding constraint on
+wave ordering rather than the corpus size.
 
 </decisions>
 
