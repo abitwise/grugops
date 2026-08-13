@@ -44,7 +44,10 @@
 import { readFileSync, existsSync, writeFileSync, mkdirSync, readdirSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { pathToFileURL } from "node:url";
-import { listRoles, listWorkflows, ROLE_COUNT, WORKFLOW_COUNT, } from "./kit-model.js";
+import { listRoles, listWorkflows, ROLE_COUNT, WORKFLOW_COUNT, 
+// Phase 29 / plan 29-04: these two were re-declared locally below. They are now taken from the
+// one authority that already owned them, so a third consumer cannot inherit a second spelling.
+ROLES_SUBPATH, WORKFLOWS_SUBPATH, } from "./kit-model.js";
 // READ, not consumed as a guard — see the module header. Both arrays are taken whole; neither is
 // filtered, sliced or re-declared here.
 import { RETIRED_PATH_FORMS, RETIRED_PROSE_FORMS } from "./dead-vocabulary.js";
@@ -53,8 +56,6 @@ import { RETIRED_PATH_FORMS, RETIRED_PROSE_FORMS } from "./dead-vocabulary.js";
 const ROOT = process.env.CHECK_ROOT
     ? process.env.CHECK_ROOT
     : join(import.meta.dirname, "..");
-const ROLES_SUBPATH = "agent-factory/roles";
-const WORKFLOWS_SUBPATH = "agent-factory/workflows";
 // The D-02 protocol file, as a LITERAL with its reason.
 //
 // listRoles() drops underscore-prefixed entries by derivation, which is exactly what makes the role

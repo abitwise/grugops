@@ -180,8 +180,15 @@ export const MAX_WALK_ENTRIES = 10000;
 const DEFAULT_KIT_ROOT = join(import.meta.dirname, "..");
 
 // Fixed literal subpaths — never argv/env/content-derived (ASVS V12).
-const ROLES_SUBPATH = "agent-factory/roles";
-const WORKFLOWS_SUBPATH = "agent-factory/workflows";
+//
+// ROLES_SUBPATH and WORKFLOWS_SUBPATH are EXPORTED (Phase 29 / plan 29-04). The listers return bare
+// filenames, so every consumer that needs a repo-relative path has to join one of these on — and
+// audit-prepass.ts had already answered that by re-declaring both literals locally, which is the
+// set-literal drift class one level down: two spellings of one path, either free to move. Exporting
+// the existing declaration is strictly fewer literals than letting a third copy appear; the two
+// local copies in audit-prepass.ts were deleted in the same commit.
+export const ROLES_SUBPATH = "agent-factory/roles";
+export const WORKFLOWS_SUBPATH = "agent-factory/workflows";
 const AGENTS_SUBPATH = ".claude/agents";
 const SKILLS_SUBPATH = ".claude/skills";
 const PACKAGING_SUBPATH = "agent-factory/packaging";
