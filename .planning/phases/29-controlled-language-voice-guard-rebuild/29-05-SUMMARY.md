@@ -141,7 +141,7 @@ coverage:
         status: pass
     human_judgment: false
 
-duration: 80min
+duration: 25min
 completed: 2026-08-13
 status: complete
 ---
@@ -152,7 +152,7 @@ status: complete
 
 ## Performance
 
-- **Duration:** 80 min
+- **Duration:** 25 min
 - **Tasks:** 3
 - **Commits:** 3
 - **Files changed:** 17 (1 created, 16 modified)

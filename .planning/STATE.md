@@ -331,7 +331,7 @@ Prior activity: 2026-07-30 — 27-22 closed WR-02 and WR-04, the last two plans-
 | Phase 29 P02 | 38min | 3 tasks | 16 files |
 | Phase 29 P03 | 35min | 3 tasks | 15 files |
 | Phase 29 P04 | 70m | 3 tasks | 12 files |
-| Phase 29 P05 | 80min | 3 tasks | 17 files |
+| Phase 29 P05 | 25min | 3 tasks | 17 files |
 
 ## Accumulated Context
 
