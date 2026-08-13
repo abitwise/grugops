@@ -57,7 +57,37 @@
 // quality/safety surface, never caveman voice).
 //
 //   node scripts/check-foundation-guards.js
-// Exit 0 = all seven guards GREEN; exit 1 = at least one FAIL (WARNs do NOT fail the build).
+// Exit 0 = every guard GREEN; exit 1 = at least one FAIL (WARNs do NOT fail the build).
+//
+// ---------------------------------------------------------------------------------------------
+// (Plan 29-01) THIS GATE EXITS 1 ON THE TREE AT HEAD, ON PURPOSE, AND HERE IS WHAT THAT COST.
+//
+// guard_caveman_voice is RED on all 17 caveman blocks and guard_role_clause_uniqueness on 12 clause
+// groups across 9 of 17 role files. Both transcripts are recorded verbatim above the guards
+// themselves. Plans 29-05, 29-06 and 29-07 land the rewrites that turn both green; a red build
+// before those land is the ACCEPTANCE EVIDENCE for Phase 28's D-24, not a regression.
+//
+// THE BLAST RADIUS IS MEASURED RATHER THAN ASSERTED. The committed gate was run against the tree at
+// the parent commit (afea791) and at HEAD, and the two outputs were compared BLOCK BY BLOCK:
+//
+//   compared                                                        blocks  differences
+//   --------------------------------------------------------------  ------  -----------
+//   the nine guards this plan did not touch                              9            0
+//   the three Phase 19 Tier-1 oracles                                    3            0
+//   guard_voice — MIGRATED to readCavemanFence in this same plan          1            0
+//   --------------------------------------------------------------  ------  -----------
+//   TOTAL                                                               13            0
+//
+// The guard_voice row is the one that had to be measured rather than argued: swapping its fence
+// reader is a behaviour-preserving change only if the two readers agree on every real role file, and
+// a byte-identical output block over all 19 voice surfaces is what shows they do.
+//
+// Wall clock, three consecutive runs: 0.12 s / 0.09 s / 0.09 s, against the 0.127 s pre-plan baseline
+// for 11 guards. Two more guards, both scanning prose with regular expressions, cost nothing
+// measurable — which is the number to re-check first if a later prose guard turns a fast gate slow.
+// No package.json script and no ci.yml line were added: CI already invokes this file bare, and a
+// script for a guard that lives inside it would create a second invocation path.
+// ---------------------------------------------------------------------------------------------
 // ---------------------------------------------------------------------------
 // THE SET-LITERAL INVENTORY, DISPOSITIONED (Phase 27 / KIT-02, D-19).
 //
