@@ -80,8 +80,8 @@ Each requirement maps to exactly one roadmap phase (27–33). REQ-IDs continue g
 - [ ] **LANG-02**: The profile is applied to procedural and agent-written surfaces (workflow steps, checklists, memory-bank, shared-context notes, board, traceability) and explicitly **not** to the fenced caveman identity blocks.
 - [ ] **LANG-03**: A named safety-surface exclusion list is honoured so that load-bearing security, compliance, and admission text is never reworded by a style pass.
 - [ ] **LANG-04**: A guard enforces exactly the profile's **decidable** subset (lexicon membership, sentence length, banned constructions) and is named for that subset — never presented as enforcing ASD-STE100 conformance. The chosen names are `guard_imperative_lexicon` (lexicon membership at imperative position) and `guard_sentence_form` (sentence length and banned constructions) — two predicates, two names, because naming one guard for three unrelated predicates re-creates the `guard_caveman_preserved` defect at the output line. The conformance prohibition itself is mechanical, held by `guard_banned_claims`.
-- [ ] **LANG-05**: The role skeleton is de-duplicated — "say each thing once" — so `## One job`, the caveman block, and `## Responsibilities` stop being three passes over the same content.
-- [ ] **LANG-06**: The voice guard is rebuilt to measure voice against a committed lexicon rather than sentence shape, and **fails RED on all 17 current blocks** as acceptance evidence before the rewrite lands.
+- [x] **LANG-05**: The role skeleton is de-duplicated — "say each thing once" — so `## One job`, the caveman block, and `## Responsibilities` stop being three passes over the same content.
+- [x] **LANG-06**: The voice guard is rebuilt to measure voice against a committed lexicon rather than sentence shape, and **fails RED on all 17 current blocks** as acceptance evidence before the rewrite lands.
 - [x] **LANG-07**: `guard_imperative_lexicon` (with its sibling `guard_sentence_form`) and the rebuilt voice guard share **one** fence parser — never two grammars over the same bytes.
 - [ ] **LANG-08**: Byte ceilings are re-baselined **once** at end of phase (every file ≤ its previous value, delta recorded), never raised mid-phase to accommodate a rewrite.
 
@@ -181,8 +181,8 @@ _Filled by the roadmapper 2026-07-28. Every requirement maps to exactly one phas
 | LANG-02 | Phase 29 | Pending |
 | LANG-03 | Phase 29 | Pending |
 | LANG-04 | Phase 29 | Pending |
-| LANG-05 | Phase 29 | Pending |
-| LANG-06 | Phase 29 | Pending |
+| LANG-05 | Phase 29 | Complete |
+| LANG-06 | Phase 29 | Complete |
 | LANG-07 | Phase 29 | Complete |
 | LANG-08 | Phase 29 | Pending |
 | MODEL-01 | Phase 29.1 | Pending |
