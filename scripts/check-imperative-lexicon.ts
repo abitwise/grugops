@@ -85,6 +85,57 @@
 //    the safe direction for a gate whose corpus is about to be rewritten anyway.
 //
 // A green run here says what these two predicates measured, and nothing wider.
+//
+// ---------------------------------------------------------------------------------------------
+// THE D-24 RED TRANSCRIPTS — both predicates were watched FAILING against the real tree before a
+// single word of the corpus was rewritten, because a guard that passes the moment it appears has
+// never been watched fail. Measured 2026-08-13 on the tree at HEAD,
+// `node scripts/check-imperative-lexicon.js`:
+//
+//   [guard_imperative_lexicon]
+//
+//     finding kind             count  what it is
+//     ----------------------   -----  --------------------------------------------------------
+//     bold-label                  41  `**Deterministic prefetch.** Before the model writes …`
+//     actor-subject               15  `BA/PM defines the product — recording the product …`
+//     determiner-subject          15  `The Orchestrator pulls the ticket into development …`
+//     not-an-approved-verb         7  `Tickets are written to \`plans/tickets/\` and a …`
+//     conditional-clause           3  `When the behavior is unclear, the System Analyst …`
+//     ----------------------   -----  --------------------------------------------------------
+//     TOTAL                       81  over 125 `## Steps` bullets in 19 files (findings in 16)
+//
+//   [guard_sentence_form]
+//
+//     rule    finding kind                      count
+//     -----   -------------------------------   -----
+//     WP-03   descriptive-sentence-too-long       127
+//     WP-02   procedural-sentence-too-long         86
+//     WP-06   bare-demonstrative-subject           33
+//     WP-05   modal-in-procedural-step             15
+//     WP-08   more-than-one-instruction             3
+//     WP-07   and-slash-or                          0
+//     -----   -------------------------------   -----
+//     TOTAL                                       264  over 1,816 sentences (236 procedural,
+//                                                      1,580 descriptive) in 47 files, findings
+//                                                      in 32 of them
+//
+//   exit code 1 — 2 CHECK(S) FAILED, one measured block per predicate
+//
+// RECONCILED AGAINST 29-RESEARCH §A-10, BECAUSE THE TWO SETS OF NUMBERS ARE NOT THE SAME QUESTION
+// AND A LATER READER WOULD OTHERWISE READ THE DIFFERENCE AS A DEFECT. The research reports "273
+// sentences over 20 words, 190 over 25". Those are ONE sentence set measured at TWO thresholds, so
+// they OVERLAP; the numbers above are two DISJOINT arms selected by section anchor (WP-04), which
+// is what D-35 actually ships. Asked the research's question of this same corpus with this same
+// counter, this gate's inputs give 269 over 20 words and 188 over 25 — the four- and two-sentence
+// differences are exactly the multi-word Technical Names that count as one term here and as N words
+// there. The research figure is reproduced; it is simply not the figure a two-bound rule reports.
+//
+// Plans 29-08 through 29-12 land the rewrites that turn both of these green. A red build on this
+// gate before then is the ACCEPTANCE EVIDENCE for Phase 28's D-24, not a regression.
+//
+// The durable half is scripts/check-imperative-lexicon.test.ts. Once the corpus conforms, the tree
+// can no longer reproduce a RED, so every shape above is planted into a hermetic mirror — together
+// with the clean-mirror GREEN control, without which a RED verdict proves nothing at all.
 // ---------------------------------------------------------------------------------------------
 
 import { readFileSync, existsSync, readdirSync, statSync } from "node:fs";

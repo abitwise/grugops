@@ -232,6 +232,43 @@ jobs:
           # caveman voice is a token economy, which project measurement disproved on this artifact.
           # That is why a red here is credible — this guard caught real drift on its first run.
           node scripts/check-banned-claims.js
+          # LANG-01 / LANG-02 / LANG-04 (plan 29-03, D-12 / D-35 / D-36 / D-39 / D-40 / D-42) — the
+          # controlled-language gate. It sits directly after the banned-claim gate because the two
+          # halves of LANG-04 belong together: that one holds that the kit CLAIMS no conformance,
+          # and this one holds the small decidable subset the kit actually DOES check. Two named
+          # predicates ship in one module — `guard_imperative_lexicon` for the verb-at-imperative-
+          # position rule and `guard_sentence_form` for sentence length and banned constructions —
+          # because naming one guard for three unrelated predicates re-creates the
+          # `guard_caveman_preserved` defect at the output line.
+          #
+          # WIRED HERE **AND** IN scripts/check-imperative-lexicon.test.ts AND IN package.json,
+          # deliberately at all the ends it has. This repository shipped freshness:adapters for an
+          # entire phase while it ran solely as a side effect of a test spawning it — one --exclude
+          # pattern away from being un-gated. A gate that runs only because some other step happens
+          # to run it is not wired; it is borrowed.
+          #
+          # WHAT IT HOLDS, AND WHAT A RED MEANS. Over a corpus DERIVED in four named parts — 19
+          # workflows, 13 hand-authored checklists, 13 seed templates, 2 contracts, 47 in total —
+          # it asserts that every `## Steps` bullet begins with a verb from a closed 43-member set
+          # at position zero, and that every sentence is inside the bound its section anchor selects
+          # (20 words procedural, 25 descriptive) and carries none of four banned constructions. A
+          # red names a file, a line, the offending token and the `WP-NN` rule id from
+          # agent-factory/writing-profile.md.
+          #
+          # FIX THE DOCUMENT. Do NOT add an exemption and do NOT narrow the scan set:
+          # GOVERNED_CORPUS_COUNT is two-sided pinned, and so is the derived `GENERATED`-marker
+          # exclusion, precisely so removing a member to reach green is not available. Do NOT widen
+          # APPROVED_STEP_VERBS to admit a token the corpus does not already use as a bare
+          # imperative — the list is a declared canonical form, not a frequency cutoff, and its
+          # admission test is written above the array.
+          #
+          # IT WAS LANDED RED ON PURPOSE (D-24) AND AGAINST THE REAL TREE: exit 1 with 81 findings
+          # over 125 `## Steps` bullets and 264 findings over 1,816 sentences at the commit that
+          # introduced it. Plans 29-08 through 29-12 land the corpus rewrites that turn both
+          # predicates green. A red here before those land is the acceptance evidence, not a
+          # regression — and the clean-mirror GREEN control in the test file is what proves the
+          # gate is not merely always red.
+          node scripts/check-imperative-lexicon.js
 
           # WHAT IT HOLDS, AND WHAT A RED MEANS. It asserts that ZERO tracked files carry a NUL
           # (0x00) byte. The scanned set is every path `git ls-files` reports — no exemption list,
