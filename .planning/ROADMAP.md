@@ -480,16 +480,16 @@ Plans:
   4. The rebuilt voice guard **fails RED on all 17 current caveman blocks** as acceptance evidence before the rewrite lands, measures against a committed lexicon rather than sentence shape, and publishes a number with a denominator. (LANG-06)
   5. `## One job`, the caveman block, and `## Responsibilities` each say a thing once; `guard_imperative_lexicon` (with its sibling `guard_sentence_form`) and the rebuilt voice guard read the fence through **one** parser, never two grammars over the same bytes; and byte ceilings are re-baselined exactly once at end of phase with every file ≤ its previous value and the delta recorded — never raised mid-phase. (LANG-05, LANG-07, LANG-08)
 
-**Plans**: 0/13 plans executed
+**Plans**: 2/13 plans executed
 
 Plans:
 **Wave 1**
 
-- [ ] 29-01-PLAN.md — one fence authority (`voice-model.ts`), one shared vacuity rule (`vacuity.ts`), the rebuilt two-sided voice guard and the intra-file clause-uniqueness guard, both watched RED on the real tree with three discriminating fixtures
+- [x] 29-01-PLAN.md — one fence authority (`voice-model.ts`), one shared vacuity rule (`vacuity.ts`), the rebuilt two-sided voice guard and the intra-file clause-uniqueness guard, both watched RED on the real tree with three discriminating fixtures
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
-- [ ] 29-02-PLAN.md — the grugops-authored writing profile with its non-affiliation disclaimer, plus `guard_banned_claims` landed RED on a deliberate draft conformance sentence, the profile's claims registered, and the guard-name and honesty-floor edits to the live planning documents
+- [x] 29-02-PLAN.md — the grugops-authored writing profile with its non-affiliation disclaimer, plus `guard_banned_claims` landed RED on a deliberate draft conformance sentence, the profile's claims registered, and the guard-name and honesty-floor edits to the live planning documents
 
 **Wave 3** *(blocked on Wave 2 completion)*
 
@@ -668,7 +668,7 @@ Plans:
 | 26. Dogfood, Dual-Path Oracle & A3/DOG-02 Retirement | v2.0 | 6/6 | Complete | 2026-07-24 |
 | 27. Spawn Correctness & Kit-Set Authority | v2.1 | 66/66 | Complete    | 2026-08-11 |
 | 28. Kit Consistency Audit | v2.1 | 8/8 | Complete    | 2026-08-12 |
-| 29. Controlled Language & Voice Guard Rebuild | v2.1 | 0/13 | Planned    |  |
+| 29. Controlled Language & Voice Guard Rebuild | v2.1 | 2/13 | In Progress|  |
 | 30. Per-Checkpoint Autonomy Matrix | v2.1 | 0/TBD | Not started | - |
 | 31. Autonomous Manual Testing | v2.1 | 0/TBD | Not started | - |
 | 32. Board Projector & CLI Dashboard | v2.1 | 0/TBD | Not started | - |
