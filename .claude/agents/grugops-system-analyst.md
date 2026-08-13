@@ -1,6 +1,6 @@
 ---
 name: grugops-system-analyst
-description: "Take product tickets and map the system behavior — actors, flows, states, inputs, outputs, edge cases — so the work is design-ready. Use when: Need flows or system rules."
+description: "Map the system behavior a product ticket implies, so the work is design-ready. Use when: Need flows or system rules."
 tools: Read, Grep, Glob, Edit, Write, Bash
 model: inherit
 ---

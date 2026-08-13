@@ -15,18 +15,18 @@ result. Any unverified field is marked `UNKNOWN - verify` rather than invented.
 | BA/PM | core | Cut a product idea down to a defensible MVP of testable, measurable tickets. | [agent-factory/roles/ba-pm.md](../../agent-factory/roles/ba-pm.md) |
 | Brownfield Mapper | core | Inspect an existing repo and produce a read-only map of it. | [agent-factory/roles/brownfield-mapper.md](../../agent-factory/roles/brownfield-mapper.md) |
 | Frontend/UI | core | Author the UI/design contract the engineer builds against and QE verifies. | [agent-factory/roles/frontend-ui.md](../../agent-factory/roles/frontend-ui.md) |
-| Greenfield Mapper | core | Shape empty land — choose a boring stack unless told otherwise, lay out the folder and docs plan, and sketch a first architecture. | [agent-factory/roles/greenfield-mapper.md](../../agent-factory/roles/greenfield-mapper.md) |
-| Orchestrator | core | Decompose each request into subtasks, route each to the right role agent within hard limits, and schedule them over the shared queue — config/board first, scope small, WIP/width enforced. | [agent-factory/roles/orchestrator.md](../../agent-factory/roles/orchestrator.md) |
-| QE/E2E | core | Break the feature — test happy, sad, and edge paths, write E2E where useful with stable selectors, avoid flaky tests, and report the gaps. | [agent-factory/roles/qe-e2e.md](../../agent-factory/roles/qe-e2e.md) |
+| Greenfield Mapper | core | Shape empty land into a repo structure, a stack choice, and a first architecture sketch. | [agent-factory/roles/greenfield-mapper.md](../../agent-factory/roles/greenfield-mapper.md) |
+| Orchestrator | core | Decompose each request into subtasks and route each to the right role agent over the shared queue. | [agent-factory/roles/orchestrator.md](../../agent-factory/roles/orchestrator.md) |
+| QE/E2E | core | Break the feature with tests and report the gaps. | [agent-factory/roles/qe-e2e.md](../../agent-factory/roles/qe-e2e.md) |
 | Security/NFR | core | Look for danger across a change — review authentication, data, secrets, performance, reliability, logging, and compliance notes — and return a clear result with required fixes and accepted risks. | [agent-factory/roles/security-nfr.md](../../agent-factory/roles/security-nfr.md) |
 | Software Engineer | core | Implement one ticket end to end. | [agent-factory/roles/software-engineer.md](../../agent-factory/roles/software-engineer.md) |
-| System Analyst | core | Take product tickets and map the system behavior — actors, flows, states, inputs, outputs, edge cases — so the work is design-ready. | [agent-factory/roles/system-analyst.md](../../agent-factory/roles/system-analyst.md) |
-| UAT Planner | core | Speak business — make the test scenarios, signoff checklist, test data, and pass/fail criteria so a named human can accept the work. | [agent-factory/roles/uat-planner.md](../../agent-factory/roles/uat-planner.md) |
+| System Analyst | core | Map the system behavior a product ticket implies, so the work is design-ready. | [agent-factory/roles/system-analyst.md](../../agent-factory/roles/system-analyst.md) |
+| UAT Planner | core | Plan business acceptance so a named human can accept the work. | [agent-factory/roles/uat-planner.md](../../agent-factory/roles/uat-planner.md) |
 | Compliance Officer | enterprise | Protect people and the audit trail: classify the data a change touches, map the PII flow, check the applicable regime, and record the controls in place and the gaps that remain. | [agent-factory/roles/compliance-officer.md](../../agent-factory/roles/compliance-officer.md) |
 | Factory Coach | enterprise | Turn the delivery metrics into improvement tickets for the factory itself. | [agent-factory/roles/factory-coach.md](../../agent-factory/roles/factory-coach.md) |
-| Incident Responder | enterprise | Stop the bleeding first, find the blast radius, propose mitigation and rollback, then write a blameless postmortem and turn its lessons into tickets. | [agent-factory/roles/incident-responder.md](../../agent-factory/roles/incident-responder.md) |
-| Installer | enterprise | Make this factory usable in the current tool — detect the host coding agent, lay down the right adapter and entry file, and stay additive. | [agent-factory/roles/installer.md](../../agent-factory/roles/installer.md) |
-| Release Manager | enterprise | Cut a release — set the version, write release notes and the changelog, make a deploy plan and a rollback plan — and hand it to a named human for approval. | [agent-factory/roles/release-manager.md](../../agent-factory/roles/release-manager.md) |
+| Incident Responder | enterprise | Stop the bleeding first, then write a blameless postmortem. | [agent-factory/roles/incident-responder.md](../../agent-factory/roles/incident-responder.md) |
+| Installer | enterprise | Make this factory usable in the current tool. | [agent-factory/roles/installer.md](../../agent-factory/roles/installer.md) |
+| Release Manager | enterprise | Cut a release and hand it to a named human for approval. | [agent-factory/roles/release-manager.md](../../agent-factory/roles/release-manager.md) |
 
 ## Workflows
 

@@ -1,6 +1,6 @@
 ---
 name: grugops-installer
-description: "Make this factory usable in the current tool — detect the host coding agent, lay down the right adapter and entry file, and stay additive. Use when: `mode=enterprise`, or an install or adapter request."
+description: "Make this factory usable in the current tool. Use when: `mode=enterprise`, or an install or adapter request."
 tools: Read, Grep, Glob, Edit, Write, Bash
 model: inherit
 ---

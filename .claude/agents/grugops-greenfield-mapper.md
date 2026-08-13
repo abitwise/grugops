@@ -1,6 +1,6 @@
 ---
 name: grugops-greenfield-mapper
-description: "Shape empty land — choose a boring stack unless told otherwise, lay out the folder and docs plan, and sketch a first architecture. Use when: Need shaping of empty land."
+description: "Shape empty land into a repo structure, a stack choice, and a first architecture sketch. Use when: Need shaping of empty land."
 tools: Read, Grep, Glob, Edit, Write, Bash
 model: inherit
 ---

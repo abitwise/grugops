@@ -1,6 +1,6 @@
 ---
 name: grugops-incident-responder
-description: "Stop the bleeding first, find the blast radius, propose mitigation and rollback, then write a blameless postmortem and turn its lessons into tickets. Use when: `mode=enterprise`, or a production incident, or a failing SLO."
+description: "Stop the bleeding first, then write a blameless postmortem. Use when: `mode=enterprise`, or a production incident, or a failing SLO."
 tools: Read, Grep, Glob, Edit, Write, Bash
 model: inherit
 ---

@@ -1,6 +1,6 @@
 ---
 name: grugops-release-manager
-description: "Cut a release — set the version, write release notes and the changelog, make a deploy plan and a rollback plan — and hand it to a named human for approval. Use when: `mode=enterprise`, or a release request — work in `Ready to Release` is signed off and ready to ship."
+description: "Cut a release and hand it to a named human for approval. Use when: `mode=enterprise`, or a release request — work in `Ready to Release` is signed off and ready to ship."
 tools: Read, Grep, Glob, Edit, Write, Bash
 model: inherit
 ---

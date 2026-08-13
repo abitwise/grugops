@@ -1,6 +1,6 @@
 ---
 name: grugops-uat-planner
-description: "Speak business — make the test scenarios, signoff checklist, test data, and pass/fail criteria so a named human can accept the work. Use when: Need business acceptance."
+description: "Plan business acceptance so a named human can accept the work. Use when: Need business acceptance."
 tools: Read, Grep, Glob, Edit, Write, Bash
 model: inherit
 ---

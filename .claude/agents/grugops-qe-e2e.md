@@ -1,6 +1,6 @@
 ---
 name: grugops-qe-e2e
-description: "Break the feature — test happy, sad, and edge paths, write E2E where useful with stable selectors, avoid flaky tests, and report the gaps. Use when: Need tests."
+description: "Break the feature with tests and report the gaps. Use when: Need tests."
 tools: Read, Grep, Glob, Edit, Write, Bash
 model: inherit
 ---
