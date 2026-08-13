@@ -25,12 +25,6 @@ rule, a claim, or a disclaimer.
 
 ## The rules
 
-<!-- D-44 DRAFT CLAIM — planted deliberately so guard_banned_claims can be watched failing on a real
-     claim in a real file before the tree can never again contain one. Plan 29-02 Task 2 deletes
-     this comment and the sentence below it, in a commit whose only content change is that deletion.
-     If you are reading this in a shipped tree, the gate is not wired. -->
-The grugops kit conforms to ASD-STE100 Simplified Technical English.
-
 Every rule carries a stable id in the form `WP-NN`. The ids are listed in ascending order, so a diff
 of this document is a diff of its rules and not of their arrangement.
 

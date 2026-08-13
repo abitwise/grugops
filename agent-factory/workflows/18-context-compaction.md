@@ -24,7 +24,7 @@ It builds directly on `agent-factory/workflows/16-context-read-write.md` (the re
 ## The body/structure seam
 Two distinct jobs, never blurred:
 
-- **The agent compresses note _bodies_** — the semantic judgment. The agent reads its verbose local trajectory and writes the terse gist, collapsing the narrative prose of note bodies. This is the role's intelligence (the caveman token-economy applied to memory): keep the load-bearing constraint, drop the restatement.
+- **The agent compresses note _bodies_** — the semantic judgment. The agent reads its verbose local trajectory and writes the terse gist, collapsing the narrative prose of note bodies. This is the role's intelligence: keep the load-bearing constraint, drop the restatement.
 - **`scripts/compactor.ts` protects note _structure_** — the deterministic carve-out invariant. It is a `node:fs`-only helper with zero host runtime deps; it cannot summarize and never does. It checks, refuses, and names the fault. It is the un-cheatable mechanical floor.
 
 The agent owns the words; the tool owns the structure. Never ask the tool to summarize, and never let the agent quietly drop a load-bearing field — that is the tool's to refuse.
