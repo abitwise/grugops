@@ -94,6 +94,7 @@ Full phase details + milestone summary: `milestones/v2.0-ROADMAP.md` · requirem
 - [x] **Phase 27: Spawn Correctness & Kit-Set Authority** — derive every guard/validator scan set from the filesystem, then generate all 17 role adapters and wire the coordinator where the runtime honors its allowlist (completed 2026-08-11)
 - [x] **Phase 28: Kit Consistency Audit** — a real correctness-and-strangeness pass over 17 roles + 19 workflows (17, not 18: `kit-model.listRoles()` drops the `_`-prefixed `_role-switch-protocol.md` by derivation — it is read once and recorded as an explicitly uncounted 37th register row), the `CLAUDE.md` v2.0 drift reconciled, and every public safety claim given an id (completed 2026-08-12)
 - [ ] **Phase 29: Controlled Language & Voice Guard Rebuild** — an ASD-STE100-derived writing profile for procedural/agent-written surfaces, a de-duplicated role skeleton, and a voice guard that measures voice instead of sentence shape
+- [ ] **Phase 29.1: Per-Role Model Assignment** *(INSERTED)* — a stronger model where judgment lives and a cheaper one for execution, set on the config dial and emitted into every generated adapter, with zero-config byte-identical to today's
 - [ ] **Phase 30: Per-Checkpoint Autonomy Matrix** — every human stop enumerated and dialable, the four safety floors lowerable only behind two keys, with mechanical claim-dropping
 - [ ] **Phase 31: Autonomous Manual Testing** — browser-driven UAT where the committed Playwright spec is the evidence and the agent's narration never is
 - [ ] **Phase 32: Board Projector & CLI Dashboard** — one board-grammar authority emitting a typed snapshot, rendered live by a read-only terminal dashboard
@@ -477,11 +478,51 @@ Plans:
   2. The profile governs workflow steps, checklists, memory-bank, shared-context notes, board, and traceability; it leaves the fenced caveman identity blocks alone; and a named safety-surface exclusion list keeps load-bearing security, compliance, and admission text from being reworded by a style pass. (LANG-02, LANG-03)
   3. The guard is **named for the decidable subset it checks** — lexicon membership, sentence length, banned constructions — and nowhere in the kit is ASD-STE100 conformance claimed, nor a token-economy win, nor an LLM-comprehension benefit (that one stays `UNKNOWN - verify`). (LANG-04)
   4. The rebuilt voice guard **fails RED on all 17 current caveman blocks** as acceptance evidence before the rewrite lands, measures against a committed lexicon rather than sentence shape, and publishes a number with a denominator. (LANG-06)
-  5. `## One job`, the caveman block, and `## Responsibilities` each say a thing once; `guard_ste` and the rebuilt voice guard read the fence through **one** parser, never two grammars over the same bytes; and byte ceilings are re-baselined exactly once at end of phase with every file ≤ its previous value and the delta recorded — never raised mid-phase. (LANG-05, LANG-07, LANG-08)
+  5. `## One job`, the caveman block, and `## Responsibilities` each say a thing once; `guard_imperative_lexicon` (with its sibling `guard_sentence_form`) and the rebuilt voice guard read the fence through **one** parser, never two grammars over the same bytes; and byte ceilings are re-baselined exactly once at end of phase with every file ≤ its previous value and the delta recorded — never raised mid-phase. (LANG-05, LANG-07, LANG-08)
+
+**Plans**: 13 plans
+
+Plans:
+
+- [ ] 29-01-PLAN.md — one fence authority (`voice-model.ts`), one shared vacuity rule (`vacuity.ts`), the rebuilt two-sided voice guard and the intra-file clause-uniqueness guard, both watched RED on the real tree with three discriminating fixtures
+- [ ] 29-02-PLAN.md — the grugops-authored writing profile with its non-affiliation disclaimer, plus `guard_banned_claims` landed RED on a deliberate draft conformance sentence, the profile's claims registered, and the guard-name and honesty-floor edits to the live planning documents
+- [ ] 29-03-PLAN.md — `guard_imperative_lexicon` and `guard_sentence_form` over the derived 47-file corpus with a derived generated-file exclusion, plus the display-name derivations for the Technical Names set
+- [ ] 29-04-PLAN.md — `guard_diff_disposition`: the frozen set derived from three existing gates, changed clauses enumerated from git, and the per-plan disposition directory
+- [ ] 29-05-PLAN.md — roles batch 1 (7 files, `software-engineer.md` as the end-to-end tracer): remove-before-add with a four-point byte transcript and the generator cascade
+- [ ] 29-06-PLAN.md — roles batch 2 (8 files), including the zero-headroom and largest-file cases
+- [ ] 29-07-PLAN.md — the two dual-voice safety roles, plus the three claim-registry flips and count corrections Phase 28 deferred here; aggregator goes green at 17/17
+- [ ] 29-08-PLAN.md — workflows 00–05 conformed to the profile, with the bold-label step grammar converted
+- [ ] 29-09-PLAN.md — workflows 06–12 conformed, release workflow partitioned before it is touched
+- [ ] 29-10-PLAN.md — workflows 13–18 conformed, single-sourced pointers reconciled; workflow part reaches zero findings
+- [ ] 29-11-PLAN.md — the 13 hand-authored checklists conformed, plus four retired-vocabulary corrections and one recorded leave-alone
+- [ ] 29-12-PLAN.md — the 13 seed templates and 2 contracts conformed, board entry criterion corrected; governed corpus closes green
+- [ ] 29-13-PLAN.md — the once-only byte-ceiling re-baseline behind a blocking human checkpoint, plus the corpus growth record
+
+**Honesty floor for this phase:** STE likely *increases* token count (its rules forbid the telegraphic omission caveman relies on). The profile is justified on determinism and one-term-per-concept grounds only. Caveman-as-token-economy is disproven on this artifact and must not be restated.
+
+### Phase 29.1: Per-Role Model Assignment (INSERTED)
+
+**Goal**: A project can spend its model budget where judgment actually lives — a stronger model for orchestration, architecture and security review, a cheaper one for implementation, QE and UAT — set once on the config dial and emitted into every generated adapter, with zero-config behaviour byte-identical to today's.
+
+**Depends on**: Phase 29 (`scripts/generate-role-adapters.ts` derives each adapter's `description` from the role's `## One job` first sentence, and Phase 29's D-19 rewrites exactly that section across all 17 roles; changing the same generator's frontmatter emitter first means regenerating and re-freshness-gating all 17 adapters twice)
+
+**Requirements**: MODEL-01, MODEL-02, MODEL-03, MODEL-04, MODEL-05, MODEL-06, MODEL-07
+
+**Success Criteria** (what must be TRUE):
+
+  1. With no `models` block in `factory.config.json`, all 17 generated adapters are **byte-identical to today's** — `model: inherit`, the user's session choice preserved. Zero-config is unchanged, not merely "still works". (MODEL-01, MODEL-02)
+  2. One opt-in key switches the factory to the cost preset, and the role→tier assignment is **derived against `kit-model.listRoles()` with an asserted count**, so role #18 cannot arrive silently unassigned — the set-literal drift class this milestone exists to eliminate. (MODEL-03)
+  3. Only the aliases `inherit` / `opus` / `sonnet` / `haiku` are legal values; anything else is refused **fail-closed**, and the emitted model value of all 17 adapters is asserted equal to the resolved config rather than to a hand-listed expectation. (MODEL-04, MODEL-05)
+  4. The Claude-Code-only scope is **stated in the kit and in `CLAUDE.md`**, whose "What NOT to Use" entry against non-`inherit` wrappers is amended to name this mechanism as the documented reason — the other four host CLIs have no per-subagent model concept and no claim says otherwise. (MODEL-06)
+  5. Any cost or limit-savings claim is **measured** with `scripts/measure-cost.ts`, or carries `UNKNOWN - verify`. A tier assignment is not evidence of a saving. (MODEL-07)
 
 **Plans**: TBD
 
-**Honesty floor for this phase:** STE likely *increases* token count (its rules forbid the telegraphic omission caveman relies on). The profile is justified on determinism and one-term-per-concept grounds only. Caveman-as-token-economy is disproven on this artifact and must not be restated.
+Plans:
+
+- [ ] TBD (run /gsd-plan-phase 29.1 to break down)
+
+**Honesty floor for this phase:** the motivation is quota and cost relief, but grugops has never shipped an unmeasured cost claim — v2.0's ~50% figure stayed `UNKNOWN - verify` rather than borrowing DeLM's benchmark. A model-tier split is a *plausible* saving, not a measured one, and must be described that way until `measure-cost.ts` says otherwise. Assigning a cheaper model to a role is also a **quality** decision, not only a cost one; the preset's rationale is recorded per role so a later reader can dispute the assignment on merit.
 
 ### Phase 30: Per-Checkpoint Autonomy Matrix
 
