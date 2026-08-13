@@ -1,6 +1,6 @@
 ---
 name: grugops-software-engineer
-description: "Implement one ticket — pull the shared context first, make a small diff, add tests, run checks, and update docs. Use when: Need code (one ticket)."
+description: "Implement one ticket end to end. Use when: Need code (one ticket)."
 tools: Read, Grep, Glob, Edit, Write, Bash
 model: inherit
 ---
