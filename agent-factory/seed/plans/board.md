@@ -22,7 +22,7 @@ _Updated: <ISO date> by <role>_
 
   TICKET ROWS: this board ships EMPTY — column structure only, ZERO live ticket rows. It is a
   clean append target. Roles append a one-line ticket row under the matching column as work
-  moves, e.g. (this is a comment, NOT a live row — the generic `ABC-` prefix shows format only):
+  moves. Example row shape (this is a comment, NOT a live row — the generic `ABC-` prefix shows format only):
 
     ## In Development (WIP 1/3)
     - [ABC-014] Asset allocation chart  (owner: Software Engineer, since: 2026-06-01)
@@ -61,7 +61,7 @@ limit (default from `factory.config.json#wip_limits`):
 | Ready | Definition of Ready met | BA/PM | 8 |
 | In Analysis | behavior being mapped | System Analyst | 2 |
 | In Design | structure/ADR being decided | Architect/Design | 2 |
-| Ready for Dev | handoffs complete, ticket sized | Orchestrator | 6 |
+| Ready for Dev | analysis and design recorded as typed notes per Workflow 16, ticket sized | Orchestrator | 6 |
 | In Development | code being written | Software Engineer | 3 (== max parallel tickets) |
 | In Review | PR + QE running | QE/E2E | 3 |
 | In Security/NFR | risk/compliance gate | Security/NFR | 2 |

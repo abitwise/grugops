@@ -4,7 +4,7 @@ _Updated: <date>_
 <!--
   FORMAT — read before you append. (clear voice; this is a technical file, not a role prompt.)
 
-  This is the single requirement -> ticket -> code -> test -> UAT -> release matrix for grugops.
+  This file is the single requirement -> ticket -> code -> test -> UAT -> release matrix for grugops.
   It ships EMPTY: header + separator only, zero data rows. Roles append rows as work is done.
 
   One row per ticket. The header columns below are fixed — do not rename or reorder them.

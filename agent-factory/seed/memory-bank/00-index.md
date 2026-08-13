@@ -7,7 +7,7 @@ _Updated: <date>_
 <!--
   FORMAT — read before you fill this bank. (clear voice; this is a technical file, not a role prompt.)
 
-  This is the project's persistent working memory. It ships EMPTY: each file below is named
+  This bank is the project's persistent working memory. It ships EMPTY: each file below is named
   with its one-line purpose, but carries no project content — fill it per-project during
   bootstrap. Keep every file small and single-purpose; this is a memory bank, not a document dump.
 -->

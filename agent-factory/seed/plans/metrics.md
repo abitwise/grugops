@@ -4,7 +4,7 @@ _Updated: <date>_
 <!--
   FORMAT — read before you fill values. (clear voice; this is a technical file, not a role prompt.)
 
-  This is grugops's delivery metric tracker. It ships EMPTY: the metric set is named below
+  This file is grugops's delivery metric tracker. It ships EMPTY: the metric set is named below
   with its one-line meaning, but every value/period cell is blank — zero live data.
 
   Update owners: the daily sweep and the retro update these counts. The Factory Coach reads

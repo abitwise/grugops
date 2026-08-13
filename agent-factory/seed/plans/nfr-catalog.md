@@ -4,7 +4,7 @@ _Updated: <date>_
 <!--
   FORMAT — read before you append. (clear voice; this is a technical file, not a role prompt.)
 
-  This is the single list of non-functional targets (SLOs and quality bars) for grugops.
+  This catalog is the single list of non-functional targets (SLOs and quality bars) for grugops.
   It ships EMPTY: header + separator only, zero data rows.
 
   Ownership: Architect/Design seeds it; Security/NFR checks against it; Release Manager
