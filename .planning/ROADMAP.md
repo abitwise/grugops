@@ -480,7 +480,7 @@ Plans:
   4. The rebuilt voice guard **fails RED on all 17 current caveman blocks** as acceptance evidence before the rewrite lands, measures against a committed lexicon rather than sentence shape, and publishes a number with a denominator. (LANG-06)
   5. `## One job`, the caveman block, and `## Responsibilities` each say a thing once; `guard_imperative_lexicon` (with its sibling `guard_sentence_form`) and the rebuilt voice guard read the fence through **one** parser, never two grammars over the same bytes; and byte ceilings are re-baselined exactly once at end of phase with every file ≤ its previous value and the delta recorded — never raised mid-phase. (LANG-05, LANG-07, LANG-08)
 
-**Plans**: 13/13 plans executed
+**Plans**: 19 plans — 13/13 executed; gap-closure round 1 adds 6 (29-14 .. 29-19, waves 13-18)
 
 Plans:
 **Wave 1**
@@ -531,6 +531,39 @@ Plans:
 **Wave 12** *(blocked on Wave 11 completion)*
 
 - [x] 29-13-PLAN.md — the once-only byte-ceiling re-baseline behind a blocking human checkpoint, plus the corpus growth record
+
+**Gap-closure round 1** *(verification returned `gaps_found` at 4/8 — LANG-03, LANG-04, LANG-06 and LANG-08 failed; LANG-01, LANG-02, LANG-05 and LANG-07 verified and standing)*
+
+**Wave 13** *(blocked on Wave 12 completion)*
+
+- [ ] 29-14-PLAN.md — TRACER: IN-01, the voice harness deriving role membership from the root it measures, then CR-01, the caveman fence reader bounded to its own section — the founding defect closed end-to-end with a planted RED, a permanent case set and an adversarial self-reproduction
+
+**Wave 14** *(blocked on Wave 13 completion)*
+
+- [ ] 29-15-PLAN.md — CR-02: the companion-edit rule attributed to the carrier that actually changed each clause, on BOTH the registry-anchor and positive-guard-literal arms, with a harness extended to three commits because a two-commit fixture cannot see the difference
+
+**Wave 15** *(blocked on Wave 14 completion)*
+
+- [ ] 29-16-PLAN.md — WR-05 by canonical companion form with no denylist, WR-06's frozen-region locator threaded through the one fence authority, and WR-02's diff-disposition denominator made independent of the loop that consumes it
+
+**Wave 16** *(blocked on Wave 15 completion)*
+
+- [ ] 29-17-PLAN.md — CR-03: a `## Steps` bullet at any nesting depth with the section anchor sticky across sub-headings, plus WR-02's two lexicon denominators and WR-06's Technical Name table scan
+
+**Wave 17** *(blocked on Wave 16 completion)*
+
+- [ ] 29-18-PLAN.md — IN-03, the clear-voice neutralizer agreeing with the lexicon counter about case with its scope asserted from both sides, plus WR-06's banned-claim exemption locator and the round's closing regression floor
+
+**Wave 18** *(blocked on Wave 17 completion)*
+
+- [ ] 29-19-PLAN.md — LANG-08 closed by the recorded human override the verification report drafted; no ceiling table edit, and the declined ratchet-down alternative stays documented and unapplied
+
+**Out of scope for gap-closure round 1** *(named so a green run cannot read as a closed review)*: WR-01
+(voice-guard line numbers reported from the filtered remainder), WR-03 (three near-identical directory
+walks), WR-04 (generated-file exclusion pinned by cardinality only), WR-07 (positive-literal extractor
+scraping source by first occurrence, and its identity-keyed cache), WR-08 (two remaining path-literal
+spellings), IN-02 (rows computed and discarded on two branches), IN-04 (`countWords`'s replacement
+loop terminating only by an unstated argument).
 
 **Cross-cutting constraints:**
 
