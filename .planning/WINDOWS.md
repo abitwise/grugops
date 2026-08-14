@@ -1,10 +1,10 @@
 ---
 schema_version: 1
-open_count: 16
+open_count: 24
 waived_count: 0
 fixed_count: 1
-total_count: 17
-last_updated: 2026-08-11T14:37:25.571Z
+total_count: 25
+last_updated: 2026-08-14T17:27:20.349Z
 ---
 
 # Broken Windows Ledger
@@ -32,6 +32,14 @@ last_updated: 2026-08-11T14:37:25.571Z
 | 15 | 27 | deviation | scripts/canonical-frontmatter.ts |  | 27-65 narrowing: the canonical form admits 2 of 7 legitimate YAML spellings of one declaration (plain scalar, block sequence); wrapped-plain, wrapped-quoted, trailing-# comment, folded >- and literal \|- are now refused inside the spawn-grant scan, as is a quoted `name`. Live cost measured 0 (33/33 admit); the LATITUDE is gone and future hand-written kit content must be canonical. | open |  | 2026-08-10T21:51:32.443Z |  |
 | 16 | 27 | deviation | scripts/canonical-frontmatter.ts |  | 27-65: 554 of 575 frontmatter-bearing tracked .md files OUTSIDE the spawn-grant scan would refuse (flow-collection 416, unknown-key 134, block-scalar 4). Not exposure today — those .planning/ artifacts are not in spawnGrantScan and the 10-key schema is deliberately the kit's spawn schema — but a hard constraint on anyone who later widens that scan. | open |  | 2026-08-10T21:51:32.507Z |  |
 | 17 | 28 | unrun-verify | .github/workflows/ci.yml |  | check-public-docs-vocabulary is wired into CI and is RED by design (18 AUDIT-02 drift hits) until plan 28-05 lands the rewrites — intended per D-24, must not be read as breakage | open |  | 2026-08-11T14:37:25.571Z |  |
+| 18 | 29 | unmet-truth | scripts/check-foundation-guards.ts |  | LANG-08 re-baseline half UNMET by decision (hold-rebaseline): the 17 byte ceilings still encode a 2026-06-10 baseline and describe a pre-rewrite kit; headroom is 1,069 B larger than the rewrite earned. Ratchet-down values preserved in docs/audit/29-ceiling-rebaseline.md | open |  | 2026-08-14T17:27:07.207Z |  |
+| 19 | 29 | lint-warning | agent-factory/roles/security-nfr.md |  | guard_role_size prints a live WARN on every green run: 4931B >= 4830B advisory tier (171 B under FAIL). 29-07 refused the remaining bytes as safety-bearing prose | open |  | 2026-08-14T17:27:07.270Z |  |
+| 20 | 29 | todo | agent-factory/roles/security-nfr.md |  | ## Reads bullet 3 breaches WP-03 at ~32 words against a 25-word descriptive bound; left by 29-07 under byte pressure and not taken up by 29-13, which changes no prose | open |  | 2026-08-14T17:27:07.333Z |  |
+| 21 | 29 | stub | scripts/check-imperative-lexicon.ts |  | guard_sentence_form segments per source LINE, so a wrapped sentence is cut at the line break and a mid-sentence relative pronoun at a line head can false-positive the bare-demonstrative arm (attested at context-note.md:35 in 29-12) | open |  | 2026-08-14T17:27:20.092Z |  |
+| 22 | 29 | stub | scripts/check-imperative-lexicon.ts |  | guard_imperative_lexicon's 0-over-139 is an EMPTY DENOMINATOR over three of the corpus's four parts: checklists, seed templates and contracts carry no ## Steps heading, so all 139 bullets are workflows' | open |  | 2026-08-14T17:27:20.160Z |  |
+| 23 | 29 | stub | scripts/check-imperative-lexicon.ts |  | readDispositionRows() silently drops a register row containing an escaped pipe: it splits on \| and skips any row whose cell count is not seven, wordlessly (attested in 29-12) | open |  | 2026-08-14T17:27:20.224Z |  |
+| 24 | 29 | unrun-verify | scripts/check-nul-bytes.ts |  | No gate detects a non-UTF-8 byte in kit markdown: check-nul-bytes looks only for NUL and markdown readers decode lossily to U+FFFD. A 29-05 perl -pi -e rewrite silently wrote a raw latin-1 0xA7 into seven files | open |  | 2026-08-14T17:27:20.286Z |  |
+| 25 | 29 | todo | agent-factory/workflows/18-context-compaction.md |  | WP-09 lowercase workflow display names remain: 'context compaction', 'context read/write', 'task claim + schedule'. Renaming changes a DERIVED set (listWorkflowDisplayNames -> TECHNICAL_NAMES -> two-sided pinned count), not prose, so no style plan owned it | open |  | 2026-08-14T17:27:20.349Z |  |
 
 ````json
 [
@@ -237,6 +245,102 @@ last_updated: 2026-08-11T14:37:25.571Z
     "status": "open",
     "reason": "",
     "recorded_at": "2026-08-11T14:37:25.571Z",
+    "resolved_at": null
+  },
+  {
+    "id": 18,
+    "kind": "unmet-truth",
+    "phase": "29",
+    "file": "scripts/check-foundation-guards.ts",
+    "line": null,
+    "description": "LANG-08 re-baseline half UNMET by decision (hold-rebaseline): the 17 byte ceilings still encode a 2026-06-10 baseline and describe a pre-rewrite kit; headroom is 1,069 B larger than the rewrite earned. Ratchet-down values preserved in docs/audit/29-ceiling-rebaseline.md",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-08-14T17:27:07.207Z",
+    "resolved_at": null
+  },
+  {
+    "id": 19,
+    "kind": "lint-warning",
+    "phase": "29",
+    "file": "agent-factory/roles/security-nfr.md",
+    "line": null,
+    "description": "guard_role_size prints a live WARN on every green run: 4931B >= 4830B advisory tier (171 B under FAIL). 29-07 refused the remaining bytes as safety-bearing prose",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-08-14T17:27:07.270Z",
+    "resolved_at": null
+  },
+  {
+    "id": 20,
+    "kind": "todo",
+    "phase": "29",
+    "file": "agent-factory/roles/security-nfr.md",
+    "line": null,
+    "description": "## Reads bullet 3 breaches WP-03 at ~32 words against a 25-word descriptive bound; left by 29-07 under byte pressure and not taken up by 29-13, which changes no prose",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-08-14T17:27:07.333Z",
+    "resolved_at": null
+  },
+  {
+    "id": 21,
+    "kind": "stub",
+    "phase": "29",
+    "file": "scripts/check-imperative-lexicon.ts",
+    "line": null,
+    "description": "guard_sentence_form segments per source LINE, so a wrapped sentence is cut at the line break and a mid-sentence relative pronoun at a line head can false-positive the bare-demonstrative arm (attested at context-note.md:35 in 29-12)",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-08-14T17:27:20.092Z",
+    "resolved_at": null
+  },
+  {
+    "id": 22,
+    "kind": "stub",
+    "phase": "29",
+    "file": "scripts/check-imperative-lexicon.ts",
+    "line": null,
+    "description": "guard_imperative_lexicon's 0-over-139 is an EMPTY DENOMINATOR over three of the corpus's four parts: checklists, seed templates and contracts carry no ## Steps heading, so all 139 bullets are workflows'",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-08-14T17:27:20.160Z",
+    "resolved_at": null
+  },
+  {
+    "id": 23,
+    "kind": "stub",
+    "phase": "29",
+    "file": "scripts/check-imperative-lexicon.ts",
+    "line": null,
+    "description": "readDispositionRows() silently drops a register row containing an escaped pipe: it splits on | and skips any row whose cell count is not seven, wordlessly (attested in 29-12)",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-08-14T17:27:20.224Z",
+    "resolved_at": null
+  },
+  {
+    "id": 24,
+    "kind": "unrun-verify",
+    "phase": "29",
+    "file": "scripts/check-nul-bytes.ts",
+    "line": null,
+    "description": "No gate detects a non-UTF-8 byte in kit markdown: check-nul-bytes looks only for NUL and markdown readers decode lossily to U+FFFD. A 29-05 perl -pi -e rewrite silently wrote a raw latin-1 0xA7 into seven files",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-08-14T17:27:20.286Z",
+    "resolved_at": null
+  },
+  {
+    "id": 25,
+    "kind": "todo",
+    "phase": "29",
+    "file": "agent-factory/workflows/18-context-compaction.md",
+    "line": null,
+    "description": "WP-09 lowercase workflow display names remain: 'context compaction', 'context read/write', 'task claim + schedule'. Renaming changes a DERIVED set (listWorkflowDisplayNames -> TECHNICAL_NAMES -> two-sided pinned count), not prose, so no style plan owned it",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-08-14T17:27:20.349Z",
     "resolved_at": null
   }
 ]
