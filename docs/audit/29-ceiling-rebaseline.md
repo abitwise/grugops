@@ -3,10 +3,35 @@
 This plan changes no governed prose. It owns the **arithmetic** every prose plan from 29-05 onward
 was forbidden to touch: the once-only re-baseline of `roleCeiling()` (LANG-08, D-25 … D-28).
 
-**This file is the CONTROL, and it is one-way.** D-27 declines a permanent test fixture pinning the
-previous values, because that would be a second place to edit and a second thing to keep true. Once
-the table is edited and the phase closes, the pre-rewrite baseline exists only in git history and in
-this transcript. Nothing later can re-derive it, because the pre-rewrite build stops existing.
+**This file is the CONTROL.** D-27 declines a permanent test fixture pinning the previous values,
+because that would be a second place to edit and a second thing to keep true. This transcript and git
+history are the whole record.
+
+## THE DECISION: `hold-rebaseline`. The table was NOT edited.
+
+**`scripts/check-foundation-guards.ts` is byte-unchanged by this plan**, as it has been since 29-05.
+The seventeen ceilings still read exactly as they did before Phase 29 began.
+
+The transcript below was put to a human at the plan's blocking checkpoint, and the answer was to hold.
+**The reasoning, recorded rather than paraphrased from the option label:**
+
+> The twelve raises the transcript found are **Phases 13–27 growth that the ceilings absorbed as
+> headroom, not this phase's doing.** Re-deriving the margin from today's size would convert consumed
+> headroom into permanent new headroom. **Holding costs nothing today**, because every measured size
+> is already under its current ceiling. The accepted price is that the ceilings keep encoding the
+> 2026-06-10-era baseline, so a later phase measuring growth against them is measuring against a
+> stale reference.
+
+The `approve-ratchet-down` option below was **read and understood, and was not rejected as wrong.**
+The choice was not to move the table at all this phase. It is therefore recorded here as a
+**preserved, deferred finding** — with its per-tier values — so whoever moves the table next can act
+on it without re-deriving anything. See *The alternative that DOES satisfy LANG-08*, below.
+
+**LANG-08 is satisfied vacuously and is recorded as such rather than as a pass.** Its text is
+*"byte ceilings re-baselined once at end of phase, every file ≤ previous, delta recorded."* No ceiling
+was re-baselined, so no ceiling rose — the prohibition half holds absolutely, by absence. The
+re-baseline half **did not happen**, and pretending otherwise would be the fabricated-completion shape
+this whole phase exists to delete. The delta is recorded, which is the part that carries forward.
 
 ## Method — every number below was produced by a command in this plan
 
@@ -124,7 +149,11 @@ Every case added by Phases 21 and 22 uses `ceil` on both tiers. The `prop` colum
 the newer and stricter of the two. **The choice is immaterial to every verdict in this transcript** —
 the three legacy rows differ by at most 1 byte, while the twelve raises range from +20 to +421 bytes.
 
-## The alternative that DOES satisfy LANG-08
+## The alternative that DOES satisfy LANG-08 — PRESERVED, DEFERRED, NOT APPLIED
+
+**These values were not written to the table.** They are recorded so the next phase to touch
+`roleCeiling()` can act on them without re-deriving anything, and so that the option is met as a
+decision already reasoned through rather than rediscovered.
 
 LANG-08 asks for *"every file ≤ previous."* A ceiling that only ever ratchets **down** satisfies that
 by construction: take `min(recomputed, current)` per tier.
@@ -156,7 +185,26 @@ holds on 17 of 17.** Total FAIL headroom across the corpus falls from **7,300 B 
 was already above.
 
 This is a smaller act than a full re-derivation, and it is the only one available that does not raise
-a ceiling.
+a ceiling. **It was deferred, not discarded.**
+
+## What the next phase to touch this table needs, in one place
+
+1. **The ceilings now describe a PRE-REWRITE kit.** Every value encodes a 2026-06-10-era baseline, and
+   the corpus it was measured against no longer exists: the seventeen roles shrank 66,216 → 63,793 B
+   during Phase 29. Growth measured against these ceilings is growth measured against a stale
+   reference, and the headroom they report is **1,069 B larger than the rewrite earned**.
+2. **`frontend-ui.md`'s baseline is 3544, and it is RECOVERED rather than recorded.** Its case comment
+   states no baseline (`// Phase 13 — 17th role (UI-01)`). 3544 is the unique integer that reproduces
+   its pair, under every rounding combination that reproduces it at all. Anyone re-deriving that row
+   should treat the value as inferred and say so, exactly as this transcript does.
+3. **Three legacy cases round their FAIL tier differently from the other fourteen** —
+   `orchestrator.md`, `security-nfr.md` and `frontend-ui.md` use floor/round where every Phase-21 and
+   Phase-22 case uses `ceil`. Applying `ceil` uniformly would move those three by at most 1 byte, so
+   it is safe; it is named because a re-derivation that silently normalised them would look like an
+   unexplained ±1 drift in a diff nobody could account for.
+4. **The ratchet-down values above are ready to apply as they stand**, provided the corpus has not
+   moved. **Re-measure first.** These numbers are a reading of the tree at `9dfb8af`, and their whole
+   value is that they were measured rather than assumed.
 
 ## The measurement, cross-checked against the running record
 
@@ -185,9 +233,11 @@ it over.
 table does not know. D-25 names this as half the reason the table is not derived: deriving it would
 give role #18 an automatic ceiling instead of forcing an author to measure and record one.
 
-That property has to survive the edit this plan is about to make. `scripts/check-foundation-guards.test.ts`
-already carried a case asserting the *line* appears; it deliberately asserts nothing about the exit
-code. This plan adds the other half — **the exit-status assertion, with the control that makes an
+That property has to survive whichever phase eventually moves the table — and the case was written and
+kept even though this plan held, because the property is worth pinning on its own merits.
+`scripts/check-foundation-guards.test.ts` already carried a case asserting the *line* appears; it
+deliberately asserts nothing about the exit code. This plan adds the other half — **the exit-status
+assertion, with the control that makes an
 exit code mean something**:
 
 | half | fixture | assertion |
@@ -200,11 +250,12 @@ The falsifier is the half that matters. A bare `status !== 0` on an 18-role mirr
 `guard_kit_counts` alone, which legitimately fails in the same run; only the mutation shows that the
 default branch is what refuses an undocumented role.
 
-## What this task did NOT do
+## What this plan did NOT do
 
-**`scripts/check-foundation-guards.ts` is byte-unchanged.** `git diff -- scripts/check-foundation-guards.ts`
-is empty at the end of this task. The transcript is the input to the checkpoint, and the checkpoint
-precedes the edit.
+**`scripts/check-foundation-guards.ts` is byte-unchanged for the whole plan**, and
+`git diff -- scripts/check-foundation-guards.ts` is empty against the phase base `4d2b8f0`. Not one
+numeric literal in `roleCeiling()` moved, in either direction. Under the `hold-rebaseline` decision
+that is the outcome, not an interim state.
 
 ## Why this document is not in `docs/audit/29-style-dispositions/`
 
