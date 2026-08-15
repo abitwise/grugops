@@ -480,7 +480,7 @@ Plans:
   4. The rebuilt voice guard **fails RED on all 17 current caveman blocks** as acceptance evidence before the rewrite lands, measures against a committed lexicon rather than sentence shape, and publishes a number with a denominator. (LANG-06)
   5. `## One job`, the caveman block, and `## Responsibilities` each say a thing once; `guard_imperative_lexicon` (with its sibling `guard_sentence_form`) and the rebuilt voice guard read the fence through **one** parser, never two grammars over the same bytes; and byte ceilings are re-baselined exactly once at end of phase with every file ≤ its previous value and the delta recorded — never raised mid-phase. (LANG-05, LANG-07, LANG-08)
 
-**Plans**: 19 plans — 14/19 executed; gap-closure round 1 adds 6 (29-14 .. 29-19, waves 13-18)
+**Plans**: 19 plans — 15/19 executed; gap-closure round 1 adds 6 (29-14 .. 29-19, waves 13-18)
 
 Plans:
 **Wave 1**
@@ -536,7 +536,7 @@ Plans:
 
 **Wave 13** *(blocked on Wave 12 completion)*
 
-- [ ] 29-14-PLAN.md — TRACER: IN-01, the voice harness deriving role membership from the root it measures, then CR-01, the caveman fence reader bounded to its own section — the founding defect closed end-to-end with a planted RED, a permanent case set and an adversarial self-reproduction
+- [x] 29-14-PLAN.md — TRACER: IN-01, the voice harness deriving role membership from the root it measures, then CR-01, the caveman fence reader bounded to its own section — the founding defect closed end-to-end with a planted RED, a permanent case set and an adversarial self-reproduction
 
 **Wave 14** *(blocked on Wave 13 completion)*
 
