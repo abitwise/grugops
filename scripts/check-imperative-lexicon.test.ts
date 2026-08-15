@@ -41,6 +41,7 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { BANNED_CONSTRUCTIONS } from "./voice-model.js";
 import {
   APPROVED_STEP_VERBS,
   GOVERNED_CORPUS_COUNT,
@@ -763,5 +764,239 @@ describe("check-imperative-lexicon — exported pins and cost", () => {
     process.stdout.write(
       `\n29-03 timing: countWords over agent-factory/workflows/05-pr-quality-gate.md (${body.length} B) → ${n} words in ${elapsed} ms\n`,
     );
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────────────────────────
+// (7) CR-03 — A STEP BULLET IS A STEP BULLET AT ANY DEPTH, AND A SUB-HEADING DOES NOT END A SECTION.
+//
+// THIS IS A POSITION BUG, NOT A CHARACTER-CLASS BUG, and the distinction is the whole point. The
+// question these cases ask is not which characters the predicate accepts but AT WHICH POSITIONS IT
+// IS EVEN ASKED. A CommonMark sub-bullet under a numbered step is indented four or more spaces, so a
+// marker bounded at three leading spaces never sees it: it is absent from the bullet count so the
+// loss leaves no trace, reclassified as descriptive so it is measured against the 25-word bound
+// instead of the 20, and skipped entirely by the modal rule and the one-instruction rule. Four
+// consequences from one missing position.
+//
+// EVERY COUNT ASSERTION BELOW IS RELATIVE. The baseline is DERIVED from a run over the same mirror
+// without the planted line, never typed — this repository has already had a hard-coded corpus count
+// asserted in twenty-one places and independently proven wrong, and a literal here would be that
+// defect landing inside the test written to prevent it.
+// ─────────────────────────────────────────────────────────────────────────────────────────────────
+
+/** The one workflow every case below plants into. It exists in every mirror by construction. */
+const PLANTED_WORKFLOW = "agent-factory/workflows/00-fixture.md";
+
+/** A workflow whose `## Steps` section holds exactly the supplied lines, verbatim and in order. */
+const stepsDoc = (lines: string[]): string =>
+  ["# Workflow: Planted Workflow", "", "## Steps", ...lines, ""].join("\n");
+
+/** Run the committed gate over a mirror whose planted workflow carries exactly these step lines. */
+function runWithSteps(
+  prefix: string,
+  lines: string[],
+): { status: number; stdout: string } {
+  return runGate(
+    makeMirror(prefix, { plant: { [PLANTED_WORKFLOW]: stepsDoc(lines) } }),
+  );
+}
+
+/**
+ * The gate's own published bullet figures, read back from its detail line.
+ *
+ * A throw rather than a default: a regex that stopped matching would otherwise turn every relative
+ * count assertion below into `0 === 0 + 1` failing for the wrong reason, or worse, into a silent
+ * comparison of two absent numbers.
+ */
+const bulletTotals = (out: string): { bullets: number; files: number } => {
+  const m = out.match(/(\d+) `## Steps` bullet\(s\) across (\d+) file\(s\)/);
+  if (m === null) {
+    throw new Error(
+      `the gate printed no \`## Steps\` bullet count line, so no relative assertion is possible:\n${out}`,
+    );
+  }
+  return { bullets: Number(m[1]), files: Number(m[2]) };
+};
+
+/**
+ * The gate's own published sentence figures, split by section anchor.
+ *
+ * THIS IS THE PREMISE INSTRUMENT, and it exists because of a near-miss recorded in 29-16: a case can
+ * go RED FOR THE WRONG REASON. A planted line that never reached the sentence loop at all would
+ * produce exactly the same "no finding" as one that reached it and was classified descriptive — and
+ * the reclassification cases below would then be asserting a symptom whose mechanism they never
+ * touched. Reading the procedural/descriptive split back lets each case assert that its line ARRIVED
+ * and that only its CLASSIFICATION moved.
+ */
+const sentenceTotals = (
+  out: string,
+): { total: number; procedural: number; descriptive: number } => {
+  const m = out.match(/(\d+) sentence\(s\) — (\d+) procedural, (\d+) descriptive/);
+  if (m === null) {
+    throw new Error(
+      `the gate printed no sentence split line, so no premise assertion is possible:\n${out}`,
+    );
+  }
+  return {
+    total: Number(m[1]),
+    procedural: Number(m[2]),
+    descriptive: Number(m[3]),
+  };
+};
+
+/** The base step section every plant is measured against: one conforming ordered step. */
+const BASE_STEPS = [`1. ${VERB} the shared context first.`];
+
+/** A bullet that is a WP-01 finding wherever it is counted — a determiner subject, never a verb. */
+const DESCRIBING_BULLET = "The result is recorded by hand.";
+
+describe("CR-03 — a `## Steps` bullet is counted at any nesting depth", () => {
+  it("counts a FOUR-SPACE indented bullet under a numbered step, and the count rises by exactly one", () => {
+    const before = runWithSteps("gops-lex-cr03-base-", BASE_STEPS);
+    const after = runWithSteps("gops-lex-cr03-indent-", [
+      ...BASE_STEPS,
+      `    - ${DESCRIBING_BULLET}`,
+    ]);
+
+    // PREMISE, asserted rather than assumed: the unplanted mirror is clean, so the planted run's
+    // exit 1 is attributable to the planted line and to nothing else in the fixture.
+    expect(before.status).toBe(0);
+
+    // The count is the acknowledgement. Derived on both sides, never typed.
+    expect(bulletTotals(after.stdout).bullets).toBe(
+      bulletTotals(before.stdout).bullets + 1,
+    );
+    expect(after.status).toBe(1);
+    expect(after.stdout).toContain(DESCRIBING_BULLET);
+  });
+
+  it("counts a TAB-indented bullet, because CommonMark indentation is spaces or tabs", () => {
+    // A space-only bound would be the same defect one character over.
+    const before = runWithSteps("gops-lex-cr03-tabbase-", BASE_STEPS);
+    const after = runWithSteps("gops-lex-cr03-tab-", [
+      ...BASE_STEPS,
+      `\t- ${DESCRIBING_BULLET}`,
+    ]);
+    expect(before.status).toBe(0);
+    expect(bulletTotals(after.stdout).bullets).toBe(
+      bulletTotals(before.stdout).bullets + 1,
+    );
+    expect(after.status).toBe(1);
+  });
+
+  it("measures an indented bullet against the PROCEDURAL bound, not the descriptive one", () => {
+    // The sentence is built to sit strictly BETWEEN the two bounds, so the reclassification is what
+    // decides the verdict — and both bounds are read from the module rather than retyped.
+    const sentence = `${VERB} ${filler(21)}.`;
+    const words = countWords(sentence);
+    expect(words).toBeGreaterThan(PROCEDURAL_SENTENCE_MAX_WORDS);
+    expect(words).toBeLessThanOrEqual(DESCRIPTIVE_SENTENCE_MAX_WORDS);
+
+    const before = runWithSteps("gops-lex-cr03-lenbase-", BASE_STEPS);
+    const { status, stdout } = runWithSteps("gops-lex-cr03-len-", [
+      ...BASE_STEPS,
+      `    - ${sentence}`,
+    ]);
+
+    // THE MECHANISM, asserted directly. The planted line contributes exactly one sentence, and that
+    // sentence lands on the PROCEDURAL side of the split. Without this the case would pass equally
+    // for a line the sentence loop never reached at all.
+    const b = sentenceTotals(before.stdout);
+    const a = sentenceTotals(stdout);
+    expect(a.total).toBe(b.total + 1);
+    expect(a.procedural).toBe(b.procedural + 1);
+    expect(a.descriptive).toBe(b.descriptive);
+
+    expect(status).toBe(1);
+    // Reported under the procedural bound, and NOT under the descriptive one. Asserting both is what
+    // proves the reclassification rather than merely a finding of some kind.
+    expect(formFindingCount(stdout, "procedural-sentence-too-long")).toBe(1);
+    expect(formFindingCount(stdout, "descriptive-sentence-too-long")).toBe(0);
+    expect(stdout).toContain(`${words} words, bound ${PROCEDURAL_SENTENCE_MAX_WORDS}`);
+  });
+
+  it("reaches the MODAL rule (WP-05) on an indented bullet", () => {
+    const modal = BANNED_CONSTRUCTIONS.modal[0];
+    const before = runWithSteps("gops-lex-cr03-modalbase-", BASE_STEPS);
+    const { status, stdout } = runWithSteps("gops-lex-cr03-modal-", [
+      ...BASE_STEPS,
+      `    - ${VERB} the note when the gate ${modal} report a result.`,
+    ]);
+    // PREMISE: the line reaches the sentence loop and lands PROCEDURAL. WP-05 is asked only of a
+    // procedural sentence, so this is the position the rule was previously never asked at.
+    const b = sentenceTotals(before.stdout);
+    const a = sentenceTotals(stdout);
+    expect(a.total).toBe(b.total + 1);
+    expect(a.procedural).toBe(b.procedural + 1);
+
+    expect(status).toBe(1);
+    expect(formFindingCount(stdout, "modal-in-procedural-step")).toBe(1);
+    // The bullet opens with an approved verb, so WP-01 is silent and the exit 1 is WP-05's alone.
+    expect(stepFindingCount(stdout)).toBe(0);
+  });
+
+  it("reaches the ONE-INSTRUCTION rule (WP-08) on an indented bullet", () => {
+    const before = runWithSteps("gops-lex-cr03-chainbase-", BASE_STEPS);
+    const { status, stdout } = runWithSteps("gops-lex-cr03-chain-", [
+      ...BASE_STEPS,
+      `    - ${VERB} the note and ${VERB2} the result.`,
+    ]);
+    // PREMISE: same as WP-05 above — WP-08 is asked only of a procedural sentence whose FIRST token
+    // is an approved verb, and the marker strip is what makes that first token the verb.
+    const b = sentenceTotals(before.stdout);
+    const a = sentenceTotals(stdout);
+    expect(a.total).toBe(b.total + 1);
+    expect(a.procedural).toBe(b.procedural + 1);
+
+    expect(status).toBe(1);
+    expect(formFindingCount(stdout, "more-than-one-instruction")).toBe(1);
+    expect(stepFindingCount(stdout)).toBe(0);
+  });
+});
+
+describe("CR-03 — the `## Steps` anchor survives a sub-heading and is released only by a heading of level at most two", () => {
+  it("a `### ` sub-heading STRUCTURES the section and does not release the bullets below it", () => {
+    const withSub = [...BASE_STEPS, "", "### Sub-phase", ""];
+    const before = runWithSteps("gops-lex-cr03-subbase-", withSub);
+    const after = runWithSteps("gops-lex-cr03-sub-", [
+      ...withSub,
+      `- ${DESCRIBING_BULLET}`,
+    ]);
+    expect(before.status).toBe(0);
+    expect(bulletTotals(after.stdout).bullets).toBe(
+      bulletTotals(before.stdout).bullets + 1,
+    );
+    expect(after.status).toBe(1);
+  });
+
+  it("a `## ` heading DOES release them — the false-red control at level two", () => {
+    const withOther = [...BASE_STEPS, "", "## Other", ""];
+    const before = runWithSteps("gops-lex-cr03-otherbase-", withOther);
+    const after = runWithSteps("gops-lex-cr03-other-", [
+      ...withOther,
+      `- ${DESCRIBING_BULLET}`,
+    ]);
+    // Neither run counts the bullet and neither reds. Testing the UNION of the arms rather than each
+    // arm alone is the point: a fix that simply stopped releasing at ALL headings would pass the
+    // sub-heading case above and fail here.
+    expect(bulletTotals(after.stdout).bullets).toBe(
+      bulletTotals(before.stdout).bullets,
+    );
+    expect(before.status).toBe(0);
+    expect(after.status).toBe(0);
+  });
+
+  it("a `# ` heading DOES release them — the false-red control at level one", () => {
+    const withTop = [...BASE_STEPS, "", "# Top Level", ""];
+    const before = runWithSteps("gops-lex-cr03-topbase-", withTop);
+    const after = runWithSteps("gops-lex-cr03-top-", [
+      ...withTop,
+      `- ${DESCRIBING_BULLET}`,
+    ]);
+    expect(bulletTotals(after.stdout).bullets).toBe(
+      bulletTotals(before.stdout).bullets,
+    );
+    expect(before.status).toBe(0);
+    expect(after.status).toBe(0);
   });
 });
