@@ -704,6 +704,115 @@ describe("check-diff-disposition — the frozen set refuses", () => {
 });
 
 // ─────────────────────────────────────────────────────────────────────────────────────────────
+// WR-05 — a companion cell is FILLED only in one canonical form.
+//
+// THE DEFECT THESE CASES REPRODUCE. The structural arm's satisfaction test was
+// `r.companion !== "" && r.companion !== UNFILLED` — a membership decision made by excluding ONE bad
+// value. A cell carrying a hyphen, an en dash, a question mark, `n/a`, `TBD`, `none` or `todo` is
+// neither empty nor that one em dash, so it satisfied the companion requirement for a change inside
+// a frozen `## Hard limits`, `## Stop conditions` or `## Commit` section. The structural arm carries
+// the whole positional freeze — the arm that catches a REWORD, where the new text matches nothing
+// frozen and only its POSITION does — so a placeholder there admits exactly the change this gate
+// exists to refuse.
+//
+// THE SPELLINGS BELOW ARE ENUMERATED HERE AND NOWHERE ELSE, ON PURPOSE. They are the ADVERSARY, not
+// the predicate. A denylist of placeholder tokens in the gate is the enumerate-the-bad shape three
+// separate eight-round closures in this repository were spent deleting, and the thirteenth
+// placeholder is the one nobody thinks of. The fix declares the canonical FILLED form and refuses
+// its complement (D-64's move, D-43's polarity), so this table is a set of WITNESSES that the
+// complement is refused — never the list the gate consults.
+//
+// RECORDED PRE-CHANGE BEHAVIOUR, so a later reader knows which of these were bypasses and which were
+// already refused: against the committed build at plan 29-15, ELEVEN of the thirteen rows below
+// PASSED the companion requirement (the gate exited 0 and printed ALL CHECKS PASSED). Only the empty
+// cell and the em dash were refused, because those are the two values the deleted test excluded.
+// ─────────────────────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Every placeholder spelling a companion cell must be refused for. Each is a WITNESS that the
+ * canonical form's complement is refused; none of them is named in the gate's source.
+ *
+ * `–` and `—` are written as escapes rather than as glyphs so a reader can see WHICH dash
+ * each row is — the en dash and the em dash are indistinguishable in most review fonts, and one of
+ * them was the single value the deleted predicate excluded.
+ */
+const PLACEHOLDER_COMPANION_CELLS: readonly { name: string; cell: string }[] = [
+  { name: "empty", cell: "" },
+  { name: "hyphen", cell: "-" },
+  { name: "double hyphen", cell: "--" },
+  { name: "en dash", cell: "–" },
+  { name: "em dash", cell: "—" },
+  { name: "question mark", cell: "?" },
+  { name: "n/a", cell: "n/a" },
+  { name: "N/A", cell: "N/A" },
+  { name: "na", cell: "na" },
+  { name: "tbd", cell: "tbd" },
+  { name: "TBD", cell: "TBD" },
+  { name: "none", cell: "none" },
+  { name: "todo", cell: "todo" },
+];
+
+/** A companion cell that does the job the contract describes: it names the section and the reason. */
+const REAL_COMPANION_PROSE =
+  "`## Hard limits` keeps the ADR condition and the small-diff prohibition byte-unchanged in the same commit, and this row records that the reword moved the wording and not the permission.";
+
+describe("check-diff-disposition — a companion cell is filled in ONE canonical form (WR-05)", () => {
+  it.each(PLACEHOLDER_COMPANION_CELLS)(
+    "refuses $name as a companion cell for a frozen structural reword",
+    ({ name, cell }) => {
+      const { root } = makeMirror(
+        `gops-diffdisp-companion-${name.replace(/[^a-z0-9]+/gi, "")}-`,
+        {
+          plant: { [ROLE_UNDER_TEST]: REWORDED_ROLE },
+          dispositions: {
+            "29-05.md": dispositionFile([
+              row(
+                ROLE_UNDER_TEST,
+                HARD_LIMIT_SENTENCE,
+                REWORDED_HARD_LIMIT,
+                cell,
+              ),
+            ]),
+          },
+        },
+      );
+      const { status, stdout } = runGate(root);
+      // The banner is asserted BEFORE the exit code, so a failing row prints the gate's whole
+      // passing transcript — that transcript IS the bypass evidence.
+      expect(stdout).not.toContain("ALL CHECKS PASSED");
+      expect(status).toBe(1);
+      expect(stdout).toContain("FROZEN by structuralSections");
+      expect(stdout).toContain("## Hard limits");
+      expect(stdout).toContain("Owed companion edit");
+    },
+  );
+
+  it("accepts a companion cell carrying real prose — the false-red control", () => {
+    // Without this the table above proves nothing: a predicate that refuses everything is trivially
+    // green on thirteen refusals and useless as a gate.
+    const { root } = makeMirror("gops-diffdisp-companion-prose-", {
+      plant: { [ROLE_UNDER_TEST]: REWORDED_ROLE },
+      dispositions: {
+        "29-05.md": dispositionFile([
+          row(
+            ROLE_UNDER_TEST,
+            HARD_LIMIT_SENTENCE,
+            REWORDED_HARD_LIMIT,
+            REAL_COMPANION_PROSE,
+          ),
+        ]),
+      },
+    });
+    const { status, stdout } = runGate(root);
+    expect(status).toBe(0);
+    expect(stdout).toContain("ALL CHECKS PASSED");
+    // The fold ran over real elements — this is not the clean-tree arm.
+    expect(stdout).toContain("diff disposition: 0 findings over");
+    expect(stdout).not.toContain("a clean tree, not a vacuous pass");
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────────────────────
 // CR-02 — the companion edit is judged PER CARRIER, not over the whole range.
 //
 // The contract strings in FROZEN_SOURCES have always said "must change in the SAME commit". The
