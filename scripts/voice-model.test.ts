@@ -18,7 +18,8 @@
 // Vitest globals:false → import explicitly.
 
 import { describe, it, expect } from "vitest";
-import { readFileSync } from "node:fs";
+import { cpSync, mkdirSync, mkdtempSync, rmSync, readFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
   readCavemanFence,
@@ -36,7 +37,9 @@ import {
 // (Plan 29-14) The live-corpus control derives its membership from the kit authority rather than
 // carrying a role list of its own — a second list would drift, and a short denominator would let a
 // role drop out of the control without anything going red.
-import { listRoles, ROLES_SUBPATH } from "./kit-model.js";
+// (Plan 29-25, WR-05) `ROLE_COUNT` joins the import because the control below now compares the
+// derived list against the derived COUNT. The floor it replaces could not fail — see the case.
+import { listRoles, ROLE_COUNT, ROLES_SUBPATH } from "./kit-model.js";
 
 const FENCE = "```";
 const doc = (...lines: string[]): string => lines.join("\n");
@@ -376,14 +379,68 @@ describe("readCavemanFence — the section bound (plan 29-14, CR-01)", () => {
     // Membership is DERIVED from the kit authority, never a literal list: a hand-typed role list is
     // the set-literal drift this repository has corrected three times, and a short denominator here
     // would let a role slip out of the control silently.
+    //
+    // (Plan 29-25, WR-05) THE DENOMINATOR IS NOW COMPARED, BECAUSE THE FLOOR THAT STOOD HERE COULD
+    // NOT FAIL. The retired assertion was `expect(names.length).toBeGreaterThan(0)` — sitting three
+    // lines under a comment promising that "a short denominator here would let a role slip out of the
+    // control silently", and asserting precisely nothing about that denominator. `listRoles()` calls
+    // `refuseEmpty` before returning (scripts/kit-model.ts), so it THROWS on an empty or missing roles
+    // directory: `> 0` was guaranteed by the very call it was checking, and no input the call survives
+    // could red it. If sixteen of seventeen roles vanished this control passed. The number the comment
+    // promised to protect is now the assertion, taken from the kit authority rather than typed, and
+    // the sibling case below plants a mirror short by one role to prove the strengthened form reds —
+    // a control that has never been shown to fail is a comment.
     const names = listRoles();
-    expect(names.length).toBeGreaterThan(0);
+    expect(
+      names,
+      "the live role corpus must be the DERIVED count, not merely non-empty — a floor the lister's own refusal already guarantees is documentation of intent, never a check",
+    ).toHaveLength(ROLE_COUNT);
     for (const n of names) {
       const text = readFileSync(join(import.meta.dirname, "..", ROLES_SUBPATH, n), "utf8");
       const v = readCavemanFence(text);
       expect(v.ok, `${n} must read ok`).toBe(true);
       if (!v.ok) continue;
       expect(v.inside.length, `${n} must have a non-empty interior`).toBeGreaterThan(0);
+    }
+  });
+
+  it("WR-05 — the control's denominator REDS on a mirror short by one role, and the retired floor does not", () => {
+    // THE FALSIFIABILITY SIBLING. It exists because the assertion above is a CONTROL: it passes on
+    // the shipped tree by construction, so on the shipped tree it is indistinguishable from an
+    // assertion that cannot fail — which is exactly what it was until this plan. The mirror-shortening
+    // shape is the one scripts/check-foundation-guards.test.ts already uses for its own vacuity floor
+    // (`rmSync` one role file, then re-derive), rooted here at a temp kit so nothing outside it moves.
+    const root = mkdtempSync(join(tmpdir(), "grugops-wr05-"));
+    try {
+      const rolesDir = join(root, ROLES_SUBPATH);
+      mkdirSync(rolesDir, { recursive: true });
+      cpSync(join(import.meta.dirname, "..", ROLES_SUBPATH), rolesDir, {
+        recursive: true,
+      });
+
+      // THE CONTROL FIRST: the copy alone reproduces the live answer, so the red below is caused by
+      // the removal and not by the temp root.
+      expect(
+        listRoles(root),
+        "the mirrored kit must reproduce the live role set before anything is removed from it",
+      ).toHaveLength(ROLE_COUNT);
+
+      rmSync(join(rolesDir, listRoles(root)[0]), { force: true });
+      const short = listRoles(root);
+
+      // The strengthened assertion RED, asserted by its received value and not by a bare throw: the
+      // list really is short by exactly one, and the form the control now uses rejects it.
+      expect(short).toHaveLength(ROLE_COUNT - 1);
+      expect(() => expect(short).toHaveLength(ROLE_COUNT)).toThrow();
+
+      // AND THE RETIRED FLOOR PASSES ON THESE SAME BYTES, which is the whole finding rather than a
+      // decoration on it. A role slipped out of the corpus and `> 0` had nothing to say about it.
+      expect(
+        short.length > 0,
+        "the retired `> 0` floor must be SHOWN to accept a corpus the strengthened assertion rejects",
+      ).toBe(true);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
     }
   });
 });

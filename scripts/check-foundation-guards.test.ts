@@ -129,8 +129,22 @@ const GUARD_JS = join(ROOT, "scripts", "check-foundation-guards.js");
 // Repo-relative path of a role file inside a mirror (or the real tree). Every plant case below goes
 // through this helper rather than restating the directory, so the role directory is named in exactly
 // one more place than the derivation itself — the set-literal drift this phase exists to delete.
+//
+// (Plan 29-25, IN-03) THE DIRECTORY IS NOW A CONSTANT AND EVERY SPELLING DERIVES FROM IT. Round 1
+// introduced `rolePath` with exactly this argument and then left THREE plant sites spelling the
+// directory inline — `plantCavemanBlock`, the LANG-07 oracle loop and the vacuity case — plus five
+// repo-relative restatements built by template literal. A helper that is bypassed is not a single
+// source of truth; it is a fourth spelling with better manners. Both forms now come from
+// `ROLE_DIR_REL`: `rolePath` for a filesystem path under some root, `roleRel` for the repo-relative
+// form the guards PRINT. A directory rename that misses one of them can no longer leave the harness
+// planting into a path the guard does not read.
+const ROLE_DIR_REL = "agent-factory/roles";
+
 const rolePath = (root: string, name: string): string =>
-  join(root, "agent-factory/roles", name);
+  join(root, ROLE_DIR_REL, name);
+
+/** The repo-relative form of a role file — what the guards print in a finding. */
+const roleRel = (name: string): string => `${ROLE_DIR_REL}/${name}`;
 
 /** THE role membership of a given root. Names and bytes below both come from here. */
 const roleNamesIn = (root: string): string[] => listRoles(root);
@@ -194,7 +208,7 @@ const CLAUSE_GROUP_BASELINE_29_01 = 12;
 // (Plan 29-14, IN-01 class audit) Deliberately rootless. This is the mirror's COPY MANIFEST: it names
 // which files are read OUT OF the live tree and written INTO a fresh mirror, so the live tree IS the
 // root under measurement here. Asking a not-yet-populated mirror for its role set would be circular.
-const DERIVED_ROLE_INPUTS = listRoles().map((f) => `agent-factory/roles/${f}`);
+const DERIVED_ROLE_INPUTS = listRoles().map(roleRel);
 
 // (Phase 27 / KIT-02) The ADAPTER portion of the harness's input set is derived too, for the same
 // reason. guard_adapter_size, the spawn-grant scan and the SKILL_COUNT floor all derive their
@@ -440,7 +454,7 @@ function normalizeMirroredRole(text: string, rel: string): string {
   return repaired;
 }
 
-const MIRRORED_ROLE_PREFIX = "agent-factory/roles/";
+const MIRRORED_ROLE_PREFIX = `${ROLE_DIR_REL}/`;
 
 // Build a temp mirror carrying copies of every guard input — byte-faithful for every input except
 // the 17 role files, which are normalized as argued above. Returns the mirror dir.
@@ -527,7 +541,8 @@ function plantCavemanBlock(
   role: string,
   body: string[],
 ): string {
-  const file = join(root, "agent-factory/roles", role);
+  // (Plan 29-25, IN-03) Through the helper, never the directory spelled again — see `rolePath`.
+  const file = rolePath(root, role);
   const lines = readFileSync(file, "utf8").split("\n");
   const heading = lines.findIndex((l) => /^## Caveman prompt/.test(l));
   let open = -1;
@@ -4179,6 +4194,34 @@ describe("check-foundation-guards.js (SDLC-02 / SC2 fail-proof harness)", () => 
   // directly against readCavemanFence in scripts/voice-model.test.ts, and once here through the
   // committed aggregator `.js`.
   const MALFORMED_ROLE = "brownfield-mapper.md";
+
+  // ── (Plan 29-25, WR-06 axis two) EVERY PATTERN ABOUT THE PLANTED ROLE IS BUILT FROM THE CONSTANT.
+  //
+  // The strongest assertions in the two CR-01/CR-02 cases below are NEGATIVE — "no wrong-bytes
+  // measurement line exists for this role". A negative regex that hard-codes `brownfield-mapper\.md`
+  // while the plant is driven by `MALFORMED_ROLE` is one edit away from being vacuous: repoint the
+  // constant and the pattern matches nothing, so the assertion passes over an output it was never
+  // looking at. That is the WR-06 shape wearing a different hat — an assertion satisfied by the
+  // absence of its own subject rather than by the property it names.
+  //
+  // The dot is escaped through a FULL regex escape rather than `name.replace(".", "\\.")`. The
+  // single-argument string form of `replace` substitutes only the FIRST occurrence, so a role file
+  // ever named with two dots would ship an unescaped one — a latent second defect inside the fix for
+  // the first, and this round exists because a fix addressed three sites and missed a fourth.
+  const REGEX_METACHARACTERS = /[.*+?^${}()|[\]\\]/g;
+  const roleLinePattern = (name: string, tail: string): RegExp =>
+    new RegExp(`${name.replace(REGEX_METACHARACTERS, "\\$&")}: ${tail}`);
+  /** The per-role wrong-bytes measurement line the pre-bound builds published. */
+  const measurementLine = (name: string): RegExp =>
+    roleLinePattern(name, "tokens \\d+ / content words \\d+");
+  /**
+   * A measurement line in the guard's own shape, synthesized. The constructed pattern is asserted to
+   * MATCH this before it is asserted not to match the real output, so "no match" is known to mean
+   * "the line is absent" rather than "the pattern was incapable".
+   */
+  const synthesizedMeasurement = (name: string): string =>
+    `  ${name}: tokens 4 / content words 4, banned 0`;
+
   const malformedFenceForms: {
     name: string;
     reason: "missing" | "unterminated" | "multiple";
@@ -4235,7 +4278,7 @@ describe("check-foundation-guards.js (SDLC-02 / SC2 fail-proof harness)", () => 
   for (const form of malformedFenceForms) {
     it(`LANG-07 oracle: ${form.name} — guard_voice and guard_caveman_voice name the SAME file for the SAME reason`, () => {
       const m = mirror();
-      const file = join(m, "agent-factory/roles", MALFORMED_ROLE);
+      const file = rolePath(m, MALFORMED_ROLE);
       const before = readFileSync(file, "utf8");
       const after = form.mutate(before);
       // A mutation that matched nothing would leave the case asserting against an unmodified tree.
@@ -4248,7 +4291,7 @@ describe("check-foundation-guards.js (SDLC-02 / SC2 fail-proof harness)", () => 
 
       // The verdict, as each consumer prints it. The FILE and the REASON must be identical; only the
       // surrounding sentence differs, because the two guards do different things with one verdict.
-      const rel = `agent-factory/roles/${MALFORMED_ROLE}`;
+      const rel = roleRel(MALFORMED_ROLE);
       const voiceLine = o
         .split("\n")
         .find((l) => l.startsWith(`${rel}: ## Caveman prompt fence refused`));
@@ -4275,11 +4318,21 @@ describe("check-foundation-guards.js (SDLC-02 / SC2 fail-proof harness)", () => 
     const o = out(r);
     // The reader ACCEPTED it — no refusal — and the guard then measured an empty block.
     expect(o).not.toContain(
-      `agent-factory/roles/${MALFORMED_ROLE}: ## Caveman prompt fence refused`,
+      `${roleRel(MALFORMED_ROLE)}: ## Caveman prompt fence refused`,
     );
-    expect(o).toContain("brownfield-mapper.md: tokens 0 / content words 0, banned 0");
-    expect(o).toMatch(/brownfield-mapper\.md: positive arm: 0 lexicon term\(s\)/);
-    expect(o).not.toMatch(/brownfield-mapper\.md:.*negative arm/);
+    // (Plan 29-25, WR-06 axis two) Built from the constant the plant is driven by. The NEGATIVE below
+    // is the one that could go vacuous on a repoint, so its pattern is demonstrated capable first.
+    expect(o).toContain(`${MALFORMED_ROLE}: tokens 0 / content words 0, banned 0`);
+    expect(o).toMatch(
+      roleLinePattern(MALFORMED_ROLE, "positive arm: 0 lexicon term\\(s\\)"),
+    );
+    expect(
+      roleLinePattern(MALFORMED_ROLE, ".*negative arm").test(
+        `  ${MALFORMED_ROLE}: negative arm: 1 banned construction(s)`,
+      ),
+      "the constructed pattern must be shown to match a negative-arm line before it is asserted to match none",
+    ).toBe(true);
+    expect(o).not.toMatch(roleLinePattern(MALFORMED_ROLE, ".*negative arm"));
   });
 
   // ── CR-01 (plan 29-14) — THE SECTION BOUND, PROVEN AT THE GATE. ────────────────────────────────
@@ -4345,19 +4398,54 @@ describe("check-foundation-guards.js (SDLC-02 / SC2 fail-proof harness)", () => 
     const o = out(r);
 
     expect(r.status).toBe(1);
-    const rel = `agent-factory/roles/${MALFORMED_ROLE}`;
+    const rel = roleRel(MALFORMED_ROLE);
     // Both consumers name the FILE and the REASON — `missing`, so the finding says why and not merely
     // that. A finding that named the file without the reason would leave an editor re-deriving the
     // bound from scratch.
-    expect(o).toContain(`${rel}: ## Caveman prompt fence refused — reason missing`);
-    expect(o).toContain(`${rel}: ## Caveman prompt fence refused — reason missing`);
+    //
+    // (Plan 29-25, WR-06 axis one) THIS IS AN OCCURRENCE COUNT BECAUSE `toContain` IS NOT ONE. Two
+    // byte-identical `expect(o).toContain(refusal)` calls stood here, under this same comment claiming
+    // BOTH consumers were checked. `toContain` is a substring test: the second call was satisfied by
+    // whatever satisfied the first, so a build in which `guard_caveman_voice` went silent passed this
+    // case with one line in the output and a comment asserting two. Two identical assertions assert
+    // one thing twice, and the comment above them almost always claims two — which is why the class
+    // has its own derived tripwire further down this file rather than a third hand-fix.
+    //
+    // The count is not the whole property either, so the PARTITION is asserted beside it: one line at
+    // column zero (guard_voice) and one indented (guard_caveman_voice). A count of two alone would be
+    // satisfied by one consumer printing twice.
+    const refusal = `${rel}: ## Caveman prompt fence refused — reason missing`;
+    const refusalLines = o.split("\n").filter((l) => l.includes(refusal));
+    expect(
+      refusalLines,
+      "each of the two voice guards must name the file and the reason INDEPENDENTLY — this is an occurrence count, not a substring test",
+    ).toHaveLength(2);
+    expect(
+      refusalLines.filter((l) => l.startsWith(refusal)),
+      "guard_voice refuses at column zero",
+    ).toHaveLength(1);
+    expect(
+      refusalLines.filter((l) => l.startsWith("  ")),
+      "guard_caveman_voice refuses indented under its own check",
+    ).toHaveLength(1);
+    // THE COUNT IS PROVEN TO DISCRIMINATE, on output carrying only ONE of the two lines. Without this
+    // the strengthened assertion is only believed to be stronger than the pair it replaced.
+    expect(
+      [refusalLines[0], "some unrelated line"].join("\n").split("\n").filter((l) => l.includes(refusal)),
+      "the same filter over single-consumer output must report ONE — which is what the retired pair could not tell apart from two",
+    ).toHaveLength(1);
     // And the two PASS lines the pre-bound build printed on these exact bytes are GONE.
     expect(o).not.toContain("voice: clear-voice surfaces free of caveman markers");
     expect(o).not.toContain(`caveman voice: 0 findings over ${ROLE_COUNT}/${ROLE_COUNT}`);
     expect(o).not.toContain("ALL CHECKS PASSED");
     // The wrong-bytes measurement itself: the pre-bound build published `tokens 4 / content words 4`
     // for this role, measured over `## Notes`. No measurement line for this role may exist at all now.
-    expect(o).not.toMatch(/brownfield-mapper\.md: tokens \d+ \/ content words \d+/);
+    // The pattern is built from `MALFORMED_ROLE` and demonstrated CAPABLE of matching first.
+    expect(
+      measurementLine(MALFORMED_ROLE).test(synthesizedMeasurement(MALFORMED_ROLE)),
+      "the constructed pattern must be shown to match a measurement line before it is asserted to match none",
+    ).toBe(true);
+    expect(o).not.toMatch(measurementLine(MALFORMED_ROLE));
   });
 
   // ── CR-02 (plan 29-20) — THE SAME CLAIM, ONE CHARACTER TO THE LEFT. ──────────────────────────────
@@ -4447,14 +4535,29 @@ describe("check-foundation-guards.js (SDLC-02 / SC2 fail-proof harness)", () => 
     // adopted `# Notes`'s block, both consumers measured it, and the whole gate printed ALL CHECKS
     // PASSED on a role whose caveman block had been deleted.
     expect(r.status).toBe(1);
-    const rel = `agent-factory/roles/${MALFORMED_ROLE}`;
-    expect(o).toContain(`${rel}: ## Caveman prompt fence refused — reason missing`);
+    const rel = roleRel(MALFORMED_ROLE);
+    // (Plan 29-25, WR-06 axis one) The `## ` sibling of this case carried the byte-identical PAIR; it
+    // is now an occurrence count there and the same count is applied here, so the two siblings pin the
+    // same property rather than one pinning it and the other asserting it twice.
+    const refusal = `${rel}: ## Caveman prompt fence refused — reason missing`;
+    const refusalLines = o.split("\n").filter((l) => l.includes(refusal));
+    expect(
+      refusalLines,
+      "each of the two voice guards must name the file and the reason INDEPENDENTLY",
+    ).toHaveLength(2);
+    expect(refusalLines.filter((l) => l.startsWith(refusal))).toHaveLength(1);
+    expect(refusalLines.filter((l) => l.startsWith("  "))).toHaveLength(1);
     expect(o).not.toContain("voice: clear-voice surfaces free of caveman markers");
     expect(o).not.toContain(`caveman voice: 0 findings over ${ROLE_COUNT}/${ROLE_COUNT}`);
     expect(o).not.toContain("ALL CHECKS PASSED");
     // No measurement line about the wrong bytes may coexist with the refusal. The pre-bound build
-    // published `tokens 5 / content words 5` here, measured over `# Notes`.
-    expect(o).not.toMatch(/brownfield-mapper\.md: tokens \d+ \/ content words \d+/);
+    // published `tokens 5 / content words 5` here, measured over `# Notes`. Built from the constant,
+    // and demonstrated capable of matching before being asserted to match nothing.
+    expect(
+      measurementLine(MALFORMED_ROLE).test(synthesizedMeasurement(MALFORMED_ROLE)),
+      "the constructed pattern must be shown to match a measurement line before it is asserted to match none",
+    ).toBe(true);
+    expect(o).not.toMatch(measurementLine(MALFORMED_ROLE));
 
     // And the READER's own verdict agrees. Asserted AFTER the gate deliberately: the claim this case
     // exists to pin is about the exit code, and putting the verdict first would make the RED evidence
@@ -4482,7 +4585,7 @@ describe("check-foundation-guards.js (SDLC-02 / SC2 fail-proof harness)", () => 
     // The DENOMINATOR floor, which is a different branch from the findings branch: this mirror has no
     // findings at all in the surviving 16 blocks, so only the floor can produce a failure.
     const m = mirror();
-    rmSync(join(m, "agent-factory/roles", MALFORMED_ROLE), { force: true });
+    rmSync(rolePath(m, MALFORMED_ROLE), { force: true });
     const o = out(runIn(m));
     expect(o).toContain(
       `caveman voice: visited ${ROLE_COUNT - 1} of ${ROLE_COUNT} elements`,
