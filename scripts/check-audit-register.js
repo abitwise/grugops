@@ -202,6 +202,51 @@ function runAll() {
             `(${derivedRoles.length} roles + ${derivedWorkflows.length} workflows). This is SET ` +
             `equality on purpose: a count would pass while a decoy displaced a real member`);
     }
+    // ── EQUALITY THREE — the FLAGGED rows are the derived kit, both directions ─
+    //
+    // WHY THIS ARM EXISTS (29-REVIEW round 2, CR-01). Equality one pins the counted ROW SET and
+    // nothing pinned this column's VALUES — yet the `safety_surface: yes` rows are the larger arm of
+    // the D-18 union, and that union is guard_diff_disposition's ENTIRE left-hand side. The review
+    // reproduced the consequence end to end on the live tree: reword a frozen `## Hard limits`
+    // sentence (one gate reds), flip ONE cell here from `yes` to `no`, regenerate, and all four gates
+    // exit 0 together. The gate's own finding text already said "do NOT narrow the watched corpus" —
+    // a prohibition with no mechanism.
+    //
+    // THE ASYMMETRY THAT MADE IT INVISIBLE, and it is in the REFUSAL rather than only in this
+    // comment, because the person who meets the red is the person who needs it: this register lives
+    // under `docs/` and is therefore not itself a member of the corpus it derives, so the edit that
+    // performs the narrowing owes no disposition row anywhere.
+    //
+    // TWO DIRECTIONS, REPORTED AS TWO DEFECTS. They are different acts with different remedies — one
+    // de-scopes a file that is audited, the other admits a file that is not — and equality two records
+    // twenty lines below why a conflated tally is refused here: one number absorbs the other's drift.
+    //
+    // It reuses `derived` from line 160 rather than re-deriving the kit, so equality one and equality
+    // three cannot come to disagree about what the derived set is.
+    const flagged = counted
+        .filter((r) => r.safetySurface === "yes")
+        .map((r) => r.file)
+        .sort();
+    const unflagged = derived.filter((f) => !flagged.includes(f));
+    const strayFlags = flagged.filter((f) => !derived.includes(f));
+    if (unflagged.length > 0) {
+        fail(`equality three (derived but NOT flagged): ${unflagged.length} derived kit file(s) are ` +
+            `absent from the set of counted rows flagged \`safety_surface: yes\` — ` +
+            `${unflagged.join(", ")}. A derived kit file that is not flagged is REMOVED from the ` +
+            `LANG-03 watched corpus entirely: guard_diff_disposition simply checks less and stays ` +
+            `green, so the narrowing arrives as a clean build rather than as a failure. This register ` +
+            `lives under \`docs/\` and is NOT itself a member of the corpus it derives, which is why ` +
+            `the edit that performs the narrowing owes no disposition row and nothing downstream can ` +
+            `see it. The remedy is to restore the flag, or to record the exception WITH ITS REASON — ` +
+            `the shape the uncounted pin above uses; lowering or deleting this assertion is never the fix`);
+    }
+    if (strayFlags.length > 0) {
+        fail(`equality three (flagged but NOT derived): ${strayFlags.length} counted row(s) flagged ` +
+            `\`safety_surface: yes\` name a file the listers do not derive — ${strayFlags.join(", ")}. ` +
+            `A flagged counted row outside the audited set puts a file into the D-18 exclusion list ` +
+            `that this register was never able to vouch for. Reported separately from the direction ` +
+            `above and from equality one: neither number may absorb the other's drift`);
+    }
     // ── EQUALITY TWO — independent, and at TWO granularities ─────────────────
     //
     // Reported SEPARATELY from equality one. A single conflated tally lets one number absorb the
@@ -289,7 +334,10 @@ function runAll() {
         // list and byte-compared it — it fails and returns on every other path.
         pass(`AUDIT-01 completeness: equality one holds — ${countedPaths.length} counted register row(s) ` +
             `set-equal in both directions to ${derived.length} derived file(s) ` +
-            `(${derivedRoles.length} roles + ${derivedWorkflows.length} workflows); equality two holds ` +
+            `(${derivedRoles.length} roles + ${derivedWorkflows.length} workflows); equality three ` +
+            `holds — the ${flagged.length} counted row(s) flagged \`safety_surface: yes\` are set-equal ` +
+            `in both directions to those same ${derived.length} derived file(s), so no kit file has ` +
+            `been de-scoped out of the LANG-03 watched corpus; equality two holds ` +
             `— Table A declares ${declaredSum} finding(s) and Table B carries ${register.findings.length}, ` +
             `agreeing per file across all ${register.rows.length} row(s); ${uncounted.length} uncounted ` +
             `row(s) recorded by name (${uncountedReport}); every observation substantive and every ` +

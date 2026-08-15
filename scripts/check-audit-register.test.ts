@@ -394,7 +394,7 @@ describe("check-audit-register: equality three — the flagged rows are the deri
     expect(r.out).toMatch(/derived but NOT flagged/);
     // The asymmetry that makes the hole invisible is in the message a person reads, not only in a
     // comment: the register is not itself a member of the corpus it derives.
-    expect(r.out).toMatch(/not itself a member of the corpus it derives/);
+    expect(r.out).toMatch(/NOT itself a member of the corpus it derives/);
     // Equality one stayed SILENT — the row set is untouched, so this is a second, independent
     // question about the same column and neither number absorbs the other's drift.
     expect(r.out).not.toMatch(/equality one:/);
