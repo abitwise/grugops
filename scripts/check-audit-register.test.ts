@@ -30,6 +30,7 @@ import { REGISTER_PATH, REGISTRY_PATH, readRegister } from "./audit-model.js";
 import { PROTOCOL_FILE } from "./audit-prepass.js";
 import {
   renderSafetySurface,
+  safetySurfaceUnion,
   OUT as SAFETY_SURFACE_PATH,
 } from "./generate-safety-surface.js";
 
@@ -76,6 +77,13 @@ interface RowSpec {
   observation: string;
 }
 
+// THE DEFAULT ROWS CARRY `safety_surface: yes` ON EVERY COUNTED ROW, AS THE LIVE REGISTER DOES.
+//
+// They carried `no` until plan 29-21, which made the mirror a shape the shipped artifact is not:
+// all 36 counted rows in `docs/audit/28-disposition-register.md` are flagged `yes`, and the derived
+// exclusion list says why in its own words — every audited kit file carries permission-bearing or
+// no-fabrication text, so the register arm flags all of them. A mirror flagging none could not
+// express the CR-01 defect at all, because there was no `yes` left to flip.
 function defaultRows(): RowSpec[] {
   const rows: RowSpec[] = [];
   for (let i = 1; i <= ROLE_COUNT; i++) {
@@ -83,7 +91,7 @@ function defaultRows(): RowSpec[] {
       file: `agent-factory/roles/role-${String(i).padStart(2, "0")}.md`,
       kind: "role",
       counted: "yes",
-      safety: "no",
+      safety: "yes",
       findings: "0",
       observation: SUBSTANTIVE,
     });
@@ -93,7 +101,7 @@ function defaultRows(): RowSpec[] {
       file: `agent-factory/workflows/${String(i).padStart(2, "0")}-flow.md`,
       kind: "workflow",
       counted: "yes",
-      safety: "no",
+      safety: "yes",
       findings: "0",
       observation: SUBSTANTIVE,
     });
@@ -339,6 +347,108 @@ describe("check-audit-register: equality two — independent, at two granulariti
   });
 });
 
+// ─────────────────────────────────────────────────────────────────────────────────────────────
+// EQUALITY THREE — the flagged rows ARE the derived kit (round-2 CR-01).
+//
+// Equality one pins the counted ROW SET. Nothing pinned this column's VALUES, and this column is
+// the larger arm of the D-18 union that becomes `guard_diff_disposition`'s entire watched corpus.
+// The round-2 review reproduced the consequence end to end on the live tree: reword a frozen
+// `## Hard limits` sentence, flip ONE cell here from `yes` to `no`, regenerate, and all four gates
+// exit 0 together. The register lives under `docs/` and is not itself watched, so the edit that
+// performs the narrowing owes no disposition row.
+// ─────────────────────────────────────────────────────────────────────────────────────────────
+describe("check-audit-register: equality three — the flagged rows are the derived kit (CR-01)", () => {
+  const FLIP_TARGET = "agent-factory/roles/role-07.md";
+
+  it("REDs ONE `safety_surface` cell flipped yes → no, naming the file", () => {
+    const controlRows = defaultRows();
+    const flippedRows = controlRows.map((r) =>
+      r.file === FLIP_TARGET ? { ...r, safety: "no" } : r,
+    );
+
+    // ── PREMISE 1 — exactly one cell moved, and it moved on a COUNTED row naming a derived file.
+    const moved = flippedRows.filter((r, i) => r.safety !== controlRows[i].safety);
+    expect(moved.map((r) => r.file)).toEqual([FLIP_TARGET]);
+    expect(moved[0].counted).toBe("yes");
+
+    const controlDir = buildMirror(controlRows);
+    const flippedDir = buildMirror(flippedRows);
+
+    // ── PREMISE 2 — the regenerated union really is one markdown entry shorter, short by that
+    //    member. Measured through the ONE derivation, not through the row spec that produced it.
+    const md = (root: string): string[] =>
+      safetySurfaceUnion(root)
+        .map((e) => e.file)
+        .filter((f) => f.endsWith(".md"))
+        .sort();
+    expect(md(controlDir)).toContain(FLIP_TARGET);
+    expect(md(flippedDir)).not.toContain(FLIP_TARGET);
+    expect(md(flippedDir).length).toBe(md(controlDir).length - 1);
+
+    // ── PREMISE 3 — the CONTROL mirror is green, so the RED below is about the flip.
+    expect(runGate(controlDir).status).toBe(0);
+
+    const r = runGate(flippedDir);
+    expect(r.status).toBe(1);
+    expect(r.out).toContain(FLIP_TARGET);
+    expect(r.out).toMatch(/derived but NOT flagged/);
+    // The asymmetry that makes the hole invisible is in the message a person reads, not only in a
+    // comment: the register is not itself a member of the corpus it derives.
+    expect(r.out).toMatch(/not itself a member of the corpus it derives/);
+    // Equality one stayed SILENT — the row set is untouched, so this is a second, independent
+    // question about the same column and neither number absorbs the other's drift.
+    expect(r.out).not.toMatch(/equality one:/);
+  });
+
+  it("REDs the OTHER direction — a flagged counted row naming a file the listers do not derive", () => {
+    // Direction two cannot be isolated from equality one by construction: a counted row that names
+    // a file outside the derived kit is, itself, an equality-one failure. The property this case
+    // buys is that equality three still names the member IN THE SAME RUN rather than letting
+    // equality one's report absorb it.
+    //
+    // The stray path is `_`-PREFIXED on purpose: listRoles drops those, so the file can exist on
+    // disk (satisfying the missing-on-disk arm, which would otherwise be the failure this case
+    // reported) while remaining outside the derived set. A plain `stray.md` in `roles/` would be
+    // DERIVED, and the case would have measured the opposite of what it claims.
+    const STRAY = "agent-factory/roles/_stray.md";
+    const rows = defaultRows().map((r) =>
+      r.file === FLIP_TARGET ? { ...r, file: STRAY } : r,
+    );
+    const dir = buildMirror(rows);
+    writeFileSync(join(dir, STRAY), "x");
+    expect(listRoles(dir).map((f) => `agent-factory/roles/${f}`)).not.toContain(STRAY);
+    const r = runGate(dir);
+    expect(r.status).toBe(1);
+    expect(r.out).toMatch(/flagged but NOT derived/);
+    expect(r.out).toContain(STRAY);
+    // Both reported, neither absorbed.
+    expect(r.out).toMatch(/equality one:/);
+    expect(r.out).toMatch(/derived but NOT flagged/);
+  });
+
+  it("the PASS line states equality three with the numbers the run measured", () => {
+    const r = runGate(buildMirror());
+    expect(r.status).toBe(0);
+    expect(r.out).toMatch(/equality three holds/);
+    expect(r.out).toContain(String(ROLE_COUNT + WORKFLOW_COUNT));
+  });
+
+  it("the LIVE committed register satisfies equality three", () => {
+    // The gate's own arithmetic, re-derived here by a different path: every counted row in the
+    // shipped register is flagged, and the flagged set is exactly the live listers' output.
+    const flagged = readRegister()
+      .rows.filter((r) => r.counted && r.safetySurface === "yes")
+      .map((r) => r.file)
+      .sort();
+    const derived = [
+      ...listRoles().map((f) => `agent-factory/roles/${f}`),
+      ...listWorkflows().map((f) => `agent-factory/workflows/${f}`),
+    ].sort();
+    expect(flagged).toEqual(derived);
+    expect(flagged.length).toBe(ROLE_COUNT + WORKFLOW_COUNT);
+  });
+});
+
 describe("check-audit-register: the substantive-observation requirement", () => {
   it("fails a BLANK observation, naming the file", () => {
     const rows = defaultRows();
@@ -407,11 +517,24 @@ describe("check-audit-register: it REPORTS a parse refusal rather than crashing"
   it("names the parse refusal and exits 1 on a malformed register", () => {
     // audit-model is a LIBRARY and throws; this is a GATE and must report. A stack trace is not a
     // gate verdict, and a gate that dies is not a gate that failed.
+    //
+    // THE MALFORMATION IS DERIVED FROM THE RENDERED ROW, NEVER TYPED. It used to be a hard-coded
+    // literal spelling every cell of row one — `| ... | role | yes | no | 0 |` — and plan 29-21's
+    // change of the default `safety_surface` from `no` to `yes` made that literal stop matching.
+    // The replace became a no-op, the register parsed cleanly, and the case went green while
+    // asserting a parse refusal that never happened. That is the harness-premise failure this
+    // project has now recorded seven times; it is fixed by truncating the row the renderer
+    // actually produced.
     const rows = defaultRows();
-    const text = renderRegister(rows, []).replace(
-      "| agent-factory/roles/role-01.md | role | yes | no | 0 |",
-      "| agent-factory/roles/role-01.md | role | yes |",
-    );
+    const rendered = renderRegister(rows, []);
+    const victim = rendered
+      .split("\n")
+      .find((l) => l.startsWith(`| ${rows[0].file} |`));
+    expect(victim, "the row the malformation targets must exist in the rendered register").toBeDefined();
+    const truncated = `${(victim as string).split("|").slice(0, 4).join("|")}|`;
+    expect(truncated).not.toBe(victim); // the malformation is real, not a no-op
+    const text = rendered.replace(victim as string, truncated);
+    expect(text).not.toBe(rendered);
     const r = runGate(buildMirror(rows, [], text));
     expect(r.status).toBe(1);
     expect(r.out).toMatch(/refus/i);

@@ -69,7 +69,12 @@ import {
   ROLES_SUBPATH,
   WORKFLOWS_SUBPATH,
 } from "./kit-model.js";
-import { readRegistry } from "./audit-model.js";
+import { readRegistry, readRegister } from "./audit-model.js";
+// The ONE derivation that produces the watched corpus. Imported here for the same reason the gate
+// imports it: a second union computed in the file that polices the first is how one authority
+// becomes two, and the CR-01 premise assertions below are worthless if they measure a different set
+// from the one the gate measures.
+import { safetySurfaceUnion } from "./generate-safety-surface.js";
 import { normalizeSentence, segmentClauses } from "./voice-model.js";
 // The ONE fence toggle. Imported here for the SAME reason the gate must import it: a second
 // recogniser in the file that polices the first is how one authority becomes two.
@@ -1642,6 +1647,177 @@ describe("check-diff-disposition — the refusals that keep a green honest", () 
       `roles \`## Hard limits\` resolved ${ROLE_COUNT - 1} of ${ROLE_COUNT}`,
     );
     expect(stdout).toContain("SHRINKS the frozen set");
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────────────────────
+// CR-01 — the watched corpus was the ONE set this gate did not pin, and one table cell moved it.
+//
+// The round-2 review reproduced this end to end against the committed .js on the live tree: reword
+// a frozen `## Hard limits` sentence (one gate reds), then flip ONE `safety_surface` cell in
+// `docs/audit/28-disposition-register.md` from `yes` to `no` and regenerate — and all four gates
+// exit 0 together. The register lives under `docs/` and is therefore NOT a member of the corpus it
+// derives, so the edit that performs the narrowing owes no disposition row and nothing downstream
+// can see it.
+//
+// Every case here asserts its own PREMISE before invoking the gate. This project has recorded six
+// instances across four straight rounds of a verification harness producing a FALSE result, one of
+// them in the immediately preceding plan; a fixture that silently stopped reproducing the defect
+// would otherwise pass for the wrong reason and be indistinguishable from a fix.
+// ─────────────────────────────────────────────────────────────────────────────────────────────
+
+/** The register exactly as committed — the CONTROL side of every comparison below. */
+const REGISTER_AS_COMMITTED = readFileSync(join(REPO, REGISTER_REL), "utf8");
+
+/** The derived kit file whose `safety_surface` cell the CR-01 cases flip. Derived, never typed. */
+const FLIP_TARGET = ROLE_UNDER_TEST;
+
+/**
+ * The committed register with EXACTLY ONE counted row's `safety_surface` cell flipped `yes` → `no`.
+ *
+ * The edit is positional and surgical: the row is split on `|`, cell 4 (`safety_surface`) is
+ * rewritten, and every other byte on the line — including its spacing — is preserved, so the
+ * resulting file differs from the committed one in three characters. Anything less surgical would
+ * risk a mirror that reds for an incidental reason rather than for CR-01's.
+ *
+ * It THROWS unless exactly one row matched. A helper that silently flipped zero cells would hand
+ * every case below an unflipped fixture and turn the whole block green against the defect it exists
+ * to catch.
+ */
+function registerWithFlippedSafetyFlag(target: string): string {
+  let flipped = 0;
+  const out = REGISTER_AS_COMMITTED.split("\n").map((line) => {
+    // `| file | kind | counted | safety_surface | findings | observation |` splits to 8 pieces,
+    // the first and last empty. Table B's rows split the same way but carry a finding id in the
+    // file position, so they can never match a kit path.
+    const parts = line.split("|");
+    if (parts.length < 8) return line;
+    if (parts[1].trim() !== target) return line;
+    if (parts[3].trim() !== "yes") return line; // `counted`
+    if (parts[4].trim() !== "yes") return line; // `safety_surface`
+    flipped += 1;
+    parts[4] = parts[4].replace("yes", "no");
+    return parts.join("|");
+  });
+  if (flipped !== 1) {
+    throw new Error(
+      `harness premise: expected exactly ONE counted row for ${target} carrying ` +
+        `\`safety_surface: yes\` in ${REGISTER_REL}, but flipped ${flipped}. The fixture this ` +
+        `block rests on did not land, so no case below would be measuring what it claims`,
+    );
+  }
+  return out.join("\n");
+}
+
+const mdOf = (root: string): string[] =>
+  safetySurfaceUnion(root)
+    .map((e) => e.file)
+    .filter((f) => f.endsWith(".md"))
+    .sort();
+
+const derivedKitOf = (root: string): string[] =>
+  [
+    ...listRoles(root).map((f) => `${ROLES_SUBPATH}/${f}`),
+    ...listWorkflows(root).map((f) => `${WORKFLOWS_SUBPATH}/${f}`),
+  ].sort();
+
+describe("check-diff-disposition — CR-01: the watched corpus is pinned to the derived kit", () => {
+  it("the CONTROL — the identical mirror with NO cell flipped exits 0", () => {
+    // Without this the RED below cannot distinguish "the flip was caught" from "a mirror carrying
+    // an explicit baseCorpus register always reds".
+    const { root } = makeMirror("gops-diffdisp-cr01-control-", {
+      baseCorpus: { [REGISTER_REL]: REGISTER_AS_COMMITTED },
+    });
+    const { status, stdout } = runGate(root);
+    expect(status).toBe(0);
+    expect(stdout).toContain("ALL CHECKS PASSED");
+  });
+
+  it("REDs a register whose ONE flipped `safety_surface` cell drops a role from the watched corpus", () => {
+    const control = makeMirror("gops-diffdisp-cr01-base-", {
+      baseCorpus: { [REGISTER_REL]: REGISTER_AS_COMMITTED },
+    });
+    const flipped = makeMirror("gops-diffdisp-cr01-flip-", {
+      baseCorpus: { [REGISTER_REL]: registerWithFlippedSafetyFlag(FLIP_TARGET) },
+    });
+
+    // ── PREMISE 1 — the mirror really carries the flipped cell, read back through the ONE parse
+    //    authority rather than through the string edit that produced it, and EXACTLY one cell moved.
+    const controlRows = readRegister(control.root).rows;
+    const flippedRows = readRegister(flipped.root).rows;
+    expect(flippedRows.map((r) => r.file)).toEqual(controlRows.map((r) => r.file));
+    const moved = flippedRows.filter(
+      (r, i) => r.safetySurface !== controlRows[i].safetySurface,
+    );
+    expect(moved.map((r) => r.file)).toEqual([FLIP_TARGET]);
+    expect(moved[0].safetySurface).toBe("no");
+    expect(moved[0].counted).toBe(true);
+
+    // ── PREMISE 2 — the union really is ONE markdown entry shorter, and short by that member.
+    const controlWatched = mdOf(control.root);
+    const flippedWatched = mdOf(flipped.root);
+    expect(controlWatched).toContain(FLIP_TARGET);
+    expect(flippedWatched).not.toContain(FLIP_TARGET);
+    expect(flippedWatched.length).toBe(controlWatched.length - 1);
+
+    // ── PREMISE 3 — the flipped file is a DERIVED KIT file, which is the set this gate may never
+    //    stop watching. A flip on a public document would be a different question entirely.
+    expect(derivedKitOf(flipped.root)).toContain(FLIP_TARGET);
+
+    // ── PREMISE 4 — the register is OTHERWISE COMPLETE: its counted row set is still exactly what
+    //    the listers derive, so equality one at the sibling gate is satisfied by this fixture. This
+    //    is what makes the case a statement about THIS gate rather than about the sibling: the
+    //    consumer must red without depending on check-audit-register having run.
+    expect(
+      flippedRows
+        .filter((r) => r.counted)
+        .map((r) => r.file)
+        .sort(),
+    ).toEqual(derivedKitOf(flipped.root));
+
+    const { status, stdout } = runGate(flipped.root);
+    expect(status).toBe(1);
+    // The refusal names the MEMBER, not only a number — a mismatch that names no member is a number
+    // a reader cannot act on.
+    expect(stdout).toContain(FLIP_TARGET);
+    // ... and the mechanism, so the person who meets the red learns why a pin was needed here.
+    expect(stdout).toContain("owes no disposition row");
+    expect(stdout).toContain(String(ROLE_COUNT + WORKFLOW_COUNT));
+  });
+
+  it("the derived kit's own cardinality is pinned two-sided, independently of the corpus", () => {
+    // The containment expectation is a DERIVED set, so it must also be COUNTED — otherwise a
+    // narrowing of the listers moves the expectation and the thing it checks at once, which is
+    // documentation of intent rather than a check. A role file removed from disk together with its
+    // register row leaves containment satisfied and this pin is the only thing that speaks.
+    const { root } = makeMirror("gops-diffdisp-cr01-kitcount-");
+    rmSync(join(root, FLIP_TARGET));
+    const { status, stdout } = runGate(root);
+    expect(status).toBe(1);
+    expect(stdout).toContain("derived kit resolved");
+    expect(stdout).toContain(String(ROLE_COUNT + WORKFLOW_COUNT - 1));
+  });
+
+  it("the VACUITY floor is kept beside the new pin — they answer different questions", () => {
+    // A vacuity floor catches an EMPTY denominator and never a SILENTLY SHORT one. Conflating the
+    // two is precisely how CR-01 survived, so the zero check stays and is exercised on its own: a
+    // register in which NO row is a safety surface and a registry with no `kind: safety` row makes
+    // the union empty, and generate-safety-surface refuses it before this gate ever counts.
+    const { root } = makeMirror("gops-diffdisp-cr01-vacuous-", {
+      baseCorpus: {
+        [REGISTER_REL]: REGISTER_AS_COMMITTED.replace(/\| yes \| (\d+) \|/g, "| no | $1 |"),
+        // `architecture` is a MEMBER of CLAIM_KINDS, so the registry still parses — the union goes
+        // empty because no claim is a safety claim, not because a parse refused.
+        [REGISTRY_REL]: readFileSync(join(REPO, REGISTRY_REL), "utf8").replace(
+          /^- kind: safety$/gm,
+          "- kind: architecture",
+        ),
+      },
+    });
+    const { status, stdout } = runGate(root);
+    expect(status).toBe(1);
+    expect(stdout).toContain("derived ZERO markdown files");
+    expect(stdout).toContain("A vacuous corpus makes every diff empty");
   });
 });
 
