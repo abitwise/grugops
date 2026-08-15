@@ -479,7 +479,7 @@ Suite delta accounting, so a silently shrinking suite would be visible: `frontma
 **3. [Rule 1 - Bug] A NUL byte was written into `scripts/audit-model.test.ts`, and `grep` reported zero matches without warning**
 
 - **Found during:** Task 2
-- **Issue:** An edit landed `join(" ")` where `join(" ")` was intended. One NUL byte reclassified the whole file as binary: `file -b` reported `data`, and `grep -n "createHash"` returned **nothing at all** on a file that plainly contained the string. Two subsequent `Edit` calls then failed to match text that was visibly present.
+- **Issue:** An edit landed `join("\0")` where `join(" ")` was intended. One NUL byte reclassified the whole file as binary: `file -b` reported `data`, and `grep -n "createHash"` returned **nothing at all** on a file that plainly contained the string. Two subsequent `Edit` calls then failed to match text that was visibly present.
 - **Fix:** The offending case was rewritten byte-precisely (and replaced with the better second-extraction equality — see Decision 4). `node scripts/check-nul-bytes.js` confirms 1558 tracked files, zero NUL-bearing, so every counting grep in this SUMMARY is trustworthy.
 - **Files modified:** `scripts/audit-model.test.ts`
 - **Committed in:** `f3f85ee`
