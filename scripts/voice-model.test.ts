@@ -174,27 +174,104 @@ describe("readCavemanFence — the section bound (plan 29-14, CR-01)", () => {
     expect(r).toEqual({ ok: false, reason: "missing" });
   });
 
-  // ── (Plan 29-20) THE 29-14 EXPECTATION THIS CASE CARRIED IS SUPERSEDED, AND THE MOVE IS RECORDED
-  // RATHER THAN QUIETLY RE-BASELINED.
+  // ── (Plan 29-20 → Plan 29-27, closing CR-01) THE EXPECTATION THIS CASE CARRIED WAS REVERSED
+  // TWICE, AND BOTH MOVES ARE RECORDED HERE RATHER THAN QUIETLY RE-BASELINED A THIRD TIME.
   //
   // 29-14 asserted `{ok:false, reason:"unterminated"}` on these exact bytes and called it the
-  // deliberate fail-CLOSED cost of bounding the close scan: a `## ` line inside the fence interior
-  // pulled the private `/^## /` bound in front of the closing delimiter, so a WELL-FORMED fence was
-  // refused. Under the shared authority the bound is FENCE-AWARE, so a heading line that the author
-  // wrote INSIDE a fence closes nothing and the reader returns the true interior.
+  // deliberate fail-CLOSED cost of bounding the close scan. 29-20 REVERSED that to `ok: true` on the
+  // argument that the shared authority's bound is fence-aware, so a heading the author wrote INSIDE a
+  // fence closes nothing and the reader returns the true interior. That argument reads well and it is
+  // wrong, because it hands the block being measured control of its own section's extent:
   //
-  // THAT IS THE SAME CORRECTION AS WR-01, NOT A WEAKENING. Both were false reds on correct bytes,
-  // produced by a locator that could not tell a written heading from a quoted one. Nothing became
-  // reachable that was not reachable before: the interior is measured in FULL by both consumers, and
-  // the genuinely unterminated form still refuses by name — the case immediately below is that half,
-  // added here so the fail-closed direction keeps a pin of its own rather than losing one.
-  it("a heading INSIDE a terminated fence closes nothing — the interior is returned whole", () => {
+  //   THE CIRCULARITY. `sectionEndIndex` skips lines the ONE fence toggle flags. The caveman fence's
+  //   OWN INTERIOR is flagged by that toggle. So under 29-20's wiring the close scan ran PAST every
+  //   heading between the delimiters, every intervening section landed in `inside`, and `outside` —
+  //   the entire scan surface of guard_voice — could be driven to the EMPTY STRING. Measured against
+  //   the committed build at HEAD before plan 29-27, on 29-REVIEW.md CR-01's document:
+  //
+  //     readCavemanFence("## Caveman prompt\n```\ngrug club rock cave\n\n## Notes\nyou no think, big
+  //                       brain swamp demon\n```\n")
+  //     → ok=true  outside=""          (the same bytes at 3ed76c1: {"ok":false,"reason":"unterminated"})
+  //
+  //   guard_voice then scanned ZERO bytes and printed a bare PASS. That is the phase's founding defect
+  //   reopened by the one reader that exists to close it.
+  //
+  // 29-27 RESTORES THE FAIL-CLOSED DIRECTION AND KEEPS ONE AUTHORITY: the bound is still
+  // `sectionEndIndex`, now asked over a DELIMITER-NEUTRALISED projection of the document, so the fence
+  // under measurement cannot vote on where its own section ends. WR-01's fence-aware ANCHOR scan is
+  // untouched — a quoted anchor inside a fenced example still donates no heading — so the false red
+  // 29-20 deleted stays deleted. What returns is only the refusal, and only on a document that wrote a
+  // level-one-or-two heading between its own delimiters.
+  //
+  // Both heading levels are pinned, because a bound tested from one side only is the half-fix this
+  // phase has now shipped twice, and the `### ` control immediately below is the false-red guard on it.
+  it("a `## ` heading inside the fence interior refuses `unterminated` — the block may not extend its own section", () => {
     const r = readCavemanFence(
       doc("## Caveman prompt", FENCE, "grug smash", "## Trap", "you stop", FENCE, ""),
     );
-    expect(r.ok).toBe(true);
-    if (!r.ok) return;
-    expect(r.inside).toBe("grug smash\n## Trap\nyou stop");
+    expect(r).toEqual({ ok: false, reason: "unterminated" });
+  });
+
+  it("a `# ` heading inside the fence interior ALSO refuses `unterminated` — the level axis, from the other side", () => {
+    // One character to the left is where this phase's bound has failed every previous time. A level-one
+    // successor starts a sibling section at least as surely as a level-two one, so it truncates the
+    // section identically and the document is refused by the same name.
+    const r = readCavemanFence(
+      doc("## Caveman prompt", FENCE, "grug smash", "# Trap", "you stop", FENCE, ""),
+    );
+    expect(r).toEqual({ ok: false, reason: "unterminated" });
+  });
+
+  it("CR-01's exact document — the reviewer's bytes, refused rather than emptying `outside`", () => {
+    // 29-REVIEW.md:110-117 verbatim. The assertion is TWO-SIDED on purpose: the verdict is the
+    // refusal, and — for the build in which it were ever to return ok again — `outside` may not be the
+    // empty string. `ok: true` with an empty remainder is the shape that printed a green gate over a
+    // scan of zero bytes, so it is named here rather than inferred.
+    const r = readCavemanFence(
+      doc(
+        "## Caveman prompt",
+        FENCE,
+        "grug club rock cave",
+        "",
+        "## Notes",
+        "you no think, big brain swamp demon",
+        FENCE,
+        "",
+      ),
+    );
+    expect(r).toEqual({ ok: false, reason: "unterminated" });
+    expect(
+      r.ok && r.outside === "",
+      "readCavemanFence may never return ok with an EMPTY clear-voice remainder — that is a guard scanning zero bytes",
+    ).toBe(false);
+  });
+
+  // ── THE UNION OF THE ARMS, AS ONE CELL (round-3 rule 6). ─────────────────────────────────────────
+  //
+  // Each axis above is pinned alone, and a fix scoped to the arm a reproduction happened to use is how
+  // this defect survived two rounds. This cell turns all three axes on AT ONCE — the interior heading
+  // is LEVEL ONE, carries TRAILING WHITESPACE (the axis `trimEnd()` normalisation owns), and sits
+  // ABOVE a NESTED fenced run (the axis that decides which delimiter the close scan meets first).
+  // Asserted as ONE case, because three separate cases would each prove their own arm and none would
+  // prove the conjunction.
+  it("the UNION cell — level-one + trailing whitespace + a nested fenced run, all at once", () => {
+    const r = readCavemanFence(
+      doc(
+        "## Caveman prompt",
+        FENCE,
+        "grug smash rock",
+        "# Trap   ",
+        "you stop",
+        FENCE,
+        "",
+        "## Notes",
+        FENCE,
+        "const a = 1;",
+        FENCE,
+        "",
+      ),
+    );
+    expect(r).toEqual({ ok: false, reason: "unterminated" });
   });
 
   it("a genuinely UNTERMINATED fence still refuses by name — the fail-closed direction, kept", () => {
@@ -401,6 +478,20 @@ describe("readCavemanFence — the section bound (plan 29-14, CR-01)", () => {
       expect(v.ok, `${n} must read ok`).toBe(true);
       if (!v.ok) continue;
       expect(v.inside.length, `${n} must have a non-empty interior`).toBeGreaterThan(0);
+      // (Plan 29-27, closing CR-01) THE REMAINDER IS ASSERTED DIRECTLY, NEVER INFERRED FROM `ok`.
+      // `ok: true` says the fence was located and is well-formed; it says NOTHING about how much of
+      // the document survived the filter. Under the 29-20 bound a role file could return `ok: true`
+      // with `outside` the EMPTY STRING — guard_voice's entire scan surface — and every assertion in
+      // this loop still passed. A LINE COUNT rather than a length, because that is the number
+      // guard_voice now publishes per file, so the two cannot drift apart.
+      expect(
+        v.outside.split("\n").length,
+        `${n} must leave a NON-ZERO clear-voice remainder — a role file's title line alone guarantees one, so zero means the fence swallowed the document`,
+      ).toBeGreaterThan(0);
+      expect(
+        v.outside.trim().length,
+        `${n} clear-voice remainder must carry bytes, not merely lines`,
+      ).toBeGreaterThan(0);
     }
   });
 

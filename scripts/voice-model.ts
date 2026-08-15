@@ -120,12 +120,43 @@ const CAVEMAN_HEADING = "## Caveman prompt";
 // file when the caveman section is the document's last, and both scans are bounded by it. Not finding
 // a delimiter inside the bound is a REFUSAL BY NAME — never a licence to keep looking.
 //
-// THE COST, STATED SO IT IS NOT LATER "FIXED", AND UNCHANGED BY THE REWIRE: a `## ` line INSIDE the
-// fence interior truncates the section before the closing delimiter, so such a document is refused
-// `unterminated` rather than returning a shortened `inside`. That is deliberate and it is the
-// FAIL-CLOSED direction — a short interior is a measured number about the wrong bytes, which is the
-// defect, while a refusal is a red gate naming a file. Do not add a second arm that reaches past the
-// bound to find something it can vouch for; reaching past is the defect, not the remedy.
+// 29-20's REWIRE THEN REOPENED THE DEFECT, AND THE MECHANISM IS A CIRCULARITY — plan 29-27, CR-01.
+//
+// `sectionEndIndex` SKIPS lines the one fence toggle flags, which is correct for its own question and
+// fatal for this one: THE CAVEMAN FENCE'S OWN INTERIOR IS FLAGGED BY THAT TOGGLE. Asking a
+// fence-aware authority where this section ends, over a text whose fence is the very thing being
+// measured, is asking the block to decide its own extent. A `#` or `##` heading written BETWEEN the
+// delimiters therefore closed nothing, the close scan ran past it, every intervening section landed
+// in `inside`, and `outside` — the whole scan surface of guard_voice — could be driven to the EMPTY
+// STRING. Measured against the committed build before 29-27, on 29-REVIEW.md CR-01's document:
+// `ok:true` with `outside` = "", where `3ed76c1` had refused the same bytes `unterminated`.
+//
+// THE FIX KEEPS ONE AUTHORITY AND DELETES THE CIRCULARITY: the bound is taken from `sectionEndIndex`
+// called over a DELIMITER-NEUTRALISED PROJECTION of the document — every `FENCE_DELIMITER_LINE` line
+// replaced by an empty line, line COUNT and every other line's bytes preserved exactly. Over that
+// text `fencedLineFlags` is all-false, so the answer is the fence-blind level-at-most-two successor:
+// exactly the bound `3ed76c1` computed, now produced by the SHARED authority rather than by a private
+// regex. Neutralising is a THIRD use of the already-imported `FENCE_DELIMITER_LINE` class, not a new
+// grammar — the same class the two scans below already test directly.
+//
+// THE AUTHORITY'S SCOPE, STATED BECAUSE UNIFYING TWO PARSERS MAKES SCOPE A NEW DEGREE OF FREEDOM AND
+// THAT IS PRECISELY HOW 29-20 REOPENED THIS: the section is `[heading + 1, sectionEnd)` over the
+// neutralised projection. The reader never looks before `heading`, never reports a section the caller
+// did not ask about, and a delimiter under a later heading belongs to that section and is never
+// adopted here.
+//
+// THE COST, STATED SO IT IS NOT LATER "FIXED", AND THIS IS THE SHIPPED DIRECTION: a level-ONE-or-TWO
+// ATX line INSIDE the fence interior truncates the section before the closing delimiter, so such a
+// document is refused `unterminated` BY NAME rather than returning a shortened `inside` or a swollen
+// one. That is deliberate and it is the FAIL-CLOSED direction — a short interior is a measured number
+// about the wrong bytes, which is the defect, while a refusal is a red gate naming a file. Do not add
+// a second arm that reaches PAST the bound to find something it can vouch for: reaching past IS the
+// defect (it is what `ok:true, outside:""` was), not the remedy.
+//
+// THE ACCEPTED COST, MEASURED RATHER THAN DESCRIBED: 0 of the 17 live role files carry a level-one-or
+// -two ATX line inside their caveman interior, so the refusal has ZERO live instances on the shipped
+// tree. Re-measure that number rather than trusting this sentence; a non-zero count is a shipped
+// bypass to escalate, not a residual to absorb.
 //
 // Level THREE headings still do not bound the section: a subsection structures a section and does not
 // leave it, so `### ` stays inside a caveman block. Both directions are pinned by cases, because a
@@ -193,11 +224,28 @@ export function readCavemanFence(text: string): CavemanFenceResult {
   const heading = unfencedHeadingIndex(text, CAVEMAN_HEADING);
   if (heading === -1) return { ok: false, reason: "missing" };
 
+  // THE DELIMITER-NEUTRALISED PROJECTION (plan 29-27, CR-01). Every fence delimiter line becomes an
+  // EMPTY line; the line COUNT and every other line's bytes are preserved exactly, so an index into
+  // `blindText` is the same index into `lines`. `FENCE_DELIMITER_LINE` is the class the two scans
+  // below already test directly — this is a third use of that one imported class, not a second
+  // grammar, and no state machine is declared here.
+  //
+  // WHY THE BOUND IS ASKED OVER THIS TEXT AND NOT OVER `text`: the fence toggle flags the caveman
+  // fence's OWN INTERIOR, so a fence-aware bound over `text` lets the block being measured decide
+  // where its own section ends. Over the neutralised projection `fencedLineFlags` is all-false and
+  // the authority returns the fence-blind level-at-most-two successor.
+  const blindText = lines
+    .map((l) => (FENCE_DELIMITER_LINE.test(l) ? "" : l))
+    .join("\n");
+
   // THE BOUND, asked ONCE of the shared authority and consulted by BOTH scans (see the argument
   // above). One bound, two consumers — computing it twice, or bounding only the open scan, would
   // recreate the disagreement this module exists to delete. Level TWO: both `# ` and `## ` close the
   // caveman section, `### ` does not.
-  const sectionEnd = sectionEndIndex(text, heading + 1, 2);
+  //
+  // SCOPE: `[heading + 1, sectionEnd)`. Never before `heading`, never a section the caller did not
+  // ask about, and a delimiter under a later heading is another section's.
+  const sectionEnd = sectionEndIndex(blindText, heading + 1, 2);
 
   // The OPEN scan, bounded. No delimiter inside this section is `missing`; it does NOT continue past
   // `sectionEnd` looking for one, because a delimiter under a later heading is a different section's.

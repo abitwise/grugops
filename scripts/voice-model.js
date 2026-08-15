@@ -121,11 +121,27 @@ export function readCavemanFence(text) {
     const heading = unfencedHeadingIndex(text, CAVEMAN_HEADING);
     if (heading === -1)
         return { ok: false, reason: "missing" };
+    // THE DELIMITER-NEUTRALISED PROJECTION (plan 29-27, CR-01). Every fence delimiter line becomes an
+    // EMPTY line; the line COUNT and every other line's bytes are preserved exactly, so an index into
+    // `blindText` is the same index into `lines`. `FENCE_DELIMITER_LINE` is the class the two scans
+    // below already test directly — this is a third use of that one imported class, not a second
+    // grammar, and no state machine is declared here.
+    //
+    // WHY THE BOUND IS ASKED OVER THIS TEXT AND NOT OVER `text`: the fence toggle flags the caveman
+    // fence's OWN INTERIOR, so a fence-aware bound over `text` lets the block being measured decide
+    // where its own section ends. Over the neutralised projection `fencedLineFlags` is all-false and
+    // the authority returns the fence-blind level-at-most-two successor.
+    const blindText = lines
+        .map((l) => (FENCE_DELIMITER_LINE.test(l) ? "" : l))
+        .join("\n");
     // THE BOUND, asked ONCE of the shared authority and consulted by BOTH scans (see the argument
     // above). One bound, two consumers — computing it twice, or bounding only the open scan, would
     // recreate the disagreement this module exists to delete. Level TWO: both `# ` and `## ` close the
     // caveman section, `### ` does not.
-    const sectionEnd = sectionEndIndex(text, heading + 1, 2);
+    //
+    // SCOPE: `[heading + 1, sectionEnd)`. Never before `heading`, never a section the caller did not
+    // ask about, and a delimiter under a later heading is another section's.
+    const sectionEnd = sectionEndIndex(blindText, heading + 1, 2);
     // The OPEN scan, bounded. No delimiter inside this section is `missing`; it does NOT continue past
     // `sectionEnd` looking for one, because a delimiter under a later heading is a different section's.
     let open = -1;
