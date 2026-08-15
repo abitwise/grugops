@@ -5496,6 +5496,165 @@ describe("check-foundation-guards.js (SDLC-02 / SC2 fail-proof harness)", () => 
     expect(scanned.filter((l) => l.includes(MALFORMED_ROLE))).toHaveLength(0);
   }, 120_000);
 
+  // ── (Plan 29-27, Task 3) THE UNION — BOTH HALVES OF LANG-06's FIX, ON ONE DOCUMENT. ─────────────
+  //
+  // The reader's bound (Task 1) and the guard's denominator (Task 2) are two halves of ONE failure,
+  // and this phase's own recorded probe is that a fix scoped to the arm the reproduction happened to
+  // use leaves the arm beside it open. Proving them separately on two documents proves two things;
+  // the bypass needed both at once, so the closure must be shown at once too.
+  //
+  // The document is the attack in full: a role file whose caveman fence is opened inside its section
+  // and closed AFTER a later heading, with the swallowed section REWORDED INTO CAVEMAN VOICE — the
+  // exact thing guard_voice exists to refuse, hidden in the bytes guard_voice would have stopped
+  // scanning. Three assertions, because ANY ONE of them alone was true at HEAD while the bypass
+  // shipped: the gate exits 1, guard_voice names the file with the reason, and guard_caveman_voice
+  // names the SAME file with the SAME reason from the SAME verdict.
+  const UNION_HEADING = "## Hard limits";
+  const UNION_CAVEMAN_LINE = "you no think, big brain swamp demon, grug club rock";
+
+  /**
+   * Build the union plant against a mirror, refusing with a NAMED message if either of its own
+   * premises fails. A plant appended at end of file proves nothing — that is the recorded first-draft
+   * defect of the level-one whole-gate case above — so the anchor, the delimiters and the insertion
+   * point are all DERIVED from the mirror's real file at run time and the bracket is then asserted.
+   *
+   * `headingOffset` exists only so the vacuous arrangement can be FORCED once, and the premise shown
+   * to fire. A premise that has never been seen refusing is a comment.
+   */
+  const buildUnionPlant = (
+    root: string,
+    host: string,
+    opts: { headingOffset?: number } = {},
+  ): string => {
+    const names = roleNamesIn(root);
+    if (!names.includes(host)) {
+      throw new Error(
+        `union plant: ${host} is not a member of the mirror's derived role set (${names.length} members) — the plant would land outside the corpus the guards scan`,
+      );
+    }
+    const lines = readFileSync(rolePath(root, host), "utf8").split("\n");
+    const heading = lines.findIndex((l) => l.trimEnd() === "## Caveman prompt");
+    const open = lines.findIndex((l, i) => i > heading && /^```/.test(l));
+    const close = lines.findIndex((l, i) => i > open && /^```/.test(l));
+    if (heading === -1 || open === -1 || close === -1) {
+      throw new Error(
+        `union plant: ${host} does not carry an anchor and two delimiters (heading ${heading}, open ${open}, close ${close})`,
+      );
+    }
+    const at = close + (opts.headingOffset ?? 0);
+    const after = [
+      ...lines.slice(0, at),
+      "",
+      UNION_HEADING,
+      UNION_CAVEMAN_LINE,
+      ...lines.slice(at),
+    ].join("\n");
+    const planted = after.split("\n");
+    // THE PLANTED OCCURRENCE, NOT MERELY THE FIRST ONE. `## Hard limits` is a real section of every
+    // role file — that is exactly why it is the heading worth hiding a reworded safety surface behind
+    // — so a `findIndex` from zero would locate the file's OWN later heading on any file where the
+    // caveman section sits below it, and the bracket check would then be answering about the wrong
+    // line. The search starts at the insertion point, and the plant is asserted to have added exactly
+    // one occurrence.
+    const occurrences = (xs: string[]): number => xs.filter((l) => l === UNION_HEADING).length;
+    if (occurrences(planted) !== occurrences(lines) + 1) {
+      throw new Error(
+        `union plant: expected exactly one NEW \`${UNION_HEADING}\` line, found ${occurrences(planted)} where the source had ${occurrences(lines)}`,
+      );
+    }
+    const notes = planted.indexOf(UNION_HEADING, at);
+    const delimiters = planted.map((l, i) => (/^```/.test(l) ? i : -1)).filter((i) => i >= 0);
+    if (!(delimiters[0] < notes && notes < delimiters[1])) {
+      throw new Error(
+        `union plant: the planted heading sits at line ${notes} while the caveman fence's delimiters sit at ${delimiters[0]} and ${delimiters[1]} — it must sit BETWEEN them or the fence never spans it and the plant proves nothing`,
+      );
+    }
+    return after;
+  };
+
+  it("the union plant refuses to be vacuous — BOTH of its premises fail with a NAMED message", () => {
+    const m = mirror();
+    // Premise one, forced: a host outside the derived role set.
+    expect(() => buildUnionPlant(m, "not-a-real-role.md")).toThrow(
+      /is not a member of the mirror's derived role set/,
+    );
+    // Premise two, forced: the heading inserted one line PAST the closing delimiter — the vacuous
+    // arrangement, in which the fence never spans the heading and the pre-fix build already refused.
+    expect(() => buildUnionPlant(m, MALFORMED_ROLE, { headingOffset: 1 })).toThrow(
+      /it must sit BETWEEN them/,
+    );
+    // And the real arrangement passes both, so the throws above are the premises firing and not the
+    // helper being broken.
+    expect(() => buildUnionPlant(m, MALFORMED_ROLE)).not.toThrow();
+  }, 120_000);
+
+  it("THE UNION: an open fence swallowing a caveman-reworded section exits 1, and BOTH guards name the same file for the same reason", () => {
+    const m = mirror();
+    const after = buildUnionPlant(m, MALFORMED_ROLE);
+    // The swallowed section really does carry caveman voice — measured through the same counter the
+    // guards read, so the case is about a CONCEALED VIOLATION and not merely about a malformed fence.
+    expect(
+      countLexiconTokens(UNION_CAVEMAN_LINE),
+      "the swallowed section must be caveman-voiced, or the union case is only a fence-shape case",
+    ).toBeGreaterThanOrEqual(CAVEMAN_LEXICON_MIN);
+    writeFileSync(rolePath(m, MALFORMED_ROLE), after, "utf8");
+
+    const r = runIn(m);
+    const o = out(r);
+    const rel = roleRel(MALFORMED_ROLE);
+    const refused = `${rel}: ## Caveman prompt fence refused — reason unterminated`;
+
+    // (1) THE GATE.
+    expect(r.status, "the whole gate must exit 1 on the union document").toBe(1);
+    expect(o).not.toContain("ALL CHECKS PASSED");
+
+    // (2) guard_voice names the file WITH the reason, inside its own section.
+    expect(
+      guardSection(o, "guard_voice").filter((l) => l.includes(refused)),
+      "guard_voice must name the file and the reason inside its OWN output section",
+    ).toHaveLength(1);
+
+    // (3) guard_caveman_voice reaches the IDENTICAL verdict on the IDENTICAL bytes. This is LANG-07's
+    // actual acceptance evidence at this seam: not that one reader exists, but that both consumers
+    // agree. Asserted in its own section, so one consumer printing twice cannot satisfy it.
+    expect(
+      guardSection(o, "guard_caveman_voice").filter((l) => l.includes(refused)),
+      "guard_caveman_voice must reach the SAME verdict on the SAME bytes, inside its OWN output section",
+    ).toHaveLength(1);
+
+    // And neither guard prints a measured PASS over a document it refused.
+    expect(o).not.toMatch(/PASS +voice: 0 findings over/);
+    expect(o).not.toContain(`caveman voice: 0 findings over ${ROLE_COUNT}/${ROLE_COUNT}`);
+  }, 120_000);
+
+  it("THE UNION IS PROVEN ABLE TO FAIL: the pre-fix reader bound passes the same document", () => {
+    // A whole-gate case that passes against the build it was written to fail is the recorded
+    // first-draft defect at the level-one sibling above. This reconstructs the PRE-TASK-1 reader on a
+    // scratch build — one textual revert of the delimiter-neutralised bound back to the fence-aware
+    // one — and runs the SAME planted mirror through it. History-independent on purpose: keying the
+    // proof to a commit hash would rot the first time the file moves.
+    const preFixReader = scratchGuardFiles({
+      "voice-model.js": (src) =>
+        src.replace(
+          "const sectionEnd = sectionEndIndex(blindText, heading + 1, 2);",
+          "const sectionEnd = sectionEndIndex(text, heading + 1, 2);",
+        ),
+    });
+    const m = mirror();
+    writeFileSync(rolePath(m, MALFORMED_ROLE), buildUnionPlant(m, MALFORMED_ROLE), "utf8");
+    const o = out(runScratch(preFixReader, m));
+    const refused = `${roleRel(MALFORMED_ROLE)}: ## Caveman prompt fence refused — reason unterminated`;
+    // The pre-fix reader ACCEPTS the swallowed block, so neither guard refuses — which is precisely
+    // the shipped bypass, and precisely what makes the case above discriminating.
+    expect(
+      o.split("\n").filter((l) => l.includes(refused)),
+      "the pre-fix bound must NOT refuse this document — if it does, the union case above is passing for a reason other than the fix",
+    ).toHaveLength(0);
+    // And the caveman guard measures the WRONG BYTES: it publishes a block for this role built from
+    // the swallowed section rather than refusing it.
+    expect(o).toMatch(measurementLine(MALFORMED_ROLE));
+  }, 120_000);
+
   // (Phase 27 / KIT-01) The former "missing role → caveman prompt block missing" case is superseded
   // by the derived-kit-count case above. See the comment there.
 
