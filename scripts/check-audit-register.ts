@@ -39,12 +39,20 @@ import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import {
   readRegister,
+  readRegistry,
   isBlank,
+  CLAIM_KINDS,
   REGISTER_PATH,
+  REGISTRY_PATH,
+  type ClaimKind,
   type Register,
   type RegisterRow,
 } from "./audit-model.js";
 import { listRoles, listWorkflows } from "./kit-model.js";
+// The public-document scan set, taken from the ONE module that DERIVES it rather than restated as a
+// directory literal here. It is one of the two derivations equality four measures the registry arm
+// against; see the equality-four block for why a derived vouching set is what layer one needs.
+import { publicDocsScan } from "./check-public-docs-vocabulary.js";
 // The D-02 protocol file, taken from the ONE place it is declared rather than retyped here. It is
 // the single intended member of the uncounted arm, and the uncounted pin below is written against
 // this literal so the two cannot disagree (28-REVIEW WR-12).
@@ -129,6 +137,231 @@ function normalizeObservation(raw: string): string {
     .toLowerCase()
     .replace(/[.!;,]+$/, "")
     .trim();
+}
+
+// ---------------------------------------------------------------------------
+// EQUALITY FOUR — THE REGISTRY ARM OF THE D-18 UNION, PINNED IN BOTH DIRECTIONS.
+//
+// WHY THIS ARM EXISTS (29-REVIEW round 3, WR-06 with CR-02 supplying the other direction). The
+// D-18 union is `register rows flagged safety_surface: yes` UNION `registry rows of kind: safety`
+// (generate-safety-surface.ts:73-101). Round 2 pinned that union TWICE and both pins landed on the
+// REGISTER arm: equality three above pins the register's flagged set two-sided, and
+// check-diff-disposition pins `derivedKit ⊆ corpus.watched` plus a derived count. Containment is
+// one-directional BY DESIGN, so the REGISTRY arm — four files on the live tree, two of them present
+// by registry reason ALONE — was unpinned in BOTH directions.
+//
+// Round 3 reproduced it end to end: flip ONE `kind:` cell from `safety` to `architecture` and
+// README.md leaves the union (41 -> 40) AND the watched corpus, while check-audit-register and
+// check-claim-anchors both exit 0 and the consumer's containment pin does not fire — because
+// README.md was never a kit file and containment cannot miss what it never covered.
+//
+// IT LIVES BESIDE EQUALITY THREE ON PURPOSE. The two arms of one union are pinned side by side, at
+// the source, which is where equality three's own comment says the equality belongs. A registry
+// check bolted onto a kit-shaped floor somewhere else is what round 2 shipped.
+//
+// THE ARM IS DERIVED FROM THE PARSER, NEVER FROM RENDERED TEXT. `safetySurfaceUnion` renders a
+// reason sentence per entry ("home of safety claim C-28-NNN"); a check that parsed that sentence
+// would be a second grammar over a third artifact, which is the class this phase exists to delete.
+// ---------------------------------------------------------------------------
+
+/**
+ * THE PER-KIND MEASUREMENT BASELINE — the REMOVE direction, and the only hand-declared number here.
+ *
+ * WHY A BASELINE IS LEGITIMATE FOR THIS COLUMN AND FOR NOTHING ELSE IN THIS GATE. Nothing in this
+ * repository independently derives WHICH claims are safety claims. `kind` is an EDITORIAL
+ * classification made by the reader who filed the claim, so the direction round 3 reproduced — a
+ * `safety` cell quietly becoming an `architecture` cell — has no derivation to be measured against.
+ * Every other set in this gate is derived (the kit listers, publicDocsScan, the registry parse) and
+ * stays derived.
+ *
+ * IT IS LEGITIMATE UNDER D-25 because it is a MEASUREMENT, not a discovery set, and it fails
+ * CLOSED: a claim that is added, deleted, or reclassified makes this gate RED until somebody
+ * updates the map, rather than quietly widening what the gate accepts.
+ *
+ * IT IS LEGITIMATE UNDER D-04 for the same reason from the other side: the update is a SAME-COMMIT
+ * companion edit to the registry change that caused it, so the reclassification and its
+ * acknowledgement land together and are reviewable as one act.
+ *
+ * THE REFUSED ALTERNATIVE, NAMED SO IT IS NOT REDISCOVERED AS A GOOD IDEA: a hand-written list of
+ * PROTECTED FILE PATHS. D-01 refuses that outright — it is the maintained set-literal this whole
+ * phase exists to delete, it would drift silently the first time a public document was renamed, and
+ * it would answer a question (which files) that layer one already answers by derivation. A
+ * cardinality answers only the question no derivation can: how many claims each editorial class
+ * carries.
+ *
+ * ITS OWN FLOOR IS BELOW. A map that loses a kind takes that kind's rows with it and every
+ * remaining equality still holds, which is this project's set-literal-drift class one level up. The
+ * SUM of these counts must equal the registry's total claim count, and the map must name every
+ * legal kind.
+ */
+export const CLAIM_KIND_CARDINALITY: readonly {
+  readonly kind: ClaimKind;
+  readonly count: number;
+}[] = [
+  { kind: "safety", count: 6 },
+  { kind: "architecture", count: 28 },
+  { kind: "install", count: 8 },
+];
+
+/**
+ * The registry arm's NON-MARKDOWN members, declared with their reason.
+ *
+ * WHY THIS EXISTS AT ALL. Layer one measures the arm against `publicDocsScan()` UNION the derived
+ * kit, and BOTH derivations are markdown-only by construction — publicDocsScan filters on `.md` and
+ * the kit listers derive `.md` role and workflow files. Measured on the live tree, the registry arm
+ * carries exactly one non-markdown member, so letting a non-markdown path fall through unchecked
+ * would leave the whole class unvouched-for. It is declared here instead, in the shape
+ * PUBLIC_DOCS_EXEMPT and the uncounted pin above already use.
+ *
+ * IT IS USED IN THE ADD DIRECTION ONLY, AND THAT IS DELIBERATE. A two-sided pin here would be a
+ * SECOND, WEAKER duplicate of the per-kind cardinality: removing this member from the arm drops the
+ * `safety` count from 6 to 5 and the cardinality names it. One authority per predicate — the rule
+ * this phase's own record has now paid for four times — means the REMOVE direction has exactly one
+ * owner, and it is the map above.
+ */
+export const REGISTRY_ARM_NON_MARKDOWN: readonly {
+  readonly file: string;
+  readonly why: string;
+}[] = [
+  {
+    file: ".claude-plugin/plugin.json",
+    why:
+      "the Claude Code plugin manifest — a public distribution surface whose `description` is " +
+      "user-facing claim text (C-28-038). Neither vouching derivation can reach it: both are " +
+      "markdown-only",
+  },
+];
+
+export interface RegistryArmInputs {
+  /** The parsed registry's claims — id, home file and editorial kind. */
+  readonly claims: readonly { id: string; file: string; kind: string }[];
+  /** Every path a derivation vouches for: `publicDocsScan()` UNION the derived kit. */
+  readonly vouched: readonly string[];
+  /** The declared per-kind measurement baseline. */
+  readonly cardinality: readonly { kind: string; count: number }[];
+}
+
+/**
+ * Equality four's whole verdict, as a list of findings.
+ *
+ * IT NEVER RETURNS AT THE FIRST DEFECT. A predicate that stopped early would satisfy every
+ * single-defect case in the harness and still leave a second arm's drift invisible in exactly the
+ * arrangement a real narrowing edit takes — one cell of each arm moving in one commit. The harness
+ * asserts the COUNT, not merely the presence of a message.
+ *
+ * Pure and exported so its two source-level floors (the SUM and the kind coverage) can be driven
+ * directly: the declared map lives in THIS file, and a hermetic mirror can perturb a registry but
+ * never a constant compiled into the gate.
+ */
+export function registryArmFindings(i: RegistryArmInputs): string[] {
+  const findings: string[] = [];
+
+  const safetyClaims = i.claims.filter((c) => c.kind === "safety");
+  const armFiles = [...new Set(safetyClaims.map((c) => c.file))].sort();
+
+  // ── THE VACUITY REFUSAL ────────────────────────────────────────────────────
+  // An arm that derives nothing satisfies every equality written over it. This is the argument
+  // generate-safety-surface.ts already makes for the empty UNION and kit-model.ts's refuseEmpty()
+  // makes for an empty derivation, applied to the ARM — the granularity at which round 3's flip
+  // actually operates. Its wording is reused rather than a third one invented.
+  if (armFiles.length === 0) {
+    findings.push(
+      `equality four (the registry arm is EMPTY): ${REGISTRY_PATH} carries ZERO \`kind: safety\` ` +
+        `claim(s), so the registry arm of the D-18 union contributes nothing and every equality ` +
+        `written over it holds vacuously. A vacuous set passes every guard computed over it, and ` +
+        `an exclusion list missing this arm silently permits a style pass over the public ` +
+        `documents that host safety claims`,
+    );
+  }
+
+  // ── LAYER ONE, THE ADD DIRECTION — derived against derived ─────────────────
+  // A safety claim naming a file that neither derivation can vouch for puts that file into the
+  // D-18 exclusion list on the strength of one editorial cell. This is equality three's
+  // "flagged but NOT derived" argument applied to the other arm, and it needs no hand-written list.
+  const declaredNonMarkdown = REGISTRY_ARM_NON_MARKDOWN.map((e) => e.file);
+  const markdownArm = armFiles.filter((f) => f.endsWith(".md"));
+  const nonMarkdownArm = armFiles.filter((f) => !f.endsWith(".md"));
+
+  const strays = markdownArm.filter((f) => !i.vouched.includes(f));
+  if (strays.length > 0) {
+    findings.push(
+      `equality four (safety claim NOT vouched for): ${strays.length} \`kind: safety\` claim(s) ` +
+        `name a markdown file that neither derivation vouches for — ${strays.join(", ")}. The ` +
+        `vouching set is publicDocsScan() UNION the derived kit (${i.vouched.length} file(s)); a ` +
+        `safety claim outside both puts a file into the D-18 exclusion list that nothing in this ` +
+        `repository can account for, which is equality three's "flagged but NOT derived" argument ` +
+        `applied to the registry arm. The remedy is to correct the claim's \`file\`, or to make ` +
+        `the file a public document; widening this check is never the fix`,
+    );
+  }
+  const undeclared = nonMarkdownArm.filter((f) => !declaredNonMarkdown.includes(f));
+  if (undeclared.length > 0) {
+    findings.push(
+      `equality four (undeclared non-markdown safety claim): ${undeclared.length} \`kind: safety\` ` +
+        `claim(s) name a NON-markdown file that is not declared in REGISTRY_ARM_NON_MARKDOWN — ` +
+        `${undeclared.join(", ")}. Both vouching derivations are markdown-only by construction, so ` +
+        `a non-markdown member cannot be derived and is declared by name WITH ITS REASON instead. ` +
+        `The declared member(s) are [${declaredNonMarkdown.join(", ")}]. If a second non-markdown ` +
+        `file genuinely hosts a safety claim, widen that declaration with its reason — the shape ` +
+        `PUBLIC_DOCS_EXEMPT uses — rather than relaxing the check`,
+    );
+  }
+
+  // ── LAYER TWO, THE REMOVE DIRECTION — two-sided per-kind cardinality ───────
+  const derivedCounts = new Map<string, number>();
+  for (const c of i.claims) derivedCounts.set(c.kind, (derivedCounts.get(c.kind) ?? 0) + 1);
+  const declaredCounts = new Map<string, number>();
+  for (const c of i.cardinality) declaredCounts.set(c.kind, c.count);
+
+  // The map's own COVERAGE, derived against CLAIM_KINDS rather than baselined: a legal kind absent
+  // from the map is a kind whose rows are measured against nothing.
+  const uncovered = CLAIM_KINDS.filter((k) => !declaredCounts.has(k));
+  if (uncovered.length > 0) {
+    findings.push(
+      `equality four (the declared kind map omits a legal kind): CLAIM_KIND_CARDINALITY names no ` +
+        `count for [${uncovered.join(", ")}], which audit-model declares legal. A kind absent from ` +
+        `the map is a kind whose rows are measured against nothing, so every claim of that kind ` +
+        `could be added or reclassified without moving a single number here`,
+    );
+  }
+
+  const kinds = [...new Set([...declaredCounts.keys(), ...derivedCounts.keys()])].sort();
+  const disagreeing = kinds
+    .filter((k) => (declaredCounts.get(k) ?? 0) !== (derivedCounts.get(k) ?? 0))
+    .map(
+      (k) =>
+        `${k} declares ${declaredCounts.get(k) ?? 0} but the registry carries ` +
+        `${derivedCounts.get(k) ?? 0}`,
+    );
+  if (disagreeing.length > 0) {
+    findings.push(
+      `equality four (kind cardinality): ${disagreeing.length} claim kind(s) disagree with the ` +
+        `declared measurement baseline — ${disagreeing.join("; ")}. The \`kind\` column decides ` +
+        `membership of the D-18 exclusion list's REGISTRY arm, and one cell moved from \`safety\` ` +
+        `to another kind removes a file from that list ENTIRELY: the file leaves the LANG-03 ` +
+        `watched corpus, guard_diff_disposition simply checks less, and the narrowing arrives as a ` +
+        `clean build. The registry lives under \`docs/\` and is NOT itself a member of the corpus ` +
+        `it derives, so the edit that performs the narrowing owes no disposition row and nothing ` +
+        `downstream can see it. If the reclassification is correct, update CLAIM_KIND_CARDINALITY ` +
+        `in the SAME commit (D-04) with the reason in the commit message; LOWERING a count or ` +
+        `NARROWING the arm are the two ways to clear this finding by deleting what it measures, ` +
+        `and neither is the fix`,
+    );
+  }
+
+  // ── THE BASELINE'S OWN FLOOR ───────────────────────────────────────────────
+  const declaredSum = i.cardinality.reduce((n, c) => n + c.count, 0);
+  if (declaredSum !== i.claims.length) {
+    findings.push(
+      `equality four (the declared kind map is SHORT): CLAIM_KIND_CARDINALITY sums to ` +
+        `${declaredSum} claim(s) against ${i.claims.length} parsed from ${REGISTRY_PATH}. A map ` +
+        `that loses a kind takes that kind's rows out of the measurement with it and every ` +
+        `remaining per-kind equality still holds — the set-literal-drift class one level up. Walk ` +
+        `the registry's kinds before treating either number as the one to move`,
+    );
+  }
+
+  return findings;
 }
 
 // ---------------------------------------------------------------------------
@@ -288,6 +521,42 @@ function runAll(): void {
     );
   }
 
+  // ── EQUALITY FOUR — the REGISTRY arm, both directions (see the block above) ─
+  //
+  // The parse is wrapped: audit-model is a LIBRARY and throws on a registry it cannot vouch for,
+  // and this is a GATE that must REPORT. A stack trace is not a verdict.
+  let registryClaims: readonly { id: string; file: string; kind: string }[] | null = null;
+  try {
+    registryClaims = readRegistry(ROOT).claims.map((c) => ({
+      id: c.id,
+      file: c.file,
+      kind: c.kind as string,
+    }));
+  } catch (e) {
+    fail(
+      `${REGISTRY_PATH} could not be parsed, so the REGISTRY arm of the D-18 union could not be ` +
+        `measured and NO verdict is reported over it — ${(e as Error).message}`,
+    );
+  }
+  // The vouching set, taken from the two DERIVATIONS and nothing else. `derived` is reused from
+  // above so equalities one, three and four cannot come to disagree about what the kit is.
+  const vouched = [...new Set([...publicDocsScan(), ...derived])].sort();
+  const safetyClaimCount =
+    registryClaims === null ? 0 : registryClaims.filter((c) => c.kind === "safety").length;
+  const registryArmFiles =
+    registryClaims === null
+      ? []
+      : [...new Set(registryClaims.filter((c) => c.kind === "safety").map((c) => c.file))].sort();
+  if (registryClaims !== null) {
+    for (const f of registryArmFindings({
+      claims: registryClaims,
+      vouched,
+      cardinality: CLAIM_KIND_CARDINALITY,
+    })) {
+      fail(f);
+    }
+  }
+
   // ── EQUALITY TWO — independent, and at TWO granularities ─────────────────
   //
   // Reported SEPARATELY from equality one. A single conflated tally lets one number absorb the
@@ -395,7 +664,14 @@ function runAll(): void {
         `(${derivedRoles.length} roles + ${derivedWorkflows.length} workflows); equality three ` +
         `holds — the ${flagged.length} counted row(s) flagged \`safety_surface: yes\` are set-equal ` +
         `in both directions to those same ${derived.length} derived file(s), so no kit file has ` +
-        `been de-scoped out of the LANG-03 watched corpus; equality two holds ` +
+        `been de-scoped out of the LANG-03 watched corpus; equality four holds — the union's OTHER ` +
+        `arm carries ${safetyClaimCount} \`kind: safety\` claim(s) naming ` +
+        `${registryArmFiles.length} distinct file(s) (${registryArmFiles.join(", ")}), every ` +
+        `markdown one vouched for by publicDocsScan() or the derived kit (${vouched.length} ` +
+        `file(s)) and ${REGISTRY_ARM_NON_MARKDOWN.length} non-markdown one(s) declared by name, ` +
+        `with the registry's kind distribution exactly ` +
+        `${CLAIM_KIND_CARDINALITY.map((c) => `${c.kind} ${c.count}`).join(", ")} summing to the ` +
+        `${registryClaims === null ? 0 : registryClaims.length} claim(s) parsed; equality two holds ` +
         `— Table A declares ${declaredSum} finding(s) and Table B carries ${register.findings.length}, ` +
         `agreeing per file across all ${register.rows.length} row(s); ${uncounted.length} uncounted ` +
         `row(s) recorded by name (${uncountedReport}); every observation substantive and every ` +

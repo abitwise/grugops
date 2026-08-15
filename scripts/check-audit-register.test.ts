@@ -26,32 +26,108 @@ import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { ROLE_COUNT, WORKFLOW_COUNT, listRoles, listWorkflows } from "./kit-model.js";
-import { REGISTER_PATH, REGISTRY_PATH, readRegister } from "./audit-model.js";
+import { REGISTER_PATH, REGISTRY_PATH, readRegister, readRegistry } from "./audit-model.js";
 import { PROTOCOL_FILE } from "./audit-prepass.js";
+import { publicDocsScan } from "./check-public-docs-vocabulary.js";
+import {
+  CLAIM_KIND_CARDINALITY,
+  registryArmFindings,
+} from "./check-audit-register.js";
 import {
   renderSafetySurface,
   safetySurfaceUnion,
   OUT as SAFETY_SURFACE_PATH,
 } from "./generate-safety-surface.js";
 
-/** A minimal parseable registry with one `kind: safety` row, so the D-18 union is never empty. */
-const MIRROR_REGISTRY = [
-  "# Registry",
-  "",
-  "### C-28-001",
-  "",
-  "- file: README.md",
-  "- line: 4",
-  "- kind: safety",
-  "- depends_on: autonomy",
-  "- status: true",
-  "- mechanism: measured against the live config value.",
-  "",
-  "```",
-  "A sentence.",
-  "```",
-  "",
-].join("\n");
+// ─────────────────────────────────────────────────────────────────────────────────────────────
+// THE MIRROR'S CLAIM REGISTRY — the REGISTRY arm of the D-18 union (plan 29-30).
+//
+// It carried ONE `kind: safety` row until this plan, which was enough to keep the union non-empty
+// and nothing else. Equality four pins the registry arm's per-kind cardinality, so a one-row mirror
+// is a shape the shipped artifact is not — the same correction plan 29-21 had to make to the
+// register rows above, for the same reason: a fixture that cannot express the live distribution
+// cannot express the defect either.
+//
+// THE DISTRIBUTION IS WRITTEN HERE AS LITERALS AND IS NEVER DERIVED FROM THE GATE'S DECLARED MAP.
+// A fixture built from the baseline it is used to falsify follows that baseline everywhere it
+// moves, so every perturbation probe below would plant a mutation and measure nothing. The two
+// numbers are tied together instead by an explicit case ("the mirror's distribution equals the
+// declared map"), which makes drift loud rather than silent.
+const MIRROR_SAFETY_CLAIMS = 6;
+const MIRROR_ARCHITECTURE_CLAIMS = 28;
+const MIRROR_INSTALL_CLAIMS = 8;
+
+/** A root markdown file, so `publicDocsScan()` vouches for it on the mirror as it does live. */
+const MIRROR_ROOT_DOC = "README.md";
+/**
+ * A second root markdown file carrying EXACTLY ONE claim in the whole fixture, and that claim is
+ * `kind: safety`. It is the mirror's stand-in for the live `README.md` in round 3's WR-06 recipe:
+ * flipping its one cell is the only way a file can LEAVE the union, and a home that also hosts
+ * architecture or install claims could never express that.
+ */
+const MIRROR_SOLE_DOC = "AGENTS.md";
+/** A DERIVED KIT file — the other derivation that may vouch for a safety claim's home. */
+const MIRROR_KIT_DOC = "agent-factory/roles/role-01.md";
+/** The one non-markdown member: no derivation is markdown-blind, so it is declared by name. */
+const MIRROR_NON_MARKDOWN = ".claude-plugin/plugin.json";
+
+interface ClaimSpec {
+  readonly id: string;
+  readonly file: string;
+  readonly kind: string;
+}
+
+/**
+ * 42 claims in the live per-kind distribution, with the safety arm spread across all three ways a
+ * member can be vouched for: a root public document, a derived kit file, and the declared
+ * non-markdown member.
+ */
+function defaultClaims(): ClaimSpec[] {
+  const out: ClaimSpec[] = [];
+  const push = (file: string, kind: string): void => {
+    out.push({ id: `C-28-${String(out.length + 1).padStart(3, "0")}`, file, kind });
+  };
+  const safetyHomes = [
+    MIRROR_ROOT_DOC,
+    MIRROR_SOLE_DOC,
+    MIRROR_KIT_DOC,
+    MIRROR_KIT_DOC,
+    MIRROR_NON_MARKDOWN,
+    MIRROR_NON_MARKDOWN,
+  ];
+  if (safetyHomes.length !== MIRROR_SAFETY_CLAIMS) {
+    throw new Error(
+      `harness premise: the safety arm names ${safetyHomes.length} home(s) but the fixture ` +
+        `declares ${MIRROR_SAFETY_CLAIMS} safety claim(s)`,
+    );
+  }
+  for (const home of safetyHomes) push(home, "safety");
+  for (let i = 0; i < MIRROR_ARCHITECTURE_CLAIMS; i++) push(MIRROR_ROOT_DOC, "architecture");
+  for (let i = 0; i < MIRROR_INSTALL_CLAIMS; i++) push(MIRROR_ROOT_DOC, "install");
+  return out;
+}
+
+function renderRegistry(claims: readonly ClaimSpec[]): string {
+  const lines: string[] = ["# Registry", ""];
+  for (const c of claims) {
+    lines.push(
+      `### ${c.id}`,
+      "",
+      `- file: ${c.file}`,
+      "- line: 4",
+      `- kind: ${c.kind}`,
+      "- depends_on: autonomy",
+      "- status: true",
+      "- mechanism: measured against the live config value.",
+      "",
+      "```",
+      `A sentence for ${c.id}.`,
+      "```",
+      "",
+    );
+  }
+  return lines.join("\n");
+}
 
 const REPO_ROOT = join(import.meta.dirname, "..");
 const GATE_JS = join(REPO_ROOT, "scripts", "check-audit-register.js");
@@ -144,11 +220,17 @@ function buildMirror(
   rows: readonly RowSpec[] = defaultRows(),
   findingRows: readonly string[] = [],
   registerText?: string,
+  claims: readonly ClaimSpec[] = defaultClaims(),
 ): string {
   const dir = freshTmp("grugops-audit-register-");
   mkdirSync(join(dir, "agent-factory", "roles"), { recursive: true });
   mkdirSync(join(dir, "agent-factory", "workflows"), { recursive: true });
   mkdirSync(join(dir, "docs", "audit"), { recursive: true });
+  // A root markdown document, so the mirror's `publicDocsScan()` has a member exactly as the live
+  // tree does. Without it the vouching derivation is empty on every mirror and equality four's
+  // containment arm would red for a reason no case here is about.
+  writeFileSync(join(dir, MIRROR_ROOT_DOC), "# Mirror\n");
+  writeFileSync(join(dir, MIRROR_SOLE_DOC), "# Mirror substrate\n");
   for (let i = 1; i <= ROLE_COUNT; i++) {
     writeFileSync(join(dir, "agent-factory", "roles", `role-${String(i).padStart(2, "0")}.md`), "x");
   }
@@ -169,7 +251,7 @@ function buildMirror(
   // this mirror, or the guard fails closed — which is the correct behaviour and would otherwise red
   // every case here for a reason none of them is about. The registry carries one `kind: safety` row
   // so the union is non-empty even when every register row is `safety_surface: no`.
-  writeFileSync(join(dir, REGISTRY_PATH), MIRROR_REGISTRY, "utf8");
+  writeFileSync(join(dir, REGISTRY_PATH), renderRegistry(claims), "utf8");
   try {
     writeFileSync(join(dir, SAFETY_SURFACE_PATH), renderSafetySurface(dir), "utf8");
   } catch {
@@ -446,6 +528,271 @@ describe("check-audit-register: equality three — the flagged rows are the deri
     ].sort();
     expect(flagged).toEqual(derived);
     expect(flagged.length).toBe(ROLE_COUNT + WORKFLOW_COUNT);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────────────────────
+// EQUALITY FOUR — the REGISTRY arm of the D-18 union (plan 29-30, 29-REVIEW round 3 § WR-06).
+//
+// The union is `register rows flagged safety_surface: yes` ∪ `registry rows of kind: safety`. Round
+// 2 pinned it twice and BOTH pins landed on the REGISTER arm (equality three at the source, the
+// containment pin at check-diff-disposition). Containment is one-directional by design, so the
+// registry arm — four files on the live tree, two of them present by registry reason ALONE — was
+// unpinned in both directions. Round 3 reproduced it: flip ONE `kind:` cell from `safety` to
+// `architecture` and README.md leaves the union AND the watched corpus while every gate exits 0.
+//
+// These cases are the register arm's harness cases, twinned onto the registry arm.
+// ─────────────────────────────────────────────────────────────────────────────────────────────
+const claimsWith = (
+  base: readonly ClaimSpec[],
+  index: number,
+  patch: Partial<ClaimSpec>,
+): ClaimSpec[] => base.map((c, i) => (i === index ? { ...c, ...patch } : c));
+
+const indexOfSoleSafetyClaim = (claims: readonly ClaimSpec[]): number => {
+  const i = claims.findIndex((c) => c.file === MIRROR_SOLE_DOC);
+  if (i < 0) throw new Error("harness premise: the fixture carries no sole-claim document");
+  return i;
+};
+
+/** The registry arm as the union derives it, measured through the ONE derivation. */
+const unionOf = (root: string): string[] =>
+  safetySurfaceUnion(root)
+    .map((e) => e.file)
+    .sort();
+
+const kindCountsOf = (root: string): Record<string, number> => {
+  const out: Record<string, number> = {};
+  for (const c of readRegistry(root).claims) out[c.kind] = (out[c.kind] ?? 0) + 1;
+  return out;
+};
+
+describe("check-audit-register: equality four — the REGISTRY arm (round-3 WR-06)", () => {
+  it("the fixture's claim distribution is the one the gate declares — a drift pin, not a derivation", () => {
+    // The fixture is written as literals ABOVE and this is the only place the two numbers meet. If
+    // the fixture were built FROM the declared map, every perturbation case below would move the
+    // baseline and the measurement together and measure nothing.
+    const declared = Object.fromEntries(
+      CLAIM_KIND_CARDINALITY.map((c) => [c.kind, c.count]),
+    );
+    expect(declared).toEqual({
+      safety: MIRROR_SAFETY_CLAIMS,
+      architecture: MIRROR_ARCHITECTURE_CLAIMS,
+      install: MIRROR_INSTALL_CLAIMS,
+    });
+  });
+
+  it("the LIVE registry's kind distribution equals the declared map, in BOTH directions", () => {
+    // The direction round 3 reproduced, asserted against the shipped artifact rather than a mirror.
+    const live = kindCountsOf(REPO_ROOT);
+    const declared = Object.fromEntries(
+      CLAIM_KIND_CARDINALITY.map((c) => [c.kind, c.count]),
+    );
+    expect(live).toEqual(declared);
+    expect(CLAIM_KIND_CARDINALITY.reduce((n, c) => n + c.count, 0)).toBe(
+      readRegistry(REPO_ROOT).claims.length,
+    );
+  });
+
+  it("REDs a ONE-CELL `kind: safety` flip, naming the kind — round 3's exact WR-06 recipe", () => {
+    const control = defaultClaims();
+    const at = indexOfSoleSafetyClaim(control);
+    const flipped = claimsWith(control, at, { kind: "architecture" });
+
+    // ── PREMISE 1 — exactly one cell moved, and it moved from `safety`.
+    const moved = flipped.filter((c, i) => c.kind !== control[i].kind);
+    expect(moved.map((c) => c.id)).toEqual([control[at].id]);
+    expect(control[at].kind).toBe("safety");
+
+    const controlDir = buildMirror(defaultRows(), [], undefined, control);
+    const flippedDir = buildMirror(defaultRows(), [], undefined, flipped);
+
+    // ── PREMISE 2 — the plant is not a no-op AT THE POINT OF EFFECT: the file really does leave the
+    //    D-18 union. A case whose plant changed nothing passes for the wrong reason.
+    expect(unionOf(controlDir)).toContain(MIRROR_SOLE_DOC);
+    expect(unionOf(flippedDir)).not.toContain(MIRROR_SOLE_DOC);
+    expect(unionOf(flippedDir).length).toBe(unionOf(controlDir).length - 1);
+
+    // ── PREMISE 3 — the CONTROL mirror is green, so the RED below is about the flip.
+    expect(runGate(controlDir).status).toBe(0);
+
+    const r = runGate(flippedDir);
+    expect(r.status).toBe(1);
+    expect(r.out).toMatch(/equality four \(kind cardinality\)/);
+    expect(r.out).toMatch(/\bsafety\b/);
+    expect(r.out).toMatch(/architecture/);
+    // Equality three stays SILENT: the register's column never moved, so this is a second,
+    // independent question about the same union and neither arm absorbs the other's drift.
+    expect(r.out).not.toMatch(/equality three \(/);
+  });
+
+  it("REDs a STRAY `kind: safety` row whose home NO derivation vouches for — a DIFFERENT defect", () => {
+    // `docs/audit/28-claim-registry.md` exists on the mirror and is neither a public document nor a
+    // derived kit file, so it is outside both derivations while being a real file — which isolates
+    // this from a missing-file failure.
+    const STRAY = REGISTRY_PATH;
+    const control = defaultClaims();
+    const at = indexOfSoleSafetyClaim(control);
+    const strayed = claimsWith(control, at, { file: STRAY });
+
+    // ── PREMISE — the kind column did NOT move, so this case cannot be passing on the cardinality
+    //    finding the previous case is about.
+    expect(strayed.map((c) => c.kind)).toEqual(control.map((c) => c.kind));
+
+    const dir = buildMirror(defaultRows(), [], undefined, strayed);
+    const r = runGate(dir);
+    expect(r.status).toBe(1);
+    expect(r.out).toMatch(/equality four \(safety claim NOT vouched for\)/);
+    expect(r.out).toContain(STRAY);
+    // TWO ACTS, TWO REMEDIES, TWO FINDINGS. The stray must not be reported through the cardinality
+    // finding, and the flip must not be reported through this one.
+    expect(r.out).not.toMatch(/equality four \(kind cardinality\)/);
+  });
+
+  it("REDs an UNDECLARED non-markdown safety claim, naming the file and the declared member", () => {
+    const control = defaultClaims();
+    const at = indexOfSoleSafetyClaim(control);
+    const dir = buildMirror(
+      defaultRows(),
+      [],
+      undefined,
+      claimsWith(control, at, { file: "package.json" }),
+    );
+    const r = runGate(dir);
+    expect(r.status).toBe(1);
+    expect(r.out).toMatch(/equality four \(undeclared non-markdown safety claim\)/);
+    expect(r.out).toContain("package.json");
+    expect(r.out).toContain(MIRROR_NON_MARKDOWN);
+  });
+
+  it("THE PER-KIND PIN IS FALSIFIABLE FOR EVERY DECLARED KIND, not for one of them", () => {
+    // A probe run on one kind proves one kind. Each declared kind is perturbed by one in turn and
+    // the refusal must name THAT kind.
+    for (const declared of CLAIM_KIND_CARDINALITY) {
+      const control = defaultClaims();
+      const victim = control.findIndex((c) => c.kind === declared.kind);
+      expect(victim, `the fixture must carry a ${declared.kind} claim`).toBeGreaterThanOrEqual(0);
+      const short = control.filter((_, i) => i !== victim);
+      const dir = buildMirror(defaultRows(), [], undefined, short);
+
+      // ── PREMISE — the derived count for THIS kind really moved by one on the mirror.
+      expect(kindCountsOf(dir)[declared.kind] ?? 0, declared.kind).toBe(declared.count - 1);
+
+      const r = runGate(dir);
+      expect(r.status, declared.kind).toBe(1);
+      expect(r.out, declared.kind).toMatch(/equality four \(kind cardinality\)/);
+      expect(r.out, declared.kind).toContain(
+        `${declared.kind} declares ${declared.count} but the registry carries ${declared.count - 1}`,
+      );
+    }
+  });
+
+  it("REDs a VACUOUS registry arm — zero `kind: safety` rows is a named refusal, not an empty-set pass", () => {
+    // An arm that derives nothing satisfies every equality written over it. This is the argument
+    // generate-safety-surface.ts already makes for the empty UNION and kit-model.ts makes for
+    // refuseEmpty(), applied to the arm.
+    const none = defaultClaims().map((c) =>
+      c.kind === "safety" ? { ...c, kind: "architecture" } : c,
+    );
+    const dir = buildMirror(defaultRows(), [], undefined, none);
+    expect(kindCountsOf(dir)["safety"]).toBeUndefined();
+    const r = runGate(dir);
+    expect(r.status).toBe(1);
+    expect(r.out).toMatch(/equality four \(the registry arm is EMPTY\)/);
+  });
+
+  it("the PASS line PUBLISHES the registry arm's size beside the register arm's", () => {
+    const r = runGate(buildMirror());
+    expect(r.status).toBe(0);
+    expect(r.out).toMatch(/equality four holds/);
+    expect(r.out).toContain(
+      `${MIRROR_SAFETY_CLAIMS} \`kind: safety\` claim(s)`,
+    );
+  });
+});
+
+describe("check-audit-register: equality four's declared map cannot silently go SHORT", () => {
+  // THE BASELINE'S OWN FLOOR. A per-kind map that loses a kind takes that kind's rows with it and
+  // every remaining equality still holds — the set-literal-drift class one level up. These drive
+  // the exported predicate directly, because the map lives in the gate's SOURCE and a mirror cannot
+  // perturb it.
+  const liveClaims = readRegistry(REPO_ROOT).claims.map((c) => ({
+    id: c.id,
+    file: c.file,
+    kind: c.kind as string,
+  }));
+  const vouched = [
+    ...publicDocsScan(),
+    ...listRoles(REPO_ROOT).map((f) => `agent-factory/roles/${f}`),
+    ...listWorkflows(REPO_ROOT).map((f) => `agent-factory/workflows/${f}`),
+  ];
+
+  it("the live inputs produce NO finding — the control, so every red below is about the plant", () => {
+    expect(
+      registryArmFindings({
+        claims: liveClaims,
+        vouched,
+        cardinality: CLAIM_KIND_CARDINALITY,
+      }),
+    ).toEqual([]);
+  });
+
+  it("DELETING a kind from the declared map REDs on the SUM floor, naming the shortfall", () => {
+    for (const dropped of CLAIM_KIND_CARDINALITY) {
+      const short = CLAIM_KIND_CARDINALITY.filter((c) => c.kind !== dropped.kind);
+      const findings = registryArmFindings({
+        claims: liveClaims,
+        vouched,
+        cardinality: short,
+      });
+      const sum = findings.filter((f) => /the declared kind map is SHORT/.test(f));
+      expect(sum.length, dropped.kind).toBe(1);
+      expect(sum[0]).toContain(
+        `${liveClaims.length - dropped.count} claim(s) against ${liveClaims.length}`,
+      );
+    }
+  });
+
+  it("DELETING a kind is ALSO a coverage failure — the map must name every legal kind", () => {
+    const short = CLAIM_KIND_CARDINALITY.filter((c) => c.kind !== "install");
+    const findings = registryArmFindings({
+      claims: liveClaims,
+      vouched,
+      cardinality: short,
+    });
+    expect(findings.some((f) => /omits a legal kind/.test(f))).toBe(true);
+    expect(findings.some((f) => /install/.test(f))).toBe(true);
+  });
+
+  it("the predicate reports EVERY defect it finds — it never returns at the first one", () => {
+    // The finding COUNT is the assertion, not merely the presence of one message: a predicate that
+    // stopped at its first defect would satisfy every single-defect case above and still leave the
+    // second arm's drift invisible in exactly the arrangement a real narrowing edit takes.
+    const safetyIdx = liveClaims
+      .map((c, i) => (c.kind === "safety" ? i : -1))
+      .filter((i) => i >= 0);
+    expect(safetyIdx.length, "the plant needs two distinct safety claims").toBeGreaterThanOrEqual(2);
+    const planted = liveClaims.map((c, i) => {
+      // TWO DEFECTS OF DIFFERENT CLASSES, one commit: one cell reclassified out of the arm, and one
+      // surviving safety claim rehomed where no derivation vouches for it.
+      if (i === safetyIdx[0]) return { ...c, kind: "architecture" };
+      if (i === safetyIdx[1]) return { ...c, file: "docs/audit/28-claim-registry.md" };
+      return c;
+    });
+    const findings = registryArmFindings({
+      claims: planted,
+      vouched,
+      cardinality: CLAIM_KIND_CARDINALITY,
+    });
+    expect(findings.length).toBeGreaterThanOrEqual(2);
+    expect(findings.some((f) => /kind cardinality/.test(f))).toBe(true);
+    expect(findings.some((f) => /safety claim NOT vouched for/.test(f))).toBe(true);
+
+    // AND THE COUNT ASSERTION IS PROVEN TO BE DOING WORK. An early-returning predicate's observable
+    // output on this input is its FIRST finding alone; that is exactly the single-defect shape
+    // every other case here accepts, and this assertion must reject it.
+    const earlyReturn = findings.slice(0, 1);
+    expect(() => expect(earlyReturn.length).toBeGreaterThanOrEqual(2)).toThrow();
   });
 });
 
