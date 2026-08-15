@@ -1862,6 +1862,495 @@ describe("check-diff-disposition — CR-01: the watched corpus is pinned to the 
   });
 });
 
+// ─────────────────────────────────────────────────────────────────────────────────────────────
+// WR-03 / LANG-07 — EVERY SECTION-EXTENT LOCATOR IN THIS MODULE IS DERIVED, NEVER TRANSCRIBED.
+//
+// Round 1 of this gap closure fixed THREE section locators the review had written down and left a
+// FOURTH — `readDispositionRows` — untouched, because nobody derived it. That is the set-literal
+// drift class applied to a defect list: a hand-maintained list of addresses rots exactly like a
+// hand-maintained list of files, and it rots silently because the sites it omits raise nothing.
+//
+// So this block does not start from the review's addresses. It scans THIS MODULE's own source for
+// the CONSTRUCTS that answer a section-extent question and reports whatever it finds. If the answer
+// ever names a site nobody expected, that site is the finding.
+//
+// WHAT A "SECTION-EXTENT CONSTRUCT" IS, MECHANICALLY. Three shapes, each with an operand that is
+// heading-shaped — an identifier carrying `heading`/`HEADING`/`anchor`/`ANCHOR`, or a string literal
+// that opens with ATX hashes and a space:
+//
+//   [0] LOCATE by whole-line equality — `lines[i].trimEnd() === heading`
+//   [1] LOCATE by substring or offset search — `body.indexOf(DISPOSITION_HEADING)`
+//   [2] CLOSE by heading PREFIX — `line.startsWith("## ")`, or an anchored `/^#{1,2} /` literal
+//
+// CONSTRUCT [1] IS THIS FILE'S DEVIATION FROM THE REVIEW'S OWN SKETCH, AND IT IS THE WHOLE POINT.
+// The round-2 review and 29-22-PLAN.md both describe the classifier as "a heading-equality test
+// against a heading constant, and a heading-prefix test used to terminate a scan" — constructs [0]
+// and [2], and nothing else. Those two are BLIND to `readDispositionRows`, which locates its section
+// with neither: it calls `indexOf` on the raw document. A derivation built to the sketch would have
+// re-derived exactly the three sites round 1 already knew about and re-missed the fourth, inside the
+// fix written to stop that happening. The blindness is asserted below rather than argued.
+//
+// COMMENT LINES ARE STRIPPED before classification, for the reason the fence-machine scan in
+// scripts/frontmatter.test.ts already gives: the property is about CODE, not about whether a
+// construct is DESCRIBED. This module describes every one of these constructs at length in the
+// comment blocks that record why they were deleted, and without the strip the answer after the fix
+// would be the prose, not the code.
+//
+// WHAT THIS FLOOR DOES NOT COVER, NAMED RATHER THAN LEFT UNDISCLOSED: a locator whose operand is
+// named something other than heading/anchor and is not a literal; a heading recogniser assembled by
+// concatenation or `new RegExp(...)`; a `slice(0, 3)`/`charAt` prefix form; and a locator written in
+// a language this scan does not read. It is a floor against the shapes a section locator plausibly
+// takes in this tree, not a proof that no other shape can exist.
+// ─────────────────────────────────────────────────────────────────────────────────────────────
+
+const MODULE_REL = "scripts/check-diff-disposition.ts";
+const AUTHORITY_REL = "scripts/frontmatter.ts";
+
+/** Comment lines blanked, POSITIONS PRESERVED so a site's line index still means something. */
+const codeLinesOf = (src: string): string[] =>
+  src.split("\n").map((l) => {
+    const t = l.trimStart();
+    return t.startsWith("//") || t.startsWith("/*") || t.startsWith("*") ? "" : l;
+  });
+
+/** An identifier that names a heading, or a string literal that IS one. `\x60` is a backtick. */
+const HEADING_OPERAND = String.raw`(?:[\w$]*(?:HEADING|Heading|heading|ANCHOR|anchor)[\w$]*|["'\x60]#{1,6} )`;
+
+const SECTION_EXTENT_CONSTRUCTS: readonly RegExp[] = [
+  new RegExp(
+    String.raw`(?:===|!==)\s*${HEADING_OPERAND}|${HEADING_OPERAND}\s*(?:===|!==)`,
+  ),
+  new RegExp(String.raw`\.(?:indexOf|lastIndexOf|search)\(\s*${HEADING_OPERAND}`),
+  /\.startsWith\(\s*["'\x60]#{1,6} |\/\^#\{?[\d,]*\}?[ \\]/,
+];
+
+/** The nearest preceding top-level `function` declaration — which site the construct belongs to. */
+const enclosingFunction = (code: readonly string[], i: number): string => {
+  for (let j = i; j >= 0; j -= 1) {
+    const m = /^(?:export\s+)?(?:async\s+)?function\s+([A-Za-z_$][\w$]*)/.exec(
+      code[j],
+    );
+    if (m !== null) return m[1];
+  }
+  return "<module scope>";
+};
+
+/**
+ * Every section-extent construct in `src`, as `function :: the line itself`.
+ *
+ * ONE classifier, called with different construct arrays — the same reason the fence-machine scan
+ * parameterises its own: the falsifiability probe has to run THE RULE with a construct removed, and
+ * a second spelling of the rule would measure the copy instead of the thing.
+ *
+ * THE SITE STRING DELIBERATELY CARRIES NO CONSTRUCT INDEX. The first draft of this helper wrote
+ * `construct[n]` into it, which made the removal probe below a FALSE PROBE: dropping construct [0]
+ * renumbers [1] and [2], so every site string changed and `not.toEqual(base)` passed whether or not
+ * the removed construct had ever matched anything. A probe that cannot fail is the harness-premise
+ * failure this project has now recorded nine times, caught here by reading the received value.
+ */
+const sectionExtentSites = (
+  src: string,
+  constructs: readonly RegExp[] = SECTION_EXTENT_CONSTRUCTS,
+): string[] => {
+  const code = codeLinesOf(src);
+  const out: string[] = [];
+  for (let i = 0; i < code.length; i += 1) {
+    if (constructs.some((r) => r.test(code[i]))) {
+      out.push(`${enclosingFunction(code, i)} :: ${code[i].trim()}`);
+    }
+  }
+  return out;
+};
+
+/**
+ * A source carrying ONE site of each construct — the falsifiability probe's fixture.
+ *
+ * It exists so the derivation's liveness is provable WITHOUT depending on the live module still
+ * carrying a defect. After the rewire the live answer is the EMPTY SET, and an empty answer from a
+ * classifier that matches nothing is indistinguishable from an empty answer from a classifier that
+ * works. This fixture is what tells the two apart, permanently.
+ */
+const PLANTED_LOCATOR_SOURCE = [
+  "export function plantedLocateByEquality(lines: string[], heading: string): number {",
+  "  for (let i = 0; i < lines.length; i += 1) {",
+  "    if (lines[i].trimEnd() === heading) return i;",
+  "  }",
+  "  return -1;",
+  "}",
+  "",
+  "export function plantedLocateBySearch(body: string, want: string): number {",
+  "  const PLAN_HEADING = want;",
+  "  return body.indexOf(PLAN_HEADING);",
+  "}",
+  "",
+  "export function plantedCloseByPrefix(lines: string[], from: number): number {",
+  "  for (let i = from; i < lines.length; i += 1) {",
+  '    if (lines[i].startsWith("## ")) return i;',
+  "  }",
+  "  return lines.length;",
+  "}",
+  "",
+].join("\n");
+
+/**
+ * The DERIVED site list, produced by running the classifier above over the live module in the same
+ * session that wrote this line — never transcribed from the review, whose own address list is the
+ * thing that missed a site.
+ *
+ * (Plan 29-22, Task 2) THIS LIST IS EXPECTED TO BECOME EMPTY, and the emptiness is the deliverable:
+ * both locators take their answer from scripts/frontmatter.ts and this module declares no section
+ * predicate at all. The pin moving is the pin working.
+ */
+const LOCATOR_SITES_AT_HEAD = [
+  "locateSection :: if (lines[i].trimEnd() !== heading) continue;",
+  'locateSection :: if (!fenced[j] && lines[j].startsWith("## ")) {',
+  "readDispositionRows :: const at = body.indexOf(DISPOSITION_HEADING);",
+];
+const LOCATOR_SITE_COUNT_AT_HEAD = 3;
+const SEARCH_LOCATOR_SITE =
+  "readDispositionRows :: const at = body.indexOf(DISPOSITION_HEADING);";
+
+/** A root carrying only a disposition directory — the unit fixture for readDispositionRows. */
+function dispositionRoot(
+  prefix: string,
+  files: Readonly<Record<string, string>>,
+): string {
+  const root = freshTmp(prefix);
+  mkdirSync(join(root, DISPOSITION_DIR), { recursive: true });
+  for (const [name, content] of Object.entries(files)) {
+    writeFileSync(join(root, DISPOSITION_DIR, name), content, "utf8");
+  }
+  return root;
+}
+
+/** The seven-cell row shape, spelled once, so a fixture's fenced copy and real copy cannot drift. */
+const sevenCellRow = (
+  file: string,
+  before: string,
+  after: string,
+  companion: string,
+): string =>
+  `| ${file} | 11 | ${before} | ${after} | WP-03 | Reworded under the profile. | ${companion} |`;
+
+const TABLE_HEAD = "| file | line | before | after | rule | disposition | companion |";
+const TABLE_SEP = "|---|---|---|---|---|---|---|";
+
+describe("check-diff-disposition — every section-extent locator is DERIVED, not transcribed (WR-03)", () => {
+  it("the module's section-extent locator sites are derived two-sided and pinned by cardinality", () => {
+    const src = readFileSync(join(REPO, MODULE_REL), "utf8");
+    const sites = sectionExtentSites(src);
+
+    // NON-VACUITY OF THE CORPUS FIRST: the module really was read.
+    expect(src.length, "the module under derivation must really have been read").toBeGreaterThan(
+      10_000,
+    );
+    expect(sites).toEqual(LOCATOR_SITES_AT_HEAD);
+    expect(
+      sites,
+      "cardinality pinned as a NUMBER, so a classifier that silently stops matching shrinks LOUDLY rather than passing over an empty set",
+    ).toHaveLength(LOCATOR_SITE_COUNT_AT_HEAD);
+
+    // Each derived line matches EXACTLY ONE construct, which is what makes the per-construct
+    // removal probe below attributable to the construct removed and to nothing else.
+    for (const line of codeLinesOf(src)) {
+      const hits = SECTION_EXTENT_CONSTRUCTS.filter((r) => r.test(line));
+      expect(hits.length).toBeLessThanOrEqual(1);
+    }
+  });
+
+  it("the derivation is FALSIFIABLE — every construct is load-bearing on a source carrying all three", () => {
+    const base = sectionExtentSites(PLANTED_LOCATOR_SOURCE);
+    expect(base).toEqual([
+      "plantedLocateByEquality :: if (lines[i].trimEnd() === heading) return i;",
+      "plantedLocateBySearch :: return body.indexOf(PLAN_HEADING);",
+      'plantedCloseByPrefix :: if (lines[i].startsWith("## ")) return i;',
+    ]);
+    expect(base).toHaveLength(SECTION_EXTENT_CONSTRUCTS.length);
+
+    for (let i = 0; i < SECTION_EXTENT_CONSTRUCTS.length; i += 1) {
+      const without = sectionExtentSites(
+        PLANTED_LOCATOR_SOURCE,
+        SECTION_EXTENT_CONSTRUCTS.filter((_, j) => j !== i),
+      );
+      // The site the removal must cost, named — so the probe asserts WHICH member vanished rather
+      // than only that the answer moved. Site strings carry no construct index precisely so that
+      // this comparison measures a lost member instead of a renumbered label.
+      expect(
+        without,
+        `dropping construct [${i}] must cost exactly the site it matched — a construct that can be deleted with the answer unchanged is decoration`,
+      ).toEqual(base.filter((_, j) => j !== i));
+      expect(without).toHaveLength(SECTION_EXTENT_CONSTRUCTS.length - 1);
+    }
+  });
+
+  it("the review's own two-construct sketch is BLIND to the fourth locator — construct[1] is what finds it", () => {
+    // THE DEVIATION, ASSERTED RATHER THAN ARGUED. Run the classifier with exactly the two constructs
+    // the review and the plan name — equality and heading-prefix — and `readDispositionRows`
+    // disappears from the answer while the two sites round 1 already knew about remain. That is the
+    // shape of a fix that re-derives the known defects and re-misses the unknown one.
+    const src = readFileSync(join(REPO, MODULE_REL), "utf8");
+    const sketch = SECTION_EXTENT_CONSTRUCTS.filter((_, i) => i !== 1);
+    const derivedBySketch = sectionExtentSites(src, sketch);
+    expect(
+      derivedBySketch.some((s) => s.startsWith("readDispositionRows")),
+      "the two-construct sketch must NOT find readDispositionRows — that blindness is why the third construct exists",
+    ).toBe(false);
+    // …and it is blind to that site ALONE, so the widening is minimal rather than a rewrite.
+    expect(
+      sectionExtentSites(src).filter((s) => !derivedBySketch.includes(s)),
+    ).toEqual([SEARCH_LOCATOR_SITE]);
+  });
+
+  it("the AUTHORITY still carries these constructs — the predicate MOVED, it did not evaporate", () => {
+    // The other side of the two-sided claim, and the assertion that never rots: after the rewire
+    // this module derives ZERO sites, and a zero that means "the question moved to one place" must
+    // be told apart from a zero that means "nobody asks the question any more". So the module that
+    // is ALLOWED to hold the predicate is asserted to still hold it.
+    const authority = sectionExtentSites(
+      readFileSync(join(REPO, AUTHORITY_REL), "utf8"),
+    );
+    expect(authority.length).toBeGreaterThan(0);
+    expect(
+      authority.some((s) => s.startsWith("unfencedHeadingIndex")),
+      "scripts/frontmatter.ts must still declare the heading equality — it is the one place this predicate is allowed to live",
+    ).toBe(true);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────────────────────
+// WR-03 — THE DISPOSITION ROW READER IS BOUNDED AND FENCE-AWARE, AND ITS DIRECTION IS FAIL-OPEN.
+//
+// `readDispositionRows` located `## Dispositions` with a bare substring search over the whole file
+// and then admitted every seven-cell pipe line from that offset TO END OF FILE. Both halves are
+// wrong in the SAME direction: a fenced example row and a stray table under a later heading both
+// became rows, and a row is what satisfies the structural companion arm — the arm carrying the whole
+// positional freeze, the one that catches a REWORD. A spurious row therefore ADMITS a change that
+// owed a companion edit. That is the opposite direction from its sibling `locateSection`, whose
+// truncation SHRINKS the frozen region, and naming which is which is what this round is for.
+// ─────────────────────────────────────────────────────────────────────────────────────────────
+
+describe("check-diff-disposition — the disposition row reader is bounded and fence-aware (WR-03)", () => {
+  it("a FENCED seven-column example under `## Dispositions` donates no row", () => {
+    const real = sevenCellRow("agent-factory/roles/a.md", "before one", "after one", "companion");
+    const quoted = sevenCellRow("agent-factory/roles/b.md", "before two", "after two", "companion");
+    const body = [
+      "# Harness dispositions",
+      "",
+      "## Dispositions",
+      "",
+      TABLE_HEAD,
+      TABLE_SEP,
+      real,
+      "",
+      "Authors copy this shape:",
+      "",
+      "```markdown",
+      TABLE_HEAD,
+      TABLE_SEP,
+      quoted,
+      "```",
+      "",
+    ].join("\n");
+    // The fixture's own premise, asserted through the ONE fence authority: the quoted row really is
+    // inside a fence and the real one really is not.
+    const flags = fencedLineFlags(body);
+    const lines = body.split("\n");
+    expect(flags[lines.indexOf(quoted)]).toBe(true);
+    expect(flags[lines.indexOf(real)]).toBe(false);
+
+    const root = dispositionRoot("gops-diffdisp-wr03-fenced-", { "29-99.md": body });
+    const { rows, refusals } = readDispositionRows(root);
+    expect(rows).toHaveLength(1);
+    expect(rows[0].file).toBe("agent-factory/roles/a.md");
+    expect(refusals).toEqual([]);
+  });
+
+  it("a seven-column table under a LATER `## ` heading donates no row", () => {
+    const real = sevenCellRow("agent-factory/roles/a.md", "before one", "after one", "companion");
+    const stray = sevenCellRow("agent-factory/roles/b.md", "before two", "after two", "companion");
+    const body = [
+      "# Harness dispositions",
+      "",
+      "## Dispositions",
+      "",
+      TABLE_HEAD,
+      TABLE_SEP,
+      real,
+      "",
+      "## Appendix",
+      "",
+      "A table that is not this file's disposition table.",
+      "",
+      TABLE_HEAD,
+      TABLE_SEP,
+      stray,
+      "",
+    ].join("\n");
+    const root = dispositionRoot("gops-diffdisp-wr03-later-", { "29-99.md": body });
+    const { rows } = readDispositionRows(root);
+    expect(rows).toHaveLength(1);
+    expect(rows[0].file).toBe("agent-factory/roles/a.md");
+  });
+
+  it("a FENCED occurrence of `## Dispositions` is not taken as the real heading", () => {
+    const bogus = sevenCellRow("agent-factory/roles/z.md", "quoted before", "quoted after", "quoted");
+    const real = sevenCellRow("agent-factory/roles/a.md", "before one", "after one", "companion");
+    const body = [
+      "# Harness dispositions",
+      "",
+      "The register looks like this:",
+      "",
+      "```markdown",
+      "## Dispositions",
+      "",
+      TABLE_HEAD,
+      TABLE_SEP,
+      bogus,
+      "```",
+      "",
+      "## Dispositions",
+      "",
+      TABLE_HEAD,
+      TABLE_SEP,
+      real,
+      "",
+    ].join("\n");
+    // Premise: the literal really does occur twice, the FIRST occurrence is fenced, and a substring
+    // search therefore finds the wrong one first.
+    const lines = body.split("\n");
+    expect(lines.filter((l) => l === "## Dispositions")).toHaveLength(2);
+    const flags = fencedLineFlags(body);
+    expect(flags[lines.indexOf("## Dispositions")]).toBe(true);
+    expect(flags[lines.lastIndexOf("## Dispositions")]).toBe(false);
+
+    const root = dispositionRoot("gops-diffdisp-wr03-quoted-heading-", { "29-99.md": body });
+    const { rows } = readDispositionRows(root);
+    expect(rows).toHaveLength(1);
+    expect(rows[0].file).toBe("agent-factory/roles/a.md");
+  });
+
+  it("IN-01 — a row whose `before` cell carries a code span with a pipe is NAMED, not silently dropped", () => {
+    // A `before` cell containing a code span with a pipe splits into EIGHT cells, so the row is
+    // dropped. Today the only trace is the zero-row refusal, which fires only when NO other row in
+    // the file parses — so beside two good rows the line simply vanishes, and the clause it covered
+    // reads as undispositioned for a reason that has nothing to do with the author's judgement.
+    const good1 = sevenCellRow("agent-factory/roles/a.md", "before one", "after one", "companion");
+    const good2 = sevenCellRow("agent-factory/roles/b.md", "before two", "after two", "companion");
+    const malformed = sevenCellRow(
+      "agent-factory/roles/c.md",
+      "the `a | b` alternation",
+      "after three",
+      "companion",
+    );
+    const body = [
+      "# Harness dispositions",
+      "",
+      "## Dispositions",
+      "",
+      TABLE_HEAD,
+      TABLE_SEP,
+      good1,
+      malformed,
+      good2,
+      "",
+    ].join("\n");
+    // Premise: the malformed line really does split to eight cells, so the case is about the drop
+    // and not about a fixture that happens to parse.
+    expect(malformed.split("|").filter((c) => c.trim() !== "")).toHaveLength(8);
+
+    const root = dispositionRoot("gops-diffdisp-in01-", { "29-99.md": body });
+    const { rows, refusals } = readDispositionRows(root);
+    expect(rows).toHaveLength(2);
+    const malformedLine = body.split("\n").indexOf(malformed) + 1;
+    expect(refusals).toHaveLength(1);
+    expect(refusals[0]).toContain(`29-99.md:${malformedLine}`);
+    expect(refusals[0]).toContain("8 cell");
+    expect(refusals[0]).toContain("code span");
+  });
+
+  it("the live BYPASS end-to-end — a FENCED example row satisfies the structural companion arm", () => {
+    // THE REPRODUCTION, not a unit assertion. The role's `## Hard limits` sentence is reworded, and
+    // the ONLY row that matches it lives inside a fenced example. At HEAD that row is read, its
+    // companion cell is filled, and the gate exits 0 — a frozen reword admitted by a code block.
+    //
+    // The workflow note and its REAL row are here so the file still carries a parsed row: without
+    // them the zero-row refusal would red the fixed build for an unrelated reason and the case would
+    // stop being a statement about the fence.
+    const noteClause = "Every reviewer reads the acceptance scenario before the diff.";
+    const quotedRow = sevenCellRow(
+      ROLE_UNDER_TEST,
+      HARD_LIMIT_SENTENCE,
+      REWORDED_HARD_LIMIT,
+      REAL_COMPANION_PROSE,
+    );
+    const dispositions = [
+      "# Harness dispositions",
+      "",
+      "## Dispositions",
+      "",
+      TABLE_HEAD,
+      TABLE_SEP,
+      row(WORKFLOW_UNDER_TEST, "—", noteClause, "—"),
+      "",
+      "An example row, for authors to copy:",
+      "",
+      "```markdown",
+      quotedRow,
+      "```",
+      "",
+    ].join("\n");
+    expect(fencedLineFlags(dispositions)[dispositions.split("\n").indexOf(quotedRow)]).toBe(true);
+
+    const { root } = makeMirror("gops-diffdisp-wr03-bypass-", {
+      plant: {
+        [ROLE_UNDER_TEST]: REWORDED_ROLE,
+        [WORKFLOW_UNDER_TEST]: workflowWithNote(noteClause),
+      },
+      dispositions: { "29-99.md": dispositions },
+    });
+    const { status, stdout } = runGate(root);
+    expect(stdout).not.toContain("ALL CHECKS PASSED");
+    expect(status).toBe(1);
+    expect(stdout).toContain("FROZEN by structuralSections");
+    expect(stdout).toContain(segmentClauses(REWORDED_HARD_LIMIT)[0].clause);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────────────────────
+// LANG-07 arm two — `locateSection` closes on an unfenced heading of level AT MOST TWO.
+//
+// The private close scan recognised `## ` alone, so a `# ` heading did not end a frozen section and
+// the region ran on into the next top-level part of the document. Consuming the shared authority at
+// level two fixes that and WIDENS what closes a section, which is a fail-OPEN direction on this
+// corpus — the frozen region gets shorter. That is why the widening lands together with the fence
+// awareness, and why the corpus measurement below is an assertion rather than a claim.
+// ─────────────────────────────────────────────────────────────────────────────────────────────
+
+const LEVEL_ONE_SUCCESSOR = "# Appendix";
+
+/** The role under test with a LEVEL-ONE heading between `## Hard limits` and `## Notes`. */
+const roleWithLevelOneSuccessor = (): string =>
+  ROLE_BODY(REAL_ROLES[0]).replace(
+    "\n## Notes\n",
+    `\n${LEVEL_ONE_SUCCESSOR}\nA later top-level part of the document.\n\n## Notes\n`,
+  );
+
+describe("check-diff-disposition — a frozen section closes at a LEVEL-ONE heading (LANG-07)", () => {
+  it("`## Hard limits` ends at the `# ` heading, not at the `## ` heading below it", () => {
+    const body = roleWithLevelOneSuccessor();
+    const appendixLine = lineOf(body, LEVEL_ONE_SUCCESSOR);
+    const notesLine = lineOf(body, "## Notes");
+    // Premise: the two candidate terminators are DISTINCT and in this order, so only the LEVEL axis
+    // can tell the two answers apart. Without this the case could pass for the wrong reason.
+    expect(appendixLine).toBeLessThan(notesLine);
+    expect(fencedLineFlags(body)[appendixLine - 1]).toBe(false);
+
+    const span = locateSection(body, FROZEN_SECTION_ANCHORS[0].heading);
+    expect(span).not.toBeNull();
+    expect((span as { to: number }).to).toBe(appendixLine - 1);
+  });
+});
+
 describe("check-diff-disposition — the output is diffable", () => {
   it("produces byte-identical stdout across two runs over the same mirror", () => {
     // The ordering assertion. Findings are emitted in file-path then line-number order, so a
