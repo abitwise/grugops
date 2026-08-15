@@ -1114,10 +1114,27 @@ describe("WR-02 — the lexicon denominator comes from the HEADING scan and name
 });
 
 describe("WR-02 — the sentence-form denominator is the derived corpus size and names its file", () => {
-  it("REDs a governed file that yields no sentence at all, naming it", () => {
+  it("REDs a governed file that yields no sentence at all, naming it — with the fixture's corpus membership asserted FIRST", () => {
     const rel = "agent-factory/checklists/00-fixture.md";
     // A heading and nothing else. Headings are never sentences, so this file contributes zero.
     const headingOnly = "# Fixture checklist 0\n";
+
+    // ── THE HARNESS PREMISE, ASSERTED BEFORE THE VERDICT (plan 29-24, WR-07) ────────────────────
+    //
+    // A plant that landed OUTSIDE the derived corpus would still red — through the OPPOSITE arm of
+    // the same refusal, the one that reports a scan reaching past its own corpus — and this case
+    // would report a green for a property it never measured. So the premise is proven by the gate
+    // itself: the same path, carrying an over-long DESCRIPTIVE sentence, must be REACHED and NAMED
+    // by the sentence loop. That is what says the path is a corpus member the loop visits.
+    const OVERLONG = `${filler(DESCRIPTIVE_SENTENCE_MAX_WORDS + 1)}.`;
+    const premise = runGate(
+      makeMirror("gops-lex-wr02-premise-", {
+        plant: { [rel]: `# Fixture checklist 0\n\n${OVERLONG}\n` },
+      }),
+    );
+    expect(premise.status).toBe(1);
+    expect(premise.stdout).toContain(`${rel}:`);
+    expect(formFindingCount(premise.stdout, "descriptive-sentence-too-long")).toBe(1);
 
     const control = runGate(makeMirror("gops-lex-wr02-sctrl-"));
     const planted = runGate(
@@ -1133,20 +1150,35 @@ describe("WR-02 — the sentence-form denominator is the derived corpus size and
     expect(planted.stdout).toContain(
       "the governed-corpus file set and the sentence-bearing file set are not equal",
     );
+    // NAMED THROUGH THE `MISSING` ARM SPECIFICALLY, never merely "some refusal fired". The sibling
+    // arm — a file that yielded a sentence without being a corpus member — is a DIFFERENT defect,
+    // and a case that accepted either would be blind to which one it had reproduced.
     expect(planted.stdout).toContain(
       "in the derived governed corpus but NOT yielded a sentence (1)",
     );
     expect(planted.stdout).toContain(rel);
+    // AND THE PUBLISHED DENOMINATOR MOVED BY EXACTLY ONE against the control directly above.
     expect(planted.stdout).toContain(
       `${SENTENCE_MEASURED_LABEL}: visited ${GOVERNED_CORPUS_COUNT - 1} of ${GOVERNED_CORPUS_COUNT} elements`,
     );
   });
 
-  it("asserts the PROPERTY directly: neither `expected` is read off the array its loop counts", () => {
-    // The two cases above prove the SYMPTOM. This proves the property, so a future refactor that
-    // reintroduced a tautological denominator would be caught even if no fixture happened to expose
-    // it. Comment lines are stripped, because the defect's own name is quoted in the source that
-    // explains why it is gone.
+  it("TRIPWIRE ONLY: the tautological denominator SPELLINGS are absent from the module's source", () => {
+    // THIS CASE ASSERTS A SUBSTRING, NOT A PROPERTY, AND ITS NAME NOW SAYS SO (plan 29-24, WR-07).
+    //
+    // It used to be called "asserts the PROPERTY directly", which is a claim its body cannot
+    // support. Three substring tests over the module's own text cannot express "the denominator is
+    // not read off the array the loop consumes": renaming `elements`, extracting
+    // `const n = elements.bullets.length`, or reformatting across a line break each reintroduce the
+    // defect with every assertion below still green. A case whose name claims more than its body
+    // asserts is a false-assurance surface, which is the same class of defect as a gate whose
+    // published name is wider than the subset it decides — the thing this entire phase is about.
+    //
+    // It is KEPT, as a cheap anti-regression tripwire BESIDE the real assertions rather than in
+    // place of them. The behavioural sibling for each denominator is the case directly above this
+    // one and the case in the describe block above that, both of which plant a fixture and require
+    // the mismatch to fire. Comment lines are stripped, because the defect's own spelling is quoted
+    // at length in the source that explains why it is gone.
     const executable = readFileSync(
       join(ROOT, "scripts", "check-imperative-lexicon.ts"),
       "utf8",
