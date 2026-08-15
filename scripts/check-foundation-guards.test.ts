@@ -6179,8 +6179,11 @@ describe("27-65 end-to-end gate sweep: the rounds-1-11 corpus planted on the liv
 // SCOPE IS EVERY `*.test.ts` UNDER `scripts/`, WHICH IS WIDER THAN THE PLAN SPECIFIES. The plan names
 // the four gate test modules and the voice model's. A five-member hand-list is the set-literal drift
 // this repository has corrected three times and would not cover the sixth test module that lands
-// tomorrow, so the set is derived. Measured at this plan: 46 files, 4693 classified assertion lines,
-// ZERO duplicate pairs.
+// tomorrow, so the set is derived. Measured at this plan, AFTER this block landed: 46 files, 4706
+// classified assertion lines, ZERO duplicate pairs. The first draft of this sentence said 4693 — the
+// count taken BEFORE the block was appended, which this block's own 13 assertion lines then falsified.
+// It is a SNAPSHOT and not a pin, which is why the case below floors it rather than fixing it: a
+// number written into a comment and never re-measured is the shape of defect this plan is about.
 //
 // THE ZERO IS NOT VACUOUS, AND THAT IS A HISTORICAL MEASUREMENT RATHER THAN A BELIEF. Run over THIS
 // FILE at commit `3ed76c1` — the tree as it stood before plan 29-25 — the same classifier reports
