@@ -50,6 +50,9 @@ import {
   grantedAgentNames,
   frontmatterValueIs,
   stripFencedBlocks,
+  fencedLineFlags,
+  sectionEndIndex,
+  unfencedHeadingIndex,
   stripComment,
   assertItemPathScalarClosed,
   assertFoldTargetIsNotBlockOwned,
@@ -5665,6 +5668,182 @@ describe("frontmatter — the spawn-grant parser oracle (SPAWN-04 / KIT-03)", ()
     expect(guardsRaw).not.toContain(
       "this file itself carries two more fence state machines — stripCavemanBlock",
     );
+  });
+
+  // ── (Plan 29-20, LANG-06 / LANG-07 — closing CR-02 and WR-08) THE SECTION LOCATOR'S SCOPE ───────
+  //
+  // WHY A WHOLE BLOCK FOR TWO SMALL FUNCTIONS. When two parsers are unified into ONE authority, that
+  // authority's SCOPE becomes a NEW DEGREE OF FREEDOM — and this phase has already paid for exactly
+  // that once. 29-01 collapsed two caveman fence machines into one reader, and the reader it produced
+  // searched to END OF FILE, so a de-fenced section adopted an unrelated later block and both voice
+  // guards published a measured number about the wrong bytes at exit 0. 29-14 then bounded it with a
+  // private `/^## /` and the SAME defect survived under a `# ` successor, because the bound was tested
+  // from one side only.
+  //
+  // Four modules now converge on `sectionEndIndex`, so a defect here is a defect in four gates at
+  // once. That is the price of unification, and this block is what is bought with it: every degree of
+  // freedom the unification introduced is asserted FROM BOTH SIDES, so the next round meets these as
+  // decisions rather than rediscovering them as omissions.
+  //
+  // Each case is named for the PROPERTY it pins, never for its input.
+  describe("the section locator's scope (plan 29-20, CR-02 / WR-08)", () => {
+    const FENCE = TICKS;
+    const doc = (...lines: string[]): string => lines.join("\n");
+
+    // ── AXIS 1: the `from` bound. The authority never looks before the caller's own position. ──────
+    it("never answers below `from`, so the caller's OWN heading is not its section's end", () => {
+      // `## Caveman prompt` at index 0 is the caller's heading; called with `from` of 1 the authority
+      // must answer 3, not 0. A locator that could return the caller's own heading would give every
+      // section an empty extent and every guard an empty scan — a silent pass, not a loud failure.
+      const text = doc("## A", "body", "more body", "## B", "tail");
+      expect(sectionEndIndex(text, 1, 2)).toBe(3);
+      // And from EVERY legal `from`, the answer is at `from` or later — swept, not sampled.
+      const lines = text.split("\n");
+      for (let from = 0; from <= lines.length; from++) {
+        expect(
+          sectionEndIndex(text, from, 2),
+          `from=${from} must not answer below itself`,
+        ).toBeGreaterThanOrEqual(from);
+      }
+      // A heading sitting exactly AT `from` IS the answer — the bound is inclusive at its own end,
+      // which is the half a `>` typo would silently invert.
+      expect(sectionEndIndex(text, 3, 2)).toBe(3);
+    });
+
+    // ── AXIS 2: the EOF fallback is the ARRAY LENGTH, not the last index. ──────────────────────────
+    it("returns the array LENGTH when no successor exists, so a `[from, end)` slice keeps the whole tail", () => {
+      const text = doc("## Only", "one", "two", "three");
+      const lines = text.split("\n");
+      const end = sectionEndIndex(text, 1, 2);
+      expect(end).toBe(lines.length);
+      expect(end).toBe(4);
+      // THE CONSEQUENCE, ASSERTED RATHER THAN INFERRED. Off by one here loses the LAST line of every
+      // terminal section — including a caveman fence's closing delimiter, which would turn every
+      // last-section role file into a false `unterminated`.
+      expect(lines.slice(1, end)).toEqual(["one", "two", "three"]);
+    });
+
+    // ── AXIS 3: the level axis, FIVE outcomes, both directions. ────────────────────────────────────
+    it("closes on any heading of level at most `level` and on no deeper one — five outcomes", () => {
+      const below = (line: string): number =>
+        sectionEndIndex(doc("## Anchor", "body", line, "tail"), 1, 2);
+      // level 2: `# ` closes, `## ` closes, `### ` does NOT.
+      expect(below("# One"), "`# ` closes at level 2").toBe(2);
+      expect(below("## Two"), "`## ` closes at level 2").toBe(2);
+      expect(below("### Three"), "`### ` must NOT close — a subsection structures a section").toBe(
+        4,
+      );
+      // level 1: only `# ` closes.
+      const belowL1 = (line: string): number =>
+        sectionEndIndex(doc("# Anchor", "body", line, "tail"), 1, 1);
+      expect(belowL1("# One"), "`# ` closes at level 1").toBe(2);
+      expect(belowL1("## Two"), "`## ` must NOT close at level 1").toBe(4);
+    });
+
+    it("requires the ATX space, so a `#Heading` run without one closes nothing", () => {
+      // The floor named at the declaration, pinned so it is a DISCLOSED bound rather than a surprise.
+      // It is what keeps this authority byte-compatible with the four predicates it replaces.
+      expect(sectionEndIndex(doc("## Anchor", "body", "#NoSpace", "tail"), 1, 2)).toBe(4);
+      expect(sectionEndIndex(doc("## Anchor", "body", "  ## Indented", "tail"), 1, 2)).toBe(4);
+    });
+
+    // ── AXIS 4: fence-awareness, at BOTH functions. ────────────────────────────────────────────────
+    it("a heading written INSIDE a fence closes nothing and is not located — at both functions", () => {
+      const text = doc(
+        "## Anchor",
+        "body",
+        FENCE,
+        "# Quoted level one",
+        "## Quoted level two",
+        FENCE,
+        "tail",
+      );
+      // Neither quoted heading closes the anchor's section: the answer is EOF, not index 3.
+      expect(sectionEndIndex(text, 1, 2)).toBe(7);
+      expect(sectionEndIndex(text, 1, 1)).toBe(7);
+      // And neither is located as a heading.
+      expect(unfencedHeadingIndex(text, "# Quoted level one")).toBe(-1);
+      expect(unfencedHeadingIndex(text, "## Quoted level two")).toBe(-1);
+    });
+
+    it("the SAME lines outside a fence both close and locate — the other side of fence-awareness", () => {
+      // Without this half, a locator that flagged EVERYTHING would pass the case above and answer
+      // nothing correctly. The two cases are one claim.
+      const text = doc("## Anchor", "body", "# Quoted level one", "## Quoted level two", "tail");
+      expect(sectionEndIndex(text, 1, 2)).toBe(2);
+      expect(unfencedHeadingIndex(text, "# Quoted level one")).toBe(2);
+      expect(unfencedHeadingIndex(text, "## Quoted level two")).toBe(3);
+    });
+
+    it("no fenced heading in the WATCHED corpus is ever returned as a section end — the live hazard", () => {
+      // THE REAL SHAPE, DERIVED FROM THE LIVE TREE IN THIS SESSION, not synthesized. Both watched
+      // READMEs carry LEVEL-ONE lines inside fenced shell examples (`# install (Node 22+)` and
+      // `# Bootstrap an existing repository (brownfield)` among others). A locator that became
+      // level-aware but stayed fence-blind would truncate every `## ` section above them AT them —
+      // the WR-01 defect one level up, landing in four gates at once instead of one.
+      const WATCHED = ["README.md", "agent-factory/README.md"];
+      let checked = 0;
+      for (const rel of WATCHED) {
+        const text = readFileSync(join(REPO_ROOT, rel), "utf8");
+        const lines = text.split("\n");
+        const flags = fencedLineFlags(text);
+        const fencedHeadings = lines
+          .map((l, i) => (flags[i] && /^#{1,2} /.test(l) ? i : -1))
+          .filter((i) => i >= 0);
+        // NON-VACUITY, PER FILE: the hazard must actually be present, or this file proves nothing.
+        expect(
+          fencedHeadings.length,
+          `${rel} must carry at least one fenced heading line, or it is not the hazard this case is about`,
+        ).toBeGreaterThan(0);
+        for (const i of fencedHeadings) {
+          // A FENCE-BLIND scan asked from `i` would answer `i` — the line matches the level test.
+          // The authority must answer something strictly later, which is the discrimination.
+          expect(
+            sectionEndIndex(text, i, 2),
+            `${rel}:${i + 1} is fenced and must never be a section end`,
+          ).toBeGreaterThan(i);
+          checked += 1;
+        }
+      }
+      expect(checked, "the sweep must have examined real lines").toBeGreaterThan(0);
+    });
+
+    // ── AXIS 5: trailing whitespace — THE AXIS THE FOUR DELETED PREDICATES DISAGREED ON. ───────────
+    it("locates a heading carrying TRAILING whitespace and refuses one carrying LEADING whitespace", () => {
+      // `voice-model.ts` compared against an anchored regex with no trim; `check-diff-disposition.ts`
+      // and `check-imperative-lexicon.ts` compared a `trimEnd()`-normalized line. Same bytes, two
+      // answers. The authority answers ONCE, in the `trimEnd()` direction the two already used.
+      expect(unfencedHeadingIndex(doc("intro", "## Anchor ", "body"), "## Anchor")).toBe(1);
+      expect(unfencedHeadingIndex(doc("intro", "## Anchor\t", "body"), "## Anchor")).toBe(1);
+      // LEADING whitespace is NOT normalized away: the tree's anchors are column-zero by convention,
+      // and admitting indented ATX would change what four gates scan.
+      expect(unfencedHeadingIndex(doc("intro", " ## Anchor", "body"), "## Anchor")).toBe(-1);
+      // Absent entirely is -1, not 0 — the fail direction a truthiness test would invert.
+      expect(unfencedHeadingIndex(doc("intro", "body"), "## Anchor")).toBe(-1);
+    });
+
+    // ── AXIS 6: an unterminated fence keeps the tail flagged — the recorded fail-safe, inherited. ──
+    it("inherits the unterminated-fence fail-safe: a heading below an open fence neither locates nor closes", () => {
+      // `fencedLineFlags` leaves `inside` set at EOF, so the tail stays flagged. Both functions
+      // inherit that DIRECTION rather than re-deciding it — which is the whole reason the locator
+      // lives in the module that owns the toggle.
+      const text = doc("## Anchor", "body", FENCE, "open and never closed", "# Later", "## Later2");
+      expect(sectionEndIndex(text, 1, 2)).toBe(6);
+      expect(unfencedHeadingIndex(text, "# Later")).toBe(-1);
+      expect(unfencedHeadingIndex(text, "## Later2")).toBe(-1);
+    });
+
+    // ── AND THE AUTHORITY IS NOT A FOURTH FENCE STATE MACHINE — RE-DERIVED, NOT ASSUMED. ───────────
+    it("adding the locator did not add a fence state machine — the derived set is re-measured", () => {
+      // Composing the toggle is not forking it, and that distinction is the entire architectural
+      // claim of this plan. It is re-derived from the live tree in THIS session rather than taken on
+      // trust from the previous round's measurement. If this moved, the locator would be a fourth
+      // machine and would have to be rewritten to compose `fencedLineFlags` — the pin is never raised
+      // to clear a failure.
+      const machines = liveFenceMachines();
+      expect(machines).toEqual(FENCE_MACHINES);
+      expect(machines).toHaveLength(FENCE_MACHINE_COUNT);
+    });
   });
 
   // ── (Plan 27-60, closing round 11 § IN-02) THE CLAIM'S SECOND HALF, MECHANISED ─────────────────
