@@ -60,6 +60,7 @@ import {
   COMPANION_MIN_WORDS,
   isCompanionFilled,
   readDispositionRows,
+  RESIDUE_FROM_REGISTRY_COUNT,
 } from "./check-diff-disposition.js";
 import {
   listRoles,
@@ -70,6 +71,10 @@ import {
   WORKFLOWS_SUBPATH,
 } from "./kit-model.js";
 import { readRegistry, readRegister } from "./audit-model.js";
+// The ONE place the out-of-set protocol file's path is declared. The residue's register-side member
+// is pinned against this literal rather than retyped — a second spelling is the set-literal drift
+// class in miniature.
+import { PROTOCOL_FILE } from "./audit-prepass.js";
 // The ONE derivation that produces the watched corpus. Imported here for the same reason the gate
 // imports it: a second union computed in the file that polices the first is how one authority
 // becomes two, and the CR-01 premise assertions below are worthless if they measure a different set
@@ -1859,6 +1864,244 @@ describe("check-diff-disposition — CR-01: the watched corpus is pinned to the 
     expect(status).toBe(1);
     expect(stdout).toContain("derived ZERO markdown files");
     expect(stdout).toContain("A vacuous corpus makes every diff empty");
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────────────────────
+// WR-06 (round 3) — THE UNION'S MARKDOWN RESIDUE IS ASSERTED, NOT DESCRIBED.
+//
+// The gate printed `the union's remaining N markdown entr(ies) are public documents` and nothing
+// checked that they were. Round 2's two pins both land on the REGISTER arm; the REGISTRY arm — the
+// `kind: safety` claims — reaches this gate only through that unchecked sentence. Round 3 flipped
+// ONE `kind:` cell, README.md left the union AND the watched corpus, and this gate's own pin did not
+// fire, because README.md was never a derived kit file and containment cannot miss what it never
+// covered (`0 of 36 derived kit files unwatched`, re-measured below rather than transcribed).
+// ─────────────────────────────────────────────────────────────────────────────────────────────
+const REGISTRY_AS_COMMITTED = readFileSync(join(REPO, REGISTRY_REL), "utf8");
+
+/** The claim round 3's WR-06 recipe flips. Its home is a PUBLIC document, never a kit file. */
+const KIND_FLIP_CLAIM = "C-28-001";
+
+/**
+ * The committed registry with EXACTLY ONE claim's `kind: safety` line rewritten to another legal
+ * kind. Surgical and positional: the block is located by its own heading and only the `kind:` line
+ * inside it moves.
+ *
+ * It THROWS unless exactly one line moved, for the same reason registerWithFlippedSafetyFlag does:
+ * a helper that silently flipped zero cells hands every case below an unflipped fixture and turns
+ * the whole block green against the defect it exists to catch.
+ */
+function registryWithFlippedKind(claimId: string): string {
+  const lines = REGISTRY_AS_COMMITTED.split("\n");
+  const start = lines.findIndex((l) => l.trimEnd() === `### ${claimId}`);
+  if (start < 0) {
+    throw new Error(`harness premise: ${REGISTRY_REL} carries no \`### ${claimId}\` heading`);
+  }
+  let flipped = 0;
+  for (let i = start + 1; i < lines.length; i++) {
+    if (lines[i].startsWith("### ")) break;
+    if (lines[i] === "- kind: safety") {
+      lines[i] = "- kind: architecture";
+      flipped += 1;
+    }
+  }
+  if (flipped !== 1) {
+    throw new Error(
+      `harness premise: expected exactly ONE \`- kind: safety\` line inside ${claimId}'s block in ` +
+        `${REGISTRY_REL}, but flipped ${flipped}`,
+    );
+  }
+  return lines.join("\n");
+}
+
+/** The registry arm as this gate must derive it: `kind: safety` claim homes, markdown only. */
+const registryArmMdOf = (root: string): string[] =>
+  [
+    ...new Set(
+      readRegistry(root)
+        .claims.filter((c) => c.kind === "safety")
+        .map((c) => c.file)
+        .filter((f) => f.endsWith(".md")),
+    ),
+  ].sort();
+
+const residueOf = (root: string): string[] => {
+  const kit = derivedKitOf(root);
+  return mdOf(root).filter((f) => !kit.includes(f));
+};
+
+describe("check-diff-disposition — WR-06: the union's residue is asserted, not described", () => {
+  it("the CONTROL — an unflipped mirror exits 0 and PUBLISHES three reconcilable numbers", () => {
+    const { root } = makeMirror("gops-diffdisp-wr06-control-", {
+      baseCorpus: { [REGISTRY_REL]: REGISTRY_AS_COMMITTED },
+    });
+    const { status, stdout } = runGate(root);
+    expect(status).toBe(0);
+
+    // The three numbers a reader must be able to reconcile BY HAND against the union's own size.
+    const kit = derivedKitOf(root).length;
+    const registryArm = registryArmMdOf(root).length;
+    const residue = residueOf(root).length;
+    expect(kit + residue).toBe(mdOf(root).length);
+    expect(stdout).toContain(`${residue} markdown entr`);
+    expect(stdout).toContain(`${registryArm} from the registry arm`);
+
+    // AND THE UNCHECKED SENTENCE IS GONE. A gate that both asserts the residue and still describes
+    // it would leave the reader two statements and no way to tell which one was measured.
+    expect(stdout).not.toContain("are public documents");
+  });
+
+  it("REDs round 3's ONE-CELL `kind: safety` flip — from a DIFFERENT equality than the source's", () => {
+    const control = makeMirror("gops-diffdisp-wr06-base-", {
+      baseCorpus: { [REGISTRY_REL]: REGISTRY_AS_COMMITTED },
+    });
+    const flipped = makeMirror("gops-diffdisp-wr06-flip-", {
+      baseCorpus: { [REGISTRY_REL]: registryWithFlippedKind(KIND_FLIP_CLAIM) },
+    });
+
+    // ── PREMISE 1 — exactly one claim's kind moved, read back through the ONE parse authority.
+    const before = readRegistry(control.root).claims;
+    const after = readRegistry(flipped.root).claims;
+    expect(after.map((c) => c.id)).toEqual(before.map((c) => c.id));
+    const moved = after.filter((c, i) => c.kind !== before[i].kind);
+    expect(moved.map((c) => c.id)).toEqual([KIND_FLIP_CLAIM]);
+    expect(before.find((c) => c.id === KIND_FLIP_CLAIM)?.kind).toBe("safety");
+
+    // ── PREMISE 2 — the plant is not a no-op at the POINT OF EFFECT: the home really leaves the
+    //    union and the watched corpus.
+    const home = before.find((c) => c.id === KIND_FLIP_CLAIM)?.file as string;
+    expect(mdOf(control.root)).toContain(home);
+    expect(mdOf(flipped.root)).not.toContain(home);
+    expect(mdOf(flipped.root).length).toBe(mdOf(control.root).length - 1);
+
+    // ── PREMISE 3 — ROUND 3'S OWN EVIDENCE, RE-MEASURED HERE RATHER THAN TRANSCRIBED. The round-2
+    //    containment pin cannot see this: the file that left was never a derived kit file, so ZERO
+    //    kit files are unwatched and that pin stays silent. This is what makes the case a statement
+    //    about a NEW equality rather than a second spelling of the old one.
+    const kit = derivedKitOf(flipped.root);
+    expect(kit.filter((f) => !mdOf(flipped.root).includes(f))).toEqual([]);
+
+    // ── PREMISE 4 — the CONTROL mirror is green.
+    expect(runGate(control.root).status).toBe(0);
+
+    const { status, stdout } = runGate(flipped.root);
+    expect(status).toBe(1);
+    expect(stdout).toContain("the registry arm's contribution");
+    expect(stdout).toContain(`${RESIDUE_FROM_REGISTRY_COUNT - 1} markdown file(s), expected exactly`);
+
+    // WHAT THE MESSAGE CAN AND CANNOT SAY, ASSERTED RATHER THAN ASSUMED. It names the SURVIVORS and
+    // the shortfall. It CANNOT name the file that left: after the `kind:` cell moves, nothing in
+    // this repository still says that file was a safety-claim home, and a message that named it
+    // would be reading a set the gate no longer has. That direction is named at the SOURCE, and the
+    // refusal points there.
+    // The survivor list is read back out of the message and compared as PATHS, never as substrings:
+    // `agent-factory/README.md` contains `README.md`, so a substring assertion here would report the
+    // exact opposite of the property and pass while doing it.
+    const survivors = /SURVIVED are \[([^\]]*)\]/.exec(stdout)?.[1].split(", ") ?? [];
+    expect(survivors).toEqual(registryArmMdOf(flipped.root));
+    expect(survivors).not.toContain(home);
+    expect(stdout).toContain("equality four names the KIND that moved");
+
+    // The containment finding must NOT be what reported this — that pin is silent here by
+    // construction, and a case that passed on its message would be measuring the wrong equality.
+    expect(stdout).not.toContain("are NOT in the watched corpus");
+  });
+
+  it("REDs a residue member NO safety claim and NO uncounted row vouches for — the other direction", () => {
+    // A COUNTED register row flagged `yes` naming a markdown file outside the derived kit puts a
+    // member into the residue from a THIRD source. It is equality one's business at the source; here
+    // it is a residue member with no account, and the two gates report it independently.
+    const STRAY = "docs/stray-public-note.md";
+    const rows = REGISTER_AS_COMMITTED.split("\n");
+    const at = rows.findIndex((l) => l.startsWith(`| ${ROLE_UNDER_TEST} |`));
+    expect(at, "the fixture row must exist").toBeGreaterThanOrEqual(0);
+    const injected = [
+      ...rows.slice(0, at + 1),
+      rows[at].replace(ROLE_UNDER_TEST, STRAY),
+      ...rows.slice(at + 1),
+    ].join("\n");
+
+    const { root } = makeMirror("gops-diffdisp-wr06-stray-", {
+      baseCorpus: { [REGISTER_REL]: injected },
+    });
+    writeFileSync(join(root, STRAY), "# Stray\n");
+
+    // ── PREMISE — the stray really entered the residue, and the registry arm did not move.
+    expect(residueOf(root)).toContain(STRAY);
+    expect(registryArmMdOf(root)).toEqual(registryArmMdOf(REPO));
+
+    const { status, stdout } = runGate(root);
+    expect(status).toBe(1);
+    expect(stdout).toContain("markdown residue is UNVOUCHED");
+    expect(stdout).toContain(STRAY);
+    // TWO ACTS, TWO REMEDIES, TWO FINDINGS: this is not reported through the registry-arm count.
+    expect(stdout).not.toContain("the registry arm's contribution");
+  });
+
+  it("REDs a VACUOUS registry arm — zero `kind: safety` rows is a NAMED refusal here too", () => {
+    // The register is left intact, so the union is NOT empty and the round-2 vacuity floor cannot
+    // speak. What is empty is the ARM, which is the granularity round 3's flip actually operates at.
+    const { root } = makeMirror("gops-diffdisp-wr06-vacuous-arm-", {
+      baseCorpus: {
+        [REGISTRY_REL]: REGISTRY_AS_COMMITTED.replace(
+          /^- kind: safety$/gm,
+          "- kind: architecture",
+        ),
+      },
+    });
+    expect(registryArmMdOf(root)).toEqual([]);
+    expect(mdOf(root).length).toBeGreaterThan(0); // the union is NOT empty — this is the arm alone
+
+    const { status, stdout } = runGate(root);
+    expect(status).toBe(1);
+    expect(stdout).toContain("the registry arm is EMPTY");
+  });
+
+  it("the register's non-kit contribution is pinned two-sided against the ONE literal that declares it", () => {
+    // The residue is not only the registry arm: the UNCOUNTED protocol row is flagged `yes` and is
+    // outside the derived kit by derivation, so it is a residue member with a register reason. It is
+    // pinned against PROTOCOL_FILE — the one place that path is declared — rather than counted.
+    expect(residueOf(REPO)).toContain(PROTOCOL_FILE);
+    expect(residueOf(REPO).filter((f) => !registryArmMdOf(REPO).includes(f))).toEqual([
+      PROTOCOL_FILE,
+    ]);
+  });
+
+  it("THE BOTH-ARMS PROBE: one cell of EACH arm moves in one commit, and BOTH are named", () => {
+    // THIS IS THE CASE NEITHER SINGLE-ARM HARNESS COULD PRODUCE. Round 3's finding is that two pins
+    // covering one arm read as coverage; a gate that reported only the first arm it met would pass
+    // every single-arm case above and still leave the second arm's drift invisible in exactly the
+    // arrangement a real narrowing edit takes.
+    const { root } = makeMirror("gops-diffdisp-wr06-botharms-", {
+      baseCorpus: {
+        [REGISTER_REL]: registerWithFlippedSafetyFlag(FLIP_TARGET),
+        [REGISTRY_REL]: registryWithFlippedKind(KIND_FLIP_CLAIM),
+      },
+    });
+
+    // ── PREMISE — BOTH plants landed, each measured at its own point of effect.
+    const watched = mdOf(root);
+    expect(watched).not.toContain(FLIP_TARGET); // register arm moved
+    expect(watched).not.toContain("README.md"); // registry arm moved
+    expect(derivedKitOf(root)).toContain(FLIP_TARGET);
+
+    const { status, stdout } = runGate(root);
+    expect(status).toBe(1);
+
+    // THE FINDING COUNT IS THE ASSERTION, not merely the presence of one message. An early return
+    // after the first defect would print exactly ONE finding here.
+    const findings = stdout
+      .split("\n")
+      .filter((l) => l.trimStart().startsWith("FAIL "));
+    expect(findings.length).toBeGreaterThanOrEqual(2);
+    expect(findings.some((f) => f.includes("are NOT in the watched corpus"))).toBe(true);
+    expect(findings.some((f) => f.includes("the registry arm's contribution"))).toBe(true);
+
+    // AND THE COUNT ASSERTION IS PROVEN TO BE DOING WORK. An early-returning gate's observable
+    // output is its FIRST finding alone — the single-arm shape every case above accepts — and this
+    // assertion must reject it.
+    const earlyReturn = findings.slice(0, 1);
+    expect(() => expect(earlyReturn.length).toBeGreaterThanOrEqual(2)).toThrow();
   });
 });
 

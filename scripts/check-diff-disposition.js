@@ -134,7 +134,12 @@ import { listRoles, listWorkflows, ROLE_COUNT, WORKFLOW_COUNT, ROLES_SUBPATH, WO
 // REGISTER_PATH is taken from the ONE place it is declared rather than retyped: the CR-01 refusal
 // below names the file an author must walk, and a second spelling of that path is the set-literal
 // drift class in miniature — the refusal would keep naming a file that had moved.
-import { readRegistry, REGISTER_PATH } from "./audit-model.js";
+import { readRegistry, REGISTER_PATH, REGISTRY_PATH, } from "./audit-model.js";
+// The ONE place the out-of-set protocol file's path is declared (D-02). The union's markdown residue
+// carries it because its register row is flagged `safety_surface: yes` while `listRoles()` drops
+// underscore-prefixed entries by derivation — so it is a residue member with a REGISTER reason, and
+// it is pinned against this literal rather than retyped here.
+import { PROTOCOL_FILE } from "./audit-prepass.js";
 // The watched corpus is the LANG-03 exclusion list itself, taken from the one derivation that
 // produces it (register rows flagged `safety_surface: yes` ∪ registry rows of `kind: safety`). The
 // generated document is the RENDERING of this union; reading the rendering back would be a second
@@ -1098,6 +1103,35 @@ function byPosition(a, b) {
  * floor, and the two are reported by two gates so neither number absorbs the other's drift.
  */
 export const WATCHED_CORPUS_MIN = ROLE_COUNT + WORKFLOW_COUNT;
+/**
+ * How many markdown members the REGISTRY arm contributes to the watched corpus beyond the derived
+ * kit (round-3 WR-06). Measured on the live tree: `AGENTS.md`, `README.md`, `agent-factory/README.md`.
+ *
+ * WHY THE RESIDUE NEEDED AN ASSERTION AT ALL. This gate PRINTED how many markdown entries remained
+ * beyond the derived kit and called them public documents. Nothing checked that they were, and any
+ * number of them could be added or removed in either direction silently — which is precisely what
+ * round 3 reproduced: one `kind:` cell moved from `safety` to `architecture`, `README.md` left the
+ * union and this corpus, and the round-2 containment pin stayed silent because `README.md` was never
+ * a derived kit file. Containment cannot miss what it never covered.
+ *
+ * WHY IT IS A COUNT AND NOT A LIST OF PATHS. Which files are safety-claim homes is decided by the
+ * registry's editorial `kind` column, and this repository derives that from nothing — the same fact
+ * check-audit-register's CLAIM_KIND_CARDINALITY records. A hand-written list of protected paths here
+ * would be the maintained set-literal D-01 refuses outright: it would answer the question layer one
+ * at the source already answers by derivation, and it would rot the first time a public document was
+ * renamed. A cardinality answers only the question no derivation can — HOW MANY.
+ *
+ * WHY IT IS LEGITIMATE (D-25 / D-04). It is a MEASUREMENT baseline, not a discovery set, and it
+ * fails CLOSED: a safety claim added, deleted or reclassified reds this gate until the number is
+ * updated in the SAME commit as the registry change that moved it.
+ *
+ * WHAT IT CANNOT DO, STATED HONESTLY RATHER THAN IMPLIED AWAY. When the arm goes short this gate can
+ * name the members that SURVIVED and the shortfall; it cannot name the file that left, because after
+ * the flip nothing in this repository still says that file was a safety-claim home. The file is
+ * named at the SOURCE, by check-audit-register's equality four, which reports the KIND that moved.
+ * The refusal below points there rather than pretending to more than it measured.
+ */
+export const RESIDUE_FROM_REGISTRY_COUNT = 3;
 /** The watched corpus: the LANG-03 exclusion list, markdown members only. */
 function watchedCorpus(root) {
     const entries = safetySurfaceUnion(root);
@@ -1198,8 +1232,17 @@ function main() {
         verdict();
         return;
     }
+    // ── BOTH ARMS ARE REPORTED IN ONE RUN, SO NEITHER RETURNS BEFORE THE OTHER SPEAKS ────────────
+    //
+    // This block used to `verdict(); return;` the moment containment failed. That is the shape
+    // T-29-30-05 names: a gate that reports only the FIRST arm it meets passes every single-arm case
+    // and still leaves the second arm's drift invisible in exactly the arrangement a real narrowing
+    // edit takes — one cell of each arm moving in one commit. Every corpus-level finding below is
+    // collected first and the single return happens after them all.
+    let corpusRefused = false;
     const unwatched = derivedKit.filter((f) => !corpus.watched.includes(f));
     if (unwatched.length > 0) {
+        corpusRefused = true;
         fail(`${unwatched.length} of the ${WATCHED_CORPUS_MIN} derived kit file(s) are NOT in the watched ` +
             `corpus — ${unwatched.join(", ")}. The corpus derived ${corpus.watched.length} markdown ` +
             `file(s) from the ${corpus.total}-entry safety-surface union, and the derived kit alone is ` +
@@ -1210,6 +1253,95 @@ function main() {
             `its \`safety_surface\` column before moving any number here; lowering the expectation or ` +
             `narrowing the corpus are the two ways to clear this finding by deleting its evidence, and ` +
             `neither is the remedy`);
+    }
+    // ── THE UNION'S MARKDOWN RESIDUE IS ASSERTED, NOT DESCRIBED (round-3 WR-06) ───────────────────
+    //
+    // The register arm is pinned at the source (equality three) and by containment here; the registry
+    // arm is pinned at the source (equality four). This ties the two together AT THE CONSUMER, where
+    // the union is actually spent — because a union checked one arm at a time is what round 2 shipped,
+    // and both of its pins landed on the same arm.
+    //
+    // WHY THE EQUALITY IS LEGITIMATE HERE WHILE WATCHED_CORPUS_MIN DELIBERATELY STAYED A MINIMUM. The
+    // minimum exists because the union carries members BEYOND the derived kit, and it was one-
+    // directional precisely because nothing said what those members were. This assertion is what they
+    // now are: the one-directional floor and this partition together cover the WHOLE set rather than
+    // its kit-shaped part.
+    //
+    // The registry arm is derived from the PARSER, never by string-sniffing safetySurfaceUnion's
+    // rendered reason text — a rendered sentence is a presentation detail and a check that parses one
+    // is a second grammar over a third artifact.
+    const residue = corpus.watched.filter((f) => !derivedKit.includes(f));
+    let registryArm = null;
+    try {
+        registryArm = [
+            ...new Set(readRegistry(ROOT)
+                .claims.filter((c) => c.kind === "safety")
+                .map((c) => c.file)),
+        ].sort();
+    }
+    catch (e) {
+        corpusRefused = true;
+        fail(`${REGISTRY_PATH} could not be parsed, so the REGISTRY arm of the safety-surface union could ` +
+            `not be derived and NO verdict is reported over the union's residue — ${e.message}`);
+    }
+    if (registryArm !== null) {
+        // THE ARM'S OWN VACUITY, at the granularity round 3's flip actually operates at. The zero check
+        // above catches an EMPTY UNION; an arm can go empty while the union stays large, and every
+        // equality written over an empty arm holds vacuously. The wording is
+        // generate-safety-surface.ts's own, reused rather than a third one invented.
+        if (registryArm.length === 0) {
+            corpusRefused = true;
+            fail(`the registry arm is EMPTY — ${REGISTRY_PATH} carries ZERO \`kind: safety\` claim(s), so ` +
+                `the union's registry arm contributes nothing and every equality written over it holds ` +
+                `vacuously. A vacuous set passes every guard computed over it, and a residue with no ` +
+                `registry arm silently drops the public documents that host safety claims out of this ` +
+                `gate's left-hand side`);
+        }
+        const registryResidue = registryArm
+            .filter((f) => f.endsWith(".md"))
+            .filter((f) => !derivedKit.includes(f));
+        const unaccounted = residue.filter((f) => !registryResidue.includes(f));
+        // DIRECTION ONE — a residue member no source vouches for. The register's only legitimate
+        // non-kit contribution is the D-02 protocol file, pinned against the ONE literal that declares
+        // it rather than counted, in both directions.
+        const unvouched = unaccounted.filter((f) => f !== PROTOCOL_FILE);
+        if (unvouched.length > 0) {
+            corpusRefused = true;
+            fail(`${unvouched.length} of the union's markdown residue is UNVOUCHED — ${unvouched.join(", ")}. ` +
+                `A residue member is a watched file that is NOT a derived kit file, and exactly two ` +
+                `sources may produce one: a \`kind: safety\` claim in ${REGISTRY_PATH}, or the single ` +
+                `uncounted \`safety_surface: yes\` row for ${PROTOCOL_FILE} in ${REGISTER_PATH}. A member ` +
+                `from any third source entered this gate's left-hand side with no account of why, which ` +
+                `is the sentence this assertion replaced: the gate used to PRINT how many residue entries ` +
+                `there were and call them public documents, and nothing checked that they were`);
+        }
+        if (!residue.includes(PROTOCOL_FILE)) {
+            corpusRefused = true;
+            fail(`${PROTOCOL_FILE} is ABSENT from the union's markdown residue. Its register row is the one ` +
+                `uncounted \`safety_surface: yes\` row (D-02), and \`listRoles()\` drops underscore-` +
+                `prefixed entries by derivation — so it is watched by REGISTER reason alone and by nothing ` +
+                `else. Losing it removes the role-switch protocol's admission text from this gate without ` +
+                `moving the derived kit's count by one`);
+        }
+        // DIRECTION TWO — the arm went SHORT (or long). This is the direction round 3 reproduced and
+        // the one containment structurally cannot see.
+        if (registryResidue.length !== RESIDUE_FROM_REGISTRY_COUNT) {
+            corpusRefused = true;
+            fail(`the registry arm's contribution to the watched corpus is ` +
+                `${registryResidue.length} markdown file(s), expected exactly ` +
+                `${RESIDUE_FROM_REGISTRY_COUNT}. The member(s) that SURVIVED are ` +
+                `[${registryResidue.join(", ")}]; this gate cannot name the one that left, because after ` +
+                `a \`kind:\` cell moves nothing in this repository still says that file was a safety-claim ` +
+                `home — check-audit-register's equality four names the KIND that moved, at the source. ` +
+                `One cell changed from \`safety\` to another kind in ${REGISTRY_PATH} removes a PUBLIC ` +
+                `DOCUMENT from this gate entirely, and the round-2 containment pin above cannot see it: ` +
+                `the file that left was never a derived kit file. That registry lives under \`docs/\` and ` +
+                `is not itself watched, so the edit owes no disposition row anywhere. Lowering ` +
+                `RESIDUE_FROM_REGISTRY_COUNT or narrowing the corpus are the two ways to clear this ` +
+                `finding by deleting its evidence, and neither is the fix`);
+        }
+    }
+    if (corpusRefused) {
         verdict();
         return;
     }
@@ -1253,11 +1385,20 @@ function main() {
     // The floor and its expectation are PUBLISHED on every green run, not only quoted on a red one —
     // this gate reports its measurements rather than asserting them, and a pin nobody can see in a
     // passing transcript is a pin nobody can notice going slack.
+    // THE THREE NUMBERS RECONCILE BY HAND, and that is the point of publishing them: the register
+    // arm's contribution (the derived kit), the registry arm's, and the one uncounted register row
+    // sum to the markdown corpus. The sentence and the assertion behind it are now one statement
+    // (D-08, and the AP-1 rule this gate's residue line was a live instance of).
+    const registryResidueSize = residue.filter((f) => f !== PROTOCOL_FILE).length;
     const corpusLine = `watched corpus: ${corpus.watched.length} markdown file(s) of the ${corpus.total}-entry ` +
         `LANG-03 safety-surface union, covering all ${derivedKit.length}/${WATCHED_CORPUS_MIN} derived ` +
-        `kit file(s) (${ROLE_COUNT} roles + ${WORKFLOW_COUNT} workflows; the union's remaining ` +
-        `${corpus.watched.length - WATCHED_CORPUS_MIN} markdown entr(ies) are public documents, which ` +
-        `is why the kit is a MINIMUM here and an equality at check-audit-register)` +
+        `kit file(s) (${ROLE_COUNT} roles + ${WORKFLOW_COUNT} workflows), which is why the kit is a ` +
+        `MINIMUM here and an equality at check-audit-register; the union's remaining ` +
+        `${residue.length} markdown entr(ies) are its RESIDUE, asserted rather than described — ` +
+        `${registryResidueSize} from the registry arm's \`kind: safety\` claims (expected ` +
+        `${RESIDUE_FROM_REGISTRY_COUNT}) and 1 uncounted \`safety_surface: yes\` register row ` +
+        `(${PROTOCOL_FILE}), so ${derivedKit.length} + ${registryResidueSize} + 1 = ` +
+        `${corpus.watched.length}` +
         (corpus.nonMarkdown.length === 0
             ? ""
             : `; ${corpus.nonMarkdown.length} non-markdown entr(ies) named and not watched ` +
