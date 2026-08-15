@@ -906,6 +906,40 @@ function parseClaimBlock(lines, start, end) {
     }
     // BYTE-FOR-BYTE. Split on `\n`, rejoin on `\n`; nothing is trimmed and nothing is normalized.
     const verbatim = lines.slice(fenceStart + 1, fenceEnd).join("\n");
+    // ── (Plan 29-28) THE SHAPE THE DOCUMENT-LEVEL PARITY CHECK CANNOT SEE. ────────────────────────
+    //
+    // `readRegistry`'s odd-delimiter refusal is a DOCUMENT-LEVEL parity check, and parity cannot see
+    // two errors that CANCEL. Two claim blocks each carrying one unclosed delimiter sum to an EVEN
+    // count, so that refusal stays silent — and because the heading scan is now fence-aware, the
+    // second block's heading sits inside the first block's open fence and DISAPPEARS. The first block
+    // then spans to EOF, finds the two delimiters that belonged to two DIFFERENT blocks, and parses
+    // with a verbatim that has swallowed an entire claim.
+    //
+    // THIS IS A REGRESSION THIS PLAN INTRODUCED, MEASURED RATHER THAN ARGUED. The pre-plan build
+    // refused the same bytes by name ("claim C-28-001's fenced block opened at line 11 and was never
+    // closed"); after the fence-aware scan it parsed one claim, dropped a `kind: safety` claim
+    // entirely, and returned a corrupted verbatim. Task 3's own done-criterion is that making the
+    // registry fence-aware cannot SILENTLY SHORTEN the claim list, so it is closed here rather than
+    // recorded as an accepted residual.
+    //
+    // DECIDED FROM THE DOMAIN RECOGNISER THIS MODULE ALREADY DECLARES — no new grammar, no second
+    // fence opinion — and AT THE POINT OF EFFECT, where the verbatim is built and where every
+    // consumer of `readRegistry` therefore passes through it.
+    //
+    // LIVE REACHABILITY, MEASURED BEFORE IT WAS ADDED: 0 of 42 claims carry a claim-heading-shaped
+    // line in their verbatim. It refuses nothing that exists today, which is the direction a new
+    // refusal must be able to demonstrate.
+    const swallowed = lines
+        .slice(fenceStart + 1, fenceEnd)
+        .filter((l) => CLAIM_HEADING_RE.test(l));
+    if (swallowed.length > 0) {
+        refuse(REGISTRY_PATH, `claim ${id}'s verbatim text has SWALLOWED ${swallowed.length} claim heading(s) ` +
+            `[${swallowed.map((l) => l.trim()).join(", ")}]. A claim's verbatim is a quoted sentence, ` +
+            `never another claim's heading, so this block's fence was left open and the heading(s) ` +
+            `above were hidden from the fence-aware scan — the claim list is SHORTER than the document ` +
+            `and the surviving claim's verbatim is not the text it names. Document-level delimiter ` +
+            `parity cannot see this, because two blocks each left open sum to an EVEN count`);
+    }
     // THE ROW-LEVEL FORM OF THE VACUOUS BIJECTION (28-REVIEW CR-03).
     //
     // check-claim-anchors already refuses a registry with no markdown rows, because "a vacuous

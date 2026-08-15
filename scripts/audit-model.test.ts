@@ -1645,3 +1645,97 @@ describe("audit-model: an unterminated fence cannot silently shorten the claim l
     expect(reg.claims.length).toBe(shaped - fenced);
   });
 });
+
+// ---------------------------------------------------------------------------------------------
+// (Plan 29-28, found by this plan's OWN adversarial pass) THE SHAPE THE PARITY CHECK CANNOT SEE.
+//
+// The odd-delimiter refusal is a DOCUMENT-LEVEL parity check, and parity cannot see two errors that
+// cancel. Two claim blocks each carrying ONE unclosed delimiter sum to an EVEN count, so the
+// refusal stays silent — and because the heading scan is now fence-aware, the second block's
+// heading is inside the first block's open fence and DISAPPEARS. The first block then spans to EOF,
+// finds the two delimiters that belonged to two different blocks, and parses with a verbatim that
+// has swallowed an entire claim.
+//
+// MEASURED AS A REGRESSION THIS PLAN INTRODUCED, not a pre-existing floor:
+//
+//   pre-plan build (0ec8b61) -> REFUSED "claim C-28-001's fenced block opened at line 11 and was
+//                               never closed"
+//   post-task-3 build        -> PARSED claims=1, verbatim[0] = "text\n### C-28-002\n\n- file: …"
+//
+// A `kind: safety` claim silently dropped and a corrupted verbatim, on a build whose Task 3 `done`
+// criterion is "making the registry fence-aware cannot silently shorten the claim list". So it is
+// closed here rather than recorded as a residual.
+//
+// DECIDED FROM THE DOMAIN RECOGNISER ALREADY IN THIS MODULE — no new grammar, and at the POINT OF
+// EFFECT, where the verbatim is built. Live reachability measured before adding it: 0 of 42 claims
+// carry a claim-heading-shaped line in their verbatim, so this refuses nothing that exists today.
+// ---------------------------------------------------------------------------------------------
+describe("audit-model: a verbatim that swallowed a claim block is a NAMED refusal (plan 29-28)", () => {
+  const oneOpenDelimiterEach = (secondKind: string): string =>
+    [
+      "# Phase 28 Claim Registry",
+      "",
+      "### C-28-001",
+      "",
+      "- file: README.md",
+      "- line: 4",
+      "- kind: architecture",
+      "- depends_on: autonomy",
+      "- status: true",
+      "",
+      FENCE,
+      "text",
+      "### C-28-002",
+      "",
+      "- file: README.md",
+      "- line: 4",
+      `- kind: ${secondKind}`,
+      "- depends_on: autonomy",
+      "- status: true",
+      "",
+      FENCE,
+      "text2",
+    ].join("\n");
+
+  it("two blocks each carrying ONE unclosed delimiter sum to an EVEN count and are refused anyway", () => {
+    const body = oneOpenDelimiterEach("safety");
+    // PREMISE: the parity check genuinely cannot see this document, or the case would be proving
+    // that the odd-count refusal works rather than that this one does.
+    const delims = body.split("\n").filter((l) => FENCE_DELIMITER_LINE.test(l)).length;
+    expect(delims % 2, "the fixture must be EVEN, or the parity refusal would catch it").toBe(0);
+    // PREMISE: and the second heading really is hidden by the fence-aware scan.
+    expect(unfencedMatchIndices(body, /^###\s+(\S+)\s*$/)).toHaveLength(1);
+
+    let msg = "";
+    try {
+      readRegistry(writeRegistryFixture(body));
+    } catch (e) {
+      msg = (e as Error).message;
+    }
+    // Named, and it names the swallowed heading so the author can find the unclosed delimiter.
+    expect(msg).toMatch(/swallow/i);
+    expect(msg).toContain("C-28-002");
+  });
+
+  it("a well-formed pair of blocks with the same ids parses — the refusal is about the SWALLOW", () => {
+    // Without this half, a refusal that fired on every two-block registry would satisfy the case
+    // above while refusing correct documents.
+    const reg = readRegistry(
+      writeRegistryFixture(
+        registryDoc(claimBlock("C-28-001"), claimBlock("C-28-002", { kind: "safety" })),
+      ),
+    );
+    expect(reg.claims.map((c) => c.id)).toEqual(["C-28-001", "C-28-002"]);
+  });
+
+  it("the LIVE registry reaches this refusal ZERO times — it refuses nothing that exists today", () => {
+    const claims = readRegistry(REPO_ROOT).claims;
+    const carrying = claims.filter((c) =>
+      c.verbatim.split("\n").some((l) => /^###\s+(\S+)\s*$/.test(l)),
+    );
+    expect(carrying.map((c) => c.id)).toEqual([]);
+    // NON-VACUITY: the sweep must have examined real verbatim text.
+    expect(claims.length).toBeGreaterThan(0);
+    expect(claims.every((c) => c.verbatim.length > 0)).toBe(true);
+  });
+});
