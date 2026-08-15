@@ -628,6 +628,7 @@ function deriveElements(corpus) {
     const bullets = [];
     const sentences = [];
     const unreadable = [];
+    const stepsFiles = [];
     let filesRead = 0;
     for (const file of corpus) {
         let text;
@@ -654,6 +655,11 @@ function deriveElements(corpus) {
                 // it sets the anchor to whether THAT something else is `## Steps`.
                 if (SECTION_HEADING_LINE.test(raw))
                     inSteps = STEPS_HEADING.test(raw);
+                // The independent denominator's source (WR-02). A file is recorded as carrying a step
+                // section the moment its HEADING is seen — whether or not a single bullet ever follows.
+                if (STEPS_HEADING.test(raw) && !stepsFiles.includes(file)) {
+                    stepsFiles.push(file);
+                }
                 continue;
             }
             const trimmed = raw.trim();
@@ -692,7 +698,33 @@ function deriveElements(corpus) {
             }
         }
     }
-    return { bullets, sentences, filesRead, unreadable };
+    return { bullets, sentences, stepsFiles, filesRead, unreadable };
+}
+/**
+ * Name every member of one side absent from the other, IN BOTH DIRECTIONS, or return null.
+ *
+ * THE REPOSITORY'S OWN RULE, APPLIED TO A DENOMINATOR RATHER THAN TO A SCAN SET: a per-part
+ * assertion is SET equality against each lister, never a count (kit-model.ts). A mismatch that
+ * names no member is a number a reader cannot act on — "visited 18 of 19" says a file was lost and
+ * refuses to say which. The two directions are DIFFERENT DEFECTS and must read differently: a file
+ * that should have been reached and was not is a narrowed check, while a file reached that the
+ * independent side never listed is a scan that wandered outside its own corpus.
+ */
+function setRefusal(expectedSide, visitedSide) {
+    const missing = expectedSide.members.filter((m) => !visitedSide.members.includes(m));
+    const extra = visitedSide.members.filter((m) => !expectedSide.members.includes(m));
+    if (missing.length === 0 && extra.length === 0)
+        return null;
+    const parts = [];
+    if (missing.length > 0) {
+        parts.push(`${expectedSide.label} but NOT ${visitedSide.label} (${missing.length}): ` +
+            `${missing.join(", ")} — ${expectedSide.missingReason}`);
+    }
+    if (extra.length > 0) {
+        parts.push(`${visitedSide.label} but NOT ${expectedSide.label} (${extra.length}): ` +
+            `${extra.join(", ")} — ${visitedSide.extraReason}`);
+    }
+    return parts.join("\n        ");
 }
 /** Determiners a step bullet opens with when it has become a description of who does what. */
 const DETERMINERS = new Set([
@@ -882,6 +914,17 @@ function classifySentence(s) {
 // ---------------------------------------------------------------------------
 // The run.
 // ---------------------------------------------------------------------------
+/**
+ * The two measured labels, DECLARED ONCE AND EXPORTED.
+ *
+ * The element grain of a published PASS line is a contract readers rely on, so both labels now NAME
+ * the element they count — a governed FILE, not a bullet and not a sentence. They are constants
+ * rather than inline strings for the reason 29-16 recorded when it moved the sibling gate's grain:
+ * six cases asserting the old spelling had to move together, and a seventh spelling would otherwise
+ * be free to drift in through a test that quietly kept asserting the old one.
+ */
+export const LEXICON_MEASURED_LABEL = "imperative lexicon — governed file(s) carrying a `## Steps` section";
+export const SENTENCE_MEASURED_LABEL = "sentence form — governed file(s)";
 function corpusBreakdown() {
     return GOVERNED_CORPUS_PARTS.map((p) => `${p.name} ${p.members.length}`).join(", ");
 }
@@ -902,6 +945,14 @@ function runAll() {
     }
     const corpus = governedCorpus();
     // TWO-SIDED PIN, worded so that moving it is visibly not the remedy.
+    //
+    // THIS REFUSAL STAYS, AND IS DELIBERATELY NOT FOLDED INTO THE TWO PER-GUARD DENOMINATOR REFUSALS
+    // BELOW, because it answers a different question. This one asks whether the SCAN SET IS THE RIGHT
+    // SIZE — did the four-part walk assemble the corpus it claims to govern. Those two ask whether the
+    // LOOP REACHED IT — did every member the walk found actually produce an element. Folding them
+    // together would make a corpus that silently SHRANK and a loop that silently SKIPPED report the
+    // same failure, and the remedies for those are opposite: one is a derivation bug, the other is a
+    // classification bug.
     if (corpus.length !== GOVERNED_CORPUS_COUNT) {
         fail(`the governed corpus derived ${corpus.length} document(s), expected exactly ` +
             `${GOVERNED_CORPUS_COUNT} (${corpusBreakdown()}) — walk all four parts' derivations, the ` +
@@ -944,14 +995,19 @@ function runAll() {
     process.stdout.write("\n[guard_imperative_lexicon] every `## Steps` bullet begins with a verb from the closed " +
         "approved set, in bare imperative form, at position zero (LANG-04 / WP-01, D-12, D-39)\n");
     const stepFindings = [];
-    let bulletsVisited = 0;
+    // THE VISIT SET, ACCUMULATED BY THE LOOP THAT DOES THE WORK. `visited` must never be a count read
+    // off the array the loop was handed: a guard that skipped its loop entirely would then still
+    // report a full denominator, and vacuity.ts's first branch — the one that exists to catch exactly
+    // that — could not fire.
+    const bulletFilesVisited = [];
     for (const b of elements.bullets) {
-        bulletsVisited += 1;
+        if (!bulletFilesVisited.includes(b.file))
+            bulletFilesVisited.push(b.file);
         const f = classifyStep(b);
         if (f !== null)
             stepFindings.push(f);
     }
-    const stepFiles = new Set(elements.bullets.map((b) => b.file)).size;
+    const stepFiles = bulletFilesVisited.length;
     process.stdout.write(`        corpus: ${corpus.length} file(s) in 4 part(s) — ${corpusBreakdown()}; ` +
         `${GENERATED_EXEMPT.length} excluded by the derived \`${GENERATED_MARKER}\` marker ` +
         `(${GENERATED_EXEMPT.join(", ") || "none"} — machine-generated from a third-party standard, ` +
@@ -960,10 +1016,27 @@ function runAll() {
     process.stdout.write(`        ${elements.bullets.length} \`## Steps\` bullet(s) across ${stepFiles} file(s); ` +
         `${APPROVED_STEP_VERBS.length} approved verb(s); ${TECHNICAL_NAMES.length} derived Technical ` +
         `Name(s)\n`);
+    // THE SET-LEVEL REFUSAL, ABOVE THE REPORT. The count below says HOW MANY files disagreed; this
+    // says WHICH, in both directions, because those two directions are different defects.
+    const stepSetRefusal = setRefusal({
+        label: "carries a `## Steps` heading",
+        members: elements.stepsFiles,
+        missingReason: "each of these files opens a step section and contributed no bullet to the loop, so no " +
+            "WP-01 verdict was reported over any step it declares",
+    }, {
+        label: "contributed a bullet",
+        members: bulletFilesVisited,
+        extraReason: "each of these files was attributed a step bullet without the heading scan ever seeing a " +
+            "step section in it, so the two scans disagree about where the section is",
+    });
+    if (stepSetRefusal !== null) {
+        fail(`the step-heading file set and the bullet-bearing file set are not equal, so the element ` +
+            `count published below covers less than the corpus declares\n        ${stepSetRefusal}`);
+    }
     FAILS += reportMeasured({
-        label: "imperative lexicon",
-        visited: bulletsVisited,
-        expected: elements.bullets.length,
+        label: LEXICON_MEASURED_LABEL,
+        visited: stepFiles,
+        expected: elements.stepsFiles.length,
         findings: stepFindings,
     }, { pass, fail }, renderStepFinding);
     // ── guard_sentence_form ─────────────────────────────────────────────────────────────────────
@@ -980,9 +1053,12 @@ function runAll() {
         `so a style pass would be reverted on the next generation and would falsify its own ` +
         `verbatim-copy claim)\n`);
     const formFindings = [];
-    let sentencesVisited = 0;
+    // Same shape as the lexicon guard above: the visit set is built BY the classification loop, so a
+    // loop that stopped running reports an empty set rather than the corpus size.
+    const sentenceFilesVisited = [];
     for (const s of elements.sentences) {
-        sentencesVisited += 1;
+        if (!sentenceFilesVisited.includes(s.file))
+            sentenceFilesVisited.push(s.file);
         for (const f of classifySentence(s))
             formFindings.push(f);
     }
@@ -996,10 +1072,25 @@ function runAll() {
     process.stdout.write(`        passive voice is deliberately NOT checked (D-15) — the kit's own correct prose is ` +
         `saturated with it, so a passive check reds large volumes of accurate text and the only ` +
         `route back to green is tuning the detector\n`);
+    const sentenceSetRefusal = setRefusal({
+        label: "in the derived governed corpus",
+        members: corpus,
+        missingReason: "each of these files is a member of the governed corpus and yielded not one sentence, so " +
+            "no WP-02..WP-08 verdict was reported over any prose it carries",
+    }, {
+        label: "yielded a sentence",
+        members: sentenceFilesVisited,
+        extraReason: "each of these files produced a sentence without being a member of the derived corpus, so " +
+            "the scan reached outside the set it publishes a verdict over",
+    });
+    if (sentenceSetRefusal !== null) {
+        fail(`the governed-corpus file set and the sentence-bearing file set are not equal, so the ` +
+            `element count published below covers less than the corpus does\n        ${sentenceSetRefusal}`);
+    }
     FAILS += reportMeasured({
-        label: "sentence form",
-        visited: sentencesVisited,
-        expected: elements.sentences.length,
+        label: SENTENCE_MEASURED_LABEL,
+        visited: sentenceFilesVisited.length,
+        expected: corpus.length,
         findings: formFindings,
     }, { pass, fail }, renderFormFinding);
     if (FAILS === 0) {

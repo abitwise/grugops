@@ -46,6 +46,8 @@ import {
   APPROVED_STEP_VERBS,
   GOVERNED_CORPUS_COUNT,
   GOVERNED_CORPUS_PARTS,
+  LEXICON_MEASURED_LABEL,
+  SENTENCE_MEASURED_LABEL,
   GOVERNED_CORPUS_EXCLUDED_LOCATIONS,
   GENERATED_MARKER,
   GENERATED_EXEMPT_COUNT,
@@ -332,8 +334,17 @@ describe("check-imperative-lexicon — the clean mirror", () => {
     // Both predicates print their own measured verdict — two names, two denominators.
     expect(stdout).toContain("[guard_imperative_lexicon]");
     expect(stdout).toContain("[guard_sentence_form]");
-    expect(stdout).toMatch(/imperative lexicon: 0 findings over \d+\/\d+ elements/);
-    expect(stdout).toMatch(/sentence form: 0 findings over \d+\/\d+ elements/);
+    // The label NAMES the element it counts, so a reader meets the grain in the verdict itself, and
+    // BOTH denominators are the file counts rather than the bullet and sentence totals (WR-02).
+    expect(stdout).toContain(
+      `${LEXICON_MEASURED_LABEL}: 0 findings over ${bulletTotals(stdout).files}/${bulletTotals(stdout).files} elements`,
+    );
+    expect(stdout).toContain(
+      `${SENTENCE_MEASURED_LABEL}: 0 findings over ${GOVERNED_CORPUS_COUNT}/${GOVERNED_CORPUS_COUNT} elements`,
+    );
+    // The detail lines still carry the bullet and sentence totals, so the finer numbers are not lost.
+    expect(bulletTotals(stdout).bullets).toBeGreaterThan(bulletTotals(stdout).files);
+    expect(sentenceTotals(stdout).total).toBeGreaterThan(GOVERNED_CORPUS_COUNT);
     // Every excluded location is named INLINE with its reason, never left to a file's absence.
     for (const e of GOVERNED_CORPUS_EXCLUDED_LOCATIONS) {
       expect(stdout).toContain(e.location);
@@ -533,7 +544,7 @@ describe("guard_imperative_lexicon (WP-01)", () => {
     const { status, stdout } = runGate(makeMirror("gops-lex-nobullets-", spec));
     expect(status).toBe(1);
     expect(stdout).toContain(
-      "imperative lexicon: ZERO elements visited (expected 0) — this check was NOT performed",
+      `${LEXICON_MEASURED_LABEL}: ZERO elements visited (expected 0) — this check was NOT performed`,
     );
   });
 });
@@ -689,7 +700,7 @@ describe("guard_sentence_form (WP-02..WP-08)", () => {
     // sources — so this case is about the SENTENCE fold, and it must still report zero bullets too.
     const { status, stdout } = runGate(makeMirror("gops-lex-nosent-", spec));
     expect(status).toBe(1);
-    expect(stdout).toContain("imperative lexicon: ZERO elements visited");
+    expect(stdout).toContain(`${LEXICON_MEASURED_LABEL}: ZERO elements visited`);
   });
 });
 
@@ -1041,5 +1052,113 @@ describe("CR-03 — the `## Steps` anchor survives a sub-heading and is released
     );
     expect(before.status).toBe(0);
     expect(after.status).toBe(0);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────────────────────────
+// (8) WR-02 — TWO INDEPENDENT DENOMINATORS, AND A SET-LEVEL REFUSAL THAT NAMES ITS MEMBER.
+//
+// A vacuity floor catches an EMPTY denominator and never a SILENTLY SHORT one. Both call sites in
+// this gate previously passed `expected` read off the very array the loop counted, so
+// `visited !== expected` could not fire under any input and vacuity.ts's second branch — the branch
+// that exists to make a narrowed check visible — was dead code with a comment explaining what it was
+// for. The concrete consequence: a governed corpus in which seventeen of forty-seven files stopped
+// producing step bullets was indistinguishable, in the gate's published output, from one where all
+// forty-seven still did.
+//
+// The remedy is the one 29-16 established at the sibling gate: `expected` from a code path the loop
+// does not own, `visited` from the loop, and a mismatch that NAMES its members in both directions,
+// because a bare count is a number a reader cannot act on.
+// ─────────────────────────────────────────────────────────────────────────────────────────────────
+
+describe("WR-02 — the lexicon denominator comes from the HEADING scan and names its file", () => {
+  it("REDs a governed file that opens a `## Steps` section and contributes no bullet, naming it", () => {
+    const rel = "agent-factory/workflows/00-fixture.md";
+    // A `## Steps` heading with prose under it and not one bullet. The `# Workflow: ` heading stays,
+    // so the workflow display-name derivation is untouched and this case varies ONE thing.
+    const headingNoBullet = [
+      "# Workflow: Planted Workflow",
+      "",
+      "## Steps",
+      "",
+      "Prose sits here where a step bullet belongs.",
+      "",
+    ].join("\n");
+
+    const control = runGate(makeMirror("gops-lex-wr02-ctrl-"));
+    const planted = runGate(
+      makeMirror("gops-lex-wr02-nobullet-", { plant: { [rel]: headingNoBullet } }),
+    );
+
+    // THE CONTROL. One variable isolated: the identical mirror without the plant is clean.
+    expect(control.status).toBe(0);
+    expect(control.stdout).toContain(
+      `${LEXICON_MEASURED_LABEL}: 0 findings over ${WORKFLOW_N}/${WORKFLOW_N} elements`,
+    );
+
+    expect(planted.status).toBe(1);
+    // NAMED, not merely counted.
+    expect(planted.stdout).toContain(
+      "the step-heading file set and the bullet-bearing file set are not equal",
+    );
+    expect(planted.stdout).toContain(
+      "carries a `## Steps` heading but NOT contributed a bullet (1)",
+    );
+    expect(planted.stdout).toContain(rel);
+    // And the denominator itself is now short, which under the old shape it could never be.
+    expect(planted.stdout).toContain(
+      `${LEXICON_MEASURED_LABEL}: visited ${WORKFLOW_N - 1} of ${WORKFLOW_N} elements`,
+    );
+  });
+});
+
+describe("WR-02 — the sentence-form denominator is the derived corpus size and names its file", () => {
+  it("REDs a governed file that yields no sentence at all, naming it", () => {
+    const rel = "agent-factory/checklists/00-fixture.md";
+    // A heading and nothing else. Headings are never sentences, so this file contributes zero.
+    const headingOnly = "# Fixture checklist 0\n";
+
+    const control = runGate(makeMirror("gops-lex-wr02-sctrl-"));
+    const planted = runGate(
+      makeMirror("gops-lex-wr02-nosentence-", { plant: { [rel]: headingOnly } }),
+    );
+
+    expect(control.status).toBe(0);
+    expect(control.stdout).toContain(
+      `${SENTENCE_MEASURED_LABEL}: 0 findings over ${GOVERNED_CORPUS_COUNT}/${GOVERNED_CORPUS_COUNT} elements`,
+    );
+
+    expect(planted.status).toBe(1);
+    expect(planted.stdout).toContain(
+      "the governed-corpus file set and the sentence-bearing file set are not equal",
+    );
+    expect(planted.stdout).toContain(
+      "in the derived governed corpus but NOT yielded a sentence (1)",
+    );
+    expect(planted.stdout).toContain(rel);
+    expect(planted.stdout).toContain(
+      `${SENTENCE_MEASURED_LABEL}: visited ${GOVERNED_CORPUS_COUNT - 1} of ${GOVERNED_CORPUS_COUNT} elements`,
+    );
+  });
+
+  it("asserts the PROPERTY directly: neither `expected` is read off the array its loop counts", () => {
+    // The two cases above prove the SYMPTOM. This proves the property, so a future refactor that
+    // reintroduced a tautological denominator would be caught even if no fixture happened to expose
+    // it. Comment lines are stripped, because the defect's own name is quoted in the source that
+    // explains why it is gone.
+    const executable = readFileSync(
+      join(ROOT, "scripts", "check-imperative-lexicon.ts"),
+      "utf8",
+    )
+      .split("\n")
+      .filter((l) => !/^\s*(\/\/|\*|\/\*)/.test(l))
+      .join("\n");
+
+    expect(executable).not.toContain("expected: elements.bullets.length");
+    expect(executable).not.toContain("expected: elements.sentences.length");
+    // And each side is present, from the branch the plan names.
+    expect(executable).toContain("expected: elements.stepsFiles.length");
+    expect(executable).toContain("expected: corpus.length");
+    expect(executable).toContain("visited: sentenceFilesVisited.length");
   });
 });
