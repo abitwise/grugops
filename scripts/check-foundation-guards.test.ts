@@ -97,43 +97,85 @@ const GUARD_JS = join(ROOT, "scripts", "check-foundation-guards.js");
 // They are also PARAMETERIZED BY ROOT. The falsifiability case below used to lean on the live tree
 // being red, which made a permanent proof depend on a transient corpus state; it now plants its own
 // red and counts it here, through the same authorities, at whatever root it planted into.
-const roleTextsIn = (root: string): string[] =>
-  listRoles().map((n) => readFileSync(join(root, "agent-factory/roles", n), "utf8"));
-
-/** Role files whose caveman block fails EITHER arm — the guard_caveman_voice finding count. */
-function voiceRedCountIn(root: string): number {
-  return roleTextsIn(root).filter((t) => {
-    const v = readCavemanFence(t);
-    if (!v.ok) return true;
-    const b = countBannedConstructions(v.inside);
-    return (
-      countLexiconTokens(v.inside) < CAVEMAN_LEXICON_MIN ||
-      b.article + b.copula + b.modal + b.subordinator !== 0
-    );
-  }).length;
-}
-
-const derivedVoiceRedCount = (): number => voiceRedCountIn(ROOT);
-
-/** Intra-file repeated normalized clauses, summed over roles — the uniqueness finding count. */
-function derivedClauseGroupCount(): number {
-  return roleTextsIn(ROOT).reduce((n, t) => {
-    const groups = new Map<string, number>();
-    for (const { clause } of segmentClauses(t))
-      groups.set(clause, (groups.get(clause) ?? 0) + 1);
-    return n + [...groups.values()].filter((c) => c > 1).length;
-  }, 0);
-}
-
-/** Plan 29-01's RED baseline. The rewrites only ever REMOVE findings, so these are ceilings. */
-const VOICE_RED_BASELINE_29_01 = 17;
-const CLAUSE_GROUP_BASELINE_29_01 = 12;
+//
+// ---------------------------------------------------------------------------------------------
+// (Plan 29-14, closing IN-01) THE ROOT IS THREADED THROUGH THE LISTER, NOT ONLY THROUGH THE READ.
+//
+// `roleTextsIn(root)` used to call `listRoles()` with NO ARGUMENT — so it took the NAMES from the
+// real repository and then read those names FROM `root`. On the live tree the two roots coincide and
+// the bug is invisible; on a MIRROR whose role set differs it measures a set the guard did not. A
+// role planted into a mirror was silently absent from every count computed here, and a role deleted
+// from a mirror would have thrown instead of being counted as gone.
+//
+// That is not an ordinary off-by-one. This harness is the INSTRUMENT that proves every voice fix in
+// this round, and an instrument deriving its membership from a tree other than the one it measures
+// fabricates evidence without anyone lying. Phase 27 recorded the verification harness producing a
+// FALSE result in six instances across four straight rounds, and project memory names asserting the
+// harness's own premise as the standing remedy — so `roleNamesIn` below is not merely called, it is
+// PINNED by a case that plants an eighteenth role into a mirror and requires the derivation to see
+// it. A derivation that silently returned the live set fails that case by MEMBERSHIP and by NUMBER.
+//
+// Every helper that reads role bytes out of a passed-in root now flows through `roleNamesIn(root)`
+// and through `rolePath`, so the names and the bytes come from one place and the role directory is
+// spelled once. The call sites that still list WITHOUT a root are the ones that deliberately measure
+// the LIVE tree, and each says so at its own site.
+// ---------------------------------------------------------------------------------------------
 
 // Repo-relative path of a role file inside a mirror (or the real tree). Every plant case below goes
 // through this helper rather than restating the directory, so the role directory is named in exactly
 // one more place than the derivation itself — the set-literal drift this phase exists to delete.
 const rolePath = (root: string, name: string): string =>
   join(root, "agent-factory/roles", name);
+
+/** THE role membership of a given root. Names and bytes below both come from here. */
+const roleNamesIn = (root: string): string[] => listRoles(root);
+
+const roleTextsIn = (root: string): string[] =>
+  roleNamesIn(root).map((n) => readFileSync(rolePath(root, n), "utf8"));
+
+/**
+ * Does ONE role file's caveman block fail EITHER arm? Declared as a predicate over TEXT rather than
+ * inlined into the fold below, so the premise case can ask the same question of the bytes it plants
+ * and derive that plant's CONTRIBUTION to the count independently of the loop that consumes it.
+ */
+function voiceRed(text: string): boolean {
+  const v = readCavemanFence(text);
+  if (!v.ok) return true;
+  const b = countBannedConstructions(v.inside);
+  return (
+    countLexiconTokens(v.inside) < CAVEMAN_LEXICON_MIN ||
+    b.article + b.copula + b.modal + b.subordinator !== 0
+  );
+}
+
+/** Role files whose caveman block fails EITHER arm — the guard_caveman_voice finding count. */
+function voiceRedCountIn(root: string): number {
+  return roleTextsIn(root).filter(voiceRed).length;
+}
+
+// Deliberately the LIVE tree: the two ceiling consumers below are claims about the REAL corpus
+// against plan 29-01's recorded baseline, not about any mirror.
+const derivedVoiceRedCount = (): number => voiceRedCountIn(ROOT);
+
+/** Intra-file repeated normalized clauses in ONE text — the same per-text/per-root split. */
+function clauseGroups(text: string): number {
+  const groups = new Map<string, number>();
+  for (const { clause } of segmentClauses(text))
+    groups.set(clause, (groups.get(clause) ?? 0) + 1);
+  return [...groups.values()].filter((c) => c > 1).length;
+}
+
+/** Intra-file repeated normalized clauses, summed over roles — the uniqueness finding count. */
+function clauseGroupCountIn(root: string): number {
+  return roleTextsIn(root).reduce((n, t) => n + clauseGroups(t), 0);
+}
+
+// Deliberately the LIVE tree, for the same reason as `derivedVoiceRedCount`.
+const derivedClauseGroupCount = (): number => clauseGroupCountIn(ROOT);
+
+/** Plan 29-01's RED baseline. The rewrites only ever REMOVE findings, so these are ceilings. */
+const VOICE_RED_BASELINE_29_01 = 17;
+const CLAUSE_GROUP_BASELINE_29_01 = 12;
 
 // (Phase 27 / KIT-01) The role portion of the harness's own input set is DERIVED. GUARD_INPUTS was
 // itself a hand-maintained list of exactly the drift class this phase deletes: 17 role literals that
@@ -143,6 +185,10 @@ const rolePath = (root: string, name: string): string =>
 // surfaces (AGENTS.md, the two adapters, the two packaging templates, the SEC_VOICE surfaces, the
 // workflows, the .planning/ Tier-1 oracle inputs), not a directory listing, so there is nothing to
 // derive them from.
+//
+// (Plan 29-14, IN-01 class audit) Deliberately rootless. This is the mirror's COPY MANIFEST: it names
+// which files are read OUT OF the live tree and written INTO a fresh mirror, so the live tree IS the
+// root under measurement here. Asking a not-yet-populated mirror for its role set would be circular.
 const DERIVED_ROLE_INPUTS = listRoles().map((f) => `agent-factory/roles/${f}`);
 
 // (Phase 27 / KIT-02) The ADAPTER portion of the harness's input set is derived too, for the same
@@ -441,7 +487,11 @@ const BOTH_ARMS_FAILING_BLOCK: readonly string[] = ["You are here."];
 // is precisely the property the transcript comparison needs.
 function allRedMirror(): string {
   const m = mirror();
-  for (const role of listRoles()) {
+  // (Plan 29-14, IN-01 class audit) Rooted at the MIRROR. This loop plants into `m`, so it must
+  // enumerate `m`'s roles — a rootless listing would silently skip any role the mirror carries and
+  // the live tree does not, leaving an unplanted GREEN file inside a fixture whose whole claim is
+  // that every role is red.
+  for (const role of roleNamesIn(m)) {
     plantCavemanBlock(m, role, [...BOTH_ARMS_FAILING_BLOCK]);
   }
   // The plant is two-sided by ASSERTION, not by assumption — measured through the same authorities
@@ -499,9 +549,15 @@ function plantCavemanBlock(
 }
 
 // The coordinator adapter's agent name, and the full role-agent namespace derived from the kit.
+//
+// (Plan 29-14, IN-01 class audit) ROOT-TAKING. Both consumers below (`brokenMirror`,
+// `consistentMirror`) delete or write adapter files INSIDE a mirror while enumerating this set, which
+// is the same shape as the reported defect one namespace over: a rootless listing would leave a
+// mirror-only role's adapter untouched by `brokenMirror`'s deletion sweep, so the RED fixture would
+// silently ship an intact adapter and the guard would convict it for the wrong reason.
 const COORDINATOR = "grugops-orchestrator";
-const roleAgentNames = (): string[] =>
-  listRoles().map((f) => `grugops-${f.replace(/\.md$/, "")}`);
+const roleAgentNames = (root: string): string[] =>
+  roleNamesIn(root).map((f) => `grugops-${f.replace(/\.md$/, "")}`);
 const adapterPath = (root: string, name: string): string =>
   join(root, ".claude/agents", `${name}.md`);
 
@@ -803,7 +859,7 @@ function renameAdapterIdentity(file: string, newName: string): void {
 // The RED fixture: the structurally broken tree this milestone exists to close.
 function brokenMirror(): string {
   const m = mirror();
-  for (const name of roleAgentNames()) {
+  for (const name of roleAgentNames(m)) {
     if (name === COORDINATOR) continue;
     rmSync(adapterPath(m, name), { force: true });
   }
@@ -813,7 +869,7 @@ function brokenMirror(): string {
 
 function consistentMirror(): string {
   const m = mirror();
-  const names = roleAgentNames();
+  const names = roleAgentNames(m);
   const granted = names.filter((n) => n !== COORDINATOR);
   // One adapter file per role. Deliberately WITHOUT a `coordinator: true` marker and without a
   // spawn grant — exactly one coordinator may exist, and only it may hold the grant.
@@ -4552,6 +4608,11 @@ describe("check-foundation-guards.js (SDLC-02 / SC2 fail-proof harness)", () => 
     expect(o).toContain("ALL CHECKS PASSED");
     // The 17 per-block measurement lines are present and in listRoles() sorted order, so the
     // transcript embedded in the guard's source header is reproducible byte-for-byte.
+    //
+    // (Plan 29-14, IN-01 class audit) Deliberately rootless. This case spawns the guard with NO
+    // CHECK_ROOT override, so the tree under measurement IS the repository; `roleNamesIn(ROOT)` would
+    // be the same call with more ceremony. Rooting it at a mirror would compare the live tree's
+    // transcript against some other tree's role set.
     const detail = o
       .split("\n")
       .filter((l) => /^ {8}\S+\.md: tokens \d+ \/ content words \d+, banned \d+$/.test(l));
@@ -4561,6 +4622,86 @@ describe("check-foundation-guards.js (SDLC-02 / SC2 fail-proof harness)", () => 
     expect(o).toContain(
       "KIT-03: 17 roles == 17 adapters == 17 grant-closure names",
     );
+  });
+
+  // ──────────────────────────────────────────────────────────────────────────────────────────────
+  // (Plan 29-14, closing IN-01) THE HARNESS ASSERTS ITS OWN PREMISE.
+  //
+  // Every voice claim this file makes about a MIRROR rests on one unstated assumption: that the
+  // derivations enumerate the mirror's roles rather than the repository's. Until this plan that
+  // assumption was FALSE and nothing here could tell, because on the live tree the two sets coincide
+  // and every existing case measured a mirror built by copying the live tree — so the wrong set and
+  // the right set happened to be the same set.
+  //
+  // Project memory records the standing remedy in this repository's own words: ASSERT THE
+  // VERIFICATION HARNESS'S OWN PREMISE. Phase 27 shipped a harness that produced a FALSE result in
+  // six instances across four straight rounds, and each time the premise had gone unasserted rather
+  // than been asserted wrongly. So this case does not test a guard. It tests the INSTRUMENT, by
+  // constructing the one situation where the two sets are forced apart: a mirror carrying a role the
+  // real tree has never had.
+  //
+  // The plant is named to sort clear of the whole live corpus and does NOT begin with `_`, because
+  // `listRoles` drops underscore-prefixed entries by its own rule — an underscore-prefixed plant
+  // would be legitimately out of set and the case would prove nothing while looking green.
+  //
+  // A derivation that silently returned the live set fails here TWICE and in two different currencies:
+  // by MEMBERSHIP (the planted name is absent from the derived set) and by NUMBER (neither count
+  // moves). One of those alone could be argued away; both cannot.
+  it("the voice derivations count a role planted only into the mirror (IN-01 premise)", () => {
+    const PLANTED = "zz-planted-premise-role.md";
+    // Two things at once, both derived rather than declared: a caveman block that fails BOTH voice
+    // arms (zero lexicon terms, one copula) and a clause repeated verbatim in the clear-voice half.
+    // So the plant contributes to BOTH derivations, and a harness blind to it is caught by either.
+    const REPEATED = "You hold this premise for the harness only.";
+    const PLANTED_TEXT = [
+      "# Role: Planted Premise",
+      "",
+      "## One job",
+      REPEATED,
+      REPEATED,
+      "",
+      "## Caveman prompt",
+      "```",
+      ...BOTH_ARMS_FAILING_BLOCK,
+      "```",
+      "",
+    ].join("\n");
+
+    // PREMISE OF THE PREMISE. The planted bytes really do carry the contribution this case is about
+    // to attribute to them, measured through the SAME authorities the derivations use rather than
+    // asserted in a comment. Derive the expected DELTA independently of the loop that consumes it —
+    // a vacuity floor catches an empty denominator but never a silently short one.
+    expect(voiceRed(PLANTED_TEXT), "the plant must be voice-RED").toBe(true);
+    const PLANTED_VOICE_DELTA = voiceRed(PLANTED_TEXT) ? 1 : 0;
+    const PLANTED_CLAUSE_DELTA = clauseGroups(PLANTED_TEXT);
+    expect(PLANTED_CLAUSE_DELTA, "the plant must contribute a clause group").toBe(1);
+
+    const m = mirror();
+    const namesBefore = roleNamesIn(m);
+    const redBefore = voiceRedCountIn(m);
+    const groupsBefore = clauseGroupCountIn(m);
+
+    writeFileSync(rolePath(m, PLANTED), PLANTED_TEXT, "utf8");
+
+    const namesAfter = roleNamesIn(m);
+    const namesLive = roleNamesIn(ROOT);
+
+    // 1. MEMBERSHIP. The mirror's derived set grew by exactly this file, and the repository's did not.
+    expect(namesAfter).toContain(PLANTED);
+    expect(namesLive).not.toContain(PLANTED);
+    expect(namesAfter.length).toBe(namesBefore.length + 1);
+    expect(namesAfter.length).toBeGreaterThan(namesLive.length);
+
+    // 2. NUMBER. Both derivations moved by exactly the plant's own contribution. A derivation that
+    // listed the live tree and read from the mirror would return the SAME numbers as before, because
+    // the planted name would never be enumerated and so never read.
+    expect(voiceRedCountIn(m)).toBe(redBefore + PLANTED_VOICE_DELTA);
+    expect(clauseGroupCountIn(m)).toBe(groupsBefore + PLANTED_CLAUSE_DELTA);
+
+    // 3. THE BYTES CAME FROM THE MIRROR. Membership and counts could in principle both move while the
+    // text was read from somewhere else; this pins that the derived text set really is the mirror's.
+    expect(roleTextsIn(m)).toContain(PLANTED_TEXT);
+    expect(roleTextsIn(m).length).toBe(namesAfter.length);
   });
 
   // ── cmp — the two config JSONs must be byte-identical (the tri-file drift). ───────────────────
