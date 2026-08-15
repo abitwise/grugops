@@ -480,7 +480,7 @@ Plans:
   4. The rebuilt voice guard **fails RED on all 17 current caveman blocks** as acceptance evidence before the rewrite lands, measures against a committed lexicon rather than sentence shape, and publishes a number with a denominator. (LANG-06)
   5. `## One job`, the caveman block, and `## Responsibilities` each say a thing once; `guard_imperative_lexicon` (with its sibling `guard_sentence_form`) and the rebuilt voice guard read the fence through **one** parser, never two grammars over the same bytes; and byte ceilings are re-baselined exactly once at end of phase with every file ≤ its previous value and the delta recorded — never raised mid-phase. (LANG-05, LANG-07, LANG-08)
 
-**Plans**: 23/26 plans executed — 19/19 executed; gap-closure round 2 adds 7 (29-20 .. 29-26, waves 19-25)
+**Plans**: 24/26 plans executed — 19/19 executed; gap-closure round 2 adds 7 (29-20 .. 29-26, waves 19-25)
 
 Plans:
 **Wave 1**
@@ -578,7 +578,7 @@ Plans:
 
 **Wave 23** *(blocked on Wave 22 completion)*
 
-- [ ] 29-24-PLAN.md — `check-imperative-lexicon.ts` adopts the authority; WR-04 settled at a blocking human decision (retire Residual 1 and publish the rule, or keep it), WR-09 half two fixed and half one recorded as Residual 4 with a concrete conflict, plus WR-07
+- [x] 29-24-PLAN.md — `check-imperative-lexicon.ts` adopts the authority; WR-04 settled at a blocking human decision (retire Residual 1 and publish the rule, or keep it), WR-09 half two fixed and half one recorded as Residual 4 with a concrete conflict, plus WR-07
 
 **Wave 24** *(blocked on Wave 23 completion)*
 
@@ -731,7 +731,7 @@ Plans:
 | 26. Dogfood, Dual-Path Oracle & A3/DOG-02 Retirement | v2.0 | 6/6 | Complete | 2026-07-24 |
 | 27. Spawn Correctness & Kit-Set Authority | v2.1 | 66/66 | Complete    | 2026-08-11 |
 | 28. Kit Consistency Audit | v2.1 | 8/8 | Complete    | 2026-08-12 |
-| 29. Controlled Language & Voice Guard Rebuild | v2.1 | 23/26 | In Progress|  |
+| 29. Controlled Language & Voice Guard Rebuild | v2.1 | 24/26 | In Progress|  |
 | 30. Per-Checkpoint Autonomy Matrix | v2.1 | 0/TBD | Not started | - |
 | 31. Autonomous Manual Testing | v2.1 | 0/TBD | Not started | - |
 | 32. Board Projector & CLI Dashboard | v2.1 | 0/TBD | Not started | - |

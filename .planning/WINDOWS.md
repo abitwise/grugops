@@ -1,10 +1,10 @@
 ---
 schema_version: 1
-open_count: 25
+open_count: 27
 waived_count: 0
 fixed_count: 1
-total_count: 26
-last_updated: 2026-08-15T10:04:44.790Z
+total_count: 28
+last_updated: 2026-08-15T16:49:50.376Z
 ---
 
 # Broken Windows Ledger
@@ -41,6 +41,8 @@ last_updated: 2026-08-15T10:04:44.790Z
 | 24 | 29 | unrun-verify | scripts/check-nul-bytes.ts |  | No gate detects a non-UTF-8 byte in kit markdown: check-nul-bytes looks only for NUL and markdown readers decode lossily to U+FFFD. A 29-05 perl -pi -e rewrite silently wrote a raw latin-1 0xA7 into seven files | open |  | 2026-08-14T17:27:20.286Z |  |
 | 25 | 29 | todo | agent-factory/workflows/18-context-compaction.md |  | WP-09 lowercase workflow display names remain: 'context compaction', 'context read/write', 'task claim + schedule'. Renaming changes a DERIVED set (listWorkflowDisplayNames -> TECHNICAL_NAMES -> two-sided pinned count), not prose, so no style plan owned it | open |  | 2026-08-14T17:27:20.349Z |  |
 | 26 | 29 | deviation | .planning/phases/29-controlled-language-voice-guard-rebuild/29-19-PLAN.md |  | Acceptance criterion 'grep -c ^overrides: returns 1' is unsatisfiable: the report's own drafted block inside a yaml fence carries a column-0 overrides: line. Substituted with a frontmatter-region-scoped count (1 key, 1 fenced prose copy). | open |  | 2026-08-15T10:04:44.790Z |  |
+| 27 | 29 | deviation | scripts/check-imperative-lexicon.ts |  | Residual 4: a four-space-indented code block donates step bullets; the one fence authority cannot see it. Fail-closed, empty input set today, promote trigger recorded. | open |  | 2026-08-15T16:49:50.314Z |  |
+| 28 | 29 | deviation | scripts/check-imperative-lexicon.ts | 541 | The derived locator-site scan reports ONE member (HEADING_LINE), not the zero 29-24's acceptance criterion asserts; 29-25 must state an exemption rather than widen the classifier. | open |  | 2026-08-15T16:49:50.376Z |  |
 
 ````json
 [
@@ -354,6 +356,30 @@ last_updated: 2026-08-15T10:04:44.790Z
     "status": "open",
     "reason": "",
     "recorded_at": "2026-08-15T10:04:44.790Z",
+    "resolved_at": null
+  },
+  {
+    "id": 27,
+    "kind": "deviation",
+    "phase": "29",
+    "file": "scripts/check-imperative-lexicon.ts",
+    "line": null,
+    "description": "Residual 4: a four-space-indented code block donates step bullets; the one fence authority cannot see it. Fail-closed, empty input set today, promote trigger recorded.",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-08-15T16:49:50.314Z",
+    "resolved_at": null
+  },
+  {
+    "id": 28,
+    "kind": "deviation",
+    "phase": "29",
+    "file": "scripts/check-imperative-lexicon.ts",
+    "line": 541,
+    "description": "The derived locator-site scan reports ONE member (HEADING_LINE), not the zero 29-24's acceptance criterion asserts; 29-25 must state an exemption rather than widen the classifier.",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-08-15T16:49:50.376Z",
     "resolved_at": null
   }
 ]
