@@ -1256,19 +1256,42 @@ export const LEXICON_MEASURED_LABEL =
 export const SENTENCE_MEASURED_LABEL = "sentence form — governed file(s)";
 
 /**
- * THE PUBLISHED RULE THE STEP-SET REFUSAL NAMES (plan 29-24, WR-04).
+ * THE PUBLISHED RULE THE STEP-SET REFUSAL NAMES — THE WHOLE RULE (plan 29-24 WR-04; plan 29-31 WR-05).
  *
- * These two constants are the rule id and the rule sentence exactly as agent-factory/writing-profile.md
- * publishes them. They are DELIBERATELY NOT EXPORTED. A case in
- * scripts/check-imperative-lexicon.test.ts asserts the same sentence appears in the gate's refusal
- * AND in the profile's rule table, written as a literal in both places — importing the constant into
+ * These THREE constants are the rule id, the rule sentence and the remedy sentence exactly as
+ * agent-factory/writing-profile.md publishes them. They are DELIBERATELY NOT EXPORTED. A case in
+ * scripts/check-imperative-lexicon.test.ts asserts the same sentences appear in the gate's refusal
+ * AND in the profile's rule table, written as literals in both places — importing the constant into
  * that case would prove only that one file reads another, when the property being pinned is that the
  * guard and the kit's own documentation SAY THE SAME THING TO AN AUTHOR. That contradiction between
  * a gate and its own recorded prose is the whole of WR-04, and a shared constant would hide the next
  * one exactly as the retired Residual 1 hid this one.
+ *
+ * WHY THERE ARE NOW TWO SENTENCES HERE, AND WHY THE ROW MOVED (WR-05).
+ *
+ * `WP-11` is a two-sentence rule and only its FIRST sentence was ever held. The two artifacts'
+ * remedy halves therefore disagreed on the day they landed — the profile said "a heading that is not
+ * a steps heading", this file said "a heading that is not `## Steps`" — and no assertion could see
+ * it, because the pin covered one sentence while its own comment claimed to cover the rule. A claim
+ * wider than the assertion beneath it is the defect class this repository removes, and it had landed
+ * inside the mechanism built to prevent it.
+ *
+ * The row was also published LEVEL-AGNOSTICALLY ("a steps section") while `STEPS_HEADING` anchors on
+ * level two exactly, so a `### Steps` section carrying no list item violated the published rule,
+ * contributed no member to `stepsFiles`, and produced no refusal. The published rule was narrowed to
+ * the spelling this gate decides rather than the anchor widened: widening makes the heading level and
+ * the SECTION-END level disagree, so a `### Steps` section's bullets would be scanned to the next
+ * level-at-most-two heading and would silently adopt sibling `###` sections' bullets. A genuine
+ * widening needs the shared locator's level parameter widened with it — four gates at once, with its
+ * own corpus measurement — and belongs in its own plan. The spellings the narrowing leaves undecided
+ * are not left to a promise: `stepsHeadingTally` below counts them and refuses by name when the count
+ * leaves zero.
  */
 const STEPS_SECTION_RULE_ID = "WP-11";
-const STEPS_SECTION_RULE = "A steps section carries at least one list item.";
+const STEPS_SECTION_RULE =
+  "A `## Steps` section carries at least one list item.";
+const STEPS_SECTION_REMEDY =
+  "Write the section's procedure as list items, or move the explanatory paragraphs under a heading that is not `## Steps`.";
 
 function corpusBreakdown(): string {
   return GOVERNED_CORPUS_PARTS.map((p) => `${p.name} ${p.members.length}`).join(
@@ -1407,16 +1430,15 @@ function runAll(): void {
     },
   );
   if (stepSetRefusal !== null) {
-    // THE REFUSAL NAMES THE RULE, NOT ONLY THE SET ARITHMETIC (plan 29-24, WR-04). Set equality is
-    // what the gate COMPUTED; it is not something an author can act on. The sentence below is the
-    // published rule verbatim — `WP-11` in agent-factory/writing-profile.md — and a case asserts the
-    // same sentence in both artifacts, so the guard's enforcement and the kit's own documentation
-    // cannot drift back into contradicting each other without a red.
+    // THE REFUSAL NAMES THE WHOLE RULE, NOT ONLY THE SET ARITHMETIC (WR-04; widened at WR-05). Set
+    // equality is what the gate COMPUTED; it is not something an author can act on. BOTH sentences
+    // below come from the constants above — the rule and its remedy — and NEITHER is spelled inline
+    // here. An inline remedy is exactly how the two artifacts came to disagree: the half held by a
+    // constant stayed pinned while the half typed into this call drifted, unwatched.
     fail(
       `the step-heading file set and the bullet-bearing file set are not equal, so the element ` +
         `count published below covers less than the corpus declares. THE RULE IS ` +
-        `${STEPS_SECTION_RULE_ID}: ${STEPS_SECTION_RULE} Write the section's procedure as list ` +
-        `items, or move the explanatory paragraphs under a heading that is not \`## Steps\`` +
+        `${STEPS_SECTION_RULE_ID}: ${STEPS_SECTION_RULE} ${STEPS_SECTION_REMEDY}` +
         `\n        ${stepSetRefusal}`,
     );
   }

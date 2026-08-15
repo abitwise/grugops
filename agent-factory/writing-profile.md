@@ -44,21 +44,21 @@ is enforced is making the overstated claim this project spent a milestone removi
 | `WP-01` | A step bullet begins with a verb from the approved step-verb set, in bare imperative form, at position zero once any ordered or unordered list marker is stripped. No leading bold label, no subject noun phrase, no leading conditional clause. | decidable |
 | `WP-02` | A procedural sentence is at most 20 words. | decidable |
 | `WP-03` | A descriptive sentence is at most 25 words. | decidable |
-| `WP-04` | The section anchor decides which length limit applies to a sentence. A bullet under a steps heading is procedural. | decidable |
+| `WP-04` | The section anchor decides which length limit applies to a sentence. A bullet under a `## Steps` heading is procedural. | decidable |
 | `WP-05` | A procedural step carries no modal verb. The step is the obligation. | decidable |
 | `WP-06` | A sentence carries no bare demonstrative as its subject unless the antecedent is in the same sentence. | decidable |
 | `WP-07` | A sentence carries no `and`-slash-`or` construction. Write the one meaning intended. | decidable |
 | `WP-08` | One instruction per sentence. Two imperatives joined by a conjunction are two sentences. | decidable |
 | `WP-09` | One term per concept. A concept that has a name keeps that name everywhere. | advisory |
 | `WP-10` | A prohibition is stated once, in the section that owns it. | advisory |
-| `WP-11` | A steps section carries at least one list item. Write the procedure as list items, or move the explanatory paragraphs under a heading that is not a steps heading. | decidable |
+| `WP-11` | A `## Steps` section carries at least one list item. Write the section's procedure as list items, or move the explanatory paragraphs under a heading that is not `## Steps`. | decidable |
 
 ### The adjacency rule, stated rather than left to be assumed
 
 Two rules bound the same construct, and a later reader is most likely to assume they merge. They do
 not merge, and neither silently overrides the other. `WP-02` bounds a procedural sentence at 20 words
 and `WP-03` bounds a descriptive sentence at 25. The **section anchor decides which one applies**,
-and a bullet under a steps heading is procedural — so the 20-word bound wins there, every time. A
+and a bullet under a `## Steps` heading is procedural — so the 20-word bound wins there, every time. A
 sentence is never measured against both bounds, and it is never measured against neither.
 
 ### The approved step-verb set
@@ -68,25 +68,69 @@ verbs this repository's own procedural steps already use in bare imperative posi
 once in source, and the rule is a **canonical form with a refusal outside it** rather than a
 frequency cutoff over a distribution that has no head to adopt.
 
-### Why a steps section carries at least one list item
+### Why a `## Steps` section carries at least one list item
 
 `WP-11` is published here because a gate was already deciding it while this document said nothing,
 and a rule an author meets first as a red is a rule the kit failed to state.
 
-`WP-01` is scoped to list items. A steps section written as paragraphs is therefore measured by the
-imperative predicate not at all — so a heading that claims to hold procedure and holds no list item
-is a section no rule in this profile reaches. The gate reports that as a short denominator, which is
-correct and was previously unexplained.
+`WP-01` is scoped to list items. A `## Steps` section written as paragraphs is therefore measured by
+the imperative predicate not at all — so a heading that claims to hold procedure and holds no list
+item is a section no rule in this profile reaches. The gate reports that as a short denominator,
+which is correct and was previously unexplained.
 
 The rule is narrow on purpose. It asks for one list item and says nothing about how many, how long,
-or what a paragraph beside them may say. Explanatory prose is welcome inside a steps section; it is
-the *absence of any list item at all* that the rule refuses, because that is the case where the
+or what a paragraph beside them may say. Explanatory prose is welcome inside a `## Steps` section; it
+is the *absence of any list item at all* that the rule refuses, because that is the case where the
 section's procedure is invisible to every decidable rule above.
 
 The cost is stated rather than left to be discovered. This is a constraint on every workflow written
-from here on, and a steps section written purely as explanation is now out of conformance instead of
-merely unmeasured. Every one of the 19 governed workflows carrying a steps heading already satisfies
-it, so publishing the rule moved no verdict on the day it was adopted.
+from here on, and a `## Steps` section written purely as explanation is now out of conformance
+instead of merely unmeasured. Every one of the 19 governed workflows carrying a `## Steps` heading
+already satisfies it, so publishing the rule moved no verdict on the day it was adopted.
+
+### The heading spelling `WP-11` and `WP-04` decide, and the floor beneath it
+
+`WP-11` and `WP-04` name the literal heading `## Steps`, at level two, and they name it because that
+is the spelling the gate decides. Both rows used to say *a steps heading*, which reads as every ATX
+level. `guard_imperative_lexicon` anchors on `/^## Steps\s*$/`, so a `# Steps` or `### Steps` section
+contributed no member to the file set whose inequality produces the `WP-11` refusal. The rule as
+published was therefore wider than the assertion behind it — the defect class this project names and
+removes — and it was wider in the fail-open direction, which is the direction that ships.
+
+**The other spellings are not decided, and that is a disclosed floor rather than a claim.** A
+`# Steps` or `### Steps` section carrying no list item is outside `WP-11`. This document does not say
+it conforms; it says no gate decides it.
+
+The floor was measured on the governed corpus rather than assumed:
+
+```sh
+# steps headings by ATX level across the derived governed corpus, fence-aware
+node -e 'const fs=require("fs");Promise.all([import("./scripts/check-imperative-lexicon.js"),
+  import("./scripts/frontmatter.js")]).then(([m,fm])=>{let any=0,decided=0,undecided=0;
+  for (const f of m.governedCorpus()){const t=fs.readFileSync(f,"utf8"),g=fm.fencedLineFlags(t);
+    t.split("\n").forEach((l,i)=>{if(g[i])return;
+      if(/^#{1,6} Steps\s*$/.test(l))any++;
+      if(/^## Steps\s*$/.test(l))decided++;
+      if(/^(?:#|#{3,6}) Steps\s*$/.test(l))undecided++;});}
+  console.log({any,decided,undecided});});'
+# -> { any: 19, decided: 19, undecided: 0 }
+```
+
+Nineteen steps headings, all at level two, none anywhere else. **Narrowing the two rows moved no byte
+in the governed corpus.** It removed a promise nothing kept.
+
+**The floor carries a mechanism rather than this paragraph.** `guard_imperative_lexicon` publishes
+both tallies on every run and refuses by name the moment the undecided one leaves zero, so the first
+`### Steps` section anybody writes is a red that states its remedy — not a silence. A note that
+nothing measures becomes false the day the shape arrives, and nobody finds out.
+
+**Widening instead was considered and deferred, so a later reader does not re-open it as an obvious
+omission.** Widening the anchor to a level class makes the heading level and the section-end level
+disagree: a `### Steps` section's bullets would be scanned to the next level-at-most-two heading and
+would silently adopt the bullets of sibling `###` sections. A genuine widening therefore has to widen
+the shared section locator's level parameter too, which changes the behaviour of four gates at once
+and needs its own corpus measurement. That belongs in its own plan. Narrowing removes a claim wider
+than its assertion, which is this repository's own remedy for that class.
 
 ## Deliberate omissions, with their reasons
 

@@ -1232,7 +1232,7 @@ describe("WR-02 — the sentence-form denominator is the derived corpus size and
  */
 const STEPS_RULE_ID = "WP-11";
 const STEPS_RULE_SENTENCE =
-  "A steps section carries at least one list item.";
+  "A `## Steps` section carries at least one list item.";
 
 describe("WR-04 / WR-09 — the shapes this guard's own prose names, each with its verdict pinned", () => {
   it("WR-04: a prose-only `## Steps` section is RED, and the refusal names the RULE — the same sentence the writing profile publishes", () => {
