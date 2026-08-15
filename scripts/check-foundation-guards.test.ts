@@ -3745,6 +3745,118 @@ describe("check-foundation-guards.js (SDLC-02 / SC2 fail-proof harness)", () => 
     expect(out(r)).toContain("ALL CHECKS PASSED");
   });
 
+  // ── IN-03 (plan 29-18): the neutralizer and the counter must agree about CASE. ────────────────
+  //
+  // `countLexiconTokens` is the ONE implementation of "is this a caveman occurrence", and it matches
+  // CASE-INSENSITIVELY. `neutralizePhrases` is a named, bounded exemption FROM that one decision, and
+  // it matched case-SENSITIVELY — so a sentence-initial `Grug voice` in correct clear-voice prose
+  // survived the exemption and was then convicted by the counter. Two halves of one identity
+  // question, two answers.
+  //
+  // THE DANGEROUS HALF OF THE FIX IS THAT IT WIDENS AN EXEMPTION. So the bound is asserted from BOTH
+  // sides and both directions are permanent cases:
+  //
+  //   PERMISSIVE (RED before this plan, GREEN after) — the exemption must swallow the three brand
+  //   phrasings in ANY case.
+  //   SCOPE CONTROL (GREEN before AND after) — the exemption must NOT swallow a bare caveman token
+  //   that merely sits next to one. A widening proven only in the permissive direction is not proven.
+  //
+  // Every case below runs on `consistentMirror()` — the GREEN baseline — so a nonzero exit is
+  // attributable to the plant rather than to some unrelated guard, and each red case asserts the
+  // guard_voice FINDING TEXT rather than only the exit code. The finding text is the mechanism here:
+  // guardVoice reports the line AFTER neutralization, so what it prints says which phrasings were
+  // exempted and which survived.
+  //
+  // The host is `agents-md-scribe.md` for the reason the refinement case above records at length: it
+  // is a ROLE_FILES member with roughly 450 bytes of headroom under its guard_role_size ceiling, so
+  // these plants fail for VOICE reasons or not at all. No byte ceiling may be raised to make a plant
+  // fit.
+  const CASE_INSENSITIVE_EXEMPT_PLANTS: readonly {
+    what: string;
+    line: string;
+  }[] = [
+    {
+      what: "a sentence-initial `Grug voice`",
+      line: "Grug voice is reserved for the fenced block.",
+    },
+    {
+      what: "a sentence-initial `Grug wink`",
+      line: "Grug wink stays out of a security finding.",
+    },
+    {
+      what: "the brand command in UPPER CASE",
+      line: "Run /GRUG to start the factory.",
+    },
+  ];
+  for (const plant of CASE_INSENSITIVE_EXEMPT_PLANTS) {
+    it(`guard_voice: ${plant.what} in clear voice does NOT red the guard (IN-03)`, () => {
+      const m = consistentMirror();
+      appendFileSync(rolePath(m, "agents-md-scribe.md"), `\n${plant.line}\n`);
+      const r = runIn(m);
+      // The OUTPUT assertion runs FIRST, deliberately: on a build where the exemption disagrees with
+      // the counter about case, the exit-code assertion alone reports `1 !== 0` and says nothing
+      // about WHICH guard convicted. Asserting the banner first makes the failure print the whole
+      // run, so the RED names guard_voice and the offending line rather than a bare number.
+      expect(out(r)).toContain("ALL CHECKS PASSED");
+      expect(r.status).toBe(0);
+    });
+  }
+
+  // THE BOUND, side one: a bare caveman token in sentence-initial position is NOT one of the three
+  // exempt phrasings and must still convict. This case is GREEN before this plan and GREEN after —
+  // that is what makes it a control rather than coverage.
+  it("guard_voice: a sentence-initial `Grug smash` is NOT exempt and still reds (IN-03 scope control)", () => {
+    const m = consistentMirror();
+    appendFileSync(
+      rolePath(m, "agents-md-scribe.md"),
+      "\nGrug smash the rock.\n",
+    );
+    const r = runIn(m);
+    expect(r.status).not.toBe(0);
+    const o = out(r);
+    expect(o).toContain("voice-discipline violation");
+    expect(o).toContain("agents-md-scribe.md");
+    // The reported line, verbatim. Nothing on it was rewritten, because none of the three exempt
+    // phrasings occurs on it — asserted as TEXT so the case tests the neutralizer's reach and not
+    // merely the exit code.
+    expect(o).toContain("Grug smash the rock.");
+  });
+
+  // THE BOUND, side two — the UNION of the two arms on ONE line. The exemption and a violation sit
+  // together, which is the only shape that can tell a bounded exemption from a prefix-swallowing one.
+  // GREEN before and after: the line must convict either way.
+  it("guard_voice: a brand phrase adjacent to a bare caveman token does NOT protect it (IN-03 scope control)", () => {
+    const m = consistentMirror();
+    appendFileSync(
+      rolePath(m, "agents-md-scribe.md"),
+      "\nGrug voice, then grug smash the rock.\n",
+    );
+    const r = runIn(m);
+    expect(r.status).not.toBe(0);
+    const o = out(r);
+    expect(o).toContain("voice-discipline violation");
+    // The surviving half, asserted by name. `grug smash` must reach the counter whatever happens to
+    // the brand phrase beside it.
+    expect(o).toContain("grug smash the rock.");
+  });
+
+  // THE MECHANISM, on that same line — RED before this plan, GREEN after.
+  //
+  // The two controls above pass on BOTH builds, and they would pass on a build where the exemption
+  // never fired at all. This case asserts the other half: on the SAME line, the brand phrase IS
+  // rewritten to its marker-free filler while the adjacent caveman token is NOT. guardVoice prints
+  // the post-neutralization line, so the printed text is the direct evidence that the exemption
+  // applied and stopped where it was supposed to stop.
+  it("guard_voice: on one line the brand phrase IS neutralized and the adjacent token is NOT (IN-03)", () => {
+    const m = consistentMirror();
+    appendFileSync(
+      rolePath(m, "agents-md-scribe.md"),
+      "\nGrug voice, then grug smash the rock.\n",
+    );
+    const o = out(runIn(m));
+    expect(o).toContain("voice-meta, then grug smash the rock.");
+  });
+
   it("guard_voice unterminated caveman fence → nonzero + 'unterminated' (WR-03)", () => {
     const m = mirror();
     // Delete the CLOSING ``` of qe-e2e's `## Caveman prompt` block so the fence is unbalanced.
