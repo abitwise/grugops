@@ -1,560 +1,525 @@
 ---
 phase: 29-controlled-language-voice-guard-rebuild
-reviewed: 2026-08-15T00:00:00Z
+reviewed: 2026-08-15T19:58:02Z
 depth: standard
-files_reviewed: 10
+round: 3 (adversarial review of gap-closure round 2, diff 3ed76c1..HEAD)
+files_reviewed: 17
 files_reviewed_list:
-  - scripts/check-banned-claims.ts
-  - scripts/check-banned-claims.test.ts
-  - scripts/check-diff-disposition.ts
-  - scripts/check-diff-disposition.test.ts
-  - scripts/check-foundation-guards.ts
-  - scripts/check-foundation-guards.test.ts
-  - scripts/check-imperative-lexicon.ts
-  - scripts/check-imperative-lexicon.test.ts
+  - scripts/frontmatter.ts
+  - scripts/frontmatter.test.ts
   - scripts/voice-model.ts
   - scripts/voice-model.test.ts
+  - scripts/check-diff-disposition.ts
+  - scripts/check-diff-disposition.test.ts
+  - scripts/check-banned-claims.ts
+  - scripts/check-banned-claims.test.ts
+  - scripts/check-imperative-lexicon.ts
+  - scripts/check-imperative-lexicon.test.ts
+  - scripts/check-audit-register.ts
+  - scripts/check-audit-register.test.ts
+  - scripts/audit-model.ts
+  - scripts/audit-model.test.ts
+  - scripts/check-foundation-guards.test.ts
+  - scripts/section-locator-oracle.test.ts
+  - agent-factory/writing-profile.md
 findings:
   critical: 2
-  warning: 9
+  warning: 6
   info: 3
-  total: 14
+  total: 11
 status: issues_found
 ---
 
 # Phase 29 (gap-closure round 2): Code Review Report
 
-**Reviewed:** 2026-08-15
+**Reviewed:** 2026-08-15T19:58:02Z
 **Depth:** standard
-**Files Reviewed:** 10
+**Diff range:** `3ed76c1..HEAD` (plans 29-20 … 29-26)
 **Status:** issues_found
 
 ## Summary
 
-Round 2 closes the three round-1 BLOCKERs in the direction each was reported, and the work is
-genuinely stronger than round 1: the carrier attribution in `check-diff-disposition.ts` is a real
-per-commit predicate with a three-commit harness behind it, the two new denominators in
-`check-imperative-lexicon.ts` are derived by code paths their loops do not run, `isCompanionFilled`
-replaces a denylist with a canonical form, and three section-extent locators now consume
-`fencedLineFlags` instead of carrying a second grammar.
+The round's central structural move — deleting five private section-extent predicates and replacing
+them with `unfencedHeadingIndex` / `sectionEndIndex` in `scripts/frontmatter.ts` — is sound in its
+mechanics: both functions compose the one fence toggle, the `[from, lineCount]` contract holds at
+every generated input, the level axis is pinned two-sided, and the consumers' import sets are pinned
+by a derived scan that is proven falsifiable by a planted sixth module.
 
-It does not close the phase's failure class. Two findings below are bypasses I reproduced as
-`input → wrong output`, both of them the same shape the phase exists to delete — a guard that is
-green while measuring the wrong bytes:
+Two things are wrong at the level this project cares about.
 
-1. **The watched corpus of `guard_diff_disposition` is the one set in the gate that is not pinned
-   two-sided**, and it is derived from a hand-maintained register column that no gate constrains.
-   Reproduced end to end on the live tree: reword a `## Hard limits` sentence in
-   `agent-factory/roles/uat-planner.md`, flip one register cell from `yes` to `no`, regenerate, and
-   **all four gates exit 0**. The gate's own finding text says "do NOT narrow the watched corpus" —
-   a prohibition with no mechanism, which is precisely what this milestone exists to stop shipping.
-2. **CR-01's section bound is closed for `## ` and open for `# `.** `SECTION_END = /^## /` does not
-   recognise a level-one heading, so the founding fail-open survives in reduced form: a de-fenced
-   caveman section still adopts a fenced block that lives under a later *top-level* heading. The
-   same predicate one module over (`check-imperative-lexicon.ts`'s `SECTION_HEADING_LINE`) already
-   uses `/^#{1,2} /`, so the tree disagrees with itself about what closes a section.
+**First, making `sectionEndIndex` fence-aware silently reopened the founding defect in
+`readCavemanFence`, in a shape nobody probed.** A fence opened inside the caveman section and closed
+*after* a later `#` / `##` heading now swallows every intervening section into `inside` and deletes
+those lines from `outside`. `outside` can be driven to the empty string, at which point `guard_voice`
+scans zero bytes for that file and prints a pass. On the pre-round-2 build the same bytes returned
+`{ok:false, reason:"unterminated"}`. The module's own header (`voice-model.ts:123-128`) asserts the
+old fail-closed behaviour is "UNCHANGED BY THE REWIRE" and forbids "a second arm that reaches past
+the bound" — the code now reaches past the bound, and `voice-model.test.ts` supersedes half of that
+paragraph without correcting it. Recorded variant **C1** in `docs/audit/29-locator-unification.md §6`
+found this shape in `locateExemptRegion` and dismissed it as "Nothing NEW" because the
+`BANNED_CLAIM_EXEMPT_SUPPRESSED` pin covers it. The voice guards have no equivalent pin, and the
+variant was never run against `readCavemanFence`.
 
-Beyond those: the WR-06 fix in `check-banned-claims.ts` **widened a safety exemption** while its own
-header asserts "NOTHING BELOW IS RELAXED" (measured: 4 exempt lines become 9); `readDispositionRows`
-is the fourth locator of the WR-06 class and was not fixed; the new set-equality refusal in
-`check-imperative-lexicon.ts` now reds a shape the same file documents as deliberately out of scope;
-and three of the new permanent cases assert less than their names and comments claim.
+**Second, the "exactly one owner" claim that LANG-07 rests on is still false, and the module it is
+false in is `audit-model.ts` — the very module plan 29-25 rewired and declared "the fifth and last
+locator of the class."** `readRegistry` (`audit-model.ts:893, 933-950`) answers "where does this
+block start and end" with a fence-blind heading recogniser plus a deferred index bound. It is
+invisible to plan 29-25's owner classifier on *both* arms, and the classifier's own disclosed floor
+asserts that the shape it misses is one "which no module in this tree uses today" — which is untrue
+at line 893. I reproduced the consequence: a claim block written **inside a fenced example** is
+parsed as a live `kind: safety`, `status: true` registry row, which enters `safetySurfaceUnion` and
+therefore the D-18 exclusion list that LANG-02 consults to decide which files may not be reworded.
+That is documentation read as live data, in the same round whose founding rule is that it must not be.
 
-**Known-open from round 1, out of scope for this round** (re-listed, not re-argued): WR-01 (line
-numbers from the filtered remainder), WR-03 (three near-identical directory walks), WR-04
-(`GENERATED_EXEMPT` pinned by cardinality only), WR-07 (`indexOf` source scrape + `root === ROOT`
-identity cache), WR-08 (two remaining path-literal spellings), IN-02 (`rows` computed and
-discarded), IN-04 (`countWords` replacement loop). All verified still present at HEAD.
+Live input sets for both criticals are **zero on the shipped tree** (0 role files whose caveman
+interior contains a level ≤ 2 heading; 0 fenced `###` lines in the claim registry) — the same
+posture as recorded residuals V-29-26-01 and -03. Neither is protected by a mechanism.
 
-## Narrative Findings (AI reviewer)
+Six warnings follow, including one vacuous invariant in the new parser oracle: **I5 is unreachable in
+all 7200 cells** (measured: 0 documents carry a second occurrence of the cell heading), so the sweep
+never exercises the fenced-quotation-plus-real-heading shape that WR-01 was actually about.
+
+The build is green. `npx vitest run scripts/section-locator-oracle.test.ts scripts/voice-model.test.ts
+scripts/frontmatter.test.ts` → 327 passed. Every finding below is reachable through a passing suite.
+
+---
 
 ## Critical Issues
 
-### CR-01: `guard_diff_disposition`'s watched corpus is unpinned — one register cell flips a frozen `## Hard limits` reword to green
+### CR-01: the fence-aware bound lets the caveman block swallow later sections and empty `guard_voice`'s scan surface
 
-**File:** `scripts/check-diff-disposition.ts:1275-1293` (`watchedCorpus`), consumed at `:1328`,
-`:1380-1381`; the only floor is the zero check at `:1337-1345`
+**File:** `scripts/voice-model.ts:200-229` (bound consumed at `:200`, `outside` computed at `:226-228`);
+authority at `scripts/frontmatter.ts:527-542`
+**Severity:** Critical — fail-open, regression vs `3ed76c1`, no mechanism
 
-**Issue:**
-Every other set this gate depends on is pinned two-sided and says so in its own words —
-`POSITIVE_GUARD_LITERAL_COUNT` (`:305`), the four `cardinalities` (`:1305-1314`), the
-changed-file/clause-file set equality (`:1645-1668`). The **watched corpus is not**. It is
-`safetySurfaceUnion(root)` (`generate-safety-surface.ts:73`), which is
-`register rows with safety_surface: yes` ∪ `registry rows with kind: safety`, and nothing anywhere
-constrains how many rows carry `yes`. `check-audit-register.ts:314` refuses only the unfilled `—`
-marker; equality one (`:236`) pins the *row set*, never the column *values*.
+**Issue.**
+`sectionEndIndex` skips lines the one fence toggle flags. The caveman fence's *own interior* is
+flagged. So a `#` or `##` heading written between the opening delimiter and the closing delimiter no
+longer closes the section — and the close scan therefore keeps running past it. Every line from the
+opening delimiter to the closing delimiter, *however many later sections that spans*, lands in
+`inside` and is removed from `outside` by the filter at `:227`.
 
-So the gate's entire left-hand side can be narrowed by editing one table cell, and the register
-itself lives under `docs/` and is therefore not a watched file — no disposition row is owed for the
-edit that performs the narrowing.
+`guard_voice` scans `verdict.outside` and publishes **no measurement at all** — it is the one
+foundation guard that does not fold through `reportMeasured`, so it emits a bare
+`pass("voice: clear-voice surfaces free of caveman markers")` with no denominator. Nothing anywhere
+notices that it scanned zero bytes.
 
-**Reproduced end to end against the committed `.js` on the live tree** (plants reverted; working
-tree unchanged at the end of this review).
-
-Step 1 — reword one sentence inside `agent-factory/roles/uat-planner.md`'s `## Hard limits`
-(`Never self-sign or fake a pass; mark anything unverified` →
-`Never self-sign or fabricate a pass result; mark whatever stays unverified`). `node
-scripts/check-diff-disposition.js`:
+**Reproduction** (against the committed `.js`):
 
 ```
-        37 watched file(s) changed since 4d2b8f0; 1880 changed clause(s) derived; ...
-  FAIL  ... FROZEN by structuralSections ... region: `## Hard limits`, lines 44-51
-== Result ==
-1 CHECK(S) FAILED
+$ node -e 'import("./scripts/voice-model.js").then(m=>{
+  const d=["## Caveman prompt","```","grug club rock cave","","## Notes",
+           "you no think, big brain swamp demon","```",""].join("\n");
+  const v=m.readCavemanFence(d);
+  console.log(v.ok, JSON.stringify(v.outside),
+              m.countLexiconTokens(v.inside),
+              JSON.stringify(m.countBannedConstructions(v.inside)));})'
+true ""  8  {"article":0,"copula":0,"modal":0,"subordinator":0}
 ```
 
-Step 2 — with the reword still in place, change `docs/audit/28-disposition-register.md:347`'s
-fourth cell from `yes` to `no` and run `node scripts/generate-safety-surface.js`:
+`outside` is the empty string. `guard_caveman_voice` passes both arms (8 ≥ 2 tokens, 0 banned).
+`guard_voice` scans nothing and passes. The same bytes on the pre-round-2 build:
 
 ```
-Wrote docs/audit/28-safety-surface-exclusions.md — 40 entries.
+$ git show 3ed76c1:scripts/voice-model.js > /tmp/old/voice-model.js   # + frontmatter.js
+$ node -e '…readCavemanFence(same document)…'
+{"ok":false,"reason":"unterminated"}
 ```
 
-Step 3 — re-run every gate:
+**Failure scenario.** An author rewords `## Hard limits` (or any non-caveman section) into caveman
+voice — the exact thing `guard_voice` exists to refuse — and hides it by leaving the caveman fence
+open across the `##` heading above it. Both voice guards go green. Every published number
+(`tokens N / content words M, banned K`) is computed over bytes belonging to another section, which
+is the phase's founding defect verbatim.
 
-```
-$ node scripts/check-diff-disposition.js
-        watched corpus: 39 markdown file(s) of the 40-entry LANG-03 safety-surface union
-        36 watched file(s) changed since 4d2b8f0; 1867 changed clause(s) derived; ...
-  PASS  diff disposition — changed watched file(s): 0 findings over 36/36 elements
-== Result ==
-ALL CHECKS PASSED
+Measured live reachability: **0 of 17 role files** carry a level ≤ 2 heading inside their caveman
+interior today. The direction is nonetheless fail-open and the exemption is unmeasured.
 
-$ node scripts/check-audit-register.js   -> exit 0
-$ node scripts/check-claim-anchors.js    -> ALL CHECKS PASSED
-$ node scripts/check-foundation-guards.js-> ALL CHECKS PASSED
-```
+**Why this is not variant C1.** `docs/audit/29-locator-unification.md §6` records C1 for
+`locateExemptRegion` and dismisses it because `BANNED_CLAIM_EXEMPT_SUPPRESSED` reds when the swallowed
+text carries a banned claim. The voice guards have no such pin: `readCavemanFence` publishes an
+`inside` measurement but nothing measures `outside`, and nothing pins how far the fence may reach.
 
-The reworded sentence is the one `docs/audit/28-disposition-register.md:347` itself calls "the least
-substitutable [safety text] in the kit". Nothing in the repository caught it.
+**Recommended direction.** Do not widen the reader. Give the exemption a mechanism the same shape
+`check-banned-claims.ts` got in 29-23:
 
-**Fix:** pin the watched corpus the way every sibling set in this file is pinned, and derive the
-expectation from a source the narrowing edit cannot also move:
+1. Refuse when `sectionEnd` is not the section the anchor opened — i.e. compute the *fence-blind*
+   level-≤2 successor as well, and refuse `unterminated` by name when the fence's closing delimiter
+   sits beyond it. That restores the pre-round-2 fail-closed direction without reintroducing a private
+   predicate: it is one extra call to the same authority over a text with the caveman fence's own
+   delimiters neutralised, or an explicit `heading-inside-interior` refusal arm.
+2. And/or publish and two-side-pin what `guard_voice` actually scanned — `outside` line count per
+   file — so a remainder that collapses is a red, not a silent pass. `guard_voice` is currently the
+   only foundation guard with no measurement at all.
 
-```ts
-// The watched corpus is this gate's entire left-hand side. It is DERIVED, so it must also be
-// COUNTED — every other derivation in this file is two-sided, and this is the one an author can
-// shrink by editing one table cell in a file that is not itself watched.
-export const WATCHED_CORPUS_MIN = ROLE_COUNT + WORKFLOW_COUNT; // 36 derived kit files, at minimum
-...
-if (corpus.watched.length < WATCHED_CORPUS_MIN) {
-  fail(
-    `the watched corpus derived ${corpus.watched.length} markdown file(s), and the derived kit ` +
-      `alone is ${WATCHED_CORPUS_MIN} (${ROLE_COUNT} roles + ${WORKFLOW_COUNT} workflows). A ` +
-      `safety_surface flag flipped to \`no\` removes a file from this gate ENTIRELY and owes no ` +
-      `disposition row, because the register is not itself watched. Walk the register's ` +
-      `safety_surface column before moving this number`,
-  );
-}
-```
-
-Better still, close the hole at its source: have `check-audit-register.ts` assert set equality
-between `rows with safety_surface: yes` and the derived kit (it already computes `derived` at
-`:236`), so `no` on a role or workflow row is a named refusal rather than a silent de-scoping. Add a
-harness case that flips one flag in a mirror and requires exit 1.
+Whichever is chosen, correct `voice-model.ts:123-128` (see WR-01) in the same commit.
 
 ---
 
-### CR-02: `readCavemanFence`'s section bound recognises only `## ` — a level-one heading still leaks the founding fail-open
+### CR-02: `readRegistry` is a sixth, fence-blind section locator, and it adopts a fenced example as a live safety claim
 
-**File:** `scripts/voice-model.ts:102` (`SECTION_END = /^## /`), consulted at `:148-154`;
-consumed at `scripts/check-foundation-guards.ts` `guardVoice` and `guardCavemanVoice`
+**File:** `scripts/audit-model.ts:893` (`CLAIM_HEADING_RE`), `:933-936` (the anchor scan), `:948` (the bound)
+**Severity:** Critical — fail-open into the D-18 exclusion list; invisible to both derived scans; falsifies LANG-07
 
-**Issue:**
-The bound's own comment states the rule as *"A DELIMITER UNDER A LATER HEADING BELONGS TO A
-DIFFERENT SECTION. That sentence is the whole rule."* The implementation does not implement that
-sentence — it implements it for level-two headings only. `voice-model.ts:100-101` justifies
-excluding `### ` (correct: a subsection stays inside), but says nothing about `# `, and a level-one
-heading unambiguously *ends* a level-two section rather than nesting inside it.
-
-The consequence is the round-1 CR-01 bypass, narrowed but not closed: a role whose caveman section
-has been reworded into senior prose still adopts an unrelated later fenced block, provided the
-intervening heading is `# ` rather than `## `.
-
-Reproduced against the committed `.js` (pure function, no guard):
-
-```
-$ node -e 'import("./scripts/voice-model.js").then(m=>console.log(JSON.stringify(m.readCavemanFence(
-    ["## Caveman prompt",
-     "You senior prose here with no fence at all.",
-     "",
-     "# Appendix",
-     "Some later top-level section.",
-     "```",
-     "grug club rock cave smash",
-     "```",""].join("\n")))))'
-
-{"ok":true,
- "inside":"grug club rock cave smash",
- "outside":"You senior prose here with no fence at all.\n\n# Appendix\nSome later top-level section.\n"}
-```
-
-`ok: true`, the real caveman prose is handed to `guard_voice` as clear-voice remainder, and
-`guard_caveman_voice` measures `# Appendix`'s code block — `tokens 5` over five words it never
-meant. Exactly the wrong-bytes measurement CR-01 was raised to delete.
-
-The tree already answers this question correctly one module over:
-`check-imperative-lexicon.ts:488` declares `SECTION_HEADING_LINE = /^#{1,2} /` with the argument
-spelled out ("a `## ` or `# ` starts something else"), and `check-imperative-lexicon.test.ts` carries
-a permanent `"a \`# \` heading DOES release them"` control. Two modules, one predicate, two answers.
-
-**Fix:**
-
+**Issue.**
 ```ts
-// A section of level two is closed by any heading of level one or two. `### ` structures the
-// section and stays inside it; `# ` and `## ` both start something else. This is the same class
-// check-imperative-lexicon.ts's SECTION_HEADING_LINE already declares, spelled the same way, so
-// the two cannot come to disagree about what closes a section.
-const SECTION_END = /^#{1,2} /;
+const CLAIM_HEADING_RE = /^###\s+(\S+)\s*$/;          // :893
+for (let i = 0; i < lines.length; i++) {
+  if (CLAIM_HEADING_RE.test(lines[i])) headingIdx.push(i);   // :935 — no fence awareness
+}
+…
+const end = n + 1 < headingIdx.length ? headingIdx[n + 1] : lines.length;   // :948
 ```
 
-Add a permanent case in `scripts/voice-model.test.ts` planting the document above and asserting
-`{ ok: false, reason: "missing" }`, plus a full-gate case in `check-foundation-guards.test.ts`
-asserting exit 1 — the same pair plan 29-14 already wrote for the `## ` arm.
+By the owner scan's own published definition — "a HEADING RECOGNISER … USED on a line that TERMINATES
+OR BOUNDS a scan … a loop `break`, a `return` of an index, or an assignment to a bound" — this is a
+section-extent construct. It is missed twice over:
+
+- the **recogniser arm** requires a literal space (`/\/\^#(?:\{[\d,]+\})? /`); this one spells `\s+`.
+  The classifier's own disclosed floor names that shape as item 4 and asserts it is one "**which no
+  module in this tree uses today**" (`check-foundation-guards.test.ts`, LANG-07 block header). That
+  statement is false at `audit-model.ts:893`, today.
+- the **terminator arm** never sees it: the bound is not on or near the recogniser line — the indices
+  are collected into an array and consumed 13 lines later.
+
+So `SECTION_EXTENT_OWNERS = ["frontmatter.ts"]` and `SECTION_EXTENT_OWNER_COUNT = 1` are green over a
+tree that has two owners, in the module plan 29-25 rewired and `docs/audit/29-locator-unification.md
+§3` presents as the derivation that makes "the last member" a measurement rather than a belief.
+
+**Reproduction** — a registry carrying a quoted example claim block:
+
+    # Claim registry
+
+    ### C-28-001
+    - file: README.md
+    - line: 4
+    - kind: architecture
+    - depends_on: autonomy
+    - status: true
+
+    ```
+    The real claim sentence.
+    ```
+
+    ## How to write a claim block
+
+    An example, quoted rather than declared:
+
+    ```
+    ### C-28-999
+    - file: PHANTOM.md
+    - line: 1
+    - kind: safety
+    - depends_on: none
+    - status: true
+    ```
+    The phantom claim sentence.
+    ```
+
+```
+$ node -e 'import("./scripts/audit-model.js").then(m=>console.log(
+    JSON.stringify(m.readRegistry(FIXTURE_ROOT).claims.map(c=>({id:c.id,file:c.file,kind:c.kind})))))'
+[{"id":"C-28-001","file":"README.md","kind":"architecture"},
+ {"id":"C-28-999","file":"PHANTOM.md","kind":"safety"}]
+```
+
+**Failure scenario.** `generate-safety-surface.ts:85-90` unions `readRegistry(root).claims` filtered to
+`kind === "safety"` into `docs/audit/28-safety-surface-exclusions.md` — the header of that generator
+states it is "the list Phase 29's LANG-02 consults to decide which files a controlled-language pass
+may reword, and which it may not touch." A `kind: safety` row planted in a **fenced example** therefore
+adds a file to that exclusion list. Adding to an exclusion list is the fail-open direction for LANG-02:
+a file becomes untouchable by the language pass on the strength of a code sample.
+
+Nothing pins it. `check-audit-register`'s new equality three (`check-audit-register.ts:241-290`) pins
+only the **register** arm's `safety_surface: yes` values. `check-diff-disposition`'s new containment
+pin (`check-diff-disposition.ts:1437-1497`) floors only `derivedKit ⊆ watched`, so extra members are
+invisible in both gates (see WR-06).
+
+Measured live reachability: **0 fenced `###` lines** in `docs/audit/28-claim-registry.md` today
+(42 claim-heading-shaped lines, 0 fenced). Same posture as V-29-26-01/-03.
+
+**Recommended direction.** Close the sixth locator the way the first five were closed, in
+`audit-model.ts` and not by widening the classifier: derive `headingIdx` from an unfenced scan
+(`fencedLineFlags`, already imported in this module since 29-25), and take the block's end from the
+same source. Then correct the owner classifier's floor item 4 — either recognise `#{n,m}\s` or state
+truthfully that a module uses it and that this is an accepted blind spot. Retiring a false statement
+about the tree is not optional in a repository whose second named systemic failure class is "a prose
+claim wider than the assertion behind it".
+
+---
 
 ## Warnings
 
-### WR-01: `readCavemanFence`'s heading scan is the one section locator this round left fence-blind — a quoted anchor reds a correct role file
+### WR-01: the caveman reader's header asserts behaviour the same round deleted
 
-**File:** `scripts/voice-model.ts:136-139`
+**File:** `scripts/voice-model.ts:123-128`
 
-**Issue:** Plan 29-16/29-17/29-18 threaded `fencedLineFlags` through `locateSection`,
-`tableFirstCellsUnderHeading`/`boardColumns` and `locateExemptRegion`, and the fence-consumer pin
-moved 6 → 7 → 8. `readCavemanFence` — the locator this round actually *changed* — still scans raw
-lines for the anchor. A role file that quotes `## Caveman prompt` inside a fenced example counts two
-headings and is refused `multiple`:
+**Issue.** The paragraph reads:
+
+> THE COST, STATED SO IT IS NOT LATER "FIXED", AND UNCHANGED BY THE REWIRE: a `## ` line INSIDE the
+> fence interior truncates the section before the closing delimiter, so such a document is refused
+> `unterminated` … Do not add a second arm that reaches past the bound to find something it can vouch
+> for; reaching past is the defect, not the remedy.
+
+Both halves are now false. Measured:
 
 ```
-$ node -e '...readCavemanFence(["# Role","## Caveman prompt","```","You grug smash rock and club.","```",
-            "","## Notes","Example of the required section:","```","## Caveman prompt","```",""].join("\n"))'
-{"ok":false,"reason":"multiple"}
+$ node -e '…readCavemanFence(["# Role","## Caveman prompt","```","grug smash rock",
+    "## Sneaky heading inside the fence","me think club","```","","## Notes","```","const a=1;","```",""]…)'
+{"ok":true,"inside":"grug smash rock\n## Sneaky heading inside the fence\nme think club", …}
 ```
 
-Both voice guards then refuse a correct document by name. The direction is fail-closed, which is why
-this is a WARNING and not a BLOCKER — but the phase's own thesis is that a second grammar over bytes
-an authority already answers for is a defect *even when currently consistent*, and this is the
-fourth instance of the class in the same round that closed the other three.
+`voice-model.test.ts` explicitly supersedes the first half ("a heading INSIDE a terminated fence
+closes nothing — the interior is returned whole") and records why; the source paragraph 100 lines
+above it was left asserting the opposite, and the second half ("reaching past is the defect") is now
+a description of what the shipped code does (CR-01).
 
-**Fix:** consume the toggle for the anchor scan; keep `FENCE_DELIMITER_LINE` for the open/close
-scans, which are a different question.
+**Failure scenario.** The next reader of this module derives its fail direction from this paragraph,
+concludes the reader is fail-closed on an interior heading, and does not look for CR-01 — which is
+exactly what happened between plan 29-20 and the round's own adversarial pass.
 
-```ts
-import { FENCE_DELIMITER_LINE, fencedLineFlags } from "./frontmatter.js";
-...
-const fenced = fencedLineFlags(text);
-for (let i = 0; i < lines.length; i++) {
-  // A quoted anchor inside a fenced example is documentation, not this document's own section.
-  if (!fenced[i] && CAVEMAN_HEADING_LINE.test(lines[i])) headings.push(i);
-}
-```
-
-Apply the same flag to the `SECTION_END` scan at `:149-154` for the same reason.
+**Fix.** Rewrite the paragraph to state the shipped direction and the new cost, and either state
+CR-01's exposure as a named residual or close it. A cost paragraph that survives the change it
+describes is the class of defect WR-04 in this same round was raised for.
 
 ---
 
-### WR-02: the WR-06 fix in `check-banned-claims.ts` WIDENED the safety exemption, while its own header states it did not
+### WR-02: `audit-model.ts` now carries two disagreeing fence recognisers, one of them private
 
-**File:** `scripts/check-banned-claims.ts:513-520`, header claim at `:481-484`
+**File:** `scripts/audit-model.ts:986` (`parseClaimBlock`) vs `scripts/frontmatter.ts:390`
+(`FENCE_DELIMITER_LINE`), consumed at `audit-model.ts:414-416` (`tableUnder`)
 
-**Issue:** The header asserts *"NOTHING BELOW IS RELAXED"* and *"A truncated exemption region causes
-MORE of the document to be checked ... Both are fail-CLOSED."* The change makes the region **end
-later**, so strictly fewer lines are scanned. That is a relaxation of a safety exemption, and it is
-the opposite of what the paragraph tells a reader.
-
-Measured against the committed `.js` (exported `locateExemptRegion`):
-
-```
-lines:
-  2 ## Disclaimer and honesty floor
-  3 grugops does not conform to any standard.
-  5 ```
-  6 ## Example heading inside a fence
-  7 ```
-  9 This line sits AFTER the fenced heading.
- 11 ## A later real section
- 12 The grugops kit conforms to ASD-STE100 Simplified Technical English.
-
-pre-fix  region: headingAt 2, endBefore 6   -> 4 exempt lines
-post-fix region: headingAt 2, endBefore 11  -> 9 exempt lines
-```
-
-`check-banned-claims.test.ts`'s new case
-`"a fenced \`## \` line inside the region does NOT truncate it — the claim below it stays exempt"`
-asserts exit 0 with `findingCount === 0` on exactly that shape, so the widening is deliberate and
-tested — only the prose denies it.
-
-It is unreachable on the live corpus today only by ordering accident:
-`agent-factory/writing-profile.md:155` (`## Disclaimer and honesty floor`) is the file's **last**
-`## ` heading, so the region already ran to EOF. The moment a section is appended after it, a fenced
-`## ` inside the disclaimer swallows that new section into the exemption.
-
-**Fix:** correct the header to state the actual direction, and bound the exemption so a widening
-cannot be open-ended:
+**Issue.** After 29-25, `tableUnder` decides "is this line fenced" through `fencedLineFlags`, i.e.
+through `/^```/`. Thirty lines further down, `parseClaimBlock` decides the same question with a
+private recogniser:
 
 ```ts
-// The region is bounded by the next UNFENCED same-level heading OR by end of file, whichever is
-// first. Consuming the toggle makes the region LONGER, not shorter — state that plainly, because
-// this is an exemption and a longer exemption is less checking, not more.
+if (lines[i].trim() === "```") {   // :986
 ```
 
-Then add the paired negative case the test file is missing: a banned claim below a fenced `## ` and
-below a *later real* `## ` must still be reported (the existing `PAIRED PLANT` case covers the
-second half only).
+The two disagree on two axes:
 
----
-
-### WR-03: `readDispositionRows` is the fourth WR-06-class locator and was not fixed — fence-blind and section-unbounded, in the fail-open direction
-
-**File:** `scripts/check-diff-disposition.ts:1206` (`body.indexOf(DISPOSITION_HEADING)`),
-`:1216-1233` (the row loop)
-
-**Issue:** The table is located by a bare `indexOf` of the literal `## Dispositions` anywhere in the
-file (including inside prose or inside a fence), and then **every** line from that offset to EOF
-that starts with `|` and splits to exactly 7 cells is admitted as a disposition row. There is no
-section bound and no fence check, while `locateSection` twenty lines up in the same file now
-consumes `fencedLineFlags` for precisely this question.
-
-Direction: **fail-open**. A stray or quoted 7-column table below `## Dispositions` contributes rows,
-and a row is what satisfies the structural companion arm (`:1524`). That arm carries the whole
-positional freeze — the one that catches a reword — so extra rows are the one kind of noise this
-gate cannot afford.
-
-Currently unreachable: `docs/audit/29-style-dispositions/29-11.md` is the only member with fences
-and both sit at lines 39/43, above its `## Dispositions` at 182.
-
-**Fix:**
-
-```ts
-const flags = fencedLineFlags(body);
-const lines = body.split("\n");
-const at = lines.findIndex((l, i) => !flags[i] && l.trimEnd() === DISPOSITION_HEADING);
-if (at === -1) { /* the existing named refusal */ }
-for (let i = at + 1; i < lines.length; i++) {
-  if (flags[i]) continue;                       // a fenced example donates no row
-  if (lines[i].startsWith("## ")) break;        // the table lives in ITS section
-  if (!lines[i].startsWith("|")) continue;
-  ...
-}
-```
-
----
-
-### WR-04: the new set-equality refusal reds a shape `check-imperative-lexicon.ts` documents as deliberately out of scope
-
-**File:** `scripts/check-imperative-lexicon.ts:1274-1295` (the `stepSetRefusal` fold) versus the
-recorded residual at `:71-74`
-
-**Issue:** Residual 1 states: *"A NON-CONFORMING STEP WRITTEN AS PROSE WITH NO LIST MARKER IS NOT
-SEEN. The imperative predicate is scoped to list items under `## Steps`; a paragraph under that
-heading is not a bullet and is not measured as one."*
-
-The WR-02 fix now derives `expected` from `stepsFiles` (files whose `## Steps` **heading** was seen)
-and `visited` from `bulletFilesVisited`. A workflow whose `## Steps` section is written as
-paragraphs — the shape the residual explicitly permits — therefore lands in `changedWithNoClause`'s
-sibling set and fails:
-
-```
-the step-heading file set and the bullet-bearing file set are not equal ...
-carries a `## Steps` heading but NOT contributed a bullet (1): agent-factory/workflows/XX.md
-```
-
-That is a red on a document the module says it does not govern. The corpus is green today only
-because all 19 `## Steps` sections happen to use markers. The two statements cannot both stand.
-
-**Fix:** pick one and record it. Either the residual is retired (a `## Steps` section must carry
-bullets, which is a real and defensible rule — say so in `agent-factory/writing-profile.md` and
-delete residual 1), or the denominator counts *files whose `## Steps` section contains at least one
-non-blank, non-heading line*, which is still derived by the heading branch and still independent of
-the bullet loop:
-
-```ts
-// Recorded from the HEADING branch, and only for a section that actually carries content — a
-// `## Steps` heading followed by prose is a documented non-target (residual 1), not a lost file.
-```
-
-Add a case either way; today neither behaviour is pinned.
-
----
-
-### WR-05: `voice-model.test.ts`'s live-corpus control asserts `> 0` while its comment promises a denominator
-
-**File:** `scripts/voice-model.test.ts:225`
-
-**Issue:** The comment three lines above reads: *"a short denominator here would let a role slip out
-of the control silently."* The assertion is:
-
-```ts
-const names = listRoles();
-expect(names.length).toBeGreaterThan(0);
-```
-
-`listRoles()` **throws** on an empty or missing roles directory (`kit-model.ts`'s `refuseEmpty`), so
-`> 0` cannot fail under any input the call survives. It is the floor the comment says is not enough,
-and the number it promises to protect is never compared. If sixteen of seventeen roles vanished this
-control would pass.
-
-**Fix:**
-
-```ts
-import { listRoles, ROLE_COUNT, ROLES_SUBPATH } from "./kit-model.js";
-...
-expect(names).toHaveLength(ROLE_COUNT);
-```
-
----
-
-### WR-06: the CR-01 gate case duplicates one assertion to stand for two consumers, and hard-codes a name the file already has a constant for
-
-**File:** `scripts/check-foundation-guards.test.ts:4251-4252`, `:4259`
-
-**Issue:** Two problems in the case that is the permanent proof of round-1's CR-01.
-
-1. Lines 4251 and 4252 are **byte-identical**:
-
-```ts
-// "Both consumers name the FILE and the REASON"
-expect(o).toContain(`${rel}: ## Caveman prompt fence refused — reason missing`);
-expect(o).toContain(`${rel}: ## Caveman prompt fence refused — reason missing`);
-```
-
-`toContain` is a substring test, not an occurrence count, so the second assertion is satisfied by
-whatever satisfied the first. The claim in the comment — that `guard_voice` **and**
-`guard_caveman_voice` each name the file and the reason — is not tested. A build in which one
-consumer went silent passes this case.
-
-2. Line 4259 hard-codes `brownfield-mapper\.md` in a regex while `MALFORMED_ROLE` is declared at
-`:4080` and used at `:4247`. Repointing the constant makes the strongest assertion in the case (the
-wrong-bytes measurement line is gone) vacuous.
-
-**Fix:**
-
-```ts
-const lines = o.split("\n").filter((l) => l.includes(`${rel}: ## Caveman prompt fence refused — reason missing`));
-expect(lines, "both consumers must name the file and the reason").toHaveLength(2);
-...
-expect(o).not.toMatch(new RegExp(`${MALFORMED_ROLE.replace(".", "\\.")}: tokens \\d+ / content words \\d+`));
-```
-
----
-
-### WR-07: `"asserts the PROPERTY directly"` asserts a source substring, not a property
-
-**File:** `scripts/check-imperative-lexicon.test.ts:1145-1160`
-
-**Issue:** The case name claims to assert the WR-02 property. The body is:
-
-```ts
-expect(executable).not.toContain("expected: elements.bullets.length");
-expect(executable).not.toContain("expected: elements.sentences.length");
-expect(executable).toContain("expected: elements.stepsFiles.length");
-```
-
-Three substring tests over the module's own text. Renaming `elements`, extracting
-`const n = elements.bullets.length`, or reformatting across a line break all reintroduce the
-tautological denominator with the case still green. The property it names — *the denominator is not
-read off the array the loop consumes* — is not expressible as a substring, and the case's name says
-otherwise.
-
-**Fix:** either rename it to what it is (`"the tautological denominator spellings are absent from
-the source"`, an anti-regression tripwire) or assert the property behaviourally: plant a mirror in
-which a governed file carries a `## Steps` heading and no bullet, and require `visited !== expected`
-to fire. The case directly above it (`"REDs a governed file that opens a \`## Steps\` section and
-contributes no bullet"`) already does this — so this one adds a claim it cannot support.
-
----
-
-### WR-08: four modules answer "where does this section end" four different ways
-
-**File:** `scripts/voice-model.ts:74`, `:102`; `scripts/check-diff-disposition.ts:532`, `:535`;
-`scripts/check-banned-claims.ts:448`, `:498`; `scripts/check-imperative-lexicon.ts:478`, `:488`,
-`:627`
-
-**Issue:** The phase's founding rule is one authority per predicate. "Which line is this section's
-heading, and which line ends it" is one predicate with four implementations that disagree on two
-axes:
-
-| module | heading equality | section close |
+| line (backtick runs written as B) | `FENCE_DELIMITER_LINE` = /^BBB/ | `parseClaimBlock` = trim() === "BBB" |
 |---|---|---|
-| `voice-model.ts` | `/^## Caveman prompt$/` (anchored, no trailing tolerance) | `/^## /`, fence-blind |
-| `check-diff-disposition.ts` | `lines[i].trimEnd() !== heading` | `startsWith("## ")`, fence-aware |
-| `check-banned-claims.ts` | `lines[i] === heading` (exact) | `/^## /`, fence-aware |
-| `check-imperative-lexicon.ts` | `lines[i] === heading` / `/^## Steps\s*$/` | `/^#{1,2} /` |
+| `BBBtext` — a delimiter carrying an info string | delimiter | **not** a delimiter |
+| `   BBB` — a delimiter indented three spaces (legal CommonMark) | **not** a delimiter | delimiter |
 
-The concrete consequences are CR-02 (`# ` handled in one column and not another) and WR-01
-(fence-awareness in three and not the fourth). A secondary one: a heading carrying one trailing
-space is the section's heading under `trimEnd()` and `\s*$`, and is invisible under `===` and `$`.
-CRLF is not a live risk — `.gitattributes` pins every text extension to LF — but trailing whitespace
-is not pinned anywhere.
+`check-foundation-guards.test.ts` pins `importedSymbols("audit-model.ts", "frontmatter")` with the
+message "*never a heading-equality or section-end predicate of its own*", and
+`docs/audit/29-locator-unification.md §3` presents this module as reconciled. It is reconciled in one
+half and privately spelled in the other — the precise shape 29-20 called out for `voice-model.ts`
+("fence-aware in one half and fence-blind in the other … is not one authority").
 
-**Fix:** export one locator from `frontmatter.ts` (which already owns the fence toggle) and have all
-four consume it:
+The frontmatter fence-machine scan cannot see it: its recogniser arm matches a regex literal or
+`.startsWith("```")`, not an equality, and there is no toggle.
 
-```ts
-/** The 0-based index of the first UNFENCED line whose trimmed text equals `heading`, or -1. */
-export function unfencedHeadingIndex(text: string, heading: string): number;
-/** The 0-based index of the first UNFENCED heading of level <= `level` after `from`, or lines.length. */
-export function sectionEndIndex(text: string, from: number, level: 1 | 2): number;
-```
+**Failure scenario.** A claim block whose verbatim fence is written as ```` ```text ```` is refused
+("carries no fenced block") on correct bytes; an indented delimiter is read as a real one by
+`parseClaimBlock` while `fencedLineFlags` in the same module says it is not. Both are avoidable by
+composing the one class.
 
-Then pin the consumer list two-sided, exactly as `check-foundation-guards.test.ts` already pins the
-eight `fencedLineFlags` consumers.
+**Fix.** Import `FENCE_DELIMITER_LINE` (or better, consume `fencedLineFlags`, already imported at
+`:54-58`) in `parseClaimBlock`. If the equality form is deliberate, say so at the declaration and
+record the disagreement as a named residual — but it is not currently disclosed anywhere.
 
 ---
 
-### WR-09: CR-03's depth widening admits indented *code block* lines as `## Steps` bullets, and the fence toggle cannot see them
+### WR-03: invariant I5 in the new parser oracle is unreachable in all 7200 cells
 
-**File:** `scripts/check-imperative-lexicon.ts:511` (`LIST_MARKER = /^[ \t]*(?:[-*+]|\d{1,3}[.)])\s+/`),
-`:519` (`ORDERED_MARKER`)
+**File:** `scripts/section-locator-oracle.test.ts:401-406`; corpus generator at `:253-333`
 
-**Issue:** The widening from `/^ {0,3}/` to `/^[ \t]*/` is correct for CommonMark sub-bullets and is
-argued at length. It also admits every line of a **four-space-indented code block** that begins with
-a list marker. Indented code blocks are not fenced, so `fencedLineFlags` returns `false` for them and
-`deriveElements`' `if (flags[i]) continue` does not fire.
+**Issue.** I5 ("no EARLIER line satisfies the same two conditions") loops
+`for (let i = 0; i < Math.min(at, lines.length); i++) if (isTheHeading(i)) …`. It can only fire on a
+document containing **two** occurrences of the cell's heading. The generator inserts the candidate
+exactly once (`buildCell` → `wrapCandidate`), and no fixed line in `ORDINARY_HEAD` / `ORDINARY_TAIL`
+can equal any candidate spelling (every candidate contains the literal `Candidate`).
 
-Result: a workflow that documents a shell transcript or a nested list as an indented code block
-under `## Steps` gains phantom step bullets — counted in the denominator, classified by
-`classifyStep`, and measured against WP-02's 20-word bound. `ORDERED_MARKER` carries the same
-widening with no section anchor at all (`:807`), so an indented numbered line **anywhere** in the
-governed corpus is now procedural.
+Measured by re-running the axis cross-product:
 
-Direction is fail-closed (red on correct text), and the corpus is green today because it carries no
-indented code blocks under `## Steps`. It is a latent false red the toggle cannot prevent.
+```
+cells 7200  docs with >=2 occurrences of the cell heading: 0
+```
 
-**Fix:** either record it as a residual beside residuals 1-3 (the honest minimum), or teach
-`fencedLineFlags` the indented-code-block form so the one authority answers for both fence spellings
-— which is the structural fix and keeps the "one authority per predicate" claim true for the
-`is this line documentation` question rather than only for backtick fences.
+So I5 is asserted 7200 times and has never been shown able to fail. Neither falsifiability probe
+reaches it either: `docs/audit/29-locator-unification.md §4` records the level-two-only probe as
+breaking I2/I3 and the fence-blind probe as breaking **I4 only**.
+
+**Failure scenario.** The defect WR-01 was actually written for is *a role file that quotes its own
+required heading inside an example while also declaring it* — a document with a fenced occurrence AND
+an unfenced one, where the fence-blind scan picks the earlier quoted line and the authority must pick
+the later real one. The sweep never generates that document. `headFenceBlind` fails 1440 cells only
+because the candidate is fenced and the authority correctly returns `-1`; the *ordering* discrimination
+— the half that makes `unfencedHeadingIndex` correct rather than merely fence-aware — is untested.
+An implementation returning the last unfenced match instead of the first would sweep clean.
+
+**Fix.** Add a corpus axis (or a second candidate insertion) that places a fenced occurrence and an
+unfenced occurrence of the same heading in one document, in both orders. Then re-run the fence-blind
+probe and require it to break **I5** as well as I4, and require the level-agnostic case to break I4
+alone. Update `docs/audit/29-locator-unification.md §4`'s probe table with the new failure counts.
+
+---
+
+### WR-04: `locateExemptRegion` does not check the locator's `-1`, and the two predicates are no longer one expression
+
+**File:** `scripts/check-banned-claims.ts:530-549`
+
+**Issue.** Before 29-23 the heading index came out of the same array the count was built from
+(`headings[0]`), so "count is exactly 1" made "index is valid" true by construction. It is now two
+separate traversals with two separately-spelled predicates:
+
+```ts
+for (let i = 0; i < lines.length; i++) {                       // the COUNT, over `lines`
+  if (!fenced[i] && lines[i].trimEnd() === …heading) headingCount += 1;
+}
+if (headingCount !== 1) { fail(…); return null; }
+const headingAt = unfencedHeadingIndex(text, …heading);        // :544 — the LOCATE, over `text`
+const endBefore = sectionEndIndex(text, headingAt + 1, 2);     // :548 — NOT guarded on -1
+const body = lines.slice(headingAt + 1, endBefore);            // :549
+```
+
+They agree today only because `text === lines.join("\n")` and both spell `trimEnd()` equality against
+`fencedLineFlags`. If either drifts — a caller that splits on `/\r?\n/`, a future normalisation change
+in one place only — `headingAt` is `-1`, `sectionEndIndex(text, 0, 2)` returns the document's first
+level ≤ 2 heading, `body = lines.slice(0, end)`, and the returned `{headingAt: -1, endBefore}` makes
+the scan's exemption test `i >= region.headingAt` **true for every line from 0**. That is a fail-open
+widening of a safety exemption reached through a `-1` nobody checked.
+
+**Fix.** Guard it explicitly, and make the failure loud rather than silent:
+
+```ts
+const headingAt = unfencedHeadingIndex(text, BANNED_CLAIM_EXEMPT_REGION.heading);
+if (headingAt === -1) {
+  fail(`the exempt heading was COUNTED once and LOCATED zero times — the count predicate and the ` +
+       `shared locator disagree about which lines are the region's heading; refusing rather than ` +
+       `exempting from line 0`);
+  return null;
+}
+```
+
+The same shape applies to `check-diff-disposition.ts`'s `readDispositionRows` (already guarded) — this
+is the one site of the pattern that is not.
+
+---
+
+### WR-05: WP-11 is published wider than the predicate that enforces it, and the two artifacts already disagree
+
+**Files:** `agent-factory/writing-profile.md:54`; `scripts/check-imperative-lexicon.ts:561, 1270-1271,
+1414-1421`; case at `scripts/check-imperative-lexicon.test.ts:1238-1283`
+
+**Issue, two halves.**
+
+1. **Scope.** The profile publishes "**A steps section** carries at least one list item … or move the
+   explanatory paragraphs under a heading that is **not a steps heading**", marked `decidable`. The
+   gate's anchor is `const STEPS_HEADING = /^## Steps\s*$/` — level two, exactly. A `### Steps` or
+   `# Steps` section written entirely as prose violates the published rule and is invisible to the
+   gate: it contributes no member to `stepsFiles`, so the set equality that produces the WP-11
+   refusal never fires. A rule marked `decidable` that a gate decides for only one of its spellings
+   is the same claim/behaviour disagreement WR-04 was raised for, one level up.
+
+2. **The cross-artifact mechanism is narrower than the comment claims it is.** The case comment says
+   "the guard's enforcement and the kit's own documentation are held to ONE sentence in TWO artifacts,
+   so a future reword of either alone is a red". The assertion pins only the first sentence
+   (`STEPS_RULE_SENTENCE`). The remedy half already differs, on the day it landed:
+
+   - gate: `Write the section's procedure as list items, or move the explanatory paragraphs under a heading that is not \`## Steps\``
+   - profile: `Write the procedure as list items, or move the explanatory paragraphs under a heading that is not a steps heading.`
+
+   A reword of either alone is *not* a red; it has already happened.
+
+**Fix.** Either narrow the published rule to the spelling the gate decides (`## Steps`), or widen
+`STEPS_HEADING` and re-measure the corpus. Then pin the whole rule text — both sentences — in both
+artifacts, or delete the second sentence from one of them so the pinned string is the entire rule.
+
+---
+
+### WR-06: the new watched-corpus pin covers only the register arm of the D-18 union
+
+**File:** `scripts/check-diff-disposition.ts:1437-1497` (containment) and `:1346-1362`
+(`WATCHED_CORPUS_MIN`); `scripts/check-audit-register.ts:241-290` (equality three)
+
+**Issue.** The union is `register rows flagged safety_surface: yes` ∪ `registry rows of kind: safety`
+(`generate-safety-surface.ts:73-98`). Round 2 pinned it twice — and both pins land on the **register**
+arm:
+
+- equality three pins the register's flagged set two-sided against the derived kit;
+- the consumer pins `derivedKit ⊆ corpus.watched` plus `derivedKit.length === WATCHED_CORPUS_MIN`.
+
+Containment is one-directional by design (the union legitimately carries public documents beyond the
+kit), so **any number of extra members from the registry arm passes both gates silently**, in both
+directions: a `kind: safety` claim removed from the registry drops its file out of the LANG-02
+exclusion list with no equality anywhere; a claim added — including one fabricated from a fenced
+example, CR-02 — adds one.
+
+The gate's own PASS line prints
+`the union's remaining ${corpus.watched.length - WATCHED_CORPUS_MIN} markdown entr(ies) are public
+documents`, which is a *description* of the residue, not a check on it.
+
+**Fix.** Pin the registry arm the way the register arm is pinned: derive the `kind: safety` claim
+files and compare them two-sided against a declared set (or against the public-document scan
+`check-banned-claims.ts` already derives), and publish the count. "The remaining N are public
+documents" should be an assertion with a source, not a sentence in a transcript.
+
+---
 
 ## Info
 
-### IN-01: a disposition row containing a `|` disappears with no refusal
+### IN-01: dead condition in the oracle's I2 guard
 
-**File:** `scripts/check-diff-disposition.ts:1219`
+**File:** `scripts/section-locator-oracle.test.ts:357`
 
-**Issue:** `if (cells.length !== DISPOSITION_COLUMNS) continue;` silently drops any row whose
-`before`/`after` cell contains a pipe (a code span such as `` `a | b` `` is entirely plausible in a
-before/after column). The only trace is the `seen === 0` refusal at `:1234`, which does not fire
-while other rows in the same file parse. The clause then reads as undispositioned — fail-closed, so
-the author sees *a* red, but it names the wrong cause. Count the dropped lines and name them.
+`if (end >= 0 && end < lines.length)`. `sectionEndIndex` returns `i` (where `i >= Math.max(from,0) >= 0`)
+or `lines.length` (`>= 1`); it cannot return a negative. The `end >= 0` conjunct is unreachable-false and
+is dead. Harmless, but in a file whose subject is invariants that cannot fail, a condition that cannot
+fail is noise. Drop it, or move it into I1 where a negative answer *would* be a real violation for a
+future broken locator passed to `endViolations`.
 
-### IN-02: `rows` is still computed and discarded on two of three frozen-source branches
+### IN-02: the authority takes `text` while every consumer already holds `lines` and `flags`
 
-**File:** `scripts/check-diff-disposition.ts:1514`
+**File:** `scripts/frontmatter.ts:512-542`; callers at `check-banned-claims.ts:530-548`,
+`voice-model.ts:184-200`, `check-imperative-lexicon.ts:713-717, 885-891`, `audit-model.ts:411-416`
 
-**Issue:** Round-1 IN-02, unchanged. `const rows = disposition.rows.filter((r) => rowMatches(r, c));`
-runs for every frozen clause; only the `structuralSections` branch at `:1524` reads it. Move it
-inside that branch.
+Each call re-runs `text.split("\n")` and `fencedLineFlags(text)`. `readCavemanFence` splits the same
+document three times and runs the fence machine three times. That is a performance note (out of v1
+scope) but it has a correctness edge worth recording: consumers that already hold a `lines` array
+must keep it byte-consistent with whatever string they hand the authority.
+`check-banned-claims.locateExemptRegion` does exactly this — it counts over the caller's `lines` and
+locates over `lines.join("\n")` — which is what makes WR-04 reachable at all. A
+`(lines, flags)`-shaped overload, or passing the already-computed `flags` in, would remove the class.
 
-### IN-03: the `rolePath` helper the plan introduced is bypassed at one plant site
+### IN-03: the duplicate-assertion tripwire is blind to ~9% of the assertions it counts
 
-**File:** `scripts/check-foundation-guards.test.ts:4137`, `:4282`
+**File:** `scripts/check-foundation-guards.test.ts` (LANG-07 harness block, `isAssertionLine` /
+`duplicateAssertionPairsIn`)
 
-**Issue:** Plan 29-14 added `rolePath(root, name)` so "the role directory is named in exactly one
-more place than the derivation itself". Two sites still spell
-`join(m, "agent-factory/roles", MALFORMED_ROLE)` inline. Route them through the helper.
+Measured on the live tree: 4806 `expect(` occurrences across 47 test modules; 4751 lines classified;
+**453** of the classified lines are multi-line openers (`expect(` with the subject and matcher on
+following lines). For those, a duplicated assertion's opener lines are never adjacent, so the pair is
+invisible. The floor's disclosed miss #4 names the shape; the published figure ("4693 classified
+assertion lines") reads as coverage it does not have. Consider reporting the multi-line share beside
+the total, or normalising a multi-line `expect(` call to one logical line before comparison.
 
 ---
 
-_Reviewed: 2026-08-15_
+## Confirmed, not re-discovered
+
+Per the review brief, these recorded findings were checked and hold as recorded; they are **not**
+counted above:
+
+| id | status at HEAD |
+|---|---|
+| V-29-26-01 (setext headings invisible to the ATX-only authority) | confirmed; `sectionEndIndex` recognises ATX only |
+| V-29-26-02 (`readdirSync` non-recursive; scans read 41/49 and 47/53) | confirmed; `nonTestScripts()` and `testModules()` both non-recursive |
+| V-29-26-03 (`FENCE_DELIMITER_LINE` is a prefix test) | confirmed; `/^```/` at `frontmatter.ts:390` |
+| V-29-26-04 (indented fence delimiters invisible; 6 live `README.md` lines) | confirmed |
+| Residual 4 (indented code blocks donate step bullets) | confirmed and pinned by a live case |
+| T-29-23-05 (banned-claim exemption level widening) | confirmed; fail-closed as recorded |
+
+CR-02 and WR-02 are **adjacent** to V-29-26-03/-04 — all four live in the fence grammar rather than
+the section locator — and support §8's recorded recommendation that they are plausibly one follow-up
+plan. CR-01 is adjacent to variant **C1** but is a different module with no equivalent pin.
+
+---
+
+_Reviewed: 2026-08-15T19:58:02Z_
 _Reviewer: Claude (gsd-code-reviewer)_
 _Depth: standard_
