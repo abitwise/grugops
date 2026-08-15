@@ -6147,3 +6147,173 @@ describe("27-65 end-to-end gate sweep: the rounds-1-11 corpus planted on the liv
     }
   });
 });
+
+// ─────────────────────────────────────────────────────────────────────────────────────────────
+// (PLAN 29-25, WR-05 / WR-06 / WR-07) THE HARNESS DEFECT CLASS, CLOSED DERIVATIONALLY.
+//
+// WR-06 is the THIRD recorded instance of a harness assertion that asserts less than its name
+// claims, and all three landed in one review: a live-corpus control asserting a floor its own call
+// already guarantees, a pair of byte-identical `toContain` calls standing for two consumers, and a
+// case named for a property whose body tests a source substring. Fixing the third does nothing about
+// the fourth — round 2 of this phase exists because round 1 fixed three sites of one finding and a
+// fourth nobody had derived stayed open. So the SHAPE gets a tripwire rather than the address getting
+// a patch.
+//
+// WHAT IT CATCHES. Two ADJACENT assertion lines whose text is byte-identical after trimming. Two
+// identical assertions assert one thing twice, and the comment above them almost always claims two —
+// which is precisely what WR-06 was. `toContain` is a substring test, so the second call is satisfied
+// by whatever satisfied the first, and a build in which one of the two subjects went silent passes.
+//
+// "WITHIN ONE TEST BODY" IS GUARANTEED BY ADJACENCY, NOT APPROXIMATED BY IT. Two consecutive lines
+// cannot straddle a test boundary: a boundary is spelled `});` and `it("…", () => {`, neither of
+// which is classified as an assertion line, so at least one unclassified line always separates the
+// last assertion of one body from the first of the next. That argument is asserted below rather than
+// left as a claim.
+//
+// NON-VACUITY IS FLOORED PER ELEMENT, NOT ONLY IN TOTAL. This project has recorded a vacuity floor
+// that caught an EMPTY denominator and missed a SILENTLY SHORT one, so the file count is derived from
+// a directory read the scan does not produce, AND every scanned file is required to contribute at
+// least one classified assertion line. A scan that read forty-six files and classified nothing in
+// half of them can no longer report zero duplicates.
+//
+// SCOPE IS EVERY `*.test.ts` UNDER `scripts/`, WHICH IS WIDER THAN THE PLAN SPECIFIES. The plan names
+// the four gate test modules and the voice model's. A five-member hand-list is the set-literal drift
+// this repository has corrected three times and would not cover the sixth test module that lands
+// tomorrow, so the set is derived. Measured at this plan: 46 files, 4693 classified assertion lines,
+// ZERO duplicate pairs.
+//
+// THE ZERO IS NOT VACUOUS, AND THAT IS A HISTORICAL MEASUREMENT RATHER THAN A BELIEF. Run over THIS
+// FILE at commit `3ed76c1` — the tree as it stood before plan 29-25 — the same classifier reports
+// exactly ONE pair, at line 4251, and it is WR-06 at the address the round-2 review named. The live
+// answer is zero only because that pair became an occurrence count in this plan's first commit.
+//
+// WHAT IT DOES NOT CATCH, NAMED RATHER THAN LEFT UNDISCLOSED — a floor against the shape this project
+// has now met three times, not a proof:
+//
+//   1. Two identical assertions separated by another line — a comment, a blank line, or an unrelated
+//      assertion between them.
+//   2. Two assertions that differ only in whitespace inside a template literal or across a line
+//      break, since the comparison is byte equality after trimming the line's own indentation.
+//   3. An assertion duplicated across two CASES rather than within one, which is a different defect
+//      (a case that re-proves its neighbour) with a different remedy.
+//   4. A multi-line `expect(` whose duplicate opening lines are not adjacent, and any assertion
+//      spelled through a helper rather than beginning with `expect(`.
+// ─────────────────────────────────────────────────────────────────────────────────────────────
+
+/** A classified assertion line: the line's own text begins the assertion. */
+const ASSERTION_LINE = /^expect\(/;
+const isAssertionLine = (line: string): boolean => ASSERTION_LINE.test(line.trim());
+
+/** Every `*.test.ts` under `scripts/`, derived by directory read rather than hand-listed. */
+const testModules = (): string[] =>
+  readdirSync(join(ROOT, "scripts"))
+    .filter((n) => n.endsWith(".test.ts"))
+    .sort();
+
+/** Adjacent byte-identical assertion pairs in one source, as `line-number :: the line`. */
+const duplicateAssertionPairsIn = (src: string): string[] => {
+  const lines = src.split("\n");
+  const out: string[] = [];
+  for (let i = 0; i + 1 < lines.length; i += 1) {
+    if (!isAssertionLine(lines[i]) || !isAssertionLine(lines[i + 1])) continue;
+    if (lines[i].trim() !== lines[i + 1].trim()) continue;
+    out.push(`${i + 1} :: ${lines[i].trim()}`);
+  }
+  return out;
+};
+
+// The planted fixture is ASSEMBLED FROM CONCATENATED FRAGMENTS, so THIS file's own source never
+// carries an adjacent byte-identical assertion pair and can never fail the scan on itself. The
+// self-reference is not hypothetical — this file is one of the 46 the scan reads, and a harness that
+// fails its own premise is the exact defect this tripwire exists to delete.
+const EXPECT_CALL = `${"expect"}(o).toContain("the same claim, twice");`;
+const PLANTED_DUPLICATE_SOURCE = [
+  'it("a case whose comment claims two consumers", () => {',
+  `  ${EXPECT_CALL}`,
+  `  ${EXPECT_CALL}`,
+  "});",
+  "",
+].join("\n");
+
+describe("the harness asserts no less than its names claim (plan 29-25, WR-05 / WR-06 / WR-07)", () => {
+  it("NO test module carries two adjacent byte-identical assertions — derived, floored per file, two-sided", () => {
+    // ── THE PREMISE, BEFORE THE CLAIM. ───────────────────────────────────────────────────────
+    const names = testModules();
+    expect(
+      names.length,
+      "the test-module corpus must really have been enumerated before anything is claimed about its contents",
+    ).toBeGreaterThan(30);
+    expect(names).toContain("check-foundation-guards.test.ts");
+    expect(names).toContain("voice-model.test.ts");
+
+    let assertions = 0;
+    const pairs: string[] = [];
+    const barren: string[] = [];
+    for (const n of names) {
+      const src = readFileSync(join(ROOT, "scripts", n), "utf8");
+      const own = src.split("\n").filter(isAssertionLine).length;
+      if (own === 0) barren.push(n);
+      assertions += own;
+      for (const p of duplicateAssertionPairsIn(src)) pairs.push(`${n}:${p}`);
+    }
+    // The TOTAL floor, and then the PER-ELEMENT floor beside it — because a total can stay healthy
+    // while individual files silently classify nothing.
+    expect(
+      assertions,
+      "the scan classified no assertion lines at all — a zero-duplicates verdict over nothing proves nothing",
+    ).toBeGreaterThan(1000);
+    expect(
+      barren,
+      "every scanned test module must contribute at least one classified assertion line, or the scan is SHORT rather than clean",
+    ).toEqual([]);
+
+    // ── THE CLAIM. ───────────────────────────────────────────────────────────────────────────
+    expect(
+      pairs,
+      "two adjacent byte-identical assertions assert one thing twice, and the comment above them almost always claims two. Fix the assertion; do not narrow this classifier to exclude it",
+    ).toEqual([]);
+  });
+
+  it("the tripwire is FALSIFIABLE — a planted duplicate pair is found, and a near-miss is not", () => {
+    // Proven on a synthesized source, permanently, because the live answer is the empty set and an
+    // empty answer from a classifier that matches nothing is indistinguishable from an empty answer
+    // from a classifier that works.
+    expect(duplicateAssertionPairsIn(PLANTED_DUPLICATE_SOURCE)).toEqual([
+      `2 :: ${EXPECT_CALL}`,
+    ]);
+
+    // THE DISCRIMINATION, BOTH WAYS. A pair separated by one line is NOT reported — the disclosed
+    // blindness, asserted so it is a measured bound rather than a claim; and a pair differing by one
+    // character is not reported either, so the comparison really is byte equality.
+    const separated = PLANTED_DUPLICATE_SOURCE.split("\n");
+    separated.splice(2, 0, "  // an intervening comment");
+    expect(duplicateAssertionPairsIn(separated.join("\n"))).toEqual([]);
+    const differing = PLANTED_DUPLICATE_SOURCE.split("\n");
+    differing[2] = differing[2].replace("twice", "once");
+    expect(differing[1].trim()).not.toBe(differing[2].trim());
+    expect(duplicateAssertionPairsIn(differing.join("\n"))).toEqual([]);
+  });
+
+  it('"within one test body" follows from ADJACENCY — a test boundary is never a classified assertion line', () => {
+    // The argument the scan rests on, asserted rather than stated. If a boundary line could be
+    // classified as an assertion, two adjacent classified lines could straddle two cases and the
+    // tripwire would report a pair that is not one.
+    for (const boundary of [
+      "});",
+      "  });",
+      'it("a case", () => {',
+      'describe("a block", () => {',
+      "  const src = readFileSync(p);",
+      "  // expect(o).toContain(x);",
+    ]) {
+      expect(
+        isAssertionLine(boundary),
+        `a test-boundary line must never classify as an assertion: ${boundary}`,
+      ).toBe(false);
+    }
+    // …and a real assertion line does, at any indentation. Without this the negative above is
+    // satisfied by a classifier that recognises nothing.
+    expect(isAssertionLine('expect(o).toBe(1);')).toBe(true);
+    expect(isAssertionLine('        expect(o).toBe(1);')).toBe(true);
+  });
+});
