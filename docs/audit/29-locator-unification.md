@@ -458,6 +458,44 @@ measures occurrences rather than extent (reached again by variant C1 above).
 measures has graded its own paper, and the human checkpoint is where the round decides whether to
 reopen.
 
+## 8. The decision taken on that residual set
+
+The set in §7 was presented at plan 29-26's blocking checkpoint. The decision is recorded here
+because §7 states the residual set "as presented at the checkpoint", and a residual set with no
+recorded answer beside it reads, later, as one that was accepted by silence.
+
+**Decision: `reopen-for-survivors` — "Reopen for the surviving adversarial variants only."**
+
+**Made by:** the human operator (repo owner, Olger Oeselg).
+**When:** 2026-08-15, through the orchestrator's checkpoint presentation during
+`/gsd-execute-phase 29`.
+
+What the human was shown, and accepted:
+
+- All three original reproductions (CR-02, WR-01, CR-01) re-run from the round-2 review's own
+  recipes and now failing closed, with `git status --porcelain` confirming the tree clean of plants
+  (§5).
+- **R4 as NON-EMPTY** — the four surviving variants of §6: V-29-26-01 (setext heading, fail-open,
+  0 live), V-29-26-02 (the LANG-07 scans read 41/49 and 47/53 while the case name, the refusal
+  wording and plan 29-25's summary all call them tree-wide; 0 found in the unread sets),
+  V-29-26-03 (`FENCE_DELIMITER_LINE` is a prefix test, fail-open, 0 live) and V-29-26-04 (indented
+  fence delimiter; **6 live lines of `README.md` classified as governed prose today**, fail-closed
+  only by the accident that the four indented delimiters pair up, so an odd count in any document
+  inverts the direction to fail-open).
+- **R5** — the nineteen further residuals the plan's own checkpoint text did not enumerate. That
+  count is the orchestrator's, taken at the checkpoint; this document does not re-derive it, and §7's
+  closing paragraph names four of them in prose rather than all nineteen.
+
+The reason recorded for the recommendation: this round's own standard refuses to close while a
+reproduced bypass is on the record; V-29-26-04 is live today with an accidental rather than a
+mechanical safe direction; V-29-26-01 and V-29-26-03 reach the CR-02 defect SHAPE by a different
+route; and -01, -03 and -04 all live in the FENCE authority's grammar rather than in the section
+locator, so they are plausibly ONE follow-up plan rather than four.
+
+**Consequence: gap-closure round 2 does NOT close.** The round reopens for the surviving variants.
+Phase 29 is not complete, no LANG requirement is verified or closed by this round, and re-verification
+does not run on this tree.
+
 ## Every command in this document is re-runnable
 
 The reproductions in §5 are the review's own recipes. The variants in §6 are `node -e` calls against
