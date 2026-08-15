@@ -427,10 +427,47 @@ export const DESCRIPTIVE_SENTENCE_MAX_WORDS = 25;
 const HEADING_LINE = /^#{1,6} /;
 /** The section anchor that makes a bullet procedural (WP-04). */
 const STEPS_HEADING = /^## Steps\s*$/;
-/** An ordered or unordered list marker at the head of a line, indented at most three spaces. */
-const LIST_MARKER = /^ {0,3}(?:[-*+]|\d{1,3}[.)])\s+/;
-/** An ORDERED list marker specifically — a numbered procedural line (WP-04). */
-const ORDERED_MARKER = /^ {0,3}\d{1,3}[.)]\s+/;
+/**
+ * THE HEADING CLASS THAT OWNS THE SECTION ANCHOR — level one or level two, and nothing deeper.
+ *
+ * A SUB-HEADING DOES NOT LEAVE A SECTION; IT STRUCTURES ONE. Treating every heading as an exit
+ * silently releases every bullet below the first `### ` under `## Steps` — the bullets stop being
+ * counted, stop being measured against the procedural bound, and stop being reached by WP-05 and
+ * WP-08, with no number moving anywhere to say so. So the anchor is reset only by a heading that
+ * could plausibly START a sibling section, and a deeper heading leaves it exactly as it found it.
+ */
+const SECTION_HEADING_LINE = /^#{1,2} /;
+/**
+ * An ordered or unordered list marker at the head of a line, AT ANY INDENTATION DEPTH.
+ *
+ * THE LEADING BOUND IS A POSITION QUESTION, NOT A CHARACTER QUESTION (CR-03). A bound of three
+ * leading spaces is not a stricter rule — it is a rule that is never ASKED of a CommonMark
+ * sub-bullet, which is indented four or more under a numbered step. The guard's banner claims every
+ * `## Steps` bullet is measured; a depth bound makes that claim false for a construct the kit's own
+ * workflows are free to use, and makes it false INVISIBLY, because an uncounted bullet is also
+ * absent from the denominator that would have reported the loss.
+ *
+ * The class is the TWO CHARACTERS space and tab rather than the general whitespace class `\s`, and
+ * the reason is recorded so it is not "simplified" later: `\s` also matches a line terminator and a
+ * range of Unicode spaces, while the predicate here is leading indentation ON A SINGLE LINE.
+ * CommonMark indentation is spaces or tabs, so those are the two characters, and admitting a line
+ * terminator into a leading-indent class would let the marker test reach across a line boundary.
+ *
+ * The quantifier is unbounded over a TWO-CHARACTER class that cannot match a newline, applied per
+ * line — no match-all regex and no nested quantifier, because the superlinear-backtracking incident
+ * recorded in project memory (a 0.47 s guard that took 383 s) is DORMANT, not fixed. The trailing
+ * whitespace requirement after the marker is deliberately byte-unchanged: the only thing this
+ * widening moves is the DEPTH.
+ */
+const LIST_MARKER = /^[ \t]*(?:[-*+]|\d{1,3}[.)])\s+/;
+/**
+ * An ORDERED list marker specifically — a numbered procedural line (WP-04).
+ *
+ * Carries the IDENTICAL widening, and must: this decides `procedural` independently of the section
+ * anchor, so a depth bound here would reclassify an indented numbered step exactly the way the
+ * unordered bound reclassified an indented bullet.
+ */
+const ORDERED_MARKER = /^[ \t]*\d{1,3}[.)]\s+/;
 /** A markdown table rule row, tested on the TRIMMED line as one anchored class. */
 const TABLE_RULE_BODY = /^[\s:|-]+$/;
 function isTableRule(trimmed) {
@@ -611,7 +648,12 @@ function deriveElements(corpus) {
             const raw = lines[i];
             if (HEADING_LINE.test(raw)) {
                 // The section anchor. A heading is not a sentence and is never a step.
-                inSteps = STEPS_HEADING.test(raw);
+                //
+                // ONLY A HEADING OF LEVEL AT MOST TWO MOVES THE ANCHOR. A `### ` under `## Steps` is part of
+                // the step section, so it leaves `inSteps` alone; a `## ` or `# ` starts something else, so
+                // it sets the anchor to whether THAT something else is `## Steps`.
+                if (SECTION_HEADING_LINE.test(raw))
+                    inSteps = STEPS_HEADING.test(raw);
                 continue;
             }
             const trimmed = raw.trim();
