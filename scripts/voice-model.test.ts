@@ -33,6 +33,10 @@ import {
   BANNED_CATEGORIES,
   CLAUSE_MIN_WORDS,
 } from "./voice-model.js";
+// (Plan 29-14) The live-corpus control derives its membership from the kit authority rather than
+// carrying a role list of its own — a second list would drift, and a short denominator would let a
+// role drop out of the control without anything going red.
+import { listRoles, ROLES_SUBPATH } from "./kit-model.js";
 
 const FENCE = "```";
 const doc = (...lines: string[]): string => lines.join("\n");
@@ -121,6 +125,111 @@ describe("readCavemanFence — the three refusals (D-23)", () => {
       ok: false,
       reason: "unterminated",
     });
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────────────────────────
+// (Plan 29-14, closing CR-01) THE SECTION BOUND — the phase's own thesis, failing on itself.
+//
+// This module's header states the reader's predicate as "WHERE IS THE **SECTION-ANCHORED** CAVEMAN
+// FENCE". Plan 29-01's implementation was not section-anchored: after locating the heading it scanned
+// to END OF FILE for a delimiter, so a role whose caveman section was reworded into plain senior prose
+// adopted an unrelated LATER fenced block as "the caveman block" and returned `ok: true`. Both voice
+// guards then published a measured number about the wrong bytes — `tokens 4 / content words 4` over a
+// `## Notes` code block — and the whole gate printed ALL CHECKS PASSED.
+//
+// This is the standing question of the project, asked of the reader that exists to answer it: not
+// WHICH CHARACTERS the predicate accepts, but WHAT BOUNDS ITS INPUT. Two grammars were collapsed into
+// one authority in 29-01, and unifying two parsers makes that authority's SCOPE a new degree of
+// freedom — a section-anchored reader searching to EOF adopts an unrelated later block. The remedy is
+// structural: ONE bound, consulted by BOTH scans, with everything outside it refused BY NAME.
+//
+// `orchestrator.md` already carries four fence delimiters (two in its caveman section, two under a
+// later heading), so a role file with a second fence has never been hypothetical.
+//
+// The first three cases below FAIL against the pre-29-14 build. The fourth is the FALSE-RED CONTROL:
+// it passes before and after, because a control that was never green proves nothing about the change.
+// ─────────────────────────────────────────────────────────────────────────────────────────────────
+
+describe("readCavemanFence — the section bound (plan 29-14, CR-01)", () => {
+  it("reads a de-fenced caveman section as missing rather than adopting a later fence", () => {
+    // The reviewer's live-tree reproduction, reduced to bytes: uat-planner.md's fenced block replaced
+    // by senior prose, with a later `## Notes` block carrying four lexicon terms. Before the bound
+    // this returned ok:true with `inside` = "grug club rock cave" — the guard measuring `## Notes`.
+    const r = readCavemanFence(
+      doc(
+        "## Caveman prompt",
+        "You plan business acceptance and record the outcome.",
+        "",
+        "## Notes",
+        FENCE,
+        "grug club rock cave",
+        FENCE,
+        "",
+      ),
+    );
+    expect(r).toEqual({ ok: false, reason: "missing" });
+  });
+
+  it("refuses unterminated when a heading line sits inside the fence interior", () => {
+    // The section bound falls BEFORE the closing delimiter, so the fence is unterminated WITHIN its
+    // own section. The reader refuses by name rather than returning a silently shortened `inside` —
+    // the fail-CLOSED direction, and the deliberate cost of bounding the close scan.
+    const r = readCavemanFence(
+      doc("## Caveman prompt", FENCE, "grug smash", "## Trap", "you stop", FENCE, ""),
+    );
+    expect(r).toEqual({ ok: false, reason: "unterminated" });
+  });
+
+  it("does not treat a heading that merely starts with the anchor text as the anchor", () => {
+    // `CAVEMAN_HEADING_LINE` was a PREFIX match, so `## Caveman prompted` was a heading hit. Two
+    // consequences, both live: a document with only the near-miss heading read as a real caveman
+    // section, and a WELL-FORMED document that also carried the near-miss read as `multiple`.
+    expect(readCavemanFence(doc("## Caveman prompted", FENCE, "grug", FENCE, ""))).toEqual({
+      ok: false,
+      reason: "missing",
+    });
+
+    // The union of the two arms: the near-miss AND a real section in one document is ONE heading hit,
+    // so the `multiple` arm does not misfire and the success is read over the REAL section.
+    const both = readCavemanFence(
+      doc(
+        "## Caveman prompted",
+        "Prose under a heading that is not the anchor.",
+        "",
+        "## Caveman prompt",
+        FENCE,
+        "You grug smash rock.",
+        FENCE,
+        "",
+        "## Hard limits",
+        "You stop.",
+        "",
+      ),
+    );
+    expect(both.ok).toBe(true);
+    if (!both.ok) return;
+    expect(both.inside).toBe("You grug smash rock.");
+  });
+
+  it("every live role returns ok with a non-empty interior — the false-red control", () => {
+    // PASSES BEFORE AND AFTER, by construction: all 17 live roles carry both fence delimiters INSIDE
+    // the caveman section, so the bound cannot move their verdict. That is exactly what makes it a
+    // control — if this case went red, the bound would have re-measured the corpus rather than merely
+    // scoping the reader, which is the one outcome this change is not allowed to have.
+    //
+    // Membership is DERIVED from the kit authority, never a literal list: a hand-typed role list is
+    // the set-literal drift this repository has corrected three times, and a short denominator here
+    // would let a role slip out of the control silently.
+    const names = listRoles();
+    expect(names.length).toBeGreaterThan(0);
+    for (const n of names) {
+      const text = readFileSync(join(import.meta.dirname, "..", ROLES_SUBPATH, n), "utf8");
+      const v = readCavemanFence(text);
+      expect(v.ok, `${n} must read ok`).toBe(true);
+      if (!v.ok) continue;
+      expect(v.inside.length, `${n} must have a non-empty interior`).toBeGreaterThan(0);
+    }
   });
 });
 

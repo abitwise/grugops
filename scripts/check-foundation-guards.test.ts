@@ -4036,6 +4036,99 @@ describe("check-foundation-guards.js (SDLC-02 / SC2 fail-proof harness)", () => 
     expect(o).not.toMatch(/brownfield-mapper\.md:.*negative arm/);
   });
 
+  // ── CR-01 (plan 29-14) — THE SECTION BOUND, PROVEN AT THE GATE. ────────────────────────────────
+  //
+  // The reviewer's live-tree reproduction, made permanent and hermetic. Before the bound, a role
+  // whose caveman section was reworded into plain senior prose and which carried ANY later fenced
+  // block adopted that block as "the caveman block": the reader returned ok:true, guard_voice scanned
+  // the real caveman prose as clear-voice remainder and found nothing, guard_caveman_voice measured
+  // the unrelated block and printed `tokens 4 / content words 4`, and the WHOLE GATE printed
+  // ALL CHECKS PASSED at exit 0. `validate-agent-factory` and `check-kit-refs` also exited 0 on that
+  // same tree, so nothing in the repository caught it.
+  //
+  // Why this case is at the GATE rather than only at the reader: a pure-function case proves the
+  // verdict, and the defect was never that the verdict was unavailable — it was that both CONSUMERS
+  // published a number about the wrong bytes and the exit code stayed 0. The claim being pinned is
+  // about the exit code and the finding text, so it is asserted where those live.
+  //
+  // The plant is deliberately LEXICON-BEARING under the later heading. A neutral later block would
+  // red the gate for a different reason (an empty positive arm), and a case that fails for the wrong
+  // reason pins nothing.
+  it("the full gate exits 1 on a de-fenced role carrying a later lexicon-bearing fence", () => {
+    const m = mirror();
+    // Membership through the Task 1 helper, rooted at the MIRROR — the harness's own premise.
+    const names = roleNamesIn(m);
+    expect(names, "the plant host must be a member of the mirror's role set").toContain(
+      MALFORMED_ROLE,
+    );
+
+    const file = rolePath(m, MALFORMED_ROLE);
+    const before = readFileSync(file, "utf8");
+    const lines = before.split("\n");
+    const heading = lines.findIndex((l) => /^## Caveman prompt$/.test(l));
+    const open = lines.findIndex((l, i) => i > heading && /^```/.test(l));
+    const close = lines.findIndex((l, i) => i > open && /^```/.test(l));
+    // De-fence the caveman section: the heading survives, the block becomes senior prose. Then append
+    // a later `## Notes` section carrying four lexicon terms inside a fence — the bytes the pre-bound
+    // reader adopted.
+    const after = [
+      ...lines.slice(0, open),
+      "You plan business acceptance and record the outcome.",
+      ...lines.slice(close + 1),
+      "",
+      "## Notes",
+      "```",
+      "grug club rock cave",
+      "```",
+      "",
+    ].join("\n");
+    expect(after, "the de-fencing plant must actually change the file").not.toBe(before);
+
+    // PREMISE, MEASURED: the planted bytes really are the shape this case is about — the caveman
+    // section carries no fence, and a LATER fenced block carrying lexicon terms does exist. Asserted
+    // through the same authority the guard reads, so a fixture that silently stopped reproducing the
+    // defect fails here rather than passing for the wrong reason.
+    expect(readCavemanFence(after)).toEqual({ ok: false, reason: "missing" });
+    expect(after.split("\n").filter((l) => /^```/.test(l))).toHaveLength(2);
+    expect(countLexiconTokens("grug club rock cave")).toBeGreaterThanOrEqual(
+      CAVEMAN_LEXICON_MIN,
+    );
+
+    writeFileSync(file, after, "utf8");
+    const r = runIn(m);
+    const o = out(r);
+
+    expect(r.status).toBe(1);
+    const rel = `agent-factory/roles/${MALFORMED_ROLE}`;
+    // Both consumers name the FILE and the REASON — `missing`, so the finding says why and not merely
+    // that. A finding that named the file without the reason would leave an editor re-deriving the
+    // bound from scratch.
+    expect(o).toContain(`${rel}: ## Caveman prompt fence refused — reason missing`);
+    expect(o).toContain(`${rel}: ## Caveman prompt fence refused — reason missing`);
+    // And the two PASS lines the pre-bound build printed on these exact bytes are GONE.
+    expect(o).not.toContain("voice: clear-voice surfaces free of caveman markers");
+    expect(o).not.toContain(`caveman voice: 0 findings over ${ROLE_COUNT}/${ROLE_COUNT}`);
+    expect(o).not.toContain("ALL CHECKS PASSED");
+    // The wrong-bytes measurement itself: the pre-bound build published `tokens 4 / content words 4`
+    // for this role, measured over `## Notes`. No measurement line for this role may exist at all now.
+    expect(o).not.toMatch(/brownfield-mapper\.md: tokens \d+ \/ content words \d+/);
+  });
+
+  it("an UNMODIFIED mirror still exits 0 under the section bound — the false-red control", () => {
+    // The other half of the claim, and the half a bound is most likely to break: scoping the reader
+    // must not RE-MEASURE the corpus. All 17 live roles carry both fence delimiters inside the caveman
+    // section, so the bound cannot move their verdict — and this case is what turns that from an
+    // observation into something a regression trips over.
+    const m = mirror();
+    expect(roleNamesIn(m)).toHaveLength(ROLE_COUNT);
+    const r = runIn(m);
+    expect(r.status).toBe(0);
+    expect(out(r)).toContain("ALL CHECKS PASSED");
+    expect(out(r)).toContain(
+      `caveman voice: 0 findings over ${ROLE_COUNT}/${ROLE_COUNT} elements`,
+    );
+  });
+
   // ── AP-1 — the two vacuity floors, each proven to fire independently. ─────────────────────────
   it("VACUITY: a mirror SHORT by one role file FAILS naming `visited 16 of 17`", () => {
     // The DENOMINATOR floor, which is a different branch from the findings branch: this mirror has no
