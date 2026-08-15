@@ -53,6 +53,7 @@ import {
   fencedLineFlags,
   sectionEndIndex,
   unfencedHeadingIndex,
+  unfencedMatchIndices,
   stripComment,
   assertItemPathScalarClosed,
   assertFoldTargetIsNotBlockOwned,
@@ -5831,6 +5832,167 @@ describe("frontmatter — the spawn-grant parser oracle (SPAWN-04 / KIT-03)", ()
       expect(sectionEndIndex(text, 1, 2)).toBe(6);
       expect(unfencedHeadingIndex(text, "# Later")).toBe(-1);
       expect(unfencedHeadingIndex(text, "## Later2")).toBe(-1);
+    });
+
+    // ── AXIS 7 (plan 29-28, CR-02): THE THIRD PREDICATE — "WHICH UNFENCED LINES MATCH THIS ONE". ──
+    //
+    // `unfencedMatchIndices` is the answer `readRegistry` was computing privately, fence-blind, in
+    // the module whose output decides the D-18 exclusion list. It is pinned here beside its two
+    // siblings because it inherits the SAME toggle and must therefore inherit the same six axes; a
+    // third projection that quietly disagreed with the two above would be the fourth-grammar shape
+    // this whole block exists to delete.
+    describe("unfencedMatchIndices — the caller-supplied line predicate (plan 29-28, CR-02)", () => {
+      const CLAIMISH = /^###\s+(\S+)\s*$/;
+
+      it("answers in ASCENDING order and never returns a line the fence toggle flags", () => {
+        const text = doc(
+          "### A",
+          "body",
+          FENCE,
+          "### FencedB",
+          FENCE,
+          "### C",
+          "tail",
+          "### D",
+        );
+        const got = unfencedMatchIndices(text, CLAIMISH);
+        expect(got).toEqual([0, 5, 7]);
+        // ORDER IS A PROPERTY, NOT AN ACCIDENT: the caller takes each block's END from the NEXT
+        // member of this array, so a descending or unsorted answer would produce negative spans and
+        // silently empty every block.
+        expect(got).toEqual([...got].sort((a, b) => a - b));
+        // And none of the returned indices is flagged — asserted against the toggle directly.
+        const flags = fencedLineFlags(text);
+        for (const i of got) expect(flags[i], `index ${i} must not be fenced`).toBe(false);
+      });
+
+      it("the SAME lines outside a fence ARE returned — the other side of fence-exclusion", () => {
+        // Without this half, an implementation returning `[]` unconditionally would pass the case
+        // above. Same three spellings, no fence.
+        expect(unfencedMatchIndices(doc("### A", "### B", "### C"), CLAIMISH)).toEqual([0, 1, 2]);
+        // And the fenced twin of the SAME document answers with the delimiters' outside only.
+        expect(
+          unfencedMatchIndices(doc("### A", FENCE, "### B", FENCE, "### C"), CLAIMISH),
+        ).toEqual([0, 4]);
+      });
+
+      it("answers `[]` when nothing matches, and `[]` is not confused with `[0]`", () => {
+        expect(unfencedMatchIndices(doc("intro", "body"), CLAIMISH)).toEqual([]);
+        // The empty answer is the one a truthiness test inverts: `[]` is truthy in JS, and a caller
+        // that checked `if (idx)` rather than `idx.length` would read "no claims" as "one claim at
+        // line 0". The registry's refusal keys on `.length === 0`, pinned by its own case.
+        expect(unfencedMatchIndices(doc("intro", "body"), CLAIMISH)).toHaveLength(0);
+      });
+
+      it("inherits the unterminated-fence fail-safe: matches below an open fence are excluded", () => {
+        expect(
+          unfencedMatchIndices(doc("### A", FENCE, "open forever", "### B", "### C"), CLAIMISH),
+        ).toEqual([0]);
+      });
+
+      it("refuses a `g`/`y` flagged RegExp BY NAME rather than returning a silently short answer", () => {
+        // `lastIndex` survives across `.test()` calls, so a global pattern skips every other match
+        // — a SHORT answer that reads exactly like a correct one, in the fail-open direction for
+        // every consumer. Both flags, and the unflagged control, so the refusal is two-sided.
+        const many = doc("### A", "### B", "### C", "### D");
+        expect(() => unfencedMatchIndices(many, /^###\s+(\S+)\s*$/g)).toThrow(/lastIndex/);
+        expect(() => unfencedMatchIndices(many, /^###\s+(\S+)\s*$/y)).toThrow(/lastIndex/);
+        expect(unfencedMatchIndices(many, CLAIMISH)).toEqual([0, 1, 2, 3]);
+      });
+
+      // ── COMPLETENESS, AGAINST AN INDEPENDENTLY DERIVED EXPECTED SET. ────────────────────────────
+      //
+      // The expected set is NOT produced by calling the function under test, and NOT produced by a
+      // second fence toggle written here — a second toggle would make THIS FILE a fourth fence state
+      // machine and fail the derived pin at the end of this block, the harness defeating its own
+      // premise for the seventh time in this repository's record.
+      //
+      // Instead the document is AUTHORED as a tagged spec: each line carries the `fenced` verdict its
+      // author intends, the delimiters are placed to realise those tags, and the expected set is
+      // `spec.filter(not fenced && predicate)`. The tags are then checked against `fencedLineFlags`
+      // — a DIFFERENT function from the one under test — so a mistagged fixture fails loudly instead
+      // of grading its own paper.
+      interface TaggedLine {
+        readonly text: string;
+        readonly fenced: boolean;
+      }
+      const SPEC: readonly TaggedLine[] = [
+        { text: "# Registry", fenced: false },
+        { text: "### C-28-001", fenced: false },
+        { text: "- file: README.md", fenced: false },
+        { text: FENCE, fenced: true },
+        { text: "A claim.", fenced: true },
+        { text: FENCE, fenced: true },
+        { text: "## How to write one", fenced: false },
+        { text: FENCE, fenced: true },
+        { text: "### C-28-999", fenced: true },
+        { text: "- file: PHANTOM.md", fenced: true },
+        { text: FENCE, fenced: true },
+        { text: "### C-28-002", fenced: false },
+        { text: "- file: AGENTS.md", fenced: false },
+        { text: FENCE, fenced: true },
+        { text: "Another claim.", fenced: true },
+        { text: FENCE, fenced: true },
+        { text: "### C-28-003", fenced: false },
+      ];
+      const SPEC_TEXT = SPEC.map((l) => l.text).join("\n");
+      const SPEC_EXPECTED = SPEC.map((l, i) => (!l.fenced && CLAIMISH.test(l.text) ? i : -1)).filter(
+        (i) => i >= 0,
+      );
+
+      /**
+       * The completeness rule, written ONCE so the falsifiability probe below runs THE RULE over a
+       * broken locator rather than a second spelling of it. Returns `null` on a complete answer, or
+       * a message naming exactly what was missed and what was invented.
+       */
+      const completenessFailure = (
+        locator: (text: string, re: RegExp) => number[],
+      ): string | null => {
+        const got = locator(SPEC_TEXT, CLAIMISH);
+        const missing = SPEC_EXPECTED.filter((i) => !got.includes(i));
+        const extra = got.filter((i) => !SPEC_EXPECTED.includes(i));
+        if (missing.length === 0 && extra.length === 0) return null;
+        return (
+          `expected indices [${SPEC_EXPECTED.join(", ")}] but got [${got.join(", ")}] — ` +
+          `missing [${missing.join(", ")}], unexpected [${extra.join(", ")}]`
+        );
+      };
+
+      it("returns EVERY unflagged matching line, against a set derived without running it", () => {
+        // PREMISE FIRST: the authored tags must be what the fence toggle actually says, or the
+        // expected set is an opinion. `fencedLineFlags` is a different function from the one under
+        // test, so this is a check and not a tautology.
+        expect(
+          fencedLineFlags(SPEC_TEXT),
+          "the fixture's authored `fenced` tags disagree with the fence toggle — the expected set would be an opinion",
+        ).toEqual(SPEC.map((l) => l.fenced));
+        // NON-VACUITY: the fixture must carry BOTH a fenced match and unfenced matches, or the
+        // completeness claim is made over a set that could not discriminate.
+        expect(SPEC_EXPECTED.length, "the fixture must carry unfenced matches").toBeGreaterThan(1);
+        expect(
+          SPEC.filter((l) => l.fenced && CLAIMISH.test(l.text)).length,
+          "the fixture must carry at least one FENCED match, or exclusion is untested",
+        ).toBeGreaterThan(0);
+
+        expect(completenessFailure(unfencedMatchIndices)).toBeNull();
+      });
+
+      it("THE COMPLETENESS PIN IS PROVEN ABLE TO FAIL: a first-match-only locator reds, naming the missed indices", () => {
+        // A pin that cannot fail is worse than no pin. The broken locator is the SHORTENING
+        // direction — the one that is fail-open for every consumer, because a short claim list
+        // narrows the D-18 exclusion list with every gate green.
+        const firstMatchOnly = (text: string, re: RegExp): number[] => {
+          const all = unfencedMatchIndices(text, re);
+          return all.slice(0, 1);
+        };
+        const msg = completenessFailure(firstMatchOnly);
+        expect(msg, "the deliberately broken locator must NOT satisfy the completeness rule").not.toBeNull();
+        // The failure NAMES what was missed, rather than reporting a bare inequality.
+        for (const i of SPEC_EXPECTED.slice(1)) {
+          expect(msg as string).toContain(String(i));
+        }
+        expect(msg as string).toMatch(/missing \[/);
+      });
     });
 
     // ── AND THE AUTHORITY IS NOT A FOURTH FENCE STATE MACHINE — RE-DERIVED, NOT ASSUMED. ───────────

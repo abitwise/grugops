@@ -538,6 +538,73 @@ export function sectionEndIndex(
   return lines.length;
 }
 
+/**
+ * The 0-based indices, in ASCENDING order, of every line that is NOT inside a fence and that
+ * satisfies `re`. `[]` when no line does.
+ *
+ * ---------------------------------------------------------------------------------------------
+ * (Plan 29-28, LANG-03 / LANG-07 — 29-REVIEW § CR-02) THE THIRD PREDICATE, AND WHY IT IS A THIRD
+ * FUNCTION RATHER THAN A FOURTH AUTHORITY.
+ *
+ * `scripts/audit-model.ts`'s `readRegistry` was the SIXTH member of the class the block above
+ * deletes. It scanned RAW lines for a claim-heading recogniser and took each block's END from the
+ * next index in that array — a section-extent construct by the owner scan's own published
+ * definition, fence-blind, and invisible to the classifier on BOTH arms (its recogniser arm
+ * requires a literal space where that one spells `\s+`; its terminator arm never sees a bound
+ * consumed thirteen lines from the recogniser line). The consequence was not cosmetic: a claim
+ * block written inside a FENCED EXAMPLE parsed as a live `kind: safety` row, entered
+ * `safetySurfaceUnion`, and therefore entered the D-18 exclusion list that LANG-02 consults to
+ * decide which files a controlled-language pass may not touch. Documentation read as live data.
+ *
+ * THE THREE PREDICATES, STATED SO A LATER EDITOR DOES NOT MERGE THEM:
+ *
+ *   * `unfencedHeadingIndex` answers a `trimEnd()` EQUALITY against a KNOWN heading string.
+ *   * `sectionEndIndex`      answers "where does this section END, at a bounded LEVEL".
+ *   * this one              answers "which unfenced lines match a CALLER-SUPPLIED line predicate".
+ *
+ * Three questions, three functions, ONE fence toggle beneath all three. That is D-24's own
+ * distinction applied a third time, not a fourth authority: this function declares no delimiter
+ * class, no toggle and no heading pattern of its own, and is a projection of `fencedLineFlags`
+ * exactly as its two siblings are — split once, flag once, filter.
+ *
+ * WHY THE CALLER KEEPS ITS OWN `re`. The registry's `CLAIM_HEADING_RE` captures a claim id and is
+ * validated against the canonical `C-28-NNN` form ten lines later. It is DOMAIN vocabulary, not a
+ * generic section grammar, and moving it here would put registry ids inside the frontmatter
+ * authority. The line predicate is the caller's; the FENCE VERDICT is not, and never is.
+ *
+ * THERE IS NO OPT-OUT PARAMETER, AND THERE MUST NEVER BE ONE — the block above's standing
+ * prohibition, carried forward verbatim. A flag restoring fence-blind behaviour is a second grammar
+ * with extra steps, and a second grammar is the defect.
+ *
+ * WHAT THIS DOES NOT COVER, INHERITED RATHER THAN RE-DECIDED: everything the fence grammar itself
+ * cannot see. `FENCE_DELIMITER_LINE` is a PREFIX test and column-zero anchored, so a four-backtick
+ * run closed early by a three-backtick line and an indented delimiter are answered here exactly as
+ * they are answered for every other consumer of the toggle — recorded tree-wide as V-29-26-03 and
+ * V-29-26-04. This function neither widens nor narrows that floor.
+ * ---------------------------------------------------------------------------------------------
+ */
+export function unfencedMatchIndices(text: string, re: RegExp): number[] {
+  // A `g` or `y` flagged RegExp carries `lastIndex` ACROSS calls to `.test`, so repeated tests over
+  // a line array skip every other match — silently, and in the SHORTENING direction, which is the
+  // fail-open direction for every consumer of this function. Refused by name rather than repaired
+  // by mutating the caller's object: resetting `lastIndex` here would hide the mistake at the one
+  // call site while leaving the same regex broken at the caller's next use of it.
+  if (re.global || re.sticky) {
+    throw new Error(
+      `frontmatter: unfencedMatchIndices refuses the RegExp ${String(re)} — a \`g\`/\`y\` flagged ` +
+        `pattern carries lastIndex across .test() calls and would silently skip matching lines, ` +
+        `returning a SHORT answer that reads exactly like a correct one`,
+    );
+  }
+  const lines = text.split("\n");
+  const flags = fencedLineFlags(text);
+  const out: number[] = [];
+  for (let i = 0; i < lines.length; i++) {
+    if (!flags[i] && re.test(lines[i])) out.push(i);
+  }
+  return out;
+}
+
 // ---------------------------------------------------------------------------
 // Scalar helpers
 // ---------------------------------------------------------------------------

@@ -885,10 +885,32 @@ describe("D-64 cutover: the spawn verdict is rendered by the canonical admission
     // DECLARATIVE, and what an index MEANS for the disposition register — which pipe lines are Table A
     // rows and which are an appendix's — is still decided in this module. The owner scan added by this
     // plan is what makes "the last member" a measurement rather than a belief.
+    //
+    // (Plan 29-28, 29-REVIEW § CR-02) AND THIS ENTRY MOVED AGAIN, FROM THREE SYMBOLS TO FOUR — THE
+    // PIN WORKING, for the sixth time in this round. It went red the moment the module took MORE
+    // from the authority, which is exactly what a two-sided list is for, and the pin is raised only
+    // after the direction has been checked.
+    //
+    // `readRegistry` was the SIXTH locator of the class and the last one in the tree: a raw-line
+    // scan for a claim-heading recogniser, with each block's END taken from the next member of the
+    // array it built. Fence-blind, and invisible to the owner classifier on BOTH arms. A claim block
+    // written inside a FENCED EXAMPLE therefore parsed as a live `kind: safety` row and entered the
+    // D-18 exclusion list LANG-02 consults to decide which files a language pass may not touch. The
+    // scan now happens INSIDE the authority; this module tests no heading pattern at a bounding
+    // position at all.
+    //
+    // THE NEW SYMBOL IS DECLARATIVE, like the three already here: an array of integer indices. What
+    // an index MEANS for the claim registry — which lines are a claim block, where its verbatim text
+    // begins — is still decided in this module.
     expect(
       importedSymbols("audit-model.ts", "frontmatter"),
       "audit-model.ts must take the per-line fence PROJECTION and the shared section LOCATOR — never a heading-equality or section-end predicate of its own, which is the fourth-grammar shape this round deletes",
-    ).toEqual(["fencedLineFlags", "sectionEndIndex", "unfencedHeadingIndex"]);
+    ).toEqual([
+      "fencedLineFlags",
+      "sectionEndIndex",
+      "unfencedHeadingIndex",
+      "unfencedMatchIndices",
+    ]);
   });
 
   it("NO non-test module imports a GRANT PREDICATE from ./frontmatter.js — the parser renders no spawn verdict anywhere", () => {
@@ -1230,7 +1252,17 @@ const PLANTED_SIXTH_LOCATOR = [
  */
 const SECTION_EXTENT_OWNERS = ["frontmatter.ts"];
 const SECTION_EXTENT_OWNER_COUNT = 1;
-const LOCATOR_FUNCTIONS = ["sectionEndIndex", "unfencedHeadingIndex"] as const;
+// (Plan 29-28) `unfencedMatchIndices` joins the set the day it is exported, NOT the day some module
+// happens to be the first to import only it. This list keys the CONSUMER derivation below, so a
+// locator function missing from it is a module that could adopt the authority and still be counted
+// as having adopted nothing — the hand-maintained-set drift this repository has corrected four
+// times. Its addition leaves the consumer set unchanged today (`audit-model.ts` already takes two
+// of the three), which is the check that this widening is a floor and not a re-measurement.
+const LOCATOR_FUNCTIONS = [
+  "sectionEndIndex",
+  "unfencedHeadingIndex",
+  "unfencedMatchIndices",
+] as const;
 const LOCATOR_CONSUMERS = [
   "audit-model.ts",
   "check-banned-claims.ts",

@@ -52,7 +52,7 @@ import { readFileSync, existsSync } from "node:fs";
 import { join } from "node:path";
 // (Plan 29-25, LANG-07) The ONE section-locator authority. This module answers no section-extent
 // question of its own — see `tableUnder`, the fifth and last locator of the class to be reconciled.
-import { fencedLineFlags, sectionEndIndex, unfencedHeadingIndex, } from "./frontmatter.js";
+import { fencedLineFlags, sectionEndIndex, unfencedHeadingIndex, unfencedMatchIndices, } from "./frontmatter.js";
 // ---------------------------------------------------------------------------
 // The fixed artifact paths.
 //
@@ -609,6 +609,15 @@ function duplicates(values) {
 // ---------------------------------------------------------------------------
 // readRegistry — declared here and consumed in plan 28-04.
 // ---------------------------------------------------------------------------
+// (Plan 29-28, 29-REVIEW § CR-02) THIS RECOGNISER STAYS DECLARED HERE, AND THAT IS DELIBERATE.
+//
+// It is DOMAIN vocabulary, not a section grammar: it CAPTURES a claim id, and that id is validated
+// against the canonical `C-28-NNN` form ten lines into `parseClaimBlock`. Moving it into
+// scripts/frontmatter.ts would put registry ids inside the frontmatter authority, which owns the
+// FENCE VERDICT and nothing about this document's vocabulary. What moved instead is its USE: the
+// scan that once walked raw lines with it now happens INSIDE `unfencedMatchIndices`, so this module
+// no longer tests a heading pattern at a bounding position. Do not "finish the job" by relocating
+// the constant; the job is finished.
 const CLAIM_HEADING_RE = /^###\s+(\S+)\s*$/;
 const CLAIM_META_RE = /^-\s+([a-z_]+):\s*(.*)$/;
 const CLAIM_REQUIRED_KEYS = ["file", "line", "kind", "depends_on", "status"];
@@ -644,11 +653,27 @@ export function readRegistry(root = DEFAULT_ROOT) {
         refuse(REGISTRY_PATH, `it could not be read (${e.message})`);
     }
     const lines = text.split("\n");
-    const headingIdx = [];
-    for (let i = 0; i < lines.length; i++) {
-        if (CLAIM_HEADING_RE.test(lines[i]))
-            headingIdx.push(i);
-    }
+    // ── (Plan 29-28, 29-REVIEW § CR-02) THE BLOCK BOUNDARIES COME FROM THE ONE AUTHORITY. ─────────
+    //
+    // This was the SIXTH member of the class plans 29-20 through 29-25 unified, and the last one
+    // anywhere in the tree. It scanned RAW lines for `CLAIM_HEADING_RE` and took each block's END from
+    // the next index in the array it built — a section-extent construct with no fence awareness, and
+    // one the owner classifier could not see on either arm (its recogniser arm requires a literal
+    // space where this one spells `\s+`; its terminator arm never sees a bound consumed thirteen lines
+    // below the recogniser line). `tableUnder`'s recorded argument at :414-448 for why the FIFTH
+    // locator was closed rather than exempted applies here verbatim and is not re-derived.
+    //
+    // The consequence was a fail-open into a safety list: a claim block written inside a FENCED
+    // EXAMPLE parsed as a live `kind: safety` row, entered `safetySurfaceUnion`, and entered the D-18
+    // exclusion list LANG-02 consults to decide which files a controlled-language pass may not touch.
+    //
+    // The START and the END now come from the SAME source — the next member of the same returned
+    // array, falling back to `lines.length` for the last block exactly as before. A block's SPAN may
+    // therefore legally skip OVER a fenced example sitting between two real blocks; the metadata
+    // region is still bounded by the block's OWN first delimiter (see parseClaimBlock), so such an
+    // example cannot donate metadata to the block above it. That is asserted by a case in
+    // scripts/audit-model.test.ts rather than claimed here.
+    const headingIdx = unfencedMatchIndices(text, CLAIM_HEADING_RE);
     if (headingIdx.length === 0) {
         refuse(REGISTRY_PATH, `it carries zero claim blocks. A registry with no claims satisfies D-14's completeness ` +
             `check vacuously — every floor has as many claims as it has, which is none`);

@@ -58,6 +58,13 @@ import {
   REGISTRY_PATH,
   safetyFloorLiveValue,
 } from "./audit-model.js";
+// The ONE fence authority, imported so this file's expected sets are derived through the SAME
+// per-line projection the parser composes — never through a second toggle written here, which would
+// make this harness a fourth fence state machine and defeat its own premise.
+import { fencedLineFlags } from "./frontmatter.js";
+// CR-02's consequence is asserted at its POINT OF EFFECT. A parser-only assertion would leave the
+// exclusion list — the thing LANG-02 actually consults — untested.
+import { safetySurfaceUnion } from "./generate-safety-surface.js";
 
 const REPO_ROOT = join(import.meta.dirname, "..");
 
@@ -1110,5 +1117,207 @@ describe("audit-model: readRegistry", () => {
     ].join("\n");
     const dir = writeRegistryFixture(body);
     expect(() => readRegistry(dir)).toThrow(/line/);
+  });
+});
+
+// ---------------------------------------------------------------------------------------------
+// (Plan 29-28, 29-REVIEW § CR-02) THE REGISTRY'S BLOCK BOUNDARIES COME FROM THE ONE AUTHORITY.
+//
+// `readRegistry` used to scan RAW lines for `CLAIM_HEADING_RE` and take each block's end from the
+// next index in that array — a section-extent construct, fence-blind, and invisible to the owner
+// scan on BOTH of its arms. A claim block written inside a FENCED EXAMPLE therefore parsed as a
+// live `kind: safety` row, entered `safetySurfaceUnion`, and entered the D-18 exclusion list that
+// LANG-02 consults to decide which files a language pass may not touch. Documentation read as live
+// data, in the phase whose founding rule is that it must not be.
+//
+// EVERY CASE BELOW IS TWO-SIDED. A fence-aware locator that flagged EVERYTHING would satisfy the
+// "no phantom row" half and answer nothing correctly, which is the half-fix shape that let three of
+// this phase's defects survive a whole gap-closure round.
+// ---------------------------------------------------------------------------------------------
+describe("audit-model: readRegistry's block boundaries come from the ONE authority (plan 29-28, CR-02)", () => {
+  // The reviewer's fixture (29-REVIEW.md § CR-02), rebuilt with the illustration's outer fence
+  // CLOSED so the document carries an EVEN delimiter count. The reviewer's transcription left the
+  // outer example open, which the unterminated-fence refusal added by this same plan would refuse
+  // for a different reason — and a fixture that fails for the wrong reason proves nothing about the
+  // right one. The SHAPE the review reproduced is preserved exactly: a `### C-28-999` heading and a
+  // full metadata block, written inside a fenced example, with their own delimiter pair inside it.
+  const REAL_ONLY = "The real claim sentence.";
+  function phantomRegistry(): string {
+    return [
+      "# Phase 28 Claim Registry",
+      "",
+      "## Claims",
+      "",
+      "### C-28-001",
+      "",
+      "- file: README.md",
+      "- line: 4",
+      "- kind: architecture",
+      "- depends_on: autonomy",
+      "- status: true",
+      "",
+      FENCE, // 1 — the real claim's fence opens
+      REAL_ONLY,
+      FENCE, // 2 — and closes
+      "",
+      "## How to write a claim block",
+      "",
+      "An example, quoted rather than declared:",
+      "",
+      FENCE, // 3 — the illustration opens
+      "### C-28-999",
+      "",
+      "- file: PHANTOM.md",
+      "- line: 1",
+      "- kind: safety",
+      "- depends_on: autonomy",
+      "- status: true",
+      "",
+      FENCE, // 4
+      "The phantom claim sentence.",
+      FENCE, // 5
+      FENCE, // 6 — the illustration closes
+      "",
+    ].join("\n");
+  }
+
+  it("a claim block written INSIDE a fenced example produces NO row — documentation is not live data", () => {
+    // RED AGAINST THE PRE-FIX BUILD: two rows, the second
+    // {"id":"C-28-999","file":"PHANTOM.md","kind":"safety"} — a safety claim for a file that has no
+    // claim at all, and a file that has never been audited.
+    const dir = writeRegistryFixture(phantomRegistry());
+    const reg = readRegistry(dir);
+    expect(reg.claims.map((c) => c.id)).toEqual(["C-28-001"]);
+    expect(reg.claims[0].verbatim).toBe(REAL_ONLY);
+    // The phantom's FILE is asserted absent by name, not merely the count — a count could be right
+    // for the wrong reason (one row dropped, one gained).
+    expect(reg.claims.map((c) => c.file)).not.toContain("PHANTOM.md");
+  });
+
+  it("the SAME block OUTSIDE a fence DOES produce a row — the other side of fence-awareness", () => {
+    // Without this half a locator that returned NOTHING would pass the case above.
+    const dir = writeRegistryFixture(
+      registryDoc(
+        claimBlock("C-28-001"),
+        claimBlock("C-28-999", { file: "PHANTOM.md", line: "1", kind: "safety" }),
+      ),
+    );
+    const reg = readRegistry(dir);
+    expect(reg.claims.map((c) => c.id)).toEqual(["C-28-001", "C-28-999"]);
+    expect(reg.claims.map((c) => c.file)).toContain("PHANTOM.md");
+  });
+
+  it("a fenced example BETWEEN two real blocks donates NO metadata to the block above it", () => {
+    // The block's SPAN may now legally skip over a fenced example, so the span alone no longer
+    // bounds the metadata region. The METADATA region is still bounded by the block's OWN first
+    // delimiter, which is what stops the example's `- file:` line rewriting the block above it.
+    // Asserted as a case rather than as a sentence in the source.
+    const body = [
+      "# Phase 28 Claim Registry",
+      "",
+      "## Claims",
+      "",
+      "### C-28-001",
+      "",
+      "- file: README.md",
+      "- line: 4",
+      "- kind: architecture",
+      "- depends_on: autonomy",
+      "- status: true",
+      "",
+      FENCE,
+      "The first claim.",
+      FENCE,
+      "",
+      "An illustration between the two real blocks:",
+      "",
+      FENCE,
+      "- file: EVIL.md",
+      "- kind: safety",
+      "- status: true",
+      "### C-28-500",
+      FENCE,
+      "",
+      "### C-28-002",
+      "",
+      "- file: AGENTS.md",
+      "- line: 9",
+      "- kind: architecture",
+      "- depends_on: autonomy",
+      "- status: true",
+      "",
+      FENCE,
+      "The second claim.",
+      FENCE,
+      "",
+    ].join("\n");
+    const reg = readRegistry(writeRegistryFixture(body));
+    expect(reg.claims.map((c) => c.id)).toEqual(["C-28-001", "C-28-002"]);
+    expect(reg.claims[0].file).toBe("README.md");
+    expect(reg.claims[0].verbatim).toBe("The first claim.");
+    expect(reg.claims[1].file).toBe("AGENTS.md");
+    expect(reg.claims[1].verbatim).toBe("The second claim.");
+    expect(reg.claims.map((c) => c.file)).not.toContain("EVIL.md");
+  });
+
+  // ── THE POINT OF EFFECT. `safetySurfaceUnion` is where a fabricated row STOPS being a parse
+  // curiosity and becomes an entry in the D-18 exclusion list — the list LANG-02 consults to decide
+  // which files a controlled-language pass may not reword. Round 3's standing lesson is to move the
+  // gate to the point of effect; a parser-only assertion would leave the union untested. ──────────
+  function unionMirror(registryBody: string): string {
+    const dir = freshTmp("grugops-audit-union-");
+    mkdirSync(join(dir, "docs", "audit"), { recursive: true });
+    writeFileSync(
+      join(dir, REGISTER_PATH),
+      [
+        "# Register",
+        "",
+        "## Table A — audited files",
+        "",
+        TABLE_A_HEADER,
+        TABLE_A_SEP,
+        rowA("agent-factory/roles/r01.md", "role", "yes", "no", "0", "Read in full; no finding."),
+        "",
+        "## Table B — findings",
+        "",
+        TABLE_B_HEADER,
+        TABLE_B_SEP,
+        "",
+      ].join("\n"),
+      "utf8",
+    );
+    writeFileSync(join(dir, REGISTRY_PATH), registryBody, "utf8");
+    return dir;
+  }
+
+  it("the fenced phantom adds NOTHING to safetySurfaceUnion — asserted where the consequence lands", () => {
+    const files = safetySurfaceUnion(unionMirror(phantomRegistry())).map((e) => e.file);
+    expect(files).not.toContain("PHANTOM.md");
+  });
+
+  it("an UNFENCED `kind: safety` claim DOES reach safetySurfaceUnion — the union's other side", () => {
+    // NON-VACUITY: without this half, a union that returned nothing at all would satisfy the case
+    // above. The same file, the same `kind: safety`, moved outside the fence.
+    const files = safetySurfaceUnion(
+      unionMirror(
+        registryDoc(
+          claimBlock("C-28-001"),
+          claimBlock("C-28-999", { file: "PHANTOM.md", line: "1", kind: "safety" }),
+        ),
+      ),
+    ).map((e) => e.file);
+    expect(files).toContain("PHANTOM.md");
+  });
+
+  it("the LIVE registry's claim count equals its INDEPENDENTLY derived unfenced heading count", () => {
+    // The fix closes a ROUTE; it must not move a number on correct bytes. The expected count is
+    // derived here by an expression written separately from the parser's own loop — the parser is
+    // not asked to confirm itself.
+    const text = readFileSync(join(REPO_ROOT, REGISTRY_PATH), "utf8");
+    const lines = text.split("\n");
+    const flags = fencedLineFlags(text);
+    const expected = lines.filter((l, i) => !flags[i] && /^###\s+\S+\s*$/.test(l)).length;
+    expect(expected, "the live registry must carry claim blocks at all").toBeGreaterThan(0);
+    expect(readRegistry(REPO_ROOT).claims.length).toBe(expected);
   });
 });
