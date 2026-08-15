@@ -4,7 +4,12 @@ verified: 2026-08-14T21:15:00Z
 status: gaps_found
 score: 4/8 must-haves verified
 behavior_unverified: 0
-overrides_applied: 0
+overrides_applied: 1
+overrides:
+  - must_have: "LANG-08 — byte ceilings re-baselined exactly once at end of phase, every file <= previous, delta recorded, never raised mid-phase"
+    reason: "Deliberate human decision at plan 29-13's blocking checkpoint (hold-rebaseline): re-deriving the margin from today's smaller corpus would convert Phases 13-27's absorbed headroom into permanent new headroom. The prohibition half (never raised) holds absolutely; the delta is recorded; only the re-baseline action itself was deferred, by choice, not by omission."
+    accepted_by: "Olger Oeselg"
+    accepted_at: "2026-08-15T09:57:04Z"
 gaps:
   - truth: "LANG-03 — a named safety-surface exclusion list is honoured so that load-bearing security, compliance, and admission text is never reworded by a style pass"
     status: failed
