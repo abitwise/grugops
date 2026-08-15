@@ -126,6 +126,10 @@ import { reportMeasured } from "./vacuity.js";
 // root markdown and examples/ a second time here would be a second membership rule over one
 // corpus, which is how two scan sets come to disagree about what a public document is.
 import { publicDocsScan } from "./check-public-docs-vocabulary.js";
+// THE ONE FENCE TOGGLE (plan 29-18, WR-06). `locateExemptRegion` answers two section-extent
+// questions, and this tree answers "is this line inside a fence" in exactly one place. The toggle is
+// consumed here; the delimiter class is NOT re-declared and no second state machine is written.
+import { fencedLineFlags } from "./frontmatter.js";
 
 // CHECK_ROOT override is load-bearing: the Vitest harness builds a hermetic mirror and points
 // CHECK_ROOT at it, then spawns this committed .js against the mirror. When unset, resolve every
@@ -454,13 +458,45 @@ const SAME_LEVEL_HEADING = /^## /;
  * distinguishable only by where the region actually stops. This is the same disclosure phase 27
  * made for the grant-occurrence balance arm — a predicate a case cannot reach is a predicate
  * nothing pins — and it widens no behaviour: the function is unchanged apart from the keyword.
+ *
+ * ------------------------------------------------------------------------------------------------
+ * (Plan 29-18, WR-06) BOTH SECTION-EXTENT QUESTIONS ARE DECIDED BY THE ONE FENCE AUTHORITY.
+ *
+ * This function used to answer two questions — "which line carries the region's own heading" and
+ * "which same-level heading ends the region" — with a bare scan over raw lines, while
+ * `fencedLineFlags` in scripts/frontmatter.ts is the single fence toggle this tree owns and two
+ * sibling gates already consume for exactly this question. A `## ` line inside a fenced example
+ * therefore truncated the region, and a fenced QUOTATION of the region heading counted toward the
+ * exactly-one assertion and refused a correct document. That is a second grammar over bytes the
+ * authority already answers for, which is a defect in this repository even when the two agree.
+ *
+ * WHY THIS IS FIXED THOUGH ITS FAILURE DIRECTION IS SAFE, AND THE ASYMMETRY WITH ITS SIBLING.
+ * A truncated exemption region causes MORE of the document to be checked; a fenced heading turns a
+ * correct document into a NAMED refusal. Both are fail-CLOSED. The sibling locator in
+ * check-diff-disposition answers the same shape of question about a FROZEN region, and truncation
+ * there is fail-OPEN — LESS gets protected. The two are NOT interchangeable, and a reader meeting
+ * both fixes in one round should not have to infer which is which. They are fixed together because
+ * each is one grammar too many; only one of them was ever dangerous.
+ *
+ * NOTHING BELOW IS RELAXED. The two named refusals and the empty-region refusal keep their exact
+ * wording and their fail-closed null return, because they are what this guard already gets right.
+ * No delimiter class is re-declared here and there is no opt-out parameter: an opt-out is a second
+ * grammar with extra steps.
+ * ------------------------------------------------------------------------------------------------
  */
 export function locateExemptRegion(
   lines: readonly string[],
 ): ExemptRegion | null {
+  // The toggle, computed ONCE over the document and consulted by BOTH scans below. Computing it
+  // twice, or fence-guarding only one of the two questions, would recreate the disagreement this
+  // change deletes.
+  const fenced = fencedLineFlags(lines.join("\n"));
+
   const headings: number[] = [];
   for (let i = 0; i < lines.length; i++) {
-    if (lines[i] === BANNED_CLAIM_EXEMPT_REGION.heading) headings.push(i);
+    // Only an UNFENCED occurrence is the region's own heading. A fenced one is a quotation of it.
+    if (!fenced[i] && lines[i] === BANNED_CLAIM_EXEMPT_REGION.heading)
+      headings.push(i);
   }
   if (headings.length !== 1) {
     fail(
@@ -475,7 +511,9 @@ export function locateExemptRegion(
   const headingAt = headings[0];
   let endBefore = lines.length;
   for (let i = headingAt + 1; i < lines.length; i++) {
-    if (SAME_LEVEL_HEADING.test(lines[i])) {
+    // Only an UNFENCED same-level heading can start a sibling section, so only one can end this
+    // region. A `## ` line inside a fenced example is documentation, not structure.
+    if (!fenced[i] && SAME_LEVEL_HEADING.test(lines[i])) {
       endBefore = i;
       break;
     }
