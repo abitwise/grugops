@@ -480,7 +480,7 @@ Plans:
   4. The rebuilt voice guard **fails RED on all 17 current caveman blocks** as acceptance evidence before the rewrite lands, measures against a committed lexicon rather than sentence shape, and publishes a number with a denominator. (LANG-06)
   5. `## One job`, the caveman block, and `## Responsibilities` each say a thing once; `guard_imperative_lexicon` (with its sibling `guard_sentence_form`) and the rebuilt voice guard read the fence through **one** parser, never two grammars over the same bytes; and byte ceilings are re-baselined exactly once at end of phase with every file ≤ its previous value and the delta recorded — never raised mid-phase. (LANG-05, LANG-07, LANG-08)
 
-**Plans**: 29/32 plans executed (19/19 initial; gap-closure round 2 added 7, 29-20 .. 29-26, waves 19-25); **gap-closure round 3 adds 6 (29-27 .. 29-32, waves 26-29), 3 of 6 executed — 29-27, 29-28 and 29-31 landed 2026-08-16; the closures for LANG-06, LANG-03/LANG-07 and LANG-04 all await round-4 re-verification and none of those requirements is re-marked complete here**. Round 3 closes the four truths that failed re-verification on 2026-08-15 (LANG-03, LANG-04, LANG-06, LANG-07) — one of them a fail-open REGRESSION created by round 2's own structural fix.
+**Plans**: 30/32 plans executed (19/19 initial; gap-closure round 2 added 7, 29-20 .. 29-26, waves 19-25); **gap-closure round 3 adds 6 (29-27 .. 29-32, waves 26-29), 4 of 6 executed — 29-27, 29-28, 29-30 and 29-31 landed 2026-08-16; the closures for LANG-06, LANG-03/LANG-07 and LANG-04 all await round-4 re-verification and none of those requirements is re-marked complete here**. Round 3 closes the four truths that failed re-verification on 2026-08-15 (LANG-03, LANG-04, LANG-06, LANG-07) — one of them a fail-open REGRESSION created by round 2's own structural fix.
 
 Plans:
 **Wave 1**
@@ -599,7 +599,7 @@ Plans:
 
 **Wave 28** *(blocked on Wave 27 completion)*
 
-- [ ] 29-30-PLAN.md — LANG-03's registry arm: equality four pins it in both directions (a derived containment for the ADD direction, a sum-floored kind cardinality for the REMOVE direction), the union's residue asserted rather than described at the consumer, and a BOTH-ARMS probe neither single-arm harness could produce
+- [x] 29-30-PLAN.md — LANG-03's registry arm: equality four pins it in both directions (a derived containment for the ADD direction, a sum-floored kind cardinality for the REMOVE direction), the union's residue asserted rather than described at the consumer, and a BOTH-ARMS probe neither single-arm harness could produce
 - [ ] 29-32-PLAN.md — LANG-07 at the consumers: the `-1` drift route deleted and the answer refused by name, "every consumer honours the `-1` contract" turned into a derived two-sided vacuity-floored scan, and the safety exemption's EXTENT published and pinned so variant C1's swallowed section reds even carrying no banned claim
 
 **Wave 29** *(blocked on Wave 28 completion — deliberately last, because its deliverable is a re-derivation over the FINAL tree)*
@@ -765,7 +765,7 @@ Plans:
 | 26. Dogfood, Dual-Path Oracle & A3/DOG-02 Retirement | v2.0 | 6/6 | Complete | 2026-07-24 |
 | 27. Spawn Correctness & Kit-Set Authority | v2.1 | 66/66 | Complete    | 2026-08-11 |
 | 28. Kit Consistency Audit | v2.1 | 8/8 | Complete    | 2026-08-12 |
-| 29. Controlled Language & Voice Guard Rebuild | v2.1 | 29/32 | In Progress|  |
+| 29. Controlled Language & Voice Guard Rebuild | v2.1 | 30/32 | In Progress|  |
 | 30. Per-Checkpoint Autonomy Matrix | v2.1 | 0/TBD | Not started | - |
 | 31. Autonomous Manual Testing | v2.1 | 0/TBD | Not started | - |
 | 32. Board Projector & CLI Dashboard | v2.1 | 0/TBD | Not started | - |
