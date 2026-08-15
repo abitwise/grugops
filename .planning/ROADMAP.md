@@ -480,7 +480,7 @@ Plans:
   4. The rebuilt voice guard **fails RED on all 17 current caveman blocks** as acceptance evidence before the rewrite lands, measures against a committed lexicon rather than sentence shape, and publishes a number with a denominator. (LANG-06)
   5. `## One job`, the caveman block, and `## Responsibilities` each say a thing once; `guard_imperative_lexicon` (with its sibling `guard_sentence_form`) and the rebuilt voice guard read the fence through **one** parser, never two grammars over the same bytes; and byte ceilings are re-baselined exactly once at end of phase with every file ≤ its previous value and the delta recorded — never raised mid-phase. (LANG-05, LANG-07, LANG-08)
 
-**Plans**: 27/32 plans executed — 26/26 executed (19/19 initial; gap-closure round 2 added 7, 29-20 .. 29-26, waves 19-25); **gap-closure round 3 adds 6 (29-27 .. 29-32, waves 26-29), none executed**. Round 3 closes the four truths that failed re-verification on 2026-08-15 (LANG-03, LANG-04, LANG-06, LANG-07) — one of them a fail-open REGRESSION created by round 2's own structural fix.
+**Plans**: 27/32 plans executed (19/19 initial; gap-closure round 2 added 7, 29-20 .. 29-26, waves 19-25); **gap-closure round 3 adds 6 (29-27 .. 29-32, waves 26-29), 1 of 6 executed — 29-27 landed 2026-08-16; LANG-06's closure awaits round-4 re-verification and the requirement is deliberately NOT re-marked complete here**. Round 3 closes the four truths that failed re-verification on 2026-08-15 (LANG-03, LANG-04, LANG-06, LANG-07) — one of them a fail-open REGRESSION created by round 2's own structural fix.
 
 Plans:
 **Wave 1**
