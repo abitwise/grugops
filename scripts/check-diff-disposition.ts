@@ -122,7 +122,11 @@ import { execFileSync } from "node:child_process";
 // diff gate and guard_role_clause_uniqueness must not be able to disagree about what one clause is.
 // NFC normalization happens inside normalizeSentence, first, so two spellings of one clause are one
 // clause here for exactly the reason they are one clause there.
-import { normalizeSentence, segmentClauses } from "./voice-model.js";
+import {
+  normalizeSentence,
+  segmentClauses,
+  CLAUSE_MIN_WORDS,
+} from "./voice-model.js";
 // The ONE element-level vacuity rule (Phase 29 / plan 29-01, AP-1). Folded, never restated.
 import { reportMeasured, type Measured } from "./vacuity.js";
 // The derivation authority for D-01 source (b). listRoles/listWorkflows THROW on an empty or missing
@@ -1066,8 +1070,64 @@ export interface DispositionRow {
 
 const DISPOSITION_HEADING = "## Dispositions";
 const DISPOSITION_COLUMNS = 7;
-/** The unfilled marker every register in this repository uses. A dash is not a companion edit. */
-const UNFILLED = "—";
+
+// ─────────────────────────────────────────────────────────────────────────────────────────────
+// WR-05 — THE CANONICAL FILLED FORM OF A COMPANION CELL, AND WHY THERE IS NO LIST OF BAD SPELLINGS.
+//
+// THE DEFECT THIS REPLACES. The structural arm's satisfaction test was
+// `r.companion !== "" && r.companion !== UNFILLED` — a membership decision made by EXCLUDING ONE BAD
+// VALUE. A cell carrying a hyphen, a double hyphen, an en dash, a question mark, `n/a`, `TBD`,
+// `none` or `todo` is neither empty nor that one em dash, so it satisfied the companion requirement
+// for a change inside a frozen `## Hard limits`, `## Stop conditions` or `## Commit` section. That
+// arm carries the WHOLE positional freeze — the one that catches a REWORD, where the new text
+// matches nothing frozen and only its POSITION does not move — so a placeholder there admitted
+// exactly the change this gate exists to refuse. Measured: eleven of thirteen placeholder spellings
+// exited 0 against the committed build at plan 29-15.
+//
+// THE FIX IS NOT A LONGER LIST OF REJECTED GLYPHS, AND THAT IS THE WHOLE POINT.
+//
+// This repository has closed three separate defects at eight to twelve rounds each by widening a
+// parser or a sentinel set one more time, and each of them ended the same way: a canonical FORM
+// declared, with everything outside it refused (Phase 27 / D-64, and D-43's polarity — declare the
+// LEGAL spelling, refuse the complement, consult no character class). A denylist of placeholder
+// tokens is the enumerate-the-bad shape those closures were spent deleting, and the thirteenth
+// placeholder is the one nobody thinks of. So NO rejected spelling appears anywhere below. The
+// spellings live in scripts/check-diff-disposition.test.ts, where they are WITNESSES that the
+// complement is refused rather than the list the predicate consults.
+//
+// THE FORM. A companion cell's job is stated by the contract in FROZEN_SOURCES: it names the
+// SECTION and the REASON. That is two things, and a cell too short to say two things is not a
+// companion edit whatever glyph it contains. The floor is therefore TWO CLAUSES' worth of words at
+// this repository's own clause floor — `2 * CLAUSE_MIN_WORDS` — DERIVED from voice-model rather
+// than typed, so if the tree's notion of "a unit of prose" ever moves, this moves with it.
+//
+// The measurement that makes the floor safe to adopt, taken before the edit and re-derived after:
+// across the 1532 rows of the live disposition register the smallest companion cell that is not a
+// placeholder is 12 normalized words, and the smallest one standing on any of the 230 live
+// structural intersections is 20. Every placeholder spelling normalizes to at most ONE word. The
+// floor sits strictly between those two bands, so the placeholder class is refused BY CONSTRUCTION
+// and not one existing human judgement is disturbed.
+// ─────────────────────────────────────────────────────────────────────────────────────────────
+
+/**
+ * The canonical filled form's length floor, in normalized words.
+ *
+ * DERIVED, never typed: a companion cell names the section AND the reason, which is two clauses, and
+ * CLAUSE_MIN_WORDS is what this tree already calls one clause's worth of prose.
+ */
+export const COMPANION_MIN_WORDS = 2 * CLAUSE_MIN_WORDS;
+
+/**
+ * Whether a companion cell is FILLED — the entire companion predicate for the structural arm.
+ *
+ * Measured through normalizeSentence, which is already this gate's one notion of what a word is on
+ * both sides of every other comparison it makes. A second tokenizer here would be a second grammar
+ * over the same bytes, in the file whose founding rule is that a predicate has one authority.
+ */
+export function isCompanionFilled(cell: string): boolean {
+  const words = normalizeSentence(cell).split(" ").filter(Boolean);
+  return words.length >= COMPANION_MIN_WORDS;
+}
 
 /** Split a markdown table line into trimmed cells, dropping the empty edges the pipes create. */
 function tableCells(line: string): string[] {
@@ -1413,9 +1473,15 @@ function main(): void {
       // disposition-row cell rather than a file, and which this plan deliberately does not touch.
       let attributedTo: readonly Carrier[] = [];
       if (source === "structuralSections") {
-        satisfied = rows.some(
-          (r) => r.companion !== "" && r.companion !== UNFILLED,
-        );
+        // WR-05. The satisfaction test is the CANONICAL FILLED FORM and nothing else: no sentinel
+        // is excluded and no spelling is enumerated, so a placeholder is refused by construction
+        // rather than by having been thought of. See isCompanionFilled for the argument in full.
+        satisfied = rows.some((r) => isCompanionFilled(r.companion));
+        owed =
+          `${owed} — at least ${COMPANION_MIN_WORDS} normalized words, which is the canonical ` +
+          `filled form. A cell too short to name both the section and the reason is not a ` +
+          `companion edit whatever glyph it carries, and there is no placeholder spelling that ` +
+          `satisfies this`;
       } else {
         // Per CARRIER, not per range. The companion set for the registry arm is one declared
         // constant; for the positive-literal arm it is DERIVED from the literal sites rather than

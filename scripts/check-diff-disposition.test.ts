@@ -57,6 +57,9 @@ import {
   locateSection,
   touchedLines,
   WORKING_TREE_CARRIER,
+  COMPANION_MIN_WORDS,
+  isCompanionFilled,
+  readDispositionRows,
 } from "./check-diff-disposition.js";
 import {
   listRoles,
@@ -809,6 +812,114 @@ describe("check-diff-disposition — a companion cell is filled in ONE canonical
     // The fold ran over real elements — this is not the clean-tree arm.
     expect(stdout).toContain("diff disposition: 0 findings over");
     expect(stdout).not.toContain("a clean tree, not a vacuous pass");
+  });
+
+  // ── The boundary, asserted from BOTH sides ─────────────────────────────────────────────────
+  //
+  // A floor asserted only from the accepting side is satisfied by a predicate that accepts
+  // everything, which is the predicate this section replaced. Both cells are GENERATED from the
+  // exported constant rather than typed at a length, so the pair moves with the floor instead of
+  // silently becoming two arbitrary strings the first time the floor changes.
+
+  /** A cell of exactly `n` normalized words. Premise asserted at each call site. */
+  const cellOfWords = (n: number): string =>
+    Array.from({ length: n }, (_, i) => `word${i}`).join(" ");
+
+  it("accepts a companion cell of EXACTLY the minimum word count", () => {
+    const cell = cellOfWords(COMPANION_MIN_WORDS);
+    // The case's own premise: the generated cell really is at the floor, measured the way the
+    // predicate measures it.
+    expect(normalizeSentence(cell).split(" ").filter(Boolean).length).toBe(
+      COMPANION_MIN_WORDS,
+    );
+    expect(isCompanionFilled(cell)).toBe(true);
+
+    const { root } = makeMirror("gops-diffdisp-companion-atfloor-", {
+      plant: { [ROLE_UNDER_TEST]: REWORDED_ROLE },
+      dispositions: {
+        "29-05.md": dispositionFile([
+          row(ROLE_UNDER_TEST, HARD_LIMIT_SENTENCE, REWORDED_HARD_LIMIT, cell),
+        ]),
+      },
+    });
+    const { status, stdout } = runGate(root);
+    expect(status).toBe(0);
+    expect(stdout).toContain("ALL CHECKS PASSED");
+  });
+
+  it("refuses a companion cell ONE word shorter than the minimum", () => {
+    const cell = cellOfWords(COMPANION_MIN_WORDS - 1);
+    expect(normalizeSentence(cell).split(" ").filter(Boolean).length).toBe(
+      COMPANION_MIN_WORDS - 1,
+    );
+    expect(isCompanionFilled(cell)).toBe(false);
+
+    const { root } = makeMirror("gops-diffdisp-companion-belowfloor-", {
+      plant: { [ROLE_UNDER_TEST]: REWORDED_ROLE },
+      dispositions: {
+        "29-05.md": dispositionFile([
+          row(ROLE_UNDER_TEST, HARD_LIMIT_SENTENCE, REWORDED_HARD_LIMIT, cell),
+        ]),
+      },
+    });
+    const { status, stdout } = runGate(root);
+    expect(stdout).not.toContain("ALL CHECKS PASSED");
+    expect(status).toBe(1);
+    expect(stdout).toContain("FROZEN by structuralSections");
+    // The finding tells the author what the canonical form is, so the remedy is not a guess.
+    expect(stdout).toContain(`${COMPANION_MIN_WORDS} normalized words`);
+  });
+
+  it("surrounding whitespace changes nothing — the form is measured, not matched", () => {
+    // The markdown table reader trims every cell, so a padded placeholder and a bare one arrive
+    // here identically. Asserted rather than assumed, because "with or without spaces" is the
+    // clause the behaviour block promises and a trim is what makes it true.
+    for (const { cell } of PLACEHOLDER_COMPANION_CELLS) {
+      expect(isCompanionFilled(cell)).toBe(false);
+      expect(isCompanionFilled(`  ${cell}  `)).toBe(false);
+    }
+    expect(isCompanionFilled(REAL_COMPANION_PROSE)).toBe(true);
+    expect(isCompanionFilled(`   ${REAL_COMPANION_PROSE}   `)).toBe(true);
+  });
+
+  it("leaves the LIVE disposition register undisturbed — no cell sits in the middle band", () => {
+    // THE FALSE-RED CONTROL WITH TEETH, over the real register rather than a fixture.
+    //
+    // A floor is only safe to adopt if the live register's cells are nowhere near it. Every
+    // companion cell written by a human in this phase must fall clearly on one side: either it is
+    // a PLACEHOLDER, which normalizes to at most one word, or it is PROSE that clears the floor.
+    // A cell in between would mean this edit changed a human judgement that was already made, and
+    // that is what re-auditing 230 structural intersections would cost.
+    const { rows, refusals } = readDispositionRows(REPO);
+    expect(refusals).toEqual([]);
+    // Non-vacuity: an empty register would satisfy the partition below trivially.
+    expect(rows.length).toBeGreaterThan(0);
+
+    const middleBand: string[] = [];
+    let placeholders = 0;
+    let filled = 0;
+    let smallestFilled = Number.POSITIVE_INFINITY;
+    for (const r of rows) {
+      const words = normalizeSentence(r.companion)
+        .split(" ")
+        .filter(Boolean).length;
+      if (isCompanionFilled(r.companion)) {
+        filled += 1;
+        smallestFilled = Math.min(smallestFilled, words);
+      } else if (words <= 1) {
+        placeholders += 1;
+      } else {
+        middleBand.push(`${r.source}: ${JSON.stringify(r.companion)} (${words} words)`);
+      }
+    }
+    // Named, never merely counted: a partition failure that names no member is unactionable.
+    expect(middleBand).toEqual([]);
+    // Both halves are non-empty, or the partition proves nothing about either side.
+    expect(placeholders).toBeGreaterThan(0);
+    expect(filled).toBeGreaterThan(0);
+    // The MARGIN, derived on both sides rather than pinned as a literal: the smallest prose cell a
+    // human actually wrote clears the floor with room, so no judgement sits on the boundary.
+    expect(smallestFilled).toBeGreaterThan(COMPANION_MIN_WORDS);
   });
 });
 
