@@ -480,7 +480,7 @@ Plans:
   4. The rebuilt voice guard **fails RED on all 17 current caveman blocks** as acceptance evidence before the rewrite lands, measures against a committed lexicon rather than sentence shape, and publishes a number with a denominator. (LANG-06)
   5. `## One job`, the caveman block, and `## Responsibilities` each say a thing once; `guard_imperative_lexicon` (with its sibling `guard_sentence_form`) and the rebuilt voice guard read the fence through **one** parser, never two grammars over the same bytes; and byte ceilings are re-baselined exactly once at end of phase with every file ≤ its previous value and the delta recorded — never raised mid-phase. (LANG-05, LANG-07, LANG-08)
 
-**Plans**: 26/26 plans executed — 19/19 executed; gap-closure round 2 adds 7 (29-20 .. 29-26, waves 19-25)
+**Plans**: 32 plans — 26/26 executed (19/19 initial; gap-closure round 2 added 7, 29-20 .. 29-26, waves 19-25); **gap-closure round 3 adds 6 (29-27 .. 29-32, waves 26-29), none executed**. Round 3 closes the four truths that failed re-verification on 2026-08-15 (LANG-03, LANG-04, LANG-06, LANG-07) — one of them a fail-open REGRESSION created by round 2's own structural fix.
 
 Plans:
 **Wave 1**
@@ -587,6 +587,24 @@ Plans:
 **Wave 25** *(blocked on Wave 24 completion)*
 
 - [x] 29-26-PLAN.md — adversarial closure: a parser oracle over the unified authority across a derived, counted axis cross-product, independent re-reproduction of every original recipe plus variants invented at execution, a re-runnable audit transcript, and a blocking human decision on the residual set
+
+**Wave 26** *(gap-closure round 3 — blocked on Wave 25 completion)*
+
+- [ ] 29-27-PLAN.md — TRACER, LANG-06: the founding defect reopened by round 2's own fix. `readCavemanFence`'s bound taken from the ONE authority over a delimiter-neutralised projection, so the fence being measured cannot extend its own section; `guard_voice` folded through `reportMeasured` and publishing the scanned line count per file; the module's cost paragraph corrected in the same commit; and a whole-gate UNION case proving both halves together
+
+**Wave 27** *(blocked on Wave 26 completion)*
+
+- [ ] 29-28-PLAN.md — LANG-03 + LANG-07's SHARED ROOT, planned once: `unfencedMatchIndices` added to the authority, `readRegistry`'s heading index and block end both taken from it so a fenced example is documentation again, `parseClaimBlock`'s private fence recogniser deleted, and the new scope hazard the fix creates (an unterminated fence silently shortening the claim list) closed by a named refusal in the same plan that opens it
+- [ ] 29-31-PLAN.md — LANG-04: WP-11 narrowed to the spelling the gate decides, with the reason and the residual recorded in the profile; the WHOLE rule pinned in both artifacts and proven falsifiable on all four drift routes; and the remaining floor given a two-sided tripwire instead of a promise
+
+**Wave 28** *(blocked on Wave 27 completion)*
+
+- [ ] 29-30-PLAN.md — LANG-03's registry arm: equality four pins it in both directions (a derived containment for the ADD direction, a sum-floored kind cardinality for the REMOVE direction), the union's residue asserted rather than described at the consumer, and a BOTH-ARMS probe neither single-arm harness could produce
+- [ ] 29-32-PLAN.md — LANG-07 at the consumers: the `-1` drift route deleted and the answer refused by name, "every consumer honours the `-1` contract" turned into a derived two-sided vacuity-floored scan, and the safety exemption's EXTENT published and pinned so variant C1's swallowed section reds even carrying no banned claim
+
+**Wave 29** *(blocked on Wave 28 completion — deliberately last, because its deliverable is a re-derivation over the FINAL tree)*
+
+- [ ] 29-29-PLAN.md — LANG-07's harness: the owner classifier widened to the shape its own floor item 4 wrongly said nothing used, floor item 4 corrected, `SECTION_EXTENT_OWNERS` re-derived over the final tree with a before/after pair; the oracle's vacuous I5 made reachable with per-invariant REACH counts derived independently and a third broken locator proving it can fail; and the duplicate-assertion tripwire's multi-line share published and pinned
 
 **GAP-CLOSURE ROUND 2 IS REOPENED, NOT CLOSED** *(human decision, Olger Oeselg, 2026-08-15, at plan
 29-26's blocking checkpoint: `reopen-for-survivors`)*. All 26 plans are executed, and **26/26 executed
