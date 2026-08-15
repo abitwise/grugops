@@ -29,6 +29,16 @@ import { ROLE_COUNT, WORKFLOW_COUNT } from "./kit-model.js";
 import { REGISTER_PATH, REGISTRY_PATH, readRegister, readRegistry } from "./audit-model.js";
 import { PROTOCOL_FILE } from "./audit-prepass.js";
 import { renderSafetySurface, OUT } from "./generate-safety-surface.js";
+// (Plan 29-30) The gate this file's freshness-guard cases SPAWN now pins the registry arm's roster
+// and per-kind cardinality (equality four), so a mirror carrying one claim is a shape the shipped
+// artifact is not and reds for a reason no case here is about. The fixture is DERIVED from those
+// declarations rather than transcribed a third time: the drift pin between the literals and the
+// gate lives in check-audit-register.test.ts, which is also where the perturbation probes live, and
+// a second hand-copy here would be the set-literal drift class with no probe over it.
+import {
+  CLAIM_KIND_CARDINALITY,
+  SAFETY_CLAIM_HOMES,
+} from "./check-audit-register.js";
 
 const REPO_ROOT = join(import.meta.dirname, "..");
 const GATE_JS = join(REPO_ROOT, "scripts", "check-audit-register.js");
@@ -123,6 +133,27 @@ function defaultRows(safety = "yes"): RowSpec[] {
 }
 
 /**
+ * The claim set the spawned gate accepts: the safety arm's declared roster plus filler claims that
+ * make up each remaining kind's declared cardinality. Filler ids start at 101 so they can never
+ * collide with a roster id, whatever the roster becomes.
+ */
+function defaultClaims(): ClaimSpec[] {
+  const out: ClaimSpec[] = SAFETY_CLAIM_HOMES.map((h) => ({
+    id: h.claim,
+    file: h.file,
+    kind: "safety",
+  }));
+  let n = 101;
+  for (const entry of CLAIM_KIND_CARDINALITY) {
+    if (entry.kind === "safety") continue;
+    for (let i = 0; i < entry.count; i++) {
+      out.push({ id: `C-28-${n++}`, file: "README.md", kind: entry.kind });
+    }
+  }
+  return out;
+}
+
+/**
  * A mirror carrying the kit shape, a register, a registry, and — unless told otherwise — an
  * exclusion list generated FROM that mirror, so the freshness guard sees a fresh pair.
  */
@@ -133,11 +164,17 @@ function buildMirror(opts: {
   exclusions?: string | null;
 }): string {
   const rows = opts.rows ?? defaultRows();
-  const claims = opts.claims ?? [{ id: "C-28-001", file: "README.md", kind: "safety" }];
+  const claims = opts.claims ?? defaultClaims();
   const dir = freshTmp("grugops-safety-surface-");
   mkdirSync(join(dir, "agent-factory", "roles"), { recursive: true });
   mkdirSync(join(dir, "agent-factory", "workflows"), { recursive: true });
   mkdirSync(join(dir, "docs", "audit"), { recursive: true });
+  // The public documents the safety arm's roster names, so `publicDocsScan()` vouches for them on
+  // the mirror as it does live. Without them equality four's containment arm reds on every case.
+  for (const doc of SAFETY_CLAIM_HOMES.map((h) => h.file).filter((f) => f.endsWith(".md"))) {
+    mkdirSync(join(dir, doc, ".."), { recursive: true });
+    writeFileSync(join(dir, doc), `# Mirror ${doc}\n`);
+  }
   for (const r of rows) {
     mkdirSync(join(dir, r.file, ".."), { recursive: true });
     writeFileSync(join(dir, r.file), "x");

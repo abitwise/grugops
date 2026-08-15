@@ -31,6 +31,7 @@ import { PROTOCOL_FILE } from "./audit-prepass.js";
 import { publicDocsScan } from "./check-public-docs-vocabulary.js";
 import {
   CLAIM_KIND_CARDINALITY,
+  SAFETY_CLAIM_HOMES,
   registryArmFindings,
 } from "./check-audit-register.js";
 import {
@@ -53,22 +54,34 @@ import {
 // moves, so every perturbation probe below would plant a mutation and measure nothing. The two
 // numbers are tied together instead by an explicit case ("the mirror's distribution equals the
 // declared map"), which makes drift loud rather than silent.
-const MIRROR_SAFETY_CLAIMS = 6;
 const MIRROR_ARCHITECTURE_CLAIMS = 28;
 const MIRROR_INSTALL_CLAIMS = 8;
+
+/**
+ * The SAFETY ARM, spelled out exactly as the live registry carries it. The gate pins this roster
+ * two-sided, so a mirror that invented its own ids and homes would red for a reason no case here is
+ * about — and it could not express the count-preserving REHOME the adversarial pass found either.
+ */
+const MIRROR_SAFETY_HOMES: readonly { claim: string; file: string }[] = [
+  { claim: "C-28-001", file: "README.md" },
+  { claim: "C-28-010", file: "AGENTS.md" },
+  { claim: "C-28-018", file: "AGENTS.md" },
+  { claim: "C-28-023", file: "agent-factory/README.md" },
+  { claim: "C-28-032", file: "agent-factory/README.md" },
+  { claim: "C-28-038", file: ".claude-plugin/plugin.json" },
+];
+const MIRROR_SAFETY_CLAIMS = MIRROR_SAFETY_HOMES.length;
 
 /** A root markdown file, so `publicDocsScan()` vouches for it on the mirror as it does live. */
 const MIRROR_ROOT_DOC = "README.md";
 /**
- * A second root markdown file carrying EXACTLY ONE claim in the whole fixture, and that claim is
- * `kind: safety`. It is the mirror's stand-in for the live `README.md` in round 3's WR-06 recipe:
- * flipping its one cell is the only way a file can LEAVE the union, and a home that also hosts
- * architecture or install claims could never express that.
+ * The home carrying EXACTLY ONE safety claim, so flipping that one cell is the only way a file can
+ * LEAVE the union. It is `README.md` on the live tree, which is why round 3's WR-06 recipe used it.
  */
-const MIRROR_SOLE_DOC = "AGENTS.md";
-/** A DERIVED KIT file — the other derivation that may vouch for a safety claim's home. */
-const MIRROR_KIT_DOC = "agent-factory/roles/role-01.md";
-/** The one non-markdown member: no derivation is markdown-blind, so it is declared by name. */
+const MIRROR_SOLE_DOC = "README.md";
+/** The markdown documents the mirror must carry for `publicDocsScan()` to vouch for the arm. */
+const MIRROR_PUBLIC_DOCS = ["README.md", "AGENTS.md", "agent-factory/README.md"];
+/** The one non-markdown member: both derivations are markdown-blind, so it is declared by name. */
 const MIRROR_NON_MARKDOWN = ".claude-plugin/plugin.json";
 
 interface ClaimSpec {
@@ -84,26 +97,17 @@ interface ClaimSpec {
  */
 function defaultClaims(): ClaimSpec[] {
   const out: ClaimSpec[] = [];
-  const push = (file: string, kind: string): void => {
-    out.push({ id: `C-28-${String(out.length + 1).padStart(3, "0")}`, file, kind });
-  };
-  const safetyHomes = [
-    MIRROR_ROOT_DOC,
-    MIRROR_SOLE_DOC,
-    MIRROR_KIT_DOC,
-    MIRROR_KIT_DOC,
-    MIRROR_NON_MARKDOWN,
-    MIRROR_NON_MARKDOWN,
-  ];
-  if (safetyHomes.length !== MIRROR_SAFETY_CLAIMS) {
-    throw new Error(
-      `harness premise: the safety arm names ${safetyHomes.length} home(s) but the fixture ` +
-        `declares ${MIRROR_SAFETY_CLAIMS} safety claim(s)`,
-    );
+  for (const h of MIRROR_SAFETY_HOMES) out.push({ id: h.claim, file: h.file, kind: "safety" });
+  // The filler ids start at 101 so they can never collide with a roster id, whatever the roster
+  // becomes. A colliding id would be a duplicate-claim parse refusal, which is a red for a reason
+  // no case here is about.
+  let n = 101;
+  for (let i = 0; i < MIRROR_ARCHITECTURE_CLAIMS; i++) {
+    out.push({ id: `C-28-${n++}`, file: MIRROR_ROOT_DOC, kind: "architecture" });
   }
-  for (const home of safetyHomes) push(home, "safety");
-  for (let i = 0; i < MIRROR_ARCHITECTURE_CLAIMS; i++) push(MIRROR_ROOT_DOC, "architecture");
-  for (let i = 0; i < MIRROR_INSTALL_CLAIMS; i++) push(MIRROR_ROOT_DOC, "install");
+  for (let i = 0; i < MIRROR_INSTALL_CLAIMS; i++) {
+    out.push({ id: `C-28-${n++}`, file: MIRROR_ROOT_DOC, kind: "install" });
+  }
   return out;
 }
 
@@ -229,8 +233,10 @@ function buildMirror(
   // A root markdown document, so the mirror's `publicDocsScan()` has a member exactly as the live
   // tree does. Without it the vouching derivation is empty on every mirror and equality four's
   // containment arm would red for a reason no case here is about.
-  writeFileSync(join(dir, MIRROR_ROOT_DOC), "# Mirror\n");
-  writeFileSync(join(dir, MIRROR_SOLE_DOC), "# Mirror substrate\n");
+  for (const doc of MIRROR_PUBLIC_DOCS) {
+    mkdirSync(join(dir, doc, ".."), { recursive: true });
+    writeFileSync(join(dir, doc), `# Mirror ${doc}\n`);
+  }
   for (let i = 1; i <= ROLE_COUNT; i++) {
     writeFileSync(join(dir, "agent-factory", "roles", `role-${String(i).padStart(2, "0")}.md`), "x");
   }
@@ -550,9 +556,16 @@ const claimsWith = (
 ): ClaimSpec[] => base.map((c, i) => (i === index ? { ...c, ...patch } : c));
 
 const indexOfSoleSafetyClaim = (claims: readonly ClaimSpec[]): number => {
-  const i = claims.findIndex((c) => c.file === MIRROR_SOLE_DOC);
-  if (i < 0) throw new Error("harness premise: the fixture carries no sole-claim document");
-  return i;
+  const hits = claims
+    .map((c, i) => (c.kind === "safety" && c.file === MIRROR_SOLE_DOC ? i : -1))
+    .filter((i) => i >= 0);
+  if (hits.length !== 1) {
+    throw new Error(
+      `harness premise: ${MIRROR_SOLE_DOC} must host EXACTLY ONE safety claim for a flip to remove ` +
+        `it from the union, but the fixture gives it ${hits.length}`,
+    );
+  }
+  return hits[0];
 };
 
 /** The registry arm as the union derives it, measured through the ONE derivation. */
@@ -592,6 +605,56 @@ describe("check-audit-register: equality four — the REGISTRY arm (round-3 WR-0
     expect(CLAIM_KIND_CARDINALITY.reduce((n, c) => n + c.count, 0)).toBe(
       readRegistry(REPO_ROOT).claims.length,
     );
+  });
+
+  it("the fixture's safety roster is the one the gate declares — a drift pin, not a derivation", () => {
+    expect(MIRROR_SAFETY_HOMES.map((h) => `${h.claim} -> ${h.file}`).sort()).toEqual(
+      SAFETY_CLAIM_HOMES.map((h) => `${h.claim} -> ${h.file}`).sort(),
+    );
+  });
+
+  it("the LIVE registry's safety arm equals the declared roster, in BOTH directions", () => {
+    const live = readRegistry(REPO_ROOT)
+      .claims.filter((c) => c.kind === "safety")
+      .map((c) => `${c.id} -> ${c.file}`)
+      .sort();
+    expect(live).toEqual(SAFETY_CLAIM_HOMES.map((h) => `${h.claim} -> ${h.file}`).sort());
+  });
+
+  it("REDs a REHOMED safety claim — the count-preserving move a cardinality is BLIND to", () => {
+    // THE BYPASS THE MANDATED ADVERSARIAL PASS FOUND AGAINST THIS PLAN'S OWN FIRST FIX. Rehome a
+    // `kind: safety` claim from README.md to another VOUCHED public document and every count is
+    // preserved — 6 safety claims before and after, 3 markdown residue members before and after —
+    // while README.md leaves the D-18 exclusion list. Measured against the cardinality-only build:
+    // all seven gates exited 0.
+    const control = defaultClaims();
+    const at = indexOfSoleSafetyClaim(control);
+    const REHOMED_TO = "AGENTS.md"; // already on the arm AND vouched: no other check can see it
+    const rehomed = claimsWith(control, at, { file: REHOMED_TO });
+
+    const controlDir = buildMirror(defaultRows(), [], undefined, control);
+    const rehomedDir = buildMirror(defaultRows(), [], undefined, rehomed);
+
+    // ── PREMISE 1 — every COUNT this gate holds is preserved, so the roster is the only thing that
+    //    can speak. This is the assertion that makes the case a statement about membership.
+    expect(kindCountsOf(rehomedDir)).toEqual(kindCountsOf(controlDir));
+
+    // ── PREMISE 2 — and the plant is real AT THE POINT OF EFFECT: the old home left the union.
+    expect(unionOf(controlDir)).toContain(MIRROR_SOLE_DOC);
+    expect(unionOf(rehomedDir)).not.toContain(MIRROR_SOLE_DOC);
+
+    // ── PREMISE 3 — the new home is VOUCHED, so layer one is silent by construction.
+    expect(publicDocsScan()).toContain(REHOMED_TO);
+
+    expect(runGate(controlDir).status).toBe(0);
+    const r = runGate(rehomedDir);
+    expect(r.status).toBe(1);
+    expect(r.out).toMatch(/equality four \(safety arm roster\)/);
+    expect(r.out).toContain(`${control[at].id} -> ${MIRROR_SOLE_DOC}`);
+    expect(r.out).toContain(`${control[at].id} -> ${REHOMED_TO}`);
+    // The cardinality is SILENT here, which is the whole point of the case.
+    expect(r.out).not.toMatch(/equality four \(kind cardinality\)/);
+    expect(r.out).not.toMatch(/equality four \(safety claim NOT vouched for\)/);
   });
 
   it("REDs a ONE-CELL `kind: safety` flip, naming the kind — round 3's exact WR-06 recipe", () => {
@@ -701,6 +764,75 @@ describe("check-audit-register: equality four — the REGISTRY arm (round-3 WR-0
     expect(r.out).toMatch(/equality four \(the registry arm is EMPTY\)/);
   });
 
+  it("THE BOTH-ARMS PROBE: one cell of EACH arm moves at once, and BOTH are named", () => {
+    // THE CASE NEITHER SINGLE-ARM HARNESS COULD HAVE PRODUCED. Round 3's finding is that two pins
+    // covering one arm read as coverage. A gate that reported only the first arm it met would pass
+    // every single-arm case in this file and still leave the second arm's drift invisible in
+    // exactly the arrangement a real narrowing edit takes.
+    const REGISTER_FLIP = "agent-factory/roles/role-07.md";
+    const rows = defaultRows().map((r) =>
+      r.file === REGISTER_FLIP ? { ...r, safety: "no" } : r,
+    );
+    const control = defaultClaims();
+    const at = indexOfSoleSafetyClaim(control);
+    const claims = claimsWith(control, at, { kind: "architecture" });
+    const dir = buildMirror(rows, [], undefined, claims);
+
+    // ── PREMISE — BOTH plants landed, each measured at its own point of effect.
+    const union = unionOf(dir);
+    expect(union).not.toContain(REGISTER_FLIP); // register arm moved
+    expect(union).not.toContain(MIRROR_SOLE_DOC); // registry arm moved
+
+    const r = runGate(dir);
+    expect(r.status).toBe(1);
+
+    // THE FINDING COUNT IS THE ASSERTION, not merely the presence of one message.
+    const findings = r.out.split("\n").filter((l) => l.trimStart().startsWith("FAIL "));
+    expect(findings.length).toBeGreaterThanOrEqual(2);
+    expect(findings.some((f) => f.includes("equality three (derived but NOT flagged)"))).toBe(true);
+    expect(findings.some((f) => f.includes("equality four (kind cardinality)"))).toBe(true);
+    // The PUBLISHED count and the findings actually printed are the same number — a tally that
+    // disagreed with its own list would be a number a reader cannot reconcile.
+    expect(r.out).toContain(`${findings.length} CHECK(S) FAILED`);
+
+    // AND THE COUNT ASSERTION IS PROVEN TO BE DOING WORK. An early-returning gate's observable
+    // output is its FIRST finding alone — the single-arm shape every case above accepts — and this
+    // assertion must reject it.
+    expect(() => expect(findings.slice(0, 1).length).toBeGreaterThanOrEqual(2)).toThrow();
+  });
+
+  it("EVERY PREMISE ABOVE IS SHOWN FAILING on a no-op plant — a vacuous plant proves nothing", () => {
+    // The recorded first-draft failure at check-foundation-guards.test.ts:5068, and this
+    // repository's SEVENTH harness-premise failure in this phase alone. A case whose plant changed
+    // nothing passes for the wrong reason, so each premise the cases above rest on is driven once
+    // against an unmutated fixture and required to THROW.
+    const control = defaultClaims();
+    const at = indexOfSoleSafetyClaim(control);
+    const noop = claimsWith(control, at, { kind: "safety" }); // the SAME kind — a no-op
+    const controlDir = buildMirror(defaultRows(), [], undefined, control);
+    const noopDir = buildMirror(defaultRows(), [], undefined, noop);
+
+    // The flip case's PREMISE 1: "exactly one cell moved".
+    expect(() =>
+      expect(noop.filter((c, i) => c.kind !== control[i].kind).map((c) => c.id)).toEqual([
+        control[at].id,
+      ]),
+    ).toThrow();
+    // The flip case's PREMISE 2: "the file really leaves the union".
+    expect(() => expect(unionOf(noopDir)).not.toContain(MIRROR_SOLE_DOC)).toThrow();
+    expect(() =>
+      expect(unionOf(noopDir).length).toBe(unionOf(controlDir).length - 1),
+    ).toThrow();
+    // The per-kind probe's PREMISE: "the derived count for THIS kind moved by one".
+    for (const declared of CLAIM_KIND_CARDINALITY) {
+      expect(() =>
+        expect(kindCountsOf(noopDir)[declared.kind] ?? 0).toBe(declared.count - 1),
+      ).toThrow();
+    }
+    // And the no-op mirror is GREEN, which is the other half of the same statement.
+    expect(runGate(noopDir).status).toBe(0);
+  });
+
   it("the PASS line PUBLISHES the registry arm's size beside the register arm's", () => {
     const r = runGate(buildMirror());
     expect(r.status).toBe(0);
@@ -733,6 +865,7 @@ describe("check-audit-register: equality four's declared map cannot silently go 
         claims: liveClaims,
         vouched,
         cardinality: CLAIM_KIND_CARDINALITY,
+        roster: SAFETY_CLAIM_HOMES,
       }),
     ).toEqual([]);
   });
@@ -744,6 +877,7 @@ describe("check-audit-register: equality four's declared map cannot silently go 
         claims: liveClaims,
         vouched,
         cardinality: short,
+        roster: SAFETY_CLAIM_HOMES,
       });
       const sum = findings.filter((f) => /the declared kind map is SHORT/.test(f));
       expect(sum.length, dropped.kind).toBe(1);
@@ -759,6 +893,7 @@ describe("check-audit-register: equality four's declared map cannot silently go 
       claims: liveClaims,
       vouched,
       cardinality: short,
+        roster: SAFETY_CLAIM_HOMES,
     });
     expect(findings.some((f) => /omits a legal kind/.test(f))).toBe(true);
     expect(findings.some((f) => /install/.test(f))).toBe(true);
@@ -783,6 +918,7 @@ describe("check-audit-register: equality four's declared map cannot silently go 
       claims: planted,
       vouched,
       cardinality: CLAIM_KIND_CARDINALITY,
+        roster: SAFETY_CLAIM_HOMES,
     });
     expect(findings.length).toBeGreaterThanOrEqual(2);
     expect(findings.some((f) => /kind cardinality/.test(f))).toBe(true);

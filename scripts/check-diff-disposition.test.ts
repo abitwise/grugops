@@ -2067,6 +2067,89 @@ describe("check-diff-disposition — WR-06: the union's residue is asserted, not
     ]);
   });
 
+  it("REDs the LONG direction — a NEW `kind: safety` claim widening the arm is a red too", () => {
+    // The count is two-sided on purpose. A `kind: safety` row added for a file no derivation
+    // vouches for widens the D-18 exclusion list, and check-audit-register's equality four names it
+    // at the source; here it moves the residue's registry contribution the other way. Both ends
+    // speak, and neither number absorbs the other's drift.
+    const STRAY = "docs/stray-claim-home.md";
+    const widened = `${REGISTRY_AS_COMMITTED}\n### C-28-900\n\n- file: ${STRAY}\n- line: 1\n- kind: safety\n- depends_on: autonomy\n- status: true\n- mechanism: measured against the live config value.\n\n\`\`\`\nA planted sentence.\n\`\`\`\n`;
+    const { root } = makeMirror("gops-diffdisp-wr06-long-", {
+      baseCorpus: { [REGISTRY_REL]: widened },
+    });
+    writeFileSync(join(root, STRAY), "# Stray\n");
+
+    // ── PREMISE — the plant really widened the arm by one, read back through the parse authority.
+    expect(registryArmMdOf(root)).toEqual([...registryArmMdOf(REPO), STRAY].sort());
+
+    const { status, stdout } = runGate(root);
+    expect(status).toBe(1);
+    expect(stdout).toContain("the registry arm's contribution");
+    expect(stdout).toContain(
+      `${RESIDUE_FROM_REGISTRY_COUNT + 1} markdown file(s), expected exactly ${RESIDUE_FROM_REGISTRY_COUNT}`,
+    );
+    expect(stdout).toContain(STRAY);
+  });
+
+  it("REDs the UNCOUNTED protocol row flipped `yes` → `no` — a hole no other gate covers", () => {
+    // FOUND BY THE MANDATED ADVERSARIAL PASS. `_role-switch-protocol.md` is watched by REGISTER
+    // reason alone: `listRoles()` drops underscore-prefixed entries by derivation, so it is not a
+    // derived kit file and containment cannot cover it, and check-audit-register's equality three
+    // constrains only COUNTED rows. Measured against the pre-plan build, flipping this one cell
+    // removed the role-switch protocol's admission text from this gate with every gate green.
+    const flipped = REGISTER_AS_COMMITTED.split("\n")
+      .map((line) => {
+        const c = line.split("|");
+        if (c.length < 8) return line;
+        if (c[1].trim() !== PROTOCOL_FILE) return line;
+        if (c[3].trim() !== "no") return line; // `counted` — this row is the uncounted one
+        if (c[4].trim() !== "yes") return line;
+        c[4] = c[4].replace("yes", "no ");
+        return c.join("|");
+      })
+      .join("\n");
+    expect(flipped, "the plant must not be a no-op").not.toBe(REGISTER_AS_COMMITTED);
+
+    const { root } = makeMirror("gops-diffdisp-wr06-proto-", {
+      baseCorpus: { [REGISTER_REL]: flipped },
+    });
+
+    // ── PREMISE — the protocol file really left the corpus, and the DERIVED KIT is untouched, so
+    //    the round-2 containment pin is silent here by construction.
+    expect(mdOf(root)).not.toContain(PROTOCOL_FILE);
+    expect(derivedKitOf(root).filter((f) => !mdOf(root).includes(f))).toEqual([]);
+
+    const { status, stdout } = runGate(root);
+    expect(status).toBe(1);
+    expect(stdout).toContain(`${PROTOCOL_FILE} is ABSENT from the union's markdown residue`);
+    expect(stdout).not.toContain("are NOT in the watched corpus");
+  });
+
+  it("EVERY PREMISE ABOVE IS SHOWN FAILING on a no-op plant — a vacuous plant proves nothing", () => {
+    // A case whose plant changed nothing passes for the wrong reason. Each premise the cases above
+    // rest on is driven once against an UNMUTATED mirror and required to throw.
+    const { root } = makeMirror("gops-diffdisp-wr06-noop-", {
+      baseCorpus: { [REGISTRY_REL]: REGISTRY_AS_COMMITTED },
+    });
+    const home = readRegistry(root).claims.find((c) => c.id === KIND_FLIP_CLAIM)
+      ?.file as string;
+
+    // The flip case's PREMISE 2 — "the home really leaves the union".
+    expect(() => expect(mdOf(root)).not.toContain(home)).toThrow();
+    // The stray case's PREMISE — "the stray really entered the residue".
+    expect(() => expect(residueOf(root)).toContain("docs/stray-public-note.md")).toThrow();
+    // The vacuity case's PREMISE — "the arm really is empty".
+    expect(() => expect(registryArmMdOf(root)).toEqual([])).toThrow();
+    // The long case's PREMISE — "the arm really widened by one".
+    expect(() =>
+      expect(registryArmMdOf(root)).toEqual(
+        [...registryArmMdOf(REPO), "docs/stray-claim-home.md"].sort(),
+      ),
+    ).toThrow();
+    // And the unmutated mirror is GREEN, which is the other half of the same statement.
+    expect(runGate(root).status).toBe(0);
+  });
+
   it("THE BOTH-ARMS PROBE: one cell of EACH arm moves in one commit, and BOTH are named", () => {
     // THIS IS THE CASE NEITHER SINGLE-ARM HARNESS COULD PRODUCE. Round 3's finding is that two pins
     // covering one arm read as coverage; a gate that reported only the first arm it met would pass

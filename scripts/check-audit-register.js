@@ -142,6 +142,41 @@ function normalizeObservation(raw) {
 // would be a second grammar over a third artifact, which is the class this phase exists to delete.
 // ---------------------------------------------------------------------------
 /**
+ * THE SAFETY ARM'S ROSTER — which claim lives where, keyed by the registry's OWN primary key.
+ *
+ * WHY IT EXISTS, AND IT IS NOT WHAT THE PLAN FIRST SPECIFIED. This plan specified the per-kind
+ * cardinality below as the whole REMOVE direction, and named a hand-written list of protected file
+ * paths as the refused alternative. The mandated adversarial pass against that implementation found
+ * a live bypass of exactly the class this round exists to close, and it was MEASURED rather than
+ * argued: rehome a `kind: safety` claim from `README.md` to another VOUCHED public document,
+ * transplant its verbatim and its anchor comment with it, and `README.md` leaves the D-18 exclusion
+ * list while all seven gates exit 0. The kind counts never move — 6 safety claims before and 6
+ * after — so a cardinality cannot see it, and the residue count at the consumer cannot either,
+ * because the arm still contributes three markdown files. A count is blind to MEMBERSHIP by
+ * construction, which is the same "two errors that cancel" shape plan 29-28's own adversarial pass
+ * found one layer down.
+ *
+ * WHY THIS IS NOT THE ALTERNATIVE THE PLAN REFUSED. The refused shape is a list of PROTECTED FILE
+ * PATHS — a set that GRANTS protection, drifts silently when a document is renamed, and answers the
+ * question layer one already answers by derivation. This is keyed by CLAIM ID, the registry's own
+ * primary key: it is the arm's ROSTER, an assertion about what the registry SAYS rather than a
+ * grant of protection, and every one of its files must independently pass layer one's derived
+ * containment before it means anything. It fails CLOSED — any add, delete or rehome reds until it
+ * is updated — and its update is a same-commit companion to the registry edit (D-04), which is the
+ * same standing D-25 gives roleCeiling()'s hand-maintained table.
+ *
+ * IT IS THE ONE AUTHORITY FOR THE SAFETY ARM'S SIZE. CLAIM_KIND_CARDINALITY's `safety` entry is
+ * derived from this list's length rather than written twice.
+ */
+export const SAFETY_CLAIM_HOMES = [
+    { claim: "C-28-001", file: "README.md" },
+    { claim: "C-28-010", file: "AGENTS.md" },
+    { claim: "C-28-018", file: "AGENTS.md" },
+    { claim: "C-28-023", file: "agent-factory/README.md" },
+    { claim: "C-28-032", file: "agent-factory/README.md" },
+    { claim: "C-28-038", file: ".claude-plugin/plugin.json" },
+];
+/**
  * THE PER-KIND MEASUREMENT BASELINE — the REMOVE direction, and the only hand-declared number here.
  *
  * WHY A BASELINE IS LEGITIMATE FOR THIS COLUMN AND FOR NOTHING ELSE IN THIS GATE. Nothing in this
@@ -172,7 +207,10 @@ function normalizeObservation(raw) {
  * legal kind.
  */
 export const CLAIM_KIND_CARDINALITY = [
-    { kind: "safety", count: 6 },
+    // DERIVED from the roster below, never declared twice. The roster is the authority for the safety
+    // arm; a second literal here would be two opinions about one number, which is the shape this
+    // phase's record has now had to correct four times.
+    { kind: "safety", count: SAFETY_CLAIM_HOMES.length },
     { kind: "architecture", count: 28 },
     { kind: "install", count: 8 },
 ];
@@ -255,7 +293,30 @@ export function registryArmFindings(i) {
             `file genuinely hosts a safety claim, widen that declaration with its reason — the shape ` +
             `PUBLIC_DOCS_EXEMPT uses — rather than relaxing the check`);
     }
-    // ── LAYER TWO, THE REMOVE DIRECTION — two-sided per-kind cardinality ───────
+    // ── LAYER TWO(a), THE REMOVE DIRECTION — the arm's ROSTER, two-sided ───────
+    //
+    // The direction a CARDINALITY is structurally blind to: a rehome preserves every count while
+    // moving the arm's membership, and the file that left the exclusion list leaves silently. Pairs
+    // are compared, not files, so a claim moved between two files that are BOTH already on the arm is
+    // still a named finding.
+    const pairKey = (p) => `${p.claim} -> ${p.file}`;
+    const derivedPairs = safetyClaims
+        .map((c) => pairKey({ claim: c.id, file: c.file }))
+        .sort();
+    const declaredPairs = i.roster.map(pairKey).sort();
+    const rosterMissing = declaredPairs.filter((p) => !derivedPairs.includes(p));
+    const rosterUnexpected = derivedPairs.filter((p) => !declaredPairs.includes(p));
+    if (rosterMissing.length > 0 || rosterUnexpected.length > 0) {
+        findings.push(`equality four (safety arm roster): the registry's \`kind: safety\` claims are not the roster ` +
+            `SAFETY_CLAIM_HOMES records — declared but ABSENT [${rosterMissing.join("; ")}], present ` +
+            `but UNDECLARED [${rosterUnexpected.join("; ")}]. This is the direction a per-kind count is ` +
+            `structurally blind to: rehoming a safety claim from one vouched public document to another ` +
+            `preserves every count while removing the old home from the D-18 exclusion list entirely, ` +
+            `and the removal arrives as a clean build. If the move is correct, update SAFETY_CLAIM_HOMES ` +
+            `in the SAME commit as the registry edit (D-04) and say why in the commit message; deleting ` +
+            `a roster entry to clear this finding deletes the evidence it is made of`);
+    }
+    // ── LAYER TWO(b), THE REMOVE DIRECTION — two-sided per-kind cardinality ────
     const derivedCounts = new Map();
     for (const c of i.claims)
         derivedCounts.set(c.kind, (derivedCounts.get(c.kind) ?? 0) + 1);
@@ -462,6 +523,7 @@ function runAll() {
             claims: registryClaims,
             vouched,
             cardinality: CLAIM_KIND_CARDINALITY,
+            roster: SAFETY_CLAIM_HOMES,
         })) {
             fail(f);
         }
@@ -561,7 +623,8 @@ function runAll() {
             `${registryArmFiles.length} distinct file(s) (${registryArmFiles.join(", ")}), every ` +
             `markdown one vouched for by publicDocsScan() or the derived kit (${vouched.length} ` +
             `file(s)) and ${REGISTRY_ARM_NON_MARKDOWN.length} non-markdown one(s) declared by name, ` +
-            `with the registry's kind distribution exactly ` +
+            `set-equal as CLAIM->HOME pairs to the ${SAFETY_CLAIM_HOMES.length}-entry roster ` +
+            `SAFETY_CLAIM_HOMES, with the registry's kind distribution exactly ` +
             `${CLAIM_KIND_CARDINALITY.map((c) => `${c.kind} ${c.count}`).join(", ")} summing to the ` +
             `${registryClaims === null ? 0 : registryClaims.length} claim(s) parsed; equality two holds ` +
             `— Table A declares ${declaredSum} finding(s) and Table B carries ${register.findings.length}, ` +
