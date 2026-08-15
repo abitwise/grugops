@@ -37,6 +37,11 @@ import { join, dirname } from "node:path";
 // replay and the gate-level replay cannot disagree about which bytes were tested.
 import { CORPUS, CORPUS_COUNT, rowById } from "./canonical-corpus.js";
 import { admit } from "./canonical-frontmatter.js";
+// (Plan 29-20) The per-line fence toggle, taken so the CR-02 plant's PREMISE is measured through the
+// same authority the reader composes rather than through a second opinion written in the harness.
+// The harness's own premise produced a false result in six instances across four straight rounds, so
+// it is asserted, never assumed.
+import { fencedLineFlags } from "./frontmatter.js";
 
 // (Plan 29-01) The two new guards' predicates, read from the authority so the mirror repair and the
 // fixtures below cannot come to disagree with the guards about what conforms.
@@ -735,10 +740,17 @@ describe("D-64 cutover: the spawn verdict is rendered by the canonical admission
       "generate-skill-twins.ts",
       "voice-model.ts",
     ]);
+    // (Plan 29-20, CR-02) AND `voice-model.ts`'s OWN SET MOVED FROM ONE SYMBOL TO TWO — in the
+    // direction D-24 wants, which is why the pin moves rather than the code. The module used to carry
+    // a PRIVATE `/^## /` section-end constant beside the imported delimiter class, and that private
+    // predicate was one of the four disagreeing section locators the round-2 review tabulated. It is
+    // DELETED, and the bound now comes from `sectionEndIndex`. The set grew because the module took
+    // MORE declarations from the authority and still renders no verdict from it: a locator returns an
+    // INDEX, and what that index means for a role file is still decided here.
     expect(
       importedSymbols("voice-model.ts", "frontmatter"),
-      "voice-model.ts must take the delimiter CLASS and nothing else — a second symbol is a step back toward a forked machine",
-    ).toEqual(["FENCE_DELIMITER_LINE"]);
+      "voice-model.ts must take the delimiter CLASS and the shared section LOCATOR — never a section-end predicate of its own, which is the fourth-grammar shape this round deletes",
+    ).toEqual(["FENCE_DELIMITER_LINE", "sectionEndIndex"]);
     expect(
       importedSymbols("check-imperative-lexicon.ts", "frontmatter"),
       "check-imperative-lexicon.ts must take the per-line fence PROJECTION and nothing else — a second symbol is a step back toward a forked machine",
@@ -4257,6 +4269,108 @@ describe("check-foundation-guards.js (SDLC-02 / SC2 fail-proof harness)", () => 
     // The wrong-bytes measurement itself: the pre-bound build published `tokens 4 / content words 4`
     // for this role, measured over `## Notes`. No measurement line for this role may exist at all now.
     expect(o).not.toMatch(/brownfield-mapper\.md: tokens \d+ \/ content words \d+/);
+  });
+
+  // ── CR-02 (plan 29-20) — THE SAME CLAIM, ONE CHARACTER TO THE LEFT. ──────────────────────────────
+  //
+  // The `# ` SIBLING of the case immediately above, and the reason this phase needed a second
+  // gap-closure round. 29-14 closed the bound with `/^## /`, so a LEVEL-ONE heading closed nothing and
+  // the defect 29-14 believed it had deleted survived intact under a `# ` successor. Reproduced live
+  // against the committed build before this plan:
+  //
+  //   readCavemanFence("## Caveman prompt\nYou senior prose…\n\n# Appendix\n…\n```\ngrug club rock cave smash\n```\n")
+  //   → {"ok":true,"inside":"grug club rock cave smash", …}
+  //
+  // A bound tested from one side only is a half-fix, and this case is the other side, asserted where
+  // the consequence lives: the exit code and the measurement line, not the verdict alone.
+  it("the full gate exits 1 on a de-fenced role carrying a later LEVEL-ONE lexicon-bearing fence", () => {
+    const m = mirror();
+    const names = roleNamesIn(m);
+    expect(names, "the plant host must be a member of the mirror's role set").toContain(
+      MALFORMED_ROLE,
+    );
+
+    const file = rolePath(m, MALFORMED_ROLE);
+    const before = readFileSync(file, "utf8");
+    const lines = before.split("\n");
+    const heading = lines.findIndex((l) => /^## Caveman prompt$/.test(l));
+    const open = lines.findIndex((l, i) => i > heading && /^```/.test(l));
+    const close = lines.findIndex((l, i) => i > open && /^```/.test(l));
+    const LEXICON_LINE = "grug club rock cave smash";
+    // THE PLANT'S SHAPE IS THE WHOLE CASE, AND THE FIRST DRAFT OF IT WAS VACUOUS. Appending `# Notes`
+    // at END OF FILE — the arrangement 29-14's `## ` sibling uses — proves nothing here, because
+    // `## Caveman prompt` is followed at line 18 by `## Reads`: the pre-29-20 level-two bound already
+    // closed there, the reader already returned `missing`, and the case passed against the very build
+    // it was written to fail. So the level-one successor is inserted IMMEDIATELY BELOW the de-fenced
+    // prose, ABOVE the next `## ` heading. Under the old bound the fence then sat INSIDE the section
+    // and was adopted; under the new one `# Notes` closes first and the reader refuses.
+    const after = [
+      ...lines.slice(0, open),
+      "You plan business acceptance and record the outcome.",
+      "",
+      "# Notes",
+      "```",
+      LEXICON_LINE,
+      "```",
+      ...lines.slice(close + 1),
+    ].join("\n");
+    expect(after, "the de-fencing plant must actually change the file").not.toBe(before);
+
+    // PREMISE, MEASURED THROUGH THE FENCE AUTHORITY ITSELF — on axes the predicate under test does not
+    // decide, so this block answers the same way before and after the fix. It says the planted bytes
+    // really are the CR-02 shape, and its LAST assertion is the one that makes the case discriminating
+    // rather than a re-run of 29-14.
+    const planted = after.split("\n");
+    const flags = fencedLineFlags(after);
+    const anchors = planted
+      .map((l, i) => (l === "## Caveman prompt" && !flags[i] ? i : -1))
+      .filter((i) => i >= 0);
+    expect(anchors, "exactly one unfenced caveman anchor").toHaveLength(1);
+    const notes = planted.findIndex((l, i) => l === "# Notes" && !flags[i]);
+    expect(notes, "the level-one successor must exist and be unfenced").toBeGreaterThan(anchors[0]);
+    const delimiters = planted
+      .map((l, i) => (/^```/.test(l) ? i : -1))
+      .filter((i) => i >= 0);
+    expect(delimiters, "exactly two delimiters in the planted file").toHaveLength(2);
+    expect(
+      delimiters.every((i) => i > notes),
+      "BOTH delimiters must sit under the level-one successor — none inside the caveman section",
+    ).toBe(true);
+    expect(countLexiconTokens(LEXICON_LINE)).toBeGreaterThanOrEqual(CAVEMAN_LEXICON_MIN);
+    // THE DISCRIMINATION, ASSERTED: the next unfenced LEVEL-TWO heading below the anchor sits BELOW
+    // both delimiters. So under the pre-29-20 `/^## /` bound this fence was inside the caveman section
+    // and was adopted, and only the LEVEL axis can refuse it. Without this line the case would pass
+    // against the build it exists to fail — which is exactly what its first draft did.
+    const nextLevelTwo = planted.findIndex(
+      (l, i) => i > anchors[0] && !flags[i] && /^## /.test(l),
+    );
+    expect(nextLevelTwo, "a level-two successor must exist below the plant").toBeGreaterThan(-1);
+    expect(
+      nextLevelTwo,
+      "the level-TWO successor must sit BELOW both delimiters, or the old bound already refused and this case discriminates nothing",
+    ).toBeGreaterThan(delimiters[1]);
+
+    writeFileSync(file, after, "utf8");
+    const r = runIn(m);
+    const o = out(r);
+
+    // THE RED EVIDENCE IS THE EXIT CODE. Against the pre-29-20 build this line received 0: the reader
+    // adopted `# Notes`'s block, both consumers measured it, and the whole gate printed ALL CHECKS
+    // PASSED on a role whose caveman block had been deleted.
+    expect(r.status).toBe(1);
+    const rel = `agent-factory/roles/${MALFORMED_ROLE}`;
+    expect(o).toContain(`${rel}: ## Caveman prompt fence refused — reason missing`);
+    expect(o).not.toContain("voice: clear-voice surfaces free of caveman markers");
+    expect(o).not.toContain(`caveman voice: 0 findings over ${ROLE_COUNT}/${ROLE_COUNT}`);
+    expect(o).not.toContain("ALL CHECKS PASSED");
+    // No measurement line about the wrong bytes may coexist with the refusal. The pre-bound build
+    // published `tokens 5 / content words 5` here, measured over `# Notes`.
+    expect(o).not.toMatch(/brownfield-mapper\.md: tokens \d+ \/ content words \d+/);
+
+    // And the READER's own verdict agrees. Asserted AFTER the gate deliberately: the claim this case
+    // exists to pin is about the exit code, and putting the verdict first would make the RED evidence
+    // a failed premise line instead of the received status of 0 the defect actually produced.
+    expect(readCavemanFence(after)).toEqual({ ok: false, reason: "missing" });
   });
 
   it("an UNMODIFIED mirror still exits 0 under the section bound — the false-red control", () => {

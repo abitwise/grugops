@@ -443,6 +443,101 @@ export function stripFencedBlocks(text: string): string {
   return lines.filter((_, i) => !flags[i]).join("\n");
 }
 
+// ---------------------------------------------------------------------------------------------
+// (Plan 29-20, LANG-06 / LANG-07 — D-24) THE ONE SECTION LOCATOR. "WHICH LINE IS THIS SECTION'S
+// HEADING, AND WHICH LINE ENDS IT" — asked once, answered once, for every guard in the tree.
+//
+// WHY THIS IS HERE AND NOT IN EACH CONSUMER. Four modules answered this question four private,
+// DISAGREEING ways: scripts/voice-model.ts, scripts/check-diff-disposition.ts,
+// scripts/check-banned-claims.ts and scripts/check-imperative-lexicon.ts. The divergence was not
+// cosmetic — it was the direct architectural cause of a live bypass. voice-model.ts closed its
+// section on `/^## /` only, so a caveman block reworded into senior prose under a LEVEL-ONE
+// successor adopted that successor's unrelated fenced block and both voice guards published a
+// measured number about the wrong bytes at exit 0. Widening that one regex would have made this the
+// FIFTH heuristic in a phase whose founding rule is that a predicate has ONE authority, so the bound
+// moved HERE — to the module that already owns the fence toggle the question depends on — and each
+// private predicate is DELETED rather than corrected in place.
+//
+// THIS IS NOT A FOURTH FENCE STATE MACHINE. Both functions CONSUME `fencedLineFlags` and neither
+// re-declares `FENCE_DELIMITER_LINE` or carries a toggle of its own; composing the machine is not
+// forking it, and scripts/frontmatter.test.ts's derived fence-machine scan re-measures that claim
+// rather than taking it on trust.
+//
+// THE THREE AXES THE FOUR DELETED PREDICATES DISAGREED ON, AND THE SINGLE ANSWER GIVEN TO EACH:
+//
+// 1. HEADING EQUALITY IS `trimEnd()`-NORMALIZED. That is the spelling check-diff-disposition.ts and
+//    check-imperative-lexicon.ts already use, so a heading line carrying one trailing space is the
+//    section's heading rather than invisible. A LEADING space is still not a heading: the tree's
+//    anchors are column-zero by convention and admitting indented ATX would change what four gates
+//    scan. The trailing-whitespace question is answered in exactly ONE place — this comparison —
+//    because it is the only place trailing whitespace can change an answer; the level test below
+//    reads a PREFIX and is trailing-whitespace-insensitive by construction.
+//
+// 2. THE CLOSE IS ANY UNFENCED HEADING OF LEVEL AT MOST `level`. A SUB-HEADING DOES NOT LEAVE A
+//    SECTION; IT STRUCTURES ONE — check-imperative-lexicon.ts's recorded argument, adopted verbatim.
+//    So with `level` of 2 both `# ` and `## ` close and `### ` does not, and with `level` of 1 only
+//    `# ` does. Both directions are pinned by cases, because a bound tested from one side only is
+//    precisely the half-fix that let this defect survive a whole gap-closure round.
+//
+// 3. THE SEARCH IS BOUNDED BY THE CALLER'S `from` AND TERMINATES AT `lines.length`. Unifying two
+//    parsers into one makes that authority's SCOPE a new degree of freedom, and a section-anchored
+//    reader that searches to EOF-by-default adopts an unrelated later block — the exact bypass. The
+//    authority never looks before `from` and never reports a section the caller did not ask about.
+//
+// THERE IS NO OPT-OUT PARAMETER, AND THERE MUST NEVER BE ONE. A flag restoring fence-blind or
+// level-two-only behaviour is a second grammar with extra steps, and a second grammar is the defect.
+//
+// WHAT THIS FLOOR DOES NOT COVER, NAMED RATHER THAN LEFT UNDISCLOSED: a CommonMark heading spelled
+// without the trailing space (a bare `#` line, legal as an empty h1) does not close a section here,
+// and up-to-three-space-indented ATX is not recognised. Both are deliberate — they keep this
+// authority byte-compatible with the four predicates it replaces, so the unification cannot silently
+// re-measure what any of the four gates scans. Widening either axis is a behaviour change to four
+// gates at once and belongs in its own plan with its own corpus measurement.
+// ---------------------------------------------------------------------------------------------
+
+// An ATX heading of level at most one / at most two. Two literal constants rather than a RegExp
+// built per call: `level` has exactly two legal values, and a dynamically assembled pattern is the
+// shape the fence scan's own floor notes it cannot see.
+const HEADING_AT_MOST_1 = /^# /;
+const HEADING_AT_MOST_2 = /^#{1,2} /;
+
+/**
+ * The 0-based index of the first line that is NOT inside a fence and whose `trimEnd()` equals
+ * `heading`, or `-1` when the document carries no such line.
+ *
+ * Fence-awareness is the point: a role file that QUOTES its own section heading inside a fenced
+ * example is showing documentation, not declaring a second section, and a locator that could not
+ * tell the difference refused correct files by name.
+ */
+export function unfencedHeadingIndex(text: string, heading: string): number {
+  const lines = text.split("\n");
+  const flags = fencedLineFlags(text);
+  for (let i = 0; i < lines.length; i++) {
+    if (!flags[i] && lines[i].trimEnd() === heading) return i;
+  }
+  return -1;
+}
+
+/**
+ * The 0-based index of the first line at `from` or later that is NOT inside a fence and IS an ATX
+ * heading of level at most `level` — the line that ENDS the caller's section. When no such line
+ * exists the answer is `text.split("\n").length`, the ARRAY LENGTH and not the last index, so a
+ * caller slicing `[from, end)` gets the whole tail rather than the tail minus one line.
+ */
+export function sectionEndIndex(
+  text: string,
+  from: number,
+  level: 1 | 2,
+): number {
+  const lines = text.split("\n");
+  const flags = fencedLineFlags(text);
+  const closes = level === 1 ? HEADING_AT_MOST_1 : HEADING_AT_MOST_2;
+  for (let i = Math.max(from, 0); i < lines.length; i++) {
+    if (!flags[i] && closes.test(lines[i])) return i;
+  }
+  return lines.length;
+}
+
 // ---------------------------------------------------------------------------
 // Scalar helpers
 // ---------------------------------------------------------------------------

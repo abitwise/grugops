@@ -54,7 +54,7 @@
 //
 // No I/O and no side effects: every function here is a pure transform over a passed-in string, and
 // every constant is declarative. Node stdlib is not imported at all. Zero npm dependencies.
-import { FENCE_DELIMITER_LINE } from "./frontmatter.js";
+import { FENCE_DELIMITER_LINE, sectionEndIndex } from "./frontmatter.js";
 // ---------------------------------------------------------------------------
 // The fence reader (D-22, D-23)
 // ---------------------------------------------------------------------------
@@ -69,33 +69,6 @@ import { FENCE_DELIMITER_LINE } from "./frontmatter.js";
 // whole-line form is what makes the section anchor mean one line and not a family of them. All 17
 // live role headings are exactly this string, verified against the corpus before the tightening.
 const CAVEMAN_HEADING_LINE = /^## Caveman prompt$/;
-// ---------------------------------------------------------------------------------------------
-// (Plan 29-14, CR-01) THE BOUND. THIS IS THE FOUNDING DEFECT OF PHASE 29, REINTRODUCED BY THE ONE
-// READER THAT EXISTS TO CLOSE IT — so read the argument before touching either scan.
-//
-// The predicate this reader answers is "WHERE IS THE FENCE IN **THIS SECTION**". It is not "where is
-// the first fence after this heading". Until this plan the two scans below ran to END OF FILE, so a
-// role whose caveman section had been reworded into plain senior prose ADOPTED AN UNRELATED LATER
-// FENCED BLOCK as the caveman block and returned `ok: true`. Both consumers then measured the wrong
-// bytes and passed: guard_caveman_voice printed `tokens 4 / content words 4` over a `## Notes` code
-// block, guard_voice scanned the real caveman prose as if it were clear-voice remainder, and the gate
-// printed ALL CHECKS PASSED. Nothing else in the repository caught it.
-//
-// A DELIMITER UNDER A LATER HEADING BELONGS TO A DIFFERENT SECTION. That sentence is the whole rule.
-// The section runs from the anchor to the next level-two heading, or to end of file when the caveman
-// section is the document's last, and both scans are bounded by it. Not finding a delimiter inside
-// the bound is a REFUSAL BY NAME — never a licence to keep looking.
-//
-// THE COST, STATED SO IT IS NOT LATER "FIXED": a `## ` line INSIDE the fence interior truncates the
-// section before the closing delimiter, so such a document is refused `unterminated` rather than
-// returning a shortened `inside`. That is deliberate and it is the FAIL-CLOSED direction — a short
-// interior is a measured number about the wrong bytes, which is the defect, while a refusal is a red
-// gate naming a file. Do not add a second arm that reaches past the bound to find something it can
-// vouch for; reaching past is the defect, not the remedy.
-//
-// Level THREE headings do not bound the section: `### ` has no space at the third character, so a
-// subsection inside a caveman block stays inside it. Only `## ` closes the scope.
-const SECTION_END = /^## /;
 /**
  * THE ONE READER (D-23). Line-oriented, single pass per phase, no regex with nested quantifiers.
  *
@@ -107,9 +80,10 @@ const SECTION_END = /^## /;
  * - A first fence delimiter opened and never closed before EOF is `unterminated` — the reader
  *   REFUSES rather than returning the file tail as the block.
  *
- * (Plan 29-14) Every scan below is bounded to the caveman SECTION — see `SECTION_END`. The reader
- * answers about the fence in THIS section only; a delimiter under a later `## ` heading is another
- * section's and is never adopted here.
+ * (Plan 29-14, 29-20) Every scan below is bounded to the caveman SECTION — see the argument above.
+ * The reader answers about the fence in THIS section only; a delimiter under a later `# ` or `## `
+ * heading is another section's and is never adopted here. The bound itself comes from
+ * `frontmatter.ts`'s `sectionEndIndex`, the one authority for it.
  */
 export function readCavemanFence(text) {
     const lines = text.split("\n");
@@ -123,16 +97,11 @@ export function readCavemanFence(text) {
     if (headings.length === 0)
         return { ok: false, reason: "missing" };
     const heading = headings[0];
-    // THE BOUND, computed ONCE and consulted by BOTH scans (see SECTION_END above). One bound, two
-    // consumers — computing it twice, or bounding only the open scan, would recreate the disagreement
-    // this module exists to delete.
-    let sectionEnd = lines.length;
-    for (let i = heading + 1; i < lines.length; i++) {
-        if (SECTION_END.test(lines[i])) {
-            sectionEnd = i;
-            break;
-        }
-    }
+    // THE BOUND, asked ONCE of the shared authority and consulted by BOTH scans (see the argument
+    // above). One bound, two consumers — computing it twice, or bounding only the open scan, would
+    // recreate the disagreement this module exists to delete. Level TWO: both `# ` and `## ` close the
+    // caveman section, `### ` does not.
+    const sectionEnd = sectionEndIndex(text, heading + 1, 2);
     // The OPEN scan, bounded. No delimiter inside this section is `missing`; it does NOT continue past
     // `sectionEnd` looking for one, because a delimiter under a later heading is a different section's.
     let open = -1;

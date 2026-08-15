@@ -171,12 +171,35 @@ describe("readCavemanFence — the section bound (plan 29-14, CR-01)", () => {
     expect(r).toEqual({ ok: false, reason: "missing" });
   });
 
-  it("refuses unterminated when a heading line sits inside the fence interior", () => {
-    // The section bound falls BEFORE the closing delimiter, so the fence is unterminated WITHIN its
-    // own section. The reader refuses by name rather than returning a silently shortened `inside` —
-    // the fail-CLOSED direction, and the deliberate cost of bounding the close scan.
+  // ── (Plan 29-20) THE 29-14 EXPECTATION THIS CASE CARRIED IS SUPERSEDED, AND THE MOVE IS RECORDED
+  // RATHER THAN QUIETLY RE-BASELINED.
+  //
+  // 29-14 asserted `{ok:false, reason:"unterminated"}` on these exact bytes and called it the
+  // deliberate fail-CLOSED cost of bounding the close scan: a `## ` line inside the fence interior
+  // pulled the private `/^## /` bound in front of the closing delimiter, so a WELL-FORMED fence was
+  // refused. Under the shared authority the bound is FENCE-AWARE, so a heading line that the author
+  // wrote INSIDE a fence closes nothing and the reader returns the true interior.
+  //
+  // THAT IS THE SAME CORRECTION AS WR-01, NOT A WEAKENING. Both were false reds on correct bytes,
+  // produced by a locator that could not tell a written heading from a quoted one. Nothing became
+  // reachable that was not reachable before: the interior is measured in FULL by both consumers, and
+  // the genuinely unterminated form still refuses by name — the case immediately below is that half,
+  // added here so the fail-closed direction keeps a pin of its own rather than losing one.
+  it("a heading INSIDE a terminated fence closes nothing — the interior is returned whole", () => {
     const r = readCavemanFence(
       doc("## Caveman prompt", FENCE, "grug smash", "## Trap", "you stop", FENCE, ""),
+    );
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(r.inside).toBe("grug smash\n## Trap\nyou stop");
+  });
+
+  it("a genuinely UNTERMINATED fence still refuses by name — the fail-closed direction, kept", () => {
+    // The same bytes with the closing delimiter removed. The fence really was opened and never
+    // closed, so the reader refuses rather than returning the file tail as the block — the property
+    // 29-14's superseded case was standing in for, asserted here on a form where it is actually true.
+    const r = readCavemanFence(
+      doc("## Caveman prompt", FENCE, "grug smash", "## Trap", "you stop"),
     );
     expect(r).toEqual({ ok: false, reason: "unterminated" });
   });
@@ -210,6 +233,58 @@ describe("readCavemanFence — the section bound (plan 29-14, CR-01)", () => {
     expect(both.ok).toBe(true);
     if (!both.ok) return;
     expect(both.inside).toBe("You grug smash rock.");
+  });
+
+  // ── (Plan 29-20, closing CR-02) THE LEVEL AXIS — the same bound, tested from the OTHER side. ────
+  //
+  // Plan 29-14 bounded the reader and pinned the bound with a `## ` heading. The bound it shipped was
+  // `/^## /`, so a `# ` heading — which starts a SIBLING SECTION just as surely, and more so — closed
+  // nothing, and the exact defect 29-14 believed it had closed survived one character to the left.
+  // Reproduced live against the committed build at HEAD before this plan:
+  //
+  //   readCavemanFence("## Caveman prompt\nYou senior prose…\n\n# Appendix\n…\n```\ngrug club rock cave smash\n```\n")
+  //   → {"ok":true,"inside":"grug club rock cave smash", …}
+  //
+  // A bound tested from one side only is the half-fix this plan exists to stop repeating, so BOTH
+  // directions are pinned: `# ` and `## ` close, `### ` does not. The bound itself no longer lives in
+  // this module at all — `frontmatter.ts`'s `sectionEndIndex` is the one authority for it (LANG-07).
+  it("the level-one bound: a `# ` heading closes the caveman section, exactly as `## ` does", () => {
+    const r = readCavemanFence(
+      doc(
+        "## Caveman prompt",
+        "You senior prose here with no fence at all.",
+        "",
+        "# Appendix",
+        "Some later top-level section.",
+        FENCE,
+        "grug club rock cave smash",
+        FENCE,
+        "",
+      ),
+    );
+    expect(r).toEqual({ ok: false, reason: "missing" });
+  });
+
+  it("a `### ` sub-heading does NOT close the caveman section — a subsection structures a section", () => {
+    // The other direction, and the one a level-widening fix breaks. A sub-heading inside the caveman
+    // section must leave the bound where it found it, or the fence's own closing delimiter falls
+    // outside the section and a well-formed block is refused `unterminated` on correct bytes.
+    const r = readCavemanFence(
+      doc(
+        "## Caveman prompt",
+        FENCE,
+        "You grug smash rock.",
+        "### An aside",
+        "You club shiny rock.",
+        FENCE,
+        "",
+        "## Hard limits",
+        "",
+      ),
+    );
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(r.inside).toBe("You grug smash rock.\n### An aside\nYou club shiny rock.");
   });
 
   it("every live role returns ok with a non-empty interior — the false-red control", () => {
