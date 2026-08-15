@@ -506,7 +506,7 @@ describe("the section-locator authority under a parser oracle (plan 29-26, LANG-
     // and is exactly why the distinct count is asserted as a NUMBER rather than assumed to equal
     // the cell count. Measured at plan 29-26 and pinned; a generator that started emitting one
     // document would fail here and not only at a coverage floor.
-    const triples = new Set(corpus.map((c) => `${c.from} ${c.level} ${c.text}`));
+    const triples = new Set(corpus.map((c) => `${c.from}|${c.level}|${c.text}`));
     expect(triples.size, "distinct (text, from, level) triples in the corpus").toBe(2058);
     const texts = new Set(corpus.map((c) => c.text));
     expect(texts.size, "distinct documents in the corpus").toBe(724);
