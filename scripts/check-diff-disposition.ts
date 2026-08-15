@@ -149,6 +149,11 @@ import { readRegistry, type ClaimRow } from "./audit-model.js";
 // generated document is the RENDERING of this union; reading the rendering back would be a second
 // parser over a file this function already answers for.
 import { safetySurfaceUnion } from "./generate-safety-surface.js";
+// The ONE fence toggle (Phase 29 / plan 29-01, D-24). IMPORTED and consumed, never reimplemented:
+// locateSection must not be able to disagree with check-imperative-lexicon.ts about which lines are
+// documentation rather than governed prose. The delimiter class itself is deliberately NOT imported
+// — the toggle is the only interface, so nothing here can drift from it one recogniser at a time.
+import { fencedLineFlags } from "./frontmatter.js";
 
 // CHECK_ROOT override is load-bearing: the Vitest harness builds a hermetic mirror — here a real git
 // repository under the OS temp dir — and points CHECK_ROOT at it, then spawns this committed .js
@@ -482,22 +487,52 @@ export interface FrozenRegion {
 }
 
 /**
- * Locate one heading's section in `text`: from the heading line to the line before the next `## `
- * heading, or to end of file.
+ * Locate one heading's section in `text`: from the heading line to the line before the next UNFENCED
+ * `## ` heading, or to end of file.
  *
  * Matched on the WHOLE line so `## Commit` never matches `## Commit message conventions`, and
  * `startsWith` over `split("\n")` throughout — no regex, no quantifier, nothing to backtrack over.
+ *
+ * ---------------------------------------------------------------------------------------------
+ * WR-06 — BOTH SCANS ARE DECIDED BY THE ONE FENCE AUTHORITY, AND NEITHER RE-DECLARES WHAT A FENCE IS.
+ *
+ * This function used to scan for `## ` with no idea what a fence was, which made it a SECOND GRAMMAR
+ * over bytes `fencedLineFlags` already answers for — the defect class this whole phase exists to
+ * close. Kit documents quote markdown inside fenced examples, so a `## ` line inside a fence ended
+ * the region early: every clause below the quoted heading fell OUT of `## Hard limits`,
+ * `## Stop conditions` or `## Commit` while still sitting inside it, and a reword there owed no
+ * companion edit at all. A quoted line that spells one of the three anchors was worse still — it
+ * was matched as the section's own heading, and the located region then began inside a code example.
+ *
+ * WHY THIS DIRECTION IS FIXED RATHER THAN RECORDED, WHILE ITS SIBLING IS NOT INTERCHANGEABLE WITH IT.
+ * A truncated frozen region here SHRINKS what is protected, and it does so with NO failure anywhere:
+ * the gate stays green and simply checks less. That is FAIL-OPEN, and a fail-open defect is invisible
+ * by construction. The equivalent truncation in the banned-claim exemption locator causes MORE text
+ * to be checked, which is fail-closed and surfaces as a red somebody investigates. Naming the
+ * asymmetry is what stops a later reader treating the two as the same bug at two addresses.
+ *
+ * `fencedLineFlags` is IMPORTED, not reimplemented, and `FENCE_DELIMITER_LINE` is deliberately not
+ * consulted here: the toggle is the only interface, so this file cannot come to disagree with
+ * check-imperative-lexicon.ts about which lines are documentation. There is also NO parameter that
+ * lets a caller ask for the old behaviour — an opt-out is a second grammar with extra steps.
+ *
+ * The flags are computed ONCE per located text, with one anchored delimiter test per line and no
+ * match-all regex, per the dormant superlinear-backtracking incident's own rule.
+ * ---------------------------------------------------------------------------------------------
  */
 export function locateSection(
   text: string,
   heading: string,
 ): { from: number; to: number } | null {
   const lines = text.split("\n");
+  const fenced = fencedLineFlags(text);
   for (let i = 0; i < lines.length; i++) {
+    // A heading inside a fenced example is quoted markdown, not this document's own section.
+    if (fenced[i]) continue;
     if (lines[i].trimEnd() !== heading) continue;
     let end = lines.length;
     for (let j = i + 1; j < lines.length; j++) {
-      if (lines[j].startsWith("## ")) {
+      if (!fenced[j] && lines[j].startsWith("## ")) {
         end = j;
         break;
       }
