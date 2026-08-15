@@ -71,6 +71,9 @@ import {
 } from "./kit-model.js";
 import { readRegistry } from "./audit-model.js";
 import { normalizeSentence, segmentClauses } from "./voice-model.js";
+// The ONE fence toggle. Imported here for the SAME reason the gate must import it: a second
+// recogniser in the file that polices the first is how one authority becomes two.
+import { fencedLineFlags } from "./frontmatter.js";
 
 const REPO = join(import.meta.dirname, "..");
 const GATE_JS = join(REPO, "scripts", "check-diff-disposition.js");
@@ -166,6 +169,20 @@ const REAL_WORKFLOWS = listWorkflows(REPO);
 
 interface MirrorSpec {
   /**
+   * repo-relative path -> content written into the BASE commit itself, over the starting corpus.
+   *
+   * WHY THIS FIELD HAD TO EXIST BEFORE WR-06 COULD BE PROVEN. A fenced heading truncating a frozen
+   * region is a defect about a REWORD inside that region — the added and removed sides of one line.
+   * Expressed as a plant alone, the fenced block and the reword land in the same diff and the case
+   * becomes an INSERTION, which exercises only the added side and never the removed one. Putting the
+   * fenced structure in the starting corpus is what makes the plant a one-line reword.
+   *
+   * Additive, and its premise is asserted below: every path named here is read back out of the base
+   * commit and compared byte for byte, so a fixture that failed to land is a refusal rather than a
+   * case that quietly proves something else.
+   */
+  readonly baseCorpus?: Readonly<Record<string, string>>;
+  /**
    * ORDERED extra commits applied between the base commit and the final plant commit, each a map of
    * repo-relative path to content. Additive: a spec that omits it builds exactly the two-commit
    * mirror this harness has always built, so no existing case changes shape.
@@ -259,11 +276,26 @@ function makeMirror(
   const root = freshTmp(prefix);
   const { write } = mirrorWriters(root);
   writeCorpus(root);
+  for (const [rel, content] of Object.entries(spec.baseCorpus ?? {})) {
+    write(rel, content);
+  }
 
   gitIn(root, ["init", "-q"]);
   gitIn(root, ["add", "-A"]);
   gitIn(root, ["commit", "-q", "--no-gpg-sign", "-m", "base"]);
   const base = gitIn(root, ["rev-parse", "HEAD"]).trim();
+
+  // ── The baseCorpus premise: what the fixture claims is in the base commit really is ──────────
+  for (const [rel, content] of Object.entries(spec.baseCorpus ?? {})) {
+    const inBase = gitIn(root, ["show", `${base}:${rel}`]);
+    if (inBase !== content) {
+      throw new Error(
+        `harness premise: baseCorpus names ${rel}, but the recorded base commit ` +
+          `${base.slice(0, 7)} carries different bytes at ${root}. A case whose starting corpus did ` +
+          `not land proves something other than what it claims`,
+      );
+    }
+  }
 
   const payloads = spec.commits ?? [];
   const commits: string[] = [];
@@ -920,6 +952,249 @@ describe("check-diff-disposition — a companion cell is filled in ONE canonical
     // The MARGIN, derived on both sides rather than pinned as a literal: the smallest prose cell a
     // human actually wrote clears the floor with room, so no judgement sits on the boundary.
     expect(smallestFilled).toBeGreaterThan(COMPANION_MIN_WORDS);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────────────────────
+// WR-06 — where a frozen section ENDS is decided by the one fence authority.
+//
+// THE DEFECT THESE CASES REPRODUCE. `locateSection` scanned for the next line beginning `## ` with
+// no idea what a fence is, while `fencedLineFlags` — the tree's single fence toggle, already
+// consumed by check-imperative-lexicon.ts for exactly this class of question — sat one import away.
+// Kit documents quote markdown inside fenced examples, so a `## ` line inside a fence TRUNCATED the
+// frozen region: everything below the quoted heading fell OUT of `## Stop conditions` while still
+// sitting inside it, and a reword there needed no companion edit at all.
+//
+// THIS DIRECTION FAILS OPEN, WHICH IS WHY IT IS FIXED RATHER THAN RECORDED. A truncated frozen
+// region SHRINKS what is protected, with no failure anywhere — the gate stays green and simply
+// checks less. The sibling truncation in the banned-claim exemption locator causes MORE to be
+// checked, which is fail-closed and shows up as a red somebody investigates. Naming the asymmetry is
+// what stops a later reader treating the two as interchangeable.
+//
+// The live corpus carries ZERO fenced `## ` lines today (re-derived at execution, plan 29-16), so
+// these cases are necessarily PLANTED. A corpus-derived proof would prove nothing.
+// ─────────────────────────────────────────────────────────────────────────────────────────────
+
+/**
+ * The heading QUOTED inside the fenced example.
+ *
+ * DELIBERATELY NOT ONE OF THE THREE FROZEN ANCHORS, and the reason is a red this case first produced
+ * for the WRONG REASON. Quoting `## Commit` made the fence-blind locator match the QUOTED heading as
+ * the `## Commit` section itself and run that mislocated region from the fenced line down to the real
+ * heading — which swallowed the sentence below the fence. The gate then exited 1 against the
+ * PRE-CHANGE build, so the case looked like a reproduction while proving the opposite: the clause was
+ * inside a region either way and the truncation was never exercised. A non-anchor heading leaves the
+ * sentence inside NO region before the fix and inside `## Stop conditions` after it, which is the
+ * difference the case is about. Quoting an anchor is covered separately, on its own terms, below.
+ */
+const QUOTED_HEADING = "## Example output";
+
+const STOP_CLAUSE_BELOW_FENCE =
+  "Stop when the acceptance scenario cannot be written down before the diff.";
+const REWORDED_CLAUSE_BELOW_FENCE =
+  "Halt when the acceptance scenario cannot be recorded before the diff.";
+
+/**
+ * The workflow under test with a fenced markdown example inside `## Stop conditions`, and one
+ * sentence BELOW that example but still inside the section.
+ *
+ * Both frozen workflow headings survive, so the D-01 cardinality assertions stay at full strength
+ * and these cases cannot pass for the unrelated reason that a derivation went short.
+ */
+const workflowWithFencedHeading = (
+  below: string,
+  quoted: string = QUOTED_HEADING,
+): string =>
+  [
+    `# Workflow: ${REAL_WORKFLOWS[0]}`,
+    "",
+    "## Steps",
+    "1. Read the shared verified context before doing anything else.",
+    "",
+    FROZEN_SECTION_ANCHORS[1].heading,
+    "Stop when the scope grows beyond the ticket that is in hand.",
+    "",
+    "```markdown",
+    quoted,
+    "```",
+    "",
+    below,
+    "",
+    FROZEN_SECTION_ANCHORS[2].heading,
+    "Commit the smallest diff that closes this one ticket.",
+    "",
+    "## Notes",
+    "This section sits outside every frozen structural section in the corpus.",
+    "",
+  ].join("\n");
+
+/** The 1-based line of a line matching exactly, derived from the body rather than counted by hand. */
+const lineOf = (text: string, want: string): number => {
+  const at = text.split("\n").indexOf(want);
+  if (at === -1) throw new Error(`harness: ${JSON.stringify(want)} is not a line of the fixture`);
+  return at + 1;
+};
+
+describe("check-diff-disposition — one fence authority bounds a frozen section (WR-06)", () => {
+  it("a fenced `## ` line does not end the section — the region runs to the next UNFENCED heading", () => {
+    const body = workflowWithFencedHeading(STOP_CLAUSE_BELOW_FENCE);
+    const lines = body.split("\n");
+    const fencedHeadingLine = lineOf(body, QUOTED_HEADING);
+    const belowLine = lineOf(body, STOP_CLAUSE_BELOW_FENCE);
+    const nextRealHeadingLine = lineOf(body, FROZEN_SECTION_ANCHORS[2].heading);
+
+    // The fixture's own premise: the quoted heading really is inside a fence, the next real heading
+    // is not, and the quoted spelling occurs exactly once. Asserted through the same authority the
+    // gate must consult, so the case cannot rest on a fence the toggle does not see.
+    const flags = fencedLineFlags(body);
+    expect(flags[fencedHeadingLine - 1]).toBe(true);
+    expect(lines.filter((l) => l === QUOTED_HEADING).length).toBe(1);
+    expect(flags[nextRealHeadingLine - 1]).toBe(false);
+
+    const span = locateSection(body, FROZEN_SECTION_ANCHORS[1].heading);
+    expect(span).not.toBeNull();
+    const { from, to } = span as { from: number; to: number };
+    expect(lines[from - 1]).toBe(FROZEN_SECTION_ANCHORS[1].heading);
+    // The extent, asserted as a NUMBER: it runs past the fenced heading, not up to it.
+    expect(to).toBeGreaterThan(fencedHeadingLine);
+    // And the sentence below the fence is inside it.
+    expect(belowLine).toBeGreaterThan(fencedHeadingLine);
+    expect(belowLine).toBeLessThanOrEqual(to);
+    // The terminator is the next UNFENCED heading, one line past the end of the region.
+    expect(to).toBe(nextRealHeadingLine - 1);
+  });
+
+  it("a FROZEN ANCHOR quoted inside a fence is not matched as the section's own heading", () => {
+    // The other half of the same defect. Here the quoted heading IS `## Commit`, so a fence-blind
+    // locator matches the QUOTED line and reports a `## Commit` region that starts inside a code
+    // example — a region whose every clause is documentation rather than governed prose.
+    const anchor = FROZEN_SECTION_ANCHORS[2].heading;
+    const body = workflowWithFencedHeading(STOP_CLAUSE_BELOW_FENCE, anchor);
+    const lines = body.split("\n");
+    expect(lines.filter((l) => l === anchor).length).toBe(2);
+    const quotedLine = lines.indexOf(anchor) + 1;
+    const realLine = lines.lastIndexOf(anchor) + 1;
+    const flags = fencedLineFlags(body);
+    expect(flags[quotedLine - 1]).toBe(true);
+    expect(flags[realLine - 1]).toBe(false);
+
+    const span = locateSection(body, anchor);
+    expect(span).not.toBeNull();
+    // The located heading is the REAL one, not the earlier quoted occurrence.
+    expect((span as { from: number }).from).toBe(realLine);
+  });
+
+  it("REDs a reword below a fenced heading, still inside the frozen region, with no filled companion", () => {
+    // The starting corpus already carries the fenced structure, so the plant is a ONE-LINE REWORD
+    // and both sides of the diff are exercised — see MirrorSpec.baseCorpus for why that matters.
+    //
+    // THE PREMISE THAT MAKES THIS A REPRODUCTION RATHER THAN A COINCIDENCE: the reworded sentence
+    // sits between the fenced heading and the next real heading, so `## Stop conditions` is the ONLY
+    // frozen region it can belong to. Without this, a red proves nothing about the truncation — the
+    // first version of this case quoted `## Commit` and went red against the PRE-CHANGE build,
+    // because the mislocated `## Commit` region swallowed the sentence instead.
+    const baseBody = workflowWithFencedHeading(STOP_CLAUSE_BELOW_FENCE);
+    expect(lineOf(baseBody, STOP_CLAUSE_BELOW_FENCE)).toBeGreaterThan(
+      lineOf(baseBody, QUOTED_HEADING),
+    );
+    expect(lineOf(baseBody, STOP_CLAUSE_BELOW_FENCE)).toBeLessThan(
+      lineOf(baseBody, FROZEN_SECTION_ANCHORS[2].heading),
+    );
+    expect(baseBody.split("\n").filter((l) => l === QUOTED_HEADING).length).toBe(1);
+
+    const { root } = makeMirror("gops-diffdisp-fence-frozen-", {
+      baseCorpus: {
+        [WORKFLOW_UNDER_TEST]: workflowWithFencedHeading(STOP_CLAUSE_BELOW_FENCE),
+      },
+      plant: {
+        [WORKFLOW_UNDER_TEST]: workflowWithFencedHeading(REWORDED_CLAUSE_BELOW_FENCE),
+      },
+      dispositions: {
+        "29-05.md": dispositionFile([
+          row(
+            WORKFLOW_UNDER_TEST,
+            STOP_CLAUSE_BELOW_FENCE,
+            REWORDED_CLAUSE_BELOW_FENCE,
+            "—",
+          ),
+        ]),
+      },
+    });
+    const { status, stdout } = runGate(root);
+    // The banner first: a failing run must print the transcript that IS the bypass evidence.
+    expect(stdout).not.toContain("ALL CHECKS PASSED");
+    expect(status).toBe(1);
+    expect(stdout).toContain("FROZEN by structuralSections");
+    expect(stdout).toContain(FROZEN_SECTION_ANCHORS[1].heading);
+    expect(stdout).toContain(segmentClauses(REWORDED_CLAUSE_BELOW_FENCE)[0].clause);
+  });
+
+  it("GREENs the same reword once the row carries a filled companion — the false-red control", () => {
+    const { root } = makeMirror("gops-diffdisp-fence-frozen-ok-", {
+      baseCorpus: {
+        [WORKFLOW_UNDER_TEST]: workflowWithFencedHeading(STOP_CLAUSE_BELOW_FENCE),
+      },
+      plant: {
+        [WORKFLOW_UNDER_TEST]: workflowWithFencedHeading(REWORDED_CLAUSE_BELOW_FENCE),
+      },
+      dispositions: {
+        "29-05.md": dispositionFile([
+          row(
+            WORKFLOW_UNDER_TEST,
+            STOP_CLAUSE_BELOW_FENCE,
+            REWORDED_CLAUSE_BELOW_FENCE,
+            REAL_COMPANION_PROSE,
+          ),
+        ]),
+      },
+    });
+    const { status, stdout } = runGate(root);
+    expect(status).toBe(0);
+    expect(stdout).toContain("ALL CHECKS PASSED");
+    expect(stdout).toContain("diff disposition: 0 findings over");
+  });
+
+  it("every frozen region on the LIVE corpus ends at an UNFENCED heading or at EOF", () => {
+    // THE INVARIANT, not a pinned count. Asserting "the corpus carries zero fenced headings today"
+    // would go red the first time somebody legitimately quotes a heading — which is the case this
+    // edit exists to handle correctly, not to forbid. The property below holds either way.
+    const corpus = [
+      ...listRoles(REPO).map((b) => ({
+        rel: `${ROLES_SUBPATH}/${b}`,
+        headings: [FROZEN_SECTION_ANCHORS[0].heading],
+      })),
+      ...listWorkflows(REPO).map((b) => ({
+        rel: `${WORKFLOWS_SUBPATH}/${b}`,
+        headings: [
+          FROZEN_SECTION_ANCHORS[1].heading,
+          FROZEN_SECTION_ANCHORS[2].heading,
+        ],
+      })),
+    ];
+    let located = 0;
+    for (const { rel, headings } of corpus) {
+      const text = readFileSync(join(REPO, rel), "utf8");
+      const lines = text.split("\n");
+      const flags = fencedLineFlags(text);
+      for (const heading of headings) {
+        const span = locateSection(text, heading);
+        if (span === null) continue;
+        located += 1;
+        // The section's own heading line is never inside a fence.
+        expect(flags[span.from - 1]).toBe(false);
+        // The terminator is either EOF or an UNFENCED `## ` line.
+        if (span.to < lines.length) {
+          expect(lines[span.to].startsWith("## ")).toBe(true);
+          expect(flags[span.to]).toBe(false);
+        }
+        // No `## ` line INSIDE the region is unfenced — that is what "ends at the next one" means.
+        for (let i = span.from; i < span.to; i++) {
+          if (lines[i].startsWith("## ")) expect(flags[i]).toBe(true);
+        }
+      }
+    }
+    // Non-vacuity: a corpus that located nothing would satisfy every assertion above.
+    expect(located).toBe(ROLE_COUNT + 2 * WORKFLOW_COUNT);
   });
 });
 
