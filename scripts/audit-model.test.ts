@@ -1483,3 +1483,165 @@ describe("audit-model: parseClaimBlock answers the fence question ONCE (plan 29-
     expect(derived.every((v) => v.length > 0)).toBe(true);
   });
 });
+
+// ---------------------------------------------------------------------------------------------
+// (Plan 29-28) THE HAZARD THE FENCE-AWARE FIX OPENS, CLOSED IN THE SAME PLAN THAT OPENS IT.
+//
+// `fencedLineFlags` leaves its toggle SET at EOF on an unterminated fence. For a prose scanner that
+// is a fail-safe; for a fence-AWARE claim-heading scan it inverts, because every claim heading
+// below an unclosed delimiter disappears and the claim list SILENTLY SHORTENS. Reproduced against
+// the post-CR-02 / pre-refusal build: deleting one closing delimiter from the twentieth block of
+// the live registry took the claim count 42 -> 20 and `safetySurfaceUnion` 41 -> 39, with
+// check-audit-register, check-claim-anchors and generate-safety-surface all exiting 0.
+//
+// That is LANG-06's CR-01 fail-open shape, reached through the same mechanism, and it must not ship
+// unclosed in the plan that creates it.
+// ---------------------------------------------------------------------------------------------
+describe("audit-model: an unterminated fence cannot silently shorten the claim list (plan 29-28)", () => {
+  function registryWithBlocks(n: number, mutate?: (lines: string[]) => string[]): string {
+    const out: string[] = ["# Phase 28 Claim Registry", "", "## Claims", ""];
+    for (let i = 1; i <= n; i++) {
+      out.push(
+        `### C-28-${String(i).padStart(3, "0")}`,
+        "",
+        "- file: README.md",
+        "- line: 4",
+        "- kind: architecture",
+        "- depends_on: autonomy",
+        "- status: true",
+        "",
+        FENCE,
+        `Claim number ${i}.`,
+        FENCE,
+        "",
+      );
+    }
+    return (mutate ? mutate(out) : out).join("\n");
+  }
+
+  it("an EVEN delimiter count parses normally — the direction a one-sided assertion would miss", () => {
+    const body = registryWithBlocks(3);
+    // PREMISE, asserted rather than assumed: the fixture really is even.
+    const delims = body.split("\n").filter((l) => FENCE_DELIMITER_LINE.test(l)).length;
+    expect(delims % 2, "the control fixture must carry an EVEN delimiter count").toBe(0);
+    expect(readRegistry(writeRegistryFixture(body)).claims).toHaveLength(3);
+  });
+
+  it("an ODD delimiter count is a NAMED refusal, and it names the last delimiter's line number", () => {
+    // One closing delimiter deleted from the SECOND of three blocks — partway through, so the
+    // pre-refusal behaviour is a SHORT list rather than an empty one.
+    let removedAt = -1;
+    const body = registryWithBlocks(3, (lines) => {
+      const delims: number[] = [];
+      lines.forEach((l, i) => {
+        if (FENCE_DELIMITER_LINE.test(l)) delims.push(i);
+      });
+      removedAt = delims[3]; // the SECOND block's closing delimiter
+      return lines.filter((_, i) => i !== removedAt);
+    });
+    const all = body.split("\n");
+    const delims = all.map((l, i) => (FENCE_DELIMITER_LINE.test(l) ? i : -1)).filter((i) => i >= 0);
+    // PREMISE: the mutation really produced an odd count, and a genuinely SHORTER unfenced scan.
+    expect(delims.length % 2, "the mutated fixture must carry an ODD delimiter count").toBe(1);
+    expect(
+      unfencedMatchIndices(body, /^###\s+(\S+)\s*$/).length,
+      "the mutation must really hide claim headings, or there is no hazard to refuse",
+    ).toBeLessThan(3);
+
+    let msg = "";
+    try {
+      readRegistry(writeRegistryFixture(body));
+    } catch (e) {
+      msg = (e as Error).message;
+    }
+    expect(msg).toMatch(/ODD number/);
+    // The line number of the LAST delimiter, so the author can find the unclosed one.
+    expect(msg).toContain(`line ${delims[delims.length - 1] + 1}`);
+    // And the refusal says what the CONSEQUENCE is, because "unterminated fence" alone reads like a
+    // formatting nit rather than a safety-list narrowing.
+    expect(msg).toMatch(/SHORTER CLAIM LIST/);
+    expect(msg).toMatch(/exclusion list/);
+  });
+
+  it("the refusal fires INSTEAD of a short parse — the same bytes, both outcomes named", () => {
+    // The discrimination, made explicit: under a fence-aware scan with no refusal the mutated
+    // document yields FEWER blocks than the well-formed one. The refusal is what stops that number
+    // from being returned as if it were the answer.
+    const good = registryWithBlocks(3);
+    const bad = registryWithBlocks(3, (lines) => {
+      const delims: number[] = [];
+      lines.forEach((l, i) => {
+        if (FENCE_DELIMITER_LINE.test(l)) delims.push(i);
+      });
+      return lines.filter((_, i) => i !== delims[3]);
+    });
+    const RE = /^###\s+(\S+)\s*$/;
+    expect(unfencedMatchIndices(good, RE)).toHaveLength(3);
+    expect(unfencedMatchIndices(bad, RE).length).toBeLessThan(3);
+    expect(readRegistry(writeRegistryFixture(good)).claims).toHaveLength(3);
+    expect(() => readRegistry(writeRegistryFixture(bad))).toThrow(/ODD number/);
+  });
+
+  // ── THE PUBLISHED DENOMINATOR, PINNED TWO-SIDED OVER THE LIVE REGISTRY. ───────────────────────
+  it("the LIVE registry's excluded-heading tally is pinned against a count derived here", () => {
+    // Re-derived in this session, never transcribed from the plan: the plan said round 3 measured
+    // 42 shaped lines and 0 fenced, and a transcribed number is a number nobody checked.
+    const text = readFileSync(join(REPO_ROOT, REGISTRY_PATH), "utf8");
+    const lines = text.split("\n");
+    const flags = fencedLineFlags(text);
+    const SHAPE = /^###\s+(\S+)\s*$/;
+    const shaped = lines.filter((l) => SHAPE.test(l)).length;
+    const fenced = lines.filter((l, i) => flags[i] && SHAPE.test(l)).length;
+
+    const reg = readRegistry(REPO_ROOT);
+    expect(reg.headingShapedLines).toBe(shaped);
+    expect(reg.headingShapedFenced).toBe(fenced);
+    // NON-VACUITY: a registry with no claim-shaped lines would satisfy every equality above.
+    expect(shaped, "the live registry must carry claim-heading-shaped lines").toBeGreaterThan(0);
+    // THE PIN THAT MOVES THE DAY A CLAIM HEADING IS FIRST WRITTEN INSIDE AN EXAMPLE. Today it is 0;
+    // if it ever becomes non-zero the exclusion list is being fed by a fence-aware filter over
+    // documentation, and that is a decision someone must make deliberately rather than discover.
+    expect(fenced).toBe(0);
+    // And the projection really is the difference of the two published tallies.
+    expect(reg.claims.length).toBe(shaped - fenced);
+  });
+
+  it("THE TALLY PIN IS PROVEN ABLE TO FAIL: a planted fenced claim heading moves it, and the plant is named", () => {
+    // The falsifiability probe. Same rule, one planted member: a claim heading written inside a
+    // fenced example in a MIRROR of the live registry. If the tally could not move, the pin above
+    // would be decoration.
+    const live = readFileSync(join(REPO_ROOT, REGISTRY_PATH), "utf8");
+    const planted = `${live}\n## An illustration\n\n${FENCE}\n### C-28-999\n- file: PHANTOM.md\n${FENCE}\n`;
+    const dir = writeRegistryFixture(planted);
+
+    const SHAPE = /^###\s+(\S+)\s*$/;
+    const flags = fencedLineFlags(planted);
+    const plantedLines = planted.split("\n");
+    const shaped = plantedLines.filter((l) => SHAPE.test(l)).length;
+    const fenced = plantedLines.filter((l, i) => flags[i] && SHAPE.test(l)).length;
+    // THE PLANT ADDED EXACTLY ONE FENCED SHAPED LINE — asserted, so a plant that landed outside the
+    // fence (or twice) fails loudly instead of proving the wrong thing.
+    const liveFlags = fencedLineFlags(live);
+    const liveLines = live.split("\n");
+    const liveFenced = liveLines.filter((l, i) => liveFlags[i] && SHAPE.test(l)).length;
+    expect(fenced, "the plant must add exactly one FENCED claim-heading-shaped line").toBe(
+      liveFenced + 1,
+    );
+
+    const reg = readRegistry(dir);
+    expect(reg.headingShapedFenced).toBe(fenced);
+    // The pin from the case above, run over the planted mirror, MUST now fail — and the failure
+    // reports the moved count rather than a bare inequality.
+    let failure = "";
+    try {
+      expect(reg.headingShapedFenced).toBe(liveFenced);
+    } catch (e) {
+      failure = (e as Error).message;
+    }
+    expect(failure, "the tally pin did not move on a planted fenced heading").not.toBe("");
+    expect(failure).toContain(String(fenced));
+    // And the planted phantom reached NO claim row — the two halves of this plan agreeing.
+    expect(reg.claims.map((c) => c.file)).not.toContain("PHANTOM.md");
+    expect(reg.claims.length).toBe(shaped - fenced);
+  });
+});

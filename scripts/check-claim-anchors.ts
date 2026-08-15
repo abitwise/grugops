@@ -144,8 +144,18 @@ function main(): void {
   );
 
   let claims: readonly ClaimRow[];
+  // (Plan 29-28; D-08 / AP-1) THE PARSE'S DENOMINATOR, CARRIED TO THE PASS LINE. `claims` is a
+  // projection of the claim-heading-shaped lines that survived the fence filter, so a PASS stating
+  // only how many rows were parsed states a numerator with no denominator. This gate already
+  // published a claim tally, which is why the two numbers are reported HERE and not bolted onto a
+  // gate this plan does not own.
+  let headingShaped = 0;
+  let headingShapedFenced = 0;
   try {
-    claims = readRegistry(ROOT).claims;
+    const registry = readRegistry(ROOT);
+    claims = registry.claims;
+    headingShaped = registry.headingShapedLines;
+    headingShapedFenced = registry.headingShapedFenced;
   } catch (e) {
     // The library throws; this gate REPORTS, so an unparseable registry produces a verdict rather
     // than a stack trace (the kit-model throw-versus-report split).
@@ -402,7 +412,10 @@ function main(): void {
   if (FAILS === 0) {
     const perDoc = docs.map((d) => `${d} ${(anchorsPerDoc.get(d) ?? []).length}`).join(", ");
     pass(
-      `${claims.length} registry row(s) — ${claims.length - unanchorable.length} markdown, ` +
+      `${claims.length} registry row(s) parsed from ${headingShaped} claim-heading-shaped line(s), ` +
+        `${headingShapedFenced} of them EXCLUDED as fenced documentation (the denominator: a claim ` +
+        `list that shortened would be short against this number rather than against nothing) — ` +
+        `${claims.length - unanchorable.length} markdown, ` +
         `${unanchorable.length} unanchorable (a non-markdown file cannot carry an HTML comment, so ` +
         `its POSITION is unheld; its verbatim text is still PRESENCE-checked against the file's ` +
         `bytes); anchors found: ${perDoc}; ${comparisons} verbatim comparison(s) performed, all ` +

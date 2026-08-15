@@ -653,6 +653,42 @@ export function readRegistry(root = DEFAULT_ROOT) {
         refuse(REGISTRY_PATH, `it could not be read (${e.message})`);
     }
     const lines = text.split("\n");
+    // ── (Plan 29-28) THE HAZARD THE FENCE-AWARE FIX OPENS, CLOSED IN THE SAME PLAN THAT OPENS IT. ─
+    //
+    // Making the heading scan fence-aware closes CR-02 in one direction and opens a fail-open in the
+    // other, and this repository's own record is that this is exactly where the last fix went wrong.
+    // `fencedLineFlags` leaves its toggle SET at EOF on an unterminated fence — a deliberate fail-safe
+    // for a prose scanner, because unexposed is the safe direction there. Here it inverts: an
+    // unterminated fence ANYWHERE in the registry flags every line below it, so every claim heading
+    // below it disappears, THE CLAIM LIST SILENTLY SHORTENS, `safetySurfaceUnion` shrinks, and files
+    // drop out of the D-18 exclusion list LANG-02 consults — with every gate green.
+    //
+    // REPRODUCED, not theorised. Deleting ONE closing delimiter from the twentieth block of the live
+    // registry took `readRegistry().claims.length` from 42 to 20 and `safetySurfaceUnion().length`
+    // from 41 to 39, while check-audit-register, check-claim-anchors and generate-safety-surface all
+    // exited 0. Same fail-open SHAPE as LANG-06's CR-01, reached by the same mechanism.
+    //
+    // DECIDED FROM THE ONE DELIMITER CLASS, WITH NO SECOND STATE MACHINE. The toggle flips once per
+    // line for which `FENCE_DELIMITER_LINE` holds, so an ODD count means the fence is still open at
+    // EOF. That is the toggle's own arithmetic read off the same class the toggle keys on — not a
+    // reimplementation of it.
+    //
+    // REFUSED AT THE POINT OF EFFECT, in the parser every consumer of this registry goes through,
+    // rather than in one gate — which would leave the hole open for the next consumer.
+    const delimiterLines = [];
+    for (let i = 0; i < lines.length; i++) {
+        if (FENCE_DELIMITER_LINE.test(lines[i]))
+            delimiterLines.push(i);
+    }
+    if (delimiterLines.length % 2 === 1) {
+        const last = delimiterLines[delimiterLines.length - 1] + 1;
+        refuse(REGISTRY_PATH, `it carries ${delimiterLines.length} fence delimiter line(s), an ODD number, so a fence is ` +
+            `still open at end of file — the last delimiter is at line ${last}. Every claim heading ` +
+            `below an unclosed delimiter is invisible to a fence-aware scan, so the consequence is NOT ` +
+            `a parse error: it is a SHORTER CLAIM LIST that reads exactly like a correct one. A shorter ` +
+            `claim list removes files from the LANG-03 safety-surface exclusion list silently, while ` +
+            `every gate computed over it still passes`);
+    }
     // ── (Plan 29-28, 29-REVIEW § CR-02) THE BLOCK BOUNDARIES COME FROM THE ONE AUTHORITY. ─────────
     //
     // This was the SIXTH member of the class plans 29-20 through 29-25 unified, and the last one
@@ -689,7 +725,36 @@ export function readRegistry(root = DEFAULT_ROOT) {
         refuse(REGISTRY_PATH, `it carries duplicate claim id(s): ${dupIds.join(", ")}. The claim id is what an anchor in a ` +
             `public document points at, so two rows sharing one id make the D-16 bijection unresolvable`);
     }
-    return { claims };
+    // ── (Plan 29-28; D-08 / AP-1) THE PARSE PUBLISHES ITS OWN DENOMINATOR. ────────────────────────
+    //
+    // `claims` is a PROJECTION, and a projection with no published denominator is a number that can
+    // be short against nothing. TWO SEPARATE EXPRESSIONS over the same text, deliberately — not one
+    // expression and a subtraction of its own output, which is 29-REVIEW § WR-03's shape one layer
+    // down. `headingShapedLines` counts the shape over RAW lines with no fence verdict at all;
+    // `headingShapedFenced` counts the shape ON LINES THE TOGGLE FLAGS. Neither reads `headingIdx`.
+    let headingShapedLines = 0;
+    for (const line of lines) {
+        if (CLAIM_HEADING_RE.test(line))
+            headingShapedLines += 1;
+    }
+    const flags = fencedLineFlags(text);
+    let headingShapedFenced = 0;
+    for (let i = 0; i < lines.length; i++) {
+        if (flags[i] && CLAIM_HEADING_RE.test(lines[i]))
+            headingShapedFenced += 1;
+    }
+    // AND THE THREE NUMBERS MUST AGREE. `headingIdx` came from the authority; these two came from
+    // this module. A disagreement means the authority and its denominator are answering different
+    // questions, which is precisely the condition a published denominator exists to make loud — so it
+    // is a NAMED refusal rather than a silent tally beside a wrong list.
+    if (headingIdx.length !== headingShapedLines - headingShapedFenced) {
+        refuse(REGISTRY_PATH, `its parse tally disagrees with its parse: ${headingShapedLines} claim-heading-shaped ` +
+            `line(s) minus ${headingShapedFenced} excluded as fenced is ` +
+            `${headingShapedLines - headingShapedFenced}, but the shared locator returned ` +
+            `${headingIdx.length} block(s). The denominator and the list are answering different ` +
+            `questions, so neither can be trusted to bound the other`);
+    }
+    return { claims, headingShapedLines, headingShapedFenced };
 }
 function parseClaimBlock(lines, start, end) {
     const headingMatch = CLAIM_HEADING_RE.exec(lines[start]);
