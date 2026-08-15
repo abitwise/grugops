@@ -480,7 +480,7 @@ Plans:
   4. The rebuilt voice guard **fails RED on all 17 current caveman blocks** as acceptance evidence before the rewrite lands, measures against a committed lexicon rather than sentence shape, and publishes a number with a denominator. (LANG-06)
   5. `## One job`, the caveman block, and `## Responsibilities` each say a thing once; `guard_imperative_lexicon` (with its sibling `guard_sentence_form`) and the rebuilt voice guard read the fence through **one** parser, never two grammars over the same bytes; and byte ceilings are re-baselined exactly once at end of phase with every file ≤ its previous value and the delta recorded — never raised mid-phase. (LANG-05, LANG-07, LANG-08)
 
-**Plans**: 32 plans — 26/26 executed (19/19 initial; gap-closure round 2 added 7, 29-20 .. 29-26, waves 19-25); **gap-closure round 3 adds 6 (29-27 .. 29-32, waves 26-29), none executed**. Round 3 closes the four truths that failed re-verification on 2026-08-15 (LANG-03, LANG-04, LANG-06, LANG-07) — one of them a fail-open REGRESSION created by round 2's own structural fix.
+**Plans**: 27/32 plans executed — 26/26 executed (19/19 initial; gap-closure round 2 added 7, 29-20 .. 29-26, waves 19-25); **gap-closure round 3 adds 6 (29-27 .. 29-32, waves 26-29), none executed**. Round 3 closes the four truths that failed re-verification on 2026-08-15 (LANG-03, LANG-04, LANG-06, LANG-07) — one of them a fail-open REGRESSION created by round 2's own structural fix.
 
 Plans:
 **Wave 1**
@@ -590,7 +590,7 @@ Plans:
 
 **Wave 26** *(gap-closure round 3 — blocked on Wave 25 completion)*
 
-- [ ] 29-27-PLAN.md — TRACER, LANG-06: the founding defect reopened by round 2's own fix. `readCavemanFence`'s bound taken from the ONE authority over a delimiter-neutralised projection, so the fence being measured cannot extend its own section; `guard_voice` folded through `reportMeasured` and publishing the scanned line count per file; the module's cost paragraph corrected in the same commit; and a whole-gate UNION case proving both halves together
+- [x] 29-27-PLAN.md — TRACER, LANG-06: the founding defect reopened by round 2's own fix. `readCavemanFence`'s bound taken from the ONE authority over a delimiter-neutralised projection, so the fence being measured cannot extend its own section; `guard_voice` folded through `reportMeasured` and publishing the scanned line count per file; the module's cost paragraph corrected in the same commit; and a whole-gate UNION case proving both halves together
 
 **Wave 27** *(blocked on Wave 26 completion)*
 
@@ -765,7 +765,7 @@ Plans:
 | 26. Dogfood, Dual-Path Oracle & A3/DOG-02 Retirement | v2.0 | 6/6 | Complete | 2026-07-24 |
 | 27. Spawn Correctness & Kit-Set Authority | v2.1 | 66/66 | Complete    | 2026-08-11 |
 | 28. Kit Consistency Audit | v2.1 | 8/8 | Complete    | 2026-08-12 |
-| 29. Controlled Language & Voice Guard Rebuild | v2.1 | 26/26 | In Progress|  |
+| 29. Controlled Language & Voice Guard Rebuild | v2.1 | 27/32 | In Progress|  |
 | 30. Per-Checkpoint Autonomy Matrix | v2.1 | 0/TBD | Not started | - |
 | 31. Autonomous Manual Testing | v2.1 | 0/TBD | Not started | - |
 | 32. Board Projector & CLI Dashboard | v2.1 | 0/TBD | Not started | - |
