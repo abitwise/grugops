@@ -1165,6 +1165,219 @@ describe("WR-02 — the sentence-form denominator is the derived corpus size and
 });
 
 // ─────────────────────────────────────────────────────────────────────────────────────────────────
+// (8b) WR-04 / WR-09 — THE VERDICTS THE MODULE'S OWN PROSE NAMES, EACH PINNED BY A CASE.
+//
+// Round 1's CR-03 fix made the list marker depth-unbounded, which is correct for a CommonMark
+// sub-bullet and produced two SCOPE mismatches between what this gate ENFORCES and what its own
+// recorded prose says it enforces. Neither is fail-open, and both mean the guard is not deciding
+// exactly the subset its name and its documentation claim.
+//
+//   WR-04  the set-equality refusal REDs a prose-only `## Steps` section, which the module's own
+//          Residual 1 documented as deliberately out of scope. RESOLVED BY HUMAN DECISION
+//          (`retire-residual`, plan 29-24 Task 1): the residual is retired and the replacement is
+//          published as a numbered, decidable rule in agent-factory/writing-profile.md. The case
+//          below asserts the ONE SENTENCE in BOTH artifacts, so enforcement and documentation
+//          cannot drift apart again without a red.
+//
+//   WR-09  the depth-unbounded markers also admit lines inside a FOUR-SPACE-INDENTED code block,
+//          which is not fenced, so `fencedLineFlags` returns false for it. Recorded as Residual 4
+//          with a concrete conflict rather than a difficulty judgement. The disclosed verdict is
+//          PINNED here, so the residual is a measured disclosure and not an untested belief.
+//
+// AND THE ORDERED ARM'S SCOPE IS STATED AND ITS UNION TESTED. `procedural` is
+// `(inSteps && isBullet) || ORDERED_MARKER.test(raw)` — two arms. Until this block neither arm's
+// boundary was asserted anywhere, and after a predicate is split into arms it is the arms' UNION,
+// with its complement, that a case has to cover.
+// ─────────────────────────────────────────────────────────────────────────────────────────────────
+
+/**
+ * The ONE sentence the retired residual was replaced by. It is a literal here on purpose.
+ *
+ * Interpolating it from a module export would make the cross-artifact assertion below tautological
+ * in the direction that matters: the point is that the GATE and the PROFILE say the same words to an
+ * author, and a shared constant proves only that one file imports another. This is the same reason
+ * every other refusal-wording assertion in this file is written as a literal.
+ */
+const STEPS_RULE_ID = "WP-11";
+const STEPS_RULE_SENTENCE =
+  "A steps section carries at least one list item.";
+
+describe("WR-04 / WR-09 — the shapes this guard's own prose names, each with its verdict pinned", () => {
+  it("WR-04: a prose-only `## Steps` section is RED, and the refusal names the RULE — the same sentence the writing profile publishes", () => {
+    const rel = "agent-factory/workflows/01-fixture.md";
+    // A `## Steps` heading whose section is written as paragraphs and carries not one list item.
+    // The `# Workflow: ` heading stays, so the display-name derivation is untouched and this
+    // fixture varies exactly one thing.
+    const proseOnly = [
+      "# Workflow: Prose Only Workflow",
+      "",
+      "## Steps",
+      "",
+      "Prose sits here where a step bullet belongs.",
+      "",
+    ].join("\n");
+
+    const { status, stdout } = runGate(
+      makeMirror("gops-lex-wr04-prose-", { plant: { [rel]: proseOnly } }),
+    );
+
+    expect(status).toBe(1);
+    expect(stdout).toContain(rel);
+    expect(stdout).toContain(
+      "the step-heading file set and the bullet-bearing file set are not equal",
+    );
+    // THE HALF THAT IS NEW, AND THE WHOLE OF WR-04. Before plan 29-24 the gate reddened this shape
+    // by accident of a denominator while the module's Residual 1 documented it as out of scope, and
+    // the refusal told an author what the gate had COMPUTED rather than what to WRITE.
+    expect(stdout).toContain(STEPS_RULE_ID);
+    expect(stdout).toContain(STEPS_RULE_SENTENCE);
+
+    // AND THE SAME SENTENCE IS THE PUBLISHED RULE. This is the mechanical closure of WR-04: the
+    // guard's enforcement and the kit's own documentation are held to ONE sentence in TWO artifacts,
+    // so a future reword of either alone is a red rather than a contradiction nobody notices.
+    const profile = readFileSync(
+      join(ROOT, "agent-factory", "writing-profile.md"),
+      "utf8",
+    );
+    expect(profile).toContain(STEPS_RULE_SENTENCE);
+    expect(profile).toContain(`| \`${STEPS_RULE_ID}\` |`);
+    // …and it is marked DECIDABLE, because a gate decides it. An advisory mark on a gated rule is
+    // the same class of claim/behaviour disagreement WR-04 is about.
+    const ruleRow = profile
+      .split("\n")
+      .find((l) => l.startsWith(`| \`${STEPS_RULE_ID}\` |`));
+    expect(ruleRow, `no ${STEPS_RULE_ID} row in the writing profile's rule table`).toBeDefined();
+    expect(ruleRow).toContain("| decidable |");
+  });
+
+  it("WR-09 / Residual 4: a FOUR-SPACE-INDENTED numbered line under `## Steps` IS admitted as a step bullet — the disclosed verdict, measured", () => {
+    const rel = "agent-factory/workflows/02-fixture.md";
+    // An indented code block: a paragraph, a blank line, then four-space-indented content. Indented
+    // code blocks carry no delimiter, so `fencedLineFlags` cannot see them and the marker test is
+    // asked of the line exactly as if it were a step.
+    const body = (withBlock: boolean): string =>
+      [
+        "# Workflow: Indented Block Workflow",
+        "",
+        "## Steps",
+        `1. ${VERB} the shared context first.`,
+        "",
+        "The transcript below is an indented code block:",
+        "",
+        ...(withBlock ? ["    1. npm run gate"] : []),
+        "",
+        "## Stop conditions",
+        "- The ticket fails the Definition of Ready -> stop and hand back.",
+        "",
+      ].join("\n");
+
+    const control = runGate(
+      makeMirror("gops-lex-wr09-blockctrl-", { plant: { [rel]: body(false) } }),
+    );
+    const planted = runGate(
+      makeMirror("gops-lex-wr09-block-", { plant: { [rel]: body(true) } }),
+    );
+
+    // THE ADMISSION IS MEASURED, NOT INFERRED FROM AN EXIT CODE. The bullet DENOMINATOR moves by
+    // exactly one, which is what says the transcript line was counted AS A STEP rather than merely
+    // that something somewhere went red.
+    expect(bulletTotals(planted.stdout).bullets).toBe(
+      bulletTotals(control.stdout).bullets + 1,
+    );
+    // And the direction is fail-CLOSED: a false red on correct text, never a silent pass.
+    expect(control.status).toBe(0);
+    expect(planted.status).toBe(1);
+    expect(planted.stdout).toContain(`${rel}:`);
+    expect(planted.stdout).toContain("WP-01 [not-an-approved-verb]");
+  });
+
+  it("WR-09: the ORDERED arm decides `procedural` with NO section anchor — the marker character is the only variable", () => {
+    const rel = "agent-factory/workflows/03-fixture.md";
+    // One word over the procedural bound and comfortably under the descriptive one, so the SENTENCE
+    // is identical in both runs and only the arm that classifies it differs.
+    const LONG = filler(PROCEDURAL_SENTENCE_MAX_WORDS + 1);
+    expect(countWords(`${LONG}.`)).toBeGreaterThan(PROCEDURAL_SENTENCE_MAX_WORDS);
+    expect(countWords(`${LONG}.`)).toBeLessThanOrEqual(DESCRIPTIVE_SENTENCE_MAX_WORDS);
+
+    const body = (marker: string): string =>
+      [
+        "# Workflow: Unanchored Ordered Workflow",
+        "",
+        "## Steps",
+        `1. ${VERB} the shared context first.`,
+        "",
+        "## Notes",
+        `${marker}${LONG}.`,
+        "",
+      ].join("\n");
+
+    const ordered = runGate(
+      makeMirror("gops-lex-wr09-ord-", { plant: { [rel]: body("    1. ") } }),
+    );
+    const unordered = runGate(
+      makeMirror("gops-lex-wr09-unord-", { plant: { [rel]: body("    - ") } }),
+    );
+
+    // The ordered arm reaches a line NO section anchor reaches, and it moves the published
+    // procedural count by exactly one.
+    expect(sentenceTotals(ordered.stdout).procedural).toBe(
+      sentenceTotals(unordered.stdout).procedural + 1,
+    );
+    expect(unordered.status).toBe(0);
+    expect(ordered.status).toBe(1);
+    expect(ordered.stdout).toContain("[procedural-sentence-too-long]");
+    expect(ordered.stdout).toContain(rel);
+  });
+
+  it("WR-09: the two `procedural` arms, their UNION and its complement — all four cells asserted", () => {
+    const rel = "agent-factory/workflows/04-fixture.md";
+    const LONG = filler(PROCEDURAL_SENTENCE_MAX_WORDS + 1);
+
+    const doc = (heading: string, marker: string): string =>
+      [
+        "# Workflow: Union Fixture Workflow",
+        "",
+        heading,
+        `${marker}${LONG}.`,
+        "",
+      ].join("\n");
+    const cell = (
+      label: string,
+      heading: string,
+      marker: string,
+    ): { status: number; stdout: string } =>
+      runGate(
+        makeMirror(`gops-lex-wr09-union-${label}-`, {
+          plant: { [rel]: doc(heading, marker) },
+        }),
+      );
+
+    // The two arms are `inSteps && isBullet` and `ORDERED_MARKER`. The four cells are both arms,
+    // each arm alone, and neither — and the last one is what makes the other three a measurement.
+    const both = cell("both", "## Steps", "    1. ");
+    const anchoredOnly = cell("anchored", "## Steps", "    - ");
+    const orderedOnly = cell("ordered", "## Notes", "    1. ");
+    const neither = cell("neither", "## Notes", "    - ");
+
+    expect({
+      both: both.status,
+      anchoredOnly: anchoredOnly.status,
+      orderedOnly: orderedOnly.status,
+      neither: neither.status,
+    }).toEqual({ both: 1, anchoredOnly: 1, orderedOnly: 1, neither: 0 });
+
+    for (const r of [both, anchoredOnly, orderedOnly]) {
+      expect(r.stdout).toContain("[procedural-sentence-too-long]");
+    }
+    // THE COMPLEMENT. The identical sentence under neither arm is DESCRIPTIVE, and 21 words is
+    // inside the 25-word descriptive bound — so it is reported by neither length rule. Without this
+    // cell the three above are consistent with a gate that calls every long sentence procedural.
+    expect(neither.stdout).not.toContain("[procedural-sentence-too-long]");
+    expect(neither.stdout).not.toContain("[descriptive-sentence-too-long]");
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────────────────────────
 // (9) WR-06 — THE TECHNICAL NAME TABLE SCAN READS THE ONE FENCE AUTHORITY.
 //
 // This module already imports `fencedLineFlags` and already consumes it for the governed-prose

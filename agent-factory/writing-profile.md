@@ -51,6 +51,7 @@ is enforced is making the overstated claim this project spent a milestone removi
 | `WP-08` | One instruction per sentence. Two imperatives joined by a conjunction are two sentences. | decidable |
 | `WP-09` | One term per concept. A concept that has a name keeps that name everywhere. | advisory |
 | `WP-10` | A prohibition is stated once, in the section that owns it. | advisory |
+| `WP-11` | A steps section carries at least one list item. Write the procedure as list items, or move the explanatory paragraphs under a heading that is not a steps heading. | decidable |
 
 ### The adjacency rule, stated rather than left to be assumed
 
@@ -66,6 +67,26 @@ sentence is never measured against both bounds, and it is never measured against
 verbs this repository's own procedural steps already use in bare imperative position. It is declared
 once in source, and the rule is a **canonical form with a refusal outside it** rather than a
 frequency cutoff over a distribution that has no head to adopt.
+
+### Why a steps section carries at least one list item
+
+`WP-11` is published here because a gate was already deciding it while this document said nothing,
+and a rule an author meets first as a red is a rule the kit failed to state.
+
+`WP-01` is scoped to list items. A steps section written as paragraphs is therefore measured by the
+imperative predicate not at all — so a heading that claims to hold procedure and holds no list item
+is a section no rule in this profile reaches. The gate reports that as a short denominator, which is
+correct and was previously unexplained.
+
+The rule is narrow on purpose. It asks for one list item and says nothing about how many, how long,
+or what a paragraph beside them may say. Explanatory prose is welcome inside a steps section; it is
+the *absence of any list item at all* that the rule refuses, because that is the case where the
+section's procedure is invisible to every decidable rule above.
+
+The cost is stated rather than left to be discovered. This is a constraint on every workflow written
+from here on, and a steps section written purely as explanation is now out of conformance instead of
+merely unmeasured. Every one of the 19 governed workflows carrying a steps heading already satisfies
+it, so publishing the rule moved no verdict on the day it was adopted.
 
 ## Deliberate omissions, with their reasons
 

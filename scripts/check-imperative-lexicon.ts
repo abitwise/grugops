@@ -68,10 +68,27 @@
 // ---------------------------------------------------------------------------------------------
 // RECORDED RESIDUALS, NOT CLAIMED AWAY (`UNKNOWN - verify`).
 //
-// 1. A NON-CONFORMING STEP WRITTEN AS PROSE WITH NO LIST MARKER IS NOT SEEN. The imperative
-//    predicate is scoped to list items under `## Steps`; a paragraph under that heading is not a
-//    bullet and is not measured as one. Widening to "every line under `## Steps`" would report the
-//    section's own explanatory prose as non-conforming steps.
+// THE NUMBERING STARTS AT 2, AND THE GAP IS A DECISION RATHER THAN A DELETION (plan 29-24, WR-04).
+// Residual 1 recorded that a step written as prose with no list marker was not seen, and that
+// widening the predicate to every line under `## Steps` would report the section's own explanatory
+// prose as non-conforming steps. That statement and this gate's own behaviour had come to
+// contradict each other: the set-equality refusal below REDs a `## Steps` section that contributes
+// no bullet, which is exactly the shape the residual documented as out of scope. A guard whose
+// enforcement and whose documentation give opposite answers for an ordinary authoring shape is not
+// enforcing the subset it names, which is the standard LANG-04 applies to everything else here.
+//
+// THE HUMAN DECIDED, AND THE ANSWER IS THE RULE RATHER THAN THE WIDENED PREDICATE. The residual is
+// RETIRED and its replacement is published where an author will meet it: `WP-11` in
+// agent-factory/writing-profile.md, "A steps section carries at least one list item." The predicate
+// is unchanged — a paragraph under `## Steps` is still not measured as a step — and the denominator
+// is still the HEADING scan rather than the bullet loop, which is the independence WR-02 landed.
+// What changed is that the refusal now names the rule, so a red tells an author what to write
+// instead of only what the gate computed. Measured on the live corpus before the retirement:
+// 19 of 19 governed files carrying a `## Steps` heading contribute at least one list item, so the
+// published rule was already satisfied at every member and zero verdicts moved.
+//
+// The remaining residuals KEEP their original numbers. Renumbering them would silently rewrite
+// every reference to them, and a reader meeting a gap here meets a decision with its reason.
 //
 // 2. THE SENTENCE SPLIT IS LINE-ORIENTED. A sentence hard-wrapped across a line boundary is
 //    measured as two short sentences rather than one long one, so it can pass a length bound it
@@ -83,6 +100,36 @@
 //    `modal` category taken whole; filtering it to an "obligation" subset would have created a
 //    second modal list in the tree. The broader direction reds more text and never less, which is
 //    the safe direction for a gate whose corpus is about to be rewritten anyway.
+//
+// 4. A FOUR-SPACE-INDENTED CODE BLOCK DONATES STEP BULLETS, AND THE ONE FENCE AUTHORITY CANNOT SEE
+//    IT (plan 29-24, WR-09). `LIST_MARKER` and `ORDERED_MARKER` are depth-unbounded, which round 1
+//    made them so a CommonMark sub-bullet under a numbered step is measured rather than skipped
+//    (CR-03). An INDENTED code block carries no delimiter, so `fencedLineFlags` reports its lines
+//    unfenced and the marker test is asked of them exactly as if they were steps. A shell
+//    transcript written as an indented block under `## Steps` therefore donates phantom bullets,
+//    and `ORDERED_MARKER` decides `procedural` with no section anchor at all, so an indented
+//    numbered line ANYWHERE in the corpus takes the 20-word bound.
+//
+//    THE REASON THIS IS RESIDUAL AND NOT FIXED IS A DEPENDENCY CONFLICT, NOT A DIFFICULTY
+//    JUDGEMENT. The structural remedy — teaching the one fence authority the indented-code-block
+//    form, so `is this line documentation` has a single answer for both spellings — makes every
+//    line indented four or more spaces documentation. A CommonMark sub-bullet under a numbered step
+//    IS indented four or more spaces, so that change reverses CR-03 for this same guard and stops
+//    measuring the very bullets round 1 shipped a fix to reach. Two shipped requirements cannot
+//    both hold under it. Resolving that is a behaviour change to the shared authority with its own
+//    corpus measurement, and it belongs in a plan that owns both requirements.
+//
+//    THE DIRECTION IS FAIL-CLOSED: a false red on correct text, never a silent pass. Measured on
+//    the live corpus at plan 29-24: ZERO indented list-marker lines under any `## Steps` heading and
+//    ZERO indented ordered-marker lines anywhere in the 47 governed documents, so the admission has
+//    an empty input set on the shipped tree. The verdict is nonetheless PINNED by a permanent case
+//    in scripts/check-imperative-lexicon.test.ts, so this disclosure is a measurement rather than a
+//    belief.
+//
+//    WHAT WOULD FORCE THE PROMOTE: the first governed workflow that legitimately carries an
+//    indented code block under a `## Steps` heading. At that point the residual has a live victim,
+//    the two requirements have to be reconciled rather than ordered, and the fix moves into the
+//    shared authority.
 //
 // A green run here says what these two predicates measured, and nothing wider.
 //
@@ -1151,6 +1198,21 @@ export const LEXICON_MEASURED_LABEL =
   "imperative lexicon — governed file(s) carrying a `## Steps` section";
 export const SENTENCE_MEASURED_LABEL = "sentence form — governed file(s)";
 
+/**
+ * THE PUBLISHED RULE THE STEP-SET REFUSAL NAMES (plan 29-24, WR-04).
+ *
+ * These two constants are the rule id and the rule sentence exactly as agent-factory/writing-profile.md
+ * publishes them. They are DELIBERATELY NOT EXPORTED. A case in
+ * scripts/check-imperative-lexicon.test.ts asserts the same sentence appears in the gate's refusal
+ * AND in the profile's rule table, written as a literal in both places — importing the constant into
+ * that case would prove only that one file reads another, when the property being pinned is that the
+ * guard and the kit's own documentation SAY THE SAME THING TO AN AUTHOR. That contradiction between
+ * a gate and its own recorded prose is the whole of WR-04, and a shared constant would hide the next
+ * one exactly as the retired Residual 1 hid this one.
+ */
+const STEPS_SECTION_RULE_ID = "WP-11";
+const STEPS_SECTION_RULE = "A steps section carries at least one list item.";
+
 function corpusBreakdown(): string {
   return GOVERNED_CORPUS_PARTS.map((p) => `${p.name} ${p.members.length}`).join(
     ", ",
@@ -1288,9 +1350,17 @@ function runAll(): void {
     },
   );
   if (stepSetRefusal !== null) {
+    // THE REFUSAL NAMES THE RULE, NOT ONLY THE SET ARITHMETIC (plan 29-24, WR-04). Set equality is
+    // what the gate COMPUTED; it is not something an author can act on. The sentence below is the
+    // published rule verbatim — `WP-11` in agent-factory/writing-profile.md — and a case asserts the
+    // same sentence in both artifacts, so the guard's enforcement and the kit's own documentation
+    // cannot drift back into contradicting each other without a red.
     fail(
       `the step-heading file set and the bullet-bearing file set are not equal, so the element ` +
-        `count published below covers less than the corpus declares\n        ${stepSetRefusal}`,
+        `count published below covers less than the corpus declares. THE RULE IS ` +
+        `${STEPS_SECTION_RULE_ID}: ${STEPS_SECTION_RULE} Write the section's procedure as list ` +
+        `items, or move the explanatory paragraphs under a heading that is not \`## Steps\`` +
+        `\n        ${stepSetRefusal}`,
     );
   }
   FAILS += reportMeasured(
