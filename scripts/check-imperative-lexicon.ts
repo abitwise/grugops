@@ -595,15 +595,50 @@ function configKeys(): string[] {
   return Object.keys(parsed as Record<string, unknown>).sort();
 }
 
-/** Every first cell of the table under a named `## ` heading, up to the next `## ` heading. */
+// ---------------------------------------------------------------------------
+// THE TWO TABLE LOCATORS, BOTH DECIDED BY THE SINGLE FENCE AUTHORITY (WR-06).
+//
+// `fencedLineFlags` is imported and consumed above for the governed-prose question. These two scans
+// were the last place in this module that answered a SECTION-EXTENT question with a SECOND GRAMMAR
+// over the same bytes — a bare `startsWith("## ")` that cannot tell a heading from a heading QUOTED
+// INSIDE AN EXAMPLE. One format-aware authority per predicate: the toggle is consumed, the fence
+// delimiter class is NOT re-declared here, and there is no parameter that asks for the old
+// behaviour, because an opt-out is a second grammar with extra steps.
+//
+// NOT CURRENTLY REACHABLE ON THE LIVE CORPUS, AND FIXED ANYWAY. Both documents carry zero fenced
+// heading lines and zero fenced table rows today, re-derived at execution rather than assumed — so
+// this change is provably behaviour-preserving and its proof is therefore a PLANTED input, never a
+// moved number. It is fixed because the phase's thesis is that a second grammar over the same bytes
+// is a defect even while the two grammars agree, and because THIS SET IS LOAD-BEARING: countWords
+// collapses a multi-word Technical Name to ONE term, so a term injected by a fenced example or
+// dropped by a fenced heading moves sentences across the length bounds and changes verdicts in a
+// guard that never mentions tables at all.
+// ---------------------------------------------------------------------------
+
+/** The first UNFENCED line equal to `heading`, or -1. A quoted heading is an example, not an anchor. */
+function unfencedIndexOf(
+  lines: readonly string[],
+  flags: readonly boolean[],
+  heading: string,
+): number {
+  for (let i = 0; i < lines.length; i++) {
+    if (!flags[i] && lines[i] === heading) return i;
+  }
+  return -1;
+}
+
+/** Every first cell of the table under a named `## ` heading, up to the next UNFENCED `## ` heading. */
 function tableFirstCellsUnderHeading(rel: string, heading: string): string[] {
   const a = abs(rel);
   if (!existsSync(a)) throw new Error(`${rel} does not exist at ${a}`);
-  const lines = readFileSync(a, "utf8").split("\n");
-  const at = lines.indexOf(heading);
+  const text = readFileSync(a, "utf8");
+  const flags = fencedLineFlags(text);
+  const lines = text.split("\n");
+  const at = unfencedIndexOf(lines, flags, heading);
   if (at === -1) throw new Error(`${rel} carries no \`${heading}\` heading`);
   const out: string[] = [];
   for (let i = at + 1; i < lines.length; i++) {
+    if (flags[i]) continue; // a fenced line is an example: it neither ends the section nor donates a row
     if (lines[i].startsWith("## ")) break;
     const row = lines[i].trim();
     if (!row.startsWith("|")) continue;
@@ -615,17 +650,23 @@ function tableFirstCellsUnderHeading(rel: string, heading: string): string[] {
   return out;
 }
 
-/** Every first cell of the board's column table, located by its exact header row. */
+/** Every first cell of the board's column table, located by its exact UNFENCED header row. */
 function boardColumns(): string[] {
   const a = abs(BOARD);
   if (!existsSync(a)) throw new Error(`${BOARD} does not exist at ${a}`);
-  const lines = readFileSync(a, "utf8").split("\n");
-  const at = lines.indexOf(BOARD_TABLE_HEADER);
+  const text = readFileSync(a, "utf8");
+  const flags = fencedLineFlags(text);
+  const lines = text.split("\n");
+  const at = unfencedIndexOf(lines, flags, BOARD_TABLE_HEADER);
   if (at === -1) {
     throw new Error(`${BOARD} carries no \`${BOARD_TABLE_HEADER}\` header row`);
   }
   const out: string[] = [];
   for (let i = at + 1; i < lines.length; i++) {
+    // A FENCED LINE IS SKIPPED RATHER THAN TREATED AS THE TABLE'S END. The end test below is
+    // "the first line that is not a row", and a fenced example's delimiter is not a row — so
+    // without this the table would end at an example that merely sits inside it.
+    if (flags[i]) continue;
     const row = lines[i].trim();
     if (!row.startsWith("|")) break;
     if (isTableRule(row)) continue;
