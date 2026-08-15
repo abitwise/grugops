@@ -1223,16 +1223,87 @@ describe("WR-02 — the sentence-form denominator is the derived corpus size and
 // ─────────────────────────────────────────────────────────────────────────────────────────────────
 
 /**
- * The ONE sentence the retired residual was replaced by. It is a literal here on purpose.
+ * BOTH SENTENCES OF `WP-11`, written as literals here on purpose.
  *
- * Interpolating it from a module export would make the cross-artifact assertion below tautological
+ * Interpolating them from a module export would make the cross-artifact assertion below tautological
  * in the direction that matters: the point is that the GATE and the PROFILE say the same words to an
  * author, and a shared constant proves only that one file imports another. This is the same reason
  * every other refusal-wording assertion in this file is written as a literal.
+ *
+ * WHY THERE ARE TWO SENTENCES HERE NOW (WR-05). `WP-11` has always been a two-sentence rule, and
+ * only its first sentence was ever pinned — while the case's own comment claimed the gate and the
+ * kit's documentation were "held to ONE sentence in TWO artifacts, so a future reword of either
+ * alone is a red". They were not: the remedy halves had disagreed since the day they landed (the
+ * profile said "a heading that is not a steps heading", the gate said "a heading that is not
+ * `## Steps`"), and no assertion could see it. A claim wider than the assertion beneath it is this
+ * repository's own named defect class, and it had landed inside the mechanism built against it. The
+ * previous comment is DELETED rather than amended, because a cost paragraph that survives the change
+ * it describes is the same defect one module over.
  */
 const STEPS_RULE_ID = "WP-11";
 const STEPS_RULE_SENTENCE =
   "A `## Steps` section carries at least one list item.";
+const STEPS_REMEDY_SENTENCE =
+  "Write the section's procedure as list items, or move the explanatory paragraphs under a heading that is not `## Steps`.";
+
+/** The `WP-11` row of the writing profile's rule table, or `undefined` if the table has none. */
+const wp11Row = (profile: string): string | undefined =>
+  profile.split("\n").find((l) => l.startsWith(`| \`${STEPS_RULE_ID}\` |`));
+
+/**
+ * THE FOUR-MEMBER PIN, AS DATA, so the falsifiability probe drives the SAME comparison the permanent
+ * assertions do rather than a second implementation of it.
+ *
+ * Four members and not one concatenated string: a concatenation pin cannot say WHICH half drifted,
+ * and a failure that reports only that "a string moved" is the failure mode this round has charged
+ * against every cell-flip reproduction it reviewed. Each member carries its own message naming the
+ * sentence AND the artifact.
+ *
+ * `row` is the rule ROW, never the whole profile document. The rationale section beneath the table
+ * quotes both sentences too, so a document-scoped `toContain` would keep passing on a table row that
+ * had been reworded — an assertion satisfied by prose that is not the rule is not an assertion about
+ * the rule.
+ */
+type Wp11PinMember = {
+  readonly key: "gate/rule" | "gate/remedy" | "profile/rule" | "profile/remedy";
+  readonly message: string;
+  readonly holds: boolean;
+};
+function wp11Pin(
+  gateOutput: string,
+  row: string | undefined,
+): readonly Wp11PinMember[] {
+  return [
+    {
+      key: "gate/rule",
+      message: `the GATE's refusal does not carry WP-11's RULE sentence: ${STEPS_RULE_SENTENCE}`,
+      holds: gateOutput.includes(STEPS_RULE_SENTENCE),
+    },
+    {
+      key: "gate/remedy",
+      message: `the GATE's refusal does not carry WP-11's REMEDY sentence: ${STEPS_REMEDY_SENTENCE}`,
+      holds: gateOutput.includes(STEPS_REMEDY_SENTENCE),
+    },
+    {
+      key: "profile/rule",
+      message: `the PROFILE's WP-11 row does not carry WP-11's RULE sentence: ${STEPS_RULE_SENTENCE}`,
+      holds: row !== undefined && row.includes(STEPS_RULE_SENTENCE),
+    },
+    {
+      key: "profile/remedy",
+      message: `the PROFILE's WP-11 row does not carry WP-11's REMEDY sentence: ${STEPS_REMEDY_SENTENCE}`,
+      holds: row !== undefined && row.includes(STEPS_REMEDY_SENTENCE),
+    },
+  ];
+}
+/** The members that do NOT hold, by key — the probe's assertion surface. */
+const wp11Broken = (
+  gateOutput: string,
+  row: string | undefined,
+): string[] =>
+  wp11Pin(gateOutput, row)
+    .filter((m) => !m.holds)
+    .map((m) => m.key);
 
 describe("WR-04 / WR-09 — the shapes this guard's own prose names, each with its verdict pinned", () => {
   it("WR-04: a prose-only `## Steps` section is RED, and the refusal names the RULE — the same sentence the writing profile publishes", () => {
@@ -1262,24 +1333,123 @@ describe("WR-04 / WR-09 — the shapes this guard's own prose names, each with i
     // by accident of a denominator while the module's Residual 1 documented it as out of scope, and
     // the refusal told an author what the gate had COMPUTED rather than what to WRITE.
     expect(stdout).toContain(STEPS_RULE_ID);
-    expect(stdout).toContain(STEPS_RULE_SENTENCE);
 
-    // AND THE SAME SENTENCE IS THE PUBLISHED RULE. This is the mechanical closure of WR-04: the
-    // guard's enforcement and the kit's own documentation are held to ONE sentence in TWO artifacts,
-    // so a future reword of either alone is a red rather than a contradiction nobody notices.
+    // WHAT IS HELD, STATED WITH NOTHING BEYOND IT (WR-05). BOTH sentences of `WP-11` — the rule and
+    // its remedy — appear in the gate's refusal AND in the profile's rule ROW, as four independent
+    // assertions with four distinct messages. A reword of EITHER sentence in EITHER artifact fails
+    // exactly one of them and names which. That is four drift routes, and all four are demonstrated
+    // to red by the four-mutation probe below rather than inferred from two.
     const profile = readFileSync(
       join(ROOT, "agent-factory", "writing-profile.md"),
       "utf8",
     );
-    expect(profile).toContain(STEPS_RULE_SENTENCE);
-    expect(profile).toContain(`| \`${STEPS_RULE_ID}\` |`);
-    // …and it is marked DECIDABLE, because a gate decides it. An advisory mark on a gated rule is
-    // the same class of claim/behaviour disagreement WR-04 is about.
-    const ruleRow = profile
-      .split("\n")
-      .find((l) => l.startsWith(`| \`${STEPS_RULE_ID}\` |`));
-    expect(ruleRow, `no ${STEPS_RULE_ID} row in the writing profile's rule table`).toBeDefined();
+    const ruleRow = wp11Row(profile);
+    expect(
+      ruleRow,
+      `no ${STEPS_RULE_ID} row in the writing profile's rule table`,
+    ).toBeDefined();
+    for (const member of wp11Pin(stdout, ruleRow)) {
+      expect(member.holds, member.message).toBe(true);
+    }
+
+    // …and the row is marked DECIDABLE, because a gate decides it. An advisory mark on a gated rule
+    // is the same class of claim/behaviour disagreement WR-04 is about.
     expect(ruleRow).toContain("| decidable |");
+  });
+
+  it("WR-05: the two-artifact pin FAILS on each of the four ways WP-11 can drift, and names which half moved", () => {
+    // THE PROBE THAT MAKES THE PIN ABOVE MEAN SOMETHING. A pin that has only ever been seen passing
+    // is exactly what shipped here before: the remedy halves of the two artifacts disagreed on the
+    // day they landed, and the assertion covering them did not exist while the comment above it said
+    // it did. Four mutations, one per (artifact x sentence) cell, each required to break exactly its
+    // own member and to leave the other three standing.
+    const { stdout } = runGate(
+      makeMirror("gops-lex-wr05-probe-", {
+        plant: {
+          "agent-factory/workflows/01-fixture.md": [
+            "# Workflow: Prose Only Workflow",
+            "",
+            "## Steps",
+            "",
+            "Prose sits here where a step bullet belongs.",
+            "",
+          ].join("\n"),
+        },
+      }),
+    );
+    const row = wp11Row(
+      readFileSync(join(ROOT, "agent-factory", "writing-profile.md"), "utf8"),
+    );
+
+    // The unmutated control. Without it a probe whose every arm reds could be reporting a pin that
+    // is simply always broken.
+    expect(wp11Broken(stdout, row), "the SHIPPED artifacts must satisfy all four members").toEqual(
+      [],
+    );
+
+    // A reword that a human would call harmless and a byte comparison calls a drift.
+    const reword = (s: string): string => s.replace("carries", "holds").replace("Write", "Put");
+
+    const mutations: readonly {
+      readonly name: string;
+      readonly gate: string;
+      readonly row: string | undefined;
+      readonly expect: string;
+    }[] = [
+      {
+        name: "the RULE sentence reworded in the GATE's constant",
+        gate: stdout.replaceAll(STEPS_RULE_SENTENCE, reword(STEPS_RULE_SENTENCE)),
+        row,
+        expect: "gate/rule",
+      },
+      {
+        name: "the REMEDY sentence reworded in the GATE's constant",
+        gate: stdout.replaceAll(
+          STEPS_REMEDY_SENTENCE,
+          reword(STEPS_REMEDY_SENTENCE),
+        ),
+        row,
+        expect: "gate/remedy",
+      },
+      {
+        name: "the RULE sentence reworded in a mirror of the PROFILE",
+        gate: stdout,
+        row: row?.replaceAll(STEPS_RULE_SENTENCE, reword(STEPS_RULE_SENTENCE)),
+        expect: "profile/rule",
+      },
+      {
+        name: "the REMEDY sentence reworded in a mirror of the PROFILE",
+        gate: stdout,
+        row: row?.replaceAll(
+          STEPS_REMEDY_SENTENCE,
+          reword(STEPS_REMEDY_SENTENCE),
+        ),
+        expect: "profile/remedy",
+      },
+    ];
+
+    for (const m of mutations) {
+      // PREMISE, FORCED: the mutation must actually have changed the artifact it names. A
+      // replacement that silently matched nothing would make the arm below assert that an unmutated
+      // input still passes, which is the vacuity this round keeps finding in its own probes.
+      const changed =
+        m.expect.startsWith("gate/") ? m.gate !== stdout : m.row !== row;
+      expect(changed, `the mutation "${m.name}" changed no byte of its artifact`).toBe(true);
+      expect(wp11Broken(m.gate, m.row), m.name).toEqual([m.expect]);
+
+      // AND THE MESSAGE THE BROKEN MEMBER CARRIES IS THE ONE A READER GETS. Asserting only the key
+      // would leave the four messages unexercised, and an unexercised message is how a failure that
+      // names nothing ships: the arm would go red and the reader would still have to diff two files
+      // by hand to learn which half moved.
+      const broken = wp11Pin(m.gate, m.row).find((x) => !x.holds);
+      expect(broken, m.name).toBeDefined();
+      expect(broken?.message, `${m.name} — the failure must name the ARTIFACT`).toContain(
+        m.expect.startsWith("gate/") ? "GATE's refusal" : "PROFILE's WP-11 row",
+      );
+      expect(broken?.message, `${m.name} — the failure must name the SENTENCE`).toContain(
+        m.expect.endsWith("/rule") ? STEPS_RULE_SENTENCE : STEPS_REMEDY_SENTENCE,
+      );
+    }
   });
 
   it("WR-09 / Residual 4: a FOUR-SPACE-INDENTED numbered line under `## Steps` IS admitted as a step bullet — the disclosed verdict, measured", () => {
