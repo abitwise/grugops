@@ -1,10 +1,10 @@
 ---
 schema_version: 1
-open_count: 24
+open_count: 25
 waived_count: 0
 fixed_count: 1
-total_count: 25
-last_updated: 2026-08-14T17:27:20.349Z
+total_count: 26
+last_updated: 2026-08-15T10:04:44.790Z
 ---
 
 # Broken Windows Ledger
@@ -40,6 +40,7 @@ last_updated: 2026-08-14T17:27:20.349Z
 | 23 | 29 | stub | scripts/check-imperative-lexicon.ts |  | readDispositionRows() silently drops a register row containing an escaped pipe: it splits on \| and skips any row whose cell count is not seven, wordlessly (attested in 29-12) | open |  | 2026-08-14T17:27:20.224Z |  |
 | 24 | 29 | unrun-verify | scripts/check-nul-bytes.ts |  | No gate detects a non-UTF-8 byte in kit markdown: check-nul-bytes looks only for NUL and markdown readers decode lossily to U+FFFD. A 29-05 perl -pi -e rewrite silently wrote a raw latin-1 0xA7 into seven files | open |  | 2026-08-14T17:27:20.286Z |  |
 | 25 | 29 | todo | agent-factory/workflows/18-context-compaction.md |  | WP-09 lowercase workflow display names remain: 'context compaction', 'context read/write', 'task claim + schedule'. Renaming changes a DERIVED set (listWorkflowDisplayNames -> TECHNICAL_NAMES -> two-sided pinned count), not prose, so no style plan owned it | open |  | 2026-08-14T17:27:20.349Z |  |
+| 26 | 29 | deviation | .planning/phases/29-controlled-language-voice-guard-rebuild/29-19-PLAN.md |  | Acceptance criterion 'grep -c ^overrides: returns 1' is unsatisfiable: the report's own drafted block inside a yaml fence carries a column-0 overrides: line. Substituted with a frontmatter-region-scoped count (1 key, 1 fenced prose copy). | open |  | 2026-08-15T10:04:44.790Z |  |
 
 ````json
 [
@@ -341,6 +342,18 @@ last_updated: 2026-08-14T17:27:20.349Z
     "status": "open",
     "reason": "",
     "recorded_at": "2026-08-14T17:27:20.349Z",
+    "resolved_at": null
+  },
+  {
+    "id": 26,
+    "kind": "deviation",
+    "phase": "29",
+    "file": ".planning/phases/29-controlled-language-voice-guard-rebuild/29-19-PLAN.md",
+    "line": null,
+    "description": "Acceptance criterion 'grep -c ^overrides: returns 1' is unsatisfiable: the report's own drafted block inside a yaml fence carries a column-0 overrides: line. Substituted with a frontmatter-region-scoped count (1 key, 1 fenced prose copy).",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-08-15T10:04:44.790Z",
     "resolved_at": null
   }
 ]
