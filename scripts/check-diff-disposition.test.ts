@@ -2361,6 +2361,117 @@ describe("check-diff-disposition — a frozen section closes at a LEVEL-ONE head
     expect(span).not.toBeNull();
     expect((span as { to: number }).to).toBe(appendixLine - 1);
   });
+
+  // ───────────────────────────────────────────────────────────────────────────────────────────
+  // THE WIDENING IS PROVEN BEHAVIOUR-PRESERVING BY MEASUREMENT, NOT BY ASSUMPTION.
+  //
+  // The old close is restated here as a REFERENCE IMPLEMENTATION. That is deliberate and it is not
+  // a second authority: a case's restated predicate is an INPUT to the comparison, the same
+  // distinction scripts/frontmatter.test.ts's IN-05 scan already draws. It is also the only way to
+  // compare the two answers once the old one has been deleted from the module, which is the point.
+  // ───────────────────────────────────────────────────────────────────────────────────────────
+
+  /** The DELETED close scan, restated: the first unfenced `## ` line at or after `from`, else EOF. */
+  const levelTwoOnlyClose = (text: string, from: number): number => {
+    const lines = text.split("\n");
+    const flags = fencedLineFlags(text);
+    for (let i = from; i < lines.length; i += 1) {
+      if (!flags[i] && lines[i].startsWith("## ")) return i;
+    }
+    return lines.length;
+  };
+
+  it("the comparison CAN fail — the two closes disagree on a body carrying an unfenced `# ` heading", () => {
+    // The falsifiability floor for the corpus case below. Without it, "zero disagreements over 55
+    // regions" is indistinguishable from a comparison that cannot produce one.
+    const body = roleWithLevelOneSuccessor();
+    const at = body.split("\n").indexOf(FROZEN_SECTION_ANCHORS[0].heading);
+    expect(at).toBeGreaterThan(-1);
+    const widened = locateSection(body, FROZEN_SECTION_ANCHORS[0].heading);
+    expect((widened as { to: number }).to).not.toBe(levelTwoOnlyClose(body, at + 1));
+  });
+
+  it("the level widening moves NOTHING on the live watched corpus — 55 regions, zero disagreements", () => {
+    const corpus = [
+      ...listRoles(REPO).map((b) => ({
+        rel: `${ROLES_SUBPATH}/${b}`,
+        headings: [FROZEN_SECTION_ANCHORS[0].heading],
+      })),
+      ...listWorkflows(REPO).map((b) => ({
+        rel: `${WORKFLOWS_SUBPATH}/${b}`,
+        headings: [
+          FROZEN_SECTION_ANCHORS[1].heading,
+          FROZEN_SECTION_ANCHORS[2].heading,
+        ],
+      })),
+    ];
+    const disagreements: string[] = [];
+    let located = 0;
+    for (const { rel, headings } of corpus) {
+      const text = readFileSync(join(REPO, rel), "utf8");
+      for (const heading of headings) {
+        const span = locateSection(text, heading);
+        if (span === null) continue;
+        located += 1;
+        const old = levelTwoOnlyClose(text, span.from);
+        if (old !== span.to) {
+          disagreements.push(`${rel} \`${heading}\`: level-two close ${old}, level-two-or-one close ${span.to}`);
+        }
+      }
+    }
+    // NON-VACUITY FIRST, and as the SAME number the sibling WR-06 case derives: a corpus that
+    // located nothing would satisfy the equality below with no work done at all.
+    expect(located).toBe(ROLE_COUNT + 2 * WORKFLOW_COUNT);
+    expect(
+      disagreements,
+      "the level widening must not move a single frozen region on the live corpus — a region that got SHORTER is protection silently lost",
+    ).toEqual([]);
+  });
+
+  it("every level-one heading BELOW a `## ` section in the watched corpus is FENCED, and there are some", () => {
+    // WHAT MAKES THE WIDENING SAFE, AS A FACT ABOUT THE CORPUS RATHER THAN A PROPERTY OF THE CODE.
+    // A `# ` heading now closes a `## ` section, so an UNFENCED `# ` line below a `## ` heading would
+    // truncate that section — the fail-open direction, invisible in a green run. Measured this
+    // session the answer is NINE lines, every one of them fenced and every one of them in
+    // `agent-factory/README.md` (lines 105, 109, 113, 116, 119, 122, 125, 128 and 131 — quoted
+    // `/grug` invocations inside a shell example).
+    //
+    // THE PLAN'S OWN VERSION OF THIS ASSERTION IS FALSE AND IS NOT THE ONE WRITTEN HERE. 29-22-PLAN
+    // says "every line after the first that is a level-one heading … is flagged by the one fence
+    // authority". Measured over the same corpus that is 48 lines of which 37 are UNFENCED: every
+    // role and workflow carries its `# Role: ` / `# Workflow: ` title at line 6. Those 37 are
+    // harmless for the exact reason the plan's own task text gives — they sit ABOVE every `## `
+    // heading in their file, so no section-close scan ever starts before them — and the property
+    // that expresses the safety is therefore "below a `## `", not "after line one".
+    const offenders: string[] = [];
+    let examined = 0;
+    let filesScanned = 0;
+    for (const rel of mdOf(REPO)) {
+      filesScanned += 1;
+      const text = readFileSync(join(REPO, rel), "utf8");
+      const lines = text.split("\n");
+      const flags = fencedLineFlags(text);
+      const firstSection = lines.findIndex(
+        (l, i) => !flags[i] && l.startsWith("## "),
+      );
+      if (firstSection === -1) continue;
+      for (let i = firstSection + 1; i < lines.length; i += 1) {
+        if (!lines[i].startsWith("# ")) continue;
+        examined += 1;
+        if (!flags[i]) offenders.push(`${rel}:${i + 1} — ${lines[i]}`);
+      }
+    }
+    // TWO FLOORS, because a vacuity floor over the FILES cannot see a silently short ELEMENT count.
+    expect(filesScanned).toBeGreaterThan(0);
+    expect(
+      examined,
+      "the derived set of level-one headings below a `## ` section must be NON-EMPTY — a scan that found nothing cannot report that they are all fenced",
+    ).toBeGreaterThan(0);
+    expect(
+      offenders,
+      "an UNFENCED level-one heading below a `## ` section TRUNCATES that section under the level-two close — the frozen region above it just got shorter, which is protection lost with no failure anywhere",
+    ).toEqual([]);
+  });
 });
 
 describe("check-diff-disposition — the output is diffable", () => {
