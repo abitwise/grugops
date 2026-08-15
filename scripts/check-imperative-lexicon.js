@@ -187,8 +187,10 @@
 import { readFileSync, existsSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
-// The ONE fence state machine, asked per line so a finding can carry its source line number.
-import { fencedLineFlags } from "./frontmatter.js";
+// The ONE fence state machine, asked per line so a finding can carry its source line number, and
+// the ONE section-locator authority (plan 29-20) this module now asks EVERY section-extent question
+// of. It declares no heading-equality test and no section-end predicate of its own.
+import { fencedLineFlags, unfencedHeadingIndex, sectionEndIndex, } from "./frontmatter.js";
 // The workflow corpus and the two display-name derivations (D-40). MAX_WALK_ENTRIES is the walk's
 // WORK bound, taken from the one place this repository declares it.
 import { listWorkflows, listRoleDisplayNames, listWorkflowDisplayNames, MAX_WALK_ENTRIES, } from "./kit-model.js";
@@ -470,20 +472,40 @@ export const DESCRIPTIVE_SENTENCE_MAX_WORDS = 25;
 // evaluated at module load and a `const` referenced before its initializer is a temporal-dead-zone
 // throw — which this gate would report as a derivation refusal rather than as the wiring error it is.
 // ---------------------------------------------------------------------------
-/** An ATX heading line. */
-const HEADING_LINE = /^#{1,6} /;
-/** The section anchor that makes a bullet procedural (WP-04). */
-const STEPS_HEADING = /^## Steps\s*$/;
 /**
- * THE HEADING CLASS THAT OWNS THE SECTION ANCHOR — level one or level two, and nothing deeper.
+ * An ATX heading line — "IS THIS LINE A HEADING AT ALL", which is a THIRD question and is kept.
  *
- * A SUB-HEADING DOES NOT LEAVE A SECTION; IT STRUCTURES ONE. Treating every heading as an exit
- * silently releases every bullet below the first `### ` under `## Steps` — the bullets stop being
- * counted, stop being measured against the procedural bound, and stop being reached by WP-05 and
- * WP-08, with no number moving anywhere to say so. So the anchor is reset only by a heading that
- * could plausibly START a sibling section, and a deeper heading leaves it exactly as it found it.
+ * This decides that a heading is not prose: a heading is never a sentence and never a step, so the
+ * line is skipped before any sentence split. That is not the section-extent question
+ * (`sectionEndIndex`) and not the anchor question (`STEPS_HEADING`), and the difference is stated
+ * here so a later reader does not "unify" three predicates of which only two were ever the same.
+ *
+ * AND IT IS THE ONE SURVIVING MEMBER OF PLAN 29-22'S DERIVED LOCATOR-SITE SCAN OVER THIS MODULE,
+ * RECORDED HERE RATHER THAN LEFT FOR A TREE-WIDE DERIVATION TO TRIP OVER. That classifier's third
+ * construct is `CLOSE by heading PREFIX`, spelled `/\^#\{?[\d,]*\}?[ \\]/`, and it cannot tell a
+ * section terminator from a heading RECOGNISER — both are `/^#{n,m} /`. Measured at plan 29-24 with
+ * that classifier over this module: FOUR sites before the rewire (`HEADING_LINE`,
+ * `SECTION_HEADING_LINE`, `unfencedIndexOf`'s equality and `tableFirstCellsUnderHeading`'s
+ * `startsWith("## ")` close) and ONE after — this line. Plan 29-24's own acceptance criterion says
+ * the answer here must be ZERO; measured, it is ONE, and the one is the predicate the same plan
+ * instructs this module to KEEP. Plan 29-25, which extends the scan tree-wide, therefore needs a
+ * stated exemption for a heading RECOGNISER rather than a widened classifier, exactly as plan 29-23
+ * recorded for `check-banned-claims.ts`'s heading COUNT.
  */
-const SECTION_HEADING_LINE = /^#{1,2} /;
+const HEADING_LINE = /^#{1,6} /;
+/**
+ * The section anchor that makes a bullet procedural (WP-04) — WHICH heading opens the section.
+ *
+ * This is this module's own legitimate question and it stays here. Where the section it opens ENDS
+ * is a different question, and that one is answered by `sectionEndIndex` in scripts/frontmatter.ts
+ * (plan 29-24, WR-08). The private `SECTION_HEADING_LINE = /^#{1,2} /` that used to sit below this
+ * line was a fourth section-extent grammar in a tree that had unified the other three, and it is
+ * DELETED. Its behaviour is preserved exactly: `sectionEndIndex(..., 2)` closes on a heading of
+ * level at most two, so a `### ` under `## Steps` still STRUCTURES the section rather than leaving
+ * it — which matters because treating every heading as an exit silently releases every bullet below
+ * the first sub-heading, with no number moving anywhere to say so.
+ */
+const STEPS_HEADING = /^## Steps\s*$/;
 /**
  * An ordered or unordered list marker at the head of a line, AT ANY INDENTATION DEPTH.
  *
@@ -583,14 +605,31 @@ function configKeys() {
     return Object.keys(parsed).sort();
 }
 // ---------------------------------------------------------------------------
-// THE TWO TABLE LOCATORS, BOTH DECIDED BY THE SINGLE FENCE AUTHORITY (WR-06).
+// THE TWO TABLE LOCATORS, BOTH DECIDED BY THE SINGLE SHARED AUTHORITY (WR-06, as corrected by
+// WR-08 in plan 29-24).
 //
-// `fencedLineFlags` is imported and consumed above for the governed-prose question. These two scans
-// were the last place in this module that answered a SECTION-EXTENT question with a SECOND GRAMMAR
-// over the same bytes — a bare `startsWith("## ")` that cannot tell a heading from a heading QUOTED
-// INSIDE AN EXAMPLE. One format-aware authority per predicate: the toggle is consumed, the fence
-// delimiter class is NOT re-declared here, and there is no parameter that asks for the old
-// behaviour, because an opt-out is a second grammar with extra steps.
+// THE CLAIM THIS BLOCK USED TO MAKE WAS WIDER THAN THE ASSERTION BEHIND IT, AND THE CORRECTION IS
+// THE POINT OF THIS NOTE. It said these two scans were "the last place in this module that answered
+// a SECTION-EXTENT question with a SECOND GRAMMAR". They were not: `deriveElements`' step anchor
+// carried a private `SECTION_HEADING_LINE = /^#{1,2} /` reset, a THIRD grammar over the same
+// question, and it sat below this paragraph the whole time round 1 was congratulating itself. A
+// prose claim wider than the assertion behind it is this repository's recorded second systemic
+// failure class wearing a sentence instead of a set literal, and it is corrected here rather than
+// quietly overwritten.
+//
+// ALL THREE ARE NOW DELETED. `unfencedHeadingIndex` answers which line is the anchor and
+// `sectionEndIndex` answers where the section ends, both from scripts/frontmatter.ts, both composed
+// on the ONE fence toggle. The fence delimiter class is not re-declared here, and there is no
+// parameter that asks for the old behaviour, because an opt-out is a second grammar with extra
+// steps.
+//
+// THE NORMALIZATION AXIS MOVED, AND THAT IS THE AXIS THE FOUR DELETED PREDICATES DISAGREED ON. The
+// helper this replaces compared a line to the heading with EXACT equality; the authority compares
+// `trimEnd()`. So a heading carrying one trailing space is now FOUND where it used to be missed —
+// a real widening, and the one the round-2 review tabulated as the disagreement nobody had pinned.
+// `TECHNICAL_NAMES_COUNT` is re-derived after the change and is required to stay at 76: if it
+// moved, one of the two table sources carries a trailing-whitespace heading and the movement is
+// REPORTED with its cause, never absorbed.
 //
 // NOT CURRENTLY REACHABLE ON THE LIVE CORPUS, AND FIXED ANYWAY. Both documents carry zero fenced
 // heading lines and zero fenced table rows today, re-derived at execution rather than assumed — so
@@ -601,15 +640,7 @@ function configKeys() {
 // dropped by a fenced heading moves sentences across the length bounds and changes verdicts in a
 // guard that never mentions tables at all.
 // ---------------------------------------------------------------------------
-/** The first UNFENCED line equal to `heading`, or -1. A quoted heading is an example, not an anchor. */
-function unfencedIndexOf(lines, flags, heading) {
-    for (let i = 0; i < lines.length; i++) {
-        if (!flags[i] && lines[i] === heading)
-            return i;
-    }
-    return -1;
-}
-/** Every first cell of the table under a named `## ` heading, up to the next UNFENCED `## ` heading. */
+/** Every first cell of the table under a named `## ` heading, up to where the SHARED authority ends it. */
 function tableFirstCellsUnderHeading(rel, heading) {
     const a = abs(rel);
     if (!existsSync(a))
@@ -617,15 +648,18 @@ function tableFirstCellsUnderHeading(rel, heading) {
     const text = readFileSync(a, "utf8");
     const flags = fencedLineFlags(text);
     const lines = text.split("\n");
-    const at = unfencedIndexOf(lines, flags, heading);
+    const at = unfencedHeadingIndex(text, heading);
     if (at === -1)
         throw new Error(`${rel} carries no \`${heading}\` heading`);
+    // The section's END, from the authority. The private `startsWith("## ")` break that used to sit
+    // in this loop is DELETED. The authority closes on a heading of level AT MOST two, so a `# ` now
+    // ends the section where the deleted test walked straight past it — the CR-02 axis, one module
+    // over, and the reason the two locators are unified rather than corrected in place.
+    const end = sectionEndIndex(text, at + 1, 2);
     const out = [];
-    for (let i = at + 1; i < lines.length; i++) {
+    for (let i = at + 1; i < end; i++) {
         if (flags[i])
             continue; // a fenced line is an example: it neither ends the section nor donates a row
-        if (lines[i].startsWith("## "))
-            break;
         const row = lines[i].trim();
         if (!row.startsWith("|"))
             continue;
@@ -638,7 +672,18 @@ function tableFirstCellsUnderHeading(rel, heading) {
     }
     return out;
 }
-/** Every first cell of the board's column table, located by its exact UNFENCED header row. */
+/**
+ * Every first cell of the board's column table, located by its exact UNFENCED header row.
+ *
+ * THE ANCHOR GOES TO THE AUTHORITY; THE TERMINATOR DELIBERATELY DOES NOT, AND THE DIFFERENCE IS
+ * STATED SO A LATER READER DOES NOT UNIFY TWO PREDICATES THAT WERE NEVER THE SAME. The authority
+ * answers "the first unfenced line whose trimmed text equals this string", which is exactly what
+ * finding the header row is — the operand happens to be a table header rather than a heading, and
+ * the question is identical. But the loop below terminates at THE FIRST LINE THAT IS NOT A TABLE
+ * ROW, which is asking where a TABLE ends, not where a SECTION ends. A table can end long before
+ * its section does, and replacing this with `sectionEndIndex` would harvest every later table in
+ * the same section as board columns.
+ */
 function boardColumns() {
     const a = abs(BOARD);
     if (!existsSync(a))
@@ -646,7 +691,7 @@ function boardColumns() {
     const text = readFileSync(a, "utf8");
     const flags = fencedLineFlags(text);
     const lines = text.split("\n");
-    const at = unfencedIndexOf(lines, flags, BOARD_TABLE_HEADER);
+    const at = unfencedHeadingIndex(text, BOARD_TABLE_HEADER);
     if (at === -1) {
         throw new Error(`${BOARD} carries no \`${BOARD_TABLE_HEADER}\` header row`);
     }
@@ -727,26 +772,39 @@ function deriveElements(corpus) {
         filesRead += 1;
         const flags = fencedLineFlags(text);
         const lines = text.split("\n");
-        let inSteps = false;
+        // THE STEP SECTION'S EXTENT, COMPUTED PER FILE BY THE SHARED AUTHORITY (plan 29-24, WR-08).
+        //
+        // This used to be a streaming `inSteps` flag reset by a private `/^#{1,2} /` test on every line
+        // — the module's THIRD section-extent grammar, and the one the WR-06 block above wrongly
+        // claimed did not exist. The anchor question ("which heading opens a step section") is this
+        // module's own and stays here as `STEPS_HEADING`; the extent question is the shared one and is
+        // now answered ONCE, by `sectionEndIndex` at level two.
+        //
+        // The ranges are half-open `[from, to)` and there is one per anchor, because a document may
+        // open more than one step section and a single index pair would silently govern only the first.
+        const stepsRanges = [];
+        for (let i = 0; i < lines.length; i++) {
+            if (flags[i])
+                continue; // a `## Steps` line QUOTED in an example opens nothing
+            if (!STEPS_HEADING.test(lines[i]))
+                continue;
+            stepsRanges.push({ from: i + 1, to: sectionEndIndex(text, i + 1, 2) });
+            // The independent denominator's source (WR-02). A file is recorded as carrying a step section
+            // the moment its HEADING is seen — whether or not a single list item ever follows. WP-11 is
+            // the published rule that makes the follow-up mandatory; this scan stays independent of the
+            // bullet loop either way, which is the property that makes a short denominator visible.
+            if (!stepsFiles.includes(file))
+                stepsFiles.push(file);
+        }
         for (let i = 0; i < lines.length; i++) {
             if (flags[i])
                 continue; // inside a fence: documentation, not governed prose
             const raw = lines[i];
-            if (HEADING_LINE.test(raw)) {
-                // The section anchor. A heading is not a sentence and is never a step.
-                //
-                // ONLY A HEADING OF LEVEL AT MOST TWO MOVES THE ANCHOR. A `### ` under `## Steps` is part of
-                // the step section, so it leaves `inSteps` alone; a `## ` or `# ` starts something else, so
-                // it sets the anchor to whether THAT something else is `## Steps`.
-                if (SECTION_HEADING_LINE.test(raw))
-                    inSteps = STEPS_HEADING.test(raw);
-                // The independent denominator's source (WR-02). A file is recorded as carrying a step
-                // section the moment its HEADING is seen — whether or not a single bullet ever follows.
-                if (STEPS_HEADING.test(raw) && !stepsFiles.includes(file)) {
-                    stepsFiles.push(file);
-                }
+            // A heading is not a sentence and is never a step. This is the "is this a heading at all"
+            // question — a third predicate, distinct from the anchor and from the extent.
+            if (HEADING_LINE.test(raw))
                 continue;
-            }
+            const inSteps = stepsRanges.some((r) => i >= r.from && i < r.to);
             const trimmed = raw.trim();
             if (trimmed === "")
                 continue;

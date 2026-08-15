@@ -767,10 +767,39 @@ describe("D-64 cutover: the spawn verdict is rendered by the canonical admission
       "sectionEndIndex",
       "unfencedHeadingIndex",
     ]);
+    // (Plan 29-24, WR-04 + WR-08) AND `check-imperative-lexicon.ts`'s OWN SET MOVED FROM ONE SYMBOL
+    // TO THREE — the FOURTH AND FINAL consumer entry to move in this round, and in the direction
+    // D-24 wants, which is why the PIN moves rather than the code.
+    //
+    // The module used to carry THREE private section predicates, one more than the round-2 review
+    // tabulated. `unfencedIndexOf` was a private first-index-of-an-unfenced-heading helper with
+    // EXACT equality where the authority normalises with `trimEnd()`; `tableFirstCellsUnderHeading`
+    // closed its section with a private `startsWith("## ")` that walked straight past a `# `; and
+    // `deriveElements` reset its step anchor with a private `SECTION_HEADING_LINE = /^#{1,2} /` on
+    // every line. That third one is the grammar the module's OWN comment block said did not exist —
+    // it claimed the two table locators were "the last place in this module" answering a
+    // section-extent question with a second grammar, while the step anchor sat below the paragraph
+    // making the claim. All three are DELETED: the anchor's position comes from
+    // `unfencedHeadingIndex`, every section extent from `sectionEndIndex` at level two, and the
+    // per-line fence verdict from `fencedLineFlags`.
+    //
+    // ONE TERMINATOR IS DELIBERATELY LEFT ALONE, AND IT IS NOT AN OVERSIGHT. `boardColumns` ends at
+    // the first line that is NOT A TABLE ROW, which is asking where a TABLE ends rather than where a
+    // SECTION ends. A table can end long before its section does, so unifying it would harvest every
+    // later table in the same section. Stated in source beside it, so a later reader does not merge
+    // two predicates that were never the same question.
+    //
+    // ALL FOUR ENTRIES HAVE NOW MOVED, EACH WITH ITS OWN REASON, AND NONE TAKES A VERDICT. Every
+    // symbol in all four sets is DECLARATIVE: a delimiter class, a per-line boolean, and two integer
+    // indices. What an index MEANS for a governed document — which lines are inside a step section,
+    // which cells are Technical Names — is still decided in the gate, and the grant-predicate case
+    // immediately below asserts the tree-wide zero still holds. THE PIN MOVING FOUR TIMES IN ONE
+    // ROUND IS THE PIN WORKING: it went red the moment each module took more from the authority,
+    // which is exactly what a two-sided list is for.
     expect(
       importedSymbols("check-imperative-lexicon.ts", "frontmatter"),
-      "check-imperative-lexicon.ts must take the per-line fence PROJECTION and nothing else — a second symbol is a step back toward a forked machine",
-    ).toEqual(["fencedLineFlags"]);
+      "check-imperative-lexicon.ts must take the per-line fence PROJECTION and the shared section LOCATOR — never a heading-equality, section-end or section-anchor-reset predicate of its own, which is the fourth-grammar shape this round deletes",
+    ).toEqual(["fencedLineFlags", "sectionEndIndex", "unfencedHeadingIndex"]);
     // (Plan 29-22, WR-03 + WR-08) AND `check-diff-disposition.ts`'s OWN SET MOVED FROM ONE SYMBOL TO
     // THREE — in the direction D-24 wants, which is why the PIN moves rather than the code. THE PIN
     // MOVING IS THE PIN WORKING: it went red the moment the module took more from the authority,

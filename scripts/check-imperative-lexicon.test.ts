@@ -1547,6 +1547,196 @@ describe("WR-06 — a fenced line cannot truncate, relocate or inject into the T
     expect(status).toBe(0);
   });
 
+  // ── The four axes the rewire MOVED, each of which a mutation proved nothing pinned ────────────
+  //
+  // ADDED BECAUSE FOUR MUTATIONS OF PLAN 29-24's REWIRE REDDENED NOTHING. The suite was green with
+  // the table section bound restored to END OF FILE, with the authority's `trimEnd()` equality
+  // replaced by the deleted exact-equality scan, with the step anchor made fence-blind, and with
+  // every step section after the first silently ignored. Four unpinned axes in a round whose entire
+  // subject is unpinned widenings, found by mutating rather than by reading — which is the only
+  // reason they are here.
+  //
+  // Two of them are behaviour this rewire CHANGED: the section close went from level-two-only to
+  // level-at-most-two, and the heading equality went from exact to `trimEnd()`-normalized. An
+  // unpinned change is indistinguishable from an accident.
+
+  it("a REAL later `## ` heading ENDS the note-kind table section — a row beyond it is not harvested", () => {
+    const beyond = "| `beyond-two` | a row in a LATER section entirely |";
+    const doc = [
+      "# Contract: context note",
+      "",
+      NOTE_KINDS_HEADING,
+      "",
+      "| Kind | What it records |",
+      "| --- | --- |",
+      ...kindRows(NOTE_KIND_N),
+      "",
+      "## A later section",
+      "",
+      "| Kind | What it records |",
+      "| --- | --- |",
+      beyond,
+      "",
+    ].join("\n");
+
+    const { status, stdout } = runGate(
+      makeMirror("gops-lex-wr08-end2-", { plant: { [NOTE_CONTRACT]: doc } }),
+    );
+    expect(stdout).toContain(`noteKinds ${NOTE_KIND_N}`);
+    expect(stdout).not.toContain("beyond-two");
+    expect(status).toBe(0);
+  });
+
+  it("a REAL later `# ` heading ALSO ends it — the level widening plan 29-24 introduced, pinned in the direction it moved", () => {
+    // THE DELETED CLOSE WAS `startsWith("## ")` AND WOULD WALK STRAIGHT PAST THIS LINE. The shared
+    // authority closes on a heading of level AT MOST two, so the section now ends EARLIER — fewer
+    // rows harvested, which is the direction that cannot silently inject a Technical Name. Without
+    // this case that widening has no assertion behind it at all.
+    const beyond = "| `beyond-one` | a row below a LEVEL-ONE heading |";
+    const doc = [
+      "# Contract: context note",
+      "",
+      NOTE_KINDS_HEADING,
+      "",
+      "| Kind | What it records |",
+      "| --- | --- |",
+      ...kindRows(NOTE_KIND_N),
+      "",
+      "# An appendix at level one",
+      "",
+      "| Kind | What it records |",
+      "| --- | --- |",
+      beyond,
+      "",
+    ].join("\n");
+
+    const { status, stdout } = runGate(
+      makeMirror("gops-lex-wr08-end1-", { plant: { [NOTE_CONTRACT]: doc } }),
+    );
+    expect(stdout).toContain(`noteKinds ${NOTE_KIND_N}`);
+    expect(stdout).not.toContain("beyond-one");
+    expect(status).toBe(0);
+  });
+
+  it("a heading carrying ONE TRAILING SPACE is still located — the authority's `trimEnd()` equality, which the deleted helper did not apply", () => {
+    // The deleted private helper compared `lines[i] === heading`. This heading is invisible to that
+    // and the whole part would fail to derive, so the gate refuses with a named derivation failure.
+    const doc = [
+      "# Contract: context note",
+      "",
+      `${NOTE_KINDS_HEADING} `,
+      "",
+      "| Kind | What it records |",
+      "| --- | --- |",
+      ...kindRows(NOTE_KIND_N),
+      "",
+    ].join("\n");
+
+    const { status, stdout } = runGate(
+      makeMirror("gops-lex-wr08-trail-", { plant: { [NOTE_CONTRACT]: doc } }),
+    );
+    expect(stdout).toContain(`noteKinds ${NOTE_KIND_N}`);
+    expect(stdout).not.toContain(
+      "part of the Technical Names set could not be derived",
+    );
+    expect(status).toBe(0);
+  });
+
+  it("a heading carrying a LEADING space is NOT the heading — the bound on that same equality", () => {
+    // The other side of the widening. The authority normalises the END of the line and nothing else,
+    // so the column-zero convention four gates share survives. The derivation REFUSES by name rather
+    // than quietly returning an empty part.
+    const doc = [
+      "# Contract: context note",
+      "",
+      ` ${NOTE_KINDS_HEADING}`,
+      "",
+      "| Kind | What it records |",
+      "| --- | --- |",
+      ...kindRows(NOTE_KIND_N),
+      "",
+    ].join("\n");
+
+    const { status, stdout } = runGate(
+      makeMirror("gops-lex-wr08-lead-", { plant: { [NOTE_CONTRACT]: doc } }),
+    );
+    expect(status).toBe(1);
+    expect(stdout).toContain(
+      `the "noteKinds" part of the Technical Names set could not be derived`,
+    );
+    expect(stdout).toContain(NOTE_KINDS_HEADING);
+  });
+
+  it("a `## Steps` heading QUOTED INSIDE A FENCE opens no step section — the anchor scan reads the same toggle its extent does", () => {
+    const rel = "agent-factory/workflows/00-fixture.md";
+    const NON_CONFORMING = "The Orchestrator pulls the ticket into development.";
+    const doc = [
+      "# Workflow: Fenced Anchor Workflow",
+      "",
+      "## Notes",
+      "",
+      "```md",
+      "## Steps",
+      "```",
+      "",
+      `- ${NON_CONFORMING}`,
+      "",
+    ].join("\n");
+
+    const { status, stdout } = runGate(
+      makeMirror("gops-lex-wr08-fenceanchor-", { plant: { [rel]: doc } }),
+    );
+    // A fence-blind anchor scan would open a step section at the QUOTED heading, and the bullet
+    // below the fence would then be measured as a step and reported under WP-01.
+    expect(stdout).not.toContain(NON_CONFORMING);
+    expect(stepFindingCount(stdout)).toBe(0);
+    expect(status).toBe(0);
+  });
+
+  it("a file carrying TWO `## Steps` sections has BOTH governed — one range per anchor, never only the first", () => {
+    const rel = "agent-factory/workflows/00-fixture.md";
+    const NON_CONFORMING = "The Orchestrator pulls the ticket into development.";
+    const doc = (second: boolean): string =>
+      [
+        "# Workflow: Two Sections Workflow",
+        "",
+        "## Steps",
+        `- ${VERB} the shared context first.`,
+        "",
+        "## Interlude",
+        "",
+        "Prose between the two step sections.",
+        "",
+        "## Steps",
+        ...(second ? [`- ${NON_CONFORMING}`] : [`- ${VERB2} the result.`]),
+        "",
+      ].join("\n");
+
+    const control = runGate(
+      makeMirror("gops-lex-wr08-twoctrl-", { plant: { [rel]: doc(false) } }),
+    );
+    const planted = runGate(
+      makeMirror("gops-lex-wr08-two-", { plant: { [rel]: doc(true) } }),
+    );
+
+    // PREMISE: both documents contribute the SAME number of step bullets, so the only thing that
+    // varies is whether the SECOND section's bullet is measured at all.
+    expect(bulletTotals(planted.stdout).bullets).toBe(
+      bulletTotals(control.stdout).bullets,
+    );
+    expect(control.status).toBe(0);
+    expect(planted.status).toBe(1);
+    expect(planted.stdout).toContain(NON_CONFORMING);
+    // Exactly ONE finding appears, and it is a WP-01 verdict over the second section's bullet. The
+    // kind is `determiner-subject` because the mirror derives its own Technical Names and has never
+    // heard of `Orchestrator` — asserting `actor-subject` here would be a case passing through the
+    // wrong arm, which is the trap this file's own header records.
+    expect(stepFindingCount(planted.stdout)).toBe(
+      stepFindingCount(control.stdout) + 1,
+    );
+    expect(planted.stdout).toContain("WP-01 [determiner-subject]");
+  });
+
   it("the two table sources on the LIVE tree carry zero fenced heading lines and zero fenced rows", () => {
     // This is what makes the "identical before and after" claim a MEASUREMENT rather than a hope. If
     // either document ever grows a fenced heading or a fenced table row, the live set becomes
