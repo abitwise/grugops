@@ -1872,13 +1872,39 @@ const EXPECTS_CAVEMAN_FENCE = new Set(ROLE_FILES);
 // `BRANDCMD`/`voice-meta`/`wink-meta` are marker-free fillers. Order matters: `/grug` first so
 // "grug voice"/"grug wink" still match their own gsub AFTER the `/grug` rewrite (the `/` prefix
 // rewrites only `/grug`, not a bare `grug voice`).
+//
+// ---------------------------------------------------------------------------------------------
+// (Plan 29-18, IN-03) WHY THE THREE REPLACEMENTS CARRY THE `i` FLAG, AND WHY THAT IS A CORRECTION
+// RATHER THAN A WIDENING.
+//
+// The identity of a caveman occurrence is decided in EXACTLY ONE PLACE: `countLexiconTokens` in
+// scripts/voice-model.ts, whose own header says it is the one implementation of that match and that
+// a consumer must never build its own. It matches CASE-INSENSITIVELY. This function is not a second
+// opinion about that identity — it is a NAMED, BOUNDED EXEMPTION from the one decision, and an
+// exemption that disagrees with the predicate it exempts from is wrong in both directions at once:
+// it reds correct text (a sentence-initial `Grug voice` survived the exemption and was then
+// convicted by the counter) while leaving a hole on the other side (any occurrence the counter
+// recognises and the exemption spells differently). Case-sensitive replacements against a
+// case-insensitive counter is that disagreement, and the flag deletes it.
+//
+// THE BOUND — this exempts THREE PHRASINGS, not a prefix. `grug` followed by anything is NOT
+// exempt: `Grug smash` is untouched here and still reaches the counter. That bound is asserted from
+// BOTH sides by permanent cases in scripts/check-foundation-guards.test.ts (search IN-03) — three
+// permissive cases that must newly pass, and two scope controls that must stay red, including one
+// line carrying a brand phrase AND a bare caveman token together. A widening proven only in the
+// permissive direction is not proven, and an exemption whose scope exceeds its counter's is a hole
+// rather than a fix.
+//
+// NOTHING ELSE MOVED. The replacement ORDER and the three marker-free fillers are byte-unchanged;
+// the order is load-bearing for the reason stated directly above.
+// ---------------------------------------------------------------------------------------------
 function neutralizePhrases(text) {
     return text
         .split("\n")
         .map((line) => line
-        .replace(/\/grug/g, "BRANDCMD")
-        .replace(/grug voice/g, "voice-meta")
-        .replace(/grug wink/g, "wink-meta"))
+        .replace(/\/grug/gi, "BRANDCMD")
+        .replace(/grug voice/gi, "voice-meta")
+        .replace(/grug wink/gi, "wink-meta"))
         .join("\n");
 }
 function guardVoice() {
