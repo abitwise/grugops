@@ -1849,7 +1849,26 @@ const SEC_VOICE_FILES = [
     "agent-factory/workflows/15-security-audit.md",
     "agent-factory/checklists/security-nfr-checklist.md",
 ];
+// (Plan 29-27, closing CR-01) THE DECLARED CARDINALITY OF THE HAND-MAINTAINED HALF.
+//
+// `SEC_VOICE_FILES` is the one part of the voice corpus that is NOT derived — it is a curated pair of
+// non-role security surfaces, so there is no lister to ask. A hand-maintained set with no asserted
+// count is this repository's named set-literal-drift class, and the remedy is the one already used
+// for the role half: DECLARE the number, then compare the DERIVED set against it.
+//
+// It is two-sided by construction rather than by a hand-written `if`. `guardVoice` hands
+// `ROLE_COUNT + SEC_VOICE_FILE_COUNT` to `reportMeasured` as the denominator while `visited` is
+// incremented once per member of `VOICE_FILES`, so a member ADDED here without bumping this constant
+// reports 20 of 19 and reds, and a member REMOVED reports 18 of 19 and reds. Neither direction can
+// print a PASS. scripts/check-foundation-guards.test.ts pins the same equality at source level and
+// plants an extra member to prove the pin discriminates.
+const SEC_VOICE_FILE_COUNT = 2;
 const VOICE_FILES = [...ROLE_FILES, ...SEC_VOICE_FILES];
+// The INDEPENDENTLY derived denominator for guard_voice. `ROLE_COUNT` comes from scripts/kit-model.ts
+// — a module this guard's voice corpus does not otherwise consult — so this is never
+// `VOICE_FILES.length`, which would compare one number with itself (the critique recorded at
+// guardCavemanVoice's `expected` below).
+const VOICE_FILE_COUNT = ROLE_COUNT + SEC_VOICE_FILE_COUNT;
 // WHICH VOICE SURFACES CARRY A CAVEMAN FENCE, DECLARED RATHER THAN INFERRED (plan 29-01).
 //
 // SEC_VOICE_FILES's comment above has always asserted "they have NO `## Caveman prompt` fence", and
@@ -1907,14 +1926,50 @@ function neutralizePhrases(text) {
         .replace(/grug wink/gi, "wink-meta"))
         .join("\n");
 }
+// ---------------------------------------------------------------------------------------------
+// (Plan 29-27, closing CR-01 / AP-1) THIS GUARD NOW PUBLISHES WHAT IT MEASURED.
+//
+// It was the LAST foundation guard with no measurement at all: a bare
+// `pass("voice: clear-voice surfaces free of caveman markers")` with no denominator, no per-file
+// line, and nothing relating the PASS to the number of bytes actually scanned. That is an
+// unfalsifiable claim, and round 3 showed it is not a theoretical one — under the 29-20 bound
+// `readCavemanFence` could return `ok: true` with `outside` the EMPTY STRING, this loop then scanned
+// zero lines for the file, found zero markers, and the gate printed green over a check that never
+// happened. The reader's bound is fixed in scripts/voice-model.ts; this is the SECOND, independent
+// half, because a guard that cannot state what it measured cannot be trusted to have measured it.
+//
+// Three things changed and nothing else:
+//   1. the `voiceFail` string accumulation becomes a `VoiceFinding[]` folded through
+//      `reportMeasured` — the same shape guardCavemanVoice already uses, copied rather than
+//      reinvented, so the two voice guards cannot come to report differently;
+//   2. `visited` is incremented at the TOP of the loop, BEFORE any branch, including for a file that
+//      has gone missing since the corpus was derived — that posture is stated verbatim at
+//      guardCavemanVoice and adopted here rather than invented a second way;
+//   3. an ELEMENT-LEVEL floor: a scanned line count of ZERO on any voice file is a finding naming
+//      that file. Every voice surface necessarily carries content outside its caveman block — a
+//      title line at minimum — so zero is a defect by construction, not a tunable threshold.
+//
+// The scanned count is taken from the SAME `body` the marker scan walks, AFTER `neutralizePhrases`,
+// so the published number and the measured number cannot drift apart. A parallel expression over the
+// same file would be a second opinion about the same fact, which is this phase's founding defect.
+//
+// The three existing branch behaviours are byte-preserved: a missing file is a structured finding, a
+// fence on a SEC_VOICE_FILES surface is a declaration-mismatch finding, and a refusal on a role file
+// names the reason and that file is NOT scanned.
+// ---------------------------------------------------------------------------------------------
 function guardVoice() {
     process.stdout.write("\n[guard_voice] clear-voice surfaces free of caveman markers (section-scoped)\n");
-    let voiceFail = "";
+    const findings = [];
+    let visited = 0;
     for (const f of VOICE_FILES) {
+        // Every voice file the loop looks at counts as VISITED, before any branch — so an unreadable or
+        // refused member is a FINDING rather than a silently smaller denominator.
+        visited += 1;
+        const name = basename(f);
         // Missing-file structured fail (CR-02): a missing voice file produces a nonzero-exit finding
         // that NAMES the file, not a raw abort.
         if (!fileExists(f)) {
-            voiceFail += `\n${f}: required voice file missing`;
+            findings.push({ file: f, detail: "required voice file missing" });
             continue;
         }
         // (Plan 29-01, D-22/F-5.1) THE ONE READER. This migration happens in the SAME plan that ships
@@ -1928,7 +1983,10 @@ function guardVoice() {
         let body;
         if (verdict.ok) {
             if (!expectsFence) {
-                voiceFail += `\n${f}: a ## Caveman prompt fence appeared on a surface declared to carry none (SEC_VOICE_FILES) — the declaration and the file disagree`;
+                findings.push({
+                    file: f,
+                    detail: "a ## Caveman prompt fence appeared on a surface declared to carry none (SEC_VOICE_FILES) — the declaration and the file disagree",
+                });
             }
             body = verdict.outside;
         }
@@ -1943,7 +2001,10 @@ function guardVoice() {
             // THE REASON. guard_caveman_voice below names the same file with the same reason, from the
             // same verdict, which is LANG-07's actual acceptance evidence: not that one reader exists, but
             // that both consumers reach an identical verdict on identical bytes.
-            voiceFail += `\n${f}: ## Caveman prompt fence refused — reason ${verdict.reason}; the clear-voice remainder was not determined, so this file was NOT scanned`;
+            findings.push({
+                file: f,
+                detail: `## Caveman prompt fence refused — reason ${verdict.reason}; the clear-voice remainder was not determined, so this file was NOT scanned`,
+            });
             continue;
         }
         // D-05 marker refinement (a SEPARATE pass — does NOT touch the fence anchor above).
@@ -1957,16 +2018,36 @@ function guardVoice() {
             if (countLexiconTokens(bodyLines[i]) > 0)
                 m.push(`${i + 1}:${bodyLines[i]}`);
         }
+        // THE PER-ELEMENT MEASUREMENT LINE, emitted INSIDE the loop and BEFORE the fold — the same
+        // placement and style guardCavemanVoice uses, so a vacuous run prints zero detail lines AND fails
+        // its own count assertion (D-08). `bodyLines` is the array the marker scan just walked, so the
+        // number published is the number measured.
+        process.stdout.write(`        ${name}: scanned ${bodyLines.length} clear-voice line(s), ${m.length} marker line(s)\n`);
+        // THE ELEMENT-LEVEL FLOOR. A remainder of zero lines is indistinguishable from a clean one: both
+        // find zero markers. Every voice surface carries content outside its caveman block — a title line
+        // at minimum — so zero is a defect by construction rather than a threshold anyone may tune.
+        if (bodyLines.length === 0 || body.trim() === "") {
+            findings.push({
+                file: f,
+                detail: `the clear-voice remainder collapsed to ${bodyLines.length} line(s) with no content — a zero-line remainder is ` +
+                    "indistinguishable from a clean one, so this file was NOT effectively scanned",
+            });
+            continue;
+        }
         if (m.length > 0) {
-            voiceFail += `\n${f}:\n${m.join("\n")}`;
+            findings.push({ file: f, detail: `caveman marker(s):\n${m.join("\n")}` });
         }
     }
-    if (voiceFail === "") {
-        pass("voice: clear-voice surfaces free of caveman markers");
-    }
-    else {
-        fail(`voice-discipline violation:${voiceFail}`);
-    }
+    const measured = {
+        label: "voice",
+        visited,
+        // The denominator is the INDEPENDENTLY derived cardinality, never VOICE_FILES.length — the role
+        // half comes from kit-model's ROLE_COUNT and the security half from the declared
+        // SEC_VOICE_FILE_COUNT beside the literal it counts.
+        expected: VOICE_FILE_COUNT,
+        findings,
+    };
+    FAILS += reportMeasured(measured, { pass, fail }, (x) => `  ${x.file}: ${x.detail}`);
 }
 function guardCavemanVoice() {
     process.stdout.write("\n[guard_caveman_voice] every role's caveman block carries >= " +

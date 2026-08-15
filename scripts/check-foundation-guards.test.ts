@@ -30,7 +30,7 @@ import {
   readdirSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
-import { join, dirname } from "node:path";
+import { join, dirname, basename } from "node:path";
 
 // (27-65 task 3) The gate-level sweep plants rows from plan 27-63's corpus BY ID, and adjudicates
 // which rows are graftable with the same admission reader the gate now uses — so the module-level
@@ -1846,6 +1846,28 @@ function runIn(checkRoot: string): SpawnSyncReturns<string> {
 // The combined stdout+stderr of a guard run (findings print to stdout).
 function out(r: SpawnSyncReturns<string>): string {
   return `${r.stdout ?? ""}${r.stderr ?? ""}`;
+}
+
+// ---------------------------------------------------------------------------------------------
+// (Plan 29-27) WHICH GUARD PRINTED THIS LINE — ATTRIBUTED, NOT INFERRED FROM INDENTATION.
+//
+// The two voice guards each name the offending file, and several cases below assert that BOTH did.
+// Until this plan that pair was told apart by COLUMN: guard_voice accumulated a raw string and
+// printed its findings at column zero, guard_caveman_voice folded through `reportMeasured` and
+// printed them indented. That is a positional accident, not a property — and it evaporated the
+// moment guard_voice folded through the same authority, which is exactly what CR-01's remedy
+// required. Two identical assertions asserting one thing twice is the WR-06 defect this file already
+// carries a tripwire for; distinguishing two lines by whitespace is the same defect one step earlier.
+//
+// So attribution comes from the OUTPUT STRUCTURE the guards actually have: every guard opens with a
+// `[guard_name]` banner and everything until the next banner is its own. A line is credited to the
+// guard whose section it sits in, which stays true however either guard chooses to format.
+function guardSection(o: string, banner: string): string[] {
+  const lines = o.split("\n");
+  const start = lines.findIndex((l) => l.startsWith(`[${banner}]`));
+  if (start === -1) return [];
+  const rest = lines.findIndex((l, i) => i > start && /^\[[a-zA-Z_]+\]/.test(l));
+  return lines.slice(start + 1, rest === -1 ? lines.length : rest);
 }
 
 // (Plan 27-37, D-46) THE SCRATCH-BUILD HARNESS — how a FLOOR is proven to fire.
@@ -4542,7 +4564,11 @@ describe("check-foundation-guards.js (SDLC-02 / SC2 fail-proof harness)", () => 
     const r = runIn(m);
     expect(r.status).not.toBe(0);
     const o = out(r);
-    expect(o).toContain("voice-discipline violation");
+    // (Plan 29-27) The aggregate FAIL wording is now `reportMeasured`'s, not this guard's own string.
+    // Folding guard_voice through the shared vacuity rule is CR-01's second half, and the point of a
+    // shared authority is that the sentence belongs to it — so the assertion moves to the shape the
+    // authority publishes, WITH its denominator, rather than to a wording this guard no longer owns.
+    expect(o).toMatch(/FAIL {2}voice: \d+ finding\(s\) over \d+ elements/);
     expect(o).toContain("agents-md-scribe.md");
     // The reported line, verbatim. Nothing on it was rewritten, because none of the three exempt
     // phrasings occurs on it — asserted as TEXT so the case tests the neutralizer's reach and not
@@ -4562,7 +4588,8 @@ describe("check-foundation-guards.js (SDLC-02 / SC2 fail-proof harness)", () => 
     const r = runIn(m);
     expect(r.status).not.toBe(0);
     const o = out(r);
-    expect(o).toContain("voice-discipline violation");
+    // (Plan 29-27) The authority's wording, with its denominator — see the sibling control above.
+    expect(o).toMatch(/FAIL {2}voice: \d+ finding\(s\) over \d+ elements/);
     // The surviving half, asserted by name. `grug smash` must reach the counter whatever happens to
     // the brand phrase beside it.
     expect(o).toContain("grug smash the rock.");
@@ -4884,13 +4911,24 @@ describe("check-foundation-guards.js (SDLC-02 / SC2 fail-proof harness)", () => 
 
       // The verdict, as each consumer prints it. The FILE and the REASON must be identical; only the
       // surrounding sentence differs, because the two guards do different things with one verdict.
+      //
+      // (Plan 29-27) ATTRIBUTED BY SECTION rather than by column. guard_voice now folds through
+      // `reportMeasured` like its sibling, so both refusals print indented and the old
+      // indentation partition no longer tells them apart — see `guardSection`'s declaration.
       const rel = roleRel(MALFORMED_ROLE);
-      const voiceLine = o
-        .split("\n")
-        .find((l) => l.startsWith(`${rel}: ## Caveman prompt fence refused`));
-      const cavemanLine = o
-        .split("\n")
-        .find((l) => l.trim().startsWith(`${rel}: ## Caveman prompt fence refused`) && l.startsWith("  "));
+      const refused = `${rel}: ## Caveman prompt fence refused`;
+      const voiceSection = guardSection(o, "guard_voice");
+      const cavemanSection = guardSection(o, "guard_caveman_voice");
+      // THE HARNESS'S OWN PREMISE. An empty section would make both filters below report 0 and the
+      // `toHaveLength(1)` calls fail loudly — but a mis-typed banner would make them report 0 for a
+      // reason that has nothing to do with the guards, so the sections are asserted found first.
+      expect(voiceSection.length, "the guard_voice output section must be found").toBeGreaterThan(0);
+      expect(
+        cavemanSection.length,
+        "the guard_caveman_voice output section must be found",
+      ).toBeGreaterThan(0);
+      const voiceLine = voiceSection.find((l) => l.includes(refused));
+      const cavemanLine = cavemanSection.find((l) => l.includes(refused));
       expect(voiceLine, "guard_voice must refuse by name").toBeTruthy();
       expect(cavemanLine, "guard_caveman_voice must refuse by name").toBeTruthy();
       expect(voiceLine).toContain(`reason ${form.reason}`);
@@ -5004,9 +5042,15 @@ describe("check-foundation-guards.js (SDLC-02 / SC2 fail-proof harness)", () => 
     // one thing twice, and the comment above them almost always claims two — which is why the class
     // has its own derived tripwire further down this file rather than a third hand-fix.
     //
-    // The count is not the whole property either, so the PARTITION is asserted beside it: one line at
-    // column zero (guard_voice) and one indented (guard_caveman_voice). A count of two alone would be
-    // satisfied by one consumer printing twice.
+    // The count is not the whole property either, so the PARTITION is asserted beside it: one line in
+    // EACH guard's own output section. A count of two alone would be satisfied by one consumer
+    // printing twice.
+    //
+    // (Plan 29-27) THE PARTITION IS BY SECTION, NOT BY COLUMN. It used to be "one at column zero, one
+    // indented" — an accident of guard_voice being the only foundation guard that had not folded
+    // through `reportMeasured`. Closing CR-01 folded it through, both lines became indented, and a
+    // whitespace-keyed partition would have gone from discriminating to always-zero. Attribution now
+    // comes from the banner structure; see `guardSection`.
     const refusal = `${rel}: ## Caveman prompt fence refused — reason missing`;
     const refusalLines = o.split("\n").filter((l) => l.includes(refusal));
     expect(
@@ -5014,12 +5058,12 @@ describe("check-foundation-guards.js (SDLC-02 / SC2 fail-proof harness)", () => 
       "each of the two voice guards must name the file and the reason INDEPENDENTLY — this is an occurrence count, not a substring test",
     ).toHaveLength(2);
     expect(
-      refusalLines.filter((l) => l.startsWith(refusal)),
-      "guard_voice refuses at column zero",
+      guardSection(o, "guard_voice").filter((l) => l.includes(refusal)),
+      "guard_voice refuses inside its OWN output section",
     ).toHaveLength(1);
     expect(
-      refusalLines.filter((l) => l.startsWith("  ")),
-      "guard_caveman_voice refuses indented under its own check",
+      guardSection(o, "guard_caveman_voice").filter((l) => l.includes(refusal)),
+      "guard_caveman_voice refuses inside its OWN output section",
     ).toHaveLength(1);
     // THE COUNT IS PROVEN TO DISCRIMINATE, on output carrying only ONE of the two lines. Without this
     // the strengthened assertion is only believed to be stronger than the pair it replaced.
@@ -5138,8 +5182,16 @@ describe("check-foundation-guards.js (SDLC-02 / SC2 fail-proof harness)", () => 
       refusalLines,
       "each of the two voice guards must name the file and the reason INDEPENDENTLY",
     ).toHaveLength(2);
-    expect(refusalLines.filter((l) => l.startsWith(refusal))).toHaveLength(1);
-    expect(refusalLines.filter((l) => l.startsWith("  "))).toHaveLength(1);
+    // (Plan 29-27) Attributed by SECTION, for the reason recorded at the sibling above: guard_voice
+    // now folds through `reportMeasured`, so a column-keyed partition no longer discriminates.
+    expect(
+      guardSection(o, "guard_voice").filter((l) => l.includes(refusal)),
+      "guard_voice refuses inside its OWN output section",
+    ).toHaveLength(1);
+    expect(
+      guardSection(o, "guard_caveman_voice").filter((l) => l.includes(refusal)),
+      "guard_caveman_voice refuses inside its OWN output section",
+    ).toHaveLength(1);
     expect(o).not.toContain("voice: clear-voice surfaces free of caveman markers");
     expect(o).not.toContain(`caveman voice: 0 findings over ${ROLE_COUNT}/${ROLE_COUNT}`);
     expect(o).not.toContain("ALL CHECKS PASSED");
@@ -5211,6 +5263,237 @@ describe("check-foundation-guards.js (SDLC-02 / SC2 fail-proof harness)", () => 
     // Zero elements ALSO means zero per-block detail lines — D-08's design, asserted.
     expect(o).not.toMatch(/^ {8}\S+\.md: tokens /m);
     expect(o).not.toContain(`caveman voice: 0 findings over 0/${ROLE_COUNT} elements`);
+  }, 120_000);
+
+  // ── (Plan 29-27, closing CR-01 / AP-1) guard_voice PUBLISHES WHAT IT MEASURED. ──────────────────
+  //
+  // It was the last foundation guard with NO measurement at all: a bare
+  // `PASS  voice: clear-voice surfaces free of caveman markers` with no denominator and no per-file
+  // line. Round 3 showed that is not a cosmetic gap. Under the 29-20 reader bound `readCavemanFence`
+  // could return `ok: true` with `outside` the EMPTY STRING, this guard then scanned zero lines,
+  // found zero markers, and printed that PASS. Measured on a hermetic mirror carrying the CR-01
+  // plant, pre-plan build `0ec8b61`: exit 0, that bare line, and the planted file never named.
+  //
+  // The cases below pin the three halves of the closure: the denominator exists and is DERIVED, the
+  // per-file scanned counts exist and are countable, and a collapsed remainder is a NAMED finding.
+  const GUARD_TS_SRC = readFileSync(
+    join(ROOT, "scripts/check-foundation-guards.ts"),
+    "utf8",
+  );
+
+  /**
+   * The `SEC_VOICE_FILES` members as the SOURCE declares them. Parsed rather than imported because
+   * the guard is a script with top-level side effects and exports nothing — the same reason every
+   * other source-level pin in this file reads bytes.
+   */
+  const parseSecVoiceMembers = (src: string): string[] => {
+    const block = /const SEC_VOICE_FILES = \[([\s\S]*?)\n\];/.exec(src);
+    if (block === null) {
+      throw new Error(
+        "SEC_VOICE_FILES literal not found — the pin below would be asserting over nothing",
+      );
+    }
+    return [...block[1].matchAll(/"([^"]+)"/g)].map((m) => m[1]);
+  };
+  const parseSecVoiceCount = (src: string): number => {
+    const m = /const SEC_VOICE_FILE_COUNT = (\d+);/.exec(src);
+    if (m === null) {
+      throw new Error(
+        "SEC_VOICE_FILE_COUNT declaration not found — the pin below would be asserting over nothing",
+      );
+    }
+    return Number(m[1]);
+  };
+  /** The pin itself, as a value — so the SAME predicate can be run over MUTATED source. */
+  const secVoicePinMismatch = (src: string): string | null => {
+    const members = parseSecVoiceMembers(src);
+    const declared = parseSecVoiceCount(src);
+    if (members.length === declared) return null;
+    return `SEC_VOICE_FILES holds ${members.length} member(s) [${members.join(", ")}] but SEC_VOICE_FILE_COUNT declares ${declared}`;
+  };
+
+  it("SEC_VOICE_FILES cardinality is pinned against SEC_VOICE_FILE_COUNT, and the pin is not vacuous", () => {
+    // `SEC_VOICE_FILES` is the ONE part of the voice corpus with no lister to derive it from — a
+    // curated pair of non-role security surfaces. A hand-maintained set with no asserted count is
+    // this repository's named set-literal-drift class (7 granted names, 0 adapter files), so the
+    // remedy is the one the role half already uses: declare the number, compare the derived set.
+    const members = parseSecVoiceMembers(GUARD_TS_SRC);
+    const declared = parseSecVoiceCount(GUARD_TS_SRC);
+    // THE PARSER'S OWN PREMISE FIRST. A regex that silently matched an empty list would make the
+    // equality below `0 === 0` and the pin would pass over nothing — the vacuity shape round 3 exists
+    // to refuse. The ELEMENT count is derived here independently of the equality that consumes it.
+    expect(members.length, "the parsed member list must be non-empty").toBeGreaterThan(0);
+    expect(declared, "the declared count must be non-zero").toBeGreaterThan(0);
+    expect(members, "every parsed member must be a repo-relative markdown path").toEqual(
+      members.filter((m) => m.startsWith("agent-factory/") && m.endsWith(".md")),
+    );
+    expect(members).toHaveLength(declared);
+    expect(secVoicePinMismatch(GUARD_TS_SRC)).toBeNull();
+  });
+
+  it("the SEC_VOICE cardinality pin REDS on a planted member, and names it — the falsifiability probe", () => {
+    // A one-sided pin is exactly how set-literal drift survives, so BOTH directions are exercised on
+    // mutated source: a member ADDED without bumping the constant, and a member REMOVED. The probe
+    // asserts the mutation APPLIED before it asserts the pin fired, because a `replace` that matched
+    // nothing would "prove" the pin against unmutated bytes.
+    const PLANTED = "agent-factory/checklists/planted-extra-surface.md";
+    const withExtra = GUARD_TS_SRC.replace(
+      "const SEC_VOICE_FILES = [\n",
+      `const SEC_VOICE_FILES = [\n  "${PLANTED}",\n`,
+    );
+    expect(withExtra, "the planted-member mutation must actually change the source").not.toBe(
+      GUARD_TS_SRC,
+    );
+    expect(parseSecVoiceMembers(withExtra)).toHaveLength(
+      parseSecVoiceMembers(GUARD_TS_SRC).length + 1,
+    );
+    const added = secVoicePinMismatch(withExtra);
+    expect(added, "an added member must RED the pin").not.toBeNull();
+    expect(added, "and the failure must NAME the member that was added").toContain(PLANTED);
+
+    // The other direction: a member removed. `expected` stays put while the derived set shrinks.
+    const members = parseSecVoiceMembers(GUARD_TS_SRC);
+    const withOneFewer = GUARD_TS_SRC.replace(`  "${members[0]}",\n`, "");
+    expect(withOneFewer, "the removal mutation must actually change the source").not.toBe(
+      GUARD_TS_SRC,
+    );
+    const removed = secVoicePinMismatch(withOneFewer);
+    expect(removed, "a removed member must RED the pin too").not.toBeNull();
+    expect(removed).toContain(`holds ${members.length - 1} member(s)`);
+  });
+
+  it("the SEC_VOICE cardinality drift REDS THE GATE ITSELF, not only a source-level assertion", () => {
+    // The probe above pins the source. This one pins the CONSEQUENCE, which is the property that
+    // matters: `guardVoice` hands `reportMeasured` a denominator of `ROLE_COUNT + SEC_VOICE_FILE_COUNT`
+    // while `visited` counts actual members, so a member added without bumping the constant reports
+    // 20 of 19 and the denominator floor refuses to print a PASS. That is the drift being caught by a
+    // MECHANISM rather than by a test remembering to look.
+    const drifted = scratchGuardFiles({
+      "check-foundation-guards.js": (src) =>
+        src.replace(
+          "const SEC_VOICE_FILES = [\n",
+          'const SEC_VOICE_FILES = [\n    "agent-factory/checklists/planted-extra-surface.md",\n',
+        ),
+    });
+    const m = mirror();
+    const r = runScratch(drifted, m);
+    const o = out(r);
+    expect(r.status).toBe(1);
+    expect(o).toContain(
+      `voice: visited ${ROLE_COUNT + parseSecVoiceCount(GUARD_TS_SRC) + 1} of ${ROLE_COUNT + parseSecVoiceCount(GUARD_TS_SRC)} elements`,
+    );
+    expect(o).toContain("the scan set is short");
+    expect(o).not.toMatch(/PASS +voice: 0 findings over/);
+    // The sibling guard is UNTOUCHED by this mutation — so the red is attributable to the voice
+    // corpus drift and not to a scratch build that broke everything.
+    expect(o).toContain(`caveman voice: 0 findings over ${ROLE_COUNT}/${ROLE_COUNT} elements`);
+  }, 120_000);
+
+  it("guard_voice's PASS line carries a DERIVED denominator, and one scanned-line count per voice file", () => {
+    const m = mirror();
+    const r = runIn(m);
+    const o = out(r);
+    expect(r.status).toBe(0);
+    // The denominator's SHAPE, in the same form guard_caveman_voice already publishes. Round 3's
+    // recorded evidence is that only ONE of the two matched; two is the closure condition.
+    const denominators = o
+      .split("\n")
+      .filter((l) => /voice.*0 findings over \d+\/\d+ elements/.test(l));
+    expect(
+      denominators,
+      "BOTH voice guards must publish a denominator — guard_voice was the one foundation guard with none",
+    ).toHaveLength(2);
+    expect(o).toContain(
+      `voice: 0 findings over ${ROLE_COUNT + parseSecVoiceCount(GUARD_TS_SRC)}/${ROLE_COUNT + parseSecVoiceCount(GUARD_TS_SRC)} elements`,
+    );
+    // The PER-FILE measurement lines, COUNTED against a denominator derived outside this guard's own
+    // corpus: the role half from kit-model's ROLE_COUNT, the security half from the declared count.
+    const scanned = o.split("\n").filter((l) => /: scanned \d+ clear-voice line\(s\)/.test(l));
+    expect(scanned).toHaveLength(ROLE_COUNT + parseSecVoiceCount(GUARD_TS_SRC));
+    // And the retired bare line is GONE — a PASS with no denominator may not reappear beside the new
+    // one, which is how a "measurement added" change quietly becomes a measurement added ALONGSIDE.
+    expect(o).not.toContain("  PASS  voice: clear-voice surfaces free of caveman markers");
+  }, 120_000);
+
+  it("a voice file whose scan remainder COLLAPSES is a named finding, not a silent pass", () => {
+    // THE ELEMENT-LEVEL FLOOR, proven REACHED rather than merely present. A SEC_VOICE surface carries
+    // no caveman fence by declaration, so the WHOLE document is its clear-voice remainder — emptying
+    // it drives the scanned remainder to zero content WITHOUT going through the reader's refusal arm,
+    // which is the only route on which the floor can fire. (A role file with the same defect is
+    // refused `unterminated` by the reader first; that route is the case below.)
+    const m = mirror();
+    const surface = "agent-factory/checklists/security-nfr-checklist.md";
+    expect(
+      readFileSync(join(m, surface), "utf8").length,
+      "the mirror must carry the surface with content BEFORE it is collapsed",
+    ).toBeGreaterThan(0);
+    writeFileSync(join(m, surface), "", "utf8");
+    const r = runIn(m);
+    const o = out(r);
+    expect(r.status).toBe(1);
+    expect(o).toContain(`${surface}: the clear-voice remainder collapsed to`);
+    expect(o).toContain("was NOT effectively scanned");
+    // The published count for that file is VISIBLE — the number and the finding come from the same
+    // `body`, so a build in which they drifted apart would print a collapsed count beside a pass.
+    expect(o).toContain(`${basename(surface)}: scanned 1 clear-voice line(s)`);
+    // And no guard_voice PASS line of ANY shape survives.
+    expect(o).not.toMatch(/PASS +voice: 0 findings over/);
+    expect(o).not.toContain("  PASS  voice: clear-voice surfaces free of caveman markers");
+    expect(o).not.toContain("ALL CHECKS PASSED");
+  }, 120_000);
+
+  it("a role file whose caveman fence is left OPEN across a later heading exits 1 with no guard_voice pass line", () => {
+    // THE CR-01 SHAPE AT THE GATE. The plant is derived from the mirror's real file at run time — the
+    // recorded first-draft failure two cases up is that a plant appended at EOF proves nothing — and
+    // its premise is asserted before the claim.
+    const m = mirror();
+    expect(
+      roleNamesIn(m),
+      "the plant host must be a member of the mirror's derived role set",
+    ).toContain(MALFORMED_ROLE);
+    const file = rolePath(m, MALFORMED_ROLE);
+    const before = readFileSync(file, "utf8");
+    const lines = before.split("\n");
+    const heading = lines.findIndex((l) => l.trimEnd() === "## Caveman prompt");
+    const open = lines.findIndex((l, i) => i > heading && /^```/.test(l));
+    const close = lines.findIndex((l, i) => i > open && /^```/.test(l));
+    expect(
+      [heading, open, close].every((i) => i >= 0),
+      "the host file must carry an anchor and both delimiters before anything is planted",
+    ).toBe(true);
+    // A `## ` heading written BETWEEN the delimiters — the shape 29-20's fence-aware bound could not
+    // see, because the fence toggle flags the interior the heading sits in.
+    const after = [
+      ...lines.slice(0, close),
+      "",
+      "## Notes",
+      "you no think, big brain swamp demon",
+      ...lines.slice(close),
+    ].join("\n");
+    expect(after, "the plant must actually change the file").not.toBe(before);
+    // PREMISE, MEASURED: the planted heading really does sit between the two delimiters.
+    const planted = after.split("\n");
+    const notes = planted.findIndex((l) => l === "## Notes");
+    const delimiters = planted.map((l, i) => (/^```/.test(l) ? i : -1)).filter((i) => i >= 0);
+    expect(
+      delimiters[0] < notes && notes < delimiters[1],
+      "the planted heading must sit BETWEEN the caveman fence's two delimiters, or the case is vacuous",
+    ).toBe(true);
+    writeFileSync(file, after, "utf8");
+
+    const r = runIn(m);
+    const o = out(r);
+    expect(r.status).toBe(1);
+    expect(o).toContain(
+      `${roleRel(MALFORMED_ROLE)}: ## Caveman prompt fence refused — reason unterminated`,
+    );
+    expect(o).not.toMatch(/PASS +voice: 0 findings over/);
+    expect(o).not.toContain("  PASS  voice: clear-voice surfaces free of caveman markers");
+    // The refused file is NOT among the published scanned counts — "this file was NOT scanned" is now
+    // a visible fact rather than a claim, because the denominator (19) exceeds the lines printed (18).
+    const scanned = o.split("\n").filter((l) => /: scanned \d+ clear-voice line\(s\)/.test(l));
+    expect(scanned).toHaveLength(ROLE_COUNT + parseSecVoiceCount(GUARD_TS_SRC) - 1);
+    expect(scanned.filter((l) => l.includes(MALFORMED_ROLE))).toHaveLength(0);
   }, 120_000);
 
   // (Phase 27 / KIT-01) The former "missing role → caveman prompt block missing" case is superseded
