@@ -42,6 +42,7 @@ import {
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { BANNED_CONSTRUCTIONS } from "./voice-model.js";
+import { fencedLineFlags } from "./frontmatter.js";
 import {
   APPROVED_STEP_VERBS,
   GOVERNED_CORPUS_COUNT,
@@ -1160,5 +1161,167 @@ describe("WR-02 — the sentence-form denominator is the derived corpus size and
     expect(executable).toContain("expected: elements.stepsFiles.length");
     expect(executable).toContain("expected: corpus.length");
     expect(executable).toContain("visited: sentenceFilesVisited.length");
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────────────────────────
+// (9) WR-06 — THE TECHNICAL NAME TABLE SCAN READS THE ONE FENCE AUTHORITY.
+//
+// This module already imports `fencedLineFlags` and already consumes it for the governed-prose
+// question. The two table locators were the one place left in the file that answered a
+// SECTION-EXTENT question with a second grammar over the same bytes — a bare `startsWith("## ")`
+// scan that cannot tell a heading from a heading QUOTED IN AN EXAMPLE.
+//
+// THE DIRECTION IS NOT CURRENTLY REACHABLE ON THE LIVE CORPUS, AND IT IS FIXED ANYWAY. The phase's
+// thesis is that a second grammar over the same bytes is a defect even while the two grammars agree,
+// and this particular set is load-bearing: a multi-word Technical Name collapses to ONE term in
+// countWords, so an injected or dropped term moves sentences across the length bounds and changes
+// verdicts in a guard that never mentions tables at all.
+// ─────────────────────────────────────────────────────────────────────────────────────────────────
+
+/** The note-kind rows the real derivation expects, built from the gate's own derived part size. */
+const kindRows = (n: number, prefix = "kind"): string[] =>
+  Array.from({ length: n }, (_, i) => `| \`${prefix}-${i}\` | what it records ${i} |`);
+
+const NOTE_KINDS_HEADING = "## The six note kinds";
+
+describe("WR-06 — a fenced line cannot truncate, relocate or inject into the Technical Name table scan", () => {
+  it("a fenced `## ` line does NOT end the section — every row below it is still harvested", () => {
+    // PREMISE, asserted so the case cannot pass vacuously: rows are placed BELOW the fenced heading,
+    // so there is something for the truncation to have lost.
+    const below = kindRows(NOTE_KIND_N).slice(1);
+    expect(below.length).toBeGreaterThan(0);
+
+    const doc = [
+      "# Contract: context note",
+      "",
+      NOTE_KINDS_HEADING,
+      "",
+      "| Kind | What it records |",
+      "| --- | --- |",
+      kindRows(NOTE_KIND_N)[0],
+      "",
+      "```md",
+      "## Example output",
+      "",
+      "| `injected-a` | a row inside a fenced example |",
+      "```",
+      "",
+      ...below,
+      "",
+    ].join("\n");
+
+    const { status, stdout } = runGate(
+      makeMirror("gops-lex-wr06-trunc-", { plant: { [NOTE_CONTRACT]: doc } }),
+    );
+    // All NOTE_KIND_N rows survive, so the derived part is the full size and the pin holds.
+    expect(stdout).toContain(`noteKinds ${NOTE_KIND_N}`);
+    // And the fenced row was not harvested on the way past.
+    expect(stdout).not.toContain("injected-a");
+    expect(status).toBe(0);
+  });
+
+  it("a table row inside a fence is NOT harvested — a fenced example cannot inject a term", () => {
+    const doc = [
+      "# Contract: context note",
+      "",
+      NOTE_KINDS_HEADING,
+      "",
+      "| Kind | What it records |",
+      "| --- | --- |",
+      ...kindRows(NOTE_KIND_N),
+      "",
+      "```md",
+      "| `injected-b` | a fenced row with no heading anywhere near it |",
+      "```",
+      "",
+    ].join("\n");
+
+    const { status, stdout } = runGate(
+      makeMirror("gops-lex-wr06-inject-", { plant: { [NOTE_CONTRACT]: doc } }),
+    );
+    expect(stdout).toContain(`noteKinds ${NOTE_KIND_N}`);
+    expect(stdout).not.toContain("injected-b");
+    expect(status).toBe(0);
+  });
+
+  it("a heading QUOTED INSIDE A FENCE is not matched as the section's own heading", () => {
+    // The fenced copy sits BEFORE the real one, so a fence-blind `indexOf` locks onto the wrong line
+    // and scans an example block instead of the table.
+    const doc = [
+      "# Contract: context note",
+      "",
+      "```md",
+      NOTE_KINDS_HEADING,
+      "",
+      "| `injected-c` | a fenced row under a fenced heading |",
+      "```",
+      "",
+      NOTE_KINDS_HEADING,
+      "",
+      "| Kind | What it records |",
+      "| --- | --- |",
+      ...kindRows(NOTE_KIND_N),
+      "",
+    ].join("\n");
+
+    const { status, stdout } = runGate(
+      makeMirror("gops-lex-wr06-anchor-", { plant: { [NOTE_CONTRACT]: doc } }),
+    );
+    expect(stdout).toContain(`noteKinds ${NOTE_KIND_N}`);
+    expect(stdout).not.toContain("injected-c");
+    expect(status).toBe(0);
+  });
+
+  it("the same three defences hold for the BOARD column table, which is a second scan over a second document", () => {
+    const cols = Array.from(
+      { length: BOARD_COLUMN_N },
+      (_, i) => `| Column ${i} | entry rule ${i} | Orchestrator | 4 |`,
+    );
+    const doc = [
+      "# Board",
+      "",
+      "```md",
+      BOARD_TABLE_HEADER,
+      "| `injected-d` | a fenced row under a fenced header | x | 1 |",
+      "```",
+      "",
+      BOARD_TABLE_HEADER,
+      "|---|---|---|---|",
+      ...cols,
+      "",
+    ].join("\n");
+
+    const { status, stdout } = runGate(
+      makeMirror("gops-lex-wr06-board-", { plant: { [BOARD]: doc } }),
+    );
+    expect(stdout).toContain(`boardColumns ${BOARD_COLUMN_N}`);
+    expect(stdout).not.toContain("injected-d");
+    expect(status).toBe(0);
+  });
+
+  it("the two table sources on the LIVE tree carry zero fenced heading lines and zero fenced rows", () => {
+    // This is what makes the "identical before and after" claim a MEASUREMENT rather than a hope. If
+    // either document ever grows a fenced heading or a fenced table row, the live set becomes
+    // sensitive to this fix and that fact should surface here rather than in a verdict elsewhere.
+    for (const rel of [NOTE_CONTRACT, BOARD]) {
+      const text = readFileSync(join(ROOT, rel), "utf8");
+      const flags = fencedLineFlags(text);
+      const lines = text.split("\n");
+      let fencedHeadings = 0;
+      let fencedRows = 0;
+      for (let i = 0; i < lines.length; i++) {
+        if (!flags[i]) continue;
+        if (lines[i].startsWith("## ")) fencedHeadings += 1;
+        if (lines[i].trim().startsWith("|")) fencedRows += 1;
+      }
+      expect({ rel, fencedHeadings, fencedRows }).toEqual({
+        rel,
+        fencedHeadings: 0,
+        fencedRows: 0,
+      });
+    }
+    // And the derived set is at its pinned size, so neither scan silently lost or gained a member.
+    expect(TECHNICAL_NAMES.length).toBe(TECHNICAL_NAMES_COUNT);
   });
 });
