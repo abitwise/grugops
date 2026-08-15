@@ -1300,6 +1300,40 @@ describe("WR-06 — a fenced line cannot truncate, relocate or inject into the T
     expect(status).toBe(0);
   });
 
+  it("a fence INSIDE the board table does not end it — the rows below the example survive", () => {
+    // THIS CASE EXISTS BECAUSE A MUTATION FOUND ITS ABSENCE. Removing the board loop's fenced-line
+    // skip reddened NOTHING: the case above puts its fence BEFORE the header row, so it exercises
+    // only the heading-match arm. The board loop ends at the first line that is not a row, and a
+    // fence delimiter is not a row — so without the skip an example sitting INSIDE the table ends
+    // the table, and every column below it leaves the derived vocabulary silently.
+    const cols = Array.from(
+      { length: BOARD_COLUMN_N },
+      (_, i) => `| Column ${i} | entry rule ${i} | Orchestrator | 4 |`,
+    );
+    const below = cols.slice(1);
+    // PREMISE: there ARE rows below the fence, so there is something for the truncation to lose.
+    expect(below.length).toBeGreaterThan(0);
+    const doc = [
+      "# Board",
+      "",
+      BOARD_TABLE_HEADER,
+      "|---|---|---|---|",
+      cols[0],
+      "```md",
+      "| `injected-e` | a fenced example row inside the table | x | 1 |",
+      "```",
+      ...below,
+      "",
+    ].join("\n");
+
+    const { status, stdout } = runGate(
+      makeMirror("gops-lex-wr06-boardmid-", { plant: { [BOARD]: doc } }),
+    );
+    expect(stdout).toContain(`boardColumns ${BOARD_COLUMN_N}`);
+    expect(stdout).not.toContain("injected-e");
+    expect(status).toBe(0);
+  });
+
   it("the two table sources on the LIVE tree carry zero fenced heading lines and zero fenced rows", () => {
     // This is what makes the "identical before and after" claim a MEASUREMENT rather than a hope. If
     // either document ever grows a fenced heading or a fenced table row, the live set becomes
