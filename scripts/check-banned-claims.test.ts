@@ -796,6 +796,161 @@ describe("check-banned-claims — the exemption's outer bound and its published 
     ).toBe(BANNED_CLAIM_EXEMPT_SUPPRESSED);
   });
 
+  it("the AUTHORITY'S equality is now this gate's: a region heading with TRAILING whitespace is located AND counted", () => {
+    // A BEHAVIOUR CHANGE THE REWIRE INTRODUCED, PINNED RATHER THAN LEFT TO THE DIFF. This gate used
+    // to compare the heading line RAW, so `## Disclaimer and honesty floor ` was not the heading at
+    // all and the document was refused with `occurs 0 time(s)`. The shared locator normalises with
+    // `trimEnd()`, which is the axis on which the four locators of this class disagreed, and this
+    // gate now applies it in BOTH places — the count and the position. Asserting only one of them
+    // would let a trailing space be located by one half and not counted by the other, which is the
+    // two-grammar defect one level down from the one this plan deletes.
+    const doc = profileDoc().replace(
+      `\n${BANNED_CLAIM_EXEMPT_REGION.heading}\n`,
+      `\n${BANNED_CLAIM_EXEMPT_REGION.heading} \n`,
+    );
+    const docLines = doc.split("\n");
+    // FIXTURE PREMISE: the replacement really happened and the raw heading really is gone, so the
+    // case cannot pass by testing the ordinary un-spaced document.
+    expect(docLines).not.toContain(BANNED_CLAIM_EXEMPT_REGION.heading);
+    expect(docLines).toContain(`${BANNED_CLAIM_EXEMPT_REGION.heading} `);
+
+    const region = locateExemptRegion(docLines);
+    expect(
+      region,
+      "a heading carrying one trailing space was not located, so this gate and the shared authority apply different equalities",
+    ).not.toBeNull();
+    expect(region!.headingAt).toBe(
+      docLines.indexOf(`${BANNED_CLAIM_EXEMPT_REGION.heading} `),
+    );
+
+    const { status, stdout } = runGate(
+      makeMirror("gops-banned-trailing-ws-", { plant: { [PROFILE]: doc } }),
+    );
+    expect(status).toBe(0);
+    expect(stdout).toContain("ALL CHECKS PASSED");
+    // The COUNT saw it too: had only the position applied `trimEnd()`, the count would have found
+    // zero headings and refused before the region was ever located.
+    expect(stdout).not.toContain("time(s) in the file");
+  });
+
+  it("the BOUND on that equality: a LEADING space is still not the heading", () => {
+    // The other side of the case above. `trimEnd()` normalises the END of the line and nothing else;
+    // the tree's anchors are column-zero by convention, and admitting indented ATX would change what
+    // four gates scan at once.
+    const doc = profileDoc().replace(
+      `\n${BANNED_CLAIM_EXEMPT_REGION.heading}\n`,
+      `\n ${BANNED_CLAIM_EXEMPT_REGION.heading}\n`,
+    );
+    expect(doc.split("\n")).not.toContain(BANNED_CLAIM_EXEMPT_REGION.heading);
+    const { status, stdout } = runGate(
+      makeMirror("gops-banned-leading-ws-", { plant: { [PROFILE]: doc } }),
+    );
+    expect(status).toBe(1);
+    expect(stdout).toContain("occurs 0 time(s)");
+  });
+
+  it("FALSIFIABLE, direction UP: one ADDITIONAL claim inside the region reds, naming both numbers", () => {
+    // A pin that has never been shown to fail is a comment. This is the direction that matters —
+    // an exemption covering MORE than it was reviewed for — and it is the direction plan 29-18
+    // moved without anything noticing.
+    const doc = profileDoc({ reach: BANNED_CLAIM_EXEMPT_SUPPRESSED + 1 });
+    const docLines = doc.split("\n");
+    const region = locateExemptRegion(docLines);
+    // THE FIXTURE'S OWN PREMISE: the document really does suppress one MORE than the pin. A fixture
+    // that landed back on the pin would make this case red for some unrelated reason, or go green.
+    expect(region).not.toBeNull();
+    expect(
+      countBannedClaimOccurrences(
+        docLines,
+        region!.headingAt,
+        region!.endBefore,
+      ),
+    ).toBe(BANNED_CLAIM_EXEMPT_SUPPRESSED + 1);
+
+    const { status, stdout } = runGate(
+      makeMirror("gops-banned-reach-up-", { plant: { [PROFILE]: doc } }),
+    );
+    expect(status).toBe(1);
+    expect(stdout).toContain(
+      `suppressed ${BANNED_CLAIM_EXEMPT_SUPPRESSED + 1} banned-claim occurrence(s)`,
+    );
+    expect(stdout).toContain(`declares ${BANNED_CLAIM_EXEMPT_SUPPRESSED}`);
+    expect(stdout).toContain("An exemption GROWING is a decision");
+    expect(stdout).not.toContain("ALL CHECKS PASSED");
+  });
+
+  it("FALSIFIABLE, direction DOWN: one FEWER claim inside the region also reds — the pin is two-sided", () => {
+    // A shrinking exemption is equally a change somebody made: a disclaimer that quietly stopped
+    // quoting what it denies is a disclaimer that stopped working. Without this half the pin would
+    // silently accept every future deletion, which is the one-sided pin this repository keeps
+    // finding after the fact.
+    const doc = profileDoc({ reach: BANNED_CLAIM_EXEMPT_SUPPRESSED - 1 });
+    const docLines = doc.split("\n");
+    const region = locateExemptRegion(docLines);
+    expect(region).not.toBeNull();
+    expect(
+      countBannedClaimOccurrences(
+        docLines,
+        region!.headingAt,
+        region!.endBefore,
+      ),
+    ).toBe(BANNED_CLAIM_EXEMPT_SUPPRESSED - 1);
+
+    const { status, stdout } = runGate(
+      makeMirror("gops-banned-reach-down-", { plant: { [PROFILE]: doc } }),
+    );
+    expect(status).toBe(1);
+    expect(stdout).toContain(
+      `suppressed ${BANNED_CLAIM_EXEMPT_SUPPRESSED - 1} banned-claim occurrence(s)`,
+    );
+    expect(stdout).toContain(`declares ${BANNED_CLAIM_EXEMPT_SUPPRESSED}`);
+    expect(stdout).toContain("An exemption SHRINKING is equally a change");
+  });
+
+  it("WIDENING IS NOT OPEN-ENDED: an appended REAL later section carrying a claim is reported, and the reach does not move", () => {
+    // On the live corpus the region runs to END OF FILE, so nothing there can distinguish "the
+    // region stops at the next section" from "the region stops because the file did". That is an
+    // ORDERING ACCIDENT, not a property, so it is pinned by a plant.
+    //
+    // The two mechanisms are asserted TOGETHER on purpose: the claim below the appended heading is
+    // REPORTED (the bound held) and the exemption's published reach is UNMOVED (the appended
+    // section did not join the region). Either alone is satisfiable by the other being broken.
+    const doc = profileDoc({ trailingSection: true }).replace(
+      "Text below the region is scanned again.",
+      NAME_PLANT,
+    );
+    const docLines = doc.split("\n");
+    const appendedAt = docLines.indexOf("## After the region");
+    const claimAt = docLines.indexOf(NAME_PLANT);
+    expect(appendedAt).toBeGreaterThan(-1);
+    expect(claimAt).toBeGreaterThan(appendedAt);
+
+    const region = locateExemptRegion(docLines);
+    expect(region).not.toBeNull();
+    expect(
+      region!.endBefore,
+      "the exemption region swallowed the appended section — its end is no longer the next real heading",
+    ).toBe(appendedAt);
+    expect(
+      countBannedClaimOccurrences(
+        docLines,
+        region!.headingAt,
+        region!.endBefore,
+      ),
+    ).toBe(BANNED_CLAIM_EXEMPT_SUPPRESSED);
+
+    const { status, stdout } = runGate(
+      makeMirror("gops-banned-appended-section-", { plant: { [PROFILE]: doc } }),
+    );
+    expect(status).toBe(1);
+    expect(findingCount(stdout)).toBe(1);
+    expect(stdout).toContain(`${PROFILE}:${claimAt + 1}:`);
+    expect(stdout).toContain(UNCONDITIONAL_NAME.literal);
+    // The reach pin stayed green, so the exit 1 above is the CLAIM being reported and not the pin
+    // firing for an unrelated reason.
+    expect(stdout).not.toContain("An exemption GROWING is a decision");
+  });
+
   it("MEASURED: every level-one heading in the live exemption document below line one is FENCED and sits ABOVE the region", () => {
     // The level widening — from a close on `## ` only to a close on any heading of level at most two
     // — can only make the region END EARLIER, which causes MORE of the document to be checked. That
