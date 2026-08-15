@@ -915,6 +915,49 @@ describe("CR-03 — a `## Steps` bullet is counted at any nesting depth", () => 
     expect(stdout).toContain(`${words} words, bound ${PROCEDURAL_SENTENCE_MAX_WORDS}`);
   });
 
+  it("makes an indented NUMBERED line procedural through ORDERED_MARKER, with no section anchor involved", () => {
+    // THIS CASE EXISTS BECAUSE A MUTATION FOUND ITS ABSENCE. Narrowing ORDERED_MARKER back to three
+    // leading spaces, with LIST_MARKER left wide, reddened NOTHING — every case above plants a `-`
+    // bullet, so the second marker's widening was shipped uncovered. `procedural` is
+    // `(inSteps && isBullet) || ORDERED_MARKER.test(raw)`, and this arm is the RIGHT-HAND side: the
+    // plant lives in a CHECKLIST, which has no `## Steps` heading at all, so the section anchor
+    // cannot be what decides it. LIST_MARKER is wide in both the fix and the mutation, so the marker
+    // strip is identical on both sides and `procedural` is the only thing that moves.
+    const sentence = `${VERB} ${filler(21)}.`;
+    const words = countWords(sentence);
+    expect(words).toBeGreaterThan(PROCEDURAL_SENTENCE_MAX_WORDS);
+    expect(words).toBeLessThanOrEqual(DESCRIPTIVE_SENTENCE_MAX_WORDS);
+
+    const CHECKLIST = "agent-factory/checklists/00-fixture.md";
+    const doc = (body: string): string =>
+      ["# Fixture checklist 0", "", `- ${VERB} the gate result.`, body, ""].join("\n");
+    const before = runGate(
+      makeMirror("gops-lex-cr03-ordbase-", { plant: { [CHECKLIST]: doc("") } }),
+    );
+    const after = runGate(
+      makeMirror("gops-lex-cr03-ord-", {
+        plant: { [CHECKLIST]: doc(`    1. ${sentence}`) },
+      }),
+    );
+
+    // PREMISE: the unplanted mirror is clean, and the planted line arrives as exactly one sentence.
+    expect(before.status).toBe(0);
+    const b = sentenceTotals(before.stdout);
+    const a = sentenceTotals(after.stdout);
+    expect(a.total).toBe(b.total + 1);
+    // THE MECHANISM: it arrives on the PROCEDURAL side, and the descriptive side does not move.
+    expect(a.procedural).toBe(b.procedural + 1);
+    expect(a.descriptive).toBe(b.descriptive);
+
+    expect(after.status).toBe(1);
+    expect(formFindingCount(after.stdout, "procedural-sentence-too-long")).toBe(1);
+    expect(formFindingCount(after.stdout, "descriptive-sentence-too-long")).toBe(0);
+    // And no bullet was counted, which is what proves the section anchor played no part.
+    expect(bulletTotals(after.stdout).bullets).toBe(
+      bulletTotals(before.stdout).bullets,
+    );
+  });
+
   it("reaches the MODAL rule (WP-05) on an indented bullet", () => {
     const modal = BANNED_CONSTRUCTIONS.modal[0];
     const before = runWithSteps("gops-lex-cr03-modalbase-", BASE_STEPS);
