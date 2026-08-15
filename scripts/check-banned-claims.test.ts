@@ -62,14 +62,14 @@ import {
   bannedClaimScan,
   bannedClaimScanOverlap,
   locateExemptRegion,
+  // (Plan 29-23, WR-02) The exemption's REACH: the counter that measures it and the constant that
+  // pins it. In the RED commit these two were read through a NAMESPACE binding instead, because a
+  // named import of a missing export is a MODULE-LOAD error in ESM and would have reddened every
+  // other case in this file, hiding the one transcript the RED step exists to produce. They are
+  // named imports now that they exist, so deleting either fails loudly rather than as `undefined`.
+  BANNED_CLAIM_EXEMPT_SUPPRESSED,
+  countBannedClaimOccurrences,
 } from "./check-banned-claims.js";
-// (Plan 29-23, WR-02) The exemption's REACH pin, read through a NAMESPACE binding rather than the
-// named list above. At the commit that introduced the reach case neither symbol existed yet, and a
-// named import of a missing export is a MODULE-LOAD error in ESM — it would have reddened every
-// other case in this file and hidden the one transcript the RED step exists to produce. Through a
-// namespace the missing symbol is `undefined`, so the case fails on its own assertion and names the
-// received value, which is what a RED transcript is for.
-import * as gateModule from "./check-banned-claims.js";
 
 const ROOT = join(import.meta.dirname, "..");
 const GATE_JS = join(ROOT, "scripts", "check-banned-claims.js");
@@ -155,17 +155,35 @@ const KIT_README = "agent-factory/README.md";
 const PROFILE = BANNED_CLAIM_EXEMPT_REGION.file;
 
 /**
+ * (Plan 29-23) One sentence carrying EXACTLY ONE banned-claim occurrence, used to fill a mirror's
+ * exemption region up to the reach the gate pins. Deliberately NOT one of the plant constants above:
+ * the region-scoped cases locate their plants with `indexOf`/`lastIndexOf` over the whole document,
+ * and a filler reusing a plant's exact text would silently move those lookups onto a filler line.
+ * Its occurrence count is not assumed — a case below derives it through the gate's own counter.
+ */
+const REACH_FILLER = `The profile makes no ${TOKEN_CLAIM.literal} claim of any kind.`;
+
+/**
  * The profile document the mirror ships, with its exemption region.
  *
  * `regionBody` is what sits under the exempt heading; `preamble` is what sits ABOVE it, outside the
  * region. The two are separate parameters precisely so the region-scoped cases can put the SAME
  * sentence on each side of the heading and watch the gate discriminate.
+ *
+ * (Plan 29-23) THE REGION IS FILLED UP TO THE GATE'S DECLARED REACH, AND THE FILL IS DERIVED FROM
+ * THE PIN RATHER THAN TYPED. `BANNED_CLAIM_EXEMPT_SUPPRESSED` is two-sided, so a mirror whose region
+ * suppressed some other number would red every case in this file for a reason that had nothing to do
+ * with the case. Whatever the caller's `regionBody` already carries is counted through the gate's
+ * OWN matcher and subtracted, so a caller who plants a claim inside the region still lands on the
+ * pin — and `reach` is available for the cases whose whole subject is missing it by one.
  */
 function profileDoc(opts: {
   preamble?: string;
   regionBody?: string;
   headings?: number;
   trailingSection?: boolean;
+  /** Occurrences to leave inside the region. Defaults to the gate's declared reach. */
+  reach?: number;
 } = {}): string {
   const heading = BANNED_CLAIM_EXEMPT_REGION.heading;
   const out = [
@@ -176,9 +194,20 @@ function profileDoc(opts: {
     opts.preamble ?? "Every rule carries a stable id.",
     "",
   ];
+  const body = opts.regionBody ?? "This profile is an independent work.";
+  const already = countBannedClaimOccurrences(
+    body.split("\n"),
+    0,
+    Number.MAX_SAFE_INTEGER,
+  );
+  const need = Math.max(
+    0,
+    (opts.reach ?? BANNED_CLAIM_EXEMPT_SUPPRESSED) - already,
+  );
   const count = opts.headings ?? 1;
   for (let n = 0; n < count; n++) {
-    out.push(heading, "", opts.regionBody ?? "This profile is an independent work.", "");
+    out.push(heading, "", body, "");
+    for (let k = 0; k < need; k++) out.push(REACH_FILLER, "");
   }
   if (opts.trailingSection === true) {
     out.push("## After the region", "", "Text below the region is scanned again.", "");
@@ -468,7 +497,11 @@ describe("check-banned-claims — the one named exemption region", () => {
 
   it("FAILS on an EMPTY exemption region — a heading with no disclaimer beneath it", () => {
     const { status, stdout } = runGate(
-      makeMirror("gops-banned-empty-region-", { profile: { regionBody: "" } }),
+      // `reach: 0` because the region must stay genuinely EMPTY: filling it to the pin would be a
+      // fixture that contradicted the property the case exists to assert.
+      makeMirror("gops-banned-empty-region-", {
+        profile: { regionBody: "", reach: 0 },
+      }),
     );
     expect(status).toBe(1);
     expect(stdout).toContain("is EMPTY");
@@ -711,25 +744,15 @@ describe("check-banned-claims — the exemption's outer bound and its published 
     // The number is derived by the SAME matcher the gate reports findings with — never re-typed
     // here, because a second matcher would disagree with the first the day a literal's conditional
     // arm changed, and this file's whole subject is second grammars.
-    const count = gateModule.countBannedClaimOccurrences as
-      | ((lines: readonly string[], from: number, to: number) => number)
-      | undefined;
-    const declared = gateModule.BANNED_CLAIM_EXEMPT_SUPPRESSED as
-      | number
-      | undefined;
-    expect(
-      typeof count,
-      "check-banned-claims.ts exports no occurrence counter, so the exemption's reach is measured by nothing",
-    ).toBe("function");
-    expect(
-      typeof declared,
-      "check-banned-claims.ts declares no BANNED_CLAIM_EXEMPT_SUPPRESSED, so a widening of the one named exemption region would move no number anybody reads",
-    ).toBe("number");
-
     const lines = readFileSync(join(ROOT, PROFILE), "utf8").split("\n");
     const region = locateExemptRegion(lines);
     expect(region).not.toBeNull();
-    const derived = count!(lines, region!.headingAt, region!.endBefore);
+    const derived = countBannedClaimOccurrences(
+      lines,
+      region!.headingAt,
+      region!.endBefore,
+    );
+    const declared = BANNED_CLAIM_EXEMPT_SUPPRESSED;
     // NON-VACUITY FLOOR FIRST. A reach of zero is indistinguishable from a counter that matched
     // nothing, and this region exists precisely because the disclaimer has to quote the claim forms
     // it denies.
@@ -747,6 +770,30 @@ describe("check-banned-claims — the exemption's outer bound and its published 
     expect(stdout).toContain(
       `suppresses ${derived} banned-claim occurrence(s), pinned at ${declared}`,
     );
+  });
+
+  it("HARNESS PREMISE: the mirror's region really reaches the pin, and the filler really carries one occurrence each", () => {
+    // Without this the reach cases below would be measuring a fixture nobody had checked. If
+    // `REACH_FILLER` carried two occurrences, or none, every mirror in this file would sit at some
+    // other number and the +1/−1 falsifiability cases would still red — for the wrong reason, and
+    // indistinguishably. This project has now produced a false verification result nine times over
+    // five rounds by not asserting the harness's own premise.
+    expect(
+      countBannedClaimOccurrences(
+        [REACH_FILLER],
+        0,
+        Number.MAX_SAFE_INTEGER,
+      ),
+      "the reach filler must carry EXACTLY one banned-claim occurrence, or the mirror's reach arithmetic is wrong by a multiple nobody would see",
+    ).toBe(1);
+
+    const lines = profileDoc().split("\n");
+    const region = locateExemptRegion(lines);
+    expect(region).not.toBeNull();
+    expect(
+      countBannedClaimOccurrences(lines, region!.headingAt, region!.endBefore),
+      "the default mirror's exemption region does not reach the gate's declared suppression pin, so every mirror case in this file is running against a corpus the gate refuses",
+    ).toBe(BANNED_CLAIM_EXEMPT_SUPPRESSED);
   });
 
   it("MEASURED: every level-one heading in the live exemption document below line one is FENCED and sits ABOVE the region", () => {

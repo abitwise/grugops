@@ -125,10 +125,14 @@ import { reportMeasured } from "./vacuity.js";
 // root markdown and examples/ a second time here would be a second membership rule over one
 // corpus, which is how two scan sets come to disagree about what a public document is.
 import { publicDocsScan } from "./check-public-docs-vocabulary.js";
-// THE ONE FENCE TOGGLE (plan 29-18, WR-06). `locateExemptRegion` answers two section-extent
-// questions, and this tree answers "is this line inside a fence" in exactly one place. The toggle is
-// consumed here; the delimiter class is NOT re-declared and no second state machine is written.
-import { fencedLineFlags } from "./frontmatter.js";
+// THE ONE FENCE TOGGLE AND THE ONE SECTION LOCATOR (plans 29-18 and 29-23, WR-06 / WR-08).
+// `locateExemptRegion` answers two section-extent questions, and this tree answers both in exactly
+// one place. `unfencedHeadingIndex` gives the region's own heading and `sectionEndIndex` gives its
+// end; `fencedLineFlags` is taken directly for the exactly-one heading COUNT, which is not a first
+// index and therefore is not a question either locator answers. The delimiter class is NOT
+// re-declared here, no second state machine is written, and this module now declares no section
+// predicate of its own.
+import { fencedLineFlags, unfencedHeadingIndex, sectionEndIndex, } from "./frontmatter.js";
 // CHECK_ROOT override is load-bearing: the Vitest harness builds a hermetic mirror and points
 // CHECK_ROOT at it, then spawns this committed .js against the mirror. When unset, resolve every
 // path against the script-relative repo root (cwd does not matter). The truthiness ternary, not
@@ -367,7 +371,6 @@ export function bannedClaimScanOverlap() {
  * a set that silently GREW is a scan nobody reviewed.
  */
 export const BANNED_CLAIM_SCAN_COUNT = 82;
-const SAME_LEVEL_HEADING = /^## /;
 /**
  * Locate the region and report every way it can be wrong. Returns the region when exactly one
  * well-formed region exists, and null otherwise — the caller then scans the file WHOLE, which is
@@ -381,59 +384,78 @@ const SAME_LEVEL_HEADING = /^## /;
  * nothing pins — and it widens no behaviour: the function is unchanged apart from the keyword.
  *
  * ------------------------------------------------------------------------------------------------
- * (Plan 29-18, WR-06) BOTH SECTION-EXTENT QUESTIONS ARE DECIDED BY THE ONE FENCE AUTHORITY.
+ * (Plans 29-18 and 29-23, WR-06 / WR-08) BOTH SECTION-EXTENT QUESTIONS ARE ASKED OF THE ONE
+ * SHARED LOCATOR, AND THIS MODULE DECLARES NO SECTION PREDICATE OF ITS OWN.
  *
  * This function used to answer two questions — "which line carries the region's own heading" and
- * "which same-level heading ends the region" — with a bare scan over raw lines, while
- * `fencedLineFlags` in scripts/frontmatter.ts is the single fence toggle this tree owns and two
- * sibling gates already consume for exactly this question. A `## ` line inside a fenced example
- * therefore truncated the region, and a fenced QUOTATION of the region heading counted toward the
- * exactly-one assertion and refused a correct document. That is a second grammar over bytes the
- * authority already answers for, which is a defect in this repository even when the two agree.
+ * "which same-level heading ends the region" — with predicates written here: an exact-equality
+ * heading comparison and a private `/^## /` close. `scripts/frontmatter.ts` is the single place this
+ * tree answers both, and three sibling gates already consume it. Both are DELETED. The heading comes
+ * from `unfencedHeadingIndex` and the end from `sectionEndIndex` at level two, so the `trimEnd()`
+ * normalisation — the axis on which the four locators of this class disagreed — is now applied in
+ * exactly one place. A second grammar over bytes an authority already answers for is a defect in
+ * this repository even while the two happen to agree.
  *
- * WHY THIS IS FIXED THOUGH ITS FAILURE DIRECTION IS SAFE, AND THE ASYMMETRY WITH ITS SIBLING.
- * A truncated exemption region causes MORE of the document to be checked; a fenced heading turns a
- * correct document into a NAMED refusal. Both are fail-CLOSED. The sibling locator in
- * check-diff-disposition answers the same shape of question about a FROZEN region, and truncation
- * there is fail-OPEN — LESS gets protected. The two are NOT interchangeable, and a reader meeting
- * both fixes in one round should not have to infer which is which. They are fixed together because
- * each is one grammar too many; only one of them was ever dangerous.
+ * WHAT PLAN 29-18 ACTUALLY DID TO THIS EXEMPTION, STATED PLAINLY BECAUSE THE PARAGRAPH THAT USED TO
+ * SIT HERE DENIED IT.
  *
- * NOTHING BELOW IS RELAXED. The two named refusals and the empty-region refusal keep their exact
- * wording and their fail-closed null return, because they are what this guard already gets right.
- * No delimiter class is re-declared here and there is no opt-out parameter: an opt-out is a second
- * grammar with extra steps.
+ * The text this replaces asserted that nothing below was relaxed and that both truncation directions
+ * were fail-closed. The first half was false. Making the close fence-aware moved the region's END
+ * LATER, so strictly FEWER lines of the disclaimer document are scanned. Measured on the fixture the
+ * round-2 review used, and reproduced in scripts/check-banned-claims.test.ts, the region's body went
+ * from FOUR exempt lines to NINE. A LONGER EXEMPTION IS LESS CHECKING, NOT MORE. That is a
+ * relaxation of a safety exemption, and a header claiming otherwise is a prose claim wider than the
+ * assertion behind it — this repository's second systemic failure class wearing a sentence instead
+ * of a set literal.
+ *
+ * WHY THE RELAXATION IS NONETHELESS RIGHT. A `## ` line the author wrote INSIDE a fenced example is
+ * documentation and never structure. A region that stopped at one was not exempting fewer lines on
+ * purpose; it was measuring the wrong bytes, and it truncated the disclaimer at the first heading
+ * the disclaimer happened to QUOTE. The extra lines were always meant to be inside the region.
+ *
+ * AND THE RELAXATION IS GIVEN A MECHANISM RATHER THAN AN ARGUMENT. `BANNED_CLAIM_EXEMPT_SUPPRESSED`
+ * below pins how many banned-claim occurrences this region actually lifts the prohibition on, the
+ * gate publishes that number on every green run, and the two are compared two-sided. A future
+ * widening is then an acknowledged edit with a reason, never a side effect of a heading landing
+ * somewhere new — which is exactly how the widening above went unnoticed.
+ *
+ * THE ASYMMETRY WITH ITS SIBLING SURVIVES, AND IT IS THE HALF THAT WAS ALWAYS TRUE. Truncating THIS
+ * region causes MORE of the document to be checked, so truncation here is fail-CLOSED. The sibling
+ * locator in check-diff-disposition answers the same shape of question about a FROZEN region, and
+ * truncation there is fail-OPEN — LESS gets protected. The two are NOT one bug at two addresses, and
+ * a reader meeting both fixes in one round should not have to infer which is which.
+ *
+ * THE TWO NAMED REFUSALS AND THE EMPTY-REGION REFUSAL ARE UNCHANGED, wording and fail-closed null
+ * return alike, because they are what this guard already gets right and a locator change is not
+ * licence to touch them. No delimiter class is re-declared here and there is no opt-out parameter:
+ * an opt-out is a second grammar with extra steps.
  * ------------------------------------------------------------------------------------------------
  */
 export function locateExemptRegion(lines) {
-    // The toggle, computed ONCE over the document and consulted by BOTH scans below. Computing it
-    // twice, or fence-guarding only one of the two questions, would recreate the disagreement this
-    // change deletes.
-    const fenced = fencedLineFlags(lines.join("\n"));
-    const headings = [];
+    const text = lines.join("\n");
+    // THE COUNT TAKES THE PER-LINE TOGGLE; THE BOUND TAKES THE SHARED LOCATOR. Both are projections of
+    // the SAME authority, and both apply the authority's own `trimEnd()` equality, so the heading this
+    // gate COUNTS and the heading it LOCATES can never come to disagree. `unfencedHeadingIndex`
+    // answers "the FIRST such line" and a count is not a first index; wrapping it in a "find the next
+    // one after i" loop is deliberately NOT done, because a second traversal with its own termination
+    // behaviour is precisely the shape this round is deleting.
+    const fenced = fencedLineFlags(text);
+    let headingCount = 0;
     for (let i = 0; i < lines.length; i++) {
         // Only an UNFENCED occurrence is the region's own heading. A fenced one is a quotation of it.
-        if (!fenced[i] && lines[i] === BANNED_CLAIM_EXEMPT_REGION.heading)
-            headings.push(i);
+        if (!fenced[i] && lines[i].trimEnd() === BANNED_CLAIM_EXEMPT_REGION.heading)
+            headingCount += 1;
     }
-    if (headings.length !== 1) {
+    if (headingCount !== 1) {
         fail(`the one named exemption region is declared as \`${BANNED_CLAIM_EXEMPT_REGION.file}\` § ` +
-            `\`${BANNED_CLAIM_EXEMPT_REGION.heading}\`, and that heading occurs ${headings.length} ` +
+            `\`${BANNED_CLAIM_EXEMPT_REGION.heading}\`, and that heading occurs ${headingCount} ` +
             `time(s) in the file. Exactly one is required, asserted two-sided: a VANISHED region makes ` +
             `the disclaimer illegal and reds the build on correct text, and a DUPLICATED region widens ` +
             `the hole by adding a second heading. Fix the document; do not relax this assertion`);
         return null;
     }
-    const headingAt = headings[0];
-    let endBefore = lines.length;
-    for (let i = headingAt + 1; i < lines.length; i++) {
-        // Only an UNFENCED same-level heading can start a sibling section, so only one can end this
-        // region. A `## ` line inside a fenced example is documentation, not structure.
-        if (!fenced[i] && SAME_LEVEL_HEADING.test(lines[i])) {
-            endBefore = i;
-            break;
-        }
-    }
+    const headingAt = unfencedHeadingIndex(text, BANNED_CLAIM_EXEMPT_REGION.heading);
+    const endBefore = sectionEndIndex(text, headingAt + 1, 2);
     const body = lines.slice(headingAt + 1, endBefore);
     if (body.every((l) => l.trim() === "")) {
         fail(`the exemption region \`${BANNED_CLAIM_EXEMPT_REGION.file}\` § ` +
@@ -444,6 +466,26 @@ export function locateExemptRegion(lines) {
     }
     return { headingAt, endBefore };
 }
+/**
+ * How many banned-claim occurrences the one named exemption region lifts the prohibition on, today.
+ *
+ * TWO-SIDED, AND PINNED ON SUPPRESSED OCCURRENCES RATHER THAN ON EXEMPT LINES. A line count moves
+ * every time the disclaimer is reflowed, so it would red the gate on a change that lifted nothing —
+ * and a pin that reds for no reason is a pin authors learn to move without reading, which is how a
+ * pin stops being a pin. The suppressed count is exactly the quantity an exemption is a decision
+ * about: it is the number of sentences the rest of the kit is forbidden to write and this one
+ * section may.
+ *
+ * A GROWING number means the exemption now covers claims it did not cover before, whether because
+ * the disclaimer gained a line or because the region's END MOVED. Plan 29-18 moved that end later
+ * and nothing anywhere noticed; this constant is what makes the next such move an acknowledged edit.
+ * A SHRINKING number is equally a change somebody made and is refused just as loudly, because a
+ * disclaimer that quietly stopped quoting what it denies is a disclaimer that stopped working.
+ *
+ * MOVING THIS NUMBER IS HOW YOU ACKNOWLEDGE A CHANGE YOU MADE ON PURPOSE, NEVER HOW YOU CLEAR A
+ * FAILURE. Read the region first and say in the commit which claim entered or left it.
+ */
+export const BANNED_CLAIM_EXEMPT_SUPPRESSED = 10;
 /**
  * Every occurrence, not every line. Two banned literals sitting adjacently on one line produce TWO
  * findings, and the same literal twice on one line produces two — the hit count is arithmetic over
@@ -457,6 +499,41 @@ function occurrences(haystackLower, needleLower) {
         i = haystackLower.indexOf(needleLower, i + needleLower.length);
     }
     return out;
+}
+/**
+ * Every banned-claim occurrence on ONE line, in literal declaration order then column order.
+ *
+ * ONE MATCHER, TWO CALLERS. The scan renders these as findings and the exemption's REACH counts
+ * them. Written as two loops they would disagree the first time the conditional arm moved, and the
+ * number published for the exemption would then describe a prohibition nobody was applying — the
+ * same two-grammar defect this file's locator was just rewired to delete, one level down.
+ */
+function lineHits(line) {
+    const lower = line.toLowerCase();
+    const out = [];
+    for (const member of BANNED_CLAIM_LITERALS) {
+        if (member.requiresOnSameLine !== undefined &&
+            !member.requiresOnSameLine.some((v) => lower.includes(v.toLowerCase()))) {
+            continue; // the name without a conformance verb is the discipline, not a claim
+        }
+        for (const at of occurrences(lower, member.literal.toLowerCase())) {
+            out.push({ member, at });
+        }
+    }
+    return out;
+}
+/**
+ * How many banned-claim occurrences fall in `lines[from, to)`.
+ *
+ * EXPORTED so a case can derive the exemption's reach INDEPENDENTLY of the run that publishes it. A
+ * pin whose expected value is produced by the same statement as its actual value pins nothing.
+ */
+export function countBannedClaimOccurrences(lines, from, to) {
+    let n = 0;
+    for (let i = Math.max(from, 0); i < Math.min(to, lines.length); i++) {
+        n += lineHits(lines[i]).length;
+    }
+    return n;
 }
 function renderFinding(f) {
     return (`        ${f.file}:${f.line}:${f.column} — banned ${f.group} literal "${f.literal}" — ` +
@@ -515,6 +592,10 @@ function runAll() {
     // The findings, in derived-sorted scan order, then by line, then by literal declaration order.
     const findings = [];
     let visited = 0;
+    // The exemption's REACH, accumulated at the point where the suppression actually happens. Derived
+    // afterwards by a second traversal it would be a different question asked of the same bytes, and
+    // this file has just finished deleting one of those.
+    let suppressed = 0;
     for (const file of scan) {
         let text;
         try {
@@ -532,29 +613,40 @@ function runAll() {
         const lines = text.split("\n");
         const region = file === BANNED_CLAIM_EXEMPT_REGION.file ? exemptRegion : null;
         for (let i = 0; i < lines.length; i++) {
-            if (region !== null &&
-                i >= region.headingAt &&
-                i < region.endBefore) {
-                continue; // inside the one named exemption region
+            // The matcher runs on EVERY line, including exempt ones. An exempt line that skipped it would
+            // be an exemption whose reach nothing could measure, which is a hole with a comment on it.
+            const hits = lineHits(lines[i]);
+            if (region !== null && i >= region.headingAt && i < region.endBefore) {
+                suppressed += hits.length; // inside the one named exemption region
+                continue;
             }
-            const lower = lines[i].toLowerCase();
-            for (const member of BANNED_CLAIM_LITERALS) {
-                if (member.requiresOnSameLine !== undefined &&
-                    !member.requiresOnSameLine.some((v) => lower.includes(v.toLowerCase()))) {
-                    continue; // the name without a conformance verb is the discipline, not a claim
-                }
-                for (const at of occurrences(lower, member.literal.toLowerCase())) {
-                    findings.push({
-                        file,
-                        line: i + 1,
-                        column: at + 1,
-                        literal: member.literal,
-                        group: member.group,
-                        text: lines[i].trim(),
-                    });
-                }
+            for (const h of hits) {
+                findings.push({
+                    file,
+                    line: i + 1,
+                    column: h.at + 1,
+                    literal: h.member.literal,
+                    group: h.member.group,
+                    text: lines[i].trim(),
+                });
             }
         }
+    }
+    // THE EXEMPTION'S REACH IS PINNED TWO-SIDED, MEASURED AT THE POINT OF SUPPRESSION.
+    //
+    // Guarded on a located region: when the region refused, `suppressed` is zero for a reason that has
+    // already been reported by name, and a second refusal saying the exemption shrank would name the
+    // wrong cause.
+    if (exemptRegion !== null && suppressed !== BANNED_CLAIM_EXEMPT_SUPPRESSED) {
+        fail(`the one named exemption region \`${BANNED_CLAIM_EXEMPT_REGION.file}\` § ` +
+            `\`${BANNED_CLAIM_EXEMPT_REGION.heading}\` suppressed ${suppressed} banned-claim ` +
+            `occurrence(s), and BANNED_CLAIM_EXEMPT_SUPPRESSED in scripts/check-banned-claims.ts ` +
+            `declares ${BANNED_CLAIM_EXEMPT_SUPPRESSED}. An exemption GROWING is a decision, recorded ` +
+            `here with its reason — never a side effect of a heading landing somewhere new, which is ` +
+            `exactly how this region grew once already without anything noticing. An exemption ` +
+            `SHRINKING is equally a change somebody made. Read the region, say in the commit which ` +
+            `claim entered or left it, and then move the constant; do not move the constant to make ` +
+            `this line go away`);
     }
     // The shared element-level vacuity rule (AP-1). This gate declares no zero check of its own; the
     // measurement is a required argument, so a PASS line cannot be printed over a loop that never ran.
@@ -575,7 +667,9 @@ function runAll() {
             `${BANNED_CLAIM_LITERALS.filter((l) => l.requiresOnSameLine !== undefined).length} is ` +
             `conditional on a conformance verb from ${CONFORMANCE_VERB_MARKERS.length} pinned marker(s); ` +
             `1 exemption region (${BANNED_CLAIM_EXEMPT_REGION.file} § ${BANNED_CLAIM_EXEMPT_REGION.heading} ` +
-            `— ${BANNED_CLAIM_EXEMPT_REGION.reason}); ${BANNED_CLAIM_EXCLUDED.length} candidate ` +
+            `— ${BANNED_CLAIM_EXEMPT_REGION.reason}), which suppresses ${suppressed} banned-claim ` +
+            `occurrence(s), pinned at ${BANNED_CLAIM_EXEMPT_SUPPRESSED}; ` +
+            `${BANNED_CLAIM_EXCLUDED.length} candidate ` +
             `literal(s) refused at admission and recorded with their hit counts`);
     }
     process.stdout.write("\n== Result ==\n");

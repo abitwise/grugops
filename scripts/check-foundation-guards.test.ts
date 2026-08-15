@@ -795,10 +795,34 @@ describe("D-64 cutover: the spawn verdict is rendered by the canonical admission
       importedSymbols("check-diff-disposition.ts", "frontmatter"),
       "check-diff-disposition.ts must take the per-line fence PROJECTION and the shared section LOCATOR — never a section-end, heading-equality or heading-search predicate of its own, which is the fourth-grammar shape this round deletes",
     ).toEqual(["fencedLineFlags", "sectionEndIndex", "unfencedHeadingIndex"]);
+    // (Plan 29-23, WR-02 + WR-08) AND `check-banned-claims.ts`'s OWN SET MOVED FROM ONE SYMBOL TO
+    // THREE — the LAST of the four disagreeing section locators the round-2 review tabulated, and in
+    // the direction D-24 wants, which is why the PIN moves rather than the code. THE PIN MOVING IS
+    // THE PIN WORKING: it went red the moment the module took more from the authority, which is
+    // exactly what a two-sided list is for.
+    //
+    // The module used to carry TWO private section predicates inside `locateExemptRegion`: an
+    // exact-equality heading comparison — the one axis on which all four locators of this class
+    // disagreed, because the authority normalises with `trimEnd()` and this one did not — and a
+    // private `SAME_LEVEL_HEADING = /^## /` close. Both are DELETED. The heading now comes from
+    // `unfencedHeadingIndex`, the bound from `sectionEndIndex` at level two, and `fencedLineFlags`
+    // is still taken DIRECTLY for the exactly-one heading COUNT, because a count is not a first
+    // index and looping the locator to find "the next one after i" would be a second traversal with
+    // its own termination behaviour — the very shape this round exists to delete.
+    //
+    // NOTE THE DIRECTION, which is NOT the same as the two entries above. A truncated EXEMPTION
+    // region is fail-CLOSED — more of the document gets checked — while 29-16's and 29-22's
+    // truncated FROZEN region was fail-OPEN. The three are not one bug at three addresses.
+    //
+    // THE SET GREW AND THE MODULE STILL RENDERS NO VERDICT FROM THE PARSER. All three symbols are
+    // DECLARATIVE: a per-line boolean and two integer indices. What an index MEANS for the
+    // disclaimer — how far the one named exemption reaches, and how many banned claims it therefore
+    // suppresses — is still decided in the gate, published on its PASS line and pinned two-sided
+    // there, and the grant-predicate case immediately below asserts the tree-wide zero still holds.
     expect(
       importedSymbols("check-banned-claims.ts", "frontmatter"),
-      "check-banned-claims.ts must take the per-line fence PROJECTION and nothing else — importing the delimiter CLASS alongside it would let this gate re-decide what a fence is, which is the forked machine the toggle exists to prevent",
-    ).toEqual(["fencedLineFlags"]);
+      "check-banned-claims.ts must take the per-line fence PROJECTION and the shared section LOCATOR — never a heading-equality or section-end predicate of its own, which is the fourth-grammar shape this round deletes",
+    ).toEqual(["fencedLineFlags", "sectionEndIndex", "unfencedHeadingIndex"]);
   });
 
   it("NO non-test module imports a GRANT PREDICATE from ./frontmatter.js — the parser renders no spawn verdict anywhere", () => {
