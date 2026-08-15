@@ -63,6 +63,13 @@ import {
   bannedClaimScanOverlap,
   locateExemptRegion,
 } from "./check-banned-claims.js";
+// (Plan 29-23, WR-02) The exemption's REACH pin, read through a NAMESPACE binding rather than the
+// named list above. At the commit that introduced the reach case neither symbol existed yet, and a
+// named import of a missing export is a MODULE-LOAD error in ESM — it would have reddened every
+// other case in this file and hidden the one transcript the RED step exists to produce. Through a
+// namespace the missing symbol is `undefined`, so the case fails on its own assertion and names the
+// received value, which is what a RED transcript is for.
+import * as gateModule from "./check-banned-claims.js";
 
 const ROOT = join(import.meta.dirname, "..");
 const GATE_JS = join(ROOT, "scripts", "check-banned-claims.js");
@@ -516,6 +523,19 @@ const REGION_WITH_FENCED_HEADING = [
   NAME_PLANT,
 ].join("\n");
 
+/**
+ * (Plan 29-23) The same fenced `## ` line, with NO claim of its own inside the region — the fixture
+ * for the widening's OUTER bound. The claim it pairs with sits below the region's REAL end, so the
+ * case measures how far the exemption reaches rather than what it covers.
+ */
+const REGION_WITH_FENCED_HEADING_ONLY = [
+  "This profile is an independent work.",
+  "",
+  ...fencedExample("## A heading quoted inside an example"),
+  "",
+  "A line inside the region, below the heading quoted in the example above.",
+].join("\n");
+
 /** A preamble quoting the region's OWN heading inside a fence. */
 const PREAMBLE_QUOTING_THE_HEADING = [
   "Every rule carries a stable id.",
@@ -631,6 +651,138 @@ describe("check-banned-claims — the exemption region reads the one fence autho
     // answer a missing file would give.
     expect(flags.filter(Boolean).length).toBeGreaterThan(0);
     expect(lines).toContain(BANNED_CLAIM_EXEMPT_REGION.heading);
+  });
+});
+
+// ── WR-02 (plan 29-23): the widening's OUTER bound, and the exemption's REACH ─────────────────
+//
+// Plan 29-18's fence-awareness fix made this region END LATER, so strictly FEWER lines are scanned.
+// Reproduced on the fixture below, the region's body went from FOUR exempt lines to NINE. That is a
+// relaxation of a safety exemption, and until this block nothing anywhere measured it: the header
+// above `locateExemptRegion` asserted the opposite, and no number published by the gate would have
+// moved if the region had grown again tomorrow.
+//
+// Two properties are pinned here, and they are different questions:
+//
+//   1. THE OUTER BOUND — how far the widening reaches. A claim below the fenced `## ` AND below the
+//      region's real end is still reported. This bounds the widening from the other side.
+//   2. THE REACH — how much prohibition the exemption actually lifts, published on every run and
+//      compared against a declared constant. The pin is on SUPPRESSED OCCURRENCES rather than on
+//      exempt LINES: a line count moves when the disclaimer is reflowed and says nothing about how
+//      much was lifted, while the suppressed count is exactly the quantity an exemption is a
+//      decision about.
+
+describe("check-banned-claims — the exemption's outer bound and its published reach (WR-02)", () => {
+  it("OUTER BOUND: a claim below the fenced `## ` AND below the REAL later `## ` heading is still reported", () => {
+    // The other half of the WR-06 pair. Its sibling above asserts that a claim below a FENCED `## `
+    // stays exempt — on its own that is satisfied by a region which swallowed the rest of the file.
+    // This case is the bound: the widening moved the region's end from the fenced heading to the
+    // real one, and NOT one line further.
+    const doc = profileDoc({
+      regionBody: REGION_WITH_FENCED_HEADING_ONLY,
+      trailingSection: true,
+    }).replace("Text below the region is scanned again.", NAME_PLANT);
+    const docLines = doc.split("\n");
+    const fencedHeadingAt = docLines.indexOf(
+      "## A heading quoted inside an example",
+    );
+    const realEndAt = docLines.indexOf("## After the region");
+    const claimAt = docLines.indexOf(NAME_PLANT);
+
+    // THE FIXTURE'S OWN PREMISE, ASSERTED BEFORE THE VERDICT. The three landmarks must be distinct
+    // and in this order, and the quoted heading must really be inside a fence according to the ONE
+    // authority — a fixture whose fence never formed would make this case pass while measuring the
+    // ordinary region end and nothing about the widening at all.
+    expect(fencedHeadingAt).toBeGreaterThan(-1);
+    expect(realEndAt).toBeGreaterThan(fencedHeadingAt);
+    expect(claimAt).toBeGreaterThan(realEndAt);
+    expect(fencedLineFlags(doc)[fencedHeadingAt]).toBe(true);
+
+    const { status, stdout } = runGate(
+      makeMirror("gops-banned-outer-bound-", { plant: { [PROFILE]: doc } }),
+    );
+    expect(status).toBe(1);
+    expect(findingCount(stdout)).toBe(1);
+    expect(stdout).toContain(`${PROFILE}:${claimAt + 1}:`);
+    expect(stdout).toContain(UNCONDITIONAL_NAME.literal);
+  });
+
+  it("REACH: the gate PUBLISHES how many banned-claim occurrences the exemption suppresses, and the number is PINNED", () => {
+    // The number is derived by the SAME matcher the gate reports findings with — never re-typed
+    // here, because a second matcher would disagree with the first the day a literal's conditional
+    // arm changed, and this file's whole subject is second grammars.
+    const count = gateModule.countBannedClaimOccurrences as
+      | ((lines: readonly string[], from: number, to: number) => number)
+      | undefined;
+    const declared = gateModule.BANNED_CLAIM_EXEMPT_SUPPRESSED as
+      | number
+      | undefined;
+    expect(
+      typeof count,
+      "check-banned-claims.ts exports no occurrence counter, so the exemption's reach is measured by nothing",
+    ).toBe("function");
+    expect(
+      typeof declared,
+      "check-banned-claims.ts declares no BANNED_CLAIM_EXEMPT_SUPPRESSED, so a widening of the one named exemption region would move no number anybody reads",
+    ).toBe("number");
+
+    const lines = readFileSync(join(ROOT, PROFILE), "utf8").split("\n");
+    const region = locateExemptRegion(lines);
+    expect(region).not.toBeNull();
+    const derived = count!(lines, region!.headingAt, region!.endBefore);
+    // NON-VACUITY FLOOR FIRST. A reach of zero is indistinguishable from a counter that matched
+    // nothing, and this region exists precisely because the disclaimer has to quote the claim forms
+    // it denies.
+    expect(
+      derived,
+      "the exemption region suppresses ZERO occurrences — either the counter is dead or the disclaimer no longer quotes what it denies, and both make the pin below meaningless",
+    ).toBeGreaterThan(0);
+    expect(derived).toBe(declared);
+
+    // And the number is PUBLISHED, not merely declared. A constant nobody prints is a constant
+    // nobody reads.
+    const r = spawnSync("node", [GATE_JS], { encoding: "utf8" });
+    const stdout = (r.stdout ?? "") + (r.stderr ?? "");
+    expect(r.status).toBe(0);
+    expect(stdout).toContain(
+      `suppresses ${derived} banned-claim occurrence(s), pinned at ${declared}`,
+    );
+  });
+
+  it("MEASURED: every level-one heading in the live exemption document below line one is FENCED and sits ABOVE the region", () => {
+    // The level widening — from a close on `## ` only to a close on any heading of level at most two
+    // — can only make the region END EARLIER, which causes MORE of the document to be checked. That
+    // is the fail-CLOSED direction, but "fail-closed" is not the same claim as "unchanged", and the
+    // live verdict claim rests on this measurement rather than on the direction argument.
+    //
+    // The measured member list is recorded in the plan's SUMMARY, not frozen here. Freezing line
+    // numbers would red this case on a reflow of a document this plan does not own — the same
+    // reasoning that puts the reach pin on suppressed OCCURRENCES rather than on exempt LINES. What
+    // is asserted is the PROPERTY that makes the widening safe.
+    const text = readFileSync(join(ROOT, PROFILE), "utf8");
+    const lines = text.split("\n");
+    const flags = fencedLineFlags(text);
+    const levelOne: Array<{ line: number; fenced: boolean }> = [];
+    for (let i = 1; i < lines.length; i++) {
+      if (/^# /.test(lines[i]))
+        levelOne.push({ line: i + 1, fenced: flags[i] === true });
+    }
+    // NON-VACUITY FLOOR FIRST: a scan that derived nothing cannot report "all fenced".
+    expect(
+      levelOne.length,
+      "zero level-one heading lines derived below line one — the scan found nothing and no claim below it means anything",
+    ).toBeGreaterThan(0);
+    expect(
+      levelOne.filter((r) => !r.fenced),
+      "an UNFENCED level-one heading in the exemption document would close the region under the widened level, moving its extent",
+    ).toEqual([]);
+
+    const headingAt = lines.indexOf(BANNED_CLAIM_EXEMPT_REGION.heading);
+    expect(headingAt).toBeGreaterThan(-1);
+    expect(
+      levelOne.filter((r) => r.line - 1 > headingAt),
+      "a level-one heading BELOW the region heading is the only position from which the widening could shorten the region",
+    ).toEqual([]);
   });
 });
 
