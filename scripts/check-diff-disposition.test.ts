@@ -56,6 +56,7 @@ import {
   deriveFrozenSet,
   locateSection,
   touchedLines,
+  WORKING_TREE_CARRIER,
 } from "./check-diff-disposition.js";
 import {
   listRoles,
@@ -341,7 +342,12 @@ function makeMirror(
  */
 function makeDivergentMirror(
   prefix: string,
-  spec: { frozenPlant: Readonly<Record<string, string>>; dispositions: Readonly<Record<string, string>> },
+  spec: {
+    frozenPlant: Readonly<Record<string, string>>;
+    dispositions: Readonly<Record<string, string>>;
+    /** Applied on the divergent side, so the one carrier in the range can touch a watched file. */
+    readonly postPlant?: Readonly<Record<string, string>>;
+  },
 ): { root: string; base: string } {
   const root = freshTmp(prefix);
   const { write } = mirrorWriters(root);
@@ -367,6 +373,9 @@ function makeDivergentMirror(
   );
   for (const [name, content] of Object.entries(spec.dispositions)) {
     write(`${DISPOSITION_DIR}/${name}`, content);
+  }
+  for (const [rel, content] of Object.entries(spec.postPlant ?? {})) {
+    write(rel, content);
   }
   gitIn(root, ["add", "-A"]);
   gitIn(root, ["commit", "-q", "--no-gpg-sign", "-m", "post-rebase work"]);
@@ -824,11 +833,22 @@ describe("check-diff-disposition — the companion edit is per carrier (CR-02)",
     // carried it. An attribution the gate cannot make is a refusal, not a pass — and the finding
     // has to say WHICH of the two it is, or a reader cannot tell a missing companion edit from a
     // missing carrier.
+    // The one carrier in the range DOES touch a watched file (an ordinary, dispositioned change in
+    // a role's `## Notes`), so the attribution map is non-empty and the empty-map refusal below is
+    // not what produces this red. This case is isolated to the per-clause "no carrier" verdict.
+    const ORDINARY = "Every reviewer reads the acceptance scenario before the diff.";
     const { root, base } = makeDivergentMirror("gops-diffdisp-nocarrier-", {
       frozenPlant: { [WORKFLOW_UNDER_TEST]: workflowWithNote(ANCHOR_VERBATIM) },
+      postPlant: {
+        [ROLE_UNDER_TEST]: ROLE_BODY(REAL_ROLES[0]).replace(
+          "This section sits outside every frozen structural section in the corpus.",
+          `This section sits outside every frozen structural section in the corpus.\n${ORDINARY}`,
+        ),
+      },
       dispositions: {
         "29-05.md": dispositionFile([
           row(WORKFLOW_UNDER_TEST, ANCHOR_VERBATIM, "—", "—"),
+          row(ROLE_UNDER_TEST, "—", ORDINARY, "—"),
         ]),
       },
     });
@@ -846,8 +866,94 @@ describe("check-diff-disposition — the companion edit is per carrier (CR-02)",
     const { status, stdout } = runGate(root);
     expect(status).toBe(1);
     expect(stdout).toContain("FROZEN by registryAnchors");
+    expect(stdout).toContain("NO CARRIER FOUND");
     expect(stdout).toContain("no carrier");
     expect(stdout).toContain(segmentClauses(ANCHOR_VERBATIM)[0].clause);
+    // The non-vacuity floor is NOT what produced this red — the map has entries.
+    expect(stdout).not.toContain("carrier attribution map is EMPTY");
+  });
+
+  it("REDs an EMPTY attribution map by name, above the per-clause loop", () => {
+    // The same divergent history with NO watched file touched on the divergent side: every changed
+    // clause in the range is unattributable, so the map is empty. That is a derivation which did
+    // not run, and it is reported ONCE by name rather than as N identical per-clause findings.
+    const { root } = makeDivergentMirror("gops-diffdisp-emptymap-", {
+      frozenPlant: { [WORKFLOW_UNDER_TEST]: workflowWithNote(ANCHOR_VERBATIM) },
+      dispositions: {
+        "29-05.md": dispositionFile([
+          row(WORKFLOW_UNDER_TEST, ANCHOR_VERBATIM, "—", "—"),
+        ]),
+      },
+    });
+    const { status, stdout } = runGate(root);
+    expect(status).toBe(1);
+    expect(stdout).toContain("carrier attribution map is EMPTY");
+    expect(stdout).toContain("a derivation that did not run");
+    // Reported ABOVE the loop: the per-clause findings never ran, so no FROZEN finding is emitted.
+    expect(stdout).not.toContain("FROZEN by");
+    expect(stdout).not.toContain("ALL CHECKS PASSED");
+  });
+
+  it("names the carrier count and whether the working tree is one of them", () => {
+    const { root } = makeMirror("gops-diffdisp-carriercount-", {
+      commits: [{ [REGISTRY_REL]: REGISTRY_TOUCHED }],
+      plant: { [WORKFLOW_UNDER_TEST]: workflowWithNote(ANCHOR_VERBATIM) },
+      dispositions: {
+        "29-05.md": dispositionFile([
+          row(WORKFLOW_UNDER_TEST, "—", ANCHOR_VERBATIM, "—"),
+        ]),
+      },
+    });
+    const { stdout } = runGate(root);
+    // Two carriers, both committed, so the working tree is not one of them.
+    expect(stdout).toContain("carriers: 2 change set(s)");
+    expect(stdout).toContain("the uncommitted working tree is NOT a carrier");
+  });
+
+  it("counts the uncommitted working tree as a NAMED carrier", () => {
+    // The same three-commit shape, except the companion touch is left UNCOMMITTED. The working tree
+    // is then the carrier that changed the frozen clause AND the one that touched the companion, so
+    // the rule is satisfied in that one change set — an uncommitted edit is a named carrier, never
+    // an unattributed pass.
+    const { root } = makeMirror("gops-diffdisp-worktree-carrier-", {
+      dispositions: {
+        "29-05.md": dispositionFile([
+          row(WORKFLOW_UNDER_TEST, "—", ANCHOR_VERBATIM, "—"),
+        ]),
+      },
+    });
+    const { write } = mirrorWriters(root);
+    write(WORKFLOW_UNDER_TEST, workflowWithNote(ANCHOR_VERBATIM));
+    write(REGISTRY_REL, REGISTRY_TOUCHED);
+
+    const { status, stdout } = runGate(root);
+    expect(stdout).toContain("the uncommitted working tree IS a carrier");
+    expect(stdout).toContain("ALL CHECKS PASSED");
+    expect(status).toBe(0);
+    expect(stdout).toContain("diff disposition: 0 findings over");
+  });
+
+  it("REDs an uncommitted frozen reword whose companion was touched in an earlier COMMIT", () => {
+    // The working-tree carrier gets the SAME rule, not a softer one: the companion sitting in an
+    // earlier commit does not satisfy a clause the working tree changed.
+    const { root } = makeMirror("gops-diffdisp-worktree-red-", {
+      commits: [{ [REGISTRY_REL]: REGISTRY_TOUCHED }],
+      dispositions: {
+        "29-05.md": dispositionFile([
+          row(WORKFLOW_UNDER_TEST, "—", ANCHOR_VERBATIM, "—"),
+        ]),
+      },
+    });
+    const { write } = mirrorWriters(root);
+    write(WORKFLOW_UNDER_TEST, workflowWithNote(ANCHOR_VERBATIM));
+
+    const { status, stdout } = runGate(root);
+    expect(stdout).not.toContain("ALL CHECKS PASSED");
+    expect(status).toBe(1);
+    expect(stdout).toContain("the uncommitted working tree IS a carrier");
+    expect(stdout).toContain("FROZEN by registryAnchors");
+    expect(stdout).toContain(WORKING_TREE_CARRIER);
+    expect(stdout).not.toContain("NO CARRIER FOUND");
   });
 });
 

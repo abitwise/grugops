@@ -206,6 +206,16 @@ const BASE_COMMIT_RE = /^base_commit:[ \t]*([0-9a-f]{40})[ \t]*$/m;
 // ─────────────────────────────────────────────────────────────────────────────────────────────
 const FOUNDATION_GUARDS_SOURCE = "scripts/check-foundation-guards.ts";
 /**
+ * The claim registry, spelled ONCE.
+ *
+ * It used to be typed at the comparison and again in the contract string. Two spellings of one path
+ * is the set-literal drift class in miniature: rename the file and one of them keeps comparing
+ * against a path that no longer exists, which reads as "the companion never changed" — or, on the
+ * arm this constant serves, as "the companion always changed". Declared here, consumed in both
+ * places, so a rename is one edit.
+ */
+export const REGISTRY_COMPANION = "docs/audit/28-claim-registry.md";
+/**
  * Where each positive guard literal is DECLARED, and which guard requires it present.
  *
  * The literals are not retyped here. Each site names the source file and the declaration, and the
@@ -430,7 +440,9 @@ export function locateSection(text, heading) {
 export const FROZEN_SOURCES = {
     registryAnchors: {
         what: "a claim-registry verbatim anchor, byte-compared live by scripts/check-claim-anchors.js",
-        companion: "docs/audit/28-claim-registry.md must change in the SAME commit (Phase 28 / D-25)",
+        companion: `${REGISTRY_COMPANION} must change in the SAME commit as the clause — the commit that ` +
+            `actually changed it, not merely somewhere in the range — or, for an uncommitted edit, in ` +
+            `the same working-tree change set (Phase 28 / D-25)`,
     },
     structuralSections: {
         what: "a structural section located by heading — role `## Hard limits`, workflow `## Stop conditions`, workflow `## Commit`",
@@ -438,7 +450,9 @@ export const FROZEN_SOURCES = {
     },
     positiveGuardLiterals: {
         what: "wording a guard requires to be PRESENT — the tier-announcement beats and the shared-context memory sentences",
-        companion: "the guard's own source must change in the SAME commit, so the guard and the kit move together",
+        companion: `the guard's own source must change in the SAME commit as the clause — the commit that ` +
+            `actually changed it, not merely somewhere in the range — or, for an uncommitted edit, in ` +
+            `the same working-tree change set, so the guard and the kit move together`,
     },
 };
 /**
@@ -593,6 +607,18 @@ export function touchedLines(diff) {
  * both are segmented by the imported segmentClauses(), so a clause is the same object on both sides.
  */
 export function changedClauses(base, files) {
+    return changedClausesIn({
+        from: base,
+        to: null,
+        diffArgs: ["diff", "--unified=0", "--no-color", "--no-ext-diff", base],
+    }, files);
+}
+/**
+ * The generalized derivation. `changedClauses` is the range case of it, and the carrier attribution
+ * below is the per-commit case, so BOTH sides of the comparison stay the same kind of object —
+ * segmented by the same segmentClauses(), keyed on the same normalized text.
+ */
+function changedClausesIn(span, files) {
     const clauses = [];
     const changedFiles = [];
     /** The frozen sections of `file`, located in `text`. Empty for a file in neither corpus. */
@@ -601,47 +627,51 @@ export function changedClauses(base, files) {
         for (const anchor of FROZEN_SECTION_ANCHORS) {
             if (!file.startsWith(`${anchor.subpath}/`))
                 continue;
-            const span = locateSection(text, anchor.heading);
-            if (span === null)
+            const span2 = locateSection(text, anchor.heading);
+            if (span2 === null)
                 continue;
-            out.push({ file, heading: anchor.heading, from: span.from, to: span.to });
+            out.push({ file, heading: anchor.heading, from: span2.from, to: span2.to });
         }
         return out;
     };
     const regionOf = (regions, line) => regions.find((r) => line >= r.from && line <= r.to) ?? null;
     for (const file of files) {
-        const diff = git([
-            "diff",
-            "--unified=0",
-            "--no-color",
-            "--no-ext-diff",
-            base,
-            "--",
-            file,
-        ]);
+        const diff = git([...span.diffArgs, "--", file]);
         if (diff.trim() === "")
             continue;
         changedFiles.push(file);
         const touched = touchedLines(diff);
-        if (touched.added.length > 0 && existsSync(abs(file))) {
-            const wanted = new Set(touched.added);
-            const text = readFileSync(abs(file), "utf8");
-            const regions = sectionsIn(file, text);
-            for (const c of segmentClauses(text)) {
-                if (wanted.has(c.line)) {
-                    clauses.push({
-                        file,
-                        line: c.line,
-                        clause: c.clause,
-                        side: "added",
-                        region: regionOf(regions, c.line),
-                    });
+        if (touched.added.length > 0) {
+            // The added side comes from `to`: the working tree when `to` is null, otherwise that tree's
+            // own blob. A carrier's added clause read off the working tree would be whatever LATER
+            // carriers left behind, not what this one wrote.
+            let text = null;
+            if (span.to === null) {
+                if (existsSync(abs(file)))
+                    text = readFileSync(abs(file), "utf8");
+            }
+            else {
+                text = git(["show", `${span.to}:${file}`]);
+            }
+            if (text !== null) {
+                const wanted = new Set(touched.added);
+                const regions = sectionsIn(file, text);
+                for (const c of segmentClauses(text)) {
+                    if (wanted.has(c.line)) {
+                        clauses.push({
+                            file,
+                            line: c.line,
+                            clause: c.clause,
+                            side: "added",
+                            region: regionOf(regions, c.line),
+                        });
+                    }
                 }
             }
         }
-        if (touched.removed.length > 0) {
+        if (touched.removed.length > 0 && span.from !== null) {
             const wanted = new Set(touched.removed);
-            const text = git(["show", `${base}:${file}`]);
+            const text = git(["show", `${span.from}:${file}`]);
             const regions = sectionsIn(file, text);
             for (const c of segmentClauses(text)) {
                 if (wanted.has(c.line)) {
@@ -657,6 +687,153 @@ export function changedClauses(base, files) {
         }
     }
     return { clauses, changedFiles };
+}
+/**
+ * The NAMED sentinel for the uncommitted working-tree change set.
+ *
+ * An uncommitted edit is exactly where "which commit carries this clause" has no answer — and a
+ * question with no answer must not therefore mean "any answer will do". So the working tree is a
+ * carrier like any other: it is named in the output, its touched-file set is derived the same way,
+ * and a frozen clause changed only there owes its companion edit in that same change set.
+ *
+ * The angle brackets keep it outside the canonical 40-character SHA form, so it can never be
+ * confused with a commit or be interpolated into a revision position as one.
+ */
+export const WORKING_TREE_CARRIER = "<working tree>";
+/** A carrier rendered for output: seven characters of a SHA, or the sentinel's own name. */
+const shortCarrier = (c) => c === WORKING_TREE_CARRIER ? c : c.slice(0, 7);
+/**
+ * Every carrier between the recorded base and the working tree, OLDEST FIRST.
+ *
+ * The list is NOT capped. A cap would silently narrow the check — the same act as narrowing the
+ * watched corpus — and the cost is bounded below instead, by deriving clauses only for the
+ * carriers that touched a watched file.
+ */
+export function listCarriers(base) {
+    const commits = git(["rev-list", "--reverse", `${base}..HEAD`])
+        .split("\n")
+        .map((s) => s.trim())
+        .filter((s) => s.length > 0);
+    const dirty = git(["status", "--porcelain"]).trim().length > 0;
+    return dirty ? [...commits, WORKING_TREE_CARRIER] : commits;
+}
+/** The tree pair and diff argv for one carrier. */
+function carrierSpan(carrier) {
+    if (carrier === WORKING_TREE_CARRIER) {
+        return {
+            from: "HEAD",
+            to: null,
+            diffArgs: ["diff", "--unified=0", "--no-color", "--no-ext-diff", "HEAD"],
+        };
+    }
+    // `--root` is what makes this correct on a root commit, where `<sha>^` does not resolve at all.
+    // A root commit reaching this loop means the recorded base does not reach it — the rebased or
+    // grafted history shape — and the gate must derive a diff there rather than throw.
+    const hasParent = git(["rev-list", "--parents", "-n", "1", carrier]).trim().split(" ").length > 1;
+    return {
+        from: hasParent ? `${carrier}^` : null,
+        to: carrier,
+        diffArgs: [
+            "diff-tree",
+            "-p",
+            "--unified=0",
+            "--no-color",
+            "--no-commit-id",
+            "-r",
+            "--root",
+            carrier,
+        ],
+    };
+}
+/**
+ * The repo-relative paths one carrier touched.
+ *
+ * A MERGE COMMIT REPORTS NOTHING HERE, and that is the safe direction rather than an oversight.
+ * `diff-tree -r` without `-m`/`-c` emits no output for a merge, so a merge carrier touches no
+ * watched file, is never examined, and attributes no clause. A change that entered the range ONLY
+ * through a merge — a conflict resolution present in neither parent, or a commit reachable through
+ * a second parent that the recorded base does not reach — is therefore attributable to no carrier
+ * and is REFUSED by name below, never admitted. This repository's history is linear
+ * (`git.branching_strategy: none`), so the case does not arise today; if it ever does, the gate
+ * reds and says why rather than passing.
+ */
+export function carrierFilesTouched(carrier) {
+    if (carrier === WORKING_TREE_CARRIER) {
+        // Modified AND untracked: an untracked file inside the watched corpus is a change the working
+        // tree carries, and reading only `git diff` would leave it attributable to nobody.
+        const modified = git(["diff", "--name-only", "-z", "HEAD"]).split("\0");
+        const untracked = git([
+            "ls-files",
+            "--others",
+            "--exclude-standard",
+            "-z",
+        ]).split("\0");
+        return [...new Set([...modified, ...untracked])].filter((p) => p.length > 0);
+    }
+    return git([
+        "diff-tree",
+        "--no-commit-id",
+        "--name-only",
+        "-r",
+        "-z",
+        "--root",
+        carrier,
+    ])
+        .split("\0")
+        .filter((p) => p.length > 0);
+}
+/**
+ * The attribution key: the file and the NORMALIZED clause text, DELIBERATELY not the line number.
+ *
+ * A clause's line differs between the range diff and a single carrier's diff by exactly the number
+ * of lines edited above it, so a line-keyed map would fail to attribute correct history — the same
+ * clause would look like two different objects and every multi-commit range would read as
+ * unattributable. The frozen set is already keyed on normalized clause text, so this keeps ONE
+ * notion of clause identity across the whole gate.
+ */
+export const attributionKey = (file, clause) => `${file}\n${clause}`;
+/** Which carriers changed each clause in the watched corpus. */
+export function attributeClauses(base, watched) {
+    const watchedSet = new Set(watched);
+    const carriers = listCarriers(base);
+    const byClause = new Map();
+    const touched = new Map();
+    const examined = [];
+    for (const carrier of carriers) {
+        const files = carrierFilesTouched(carrier);
+        touched.set(carrier, new Set(files));
+        // Bound the WORK, never the correctness: the touched-file set is read once and intersected
+        // with the watched corpus FIRST, so the expensive clause derivation runs only for the carriers
+        // that touched something this gate watches.
+        const inCorpus = files.filter((f) => watchedSet.has(f));
+        if (inCorpus.length === 0)
+            continue;
+        examined.push(carrier);
+        for (const c of changedClausesIn(carrierSpan(carrier), inCorpus).clauses) {
+            const key = attributionKey(c.file, c.clause);
+            const list = byClause.get(key);
+            if (list === undefined)
+                byClause.set(key, [carrier]);
+            else if (!list.includes(carrier))
+                list.push(carrier);
+        }
+    }
+    return { byClause, carriers, examined, touched };
+}
+/**
+ * The per-clause, per-carrier companion predicate, shared by BOTH non-structural arms.
+ *
+ * Satisfied only when at least one carrier that changed THIS clause also touched one of the
+ * companion paths for its source. A clause with no carrier at all returns false — `some` over an
+ * empty list — which is the fail-closed direction stated as code rather than as a comment.
+ */
+export function companionSatisfied(file, clause, companions, attribution) {
+    const carriers = attribution.byClause.get(attributionKey(file, clause)) ?? [];
+    const satisfied = carriers.some((carrier) => {
+        const t = attribution.touched.get(carrier);
+        return t !== undefined && companions.some((c) => t.has(c));
+    });
+    return { satisfied, carriers };
 }
 const DISPOSITION_HEADING = "## Dispositions";
 const DISPOSITION_COLUMNS = 7;
@@ -836,12 +1013,10 @@ function main() {
     }
     // ── The changed side ─────────────────────────────────────────────────────────────────────────
     let changed;
-    let allChangedFiles;
+    let attribution;
     try {
         changed = changedClauses(base, corpus.watched);
-        allChangedFiles = git(["diff", "--name-only", "-z", base])
-            .split("\0")
-            .filter((p) => p.length > 0);
+        attribution = attributeClauses(base, corpus.watched);
     }
     catch (e) {
         fail(e.message);
@@ -863,6 +1038,12 @@ function main() {
         `${POSITIVE_GUARD_LITERALS.length}/${POSITIVE_GUARD_LITERAL_COUNT}; ` +
         `${frozen.text.size} frozen clause(s), ${frozen.regions.length} frozen region(s); ` +
         `base ${base.slice(0, 7)}\n`);
+    // The carrier count is PUBLISHED, so a run that examined none is visible in its own output rather
+    // than only in the verdict it happened to produce.
+    process.stdout.write(`        carriers: ${attribution.carriers.length} change set(s) between ${base.slice(0, 7)} and ` +
+        `the working tree, of which ${attribution.examined.length} touched a watched file and had ` +
+        `their clauses derived; the uncommitted working tree ` +
+        `${attribution.carriers.includes(WORKING_TREE_CARRIER) ? "IS" : "is NOT"} a carrier\n`);
     // ── The clean-tree arm, kept DISTINCT from the vacuity floor ─────────────────────────────────
     //
     // reportMeasured's zero-element floor answers "the loop skipped its elements". A tree with no
@@ -904,6 +1085,25 @@ function main() {
     // under the strict rule was judged against it; an override introduced afterwards would mean
     // auditing all of them to find which would have taken the hatch. The bytes may change — D-04 is
     // not a byte freeze — but no kit text changes ALONE.
+    // THE NON-VACUITY FLOOR ON THE ATTRIBUTION ITSELF, above the loop and not inside it.
+    //
+    // The attribution map is now the left-hand side of every frozen verdict below. An empty map with
+    // a non-empty changed set is the same shape as an unreachable base or a broken derivation: it
+    // does not admit everything, it means the question was never asked. Reported here, once, by name
+    // — on the same principle as the zero-clause refusal directly above — rather than as N identical
+    // per-clause findings that read like N separate problems.
+    if (attribution.byClause.size === 0) {
+        fail(`${changed.clauses.length} changed clause(s) were derived from the range since ` +
+            `${base.slice(0, 7)}, and the carrier attribution map is EMPTY: not one of the ` +
+            `${attribution.carriers.length} carrier(s) between the base and the working tree was found ` +
+            `to have changed any of them. That is a derivation that did not run, not a range with ` +
+            `nothing in it — the attribution is the left-hand side of every frozen verdict below, and ` +
+            `an empty one would admit every change under it. This is what a shallow clone, a grafted ` +
+            `history or a rebased base looks like from here: confirm the history reaches ` +
+            `${base.slice(0, 7)} (on CI, \`fetch-depth: 0\`) rather than re-recording the base`);
+        verdict();
+        return;
+    }
     const findings = [];
     let visited = 0;
     for (const c of changed.clauses) {
@@ -920,18 +1120,34 @@ function main() {
             const rows = disposition.rows.filter((r) => rowMatches(r, c));
             let satisfied = false;
             let owed = FROZEN_SOURCES[source].companion;
+            // The carriers that changed THIS clause. Empty on the structural arm, whose companion is a
+            // disposition-row cell rather than a file, and which this plan deliberately does not touch.
+            let attributedTo = [];
             if (source === "structuralSections") {
                 satisfied = rows.some((r) => r.companion !== "" && r.companion !== UNFILLED);
             }
-            else if (source === "registryAnchors") {
-                satisfied = allChangedFiles.includes("docs/audit/28-claim-registry.md");
-            }
             else {
-                const sources = new Set(POSITIVE_GUARD_LITERAL_SITES.map((s) => s.source));
-                satisfied = [...sources].some((s) => allChangedFiles.includes(s));
-                owed = `${owed} (${[...sources].join(", ")})`;
+                // Per CARRIER, not per range. The companion set for the registry arm is one declared
+                // constant; for the positive-literal arm it is DERIVED from the literal sites rather than
+                // restated, so a site that moves to a new source file takes this comparison with it.
+                const companions = source === "registryAnchors"
+                    ? [REGISTRY_COMPANION]
+                    : [...new Set(POSITIVE_GUARD_LITERAL_SITES.map((s) => s.source))];
+                if (source === "positiveGuardLiterals") {
+                    owed = `${owed} (${companions.join(", ")})`;
+                }
+                const decided = companionSatisfied(c.file, c.clause, companions, attribution);
+                satisfied = decided.satisfied;
+                attributedTo = decided.carriers;
             }
             if (!satisfied) {
+                // TWO DIFFERENT FAILURES, SAID DIFFERENTLY. "The carrier that changed this clause did not
+                // touch the companion" is a missing companion edit and the author fixes it by making one.
+                // "No carrier changed this clause" is a missing ATTRIBUTION — the gate cannot say which
+                // change set owes anything — and the author fixes it by repairing the history the gate is
+                // reading. Collapsing them into one message would send the second author to write a
+                // companion edit that cannot help.
+                const unattributed = source !== "structuralSections" && attributedTo.length === 0;
                 findings.push({
                     file: c.file,
                     line: c.line,
@@ -941,6 +1157,18 @@ function main() {
                         (region === null
                             ? ""
                             : `        region: \`${region.heading}\`, lines ${region.from}-${region.to}\n`) +
+                        (unattributed
+                            ? `        NO CARRIER FOUND: no carrier among the ${attribution.carriers.length} ` +
+                                `change set(s) between the recorded base and the working tree was found to have ` +
+                                `changed this clause, so this gate cannot say which change set owes the companion ` +
+                                `edit. An attribution the gate cannot make is a REFUSAL, not a pass. This is what a ` +
+                                `rebased, grafted or shallow history looks like from here — repair the history the ` +
+                                `gate reads; do NOT re-record the base to make the clause disappear.\n`
+                            : attributedTo.length === 0
+                                ? ""
+                                : `        Carrier(s) that changed this clause: ` +
+                                    `${attributedTo.map(shortCarrier).join(", ")} — none of them touched the ` +
+                                    `companion.\n`) +
                         `        Owed companion edit: ${owed}.\n` +
                         `        There is no override tier and no blanket exemption (D-04). Make the companion ` +
                         `edit in the same commit; do NOT narrow the watched corpus and do NOT move the recorded ` +
