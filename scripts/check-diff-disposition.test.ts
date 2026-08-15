@@ -52,6 +52,8 @@ import {
   POSITIVE_GUARD_LITERALS,
   POSITIVE_GUARD_LITERAL_COUNT,
   POSITIVE_GUARD_LITERAL_SITES,
+  derivePositiveGuardLiterals,
+  deriveFrozenSet,
   locateSection,
   touchedLines,
 } from "./check-diff-disposition.js";
@@ -159,7 +161,19 @@ const REAL_ROLES = listRoles(REPO);
 const REAL_WORKFLOWS = listWorkflows(REPO);
 
 interface MirrorSpec {
-  /** repo-relative path -> replacement content, applied AFTER the base commit. */
+  /**
+   * ORDERED extra commits applied between the base commit and the final plant commit, each a map of
+   * repo-relative path to content. Additive: a spec that omits it builds exactly the two-commit
+   * mirror this harness has always built, so no existing case changes shape.
+   *
+   * WHY THIS FIELD HAD TO EXIST BEFORE CR-02 COULD BE BELIEVED. `makeMirror` built exactly TWO
+   * commits, so "the companion changed in the SAME commit as the frozen clause" and "the companion
+   * changed anywhere since the recorded base" are the same statement in every fixture written before
+   * this one. A two-commit fixture cannot distinguish the rule from the bug, which is why the range-
+   * versus-commit defect lived under a green suite: no case could have caught it.
+   */
+  readonly commits?: readonly Readonly<Record<string, string>>[];
+  /** repo-relative path -> replacement content, applied in the FINAL commit. */
   readonly plant?: Readonly<Record<string, string>>;
   /** disposition filename (e.g. `29-05.md`) -> file content. */
   readonly dispositions?: Readonly<Record<string, string>>;
@@ -167,23 +181,28 @@ interface MirrorSpec {
   readonly baseOverride?: string;
 }
 
-/** Build a mirror and return its root plus the base commit the gate will be pointed at. */
-function makeMirror(
-  prefix: string,
-  spec: MirrorSpec = {},
-): { root: string; base: string } {
-  const root = freshTmp(prefix);
-  const write = (rel: string, content: string): void => {
-    const dst = join(root, rel);
-    mkdirSync(join(dst, ".."), { recursive: true });
-    writeFileSync(dst, content, "utf8");
+/** Writers bound to one mirror root. Shared by makeMirror and makeDivergentMirror. */
+function mirrorWriters(root: string): {
+  write: (rel: string, content: string) => void;
+  copy: (rel: string) => void;
+} {
+  return {
+    write: (rel, content) => {
+      const dst = join(root, rel);
+      mkdirSync(join(dst, ".."), { recursive: true });
+      writeFileSync(dst, content, "utf8");
+    },
+    copy: (rel) => {
+      const dst = join(root, rel);
+      mkdirSync(join(dst, ".."), { recursive: true });
+      copyFileSync(join(REPO, rel), dst);
+    },
   };
-  const copy = (rel: string): void => {
-    const dst = join(root, rel);
-    mkdirSync(join(dst, ".."), { recursive: true });
-    copyFileSync(join(REPO, rel), dst);
-  };
+}
 
+/** The starting corpus every mirror shares, written but not committed. */
+function writeCorpus(root: string): void {
+  const { write, copy } = mirrorWriters(root);
   // The three frozen SOURCES are copied, never synthesized — see the header.
   copy(REGISTER_REL);
   copy(REGISTRY_REL);
@@ -195,11 +214,61 @@ function makeMirror(
   write(PROTOCOL_REL, "# Role switch protocol\n\nThis file carries no frozen section.\n");
   for (const f of REAL_WORKFLOWS)
     write(`${WORKFLOWS_SUBPATH}/${f}`, WORKFLOW_BODY(f));
+}
+
+/** The repo-relative paths one commit touched, read back from git rather than from the spec. */
+function filesInCommit(root: string, sha: string): string[] {
+  return gitIn(root, [
+    "diff-tree",
+    "--no-commit-id",
+    "--name-only",
+    "-r",
+    sha,
+  ])
+    .split("\n")
+    .filter((p) => p.length > 0);
+}
+
+/**
+ * Build a mirror and return its root, the base commit the gate is pointed at, and every commit
+ * AFTER that base in oldest-first order.
+ *
+ * THE HARNESS ASSERTS ITS OWN PREMISE, because this is the round where a harness premise is what
+ * failed. A three-commit fixture that silently collapsed into two would prove the exact opposite of
+ * what its case claims — the companion and the reword would land together and the case would go
+ * green under the very bug it was written to catch — and nothing else here would notice. So after
+ * building, this refuses unless:
+ *
+ *   (1) the number of commits between the recorded base and HEAD is exactly the number of payloads
+ *       supplied PLUS ONE, the final plant commit, which always exists because BASE_FILE is always
+ *       written into it; and
+ *   (2) every path named by payload `i` appears in commit `i` and in NO OTHER post-base commit —
+ *       which catches a collapse in either direction, forward or backward.
+ *
+ * The base commit is excluded from (2) on purpose and not as a softening: it carries the whole
+ * starting corpus by construction, so every payload path is necessarily in it.
+ */
+function makeMirror(
+  prefix: string,
+  spec: MirrorSpec = {},
+): { root: string; base: string; commits: string[] } {
+  const root = freshTmp(prefix);
+  const { write } = mirrorWriters(root);
+  writeCorpus(root);
 
   gitIn(root, ["init", "-q"]);
   gitIn(root, ["add", "-A"]);
   gitIn(root, ["commit", "-q", "--no-gpg-sign", "-m", "base"]);
   const base = gitIn(root, ["rev-parse", "HEAD"]).trim();
+
+  const payloads = spec.commits ?? [];
+  const commits: string[] = [];
+  for (let i = 0; i < payloads.length; i++) {
+    for (const [rel, content] of Object.entries(payloads[i])) write(rel, content);
+    gitIn(root, ["add", "-A"]);
+    gitIn(root, ["commit", "-q", "--no-gpg-sign", "-m", `payload-${i}`]);
+    commits.push(gitIn(root, ["rev-parse", "HEAD"]).trim());
+  }
 
   write(
     BASE_FILE,
@@ -213,6 +282,94 @@ function makeMirror(
   }
   gitIn(root, ["add", "-A"]);
   gitIn(root, ["commit", "-q", "--no-gpg-sign", "-m", "plant"]);
+  commits.push(gitIn(root, ["rev-parse", "HEAD"]).trim());
+
+  // ── (1) the commit count ─────────────────────────────────────────────────────────────────────
+  const counted = Number.parseInt(
+    gitIn(root, ["rev-list", "--count", `${base}..HEAD`]).trim(),
+    10,
+  );
+  if (counted !== payloads.length + 1) {
+    throw new Error(
+      `harness premise: ${payloads.length} payload commit(s) were supplied, so ${payloads.length + 1} ` +
+        `commit(s) must exist between the recorded base and HEAD (the payloads plus the final plant ` +
+        `commit), but git counted ${counted} at ${root}. A fixture that collapsed its commits cannot ` +
+        `tell "in this commit" from "since the base", which is the whole point of the field`,
+    );
+  }
+  if (commits.length !== counted) {
+    throw new Error(
+      `harness premise: recorded ${commits.length} commit sha(s) but git reports ${counted} at ${root}`,
+    );
+  }
+
+  // ── (2) each payload's files are in that payload's commit and no other post-base commit ──────
+  const namesPerCommit = commits.map((sha) => filesInCommit(root, sha));
+  for (let i = 0; i < payloads.length; i++) {
+    for (const rel of Object.keys(payloads[i])) {
+      if (!namesPerCommit[i].includes(rel)) {
+        throw new Error(
+          `harness premise: payload ${i} names ${rel}, but commit ${commits[i].slice(0, 7)} does not ` +
+            `touch it at ${root}. The payload did not land in its own commit`,
+        );
+      }
+      for (let j = 0; j < namesPerCommit.length; j++) {
+        if (j !== i && namesPerCommit[j].includes(rel)) {
+          throw new Error(
+            `harness premise: ${rel} belongs to payload ${i} but is ALSO touched by post-base commit ` +
+              `${j} (${commits[j].slice(0, 7)}) at ${root}. A path touched by two carriers makes the ` +
+              `attribution the case is about ambiguous`,
+          );
+        }
+      }
+    }
+  }
+
+  return { root, base, commits };
+}
+
+/**
+ * A mirror whose recorded base is NOT an ancestor of HEAD — the shape a rebase or a force-push
+ * leaves behind, and the one the recorded-base file names in its own words ("different again after
+ * a rebase").
+ *
+ * This is the constructible unattributable case. The frozen clause lives in the recorded base's
+ * tree and not in HEAD's, so it appears on the REMOVED side of the range diff — while no commit in
+ * `base..HEAD` ever touched the file that carries it, because those commits descend from a sibling
+ * of the base. The clause is therefore in the range and in no carrier, which is exactly the
+ * condition that must fail CLOSED rather than fall through to "satisfied".
+ */
+function makeDivergentMirror(
+  prefix: string,
+  spec: { frozenPlant: Readonly<Record<string, string>>; dispositions: Readonly<Record<string, string>> },
+): { root: string; base: string } {
+  const root = freshTmp(prefix);
+  const { write } = mirrorWriters(root);
+  writeCorpus(root);
+
+  gitIn(root, ["init", "-q"]);
+  gitIn(root, ["add", "-A"]);
+  gitIn(root, ["commit", "-q", "--no-gpg-sign", "-m", "corpus"]);
+  const fork = gitIn(root, ["rev-parse", "HEAD"]).trim();
+
+  // The RECORDED BASE carries the frozen clause.
+  for (const [rel, content] of Object.entries(spec.frozenPlant)) write(rel, content);
+  gitIn(root, ["add", "-A"]);
+  gitIn(root, ["commit", "-q", "--no-gpg-sign", "-m", "recorded-base"]);
+  const base = gitIn(root, ["rev-parse", "HEAD"]).trim();
+
+  // HEAD descends from the FORK, not from the recorded base — so the frozen clause is absent from
+  // HEAD's tree and no commit reachable from HEAD ever removed it.
+  gitIn(root, ["checkout", "-q", "-b", "rebased", fork]);
+  write(
+    BASE_FILE,
+    `---\nbase_commit: ${base}\nrecorded: 2026-08-13\n---\n\nHarness mirror (divergent history).\n`,
+  );
+  for (const [name, content] of Object.entries(spec.dispositions)) {
+    write(`${DISPOSITION_DIR}/${name}`, content);
+  }
+  gitIn(root, ["add", "-A"]);
+  gitIn(root, ["commit", "-q", "--no-gpg-sign", "-m", "post-rebase work"]);
 
   return { root, base };
 }
@@ -259,6 +416,42 @@ function workflowWithNote(text: string): string {
 const ANCHOR_CLAIM = readRegistry(REPO).claims.find(
   (c) => !c.verbatim.includes("\n") && segmentClauses(c.verbatim).length === 1,
 );
+
+/**
+ * The two companion files, TOUCHED without changing anything either derivation reads.
+ *
+ * A companion touch has to be visible to git and invisible to the extractors. If touching the
+ * registry moved a verbatim anchor, or touching the guard source moved a literal declaration, the
+ * three-commit cases below would go red on a SHORT-derivation refusal instead of on the companion
+ * rule — a red for the wrong reason, which proves nothing about CR-02. The premise cases directly
+ * beneath assert that neither derivation moves.
+ */
+const REGISTRY_TOUCHED =
+  readFileSync(join(REPO, REGISTRY_REL), "utf8") +
+  "\n<!-- harness: companion touch — no claim row changed -->\n";
+const GUARDS_TOUCHED =
+  readFileSync(join(REPO, GUARDS_REL), "utf8") +
+  "\n// harness: companion touch — no literal declaration changed\n";
+
+/** The registry verbatim the anchor cases plant, taken from the registry rather than retyped. */
+const ANCHOR_VERBATIM = (ANCHOR_CLAIM as { verbatim: string } | undefined)?.verbatim ?? "";
+
+/**
+ * A positive guard literal that segments to exactly ONE clause and is in the frozen set under
+ * `positiveGuardLiterals` — DERIVED from the gate's own exported set, never typed.
+ *
+ * Three of the nine literals qualify; the other six are either multi-clause or below the clause
+ * floor. Planting one of those would prove the wrong arm, which is the failure 29-03's
+ * actor-subject fixture already hit in this file.
+ */
+const FROZEN_ON_REAL_TREE = deriveFrozenSet(REPO);
+const PLANTABLE_POSITIVE_LITERAL = POSITIVE_GUARD_LITERALS.find((l) => {
+  const segs = segmentClauses(l);
+  return (
+    segs.length === 1 &&
+    FROZEN_ON_REAL_TREE.text.get(segs[0].clause) === "positiveGuardLiterals"
+  );
+});
 
 const dispositionFile = (rows: string[]): string =>
   [
@@ -316,6 +509,42 @@ describe("check-diff-disposition — harness premises", () => {
 
   it("a registry row exists whose verbatim segments to exactly one clause", () => {
     expect(ANCHOR_CLAIM, "no single-clause registry anchor available to plant").toBeDefined();
+  });
+
+  it("a positive guard literal exists that segments to exactly one FROZEN clause", () => {
+    expect(
+      PLANTABLE_POSITIVE_LITERAL,
+      "no single-clause positive guard literal available to plant",
+    ).toBeDefined();
+    const clause = segmentClauses(PLANTABLE_POSITIVE_LITERAL as string)[0].clause;
+    expect(FROZEN_ON_REAL_TREE.text.get(clause)).toBe("positiveGuardLiterals");
+  });
+
+  it("both companion touches are visible to git and invisible to both derivations", () => {
+    // THE PREMISE THE THREE-COMMIT CASES REST ON. Each touched companion must differ from the real
+    // file (or the payload commit would be empty and the fixture would collapse to two commits),
+    // and must leave the derivation that reads it byte-identical (or the case would red on a SHORT
+    // derivation instead of on the companion rule).
+    expect(REGISTRY_TOUCHED).not.toBe(readFileSync(join(REPO, REGISTRY_REL), "utf8"));
+    expect(GUARDS_TOUCHED).not.toBe(readFileSync(join(REPO, GUARDS_REL), "utf8"));
+
+    const probe = freshTmp("gops-diffdisp-premise-");
+    const { write } = mirrorWriters(probe);
+    write(REGISTRY_REL, REGISTRY_TOUCHED);
+    write(GUARDS_REL, GUARDS_TOUCHED);
+
+    const real = readRegistry(REPO).claims.map((c) => c.verbatim);
+    const touched = readRegistry(probe).claims.map((c) => c.verbatim);
+    expect(touched).toEqual(real);
+    expect(touched.length).toBeGreaterThan(0);
+
+    const realLits = derivePositiveGuardLiterals(REPO);
+    const touchedLits = derivePositiveGuardLiterals(probe);
+    expect(touchedLits.refusals).toEqual([]);
+    expect(touchedLits.literals.map((l) => l.literal)).toEqual(
+      realLits.literals.map((l) => l.literal),
+    );
+    expect(touchedLits.literals.length).toBe(POSITIVE_GUARD_LITERAL_COUNT);
   });
 
   it("locateSection ends a section at the next `## ` heading, not at the next `#`", () => {
@@ -462,6 +691,163 @@ describe("check-diff-disposition — the frozen set refuses", () => {
     expect(status).toBe(0);
     expect(stdout).toContain("ALL CHECKS PASSED");
     expect(stdout).not.toContain("FROZEN by");
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────────────────────
+// CR-02 — the companion edit is judged PER CARRIER, not over the whole range.
+//
+// The contract strings in FROZEN_SOURCES have always said "must change in the SAME commit". The
+// implementation asked whether the companion appeared anywhere in `git diff --name-only <base>`,
+// which is a different question: once ANY commit in the range touched the companion, EVERY frozen
+// clause from that source was permanently satisfied for the rest of the phase.
+//
+// No fixture could catch it, because makeMirror built exactly two commits and in a two-commit
+// mirror the two questions have the same answer. The cases below are the first in this file to
+// span THREE, and each is paired with a same-commit control so a fix that simply reds everything
+// is not mistaken for a fix.
+// ─────────────────────────────────────────────────────────────────────────────────────────────
+
+describe("check-diff-disposition — the companion edit is per carrier (CR-02)", () => {
+  it("a companion touched in an earlier commit does not satisfy a later frozen reword", () => {
+    // Three commits: [base corpus] → [registry alone] → [the anchored sentence + its row].
+    // The registry is in the RANGE but not in the commit that changed the frozen clause.
+    const { root, commits } = makeMirror("gops-diffdisp-carrier-registry-", {
+      commits: [{ [REGISTRY_REL]: REGISTRY_TOUCHED }],
+      plant: { [WORKFLOW_UNDER_TEST]: workflowWithNote(ANCHOR_VERBATIM) },
+      dispositions: {
+        "29-05.md": dispositionFile([
+          row(WORKFLOW_UNDER_TEST, "—", ANCHOR_VERBATIM, "—"),
+        ]),
+      },
+    });
+    // The case's own premise: three commits, and the companion is NOT in the plant commit.
+    expect(commits.length).toBe(2);
+    expect(filesInCommit(root, commits[0])).toContain(REGISTRY_REL);
+    expect(filesInCommit(root, commits[1])).not.toContain(REGISTRY_REL);
+    expect(filesInCommit(root, commits[1])).toContain(WORKFLOW_UNDER_TEST);
+
+    const { status, stdout } = runGate(root);
+    // The banner is asserted BEFORE the exit code on purpose: when this case fails it must print the
+    // gate's whole passing transcript, because that transcript IS the bypass evidence.
+    expect(stdout).not.toContain("ALL CHECKS PASSED");
+    expect(status).toBe(1);
+    expect(stdout).toContain("FROZEN by registryAnchors");
+    expect(stdout).toContain(WORKFLOW_UNDER_TEST);
+    expect(stdout).toContain(segmentClauses(ANCHOR_VERBATIM)[0].clause);
+    expect(stdout).toContain("Owed companion edit");
+  });
+
+  it("a companion touched in the same commit as the reword satisfies it", () => {
+    // The FALSE-RED CONTROL for the registry arm. Two commits, both edits together. This was green
+    // before CR-02 was closed and must stay green after, or the "fix" is just a blanket refusal.
+    const { root, commits } = makeMirror("gops-diffdisp-carrier-registry-ok-", {
+      plant: {
+        [REGISTRY_REL]: REGISTRY_TOUCHED,
+        [WORKFLOW_UNDER_TEST]: workflowWithNote(ANCHOR_VERBATIM),
+      },
+      dispositions: {
+        "29-05.md": dispositionFile([
+          row(WORKFLOW_UNDER_TEST, "—", ANCHOR_VERBATIM, "—"),
+        ]),
+      },
+    });
+    expect(commits.length).toBe(1);
+    const touched = filesInCommit(root, commits[0]);
+    expect(touched).toContain(REGISTRY_REL);
+    expect(touched).toContain(WORKFLOW_UNDER_TEST);
+
+    const { status, stdout } = runGate(root);
+    expect(status).toBe(0);
+    expect(stdout).toContain("ALL CHECKS PASSED");
+    // Non-vacuity: the fold ran over real elements, so this is not the clean-tree arm.
+    expect(stdout).toContain("diff disposition: 0 findings over");
+    expect(stdout).not.toContain("a clean tree, not a vacuous pass");
+  });
+
+  it("a guard source touched in an earlier commit does not satisfy a later frozen reword", () => {
+    // The SECOND ARM, identical in shape and safe on the live tree today only because
+    // scripts/check-foundation-guards.ts happens not to have changed in the real range. Splitting a
+    // root cause by which arm a finding was reported against is the incrementalism this project has
+    // already paid for three times, so it closes in the same edit and is pinned here.
+    const { root, commits } = makeMirror("gops-diffdisp-carrier-guards-", {
+      commits: [{ [GUARDS_REL]: GUARDS_TOUCHED }],
+      plant: {
+        [WORKFLOW_UNDER_TEST]: workflowWithNote(PLANTABLE_POSITIVE_LITERAL as string),
+      },
+      dispositions: {
+        "29-05.md": dispositionFile([
+          row(WORKFLOW_UNDER_TEST, "—", PLANTABLE_POSITIVE_LITERAL as string, "—"),
+        ]),
+      },
+    });
+    expect(commits.length).toBe(2);
+    expect(filesInCommit(root, commits[0])).toContain(GUARDS_REL);
+    expect(filesInCommit(root, commits[1])).not.toContain(GUARDS_REL);
+
+    const { status, stdout } = runGate(root);
+    // Banner before exit code — see the registry-arm case above.
+    expect(stdout).not.toContain("ALL CHECKS PASSED");
+    expect(status).toBe(1);
+    expect(stdout).toContain("FROZEN by positiveGuardLiterals");
+    expect(stdout).toContain(
+      segmentClauses(PLANTABLE_POSITIVE_LITERAL as string)[0].clause,
+    );
+    expect(stdout).toContain(GUARDS_REL);
+  });
+
+  it("a guard source touched in the same commit as the reword satisfies it", () => {
+    // The FALSE-RED CONTROL for the positive-literal arm.
+    const { root, commits } = makeMirror("gops-diffdisp-carrier-guards-ok-", {
+      plant: {
+        [GUARDS_REL]: GUARDS_TOUCHED,
+        [WORKFLOW_UNDER_TEST]: workflowWithNote(PLANTABLE_POSITIVE_LITERAL as string),
+      },
+      dispositions: {
+        "29-05.md": dispositionFile([
+          row(WORKFLOW_UNDER_TEST, "—", PLANTABLE_POSITIVE_LITERAL as string, "—"),
+        ]),
+      },
+    });
+    expect(commits.length).toBe(1);
+    expect(filesInCommit(root, commits[0])).toContain(GUARDS_REL);
+
+    const { status, stdout } = runGate(root);
+    expect(status).toBe(0);
+    expect(stdout).toContain("ALL CHECKS PASSED");
+    expect(stdout).toContain("diff disposition: 0 findings over");
+  });
+
+  it("an unattributable frozen clause is reported rather than satisfied", () => {
+    // FAIL-CLOSED. The recorded base is not an ancestor of HEAD, so the frozen clause sits on the
+    // removed side of the RANGE diff while no commit in `base..HEAD` ever touched the file that
+    // carried it. An attribution the gate cannot make is a refusal, not a pass — and the finding
+    // has to say WHICH of the two it is, or a reader cannot tell a missing companion edit from a
+    // missing carrier.
+    const { root, base } = makeDivergentMirror("gops-diffdisp-nocarrier-", {
+      frozenPlant: { [WORKFLOW_UNDER_TEST]: workflowWithNote(ANCHOR_VERBATIM) },
+      dispositions: {
+        "29-05.md": dispositionFile([
+          row(WORKFLOW_UNDER_TEST, ANCHOR_VERBATIM, "—", "—"),
+        ]),
+      },
+    });
+    // The case's own premise: the base really is unreachable from HEAD, and the one carrier in the
+    // range really did not touch the file the frozen clause lives in.
+    const carriers = gitIn(root, ["rev-list", `${base}..HEAD`])
+      .split("\n")
+      .filter((s) => s.length > 0);
+    expect(carriers.length).toBe(1);
+    expect(filesInCommit(root, carriers[0])).not.toContain(WORKFLOW_UNDER_TEST);
+    expect(
+      gitIn(root, ["diff", "--name-only", base, "--", WORKFLOW_UNDER_TEST]).trim(),
+    ).toBe(WORKFLOW_UNDER_TEST);
+
+    const { status, stdout } = runGate(root);
+    expect(status).toBe(1);
+    expect(stdout).toContain("FROZEN by registryAnchors");
+    expect(stdout).toContain("no carrier");
+    expect(stdout).toContain(segmentClauses(ANCHOR_VERBATIM)[0].clause);
   });
 });
 
