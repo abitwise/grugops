@@ -771,10 +771,30 @@ describe("D-64 cutover: the spawn verdict is rendered by the canonical admission
       importedSymbols("check-imperative-lexicon.ts", "frontmatter"),
       "check-imperative-lexicon.ts must take the per-line fence PROJECTION and nothing else — a second symbol is a step back toward a forked machine",
     ).toEqual(["fencedLineFlags"]);
+    // (Plan 29-22, WR-03 + WR-08) AND `check-diff-disposition.ts`'s OWN SET MOVED FROM ONE SYMBOL TO
+    // THREE — in the direction D-24 wants, which is why the PIN moves rather than the code. THE PIN
+    // MOVING IS THE PIN WORKING: it went red the moment the module took more from the authority,
+    // which is exactly what a two-sided list is for.
+    //
+    // The module used to carry TWO private section predicates. `locateSection` declared its own
+    // `trimEnd()` heading equality AND its own `startsWith("## ")` close loop — one of the four
+    // disagreeing section locators the round-2 review tabulated — and `readDispositionRows` located
+    // `## Dispositions` with a bare `body.indexOf(...)` substring search and then read rows to END OF
+    // FILE. That second one is the FOURTH locator of the class, the one round 1's fix never derived
+    // and therefore never touched. All of it is DELETED: the heading now comes from
+    // `unfencedHeadingIndex`, the close from `sectionEndIndex`, and the per-line fence verdict from
+    // `fencedLineFlags`, which the row reader consults directly because skipping a quoted example row
+    // is a per-LINE question rather than a section-extent one.
+    //
+    // THE SET GREW AND THE MODULE STILL RENDERS NO VERDICT FROM THE PARSER, which is the property
+    // D-64 Part C actually asks for. All three symbols are DECLARATIVE: a per-line boolean and two
+    // integer indices. What an index MEANS for a kit document — which clauses are frozen, which rows
+    // are dispositions — is still decided in the gate, and the grant-predicate case immediately below
+    // asserts that tree-wide zero still holds.
     expect(
       importedSymbols("check-diff-disposition.ts", "frontmatter"),
-      "check-diff-disposition.ts must take the per-line fence PROJECTION and nothing else — importing the delimiter CLASS alongside it would let this gate re-decide what a fence is, which is the forked machine the toggle exists to prevent",
-    ).toEqual(["fencedLineFlags"]);
+      "check-diff-disposition.ts must take the per-line fence PROJECTION and the shared section LOCATOR — never a section-end, heading-equality or heading-search predicate of its own, which is the fourth-grammar shape this round deletes",
+    ).toEqual(["fencedLineFlags", "sectionEndIndex", "unfencedHeadingIndex"]);
     expect(
       importedSymbols("check-banned-claims.ts", "frontmatter"),
       "check-banned-claims.ts must take the per-line fence PROJECTION and nothing else — importing the delimiter CLASS alongside it would let this gate re-decide what a fence is, which is the forked machine the toggle exists to prevent",

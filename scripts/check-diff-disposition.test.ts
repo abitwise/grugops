@@ -1993,22 +1993,24 @@ const PLANTED_LOCATOR_SOURCE = [
 ].join("\n");
 
 /**
- * The DERIVED site list, produced by running the classifier above over the live module in the same
- * session that wrote this line — never transcribed from the review, whose own address list is the
- * thing that missed a site.
+ * The DERIVED site list, produced by running the classifier above over the live module — never
+ * transcribed from the review, whose own address list is the thing that missed a site.
  *
- * (Plan 29-22, Task 2) THIS LIST IS EXPECTED TO BECOME EMPTY, and the emptiness is the deliverable:
- * both locators take their answer from scripts/frontmatter.ts and this module declares no section
- * predicate at all. The pin moving is the pin working.
+ * THE PIN MOVED FROM THREE MEMBERS TO ZERO, AND THE MOVE IS THE DELIVERABLE. Measured at commit
+ * `931a466`, before the rewire, the answer was exactly:
+ *
+ *   locateSection :: if (lines[i].trimEnd() !== heading) continue;
+ *   locateSection :: if (!fenced[j] && lines[j].startsWith("## ")) {
+ *   readDispositionRows :: const at = body.indexOf(DISPOSITION_HEADING);
+ *
+ * — two private predicates inside `locateSection` and the fourth locator round 1 never derived. All
+ * three are DELETED, not corrected in place: both functions now take their answer from
+ * scripts/frontmatter.ts and this module declares no section predicate at all. An EMPTY answer is
+ * only meaningful beside a classifier proven live, which is what the falsifiability case and the
+ * authority case below are for.
  */
-const LOCATOR_SITES_AT_HEAD = [
-  "locateSection :: if (lines[i].trimEnd() !== heading) continue;",
-  'locateSection :: if (!fenced[j] && lines[j].startsWith("## ")) {',
-  "readDispositionRows :: const at = body.indexOf(DISPOSITION_HEADING);",
-];
-const LOCATOR_SITE_COUNT_AT_HEAD = 3;
-const SEARCH_LOCATOR_SITE =
-  "readDispositionRows :: const at = body.indexOf(DISPOSITION_HEADING);";
+const LOCATOR_SITES: readonly string[] = [];
+const LOCATOR_SITE_COUNT = 0;
 
 /** A root carrying only a disposition directory — the unit fixture for readDispositionRows. */
 function dispositionRoot(
@@ -2044,11 +2046,11 @@ describe("check-diff-disposition — every section-extent locator is DERIVED, no
     expect(src.length, "the module under derivation must really have been read").toBeGreaterThan(
       10_000,
     );
-    expect(sites).toEqual(LOCATOR_SITES_AT_HEAD);
+    expect(sites).toEqual(LOCATOR_SITES);
     expect(
       sites,
-      "cardinality pinned as a NUMBER, so a classifier that silently stops matching shrinks LOUDLY rather than passing over an empty set",
-    ).toHaveLength(LOCATOR_SITE_COUNT_AT_HEAD);
+      "cardinality pinned as a NUMBER beside the member list, so a re-declared predicate lands as a NAMED site rather than as a silent regrowth",
+    ).toHaveLength(LOCATOR_SITE_COUNT);
 
     // Each derived line matches EXACTLY ONE construct, which is what makes the per-construct
     // removal probe below attributable to the construct removed and to nothing else.
@@ -2085,20 +2087,30 @@ describe("check-diff-disposition — every section-extent locator is DERIVED, no
 
   it("the review's own two-construct sketch is BLIND to the fourth locator — construct[1] is what finds it", () => {
     // THE DEVIATION, ASSERTED RATHER THAN ARGUED. Run the classifier with exactly the two constructs
-    // the review and the plan name — equality and heading-prefix — and `readDispositionRows`
-    // disappears from the answer while the two sites round 1 already knew about remain. That is the
-    // shape of a fix that re-derives the known defects and re-misses the unknown one.
-    const src = readFileSync(join(REPO, MODULE_REL), "utf8");
+    // the review and 29-22-PLAN.md name — equality and heading-prefix — and the SEARCH locator
+    // disappears from the answer while the other two remain. That is the shape of a fix that
+    // re-derives the known defects and re-misses the unknown one.
+    //
+    // MEASURED ON THE LIVE MODULE AT COMMIT `931a466`, BEFORE THE REWIRE: the full classifier
+    // returned three sites and the two-construct sketch returned two, the missing one being
+    // `readDispositionRows :: const at = body.indexOf(DISPOSITION_HEADING);` — the fourth locator
+    // this plan exists to close. The live module now derives nothing at all, so the property is
+    // pinned here on the planted fixture instead, where it stays non-vacuous permanently. A case
+    // asserting "the sketch found nothing" against a source that carries nothing would be exactly
+    // the vacuous green this phase keeps meeting.
     const sketch = SECTION_EXTENT_CONSTRUCTS.filter((_, i) => i !== 1);
-    const derivedBySketch = sectionExtentSites(src, sketch);
+    const full = sectionExtentSites(PLANTED_LOCATOR_SOURCE);
+    const derivedBySketch = sectionExtentSites(PLANTED_LOCATOR_SOURCE, sketch);
+    // Non-vacuity: the sketch is not blind to EVERYTHING, it is blind to one shape.
+    expect(derivedBySketch.length).toBeGreaterThan(0);
     expect(
-      derivedBySketch.some((s) => s.startsWith("readDispositionRows")),
-      "the two-construct sketch must NOT find readDispositionRows — that blindness is why the third construct exists",
+      derivedBySketch.some((s) => s.startsWith("plantedLocateBySearch")),
+      "the two-construct sketch must NOT find a substring-search locator — that blindness is why the third construct exists",
     ).toBe(false);
     // …and it is blind to that site ALONE, so the widening is minimal rather than a rewrite.
-    expect(
-      sectionExtentSites(src).filter((s) => !derivedBySketch.includes(s)),
-    ).toEqual([SEARCH_LOCATOR_SITE]);
+    expect(full.filter((s) => !derivedBySketch.includes(s))).toEqual([
+      "plantedLocateBySearch :: return body.indexOf(PLAN_HEADING);",
+    ]);
   });
 
   it("the AUTHORITY still carries these constructs — the predicate MOVED, it did not evaporate", () => {

@@ -140,11 +140,19 @@ import { readRegistry, REGISTER_PATH } from "./audit-model.js";
 // generated document is the RENDERING of this union; reading the rendering back would be a second
 // parser over a file this function already answers for.
 import { safetySurfaceUnion } from "./generate-safety-surface.js";
-// The ONE fence toggle (Phase 29 / plan 29-01, D-24). IMPORTED and consumed, never reimplemented:
-// locateSection must not be able to disagree with check-imperative-lexicon.ts about which lines are
-// documentation rather than governed prose. The delimiter class itself is deliberately NOT imported
-// — the toggle is the only interface, so nothing here can drift from it one recogniser at a time.
-import { fencedLineFlags } from "./frontmatter.js";
+// The ONE fence toggle and the ONE section locator (Phase 29 / plans 29-01 and 29-20, D-24).
+// IMPORTED and consumed, never reimplemented: this gate must not be able to disagree with
+// check-imperative-lexicon.ts about which lines are documentation rather than governed prose, nor
+// with voice-model.ts about where a section ENDS. The delimiter class itself is deliberately NOT
+// imported — the toggle is the only interface, so nothing here can drift from it one recogniser at
+// a time.
+//
+// (Plan 29-22, WR-03 / LANG-07) THE SET GREW FROM ONE SYMBOL TO THREE, AND THE GROWTH IS THE FIX.
+// This module used to declare TWO private section predicates: `locateSection`'s own `trimEnd()`
+// heading equality with its own `startsWith("## ")` close loop, and `readDispositionRows`'s bare
+// `indexOf` search with no close at all. Both are DELETED. What this module contributes now is the
+// QUESTION — which heading, in which document — and never the grammar.
+import { fencedLineFlags, sectionEndIndex, unfencedHeadingIndex, } from "./frontmatter.js";
 // CHECK_ROOT override is load-bearing: the Vitest harness builds a hermetic mirror — here a real git
 // repository under the OS temp dir — and points CHECK_ROOT at it, then spawns this committed .js
 // against the mirror. When unset, resolve against the script-relative repo root (cwd does not
@@ -420,21 +428,43 @@ export const FROZEN_SECTION_ANCHORS = [
 ];
 /**
  * Locate one heading's section in `text`: from the heading line to the line before the next UNFENCED
- * `## ` heading, or to end of file.
- *
- * Matched on the WHOLE line so `## Commit` never matches `## Commit message conventions`, and
- * `startsWith` over `split("\n")` throughout — no regex, no quantifier, nothing to backtrack over.
+ * heading of level at most two, or to end of file. 1-based inclusive, so `to` is the last line IN
+ * the section.
  *
  * ---------------------------------------------------------------------------------------------
- * WR-06 — BOTH SCANS ARE DECIDED BY THE ONE FENCE AUTHORITY, AND NEITHER RE-DECLARES WHAT A FENCE IS.
+ * WR-06 / WR-08 — THIS FUNCTION ASKS THE QUESTION. IT DOES NOT OWN THE GRAMMAR.
  *
- * This function used to scan for `## ` with no idea what a fence was, which made it a SECOND GRAMMAR
- * over bytes `fencedLineFlags` already answers for — the defect class this whole phase exists to
- * close. Kit documents quote markdown inside fenced examples, so a `## ` line inside a fence ended
- * the region early: every clause below the quoted heading fell OUT of `## Hard limits`,
- * `## Stop conditions` or `## Commit` while still sitting inside it, and a reword there owed no
- * companion edit at all. A quoted line that spells one of the three anchors was worse still — it
- * was matched as the section's own heading, and the located region then began inside a code example.
+ * WHAT IT USED TO OWN, AND WHY BOTH HALVES ARE DELETED RATHER THAN CORRECTED IN PLACE.
+ *
+ * (1) It scanned for `## ` with no idea what a fence was, which made it a SECOND GRAMMAR over bytes
+ *     `fencedLineFlags` already answers for. Kit documents quote markdown inside fenced examples, so
+ *     a `## ` line inside a fence ended the region early: every clause below the quoted heading fell
+ *     OUT of `## Hard limits`, `## Stop conditions` or `## Commit` while still sitting inside it,
+ *     and a reword there owed no companion edit at all. A quoted line spelling one of the three
+ *     anchors was worse — it was matched as the section's own heading, and the located region then
+ *     began inside a code example. Plan 29-16 made this function fence-aware, which fixed the bytes
+ *     and left a private predicate standing beside the shared one.
+ *
+ * (2) It closed on `## ` ALONE, so a `# ` heading did not end a section and the region ran on into
+ *     the next top-level part of the document. That is a THIRD answer to "where does this section
+ *     end" — the round-2 review tabulated four modules giving four different ones — and a predicate
+ *     with four authorities has none.
+ *
+ * (Plan 29-22) BOTH ARE NOW ONE IMPORT. The heading comes from `unfencedHeadingIndex` and the close
+ * from `sectionEndIndex(…, 2)`; this file declares no heading equality, no close scan and no fence
+ * state of its own, and there is NO parameter restoring the old behaviour — an opt-out is a second
+ * grammar with extra steps. `scripts/check-diff-disposition.test.ts` DERIVES the set of
+ * section-extent constructs left in this module and asserts it is empty, so the claim is measured
+ * rather than believed.
+ *
+ * THE LEVEL WIDENING IS A BEHAVIOUR CHANGE, AND IT IS SAFE ONLY BECAUSE THE AUTHORITY IS FENCE-AWARE.
+ * Closing on `# ` as well as `## ` makes a frozen region END EARLIER, which SHRINKS what is
+ * protected — the fail-open direction. On this corpus it moves nothing: measured over the live
+ * watched corpus the old level-two-only close and the new level-at-most-two close agree on all 55
+ * located regions, because the only level-one heading lines below a `## ` section are the nine
+ * FENCED example lines in `agent-factory/README.md`. If those nine were unfenced, this widening
+ * would silently truncate `agent-factory/README.md`'s sections. Both facts are ASSERTED by cases,
+ * not left here as prose, and the widening must never be separated from the fence awareness.
  *
  * WHY THIS DIRECTION IS FIXED RATHER THAN RECORDED, WHILE ITS SIBLING IS NOT INTERCHANGEABLE WITH IT.
  * A truncated frozen region here SHRINKS what is protected, and it does so with NO failure anywhere:
@@ -442,35 +472,13 @@ export const FROZEN_SECTION_ANCHORS = [
  * by construction. The equivalent truncation in the banned-claim exemption locator causes MORE text
  * to be checked, which is fail-closed and surfaces as a red somebody investigates. Naming the
  * asymmetry is what stops a later reader treating the two as the same bug at two addresses.
- *
- * `fencedLineFlags` is IMPORTED, not reimplemented, and `FENCE_DELIMITER_LINE` is deliberately not
- * consulted here: the toggle is the only interface, so this file cannot come to disagree with
- * check-imperative-lexicon.ts about which lines are documentation. There is also NO parameter that
- * lets a caller ask for the old behaviour — an opt-out is a second grammar with extra steps.
- *
- * The flags are computed ONCE per located text, with one anchored delimiter test per line and no
- * match-all regex, per the dormant superlinear-backtracking incident's own rule.
  * ---------------------------------------------------------------------------------------------
  */
 export function locateSection(text, heading) {
-    const lines = text.split("\n");
-    const fenced = fencedLineFlags(text);
-    for (let i = 0; i < lines.length; i++) {
-        // A heading inside a fenced example is quoted markdown, not this document's own section.
-        if (fenced[i])
-            continue;
-        if (lines[i].trimEnd() !== heading)
-            continue;
-        let end = lines.length;
-        for (let j = i + 1; j < lines.length; j++) {
-            if (!fenced[j] && lines[j].startsWith("## ")) {
-                end = j;
-                break;
-            }
-        }
-        return { from: i + 1, to: end };
-    }
-    return null;
+    const at = unfencedHeadingIndex(text, heading);
+    if (at === -1)
+        return null;
+    return { from: at + 1, to: sectionEndIndex(text, at + 1, 2) };
 }
 /**
  * The three D-01 sources, each with the companion edit a change to it owes. Object.keys() over this
@@ -946,6 +954,34 @@ const isSeparatorCell = (c) => c.length > 0 && c.split("").every((ch) => ch === 
  *
  * One file per plan, so plans running in the same wave never contend on a single register. The two
  * non-row members are named in DISPOSITION_NON_ROWS rather than skipped by a silent `continue`.
+ *
+ * ---------------------------------------------------------------------------------------------
+ * WR-03 — THIS LOCATOR FAILS **OPEN**, WHICH IS WHY IT IS BOUNDED AND FENCE-AWARE.
+ *
+ * SAY THE DIRECTION FIRST, BECAUSE IT IS THE OPPOSITE OF ITS SIBLING'S. A ROW IS WHAT SATISFIES THE
+ * STRUCTURAL COMPANION ARM, and that arm carries the whole positional freeze — the one that catches
+ * a REWORD, where the new text matches nothing frozen and only its POSITION does not move. So a
+ * SPURIOUS row ADMITS a change that owed a companion edit: more rows means less protection. That is
+ * the reverse of `locateSection`, where the failure mode is a region that gets too SHORT, and the
+ * reverse again of the banned-claim exemption locator, whose truncation is fail-CLOSED. Three
+ * locators of one class, three directions; a reader who assumes they share one is going to fix the
+ * wrong end of whichever one they meet next.
+ *
+ * WHAT THIS FUNCTION USED TO DO, AND WHY IT WAS THE FOURTH LOCATOR NOBODY DERIVED. It found its
+ * section with `body.indexOf(DISPOSITION_HEADING)` — a bare substring search that matches the
+ * literal ANYWHERE, including inside prose and inside a fenced example — and then admitted every
+ * seven-cell pipe line from that offset TO END OF FILE. Both halves fail open at once: a fenced
+ * example row became a real row, and a stray seven-column table under a later heading became rows
+ * too. Round 1 of this gap closure fixed three section locators the review had written down and
+ * never touched this one, because a hand-listed set of defect addresses rots exactly like any other
+ * hand-listed set. The site list is now DERIVED from this module's source by a case, not
+ * transcribed.
+ *
+ * WHAT IT DOES NOW. The heading is located through `unfencedHeadingIndex`, so the match is a whole
+ * unfenced line rather than a substring; the scan is bounded by `sectionEndIndex(…, 2)`, so the
+ * table lives in ITS OWN section; and any line the fence toggle flags is skipped, so a quoted
+ * example donates nothing. No predicate of any of the three is declared here.
+ * ---------------------------------------------------------------------------------------------
  */
 export function readDispositionRows(root = ROOT) {
     const rows = [];
@@ -965,20 +1001,35 @@ export function readDispositionRows(root = ROOT) {
             continue;
         files.push(`${DISPOSITION_DIR}/${name}`);
         const body = readFileSync(join(dir, name), "utf8");
-        const at = body.indexOf(DISPOSITION_HEADING);
+        const at = unfencedHeadingIndex(body, DISPOSITION_HEADING);
         if (at === -1) {
             refusals.push(`${DISPOSITION_DIR}/${name} carries no \`${DISPOSITION_HEADING}\` heading, so none of its ` +
                 `rows are read. A disposition file whose rows are invisible is worse than an absent one: ` +
                 `it reads as work done`);
             continue;
         }
+        const bodyLines = body.split("\n");
+        const fenced = fencedLineFlags(body);
+        const end = sectionEndIndex(body, at + 1, 2);
         let seen = 0;
-        for (const line of body.slice(at).split("\n")) {
+        // IN-01. A pipe-leading line under the heading that does not split to exactly the column count
+        // is COUNTED and NAMED below rather than dropped by a silent `continue`. The drop itself is
+        // still correct — a row the parser cannot read must not become a row — but the SILENCE was not:
+        // the clause the line covered then reports as undispositioned, and the author is sent to write
+        // a disposition row they have already written.
+        const malformed = [];
+        for (let i = at + 1; i < end; i++) {
+            // A table inside a fenced example is documentation, not this file's disposition table.
+            if (fenced[i])
+                continue;
+            const line = bodyLines[i];
             if (!line.startsWith("|"))
                 continue;
             const cells = tableCells(line);
-            if (cells.length !== DISPOSITION_COLUMNS)
+            if (cells.length !== DISPOSITION_COLUMNS) {
+                malformed.push(`${DISPOSITION_DIR}/${name}:${i + 1} splits to ${cells.length} cell(s) — ${line.trim()}`);
                 continue;
+            }
             if (cells[0] === "file")
                 continue; // the header row
             if (cells.every(isSeparatorCell))
@@ -994,6 +1045,16 @@ export function readDispositionRows(root = ROOT) {
                 disposition: cells[5],
                 companion: cells[6],
             });
+        }
+        if (malformed.length > 0) {
+            refusals.push(`${malformed.length} line(s) under \`${DISPOSITION_HEADING}\` in ` +
+                `${DISPOSITION_DIR}/${name} begin with a pipe and do NOT split to ` +
+                `${DISPOSITION_COLUMNS} cells, so they are not read as rows — ` +
+                `${malformed.join("; ")}. The most likely cause is a code span carrying ` +
+                `a pipe in the \`before\` or \`after\` cell: an inline \`a | b\` splits the row an extra ` +
+                `time. Escape it as \`\\|\` or reword the cell. This is reported by NAME because the ` +
+                `alternative is silence: the clause the line covers then reads as undispositioned and ` +
+                `names the wrong cause`);
         }
         if (seen === 0) {
             refusals.push(`${DISPOSITION_DIR}/${name} has a \`${DISPOSITION_HEADING}\` heading and ZERO rows under ` +
@@ -1300,13 +1361,17 @@ function main() {
         const textSource = frozen.text.get(c.clause);
         const source = region !== null ? "structuralSections" : (textSource ?? null);
         if (source !== null) {
-            const rows = disposition.rows.filter((r) => rowMatches(r, c));
             let satisfied = false;
             let owed = FROZEN_SOURCES[source].companion;
             // The carriers that changed THIS clause. Empty on the structural arm, whose companion is a
             // disposition-row cell rather than a file, and which this plan deliberately does not touch.
             let attributedTo = [];
             if (source === "structuralSections") {
+                // IN-02. The per-clause row filter is computed HERE, inside the one branch that reads it,
+                // rather than above the branch for every frozen clause on all three arms. The other two
+                // arms decide through `companionSatisfied` and never look at a row, so hoisting the filter
+                // made the gate walk 1532 rows per clause twice over for an answer nobody consumed.
+                const rows = disposition.rows.filter((r) => rowMatches(r, c));
                 // WR-05. The satisfaction test is the CANONICAL FILLED FORM and nothing else: no sentinel
                 // is excluded and no spelling is enumerated, so a placeholder is refused by construction
                 // rather than by having been thought of. See isCompanionFilled for the argument in full.
