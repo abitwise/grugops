@@ -74,7 +74,11 @@ import { readRegistry, readRegister } from "./audit-model.js";
 // imports it: a second union computed in the file that polices the first is how one authority
 // becomes two, and the CR-01 premise assertions below are worthless if they measure a different set
 // from the one the gate measures.
-import { safetySurfaceUnion } from "./generate-safety-surface.js";
+import {
+  safetySurfaceUnion,
+  renderSafetySurface,
+  OUT as SAFETY_SURFACE_PATH,
+} from "./generate-safety-surface.js";
 import { normalizeSentence, segmentClauses } from "./voice-model.js";
 // The ONE fence toggle. Imported here for the SAME reason the gate must import it: a second
 // recogniser in the file that polices the first is how one authority becomes two.
@@ -1796,6 +1800,43 @@ describe("check-diff-disposition — CR-01: the watched corpus is pinned to the 
     expect(status).toBe(1);
     expect(stdout).toContain("derived kit resolved");
     expect(stdout).toContain(String(ROLE_COUNT + WORKFLOW_COUNT - 1));
+  });
+
+  it("the reviewer's end-to-end reproduction: ONE flipped cell reds BOTH gates, hermetically", () => {
+    // THE WHOLE POINT IS "BOTH". The review's live reproduction ended with FOUR gates exiting 0
+    // together, so a case that watched one gate red would be consistent with the other three still
+    // waving the narrowing through. The two gates run as separate processes over one mirror: the
+    // consumer does not depend on the source-side gate having run, and the source-side gate does
+    // not depend on the consumer.
+    const { root } = makeMirror("gops-diffdisp-cr01-bothgates-", {
+      baseCorpus: { [REGISTER_REL]: registerWithFlippedSafetyFlag(FLIP_TARGET) },
+    });
+    // Step 2 of the reproduction, verbatim: regenerate the derived exclusion list FROM the flipped
+    // register, so the attack leaves no stale artifact behind for a freshness guard to notice.
+    writeFileSync(join(root, SAFETY_SURFACE_PATH), renderSafetySurface(root), "utf8");
+
+    // PREMISE — the regenerated list really is the narrowed one, and it really is fresh. Without
+    // this the audit gate could red on staleness and the case would prove the wrong arm.
+    expect(readFileSync(join(root, SAFETY_SURFACE_PATH), "utf8")).toBe(
+      renderSafetySurface(root),
+    );
+    expect(readFileSync(join(root, SAFETY_SURFACE_PATH), "utf8")).not.toContain(
+      `\`${FLIP_TARGET}\``,
+    );
+
+    const consumer = runGate(root);
+    const source = spawnSync(
+      process.execPath,
+      [join(REPO, "scripts", "check-audit-register.js")],
+      { encoding: "utf8", env: { ...process.env, CHECK_ROOT: root } },
+    );
+    const sourceOut = `${source.stdout ?? ""}${source.stderr ?? ""}`;
+
+    expect(consumer.status, "guard_diff_disposition must red").toBe(1);
+    expect(consumer.stdout).toContain(FLIP_TARGET);
+    expect(source.status, "check_audit_register must red").toBe(1);
+    expect(sourceOut).toContain(FLIP_TARGET);
+    expect(sourceOut).toMatch(/derived but NOT flagged/);
   });
 
   it("the VACUITY floor is kept beside the new pin — they answer different questions", () => {

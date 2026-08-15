@@ -131,7 +131,10 @@ import { listRoles, listWorkflows, ROLE_COUNT, WORKFLOW_COUNT, ROLES_SUBPATH, WO
 // already performs the byte-identical comparison against the documents live and green — so this gate
 // CONSUMES that freeze rather than re-deriving it. A second parser over the registry is how one
 // authority becomes two.
-import { readRegistry } from "./audit-model.js";
+// REGISTER_PATH is taken from the ONE place it is declared rather than retyped: the CR-01 refusal
+// below names the file an author must walk, and a second spelling of that path is the set-literal
+// drift class in miniature — the refusal would keep naming a file that had moved.
+import { readRegistry, REGISTER_PATH } from "./audit-model.js";
 // The watched corpus is the LANG-03 exclusion list itself, taken from the one derivation that
 // produces it (register rows flagged `safety_surface: yes` ∪ registry rows of `kind: safety`). The
 // generated document is the RENDERING of this union; reading the rendering back would be a second
@@ -1018,6 +1021,22 @@ function byPosition(a, b) {
 // ─────────────────────────────────────────────────────────────────────────────────────────────
 // The run.
 // ─────────────────────────────────────────────────────────────────────────────────────────────
+/**
+ * The MINIMUM size of the watched corpus, and the expected cardinality of the derived kit it is
+ * measured against (round-2 CR-01).
+ *
+ * WHY THE EXPECTATION IS IMPORTED RATHER THAN COMPUTED HERE. `watchedCorpus()` reads
+ * `safetySurfaceUnion`, which reads `docs/audit/28-disposition-register.md`. A floor computed from
+ * that same path would move whenever the thing it checks moves — documentation of intent rather
+ * than a check. `ROLE_COUNT + WORKFLOW_COUNT` comes from `kit-model.ts`, a module `watchedCorpus()`
+ * never calls, so the narrowing edit cannot also move the number it is checked against.
+ *
+ * WHY IT IS A MINIMUM AND NOT AN EQUALITY. The union legitimately carries public-document entries
+ * beyond the derived kit — 40 watched markdown files against 36 derived kit files on the live tree.
+ * The equality lives at the SOURCE, in check-audit-register.ts's equality three; this end holds the
+ * floor, and the two are reported by two gates so neither number absorbs the other's drift.
+ */
+export const WATCHED_CORPUS_MIN = ROLE_COUNT + WORKFLOW_COUNT;
 /** The watched corpus: the LANG-03 exclusion list, markdown members only. */
 function watchedCorpus(root) {
     const entries = safetySurfaceUnion(root);
@@ -1075,6 +1094,64 @@ function main() {
         verdict();
         return;
     }
+    // ── THE WATCHED CORPUS IS PINNED TO THE DERIVED KIT (round-2 CR-01) ──────────────────────────
+    //
+    // THE ZERO CHECK ABOVE STAYS, AND THIS IS ADDED BESIDE IT RATHER THAN IN PLACE OF IT. A vacuity
+    // floor catches an EMPTY denominator and has never been able to catch a SILENTLY SHORT one, and
+    // conflating those two questions is precisely how this defect survived: every other set this gate
+    // depends on is pinned two-sided and says so in its own words — the four `cardinalities`, the
+    // `POSITIVE_GUARD_LITERAL_COUNT` extraction, the changed-file/clause-file equality — while the
+    // corpus, this gate's ENTIRE left-hand side, had a zero check and nothing else.
+    //
+    // THE PIN IS SET CONTAINMENT, NOT A BARE COUNT, AND THAT IS A DELIBERATE STRENGTHENING OF THE
+    // REVIEW'S OWN SKETCH. `corpus.watched.length < WATCHED_CORPUS_MIN` cannot catch the attack the
+    // review reproduced: the live corpus is 40 markdown files against a 36-file kit, so a bare floor
+    // leaves FOUR files of slack and the reproduction narrows by ONE. A floor whose slack exceeds the
+    // attack is a number that looks like a check. Containment has no slack — every derived kit file
+    // is named, and a single flipped cell is a named refusal here as well as at the source.
+    //
+    // The count pin below it is not redundant with the containment: it guards the EXPECTATION's own
+    // derivation. If the listers return 35 files, containment over 35 still holds while the corpus is
+    // silently measured against a smaller kit — which is this project's recorded set-literal drift
+    // class one level up. Derive the set, then assert the count.
+    let derivedKit;
+    try {
+        derivedKit = [
+            ...listRoles(ROOT).map((f) => `${ROLES_SUBPATH}/${f}`),
+            ...listWorkflows(ROOT).map((f) => `${WORKFLOWS_SUBPATH}/${f}`),
+        ].sort();
+    }
+    catch (e) {
+        fail(`the derived kit could not be listed, so the watched corpus has nothing to be pinned ` +
+            `against and NO verdict is reported over it — ${e.message}`);
+        verdict();
+        return;
+    }
+    if (derivedKit.length !== WATCHED_CORPUS_MIN) {
+        fail(`the derived kit resolved ${derivedKit.length} file(s), expected exactly ` +
+            `${WATCHED_CORPUS_MIN} (${ROLE_COUNT} roles + ${WORKFLOW_COUNT} workflows). This set is ` +
+            `the EXPECTATION the watched corpus is measured against, so a short derivation shrinks the ` +
+            `expectation and the measurement together and every verdict below stays green. Walk the ` +
+            `listers and kit-model's cardinalities before treating either number as the one to move; ` +
+            `the remedy is never to lower the expectation`);
+        verdict();
+        return;
+    }
+    const unwatched = derivedKit.filter((f) => !corpus.watched.includes(f));
+    if (unwatched.length > 0) {
+        fail(`${unwatched.length} of the ${WATCHED_CORPUS_MIN} derived kit file(s) are NOT in the watched ` +
+            `corpus — ${unwatched.join(", ")}. The corpus derived ${corpus.watched.length} markdown ` +
+            `file(s) from the ${corpus.total}-entry safety-surface union, and the derived kit alone is ` +
+            `${WATCHED_CORPUS_MIN} (${ROLE_COUNT} roles + ${WORKFLOW_COUNT} workflows), so this gate is ` +
+            `about to report a verdict over LESS than the kit it exists to watch. A \`safety_surface\` ` +
+            `flag flipped to \`no\` in ${REGISTER_PATH} removes a file from this gate ` +
+            `ENTIRELY and owes no disposition row, because that register is not itself watched. Walk ` +
+            `its \`safety_surface\` column before moving any number here; lowering the expectation or ` +
+            `narrowing the corpus are the two ways to clear this finding by deleting its evidence, and ` +
+            `neither is the remedy`);
+        verdict();
+        return;
+    }
     // ── The recorded base commit ─────────────────────────────────────────────────────────────────
     if (!existsSync(abs(BASE_FILE))) {
         fail(`${BASE_FILE} does not exist at ${abs(BASE_FILE)}. The base commit is RECORDED, never ` +
@@ -1112,8 +1189,14 @@ function main() {
         verdict();
         return;
     }
+    // The floor and its expectation are PUBLISHED on every green run, not only quoted on a red one —
+    // this gate reports its measurements rather than asserting them, and a pin nobody can see in a
+    // passing transcript is a pin nobody can notice going slack.
     const corpusLine = `watched corpus: ${corpus.watched.length} markdown file(s) of the ${corpus.total}-entry ` +
-        `LANG-03 safety-surface union` +
+        `LANG-03 safety-surface union, covering all ${derivedKit.length}/${WATCHED_CORPUS_MIN} derived ` +
+        `kit file(s) (${ROLE_COUNT} roles + ${WORKFLOW_COUNT} workflows; the union's remaining ` +
+        `${corpus.watched.length - WATCHED_CORPUS_MIN} markdown entr(ies) are public documents, which ` +
+        `is why the kit is a MINIMUM here and an equality at check-audit-register)` +
         (corpus.nonMarkdown.length === 0
             ? ""
             : `; ${corpus.nonMarkdown.length} non-markdown entr(ies) named and not watched ` +
