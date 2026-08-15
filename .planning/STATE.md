@@ -5,11 +5,11 @@ milestone_name: Autonomous Factory — Real Spawning, Controlled Language & Live
 current_phase: 29
 current_phase_name: controlled-language-voice-guard-rebuild
 status: ready_to_execute
-stopped_at: Completed 29-13-PLAN.md — phase 29 plans all executed
-last_updated: "2026-08-14T20:56:45.340Z"
+stopped_at: Completed 29-14-PLAN.md
+last_updated: "2026-08-15T06:36:54.838Z"
 progress:
   total_phases: 8
-  completed_phases: 3
+  completed_phases: 2
   total_plans: 93
   completed_plans: 87
   percent: 25
@@ -30,7 +30,7 @@ See: .planning/PROJECT.md (updated 2026-07-28 — after v2.0 milestone)
 ## Current Position
 
 Phase: 29 (controlled-language-voice-guard-rebuild) — EXECUTING
-Plan: 13 of 13
+Plan: 14 of 19 complete — next 29-15
 
 ## Gap-closure round 7 — PLANNED 2026-08-06, ready to execute
 
@@ -340,6 +340,7 @@ Prior activity: 2026-07-30 — 27-22 closed WR-02 and WR-04, the last two plans-
 | Phase 29 P11 | 62min | 2 tasks | 9 files |
 | Phase 29 P12 | 71min | 2 tasks | 10 files |
 | Phase 29 P13 | 62min | 3 tasks | 3 files |
+| Phase 29 P14 | 14m | 3 tasks | 4 files |
 
 ## Accumulated Context
 
@@ -850,6 +851,9 @@ Recent decisions affecting current work:
 - [Phase ?]: The board's 13 column names and the 6 note kinds are byte-identical: both derivations read the FIRST table cell, so the second-cell correction is out of their reach by construction
 - [Phase ?]: Phase 29 byte-ceiling re-baseline HELD (hold-rebaseline): roleCeiling() is byte-unchanged against phase base 4d2b8f0. Recomputing +12%/+6% from today's sizes would RAISE 12 of 17 ceilings, because each encodes a 2026-06-10 baseline that 12 roles have since outgrown. LANG-08 partially met — never-raised and delta-recorded hold; the re-baseline did NOT happen and the requirement is deliberately left open.
 - [Phase ?]: Ratchet-down ceiling values (min(recomputed,current); 5 rows lower, 12 held, -1,069 B / -14.6% corpus headroom) are PRESERVED in docs/audit/29-ceiling-rebaseline.md as a deferred finding for the next phase to touch the table — re-measure before applying.
+- [Phase ?]: D-14-A (29-14): the caveman fence reader is bounded to its own section — SECTION_END (/^## /) computed once after the anchor and consulted by BOTH scans; a delimiter under a later heading is another section's and is refused 'missing' rather than adopted.
+- [Phase ?]: D-14-B (29-14): a '## ' line inside the caveman fence interior refuses 'unterminated' rather than returning a shortened interior — the fail-CLOSED direction, stated at the bound so it is not later 'fixed'.
+- [Phase ?]: D-14-C (29-14): the voice harness derives role membership from the root it MEASURES (roleNamesIn(root)); every rootless listRoles() call site is audited and either converted or recorded as a deliberate live-tree residual with its reason.
 
 ### Pending Todos
 
@@ -958,8 +962,8 @@ Shape of the carry: **9 of 11 are pre-v2.0 carryover** from the v1.2 block above
 
 ## Session Continuity
 
-Last session: 2026-08-14T17:26:25.503Z
-Stopped at: Completed 29-13-PLAN.md — phase 29 plans all executed
+Last session: 2026-08-15T06:36:12.272Z
+Stopped at: Completed 29-14-PLAN.md
 Resume file: None
 
 ## Operator Next Steps
