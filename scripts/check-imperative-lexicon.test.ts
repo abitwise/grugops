@@ -37,6 +37,9 @@ import {
   mkdirSync,
   writeFileSync,
   readFileSync,
+  readdirSync,
+  copyFileSync,
+  realpathSync,
   rmSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
@@ -1576,6 +1579,284 @@ describe("WR-04 / WR-09 — the shapes this guard's own prose names, each with i
     // cell the three above are consistent with a gate that calls every long sentence procedural.
     expect(neither.stdout).not.toContain("[procedural-sentence-too-long]");
     expect(neither.stdout).not.toContain("[descriptive-sentence-too-long]");
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────────────────────────
+// (8b) WR-05 — THE UNDECIDED HEADING LEVEL IS A MOVED NUMBER, NOT A SILENCE.
+//
+// `WP-11` and `WP-04` are published for `## Steps` and decided for that spelling only. Every other
+// ATX level is a DISCLOSED FLOOR, and before this block the floor was a promise: a prose-only
+// `### Steps` section violated the level-agnostic rule the profile used to publish, contributed no
+// member to `stepsFiles`, produced no refusal, and the whole gate exited 0 with the file unnamed.
+// Live reachability was ZERO, so no green suite could ever have caught it and none did.
+//
+// WHAT THE CASES BELOW HOLD. The INTENDED verdict for an undecided level is asserted explicitly —
+// "not a WP-11 finding" is a decision, and an absence of findings must never be allowed to read as
+// coverage. Beside it the tally is required to MOVE, which is the difference between a residual that
+// is documented and one that is closed.
+//
+// The prose-only `## Steps` RED control that must not regress lives in the WR-04 case above, which
+// now asserts BOTH of WP-11's sentences in both artifacts. It is not duplicated here.
+// ─────────────────────────────────────────────────────────────────────────────────────────────────
+
+/**
+ * The `any`-level pattern's declaration AS IT APPEARS IN THE COMMITTED `.js`, for the scratch-build
+ * probe below. Written out here because the probe's whole point is to break the SHIPPED bytes.
+ */
+const ANY_LEVEL_DECL =
+  "const STEPS_HEADING_ANY_LEVEL = /^#{1,6} Steps\\s*$/;";
+
+/**
+ * Run a COPY of the committed gate with one expression replaced — the falsifiability lever for
+ * refusals that are unreachable on a healthy tree.
+ *
+ * The whole `scripts/*.js` set is copied because the gate imports its siblings; only the one file is
+ * mutated. A replacement that matches nothing THROWS rather than silently running the unmutated
+ * build, because a probe whose mutation missed would report a green as evidence of a passing check.
+ */
+function runScratchGate(
+  checkRoot: string,
+  from: string,
+  to: string,
+): { status: number; stdout: string } {
+  const dir = freshTmp("gops-lex-scratchbuild-");
+  for (const f of readdirSync(join(ROOT, "scripts")).filter((n) =>
+    n.endsWith(".js"),
+  )) {
+    copyFileSync(join(ROOT, "scripts", f), join(dir, f));
+  }
+  const gate = join(dir, "check-imperative-lexicon.js");
+  const src = readFileSync(gate, "utf8");
+  if (!src.includes(from)) {
+    throw new Error(
+      `the scratch mutation matched no byte of the committed gate: ${from}`,
+    );
+  }
+  writeFileSync(gate, src.replace(from, to), "utf8");
+  // THE PATH IS RESOLVED THROUGH ITS SYMLINKS BEFORE SPAWNING, and this is load-bearing rather than
+  // tidy. The gate runs `runAll()` only when `import.meta.url === pathToFileURL(process.argv[1])`.
+  // On macOS the OS temp dir is `/var/folders/…`, a symlink to `/private/var/folders/…`; the ESM
+  // loader reports the real path while `argv[1]` keeps the symlinked one, so the guard is false, the
+  // module loads, runs NOTHING and exits 0 with empty output. Every assertion against such a run is
+  // then satisfied by silence — the first draft of this probe reported a green control and a green
+  // mutation for exactly that reason.
+  const resolved = realpathSync(gate);
+  const r = spawnSync("node", [resolved], {
+    encoding: "utf8",
+    env: { ...process.env, CHECK_ROOT: checkRoot },
+  });
+  const stdout = (r.stdout ?? "") + (r.stderr ?? "");
+  // PREMISE: the scratch build actually RAN. A run that produced no output cannot be evidence for
+  // or against anything, and it is indistinguishable from a passing gate by exit code alone.
+  if (!stdout.includes("[guard_imperative_lexicon]")) {
+    throw new Error(
+      `the scratch build produced no gate output (status ${r.status}) — it did not run, so no ` +
+        `verdict below is measuring anything`,
+    );
+  }
+  return { status: r.status ?? -1, stdout };
+}
+
+/** The published steps-heading tally, parsed from the run that produced it. */
+type StepsTally = { decided: number; undecided: number; any: number };
+function stepsTally(out: string): StepsTally {
+  const m =
+    /steps headings by ATX level: (\d+) at the decided `## Steps` level, (\d+) at any other level, (\d+) seen in total/.exec(
+      out,
+    );
+  // PREMISE, FORCED. A run that stopped publishing the tally would otherwise make every comparison
+  // below compare two zeroes and pass — the vacuity shape this round has met in its own probes.
+  if (m === null) {
+    throw new Error(
+      "the run published NO steps-heading tally line, so nothing below is measuring the floor",
+    );
+  }
+  return { decided: +m[1], undecided: +m[2], any: +m[3] };
+}
+
+/** A workflow with a conforming `## Steps` section plus one extra section, spelled as given. */
+const workflowWithExtraSection = (body: string[]): string =>
+  [
+    "# Workflow: Sub Level Steps Workflow",
+    "",
+    "## Steps",
+    `1. ${VERB} the shared context first.`,
+    "",
+    "## Notes",
+    "",
+    ...body,
+    "",
+  ].join("\n");
+
+describe("WR-05 — a steps heading at an undecided ATX level is measured, published and refused", () => {
+  const REL = "agent-factory/workflows/01-fixture.md";
+  /** The unplanted baseline every case below is compared against, not a transcribed number. */
+  const baseline = (): { run: ReturnType<typeof runGate>; tally: StepsTally } => {
+    const run = runGate(makeMirror("gops-lex-wr05-base-"));
+    return { run, tally: stepsTally(run.stdout) };
+  };
+
+  it("the BASELINE mirror is clean and its tally is not vacuous — the false-red and false-zero control", () => {
+    const { run, tally } = baseline();
+    expect(run.status).toBe(0);
+    // TWO-SIDED, and this is the side a zero-valued floor needs most: a walk that reached nothing
+    // reports zero undecided headings and reads exactly like a conforming corpus.
+    expect(tally.undecided).toBe(0);
+    expect(tally.decided).toBeGreaterThan(0);
+    expect(tally.any).toBe(tally.decided + tally.undecided);
+  });
+
+  it("a prose-only `### Steps` section is NOT a WP-11 finding — the INTENDED verdict — and moves the undecided tally by one", () => {
+    const base = baseline();
+    const doc = workflowWithExtraSection([
+      "### Steps",
+      "",
+      "Prose sits here where a step bullet belongs.",
+    ]);
+    // DERIVED, never transcribed: a line number typed here would keep "passing" against a different
+    // line the moment the fixture's preamble changed length.
+    const at = doc.split("\n").indexOf("### Steps") + 1;
+    const { status, stdout } = runGate(
+      makeMirror("gops-lex-wr05-h3-", { plant: { [REL]: doc } }),
+    );
+    const tally = stepsTally(stdout);
+
+    // THE INTENDED VERDICT, ASSERTED RATHER THAN INFERRED FROM AN ABSENCE. Under the narrowing the
+    // profile now publishes, a `### Steps` section is outside WP-11. The set equality that produces
+    // the WP-11 refusal must therefore NOT fire, and the decided-level tally must not move either.
+    expect(stdout).not.toContain(
+      "the step-heading file set and the bullet-bearing file set are not equal",
+    );
+    expect(tally.decided).toBe(base.tally.decided);
+
+    // AND THE FLOOR MOVED. Exactly one, named by file and line, with the remedy in the refusal.
+    expect(tally.undecided).toBe(base.tally.undecided + 1);
+    expect(tally.any).toBe(tally.decided + tally.undecided);
+    expect(status).toBe(1);
+    expect(stdout).toContain("sit at an ATX level WP-11 does not decide");
+    expect(stdout).toContain(`${REL}:${at} \`### Steps\``);
+    expect(stdout).toContain("Deleting this tally is not the remedy");
+  });
+
+  it("a prose-only `# Steps` section is covered by the SAME tally — the floor is every undecided spelling, not the one the review named", () => {
+    const base = baseline();
+    const doc = workflowWithExtraSection([
+      "# Steps",
+      "",
+      "Prose sits here where a step bullet belongs.",
+    ]);
+    const at = doc.split("\n").indexOf("# Steps") + 1;
+    const { status, stdout } = runGate(
+      makeMirror("gops-lex-wr05-h1-", { plant: { [REL]: doc } }),
+    );
+    const tally = stepsTally(stdout);
+
+    expect(stdout).not.toContain(
+      "the step-heading file set and the bullet-bearing file set are not equal",
+    );
+    expect(tally.decided).toBe(base.tally.decided);
+    expect(tally.undecided).toBe(base.tally.undecided + 1);
+    expect(tally.any).toBe(tally.decided + tally.undecided);
+    expect(status).toBe(1);
+    expect(stdout).toContain(`${REL}:${at} \`# Steps\``);
+  });
+
+  it("a `## Steps` heading written INSIDE A FENCE moves NEITHER tally — the tripwire cannot be tripped by documentation", () => {
+    const base = baseline();
+    const { status, stdout } = runGate(
+      makeMirror("gops-lex-wr05-fence-", {
+        plant: {
+          [REL]: workflowWithExtraSection([
+            "A workflow may quote the shape it governs:",
+            "",
+            "```md",
+            "## Steps",
+            "",
+            "Prose sits here where a step bullet belongs.",
+            "",
+            "### Steps",
+            "```",
+          ]),
+        },
+      }),
+    );
+    const tally = stepsTally(stdout);
+
+    // BOTH sides. The fenced `## Steps` must not inflate the DECIDED tally either — a quoted
+    // example that enters the decided count would shift the WP-11 denominator, which is the same
+    // boundary every fence-aware predicate in this module is defending.
+    expect(tally.decided).toBe(base.tally.decided);
+    expect(tally.undecided).toBe(base.tally.undecided);
+    expect(tally.any).toBe(base.tally.any);
+    expect(status).toBe(0);
+  });
+
+  it("the LIVE tree's undecided tally is pinned two-sided, and the pin is proven able to red by a planted member", () => {
+    // THE LIVE SIDE. The mirrors above prove the mechanism; this proves the SHIPPED corpus is
+    // actually inside it. Read-only: the gate is spawned against the repo root and writes nothing.
+    const live = runGate(ROOT);
+    const tally = stepsTally(live.stdout);
+    expect(live.status).toBe(0);
+    expect(tally.undecided).toBe(0);
+    // The other side of the pin, derived in this same run rather than transcribed: a floor over a
+    // scan that saw no steps heading at all is not a floor.
+    expect(tally.decided).toBeGreaterThan(0);
+    expect(tally.any).toBe(tally.decided + tally.undecided);
+
+    // AND THE PIN CAN RED. The planted member is the falsifiability proof: without it, a pin whose
+    // value is zero is indistinguishable from a pin measuring nothing.
+    const planted = runGate(
+      makeMirror("gops-lex-wr05-plant-", {
+        plant: {
+          [REL]: workflowWithExtraSection([
+            "### Steps",
+            "",
+            "Prose sits here where a step bullet belongs.",
+          ]),
+        },
+      }),
+    );
+    expect(planted.status).toBe(1);
+    expect(stepsTally(planted.stdout).undecided).toBe(1);
+  });
+
+  it("the tally's three premises are PROVEN able to refuse — a premise never seen failing is a comment", () => {
+    // A SCRATCH BUILD OF THE SHIPPED SOURCE, not a git checkout (the 29-27 precedent): keying a
+    // permanent case to a commit rots the first time the file moves, while reverting one expression
+    // in a copy of the committed `.js` reconstructs the broken build from whatever ships today.
+    //
+    // WHY THESE THREE ARE WORTH THE SPAWNS. Every one of them is unreachable on a healthy tree, so
+    // each is an assertion that has never been observed doing anything. That is precisely the shape
+    // this phase keeps finding: a check whose value is a constant, indistinguishable from a check
+    // that cannot fire.
+    const mirror = makeMirror("gops-lex-wr05-premise-");
+
+    // THE CONTROL. Without it, three reds prove only that a scratch build reds.
+    const control = runScratchGate(mirror, ANY_LEVEL_DECL, ANY_LEVEL_DECL);
+    expect(control.status, "an unmutated scratch build must still pass").toBe(0);
+
+    // PREMISE 1 and 3: the `any` pattern stops matching. The reconciliation sum breaks, and the
+    // vacuity floor refuses to publish a level floor over a walk that reached nothing.
+    const anyZero = runScratchGate(
+      mirror,
+      ANY_LEVEL_DECL,
+      ANY_LEVEL_DECL.replace(" Steps", " StepsZZZ"),
+    );
+    expect(anyZero.status).toBe(1);
+    expect(anyZero.stdout).toContain("the steps-heading tallies do not reconcile");
+    expect(anyZero.stdout).toContain("saw ZERO steps headings across");
+
+    // PREMISE 2: the section-extent loop's own anchor count stops advancing, so the two independent
+    // walks disagree. This is the check that makes the tally an audit of the loop beside it rather
+    // than a restatement of it.
+    const anchors = runScratchGate(
+      mirror,
+      "stepsHeadings.anchors += 1;",
+      "stepsHeadings.anchors += 0;",
+    );
+    expect(anchors.status).toBe(1);
+    expect(anchors.stdout).toContain("the section-extent loop anchored on 0");
   });
 });
 

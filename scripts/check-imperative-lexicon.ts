@@ -560,6 +560,29 @@ const HEADING_LINE = /^#{1,6} /;
  */
 const STEPS_HEADING = /^## Steps\s*$/;
 /**
+ * THE RESIDUAL'S MECHANISM: a steps heading at ANY ATX level, and one at an UNDECIDED level (WR-05).
+ *
+ * `STEPS_HEADING` above decides level two and nothing else, and `WP-11`/`WP-04` are published at
+ * exactly that spelling. Every other spelling is a DISCLOSED FLOOR: a `# Steps` or `### Steps`
+ * section carrying no list item is outside the rule, and no gate decides it. A floor recorded only
+ * in prose becomes live the first time somebody writes the shape, silently — which is how every
+ * latent fail-open this phase found got here. These two patterns turn it into a number that moves.
+ *
+ * THREE PATTERNS, NOT TWO AND A SUBTRACTION. `ANY` and `UNDECIDED` are written independently and the
+ * decided level is counted by `STEPS_HEADING` itself, so `any === decided + undecided` is a PREMISE
+ * the gate asserts rather than a definition it cannot violate. A tally derived by subtracting one
+ * count from another can only ever agree with itself, and agreement with itself is what the round-3
+ * review charged against the last tally that audited its own loop.
+ *
+ * DISCLOSED LIMIT, STATED RATHER THAN REPAIRED. Both patterns see ATX headings at column zero only,
+ * because that is the disclosed floor of every heading consumer in this tree (V-29-26-01). A setext
+ * steps heading — `Steps` followed by a `---` rule — is invisible here exactly as it is to
+ * `unfencedHeadingIndex`, `sectionEndIndex` and the caveman reader. Repairing it is a tree-wide
+ * change to the shared locator and is deliberately not attempted from this module.
+ */
+const STEPS_HEADING_ANY_LEVEL = /^#{1,6} Steps\s*$/;
+const STEPS_HEADING_UNDECIDED_LEVEL = /^(?:#|#{3,6}) Steps\s*$/;
+/**
  * An ordered or unordered list marker at the head of a line, AT ANY INDENTATION DEPTH.
  *
  * THE LEADING BOUND IS A POSITION QUESTION, NOT A CHARACTER QUESTION (CR-03). A bound of three
@@ -848,9 +871,68 @@ interface CorpusElements {
    * indistinguishable, in the gate's published output, from one in which every file still does.
    */
   readonly stepsFiles: string[];
+  /**
+   * THE DISCLOSED FLOOR, AS A NUMBER (WR-05). Steps headings across the governed corpus counted by
+   * ATX level: `any` at any level, `decided` at the level `WP-11` and `WP-04` are published for, and
+   * `undecided` at every other level. `undecidedSites` names them so the refusal can point at a file
+   * and a line rather than at a total.
+   *
+   * The three counts come from three independent patterns over the same fence-aware lines, so
+   * `any === decided + undecided` is a premise the gate checks. `anchors` is the count the
+   * `stepsRanges` loop below produced from `STEPS_HEADING`, kept separately so the tally and the
+   * loop it sits beside can be made to disagree.
+   */
+  readonly stepsHeadings: {
+    readonly any: number;
+    readonly decided: number;
+    readonly undecided: number;
+    readonly anchors: number;
+    readonly undecidedSites: string[];
+  };
   /** Files actually opened. Short of the corpus size means a member could not be read. */
   readonly filesRead: number;
   readonly unreadable: string[];
+}
+
+/**
+ * The per-document steps-heading tally, DERIVED SEPARATELY FROM THE LOOP IT AUDITS.
+ *
+ * This walks the lines a second time on purpose. Folding it into the `stepsRanges` loop would make
+ * the decided count a restatement of that loop's own control flow — the tally would report what the
+ * loop did rather than what the document says, and the two could never disagree. Independence is the
+ * whole value: the gate asserts the two agree, and an assertion between a value and itself is not
+ * one.
+ *
+ * Fence-awareness comes from the shared toggle. A `## Steps` written inside a fenced example in a
+ * workflow is documentation about the kit and must not enter either tally, exactly as it must not
+ * open a governed step section.
+ */
+function tallyStepsHeadings(
+  file: string,
+  text: string,
+  flags: readonly boolean[],
+): {
+  any: number;
+  decided: number;
+  undecided: number;
+  undecidedSites: string[];
+} {
+  let any = 0;
+  let decided = 0;
+  let undecided = 0;
+  const undecidedSites: string[] = [];
+  const lines = text.split("\n");
+  for (let i = 0; i < lines.length; i++) {
+    if (flags[i]) continue;
+    const raw = lines[i];
+    if (STEPS_HEADING_ANY_LEVEL.test(raw)) any += 1;
+    if (STEPS_HEADING.test(raw)) decided += 1;
+    if (STEPS_HEADING_UNDECIDED_LEVEL.test(raw)) {
+      undecided += 1;
+      undecidedSites.push(`${file}:${i + 1} \`${raw.trim()}\``);
+    }
+  }
+  return { any, decided, undecided, undecidedSites };
 }
 
 function deriveElements(corpus: readonly string[]): CorpusElements {
@@ -858,6 +940,13 @@ function deriveElements(corpus: readonly string[]): CorpusElements {
   const sentences: Sentence[] = [];
   const unreadable: string[] = [];
   const stepsFiles: string[] = [];
+  const stepsHeadings = {
+    any: 0,
+    decided: 0,
+    undecided: 0,
+    anchors: 0,
+    undecidedSites: [] as string[],
+  };
   let filesRead = 0;
 
   for (const file of corpus) {
@@ -872,6 +961,13 @@ function deriveElements(corpus: readonly string[]): CorpusElements {
 
     const flags = fencedLineFlags(text);
     const lines = text.split("\n");
+
+    // THE RESIDUAL'S TALLY, taken over the same fence-aware lines by its own three patterns.
+    const tally = tallyStepsHeadings(file, text, flags);
+    stepsHeadings.any += tally.any;
+    stepsHeadings.decided += tally.decided;
+    stepsHeadings.undecided += tally.undecided;
+    stepsHeadings.undecidedSites.push(...tally.undecidedSites);
 
     // THE STEP SECTION'S EXTENT, COMPUTED PER FILE BY THE SHARED AUTHORITY (plan 29-24, WR-08).
     //
@@ -888,6 +984,7 @@ function deriveElements(corpus: readonly string[]): CorpusElements {
       if (flags[i]) continue; // a `## Steps` line QUOTED in an example opens nothing
       if (!STEPS_HEADING.test(lines[i])) continue;
       stepsRanges.push({ from: i + 1, to: sectionEndIndex(text, i + 1, 2) });
+      stepsHeadings.anchors += 1;
       // The independent denominator's source (WR-02). A file is recorded as carrying a step section
       // the moment its HEADING is seen — whether or not a single list item ever follows. WP-11 is
       // the published rule that makes the follow-up mandatory; this scan stays independent of the
@@ -938,7 +1035,14 @@ function deriveElements(corpus: readonly string[]): CorpusElements {
       }
     }
   }
-  return { bullets, sentences, stepsFiles, filesRead, unreadable };
+  return {
+    bullets,
+    sentences,
+    stepsFiles,
+    stepsHeadings,
+    filesRead,
+    unreadable,
+  };
 }
 
 /**
@@ -1411,6 +1515,69 @@ function runAll(): void {
       `${APPROVED_STEP_VERBS.length} approved verb(s); ${TECHNICAL_NAMES.length} derived Technical ` +
       `Name(s)\n`,
   );
+  // ── THE DISCLOSED FLOOR, PUBLISHED AS TWO NUMBERS AND PINNED ON BOTH SIDES (WR-05) ──────────
+  //
+  // `WP-11` and `WP-04` are published for the level-two spelling and decided for that spelling
+  // only. Every other ATX level is a floor, and a floor nothing measures becomes live in silence.
+  // The size of the floor is printed here so a reader can check it by hand rather than take a
+  // sentence for it.
+  const heads = elements.stepsHeadings;
+  process.stdout.write(
+    `        steps headings by ATX level: ${heads.decided} at the decided \`## Steps\` level, ` +
+      `${heads.undecided} at any other level, ${heads.any} seen in total — ` +
+      `${STEPS_SECTION_RULE_ID} and WP-04 are decided for the level-two spelling only, and the ` +
+      `undecided count is refused above zero rather than recorded\n`,
+  );
+  // PREMISE, ASSERTED RATHER THAN ASSUMED. Three independent patterns produced these three numbers.
+  // If they do not reconcile, one pattern is admitting a line another rejects and NEITHER tally can
+  // be trusted — including the zero that would otherwise read as a clean floor.
+  if (heads.any !== heads.decided + heads.undecided) {
+    fail(
+      `the steps-heading tallies do not reconcile: ${heads.any} at any level, but ` +
+        `${heads.decided} decided + ${heads.undecided} undecided = ` +
+        `${heads.decided + heads.undecided}. The three patterns are written independently so this ` +
+        `sum is a CHECK and not a definition — a mismatch means one pattern admits a line another ` +
+        `refuses, and the undecided count cannot be read as a floor until they agree`,
+    );
+  }
+  // THE SECOND INDEPENDENT PATH. `anchors` is what the section-extent loop counted from
+  // `STEPS_HEADING`; `decided` is what the tally counted from the same pattern over its own walk.
+  // They are produced by two loops that share no state, so a scan that silently stopped visiting
+  // lines shows up here as a disagreement rather than as a smaller, plausible-looking number.
+  if (heads.decided !== heads.anchors) {
+    fail(
+      `the steps-heading tally counted ${heads.decided} decided-level heading(s) while the ` +
+        `section-extent loop anchored on ${heads.anchors} — two independent walks over the same ` +
+        `lines disagree, so neither the WP-11 denominator nor the level floor below covers what it ` +
+        `claims`,
+    );
+  }
+  // THE VACUITY SIDE OF THE TWO-SIDED PIN. A zero undecided count is only meaningful if the scan
+  // saw any steps heading at all: a walk that reached nothing reports zero undecided and reads
+  // exactly like a clean corpus. This is the same element-level floor vacuity.ts applies to the
+  // findings below, applied to the tally that has no findings to be short of.
+  if (heads.any === 0) {
+    fail(
+      `the steps-heading tally saw ZERO steps headings across ${corpus.length} governed ` +
+        `document(s) — refusing to publish a level floor over a walk that reached nothing, because ` +
+        `an empty scan reports the same zero undecided headings as a conforming corpus`,
+    );
+  }
+  // THE REFUSAL SIDE. The remedy is named, so the next reader cannot clear the red by deleting the
+  // tally: the choice is to spell the heading at the decided level, or to widen the rule AND the
+  // shared locator's level parameter together in a plan with its own corpus measurement.
+  if (heads.undecided > 0) {
+    fail(
+      `${heads.undecided} steps heading(s) in the governed corpus sit at an ATX level ` +
+        `${STEPS_SECTION_RULE_ID} does not decide — the profile publishes the rule for \`## Steps\` ` +
+        `and this gate anchors on that spelling, so the section(s) below are governed by nothing. ` +
+        `Spell the heading at the decided level, or widen the published rule AND the shared section ` +
+        `locator's level parameter together in a plan of their own — a widened anchor alone makes ` +
+        `the heading level and the SECTION-END level disagree, and a sub-level steps section would ` +
+        `silently adopt its siblings' bullets. Deleting this tally is not the remedy` +
+        `\n        ${heads.undecidedSites.join("\n        ")}`,
+    );
+  }
   // THE SET-LEVEL REFUSAL, ABOVE THE REPORT. The count below says HOW MANY files disagreed; this
   // says WHICH, in both directions, because those two directions are different defects.
   const stepSetRefusal = setRefusal(
