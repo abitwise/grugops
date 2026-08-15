@@ -899,13 +899,26 @@ describe("D-64 cutover: the spawn verdict is rendered by the canonical admission
     // scan now happens INSIDE the authority; this module tests no heading pattern at a bounding
     // position at all.
     //
-    // THE NEW SYMBOL IS DECLARATIVE, like the three already here: an array of integer indices. What
-    // an index MEANS for the claim registry — which lines are a claim block, where its verbatim text
-    // begins — is still decided in this module.
+    // (Plan 29-28, 29-REVIEW § WR-02) AND `FENCE_DELIMITER_LINE`, the fifth symbol. `parseClaimBlock`
+    // answered "is this line a fence delimiter" with a private `trim()` equality while `tableUnder`,
+    // thirty lines up in the SAME module, answered it through `fencedLineFlags` and the shared
+    // class. The two disagreed on two axes — a delimiter carrying an info string, and a
+    // three-space-indented delimiter — and the disagreement was live on correct bytes in BOTH
+    // directions. The private equality is DELETED rather than corrected in place.
+    //
+    // TAKING THE CLASS DIRECTLY IS THE RIGHT COMPOSITION, not a shortfall of the unification: "is
+    // this line a delimiter" is a different question from "which lines are inside a fence", and
+    // folding the first into the second would be a new defect. `voice-model.ts` takes the class for
+    // the same reason and its header records the argument.
+    //
+    // BOTH NEW SYMBOLS ARE DECLARATIVE, like the three already here: a delimiter CLASS and an array
+    // of integer indices. What either MEANS for the claim registry — which lines are a claim block,
+    // where its verbatim text begins — is still decided in that module.
     expect(
       importedSymbols("audit-model.ts", "frontmatter"),
-      "audit-model.ts must take the per-line fence PROJECTION and the shared section LOCATOR — never a heading-equality or section-end predicate of its own, which is the fourth-grammar shape this round deletes",
+      "audit-model.ts must take the delimiter CLASS, the per-line fence PROJECTION and the shared section LOCATOR — never a heading-equality, section-end or fence-delimiter predicate of its own, which is the fourth-grammar shape this round deletes",
     ).toEqual([
+      "FENCE_DELIMITER_LINE",
       "fencedLineFlags",
       "sectionEndIndex",
       "unfencedHeadingIndex",

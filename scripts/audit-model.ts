@@ -54,6 +54,7 @@ import { join } from "node:path";
 // (Plan 29-25, LANG-07) The ONE section-locator authority. This module answers no section-extent
 // question of its own — see `tableUnder`, the fifth and last locator of the class to be reconciled.
 import {
+  FENCE_DELIMITER_LINE,
   fencedLineFlags,
   sectionEndIndex,
   unfencedHeadingIndex,
@@ -1007,10 +1008,45 @@ function parseClaimBlock(lines: readonly string[], start: number, end: number): 
   // The fence bounds the metadata region: a line inside the fence that happens to look like a
   // metadata entry is CLAIM TEXT, not metadata, and reading it as metadata would let a claim's own
   // words rewrite its kind or its status.
+  //
+  // ── (Plan 29-28, 29-REVIEW § WR-02) ONE DELIMITER CLASS, IN A MODULE THAT CARRIED TWO. ────────
+  //
+  // This scan used to answer "is this line a fence delimiter" with a private `trim() === ` equality
+  // while `tableUnder`, thirty lines up in this same file, answered it through `fencedLineFlags` and
+  // `FENCE_DELIMITER_LINE`. Fence-aware in one half and privately spelled in the other is not one
+  // authority — 29-20's own words about `voice-model.ts`, landing again here.
+  //
+  // TESTING THE SHARED CLASS DIRECTLY IS THE RIGHT COMPOSITION, AND THE PRECEDENT IS RECORDED IN
+  // scripts/voice-model.ts's header: "is this line a fence delimiter" is a DIFFERENT question from
+  // "which lines are inside a fence", and folding the first into the second would be a new defect
+  // rather than a further unification. That argument is cited, not re-derived.
+  //
+  // THIS IS A BEHAVIOUR CHANGE, IN BOTH DIRECTIONS, STATED HERE RATHER THAN LEFT TO BE
+  // REDISCOVERED — leaving it undisclosed is the class this round is closing:
+  //
+  //   * an INFO-STRING delimiter (```` ```text ````) now opens a block where it previously did not;
+  //   * an INDENTED delimiter (three spaces) no longer opens one where it previously did.
+  //
+  // MEASURED EFFECT ON THE LIVE REGISTRY: ZERO. 42 claims before and after, and 0 claims whose
+  // verbatim text changed — re-derived in the session that made this change, not transcribed.
+  //
+  // WHAT THIS DOES NOT CLOSE, BY NAME AND WITH ITS LIVE COUNT, so a green run cannot imply
+  // otherwise. Both are pre-existing TREE-WIDE residuals of the fence GRAMMAR rather than of this
+  // module, and this task deliberately does not repair them — it makes this module AGREE with the
+  // rest of the tree about them, which is what LANG-07 asks for:
+  //
+  //   * V-29-26-03 — the shared class is a PREFIX test, so a four-backtick run carrying a
+  //     three-backtick line inside it still truncates a block. Live count: 0 four-or-more-backtick
+  //     delimiter lines across the derived safety-surface corpus.
+  //   * V-29-26-04 — the shared class is COLUMN-ZERO anchored, so an indented delimiter is
+  //     invisible to every consumer alike. Live count: 4 indented delimiters, all in README.md.
+  //
+  // Both counts are re-measured in this plan's SUMMARY by a pasted command rather than transcribed
+  // from the round that first recorded them.
   let fenceStart = -1;
   let fenceEnd = -1;
   for (let i = start + 1; i < end; i++) {
-    if (lines[i].trim() === "```") {
+    if (FENCE_DELIMITER_LINE.test(lines[i])) {
       if (fenceStart === -1) fenceStart = i;
       else {
         fenceEnd = i;

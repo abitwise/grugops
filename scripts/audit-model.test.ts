@@ -61,7 +61,11 @@ import {
 // The ONE fence authority, imported so this file's expected sets are derived through the SAME
 // per-line projection the parser composes — never through a second toggle written here, which would
 // make this harness a fourth fence state machine and defeat its own premise.
-import { fencedLineFlags } from "./frontmatter.js";
+import {
+  FENCE_DELIMITER_LINE,
+  fencedLineFlags,
+  unfencedMatchIndices,
+} from "./frontmatter.js";
 // CR-02's consequence is asserted at its POINT OF EFFECT. A parser-only assertion would leave the
 // exclusion list — the thing LANG-02 actually consults — untested.
 import { safetySurfaceUnion } from "./generate-safety-surface.js";
@@ -1319,5 +1323,163 @@ describe("audit-model: readRegistry's block boundaries come from the ONE authori
     const expected = lines.filter((l, i) => !flags[i] && /^###\s+\S+\s*$/.test(l)).length;
     expect(expected, "the live registry must carry claim blocks at all").toBeGreaterThan(0);
     expect(readRegistry(REPO_ROOT).claims.length).toBe(expected);
+  });
+});
+
+// ---------------------------------------------------------------------------------------------
+// (Plan 29-28, 29-REVIEW § WR-02) ONE FENCE RECOGNISER IN THE MODULE THAT CARRIED TWO.
+//
+// `tableUnder` decided "is this line fenced" through `fencedLineFlags` and `FENCE_DELIMITER_LINE`.
+// Thirty lines further down in the SAME module, `parseClaimBlock` decided the same question with a
+// private `trim()` equality. They disagreed on two axes, and the disagreement was live on correct
+// bytes in both directions:
+//
+//   axis                                    | shared class   | the deleted private equality
+//   ----------------------------------------|----------------|------------------------------
+//   a delimiter carrying an INFO STRING      | IS a delimiter | is NOT — the block was refused
+//   a delimiter INDENTED three spaces        | is NOT         | IS — a false delimiter accepted
+//
+// Both directions are asserted for each axis. A one-sided case is how this phase's last three
+// half-fixes survived a whole gap-closure round.
+// ---------------------------------------------------------------------------------------------
+describe("audit-model: parseClaimBlock answers the fence question ONCE (plan 29-28, WR-02)", () => {
+  /** A claim block whose fence delimiters are spelled by the caller. */
+  function blockWithDelimiters(open: string, close: string, text = "A claim sentence."): string {
+    return [
+      "# Phase 28 Claim Registry",
+      "",
+      "## Claims",
+      "",
+      "### C-28-001",
+      "",
+      "- file: README.md",
+      "- line: 4",
+      "- kind: architecture",
+      "- depends_on: autonomy",
+      "- status: true",
+      "",
+      open,
+      text,
+      close,
+      "",
+    ].join("\n");
+  }
+
+  const INFO = `${FENCE}text`;
+  const INDENTED = `   ${FENCE}`;
+
+  it("AXIS 1 — a delimiter carrying an INFO STRING opens the block, as it does for every other consumer", () => {
+    // RED AGAINST THE PRE-FIX BUILD: refused "carries no fenced block" on correct bytes, because
+    // `"```text".trim() !== "```"`.
+    const reg = readRegistry(writeRegistryFixture(blockWithDelimiters(INFO, FENCE)));
+    expect(reg.claims.map((c) => c.id)).toEqual(["C-28-001"]);
+    expect(reg.claims[0].verbatim).toBe("A claim sentence.");
+    // AND THE TWO ANSWERS CONVERGE, asserted rather than assumed: the shared class agrees this line
+    // is a delimiter, which is the whole point of deleting the second opinion.
+    expect(FENCE_DELIMITER_LINE.test(INFO)).toBe(true);
+  });
+
+  it("AXIS 1, the other side — a plain column-zero delimiter still opens the block", () => {
+    // Without this half, a recogniser that accepted EVERY line would satisfy the case above.
+    const reg = readRegistry(writeRegistryFixture(blockWithDelimiters(FENCE, FENCE)));
+    expect(reg.claims[0].verbatim).toBe("A claim sentence.");
+  });
+
+  it("AXIS 2 — a THREE-SPACE-INDENTED delimiter is not a delimiter here either, matching the rest of the tree", () => {
+    // RED AGAINST THE PRE-FIX BUILD: `"   ```".trim() === "```"`, so this parser accepted a
+    // delimiter that `fencedLineFlags` — in the same module, thirty lines up — says is not one.
+    // The refusal is by NAME; the block genuinely carries no fenced block under the shared class.
+    expect(() => readRegistry(writeRegistryFixture(blockWithDelimiters(INDENTED, INDENTED)))).toThrow(
+      /carries no fenced block/,
+    );
+    expect(FENCE_DELIMITER_LINE.test(INDENTED)).toBe(false);
+  });
+
+  it("AXIS 2, the other side — the SAME delimiters de-indented parse, so the refusal is about the indent", () => {
+    // A refusal that fired for some other reason would prove nothing about the indentation axis.
+    const reg = readRegistry(
+      writeRegistryFixture(blockWithDelimiters(INDENTED.trim(), INDENTED.trim())),
+    );
+    expect(reg.claims[0].verbatim).toBe("A claim sentence.");
+  });
+
+  it("the two answers AGREE on every axis, derived rather than tabulated by hand", () => {
+    // The disagreement was a PROPERTY of two expressions, so it is closed by comparing the two
+    // expressions — not by listing outcomes. The deleted equality is reconstructed here as the ONLY
+    // place it still exists, and swept against the shared class over spellings that include both
+    // recorded disagreement axes.
+    const deletedPrivateEquality = (l: string): boolean => l.trim() === FENCE;
+    const spellings = [
+      FENCE,
+      INFO,
+      INDENTED,
+      `${FENCE}   `,
+      ` ${FENCE}`,
+      `${FENCE}${FENCE.slice(0, 1)}`,
+      "not a fence",
+      "",
+      `text${FENCE}`,
+    ];
+    const disagreements = spellings.filter(
+      (s) => FENCE_DELIMITER_LINE.test(s) !== deletedPrivateEquality(s),
+    );
+    // NON-VACUITY: the sweep must really have contained the disagreement, or "the module now agrees
+    // with itself" would be a claim over an empty set.
+    expect(
+      disagreements.length,
+      "the sweep must reproduce the recorded disagreement, or it proves nothing",
+    ).toBeGreaterThan(0);
+    expect(disagreements).toContain(INFO);
+    expect(disagreements).toContain(INDENTED);
+    // And the SHIPPED parser follows the shared class on each of them — proven by parse outcome,
+    // not by re-testing the regex.
+    for (const s of spellings) {
+      const doc = blockWithDelimiters(s, s);
+      const parses = ((): boolean => {
+        try {
+          readRegistry(writeRegistryFixture(doc));
+          return true;
+        } catch {
+          return false;
+        }
+      })();
+      // A line that is a delimiter under the shared class opens AND closes the block, so the block
+      // parses; a line that is not leaves the block with no fenced block at all.
+      expect(parses, `delimiter spelling ${JSON.stringify(s)}`).toBe(
+        FENCE_DELIMITER_LINE.test(s),
+      );
+    }
+  });
+
+  it("the LIVE registry verbatim texts equal an INDEPENDENTLY derived extraction, byte for byte", () => {
+    // The extraction feeds the byte-exact D-16 verbatim-at-anchor comparison, so a silent change
+    // to it is the failure the claim-anchor gate exists to catch. A hardcoded digest would catch
+    // that drift — and would ALSO red the day a claim is legitimately added, which makes it a
+    // false-red generator rather than a pin. What is asserted instead is an equality against a
+    // SECOND extraction, written here from the same two authorities the parser composes: it stays
+    // true as the registry grows, and still reds the moment the parser stops agreeing with the
+    // shared delimiter class. The pre/post digest equality this plan requires is a ONE-OFF
+    // measurement over one commit pair, and lives in the SUMMARY where a one-off measurement
+    // belongs.
+    const text = readFileSync(join(REPO_ROOT, REGISTRY_PATH), "utf8");
+    const lines = text.split("\n");
+    const starts = unfencedMatchIndices(text, /^###\s+(\S+)\s*$/);
+    expect(starts.length, "the live registry must carry claim blocks at all").toBeGreaterThan(0);
+    const derived: string[] = [];
+    for (let n = 0; n < starts.length; n++) {
+      const from = starts[n];
+      const to = n + 1 < starts.length ? starts[n + 1] : lines.length;
+      const delims: number[] = [];
+      for (let i = from + 1; i < to; i++) {
+        if (FENCE_DELIMITER_LINE.test(lines[i])) delims.push(i);
+        if (delims.length === 2) break;
+      }
+      expect(delims, `claim block at line ${from + 1} must carry a delimiter pair`).toHaveLength(2);
+      derived.push(lines.slice(delims[0] + 1, delims[1]).join("\n"));
+    }
+    expect(readRegistry(REPO_ROOT).claims.map((c) => c.verbatim)).toEqual(derived);
+    // NON-VACUITY: an all-empty extraction compares equal to an all-empty derivation.
+    expect(derived.length).toBe(starts.length);
+    expect(derived.every((v) => v.length > 0)).toBe(true);
   });
 });
