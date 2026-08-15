@@ -711,8 +711,23 @@ describe("D-64 cutover: the spawn verdict is rendered by the canonical admission
     // bytes this module already answers for, and the fix is to consume the existing toggle rather
     // than to widen a second one: the fence-machine set in scripts/frontmatter.test.ts is STILL
     // THREE, and this list grows only by a consumer that takes a declaration.
+    //
+    // (Plan 29-18, WR-06) AND FROM SEVEN TO EIGHT — the LAST of the three locators the review named.
+    // `check-banned-claims.ts` imports exactly ONE symbol, `fencedLineFlags`, and no verdict-bearing
+    // symbol at all. Its `locateExemptRegion` decided BOTH of its section-extent questions with a
+    // bare heading scan, so a `## ` line inside a fenced example truncated the one named exemption
+    // region and a fenced QUOTATION of the region heading counted toward the exactly-one assertion.
+    // Note the direction, because it is NOT the same as its sibling two entries above: a truncated
+    // EXEMPTION region is fail-CLOSED (more of the document gets checked), while 29-16's truncated
+    // FROZEN region was fail-OPEN (less gets protected). Both are one grammar too many; only one of
+    // them was dangerous. The fence-machine set in scripts/frontmatter.test.ts is STILL THREE.
+    //
+    // THIS PIN MOVING IS THE PIN WORKING. It went red the moment the eighth consumer landed, which is
+    // exactly what a two-sided list is for — the number is moved here to acknowledge a change that was
+    // made on purpose, never to clear a failure.
     expect(consumers).toEqual([
       "canonical-frontmatter.ts",
+      "check-banned-claims.ts",
       "check-diff-disposition.ts",
       "check-foundation-guards.ts",
       "check-imperative-lexicon.ts",
@@ -731,6 +746,10 @@ describe("D-64 cutover: the spawn verdict is rendered by the canonical admission
     expect(
       importedSymbols("check-diff-disposition.ts", "frontmatter"),
       "check-diff-disposition.ts must take the per-line fence PROJECTION and nothing else — importing the delimiter CLASS alongside it would let this gate re-decide what a fence is, which is the forked machine the toggle exists to prevent",
+    ).toEqual(["fencedLineFlags"]);
+    expect(
+      importedSymbols("check-banned-claims.ts", "frontmatter"),
+      "check-banned-claims.ts must take the per-line fence PROJECTION and nothing else — importing the delimiter CLASS alongside it would let this gate re-decide what a fence is, which is the forked machine the toggle exists to prevent",
     ).toEqual(["fencedLineFlags"]);
   });
 
