@@ -480,7 +480,7 @@ Plans:
   4. The rebuilt voice guard **fails RED on all 17 current caveman blocks** as acceptance evidence before the rewrite lands, measures against a committed lexicon rather than sentence shape, and publishes a number with a denominator. (LANG-06)
   5. `## One job`, the caveman block, and `## Responsibilities` each say a thing once; `guard_imperative_lexicon` (with its sibling `guard_sentence_form`) and the rebuilt voice guard read the fence through **one** parser, never two grammars over the same bytes; and byte ceilings are re-baselined exactly once at end of phase with every file ≤ its previous value and the delta recorded — never raised mid-phase. (LANG-05, LANG-07, LANG-08)
 
-**Plans**: 19/19 plans executed — 16/19 executed; gap-closure round 1 adds 6 (29-14 .. 29-19, waves 13-18)
+**Plans**: 26 plans — 19/19 executed; gap-closure round 2 adds 7 (29-20 .. 29-26, waves 19-25)
 
 Plans:
 **Wave 1**
@@ -558,7 +558,37 @@ Plans:
 
 - [x] 29-19-PLAN.md — LANG-08 closed by the recorded human override the verification report drafted; no ceiling table edit, and the declined ratchet-down alternative stays documented and unapplied
 
-**Out of scope for gap-closure round 1** *(named so a green run cannot read as a closed review)*: WR-01
+**Gap-closure round 2** *(round-2 verification held at 4/8; each round-1 fix either uncovered a sibling defect in the same enforcement surface or was itself incomplete, and LANG-07 regressed on evidence round 1 did not have)*
+
+**Wave 19** *(blocked on Wave 18 completion)*
+
+- [ ] 29-20-PLAN.md — TRACER: one section-locator authority (`unfencedHeadingIndex` / `sectionEndIndex`) exported from `frontmatter.ts` and wired end-to-end through `voice-model.ts` to the gate, closing CR-02's level-one bypass and WR-01's fence-blind anchor scan, with the authority's scope pinned on six axes
+
+**Wave 20** *(blocked on Wave 19 completion)*
+
+- [ ] 29-21-PLAN.md — CR-01: the unpinned watched corpus closed at BOTH ends — set equality in `check-audit-register.ts` between flagged rows and the derived kit, plus a consumer-side minimum derived from a source the register cannot move
+
+**Wave 21** *(blocked on Wave 20 completion)*
+
+- [ ] 29-22-PLAN.md — `check-diff-disposition.ts` adopts the authority and WR-03's fourth locator (fail-open, missed by round 1) is bounded and fence-aware, with the site set derived rather than hand-listed, plus IN-01 and IN-02
+
+**Wave 22** *(blocked on Wave 21 completion)*
+
+- [ ] 29-23-PLAN.md — `check-banned-claims.ts` adopts the authority; WR-02's header corrected to the direction the code takes, the exemption's reach published and pinned two-sided, and the paired plant's missing negative half
+
+**Wave 23** *(blocked on Wave 22 completion)*
+
+- [ ] 29-24-PLAN.md — `check-imperative-lexicon.ts` adopts the authority; WR-04 settled at a blocking human decision (retire Residual 1 and publish the rule, or keep it), WR-09 half two fixed and half one recorded as Residual 4 with a concrete conflict, plus WR-07
+
+**Wave 24** *(blocked on Wave 23 completion)*
+
+- [ ] 29-25-PLAN.md — the harness tells the truth: WR-05, WR-06 and IN-03 closed, their shared class closed by a derived tripwire, and LANG-07 turned into a two-sided, falsifiable, non-vacuous tree-wide derivation of the predicate's single owner
+
+**Wave 25** *(blocked on Wave 24 completion)*
+
+- [ ] 29-26-PLAN.md — adversarial closure: a parser oracle over the unified authority across a derived, counted axis cross-product, independent re-reproduction of every original recipe plus variants invented at execution, a re-runnable audit transcript, and a blocking human decision on the residual set
+
+**Round-2 findings disposition** *(the full register lives in `29-20-PLAN.md`; every one of the round's 14 findings is planned, and the seven round-1 carry-overs below are deferred with a written reason rather than dropped)*: WR-01
 (voice-guard line numbers reported from the filtered remainder), WR-03 (three near-identical directory
 walks), WR-04 (generated-file exclusion pinned by cardinality only), WR-07 (positive-literal extractor
 scraping source by first occurrence, and its identity-keyed cache), WR-08 (two remaining path-literal
