@@ -480,7 +480,7 @@ Plans:
   4. The rebuilt voice guard **fails RED on all 17 current caveman blocks** as acceptance evidence before the rewrite lands, measures against a committed lexicon rather than sentence shape, and publishes a number with a denominator. (LANG-06)
   5. `## One job`, the caveman block, and `## Responsibilities` each say a thing once; `guard_imperative_lexicon` (with its sibling `guard_sentence_form`) and the rebuilt voice guard read the fence through **one** parser, never two grammars over the same bytes; and byte ceilings are re-baselined exactly once at end of phase with every file ≤ its previous value and the delta recorded — never raised mid-phase. (LANG-05, LANG-07, LANG-08)
 
-**Plans**: 27/32 plans executed (19/19 initial; gap-closure round 2 added 7, 29-20 .. 29-26, waves 19-25); **gap-closure round 3 adds 6 (29-27 .. 29-32, waves 26-29), 1 of 6 executed — 29-27 landed 2026-08-16; LANG-06's closure awaits round-4 re-verification and the requirement is deliberately NOT re-marked complete here**. Round 3 closes the four truths that failed re-verification on 2026-08-15 (LANG-03, LANG-04, LANG-06, LANG-07) — one of them a fail-open REGRESSION created by round 2's own structural fix.
+**Plans**: 28/32 plans executed (19/19 initial; gap-closure round 2 added 7, 29-20 .. 29-26, waves 19-25); **gap-closure round 3 adds 6 (29-27 .. 29-32, waves 26-29), 1 of 6 executed — 29-27 landed 2026-08-16; LANG-06's closure awaits round-4 re-verification and the requirement is deliberately NOT re-marked complete here**. Round 3 closes the four truths that failed re-verification on 2026-08-15 (LANG-03, LANG-04, LANG-06, LANG-07) — one of them a fail-open REGRESSION created by round 2's own structural fix.
 
 Plans:
 **Wave 1**
@@ -594,7 +594,7 @@ Plans:
 
 **Wave 27** *(blocked on Wave 26 completion)*
 
-- [ ] 29-28-PLAN.md — LANG-03 + LANG-07's SHARED ROOT, planned once: `unfencedMatchIndices` added to the authority, `readRegistry`'s heading index and block end both taken from it so a fenced example is documentation again, `parseClaimBlock`'s private fence recogniser deleted, and the new scope hazard the fix creates (an unterminated fence silently shortening the claim list) closed by a named refusal in the same plan that opens it
+- [x] 29-28-PLAN.md — LANG-03 + LANG-07's SHARED ROOT, planned once: `unfencedMatchIndices` added to the authority, `readRegistry`'s heading index and block end both taken from it so a fenced example is documentation again, `parseClaimBlock`'s private fence recogniser deleted, and the new scope hazard the fix creates (an unterminated fence silently shortening the claim list) closed by a named refusal in the same plan that opens it
 - [ ] 29-31-PLAN.md — LANG-04: WP-11 narrowed to the spelling the gate decides, with the reason and the residual recorded in the profile; the WHOLE rule pinned in both artifacts and proven falsifiable on all four drift routes; and the remaining floor given a two-sided tripwire instead of a promise
 
 **Wave 28** *(blocked on Wave 27 completion)*
@@ -765,7 +765,7 @@ Plans:
 | 26. Dogfood, Dual-Path Oracle & A3/DOG-02 Retirement | v2.0 | 6/6 | Complete | 2026-07-24 |
 | 27. Spawn Correctness & Kit-Set Authority | v2.1 | 66/66 | Complete    | 2026-08-11 |
 | 28. Kit Consistency Audit | v2.1 | 8/8 | Complete    | 2026-08-12 |
-| 29. Controlled Language & Voice Guard Rebuild | v2.1 | 27/32 | In Progress|  |
+| 29. Controlled Language & Voice Guard Rebuild | v2.1 | 28/32 | In Progress|  |
 | 30. Per-Checkpoint Autonomy Matrix | v2.1 | 0/TBD | Not started | - |
 | 31. Autonomous Manual Testing | v2.1 | 0/TBD | Not started | - |
 | 32. Board Projector & CLI Dashboard | v2.1 | 0/TBD | Not started | - |
