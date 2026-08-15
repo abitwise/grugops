@@ -368,8 +368,15 @@ const SAME_LEVEL_HEADING = /^## /;
  * Locate the region and report every way it can be wrong. Returns the region when exactly one
  * well-formed region exists, and null otherwise — the caller then scans the file WHOLE, which is
  * the fail-closed direction: a broken exemption means more is checked, never less.
+ *
+ * EXPORTED (plan 29-18) so a case can assert the region's EXTENT as a NUMBER. No exit code can
+ * express "the region ends AFTER the fenced heading rather than at it": a gate that exempts the
+ * right lines and a gate that exempts too few both report through findings, and the two are
+ * distinguishable only by where the region actually stops. This is the same disclosure phase 27
+ * made for the grant-occurrence balance arm — a predicate a case cannot reach is a predicate
+ * nothing pins — and it widens no behaviour: the function is unchanged apart from the keyword.
  */
-function locateExemptRegion(lines) {
+export function locateExemptRegion(lines) {
     const headings = [];
     for (let i = 0; i < lines.length; i++) {
         if (lines[i] === BANNED_CLAIM_EXEMPT_REGION.heading)

@@ -39,9 +39,18 @@
 
 import { describe, it, expect, afterAll } from "vitest";
 import { spawnSync } from "node:child_process";
-import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from "node:fs";
+import {
+  mkdtempSync,
+  mkdirSync,
+  writeFileSync,
+  rmSync,
+  readFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+// The ONE fence toggle. The WR-06 premise case below asks the live exemption document the same
+// question the gate now asks it, through the same authority — never a second recogniser typed here.
+import { fencedLineFlags } from "./frontmatter.js";
 import {
   BANNED_CLAIM_LITERALS,
   BANNED_CLAIM_SCAN_COUNT,
@@ -52,6 +61,7 @@ import {
   CONFORMANCE_VERB_MARKERS,
   bannedClaimScan,
   bannedClaimScanOverlap,
+  locateExemptRegion,
 } from "./check-banned-claims.js";
 
 const ROOT = join(import.meta.dirname, "..");
@@ -469,6 +479,158 @@ describe("check-banned-claims — the one named exemption region", () => {
     expect(stdout).toContain("does not exist at");
     // A stack trace is not a verdict.
     expect(stdout).not.toMatch(/at Object\.|node:internal|ENOENT/);
+  });
+});
+
+// ── WR-06 (plan 29-18): the region is located through the ONE fence authority ─────────────────
+//
+// `locateExemptRegion` decided two section-extent questions with a bare heading scan — "which line
+// carries the region's own heading" and "which same-level heading ends it" — while
+// `fencedLineFlags` in scripts/frontmatter.ts is the single fence toggle this tree already owns and
+// two sibling gates already consume for exactly this question.
+//
+// THE FAILURE DIRECTION HERE IS SAFE, AND THAT IS WHY THE ASYMMETRY IS STATED RATHER THAN ASSUMED.
+// A truncated exemption region means MORE of the document is checked, and a fenced quotation of the
+// heading turns a correct document into a named refusal. Both are fail-CLOSED. Its sibling in
+// check-diff-disposition — a truncated FROZEN region — is fail-OPEN, because less gets protected.
+// Both are one grammar too many; only one of them is dangerous, and a reader meeting these two
+// fixes together needs to know which is which rather than inferring they are interchangeable.
+//
+// Every fixture below is a PLANTED input. The live tree carries zero fenced heading lines in the
+// exemption document, which is asserted below as a measurement rather than assumed — that premise
+// case is what makes "the live verdict did not move" evidence instead of a coincidence.
+
+/** A fenced markdown example whose body is `lines`. Built once so no fixture retypes a delimiter. */
+const fencedExample = (...lines: string[]): string[] => [
+  "```markdown",
+  ...lines,
+  "```",
+];
+
+/** The region body carrying a fenced `## ` line, with a banned claim BELOW it and still inside. */
+const REGION_WITH_FENCED_HEADING = [
+  "This profile is an independent work.",
+  "",
+  ...fencedExample("## A heading quoted inside an example"),
+  "",
+  NAME_PLANT,
+].join("\n");
+
+/** A preamble quoting the region's OWN heading inside a fence. */
+const PREAMBLE_QUOTING_THE_HEADING = [
+  "Every rule carries a stable id.",
+  "",
+  ...fencedExample(BANNED_CLAIM_EXEMPT_REGION.heading),
+].join("\n");
+
+describe("check-banned-claims — the exemption region reads the one fence authority (WR-06)", () => {
+  it("a fenced `## ` line inside the region does NOT truncate it — the claim below it stays exempt", () => {
+    const { status, stdout } = runGate(
+      makeMirror("gops-banned-fenced-in-region-", {
+        profile: { regionBody: REGION_WITH_FENCED_HEADING },
+      }),
+    );
+    expect(stdout).toContain("ALL CHECKS PASSED");
+    expect(status).toBe(0);
+    expect(findingCount(stdout)).toBe(0);
+  });
+
+  it("PAIRED PLANT: the region's REAL end still ends it — the same claim below that end IS reported", () => {
+    // Exit 0 on the case above would also be produced by a region that swallowed the whole file, so
+    // on its own it proves the wrong thing. The pair is what discriminates: the identical sentence
+    // sits below the FENCED heading (exempt) and below the REAL one (reported), in one document, and
+    // the gate must report exactly the second. The expected line number is DERIVED from the fixture
+    // rather than typed, so an edit to the document cannot leave a stale literal passing.
+    const doc = profileDoc({
+      regionBody: REGION_WITH_FENCED_HEADING,
+      trailingSection: true,
+    }).replace("Text below the region is scanned again.", NAME_PLANT);
+    const docLines = doc.split("\n");
+    const fencedHeadingLine =
+      docLines.indexOf("## A heading quoted inside an example") + 1;
+    const realEndLine =
+      docLines.indexOf("## After the region") + 1;
+    const exemptClaimLine = docLines.indexOf(NAME_PLANT) + 1;
+    const reportedClaimLine = docLines.lastIndexOf(NAME_PLANT) + 1;
+    // The fixture's own premise: the two plants are DISTINCT lines, the exempt one sits below the
+    // fenced heading, and the reported one sits below the region's real end. A fixture that collapsed
+    // them would make this case pass while testing nothing.
+    expect(exemptClaimLine).toBeGreaterThan(fencedHeadingLine);
+    expect(reportedClaimLine).toBeGreaterThan(realEndLine);
+    expect(reportedClaimLine).not.toBe(exemptClaimLine);
+
+    const { status, stdout } = runGate(
+      makeMirror("gops-banned-fenced-paired-", { plant: { [PROFILE]: doc } }),
+    );
+    expect(status).toBe(1);
+    expect(findingCount(stdout)).toBe(1);
+    expect(stdout).toContain(`${PROFILE}:${reportedClaimLine}:`);
+    expect(stdout).not.toContain(`${PROFILE}:${exemptClaimLine}:`);
+  });
+
+  it("a FENCED occurrence of the region heading does not count toward the exactly-one assertion", () => {
+    const { status, stdout } = runGate(
+      makeMirror("gops-banned-fenced-heading-", {
+        profile: { preamble: PREAMBLE_QUOTING_THE_HEADING },
+      }),
+    );
+    expect(stdout).toContain("ALL CHECKS PASSED");
+    expect(status).toBe(0);
+    expect(stdout).not.toContain("occurs 2 time(s)");
+  });
+
+  it("TWO UNFENCED occurrences still produce the existing two-sided refusal, wording unchanged", () => {
+    // The bound on the fix above, from the other side: making a FENCED heading invisible must not
+    // make a real second heading invisible too. The refusal's wording is asserted verbatim, because
+    // the fix must not reword a refusal this gate already gets right.
+    const { status, stdout } = runGate(
+      makeMirror("gops-banned-two-unfenced-", { profile: { headings: 2 } }),
+    );
+    expect(status).toBe(1);
+    expect(stdout).toContain("occurs 2 time(s)");
+    expect(stdout).toContain("DUPLICATED region widens");
+  });
+
+  it("the region's EXTENT is a number: it ends AFTER a fenced heading, not at it", () => {
+    // No exit code can express this. A gate that exempts the right lines and one that exempts too
+    // few both speak through findings; they differ only in where the region stops.
+    const lines = profileDoc({
+      regionBody: REGION_WITH_FENCED_HEADING,
+      trailingSection: true,
+    }).split("\n");
+    const fencedHeadingAt = lines.indexOf("## A heading quoted inside an example");
+    const realEndAt = lines.indexOf("## After the region");
+    expect(fencedHeadingAt).toBeGreaterThan(-1);
+    expect(realEndAt).toBeGreaterThan(fencedHeadingAt);
+
+    const region = locateExemptRegion(lines);
+    expect(region).not.toBeNull();
+    expect(region?.headingAt).toBe(
+      lines.indexOf(BANNED_CLAIM_EXEMPT_REGION.heading),
+    );
+    expect(region?.endBefore).toBeGreaterThan(fencedHeadingAt);
+    expect(region?.endBefore).toBe(realEndAt);
+  });
+
+  it("PREMISE: the live exemption document carries ZERO fenced heading lines, so the verdict claim is measured", () => {
+    // The behaviour-preserving claim for the live tree rests on this and nothing else. Derived here
+    // from the same authority the gate now consults, at run time, rather than quoted from a plan.
+    const text = readFileSync(join(ROOT, PROFILE), "utf8");
+    const lines = text.split("\n");
+    const flags = fencedLineFlags(text);
+    const fencedSameLevelHeadings = lines.filter(
+      (l, i) => flags[i] && /^## /.test(l),
+    ).length;
+    const fencedRegionHeadings = lines.filter(
+      (l, i) => flags[i] && l === BANNED_CLAIM_EXEMPT_REGION.heading,
+    ).length;
+    expect(fencedSameLevelHeadings).toBe(0);
+    expect(fencedRegionHeadings).toBe(0);
+    // Non-vacuity on the premise itself: the document really does carry fences and really does carry
+    // the region heading, so the two zeros above are a measurement over a live input rather than the
+    // answer a missing file would give.
+    expect(flags.filter(Boolean).length).toBeGreaterThan(0);
+    expect(lines).toContain(BANNED_CLAIM_EXEMPT_REGION.heading);
   });
 });
 
