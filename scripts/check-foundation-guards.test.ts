@@ -702,8 +702,18 @@ describe("D-64 cutover: the spawn verdict is rendered by the canonical admission
     // positions, and `stripFencedBlocks` drops lines. The answer was to make the existing machine
     // answer per line and express the strip through it, NOT to write a fourth machine in the
     // consumer: the derived fence-machine set in scripts/frontmatter.test.ts is still THREE.
+    //
+    // (Plan 29-16, WR-06) AND FROM SIX TO SEVEN, IN THE SAME DIRECTION AND FOR THE SAME REASON.
+    // `check-diff-disposition.ts` imports exactly ONE symbol — `fencedLineFlags`, the same per-line
+    // projection — and no verdict-bearing symbol at all. Its `locateSection` decided where a frozen
+    // section ENDS with a bare `## ` scan, so a heading quoted inside a fenced example truncated the
+    // region and everything below it silently fell out of the freeze. That is a SECOND GRAMMAR over
+    // bytes this module already answers for, and the fix is to consume the existing toggle rather
+    // than to widen a second one: the fence-machine set in scripts/frontmatter.test.ts is STILL
+    // THREE, and this list grows only by a consumer that takes a declaration.
     expect(consumers).toEqual([
       "canonical-frontmatter.ts",
+      "check-diff-disposition.ts",
       "check-foundation-guards.ts",
       "check-imperative-lexicon.ts",
       "generate-role-adapters.ts",
@@ -717,6 +727,10 @@ describe("D-64 cutover: the spawn verdict is rendered by the canonical admission
     expect(
       importedSymbols("check-imperative-lexicon.ts", "frontmatter"),
       "check-imperative-lexicon.ts must take the per-line fence PROJECTION and nothing else — a second symbol is a step back toward a forked machine",
+    ).toEqual(["fencedLineFlags"]);
+    expect(
+      importedSymbols("check-diff-disposition.ts", "frontmatter"),
+      "check-diff-disposition.ts must take the per-line fence PROJECTION and nothing else — importing the delimiter CLASS alongside it would let this gate re-decide what a fence is, which is the forked machine the toggle exists to prevent",
     ).toEqual(["fencedLineFlags"]);
   });
 
