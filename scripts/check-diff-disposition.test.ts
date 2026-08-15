@@ -76,6 +76,15 @@ import { normalizeSentence, segmentClauses } from "./voice-model.js";
 import { fencedLineFlags } from "./frontmatter.js";
 
 const REPO = join(import.meta.dirname, "..");
+
+/**
+ * The gate's published measurement label, spelled ONCE here.
+ *
+ * It names the ELEMENT the denominator counts (WR-02), so six cases assert it and a seventh spelling
+ * would be the set-literal drift class in miniature — rename the element grain and five cases keep
+ * asserting a line the gate no longer prints, while the sixth is the only one that reds.
+ */
+const MEASURED_LABEL = "diff disposition — changed watched file(s)";
 const GATE_JS = join(REPO, "scripts", "check-diff-disposition.js");
 
 const REGISTER_REL = "docs/audit/28-disposition-register.md";
@@ -689,7 +698,7 @@ describe("check-diff-disposition — the frozen set refuses", () => {
     expect(status).toBe(0);
     expect(stdout).toContain("ALL CHECKS PASSED");
     // The fold ran over real elements — this is not the clean-tree arm.
-    expect(stdout).toContain("diff disposition: 0 findings over");
+    expect(stdout).toContain(`${MEASURED_LABEL}: 0 findings over`);
     expect(stdout).not.toContain("a clean tree, not a vacuous pass");
   });
 
@@ -842,7 +851,7 @@ describe("check-diff-disposition — a companion cell is filled in ONE canonical
     expect(status).toBe(0);
     expect(stdout).toContain("ALL CHECKS PASSED");
     // The fold ran over real elements — this is not the clean-tree arm.
-    expect(stdout).toContain("diff disposition: 0 findings over");
+    expect(stdout).toContain(`${MEASURED_LABEL}: 0 findings over`);
     expect(stdout).not.toContain("a clean tree, not a vacuous pass");
   });
 
@@ -1151,7 +1160,7 @@ describe("check-diff-disposition — one fence authority bounds a frozen section
     const { status, stdout } = runGate(root);
     expect(status).toBe(0);
     expect(stdout).toContain("ALL CHECKS PASSED");
-    expect(stdout).toContain("diff disposition: 0 findings over");
+    expect(stdout).toContain(`${MEASURED_LABEL}: 0 findings over`);
   });
 
   it("every frozen region on the LIVE corpus ends at an UNFENCED heading or at EOF", () => {
@@ -1265,7 +1274,7 @@ describe("check-diff-disposition — the companion edit is per carrier (CR-02)",
     expect(status).toBe(0);
     expect(stdout).toContain("ALL CHECKS PASSED");
     // Non-vacuity: the fold ran over real elements, so this is not the clean-tree arm.
-    expect(stdout).toContain("diff disposition: 0 findings over");
+    expect(stdout).toContain(`${MEASURED_LABEL}: 0 findings over`);
     expect(stdout).not.toContain("a clean tree, not a vacuous pass");
   });
 
@@ -1319,7 +1328,7 @@ describe("check-diff-disposition — the companion edit is per carrier (CR-02)",
     const { status, stdout } = runGate(root);
     expect(status).toBe(0);
     expect(stdout).toContain("ALL CHECKS PASSED");
-    expect(stdout).toContain("diff disposition: 0 findings over");
+    expect(stdout).toContain(`${MEASURED_LABEL}: 0 findings over`);
   });
 
   it("an unattributable frozen clause is reported rather than satisfied", () => {
@@ -1425,7 +1434,7 @@ describe("check-diff-disposition — the companion edit is per carrier (CR-02)",
     expect(stdout).toContain("the uncommitted working tree IS a carrier");
     expect(stdout).toContain("ALL CHECKS PASSED");
     expect(status).toBe(0);
-    expect(stdout).toContain("diff disposition: 0 findings over");
+    expect(stdout).toContain(`${MEASURED_LABEL}: 0 findings over`);
   });
 
   it("REDs an uncommitted frozen reword whose companion was touched in an earlier COMMIT", () => {
@@ -1480,6 +1489,101 @@ describe("check-diff-disposition — the disposition requirement", () => {
     const { status, stdout } = runGate(root);
     expect(status).toBe(1);
     expect(stdout).toContain(`${DISPOSITION_DIR}/ derives ZERO disposition file(s)`);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────────────────────
+// WR-02 — the published denominator is derived by a code path the loop does not own.
+//
+// THE DEFECT THESE CASES REPRODUCE. `visited` was incremented once per element of `changed.clauses`
+// and `expected` was `changed.clauses.length` — the length of the very array the loop walks. The two
+// sides read the same object, so vacuity.ts's short-scan-set branch could not fire under any input.
+// A vacuity floor catches an EMPTY denominator and never a SILENTLY SHORT one.
+//
+// The element is now the changed watched FILE: `expected` from the per-file diff's emptiness test,
+// `visited` from the clause derivation. A file that changed and yielded nothing moves them apart.
+// ─────────────────────────────────────────────────────────────────────────────────────────────
+
+/** The role under test with `text` appended inside `## Notes` — outside every frozen section. */
+const roleWithNote = (text: string): string =>
+  ROLE_BODY(REAL_ROLES[0]).replace(
+    "This section sits outside every frozen structural section in the corpus.",
+    `This section sits outside every frozen structural section in the corpus.\n${text}`,
+  );
+
+/** A sentence long enough to be a clause, so the file that carries it is clause-bearing. */
+const CLAUSE_BEARING_NOTE =
+  "Every reviewer reads the acceptance scenario before the diff.";
+/** Two words — below CLAUSE_MIN_WORDS, so the file that carries it changes and yields nothing. */
+const CLAUSELESS_NOTE = "ok fine";
+
+describe("check-diff-disposition — the denominator can fail and names its members (WR-02)", () => {
+  it("REDs a changed watched file that yielded NO clause, naming the file", () => {
+    const { root } = makeMirror("gops-diffdisp-shortdenominator-", {
+      plant: {
+        // Changes and yields a clause — so the total-zero-clause refusal above does NOT fire and
+        // this case is isolated to the per-file denominator.
+        [WORKFLOW_UNDER_TEST]: workflowWithNote(CLAUSE_BEARING_NOTE),
+        // Changes and yields NOTHING. Invisible under the old tautological denominator.
+        [ROLE_UNDER_TEST]: roleWithNote(CLAUSELESS_NOTE),
+      },
+      dispositions: {
+        "29-05.md": dispositionFile([
+          row(WORKFLOW_UNDER_TEST, "—", CLAUSE_BEARING_NOTE, "—"),
+        ]),
+      },
+    });
+    const { status, stdout } = runGate(root);
+    expect(stdout).not.toContain("ALL CHECKS PASSED");
+    expect(status).toBe(1);
+    // NAMED, not merely counted: the offending file appears by path.
+    expect(stdout).toContain("changed-file set and the clause-bearing-file set are not equal");
+    expect(stdout).toContain("yielded NO clause");
+    expect(stdout).toContain(ROLE_UNDER_TEST);
+    // And the measurement itself is short, at the FILE grain.
+    expect(stdout).toContain(`${MEASURED_LABEL}: visited 1 of 2 elements`);
+    // The premise that keeps this from being the total-zero-clause refusal in disguise.
+    expect(stdout).not.toContain("ZERO changed clause(s) were derived");
+    // The detail line still reports the clause and disposition-row counts, unchanged.
+    expect(stdout).toContain("2 watched file(s) changed since");
+    expect(stdout).toContain("1 changed clause(s) derived");
+  });
+
+  it("the unmodified control passes with a FILE-grain element count", () => {
+    // Without this the case above proves nothing: a denominator that always fails is not a check.
+    // The only difference is the clauseless plant, so the pair isolates exactly one variable.
+    const { root } = makeMirror("gops-diffdisp-shortdenominator-ok-", {
+      plant: { [WORKFLOW_UNDER_TEST]: workflowWithNote(CLAUSE_BEARING_NOTE) },
+      dispositions: {
+        "29-05.md": dispositionFile([
+          row(WORKFLOW_UNDER_TEST, "—", CLAUSE_BEARING_NOTE, "—"),
+        ]),
+      },
+    });
+    const { status, stdout } = runGate(root);
+    expect(status).toBe(0);
+    expect(stdout).toContain("ALL CHECKS PASSED");
+    // ONE file, ONE clause — so the element grain is only legible because the label says so.
+    expect(stdout).toContain(`${MEASURED_LABEL}: 0 findings over 1/1 elements`);
+    expect(stdout).toContain("1 watched file(s) changed since");
+    expect(stdout).not.toContain("are not equal");
+  });
+
+  it("the denominator's two sides are derived by DIFFERENT paths, not from one object", () => {
+    // The property the fix is about, asserted directly rather than only through its symptom. If the
+    // two sides came from one array they could never disagree, which is what made the old floor
+    // documentation of intent instead of a check.
+    const src = readFileSync(
+      join(REPO, "scripts", "check-diff-disposition.ts"),
+      "utf8",
+    );
+    const executable = src
+      .split("\n")
+      .filter((l) => !/^\s*(\/\/|\*|\/\*)/.test(l))
+      .join("\n");
+    expect(executable).not.toContain("expected: changed.clauses.length");
+    expect(executable).toContain("expected: changed.changedFiles.length");
+    expect(executable).toContain("visited: clauseBearingFiles.size");
   });
 });
 

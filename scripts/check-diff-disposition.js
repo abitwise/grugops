@@ -1150,6 +1150,19 @@ function main() {
         verdict();
         return;
     }
+    // THIS REFUSAL AND THE CLEAN-TREE ARM ABOVE STAY DISTINCT FROM WR-02's DENOMINATOR, AND FROM EACH
+    // OTHER. Three different questions, and folding any two of them would lose the answer to one:
+    //
+    //   clean-tree arm  — nothing changed, so there were no elements to visit.
+    //   this refusal    — files changed and the derivation produced NOTHING from any of them, so the
+    //                     gate's entire left-hand side is empty and every change below it is admitted.
+    //   the set refusal — files changed and the derivation produced something from SOME of them, so
+    //     + denominator   the check is narrower than the diff. This is the case the old tautological
+    //                     denominator could never see, and it is invisible to both floors above.
+    //
+    // Collapsing the first two would make a clean tree indistinguishable from a check that did not
+    // run. Collapsing either into the third would hide a total derivation failure behind a partial
+    // one. So all three are separate, and each says which of the three it is.
     if (changed.clauses.length === 0) {
         fail(`${changed.changedFiles.length} watched file(s) differ from the recorded base ` +
             `(${changed.changedFiles.join(", ")}) and ZERO changed clause(s) were derived from that ` +
@@ -1194,9 +1207,7 @@ function main() {
         return;
     }
     const findings = [];
-    let visited = 0;
     for (const c of changed.clauses) {
-        visited += 1;
         // Positional freeze: the structural sections are frozen by WHERE they are, which is what
         // catches a REWORD. The reworded text is new, so it matches no frozen clause; its position
         // inside `## Hard limits` is what does not move.
@@ -1288,10 +1299,71 @@ function main() {
         }
     }
     findings.sort(byPosition);
+    // ─────────────────────────────────────────────────────────────────────────────────────────────
+    // WR-02 — THE PUBLISHED DENOMINATOR IS DERIVED BY A DIFFERENT CODE PATH FROM THE ONE THAT COUNTS.
+    //
+    // THE DEFECT THIS REPLACES. `visited` was incremented once per element of `changed.clauses` and
+    // `expected` was `changed.clauses.length` — the length of the very array the loop walks. Both
+    // sides read the same object, so `visited !== expected` could not fire under any input, and
+    // vacuity.ts's second branch — the one that exists to make a SILENTLY NARROWED check visible —
+    // was dead code with a comment explaining what it was for. scripts/kit-model.ts states the rule
+    // this violated in its own words: once both sides read the same object, the comparison compares an
+    // object with itself and is documentation of intent, never a check.
+    //
+    // A VACUITY FLOOR CATCHES AN EMPTY DENOMINATOR AND NEVER A SILENTLY SHORT ONE. That is the whole
+    // failure: the element count must be derived INDEPENDENTLY of the loop that consumes it.
+    //
+    // So the ELEMENT is now the changed watched FILE, not the clause:
+    //   `expected` — the number of watched files the PER-FILE DIFF reported as changed. That comes
+    //                from `changedClausesIn`'s emptiness test on each file's own `git diff` output.
+    //   `visited`  — the number of watched files that yielded AT LEAST ONE clause, derived from the
+    //                clause set by hunk parsing plus segmentation.
+    // Different paths, so a file that changed and produced nothing now moves the two apart. Under the
+    // old shape that file was invisible: its clauses simply were not there to count, and the check
+    // covered less than it claimed while printing a clean measurement.
+    //
+    // The clause and disposition-row counts are UNCHANGED and still published on the detail line
+    // directly below, so nothing a reader relied on is taken away — the element grain moves, the
+    // reported facts do not.
+    // ─────────────────────────────────────────────────────────────────────────────────────────────
+    const clauseBearingFiles = new Set(changed.clauses.map((c) => c.file));
+    const changedFileSet = new Set(changed.changedFiles);
+    // THE SET-LEVEL REFUSAL, ABOVE THE MEASURED REPORT AND NAMING ITS MEMBERS.
+    //
+    // A denominator mismatch that names no member is a number a reader cannot act on. This repository
+    // has already recorded that a per-part assertion is SET EQUALITY against each lister rather than a
+    // count, so BOTH directions are reported: a file that changed and yielded nothing is a narrowed
+    // check, and a file that yielded a clause without appearing in the changed set would mean the two
+    // derivations have come apart — structurally impossible today, and asserted anyway, because the
+    // direction that cannot happen is the one nobody notices when a refactor makes it possible.
+    const changedWithNoClause = changed.changedFiles
+        .filter((f) => !clauseBearingFiles.has(f))
+        .sort();
+    const clauseWithoutChange = [...clauseBearingFiles]
+        .filter((f) => !changedFileSet.has(f))
+        .sort();
+    if (changedWithNoClause.length > 0 || clauseWithoutChange.length > 0) {
+        fail(`the changed-file set and the clause-bearing-file set are not equal, so the element count ` +
+            `published below covers less than the diff does` +
+            (changedWithNoClause.length === 0
+                ? ""
+                : `\n        changed since ${base.slice(0, 7)} and yielded NO clause ` +
+                    `(${changedWithNoClause.length}): ${changedWithNoClause.join(", ")} — each of these ` +
+                    `files differs from the base and contributed nothing to the left-hand side, so no ` +
+                    `verdict was reported over its change`) +
+            (clauseWithoutChange.length === 0
+                ? ""
+                : `\n        yielded a clause without appearing in the changed set ` +
+                    `(${clauseWithoutChange.length}): ${clauseWithoutChange.join(", ")} — the per-file diff ` +
+                    `and the clause derivation have come apart, which is a defect in this gate rather than ` +
+                    `in the tree it is reading`));
+    }
     const measured = {
-        label: "diff disposition",
-        visited,
-        expected: changed.clauses.length,
+        // The label names the ELEMENT, so the published line reads as a statement about files and is
+        // not mistaken for the clause count on the detail line above it.
+        label: "diff disposition — changed watched file(s)",
+        visited: clauseBearingFiles.size,
+        expected: changed.changedFiles.length,
         findings,
     };
     process.stdout.write(`        ${changed.changedFiles.length} watched file(s) changed since ${base.slice(0, 7)}; ` +
