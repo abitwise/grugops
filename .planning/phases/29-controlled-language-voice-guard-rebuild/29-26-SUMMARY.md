@@ -488,6 +488,49 @@ byte-unchanged, so T-29-26-SC's input set is empty as planned.
 
 Bare `npm test` was never run: it triggers the live claude-CLI e2e lane.
 
-## Self-Check
+### The gate transcript, after the decision record landed
 
-Appended after the artifact and commit checks below.
+```
+check-foundation-guards      -> exit=0   ALL CHECKS PASSED
+check-imperative-lexicon     -> exit=0   ALL CHECKS PASSED
+check-diff-disposition       -> exit=0   ALL CHECKS PASSED
+check-banned-claims          -> exit=0   ALL CHECKS PASSED
+check-audit-register         -> exit=0   ALL CHECKS PASSED
+check-claim-anchors          -> exit=0   ALL CHECKS PASSED
+check-public-docs-vocabulary -> exit=0   ALL CHECKS PASSED
+
+npx vitest run --exclude '**/scripts/e2e/**'
+  Test Files  52 passed (52)
+       Tests  1878 passed | 2 skipped (1880)     exit=0
+
+npm run freshness  -> exit=0   All build outputs fresh: 48 committed .js file(s) match a fresh
+                               tsc rebuild.
+npx tsc -p tsconfig.tests.json --noEmit -> exit=0
+```
+
+No disposition row is owed: this plan modified no file in the LANG-03 watched corpus, and
+`check-diff-disposition` exits 0 with the transcript in place. None was invented.
+
+**A green suite is a floor, not proof.** It was green in the session that shipped the four findings
+above, and this phase has recorded that coexistence twenty-four times.
+
+## Self-Check: PASSED
+
+Artifacts confirmed on disk:
+
+```
+FOUND: scripts/section-locator-oracle.test.ts
+FOUND: docs/audit/29-locator-unification.md
+FOUND: .planning/phases/29-controlled-language-voice-guard-rebuild/29-26-SUMMARY.md
+```
+
+Commits confirmed in `git log --oneline --all`:
+
+```
+FOUND: f4212f6   test(29-26): a parser oracle over the one section-locator authority
+FOUND: b828c1a   fix(29-26): the oracle's set key carried two NUL bytes
+FOUND: b5e00c3   docs(29-26): the locator unification as a re-runnable transcript
+FOUND: 82dd031   docs(29-26): the human reopens the round for the four surviving variants
+```
+
+`git diff --diff-filter=D HEAD~1 HEAD` is empty — the decision commit deleted no tracked file.
