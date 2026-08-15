@@ -740,17 +740,33 @@ describe("D-64 cutover: the spawn verdict is rendered by the canonical admission
       "generate-skill-twins.ts",
       "voice-model.ts",
     ]);
-    // (Plan 29-20, CR-02) AND `voice-model.ts`'s OWN SET MOVED FROM ONE SYMBOL TO TWO — in the
-    // direction D-24 wants, which is why the pin moves rather than the code. The module used to carry
-    // a PRIVATE `/^## /` section-end constant beside the imported delimiter class, and that private
-    // predicate was one of the four disagreeing section locators the round-2 review tabulated. It is
-    // DELETED, and the bound now comes from `sectionEndIndex`. The set grew because the module took
-    // MORE declarations from the authority and still renders no verdict from it: a locator returns an
-    // INDEX, and what that index means for a role file is still decided here.
+    // (Plan 29-20, CR-02 + WR-01) AND `voice-model.ts`'s OWN SET MOVED FROM ONE SYMBOL TO FOUR — in
+    // the direction D-24 wants, which is why the PIN moves rather than the code. THE PIN MOVING IS
+    // THE PIN WORKING: it went red the moment the module took more from the authority, which is
+    // exactly what a two-sided list is for.
+    //
+    // The module used to carry a PRIVATE `/^## /` section-end constant and a PRIVATE raw-line anchor
+    // regex beside the imported delimiter class. That private section-end predicate was one of the
+    // four disagreeing section locators the round-2 review tabulated, and the raw-line anchor scan was
+    // WR-01. Both are DELETED. The bound now comes from `sectionEndIndex`, the anchor's position from
+    // `unfencedHeadingIndex`, and the anchor COUNT from `fencedLineFlags` — a count is not a first
+    // index, so it takes the per-line projection rather than looping the locator, which would be a
+    // second traversal with its own termination behaviour.
+    //
+    // THE SET GREW AND THE MODULE STILL RENDERS NO VERDICT FROM THE PARSER, which is the property
+    // D-64 Part C actually asks for. Every one of the four symbols is DECLARATIVE: a delimiter class,
+    // a per-line boolean, and two integer indices. What an index MEANS for a role file — `missing`,
+    // `unterminated`, `multiple` — is still decided here, and the grant-predicate case immediately
+    // below asserts that tree-wide zero holds.
     expect(
       importedSymbols("voice-model.ts", "frontmatter"),
-      "voice-model.ts must take the delimiter CLASS and the shared section LOCATOR — never a section-end predicate of its own, which is the fourth-grammar shape this round deletes",
-    ).toEqual(["FENCE_DELIMITER_LINE", "sectionEndIndex"]);
+      "voice-model.ts must take the delimiter CLASS, the per-line PROJECTION and the shared section LOCATOR — never a section-end or anchor predicate of its own, which is the fourth-grammar shape this round deletes",
+    ).toEqual([
+      "FENCE_DELIMITER_LINE",
+      "fencedLineFlags",
+      "sectionEndIndex",
+      "unfencedHeadingIndex",
+    ]);
     expect(
       importedSymbols("check-imperative-lexicon.ts", "frontmatter"),
       "check-imperative-lexicon.ts must take the per-line fence PROJECTION and nothing else — a second symbol is a step back toward a forked machine",

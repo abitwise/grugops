@@ -287,6 +287,86 @@ describe("readCavemanFence — the section bound (plan 29-14, CR-01)", () => {
     expect(r.inside).toBe("You grug smash rock.\n### An aside\nYou club shiny rock.");
   });
 
+  // ── (Plan 29-20, closing WR-01) THE ANCHOR SCAN, MADE FENCE-AWARE. ──────────────────────────────
+  //
+  // The bound became fence-aware in Task 1 while the ANCHOR scan still tested raw lines, and a
+  // predicate that is fence-aware in one half and fence-blind in the other is not one authority — it
+  // is two, disagreeing inside a single function. Two live consequences, in OPPOSITE directions:
+  //
+  //   FALSE RED — a role file that QUOTES `## Caveman prompt` inside a fenced example counted a second
+  //   heading and was refused `multiple` on entirely correct bytes. Reproduced against the committed
+  //   build at HEAD before this plan: {"ok":false,"reason":"multiple"}.
+  //
+  //   FALSE GREEN — and this one was INTRODUCED by Task 1, found by adversarial probe rather than by
+  //   the suite, which was green throughout. An odd fence delimiter ABOVE the anchor leaves the
+  //   section's own boundary heading flagged, so the fence-aware bound ran to EOF while the
+  //   fence-blind anchor scan still found the anchor — and the reader adopted a later section's block
+  //   again, the exact CR-02 defect wearing a different hat. Making BOTH halves consult the one
+  //   toggle closes it: an anchor inside a fence donates no heading, so the document refuses
+  //   `missing`. Both directions are pinned below, because fixing one half of a predicate is the
+  //   half-fix this round exists to stop repeating.
+  it("a fenced QUOTATION of the anchor is not a second heading — no `multiple` on correct bytes", () => {
+    const r = readCavemanFence(
+      doc(
+        "# Role",
+        "## Caveman prompt",
+        FENCE,
+        "You grug smash rock and club.",
+        FENCE,
+        "",
+        "## Notes",
+        "Example of the required section:",
+        FENCE,
+        "## Caveman prompt",
+        FENCE,
+        "",
+      ),
+    );
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(r.inside).toBe("You grug smash rock and club.");
+  });
+
+  it("an anchor that is itself INSIDE a fence donates no heading — the section is `missing`", () => {
+    // The false-green half. An unclosed delimiter above the anchor flags the anchor, the boundary
+    // heading and the tail alike; the reader must refuse rather than reach past a boundary it cannot
+    // see. Fail-CLOSED, and the same direction `fencedLineFlags` already takes on an open fence.
+    const r = readCavemanFence(
+      doc(
+        FENCE,
+        "stray",
+        "## Caveman prompt",
+        "You senior prose.",
+        "## Notes",
+        FENCE,
+        "grug club rock cave",
+        FENCE,
+        "",
+      ),
+    );
+    expect(r).toEqual({ ok: false, reason: "missing" });
+  });
+
+  it("TWO real unfenced anchors are still `multiple` — the refusal itself is load-bearing", () => {
+    // The other side of the fence-awareness fix, kept explicitly: making the scan fence-aware must not
+    // weaken what it refuses. Two genuine anchors remain a refusal for both consumers.
+    const r = readCavemanFence(
+      doc(
+        "## Caveman prompt",
+        FENCE,
+        "You grug.",
+        FENCE,
+        "",
+        "## Caveman prompt",
+        FENCE,
+        "You club rock.",
+        FENCE,
+        "",
+      ),
+    );
+    expect(r).toEqual({ ok: false, reason: "multiple" });
+  });
+
   it("every live role returns ok with a non-empty interior — the false-red control", () => {
     // PASSES BEFORE AND AFTER, by construction: all 17 live roles carry both fence delimiters INSIDE
     // the caveman section, so the bound cannot move their verdict. That is exactly what makes it a

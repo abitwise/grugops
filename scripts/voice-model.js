@@ -54,13 +54,13 @@
 //
 // No I/O and no side effects: every function here is a pure transform over a passed-in string, and
 // every constant is declarative. Node stdlib is not imported at all. Zero npm dependencies.
-import { FENCE_DELIMITER_LINE, sectionEndIndex } from "./frontmatter.js";
+import { FENCE_DELIMITER_LINE, fencedLineFlags, sectionEndIndex, unfencedHeadingIndex, } from "./frontmatter.js";
 // ---------------------------------------------------------------------------
 // The fence reader (D-22, D-23)
 // ---------------------------------------------------------------------------
-// The section anchor. Line-anchored and NOT trimmed, matching the anchor both deleted machines used
-// and the heading `scripts/validate-agent-factory.ts` pins as a required role-file section — D-10's
-// rule that the anchor is not re-engineered still holds; only the state machine around it changed.
+// The section anchor. The heading `scripts/validate-agent-factory.ts` pins as a required role-file
+// section — D-10's rule that the anchor is not re-engineered still holds; only the machinery around
+// it changed.
 //
 // (Plan 29-14, CR-01) ANCHORED AT BOTH ENDS. It was `/^## Caveman prompt/` — a PREFIX match, so
 // `## Caveman prompted` was a heading hit. That had two live consequences, not one: a document
@@ -68,7 +68,15 @@ import { FENCE_DELIMITER_LINE, sectionEndIndex } from "./frontmatter.js";
 // also carried the near-miss counted TWO headings and was refused `multiple` on correct bytes. The
 // whole-line form is what makes the section anchor mean one line and not a family of them. All 17
 // live role headings are exactly this string, verified against the corpus before the tightening.
-const CAVEMAN_HEADING_LINE = /^## Caveman prompt$/;
+//
+// (Plan 29-20, WR-01) A STRING RATHER THAN A REGEX, BECAUSE THE EQUALITY IS THE AUTHORITY'S TO
+// DECIDE. It was `/^## Caveman prompt$/`. Both questions asked below — WHERE is the anchor, and HOW
+// MANY are there — must apply the SAME equality, or the module disagrees with itself about which
+// lines are anchors: a heading carrying one trailing space would be counted by one half and located
+// by the other. `unfencedHeadingIndex` normalizes with `trimEnd()`, so the count is written the same
+// way and the whole-line property above is preserved exactly — `## Caveman prompted` is still not
+// this string.
+const CAVEMAN_HEADING = "## Caveman prompt";
 /**
  * THE ONE READER (D-23). Line-oriented, single pass per phase, no regex with nested quantifiers.
  *
@@ -87,16 +95,32 @@ const CAVEMAN_HEADING_LINE = /^## Caveman prompt$/;
  */
 export function readCavemanFence(text) {
     const lines = text.split("\n");
-    const headings = [];
+    // THE ANCHOR SCAN, FENCE-AWARE (plan 29-20, WR-01). A line INSIDE a fenced example is showing
+    // documentation, not declaring a section, so it donates no heading. Testing raw lines refused a
+    // correct role file `multiple` merely for QUOTING its own required heading in an example, and — in
+    // the other direction — let a fence-blind anchor sit beside a fence-aware bound, so an anchor
+    // hidden under an open fence was still found while its section's boundary was not, and the reader
+    // reached into a later section again.
+    //
+    // THE COUNT TAKES THE PER-LINE TOGGLE DIRECTLY, AND THAT IS NOT A SECOND GRAMMAR. This scan needs a
+    // COUNT, not a first index, so it cannot be `unfencedHeadingIndex`. Wrapping that helper in a
+    // "find the next one after i" loop WOULD be a second traversal with its own termination behaviour —
+    // the shape this round is deleting — so it is deliberately not done. The module takes the toggle
+    // for the count and the shared locator for the position; both are projections of the ONE fence
+    // authority, and both apply the SAME `trimEnd()` equality to `CAVEMAN_HEADING`.
+    const flags = fencedLineFlags(text);
+    let anchors = 0;
     for (let i = 0; i < lines.length; i++) {
-        if (CAVEMAN_HEADING_LINE.test(lines[i]))
-            headings.push(i);
+        if (!flags[i] && lines[i].trimEnd() === CAVEMAN_HEADING)
+            anchors += 1;
     }
-    if (headings.length > 1)
+    // Two REAL unfenced anchors is still a refusal — load-bearing for both consumers, and untouched by
+    // the fence-awareness fix.
+    if (anchors > 1)
         return { ok: false, reason: "multiple" };
-    if (headings.length === 0)
+    const heading = unfencedHeadingIndex(text, CAVEMAN_HEADING);
+    if (heading === -1)
         return { ok: false, reason: "missing" };
-    const heading = headings[0];
     // THE BOUND, asked ONCE of the shared authority and consulted by BOTH scans (see the argument
     // above). One bound, two consumers — computing it twice, or bounding only the open scan, would
     // recreate the disagreement this module exists to delete. Level TWO: both `# ` and `## ` close the
