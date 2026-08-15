@@ -742,10 +742,23 @@ describe("D-64 cutover: the spawn verdict is rendered by the canonical admission
     // FROZEN region was fail-OPEN (less gets protected). Both are one grammar too many; only one of
     // them was dangerous. The fence-machine set in scripts/frontmatter.test.ts is STILL THREE.
     //
+    // (Plan 29-25, LANG-07) AND FROM EIGHT TO NINE — the FIFTH section locator, and the one that was
+    // logged three times and fixed by none of the three plans that logged it. `audit-model.ts` imports
+    // three symbols — `fencedLineFlags`, `sectionEndIndex`, `unfencedHeadingIndex` — and no
+    // verdict-bearing symbol at all. Its `tableUnder` answered the section-extent question THREE
+    // private ways: a `trim()` whole-line equality for the anchor, a `startsWith("## ")` break for the
+    // close, and no fence awareness at either. 29-22 logged it, 29-23 re-logged it, 29-24 named it the
+    // only known survivor of the class, and all three left it out of scope. Plan 29-25 turns LANG-07
+    // into a DERIVED tree-wide scan, and a derivation whose file set is chosen so the answer comes out
+    // right is the defect that scan exists to close — so the fifth locator is closed rather than
+    // exempted. Measured on the live register before and after: 37 Table A rows and 32 Table B
+    // findings, unchanged, with `check-audit-register`'s transcript byte-identical.
+    //
     // THIS PIN MOVING IS THE PIN WORKING. It went red the moment the eighth consumer landed, which is
     // exactly what a two-sided list is for — the number is moved here to acknowledge a change that was
     // made on purpose, never to clear a failure.
     expect(consumers).toEqual([
+      "audit-model.ts",
       "canonical-frontmatter.ts",
       "check-banned-claims.ts",
       "check-diff-disposition.ts",
@@ -867,6 +880,15 @@ describe("D-64 cutover: the spawn verdict is rendered by the canonical admission
       importedSymbols("check-banned-claims.ts", "frontmatter"),
       "check-banned-claims.ts must take the per-line fence PROJECTION and the shared section LOCATOR — never a heading-equality or section-end predicate of its own, which is the fourth-grammar shape this round deletes",
     ).toEqual(["fencedLineFlags", "sectionEndIndex", "unfencedHeadingIndex"]);
+    // (Plan 29-25, LANG-07) AND `audit-model.ts` — the FIFTH entry, and the last member of the class
+    // anywhere in the tree. Same three symbols, same reason, same direction: all three are
+    // DECLARATIVE, and what an index MEANS for the disposition register — which pipe lines are Table A
+    // rows and which are an appendix's — is still decided in this module. The owner scan added by this
+    // plan is what makes "the last member" a measurement rather than a belief.
+    expect(
+      importedSymbols("audit-model.ts", "frontmatter"),
+      "audit-model.ts must take the per-line fence PROJECTION and the shared section LOCATOR — never a heading-equality or section-end predicate of its own, which is the fourth-grammar shape this round deletes",
+    ).toEqual(["fencedLineFlags", "sectionEndIndex", "unfencedHeadingIndex"]);
   });
 
   it("NO non-test module imports a GRANT PREDICATE from ./frontmatter.js — the parser renders no spawn verdict anywhere", () => {
@@ -942,6 +964,577 @@ describe("D-64 cutover: the spawn verdict is rendered by the canonical admission
     expect(header).toContain("DEMOTED");
     expect(header).toContain("scripts/canonical-frontmatter.ts");
     expect(header).toContain("D-64");
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────────────────────
+// (PLAN 29-25, LANG-07 / D-24) LANG-07 AS A DERIVATION — ONE OWNER, TREE-WIDE AND TWO-SIDED.
+//
+// WHY THIS BLOCK EXISTS. LANG-07's central claim is "exactly one implementation in this tree answers
+// the section-extent question". Until this plan that claim was argued from READING. Round 1 verified
+// it on delimiter-sharing evidence and round 2 then tabulated FOUR disagreeing section grammars;
+// 29-22 logged a FIFTH in `audit-model.ts` that 29-23 and 29-24 re-logged and none of the three
+// fixed. A hand-read answer to "how many implementations exist" has now been wrong twice in one
+// phase, which is this repository's second named systemic failure class — a hand-maintained set
+// rotting while everything stays green. So the claim becomes a scan: derived, sorted, compared
+// two-sided, pinned by cardinality, floored for vacuity and proven falsifiable. The pattern is the
+// fence-machine scan in scripts/frontmatter.test.ts, followed rather than reinvented.
+//
+// WHAT A SECTION-EXTENT CONSTRUCT IS, AND WHY IT IS A CONJUNCTION. A module owns this predicate when
+// it carries BOTH halves:
+//
+//   a HEADING RECOGNISER — an anchored regex over leading ATX hashes followed by a literal space, or
+//   a prefix test for the same — USED on a line that TERMINATES OR BOUNDS a scan, which in this tree
+//   means a loop `break`, a `return` of an index, or an assignment to a bound.
+//
+// REQUIRING BOTH HALVES IS WHAT DOES THE WORK, and it is the half this plan was warned about. Plan
+// 29-24 rewired `check-imperative-lexicon.ts` and reported that 29-22's line-scoped classifier still
+// found ONE member there — `const HEADING_LINE = /^#{1,6} /` — because that classifier's third
+// construct cannot tell a section TERMINATOR from a heading RECOGNISER: both are spelled `/^#{n,m} /`.
+// 29-24 recorded the survivor at its declaration and directed this plan to STATE AN EXEMPTION rather
+// than widen the classifier, on the grounds that widening to reach zero would be the failure mode.
+//
+// THE EXEMPTION IS STATED, AND IT IS STRUCTURAL RATHER THAN A NAME ON A LIST. `HEADING_LINE` answers
+// "is this line a heading at all" — a third question, kept on purpose — and its only use is
+// `if (HEADING_LINE.test(raw)) continue;`. `continue` SKIPS one element; it neither terminates nor
+// bounds a scan, so the conjunction's second half excludes the line and no module is exempted BY
+// NAME anywhere in this block. That exclusion is asserted rather than assumed, twice: the case below
+// requires `check-imperative-lexicon.ts` to match the recogniser arm and NOT the terminator arm — the
+// same discrimination the fence-machine scan proves on its own file — and a second case requires
+// `continue` to be absent from the terminator constructs. A classifier narrowed until the answer
+// comes out right is the defect; a classifier whose second half is SHOWN to be load-bearing on the
+// exact module the last plan flagged is a measurement.
+//
+// THE RECOGNISER ARM IS NARROWER THAN 29-22'S THIRD CONSTRUCT, AND THE NARROWING IS MEASURED. That
+// construct is `/\^#\{?[\d,]*\}?[ \\]/`, whose trailing class admits a BACKSLASH — so it recognises
+// `/^#\d+$/` in scripts/trace-render.ts, an ISSUE-REFERENCE pattern that is not a heading in any
+// sense. 29-22's own summary records exactly this noise as its reason for staying module-scoped. The
+// arm here requires a literal SPACE after the hashes, which is what the plan's definition says and
+// what every heading recogniser in this tree actually spells. Both halves of that difference are
+// asserted below on planted inputs.
+//
+// COMMENT LINES ARE STRIPPED before classification, for the reason the fence-machine scan already
+// gives: the property is about CODE. Four modules in this tree DESCRIBE these constructs at length in
+// the comment blocks recording why they were deleted, and without the strip the answer would be the
+// prose rather than the code.
+//
+// WHAT THIS FLOOR WOULD MISS, NAMED RATHER THAN LEFT UNDISCLOSED — it is a floor against the shapes a
+// second grammar plausibly takes in this tree, not a proof that none can exist:
+//
+//   1. A recogniser built from concatenated fragments or a `new RegExp(...)` string.
+//   2. A heading test written as a slice or an index comparison — `line.slice(0, 3) === "## "`,
+//      `line.charAt(0) === "#"`, `line.indexOf("## ") === 0`.
+//   3. A bound expressed through a HELPER this scan does not read: `if (isHeading(line)) break;`
+//      names no recogniser on the line that breaks, and the recogniser resolution below follows
+//      const-bindings only, never call graphs.
+//   4. A recogniser spelling the hashes with a whitespace CLASS rather than a literal space
+//      (`/^#{1,6}\s/`), which no module in this tree uses today.
+//   5. A locator written in a language this scan does not read, or in a `.js` file the derivation
+//      does not enumerate.
+//   6. A terminator placed FURTHER from its recogniser than the block-scoped search reaches — deeper
+//      than `TERMINATOR_WINDOW` lines below it, or outside the block the recogniser line opens (a
+//      flag set inside the `if` and read after the loop). The search's bound is stated at
+//      `TERMINATOR_WINDOW` with the measurement showing this tree's answer does not depend on it.
+// ─────────────────────────────────────────────────────────────────────────────────────────────
+
+/** Comment lines blanked, POSITIONS PRESERVED so a site's line index still means something. */
+const codeLinesOfSource = (src: string): string[] =>
+  src.split("\n").map((l) => {
+    const t = l.trimStart();
+    return t.startsWith("//") || t.startsWith("/*") || t.startsWith("*") ? "" : l;
+  });
+
+const HEADING_RECOGNISER_CONSTRUCTS: readonly RegExp[] = [
+  /\/\^#(?:\{[\d,]+\})? /, // an anchored regex literal: /^# /, /^#{1,2} /, /^#{1,6} /
+  /\.startsWith\(\s*["'`]#{1,6} /, // a prefix test for the same
+];
+
+const SCAN_TERMINATOR_CONSTRUCTS: readonly RegExp[] = [
+  /\bbreak\b/, // a loop break
+  /\breturn\s+(?!true\b|false\b|null\b|undefined\b|\{|\[)\S/, // a return of an index
+  /^\s*[A-Za-z_$][\w$.]*\s*=\s*(?:i|j|k|idx|index)\b\s*[;+)]/, // a bound assigned the loop index
+];
+
+// How far below a recogniser USE the terminator may sit, and the rule that stops the search.
+//
+// THE FIRST DRAFT OF THIS SCAN WAS LINE-SCOPED AND THAT MADE IT A FALSE MEASUREMENT. It required the
+// recogniser and the terminator on ONE line, so it saw `if (line.startsWith("## ")) break;` — the
+// spelling `audit-model.ts` happened to use — and was BLIND to the identical locator written across
+// four lines as `if (line.startsWith("## ")) {` / `end = i;` / `break;` / `}`. A tree-wide scan
+// reporting "exactly one owner" while blind to the commoner spelling of the thing it counts is the
+// harness-premise failure this project has now recorded in ten instances. Caught by running the
+// classifier over a planted two-line form rather than by reading it.
+//
+// The search is BLOCK-SCOPED rather than a blind window of N lines, and that distinction is
+// load-bearing in both directions: it must reach the `break` inside the consequent the recogniser
+// line opens, and it must NOT reach a `return` that merely follows the enclosing loop. So it stops at
+// the first non-blank line indented no deeper than the recogniser line — the line that closes that
+// block. The window is a belt-and-braces upper bound; measured on this tree the derived answer is
+// identical at 4, 6 and 10, so nothing here depends on its value.
+const TERMINATOR_WINDOW = 6;
+
+/** Identifiers bound to a heading recogniser, directly or through another such identifier. */
+const HEADING_DECLARATION =
+  /(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*(?::[^=]*)?=\s*(.+)$/;
+const recogniserNamesIn = (
+  code: readonly string[],
+  rec: readonly RegExp[],
+): string[] => {
+  const names = new Set<string>();
+  // Three passes: a binding may alias a name declared below it, and this tree nests at most twice.
+  for (let pass = 0; pass < 3; pass += 1) {
+    for (const line of code) {
+      const m = HEADING_DECLARATION.exec(line.trim());
+      if (m === null) continue;
+      const rhs = m[2];
+      const direct = rec.some((r) => r.test(rhs));
+      const alias = [...names].some((n) => new RegExp(`\\b${n}\\b`).test(rhs));
+      if (direct || alias) names.add(m[1]);
+    }
+  }
+  return [...names].sort();
+};
+
+const enclosingFunctionOf = (code: readonly string[], i: number): string => {
+  for (let j = i; j >= 0; j -= 1) {
+    const m = /^(?:export\s+)?(?:async\s+)?function\s+([A-Za-z_$][\w$]*)/.exec(
+      code[j],
+    );
+    if (m !== null) return m[1];
+  }
+  return "<module scope>";
+};
+
+/**
+ * Every section-extent construct in `src`, as `function :: the line itself`.
+ *
+ * ONE classifier, called with different construct arrays — the same reason the fence-machine scan
+ * and 29-22's module-scoped scan both parameterise theirs: the falsifiability probe has to run THE
+ * RULE with a construct removed, and a second spelling of the rule would measure the copy.
+ *
+ * THE SITE STRING CARRIES NO CONSTRUCT INDEX, for the reason 29-22 recorded after its own first
+ * draft made the removal probe a FALSE probe: an index renumbers when a construct is dropped, so
+ * every site string changes and `not.toEqual(base)` passes whether or not the removed construct ever
+ * matched anything.
+ */
+const RECOGNISER_BINDING = /^(?:const|let|var)\s+[A-Za-z_$][\w$]*\s*(?::[^=]*)?=/;
+const indentOf = (line: string): number => line.length - line.trimStart().length;
+
+/** Does the recogniser use at `i` sit in a position that terminates or bounds a scan? */
+const terminatesAt = (
+  code: readonly string[],
+  i: number,
+  term: readonly RegExp[],
+): boolean => {
+  if (term.some((r) => r.test(code[i]))) return true;
+  const ind = indentOf(code[i]);
+  for (let k = i + 1; k <= Math.min(i + TERMINATOR_WINDOW, code.length - 1); k += 1) {
+    if (code[k].trim() === "") continue;
+    // The block the recogniser line opened has closed; anything below is a different question.
+    if (indentOf(code[k]) <= ind) return false;
+    if (term.some((r) => r.test(code[k]))) return true;
+  }
+  return false;
+};
+
+const sectionExtentSitesIn = (
+  src: string,
+  rec: readonly RegExp[] = HEADING_RECOGNISER_CONSTRUCTS,
+  term: readonly RegExp[] = SCAN_TERMINATOR_CONSTRUCTS,
+): string[] => {
+  const code = codeLinesOfSource(src);
+  const names = recogniserNamesIn(code, rec);
+  const usesRecogniser = (line: string): boolean =>
+    rec.some((r) => r.test(line)) ||
+    names.some((n) =>
+      new RegExp(`\\b${n}\\b\\s*\\.(?:test|exec)\\(|\\.match\\(\\s*${n}\\b`).test(
+        line,
+      ),
+    );
+  const out: string[] = [];
+  for (let i = 0; i < code.length; i += 1) {
+    // A DECLARATION is not a use. `const HEADING_AT_MOST_2 = /^#{1,2} /;` binds the predicate; where
+    // it is ASKED is the question this scan measures, and counting the binding would both
+    // double-count the real site and re-import the recogniser/terminator confusion.
+    if (RECOGNISER_BINDING.test(code[i].trim())) continue;
+    if (!usesRecogniser(code[i])) continue;
+    if (!terminatesAt(code, i, term)) continue;
+    out.push(`${enclosingFunctionOf(code, i)} :: ${code[i].trim()}`);
+  }
+  return out;
+};
+
+/**
+ * The modules that OWN the predicate, over a given module set and reader.
+ *
+ * Parameterised by the file set for the same reason the fence-machine scan parameterises its own:
+ * the member-level falsifiability probe plants a sixth locator in a temp directory and needs to run
+ * THE RULE over it. A second spelling of the rule would measure the copy.
+ */
+const sectionExtentOwnersAmong = (
+  names: readonly string[],
+  read: (n: string) => string,
+  rec: readonly RegExp[] = HEADING_RECOGNISER_CONSTRUCTS,
+  term: readonly RegExp[] = SCAN_TERMINATOR_CONSTRUCTS,
+): string[] =>
+  names.filter((n) => sectionExtentSitesIn(read(n), rec, term).length > 0).sort();
+
+/** The modules that OWN the predicate, derived over every non-test module under `scripts/`. */
+const sectionExtentOwners = (
+  rec: readonly RegExp[] = HEADING_RECOGNISER_CONSTRUCTS,
+  term: readonly RegExp[] = SCAN_TERMINATOR_CONSTRUCTS,
+): string[] =>
+  sectionExtentOwnersAmong(
+    nonTestScripts(),
+    (n) => readFileSync(join(ROOT, "scripts", n), "utf8"),
+    rec,
+    term,
+  );
+
+// The delimiter characters, spelled by CODE rather than literally, so THIS file's own source never
+// carries a recogniser-and-terminator pair and can never become a member of the set it derives. The
+// self-reference is not hypothetical: the fence-machine scan in scripts/frontmatter.test.ts had to
+// take exactly this precaution after the harness defeated its own premise three rounds running.
+const HASH = String.fromCharCode(35);
+const SLASH = String.fromCharCode(47);
+const CARET = String.fromCharCode(94);
+
+/**
+ * The section locator this plan DELETED from `audit-model.ts`, restated as a planted module.
+ *
+ * It is the fifth member of the class — logged by 29-22, re-logged by 29-23, named by 29-24 as the
+ * only known survivor — and it is what the member-level probe plants, so the probe is tied to the
+ * defect this plan actually closed rather than to an invented one. Assembled from character codes so
+ * THIS file's own source never carries a recogniser-and-terminator pair of its own.
+ */
+const PLANTED_SIXTH_LOCATOR = [
+  "export function tableUnder(lines: string[], heading: string): number[] {",
+  "  const start = lines.findIndex((l) => l.trim() === heading);",
+  "  const out: number[] = [];",
+  "  for (let i = start + 1; i < lines.length; i += 1) {",
+  `    if (lines[i].startsWith("${HASH}${HASH} ")) break;`,
+  "    out.push(i);",
+  "  }",
+  "  return out;",
+  "}",
+  "",
+].join("\n");
+
+/**
+ * THE NAMED SETS ARE THE MEASUREMENT, WRITTEN DOWN — produced by running the derivations above over
+ * the live tree in the SAME session that wrote these lines, never transcribed from the plan.
+ *
+ * The plan predicted the consumer list would be the FOUR guard modules. Measured, it is FIVE: this
+ * plan closed `audit-model.ts`, the fifth locator, rather than absorbing it into the owner list. The
+ * plan's own instruction is to write down whatever the derivation reports.
+ */
+const SECTION_EXTENT_OWNERS = ["frontmatter.ts"];
+const SECTION_EXTENT_OWNER_COUNT = 1;
+const LOCATOR_FUNCTIONS = ["sectionEndIndex", "unfencedHeadingIndex"] as const;
+const LOCATOR_CONSUMERS = [
+  "audit-model.ts",
+  "check-banned-claims.ts",
+  "check-diff-disposition.ts",
+  "check-imperative-lexicon.ts",
+  "voice-model.ts",
+];
+const LOCATOR_CONSUMER_COUNT = 5;
+
+/**
+ * A source carrying ONE site of each construct pair — the falsifiability probe's fixture.
+ *
+ * It exists so the derivation's liveness is provable WITHOUT depending on the live tree still
+ * carrying a defect. After this plan the live answer is a single module, and one member from a
+ * classifier that barely matches is indistinguishable from one member from a classifier that works.
+ *
+ * ASSEMBLED FROM CHARACTER CODES so THIS file's own source never carries a recogniser-and-terminator
+ * pair. The self-reference is not hypothetical: this file is itself a non-test-adjacent module in the
+ * same tree, and the fence-machine scan in scripts/frontmatter.test.ts already had to take exactly
+ * this precaution after the harness defeated its own premise three rounds running.
+ */
+const PLANTED_SECTION_LOCATOR_SOURCE = [
+  // [A] the ONE-LINE spelling: recogniser identifier and terminator on the same line.
+  "export function plantedCloseByRegex(lines: string[], from: number): number {",
+  `  const CLOSES = ${SLASH}${CARET}${HASH}{1,2} ${SLASH};`,
+  "  for (let i = from; i < lines.length; i += 1) {",
+  "    if (CLOSES.test(lines[i])) return i;",
+  "  }",
+  "  return lines.length;",
+  "}",
+  "",
+  // [B] the MULTI-LINE spelling of the SAME locator — the one the first draft of this scan was blind
+  // to, and the commoner of the two in this tree. Its only terminator is the loop BREAK.
+  "export function plantedCloseByPrefix(lines: string[]): number {",
+  "  let out = 0;",
+  "  for (let i = 0; i < lines.length; i += 1) {",
+  `    if (lines[i].startsWith("${HASH}${HASH} ")) {`,
+  "      break;",
+  "    }",
+  "    out += 1;",
+  "  }",
+  "  return out;",
+  "}",
+  "",
+  // [C] the same question answered by assigning a BOUND rather than by breaking or returning. Each
+  // planted site carries exactly ONE terminator construct, which is what makes the per-construct
+  // removal probe below attributable to the construct removed and to nothing else.
+  "export function plantedCloseByBound(lines: string[], from: number): number {",
+  "  let end = lines.length;",
+  "  for (let i = from; i < lines.length; i += 1) {",
+  `    if (lines[i].startsWith("${HASH} ")) {`,
+  "      end = i;",
+  "    }",
+  "  }",
+  "  return end;",
+  "}",
+  "",
+  // [D] THE CONTROL: it recognises a heading and bounds nothing — the `continue` shape that keeps
+  // `check-imperative-lexicon.ts`'s kept `HEADING_LINE` out of the answer. Its `return seen;` sits
+  // OUTSIDE the block the recogniser line opened, which is what the block-scoped search must respect.
+  "export function plantedBoundsNothing(lines: string[]): number {",
+  `  const IS_HEADING = ${SLASH}${CARET}${HASH}{1,6} ${SLASH};`,
+  "  let seen = 0;",
+  "  for (const line of lines) {",
+  "    if (IS_HEADING.test(line)) continue;",
+  "    seen += 1;",
+  "  }",
+  "  return seen;",
+  "}",
+  "",
+].join("\n");
+
+describe("LANG-07: exactly ONE module owns the section-extent predicate (plan 29-25, D-24)", () => {
+  it("the OWNER set is derived tree-wide, floored for vacuity, and pinned two-sided at the authority alone", () => {
+    const modules = nonTestScripts();
+    // ── NON-VACUITY FIRST, BOTH HALVES, BEFORE ANY MEMBERSHIP CLAIM. ──────────────────────────
+    // An enumeration that found nothing cannot report that only one module is a member. This project
+    // has recorded a vacuity floor that caught an EMPTY denominator and missed a SILENTLY SHORT one,
+    // so the scanned count is taken from a source the classifier does not produce — a directory read
+    // — and the found count is stated separately.
+    expect(
+      modules.length,
+      "the non-test module corpus must really have been enumerated before anything is claimed about its contents",
+    ).toBeGreaterThan(30);
+    expect(modules).toContain("frontmatter.ts");
+
+    const owners = sectionExtentOwners();
+    expect(
+      owners.length,
+      "the classifier found NO section-extent construct anywhere in the tree — a one-member answer from a scan that matches nothing is not a measurement",
+    ).toBeGreaterThan(0);
+
+    // ── THE MEMBERSHIP CLAIM, TWO-SIDED. ─────────────────────────────────────────────────────
+    expect(owners).toEqual([...owners].sort());
+    expect(
+      owners,
+      "a module outside scripts/frontmatter.ts answers a section-extent question. That is a LANG-07 failure and is escalated, never added to this list",
+    ).toEqual(SECTION_EXTENT_OWNERS);
+    // Cardinality pinned as a NUMBER beside the member list, so a scan that silently stops matching
+    // shrinks LOUDLY rather than passing over a set it no longer populates.
+    expect(owners).toHaveLength(SECTION_EXTENT_OWNER_COUNT);
+
+    // ── THE CONJUNCTION IS PROVEN TO DISCRIMINATE, ON THE EXACT MODULE 29-24 FLAGGED. ─────────
+    // `check-imperative-lexicon.ts` matches the RECOGNISER arm — it declares `HEADING_LINE` and tests
+    // it — and NOT the terminator arm, because its only use is followed by `continue`. That is the
+    // stated exemption for a heading RECOGNISER, expressed as a mechanism rather than as a name on an
+    // allow-list: no module is exempted by name anywhere in this block.
+    const lexicon = codeLinesOfSource(
+      readFileSync(join(ROOT, "scripts", "check-imperative-lexicon.ts"), "utf8"),
+    ).join("\n");
+    expect(
+      HEADING_RECOGNISER_CONSTRUCTS.some((r) => r.test(lexicon)),
+      "check-imperative-lexicon.ts declares a heading recogniser IN CODE, so the recogniser arm alone would count it",
+    ).toBe(true);
+    expect(
+      sectionExtentSitesIn(lexicon),
+      "…and it terminates no scan with it — `continue` skips one element, it does not bound a scan. This is the exemption plan 29-24 asked for, and it is structural",
+    ).toEqual([]);
+    expect(owners).not.toContain("check-imperative-lexicon.ts");
+
+    // ── AND THE AUTHORITY'S OWN SITE IS NAMED, so a one-member answer cannot be one member by
+    // accident of which file happened to match.
+    expect(
+      sectionExtentSitesIn(
+        readFileSync(join(ROOT, "scripts", "frontmatter.ts"), "utf8"),
+      ),
+    ).toEqual(["sectionEndIndex :: if (!flags[i] && closes.test(lines[i])) return i;"]);
+  });
+
+  it("the classifier is FALSIFIABLE — both halves of the conjunction are load-bearing on a planted source", () => {
+    const base = sectionExtentSitesIn(PLANTED_SECTION_LOCATOR_SOURCE);
+    expect(base).toEqual([
+      "plantedCloseByRegex :: if (CLOSES.test(lines[i])) return i;",
+      'plantedCloseByPrefix :: if (lines[i].startsWith("## ")) {',
+      'plantedCloseByBound :: if (lines[i].startsWith("# ")) {',
+    ]);
+    expect(base.length).toBeGreaterThan(0);
+
+    // Dropping a RECOGNISER construct must cost the sites it found — one construct, one spelling.
+    for (let i = 0; i < HEADING_RECOGNISER_CONSTRUCTS.length; i += 1) {
+      const without = sectionExtentSitesIn(
+        PLANTED_SECTION_LOCATOR_SOURCE,
+        HEADING_RECOGNISER_CONSTRUCTS.filter((_, j) => j !== i),
+        SCAN_TERMINATOR_CONSTRUCTS,
+      );
+      expect(
+        without,
+        `dropping recogniser construct [${i}] must MOVE the derived list — a construct that can be deleted with the answer unchanged is decoration`,
+      ).not.toEqual(base);
+      expect(without.length).toBeLessThan(base.length);
+    }
+    // …and so must dropping a TERMINATOR construct, which is the half that carries the exemption.
+    for (let i = 0; i < SCAN_TERMINATOR_CONSTRUCTS.length; i += 1) {
+      const without = sectionExtentSitesIn(
+        PLANTED_SECTION_LOCATOR_SOURCE,
+        HEADING_RECOGNISER_CONSTRUCTS,
+        SCAN_TERMINATOR_CONSTRUCTS.filter((_, j) => j !== i),
+      );
+      expect(
+        without,
+        `dropping terminator construct [${i}] must MOVE the derived list`,
+      ).not.toEqual(base);
+      expect(without.length).toBeLessThan(base.length);
+    }
+
+    // EACH PLANTED SITE MATCHES EXACTLY ONE TERMINATOR CONSTRUCT, asserted rather than assumed —
+    // which is what makes each removal above attributable to the construct removed and to nothing
+    // else. The first draft of this fixture gave one site BOTH a `break` and a bound assignment, so
+    // dropping either construct left the answer unchanged and the probe reported a decoration as
+    // load-bearing. Caught by reading the received value.
+    expect(
+      SCAN_TERMINATOR_CONSTRUCTS.map(
+        (_, i) =>
+          sectionExtentSitesIn(
+            PLANTED_SECTION_LOCATOR_SOURCE,
+            HEADING_RECOGNISER_CONSTRUCTS,
+            SCAN_TERMINATOR_CONSTRUCTS.filter((_, j) => j !== i),
+          ).length,
+      ),
+      "dropping any one terminator construct must cost exactly one planted site",
+    ).toEqual(SCAN_TERMINATOR_CONSTRUCTS.map(() => base.length - 1));
+
+    // THE THIRD PLANTED FUNCTION IS THE CONJUNCTION'S CONTROL: it recognises a heading and bounds
+    // nothing, so it contributes NO site. Without it, "both halves are required" is only believed.
+    expect(
+      base.some((s) => s.startsWith("plantedBoundsNothing")),
+      "a heading recogniser that bounds no scan must contribute no site — this is the half that exempts a recogniser",
+    ).toBe(false);
+    // AND THE MULTI-LINE SPELLING IS IN THE ANSWER — the blindness that made the first draft of this
+    // scan a false measurement. Asserted as a named member, not as a count, so a future narrowing
+    // cannot lose it while some other site keeps the total steady.
+    expect(
+      base,
+      "the four-line spelling of a section close must be a member — a scan blind to it counts one owner while missing the commoner form",
+    ).toContain('plantedCloseByPrefix :: if (lines[i].startsWith("## ")) {');
+    // The block-scoped search is what buys that, and it is pinned from the OTHER side too: the
+    // control's `return seen;` is within TERMINATOR_WINDOW lines of its recogniser use and is
+    // correctly NOT reached, because it sits outside the block that use opened.
+    const controlLines = PLANTED_SECTION_LOCATOR_SOURCE.split("\n");
+    const controlUse = controlLines.findIndex((l) =>
+      l.includes("IS_HEADING.test(line)"),
+    );
+    const controlReturn = controlLines.findIndex((l) => l.trim() === "return seen;");
+    expect(controlUse).toBeGreaterThan(-1);
+    expect(
+      controlReturn - controlUse,
+      "the control's terminator must sit INSIDE the line window, or the block rule is not what excludes it",
+    ).toBeLessThanOrEqual(TERMINATOR_WINDOW);
+    // `continue` is deliberately NOT a terminator. Stated as an assertion because the exemption above
+    // rests on it, and a construct list is a hand-maintained set like any other.
+    expect(
+      SCAN_TERMINATOR_CONSTRUCTS.some((r) => r.test("    if (H.test(raw)) continue;")),
+      "`continue` skips one element and bounds nothing — admitting it would re-import the terminator/recogniser confusion this scan exists to resolve",
+    ).toBe(false);
+  });
+
+  it("a SIXTH section locator makes the owner set fail, BY NAME — the member-level probe", () => {
+    // An assertion that was never made to fail is not a pin, and a per-construct removal probe is a
+    // weaker claim than this one: it shows each construct is load-bearing, not that a NEW member is
+    // caught. The plant is the exact locator this plan deleted from `audit-model.ts`, so the probe is
+    // tied to the defect that was real rather than to an invented one.
+    const dir = mkdtempSync(join(tmpdir(), "grugops-locator-"));
+    tmpDirs.push(dir);
+    const inDir = (): string[] =>
+      sectionExtentOwnersAmong(
+        readdirSync(dir).sort(),
+        (n) => readFileSync(join(dir, n), "utf8"),
+      );
+    for (const n of nonTestScripts()) {
+      writeFileSync(join(dir, n), readFileSync(join(ROOT, "scripts", n), "utf8"));
+    }
+    // THE CONTROL FIRST: the copies alone reproduce the live answer, so the failure below is caused
+    // by the plant and not by the temp directory.
+    const control = inDir();
+    expect(control).toEqual(SECTION_EXTENT_OWNERS);
+    expect(control).toHaveLength(SECTION_EXTENT_OWNER_COUNT);
+
+    writeFileSync(join(dir, "scratch-sixth-locator.ts"), PLANTED_SIXTH_LOCATOR);
+    const withSixth = inDir();
+    expect(withSixth).toContain("scratch-sixth-locator.ts");
+    expect(withSixth).toHaveLength(SECTION_EXTENT_OWNER_COUNT + 1);
+    expect(withSixth).not.toEqual(control);
+    // …and the site is named, not merely counted, so a reviewer reading a failure is told WHICH line.
+    expect(sectionExtentSitesIn(PLANTED_SIXTH_LOCATOR)).toEqual([
+      'tableUnder :: if (lines[i].startsWith("## ")) break;',
+    ]);
+  });
+
+  it("the recogniser arm requires a literal SPACE — it does not recognise an issue-reference pattern", () => {
+    // 29-22's third construct admits a BACKSLASH after the hashes, so it recognises `/^#\d+$/` in
+    // scripts/trace-render.ts — an issue reference, not a heading — and that noise is the reason
+    // 29-22 recorded for keeping its own scan module-scoped. The narrowing is asserted from both
+    // sides on planted lines, so it is a measured difference rather than a quiet convenience.
+    const heading = `  const H = ${SLASH}${CARET}${HASH}{1,2} ${SLASH};`;
+    const issueRef = `  return ${SLASH}${CARET}${HASH}\\d+$${SLASH}.test(ref);`;
+    expect(
+      HEADING_RECOGNISER_CONSTRUCTS.some((r) => r.test(heading)),
+      "an anchored ATX recogniser followed by a literal space IS a heading recogniser",
+    ).toBe(true);
+    expect(
+      HEADING_RECOGNISER_CONSTRUCTS.some((r) => r.test(issueRef)),
+      "an anchored `#` followed by a digit class is an issue reference and must NOT be recognised",
+    ).toBe(false);
+    // And the live module carrying that pattern is absent from the answer for that reason.
+    expect(sectionExtentOwners()).not.toContain("trace-render.ts");
+  });
+
+  it("the CONSUMER set is derived, sorted and pinned two-sided with its cardinality", () => {
+    const modules = nonTestScripts();
+    expect(
+      modules.length,
+      "the non-test module corpus must really have been enumerated",
+    ).toBeGreaterThan(30);
+
+    const consumers = modules
+      .filter((n) =>
+        importedSymbols(n, "frontmatter").some((s) =>
+          (LOCATOR_FUNCTIONS as readonly string[]).includes(s),
+        ),
+      )
+      .sort();
+    // NON-VACUITY FIRST: a consumer list that found nothing cannot report that the predicate moved.
+    expect(
+      consumers.length,
+      "no module imports the section locator — a zero here would mean the authority is dead code, not that the predicate is unified",
+    ).toBeGreaterThan(0);
+    expect(consumers).toEqual([...consumers].sort());
+    // THE LIST IS WHAT THE DERIVATION REPORTED, NOT WHAT THE PLAN PREDICTED. 29-25-PLAN.md predicted
+    // the four guard modules; measured, it is FIVE, because this plan closed `audit-model.ts` rather
+    // than absorbing it. A consumer that never adopted the authority is a LANG-07 failure and is
+    // escalated; a consumer that adopted it is recorded here.
+    expect(consumers).toEqual(LOCATOR_CONSUMERS);
+    expect(consumers).toHaveLength(LOCATOR_CONSUMER_COUNT);
+
+    // THE TWO SETS ARE DISJOINT EXCEPT FOR THE AUTHORITY ITSELF. A module that both OWNS a predicate
+    // and CONSUMES the shared one is two grammars wearing one import, which is the shape that let
+    // `voice-model.ts` be fence-aware in one half and fence-blind in the other at plan 29-20.
+    const owners = sectionExtentOwners();
+    expect(
+      owners.filter((n) => consumers.includes(n)),
+      "no module may both declare a section-extent predicate and import the shared one",
+    ).toEqual([]);
+    expect(owners).toEqual(["frontmatter.ts"]);
+    expect(consumers).not.toContain("frontmatter.ts");
   });
 });
 

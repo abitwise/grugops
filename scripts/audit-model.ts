@@ -51,6 +51,13 @@
 
 import { readFileSync, existsSync } from "node:fs";
 import { join } from "node:path";
+// (Plan 29-25, LANG-07) The ONE section-locator authority. This module answers no section-extent
+// question of its own — see `tableUnder`, the fifth and last locator of the class to be reconciled.
+import {
+  fencedLineFlags,
+  sectionEndIndex,
+  unfencedHeadingIndex,
+} from "./frontmatter.js";
 
 // ---------------------------------------------------------------------------
 // The fixed artifact paths.
@@ -398,16 +405,59 @@ function isSeparatorRow(cells: readonly string[]): boolean {
 }
 
 /**
- * Every pipe row under `heading`, up to the next `## ` heading. Separator rows are dropped; the
- * header row is returned as the first element so the caller can verify the column names.
- * Returns `null` when the heading is absent — an absent table is a refusal, never an empty one.
+ * Every unfenced pipe row under `heading`, up to the end of that heading's section. Separator rows
+ * are dropped; the header row is returned as the first element so the caller can verify the column
+ * names. Returns `null` when the heading is absent — an absent table is a refusal, never an empty
+ * one.
+ *
+ * ---------------------------------------------------------------------------------------------
+ * (PLAN 29-25, LANG-07) THIS FUNCTION'S SECTION-EXTENT QUESTION IS ANSWERED BY THE ONE AUTHORITY.
+ *
+ * It used to answer it three private ways, and it was the FIFTH member of the class plans 29-20
+ * through 29-24 unified — logged by 29-22, re-logged by 29-23, named by 29-24 as "the ONLY known
+ * remaining member of the class outside the four reconciled consumers", and out of scope for all
+ * three. Plan 29-25 makes the LANG-07 claim a DERIVED, tree-wide scan rather than a sentence, and a
+ * derivation whose file set is chosen so the answer comes out right is the exact defect that plan
+ * exists to close. So the fifth locator is closed rather than exempted. Three private predicates
+ * are DELETED and each replacement is a behaviour change stated here rather than left to be
+ * rediscovered:
+ *
+ *  1. THE ANCHOR. `lines.findIndex((l) => l.trim() === heading)` became `unfencedHeadingIndex`.
+ *     Two axes move. The equality is now `trimEnd()`, so a LEADING-space heading is no longer the
+ *     anchor — the column-zero convention the other four gates already share, and the register's
+ *     own headings are column-zero. And the anchor is fence-aware, so a register that QUOTES
+ *     `## Table A — audited files` inside a fenced example no longer has that quotation adopted as
+ *     the real table; before this change the quoted line won whenever it came first, and every row
+ *     of the real table silently fell outside the parse.
+ *
+ *  2. THE CLOSE. A private `startsWith("## ")` break became `sectionEndIndex(..., 2)`. A `# `
+ *     heading now closes the table's section, exactly as `## ` does — the CR-02 axis, one character
+ *     to the left, in the last module that still had it. A level-one successor below Table A used
+ *     to be walked straight past, so Table B's rows and every pipe row after it were harvested into
+ *     Table A. The close is also fence-aware for the same reason the anchor is.
+ *
+ *  3. THE ROWS. Fenced lines are skipped. This module's header argues at length that a parser which
+ *     SKIPS a row it cannot read performs a silent truncation; the mirror image is a parser that
+ *     ADOPTS a row nobody wrote, and a seven-cell example row inside a fenced block is exactly that.
+ *     `docs/audit/28-disposition-register.md` carries a fenced example in Table B's own section
+ *     today (lines 499-502) whose lines happen not to begin with a pipe, so the live parse is
+ *     unmoved — the proof of this fix is a planted input, never a moved number.
+ *
+ * MEASURED ON THE LIVE REGISTER BEFORE AND AFTER: 37 Table A rows and 32 Table B findings, both
+ * unchanged, and `check-audit-register` exits 0 with an identical transcript. Every widened axis is
+ * pinned from BOTH sides in scripts/audit-model.test.ts, because 29-24 recorded six axes that a
+ * rewire of this exact shape MOVED while nothing owned them.
+ * ---------------------------------------------------------------------------------------------
  */
-function tableUnder(lines: readonly string[], heading: string): TableLine[] | null {
-  const start = lines.findIndex((l) => l.trim() === heading);
+function tableUnder(text: string, heading: string): TableLine[] | null {
+  const start = unfencedHeadingIndex(text, heading);
   if (start === -1) return null;
+  const lines = text.split("\n");
+  const fenced = fencedLineFlags(text);
+  const end = sectionEndIndex(text, start + 1, 2);
   const out: TableLine[] = [];
-  for (let i = start + 1; i < lines.length; i++) {
-    if (lines[i].startsWith("## ")) break;
+  for (let i = start + 1; i < end; i++) {
+    if (fenced[i]) continue;
     const trimmed = lines[i].trim();
     if (!trimmed.startsWith("|")) continue;
     const cells = splitRow(lines[i]);
@@ -460,10 +510,11 @@ export function readRegister(root: string = DEFAULT_ROOT): Register {
   } catch (e) {
     refuse(REGISTER_PATH, `it could not be read (${(e as Error).message})`);
   }
-  const lines = text.split("\n");
+  // (Plan 29-25) The line split moved INTO `tableUnder`, which now takes the document text because
+  // the shared locator authority is defined over text rather than over a pre-split array.
 
   // ── Table A ──────────────────────────────────────────────────────────────
-  const tableA = tableUnder(lines, TABLE_A_HEADING);
+  const tableA = tableUnder(text, TABLE_A_HEADING);
   if (tableA === null) {
     refuse(
       REGISTER_PATH,
@@ -507,7 +558,7 @@ export function readRegister(root: string = DEFAULT_ROOT): Register {
   for (const parsed of parsedA) validateRegisterRowValues(parsed);
 
   // ── Table B ──────────────────────────────────────────────────────────────
-  const tableB = tableUnder(lines, TABLE_B_HEADING);
+  const tableB = tableUnder(text, TABLE_B_HEADING);
   if (tableB === null) {
     refuse(
       REGISTER_PATH,

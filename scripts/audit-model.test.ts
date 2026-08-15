@@ -648,6 +648,187 @@ describe("audit-model: readRegister — the refusals", () => {
   });
 });
 
+// ── (Plan 29-25, LANG-07) `tableUnder` DELEGATES — EVERY AXIS THE REWIRE MOVED, FROM BOTH SIDES. ──
+//
+// `tableUnder` was the FIFTH section locator of the class plans 29-20 through 29-24 unified, logged
+// by 29-22, re-logged by 29-23 and named by 29-24 as the only known survivor. Plan 29-25 closes it,
+// and 29-24's own Deviation 1 is the reason this block exists: that plan ran mutations after its
+// suite went green and found SIX axes its rewire had MOVED that nothing owned. An unpinned widening
+// is indistinguishable from an accident, so each axis below is asserted in BOTH directions.
+//
+// The live register is byte-unmoved by the rewire — 37 Table A rows and 32 Table B findings before
+// and after, with `check-audit-register`'s transcript identical — so the proof of this fix is a
+// PLANTED input and never a moved number.
+describe("audit-model: tableUnder takes its section extent from the ONE authority (plan 29-25)", () => {
+  // A register written line by line, so a case can plant a shape the structured fixture cannot.
+  function rawRegister(...lines: string[]): string {
+    const dir = freshTmp("grugops-audit-locator-");
+    mkdirSync(join(dir, "docs", "audit"), { recursive: true });
+    writeFileSync(join(dir, REGISTER_PATH), lines.join("\n"), "utf8");
+    return dir;
+  }
+  const preamble = [
+    "# Phase 28 Disposition Register",
+    "",
+    "## What this register does not prove",
+    "",
+    "Prose.",
+    "",
+  ];
+  const tableA = (...extra: string[]): string[] => [
+    "## Table A — audited files",
+    "",
+    TABLE_A_HEADER,
+    TABLE_A_SEP,
+    ...thirtySevenRows(),
+    ...extra,
+    "",
+  ];
+  const tableB = (...rows: string[]): string[] => [
+    "## Table B — findings",
+    "",
+    TABLE_B_HEADER,
+    TABLE_B_SEP,
+    ...rows,
+    "",
+  ];
+
+  it("a LEVEL-ONE heading closes Table A's section, exactly as `## ` does", () => {
+    // THE CR-02 AXIS, ONE CHARACTER TO THE LEFT, IN THE LAST MODULE THAT STILL HAD IT. The deleted
+    // close was `lines[i].startsWith("## ")`, so a `# ` heading between the two tables closed nothing
+    // and every pipe row below it — Table B's header, its separator and its rows — was harvested into
+    // Table A. Asserted through the parse: Table A holds exactly its own 37 rows.
+    // THE FIXTURE'S SHAPE IS THE WHOLE CASE, AND THE FIRST DRAFT OF IT DISCRIMINATED NOTHING. Putting
+    // only PROSE between `# Appendix` and `## Table B — findings` proves nothing: the deleted close
+    // walks past the level-one heading and then stops at the level-two one, harvesting the same rows
+    // the authority does. Caught by running the mutation rather than by reading — the deleted close
+    // was restored and not one case moved. So a PIPE ROW is planted under the level-one successor.
+    // Under the deleted close that row lands inside Table A and the parse REFUSES on its cell count;
+    // under the authority it is outside the section and the parse is clean.
+    const STRAY_ROW = "| a stray two-cell row under the appendix | not a register row |";
+    const dir = rawRegister(
+      ...preamble,
+      ...tableA(),
+      "# Appendix",
+      "",
+      "A later top-level section, carrying a table of its own:",
+      "",
+      STRAY_ROW,
+      "",
+      ...tableB(rowB("F-28-001", "agent-factory/roles/r01.md")),
+    );
+    const reg = readRegister(dir);
+    expect(reg.rows).toHaveLength(37);
+    expect(reg.findings).toHaveLength(1);
+
+    // THE DISCRIMINATION, ASSERTED OVER THE HARVESTED LINES RATHER THAN OVER AN INDEX. The DELETED
+    // close is restated here as a reference INPUT and the two answers are compared by WHAT THEY
+    // COLLECT, because comparing where they STOP is what let the first draft pass: two closes can
+    // stop at different lines and still collect the same rows.
+    const lines = readFileSync(join(dir, REGISTER_PATH), "utf8").split("\n");
+    const anchor = lines.indexOf("## Table A — audited files");
+    expect(anchor).toBeGreaterThan(-1);
+    const deletedEnd = (): number => {
+      for (let i = anchor + 1; i < lines.length; i += 1) {
+        if (lines[i].startsWith("## ")) return i;
+      }
+      return lines.length;
+    };
+    const pipeLinesTo = (end: number): string[] =>
+      lines.slice(anchor + 1, end).filter((l) => l.trim().startsWith("|"));
+    const authorityEnd = lines.indexOf("# Appendix");
+    expect(authorityEnd).toBeGreaterThan(anchor);
+    expect(
+      pipeLinesTo(deletedEnd()).filter((l) => !pipeLinesTo(authorityEnd).includes(l)),
+      "the deleted `## `-only close must HARVEST a line the authority does not, or this case discriminates nothing",
+    ).toEqual([STRAY_ROW]);
+  });
+
+  it("a LEVEL-THREE heading does NOT close it — a sub-heading structures a section rather than leaving it", () => {
+    // The other side of the same axis. `sectionEndIndex(..., 2)` closes on level at most two, so a
+    // `### ` between two runs of rows keeps both runs inside the table. Treating every heading as an
+    // exit would silently drop every row below the first sub-heading, with no number saying so.
+    const dir = rawRegister(
+      ...preamble,
+      ...tableA("", "### A note about the rows above", "", rowA("agent-factory/roles/r18.md")),
+      ...tableB(),
+    );
+    const reg = readRegister(dir);
+    expect(reg.rows, "the rows below a `### ` sub-heading stay in the table").toHaveLength(38);
+    expect(reg.rows[37].file).toBe("agent-factory/roles/r18.md");
+  });
+
+  it("a FENCED quotation of the table heading is not the anchor — the real heading is", () => {
+    // The anchor is fence-aware now. Before the rewire `findIndex(l => l.trim() === heading)` took
+    // the FIRST textual match, so a register documenting its own heading inside a fenced example had
+    // that quotation adopted and every real row fell outside the parse.
+    const dir = rawRegister(
+      ...preamble,
+      "```",
+      "## Table A — audited files",
+      "| file | kind | counted | safety_surface | findings | observation |",
+      "```",
+      "",
+      ...tableA(),
+      ...tableB(),
+    );
+    const reg = readRegister(dir);
+    expect(reg.rows, "the REAL table is parsed, not the quoted one").toHaveLength(37);
+  });
+
+  it("a FENCED seven-column row under the real heading donates no row", () => {
+    // The mirror image of this module's own silent-truncation argument: a parser that ADOPTS a row
+    // nobody wrote. A fenced example inside the table's section is documentation, not data.
+    const dir = rawRegister(
+      ...preamble,
+      ...tableA(
+        "",
+        "An example of the shape, quoted rather than declared:",
+        "",
+        "```",
+        rowA("agent-factory/roles/zz-not-a-real-row.md"),
+        "```",
+      ),
+      ...tableB(),
+    );
+    const reg = readRegister(dir);
+    expect(reg.rows).toHaveLength(37);
+    expect(
+      reg.rows.map((r) => r.file),
+      "a fenced example row must not become a register row",
+    ).not.toContain("agent-factory/roles/zz-not-a-real-row.md");
+  });
+
+  it("a TRAILING-space heading is located and a LEADING-space heading is refused BY NAME", () => {
+    // The equality moved from `trim()` to the authority's `trimEnd()`, which is a NARROWING as well
+    // as a normalisation, so both directions are pinned. Column-zero anchors are the convention the
+    // other four gates already share; admitting indented ATX would change what all five scan.
+    const trailing = rawRegister(
+      ...preamble,
+      "## Table A — audited files  ",
+      "",
+      TABLE_A_HEADER,
+      TABLE_A_SEP,
+      ...thirtySevenRows(),
+      "",
+      ...tableB(),
+    );
+    expect(readRegister(trailing).rows).toHaveLength(37);
+
+    const leading = rawRegister(
+      ...preamble,
+      "  ## Table A — audited files",
+      "",
+      TABLE_A_HEADER,
+      TABLE_A_SEP,
+      ...thirtySevenRows(),
+      "",
+      ...tableB(),
+    );
+    expect(() => readRegister(leading)).toThrow(/carries no .* heading/);
+  });
+});
+
 describe("audit-model: readRegistry", () => {
   it("returns claim rows with the fenced text extracted BYTE-FOR-BYTE", () => {
     // 28-04 compares this text against the anchored sentence as an EXACT byte comparison. Any
