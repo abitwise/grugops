@@ -6739,6 +6739,92 @@ describe("check-foundation-guards.js (SDLC-02 / SC2 fail-proof harness)", () => 
     expect(o).not.toMatch(/PASS +voice: 0 findings over/);
   }, 120_000);
 
+  // ── (Plan 29-34, WR-05) THE RESIDUAL IS DISCLOSED, AND THE DISCLOSURE IS PINNED. ────────────────
+  //
+  // The accounting closes the direction where a remainder shrinks without the caveman region growing.
+  // The OTHER direction — a region that legitimately grows until it swallows its whole section — is
+  // held by the reader's delimiter-neutralised bound alone, and WR-05's own fix paragraph says that
+  // "at minimum, record the residual by name at the declaration so a later reader meets it as a
+  // decision rather than inferring it from a printed number."
+  //
+  // A recorded decision that nothing holds still is a comment with a shelf life. So the four load-
+  // bearing claims of that paragraph are pinned against the guard's source bytes, the way this file
+  // already pins SEC_VOICE's roster and check-audit-register.ts pins its own sentences. Removing the
+  // disclosure reds; so does removing the refusal of the nineteen-baseline alternative, which is the
+  // half a later editor is most likely to drop while "tidying".
+  const VOICE_REMAINDER_RESIDUAL: readonly string[] = [
+    "THE WR-05 RESIDUAL — WHAT THE ACCOUNTING ABOVE DOES NOT CATCH, STATED AS A DECISION.",
+    "catch a caveman region that LEGITIMATELY GREW. A role file whose fence is honestly widened",
+    "WHAT BOUNDS IT TODAY is the delimiter-neutralised section bound in scripts/voice-model.ts: the",
+    "THE REFUSED ALTERNATIVE, NAMED. A per-file table of nineteen hand-measured minimum ratios —",
+  ] as const;
+
+  /** How many times a pinned sentence occurs in the source. A member must occur exactly once. */
+  const residualOccurrences = (src: string, sentence: string): number =>
+    src.split(sentence).length - 1;
+
+  it("the WR-05 residual is DISCLOSED at the declaration", () => {
+    // THE HARNESS'S OWN PREMISE FIRST: the source really was read, and it really is the guard's.
+    expect(
+      GUARD_TS_SRC.length,
+      "the guard source must have been read before anything is claimed about its prose",
+    ).toBeGreaterThan(1000);
+    expect(GUARD_TS_SRC).toContain("function guardVoice()");
+    for (const sentence of VOICE_REMAINDER_RESIDUAL) {
+      // EXACTLY ONCE, not merely present. A member that also occurs elsewhere in the file cannot be
+      // shown to be load-bearing — deleting it from the disclosure leaves the pin satisfied by the
+      // other copy, which is a pin over the file rather than over the paragraph. The first draft of
+      // this roster carried such a member (`It does NOT`) and the sibling below is what found it.
+      expect(
+        residualOccurrences(GUARD_TS_SRC, sentence),
+        `the residual disclosure must carry this sentence EXACTLY ONCE: ${sentence}`,
+      ).toBe(1);
+    }
+    // The disclosure must sit AT THE DECLARATION it describes, not anywhere in the file — a
+    // paragraph that drifts away from the floor it qualifies stops being met by the reader who needs
+    // it. Asserted as an ORDERING against the floor's own condition rather than as a line number,
+    // which would red on every unrelated edit above it.
+    const residualAt = GUARD_TS_SRC.indexOf(VOICE_REMAINDER_RESIDUAL[0]);
+    const floorAt = GUARD_TS_SRC.indexOf('if (outsideLines === 0 || body.trim() === "")');
+    expect(floorAt, "the floor's shipped condition must be locatable in the source").toBeGreaterThan(
+      0,
+    );
+    expect(
+      residualAt < floorAt && floorAt - residualAt < 3000,
+      "the residual paragraph must sit immediately above the element floor it qualifies",
+    ).toBe(true);
+    // And the MEASUREMENT the decision rests on is present with both ends of its range, so a later
+    // reader can tell how far the corpus sits from the bound without re-deriving it to find out.
+    expect(GUARD_TS_SRC).toContain("retained / document");
+    expect(GUARD_TS_SRC).toMatch(/0\.860 \(factory-coach\.md/);
+    expect(GUARD_TS_SRC).toMatch(/0\.915 \(orchestrator\.md/);
+  });
+
+  it("the residual pin REDS when the disclosure is removed — the falsifiability sibling", () => {
+    // A pin that has only ever been seen passing is indistinguishable from a pin over a constant
+    // that happens to be present. Each sentence is deleted from a COPY of the source in turn and the
+    // same predicate re-run, so every member is shown to be load-bearing rather than only the first.
+    for (const sentence of VOICE_REMAINDER_RESIDUAL) {
+      const without = GUARD_TS_SRC.replace(sentence, "");
+      expect(
+        without,
+        `the mutation must actually change the source for ${sentence}`,
+      ).not.toBe(GUARD_TS_SRC);
+      expect(
+        without.includes(sentence),
+        `removing ${sentence} must be visible to the pin, or that member pins nothing`,
+      ).toBe(false);
+    }
+    // AND THE CONTROL: an unrelated deletion elsewhere in the file leaves every member intact, so
+    // the probe above is discriminating between the disclosure and the file rather than reporting
+    // that any edit at all reds it.
+    const unrelated = GUARD_TS_SRC.replace("function guardVoice()", "function guardVoice2()");
+    expect(unrelated).not.toBe(GUARD_TS_SRC);
+    for (const sentence of VOICE_REMAINDER_RESIDUAL) {
+      expect(unrelated.includes(sentence), `${sentence} must survive an unrelated edit`).toBe(true);
+    }
+  });
+
   it("a role file whose caveman fence is left OPEN across a later heading exits 1 with no guard_voice pass line", () => {
     // THE CR-01 SHAPE AT THE GATE. The plant is derived from the mirror's real file at run time — the
     // recorded first-draft failure two cases up is that a plant appended at EOF proves nothing — and
@@ -8149,25 +8235,25 @@ const tripwireCensus = (
 // reproduced from `0ec8b61` by the premise case and are not a baseline this plan may move.
 //
 // (Plan 29-34) RE-MEASURED AGAIN, from the live tree, for the same reason. This plan added the line
-// accounting cases to voice-model.test.ts and five guard_voice cases here, so all six moved
-// together: occurrences 5391 -> 5441 (+50), classified 5319 -> 5368 (+49), statement-level
-// multi-line 1084 -> 1095 (+11), quote-aware 1078 -> 1089 (+11, the SAME delta, so the two counters
-// still do not diverge on the new text), disagreements 14 -> 14 (UNCHANGED), subject-only 589 -> 599
-// (+10).
+// accounting cases to voice-model.test.ts and seven cases here, so all six moved together:
+// occurrences 5391 -> 5453 (+62), classified 5319 -> 5380 (+61), statement-level multi-line
+// 1084 -> 1103 (+19), quote-aware 1078 -> 1097 (+19, the SAME delta, so the two counters still do
+// not diverge on the new text), disagreements 14 -> 14 (UNCHANGED — no added line is one the two
+// paren counters read differently), subject-only 589 -> 604 (+15).
 //
-// THE ONE-LINE GAP BETWEEN +50 AND +49 IS ACCOUNTED FOR, NOT ROUNDED PAST. Occurrences are raw
+// THE ONE-LINE GAP BETWEEN +62 AND +61 IS ACCOUNTED FOR, NOT ROUNDED PAST. Occurrences are raw
 // matches anywhere in the bytes while classified lines must BEGIN with the token, and one added
 // COMMENT in voice-model.test.ts quotes the retired vacuous assertion verbatim in order to explain
 // what was wrong with it. That comment is an occurrence and is not a classified line — the same
 // census-counts-its-own-prose effect the note directly above records, arriving this time from the
 // other module.
 const TRIPWIRE_MODULES = 47;
-const TRIPWIRE_EXPECT_OCCURRENCES = 5441;
-const TRIPWIRE_CLASSIFIED_LINES = 5368;
-const TRIPWIRE_MULTILINE_STATEMENTS = 1095;
-const TRIPWIRE_MULTILINE_STATEMENTS_QUOTE_AWARE = 1089;
+const TRIPWIRE_EXPECT_OCCURRENCES = 5453;
+const TRIPWIRE_CLASSIFIED_LINES = 5380;
+const TRIPWIRE_MULTILINE_STATEMENTS = 1103;
+const TRIPWIRE_MULTILINE_STATEMENTS_QUOTE_AWARE = 1097;
 const TRIPWIRE_COUNTER_DISAGREEMENTS = 14;
-const TRIPWIRE_MULTILINE_SUBJECTS = 599;
+const TRIPWIRE_MULTILINE_SUBJECTS = 604;
 /** Round 3's own published figures, reproduced from `0ec8b61` by the premise case. */
 const ROUND_3_TRIPWIRE = {
   modules: 47,

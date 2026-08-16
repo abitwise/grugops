@@ -2161,6 +2161,42 @@ function guardVoice() {
         // is what the floor tests now. The finding text names the retained count and no longer describes
         // a "zero-line remainder" the code never looked for; a message describing a condition the code
         // does not test is the claim-wider-than-its-assertion class this round exists to remove.
+        //
+        // ─────────────────────────────────────────────────────────────────────────────────────────
+        // THE WR-05 RESIDUAL — WHAT THE ACCOUNTING ABOVE DOES NOT CATCH, STATED AS A DECISION.
+        //
+        // The accounting identity catches a remainder that SHRANK WITHOUT THE CAVEMAN REGION GROWING:
+        // the scanned count, the region's extent and the document's own total must add up, so bytes
+        // cannot leave the scan without some other number moving to say where they went. It does NOT
+        // catch a caveman region that LEGITIMATELY GREW. A role file whose fence is honestly widened
+        // until 41 of its 42 lines sit inside it still satisfies every number this guard publishes, and
+        // the gate still exits 0 — reproduced on a `git archive HEAD` mirror against the committed
+        // `.js`, printing `scanned 1 … caveman region 40 … document 42`. The shrink is now VISIBLE on
+        // the transcript; it is not REFUSED.
+        //
+        // WHAT BOUNDS IT TODAY is the delimiter-neutralised section bound in scripts/voice-model.ts: the
+        // fence is read only within `[heading + 1, sectionEnd)`, so a swallow cannot cross a level-one
+        // or level-two heading. A caveman region can therefore only ever absorb its OWN section. That
+        // bound is the whole of the protection, and it is a property of the reader rather than a check
+        // in this guard.
+        //
+        // HOW FAR THE LIVE CORPUS SITS FROM THAT BOUND, MEASURED (plan 29-34, all 19 voice elements,
+        // retained / document): the seventeen role files run from 0.860 (factory-coach.md,
+        // frontend-ui.md, incident-responder.md — 43 of 50) to 0.915 (orchestrator.md — 75 of 82), with
+        // every caveman region between 6 and 7 lines; the two SEC_VOICE surfaces are 1.000 by
+        // declaration, carrying no fence at all. Re-measure that rather than trusting this sentence — a
+        // ratio drifting toward zero is a corpus moving toward the bound, and it is the evidence any
+        // later decision about a floor has to argue from.
+        //
+        // THE REFUSED ALTERNATIVE, NAMED. A per-file table of nineteen hand-measured minimum ratios —
+        // the shape `roleCeiling()` uses, failing closed on an unknown key — is REFUSED. D-28 already
+        // refused exactly that shape for byte ceilings, on the grounds that nineteen new hand-measured
+        // baselines are new set-literal surface, and a hand-maintained set rotting while every published
+        // number holds still is this repository's second named systemic failure class. Adding one here
+        // to close a warning about an unmeasured number would trade a known, bounded, disclosed residual
+        // for this phase's own worst-known defect class. The measurement above is recorded instead, in
+        // the same posture docs/audit/29-corpus-growth.md already takes for the byte question.
+        // ─────────────────────────────────────────────────────────────────────────────────────────
         if (outsideLines === 0 || body.trim() === "") {
             findings.push({
                 file: f,
