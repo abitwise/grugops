@@ -42,9 +42,11 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { pathToFileURL } from "node:url";
 import {
   readRegister,
   readRegistry,
+  canonicalClaimHeadingCensus,
   isBlank,
   BLANK_MARKERS,
   BLANK_MARKER_COUNT,
@@ -1737,5 +1739,347 @@ describe("audit-model: a verbatim that swallowed a claim block is a NAMED refusa
     // NON-VACUITY: the sweep must have examined real verbatim text.
     expect(claims.length).toBeGreaterThan(0);
     expect(claims.every((c) => c.verbatim.length > 0)).toBe(true);
+  });
+});
+
+// ---------------------------------------------------------------------------------------------
+// (Plan 29-37, 29-REVIEW round 4 § WR-02) THE DENOMINATOR'S WITNESS, AND THE TAUTOLOGY IT REPLACED.
+//
+// `readRegistry` used to close with `headingIdx.length === headingShapedLines - headingShapedFenced`
+// and a comment claiming the three terms were independent. They were not: every term consumed the
+// same `CLAIM_HEADING_RE` and the same `fencedLineFlags(text)` over the same text, so the comparison
+// was the identity |re AND NOT flags| = |re| - |re AND flags|. NO INPUT COULD MAKE IT FIRE.
+//
+// The cases below do three things, in this order and for this reason:
+//
+//   1. MEASURE the deleted expression's unfalsifiability over a corpus, because a set-algebra proof
+//      is correct and is not a measurement, and this round is charged with the difference.
+//   2. Show the SHIPPED witness firing on the SAME corpus, so the corpus is proven able to
+//      discriminate rather than merely inert.
+//   3. Reach the real refusal through `readRegistry` on INPUT, and through a MUTATION of the
+//      COMMITTED `.js` for the drift a well-formed input cannot express.
+// ---------------------------------------------------------------------------------------------
+describe("audit-model: the registry's denominator has a witness that can contradict it (plan 29-37, WR-02)", () => {
+  // The claim-heading shape, spelled here exactly as the module spells it. Every corpus figure below
+  // is computed through the SHARED authorities (`unfencedMatchIndices`, `fencedLineFlags`,
+  // `canonicalClaimHeadingCensus`) — this harness owns no fence toggle and no canonical-id literal.
+  const SHAPE = /^###\s+(\S+)\s*$/;
+  const CR = "\r";
+  const LS = " "; // LINE SEPARATOR — a line terminator to `^`/`$` under `m`, not to split("\n")
+  const PS = " "; // PARAGRAPH SEPARATOR — the same
+  const FULLWIDTH_ID = "C-28-００１"; // full-width digits
+  const NB_HYPHEN_ID = "C‑28‑001"; // U+2011 NON-BREAKING HYPHEN, not the ASCII `-`
+
+  const LIVE_REGISTRY_TEXT = readFileSync(join(REPO_ROOT, REGISTRY_PATH), "utf8");
+
+  // THE EXPRESSION PLAN 29-37 DELETED, reconstructed from 29-REVIEW § WR-02's quotation of it. It is
+  // not imported because it no longer exists; this is the only copy in the tree and it exists solely
+  // to be shown incapable of firing. If a future edit re-introduces the shape in production, the
+  // discrimination case below is what tells the difference.
+  function deletedThreeNumberRefusalFires(text: string): boolean {
+    const lines = text.split("\n");
+    const headingIdx = unfencedMatchIndices(text, SHAPE);
+    let shaped = 0;
+    for (const line of lines) if (SHAPE.test(line)) shaped += 1;
+    const flags = fencedLineFlags(text);
+    let fenced = 0;
+    for (let i = 0; i < lines.length; i++) if (flags[i] && SHAPE.test(lines[i])) fenced += 1;
+    return headingIdx.length !== shaped - fenced;
+  }
+
+  // The SHIPPED predicate, over the same corpus. Most corpus shapes are not well-formed registries,
+  // so the left term here is the LOCATOR's block count — which is exactly `claims.length` on every
+  // document whose parse completes, and is what `claims.length` is derived from on the others.
+  function shippedWitnessFires(text: string): boolean {
+    const flags = fencedLineFlags(text);
+    const census = canonicalClaimHeadingCensus(text, flags);
+    return unfencedMatchIndices(text, SHAPE).length + census.fenced !== census.raw;
+  }
+
+  const CORPUS: readonly (readonly [string, string])[] = [
+    ["S01 canonical heading, UNFENCED", `# R\n\n### C-28-001\n\n- file: a.md\n`],
+    ["S02 canonical heading inside a TERMINATED fence", `# R\n\n${FENCE}\n### C-28-001\n${FENCE}\n`],
+    ["S03 two claim headings on ADJACENT lines", `# R\n\n### C-28-001\n### C-28-002\n\ntext\n`],
+    ["S04 single-token NON-canonical level-three heading", `# R\n\n### Overview\n\ntext\n`],
+    ["S05 canonical heading carrying TRAILING TEXT", `# R\n\n### C-28-001 and more\n\ntext\n`],
+    ["S06 UNTERMINATED fence above a heading", `# R\n\n${FENCE}\nexample\n\n### C-28-001\n`],
+    ["S07 TAB separator", `# R\n\n###\tC-28-001\n\ntext\n`],
+    ["S08 TRAILING whitespace after the id", `# R\n\n### C-28-001   \n\ntext\n`],
+    ["S09 heading BETWEEN two fenced regions", `# R\n\n${FENCE}\na\n${FENCE}\n### C-28-001\n${FENCE}\nb\n${FENCE}\n`],
+    ["S10 FOUR-backtick run around a heading", `# R\n\n${FENCE}\`\n### C-28-001\n${FENCE}\`\n`],
+    ["S11 INDENTED delimiter around a heading", `# R\n\n   ${FENCE}\n### C-28-001\n   ${FENCE}\n`],
+    ["S12 heading on the LAST line, no trailing newline", `# R\n\n### C-28-001`],
+    ["S13 EMPTY document", ``],
+    ["S14 CRLF line endings", `# R\r\n\r\n### C-28-001\r\n\r\ntext\r\n`],
+    ["S15 NBSP separator", `# R\n\n### C-28-001\n\ntext\n`],
+    ["S16 THE LIVE REGISTRY", LIVE_REGISTRY_TEXT],
+    ["S17 bare CR before a canonical heading", `# R\n\nprelude${CR}### C-28-001\n\ntext\n`],
+    ["S18 U+2028 before a canonical heading", `# R\n\nprelude${LS}### C-28-001\n\ntext\n`],
+    ["S19 U+2029 after the id on a real heading", `# R\n\n### C-28-001${PS}and words\n\ntext\n`],
+    ["S20 FULL-WIDTH digits in the id", `# R\n\n### ${FULLWIDTH_ID}\n\ntext\n`],
+    ["S21 U+2011 NON-BREAKING HYPHEN in the id", `# R\n\n### ${NB_HYPHEN_ID}\n\ntext\n`],
+  ];
+
+  it("MEASURED: the DELETED three-number refusal fires on ZERO corpus shapes", () => {
+    // PREMISE, asserted before the measurement: the corpus is neither empty nor short, and its
+    // element count is derived from the array rather than from the loop that consumes it.
+    expect(CORPUS.length, "the corpus must span at least five distinct shapes").toBeGreaterThanOrEqual(5);
+    expect(new Set(CORPUS.map(([name]) => name)).size, "corpus names must be unique").toBe(
+      CORPUS.length,
+    );
+    // PREMISE: the corpus really contains claim-heading-shaped material, or "fires on none of it"
+    // would be a statement about an inert corpus.
+    const shapedTotal = CORPUS.reduce(
+      (n, [, text]) => n + text.split("\n").filter((l) => SHAPE.test(l)).length,
+      0,
+    );
+    expect(shapedTotal, "the corpus must carry claim-heading-shaped lines").toBeGreaterThan(0);
+
+    const firing = CORPUS.filter(([, text]) => deletedThreeNumberRefusalFires(text)).map(
+      ([name]) => name,
+    );
+    expect(firing, "the deleted expression was an identity: NO input can make it fire").toEqual([]);
+  });
+
+  it("DISCRIMINATION: the SHIPPED witness fires on the same corpus, and on exactly these shapes", () => {
+    const firing = CORPUS.filter(([, text]) => shippedWitnessFires(text)).map(([name]) => name);
+    // SET equality, not a count: a witness that fired on some OTHER four shapes would pass a count.
+    //
+    //   S04 is the DOMINATED direction — a non-canonical unfenced heading. In the real parse
+    //        `parseClaimBlock` refuses it first, so this row shows the witness's reach exceeds the
+    //        input that can reach it, which is why the domination is disclosed at the source site.
+    //   S17/S18/S19 are the LINE-TERMINATOR direction, and they DO reach the refusal through
+    //        `readRegistry` — proven by the input cases below.
+    //   S20/S21 are the ENCODING direction: the canonical scan compares BYTES, so a full-width digit
+    //        and a non-ASCII hyphen are not a canonical id. Also dominated in the real parse.
+    expect(firing).toEqual([
+      "S04 single-token NON-canonical level-three heading",
+      "S17 bare CR before a canonical heading",
+      "S18 U+2028 before a canonical heading",
+      "S19 U+2029 after the id on a real heading",
+      "S20 FULL-WIDTH digits in the id",
+      "S21 U+2011 NON-BREAKING HYPHEN in the id",
+    ]);
+    // And the two predicates genuinely differ on this corpus — the whole point of the replacement.
+    expect(firing.length).toBeGreaterThan(0);
+  });
+
+  // ── THE WITNESS REACHED THROUGH `readRegistry`, ON INPUT. ─────────────────────────────────────
+  const wellFormed = registryDoc(claimBlock("C-28-001"));
+
+  it("INPUT: a canonical heading after a terminator the `\\n` split cannot see is a NAMED refusal", () => {
+    for (const [name, terminator] of [
+      ["bare CR", CR],
+      ["U+2028", LS],
+      ["U+2029", PS],
+    ] as const) {
+      const body = `${wellFormed}\nprelude${terminator}### C-28-007\n`;
+      // PREMISE: the plant really is invisible to the parser's line view and visible to the raw
+      // scan. Without this the case could pass for the wrong reason.
+      expect(
+        body.split("\n").filter((l) => SHAPE.test(l)).length,
+        `${name}: the plant must NOT be a line to split("\\n")`,
+      ).toBe(1);
+      expect(
+        canonicalClaimHeadingCensus(body, fencedLineFlags(body)).raw,
+        `${name}: the plant MUST be a canonical heading to the raw scan`,
+      ).toBe(2);
+
+      let msg = "";
+      try {
+        readRegistry(writeRegistryFixture(body));
+      } catch (e) {
+        msg = (e as Error).message;
+      }
+      expect(msg, `${name}: the witness must refuse`).toMatch(/raw canonical-heading count disagree/);
+      expect(msg, `${name}: the refusal must name BOTH numbers`).toContain("1 claim(s)");
+      expect(msg).toContain("2 canonical");
+      expect(msg).toMatch(/exclusion list/);
+    }
+  });
+
+  it("INPUT CONTROL: the SAME bytes without the invisible terminator parse silently", () => {
+    // The discrimination. `prelude### C-28-007` on one line is not a heading to either reader, so
+    // the refusal above is caused by the terminator and by nothing else about the plant.
+    const body = `${wellFormed}\nprelude### C-28-007\n`;
+    const reg = readRegistry(writeRegistryFixture(body));
+    expect(reg.claims.map((c) => c.id)).toEqual(["C-28-001"]);
+    expect(canonicalClaimHeadingCensus(body, fencedLineFlags(body)).raw).toBe(1);
+  });
+
+  it("LIVE: the witness is silent on the live registry, and its three numbers are recorded", () => {
+    const flags = fencedLineFlags(LIVE_REGISTRY_TEXT);
+    const census = canonicalClaimHeadingCensus(LIVE_REGISTRY_TEXT, flags);
+    const reg = readRegistry(REPO_ROOT);
+    // NON-VACUITY FIRST: a registry with no canonical headings would satisfy the equality trivially.
+    expect(census.raw, "the live registry must carry canonical claim headings").toBeGreaterThan(0);
+    expect(reg.claims.length, "the live parse must have produced claims").toBeGreaterThan(0);
+    // The equality, and the numbers behind it, derived here rather than transcribed from the plan.
+    expect(reg.claims.length + census.fenced).toBe(census.raw);
+    expect(census.fenced).toBe(0);
+    // The census's line list is ascending and one entry per occurrence — the ORDERING probe edge,
+    // asserted where the ordering is produced.
+    expect(census.lines.length).toBe(census.raw);
+    expect([...census.lines].sort((a, b) => a - b)).toEqual([...census.lines]);
+  });
+
+  // ── THE MUTATION MIRROR: the COMMITTED `.js`, edited, imported, and run. ──────────────────────
+  //
+  // The drift this witness exists to catch lives in a module-private recogniser, so no INPUT can
+  // express it. It is expressed by editing the artifact that actually ships and running that.
+  // `scripts/audit-model.js` imports only node builtins and `./frontmatter.js`, so the mirror is two
+  // files — asserted below rather than assumed, so a future import silently widens the closure and
+  // reds here instead of producing a mirror that is not the module.
+  async function mutantMirror(
+    label: string,
+    edits: readonly (readonly [string, string])[],
+  ): Promise<{
+    readRegistry: (root: string) => { claims: readonly { id: string }[] };
+    canonicalClaimHeadingCensus: (text: string, flags: readonly boolean[]) => { raw: number };
+  }> {
+    const dir = freshTmp("grugops-audit-mutant-");
+    const modelSrc = readFileSync(join(REPO_ROOT, "scripts", "audit-model.js"), "utf8");
+    const fmSrc = readFileSync(join(REPO_ROOT, "scripts", "frontmatter.js"), "utf8");
+    const localImports = [...modelSrc.matchAll(/^import .*? from "(\.[^"]*)";$/gm)].map((m) => m[1]);
+    expect(localImports, `${label}: the mirror must copy the WHOLE local import closure`).toEqual([
+      "./frontmatter.js",
+    ]);
+    let mutated = modelSrc;
+    for (const [find, replace] of edits) {
+      expect(
+        mutated.split(find).length - 1,
+        `${label}: the mutation anchor must occur EXACTLY once: ${find}`,
+      ).toBe(1);
+      mutated = mutated.replace(find, replace);
+    }
+    expect(
+      mutated !== modelSrc,
+      `${label}: a mirror identical to the committed build proves nothing`,
+    ).toBe(edits.length > 0);
+    writeFileSync(join(dir, "frontmatter.js"), fmSrc, "utf8");
+    writeFileSync(join(dir, "audit-model.js"), mutated, "utf8");
+    return import(pathToFileURL(join(dir, "audit-model.js")).href);
+  }
+
+  const DRIFT_ANCHOR = "const CLAIM_HEADING_RE = /^###\\s+(\\S+)\\s*$/;";
+  const DRIFTED = "const CLAIM_HEADING_RE = /^###\\s+(\\S+).*$/;";
+  const ID_CHECK_ANCHOR = "if (!CLAIM_ID_RE.test(id)) {";
+  const CANONICAL_ID_ANCHOR = "const CLAIM_ID_RE = /^C-28-\\d{3}$/;";
+
+  // A registry whose SECOND heading carries trailing text after a canonical id. The shipped
+  // recogniser does not see it as a heading at all; a drifted one parses it as a live claim.
+  const driftFixture = registryDoc(
+    claimBlock("C-28-001"),
+    claimBlock("C-28-002 and some words", { kind: "safety" }),
+  );
+
+  it("PREMISE: the UNMUTATED mirror of the committed build agrees with the module under test", async () => {
+    const mirror = await mutantMirror("control", []);
+    expect(mirror.readRegistry(REPO_ROOT).claims.map((c) => c.id)).toEqual(
+      readRegistry(REPO_ROOT).claims.map((c) => c.id),
+    );
+    // And on the drift fixture the committed build parses ONE claim and refuses nothing.
+    const dir = writeRegistryFixture(driftFixture);
+    expect(mirror.readRegistry(dir).claims.map((c) => c.id)).toEqual(["C-28-001"]);
+    expect(readRegistry(dir).claims.map((c) => c.id)).toEqual(["C-28-001"]);
+  });
+
+  it("MUTATION: the witness FIRES on a recogniser that stops requiring the id to be the whole line", async () => {
+    const mirror = await mutantMirror("recogniser drift", [[DRIFT_ANCHOR, DRIFTED]]);
+    const dir = writeRegistryFixture(driftFixture);
+    let msg = "";
+    try {
+      mirror.readRegistry(dir);
+    } catch (e) {
+      msg = (e as Error).message;
+    }
+    expect(msg, "the drifted recogniser must be refused by the witness").toMatch(
+      /raw canonical-heading count disagree/,
+    );
+    // BOTH numbers named: the drifted parse found two claims, the canonical scan sees one heading.
+    expect(msg).toContain("2 claim(s)");
+    expect(msg).toContain("1 canonical");
+  });
+
+  it("MUTATION: the witness is what SURVIVES if the canonical-id check ever weakens", async () => {
+    // The domination disclosed at the source site, made measurable. With `parseClaimBlock`'s
+    // canonical-id refusal removed, a plain non-canonical heading reaches the witness on INPUT.
+    const mirror = await mutantMirror("id check removed", [[ID_CHECK_ANCHOR, "if (false) {"]]);
+    const body = registryDoc(claimBlock("C-28-001"), claimBlock("banana"));
+    const dir = writeRegistryFixture(body);
+    // PREMISE: the committed build refuses this document for the CANONICAL-FORM reason, so the
+    // mutation really is what moves the outcome.
+    expect(() => readRegistry(dir)).toThrow(/C-28-NNN/);
+    let msg = "";
+    try {
+      mirror.readRegistry(dir);
+    } catch (e) {
+      msg = (e as Error).message;
+    }
+    expect(msg).toMatch(/raw canonical-heading count disagree/);
+    expect(msg).toContain("2 claim(s)");
+    expect(msg).toContain("1 canonical");
+  });
+
+  it("MUTATION: the witness recogniser FOLLOWS `CLAIM_ID_RE` — one canonical-id authority, proven", async () => {
+    // A grep for "no second literal" would be satisfied by a literal spelled differently. This moves
+    // the ONE authority and shows the witness moving with it.
+    const mirror = await mutantMirror("canonical id widened to four digits", [
+      [CANONICAL_ID_ANCHOR, "const CLAIM_ID_RE = /^C-28-\\d{4}$/;"],
+    ]);
+    const three = `# R\n\n### C-28-001\n`;
+    const four = `# R\n\n### C-28-0001\n`;
+    const flagsThree = fencedLineFlags(three);
+    const flagsFour = fencedLineFlags(four);
+    // The module under test: three digits canonical, four digits not.
+    expect(canonicalClaimHeadingCensus(three, flagsThree).raw).toBe(1);
+    expect(canonicalClaimHeadingCensus(four, flagsFour).raw).toBe(0);
+    // The mirror with CLAIM_ID_RE moved: exactly inverted. A second literal could not follow.
+    expect(mirror.canonicalClaimHeadingCensus(three, flagsThree).raw).toBe(0);
+    expect(mirror.canonicalClaimHeadingCensus(four, flagsFour).raw).toBe(1);
+  });
+
+  // ── STRUCTURAL PINS ON THE SHIPPED ARTIFACT. ──────────────────────────────────────────────────
+
+  it("ONE fence traversal in `readRegistry`: the census is HANDED the flags array", () => {
+    // LANG-07. The census takes the fence verdict as a parameter, so the only way a second traversal
+    // could appear is a second `fencedLineFlags(` CALL inside `readRegistry` — counted here on the
+    // committed artifact, over the function body rather than the file (the file legitimately has
+    // another caller in `tableUnder`).
+    const js = readFileSync(join(REPO_ROOT, "scripts", "audit-model.js"), "utf8");
+    const from = js.indexOf("export function readRegistry(");
+    expect(from, "readRegistry must be present in the committed build").toBeGreaterThan(-1);
+    const rest = js.slice(from + 1);
+    const nextFn = rest.search(/^(export )?function /m);
+    expect(nextFn, "the function body must be bounded").toBeGreaterThan(-1);
+    const body = rest.slice(0, nextFn);
+    // PREMISE: the slice really is readRegistry's body.
+    expect(body).toContain("raw canonical-heading count disagree");
+    expect(body).toContain("canonicalClaimHeadingCensus(text, flags)");
+
+    // COMMENT LINES ARE DROPPED BEFORE COUNTING, and this is not a detail: the body's prose NAMES
+    // `fencedLineFlags(text)` while explaining why there is only one call to it, so a raw text count
+    // measures the documentation rather than the code. Caught by this case failing at 2 on its first
+    // run, which is the only reason the distinction is written down here.
+    const code = body
+      .split("\n")
+      .filter((l) => {
+        const t = l.trim();
+        return !(t.startsWith("//") || t.startsWith("*") || t.startsWith("/*"));
+      })
+      .join("\n");
+    // PREMISE: the strip removed prose and kept code, so a strip that emptied the body cannot pass.
+    expect(code.length, "the strip must leave code behind").toBeGreaterThan(0);
+    expect(code.length, "the strip must actually have removed prose").toBeLessThan(body.length);
+    expect(code).toContain("canonicalClaimHeadingCensus(text, flags)");
+    expect(code.split("fencedLineFlags(").length - 1).toBe(1);
+  });
+
+  it("`CLAIM_HEADING_RE` is byte-unchanged — round 4's IN-02 is DEFERRED, not silently closed", () => {
+    // IN-02 observes that this recogniser matches every single-token level-three heading. Plan 29-37
+    // deliberately does not narrow it, and this pin is what makes that a decision rather than a
+    // claim: closing IN-02 means changing this line AND this assertion, in one deliberate edit.
+    const js = readFileSync(join(REPO_ROOT, "scripts", "audit-model.js"), "utf8");
+    expect(js.split(DRIFT_ANCHOR).length - 1, "one declaration, byte-unchanged").toBe(1);
   });
 });

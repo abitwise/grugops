@@ -618,7 +618,39 @@ function duplicates(values) {
 // scan that once walked raw lines with it now happens INSIDE `unfencedMatchIndices`, so this module
 // no longer tests a heading pattern at a bounding position. Do not "finish the job" by relocating
 // the constant; the job is finished.
+//
+// ── (Plan 29-37, 29-REVIEW round 4 § IN-02) DEFERRED BY USER DECISION FOR THIS ROUND. ────────────
+//
+// Round 4's IN-02 observes that this recogniser matches EVERY single-token level-three heading, not
+// only a claim id: `### Overview` is a claim heading to this pattern, and it is `parseClaimBlock`'s
+// canonical-id check — not this line — that turns that into a refusal. The finding is DEFERRED by
+// user decision for this round, which is neither closed nor forgotten. Narrowing the pattern here
+// would change WHICH blocks the registry parses, and plan 29-37 is scoped to change what is CHECKED
+// and nothing about what is parsed. The pattern below is byte-unchanged by that plan.
 const CLAIM_HEADING_RE = /^###\s+(\S+)\s*$/;
+// ── (Plan 29-37, 29-REVIEW round 4 § WR-02) THE WITNESS RECOGNISER: THE CANONICAL CLAIM HEADING. ─
+//
+// BUILT FROM `CLAIM_ID_RE`'S OWN SOURCE, so the canonical id form has ONE authority in this module.
+// A second literal spelling of `C-28-\d{3}` here could drift away from the form `parseClaimBlock`
+// validates against, and a witness that disagrees with the thing it audits about what it is
+// auditing is not a witness — it is a third opinion.
+//
+// THE COMPARISON IS OVER BYTES, STATED AT THE DECLARATION RATHER THAN ASSUMED (29-37 probe edge /
+// encoding). There is no `u` flag and no `\p{Nd}`, so `\d` is ASCII `[0-9]` and nothing else, the
+// `C-28-` prefix is compared byte-for-byte, and no normalisation of any kind runs first. A
+// full-width `０` is therefore not a digit here and a U+2011 NON-BREAKING HYPHEN is not the literal
+// `-`. That is a DISCLOSURE of what the comparison already is — `CLAIM_ID_RE` has always been an
+// ASCII byte pattern and this inherits it verbatim — and NOT a new rule; adding normalisation would
+// be a behaviour change and is deliberately not made.
+//
+// `[^\S\n]` IS `\s` MINUS THE NEWLINE, deliberately. `CLAIM_HEADING_RE` spells its separators `\s`
+// and is tested against members of `text.split("\n")`, which by construction contain no `\n`. The
+// witness runs `m`-anchored over the WHOLE text, where a bare `\s` would happily cross a line
+// boundary and count a heading that does not exist. Same character class, same reach — one written
+// for a line, one written for a document.
+const CANONICAL_CLAIM_HEADING_SOURCE = `^###[^\\S\\n]+${CLAIM_ID_RE.source
+    .replace(/^\^/, "")
+    .replace(/\$$/, "")}[^\\S\\n]*$`;
 const CLAIM_META_RE = /^-\s+([a-z_]+):\s*(.*)$/;
 const CLAIM_REQUIRED_KEYS = ["file", "line", "kind", "depends_on", "status"];
 // The canonical form of a `line:` value: a single 1-based line, or an inclusive range (28-REVIEW
@@ -628,6 +660,53 @@ const CLAIM_REQUIRED_KEYS = ["file", "line", "kind", "depends_on", "status"];
 // documented decision; the FORM is held here, because a required key that is never validated at all
 // admits `line: banana` while reading to a human as authoritative provenance.
 const CLAIM_LINE_RE = /^\d+(?:-\d+)?$/;
+/**
+ * Count the CANONICAL claim headings in `text`, and how many of them the caller's fence verdict
+ * flags. Exported so the parser and its harness ask ONE authority — a harness that re-counted with
+ * a loop of its own would be auditing itself, which is the shape 29-REVIEW § WR-03 records.
+ *
+ * ── (Plan 29-37, 29-REVIEW round 4 § WR-02) WHY THE FENCE VERDICT IS A PARAMETER. ────────────────
+ *
+ * LANG-07: one fence verdict, consulted once. `readRegistry` has already computed
+ * `fencedLineFlags(text)` before it calls this, and hands the SAME array in. This function calls no
+ * fence authority of its own and declares no delimiter class, because a second fence opinion inside
+ * the module that has just finished deleting its sixth section locator would be the defect arriving
+ * as its own fix. A caller that passes a differently-derived array is asking a different question
+ * and gets a different answer; that is the caller's choice to make and this function's to disclose.
+ *
+ * ── THE `g` FLAG IS REQUIRED HERE AND ITS STATE IS DENIED A PLACE TO LIVE. ───────────────────────
+ *
+ * A `g`-flagged RegExp carries `lastIndex` ACROSS uses, so a module-level one would skip
+ * occurrences — silently, and in the SHORTENING direction, which is the fail-open direction for
+ * everything downstream. `scripts/frontmatter.ts`'s `unfencedMatchIndices` REFUSES a `g`-flagged
+ * argument for exactly that reason; here the flag is the point of the traversal, so the object is
+ * constructed fresh per call instead and no state survives the return.
+ */
+export function canonicalClaimHeadingCensus(text, flags) {
+    const re = new RegExp(CANONICAL_CLAIM_HEADING_SOURCE, "gm");
+    // The `\n`-split line starts, so an occurrence OFFSET can be asked the caller's fence verdict.
+    // This is the ONLY place the two views of the text meet, and they are deliberately allowed to
+    // disagree about where a line begins — see the falsifier list at the refusal in `readRegistry`.
+    const lineStarts = [];
+    let off = 0;
+    for (const line of text.split("\n")) {
+        lineStarts.push(off);
+        off += line.length + 1;
+    }
+    const lines = [];
+    let fenced = 0;
+    // Match offsets ascend, so the line cursor only ever moves forward.
+    let cursor = 0;
+    for (const m of text.matchAll(re)) {
+        const at = m.index ?? 0;
+        while (cursor + 1 < lineStarts.length && lineStarts[cursor + 1] <= at)
+            cursor += 1;
+        lines.push(cursor);
+        if (flags[cursor] === true)
+            fenced += 1;
+    }
+    return { raw: lines.length, fenced, lines };
+}
 /**
  * Parse the claim registry. Each claim is a `### <id>` heading, a metadata list, and a fenced block
  * holding the claim's VERBATIM text.
@@ -725,34 +804,97 @@ export function readRegistry(root = DEFAULT_ROOT) {
         refuse(REGISTRY_PATH, `it carries duplicate claim id(s): ${dupIds.join(", ")}. The claim id is what an anchor in a ` +
             `public document points at, so two rows sharing one id make the D-16 bijection unresolvable`);
     }
-    // ── (Plan 29-28; D-08 / AP-1) THE PARSE PUBLISHES ITS OWN DENOMINATOR. ────────────────────────
+    // ── (Plan 29-28) THE PARSE PUBLISHES ITS OWN DENOMINATOR. ─────────────────────────────────────
     //
     // `claims` is a PROJECTION, and a projection with no published denominator is a number that can
-    // be short against nothing. TWO SEPARATE EXPRESSIONS over the same text, deliberately — not one
-    // expression and a subtraction of its own output, which is 29-REVIEW § WR-03's shape one layer
-    // down. `headingShapedLines` counts the shape over RAW lines with no fence verdict at all;
-    // `headingShapedFenced` counts the shape ON LINES THE TOGGLE FLAGS. Neither reads `headingIdx`.
+    // be short against nothing. `headingShapedLines` counts the shape over RAW lines with no fence
+    // verdict at all; `headingShapedFenced` counts the shape ON LINES THE TOGGLE FLAGS. Both are
+    // PUBLISHED FIGURES on the returned `Registry` and are pinned two-sided against the live registry
+    // in scripts/audit-model.test.ts. Neither reads `headingIdx`.
     let headingShapedLines = 0;
     for (const line of lines) {
         if (CLAIM_HEADING_RE.test(line))
             headingShapedLines += 1;
     }
     const flags = fencedLineFlags(text);
+    // ── (Plan 29-37, 29-REVIEW round 4 § IN-04) DEFERRED BY USER DECISION FOR THIS ROUND. ─────────
+    //
+    // Round 4's IN-04 concerns `headingShapedFenced` being published without being asserted in any
+    // gate. It is DEFERRED by user decision for this round — recorded here rather than dropped, and
+    // deliberately NOT closed by newly asserting this figure somewhere else, which would shut a
+    // deferred finding silently. Its only consumers today are the two-sided pins in the harness.
     let headingShapedFenced = 0;
     for (let i = 0; i < lines.length; i++) {
         if (flags[i] && CLAIM_HEADING_RE.test(lines[i]))
             headingShapedFenced += 1;
     }
-    // AND THE THREE NUMBERS MUST AGREE. `headingIdx` came from the authority; these two came from
-    // this module. A disagreement means the authority and its denominator are answering different
-    // questions, which is precisely the condition a published denominator exists to make loud — so it
-    // is a NAMED refusal rather than a silent tally beside a wrong list.
-    if (headingIdx.length !== headingShapedLines - headingShapedFenced) {
-        refuse(REGISTRY_PATH, `its parse tally disagrees with its parse: ${headingShapedLines} claim-heading-shaped ` +
-            `line(s) minus ${headingShapedFenced} excluded as fenced is ` +
-            `${headingShapedLines - headingShapedFenced}, but the shared locator returned ` +
-            `${headingIdx.length} block(s). The denominator and the list are answering different ` +
-            `questions, so neither can be trusted to bound the other`);
+    // ── (Plan 29-37, 29-REVIEW round 4 § WR-02; D-08 / AP-1) THE DENOMINATOR'S WITNESS. ───────────
+    //
+    // D-08 asks a published figure to be a MEASUREMENT, and a measurement needs something OUTSIDE
+    // itself that is able to disagree with it.
+    //
+    // WHAT STOOD HERE UNTIL PLAN 29-37, AND WHY IT WAS DELETED RATHER THAN AMENDED. Three numbers
+    // were compared as `headingIdx.length === headingShapedLines - headingShapedFenced`. Every term
+    // consumed the SAME `CLAIM_HEADING_RE` and the SAME `fencedLineFlags(text)` over the same text,
+    // so the comparison was the identity |re ∧ ¬flags| = |re| − |re ∧ flags| and NO INPUT COULD MAKE
+    // IT FIRE. MEASURED rather than argued from set algebra: over a 16-shape corpus — canonical
+    // unfenced, canonical inside a terminated fence, two headings on adjacent lines, a single-token
+    // non-canonical heading, a canonical heading carrying trailing text, an unterminated fence, tab
+    // and trailing-space separators, nested fences, a four-backtick run, an indented delimiter, a
+    // heading on the last line with no trailing newline, an empty document, CRLF, NBSP and the LIVE
+    // registry — it fired ZERO times. The comment above it asserted in so many words that it was NOT
+    // "one expression and a subtraction of its own output". It was exactly that, and a cost paragraph
+    // that outlives the code it describes is this repository's own recorded defect, so the sentence
+    // is DELETED rather than softened.
+    //
+    // WHAT SHIPS INSTEAD: TWO COUNTS OF DIFFERENT KINDS.
+    //
+    //   * `claims.length` is a LINE-ARRAY FILTER through `CLAIM_HEADING_RE` — a `\S+`-shaped
+    //     recogniser that accepts any single token as an id — followed by `parseClaimBlock`.
+    //   * `census.raw` is a `g`-flagged OCCURRENCE SCAN over the RAW text for the CANONICAL heading
+    //     form, built from `CLAIM_ID_RE`'s own source.
+    //
+    // Two recognisers, two traversals, ONE fence verdict: `census` is handed the `flags` array
+    // computed above and never calls `fencedLineFlags` itself (LANG-07). The fenced canonical count
+    // is the only difference the equality permits, because a canonical heading inside a fence is
+    // documentation by this module's own decision and correctly absent from `claims`.
+    //
+    // WHAT THE WITNESS CATCHES ON INPUT, ENUMERATED — these fire on the SHIPPED recogniser:
+    //
+    //   * A LINE TERMINATOR THIS MODULE'S `\n` SPLIT DOES NOT SEE. `^`/`$` under `m` also break at a
+    //     bare CR, U+2028 and U+2029; `text.split("\n")` does not. So `prelude<CR>### C-28-007` is a
+    //     canonical heading to every `m`-anchored reader, to `grep`, and to a renderer, and is NOT a
+    //     line at all to this parser — a claim that exists in the document and is missing from the
+    //     list. `census.raw` sees it, `claims` does not, and the refusal names both numbers.
+    //   * The same terminator AFTER the id (`### C-28-007<U+2028>and words`), which the line filter
+    //     rejects as trailing text and the document scan reads as a complete heading.
+    //
+    // WHAT IT CATCHES ONLY UNDER MUTATION, said because a half-disclosure is what the deleted comment
+    // was: a drift in `CLAIM_HEADING_RE` that stops requiring the id to be the WHOLE line, e.g.
+    // `/^###\s+(\S+).*$/`. Under that recogniser `### C-28-002 and some words` parses as a live claim
+    // that the canonical scan does not see. Proven by mutating the COMMITTED `.js` in
+    // scripts/audit-model.test.ts rather than asserted here.
+    //
+    // WHAT IT CANNOT CATCH AT ALL, in the same plain voice:
+    //
+    //   * A REAL CLAIM WRAPPED IN A FENCE. It leaves `claims` and arrives in `census.fenced`, so the
+    //     equality is preserved by construction. That direction is held by the odd-delimiter refusal
+    //     above and the swallowed-verbatim refusal in `parseClaimBlock`, never here.
+    //   * A NON-CANONICAL ID ON AN UNFENCED HEADING (`### Overview`, `### C-28-００１` with full-width
+    //     digits). `parseClaimBlock`'s canonical-id check DOMINATES this equality and refuses first,
+    //     so no input reaches the witness by that road. The witness is what SURVIVES if that check
+    //     ever weakens — with it removed, `### banana` alone makes these two numbers disagree, also
+    //     proven by mutation rather than claimed.
+    const census = canonicalClaimHeadingCensus(text, flags);
+    if (claims.length + census.fenced !== census.raw) {
+        refuse(REGISTRY_PATH, `its claim list and its raw canonical-heading count disagree: the parse returned ` +
+            `${claims.length} claim(s) and the raw text carries ${census.raw} canonical ` +
+            `\`### C-28-NNN\` heading(s), of which ${census.fenced} sit inside a fence. ` +
+            `${claims.length} + ${census.fenced} is not ${census.raw}. These two numbers are counted ` +
+            `by different recognisers over different traversals, so a disagreement means one of them ` +
+            `is not describing this document — and the direction that matters is the SHORT one: a ` +
+            `claim the raw bytes carry and the list does not is a file quietly missing from the D-18 ` +
+            `safety-surface exclusion list, with every gate computed over it still passing`);
     }
     return { claims, headingShapedLines, headingShapedFenced };
 }
