@@ -265,4 +265,139 @@ describe("generate-catalog.js (DOCS-01)", () => {
       writeFileSync(OUT, before);
     }
   });
+
+  // ── (6) THE SECTION-EXTENT UNIFICATION, HELD ON BOTH AXES (plan 29-35, LANG-07 / WR-08) ───────
+  //
+  // This generator used to bound `## <heading>` with a private `new RegExp` lookahead over the whole
+  // document. Plan 29-35 deleted it and asked `unfencedHeadingIndex` + `sectionEndIndex` instead.
+  // Live reachability over the committed kit was ZERO on both axes on the day of the change, so
+  // `docs/catalog/README.md` is byte-identical — which means nothing in the artifact distinguishes
+  // that change from a rename. These two cases are what does.
+  //
+  // THE CASES LIVE IN BOTH GENERATORS' TEST FILES because the defect existed in both, and a case in
+  // one file proves nothing about the other. The two deleted copies were byte-identical, so the
+  // hazard was too.
+
+  /**
+   * THE HISTORICAL GRAMMAR — A FIXTURE, NOT A LIVE SECOND GRAMMAR.
+   *
+   * The exact pattern plan 29-35 DELETED from this generator, reconstructed here and NOWHERE ELSE.
+   * Called only by the two cases below, imported by nothing, exported to nothing. It exists to show
+   * that the planted documents DISCRIMINATE — that the shipped path and the grammar it replaced give
+   * different answers on them. Without it, a case asserting the correct answer passes on a fix and on
+   * a coincidence alike.
+   */
+  const HISTORICAL_LOOKAHEAD_GRAMMAR = (
+    text: string,
+    heading: string,
+  ): string | null => {
+    const re = new RegExp(
+      `^## ${heading}\\n([\\s\\S]*?)(?=\\n## |$(?![\\s\\S]))`,
+      "m",
+    );
+    const m = text.match(re);
+    return m ? m[1] : null;
+  };
+
+  /** A hermetic mirror of the generator, its import closure and the kit. The live tree is untouched. */
+  function catalogMirror(): string {
+    const m = mkdtempSync(join(tmpdir(), "grugops-catalog-extent-"));
+    tmpDirs.push(m);
+    mkdirSync(join(m, "scripts"), { recursive: true });
+    mkdirSync(join(m, "docs", "catalog"), { recursive: true });
+    cpSync(GEN_JS, join(m, "scripts", "generate-catalog.js"));
+    for (const mod of GEN_MODULES) {
+      cpSync(join(ROOT, "scripts", mod), join(m, "scripts", mod));
+    }
+    cpSync(join(ROOT, "agent-factory", "roles"), join(m, "agent-factory", "roles"), {
+      recursive: true,
+    });
+    cpSync(
+      join(ROOT, "agent-factory", "workflows"),
+      join(m, "agent-factory", "workflows"),
+      { recursive: true },
+    );
+    return m;
+  }
+  const runMirror = (m: string): { status: number | null; text: string } => {
+    const r = spawnSync("node", [join(m, "scripts", "generate-catalog.js")], {
+      encoding: "utf8",
+    });
+    return { status: r.status, text: `${r.stdout}${r.stderr}` };
+  };
+  /** The `One job` cell of the QE/E2E row, read out of the generated table. */
+  const qeJobCell = (m: string): string => {
+    const row = readFileSync(join(m, "docs", "catalog", "README.md"), "utf8")
+      .split("\n")
+      .find((l) => l.includes("agent-factory/roles/qe-e2e.md"));
+    if (row === undefined) throw new Error("the QE/E2E row is absent from the generated catalog");
+    return row.split("|")[3].trim();
+  };
+
+  it("a fenced level-two heading INSIDE the document does not steal the section — the FENCE axis", () => {
+    const m = catalogMirror();
+    // CONTROL FIRST: the unplanted mirror produces the real summary, so any movement below is caused
+    // by the plant and not by the mirror.
+    expect(runMirror(m).status).toBe(0);
+    expect(qeJobCell(m)).toBe("Break the feature with tests and report the gaps.");
+
+    const rolePath = join(m, "agent-factory", "roles", "qe-e2e.md");
+    const original = readFileSync(rolePath, "utf8");
+    // THE PLANT: the role QUOTES its own `## One job` heading inside a fenced example, above the real
+    // section — the WR-01 document, showing documentation rather than declaring a second section.
+    const planted = original.replace(
+      "# Role: QE/E2E\n",
+      "# Role: QE/E2E\n\n```md\n## One job\nThis block is an EXAMPLE, not the section.\n```\n",
+    );
+    expect(planted, "the plant must really have been applied").not.toBe(original);
+    writeFileSync(rolePath, planted);
+
+    // THE DISCRIMINATION, BEFORE THE CLAIM.
+    expect(
+      HISTORICAL_LOOKAHEAD_GRAMMAR(planted, "One job"),
+      "the deleted grammar must answer DIFFERENTLY on this document, or the case cannot fail",
+    ).toEqual("This block is an EXAMPLE, not the section.\n```\n");
+
+    // THE SHIPPED PATH, asserted as the exact cell — a literal, never a containment, because a
+    // containment assertion is satisfied by a truncated capture that includes the fragment.
+    expect(runMirror(m).status).toBe(0);
+    expect(qeJobCell(m)).toBe("Break the feature with tests and report the gaps.");
+    // …and NOT the row the deleted grammar would have published, stated as its own literal.
+    expect(qeJobCell(m)).not.toBe("This block is an EXAMPLE, not the section.");
+  });
+
+  it("a level-ONE heading after the section CLOSES it — the LEVEL axis", () => {
+    const m = catalogMirror();
+    expect(runMirror(m).status).toBe(0);
+
+    const rolePath = join(m, "agent-factory", "roles", "qe-e2e.md");
+    const original = readFileSync(rolePath, "utf8");
+    // THE PLANT: an EMPTY `## One job` followed immediately by a level-ONE heading with content. The
+    // deleted terminator named level two only, so a `# ` heading did not close the section and the
+    // capture ran into the next top-level section — byte-for-byte the defect voice-model.ts shipped
+    // at exit 0, which cost this phase plans 29-14 and 29-20 one module over.
+    const planted = original.replace(
+      "## One job\nBreak the feature with tests and report the gaps.\n",
+      "## One job\n\n# Appendix\nThis paragraph belongs to the appendix, not to the role's one job.\n",
+    );
+    expect(planted, "the plant must really have been applied").not.toBe(original);
+    writeFileSync(rolePath, planted);
+
+    // THE DISCRIMINATION, BEFORE THE CLAIM: the deleted grammar adopts the appendix and would have
+    // published `# Appendix` as a catalogue summary at exit 0.
+    expect(
+      HISTORICAL_LOOKAHEAD_GRAMMAR(planted, "One job"),
+      "the deleted grammar must answer DIFFERENTLY on this document, or the case cannot fail",
+    ).toEqual(
+      "\n# Appendix\nThis paragraph belongs to the appendix, not to the role's one job.\n",
+    );
+
+    // THE SHIPPED PATH sees an EMPTY section, which is what it is, and fails closed by name.
+    const r = runMirror(m);
+    expect(r.status).toBe(1);
+    expect(r.text).toContain(
+      "qe-e2e.md: no `## One job` section — refusing to write a partial catalog",
+    );
+    expect(r.text).not.toContain("# Appendix");
+  });
 });

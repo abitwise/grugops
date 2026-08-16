@@ -8332,28 +8332,40 @@ const tripwireCensus = (
 // the two exit-code attribution assertions), and removed one — the IN-05 module-level import test
 // that the locator unification made wrong. Its second task added three more here: the sibling
 // generator's imported-symbol pin, and the two vacuity floors the now-EMPTY floor-item-1 answer
-// requires (the module corpus and the classified line count). NET +13, and all six numbers moved
+// requires (the module corpus and the classified line count). Its third task added twenty-six across
+// the two generator test files: the four permanent section-extent cases, thirteen assertions each in
+// generate-role-adapters.test.ts and generate-catalog.test.ts. NET +39, and all six numbers moved
 // together, MEASURED AT EACH TASK BOUNDARY:
-// occurrences 5453 -> 5463 -> 5466 (+13), classified 5380 -> 5390 -> 5393 (+13 — THE SAME DELTA, so
-// every added assertion is a classified line, none is a second raw match on a line already counted,
-// and no comment added by this plan spells the scanned token), statement-level multi-line
-// 1103 -> 1111 -> 1114 (+11), quote-aware 1097 -> 1105 -> 1108 (+11, the SAME delta, so the two
-// paren counters still do not diverge on the new text), disagreements 14 -> 14 (UNCHANGED),
-// subject-only 604 -> 613 -> 616 (+12).
+// occurrences 5453 -> 5463 -> 5466 -> 5492 (+39), classified 5380 -> 5390 -> 5393 -> 5419 (+39 —
+// THE SAME DELTA at every boundary, so every added assertion is a classified line, none is a second
+// raw match on a line already counted, and no comment added by this plan spells the scanned token),
+// statement-level multi-line 1103 -> 1111 -> 1114 -> 1123 (+20), quote-aware
+// 1097 -> 1105 -> 1108 -> 1117 (+20, the SAME delta at every boundary, so the two paren counters
+// still do not diverge on the new text), disagreements 14 -> 14 (UNCHANGED), subject-only
+// 604 -> 613 -> 616 -> 621 (+17).
 //
-// THE +11 / +12 / +13 SPREAD IS ACCOUNTED FOR, NOT ROUNDED PAST. Twelve of the thirteen added
-// assertions are written multi-line and the one removed assertion was too, so the statement-level
-// counters move by eleven. The subject-only counter asks a DIFFERENT question of the same lines —
-// whether the assertion's SUBJECT runs past its own line — and answers it for twelve of them. Three
-// counters over one set of added lines are expected to give three answers; what would be a finding
-// is the two PAREN counters disagreeing with each other, and they do not.
+// THE +17 / +20 / +39 SPREAD IS ACCOUNTED FOR, NOT ROUNDED PAST, AND THE THREE COUNTERS ARE ASKING
+// THREE DIFFERENT QUESTIONS OF ONE SET OF LINES. Twenty-one of the thirty-nine added assertions are
+// written on a single line (`status).toBe(0)`, a cell equality, a `not.toContain`), so they leave no
+// paren open and the statement-level counters move by twenty rather than by thirty-nine. The
+// subject-only counter asks whether the assertion's SUBJECT runs past its own line, which is true of
+// seventeen — the spelling that opens with a bare call and puts the subject on the NEXT line — and
+// false of the spelling that names the subject inline and opens its paren on the matcher instead.
+// What would be a finding is the two PAREN counters disagreeing with EACH OTHER, and they do not, at
+// any of the three boundaries.
+//
+// (AND THE SENTENCE ABOVE IS SPELLED THAT WAY ON PURPOSE. The first draft named the scanned token
+// literally, twice, to describe the two spellings — and the census counts raw occurrences over these
+// very bytes, so those two comment words became two occurrences that are not classified lines and
+// broke the SAME-DELTA property this note relies on. Measured, +2/+0, which is exactly why the older
+// note directly below this block exists. The words were removed rather than the delta explained.)
 const TRIPWIRE_MODULES = 47;
-const TRIPWIRE_EXPECT_OCCURRENCES = 5466;
-const TRIPWIRE_CLASSIFIED_LINES = 5393;
-const TRIPWIRE_MULTILINE_STATEMENTS = 1114;
-const TRIPWIRE_MULTILINE_STATEMENTS_QUOTE_AWARE = 1108;
+const TRIPWIRE_EXPECT_OCCURRENCES = 5492;
+const TRIPWIRE_CLASSIFIED_LINES = 5419;
+const TRIPWIRE_MULTILINE_STATEMENTS = 1123;
+const TRIPWIRE_MULTILINE_STATEMENTS_QUOTE_AWARE = 1117;
 const TRIPWIRE_COUNTER_DISAGREEMENTS = 14;
-const TRIPWIRE_MULTILINE_SUBJECTS = 616;
+const TRIPWIRE_MULTILINE_SUBJECTS = 621;
 /** Round 3's own published figures, reproduced from `0ec8b61` by the premise case. */
 const ROUND_3_TRIPWIRE = {
   modules: 47,

@@ -621,11 +621,141 @@ so a third generator adopting the helper reds on the day it lands.
 **LANG-07's truth is therefore NOT fully closed on this tree**, and this is escalated rather than
 recorded as an accepted residual. See 29-29-SUMMARY.md.
 
+#### 9.3a The escalation as written above was NARROWER than the finding (round-4 review, WR-08)
+
+The text above names ONE axis. There are **two**, and it also omits the consumer. Both omissions are
+recorded here rather than corrected in place, because the audit is a trail and not a tidy final state.
+
+**The LEVEL axis, by name.** The deleted grammar's terminator is `(?=\n## |$(?![\s\S]))` — it names
+**level two only**. A level-**ONE** heading therefore does **not** close the section, and the capture
+runs on into the next top-level section. That is **byte-for-byte the defect `voice-model.ts` shipped
+at exit 0**, the one this phase paid for twice: plan 29-14 (the half-fix, which corrected the fence
+axis and left the level axis) and plan 29-20 (the correction). The same defect was sitting one module
+over, in two copies, while the plan that corrected it was being written.
+
+**The CONSUMER, by name.** This is not a reporting helper. The capture becomes:
+
+* the `description` of a generated Claude Code role adapter — its `One job` sentence and its
+  `Use when:` clause — and **`description` drives auto-routing**, so a wrong capture silently changes
+  which agent a request routes to;
+* the `One job` and `When to use` cells of `docs/catalog/README.md`.
+
+Both are committed artifacts behind freshness gates, so a truncated or over-long capture, once
+generated, becomes the bytes `npm run freshness:adapters` and `npm run freshness:catalog` **demand**.
+
+#### 9.3b CLOSED by plan 29-35 — both copies deleted, both artifacts byte-identical
+
+| address | disposition |
+|---|---|
+| `scripts/generate-catalog.ts:87` | private grammar DELETED; extent asked of `unfencedHeadingIndex` + `sectionEndIndex` |
+| `scripts/generate-role-adapters.ts:127` | the byte-identical copy DELETED the same way |
+
+Per **D-24** the remedy is deletion, never a fence-aware, level-aware third copy: a widened third copy
+is still a third copy. The `-1` answer is returned to each caller as the `null` both already read as
+"section absent" — never defaulted to zero, never clamped, never given a substitute sentinel.
+
+**Behaviour preservation is a byte proof, not an argument.** After the change,
+`git diff --exit-code docs/catalog/README.md` and `git diff --exit-code .claude/agents` both exit 0
+on regeneration; `freshness:catalog`, `freshness:adapters` and `freshness:skill-twins` all exit 0
+(17 adapters and 7 twins compared, 0 byte differences).
+
+**The three widening axes, MEASURED in plan 29-35's session over the 17 roles and 19 workflows** —
+because "0 live today" is a measurement with a date on it, and that date is this plan's:
+
+| axis | live count | how |
+|---|---|---|
+| fenced level-two heading lines | **0** | `fencedLineFlags` over each document, counting lines flagged inside a fence that match `^## ` |
+| level-ONE headings inside a read section's OLD extent | **0** | the deleted grammar's own capture, scanned for `^# ` |
+| anchor heading lines carrying trailing whitespace | **0** of **53** | `line.trimEnd()` equality against the four anchors, comparing against `line` |
+
+The 53 is the corpus's own arithmetic — 17 roles x 2 anchors (`## One job`, `## Activates when`) plus
+19 workflows x 1 (`## When to use`) — so a zero from a scan that matched nothing is distinguishable
+from a zero from a scan that ran.
+
+**Both axes are now held by four permanent cases**, two in `scripts/generate-catalog.test.ts` and two
+in `scripts/generate-role-adapters.test.ts`, because a case in one file proves nothing about the
+other. Each reconstructs the deleted pattern as a fixture-only control named
+`HISTORICAL_LOOKAHEAD_GRAMMAR`, asserts the control and the shipped path **disagree** on its planted
+document, and asserts the shipped answer as a **literal** rather than a containment. The bypasses were
+also reproduced against the **pre-fix committed `.js`**, both at exit 0:
+
+```
+PRE-FIX  generate-role-adapters.js, fenced `## One job` above the real section
+  exit=0  description: "This block is an EXAMPLE, not the section. Use when: Need tests."
+PRE-FIX  generate-role-adapters.js, empty `## One job` above a `# Appendix`
+  exit=0  description: "# Appendix Use when: Need tests."
+PRE-FIX  generate-catalog.js, same two plants
+  exit=0  | QE/E2E | core | This block is an EXAMPLE, not the section. | ...
+  exit=0  | QE/E2E | core | # Appendix | ...
+
+POST-FIX same plants, same mirrors
+  exit=0  description: "Break the feature with tests and report the gaps. Use when: Need tests."
+  exit=1  ERROR  qe-e2e.md: no `## One job` section — refusing to emit an adapter with an
+                 empty description (`description` drives auto-routing)
+```
+
+`REGEXP_SECTION_BOUND_SITES` is now **empty**, with the declaration recording that plan 29-35 emptied
+it, its three discrimination assertions kept and passing, and two vacuity floors added (the module
+corpus pinned against `NON_TEST_MODULE_COUNT`, and the classified LINE count floored) — because an
+empty answer can no longer prove itself by producing a member.
+
+#### 9.3c V-29-35-01 — a private `parseFrontmatter` beside the exported one, MEASURED and OUT OF SCOPE
+
+Reading `generate-catalog.ts` for the fix above surfaced an adjacency, recorded here by name rather
+than absorbed or quietly fixed:
+
+```
+scripts/generate-catalog.ts:50   function parseFrontmatter(text): Record<string, string>   (private)
+scripts/frontmatter.ts:3862      export function parseFrontmatter(text): Parsed<FrontmatterKeys>
+```
+
+This is the **frontmatter** predicate, not the section-extent one — the same shape finding WR-03
+closed in `generate-role-adapters.ts` at plan 27-23, still live in the sibling generator.
+
+**Measured in plan 29-35's session**, both parsers run over all 17 roles and 19 workflows (36
+documents), comparing parsed **key sets**:
+
+```
+CORPUS: 17 roles + 19 workflows = 36 documents
+DOCUMENTS WHOSE PARSED KEY SETS DIFFER: 0
+DOCUMENTS THE AUTHORITY REFUSES OUTRIGHT: 0
+NON-VACUITY: qe-e2e.md authority keys = [capabilities,kind,tier]
+NON-VACUITY: qe-e2e.md local keys     = [capabilities,kind,tier]
+```
+
+Live reachability is therefore **0** on the governed corpus. It is not zero in principle: WR-03
+measured three concrete divergences of this exact local grammar against the authority (a key charset
+excluding digits and hyphens, a colon with no following space read as a mapping entry, and a duplicate
+key silently last-wins), and two of them were **not** fail-closed.
+
+**Disposition: OUT OF SCOPE for this round by user decision.** This round's scope was decided
+deliberately, and a measured adjacency recorded by name is the correct disposition — quietly absorbing
+it and quietly fixing it are both wrong. It is neither a bypass of this plan's fix nor a silent drop.
+
+It did force one honest correction, recorded because the alternative was to leave a false claim
+standing. `scripts/frontmatter.test.ts`'s D-50 IN-05 case asserted that a module carrying a local
+frontmatter grammar imports **nothing** from `./frontmatter.js`. That module-level test refuses the
+very unification LANG-07 requires, because `frontmatter.ts` answers **two** questions and a module may
+legitimately hold its own opinion on one while consuming the authority for the other. The test is now
+**symbol-level and expressed as an allow-list** — a module with a local frontmatter grammar may import
+only from the section-locator family, and every other symbol, including one added tomorrow, is refused
+with no edit there. The stronger original property is still asserted for `context-io.ts`, what
+`generate-catalog.ts` takes is pinned two-sided, and the allow-list is proven to discriminate on
+planted import lines.
+
+A second harness premise was corrected in the same block. The reachability case seeded its import
+closure with the frontmatter **consumers** and then asked whether a grammar was in that closure — so
+every seed was trivially a member. While every consumer happened to be a guard-ish module the two
+coincided; making `generate-catalog.ts` a consumer exposed the difference, and the old spelling would
+have reported a top-level script that **nothing imports** as "reachable from the guard import graph".
+The measurement is now over the **edge** set — modules some other module in the closure imports — so
+the claim and the measurement match.
+
 ### 9.4 The other floor items, re-checked with live counts
 
 | item | status after round 3 | live count |
 |---|---|---|
-| 1 — `new RegExp` / concatenated fragments | REACHABLE; escalated (§9.3) | **2**, both named and pinned |
+| 1 — `new RegExp` / concatenated fragments | REACHABLE; escalated (§9.3); **CLOSED by plan 29-35 (§9.3b)** | **2** at round 3, both named and pinned; **0** after 29-35 |
 | 2 — slice / charAt / indexOf heading test | still a floor | **0**, derived and pinned |
 | 3 — a bound through a HELPER | still a floor | not counted — needs a call graph |
 | 4 — whitespace CLASS separator | **CLOSED**; the shape is now recognised | the residue (a bracket character class) is **0**, derived and pinned |
