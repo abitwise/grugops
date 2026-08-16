@@ -74,7 +74,11 @@
 import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { listRoles, INVARIANT, RESOLVER } from "./kit-model.js";
-import { parseFrontmatter } from "./frontmatter.js";
+import {
+  parseFrontmatter,
+  sectionEndIndex,
+  unfencedHeadingIndex,
+} from "./frontmatter.js";
 
 // ── Fixed literal paths (never argv/env/content-derived — ASVS V12) ───────────────────────────
 const ROOT = join(import.meta.dirname, "..");
@@ -120,13 +124,43 @@ function firstSentence(body: string): string {
   return dot === -1 ? line : line.slice(0, dot + 1);
 }
 
-// ── Extract the body of a `## <heading>` section (up to the next `## ` or end of file) ─────────
-// The lookahead's second branch is `$(?![\s\S])` — true end-of-input, NOT end-of-line, so a
-// last-in-file section is not truncated to its first line under the `/m` flag.
+// ── The body of a `## <heading>` section — ASKED, never answered here ──────────────────────────
+// THE SECTION-EXTENT GRAMMAR IS scripts/frontmatter.ts, AND THERE IS NO SECOND ONE IN THIS FILE —
+// the same sentence the header already makes about the FRONTMATTER grammar, now true of the other
+// question this module used to answer privately.
+//
+// WHAT WAS DELETED HERE AND WHY (plan 29-35, LANG-07 / 29-REVIEW § WR-08). This function built a
+// private `new RegExp` lookahead over the whole document, byte-for-byte identical to the copy in
+// scripts/generate-catalog.ts — a THIRD grammar over bytes this tree has ONE parser for. It
+// disagreed with the authority on two axes. FENCE-BLIND: a `## ` line quoted inside a fenced example
+// terminated the capture early. LEVEL-BLIND: its terminator named level TWO only, so a level-ONE
+// heading did not close the section and the capture ran on into the next top-level section — the
+// identical defect scripts/voice-model.ts shipped at exit 0, which cost this phase plan 29-14 (the
+// half-fix) and plan 29-20 (the correction). Per D-24 the remedy is DELETION, never an extra case:
+// a widened third copy is still a third copy, exactly as the header argues for the frontmatter half.
+//
+// THE STAKES HERE ARE HIGHER THAN A DOCS TABLE. This capture becomes the adapter `description` — the
+// `One job` sentence and the `Use when:` clause — and `description` DRIVES AUTO-ROUTING. A truncated
+// or over-long capture silently changes which agent a request routes to, and `npm run
+// freshness:adapters` would then require the wrong bytes to be committed.
+//
+// THE `-1` ANSWER IS LEGAL, AND IT IS NOT AN INDEX. It means "this document carries no such unfenced
+// line", and it is handed back as `null` — the value both call sites already read as "section
+// absent", so no caller changed. It is never defaulted to zero, never clamped with `Math.max`, and
+// never swapped for another sentinel: `-1 + 1` is `0`, i.e. "from the top of the document".
+//
+// THESE FIVE LINES ARE IDENTICAL TO scripts/generate-catalog.ts's, AND THAT IS DELIBERATE — the
+// reason is written at BOTH sites so a later reader does not merge them or duplicate them again. A
+// shared wrapper would need a NEW module: both generators are top-level script code that writes
+// files the moment it is imported, so neither may import the other, and adding a third exported name
+// to frontmatter.ts would give one question a second name inside its own authority. Composing two
+// exported authority functions at the point of use is not a duplicated grammar — it is two callers
+// asking the same parser. Keep the two bodies in step; do not promote them to a fourth name.
 function sectionBody(text: string, heading: string): string | null {
-  const re = new RegExp(`^## ${heading}\\n([\\s\\S]*?)(?=\\n## |$(?![\\s\\S]))`, "m");
-  const m = text.match(re);
-  return m ? m[1] : null;
+  const at = unfencedHeadingIndex(text, `## ${heading}`);
+  if (at === -1) return null;
+  const end = sectionEndIndex(text, at + 1, 2);
+  return text.split("\n").slice(at + 1, end).join("\n");
 }
 
 // ── YAML double-quoted scalar ─────────────────────────────────────────────────────────────────

@@ -15451,10 +15451,11 @@ describe("frontmatter — every consumer honours the locator's `-1` contract (pl
     "check-diff-disposition.ts",
     "check-imperative-lexicon.ts",
     "generate-catalog.ts",
+    "generate-role-adapters.ts",
     "voice-model.ts",
   ];
-  const CONTRACT_CONSUMER_COUNT = 6;
-  const CONTRACT_SITE_COUNT = 8;
+  const CONTRACT_CONSUMER_COUNT = 7;
+  const CONTRACT_SITE_COUNT = 9;
 
   it("the consumer set and its call-site count are DERIVED, sorted and pinned two-sided", () => {
     const modules = consumerModules();

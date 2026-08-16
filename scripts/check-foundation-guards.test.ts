@@ -849,6 +849,15 @@ describe("D-64 cutover: the spawn verdict is rendered by the canonical admission
       importedSymbols("generate-catalog.ts", "frontmatter"),
       "generate-catalog.ts must take the shared section LOCATOR and nothing else — never a `new RegExp` section-extent grammar of its own, which is the third-grammar shape plan 29-35 deletes",
     ).toEqual(["sectionEndIndex", "unfencedHeadingIndex"]);
+    // …and the SIBLING generator's own set, which moved from one symbol to three in the same plan and
+    // for the same reason. It keeps `parseFrontmatter` — it has taken the frontmatter authority since
+    // WR-03 (plan 27-23) — and adds the two locator functions. THE PIN MOVING IS THE PIN WORKING.
+    // Both generators had to move together: the two deleted grammars were byte-identical, so a set
+    // that gained one replacement and not the other would itself be the finding.
+    expect(
+      importedSymbols("generate-role-adapters.ts", "frontmatter"),
+      "generate-role-adapters.ts must take the frontmatter authority AND the shared section LOCATOR — never a `new RegExp` section-extent grammar of its own, which is the third-grammar shape plan 29-35 deletes",
+    ).toEqual(["parseFrontmatter", "sectionEndIndex", "unfencedHeadingIndex"]);
     // (Plan 29-20, CR-02 + WR-01) AND `voice-model.ts`'s OWN SET MOVED FROM ONE SYMBOL TO FOUR — in
     // the direction D-24 wants, which is why the PIN moves rather than the code. THE PIN MOVING IS
     // THE PIN WORKING: it went red the moment the module took more from the authority, which is
@@ -1166,11 +1175,12 @@ describe("D-64 cutover: the spawn verdict is rendered by the canonical admission
 //      construct is a recogniser used on a LINE that bounds a SCAN, and a whole-document regex
 //      performs no line scan. Widening the definition to swallow it would have been re-writing the
 //      rule until the answer came out interesting.
-//      (PLAN 29-35) THE ESCALATION IS BEING CLOSED, ONE ADDRESS AT A TIME. `generate-catalog.ts`'s
-//      copy is DELETED and that generator now asks `unfencedHeadingIndex` + `sectionEndIndex`,
-//      proven behaviour-preserving by byte-identical regeneration of `docs/catalog/README.md`.
-//      LIVE COUNT: 1 — `generate-role-adapters.ts:127`, which goes the same way in this plan's next
-//      task. The count is still DERIVED AND PINNED two-sided by a case below.
+//      (PLAN 29-35) THE ESCALATION IS CLOSED. BOTH copies are DELETED and both generators now ask
+//      `unfencedHeadingIndex` + `sectionEndIndex`, proven behaviour-preserving by byte-identical
+//      regeneration of `docs/catalog/README.md` and of all 17 files under `.claude/agents`.
+//      LIVE COUNT: 0, still DERIVED AND PINNED two-sided by a case below — whose three
+//      discrimination assertions are KEPT, so the empty answer is provably produced by a pattern
+//      that still recognises the shape rather than by one that stopped matching.
 //   2. A heading test written as a slice or an index comparison — `line.slice(0, 3) === "## "`,
 //      `line.charAt(0) === "#"`, `line.indexOf("## ") === 0`. LIVE COUNT: 0, re-measured this plan.
 //   3. A bound expressed through a HELPER this scan does not read: `if (isHeading(line)) break;`
@@ -1662,15 +1672,22 @@ const NON_TEST_MODULE_COUNT = 49;
  * grammar answering the section-extent question, fence-blind, and outside the owner scan's published
  * definition because they perform no line scan. Escalated in 29-29-SUMMARY.md, not absorbed here.
  *
- * (Plan 29-35, LANG-07 — 29-REVIEW § WR-08) THE ESCALATION IS CLOSED AND THE LIST IS DOWN TO ONE.
- * `scripts/generate-catalog.ts` no longer answers the section-extent question: its private grammar
- * is DELETED and the extent is asked of `unfencedHeadingIndex` + `sectionEndIndex`. The sibling copy
- * in `scripts/generate-role-adapters.ts` goes the same way in this plan's next task, at which point
- * this list is EMPTY — see the note that lands with it. Re-derived by running the scan below, never
- * decremented by hand.
+ * (Plan 29-35, LANG-07 — 29-REVIEW § WR-08) THE ESCALATION IS CLOSED AND THIS LIST IS NOW EMPTY.
+ * NEITHER generator answers the section-extent question any more: BOTH private grammars are DELETED
+ * and both modules ask `unfencedHeadingIndex` + `sectionEndIndex`, proven behaviour-preserving by
+ * byte-identical regeneration of `docs/catalog/README.md` and of all 17 files under `.claude/agents`.
+ * Re-derived by running the scan below over the live tree, never decremented by hand.
+ *
+ * THE LIST IS EMPTY BECAUSE PLAN 29-35 EMPTIED IT — NOT BECAUSE THE SHAPE WAS NEVER REAL. That
+ * sentence is here so a later reader does not read the emptiness as a hypothetical and delete the
+ * case. An empty pinned list is a vacuity risk, so the case's THREE discrimination assertions are
+ * KEPT and must keep passing: a `new RegExp` bounding a level-two section matches, one carrying no
+ * ATX heading run does not, and one whose hash is followed by no separator does not. The empty LIVE
+ * answer is therefore provably produced by a pattern that still recognises the shape, and a third
+ * generator adopting the deleted helper reds this case on the day it lands.
  */
-const REGEXP_SECTION_BOUND_SITES = ["scripts/generate-role-adapters.ts:127"];
-const REGEXP_SECTION_BOUND_SITE_COUNT = 1;
+const REGEXP_SECTION_BOUND_SITES: string[] = [];
+const REGEXP_SECTION_BOUND_SITE_COUNT = 0;
 /**
  * The remaining floor items' LIVE sites, derived in this session rather than typed into the prose.
  *
@@ -1701,16 +1718,19 @@ const LOCATOR_FUNCTIONS = [
 // joins the set the day it deletes its private `new RegExp` section-extent grammar and asks the
 // authority instead. THE PIN MOVING IS THE PIN WORKING: it went red the moment the module took the
 // two locator functions, which is exactly what a two-sided list is for, and it is raised only after
-// the direction has been checked. The sibling generator joins in this plan's next task.
+// the direction has been checked. `scripts/generate-role-adapters.ts` joins for the same reason in
+// the same plan — the two copies of the deleted grammar were byte-identical, so the two replacements
+// are too, and a set that gained one of them and not the other would be the finding.
 const LOCATOR_CONSUMERS = [
   "scripts/audit-model.ts",
   "scripts/check-banned-claims.ts",
   "scripts/check-diff-disposition.ts",
   "scripts/check-imperative-lexicon.ts",
   "scripts/generate-catalog.ts",
+  "scripts/generate-role-adapters.ts",
   "scripts/voice-model.ts",
 ];
-const LOCATOR_CONSUMER_COUNT = 6;
+const LOCATOR_CONSUMER_COUNT = 7;
 
 /**
  * A source carrying ONE site of each construct pair — the falsifiability probe's fixture.
@@ -2277,12 +2297,33 @@ describe("LANG-07: exactly ONE module owns the section-extent predicate (plan 29
     // What is NOT optional is that the floor stop reading as a hypothetical. The shape's live count
     // is derived here and pinned two-sided WITH ITS SITES NAMED, so item 1 cannot rot the way item 4
     // did: a third generator adopting the same helper reds this case on the day it lands.
+    //
+    // (PLAN 29-35) THE ANSWER IS NOW EMPTY, WHICH RAISES THE BAR ON THE HARNESS'S OWN PREMISE. Both
+    // addresses are gone — deleted, not exempted — so this scan can no longer prove it works by
+    // producing a member. Three things therefore hold it up, and all three are asserted below: the
+    // MODULE CORPUS is floored against its independently pinned size, so an empty answer cannot come
+    // from a walk that read nothing; the scanned LINE count is floored, so it cannot come from files
+    // read but never classified; and the three discrimination assertions are KEPT, so the pattern is
+    // shown still to recognise the shape it reports zero of.
+    const scanned = nonTestModules();
+    expect(
+      scanned.length,
+      "the module corpus must really have been enumerated — an EMPTY site list derived from an empty file list is a clean answer produced by reading nothing",
+    ).toBe(NON_TEST_MODULE_COUNT);
     const sites: string[] = [];
-    for (const rel of nonTestModules()) {
+    let linesClassified = 0;
+    for (const rel of scanned) {
       codeLinesOfSource(readFileSync(join(ROOT, rel), "utf8")).forEach((line, i) => {
+        linesClassified += 1;
         if (REGEXP_BUILT_SECTION_BOUND.test(line)) sites.push(`${rel}:${i + 1}`);
       });
     }
+    // A vacuity floor catches an EMPTY denominator and has never caught a SILENTLY SHORT one, so the
+    // LINES the pattern was actually asked about are counted too, not just the files opened.
+    expect(
+      linesClassified,
+      "the pattern must have been asked about real lines — a zero-line scan reports zero sites for a reason that has nothing to do with the tree",
+    ).toBeGreaterThan(10000);
     expect(sites.sort()).toEqual(REGEXP_SECTION_BOUND_SITES);
     expect(sites).toHaveLength(REGEXP_SECTION_BOUND_SITE_COUNT);
 
@@ -8289,26 +8330,30 @@ const tripwireCensus = (
 // stronger-property control, the generate-catalog two-sided pin, and the edge-set non-vacuity plus
 // the seed-membership statement) and three to generate-catalog.test.ts (the import-closure floor and
 // the two exit-code attribution assertions), and removed one — the IN-05 module-level import test
-// that the locator unification made wrong. NET +10, and all six numbers moved together:
-// occurrences 5453 -> 5463 (+10), classified 5380 -> 5390 (+10 — THE SAME DELTA, so every added
-// assertion is a classified line, none is a second raw match on a line already counted, and no
-// comment added by this plan spells the scanned token), statement-level multi-line 1103 -> 1111 (+8),
-// quote-aware 1097 -> 1105 (+8, the SAME delta, so the two paren counters still do not diverge on
-// the new text), disagreements 14 -> 14 (UNCHANGED), subject-only 604 -> 613 (+9).
+// that the locator unification made wrong. Its second task added three more here: the sibling
+// generator's imported-symbol pin, and the two vacuity floors the now-EMPTY floor-item-1 answer
+// requires (the module corpus and the classified line count). NET +13, and all six numbers moved
+// together, MEASURED AT EACH TASK BOUNDARY:
+// occurrences 5453 -> 5463 -> 5466 (+13), classified 5380 -> 5390 -> 5393 (+13 — THE SAME DELTA, so
+// every added assertion is a classified line, none is a second raw match on a line already counted,
+// and no comment added by this plan spells the scanned token), statement-level multi-line
+// 1103 -> 1111 -> 1114 (+11), quote-aware 1097 -> 1105 -> 1108 (+11, the SAME delta, so the two
+// paren counters still do not diverge on the new text), disagreements 14 -> 14 (UNCHANGED),
+// subject-only 604 -> 613 -> 616 (+12).
 //
-// THE +8 / +9 / +10 SPREAD IS ACCOUNTED FOR, NOT ROUNDED PAST. Nine of the ten added assertions are
-// written multi-line and one removed assertion was too, so the statement-level counters move by
-// eight. The subject-only counter asks a DIFFERENT question of the same lines — whether the
-// assertion's SUBJECT runs past its own line — and answers it for nine of them. Three counters over
-// one set of added lines are expected to give three answers; what would be a finding is the two
-// PAREN counters disagreeing with each other, and they do not.
+// THE +11 / +12 / +13 SPREAD IS ACCOUNTED FOR, NOT ROUNDED PAST. Twelve of the thirteen added
+// assertions are written multi-line and the one removed assertion was too, so the statement-level
+// counters move by eleven. The subject-only counter asks a DIFFERENT question of the same lines —
+// whether the assertion's SUBJECT runs past its own line — and answers it for twelve of them. Three
+// counters over one set of added lines are expected to give three answers; what would be a finding
+// is the two PAREN counters disagreeing with each other, and they do not.
 const TRIPWIRE_MODULES = 47;
-const TRIPWIRE_EXPECT_OCCURRENCES = 5463;
-const TRIPWIRE_CLASSIFIED_LINES = 5390;
-const TRIPWIRE_MULTILINE_STATEMENTS = 1111;
-const TRIPWIRE_MULTILINE_STATEMENTS_QUOTE_AWARE = 1105;
+const TRIPWIRE_EXPECT_OCCURRENCES = 5466;
+const TRIPWIRE_CLASSIFIED_LINES = 5393;
+const TRIPWIRE_MULTILINE_STATEMENTS = 1114;
+const TRIPWIRE_MULTILINE_STATEMENTS_QUOTE_AWARE = 1108;
 const TRIPWIRE_COUNTER_DISAGREEMENTS = 14;
-const TRIPWIRE_MULTILINE_SUBJECTS = 613;
+const TRIPWIRE_MULTILINE_SUBJECTS = 616;
 /** Round 3's own published figures, reproduced from `0ec8b61` by the premise case. */
 const ROUND_3_TRIPWIRE = {
   modules: 47,
