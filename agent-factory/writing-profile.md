@@ -132,6 +132,21 @@ the shared section locator's level parameter too, which changes the behaviour of
 and needs its own corpus measurement. That belongs in its own plan. Narrowing removes a claim wider
 than its assertion, which is this repository's own remedy for that class.
 
+**Both rows are now held from both sides, and this paragraph is not what holds them.** A two-sided
+pin compares the rule rows in the table above against `guard_imperative_lexicon`'s own refusal text,
+as bytes: `WP-11`'s rule sentence and its remedy sentence, and `WP-04`'s second sentence — the one
+that names the literal heading. A reword of any of those in either artifact fails by name, saying
+which sentence moved and in which artifact. Six mutations exercise the six routes and each is
+required to break exactly one of them, alongside a control that edits both artifacts somewhere no
+pinned sentence reaches and is required to break none. `WP-04` had been published narrowed for a
+round with nothing holding it: the level-agnostic wording could return, and it was measured doing so
+with every gate still green.
+
+**What is still not held is unchanged.** `WP-04`'s first sentence names no heading spelling, so no
+gate decides it and the pin does not claim otherwise. The other ATX levels remain the disclosed
+floor described above — counted on every run, not decided — and this work neither narrowed nor
+widened them.
+
 ## Deliberate omissions, with their reasons
 
 Recorded so a later phase does not add them back as obvious oversights.
