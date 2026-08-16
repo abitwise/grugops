@@ -556,6 +556,65 @@ export function locateExemptRegion(lines) {
  */
 export const BANNED_CLAIM_EXEMPT_SUPPRESSED = 10;
 /**
+ * How far the one named exemption region REACHES, in lines — `endBefore - headingAt`.
+ *
+ * ---------------------------------------------------------------------------------------------
+ * (Plan 29-32, variant C1 / T-29-23-05) A SECOND NUMBER, BESIDE THE ONE ABOVE, ANSWERING A
+ * DIFFERENT QUESTION. THE TWO ARE NEVER FOLDED TOGETHER.
+ *
+ *   * `BANNED_CLAIM_EXEMPT_SUPPRESSED` asks HOW MANY banned claims sit inside the region.
+ *   * this constant asks HOW FAR the region reaches.
+ *
+ * FOLDING ONE INTO THE OTHER WOULD RECREATE THE CONFLATION THIS ROUND EXISTS TO UNPICK. Round 2
+ * dismissed variant C1 — an unterminated fence opened inside the region, with a real `## ` section
+ * appended after it, so the fence-aware bound walks straight past that heading and the appended
+ * section joins the exemption — as "nothing new", on the grounds that the reach pin above reds the
+ * moment the swallowed text carries a banned claim. That is true and it is not the property. THE
+ * REACH PIN MEASURES OCCURRENCES, AND A CARDINALITY IS BLIND TO MEMBERSHIP BY CONSTRUCTION: a
+ * section swallowed into a safety exemption while carrying NO banned claim moves nothing the reach
+ * pin can see, and the prohibition is then switched off over bytes nobody reviewed. This constant
+ * is the number such a swallow moves.
+ *
+ * THE ACCEPTED COST, STATED RATHER THAN DISCOVERED. A line count moves when the disclaimer is
+ * reflowed, which is exactly the objection recorded above for putting the REACH pin on lines. It is
+ * the right objection and it does not transfer: reach is a question a line count answers badly,
+ * while extent is a question ONLY a line count answers. So this pin will red on a deliberate edit
+ * to the disclaimer, and that is the pin working. MOVING IT IS HOW YOU ACKNOWLEDGE AN EDIT YOU MADE
+ * ON PURPOSE, NEVER HOW YOU CLEAR A FAILURE: an extent that has moved means the exemption now
+ * covers different bytes than the ones it was measured over, so restore the region's boundary, or
+ * re-measure deliberately and say in the commit which lines entered or left it. Do not widen the
+ * pin until it stops firing.
+ *
+ * WHAT THIS PIN STILL CANNOT SEE, NAMED WITH ITS LIVE COUNTS RATHER THAN LEFT IMPLIED:
+ *
+ *   1. V-29-32-01 — A COUNT-PRESERVING COMPENSATING EDIT paired with a CLOSED fence. A swallow of
+ *      K lines matched by a deletion of K neutral lines from the disclaimer holds this number
+ *      still, for the same reason 29-30 recorded when a count-preserving rehome kept every
+ *      cardinality identical. Reproduced against this plan's own build: the UNCLOSED-fence form of
+ *      it is caught at the point of effect by the region-ends-inside-a-fence refusal in `runAll`,
+ *      but the CLOSED-fence form — a real `## ` section hidden inside a properly closed fenced
+ *      example, with prose after it — is not, and deliberately so. That shape is INDISTINGUISHABLE
+ *      from the legitimate case plan 29-18 established on purpose (a `## ` line QUOTED inside a
+ *      closed example is documentation and does not end the region), so refusing it would revert a
+ *      decision this plan does not own. It is not free either: the deleted K lines must also carry
+ *      zero banned-claim occurrences or the reach pin above reds, so the residual is exactly that
+ *      intersection — a deliberate two-part edit, never an accident. Live instances: 0, and the
+ *      live exemption document carries zero fenced lines inside the region at all. Closing it would
+ *      need a CONTENT pin, and this module has already reasoned that a frozen digest over a
+ *      document authors legitimately edit is a false-red generator rather than a pin.
+ *   2. A SETEXT BOUNDARY (V-29-26-01). The shared authority recognises ATX headings only, so a
+ *      `Heading` / `-------` pair does not end the region. Re-measured on the live exemption
+ *      document: 0 setext level-two underlines in its body.
+ *   3. AN INDENTED BOUNDARY (V-29-26-04). The delimiter class and the heading test are both
+ *      column-zero anchored. Re-measured live: 0 indented fence delimiters against 4 column-zero
+ *      ones in the exemption document.
+ *
+ * 2 and 3 are tree-wide floors of the shared authority, answered here exactly as they are answered
+ * for every other consumer, and deliberately not repaired in the plan that measures them.
+ * ---------------------------------------------------------------------------------------------
+ */
+export const BANNED_CLAIM_EXEMPT_EXTENT = 62;
+/**
  * Every occurrence, not every line. Two banned literals sitting adjacently on one line produce TWO
  * findings, and the same literal twice on one line produces two — the hit count is arithmetic over
  * what was read, never a per-line boolean collapsed into one report.
@@ -647,6 +706,10 @@ function runAll() {
     // which document or that the disclaimer is gone. A vanished exemption file is not an absent
     // exemption; it is the disclaimer that has to exist for the prohibition to be writable at all.
     let exemptRegion = null;
+    // ONE READ OF THE EXEMPTION DOCUMENT, AND EVERY QUESTION BELOW IS ASKED OF IT. This plan's whole
+    // subject is two expressions assembling one document twice and drifting apart; re-reading the
+    // file for the boundary check further down would have been that shape again, at the same address.
+    let exemptText = "";
     const exemptAbs = abs(BANNED_CLAIM_EXEMPT_REGION.file);
     if (!existsSync(exemptAbs)) {
         fail(`the document carrying the one named exemption region, ` +
@@ -656,7 +719,8 @@ function runAll() {
             `still scanned and the loss would otherwise read as a clean run`);
     }
     else {
-        exemptRegion = locateExemptRegion(readFileSync(exemptAbs, "utf8").split("\n"));
+        exemptText = readFileSync(exemptAbs, "utf8");
+        exemptRegion = locateExemptRegion(exemptText.split("\n"));
     }
     // The findings, in derived-sorted scan order, then by line, then by literal declaration order.
     const findings = [];
@@ -717,6 +781,74 @@ function runAll() {
             `claim entered or left it, and then move the constant; do not move the constant to make ` +
             `this line go away`);
     }
+    // ── THE REGION'S BOUNDARY MUST NOT HAVE BEEN DECIDED BY AN UNCLOSED FENCE ────────────────────
+    //
+    // FOUND BY ATTACKING THIS PLAN'S OWN EXTENT PIN, AND CLOSED RATHER THAN RECORDED. The extent pin
+    // below is a NUMBER, and a number is blind to membership by construction — this repository has
+    // now paid for that sentence twice. A COUNT-PRESERVING COMPENSATING EDIT defeats it outright:
+    // delete seven neutral lines from inside the disclaimer, append a seven-line section behind a
+    // fence opened inside the region and never closed, and the region reaches exactly as far as it
+    // did, suppresses exactly as many occurrences as it did, and has quietly swallowed a section
+    // nobody reviewed. Measured on a hermetic mirror of the live tree, both pins stayed green and the
+    // gate exited 0.
+    //
+    // SO THE SWALLOW IS ALSO CHECKED WHERE IT HAPPENS, NOT ONLY BY ITS SIZE. A region whose LAST LINE
+    // is inside a fenced block did not end at a heading; it ended because the document ran out while
+    // a fence was still open, and every heading between the open delimiter and end of file was hidden
+    // from the bound. That is the swallow, stated structurally, and it is decided from the ONE fence
+    // toggle this module already imports — no heading pattern is declared here, no delimiter class is
+    // re-declared, no second projection of the document is built, and no delimiter PARITY is counted
+    // (plan 29-28 measured what parity cannot see: two errors that cancel).
+    //
+    // IT DOES NOT REFUSE THE LEGITIMATE CASE, WHICH IS THE HALF THAT MAKES IT USABLE. A `## ` line
+    // QUOTED inside a properly closed fenced example is documentation, the region deliberately
+    // continues past it (WR-06, plan 29-18), and the lines following that example's close are outside
+    // any fence — so the region's last line is unflagged and this check is silent. Re-measured on the
+    // live exemption document: zero fenced lines inside the region at all.
+    //
+    // THE ONE FALSE-RED SHAPE, NAMED: a disclaimer whose region ENDS exactly on a fenced example's
+    // closing delimiter, with no line after it before the next heading. The refusal says so, and the
+    // remedy is one blank line — an authoring fix, not a reason to weaken the check.
+    if (exemptRegion !== null) {
+        const exemptFlags = fencedLineFlags(exemptText);
+        if (exemptFlags[exemptRegion.endBefore - 1] === true) {
+            fail(`the one named exemption region \`${BANNED_CLAIM_EXEMPT_REGION.file}\` § ` +
+                `\`${BANNED_CLAIM_EXEMPT_REGION.heading}\` ENDS INSIDE A FENCED BLOCK — its last line ` +
+                `(line ${exemptRegion.endBefore}) is flagged by the shared fence toggle. A region that ` +
+                `ends inside a fence did not end at a heading: it ended because the document ran out ` +
+                `while a fence was still open, so every heading between that open delimiter and end of ` +
+                `file was invisible to the bound and every section after it has been SWALLOWED into a ` +
+                `safety exemption. Close the fence. This is checked separately from the extent pin below ` +
+                `because a swallow paired with a compensating deletion moves no number at all. If the ` +
+                `region legitimately ends on a fenced example's closing delimiter, put one blank line ` +
+                `after it; do not delete this check`);
+        }
+    }
+    // THE EXEMPTION'S EXTENT IS PINNED TWO-SIDED, BESIDE THE REACH AND NEVER FOLDED INTO IT.
+    //
+    // The reach above asks HOW MANY banned claims the region lifts the prohibition on. This asks HOW
+    // FAR the region reaches. They are different questions and a swallow moves only the second: an
+    // unterminated fence opened inside the region makes the fence-aware bound walk straight past the
+    // heading that should have ended it, and an appended section carrying NO banned claim joins the
+    // exemption without moving a single occurrence count. Round 2 dismissed that variant on the
+    // grounds that the reach pin covers it. It does not, and it cannot: a cardinality is blind to
+    // membership by construction.
+    //
+    // Guarded on a located region for the same reason the reach pin is — when the region refused, a
+    // second refusal about its size would name the wrong cause.
+    const exemptExtent = exemptRegion === null ? 0 : exemptRegion.endBefore - exemptRegion.headingAt;
+    if (exemptRegion !== null && exemptExtent !== BANNED_CLAIM_EXEMPT_EXTENT) {
+        fail(`the one named exemption region \`${BANNED_CLAIM_EXEMPT_REGION.file}\` § ` +
+            `\`${BANNED_CLAIM_EXEMPT_REGION.heading}\` reaches ${exemptExtent} line(s), and ` +
+            `BANNED_CLAIM_EXEMPT_EXTENT in scripts/check-banned-claims.ts declares ` +
+            `${BANNED_CLAIM_EXEMPT_EXTENT}. An extent that has moved means the exemption now ` +
+            `covers different bytes than the ones it was measured over — which is what a section ` +
+            `SWALLOWED into the region looks like when it carries no banned claim of its own, and ` +
+            `therefore moves no occurrence count. The fix is to restore the region's boundary (look ` +
+            `first for a fence opened inside the region and never closed, which walks the bound past ` +
+            `the heading that should have ended it), or to re-measure deliberately and say in the ` +
+            `commit which lines entered or left the region. Do NOT widen the pin until it stops firing`);
+    }
     // The shared element-level vacuity rule (AP-1). This gate declares no zero check of its own; the
     // measurement is a required argument, so a PASS line cannot be printed over a loop that never ran.
     FAILS += reportMeasured({
@@ -737,7 +869,10 @@ function runAll() {
             `conditional on a conformance verb from ${CONFORMANCE_VERB_MARKERS.length} pinned marker(s); ` +
             `1 exemption region (${BANNED_CLAIM_EXEMPT_REGION.file} § ${BANNED_CLAIM_EXEMPT_REGION.heading} ` +
             `— ${BANNED_CLAIM_EXEMPT_REGION.reason}), which suppresses ${suppressed} banned-claim ` +
-            `occurrence(s), pinned at ${BANNED_CLAIM_EXEMPT_SUPPRESSED}; ` +
+            `occurrence(s), pinned at ${BANNED_CLAIM_EXEMPT_SUPPRESSED}, and reaches ` +
+            `${exemptExtent} line(s), pinned at ${BANNED_CLAIM_EXEMPT_EXTENT} (two numbers, two ` +
+            `questions: how much prohibition the region lifts, and how far it reaches — a section ` +
+            `swallowed into it moves only the second); ` +
             `${BANNED_CLAIM_EXCLUDED.length} candidate ` +
             `literal(s) refused at admission and recorded with their hit counts`);
     }

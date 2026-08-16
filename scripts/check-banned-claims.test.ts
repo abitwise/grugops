@@ -74,6 +74,10 @@ import {
   // other case in this file, hiding the one transcript the RED step exists to produce. They are
   // named imports now that they exist, so deleting either fails loudly rather than as `undefined`.
   BANNED_CLAIM_EXEMPT_SUPPRESSED,
+  // (Plan 29-32, variant C1) The exemption's EXTENT — how far the region reaches, in lines. A
+  // second published number beside the reach, answering a question the reach cannot: a section
+  // swallowed into the exemption carrying NO banned claim moves this and nothing else.
+  BANNED_CLAIM_EXEMPT_EXTENT,
   countBannedClaimOccurrences,
 } from "./check-banned-claims.js";
 
@@ -190,6 +194,12 @@ function profileDoc(opts: {
   trailingSection?: boolean;
   /** Occurrences to leave inside the region. Defaults to the gate's declared reach. */
   reach?: number;
+  /**
+   * (Plan 29-32) Lines to leave the region REACHING. Defaults to the gate's declared extent, so
+   * every mirror in this file sits on the pin exactly as it already sits on the reach — and a case
+   * whose whole subject is missing the extent by one asks for it explicitly.
+   */
+  extent?: number;
 } = {}): string {
   const heading = BANNED_CLAIM_EXEMPT_REGION.heading;
   const out = [
@@ -211,9 +221,26 @@ function profileDoc(opts: {
     (opts.reach ?? BANNED_CLAIM_EXEMPT_SUPPRESSED) - already,
   );
   const count = opts.headings ?? 1;
+  const targetExtent = opts.extent ?? BANNED_CLAIM_EXEMPT_EXTENT;
   for (let n = 0; n < count; n++) {
-    out.push(heading, "", body, "");
-    for (let k = 0; k < need; k++) out.push(REACH_FILLER, "");
+    const block = [heading, "", body, ""];
+    for (let k = 0; k < need; k++) block.push(REACH_FILLER, "");
+    // THE REGION IS PADDED TO THE GATE'S DECLARED EXTENT, AND THE PAD IS DERIVED FROM THE PIN
+    // RATHER THAN TYPED — the same argument the `need` arithmetic above already makes for the
+    // reach. Counted in LINES and not in array elements, because `body` may itself be multi-line
+    // and an element count would silently under-pad every multi-line fixture in this file.
+    const blockLines = block.join("\n").split("\n").length;
+    const pad = targetExtent - blockLines;
+    if (pad < 0) {
+      throw new Error(
+        `check-banned-claims.test.ts: a fixture's exemption region is already ${blockLines} line(s) ` +
+          `long, past the declared extent of ${targetExtent}. Padding cannot shorten a region, so ` +
+          `this mirror would sit off the gate's extent pin and every case built on it would red for ` +
+          `a reason that has nothing to do with the case.`,
+      );
+    }
+    for (let k = 0; k < pad; k++) block.push("");
+    out.push(...block);
   }
   if (opts.trailingSection === true) {
     out.push("## After the region", "", "Text below the region is scanned again.", "");
@@ -1205,6 +1232,300 @@ describe("check-banned-claims — one array under both traversals, and a refused
     // …and the well-formed document still LOCATES, so the two-sided refusal has not become
     // always-on.
     expect(locateExemptRegion(profileDoc().split("\n"))).not.toBeNull();
+  });
+});
+
+// ── variant C1 / T-29-23-05 (plan 29-32): the exemption publishes its EXTENT ──────────────────
+//
+// WHY A SECOND PUBLISHED NUMBER. The reach pin above measures OCCURRENCES — how many banned claims
+// sit inside the region. Round 2 met variant C1, an unterminated fence opened inside the region
+// with a real `## ` section appended after it, and dismissed it as "nothing new" because the reach
+// pin reds the moment the swallowed text carries a banned claim. That reasoning has a hole exactly
+// the size of the case below: A CARDINALITY IS BLIND TO MEMBERSHIP BY CONSTRUCTION. A section
+// swallowed into a safety exemption while carrying no banned claim moves no occurrence count at
+// all, and the prohibition is then switched off over bytes nobody reviewed. The extent — how far
+// the region reaches, in lines — is the number such a swallow moves.
+//
+// THE TWO PINS ARE SIDE BY SIDE AND NEVER FOLDED TOGETHER. One asks how many, the other asks how
+// far. A single number answering both would answer neither, which is the conflation this round is
+// unpicking.
+//
+// WHY THIS IS NOT ANOTHER DELIMITER-NEUTRALISED PROJECTION. Plan 29-27 gave `voice-model.ts` such a
+// projection so a fence could not decide its own section's extent, and plan 29-32 carries a
+// standing prohibition against writing a SECOND private copy of that idiom. None is written here.
+// The swallow is caught QUANTITATIVELY, at the point of effect, by the number the swallow moves —
+// which also catches the shapes a projection or a delimiter-parity check cannot: a fence that is
+// properly CLOSED but closes after the boundary heading, and two unclosed fences whose delimiter
+// counts cancel to an even total. Both are asserted below.
+
+describe("check-banned-claims — the exemption publishes its EXTENT (variant C1)", () => {
+  /**
+   * The C1 document: an unterminated fence opened INSIDE the exemption region, a real `## ` section
+   * appended after it, and NO banned claim anywhere in the swallowed text. The swallowed section is
+   * the case the occurrence pin cannot see.
+   */
+  const c1Doc = (): string =>
+    profileDoc({
+      regionBody: [
+        "This profile is an independent work.",
+        "",
+        `${TICKS}markdown`,
+        "An example the author forgot to close.",
+      ].join("\n"),
+      trailingSection: true,
+    });
+
+  /** The same document with the fence TERMINATED — the control that must stay green. */
+  const controlDoc = (): string =>
+    profileDoc({
+      regionBody: [
+        "This profile is an independent work.",
+        "",
+        `${TICKS}markdown`,
+        "An example the author closed.",
+        TICKS,
+      ].join("\n"),
+      trailingSection: true,
+    });
+
+  const extentOf = (doc: string): number => {
+    const region = locateExemptRegion(doc.split("\n"));
+    if (region === null) throw new Error("the fixture's region did not locate");
+    return region.endBefore - region.headingAt;
+  };
+
+  it("the gate PUBLISHES the exemption's extent, and the number is PINNED against a live derivation", () => {
+    // Derived from the live document through the gate's own locator, never typed here.
+    const lines = readFileSync(join(ROOT, PROFILE), "utf8").split("\n");
+    const region = locateExemptRegion(lines);
+    expect(region).not.toBeNull();
+    const derived = region!.endBefore - region!.headingAt;
+    // NON-VACUITY FLOOR FIRST: an extent of zero or one is a region with no body, which the empty
+    // refusal already covers and which would make the pin below meaningless.
+    expect(derived).toBeGreaterThan(1);
+    expect(derived).toBe(BANNED_CLAIM_EXEMPT_EXTENT);
+
+    const r = spawnSync("node", [GATE_JS], { encoding: "utf8" });
+    const stdout = (r.stdout ?? "") + (r.stderr ?? "");
+    expect(r.status).toBe(0);
+    expect(stdout).toContain(
+      `reaches ${derived} line(s), pinned at ${BANNED_CLAIM_EXEMPT_EXTENT}`,
+    );
+  });
+
+  it("VARIANT C1: an unterminated fence swallowing a section that carries NO banned claim REDS on the extent", () => {
+    const doc = c1Doc();
+    const docLines = doc.split("\n");
+    const appendedAt = docLines.indexOf("## After the region");
+    // THE FIXTURE'S OWN PREMISE, ASSERTED BEFORE THE VERDICT.
+    //  (a) the appended heading really exists and is really flagged FENCED, so the swallow formed;
+    //  (b) the swallowed text really carries NO banned claim, so the occurrence pin cannot see it;
+    //  (c) the extent really moved. A fixture missing any one of these would make this case pass
+    //      while proving something else entirely.
+    expect(appendedAt).toBeGreaterThan(-1);
+    expect(fencedLineFlags(doc)[appendedAt]).toBe(true);
+    expect(
+      countBannedClaimOccurrences(
+        docLines,
+        appendedAt,
+        Number.MAX_SAFE_INTEGER,
+      ),
+      "the swallowed text must carry ZERO banned-claim occurrences, or this case is the occurrence pin firing and says nothing about extent",
+    ).toBe(0);
+    const moved = extentOf(doc);
+    expect(moved).toBeGreaterThan(BANNED_CLAIM_EXEMPT_EXTENT);
+
+    const { status, stdout } = runGate(
+      makeMirror("gops-banned-c1-", { plant: { [PROFILE]: doc } }),
+    );
+    expect(status).toBe(1);
+    expect(stdout).toContain(
+      `reaches ${moved} line(s), and BANNED_CLAIM_EXEMPT_EXTENT`,
+    );
+    expect(stdout).toContain(`declares ${BANNED_CLAIM_EXEMPT_EXTENT}`);
+    expect(stdout).toContain("covers different bytes than the ones it was measured over");
+    // AND THE OCCURRENCE PIN STAYED GREEN. That is the whole argument: the swallow is invisible to
+    // the number round 2 said already covered it.
+    expect(stdout).not.toContain("An exemption GROWING is a decision");
+    expect(stdout).not.toContain("An exemption SHRINKING is equally a change");
+  });
+
+  it("CONTROL: the same document with the fence TERMINATED stays GREEN — the pin is not refusing everything", () => {
+    const doc = controlDoc();
+    const docLines = doc.split("\n");
+    const appendedAt = docLines.indexOf("## After the region");
+    expect(appendedAt).toBeGreaterThan(-1);
+    expect(fencedLineFlags(doc)[appendedAt]).toBe(false);
+    expect(extentOf(doc)).toBe(BANNED_CLAIM_EXEMPT_EXTENT);
+
+    const { status, stdout } = runGate(
+      makeMirror("gops-banned-c1-control-", { plant: { [PROFILE]: doc } }),
+    );
+    expect(stdout).toContain("ALL CHECKS PASSED");
+    expect(status).toBe(0);
+  });
+
+  it("THE PARITY-BLIND SHAPE IS CAUGHT TOO: a properly CLOSED fence whose close lands PAST the boundary heading", () => {
+    // The C1 case above carries an ODD delimiter count, so a document-level delimiter PARITY check
+    // of the kind plan 29-28 added to the claim registry would also have caught it. THIS shape is
+    // the one parity cannot see: the fence is opened inside the region and CLOSED — an even
+    // delimiter count, a well-formed document by the fence grammar — but the close lands after the
+    // heading that should have ended the region, so the boundary is swallowed anyway.
+    //
+    // Plan 29-28 paid for this lesson with a live regression: a parity invariant cannot see errors
+    // that cancel. The extent pin is not a parity check. It measures the EFFECT rather than the
+    // delimiters, so a swallow that is arithmetically invisible still moves the number.
+    const doc = profileDoc({
+      regionBody: [
+        "This profile is an independent work.",
+        "",
+        `${TICKS}markdown`,
+        "An example whose close lands after the next heading.",
+      ].join("\n"),
+      trailingSection: true,
+    }).concat(`${TICKS}\n`);
+    const docLines = doc.split("\n");
+    const delimiters = docLines.filter((l) => l.startsWith(TICKS)).length;
+    const appendedAt = docLines.indexOf("## After the region");
+    // THE PREMISE THAT MAKES THIS THE PARITY-BLIND SHAPE: the delimiter count is EVEN, so the fence
+    // is closed at end of file and no parity arithmetic could object — and the boundary heading is
+    // nonetheless inside it.
+    expect(delimiters % 2).toBe(0);
+    expect(delimiters).toBeGreaterThan(0);
+    expect(appendedAt).toBeGreaterThan(-1);
+    expect(fencedLineFlags(doc)[appendedAt]).toBe(true);
+    expect(
+      countBannedClaimOccurrences(docLines, appendedAt, Number.MAX_SAFE_INTEGER),
+      "the swallowed text must carry ZERO banned-claim occurrences, or the occurrence pin is what reds",
+    ).toBe(0);
+    expect(extentOf(doc)).toBeGreaterThan(BANNED_CLAIM_EXEMPT_EXTENT);
+
+    const { status, stdout } = runGate(
+      makeMirror("gops-banned-parity-blind-", { plant: { [PROFILE]: doc } }),
+    );
+    expect(status).toBe(1);
+    expect(stdout).toContain(`declares ${BANNED_CLAIM_EXEMPT_EXTENT}`);
+    expect(stdout).not.toContain("An exemption GROWING is a decision");
+  });
+
+  it("THE COUNT-PRESERVING COMPENSATING EDIT IS CAUGHT AT THE POINT OF EFFECT, not by the number", () => {
+    // FOUND BY ATTACKING THIS PLAN'S OWN EXTENT PIN. A number is blind to membership by
+    // construction: swallow K lines behind an unclosed fence while deleting K neutral lines from
+    // inside the disclaimer, and the extent lands back on its pin, the reach never moves, and a
+    // section nobody reviewed is inside the safety exemption. Measured on a hermetic mirror of the
+    // live tree before this check existed, both pins stayed green and the gate exited 0.
+    //
+    // The mirror below reproduces that shape by arithmetic rather than by hand: the region is
+    // padded four lines SHORT of the pin, and the four-line trailing section it swallows puts it
+    // back exactly on it.
+    const doc = profileDoc({
+      regionBody: [
+        "This profile is an independent work.",
+        "",
+        `${TICKS}markdown`,
+        "An example the author forgot to close.",
+      ].join("\n"),
+      trailingSection: true,
+      extent: BANNED_CLAIM_EXEMPT_EXTENT - 4,
+    });
+    const docLines = doc.split("\n");
+    const appendedAt = docLines.indexOf("## After the region");
+    const region = locateExemptRegion(docLines);
+    expect(region).not.toBeNull();
+    // THE FIXTURE'S PREMISE, AND IT IS THE WHOLE CASE: the swallow really happened AND BOTH
+    // published numbers are exactly on their pins. A fixture that missed either would be caught by
+    // a pin that already existed, and would prove nothing about this check.
+    expect(appendedAt).toBeGreaterThan(region!.headingAt);
+    expect(appendedAt).toBeLessThan(region!.endBefore);
+    expect(fencedLineFlags(doc)[appendedAt]).toBe(true);
+    expect(
+      region!.endBefore - region!.headingAt,
+      "the compensating edit must leave the extent EXACTLY on its pin, or the extent pin is what reds",
+    ).toBe(BANNED_CLAIM_EXEMPT_EXTENT);
+    expect(
+      countBannedClaimOccurrences(
+        docLines,
+        region!.headingAt,
+        region!.endBefore,
+      ),
+      "…and the reach EXACTLY on its pin, or the occurrence pin is what reds",
+    ).toBe(BANNED_CLAIM_EXEMPT_SUPPRESSED);
+
+    const { status, stdout } = runGate(
+      makeMirror("gops-banned-compensating-", { plant: { [PROFILE]: doc } }),
+    );
+    expect(status).toBe(1);
+    expect(stdout).toContain("ENDS INSIDE A FENCED BLOCK");
+    expect(stdout).toContain("SWALLOWED into a safety exemption");
+    // Neither number moved. That is the point: this red is attributable to the point-of-effect
+    // check alone, and the two pins are demonstrably not what caught it.
+    expect(stdout).not.toContain("An exemption GROWING is a decision");
+    expect(stdout).not.toContain("BANNED_CLAIM_EXEMPT_EXTENT in scripts");
+  });
+
+  it("CONTROL for that check: a region containing a properly CLOSED fenced example stays GREEN", () => {
+    // The other side, and the half that makes the check usable rather than merely strict. WR-06's
+    // legitimate case — a `## ` line QUOTED inside a closed fenced example, with the region
+    // deliberately continuing past it — must not be refused as a swallow.
+    const doc = profileDoc({ regionBody: REGION_WITH_FENCED_HEADING });
+    const docLines = doc.split("\n");
+    const region = locateExemptRegion(docLines);
+    expect(region).not.toBeNull();
+    const flags = fencedLineFlags(doc);
+    // PREMISE: the region really does contain fenced lines, and really does NOT end inside one.
+    expect(flags.slice(region!.headingAt, region!.endBefore).some(Boolean)).toBe(
+      true,
+    );
+    expect(flags[region!.endBefore - 1]).toBe(false);
+
+    const { status, stdout } = runGate(
+      makeMirror("gops-banned-closed-example-", { plant: { [PROFILE]: doc } }),
+    );
+    expect(stdout).toContain("ALL CHECKS PASSED");
+    expect(status).toBe(0);
+  });
+
+  it("FALSIFIABLE, direction DOWN: a region one line SHORTER also reds — the extent pin is two-sided", () => {
+    // A one-sided pin accepts every future shrink in silence. A shrinking exemption is equally a
+    // change somebody made, and it is the direction that says the disclaimer stopped covering what
+    // it was measured over.
+    const doc = profileDoc({ extent: BANNED_CLAIM_EXEMPT_EXTENT - 1 });
+    expect(extentOf(doc)).toBe(BANNED_CLAIM_EXEMPT_EXTENT - 1);
+    const { status, stdout } = runGate(
+      makeMirror("gops-banned-extent-down-", { plant: { [PROFILE]: doc } }),
+    );
+    expect(status).toBe(1);
+    expect(stdout).toContain(
+      `reaches ${BANNED_CLAIM_EXEMPT_EXTENT - 1} line(s), and BANNED_CLAIM_EXEMPT_EXTENT`,
+    );
+    // The reach is untouched by a padding line, so this red is attributable to the extent alone.
+    expect(stdout).not.toContain("An exemption GROWING is a decision");
+  });
+
+  it("THE TWO PINS ANSWER DIFFERENT QUESTIONS: each fires with the other green, in both directions", () => {
+    // The distinction, asserted rather than described. If either pin subsumed the other, one of
+    // these four runs would carry both messages — and a reader would be right to fold them.
+    const occurrenceOnly = profileDoc({
+      reach: BANNED_CLAIM_EXEMPT_SUPPRESSED + 1,
+    });
+    const extentOnly = profileDoc({ extent: BANNED_CLAIM_EXEMPT_EXTENT + 1 });
+    // PREMISE: each fixture really moves ONE of the two numbers and not the other.
+    expect(extentOf(occurrenceOnly)).toBe(BANNED_CLAIM_EXEMPT_EXTENT);
+    expect(extentOf(extentOnly)).toBe(BANNED_CLAIM_EXEMPT_EXTENT + 1);
+
+    const a = runGate(
+      makeMirror("gops-banned-occ-only-", { plant: { [PROFILE]: occurrenceOnly } }),
+    );
+    expect(a.status).toBe(1);
+    expect(a.stdout).toContain("An exemption GROWING is a decision");
+    expect(a.stdout).not.toContain("BANNED_CLAIM_EXEMPT_EXTENT");
+
+    const b = runGate(
+      makeMirror("gops-banned-ext-only-", { plant: { [PROFILE]: extentOnly } }),
+    );
+    expect(b.status).toBe(1);
+    expect(b.stdout).toContain("BANNED_CLAIM_EXEMPT_EXTENT");
+    expect(b.stdout).not.toContain("An exemption GROWING is a decision");
   });
 });
 
