@@ -8376,13 +8376,29 @@ const tripwireCensus = (
 // subject-only counters therefore see exactly the population the raw count does, and the two removed
 // assertions cancel two of the four added ones on every counter at once. What would be a finding is
 // the two paren counters disagreeing with each other, and they do not.
+//
+// TASK 2'S BOUNDARY, RE-MEASURED THE SAME WAY. Task 2 restated `REACH.I5` in
+// section-locator-oracle.test.ts and added SIXTEEN assertions there: five in the corpus-shape case
+// (the 360/360 partition and the two equalities tying the corpus-shape number to the reach floor)
+// and eleven in the new narrowing-hazard case (the non-vacuity floor, the containment, the four
+// delta numbers, the two "cannot break it" / "does break it" attributions, and the probe-set
+// equality). NET +16, and again the SAME delta on both raw counters:
+// occurrences 5494 -> 5510, classified 5421 -> 5437, statement-level multi-line 1125 -> 1134,
+// quote-aware 1119 -> 1128 (the SAME delta), subject-only 623 -> 631, disagreements 14 -> 14
+// (UNCHANGED), modules 47 (UNCHANGED).
+//
+// THE +8 / +9 / +16 SPREAD IS ACCOUNTED FOR. Seven of the sixteen are written on a single line (a
+// bare count against a literal), so the statement-level counters move by nine rather than sixteen.
+// Of those nine, one names a short subject inline and opens its paren on the matcher, so the
+// subject-only counter moves by eight. The two paren counters agree at both boundaries, which is
+// the property that would be a finding if it broke.
 const TRIPWIRE_MODULES = 47;
-const TRIPWIRE_EXPECT_OCCURRENCES = 5494;
-const TRIPWIRE_CLASSIFIED_LINES = 5421;
-const TRIPWIRE_MULTILINE_STATEMENTS = 1125;
-const TRIPWIRE_MULTILINE_STATEMENTS_QUOTE_AWARE = 1119;
+const TRIPWIRE_EXPECT_OCCURRENCES = 5510;
+const TRIPWIRE_CLASSIFIED_LINES = 5437;
+const TRIPWIRE_MULTILINE_STATEMENTS = 1134;
+const TRIPWIRE_MULTILINE_STATEMENTS_QUOTE_AWARE = 1128;
 const TRIPWIRE_COUNTER_DISAGREEMENTS = 14;
-const TRIPWIRE_MULTILINE_SUBJECTS = 623;
+const TRIPWIRE_MULTILINE_SUBJECTS = 631;
 /** Round 3's own published figures, reproduced from `0ec8b61` by the premise case. */
 const ROUND_3_TRIPWIRE = {
   modules: 47,

@@ -602,7 +602,43 @@ const REACH: Readonly<Record<string, (c: Cell) => boolean>> = {
   // document that HAS a second occurrence, so its reach is: the answer is an index above zero AND
   // the document carries at least two occurrences of the heading text. Both halves are needed —
   // `at > 0` alone was true of thousands of cells while none of them could ever fail.
-  I5: (c) => occurrencesOf(c) >= 2 && unfencedHeadingIndex(c.text, c.heading) > 0,
+  //
+  // (Plan 29-36, 29-REVIEW § WR-03) BOTH HALVES WERE WRONG, IN OPPOSITE DIRECTIONS.
+  //
+  // TOO WIDE. The occurrence half counted RAW occurrences — `occurrencesOf`, every line whose
+  // `trimEnd()` equals the heading, FENCED OR NOT. I5's loop body reports only when an earlier line
+  // is UNFENCED and equals the heading (`isTheHeading`, `:482-483`), so the whole fenced-before arm
+  // of the duplicate axis was counted as exercise while being structurally incapable of violating
+  // I5. That is the defect the review reported.
+  //
+  // TOO NARROW, AND THIS HALF NO REVIEW REPORTED. `at > 0` asked for the AUTHORITY's answer — but
+  // `headViolations` takes an ARBITRARY locator, and this file says so at the negative-answer case.
+  // I5 is not asked at the position the authority answers; it is asked at the position the locator
+  // under test answers. A document whose FIRST unfenced occurrence is line ZERO makes the authority
+  // answer `0`, so the old conjunct called it unexercised — while `headLastUnfenced` answers the
+  // LAST occurrence and violates I5 on exactly that document. Measured: 360 cells on which the
+  // probe breaks I5 sat OUTSIDE a reach set narrowed this way, and the review's own suggested fix
+  // keeps the conjunct and so keeps the hole. A reach set that excludes its own counter-examples
+  // leaves the invariant asserted over a population that cannot break it, which is a worse version
+  // of the defect being corrected.
+  //
+  // SO THE PRECONDITION IS STATED WITHOUT REFERENCE TO ANY LOCATOR'S ANSWER. I5's loop body can
+  // report iff some line BEFORE the answer is an unfenced occurrence of the heading, and a document
+  // admits such an answer iff it carries AT LEAST TWO unfenced occurrences — necessary, because
+  // with one or none no answer has an unfenced predecessor; sufficient, because an answer at the
+  // later one does. The unfenced occurrences are COUNTED DIRECTLY rather than as `occurrencesOf`
+  // minus a fenced tally: one expression minus a projection of its own output is the shape this
+  // same round charges `readRegistry` with, and it would make two numbers agree by construction
+  // instead of by measurement.
+  I5: (c) => {
+    const lines = c.text.split("\n");
+    const flags = fencedLineFlags(c.text);
+    let unfenced = 0;
+    for (let i = 0; i < lines.length; i += 1) {
+      if (!flags[i] && lines[i].trimEnd() === c.heading) unfenced += 1;
+    }
+    return unfenced >= 2;
+  },
   // I6 is the completeness half: it speaks when the answer is -1 and the document is searched for a
   // line that would contradict it.
   I6: (c) => unfencedHeadingIndex(c.text, c.heading) === -1,
@@ -623,13 +659,33 @@ const EXPECTED_CELLS = 21600;
  * Round 3's measurement of I5 was ZERO over 7200 cells. A non-zero number here is this plan's
  * closure condition, and every other invariant carries the same treatment so the next unreachable
  * one is caught by the same mechanism rather than by a reviewer noticing.
+ *
+ * (Plan 29-36, 29-REVIEW § WR-03) I5's FLOOR MOVED — 1800 -> 720 — AND THE DELTA IS THE FINDING.
+ *
+ * Read out of this file's own failure output after `REACH.I5` was restated from I5's predicate, in
+ * the session that wrote this line, never incremented and never lowered to make a case pass. The
+ * move is NOT a simple narrowing, and saying so is the point: the old set was wrong in BOTH
+ * directions and the two errors partly cancelled, which is how it survived a round.
+ *
+ *   OLD  1800  = raw occurrences >= 2  AND  the AUTHORITY's answer > 0
+ *   NEW   720  = UNFENCED occurrences >= 2
+ *   1800 INTERSECT 720 = 360
+ *
+ * So 1440 cells left (they carry only a FENCED earlier occurrence and cannot make I5's loop body
+ * report at all) and 360 cells JOINED (their first unfenced occurrence is line zero, so the
+ * authority answers `0` and the old conjunct called them unexercised — while `headLastUnfenced`
+ * violates I5 on every one of them). The second number is the one no review reported, and it is
+ * the direction that matters: those 360 are counter-examples the published reach was excluding.
+ *
+ * A floor swapped silently would have erased the evidence for its own necessity, so all of it is
+ * stated. Every other entry is UNCHANGED by this plan.
  */
 const REACH_FLOORS: Readonly<Record<string, number>> = {
   I1: 21600,
   I2: 4340,
   I3: 14772,
   I4: 3600,
-  I5: 1800,
+  I5: 720,
   I6: 18000,
 };
 /**
@@ -638,6 +694,25 @@ const REACH_FLOORS: Readonly<Record<string, number>> = {
  * Round 3's number for the first of these was ZERO across all 7200 cells — the measurement that made
  * I5 unreachable. They are pinned as EQUALITIES rather than floors, so a generator that started
  * emitting more or fewer two-occurrence documents reds instead of drifting.
+ *
+ * (Plan 29-36, 29-REVIEW § WR-03) `TWO_UNFENCED_CELLS` WAS RE-DERIVED AGAINST THE SAME RULE AND DID
+ * NOT MOVE: 720, before and after. The review reads it as carrying I5's over-count "in kind"; it
+ * does not, and the reason is worth stating rather than leaving to be re-litigated. This number
+ * answers a CORPUS-SHAPE question — how many cells carry two UNFENCED occurrences of the heading —
+ * and it counted unfenced occurrences already. What it lacks is the `at > 0` half, and the finding
+ * of this plan is that I5's reach should lack it too.
+ *
+ * SO THE TWO NUMBERS NOW COINCIDE, at 720, and the coincidence is a fact rather than a copy. Two
+ * expressions written for two questions arrived at the same population because I5's structural
+ * precondition IS the corpus-shape property the duplicate axis was added to deliver — which is the
+ * argument for adding that axis, closing on itself. They are kept as SEPARATE constants and their
+ * equality is asserted with its reason, so a future edit that moved one without the other reds
+ * instead of leaving two plausible figures side by side.
+ *
+ * The 360/360 split of these 720 on the `at > 0` half is published by the case below, because that
+ * split is the whole of the too-narrow half: it is exactly what an authority-anchored reach
+ * predicate would have kept and dropped, and the dropped half is where `headLastUnfenced` breaks
+ * I5.
  */
 const TWO_UNFENCED_CELLS = 720;
 const FENCED_BEFORE_UNFENCED_CELLS = 720;
@@ -783,6 +858,37 @@ describe("the section-locator authority under a parser oracle (plan 29-26, LANG-
       "cells carrying TWO UNFENCED occurrences of the cell heading — round 3 measured this at ZERO over the whole corpus",
     ).toBe(TWO_UNFENCED_CELLS);
 
+    // (Plan 29-36, WR-03) THE 360/360 SPLIT, MEASURED — the whole of this plan's too-narrow half.
+    //
+    // An authority-anchored reach predicate (the shipped one, and the review's suggested
+    // replacement) keeps the `at > 0` part of these cells and drops the `at === 0` part. Both parts
+    // are pinned here so the dropped population is a NUMBER on the record rather than an argument,
+    // and so a corpus that stopped generating either shape says which.
+    const headAtZero = twoUnfenced.filter(
+      (c) => unfencedHeadingIndex(c.text, c.heading) === 0,
+    );
+    const headAboveZero = twoUnfenced.filter(
+      (c) => unfencedHeadingIndex(c.text, c.heading) > 0,
+    );
+    expect(
+      headAtZero.length + headAboveZero.length,
+      "a cell with two unfenced occurrences cannot answer -1, so the two parts must exhaust the set",
+    ).toBe(twoUnfenced.length);
+    expect(headAboveZero.length, "the part an authority-anchored reach would KEEP").toBe(360);
+    expect(
+      headAtZero.length,
+      "the part an authority-anchored reach would DROP — and `headLastUnfenced` breaks I5 on every one of them",
+    ).toBe(360);
+
+    // AND I5's REACH IS THIS WHOLE SET, not the kept part. Two expressions written for two
+    // questions, asserted equal with the reason recorded at `TWO_UNFENCED_CELLS`: a future edit
+    // moving one without the other reds here.
+    expect(
+      corpus.filter((c) => REACH.I5(c)).length,
+      "I5's reach is the corpus-shape set entire — its precondition IS `two unfenced occurrences`",
+    ).toBe(TWO_UNFENCED_CELLS);
+    expect(REACH_FLOORS.I5, "…and the pinned floor says the same").toBe(TWO_UNFENCED_CELLS);
+
     // BOTH ORDERS, each counted separately. A single number could be satisfied by one order alone.
     const orderCounts = (wantFencedFirst: boolean): number =>
       corpus.filter((c) => {
@@ -819,6 +925,17 @@ describe("the section-locator authority under a parser oracle (plan 29-26, LANG-
     // asserted every time, evaluated against a document that could break it not once. Each count
     // below comes from `REACH`, whose predicates are restatements of the invariants' DESCRIPTIONS
     // and never call `endViolations` or `headViolations`.
+    //
+    // (Plan 29-36, WR-03) AND THE SENTENCE THIS CASE PUBLISHES WAS UNTRUE OF 1440 OF THE CELLS IT
+    // NAMED, WHILE OMITTING 360 IT SHOULD HAVE. It reads "EXERCISED by N cell(s) — a zero here
+    // means it has never been evaluated against a document that could break it". With I5's reach
+    // counting RAW occurrences and the AUTHORITY's answer, N was 1800: 1440 of those carried their
+    // only earlier occurrence inside a fence and could not make I5's loop body report at all, and a
+    // further 360 cells that `headLastUnfenced` DOES break I5 on were not counted, because the
+    // authority answers `0` on them. The floor is now 720 and the sentence is true of all of them
+    // and of nothing else. Both old numbers are left standing on purpose — a reader meeting only
+    // the new value would have no way to tell a correction from a value that always looked like
+    // this.
     const corpus = buildCorpus();
     const reached: Record<string, number> = {};
     for (const id of INVARIANT_IDS) {
@@ -1174,6 +1291,93 @@ describe("the section-locator authority under a parser oracle (plan 29-26, LANG-
       roundThreeCorpus.filter((c) => REACH.I5(c)).length,
       "over round 3's corpus I5's reach is ZERO — asserted 7200 times, evaluated against a document that could break it not once",
     ).toBe(0);
+  });
+
+  it("the cells headLastUnfenced breaks I5 on lie INSIDE I5's reach — the narrowing kept its own counter-example", () => {
+    // (Plan 29-36, 29-REVIEW § WR-03) THE HAZARD A NARROWING CARRIES, DISCHARGED BY ASSERTION.
+    //
+    // Correcting `REACH.I5` made a set SMALLER — 1800 cells to 360. A smaller set is only an
+    // improvement if it still contains the evidence the claim stands on, and here that evidence is
+    // exactly one thing: `headLastUnfenced`, the probe that proves I5 is breakable at all. A reach
+    // set that had excluded the cells that probe fails on would leave the invariant asserted over a
+    // population that cannot contain its own counter-example — which is a worse version of the
+    // defect being corrected, arrived at while fixing it.
+    //
+    // So the containment is asserted rather than reasoned about, and the violating set is floored
+    // for non-emptiness FIRST so the subset claim cannot be vacuously true.
+    const corpus = buildCorpus();
+    const breaksI5 = corpus.filter((c) =>
+      headViolations(c, headLastUnfenced).some((v) => v.startsWith("I5")),
+    );
+    expect(
+      breaksI5.length,
+      "the last-match probe must break I5 on SOME cell, or the subset claim below is true of nothing",
+    ).toBeGreaterThan(0);
+
+    const outside = breaksI5.filter((c) => !REACH.I5(c));
+    expect(
+      outside.map((c) => c.where),
+      "a cell on which I5 is VIOLATED and which I5's reach predicate says is not exercise — the reach was narrowed past its own counter-example",
+    ).toEqual([]);
+
+    // ── THE DELTA, AS A PERMANENT MEASUREMENT RATHER THAN A TRANSCRIPT. ──────────────────────────
+    //
+    // `HISTORICAL_I5_REACH` reconstructs the predicate this plan replaced. It is a FIXTURE, not a
+    // live rule, and it is kept for one reason: a floor that moved 1800 -> 720 is only evidence for
+    // its own necessity while the old population can still be counted. It is also the one live
+    // consumer of `occurrencesOf`, whose raw-occurrence promise is correct for what it measures —
+    // the defect was using it to stand for a different question, never the function itself.
+    const HISTORICAL_I5_REACH = (c: Cell): boolean =>
+      occurrencesOf(c) >= 2 && unfencedHeadingIndex(c.text, c.heading) > 0;
+
+    const old = corpus.filter(HISTORICAL_I5_REACH);
+    const now = corpus.filter((c) => REACH.I5(c));
+    expect(old.length, "the OLD reach — raw occurrences and the authority's answer").toBe(1800);
+    expect(now.length, "the NEW reach — two UNFENCED occurrences").toBe(720);
+
+    const inBoth = new Set(old.filter((c) => REACH.I5(c)).map((c) => c.where));
+    expect(inBoth.size, "the two sets OVERLAP in 360 cells — this was never a plain narrowing").toBe(
+      360,
+    );
+
+    // THE TOO-WIDE HALF: 1440 cells the old predicate published as exercise, and the maximally
+    // adversarial probe breaks I5 on NONE of them, which is what "incapable of violating I5" means
+    // when it is measured instead of argued.
+    const dropped = old.filter((c) => !REACH.I5(c));
+    expect(dropped.length, "cells the OLD reach claimed and the new one refuses").toBe(1440);
+    expect(
+      dropped.filter((c) => breaksI5.includes(c)).map((c) => c.where),
+      "not one dropped cell can break I5 — they carry only a FENCED earlier occurrence",
+    ).toEqual([]);
+
+    // THE TOO-NARROW HALF, WHICH NO REVIEW REPORTED: 360 cells the old predicate did NOT count, and
+    // the probe breaks I5 on EVERY one of them. This is the direction that would have hollowed the
+    // invariant out, and it is the reason the corrected predicate names no locator's answer.
+    const gained = now.filter((c) => !HISTORICAL_I5_REACH(c));
+    expect(gained.length, "cells the OLD reach missed").toBe(360);
+    expect(
+      gained.filter((c) => !breaksI5.includes(c)).map((c) => c.where),
+      "every cell the old reach missed is one the probe really does break I5 on",
+    ).toEqual([]);
+
+    // AND THE CONTAINMENT IS AN EQUALITY, WHICH IS THE STRONGER CLAIM AND HAS A REASON.
+    //
+    // `headLastUnfenced` is MAXIMALLY ADVERSARIAL for I5: it is fence-aware and complete, so its
+    // only possible error is picking a LATER unfenced occurrence than the first — which is exactly
+    // what I5 forbids. It therefore fails on EVERY cell that carries a second unfenced occurrence,
+    // and on no other. So the reach set and the probe's failure set coincide.
+    //
+    // That is not circular. The two are computed by expressions with nothing in common: one counts
+    // unfenced occurrences of the heading, the other runs a locator through `headViolations`. An
+    // equality between two independently written expressions is evidence; it would be circular only
+    // if the reach predicate consulted the probe, which the source assertions in the reach case
+    // forbid mechanically.
+    const reached = corpus.filter((c) => REACH.I5(c));
+    expect(reached.length, "the reach set is the pinned floor").toBe(REACH_FLOORS.I5);
+    expect(
+      [...breaksI5].map((c) => c.where).sort(),
+      "the maximally adversarial probe must break I5 on EXACTLY the cells I5's reach names — a subset either way is a hole",
+    ).toEqual([...reached].map((c) => c.where).sort());
   });
 
   it("the review's fence-blind-breaks-I5 recommendation is REFUTED, and the refutation is proven", () => {
