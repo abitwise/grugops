@@ -6555,6 +6555,123 @@ describe("check-foundation-guards.js (SDLC-02 / SC2 fail-proof harness)", () => 
     expect(o).not.toContain("  PASS  voice: clear-voice surfaces free of caveman markers");
   }, 120_000);
 
+  // ── (Plan 29-34, WR-04/WR-05) THE PER-ELEMENT LINE CARRIES AN ACCOUNTING. ───────────────────────
+  //
+  // A single scanned count had nothing to contradict it. `scanned 1 clear-voice line(s)` reads the
+  // same whether the file holds one line or forty-two of which forty-one were legally swallowed —
+  // reproduced end to end on a `git archive HEAD` mirror against the committed `.js`, gate exit 0.
+  // Three numbers that must account for each other is what turns the published figure into a
+  // measurement; the identity itself is refused BY NAME inside the guard.
+  const VOICE_LINE_RE =
+    /^ {8}(\S+\.md): scanned (\d+) clear-voice line\(s\), (\d+) marker line\(s\), caveman region (\d+) line\(s\), document (\d+) line\(s\)$/;
+
+  it("every guard_voice element line publishes three numbers that ACCOUNT for each other", () => {
+    const m = mirror();
+    const r = runIn(m);
+    const o = out(r);
+    expect(r.status).toBe(0);
+    const rows = guardSection(o, "guard_voice")
+      .map((l) => VOICE_LINE_RE.exec(l))
+      .filter((x): x is RegExpExecArray => x !== null);
+    // THE HARNESS'S OWN PREMISE, ASSERTED FIRST. A regex that silently matched nothing would make
+    // every claim below a claim about an empty list. The element count is DERIVED from the same two
+    // authorities the guard's own denominator uses, never from the loop that consumed the output.
+    expect(
+      rows,
+      "the accounting rows must be parsed from the guard_voice section, or every assertion below is over an empty list",
+    ).toHaveLength(ROLE_COUNT + parseSecVoiceCount(GUARD_TS_SRC));
+    for (const [line, name, scanned, , region, total] of rows) {
+      expect(
+        Number(scanned) + Number(region),
+        `${name}: scanned + caveman region must equal the document's own line count — ${line.trim()}`,
+      ).toBe(Number(total));
+      // And the accounting is not vacuous in the direction that matters: a document total of zero,
+      // or a scanned count equal to the total on a file that really has a fence, would satisfy an
+      // equality while measuring nothing.
+      expect(Number(total), `${name}: document total`).toBeGreaterThan(0);
+    }
+    // At least one element must have a NON-ZERO caveman region, or the identity above would hold
+    // trivially for every row and prove nothing about the reader's half of it.
+    expect(
+      rows.filter((x) => Number(x[4]) > 0).length,
+      "the accounting must be exercised on files that really carry a caveman region",
+    ).toBe(ROLE_COUNT);
+  }, 120_000);
+
+  it("guard_voice reconciles its walked array against the published retained count", () => {
+    // The reconciliation cannot be reached by planting a file: the reader and the marker loop agree
+    // on every possible document, which is the property being pinned. So it is proven the way this
+    // file proves every floor — a SCRATCH build with ONE mutation, asserted to have applied, run
+    // against an ordinary hermetic mirror.
+    //
+    // The mutation drops one line from the remainder AT THE POINT THE GUARD TAKES IT — before the
+    // neutralisation pass — so refusals (a) and (b) both still hold and (c) is the only one that can
+    // fire. A mutation placed after the pass would red on (b) instead and this case would report a
+    // reconciliation it never exercised.
+    const dropped = scratchGuardFiles({
+      "check-foundation-guards.js": (src) =>
+        src.replace(
+          "body = verdict.outside;",
+          'body = verdict.outside.split("\\n").slice(1).join("\\n");',
+        ),
+    });
+    const m = mirror();
+    const r = runScratch(dropped, m);
+    const o = out(r);
+    expect(r.status).toBe(1);
+    expect(o).toContain("the scanned remainder does not match the reader's accounting");
+    expect(o).toContain("the scan is short");
+    // The finding NAMES which side is short — a message saying only "two numbers differ" cannot tell
+    // an author whether the reader over-reported or the scan under-walked.
+    expect(o).toMatch(/the marker scan walked \d+ line\(s\) while the reader retained \d+/);
+    expect(o).not.toMatch(/PASS +voice: 0 findings over/);
+    // The SIBLING guard is untouched by this mutation, so the red is attributable to guard_voice's
+    // reconciliation rather than to a scratch build that broke everything.
+    expect(o).toContain(`caveman voice: 0 findings over ${ROLE_COUNT}/${ROLE_COUNT} elements`);
+  }, 120_000);
+
+  it("guard_voice refuses when the marker-neutralisation pass changes the line count", () => {
+    // REFUSAL (b): `neutralizePhrases` runs BETWEEN the reader and the marker loop, so every
+    // downstream line-count claim is a claim about ITS output. If it ever added a line the
+    // reconciliation would red for a reason with nothing to do with a swallowed remainder, and the
+    // finding would name the wrong cause. The premise is measured rather than argued from its shape.
+    const splits = scratchGuardFiles({
+      "check-foundation-guards.js": (src) =>
+        src.replace(
+          '.replace(/\\/grug/gi, "BRANDCMD")',
+          '.replace(/\\/grug/gi, "BRAND\\nCMD")',
+        ),
+    });
+    const m = mirror();
+    const r = runScratch(splits, m);
+    const o = out(r);
+    expect(r.status).toBe(1);
+    expect(o).toContain("the marker-neutralisation pass changed the line count from");
+    expect(o).toContain("it may rewrite within a line and never across one");
+    expect(o).not.toMatch(/PASS +voice: 0 findings over/);
+    expect(o).toContain(`caveman voice: 0 findings over ${ROLE_COUNT}/${ROLE_COUNT} elements`);
+  }, 120_000);
+
+  it("guard_voice refuses when the reader's accounting does not close against the document", () => {
+    // REFUSAL (a): the ONE comparison in the loop between a number the reader produced and a number
+    // it did not. Mutated in the READER's compiled module rather than the guard's, because that is
+    // the direction the check exists for — a reader whose indices stop describing the bytes.
+    const skewed = scratchGuardFiles({
+      "voice-model.js": (src) =>
+        src.replace(
+          "return { ok: true, inside, outside, outsideLines, removedLines };",
+          "return { ok: true, inside, outside, outsideLines, removedLines: removedLines + 1 };",
+        ),
+    });
+    const m = mirror();
+    const r = runScratch(skewed, m);
+    const o = out(r);
+    expect(r.status).toBe(1);
+    expect(o).toContain("the line accounting does not close");
+    expect(o).toMatch(/the reader retained \d+ line\(s\) and removed \d+ for the caveman region/);
+    expect(o).not.toMatch(/PASS +voice: 0 findings over/);
+  }, 120_000);
+
   it("a voice file whose scan remainder COLLAPSES is a named finding, not a silent pass", () => {
     // THE ELEMENT-LEVEL FLOOR, proven REACHED rather than merely present. A SEC_VOICE surface carries
     // no caveman fence by declaration, so the WHOLE document is its clear-voice remainder — emptying
@@ -7990,13 +8107,27 @@ const tripwireCensus = (
 // text), disagreements 14 -> 14 (UNCHANGED — no added line is one the two paren counters read
 // differently), subject-only 577 -> 589 (+12). The round-3 figures below are UNTOUCHED: they are
 // reproduced from `0ec8b61` by the premise case and are not a baseline this plan may move.
+//
+// (Plan 29-34) RE-MEASURED AGAIN, from the live tree, for the same reason. This plan added the line
+// accounting cases to voice-model.test.ts and four guard_voice accounting cases here, so all six
+// moved together: occurrences 5391 -> 5433 (+42), classified 5319 -> 5360 (+41), statement-level
+// multi-line 1084 -> 1095 (+11), quote-aware 1078 -> 1089 (+11, the SAME delta, so the two counters
+// still do not diverge on the new text), disagreements 14 -> 14 (UNCHANGED), subject-only 589 -> 599
+// (+10).
+//
+// THE ONE-LINE GAP BETWEEN +42 AND +41 IS ACCOUNTED FOR, NOT ROUNDED PAST. Occurrences are raw
+// matches anywhere in the bytes while classified lines must BEGIN with the token, and one added
+// COMMENT in voice-model.test.ts quotes the retired vacuous assertion verbatim in order to explain
+// what was wrong with it. That comment is an occurrence and is not a classified line — the same
+// census-counts-its-own-prose effect the note directly above records, arriving this time from the
+// other module.
 const TRIPWIRE_MODULES = 47;
-const TRIPWIRE_EXPECT_OCCURRENCES = 5391;
-const TRIPWIRE_CLASSIFIED_LINES = 5319;
-const TRIPWIRE_MULTILINE_STATEMENTS = 1084;
-const TRIPWIRE_MULTILINE_STATEMENTS_QUOTE_AWARE = 1078;
+const TRIPWIRE_EXPECT_OCCURRENCES = 5433;
+const TRIPWIRE_CLASSIFIED_LINES = 5360;
+const TRIPWIRE_MULTILINE_STATEMENTS = 1095;
+const TRIPWIRE_MULTILINE_STATEMENTS_QUOTE_AWARE = 1089;
 const TRIPWIRE_COUNTER_DISAGREEMENTS = 14;
-const TRIPWIRE_MULTILINE_SUBJECTS = 589;
+const TRIPWIRE_MULTILINE_SUBJECTS = 599;
 /** Round 3's own published figures, reproduced from `0ec8b61` by the premise case. */
 const ROUND_3_TRIPWIRE = {
   modules: 47,

@@ -166,10 +166,37 @@ export function readCavemanFence(text) {
     if (close === -1)
         return { ok: false, reason: "unterminated" };
     const inside = lines.slice(open + 1, close).join("\n");
-    const outside = lines
-        .filter((_l, i) => i !== heading && !(i >= open && i <= close))
-        .join("\n");
-    return { ok: true, inside, outside };
+    // THE ONE REMOVAL PREDICATE. The filter below and the count beside it ask the SAME question of the
+    // SAME index, so the published number cannot describe a different set of lines from the one the
+    // string is built out of. Two expressions saying "the heading plus the closed range" is two
+    // grammars for one fact, however short each is.
+    const isRemoved = (i) => i === heading || (i >= open && i <= close);
+    const outside = lines.filter((_l, i) => !isRemoved(i)).join("\n");
+    // COUNTED, not subtracted. `outsideLines` walks the indices and applies the removal predicate;
+    // `removedLines` is computed from the INDICES ARITHMETIC instead (the anchor line, plus the closed
+    // range from `open` to `close`). Deriving the second as `lines.length - outsideLines` would make
+    // the identity below a tautology that can never fail and therefore witness nothing.
+    let outsideLines = 0;
+    for (let i = 0; i < lines.length; i++)
+        if (!isRemoved(i))
+            outsideLines += 1;
+    const removedLines = 1 + (close - open + 1);
+    // THE READER'S OWN PREMISE, ASSERTED BEFORE IT PUBLISHES EITHER HALF. The two numbers arrive by
+    // different routes, so their sum is a real check rather than a restatement: it holds exactly when
+    // the anchor sits OUTSIDE `[open, close]` and the range is contiguous and in bounds. Both are true
+    // of the scans above — `open` starts at `heading + 1` — and neither is true by construction of the
+    // arithmetic, so a later edit that reorders the scans, or lets the anchor fall inside the range,
+    // double-counts a line and lands HERE rather than in a consumer's published figure.
+    //
+    // A THROW rather than a fourth `ok: false` reason: `missing`/`unterminated`/`multiple` are verdicts
+    // ABOUT A DOCUMENT, and a reader that cannot account for its own lines is not making a statement
+    // about the document at all — it is broken, and a broken reader must not publish half an answer
+    // that a guard will then report as a measurement.
+    if (outsideLines + removedLines !== lines.length) {
+        throw new Error(`readCavemanFence: line accounting does not close — ${outsideLines} retained + ${removedLines} removed != ${lines.length} document line(s) ` +
+            `(heading ${heading}, open ${open}, close ${close}); the reader may not publish a count it cannot account for`);
+    }
+    return { ok: true, inside, outside, outsideLines, removedLines };
 }
 // ---------------------------------------------------------------------------
 // The positive arm — the committed caveman lexicon (D-07)

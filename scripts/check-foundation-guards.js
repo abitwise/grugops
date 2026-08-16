@@ -1982,9 +1982,10 @@ function neutralizePhrases(text) {
 //   2. `visited` is incremented at the TOP of the loop, BEFORE any branch, including for a file that
 //      has gone missing since the corpus was derived — that posture is stated verbatim at
 //      guardCavemanVoice and adopted here rather than invented a second way;
-//   3. an ELEMENT-LEVEL floor: a scanned line count of ZERO on any voice file is a finding naming
-//      that file. Every voice surface necessarily carries content outside its caveman block — a
-//      title line at minimum — so zero is a defect by construction, not a tunable threshold.
+//   3. an ELEMENT-LEVEL floor: a remainder that RETAINS NO LINES, or that retains lines carrying no
+//      content, is a finding naming that file. Every voice surface necessarily carries content
+//      outside its caveman block — a title line at minimum — so both halves are defects by
+//      construction, not tunable thresholds.
 //
 // The scanned count is taken from the SAME `body` the marker scan walks, AFTER `neutralizePhrases`,
 // so the published number and the measured number cannot drift apart. A parallel expression over the
@@ -1993,6 +1994,35 @@ function neutralizePhrases(text) {
 // The three existing branch behaviours are byte-preserved: a missing file is a structured finding, a
 // fence on a SEC_VOICE_FILES surface is a declaration-mismatch finding, and a refusal on a role file
 // names the reason and that file is NOT scanned.
+//
+// ---------------------------------------------------------------------------------------------
+// (Plan 29-34, WR-04/WR-05) THE PUBLISHED COUNT NOW HAS AN INDEPENDENT WITNESS.
+//
+// Round 4: "a vacuity floor catches an EMPTY denominator but never a SILENTLY SHORT one." Both this
+// guard's floor and its published number were exactly that. The floor read
+// `bodyLines.length === 0 || body.trim() === ""` — and `"".split("\n")` is `[""]`, never `[]`, so
+// the first disjunct is unreachable-false for every possible string and only the emptiness test ever
+// fired. Beside it, the per-file `scanned N clear-voice line(s)` was published with nothing to
+// contradict it: the only denominator in this guard (`visited`/`expected`) is at the FILE level, so
+// a 42-line role file whose caveman fence legally swallowed 41 lines printed
+// `scanned 1 clear-voice line(s)` and the whole gate exited 0. Reproduced end to end on a
+// `git archive HEAD` mirror against the committed `.js` before this was written.
+//
+// Three numbers now appear on the per-element line and THEY MUST ACCOUNT FOR EACH OTHER (D-08):
+//   • the scanned count  — `bodyLines.length`, the array the marker loop actually walks;
+//   • the caveman region — `removedLines`, from the reader that owns the fence indices;
+//   • the document total — counted HERE, straight off `text`, before any branch and independent of
+//     `body`, of `bodyLines` and of the reader.
+//
+// The reader is asked for the region's extent and is never second-guessed about it (D-22, D-24) —
+// recomputing where the caveman block ends is the two-grammar defect this phase exists to delete.
+// What this guard contributes is the one number the reader cannot supply: the document's own line
+// count. Three refusals fall out of it, each NAMED:
+//   (a) the reader's retained + removed does not equal the document's own total;
+//   (b) `neutralizePhrases` changed the line count between the reader and the marker loop;
+//   (c) the array the marker loop walked is not as long as the reader says the remainder is.
+//
+// WHAT THIS DOES NOT CATCH is recorded at the element floor below, under THE WR-05 RESIDUAL.
 // ---------------------------------------------------------------------------------------------
 function guardVoice() {
     process.stdout.write("\n[guard_voice] clear-voice surfaces free of caveman markers (section-scoped)\n");
@@ -2015,9 +2045,17 @@ function guardVoice() {
         // later plans — so a disagreement between two readers would leak a lexicon token into the
         // "remainder" and fail this guard RED on correct text.
         const text = readText(f);
+        // THE DOCUMENT'S OWN TOTAL, taken BEFORE any branch and derived from `text` alone — not from
+        // `body`, not from `bodyLines`, not from the reader. It is the only number in this loop the
+        // reader did not produce, which is precisely what makes it a witness rather than a restatement.
+        const documentLines = text.split("\n").length;
         const verdict = readCavemanFence(text);
         const expectsFence = EXPECTS_CAVEMAN_FENCE.has(f);
         let body;
+        // The reader's line accounting for this file. Declared here so both branches below must say what
+        // they mean by it, and neither can fall through carrying the previous file's numbers.
+        let outsideLines;
+        let removedLines;
         if (verdict.ok) {
             if (!expectsFence) {
                 findings.push({
@@ -2026,12 +2064,20 @@ function guardVoice() {
                 });
             }
             body = verdict.outside;
+            outsideLines = verdict.outsideLines;
+            removedLines = verdict.removedLines;
         }
         else if (verdict.reason === "missing" && !expectsFence) {
             // The declared shape for a security surface: no caveman anchor at all, so the WHOLE document
             // is the clear-voice remainder and is scanned whole. This is the only branch that treats a
             // refusal as expected, it is scoped to a named set, and it states its reason.
             body = text;
+            // A DECLARATION ABOUT THIS BRANCH, NOT A MEASUREMENT. No fence was read, so there is no reader
+            // accounting to take: the whole document is the remainder and the caveman region is empty.
+            // Said explicitly rather than left to a default, so a reader of the transcript can tell the
+            // branch that measured a fence from the branch that declared there is none.
+            outsideLines = documentLines;
+            removedLines = 0;
         }
         else {
             // Every other refusal — on a role file, or any malformed fence anywhere — is a finding NAMING
@@ -2044,13 +2090,45 @@ function guardVoice() {
             });
             continue;
         }
+        // REFUSAL (a) — THE ACCOUNTING IDENTITY. The reader's two halves must account for the document
+        // this guard counted itself. This is the one comparison in the loop between a number the reader
+        // produced and a number it did not, so it is the only thing standing between a published figure
+        // and a description. It is asserted on BOTH branches: the measured one, where a mismatch means
+        // the reader's indices disagree with the bytes; and the declared one, where it is the assertion
+        // that the declaration above was written correctly.
+        if (outsideLines + removedLines !== documentLines) {
+            findings.push({
+                file: f,
+                detail: `the line accounting does not close — the reader retained ${outsideLines} line(s) and removed ${removedLines} ` +
+                    `for the caveman region, which is ${outsideLines + removedLines} of a ${documentLines}-line document; ` +
+                    "a scanned count that cannot be accounted for is not a measurement, so this file was NOT effectively scanned",
+            });
+            continue;
+        }
         // D-05 marker refinement (a SEPARATE pass — does NOT touch the fence anchor above).
+        //
+        // REFUSAL (b) — THE PREMISE THIS PASS OWES THE RECONCILIATION BELOW. `neutralizePhrases` runs
+        // BETWEEN the reader and the marker loop, so every line-count claim downstream is a claim about
+        // ITS output rather than the reader's. It rewrites within lines and must never add or drop one;
+        // if it ever did, the reconciliation would break for a reason with nothing to do with a swallowed
+        // remainder, and the finding would name the wrong cause. Measured across the pass rather than
+        // argued from its shape.
+        const preNeutralizeLines = body.split("\n").length;
         body = neutralizePhrases(body);
         // grep -nE: collect `lineno:line` for every line carrying a CAVEMAN_LEXICON term. Membership is
         // tested through voice-model's own counter, so this guard cannot come to disagree with the
         // lexicon about what a hit is; it declares no voice literal of its own.
         const m = [];
         const bodyLines = body.split("\n");
+        if (bodyLines.length !== preNeutralizeLines) {
+            findings.push({
+                file: f,
+                detail: `the marker-neutralisation pass changed the line count from ${preNeutralizeLines} to ${bodyLines.length} — ` +
+                    "it may rewrite within a line and never across one, so the scanned count below would describe a different " +
+                    "document from the one the reader accounted for; this file was NOT effectively scanned",
+            });
+            continue;
+        }
         for (let i = 0; i < bodyLines.length; i++) {
             if (countLexiconTokens(bodyLines[i]) > 0)
                 m.push(`${i + 1}:${bodyLines[i]}`);
@@ -2059,7 +2137,16 @@ function guardVoice() {
         // placement and style guardCavemanVoice uses, so a vacuous run prints zero detail lines AND fails
         // its own count assertion (D-08). `bodyLines` is the array the marker scan just walked, so the
         // number published is the number measured.
-        process.stdout.write(`        ${name}: scanned ${bodyLines.length} clear-voice line(s), ${m.length} marker line(s)\n`);
+        //
+        // (Plan 29-34) IT CARRIES AN ACCOUNTING, NOT A SINGLE UNANCHORED FIGURE. The scanned count alone
+        // said nothing a reader could check: `scanned 1 clear-voice line(s)` looks identical whether the
+        // file has one line or forty of which thirty-nine were swallowed. Beside the caveman region's
+        // extent and the document's own total, the same line reads `scanned 1 … caveman region 40 …
+        // document 42` and the shrink is on the transcript. The two EXISTING fields keep their order and
+        // spelling — several cases in scripts/check-foundation-guards.test.ts assert against this shape,
+        // and a gratuitous reshuffle would hide a real movement inside a cosmetic one.
+        process.stdout.write(`        ${name}: scanned ${bodyLines.length} clear-voice line(s), ${m.length} marker line(s), ` +
+            `caveman region ${removedLines} line(s), document ${documentLines} line(s)\n`);
         // THE ELEMENT-LEVEL FLOOR. A remainder of zero lines is indistinguishable from a clean one: both
         // find zero markers. Every voice surface carries content outside its caveman block — a title line
         // at minimum — so zero is a defect by construction rather than a threshold anyone may tune.
@@ -2068,6 +2155,26 @@ function guardVoice() {
                 file: f,
                 detail: `the clear-voice remainder collapsed to ${bodyLines.length} line(s) with no content — a zero-line remainder is ` +
                     "indistinguishable from a clean one, so this file was NOT effectively scanned",
+            });
+            continue;
+        }
+        // REFUSAL (c) — THE RECONCILIATION. The number PUBLISHED above is the length of the array the
+        // marker loop walked; `outsideLines` is the count of line indices the reader says the remainder
+        // holds. They come from different places and they must agree, so neither can be short against
+        // nothing.
+        //
+        // WHY IT SITS BELOW THE FLOOR AND NOT ABOVE IT. `"".split("\n")` is `[""]`: when the reader
+        // retains ZERO lines the walked array still has one (empty) element, so this comparison would
+        // read 1 against 0 and report an off-by-one for a file whose real defect is a swallowed
+        // document. The floor names that case first; everything reaching here has at least one retained
+        // line, where the split length and the index count are the same number and the comparison is
+        // exact. The ordering is load-bearing, not stylistic.
+        if (bodyLines.length !== outsideLines) {
+            findings.push({
+                file: f,
+                detail: `the scanned remainder does not match the reader's accounting — the marker scan walked ${bodyLines.length} line(s) ` +
+                    `while the reader retained ${outsideLines}; the ${bodyLines.length < outsideLines ? "scan" : "reader"} is short, ` +
+                    "so the published count describes bytes that were not scanned",
             });
             continue;
         }

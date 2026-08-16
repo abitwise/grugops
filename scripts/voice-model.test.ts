@@ -18,9 +18,18 @@
 // Vitest globals:false → import explicitly.
 
 import { describe, it, expect } from "vitest";
-import { cpSync, mkdirSync, mkdtempSync, rmSync, readFileSync } from "node:fs";
+import {
+  cpSync,
+  mkdirSync,
+  mkdtempSync,
+  readdirSync,
+  rmSync,
+  readFileSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { pathToFileURL } from "node:url";
 import {
   readCavemanFence,
   normalizeSentence,
@@ -74,6 +83,88 @@ describe("readCavemanFence — the well-formed case", () => {
     expect(r.outside).toContain("## One job");
     expect(r.outside).toContain("## Hard limits");
     expect(r.outside.split("\n")).toHaveLength(9);
+    // (Plan 29-34) The accounting the reader now publishes, DERIVED from this fixture's own text
+    // rather than typed as two integers — so the case keeps failing for the right reason if a line
+    // is ever added to the document above. The caveman region is the anchor line plus both
+    // delimiters plus the interior: 1 + 2 + 2 = 5.
+    expect(r.removedLines).toBe(5);
+    expect(r.outsideLines).toBe(r.outside.split("\n").length);
+    expect(r.outsideLines + r.removedLines).toBe(14);
+  });
+
+  // ── (Plan 29-34, WR-04/WR-05) THE LINE ACCOUNTING. ──────────────────────────────────────────────
+  //
+  // `outsideLines` and `removedLines` exist because the number guard_voice publishes per file had
+  // nothing to contradict it: a role file whose caveman fence legally swallowed 41 of 42 lines
+  // printed `scanned 1 clear-voice line(s)` and the gate exited 0. They are counts of INDICES, which
+  // is the distinction the whole finding turns on — `"".split("\n")` is `[""]`, so a zero-line
+  // remainder has a split LENGTH of one and an index COUNT of zero, and reading the split length is
+  // what made guard_voice's element floor test a condition no string can satisfy.
+  it("the reader accounts for every line of the document", () => {
+    // Asserted over documents of DIFFERENT SHAPES, because an identity that holds only where the
+    // fence sits in the middle is an identity about one arrangement. Each row states its own expected
+    // removed count from the shape it describes, and the retained count is then derived — never both
+    // typed, or the identity would only be comparing two transcriptions of the same guess.
+    const rows: { name: string; text: string; removed: number }[] = [
+      {
+        name: "fence in the middle",
+        text: doc("# T", "", "## Caveman prompt", FENCE, "grug", FENCE, "", "## After", "x", ""),
+        removed: 4, // anchor + open + one interior line + close
+      },
+      {
+        name: "empty interior",
+        text: doc("# T", "## Caveman prompt", FENCE, FENCE, "## After", ""),
+        removed: 3, // anchor + open + close, no interior
+      },
+      {
+        name: "fence closing on the last line, no trailing newline",
+        text: ["# T", "## Caveman prompt", FENCE, "grug smash", FENCE].join("\n"),
+        removed: 4,
+      },
+      {
+        name: "a long interior — the near-total-swallow shape",
+        text: [
+          "# T",
+          "## Caveman prompt",
+          FENCE,
+          ...Array.from({ length: 40 }, (_, i) => `grug smash rock ${i}`),
+          FENCE,
+        ].join("\n"),
+        removed: 43, // anchor + open + 40 interior + close
+      },
+    ];
+    for (const row of rows) {
+      const r = readCavemanFence(row.text);
+      expect(r.ok, `${row.name} must read ok`).toBe(true);
+      if (!r.ok) continue;
+      // THE DOCUMENT'S TOTAL, counted independently of the reader — the witness half.
+      const total = row.text.split("\n").length;
+      expect(r.removedLines, `${row.name}: the caveman region's extent`).toBe(row.removed);
+      expect(
+        r.outsideLines + r.removedLines,
+        `${row.name}: retained + removed must account for every line of the document`,
+      ).toBe(total);
+      // And `outsideLines` is an INDEX count, not the split length of the produced string. The two
+      // coincide everywhere except at zero, and the zero case is asserted in its own row below.
+      expect(r.outsideLines, `${row.name}: retained index count`).toBe(total - row.removed);
+    }
+  });
+
+  it("a remainder of ZERO retained lines reports 0, while its string splits to 1 — the WR-04 ambiguity, pinned", () => {
+    // The whole document is the anchor plus the fence, so NOTHING is retained. This is the exact
+    // shape on which a split length and an index count give different answers, and the reason
+    // guard_voice's floor could not fire: `bodyLines.length === 0` is unreachable-false for every
+    // string, while `outsideLines === 0` is reachable and true right here.
+    const r = readCavemanFence(["## Caveman prompt", FENCE, "grug smash", FENCE].join("\n"));
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(r.outside).toBe("");
+    expect(r.outsideLines, "the INDEX count of a zero-line remainder is zero").toBe(0);
+    expect(
+      r.outside.split("\n").length,
+      "…while its SPLIT LENGTH is one — the ambiguity the floor was reading",
+    ).toBe(1);
+    expect(r.removedLines).toBe(4);
   });
 });
 
@@ -482,17 +573,82 @@ describe("readCavemanFence — the section bound (plan 29-14, CR-01)", () => {
       // `ok: true` says the fence was located and is well-formed; it says NOTHING about how much of
       // the document survived the filter. Under the 29-20 bound a role file could return `ok: true`
       // with `outside` the EMPTY STRING — guard_voice's entire scan surface — and every assertion in
-      // this loop still passed. A LINE COUNT rather than a length, because that is the number
-      // guard_voice now publishes per file, so the two cannot drift apart.
-      expect(
-        v.outside.split("\n").length,
-        `${n} must leave a NON-ZERO clear-voice remainder — a role file's title line alone guarantees one, so zero means the fence swallowed the document`,
-      ).toBeGreaterThan(0);
-      expect(
-        v.outside.trim().length,
-        `${n} clear-voice remainder must carry bytes, not merely lines`,
-      ).toBeGreaterThan(0);
+      // this loop still passed.
+      //
+      // (Plan 29-34, WR-04) THE LINE-COUNT HALF WAS THE VACUOUS HALF. What stood here was
+      // `expect(v.outside.split("\n").length).toBeGreaterThan(0)` — true of EVERY possible string,
+      // because `"".split("\n")` is `[""]` and never `[]`. Its own comment chose a line count over a
+      // length deliberately, "because that is the number guard_voice now publishes per file, so the
+      // two cannot drift apart" — and then picked the one form of line count that cannot be false.
+      // Only the `trim().length` line beneath it ever did any work.
+      //
+      // The replacement keeps the drift argument and makes it true: the reader now PUBLISHES
+      // `outsideLines`, and that is the number guard_voice publishes, so it is asserted DIRECTLY
+      // rather than re-derived from the string. Beside it the NON-BLANK line count — a count that
+      // really can be zero. The predicate lives in one place and the falsifiability sibling below
+      // drives that same place, because a probe carrying its own copy proves a predicate that is not
+      // the one shipped.
+      assertRemainderScannable(v, n);
     }
+  });
+
+  // ── (Plan 29-34, WR-04) THE REMAINDER ASSERTION, AS ONE PREDICATE. ──────────────────────────────
+  //
+  // Three arms, each able to be false, over a value shaped like the reader's `ok` verdict. It is a
+  // free function rather than three inline `expect`s so the sibling case below can run the SAME
+  // assertion over a PLANTED value and show it throwing.
+  function assertRemainderScannable(
+    v: { outside: string; outsideLines: number },
+    who: string,
+  ): void {
+    const nonBlank = v.outside.split("\n").filter((l) => l.trim() !== "").length;
+    expect(
+      nonBlank,
+      `${who} must leave a NON-BLANK clear-voice remainder — a role file's title line alone guarantees one, so zero means the fence swallowed the document`,
+    ).toBeGreaterThan(0);
+    expect(
+      v.outsideLines,
+      `${who}: the reader's own retained-line count — the number guard_voice publishes — must be non-zero`,
+    ).toBeGreaterThan(0);
+    expect(
+      v.outside.trim().length,
+      `${who} clear-voice remainder must carry bytes, not merely lines`,
+    ).toBeGreaterThan(0);
+  }
+
+  it("the clear-voice remainder assertion CAN fail — the falsifiability sibling", () => {
+    // THE CONTROL IS INDISTINGUISHABLE FROM A VACUOUS ASSERTION UNTIL THIS RUNS. The loop above
+    // passes on the shipped tree by construction; that is what makes it a control, and it is exactly
+    // why the form it used went three rounds without anyone noticing it could not be false. So the
+    // same predicate is driven over values built to break each arm, and the throw is asserted.
+    //
+    // ARM 1 — a whitespace-only remainder that the RETIRED form accepted. Its `outsideLines` is zero
+    // and every one of its lines is blank.
+    const swallowed = { outside: "   \n\t\n  ", outsideLines: 0 };
+    expect(() => assertRemainderScannable(swallowed, "planted/swallowed")).toThrow();
+    // AND THE RETIRED FORM PASSES ON THESE SAME BYTES — the finding itself, not a decoration on it.
+    expect(
+      swallowed.outside.split("\n").length > 0,
+      "the retired `split.length > 0` form must be SHOWN to accept a remainder the corrected form rejects",
+    ).toBe(true);
+
+    // ARM 2 — the arms are proven to discriminate SEPARATELY, or a single dominant arm would be doing
+    // all the work and the other two would be decoration. Non-blank content but a zero retained
+    // count: only the `outsideLines` arm can catch this, and it is the arm the WR-04 wording claimed
+    // to be asserting.
+    expect(() =>
+      assertRemainderScannable({ outside: "# Title", outsideLines: 0 }, "planted/zero-retained"),
+    ).toThrow();
+    // ARM 3 — a positive retained count over blank lines only: only the non-blank arm catches this.
+    expect(() =>
+      assertRemainderScannable({ outside: "\n\n\n", outsideLines: 4 }, "planted/all-blank"),
+    ).toThrow();
+
+    // AND THE CONTROL DIRECTION: a well-formed value must NOT throw, or the three arms above would
+    // be proving a predicate that rejects everything.
+    expect(() =>
+      assertRemainderScannable({ outside: "# Title\n\ntext", outsideLines: 3 }, "planted/good"),
+    ).not.toThrow();
   });
 
   it("WR-05 — the control's denominator REDS on a mirror short by one role, and the retired floor does not", () => {
@@ -548,6 +704,71 @@ describe("readCavemanFence — FORM 4, the empty interior (LANG-07 empty)", () =
     // And it fails the positive arm, which is what the guard asks next.
     expect(countLexiconTokens(r.inside)).toBe(0);
     expect(countLexiconTokens(r.inside) < CAVEMAN_LEXICON_MIN).toBe(true);
+  });
+});
+
+// ── (Plan 29-34) THE ACCOUNTING THROW, PROVEN REACHABLE RATHER THAN ASSERTED. ────────────────────
+//
+// `readCavemanFence` refuses to publish either half of its line accounting unless the two halves add
+// up to the document. On the shipped tree that condition never fires, so a case asserting "the live
+// corpus never throws" would be indistinguishable from a check on code that cannot throw at all —
+// this file's own WR-05 sibling establishes that as the local convention.
+//
+// It is planted the way scripts/check-foundation-guards.test.ts plants its floors: a SCRATCH copy of
+// the compiled `.js` import graph in a temp directory, ONE textual mutation, asserted to have
+// APPLIED before anything runs, then imported and driven. Nothing in the repository is mutated.
+describe("readCavemanFence — the accounting premise (plan 29-34)", () => {
+  const SCRIPTS = import.meta.dirname;
+
+  /** A scratch copy of the compiled scripts with one mutation applied to `voice-model.js`. */
+  const scratchReader = (mutate: (src: string) => string): string => {
+    const dir = mkdtempSync(join(tmpdir(), "grugops-vm-scratch-"));
+    mkdirSync(dir, { recursive: true });
+    for (const name of readdirSync(SCRIPTS)) {
+      if (!name.endsWith(".js")) continue;
+      cpSync(join(SCRIPTS, name), join(dir, name));
+    }
+    const target = join(dir, "voice-model.js");
+    const before = readFileSync(target, "utf8");
+    const after = mutate(before);
+    if (after === before) {
+      throw new Error(
+        "scratchReader: the mutation matched nothing, so the scratch build is identical to the " +
+          "committed one — a throw 'proven' against an unmutated build is proven against nothing",
+      );
+    }
+    writeFileSync(target, after, "utf8");
+    return target;
+  };
+
+  it("throws by name when retained + removed does not equal the document's line count", async () => {
+    // The mutation makes the ARITHMETIC half over-count by one, which is exactly the shape a later
+    // edit letting the anchor fall inside `[open, close]` would produce. The COUNTED half is
+    // untouched, so the two halves genuinely disagree rather than both moving together.
+    const scratch = scratchReader((src) =>
+      src.replace(
+        "const removedLines = 1 + (close - open + 1);",
+        "const removedLines = 2 + (close - open + 1);",
+      ),
+    );
+    const dir = join(scratch, "..");
+    try {
+      const mod: { readCavemanFence: (t: string) => unknown } = await import(
+        pathToFileURL(scratch).href
+      );
+      const text = doc("# T", "## Caveman prompt", FENCE, "grug smash", FENCE, "");
+      // THE CONTROL FIRST: the UNMUTATED reader returns ok on these same bytes, so the throw below
+      // is caused by the mutation and not by the fixture.
+      const live = readCavemanFence(text);
+      expect(live.ok, "the unmutated reader must accept the fixture").toBe(true);
+      expect(() => mod.readCavemanFence(text)).toThrow(
+        /line accounting does not close/,
+      );
+      // The message NAMES both halves and the total, so a failure says which side is wrong.
+      expect(() => mod.readCavemanFence(text)).toThrow(/retained \+ .* removed !=/);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 });
 
