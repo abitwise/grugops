@@ -28,6 +28,7 @@ import {
   appendFileSync,
   readFileSync,
   readdirSync,
+  existsSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, dirname, basename } from "node:path";
@@ -644,13 +645,66 @@ const nonTestScripts = (): string[] =>
     .filter((n) => n.endsWith(".ts") && !n.endsWith(".test.ts"))
     .sort();
 
+// (Plan 29-29, closing V-29-26-02 for the LANG-07 owner scan) The same enumeration made RECURSIVE
+// and rooted at the repository rather than at `scripts/`, returning REPOSITORY-RELATIVE paths.
+//
+// `nonTestScripts()` above reads one directory non-recursively — 41 of the 49 tracked non-test
+// modules — while the owner scan built on it called itself "tree-wide" in its case name, its refusal
+// wording and its prose. A claim wider than the assertion behind it is this repository's named
+// defect class; the remedy it already uses is to widen the ASSERTION. `nonTestScripts()` itself is
+// deliberately left alone: four other cases in this file are scoped to `scripts/` on purpose (the
+// D-64 cutover pins, the parser-consumer pins), and silently re-rooting them would be a second,
+// unexamined change riding on this one.
+// The skip rule is "any DOT-directory, plus the three build/dependency directories", and the first
+// half is load-bearing rather than tidiness. The first draft named `.git` and `.planning` explicitly
+// and the walk then read `.tmp-build/` — the scratch tree `npm run freshness` rebuilds into — which
+// carries a full second copy of every compiled module. It happened not to disturb the `.ts`
+// enumeration because that directory holds only `.js`, and it disturbed the `.js` enumeration
+// immediately. The premise assertion against git's own index is what caught it; a walk trusted
+// rather than compared would have reported forty-eight phantom modules as a clean measurement.
+const MODULE_WALK_SKIP = new Set(["node_modules", "dist", "coverage"]);
+const skipWalkEntry = (name: string): boolean =>
+  name.startsWith(".") || MODULE_WALK_SKIP.has(name);
+const walkNonTestModules = (dir: string, rel: string, acc: string[]): string[] => {
+  for (const entry of readdirSync(dir, { withFileTypes: true })) {
+    if (skipWalkEntry(entry.name)) continue;
+    const next = rel === "" ? entry.name : `${rel}/${entry.name}`;
+    if (entry.isDirectory()) walkNonTestModules(join(dir, entry.name), next, acc);
+    else if (
+      entry.name.endsWith(".ts") &&
+      !entry.name.endsWith(".test.ts") &&
+      !entry.name.endsWith(".d.ts")
+    ) {
+      acc.push(next);
+    }
+  }
+  return acc;
+};
+/** Every non-test TypeScript module in the tree, as a repository-relative path. */
+const nonTestModules = (root: string = ROOT): string[] =>
+  walkNonTestModules(root, "", []).sort();
+
 // The symbols one module imports from another, with comments stripped so a NAME MENTIONED IN PROSE
 // inside the import block cannot satisfy or falsify a membership test. Returns [] when the module
 // does not import from that specifier at all.
-const importedSymbols = (file: string, specifier: string): string[] => {
-  const src = readFileSync(join(ROOT, "scripts", file), "utf8");
+const importedSymbols = (file: string, specifier: string): string[] =>
+  importedSymbolsAt(`scripts/${file}`, specifier);
+
+/**
+ * (Plan 29-29) The same reader, taking a REPOSITORY-RELATIVE path and a specifier at any depth.
+ *
+ * `importedSymbols` above resolved against `scripts/` and matched only a `./`-prefixed specifier, so
+ * a consumer in `hooks/` or `scripts/runnable-ref/` importing `../scripts/frontmatter.js` was
+ * invisible to every scan built on it — the consumer half of V-29-26-02. The specifier match is
+ * `[./]${name}.js`, which admits `./frontmatter.js` and `../scripts/frontmatter.js` while still
+ * refusing `./canonical-frontmatter.js`: the character before the name must be a dot or a slash, and
+ * in that spelling it is a hyphen. `importedSymbols` now DELEGATES here rather than carrying a
+ * second copy of the parse, and a case in the LANG-07 block compares the two over the whole overlap.
+ */
+const importedSymbolsAt = (rel: string, specifier: string): string[] => {
+  const src = readFileSync(join(ROOT, rel), "utf8");
   const re = new RegExp(
-    `import\\s*\\{([^}]*)\\}\\s*from\\s*["']\\./${specifier}\\.js["']`,
+    `import\\s*\\{([^}]*)\\}\\s*from\\s*["'][^"']*[./]${specifier}\\.js["']`,
     "g",
   );
   const out: string[] = [];
@@ -1018,9 +1072,18 @@ describe("D-64 cutover: the spawn verdict is rendered by the canonical admission
 // WHAT A SECTION-EXTENT CONSTRUCT IS, AND WHY IT IS A CONJUNCTION. A module owns this predicate when
 // it carries BOTH halves:
 //
-//   a HEADING RECOGNISER — an anchored regex over leading ATX hashes followed by a literal space, or
-//   a prefix test for the same — USED on a line that TERMINATES OR BOUNDS a scan, which in this tree
-//   means a loop `break`, a `return` of an index, or an assignment to a bound.
+//   a HEADING RECOGNISER — an anchored regex over leading ATX hashes (one, a RUN, or a `{n,m}`
+//   quantifier) followed by a SEPARATOR (a literal space or a `\s` class), or a prefix test for the
+//   same — USED on a line that TERMINATES OR BOUNDS a scan, which in this tree means a loop `break`,
+//   a `return` of an index, an assignment to a bound, or an index COLLECTED into an array a later
+//   loop consumes as a bound.
+//
+// (Plan 29-29) BOTH HALVES OF THAT SENTENCE WERE WIDENED, AND THE WIDENING IS WHAT THIS PLAN IS. The
+// definition previously said "a literal space" and named only three terminators; round 3 measured
+// `SECTION_EXTENT_OWNERS = ["frontmatter.ts"]` green over a tree that had TWO owners, because
+// `audit-model.ts`'s `readRegistry` spelled its hashes with a `\s` class AND deferred its bound into
+// an array thirteen lines away. Each blindness alone was enough to hide it; the correction had to
+// close both, and the two single-arm controls are permanent cases below.
 //
 // REQUIRING BOTH HALVES IS WHAT DOES THE WORK, and it is the half this plan was warned about. Plan
 // 29-24 rewired `check-imperative-lexicon.ts` and reported that 29-22's line-scoped classifier still
@@ -1040,13 +1103,17 @@ describe("D-64 cutover: the spawn verdict is rendered by the canonical admission
 // comes out right is the defect; a classifier whose second half is SHOWN to be load-bearing on the
 // exact module the last plan flagged is a measurement.
 //
-// THE RECOGNISER ARM IS NARROWER THAN 29-22'S THIRD CONSTRUCT, AND THE NARROWING IS MEASURED. That
-// construct is `/\^#\{?[\d,]*\}?[ \\]/`, whose trailing class admits a BACKSLASH — so it recognises
-// `/^#\d+$/` in scripts/trace-render.ts, an ISSUE-REFERENCE pattern that is not a heading in any
-// sense. 29-22's own summary records exactly this noise as its reason for staying module-scoped. The
-// arm here requires a literal SPACE after the hashes, which is what the plan's definition says and
-// what every heading recogniser in this tree actually spells. Both halves of that difference are
-// asserted below on planted inputs.
+// THE RECOGNISER ARM IS STILL NARROWER THAN 29-22'S THIRD CONSTRUCT, AND THE NARROWING IS MEASURED.
+// That construct is `/\^#\{?[\d,]*\}?[ \\]/`, whose trailing class admits a BACKSLASH — so it
+// recognises `/^#\d+$/` in scripts/trace-render.ts, an ISSUE-REFERENCE pattern that is not a heading
+// in any sense. 29-22's own summary records exactly this noise as its reason for staying
+// module-scoped. The arm here requires a SEPARATOR after the hashes — a literal space or a `\s`
+// class, never a backslash — so the widening in plan 29-29 added the shape item 4 named and nothing
+// else. Both halves of that difference are asserted below on planted inputs AND on two live modules:
+// `trace-render.ts`, whose issue-reference pattern the arm must not even recognise, and
+// `validate-agent-factory.ts`, whose `/^##\s+/` the arm DOES recognise and which the CONJUNCTION
+// excludes because the line bounds no scan. A widening asserted only on its positive side is how
+// 29-22's noise arrived.
 //
 // COMMENT LINES ARE STRIPPED before classification, for the reason the fence-machine scan already
 // gives: the property is about CODE. Four modules in this tree DESCRIBE these constructs at length in
@@ -1054,22 +1121,62 @@ describe("D-64 cutover: the spawn verdict is rendered by the canonical admission
 // prose rather than the code.
 //
 // WHAT THIS FLOOR WOULD MISS, NAMED RATHER THAN LEFT UNDISCLOSED — it is a floor against the shapes a
-// second grammar plausibly takes in this tree, not a proof that none can exist:
+// second grammar plausibly takes in this tree, not a proof that none can exist.
 //
-//   1. A recogniser built from concatenated fragments or a `new RegExp(...)` string.
+// (Plan 29-29) EVERY ITEM BELOW WAS RE-CHECKED AGAINST THE FINAL ROUND-3 TREE IN ONE PASS, and each
+// now carries its LIVE COUNT rather than a hypothetical. A floor is a claim about THIS tree and it
+// goes stale like any other set-literal in this repository — item 4 asserted a falsehood about the
+// tree on the day it was written, and item 1 turned out to be reachable twice. Where a count exists
+// it is DERIVED and PINNED by a case, so a floor item cannot rot silently again.
+//
+//   1. A recogniser built from concatenated fragments or a `new RegExp(...)` string. LIVE COUNT: 2 —
+//      `generate-catalog.ts:87` and `generate-role-adapters.ts:127`, the same eight-line
+//      `sectionBody` helper duplicated verbatim, which bounds a `## ` section by regex lookahead over
+//      the whole document and is FENCE-BLIND. That is a third grammar answering the section-extent
+//      question and it is a LANG-07 finding, escalated in 29-29-SUMMARY.md rather than absorbed into
+//      the owner list: under the definition above a section-extent construct is a recogniser used on
+//      a LINE that bounds a SCAN, and a whole-document regex performs no line scan. Widening the
+//      definition to swallow it would be re-writing the rule until the answer came out interesting.
+//      The count and both addresses are DERIVED AND PINNED two-sided by a case below.
 //   2. A heading test written as a slice or an index comparison — `line.slice(0, 3) === "## "`,
-//      `line.charAt(0) === "#"`, `line.indexOf("## ") === 0`.
+//      `line.charAt(0) === "#"`, `line.indexOf("## ") === 0`. LIVE COUNT: 0, re-measured this plan.
 //   3. A bound expressed through a HELPER this scan does not read: `if (isHeading(line)) break;`
 //      names no recogniser on the line that breaks, and the recogniser resolution below follows
-//      const-bindings only, never call graphs.
+//      const-bindings only, never call graphs. Not counted: enumerating it needs a call graph, which
+//      is the thing the item says this scan does not build.
 //   4. A recogniser spelling the hashes with a whitespace CLASS rather than a literal space
-//      (`/^#{1,6}\s/`), which no module in this tree uses today.
-//   5. A locator written in a language this scan does not read, or in a `.js` file the derivation
-//      does not enumerate.
+//      (`/^#{1,6}\s/`). THIS ITEM USED TO CLAIM NOTHING IN THIS TREE SPELLED THAT, AND THE CLAIM WAS
+//      FALSE ON THE DAY IT WAS WRITTEN — `audit-model.ts:893` spelled exactly it, so a sentence
+//      wider than the assertion behind it was sitting inside the assertion meant to close that very
+//      class. The shape is now RECOGNISED, so it is no longer a floor at all. What stands in its
+//      place is the residue: a recogniser whose separator is neither a literal space nor a `\s`
+//      class — a character class of its own (`/^#{1,6}[ \t]/`), or a hash run followed by
+//      end-of-pattern with the separator supplied by a caller. LIVE COUNT: 0, derived and pinned by
+//      a case below. An item is not deleted when it is closed; a floor that shrinks silently is the
+//      same defect one level down.
+//   5. A locator written in a language this scan does not read, or in a committed `.js` the
+//      derivation does not enumerate. Still true: the enumeration is `*.ts`. LIVE COUNT of committed
+//      `.js` files with no `.ts` beside them — the only ones a `*.ts` scan could structurally miss —
+//      is DERIVED AND PINNED by a case below.
 //   6. A terminator placed FURTHER from its recogniser than the block-scoped search reaches — deeper
 //      than `TERMINATOR_WINDOW` lines below it, or outside the block the recogniser line opens (a
 //      flag set inside the `if` and read after the loop). The search's bound is stated at
 //      `TERMINATOR_WINDOW` with the measurement showing this tree's answer does not depend on it.
+//      NARROWED by plan 29-29: the commonest escape — an index COLLECTED into an array and consumed
+//      by a later loop — is now a terminator construct, because that is the spelling that hid
+//      `readRegistry`. What remains is a bound carried out of the block by a BOOLEAN flag or a
+//      mutable captured in a closure. Not counted, for item 3's reason: enumerating it needs a
+//      data-flow analysis this scan does not perform, and a number nobody can derive is worse in a
+//      floor than an honest "not counted".
+//
+// THE MODULE SET IS THE WHOLE TREE, AND THAT IS NEW (plan 29-29, closing V-29-26-02 for this block).
+// The owner and consumer derivations used to read `scripts/` NON-RECURSIVELY — 41 of the 49 tracked
+// non-test modules — while the case name, the refusal wording and this prose all said "tree-wide".
+// A claim wider than the assertion behind it is this repository's named defect class, and it chose
+// the remedy it already uses: widen the ASSERTION, not narrow the sentence. The wider answer was
+// MEASURED BEFORE the sentence changed and it is the same answer — one owner, five consumers — so
+// the widening is a floor rather than a re-measurement. `nonTestScripts()` is deliberately left
+// alone; four other cases in this file are scoped to `scripts/` on purpose.
 // ─────────────────────────────────────────────────────────────────────────────────────────────
 
 /** Comment lines blanked, POSITIONS PRESERVED so a site's line index still means something. */
@@ -1079,15 +1186,50 @@ const codeLinesOfSource = (src: string): string[] =>
     return t.startsWith("//") || t.startsWith("/*") || t.startsWith("*") ? "" : l;
   });
 
+// (Plan 29-29, CR-02) THE RECOGNISER ARM, WIDENED TO THE TWO SPELLINGS FLOOR ITEM 4 NAMED.
+//
+// Until this plan the arm was `/\/\^#(?:\{[\d,]+\})? /` — one hash or a `{n,m}` quantifier, then a
+// LITERAL SPACE. It could not see an anchored hash RUN (`/^### /`) and it could not see a whitespace
+// CLASS (`/^#{1,6}\s/`), and item 4 of this block's own disclosed floor asserted that no module in
+// this repository spelled the second of those. That sentence was FALSE on the day it was written:
+// `audit-model.ts` spelled `/^###\s+(\S+)\s*$/` and carried both blind spots at once.
+//
+// The widening is `#*` (a run) and `(?: |\\s)` (a separator that may be a class). It adds NOTHING
+// else — in particular it still refuses 29-22's third construct, whose trailing character class
+// admits a BACKSLASH and so recognises `/^#\d+$/` in `trace-render.ts`, an issue reference that is
+// not a heading in any sense. 29-22's own summary records that noise as its reason for staying
+// module-scoped. Both directions are asserted on planted inputs and on two live modules below,
+// because a classifier WIDENED until it is noisy is the same defect as one NARROWED until the answer
+// comes out right.
 const HEADING_RECOGNISER_CONSTRUCTS: readonly RegExp[] = [
-  /\/\^#(?:\{[\d,]+\})? /, // an anchored regex literal: /^# /, /^#{1,2} /, /^#{1,6} /
+  // an anchored regex literal: /^# /, /^### /, /^#{1,6} /, each also with a `\s` class instead of
+  // the space, and each also tolerating leading whitespace (`/^\s*## /` — evasion [B3])
+  /\/\^(?:\\s\*)?#(?:#*)(?:\{[\d,]+\})?(?: |\\s)/,
   /\.startsWith\(\s*["'`]#{1,6} /, // a prefix test for the same
 ];
 
+// (Plan 29-29, CR-02) THE TERMINATOR ARM, WIDENED TO THE DEFERRED BOUND.
+//
+// The recogniser widening ALONE reaches nothing, and that is measured rather than argued: run over
+// the pre-29-28 source of `audit-model.ts`, a widened recogniser with the old terminator list
+// reports the empty set, and the old recogniser with a widened terminator list reports the empty set
+// too. Both arms were blind at once. The plan for this task specified the recogniser half; shipping
+// it alone would have been a correction that measured nothing — the exact defect this round exists
+// to refuse — so the terminator half is added with it and the two controls are permanent cases.
+//
+// The fourth construct is a bound COLLECTED rather than assigned: `marks.push(i)` inside the loop,
+// consumed by a later loop as a section bound. That is what `readRegistry` did, thirteen lines from
+// its recogniser, and it is the commonest way a bound escapes a block-scoped search.
 const SCAN_TERMINATOR_CONSTRUCTS: readonly RegExp[] = [
   /\bbreak\b/, // a loop break
   /\breturn\s+(?!true\b|false\b|null\b|undefined\b|\{|\[)\S/, // a return of an index
-  /^\s*[A-Za-z_$][\w$.]*\s*=\s*(?:i|j|k|idx|index)\b\s*[;+)]/, // a bound assigned the loop index
+  // a bound assigned the loop index, BARE or inside an expression (round-two evasion [C4]: the first
+  // spelling required `end = i;` and was blind to `end = Math.min(end, i);`). The left-hand side
+  // must still be a plain assignment to a name — a `const`/`let` DECLARATION is excluded, because the
+  // thing declared inside a loop body is a local, not the caller's bound.
+  /^\s*[A-Za-z_$][\w$.]*\s*=\s*[^;]*\b(?:i|j|k|idx|index)\b/,
+  // a bound COLLECTED into an array — the index bare or in an expression (evasion [B2])
+  /\b[A-Za-z_$][\w$.]*\.push\(\s*(?:i|j|k|n|idx|index)\b/,
 ];
 
 // How far below a recogniser USE the terminator may sit, and the rule that stops the search.
@@ -1102,10 +1244,19 @@ const SCAN_TERMINATOR_CONSTRUCTS: readonly RegExp[] = [
 //
 // The search is BLOCK-SCOPED rather than a blind window of N lines, and that distinction is
 // load-bearing in both directions: it must reach the `break` inside the consequent the recogniser
-// line opens, and it must NOT reach a `return` that merely follows the enclosing loop. So it stops at
-// the first non-blank line indented no deeper than the recogniser line — the line that closes that
-// block. The window is a belt-and-braces upper bound; measured on this tree the derived answer is
-// identical at 4, 6 and 10, so nothing here depends on its value.
+// line opens, and it must NOT reach a `return` that merely follows the enclosing loop.
+//
+// (Plan 29-29) WHERE IT STOPS NOW DEPENDS ON WHETHER THE RECOGNISER LINE OPENED A BLOCK. A line
+// ending in `{` owns only the lines indented beneath it, so the search stops at the first line
+// indented no deeper. A line that opens NO block owns nothing beneath it, so its bound is
+// necessarily a FOLLOWING SIBLING and the search continues at the same indent, stopping only when
+// the enclosing block closes. The old unconditional `<= ind` was blind to every bound-result
+// locator — round-one evasion [B1], found by attacking this plan's own widening.
+//
+// The window is a belt-and-braces upper bound. RE-MEASURED at plan 29-29 against the corrected arms
+// and the recursive 49-module set: the derived owner answer is identical at 4, 6, 10 and 20, so
+// nothing here depends on its value. What the window DOES bound is floor item 6's residue — a
+// terminator further from its recogniser than this — and that is stated there rather than here.
 const TERMINATOR_WINDOW = 6;
 
 /** Identifiers bound to a heading recogniser, directly or through another such identifier. */
@@ -1155,6 +1306,36 @@ const enclosingFunctionOf = (code: readonly string[], i: number): string => {
 const RECOGNISER_BINDING = /^(?:const|let|var)\s+[A-Za-z_$][\w$]*\s*(?::[^=]*)?=/;
 const indentOf = (line: string): number => line.length - line.trimStart().length;
 
+/**
+ * (Plan 29-29) "Does this line APPLY a heading recogniser by name" — ONE expression, two consumers.
+ *
+ * The classifier's use-detection and the declaration skip's exception are the SAME question asked
+ * from two sides, and this phase's own rule is one authority per predicate. Writing it twice is how
+ * the two would come to disagree about which spelling counts as an application.
+ *
+ * (Round two of plan 29-29's adversarial pass, evasions [C1] and [C2]) THE VERB LIST IS A
+ * HAND-MAINTAINED SET AND IT HAD ALREADY ROTTED. The first spelling carried `test`, `exec` and
+ * `match` and knew nothing of `.search(...)` or of optional chaining — so a locator applying its
+ * recogniser either way was invisible to the classifier written to catch exactly that, which is this
+ * repository's second named systemic failure class sitting inside the assertion meant to close its
+ * first one. Both are closed here; both have a live count of ZERO in this tree, so closing them is a
+ * FLOOR rather than a re-measurement.
+ *
+ * The list carries the verbs that ASK the recogniser a question — `test`, `exec`, `match`,
+ * `matchAll`, `search`. `replace` and `split` take a RegExp too and are deliberately OUT: they
+ * TRANSFORM text rather than locate a line, and admitting them would count every heading-stripping
+ * normaliser in the tree as a candidate site. That is the widening-until-noisy direction, and it is
+ * refused here for the same reason 29-22's third construct is.
+ */
+const recogniserApplication = (name: string): RegExp =>
+  new RegExp(
+    `\\b${name}\\b\\s*\\??\\.(?:test|exec)\\(|\\.(?:match|matchAll|search)\\(\\s*${name}\\b`,
+  );
+const declarationAppliesRecogniser = (
+  line: string,
+  names: readonly string[],
+): boolean => names.some((n) => recogniserApplication(n).test(line));
+
 /** Does the recogniser use at `i` sit in a position that terminates or bounds a scan? */
 const terminatesAt = (
   code: readonly string[],
@@ -1163,10 +1344,20 @@ const terminatesAt = (
 ): boolean => {
   if (term.some((r) => r.test(code[i]))) return true;
   const ind = indentOf(code[i]);
+  // (Plan 29-29, evasion [B1]) WHERE THE SEARCH STOPS DEPENDS ON WHETHER THE RECOGNISER LINE OPENED
+  // A BLOCK, and that distinction is what closed the third evasion this plan's adversarial pass
+  // found. A line ending in `{` owns the lines indented BENEATH it and nothing else — reaching a
+  // sibling would reach the `return` that follows the enclosing loop, which is exactly what the
+  // control plant [D] proves must not happen. A line that opens NO block — `const isHead =
+  // HEAD.test(lines[i]);` — owns no deeper lines at all, so its bound is necessarily a FOLLOWING
+  // SIBLING, and a search that stopped at the first same-indent line could never see it. The old
+  // rule was `<= ind` unconditionally and was therefore blind to every bound-result locator.
+  const opensBlock = code[i].trimEnd().endsWith("{");
   for (let k = i + 1; k <= Math.min(i + TERMINATOR_WINDOW, code.length - 1); k += 1) {
     if (code[k].trim() === "") continue;
-    // The block the recogniser line opened has closed; anything below is a different question.
-    if (indentOf(code[k]) <= ind) return false;
+    const kInd = indentOf(code[k]);
+    // The enclosing block has closed; anything below is a different question.
+    if (kInd < ind || (opensBlock && kInd <= ind)) return false;
     if (term.some((r) => r.test(code[k]))) return true;
   }
   return false;
@@ -1180,18 +1371,24 @@ const sectionExtentSitesIn = (
   const code = codeLinesOfSource(src);
   const names = recogniserNamesIn(code, rec);
   const usesRecogniser = (line: string): boolean =>
-    rec.some((r) => r.test(line)) ||
-    names.some((n) =>
-      new RegExp(`\\b${n}\\b\\s*\\.(?:test|exec)\\(|\\.match\\(\\s*${n}\\b`).test(
-        line,
-      ),
-    );
+    rec.some((r) => r.test(line)) || declarationAppliesRecogniser(line, names);
   const out: string[] = [];
   for (let i = 0; i < code.length; i += 1) {
-    // A DECLARATION is not a use. `const HEADING_AT_MOST_2 = /^#{1,2} /;` binds the predicate; where
-    // it is ASKED is the question this scan measures, and counting the binding would both
-    // double-count the real site and re-import the recogniser/terminator confusion.
-    if (RECOGNISER_BINDING.test(code[i].trim())) continue;
+    // A DECLARATION OF A RECOGNISER is not a use. `const HEADING_AT_MOST_2 = /^#{1,2} /;` binds the
+    // predicate; where it is ASKED is the question this scan measures, and counting the binding would
+    // both double-count the real site and re-import the recogniser/terminator confusion.
+    //
+    // (Plan 29-29, evasion [B1]) But a declaration of the TEST'S RESULT — `const isHead =
+    // HEAD.test(lines[i]);` — is a USE wearing a declaration's spelling, and the first draft of this
+    // skip dropped it. The skip asked "is this line a binding" when the question is "does this
+    // binding DEFINE a recogniser or APPLY one". Found by attacking this plan's own widening; a real
+    // section locator written that way was invisible to the corrected classifier.
+    if (
+      RECOGNISER_BINDING.test(code[i].trim()) &&
+      !declarationAppliesRecogniser(code[i], names)
+    ) {
+      continue;
+    }
     if (!usesRecogniser(code[i])) continue;
     if (!terminatesAt(code, i, term)) continue;
     out.push(`${enclosingFunctionOf(code, i)} :: ${code[i].trim()}`);
@@ -1214,17 +1411,33 @@ const sectionExtentOwnersAmong = (
 ): string[] =>
   names.filter((n) => sectionExtentSitesIn(read(n), rec, term).length > 0).sort();
 
-/** The modules that OWN the predicate, derived over every non-test module under `scripts/`. */
+/**
+ * The modules that OWN the predicate, derived over every non-test module IN THE TREE.
+ *
+ * (Plan 29-29) The read is RECURSIVE and repository-rooted. Until this plan it read `scripts/` and
+ * nothing else — 41 of 49 modules — while calling itself tree-wide. The wider answer was measured
+ * before the sentence was changed, and it is the same answer.
+ */
 const sectionExtentOwners = (
   rec: readonly RegExp[] = HEADING_RECOGNISER_CONSTRUCTS,
   term: readonly RegExp[] = SCAN_TERMINATOR_CONSTRUCTS,
 ): string[] =>
   sectionExtentOwnersAmong(
-    nonTestScripts(),
-    (n) => readFileSync(join(ROOT, "scripts", n), "utf8"),
+    nonTestModules(),
+    (n) => readFileSync(join(ROOT, n), "utf8"),
     rec,
     term,
   );
+
+/**
+ * FLOOR ITEM 1'S SHAPE, MADE A DERIVATION: a section bound built through `new RegExp(...)`.
+ *
+ * A pattern assembled from a template string carries no regex literal, so the recogniser arm cannot
+ * see it by construction. The item disclosed that; what it did not do is say how many the tree has.
+ * This expression is that number's source, and it is deliberately SEPARATE from the owner scan
+ * rather than folded into it — see the case that consumes it for why.
+ */
+const REGEXP_BUILT_SECTION_BOUND = /new RegExp\(.*#{1,6}(?: |\\\\s)/;
 
 // The delimiter characters, spelled by CODE rather than literally, so THIS file's own source never
 // carries a recogniser-and-terminator pair and can never become a member of the set it derives. The
@@ -1256,15 +1469,181 @@ const PLANTED_SIXTH_LOCATOR = [
 ].join("\n");
 
 /**
+ * (Plan 29-29, CR-02) THE SEVENTH PLANTED LOCATOR — `audit-model.ts`'s pre-29-28 shape, restated.
+ *
+ * The sixth plant above is spelled with a `.startsWith` prefix test and its `break` on the SAME
+ * line: both arms of the classifier saw it the day it was planted. The defect that actually shipped
+ * had the two properties that hid it from BOTH arms at once —
+ *
+ *   a recogniser spelling the hashes with a whitespace CLASS (`/^###\s+(\S+)\s*$/`), which the
+ *   recogniser arm required a literal space for; and a bound DEFERRED — the loop pushes indices into
+ *   an array that a later loop consumes — which the terminator arm never reached.
+ *
+ * A probe tied to the defect that really shipped is worth more than an invented one, so this plant
+ * is that defect restated rather than a new hypothetical. Assembled from character codes for the
+ * same reason the sixth is: this file is itself a member of the module set it derives over.
+ */
+const PLANTED_SEVENTH_LOCATOR = [
+  "export function claimSpans(text: string): number[] {",
+  `  const CLAIM_HEAD = ${SLASH}${CARET}${HASH}${HASH}${HASH}\\s+(\\S+)\\s*$${SLASH};`,
+  '  const lines = text.split("\\n");',
+  "  const marks: number[] = [];",
+  "  for (let i = 0; i < lines.length; i += 1) {",
+  "    if (CLAIM_HEAD.test(lines[i])) marks.push(i);",
+  "  }",
+  "  const spans: number[] = [];",
+  "  for (let n = 0; n < marks.length; n += 1) {",
+  "    const start = marks[n];",
+  "    const end = n + 1 < marks.length ? marks[n + 1] : lines.length;",
+  "    spans.push(end - start);",
+  "  }",
+  "  return spans;",
+  "}",
+  "",
+].join("\n");
+
+/**
+ * (Plan 29-29) THE THREE EVASIONS THE MANDATED ADVERSARIAL PASS FOUND AGAINST THIS PLAN'S OWN FIX.
+ *
+ * The widened arms were attacked with four shapes before they were committed. Three got through, and
+ * all three are real section locators rather than curiosities — each one bounds a scan at a heading:
+ *
+ *   [B1] the recogniser's RESULT bound to a local `const`, so the USE line is spelled like a
+ *        DECLARATION and the declaration skip dropped it. That skip exists to stop a recogniser's
+ *        DEFINITION being counted as its use; it was written as "is this line a binding" when the
+ *        question is "does this binding DEFINE a recogniser or APPLY one".
+ *   [B2] the loop index pushed with an offset — `marks.push(i + 0)` — which the collection construct
+ *        required to be bare.
+ *   [B3] a leading-whitespace-tolerant recogniser, `/^\s*## /`, which the arm's `\^#` anchor missed.
+ *
+ * [B4], the fourth, was already caught: `lines[i].match(HEAD)` is in the recogniser-application set.
+ *
+ * A number that is blind to a shape is the same defect whichever level it sits at, so these are
+ * CLOSED rather than added to the floor. The fixture is assembled from character codes for the same
+ * reason every other plant in this block is.
+ */
+const PLANTED_EVASION_SOURCE = [
+  // [B1] the use line is a declaration — of the TEST'S RESULT, not of a recogniser.
+  "export function evadeByBoundResult(lines: string[], from: number): number {",
+  `  const HEAD_A = ${SLASH}${CARET}${HASH}${HASH}\\s${SLASH};`,
+  "  let end = lines.length;",
+  "  for (let i = from; i < lines.length; i += 1) {",
+  "    const isHead = HEAD_A.test(lines[i]);",
+  "    if (isHead) {",
+  "      end = i;",
+  "      break;",
+  "    }",
+  "  }",
+  "  return end;",
+  "}",
+  "",
+  // [B2] the index collected with an offset rather than bare.
+  "export function evadeByPushOffset(lines: string[]): number[] {",
+  `  const HEAD_B = ${SLASH}${CARET}${HASH}${HASH}${HASH}\\s${SLASH};`,
+  "  const marks: number[] = [];",
+  "  for (let i = 0; i < lines.length; i += 1) {",
+  "    if (HEAD_B.test(lines[i])) marks.push(i + 0);",
+  "  }",
+  "  return marks;",
+  "}",
+  "",
+  // [B3] a recogniser tolerant of leading whitespace.
+  "export function evadeByLeadingWhitespace(lines: string[]): number {",
+  `  const HEAD_C = ${SLASH}${CARET}\\s*${HASH}${HASH} ${SLASH};`,
+  "  for (let i = 0; i < lines.length; i += 1) {",
+  "    if (HEAD_C.test(lines[i])) return i;",
+  "  }",
+  "  return lines.length;",
+  "}",
+  "",
+  // [B4] the already-caught spelling, kept as the control: the fixture must not be four failures
+  // dressed as three, and a plant nobody could ever have missed proves the fixture is readable.
+  "export function evadeByMatchCall(lines: string[]): number {",
+  `  const HEAD_D = ${SLASH}${CARET}${HASH}${HASH}\\s${SLASH};`,
+  "  for (let i = 0; i < lines.length; i += 1) {",
+  "    if (lines[i].match(HEAD_D)) break;",
+  "  }",
+  "  return 0;",
+  "}",
+  "",
+  // ── ROUND TWO of the adversarial pass, run against the arms round one had already tightened. ──
+  // Three more got through, and all three are a HAND-MAINTAINED SET rotting rather than a new idea:
+  // the application-verb list (`test` / `exec` / `match`) had no `search` and no optional-chaining
+  // spelling, and the bound-assignment construct required the index BARE. That is this repository's
+  // second named systemic failure class, inside the assertion written to close its first one.
+  //
+  // [C1] the recogniser applied with `.search(...)`.
+  "export function evadeBySearchCall(lines: string[]): number {",
+  `  const HEAD_E = ${SLASH}${CARET}${HASH}${HASH}\\s${SLASH};`,
+  "  for (let i = 0; i < lines.length; i += 1) {",
+  "    if (lines[i].search(HEAD_E) === 0) return i;",
+  "  }",
+  "  return 0;",
+  "}",
+  "",
+  // [C2] the recogniser applied through optional chaining.
+  "export function evadeByOptionalChain(lines: string[]): number {",
+  `  const HEAD_F = ${SLASH}${CARET}${HASH}${HASH}\\s${SLASH};`,
+  "  for (let i = 0; i < lines.length; i += 1) {",
+  "    if (HEAD_F?.test(lines[i])) break;",
+  "  }",
+  "  return 0;",
+  "}",
+  "",
+  // [C4] the bound assigned an EXPRESSION over the index rather than the bare index.
+  "export function evadeByBoundExpression(lines: string[], from: number): number {",
+  `  const HEAD_G = ${SLASH}${CARET}${HASH}${HASH}\\s${SLASH};`,
+  "  let end = lines.length;",
+  "  for (let i = from; i < lines.length; i += 1) {",
+  "    if (HEAD_G.test(lines[i])) {",
+  "      end = Math.min(end, i);",
+  "    }",
+  "  }",
+  "  return end;",
+  "}",
+  "",
+].join("\n");
+
+/**
  * THE NAMED SETS ARE THE MEASUREMENT, WRITTEN DOWN — produced by running the derivations above over
  * the live tree in the SAME session that wrote these lines, never transcribed from the plan.
  *
  * The plan predicted the consumer list would be the FOUR guard modules. Measured, it is FIVE: this
  * plan closed `audit-model.ts`, the fifth locator, rather than absorbing it into the owner list. The
  * plan's own instruction is to write down whatever the derivation reports.
+ *
+ * (Plan 29-29) RE-DERIVED over the FINAL round-3 tree, after 29-27, 29-28, 29-30 and 29-32 had all
+ * landed, with the CORRECTED classifier and the RECURSIVE module set. The names are now
+ * repository-relative paths because the enumeration is no longer rooted at `scripts/`. The answer
+ * over 49 modules is the same as the answer over 41: one owner.
  */
-const SECTION_EXTENT_OWNERS = ["frontmatter.ts"];
+const SECTION_EXTENT_OWNERS = ["scripts/frontmatter.ts"];
 const SECTION_EXTENT_OWNER_COUNT = 1;
+/** The recursive enumeration's own size, pinned so a walk that silently stopped early is loud. */
+const NON_TEST_MODULE_COUNT = 49;
+/**
+ * Floor item 1's LIVE sites, measured in this session and pinned two-sided WITH THEIR ADDRESSES.
+ *
+ * Both are the same eight-line `sectionBody` helper, duplicated verbatim across the two catalog
+ * generators. They bound a `## ` section by regex lookahead over the whole document — a third
+ * grammar answering the section-extent question, fence-blind, and outside the owner scan's published
+ * definition because they perform no line scan. Escalated in 29-29-SUMMARY.md, not absorbed here.
+ */
+const REGEXP_SECTION_BOUND_SITES = [
+  "scripts/generate-catalog.ts:87",
+  "scripts/generate-role-adapters.ts:127",
+];
+const REGEXP_SECTION_BOUND_SITE_COUNT = 2;
+/**
+ * The remaining floor items' LIVE sites, derived in this session rather than typed into the prose.
+ *
+ * Item 4's original text asserted a falsehood about this tree; these are the same kind of claim, so
+ * they are pinned by an expression instead. Empty is a legitimate answer — what is not legitimate is
+ * an empty answer nobody derived.
+ */
+const FLOOR_ITEM_2_SITES: string[] = [];
+const FLOOR_ITEM_4_RESIDUE_SITES: string[] = [];
+const FLOOR_ITEM_5_SITES: string[] = [];
 // (Plan 29-28) `unfencedMatchIndices` joins the set the day it is exported, NOT the day some module
 // happens to be the first to import only it. This list keys the CONSUMER derivation below, so a
 // locator function missing from it is a module that could adopt the authority and still be counted
@@ -1276,12 +1655,17 @@ const LOCATOR_FUNCTIONS = [
   "unfencedHeadingIndex",
   "unfencedMatchIndices",
 ] as const;
+// (Plan 29-29) RE-DERIVED over the FINAL round-3 tree with the RECURSIVE module set and the
+// path-aware import reader. 29-28 rewired `audit-model.ts` onto `unfencedMatchIndices` and 29-32
+// added the `-1` contract; neither moved this set. The wider read adds no consumer either — no
+// module outside `scripts/` imports the authority today — so the widening is a FLOOR here rather
+// than a re-measurement, and that is the check that it was worth taking.
 const LOCATOR_CONSUMERS = [
-  "audit-model.ts",
-  "check-banned-claims.ts",
-  "check-diff-disposition.ts",
-  "check-imperative-lexicon.ts",
-  "voice-model.ts",
+  "scripts/audit-model.ts",
+  "scripts/check-banned-claims.ts",
+  "scripts/check-diff-disposition.ts",
+  "scripts/check-imperative-lexicon.ts",
+  "scripts/voice-model.ts",
 ];
 const LOCATOR_CONSUMER_COUNT = 5;
 
@@ -1346,11 +1730,31 @@ const PLANTED_SECTION_LOCATOR_SOURCE = [
   "  return seen;",
   "}",
   "",
+  // [E] (plan 29-29) the bound COLLECTED rather than assigned or broken on: the loop index is pushed
+  // into an array a LATER loop consumes as a section bound. This is the spelling `audit-model.ts`
+  // carried until plan 29-28 — the recogniser and the bound thirteen lines apart — and it is the
+  // shape BOTH arms of this classifier were blind to. Its recogniser spells the hashes as a RUN with
+  // a QUANTIFIER and a whitespace CLASS, so this one planted function exercises every axis of the
+  // widening at once. Its only terminator construct is the collection itself: the `return marks;`
+  // below sits outside the block the recogniser line opened, which the block rule must respect.
+  "export function plantedCloseByCollection(lines: string[]): number[] {",
+  `  const OPENS = ${SLASH}${CARET}${HASH}${HASH}{2}\\s${SLASH};`,
+  "  const marks: number[] = [];",
+  "  for (let i = 0; i < lines.length; i += 1) {",
+  "    if (OPENS.test(lines[i])) {",
+  "      marks.push(i);",
+  "    }",
+  "  }",
+  "  return marks;",
+  "}",
+  "",
 ].join("\n");
 
 describe("LANG-07: exactly ONE module owns the section-extent predicate (plan 29-25, D-24)", () => {
   it("the OWNER set is derived tree-wide, floored for vacuity, and pinned two-sided at the authority alone", () => {
-    const modules = nonTestScripts();
+    // (Plan 29-29) The corpus is the RECURSIVE, repository-rooted set — 49 modules, not the 41 the
+    // non-recursive `scripts/` read used to hand this scan while the case name said "tree-wide".
+    const modules = nonTestModules();
     // ── NON-VACUITY FIRST, BOTH HALVES, BEFORE ANY MEMBERSHIP CLAIM. ──────────────────────────
     // An enumeration that found nothing cannot report that only one module is a member. This project
     // has recorded a vacuity floor that caught an EMPTY denominator and missed a SILENTLY SHORT one,
@@ -1359,8 +1763,8 @@ describe("LANG-07: exactly ONE module owns the section-extent predicate (plan 29
     expect(
       modules.length,
       "the non-test module corpus must really have been enumerated before anything is claimed about its contents",
-    ).toBeGreaterThan(30);
-    expect(modules).toContain("frontmatter.ts");
+    ).toBe(NON_TEST_MODULE_COUNT);
+    expect(modules).toContain("scripts/frontmatter.ts");
 
     const owners = sectionExtentOwners();
     expect(
@@ -1394,7 +1798,7 @@ describe("LANG-07: exactly ONE module owns the section-extent predicate (plan 29
       sectionExtentSitesIn(lexicon),
       "…and it terminates no scan with it — `continue` skips one element, it does not bound a scan. This is the exemption plan 29-24 asked for, and it is structural",
     ).toEqual([]);
-    expect(owners).not.toContain("check-imperative-lexicon.ts");
+    expect(owners).not.toContain("scripts/check-imperative-lexicon.ts");
 
     // ── AND THE AUTHORITY'S OWN SITE IS NAMED, so a one-member answer cannot be one member by
     // accident of which file happened to match.
@@ -1411,6 +1815,7 @@ describe("LANG-07: exactly ONE module owns the section-extent predicate (plan 29
       "plantedCloseByRegex :: if (CLOSES.test(lines[i])) return i;",
       'plantedCloseByPrefix :: if (lines[i].startsWith("## ")) {',
       'plantedCloseByBound :: if (lines[i].startsWith("# ")) {',
+      "plantedCloseByCollection :: if (OPENS.test(lines[i])) {",
     ]);
     expect(base.length).toBeGreaterThan(0);
 
@@ -1499,13 +1904,15 @@ describe("LANG-07: exactly ONE module owns the section-extent predicate (plan 29
     // tied to the defect that was real rather than to an invented one.
     const dir = mkdtempSync(join(tmpdir(), "grugops-locator-"));
     tmpDirs.push(dir);
+    // (Plan 29-29) The mirror keeps the tree's SHAPE, because the derivation now returns nested
+    // repository-relative paths and a flattened copy would be a different set with the same size.
     const inDir = (): string[] =>
-      sectionExtentOwnersAmong(
-        readdirSync(dir).sort(),
-        (n) => readFileSync(join(dir, n), "utf8"),
+      sectionExtentOwnersAmong(nonTestModules(dir), (n) =>
+        readFileSync(join(dir, n), "utf8"),
       );
-    for (const n of nonTestScripts()) {
-      writeFileSync(join(dir, n), readFileSync(join(ROOT, "scripts", n), "utf8"));
+    for (const n of nonTestModules()) {
+      mkdirSync(dirname(join(dir, n)), { recursive: true });
+      writeFileSync(join(dir, n), readFileSync(join(ROOT, n), "utf8"));
     }
     // THE CONTROL FIRST: the copies alone reproduce the live answer, so the failure below is caused
     // by the plant and not by the temp directory.
@@ -1513,22 +1920,42 @@ describe("LANG-07: exactly ONE module owns the section-extent predicate (plan 29
     expect(control).toEqual(SECTION_EXTENT_OWNERS);
     expect(control).toHaveLength(SECTION_EXTENT_OWNER_COUNT);
 
-    writeFileSync(join(dir, "scratch-sixth-locator.ts"), PLANTED_SIXTH_LOCATOR);
+    writeFileSync(join(dir, "scripts", "scratch-sixth-locator.ts"), PLANTED_SIXTH_LOCATOR);
     const withSixth = inDir();
-    expect(withSixth).toContain("scratch-sixth-locator.ts");
+    expect(withSixth).toContain("scripts/scratch-sixth-locator.ts");
     expect(withSixth).toHaveLength(SECTION_EXTENT_OWNER_COUNT + 1);
     expect(withSixth).not.toEqual(control);
     // …and the site is named, not merely counted, so a reviewer reading a failure is told WHICH line.
     expect(sectionExtentSitesIn(PLANTED_SIXTH_LOCATOR)).toEqual([
       'tableUnder :: if (lines[i].startsWith("## ")) break;',
     ]);
+
+    // (Plan 29-29) THE SEVENTH PLANT, through THE SAME RULE over the same directory: the shape that
+    // hid `audit-model.ts` from both arms is now a member too, and it lands in a NESTED directory so
+    // the recursive walk is exercised by the probe rather than only by the enumeration case.
+    mkdirSync(join(dir, "scripts", "runnable-ref"), { recursive: true });
+    writeFileSync(
+      join(dir, "scripts", "runnable-ref", "scratch-seventh-locator.ts"),
+      PLANTED_SEVENTH_LOCATOR,
+    );
+    const withSeventh = inDir();
+    expect(
+      withSeventh,
+      "the whitespace-class recogniser with a DEFERRED bound must be reported — this is the exact shape round 3 found green over a two-owner tree",
+    ).toContain("scripts/runnable-ref/scratch-seventh-locator.ts");
+    expect(withSeventh).toHaveLength(SECTION_EXTENT_OWNER_COUNT + 2);
   });
 
-  it("the recogniser arm requires a literal SPACE — it does not recognise an issue-reference pattern", () => {
+  it("the recogniser arm requires a SEPARATOR — it does not recognise an issue-reference pattern", () => {
     // 29-22's third construct admits a BACKSLASH after the hashes, so it recognises `/^#\d+$/` in
     // scripts/trace-render.ts — an issue reference, not a heading — and that noise is the reason
     // 29-22 recorded for keeping its own scan module-scoped. The narrowing is asserted from both
     // sides on planted lines, so it is a measured difference rather than a quiet convenience.
+    //
+    // (Plan 29-29) The arm now admits a whitespace CLASS as well as a literal space, so the property
+    // is "a SEPARATOR is required" rather than "a literal space is required". What did NOT change is
+    // the backslash: 29-22's construct is still not adopted, and the issue-reference line is still
+    // refused. That is the half a widening loses if nobody asserts it.
     const heading = `  const H = ${SLASH}${CARET}${HASH}{1,2} ${SLASH};`;
     const issueRef = `  return ${SLASH}${CARET}${HASH}\\d+$${SLASH}.test(ref);`;
     expect(
@@ -1540,19 +1967,23 @@ describe("LANG-07: exactly ONE module owns the section-extent predicate (plan 29
       "an anchored `#` followed by a digit class is an issue reference and must NOT be recognised",
     ).toBe(false);
     // And the live module carrying that pattern is absent from the answer for that reason.
-    expect(sectionExtentOwners()).not.toContain("trace-render.ts");
+    expect(sectionExtentOwners()).not.toContain("scripts/trace-render.ts");
   });
 
   it("the CONSUMER set is derived, sorted and pinned two-sided with its cardinality", () => {
-    const modules = nonTestScripts();
+    // (Plan 29-29) Tree-wide, for the same reason the owner set is: the claim said "the parser's
+    // consumers" and the read saw one directory. `importedSymbolsAt` accepts a nested path and a
+    // relative specifier of any depth; the case below it proves the two readers agree on the 41
+    // modules both can see, so the widening is not a second import grammar going unchecked.
+    const modules = nonTestModules();
     expect(
       modules.length,
       "the non-test module corpus must really have been enumerated",
-    ).toBeGreaterThan(30);
+    ).toBe(NON_TEST_MODULE_COUNT);
 
     const consumers = modules
       .filter((n) =>
-        importedSymbols(n, "frontmatter").some((s) =>
+        importedSymbolsAt(n, "frontmatter").some((s) =>
           (LOCATOR_FUNCTIONS as readonly string[]).includes(s),
         ),
       )
@@ -1574,12 +2005,395 @@ describe("LANG-07: exactly ONE module owns the section-extent predicate (plan 29
     // and CONSUMES the shared one is two grammars wearing one import, which is the shape that let
     // `voice-model.ts` be fence-aware in one half and fence-blind in the other at plan 29-20.
     const owners = sectionExtentOwners();
+    // Both sets are now repository-relative paths, so this intersection is a real comparison rather
+    // than a basename-versus-path mismatch that could never match anything and would read as clean.
     expect(
       owners.filter((n) => consumers.includes(n)),
       "no module may both declare a section-extent predicate and import the shared one",
     ).toEqual([]);
-    expect(owners).toEqual(["frontmatter.ts"]);
-    expect(consumers).not.toContain("frontmatter.ts");
+    expect(
+      owners.every((o) => o.includes("/")) && consumers.every((c) => c.includes("/")),
+      "the disjointness above is only meaningful if both sets are spelled the same way",
+    ).toBe(true);
+    expect(owners).toEqual(SECTION_EXTENT_OWNERS);
+    expect(consumers).not.toContain("scripts/frontmatter.ts");
+  });
+
+  it("the tree-wide import reader agrees with the `scripts/`-scoped one on every module both can see", () => {
+    // The widening above replaced `importedSymbols` with `importedSymbolsAt` inside this block. A
+    // second import grammar landing unnoticed beside the first is exactly the class this phase
+    // exists to delete, so the two are compared on the whole overlap rather than trusted to agree.
+    const flat = nonTestScripts();
+    expect(flat.length, "the `scripts/`-scoped reader's own corpus").toBe(41);
+    let compared = 0;
+    for (const n of flat) {
+      for (const spec of ["frontmatter", "canonical-frontmatter", "audit-model"]) {
+        expect(
+          importedSymbolsAt(`scripts/${n}`, spec),
+          `the two readers disagree about ${n} <- ./${spec}.js`,
+        ).toEqual(importedSymbols(n, spec));
+        compared += 1;
+      }
+    }
+    expect(compared, "the comparison must really have run over the whole corpus").toBe(41 * 3);
+    // NON-VACUITY: the comparison would be clean over two readers that both return nothing, so at
+    // least one module must have produced a non-empty answer through the NEW reader.
+    expect(
+      flat.filter((n) => importedSymbolsAt(`scripts/${n}`, "frontmatter").length > 0).length,
+      "the tree-wide reader must actually resolve imports, or the agreement above is vacuous",
+    ).toBeGreaterThan(0);
+  });
+
+  // ═══════════════════════════════════════════════════════════════════════════════════════════
+  // (PLAN 29-29, CR-02) THE CORRECTION — the classifier now sees the shape its own floor said
+  // nothing in this tree used.
+  //
+  // Round 3 measured `SECTION_EXTENT_OWNERS = ["frontmatter.ts"]` green over a tree that had TWO
+  // owners, because `audit-model.ts`'s `readRegistry` was missed by BOTH arms at once: the
+  // recogniser arm required a literal space and that module spelled a whitespace class, and the
+  // terminator arm never reached a bound collected into an array and consumed thirteen lines later.
+  //
+  // BOTH WIDENINGS ARE LOAD-BEARING, AND THAT IS A MEASUREMENT RATHER THAN A BELIEF. Run over the
+  // pre-29-28 source of that module in this plan's session, the recogniser widening ALONE reports
+  // nothing and the terminator widening ALONE reports nothing; only the pair reports the site. The
+  // plan specified the recogniser half; shipping it alone would have been a correction that measured
+  // nothing, which is the exact defect this round exists to refuse. The transcript is in
+  // 29-29-SUMMARY.md and the property is asserted permanently by the seventh plant below.
+  // ═══════════════════════════════════════════════════════════════════════════════════════════
+
+  it("the recogniser arm sees a hash RUN and a whitespace CLASS — floor item 4's shape, both directions", () => {
+    // THE SIX SPELLINGS. One hash, a run, and a `{n,m}` quantifier — each with a literal space and
+    // with a whitespace class. Assembled from character codes so this file's own source carries no
+    // heading recogniser of its own.
+    const MUST_MATCH: readonly [string, string][] = [
+      ["one hash, literal space", `  const A = ${SLASH}${CARET}${HASH} ${SLASH};`],
+      ["a hash RUN, literal space", `  const B = ${SLASH}${CARET}${HASH}${HASH}${HASH} ${SLASH};`],
+      ["a quantifier, literal space", `  const C = ${SLASH}${CARET}${HASH}{1,6} ${SLASH};`],
+      ["one hash, whitespace CLASS", `  const D = ${SLASH}${CARET}${HASH}\\s${SLASH};`],
+      ["a hash RUN, whitespace CLASS", `  const E = ${SLASH}${CARET}${HASH}${HASH}${HASH}\\s+(\\S+)${SLASH};`],
+      ["a quantifier, whitespace CLASS", `  const F = ${SLASH}${CARET}${HASH}{1,6}\\s${SLASH};`],
+    ];
+    expect(MUST_MATCH.length, "all six combinations of the two axes must be swept").toBe(6);
+    for (const [label, line] of MUST_MATCH) {
+      expect(
+        HEADING_RECOGNISER_CONSTRUCTS.some((r) => r.test(line)),
+        `${label} is an ATX heading recogniser and must be recognised: ${line}`,
+      ).toBe(true);
+    }
+
+    // AND THE OTHER DIRECTION, because a classifier WIDENED until it is noisy is the same defect as
+    // one NARROWED until the answer comes out right. 29-22's third construct admitted a backslash
+    // after the hashes and so recognised an issue-reference pattern; the widening here adds a
+    // whitespace class and a hash run and adds NOTHING else.
+    const MUST_NOT_MATCH: readonly [string, string][] = [
+      ["an issue reference", `  return ${SLASH}${CARET}${HASH}\\d+$${SLASH}.test(ref);`],
+      ["a bare hash with no separator", `  const G = ${SLASH}${CARET}${HASH}$${SLASH};`],
+      ["a hash run with no separator", `  const H = ${SLASH}${CARET}${HASH}${HASH}${HASH}(\\S+)${SLASH};`],
+      ["a hash followed by a word character", `  const I = ${SLASH}${CARET}${HASH}[A-Za-z]${SLASH};`],
+    ];
+    for (const [label, line] of MUST_NOT_MATCH) {
+      expect(
+        HEADING_RECOGNISER_CONSTRUCTS.some((r) => r.test(line)),
+        `${label} is NOT a heading recogniser and must not be admitted: ${line}`,
+      ).toBe(false);
+    }
+  });
+
+  it("the widening admits NO live site — the two modules a careless one would take are absent BY NAME", () => {
+    // Both halves are asserted on the LIVE tree rather than on planted lines, because the hazard is
+    // a widening that is clean on fixtures and noisy on the repository.
+    const owners = sectionExtentOwners();
+
+    // `trace-render.ts` carries `/^#\d+$/`, an ISSUE-REFERENCE pattern. The recogniser arm must not
+    // even recognise it, so the exclusion is not resting on the terminator arm by luck.
+    const traceSrc = codeLinesOfSource(
+      readFileSync(join(ROOT, "scripts", "trace-render.ts"), "utf8"),
+    ).join("\n");
+    const issueRefLine = traceSrc
+      .split("\n")
+      .find((l) => l.includes("test(ref)") && l.includes("\\d+"));
+    expect(issueRefLine, "trace-render.ts must still carry the issue-reference pattern").toBeDefined();
+    expect(
+      HEADING_RECOGNISER_CONSTRUCTS.some((r) => r.test(issueRefLine as string)),
+      "an anchored `#` followed by a digit class is an issue reference, not a heading",
+    ).toBe(false);
+    expect(sectionExtentSitesIn(traceSrc)).toEqual([]);
+    expect(owners).not.toContain("scripts/trace-render.ts");
+
+    // `validate-agent-factory.ts` is the OTHER direction and the stronger half: its board-heading
+    // normaliser really does spell `/^##\s+/`, so the WIDENED recogniser arm DOES recognise it. It
+    // is excluded by the CONJUNCTION — the line bounds no scan — which is the mechanism this block
+    // rests on, exercised on a live module rather than on a planted one.
+    const validateSrc = codeLinesOfSource(
+      readFileSync(join(ROOT, "scripts", "validate-agent-factory.ts"), "utf8"),
+    ).join("\n");
+    const boardLine = validateSrc.split("\n").find((l) => l.includes(".replace(") && l.includes("##"));
+    expect(boardLine, "validate-agent-factory.ts must still carry the board-heading replace").toBeDefined();
+    expect(
+      HEADING_RECOGNISER_CONSTRUCTS.some((r) => r.test(boardLine as string)),
+      "the widened arm DOES recognise a whitespace-class heading regex — that is the widening",
+    ).toBe(true);
+    expect(
+      sectionExtentSitesIn(validateSrc),
+      "…and it still contributes no site, because it terminates no scan. The conjunction is what excludes it",
+    ).toEqual([]);
+    expect(owners).not.toContain("scripts/validate-agent-factory.ts");
+  });
+
+  it("the SEVENTH plant — a whitespace-class recogniser with a DEFERRED bound — is reported, and each widening alone is not enough", () => {
+    // The plant is `audit-model.ts`'s pre-29-28 shape restated. It is what makes this correction a
+    // measurement of the defect that shipped rather than of an invented one.
+    expect(sectionExtentSitesIn(PLANTED_SEVENTH_LOCATOR)).toEqual([
+      "claimSpans :: if (CLAIM_HEAD.test(lines[i])) marks.push(i);",
+    ]);
+
+    // NEITHER WIDENING ALONE REACHES IT. Run with the pre-29-29 recogniser arm restored, the answer
+    // is empty; run with the pre-29-29 terminator arm restored, the answer is empty. Both arms were
+    // blind at once, which is why the plan's recogniser-only correction would have measured nothing.
+    // The narrow arms are RECONSTRUCTED here rather than checked out of a commit — keying a
+    // permanent case to a sha rots the first time the file moves (plan 29-27, decision 5).
+    const NARROW_REC: readonly RegExp[] = [
+      /\/\^#(?:\{[\d,]+\})? /,
+      /\.startsWith\(\s*["'`]#{1,6} /,
+    ];
+    const NARROW_TERM: readonly RegExp[] = [
+      /\bbreak\b/,
+      /\breturn\s+(?!true\b|false\b|null\b|undefined\b|\{|\[)\S/,
+      /^\s*[A-Za-z_$][\w$.]*\s*=\s*(?:i|j|k|idx|index)\b\s*[;+)]/,
+    ];
+    expect(
+      sectionExtentSitesIn(PLANTED_SEVENTH_LOCATOR, NARROW_REC, SCAN_TERMINATOR_CONSTRUCTS),
+      "the recogniser widening alone does not reach it — the terminator arm is blind too",
+    ).toEqual([]);
+    expect(
+      sectionExtentSitesIn(PLANTED_SEVENTH_LOCATOR, HEADING_RECOGNISER_CONSTRUCTS, NARROW_TERM),
+      "the terminator widening alone does not reach it — the recogniser arm is blind too",
+    ).toEqual([]);
+    // And the reconstructed narrow arms really are the ones that shipped: they still find the SIXTH
+    // plant, so the two empties above are about this plant's shape and not about a broken fixture.
+    expect(
+      sectionExtentSitesIn(PLANTED_SIXTH_LOCATOR, NARROW_REC, NARROW_TERM),
+      "the reconstructed pre-29-29 arms must still find the sixth plant, or the controls above prove nothing",
+    ).toEqual(['tableUnder :: if (lines[i].startsWith("## ")) break;']);
+  });
+
+  it("the module set is TREE-WIDE — derived recursively, counted by a second independent enumeration", () => {
+    // (V-29-26-02, closed here) The owner derivation used to read `scripts/` NON-RECURSIVELY — 41 of
+    // the 49 tracked non-test modules — while the case name, the refusal wording and the block's
+    // prose all said "tree-wide". A claim wider than the assertion behind it is this repository's
+    // named defect class, and the remedy it already uses is to widen the assertion rather than to
+    // narrow the sentence. So the read is recursive, and the answer over the wider set is REPORTED
+    // rather than adjusted: it is unchanged at one owner.
+    const walked = nonTestModules();
+    expect(walked.length, "the recursive walk must enumerate the whole tree").toBe(
+      NON_TEST_MODULE_COUNT,
+    );
+    expect(walked).toEqual([...walked].sort());
+    // The nested and out-of-`scripts/` members the old read could not see, named rather than counted.
+    for (const outside of [
+      "hooks/guard.ts",
+      "install/install.ts",
+      "scripts/runnable-ref/reference-check.ts",
+      "vitest.config.ts",
+    ]) {
+      expect(walked, `the recursive set must contain ${outside}`).toContain(outside);
+    }
+    expect(
+      walked.filter((n) => n.startsWith("scripts/") && !n.slice(8).includes("/")).length,
+      "…and the old non-recursive answer is a strict subset, stated as the number this widening moved off",
+    ).toBe(41);
+
+    // THE ELEMENT COUNT, DERIVED INDEPENDENTLY OF THE WALK THAT PRODUCES IT. A vacuity floor catches
+    // an EMPTY denominator and has never caught a SILENTLY SHORT one, so the set is compared against
+    // git's own index — a second enumeration this file does not implement.
+    const tracked = spawnSync("git", ["ls-files", "*.ts"], { cwd: ROOT, encoding: "utf8" });
+    expect(tracked.status, "git ls-files must succeed, or this comparison measures nothing").toBe(0);
+    const trackedModules = (tracked.stdout as string)
+      .split("\n")
+      .filter((n) => n !== "" && !n.endsWith(".test.ts") && !n.endsWith(".d.ts"))
+      .sort();
+    expect(
+      walked,
+      "the recursive walk and git's index must enumerate the SAME modules — a difference means either the walk is short or a `.ts` file is uncommitted, and an owner scan over an unenumerated module is not tree-wide",
+    ).toEqual(trackedModules);
+  });
+
+  it("floor item 1 is a MEASUREMENT: every `new RegExp`-built section bound in the tree is derived and named", () => {
+    // (Plan 29-29) Re-checking every floor item against the final tree — the discipline this plan
+    // applies to item 4 — found item 1 REACHABLE, twice. A `new RegExp(...)` built from a template
+    // string is invisible to the recogniser arm by construction (there is no regex literal to match)
+    // and `sectionBody` in the two catalog generators uses one to bound a `## ` section by lookahead.
+    //
+    // That is a THIRD grammar over the same bytes and it is a LANG-07 finding, escalated in
+    // 29-29-SUMMARY.md rather than absorbed into the owner list: under this block's own published
+    // definition a section-extent construct is a heading recogniser USED ON A LINE that terminates
+    // or bounds a SCAN, and a whole-document regex performs no line scan at all. Widening the
+    // definition to swallow it would be re-writing the rule until the answer came out interesting,
+    // the mirror image of narrowing it until the answer comes out clean.
+    //
+    // What is NOT optional is that the floor stop reading as a hypothetical. The shape's live count
+    // is derived here and pinned two-sided WITH ITS SITES NAMED, so item 1 cannot rot the way item 4
+    // did: a third generator adopting the same helper reds this case on the day it lands.
+    const sites: string[] = [];
+    for (const rel of nonTestModules()) {
+      codeLinesOfSource(readFileSync(join(ROOT, rel), "utf8")).forEach((line, i) => {
+        if (REGEXP_BUILT_SECTION_BOUND.test(line)) sites.push(`${rel}:${i + 1}`);
+      });
+    }
+    expect(sites.sort()).toEqual(REGEXP_SECTION_BOUND_SITES);
+    expect(sites).toHaveLength(REGEXP_SECTION_BOUND_SITE_COUNT);
+
+    // THE DERIVATION DISCRIMINATES, BOTH WAYS, on planted lines — otherwise a two-member answer from
+    // a pattern that matches almost nothing is indistinguishable from one that works.
+    expect(
+      REGEXP_BUILT_SECTION_BOUND.test(
+        '  const re = new RegExp(`^## ${h}\\n([\\s\\S]*?)(?=\\n## |$(?![\\s\\S]))`, "m");',
+      ),
+      "a `new RegExp` bounding a `## ` section is the shape floor item 1 names",
+    ).toBe(true);
+    expect(
+      REGEXP_BUILT_SECTION_BOUND.test('  const re = new RegExp(`\\b(${tokens})\\b`, "gi");'),
+      "a `new RegExp` carrying no ATX heading run is NOT this shape",
+    ).toBe(false);
+    expect(
+      REGEXP_BUILT_SECTION_BOUND.test('  const re = new RegExp(`^#${issue}$`, "m");'),
+      "a `new RegExp` whose hash is followed by no separator is an issue reference, not a heading",
+    ).toBe(false);
+  });
+
+  it("the six evasions the adversarial pass found against THIS plan's fix are all reported", () => {
+    // Every one of these was measured getting through the widened arms before it was closed; the
+    // transcript is in 29-29-SUMMARY.md. A green suite is not proof for a safety invariant in this
+    // repository, and the widened classifier IS the only evidence for LANG-07's central claim.
+    expect(sectionExtentSitesIn(PLANTED_EVASION_SOURCE)).toEqual([
+      "evadeByBoundResult :: const isHead = HEAD_A.test(lines[i]);",
+      "evadeByPushOffset :: if (HEAD_B.test(lines[i])) marks.push(i + 0);",
+      "evadeByLeadingWhitespace :: if (HEAD_C.test(lines[i])) return i;",
+      "evadeByMatchCall :: if (lines[i].match(HEAD_D)) break;",
+      "evadeBySearchCall :: if (lines[i].search(HEAD_E) === 0) return i;",
+      "evadeByOptionalChain :: if (HEAD_F?.test(lines[i])) break;",
+      "evadeByBoundExpression :: if (HEAD_G.test(lines[i])) {",
+    ]);
+
+    // AND THE DECLARATION SKIP STILL SKIPS WHAT IT IS FOR. Closing [B1] narrowed a rule; the other
+    // side of it must still hold or the fix is a widening that double-counts every recogniser in the
+    // tree at its point of definition.
+    const definition = `  const HEAD_E = ${SLASH}${CARET}${HASH}${HASH}\\s${SLASH};`;
+    expect(
+      RECOGNISER_BINDING.test(definition.trim()),
+      "a recogniser DEFINITION is still a binding",
+    ).toBe(true);
+    expect(
+      declarationAppliesRecogniser(definition, ["HEAD_E"]),
+      "…and it APPLIES nothing, so it is still skipped",
+    ).toBe(false);
+    expect(
+      declarationAppliesRecogniser("  const isHead = HEAD_E.test(lines[i]);", ["HEAD_E"]),
+      "a binding of the TEST'S RESULT applies a recogniser and is a use, not a definition",
+    ).toBe(true);
+    // A source that only DEFINES recognisers contributes no site — the property the skip protects.
+    expect(
+      sectionExtentSitesIn(
+        [
+          "export const A = 1;",
+          `const HEAD_F = ${SLASH}${CARET}${HASH}${HASH}\\s${SLASH};`,
+          `const HEAD_G = ${SLASH}${CARET}${HASH}{1,6} ${SLASH};`,
+          "",
+        ].join("\n"),
+      ),
+      "a module that only DECLARES heading recognisers owns no section extent",
+    ).toEqual([]);
+
+    // THE LIVE TREE CARRIES EXACTLY ONE declaration-line that applies a recogniser, and it bounds no
+    // scan. Derived rather than asserted, so the [B1] closure's live blast radius is a measurement.
+    const appliedSites: string[] = [];
+    for (const rel of nonTestModules()) {
+      const code = codeLinesOfSource(readFileSync(join(ROOT, rel), "utf8"));
+      const names = recogniserNamesIn(code, HEADING_RECOGNISER_CONSTRUCTS);
+      code.forEach((line, i) => {
+        if (!RECOGNISER_BINDING.test(line.trim())) return;
+        if (declarationAppliesRecogniser(line, names)) appliedSites.push(`${rel}:${i + 1}`);
+      });
+    }
+    expect(
+      appliedSites,
+      "the [B1] closure's live blast radius — declaration-lines that APPLY a recogniser",
+    ).toEqual(["scripts/audit-model.ts:1081"]);
+    expect(
+      sectionExtentOwners(),
+      "…and closing [B1] must not have made a new module an owner; if it did, that is a LANG-07 escalation and not a constant to edit",
+    ).toEqual(SECTION_EXTENT_OWNERS);
+  });
+
+  it("every remaining floor item's LIVE COUNT is DERIVED, not asserted in prose", () => {
+    // A floor that asserts a falsehood about this tree is worse than no floor — that is item 4's
+    // whole story, and it is the reason every countable item now has its number produced by an
+    // expression rather than typed into a comment. Items 3 and 6 are deliberately absent: both need
+    // a call graph or a data-flow analysis this scan does not build, and an underivable number in a
+    // floor is worse than an honest "not counted".
+    const modules = nonTestModules();
+    expect(modules.length, "the floor is a claim about the WHOLE tree").toBe(NON_TEST_MODULE_COUNT);
+
+    // ITEM 2 — a heading test written as a slice, a charAt or an indexOf comparison.
+    const ITEM_2 =
+      /\.slice\(\s*0\s*,\s*\d+\s*\)\s*===\s*["'`]#|\.charAt\(\s*0\s*\)\s*===\s*["'`]#|\.indexOf\(\s*["'`]#{1,6} /;
+    // ITEM 4 RESIDUE — an anchored ATX regex whose separator is a bracket character class of its own
+    // (`/^#{1,6}[ \t]/`), which is neither a literal space nor the `\s` class the arm now admits.
+    const ITEM_4_RESIDUE = /\/\^#(?:#*)(?:\{[\d,]+\})?\[/;
+    const countOver = (re: RegExp): string[] => {
+      const hits: string[] = [];
+      for (const rel of modules) {
+        codeLinesOfSource(readFileSync(join(ROOT, rel), "utf8")).forEach((line, i) => {
+          if (re.test(line)) hits.push(`${rel}:${i + 1}`);
+        });
+      }
+      return hits;
+    };
+    expect(countOver(ITEM_2), "floor item 2 — slice/charAt/indexOf heading tests").toEqual(
+      FLOOR_ITEM_2_SITES,
+    );
+    expect(
+      countOver(ITEM_4_RESIDUE),
+      "floor item 4's residue — an ATX recogniser whose separator is a bracket class",
+    ).toEqual(FLOOR_ITEM_4_RESIDUE_SITES);
+
+    // BOTH EXPRESSIONS DISCRIMINATE. A zero from a pattern that matches nothing is indistinguishable
+    // from a zero from a pattern that works, and this project has paid for that confusion.
+    expect(ITEM_2.test('  if (line.slice(0, 3) === "## ") break;')).toBe(true);
+    expect(ITEM_2.test('  if (line.charAt(0) === "#") break;')).toBe(true);
+    expect(ITEM_2.test('  if (line.indexOf("## ") === 0) break;')).toBe(true);
+    expect(ITEM_2.test('  if (line.startsWith("## ")) break;')).toBe(false);
+    expect(ITEM_4_RESIDUE.test(`  const R = ${SLASH}${CARET}${HASH}{1,6}[ \\t]${SLASH};`)).toBe(true);
+    expect(ITEM_4_RESIDUE.test(`  const R = ${SLASH}${CARET}${HASH}{1,6}\\s${SLASH};`)).toBe(false);
+
+    // ITEM 5 — a committed `.js` with no `.ts` beside it is the only file a `*.ts` enumeration can
+    // structurally miss. Derived by walking the same tree with the same skip list.
+    const jsWalk = (dir: string, rel: string, acc: string[]): string[] => {
+      for (const entry of readdirSync(dir, { withFileTypes: true })) {
+        if (skipWalkEntry(entry.name)) continue;
+        const next = rel === "" ? entry.name : `${rel}/${entry.name}`;
+        if (entry.isDirectory()) jsWalk(join(dir, entry.name), next, acc);
+        else if (entry.name.endsWith(".js")) acc.push(next);
+      }
+      return acc;
+    };
+    const js = jsWalk(ROOT, "", []).sort();
+    // The same premise assertion the `.ts` walk carries, and for the same reason: this walk read
+    // `.tmp-build/`'s forty-eight phantom copies on its first run and reported them as findings.
+    const trackedJs = spawnSync("git", ["ls-files", "*.js"], { cwd: ROOT, encoding: "utf8" });
+    expect(trackedJs.status, "git ls-files must succeed, or this comparison measures nothing").toBe(0);
+    expect(
+      js,
+      "the `.js` walk and git's index must enumerate the SAME files — a difference means the walk strayed into a build scratch tree or a committed output is missing",
+    ).toEqual((trackedJs.stdout as string).split("\n").filter((n) => n !== "").sort());
+    expect(
+      js.length,
+      "the `.js` enumeration must not be empty — this tree commits its build output",
+    ).toBeGreaterThan(30);
+    const orphans = js.filter((n) => !existsSync(join(ROOT, `${n.slice(0, -3)}.ts`)));
+    expect(orphans, "floor item 5 — committed `.js` with no `.ts` beside it").toEqual(
+      FLOOR_ITEM_5_SITES,
+    );
   });
 });
 

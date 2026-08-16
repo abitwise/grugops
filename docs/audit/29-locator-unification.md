@@ -71,6 +71,12 @@ byte-compatible with the predicates it replaces.
 
 ## 3. The derived owner and consumer lists
 
+> **Superseded in part — see [§9](#9-the-round-3-corrections-plan-29-29).** Round 3 found the
+> classifier that produced the numbers below BLIND to the module `audit-model.ts` was at the time,
+> and the scan's module set narrower than the word "tree-wide". The measurements in this section are
+> what was believed at round 2 and are left standing as that record; §9 carries the corrected rule,
+> the re-derivation over the final round-3 tree, and every command re-run.
+
 Taken from plan 29-25's scans in `scripts/check-foundation-guards.test.ts`; this document does not
 re-derive them with a second scan.
 
@@ -495,6 +501,173 @@ locator, so they are plausibly ONE follow-up plan rather than four.
 **Consequence: gap-closure round 2 does NOT close.** The round reopens for the surviving variants.
 Phase 29 is not complete, no LANG requirement is verified or closed by this round, and re-verification
 does not run on this tree.
+
+## 9. The round-3 corrections (plan 29-29)
+
+This section is an APPEND. Sections 3, 4 and 6 above are round 2's transcript — the record of what
+was believed and when — and rewriting their numbers in place would destroy the only evidence that a
+correction was needed at all. Each of them now carries a one-line pointer here instead.
+
+### 9.1 §3's owner scan was blind to the module it was measuring
+
+**What §3 measured.** `SECTION_EXTENT_OWNERS = ["frontmatter.ts"]`, `SECTION_EXTENT_OWNER_COUNT = 1`,
+over 41 non-test modules, presented as the derivation that makes "the last member" a measurement
+rather than a belief.
+
+**What round 3 found (29-REVIEW.md § CR-02).** That answer was green over a tree with **two** owners.
+`audit-model.ts`'s `readRegistry` was a section-extent construct by the block's own published
+definition and was missed **twice over**:
+
+- the **recogniser arm** was `/\/\^#(?:\{[\d,]+\})? /` — one hash or a `{n,m}` quantifier, then a
+  LITERAL SPACE. That module spelled `/^###\s+(\S+)\s*$/`: a hash RUN and a whitespace CLASS.
+- the **terminator arm** never reached it: the indices were collected into an array with
+  `headingIdx.push(i)` and consumed as a bound thirteen lines later, outside the block-scoped search.
+
+And the classifier's own disclosed floor, **item 4**, asserted the whitespace-class spelling was one
+"which no module in this tree uses today" — false at `audit-model.ts:893` on the day it was written.
+
+**What the corrected derivation reports.** Both arms were widened. The recogniser arm now admits a
+hash run and a `\s` class (`/\/\^#(?:#*)(?:\{[\d,]+\})?(?: |\\s)/`); the terminator arm gains a
+fourth construct, an index COLLECTED into an array (`/\b[A-Za-z_$][\w$.]*\.push\(\s*(?:i|j|k|n|idx|index)\s*\)/`).
+
+**Both widenings are load-bearing, and that is a measurement.** Run in this session against the
+pre-29-28 source (`git show 0ec8b61:scripts/audit-model.ts`) through THE RULE:
+
+```
+PREMISE: pre source is 1158 lines; final source is 1347 lines; they differ = true
+PREMISE: pre carries the raw heading scan = true
+PREMISE: final carries it = false
+
+=== PRE-29-28 audit-model.ts, four classifiers ===
+  pre-29-29 arms (both narrow)     -> []
+  widened RECOGNISER only          -> []
+  widened TERMINATOR only          -> []
+  CORRECTED (both widened)         -> ["readRegistry :: if (CLAIM_HEADING_RE.test(lines[i])) headingIdx.push(i);"]
+
+=== FINAL tree audit-model.ts, corrected classifier ===
+  CORRECTED (both widened)         -> []
+
+=== OWNER SET over the tree with audit-model.ts AT ITS PRE-29-28 SOURCE ===
+  ["scripts/audit-model.ts","scripts/frontmatter.ts"]  (count 2)
+=== OWNER SET over the FINAL tree ===
+  ["scripts/frontmatter.ts"]  (count 1)
+```
+
+The plan for this task specified the recogniser half alone. Shipped alone it reports the empty set —
+a correction that measures nothing, which is the defect this round exists to refuse. The two
+single-arm empties are permanent cases, not only a transcript.
+
+### 9.2 The re-derived sets, over the FINAL round-3 tree
+
+Taken after 29-27, 29-28, 29-30 and 29-32 had all landed, with the corrected classifier and a
+RECURSIVE module set:
+
+```
+MODULES: 49   of which under scripts/ non-recursively: 41
+SECTION_EXTENT_OWNERS      = ["scripts/frontmatter.ts"]     COUNT = 1
+LOCATOR_CONSUMERS          = ["scripts/audit-model.ts", "scripts/check-banned-claims.ts",
+                              "scripts/check-diff-disposition.ts",
+                              "scripts/check-imperative-lexicon.ts", "scripts/voice-model.ts"]
+LOCATOR_CONSUMER_COUNT     = 5
+```
+
+**V-29-26-02 is closed for this block.** The scan read `scripts/` non-recursively — 41 of 49 tracked
+non-test modules — while its case name, its refusal wording and its prose all said "tree-wide". The
+read is now recursive and repository-rooted, and the wider answer was measured BEFORE the sentence
+changed: it is the same answer. The enumeration is compared against `git ls-files '*.ts'` in the case
+itself, so a walk that silently stopped early cannot report a clean set.
+
+### 9.3 Floor item 1 is REACHABLE, twice — a LANG-07 finding, escalated
+
+Re-checking every floor item against the final tree (the discipline this plan applies to item 4)
+found item 1 — "a recogniser built from concatenated fragments or a `new RegExp(...)` string" —
+**live at two addresses**:
+
+```
+scripts/generate-catalog.ts:87
+scripts/generate-role-adapters.ts:127
+```
+
+Both are the same eight-line `sectionBody` helper, duplicated verbatim:
+
+```ts
+const re = new RegExp(`^## ${heading}\\n([\\s\\S]*?)(?=\\n## |$(?![\\s\\S]))`, "m");
+```
+
+That bounds a `## ` section by regex lookahead over the whole document. It is a **third grammar**
+answering the section-extent question, and it is **fence-blind**: a `## ` line quoted inside a fenced
+example inside a role or workflow file terminates the capture early.
+
+It is **not** absorbed into the owner list. Under the block's own published definition a
+section-extent construct is a heading recogniser used on a LINE that terminates or bounds a SCAN, and
+a whole-document regex performs no line scan at all; widening the definition to swallow it would be
+re-writing the rule until the answer came out interesting, which is the mirror image of narrowing it
+until the answer comes out clean. What is not optional is that the floor stop reading as a
+hypothetical: the shape's live count is now DERIVED and PINNED two-sided with both addresses named,
+so a third generator adopting the helper reds on the day it lands.
+
+**LANG-07's truth is therefore NOT fully closed on this tree**, and this is escalated rather than
+recorded as an accepted residual. See 29-29-SUMMARY.md.
+
+### 9.4 The other floor items, re-checked with live counts
+
+| item | status after round 3 | live count |
+|---|---|---|
+| 1 — `new RegExp` / concatenated fragments | REACHABLE; escalated (§9.3) | **2**, both named and pinned |
+| 2 — slice / charAt / indexOf heading test | still a floor | **0**, derived and pinned |
+| 3 — a bound through a HELPER | still a floor | not counted — needs a call graph |
+| 4 — whitespace CLASS separator | **CLOSED**; the shape is now recognised | the residue (a bracket character class) is **0**, derived and pinned |
+| 5 — a locator in a `.js` the scan does not enumerate | still a floor | **0** committed `.js` with no `.ts` beside it, derived and pinned |
+| 6 — a terminator outside the block-scoped search | NARROWED — the array-collection spelling is now a construct | not counted — needs data-flow analysis |
+
+Item 4 is corrected rather than deleted. A floor that shrinks silently is the same defect one level
+down, so the item now states what the arm still cannot see in place of the claim it used to make.
+
+### 9.5 The adversarial pass on the corrected classifier — two rounds, six evasions, all closed
+
+The corrected arms were attacked before they were committed. Round one found three shapes getting
+through; the arms were tightened; round two, run against the tightened arms, found three more. All
+six are now permanent cases and every one was SEEN getting through first.
+
+| # | shape | round | why it got through | disposition |
+|---|---|---|---|---|
+| B1 | the recogniser's RESULT bound to a local `const` | 1 | the declaration skip asked "is this a binding" when the question is "does this binding DEFINE a recogniser or APPLY one" | closed |
+| B2 | `marks.push(i + 0)` | 1 | the collection construct required the index BARE | closed |
+| B3 | `/^\s*## /` | 1 | the arm anchored on `\^#` with no leading-whitespace tolerance | closed |
+| B4 | `lines[i].match(HEAD)` | 1 | — already caught; kept as the fixture's control | n/a |
+| C1 | `lines[i].search(HEAD)` | 2 | the application-verb set carried `test`/`exec`/`match` and no `search` | closed |
+| C2 | `HEAD?.test(lines[i])` | 2 | the same set knew no optional-chaining spelling | closed |
+| C4 | `end = Math.min(end, i)` | 2 | the bound-assignment construct required the index BARE | closed |
+| C6 | a terminator 8 lines below its recogniser | 2 | `TERMINATOR_WINDOW` is 6 | **recorded** — this is floor item 6 and its bound is stated at the constant |
+
+**Closing B1 required a second structural change, not a wider regex.** The terminator search stopped
+at the first line indented no deeper than the recogniser line, which is correct for a line ending in
+`{` and wrong for a line that opens no block at all — such a line's bound is necessarily a following
+SIBLING. The rule is now conditional on whether the recogniser line opened a block, and the control
+plant that proves a `return` after the enclosing loop is NOT reached still holds.
+
+**C1 and C2 are the set-literal drift class inside the assertion written to close it.** The
+application-verb list was hand-maintained and had already rotted. `replace` and `split` were
+deliberately NOT added: they transform text rather than locate a line, and admitting them is the
+widening-until-noisy direction.
+
+**The owner set held at ONE through every tightening.** That is the load-bearing result: the
+classifier got six notches stricter and the tree still has exactly one line-scanning section-extent
+owner. Every live count above is zero — `.search(` and `?.test(` each appear 0 times in the 49
+modules — so each closure is a FLOOR rather than a re-measurement.
+
+**`TERMINATOR_WINDOW` re-measured.** The derived owner answer is identical at 4, 6, 10 and 20 against
+the corrected arms and the recursive module set, so the answer does not depend on the constant.
+
+### 9.6 A harness-premise failure inside this plan's own work
+
+The recursive module walk's first draft skipped `.git`, `.planning` and `.gsd` by name. It then read
+`.tmp-build/` — the scratch tree `npm run freshness` rebuilds into — and reported **48 phantom
+modules** as findings. It happened not to disturb the `.ts` enumeration, because that directory holds
+only `.js`. The comparison against git's own index is what caught it; a walk trusted rather than
+compared would have published a confident wrong answer. The skip rule is now "any dot-directory",
+and both walks assert their agreement with `git ls-files` before any claim is made about their
+contents.
 
 ## Every command in this document is re-runnable
 
