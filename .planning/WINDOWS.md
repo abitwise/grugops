@@ -1,10 +1,10 @@
 ---
 schema_version: 1
-open_count: 28
+open_count: 30
 waived_count: 0
 fixed_count: 1
-total_count: 29
-last_updated: 2026-08-16T00:29:11.216Z
+total_count: 31
+last_updated: 2026-08-16T01:28:22.998Z
 ---
 
 # Broken Windows Ledger
@@ -44,6 +44,8 @@ last_updated: 2026-08-16T00:29:11.216Z
 | 27 | 29 | deviation | scripts/check-imperative-lexicon.ts |  | Residual 4: a four-space-indented code block donates step bullets; the one fence authority cannot see it. Fail-closed, empty input set today, promote trigger recorded. | open |  | 2026-08-15T16:49:50.314Z |  |
 | 28 | 29 | deviation | scripts/check-imperative-lexicon.ts | 541 | The derived locator-site scan reports ONE member (HEADING_LINE), not the zero 29-24's acceptance criterion asserts; 29-25 must state an exemption rather than widen the classifier. | open |  | 2026-08-15T16:49:50.376Z |  |
 | 29 | 29 | deviation | scripts/check-banned-claims.ts |  | V-29-32-01: a CLOSED-fence count-preserving compensating edit holds both published pins while swallowing a section into the safety exemption (0 live instances) | open |  | 2026-08-16T00:29:11.216Z |  |
+| 30 | 29 | stub | scripts/generate-catalog.ts | 87 | sectionBody bounds a '## ' section by fence-blind new RegExp lookahead — a third section-extent grammar (V-29-29-01, LANG-07) | open |  | 2026-08-16T01:28:22.935Z |  |
+| 31 | 29 | stub | scripts/generate-role-adapters.ts | 127 | sectionBody bounds a '## ' section by fence-blind new RegExp lookahead — a third section-extent grammar (V-29-29-01, LANG-07) | open |  | 2026-08-16T01:28:22.998Z |  |
 
 ````json
 [
@@ -393,6 +395,30 @@ last_updated: 2026-08-16T00:29:11.216Z
     "status": "open",
     "reason": "",
     "recorded_at": "2026-08-16T00:29:11.216Z",
+    "resolved_at": null
+  },
+  {
+    "id": 30,
+    "kind": "stub",
+    "phase": "29",
+    "file": "scripts/generate-catalog.ts",
+    "line": 87,
+    "description": "sectionBody bounds a '## ' section by fence-blind new RegExp lookahead — a third section-extent grammar (V-29-29-01, LANG-07)",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-08-16T01:28:22.935Z",
+    "resolved_at": null
+  },
+  {
+    "id": 31,
+    "kind": "stub",
+    "phase": "29",
+    "file": "scripts/generate-role-adapters.ts",
+    "line": 127,
+    "description": "sectionBody bounds a '## ' section by fence-blind new RegExp lookahead — a third section-extent grammar (V-29-29-01, LANG-07)",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-08-16T01:28:22.998Z",
     "resolved_at": null
   }
 ]

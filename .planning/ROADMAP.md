@@ -480,7 +480,7 @@ Plans:
   4. The rebuilt voice guard **fails RED on all 17 current caveman blocks** as acceptance evidence before the rewrite lands, measures against a committed lexicon rather than sentence shape, and publishes a number with a denominator. (LANG-06)
   5. `## One job`, the caveman block, and `## Responsibilities` each say a thing once; `guard_imperative_lexicon` (with its sibling `guard_sentence_form`) and the rebuilt voice guard read the fence through **one** parser, never two grammars over the same bytes; and byte ceilings are re-baselined exactly once at end of phase with every file ≤ its previous value and the delta recorded — never raised mid-phase. (LANG-05, LANG-07, LANG-08)
 
-**Plans**: 31/32 plans executed (19/19 initial; gap-closure round 2 added 7, 29-20 .. 29-26, waves 19-25); **gap-closure round 3 adds 6 (29-27 .. 29-32, waves 26-29), 4 of 6 executed — 29-27, 29-28, 29-30 and 29-31 landed 2026-08-16; the closures for LANG-06, LANG-03/LANG-07 and LANG-04 all await round-4 re-verification and none of those requirements is re-marked complete here**. Round 3 closes the four truths that failed re-verification on 2026-08-15 (LANG-03, LANG-04, LANG-06, LANG-07) — one of them a fail-open REGRESSION created by round 2's own structural fix.
+**Plans**: 32/32 plans executed (19/19 initial; gap-closure round 2 added 7, 29-20 .. 29-26, waves 19-25); **gap-closure round 3 adds 6 (29-27 .. 29-32, waves 26-29), all 6 executed — 29-27, 29-28, 29-30, 29-31, 29-32 and 29-29 landed 2026-08-16; the closures for LANG-06, LANG-03/LANG-07 and LANG-04 all await round-4 re-verification and none of those requirements is re-marked complete here. Plan 29-29 ESCALATES a new LANG-07 failure it measured rather than closing it: `generate-catalog.ts:87` and `generate-role-adapters.ts:127` answer the section-extent question through a fence-blind `new RegExp` lookahead (V-29-29-01, derived and pinned two-sided)**. Round 3 closes the four truths that failed re-verification on 2026-08-15 (LANG-03, LANG-04, LANG-06, LANG-07) — one of them a fail-open REGRESSION created by round 2's own structural fix.
 
 Plans:
 **Wave 1**
@@ -604,7 +604,7 @@ Plans:
 
 **Wave 29** *(blocked on Wave 28 completion — deliberately last, because its deliverable is a re-derivation over the FINAL tree)*
 
-- [ ] 29-29-PLAN.md — LANG-07's harness: the owner classifier widened to the shape its own floor item 4 wrongly said nothing used, floor item 4 corrected, `SECTION_EXTENT_OWNERS` re-derived over the final tree with a before/after pair; the oracle's vacuous I5 made reachable with per-invariant REACH counts derived independently and a third broken locator proving it can fail; and the duplicate-assertion tripwire's multi-line share published and pinned
+- [x] 29-29-PLAN.md — LANG-07's harness: the owner classifier widened to the shape its own floor item 4 wrongly said nothing used, floor item 4 corrected, `SECTION_EXTENT_OWNERS` re-derived over the final tree with a before/after pair; the oracle's vacuous I5 made reachable with per-invariant REACH counts derived independently and a third broken locator proving it can fail; and the duplicate-assertion tripwire's multi-line share published and pinned
 
 **GAP-CLOSURE ROUND 2 IS REOPENED, NOT CLOSED** *(human decision, Olger Oeselg, 2026-08-15, at plan
 29-26's blocking checkpoint: `reopen-for-survivors`)*. All 26 plans are executed, and **26/26 executed
@@ -765,7 +765,7 @@ Plans:
 | 26. Dogfood, Dual-Path Oracle & A3/DOG-02 Retirement | v2.0 | 6/6 | Complete | 2026-07-24 |
 | 27. Spawn Correctness & Kit-Set Authority | v2.1 | 66/66 | Complete    | 2026-08-11 |
 | 28. Kit Consistency Audit | v2.1 | 8/8 | Complete    | 2026-08-12 |
-| 29. Controlled Language & Voice Guard Rebuild | v2.1 | 31/32 | In Progress|  |
+| 29. Controlled Language & Voice Guard Rebuild | v2.1 | 32/32 | In Progress|  |
 | 30. Per-Checkpoint Autonomy Matrix | v2.1 | 0/TBD | Not started | - |
 | 31. Autonomous Manual Testing | v2.1 | 0/TBD | Not started | - |
 | 32. Board Projector & CLI Dashboard | v2.1 | 0/TBD | Not started | - |
