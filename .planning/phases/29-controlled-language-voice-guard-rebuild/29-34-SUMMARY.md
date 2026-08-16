@@ -24,7 +24,7 @@ tech-stack:
   added: []
   patterns:
     - "derive the element count independently of the loop that consumes it"
-    - "an index count and a split length are different answers — `\"\".split(\"\\n\")` is `[\"\"]`"
+    - "an index count and a split length are different answers — splitting an EMPTY string on a newline yields ONE empty element, never zero"
     - "a vacuity floor catches an EMPTY denominator but never a SILENTLY SHORT one"
     - "assert the harness's own premise before the assertion it enables"
     - "a residual is DISCLOSED at the declaration and the disclosure is pinned, not left to prose"
