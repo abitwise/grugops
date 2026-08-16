@@ -43,6 +43,35 @@
 //   I6  when the answer is minus one, NO line anywhere satisfies them — the completeness half,
 //       without which a locator that simply gave up early would satisfy I4 and I5 vacuously.
 //
+// (PLAN 29-29, WR-03) SATISFIED IS NOT REACHED, AND THE DIFFERENCE COST THIS FILE AN INVARIANT.
+// I5 was asserted 7200 times and never once evaluated against a document that could break it: the
+// generator inserted the candidate exactly once, no fixed corpus line can equal any candidate
+// spelling, and so no cell carried a SECOND occurrence of its own heading. An implementation
+// returning the LAST unfenced match instead of the first would have swept clean, which means the
+// ORDERING promise — the half that makes `unfencedHeadingIndex` correct rather than merely
+// fence-aware — was untested while the sweep's cell count, its per-axis label coverage and its
+// distinct-document count were all healthy. A vacuity floor catches an EMPTY denominator and has
+// never caught a SILENTLY SHORT one.
+//
+// Two things follow, and both are permanent rather than transcribed:
+//
+//   * an EIGHTH AXIS inserts a second occurrence of the cell heading before the candidate, fenced or
+//     unfenced. Crossed with the fencing axis it produces both orders, including the document WR-01
+//     was actually written for — one that QUOTES its required heading in an example and also
+//     declares it. A THIRD deliberately broken locator returns the last unfenced match and is
+//     required to break I5 and nothing else;
+//   * every invariant carries a REACH COUNT, restated from its DESCRIPTION as an expression that
+//     never calls either violation collector, counted over the corpus and pinned as an equality. A
+//     case reproduces round 3's own measurement by restricting the corpus to the axis's `none`
+//     member — over those 7200 cells the last-match locator still sweeps clean and I5's reach is
+//     still zero, so the finding is re-measured on every run rather than remembered.
+//
+// The review's own suggested fix — re-run the FENCE-BLIND probe and require it to break I5 too — is
+// REFUTED rather than adopted, with the refutation asserted: that locator returns the first RAW
+// match, an unfenced occurrence is itself a raw match, so no earlier line can satisfy I5's predicate
+// for any input whatever. Writing the assertion anyway would have been a vacuous assertion inside
+// the case correcting a vacuous assertion.
+//
 // WHERE THE INDEPENDENCE LIES, AND WHERE IT DELIBERATELY DOES NOT. The heading-level predicate used
 // by I2 and I3 (`headingLevelAtColumnZero` below) is written from the RULE the authority's own
 // header states in prose — a run of hashes at column zero followed by a literal space — and never
@@ -116,12 +145,30 @@ const closesSectionOfLevel = (line: string, level: number): boolean => {
 
 // ── THE AXES ──────────────────────────────────────────────────────────────────────────────────
 //
-// Seven, not the six the plan names. The seventh is the REQUESTED LEVEL, and it is added rather
+// EIGHT. Plan 29-26 names six; the seventh and eighth were both added because a parameter or a
+// document shape the sweep never varies is a clean answer about half a surface.
+//
+// The seventh is the REQUESTED LEVEL, and it is added rather
 // than assumed because every invariant above is phrased "at most the requested level": a sweep that
 // asks only one of the parameter's two legal values tests half of the parameter and reports a clean
 // answer for the other half. The addition is a WIDENING of the corpus, never a narrowing, and the
 // cell count below states both the axis lengths and their product so the growth is visible.
 
+// (Plan 29-29, WR-03) THE EIGHTH AXIS IS THE ONE THAT MAKES I5 REACHABLE AT ALL.
+//
+// Round 3 measured invariant I5 asserted 7200 times and never once EVALUATED against a document that
+// could violate it: `buildCell` inserted the candidate exactly once, and no fixed line in
+// `ORDINARY_HEAD` / `ORDINARY_TAIL` can equal any candidate spelling (every candidate carries the
+// literal `Candidate`). So no cell carried a SECOND occurrence of its own heading, I5's loop body
+// examined only lines that could not be the heading, and an implementation returning the LAST
+// unfenced match instead of the first would have swept clean.
+//
+// A vacuity floor catches an EMPTY denominator and has never caught a SILENTLY SHORT one — this
+// project's own recorded lesson, and I5 is its newest instance: the sweep's cell count, its
+// per-axis label coverage and its distinct-document count were all healthy while one of the six
+// invariants was unreachable. The eighth axis inserts a second occurrence BEFORE the candidate,
+// fenced or unfenced, and crossing it with the FENCING axis produces both orders the review asks
+// for: an unfenced occurrence before a fenced one, and a fenced occurrence before an unfenced one.
 const AXIS_KEYS = [
   "level",
   "fencing",
@@ -130,6 +177,7 @@ const AXIS_KEYS = [
   "position",
   "shape",
   "request-level",
+  "duplicate",
 ] as const;
 
 /** Axis 1 — the candidate line's heading level, including the two non-heading spellings. */
@@ -223,6 +271,33 @@ const AXIS_REQUEST_LEVEL = [
   { label: "level 2", value: 2 as const },
 ] as const;
 
+/**
+ * Axis 8 — a SECOND occurrence of the cell's heading, placed BEFORE the candidate.
+ *
+ * `unfenced-before` is what makes I5's loop body enterable with something that could be the heading.
+ * `fenced-before` is the ordering discrimination WR-01 was actually written for: a document that
+ * QUOTES its own required heading inside an example and also declares it, where a fence-blind scan
+ * picks the quoted line and the authority must pick the real one.
+ */
+const AXIS_DUPLICATE = [
+  { label: "no second occurrence", kind: "none" },
+  { label: "an earlier UNFENCED duplicate", kind: "unfenced-before" },
+  { label: "an earlier FENCED duplicate", kind: "fenced-before" },
+] as const;
+
+/**
+ * The duplicate block for a member, using the cell's OWN heading text so the two really are two
+ * occurrences of one string rather than two similar lines.
+ */
+const duplicateBlock = (
+  heading: string,
+  kind: (typeof AXIS_DUPLICATE)[number]["kind"],
+): string[] => {
+  if (kind === "none") return [];
+  if (kind === "unfenced-before") return [heading];
+  return [FENCE, heading, FENCE];
+};
+
 // ── THE CELL ──────────────────────────────────────────────────────────────────────────────────
 
 interface Cell {
@@ -258,6 +333,7 @@ const buildCell = (
   pos: (typeof AXIS_POSITION)[number],
   sha: (typeof AXIS_SHAPE)[number],
   req: (typeof AXIS_REQUEST_LEVEL)[number],
+  dup: (typeof AXIS_DUPLICATE)[number],
 ): Cell => {
   const candidate = `${lea.text}${lvl.spell}${tra.text}`;
   // The heading looked up is the candidate's OWN `trimEnd()`-normalized text. That is what makes
@@ -272,6 +348,7 @@ const buildCell = (
     position: pos.label,
     shape: sha.label,
     "request-level": req.label,
+    duplicate: dup.label,
   };
   const where = AXIS_KEYS.map((k) => `${k}=[${labels[k]}]`).join(" ");
   const base = { labels, where, level: req.value, heading };
@@ -296,12 +373,15 @@ const buildCell = (
     return { ...base, text: lines.join("\n"), from, candidateIndex: -1 };
   }
 
+  // The duplicate sits between the head and the candidate's own block, so it is unambiguously
+  // EARLIER than the candidate whatever the position axis then does with `from`.
+  const dupLines = duplicateBlock(heading, dup.kind);
   const { block, offset } = wrapCandidate(candidate, fen.kind);
   const lines =
     pos.kind === "last-line"
-      ? [...head, ...block]
-      : [...head, ...block, ...ORDINARY_TAIL];
-  const candidateIndex = head.length + offset;
+      ? [...head, ...dupLines, ...block]
+      : [...head, ...dupLines, ...block, ...ORDINARY_TAIL];
+  const candidateIndex = head.length + dupLines.length + offset;
   const from =
     pos.kind === "at-from"
       ? candidateIndex
@@ -321,7 +401,9 @@ const buildCorpus = (): Cell[] => {
           for (const pos of AXIS_POSITION) {
             for (const sha of AXIS_SHAPE) {
               for (const req of AXIS_REQUEST_LEVEL) {
-                out.push(buildCell(lvl, fen, tra, lea, pos, sha, req));
+                for (const dup of AXIS_DUPLICATE) {
+                  out.push(buildCell(lvl, fen, tra, lea, pos, sha, req, dup));
+                }
               }
             }
           }
@@ -351,10 +433,24 @@ const endViolations = (cell: Cell, endAt: EndLocator): string[] => {
     out.push(`${id} violated — ${detail}; end=${end} from=${cell.from} lineCount=${lines.length} ${cell.where}`);
   };
 
+  // (Plan 29-29, IN-01) THE `end >= 0` CONJUNCT MOVED HERE, WHERE A NEGATIVE ANSWER IS A REAL
+  // VIOLATION. It used to guard I2's block, where it was unreachable-false: `sectionEndIndex`
+  // returns either an index at least `Math.max(from, 0)` or the line count. In a file whose subject
+  // is invariants that cannot fail, a CONDITION that cannot fail is noise. It is not dropped,
+  // because `endViolations` takes an arbitrary locator and a future broken one may well answer -1 —
+  // and for a cell whose `from` is 0 the range test alone would already catch that, while for a
+  // `from` above 0 it would be caught for the wrong reason and reported as an out-of-range answer
+  // rather than as a negative one. Stated separately, the failure says which it was.
+  if (end < 0) {
+    say("I1", "the answer is NEGATIVE — the locator returned no index at all");
+    // Nothing below is meaningful for a negative answer, and `lines[end]` would be `undefined`, so
+    // the report is I1 alone rather than I1 plus a crash inside I2's heading rule.
+    return out;
+  }
   if (end < cell.from || end > lines.length) {
     say("I1", "the answer is outside [from, lineCount]");
   }
-  if (end >= 0 && end < lines.length) {
+  if (end < lines.length) {
     if (flags[end]) {
       say("I2", `the line the section ENDS at is inside a fence: ${JSON.stringify(lines[end])}`);
     }
@@ -440,6 +536,79 @@ const headFenceBlind: HeadLocator = (text, heading) => {
   return -1;
 };
 
+/**
+ * (Plan 29-29, WR-03) THE THIRD BROKEN LOCATOR: fence-aware, complete, and returns the LAST match.
+ *
+ * This is the implementation the sweep could not tell apart from the authority before the duplicate
+ * axis existed. It satisfies I4 (every line it returns really is an unfenced occurrence of the
+ * heading) and I6 (it answers -1 only when there is none), and it violates I5 alone — the ORDERING
+ * promise the name `unfencedHeadingIndex` makes and the half that makes the authority correct rather
+ * than merely fence-aware.
+ *
+ * It is not a reproduction of a shipped defect, unlike the two above, and that is stated rather than
+ * glossed: what it reproduces is the shipped GAP — an invariant asserted seven thousand two hundred
+ * times without ever being evaluated against a document that could break it.
+ */
+const headLastUnfenced: HeadLocator = (text, heading) => {
+  const lines = text.split("\n");
+  const flags = fencedLineFlags(text);
+  let out = -1;
+  for (let i = 0; i < lines.length; i += 1) {
+    if (!flags[i] && lines[i].trimEnd() === heading) out = i;
+  }
+  return out;
+};
+
+// ── THE PER-INVARIANT REACH EXPRESSIONS ───────────────────────────────────────────────────────
+//
+// THE LOAD-BEARING HALF OF THIS PLAN. A vacuity floor catches an EMPTY denominator and has never
+// caught a SILENTLY SHORT one; WR-03 is that lesson's newest instance, and a sweep whose cell count,
+// label coverage and distinct-document count were all healthy carried an invariant that was never
+// once evaluated against a document able to violate it.
+//
+// So each invariant's PRECONDITION is restated here as a separate expression written from the
+// invariant's DESCRIPTION, and the number of cells satisfying it is counted and floored. The
+// restatements deliberately do NOT call `endViolations` or `headViolations`: a reach counter living
+// inside the loop it audits is the same expression counting itself, which is precisely the defect
+// being corrected. They DO call the locators, because four of the six preconditions are statements
+// about the ANSWER and there is no way to ask about an answer without obtaining one.
+//
+// The file already sets this precedent with its hand-written truth table for the heading rule.
+
+/** Every line of the cell whose `trimEnd()` equals the cell's heading, fenced or not. */
+const occurrencesOf = (cell: Cell): number =>
+  cell.text.split("\n").filter((l) => l.trimEnd() === cell.heading).length;
+
+/** Reach predicates for I1..I6, keyed by invariant id. `true` means the cell EXERCISES it. */
+const REACH: Readonly<Record<string, (c: Cell) => boolean>> = {
+  // I1 bounds the answer. Its comparison runs for every cell in which a locator was asked at all,
+  // so its reach is the whole corpus — stated rather than omitted, because an invariant whose reach
+  // is trivially total is a fact about the invariant and not an excuse to leave it unmeasured.
+  I1: () => true,
+  // I2 speaks only when the answer is BELOW the line count — that is, when the section really ended
+  // AT a line rather than by running out of document.
+  I2: (c) => sectionEndIndex(c.text, c.from, c.level) < c.text.split("\n").length,
+  // I3 examines the half-open range [from, answer). Its loop body runs only when that range is
+  // NON-EMPTY; a cell whose section is zero lines long exercises nothing.
+  I3: (c) => {
+    const lineCount = c.text.split("\n").length;
+    return (
+      Math.min(sectionEndIndex(c.text, c.from, c.level), lineCount) > Math.max(c.from, 0)
+    );
+  },
+  // I4 speaks when the head locator returned an INDEX rather than -1.
+  I4: (c) => unfencedHeadingIndex(c.text, c.heading) !== -1,
+  // I5 is the one round 3 measured at ZERO. Its loop body can only find an earlier occurrence in a
+  // document that HAS a second occurrence, so its reach is: the answer is an index above zero AND
+  // the document carries at least two occurrences of the heading text. Both halves are needed —
+  // `at > 0` alone was true of thousands of cells while none of them could ever fail.
+  I5: (c) => occurrencesOf(c) >= 2 && unfencedHeadingIndex(c.text, c.heading) > 0,
+  // I6 is the completeness half: it speaks when the answer is -1 and the document is searched for a
+  // line that would contradict it.
+  I6: (c) => unfencedHeadingIndex(c.text, c.heading) === -1,
+};
+const INVARIANT_IDS = ["I1", "I2", "I3", "I4", "I5", "I6"] as const;
+
 // ── THE PINNED CARDINALITIES ──────────────────────────────────────────────────────────────────
 //
 // DERIVE THE SET, ASSERT THE COUNT — this repository's own rule, and the reason it exists is
@@ -447,7 +616,32 @@ const headFenceBlind: HeadLocator = (text, heading) => {
 // SILENTLY SHORT one. So the cell count is derived TWICE by different means (the product of the
 // pinned axis lengths, and a counter incremented inside the loop that consumes the corpus) and the
 // two are compared, and the per-axis label coverage is floored PER ELEMENT rather than in total.
-const EXPECTED_CELLS = 7200;
+const EXPECTED_CELLS = 21600;
+/**
+ * Per-invariant REACH floors, measured in plan 29-29's session over the eight-axis corpus.
+ *
+ * Round 3's measurement of I5 was ZERO over 7200 cells. A non-zero number here is this plan's
+ * closure condition, and every other invariant carries the same treatment so the next unreachable
+ * one is caught by the same mechanism rather than by a reviewer noticing.
+ */
+const REACH_FLOORS: Readonly<Record<string, number>> = {
+  I1: 21600,
+  I2: 4340,
+  I3: 14772,
+  I4: 3600,
+  I5: 1800,
+  I6: 18000,
+};
+/**
+ * The corpus-shape counts the duplicate axis promises, measured rather than predicted.
+ *
+ * Round 3's number for the first of these was ZERO across all 7200 cells — the measurement that made
+ * I5 unreachable. They are pinned as EQUALITIES rather than floors, so a generator that started
+ * emitting more or fewer two-occurrence documents reds instead of drifting.
+ */
+const TWO_UNFENCED_CELLS = 720;
+const FENCED_BEFORE_UNFENCED_CELLS = 720;
+const UNFENCED_BEFORE_FENCED_CELLS = 1440;
 
 describe("the section-locator authority under a parser oracle (plan 29-26, LANG-07)", () => {
   it("the corpus is DERIVED and COUNTED — axis lengths pinned, the cell count derived twice, every axis label reached", () => {
@@ -458,6 +652,7 @@ describe("the section-locator authority under a parser oracle (plan 29-26, LANG-
     expect(AXIS_POSITION.length, "axis 5 — position").toBe(5);
     expect(AXIS_SHAPE.length, "axis 6 — document shape").toBe(4);
     expect(AXIS_REQUEST_LEVEL.length, "axis 7 — requested level").toBe(2);
+    expect(AXIS_DUPLICATE.length, "axis 8 — duplicate occurrence").toBe(3);
 
     // DERIVATION ONE — the product of the pinned lengths.
     const product =
@@ -467,8 +662,9 @@ describe("the section-locator authority under a parser oracle (plan 29-26, LANG-
       AXIS_LEADING.length *
       AXIS_POSITION.length *
       AXIS_SHAPE.length *
-      AXIS_REQUEST_LEVEL.length;
-    expect(product, "the product of the seven pinned axis lengths").toBe(EXPECTED_CELLS);
+      AXIS_REQUEST_LEVEL.length *
+      AXIS_DUPLICATE.length;
+    expect(product, "the product of the eight pinned axis lengths").toBe(EXPECTED_CELLS);
 
     // DERIVATION TWO — a counter incremented by the loop that walks the generated corpus. This is
     // computed INDEPENDENTLY of the product above, which is the whole point: a generator that
@@ -492,6 +688,7 @@ describe("the section-locator authority under a parser oracle (plan 29-26, LANG-
       position: AXIS_POSITION.map((a) => a.label),
       shape: AXIS_SHAPE.map((a) => a.label),
       "request-level": AXIS_REQUEST_LEVEL.map((a) => a.label),
+      duplicate: AXIS_DUPLICATE.map((a) => a.label),
     };
     for (const key of AXIS_KEYS) {
       const seen = new Set(corpus.map((c) => c.labels[key]));
@@ -506,10 +703,12 @@ describe("the section-locator authority under a parser oracle (plan 29-26, LANG-
     // and is exactly why the distinct count is asserted as a NUMBER rather than assumed to equal
     // the cell count. Measured at plan 29-26 and pinned; a generator that started emitting one
     // document would fail here and not only at a coverage floor.
+    // (Plan 29-29) Both numbers RE-DERIVED after the eighth axis, never adjusted until the case
+    // passed: 2058 -> 6378 triples and 724 -> 2164 documents, against 7200 -> 21600 cells.
     const triples = new Set(corpus.map((c) => `${c.from}|${c.level}|${c.text}`));
-    expect(triples.size, "distinct (text, from, level) triples in the corpus").toBe(2058);
+    expect(triples.size, "distinct (text, from, level) triples in the corpus").toBe(6378);
     const texts = new Set(corpus.map((c) => c.text));
-    expect(texts.size, "distinct documents in the corpus").toBe(724);
+    expect(texts.size, "distinct documents in the corpus").toBe(2164);
   });
 
   it("the corpus reaches the POSITION edges the invariants are about — asserted, never assumed", () => {
@@ -560,6 +759,175 @@ describe("the section-locator authority under a parser oracle (plan 29-26, LANG-
         c.labels.leading === "no leading residue",
     );
     expect(union.length, "the fenced + trailing-whitespaced + level-one union cell").toBeGreaterThan(0);
+  });
+
+  it("the corpus really carries TWO-OCCURRENCE documents, in both orders — counted, never inferred from a label", () => {
+    // (Plan 29-29, WR-03) An axis LABEL is a promise; this case is the delivery. Round 3's finding
+    // was that the corpus carried ZERO documents with a second occurrence of the cell heading, and a
+    // label reading "an earlier UNFENCED duplicate" would look identical on a generator that quietly
+    // dropped the block. Every count below is taken over the GENERATED TEXT.
+    const corpus = buildCorpus();
+    const flagsOf = (c: Cell): boolean[] => fencedLineFlags(c.text);
+    const occurrences = (c: Cell): number[] =>
+      c.text
+        .split("\n")
+        .map((l, i) => (l.trimEnd() === c.heading ? i : -1))
+        .filter((i) => i !== -1);
+
+    const twoUnfenced = corpus.filter((c) => {
+      const f = flagsOf(c);
+      return occurrences(c).filter((i) => !f[i]).length >= 2;
+    });
+    expect(
+      twoUnfenced.length,
+      "cells carrying TWO UNFENCED occurrences of the cell heading — round 3 measured this at ZERO over the whole corpus",
+    ).toBe(TWO_UNFENCED_CELLS);
+
+    // BOTH ORDERS, each counted separately. A single number could be satisfied by one order alone.
+    const orderCounts = (wantFencedFirst: boolean): number =>
+      corpus.filter((c) => {
+        const f = flagsOf(c);
+        const at = occurrences(c);
+        const fenced = at.filter((i) => f[i]);
+        const unfenced = at.filter((i) => !f[i]);
+        if (fenced.length === 0 || unfenced.length === 0) return false;
+        return wantFencedFirst
+          ? Math.min(...fenced) < Math.min(...unfenced)
+          : Math.min(...unfenced) < Math.min(...fenced);
+      }).length;
+    expect(
+      orderCounts(true),
+      "cells where a FENCED occurrence precedes an UNFENCED one — WR-01's real defect shape",
+    ).toBe(FENCED_BEFORE_UNFENCED_CELLS);
+    expect(
+      orderCounts(false),
+      "cells where an UNFENCED occurrence precedes a FENCED one — the other order",
+    ).toBe(UNFENCED_BEFORE_FENCED_CELLS);
+
+    // …and the `none` member really does produce single-occurrence documents, so the axis
+    // discriminates rather than adding a duplicate to every cell.
+    expect(
+      corpus.filter(
+        (c) => c.labels.duplicate === "no second occurrence" && occurrences(c).length >= 2,
+      ).length,
+      "the `none` member must add no second occurrence",
+    ).toBe(0);
+  });
+
+  it("every invariant I1..I6 is REACHED — counted by an expression written outside the violation loop", () => {
+    // (Plan 29-29, WR-03) THE CLOSURE CONDITION. I5's reach was measured at ZERO over 7200 cells:
+    // asserted every time, evaluated against a document that could break it not once. Each count
+    // below comes from `REACH`, whose predicates are restatements of the invariants' DESCRIPTIONS
+    // and never call `endViolations` or `headViolations`.
+    const corpus = buildCorpus();
+    const reached: Record<string, number> = {};
+    for (const id of INVARIANT_IDS) {
+      reached[id] = corpus.filter((c) => REACH[id](c)).length;
+    }
+    for (const id of INVARIANT_IDS) {
+      expect(
+        reached[id],
+        `invariant ${id} is asserted over the whole corpus and EXERCISED by ${reached[id]} cell(s) — a zero here means it has never been evaluated against a document that could break it`,
+      ).toBeGreaterThan(0);
+      expect(reached[id], `${id}'s reach against its pinned floor`).toBe(REACH_FLOORS[id]);
+    }
+    // I5's is the one this plan exists for, asserted by name so a future narrowing that took it back
+    // to zero says WHICH invariant went quiet rather than only that a number moved.
+    expect(
+      reached.I5,
+      "I5 — round 3 measured its reach at ZERO; a non-zero number here is plan 29-29's closure condition",
+    ).toBeGreaterThan(0);
+
+    // THE REACH EXPRESSIONS DO NOT CALL THE VIOLATION COLLECTORS. Asserted mechanically over their
+    // own source, the way this file already proves its heading rule non-circular — a reach counter
+    // living inside the loop it audits is the same expression counting itself.
+    for (const id of INVARIANT_IDS) {
+      const src = REACH[id].toString();
+      expect(src, `${id}'s reach expression must not call endViolations`).not.toContain(
+        "endViolations",
+      );
+      expect(src, `${id}'s reach expression must not call headViolations`).not.toContain(
+        "headViolations",
+      );
+    }
+    // NON-VACUITY OF THE CHECK ITSELF. The first draft asserted each source "contains the letter c",
+    // which every one of them does by accident of spelling — a check that could not fail, inside the
+    // case whose subject is checks that cannot fail. What is asserted instead is a property of the
+    // ANSWERS: every reach predicate except I1's must be true for SOME cells and false for others.
+    // A predicate that is constant over the corpus measures the corpus's existence, not the
+    // invariant's exercise, and that is indistinguishable from the vacuity WR-03 recorded.
+    for (const id of INVARIANT_IDS) {
+      expect(REACH[id].toString().length, `${id}'s source must be non-empty`).toBeGreaterThan(5);
+    }
+    for (const id of INVARIANT_IDS) {
+      if (id === "I1") continue;
+      expect(
+        reached[id],
+        `${id}'s reach predicate must DISCRIMINATE — a constant predicate counts the corpus, not the invariant`,
+      ).toBeGreaterThan(0);
+      expect(
+        reached[id],
+        `${id}'s reach predicate must not be total — see above`,
+      ).toBeLessThan(corpus.length);
+    }
+    // I1 is total ON PURPOSE and says so, rather than being quietly exempt.
+    expect(reached.I1, "I1 bounds every answer, so its reach is the whole corpus").toBe(
+      corpus.length,
+    );
+  });
+
+  it("the invariants that speak about a NEGATIVE or OUT-OF-RANGE answer are REACHED too — the same defect, checked for elsewhere", () => {
+    // (Plan 29-29) WR-03 was found at I5. The review enumerated one instance; round 3's own lesson
+    // is that an enumeration in a review is not the SET, so the other branches of both collectors
+    // were checked for the same disease. Two were unreachable over every locator this file carries:
+    //
+    //   * `endViolations`' negative-answer branch, which is where IN-01's dead `end >= 0` conjunct
+    //     moved. Neither `sectionEndIndex` nor `endLevelTwoOnly` can answer below zero.
+    //   * `headViolations`' "not -1 and not an index" branch of I4. Neither head locator can answer
+    //     a negative other than -1.
+    //
+    // Both are legitimate — each collector takes an ARBITRARY locator — and both are now exercised
+    // by a locator built to reach them, so neither is a branch nobody has ever seen fire.
+    const cell: Cell = {
+      labels: Object.fromEntries(AXIS_KEYS.map((k) => [k, "hand-built negative-answer control"])),
+      where: AXIS_KEYS.map((k) => `${k}=[hand-built negative-answer control]`).join(" "),
+      text: ["## Anchor section", "Body prose.", "# A later top-level section", "Tail."].join("\n"),
+      from: 1,
+      level: 2,
+      heading: "## Anchor section",
+      candidateIndex: 0,
+    };
+    // THE CONTROL FIRST: the same cell is clean under both shipped locators, so the reports below
+    // are caused by the broken locators and not by the fixture.
+    expect(endViolations(cell, sectionEndIndex), "the control cell is clean").toEqual([]);
+    expect(headViolations(cell, unfencedHeadingIndex), "the control cell is clean").toEqual([]);
+
+    const endAlwaysNegative: EndLocator = () => -1;
+    const negative = endViolations(cell, endAlwaysNegative);
+    expect(
+      negative,
+      "a locator answering -1 must be reported as a NEGATIVE answer, by I1, and must not crash inside I2's heading rule",
+    ).toEqual([
+      "I1 violated — the answer is NEGATIVE — the locator returned no index at all; end=-1 from=1 lineCount=4 " +
+        cell.where,
+    ]);
+    // …and the report is I1 ALONE. Before IN-01's conjunct moved, a negative answer reached I2 and
+    // `lines[-1]` was `undefined`, so the collector threw instead of reporting.
+    expect(negative.every((v) => v.startsWith("I1")), "a negative answer is an I1 finding").toBe(true);
+
+    const headMinusTwo: HeadLocator = () => -2;
+    const bad = headViolations(cell, headMinusTwo);
+    expect(
+      bad.some((v) => v.startsWith("I4") && v.includes("not -1 and is not a line index")),
+      "an answer that is neither -1 nor an index must be reported by I4",
+    ).toBe(true);
+
+    // AND THE OUT-OF-RANGE HALF OF I1, from the other direction.
+    const endTooHigh: EndLocator = (text) => text.split("\n").length + 5;
+    expect(
+      endViolations(cell, endTooHigh).some((v) => v.includes("outside [from, lineCount]")),
+      "an answer above the line count must be reported by I1",
+    ).toBe(true);
   });
 
   it("the invariants' heading rule is NON-CIRCULAR — it names no symbol of the module under test", () => {
@@ -703,18 +1071,154 @@ describe("the section-locator authority under a parser oracle (plan 29-26, LANG-
       /^I4 violated/,
     );
 
-    // Every failing cell must be a fenced one. A fence-blind scan that failed an UNFENCED cell would
-    // mean the probe is breaking something other than fence-awareness.
-    const fencings = new Set(
+    // (Plan 29-29) THIS ASSERTION WAS RESTATED, AND THE RESTATEMENT IS THE FINDING. Until the
+    // duplicate axis existed the only occurrence of a cell's heading was the candidate, so "the
+    // probe fails only fenced cells" and "the probe fails only cells carrying a fenced occurrence"
+    // were the same sentence and the narrower one was written. They are no longer the same: a cell
+    // whose CANDIDATE is outside any fence but which carries an earlier FENCED duplicate is exactly
+    // the document WR-01 was written for — a file that quotes its own required heading in an example
+    // and also declares it — and the fence-blind scan rightly fails it. Asserting the old wording
+    // would now refuse the corpus for finally generating the shape the review said was missing.
+    //
+    // The true property is about the OCCURRENCES, not about the candidate's own axis value.
+    const carriesFencedOccurrence = (c: Cell): boolean => {
+      const flags = fencedLineFlags(c.text);
+      return c.text.split("\n").some((l, i) => flags[i] && l.trimEnd() === c.heading);
+    };
+    for (const cell of corpus) {
+      if (headViolations(cell, headFenceBlind).length === 0) continue;
+      expect(
+        carriesFencedOccurrence(cell),
+        `a fence-blindness probe may only fail a cell carrying a FENCED occurrence of its heading: ${cell.where}`,
+      ).toBe(true);
+    }
+    // BOTH ARMS ARE NON-EMPTY, so the property above is not satisfied by one of them alone.
+    const failingCells = corpus.filter((c) => headViolations(c, headFenceBlind).length > 0);
+    expect(
+      failingCells.filter((c) => c.labels.fencing === "outside any fence").length,
+      "WR-01's real shape — an UNFENCED candidate preceded by a FENCED quotation of the same heading — must be in the corpus and must fail",
+    ).toBe(720);
+    expect(
+      failingCells.filter((c) => c.labels.fencing !== "outside any fence").length,
+      "…and the original arm, a fenced candidate, must still fail too",
+    ).toBe(2880);
+    expect(failingCells.length, "the two arms must partition the failures").toBe(3600);
+    // Every unfenced-candidate failure is attributable to the duplicate axis and to nothing else.
+    expect(
+      failingCells
+        .filter((c) => c.labels.fencing === "outside any fence")
+        .every((c) => c.labels.duplicate === "an earlier FENCED duplicate"),
+      "an unfenced candidate can only fail this probe because of an earlier FENCED duplicate",
+    ).toBe(true);
+  });
+
+  it("THE SWEEP IS FALSIFIABLE — a LAST-match locator breaks I5, the ordering promise nothing tested", () => {
+    // (Plan 29-29, WR-03) Before the duplicate axis this probe would have swept CLEAN, which is the
+    // finding in one sentence: `unfencedHeadingIndex` promises the FIRST unfenced match, and an
+    // implementation returning the LAST satisfied every invariant the corpus could reach.
+    const corpus = buildCorpus();
+    const failures: string[] = [];
+    for (const cell of corpus) {
+      for (const v of headViolations(cell, headLastUnfenced)) failures.push(v);
+    }
+    expect(
+      failures.length,
+      "the last-match locator must fail at least one cell, or I5 is still decoration",
+    ).toBeGreaterThan(0);
+
+    const first = failures[0];
+    for (const key of AXIS_KEYS) {
+      expect(first, `the last-match failure must name axis ${key}`).toContain(`${key}=[`);
+    }
+    // ATTRIBUTION: it must break I5 and NOTHING ELSE. It is fence-aware, so I4 holds; it is
+    // complete, so I6 holds. A probe that broke three invariants would prove nothing about which one
+    // the corpus can now reach.
+    const invariants = new Set(failures.map((f) => f.slice(0, 2)));
+    expect(
+      [...invariants].sort(),
+      "the last-match locator is fence-aware and complete — it may break I5 alone",
+    ).toEqual(["I5"]);
+    // And every failing cell really does carry a second occurrence, which is the axis doing the work
+    // rather than some other property of the corpus.
+    const dupLabels = new Set(
       failures.map((f) => {
-        const m = /fencing=\[([^\]]+)\]/.exec(f);
+        const m = /duplicate=\[([^\]]+)\]/.exec(f);
         return m === null ? "?" : m[1];
       }),
     );
-    expect([...fencings].every((f) => f.includes("fence")), "only fenced cells may fail").toBe(true);
-    expect(fencings.has("outside any fence"), "no UNFENCED cell may fail a fence-blindness probe").toBe(
-      false,
+    expect(
+      dupLabels.has("no second occurrence"),
+      "a single-occurrence document cannot distinguish first from last",
+    ).toBe(false);
+
+    // ── WR-03 REPRODUCED AS A PERMANENT ASSERTION, NOT AS A TRANSCRIPT. ──────────────────────────
+    // Round 3's corpus is this corpus restricted to the `none` member of the duplicate axis. Over
+    // THAT sub-corpus the last-match locator sweeps CLEAN and I5's reach is ZERO — which is the
+    // finding, measured here rather than quoted from the review, and re-measured on every run. A
+    // future narrowing that took the axis away would red here rather than quietly restoring the gap.
+    const roundThreeCorpus = corpus.filter(
+      (c) => c.labels.duplicate === "no second occurrence",
     );
+    expect(
+      roundThreeCorpus.length,
+      "the round-3 sub-corpus must be the 7200 cells the review measured",
+    ).toBe(7200);
+    expect(
+      roundThreeCorpus.reduce(
+        (n, c) => n + headViolations(c, headLastUnfenced).length,
+        0,
+      ),
+      "over round 3's corpus the last-match locator sweeps CLEAN — that is WR-03, and it is why this axis exists",
+    ).toBe(0);
+    expect(
+      roundThreeCorpus.filter((c) => REACH.I5(c)).length,
+      "over round 3's corpus I5's reach is ZERO — asserted 7200 times, evaluated against a document that could break it not once",
+    ).toBe(0);
+  });
+
+  it("the review's fence-blind-breaks-I5 recommendation is REFUTED, and the refutation is proven", () => {
+    // (Plan 29-29, WR-03) The review recommends re-running the fence-blind probe and requiring it to
+    // break I5 as well as I4. That assertion CANNOT be made true, and writing it anyway would be a
+    // vacuous assertion of exactly the kind this plan exists to delete. The argument:
+    //
+    //   `headFenceBlind` returns the FIRST line whose `trimEnd()` equals the heading — a RAW match.
+    //   I5 fires when some EARLIER line is unfenced AND equals the heading. An unfenced occurrence
+    //   is itself a raw match, so an earlier one would have been returned instead. No earlier line
+    //   can satisfy the predicate, for any input whatever.
+    //
+    // So the last-match probe carries I5 and the fence-blind probe keeps I4. The recommendation is
+    // not silently dropped: it is answered, and the answer is asserted rather than argued.
+    const corpus = buildCorpus();
+    const failures: string[] = [];
+    for (const cell of corpus) {
+      for (const v of headViolations(cell, headFenceBlind)) failures.push(v);
+    }
+    expect(failures.length, "the fence-blind probe must still fail cells").toBeGreaterThan(0);
+    expect(
+      [...new Set(failures.map((f) => f.slice(0, 2)))].sort(),
+      "the fence-blind probe breaks I4 ALONE, and no corpus can make it break I5 — see the argument above",
+    ).toEqual(["I4"]);
+
+    // THE ARGUMENT ITSELF, CHECKED RATHER THAN ASSERTED: over the whole corpus, the answer this
+    // locator gives is never preceded by a raw match. That is the property the proof turns on, and
+    // it holds on the two-occurrence documents the new axis generates as well as everywhere else.
+    let checked = 0;
+    for (const cell of corpus) {
+      const at = headFenceBlind(cell.text, cell.heading);
+      if (at === -1) continue;
+      checked += 1;
+      const lines = cell.text.split("\n");
+      for (let i = 0; i < at; i += 1) {
+        expect(
+          lines[i].trimEnd() === cell.heading,
+          `a first-raw-match locator cannot have an earlier raw match: ${cell.where}`,
+        ).toBe(false);
+      }
+    }
+    expect(
+      checked,
+      "the argument must have been checked on cells where the locator actually answered an index",
+    ).toBeGreaterThan(0);
   });
 
   it("the invariant checkers are themselves reached — a control proving neither returns the empty list by construction", () => {

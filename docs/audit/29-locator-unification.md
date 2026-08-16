@@ -71,7 +71,7 @@ byte-compatible with the predicates it replaces.
 
 ## 3. The derived owner and consumer lists
 
-> **Superseded in part — see [§9](#9-the-round-3-corrections-plan-29-29).** Round 3 found the
+> **Superseded in part — see §9 (the round-3 corrections, plan 29-29).** Round 3 found the
 > classifier that produced the numbers below BLIND to the module `audit-model.ts` was at the time,
 > and the scan's module set narrower than the word "tree-wide". The measurements in this section are
 > what was believed at round 2 and are left standing as that record; §9 carries the corrected rule,
@@ -112,6 +112,12 @@ USED in a position that terminates or bounds a scan — and `continue` does neit
 exempted by name anywhere.
 
 ## 4. The oracle's axes and cell count
+
+> **Superseded — see §9.7 below.** Round 3 found one
+> of the six invariants asserted 7200 times and never once evaluated against a document that could
+> break it. The axis table, the cell count and the probe failure counts below are round 2's record
+> and are left standing as that; §9.7 carries the eighth axis, the re-derived numbers and the
+> per-invariant reach measurement.
 
 `scripts/section-locator-oracle.test.ts`. Seven axes, not the six plan 29-26 names: the requested
 LEVEL is added, because every invariant is phrased "at most the requested level" and a sweep that
@@ -659,7 +665,86 @@ modules — so each closure is a FLOOR rather than a re-measurement.
 **`TERMINATOR_WINDOW` re-measured.** The derived owner answer is identical at 4, 6, 10 and 20 against
 the corrected arms and the recursive module set, so the answer does not depend on the constant.
 
-### 9.6 A harness-premise failure inside this plan's own work
+### 9.7 §4's sweep carried an unreachable invariant (WR-03)
+
+**What §4 measured.** Seven axes, 7200 cells, six invariants, zero violations, two falsifiability
+probes recorded as breaking I2/I3 and I4 respectively.
+
+**What round 3 found.** Invariant I5 — "when the answer is an index, no EARLIER line satisfies the
+same two conditions" — was **unreachable in all 7200 cells**. `buildCell` inserted the candidate
+exactly once and no fixed line in `ORDINARY_HEAD` / `ORDINARY_TAIL` can equal any candidate spelling,
+so no cell carried a second occurrence of its own heading. I5 was asserted 7200 times and never once
+evaluated against a document able to break it. **An implementation returning the LAST unfenced match
+instead of the first would have swept clean** — and that ordering promise is the half that makes
+`unfencedHeadingIndex` correct rather than merely fence-aware.
+
+**The eighth axis.** A second occurrence of the cell heading, placed BEFORE the candidate, in three
+members: none, unfenced, fenced. Crossed with the fencing axis it generates both orders, including
+the document WR-01 was actually written for.
+
+**Every number re-derived, none adjusted until a case passed:**
+
+| number | round 2 | round 3 |
+|---|---:|---:|
+| axes | 7 | 8 |
+| cells (`EXPECTED_CELLS`, = product, = loop counter, = array length) | 7200 | **21600** |
+| distinct `(text, from, level)` triples | 2058 | **6378** |
+| distinct documents | 724 | **2164** |
+| cells with TWO UNFENCED occurrences of the cell heading | 0 | **720** |
+| cells where a FENCED occurrence precedes an UNFENCED one | 0 | **720** |
+| cells where an UNFENCED occurrence precedes a FENCED one | 0 | **1440** |
+| probe: level-two-only close (I2/I3) | 1440 | **5460** |
+| probe: fence-blind anchor scan (I4) | 1440 | **3600** |
+| probe: LAST-unfenced-match locator (I5) | — | **720** |
+| shipped authority, violations | 0 | **0** |
+
+**The per-invariant REACH counts**, each derived by an expression restated from the invariant's
+DESCRIPTION and never calling `endViolations` or `headViolations`:
+
+| invariant | reach (cells) |
+|---|---:|
+| I1 — the answer is within `[from, lineCount]` | 21600 (total, and it says so) |
+| I2 — the answer is below the line count | 4340 |
+| I3 — the range `[from, answer)` is non-empty | 14772 |
+| I4 — the head locator returned an index | 3600 |
+| **I5 — ≥2 occurrences of the heading AND an answer above zero** | **1800** (round 3: **0**) |
+| I6 — the head locator returned -1 | 18000 |
+
+Each is pinned as an EQUALITY, and each non-total one is additionally required to be strictly between
+zero and the cell count — a predicate constant over the corpus counts the corpus, not the invariant.
+
+**WR-03 is reproduced permanently rather than transcribed.** Restricting the corpus to the axis's
+`none` member reproduces round 3's exact 7200 cells; over those, the last-match locator still sweeps
+clean and I5's reach is still zero. Both are asserted, so the finding is re-measured on every run.
+
+**The fence-blind probe's attribution was RESTATED, and the restatement is itself a finding.** §4
+recorded "only fenced cells may fail". That was true when the candidate was a document's only
+occurrence; it is false now, and rightly so — a cell whose candidate is OUTSIDE any fence but which
+carries an earlier FENCED duplicate is exactly WR-01's shape, and the fence-blind scan fails 720 of
+them. Asserting the old wording would have refused the corpus for finally generating the document the
+review said was missing. The true property is about the OCCURRENCES: every failing cell carries a
+fenced occurrence of its heading, and both arms (2880 fenced-candidate + 720 unfenced-candidate =
+3600) are asserted non-empty.
+
+**The review's own recommended fix is REFUTED, with the refutation proven.** WR-03 asks for the
+fence-blind probe to be required to break I5 as well as I4. It cannot: `headFenceBlind` returns the
+first RAW match, an unfenced occurrence is itself a raw match, so no earlier line can satisfy I5's
+predicate for any input whatever. The assertion would be vacuous — inside the case correcting a
+vacuous assertion. The property the argument turns on (the answer is never preceded by a raw match)
+is asserted over the whole corpus, and the last-match probe carries I5 instead.
+
+**IN-01 closed, and the conjunct's new home made REACHABLE.** `end >= 0` moved out of the I2 guard,
+where `sectionEndIndex` made it unreachable-false, and into I1 as a guard clause with its own message
+and an early return — so a negative answer is reported as a negative answer rather than crashing
+inside I2's heading rule on `lines[-1]`. Checking the OTHER branches for the same disease (round 3's
+own lesson: a review's enumeration is not the SET) found two more that no locator in the file could
+reach — that new I1 clause, and I4's "not -1 and not an index" arm. Both are now exercised by
+locators built to reach them, with a clean control first.
+
+**Runtime.** `npx vitest run scripts/section-locator-oracle.test.ts`: 194 ms before, 597 ms after,
+for a 3× corpus. Recorded rather than trimmed.
+
+### 9.8 A harness-premise failure inside this plan's own work
 
 The recursive module walk's first draft skipped `.git`, `.planning` and `.gsd` by name. It then read
 `.tmp-build/` — the scratch tree `npm run freshness` rebuilds into — and reported **48 phantom
