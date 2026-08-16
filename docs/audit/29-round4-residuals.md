@@ -286,6 +286,102 @@ against a green tree.
 
 ## 7. Final evidence — every closed finding re-tested against the tree that ships
 
-Recorded by plan 29-39, task 3. See §7.1 for the premise these reproductions rest on.
+Recorded by plan 29-39, task 3. Each finding below was re-tested against the FINAL tree rather than
+accepted from the SUMMARY that claimed it.
 
-_Populated below by task 3._
+### 7.1 The premise, asserted before any evidence
+
+Every reproduction below is a claim about the `.ts` **only if** the committed `.js` is a faithful
+build of it. Run first, before anything else:
+
+```
+$ npm run freshness
+All build outputs fresh: 48 committed .js file(s) match a fresh tsc rebuild.
+exit=0
+```
+
+This phase has had a verification harness produce a false result in six instances across four
+rounds, so the premise is stated rather than assumed. **It happened once more inside this very
+task** — see §7.3.
+
+### 7.2 The nine reproductions
+
+Mirror: `git archive HEAD | tar -x` at `5038b80`, 1579 files.
+
+| id | reproduction re-run | result on the final tree |
+|---|---|---|
+| **CR-01** | round 4's exact `sed` member substitution, with a caveman marker planted into `agent-factory/workflows/15-security-audit.md` on the mirror | **does not reproduce at the layer the finding names.** The finding is that the SOURCE-level pin was a cardinality where membership was meant; `SEC_VOICE_MEMBERS` now pins membership two-sided (18 references in the harness). The `.js`-only route still passes the gate **by construction** — see §7.3, where the half that catches it is measured |
+| **WR-01** | the review's inert plant verbatim — `if (at === -1) { const noted = true; void noted; }` followed by `sectionEndIndex(text, at + 1, 2)` | **does not reproduce.** The shipped classifier returns the full verdict triple `guarded-but-inert-plant.ts=UNGUARDED`, `guarded-plant.ts=GUARDED`, `unguarded-plant.ts=UNGUARDED`, asserted as ONE expectation so a rule flipping two plants at once cannot pass two of three |
+| **WR-02** | the tautology corpus | **does not reproduce.** `headingIdx.length === headingShapedLines - headingShapedFenced` survives at `scripts/audit-model.ts:1169` **inside a comment recording its deletion**, not as code. `canonicalClaimHeadingCensus` — a witness differing in KIND — is present and consulted |
+| **WR-03** | the reach measurement | **does not reproduce.** `REACH_FLOORS.I5` is **720** (`section-locator-oracle.test.ts:688`), not 1800, and `I5` is now a block predicate derived from I5's own rule. Note the review projected 360; 29-36 measured **720** and recorded why the review's projection was wrong in both directions |
+| **WR-04** | the dead disjunct and the vacuous assertion | **does not reproduce.** Both surviving occurrences of `bodyLines.length === 0` in the guard are in comments recording the removal (`:2146`, `:2302`); the live condition no longer carries it. In `voice-model.test.ts` the retired `split.length > 0` form survives twice — once quoted in a comment (`:579`) and once at `:631` **asserted `.toBe(true)` deliberately, to SHOW the retired form accepts a remainder the corrected form rejects**. The working assertion is the non-blank count at `:604` |
+| **WR-05** | the near-total-swallow fixture | **does not reproduce.** `guard_voice` now publishes four reconciled numbers per file, observed live on the mirror: `15-security-audit.md: scanned 50 clear-voice line(s), 1 marker line(s), caveman region 0 line(s), document 50 line(s)`. The remaining half is disclosed by name as `VOICE_REMAINDER_RESIDUAL`, pinned against the guard source |
+| **WR-06** | the level-agnostic profile reversion | **does not reproduce.** Reverting `WP-04`'s row to "A bullet under a steps heading is procedural." on the final tree reds **2 cases of 62**, by name: `the PROFILE's WP-04 row does not carry WP-04's ANCHOR sentence` and `expected [ 'profile/wp04' ] to deeply equal []` — the pin names WHICH half moved. Tree restored, `git status --porcelain agent-factory/` empty |
+| **WR-07** | the added-assertion drift | **does not reproduce.** Measured against the shipped file: one added SINGLE-LINE assertion GREEN, one added MULTI-LINE assertion GREEN, twenty added assertions GREEN — where the old design reds on all three. Every breakage still reds: blind classifier → `R2,R3`; multi-line class dropped → `R5,R6`; naive counter → `R4,R5,R7`; quote-aware counter → `R7`; subject counter → `R6`; occurrence counter → `R1`. Zero discrimination lost |
+| **WR-08** | the fenced and level-one section shapes | **does not reproduce.** The round-4 lookahead regexp occurs **0** times across all production sources. `sectionBody` in both generators is now four lines consuming the one authority — `unfencedHeadingIndex` then `sectionEndIndex(text, at + 1, 2)` — and honours the `-1` contract |
+
+**No finding still reproduces.** Nothing in the list above is explained away; the one item that
+needs a boundary drawn is CR-01, and it is drawn in §7.3 with the measurement rather than with prose.
+
+### 7.3 The one boundary, and a false green inside this task's own harness
+
+**CR-01's `.js`-only route still passes the gate**, and that is by construction rather than by
+regression: the membership pin reads the `.ts` SOURCE, while round 4's reproduction edited the
+committed `.js`. Plan 29-33 disclosed exactly this and named `npm run freshness` as the half that
+covers it. Re-measured here:
+
+```
+$ CHECK_ROOT=$MIR node scripts/check-foundation-guards.js       # unmodified, marker planted
+  FAIL  voice: 1 finding(s) over 19 elements                     exit=1
+$ CHECK_ROOT=$MIR node $SUB/check-foundation-guards.js          # ONE member token substituted
+  PASS  voice: 0 findings over 19/19 elements
+  ALL CHECKS PASSED                                              exit=0
+  ('15-security-audit' appears 0 times in the passing run)
+```
+
+and the half that catches it:
+
+```
+$ sed -i '' 's|".../15-security-audit.md"|".../definition-of-ready.md"|' scripts/check-foundation-guards.js
+$ npm run freshness
+STALE: scripts/check-foundation-guards.js — committed build output differs from a fresh tsc rebuild.
+Freshness check FAILED: 1 stale build output(s) detected.
+exit=1
+$ # restored
+$ npm run freshness
+All build outputs fresh: 48 committed .js file(s) match a fresh tsc rebuild.    exit=0
+```
+
+**The first attempt at that measurement produced a FALSE GREEN, and it is recorded rather than
+quietly corrected.** The check was first run as `cd $MIRROR && node $REPO/scripts/freshness.js`,
+which reported `All build outputs fresh` at exit 0 over a mirror whose `.js` had just been
+substituted. It read the REPO's files, not the mirror's, and it skipped the `tsc` rebuild the npm
+script performs first — so it measured the wrong tree with the wrong premise and agreed with the
+answer being hoped for. It was re-run correctly, in the repo, with backup and restore. This is the
+seventh instance in five rounds of a harness in this phase producing a false result, and the fourth
+where the false result pointed toward the comfortable conclusion.
+
+### 7.4 The sweep
+
+| command | exit |
+|---|---|
+| `npm run build` | 0 |
+| `npm run freshness` | 0 — 48 committed `.js` fresh |
+| `npm run freshness:catalog` | 0 |
+| `npm run freshness:adapters` | 0 |
+| `npm run freshness:skill-twins` | 0 |
+| `npm run typecheck` | 0 |
+| `npx vitest run --exclude '**/scripts/e2e/**'` | 0 — **2029 passed / 2 skipped across 52 files** (round-4 baseline was 1987) |
+| `npm run check:public-docs` | 0 |
+| `npm run check:banned-claims` | 0 |
+| `npm run check:audit-register` | 0 |
+| `npm run check:claim-anchors` | 0 |
+| `npm run check:diff-disposition` | 0 |
+| `npm run check:imperative-lexicon` | 0 |
+| `npm run check:nul-bytes` | 0 |
+| `node scripts/check-foundation-guards.js` | 0 |
+| `git diff --exit-code 57affa1^..HEAD -- package.json package-lock.json` | 0 — the supply-chain mitigation is asserted absence at ROUND scope; no plan of round 4 installed a package |
+| `git status --porcelain` | clean of plants — every plant of every plan of this round was written to a mirror, a temp directory, or restored from a checksummed backup |
+
+**And the suite being green proves none of this.** It is a floor. The evidence for each finding is
+the reproduction beside it in §7.2, not the count in this table.
