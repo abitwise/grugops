@@ -7978,13 +7978,25 @@ const tripwireCensus = (
  * live numbers are higher because round 3's six plans and this one added assertions; the delta is
  * accounted for in 29-29-SUMMARY.md rather than left as an unexplained movement.
  */
+// (Plan 29-33) RE-MEASURED, not adjusted-until-green. Plan 29-33 added three SEC_VOICE cases to
+// this module — the roster pin, the derived-property floor and the substitution arm — so all six
+// live numbers moved together and by an accounted amount: occurrences 5353 -> 5391 (+38), classified
+// 5281 -> 5319 (+38, the same 38 lines, so every added assertion is a classified line and none is a
+// second occurrence on a line already counted), statement-level multi-line 1069 -> 1084 (+15),
+// NOTE TO A LATER EDITOR: this paragraph must not spell the scanned token literally. The census
+// counts raw occurrences over these very bytes, so a comment naming it becomes one — measured here,
+// which is why this note exists rather than a rounder number.
+// quote-aware 1063 -> 1078 (+15, the SAME delta, so the two counters did not diverge on the new
+// text), disagreements 14 -> 14 (UNCHANGED — no added line is one the two paren counters read
+// differently), subject-only 577 -> 589 (+12). The round-3 figures below are UNTOUCHED: they are
+// reproduced from `0ec8b61` by the premise case and are not a baseline this plan may move.
 const TRIPWIRE_MODULES = 47;
-const TRIPWIRE_EXPECT_OCCURRENCES = 5353;
-const TRIPWIRE_CLASSIFIED_LINES = 5281;
-const TRIPWIRE_MULTILINE_STATEMENTS = 1069;
-const TRIPWIRE_MULTILINE_STATEMENTS_QUOTE_AWARE = 1063;
+const TRIPWIRE_EXPECT_OCCURRENCES = 5391;
+const TRIPWIRE_CLASSIFIED_LINES = 5319;
+const TRIPWIRE_MULTILINE_STATEMENTS = 1084;
+const TRIPWIRE_MULTILINE_STATEMENTS_QUOTE_AWARE = 1078;
 const TRIPWIRE_COUNTER_DISAGREEMENTS = 14;
-const TRIPWIRE_MULTILINE_SUBJECTS = 577;
+const TRIPWIRE_MULTILINE_SUBJECTS = 589;
 /** Round 3's own published figures, reproduced from `0ec8b61` by the premise case. */
 const ROUND_3_TRIPWIRE = {
   modules: 47,
