@@ -1231,9 +1231,90 @@ interface FormFinding {
   readonly text: string;
 }
 
+/**
+ * THE PUBLISHED RULES THIS GATE'S REFUSALS NAME — EACH ONE WHOLE (29-24 WR-04; 29-31 WR-05; 29-38 WR-06).
+ *
+ * These FIVE constants are rule ids and rule sentences exactly as agent-factory/writing-profile.md
+ * publishes them. They are DELIBERATELY NOT EXPORTED. Cases in
+ * scripts/check-imperative-lexicon.test.ts assert the same sentences appear in the gate's refusals
+ * AND in the profile's rule table, written as literals in both places — importing the constant into
+ * those cases would prove only that one file reads another, when the property being pinned is that
+ * the guard and the kit's own documentation SAY THE SAME THING TO AN AUTHOR. That contradiction
+ * between a gate and its own recorded prose is the whole of WR-04, and a shared constant would hide
+ * the next one exactly as the retired Residual 1 hid this one.
+ *
+ * WHY THE BLOCK SITS HERE RATHER THAN BESIDE `stepsHeadingTally`, WHICH IS WHERE IT USED TO LIVE.
+ * `STEPS_ANCHOR_RULE` is read by `FORM_REMEDY` immediately below, and a `const` cannot be read
+ * before its declaration is evaluated. The `WP-11` constants moved up with it rather than being left
+ * 160 lines away, because the property that makes this block work is that EVERY sentence the profile
+ * publishes and this gate repeats is spelled ONCE, in ONE place a reader finds in one look. Splitting
+ * them across two sites is how a sixth spelling gets written by somebody who found only the first.
+ * Do NOT move `FORM_REMEDY` above this block to "restore" the old order — that reintroduces the
+ * temporal-dead-zone crash this placement exists to avoid.
+ *
+ * WHY THERE ARE TWO SENTENCES FOR `WP-11`, AND WHY ITS ROW MOVED (WR-05).
+ *
+ * `WP-11` is a two-sentence rule and only its FIRST sentence was ever held. The two artifacts'
+ * remedy halves therefore disagreed on the day they landed — the profile said "a heading that is not
+ * a steps heading", this file said "a heading that is not `## Steps`" — and no assertion could see
+ * it, because the pin covered one sentence while its own comment claimed to cover the rule. A claim
+ * wider than the assertion beneath it is the defect class this repository removes, and it had landed
+ * inside the mechanism built to prevent it.
+ *
+ * The row was also published LEVEL-AGNOSTICALLY ("a steps section") while `STEPS_HEADING` anchors on
+ * level two exactly, so a `### Steps` section carrying no list item violated the published rule,
+ * contributed no member to `stepsFiles`, and produced no refusal. The published rule was narrowed to
+ * the spelling this gate decides rather than the anchor widened: widening makes the heading level and
+ * the SECTION-END level disagree, so a `### Steps` section's bullets would be scanned to the next
+ * level-at-most-two heading and would silently adopt sibling `###` sections' bullets. A genuine
+ * widening needs the shared locator's level parameter widened with it — four gates at once, with its
+ * own corpus measurement — and belongs in its own plan. The spellings the narrowing leaves undecided
+ * are not left to a promise: `stepsHeadingTally` below counts them and refuses by name when the count
+ * leaves zero.
+ *
+ * WHY `WP-04` IS HERE AT ALL, AND WHY ONLY ITS SECOND SENTENCE (WR-06).
+ *
+ * Plan 29-31 narrowed TWO rows to the literal `## Steps` and published a profile section titled for
+ * both. Only `WP-11` got a mechanism. `WP-04`'s row carried no constant here, no membership in the
+ * cross-artifact pin, and no assertion anywhere — so it could drift back to "a bullet under a steps
+ * heading is procedural", the level-agnostic and FAIL-OPEN wording 29-31 had just removed, with no
+ * red anywhere. Measured before this constant existed: the reverted row left all seven gates at exit
+ * 0 and moved not one test in the non-e2e suite. A published claim about two rules, held by an
+ * assertion about one, is the class this phase exists to remove, and it had landed inside the
+ * mechanism built against it for the second time.
+ *
+ * `WP-04`'s row is TWO sentences and only ONE of them is decidable here. "The section anchor decides
+ * which length limit applies to a sentence" names no spelling, so no drift of it is visible to this
+ * gate and pinning it would assert agreement this module cannot check. `STEPS_ANCHOR_RULE` is the
+ * second sentence — the one that names `## Steps`, the one `STEPS_HEADING` above actually decides,
+ * and the one that drifted. Pinning exactly the decidable half is the same rule this repository
+ * applies to a guard's NAME, applied to a guard's CONSTANT.
+ *
+ * THE SENTENCES ARE COMPARED AS BYTES. The pin in the test module asks whether the gate's refusal
+ * text and the profile's rule ROW each CONTAIN these exact strings. No normalization, no case
+ * folding, no Unicode confusable mapping: a visually identical but byte-different character — a
+ * typographic apostrophe, a non-breaking space, a full-width backtick — IS a drift and reds. That is
+ * stated here rather than left to be inferred from `String.prototype.includes`, because an inferred
+ * property is one a later "harmless tidy-up" is free to disagree with.
+ */
+const STEPS_SECTION_RULE_ID = "WP-11";
+const STEPS_SECTION_RULE =
+  "A `## Steps` section carries at least one list item.";
+const STEPS_SECTION_REMEDY =
+  "Write the section's procedure as list items, or move the explanatory paragraphs under a heading that is not `## Steps`.";
+const STEPS_ANCHOR_RULE_ID = "WP-04";
+const STEPS_ANCHOR_RULE =
+  "A bullet under a `## Steps` heading is procedural.";
+
 const FORM_REMEDY: Readonly<Record<FormFindingKind, string>> = {
+  // THE GATE'S HALF OF A TWO-ARTIFACT PIN (WR-06). The trailing clause is composed from
+  // `STEPS_ANCHOR_RULE` rather than paraphrasing it, so an author who reads this refusal reads the
+  // rule the writing profile publishes, byte for byte. Do NOT reword it here: this string and
+  // `agent-factory/writing-profile.md`'s `WP-04` row are held equal by `stepsAnchorPin`, and a
+  // reword of either alone reds by name. Change both, in one commit, or change neither.
   "procedural-sentence-too-long":
-    "split the step into two steps. A procedural sentence is bounded at 20 words (WP-02) and the section anchor decides that the bound applies here (WP-04)",
+    `split the step into two steps. A procedural sentence is bounded at 20 words (WP-02), and ` +
+    `${STEPS_ANCHOR_RULE_ID} is what makes that bound the one applied here: ${STEPS_ANCHOR_RULE}`,
   "descriptive-sentence-too-long":
     "split the sentence. A descriptive sentence is bounded at 25 words (WP-03)",
   "modal-in-procedural-step":
@@ -1358,44 +1439,6 @@ function classifySentence(s: Sentence): FormFinding[] {
 export const LEXICON_MEASURED_LABEL =
   "imperative lexicon — governed file(s) carrying a `## Steps` section";
 export const SENTENCE_MEASURED_LABEL = "sentence form — governed file(s)";
-
-/**
- * THE PUBLISHED RULE THE STEP-SET REFUSAL NAMES — THE WHOLE RULE (plan 29-24 WR-04; plan 29-31 WR-05).
- *
- * These THREE constants are the rule id, the rule sentence and the remedy sentence exactly as
- * agent-factory/writing-profile.md publishes them. They are DELIBERATELY NOT EXPORTED. A case in
- * scripts/check-imperative-lexicon.test.ts asserts the same sentences appear in the gate's refusal
- * AND in the profile's rule table, written as literals in both places — importing the constant into
- * that case would prove only that one file reads another, when the property being pinned is that the
- * guard and the kit's own documentation SAY THE SAME THING TO AN AUTHOR. That contradiction between
- * a gate and its own recorded prose is the whole of WR-04, and a shared constant would hide the next
- * one exactly as the retired Residual 1 hid this one.
- *
- * WHY THERE ARE NOW TWO SENTENCES HERE, AND WHY THE ROW MOVED (WR-05).
- *
- * `WP-11` is a two-sentence rule and only its FIRST sentence was ever held. The two artifacts'
- * remedy halves therefore disagreed on the day they landed — the profile said "a heading that is not
- * a steps heading", this file said "a heading that is not `## Steps`" — and no assertion could see
- * it, because the pin covered one sentence while its own comment claimed to cover the rule. A claim
- * wider than the assertion beneath it is the defect class this repository removes, and it had landed
- * inside the mechanism built to prevent it.
- *
- * The row was also published LEVEL-AGNOSTICALLY ("a steps section") while `STEPS_HEADING` anchors on
- * level two exactly, so a `### Steps` section carrying no list item violated the published rule,
- * contributed no member to `stepsFiles`, and produced no refusal. The published rule was narrowed to
- * the spelling this gate decides rather than the anchor widened: widening makes the heading level and
- * the SECTION-END level disagree, so a `### Steps` section's bullets would be scanned to the next
- * level-at-most-two heading and would silently adopt sibling `###` sections' bullets. A genuine
- * widening needs the shared locator's level parameter widened with it — four gates at once, with its
- * own corpus measurement — and belongs in its own plan. The spellings the narrowing leaves undecided
- * are not left to a promise: `stepsHeadingTally` below counts them and refuses by name when the count
- * leaves zero.
- */
-const STEPS_SECTION_RULE_ID = "WP-11";
-const STEPS_SECTION_RULE =
-  "A `## Steps` section carries at least one list item.";
-const STEPS_SECTION_REMEDY =
-  "Write the section's procedure as list items, or move the explanatory paragraphs under a heading that is not `## Steps`.";
 
 function corpusBreakdown(): string {
   return GOVERNED_CORPUS_PARTS.map((p) => `${p.name} ${p.members.length}`).join(

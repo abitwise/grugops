@@ -1226,14 +1226,14 @@ describe("WR-02 — the sentence-form denominator is the derived corpus size and
 // ─────────────────────────────────────────────────────────────────────────────────────────────────
 
 /**
- * BOTH SENTENCES OF `WP-11`, written as literals here on purpose.
+ * THE SENTENCES OF THE TWO STEPS-ANCHOR RULES, written as literals here on purpose.
  *
  * Interpolating them from a module export would make the cross-artifact assertion below tautological
  * in the direction that matters: the point is that the GATE and the PROFILE say the same words to an
  * author, and a shared constant proves only that one file imports another. This is the same reason
  * every other refusal-wording assertion in this file is written as a literal.
  *
- * WHY THERE ARE TWO SENTENCES HERE NOW (WR-05). `WP-11` has always been a two-sentence rule, and
+ * WHY THERE ARE TWO SENTENCES FOR `WP-11` (WR-05). `WP-11` has always been a two-sentence rule, and
  * only its first sentence was ever pinned — while the case's own comment claimed the gate and the
  * kit's documentation were "held to ONE sentence in TWO artifacts, so a future reword of either
  * alone is a red". They were not: the remedy halves had disagreed since the day they landed (the
@@ -1242,40 +1242,91 @@ describe("WR-02 — the sentence-form denominator is the derived corpus size and
  * repository's own named defect class, and it had landed inside the mechanism built against it. The
  * previous comment is DELETED rather than amended, because a cost paragraph that survives the change
  * it describes is the same defect one module over.
+ *
+ * WHY `WP-04` IS HERE NOW, AND WHY ONLY ITS SECOND SENTENCE (WR-06). Plan 29-31 narrowed TWO rows to
+ * the literal `## Steps` and published a profile section titled for both, asserting of both that they
+ * "name the literal heading `## Steps` … because that is the spelling the gate decides". The
+ * mechanism it built held `WP-11` alone. Before this block, `grep -n "WP-04" scripts/*.test.ts`
+ * returned ONE comment line and ONE case NAME across the whole tree of test modules and ZERO
+ * assertions — measured with the comment filter shown, not estimated. So the row could revert to "a
+ * bullet under a steps heading is procedural" — the level-agnostic, fail-open wording 29-31 removed —
+ * and nothing would notice. It was reproduced rather than argued: with that reversion applied to a
+ * git-backed clone of HEAD, all seven gates exited 0 and the non-e2e suite reported the SAME
+ * 2026 passed / 1 failed / 2 skipped as the unmutated clone. Not one number moved.
+ *
+ * Only `WP-04`'s SECOND sentence is pinned. Its first — "The section anchor decides which length
+ * limit applies to a sentence." — names no spelling, so no drift of it is visible to this gate, and
+ * pinning it would assert an agreement neither artifact can be checked for. Pinning exactly the
+ * decidable half is D-11's naming rule applied to a constant instead of to a guard's printed name.
+ *
+ * THE COMPARISON IS BYTES. `includes` is substring equality over UTF-16 code units: no normalization,
+ * no case folding, no confusable mapping. A typographic apostrophe, an NBSP or a full-width backtick
+ * substituted into either artifact IS a drift and reds. Stated at the declaration rather than left to
+ * be inferred from the method name, because an inferred property is one a later tidy-up may disagree
+ * with silently.
  */
 const STEPS_RULE_ID = "WP-11";
 const STEPS_RULE_SENTENCE =
   "A `## Steps` section carries at least one list item.";
 const STEPS_REMEDY_SENTENCE =
   "Write the section's procedure as list items, or move the explanatory paragraphs under a heading that is not `## Steps`.";
-
-/** The `WP-11` row of the writing profile's rule table, or `undefined` if the table has none. */
-const wp11Row = (profile: string): string | undefined =>
-  profile.split("\n").find((l) => l.startsWith(`| \`${STEPS_RULE_ID}\` |`));
+const STEPS_ANCHOR_RULE_ID = "WP-04";
+const STEPS_ANCHOR_RULE_SENTENCE =
+  "A bullet under a `## Steps` heading is procedural.";
 
 /**
- * THE FOUR-MEMBER PIN, AS DATA, so the falsifiability probe drives the SAME comparison the permanent
- * assertions do rather than a second implementation of it.
+ * The rule ROW of one profile rule, or `undefined` if the table carries none.
  *
- * Four members and not one concatenated string: a concatenation pin cannot say WHICH half drifted,
+ * TWO LOOKUPS AND NOT ONE, because they read two different rows. Only the AGGREGATE below is renamed
+ * for the pair; a single lookup parameterised by id would be the same function twice with a shorter
+ * name, and the two call sites want two independently-asserted premises anyway.
+ */
+const wp11Row = (profile: string): string | undefined =>
+  profile.split("\n").find((l) => l.startsWith(`| \`${STEPS_RULE_ID}\` |`));
+const wp04Row = (profile: string): string | undefined =>
+  profile
+    .split("\n")
+    .find((l) => l.startsWith(`| \`${STEPS_ANCHOR_RULE_ID}\` |`));
+
+/**
+ * THE SIX-MEMBER STEPS-ANCHOR PIN, AS DATA, so the falsifiability probe drives the SAME comparison
+ * the permanent assertions do rather than a second implementation of it.
+ *
+ * WHY THE NAME SAYS "PAIR" AND NOT "WP-11" (WR-06, D-11 and D-39 applied one layer in). This
+ * mechanism held `WP-11` alone and carried a name saying so; it now decides TWO rules. D-11 removed
+ * a guard named for one rule while holding three, and D-39 established that the naming rule binds at
+ * the gate's OUTPUT line. An identifier is the same surface one layer in: a maintainer asking
+ * whether `WP-04` was held would have read a WP-11-only name and taken the wrong answer from it,
+ * which is close to how `WP-04` came to be published unheld for a whole round. The former names are
+ * RENAMED THROUGHOUT and no longer exist anywhere in this tree — deliberately not aliased, because
+ * an alias would leave the wrong answer reachable under the old spelling.
+ *
+ * Six members and not one concatenated string: a concatenation pin cannot say WHICH half drifted,
  * and a failure that reports only that "a string moved" is the failure mode this round has charged
  * against every cell-flip reproduction it reviewed. Each member carries its own message naming the
  * sentence AND the artifact.
  *
- * `row` is the rule ROW, never the whole profile document. The rationale section beneath the table
- * quotes both sentences too, so a document-scoped `toContain` would keep passing on a table row that
- * had been reworded — an assertion satisfied by prose that is not the rule is not an assertion about
- * the rule.
+ * Each `row` is the rule ROW, never the whole profile document. The rationale sections beneath the
+ * table quote these sentences too — § *The adjacency rule* carries `WP-04`'s wording in prose — so a
+ * document-scoped `toContain` would keep passing on a table row that had been reworded. An assertion
+ * satisfied by prose that is not the rule is not an assertion about the rule.
  */
-type Wp11PinMember = {
-  readonly key: "gate/rule" | "gate/remedy" | "profile/rule" | "profile/remedy";
+type StepsAnchorPinMember = {
+  readonly key:
+    | "gate/rule"
+    | "gate/remedy"
+    | "profile/rule"
+    | "profile/remedy"
+    | "gate/wp04"
+    | "profile/wp04";
   readonly message: string;
   readonly holds: boolean;
 };
-function wp11Pin(
+function stepsAnchorPin(
   gateOutput: string,
   row: string | undefined,
-): readonly Wp11PinMember[] {
+  anchorRow: string | undefined,
+): readonly StepsAnchorPinMember[] {
   return [
     {
       key: "gate/rule",
@@ -1297,19 +1348,32 @@ function wp11Pin(
       message: `the PROFILE's WP-11 row does not carry WP-11's REMEDY sentence: ${STEPS_REMEDY_SENTENCE}`,
       holds: row !== undefined && row.includes(STEPS_REMEDY_SENTENCE),
     },
+    {
+      key: "gate/wp04",
+      message: `the GATE's refusal does not carry WP-04's ANCHOR sentence: ${STEPS_ANCHOR_RULE_SENTENCE}`,
+      holds: gateOutput.includes(STEPS_ANCHOR_RULE_SENTENCE),
+    },
+    {
+      key: "profile/wp04",
+      message: `the PROFILE's WP-04 row does not carry WP-04's ANCHOR sentence: ${STEPS_ANCHOR_RULE_SENTENCE}`,
+      holds:
+        anchorRow !== undefined &&
+        anchorRow.includes(STEPS_ANCHOR_RULE_SENTENCE),
+    },
   ];
 }
 /** The members that do NOT hold, by key — the probe's assertion surface. */
-const wp11Broken = (
+const stepsAnchorBroken = (
   gateOutput: string,
   row: string | undefined,
+  anchorRow: string | undefined,
 ): string[] =>
-  wp11Pin(gateOutput, row)
+  stepsAnchorPin(gateOutput, row, anchorRow)
     .filter((m) => !m.holds)
     .map((m) => m.key);
 
 describe("WR-04 / WR-09 — the shapes this guard's own prose names, each with its verdict pinned", () => {
-  it("WR-04: a prose-only `## Steps` section is RED, and the refusal names the RULE — the same sentence the writing profile publishes", () => {
+  it("WR-04 / WR-06: a prose-only `## Steps` section and an over-long step are RED, and the refusals name BOTH RULES — the same sentences the writing profile publishes", () => {
     const rel = "agent-factory/workflows/01-fixture.md";
     // A `## Steps` heading whose section is written as paragraphs and carries not one list item.
     // The `# Workflow: ` heading stays, so the display-name derivation is untouched and this
@@ -1323,8 +1387,34 @@ describe("WR-04 / WR-09 — the shapes this guard's own prose names, each with i
       "",
     ].join("\n");
 
+    // THE SECOND PLANT, AND WHY THE FIXTURE GREW (WR-06). `WP-04`'s sentence is emitted by
+    // `FORM_REMEDY`'s procedural-too-long entry, and that remedy is rendered only when a procedural
+    // sentence actually exceeds its bound. The prose-only plant alone produces no such finding, so a
+    // `gate/wp04` member read off that stdout would be asserting the sentence is absent — a pin
+    // green for the wrong reason, which is the exact shape this round keeps charging. One extra
+    // workflow carrying one over-long step bullet puts BOTH refusals in ONE run's output.
+    //
+    // It also cannot disturb the `WP-11` inequality it shares the run with: this file carries a
+    // `## Steps` heading AND a bullet under it, so it joins both file sets and the inequality is
+    // still produced by the prose-only plant alone. The word count is arithmetic from the module's
+    // own bound, never a typed literal.
+    const relLong = "agent-factory/workflows/02-fixture.md";
+    const overLong = filler(PROCEDURAL_SENTENCE_MAX_WORDS + 1);
+    expect(countWords(`${VERB} ${overLong}.`)).toBeGreaterThan(
+      PROCEDURAL_SENTENCE_MAX_WORDS,
+    );
+    const longStep = [
+      "# Workflow: Long Step Workflow",
+      "",
+      "## Steps",
+      `1. ${VERB} ${overLong}.`,
+      "",
+    ].join("\n");
+
     const { status, stdout } = runGate(
-      makeMirror("gops-lex-wr04-prose-", { plant: { [rel]: proseOnly } }),
+      makeMirror("gops-lex-wr04-prose-", {
+        plant: { [rel]: proseOnly, [relLong]: longStep },
+      }),
     );
 
     expect(status).toBe(1);
@@ -1336,36 +1426,55 @@ describe("WR-04 / WR-09 — the shapes this guard's own prose names, each with i
     // by accident of a denominator while the module's Residual 1 documented it as out of scope, and
     // the refusal told an author what the gate had COMPUTED rather than what to WRITE.
     expect(stdout).toContain(STEPS_RULE_ID);
+    // …and the second plant genuinely reached the remedy that carries `WP-04`'s sentence. Asserting
+    // the finding kind FIRST means a `gate/wp04` failure below can only be a DRIFT, never a fixture
+    // that quietly stopped producing the refusal the member reads.
+    expect(stdout).toContain("[procedural-sentence-too-long]");
+    expect(stdout).toContain(relLong);
 
-    // WHAT IS HELD, STATED WITH NOTHING BEYOND IT (WR-05). BOTH sentences of `WP-11` — the rule and
-    // its remedy — appear in the gate's refusal AND in the profile's rule ROW, as four independent
-    // assertions with four distinct messages. A reword of EITHER sentence in EITHER artifact fails
-    // exactly one of them and names which. That is four drift routes, and all four are demonstrated
-    // to red by the four-mutation probe below rather than inferred from two.
+    // WHAT IS HELD, STATED WITH NOTHING BEYOND IT (WR-05, WR-06). BOTH sentences of `WP-11` and the
+    // DECIDABLE sentence of `WP-04` appear in the gate's refusals AND in each rule's own profile
+    // ROW, as six independent assertions with six distinct messages. A reword of ANY of them in
+    // EITHER artifact fails exactly one member and names which. That is six drift routes, and all
+    // six are demonstrated to red by the six-mutation probe below rather than inferred from two.
     const profile = readFileSync(
       join(ROOT, "agent-factory", "writing-profile.md"),
       "utf8",
     );
     const ruleRow = wp11Row(profile);
+    const anchorRow = wp04Row(profile);
+    // THE HARNESS'S OWN PREMISE, ASSERTED SEPARATELY FOR EACH ROW BEFORE ANY SENTENCE COMPARISON. A
+    // table whose row id changed makes the lookup `undefined`, and every containment below would
+    // then be false for a reason that has nothing to do with drift — a red that misnames its own
+    // cause. Two assertions and not one: a single combined check cannot say WHICH row vanished.
     expect(
       ruleRow,
       `no ${STEPS_RULE_ID} row in the writing profile's rule table`,
     ).toBeDefined();
-    for (const member of wp11Pin(stdout, ruleRow)) {
+    expect(
+      anchorRow,
+      `no ${STEPS_ANCHOR_RULE_ID} row in the writing profile's rule table`,
+    ).toBeDefined();
+    for (const member of stepsAnchorPin(stdout, ruleRow, anchorRow)) {
       expect(member.holds, member.message).toBe(true);
     }
 
-    // …and the row is marked DECIDABLE, because a gate decides it. An advisory mark on a gated rule
-    // is the same class of claim/behaviour disagreement WR-04 is about.
+    // …and both rows are marked DECIDABLE, because a gate decides them. An advisory mark on a gated
+    // rule is the same class of claim/behaviour disagreement WR-04 is about.
     expect(ruleRow).toContain("| decidable |");
+    expect(anchorRow).toContain("| decidable |");
   });
 
-  it("WR-05: the two-artifact pin FAILS on each of the four ways WP-11 can drift, and names which half moved", () => {
+  it("WR-05 / WR-06: the two-artifact pin FAILS on each of the SIX ways WP-11 and WP-04 can drift, names which half moved, and holds on a control that touches neither", () => {
     // THE PROBE THAT MAKES THE PIN ABOVE MEAN SOMETHING. A pin that has only ever been seen passing
-    // is exactly what shipped here before: the remedy halves of the two artifacts disagreed on the
-    // day they landed, and the assertion covering them did not exist while the comment above it said
-    // it did. Four mutations, one per (artifact x sentence) cell, each required to break exactly its
-    // own member and to leave the other three standing.
+    // is exactly what shipped here before — twice. `WP-11`'s remedy halves disagreed on the day they
+    // landed with no assertion covering them (WR-05), and `WP-04`'s row was published narrowed with
+    // no assertion at all (WR-06). Six mutations, one per member, each required to break exactly its
+    // own member and to leave the other five standing.
+    //
+    // The mirror carries BOTH plants for the reason the case above records: `WP-04`'s sentence rides
+    // on the procedural-too-long remedy, which needs an over-long step to be rendered at all.
+    const overLong = filler(PROCEDURAL_SENTENCE_MAX_WORDS + 1);
     const { stdout } = runGate(
       makeMirror("gops-lex-wr05-probe-", {
         plant: {
@@ -1377,32 +1486,49 @@ describe("WR-04 / WR-09 — the shapes this guard's own prose names, each with i
             "Prose sits here where a step bullet belongs.",
             "",
           ].join("\n"),
+          "agent-factory/workflows/02-fixture.md": [
+            "# Workflow: Long Step Workflow",
+            "",
+            "## Steps",
+            `1. ${VERB} ${overLong}.`,
+            "",
+          ].join("\n"),
         },
       }),
     );
-    const row = wp11Row(
-      readFileSync(join(ROOT, "agent-factory", "writing-profile.md"), "utf8"),
+    const profile = readFileSync(
+      join(ROOT, "agent-factory", "writing-profile.md"),
+      "utf8",
     );
+    const row = wp11Row(profile);
+    const anchorRow = wp04Row(profile);
 
     // The unmutated control. Without it a probe whose every arm reds could be reporting a pin that
     // is simply always broken.
-    expect(wp11Broken(stdout, row), "the SHIPPED artifacts must satisfy all four members").toEqual(
-      [],
-    );
+    expect(
+      stepsAnchorBroken(stdout, row, anchorRow),
+      "the SHIPPED artifacts must satisfy all six members",
+    ).toEqual([]);
 
     // A reword that a human would call harmless and a byte comparison calls a drift.
-    const reword = (s: string): string => s.replace("carries", "holds").replace("Write", "Put");
+    const reword = (s: string): string =>
+      s
+        .replace("carries", "holds")
+        .replace("Write", "Put")
+        .replace("bullet", "list item");
 
     const mutations: readonly {
       readonly name: string;
       readonly gate: string;
       readonly row: string | undefined;
+      readonly anchorRow: string | undefined;
       readonly expect: string;
     }[] = [
       {
         name: "the RULE sentence reworded in the GATE's constant",
         gate: stdout.replaceAll(STEPS_RULE_SENTENCE, reword(STEPS_RULE_SENTENCE)),
         row,
+        anchorRow,
         expect: "gate/rule",
       },
       {
@@ -1412,12 +1538,14 @@ describe("WR-04 / WR-09 — the shapes this guard's own prose names, each with i
           reword(STEPS_REMEDY_SENTENCE),
         ),
         row,
+        anchorRow,
         expect: "gate/remedy",
       },
       {
         name: "the RULE sentence reworded in a mirror of the PROFILE",
         gate: stdout,
         row: row?.replaceAll(STEPS_RULE_SENTENCE, reword(STEPS_RULE_SENTENCE)),
+        anchorRow,
         expect: "profile/rule",
       },
       {
@@ -1427,32 +1555,109 @@ describe("WR-04 / WR-09 — the shapes this guard's own prose names, each with i
           STEPS_REMEDY_SENTENCE,
           reword(STEPS_REMEDY_SENTENCE),
         ),
+        anchorRow,
         expect: "profile/remedy",
       },
+      {
+        name: "WP-04's ANCHOR sentence reworded in the GATE's constant",
+        gate: stdout.replaceAll(
+          STEPS_ANCHOR_RULE_SENTENCE,
+          reword(STEPS_ANCHOR_RULE_SENTENCE),
+        ),
+        row,
+        anchorRow,
+        expect: "gate/wp04",
+      },
+      {
+        // THE MUTATION THIS PLAN EXISTS FOR: the exact level-agnostic reversion that passed every
+        // gate and moved no test before the two `wp04` members existed.
+        name: "WP-04's ANCHOR sentence reverted to the LEVEL-AGNOSTIC wording in a mirror of the PROFILE",
+        gate: stdout,
+        row,
+        anchorRow: anchorRow?.replaceAll(
+          STEPS_ANCHOR_RULE_SENTENCE,
+          "A bullet under a steps heading is procedural.",
+        ),
+        expect: "profile/wp04",
+      },
     ];
+
+    // Six mutations, six DISTINCT expected keys. Without this the probe could run the same cell
+    // twice and report six passes over five drift routes — a denominator that is silently short is
+    // the failure a vacuity floor over an EMPTY list never catches, so the count is derived from the
+    // mutation table itself and compared against the pin's own member count.
+    const expectedKeys = mutations.map((m) => m.expect);
+    expect(new Set(expectedKeys).size, "the six mutations must target six DISTINCT members").toBe(
+      mutations.length,
+    );
+    expect(
+      new Set(expectedKeys),
+      "every member of the pin must have a mutation, and every mutation a member",
+    ).toEqual(new Set(stepsAnchorPin(stdout, row, anchorRow).map((m) => m.key)));
 
     for (const m of mutations) {
       // PREMISE, FORCED: the mutation must actually have changed the artifact it names. A
       // replacement that silently matched nothing would make the arm below assert that an unmutated
       // input still passes, which is the vacuity this round keeps finding in its own probes.
-      const changed =
-        m.expect.startsWith("gate/") ? m.gate !== stdout : m.row !== row;
+      const changed = m.expect.startsWith("gate/")
+        ? m.gate !== stdout
+        : m.expect === "profile/wp04"
+          ? m.anchorRow !== anchorRow
+          : m.row !== row;
       expect(changed, `the mutation "${m.name}" changed no byte of its artifact`).toBe(true);
-      expect(wp11Broken(m.gate, m.row), m.name).toEqual([m.expect]);
+      expect(stepsAnchorBroken(m.gate, m.row, m.anchorRow), m.name).toEqual([
+        m.expect,
+      ]);
 
       // AND THE MESSAGE THE BROKEN MEMBER CARRIES IS THE ONE A READER GETS. Asserting only the key
-      // would leave the four messages unexercised, and an unexercised message is how a failure that
+      // would leave the six messages unexercised, and an unexercised message is how a failure that
       // names nothing ships: the arm would go red and the reader would still have to diff two files
       // by hand to learn which half moved.
-      const broken = wp11Pin(m.gate, m.row).find((x) => !x.holds);
+      const broken = stepsAnchorPin(m.gate, m.row, m.anchorRow).find(
+        (x) => !x.holds,
+      );
       expect(broken, m.name).toBeDefined();
       expect(broken?.message, `${m.name} — the failure must name the ARTIFACT`).toContain(
-        m.expect.startsWith("gate/") ? "GATE's refusal" : "PROFILE's WP-11 row",
+        m.expect.startsWith("gate/")
+          ? "GATE's refusal"
+          : m.expect === "profile/wp04"
+            ? "PROFILE's WP-04 row"
+            : "PROFILE's WP-11 row",
       );
       expect(broken?.message, `${m.name} — the failure must name the SENTENCE`).toContain(
-        m.expect.endsWith("/rule") ? STEPS_RULE_SENTENCE : STEPS_REMEDY_SENTENCE,
+        m.expect.endsWith("/wp04")
+          ? STEPS_ANCHOR_RULE_SENTENCE
+          : m.expect.endsWith("/rule")
+            ? STEPS_RULE_SENTENCE
+            : STEPS_REMEDY_SENTENCE,
       );
     }
+
+    // THE CONTROL MUTATION — SPECIFICITY, NOT JUST SENSITIVITY. Six arms that all red prove the pin
+    // notices change; they do not prove it notices only the change it is for. A pin that reds on
+    // every unrelated edit trains a maintainer to clear it without reading it, which is the
+    // behaviour this same round writes a separate warning about. Each artifact is edited in a place
+    // no pinned sentence depends on — the gate's trailing scan-set advice, and the row's STATUS
+    // cell — and the broken-key list must stay empty.
+    const controlGate = stdout.replaceAll(
+      "Do NOT narrow the scan set",
+      "Do NOT shrink the scan set",
+    );
+    const controlRow = row?.replace("| decidable |", "| decidable  |");
+    const controlAnchorRow = anchorRow?.replace(
+      "| decidable |",
+      "| decidable  |",
+    );
+    expect(controlGate, "the control must actually have changed the GATE text").not.toBe(stdout);
+    expect(controlRow, "the control must actually have changed the WP-11 row").not.toBe(row);
+    expect(
+      controlAnchorRow,
+      "the control must actually have changed the WP-04 row",
+    ).not.toBe(anchorRow);
+    expect(
+      stepsAnchorBroken(controlGate, controlRow, controlAnchorRow),
+      "an edit touching no pinned sentence must break NO member",
+    ).toEqual([]);
   });
 
   it("WR-09 / Residual 4: a FOUR-SPACE-INDENTED numbered line under `## Steps` IS admitted as a step bullet — the disclosed verdict, measured", () => {
