@@ -15277,6 +15277,22 @@ describe("frontmatter — D-59: the region-kind x escape-kind x spelling union (
 //   5. A guard placed FURTHER from its call than `GUARD_WINDOW` lines, or outside the block the
 //      call sits in. The window's value is stated below with the measurement showing this tree's
 //      answer does not depend on it.
+//   6. (Plan 29-36) A guard whose consequent leaves the scope ONLY THROUGH A HELPER — a refusal
+//      function that itself throws, a `bail()`, a `fail(` that the caller relies on to abort. The
+//      exit test below reads `return`, `throw` and `continue` as source tokens and follows no call
+//      graph, so such a site is reported UNGUARDED. That is the safe direction, and it is the price
+//      of the narrowing in item 5's paragraph below: a helper-expressed EXIT is unreadable for the
+//      same reason a helper-expressed COMPARISON is (item 1), and both are refused rather than
+//      guessed at.
+//
+// AND ONE SHAPE THAT WAS UNSTATED AND IS NOW DECIDED (plan 29-36, 29-REVIEW § WR-01). An INERT
+// COMPARISON — `if (at === -1) { }` with a consequent that falls through, followed by the
+// arithmetic — was classified GUARDED by the shipped classifier and appeared in no list above, so a
+// reader had no way to tell it was neither checked nor disclosed. It is now DECIDED, in the
+// UNGUARDED direction, by the exit requirement at `guardLeavesScope` and by the third plant. It is
+// therefore not a blind spot and must not be re-added as one: a list that keeps a closed item is as
+// unreliable as one that omits an open item, and both make it useless as a statement of what is
+// known.
 // ═══════════════════════════════════════════════════════════════════════════════════════════════
 
 describe("frontmatter — every consumer honours the locator's `-1` contract (plan 29-32, WR-04)", () => {
@@ -15339,6 +15355,56 @@ describe("frontmatter — every consumer honours the locator's `-1` contract (pl
       ].join("|"),
     );
 
+  /**
+   * (Plan 29-36, LANG-07 — 29-REVIEW § WR-01) THE EXIT REQUIREMENT: A COMPARISON IS NOT A GUARD.
+   *
+   * A comparison against `-1` whose consequent FALLS THROUGH is defaulting to zero with extra
+   * syntax — and defaulting to zero is the repair `frontmatter.ts`'s own contract forbids BY NAME
+   * ("do not default the index to zero"). The shipped classifier asked only whether a comparison
+   * existed above the first use, so this module was reported GUARDED:
+   *
+   *     const at = <locator>(text, heading);
+   *     if (at === -1) { /* noted, but not acted on *\/ }
+   *     const end = sectionEndIndex(text, at + 1, 2);   // <- the defect, unchanged
+   *
+   * So a `guardRe` hit only counts when the guarded branch LEAVES THE SCOPE.
+   *
+   * `fail(` IS DELIBERATELY NOT IN THIS SET, against the review's suggestion. A refusal helper that
+   * records a finding and returns does NOT leave the scope, so accepting it would re-admit the exact
+   * shape being closed — `if (at === -1) { fail("..."); } use(at)`. This is the narrower reading of
+   * "leave the scope", and narrower is the safe direction: the tree's one site that calls `fail` in
+   * its consequent also `return`s there, so nothing live depends on the wider rule. A guard that
+   * exits ONLY through a helper is reported UNGUARDED and is disclosed as blind spot 5 above.
+   */
+  const EXIT_RE = /\b(?:return|throw|continue)\b/;
+
+  /**
+   * Does the guard at line `k` leave the scope — on that line, or anywhere in its consequent?
+   *
+   * THE CONSEQUENT IS BOUNDED BY INDENTATION, the way the guard window already is. A line at the
+   * guard's own indentation or shallower has closed the branch, so a FOLLOWING SIBLING statement is
+   * never mistaken for the consequent — which matters precisely here, since the sibling below an
+   * inert comparison is the unguarded arithmetic itself.
+   */
+  /**
+   * Which arm answered, not merely whether one did. A predicate split into arms is only as good as
+   * the arm nobody has seen fire, so the arm is RECORDED on the site and the case below asserts the
+   * live tree exercises BOTH — the question is at which POSITIONS this test is asked, never only
+   * which tokens it accepts.
+   */
+  type ExitArm = "same-line" | "consequent" | null;
+
+  const guardLeavesScope = (code: readonly string[], k: number): ExitArm => {
+    if (EXIT_RE.test(code[k])) return "same-line";
+    const gi = indentOfLine(code[k]);
+    for (let j = k + 1; j < code.length; j += 1) {
+      if (code[j].trim() === "") continue;
+      if (indentOfLine(code[j]) <= gi) break;
+      if (EXIT_RE.test(code[j])) return "consequent";
+    }
+    return null;
+  };
+
   interface ContractSite {
     readonly module: string;
     readonly line: number;
@@ -15346,6 +15412,8 @@ describe("frontmatter — every consumer honours the locator's `-1` contract (pl
     readonly guarded: boolean;
     /** How many lines below the call the guard was found, for the window measurement. */
     readonly distance: number;
+    /** Which arm of the exit test admitted the guard, or `null` when none did. */
+    readonly exitArm: ExitArm;
     readonly text: string;
   }
 
@@ -15366,6 +15434,7 @@ describe("frontmatter — every consumer honours the locator's `-1` contract (pl
       const bound = m === null ? null : m[1];
       let guarded = false;
       let distance = -1;
+      let exitArm: ExitArm = null;
       if (bound !== null) {
         const g = guardRe(bound);
         const use = new RegExp(`\\b${bound}\\b`);
@@ -15377,8 +15446,15 @@ describe("frontmatter — every consumer honours the locator's `-1` contract (pl
           if (budget > GUARD_WINDOW) break;
           if (indentOfLine(code[k]) < ind) break;
           if (g.test(code[k])) {
+            // A COMPARISON THAT DOES NOTHING IS NOT A GUARD (plan 29-36, WR-01). An inert
+            // comparison is stepped OVER rather than treated as a stop: a later comparison that
+            // really does leave the scope is a real guard, and reporting such a site UNGUARDED
+            // would be a false red on a consumer that honours the contract.
+            const arm = guardLeavesScope(code, k);
+            if (arm === null) continue;
             guarded = true;
             distance = budget;
+            exitArm = arm;
             break;
           }
           // THE IDENTIFIER REACHED A USE BEFORE IT REACHED A CHECK. That is the defect itself: a
@@ -15386,7 +15462,15 @@ describe("frontmatter — every consumer honours the locator's `-1` contract (pl
           if (use.test(code[k])) break;
         }
       }
-      out.push({ module, line: i + 1, bound, guarded, distance, text: code[i].trim() });
+      out.push({
+        module,
+        line: i + 1,
+        bound,
+        guarded,
+        distance,
+        exitArm,
+        text: code[i].trim(),
+      });
     }
     return out;
   };
@@ -15508,6 +15592,28 @@ describe("frontmatter — every consumer honours the locator's `-1` contract (pl
     expect(furthest).toBeLessThan(GUARD_WINDOW);
   });
 
+  it("BOTH ARMS OF THE EXIT TEST ARE ASKED OVER THE LIVE TREE — the arm nobody has seen fire is the arm that is wrong", () => {
+    // (Plan 29-36, WR-01) The narrowing split one question into two arms: an exit ON the comparison
+    // line (`if (at === -1) return null;`) and an exit inside its INDENTATION-BOUNDED CONSEQUENT
+    // (`if (at === -1) { fail(...); return null; }`). An arm that no live site reaches is an arm
+    // whose correctness nobody has evidence for, and the plants alone would not settle it: they are
+    // written by the same hand as the rule.
+    const sites = liveSites();
+    const arms = [...new Set(sites.map((s) => s.exitArm))].sort();
+    expect(
+      arms,
+      "every live guard must have been admitted by a NAMED arm — a `null` here is an unguarded site",
+    ).toEqual(["consequent", "same-line"]);
+    // Each arm carried by a real module, printed on failure so a tree that lost one says which.
+    for (const arm of ["same-line", "consequent"] as const) {
+      const carriers = sites.filter((s) => s.exitArm === arm).map((s) => s.module);
+      expect(
+        carriers.length,
+        `the ${arm} arm of the exit test is exercised by no live site; carriers: ${carriers.join(", ")}`,
+      ).toBeGreaterThan(0);
+    }
+  });
+
   it("THE VACUITY FLOOR FIRES: a scan over an empty module set fails BY NAME", () => {
     expect(() => contractScan([], () => "")).toThrow(/handed ZERO modules/);
     // …and the second floor, from the other side: modules that carry no call site at all.
@@ -15516,9 +15622,15 @@ describe("frontmatter — every consumer honours the locator's `-1` contract (pl
     ).toThrow(/derived\s+ZERO call sites/);
   });
 
-  it("THE CLASSIFIER DISCRIMINATES IN BOTH DIRECTIONS: a planted guarded call passes, a planted unguarded call is NAMED", () => {
-    // Both plants run through THE RULE, never a second spelling of it. Assembled from the split
+  it("THE CLASSIFIER DISCRIMINATES ACROSS THREE PLANTS: a real guard passes, a missing guard is NAMED, and an INERT comparison is NAMED too", () => {
+    // All three plants run through THE RULE, never a second spelling of it. Assembled from the split
     // locator name so this file's own source carries no call-shaped occurrence of it.
+    //
+    // (Plan 29-36, LANG-07 — 29-REVIEW § WR-01) THE THIRD PLANT, AND WHY A THIRD WAS NEEDED. Two
+    // plants prove a classifier can say yes and can say no. They do not prove it is asking the right
+    // QUESTION. The shipped classifier asked "is there a comparison against -1 above the first use",
+    // and answered GUARDED for a comparison whose consequent falls through — which is defaulting to
+    // zero with extra syntax, the repair `frontmatter.ts`'s own contract forbids by name.
     const dir = realpathSync(mkdtempSync(join(tmpdir(), "grugops-contract-")));
     try {
       const guardedPlant = [
@@ -15540,23 +15652,65 @@ describe("frontmatter — every consumer honours the locator's `-1` contract (pl
         "}",
         "",
       ].join("\n");
+      // THE INERT PLANT. It carries the comparison the shipped classifier accepted and then does the
+      // arithmetic anyway. Its consequent is a comment, so nothing leaves the scope; `-1 + 1` is `0`
+      // and the slice is taken from the top of the document, silently.
+      const inertPlant = [
+        `import { ${LOCATOR}, sectionEndIndex } from "./frontmatter.js";`,
+        "export function readInert(text: string, heading: string): string[] {",
+        `  const at = ${LOCATOR}(text, heading);`,
+        "  if (at === -1) {",
+        "    const noted = true;",
+        "    void noted;",
+        "  }",
+        "  const end = sectionEndIndex(text, at + 1, 2);",
+        '  return text.split("\\n").slice(at + 1, end);',
+        "}",
+        "",
+      ].join("\n");
       writeFileSync(join(dir, "guarded-plant.ts"), guardedPlant, "utf8");
       writeFileSync(join(dir, "unguarded-plant.ts"), unguardedPlant, "utf8");
+      writeFileSync(join(dir, "guarded-but-inert-plant.ts"), inertPlant, "utf8");
 
       const planted = contractScan(
-        ["guarded-plant.ts", "unguarded-plant.ts"],
+        [
+          "guarded-but-inert-plant.ts",
+          "guarded-plant.ts",
+          "unguarded-plant.ts",
+        ],
         (n) => readFileSync(join(dir, n), "utf8"),
       );
-      // PREMISE: both plants really produced a site, or the two-sided claim below is about nothing.
-      expect(planted).toHaveLength(2);
-      const unguarded = planted.filter((s) => !s.guarded).map((s) => s.module);
-      expect(
-        unguarded,
-        "the unguarded plant must be REPORTED and the guarded plant must NOT — a classifier proven " +
-          "on one side only is a classifier nobody has shown can pass correctly",
-      ).toEqual(["unguarded-plant.ts"]);
-      expect(planted.filter((s) => s.guarded).map((s) => s.module)).toEqual([
+      // PREMISE: all three plants really produced a site, or the verdict triple below is about
+      // fewer modules than it names.
+      expect(planted).toHaveLength(3);
+      expect([...planted].map((s) => s.module).sort()).toEqual([
+        "guarded-but-inert-plant.ts",
         "guarded-plant.ts",
+        "unguarded-plant.ts",
+      ]);
+
+      // eslint-disable-next-line no-console
+      console.log(
+        `[29-36 WR-01 three-plant verdicts] ${planted
+          .map((s) => `${s.module} line ${s.line} bound ${String(s.bound)} guarded ${String(s.guarded)}`)
+          .sort()
+          .join(" | ")}`,
+      );
+
+      // THE FULL VERDICT TRIPLE AS ONE EXPECTATION. The property is WHICH modules land in WHICH
+      // bucket; asserting each bucket alone is how a rule that flips two plants at once passes two
+      // of three assertions.
+      const verdicts = planted
+        .map((s) => `${s.module}=${s.guarded ? "GUARDED" : "UNGUARDED"}`)
+        .sort();
+      expect(
+        verdicts,
+        "a classifier proven on one side only is a classifier nobody has shown can pass correctly — " +
+          "and one proven on two sides is one nobody has shown asks the right question",
+      ).toEqual([
+        "guarded-but-inert-plant.ts=UNGUARDED",
+        "guarded-plant.ts=GUARDED",
+        "unguarded-plant.ts=UNGUARDED",
       ]);
     } finally {
       rmSync(dir, { recursive: true, force: true });

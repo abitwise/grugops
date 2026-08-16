@@ -8359,13 +8359,30 @@ const tripwireCensus = (
 // very bytes, so those two comment words became two occurrences that are not classified lines and
 // broke the SAME-DELTA property this note relies on. Measured, +2/+0, which is exactly why the older
 // note directly below this block exists. The words were removed rather than the delta explained.)
+//
+// (Plan 29-36) RE-MEASURED AT TASK 1'S BOUNDARY, from the live tree, by running the census and
+// reading its answer out — never incremented by hand. This plan's first task narrowed the `-1`
+// contract classifier in frontmatter.test.ts: it MERGED the two per-bucket assertions of the
+// two-plant discrimination case into one sorted verdict TRIPLE (-2), added a premise assertion that
+// all three planted modules really produced a site (+1), and added a case asserting BOTH arms of the
+// new exit test are reached over the live tree (+2). NET +2, and every live counter moved by the
+// SAME +2:
+// occurrences 5492 -> 5494, classified 5419 -> 5421, statement-level multi-line 1123 -> 1125,
+// quote-aware 1117 -> 1119 (the SAME delta, so the two paren counters did not diverge),
+// subject-only 621 -> 623, disagreements 14 -> 14 (UNCHANGED), modules 47 (UNCHANGED).
+//
+// A UNIFORM DELTA IS ITSELF THE EVIDENCE HERE, and it is available because all four added and both
+// removed assertions are written in the same multi-line spelling: the statement-level and
+// subject-only counters therefore see exactly the population the raw count does, and the two removed
+// assertions cancel two of the four added ones on every counter at once. What would be a finding is
+// the two paren counters disagreeing with each other, and they do not.
 const TRIPWIRE_MODULES = 47;
-const TRIPWIRE_EXPECT_OCCURRENCES = 5492;
-const TRIPWIRE_CLASSIFIED_LINES = 5419;
-const TRIPWIRE_MULTILINE_STATEMENTS = 1123;
-const TRIPWIRE_MULTILINE_STATEMENTS_QUOTE_AWARE = 1117;
+const TRIPWIRE_EXPECT_OCCURRENCES = 5494;
+const TRIPWIRE_CLASSIFIED_LINES = 5421;
+const TRIPWIRE_MULTILINE_STATEMENTS = 1125;
+const TRIPWIRE_MULTILINE_STATEMENTS_QUOTE_AWARE = 1119;
 const TRIPWIRE_COUNTER_DISAGREEMENTS = 14;
-const TRIPWIRE_MULTILINE_SUBJECTS = 621;
+const TRIPWIRE_MULTILINE_SUBJECTS = 623;
 /** Round 3's own published figures, reproduced from `0ec8b61` by the premise case. */
 const ROUND_3_TRIPWIRE = {
   modules: 47,
