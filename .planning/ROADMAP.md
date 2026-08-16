@@ -480,7 +480,7 @@ Plans:
   4. The rebuilt voice guard **fails RED on all 17 current caveman blocks** as acceptance evidence before the rewrite lands, measures against a committed lexicon rather than sentence shape, and publishes a number with a denominator. (LANG-06)
   5. `## One job`, the caveman block, and `## Responsibilities` each say a thing once; `guard_imperative_lexicon` (with its sibling `guard_sentence_form`) and the rebuilt voice guard read the fence through **one** parser, never two grammars over the same bytes; and byte ceilings are re-baselined exactly once at end of phase with every file ≤ its previous value and the delta recorded — never raised mid-phase. (LANG-05, LANG-07, LANG-08)
 
-**Plans**: 32/32 plans executed (19/19 initial; gap-closure round 2 added 7, 29-20 .. 29-26, waves 19-25); **gap-closure round 3 adds 6 (29-27 .. 29-32, waves 26-29), all 6 executed — 29-27, 29-28, 29-30, 29-31, 29-32 and 29-29 landed 2026-08-16; the closures for LANG-06, LANG-03/LANG-07 and LANG-04 all await round-4 re-verification and none of those requirements is re-marked complete here. Plan 29-29 ESCALATES a new LANG-07 failure it measured rather than closing it: `generate-catalog.ts:87` and `generate-role-adapters.ts:127` answer the section-extent question through a fence-blind `new RegExp` lookahead (V-29-29-01, derived and pinned two-sided)**. Round 3 closes the four truths that failed re-verification on 2026-08-15 (LANG-03, LANG-04, LANG-06, LANG-07) — one of them a fail-open REGRESSION created by round 2's own structural fix.
+**Plans**: 39 plans (19/19 initial; gap-closure round 2 added 7, 29-20 .. 29-26, waves 19-25; gap-closure round 3 added 6, 29-27 .. 29-32, waves 26-29, all executed); **gap-closure round 4 adds 7 (29-33 .. 29-39, waves 30-36), none executed yet** — planned 2026-08-16 against round-3 verification (`gaps_found` 6/8: LANG-06 and LANG-07) and round-4 code review (1 critical, 8 warning, 4 info). Waves are strictly sequential: plans 29-33, 29-34, 29-35 and 29-39 share `scripts/check-foundation-guards.*` and plans 29-35 and 29-36 share `scripts/frontmatter.test.ts`, and every plan rebuilds the committed `.js` with `tsc`, which cannot run concurrently without tearing a committed output (the phase-27 round-5 precedent). Earlier round-3 note retained: **all 6 round-3 plans executed — 29-27, 29-28, 29-30, 29-31, 29-32 and 29-29 landed 2026-08-16; the closures for LANG-06, LANG-03/LANG-07 and LANG-04 all await round-4 re-verification and none of those requirements is re-marked complete here. Plan 29-29 ESCALATES a new LANG-07 failure it measured rather than closing it: `generate-catalog.ts:87` and `generate-role-adapters.ts:127` answer the section-extent question through a fence-blind `new RegExp` lookahead (V-29-29-01, derived and pinned two-sided)**. Round 3 closes the four truths that failed re-verification on 2026-08-15 (LANG-03, LANG-04, LANG-06, LANG-07) — one of them a fail-open REGRESSION created by round 2's own structural fix.
 
 Plans:
 **Wave 1**
@@ -605,6 +605,36 @@ Plans:
 **Wave 29** *(blocked on Wave 28 completion — deliberately last, because its deliverable is a re-derivation over the FINAL tree)*
 
 - [x] 29-29-PLAN.md — LANG-07's harness: the owner classifier widened to the shape its own floor item 4 wrongly said nothing used, floor item 4 corrected, `SECTION_EXTENT_OWNERS` re-derived over the final tree with a before/after pair; the oracle's vacuous I5 made reachable with per-invariant REACH counts derived independently and a third broken locator proving it can fail; and the duplicate-assertion tripwire's multi-line share published and pinned
+
+**Gap-closure round 4** *(round-3 verification returned `gaps_found` at 6/8 — LANG-06 and LANG-07 failed, LANG-03 and LANG-04 closed; round-4 code review returned 1 critical, 8 warning, 4 info. Scope decided by the user: CR-01, the two failed truths, and all eight warnings are IN; IN-01..IN-04 are deferred and recorded, not dropped; the LANG-08 override stands unchanged)*
+
+**Wave 30** *(blocked on Wave 29 completion)*
+
+- [ ] 29-33-PLAN.md — TRACER, CR-01 + the LANG-06 failed truth: `SEC_VOICE_FILES` pinned by MEMBERSHIP instead of cardinality — a declared sorted roster two-sided against the guard source, a per-member DERIVED property floor (`safetySurfaceUnion` membership, or the ASVS generator's own output-path literal) whose union is asserted equal to the roster, a substitution arm added beside the existing add/remove arms, and the false declaration comment deleted rather than amended
+
+**Wave 31** *(blocked on Wave 30 completion)*
+
+- [ ] 29-34-PLAN.md — WR-04 + WR-05: `readCavemanFence` publishes the line accounting from the indices it already holds, `guard_voice` reconciles the array its marker loop walks against that published count and refuses by name on a mismatch, the element floor's dead disjunct removed and its header corrected, the vacuous remainder assertion replaced by one that can fail, and WR-05's uncovered direction measured, bounded and disclosed rather than answered with 19 hand-maintained minima
+
+**Wave 32** *(blocked on Wave 31 completion)*
+
+- [ ] 29-35-PLAN.md — the LANG-07 failed truth + WR-08: the THIRD section-extent grammar DELETED from both `generate-catalog.ts` and `generate-role-adapters.ts` and routed through `unfencedHeadingIndex` + `sectionEndIndex`, covering fence-blindness AND level-blindness; the catalogue and all 17 adapters proven byte-identical; every affected pin re-derived rather than incremented; permanent cases on both axes in both generators; §9.3 amended to name the axis and the consumer it omitted; and the private frontmatter parser this reading surfaced escalated as V-29-35-01, recorded not fixed
+
+**Wave 33** *(blocked on Wave 32 completion)*
+
+- [ ] 29-36-PLAN.md — WR-01 + WR-03: the `-1` contract classifier requires a guarded branch to LEAVE THE SCOPE, proven by a third plant, with the blind-spot list corrected in both directions; and `REACH.I5` restated from I5's own predicate with `REACH_FLOORS.I5` and `TWO_UNFENCED_CELLS` re-derived — plus the assertion that neither narrowing dropped the evidence its claim stands on
+
+**Wave 34** *(blocked on Wave 33 completion)*
+
+- [ ] 29-37-PLAN.md — WR-02: `readRegistry`'s three-number refusal measured to fire on no input, then replaced by a witness that differs IN KIND (parsed ids against a globally-matched canonical-heading count built from the one canonical-id authority), proven to fire under a recogniser-drift mutation; the comment denying the shape deleted; the four LANG-03 probe edges asserted; and IN-02 and IN-04 recorded in source as deferred
+
+**Wave 35** *(blocked on Wave 34 completion)*
+
+- [ ] 29-38-PLAN.md — WR-06: `WP-04`'s decidable half spelled once in the gate beside the WP-11 constants and emitted in the refusal that already cites it, held by two new pin members over the rule ROW, the four-mutation probe extended to six plus a control that reds none, and the pin renamed for the two rules it now holds
+
+**Wave 36** *(blocked on Wave 35 completion)*
+
+- [ ] 29-39-PLAN.md — WR-07 + the round's disposition record: the census's drifting volume counters measured and converted to relationships while its vacuity equalities stay exact and the snapshot relocates behind the commit-pinned premise case; `docs/audit/29-round4-residuals.md` recording IN-01..IN-04 as deferred by user decision, the carried residual roll-up and the probe arithmetic; and every round-4 reproduction re-run on a mirror of the final tree after the freshness premise is asserted
 
 **GAP-CLOSURE ROUND 2 IS REOPENED, NOT CLOSED** *(human decision, Olger Oeselg, 2026-08-15, at plan
 29-26's blocking checkpoint: `reopen-for-survivors`)*. All 26 plans are executed, and **26/26 executed
