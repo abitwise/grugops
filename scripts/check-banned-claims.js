@@ -433,17 +433,55 @@ export const BANNED_CLAIM_SCAN_COUNT = 82;
  */
 export function locateExemptRegion(lines) {
     const text = lines.join("\n");
+    // ── (Plan 29-32, WR-04 / IN-02) ONE ARRAY UNDER BOTH TRAVERSALS ─────────────────────────────
+    //
+    // THIS LINE IS THE STRUCTURAL HALF OF THE FIX, AND THE GUARDS BELOW IT ARE BELT AND BRACES.
+    //
+    // What used to sit here counted the region's heading over the CALLER'S `lines` while locating it
+    // over `text` — two arrays assembled by two expressions — and consulted `fencedLineFlags(text)`,
+    // an array indexed in TEXT coordinates, at a LINES index. The two agreed only by the accident
+    // that `text === lines.join("\n")` round-trips for arrays whose elements carry no separator. When
+    // a caller assembles its array on a different newline rule (`split("\r\n")` over a document with
+    // one bare LF is enough) the coordinate systems shear, the count reads a fence flag belonging to
+    // an unrelated line, and `unfencedHeadingIndex` answers `-1` for a heading the count just found.
+    //
+    // A GUARD ON A DISAGREEMENT THAT CAN STILL OCCUR IS A SMALLER FIX THAN A DISAGREEMENT THAT
+    // CANNOT. So the route is deleted: BOTH traversals below walk `scanLines`, derived from the same
+    // string the authority is asked about, and the flags array is the one computed from that string.
+    // Count and locate are then provably over the same lines, and `-1` is unreachable by arithmetic
+    // rather than by inspection.
+    const scanLines = text.split("\n");
+    // AND THE CALLER'S ARRAY IS HELD TO THE SAME COORDINATES, because the indices this function
+    // RETURNS are spent against it. `runAll` slices the caller's own `lines` with `headingAt` and
+    // `endBefore`, so an array that disagrees with `text.split("\n")` about where the lines are would
+    // have the region applied one or more lines off its real position — a widening in exactly the
+    // direction this whole block exists to close, and one the two guards below would not see because
+    // both indices are perfectly valid IN TEXT COORDINATES. Refused by name rather than reconciled:
+    // reconciling would pick a winner between two disagreeing assemblies of one document, which is a
+    // second grammar with extra steps.
+    if (scanLines.length !== lines.length) {
+        fail(`the exemption document was handed to \`locateExemptRegion\` as ${lines.length} line(s) while ` +
+            `\`lines.join("\\n")\` splits back into ${scanLines.length} — the caller's array was ` +
+            `assembled on a different newline rule from the one the shared locator uses, so at least ` +
+            `one element carries an embedded line separator. Every index this function returns is spent ` +
+            `against the CALLER'S array, so the two must be the same array; refusing rather than ` +
+            `returning a region measured in one coordinate system and applied in another. Fix the ` +
+            `caller's split; do not reconcile the two here`);
+        return null;
+    }
     // THE COUNT TAKES THE PER-LINE TOGGLE; THE BOUND TAKES THE SHARED LOCATOR. Both are projections of
-    // the SAME authority, and both apply the authority's own `trimEnd()` equality, so the heading this
-    // gate COUNTS and the heading it LOCATES can never come to disagree. `unfencedHeadingIndex`
-    // answers "the FIRST such line" and a count is not a first index; wrapping it in a "find the next
-    // one after i" loop is deliberately NOT done, because a second traversal with its own termination
-    // behaviour is precisely the shape this round is deleting.
+    // the SAME authority over the SAME array, and both apply the authority's own `trimEnd()`
+    // equality, so the heading this gate COUNTS and the heading it LOCATES can never come to
+    // disagree. `unfencedHeadingIndex` answers "the FIRST such line" and a count is not a first
+    // index; wrapping it in a "find the next one after i" loop is deliberately NOT done, because a
+    // second traversal with its own termination behaviour is precisely the shape this round is
+    // deleting.
     const fenced = fencedLineFlags(text);
     let headingCount = 0;
-    for (let i = 0; i < lines.length; i++) {
+    for (let i = 0; i < scanLines.length; i++) {
         // Only an UNFENCED occurrence is the region's own heading. A fenced one is a quotation of it.
-        if (!fenced[i] && lines[i].trimEnd() === BANNED_CLAIM_EXEMPT_REGION.heading)
+        if (!fenced[i] &&
+            scanLines[i].trimEnd() === BANNED_CLAIM_EXEMPT_REGION.heading)
             headingCount += 1;
     }
     if (headingCount !== 1) {
@@ -455,8 +493,39 @@ export function locateExemptRegion(lines) {
         return null;
     }
     const headingAt = unfencedHeadingIndex(text, BANNED_CLAIM_EXEMPT_REGION.heading);
+    // ── THE AUTHORITY'S `-1` CONTRACT, HONOURED AT THE CONSUMER (plan 29-32, WR-04) ─────────────
+    //
+    // `-1` IS A LEGAL ANSWER, NOT AN ERROR CODE AND NOT AN INDEX. `unfencedHeadingIndex` documents it
+    // as "the document carries no such unfenced line", and a consumer that does ARITHMETIC on it
+    // before checking it has quietly reintroduced a SECOND BEHAVIOUR over bytes this tree has exactly
+    // one authority for — which is the LANG-07 argument applied at the consumer rather than at the
+    // parser. Unchecked, `headingAt + 1` is `0`, the region is bounded from the top of the document,
+    // and the scan's `i >= region.headingAt` test is true for EVERY line from zero: a safety
+    // exemption silently widened to the whole file.
+    //
+    // The refusal states the SITUATION rather than the symptom, and it names the DIRECTION, because
+    // the obvious "repair" — defaulting the index to zero — is precisely the failure this guard
+    // exists to prevent, written out as a remedy. scripts/frontmatter.test.ts turns this one site
+    // into a tree-wide class assertion; the sibling posture is `readDispositionRows` in
+    // scripts/check-diff-disposition.ts, copied rather than reinvented.
+    //
+    // After the structural half above, this is UNREACHABLE through the public signature: the count
+    // and the locate walk one array, so a count of exactly one implies an index that exists. It is
+    // kept because unreachability is a property of today's code and a guard is a property of the
+    // contract; scripts/check-banned-claims.test.ts watches it fire on a build with that one
+    // expression reverted, so it is a live assertion rather than a comment.
+    if (headingAt === -1) {
+        fail(`the exempt heading \`${BANNED_CLAIM_EXEMPT_REGION.heading}\` in ` +
+            `\`${BANNED_CLAIM_EXEMPT_REGION.file}\` was COUNTED once and LOCATED zero times — the count ` +
+            `predicate and the shared locator disagree about which lines are the region's heading. ` +
+            `\`-1\` is the authority's legal answer for "no such unfenced line", never an index, so the ` +
+            `gate is refusing rather than exempting from line 0. Do NOT repair this by defaulting the ` +
+            `index to zero: that turns a one-section exemption into a whole-document one, which is the ` +
+            `exact failure this guard exists to prevent`);
+        return null;
+    }
     const endBefore = sectionEndIndex(text, headingAt + 1, 2);
-    const body = lines.slice(headingAt + 1, endBefore);
+    const body = scanLines.slice(headingAt + 1, endBefore);
     if (body.every((l) => l.trim() === "")) {
         fail(`the exemption region \`${BANNED_CLAIM_EXEMPT_REGION.file}\` § ` +
             `\`${BANNED_CLAIM_EXEMPT_REGION.heading}\` is EMPTY — the heading is present and carries no ` +

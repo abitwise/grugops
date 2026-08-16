@@ -45,12 +45,18 @@ import {
   writeFileSync,
   rmSync,
   readFileSync,
+  readdirSync,
+  copyFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 // The ONE fence toggle. The WR-06 premise case below asks the live exemption document the same
 // question the gate now asks it, through the same authority — never a second recogniser typed here.
-import { fencedLineFlags } from "./frontmatter.js";
+import {
+  fencedLineFlags,
+  unfencedHeadingIndex,
+  sectionEndIndex,
+} from "./frontmatter.js";
 import {
   BANNED_CLAIM_LITERALS,
   BANNED_CLAIM_SCAN_COUNT,
@@ -985,6 +991,220 @@ describe("check-banned-claims — the exemption's outer bound and its published 
       levelOne.filter((r) => r.line - 1 > headingAt),
       "a level-one heading BELOW the region heading is the only position from which the widening could shorten the region",
     ).toEqual([]);
+  });
+});
+
+// ── WR-04 / IN-02 (plan 29-32): the two traversals are ONE, and the `-1` is refused by name ───
+//
+// WHAT THE DEFECT WAS. `locateExemptRegion` received a `lines` array, joined it into `text`, then
+// COUNTED the region's heading over the caller's `lines` while LOCATING it over `text`. Two arrays
+// assembled from two expressions, with `fencedLineFlags(text)` — an array indexed in TEXT
+// coordinates — consulted at a LINES index. When the caller's array is assembled on a different
+// newline rule from the authority's, the two coordinate systems shear apart: the count reads a
+// fence flag belonging to some other line, `unfencedHeadingIndex` answers `-1`, and NOTHING checked
+// it. `sectionEndIndex(text, -1 + 1, 2)` then bounds the region from line zero and the scan's
+// exemption test — `i >= region.headingAt` — is TRUE FOR EVERY LINE FROM ZERO. A safety exemption
+// widened to the whole document, reached through a legal answer nobody read.
+//
+// THE FIX IS IN TWO PARTS AND THE ORDER MATTERS. The DRIFT ROUTE IS DELETED first: both traversals
+// walk `scanLines`, derived from `text`, and a caller whose array disagrees with the authority's
+// about where the lines are is refused BY NAME rather than silently measured in the wrong
+// coordinates. The `-1` guard below it is belt and braces, not the remedy — a guard on a
+// disagreement that can still occur is a strictly smaller fix than a disagreement that cannot.
+//
+// WHICH IS WHY THE `-1` GUARD IS PROVEN THROUGH A SCRATCH BUILD. After the structural half, no
+// input reaching this function through its public signature can produce a `-1`; a case that could
+// reach it would be evidence the structural half had not landed. So the guard is exercised by
+// reverting ONE expression in a copied build — the same falsifiability idiom plan 29-27 used, and
+// for its recorded reason: keying a permanent case to a git hash rots the first time the file moves.
+
+/** The fence delimiter, spelled by code, so this file never carries a literal delimiter run. */
+const TICKS = String.fromCharCode(96, 96, 96);
+
+/**
+ * A caller array assembled on a DIFFERENT newline rule from the authority's — one element carrying
+ * embedded separators, which is what `split("\r\n")` over a mixed-ending document produces.
+ *
+ * The shear it creates is exact and is asserted rather than described below: `lines` has five
+ * elements, `lines.join("\n").split("\n")` has seven, and the region heading sits at LINES index 2
+ * (where the fence flag belongs to some unrelated line and reads false) and at TEXT index 4 (where
+ * the flag really is true, because the heading is inside a fenced example). Count one, locate none.
+ */
+const DRIFT_LINES: readonly string[] = [
+  ["intro", "body", "more"].join("\n"),
+  TICKS,
+  BANNED_CLAIM_EXEMPT_REGION.heading,
+  TICKS,
+  "tail",
+];
+
+/** The one expression the scratch build reverts, restoring the pre-fix two-array shape exactly. */
+const ONE_ARRAY_EXPRESSION = 'const scanLines = text.split("\\n");';
+const TWO_ARRAY_EXPRESSION = "const scanLines = lines;";
+
+/**
+ * A copy of the committed build with the structural half of the fix reverted and the `-1` guard
+ * left in place, so the guard can be watched firing on a build where the disagreement is reachable.
+ *
+ * Returns the directory. The patch is asserted to have CHANGED the source: a replace that matched
+ * nothing would produce a build identical to the shipped one, and the probe would then prove
+ * exactly nothing while reporting a clean pass.
+ */
+function scratchBuildWithTwoTraversals(): string {
+  const dir = freshTmp("gops-banned-two-traversals-");
+  const src = join(ROOT, "scripts");
+  for (const n of readdirSync(src)) {
+    if (n.endsWith(".js")) copyFileSync(join(src, n), join(dir, n));
+  }
+  const target = join(dir, "check-banned-claims.js");
+  const before = readFileSync(target, "utf8");
+  if (!before.includes(ONE_ARRAY_EXPRESSION)) {
+    throw new Error(
+      "check-banned-claims.test.ts: the committed build does not carry " +
+        `\`${ONE_ARRAY_EXPRESSION}\`, so the scratch revert below would patch nothing and the ` +
+        "probe would report a clean pass over an UNMODIFIED build — the harness measuring itself",
+    );
+  }
+  const after = before.replace(ONE_ARRAY_EXPRESSION, TWO_ARRAY_EXPRESSION);
+  if (after === before) {
+    throw new Error(
+      "check-banned-claims.test.ts: the scratch revert changed nothing",
+    );
+  }
+  writeFileSync(target, after, "utf8");
+  return dir;
+}
+
+/** Call `locateExemptRegion(DRIFT_LINES)` inside a build under `dir`, capturing its stdout. */
+function locateUnderBuild(dir: string): { out: string; region: string } {
+  const probe = join(dir, "probe.mjs");
+  writeFileSync(
+    probe,
+    [
+      'import { locateExemptRegion } from "./check-banned-claims.js";',
+      `const lines = ${JSON.stringify(DRIFT_LINES)};`,
+      "const r = locateExemptRegion(lines);",
+      'process.stdout.write("REGION " + JSON.stringify(r) + "\\n");',
+    ].join("\n"),
+    "utf8",
+  );
+  const r = spawnSync("node", [probe], { encoding: "utf8" });
+  const out = (r.stdout ?? "") + (r.stderr ?? "");
+  const m = /REGION (.*)/.exec(out);
+  if (m === null) {
+    throw new Error(
+      `check-banned-claims.test.ts: the probe printed no REGION line — it did not run. Output:\n${out}`,
+    );
+  }
+  return { out, region: m[1] };
+}
+
+describe("check-banned-claims — one array under both traversals, and a refused `-1` (WR-04)", () => {
+  it("FIXTURE PREMISE: the drift array really does shear the two coordinate systems apart", () => {
+    // Every claim below rests on this shape, and a fixture whose shear never formed would make the
+    // refusal cases pass for an unrelated reason. Measured through the ONE authority, never retyped.
+    const text = DRIFT_LINES.join("\n");
+    const textLines = text.split("\n");
+    expect(DRIFT_LINES).toHaveLength(5);
+    expect(textLines).toHaveLength(7);
+    // The heading is an EXACT element of the caller's array — so the pre-fix COUNT sees it…
+    expect(DRIFT_LINES[2]).toBe(BANNED_CLAIM_EXEMPT_REGION.heading);
+    const flags = fencedLineFlags(text);
+    expect(
+      flags[2],
+      "the fence flag at the LINES index must be false, or the pre-fix count would not have reached one",
+    ).toBe(false);
+    // …and at its TEXT index it is inside a fenced example, so the LOCATE cannot see it at all.
+    expect(textLines[4]).toBe(BANNED_CLAIM_EXEMPT_REGION.heading);
+    expect(flags[4]).toBe(true);
+    expect(
+      unfencedHeadingIndex(text, BANNED_CLAIM_EXEMPT_REGION.heading),
+      "the authority must answer -1 on this text, or there is no disagreement to refuse",
+    ).toBe(-1);
+  });
+
+  it("the drift is REFUSED BY NAME — never a region whose exemption test is true from line zero", () => {
+    const region = locateExemptRegion(DRIFT_LINES);
+    expect(
+      region,
+      "a caller array that disagrees with the authority about line boundaries produced a REGION — " +
+        "at HEAD that region was {headingAt: -1}, which exempts every line of the document from zero",
+    ).toBeNull();
+  });
+
+  it("the returned `headingAt` is NEVER negative — asserted directly, not inferred from a null", () => {
+    // The property the whole block exists for, stated as itself. Inferring it from "the drift case
+    // returned null" would leave the live document unasserted, and the live document is the one the
+    // exemption is actually spent on.
+    for (const [name, lines] of [
+      ["the live exemption document", readFileSync(join(ROOT, PROFILE), "utf8").split("\n")],
+      ["the default mirror", profileDoc().split("\n")],
+      ["the drift array", DRIFT_LINES as string[]],
+    ] as Array<[string, string[]]>) {
+      const region = locateExemptRegion(lines);
+      if (region === null) continue;
+      expect(region.headingAt, name).toBeGreaterThanOrEqual(0);
+      expect(region.endBefore, name).toBeGreaterThan(region.headingAt);
+    }
+  });
+
+  it("ZERO DELTA on correct bytes: the live region equals what the authority answers, independently derived", () => {
+    // The fix closes a ROUTE. It must move nothing on bytes that were never drifted, and "nothing
+    // moved" is asserted against a derivation this file performs itself rather than against a number
+    // copied out of a plan.
+    const text = readFileSync(join(ROOT, PROFILE), "utf8");
+    const lines = text.split("\n");
+    const headingAt = unfencedHeadingIndex(
+      text,
+      BANNED_CLAIM_EXEMPT_REGION.heading,
+    );
+    const endBefore = sectionEndIndex(text, headingAt + 1, 2);
+    expect(headingAt).toBeGreaterThan(-1);
+    const region = locateExemptRegion(lines);
+    expect(region).not.toBeNull();
+    expect(region!.headingAt).toBe(headingAt);
+    expect(region!.endBefore).toBe(endBefore);
+  });
+
+  it("THE `-1` GUARD IS SEEN FIRING: a build with the two traversals restored refuses, naming BOTH halves", () => {
+    const dir = scratchBuildWithTwoTraversals();
+    const { out, region } = locateUnderBuild(dir);
+    // The reverted build reaches the disagreement…
+    expect(region).toBe("null");
+    // …and refuses it by NAME, stating the direction — counted once, located zero times. Naming the
+    // direction is what stops the next reader "fixing" this by defaulting the index to zero, which
+    // is the failure the guard exists to prevent written out as a remedy.
+    expect(out).toContain("COUNTED once and LOCATED zero times");
+    expect(out).toContain("refusing rather than exempting from line 0");
+    // It must NOT have been refused by the assembly check — that would mean the revert failed to
+    // restore the shape and the guard was never reached.
+    expect(out).not.toContain("assembled on a different newline rule");
+  });
+
+  it("CONTROL: the SHIPPED build refuses the same bytes at the ASSEMBLY check, before any index exists", () => {
+    // The other side of the probe. Without it, "the reverted build refuses" is satisfied by a gate
+    // that refuses everything. The shipped build refuses too — but for the structural reason, which
+    // is the whole point of deleting the route rather than guarding it.
+    const dir = freshTmp("gops-banned-shipped-copy-");
+    const src = join(ROOT, "scripts");
+    for (const n of readdirSync(src)) {
+      if (n.endsWith(".js")) copyFileSync(join(src, n), join(dir, n));
+    }
+    const { out, region } = locateUnderBuild(dir);
+    expect(region).toBe("null");
+    expect(out).toContain("assembled on a different newline rule");
+    expect(out).not.toContain("COUNTED once and LOCATED zero times");
+  });
+
+  it("the existing two-sided heading-count refusal still fires in BOTH directions, wording unchanged", () => {
+    // A new refusal above an old one is a chance to disarm the old one silently. Both directions are
+    // re-run here against the same function, not only through the gate, so a refusal that stopped
+    // being reachable would be visible as a null that never came.
+    expect(locateExemptRegion(profileDoc({ headings: 0 }).split("\n"))).toBeNull();
+    expect(locateExemptRegion(profileDoc({ headings: 2 }).split("\n"))).toBeNull();
+    // …and the well-formed document still LOCATES, so the two-sided refusal has not become
+    // always-on.
+    expect(locateExemptRegion(profileDoc().split("\n"))).not.toBeNull();
   });
 });
 
