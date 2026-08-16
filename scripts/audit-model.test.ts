@@ -2228,3 +2228,83 @@ describe("audit-model: probe edges around the registry parse (plan 29-37)", () =
     }
   });
 });
+
+// ---------------------------------------------------------------------------------------------
+// (Plan 29-37) THE CHAIN, ASSERTED AT ITS POINT OF EFFECT.
+//
+// `readRegistry`'s claims feed `safetySurfaceUnion`, which feeds the D-18 exclusion list that
+// decides which files a controlled-language pass may never touch. That is why a silently short claim
+// list is a silently SMALLER exclusion list, and why the witness is load-bearing rather than
+// cosmetic. A parser-only assertion would leave the thing LANG-02 actually consults untested — the
+// standing lesson this file already applies to plan 29-28's phantom.
+// ---------------------------------------------------------------------------------------------
+describe("audit-model: the witness stands between a hidden claim and the exclusion list (plan 29-37)", () => {
+  function unionMirror37(registryBody: string): string {
+    const dir = freshTmp("grugops-audit-union37-");
+    mkdirSync(join(dir, "docs", "audit"), { recursive: true });
+    writeFileSync(
+      join(dir, REGISTER_PATH),
+      [
+        "# Register",
+        "",
+        "## Table A — audited files",
+        "",
+        TABLE_A_HEADER,
+        TABLE_A_SEP,
+        rowA("agent-factory/roles/r01.md", "role", "yes", "no", "0", "Read in full; no finding."),
+        "",
+        "## Table B — findings",
+        "",
+        TABLE_B_HEADER,
+        TABLE_B_SEP,
+        "",
+      ].join("\n"),
+      "utf8",
+    );
+    writeFileSync(join(dir, REGISTRY_PATH), registryBody, "utf8");
+    return dir;
+  }
+
+  const withSafetyClaim = registryDoc(
+    claimBlock("C-28-001"),
+    claimBlock("C-28-002", { file: "GUARDED.md", line: "1", kind: "safety" }),
+  );
+
+  it("CONTROL: the unplanted registry produces the exclusion entry it should", () => {
+    const files = safetySurfaceUnion(unionMirror37(withSafetyClaim)).map((e) => e.file);
+    expect(files).toContain("GUARDED.md");
+  });
+
+  it("a claim hidden behind an invisible line terminator REFUSES the union rather than shortening it", () => {
+    // The same document with one canonical claim heading planted after a bare CR — a heading the
+    // raw bytes carry and `split("\n")` cannot see. Before the witness the parse would have returned
+    // a list one claim short and the union would have published a smaller exclusion list, silently.
+    const planted = `${withSafetyClaim}\nprelude\r### C-28-007\n`;
+    let msg = "";
+    try {
+      safetySurfaceUnion(unionMirror37(planted));
+    } catch (e) {
+      msg = (e as Error).message;
+    }
+    expect(msg, "the union must refuse rather than publish a short list").toMatch(
+      /raw canonical-heading count disagree/,
+    );
+    expect(msg).toContain("2 claim(s)");
+    expect(msg).toContain("3 canonical");
+  });
+
+  it("the LIVE exclusion list is derived from the live claim list, and both are non-empty", () => {
+    // NON-VACUITY over the real tree: the chain this plan protects has to carry traffic, or the two
+    // cases above would be protecting a route nothing travels. Every count is DERIVED here — no
+    // size literal, which is this repository's recorded set-literal-drift failure class.
+    const claims = readRegistry(REPO_ROOT).claims;
+    const safetyFiles = claims.filter((c) => c.kind === "safety").map((c) => c.file);
+    expect(claims.length, "the live registry must carry claims").toBeGreaterThan(0);
+    expect(safetyFiles.length, "the live registry must carry safety claims").toBeGreaterThan(0);
+    const union = safetySurfaceUnion(REPO_ROOT).map((e) => e.file);
+    expect(union.length, "the live exclusion list must be non-empty").toBeGreaterThan(0);
+    for (const f of new Set(safetyFiles)) {
+      expect(union, `every safety claim's file reaches the exclusion list: ${f}`).toContain(f);
+    }
+  });
+});

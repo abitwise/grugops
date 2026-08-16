@@ -2390,19 +2390,28 @@ describe("LANG-07: exactly ONE module owns the section-extent predicate (plan 29
 
     // THE LIVE TREE CARRIES EXACTLY ONE declaration-line that applies a recogniser, and it bounds no
     // scan. Derived rather than asserted, so the [B1] closure's live blast radius is a measurement.
+    //
+    // (Plan 29-37) THE SITE IS RECORDED BY ITS CODE, NOT BY ITS LINE NUMBER. This pin read
+    // `scripts/audit-model.ts:1081` until plan 29-37 inserted a comment block above it and the same
+    // unchanged line became 1239. A positional literal that moves when nothing about the property
+    // moved is this repository's recorded set-literal-drift class arriving in a guard, and the
+    // repair is to address the site by what it IS. The count is still exactly one and the identity
+    // is still exact — a SECOND applying declaration, or a DIFFERENT one, still reds here.
     const appliedSites: string[] = [];
     for (const rel of nonTestModules()) {
       const code = codeLinesOfSource(readFileSync(join(ROOT, rel), "utf8"));
       const names = recogniserNamesIn(code, HEADING_RECOGNISER_CONSTRUCTS);
-      code.forEach((line, i) => {
+      code.forEach((line) => {
         if (!RECOGNISER_BINDING.test(line.trim())) return;
-        if (declarationAppliesRecogniser(line, names)) appliedSites.push(`${rel}:${i + 1}`);
+        if (declarationAppliesRecogniser(line, names)) {
+          appliedSites.push(`${rel} :: ${line.trim()}`);
+        }
       });
     }
     expect(
       appliedSites,
       "the [B1] closure's live blast radius — declaration-lines that APPLY a recogniser",
-    ).toEqual(["scripts/audit-model.ts:1081"]);
+    ).toEqual(["scripts/audit-model.ts :: const headingMatch = CLAIM_HEADING_RE.exec(lines[start]);"]);
     expect(
       sectionExtentOwners(),
       "…and closing [B1] must not have made a new module an owner; if it did, that is a LANG-07 escalation and not a constant to edit",
@@ -8392,13 +8401,38 @@ const tripwireCensus = (
 // Of those nine, one names a short subject inline and opens its paren on the matcher, so the
 // subject-only counter moves by eight. The two paren counters agree at both boundaries, which is
 // the property that would be a finding if it broke.
+// (Plan 29-37) RE-MEASURED AT THIS PLAN'S BOUNDARY, from the live tree, by running the census and
+// reading its answer out. This plan added the WR-02 witness cases and the probe edges to
+// scripts/audit-model.test.ts and touched no other test module:
+// occurrences 5510 -> 5589 (+79), classified 5437 -> 5516 (+79 — the SAME delta, so every added
+// assertion opens its own classified line and none of them landed inside a string), statement-level
+// multi-line 1134 -> 1146 (+12), quote-aware 1128 -> 1139 (+11), subject-only 631 -> 636 (+5),
+// modules 47 (UNCHANGED — no test file was added).
+//
+// THIS NOTE DELIBERATELY DOES NOT SPELL THE COUNTED TOKEN. The occurrence counter matches it
+// ANYWHERE in a test source, comments included, so a note that quotes the line it is explaining
+// moves the number it is explaining. Measured while writing this paragraph: an earlier draft naming
+// the line verbatim pushed occurrences to 5591 while classified stayed at 5516, breaking the
+// same-delta property for no reason but its own prose. The line is therefore named by its subject.
+//
+// THE TWO PAREN COUNTERS DIVERGE BY ONE AT THIS BOUNDARY, +12 against +11, and that is reported
+// rather than smoothed. The note above says a divergence is what would be a finding; this one is
+// accounted for down to the single line that causes it, so it is an instance of the error class the
+// disagreement counter EXISTS to publish rather than an unexplained movement. The line is the one
+// in scripts/audit-model.test.ts that counts `fencedLineFlags(` call sites inside `readRegistry`'s
+// compiled body: its subject splits on a string containing an unbalanced `(`, so the naive counter
+// reads the statement as continuing past the line and the quote-aware counter does not.
+// `counterDisagreements` therefore moves 14 -> 15, which is the arithmetic of +12/+11 and not a
+// second effect. The line was NOT reworded to make the numbers tidy: rewording would delete a true
+// instance of the measurement's own error from the measurement of that error, and this file's whole
+// posture is the opposite.
 const TRIPWIRE_MODULES = 47;
-const TRIPWIRE_EXPECT_OCCURRENCES = 5510;
-const TRIPWIRE_CLASSIFIED_LINES = 5437;
-const TRIPWIRE_MULTILINE_STATEMENTS = 1134;
-const TRIPWIRE_MULTILINE_STATEMENTS_QUOTE_AWARE = 1128;
-const TRIPWIRE_COUNTER_DISAGREEMENTS = 14;
-const TRIPWIRE_MULTILINE_SUBJECTS = 631;
+const TRIPWIRE_EXPECT_OCCURRENCES = 5589;
+const TRIPWIRE_CLASSIFIED_LINES = 5516;
+const TRIPWIRE_MULTILINE_STATEMENTS = 1146;
+const TRIPWIRE_MULTILINE_STATEMENTS_QUOTE_AWARE = 1139;
+const TRIPWIRE_COUNTER_DISAGREEMENTS = 15;
+const TRIPWIRE_MULTILINE_SUBJECTS = 636;
 /** Round 3's own published figures, reproduced from `0ec8b61` by the premise case. */
 const ROUND_3_TRIPWIRE = {
   modules: 47,
