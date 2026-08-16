@@ -33,6 +33,7 @@
 
 import { readFileSync, writeFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
+import { unfencedHeadingIndex, sectionEndIndex } from "./frontmatter.js";
 
 // ── Fixed literal paths (read/write-only by construction — never argv/env/content-derived) ───
 const ROOT = join(import.meta.dirname, "..");
@@ -78,15 +79,43 @@ function cell(s: string): string {
   return s.replace(/\\/g, "\\\\").replace(/\|/g, "\\|").replace(/\r?\n/g, " ");
 }
 
-// ── Extract the body of a `## <heading>` section (up to the next `## ` or end of file) ─────────
-// The lookahead's second branch is `$(?![\s\S])` — true end-of-input, NOT end-of-line. Under the
-// `/m` flag a bare `$` matches the end of EVERY line, which would let the non-greedy capture stop
-// at the first newline (truncating a last-in-file section to its first line, and — combined with a
-// blank line after the heading — returning an empty body that falsely trips the fail-closed guard).
+// ── The body of a `## <heading>` section — ASKED, never answered here ──────────────────────────
+// THIS MODULE DOES NOT OWN THE SECTION-EXTENT QUESTION. "Which line is this section's heading, and
+// which line ends it" is asked once and answered once, in scripts/frontmatter.ts, for every module
+// in this tree. This file asks it; it does not answer it.
+//
+// WHAT WAS DELETED HERE AND WHY (plan 29-35, LANG-07 / 29-REVIEW § WR-08). This function used to
+// build a private `new RegExp` lookahead over the whole document — a THIRD grammar over bytes this
+// tree has ONE parser for, duplicated byte-for-byte into scripts/generate-role-adapters.ts. It
+// disagreed with the authority on two axes at once. It was FENCE-BLIND: a `## ` line quoted inside a
+// fenced example terminated the capture early. And it was LEVEL-BLIND: its terminator named level
+// TWO only, so a level-ONE heading did not close the section and the capture ran on into the next
+// top-level section. That second half is byte-for-byte the defect scripts/voice-model.ts shipped at
+// exit 0 for a whole milestone, and correcting it cost this phase two plans. Per D-24 a duplicate is
+// DELETED rather than taught the two rules it was missing: a widened third copy is still a third
+// copy, and one authority per predicate is the rule this phase was founded on.
+//
+// (The retired comment explaining that grammar's `$(?![\s\S])` branch went with the pattern it
+// explained. A comment that outlives its construct is the defect one module over.)
+//
+// THE `-1` ANSWER IS LEGAL, AND IT IS NOT AN INDEX. It means "this document carries no such unfenced
+// line", and it is handed back to the two call sites below as `null` — the value they already read
+// as "section absent", so no caller changed. It is never defaulted to zero, never clamped with
+// `Math.max`, and never swapped for another sentinel: `-1 + 1` is `0`, i.e. "from the top of the
+// document", which is the widest possible answer to a question about a bounded section.
+//
+// FIVE IDENTICAL LINES ALSO LIVE IN scripts/generate-role-adapters.ts, AND THAT IS DELIBERATE — the
+// reason is written here so a later reader does not merge them or duplicate them again. A shared
+// wrapper would need a NEW module: both generators are top-level script code that writes files the
+// moment it is imported, so neither may import the other, and adding a third exported name to
+// frontmatter.ts would give one question a second name inside its own authority. Composing two
+// exported authority functions at the point of use is not a duplicated grammar — it is two callers
+// asking the same parser. Keep the two bodies in step; do not promote them to a fourth name.
 function sectionBody(text: string, heading: string): string | null {
-  const re = new RegExp(`^## ${heading}\\n([\\s\\S]*?)(?=\\n## |$(?![\\s\\S]))`, "m");
-  const m = text.match(re);
-  return m ? m[1] : null;
+  const at = unfencedHeadingIndex(text, `## ${heading}`);
+  if (at === -1) return null;
+  const end = sectionEndIndex(text, at + 1, 2);
+  return text.split("\n").slice(at + 1, end).join("\n");
 }
 
 // ── A catalogued kit entry ────────────────────────────────────────────────────────────────────

@@ -43,6 +43,32 @@ afterAll(() => {
   for (const d of tmpDirs) rmSync(d, { recursive: true, force: true });
 });
 
+// ── The generator's in-repo import closure, DERIVED rather than hand-listed ────────────────────
+// (Plan 29-35) The hermetic mirror below must carry every `./x.js` the committed generator imports,
+// transitively. Until this plan the generator imported nothing and the mirror was a single cpSync;
+// deleting its private section-extent grammar (LANG-07 / WR-08) put `frontmatter.js` in the closure.
+// The set is READ OUT OF THE COMMITTED SOURCES rather than hand-listed — the same derivation
+// scripts/generate-role-adapters.test.ts already uses — so a second import needs no edit here.
+//
+// WHY DERIVED HERE AND HAND-LISTED IN scripts/catalog-freshness.ts: that module is a build-safety
+// GATE, and a gate that carries its own "what does this module import" grammar is a second grammar
+// in the place it can do the most harm (the recorded trade in scripts/adapters-freshness.ts). This
+// is a test harness, where a set literal is the drift class this repository has already corrected
+// four times. Different failure surfaces, different answers, both written down.
+//
+// THE WALK IS FLOORED: an empty closure would mirror nothing and every case below would silently be
+// running a generator that cannot start.
+function importClosure(entry: string, seen = new Set<string>()): Set<string> {
+  const src = readFileSync(join(ROOT, "scripts", entry), "utf8");
+  for (const m of src.matchAll(/from\s+"\.\/([A-Za-z0-9._-]+\.js)"/g)) {
+    if (seen.has(m[1])) continue;
+    seen.add(m[1]);
+    importClosure(m[1], seen);
+  }
+  return seen;
+}
+const GEN_MODULES = [...importClosure("generate-catalog.js")].sort();
+
 // (27-60 / WR-04) A local `out(r)` helper lived here, read by nothing — the first thing the
 // test-inclusive typecheck target ever saw. Every call site in this file inlines
 // `${r.stdout}${r.stderr}` directly, so the helper was dead rather than merely unused-for-now.
@@ -170,6 +196,16 @@ describe("generate-catalog.js (DOCS-01)", () => {
     mkdirSync(join(m, "scripts"), { recursive: true });
     mkdirSync(join(m, "docs", "catalog"), { recursive: true });
     cpSync(GEN_JS, join(m, "scripts", "generate-catalog.js"));
+    // NOT VACUOUS: the generator imports the section-locator authority, so an empty closure means
+    // the derivation read the wrong file and this case would exit 1 on a module-resolution error
+    // while the sentinel survived — passing for a reason that has nothing to do with the H1 check.
+    expect(
+      GEN_MODULES,
+      "the generator's import closure came back empty — the mirror would be one module short and this case would go green on ERR_MODULE_NOT_FOUND",
+    ).toContain("frontmatter.js");
+    for (const mod of GEN_MODULES) {
+      cpSync(join(ROOT, "scripts", mod), join(m, "scripts", mod));
+    }
     cpSync(join(ROOT, "agent-factory", "roles"), join(m, "agent-factory", "roles"), {
       recursive: true,
     });
@@ -193,6 +229,12 @@ describe("generate-catalog.js (DOCS-01)", () => {
       encoding: "utf8",
     });
     expect(r.status).toBe(1);
+    // THE EXIT CODE IS ATTRIBUTED, NOT MERELY OBSERVED (plan 29-35). `1` is also what Node returns
+    // for an unresolved import, and this case would otherwise report a fail-closed refusal it never
+    // reached. The refusal must NAME the tampered role file, and the run must not have died on
+    // module resolution.
+    expect(`${r.stdout}${r.stderr}`).toContain("orchestrator.md: no `# Role:` H1");
+    expect(`${r.stdout}${r.stderr}`).not.toContain("ERR_MODULE_NOT_FOUND");
     // No partial write: the sentinel survives unchanged.
     expect(existsSync(outPath)).toBe(true);
     expect(readFileSync(outPath, "utf8")).toBe(sentinel);

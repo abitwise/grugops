@@ -4816,13 +4816,86 @@ describe("frontmatter — the spawn-grant parser oracle (SPAWN-04 / KIT-03)", ()
     // Cardinality pinned as a NUMBER, so a scan that silently stops matching shrinks loudly rather
     // than passing over an empty set.
     expect(sites).toHaveLength(2);
-    // Neither is a second opinion on THIS module's predicate: neither imports it, and this module
-    // imports nothing relative at all, so the two grammars cannot be consulted for one question.
+    // Neither is a second opinion on THIS module's predicate: neither imports THE FRONTMATTER
+    // PREDICATE from it, and this module imports nothing relative at all, so the two grammars cannot
+    // be consulted for one question.
+    //
+    // (PLAN 29-35, LANG-07 — 29-REVIEW § WR-08) THE TEST IS ON THE SYMBOL, NOT ON THE MODULE, AND
+    // THAT NARROWING IS A CORRECTION RATHER THAN A CONVENIENCE. `frontmatter.ts` answers TWO
+    // questions: "what does this file's frontmatter SAY" (the predicate this case is about) and
+    // "which line is this section's heading and which line ends it" (the section locator, D-24). A
+    // module holding a private frontmatter grammar while consuming the SECTION LOCATOR is not two
+    // opinions on one question — it is one opinion each on two questions. Plan 29-35 deleted
+    // `generate-catalog.ts`'s private section-extent grammar and routed it onto the locator, which
+    // made the module-level test refuse the very unification LANG-07 requires.
+    //
+    // THE NARROWING IS BOUNDED, NOT BLANKET. The frontmatter-predicate symbols are named below and
+    // still refused outright; and the STRONGER original property — imports nothing from the
+    // authority AT ALL — is asserted to still hold for `context-io.ts`, so this is not a weakening
+    // applied to every member to clear one failure. What `generate-catalog.ts` may take is pinned
+    // two-sided: the two locator functions, and nothing else.
+    //
+    // AND THE ADJACENCY IT EXPOSES IS ESCALATED, NOT ABSORBED: `generate-catalog.ts` still declares a
+    // private `parseFrontmatter` while the authority exports one. That is V-29-35-01, recorded by
+    // name with its measurement in docs/audit/29-locator-unification.md §9.3 and deliberately OUT OF
+    // SCOPE for this round by user decision. It is a residual on the record, not a silent drop.
+    // THE REFUSED SET IS AN ALLOW-LIST, NOT A DENY-LIST OF NAMED FRONTMATTER SYMBOLS. A deny-list of
+    // "parseFrontmatter, grantedAgentNames, …" is a hand-maintained set literal over an authority
+    // that exports thirty-odd names, and a set literal rotting while every assertion stays green is
+    // this repository's second named systemic failure class. So the question is inverted: a module
+    // holding a local frontmatter grammar may import ONLY from the SECTION-LOCATOR family, and every
+    // other symbol — including one added to the authority tomorrow — is refused with no edit here.
+    const SECTION_LOCATOR_FAMILY = [
+      "sectionEndIndex",
+      "unfencedHeadingIndex",
+      "unfencedMatchIndices",
+    ];
+    const importedFromAuthority = (src: string): string[] =>
+      [
+        ...src.matchAll(
+          /import\s*\{([^}]*)\}\s*from\s+["']\.\/frontmatter\.js["']/g,
+        ),
+      ]
+        .flatMap((m) => m[1].split(","))
+        .map((s) => s.trim())
+        .filter((s) => s !== "")
+        .sort();
     for (const site of sites) {
-      expect(readFileSync(join(REPO_ROOT, site), "utf8"), site).not.toMatch(
-        /from\s+["']\.\/frontmatter\.js["']/,
-      );
+      const taken = importedFromAuthority(readFileSync(join(REPO_ROOT, site), "utf8"));
+      expect(
+        taken.filter((s) => !SECTION_LOCATOR_FAMILY.includes(s)),
+        `${site} declares a local frontmatter grammar AND takes a non-locator symbol from the authority — that IS two opinions on one question`,
+      ).toEqual([]);
     }
+    // The stronger property, still held by the member that can hold it — so the narrowing above is
+    // bounded to the one module that needed it and is not a blanket relaxation.
+    expect(
+      readFileSync(join(REPO_ROOT, "scripts/context-io.ts"), "utf8"),
+      "context-io.ts must still import NOTHING from the authority",
+    ).not.toMatch(/from\s+["']\.\/frontmatter\.js["']/);
+    // …and what the other member DOES take is pinned two-sided, so it cannot quietly grow inside the
+    // allow-list either.
+    expect(
+      importedFromAuthority(
+        readFileSync(join(REPO_ROOT, "scripts/generate-catalog.ts"), "utf8"),
+      ),
+      "generate-catalog.ts may take the SECTION LOCATOR and nothing else from the authority",
+    ).toEqual(["sectionEndIndex", "unfencedHeadingIndex"]);
+    // THE ALLOW-LIST IS PROVEN TO DISCRIMINATE, on planted import lines rather than on belief: a
+    // locator import passes and a frontmatter-predicate import is refused THROUGH THE SAME RULE. An
+    // allow-list that admits everything is a deny-list of nothing.
+    expect(
+      importedFromAuthority(
+        'import { parseFrontmatter } from "./frontmatter.js";\n',
+      ).filter((s) => !SECTION_LOCATOR_FAMILY.includes(s)),
+      "a planted frontmatter-predicate import must be refused by the same rule the live sites go through",
+    ).toEqual(["parseFrontmatter"]);
+    expect(
+      importedFromAuthority(
+        'import { sectionEndIndex, unfencedHeadingIndex } from "./frontmatter.js";\n',
+      ).filter((s) => !SECTION_LOCATOR_FAMILY.includes(s)),
+      "…and a locator-only import must be admitted by it",
+    ).toEqual([]);
     expect(
       readFileSync(join(REPO_ROOT, "scripts/frontmatter.ts"), "utf8"),
     ).not.toMatch(/^import .* from "\.\//m);
@@ -5095,23 +5168,48 @@ describe("frontmatter — the spawn-grant parser oracle (SPAWN-04 / KIT-03)", ()
         .map((m) => `${m[1]}.ts`)
         .filter((f) => tsFiles.includes(f));
     const closure = new Set<string>();
+    // (PLAN 29-35) PULLED IN BY SOMEBODY ELSE, WHICH IS THE ACTUAL QUESTION. The closure below is
+    // SEEDED with the consumers, so every seed is trivially a member of it — and "is this grammar
+    // REACHED from a guard" is a claim about being the TARGET of an import edge, not about being a
+    // seed. While every consumer happened to be a guard-ish module the two coincided and nothing
+    // showed the difference. Plan 29-35 made `generate-catalog.ts` a consumer (it takes the section
+    // locator), and the old spelling then reported a top-level script that NOTHING imports as
+    // "reachable from the guard import graph" — a false positive produced by the harness's own seed.
+    // So the edges are recorded separately from the seeds: `reachedAsDependency` holds only modules
+    // some OTHER module in the closure imports. The claim and the measurement now match.
+    const reachedAsDependency = new Set<string>();
     const stack = [...consumers];
     while (stack.length > 0) {
       const f = stack.pop()!;
       if (closure.has(f)) continue;
       closure.add(f);
-      for (const d of relativeImports(f)) if (!closure.has(d)) stack.push(d);
+      for (const d of relativeImports(f)) {
+        reachedAsDependency.add(d);
+        if (!closure.has(d)) stack.push(d);
+      }
     }
     // Non-vacuity: the closure really was walked and really does contain this module.
     expect(closure.has("frontmatter.ts")).toBe(true);
     expect(closure.size).toBeGreaterThan(consumers.length);
+    // …and the EDGE set really was populated, or every claim below is about an empty set.
+    expect(
+      reachedAsDependency.has("frontmatter.ts"),
+      "the authority is imported by every seed, so it must be the target of an edge — a reachability claim over an empty edge set measures nothing",
+    ).toBe(true);
     // The measured shape, asserted in BOTH directions so either changing fails red.
     expect(
       liveGrammarSites()
         .map((p) => p.replace(/^.*\//, ""))
-        .filter((s) => closure.has(s)),
+        .filter((s) => reachedAsDependency.has(s)),
     ).toEqual(["context-io.ts"]);
-    expect(closure.has("generate-catalog.ts")).toBe(false);
+    // `generate-catalog.ts` is a top-level script that writes files the moment it is imported, so
+    // nothing imports it — asserted as an EDGE fact, not as closure membership, because it IS a
+    // closure seed now and the seed says nothing about reach.
+    expect(reachedAsDependency.has("generate-catalog.ts")).toBe(false);
+    expect(
+      consumers,
+      "…and the seed membership that used to carry this claim is asserted directly, so the change of spelling is visible rather than silent",
+    ).toContain("generate-catalog.ts");
   });
 
   it("D-43 ordering edge — the refusal fires on the FIRST offending position and two runs over one input are byte-identical", () => {
@@ -15341,15 +15439,22 @@ describe("frontmatter — every consumer honours the locator's `-1` contract (pl
   // pinned separately from the MODULE count for the reason plan 29-32's own instructions give: a
   // vacuity floor catches an EMPTY denominator but never a SILENTLY SHORT one, so the element count
   // is derived by an expression independent of the loop that consumes it and the two are compared.
+  //
+  // (Plan 29-35, LANG-07 — 29-REVIEW § WR-08) RE-DERIVED, UP BY ONE MODULE AND ONE SITE.
+  // `generate-catalog.ts` deleted its private `new RegExp` section-extent grammar — the THIRD
+  // grammar over these bytes, fence-blind AND level-blind — and asks the authority instead. A new
+  // consumer is exactly when a `-1` contract silently breaks, so the site is classified by this scan
+  // like every other: it binds the answer to `at` and refuses with `null` on the line below.
   const CONTRACT_CONSUMERS = [
     "audit-model.ts",
     "check-banned-claims.ts",
     "check-diff-disposition.ts",
     "check-imperative-lexicon.ts",
+    "generate-catalog.ts",
     "voice-model.ts",
   ];
-  const CONTRACT_CONSUMER_COUNT = 5;
-  const CONTRACT_SITE_COUNT = 7;
+  const CONTRACT_CONSUMER_COUNT = 6;
+  const CONTRACT_SITE_COUNT = 8;
 
   it("the consumer set and its call-site count are DERIVED, sorted and pinned two-sided", () => {
     const modules = consumerModules();
