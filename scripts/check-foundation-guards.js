@@ -1849,19 +1849,56 @@ const SEC_VOICE_FILES = [
     "agent-factory/workflows/15-security-audit.md",
     "agent-factory/checklists/security-nfr-checklist.md",
 ];
-// (Plan 29-27, closing CR-01) THE DECLARED CARDINALITY OF THE HAND-MAINTAINED HALF.
+// (Plan 29-27, closing CR-01; CORRECTED by plan 29-33, closing round-4 CR-01 / the LANG-06 failed
+// truth) HOW THE HAND-MAINTAINED HALF IS HELD, AND BY WHAT.
 //
-// `SEC_VOICE_FILES` is the one part of the voice corpus that is NOT derived — it is a curated pair of
-// non-role security surfaces, so there is no lister to ask. A hand-maintained set with no asserted
-// count is this repository's named set-literal-drift class, and the remedy is the one already used
-// for the role half: DECLARE the number, then compare the DERIVED set against it.
+// `SEC_VOICE_FILES` is the one part of the voice corpus that is NOT derived. THERE IS NO SINGLE
+// LISTER TO ASK, and there cannot be one: `15-security-audit.md` is a register-flagged safety
+// surface, while `security-nfr-checklist.md` is a GENERATED artifact — written by
+// scripts/generate-asvs-checklist.ts — so it can never appear in the disposition register that
+// produces the other. Two members, two different provenances, no common derivation.
 //
-// It is two-sided by construction rather than by a hand-written `if`. `guardVoice` hands
-// `ROLE_COUNT + SEC_VOICE_FILE_COUNT` to `reportMeasured` as the denominator while `visited` is
-// incremented once per member of `VOICE_FILES`, so a member ADDED here without bumping this constant
-// reports 20 of 19 and reds, and a member REMOVED reports 18 of 19 and reds. Neither direction can
-// print a PASS. scripts/check-foundation-guards.test.ts pins the same equality at source level and
-// plants an extra member to prove the pin discriminates.
+// A previous version of this paragraph claimed the remedy applied here was "the one already used for
+// the role half: DECLARE the number, then compare the DERIVED set against it." THAT SENTENCE WAS
+// FALSE and is DELETED rather than amended — there was no derived set for this half and none was
+// compared, which is the claim-wider-than-its-assertion class written inside the pin built to
+// prevent it. A paragraph that survives the change it describes is the same defect one module over.
+//
+// THE THREE MECHANISMS THAT ACTUALLY SHIP, AND WHAT EACH ONE CATCHES:
+//
+//   1. THE `reportMeasured` DENOMINATOR — catches ADD and REMOVE, at GATE RUN TIME. `guardVoice`
+//      hands `ROLE_COUNT + SEC_VOICE_FILE_COUNT` as the denominator while `visited` is incremented
+//      once per member of `VOICE_FILES`, so a member added here without bumping the constant reports
+//      20 of 19 and reds, and a member removed reports 18 of 19 and reds. Neither can print a PASS.
+//      It is BLIND to a SUBSTITUTION: swap one member for any other existing `agent-factory/**.md`
+//      path and every published number holds still while a real security surface leaves the scan.
+//      That bypass was reproduced end to end against the committed `.js`, on hermetic mirrors, by
+//      the round-4 reviewer, the round-4 verifier, and again by plan 29-33 before it was written.
+//
+//   2. THE DECLARED ROSTER — catches SUBSTITUTION, at SOURCE level. `SEC_VOICE_MEMBERS` in
+//      scripts/check-foundation-guards.test.ts is compared two-sided and order-insensitively against
+//      the members parsed out of this file, and the failure names the member that LEFT and the
+//      member that ARRIVED as two separate lists. Same posture as `SAFETY_CLAIM_HOMES` in
+//      scripts/check-audit-register.ts: a hand-maintained roster is legitimate under D-01/D-04 only
+//      because it fails CLOSED against a same-commit companion.
+//
+//   3. THE PER-MEMBER PROPERTY FLOOR — catches a roster that is itself rewritten to a non-security
+//      path. Also in scripts/check-foundation-guards.test.ts: every member must satisfy a DERIVED
+//      property — membership in `safetySurfaceUnion()`, or equality with the `OUT` literal
+//      scripts/generate-asvs-checklist.ts writes. The two arms' UNION is the assertion, each arm is
+//      asserted a proper subset, and the decoy the live bypass used is asserted to satisfy neither.
+//
+// NO ROSTER LITERAL IS ADDED TO THIS FILE. Two literals in one file compared against each other is
+// one number compared with itself — the critique this file already records at `guardCavemanVoice`'s
+// `expected`. The companion lives in the test, where it is a genuinely independent second artifact.
+//
+// THE RESIDUAL, NAMED SO THE NEXT READER MEETS IT AS A DECISION RATHER THAN A DISCOVERY: a change
+// that edits the guard literal, the declared roster AND the property source in ONE commit is
+// ADMITTED. That is D-04's same-commit-companion standing — a REVIEWABILITY guarantee, not a
+// mechanical one. The property floor narrows it (the substituted-in path must itself be a derived
+// safety surface or the ASVS generator's own output), it does not close it. A second residual, also
+// admitted: mechanisms 2 and 3 pin the `.ts` SOURCE, and the reproduction above edited the committed
+// `.js`. The half of the closure covering that route is `npm run freshness`, measured in plan 29-33.
 const SEC_VOICE_FILE_COUNT = 2;
 const VOICE_FILES = [...ROLE_FILES, ...SEC_VOICE_FILES];
 // The INDEPENDENTLY derived denominator for guard_voice. `ROLE_COUNT` comes from scripts/kit-model.ts
