@@ -2147,14 +2147,26 @@ function guardVoice() {
         // and a gratuitous reshuffle would hide a real movement inside a cosmetic one.
         process.stdout.write(`        ${name}: scanned ${bodyLines.length} clear-voice line(s), ${m.length} marker line(s), ` +
             `caveman region ${removedLines} line(s), document ${documentLines} line(s)\n`);
-        // THE ELEMENT-LEVEL FLOOR. A remainder of zero lines is indistinguishable from a clean one: both
-        // find zero markers. Every voice surface carries content outside its caveman block — a title line
-        // at minimum — so zero is a defect by construction rather than a threshold anyone may tune.
-        if (bodyLines.length === 0 || body.trim() === "") {
+        // THE ELEMENT-LEVEL FLOOR. A remainder that retains no lines, or whose retained lines carry no
+        // content, is indistinguishable from a clean one: both find zero markers. Every voice surface
+        // carries content outside its caveman block — a title line at minimum — so both halves are
+        // defects by construction rather than thresholds anyone may tune.
+        //
+        // (Plan 29-34, WR-04) THE FIRST DISJUNCT USED TO BE `bodyLines.length === 0`, AND NO STRING CAN
+        // SATISFY IT. `"".split("\n")` is `[""]`, never `[]`, so a split length is at least 1 for every
+        // possible input: the disjunct was unreachable-false, only the emptiness test ever fired, and the
+        // finding it produced then reported `collapsed to 1 line(s)` — a number contradicting the
+        // condition the code claimed to be testing. The reachable zero is the READER's retained-INDEX
+        // count, which really can be zero (a document that is nothing but an anchor and a fence), so that
+        // is what the floor tests now. The finding text names the retained count and no longer describes
+        // a "zero-line remainder" the code never looked for; a message describing a condition the code
+        // does not test is the claim-wider-than-its-assertion class this round exists to remove.
+        if (outsideLines === 0 || body.trim() === "") {
             findings.push({
                 file: f,
-                detail: `the clear-voice remainder collapsed to ${bodyLines.length} line(s) with no content — a zero-line remainder is ` +
-                    "indistinguishable from a clean one, so this file was NOT effectively scanned",
+                detail: `the clear-voice remainder retains ${outsideLines} line(s) and carries ${body.trim().length} byte(s) of content — ` +
+                    "a remainder with no retained lines, or with retained lines carrying none, is indistinguishable from a clean " +
+                    "one, so this file was NOT effectively scanned",
             });
             continue;
         }

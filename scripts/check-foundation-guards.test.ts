@@ -6688,8 +6688,16 @@ describe("check-foundation-guards.js (SDLC-02 / SC2 fail-proof harness)", () => 
     const r = runIn(m);
     const o = out(r);
     expect(r.status).toBe(1);
-    expect(o).toContain(`${surface}: the clear-voice remainder collapsed to`);
+    // (Plan 29-34, WR-04) The finding now names the RETAINED-INDEX count. It reads 1 here rather
+    // than 0 because this surface's whole document IS the remainder — the branch declares no fence —
+    // so the emptied file really does retain one (empty) line and the emptiness half of the floor is
+    // what fires. The retained-index half is exercised by the role-file route in the case below it.
+    expect(o).toContain(`${surface}: the clear-voice remainder retains 1 line(s)`);
+    expect(o).toContain("carries 0 byte(s) of content");
     expect(o).toContain("was NOT effectively scanned");
+    // The retired wording may not survive beside the new one — a finding message describing a
+    // condition the code no longer tests is the same defect the rewording exists to remove.
+    expect(o).not.toContain("the clear-voice remainder collapsed to");
     // The published count for that file is VISIBLE — the number and the finding come from the same
     // `body`, so a build in which they drifted apart would print a collapsed count beside a pass.
     expect(o).toContain(`${basename(surface)}: scanned 1 clear-voice line(s)`);
@@ -6697,6 +6705,38 @@ describe("check-foundation-guards.js (SDLC-02 / SC2 fail-proof harness)", () => 
     expect(o).not.toMatch(/PASS +voice: 0 findings over/);
     expect(o).not.toContain("  PASS  voice: clear-voice surfaces free of caveman markers");
     expect(o).not.toContain("ALL CHECKS PASSED");
+  }, 120_000);
+
+  it("the floor's RETAINED-INDEX half fires on a document that is nothing but an anchor and a fence", () => {
+    // THE HALF WR-04 SAYS COULD NOT FIRE, SHOWN FIRING. `bodyLines.length === 0` was unreachable for
+    // every possible string; `outsideLines === 0` is reachable, and this is the document that
+    // reaches it — a role file whose every line is either the anchor or inside the fence, so the
+    // reader retains ZERO indices while the walked array still holds one empty element.
+    //
+    // It is planted on a ROLE file (which expects a fence) rather than a security surface, because
+    // the security branch declares the whole document to be the remainder and can never reach a
+    // retained count of zero. Which half of the floor a given route can fire is not interchangeable.
+    const m = mirror();
+    const host = roleNamesIn(m)[0];
+    expect(host, "the plant host must be a member of the mirror's derived role set").toBeTruthy();
+    // A well-formed fence, so the reader returns ok and the refusal arms are NOT what fires.
+    writeFileSync(
+      rolePath(m, host),
+      ["## Caveman prompt", "```", "grug smash rock", "you no think", "```"].join("\n"),
+      "utf8",
+    );
+    const r = runIn(m);
+    const o = out(r);
+    expect(r.status).toBe(1);
+    expect(o).toContain(`${roleRel(host)}: the clear-voice remainder retains 0 line(s)`);
+    // PREMISE: the reader did NOT refuse this document — otherwise the floor was never reached and
+    // this case would be reporting the refusal arm under the floor's name.
+    expect(o).not.toContain(`${roleRel(host)}: ## Caveman prompt fence refused`);
+    // And the number PUBLISHED for the file is the split length, one, beside a retained count of
+    // zero — the exact ambiguity that made the retired disjunct unreachable, now visible in the
+    // transcript instead of hidden by it.
+    expect(o).toContain(`${basename(host)}: scanned 1 clear-voice line(s)`);
+    expect(o).not.toMatch(/PASS +voice: 0 findings over/);
   }, 120_000);
 
   it("a role file whose caveman fence is left OPEN across a later heading exits 1 with no guard_voice pass line", () => {
@@ -8109,21 +8149,21 @@ const tripwireCensus = (
 // reproduced from `0ec8b61` by the premise case and are not a baseline this plan may move.
 //
 // (Plan 29-34) RE-MEASURED AGAIN, from the live tree, for the same reason. This plan added the line
-// accounting cases to voice-model.test.ts and four guard_voice accounting cases here, so all six
-// moved together: occurrences 5391 -> 5433 (+42), classified 5319 -> 5360 (+41), statement-level
+// accounting cases to voice-model.test.ts and five guard_voice cases here, so all six moved
+// together: occurrences 5391 -> 5441 (+50), classified 5319 -> 5368 (+49), statement-level
 // multi-line 1084 -> 1095 (+11), quote-aware 1078 -> 1089 (+11, the SAME delta, so the two counters
 // still do not diverge on the new text), disagreements 14 -> 14 (UNCHANGED), subject-only 589 -> 599
 // (+10).
 //
-// THE ONE-LINE GAP BETWEEN +42 AND +41 IS ACCOUNTED FOR, NOT ROUNDED PAST. Occurrences are raw
+// THE ONE-LINE GAP BETWEEN +50 AND +49 IS ACCOUNTED FOR, NOT ROUNDED PAST. Occurrences are raw
 // matches anywhere in the bytes while classified lines must BEGIN with the token, and one added
 // COMMENT in voice-model.test.ts quotes the retired vacuous assertion verbatim in order to explain
 // what was wrong with it. That comment is an occurrence and is not a classified line — the same
 // census-counts-its-own-prose effect the note directly above records, arriving this time from the
 // other module.
 const TRIPWIRE_MODULES = 47;
-const TRIPWIRE_EXPECT_OCCURRENCES = 5433;
-const TRIPWIRE_CLASSIFIED_LINES = 5360;
+const TRIPWIRE_EXPECT_OCCURRENCES = 5441;
+const TRIPWIRE_CLASSIFIED_LINES = 5368;
 const TRIPWIRE_MULTILINE_STATEMENTS = 1095;
 const TRIPWIRE_MULTILINE_STATEMENTS_QUOTE_AWARE = 1089;
 const TRIPWIRE_COUNTER_DISAGREEMENTS = 14;
