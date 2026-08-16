@@ -8115,12 +8115,17 @@ describe("27-65 end-to-end gate sweep: the rounds-1-11 corpus planted on the liv
 //   3. An assertion duplicated across two CASES rather than within one, which is a different defect
 //      (a case that re-proves its neighbour) with a different remedy.
 //   4. A multi-line `expect(` whose duplicate opening lines are not adjacent, and any assertion
-//      spelled through a helper rather than beginning with `expect(`. LIVE SHARE, derived and pinned
-//      by the census below rather than described: `TRIPWIRE_MULTILINE_STATEMENTS` of
-//      `TRIPWIRE_CLASSIFIED_LINES` classified lines carry a statement that continues past them, and
-//      for every one of those a duplicated pair's opener lines are separated by the continuation. A
-//      planted multi-line duplicate asserts that verdict directly — it is MISSED, on purpose, with
-//      the reasoning recorded at the case rather than the absence left to read as coverage.
+//      spelled through a helper rather than beginning with `expect(`. LIVE SHARE, derived by the
+//      census below rather than described: the share of classified lines carrying a statement that
+//      continues past them is FLOORED at `TRIPWIRE_MULTILINE_STATEMENT_FLOOR_PCT`% and stood at
+//      20.86% when plan 29-39 measured it, and for every such line a duplicated pair's opener lines
+//      are separated by the continuation. (Plan 29-39: this sentence used to quote two exact
+//      constants, `TRIPWIRE_MULTILINE_STATEMENTS` of `TRIPWIRE_CLASSIFIED_LINES`. Those constants no
+//      longer exist as live pins — see the declaration below — so the share is now named as a floor
+//      plus a dated observation. A comment that cites a deleted symbol is the stale-prose class this
+//      phase spent four rounds removing.) A planted multi-line duplicate asserts that verdict
+//      directly — it is MISSED, on purpose, with the reasoning recorded at the case rather than the
+//      absence left to read as coverage.
 // ─────────────────────────────────────────────────────────────────────────────────────────────
 
 /** A classified assertion line: the line's own text begins the assertion. */
@@ -8298,6 +8303,100 @@ const tripwireCensus = (
 };
 
 /**
+ * (Plan 29-39, WR-07) The census over the tree at a FIXED COMMIT, read through git rather than off
+ * the working tree.
+ *
+ * ONE reader for both commit-pinned observations. It was inline in the round-3 premise case until
+ * this plan added a second observation; two copies of a git reader is two places for a `git show`
+ * failure to be swallowed differently, and this block already argues that case about parsers.
+ */
+const censusAtCommit = (rev: string): TripwireCensus => {
+  const listed = spawnSync("git", ["ls-tree", "--name-only", `${rev}:scripts`], {
+    cwd: ROOT,
+    encoding: "utf8",
+  });
+  if (listed.status !== 0) throw new Error(`git ls-tree failed for ${rev}`);
+  const names = (listed.stdout as string)
+    .split("\n")
+    .filter((n) => n.endsWith(".test.ts"))
+    .sort();
+  if (names.length === 0) throw new Error(`no test modules found at ${rev} — the premise is empty`);
+  return tripwireCensus(names, (n) => {
+    const r = spawnSync("git", ["show", `${rev}:scripts/${n}`], {
+      cwd: ROOT,
+      encoding: "utf8",
+      maxBuffer: 64 * 1024 * 1024,
+    });
+    if (r.status !== 0) throw new Error(`git show failed for ${rev}:scripts/${n}`);
+    return r.stdout as string;
+  });
+};
+
+/**
+ * (Plan 29-39, WR-07) THE ONE AUTHORITY for every volume relationship the census must satisfy.
+ *
+ * ONE function rather than a list of assertions in the live case, because the discrimination case
+ * below has to decide the SAME question about a census that BROKE, and two implementations of one
+ * predicate are how this phase spent four rounds discovering that its two answers disagreed. The
+ * live case asserts this returns nothing; the discrimination case asserts it returns exactly the
+ * right finding for each measured mutation. Neither can drift from the other.
+ *
+ * Returns one string per violated relationship, named by id so a red says which one broke.
+ */
+const censusRelationshipFindings = (c: TripwireCensus): string[] => {
+  const out: string[] = [];
+  if (!(c.occurrences >= c.classified)) {
+    out.push(
+      `R1 occurrences (${c.occurrences}) fell below classified lines (${c.classified}) — the classifier and the independently written occurrence counter have come apart`,
+    );
+  }
+  if (!(c.classified >= c.modules * TRIPWIRE_CLASSIFIED_FLOOR_PER_MODULE)) {
+    out.push(
+      `R2 classified lines (${c.classified}) fell below ${TRIPWIRE_CLASSIFIED_FLOOR_PER_MODULE} per scanned module (${c.modules} modules) — the classifier has gone blind or near-blind`,
+    );
+  }
+  if (!(c.classified > c.multiLineStatements)) {
+    out.push(
+      `R3 classified lines (${c.classified}) did not exceed continuing statements (${c.multiLineStatements}) — a counter answering TRUE for everything measures nothing`,
+    );
+  }
+  if (!(c.multiLineStatements >= c.multiLineSubjects)) {
+    out.push(
+      `R4 continuing statements (${c.multiLineStatements}) fell below continuing SUBJECTS (${c.multiLineSubjects}), which are a subset of them — the naive paren counter has broken`,
+    );
+  }
+  if (!(c.multiLineStatements * 100 >= c.classified * TRIPWIRE_MULTILINE_STATEMENT_FLOOR_PCT)) {
+    out.push(
+      `R5 the continuing-statement SHARE fell below ${TRIPWIRE_MULTILINE_STATEMENT_FLOOR_PCT}% (${c.multiLineStatements} of ${c.classified}) — the classifier has lost the MULTI-LINE class`,
+    );
+  }
+  if (!(c.multiLineSubjects * 100 >= c.classified * TRIPWIRE_MULTILINE_SUBJECT_FLOOR_PCT)) {
+    out.push(
+      `R6 the continuing-SUBJECT share fell below ${TRIPWIRE_MULTILINE_SUBJECT_FLOOR_PCT}% (${c.multiLineSubjects} of ${c.classified}) — the subject counter has broken or the class has been lost`,
+    );
+  }
+  if (!(c.counterDisagreements * 100 <= c.classified * TRIPWIRE_COUNTER_DISAGREEMENT_CEILING_PCT)) {
+    out.push(
+      `R7 the two paren counters disagree about more than ${TRIPWIRE_COUNTER_DISAGREEMENT_CEILING_PCT}% of classified lines (${c.counterDisagreements} of ${c.classified}) — one of them has broken`,
+    );
+  }
+  // I1 IS AN IDENTITY AND IS EXPECTED NEVER TO FIRE. It is evaluated here, rather than asserted in
+  // prose, so the discrimination case can MEASURE that it never fires across every mutation — the
+  // difference between recording that a number has no witness (D-08) and claiming it.
+  if (
+    !(
+      Math.abs(c.multiLineStatements - c.multiLineStatementsQuoteAware) <=
+      c.counterDisagreements
+    )
+  ) {
+    out.push(
+      `I1 |naive - quote-aware| exceeded the disagreement count — IMPOSSIBLE by the triangle inequality; if this ever fires the census itself is not computing what it claims`,
+    );
+  }
+  return out;
+};
+
+/**
  * THE FOUR PUBLISHED NUMBERS, MEASURED IN PLAN 29-29'S SESSION over the live tree — after this
  * block's own cases were written, because the first draft of the old snapshot was taken BEFORE the
  * block was appended and its own assertion lines then falsified it.
@@ -8443,13 +8542,92 @@ const tripwireCensus = (
 // net +11) and over the WHOLE FILE at `HEAD` versus the working tree (252 -> 263, +11). Three
 // derivations, one number. A count re-read from the census alone would be the number bumped until
 // the red stopped, which is the reflex this repository writes refusals against.
+//
+// ═════════════════════════════════════════════════════════════════════════════════════════════
+// (PLAN 29-39, WR-07) AND THE SIX PARAGRAPHS ABOVE ARE THE EVIDENCE FOR THIS ONE: SIX EXACT
+// VOLUME PINS OVER A GROWING CORPUS WERE THE WRONG SHAPE, AND THE LEDGER OF RE-MEASUREMENTS IS
+// WHAT PROVES IT. Every plan of round 4 that added an assertion anywhere in `scripts/*.test.ts`
+// had to come here and move numbers it had no interest in. That is not diligence being rewarded;
+// it is a pin firing on every unrelated commit, and the only way to clear such a red is to bump
+// the number — the exact reflex this same round writes refusals against two modules over
+// (`check-banned-claims.ts`: "Do NOT widen the pin until it stops firing";
+// `check-audit-register.ts`: "LOWERING a count or NARROWING the arm are the two ways to clear this
+// finding by deleting what it measures"). A number a maintainer clears without reading is worse
+// than no number, because it still reads as evidence.
+//
+// WHAT MOVES ON AN UNRELATED EDIT — MEASURED IN PLAN 29-39'S SESSION on scratch copies of the
+// whole module set, not taken from the review, which said "three of them" and is wrong in both
+// directions:
+//
+//   * one ordinary SINGLE-LINE assertion added to one module moves TWO — occurrences 5600 -> 5601,
+//     classified 5527 -> 5528. The other five hold still.
+//   * one ordinary MULTI-LINE assertion moves FIVE — those two, plus statement-level 1153 -> 1154,
+//     quote-aware 1146 -> 1147, subject-only 641 -> 642.
+//   * one added test FILE carrying one assertion moves THREE — modules 47 -> 48 and the same two.
+//   * one added test file carrying NO assertion moves ONLY modules, and lands in `barren`.
+//
+// So five of the seven move on an unrelated assertion. Those five are converted to relationships
+// and corpus-derived floors below. The two that do not — the module count and the barren check —
+// stay EXACT, and stay exact deliberately: they are THE VACUITY FLOOR. They answer "did the scan
+// run at all", and a scan that read no modules, or that read a module and classified nothing in
+// it, is a BROKEN MEASUREMENT rather than a grown corpus. A module count is also the one number
+// here whose movement is a structural event worth a human read: test modules are added a handful
+// of times a year, assertions a handful of times a day.
+//
+// THE COST, STATED RATHER THAN LEFT TO BE INFERRED — what each surviving pin fires on, and what it
+// deliberately does not:
+//
+//   | pin | fires on | deliberately does NOT fire on |
+//   |---|---|---|
+//   | modules (exact) | a test module added, removed or renamed out of the scan | anything inside a module |
+//   | barren (exact) | any scanned module contributing zero classified lines | a module contributing few |
+//   | R1 occurrences >= classified | the occurrence counter or the classifier breaking apart | either of them growing |
+//   | R2 classified >= modules x floor | the classifier going blind or near-blind | assertions being added |
+//   | R3 classified > statements | the statement counter classifying everything | either growing |
+//   | R4 statements >= subjects | the naive paren counter breaking | either growing |
+//   | R5 statement SHARE floor | the classifier losing the multi-line CLASS | single-line assertions being added |
+//   | R6 subject SHARE floor | the subject counter breaking, or the class being lost | assertions being added |
+//   | R7 disagreement SHARE ceiling | either paren counter breaking against the other | one odd line disagreeing |
+//
+// NONE of the nine fires on an added assertion, an added test file with content, or a plan that
+// writes twenty assertions across three modules. ALL of them were proven to fire on the break they
+// exist for — the mutation table is in 29-39-SUMMARY.md and every row was run, not argued.
+//
+// THE FLOORS ARE RATES, NOT MAGIC CONSTANTS, which is the whole difference between a floor that
+// keeps meaning something as the corpus grows and a floor that has to be bumped. Each is a
+// proportion of a denominator the classifier does not produce, so the FLOOR ITSELF grows with the
+// corpus. Measured headroom at this plan's boundary: 117.6 classified lines per module against a
+// floor of 20; a 20.86% statement share against a floor of 5%; an 11.60% subject share against a
+// floor of 2%; a 0.271% disagreement share against a ceiling of 1%.
+//
+// WHERE THE EXACT NUMBERS WENT, AND WHY THAT IS D-25 RATHER THAN A DELETION. An exact number is
+// legitimate where it is a measurement that FAILS CLOSED and CANNOT DRIFT. A live census over a
+// growing corpus is neither. A census over a FIXED COMMIT is both — so the seven exact figures are
+// not deleted, they are relocated to `PLAN_29_39_TRIPWIRE` below and asserted against the tree at
+// `b76a65e`, where nothing any later plan writes can move them. They were not re-derived on the way:
+// the census run over `b76a65e` by git returns exactly the seven values that were pinned live, which
+// is why this is a MOVE and not a re-measurement.
+//
+// AND THE RELOCATION DISSOLVES A HAZARD THIS BLOCK CARRIED THREE SEPARATE WARNINGS ABOUT. The notes
+// above tell a later editor not to spell the scanned token in prose, because the census counted raw
+// occurrences over these very bytes and a comment naming the token became one — an effect measured
+// twice, in plans 29-35 and 29-37, each time breaking a same-delta property for no reason but its
+// own prose. A census pinned against a fixed commit reads git blobs, so no byte written here after
+// `b76a65e` can reach it. The three warnings are kept as the record of why the exact pins moved;
+// the hazard they warn about no longer has a live pin to damage.
+// ═════════════════════════════════════════════════════════════════════════════════════════════
+
+/** THE VACUITY FLOOR, and the one exact volume equality left over the LIVE tree. */
 const TRIPWIRE_MODULES = 47;
-const TRIPWIRE_EXPECT_OCCURRENCES = 5600;
-const TRIPWIRE_CLASSIFIED_LINES = 5527;
-const TRIPWIRE_MULTILINE_STATEMENTS = 1153;
-const TRIPWIRE_MULTILINE_STATEMENTS_QUOTE_AWARE = 1146;
-const TRIPWIRE_COUNTER_DISAGREEMENTS = 15;
-const TRIPWIRE_MULTILINE_SUBJECTS = 641;
+/**
+ * Corpus-derived floors, expressed as RATES so the floor grows with the corpus it floors.
+ * Each is set well below its measured live value: the point is to catch a measurement that
+ * COLLAPSED, never to track one that moved.
+ */
+const TRIPWIRE_CLASSIFIED_FLOOR_PER_MODULE = 20;
+const TRIPWIRE_MULTILINE_STATEMENT_FLOOR_PCT = 5;
+const TRIPWIRE_MULTILINE_SUBJECT_FLOOR_PCT = 2;
+const TRIPWIRE_COUNTER_DISAGREEMENT_CEILING_PCT = 1;
 /** Round 3's own published figures, reproduced from `0ec8b61` by the premise case. */
 const ROUND_3_TRIPWIRE = {
   modules: 47,
@@ -8457,6 +8635,25 @@ const ROUND_3_TRIPWIRE = {
   classified: 4751,
   multiLineStatements: 919,
   multiLineSubjects: 473,
+} as const;
+/**
+ * (Plan 29-39, WR-07) THE EXACT VOLUMES, RELOCATED — measured 2026-08-16 over the tree at
+ * `b76a65e`, the commit this plan started from, and asserted against that commit rather than
+ * against the live tree. This is the D-25 shape: the figures cannot drift, because the tree they
+ * describe cannot change. The four values round 3's own record does not carry — the quote-aware
+ * counter, the disagreement count and the two later-added measures — are recorded here for the
+ * first time at a fixed commit, so a future reader can reconstruct the corpus's growth from two
+ * dated observations rather than from a comment ledger.
+ */
+const PLAN_29_39_TRIPWIRE = {
+  commit: "b76a65e",
+  modules: 47,
+  occurrences: 5600,
+  classified: 5527,
+  multiLineStatements: 1153,
+  multiLineStatementsQuoteAware: 1146,
+  counterDisagreements: 15,
+  multiLineSubjects: 641,
 } as const;
 
 describe("the harness asserts no less than its names claim (plan 29-25, WR-05 / WR-06 / WR-07)", () => {
@@ -8549,25 +8746,7 @@ describe("the harness asserts no less than its names claim (plan 29-25, WR-05 / 
     // Variants E1 and E2 in docs/audit/29-locator-unification.md §6 already follow this discipline
     // and it is followed here for the same reason: a census that cannot reproduce a KNOWN answer is
     // measuring its own transcription errors, and every new number below rides on this one.
-    const listed = spawnSync("git", ["ls-tree", "--name-only", "0ec8b61:scripts"], {
-      cwd: ROOT,
-      encoding: "utf8",
-    });
-    expect(listed.status, "git ls-tree must succeed, or this premise measures nothing").toBe(0);
-    const oldNames = (listed.stdout as string)
-      .split("\n")
-      .filter((n) => n.endsWith(".test.ts"))
-      .sort();
-    const readOld = (n: string): string => {
-      const r = spawnSync("git", ["show", `0ec8b61:scripts/${n}`], {
-        cwd: ROOT,
-        encoding: "utf8",
-        maxBuffer: 64 * 1024 * 1024,
-      });
-      if (r.status !== 0) throw new Error(`git show failed for ${n}`);
-      return r.stdout as string;
-    };
-    const then = tripwireCensus(oldNames, readOld);
+    const then = censusAtCommit("0ec8b61");
     expect(then.modules, "round 3 reported 47 test modules").toBe(ROUND_3_TRIPWIRE.modules);
     expect(then.occurrences, "round 3 reported 4806 `expect(` occurrences").toBe(
       ROUND_3_TRIPWIRE.occurrences,
@@ -8590,52 +8769,192 @@ describe("the harness asserts no less than its names claim (plan 29-25, WR-05 / 
     expect(then.pairs, "round 3's tree carried no adjacent byte-identical pair either").toEqual([]);
   }, 60_000);
 
-  it("the tripwire PUBLISHES its denominator — four numbers, each derived, each pinned two-sided", () => {
+  // ═══════════════════════════════════════════════════════════════════════════════════════════
+  // (PLAN 29-39, WR-07) THE EXACT VOLUMES, AND THE ONLY PLACE THEY ARE HONEST.
+  // ═══════════════════════════════════════════════════════════════════════════════════════════
+
+  it("the tripwire's EXACT VOLUMES are pinned against a FIXED COMMIT, where they cannot drift", () => {
+    // (D-25) An exact number is legitimate where it is a measurement that FAILS CLOSED and CANNOT
+    // DRIFT. These seven were pinned over the LIVE tree for four rounds, where they were neither:
+    // every plan that added an assertion had to come here and move them, and a pin cleared by
+    // bumping is a pin nobody reads. They are not deleted — deleting them would lose the corpus's
+    // only dated record of its own size — they are pinned against `b76a65e` instead, which is the
+    // tree plan 29-39 started from and a tree no later commit can change.
+    const at = censusAtCommit(PLAN_29_39_TRIPWIRE.commit);
+    expect(at.modules, "test modules at the pinned commit").toBe(PLAN_29_39_TRIPWIRE.modules);
+    expect(at.occurrences, "raw occurrences of the scanned token at the pinned commit").toBe(
+      PLAN_29_39_TRIPWIRE.occurrences,
+    );
+    expect(at.classified, "classified assertion lines at the pinned commit").toBe(
+      PLAN_29_39_TRIPWIRE.classified,
+    );
+    expect(at.multiLineStatements, "the statement-level rule at the pinned commit").toBe(
+      PLAN_29_39_TRIPWIRE.multiLineStatements,
+    );
+    expect(
+      at.multiLineStatementsQuoteAware,
+      "the same question asked by a counter that skips quoted regions, at the pinned commit",
+    ).toBe(PLAN_29_39_TRIPWIRE.multiLineStatementsQuoteAware);
+    expect(
+      at.counterDisagreements,
+      "classified lines the two paren counters DISAGREE about — the measured error of the measurement, at the pinned commit",
+    ).toBe(PLAN_29_39_TRIPWIRE.counterDisagreements);
+    expect(at.multiLineSubjects, "the narrower SUBJECT-only rule at the pinned commit").toBe(
+      PLAN_29_39_TRIPWIRE.multiLineSubjects,
+    );
+
+    // THE TWO DATED OBSERVATIONS TOGETHER SAY WHAT ONE CANNOT: the corpus GREW between them, so
+    // this pair is a growth record rather than two disconnected snapshots. If a later reader finds
+    // these equal, the second observation was taken against the wrong tree.
+    expect(
+      at.classified,
+      "the pinned commit must sit AFTER round 3's tree in corpus size, or the two observations are not measuring a growing corpus",
+    ).toBeGreaterThan(ROUND_3_TRIPWIRE.classified);
+    expect(
+      censusRelationshipFindings(at),
+      "every relationship the live census now asserts must also hold at the pinned commit — a relationship that fails on a known-good tree is a false red waiting to happen",
+    ).toEqual([]);
+  }, 120_000);
+
+  // THE NAME CARRIES "tripwire" ON PURPOSE. This plan's stated acceptance command filters on that
+  // word, and a central artifact the acceptance command does not run is an unexercised claim — the
+  // shape round 4 raised as WR-03 one module over.
+  it("the tripwire census reds on a BROKEN CLASSIFIER and NOT on an ADDED ASSERTION (plan 29-39, WR-07)", () => {
+    // ═════════════════════════════════════════════════════════════════════════════════════════
+    // THE WHOLE POINT OF WR-07, AS A CASE RATHER THAN AS A CLAIM. Two populations, one predicate.
+    //
+    // POPULATION 1 — CORPUS GROWTH, which must be QUIET. Run through the REAL census over the REAL
+    // module set, with a reader that appends an assertion, so the growth is measured rather than
+    // simulated by hand.
+    //
+    // POPULATION 2 — MEASUREMENT BREAKAGE, which must be LOUD. These are the censuses that seven
+    // classifier and counter mutations ACTUALLY PRODUCED over the live tree in plan 29-39's
+    // session, recorded here as data. They are transcribed measurements, not invented numbers, and
+    // the SUMMARY carries the run that produced each row.
+    // ═════════════════════════════════════════════════════════════════════════════════════════
+    const names = testModules();
+    const live = tripwireCensus(names, (n) => readFileSync(join(ROOT, "scripts", n), "utf8"));
+    expect(
+      censusRelationshipFindings(live),
+      "the live tree must be clean before either population means anything",
+    ).toEqual([]);
+
+    // ── POPULATION 1: growth is quiet. ───────────────────────────────────────────────────────
+    const singleLine = '\nit("g", () => {\n  ' + "expect" + '(1).toBe(1);\n});\n';
+    const multiLine = '\nit("g", () => {\n  ' + "expect" + '(\n    1,\n    "r",\n  ).toBe(1);\n});\n';
+    for (const [label, appended] of [
+      ["one added SINGLE-LINE assertion", singleLine],
+      ["one added MULTI-LINE assertion", multiLine],
+      ["twenty added assertions", singleLine.repeat(20)],
+    ] as const) {
+      const grown = tripwireCensus(names, (n) => {
+        const src = readFileSync(join(ROOT, "scripts", n), "utf8");
+        return n === "voice-model.test.ts" ? src + appended : src;
+      });
+      expect(
+        grown.classified,
+        `${label}: the growth must actually have landed, or this row proves nothing`,
+      ).toBeGreaterThan(live.classified);
+      expect(
+        censusRelationshipFindings(grown),
+        `${label} must not red — a pin that fires on every unrelated commit is cleared by bumping it, which is the WR-07 defect`,
+      ).toEqual([]);
+    }
+
+    // ── POPULATION 2: breakage is loud. ──────────────────────────────────────────────────────
+    const broken: ReadonlyArray<readonly [string, TripwireCensus, string]> = [
+      [
+        "B1 classifier recognises NOTHING",
+        { modules: 47, occurrences: 5600, classified: 0, multiLineStatements: 0, multiLineStatementsQuoteAware: 0, counterDisagreements: 0, multiLineSubjects: 0, barren: names, pairs: [] },
+        "R2",
+      ],
+      [
+        "B2 classifier recognises EVERY line",
+        { modules: 47, occurrences: 5600, classified: 54993, multiLineStatements: 4934, multiLineStatementsQuoteAware: 4632, counterDisagreements: 388, multiLineSubjects: 649, barren: [], pairs: [] },
+        "R1",
+      ],
+      [
+        "B3 naive paren counter always 0",
+        { modules: 47, occurrences: 5600, classified: 5527, multiLineStatements: 0, multiLineStatementsQuoteAware: 1146, counterDisagreements: 1146, multiLineSubjects: 641, barren: [], pairs: [] },
+        "R4",
+      ],
+      [
+        "B4 quote-aware paren counter always 0",
+        { modules: 47, occurrences: 5600, classified: 5527, multiLineStatements: 1153, multiLineStatementsQuoteAware: 0, counterDisagreements: 1153, multiLineSubjects: 641, barren: [], pairs: [] },
+        "R7",
+      ],
+      [
+        "B5 subject counter always false",
+        { modules: 47, occurrences: 5600, classified: 5527, multiLineStatements: 1153, multiLineStatementsQuoteAware: 1146, counterDisagreements: 15, multiLineSubjects: 0, barren: [], pairs: [] },
+        "R6",
+      ],
+      [
+        "B6 occurrence counter matches nothing",
+        { modules: 47, occurrences: 0, classified: 5527, multiLineStatements: 1153, multiLineStatementsQuoteAware: 1146, counterDisagreements: 15, multiLineSubjects: 641, barren: [], pairs: [] },
+        "R1",
+      ],
+      [
+        "B7 classifier drops the MULTI-LINE class",
+        { modules: 47, occurrences: 5600, classified: 4319, multiLineStatements: 15, multiLineStatementsQuoteAware: 8, counterDisagreements: 15, multiLineSubjects: 3, barren: [], pairs: [] },
+        "R5",
+      ],
+    ];
+    for (const [label, census, expectedId] of broken) {
+      const found = censusRelationshipFindings(census);
+      expect(
+        found.length,
+        `${label} must be caught — a conversion that survives its own mutation has deleted what it measured`,
+      ).toBeGreaterThan(0);
+      expect(
+        found.map((f) => f.slice(0, 2)),
+        `${label} must be caught by ${expectedId} specifically, so each relationship has a NAMED witness rather than the set having a collective one`,
+      ).toContain(expectedId);
+    }
+
+    // ── EVERY RELATIONSHIP HAS ITS OWN WITNESS, and the identity provably has none. ───────────
+    // (D-08) The set-level claim: R1 through R7 each fire on at least one row above. This is
+    // derived from the rows rather than asserted alongside them, so a row deleted in a later edit
+    // reduces the derived set and reds here instead of quietly leaving a relationship unwitnessed.
+    const witnessed = new Set<string>();
+    for (const [, census] of broken) {
+      for (const f of censusRelationshipFindings(census)) witnessed.add(f.slice(0, 2));
+    }
+    expect(
+      [...witnessed].sort(),
+      "every relationship must be RED on at least one measured mutation, or it is prose wearing an assertion",
+    ).toEqual(["R1", "R2", "R3", "R4", "R5", "R6", "R7"]);
+    expect(
+      witnessed.has("I1"),
+      "I1 is an IDENTITY and must fire on NOTHING — it is true for every input by the triangle inequality, and this measured absence is the D-08 record that it has no witness, which is why R7 exists beside it",
+    ).toBe(false);
+  }, 60_000);
+
+  // (Plan 29-39, WR-07) THE NAME CHANGED WITH THE ASSERTIONS. This case was called "four numbers,
+  // each derived, each pinned two-sided" until the two-sided volume pins were converted to
+  // relationships. A case name that survives the deletion of the thing it names is the
+  // claim-wider-than-its-assertion class, which is the class this whole block exists to hold.
+  it("the tripwire PUBLISHES its denominator — the vacuity floor EXACT, the volumes as relationships", () => {
     const names = testModules();
     const census = tripwireCensus(names, (n) =>
       readFileSync(join(ROOT, "scripts", n), "utf8"),
     );
 
-    // ── THE FOUR NUMBERS. ────────────────────────────────────────────────────────────────────
-    expect(census.modules, "test modules scanned").toBe(TRIPWIRE_MODULES);
-    expect(census.occurrences, "`expect(` occurrences — derived INDEPENDENTLY of the classifier, so the classified total has something outside itself to be short against").toBe(
-      TRIPWIRE_EXPECT_OCCURRENCES,
-    );
-    expect(census.classified, "classified assertion lines").toBe(TRIPWIRE_CLASSIFIED_LINES);
-    expect(
-      census.multiLineStatements,
-      "classified lines whose STATEMENT continues past them — the share for which a duplicated pair's opener lines are never adjacent, and therefore the share this tripwire does not cover",
-    ).toBe(TRIPWIRE_MULTILINE_STATEMENTS);
-
-    // ── AND THE MEASUREMENT'S OWN UNCERTAINTY, PUBLISHED RATHER THAN FOOTNOTED. ───────────────
-    expect(
-      census.multiLineStatementsQuoteAware,
-      "the same question asked by a counter that skips quoted regions",
-    ).toBe(TRIPWIRE_MULTILINE_STATEMENTS_QUOTE_AWARE);
-    expect(
-      census.counterDisagreements,
-      "classified lines the two paren counters DISAGREE about — the measured error of the measurement, and the evidence against shipping a normaliser built on either",
-    ).toBe(TRIPWIRE_COUNTER_DISAGREEMENTS);
-    expect(census.multiLineSubjects, "the narrower SUBJECT-only rule").toBe(
-      TRIPWIRE_MULTILINE_SUBJECTS,
+    // ── THE VACUITY FLOOR, EXACT — the two values that do not move when the corpus grows. ────
+    // (Plan 29-39, WR-07) These two answer "did the scan run at all". They are kept as equalities
+    // for the reason the other five stopped being equalities: they do NOT fire on an added
+    // assertion, and when they do fire the event is structural and worth a human read.
+    expect(census.modules, "test modules scanned — EXACT on purpose: a module added, removed or renamed out of this scan is a structural event, not corpus growth").toBe(
+      TRIPWIRE_MODULES,
     );
 
-    // ── THE RELATIONSHIPS BETWEEN THEM, so a set of four numbers that drifted apart is loud. ──
+    // ── AND THE VOLUMES AS RELATIONSHIPS, so growth is quiet and BREAKAGE is loud. ────────────
+    // (Plan 29-39, WR-07) Seven relationships, decided by the ONE authority above, each measured to
+    // survive an added assertion and each proven RED under a mutation of the thing it measures. The
+    // discrimination case below runs both populations; this line is the live verdict.
     expect(
-      census.occurrences,
-      "every classified line carries an `expect(`, so occurrences cannot be below classified lines",
-    ).toBeGreaterThanOrEqual(census.classified);
-    expect(
-      census.multiLineStatements,
-      "a statement that continues past its line is a superset of one whose SUBJECT does",
-    ).toBeGreaterThanOrEqual(census.multiLineSubjects);
-    expect(census.classified).toBeGreaterThan(census.multiLineStatements);
-    expect(
-      Math.abs(
-        census.multiLineStatements - census.multiLineStatementsQuoteAware,
-      ),
-      "the two counters must not have drifted far apart — a large gap means one of them broke",
-    ).toBeLessThanOrEqual(census.counterDisagreements);
+      censusRelationshipFindings(census),
+      "a volume relationship broke — this is the census reporting that one of its own counters is no longer measuring what it claims, and NOT a report that assertions were added",
+    ).toEqual([]);
 
     // ── THE CLAIM, unchanged, and now standing on a published denominator. ───────────────────
     expect(census.barren, "every scanned module must contribute at least one classified line").toEqual(
