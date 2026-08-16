@@ -279,6 +279,12 @@ The three surviving entries are the pre-existing out-of-scope ones. No plant was
 
 ## 6. The adversarial variants
 
+> **Variant E2 superseded in part — see §9.9 below.** Round 3 found the duplicate-assertion
+> tripwire's published figure reading as coverage it does not have: roughly a fifth of the lines it
+> classifies open a statement that continues past them, and for those a duplicated pair is invisible.
+> E2's own numbers are round 2's record and are left standing; §9.9 carries the published denominator,
+> its measured uncertainty and the reasoned decision not to normalise.
+
 Thirty-two, invented at execution and aimed at the questions this project has recorded as the ones
 that catch a bypass: what BOUNDS the predicate's input rather than which characters it accepts; at
 WHICH POSITIONS it is consulted; which SET it enumerates; which NUMBER the specification anchors on
@@ -753,6 +759,71 @@ only `.js`. The comparison against git's own index is what caught it; a walk tru
 compared would have published a confident wrong answer. The skip rule is now "any dot-directory",
 and both walks assert their agreement with `git ls-files` before any claim is made about their
 contents.
+
+### 9.9 §6's duplicate-assertion tripwire published a figure wider than its coverage (IN-03)
+
+**What was published.** A snapshot in the block header: "46 files, 4706 classified assertion lines,
+ZERO duplicate pairs". It reads as coverage over 4706 assertions.
+
+**What round 3 found.** For a multi-line `expect(` call the subject and matcher sit on following
+lines, so a duplicated assertion's OPENER lines are never adjacent and the pair is invisible. Floor
+item 4 named the shape; the number beside it did not account for it.
+
+**THE PREMISE ASSERTION LANDS EXACTLY.** The new census, run over the tree at `0ec8b61` — round 3's
+own tree — reproduces the review's three published figures byte for byte:
+
+```
+ROUND-3 TREE (0ec8b61): modules=47  occurrences=4806  classified=4751
+```
+
+**One number does NOT reproduce, and that is reported rather than smoothed.** The review published
+**453** multi-line openers without publishing the rule that produced it. This census's SUBJECT-only
+rule — does the `expect(` call's own parenthesis close on this line — answers **473** on the same
+bytes. A 4% gap between two rules, one of which is not reconstructible from what was written down.
+
+**Two multi-line questions are published, not one**, because they are different questions and only
+the first bears on the defect:
+
+| question | round 3 tree | live tree |
+|---|---:|---:|
+| test modules scanned | 47 | **47** |
+| `expect(` occurrences (derived independently of the classifier) | 4806 | **5353** |
+| classified assertion lines | 4751 | **5281** |
+| classified lines whose STATEMENT continues past them | 919 | **1069** |
+| classified lines whose `expect(` SUBJECT continues past them | 473 | **577** |
+| the two paren counters' DISAGREEMENT | — | **14** |
+| adjacent byte-identical pairs | 0 | **0** |
+
+The live/round-3 delta is the six round-3 plans plus this one adding assertions. All seven numbers
+are pinned two-sided, and the relationships between them are asserted too (occurrences ≥ classified;
+statement-level ≥ subject-level; classified > statement-level; the two counters' gap ≤ their
+disagreement count), so four numbers that drifted apart are loud rather than quiet.
+
+**NORMALISATION IS NOT SHIPPED, AND THE DECISION IS MEASURED RATHER THAN ASSERTED.** IN-03's
+suggested fix is to join a multi-line `expect(` into one logical line before comparing. That needs a
+JavaScript tokenizer, and the evidence against writing one here is:
+
+- two independently written paren counters — one naive, one that skips quoted regions — **disagree
+  on 14 live classified lines**, at addresses like `expect(names.reason).toContain("`(` (U+0028)")`;
+- the quote-aware one is itself wrong on a regex containing an escaped slash: under it **three live
+  assertions run to END OF FILE**, so a mis-tokenised assertion silently swallows every line below
+  it. A normalising classifier would therefore get QUIETER the more regex-heavy a module is — the
+  same shape as the window-measured-in-source-lines defect plan 29-32 recorded;
+- and on the live tree a normalising pass reports the **same answer** the tripwire already reports —
+  **zero pairs** — so it buys no measured coverage today while adding a second grammar over source
+  text to the phase whose founding rule is one authority per predicate.
+
+**So the miss is an ASSERTED INTENDED VERDICT.** A planted multi-line duplicate pair is required to
+be MISSED, with the residual named mechanically rather than in prose: both openers are classified,
+they are byte-identical, they are four lines apart, and the opener really is a multi-line statement
+by the same rule the census counts with. The one-line spelling of the same duplicate is required to
+be REPORTED, so the miss is about the spelling and not about the fixture.
+
+**The adversarial self-reproduction, stated honestly.** Because no normaliser shipped, the planted
+multi-line pair is unreported both before and after this task — there is no pre/post pair to paste.
+What changed is that the miss is now measured, published and asserted instead of being an absence a
+reader could mistake for coverage. Claiming a behavioural before/after here would be the kind of
+overstatement this document exists to refuse.
 
 ## Every command in this document is re-runnable
 

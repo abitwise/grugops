@@ -7480,11 +7480,15 @@ describe("27-65 end-to-end gate sweep: the rounds-1-11 corpus planted on the liv
 // SCOPE IS EVERY `*.test.ts` UNDER `scripts/`, WHICH IS WIDER THAN THE PLAN SPECIFIES. The plan names
 // the four gate test modules and the voice model's. A five-member hand-list is the set-literal drift
 // this repository has corrected three times and would not cover the sixth test module that lands
-// tomorrow, so the set is derived. Measured at this plan, AFTER this block landed: 46 files, 4706
-// classified assertion lines, ZERO duplicate pairs. The first draft of this sentence said 4693 — the
-// count taken BEFORE the block was appended, which this block's own 13 assertion lines then falsified.
-// It is a SNAPSHOT and not a pin, which is why the case below floors it rather than fixing it: a
-// number written into a comment and never re-measured is the shape of defect this plan is about.
+// tomorrow, so the set is derived.
+//
+// (Plan 29-29, IN-03) THE SNAPSHOT THAT USED TO SIT HERE IS GONE, AND THAT IS THE POINT. It read
+// "46 files, 4706 classified assertion lines" and was already wrong once before it was committed —
+// the first draft said 4693, the count taken BEFORE this block was appended, which the block's own
+// assertion lines then falsified. A number written into a comment and never re-measured is the shape
+// of defect this plan is about, so the numbers now live in `TRIPWIRE_*` constants pinned two-sided by
+// a case that DERIVES them, and the census that produces them reproduces round 3's own published
+// answer over round 3's own tree before any new number is believed.
 //
 // THE ZERO IS NOT VACUOUS, AND THAT IS A HISTORICAL MEASUREMENT RATHER THAN A BELIEF. Run over THIS
 // FILE at commit `3ed76c1` — the tree as it stood before plan 29-25 — the same classifier reports
@@ -7501,7 +7505,12 @@ describe("27-65 end-to-end gate sweep: the rounds-1-11 corpus planted on the liv
 //   3. An assertion duplicated across two CASES rather than within one, which is a different defect
 //      (a case that re-proves its neighbour) with a different remedy.
 //   4. A multi-line `expect(` whose duplicate opening lines are not adjacent, and any assertion
-//      spelled through a helper rather than beginning with `expect(`.
+//      spelled through a helper rather than beginning with `expect(`. LIVE SHARE, derived and pinned
+//      by the census below rather than described: `TRIPWIRE_MULTILINE_STATEMENTS` of
+//      `TRIPWIRE_CLASSIFIED_LINES` classified lines carry a statement that continues past them, and
+//      for every one of those a duplicated pair's opener lines are separated by the continuation. A
+//      planted multi-line duplicate asserts that verdict directly — it is MISSED, on purpose, with
+//      the reasoning recorded at the case rather than the absence left to read as coverage.
 // ─────────────────────────────────────────────────────────────────────────────────────────────
 
 /** A classified assertion line: the line's own text begins the assertion. */
@@ -7528,8 +7537,8 @@ const duplicateAssertionPairsIn = (src: string): string[] => {
 
 // The planted fixture is ASSEMBLED FROM CONCATENATED FRAGMENTS, so THIS file's own source never
 // carries an adjacent byte-identical assertion pair and can never fail the scan on itself. The
-// self-reference is not hypothetical — this file is one of the 46 the scan reads, and a harness that
-// fails its own premise is the exact defect this tripwire exists to delete.
+// self-reference is not hypothetical — this file is one of the modules the scan reads, and a harness
+// that fails its own premise is the exact defect this tripwire exists to delete.
 const EXPECT_CALL = `${"expect"}(o).toContain("the same claim, twice");`;
 const PLANTED_DUPLICATE_SOURCE = [
   'it("a case whose comment claims two consumers", () => {',
@@ -7538,6 +7547,171 @@ const PLANTED_DUPLICATE_SOURCE = [
   "});",
   "",
 ].join("\n");
+
+// (Plan 29-29, IN-03) THE SAME DUPLICATE PAIR, WRITTEN AS A MULTI-LINE CALL — the shape floor item 4
+// names and the shape the published figure used to read as covering. Its two opener lines are
+// byte-identical and are FOUR lines apart, so adjacency never sees them.
+const MULTILINE_EXPECT_CALL = [
+  `${"expect"}(`,
+  "  o,",
+  '  "the same claim, twice",',
+  ').toContain("x");',
+];
+const PLANTED_MULTILINE_DUPLICATE_SOURCE = [
+  'it("a case whose comment claims two consumers", () => {',
+  ...MULTILINE_EXPECT_CALL.map((l) => `  ${l}`),
+  ...MULTILINE_EXPECT_CALL.map((l) => `  ${l}`),
+  "});",
+  "",
+].join("\n");
+
+// ── THE DENOMINATOR, DERIVED FOUR WAYS ────────────────────────────────────────────────────────
+//
+// (Plan 29-29, IN-03) The tripwire published `N classified assertion lines` and that number read as
+// coverage it does not have: for a multi-line `expect(` call the subject and the matcher sit on
+// following lines, so a duplicated assertion's OPENER lines are never adjacent and the pair is
+// invisible. The floor's disclosed miss named the shape; the number beside it did not account for it.
+//
+// TWO MULTI-LINE QUESTIONS, NOT ONE, because they are different questions and only the first bears
+// on the defect:
+//
+//   * does the STATEMENT continue past this line? That is what separates two duplicated openers, and
+//     it is the share the tripwire is blind to.
+//   * does the `expect(` SUBJECT's own parenthesis close on this line? Narrower, and it is the
+//     measure round 3's review reported.
+//
+// AND THE COUNTER'S OWN UNCERTAINTY IS PUBLISHED TOO. Deciding "do the parentheses balance" over
+// source text needs a JavaScript tokenizer. Two independently written counters — one naive, one that
+// skips quoted regions — DISAGREE on live classified lines, and the disagreement count is pinned
+// beside the two totals rather than left as a footnote. A published number whose measurement error
+// is unmeasured is the same defect one level up.
+const parenBalanceNaive = (line: string): number => {
+  let depth = 0;
+  for (const ch of line) {
+    if (ch === "(") depth += 1;
+    else if (ch === ")") depth -= 1;
+  }
+  return depth;
+};
+const parenBalanceQuoteAware = (line: string): number => {
+  let depth = 0;
+  let quote: string | null = null;
+  for (let i = 0; i < line.length; i += 1) {
+    const ch = line[i];
+    if (quote !== null) {
+      if (ch === "\\") {
+        i += 1;
+        continue;
+      }
+      if (ch === quote) quote = null;
+      continue;
+    }
+    if (ch === '"' || ch === "'" || ch === "`") {
+      quote = ch;
+      continue;
+    }
+    if (ch === "/" && line[i + 1] === "/") break;
+    if (ch === "(") depth += 1;
+    else if (ch === ")") depth -= 1;
+  }
+  return depth;
+};
+/** Does the `expect(` SUBJECT's own parenthesis stay open past the end of this line? */
+const subjectOpenPastLine = (line: string): boolean => {
+  const at = line.indexOf("expect(");
+  if (at === -1) return false;
+  let depth = 0;
+  for (let i = at + "expect".length; i < line.length; i += 1) {
+    if (line[i] === "(") depth += 1;
+    else if (line[i] === ")") {
+      depth -= 1;
+      if (depth === 0) return false;
+    }
+  }
+  return true;
+};
+
+interface TripwireCensus {
+  modules: number;
+  occurrences: number;
+  classified: number;
+  multiLineStatements: number;
+  multiLineStatementsQuoteAware: number;
+  counterDisagreements: number;
+  multiLineSubjects: number;
+  barren: string[];
+  pairs: string[];
+}
+
+/**
+ * Every number the tripwire publishes, from ONE pass, parameterised by the module set and reader.
+ *
+ * Parameterised for the reason every other derivation in this file is: the premise case re-runs it
+ * over the tree as it stood at round 3 and requires it to reproduce the review's published answer
+ * before any new number is believed. A transcription that cannot reproduce the known answer is
+ * measuring its own transcription errors.
+ */
+const tripwireCensus = (
+  names: readonly string[],
+  read: (n: string) => string,
+): TripwireCensus => {
+  const out: TripwireCensus = {
+    modules: names.length,
+    occurrences: 0,
+    classified: 0,
+    multiLineStatements: 0,
+    multiLineStatementsQuoteAware: 0,
+    counterDisagreements: 0,
+    multiLineSubjects: 0,
+    barren: [],
+    pairs: [],
+  };
+  for (const n of names) {
+    const src = read(n);
+    out.occurrences += (src.match(/expect\(/g) ?? []).length;
+    let own = 0;
+    for (const line of src.split("\n")) {
+      if (!isAssertionLine(line)) continue;
+      own += 1;
+      const naive = parenBalanceNaive(line) > 0;
+      const aware = parenBalanceQuoteAware(line) > 0;
+      if (naive) out.multiLineStatements += 1;
+      if (aware) out.multiLineStatementsQuoteAware += 1;
+      if (naive !== aware) out.counterDisagreements += 1;
+      if (subjectOpenPastLine(line)) out.multiLineSubjects += 1;
+    }
+    if (own === 0) out.barren.push(n);
+    out.classified += own;
+    for (const p of duplicateAssertionPairsIn(src)) out.pairs.push(`${n}:${p}`);
+  }
+  return out;
+};
+
+/**
+ * THE FOUR PUBLISHED NUMBERS, MEASURED IN PLAN 29-29'S SESSION over the live tree — after this
+ * block's own cases were written, because the first draft of the old snapshot was taken BEFORE the
+ * block was appended and its own assertion lines then falsified it.
+ *
+ * Round 3's review measured, over the tree at `0ec8b61`: 47 modules, 4806 `expect(` occurrences,
+ * 4751 classified lines. The premise case below reproduces all three EXACTLY from that commit. The
+ * live numbers are higher because round 3's six plans and this one added assertions; the delta is
+ * accounted for in 29-29-SUMMARY.md rather than left as an unexplained movement.
+ */
+const TRIPWIRE_MODULES = 47;
+const TRIPWIRE_EXPECT_OCCURRENCES = 5353;
+const TRIPWIRE_CLASSIFIED_LINES = 5281;
+const TRIPWIRE_MULTILINE_STATEMENTS = 1069;
+const TRIPWIRE_MULTILINE_STATEMENTS_QUOTE_AWARE = 1063;
+const TRIPWIRE_COUNTER_DISAGREEMENTS = 14;
+const TRIPWIRE_MULTILINE_SUBJECTS = 577;
+/** Round 3's own published figures, reproduced from `0ec8b61` by the premise case. */
+const ROUND_3_TRIPWIRE = {
+  modules: 47,
+  occurrences: 4806,
+  classified: 4751,
+  multiLineStatements: 919,
+  multiLineSubjects: 473,
+} as const;
 
 describe("the harness asserts no less than its names claim (plan 29-25, WR-05 / WR-06 / WR-07)", () => {
   it("NO test module carries two adjacent byte-identical assertions — derived, floored per file, two-sided", () => {
@@ -7619,5 +7793,160 @@ describe("the harness asserts no less than its names claim (plan 29-25, WR-05 / 
     // satisfied by a classifier that recognises nothing.
     expect(isAssertionLine('expect(o).toBe(1);')).toBe(true);
     expect(isAssertionLine('        expect(o).toBe(1);')).toBe(true);
+  });
+
+  // ═══════════════════════════════════════════════════════════════════════════════════════════
+  // (PLAN 29-29, IN-03) THE PUBLISHED FIGURE AND THE ACTUAL COVERAGE ARE NOW THE SAME STATEMENT.
+  // ═══════════════════════════════════════════════════════════════════════════════════════════
+
+  it("the tripwire's PREMISE: the census reproduces round 3's published answer over round 3's tree", () => {
+    // Variants E1 and E2 in docs/audit/29-locator-unification.md §6 already follow this discipline
+    // and it is followed here for the same reason: a census that cannot reproduce a KNOWN answer is
+    // measuring its own transcription errors, and every new number below rides on this one.
+    const listed = spawnSync("git", ["ls-tree", "--name-only", "0ec8b61:scripts"], {
+      cwd: ROOT,
+      encoding: "utf8",
+    });
+    expect(listed.status, "git ls-tree must succeed, or this premise measures nothing").toBe(0);
+    const oldNames = (listed.stdout as string)
+      .split("\n")
+      .filter((n) => n.endsWith(".test.ts"))
+      .sort();
+    const readOld = (n: string): string => {
+      const r = spawnSync("git", ["show", `0ec8b61:scripts/${n}`], {
+        cwd: ROOT,
+        encoding: "utf8",
+        maxBuffer: 64 * 1024 * 1024,
+      });
+      if (r.status !== 0) throw new Error(`git show failed for ${n}`);
+      return r.stdout as string;
+    };
+    const then = tripwireCensus(oldNames, readOld);
+    expect(then.modules, "round 3 reported 47 test modules").toBe(ROUND_3_TRIPWIRE.modules);
+    expect(then.occurrences, "round 3 reported 4806 `expect(` occurrences").toBe(
+      ROUND_3_TRIPWIRE.occurrences,
+    );
+    expect(then.classified, "round 3 reported 4751 classified lines").toBe(
+      ROUND_3_TRIPWIRE.classified,
+    );
+    // The multi-line halves are re-derived rather than reproduced: the review published 453 without
+    // publishing the rule that produced it, and this census's SUBJECT-only rule answers 473 on the
+    // same bytes. That 4% gap is recorded as a difference between two rules rather than smoothed
+    // into a match — the review's number is not reproducible from what the review states.
+    expect(then.multiLineSubjects, "the subject-only rule over round 3's tree").toBe(
+      ROUND_3_TRIPWIRE.multiLineSubjects,
+    );
+    expect(then.multiLineStatements, "the statement-level rule over round 3's tree").toBe(
+      ROUND_3_TRIPWIRE.multiLineStatements,
+    );
+    // And round 3's tree carried zero duplicate pairs too, so the live zero below is not this
+    // plan's doing.
+    expect(then.pairs, "round 3's tree carried no adjacent byte-identical pair either").toEqual([]);
+  }, 60_000);
+
+  it("the tripwire PUBLISHES its denominator — four numbers, each derived, each pinned two-sided", () => {
+    const names = testModules();
+    const census = tripwireCensus(names, (n) =>
+      readFileSync(join(ROOT, "scripts", n), "utf8"),
+    );
+
+    // ── THE FOUR NUMBERS. ────────────────────────────────────────────────────────────────────
+    expect(census.modules, "test modules scanned").toBe(TRIPWIRE_MODULES);
+    expect(census.occurrences, "`expect(` occurrences — derived INDEPENDENTLY of the classifier, so the classified total has something outside itself to be short against").toBe(
+      TRIPWIRE_EXPECT_OCCURRENCES,
+    );
+    expect(census.classified, "classified assertion lines").toBe(TRIPWIRE_CLASSIFIED_LINES);
+    expect(
+      census.multiLineStatements,
+      "classified lines whose STATEMENT continues past them — the share for which a duplicated pair's opener lines are never adjacent, and therefore the share this tripwire does not cover",
+    ).toBe(TRIPWIRE_MULTILINE_STATEMENTS);
+
+    // ── AND THE MEASUREMENT'S OWN UNCERTAINTY, PUBLISHED RATHER THAN FOOTNOTED. ───────────────
+    expect(
+      census.multiLineStatementsQuoteAware,
+      "the same question asked by a counter that skips quoted regions",
+    ).toBe(TRIPWIRE_MULTILINE_STATEMENTS_QUOTE_AWARE);
+    expect(
+      census.counterDisagreements,
+      "classified lines the two paren counters DISAGREE about — the measured error of the measurement, and the evidence against shipping a normaliser built on either",
+    ).toBe(TRIPWIRE_COUNTER_DISAGREEMENTS);
+    expect(census.multiLineSubjects, "the narrower SUBJECT-only rule").toBe(
+      TRIPWIRE_MULTILINE_SUBJECTS,
+    );
+
+    // ── THE RELATIONSHIPS BETWEEN THEM, so a set of four numbers that drifted apart is loud. ──
+    expect(
+      census.occurrences,
+      "every classified line carries an `expect(`, so occurrences cannot be below classified lines",
+    ).toBeGreaterThanOrEqual(census.classified);
+    expect(
+      census.multiLineStatements,
+      "a statement that continues past its line is a superset of one whose SUBJECT does",
+    ).toBeGreaterThanOrEqual(census.multiLineSubjects);
+    expect(census.classified).toBeGreaterThan(census.multiLineStatements);
+    expect(
+      Math.abs(
+        census.multiLineStatements - census.multiLineStatementsQuoteAware,
+      ),
+      "the two counters must not have drifted far apart — a large gap means one of them broke",
+    ).toBeLessThanOrEqual(census.counterDisagreements);
+
+    // ── THE CLAIM, unchanged, and now standing on a published denominator. ───────────────────
+    expect(census.barren, "every scanned module must contribute at least one classified line").toEqual(
+      [],
+    );
+    expect(
+      census.pairs,
+      "two adjacent byte-identical assertions assert one thing twice, and the comment above them almost always claims two",
+    ).toEqual([]);
+  });
+
+  it("a MULTI-LINE duplicate pair is MISSED — the intended verdict, asserted rather than left as an absence", () => {
+    // (Plan 29-29) THE DECISION, AND IT IS A DECISION RATHER THAN AN OMISSION. Normalising a
+    // multi-line `expect(` into one logical line before comparing is the fix IN-03 suggests, and it
+    // is NOT shipped. The reason is measured, not asserted:
+    //
+    //   * deciding "do the parentheses balance" over source text needs a JavaScript tokenizer;
+    //   * two independently written counters DISAGREE on 14 live classified lines, and the
+    //     disagreement is pinned above rather than described;
+    //   * the quote-aware one is itself wrong on a regex containing an escaped slash — under it three
+    //     live assertions run to END OF FILE, which means a mis-tokenised assertion silently swallows
+    //     every line below it. A normalising classifier therefore gets QUIETER the more regex-heavy a
+    //     module is, which is the same shape as the window-measured-in-source-lines defect plan 29-32
+    //     recorded;
+    //   * and on the live tree normalisation reports the same answer the tripwire already reports —
+    //     zero pairs — so it buys no measured coverage today while adding a second grammar over
+    //     source text to the phase whose founding rule is one authority per predicate.
+    //
+    // So the pair is MISSED, and the miss is an ASSERTED INTENDED VERDICT with a published number
+    // beside it rather than an absence a reader could mistake for coverage. That is the discipline
+    // plan 29-31 applies to its own disclosed floor.
+    expect(
+      duplicateAssertionPairsIn(PLANTED_MULTILINE_DUPLICATE_SOURCE),
+      "the multi-line pair is NOT reported — the disclosed residual, asserted so it is a measured bound rather than a claim",
+    ).toEqual([]);
+
+    // AND THE RESIDUAL IS NAMED MECHANICALLY, so "missed" is a property of the input rather than a
+    // sentence: both openers ARE classified, they ARE byte-identical, and they are NOT adjacent.
+    const lines = PLANTED_MULTILINE_DUPLICATE_SOURCE.split("\n");
+    const openers = lines
+      .map((l, i) => (isAssertionLine(l) ? i : -1))
+      .filter((i) => i !== -1);
+    expect(openers, "the plant must carry exactly two classified opener lines").toHaveLength(2);
+    expect(lines[openers[0]].trim()).toBe(lines[openers[1]].trim());
+    expect(
+      openers[1] - openers[0],
+      "…and they are four lines apart, which is why adjacency cannot see them",
+    ).toBe(MULTILINE_EXPECT_CALL.length);
+    expect(
+      parenBalanceNaive(lines[openers[0]]),
+      "the opener really is a multi-line statement by the same rule the census counts with",
+    ).toBeGreaterThan(0);
+
+    // THE CONTROL: the SAME duplicated assertion written on one line IS reported, so the miss is
+    // about the multi-line spelling and not about the fixture.
+    expect(duplicateAssertionPairsIn(PLANTED_DUPLICATE_SOURCE)).toEqual([
+      `2 :: ${EXPECT_CALL}`,
+    ]);
   });
 });
