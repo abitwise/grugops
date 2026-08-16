@@ -1,10 +1,10 @@
 ---
 schema_version: 1
-open_count: 27
+open_count: 28
 waived_count: 0
 fixed_count: 1
-total_count: 28
-last_updated: 2026-08-15T16:49:50.376Z
+total_count: 29
+last_updated: 2026-08-16T00:29:11.216Z
 ---
 
 # Broken Windows Ledger
@@ -43,6 +43,7 @@ last_updated: 2026-08-15T16:49:50.376Z
 | 26 | 29 | deviation | .planning/phases/29-controlled-language-voice-guard-rebuild/29-19-PLAN.md |  | Acceptance criterion 'grep -c ^overrides: returns 1' is unsatisfiable: the report's own drafted block inside a yaml fence carries a column-0 overrides: line. Substituted with a frontmatter-region-scoped count (1 key, 1 fenced prose copy). | open |  | 2026-08-15T10:04:44.790Z |  |
 | 27 | 29 | deviation | scripts/check-imperative-lexicon.ts |  | Residual 4: a four-space-indented code block donates step bullets; the one fence authority cannot see it. Fail-closed, empty input set today, promote trigger recorded. | open |  | 2026-08-15T16:49:50.314Z |  |
 | 28 | 29 | deviation | scripts/check-imperative-lexicon.ts | 541 | The derived locator-site scan reports ONE member (HEADING_LINE), not the zero 29-24's acceptance criterion asserts; 29-25 must state an exemption rather than widen the classifier. | open |  | 2026-08-15T16:49:50.376Z |  |
+| 29 | 29 | deviation | scripts/check-banned-claims.ts |  | V-29-32-01: a CLOSED-fence count-preserving compensating edit holds both published pins while swallowing a section into the safety exemption (0 live instances) | open |  | 2026-08-16T00:29:11.216Z |  |
 
 ````json
 [
@@ -380,6 +381,18 @@ last_updated: 2026-08-15T16:49:50.376Z
     "status": "open",
     "reason": "",
     "recorded_at": "2026-08-15T16:49:50.376Z",
+    "resolved_at": null
+  },
+  {
+    "id": 29,
+    "kind": "deviation",
+    "phase": "29",
+    "file": "scripts/check-banned-claims.ts",
+    "line": null,
+    "description": "V-29-32-01: a CLOSED-fence count-preserving compensating edit holds both published pins while swallowing a section into the safety exemption (0 live instances)",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-08-16T00:29:11.216Z",
     "resolved_at": null
   }
 ]
