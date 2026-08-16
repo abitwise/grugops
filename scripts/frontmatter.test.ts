@@ -37,6 +37,11 @@ import {
   writeFileSync,
   mkdtempSync,
   rmSync,
+  // (Plan 29-32) macOS `mkdtempSync` answers `/var/folders/…`, a SYMLINK to `/private/var/…`. A
+  // probe that compares a module URL against such a path silently fails its own entry guard and
+  // exits 0 with empty output — this phase's seventh harness-premise failure. Every temp directory
+  // this file hands to a spawned or imported artefact is resolved first.
+  realpathSync,
 } from "node:fs";
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
@@ -15135,5 +15140,379 @@ describe("frontmatter — D-59: the region-kind x escape-kind x spelling union (
     ]) {
       expect(block, `no exemption machinery may exist in this axis: ${needle}`).not.toContain(needle);
     }
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+// (Plan 29-32, LANG-07 — 29-REVIEW § WR-04 / IN-02) EVERY CONSUMER HONOURS THE `-1` CONTRACT.
+//
+// WHY THIS BLOCK EXISTS, AND WHY IT IS HERE RATHER THAN AT ONE CONSUMER.
+//
+// `unfencedHeadingIndex` answers `-1` for "this document carries no such unfenced line". That is a
+// LEGAL ANSWER, not an error code and not an index. An authority is only ONE authority if its
+// contract is honoured by every consumer: a module that does arithmetic on `-1` before checking it
+// has quietly reintroduced a SECOND BEHAVIOUR over bytes this tree has one parser for, and the
+// consequence is not abstract — `check-banned-claims.ts` bounded a SAFETY EXEMPTION from
+// `headingAt + 1` with no check, so an unchecked `-1` made the exemption test true for every line
+// from zero. Plan 29-32 closed that one site. A one-site fix closes one instance; this scan closes
+// the CLASS, which is what this repository's own set-literal-drift lesson requires.
+//
+// THIS IS NOT `LOCATOR_CONSUMERS` A SECOND TIME. The derived list in
+// `scripts/check-foundation-guards.test.ts` answers WHO CONSUMES the authority — membership, so a
+// module cannot adopt the locator unnoticed. This one answers WHETHER EACH CONSUMER HONOURS ITS
+// `-1` CONTRACT — a property of each call site. Two questions, two scans; merging them would
+// produce a single predicate that answers neither, which is the conflation this round is unpicking.
+//
+// WHAT THIS SCAN CANNOT SEE, NAMED AT ITS DECLARATION RATHER THAN DISCOVERED LATER:
+//
+//   1. A guard expressed through a HELPER this scan does not follow — `if (isMissing(at)) return;`
+//      names no comparison on the line that guards, and the classifier reads lines, never a call
+//      graph. Such a site is reported UNGUARDED, which is the safe direction.
+//   2. A call whose result is DESTRUCTURED, reassigned, or passed straight into another expression
+//      without being bound to an identifier. An unbound call is classified UNGUARDED by
+//      construction, because there is no identifier a guard could name.
+//   3. A call in a `.js` file, or in any module the derivation does not enumerate.
+//   4. THE NON-RECURSIVE DIRECTORY READ (V-29-26-02). The module set is `readdirSync("scripts")`
+//      filtered to non-test `.ts`, minus the authority itself — narrower than "every module in the
+//      tree". The live shortfall is re-measured by the case below rather than transcribed, and the
+//      unread modules are printed by name so the gap is a list rather than an adjective.
+//   5. A guard placed FURTHER from its call than `GUARD_WINDOW` lines, or outside the block the
+//      call sits in. The window's value is stated below with the measurement showing this tree's
+//      answer does not depend on it.
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+
+describe("frontmatter — every consumer honours the locator's `-1` contract (plan 29-32, WR-04)", () => {
+  const CONTRACT_ROOT = join(import.meta.dirname, "..");
+  const SCRIPTS_DIR = join(CONTRACT_ROOT, "scripts");
+  const AUTHORITY_MODULE = "frontmatter.ts";
+
+  // The locator's name, ASSEMBLED, so this file's own source never carries a call-shaped occurrence
+  // of it. The scan set already excludes `*.test.ts` by derivation, so self-membership is not
+  // reachable today — but "not reachable today" is how the fence-machine scan described itself
+  // before its harness defeated its own premise three rounds running.
+  const LOCATOR = ["unfenced", "Heading", "Index"].join("");
+
+  // How far below a call the guard may sit, and the rule that stops the search: a line that dedents
+  // BELOW the call's own indentation has left the block the call sits in, and anything past it is a
+  // different question. The bound is stated rather than assumed, and the case below measures the
+  // real distance at every live site so the answer is visibly independent of the constant.
+  //
+  // THE WINDOW COUNTS CODE LINES, NOT SOURCE LINES, AND THE FIRST DRAFT DID NOT. Comment lines are
+  // blanked because the property is about CODE — and the first draft then spent its budget on the
+  // blanks, so a guard sitting below a twenty-line explanation of why it exists was invisible. It
+  // reported `check-banned-claims.ts` UNGUARDED against the very source that guards it: a window
+  // measured in prose length, in a tree whose modules argue for themselves at length. Blank and
+  // blanked lines are skipped without consuming budget.
+  const GUARD_WINDOW = 24;
+
+  /** Comment lines blanked, POSITIONS PRESERVED so a site's line number still means something. */
+  const codeLinesOfModule = (src: string): string[] =>
+    src.split("\n").map((l) => {
+      const t = l.trimStart();
+      return t.startsWith("//") || t.startsWith("/*") || t.startsWith("*")
+        ? ""
+        : l;
+    });
+
+  const indentOfLine = (l: string): number => l.length - l.trimStart().length;
+
+  const callRe = (): RegExp => new RegExp(`(?<![\\w$.])${LOCATOR}\\s*\\(`);
+  const declRe = (): RegExp => new RegExp(`function\\s+${LOCATOR}\\b`);
+  const bindingRe = (): RegExp =>
+    new RegExp(
+      `(?:const|let|var)\\s+([A-Za-z_$][\\w$]*)\\s*(?::[^=]*)?=\\s*${LOCATOR}\\s*\\(`,
+    );
+  const assignRe = (): RegExp =>
+    new RegExp(`^\\s*([A-Za-z_$][\\w$]*)\\s*=\\s*${LOCATOR}\\s*\\(`);
+
+  /**
+   * Is `id` COMPARED against `-1` (or tested for a negative) on this line? Every spelling this tree
+   * could reasonably use, both orders, because a classifier that recognised one spelling would
+   * report a correctly guarded site as unguarded and teach the next reader to distrust it.
+   */
+  const guardRe = (id: string): RegExp =>
+    new RegExp(
+      [
+        `\\b${id}\\b\\s*[!=]==?\\s*-\\s*1`,
+        `-\\s*1\\s*[!=]==?\\s*\\b${id}\\b`,
+        `\\b${id}\\b\\s*<\\s*0`,
+        `\\b${id}\\b\\s*>=\\s*0`,
+        `\\b${id}\\b\\s*>\\s*-\\s*1`,
+      ].join("|"),
+    );
+
+  interface ContractSite {
+    readonly module: string;
+    readonly line: number;
+    readonly bound: string | null;
+    readonly guarded: boolean;
+    /** How many lines below the call the guard was found, for the window measurement. */
+    readonly distance: number;
+    readonly text: string;
+  }
+
+  /** Every call site of the locator in one module, each classified GUARDED or UNGUARDED. */
+  const contractSitesIn = (module: string, src: string): ContractSite[] => {
+    const code = codeLinesOfModule(src);
+    const call = callRe();
+    const decl = declRe();
+    const binding = bindingRe();
+    const assign = assignRe();
+    const out: ContractSite[] = [];
+    for (let i = 0; i < code.length; i += 1) {
+      if (!call.test(code[i])) continue;
+      // A DECLARATION is not a call. The authority declares the function; where it is ASKED is the
+      // question this scan measures.
+      if (decl.test(code[i])) continue;
+      const m = binding.exec(code[i]) ?? assign.exec(code[i]);
+      const bound = m === null ? null : m[1];
+      let guarded = false;
+      let distance = -1;
+      if (bound !== null) {
+        const g = guardRe(bound);
+        const use = new RegExp(`\\b${bound}\\b`);
+        const ind = indentOfLine(code[i]);
+        let budget = 0;
+        for (let k = i + 1; k < code.length; k += 1) {
+          if (code[k].trim() === "") continue;
+          budget += 1;
+          if (budget > GUARD_WINDOW) break;
+          if (indentOfLine(code[k]) < ind) break;
+          if (g.test(code[k])) {
+            guarded = true;
+            distance = budget;
+            break;
+          }
+          // THE IDENTIFIER REACHED A USE BEFORE IT REACHED A CHECK. That is the defect itself: a
+          // guard written BELOW the arithmetic protects nothing that has already happened.
+          if (use.test(code[k])) break;
+        }
+      }
+      out.push({ module, line: i + 1, bound, guarded, distance, text: code[i].trim() });
+    }
+    return out;
+  };
+
+  /** The non-test modules the scan reads. A directory read, never a literal list. */
+  const consumerModules = (): string[] =>
+    readdirSync(SCRIPTS_DIR)
+      .filter(
+        (n) =>
+          n.endsWith(".ts") && !n.endsWith(".test.ts") && n !== AUTHORITY_MODULE,
+      )
+      .sort();
+
+  /**
+   * The scan, with its own vacuity floors. A scan that read zero modules, or derived zero call
+   * sites, FAILS BY NAME rather than returning a clean empty answer — the AP-1 shape, and the shape
+   * a "no unguarded consumers" claim would otherwise be satisfied by for free.
+   */
+  const contractScan = (
+    names: readonly string[],
+    read: (n: string) => string,
+  ): ContractSite[] => {
+    if (names.length === 0) {
+      throw new Error(
+        "frontmatter.test.ts: the `-1` contract scan was handed ZERO modules — every claim it " +
+          "could make about unguarded consumers would be true of an empty set, which is a clean " +
+          "answer produced by reading nothing",
+      );
+    }
+    const sites = names.flatMap((n) => contractSitesIn(n, read(n)));
+    if (sites.length === 0) {
+      throw new Error(
+        `frontmatter.test.ts: the \`-1\` contract scan read ${names.length} module(s) and derived ` +
+          "ZERO call sites of the locator — either the classifier stopped matching or the tree " +
+          "stopped consuming the authority, and both make an empty unguarded set meaningless",
+      );
+    }
+    return sites;
+  };
+
+  const liveSites = (): ContractSite[] =>
+    contractScan(consumerModules(), (n) =>
+      readFileSync(join(SCRIPTS_DIR, n), "utf8"),
+    );
+
+  // ── THE MEASUREMENT, WRITTEN DOWN ───────────────────────────────────────────────────────────
+  //
+  // Produced by running the derivation above over the live tree in the SAME session that wrote
+  // these lines, never transcribed from the plan. Both numbers are pinned, and the SITE count is
+  // pinned separately from the MODULE count for the reason plan 29-32's own instructions give: a
+  // vacuity floor catches an EMPTY denominator but never a SILENTLY SHORT one, so the element count
+  // is derived by an expression independent of the loop that consumes it and the two are compared.
+  const CONTRACT_CONSUMERS = [
+    "audit-model.ts",
+    "check-banned-claims.ts",
+    "check-diff-disposition.ts",
+    "check-imperative-lexicon.ts",
+    "voice-model.ts",
+  ];
+  const CONTRACT_CONSUMER_COUNT = 5;
+  const CONTRACT_SITE_COUNT = 7;
+
+  it("the consumer set and its call-site count are DERIVED, sorted and pinned two-sided", () => {
+    const modules = consumerModules();
+    // NON-VACUITY FIRST: the directory really was read and it really contains a known consumer.
+    expect(
+      modules.length,
+      "the non-test module set must really have been enumerated before anything is claimed about it",
+    ).toBeGreaterThan(10);
+    expect(modules).toContain("check-banned-claims.ts");
+    expect(modules).not.toContain(AUTHORITY_MODULE);
+
+    const sites = liveSites();
+    const consumers = [...new Set(sites.map((s) => s.module))].sort();
+    expect(consumers).toEqual(CONTRACT_CONSUMERS);
+    expect(consumers).toHaveLength(CONTRACT_CONSUMER_COUNT);
+    expect(sites).toHaveLength(CONTRACT_SITE_COUNT);
+
+    // THE ELEMENT COUNT, DERIVED INDEPENDENTLY OF THE LOOP THAT CONSUMES IT. A silently short
+    // classifier would agree with itself all day; it cannot agree with a second expression that
+    // never runs the classifier.
+    const call = new RegExp(`(?<![\\w$.])${LOCATOR}\\s*\\(`, "g");
+    let independent = 0;
+    for (const n of modules) {
+      const code = codeLinesOfModule(
+        readFileSync(join(SCRIPTS_DIR, n), "utf8"),
+      ).join("\n");
+      independent += (code.match(call) ?? []).length;
+    }
+    expect(
+      independent,
+      "a second expression over the same text counted a different number of call sites than the " +
+        "classifier did — one of them is silently short",
+    ).toBe(sites.length);
+  });
+
+  it("the UNGUARDED set over the live tree is EMPTY, and every site names its guard distance", () => {
+    const sites = liveSites();
+    expect(
+      sites.filter((s) => !s.guarded).map((s) => `${s.module}:${s.line} ${s.text}`),
+      "a consumer used the locator's answer as an index, a slice bound or an argument before " +
+        "checking it for -1 — an unchecked -1 means 'from the top of the document'",
+    ).toEqual([]);
+    // Every site really was bound to an identifier, so "guarded" is a statement about a check and
+    // not about a call the classifier could not read.
+    expect(sites.filter((s) => s.bound === null)).toEqual([]);
+    // AND THE WINDOW IS NOT LOAD-BEARING: the furthest live guard sits well inside it, so the
+    // answer above does not depend on the constant. Disclosed blind spot 5, measured.
+    const furthest = Math.max(...sites.map((s) => s.distance));
+    expect(furthest).toBeGreaterThan(0);
+    expect(furthest).toBeLessThan(GUARD_WINDOW);
+  });
+
+  it("THE VACUITY FLOOR FIRES: a scan over an empty module set fails BY NAME", () => {
+    expect(() => contractScan([], () => "")).toThrow(/handed ZERO modules/);
+    // …and the second floor, from the other side: modules that carry no call site at all.
+    expect(() =>
+      contractScan(["a.ts", "b.ts"], () => "export const x = 1;\n"),
+    ).toThrow(/derived\s+ZERO call sites/);
+  });
+
+  it("THE CLASSIFIER DISCRIMINATES IN BOTH DIRECTIONS: a planted guarded call passes, a planted unguarded call is NAMED", () => {
+    // Both plants run through THE RULE, never a second spelling of it. Assembled from the split
+    // locator name so this file's own source carries no call-shaped occurrence of it.
+    const dir = realpathSync(mkdtempSync(join(tmpdir(), "grugops-contract-")));
+    try {
+      const guardedPlant = [
+        `import { ${LOCATOR}, sectionEndIndex } from "./frontmatter.js";`,
+        "export function readGuarded(text: string, heading: string): string[] {",
+        `  const at = ${LOCATOR}(text, heading);`,
+        "  if (at === -1) return [];",
+        "  const end = sectionEndIndex(text, at + 1, 2);",
+        '  return text.split("\\n").slice(at + 1, end);',
+        "}",
+        "",
+      ].join("\n");
+      const unguardedPlant = [
+        `import { ${LOCATOR}, sectionEndIndex } from "./frontmatter.js";`,
+        "export function readUnguarded(text: string, heading: string): string[] {",
+        `  const at = ${LOCATOR}(text, heading);`,
+        "  const end = sectionEndIndex(text, at + 1, 2);",
+        '  return text.split("\\n").slice(at + 1, end);',
+        "}",
+        "",
+      ].join("\n");
+      writeFileSync(join(dir, "guarded-plant.ts"), guardedPlant, "utf8");
+      writeFileSync(join(dir, "unguarded-plant.ts"), unguardedPlant, "utf8");
+
+      const planted = contractScan(
+        ["guarded-plant.ts", "unguarded-plant.ts"],
+        (n) => readFileSync(join(dir, n), "utf8"),
+      );
+      // PREMISE: both plants really produced a site, or the two-sided claim below is about nothing.
+      expect(planted).toHaveLength(2);
+      const unguarded = planted.filter((s) => !s.guarded).map((s) => s.module);
+      expect(
+        unguarded,
+        "the unguarded plant must be REPORTED and the guarded plant must NOT — a classifier proven " +
+          "on one side only is a classifier nobody has shown can pass correctly",
+      ).toEqual(["unguarded-plant.ts"]);
+      expect(planted.filter((s) => s.guarded).map((s) => s.module)).toEqual([
+        "guarded-plant.ts",
+      ]);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("THE SCAN MEASURES THE DEFECT PLAN 29-32 CLOSED: the pre-fix source of check-banned-claims.ts is reported UNGUARDED", () => {
+    // The before/after pair. Without it the empty live answer is consistent with a scan that never
+    // classified anything as unguarded — the same standard `PLANTED_SIXTH_LOCATOR` is held to. The
+    // pre-fix source is RECONSTRUCTED from the shipped source by deleting the guard block, not
+    // checked out of a commit: keying a permanent case to a git hash rots the first time the file
+    // moves (plan 29-27, decision 5).
+    const live = readFileSync(
+      join(SCRIPTS_DIR, "check-banned-claims.ts"),
+      "utf8",
+    );
+    const open = "  if (headingAt === -1) {";
+    const from = live.indexOf(open);
+    expect(
+      from,
+      "the shipped guard block could not be found, so the reconstruction below would produce the " +
+        "shipped source unchanged and this case would prove nothing",
+    ).toBeGreaterThan(-1);
+    const close = live.indexOf("\n  }\n", from);
+    expect(close).toBeGreaterThan(from);
+    const reverted = live.slice(0, from) + live.slice(close + "\n  }\n".length);
+    expect(reverted).not.toBe(live);
+    expect(reverted).not.toContain(open);
+
+    // The SHIPPED source classifies GUARDED…
+    expect(
+      contractSitesIn("check-banned-claims.ts", live).filter((s) => !s.guarded),
+    ).toEqual([]);
+    // …and the reconstructed pre-fix source is reported, by module and by line.
+    const preFix = contractSitesIn("check-banned-claims.ts", reverted).filter(
+      (s) => !s.guarded,
+    );
+    expect(preFix).toHaveLength(1);
+    expect(preFix[0].module).toBe("check-banned-claims.ts");
+    expect(preFix[0].bound).toBe("headingAt");
+  });
+
+  it("THE DISCLOSED SCAN-SCOPE SHORTFALL (V-29-26-02) IS RE-MEASURED, and the unread modules are named", () => {
+    // Blind spot 4, as a live number rather than an adjective. Re-measured every run, so a tree that
+    // grew a consumer outside `scripts/` shows up here as a moving count rather than as silence.
+    const tracked = execFileSync("git", ["ls-files", "*.ts"], {
+      cwd: CONTRACT_ROOT,
+      encoding: "utf8",
+    })
+      .trim()
+      .split("\n")
+      .filter((p) => p !== "" && !p.endsWith(".test.ts") && !p.endsWith(".d.ts"));
+    const read = consumerModules().map((n) => `scripts/${n}`);
+    const unread = tracked.filter((p) => !read.includes(p)).sort();
+    // NON-VACUITY: git really answered, and the read set is really a subset of it.
+    expect(tracked.length).toBeGreaterThan(10);
+    expect(read.length).toBeLessThan(tracked.length);
+    expect(read.every((p) => tracked.includes(p))).toBe(true);
+    // The shortfall is a LIST, printed on failure, not a number nobody can act on.
+    expect(
+      unread.length,
+      `the scan reads ${read.length} of ${tracked.length} tracked non-test .ts modules; unread: ${unread.join(", ")}`,
+    ).toBe(tracked.length - read.length);
   });
 });

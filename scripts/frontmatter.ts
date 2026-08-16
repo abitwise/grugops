@@ -508,6 +508,42 @@ const HEADING_AT_MOST_2 = /^#{1,2} /;
  * Fence-awareness is the point: a role file that QUOTES its own section heading inside a fenced
  * example is showing documentation, not declaring a second section, and a locator that could not
  * tell the difference refused correct files by name.
+ *
+ * ---------------------------------------------------------------------------------------------
+ * (Plan 29-32, LANG-07 — 29-REVIEW § WR-04) THE `-1` CONTRACT, STATED AT THE AUTHORITY BECAUSE IT
+ * IS PART OF THE AUTHORITY.
+ *
+ * `-1` IS A LEGAL ANSWER. It is not an error code, it is not a sentinel to be papered over, and it
+ * is above all NOT AN INDEX. It means exactly one thing — "this document carries no such unfenced
+ * line" — and EVERY CONSUMER MUST CHECK IT BEFORE THE RETURNED VALUE IS USED as an index, as a
+ * slice bound, or as an argument to `sectionEndIndex`.
+ *
+ * WHY THAT SENTENCE IS A LANG-07 REQUIREMENT AND NOT A STYLE NOTE. An authority is only ONE
+ * authority if its contract is honoured at every consumer. A module that does arithmetic on `-1`
+ * before checking it has silently adopted a SECOND BEHAVIOUR over bytes this tree has one parser
+ * for — and the second behaviour is always the same one, because `-1 + 1` is `0`: "from the top of
+ * the document". That is the widest possible answer to a question about a bounded section, and it
+ * is reached without any refusal, any log line, or any change in the caller's shape.
+ *
+ * IT HAS ALREADY COST SOMETHING. `scripts/check-banned-claims.ts` bounded the tree's ONE NAMED
+ * SAFETY EXEMPTION from `headingAt + 1` with no check. An unchecked `-1` there made the exemption
+ * test `i >= region.headingAt` true for every line from zero: the banned-claim prohibition switched
+ * off for a whole document, silently, on a legal answer nobody read.
+ *
+ * THE FORBIDDEN "REPAIR", NAMED SO IT IS NOT REDISCOVERED AS AN OBVIOUS TIDY-UP: do not default the
+ * index to zero, do not clamp it with `Math.max(at, 0)`, and do not add an opt-out parameter that
+ * returns some other sentinel. Each of those turns the refusal into the widening. The answer is
+ * always to REFUSE BY NAME and say which half disagreed.
+ *
+ * AND IT IS MEASURED, NOT PROMISED. `scripts/frontmatter.test.ts` derives every call site of this
+ * function across the non-test modules under `scripts/`, classifies each as guarded or unguarded,
+ * pins the consumer set and the site count two-sided, floors the scan for vacuity, and proves the
+ * classifier discriminates in both directions against planted modules. That scan answers a
+ * different question from `LOCATOR_CONSUMERS` in `scripts/check-foundation-guards.test.ts`, which
+ * answers WHO consumes this authority; this one answers whether each consumer honours the contract
+ * above. Two questions, two scans, and merging them would produce one predicate that answers
+ * neither.
+ * ---------------------------------------------------------------------------------------------
  */
 export function unfencedHeadingIndex(text: string, heading: string): number {
   const lines = text.split("\n");
