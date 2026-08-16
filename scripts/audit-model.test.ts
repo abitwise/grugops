@@ -1605,6 +1605,13 @@ describe("audit-model: an unterminated fence cannot silently shorten the claim l
     // documentation, and that is a decision someone must make deliberately rather than discover.
     expect(fenced).toBe(0);
     // And the projection really is the difference of the two published tallies.
+    //
+    // (Plan 29-37, 29-REVIEW round 4 § WR-02) READ THIS LINE FOR WHAT IT IS. `reg.claims.length`,
+    // `shaped` and `fenced` are all counted from the same `SHAPE` and the same fence toggle over the
+    // same bytes, so this equality is the IDENTITY that plan 29-37 deleted from production. It is
+    // kept here as DOCUMENTATION of the relationship between the two published figures — not as a
+    // check, because no input can falsify it. The check with a witness able to disagree lives in
+    // "the registry's denominator has a witness that can contradict it" below.
     expect(reg.claims.length).toBe(shaped - fenced);
   });
 
@@ -2081,5 +2088,143 @@ describe("audit-model: the registry's denominator has a witness that can contrad
     // claim: closing IN-02 means changing this line AND this assertion, in one deliberate edit.
     const js = readFileSync(join(REPO_ROOT, "scripts", "audit-model.js"), "utf8");
     expect(js.split(DRIFT_ANCHOR).length - 1, "one declaration, byte-unchanged").toBe(1);
+  });
+});
+
+// ---------------------------------------------------------------------------------------------
+// (Plan 29-37) THE PROBE EDGES, each named for the edge it answers.
+// ---------------------------------------------------------------------------------------------
+describe("audit-model: probe edges around the registry parse (plan 29-37)", () => {
+  const SHAPE = /^###\s+(\S+)\s*$/;
+
+  it("probe edge: two claim headings on ADJACENT lines SEPARATE, and the zero-length body is DECIDED", () => {
+    const body = [
+      "# Phase 28 Claim Registry",
+      "",
+      "### C-28-001",
+      "### C-28-002",
+      "",
+      "- file: README.md",
+      "- line: 3",
+      "- kind: architecture",
+      "- depends_on: autonomy",
+      "- status: true",
+      "",
+      FENCE,
+      "A claim sentence.",
+      FENCE,
+      "",
+    ].join("\n");
+
+    // The locator SEPARATES them: two members, on consecutive lines.
+    const idx = unfencedMatchIndices(body, SHAPE);
+    expect(idx, "adjacent headings must be TWO blocks, never one merged block").toHaveLength(2);
+    expect(idx[1]).toBe(idx[0] + 1);
+
+    // The first block's BODY is empty rather than absent — the block exists and its span carries
+    // zero lines. Note what is NOT asserted here: "the second block's start equals the first
+    // block's end" is TRUE BY CONSTRUCTION of readRegistry's loop (`end = headingIdx[n + 1]`), so
+    // asserting it would be the exact shape plan 29-37 exists to delete. What is asserted instead is
+    // the OBSERVABLE consequence: a zero-length span is DECIDED by a named refusal rather than
+    // dropped.
+    const firstBodyLines = idx[1] - idx[0] - 1;
+    expect(firstBodyLines, "the first block's body is EMPTY, and the block is PRESENT").toBe(0);
+
+    let msg = "";
+    try {
+      readRegistry(writeRegistryFixture(body));
+    } catch (e) {
+      msg = (e as Error).message;
+    }
+    expect(msg, "a zero-length block must be decided, not skipped").toMatch(/carries no fenced block/);
+    expect(msg).toContain("C-28-001");
+  });
+
+  it("probe edge: the SAME two claims, separated normally, parse as two — the adjacency control", () => {
+    const reg = readRegistry(
+      writeRegistryFixture(registryDoc(claimBlock("C-28-001"), claimBlock("C-28-002"))),
+    );
+    expect(reg.claims.map((c) => c.id)).toEqual(["C-28-001", "C-28-002"]);
+  });
+
+  it("probe edge: a registry with ZERO blocks refuses BEFORE the witness is reached", () => {
+    const body = ["# Phase 28 Claim Registry", "", "## Claims", "", "No claims yet.", ""].join("\n");
+    // THE PREMISE THIS EDGE EXISTS FOR, stated as an assertion: on this document the witness
+    // equality is VACUOUSLY satisfied — 0 parsed + 0 fenced === 0 raw — so a witness reached here
+    // would agree with a projection over a file it never read. That is why the zero-block refusal
+    // must come FIRST, and this case pins the order rather than the arithmetic.
+    const census = canonicalClaimHeadingCensus(body, fencedLineFlags(body));
+    expect(census.raw).toBe(0);
+    expect(census.fenced).toBe(0);
+    expect(0 + census.fenced === census.raw, "the witness would be vacuous here").toBe(true);
+
+    let msg = "";
+    try {
+      readRegistry(writeRegistryFixture(body));
+    } catch (e) {
+      msg = (e as Error).message;
+    }
+    expect(msg).toMatch(/zero claim blocks/);
+    expect(msg, "the witness must NOT be the refusal that fired").not.toMatch(
+      /raw canonical-heading count disagree/,
+    );
+  });
+
+  it("probe edge: a claim whose METADATA REGION is empty is decided by the block parser", () => {
+    const body = registryDoc(
+      ["### C-28-001", "", FENCE, "A claim sentence.", FENCE, ""].join("\n"),
+    );
+    expect(() => readRegistry(writeRegistryFixture(body))).toThrow(/missing required metadata key/);
+  });
+
+  it("probe edge: equal-comparing claim ids are refused BY NAME, and the index array ASCENDS", () => {
+    // Together these say that elements which compare equal never reach an order-dependent answer:
+    // the order is ascending by construction, and two blocks carrying one id are refused rather than
+    // resolved by position.
+    const body = registryDoc(
+      claimBlock("C-28-001"),
+      claimBlock("C-28-002"),
+      claimBlock("C-28-001", { kind: "safety" }),
+    );
+    const idx = unfencedMatchIndices(body, SHAPE);
+    expect(idx).toHaveLength(3);
+    expect([...idx].sort((a, b) => a - b)).toEqual([...idx]);
+    expect(new Set(idx).size, "the indices are distinct as well as ascending").toBe(idx.length);
+
+    let msg = "";
+    try {
+      readRegistry(writeRegistryFixture(body));
+    } catch (e) {
+      msg = (e as Error).message;
+    }
+    expect(msg).toMatch(/duplicate claim id/);
+    expect(msg).toContain("C-28-001");
+    // And the LIVE registry's own occurrence order is ascending, so this is not a fixture-only fact.
+    const live = readFileSync(join(REPO_ROOT, REGISTRY_PATH), "utf8");
+    const liveLines = canonicalClaimHeadingCensus(live, fencedLineFlags(live)).lines;
+    expect(liveLines.length).toBeGreaterThan(0);
+    expect([...liveLines].sort((a, b) => a - b)).toEqual([...liveLines]);
+  });
+
+  it("probe edge: the canonical id comparison is over BYTES", () => {
+    // A DISCLOSURE of what the comparison already is, not a new rule: no `u` flag, no `\\p{Nd}`, no
+    // normalisation. A full-width digit and a U+2011 non-breaking hyphen are not a canonical id.
+    const ascii = `# R\n\n### C-28-001\n`;
+    const fullwidth = `# R\n\n### C-28-００１\n`;
+    const nbHyphen = `# R\n\n### C‑28‑001\n`;
+    expect(canonicalClaimHeadingCensus(ascii, fencedLineFlags(ascii)).raw).toBe(1);
+    expect(canonicalClaimHeadingCensus(fullwidth, fencedLineFlags(fullwidth)).raw).toBe(0);
+    expect(canonicalClaimHeadingCensus(nbHyphen, fencedLineFlags(nbHyphen)).raw).toBe(0);
+    // PREMISE: the lookalikes really ARE claim-heading-shaped to the parser's own recogniser, so
+    // this measures the ID comparison rather than the heading shape.
+    expect(SHAPE.test(fullwidth.split("\n")[2])).toBe(true);
+    expect(SHAPE.test(nbHyphen.split("\n")[2])).toBe(true);
+    // And the parse refuses them by the canonical-form name rather than accepting them silently.
+    for (const body of [
+      registryDoc(claimBlock("C-28-００１")),
+      registryDoc(claimBlock("C‑28‑001")),
+    ]) {
+      expect(() => readRegistry(writeRegistryFixture(body))).toThrow(/C-28-NNN/);
+    }
   });
 });
