@@ -6171,6 +6171,60 @@ describe("check-foundation-guards.js (SDLC-02 / SC2 fail-proof harness)", () => 
     return `SEC_VOICE_FILES holds ${members.length} member(s) [${members.join(", ")}] but SEC_VOICE_FILE_COUNT declares ${declared}`;
   };
 
+  // ── (Plan 29-33, closing round-4 CR-01 / the LANG-06 failed truth) THE MEMBERSHIP ROSTER. ────────
+  //
+  // The cardinality pin above catches the ADD and the REMOVE directions. It is BLIND to the third:
+  // SUBSTITUTE one member for any other existing `agent-factory/**.md` path and every published
+  // number holds still — `visited` 19, `expected` 19, `SEC_VOICE_FILE_COUNT` 2, the path-shape
+  // assertion satisfied — while a real security surface leaves `guard_voice` entirely and the gate
+  // exits 0. Reproduced end to end against the COMMITTED `.js` on a `git archive HEAD` mirror by
+  // both the round-4 reviewer and the round-4 verifier, and again by this plan before it was written:
+  //
+  //   unmodified committed .js  ->  FAIL  voice: 1 finding(s) over 19 elements   (exit 1)
+  //   one token substituted     ->  PASS  voice: 0 findings over 19/19 elements  (exit 0)
+  //
+  // This is the shape plan 29-30 found one module over ("a count-preserving REHOME keeps every
+  // cardinality identical while a file leaves the list") and closed with a ROSTER. The same remedy,
+  // in the same posture as `SAFETY_CLAIM_HOMES` in scripts/check-audit-register.ts: a hand-maintained
+  // roster is legitimate under D-01/D-04 only when it FAILS CLOSED against a same-commit companion,
+  // and this one does — any add, remove or substitution in EITHER artifact reds by name.
+  //
+  // THE PIN IS OVER THE `.ts` SOURCE. The reproduction above edited the committed `.js`, which no
+  // source-level assertion can see. The half of the closure covering that route is `npm run
+  // freshness`, measured rather than asserted in plan 29-33 task 3.
+  //
+  // Written in SORTED order, and the sortedness is asserted below rather than trusted — a roster
+  // compared order-insensitively can otherwise drift into an order the comparison hides.
+  const SEC_VOICE_MEMBERS: readonly string[] = [
+    "agent-factory/checklists/security-nfr-checklist.md",
+    "agent-factory/workflows/15-security-audit.md",
+  ] as const;
+
+  // The exact path round 4 substituted in. A real, tracked, `agent-factory/**.md` document that is
+  // NOT a security surface — kept as a named constant so the roster case and the property floor
+  // discriminate against the SAME decoy the live bypass used.
+  const SEC_VOICE_DECOY = "agent-factory/checklists/definition-of-ready.md";
+
+  /**
+   * The roster pin as a VALUE, the way `secVoicePinMismatch` already is — so the falsifiability
+   * probe drives the SAME comparison the permanent assertion drives. A second implementation inside
+   * the probe is how a probe comes to prove a predicate that is not the one shipped.
+   *
+   * The message reports the two halves SEPARATELY. A failure saying only that "a string moved"
+   * cannot say which half drifted, and a substitution moves both at once.
+   */
+  const secVoiceRosterMismatch = (src: string): string | null => {
+    const parsed = parseSecVoiceMembers(src);
+    const missing = SEC_VOICE_MEMBERS.filter((m) => !parsed.includes(m));
+    const undeclared = parsed.filter((m) => !SEC_VOICE_MEMBERS.includes(m));
+    if (missing.length === 0 && undeclared.length === 0) return null;
+    return (
+      `SEC_VOICE_FILES membership drifted from the declared roster — ` +
+      `declared but ABSENT from the guard source: [${missing.join(", ")}]; ` +
+      `present in the guard source but UNDECLARED: [${undeclared.join(", ")}]`
+    );
+  };
+
   it("SEC_VOICE_FILES cardinality is pinned against SEC_VOICE_FILE_COUNT, and the pin is not vacuous", () => {
     // `SEC_VOICE_FILES` is the ONE part of the voice corpus with no lister to derive it from — a
     // curated pair of non-role security surfaces. A hand-maintained set with no asserted count is
@@ -6188,6 +6242,72 @@ describe("check-foundation-guards.js (SDLC-02 / SC2 fail-proof harness)", () => 
     );
     expect(members).toHaveLength(declared);
     expect(secVoicePinMismatch(GUARD_TS_SRC)).toBeNull();
+  });
+
+  it("the SEC_VOICE roster is pinned two-sided against the guard source", () => {
+    const parsed = parseSecVoiceMembers(GUARD_TS_SRC);
+
+    // ── THE HARNESS'S OWN PREMISE, ASSERTED BEFORE THE EQUALITY IT ENABLES. ──────────────────────
+    // A regex that silently matched an empty list would make the comparison `[] === []` and the
+    // roster would pin nothing. The ELEMENT count is derived here independently of the loop that
+    // consumes it — a vacuity floor that catches an EMPTY denominator but never a SILENTLY SHORT
+    // one is this phase's recorded failure, so the roster is asserted non-empty too.
+    expect(parsed.length, "the parsed member list must be non-empty").toBeGreaterThan(0);
+    expect(SEC_VOICE_MEMBERS.length, "the declared roster must be non-empty").toBeGreaterThan(0);
+    expect(
+      parsed.filter((m) => m.startsWith("agent-factory/") && m.endsWith(".md")),
+      "every parsed member must be a repo-relative markdown path",
+    ).toEqual(parsed);
+    expect(
+      parsed.some((m) => SEC_VOICE_MEMBERS.includes(m)),
+      "the parse must have REACHED the literal the roster describes, not some other array",
+    ).toBe(true);
+
+    // ── PROBE EDGE LANG-06/ORDERING, ANSWERED BY CONSTRUCTION. ───────────────────────────────────
+    // The equality below is order-insensitive (it is a two-way set difference), so a roster written
+    // out of order would still pass it. Assert the DECLARATION is sorted so it cannot drift into an
+    // order the comparison silently hides.
+    expect(
+      [...SEC_VOICE_MEMBERS],
+      "the declared roster must be written in sorted order",
+    ).toEqual([...SEC_VOICE_MEMBERS].sort());
+
+    // ── THE PIN. Two-sided, order-insensitive, both directions reported separately. ──────────────
+    expect([...parsed].sort()).toEqual([...SEC_VOICE_MEMBERS].sort());
+    expect(secVoiceRosterMismatch(GUARD_TS_SRC)).toBeNull();
+
+    // ── PROBE EDGE LANG-06/ADJACENCY. The two halves of `VOICE_FILES` TOUCH. ─────────────────────
+    // `agent-factory/roles/security-nfr.md` is already a member of ROLE_FILES, and the declaration
+    // comment in the guard has always asserted it must not be added to SEC_VOICE_FILES — nothing
+    // enforced it. A member sitting in BOTH halves would be scanned twice and would inflate
+    // `visited` past `expected`, turning the denominator floor into a false red; the two sets must
+    // separate. The role half is DERIVED from the same lister the guard uses, never restated.
+    const roleHalf = listRoles(ROOT).map((f) => `agent-factory/roles/${f}`);
+    expect(roleHalf.length, "the role derivation must be non-empty").toBeGreaterThan(0);
+    expect(
+      roleHalf,
+      "the adjacency probe's own premise: security-nfr.md must really be a ROLE file",
+    ).toContain("agent-factory/roles/security-nfr.md");
+    expect(
+      SEC_VOICE_MEMBERS.filter((m) => roleHalf.includes(m)),
+      "no SEC_VOICE member may also be a ROLE file — the two halves must not merge",
+    ).toEqual([]);
+    expect(SEC_VOICE_MEMBERS).not.toContain("agent-factory/roles/security-nfr.md");
+  });
+
+  it("the SEC_VOICE roster REDS on a SUBSTITUTED member and NAMES BOTH halves of the drift", () => {
+    // Round 4's bypass, applied to the guard SOURCE this time. One token; the count is untouched.
+    const substituted = GUARD_TS_SRC.replace(
+      '"agent-factory/workflows/15-security-audit.md"',
+      `"${SEC_VOICE_DECOY}"`,
+    );
+    // ASSERT THE MUTATION APPLIED BEFORE ASSERTING THE PIN FIRED — a `replace` that matched nothing
+    // would "prove" the roster against unmutated bytes.
+    expect(substituted, "the substitution must actually change the source").not.toBe(GUARD_TS_SRC);
+    const drifted = secVoiceRosterMismatch(substituted);
+    expect(drifted, "a substituted member must RED the roster").not.toBeNull();
+    expect(drifted, "and must name the member that LEFT").toContain("15-security-audit.md");
+    expect(drifted, "and the member that ARRIVED").toContain("definition-of-ready.md");
   });
 
   it("the SEC_VOICE cardinality pin REDS on a planted member, and names it — the falsifiability probe", () => {
