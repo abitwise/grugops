@@ -1681,6 +1681,75 @@ const SECTION_EXTENT_OWNERS = ["scripts/frontmatter.ts"];
 const SECTION_EXTENT_OWNER_COUNT = 1;
 /** The recursive enumeration's own size, pinned so a walk that silently stopped early is loud. */
 const NON_TEST_MODULE_COUNT = 49;
+
+// ─────────────────────────────────────────────────────────────────────────────────────────────
+// (Plan 29-40, gap G-29-1 of 29-UAT.md, closing V-29-35-01) THE FRONTMATTER-PARSER NAME OWNER SET.
+//
+// The section-extent scan above answers "which module DECIDES where a section ends". This one answers
+// a narrower and more mechanical question: "which module DECLARES a function called
+// `parseFrontmatter`". Both exist for the same reason (D-24, one authority per predicate), and this
+// one exists because the section-extent scan could not see the defect G-29-1 named.
+//
+// WHY A SECOND SCAN AT ALL, AND WHAT MADE IT NECESSARY. `scripts/generate-catalog.ts` carried a
+// PRIVATE flat `key: value` `parseFrontmatter` beside the exported authority for the whole of phase
+// 29. Nothing red. The IMPORTED-SYMBOL pin above could not see it — a duplicate declared locally is
+// invisible to an import pin, because the module imports nothing to be pinned. The section-extent
+// scan could not see it either — the duplicate answered a DIFFERENT predicate. So a second grammar
+// over one class of bytes sat in the tree at exit 0, measured at 0 key-set differences over 36
+// documents, i.e. LATENT rather than absent. Its sibling `generate-role-adapters.ts` had the same
+// eight-line duplicate deleted in plan 27-23 (WR-03); this file was simply missed by that conversion,
+// and no assertion in this repository would have said so.
+//
+// ── THE BOUND, DISCLOSED HERE RATHER THAN LEFT FOR A LATER ROUND TO DISCOVER. ──────────────────
+// THIS TRIPWIRE IS NAME-SCOPED. It reds the day a second module declares a function called
+// `parseFrontmatter`. It does NOT detect a duplicated frontmatter grammar declared under a DIFFERENT
+// name — `readFrontmatter`, `fmOf`, an inline `text.match(/^---\n/)` in the middle of a loop. That is
+// a different predicate: answering it needs a CLASSIFIER over what the code does, the shape
+// `sectionExtentOwners()` has, not a test over an identifier. Stating the limit is the point; a
+// tripwire whose silence is read as coverage it never had is how V-29-26-02 happened.
+//
+// THE REMEDY ON A RED IS DELETION, NEVER MEMBERSHIP. A module outside the authority declaring this
+// name is a LANG-07 failure. It is closed by deleting the second declaration and consuming
+// `scripts/frontmatter.ts`, exactly as plans 27-23 and 29-40 did — never by adding the module to the
+// list below. The same posture the section-extent owner case states, for the same reason: a weaker
+// second opinion that still votes is worse than none.
+//
+// MEASURED over the live tree in the same session that wrote this line, by running the derivation
+// below — never transcribed from the plan.
+const FRONTMATTER_PARSER_OWNERS = ["scripts/frontmatter.ts"];
+const FRONTMATTER_PARSER_OWNER_COUNT = 1;
+
+/**
+ * The spellings that count as a LOCAL DECLARATION of the name, built against the evasion lesson this
+ * file already records: a hand-maintained application-verb list rotted INSIDE the assertion written
+ * to close the first drift, so the set of forms is enumerated once here and every member is planted
+ * and asserted in the case below rather than trusted.
+ *
+ * Two arms because JavaScript has two ways to bind a function to a name, and a scan that knows only
+ * `function` is defeated by `const parseFrontmatter = (...) => ...` — which is what the deleted
+ * duplicate would have become the first time somebody reformatted it.
+ *
+ * The `(?<![A-Za-z0-9_$])` / `(?![A-Za-z0-9_$])` guards are what keep this a NAME test rather than a
+ * SUBSTRING test: `parseFrontmatterStrict` shares the prefix and `reparseFrontmatter` shares the
+ * suffix, and neither is this name. Both are planted as non-matches.
+ */
+const FRONTMATTER_PARSER_DECLARATIONS: readonly RegExp[] = [
+  // `function parseFrontmatter(`, with any combination of `export` and `async`, and any generic
+  // parameter list — the `(?!...)` boundary is what stops `parseFrontmatterStrict` from matching.
+  /(?<![A-Za-z0-9_$])(?:export\s+)?(?:async\s+)?function\s+parseFrontmatter(?![A-Za-z0-9_$])/,
+  // `const parseFrontmatter = (` / `= function` / `= async (` / `= <T>(`, and the same for `let` and
+  // `var`, with an optional type annotation between the name and the `=`. A plain
+  // `const parsed = parseFrontmatter(text)` CALL does not match: the name must sit where the binding
+  // is, not where the callee is.
+  /(?<![A-Za-z0-9_$])(?:export\s+)?(?:const|let|var)\s+parseFrontmatter(?![A-Za-z0-9_$])\s*(?::[^=]*)?=\s*(?:async\s+)?(?:function\b|\(|<)/,
+];
+
+/** True when this source DECLARES the name locally. Comments are blanked first, so a name mentioned
+ * in prose can neither satisfy nor falsify the test. */
+const declaresFrontmatterParser = (src: string): boolean => {
+  const code = codeLinesOfSource(src).join("\n");
+  return FRONTMATTER_PARSER_DECLARATIONS.some((r) => r.test(code));
+};
 /**
  * Floor item 1's LIVE sites, measured in this session and pinned two-sided WITH THEIR ADDRESSES.
  *
@@ -2504,6 +2573,105 @@ describe("LANG-07: exactly ONE module owns the section-extent predicate (plan 29
     expect(orphans, "floor item 5 — committed `.js` with no `.ts` beside it").toEqual(
       FLOOR_ITEM_5_SITES,
     );
+  });
+
+  it("no module outside the authority declares the frontmatter parser's name", () => {
+    // (Plan 29-40, G-29-1 / V-29-35-01) See FRONTMATTER_PARSER_OWNERS above for the bound this
+    // tripwire has, for why the imported-symbol pin and the section-extent scan could both stay green
+    // over the duplicate it exists to catch, and for the deletion-not-membership remedy on a red.
+
+    // ── THE DENOMINATOR FIRST, IN ITS OWN EXPECTATION WITH ITS OWN MESSAGE. ────────────────────
+    // The corpus is the RECURSIVE, repository-rooted enumeration — never `nonTestScripts()`, which
+    // reads ONE directory and covers 41 of these 49 modules. A tripwire calling itself repository-wide
+    // while reading a subset is V-29-26-02 recreated inside the assertion written to prevent it.
+    //
+    // AND THE SIZE IS ASSERTED BEFORE THE ANSWER, because a vacuity floor that only catches an EMPTY
+    // set never catches a SILENTLY SHORT one. This phase has already paid for that distinction: a
+    // one-owner answer over a walk that stopped after four directories looks exactly like a
+    // one-owner answer over the whole tree.
+    const modules = nonTestModules();
+    expect(
+      modules.length,
+      "the recursive non-test module walk must really have enumerated the whole tree before anything is claimed about its contents — a short walk reporting one clean owner is the failure this expectation exists to make loud",
+    ).toBe(NON_TEST_MODULE_COUNT);
+    expect(modules).toContain("scripts/frontmatter.ts");
+    expect(modules).toContain("scripts/generate-catalog.ts");
+    expect(modules).toContain("scripts/generate-role-adapters.ts");
+
+    // ── THE MEMBERSHIP CLAIM, TWO-SIDED, DERIVED. ─────────────────────────────────────────────
+    const owners = modules.filter((rel) =>
+      declaresFrontmatterParser(readFileSync(join(ROOT, rel), "utf8")),
+    );
+    expect(owners).toEqual([...owners].sort());
+    expect(
+      owners,
+      "a module outside scripts/frontmatter.ts declares a function called `parseFrontmatter`. That is a LANG-07 failure (D-24) and it is closed by DELETING the second declaration and consuming the authority — never by adding the module to this list",
+    ).toEqual(FRONTMATTER_PARSER_OWNERS);
+    // Cardinality pinned as a NUMBER beside the member list, so a recogniser that silently stops
+    // matching shrinks LOUDLY rather than passing over a set it no longer populates.
+    expect(owners).toHaveLength(FRONTMATTER_PARSER_OWNER_COUNT);
+    // …and the two generators are named as NON-members, because a one-member answer must not be one
+    // member by accident of which file happened to match. These are the two modules that HELD the
+    // duplicate — one until plan 27-23, the other until plan 29-40.
+    expect(owners).not.toContain("scripts/generate-catalog.ts");
+    expect(owners).not.toContain("scripts/generate-role-adapters.ts");
+
+    // ── PROVEN ABLE TO FAIL: SIX DECLARATION SPELLINGS MATCH. ─────────────────────────────────
+    // Every form is PLANTED and asserted rather than trusted. The live answer is one member; these
+    // plants are what make that one member a measurement instead of a coincidence.
+    const MATCHING_DECLARATIONS: readonly (readonly [string, string])[] = [
+      ["plain", "function parseFrontmatter(text: string) {\n  return text;\n}\n"],
+      ["exported", "export function parseFrontmatter(text: string) {\n  return text;\n}\n"],
+      ["generic", "export function parseFrontmatter<T>(text: string): T {\n  throw text;\n}\n"],
+      ["async", "async function parseFrontmatter(text: string) {\n  return text;\n}\n"],
+      ["const arrow", "const parseFrontmatter = (text: string) => text;\n"],
+      ["let function expression", "let parseFrontmatter = function (text: string) {\n  return text;\n};\n"],
+    ];
+    for (const [label, planted] of MATCHING_DECLARATIONS) {
+      expect(
+        declaresFrontmatterParser(planted),
+        `the ${label} declaration spelling must be recognised — a form the recogniser cannot see is a form a second copy can hide in`,
+      ).toBe(true);
+    }
+
+    // ── AND FIVE NEAR MISSES DO NOT. ──────────────────────────────────────────────────────────
+    // A recogniser WIDENED until it is noisy is the same defect as one NARROWED until the answer comes
+    // out right, so both directions are planted. The last three are what every module in the tree that
+    // legitimately USES the authority looks like; if any of them matched, the live answer would be ten
+    // owners and the tripwire would be deleted as noise within a round.
+    const NON_MATCHING: readonly (readonly [string, string])[] = [
+      [
+        "a longer identifier sharing the PREFIX",
+        "export function parseFrontmatterStrict(text: string) {\n  return text;\n}\n",
+      ],
+      [
+        "a longer identifier sharing the SUFFIX",
+        "export function reparseFrontmatter(text: string) {\n  return text;\n}\n",
+      ],
+      [
+        "an IMPORT of the name",
+        'import { parseFrontmatter, sectionEndIndex } from "./frontmatter.js";\n',
+      ],
+      [
+        "a COMMENT naming it",
+        "// parseFrontmatter is the one authority; do not declare a second one.\n// const parseFrontmatter = (t: string) => t;\n",
+      ],
+      [
+        "a CALL to it",
+        "const parsed = parseFrontmatter(text);\nconst again = await parseFrontmatter(other);\n",
+      ],
+    ];
+    for (const [label, planted] of NON_MATCHING) {
+      expect(
+        declaresFrontmatterParser(planted),
+        `${label} must NOT be read as a local declaration — this is a NAME test, and a substring test would report every consumer of the authority as an owner`,
+      ).toBe(false);
+    }
+
+    // ── THE AUTHORITY'S OWN SOURCE IS NAMED, so the one member is the one intended. ────────────
+    expect(
+      declaresFrontmatterParser(readFileSync(join(ROOT, "scripts", "frontmatter.ts"), "utf8")),
+    ).toBe(true);
   });
 });
 

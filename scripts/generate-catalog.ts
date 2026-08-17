@@ -37,10 +37,11 @@
 // `Map<string, string[]>`, so this generator can now tell THREE facts apart that the deleted copy
 // conflated into one:
 //
-//   1. An UNREADABLE document. The deleted `/^---\n([\s\S]*?)\n---\n/` simply failed to match an
-//      unterminated block and returned an EMPTY map, so this generator reported `role tier must be
-//      core|enterprise, found ""` about a file whose frontmatter could not be read at all. A parse
-//      artifact is never a verdict (frontmatter.ts header); the `ok: false` arm is branched on here.
+//   1. An UNREADABLE document. The deleted fence match was anchored at byte 0 and required a closing
+//      delimiter, so an unterminated block simply did not match and the parser returned an EMPTY map.
+//      This generator then reported `role tier must be core|enterprise, found ""` about a file whose
+//      frontmatter could not be read at all. A parse artifact is never a verdict (frontmatter.ts
+//      header); the `ok: false` arm is branched on here.
 //   2. A key declared TWICE. The deleted copy wrote into a plain object, so the LAST declaration won
 //      and the first vanished unreported. Measured on a scratch mirror: `tier: core` followed by
 //      `tier: enterprise` in `qe-e2e.md` published that CORE role in the enterprise group and exited
@@ -96,11 +97,20 @@ const fail: (m: string) => never = (m: string): never => {
 };
 
 // ── The frontmatter grammar is NOT here (plan 29-40, G-29-1 / V-29-35-01) ──────────────────────
-// A private flat `key: value` parser stood at this position: a `^---\n([\s\S]*?)\n---\n` fence match,
-// a `^([A-Za-z_]+):\s*(.*)$` key line, last-wins assignment into a plain object, and `return fm` on a
-// document it could not read. It is DELETED, not moved and not renamed — see this file's header for
-// the three facts it conflated and for the divergence measurement taken before it went. What replaced
-// it is a call to the ONE exported authority at each of the two sites that needs it.
+// A private flat `key: value` parser stood at this position: a fence match anchored at byte 0 and
+// requiring a closing delimiter, a key line whose character class admitted letters and underscores
+// only, last-wins assignment into a plain object, and an empty map returned for a document it could
+// not read. It is DELETED, not moved and not renamed — see this file's header for the three facts it
+// conflated and for the divergence measurement taken before it went. What replaced it is a call to
+// the ONE exported authority at each of the two sites that needs it.
+//
+// AND THE RETIRED PATTERNS' SPELLINGS WENT WITH THE PATTERNS, DELIBERATELY. Both regex literals were
+// written out here in this plan's first draft, and `scripts/frontmatter.test.ts`'s D-50 IN-05
+// classifier — a SOURCE-TEXT scan with no comment stripping — went on reporting this module as a
+// local frontmatter grammar site on the strength of the prose alone. The facts above are what a later
+// reader needs; the pattern text is what a scanner reads as a live construct. This is the convention
+// plan 29-35 set eleven lines up in this same file: a comment that outlives its construct is a defect,
+// and so is one that resurrects it for a reader that cannot tell prose from code.
 
 // ── First-sentence summary: split on ". " (period-SPACE), KEEP its period, never re-append ────
 // Splitting on bare "." would truncate `AGENTS.md` (agents-md-scribe) and `OWASP ASVS 5.0`

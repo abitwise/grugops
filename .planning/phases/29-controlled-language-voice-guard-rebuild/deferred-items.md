@@ -51,3 +51,47 @@ unquoting, so `scanEmbeddedDoubleQuoted` inspects every embedded `"…"` region 
 sequence item itself was quoted. A backslash sequence outside `DQ_ESCAPE_ALLOWLIST` (`\"`, `\\`,
 `\/`) inside any such region is refused. Write `` `split('\n')` `` in a single-quoted scalar, never
 `` `split("\n")` ``.
+
+### D-40-1 — an EMPTY `order:` key publishes workflow row 0, not a refusal
+
+**Where:** `scripts/generate-catalog.ts`, the workflows loop. Pre-existing; NOT introduced by plan 29-40.
+
+An ABSENT `order:` key refuses, because the pre-change code read `Number(fm.order)` with `fm.order`
+`undefined` and `Number(undefined)` is `NaN`. A key that is PRESENT and EMPTY reaches `Number("")`,
+which is `0` — an integer — so the workflow is published at row 0 with no finding. Plan 29-40
+PRESERVED this exactly (`rawOrder` is `undefined` for an absent key and `""` for an empty one) and
+disclosed it at the site, because that is what makes the plan's byte-identity claim honest rather
+than a behaviour change smuggled inside a conversion.
+
+**Measured in plan 29-40's session:** 0 of the 19 governed workflows carry an empty `order:`, so live
+reachability is zero. The same is true of `tier:` on the roles side, where an empty value falls into
+the existing `role tier must be core|enterprise, found ""` refusal and is therefore already correct.
+
+**Not fixed because** the plan's contract was behaviour preservation proven as bytes, and its scope
+was gap G-29-1. Changing a refusal boundary inside a gap-closure plan would put an unrelated
+behavioural change behind that plan's byte proof. The fix is one line — treat a present-and-empty
+`order:` as its own finding, the way `generate-role-adapters.ts` treats an empty `capabilities:` —
+and it wants its own plan with its own planted case.
+
+### D-40-2 — the D-50 IN-05 local-grammar classifier reads COMMENTS as code
+
+**Where:** `scripts/frontmatter.test.ts`, `isGrammarSite` / `grammarSitesAmong`.
+
+The classifier tests the raw source text of every tracked non-test `.ts` for a head-delimiter
+construct AND a key-line construct. It has no comment stripping, so PROSE quoting a retired pattern
+is read as a live construct. Measured in plan 29-40: after the private parser was deleted from
+`scripts/generate-catalog.ts`, the module was still classified as a grammar site purely on the
+strength of two comment lines that spelled the two deleted regexes.
+
+**Closed in 29-40 by following the file's own convention instead** — plan 29-35 had already recorded
+that "a comment that outlives its construct is the defect one module over" and deleted the retired
+pattern's spelling with the pattern. 29-40 did the same: the FACTS about the deleted grammar are kept
+in prose, the pattern text is not.
+
+**Not fixed structurally because** the sibling guard file already has the structural answer —
+`codeLinesOfSource` in `scripts/check-foundation-guards.test.ts`, whose docstring states that a name
+mentioned in prose must neither satisfy nor falsify a membership test — and adopting it here is a
+change to a safety classifier's input, in the fail-open direction: a commented-out grammar about to
+be uncommented would stop being seen. That trade wants its own plan, its own planted discrimination
+(a commented-out grammar vs a live one), and a deliberate decision, not a ride-along in a gap-closure
+plan whose contract was behaviour preservation.

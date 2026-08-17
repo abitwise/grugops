@@ -699,7 +699,7 @@ it, its three discrimination assertions kept and passing, and two vacuity floors
 corpus pinned against `NON_TEST_MODULE_COUNT`, and the classified LINE count floored) — because an
 empty answer can no longer prove itself by producing a member.
 
-#### 9.3c V-29-35-01 — a private `parseFrontmatter` beside the exported one, MEASURED and OUT OF SCOPE
+#### 9.3c V-29-35-01 — a private `parseFrontmatter` beside the exported one, MEASURED and OUT OF SCOPE — **CLOSED by plan 29-40**
 
 Reading `generate-catalog.ts` for the fix above surfaced an adjacency, recorded here by name rather
 than absorbed or quietly fixed:
@@ -750,6 +750,59 @@ coincided; making `generate-catalog.ts` a consumer exposed the difference, and t
 have reported a top-level script that **nothing imports** as "reachable from the guard import graph".
 The measurement is now over the **edge** set — modules some other module in the closure imports — so
 the claim and the measurement match.
+
+##### CLOSURE — plan 29-40, round 5
+
+**Everything above this line is retained verbatim, including the out-of-scope disposition.** This
+section is a trail, not a tidy final state: the escalation, the measurement and the round-4 scope
+decision are what make the closure legible, and deleting them would leave the next reader with a
+finding that appears never to have been open.
+
+**What discharged it.** Round 5's UAT (`.planning/phases/29-controlled-language-voice-guard-rebuild/29-UAT.md`,
+test 1, decided 2026-08-17) put the disposition back to the human, whose scope horizon in round 4 was
+the ROUND and not the PHASE. The decision of record is **(b) SCHEDULE ITS CLOSURE** — not
+accept-as-residual — recorded as gap **G-29-1** and executed by plan **29-40** (LANG-07).
+
+**What changed.** The private declaration at `scripts/generate-catalog.ts:51` is **DELETED**, not
+widened and not flag-guarded (D-24). The module now imports `parseFrontmatter`, `sectionEndIndex` and
+`unfencedHeadingIndex` from `./frontmatter.js` — byte-identical to the set its sibling
+`generate-role-adapters.ts` has carried since WR-03 — and both call sites read
+`Parsed<FrontmatterKeys>`. The return-shape adaptation was the one non-mechanical step, and it split
+three facts the old shape printed as one: an unreadable frontmatter, a key declared twice, and a key
+absent or out-of-vocabulary.
+
+**Evidence.**
+
+- **Behaviour preserved, taken as BYTES:** `npm run generate:catalog` followed by
+  `git diff --exit-code docs/catalog/README.md` exits 0, and `npm run freshness:catalog` exits 0. The
+  proof is the byte comparison, not the argument that the two return shapes are equivalent.
+- **The divergence axes RE-MEASURED in plan 29-40's own session** over the same 36 documents, because
+  "0 today" is a measurement with a date on it: 0 keys the deleted `[A-Za-z_]+` charset would have
+  skipped, 0 documents declaring any key twice, 0 empty values for a key this generator reads, 0
+  documents with no frontmatter fence, 0 CRLF documents, 0 key-set differences, 0 documents the
+  authority refuses. Same answer as round 4's.
+- **The latency was real, and one axis was NOT fail-closed.** Run against the pre-change committed
+  `scripts/generate-catalog.js` on a scratch mirror: a duplicated `tier:` key made the generator exit
+  **0** and publish the CORE role QE/E2E in the **enterprise** group, silently — after which the
+  freshness gate would have demanded those bytes. An unterminated block made it print
+  `role tier must be core|enterprise, found ""` about a file whose frontmatter was never parsed. Both
+  are held by permanent cases in `scripts/generate-catalog.test.ts`, each RED-proven against that
+  pre-change artifact.
+- **A third copy cannot land green.** `scripts/check-foundation-guards.test.ts` now derives
+  `FRONTMATTER_PARSER_OWNERS` over the **recursive** repository enumeration — never `nonTestScripts()`,
+  which reads 41 of the 49 tracked modules — asserts the enumeration's own size against
+  `NON_TEST_MODULE_COUNT` **before** the membership claim, and pins the answer at exactly
+  `["scripts/frontmatter.ts"]`. Six declaration spellings are planted and match; five near misses
+  (prefix, suffix, an import, a comment, a call) are planted and do not.
+- **The tripwire's own blind spot is DISCLOSED at its declaration**, not left for a later round: it is
+  **NAME-scoped**. A duplicated frontmatter grammar declared under a different name is a different
+  predicate and is outside it.
+- **The imported-symbol pin MOVED, and its justification was withdrawn rather than re-valued.** The pin
+  at `scripts/check-foundation-guards.test.ts` asserted the two-symbol locator set on the grounds that
+  this generator's parser "renders no catalogue row", with a message reading "and nothing else". Both
+  statements were false when written — the module always parsed frontmatter, through the private copy.
+  A duplicate declared locally is invisible to an import pin, which is why the set looked complete at
+  two symbols and is the reason the new tripwire exists at all.
 
 ### 9.4 The other floor items, re-checked with live counts
 

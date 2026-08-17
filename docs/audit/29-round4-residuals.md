@@ -161,12 +161,27 @@ directions are recorded: the one this round CLOSED and the one this round OPENED
 | `V-29-26-04` | indented fence delimiters are classified as governed prose | **carried, re-confirmed** — fail-closed only by the accident that the indented delimiters pair up; the round-4 review re-measured **4 live lines in `README.md`** (round 2 measured 6; the two figures are separate measurements at separate times, not a contradiction) | §6, §8 |
 | `V-29-32-01` | a closed-fence, count-preserving swallow of the banned-claim exemption region | **carried, re-confirmed** | plan 29-32 |
 | `V-29-29-01` | the duplicated `sectionBody` — a third section-extent grammar, fence-blind AND level-blind, feeding the generated Claude Code adapters and the catalogue | **CLOSED THIS ROUND by plan 29-35** — both copies deleted, both generators routed through the one authority, generated adapters byte-identical across the change | `docs/audit/29-locator-unification.md` §9.3b |
-| `V-29-35-01` | **OPENED THIS ROUND by plan 29-35** — a private `parseFrontmatter` in `scripts/generate-catalog.ts` beside the exported authority. Measured at **0 key-set differences over 36 governed documents**; recorded, NOT fixed; out of scope by the same user decision that deferred IN-01..IN-04 | **open** | `docs/audit/29-locator-unification.md` §9.3c |
+| `V-29-35-01` | **OPENED THIS ROUND by plan 29-35** — a private `parseFrontmatter` in `scripts/generate-catalog.ts` beside the exported authority. Measured at **0 key-set differences over 36 governed documents**; recorded, NOT fixed; out of scope by the same user decision that deferred IN-01..IN-04. **CLOSED IN ROUND 5 by plan 29-40** — the private declaration deleted, the module routed through the exported authority, `docs/catalog/README.md` proven byte-identical, and a derived NAME-scoped owner tripwire added so a third copy reds the day it lands | **closed (round 5, plan 29-40)** | `docs/audit/29-locator-unification.md` §9.3c |
 
 **The net movement of the residual set across round 4 is zero: one closed, one opened.** That is
 stated plainly because a round that closes a duplicated grammar and opens a duplicated parser has
 not reduced the number of duplicated authorities in the tree — it has moved the duplication one
 level down. The next round should read that as the finding it is.
+
+**Round-5 addendum — the round-4 sentence above was acted on rather than merely read.** Round 5's UAT
+put `V-29-35-01`'s disposition back to the human (test 1, decided 2026-08-17), because round 4's
+out-of-scope horizon was the ROUND and not the PHASE. The decision of record is **(b) SCHEDULE ITS
+CLOSURE**, filed as gap **G-29-1** and executed by plan **29-40**. So the net movement across rounds 4
+and 5 together is **one duplicated authority removed**, not moved. The closure record, its byte
+evidence and the tripwire's disclosed NAME-scoped bound are in
+`docs/audit/29-locator-unification.md` §9.3c under "CLOSURE — plan 29-40, round 5"; the round-4
+escalation text there is retained verbatim above it.
+
+Round 5 also recorded, in the same place, the reason no assertion in this repository had said the
+duplicate was there: **a duplicate declared LOCALLY is invisible to an IMPORTED-SYMBOL pin**, because
+the module imports nothing to be pinned, and the section-extent owner scan could not see it either
+because the duplicate answered a different predicate. That gap — not the duplicate itself — is what
+the new derived owner tripwire closes.
 
 Two further items are logged as executor-level deferrals in
 `.planning/phases/29-controlled-language-voice-guard-rebuild/deferred-items.md` and are not re-argued
@@ -249,6 +264,8 @@ as resolved:
    falsified** — 29-35 closed the third grammar and opened `V-29-35-01`, a private frontmatter
    parser one level down. The assumption said the edge was covered by named work; the named work
    found another instance of the same class. Recorded here rather than quietly left standing.
+   **Round-5 update:** `V-29-35-01` is now closed by plan 29-40, so the named work did eventually
+   reach it — one round later than the assumption implied, which is the part that was falsified.
 
 ---
 

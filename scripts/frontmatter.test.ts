@@ -4799,7 +4799,7 @@ describe("frontmatter — the spawn-grant parser oracle (SPAWN-04 / KIT-03)", ()
       readFileSync(join(REPO_ROOT, p), "utf8"),
     );
 
-  it("D-50 IN-05 — the set of tracked .ts files carrying a LOCAL frontmatter-parsing construct is exactly the two named non-guard files", () => {
+  it("D-50 IN-05 — the set of tracked .ts files carrying a LOCAL frontmatter-parsing construct is exactly the ONE named non-guard file", () => {
     const tracked = trackedTs();
     // Non-vacuity: the corpus was really enumerated, and it really contains this module — a scan
     // over an empty file list would otherwise satisfy every assertion below.
@@ -4809,13 +4809,14 @@ describe("frontmatter — the spawn-grant parser oracle (SPAWN-04 / KIT-03)", ()
     const sites = liveGrammarSites();
     // Sorted before comparison, so a `git ls-files` order change cannot flip the assertion.
     expect(sites).toEqual([...sites].sort());
-    expect(sites).toEqual([
-      "scripts/context-io.ts",
-      "scripts/generate-catalog.ts",
-    ]);
+    // (PLAN 29-40, G-29-1 — V-29-35-01 CLOSED) FROM TWO MEMBERS TO ONE. `generate-catalog.ts` LEFT
+    // this set the day it deleted its private flat `key: value` parser and took the authority. THE PIN
+    // MOVING IS THE PIN WORKING, in the direction D-24 wants: it is lowered because the tree got
+    // better, and it is re-derived rather than decremented by hand.
+    expect(sites).toEqual(["scripts/context-io.ts"]);
     // Cardinality pinned as a NUMBER, so a scan that silently stops matching shrinks loudly rather
     // than passing over an empty set.
-    expect(sites).toHaveLength(2);
+    expect(sites).toHaveLength(1);
     // Neither is a second opinion on THIS module's predicate: neither imports THE FRONTMATTER
     // PREDICATE from it, and this module imports nothing relative at all, so the two grammars cannot
     // be consulted for one question.
@@ -4835,10 +4836,16 @@ describe("frontmatter — the spawn-grant parser oracle (SPAWN-04 / KIT-03)", ()
     // applied to every member to clear one failure. What `generate-catalog.ts` may take is pinned
     // two-sided: the two locator functions, and nothing else.
     //
-    // AND THE ADJACENCY IT EXPOSES IS ESCALATED, NOT ABSORBED: `generate-catalog.ts` still declares a
-    // private `parseFrontmatter` while the authority exports one. That is V-29-35-01, recorded by
-    // name with its measurement in docs/audit/29-locator-unification.md §9.3 and deliberately OUT OF
-    // SCOPE for this round by user decision. It is a residual on the record, not a silent drop.
+    // AND THE ADJACENCY IT EXPOSED IS NOW CLOSED RATHER THAN CARRIED. Plan 29-35 recorded that
+    // `generate-catalog.ts` still declared a private `parseFrontmatter` while the authority exported
+    // one — V-29-35-01, measured and out of scope for that round by user decision. Round 5's UAT put
+    // the disposition back to the human, who chose (b) SCHEDULE ITS CLOSURE (gap G-29-1), and plan
+    // 29-40 deleted the duplicate. So the narrowing above now applies to NO live member: the one
+    // remaining member imports nothing from the authority at all, and the stronger original property
+    // holds for it unchanged. The narrowing is KEPT rather than reverted, for two reasons — the
+    // question it answered is still the right question the day another module holds a local grammar
+    // while consuming the locator, and its planted discrimination below is what keeps it from being a
+    // rule nobody can see working. Closure record: docs/audit/29-locator-unification.md §9.3c.
     // THE REFUSED SET IS AN ALLOW-LIST, NOT A DENY-LIST OF NAMED FRONTMATTER SYMBOLS. A deny-list of
     // "parseFrontmatter, grantedAgentNames, …" is a hand-maintained set literal over an authority
     // that exports thirty-odd names, and a set literal rotting while every assertion stays green is
@@ -4873,14 +4880,21 @@ describe("frontmatter — the spawn-grant parser oracle (SPAWN-04 / KIT-03)", ()
       readFileSync(join(REPO_ROOT, "scripts/context-io.ts"), "utf8"),
       "context-io.ts must still import NOTHING from the authority",
     ).not.toMatch(/from\s+["']\.\/frontmatter\.js["']/);
-    // …and what the other member DOES take is pinned two-sided, so it cannot quietly grow inside the
-    // allow-list either.
+    // …and the module that USED to be the other member is asserted from the other side, because a
+    // pin that simply stops mentioning a file cannot tell "it left the set" from "the scan stopped
+    // seeing it" (plan 29-40, G-29-1). `generate-catalog.ts` must be BOTH a non-member of the grammar
+    // set AND a consumer of the frontmatter predicate — the two facts together are the unification,
+    // and either one alone is satisfied by a module that was simply deleted or never read.
+    expect(
+      sites,
+      "generate-catalog.ts declares a local frontmatter grammar again — that is G-29-1 reopening, and it is closed by deletion, never by re-adding the file here",
+    ).not.toContain("scripts/generate-catalog.ts");
     expect(
       importedFromAuthority(
         readFileSync(join(REPO_ROOT, "scripts/generate-catalog.ts"), "utf8"),
       ),
-      "generate-catalog.ts may take the SECTION LOCATOR and nothing else from the authority",
-    ).toEqual(["sectionEndIndex", "unfencedHeadingIndex"]);
+      "generate-catalog.ts must take the frontmatter PREDICATE from the authority — it holds no grammar of its own, so the locator-only allow-list no longer applies to it",
+    ).toEqual(["parseFrontmatter", "sectionEndIndex", "unfencedHeadingIndex"]);
     // THE ALLOW-LIST IS PROVEN TO DISCRIMINATE, on planted import lines rather than on belief: a
     // locator import passes and a frontmatter-predicate import is refused THROUGH THE SAME RULE. An
     // allow-list that admits everything is a deny-list of nothing.
@@ -4901,7 +4915,11 @@ describe("frontmatter — the spawn-grant parser oracle (SPAWN-04 / KIT-03)", ()
     ).not.toMatch(/^import .* from "\.\//m);
   });
 
-  it("D-50 IN-05 — a THIRD local frontmatter grammar makes that set fail, by name", () => {
+  it("D-50 IN-05 — one ADDITIONAL local frontmatter grammar makes that set fail, by name", () => {
+    // (Plan 29-40) NAMED "ADDITIONAL" RATHER THAN "THIRD". The case name and its fixture filename both
+    // said THIRD, which was true while the live set had two members; V-29-35-01's closure left one, so
+    // a name carrying the old cardinality would be a set-literal drift in prose. The property asserted
+    // has not changed: ONE more grammar than the live answer must red this set, whatever that answer is.
     // An assertion that was never made to fail is not a pin. Exercised against a temp directory
     // rather than by writing into the live scripts/ tree, so nothing outside the temp dir is touched.
     const dir = mkdtempSync(join(tmpdir(), "grugops-grammar-"));
@@ -4916,11 +4934,13 @@ describe("frontmatter — the spawn-grant parser oracle (SPAWN-04 / KIT-03)", ()
           readFileSync(join(REPO_ROOT, real), "utf8"),
         );
       }
-      // A control FIRST: the copied pair alone reproduces the live answer, so the failure below is
-      // caused by the plant and not by the temp directory.
-      expect(inDir()).toEqual(["context-io.ts", "generate-catalog.ts"]);
+      // A control FIRST: the copied member alone reproduces the live answer, so the failure below is
+      // caused by the plant and not by the temp directory. (Plan 29-40: one member, not two — see the
+      // case above for why `generate-catalog.ts` left the set. The control is COPIED from
+      // `liveGrammarSites()` rather than named here, so this line is the answer re-derived.)
+      expect(inDir()).toEqual(["context-io.ts"]);
       writeFileSync(
-        join(dir, "scratch-third-grammar.ts"),
+        join(dir, "scratch-extra-grammar.ts"),
         [
           "export function parseFrontmatter(text: string): Record<string, string> {",
           "  const m = text.match(/^---\\n([\\s\\S]*?)\\n---\\n/);",
@@ -4936,9 +4956,9 @@ describe("frontmatter — the spawn-grant parser oracle (SPAWN-04 / KIT-03)", ()
         ].join("\n"),
       );
       const withThird = inDir();
-      expect(withThird).toContain("scratch-third-grammar.ts");
-      expect(withThird).toHaveLength(3);
-      expect(withThird).not.toEqual(["context-io.ts", "generate-catalog.ts"]);
+      expect(withThird).toContain("scratch-extra-grammar.ts");
+      expect(withThird).toHaveLength(2);
+      expect(withThird).not.toEqual(["context-io.ts"]);
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
@@ -5116,13 +5136,19 @@ describe("frontmatter — the spawn-grant parser oracle (SPAWN-04 / KIT-03)", ()
 
     // AND THE LIVE ANSWER IS UNMOVED BY ANY OF THIS. The parameterised classifier defaults to the two
     // whole arrays, so the real corpus goes through exactly the rule it went through before.
-    expect(liveGrammarSites()).toEqual([
-      "scripts/context-io.ts",
-      "scripts/generate-catalog.ts",
-    ]);
+    // (Plan 29-40: ONE member since V-29-35-01's closure — see the IN-05 membership case above.)
+    expect(liveGrammarSites()).toEqual(["scripts/context-io.ts"]);
   });
 
-  it("D-50 IN-05 — the two out-of-scope grammars' reach into the guard import graph is MEASURED, not assumed", () => {
+  it("D-50 IN-05 — the remaining local grammar's reach into the guard import graph is MEASURED, not assumed", () => {
+    // (Plan 29-40) THE NAME SAID "THE TWO OUT-OF-SCOPE GRAMMARS" AND ONE OF THEM IS NEITHER ANY MORE.
+    // `generate-catalog.ts` holds no local grammar since V-29-35-01's closure, and it was never
+    // out-of-scope-forever — round 4 deferred it and round 5 closed it. A harness name that outlives
+    // its subject is the drift this file's own sibling block is named for ("the harness asserts no
+    // less than its names claim"), so the name is corrected rather than left to read as a finding that
+    // is still open. The BODY is unchanged and still asserts both directions: the one live grammar's
+    // reach, and the fact that nothing imports the generator.
+    //
     // THE PLAN'S OWN PREMISE HERE WAS `UNKNOWN - verify`, AND VERIFYING IT DISPROVED HALF OF IT.
     // The premise read: "generate-catalog.ts and context-io.ts are outside the import graph of every
     // guard that reads a spawn grant". Measured: `generate-catalog.ts` is outside every one of them;
