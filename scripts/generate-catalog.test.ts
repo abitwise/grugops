@@ -27,12 +27,14 @@ import {
   mkdirSync,
   cpSync,
   rmSync,
+  readdirSync,
   readFileSync,
   writeFileSync,
   existsSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { ROLE_COUNT, WORKFLOW_COUNT, WORKFLOWS_SUBPATH } from "./kit-model.js";
 
 const ROOT = join(import.meta.dirname, "..");
 const GEN_JS = join(ROOT, "scripts", "generate-catalog.js");
@@ -184,6 +186,52 @@ describe("generate-catalog.js (DOCS-01)", () => {
     } finally {
       writeFileSync(OUT, before);
     }
+  });
+
+  // ── The corpus cardinality, held by a mechanism instead of by prose (round 6, plan 29-46 — WR-03)
+  //
+  // WHAT THIS CASE HOLDS, AND WHAT IT CANNOT SEE — declared here because a predicate that does not
+  // state its own bound is how this phase has repeatedly shipped a green gate over an unheld fact.
+  //
+  // IT HOLDS the workflow corpus this generator actually walks against WORKFLOW_COUNT in
+  // scripts/kit-model.ts — the constant guard_kit_counts already pins TWO-SIDED — and against this
+  // file's own hand-written name fixtures. So a file added to the kit directory, a fixture left
+  // behind, and a constant bumped without walking its consumers all part company HERE, on the day it
+  // happens.
+  //
+  // IT DOES NOT READ COMMENTS. It cannot tell whether a sentence in scripts/generate-catalog.ts's
+  // prose still describes the corpus, and nothing in this repository can. That is exactly why plan
+  // 29-46 DELETED the stale cardinality statements from that module rather than typing fresher
+  // numbers into the same places: the count is held HERE, by a mechanism, and prose restating a count
+  // a mechanism already holds is a second declaration with nothing behind it — which is the drift
+  // WR-03 found, rotted silently, and green the whole time.
+  it("the workflow corpus the generator walks is exactly WORKFLOW_COUNT, and the fixtures agree", () => {
+    // DERIVED INDEPENDENTLY OF THE LOOP THAT CONSUMES IT. The directory is read with the generator's
+    // OWN range-free contract regex, never by counting WORKFLOW_NAMES — so "the directory gained a
+    // file" and "the fixture lost a name" are two different reds here rather than one shared silence.
+    const onDisk = readdirSync(join(ROOT, WORKFLOWS_SUBPATH)).filter((f) =>
+      /^\d{2}-.+\.md$/.test(f),
+    );
+    // TWO FLOORS, NOT ONE. A floor on the derived set alone still passes vacuously when the CONSTANT
+    // is the side that went to zero, and an equality between two empty sets is the emptiest possible
+    // green. Both sides are floored ABOVE the equality, so neither can satisfy it by being absent.
+    expect(
+      onDisk.length,
+      "the workflows directory yielded no numbered files at all",
+    ).toBeGreaterThan(0);
+    expect(WORKFLOW_COUNT, "the pinned constant itself went to zero").toBeGreaterThan(0);
+    expect(
+      onDisk.length,
+      "the numbered workflow files on disk and WORKFLOW_COUNT disagree",
+    ).toBe(WORKFLOW_COUNT);
+    expect(
+      WORKFLOW_NAMES.length,
+      "this file's WORKFLOW_NAMES fixture drifted away from WORKFLOW_COUNT",
+    ).toBe(WORKFLOW_COUNT);
+    expect(
+      ROLE_NAMES.length,
+      "this file's ROLE_NAMES fixture drifted away from ROLE_COUNT",
+    ).toBe(ROLE_COUNT);
   });
 
   // (4) fail-closed: a kit file with no `# Role:` H1 → exit 1, NO partial write. Built hermetically:
@@ -497,9 +545,27 @@ describe("generate-catalog.js (DOCS-01)", () => {
 
     // THE SHIPPED PATH. Asserted by EQUALITY on the whole message, never by containment: a
     // containment assertion is satisfied by a refusal that names the wrong fact and happens to
-    // include the fragment. The line number is DERIVED from the planted bytes rather than typed in,
-    // so an unrelated edit to qe-e2e.md cannot turn this pin into a nuisance red — and cannot quietly
-    // make it stop naming a position either.
+    // include the fragment.
+    //
+    // WHICH HALF OF THIS CASE IS DERIVED AND WHICH HALF IS DELIBERATELY BRITTLE (round 6, plan 29-46
+    // — IN-02). DERIVED: the line number interpolated into the expected message below is read out of
+    // the planted bytes rather than typed in, so the message assertion follows the fixture instead of
+    // pinning a position the fixture may not have — and it cannot quietly stop naming a position
+    // either, because a generator that dropped the number would no longer match this message.
+    // DELIBERATELY BRITTLE: the two PREMISE equalities — `closingAt` eight lines above and
+    // `fenceLine` immediately below — pin the fixture's own shape BY VALUE, and either reds on any
+    // edit to qe-e2e.md that shifts a line.
+    //
+    // THE BRITTLE HALF IS CORRECT AND IS NOT TO BE LOOSENED. A fixture whose premise has moved is not
+    // the fixture this case was measured on: the refusal it reaches was MEASURED (see the paragraph
+    // below — it is the fence-line refusal, not the unterminated-block one), and that measurement is a
+    // statement about one document at one shape. An edit that shifts those lines is SUPPOSED to red
+    // here and be RE-MEASURED, rather than absorbed by a range or a tolerance that would let the case
+    // go on asserting a result nobody re-took. An earlier wording of this comment claimed that an
+    // unrelated edit could not turn this pin into a nuisance red. That claim was false about the two
+    // assertions it sat beside, and the SENTENCE is what was wrong — the assertions were right, and
+    // loosening a correct assertion to make a wrong sentence true is the inverted fix this tree
+    // refuses.
     //
     // WHICH REFUSAL THIS REACHES WAS MEASURED, NOT ASSUMED, and it is NOT the unterminated-block one.
     // Every catalogued role file carries a fenced `## Caveman prompt` block, so the runaway region
