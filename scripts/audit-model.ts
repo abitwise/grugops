@@ -1502,3 +1502,294 @@ function parseClaimBlock(lines: readonly string[], start: number, end: number): 
     verbatim,
   };
 }
+
+// =============================================================================================
+// THE ANCHORED-BLOCK AUTHORITY (plan 29-51 — round-7 CR-01's prerequisite).
+//
+// ONE answer to a single question: WHERE DOES A REGISTRY-ANCHORED BLOCK START AND STOP, AND DO ITS
+// BYTES STILL MATCH THE REGISTRY ROW.
+//
+// Two consumers ask it differently. scripts/check-claim-anchors.ts asks whether the bytes DIVERGED,
+// and reports a divergence. Plan 29-52 asks whether a LINE SITS INSIDE a block whose bytes did NOT
+// diverge, and uses that to bind the sole banned-claim carve-out by content rather than by position.
+// Neither declares an anchor grammar, a line assembly or a byte comparison of its own.
+//
+// WHY THIS IS HERE AND NOT IN EITHER GATE. Everything below was declared inside
+// check-claim-anchors.ts until this plan. Leaving it there and having 29-52 import it would make one
+// gate import another gate, and a gate carries a refusal channel — the WR-05 hazard plan 29-49 spent
+// a plan closing one seam over (scripts/check-banned-claims.ts:130-146 records it from the other
+// side). Copying it into a second gate instead would give this repository a SECOND GRAMMAR OVER THE
+// SAME BYTES, which is the LANG-07 defect this milestone has now closed three times at eight rounds
+// each. So it moves into the library both gates already trust for the registry: a library throws,
+// and each gate reports through its own fail() (the kit-model throw-versus-report split this
+// module's header states).
+//
+// ---------------------------------------------------------------------------------------------
+// SCOPE — WHAT BOUNDS THIS AUTHORITY'S REACH, STATED BEFORE THE CODE.
+//
+// Unifying two readers into one makes the unified authority's REACH a new degree of freedom, and
+// Phase 29 has already paid for that once: a section-anchored fence reader that searched to
+// end-of-file adopted an unrelated later block. So the reach is pinned here, at the declaration,
+// before any consumer spends it.
+//
+// THE THREE THINGS THAT BOUND IT, AND NOTHING ELSE:
+//
+//   1. THE ANCHOR'S OWN INDEX. A block begins at the line immediately below its anchor. The
+//      authority never searches for a block; it is TOLD which anchor, and the anchor's index comes
+//      from its own scan of the same document.
+//   2. THE REGISTRY ROW'S VERBATIM LINE COUNT. A block runs for exactly as many lines as the
+//      verbatim has, and not one more. There is no terminator, no blank-line rule, no heading rule
+//      and no fence rule — nothing that could make a block reach further than the row it is frozen
+//      against.
+//   3. THE CONTENT-LINE DENOMINATOR of the assembled document, which is what decides OVERRUN.
+//
+// WHAT IT DELIBERATELY DOES NOT DO:
+//
+//   * IT IS NOT FENCE-AWARE. An anchor-shaped line quoted inside a fenced example is read as a real
+//     anchor. That is the pre-existing behaviour of the gate this moved out of, preserved rather
+//     than changed, and it is FAIL-CLOSED: such a line becomes an anchor with no registry row, which
+//     the bijection refuses as `unexpected`. LIVE MEASURED COUNT, taken by this plan across all four
+//     anchored documents (README.md, AGENTS.md, agent-factory/README.md,
+//     agent-factory/writing-profile.md): 41 canonical anchors, of which 0 sit on a line
+//     `fencedLineFlags` flags, and 0 near-anchor attempts. Making it fence-aware would be a
+//     behaviour change with no live subject, so it is not made.
+//   * IT ANSWERS NOTHING ABOUT UNANCHORABLE ROWS. A registry row naming a non-markdown file cannot
+//     carry an HTML comment, so it has no anchor and no extent; its verbatim is PRESENCE-checked
+//     against the whole file's bytes with `Buffer.includes`, which is a DIFFERENT comparison over
+//     DIFFERENT bytes. That check stays in check-claim-anchors.ts and is out of scope here by
+//     decision, not by omission.
+//   * IT PINS NO CARDINALITY. The anchor set is DERIVED from the document and its count is the
+//     scan's own output; a document's anchor count is not a fixed set, so the library states no
+//     floor. A consumer that needs one must state it — check-claim-anchors.ts states it as the
+//     anchor-to-row bijection, and this plan's harness states it as a two-route block count.
+// =============================================================================================
+
+/**
+ * THE SINGLE ANCHOR GRAMMAR. One declaration, consulted by every reader of an anchored document, so
+ * no two can disagree about what an anchor is — a second pattern for "looks like an anchor" beside
+ * the one for "is an anchor" is how the two come to admit different sets.
+ *
+ * It is a CANONICAL FORM WITH A REFUSAL OUTSIDE IT (the D-64 doctrine that closed the Phase 27
+ * admission reader at round 12), never a pattern widened once per surprise. The id form is embedded
+ * here rather than checked afterwards, so a malformed id cannot be read as a well-formed anchor.
+ *
+ * (Plan 29-51.) Moved here from scripts/check-claim-anchors.ts byte-for-byte, and nothing was left
+ * behind under any name.
+ */
+export const CLAIM_ANCHOR_RE = /^<!-- claim: (C-28-\d{3}) -->$/;
+
+/**
+ * A line that is TRYING to be an anchor. Anything matching this and NOT matching CLAIM_ANCHOR_RE is
+ * a NAMED REFUSAL rather than a silently ignored comment — which is the whole difference between a
+ * typo that goes red and a typo that quietly removes a claim from the bijection. It also catches a
+ * CRLF line ending, which would otherwise make an anchor invisible to CLAIM_ANCHOR_RE and fail OPEN.
+ *
+ * DECLARED BESIDE THE CANONICAL FORM, deliberately. The pair is ONE grammar with two halves — what
+ * is admitted, and what is refused for trying and failing — and splitting them across two modules is
+ * how the refusing half comes to disagree with the accepting one about what it is refusing.
+ */
+export const CLAIM_ANCHOR_ATTEMPT_RE = /^<!--\s*claim\s*:/;
+
+/** The suffix that makes a registry row's file ANCHORABLE at all. */
+export const MARKDOWN_SUFFIX = ".md";
+
+/**
+ * The documents an anchor scan covers: the distinct markdown `file` values of the registry, sorted.
+ *
+ * DERIVED, NEVER HAND-LISTED. A fourth anchored document enters the scan by being REGISTERED, not by
+ * someone remembering to add it here — the set-literal drift this repository has diagnosed as one of
+ * its two systemic failure classes. A fixture in scripts/check-claim-anchors.test.ts registers a
+ * fourth document and watches the gate scan it with no source edit, which is what makes the
+ * derivation load-bearing rather than merely present.
+ *
+ * It is a FUNCTION OF THE PARSED CLAIMS rather than of a root, so it reads no file and cannot throw:
+ * a constant computed at import time would make an unparseable registry throw inside every importer
+ * — including the gates' own test files — instead of being REPORTED by the gate that consumes it.
+ */
+export function anchoredDocs(claims: readonly ClaimRow[]): string[] {
+  return [...new Set(claims.filter((c) => c.file.endsWith(MARKDOWN_SUFFIX)).map((c) => c.file))].sort();
+}
+
+/** A canonical anchor: its claim id and its 0-based index into the scan's own line array. */
+export interface AnchorHit {
+  readonly id: string;
+  readonly index: number;
+}
+
+/** A line that tried to be an anchor and is outside the canonical form. Never silently dropped. */
+export interface AnchorAttempt {
+  readonly index: number;
+  readonly text: string;
+}
+
+/**
+ * One document, assembled ONCE, with everything a consumer needs to index into that assembly.
+ *
+ * `lines` IS RETURNED RATHER THAN RE-DERIVED BY EACH CALLER, and that is the point of this shape.
+ * Every coordinate-shear defect this phase has paid for came from TWO expressions assembling one
+ * document and then trading indices computed against different arrays. Handing the assembly back
+ * DELETES that axis instead of guarding it: an index in `anchors`, an extent from
+ * `anchoredBlockAt`, and the array they address are all one object.
+ */
+export interface AnchoredDocumentScan {
+  /** The one line assembly. No consumer of this scan splits the text it handed in. */
+  readonly lines: readonly string[];
+  /**
+   * The overrun denominator. It IS `lines.length`, by construction and deliberately — naming it
+   * separately would invite a second derivation that could disagree with the array the extents
+   * index into, which is precisely the shear this shape exists to remove.
+   */
+  readonly contentLineCount: number;
+  /** Every canonical anchor, in document order. Duplicates are PRESERVED, never collapsed. */
+  readonly anchors: readonly AnchorHit[];
+  /** Every near-anchor attempt, in document order. */
+  readonly attempts: readonly AnchorAttempt[];
+}
+
+/**
+ * Assemble a document's lines ONCE and read its anchors and near-anchor attempts off that assembly.
+ *
+ * THE ASSEMBLY RULE, unchanged from the gate this moved out of: split on `\n`, and drop the single
+ * empty element a TERMINATING newline produces. It is not a trim — an interior blank line is a
+ * content line and stays one, and a file ending in two newlines keeps the blank line before the
+ * terminator.
+ *
+ * DUPLICATE IDS ARE PRESERVED. Two anchors carrying one id appear as two hits, because collapsing
+ * them here would hide the ambiguity from the consumer whose job is to refuse it.
+ */
+export function scanAnchoredDocument(text: string): AnchoredDocumentScan {
+  const lines = text.split("\n");
+  if (lines.length > 0 && lines[lines.length - 1] === "") lines.pop();
+
+  const anchors: AnchorHit[] = [];
+  const attempts: AnchorAttempt[] = [];
+  for (let i = 0; i < lines.length; i++) {
+    const m = CLAIM_ANCHOR_RE.exec(lines[i]);
+    if (m !== null) {
+      anchors.push({ id: m[1], index: i });
+      continue;
+    }
+    if (CLAIM_ANCHOR_ATTEMPT_RE.test(lines[i])) {
+      attempts.push({ index: i, text: lines[i] });
+    }
+  }
+  return { lines, contentLineCount: lines.length, anchors, attempts };
+}
+
+/**
+ * An anchored block: its extent, whether that extent fits in the document, and whether the bytes at
+ * it are byte-identical to the registry's verbatim.
+ *
+ * ALL THREE FACTS TRAVEL TOGETHER, and that is why this is one function rather than two. A consumer
+ * cannot obtain the extent without also being handed the verdict on its bytes — which is exactly
+ * what plan 29-52 depends on: "this line is inside an anchored block" is worth nothing unless the
+ * block's bytes are still the frozen ones.
+ */
+export interface AnchoredBlock {
+  readonly id: string;
+  readonly anchorIndex: number;
+  /** Half-open `[start, end)` into the SCAN'S OWN `lines`. `start` is the line below the anchor. */
+  readonly start: number;
+  readonly end: number;
+  /** `end - start`. Published so a consumer never has to split the verbatim a second time. */
+  readonly verbatimLineCount: number;
+  /** The block needs a line the document does not have. No comparison was performed. */
+  readonly overruns: boolean;
+  /** Byte identity. FALSE whenever `overruns` is true, so an ignored overrun still fails closed. */
+  readonly matches: boolean;
+  /** The document's bytes at `[start, end)`, joined on `\n`. `""` when `overruns`. */
+  readonly text: string;
+  /** Byte length of `text`. `0` when `overruns`. */
+  readonly documentBytes: number;
+  /** Byte length of the registry verbatim. Always measured — it does not depend on the document. */
+  readonly verbatimBytes: number;
+}
+
+/**
+ * Where `anchor`'s block sits in `scan`, and whether its bytes still match `verbatim`.
+ *
+ * THE EXTENT AND THE COMPARISON COME FROM ONE DERIVATION. The block starts one line below the anchor
+ * and runs for as many lines as the verbatim has; the overrun test is ONE comparison over the LAST
+ * INDEX THE BLOCK NEEDS, rather than a pair of bounds that could disagree with each other; and the
+ * comparison is taken over exactly the slice the extent names.
+ *
+ * THE COMPARISON IS A BUFFER EQUALITY WITH NO TRANSFORM OF ANY KIND — no trimming, no whitespace
+ * collapse, no line-ending rewrite, no case folding, no Unicode normalisation. A block differing
+ * from its verbatim only in trailing whitespace does NOT match. A legitimate divergence is answered
+ * by updating the registry row in the same commit as the prose change, or by a NAMED EXEMPTION; it
+ * is never answered by loosening this comparison.
+ *
+ * THROWS on a blank verbatim — see the refusal's own message for which authority owns that on the
+ * registry path, and why this arm exists anyway.
+ */
+export function anchoredBlockAt(
+  scan: AnchoredDocumentScan,
+  anchor: AnchorHit,
+  verbatim: string,
+): AnchoredBlock {
+  // THE ELEMENT-LEVEL VACUITY FLOOR. A collection-level floor catches an EMPTY set of blocks and can
+  // never see a SINGLE block that freezes nothing, because that block is present and its comparison
+  // is performed and reported.
+  //
+  // WHICH AUTHORITY OWNS THIS ON THE REGISTRY PATH: `parseClaimBlock`, above, which refuses
+  // `isBlank(verbatim)` at parse time with the row-level-vacuous-bijection argument (28-REVIEW
+  // CR-03). Nothing that comes out of `readRegistry()` can reach the throw below — MEASURED, not
+  // assumed: the two arms consult the SAME `isBlank`, so the parse refusal strictly dominates.
+  //
+  // WHY THE ARM EXISTS ANYWAY: this function's `verbatim` is a STRING PARAMETER, and no registry
+  // parse bounds a string a caller constructs. `parseClaimBlock` bounds the registry-derived path;
+  // this bounds the other entry point. It is a CONTRACT GUARD with zero live call paths today, said
+  // plainly rather than implied to be load-bearing.
+  //
+  // `isBlank` is the module's ONE blank predicate, ASKED rather than re-derived — this repository
+  // shipped three disagreeing definitions of "blank" inside one phase and is not adding a fourth.
+  if (isBlank(verbatim)) {
+    throw new Error(
+      `audit-model: refusing to compare ${anchor.id}'s anchored block — its registry verbatim is ` +
+        `blank (${JSON.stringify(verbatim)}). An empty comparison succeeds trivially, so a registry ` +
+        `row whose verbatim is blank FREEZES NOTHING while still reporting a comparison that was ` +
+        `performed. readRegistry() refuses this at parse time and is the authority for every ` +
+        `registry-derived row; this arm bounds the other entry point, a verbatim handed in directly`,
+    );
+  }
+
+  const want = verbatim.split("\n");
+  const start = anchor.index + 1;
+  const end = start + want.length;
+  const b = Buffer.from(verbatim, "utf8");
+
+  // The block occupies indices `anchor.index + 1 .. anchor.index + want.length` inclusive, so the
+  // LAST index it needs must still be a real line. One comparison, over that last index.
+  const overruns = anchor.index + want.length > scan.contentLineCount - 1;
+  if (overruns) {
+    return {
+      id: anchor.id,
+      anchorIndex: anchor.index,
+      start,
+      end,
+      verbatimLineCount: want.length,
+      overruns: true,
+      // Fail closed. A consumer that reads `matches` and ignores `overruns` still gets `false`,
+      // never a comparison against lines that are not there.
+      matches: false,
+      text: "",
+      documentBytes: 0,
+      verbatimBytes: b.length,
+    };
+  }
+
+  const text = scan.lines.slice(start, end).join("\n");
+  const a = Buffer.from(text, "utf8");
+  return {
+    id: anchor.id,
+    anchorIndex: anchor.index,
+    start,
+    end,
+    verbatimLineCount: want.length,
+    overruns: false,
+    matches: a.equals(b),
+    text,
+    documentBytes: a.length,
+    verbatimBytes: b.length,
+  };
+}

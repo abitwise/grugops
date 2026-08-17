@@ -59,6 +59,16 @@ import {
   REGISTER_PATH,
   REGISTRY_PATH,
   safetyFloorLiveValue,
+  // (Plan 29-51) The anchored-block authority — the one anchor grammar, the one line assembly, and
+  // the one extent-and-byte-identity function. Imported here rather than re-expressed, for the same
+  // reason every other authority in this harness is: a harness that re-derives what it audits is
+  // auditing itself.
+  CLAIM_ANCHOR_RE,
+  CLAIM_ANCHOR_ATTEMPT_RE,
+  MARKDOWN_SUFFIX,
+  anchoredDocs,
+  scanAnchoredDocument,
+  anchoredBlockAt,
 } from "./audit-model.js";
 // The ONE fence authority, imported so this file's expected sets are derived through the SAME
 // per-line projection the parser composes — never through a second toggle written here, which would
@@ -2306,5 +2316,216 @@ describe("audit-model: the witness stands between a hidden claim and the exclusi
     for (const f of new Set(safetyFiles)) {
       expect(union, `every safety claim's file reaches the exclusion list: ${f}`).toContain(f);
     }
+  });
+});
+
+// =============================================================================================
+// (PLAN 29-51) THE ANCHORED-BLOCK AUTHORITY'S OWN EDGES.
+//
+// These cases exist to watch the authority's BOUNDS fail, not to watch it succeed. Its scope block
+// names three things that bound its reach — the anchor's own index, the verbatim's line count, and
+// the content-line denominator — and every case below sits on one of those edges. Each was proven
+// RED by mutating the COMMITTED `.js`, because a case that has never been watched failing is a case
+// whose discrimination is unmeasured.
+// =============================================================================================
+
+describe("audit-model: the anchored-block authority's bounds (plan 29-51)", () => {
+  it("reports a NEAR-ANCHOR as a named attempt and NOT as an anchor", () => {
+    // The canonical form is `<!-- claim: C-28-NNN -->` and nothing else. Every line below is TRYING
+    // to be an anchor; not one may become one, and not one may be silently dropped either — a
+    // dropped near-anchor removes its claim from the bijection with nothing going red.
+    const doc = [
+      "# Doc",
+      "<!-- claim: C-28-001 -->", // canonical
+      "text one",
+      "<!--claim: C-28-002-->", // no spaces around the payload
+      "text two",
+      "<!-- claim: C-28-2 -->", // id not zero-padded to three digits
+      "text three",
+      "<!-- claim: C-28-003 --> trailing", // trailing text on the line
+      "text four",
+      "<!--  claim : C-28-004 -->", // loose separators
+      "text five",
+      "",
+    ].join("\n");
+    const scan = scanAnchoredDocument(doc);
+    expect(scan.anchors).toEqual([{ id: "C-28-001", index: 1 }]);
+    expect(scan.attempts.map((a) => a.index)).toEqual([3, 5, 7, 9]);
+    // The attempt carries the LINE'S OWN TEXT, so the refusal a consumer prints can quote it.
+    expect(scan.attempts[0].text).toBe("<!--claim: C-28-002-->");
+    // And the two halves of the grammar are the SAME grammar: everything the canonical form admits
+    // the attempt form also matches, so no line can be an anchor and not an attempt-shaped line.
+    expect(CLAIM_ANCHOR_ATTEMPT_RE.test("<!-- claim: C-28-001 -->")).toBe(true);
+    expect(CLAIM_ANCHOR_RE.test("<!-- claim: C-28-001 -->")).toBe(true);
+  });
+
+  it("PRESERVES a duplicate anchor id as two hits rather than collapsing it", () => {
+    // Collapsing here would hide the ambiguity from the consumer whose job is to refuse it: two
+    // anchors sharing an id make every set operation downstream unresolvable, and a Map-shaped
+    // return would silently keep the last one.
+    const doc = [
+      "<!-- claim: C-28-001 -->",
+      "first",
+      "<!-- claim: C-28-001 -->",
+      "second",
+      "",
+    ].join("\n");
+    const scan = scanAnchoredDocument(doc);
+    expect(scan.anchors).toEqual([
+      { id: "C-28-001", index: 0 },
+      { id: "C-28-001", index: 2 },
+    ]);
+    expect(scan.anchors.filter((a) => a.id === "C-28-001").length).toBe(2);
+  });
+
+  it("reports OVERRUN rather than comparing against lines that are not there", () => {
+    // Both shapes of "there is nothing below this anchor to read": the anchor is the last content
+    // line, and the claim is longer than the lines remaining. The overrun test is ONE comparison
+    // over the LAST index the block needs, so the two shapes are one arm rather than two that could
+    // disagree.
+    const doc = ["# Doc", "<!-- claim: C-28-001 -->", ""].join("\n");
+    const scan = scanAnchoredDocument(doc);
+    expect(scan.contentLineCount).toBe(2); // the terminating newline's empty element is not a line
+    const anchor = scan.anchors[0];
+
+    const lastLine = anchoredBlockAt(scan, anchor, "anything at all");
+    expect(lastLine.overruns).toBe(true);
+    expect(lastLine.matches).toBe(false); // fail closed even if a consumer ignores `overruns`
+    expect(lastLine.text).toBe("");
+    expect(lastLine.documentBytes).toBe(0);
+    expect(lastLine.verbatimBytes).toBeGreaterThan(0); // measured; it does not need the document
+
+    // One line longer than the document has: the block fits all but its final line.
+    const twoLine = scanAnchoredDocument(["<!-- claim: C-28-001 -->", "one", ""].join("\n"));
+    const needsTwo = anchoredBlockAt(twoLine, twoLine.anchors[0], "one\ntwo");
+    expect(needsTwo.overruns).toBe(true);
+    // And the boundary immediately below it fits, so the bound is EXACT rather than merely safe.
+    const needsOne = anchoredBlockAt(twoLine, twoLine.anchors[0], "one");
+    expect(needsOne.overruns).toBe(false);
+    expect(needsOne.matches).toBe(true);
+  });
+
+  it("does NOT match a block differing from its verbatim only in TRAILING WHITESPACE", () => {
+    // The comparison is a Buffer equality with no transform of any kind. A legitimate divergence is
+    // answered by a named exemption or by updating the row; it is never answered by trimming.
+    const doc = ["<!-- claim: C-28-001 -->", "Humans always hold merge and deploy. ", ""].join("\n");
+    const scan = scanAnchoredDocument(doc);
+    const drifted = anchoredBlockAt(scan, scan.anchors[0], "Humans always hold merge and deploy.");
+    expect(drifted.overruns).toBe(false);
+    expect(drifted.matches).toBe(false);
+    expect(drifted.documentBytes).toBe(drifted.verbatimBytes + 1); // exactly the one space
+    // The same bytes DO match, so the case is discriminating rather than merely negative.
+    const exact = anchoredBlockAt(scan, scan.anchors[0], "Humans always hold merge and deploy. ");
+    expect(exact.matches).toBe(true);
+    // And a leading-whitespace difference is refused for the same reason.
+    expect(anchoredBlockAt(scan, scan.anchors[0], " Humans always hold merge and deploy. ").matches).toBe(
+      false,
+    );
+  });
+
+  it("THROWS BY NAME on a blank verbatim rather than granting a vacuous byte-identity", () => {
+    // An empty comparison succeeds trivially, so a row whose verbatim is blank freezes nothing while
+    // still reporting a comparison that was performed. This is the ELEMENT-level vacuity floor: the
+    // collection-level floor sees a non-empty set of blocks and cannot see this at all.
+    const doc = ["<!-- claim: C-28-001 -->", "", "next", ""].join("\n");
+    const scan = scanAnchoredDocument(doc);
+    for (const blank of BLANK_MARKERS) {
+      expect(() => anchoredBlockAt(scan, scan.anchors[0], blank)).toThrow(
+        /C-28-001's anchored block — its registry verbatim is blank/,
+      );
+    }
+    // The blank set is the module's ONE blank predicate, asked rather than re-derived, so this
+    // refusal cannot drift away from the parse-time one that dominates it.
+    expect(BLANK_MARKERS.length).toBe(BLANK_MARKER_COUNT);
+    for (const blank of BLANK_MARKERS) expect(isBlank(blank)).toBe(true);
+  });
+
+  it("the RETURNED assembly is the array the extents index into — asserted by construction", () => {
+    // The shear axis this shape exists to delete: a consumer that re-splits the text builds a second
+    // array and then trades indices computed against a different coordinate system. Here the anchor
+    // index, the block extent and the array they address are all one object, and the case proves it
+    // by reconstructing the block's text from the returned array alone.
+    const body = ["alpha", "beta", "gamma"];
+    const doc = ["# Doc", "<!-- claim: C-28-001 -->", ...body, ""].join("\n");
+    const scan = scanAnchoredDocument(doc);
+    const block = anchoredBlockAt(scan, scan.anchors[0], body.join("\n"));
+
+    expect(block.matches).toBe(true);
+    expect(block.start).toBe(scan.anchors[0].index + 1);
+    expect(block.end - block.start).toBe(block.verbatimLineCount);
+    // Reconstructed from the RETURNED array, never from a fresh split of `doc`.
+    expect(scan.lines.slice(block.start, block.end).join("\n")).toBe(block.text);
+    expect(scan.lines[scan.anchors[0].index]).toBe("<!-- claim: C-28-001 -->");
+    expect(scan.contentLineCount).toBe(scan.lines.length);
+  });
+
+  it("the assembly drops the TERMINATING newline's empty element and nothing else", () => {
+    // The denominator is what decides overrun, so what counts as a content line is load-bearing. An
+    // INTERIOR blank line is a content line; so is a blank line before a terminator.
+    expect(scanAnchoredDocument("a\nb\n").contentLineCount).toBe(2);
+    expect(scanAnchoredDocument("a\nb").contentLineCount).toBe(2);
+    expect(scanAnchoredDocument("a\n\nb\n").contentLineCount).toBe(3);
+    expect(scanAnchoredDocument("a\nb\n\n").contentLineCount).toBe(3);
+    expect(scanAnchoredDocument("").contentLineCount).toBe(0);
+  });
+});
+
+describe("audit-model: the anchored-block authority against the LIVE registry (plan 29-51)", () => {
+  // Every number below is DERIVED in the case. No size literal survives in an assertion — this
+  // repository's recorded set-literal-drift failure class.
+  const claims = readRegistry(REPO_ROOT).claims;
+  const docs = anchoredDocs(claims);
+
+  it("every live anchored block is found, in extent, and byte-identical", () => {
+    expect(docs.length, "the live registry must name markdown documents").toBeGreaterThan(0);
+    let blocks = 0;
+    for (const doc of docs) {
+      const scan = scanAnchoredDocument(readFileSync(join(REPO_ROOT, doc), "utf8"));
+      expect(scan.attempts, `${doc} carries no near-anchor attempt`).toEqual([]);
+      const byId = new Map(scan.anchors.map((a) => [a.id, a]));
+      for (const claim of claims.filter((c) => c.file === doc)) {
+        const anchor = byId.get(claim.id);
+        expect(anchor, `${doc} anchors ${claim.id}`).toBeDefined();
+        const block = anchoredBlockAt(scan, anchor!, claim.verbatim);
+        expect(block.overruns, `${claim.id} does not overrun ${doc}`).toBe(false);
+        expect(block.matches, `${claim.id}'s bytes are frozen in ${doc}`).toBe(true);
+        blocks += 1;
+      }
+    }
+    expect(blocks, "the live block set must not be empty").toBeGreaterThan(0);
+  });
+
+  it("THE TWO-ROUTE BLOCK COUNT: the document scans and the registry rows agree, both floored", () => {
+    // A floor catches an EMPTY denominator and NEVER a SILENTLY SHORT one. The only defence against
+    // a scan that quietly stopped early is a count derived by a route that does not share its loop,
+    // so the two counts below are taken by DIFFERENT routes over DIFFERENT inputs:
+    //
+    //   route A — the DOCUMENTS. Scan each anchored document and keep the anchors whose id the
+    //             registry names. Its input is the documents' bytes.
+    //   route B — the REGISTRY. Filter the parsed rows to those naming a markdown file. Its input is
+    //             the registry's bytes, and it never touches a document.
+    //
+    // They are compared as SETS by symmetric difference, not as integers: two counts can agree while
+    // naming different ids, and an integer comparison cannot see that.
+    const fromDocuments: string[] = [];
+    const registered = new Set(claims.map((c) => c.id));
+    for (const doc of docs) {
+      const scan = scanAnchoredDocument(readFileSync(join(REPO_ROOT, doc), "utf8"));
+      for (const a of scan.anchors) if (registered.has(a.id)) fromDocuments.push(a.id);
+    }
+    const fromRegistry = claims
+      .filter((c) => c.file.endsWith(MARKDOWN_SUFFIX))
+      .map((c) => c.id);
+
+    expect(fromDocuments.length, "route A must not be empty").toBeGreaterThan(0);
+    expect(fromRegistry.length, "route B must not be empty").toBeGreaterThan(0);
+
+    const a = new Set(fromDocuments);
+    const b = new Set(fromRegistry);
+    const onlyInDocuments = [...a].filter((id) => !b.has(id)).sort();
+    const onlyInRegistry = [...b].filter((id) => !a.has(id)).sort();
+    expect(onlyInDocuments, "anchors with no markdown registry row").toEqual([]);
+    expect(onlyInRegistry, "markdown registry rows with no anchor").toEqual([]);
+    expect(fromDocuments.length, "and the two counts agree").toBe(fromRegistry.length);
   });
 });
