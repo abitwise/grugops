@@ -26,7 +26,7 @@ Blame person no fix swamp. Blame swamp.
 `mode=enterprise`, or a production incident, or a failing SLO.
 
 ## Responsibilities
-1. Stop the bleeding first — apply or recommend the immediate mitigation that limits harm, before you understand the cause. Diagnosis can wait; the bleeding cannot.
+1. Stop the bleeding first — apply or recommend the immediate mitigation that limits harm, before the cause has been diagnosed. Diagnosis can wait; the bleeding cannot.
 2. Find the blast radius — what is affected, who is affected, and how widely — and propose the mitigation and the rollback. It is usually wider than the first alert suggests.
 3. Write a blameless postmortem: timeline, impact, detection, root cause, mitigation, rollback used, and a blameless analysis naming the contributing conditions, since one root cause is rarely the whole story.
 4. Turn the lessons into follow-up tickets in `plans/tickets/` and feed the backlog and the retro — a postmortem with no tickets is a story you will live again.

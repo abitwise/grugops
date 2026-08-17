@@ -923,41 +923,56 @@ export function locateExemptRegion(lines) {
  * FAILURE. Read the region first and say in the commit which claim entered or left it.
  *
  * ------------------------------------------------------------------------------------------------
- * MOVED 10 -> 12 BY PLAN 29-41 (G-29-2). THE REGION WAS READ AND BOTH ENTRANTS ARE NAMED.
+ * MOVED 10 -> 12 BY PLAN 29-41 (G-29-2). THE REGION WAS READ AND BOTH ENTRANTS WERE NAMED.
  *
  * The value was DERIVED FROM THE RUN and not typed: the rule landed first, the gate was run on a
- * clean tree, and the number below is the one its own refusal text reported ("suppressed 12
- * banned-claim occurrence(s) ... declares 10"). No document inside the region was edited — the
- * exemption lifts the prohibition on two MORE occurrences because the PROHIBITION got wider, which
- * is the one direction this pin's paragraph above had not yet seen.
+ * clean tree, and the number was the one its own refusal text reported ("suppressed 12 banned-claim
+ * occurrence(s) ... declares 10"). No document inside the region was edited — the exemption lifted
+ * the prohibition on two MORE occurrences because the PROHIBITION got wider, which is the one
+ * direction this pin's paragraph above had not yet seen. The two entrants were
+ * `agent-factory/writing-profile.md:256` and `:288`, both honest denials, each already suppressed
+ * once through an enumerated literal and gaining a SECOND occurrence because the hit count is
+ * arithmetic over what was read and never a per-line boolean.
  *
- * The two entrants, each derived through the gate's own `countBannedClaimOccurrences` rather than by
- * reading the prose:
+ * ------------------------------------------------------------------------------------------------
+ * MOVED 12 -> 14 BY PLAN 29-44 (CR-02, D-53). SAME DIRECTION, SAME REASON, DIFFERENT MEMBER.
  *
- *   agent-factory/writing-profile.md:256  +1 via the new conditional member "comprehension"
- *                                            (co-occurring benefit marker on the line: `benefit`)
- *                                            — "No comprehension benefit is claimed."
- *   agent-factory/writing-profile.md:288  +1 via the new conditional member "comprehension"
- *                                            (co-occurring benefit marker on the line: `improve`)
- *                                            — "There is no evidence that controlled language
- *                                               improves comprehension for a language model."
+ * DERIVED, NOT PREDICTED — AND THE DISTINCTION IS THE WHOLE POINT OF THIS ENTRY. D-53 predicted 14
+ * before the change. A prediction is a hypothesis; writing it down because a decision paragraph said
+ * it is WR-01's exact failure repeated inside its own fix. So the change landed first and the number
+ * below is the one the gate's OWN REFUSAL TEXT reported on the live tree:
  *
- * BOTH ARE HONEST DENIALS, AND THAT IS WHY THEY ARE INSIDE THE REGION RATHER THAN DELETED. Each was
- * already suppressed once, through an enumerated literal (`comprehension benefit` at 256 and
- * `improves comprehension` at 288); the rule adds a SECOND occurrence on each of those same two
- * lines, because the hit count is arithmetic over what was read and never a per-line boolean. Six
- * of the twelve are the standard's name, three are the token-economy claim, and these are the other
- * two halves of a pair each.
+ *   "the one named exemption region `agent-factory/writing-profile.md` § `## Disclaimer and honesty
+ *    floor` suppressed 14 banned-claim occurrence(s), and BANNED_CLAIM_EXEMPT_SUPPRESSED in
+ *    scripts/check-banned-claims.ts declares 12"
  *
- * AND THE NUMBER IS A FUNCTION OF THE ADMITTED MARKER SET, NOT ONLY OF THE DOCUMENT. Line 256
- * matches only because `benefit` was an admitted marker and line 288 only because `improve`
- * is. Dropping either marker would move this pin back down while the disclaimer stayed byte-for-byte
- * identical. The marker list and this constant are therefore settled by ONE measurement, and a
- * future edit to either must re-run the other — a pin describing a prohibition nobody is applying is
- * worse than no pin.
+ * The prediction and the measurement agreed. The TRANSCRIPT is the criterion, not the agreement.
+ *
+ * The two entrants, each derived through the gate's own `countBannedClaimOccurrences` over the
+ * region rather than by reading the prose:
+ *
+ *   agent-factory/writing-profile.md:239  +1 via "Simplified Technical English", which stopped being
+ *                                            conditional — "…ideas of ASD-STE100 Simplified Technical
+ *                                            English Issue 9, and it is **not** ASD-STE100."
+ *   agent-factory/writing-profile.md:241  +1 via the same member — "…or the Simplified Technical
+ *                                            English Maintenance Group (STEMG), and…"
+ *
+ * BOTH ARE THE NON-AFFILIATION DISCLAIMER NAMING THE STANDARD IN ORDER TO DENY IT, which is exactly
+ * what this region exists for. Neither line changed by a byte. They entered because the PROHIBITION
+ * GOT WIDER — the second time this pin has moved in that direction, and the first time it moved for
+ * the standard-name group.
+ *
+ * THE BREAKDOWN BY GROUP, RE-DERIVED IN THE SAME PASS: standard-name 8 (was 6), token-economy 2
+ * (unmoved), comprehension 4 (unmoved) = 14. Both new occurrences land in the standard-name column.
+ *
+ * AND THIS PIN IS NO LONGER A FUNCTION OF AN ADMITTED MARKER SET. Until round 6 it was: a denial line
+ * matched a conditional member only if one of that line's own words was an admitted marker, so
+ * dropping a marker moved this number while the disclaimer stayed byte-for-byte identical. That
+ * coupling is GONE with the mechanism. This constant is now a function of the literal list and the
+ * region's boundary and nothing else, which is fewer ways for it to move for a reason nobody meant.
  * ------------------------------------------------------------------------------------------------
  */
-export const BANNED_CLAIM_EXEMPT_SUPPRESSED = 12;
+export const BANNED_CLAIM_EXEMPT_SUPPRESSED = 14;
 /**
  * How far the one named exemption region REACHES, in lines — `endBefore - headingAt`.
  *
