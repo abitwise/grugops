@@ -1,10 +1,10 @@
 ---
 schema_version: 1
-open_count: 54
+open_count: 56
 waived_count: 0
 fixed_count: 1
-total_count: 55
-last_updated: 2026-08-17T21:42:53.564Z
+total_count: 57
+last_updated: 2026-08-17T22:22:11.344Z
 ---
 
 # Broken Windows Ledger
@@ -70,6 +70,8 @@ last_updated: 2026-08-17T21:42:53.564Z
 | 53 | 29 | deviation | .planning/phases/29-controlled-language-voice-guard-rebuild/29-48-SUMMARY.md |  | 29-48 tracer feedback gate run as an automated end-to-end re-verify rather than a checkpoint:human-verify — the tracer's <verify> is entirely automated CLI greps, which checkpoints.md forbids asking a human to run | open |  | 2026-08-17T21:03:21.208Z |  |
 | 54 | 29 | deviation | scripts/check-nul-bytes.ts |  | V-29-50-01 the unmeasured-external-assertion CLASS stays OPEN: five prose sites asserting git classifier behaviour were corrected in plan 29-50, but nothing detects an unmeasured claim about an external tool | open |  | 2026-08-17T21:42:53.501Z |  |
 | 55 | 29 | unrun-verify | scripts/check-nul-bytes.test.ts |  | V-29-50-02 the EISDIR gitlink arm is exercised through an ordinary directory, not through a real initialised submodule fixture; the errno is identical but the submodule path itself is unwitnessed | open |  | 2026-08-17T21:42:53.564Z |  |
+| 56 | 29 | deviation | scripts/check-foundation-guards.test.ts |  | V-29-51-01: the LANG-07 owner classifier's alias closure is module-wide, scope-blind and matches \\bNAME\\b as TEXT against a declaration's right-hand side, so a local named 'a' matches inside [a-z_] in an unrelated regex literal and drags that regex into the derived heading-recogniser set. Measured: the derived name set for audit-model.ts went 26 -> 44 and CLAIM_META_RE became a false applied site. Worked around by renaming the local; the classifier is unfixed. | open |  | 2026-08-17T22:22:11.284Z |  |
+| 57 | 29 | unmet-truth | docs/audit/28-claim-registry.md |  | V-29-51-02: the registry's advisory 'line' field disagrees with the anchor's measured position on 19 of 41 anchored rows, by up to 80 lines; three of the four agent-factory/writing-profile.md rows are wrong. Measured through the anchored-block authority, not corrected — the field is documented as advisory and unenforced. | open |  | 2026-08-17T22:22:11.344Z |  |
 
 ````json
 [
@@ -731,6 +733,30 @@ last_updated: 2026-08-17T21:42:53.564Z
     "status": "open",
     "reason": "",
     "recorded_at": "2026-08-17T21:42:53.564Z",
+    "resolved_at": null
+  },
+  {
+    "id": 56,
+    "kind": "deviation",
+    "phase": "29",
+    "file": "scripts/check-foundation-guards.test.ts",
+    "line": null,
+    "description": "V-29-51-01: the LANG-07 owner classifier's alias closure is module-wide, scope-blind and matches \\bNAME\\b as TEXT against a declaration's right-hand side, so a local named 'a' matches inside [a-z_] in an unrelated regex literal and drags that regex into the derived heading-recogniser set. Measured: the derived name set for audit-model.ts went 26 -> 44 and CLAIM_META_RE became a false applied site. Worked around by renaming the local; the classifier is unfixed.",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-08-17T22:22:11.284Z",
+    "resolved_at": null
+  },
+  {
+    "id": 57,
+    "kind": "unmet-truth",
+    "phase": "29",
+    "file": "docs/audit/28-claim-registry.md",
+    "line": null,
+    "description": "V-29-51-02: the registry's advisory 'line' field disagrees with the anchor's measured position on 19 of 41 anchored rows, by up to 80 lines; three of the four agent-factory/writing-profile.md rows are wrong. Measured through the anchored-block authority, not corrected — the field is documented as advisory and unenforced.",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-08-17T22:22:11.344Z",
     "resolved_at": null
   }
 ]
