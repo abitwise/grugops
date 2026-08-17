@@ -1436,10 +1436,30 @@ function runAll(): void {
   // which document or that the disclaimer is gone. A vanished exemption file is not an absent
   // exemption; it is the disclaimer that has to exist for the prohibition to be writable at all.
   let exemptRegion: ExemptRegion | null = null;
-  // ONE READ OF THE EXEMPTION DOCUMENT, AND EVERY QUESTION BELOW IS ASKED OF IT. This plan's whole
-  // subject is two expressions assembling one document twice and drifting apart; re-reading the
-  // file for the boundary check further down would have been that shape again, at the same address.
+  // ── ONE READ OF THE EXEMPTION DOCUMENT, AND EVERY QUESTION BELOW IS ASKED OF IT ────────────────
+  //
+  // WHAT MAKES THE INVARIANT TRUE, rather than merely asserted: `exemptText` is ONE assembly of the
+  // document, `locateExemptRegion` measures the region's indices over THAT assembly, and the scan
+  // loop below spends those indices against THAT SAME assembly — it does not read the file again.
+  //
+  // WHY THE LOOP'S SECOND READ WAS A DEFECT AND NOT A REDUNDANCY (round 6, WR-02). The loop used to
+  // re-read every scan member including this one, split that second read, and index the resulting
+  // array with `headingAt` / `endBefore` measured over the first. That is the same coordinate shear
+  // `locateExemptRegion`'s `scanLines.length !== lines.length` refusal exists to make unreachable,
+  // and that refusal could not see it: both arrays were internally consistent, and simply were not
+  // the same document. A refusal comparing two assemblies cannot catch a case where only one of
+  // them was ever handed to it.
+  //
+  // THE BOUND ON THE SUBSTITUTION, WHICH IS THE HALF THAT IS EASY TO GET WRONG. The cached text is
+  // taken ONLY when the read that produced it succeeded, so `exemptReadOk` is a conjunct of the
+  // loop's selection rather than the filename alone. Keyed on the filename alone, the selection
+  // hands the loop an empty string on every path where the read did not happen: zero lines, zero
+  // findings, and one increment of `visited` — a silently short scan wearing the shape of a
+  // one-read fix, and one that clears the vacuity floor because the denominator still counts it.
   let exemptText = "";
+  // Raised beside the read that justifies it, and never initialised true. This is the flag the
+  // selection above is conjoined with.
+  let exemptReadOk = false;
   const exemptAbs = abs(BANNED_CLAIM_EXEMPT_REGION.file);
   if (!existsSync(exemptAbs)) {
     fail(
@@ -1450,8 +1470,25 @@ function runAll(): void {
         `still scanned and the loss would otherwise read as a clean run`,
     );
   } else {
-    exemptText = readFileSync(exemptAbs, "utf8");
-    exemptRegion = locateExemptRegion(exemptText.split("\n"));
+    // PRESENT IS NOT THE SAME QUESTION AS READABLE, and `existsSync` only answers the first. A
+    // directory at this path, a broken permission or an I/O error makes `readFileSync` RAISE rather
+    // than return, and an unguarded raise here dies inside `runAll` — a stack trace where this gate
+    // has committed to producing a verdict. Refused by name instead.
+    try {
+      exemptText = readFileSync(exemptAbs, "utf8");
+      exemptReadOk = true;
+    } catch (e) {
+      fail(
+        `the document carrying the one named exemption region, ` +
+          `\`${BANNED_CLAIM_EXEMPT_REGION.file}\`, exists at ${exemptAbs} but could not be read ` +
+          `(${(e as Error).message}). The exemption region is therefore NOT located and the ` +
+          `document is scanned whole, so this refusal is fail-CLOSED — nothing is under-reported. ` +
+          `The remedy is to fix the file, never to relax the exemption`,
+      );
+    }
+    if (exemptReadOk) {
+      exemptRegion = locateExemptRegion(exemptText.split("\n"));
+    }
   }
 
   // The findings, in derived-sorted scan order, then by line, then by literal declaration order.
@@ -1478,17 +1515,23 @@ function runAll(): void {
 
   for (const file of scan) {
     let text: string;
-    try {
-      text = readFileSync(abs(file), "utf8");
-    } catch (e) {
-      // A stack trace is not a verdict. The file is NOT counted as visited, so the shared vacuity
-      // rule's denominator floor reports the short scan by name.
-      fail(
-        `${file} is a member of the banned-claim scan set and could not be read ` +
-          `(${(e as Error).message}) — refusing to report a verdict over a document that was never ` +
-          `opened. A missing document is not a clean one`,
-      );
-      continue;
+    // The exempt member takes the text its region's indices were MEASURED over, and takes it only
+    // when that read succeeded. See the ONE-READ block above for why both halves are load-bearing.
+    if (file === BANNED_CLAIM_EXEMPT_REGION.file && exemptReadOk) {
+      text = exemptText;
+    } else {
+      try {
+        text = readFileSync(abs(file), "utf8");
+      } catch (e) {
+        // A stack trace is not a verdict. The file is NOT counted as visited, so the shared vacuity
+        // rule's denominator floor reports the short scan by name.
+        fail(
+          `${file} is a member of the banned-claim scan set and could not be read ` +
+            `(${(e as Error).message}) — refusing to report a verdict over a document that was ` +
+            `never opened. A missing document is not a clean one`,
+        );
+        continue;
+      }
     }
     visited += 1;
 

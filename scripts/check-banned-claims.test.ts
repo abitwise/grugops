@@ -1246,6 +1246,80 @@ describe("check-banned-claims — the one named exemption region", () => {
     // A stack trace is not a verdict.
     expect(stdout).not.toMatch(/at Object\.|node:internal|ENOENT/);
   });
+
+  // ── (Round 7, plan 29-49 — WR-02) THE EXEMPT READ IS GUARDED, NOT MERELY GUARDED-ON-EXISTENCE ──
+  //
+  // The case above plants ABSENCE, which `existsSync` catches. This one plants a path that EXISTS
+  // and still cannot be read, which `existsSync` answers `true` for and `readFileSync` RAISES on.
+  // The distinction is the whole case: a gate whose stated floor is that a stack trace is not a
+  // verdict must report that situation by name rather than die inside `runAll`, and before this
+  // plan it died — the RED transcript is a `node:internal` frame, not a refusal.
+  it("FAILS BY NAME when the exemption document EXISTS but cannot be READ as a file", () => {
+    const mirror = makeMirror("gops-banned-exempt-unreadable-", {
+      omitProfile: true,
+    });
+    // The plant: a DIRECTORY at the exemption document's own path.
+    mkdirSync(join(mirror, PROFILE), { recursive: true });
+    // The plant is confirmed on disk BEFORE the gate runs, and confirmed to be the shape that
+    // separates this case from the one above: present, and not a readable file.
+    expect(existsSync(join(mirror, PROFILE))).toBe(true);
+
+    const { status, stdout } = runGate(mirror);
+    expect(status).toBe(1);
+    expect(stdout).toContain("could not be read");
+    expect(stdout).toContain(PROFILE);
+    // The refusal states the CONSEQUENCE, so a reader is not left to infer what the gate did with
+    // the rest of the document: the region is not located, so nothing is exempted.
+    expect(stdout).toContain("scanned whole");
+    // The two refusals are distinguishable. A guard that reported the readable-but-absent wording
+    // here would be answering the wrong question with the right exit code.
+    expect(stdout).not.toContain("does not exist at");
+    // The refusal NAMES the underlying error rather than swallowing it, so the reader is not sent
+    // to reproduce a failure the gate already knew the cause of.
+    expect(stdout).toMatch(/could not be read \(EISDIR[^)]*\)/);
+    // A STACK TRACE IS NOT A VERDICT — the assertion that was RED before the guard existed. It
+    // excludes FRAMES rather than the word `EISDIR`, because the refusal above quotes that word on
+    // purpose; excluding it would have forbidden the very naming this case exists to require.
+    expect(stdout).not.toMatch(/at Object\.|node:internal|at runAll \(|node:fs:/);
+    expect(stdout).not.toContain("Node.js v");
+    expect(stdout).not.toContain("ALL CHECKS PASSED");
+  });
+
+  // ── (Round 7, plan 29-49 — WR-02) ONE READ OF THE EXEMPTION DOCUMENT, ASSERTED AS SOURCE SHAPE ──
+  //
+  // THIS CASE'S REACH IS STATED HONESTLY RATHER THAN IMPLIED. The defect it guards — indices
+  // measured over read #1 and spent against read #2 — has NO behavioural witness this harness can
+  // construct, and the reason is structural rather than an omission: the exemption document is a
+  // DERIVED member of the kit part, so every mirror in which the two reads could disagree is a
+  // mirror in which the document is absent from the scan set entirely and the loop never asks. Both
+  // reads therefore return the same bytes on every input reachable from `makeMirror`. That
+  // unreachable half is escalated to the round-7 register as `V-29-49-01` rather than papered over
+  // with a case that asserts what it cannot see.
+  //
+  // What IS asserted here is the source shape that makes the shear unreachable by arithmetic: two
+  // `readFileSync` call sites in the whole module, and a loop whose text selection for the exempt
+  // member takes the ALREADY-READ text conjoined with the flag recording that the read SUCCEEDED.
+  // The conjunct is the half that matters most: keyed on the filename alone, the selection hands the
+  // loop an empty string whenever the exempt read did not happen — zero lines, zero findings, one
+  // increment of `visited`, a silently short scan wearing the shape of a one-read fix.
+  it("holds the ONE-READ invariant as source shape: two read sites, and the cached text is gated on the read having succeeded", () => {
+    const src = readFileSync(GATE_TS, "utf8");
+
+    // Exactly two CALL sites. The import binding and the three prose mentions carry no `(`, so this
+    // counts calls rather than occurrences of the name. A third read site added tomorrow reds here.
+    const callSites = (src.match(/readFileSync\(/g) ?? []).length;
+    expect(callSites).toBe(2);
+
+    // The selection is a conjunction, not a filename test. Both conjuncts are required by name.
+    const selection = src.match(
+      /file === BANNED_CLAIM_EXEMPT_REGION\.file && exemptReadOk/,
+    );
+    expect(selection).not.toBeNull();
+
+    // And the flag is only ever RAISED next to the read that justifies it — never initialised true.
+    expect(src).toMatch(/let exemptReadOk = false;/);
+    expect((src.match(/exemptReadOk = true;/g) ?? []).length).toBe(1);
+  });
 });
 
 // ── WR-06 (plan 29-18): the region is located through the ONE fence authority ─────────────────
