@@ -1,10 +1,10 @@
 ---
 schema_version: 1
-open_count: 52
+open_count: 54
 waived_count: 0
 fixed_count: 1
-total_count: 53
-last_updated: 2026-08-17T21:03:21.208Z
+total_count: 55
+last_updated: 2026-08-17T21:42:53.564Z
 ---
 
 # Broken Windows Ledger
@@ -68,6 +68,8 @@ last_updated: 2026-08-17T21:03:21.208Z
 | 51 | 29 | deviation | docs/audit/29-round6-residuals.md |  | V-29-47-04: the surviving enumeration BANNED_CLAIM_LITERALS (22 members, 3 groups) is FAIL-OPEN — five real claims written with none of its members all pass at exit 0, including a conformance claim and a token-economy claim | open |  | 2026-08-17T18:35:40.003Z |  |
 | 52 | 29 | deviation | docs/audit/29-round6-residuals.md |  | V-29-47-06: .github/workflows/ci.yml:221 and :321 describe both gates this round widened at their PRE-widening scope (82 documents vs 115; NUL-only vs the whole control-byte class); the file is byte-unchanged all round and is outside every markdown scan by construction | open |  | 2026-08-17T18:35:40.068Z |  |
 | 53 | 29 | deviation | .planning/phases/29-controlled-language-voice-guard-rebuild/29-48-SUMMARY.md |  | 29-48 tracer feedback gate run as an automated end-to-end re-verify rather than a checkpoint:human-verify — the tracer's <verify> is entirely automated CLI greps, which checkpoints.md forbids asking a human to run | open |  | 2026-08-17T21:03:21.208Z |  |
+| 54 | 29 | deviation | scripts/check-nul-bytes.ts |  | V-29-50-01 the unmeasured-external-assertion CLASS stays OPEN: five prose sites asserting git classifier behaviour were corrected in plan 29-50, but nothing detects an unmeasured claim about an external tool | open |  | 2026-08-17T21:42:53.501Z |  |
+| 55 | 29 | unrun-verify | scripts/check-nul-bytes.test.ts |  | V-29-50-02 the EISDIR gitlink arm is exercised through an ordinary directory, not through a real initialised submodule fixture; the errno is identical but the submodule path itself is unwitnessed | open |  | 2026-08-17T21:42:53.564Z |  |
 
 ````json
 [
@@ -705,6 +707,30 @@ last_updated: 2026-08-17T21:03:21.208Z
     "status": "open",
     "reason": "",
     "recorded_at": "2026-08-17T21:03:21.208Z",
+    "resolved_at": null
+  },
+  {
+    "id": 54,
+    "kind": "deviation",
+    "phase": "29",
+    "file": "scripts/check-nul-bytes.ts",
+    "line": null,
+    "description": "V-29-50-01 the unmeasured-external-assertion CLASS stays OPEN: five prose sites asserting git classifier behaviour were corrected in plan 29-50, but nothing detects an unmeasured claim about an external tool",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-08-17T21:42:53.501Z",
+    "resolved_at": null
+  },
+  {
+    "id": 55,
+    "kind": "unrun-verify",
+    "phase": "29",
+    "file": "scripts/check-nul-bytes.test.ts",
+    "line": null,
+    "description": "V-29-50-02 the EISDIR gitlink arm is exercised through an ordinary directory, not through a real initialised submodule fixture; the errno is identical but the submodule path itself is unwitnessed",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-08-17T21:42:53.564Z",
     "resolved_at": null
   }
 ]
