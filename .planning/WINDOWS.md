@@ -1,10 +1,10 @@
 ---
 schema_version: 1
-open_count: 44
+open_count: 46
 waived_count: 0
 fixed_count: 1
-total_count: 45
-last_updated: 2026-08-17T17:39:12.831Z
+total_count: 47
+last_updated: 2026-08-17T18:02:44.839Z
 ---
 
 # Broken Windows Ledger
@@ -60,6 +60,8 @@ last_updated: 2026-08-17T17:39:12.831Z
 | 43 | 29 | deviation | scripts/check-nul-bytes.ts | 120 | The module header claimed git's binary heuristic is NUL-based. Measured false in round 6: git reports w/-text for 0x00/0x0b/0x0d/0x1f/0x7f and w/lf for 0x08/0x1b. Corrected in place and the cross-check arms re-anchored; recorded because a false claim in a safety module's header is what a later reader reasons from. | open |  | 2026-08-17T17:39:12.706Z |  |
 | 44 | 29 | unmet-truth | scripts/check-diff-disposition.ts |  | rowMatches() compares row.file against a bare path with NO backtick stripping, so a disposition row whose file cell is a code span can never match. 30 such rows live, all in docs/audit/29-style-dispositions/29-12.md. Fail-closed. Carried from 29-44, unmoved by this plan (out of files_modified). | open |  | 2026-08-17T17:39:12.767Z |  |
 | 45 | 29 | unmet-truth | CHANGELOG.md | 67 | Reads 'sharper-per-token' — a token-economy claim outside BANNED_CLAIM_LITERALS, so the gate does not flag it. Fail-open, 1 live, re-confirmed at HEAD by this plan. Carried from 29-43, unmoved. | open |  | 2026-08-17T17:39:12.831Z |  |
+| 46 | 29 | unmet-truth | scripts/generate-catalog.ts |  | the workflow sort's 'unique — no tie-break needed' claim is verified (orders 0..18, 19 distinct) but no mechanism reds if two workflows ever declare the same order; fail-open, live count 0 | open |  | 2026-08-17T18:02:44.779Z |  |
+| 47 | 29 | deviation | .planning/phases/29-controlled-language-voice-guard-rebuild/29-46-PLAN.md |  | acceptance grep 0*15 is a substring pattern not a cardinality predicate; it over-matched a document identifier and forced an edit the same plan forbids. Fail-closed, live count 0 | open |  | 2026-08-17T18:02:44.839Z |  |
 
 ````json
 [
@@ -601,6 +603,30 @@ last_updated: 2026-08-17T17:39:12.831Z
     "status": "open",
     "reason": "",
     "recorded_at": "2026-08-17T17:39:12.831Z",
+    "resolved_at": null
+  },
+  {
+    "id": 46,
+    "kind": "unmet-truth",
+    "phase": "29",
+    "file": "scripts/generate-catalog.ts",
+    "line": null,
+    "description": "the workflow sort's 'unique — no tie-break needed' claim is verified (orders 0..18, 19 distinct) but no mechanism reds if two workflows ever declare the same order; fail-open, live count 0",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-08-17T18:02:44.779Z",
+    "resolved_at": null
+  },
+  {
+    "id": 47,
+    "kind": "deviation",
+    "phase": "29",
+    "file": ".planning/phases/29-controlled-language-voice-guard-rebuild/29-46-PLAN.md",
+    "line": null,
+    "description": "acceptance grep 0*15 is a substring pattern not a cardinality predicate; it over-matched a document identifier and forced an edit the same plan forbids. Fail-closed, live count 0",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-08-17T18:02:44.839Z",
     "resolved_at": null
   }
 ]
