@@ -79,10 +79,16 @@ import {
   // swallowed into the exemption carrying NO banned claim moves this and nothing else.
   BANNED_CLAIM_EXEMPT_EXTENT,
   countBannedClaimOccurrences,
+  // (Plan 29-41, G-29-2) The SECOND marker list. Imported as a named binding for the same reason
+  // the reach pins above are: a named import of a missing export is a module-load error, so deleting
+  // this list fails loudly here instead of turning every marker plant below into the string
+  // "undefined" — which no gate matches, and which would make every RED case pass as a green.
+  BENEFIT_VERB_MARKERS,
 } from "./check-banned-claims.js";
 
 const ROOT = join(import.meta.dirname, "..");
 const GATE_JS = join(ROOT, "scripts", "check-banned-claims.js");
+const GATE_TS = join(ROOT, "scripts", "check-banned-claims.ts");
 
 const tmpDirs: string[] = [];
 function freshTmp(prefix: string): string {
@@ -98,18 +104,53 @@ afterAll(() => {
 //
 // Selected BY PROPERTY rather than by index or by name, so a reordering of the list cannot silently
 // turn a plant into a different literal, and a retyped string never enters this file.
+//
+// (PLAN 29-42, TASK 1) AND EVERY SELECTION IS NOW IDENTITY-ASSERTED, WHICH THE PROPERTY ALONE DOES
+// NOT GIVE. `find` returns the FIRST match, so a selector whose predicate admits more than one member
+// silently picks a different literal the day a member is declared above the one it meant. Two of the
+// four selectors here were exactly that shape, and plan 29-41 had already walked into both:
+//
+//   * `CONDITIONAL_NAME` selected on `requiresOnSameLine !== undefined` ALONE. That predicate matched
+//     exactly one member when it was written and matches THREE now.
+//   * `COMPREHENSION_CLAIM` selected on the group ALONE, which is now true of the two conditional
+//     bare terms as well. Had a reorder put the bare term `comprehension` first, the comprehension
+//     plant would have carried NO benefit marker, produced NO finding — and its case would still have
+//     PASSED, because the gate's own banner line contains the word "comprehension" and the case
+//     asserts `toContain`. A RED case going green while proving nothing, which is this repository's
+//     set-literal-drift class arriving inside the assertions written to prevent it.
+//
+// So each predicate below names a property that DISTINGUISHES its member from every sibling, and
+// every selection is pinned by an explicit expectation naming what it selected (see "the plant
+// selection itself" below). A declaration reorder now reds AT THE SELECTION, where the failure names
+// the right cause, instead of at some distant case whose message names the wrong one.
 const UNCONDITIONAL_NAME = BANNED_CLAIM_LITERALS.find(
   (l) => l.group === "standard-name" && l.requiresOnSameLine === undefined,
 );
+/** The discipline's NAME: the standard-name group's conditional member, on the CONFORMANCE list. */
 const CONDITIONAL_NAME = BANNED_CLAIM_LITERALS.find(
-  (l) => l.requiresOnSameLine !== undefined,
+  (l) => l.group === "standard-name" && l.requiresOnSameLine !== undefined,
 );
 const TOKEN_CLAIM = BANNED_CLAIM_LITERALS.find(
   (l) => l.group === "token-economy",
 );
+/** The ENUMERATED comprehension literal — unconditional, and the pre-fix grammar's whole subject. */
 const COMPREHENSION_CLAIM = BANNED_CLAIM_LITERALS.find(
-  (l) => l.group === "comprehension",
+  (l) => l.group === "comprehension" && l.requiresOnSameLine === undefined,
 );
+
+/**
+ * (Plan 29-42) The comprehension group's CONDITIONAL bare terms — the rule plan 29-41 landed in place
+ * of the open enumeration. Two of them, because one member of the measured family carries no
+ * occurrence of the first term at all and is outside that rule by construction.
+ *
+ * Held as a list rather than as two `find`s so the count is a property of the authority and not of
+ * this file, and indexed only after the identity case below has pinned what each index selected.
+ */
+const COMPREHENSION_TERMS = BANNED_CLAIM_LITERALS.filter(
+  (l) => l.group === "comprehension" && l.requiresOnSameLine !== undefined,
+);
+const BARE_COMPREHENSION = COMPREHENSION_TERMS[0];
+const BARE_UNDERSTAND = COMPREHENSION_TERMS[1];
 
 // Non-vacuity on the selection itself. A `find` that returned undefined would make every plant
 // below the string "undefined", which no gate matches — and every RED case would pass as a GREEN.
@@ -117,16 +158,57 @@ if (
   UNCONDITIONAL_NAME === undefined ||
   CONDITIONAL_NAME === undefined ||
   TOKEN_CLAIM === undefined ||
-  COMPREHENSION_CLAIM === undefined
+  COMPREHENSION_CLAIM === undefined ||
+  BARE_COMPREHENSION === undefined ||
+  BARE_UNDERSTAND === undefined
 ) {
   throw new Error(
-    "check-banned-claims.test.ts: one of the four plant literals could not be selected from " +
+    "check-banned-claims.test.ts: one of the six plant literals could not be selected from " +
       "BANNED_CLAIM_LITERALS. Every plant below would be the string 'undefined', which matches " +
       "nothing — the RED cases would pass as green while proving nothing at all.",
   );
 }
 
 const CONFORMANCE_VERB = CONFORMANCE_VERB_MARKERS[0];
+
+// The three benefit markers the measured family actually needs, selected by index and pinned by
+// identity in the selection case below — a marker list has no property to select on but its own
+// value, so the index is the selection and the pin is what makes a reorder loud.
+const MARKER_IMPROVE = BENEFIT_VERB_MARKERS[0];
+const MARKER_EASIER = BENEFIT_VERB_MARKERS[2];
+const MARKER_BOOST = BENEFIT_VERB_MARKERS[3];
+
+/**
+ * THE PRE-FIX GRAMMAR, RECONSTRUCTED AS A FIXTURE-ONLY SHAPE. NOT A LIVE PREDICATE, EVER.
+ *
+ * WHY THIS EXISTS AT ALL. Without it every family case below is DECORATION. A case that passes
+ * against the shipped build and would also have passed against the build before the fix proves
+ * nothing about the fix, and reads to the next reader as proof that a bypass is closed. The evidence
+ * is the DISAGREEMENT between the two builds on one planted line, which is why both verdicts are
+ * asserted per family member rather than only the shipped one.
+ *
+ * WHAT THE PRE-FIX SHAPE WAS: the comprehension group's enumerated substrings, matched
+ * case-insensitively, with NO co-occurrence condition. That is exactly the set of comprehension
+ * members that carry no `requiresOnSameLine` today, so it is DERIVED from the authority rather than
+ * retyped — six strings retyped here would be the second copy of the list this whole file exists to
+ * refuse. The derivation has a second, better property: if a later editor takes the rejected
+ * option (b) and APPENDS a phrasing to the group, that phrasing enters this historical shape too, the
+ * historical verdict on the family row it closes flips, and the recorded-verdict case below reds by
+ * name. The refusal in `BANNED_CLAIM_EXCLUDED` is therefore held by an assertion and not only by a
+ * paragraph.
+ */
+const HISTORICAL_ENUMERATED_COMPREHENSION: readonly string[] =
+  BANNED_CLAIM_LITERALS.filter(
+    (l) => l.group === "comprehension" && l.requiresOnSameLine === undefined,
+  ).map((l) => l.literal);
+
+/** The PRE-FIX verdict on one line. Substring, case-insensitive, no co-occurrence — the old grammar. */
+function historicallyNamed(line: string): boolean {
+  const lower = line.toLowerCase();
+  return HISTORICAL_ENUMERATED_COMPREHENSION.some((l) =>
+    lower.includes(l.toLowerCase()),
+  );
+}
 
 /** The exact shape of the D-44 draft claim: the name, with a conformance verb beside it. */
 const NAME_PLANT = `The grugops kit ${CONFORMANCE_VERB}s to ${UNCONDITIONAL_NAME.literal}.`;
@@ -136,6 +218,108 @@ const ADJACENT_PLANT = `The kit ${CONFORMANCE_VERB}s to ${UNCONDITIONAL_NAME.lit
 const BARE_NAME_PLANT = `Writers of ${CONDITIONAL_NAME.literal} choose one word per meaning.`;
 const TOKEN_PLANT = `The voice is a ${TOKEN_CLAIM.literal} applied to memory.`;
 const COMPREHENSION_PLANT = `The profile ${COMPREHENSION_CLAIM.literal} for the model.`;
+
+// ── The measured family (plan 29-42, task 1) ──────────────────────────────────────────────────
+//
+// THE SIX PHRASINGS ENUMERATED IN `29-UAT.md` § G-29-2 root_cause, one permanent case each.
+//
+// Every plant is COMPOSED from a pinned member and a pinned marker. The only typed words are the
+// interposed ones — `LLM`, `model`, `agent`, `for language models` — which are precisely the words
+// that are NOT in any pinned list and are the whole reason the enumeration failed. A retyped
+// `improves LLM comprehension` here would stop testing the member it names the day that member is
+// renamed, and this file's header already says so.
+//
+// `historicallyOpen` IS THE 29-41 BASELINE, CARRIED AS DATA AND ASSERTED, NOT AS A REMEMBERED CLAIM.
+// It records what the PRE-FIX grammar did to that exact line: five of the six were open (the gate
+// exited 0 with the planted file never named anywhere in its output) and one — the phrasing that IS
+// an enumerated literal — was already caught. The case below asserts the reconstructed pre-fix shape
+// reproduces that column exactly, in BOTH directions. Asserting merely "the control finds nothing"
+// would have been a claim the measurement contradicts for row F1, and writing a fixture that agrees
+// with a false claim is how six false results were produced in this phase across four rounds.
+const FAMILY: readonly {
+  readonly id: string;
+  readonly plant: string;
+  /** The literal the SHIPPED gate must name on this line. */
+  readonly literal: string;
+  /** Whether the PRE-FIX enumerated grammar named this line. Five of six: no. */
+  readonly historicallyOpen: boolean;
+}[] = [
+  {
+    id: "F1 the one phrasing the enumeration already held",
+    plant: `The profile ${COMPREHENSION_CLAIM.literal} for the model.`,
+    literal: COMPREHENSION_CLAIM.literal,
+    historicallyOpen: false,
+  },
+  {
+    id: "F2 one interposed word: LLM",
+    plant: `The profile ${MARKER_IMPROVE}s LLM ${BARE_COMPREHENSION.literal}.`,
+    literal: BARE_COMPREHENSION.literal,
+    historicallyOpen: true,
+  },
+  {
+    id: "F3 one interposed word: model",
+    plant: `The profile ${MARKER_IMPROVE}s model ${BARE_COMPREHENSION.literal}.`,
+    literal: BARE_COMPREHENSION.literal,
+    historicallyOpen: true,
+  },
+  {
+    id: "F4 one interposed word: agent",
+    plant: `The profile ${MARKER_IMPROVE}s agent ${BARE_COMPREHENSION.literal}.`,
+    literal: BARE_COMPREHENSION.literal,
+    historicallyOpen: true,
+  },
+  {
+    id: "F5 no occurrence of the first bare term at all",
+    plant: `Controlled language makes prose ${MARKER_EASIER} for LLMs to ${BARE_UNDERSTAND.literal}.`,
+    literal: BARE_UNDERSTAND.literal,
+    historicallyOpen: true,
+  },
+  {
+    id: "F6 the term first, the marker trailing",
+    plant: `The profile ${MARKER_BOOST}s ${BARE_COMPREHENSION.literal} for language models.`,
+    literal: BARE_COMPREHENSION.literal,
+    historicallyOpen: true,
+  },
+];
+
+/**
+ * A plant carrying ONE benefit marker and the bare term, for the per-marker discrimination cases.
+ *
+ * Marker-agnostic on purpose: one template over all seven, so admitting an eighth marker gets a case
+ * without anybody writing one. The template's own words are checked below to carry no marker and no
+ * enumerated literal of their own, because a template that smuggled in a second marker would credit
+ * a red to a marker that was not the one under test.
+ */
+function markerPlant(marker: string): string {
+  return `The profile is a ${marker} to the ${BARE_COMPREHENSION.literal} of the model.`;
+}
+
+/**
+ * How many conditional members the SOURCE declares, counted from the source text.
+ *
+ * DERIVED INDEPENDENTLY OF THE ARRAY WALK ON PURPOSE (the standing lesson: a vacuity floor catches an
+ * EMPTY denominator but never a SILENTLY SHORT one, so the element count must not come from the loop
+ * that consumes it). This reads the `.ts` and counts the member declarations that name a marker list.
+ * A member written on ONE line, which this pattern would not see, makes the two numbers DISAGREE and
+ * reds — the safe direction — rather than shortening both together.
+ */
+function declaredConditionalMembers(): number {
+  return (
+    readFileSync(GATE_TS, "utf8").match(
+      /^ +requiresOnSameLine: [A-Z_]+,$/gm,
+    ) ?? []
+  ).length;
+}
+
+/** How many benefit markers the SOURCE declares, by the same independent route. */
+function declaredBenefitMarkers(): number {
+  const src = readFileSync(GATE_TS, "utf8");
+  const block = src.slice(
+    src.indexOf("export const BENEFIT_VERB_MARKERS"),
+    src.indexOf("export const BANNED_CLAIM_LITERALS"),
+  );
+  return (block.match(/^ {2}"[a-z]+",$/gm) ?? []).length;
+}
 
 // ── The mirror ────────────────────────────────────────────────────────────────────────────────
 
@@ -316,6 +500,94 @@ function findingCount(stdout: string): number {
   return (stdout.match(/— banned [a-z-]+ literal /g) ?? []).length;
 }
 
+// ── The plant selection itself (plan 29-42, task 1) ───────────────────────────────────────────
+
+describe("check-banned-claims — the plant selection itself", () => {
+  it("every selector selected the literal its NAME says, so a declaration reorder reds HERE", () => {
+    // The quiet half of this plan. Each expectation below names one literal, and that is the ONLY
+    // place in this file where a member's text is typed rather than composed — as an EXPECTATION about
+    // what was selected, never as a needle handed to the gate. A reorder of BANNED_CLAIM_LITERALS now
+    // fails this case by name instead of defanging a plant three hundred lines away.
+    expect(UNCONDITIONAL_NAME.literal).toBe("ASD-STE100");
+    expect(CONDITIONAL_NAME.literal).toBe("Simplified Technical English");
+    expect(CONDITIONAL_NAME.requiresOnSameLine).toBe(CONFORMANCE_VERB_MARKERS);
+    expect(TOKEN_CLAIM.literal).toBe("token economy");
+    expect(COMPREHENSION_CLAIM.literal).toBe("improves comprehension");
+    // The two conditional bare terms, in declaration order, with their marker list identified by
+    // REFERENCE rather than by length: two lists of equal size would satisfy a count and a plant
+    // composed from the wrong one would still red, for the wrong reason.
+    expect(COMPREHENSION_TERMS.map((t) => t.literal)).toEqual([
+      "comprehension",
+      "understand",
+    ]);
+    for (const t of COMPREHENSION_TERMS) {
+      expect(t.requiresOnSameLine).toBe(BENEFIT_VERB_MARKERS);
+    }
+    // The markers the family plants are composed from.
+    expect(CONFORMANCE_VERB).toBe("conform");
+    expect(MARKER_IMPROVE).toBe("improve");
+    expect(MARKER_EASIER).toBe("easier");
+    expect(MARKER_BOOST).toBe("boost");
+  });
+
+  it("the marker-plant TEMPLATE smuggles in no second marker and no enumerated literal", () => {
+    // A template carrying a marker of its own would credit every per-marker red to the template, and
+    // all seven cases below would pass against a gate that only ever matched that one marker.
+    const skeleton = markerPlant("");
+    for (const m of BENEFIT_VERB_MARKERS) {
+      expect(skeleton.toLowerCase().includes(m.toLowerCase())).toBe(false);
+    }
+    expect(historicallyNamed(skeleton)).toBe(false);
+  });
+
+  it("PREMISE: this gate's source and this file are grep-visible — no control byte hides them", () => {
+    // ASSERT THE HARNESS'S OWN PREMISE, WHICH THIS PLAN LEARNED THE HARD WAY AND IS RECORDING AS AN
+    // ASSERTION RATHER THAN AS A LESSON.
+    //
+    // A single NUL byte anywhere in a file makes BSD `grep` classify it as binary and report ZERO
+    // matches with NO warning and exit status 1 — indistinguishable from "the string is absent". One
+    // was written into THIS file while plan 29-42 was being executed, and two of that plan's own
+    // acceptance greps returned a confident, false 0 because of it. Every guard in this repository
+    // that reasons about source text — and several of them do — is exposed to the same silence, and
+    // this phase's record already contains six false harness results across four rounds.
+    //
+    // Asserted over BOTH files because the gate's source is what the guards grep and this file is what
+    // the acceptance criteria grep. \n and \t are the only control characters a source file needs.
+    for (const p of [GATE_TS, join(ROOT, "scripts", "check-banned-claims.test.ts")]) {
+      const bytes = readFileSync(p);
+      const offending: number[] = [];
+      for (let i = 0; i < bytes.length; i++) {
+        const b = bytes[i];
+        if (b === 0x09 || b === 0x0a) continue;
+        if (b < 0x20 || b === 0x7f) offending.push(i);
+      }
+      expect({ file: p, offending: offending.slice(0, 5) }).toEqual({
+        file: p,
+        offending: [],
+      });
+      // ...and the floor: a zero-length read would satisfy the loop above vacuously.
+      expect(bytes.length).toBeGreaterThan(1000);
+    }
+  });
+
+  it("the reconstructed PRE-FIX grammar is the six enumerated literals, count pinned two-sided", () => {
+    // Two-sided, and the reason is the rejected alternative rather than tidiness: option (b) —
+    // appending a phrasing to the comprehension group — was measured and REFUSED, and it is refused
+    // here by an assertion as well as by a paragraph in BANNED_CLAIM_EXCLUDED. Appending a phrasing
+    // moves this count and reds. Deleting one of the six moves it the other way, which would be a
+    // false green: three of the six carry no occurrence of either bare term, so the rule does not
+    // subsume them, and they carry part of the exemption's suppressed arithmetic besides.
+    expect(HISTORICAL_ENUMERATED_COMPREHENSION.length).toBe(6);
+    // ...and it is a HISTORICAL shape, not a live predicate: it must not be conditional on anything.
+    for (const l of BANNED_CLAIM_LITERALS.filter(
+      (m) => m.group === "comprehension" && m.requiresOnSameLine === undefined,
+    )) {
+      expect(l.requiresOnSameLine).toBeUndefined();
+      expect(HISTORICAL_ENUMERATED_COMPREHENSION).toContain(l.literal);
+    }
+  });
+});
+
 // ── The GREEN control ─────────────────────────────────────────────────────────────────────────
 
 describe("check-banned-claims — the clean mirror", () => {
@@ -384,7 +656,23 @@ describe("check-banned-claims — the planted claims", () => {
     expect(status).toBe(1);
     expect(stdout).toContain(TOKEN_CLAIM.literal);
     expect(stdout).toContain(COMPREHENSION_CLAIM.literal);
-    expect(findingCount(stdout)).toBe(2);
+    // (Plan 29-42) DERIVED THROUGH THE GATE'S OWN MATCHER, NOT RE-PINNED FROM 2 TO 3.
+    //
+    // This assertion read `toBe(2)` and plan 29-41 turned it red at 3: the comprehension plant carries
+    // the enumerated literal `improves comprehension` AND now also satisfies the bare-term rule on
+    // marker `improve`, so one line yields two occurrences. That is the same correct doubling that
+    // moved BANNED_CLAIM_EXEMPT_SUPPRESSED, and retyping 2 as 3 would go stale the next time a member
+    // is admitted — the number is a function of how many literals happen to match one planted line.
+    //
+    // It is not circular. `countBannedClaimOccurrences` is the MATCHER; `findingCount` is arithmetic
+    // over the RENDERED output. The equality holds one code path against the other, and the floor keeps
+    // it from being satisfied by a matcher that returned zero for everything.
+    const expected =
+      countBannedClaimOccurrences([TOKEN_PLANT], 0, 1) +
+      countBannedClaimOccurrences([COMPREHENSION_PLANT], 0, 1);
+    expect(countBannedClaimOccurrences([TOKEN_PLANT], 0, 1)).toBeGreaterThanOrEqual(1);
+    expect(countBannedClaimOccurrences([COMPREHENSION_PLANT], 0, 1)).toBeGreaterThanOrEqual(1);
+    expect(findingCount(stdout)).toBe(expected);
   });
 
   it("matches case-INSENSITIVELY, because a re-capitalised claim is the same claim", () => {
@@ -438,7 +726,13 @@ describe("check-banned-claims — adjacency", () => {
 
 // ── The conditional arm ───────────────────────────────────────────────────────────────────────
 
-describe("check-banned-claims — the one conditional literal", () => {
+// (Plan 29-42) Titled for the ARM, not for a count. This block's old title asserted a COUNT of one
+// conditional literal while three members were conditional — a case NAME is what a reporter prints
+// and what the next reader greps, so a stale singular there is the same defect as a stale singular in
+// a PASS line. The old title is DESCRIBED and not quoted, for the reason the gate's own source gives
+// at its PASS-line rewrite: this repository's guards scan source text without stripping comments, so
+// quoting a deleted singular verbatim re-registers it as a live site of the very thing deleted.
+describe("check-banned-claims — the conditional arm, on the conformance list", () => {
   it("does NOT fire on the discipline's bare name with no conformance verb on the line", () => {
     // THE ADMISSION TEST, ASSERTED. Banning the bare name would make it impossible to write a
     // correct sentence that names the discipline, and going green would then require deleting
@@ -464,6 +758,121 @@ describe("check-banned-claims — the one conditional literal", () => {
     );
     expect(status).toBe(1);
     expect(stdout).toContain(CONDITIONAL_NAME.literal);
+  });
+});
+
+// ── The measured family, held by cases proven able to fail (plan 29-42, task 1) ────────────────
+
+describe("check-banned-claims — the measured comprehension family", () => {
+  // WHY EACH ROW ASSERTS TWO VERDICTS. The claim being made is "this bypass is closed", and only the
+  // DISAGREEMENT between the pre-fix grammar and the shipped gate on one planted line supports it. A
+  // row asserting the shipped verdict alone would pass identically against the build that shipped the
+  // bypass, and would read as proof.
+  for (const row of FAMILY) {
+    it(`${row.id}: the pre-fix grammar and the shipped gate DISAGREE on this line`, () => {
+      // The pre-fix half, asserted in both directions against the 29-41 baseline column.
+      expect(historicallyNamed(row.plant)).toBe(!row.historicallyOpen);
+
+      const planted = "agent-factory/workflows/010-filler.md";
+      const { status, stdout } = runGate(
+        makeMirror("gops-banned-family-", { plant: { [planted]: row.plant } }),
+      );
+      // The verdict is the FINDING LINE at file:line:column, never the exit code — plan 29-41
+      // established why, on a run where an un-re-pinned constant made the exit code non-zero for a
+      // reason that had nothing to do with the plant.
+      expect(stdout).toMatch(/010-filler\.md:\d+:\d+ — banned comprehension literal /);
+      expect(stdout).toContain(`banned comprehension literal "${row.literal}"`);
+      expect(status).toBe(1);
+      // The rendered finding count equals the matcher's own count over that one line: the plant is
+      // the only banned text in the mirror, so the two must agree. A floor of 1 keeps the equality
+      // from being satisfied by a matcher that returned zero for everything.
+      const expected = countBannedClaimOccurrences([row.plant], 0, 1);
+      expect(expected).toBeGreaterThanOrEqual(1);
+      expect(findingCount(stdout)).toBe(expected);
+    });
+  }
+
+  it("the family covers EVERY conditional comprehension member, and five rows were open", () => {
+    // TWO independent vacuity floors, because the family table is a hand-written list and this
+    // repository's second systemic failure class is a hand-written list rotting while green.
+    //
+    // (1) The COVERAGE floor is derived from the AUTHORITY, not from the table: every conditional
+    // comprehension member must be the attributing literal of at least one row. The row that would go
+    // missing first is F5 — the member the first rule cannot reach — and dropping it would leave the
+    // family looking complete while the structurally-unreachable phrasing had no case at all.
+    for (const term of COMPREHENSION_TERMS) {
+      expect(FAMILY.some((r) => r.literal === term.literal)).toBe(true);
+    }
+    // (2) The DISCRIMINATION floor: five of the six rows must be historically OPEN. A table that
+    // drifted to zero open rows would still pass every case above — every row would assert the pre-fix
+    // grammar named it, which proves nothing about the fix — and this whole block would be decoration.
+    expect(FAMILY.length).toBe(6);
+    expect(FAMILY.filter((r) => r.historicallyOpen).length).toBe(5);
+  });
+});
+
+// ── Per-marker discrimination (plan 29-42, task 1) ─────────────────────────────────────────────
+
+describe("check-banned-claims — every benefit marker, alone on its line", () => {
+  // A marker admitted by a measurement and held by no assertion is a member of the list that nothing
+  // proved does anything. Plan 29-41 admitted seven on measured counts; these are the assertions that
+  // keep the measurement true.
+  for (const marker of BENEFIT_VERB_MARKERS) {
+    it(`marker "${marker}" ALONE on the line turns the bare term into a finding`, () => {
+      const plant = markerPlant(marker);
+      // The marker under test is the ONLY one present, asserted before the plant is used, so a red
+      // cannot be credited to a marker that was not the one under test.
+      expect(
+        BENEFIT_VERB_MARKERS.filter((m) =>
+          plant.toLowerCase().includes(m.toLowerCase()),
+        ),
+      ).toEqual([marker]);
+      // ...and no enumerated literal is in the line either, so the red is the RULE's and not the
+      // enumeration's.
+      expect(historicallyNamed(plant)).toBe(false);
+
+      const planted = "agent-factory/workflows/011-filler.md";
+      const { status, stdout } = runGate(
+        makeMirror("gops-banned-marker-", { plant: { [planted]: plant } }),
+      );
+      expect(stdout).toContain(
+        `banned comprehension literal "${BARE_COMPREHENSION.literal}"`,
+      );
+      expect(stdout).toMatch(/011-filler\.md:\d+:\d+/);
+      expect(status).toBe(1);
+      const expected = countBannedClaimOccurrences([plant], 0, 1);
+      expect(expected).toBeGreaterThanOrEqual(1);
+      expect(findingCount(stdout)).toBe(expected);
+    });
+  }
+
+  it("CONTROL: the same line with NO marker at all is GREEN, so the rule stayed conditional", () => {
+    // The discrimination that proves the rule did not quietly become unconditional. Without it every
+    // case above would pass against a gate that banned the bare word outright — which would make the
+    // honest denial unsayable, and going green would then mean deleting correct text.
+    const plant = `The profile makes no claim about ${BARE_COMPREHENSION.literal} in either direction.`;
+    expect(
+      BENEFIT_VERB_MARKERS.filter((m) =>
+        plant.toLowerCase().includes(m.toLowerCase()),
+      ),
+    ).toEqual([]);
+    expect(plant).toContain(BARE_COMPREHENSION.literal);
+    const { status, stdout } = runGate(
+      makeMirror("gops-banned-nomarker-", {
+        plant: { "agent-factory/workflows/012-filler.md": plant },
+      }),
+    );
+    expect(status).toBe(0);
+    expect(stdout).toContain("ALL CHECKS PASSED");
+  });
+
+  it("the marker list the cases walked is the one the SOURCE declares — derived independently", () => {
+    // The element count comes from the source text, not from the loop above. A loop that walked a
+    // silently short list would satisfy every case it ran and report nothing about the ones it did not.
+    expect(BENEFIT_VERB_MARKERS.length).toBe(declaredBenefitMarkers());
+    expect(BENEFIT_VERB_MARKERS.length).toBe(7);
+    expect(new Set(BENEFIT_VERB_MARKERS).size).toBe(BENEFIT_VERB_MARKERS.length);
+    for (const m of BENEFIT_VERB_MARKERS) expect(m.trim().length).toBeGreaterThan(2);
   });
 });
 
@@ -1664,18 +2073,60 @@ describe("check-banned-claims — the one list, frozen", () => {
     expect(new Set(BANNED_CLAIM_LITERALS.map((m) => m.literal)).size).toBe(
       BANNED_CLAIM_LITERALS.length,
     );
-    // Exactly one conditional member. A second would need its own recorded reason, and a
-    // conditional member added silently is how an unconditional prohibition quietly becomes a
-    // conditional one.
+    // ── THE CONDITIONAL-MEMBER CARDINALITY, RE-MEASURED RATHER THAN REMOVED (plan 29-42) ────────
+    //
+    // THIS PIN WAS 1, IT FIRED, AND FIRING IS WHAT IT IS FOR. It is relaxed to the measured 3 with the
+    // reason recorded HERE, at the assertion, because a pin deleted because it fired is the failure
+    // mode this repository has closed three times at eight rounds each.
+    //
+    // WHAT CHANGED AND WHO CHANGED IT. Plan 29-41 (G-29-2, user decision (c)) replaced the
+    // comprehension group's open enumeration with a RULE and admitted two conditional bare terms:
+    // `comprehension` and `understand`, both on BENEFIT_VERB_MARKERS. Each was admitted on its own
+    // measured hit count over the derived scan set, and the second exists because one member of the
+    // measured family carries no occurrence of the first term at all. That is a recorded decision with
+    // a number beside it — not a conditional member arriving silently, which is what this pin watches
+    // for and still watches for.
+    //
+    // IT STAYS AN EQUALITY, NOT A LOWER BOUND. A FOURTH conditional member reds this line on the day
+    // it lands and has to bring its own recorded reason, exactly as the second and third did. A
+    // `toBeGreaterThanOrEqual` here would retire the assertion while leaving it looking alive.
     expect(
       BANNED_CLAIM_LITERALS.filter((m) => m.requiresOnSameLine !== undefined)
         .length,
-    ).toBe(1);
+    ).toBe(3);
     // All three groups are populated. A group that emptied out would leave a prohibition LANG-04
     // names with no literal behind it, while the PASS line still counted three groups.
     for (const g of ["standard-name", "token-economy", "comprehension"]) {
       expect(BANNED_CLAIM_LITERALS.some((m) => m.group === g)).toBe(true);
     }
+  });
+
+  it("REFUSES a conditional member declared with an EMPTY marker array", () => {
+    // THE VACUITY SHAPE AT MEMBER GRANULARITY. A conditional member whose marker list is empty passes
+    // straight through `lineHits`'s existing arm — `[].some(...)` is false, so the member `continue`s
+    // on every line — and ships as a prohibition that matches NOTHING, forever, silently. The gate
+    // would go on counting it in the PASS line as a pinned literal.
+    const conditional = BANNED_CLAIM_LITERALS.filter(
+      (m) => m.requiresOnSameLine !== undefined,
+    );
+    // THE DENOMINATOR IS DERIVED FROM THE SOURCE, NOT FROM THE ARRAY THE LOOP WALKS. A vacuity floor
+    // catches an EMPTY list and never a SILENTLY SHORT one, and "assert the count you derived
+    // independently" is the standing remedy in this repository.
+    const declared = declaredConditionalMembers();
+    expect(declared).toBe(3);
+    expect(conditional.length).toBe(declared);
+    let walked = 0;
+    for (const m of conditional) {
+      walked += 1;
+      expect(m.requiresOnSameLine).toBeDefined();
+      expect(m.requiresOnSameLine?.length ?? 0).toBeGreaterThan(0);
+      // And every marker in it is usable: a blank marker would make `includes` true on every line and
+      // turn the conditional member into an unconditional one without moving any count.
+      for (const marker of m.requiresOnSameLine ?? []) {
+        expect(marker.trim().length).toBeGreaterThan(2);
+      }
+    }
+    expect(walked).toBe(declared);
   });
 
   it("the admission log records every refused candidate with a reason", () => {
