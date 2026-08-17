@@ -499,7 +499,10 @@ export const BANNED_CLAIM_EXCLUDED: readonly {
     reason:
       "60 + 18 + 2 + 70 hits across compliance-regime documentation, ASVS certification rows, " +
       "release-approval steps and the README's own non-affiliation disclaimer. They survive only as " +
-      "co-occurrence markers for the one conditional literal above",
+      "co-occurrence markers, and for exactly ONE of the three conditional members — the " +
+      "discipline's name. The other two are on BENEFIT_VERB_MARKERS and this list has no bearing on " +
+      "them (plan 29-42: this reason asserted a count of one conditional literal, which plan 29-41 " +
+      "made false)",
   },
   {
     candidate: "comprehension, as an UNCONDITIONAL literal",
@@ -534,6 +537,24 @@ export const BANNED_CLAIM_EXCLUDED: readonly {
       "Recorded because a reader comparing the two would otherwise read the wider term as careless",
   },
   {
+    candidate:
+      "appending further fixed phrasings to the comprehension group — user decision option (b)",
+    hits: 0,
+    reason:
+      "THE REJECTED REMEDY, RECORDED WITH THE NUMBER THAT REJECTED IT, because an absent literal " +
+      "reads to the next editor as an oversight worth fixing and this is the fix that must NOT be " +
+      "made. Measured 2026-08-17 over the 82-document derived scan set (5898 lines): appending the " +
+      "measured family's phrasings gains ZERO findings and moves BANNED_CLAIM_EXEMPT_SUPPRESSED by " +
+      "ZERO, so it was refused on MECHANISM and not on cost. The mechanism: matching here is plain " +
+      "case-insensitive substring, so ANY interposed word defeats a fixed phrasing and each phrasing " +
+      "added closes exactly itself. 29-UAT.md § G-29-2 states the consequence — option (b) \"closes " +
+      'only the phrasings enumerated and leaves `improves agent comprehension` and `boosts ' +
+      'comprehension for language models` green". User decision (c) replaced the enumeration with a ' +
+      "RULE instead (the two conditional bare terms above). This refusal is held by an ASSERTION as " +
+      "well as by this paragraph: check-banned-claims.test.ts pins the enumerated-comprehension " +
+      "count two-sided at 6, so appending a phrasing reds by name",
+  },
+  {
     candidate: "STE, as a bare literal",
     hits: -1,
     reason:
@@ -561,6 +582,31 @@ export const BANNED_CLAIM_EXCLUDED: readonly {
 // whole words — would delete the check for every other document to accommodate one section. If a
 // second region ever earns an exemption, the answer is a second named triple with its own reason,
 // never a weaker predicate.
+//
+// ── V-29-42-03: THE PROFILE'S PARITY PARAGRAPH IS NOW BEHIND THIS MODULE'S WORDING ─────────────
+//
+// MEASURED, RECORDED, AND DELIBERATELY NOT FIXED HERE (plan 29-42 task 2). The exempt document's own
+// paragraph inside this region claims parity with this source — "That residual is recorded in the
+// gate's own source as well, so neither a green build nor this paragraph can quietly stand in for the
+// other" — and one sentence beside it says the gate "proves that no pinned literal appears outside
+// this section". That sentence is now LIVE-FALSE, with a count: measured over the 82-document derived
+// scan set, ONE pinned-literal occurrence sits outside this region and produces no finding
+// (agent-factory/roles/incident-responder.md:29:103, the bare term `understand`, correct operational
+// text carrying no benefit marker). This module's header states the accurate form — no pinned literal
+// OR PINNED PAIR outside the region — so the source is precise and the profile is a wording behind it.
+//
+// STRUCTURALLY IMPRECISE SINCE PLAN 29-02, LIVE-FALSE ONLY SINCE PLAN 29-41, and the distinction is
+// recorded rather than collapsed: a conditional member has existed since the discipline's name was
+// pinned, but that member has ZERO unpaired occurrences outside this region, so the sentence was
+// vacuously true on the live tree until `understand` was admitted.
+//
+// WHY IT IS NOT EDITED HERE. The sentence sits INSIDE this region, so any edit to it moves
+// BANNED_CLAIM_EXEMPT_EXTENT (a line count) and requires a D-04 diff-disposition row; an edit that
+// happened to introduce a pinned literal would move BANNED_CLAIM_EXEMPT_SUPPRESSED as well. The
+// default disposition for a measured adjacency outside a round's decided scope is to measure and
+// escalate, and quietly fixing one is as wrong as quietly absorbing it. Carried in
+// docs/audit/29-round5-residuals.md with both addresses and its direction: FAIL-CLOSED for the guard
+// (nothing is under-reported), and inaccurate only in the document's own description of the guard.
 // ---------------------------------------------------------------------------
 export const BANNED_CLAIM_EXEMPT_REGION = {
   file: "agent-factory/writing-profile.md",
