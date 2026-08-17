@@ -1301,6 +1301,30 @@ function runAll(): void {
   );
 
   if (FAILS === 0) {
+    // ── THE CONDITIONAL CLAUSE IS RENDERED PER MEMBER (plan 29-41 task 3, AP-1) ────────────────
+    //
+    // WHAT THIS CLAUSE USED TO SAY, AND WHY IT BECAME A PASS LINE STATING A CHECK THE GATE DID NOT
+    // PERFORM. It counted the conditional members and then attributed all of them to a conformance
+    // verb drawn from the size of the conformance marker list — ONE marker list, presented as THE
+    // marker list. (The removed expression is described rather than QUOTED here: this repository's
+    // gates scan source text without stripping comments, so a verbatim quotation of a deleted
+    // expression re-registers as a live site of the very thing that was deleted.) That reading was
+    // true while exactly one member was conditional. Plan 29-41 made
+    // conditional members PLURAL with DIFFERENT marker lists (`CONFORMANCE_VERB_MARKERS` for the
+    // discipline's name, `BENEFIT_VERB_MARKERS` for the comprehension terms), so the sentence became
+    // false in two ways at once: its verb, and its denominator. A gate publishing a PASS line for a
+    // check it did not perform is AP-1, which this phase carries as blocking.
+    //
+    // THE COUNT AND THE RENDERING COME FROM ONE EXPRESSION, so they cannot disagree — a member added
+    // or removed later changes this line without anybody editing it, which is the property a
+    // hand-maintained denominator does not have. `flatMap` rather than `filter` so the marker array
+    // is narrowed by the same step that selects the member, with no non-null assertion standing in
+    // for the check.
+    const conditional = BANNED_CLAIM_LITERALS.flatMap((l) =>
+      l.requiresOnSameLine === undefined
+        ? []
+        : [{ literal: l.literal, markers: l.requiresOnSameLine.length }],
+    );
     // A PASS line must never state a check that was not performed: every number below is read from
     // the run that just happened, and the exemption is reported inline with its reason so a reader
     // meets it here rather than inferring it from a file's silence.
@@ -1309,8 +1333,9 @@ function runAll(): void {
         `exemption region — ${BANNED_CLAIM_SCAN_PARTS.map((p) => `${p.name} ${p.members.length}`).join(", ")}, ` +
         `overlap ${overlap}; ${BANNED_CLAIM_LITERALS.length} pinned literal(s) across ` +
         `${new Set(BANNED_CLAIM_LITERALS.map((l) => l.group)).size} group(s), of which ` +
-        `${BANNED_CLAIM_LITERALS.filter((l) => l.requiresOnSameLine !== undefined).length} is ` +
-        `conditional on a conformance verb from ${CONFORMANCE_VERB_MARKERS.length} pinned marker(s); ` +
+        `${conditional.length} ${conditional.length === 1 ? "is" : "are"} conditional on a ` +
+        `co-occurring marker from ${conditional.length === 1 ? "its" : "their"} OWN pinned list ` +
+        `(${conditional.map((c) => `"${c.literal}" on ${c.markers} marker(s)`).join(", ")}); ` +
         `1 exemption region (${BANNED_CLAIM_EXEMPT_REGION.file} § ${BANNED_CLAIM_EXEMPT_REGION.heading} ` +
         `— ${BANNED_CLAIM_EXEMPT_REGION.reason}), which suppresses ${suppressed} banned-claim ` +
         `occurrence(s), pinned at ${BANNED_CLAIM_EXEMPT_SUPPRESSED}, and reaches ` +
