@@ -1,10 +1,10 @@
 ---
 schema_version: 1
-open_count: 41
+open_count: 44
 waived_count: 0
 fixed_count: 1
-total_count: 42
-last_updated: 2026-08-17T17:16:02.578Z
+total_count: 45
+last_updated: 2026-08-17T17:39:12.831Z
 ---
 
 # Broken Windows Ledger
@@ -57,6 +57,9 @@ last_updated: 2026-08-17T17:16:02.578Z
 | 40 | 29 | deviation | CHANGELOG.md | 67 | sharper-per-token survives at CHANGELOG.md:67 — outside BANNED_CLAIM_LITERALS and green by the current prohibition, but arguably a token-economy win claim of the family the token-economy group holds. Fail-open, 1 live, escalated by 29-43 rather than absorbed. | open |  | 2026-08-17T16:41:32.934Z |  |
 | 41 | 29 | deviation | docs/audit/29-style-dispositions/29-12.md |  | 29-44 R1: 30 disposition rows carry a code-span file cell and can never match rowMatches() in check-diff-disposition.ts (bare-path comparison, no backtick stripping) — fail-closed, 30 live | open |  | 2026-08-17T17:16:02.517Z |  |
 | 42 | 29 | unrun-verify | CHANGELOG.md | 67 | 29-44 R2 (carried from 29-43): 'sharper-per-token' is outside BANNED_CLAIM_LITERALS and green by the current prohibition — fail-open, 1 live, unmoved by 29-44 | open |  | 2026-08-17T17:16:02.578Z |  |
+| 43 | 29 | deviation | scripts/check-nul-bytes.ts | 120 | The module header claimed git's binary heuristic is NUL-based. Measured false in round 6: git reports w/-text for 0x00/0x0b/0x0d/0x1f/0x7f and w/lf for 0x08/0x1b. Corrected in place and the cross-check arms re-anchored; recorded because a false claim in a safety module's header is what a later reader reasons from. | open |  | 2026-08-17T17:39:12.706Z |  |
+| 44 | 29 | unmet-truth | scripts/check-diff-disposition.ts |  | rowMatches() compares row.file against a bare path with NO backtick stripping, so a disposition row whose file cell is a code span can never match. 30 such rows live, all in docs/audit/29-style-dispositions/29-12.md. Fail-closed. Carried from 29-44, unmoved by this plan (out of files_modified). | open |  | 2026-08-17T17:39:12.767Z |  |
+| 45 | 29 | unmet-truth | CHANGELOG.md | 67 | Reads 'sharper-per-token' — a token-economy claim outside BANNED_CLAIM_LITERALS, so the gate does not flag it. Fail-open, 1 live, re-confirmed at HEAD by this plan. Carried from 29-43, unmoved. | open |  | 2026-08-17T17:39:12.831Z |  |
 
 ````json
 [
@@ -562,6 +565,42 @@ last_updated: 2026-08-17T17:16:02.578Z
     "status": "open",
     "reason": "",
     "recorded_at": "2026-08-17T17:16:02.578Z",
+    "resolved_at": null
+  },
+  {
+    "id": 43,
+    "kind": "deviation",
+    "phase": "29",
+    "file": "scripts/check-nul-bytes.ts",
+    "line": 120,
+    "description": "The module header claimed git's binary heuristic is NUL-based. Measured false in round 6: git reports w/-text for 0x00/0x0b/0x0d/0x1f/0x7f and w/lf for 0x08/0x1b. Corrected in place and the cross-check arms re-anchored; recorded because a false claim in a safety module's header is what a later reader reasons from.",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-08-17T17:39:12.706Z",
+    "resolved_at": null
+  },
+  {
+    "id": 44,
+    "kind": "unmet-truth",
+    "phase": "29",
+    "file": "scripts/check-diff-disposition.ts",
+    "line": null,
+    "description": "rowMatches() compares row.file against a bare path with NO backtick stripping, so a disposition row whose file cell is a code span can never match. 30 such rows live, all in docs/audit/29-style-dispositions/29-12.md. Fail-closed. Carried from 29-44, unmoved by this plan (out of files_modified).",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-08-17T17:39:12.767Z",
+    "resolved_at": null
+  },
+  {
+    "id": 45,
+    "kind": "unmet-truth",
+    "phase": "29",
+    "file": "CHANGELOG.md",
+    "line": 67,
+    "description": "Reads 'sharper-per-token' — a token-economy claim outside BANNED_CLAIM_LITERALS, so the gate does not flag it. Fail-open, 1 live, re-confirmed at HEAD by this plan. Carried from 29-43, unmoved.",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-08-17T17:39:12.831Z",
     "resolved_at": null
   }
 ]
