@@ -1,10 +1,10 @@
 ---
 schema_version: 1
-open_count: 46
+open_count: 51
 waived_count: 0
 fixed_count: 1
-total_count: 47
-last_updated: 2026-08-17T18:02:44.839Z
+total_count: 52
+last_updated: 2026-08-17T18:35:40.068Z
 ---
 
 # Broken Windows Ledger
@@ -62,6 +62,11 @@ last_updated: 2026-08-17T18:02:44.839Z
 | 45 | 29 | unmet-truth | CHANGELOG.md | 67 | Reads 'sharper-per-token' — a token-economy claim outside BANNED_CLAIM_LITERALS, so the gate does not flag it. Fail-open, 1 live, re-confirmed at HEAD by this plan. Carried from 29-43, unmoved. | open |  | 2026-08-17T17:39:12.831Z |  |
 | 46 | 29 | unmet-truth | scripts/generate-catalog.ts |  | the workflow sort's 'unique — no tie-break needed' claim is verified (orders 0..18, 19 distinct) but no mechanism reds if two workflows ever declare the same order; fail-open, live count 0 | open |  | 2026-08-17T18:02:44.779Z |  |
 | 47 | 29 | deviation | .planning/phases/29-controlled-language-voice-guard-rebuild/29-46-PLAN.md |  | acceptance grep 0*15 is a substring pattern not a cardinality predicate; it over-matched a document identifier and forced an edit the same plan forbids. Fail-closed, live count 0 | open |  | 2026-08-17T18:02:44.839Z |  |
+| 48 | 29 | deviation | docs/audit/29-round6-residuals.md |  | V-29-47-01: the in-source record of V-29-42-03 at scripts/check-banned-claims.ts:645-667 is false on five counts (count 0 not live-false; 82-document corpus is 115; cites a rephrased address; cites a header wording that exists only in its own citation; describes conditional members that are 0) and is byte-unchanged across all 16 commits of round 6 | open |  | 2026-08-17T18:35:39.804Z |  |
+| 49 | 29 | deviation | docs/audit/29-round6-residuals.md |  | V-29-47-02: the sole exemption carve-out is unbounded at the bottom — endBefore === lines.length, so anything appended to agent-factory/writing-profile.md lands inside it, backstopped only by two pins whose own refusal text instructs the author to move them | open |  | 2026-08-17T18:35:39.873Z |  |
+| 50 | 29 | deviation | docs/audit/29-round6-residuals.md |  | V-29-47-03: the exemption region's POSITION is pinned by nothing — a rigid translation (a heading inserted above it) moves the region with both pins unmoved and the gate at exit 0 | open |  | 2026-08-17T18:35:39.936Z |  |
+| 51 | 29 | deviation | docs/audit/29-round6-residuals.md |  | V-29-47-04: the surviving enumeration BANNED_CLAIM_LITERALS (22 members, 3 groups) is FAIL-OPEN — five real claims written with none of its members all pass at exit 0, including a conformance claim and a token-economy claim | open |  | 2026-08-17T18:35:40.003Z |  |
+| 52 | 29 | deviation | docs/audit/29-round6-residuals.md |  | V-29-47-06: .github/workflows/ci.yml:221 and :321 describe both gates this round widened at their PRE-widening scope (82 documents vs 115; NUL-only vs the whole control-byte class); the file is byte-unchanged all round and is outside every markdown scan by construction | open |  | 2026-08-17T18:35:40.068Z |  |
 
 ````json
 [
@@ -627,6 +632,66 @@ last_updated: 2026-08-17T18:02:44.839Z
     "status": "open",
     "reason": "",
     "recorded_at": "2026-08-17T18:02:44.839Z",
+    "resolved_at": null
+  },
+  {
+    "id": 48,
+    "kind": "deviation",
+    "phase": "29",
+    "file": "docs/audit/29-round6-residuals.md",
+    "line": null,
+    "description": "V-29-47-01: the in-source record of V-29-42-03 at scripts/check-banned-claims.ts:645-667 is false on five counts (count 0 not live-false; 82-document corpus is 115; cites a rephrased address; cites a header wording that exists only in its own citation; describes conditional members that are 0) and is byte-unchanged across all 16 commits of round 6",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-08-17T18:35:39.804Z",
+    "resolved_at": null
+  },
+  {
+    "id": 49,
+    "kind": "deviation",
+    "phase": "29",
+    "file": "docs/audit/29-round6-residuals.md",
+    "line": null,
+    "description": "V-29-47-02: the sole exemption carve-out is unbounded at the bottom — endBefore === lines.length, so anything appended to agent-factory/writing-profile.md lands inside it, backstopped only by two pins whose own refusal text instructs the author to move them",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-08-17T18:35:39.873Z",
+    "resolved_at": null
+  },
+  {
+    "id": 50,
+    "kind": "deviation",
+    "phase": "29",
+    "file": "docs/audit/29-round6-residuals.md",
+    "line": null,
+    "description": "V-29-47-03: the exemption region's POSITION is pinned by nothing — a rigid translation (a heading inserted above it) moves the region with both pins unmoved and the gate at exit 0",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-08-17T18:35:39.936Z",
+    "resolved_at": null
+  },
+  {
+    "id": 51,
+    "kind": "deviation",
+    "phase": "29",
+    "file": "docs/audit/29-round6-residuals.md",
+    "line": null,
+    "description": "V-29-47-04: the surviving enumeration BANNED_CLAIM_LITERALS (22 members, 3 groups) is FAIL-OPEN — five real claims written with none of its members all pass at exit 0, including a conformance claim and a token-economy claim",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-08-17T18:35:40.003Z",
+    "resolved_at": null
+  },
+  {
+    "id": 52,
+    "kind": "deviation",
+    "phase": "29",
+    "file": "docs/audit/29-round6-residuals.md",
+    "line": null,
+    "description": "V-29-47-06: .github/workflows/ci.yml:221 and :321 describe both gates this round widened at their PRE-widening scope (82 documents vs 115; NUL-only vs the whole control-byte class); the file is byte-unchanged all round and is outside every markdown scan by construction",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-08-17T18:35:40.068Z",
     "resolved_at": null
   }
 ]
