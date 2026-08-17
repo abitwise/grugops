@@ -1,10 +1,10 @@
 ---
 schema_version: 1
-open_count: 30
+open_count: 32
 waived_count: 0
 fixed_count: 1
-total_count: 31
-last_updated: 2026-08-16T01:28:22.998Z
+total_count: 33
+last_updated: 2026-08-17T11:25:31.490Z
 ---
 
 # Broken Windows Ledger
@@ -46,6 +46,8 @@ last_updated: 2026-08-16T01:28:22.998Z
 | 29 | 29 | deviation | scripts/check-banned-claims.ts |  | V-29-32-01: a CLOSED-fence count-preserving compensating edit holds both published pins while swallowing a section into the safety exemption (0 live instances) | open |  | 2026-08-16T00:29:11.216Z |  |
 | 30 | 29 | stub | scripts/generate-catalog.ts | 87 | sectionBody bounds a '## ' section by fence-blind new RegExp lookahead — a third section-extent grammar (V-29-29-01, LANG-07) | open |  | 2026-08-16T01:28:22.935Z |  |
 | 31 | 29 | stub | scripts/generate-role-adapters.ts | 127 | sectionBody bounds a '## ' section by fence-blind new RegExp lookahead — a third section-extent grammar (V-29-29-01, LANG-07) | open |  | 2026-08-16T01:28:22.998Z |  |
+| 32 | 29 | deviation | scripts/generate-catalog.ts |  | D-40-1: an empty-valued order: key reaches Number('')===0 and publishes workflow row 0 rather than refusing; behaviour preserved from the deleted grammar and disclosed, live reachability 0/19 | open |  | 2026-08-17T11:25:31.417Z |  |
+| 33 | 29 | deviation | scripts/frontmatter.test.ts |  | D-40-2: the D-50 IN-05 local-grammar classifier reads comments as code; structural answer (codeLinesOfSource) declined in-plan because it is fail-open and wants its own decision | open |  | 2026-08-17T11:25:31.490Z |  |
 
 ````json
 [
@@ -419,6 +421,30 @@ last_updated: 2026-08-16T01:28:22.998Z
     "status": "open",
     "reason": "",
     "recorded_at": "2026-08-16T01:28:22.998Z",
+    "resolved_at": null
+  },
+  {
+    "id": 32,
+    "kind": "deviation",
+    "phase": "29",
+    "file": "scripts/generate-catalog.ts",
+    "line": null,
+    "description": "D-40-1: an empty-valued order: key reaches Number('')===0 and publishes workflow row 0 rather than refusing; behaviour preserved from the deleted grammar and disclosed, live reachability 0/19",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-08-17T11:25:31.417Z",
+    "resolved_at": null
+  },
+  {
+    "id": 33,
+    "kind": "deviation",
+    "phase": "29",
+    "file": "scripts/frontmatter.test.ts",
+    "line": null,
+    "description": "D-40-2: the D-50 IN-05 local-grammar classifier reads comments as code; structural answer (codeLinesOfSource) declined in-plan because it is fail-open and wants its own decision",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-08-17T11:25:31.490Z",
     "resolved_at": null
   }
 ]
