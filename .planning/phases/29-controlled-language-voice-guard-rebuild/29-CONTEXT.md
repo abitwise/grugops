@@ -508,8 +508,8 @@ Each is a locked decision with the same standing as D-01 to D-33.
   rule, a green suite is not proof for a safety invariant: every closure claim is reproduced on a
   `git archive HEAD` mirror with a sha-verified gate, one plant per mirror, before it is written down.
 
-- **D-53 — D-48 EXTENDS to the standard-name group: the conditional apparatus is deleted outright,
-  not merely emptied.** Plan 29-43..29-47's authoring surfaced that CR-02's defect survives one member
+- **D-53 — D-48 EXTENDS to the standard-name group: the apparatus is deleted outright, not emptied.**
+  Plan 29-43..29-47's authoring surfaced that CR-02's defect survives one member
   over, on the group that gives the gate its name. `Simplified Technical English` is gated by
   `CONFORMANCE_VERB_MARKERS` (`conform`, `complian`, `certif`, `endors`, `approv`, `accredit`), so
   every conformance verb outside that list passes. Reproduced through the gate's own
