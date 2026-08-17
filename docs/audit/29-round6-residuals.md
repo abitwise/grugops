@@ -1032,3 +1032,141 @@ round most likely to be read as having closed the CLASS.**
 plans that did the work — which is precisely why `V-29-47-05` records that the tree already carries
 `LANG-04` as **Complete** and `LANG-07` as **Gaps Found**, the exact inverse of the round-5 verifier's
 stated recommendation, set by plan 29-45's docs commit `d5360dc` and not by any verification.
+
+---
+
+## 8. The twelve-row reconciliation, and the sweep
+
+### 8.1 Round 5's twelve findings, verified against SUMMARY EVIDENCE rather than against a plan's table
+
+This round's own subject is a published scope wider than the mechanism behind it. A reconciliation
+table asserting twelve closures on the strength of a plan document would be that defect at the last
+possible moment — so every row below names the evidence that was **read in the SUMMARY** to verify it,
+and a row whose evidence could not be found says so.
+
+| finding | subject | discharging plan / task | evidence READ to verify it | verdict |
+|---|---|---|---|---|
+| **CR-01** | `CHANGELOG.md` outside the scan set with two live banned literals | `29-43` tasks 1 + 2 | 29-43-SUMMARY's PRE-change mirror (base `f718069`, gate `b405a886…`, clean control exit 0/1222 B): CHANGELOG plant → `exit=0`, 0 lines naming it, while README plant → `exit=1`, named twice. POST-change mirror (gate `26faf993…`): CHANGELOG plant → `exit=1`, named at `:124:29` and `:124:40`. Pin `82 → 83 → 115`, each value **quoted from the gate's own refusal text**. New permanent case RED-proven against the pre-change binary (`expected … to contain 'CHANGELOG.md:3:27 …'`). Re-proven on the FINAL tree here at §2.3 C1. | **DISCHARGED** |
+| **CR-02** | the enumeration relocated from the phrase slot to the verb slot | `29-44` task 1 (**by deletion**, D-48/D-53); the finding itself recorded here at §1.1 | 29-44-SUMMARY's grep matrix (`BENEFIT_VERB_MARKERS`, `CONFORMANCE_VERB_MARKERS`, `requiresOnSameLine` → **0/0/0** over `.ts`, `.js` and `.test.ts`); the `BannedClaimLiteral` declaration quoted in full with no marker field; the TS2353 mutation transcript with `TSC_EXIT=2`, reverted; nine plants on sha-verified mirrors, all exit 0 before and all exit 1 named after. Re-run on the FINAL tree here at §2.3 and §2.4. | **DISCHARGED — closed by deletion; no `V-` id survives it, and §1.1 is the trail** |
+| **WR-01** | the suppressed-count sub-breakdown read rather than derived | `29-45` task 2 | 29-45-SUMMARY's PASS line quoted verbatim publishing `(standard-name 8, token-economy 2, comprehension 4)` summing to 14 = the pin; the projection quoted as filled inside the **existing** suppression branch off the **same `hits` array** (`occurrences()` / `lineHits()` byte-unchanged, grep produces no output); MUTATION A (a group dropped) and **MUTATION B (a SUM-PRESERVING component fabrication)** both reddening by name — the sum check alone would have missed B. | **DISCHARGED** |
+| **WR-02** | four further document classes unscanned with no recorded reason | `29-43` task 3 | 29-43-SUMMARY's derived remainder, grouped by leading path segment, with per-class live occurrence counts taken through **the gate's own matcher** rather than a grep; the final disposition table with **zero classes uncovered**; two assertions mutation-proven in both directions (uncovered remainder, stale prefix). | **DISCHARGED — and EXCEEDED.** The review named four classes; deriving the remainder found **`skills/` (7 files), which appears in no round-5 finding at all**, and refuted the `.claude/` transitive-coverage argument, turning an intended exclusion into an admission across 17 shipped adapters. The review's `plans/` count (1) was also wrong; it is 4. |
+| **WR-03** | two contradictory workflow counts four lines apart, in both copies | `29-46` task 1 | 29-46-SUMMARY quotes every touched comment **before and after at the line it was actually on**; the acceptance grep measured at a **baseline of 6/6** and driven to **0/0**; the non-comment changed-line count computed by filtering `git diff -U0` → **0**; `docs/catalog/README.md` proven byte-identical by regeneration + `git diff --exit-code`, plus all three freshness gates at 0. | **DISCHARGED — and EXCEEDED.** A **fifth** stale statement (a parenthetical describing hand-written `ROLES`/`WORKFLOWS` arrays in `validate-agent-factory.ts` that no longer exist — both derive through `kit-model` at `:169`/`:181`) and a **sixth** (`(workflow 15)`) were found by reading and by measuring the grep's own baseline. |
+| **WR-04** | a weaker duplicate of an existing repo-wide control-byte authority | `29-45` task 3 | 29-45-SUMMARY's PASS lines before and after with the **scanned set unmoved at 1598 → 1598**; seven byte kinds plant-proven one per reset throwaway repository, each naming the byte, offset, line and column; the round-5 two-file loop **REMOVED**, with what survives declaring its owning gate, the axis that gate owns and the axis it adds; §3.5 corrected **append-only** (`git diff \| grep '^-[^-]'` → no output). | **DISCHARGED — and the RED proof falsified a claim in the header it was proving.** The module asserted git's binary heuristic is NUL-based; measured, it is a ratio heuristic counting BACKSPACE and ESCAPE as printable, so its `-text` set is neither a subset nor a superset of the widened class. Shipped unread, the first draft would have reddened correct trees carrying a stray CR. |
+| **WR-05** | the `understand` false-red surface with no `V-` id | `29-44` task 3 (source cross-reference) + **this plan, §3.1** (register entry) | 29-44-SUMMARY quotes `V-29-44-01` at the member's declaration with direction FAIL-CLOSED, its widened reach, its live count and its remedy. **Verified by grepping both files here:** the id string appears at `scripts/check-banned-claims.ts:459` and `:578` and at `scripts/check-banned-claims.js:375` and `:483` — the same string §3.1 uses. | **DISCHARGED.** §3.1 additionally **measures the reach for the first time** (six plants: plural, gerund, negated, compounded, two inside-a-longer-word), which no predecessor had done. |
+| **WR-06** | a case named for a refusal only the harness performs | `29-44` task 1 (mechanism deleted) + `29-45` task 1 (disposition + tripwire); verdict at **§3.9** | 29-45-SUMMARY records the refusal **deliberately not shipped** and its reasoning (AP-1: a gate counting an unrunnable check re-creates the defect WR-06 was raised about). **Both honesty conditions checked here rather than taken on the SUMMARY's word:** (a) **no dead guard clause shipped** — `git diff f718069..HEAD -- scripts/check-banned-claims.ts \| grep -cE '^\+.*(marker\|requiresOnSameLine).*\.length'` → **0**; (b) **the property has a successor** — the TYPE (TS2353) plus the named tripwire at `scripts/check-banned-claims.test.ts:598`, mutation-proven in the direction `tsc` does NOT cover (field re-added to the **interface**, `npx tsc --noEmit` at exit **0**, the case reds by name). | **DISCHARGED, REMEDY SUPERSEDED** — and the successor holds the property, so "superseded" is not a silent drop with better vocabulary |
+| **IN-01** | a magic negative in a field typed as a count | `29-45` task 2 | 29-45-SUMMARY quotes the type as `hits: number \| typeof BANNED_CLAIM_UNMEASURED` with `npm run typecheck` at 0; MUTATION C (a negative smuggled back into a legitimate entry) reddening by name; the contract asserted two-sided **with a floor on each arm** so neither can be satisfied vacuously by an empty list. | **DISCHARGED** |
+| **IN-02** | an edit-robustness sentence its own next line falsifies | `29-46` task 2 | 29-46-SUMMARY quotes both forms in full; the after-form names the derived half, names the brittle half (`closingAt`, `fenceLine`) and states why the brittle half is correct. **Neither premise loosened** — `git diff \| grep -E '^[+-].*(closingAt\|fenceLine).*toBe'` produces no output. | **DISCHARGED** |
+| **IN-03** | an equality that stopped pinning a number, with the loss unstated | `29-45` task 3 | 29-45-SUMMARY's **asymmetry**, which is the evidence the sibling was needed: MUTATION D reds the per-literal assertion (`expected 2 to be 1`), and **the same mutation with only the sibling assertions removed leaves the derived equality PASSING** (`1 passed \| 78 skipped`). Both sides moved together and both floors of 1 still cleared. | **DISCHARGED** |
+| **IN-04** | two audit headings asserting their own contradiction | `29-46` task 3 | 29-46-SUMMARY proves **both bodies byte-identical by sha256**, not by an argument about where the diff appears: §9.3c's body hashes `d092d0bd…afa14fd` on both sides of `f4b10ef`, and `29-round4-residuals.md` filtered to exclude the one reshaped row hashes `ab90bc18…71c11a` on both sides. Diff confined to 17 insertions / 2 deletions. | **DISCHARGED** |
+
+**Twelve findings, twelve accounted for: ten DISCHARGED, one DISCHARGED BY DELETION (CR-02), one
+DISCHARGED WITH ITS REMEDY SUPERSEDED (WR-06). No partials. Three rows (WR-02, WR-03, WR-05) record
+work BEYOND the finding, found by deriving rather than by adopting the review's list** — which is this
+phase's recorded countermeasure to a fix cleared against someone else's enumeration.
+
+### 8.2 The round-5 verification's `missing:` bullets, each matched to its artifact
+
+A bullet SUPERSEDED is a different verdict from a bullet DONE, and the difference is stated.
+
+**Truth 1 — `LANG-04` / CR-02:**
+
+| bullet | artifact | verdict |
+|---|---|---|
+| "Open `V-29-42-05` (or similar) recording the verb-marker enumeration as a disclosed, named, fail-open residual with its live count (0 today) and direction … this is the minimum honest floor **even if the structural closure is deferred**" | §1.1 of this record — the verb-axis finding with its five plants verbatim and its disposition | **SUPERSEDED, not done.** The bullet's own condition ("even if the structural closure is deferred") did not hold: the closure was *not* deferred. Opening a `V-` id against a mechanism that no longer exists would ship a live residual with a permanently zero count — the AP-1 shape this round closed twice elsewhere. The finding is carried instead as **CLOSED BY DELETION** with the full trail. |
+| "Decide and implement a genuinely positional/structural rule (**e.g. pin the SUBJECT side** — `controlled language`, `this profile`, `the kit`, `the voice`) … and measure its false-red cost over the 82-document scan set" | D-48; `29-44` task 1; §1.1, §2.4 | **SATISFIED DIFFERENTLY — and the bullet's own proposal REFUSED BY NAME.** A subject-side pin is a third hand-authored list over an equally open class (`grugops`, `the factory`, `these roles`, a pronoun), so it buys one round. The positional rule delivered is the **one named exemption region**, and the enumeration was deleted rather than moved. The false-red cost was measured over **115** documents, not 82, per D-49 — measuring over the corpus the bullet named would have understated it. |
+| "Correct the source docblock at `scripts/check-banned-claims.ts:380-383` and the `BANNED_CLAIM_EXCLUDED` option-(b) rejection paragraph, both of which currently assert the spelling problem is closed when it has only moved" | `29-44` task 3; both quoted before and after at §1.1 | **DONE** |
+
+**Truth 2 — the PASS-line claim / CR-01:**
+
+| bullet | artifact | verdict |
+|---|---|---|
+| "Export the pre-exemption public-document corpus … have `check-banned-claims.ts` consume it and move `BANNED_CLAIM_SCAN_COUNT` **82 → 83** with `CHANGELOG.md` named as the entrant" | `29-43` task 1 (`publicDocsCorpus()` beside `publicDocsScan()`); task 3 | **DONE, AND EXCEEDED — 82 → 83 → 115.** The bullet's 83 was the CR-01 fix alone; WR-02's derived remainder admitted three further classes. |
+| "Delete or rewrite the two token-economy sentences at `CHANGELOG.md:30` and `:68` so the changelog records the mechanism (compaction) without restating the disproven claim" | `29-43` task 1 | **DONE.** 3 insertions / 3 deletions, net 0 lines, both `##` headings byte-unchanged, `grep -a -c -i 'token economy\|token-economy' CHANGELOG.md` → **0**. |
+| "Add a permanent case in `check-banned-claims.test.ts` planting a banned literal in `CHANGELOG.md` and asserting the gate names it" | `29-43` task 2 | **DONE, RED-proven** against the pre-change binary before the fix landed. |
+
+### 8.3 Gate wiring — confirmed, not assumed
+
+A gate authored and never run is this repository's own recorded failure, and it happened inside this
+phase. **No NEW gate was added this round** (`git diff --name-status f718069..HEAD -- 'scripts/check-*.ts'` shows six `M` and zero `A`). Two were WIDENED, and both are confirmed
+reached from both ends:
+
+| gate | widened by | package script | reached by CI |
+|---|---|---|---|
+| `check-banned-claims` | `29-43` (corpus 82 → 115), `29-44` (three terms unconditional) | `package.json:17` — `"check:banned-claims": "tsc --outDir .tmp-build && node scripts/check-banned-claims.js"` | **yes** — `.github/workflows/ci.yml:243`, `node scripts/check-banned-claims.js`, invoked directly |
+| `check-nul-bytes` | `29-45` (NUL → the whole forbidden control-byte class) | `package.json:20` — `"check:nul-bytes": "tsc --outDir .tmp-build && node scripts/check-nul-bytes.js"` | **yes** — `.github/workflows/ci.yml:346`, `node scripts/check-nul-bytes.js`, invoked directly, with the workflow's own comment recording that it is wired *"here **and** in package.json, deliberately at both ends"* |
+
+**Both are genuinely run. But confirming the wiring surfaced a finding — see `V-29-47-06` below.**
+
+### 8.4 `V-29-47-06` — the CI workflow describes BOTH widened gates at their PRE-widening scope
+
+- **OPENED THIS ROUND**, by the wiring check.
+- **Direction: informational** — the gates run correctly; only the workflow's description of them is
+  false. Same class as `V-29-47-01` and as WR-03, in the one file no plan of this round opened.
+- **Address:** `.github/workflows/ci.yml:221` and `:321`.
+- **Measured:** `git diff --name-only f718069..HEAD -- .github/` produces **no output** — the workflow
+  is byte-unchanged across all sixteen commits of the round, while both gates it describes changed.
+
+  | line | what the workflow says | what the gate does at HEAD |
+  |---|---|---|
+  | `:221` | `It asserts that the 82 scanned documents — every markdown file under agent-factory/ plus the ten public documents, deduped — carry ZERO …` | **115** documents across **six** parts: `kit 73, publicDocs 11, installReadme 1, skillSources 7, claudeAdapters 24, overlap 1`. Both the number and the composition are wrong, and plan 29-43 moved them. |
+  | `:321` | `It asserts that ZERO tracked files carry a NUL (0x00) byte.` | `no tracked file carries a forbidden control byte — C0 plus DELETE, TAB and LINE FEED admitted (28-08, class widened round 6)`. Plan 29-45 widened it. |
+
+  The dated historical record four lines below `:221` (`At commit 20982a0 the gate exited 1 with 3
+  findings over 82 documents`) is **correct** and is the convention that makes the two above the
+  exception: it is attributed to a commit and written in the past tense, exactly as plan 29-46 kept
+  `generate-catalog.ts`'s two surviving numbers.
+- **`ci.yml` is not markdown, so it is outside EVERY markdown scan by construction** — it is not even
+  covered by a `BANNED_CLAIM_EXCLUDED_LOCATIONS` prefix (`["docs/", ".planning/", "scripts/",
+  "memory-bank/", "plans/"]`). Nothing in this tree reads it for drift.
+- **LIVE COUNT: 2** stale scope statements, at 2 addresses, in 1 file.
+- **Remedy:** state each gate's scope in the workflow by NAMING the constant or by quoting the gate's
+  own banner, rather than by restating a number and a class — the fix plan 29-46 applied to
+  `generate-catalog.ts`, applied to the file that runs the gates. **Not fixed here:** this plan's
+  first prohibition, and `.github/` is not in this plan's `files_modified`. Escalated.
+
+### 8.5 The sweep, on the final tree, recorded by name
+
+| command | exit |
+|---|---|
+| `npm run build` | **0** |
+| `npm run freshness` | **0** — "All build outputs fresh: 48 committed .js file(s) match a fresh tsc rebuild." |
+| `npm run freshness:catalog` | **0** |
+| `npm run freshness:adapters` | **0** |
+| `npm run freshness:skill-twins` | **0** |
+| `npm run typecheck` | **0** |
+| `npm run check:public-docs` | **0** |
+| `npm run check:audit-register` | **0** |
+| `npm run check:claim-anchors` | **0** |
+| `npm run check:banned-claims` | **0** — "0 findings over 115/115 elements" |
+| `npm run check:imperative-lexicon` | **0** |
+| `npm run check:diff-disposition` | **0** |
+| `npm run check:nul-bytes` | **0** — 1601 tracked files, zero forbidden control bytes |
+| `node scripts/check-foundation-guards.js` | **0** |
+| `npx vitest run --exclude '**/scripts/e2e/**'` | **0** — **52 files, 2068 passed, 2 skipped** |
+
+**`npm test` was NOT run** — it spawns the live claude-CLI e2e lane, which spends tokens and can hang.
+
+**The suite count against the round's baselines.** Round 5's recorded baseline was **2054**. The round
+moved it by plan: 29-43 → **2060** (+6), 29-44 → **2061** (+1 net: +6 new, −5 retired), 29-45 →
+**2067** (+6 net: +11 new, −7 per-marker cases removed, −1 folded into the retained end-to-end case,
++3 accounting per that SUMMARY's own table), 29-46 → **2068** (+1, one new case), 29-47 → **2068**
+(**+0 — this plan adds no case and changes no source**). The 2 skips are pre-existing, in files no plan
+of this round touched.
+
+**The `check-nul-bytes` denominator, accounted for:** 1598 (29-45) → 1599 (29-46, +`29-45-SUMMARY.md`)
+→ **1601** here, +2 being `29-46-SUMMARY.md` and this record. No plan added a source file.
+
+### 8.6 The round's own prohibitions, asserted rather than assumed
+
+| assertion | command | result |
+|---|---|---|
+| **This plan changes exactly one file, under `docs/audit/`** | `git diff --stat` across `29-47`'s commits | `docs/audit/29-round6-residuals.md \| 1034 +++…` — **1 file changed, 1034 insertions(+)**. No source file, no test file, no kit document. |
+| **No requirement is re-marked complete by this plan** | `git diff --exit-code .planning/REQUIREMENTS.md` and the same across `29-47`'s full range | **exit 0** both times. `LANG-04`'s verdict belongs to the verifier — and the tree's existing state is recorded as a finding at `V-29-47-05`, not corrected here. |
+| **No ROADMAP progress note was written by this plan** | see the plan's SUMMARY | any note is recorded there as an explicit deviation with its exact text |
+| **Supply chain, round scope** | `git diff --exit-code f718069..HEAD -- package.json package-lock.json` | **exit 0** — byte-unchanged across all eighteen commits of the round. No package installed; `T-29-47-SC` discharged by asserted absence. |
+| **No plant, mirror or fixture left on the tree** | `git status --porcelain` | only `human-notes.txt` (modified before this round began, never staged) and two untracked directories unrelated to phase 29. Every plant in every plan of this round was written to a `/private/tmp` mirror or a throwaway repository. |
+| **The exempt document is unedited for the whole round** | `git diff --exit-code f718069..HEAD -- agent-factory/writing-profile.md` | **exit 0** |
+
+---
+
+*Round 6 closes here. The verdict on `LANG-04` belongs to the verifier.*
