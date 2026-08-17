@@ -408,6 +408,16 @@ export const BANNED_CLAIM_LITERALS: readonly BannedClaimLiteral[] = [
   // every literal in order to reach one wrapping. Written down BEFORE the measurement rather than
   // after it: plan 29-42 measures this window, and a cost paragraph composed after the result would
   // be a rationalisation instead of a design note.
+  //
+  // MEASURED, AND IT CARRIES AN ID NOW: `V-29-42-01`, in docs/audit/29-round5-residuals.md §3.1.
+  // Plan 29-42 attacked the window in both directions on a `git archive HEAD` mirror and both are
+  // GREEN, so this paragraph's prediction held. The live numbers, so the cost is a figure rather than
+  // a shrug: 1983 of 5898 lines in the derived scan set end MID-SENTENCE (33.6%), which is how
+  // reachable the bound is — and ZERO of them are a live instance of the shape (adjacent lines, one
+  // carrying a marker and the other a bare term, neither carrying both). Reachable, unreached, open by
+  // decision. Two further FAIL-CLOSED adjacencies on the same window are recorded there as
+  // `V-29-42-02` (a markdown table row puts two cells on one physical line) and `V-29-42-04` (a marker
+  // whose only occurrence on the line is inside an HTML comment or a link target), each at 0 live.
   {
     literal: "comprehension",
     group: "comprehension",
