@@ -639,31 +639,6 @@ export const BANNED_CLAIM_EXCLUDED: readonly {
 // whole words — would delete the check for every other document to accommodate one section. If a
 // second region ever earns an exemption, the answer is a second named triple with its own reason,
 // never a weaker predicate.
-//
-// ── V-29-42-03: THE PROFILE'S PARITY PARAGRAPH IS NOW BEHIND THIS MODULE'S WORDING ─────────────
-//
-// MEASURED, RECORDED, AND DELIBERATELY NOT FIXED HERE (plan 29-42 task 2). The exempt document's own
-// paragraph inside this region claims parity with this source — "That residual is recorded in the
-// gate's own source as well, so neither a green build nor this paragraph can quietly stand in for the
-// other" — and one sentence beside it says the gate "proves that no pinned literal appears outside
-// this section". That sentence is now LIVE-FALSE, with a count: measured over the 82-document derived
-// scan set, ONE pinned-literal occurrence sits outside this region and produces no finding
-// (agent-factory/roles/incident-responder.md:29:103, the bare term `understand`, correct operational
-// text carrying no benefit marker). This module's header states the accurate form — no pinned literal
-// OR PINNED PAIR outside the region — so the source is precise and the profile is a wording behind it.
-//
-// STRUCTURALLY IMPRECISE SINCE PLAN 29-02, LIVE-FALSE ONLY SINCE PLAN 29-41, and the distinction is
-// recorded rather than collapsed: a conditional member has existed since the discipline's name was
-// pinned, but that member has ZERO unpaired occurrences outside this region, so the sentence was
-// vacuously true on the live tree until `understand` was admitted.
-//
-// WHY IT IS NOT EDITED HERE. The sentence sits INSIDE this region, so any edit to it moves
-// BANNED_CLAIM_EXEMPT_EXTENT (a line count) and requires a D-04 diff-disposition row; an edit that
-// happened to introduce a pinned literal would move BANNED_CLAIM_EXEMPT_SUPPRESSED as well. The
-// default disposition for a measured adjacency outside a round's decided scope is to measure and
-// escalate, and quietly fixing one is as wrong as quietly absorbing it. Carried in
-// docs/audit/29-round5-residuals.md with both addresses and its direction: FAIL-CLOSED for the guard
-// (nothing is under-reported), and inaccurate only in the document's own description of the guard.
 // ---------------------------------------------------------------------------
 export const BANNED_CLAIM_EXEMPT_REGION = {
   file: "agent-factory/writing-profile.md",
