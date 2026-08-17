@@ -5,13 +5,13 @@ milestone_name: Autonomous Factory — Real Spawning, Controlled Language & Live
 current_phase: 29
 current_phase_name: controlled-language-voice-guard-rebuild
 status: ready_to_execute
-stopped_at: Completed 29-48-PLAN.md
-last_updated: "2026-08-17T21:02:50.860Z"
+stopped_at: Completed 29-49-PLAN.md
+last_updated: "2026-08-17T21:25:12.316Z"
 progress:
   total_phases: 8
   completed_phases: 2
   total_plans: 129
-  completed_plans: 122
+  completed_plans: 123
   percent: 25
 last_activity: 2026-08-11
 last_activity_desc: "Gap-closure round 8 wave 3 EXECUTED — 27-45 closed WR-02, IN-01 and IN-05 (D-53), completing round 8 with none deferred. WR-02: the fence authority ran over the WHOLE document inside parseFrontmatter BEFORE the frontmatter region was located, so its line-dropping applied inside the region as readily as inside the body — a column-0 fence deleted content and the TRUNCATED remainder was returned on the SUCCESS arm, the module founding failure wearing a fence. Measured against the committed .js on a git archive HEAD mirror with a libyaml column (Ruby 2.6.10 / Psych 3.1.0 / libyaml 0.2.1): d1, a fence around a whole tools key, returned ok true value false with the tools key VANISHED; d2, a fence around a continuation line, returned tools equal to the single element Read-comma with the token DELETED; libyaml REJECTS both with Psych SyntaxError. d3, fences inside a double-quoted scalar, libyaml ACCEPTS as a grant and the module REFUSES — the safe divergence, pre-existing and unchanged. Closed STRUCTURALLY: parseFrontmatter now deletes NO line at all. It normalizes, LOCATES the region, then flattens; the fence authority is not consulted there and its scope SHRANK to the guards prose checks, which are byte-unaffected. FENCE_DELIMITER_LINE is hoisted out of stripFencedBlocks so the region scan and the strip cannot disagree about what a fence delimiter line is — one class declaration, one state machine, no second fence parser. A fence delimiter line inside the located region is a NAMED REFUSAL, because it is not a legal node in a top-level block mapping. RED-TEAM OF THIS PLANS OWN FIX over 15 fence-position shapes, each adjudicated against libyaml: FIVE MORE truncated-success shapes no review had reported also moved to a refusal — a fence after a literal block scalar, after a folded block scalar, a fence with an info string, four backticks, and a fence inside a flow sequence, the last returning the mangled value tools equal to open-bracket-Read-comma. ZERO new refusals on loader-accepted content: the only two module-refuse-loader-accept rows, a double-quoted and a single-quoted scalar containing fence text, BOTH pre-date this change. Re-measured with the modules OWN classifier over a corpus derived at run time: 1142 tracked markdown files, 0 whose located region differs under the two orderings, 0 of the 563 raw-delimiter openers carrying a column-0 fence inside the region. Value map BEFORE to AFTER: 0 arms changed, 0 values changed, 0 new refusals, both corpus sizes derived this session and equal; all 33 spawn-grant scan verdicts byte-unchanged, 0 reaching the keyless arm; the foundation gate output BYTE-IDENTICAL; the 27-44 loader differential re-run at the same digest 4ccc987f19323055 with 312 cells, 97 skipped and 32 disagreements — not one cell moved. IN-01: the spawn-occurrence balance arm was provably unreachable AND unexercised, and neither the accounting nor the kinds array was exported so no case COULD reach it — the exact shape 27-42 spent a plan closing while 27-41 shipped it anew in the same round. Closed with 27-42s own remedy: checkGrantOccurrenceBalance extracted VERBATIM as an exported pure function, the refusal wording moved byte-for-byte with the restricted diff empty modulo the parameter rename, and the kind type, kinds array and occurrence interface exported for one stated reason recorded in source — a case must construct a FOURTH, UNCLASSIFIED kind. The refusal now fires BY NAME with both interpolated counts, the arm stays unreachable in production, and the disclosure ships with the assertion. Behaviour proven preserved against a transcript captured from the PRE-EXTRACTION build as data: bucket assignment and names results byte-identical over a 17-value corpus, 4 derived from the live tree and 13 adversarial. IN-05 RECORDED, NOT FIXED: a multi-document stream is dispositioned in the module header inside the three-outcomes partition argument, which enumerated delimiter spellings exhaustively and never mentioned a second document — an unconsidered adjacency is how the WR-05 arms came to be written one rule short. Measured in session: the module reads the FIRST region only and reports no grant, while Psych parse_stream reads SIX documents of which doc3 carries Read, Agent(grugops-orchestrator). Carries an explicit UNKNOWN - verify, an explicit statement that it is NOT a bypass and must not be escalated into one, and the decision that a stream is out of scope; seven further stream shapes were probed and all read exactly the first region, so the paragraph states what the code does rather than what it intends. ONE DEVIATION: generate-role-adapters.test.ts unterminated-block case was split in two, because its fixture body carries a fence and now reaches the fence refusal — the unterminated diagnosis keeps its own case with the fences removed, and the fence refusal gets a new named case. Suite 1215 passing / 2 skipped; build, freshness, foundation guards, coordinator precheck, kit-refs and validator all exit 0; the foundation gate runs in 0.46s; no dependency introduced. CARRIED FORWARD, still owned by nobody: validate-agent-factory.ts is not a spawn-grant surface, so 27-43s validator criterion remains unsatisfiable as written and 27-44s recommendation to RETIRE it stands. ROUND 8 NOW COMPLETE — 27-46 EXECUTED, closing IN-04 (D-53), the last of the eight round-7 findings, none deferred. IN-04: the claim partition foreign arm was not de-duplicated, so a key claimed by two buckets AND absent from the schema was interpolated TWICE into the guard failure message; the sibling arm de-duplicates implicitly by filtering over the schema keys, the foreign arm filtered over the claims and inherited their multiplicity, and only the single-occurrence shape was pinned so nothing observed it. RED on a mirror of 17b9372 against the COMMITTED kit-model.js: foreign returned themes TWICE; GREEN returns it once. Closed by reporting each non-schema claimed key AT MOST ONCE in FIRST-OCCURRENCE order via indexOf(k) === i, so the order is a property of the expression rather than of runtime insertion order, with the multiplicity DROPPED rather than kept in a second field. Behaviour preservation PROVEN: the gate kit counts PASS line is BYTE-IDENTICAL before and after at sha256 7a731112, 511 bytes, both exit 0, and the unclaimed and doubleClaimed expressions do not appear in the diff at all. Four cases were RED first: the duplicate pin, a both-arms at-most-once invariant, an order-determinism case asserting first-occurrence and explicitly NOT sorted, and the permutation case extended to carry multiplicity. SWEEP: the 27-44 differential re-run after this whole-project compile is identical on all three counts and the digest — 312 cells, 97 skipped, 32 disagreements, 4ccc987f19323055 — not one cell moved, measured clean rather than skipped. The three 27-43 surface reproductions still hold on fresh mirrors of 2cc66a9: skill twins family a, skill twins family b flow sequence, and the non-coordinator adapter each move exit 0 to exit 1 on the WR-05 violation, finding text READ on each, every red ending 1 CHECK(S) FAILED so guard_wr05 alone is responsible; the control exits 0. Value map derived at run time both sides: 1143 and 1143, 0 arms, 0 values, 0 new refusals — the plus one over 27-45s 1142 is 27-45-SUMMARY.md itself. Suite 1218 passing / 2 skipped, a floor and not proof no bypass remains; build, freshness over 32 committed .js, foundation guards, coordinator precheck, kit-refs and validator all exit 0; the gate runs in 0.44s to 0.90s; the package manifest diff is EMPTY across the whole round b24d980 to HEAD so the supply-chain mitigation is asserted absence at round scope; no dependency added. ONE DEVIATION: a stale sentence above the partition describing the third arm order as the claim order was corrected, outside the literal restricted-diff wording and tabulated in the summary. Next: phase verification for Phase 27."
@@ -30,7 +30,7 @@ See: .planning/PROJECT.md (updated 2026-07-28 — after v2.0 milestone)
 ## Current Position
 
 Phase: 29 (controlled-language-voice-guard-rebuild) — EXECUTING
-Plan: 48 of 55
+Plan: 49 of 55
 
 ## Gap-closure round 7 — PLANNED 2026-08-06, ready to execute
 
@@ -375,6 +375,7 @@ Prior activity: 2026-07-30 — 27-22 closed WR-02 and WR-04, the last two plans-
 | Phase 29 P46 | 7min | 3 tasks | 5 files |
 | Phase 29 P47 | 33min | 3 tasks | 1 files |
 | Phase 29 P48 | 15m | 2 tasks | 2 files |
+| Phase 29 P49 | ~50 minutes | 3 tasks | 5 files |
 
 ## Accumulated Context
 
@@ -983,6 +984,10 @@ Recent decisions affecting current work:
 - [Phase ?]: 29-48: LANG-07 corrected to [x]/Complete in REQUIREMENTS.md under 29-VERIFICATION-round6.md's named authority; LANG-04 left byte-unchanged, its verdict reserved for round 7's verifier
 - [Phase ?]: 29-48: a plan that corrects a requirement state declares requirements-completed: [] — the automated mark-complete marker is the mechanism that produced the inversion, and a second mechanism writing the same fact is a second authority
 - [Phase ?]: 29-48: an EMPTY intermediate in a verification harness renders as a MAXIMAL finding — both of this plan's own harness defects published as alarming false findings about the file until a floor and four premise assertions converted them to aborts
+- [Phase ?]: 29-49: the false residual block at BANNED_CLAIM_EXEMPT_REGION was DELETED, not corrected — its construct is gone, and a corrected record still leaves a reader reasoning about it at the worst address in the file
+- [Phase ?]: 29-49: the exempt-read guard (WR-06's class) was fixed here rather than escalated, because the cached-read substitution cannot be sound without a failure path to set its success flag false on
+- [Phase ?]: 29-49: the two derivation-refusal channels are reported in separate loops with separate prefixes and never concatenated — a refusal raised here and one raised in the corpus derivation have different remedies
+- [Phase ?]: 29-49: no count is pinned on the refusal channel and the comment says so plainly — a refusal count is an event count, not a set cardinality
 
 ### Pending Todos
 
@@ -1034,6 +1039,7 @@ None yet.
 - 29-25 must state an exemption for a heading RECOGNISER: the derived locator-site scan over check-imperative-lexicon.ts reports ONE member (HEADING_LINE), not the zero 29-24's acceptance criterion asserts.
 - LANG-07 not fully closed: V-29-29-01 — generate-catalog.ts:87 and generate-role-adapters.ts:127 answer the section-extent question through a fence-blind new RegExp lookahead. Derived and pinned two-sided by check-foundation-guards.test.ts; remedy is code (rewire both onto the shared authority), not a constant.
 - LANG-04 is marked Complete in .planning/REQUIREMENTS.md (set by 29-45's docs commit d5360dc via requirements mark-complete) against the round-5 verifier's explicit 'stays Gaps Found'; LANG-07 is Gaps Found against its 'can move to Complete'. Exact inverse. Recorded as V-29-47-05; the verifier owns the correction.
+- V-29-49-01 (29-49): the one-read invariant has no behavioural witness the test harness can construct — the exemption document is a DERIVED scan member, so every mirror where the two reads could disagree is one where the document has left the scan set (measured: kit 99 not 100). A source-shape case ships instead, mutation-proven twice. Round 7 owns the remedy.
 
 ### Quick Tasks Completed
 
@@ -1094,8 +1100,8 @@ Shape of the carry: **9 of 11 are pre-v2.0 carryover** from the v1.2 block above
 
 ## Session Continuity
 
-Last session: 2026-08-17T21:02:50.832Z
-Stopped at: Completed 29-48-PLAN.md
+Last session: 2026-08-17T21:24:53.893Z
+Stopped at: Completed 29-49-PLAN.md
 Resume file: None
 
 ## Operator Next Steps
