@@ -262,15 +262,42 @@ export const CONFORMANCE_VERB_MARKERS: readonly string[] = [
  *   -------    -----   --------------------------------------------------------------------------
  *   improve       17   the measured family: "improves LLM/model/agent comprehension"
  *   better         0   warrant plant: "Controlled language gives better comprehension."
- *   easier         0   warrant plant: "Controlled language makes comprehension easier."
+ *   easier         0   the measured family: "...easier for LLMs to understand" (via `understand`)
  *   boost          0   the measured family: "boosts comprehension for language models"
  *   help           3   warrant plant: "Controlled language helps comprehension."
  *   benefit        3   warrant plant: "Controlled language delivers a real benefit in comprehension."
  *   enhance        1   warrant plant: "Controlled language enhances comprehension."
  *
  * Every marker above was watched reddening the gate BY NAME on a plant where it is the ONLY marker
- * present, so no marker is admitted that nothing proved does anything. A marker with neither a
- * family member nor a warrant plant belongs in `BANNED_CLAIM_EXCLUDED`, not here.
+ * present, so no marker is admitted that nothing proved does anything — each plant was first asserted
+ * to carry exactly one member of this list before it was planted. NO CANDIDATE WAS DROPPED: all seven
+ * earned a family member or a warrant. A marker with neither belongs in `BANNED_CLAIM_EXCLUDED`, not
+ * here.
+ *
+ * ------------------------------------------------------------------------------------------------
+ * THE COVERAGE MAP — EVERY MEMBER OF THE MEASURED FAMILY HAS A VERDICT, NONE IS LEFT UNADDRESSED.
+ *
+ * The family is the six phrasings enumerated in `29-UAT.md` § G-29-2 root_cause. Each was planted
+ * alone on a reset `git archive HEAD` mirror both BEFORE and AFTER the rule, and the verdict is the
+ * finding line read from the output — never the exit code, which the un-re-pinned constant made
+ * non-zero for an unrelated reason:
+ *
+ *   phrasing                                        before      after   covered by
+ *   ---------------------------------------------   ---------   -----   -----------------------------
+ *   "improves comprehension."                       named       named   enumerated literal + the rule
+ *   "improves LLM comprehension."                   NOT named   named   the rule, marker `improve`
+ *   "improves model comprehension."                 NOT named   named   the rule, marker `improve`
+ *   "improves agent comprehension."                 NOT named   named   the rule, marker `improve`
+ *   "makes prose easier for LLMs to understand."    NOT named   named   the SECOND bare term,
+ *                                                                       marker `easier`
+ *   "boosts comprehension for language models."     NOT named   named   the rule, marker `boost`
+ *
+ * THE FIFTH ROW IS A FINDING AGAINST THE PROTOTYPE, NOT A SUCCESS OF IT. `29-UAT.md`'s
+ * `measured_probe` claims all five bypasses red under a bare `comprehension` member. That does not
+ * reproduce: the fifth carries no occurrence of `comprehension` and is outside that rule BY
+ * CONSTRUCTION, whatever markers are admitted. It is covered by the second conditional member
+ * `understand` below, admitted with its own measurement.
+ * ------------------------------------------------------------------------------------------------
  *
  * A ZERO IS NOT A REASON TO DELETE A MARKER, AND THE ASYMMETRY WITH THE LIST ABOVE IS THE POINT.
  * `CONFORMANCE_VERB_MARKERS` records its numbers because they are LARGE — 60, 18, 2, 70 — which is
@@ -386,6 +413,56 @@ export const BANNED_CLAIM_LITERALS: readonly BannedClaimLiteral[] = [
     group: "comprehension",
     requiresOnSameLine: BENEFIT_VERB_MARKERS,
   },
+  // ── THE SECOND BARE TERM, AND THE COVERAGE FINDING THAT REQUIRED IT (plan 29-41 task 2) ──────
+  //
+  // WHY ONE RULE WAS NOT ENOUGH, STATED AS A FINDING AGAINST THE PROTOTYPE RATHER THAN AS A DESIGN
+  // CHOICE. `29-UAT.md` § G-29-2's `measured_probe` records that under a bare `comprehension` member
+  // "ALL FIVE bypass sentences red". REPRODUCED against the committed `.js` on a `git archive HEAD`
+  // mirror, one plant at a time, that claim is FALSE for one member of the family: `...makes prose
+  // easier for LLMs to understand.` carries NO OCCURRENCE OF THE WORD `comprehension` AT ALL, so the
+  // rule above is structurally incapable of reaching it whatever markers are admitted. Measured
+  // after the rule landed, it still exits 0 with the planted file never named. A member outside a
+  // predicate BY CONSTRUCTION cannot be closed by tuning that predicate's marker list.
+  //
+  // AND THE REMEDY IS A SECOND RULE, NOT THE PHRASING. Appending `easier for LLMs to understand`
+  // would close that spelling and leave `easier for agents to understand` open — option (b), which
+  // the user rejected. `understand` is the CONCEPT the claim is about, so the same pair rule closes
+  // the family: the bare term plus a benefit verb on the same line.
+  //
+  // MEASURED BEFORE ADMISSION, over the set `bannedClaimScan()` derives, 2026-08-17:
+  //
+  //   bare line-hit count over the 82-document scan set          : 1
+  //   of those, ALSO carrying an admitted benefit marker          : 0   <- the number that admits it
+  //   of those, inside the one named exemption region             : 0
+  //
+  // The single bare occurrence is agent-factory/roles/incident-responder.md:29 — "…before you
+  // understand the cause" — which carries no benefit marker and therefore produces NO finding. So
+  // admitting this term costs ZERO reds on correct kit text today, which is the admission test this
+  // file opens with. Because it adds no occurrence inside the exemption region, it moves
+  // BANNED_CLAIM_EXEMPT_SUPPRESSED by zero, and that was confirmed by running the gate rather than
+  // reasoned about.
+  //
+  // THE ACCEPTED COST, NAMED WITH ITS REMEDY BECAUSE IT IS A REAL FALSE-RED SURFACE AND NOT A
+  // THEORETICAL ONE. `understand` also covers `understands`, `understanding` and `misunderstand` by
+  // substring, so a FUTURE sentence pairing a benefit verb with a HUMAN reader's understanding —
+  // "the board helps a new joiner understand the state" — would red even though it makes no claim
+  // about a language model. Live instances: 0. When the first one is written the remedy is to
+  // REPHRASE the sentence, or to admit a narrower term with its own measurement — NEVER to weaken
+  // the matcher. The three weakenings that would each make this line pass are named and forbidden in
+  // the exemption region's forbidden-alternative paragraph below: no fenced-block skip, no
+  // whole-word-only match, no below-a-marker skip.
+  //
+  // THE NARROWER ALTERNATIVE WAS MEASURED AND REFUSED, and the refusal is recorded in
+  // `BANNED_CLAIM_EXCLUDED` rather than left as a silent absence: `to understand` hits 0 lines and
+  // would also close the measured family member, but it pins the INFINITIVE GRAMMAR of the one
+  // sentence somebody happened to write rather than the concept, so `the model understands it
+  // better` would stay green. Choosing the narrower term to minimise today's count is how a guard
+  // comes to need one more spelling every round.
+  {
+    literal: "understand",
+    group: "comprehension",
+    requiresOnSameLine: BENEFIT_VERB_MARKERS,
+  },
 ];
 
 /**
@@ -423,6 +500,38 @@ export const BANNED_CLAIM_EXCLUDED: readonly {
       "60 + 18 + 2 + 70 hits across compliance-regime documentation, ASVS certification rows, " +
       "release-approval steps and the README's own non-affiliation disclaimer. They survive only as " +
       "co-occurrence markers for the one conditional literal above",
+  },
+  {
+    candidate: "comprehension, as an UNCONDITIONAL literal",
+    hits: 2,
+    reason:
+      "both hits are the honest DENIALS in agent-factory/writing-profile.md (256, 288) — \"No " +
+      'comprehension benefit is claimed" and "There is no evidence that controlled language improves ' +
+      'comprehension for a language model". Banning the bare word would make the denial unsayable ' +
+      "anywhere outside the exemption region, and a document must be able to DISCUSS comprehension " +
+      "in order to disclaim a benefit. Admitted instead as a CONDITIONAL member on " +
+      "BENEFIT_VERB_MARKERS (plan 29-41), so the claim is the pair and the topic stays writable",
+  },
+  {
+    candidate: "understand, as an UNCONDITIONAL literal",
+    hits: 1,
+    reason:
+      "hits agent-factory/roles/incident-responder.md:29 — \"apply the immediate mitigation that " +
+      'limits harm, before you understand the cause" — which is correct operational text making no ' +
+      "claim of any kind, so going green would mean deleting it. Admitted instead as a CONDITIONAL " +
+      "member on BENEFIT_VERB_MARKERS: that line carries no benefit marker, so the conditional form " +
+      "costs zero findings on it while still closing the measured family member the bare " +
+      "`comprehension` rule cannot reach",
+  },
+  {
+    candidate: "to understand, as the narrower second bare term",
+    hits: 0,
+    reason:
+      "zero hits, and it WOULD close the measured family member `...easier for LLMs to understand` — " +
+      "so it was refused on generality rather than on cost. It pins the INFINITIVE GRAMMAR of the one " +
+      "sentence somebody happened to write, leaving `the model understands it better` green, which is " +
+      "the append-a-phrasing shape user decision (c) rejected. `understand` was admitted instead. " +
+      "Recorded because a reader comparing the two would otherwise read the wider term as careless",
   },
   {
     candidate: "STE, as a bare literal",
