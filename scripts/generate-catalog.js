@@ -7,10 +7,25 @@
 // shape of generate-asvs-checklist.ts: fixed literal paths, fail-closed load, deterministic
 // lines.join("\n") + writeFileSync emit, provenance header, single trailing newline, clear voice.
 //
-// Self-discovery (NOT the stale validate-agent-factory.ts ROLES/WORKFLOWS arrays — those froze at
-// v1.0: 16 roles / 14 workflows, missing frontend-ui + workflows 14/15): readdirSync the two source
-// dirs. roles/ drops `_`-prefixed files (D-03, so _role-switch-protocol.md is excluded → 17 roles);
-// workflows/ keeps all 16 numbered files (00..15).
+// Self-discovery: readdirSync the two source dirs. roles/ drops `_`-prefixed files (D-03, so
+// _role-switch-protocol.md is excluded); workflows/ keeps every numbered file the regex below
+// matches, in the numeric order each declares.
+//
+// HOW MANY OF EACH THERE ARE IS DELIBERATELY NOT WRITTEN IN THIS FILE (round 6, plan 29-46 — WR-03).
+// The two cardinalities are held by ROLE_COUNT and WORKFLOW_COUNT in scripts/kit-model.ts, pinned
+// TWO-SIDED in guard_kit_counts so that a smaller kit and a larger kit BOTH fail red. A name does not
+// rot, and it points at the thing an assertion already holds; a number typed beside a mechanism is a
+// second declaration of the same fact with nothing behind it, which is this repository's named second
+// systemic failure mode — set-literal drift, wearing a sentence.
+//
+// WHAT STOOD HERE AND WAS DELETED RATHER THAN CORRECTED. Statements in this module used to give the
+// workflow corpus a size and an order range, and they went stale while the range-free regex below —
+// which is the actual contract — went on being right. A parenthetical here also described hand-written
+// ROLES/WORKFLOWS arrays in validate-agent-factory.ts; that file derives both sets through kit-model
+// now, so the construct those words described no longer exists. Both are the convention this file
+// states three paragraphs down, applied to itself: a comment that outlives its construct is a defect,
+// and so is one that outlives its count. The remedy for a stale number is to delete it, never to type
+// a fresher one in the same place.
 //
 // Read-only (D-01): name from the `# Role:` / `# Workflow:` H1; one-line summary from the first
 // sentence of `## One job` (roles) / `## When to use` (workflows); tier/order/cadence read through
@@ -105,7 +120,7 @@ const fail = (m) => {
 // and so is one that resurrects it for a reader that cannot tell prose from code.
 // ── First-sentence summary: split on ". " (period-SPACE), KEEP its period, never re-append ────
 // Splitting on bare "." would truncate `AGENTS.md` (agents-md-scribe) and `OWASP ASVS 5.0`
-// (workflow 15). `indexOf(". ") === -1` (e.g. incident-responder's single-sentence One job) returns
+// (security-audit). `indexOf(". ") === -1` (e.g. incident-responder's single-sentence One job) returns
 // the line as-is — which already ends in `.`; appending would produce `..`.
 function firstSentence(body) {
     const line = body.trim().split("\n")[0].trim(); // first non-empty line of the section body
@@ -227,12 +242,15 @@ for (const file of roleFiles) {
         link: `agent-factory/roles/${file}`,
     });
 }
-// ── Read + parse workflows (all 16 numbered files 00..15) ─────────────────────────────────────
+// ── Read + parse workflows (every numbered file the regex below matches) ──────────────────────
 let workflowFiles;
 try {
-    // Match the documented contract: numbered workflow files only (`NN-*.md`, 00..15). A stray
-    // README.md/_draft.md/note.md dropped into the dir is ignored rather than picked up and hard-
-    // failed on the `# Workflow:` H1 check — mirrors the roles loop's `_`-prefix guard (WR-04, D-03).
+    // Match the documented contract: numbered workflow files only (`NN-*.md`). The regex IS the
+    // contract and it is RANGE-FREE — no upper number is written beside it, because a range in this
+    // prose would be a second declaration of a set the regex already decides, and only the prose copy
+    // can rot (round 6, plan 29-46 — WR-03). A stray README.md/_draft.md/note.md dropped into the dir
+    // is ignored rather than picked up and hard-failed on the `# Workflow:` H1 check — mirrors the
+    // roles loop's `_`-prefix guard (WR-04, D-03).
     workflowFiles = readdirSync(WORKFLOWS_DIR)
         .filter((f) => /^\d{2}-.+\.md$/.test(f))
         .sort();
@@ -315,7 +333,8 @@ roles.sort((a, b) => {
         return a.tier === "core" ? -1 : 1;
     return a.name.localeCompare(b.name);
 });
-// Workflows: numeric `order` ascending (0..15, unique — no tie-break needed).
+// Workflows: numeric `order` ascending (unique — no tie-break needed; the uniqueness claim was
+// re-verified in round 5, the range that used to be typed here had not been and was stale).
 workflows.sort((a, b) => a.order - b.order);
 // ── Emit the document: provenance header + intro + roles table + workflows table ──────────────
 const lines = [];
