@@ -1947,6 +1947,75 @@ describe("check-banned-claims — the exemption publishes its EXTENT (variant C1
   });
 });
 
+// ── CR-01: the changelog is a scanned document, not an inherited blind spot ───────────────────
+
+/**
+ * THE PLANT, COMPOSED FROM A PINNED MEMBER RATHER THAN RETYPED.
+ *
+ * `TOKEN_CLAIM` is selected from `BANNED_CLAIM_LITERALS` and pinned by the selection case at the top
+ * of this file, so this fixture keeps testing the member it names on the day that member is renamed.
+ * A retyped `"token economy"` here would go on matching a literal the authority no longer declares.
+ *
+ * The prefix is a separate constant because the ASSERTION below is on the rendered COLUMN, and a
+ * column asserted as a magic number is a column nobody can check.
+ */
+const CHANGELOG_PLANT_PREFIX = "- Compaction shipped as a ";
+const CHANGELOG_PLANT_LINE = `${CHANGELOG_PLANT_PREFIX}${TOKEN_CLAIM.literal} win.`;
+/** 1-based line and column of the plant inside CHANGELOG_PLANT, derived from the document above. */
+const CHANGELOG_PLANT_AT = {
+  line: 3,
+  column: CHANGELOG_PLANT_PREFIX.length + 1,
+};
+const CHANGELOG_PLANT = [
+  "# Changelog",
+  "",
+  CHANGELOG_PLANT_LINE,
+  "",
+].join("\n");
+
+describe("check-banned-claims — CHANGELOG.md is INSIDE the scan set (round 6, CR-01)", () => {
+  it("names a banned literal planted in CHANGELOG.md at file:line:column", () => {
+    // THE CASE THAT WOULD HAVE MADE CR-01 IMPOSSIBLE TO SHIP, AND THE REASON IT DID NOT EXIST.
+    //
+    // Until round 6 this gate imported `publicDocsScan()` from check-public-docs-vocabulary.ts.
+    // That function answers "which public documents does the RETIRED-VOCABULARY check apply to",
+    // and it subtracts CHANGELOG.md for a reason argued about retired vocabulary and about nothing
+    // else. This gate inherited the subtraction, so its PASS line claimed a scope one document wider
+    // than the set it read — and two live `token-economy` occurrences sat in that document,
+    // unscanned, while the identical bytes in README.md went red.
+    //
+    // ASSERTED ON THE RENDERED FINDING, NEVER ON THE EXIT CODE ALONE. This file's mirror carries
+    // several two-sided pins, and any of them can make the exit non-zero for a reason that has
+    // nothing to do with this plant. A case that only checked `status === 1` would have passed
+    // against the defective gate the day a pin happened to be off.
+    const { status, stdout } = runGate(
+      makeMirror("gops-banned-changelog-", {
+        plant: { [CHANGELOG]: CHANGELOG_PLANT },
+      }),
+    );
+    expect(status).toBe(1);
+    expect(stdout).toContain(
+      `${CHANGELOG}:${CHANGELOG_PLANT_AT.line}:${CHANGELOG_PLANT_AT.column} — ` +
+        `banned ${TOKEN_CLAIM.group} literal "${TOKEN_CLAIM.literal}"`,
+    );
+    // Exactly one finding: the plant, and no second one smuggled in by the fixture.
+    expect(findingCount(stdout)).toBe(1);
+    expect(stdout).not.toContain("ALL CHECKS PASSED");
+  });
+
+  it("the changelog is a MEMBER of the derived scan set, and the pin counts it", () => {
+    // The membership half, stated over the LIVE tree rather than inferred from the finding above.
+    // Deliberately NOT the mirror: the finding case already proves the mirror's changelog is read,
+    // and the question here is whether THIS REPOSITORY's changelog is inside THIS gate's set. It
+    // was not, for the whole of rounds 1–5, while every mirror-scoped case in this file passed.
+    const live = bannedClaimScan();
+    expect(live).toContain(CHANGELOG);
+    expect(live.length).toBe(BANNED_CLAIM_SCAN_COUNT);
+    // Floor: a one-element set would satisfy `toContain` and prove nothing about the derivation.
+    expect(live.length).toBeGreaterThan(1);
+  });
+});
+
 // ── Vacuity and the two-sided pin ─────────────────────────────────────────────────────────────
 
 describe("check-banned-claims — vacuity is refused by name, per part, before the pin", () => {

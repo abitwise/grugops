@@ -95,11 +95,30 @@ const KIT_README = "agent-factory/README.md";
 // changelog is for. Rewriting a changelog entry to describe an architecture that did not exist when
 // that version shipped would be falsifying the record, not fixing drift.
 //
-// THE BOUND: the exemption forgoes the vocabulary check for this ONE named file and nothing else.
-// It does not exempt any other root document, and it does not exempt CHANGELOG.md from any other
-// gate. A case in scripts/check-public-docs-vocabulary.test.ts plants the SAME string in
-// CHANGELOG.md and in a second root document inside one mirror, and asserts the gate names the
-// second and not the first — so the exemption is proven to DISCRIMINATE rather than merely to exist.
+// THE BOUND: the exemption forgoes THE RETIRED-VOCABULARY CHECK for this ONE named file, and that
+// is the whole of what it does. It does not exempt any other root document. It does not exempt
+// CHANGELOG.md from `check-banned-claims.ts`, which consumes `publicDocsCorpus()` — the
+// PRE-exemption derivation below — and therefore DOES scan this file for conformance, token-economy
+// and comprehension-benefit claims. Any future consumer must call the function whose NAME matches
+// the question it is asking: `publicDocsCorpus()` for "which documents are public",
+// `publicDocsScan()` for "which public documents does the retired-vocabulary check apply to".
+//
+// THIS PARAGRAPH ASSERTED THE OPPOSITE UNTIL ROUND 6, AND THE RECORD IS KEPT BECAUSE A CORRECTED
+// PARAGRAPH WITH NO RECORD OF ITS CORRECTION TEACHES NOTHING. It read "it does not exempt
+// CHANGELOG.md from any other gate" while `check-banned-claims.ts` imported `publicDocsScan()` and
+// inherited this very subtraction — so the sentence was falsified by the import graph the day it
+// was written. It was live-false with two occurrences: `CHANGELOG.md:30` carried `token economy`
+// and `:68` carried `token-economy`, both members of that gate's `token-economy` group, both
+// unscanned. A planted conformance claim in CHANGELOG.md exited 0 with the file never named, while
+// the identical bytes in README.md exited 1 and were named twice.
+//
+// AND THE DISCRIMINATION IS HELD BY ASSERTIONS RATHER THAN BY THIS PARAGRAPH, which is the lesson
+// the correction cost. A case in scripts/check-public-docs-vocabulary.test.ts plants the SAME string
+// in CHANGELOG.md and in a second root document inside one mirror and asserts the vocabulary gate
+// names the second and not the first; a second case there pins the corpus/scan relationship
+// two-sided, so neither derivation can silently collapse into the other; and a case in
+// scripts/check-banned-claims.test.ts plants a banned literal in CHANGELOG.md and asserts THAT gate
+// names it at file:line:column. Prose cannot be false in a way a build notices. These can.
 //
 // THE FORBIDDEN ALTERNATIVE, NAMED SO IT IS NOT REDISCOVERED AS A GOOD IDEA: loosening the grep so
 // this one file passes — matching only outside fenced blocks, only above some line number, only on

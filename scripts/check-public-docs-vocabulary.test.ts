@@ -29,14 +29,27 @@
 
 import { describe, it, expect, afterAll } from "vitest";
 import { spawnSync } from "node:child_process";
-import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from "node:fs";
+import {
+  mkdtempSync,
+  mkdirSync,
+  writeFileSync,
+  rmSync,
+  readdirSync,
+  existsSync,
+  statSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
   PUBLIC_DOCS_SCAN_COUNT,
   PUBLIC_DOCS_EXEMPT,
   PUBLIC_DOCS_SCAN_PARTS,
+  PUBLIC_DOCS_CORPUS_PARTS,
   publicDocsScan,
+  // (Round 6, CR-01) The pre-exemption corpus. A NAMED import, so deleting the export is a
+  // module-load error here rather than a silent `undefined` that turns the relationship case below
+  // into a comparison between two nothings.
+  publicDocsCorpus,
   grepSubstringInsensitive,
 } from "./check-public-docs-vocabulary.js";
 import {
@@ -357,5 +370,97 @@ describe("check-public-docs-vocabulary — the derived pin and the D-10 control"
     // returned []. A guard whose enforcement silently becomes a no-op is worse than no guard.
     expect(grepSubstringInsensitive(scan, "GRUGOPS")).toEqual(lower);
     expect(grepSubstringInsensitive(scan, "GrUgOpS")).toEqual(lower);
+  });
+});
+
+// ── Round 6 / CR-01: the corpus and the scan are two questions, pinned two-sided ───────────────
+
+/**
+ * The public-document corpus derived FROM DISK, in this file, with no reference to
+ * `publicDocsCorpus()` or to `PUBLIC_DOCS_CORPUS_PARTS`.
+ *
+ * WHY A SECOND DERIVATION IS CORRECT *HERE* AND WRONG IN A GATE. The house rule against a second
+ * membership rule over one corpus is about two PRODUCTION consumers disagreeing silently. This is a
+ * test, and its whole job is to disagree LOUDLY: a cardinality read back out of the same flatMap
+ * that produced it is an identity, and an identity cannot catch a corpus that silently went SHORT.
+ * The vacuity floors below catch an EMPTY corpus; only an independent count catches a short one.
+ */
+function corpusFromDisk(): string[] {
+  const root = readdirSync(ROOT)
+    .filter((f) => f.endsWith(".md"))
+    .filter((f) => statSync(join(ROOT, f)).isFile());
+  const examplesDir = join(ROOT, "examples");
+  const examples = existsSync(examplesDir)
+    ? readdirSync(examplesDir).filter((f) => f.endsWith(".md"))
+    : [];
+  const kitReadme = existsSync(join(ROOT, "agent-factory", "README.md"))
+    ? ["agent-factory/README.md"]
+    : [];
+  return [...root, ...examples, ...kitReadme];
+}
+
+describe("check-public-docs-vocabulary — the corpus, the scan, and the difference between them", () => {
+  it("the scan is the corpus minus EXACTLY the named exemptions, asserted three ways", () => {
+    // THE RELATIONSHIP THAT DID NOT EXIST UNTIL ROUND 6, AND THE DEFECT THAT PAID FOR IT.
+    //
+    // One exported function used to answer both "which documents are public" and "which public
+    // documents does the retired-vocabulary check apply to". check-banned-claims.ts wanted the
+    // first and imported the second, inheriting an exemption argued for a predicate it does not
+    // run. Two functions now answer the two questions, and this case pins their relationship so
+    // neither can silently collapse into the other: a corpus that shrank to the scan and a scan
+    // that grew to the corpus are both this repository's blind spot, in opposite directions.
+    const corpus = publicDocsCorpus();
+    const scan = publicDocsScan();
+
+    // FLOOR, BEFORE ANY EQUALITY. Two empty arrays satisfy every property below vacuously.
+    expect(corpus.length).toBeGreaterThan(1);
+    expect(scan.length).toBeGreaterThan(1);
+    expect(PUBLIC_DOCS_EXEMPT.length).toBeGreaterThan(0);
+
+    // AND THE CARDINALITY, DERIVED INDEPENDENTLY OF THE LOOP THAT WALKS IT. A floor catches an
+    // empty denominator and never a SILENTLY SHORT one; this is what catches a short one.
+    expect(corpus.length).toBe(corpusFromDisk().length);
+
+    // (1) Every member of the scan is a member of the corpus — the scan is a SUBSET, never a set
+    //     with members of its own.
+    for (const member of scan) expect(corpus).toContain(member);
+
+    // (2) The cardinalities differ by exactly the exemption array's length.
+    expect(corpus.length - scan.length).toBe(PUBLIC_DOCS_EXEMPT.length);
+
+    // (3) The set difference, computed as an array and compared BY VALUE, is the exemption array
+    //     itself. (2) alone would be satisfied by a scan that dropped some other document and kept
+    //     the exempt one; only this says WHICH document is missing.
+    expect(corpus.filter((m) => !scan.includes(m))).toEqual([
+      ...PUBLIC_DOCS_EXEMPT,
+    ]);
+  });
+
+  it("the two parts arrays are the SAME parts, and only the scan's are subtracted from", () => {
+    // One hand-authored parts array, one derived view. A second hand-authored array is how the two
+    // questions would drift back into disagreeing — this asserts there is nothing to drift.
+    expect(PUBLIC_DOCS_SCAN_PARTS.map((p) => p.name)).toEqual(
+      PUBLIC_DOCS_CORPUS_PARTS.map((p) => p.name),
+    );
+    for (let i = 0; i < PUBLIC_DOCS_CORPUS_PARTS.length; i++) {
+      const corpusPart = PUBLIC_DOCS_CORPUS_PARTS[i];
+      const scanPart = PUBLIC_DOCS_SCAN_PARTS[i];
+      expect([...scanPart.members]).toEqual(
+        corpusPart.members.filter((m) => !PUBLIC_DOCS_EXEMPT.includes(m)),
+      );
+    }
+    // The exemption is a ROOT document, so the difference lands in the root part and nowhere else.
+    const byName = (
+      parts: readonly { name: string; members: readonly string[] }[],
+      name: string,
+    ): number => parts.find((p) => p.name === name)!.members.length;
+    expect(byName(PUBLIC_DOCS_CORPUS_PARTS, "root")).toBe(
+      byName(PUBLIC_DOCS_SCAN_PARTS, "root") + PUBLIC_DOCS_EXEMPT.length,
+    );
+    for (const name of ["examples", "kitReadme"]) {
+      expect(byName(PUBLIC_DOCS_CORPUS_PARTS, name)).toBe(
+        byName(PUBLIC_DOCS_SCAN_PARTS, name),
+      );
+    }
   });
 });
