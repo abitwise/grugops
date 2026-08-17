@@ -429,6 +429,85 @@ Each is a locked decision with the same standing as D-01 to D-33.
   rewriting its **first** sentence regenerates all three. Sequence the two edits accordingly. This is
   the same seam Phase 29.1 depends on.
 
+### Round 6 (gap closure — LANG-04, from `29-REVIEW-round5.md` / `29-VERIFICATION-round5.md`)
+
+- **D-48 — the comprehension prohibition's carve-out is POSITIONAL, not LEXICAL. `BENEFIT_VERB_MARKERS` is DELETED.**
+  Round 5 shipped a "structural fix" that moved the enumeration from the phrase slot to
+  the verb slot: a seven-stem hand-authored list, defeated by `increases`, `raises`, `aids`, `gives…
+  sharper` and `makes…understand`, all five reproduced at exit 0 with the planted file never named.
+  The reviewer's proposed remedy — pin the SUBJECT side (`controlled language`, `this profile`, `the
+  kit`, `the voice`) — is refused for the same reason: it is a third hand-authored list over an
+  equally open class (`grugops`, `the factory`, `these roles`, a pronoun), so it buys one round.
+  **Every axis a bare term can be paired against is an open class; the only bounded thing in this
+  design is the one named exemption region, and a region is positional.** Therefore both bare terms —
+  `comprehension` and `understand` — become UNCONDITIONAL literals, the `requiresOnSameLine` arm is
+  removed from both, and `BENEFIT_VERB_MARKERS` is deleted rather than replaced. The gate then
+  enumerates only WHAT IS BANNED, never THE WAYS OF SAYING IT. This is the D-64 canonical-form move
+  (define the admitted form, refuse everything outside it) applied to a prohibition instead of a
+  parser, and it deletes a set literal rather than authoring a new one — the fix shape that held in
+  Phase 27 and in plan 29-40, against the set-literal drift this repository names as its second
+  systemic failure mode.
+
+- **D-49 — D-48's measured admission cost, taken before the change rather than after it.** Over the
+  set `bannedClaimScan()` derives (82 documents, re-measured 2026-08-17): `comprehension` occurs on
+  exactly **2** lines, `writing-profile.md:256` and `:288`, and **both are inside the named exemption
+  region**, so unconditional costs **0** new reds; both lines already carry an admitted marker today,
+  so `BANNED_CLAIM_EXEMPT_SUPPRESSED` moves **12 → 12** (unmoved — but re-derive it through the gate's
+  own `countBannedClaimOccurrences`, never by reading the prose, per WR-01). `understand` occurs on
+  exactly **1** line, `agent-factory/roles/incident-responder.md:29` ("…before you understand the
+  cause"), which carries no claim about a language model; **rephrase that line** rather than weaken the
+  matcher — the three forbidden weakenings (fenced-block skip, whole-word-only match, below-a-marker
+  skip) stay forbidden. The surviving residual is that ordinary-English `understand` in future kit
+  prose reds and must be rephrased or earn a named region: direction **FAIL-CLOSED**, which is the
+  admissible direction for a safety guard, and it must carry a `V-` id with its live count and its
+  reach (WR-05's ask, now covering the whole term rather than the substring surface). Re-measure the
+  false-red cost over the **83**-document corpus D-50 produces, not the 82-document one.
+
+- **D-50 — `check-banned-claims` consumes the PRE-exemption public-document corpus.** `publicDocsScan()`
+  answers "what is a public document THAT THE DEAD-VOCABULARY CHECK APPLIES TO", not "what is a public
+  document", so `CHANGELOG.md` — which `check-public-docs-vocabulary.ts` itself classifies as a root
+  public document before subtracting it — fell out of the banned-claim scan set silently, while that
+  exemption's own bound paragraph asserts in terms that it "does not exempt `CHANGELOG.md` from any
+  other gate". Two live `token-economy` occurrences sit there today (`CHANGELOG.md:30`, `:68`) — the
+  disproven claim this gate's founding D-44 transcript calls "the drift this gate exists for" — and a
+  planted D-44 conformance claim exits 0 unnamed there while the identical bytes in `README.md` exit 1
+  named twice. Fix: export `publicDocsCorpus()` (unfiltered) beside `publicDocsScan()` so **each
+  consumer names which question it is asking**; have `check-banned-claims.ts` consume the corpus; move
+  `BANNED_CLAIM_SCAN_COUNT` **82 → 83** in the same commit with `CHANGELOG.md` named as the entrant;
+  rewrite the two sentences so the changelog records the MECHANISM (compaction) without restating the
+  disproven claim; add a permanent case planting a banned literal in `CHANGELOG.md` and asserting the
+  gate names it; and correct `PUBLIC_DOCS_EXEMPT`'s bound paragraph, which currently asserts a property
+  the import graph falsifies. The four further unscanned classes (WR-02: `install/README.md`,
+  `.claude/` adapters and skill twins, `memory-bank/`, `plans/board.md`) are each either admitted with
+  their count moved or named in `BANNED_CLAIM_EXCLUDED_LOCATIONS` with their reason — including the
+  transitive-coverage argument for `.claude/`, naming the generator that makes it true — because that
+  block exists so an absence reads as a decision.
+
+- **D-51 — round 6 carries the whole round-5 report, not only its blockers.** Both BLOCKERs (D-48/D-49,
+  D-50), all six warnings (WR-01 the breakdown arithmetic, derived rather than typed — measured
+  `standard-name 6 + token-economy 2 + comprehension 4 = 12`; WR-02 the four unscanned classes; WR-03
+  the `generate-catalog.ts` 16-vs-19 contradiction at `:13/:257/:260/:347`, deleting the range from the
+  prose rather than restating it; WR-04 naming `check-nul-bytes.ts` as the existing repo-wide authority
+  and recording the real lesson — *the gate existed and was not run*; WR-05 the `understand` residual
+  id; WR-06 moving the empty-marker-array refusal INTO the gate so the invariant lives where its
+  subject does, then renaming the case), and all four infos (IN-01 `hits: number | null` with the
+  admission-log assertion; IN-02 the edit-robustness sentence its next line falsifies; IN-03 the lost
+  pin in `findingCount`; IN-04 the two self-contradicting audit headings). WR-06 survives D-48:
+  `Simplified Technical English` still carries `CONFORMANCE_VERB_MARKERS`, so a conditional member with
+  an empty marker list is still a reachable shape.
+
+- **D-52 — the round-6 disposition record states what round 5 claimed falsely, not only what round 6 fixed.**
+  `docs/audit/29-round6-residuals.md` follows round 4's and round 5's idiom, and additionally:
+  corrects `check-banned-claims.ts:380-383` and the `BANNED_CLAIM_EXCLUDED` option-(b) rejection
+  paragraph, **both of which currently assert the spelling problem is closed when round 5 only moved
+  it**; records the verb-axis defect with its five reproduced plants and its disposition **CLOSED BY
+  DELETION** (so the trail carries the finding even though no `V-` id survives it); and opens the
+  `understand` fail-closed residual from D-49. The adversarial pass must vary **the axis the round's own
+  change introduces** — round 5's thirteen attempts all attacked the window, the encoding and the
+  exemption boundary, and not one varied the verb, which is why the defect shipped. Per the standing
+  rule, a green suite is not proof for a safety invariant: every closure claim is reproduced on a
+  `git archive HEAD` mirror with a sha-verified gate, one plant per mirror, before it is written down.
+
 ### Claude's Discretion
 
 - The exact caveman lexicon membership and the value of N in D-07, subject to it failing RED on all
