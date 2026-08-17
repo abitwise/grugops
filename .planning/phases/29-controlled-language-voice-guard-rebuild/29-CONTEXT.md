@@ -508,6 +508,44 @@ Each is a locked decision with the same standing as D-01 to D-33.
   rule, a green suite is not proof for a safety invariant: every closure claim is reproduced on a
   `git archive HEAD` mirror with a sha-verified gate, one plant per mirror, before it is written down.
 
+- **D-53 — D-48 EXTENDS to the standard-name group: the conditional apparatus is deleted outright,
+  not merely emptied.** Plan 29-43..29-47's authoring surfaced that CR-02's defect survives one member
+  over, on the group that gives the gate its name. `Simplified Technical English` is gated by
+  `CONFORMANCE_VERB_MARKERS` (`conform`, `complian`, `certif`, `endors`, `approv`, `accredit`), so
+  every conformance verb outside that list passes. Reproduced through the gate's own
+  `countBannedClaimOccurrences`, 2026-08-17 — `conforms to Simplified Technical English` yields **1**
+  finding, while `follows` / `meets` / `adheres to` / `is written in` each yield **0**. Under D-48's
+  own arithmetic the fix is free: the term occurs on exactly **2** lines, `writing-profile.md:239` and
+  `:241`, **both inside the named exemption region**, so unconditional costs **0** new reds outside it.
+
+  Therefore: `Simplified Technical English` becomes unconditional, `CONFORMANCE_VERB_MARKERS` is
+  deleted alongside `BENEFIT_VERB_MARKERS`, and **`requiresOnSameLine` is removed from the
+  `BannedClaimLiteral` type itself**. Conditional members go **3 → 0**. Emptying the lists but keeping
+  the field would leave the mechanism standing for the next member to reach for; removing the field
+  makes reintroducing a marker list a visible type change in the diff rather than a one-line addition.
+  The gate's whole predicate becomes *a pinned literal list plus one named exemption region* — it
+  enumerates what is banned and nothing about how it is said.
+
+  Four consequences, each of which must be **disposed rather than silently absorbed**:
+  (1) **WR-06 becomes moot** — an empty-marker conditional member cannot exist once the field does
+  not. Record that disposition explicitly in the round-6 register (the mechanism was deleted, so the
+  refusal has no subject); do not leave WR-06 reading as a silent drop, and do not ship the guard
+  clause for a shape the type no longer admits.
+  (2) **`V-29-42-01` (hard-wrap window), `V-29-42-02` (table row) and `V-29-42-04` (marker inside an
+  HTML comment or link target) close BY CONSTRUCTION** — all three are properties of a co-occurrence
+  window that stops existing. Close them in the register with that reason stated, and re-measure
+  rather than transcribe: a residual closed by construction still gets its closing measurement.
+  (3) **`BANNED_CLAIM_EXEMPT_SUPPRESSED` moves** — `:239` and `:241` begin matching, so the pin is
+  expected to go **12 → 14**. Expected, not asserted: re-derive it through the gate's own
+  `countBannedClaimOccurrences` and take the per-group breakdown from the run, never from this
+  paragraph. Typing this number instead of measuring it is WR-01's exact failure repeated inside its
+  own fix.
+  (4) The surviving enumeration is `BANNED_CLAIM_LITERALS` itself — **the list of what is banned**,
+  which is the prohibition's subject and cannot be derived away. Say so plainly in the register with
+  its live count and direction (FAIL-OPEN: a claim in words the list does not contain still passes),
+  so the round closes with an honest statement of what it does not claim rather than an implied
+  totality.
+
 ### Claude's Discretion
 
 - The exact caveman lexicon membership and the value of N in D-07, subject to it failing RED on all
