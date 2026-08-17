@@ -191,7 +191,14 @@ const CONFORMANCE_VERB = "conform";
  * and plan 29-45 owns their repurposing.
  *
  * A LATER READER MUST NOT PROMOTE THIS BACK INTO THE GATE. Reintroducing a marker list is a visible
- * TYPE CHANGE now, and it is refused by name at `BannedClaimLiteral`.
+ * TYPE CHANGE now, refused at `BannedClaimLiteral` by the compiler and — on the route the compiler
+ * does not cover, where the field is added back to the interface itself — by the named tripwire case
+ * `no member carries a marker-shaped field, under ANY name`.
+ *
+ * (ROUND 6, PLAN 29-45) THE REPURPOSING IS DONE. The seven per-marker discrimination cases written
+ * against this array are gone; what this array now serves is the INERTNESS case, which asserts the
+ * seven words change the gate's count by ZERO. That is the property that is true after the deletion,
+ * and it reds if a co-occurrence mechanism ever comes back.
  */
 const HISTORICAL_BENEFIT_WORDS: readonly string[] = [
   "improve",
@@ -564,6 +571,62 @@ function findingCount(stdout: string): number {
   return (stdout.match(/— banned [a-z-]+ literal /g) ?? []).length;
 }
 
+// ── THE MARKER-FIELD TRIPWIRE (round 6, WR-06's disposition made visible) ──────────────────────
+//
+// WR-06 ASKED FOR A RUNTIME REFUSAL AND ROUND 6 SHIPS THIS INSTEAD, ON PURPOSE.
+//
+// The round-5 review asked that a member declaring an EMPTY marker list be refused inside the gate
+// rather than only in this file. That was the right remedy for the tree as it then stood. D-53 then
+// removed the marker field from `BannedClaimLiteral` entirely, so an empty-marker member is not a
+// shape the type admits: a loop in `runAll()` guarding it could never fire, and a PASS line counting
+// a check that cannot run is AP-1 — the very defect WR-06 was raised about, re-created by its own
+// remedy. So the refusal is NOT shipped, WR-06 is DISCHARGED BY DELETING THE MECHANISM, and what
+// stands in its place is this: a permanent, named case a reader scanning the reporter can see.
+//
+// WHAT THIS ASSERTION ADDS OVER `tsc`, STATED BECAUSE A DUPLICATE OF THE COMPILER WOULD BE
+// DECORATION. `tsc` refuses a member that declares an EXCESS property — the old field name or any
+// new one — and `noEmitOnError` is on, so that route cannot even build. It does NOT refuse the route
+// a reintroduction would actually take: an editor who ADDS the field back to the `BannedClaimLiteral`
+// interface and then declares it on a member is type-correct, and every compiler check stays green.
+// This case reds on that route, because it reads the members' OWN KEYS rather than a spelling.
+describe("check-banned-claims — no member carries a marker-shaped field, under ANY name", () => {
+  it("TRIPWIRE: every pinned member's key set is exactly the two declared fields, and no value is a list", () => {
+    // (1) THE DENOMINATOR, DERIVED INDEPENDENTLY OF THE LOOP THAT CONSUMES IT. A vacuity floor over
+    // `BANNED_CLAIM_LITERALS.length` would be the loop's own count vouching for itself: an array
+    // that emptied out would satisfy the key walk vacuously AND report a floor of its own emptiness.
+    // The count below is matched out of the gate's SOURCE TEXT, so the two disagree the day the
+    // array and its declarations part company.
+    const declared = (
+      readFileSync(GATE_TS, "utf8").match(/^ {2}\{ literal: "/gm) ?? []
+    ).length;
+    expect(declared, "no member declarations were matched in the gate source").toBeGreaterThan(0);
+    expect(BANNED_CLAIM_LITERALS.length).toBe(declared);
+
+    // (2) THE KEY SET, ASSERTED PER MEMBER. Reds on ANY third property whatever it is named — which
+    // a grep for the retired spelling would miss entirely.
+    for (const m of BANNED_CLAIM_LITERALS) {
+      expect(
+        Object.keys(m).sort(),
+        `member ${JSON.stringify((m as { literal?: unknown }).literal)} carries a key beyond the two declared fields`,
+      ).toEqual(["group", "literal"]);
+    }
+
+    // (3) AND THE SHAPE, NOT ONLY THE COUNT OF KEYS. A marker list is an ARRAY OF STRINGS hanging
+    // off a member. Asserted separately from (2) so the property is stated as itself: if a later
+    // round legitimately adds a third scalar field, (2) is the assertion an author must think about
+    // and this one still refuses the list. Every value a member holds today is a plain string.
+    const listValued = BANNED_CLAIM_LITERALS.flatMap((m) =>
+      Object.entries(m)
+        .filter(([, v]) => Array.isArray(v))
+        .map(([k]) => k),
+    );
+    expect(
+      listValued,
+      "a member holds a LIST-valued field — that is the shape a marker list comes back as, and D-53 deleted it",
+    ).toEqual([]);
+  });
+});
+
 // ── The plant selection itself (plan 29-42, task 1) ───────────────────────────────────────────
 
 describe("check-banned-claims — the plant selection itself", () => {
@@ -581,16 +644,11 @@ describe("check-banned-claims — the plant selection itself", () => {
       "comprehension",
       "understand",
     ]);
-    // ── (ROUND 6) EVERY MEMBER IS UNCONDITIONAL, ASSERTED OVER THE WHOLE LIST ──────────────────
+    // (ROUND 6, WR-06) THE KEY-SET WALK THAT USED TO SIT HERE MOVED TO THE NAMED TRIPWIRE CASE
+    // ABOVE, with an independently derived denominator and a list-shape assertion beside it. It is
+    // not duplicated here: two assertions over one predicate, neither naming the other, is the
+    // duplicate-authority shape this round is closing one module over.
     //
-    // THE PREDICATE IS THE TYPE'S OWN KEY SET, NOT A NAMED FIELD. Asserting `member.someField ===
-    // undefined` would be a check on a field that does not exist — always true, in TypeScript and at
-    // run time both, and therefore a pin over nothing. Asserting the key set instead reds the day a
-    // member carries ANY third property, whatever it is called, which is the shape a marker list
-    // would come back as. It is the run-time half of the guarantee `tsc` already gives statically.
-    for (const m of BANNED_CLAIM_LITERALS) {
-      expect(Object.keys(m).sort()).toEqual(["group", "literal"]);
-    }
     // The words the family plants interpose. They pin nothing in the gate any more — see the
     // historical fixture's docblock — but a reorder of that fixture would still silently recompose
     // the plants, so the identities stay asserted.
@@ -600,9 +658,13 @@ describe("check-banned-claims — the plant selection itself", () => {
     expect(MARKER_BOOST).toBe("boost");
   });
 
-  it("the marker-plant TEMPLATE smuggles in no second marker and no enumerated literal", () => {
-    // A template carrying a marker of its own would credit every per-marker red to the template, and
-    // all seven cases below would pass against a gate that only ever matched that one marker.
+  it("the historical-word plant TEMPLATE carries no benefit word and no enumerated literal of its own", () => {
+    // REPURPOSED IN ROUND 6, AND THE OLD NAME SAID `marker`. It used to be the premise of seven
+    // per-marker discrimination cases; those are gone (they asserted a mechanism the type no longer
+    // admits). It survives because it is still the PREMISE of the inertness case below: if the
+    // template itself carried one of the seven words, `markerPlant(w)` and `markerPlant("")` would
+    // not differ in the way the inertness comparison assumes, and the comparison would be measuring
+    // the template rather than the gate.
     const skeleton = markerPlant("");
     for (const m of HISTORICAL_BENEFIT_WORDS) {
       expect(skeleton.toLowerCase().includes(m.toLowerCase())).toBe(false);
@@ -883,12 +945,19 @@ describe("check-banned-claims — the measured comprehension family", () => {
     });
   }
 
-  it("the family covers EVERY conditional comprehension member, and five rows were open", () => {
+  it("the family covers EVERY BARE comprehension term, and five rows were open", () => {
+    // RENAMED IN ROUND 6 (plan 29-45). The old name read "EVERY CONDITIONAL comprehension member",
+    // describing a member shape D-53 removed from the type — a case passing under a name for a
+    // mechanism that no longer exists. The BODY was already correct and is byte-unchanged below: it
+    // walks `COMPREHENSION_TERMS`, which is the two BARE terms. Only the name and this comment lied.
+    // Recorded because 29-44's hand-off list did not name this site; it was found by re-deriving the
+    // inventory rather than by adopting one.
+    //
     // TWO independent vacuity floors, because the family table is a hand-written list and this
     // repository's second systemic failure class is a hand-written list rotting while green.
     //
-    // (1) The COVERAGE floor is derived from the AUTHORITY, not from the table: every conditional
-    // comprehension member must be the attributing literal of at least one row. The row that would go
+    // (1) The COVERAGE floor is derived from the AUTHORITY, not from the table: every bare
+    // comprehension term must be the attributing literal of at least one row. The row that would go
     // missing first is F5 — the member the first rule cannot reach — and dropping it would leave the
     // family looking complete while the structurally-unreachable phrasing had no case at all.
     for (const term of COMPREHENSION_TERMS) {
@@ -904,43 +973,75 @@ describe("check-banned-claims — the measured comprehension family", () => {
 
 // ── Per-marker discrimination (plan 29-42, task 1) ─────────────────────────────────────────────
 
-// ── (ROUND 6) THESE SEVEN CASES ARE NOW VACUOUS, AND THAT IS RECORDED RATHER THAN CONCEALED ────
+// ── (ROUND 6, PLAN 29-45) THE SEVEN VACUOUS PER-MARKER CASES ARE REPLACED BY THE ONE PROPERTY ──
 //
-// Each case below plants ONE historical benefit word beside the bare term and asserts a red. They
-// all still pass — but they pass because the BARE TERM ALONE reds now, not because the word did
-// anything. Each therefore asserts something its own name does not describe, which is the shape this
-// repository refuses everywhere else. They are NOT deleted here: a case removed without a record is
-// indistinguishable from a case that was never written. Every one is listed by name in
-// 29-44-SUMMARY.md and plan 29-45 owns their repurposing.
-describe("check-banned-claims — every historical benefit word, alone on its line", () => {
-  for (const marker of HISTORICAL_BENEFIT_WORDS) {
-    it(`marker "${marker}" ALONE on the line turns the bare term into a finding`, () => {
-      const plant = markerPlant(marker);
-      // The marker under test is the ONLY one present, asserted before the plant is used, so a red
-      // cannot be credited to a marker that was not the one under test.
+// Seven cases used to sit here, one per historical benefit word, each planting that word beside the
+// bare term and asserting a red — `marker "improve" ALONE on the line turns the bare term into a
+// finding`, and six siblings. Plan 29-44 deleted the mechanism they were written against and handed
+// them forward as VACUOUS: they still passed, but they passed because the BARE TERM ALONE reds now,
+// so each asserted something its own name did not describe. Seven gate subprocesses were spent
+// proving a word did something it no longer does.
+//
+// WHAT REPLACES THEM IS THE PROPERTY THAT IS ACTUALLY TRUE AFTER THE DELETION, AND IT IS STRONGER
+// THAN WHAT THEY HELD. The seven words are now INERT: the gate's verdict on a line is the same with
+// the word and without it. That is asserted through the gate's own exported matcher, per word, in
+// both directions — and it is DISCRIMINATING in the direction that matters, because a marker
+// mechanism reintroduced tomorrow makes the markerless line count ZERO while the marker lines count
+// one, and the equality reds. It is the runtime dual of the type-level tripwire above.
+//
+// One end-to-end mirror run is kept beneath it so the property is held against the SHIPPED gate and
+// not only against an imported function.
+describe("check-banned-claims — the seven historical benefit words are INERT", () => {
+  it("the gate's own matcher counts the SAME on a line with each historical word and without it", () => {
+    const markerless = markerPlant("");
+    const baseline = countBannedClaimOccurrences([markerless], 0, 1);
+    // The floor, so an all-zero matcher cannot satisfy the equality below vacuously.
+    expect(
+      baseline,
+      "the markerless plant must itself be a finding, or the equality is 0 === 0",
+    ).toBeGreaterThanOrEqual(1);
+    // The denominator, derived from the fixture rather than assumed: seven words, and each is
+    // measured. A fixture that emptied out would make the loop assert nothing at all.
+    expect(HISTORICAL_BENEFIT_WORDS.length).toBe(7);
+    let measured = 0;
+    for (const word of HISTORICAL_BENEFIT_WORDS) {
+      const plant = markerPlant(word);
+      // The word under test is the ONLY one present, so an equality cannot be credited to a word
+      // that was not the one under test.
       expect(
         HISTORICAL_BENEFIT_WORDS.filter((m) =>
           plant.toLowerCase().includes(m.toLowerCase()),
         ),
-      ).toEqual([marker]);
-      // ...and no enumerated literal is in the line either, so the red is the RULE's and not the
-      // enumeration's.
+      ).toEqual([word]);
+      // ...and no enumerated literal is on the line either, so the count is the bare term's.
       expect(historicallyNamed(plant)).toBe(false);
+      expect(
+        countBannedClaimOccurrences([plant], 0, 1),
+        `"${word}" changed the gate's count — a co-occurrence mechanism is back`,
+      ).toBe(baseline);
+      measured += 1;
+    }
+    expect(measured).toBe(HISTORICAL_BENEFIT_WORDS.length);
+  });
 
-      const planted = "agent-factory/workflows/011-filler.md";
-      const { status, stdout } = runGate(
-        makeMirror("gops-banned-marker-", { plant: { [planted]: plant } }),
-      );
-      expect(stdout).toContain(
-        `banned comprehension literal "${BARE_COMPREHENSION.literal}"`,
-      );
-      expect(stdout).toMatch(/011-filler\.md:\d+:\d+/);
-      expect(status).toBe(1);
-      const expected = countBannedClaimOccurrences([plant], 0, 1);
-      expect(expected).toBeGreaterThanOrEqual(1);
-      expect(findingCount(stdout)).toBe(expected);
-    });
-  }
+  it("and the SHIPPED gate agrees end to end: one historical word beside the bare term still reds by name", () => {
+    // The integration half. The inertness above is asserted through an imported function; this runs
+    // the committed artifact over a mirror, so the property is not held only inside the module that
+    // would be wrong if it were wrong.
+    const plant = markerPlant(HISTORICAL_BENEFIT_WORDS[0]);
+    const planted = "agent-factory/workflows/011-filler.md";
+    const { status, stdout } = runGate(
+      makeMirror("gops-banned-marker-", { plant: { [planted]: plant } }),
+    );
+    expect(stdout).toContain(
+      `banned comprehension literal "${BARE_COMPREHENSION.literal}"`,
+    );
+    expect(stdout).toMatch(/011-filler\.md:\d+:\d+/);
+    expect(status).toBe(1);
+    const expected = countBannedClaimOccurrences([plant], 0, 1);
+    expect(expected).toBeGreaterThanOrEqual(1);
+    expect(findingCount(stdout)).toBe(expected);
+  });
 
   // ── WHAT REPLACED THE OLD no-marker GREEN CONTROL, AND WHY THE REPLACEMENT IS POSITIONAL ──────
   //
