@@ -1295,7 +1295,13 @@ export function anchoredBlockAt(scan, anchor, verbatim) {
     const want = verbatim.split("\n");
     const start = anchor.index + 1;
     const end = start + want.length;
-    const b = Buffer.from(verbatim, "utf8");
+    // NAMED RATHER THAN `a`/`b` (plan 29-51, Rule 1 — and it is not only taste). A single-letter local
+    // is a poor name in a byte-comparison authority, and it also collides with a MEASURED defect in
+    // the LANG-07 owner classifier: that classifier's alias closure is module-wide, scope-blind, and
+    // tests `\bNAME\b` as TEXT against a declaration's right-hand side, so a name spelled `a` matches
+    // inside `[a-z_]` in an unrelated regex literal and drags that regex into the derived
+    // "heading recogniser" set. Recorded as V-29-51-01 rather than worked around silently.
+    const verbatimBuf = Buffer.from(verbatim, "utf8");
     // The block occupies indices `anchor.index + 1 .. anchor.index + want.length` inclusive, so the
     // LAST index it needs must still be a real line. One comparison, over that last index.
     const overruns = anchor.index + want.length > scan.contentLineCount - 1;
@@ -1312,11 +1318,11 @@ export function anchoredBlockAt(scan, anchor, verbatim) {
             matches: false,
             text: "",
             documentBytes: 0,
-            verbatimBytes: b.length,
+            verbatimBytes: verbatimBuf.length,
         };
     }
     const text = scan.lines.slice(start, end).join("\n");
-    const a = Buffer.from(text, "utf8");
+    const documentBuf = Buffer.from(text, "utf8");
     return {
         id: anchor.id,
         anchorIndex: anchor.index,
@@ -1324,9 +1330,9 @@ export function anchoredBlockAt(scan, anchor, verbatim) {
         end,
         verbatimLineCount: want.length,
         overruns: false,
-        matches: a.equals(b),
+        matches: documentBuf.equals(verbatimBuf),
         text,
-        documentBytes: a.length,
-        verbatimBytes: b.length,
+        documentBytes: documentBuf.length,
+        verbatimBytes: verbatimBuf.length,
     };
 }

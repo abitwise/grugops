@@ -60,7 +60,20 @@
 import { readFileSync, existsSync } from "node:fs";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
-import { readRegistry, isBlank, SAFETY_FLOORS, DISPOSITIONS, } from "./audit-model.js";
+// (Plan 29-51) THIS GATE DECLARES NO ANCHOR GRAMMAR, NO LINE ASSEMBLY AND NO BYTE COMPARISON.
+//
+// All four used to be declared here. Plan 29-52 needs the same question answered — "is this line
+// inside a registry-anchored block whose bytes did not diverge" — from scripts/check-banned-claims.ts,
+// and there were only three ways to give it one: import from this gate, copy the declarations, or
+// move them. Importing from a gate carries a REFUSAL CHANNEL along with the value (the WR-05 hazard
+// recorded at scripts/check-banned-claims.ts:130-146, which plan 29-49 spent a plan closing one seam
+// over). Copying would give this repository a SECOND GRAMMAR OVER THE SAME BYTES, which is the
+// LANG-07 defect this milestone has closed three times at eight rounds each. So they MOVED, into the
+// library both gates already trust for the registry, and this module now asks rather than declares.
+//
+// The library THROWS and this gate REPORTS — the kit-model split, unchanged. That is precisely why
+// the authority is a library and not a third gate: nothing that imports it inherits an exit code.
+import { readRegistry, isBlank, SAFETY_FLOORS, DISPOSITIONS, MARKDOWN_SUFFIX, anchoredDocs, scanAnchoredDocument, anchoredBlockAt, } from "./audit-model.js";
 // CHECK_ROOT override is load-bearing: the Vitest harness plants fixtures into a hermetic mirror
 // and points CHECK_ROOT at it, then spawns this committed .js against that mirror. When unset,
 // resolve against the script-relative repo root (cwd does not matter).
@@ -81,48 +94,6 @@ const fail = (m) => {
 };
 /** Exported accessor so a later aggregator can fold this gate's result without a shared global. */
 export const claimAnchorFails = () => FAILS;
-/**
- * THE SINGLE ANCHOR GRAMMAR. One declaration, consulted by BOTH the scan and the id extraction, so
- * the two cannot disagree about what an anchor is — a second pattern for "looks like an anchor"
- * beside the one for "is an anchor" is how the two come to admit different sets.
- *
- * It is a CANONICAL FORM WITH A REFUSAL OUTSIDE IT (the D-64 doctrine that closed the Phase 27
- * admission reader at round 12), never a pattern widened once per surprise. The id form is embedded
- * here rather than checked afterwards, so a malformed id cannot be read as a well-formed anchor.
- */
-export const ANCHOR_RE = /^<!-- claim: (C-28-\d{3}) -->$/;
-/**
- * A line that is TRYING to be an anchor. Anything matching this and NOT matching ANCHOR_RE is a
- * NAMED REFUSAL rather than a silently ignored comment — which is the whole difference between a
- * typo that goes red and a typo that quietly removes a claim from the bijection. It also catches a
- * CRLF line ending, which would otherwise make an anchor invisible to ANCHOR_RE and fail OPEN.
- */
-const ANCHOR_ATTEMPT_RE = /^<!--\s*claim\s*:/;
-const MARKDOWN_SUFFIX = ".md";
-/**
- * The documents this gate scans: the distinct markdown `file` values of the registry, sorted.
- *
- * DERIVED, NEVER HAND-LISTED. A fourth anchored document enters this scan by being REGISTERED, not
- * by someone remembering to add it here — the set-literal drift this repository has diagnosed as
- * one of its two systemic failure classes. A test fixture registers a fourth document and watches
- * the gate scan it with no source edit, which is what makes the derivation load-bearing rather than
- * merely present.
- *
- * It is a FUNCTION of the root rather than a module-load constant on purpose: a constant computed
- * at import time would make an unparseable registry THROW inside every importer — including this
- * module's own test file — instead of being REPORTED by the gate. audit-model is a library and
- * throws; this is a gate and reports.
- */
-export function anchoredDocs(claims) {
-    return [...new Set(claims.filter((c) => c.file.endsWith(MARKDOWN_SUFFIX)).map((c) => c.file))].sort();
-}
-/** The file's content lines, with the empty element a trailing newline produces removed. */
-function contentLines(text) {
-    const lines = text.split("\n");
-    if (lines.length > 0 && lines[lines.length - 1] === "")
-        lines.pop();
-    return lines;
-}
 function main() {
     process.stdout.write("[check_claim_anchors] every registered claim is anchored, and its text is unchanged at its anchor (AUDIT-03 / D-16)\n");
     let claims;
@@ -157,7 +128,15 @@ function main() {
         verdict();
         return;
     }
-    // ── The anchors, read as RAW BYTES ────────────────────────────────────────────────────────
+    // ── The anchors, read as RAW BYTES, THROUGH THE ONE AUTHORITY ─────────────────────────────
+    //
+    // (Plan 29-51.) The scan is `audit-model.scanAnchoredDocument`, and its RETURNED line array is
+    // kept per document rather than re-derived below. This module used to split each anchored document
+    // TWICE — once here for the anchors and once again for the verbatim comparison — which is two
+    // assemblies of one document and the coordinate-shear axis every such defect in this phase came
+    // from. Keeping the scan deletes the axis instead of guarding it, and it also leaves exactly ONE
+    // read per document.
+    const scans = new Map();
     const anchorsPerDoc = new Map();
     const idToFiles = new Map();
     for (const doc of docs) {
@@ -167,25 +146,22 @@ function main() {
                 `an unanchored one: reporting zero anchors for it would let its rows read as merely missing`);
             continue;
         }
-        const lines = contentLines(readFileSync(abs, "utf8"));
-        const found = [];
-        for (let i = 0; i < lines.length; i++) {
-            const m = ANCHOR_RE.exec(lines[i]);
-            if (m !== null) {
-                found.push({ id: m[1], index: i });
-                const files = idToFiles.get(m[1]) ?? [];
-                files.push(doc);
-                idToFiles.set(m[1], files);
-                continue;
-            }
-            if (ANCHOR_ATTEMPT_RE.test(lines[i])) {
-                fail(`${doc}:${i + 1} carries a line that reads as a claim anchor but is outside the canonical ` +
-                    `form \`<!-- claim: C-28-NNN -->\` (three zero-padded digits, nothing else on the line). ` +
-                    `The line reads: ${JSON.stringify(lines[i])}. It is refused by name rather than ignored ` +
-                    `— an ignored near-anchor silently drops its claim out of the bijection`);
-            }
+        const scan = scanAnchoredDocument(readFileSync(abs, "utf8"));
+        scans.set(doc, scan);
+        for (const anchor of scan.anchors) {
+            const files = idToFiles.get(anchor.id) ?? [];
+            files.push(doc);
+            idToFiles.set(anchor.id, files);
         }
-        anchorsPerDoc.set(doc, found);
+        // The attempts arrive in document order, so these refusals print in the same order they printed
+        // when the two were interleaved in one loop.
+        for (const attempt of scan.attempts) {
+            fail(`${doc}:${attempt.index + 1} carries a line that reads as a claim anchor but is outside the canonical ` +
+                `form \`<!-- claim: C-28-NNN -->\` (three zero-padded digits, nothing else on the line). ` +
+                `The line reads: ${JSON.stringify(attempt.text)}. It is refused by name rather than ignored ` +
+                `— an ignored near-anchor silently drops its claim out of the bijection`);
+        }
+        anchorsPerDoc.set(doc, scan.anchors);
     }
     // ── Duplicate ids, BEFORE the bijection ───────────────────────────────────────────────────
     // Two anchors sharing an id make every set operation below ambiguous, so the ambiguity is named
@@ -218,41 +194,58 @@ function main() {
                 `the registry is only worth Phase 30's trust if the two sides are the same set`);
         }
     }
-    // ── The verbatim comparison, EXACT BYTES ──────────────────────────────────────────────────
+    // ── The verbatim comparison, EXACT BYTES, THROUGH THE ONE AUTHORITY ───────────────────────
+    //
+    // (Plan 29-51.) The extent arithmetic and the Buffer equality that used to sit inline here are
+    // `audit-model.anchoredBlockAt`. It returns the extent, the overrun flag and the byte verdict
+    // TOGETHER, from one derivation, so a block's boundary and the comparison over it can never come
+    // from two rules — and so plan 29-52 cannot obtain "this line is inside an anchored block" without
+    // also being handed "and its bytes did not diverge". Every refusal below is byte-unchanged; only
+    // where its numbers come from has moved.
     let comparisons = 0;
     for (const doc of docs) {
-        const abs = join(ROOT, doc);
-        if (!existsSync(abs))
-            continue;
-        const lines = contentLines(readFileSync(abs, "utf8"));
-        const anchors = new Map((anchorsPerDoc.get(doc) ?? []).map((a) => [a.id, a.index]));
+        const scan = scans.get(doc);
+        if (scan === undefined)
+            continue; // the document is missing; already reported above
+        const anchors = new Map((anchorsPerDoc.get(doc) ?? []).map((a) => [a.id, a]));
         for (const claim of claims.filter((c) => c.file === doc).slice().sort((a, b) => (a.id < b.id ? -1 : 1))) {
-            const at = anchors.get(claim.id);
-            if (at === undefined)
+            const anchor = anchors.get(claim.id);
+            if (anchor === undefined)
                 continue; // already reported by the bijection above
-            const want = claim.verbatim.split("\n");
-            // The claim occupies indices at+1 .. at+want.length inclusive, so the last one it needs must
-            // still be a real line. Written as one comparison over the LAST index needed, rather than a
-            // pair of bounds that could disagree with each other.
-            if (at + want.length > lines.length - 1) {
+            let block;
+            try {
+                block = anchoredBlockAt(scan, anchor, claim.verbatim);
+            }
+            catch (e) {
+                // THE LIBRARY THROWS AND THIS GATE REPORTS — the same split the unparseable-registry catch
+                // above applies, extended to the authority's element-level refusal.
+                //
+                // REACHABILITY, STATED PLAINLY RATHER THAN IMPLIED: zero on any path through readRegistry().
+                // The only throw `anchoredBlockAt` raises is its blank-verbatim refusal, and parseClaimBlock
+                // refuses a blank verbatim at PARSE time through the SAME `isBlank` predicate, so the parse
+                // refusal strictly dominates and is the single authority for that refusal on this path. This
+                // arm is a CONTRACT GUARD for the day that changes — RED-proven by deleting parseClaimBlock's
+                // refusal in a scratch build, where without it this gate died with a node stack trace and no
+                // verdict at all.
+                fail(`${doc}: ${claim.id}'s anchored block could not be compared — ${e.message}`);
+                continue;
+            }
+            if (block.overruns) {
                 // Both forms of "there is nothing below this anchor to read": the anchor is the last line
                 // of the file, or the claim is longer than the lines remaining. Named rather than read
                 // past the end, which would compare against an undefined element.
-                fail(`${doc}: the anchor for ${claim.id} sits at line ${at + 1} and its claim needs ` +
-                    `${want.length} line(s) below it, but the file ends at line ${lines.length}. An anchor ` +
+                fail(`${doc}: the anchor for ${claim.id} sits at line ${block.anchorIndex + 1} and its claim needs ` +
+                    `${block.verbatimLineCount} line(s) below it, but the file ends at line ${scan.contentLineCount}. An anchor ` +
                     `on the last line of a file has no claim beneath it, and reading past the end would ` +
                     `compare against nothing at all`);
                 continue;
             }
-            const got = lines.slice(at + 1, at + 1 + want.length).join("\n");
             comparisons += 1;
-            const a = Buffer.from(got, "utf8");
-            const b = Buffer.from(claim.verbatim, "utf8");
-            if (!a.equals(b)) {
-                fail(`${doc}: the text at ${claim.id}'s anchor (line ${at + 2}) is not byte-identical to the ` +
+            if (!block.matches) {
+                fail(`${doc}: the text at ${claim.id}'s anchor (line ${block.start + 1}) is not byte-identical to the ` +
                     `registry's verbatim block.\n` +
-                    `        registry (${b.length} byte(s)): ${JSON.stringify(claim.verbatim)}\n` +
-                    `        document (${a.length} byte(s)): ${JSON.stringify(got)}\n` +
+                    `        registry (${block.verbatimBytes} byte(s)): ${JSON.stringify(claim.verbatim)}\n` +
+                    `        document (${block.documentBytes} byte(s)): ${JSON.stringify(block.text)}\n` +
                     `        The comparison is EXACT — no trimming, no whitespace collapse, no line-ending ` +
                     `rewrite. If this divergence is legitimate, update the registry row in the SAME commit ` +
                     `as the prose change; the answer is never to loosen the comparison`);

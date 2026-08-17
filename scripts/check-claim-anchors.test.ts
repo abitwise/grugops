@@ -593,3 +593,95 @@ describe("check-claim-anchors: the real tree", () => {
     expect(ci.split("check-claim-anchors.js").length - 1).toBe(1);
   });
 });
+
+// ── (PLAN 29-51) THE GATE DECLARES NO ANCHOR GRAMMAR, NO LINE ASSEMBLY AND NO BYTE COMPARISON. ───
+//
+// ASSERT THE ABSENCE, NOT THE CHANGE. A rewire is worth nothing if the declarations it replaced are
+// still sitting in the file unused, or come back a year later — an unused second grammar is how two
+// rules for one question survive the plan that unified them. So this case is DERIVED FROM THE
+// MODULE'S OWN TEXT rather than from a list of names a later edit would not be added to.
+//
+// AND THE PROBES' OWN PREMISE IS ASSERTED FIRST. A probe that matches nothing anywhere passes this
+// case vacuously and reports the absence of a defect it is incapable of finding. Each probe is
+// therefore run against the AUTHORITY, where it must match, before it is run against the gate, where
+// it must not.
+describe("check-claim-anchors: the gate declares none of the moved constructs (plan 29-51)", () => {
+  const PROBES: readonly { name: string; re: RegExp; why: string }[] = [
+    {
+      name: "an anchor-comment REGEX LITERAL",
+      re: /\/\^<!--/,
+      why: "a second anchor grammar over the same bytes — the LANG-07 defect this move exists to prevent",
+    },
+    {
+      name: "a line assembly",
+      re: /\.split\("\\n"\)/,
+      why: "a second assembly of one document — the coordinate-shear axis every such defect in this phase came from",
+    },
+    {
+      name: "a Buffer EQUALITY",
+      re: /\.equals\(/,
+      why: "a second byte comparison, which could drift away from the one the registry freeze is defined by",
+    },
+  ];
+
+  function textOf(rel: string): string {
+    return readFileSync(join(REPO, "scripts", rel), "utf8");
+  }
+  // Both the source AND the committed twin: a declaration can be reintroduced in either, and it is
+  // the twin that actually runs.
+  const GATE_FILES = ["check-claim-anchors.ts", "check-claim-anchors.js"];
+  const AUTHORITY_FILES = ["audit-model.ts", "audit-model.js"];
+
+  it("PREMISE: every probe finds its subject in the AUTHORITY, so none can pass vacuously", () => {
+    for (const p of PROBES) {
+      for (const f of AUTHORITY_FILES) {
+        expect(p.re.test(textOf(f)), `${p.name} must be present in ${f}`).toBe(true);
+      }
+    }
+  });
+
+  it("the gate declares no anchor grammar, no line assembly and no byte equality of its own", () => {
+    for (const p of PROBES) {
+      for (const f of GATE_FILES) {
+        const hits = textOf(f)
+          .split("\n")
+          .map((l, i) => ({ l, n: i + 1 }))
+          .filter(({ l }) => p.re.test(l));
+        expect(
+          hits.map((h) => `${f}:${h.n}: ${h.l.trim()}`),
+          `${f} must declare no ${p.name} — ${p.why}`,
+        ).toEqual([]);
+      }
+    }
+  });
+
+  it("VACUITY GUARD: the gate still carries the unanchorable PRESENCE check, a DIFFERENT comparison", () => {
+    // Without this, the case above would also pass on a gate that had stopped comparing bytes
+    // altogether. The presence check is `Buffer.includes` over the WHOLE FILE, is deliberately
+    // outside the authority's scope, and must survive the rewire untouched.
+    for (const f of GATE_FILES) {
+      const src = textOf(f);
+      expect(src, `${f} keeps the unanchorable presence check`).toContain(
+        'bytes.includes(Buffer.from(claim.verbatim, "utf8"))',
+      );
+    }
+  });
+
+  it("and it ASKS the authority instead — the four moved symbols are imported, not declared", () => {
+    const src = textOf("check-claim-anchors.ts");
+    const importBlock = src.slice(src.indexOf('from "./audit-model.js"') - 1200, src.indexOf('from "./audit-model.js"'));
+    for (const sym of [
+      "MARKDOWN_SUFFIX",
+      "anchoredDocs",
+      "scanAnchoredDocument",
+      "anchoredBlockAt",
+    ]) {
+      expect(importBlock, `${sym} is imported from the authority`).toContain(sym);
+      // and never declared here
+      expect(
+        new RegExp(`^\\s*(export\\s+)?(const|function)\\s+${sym}\\b`, "m").test(src),
+        `${sym} is not re-declared in the gate`,
+      ).toBe(false);
+    }
+  });
+});
