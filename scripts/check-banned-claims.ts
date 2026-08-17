@@ -124,8 +124,20 @@ import { MAX_WALK_ENTRIES } from "./kit-model.js";
 import { reportMeasured } from "./vacuity.js";
 // The public-document half of the scan set is DERIVED BY THE MODULE THAT ALREADY OWNS IT. Deriving
 // root markdown and examples/ a second time here would be a second membership rule over one
-// corpus, which is how two scan sets come to disagree about what a public document is.
-import { publicDocsScan } from "./check-public-docs-vocabulary.js";
+// corpus, which is how two scan sets come to disagree about what a public document is. That reason
+// still holds and is why the import stays.
+//
+// WHAT CHANGED IN ROUND 6, AND THE OBJECTION IT ANSWERS (CR-01). This import used to name
+// `publicDocsScan`, which does not answer "which documents are public" — it answers "which public
+// documents does the RETIRED-VOCABULARY check apply to". The difference is one file: that module
+// classifies CHANGELOG.md as a root public document and then subtracts it, for a reason scoped to
+// ITS predicate — the retired vocabulary in a changelog describes what the project used to ship,
+// which is what a changelog is for. That reason has NO bearing on a conformance claim, a
+// token-economy claim or a comprehension-benefit claim, none of which get truer for being written
+// in a historical record. This gate inherited the subtraction anyway, and CHANGELOG.md sat outside
+// its scan set carrying two live `token-economy` occurrences while the identical bytes in README.md
+// went red. So this gate now names the question it is actually asking, and takes the CORPUS.
+import { publicDocsCorpus } from "./check-public-docs-vocabulary.js";
 // THE ONE FENCE TOGGLE AND THE ONE SECTION LOCATOR (plans 29-18 and 29-23, WR-06 / WR-08).
 // `locateExemptRegion` answers two section-extent questions, and this tree answers both in exactly
 // one place. `unfencedHeadingIndex` gives the region's own heading and `sectionEndIndex` gives its
@@ -692,10 +704,13 @@ function kitMarkdown(): string[] {
   return acc.filter((f) => f.endsWith(MARKDOWN_EXT)).sort();
 }
 
-// Part `publicDocs`: the set check-public-docs-vocabulary.ts derives and pins. Taken WHOLE — never
-// filtered, sliced or re-derived.
+// Part `publicDocs`: the CORPUS check-public-docs-vocabulary.ts derives — every public document,
+// before that module's own per-gate exemption. Taken WHOLE — never filtered, sliced or re-derived.
+// The corpus rather than the scan, because the exemption the scan applies is argued for the
+// retired-vocabulary predicate and not for this one; see the import paragraph at the head of this
+// file for the defect that reasoning replaced.
 function publicDocsMembers(): string[] {
-  return publicDocsScan().slice().sort();
+  return publicDocsCorpus().slice().sort();
 }
 
 export const BANNED_CLAIM_SCAN_PARTS: readonly {
@@ -730,13 +745,27 @@ export function bannedClaimScanOverlap(): number {
 }
 
 /**
- * The pinned cardinality of the deduped union. 82 today: 73 kit markdown files + 10 public
+ * The pinned cardinality of the deduped union. 83 today: 73 kit markdown files + 11 public
  * documents − 1 overlap (agent-factory/README.md).
  *
  * TWO-SIDED. A set that silently SHRANK reports a clean pass over the documents it stopped reading;
  * a set that silently GREW is a scan nobody reviewed.
+ *
+ * MOVED 82 → 83 IN ROUND 6, AND THE ENTRANT IS NAMED RATHER THAN LEFT AS ARITHMETIC: `CHANGELOG.md`.
+ * The arithmetic is restated from the run that produced it, not computed by hand — this gate's own
+ * refusal on the intermediate build read, verbatim:
+ *
+ *   FAIL  the banned-claim scan set derived 83 document(s), expected exactly 82
+ *         (kit 73, publicDocs 11, overlap 1)
+ *
+ * WHY IT WAS OUTSIDE THE SET UNTIL NOW, WHICH IS THE PART WORTH RECORDING: not by decision. This
+ * gate consumed `publicDocsScan()` and inherited a subtraction that
+ * `check-public-docs-vocabulary.ts` applies for ITS OWN predicate, so `CHANGELOG.md` was excluded by
+ * INHERITANCE and appeared in no exclusion list, in no reason, and in nobody's review. It is now a
+ * member because this gate asks for the corpus, and the two live `token-economy` occurrences it was
+ * hiding (`CHANGELOG.md:30:49` and `:68:20`) were rewritten in the same commit.
  */
-export const BANNED_CLAIM_SCAN_COUNT = 82;
+export const BANNED_CLAIM_SCAN_COUNT = 83;
 
 // ---------------------------------------------------------------------------
 // The exemption region, located by EXACT heading line.

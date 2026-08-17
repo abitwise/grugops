@@ -226,7 +226,9 @@ export function grepSubstringInsensitive(
 // retired vocabulary enters this scan by EXISTING, not by someone remembering to add it.
 // ---------------------------------------------------------------------------
 
-// Part `root`: every markdown file directly in the repository root, minus the named exemptions.
+// Part `root`: every markdown file directly in the repository root. UNFILTERED — the
+// PUBLIC_DOCS_EXEMPT subtraction used to be the last step of this function and is now applied at
+// exactly one place further down, where the two questions are separated (round 6 / CR-01).
 function rootMarkdown(): string[] {
   let entries: string[];
   try {
@@ -248,8 +250,7 @@ function rootMarkdown(): string[] {
         return false;
       }
     })
-    .sort()
-    .filter((f) => !PUBLIC_DOCS_EXEMPT.includes(f));
+    .sort();
 }
 
 // Part `examples`: the worked examples, taken as a DIRECTORY entry so membership self-derives
@@ -288,7 +289,25 @@ function kitReadmeMembers(): string[] {
   return [KIT_README];
 }
 
-export const PUBLIC_DOCS_SCAN_PARTS: readonly {
+// ---------------------------------------------------------------------------
+// ONE DERIVATION, TWO QUESTIONS, AND THE SUBTRACTION AT EXACTLY ONE PLACE (round 6 / CR-01).
+//
+// THIS IS THE ONLY HAND-AUTHORED PARTS ARRAY IN THIS MODULE. It is the CORPUS's parts: every
+// derived public document, BEFORE any per-gate exemption. The scan's parts below are a derived
+// VIEW of this array and never a second one, because two parts arrays over one corpus is how two
+// scan sets come to disagree about what a public document is.
+//
+// WHY TWO QUESTIONS EXIST AT ALL, STATED HERE BECAUSE A CONSUMER TAKING THE WRONG ONE IS A SHIPPED
+// DEFECT AND NOT A HYPOTHETICAL. Until round 6 this module exported ONE function, `publicDocsScan`,
+// and it answered "which public documents does the RETIRED-VOCABULARY check apply to" while its
+// name read as "which documents are public". `check-banned-claims.ts` imported it wanting the
+// second question — with an explicit and correct argument that re-deriving root markdown there
+// would be a second membership rule over one corpus — and silently inherited a subtraction argued
+// for a different predicate. CHANGELOG.md therefore sat outside the banned-claim scan set with two
+// live `token-economy` occurrences in it, while the identical bytes in README.md went red. A
+// consumer must now NAME which question it is asking, and the two names differ.
+// ---------------------------------------------------------------------------
+export const PUBLIC_DOCS_CORPUS_PARTS: readonly {
   name: "root" | "examples" | "kitReadme";
   members: readonly string[];
 }[] = [
@@ -297,14 +316,58 @@ export const PUBLIC_DOCS_SCAN_PARTS: readonly {
   { name: "kitReadme", members: kitReadmeMembers() },
 ];
 
-// The concatenation, in part order. Exported so a consumer partitions this set by the SAME parts it
-// was built from rather than restating a directory literal.
+/**
+ * QUESTION ONE: **which documents are public?**
+ *
+ * Every derived public document, in part order, with NO per-gate exemption applied. This is what a
+ * consumer wants when its own predicate has nothing to do with retired vocabulary — a conformance
+ * claim, a token-economy claim or a comprehension-benefit claim is just as wrong in a changelog as
+ * anywhere else, and the reason CHANGELOG.md is exempt from the vocabulary check ("its retired
+ * vocabulary describes what the project used to ship") has no bearing on any of them.
+ *
+ * `check-banned-claims.ts` consumes THIS function. If a future consumer takes `publicDocsScan()`
+ * instead, it inherits an exemption argued for a predicate it does not run — which is exactly the
+ * CR-01 defect, and is why both functions exist rather than one.
+ */
+export function publicDocsCorpus(): string[] {
+  return PUBLIC_DOCS_CORPUS_PARTS.flatMap((p) => [...p.members]);
+}
+
+// The SCAN's parts: the SAME parts as the corpus, each minus PUBLIC_DOCS_EXEMPT.
+//
+// THE SUBTRACTION LIVES HERE, AND NOWHERE ELSE. It is applied per part rather than to the
+// concatenation because this gate's PASS line and its two-sided pin both report a per-part
+// breakdown, and a subtraction applied only to the concatenation would print a breakdown whose sum
+// disagreed with the total standing next to it.
+export const PUBLIC_DOCS_SCAN_PARTS: readonly {
+  name: "root" | "examples" | "kitReadme";
+  members: readonly string[];
+}[] = PUBLIC_DOCS_CORPUS_PARTS.map((p) => ({
+  name: p.name,
+  members: p.members.filter((m) => !PUBLIC_DOCS_EXEMPT.includes(m)),
+}));
+
+/**
+ * QUESTION TWO: **which public documents does the RETIRED-VOCABULARY check apply to?**
+ *
+ * The corpus minus PUBLIC_DOCS_EXEMPT — this gate's own scan set, and only this gate's. Exported so
+ * a consumer partitions this set by the SAME parts it was built from rather than restating a
+ * directory literal.
+ */
 export function publicDocsScan(): string[] {
   return PUBLIC_DOCS_SCAN_PARTS.flatMap((p) => [...p.members]);
 }
 
-// The pinned cardinality. 10 today: 4 root markdown files (5 minus the CHANGELOG.md exemption) +
-// 5 examples + 1 kit README.
+// The pinned cardinality OF THE SCAN. 10 today: 4 root markdown files (5 in the corpus, minus the
+// CHANGELOG.md exemption) + 5 examples + 1 kit README.
+//
+// THE CORPUS CARRIES NO SECOND PIN, AND THAT IS ARITHMETIC RATHER THAN AN OVERSIGHT. The corpus and
+// the scan differ by exactly PUBLIC_DOCS_EXEMPT, which is a frozen one-member array: a corpus that
+// grew by a NON-exempt document grows the scan and trips this pin, and a corpus that grew by an
+// exempt one is impossible without editing that array, which its own D-10-style freeze case refuses.
+// The corpus is additionally pinned from the other side by BANNED_CLAIM_SCAN_COUNT, which is
+// two-sided over a union this corpus is half of. A third pin would be a number to maintain, not a
+// question nobody is asking.
 export const PUBLIC_DOCS_SCAN_COUNT = 10;
 
 // ---------------------------------------------------------------------------

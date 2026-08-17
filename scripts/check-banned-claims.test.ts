@@ -450,7 +450,16 @@ type MirrorSpec = {
 // pin moves this automatically, and a mirror that no longer reaches the pin fails the pin case
 // rather than quietly testing a different corpus.
 const KIT_NAMED = 2; // agent-factory/README.md + the profile
-const PUBLIC_DOCS = 10;
+// The mirror's public-document CORPUS, DERIVED FROM WHAT makeMirror() ACTUALLY WRITES rather than
+// typed. Round 6 (CR-01) moved this gate from `publicDocsScan()` to `publicDocsCorpus()`, so
+// CHANGELOG.md — which makeMirror() has always written, and which this arithmetic silently omitted
+// while the gate silently omitted it too — is now a member. A typed `10` here would have had to be
+// remembered; the sum below cannot fall out of step with the mirror it describes.
+const PUBLIC_DOCS =
+  DEFAULT_ROOT_DOCS.length + // the non-exempt root markdown files
+  1 + // CHANGELOG.md — in the corpus, exempt only from the VOCABULARY gate
+  DEFAULT_EXAMPLES.length +
+  1; // agent-factory/README.md, the kit README part
 const OVERLAP = 1; // agent-factory/README.md is in both parts
 const FILLER_COUNT = BANNED_CLAIM_SCAN_COUNT - (KIT_NAMED + PUBLIC_DOCS - OVERLAP);
 

@@ -27,8 +27,8 @@ is in progress and not yet tagged.
 - Verify-before-write admission: a finding is only admitted to the shared context after it carries a
   live GREEN verdict from the §14 quality gate — the gate is the un-cheatable verifier, and the
   `verified_by` stamp refuses self-set and hollow stamps.
-- Dialable memory and trajectory compaction for token economy, with a load-bearing-field carve-out
-  so verified findings and required failed attempts are never silently dropped.
+- Dialable memory and trajectory compaction, with a load-bearing-field carve-out so verified
+  findings and required failed attempts are never silently dropped.
 - Governance-on-a-dial: enterprise human-admission and audit-retention tiers layered over the
   decentralized substrate, with the safety floor left un-dialable.
 
@@ -65,7 +65,7 @@ lifecycle senior-grade and trustworthy end-to-end.
 ### Changed
 
 - All 16 roles deepened to senior judgment in place, sharper-per-token, with the terse caveman voice
-  preserved as the token-economy mechanism.
+  preserved unchanged across the rewrite.
 - The §14 quality gate converged onto a single source and now runs lint, Playwright UI/E2E, visual
   regression, and a structured-justification test-integrity checker the agent cannot self-author.
 - The entire tooling and script layer migrated to a TypeScript zero-build foundation: `tsc`-compiled
