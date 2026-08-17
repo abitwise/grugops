@@ -13,8 +13,44 @@
 // workflows/ keeps all 16 numbered files (00..15).
 //
 // Read-only (D-01): name from the `# Role:` / `# Workflow:` H1; one-line summary from the first
-// sentence of `## One job` (roles) / `## When to use` (workflows); kind/tier/order/cadence from the
-// flat key:value frontmatter. No edits to any kit file, no new frontmatter fields.
+// sentence of `## One job` (roles) / `## When to use` (workflows); tier/order/cadence read through
+// the ONE frontmatter authority. No edits to any kit file, no new frontmatter fields.
+//
+// THE FRONTMATTER GRAMMAR IS scripts/frontmatter.ts, AND THERE IS NO SECOND ONE IN THIS FILE.
+// This file used to carry its own ten-line `parseFrontmatter` — a flat `key: value` slice+regex — and
+// that duplicate is what gap G-29-1 named (29-UAT.md, plan 29-40, closing V-29-35-01). Its sibling
+// generator `generate-role-adapters.ts` was converted to the authority in plan 27-23 (WR-03) and
+// records the same eight-line duplicate in its own header; THIS file was simply missed by that
+// conversion, and the two copies were the same defect. Per D-24 a duplicate is DELETED rather than
+// widened, parameterised or flag-guarded: a weaker second opinion that still votes is worse than
+// none, and one authority per predicate is the rule this phase was founded on.
+//
+// MEASURED BEFORE THE CHANGE, over the 17 roles and 19 workflows this generator reads (plan 29-40,
+// in session, against the committed `scripts/frontmatter.js`): 0 keys the deleted `[A-Za-z_]+` charset
+// would have skipped, 0 documents declaring any key twice, 0 empty values for a key read here, 0
+// documents with no frontmatter fence, 0 CRLF documents, 0 key-set differences and 0 documents the
+// authority refuses. So the divergence was LATENT, not live, and `docs/catalog/README.md` is
+// byte-identical across the change. That is what makes the shape difference — not a rename — the
+// thing worth holding, and it is held by three planted cases in scripts/generate-catalog.test.ts.
+//
+// WHAT THE SHAPE CHANGE BUYS. `Parsed<FrontmatterKeys>` is a discriminated result over a
+// `Map<string, string[]>`, so this generator can now tell THREE facts apart that the deleted copy
+// conflated into one:
+//
+//   1. An UNREADABLE document. The deleted `/^---\n([\s\S]*?)\n---\n/` simply failed to match an
+//      unterminated block and returned an EMPTY map, so this generator reported `role tier must be
+//      core|enterprise, found ""` about a file whose frontmatter could not be read at all. A parse
+//      artifact is never a verdict (frontmatter.ts header); the `ok: false` arm is branched on here.
+//   2. A key declared TWICE. The deleted copy wrote into a plain object, so the LAST declaration won
+//      and the first vanished unreported. Measured on a scratch mirror: `tier: core` followed by
+//      `tier: enterprise` in `qe-e2e.md` published that CORE role in the enterprise group and exited
+//      0. The authority retains every occurrence, so a count other than exactly one is refused.
+//   3. A key ABSENT versus a key present and EMPTY. Absence is legal for `cadence:` and only for
+//      `cadence:` (D-09) — those workflows' cell reads `UNKNOWN - verify`, never a fabricated value.
+//
+// (A document with NO frontmatter fence at all is NOT in that list, deliberately: the authority reads
+// it as a legal success carrying no keys, exactly as the deleted copy did. Only a block that opens and
+// then cannot be read is a refusal.)
 //
 // No fabrication (D-09): workflows 12 (release) and 13 (incident) carry no `cadence` — their cadence
 // cell reads `UNKNOWN - verify`, never a fabricated `cadence: both`.
@@ -27,13 +63,19 @@
 // ROLES_DIR/WORKFLOWS_DIR/OUT are FIXED literal paths joined to the repo root (the script dir's
 // parent). None is ever derived from argv, env, or file content.
 //
-// Fail closed: a kit file with no `# Role:`/`# Workflow:` H1, an empty frontmatter where a required
-// field is needed, or a directory read failure prints a finding to stderr and process.exit(1)
-// WITHOUT writing — the full lines[] is built first, so a partial or garbled catalog never ships.
+// Fail closed: a kit file with no `# Role:`/`# Workflow:` H1, an UNREADABLE frontmatter block, a
+// required field absent or declared twice, or a directory read failure prints a finding to stderr and
+// process.exit(1) WITHOUT writing — the full lines[] is built first, so a partial or garbled catalog
+// never ships. Each of those is its OWN sentence; two facts printing one message is the conflation
+// plan 29-40 deleted.
 
 import { readFileSync, writeFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
-import { unfencedHeadingIndex, sectionEndIndex } from "./frontmatter.js";
+import {
+  parseFrontmatter,
+  sectionEndIndex,
+  unfencedHeadingIndex,
+} from "./frontmatter.js";
 
 // ── Fixed literal paths (read/write-only by construction — never argv/env/content-derived) ───
 const ROOT = join(import.meta.dirname, "..");
@@ -42,22 +84,23 @@ const WORKFLOWS_DIR = join(ROOT, "agent-factory/workflows");
 const OUT = join(ROOT, "docs/catalog/README.md");
 
 // ── Fail-closed helper (a structural miss is a finding, never an unhandled throw) ─────────────
-const fail = (m: string): never => {
+// The VARIABLE carries the `=> never` annotation, not just the arrow — copied verbatim from
+// generate-role-adapters.ts:99 and for the same reason. TypeScript only lets a never-returning call
+// narrow control flow when the callee is a function declaration or a const with an explicit TYPE
+// annotation. That narrowing is what lets the parse-failure branches below read the authority's
+// success arm without a cast, instead of a second `ok` test that would read as a fallback for a state
+// that cannot be reached.
+const fail: (m: string) => never = (m: string): never => {
   console.error(`  ERROR    ${m}`);
   process.exit(1);
 };
 
-// ── Flat key:value frontmatter parse (stdlib slice+regex — NO js-yaml/gray-matter) ────────────
-function parseFrontmatter(text: string): Record<string, string> {
-  const m = text.match(/^---\n([\s\S]*?)\n---\n/); // fence at byte 0
-  const fm: Record<string, string> = {};
-  if (!m) return fm; // empty → caller treats as a fail-closed signal where a field is required
-  for (const line of m[1].split("\n")) {
-    const kv = line.match(/^([A-Za-z_]+):\s*(.*)$/);
-    if (kv) fm[kv[1]] = kv[2].trim();
-  }
-  return fm;
-}
+// ── The frontmatter grammar is NOT here (plan 29-40, G-29-1 / V-29-35-01) ──────────────────────
+// A private flat `key: value` parser stood at this position: a `^---\n([\s\S]*?)\n---\n` fence match,
+// a `^([A-Za-z_]+):\s*(.*)$` key line, last-wins assignment into a plain object, and `return fm` on a
+// document it could not read. It is DELETED, not moved and not renamed — see this file's header for
+// the three facts it conflated and for the divergence measurement taken before it went. What replaced
+// it is a call to the ONE exported authority at each of the two sites that needs it.
 
 // ── First-sentence summary: split on ". " (period-SPACE), KEEP its period, never re-append ────
 // Splitting on bare "." would truncate `AGENTS.md` (agents-md-scribe) and `OWASP ASVS 5.0`
@@ -154,10 +197,37 @@ for (const file of roleFiles) {
   }
   const h1 = text!.match(/^# Role: (.+)$/m);
   if (!h1) fail(`${file}: no \`# Role:\` H1 — refusing to write a partial catalog`);
-  const fm = parseFrontmatter(text!);
-  const tier = fm.tier;
+  // Tier, read through the ONE frontmatter authority (plan 29-40, G-29-1). Three distinct facts,
+  // three distinct findings: an unreadable role file, a role declaring `tier:` twice, and a role whose
+  // tier value is absent or outside core|enterprise are not the same problem and must not print the
+  // same sentence.
+  const parsed = parseFrontmatter(text!);
+  if (!parsed.ok) {
+    // A PARSE FAILURE IS A PARSE ARTIFACT, NEVER A VERDICT (frontmatter.ts header). The deleted
+    // grammar returned an EMPTY map on a block it could not read, so this generator blamed a
+    // core|enterprise tier miss on a file whose frontmatter was never parsed at all.
+    fail(`${file}: frontmatter is unreadable — ${parsed.reason}`);
+  }
+  const tiers = parsed.value.get("tier") ?? [];
+  if (tiers.length > 1) {
+    // The authority retains EVERY occurrence of a key. Picking one here would re-introduce the
+    // last-wins reading the deleted grammar had, and a `tier:` declaration silently discarded is a
+    // wrong published row: measured on a scratch mirror, `tier: core` followed by `tier: enterprise`
+    // put a CORE role in the enterprise group at exit 0. The count is named so the author can see how
+    // many were found rather than being told to look for "a duplicate" that may be three. This is the
+    // same multiplicity rule generate-role-adapters.ts applies to `capabilities:` — the two generators
+    // must not disagree about what a key declared twice means.
+    fail(
+      `${file}: ${tiers.length} \`tier:\` keys in one role frontmatter, expected exactly 1 — every occurrence is retained rather than last-wins, because silently discarding a declaration publishes the wrong tier; delete the extra key`,
+    );
+  }
+  // ZERO values is a MISSING key, and the refusal below is that finding — reached with an empty
+  // `found ""`, which is byte-for-byte the sentence the pre-change generator printed for an absent
+  // `tier:`. Wording retained VERBATIM: absence and an out-of-vocabulary value are distinguished by
+  // the interpolated value, and the "unreadable" half that used to hide in here now has its own arm.
+  const tier = tiers.length === 1 ? tiers[0].trim() : "";
   if (tier !== "core" && tier !== "enterprise") {
-    fail(`${file}: role tier must be core|enterprise, found "${tier ?? ""}"`);
+    fail(`${file}: role tier must be core|enterprise, found "${tier}"`);
   }
   const body = sectionBody(text!, "One job");
   // `null` = section absent; `""`/whitespace-only = section present but empty. Guard both
@@ -198,10 +268,33 @@ for (const file of workflowFiles) {
   }
   const h1 = text!.match(/^# Workflow: (.+)$/m);
   if (!h1) fail(`${file}: no \`# Workflow:\` H1 — refusing to write a partial catalog`);
-  const fm = parseFrontmatter(text!);
-  const order = Number(fm.order);
+  // Order + cadence, read through the ONE frontmatter authority — see the roles loop above for the
+  // three-facts-three-findings rule this mirrors (plan 29-40, G-29-1).
+  const parsed = parseFrontmatter(text!);
+  if (!parsed.ok) {
+    fail(`${file}: frontmatter is unreadable — ${parsed.reason}`);
+  }
+  const orders = parsed.value.get("order") ?? [];
+  if (orders.length > 1) {
+    fail(
+      `${file}: ${orders.length} \`order:\` keys in one workflow frontmatter, expected exactly 1 — every occurrence is retained rather than last-wins, because silently discarding a declaration publishes the wrong row position; delete the extra key`,
+    );
+  }
+  // `undefined` for a MISSING key, NOT `""`. The distinction is load-bearing and it is the one place
+  // this adaptation could have changed behaviour silently: the pre-change code read `Number(fm.order)`
+  // where `fm.order` was `undefined` for an absent key, and `Number(undefined)` is `NaN` → refused.
+  // `Number("")` is `0` → an INTEGER, so collapsing absence to an empty string here would have turned
+  // a refusal into a published `order: 0` row. The refusal's own wording is unchanged.
+  //
+  // DISCLOSED RESIDUAL, PRE-EXISTING AND DELIBERATELY NOT CHANGED HERE: a key that is PRESENT and
+  // EMPTY (`order:`) still reaches `Number("") === 0` and publishes row 0. That is exactly what the
+  // deleted grammar did, so preserving it is what makes the byte-identity claim honest rather than a
+  // change hidden inside a conversion. Measured in session: 0 of the 19 workflows carry an empty
+  // `order:`. Logged in the phase's deferred-items.md rather than fixed inside a gap-closure plan.
+  const rawOrder = orders.length === 1 ? orders[0].trim() : undefined;
+  const order = rawOrder === undefined ? Number.NaN : Number(rawOrder);
   if (!Number.isInteger(order)) {
-    fail(`${file}: workflow order must be an integer, found "${fm.order ?? ""}"`);
+    fail(`${file}: workflow order must be an integer, found "${rawOrder ?? ""}"`);
   }
   const body = sectionBody(text!, "When to use");
   // `null` = section absent; `""`/whitespace-only = section present but empty. Guard both
@@ -209,8 +302,23 @@ for (const file of workflowFiles) {
   if (body === null || body.trim() === "") {
     fail(`${file}: no \`## When to use\` section — refusing to write a partial catalog`);
   }
+  const cadences = parsed.value.get("cadence") ?? [];
+  if (cadences.length > 1) {
+    fail(
+      `${file}: ${cadences.length} \`cadence:\` keys in one workflow frontmatter, expected exactly 1 — every occurrence is retained rather than last-wins, because silently discarding a declaration publishes the wrong cadence; delete the extra key`,
+    );
+  }
   // No fabrication (D-09): a genuinely absent cadence surfaces UNKNOWN - verify, never `both`.
-  const cadence = fm.cadence ? fm.cadence : "UNKNOWN - verify";
+  //
+  // THIS IS THE ONE KEY IN THIS FILE FOR WHICH ABSENCE IS LEGAL, so it is the one place the D-09
+  // no-fabrication rule is load-bearing — workflows 12 (release) and 13 (incident) declare no cadence
+  // and their cell must read `UNKNOWN - verify`. Zero values is that legal absence, NOT a refusal.
+  // A key that is present and EMPTY reaches the same cell by a different route: the deleted grammar
+  // produced `""` and failed a truthiness test, the authority produces a one-element array holding
+  // `""`. Both land on `UNKNOWN - verify`, and a conversion that quietly turned a legal absence into a
+  // refusal would have broken D-09 at the only place it bites here. Held by a planted case.
+  const rawCadence = cadences.length === 1 ? cadences[0].trim() : "";
+  const cadence = rawCadence !== "" ? rawCadence : "UNKNOWN - verify";
   workflows.push({
     name: h1![1].trim(),
     order,

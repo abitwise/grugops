@@ -841,14 +841,31 @@ describe("D-64 cutover: the spawn verdict is rendered by the canonical admission
       "voice-model.ts",
     ]);
     // (Plan 29-35) …and `generate-catalog.ts`'s OWN set, pinned like every other locator consumer's.
-    // TWO symbols, both DECLARATIVE integer indices. What an index MEANS for a kit document — where a
-    // `## One job` summary begins and ends — is still decided in that generator; the parser renders no
-    // catalogue row. It takes NO fence symbol, because it asks no per-line fence question of its own:
-    // the fence-awareness it needs is already inside the two locator functions.
+    //
+    // (Plan 29-40, G-29-1 / V-29-35-01) THE SET MOVED FROM TWO SYMBOLS TO THE SIBLING'S THREE, AND
+    // THE TWO SENTENCES THAT USED TO JUSTIFY THE SHORTER SET ARE WITHDRAWN RATHER THAN RE-VALUED.
+    // What stood here claimed that "the parser renders no catalogue row", and the pin's own message
+    // said the module must take the locator "and nothing else". BOTH WERE FALSE WHEN THEY WERE
+    // WRITTEN. This generator has always parsed frontmatter — it read `tier`, `order` and `cadence`
+    // out of a PRIVATE flat `key: value` copy declared at its own line 51, which is precisely why the
+    // set looked complete at two symbols: a duplicate grammar is invisible to an IMPORT pin. G-29-1
+    // is the record of that, and V-29-35-01 escalated it out of plan 29-35's scope.
+    //
+    // THE PIN MOVING IS THE PIN WORKING, in the direction D-24 wants: the module took the authority,
+    // so the set grew. It is raised only after the module changed, never to clear a red. The two
+    // generators' sets are now IDENTICAL because the two deleted grammars were the same defect —
+    // the sibling's was deleted in plan 27-23 (WR-03) and this one in plan 29-40, and a set that
+    // gained the authority on one side only would itself be the finding.
+    //
+    // All three symbols remain DECLARATIVE: two integer indices and one discriminated parse result.
+    // What an index MEANS for a kit document, and what a missing, duplicated or unreadable `tier:`
+    // MEANS for a catalogue row, are both still decided in that generator. It takes NO fence symbol,
+    // because it asks no per-line fence question of its own: the fence-awareness it needs is already
+    // inside the locator functions and inside the parser.
     expect(
       importedSymbols("generate-catalog.ts", "frontmatter"),
-      "generate-catalog.ts must take the shared section LOCATOR and nothing else — never a `new RegExp` section-extent grammar of its own, which is the third-grammar shape plan 29-35 deletes",
-    ).toEqual(["sectionEndIndex", "unfencedHeadingIndex"]);
+      "generate-catalog.ts must take the frontmatter authority AND the shared section LOCATOR — never a private `parseFrontmatter` of its own (G-29-1) and never a `new RegExp` section-extent grammar of its own (plan 29-35). Byte-identical to the sibling generator's set, because the two deleted grammars were the same defect",
+    ).toEqual(["parseFrontmatter", "sectionEndIndex", "unfencedHeadingIndex"]);
     // …and the SIBLING generator's own set, which moved from one symbol to three in the same plan and
     // for the same reason. It keeps `parseFrontmatter` — it has taken the frontmatter authority since
     // WR-03 (plan 27-23) — and adds the two locator functions. THE PIN MOVING IS THE PIN WORKING.
