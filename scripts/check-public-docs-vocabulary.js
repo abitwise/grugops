@@ -322,6 +322,34 @@ export const PUBLIC_DOCS_CORPUS_PARTS = [
 export function publicDocsCorpus() {
     return PUBLIC_DOCS_CORPUS_PARTS.flatMap((p) => [...p.members]);
 }
+/**
+ * QUESTION THREE: **did anything refuse while deriving that corpus?**
+ *
+ * A REFUSAL REPORTED ONLY BY THE MODULE THAT RAISED IT IS NOT A REFUSAL FOR ANY IMPORTER (round 6,
+ * WR-05). `PUBLIC_DOCS_CORPUS_PARTS` is evaluated at IMPORT time, so by the time a consumer calls
+ * `publicDocsCorpus()` the three push sites above have already run and any refusal has landed in an
+ * array that consumer cannot see. `check-banned-claims.ts` consumed the corpus and dropped this
+ * channel on the floor: its verdict stayed fail-closed, but it reported a cardinality complaint
+ * whose remedy text sends the author to walk every part's derivation, without ever mentioning that
+ * a derivation had refused.
+ *
+ * WHAT THIS CHANNEL ENUMERATES, AND WHAT BOUNDS IT. The set is *the refusals the public-docs corpus
+ * derivation raised in this process*. It is derived by the three `DERIVATION_REFUSALS.push` sites
+ * above — an unreadable repository root, a walk that exceeded its entry budget, and a missing
+ * `agent-factory/README.md`. **Nothing pins its count, and nothing should:** a refusal count is an
+ * EVENT count, not a set cardinality, so there is no correct number for it to be compared against
+ * and a vacuity floor over it would fail on every healthy run. This is stated plainly rather than
+ * left for a reader to infer that a missing pin is an oversight.
+ *
+ * A SIXTH DERIVED PART (plan 29-53) MUST WIRE ITS OWN CHANNEL THE SAME WAY. A new part that pushes
+ * into a private array nobody exports repeats this defect exactly.
+ *
+ * Exported as the ONE accessor for this array. `runAll()` below reads it through this function too,
+ * so the array has exactly one reader and a future third consumer cannot quietly acquire a second.
+ */
+export function publicDocsDerivationRefusals() {
+    return DERIVATION_REFUSALS;
+}
 // The SCAN's parts: the SAME parts as the corpus, each minus PUBLIC_DOCS_EXEMPT.
 //
 // THE SUBTRACTION LIVES HERE, AND NOWHERE ELSE. It is applied per part rather than to the
@@ -358,7 +386,10 @@ export const PUBLIC_DOCS_SCAN_COUNT = 10;
 // ---------------------------------------------------------------------------
 function runAll() {
     process.stdout.write("\n[check_public_docs_vocabulary] public documents carry no retired grugops vocabulary (AUDIT-02 / D-09)\n");
-    for (const refusal of DERIVATION_REFUSALS) {
+    // Read through the ACCESSOR, not through the array. One authority, two consumers — this runner
+    // and `check-banned-claims.ts` — so the private array has exactly one reader and the two gates
+    // cannot come to disagree about what the channel holds.
+    for (const refusal of publicDocsDerivationRefusals()) {
         fail(`public-docs scan derivation refused: ${refusal}`);
     }
     // VACUITY FLOOR, WRITTEN OVER THE DERIVED QUANTITY PER PART — never over the concatenated total.

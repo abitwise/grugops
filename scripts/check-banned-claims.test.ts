@@ -489,6 +489,13 @@ type MirrorSpec = {
   omitProfile?: boolean;
   /** (Round 6) Omit install/README.md — the named-literal part's vanished-file case. */
   omitInstallReadme?: boolean;
+  /**
+   * (Round 7, WR-05) Omit agent-factory/README.md — the `kitReadme` part of the PUBLIC-DOCS corpus
+   * derivation, which lives in the OTHER module. Its absence raises a refusal into
+   * `check-public-docs-vocabulary.ts`'s own array at import time, which is the channel this gate
+   * used to drop on the floor.
+   */
+  omitKitReadme?: boolean;
   /** (Round 6) Override the skills/ part's members. `[]` empties the part. */
   skillSources?: string[];
   /** (Round 6) Override the .claude/ part's members. `[]` empties the part. */
@@ -552,7 +559,7 @@ function makeMirror(prefix: string, spec: MirrorSpec = {}): string {
   // The kit. agent-factory/ always exists so the walk has a directory to reach; whether it derives
   // any markdown is what the vacuity case varies.
   mkdirSync(join(mirror, "agent-factory"), { recursive: true });
-  write(KIT_README);
+  if (spec.omitKitReadme !== true) write(KIT_README);
   if (spec.omitProfile !== true) write(PROFILE, profileDoc(spec.profile));
   for (const f of fillers) write(f);
   // (Round 6, WR-02) The three parts admitted this round. Each is written unless the caller is the
@@ -1319,6 +1326,106 @@ describe("check-banned-claims — the one named exemption region", () => {
     // And the flag is only ever RAISED next to the read that justifies it — never initialised true.
     expect(src).toMatch(/let exemptReadOk = false;/);
     expect((src.match(/exemptReadOk = true;/g) ?? []).length).toBe(1);
+  });
+});
+
+// ── (Round 7, plan 29-49 — WR-05) THE IMPORTED CORPUS'S REFUSAL CHANNEL ───────────────────────
+//
+// This gate consumes `publicDocsCorpus()` from `check-public-docs-vocabulary.ts`, and
+// `PUBLIC_DOCS_CORPUS_PARTS` is evaluated at IMPORT time. So a refusal raised while deriving that
+// corpus — an unreadable repository root, a walk that blew its budget, a missing
+// `agent-factory/README.md` — has already landed in the OTHER module's private array by the time
+// this gate calls the accessor, and used to be printed by neither runner.
+//
+// THE VERDICT WAS NEVER WRONG; THE DIAGNOSIS WAS. Both builds exit 1 on the mirror below, because
+// the cardinality pin catches the missing document. The difference is that the pin's own remedy
+// text sends the author to walk every part's derivation, and a derivation that REFUSED is precisely
+// the thing that text would otherwise omit.
+describe("check-banned-claims — the imported corpus's derivation-refusal channel (WR-05)", () => {
+  it("NAMES a refusal raised while deriving the public-document corpus, and names the module that raised it", () => {
+    const mirror = makeMirror("gops-banned-imported-refusal-", {
+      omitKitReadme: true,
+    });
+    // The plant is confirmed absent on disk BEFORE the gate runs.
+    expect(existsSync(join(mirror, KIT_README))).toBe(false);
+
+    const { status, stdout } = runGate(mirror);
+    expect(status).toBe(1);
+    // The refusal itself, by its own wording from the other module.
+    expect(stdout).toContain(
+      "is a NAMED member of the public-docs scan set and does not exist at",
+    );
+    // …attributed, so a reader can tell WHICH module's derivation refused without opening either.
+    expect(stdout).toContain("check-public-docs-vocabulary");
+    // …and reported BEFORE the cardinality complaint it explains. Ordering is the point: a
+    // diagnosis printed after its symptom is a diagnosis the reader has already acted without.
+    const refusalAt = stdout.indexOf("public-document corpus");
+    const pinAt = stdout.indexOf("expected exactly");
+    expect(refusalAt).toBeGreaterThan(-1);
+    expect(pinAt).toBeGreaterThan(-1);
+    expect(refusalAt).toBeLessThan(pinAt);
+    // A stack trace is not a verdict.
+    expect(stdout).not.toMatch(/at Object\.|node:internal|node:fs:/);
+  });
+
+  it("keeps the two channels SEPARATE — an imported refusal is not laundered into this gate's own", () => {
+    const mirror = makeMirror("gops-banned-two-channels-", {
+      omitKitReadme: true,
+      omitInstallReadme: true,
+    });
+    const { status, stdout } = runGate(mirror);
+    expect(status).toBe(1);
+    // This gate's OWN channel keeps its own prefix…
+    expect(stdout).toContain("banned-claim scan derivation refused:");
+    // …and the imported one keeps a different prefix naming where it came from. Merging the two
+    // arrays would collapse two remedies — fix a document this gate derives, versus fix a document
+    // another module derives — into one indistinguishable line.
+    expect(stdout).toContain("public-document corpus");
+    expect(stdout).not.toMatch(
+      /banned-claim scan derivation refused: agent-factory\/README\.md/,
+    );
+  });
+
+  it("holds the refusal array to exactly ONE reader, so the accessor cannot be bypassed by a later edit", () => {
+    const raw = readFileSync(
+      join(ROOT, "scripts", "check-public-docs-vocabulary.ts"),
+      "utf8",
+    );
+
+    // THE INPUT TO THIS PREDICATE IS BOUNDED FIRST, because the first version of this case was not
+    // and produced a FALSE result: the accessor's own doc comment NAMES the push sites in prose,
+    // and a count over raw bytes read that sentence as a second consumer. A mention is not a
+    // reference. So the question is asked of CODE, with block and line comments removed.
+    const src = raw
+      .replace(/\/\*[\s\S]*?\*\//g, "")
+      .replace(/^\s*\/\/.*$/gm, "");
+
+    // …AND THE STRIP'S OWN PREMISE IS ASSERTED BEFORE THE COUNT. A strip that ate real code would
+    // make this case pass by deleting its subject, which is the emptiest possible green.
+    const decl = (src.match(/const DERIVATION_REFUSALS: string\[\] = \[\];/g) ?? [])
+      .length;
+    const pushes = (src.match(/DERIVATION_REFUSALS\.push\(/g) ?? []).length;
+    expect(decl).toBe(1);
+    expect(pushes).toBe(3);
+    // The prose mention must be GONE from the stripped text but PRESENT in the raw text — the two
+    // halves together prove the strip removed comments and only comments.
+    expect(raw).toContain("`DERIVATION_REFUSALS.push` sites");
+    expect(src).not.toContain("`DERIVATION_REFUSALS.push` sites");
+
+    // The set is now enumerable: one declaration, three push sites, and exactly one READ. A fourth
+    // push is legitimate and must not red here; a SECOND read is the defect, because that is how a
+    // private array acquires a consumer the accessor does not serve. The read count is DERIVED by
+    // subtraction rather than pattern-matched, so a read written in a shape nobody predicted in
+    // advance is still counted.
+    const all = (src.match(/DERIVATION_REFUSALS/g) ?? []).length;
+    expect(all - decl - pushes).toBe(1);
+
+    // And that one reader is the exported accessor.
+    expect(raw).toMatch(
+      /export function publicDocsDerivationRefusals\(\): readonly string\[\] \{\n\s*return DERIVATION_REFUSALS;/,
+    );
+    // The module's own runner consumes the accessor, never the array.
+    expect(raw).toMatch(/for \(const refusal of publicDocsDerivationRefusals\(\)\)/);
   });
 });
 

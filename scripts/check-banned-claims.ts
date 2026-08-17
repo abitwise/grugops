@@ -137,7 +137,13 @@ import { reportMeasured } from "./vacuity.js";
 // in a historical record. This gate inherited the subtraction anyway, and CHANGELOG.md sat outside
 // its scan set carrying two live `token-economy` occurrences while the identical bytes in README.md
 // went red. So this gate now names the question it is actually asking, and takes the CORPUS.
-import { publicDocsCorpus } from "./check-public-docs-vocabulary.js";
+import {
+  publicDocsCorpus,
+  // (Round 7, WR-05) The corpus's DERIVATION-REFUSAL channel. Imported beside the corpus itself
+  // because taking the one without the other is exactly the defect: the parts are built at import
+  // time, so a refusal is already raised before this gate asks for a single member.
+  publicDocsDerivationRefusals,
+} from "./check-public-docs-vocabulary.js";
 // THE ONE FENCE TOGGLE AND THE ONE SECTION LOCATOR (plans 29-18 and 29-23, WR-06 / WR-08).
 // `locateExemptRegion` answers two section-extent questions, and this tree answers both in exactly
 // one place. `unfencedHeadingIndex` gives the region's own heading and `sectionEndIndex` gives its
@@ -1397,6 +1403,31 @@ function runAll(): void {
 
   for (const refusal of DERIVATION_REFUSALS) {
     fail(`banned-claim scan derivation refused: ${refusal}`);
+  }
+
+  // ── THE IMPORTED CHANNEL, REPORTED BY THE GATE THAT IS RUNNING (round 6, WR-05) ────────────────
+  //
+  // This gate's `publicDocs` part IS `publicDocsCorpus()`, derived in another module at IMPORT
+  // time. A refusal raised there — an unreadable repository root, a walk that blew its budget, a
+  // missing `agent-factory/README.md` — used to be reported by neither runner: not by that module,
+  // which is not the process running, and not by this one, which never asked. The verdict stayed
+  // fail-closed and the DIAGNOSIS was lost.
+  //
+  // TWO LOOPS, TWO PREFIXES, AND THE ARRAYS ARE NEVER CONCATENATED. A refusal raised here and one
+  // raised there have different remedies — fix a document this gate derives, versus fix a document
+  // another module derives — and a reader who cannot tell which module refused has to open both
+  // files to find out. Merging them would save four lines and cost exactly that.
+  //
+  // WHY IT SITS HERE AND NOT LOWER. The per-part vacuity floor and the aggregate cardinality pin
+  // both run immediately below, and the pin's own remedy text tells an author to walk every part's
+  // derivation. A derivation that REFUSED is precisely what that instruction would otherwise omit,
+  // so the diagnosis is printed before the symptom it explains.
+  for (const refusal of publicDocsDerivationRefusals()) {
+    fail(
+      `public-document corpus derivation refused (raised in ` +
+        `scripts/check-public-docs-vocabulary.ts, while deriving the public documents this gate ` +
+        `consumes): ${refusal}`,
+    );
   }
 
   // VACUITY FLOOR, PER PART, BEFORE THE AGGREGATE PIN. A floor over the concatenated total could be
