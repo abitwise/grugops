@@ -1,10 +1,10 @@
 ---
 schema_version: 1
-open_count: 38
+open_count: 39
 waived_count: 0
 fixed_count: 1
-total_count: 39
-last_updated: 2026-08-17T12:22:09.918Z
+total_count: 40
+last_updated: 2026-08-17T16:41:32.934Z
 ---
 
 # Broken Windows Ledger
@@ -54,6 +54,7 @@ last_updated: 2026-08-17T12:22:09.918Z
 | 37 | 29 | deviation | scripts/check-banned-claims.ts |  | V-29-42-02 fail-closed: a markdown table row puts marker and bare term on one physical line, 0 live | open |  | 2026-08-17T12:22:09.799Z |  |
 | 38 | 29 | deviation | agent-factory/writing-profile.md |  | V-29-42-03 fail-closed: the exempt document states the gate proves no pinned literal appears outside the section; live-false at 1 (incident-responder.md:29:103). Not edited - an edit moves BANNED_CLAIM_EXEMPT_EXTENT and needs a D-04 row | open |  | 2026-08-17T12:22:09.858Z |  |
 | 39 | 29 | deviation | scripts/check-banned-claims.ts |  | V-29-42-04 fail-closed: a benefit marker whose only occurrence on the line is inside an HTML comment or a link target satisfies co-occurrence, 0 live | open |  | 2026-08-17T12:22:09.918Z |  |
+| 40 | 29 | deviation | CHANGELOG.md | 67 | sharper-per-token survives at CHANGELOG.md:67 — outside BANNED_CLAIM_LITERALS and green by the current prohibition, but arguably a token-economy win claim of the family the token-economy group holds. Fail-open, 1 live, escalated by 29-43 rather than absorbed. | open |  | 2026-08-17T16:41:32.934Z |  |
 
 ````json
 [
@@ -523,6 +524,18 @@ last_updated: 2026-08-17T12:22:09.918Z
     "status": "open",
     "reason": "",
     "recorded_at": "2026-08-17T12:22:09.918Z",
+    "resolved_at": null
+  },
+  {
+    "id": 40,
+    "kind": "deviation",
+    "phase": "29",
+    "file": "CHANGELOG.md",
+    "line": 67,
+    "description": "sharper-per-token survives at CHANGELOG.md:67 — outside BANNED_CLAIM_LITERALS and green by the current prohibition, but arguably a token-economy win claim of the family the token-economy group holds. Fail-open, 1 live, escalated by 29-43 rather than absorbed.",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-08-17T16:41:32.934Z",
     "resolved_at": null
   }
 ]
