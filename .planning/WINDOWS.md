@@ -1,10 +1,10 @@
 ---
 schema_version: 1
-open_count: 39
+open_count: 41
 waived_count: 0
 fixed_count: 1
-total_count: 40
-last_updated: 2026-08-17T16:41:32.934Z
+total_count: 42
+last_updated: 2026-08-17T17:16:02.578Z
 ---
 
 # Broken Windows Ledger
@@ -55,6 +55,8 @@ last_updated: 2026-08-17T16:41:32.934Z
 | 38 | 29 | deviation | agent-factory/writing-profile.md |  | V-29-42-03 fail-closed: the exempt document states the gate proves no pinned literal appears outside the section; live-false at 1 (incident-responder.md:29:103). Not edited - an edit moves BANNED_CLAIM_EXEMPT_EXTENT and needs a D-04 row | open |  | 2026-08-17T12:22:09.858Z |  |
 | 39 | 29 | deviation | scripts/check-banned-claims.ts |  | V-29-42-04 fail-closed: a benefit marker whose only occurrence on the line is inside an HTML comment or a link target satisfies co-occurrence, 0 live | open |  | 2026-08-17T12:22:09.918Z |  |
 | 40 | 29 | deviation | CHANGELOG.md | 67 | sharper-per-token survives at CHANGELOG.md:67 — outside BANNED_CLAIM_LITERALS and green by the current prohibition, but arguably a token-economy win claim of the family the token-economy group holds. Fail-open, 1 live, escalated by 29-43 rather than absorbed. | open |  | 2026-08-17T16:41:32.934Z |  |
+| 41 | 29 | deviation | docs/audit/29-style-dispositions/29-12.md |  | 29-44 R1: 30 disposition rows carry a code-span file cell and can never match rowMatches() in check-diff-disposition.ts (bare-path comparison, no backtick stripping) — fail-closed, 30 live | open |  | 2026-08-17T17:16:02.517Z |  |
+| 42 | 29 | unrun-verify | CHANGELOG.md | 67 | 29-44 R2 (carried from 29-43): 'sharper-per-token' is outside BANNED_CLAIM_LITERALS and green by the current prohibition — fail-open, 1 live, unmoved by 29-44 | open |  | 2026-08-17T17:16:02.578Z |  |
 
 ````json
 [
@@ -536,6 +538,30 @@ last_updated: 2026-08-17T16:41:32.934Z
     "status": "open",
     "reason": "",
     "recorded_at": "2026-08-17T16:41:32.934Z",
+    "resolved_at": null
+  },
+  {
+    "id": 41,
+    "kind": "deviation",
+    "phase": "29",
+    "file": "docs/audit/29-style-dispositions/29-12.md",
+    "line": null,
+    "description": "29-44 R1: 30 disposition rows carry a code-span file cell and can never match rowMatches() in check-diff-disposition.ts (bare-path comparison, no backtick stripping) — fail-closed, 30 live",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-08-17T17:16:02.517Z",
+    "resolved_at": null
+  },
+  {
+    "id": 42,
+    "kind": "unrun-verify",
+    "phase": "29",
+    "file": "CHANGELOG.md",
+    "line": 67,
+    "description": "29-44 R2 (carried from 29-43): 'sharper-per-token' is outside BANNED_CLAIM_LITERALS and green by the current prohibition — fail-open, 1 live, unmoved by 29-44",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-08-17T17:16:02.578Z",
     "resolved_at": null
   }
 ]
