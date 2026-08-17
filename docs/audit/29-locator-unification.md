@@ -9,6 +9,15 @@ by a command run in the session that wrote the line beside it. Every command is 
 the committed build. **Nothing here is inferred**, and where a measurement produced a different
 answer from the one a plan predicted, the measured answer is what is written down.
 
+**Round-6 provenance note (plan 29-46, IN-04).** §9.3c's HEADING was retitled in round 6. It read
+"MEASURED and OUT OF SCOPE — **CLOSED by plan 29-40**", which states its own contradiction to a
+reader who greps the file or renders its table of contents, and so reads as an unresolved edit rather
+than as the trail it is. **Only that one heading line changed.** Every body in this file is
+byte-unchanged, §9.3c's included — its measurement, its round-4 escalation and its
+out-of-scope-at-the-time disposition all still stand where they stood, at §9.3c's `**Disposition: OUT
+OF SCOPE for this round by user decision.**` paragraph and at the `##### CLOSURE — plan 29-40, round
+5` note that retains it verbatim.
+
 ## Method
 
 | what | how |
@@ -699,7 +708,7 @@ it, its three discrimination assertions kept and passing, and two vacuity floors
 corpus pinned against `NON_TEST_MODULE_COUNT`, and the classified LINE count floored) — because an
 empty answer can no longer prove itself by producing a member.
 
-#### 9.3c V-29-35-01 — a private `parseFrontmatter` beside the exported one, MEASURED and OUT OF SCOPE — **CLOSED by plan 29-40**
+#### 9.3c V-29-35-01 — a private `parseFrontmatter` beside the exported one — **CLOSED (plan 29-40, round 5); the round-4 escalation, its measurement and its out-of-scope disposition are retained verbatim below**
 
 Reading `generate-catalog.ts` for the fix above surfaced an adjacency, recorded here by name rather
 than absorbed or quietly fixed:

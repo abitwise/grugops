@@ -13,6 +13,12 @@ It is a record of what was decided. It is not a claim that nothing remains.
 reviewed 2026-08-16T04:55:00Z, diff base `3c40d0e`, 13 findings (1 critical, 8 warning, 4 info)
 **Plans:** `29-33` through `29-39`, commits `57affa1..490e3c9`
 **Written by:** plan 29-39, 2026-08-16
+**Round-6 provenance note (plan 29-46, IN-04, 2026-08-17):** §3's `V-29-35-01` row was reshaped so
+that its `residual` cell reads as a SUBJECT and its `status` cell carries both directions, matching
+the shape `docs/audit/29-round5-residuals.md` §4 already uses for the same id — three documents, one
+convention. **Both facts are retained: opened in round 4 by plan 29-35, closed in round 5 by plan
+29-40**, together with the measurement and the out-of-scope-at-the-time disposition, which now live in
+that row's `status after round 4` cell. No other row, cell or line in this file changed.
 
 ---
 
@@ -161,7 +167,7 @@ directions are recorded: the one this round CLOSED and the one this round OPENED
 | `V-29-26-04` | indented fence delimiters are classified as governed prose | **carried, re-confirmed** — fail-closed only by the accident that the indented delimiters pair up; the round-4 review re-measured **4 live lines in `README.md`** (round 2 measured 6; the two figures are separate measurements at separate times, not a contradiction) | §6, §8 |
 | `V-29-32-01` | a closed-fence, count-preserving swallow of the banned-claim exemption region | **carried, re-confirmed** | plan 29-32 |
 | `V-29-29-01` | the duplicated `sectionBody` — a third section-extent grammar, fence-blind AND level-blind, feeding the generated Claude Code adapters and the catalogue | **CLOSED THIS ROUND by plan 29-35** — both copies deleted, both generators routed through the one authority, generated adapters byte-identical across the change | `docs/audit/29-locator-unification.md` §9.3b |
-| `V-29-35-01` | **OPENED THIS ROUND by plan 29-35** — a private `parseFrontmatter` in `scripts/generate-catalog.ts` beside the exported authority. Measured at **0 key-set differences over 36 governed documents**; recorded, NOT fixed; out of scope by the same user decision that deferred IN-01..IN-04. **CLOSED IN ROUND 5 by plan 29-40** — the private declaration deleted, the module routed through the exported authority, `docs/catalog/README.md` proven byte-identical, and a derived NAME-scoped owner tripwire added so a third copy reds the day it lands | **closed (round 5, plan 29-40)** | `docs/audit/29-locator-unification.md` §9.3c |
+| `V-29-35-01` | a private `parseFrontmatter` in `scripts/generate-catalog.ts` beside the exported authority | **OPENED THIS ROUND by plan 29-35** — measured at **0 key-set differences over 36 governed documents**; recorded, NOT fixed; out of scope by the same user decision that deferred IN-01..IN-04. **CLOSED IN ROUND 5 by plan 29-40** — the private declaration deleted, the module routed through the exported authority, `docs/catalog/README.md` proven byte-identical, and a derived NAME-scoped owner tripwire added so a third copy reds the day it lands | `docs/audit/29-locator-unification.md` §9.3c |
 
 **The net movement of the residual set across round 4 is zero: one closed, one opened.** That is
 stated plainly because a round that closes a duplicated grammar and opens a duplicated parser has
