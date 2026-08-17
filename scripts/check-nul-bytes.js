@@ -71,8 +71,11 @@
 // THE TRAP THIS AVOIDS, STATED PLAINLY. The obvious implementation is to scan only "text sources"
 // and to derive that set from git's own `--eol` classifier, which is the tool that owns the
 // text-versus-binary question. THAT IMPLEMENTATION IS SELF-DEFEATING, and it was measured to be so
-// before this gate was written. Git classifies a file as `-text` PRECISELY BECAUSE it contains a
-// NUL. On the tree at 28-08, `git ls-files --eol` reported exactly one `-text` file out of 1450:
+// before this gate was written. A NUL FORCES git to classify a file `-text`, unconditionally and
+// regardless of where in the file it sits — which is the one property of that classifier this
+// argument needs, and the only one measured to hold without exception (see the table beside the
+// two-arm comparison in `runAll()`). On the tree at 28-08, `git ls-files --eol` reported exactly one
+// `-text` file out of 1450:
 // `scripts/context-io.test.ts` — the defect itself. A gate that scanned "the files git calls text"
 // would have filtered out the only file it needed to look at and reported a clean green. The
 // classifier is downstream of the very property under test, so it cannot be the filter.

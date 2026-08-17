@@ -443,8 +443,10 @@ describe("check-nul-bytes — the NON-VACUITY half, against the REAL tree", () =
   it("THE FILE THAT CAUSED THIS GATE IS INSIDE THE SCANNED SET — the gate was not made green by exclusion", () => {
     // The single most important case in this file. 28-08 shipped the NUL in
     // scripts/context-io.test.ts, and the tempting implementation — deriving the scan set from
-    // git's own `--eol` text classifier — would have EXCLUDED exactly that file, because git calls
-    // a file `-text` precisely BECAUSE it contains a NUL. This pins that the offending file is
+    // git's own `--eol` text classifier — would have EXCLUDED exactly that file, because a NUL
+    // FORCES git to call a file `-text`. (That forcing is the one property of git's classifier this
+    // argument needs; the classifier is a ratio heuristic in general, measured in the gate beside
+    // the two-arm comparison.) This pins that the offending file is
     // scanned rather than skipped.
     const tracked = mod.trackedPaths();
     expect(tracked).toContain("scripts/context-io.test.ts");
@@ -487,10 +489,17 @@ describe("check-nul-bytes — the NON-VACUITY half, against the REAL tree", () =
     // reader to assume the case was covered — the precedent is 28-07's de-duplication path, which
     // was likewise unreachable by the shipped artifact and said so.
     //
-    // The honest consequence, also recorded in the gate header: git's binary heuristic is ITSELF
-    // NUL-based, so the two detectors are not independent in concept. Their agreement corroborates
-    // this module's IMPLEMENTATION — that scanTracked reads the right files and finds what is there
-    // — and it is not a second opinion about whether NUL-detection is the right predicate.
+    // The honest consequence, also recorded in the gate header: the two detectors are NOT
+    // independent in concept. Their agreement corroborates this module's IMPLEMENTATION — that
+    // scanTracked reads the right files and finds what is there — and it is not a second opinion
+    // about whether the byte class is the right predicate. The reason they are not independent, and
+    // the measured behaviour of git's classifier, are each stated ONCE in the gate: the header's
+    // harness premise 3, and the table beside the two-arm comparison in runAll().
+    //
+    // (Round 7, plan 29-50 — WR-03.) This paragraph used to assert that git's binary heuristic is
+    // ITSELF NUL-based. It is not — it is a ratio over non-printable bytes, with a NUL forcing the
+    // verdict outright. That was the FIFTH address of a claim WR-03 listed four addresses for, and
+    // no review had named this one.
     const cases: Record<string, Buffer | string> = {
       "clean.md": "# no nul here\n",
       "early.bin": Buffer.concat([Buffer.alloc(100, 0x61), Buffer.from([0x00])]),

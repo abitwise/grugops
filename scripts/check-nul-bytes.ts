@@ -71,8 +71,11 @@
 // THE TRAP THIS AVOIDS, STATED PLAINLY. The obvious implementation is to scan only "text sources"
 // and to derive that set from git's own `--eol` classifier, which is the tool that owns the
 // text-versus-binary question. THAT IMPLEMENTATION IS SELF-DEFEATING, and it was measured to be so
-// before this gate was written. Git classifies a file as `-text` PRECISELY BECAUSE it contains a
-// NUL. On the tree at 28-08, `git ls-files --eol` reported exactly one `-text` file out of 1450:
+// before this gate was written. A NUL FORCES git to classify a file `-text`, unconditionally and
+// regardless of where in the file it sits — which is the one property of that classifier this
+// argument needs, and the only one measured to hold without exception (see the table beside the
+// two-arm comparison in `runAll()`). On the tree at 28-08, `git ls-files --eol` reported exactly one
+// `-text` file out of 1450:
 // `scripts/context-io.test.ts` — the defect itself. A gate that scanned "the files git calls text"
 // would have filtered out the only file it needed to look at and reported a clean green. The
 // classifier is downstream of the very property under test, so it cannot be the filter.
@@ -359,12 +362,19 @@ export interface NulHit {
   /**
    * The byte VALUE at each offset, positionally parallel to `offsets`.
    *
-   * (Round 6, plan 29-45 — WR-04.) Carried because the class this gate decides is now wider than the
-   * one byte it is named for, and the git cross-check below is anchored on the NUL SUB-CLASS only:
-   * git's `-text` verdict is itself NUL-based, so a file carrying a stray 0x0d and no NUL is a
-   * legitimate finding here and correctly NOT `-text` to git. Without the byte values, that pairing
-   * would be reported as a detector DISAGREEMENT — a false refusal, and precisely the kind of
-   * unstated coupling this phase keeps finding.
+   * WHAT THIS FIELD IS FOR (round 7, plan 29-50 — WR-03). The class this gate decides is WIDER than
+   * the one byte the gate is named for, while the git cross-check below is anchored on the NUL
+   * SUB-CLASS only — because a NUL forces the classifier's verdict unconditionally and the rest of
+   * the class does not. The byte values are what make that sub-class recoverable from a scan that
+   * asked the wide question: without them, the first arm could not tell a NUL-bearing file from one
+   * carrying only some other forbidden byte, and the projection that builds the NUL-bearing set in
+   * `runAll()` would have nothing to project from.
+   *
+   * WHAT GIT'S CLASSIFIER ACTUALLY DOES IS STATED ONCE, AND NOT HERE. It is measured, and the
+   * measurement and the table it is read from sit beside the two-arm comparison in `runAll()`, which
+   * is also where the asymmetry between the arms is argued. Anything a reader needs about the
+   * classifier belongs at that table. A second copy in this declaration is a second statement of a
+   * measurement, which can only rot — and this declaration is precisely where one already did.
    */
   readonly bytes: number[];
 }
