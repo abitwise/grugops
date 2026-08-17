@@ -277,6 +277,38 @@ export interface BannedClaimLiteral {
 // NEITHER LIST IS REPLACED. A third list on a third axis was proposed and refused; see the type.
 // ---------------------------------------------------------------------------
 
+/**
+ * THE ONE ENUMERATION THAT SURVIVES ROUND 6, STATED WITH ITS DIRECTION RATHER THAN IMPLIED AWAY.
+ *
+ * ------------------------------------------------------------------------------------------------
+ * A ROUND THAT CLOSES A DEFECT BY DELETION IS THE ROUND MOST LIKELY TO BE READ AS HAVING CLOSED THE
+ * CLASS, SO THIS IS WRITTEN OUT INSTEAD OF LEFT TO INFERENCE.
+ *
+ * Round 6 deleted two hand-authored verb lists and the mechanism that consulted them, because every
+ * axis a bare term can be paired against — verb, phrase, subject — is an open class. What remains is
+ * a PINNED LITERAL LIST plus one named exemption region, and THIS LIST IS ITSELF AN ENUMERATION. It
+ * is the enumeration of WHAT IS BANNED, which is the prohibition's own subject and cannot be derived
+ * away: a prohibition with nothing enumerated forbids nothing.
+ *
+ * MEMBERS: 22, across 3 groups. The count is published on every green run and pinned by a case.
+ *
+ * DIRECTION: FAIL-OPEN, and the consequence stated plainly. A conformance, token-economy or
+ * comprehension claim written in words this list does not contain PASSES THIS GATE. The gate proves
+ * that no pinned literal appears outside the one named exemption region. It does NOT prove that no
+ * such claim can be written, and no round has ever proved that.
+ *
+ * WHAT CHANGED IS WHICH KIND OF LIST IS LOAD-BEARING, AND THE DIFFERENCE IS THE POINT. A list of
+ * VERBS was a list over how a claim is SAID, and any unlisted synonym defeated it — measured five
+ * times on the comprehension group and four times on the standard's name. A list of BANNED SUBJECTS
+ * is a list over WHAT IS FORBIDDEN, and adding to it is an act of deciding one more thing is
+ * forbidden. The first kind of list has a wrong length and no correct one; the second has whatever
+ * length this project has decided on, recorded with the measurement that admitted each member and
+ * the admission log's record of every candidate refused.
+ *
+ * Cross-referenced in docs/audit/29-round5-residuals.md's register, so the source and the record
+ * point at each other.
+ * ------------------------------------------------------------------------------------------------
+ */
 export const BANNED_CLAIM_LITERALS: readonly BannedClaimLiteral[] = [
   // ── Group 1: the standard's name and its spelling variants ──────────────────────────────────
   // Measured over the scan set at admission time: 0 hits each. The kit named this standard in ZERO
@@ -358,6 +390,16 @@ export const BANNED_CLAIM_LITERALS: readonly BannedClaimLiteral[] = [
   //      class, so it buys one round. Every axis a bare term can be paired against is open. The only
   //      bounded thing in this design is the one named exemption region, and a region is POSITIONAL.
   //
+  // AND HERE IS WHAT IS STILL NOT PROVED, STATED WITHOUT HEDGING, BECAUSE THE SENTENCE ABOVE ABOUT
+  // "a guard that holds a prohibition rather than the spellings somebody thought of" IS FINALLY TRUE
+  // OF THIS CODE AND WAS NOT TRUE WHEN IT WAS FIRST WRITTEN. It became true by DELETION of the axis
+  // it had been moved to, in round 6 — not by having been right all along in round 5, which shipped
+  // that sentence about the very list it was shipping. A comprehension, conformance or
+  // token-economy claim written WITHOUT ANY PINNED LITERAL still passes this gate. What the gate
+  // proves is exactly what the module header claims and no more: no pinned literal appears outside
+  // the one named exemption region. The surviving enumeration is named with its member count and its
+  // direction at the list's own declaration above.
+  //
   // THE ADMISSION COST, DERIVED BEFORE THE CHANGE AND THROUGH THIS MODULE'S OWN COUNTER. Over the
   // 115-document corpus, independently re-taken with `grep -a -i` over the same derived path list
   // and the two agreeing: this term occurs on exactly TWO lines,
@@ -413,6 +455,28 @@ export const BANNED_CLAIM_LITERALS: readonly BannedClaimLiteral[] = [
   // instruction survives intact and no narrower. The three weakenings that would each have made the
   // original line pass are named and forbidden in the exemption region's forbidden-alternative
   // paragraph below: no fenced-block skip, no whole-word-only match, no below-a-marker skip.
+  //
+  // ── `V-29-44-01`: THIS TERM IS A FALSE-RED SURFACE OVER THE WHOLE OF ORDINARY ENGLISH ─────────
+  //
+  // DIRECTION: FAIL-CLOSED. The gate over-reports here; nothing is hidden by it. That is the safe
+  // direction and it is still a cost somebody pays, so it is named with a number rather than left
+  // for the next author to discover as a surprise.
+  //
+  // THE REACH IS THE WHOLE TERM NOW, NOT A MARKER-GATED SLICE OF IT, AND THE DELETION IS WHAT
+  // WIDENED IT. Matching is plain case-insensitive substring, so this member also reaches the
+  // third-person form, the gerund and the negated form. Until round 6 the term only reported beside
+  // an admitted verb, which is why one live occurrence cost nothing; unconditional, ANY sentence
+  // about a human reader's grasp of anything reds — "the board helps a new joiner understand the
+  // state" makes no claim about a language model and would be a finding.
+  //
+  // LIVE COUNT: 0, re-derived over the current 115-document corpus through this module's own
+  // counter after the one occurrence was rephrased, and independently re-taken with `grep -a -i`
+  // over the same derived path list; the two agree.
+  //
+  // THE REMEDY, WHICH IS THE SAME ONE THAT WAS APPLIED: rephrase the sentence, or admit a narrower
+  // term with its own measurement. NEVER weaken the matcher. Recorded in
+  // docs/audit/29-round5-residuals.md's register alongside the round-5 ids, so source and register
+  // point at each other rather than at nothing.
   { literal: "understand", group: "comprehension" },
 ];
 
@@ -449,11 +513,16 @@ export const BANNED_CLAIM_EXCLUDED: readonly {
     hits: 150,
     reason:
       "60 + 18 + 2 + 70 hits across compliance-regime documentation, ASVS certification rows, " +
-      "release-approval steps and the README's own non-affiliation disclaimer. They survive only as " +
-      "co-occurrence markers, and for exactly ONE of the three conditional members — the " +
-      "discipline's name. The other two are on the benefit-verb list and this list has no bearing " +
-      "on them (plan 29-42: this reason asserted a count of one conditional literal, which plan " +
-      "29-41 made false)",
+      "release-approval steps and the README's own non-affiliation disclaimer. THAT MEASUREMENT IS " +
+      "STILL TRUE AND IS WHY THESE STEMS MAY NEVER BE PROMOTED TO LITERALS: each would report a " +
+      "finding on scores of lines of entirely correct text, and the only route back to green would " +
+      "be deleting it. WHAT THIS ENTRY USED TO ADD, AND WHICH ROUND 6 MADE FALSE IN BOTH HALVES: " +
+      "that the stems survive as co-occurrence markers, and for exactly one conditional member. " +
+      "There are no conditional members and no co-occurrence mechanism — both were deleted (D-48, " +
+      "D-53), because a hand-authored verb list is a list over an open class and four ordinary " +
+      "conformance verbs outside this one yielded ZERO findings against the pre-change build. The " +
+      "stems are refused as literals on the count above and are retained for nothing; the number " +
+      "outlives the construct, which is why this entry is corrected rather than deleted",
   },
   {
     candidate: "comprehension, as an UNCONDITIONAL literal",
@@ -461,22 +530,30 @@ export const BANNED_CLAIM_EXCLUDED: readonly {
     reason:
       "both hits are the honest DENIALS in agent-factory/writing-profile.md (256, 288) — \"No " +
       'comprehension benefit is claimed" and "There is no evidence that controlled language improves ' +
-      'comprehension for a language model". Banning the bare word would make the denial unsayable ' +
-      "anywhere outside the exemption region, and a document must be able to DISCUSS comprehension " +
-      "in order to disclaim a benefit. Admitted instead as a CONDITIONAL member on the " +
-      "benefit-verb list (plan 29-41), so the claim is the pair and the topic stays writable",
+      'comprehension for a language model". That count refused it as an unconditional literal in plan ' +
+      "29-41 and it is kept because it is the record. THE VERDICT WAS OVERTURNED IN ROUND 6 AND THE " +
+      "MEMBER IS NOW UNCONDITIONAL. Re-measured through this module's own counter over the " +
+      "115-document corpus and independently re-taken by grep, the two agreeing: 2 occurrences, BOTH " +
+      "INSIDE the one named exemption region, so 0 new findings. The occurrences that made " +
+      "unconditional look expensive were always inside the carve-out; what changed is that the " +
+      "carve-out is now the whole of the mechanism instead of half of it. The topic stays writable " +
+      "POSITIONALLY — the denial is written where the region is — rather than lexically",
   },
   {
     candidate: "understand, as an UNCONDITIONAL literal",
     hits: 1,
     reason:
-      "hits agent-factory/roles/incident-responder.md:29 — \"apply the immediate mitigation that " +
-      'limits harm, before you understand the cause" — which is correct operational text making no ' +
-      "claim of any kind, so going green would mean deleting it. Admitted instead as a CONDITIONAL " +
-      "member on the benefit-verb list: that line carries no benefit marker, so the conditional " +
-      "form " +
-      "costs zero findings on it while still closing the measured family member the bare " +
-      "`comprehension` rule cannot reach",
+      "hit ONE line of correct operational text in agent-factory/roles/incident-responder.md, " +
+      "making no claim of any kind, so going green in plan 29-41 would have meant deleting it. That " +
+      "count is kept because it is the record. THE VERDICT WAS OVERTURNED IN ROUND 6 AND THE MEMBER " +
+      "IS NOW UNCONDITIONAL — BY REPHRASING THE TEXT, NEVER BY WEAKENING THE MATCHER, so a reader " +
+      "does not read the reversal as a relaxation. The widened term reddened that line on the LIVE " +
+      "TREE and the transcript is this change's acceptance evidence; the sentence was then rewritten " +
+      "to state the temporal precondition as the act the step defers, with the instruction unchanged " +
+      "in force and scope, and dispositioned under D-04. Re-measured after the rephrase through this " +
+      "module's own counter over the 115-document corpus and independently by grep, the two " +
+      "agreeing: 0 occurrences. The residual the widening opens is carried as `V-29-44-01` at the " +
+      "member's declaration, fail-closed, 0 live",
   },
   {
     candidate: "to understand, as the narrower second bare term",
@@ -502,9 +579,14 @@ export const BANNED_CLAIM_EXCLUDED: readonly {
       "added closes exactly itself. 29-UAT.md § G-29-2 states the consequence — option (b) \"closes " +
       'only the phrasings enumerated and leaves `improves agent comprehension` and `boosts ' +
       'comprehension for language models` green". User decision (c) replaced the enumeration with a ' +
-      "RULE instead (the two conditional bare terms above). This refusal is held by an ASSERTION as " +
-      "well as by this paragraph: check-banned-claims.test.ts pins the enumerated-comprehension " +
-      "count two-sided at 6, so appending a phrasing reds by name",
+      "RULE, and round 6 then deleted the rule's conditional half rather than move its enumeration a " +
+      "third time; the two bare terms above are unconditional literals now. WHAT AN ASSERTION " +
+      "ACTUALLY HOLDS, STATED NARROWLY BECAUSE THIS SENTENCE USED TO CLAIM MORE: " +
+      "check-banned-claims.test.ts pins the enumerated-comprehension count two-sided at 6, so " +
+      "APPENDING A PHRASING to that group reds by name. That pin holds the PHRASE list's cardinality " +
+      "and says nothing about any other axis — it never did. What closes the axis an appended " +
+      "phrasing would have exploited is not an assertion at all: the conditional half of this group " +
+      "is DELETED, so there is no verb, phrase or subject list left to append to",
   },
   {
     candidate: "STE, as a bare literal",
