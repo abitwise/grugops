@@ -1,9 +1,33 @@
-// check-nul-bytes.ts — Phase 28 NUL-byte gate (28-08, user-approved after the red-team pass).
+// check-nul-bytes.ts — Phase 28 NUL-byte gate (28-08, user-approved after the red-team pass),
+// WIDENED IN ROUND 6 TO THE WHOLE FORBIDDEN CONTROL-BYTE CLASS (plan 29-45, WR-04).
 //
-// Asserts that NO tracked file in this repository contains a NUL (0x00) byte.
+// Asserts that NO tracked file in this repository contains a control byte other than TAB (0x09) or
+// LINE FEED (0x0a) — that is, none of C0 (0x00-0x1f) outside those two, and not DELETE (0x7f).
 //
 //   node scripts/check-nul-bytes.js
-// Exit 0 = every tracked file is NUL-free; exit 1 = at least one FAIL.
+// Exit 0 = every tracked file is free of forbidden control bytes; exit 1 = at least one FAIL.
+//
+// =================================================================================================
+// WHY THE CLASS WIDENED, AND WHERE THE NARROWER DUPLICATE WAS
+// =================================================================================================
+//
+// THE MODULE NAME AND THE PACKAGE SCRIPT ARE DELIBERATELY NOT RENAMED. `check:nul-bytes` is
+// referenced from package.json and from CI, and renaming it would be a second, unrelated change
+// riding on this one. What states the scope instead is this header and the PASS line, both of which
+// name the class the gate now decides.
+//
+// THE TRANSFERABLE LESSON, WHICH IS NOT "WE ADDED AN ASSERTION". A control-byte assertion over TWO
+// named files was added to scripts/check-banned-claims.test.ts in round 5, after a NUL written into
+// that file made two acceptance greps return a confident, false ZERO. That assertion stood beside
+// THIS GATE, which already decided the NUL half of the same predicate over EVERY TRACKED PATH — at
+// the time, 1450 of them. The mechanism existed and covered the tree. What failed was that nobody
+// RAN IT before believing two greps. Two assertions over one predicate, neither naming the other,
+// is the duplicate-authority shape this repository closes by deletion or by a declared boundary —
+// so the class is owned HERE, repo-wide, and what survives beside it names this gate at its own
+// declaration.
+//
+// THE SCANNED SET IS UNCHANGED BY THE WIDENING. The class got wider; the set did not move by one
+// path. There is still no exemption list, no filter and no path predicate.
 //
 // Strictly READ-ONLY. Node stdlib ONLY — node:fs + node:path + one `git ls-files` invocation.
 // Zero npm dependencies.
@@ -90,12 +114,23 @@
 //    working-tree `--eol` verdict must name the SAME set of NUL-bearing files; a disagreement is
 //    reported and fails, because it means one of the two is wrong and this module cannot know which.
 //
-//    WHAT THAT BUYS, PRECISELY: git's binary heuristic is ITSELF NUL-based, so the two detectors are
-//    NOT independent in concept. Their agreement corroborates this module's IMPLEMENTATION — that
-//    `scanTracked()` enumerates the right files, reads them as bytes, and finds what is actually
-//    there — and it is emphatically NOT a second opinion on whether NUL-detection is the right
-//    predicate. A first draft of this header claimed "two independent detectors"; that claim was
-//    measured and is false, and it is corrected here rather than left standing.
+//    WHAT THAT BUYS, PRECISELY: the two detectors are NOT independent in concept. Their agreement
+//    corroborates this module's IMPLEMENTATION — that `scanTracked()` enumerates the right files,
+//    reads them as bytes, and finds what is actually there — and it is emphatically NOT a second
+//    opinion on whether the byte class is the right predicate. A first draft of this header claimed
+//    "two independent detectors"; that claim was measured and is false, and it is corrected here
+//    rather than left standing.
+//
+//    AND A SECOND CLAIM IN THIS SAME PARAGRAPH WAS ALSO MEASURED AND ALSO FALSE (round 6, plan
+//    29-45). It read "git's binary heuristic is ITSELF NUL-based". It is not. Measured with one
+//    planted byte per throwaway repository, `git ls-files --eol` reports `w/-text` for 0x00, 0x0b,
+//    0x0d, 0x1f and 0x7f, and `w/lf` for 0x08 and 0x1b — a RATIO heuristic over non-printable
+//    bytes, with a few control characters deliberately counted as printable. git's `-text` set is
+//    therefore NEITHER a subset NOR a superset of the class this gate decides, so the cross-check's
+//    two arms are anchored on DIFFERENT predicates, each on what its side can actually answer for.
+//    The reasoning is at the comparison itself in `runAll()`. This was found by the widening's own
+//    RED proof, which reddened four of its plants for the wrong reason before the arms were fixed —
+//    a red believed without being read would have shipped a gate that fails on correct trees.
 //
 //    THE DISAGREEMENT ARM IS DEFENSIVE AND COULD NOT BE REACHED BY CONSTRUCTED INPUT. Four shapes
 //    were tried against a throwaway repository: a NUL at byte 100, a NUL at byte 20000 (past git's
@@ -162,8 +197,36 @@ const fail = (m) => {
 // Exported accessor so a later aggregator can fold this gate's verdict without reaching for a
 // shared global (the check-uat-oracles / check-public-docs-vocabulary precedent).
 export const nulByteFails = () => FAILS;
-/** The forbidden byte. Named once so no call site writes a bare `0`. */
+/** The forbidden byte this module is named for. Named once so no call site writes a bare `0`. */
 export const NUL = 0x00;
+/**
+ * THE TWO CONTROL CHARACTERS A TRACKED FILE IN THIS REPOSITORY LEGITIMATELY NEEDS.
+ *
+ * TAB (0x09) and LINE FEED (0x0a), and nothing else. CARRIAGE RETURN is deliberately NOT here:
+ * `tsconfig.json` sets `newLine: lf`, every committed artifact is LF, and a CR arriving in a tracked
+ * file is an editor or a platform doing something nobody asked for.
+ */
+export const ADMITTED_CONTROL_BYTES = [
+    { byte: 0x09, name: "TAB" },
+    { byte: 0x0a, name: "LINE FEED" },
+];
+/**
+ * Is this byte a control byte this repository forbids in a tracked file?
+ *
+ * THE CLASS IS C0 PLUS DELETE, MINUS THE TWO ADMITTED ABOVE: 0x00–0x1f and 0x7f. Stated as a class
+ * rather than as a list of bytes somebody thought of, for the same reason the scanned SET is derived
+ * rather than listed — a hand-maintained enumeration of forbidden bytes would rot exactly the way
+ * this repository's diagnosed failure class #1 rots.
+ */
+export function isForbiddenControlByte(b) {
+    if (ADMITTED_CONTROL_BYTES.some((a) => a.byte === b))
+        return false;
+    return b < 0x20 || b === 0x7f;
+}
+/** Hex, two digits, so a byte reported in a refusal is unambiguous. */
+function hex(b) {
+    return `0x${b.toString(16).padStart(2, "0")}`;
+}
 /**
  * Every `git` invocation in this module, so a failure is a NAMED refusal rather than a stack trace
  * (28-REVIEW WR-11).
@@ -293,6 +356,29 @@ export function nulOffsets(buf) {
     return offsets;
 }
 /**
+ * Every offset at which `buf` carries a control byte this repository forbids — the WIDER class.
+ *
+ * (Round 6, plan 29-45 — WR-04.) `nulOffsets` above is kept and is NOT a duplicate of this: it is
+ * the NUL-only predicate, and it is what the git `--eol` cross-check is asked, because git's own
+ * binary verdict is NUL-based and nothing else. This function is what the SCAN is asked. The two
+ * answer different questions on purpose and the difference is stated at both call sites.
+ *
+ * Same construction as `nulOffsets`: raw bytes, no decoder, no `grep`. A control-byte detector built
+ * on `grep` would be self-defeating for the same reason a NUL detector built on it is.
+ */
+export function controlByteOffsets(buf) {
+    const offsets = [];
+    const bytes = [];
+    for (let i = 0; i < buf.length; i++) {
+        const b = buf[i];
+        if (isForbiddenControlByte(b)) {
+            offsets.push(i);
+            bytes.push(b);
+        }
+    }
+    return { offsets, bytes };
+}
+/**
  * Read every given path as RAW BYTES and report those carrying a NUL.
  *
  * No encoding argument is passed to readFileSync anywhere in this module, so no decoder is
@@ -323,13 +409,13 @@ export function scanTracked(paths) {
                 unreadable.push(rel);
             continue;
         }
-        const offsets = nulOffsets(buf);
+        const { offsets, bytes } = controlByteOffsets(buf);
         if (offsets.length > 0)
-            hits.push({ path: rel, offsets });
+            hits.push({ path: rel, offsets, bytes });
     }
     return { hits, missing, unreadable };
 }
-/** The tracked paths carrying no NUL — derived, so the test can assert the partition two-sided. */
+/** The tracked paths carrying no forbidden control byte — so the test can assert the partition two-sided. */
 export function nulFreeTrackedFiles() {
     const paths = trackedPaths();
     const { hits } = scanTracked(paths);
@@ -337,7 +423,8 @@ export function nulFreeTrackedFiles() {
     return paths.filter((p) => !bad.has(p));
 }
 export function runAll() {
-    process.stdout.write("\n[check_nul_bytes] no tracked file carries a NUL byte (28-08)\n");
+    process.stdout.write("\n[check_nul_bytes] no tracked file carries a forbidden control byte — C0 plus DELETE, " +
+        "TAB and LINE FEED admitted (28-08, class widened round 6)\n");
     // The tracked-set derivation is the one step that shells out, and it is the one step that can
     // fail for a reason that has nothing to do with NUL bytes (28-REVIEW WR-11). Reported, never
     // thrown past the caller — a stack trace is not a verdict.
@@ -372,19 +459,21 @@ export function runAll() {
             "exists and could not be opened (permissions, or an I/O error). A skipped file is an " +
             "unchecked file; refusing to report a clean scan over a set this gate did not actually read.");
     }
-    let totalNuls = 0;
+    let totalControl = 0;
     for (const hit of hits) {
-        totalNuls += hit.offsets.length;
+        totalControl += hit.offsets.length;
         const buf = readFileSync(join(ROOT, hit.path));
         const first = locate(buf, hit.offsets[0]);
-        fail(`${hit.path} carries ${hit.offsets.length} NUL byte(s) (0x00). First at byte offset ` +
-            `${hit.offsets[0]}, line ${first.line}, column ${first.column}. A NUL byte in a tracked ` +
-            "source is never intentional here: it renders as a space in every editor and in `git show`, " +
-            "it makes `git diff` report `Binary files differ`, and it makes plain `grep` return ZERO " +
-            "matches for strings that ARE present — silently, with an exit status indistinguishable " +
-            "from a genuine absence. Fix the FILE. Do not add an exemption and do not narrow the scan " +
-            "set: the scanned set is every tracked path by derivation, precisely so removing a member " +
-            "to reach green is not available.");
+        const kinds = [...new Set(hit.bytes)].sort((a, b) => a - b).map(hex).join(", ");
+        fail(`${hit.path} carries ${hit.offsets.length} forbidden control byte(s) — ${kinds}. First is ` +
+            `${hex(hit.bytes[0])} at byte offset ${hit.offsets[0]}, line ${first.line}, column ` +
+            `${first.column}. A control byte other than TAB or LINE FEED in a tracked source is never ` +
+            "intentional here: it renders as nothing or as a space in every editor and in `git show`, " +
+            "and a NUL additionally makes `git diff` report `Binary files differ` and makes plain " +
+            "`grep` return ZERO matches for strings that ARE present — silently, with an exit status " +
+            "indistinguishable from a genuine absence. Fix the FILE. Do not add an exemption and do " +
+            "not narrow the scan set: the scanned set is every tracked path by derivation, precisely " +
+            "so removing a member to reach green is not available.");
     }
     // ── THE INDEPENDENT CROSS-CHECK ────────────────────────────────────────────────────────────────
     // Git decides `-text` on its own read of the file's bytes. If its verdict and this module's byte
@@ -411,33 +500,63 @@ export function runAll() {
             "cannot be trusted.");
     }
     else {
-        const scanned = new Set(hits.map((h) => h.path));
+        // ── THE TWO ARMS ARE ANCHORED DIFFERENTLY, AND THAT ASYMMETRY IS MEASURED, NOT ASSUMED ───────
+        //
+        // (Round 6, plan 29-45 — WR-04.) This module's header used to claim git's binary heuristic is
+        // ITSELF NUL-based. THAT CLAIM IS FALSE AND THE WIDENING'S OWN RED PROOF IS WHAT FALSIFIED IT.
+        // Measured on this box with one planted byte per throwaway repository, `git ls-files --eol`
+        // reports:
+        //
+        //   0x00 NUL, 0x0b VTAB, 0x0d CR, 0x1f UNIT SEP, 0x7f DELETE  ->  w/-text
+        //   0x08 BACKSPACE, 0x1b ESCAPE                               ->  w/lf
+        //
+        // So git's verdict is a RATIO heuristic over non-printable bytes, not a NUL test, and it treats
+        // a specific few control characters as printable. It is therefore NEITHER a subset NOR a
+        // superset of the class this gate decides, and ANY set EQUALITY between the two manufactures
+        // false disagreements in both directions. The first draft of this widening did exactly that and
+        // reddened four of its own RED-proof plants for the wrong reason; it is corrected here rather
+        // than left standing, and the arms are anchored on what each side can actually answer for.
+        const scanClean = new Set(paths.filter((p) => !hits.some((h) => h.path === p)));
+        const nulBearingPaths = new Set(hits.filter((h) => h.bytes.includes(NUL)).map((h) => h.path));
         const byGit = new Set(gitView.binary);
-        const scanOnly = [...scanned].filter((p) => !byGit.has(p));
-        const gitOnly = [...byGit].filter((p) => !scanned.has(p));
+        // ARM 1 — a NUL THIS SCAN FOUND AND GIT DID NOT NOTICE. Sound in this direction because a NUL
+        // forces git's verdict unconditionally: `nul > 0` short-circuits its heuristic. If this fires,
+        // one of the two readers is broken.
+        const scanOnly = [...nulBearingPaths].filter((p) => !byGit.has(p));
+        // ARM 2 — a file git calls BINARY that this scan found ENTIRELY CLEAN. Sound because git's
+        // non-printable ratio cannot exceed zero on a file whose only control bytes are TAB and LINE
+        // FEED, both of which git counts as printable. A file with SOME forbidden byte is deliberately
+        // excluded from this arm: git calling it `-text` is agreement, not disagreement.
+        const gitOnly = [...byGit].filter((p) => scanClean.has(p));
         if (scanOnly.length > 0 || gitOnly.length > 0) {
-            fail("the byte scan and git's own text/binary classifier DISAGREE. Files with a NUL by byte " +
-                `scan but not classified \`-text\` by git: ${scanOnly.join(", ") || "(none)"}. Files ` +
-                `classified \`-text\` by git but carrying no NUL by byte scan: ${gitOnly.join(", ") || "(none)"}. ` +
-                "A `-text` file with no NUL is legitimate (git also considers other criteria) and needs a " +
-                "named exemption with its reason; a NUL git did not notice means this gate's own scan or " +
-                "git's classifier is wrong. Either way the disagreement is reported rather than resolved " +
-                "silently.");
+            fail("the byte scan and git's own text/binary classifier DISAGREE. Files carrying a NUL by " +
+                `byte scan but NOT classified \`-text\` by git: ${scanOnly.join(", ") || "(none)"}. ` +
+                "Files classified `-text` by git but carrying NO forbidden control byte at all by byte " +
+                `scan: ${gitOnly.join(", ") || "(none)"}. The second is legitimate for a real binary ` +
+                "asset and needs a named exemption with its reason; the first means this gate's own scan " +
+                "or git's classifier is wrong. Either way the disagreement is reported rather than " +
+                "resolved silently.");
         }
     }
-    if (totalNuls > 0) {
-        fail(`NUL total: ${totalNuls} byte(s) across ${hits.length} of the ${paths.length} tracked ` +
-            "file(s) scanned.");
+    if (totalControl > 0) {
+        fail(`forbidden control-byte total: ${totalControl} byte(s) across ${hits.length} of the ` +
+            `${paths.length} tracked file(s) scanned.`);
     }
     if (FAILS === 0) {
         // A PASS line must never state a check that was not performed: every number below is read from
-        // the run that just happened.
-        pass(`${paths.length} tracked file(s) scanned as raw bytes, ZERO carrying a NUL byte; the scanned ` +
+        // the run that just happened. It states the WIDENED CLASS explicitly (round 6, plan 29-45), the
+        // two admitted control characters by name, and the denominator, so the line describes what the
+        // gate now decides rather than what its file name says.
+        const nulBearing = hits.filter((h) => h.bytes.includes(NUL)).length;
+        pass(`${paths.length} tracked file(s) scanned as raw bytes, ZERO carrying a forbidden control ` +
+            `byte; the forbidden class is C0 plus DELETE (0x00-0x1f and 0x7f) with exactly two ` +
+            `admitted: ${ADMITTED_CONTROL_BYTES.map((a) => `${hex(a.byte)} ${a.name}`).join(" and ")}. The scanned ` +
             "set is every path `git ls-files` reports, with no exemption list and nothing filtered — " +
-            `git's own \`--eol\` classifier independently agrees, reporting ${gitView.binary.length} ` +
-            `\`-text\` file(s) against this scan's ${hits.length} NUL-bearing file(s), across ` +
-            `${gitView.rows} parsed row(s) with 0 unparsed; ${missing.length} path(s) missing from the ` +
-            `working tree and ${unreadable.length} path(s) present but unreadable`);
+            `git's own \`--eol\` classifier independently agrees on the NUL SUB-CLASS it is able to ` +
+            `answer for, reporting ${gitView.binary.length} \`-text\` file(s) against this scan's ` +
+            `${nulBearing} NUL-bearing file(s), across ${gitView.rows} parsed row(s) with 0 unparsed; ` +
+            `${missing.length} path(s) missing from the working tree and ${unreadable.length} path(s) ` +
+            "present but unreadable");
     }
     finish();
 }

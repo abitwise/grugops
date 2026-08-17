@@ -201,6 +201,27 @@ is gone, the quotation is replaced by a description, and a permanent case now re
 outside `\n` and `\t` in either the gate's source or its harness, with a non-empty-file floor beneath
 it. `file -b` reports `Unicode text, UTF-8 text` for both.
 
+**Corrected in round 6 (plan 29-45, WR-04) — the account above is kept verbatim and this paragraph is
+appended to it.** The remedy recorded above is stated as a new assertion over two named files, and it
+does not mention the mechanism that already existed. **`scripts/check-nul-bytes.ts` — the Phase 28
+gate (28-08) — already decided the NUL half of that same predicate over every path `git ls-files`
+reports, with no exemption list and nothing filtered.** Its own PASS line publishes the denominator;
+at the time the round-5 assertion was written that denominator was **1450 tracked files**, and it
+reads **1598** today. Two files is a subset of 1598.
+
+So the round-5 assertion was a weaker duplicate of an existing repo-wide authority, and two
+assertions over one predicate with neither naming the other is the duplicate-authority shape this
+project closes by deletion or by a declared boundary. **The real lesson is not "we added an
+assertion". It is: run the repo-wide gate before believing a grep.** The gate was there, it covered
+the tree, and it was not run.
+
+Round 6's disposition: `check-nul-bytes.ts` is **widened from the single NUL byte to the whole
+forbidden control-byte class** — C0 plus DELETE, with TAB and LINE FEED admitted — over the same
+unchanged scanned set, so one authority now owns the axis repo-wide. The round-5 two-file byte loop
+is **removed**, and what survives in its place asserts only what the repo-wide gate does not: that
+those two files, by name, exist and are substantial. Its declaration names the owning gate, the axis
+that gate owns, and the axis it adds.
+
 ---
 
 ## 4. Carried residuals — the full roll-up, in BOTH directions

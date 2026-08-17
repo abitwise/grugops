@@ -118,7 +118,10 @@ describe("check-nul-bytes — the REFUSAL half, watched failing against a real t
     const r = runGate(root);
     expect(r.status, `gate should refuse; stdout:\n${r.stdout}`).not.toBe(0);
     expect(r.stdout).toContain("src/bad.ts");
-    expect(r.stdout).toContain("NUL byte(s)");
+    expect(r.stdout).toContain("forbidden control byte(s)");
+    // (Round 6) The BYTE is named in the refusal now, not only the fact of a hit — the class is
+    // wider than one byte, so "which byte" is part of the verdict.
+    expect(r.stdout).toContain("0x00");
     // The locator's three numbers are all reported, not just the fact of a hit.
     expect(r.stdout).toMatch(/byte offset \d+, line \d+, column \d+/);
     expect(r.stdout).toContain("CHECK(S) FAILED");
@@ -135,13 +138,13 @@ describe("check-nul-bytes — the REFUSAL half, watched failing against a real t
     expect(r.stdout).toContain("docs/notes.md");
   });
 
-  it("counts EVERY NUL, not just the first — a truncated count would understate the damage", () => {
+  it("counts EVERY forbidden byte, not just the first — a truncated count would understate the damage", () => {
     const root = repoWith({
       "a.txt": Buffer.from([0x61, 0x00, 0x62, 0x00, 0x63, 0x00]),
     });
     const r = runGate(root);
     expect(r.status).not.toBe(0);
-    expect(r.stdout).toContain("carries 3 NUL byte(s)");
+    expect(r.stdout).toContain("carries 3 forbidden control byte(s)");
   });
 
   it("an UNTRACKED file with a NUL does NOT fire — the scanned set is the tracked set by derivation", () => {
@@ -183,7 +186,7 @@ describe("check-nul-bytes — the REFUSAL half, watched failing against a real t
     expect(r.stdout).toMatch(/MISSING FROM THE WORKING TREE/);
     expect(r.stdout).toMatch(/This is not a NUL finding/);
     // And it must not be reported as a NUL: the total line is about NULs and there are none.
-    expect(r.stdout).not.toMatch(/NUL total/);
+    expect(r.stdout).not.toMatch(/forbidden control-byte total/);
   });
 
   it("the two git views agree on PATH BYTES, which is what -z on both calls buys", () => {
@@ -237,6 +240,92 @@ describe("check-nul-bytes — the REFUSAL half, watched failing against a real t
     expect(r.stdout).not.toMatch(/views of the tracked set disagree/);
   });
 
+  // ── THE WIDENED CLASS (round 6, plan 29-45 — WR-04) ────────────────────────────────────────────
+  //
+  // Every row below was PLANTED AND WATCHED REDDENING on a reset throwaway repository before it was
+  // written down, one plant per repository, and the clean control was recorded at exit 0 first. The
+  // seven bytes span both sides of the measured git-classifier boundary on purpose: git calls a file
+  // carrying 0x00, 0x0b, 0x0d, 0x1f or 0x7f `-text` and a file carrying 0x08 or 0x1b `lf`, so a
+  // cross-check anchored on a set equality would red the second group for the wrong reason. The
+  // first draft of this widening did exactly that. The rows on BOTH sides are what keep it fixed.
+  const WIDENED: readonly { name: string; byte: number }[] = [
+    { name: "NUL", byte: 0x00 },
+    { name: "BACKSPACE", byte: 0x08 },
+    { name: "VERTICAL TAB", byte: 0x0b },
+    { name: "CARRIAGE RETURN", byte: 0x0d },
+    { name: "ESCAPE", byte: 0x1b },
+    { name: "UNIT SEPARATOR", byte: 0x1f },
+    { name: "DELETE", byte: 0x7f },
+  ];
+
+  for (const { name, byte } of WIDENED) {
+    it(`REFUSES ${name} (0x${byte.toString(16).padStart(2, "0")}) by name, with the byte, the offset, the line and the column`, () => {
+      const root = repoWith({
+        "ok.md": "# clean\ttab\nnewline\n",
+        "src/planted.ts": Buffer.concat([
+          Buffer.from('const a = 1;\nconst sep = "'),
+          Buffer.from([byte]),
+          Buffer.from('";\n'),
+        ]),
+      });
+      const r = runGate(root);
+      expect(r.status, `gate should refuse ${name}; stdout:\n${r.stdout}`).not.toBe(0);
+      expect(r.stdout).toContain("src/planted.ts");
+      expect(r.stdout).toContain(`0x${byte.toString(16).padStart(2, "0")}`);
+      expect(r.stdout).toMatch(/byte offset \d+, line \d+, column \d+/);
+      // NON-VACUITY IN THE OTHER DIRECTION: the clean sibling file must NOT be named, or the row
+      // would pass against a gate that reported every file it read.
+      expect(r.stdout).not.toContain("ok.md carries");
+      // AND NO FALSE DETECTOR DISAGREEMENT. This is the assertion that would have caught the first
+      // draft: four of these seven reddened this arm because git's classifier is not NUL-based.
+      expect(
+        r.stdout,
+        `${name}: the cross-check reported a DISAGREEMENT — its arms are anchored on the wrong predicate`,
+      ).not.toContain("DISAGREE");
+    });
+  }
+
+  it("ADMITS the two control characters a source file needs — TAB and LINE FEED, and nothing else", () => {
+    // THE CONTROL FOR THE WHOLE BLOCK ABOVE. Without it every row could be satisfied by a gate that
+    // refused any control byte whatever, which would red this repository's entire tracked set.
+    const root = repoWith({
+      "tabs.md": "| a\t| b\t|\n|---\t|---\t|\n",
+      "src/plain.ts": "const a = 1;\n\tconst b = 2;\n",
+    });
+    const r = runGate(root);
+    expect(r.status, `stdout:\n${r.stdout}`).toBe(0);
+    expect(r.stdout).toContain("ALL CHECKS PASSED");
+    // ...and the admitted set is DERIVED from the module, not retyped here, so a byte quietly
+    // dropped from it reds this case rather than silently widening the prohibition.
+    expect(mod.ADMITTED_CONTROL_BYTES.map((a) => a.byte).sort((x, y) => x - y)).toEqual([
+      0x09, 0x0a,
+    ]);
+  });
+
+  it("the byte predicate itself decides the CLASS, and the two detectors are asked DIFFERENT questions", () => {
+    // The pure predicate, exercised with no filesystem, no git and no repository — the same split
+    // `nulOffsets` already gets. Both boundaries of the class are asserted, not just the middle.
+    expect(mod.isForbiddenControlByte(0x09)).toBe(false); // TAB
+    expect(mod.isForbiddenControlByte(0x0a)).toBe(false); // LINE FEED
+    expect(mod.isForbiddenControlByte(0x00)).toBe(true);
+    expect(mod.isForbiddenControlByte(0x1f)).toBe(true); // last of C0
+    expect(mod.isForbiddenControlByte(0x20)).toBe(false); // SPACE — the first printable
+    expect(mod.isForbiddenControlByte(0x7e)).toBe(false); // ~ — the last printable ASCII
+    expect(mod.isForbiddenControlByte(0x7f)).toBe(true); // DELETE
+    expect(mod.isForbiddenControlByte(0x80)).toBe(false); // a UTF-8 continuation byte is not C0
+
+    // `nulOffsets` IS NOT A DUPLICATE OF `controlByteOffsets`, AND THE DIFFERENCE IS THE POINT.
+    // The scan asks the wide question; the git cross-check asks the NUL-only one, because a NUL is
+    // the only thing that forces git's verdict unconditionally. Asserted as a DISAGREEMENT on a
+    // constructed buffer, so the two cannot quietly collapse into one.
+    const crOnly = Buffer.from([0x61, 0x0d, 0x62]);
+    expect(mod.nulOffsets(crOnly)).toEqual([]);
+    expect(mod.controlByteOffsets(crOnly)).toEqual({ offsets: [1], bytes: [0x0d] });
+    const withNul = Buffer.from([0x61, 0x00, 0x0d]);
+    expect(mod.nulOffsets(withNul)).toEqual([1]);
+    expect(mod.controlByteOffsets(withNul)).toEqual({ offsets: [1, 2], bytes: [0x00, 0x0d] });
+  });
+
   it("REFUSES an empty tracked set rather than reporting a vacuous green", () => {
     // A gate whose scan set is empty passes every check it makes. That is the failure mode a
     // '0 problems found' report hides best, so it is a named refusal rather than a silent pass.
@@ -253,7 +342,14 @@ describe("check-nul-bytes — the NON-VACUITY half, against the REAL tree", () =
     const r = runGate();
     expect(r.status, `stdout:\n${r.stdout}`).toBe(0);
     expect(r.stdout).toContain("ALL CHECKS PASSED");
-    expect(r.stdout).toMatch(/\d+ tracked file\(s\) scanned as raw bytes, ZERO carrying a NUL byte/);
+    expect(r.stdout).toMatch(
+      /\d+ tracked file\(s\) scanned as raw bytes, ZERO carrying a forbidden control byte/,
+    );
+    // (Round 6, plan 29-45 — WR-04) The PASS line states the WIDENED CLASS and names the two
+    // admitted control characters, so the line describes what the gate decides rather than what its
+    // file name says.
+    expect(r.stdout).toContain("C0 plus DELETE (0x00-0x1f and 0x7f)");
+    expect(r.stdout).toContain("0x09 TAB and 0x0a LINE FEED");
   });
 
   it("the scanned set is DERIVED and its partition holds two-sided", () => {

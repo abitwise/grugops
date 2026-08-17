@@ -50,6 +50,7 @@ import {
   readFileSync,
   readdirSync,
   copyFileSync,
+  existsSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -676,33 +677,32 @@ describe("check-banned-claims — the plant selection itself", () => {
     expect(historicallyNamed(skeleton)).toBe(false);
   });
 
-  it("PREMISE: this gate's source and this file are grep-visible — no control byte hides them", () => {
-    // ASSERT THE HARNESS'S OWN PREMISE, WHICH THIS PLAN LEARNED THE HARD WAY AND IS RECORDING AS AN
-    // ASSERTION RATHER THAN AS A LESSON.
+  it("PREMISE: this gate's source and this harness are both PRESENT and substantial — the greps have something to read", () => {
+    // ── ONE AUTHORITY OWNS THE BYTE CLASS, AND THE BOUNDARY IS WRITTEN HERE RATHER THAN INFERRED ──
     //
-    // A single NUL byte anywhere in a file makes BSD `grep` classify it as binary and report ZERO
-    // matches with NO warning and exit status 1 — indistinguishable from "the string is absent". One
-    // was written into THIS file while plan 29-42 was being executed, and two of that plan's own
-    // acceptance greps returned a confident, false 0 because of it. Every guard in this repository
-    // that reasons about source text — and several of them do — is exposed to the same silence, and
-    // this phase's record already contains six false harness results across four rounds.
+    // THE OWNING GATE: `scripts/check-nul-bytes.ts`.
+    // THE AXIS IT OWNS: whether any file carries a control byte outside TAB and LINE FEED. It decides
+    //   that over EVERY path `git ls-files` reports — 1598 of them at the time of writing — with no
+    //   exemption list and nothing filtered, which is a strict superset of the two files below.
+    // THE AXIS THIS CASE ADDS: that those two files, BY NAME, exist and are substantial. The
+    //   repo-wide gate floors the tracked SET against emptiness; it says nothing about any named
+    //   member of it, so a gate source renamed or emptied would leave every acceptance grep in this
+    //   file returning a confident zero and that gate would still be green.
     //
-    // Asserted over BOTH files because the gate's source is what the guards grep and this file is what
-    // the acceptance criteria grep. \n and \t are the only control characters a source file needs.
+    // A CONTROL-BYTE LOOP OVER THESE TWO FILES USED TO SIT HERE (round 5, plan 29-42), added after a
+    // NUL written into THIS file made two of that plan's own acceptance greps return a confident,
+    // false 0. It is REMOVED. The repo-wide gate already decided the NUL half of that predicate over
+    // the whole tree on the day the loop was written, and round 6 widened it to the whole class —
+    // so the loop was a weaker duplicate of an existing authority, which is the shape this
+    // repository closes by deletion or by a declared boundary. THE TRANSFERABLE LESSON IS NOT "WE
+    // ADDED AN ASSERTION". It is: RUN THE REPO-WIDE GATE BEFORE BELIEVING A GREP.
     for (const p of [GATE_TS, join(ROOT, "scripts", "check-banned-claims.test.ts")]) {
-      const bytes = readFileSync(p);
-      const offending: number[] = [];
-      for (let i = 0; i < bytes.length; i++) {
-        const b = bytes[i];
-        if (b === 0x09 || b === 0x0a) continue;
-        if (b < 0x20 || b === 0x7f) offending.push(i);
-      }
-      expect({ file: p, offending: offending.slice(0, 5) }).toEqual({
-        file: p,
-        offending: [],
-      });
-      // ...and the floor: a zero-length read would satisfy the loop above vacuously.
-      expect(bytes.length).toBeGreaterThan(1000);
+      expect(existsSync(p), `${p} does not exist — every grep over it would read nothing`).toBe(
+        true,
+      );
+      expect(readFileSync(p).length, `${p} is too small to be the artifact it names`).toBeGreaterThan(
+        1000,
+      );
     }
   });
 
@@ -809,6 +809,37 @@ describe("check-banned-claims — the planted claims", () => {
     expect(countBannedClaimOccurrences([TOKEN_PLANT], 0, 1)).toBeGreaterThanOrEqual(1);
     expect(countBannedClaimOccurrences([COMPREHENSION_PLANT], 0, 1)).toBeGreaterThanOrEqual(1);
     expect(findingCount(stdout)).toBe(expected);
+
+    // ── THE SIBLING THAT PINS A NUMBER AGAIN (round 6, plan 29-45 — IN-03) ────────────────────────
+    //
+    // WHAT THE EQUALITY ABOVE STOPPED HOLDING, STATED AT THE ASSERTION RATHER THAN LEFT IMPLIED.
+    // Deriving both sides is genuinely non-circular — one side is the matcher, the other is
+    // arithmetic over the rendered output — and it genuinely no longer pins a VALUE. A matcher that
+    // began over-matching moves BOTH sides together by the same amount, the equality still holds,
+    // the floors of 1 still clear, and the case stays green while the gate reports more than it
+    // should. Absorbing growth is exactly what a two-sided pin exists to refuse.
+    //
+    // SO BOTH ASSERTIONS ARE KEPT, BECAUSE THEY HOLD DIFFERENT THINGS. The derived equality holds
+    // ONE CODE PATH AGAINST ANOTHER — it survives a literal being admitted tomorrow, which is why it
+    // replaced a hard `toBe(2)` in the first place. The per-literal expectations below hold THE
+    // MATCHER AGAINST A NUMBER, so growth in either plant is visible HERE instead of being shared
+    // out across an equality. Neither is sufficient and the case needs both.
+    //
+    // The two numbers, with what each one is: the token plant carries its literal once and nothing
+    // else; the comprehension plant carries the enumerated phrasing AND the bare term inside it, so
+    // one line legitimately yields two occurrences. Moving either is a decision about the literal
+    // list, never a way to clear this line.
+    expect(
+      countBannedClaimOccurrences([TOKEN_PLANT], 0, 1),
+      "the token plant's own occurrence count moved — a literal was admitted, or the matcher began over-matching",
+    ).toBe(1);
+    expect(
+      countBannedClaimOccurrences([COMPREHENSION_PLANT], 0, 1),
+      "the comprehension plant's own occurrence count moved — a literal was admitted, or the matcher began over-matching",
+    ).toBe(2);
+    // ...and the sum of the per-literal expectations IS the derived expectation, so the two
+    // assertions are shown to be about the same quantity rather than about two different ones.
+    expect(expected).toBe(1 + 2);
   });
 
   it("matches case-INSENSITIVELY, because a re-capitalised claim is the same claim", () => {
