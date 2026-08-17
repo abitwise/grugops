@@ -99,8 +99,9 @@
 // =================================================================================================
 //
 // 1. NO `grep`, ANYWHERE. A NUL-detection harness built on `grep` is self-defeating by construction:
-//    `grep` is the tool the NUL disables. Detection is `Buffer.indexOf(0)` over raw bytes read with
-//    no encoding argument, so no decoder ever sees the file.
+//    `grep` is the tool the NUL disables. Detection is `controlByteOffsets()` walking the RAW BYTES
+//    of a buffer read with no encoding argument, so no decoder ever sees the file. That function is
+//    the module's SOLE byte-level predicate; see its declaration.
 //
 // 2. LINE AND COLUMN ARE COMPUTED FROM BYTES, NOT FROM A DECODED PREFIX. The first draft of the
 //    28-08 locator decoded `buf.subarray(0, offset)` as UTF-8 and counted newlines in the string.
@@ -110,9 +111,10 @@
 //    one, so offset, line and column are all in the same unit.
 //
 // 3. GIT'S CLASSIFIER IS CROSS-CHECKED AGAINST THE BYTE SCAN — AND THE STRENGTH OF THAT CHECK IS
-//    STATED HONESTLY RATHER THAN OVERSOLD. This module's `Buffer.indexOf(0)` and git's own
-//    working-tree `--eol` verdict must name the SAME set of NUL-bearing files; a disagreement is
-//    reported and fails, because it means one of the two is wrong and this module cannot know which.
+//    STATED HONESTLY RATHER THAN OVERSOLD. This module's NUL-bearing set — PROJECTED out of
+//    `controlByteOffsets()`'s byte values, never scanned for a second time — and git's own
+//    working-tree `--eol` verdict must name the SAME files; a disagreement is reported and fails,
+//    because it means one of the two is wrong and this module cannot know which.
 //
 //    WHAT THAT BUYS, PRECISELY: the two detectors are NOT independent in concept. Their agreement
 //    corroborates this module's IMPLEMENTATION — that `scanTracked()` enumerates the right files,
@@ -340,31 +342,30 @@ export function locate(buf, offset) {
     return { line, column: offset - lastNewline };
 }
 /**
- * The pure byte-level predicate: every offset at which `buf` carries a NUL.
+ * Every offset at which `buf` carries a control byte this repository forbids — and THIS MODULE'S
+ * SOLE BYTE-LEVEL PREDICATE.
  *
- * Extracted so the detection itself is testable on a crafted buffer with no filesystem, no git and
- * no repository — a detector that can only be exercised by breaking the real tree is a detector
- * nobody exercises. `scanTracked` is this function plus I/O.
- */
-export function nulOffsets(buf) {
-    const offsets = [];
-    let idx = buf.indexOf(NUL);
-    while (idx !== -1) {
-        offsets.push(idx);
-        idx = buf.indexOf(NUL, idx + 1);
-    }
-    return offsets;
-}
-/**
- * Every offset at which `buf` carries a control byte this repository forbids — the WIDER class.
+ * Extracted from the I/O so the detection itself is testable on a crafted buffer with no filesystem,
+ * no git and no repository — a detector that can only be exercised by breaking the real tree is a
+ * detector nobody exercises. `scanTracked` is this function plus I/O.
  *
- * (Round 6, plan 29-45 — WR-04.) `nulOffsets` above is kept and is NOT a duplicate of this: it is
- * the NUL-only predicate, and it is what the git `--eol` cross-check is asked, because git's own
- * binary verdict is NUL-based and nothing else. This function is what the SCAN is asked. The two
- * answer different questions on purpose and the difference is stated at both call sites.
+ * ONE QUESTION, ONE ANSWER (round 7, plan 29-50 — WR-04). There is exactly one implementation of the
+ * control-byte question in this module and this is it. The NUL sub-class that the git `--eol`
+ * cross-check is anchored on is NOT a second predicate and must never become one: it is PROJECTED
+ * OUT of this function's `bytes` output, at the single site that builds the NUL-bearing set for that
+ * comparison in `runAll()`. A separate NUL-only scanner beside this one would be two answers to one
+ * question with nothing keeping them agreed — the duplicate-authority shape this repository closes
+ * by deletion, and it is what stood here until round 7.
  *
- * Same construction as `nulOffsets`: raw bytes, no decoder, no `grep`. A control-byte detector built
- * on `grep` would be self-defeating for the same reason a NUL detector built on it is.
+ * WHY THE CROSS-CHECK IS ANCHORED ON THAT SUB-CLASS AND NOT ON THE WHOLE CLASS: a NUL forces git's
+ * verdict unconditionally, while the rest of the class does not. The measurement that establishes
+ * that asymmetry, and the table it is read from, sit at the comparison itself in `runAll()` and are
+ * stated there ONCE. They are deliberately not restated here — a second statement of a measurement
+ * is a second declaration that can only rot, which is the defect this module has now been corrected
+ * for twice.
+ *
+ * Raw bytes, no decoder, no `grep`. A control-byte detector built on `grep` would be self-defeating
+ * for the same reason a NUL detector built on it is: `grep` is the tool the byte disables.
  */
 export function controlByteOffsets(buf) {
     const offsets = [];

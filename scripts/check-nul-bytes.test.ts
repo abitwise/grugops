@@ -63,13 +63,31 @@ function repoWith(files: Record<string, Buffer | string>): string {
 }
 
 describe("check-nul-bytes — the pure detector", () => {
-  it("nulOffsets finds every NUL, at the right byte offsets", () => {
-    expect(mod.nulOffsets(Buffer.from("clean text"))).toEqual([]);
-    expect(mod.nulOffsets(Buffer.from([0x61, 0x00, 0x62]))).toEqual([1]);
-    expect(mod.nulOffsets(Buffer.from([0x00, 0x61, 0x00]))).toEqual([0, 2]);
+  // ── THE THREE NUL BEHAVIOURS, MOVED ONTO THE SURVIVING SCANNER (round 7, plan 29-50 — WR-04) ────
+  //
+  // These three buffers used to be asserted against a SECOND, NUL-only predicate that lived beside
+  // `controlByteOffsets` and was called by nothing in production. That predicate is deleted; the
+  // behaviours it covered are not. Each row now asserts the offsets AND the byte VALUES together, so
+  // the case still tells a NUL from any other control byte — which is the discrimination the deleted
+  // pair used to provide by existing separately.
+  it("the sole scanner finds every NUL, at the right byte offsets AND with the right byte values", () => {
+    expect(mod.controlByteOffsets(Buffer.from("clean text"))).toEqual({
+      offsets: [],
+      bytes: [],
+    });
+    expect(mod.controlByteOffsets(Buffer.from([0x61, 0x00, 0x62]))).toEqual({
+      offsets: [1],
+      bytes: [0x00],
+    });
+    // A NUL among OTHER control bytes: the byte values are what keeps 0x00 distinguishable from the
+    // 0x0d beside it, which is exactly what the git cross-check's NUL projection needs.
+    expect(mod.controlByteOffsets(Buffer.from([0x00, 0x61, 0x0d, 0x00]))).toEqual({
+      offsets: [0, 2, 3],
+      bytes: [0x00, 0x0d, 0x00],
+    });
   });
 
-  it("nulOffsets sees a NUL inside what looks like an ordinary string literal — the 28-08 defect", () => {
+  it("the sole scanner sees a NUL inside what looks like an ordinary string literal — the 28-08 defect", () => {
     // The exact shape that shipped: `cells.join(" ")` where the byte is 0x00, not 0x20. It is
     // reproduced here as BYTES so this case cannot itself be corrupted by an editor rendering it.
     const defect = Buffer.concat([
@@ -77,9 +95,62 @@ describe("check-nul-bytes — the pure detector", () => {
       Buffer.from([0x00]),
       Buffer.from('")'),
     ]);
-    expect(mod.nulOffsets(defect)).toEqual([12]);
-    // And the control: the corrected form carries none.
-    expect(mod.nulOffsets(Buffer.from('cells.join("\x1f")'))).toEqual([]);
+    expect(mod.controlByteOffsets(defect)).toEqual({ offsets: [12], bytes: [0x00] });
+    // And the control: the corrected form carries none. 0x1f is NOT a control byte this repository
+    // admits, so it is asserted as a HIT with its own value rather than as an absence — the corrected
+    // 28-08 separator is 0x1f only inside a test fixture, never in tracked source.
+    expect(mod.controlByteOffsets(Buffer.from('cells.join("\x1f")'))).toEqual({
+      offsets: [12],
+      bytes: [0x1f],
+    });
+  });
+
+  it("the module holds EXACTLY ONE offset-producing predicate, derived from its exports", () => {
+    // THE ANTI-RELOCATION CASE (round 7, plan 29-50 — WR-04). Deleting a duplicate is worth nothing
+    // if the next edit reintroduces it under another name, so this asks the MODULE how many
+    // byte-level offset producers it exports rather than checking that one particular name is gone.
+    //
+    // THE CANDIDATE SET IS DERIVED, NOT LISTED. Every function export is enumerated from the module
+    // namespace object. Zero-arity exports are excluded on a STATED criterion, not by name: a
+    // predicate over a buffer must accept the buffer, and calling this module's zero-arity exports
+    // (`runAll`, `trackedPaths`, ...) would shell out to git or call process.exit inside the worker.
+    // The exclusion is asserted to be a PROPER subset below, so the enumeration is shown to have
+    // seen more than the candidates it kept.
+    const fnExports = Object.entries(mod).filter(([, v]) => typeof v === "function");
+    const candidates = fnExports.filter(([, fn]) => (fn as (...a: never[]) => unknown).length >= 1);
+
+    // FLOORS, so an empty or collapsed export set cannot satisfy this case vacuously.
+    expect(fnExports.length).toBeGreaterThan(0);
+    expect(candidates.length).toBeGreaterThan(0);
+    expect(fnExports.length).toBeGreaterThan(candidates.length);
+
+    // A probe carrying a NUL and a non-NUL forbidden byte, so a NUL-only producer and a wide producer
+    // are both caught, and a CLEAN-buffer producer cannot pass by returning an empty array.
+    const probe = Buffer.from([0x61, 0x00, 0x62, 0x0d]);
+    const isOffsetList = (v: unknown): boolean =>
+      Array.isArray(v) && v.length > 0 && v.every((n) => typeof n === "number");
+    const producers = candidates.filter(([, fn]) => {
+      let out: unknown;
+      try {
+        out = (fn as (b: Buffer) => unknown)(probe);
+      } catch {
+        return false;
+      }
+      if (isOffsetList(out)) return true;
+      return (
+        typeof out === "object" &&
+        out !== null &&
+        "offsets" in out &&
+        isOffsetList((out as { offsets: unknown }).offsets)
+      );
+    });
+
+    expect(
+      producers.map(([n]) => n),
+      "exactly one export may answer the byte-offset question; a second is the duplicate this plan deleted",
+    ).toEqual(["controlByteOffsets"]);
+    // ...and it is the surviving scanner by IDENTITY, not merely by name.
+    expect(producers[0][1]).toBe(mod.controlByteOffsets);
   });
 
   it("locate() counts in BYTES, not in decoded characters — the regression control for a real bug", () => {
@@ -302,9 +373,9 @@ describe("check-nul-bytes — the REFUSAL half, watched failing against a real t
     ]);
   });
 
-  it("the byte predicate itself decides the CLASS, and the two detectors are asked DIFFERENT questions", () => {
+  it("the byte predicate itself decides the CLASS, and the NUL sub-class is PROJECTED out of it", () => {
     // The pure predicate, exercised with no filesystem, no git and no repository — the same split
-    // `nulOffsets` already gets. Both boundaries of the class are asserted, not just the middle.
+    // the scanner itself gets. Both boundaries of the class are asserted, not just the middle.
     expect(mod.isForbiddenControlByte(0x09)).toBe(false); // TAB
     expect(mod.isForbiddenControlByte(0x0a)).toBe(false); // LINE FEED
     expect(mod.isForbiddenControlByte(0x00)).toBe(true);
@@ -314,16 +385,17 @@ describe("check-nul-bytes — the REFUSAL half, watched failing against a real t
     expect(mod.isForbiddenControlByte(0x7f)).toBe(true); // DELETE
     expect(mod.isForbiddenControlByte(0x80)).toBe(false); // a UTF-8 continuation byte is not C0
 
-    // `nulOffsets` IS NOT A DUPLICATE OF `controlByteOffsets`, AND THE DIFFERENCE IS THE POINT.
-    // The scan asks the wide question; the git cross-check asks the NUL-only one, because a NUL is
-    // the only thing that forces git's verdict unconditionally. Asserted as a DISAGREEMENT on a
-    // constructed buffer, so the two cannot quietly collapse into one.
+    // THE NUL SUB-CLASS IS A PROJECTION OF THIS SCANNER'S OUTPUT, NOT A SECOND SCANNER (round 7,
+    // plan 29-50 — WR-04). The scan asks the wide question once; the git cross-check reads the NUL
+    // answer out of the `bytes` array by the same `includes(NUL)` test `runAll()` uses. Asserted on
+    // constructed buffers so the projection is exercised without a filesystem, and so a file whose
+    // only forbidden byte is a CR is visibly a FINDING here and visibly NOT NUL-bearing.
     const crOnly = Buffer.from([0x61, 0x0d, 0x62]);
-    expect(mod.nulOffsets(crOnly)).toEqual([]);
     expect(mod.controlByteOffsets(crOnly)).toEqual({ offsets: [1], bytes: [0x0d] });
+    expect(mod.controlByteOffsets(crOnly).bytes.includes(mod.NUL)).toBe(false);
     const withNul = Buffer.from([0x61, 0x00, 0x0d]);
-    expect(mod.nulOffsets(withNul)).toEqual([1]);
     expect(mod.controlByteOffsets(withNul)).toEqual({ offsets: [1, 2], bytes: [0x00, 0x0d] });
+    expect(mod.controlByteOffsets(withNul).bytes.includes(mod.NUL)).toBe(true);
   });
 
   it("REFUSES an empty tracked set rather than reporting a vacuous green", () => {
