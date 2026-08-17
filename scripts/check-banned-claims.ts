@@ -184,7 +184,7 @@ export interface BannedClaimLiteral {
   /**
    * When present, the literal is a finding ONLY on a line that also carries one of these markers.
    *
-   * WHY ONE MEMBER IS CONDITIONAL, AND WHY THAT IS NOT A SECOND GRAMMAR. `Simplified Technical
+   * WHY SOME MEMBERS ARE CONDITIONAL, AND WHY THAT IS NOT A SECOND GRAMMAR. `Simplified Technical
    * English` is the name of an entire discipline, not a claim. Banning it outright would make it
    * impossible to write a correct sentence that NAMES the discipline in order to say grugops does
    * not conform to it — and going green on such a sentence would mean deleting correct text, which
@@ -192,6 +192,16 @@ export interface BannedClaimLiteral {
    * verb, so the pair is what is pinned. The hyphenated and spaced product names below stay
    * unconditional: those spellings identify one specific published standard, and the kit has no
    * reason to name it outside the disclaimer that denies affiliation with it.
+   *
+   * THE SAME ARGUMENT, REACHED A SECOND TIME FROM THE OPPOSITE DIRECTION (plan 29-41, G-29-2). The
+   * `comprehension` group's conditional members are conditional because the concept — comprehension,
+   * understanding — is one a document must be able to DISCUSS in order to deny a claim about it,
+   * while the CLAIM is the concept plus a benefit verb. Both groups therefore pin a PAIR, and they
+   * pin it through this one field and the one arm in `lineHits` that reads it. Different marker
+   * lists, one mechanism: `CONFORMANCE_VERB_MARKERS` for the discipline's name and
+   * `BENEFIT_VERB_MARKERS` for the comprehension terms. A member declaring its own matching
+   * behaviour instead of naming a marker list would be the second grammar this field exists to
+   * avoid.
    */
   readonly requiresOnSameLine?: readonly string[];
 }
@@ -213,6 +223,87 @@ export const CONFORMANCE_VERB_MARKERS: readonly string[] = [
   "endors",
   "approv",
   "accredit",
+];
+
+/**
+ * The benefit-verb markers that turn a bare comprehension term into a comprehension-benefit CLAIM.
+ *
+ * ------------------------------------------------------------------------------------------------
+ * WHY THIS LIST EXISTS, AND WHY IT IS NOT SIX MORE LITERALS (plan 29-41, G-29-2, user decision (c)).
+ *
+ * The `comprehension` group below used to be SIX fixed substrings and nothing else. Matching here is
+ * plain case-insensitive substring, so any INTERPOSED WORD defeated every one of the six at once.
+ * Measured against the committed `.js` on a `git archive HEAD` mirror, one plant at a time on a reset
+ * mirror, 2026-08-17 — the first line reds naming the file, the rest exit 0 with the planted file
+ * never mentioned in the output at all:
+ *
+ *   "...improves comprehension."                            exit 1  named at :55:27
+ *   "...improves LLM comprehension."                        exit 0  not named
+ *   "...improves model comprehension."                      exit 0  not named
+ *   "...improves agent comprehension."                      exit 0  not named
+ *   "...makes prose easier for LLMs to understand."          exit 0  not named
+ *   "...boosts comprehension for language models."           exit 0  not named
+ *
+ * Appending those five phrasings was measured and REJECTED as the remedy: it closes the five
+ * spellings somebody happened to write down and leaves the next interposed word green. So the guard
+ * DECIDES the prohibition instead — a bare comprehension term plus a benefit verb on the same line —
+ * which is exactly the shape `CONFORMANCE_VERB_MARKERS` above already proved for the discipline's
+ * name. One mechanism, two marker lists, no second matcher.
+ *
+ * ------------------------------------------------------------------------------------------------
+ * MEASURED BEFORE ADMISSION, PER MARKER, AND THE NUMBERS ARE WHAT ADMITTED IT.
+ *
+ * Taken 2026-08-17 over the set `bannedClaimScan()` derives — 82 documents, 5898 lines — as the
+ * number of LINES carrying the marker. Every count was then re-taken independently with
+ * `grep -a -i -c` over the same 82 paths; the two agree on all seven. (`-a`, because a single NUL
+ * byte makes BSD grep report zero matches silently; no file in the set is binary-classified.)
+ *
+ *   marker     lines   what admitted it
+ *   -------    -----   --------------------------------------------------------------------------
+ *   improve       17   the measured family: "improves LLM/model/agent comprehension"
+ *   better         0   warrant plant: "Controlled language gives better comprehension."
+ *   easier         0   warrant plant: "Controlled language makes comprehension easier."
+ *   boost          0   the measured family: "boosts comprehension for language models"
+ *   help           3   warrant plant: "Controlled language helps comprehension."
+ *   benefit        3   warrant plant: "Controlled language delivers a real benefit in comprehension."
+ *   enhance        1   warrant plant: "Controlled language enhances comprehension."
+ *
+ * Every marker above was watched reddening the gate BY NAME on a plant where it is the ONLY marker
+ * present, so no marker is admitted that nothing proved does anything. A marker with neither a
+ * family member nor a warrant plant belongs in `BANNED_CLAIM_EXCLUDED`, not here.
+ *
+ * A ZERO IS NOT A REASON TO DELETE A MARKER, AND THE ASYMMETRY WITH THE LIST ABOVE IS THE POINT.
+ * `CONFORMANCE_VERB_MARKERS` records its numbers because they are LARGE — 60, 18, 2, 70 — which is
+ * why those stems may never become literals in their own right. This list records its numbers for
+ * the OPPOSITE reason: a zero means the marker over-matches nothing in the corpus, which is the
+ * safest reading a marker can have. A later reader who deletes `better`, `easier` or `boost` as
+ * "unused" would be reopening the family this list exists to close.
+ *
+ * THESE ARE MARKERS AND MUST NEVER BECOME LITERALS. `improve` alone hits 17 lines of entirely
+ * correct text about improving the board, the trace and the workflows; `help` and `benefit` hit 3
+ * each. Promoting any of them to a literal is the shape the admission test at the top of this file
+ * refuses by name.
+ *
+ * THIS LIST IS A MEASUREMENT BASELINE, NOT A DISCOVERY SET, and it is hand-authored on purpose — the
+ * same justification `roleCeiling()` carries under D-25. There is no corpus from which "the verbs
+ * that express a benefit" can be derived, and deriving it would mean inventing a rule nobody
+ * measured. What IS derived is every number beside it, and the derivation is re-runnable.
+ *
+ * THE COUPLING TO THE EXEMPTION PIN, STATED BECAUSE IT IS NOT OBVIOUS.
+ * `BANNED_CLAIM_EXEMPT_SUPPRESSED` below is a FUNCTION of which markers are admitted: a denial line
+ * inside the exemption region matches a conditional member only if one of that line's own words is
+ * an admitted marker. Adding or dropping a marker here can therefore move that pin. The two are
+ * settled by ONE measurement or neither of them is honest.
+ * ------------------------------------------------------------------------------------------------
+ */
+export const BENEFIT_VERB_MARKERS: readonly string[] = [
+  "improve",
+  "better",
+  "easier",
+  "boost",
+  "help",
+  "benefit",
+  "enhance",
 ];
 
 export const BANNED_CLAIM_LITERALS: readonly BannedClaimLiteral[] = [
@@ -255,6 +346,46 @@ export const BANNED_CLAIM_LITERALS: readonly BannedClaimLiteral[] = [
   { literal: "easier for the model to understand", group: "comprehension" },
   { literal: "easier for a language model to understand", group: "comprehension" },
   { literal: "better understood by the model", group: "comprehension" },
+  // ── THE RULE THAT REPLACED THE OPEN ENUMERATION (plan 29-41, G-29-2, user decision (c)) ──────
+  //
+  // WHAT THIS MEMBER DECIDES, AS A RULE RATHER THAN A LIST. The bare word `comprehension` is a
+  // finding on any line that also carries a benefit verb from BENEFIT_VERB_MARKERS. So `improves
+  // LLM comprehension`, `improves model comprehension`, `improves agent comprehension` and `boosts
+  // comprehension for language models` are all findings WITHOUT ANY OF THEM BEING ENUMERATED, and
+  // an interposed word no longer defeats the whole group at once. That is the difference between a
+  // guard that holds a prohibition and a guard that holds the spellings somebody thought of.
+  //
+  // THE BARE TERM ALONE IS LEGAL, AND THAT IS THE DESIGN RATHER THAN A GAP. A document must be able
+  // to DISCUSS comprehension — to say the kit makes no comprehension claim, or that no evidence
+  // about comprehension was located in either direction — without being read as making the claim.
+  // Banning the word outright would make the honest denial unsayable, and going green would then
+  // require deleting correct text, which is exactly what the admission test at the top of this file
+  // forbids. Measured over the 82-document scan set: the word occurs on precisely TWO lines and BOTH
+  // are honest denials, inside the one named exemption region.
+  //
+  // THE SIX ENUMERATED LITERALS ABOVE STAY, AND DELETING THEM WOULD BE A FALSE GREEN. Two reasons,
+  // both arithmetic rather than editorial. (1) They carry part of the exemption's suppressed
+  // arithmetic: each denial line matches an enumerated literal AS WELL AS this rule, so deleting
+  // them would move `BANNED_CLAIM_EXEMPT_SUPPRESSED` by deleting what that pin measures — moving a
+  // pin by removing its subject, which is the one route to green this file exists to refuse. (2)
+  // This rule does not subsume them: `easier for the model to understand`, `easier for a language
+  // model to understand` and `better understood by the model` carry no occurrence of this member's
+  // literal at all.
+  //
+  // THE ACCEPTED COST, NAMED HERE RATHER THAN LEFT FOR A REVIEW TO DISCOVER. The co-occurrence
+  // window is a LINE: `lineHits` is asked once per element of `text.split("\n")`, so a claim whose
+  // bare term and whose benefit verb are separated by a HARD WRAP is outside this rule. That is the
+  // line-oriented residual this module's header already records for every literal, reaching the
+  // conditional arm by a second route rather than being a new bound — and it is deliberately NOT
+  // closed by normalising whitespace before comparing, which would make the comparison inexact for
+  // every literal in order to reach one wrapping. Written down BEFORE the measurement rather than
+  // after it: plan 29-42 measures this window, and a cost paragraph composed after the result would
+  // be a rationalisation instead of a design note.
+  {
+    literal: "comprehension",
+    group: "comprehension",
+    requiresOnSameLine: BENEFIT_VERB_MARKERS,
+  },
 ];
 
 /**
@@ -654,8 +785,43 @@ export function locateExemptRegion(
  *
  * MOVING THIS NUMBER IS HOW YOU ACKNOWLEDGE A CHANGE YOU MADE ON PURPOSE, NEVER HOW YOU CLEAR A
  * FAILURE. Read the region first and say in the commit which claim entered or left it.
+ *
+ * ------------------------------------------------------------------------------------------------
+ * MOVED 10 -> 12 BY PLAN 29-41 (G-29-2). THE REGION WAS READ AND BOTH ENTRANTS ARE NAMED.
+ *
+ * The value was DERIVED FROM THE RUN and not typed: the rule landed first, the gate was run on a
+ * clean tree, and the number below is the one its own refusal text reported ("suppressed 12
+ * banned-claim occurrence(s) ... declares 10"). No document inside the region was edited — the
+ * exemption lifts the prohibition on two MORE occurrences because the PROHIBITION got wider, which
+ * is the one direction this pin's paragraph above had not yet seen.
+ *
+ * The two entrants, each derived through the gate's own `countBannedClaimOccurrences` rather than by
+ * reading the prose:
+ *
+ *   agent-factory/writing-profile.md:256  +1 via the new conditional member "comprehension"
+ *                                            (co-occurring benefit marker on the line: `benefit`)
+ *                                            — "No comprehension benefit is claimed."
+ *   agent-factory/writing-profile.md:288  +1 via the new conditional member "comprehension"
+ *                                            (co-occurring benefit marker on the line: `improve`)
+ *                                            — "There is no evidence that controlled language
+ *                                               improves comprehension for a language model."
+ *
+ * BOTH ARE HONEST DENIALS, AND THAT IS WHY THEY ARE INSIDE THE REGION RATHER THAN DELETED. Each was
+ * already suppressed once, through an enumerated literal (`comprehension benefit` at 256 and
+ * `improves comprehension` at 288); the rule adds a SECOND occurrence on each of those same two
+ * lines, because the hit count is arithmetic over what was read and never a per-line boolean. Six
+ * of the twelve are the standard's name, three are the token-economy claim, and these are the other
+ * two halves of a pair each.
+ *
+ * AND THE NUMBER IS A FUNCTION OF THE ADMITTED MARKER SET, NOT ONLY OF THE DOCUMENT. Line 256
+ * matches only because `benefit` is in `BENEFIT_VERB_MARKERS` and line 288 only because `improve`
+ * is. Dropping either marker would move this pin back down while the disclaimer stayed byte-for-byte
+ * identical. The marker list and this constant are therefore settled by ONE measurement, and a
+ * future edit to either must re-run the other — a pin describing a prohibition nobody is applying is
+ * worse than no pin.
+ * ------------------------------------------------------------------------------------------------
  */
-export const BANNED_CLAIM_EXEMPT_SUPPRESSED = 10;
+export const BANNED_CLAIM_EXEMPT_SUPPRESSED = 12;
 
 /**
  * How far the one named exemption region REACHES, in lines — `endBefore - headingAt`.
