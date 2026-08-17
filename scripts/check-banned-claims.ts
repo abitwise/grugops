@@ -481,15 +481,38 @@ export const BANNED_CLAIM_LITERALS: readonly BannedClaimLiteral[] = [
 ];
 
 /**
+ * WHAT A `hits` FIELD CARRIES WHEN THE CANDIDATE WAS REFUSED WITHOUT EVER BEING MEASURED.
+ *
+ * (Round 6, plan 29-45 — IN-01.) One entry below was refused on arithmetic rather than on a count:
+ * `ste` is a substring of `system`, so nobody ran the scan. That entry used to carry a MAGIC
+ * NEGATIVE in a field whose whole contract is "the measurement that rejected this candidate" — a
+ * count field silently meaning "not a count". This module refuses that conflation everywhere else,
+ * and a `-1` in a field typed `number` defeats every assertion an author would naturally write over
+ * it: `>= 0` is false for a legitimate entry, and `is a number` is true for the sentinel.
+ *
+ * SO THE DISTINCTION IS IN THE TYPE, NOT IN THE VALUE. `hits` is `number | typeof
+ * BANNED_CLAIM_UNMEASURED`, so a reader of the type meets both cases, `tsc` forces every consumer
+ * to handle them apart, and the admission-log case can assert the contract exactly: every entry is
+ * either this value or a NON-NEGATIVE count, with nothing in between.
+ *
+ * IT IS NOT A LICENCE TO SKIP MEASUREMENT. A candidate refused without a measurement is refused on
+ * an argument, and the argument goes in `reason` where a reader can check it.
+ */
+export const BANNED_CLAIM_UNMEASURED = "refused-without-measurement" as const;
+
+/**
  * THE ADMISSION LOG — candidates measured and REJECTED, with the hit count that rejected them.
  *
  * Recorded here rather than dropped silently, because an absent literal reads to the next editor as
  * an oversight worth fixing. Each of these would have gone red on text this project keeps on
  * purpose, and the only route back to green would have been deleting correct text.
+ *
+ * `hits` admits `BANNED_CLAIM_UNMEASURED` for the one entry refused without a scan — see that
+ * constant's declaration above for why the sentinel is in the TYPE and not in the value.
  */
 export const BANNED_CLAIM_EXCLUDED: readonly {
   readonly candidate: string;
-  readonly hits: number;
+  readonly hits: number | typeof BANNED_CLAIM_UNMEASURED;
   readonly reason: string;
 }[] = [
   {
@@ -590,7 +613,7 @@ export const BANNED_CLAIM_EXCLUDED: readonly {
   },
   {
     candidate: "STE, as a bare literal",
-    hits: -1,
+    hits: BANNED_CLAIM_UNMEASURED,
     reason:
       "REFUSED WITHOUT MEASUREMENT, and the reason is arithmetic rather than editorial: `ste` is a " +
       "substring of `system`. A case-insensitive substring test on it would report a finding on " +
@@ -1194,14 +1217,25 @@ export function locateExemptRegion(
  * GOT WIDER — the second time this pin has moved in that direction, and the first time it moved for
  * the standard-name group.
  *
- * THE BREAKDOWN BY GROUP, RE-DERIVED IN THE SAME PASS: standard-name 8 (was 6), token-economy 2
- * (unmoved), comprehension 4 (unmoved) = 14. Both new occurrences land in the standard-name column.
+ * THE BREAKDOWN BY GROUP IS PUBLISHED BY THE RUN, SO IT IS NOT RESTATED HERE (round 6, plan 29-45 —
+ * WR-01). `runAll()` tallies the suppressed occurrences per group at the point of suppression, out
+ * of the same per-line matcher result the total above is accumulated from, and prints them beside
+ * the total in the PASS line. Read the run.
  *
- * AND THIS PIN IS NO LONGER A FUNCTION OF AN ADMITTED MARKER SET. Until round 6 it was: a denial line
- * matched a conditional member only if one of that line's own words was an admitted marker, so
- * dropping a marker moved this number while the disclaimer stayed byte-for-byte identical. That
- * coupling is GONE with the mechanism. This constant is now a function of the literal list and the
- * region's boundary and nothing else, which is fewer ways for it to move for a reason nobody meant.
+ * WHY THE SENTENCE WAS DELETED RATHER THAN CORRECTED, WHICH IS THE WHOLE FINDING. A per-group
+ * breakdown used to be typed here, INSIDE a paragraph whose own opening sentence says the entrants
+ * were derived through the gate's counter rather than read out of prose — and its three components
+ * did not sum to the pin beside them. It was then corrected by hand and went stale AGAIN within two
+ * plans, when the corpus widened and three terms became unconditional. A number restated in a
+ * comment is a second declaration of a measurement, and a second declaration can only rot; the fix
+ * is to move the number to the run, not to retype it a third time.
+ *
+ * WHAT THIS PIN IS A FUNCTION OF, NOW THAT IT IS NOT A FUNCTION OF ANYTHING ELSE. Exactly two
+ * things, and a future editor of either should expect this number to move: (1) WHICH LITERALS ARE
+ * PINNED — admitting a member that occurs inside the region raises this count while producing no
+ * finding, which is how it last moved; and (2) WHERE THE REGION'S BOUNDARY FALLS — a heading landing
+ * somewhere new changes which lines are inside it, which is how it moved the time before that.
+ * Nothing else reaches it.
  * ------------------------------------------------------------------------------------------------
  */
 export const BANNED_CLAIM_EXEMPT_SUPPRESSED = 14;
@@ -1343,6 +1377,33 @@ export function countBannedClaimOccurrences(
   return n;
 }
 
+/**
+ * The same measurement as above, PROJECTED BY GROUP over `lines[from, to)`.
+ *
+ * (Round 6, plan 29-45 — WR-01.) EXPORTED FOR EXACTLY THE REASON `countBannedClaimOccurrences` IS,
+ * and it stands in exactly the same relationship to `runAll()`. The gate accumulates its per-group
+ * tally at the POINT OF SUPPRESSION, inside the scan loop, off the `lineHits` result it already
+ * has — one traversal, no re-read. A case cannot assert against that accumulation using the
+ * accumulation itself, so this is the independent statement it holds it against: a different fold,
+ * over the same one matcher, with no rules of its own. That is the precise arrangement the reach
+ * pin already uses, and it is why neither side is a second grammar.
+ *
+ * It is NOT a second walk with different rules and must never become one. If the two ever disagree,
+ * the answer is that one of the two folds is wrong — never that this one should be relaxed.
+ */
+export function bannedClaimGroupTally(
+  lines: readonly string[],
+  from: number,
+  to: number,
+): Record<string, number> {
+  const out: Record<string, number> = {};
+  for (const l of BANNED_CLAIM_LITERALS) out[l.group] = 0;
+  for (let i = Math.max(from, 0); i < Math.min(to, lines.length); i++) {
+    for (const h of lineHits(lines[i])) out[h.member.group] += 1;
+  }
+  return out;
+}
+
 function renderFinding(f: Finding): string {
   return (
     `        ${f.file}:${f.line}:${f.column} — banned ${f.group} literal "${f.literal}" — ` +
@@ -1425,6 +1486,20 @@ function runAll(): void {
   // afterwards by a second traversal it would be a different question asked of the same bytes, and
   // this file has just finished deleting one of those.
   let suppressed = 0;
+  // …AND THE SAME MEASUREMENT, PROJECTED BY GROUP (round 6, plan 29-45 — WR-01).
+  //
+  // ONE TRAVERSAL, ONE MATCHER CALL, TWO PROJECTIONS. This is filled from the SAME `lineHits` result
+  // the total above consumes, on the same pass over the same bytes — never by walking the region a
+  // second time. A second walk would be a different question asked of the same lines, and the two
+  // answers would part company the first time either moved.
+  //
+  // It is seeded from the literal list rather than from the tally loop, so a group whose count is
+  // ZERO is still PUBLISHED as zero. A tally that simply omitted an empty group would publish a
+  // shorter breakdown that still summed correctly, and a reader could not tell an absent group from
+  // a group nobody counted.
+  const suppressedByGroup = new Map<BannedClaimGroup, number>(
+    BANNED_CLAIM_LITERALS.map((l) => [l.group, 0]),
+  );
 
   for (const file of scan) {
     let text: string;
@@ -1452,6 +1527,13 @@ function runAll(): void {
       const hits = lineHits(lines[i]);
       if (region !== null && i >= region.headingAt && i < region.endBefore) {
         suppressed += hits.length; // inside the one named exemption region
+        // The projection, off the SAME `hits` array — not a re-read of the line.
+        for (const h of hits) {
+          suppressedByGroup.set(
+            h.member.group,
+            (suppressedByGroup.get(h.member.group) ?? 0) + 1,
+          );
+        }
         continue;
       }
       for (const h of hits) {
@@ -1596,7 +1678,14 @@ function runAll(): void {
         `UNCONDITIONALLY — the gate enumerates what is banned and nothing about how it is said; ` +
         `1 exemption region (${BANNED_CLAIM_EXEMPT_REGION.file} § ${BANNED_CLAIM_EXEMPT_REGION.heading} ` +
         `— ${BANNED_CLAIM_EXEMPT_REGION.reason}), which suppresses ${suppressed} banned-claim ` +
-        `occurrence(s), pinned at ${BANNED_CLAIM_EXEMPT_SUPPRESSED}, and reaches ` +
+        // THE BREAKDOWN IS PUBLISHED, NOT RESTATED (round 6, plan 29-45 — WR-01). A total whose
+        // components nobody can see is a number a reader has to trust; rendered per group beside it,
+        // the arithmetic can be checked by hand against the region, which is what makes a fabricated
+        // component visible. This is the same argument D-08 makes for the voice guard's per-block
+        // line, and the components come from the run's own tally rather than from a comment.
+        `occurrence(s) (${[...suppressedByGroup.entries()]
+          .map(([g, n]) => `${g} ${n}`)
+          .join(", ")}), pinned at ${BANNED_CLAIM_EXEMPT_SUPPRESSED}, and reaches ` +
         `${exemptExtent} line(s), pinned at ${BANNED_CLAIM_EXEMPT_EXTENT} (two numbers, two ` +
         `questions: how much prohibition the region lifts, and how far it reaches — a section ` +
         `swallowed into it moves only the second); ` +

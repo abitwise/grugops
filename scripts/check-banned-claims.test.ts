@@ -81,6 +81,10 @@ import {
   // swallowed into the exemption carrying NO banned claim moves this and nothing else.
   BANNED_CLAIM_EXEMPT_EXTENT,
   countBannedClaimOccurrences,
+  // (Round 6, plan 29-45 — WR-01) The per-group projection of the same measurement, and the named
+  // value a `hits` field carries when the candidate was refused without a scan (IN-01).
+  bannedClaimGroupTally,
+  BANNED_CLAIM_UNMEASURED,
 } from "./check-banned-claims.js";
 
 const ROOT = join(import.meta.dirname, "..");
@@ -1458,9 +1462,12 @@ describe("check-banned-claims — the exemption's outer bound and its published 
     const r = spawnSync("node", [GATE_JS], { encoding: "utf8" });
     const stdout = (r.stdout ?? "") + (r.stderr ?? "");
     expect(r.status).toBe(0);
-    expect(stdout).toContain(
-      `suppresses ${derived} banned-claim occurrence(s), pinned at ${declared}`,
-    );
+    // (Round 6, plan 29-45) The PASS line now carries the per-group breakdown BETWEEN the total and
+    // the pin, so this assertion is split across the components rather than widened to swallow them.
+    // The breakdown's own contents are held by the dedicated case at the end of this file; here the
+    // point is only that the TOTAL and the PIN are both published.
+    expect(stdout).toContain(`suppresses ${derived} banned-claim occurrence(s) (`);
+    expect(stdout).toContain(`), pinned at ${declared}, and reaches `);
   });
 
   it("HARNESS PREMISE: the mirror's region really reaches the pin, and the filler really carries one occurrence each", () => {
@@ -2492,11 +2499,110 @@ describe("check-banned-claims — the one list, frozen", () => {
   //
   // Its two source-derived denominators went with it and are recorded above where they were declared.
 
-  it("the admission log records every refused candidate with a reason", () => {
+  it("the admission log records every refused candidate with a reason, and every COUNT is a count", () => {
     expect(BANNED_CLAIM_EXCLUDED.length).toBeGreaterThan(0);
+    // (Round 6, plan 29-45 — IN-01) THE COUNT CONTRACT, ASSERTED. Before the retype this loop could
+    // not have been written: `hits` was `number`, one entry carried `-1` meaning "not measured", and
+    // `>= 0` would have been FALSE for a legitimate entry while `typeof === "number"` was TRUE for
+    // the sentinel. With the sentinel in the TYPE the contract is exact — every entry is either the
+    // named unmeasured value or a NON-NEGATIVE count, and there is nothing in between.
+    let unmeasured = 0;
+    let counted = 0;
     for (const e of BANNED_CLAIM_EXCLUDED) {
       expect(e.candidate.trim()).not.toBe("");
       expect(e.reason.trim().length).toBeGreaterThan(40);
+      if (e.hits === BANNED_CLAIM_UNMEASURED) {
+        unmeasured += 1;
+        continue;
+      }
+      expect(
+        typeof e.hits,
+        `${e.candidate}: hits is neither a number nor the named unmeasured value`,
+      ).toBe("number");
+      expect(
+        e.hits,
+        `${e.candidate}: a NEGATIVE hit count is a sentinel smuggled through a count field — use BANNED_CLAIM_UNMEASURED`,
+      ).toBeGreaterThanOrEqual(0);
+      counted += 1;
     }
+    // Two floors, so neither arm can be satisfied vacuously by an empty list on its side: the log
+    // holds at least one MEASURED entry and at least one UNMEASURED entry, and the two partition it.
+    expect(counted).toBeGreaterThan(0);
+    expect(unmeasured).toBeGreaterThan(0);
+    expect(counted + unmeasured).toBe(BANNED_CLAIM_EXCLUDED.length);
+  });
+});
+
+// ── THE SUPPRESSED COUNT IS PUBLISHED BY GROUP (round 6, plan 29-45 — WR-01) ───────────────────
+//
+// The gate now prints the exemption's suppressed total AND its per-group components, projected off
+// the same `lineHits` result the total is accumulated from. This block holds the published
+// components against a derivation this file performs itself, so a fabricated component is visible.
+describe("check-banned-claims — the exemption's suppressed count, published BY GROUP", () => {
+  it("the PASS line's per-group components are the matcher's own, and they sum to the pin", () => {
+    // THE LIVE TREE, not a mirror. The mirror's exemption region is padded with a single repeated
+    // filler, so its group distribution is degenerate by construction and would hold nothing. The
+    // pin is a statement about the REAL document, so that is the document this case reads.
+    const r = spawnSync("node", [GATE_JS], { encoding: "utf8" });
+    const stdout = `${r.stdout ?? ""}${r.stderr ?? ""}`;
+    // ASSERT THE HARNESS'S OWN PREMISE BEFORE READING ANY NUMBER OUT OF IT. A zero-byte or
+    // banner-less capture would make every `match` below return null and the case would then be
+    // asserting against its own failure to run — this phase has produced that false result before.
+    expect(stdout.length, "the gate produced NO output").toBeGreaterThan(500);
+    expect(stdout).toContain("[guard_banned_claims]");
+    expect(r.status, `the live tree must be green; stdout:\n${stdout}`).toBe(0);
+
+    // (1) THE GROUP NAMES, DERIVED FROM THE GATE'S SOURCE TEXT — independently of the runtime array
+    // the tally loop is seeded from. Seeding the expectation off `BANNED_CLAIM_LITERALS` would be
+    // the tally's own input vouching for the tally's own output.
+    const declaredGroups = [
+      ...new Set(
+        (readFileSync(GATE_TS, "utf8").match(/^ {2}\{ literal: ".*?", group: "(.*?)" \},$/gm) ?? [])
+          .map((m) => /group: "(.*?)"/.exec(m)?.[1] ?? "")
+          .filter((g) => g !== ""),
+      ),
+    ].sort();
+    expect(
+      declaredGroups.length,
+      "no group names were matched in the gate source — the breakdown below would be vacuous",
+    ).toBeGreaterThan(1);
+
+    // (2) THE PUBLISHED BREAKDOWN, PARSED OUT OF THE RUN.
+    const published = /which suppresses (\d+) banned-claim occurrence\(s\) \(([^)]*)\), pinned at (\d+)/.exec(
+      stdout,
+    );
+    expect(published, "the PASS line did not publish a per-group breakdown").not.toBeNull();
+    const total = Number(published![1]);
+    const pinned = Number(published![3]);
+    const parsed = new Map<string, number>(
+      published![2].split(", ").map((part) => {
+        const at = part.lastIndexOf(" ");
+        return [part.slice(0, at), Number(part.slice(at + 1))] as [string, number];
+      }),
+    );
+    // Every DECLARED group is published, so an omitted group cannot hide behind a correct sum.
+    expect([...parsed.keys()].sort()).toEqual(declaredGroups);
+    // ...and the components sum to the total, which is the pin.
+    expect([...parsed.values()].reduce((a, b) => a + b, 0)).toBe(total);
+    expect(total).toBe(pinned);
+    expect(pinned).toBe(BANNED_CLAIM_EXEMPT_SUPPRESSED);
+
+    // (3) EACH GROUP'S VALUE, DERIVED INDEPENDENTLY over the live exemption region. One side is the
+    // gate's own in-loop accumulation, rendered; the other is `bannedClaimGroupTally` folded here.
+    // Two folds over the ONE matcher, exactly the arrangement the reach pin already uses between
+    // `runAll()`'s `suppressed` and `countBannedClaimOccurrences` — neither is a second grammar and
+    // neither can be satisfied by the other's arithmetic.
+    const lines = readFileSync(join(ROOT, PROFILE), "utf8").split("\n");
+    const region = locateExemptRegion(lines);
+    expect(region).not.toBeNull();
+    const derived = bannedClaimGroupTally(lines, region!.headingAt, region!.endBefore);
+    expect(derived).toEqual(Object.fromEntries(parsed));
+    // ...and the total that fold reports equals the total the OTHER exported counter reports over
+    // the same range, so a fold that dropped members would not agree with itself.
+    expect(Object.values(derived).reduce((a, b) => a + b, 0)).toBe(
+      countBannedClaimOccurrences(lines, region!.headingAt, region!.endBefore),
+    );
+    // The floor: the derived tally is not all zeros, so the equality above is not 0 === 0.
+    expect(Object.values(derived).reduce((a, b) => a + b, 0)).toBeGreaterThan(0);
   });
 });
