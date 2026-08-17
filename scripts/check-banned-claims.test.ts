@@ -67,7 +67,6 @@ import {
   BANNED_CLAIM_EXEMPT_REGION,
   BANNED_CLAIM_EXCLUDED,
   BANNED_CLAIM_EXCLUDED_LOCATIONS,
-  CONFORMANCE_VERB_MARKERS,
   bannedClaimScan,
   bannedClaimScanOverlap,
   locateExemptRegion,
@@ -82,11 +81,6 @@ import {
   // swallowed into the exemption carrying NO banned claim moves this and nothing else.
   BANNED_CLAIM_EXEMPT_EXTENT,
   countBannedClaimOccurrences,
-  // (Plan 29-41, G-29-2) The SECOND marker list. Imported as a named binding for the same reason
-  // the reach pins above are: a named import of a missing export is a module-load error, so deleting
-  // this list fails loudly here instead of turning every marker plant below into the string
-  // "undefined" — which no gate matches, and which would make every RED case pass as a green.
-  BENEFIT_VERB_MARKERS,
 } from "./check-banned-claims.js";
 
 const ROOT = join(import.meta.dirname, "..");
@@ -113,44 +107,48 @@ afterAll(() => {
 // silently picks a different literal the day a member is declared above the one it meant. Two of the
 // four selectors here were exactly that shape, and plan 29-41 had already walked into both:
 //
-//   * `CONDITIONAL_NAME` selected on `requiresOnSameLine !== undefined` ALONE. That predicate matched
-//     exactly one member when it was written and matches THREE now.
-//   * `COMPREHENSION_CLAIM` selected on the group ALONE, which is now true of the two conditional
-//     bare terms as well. Had a reorder put the bare term `comprehension` first, the comprehension
-//     plant would have carried NO benefit marker, produced NO finding — and its case would still have
-//     PASSED, because the gate's own banner line contains the word "comprehension" and the case
-//     asserts `toContain`. A RED case going green while proving nothing, which is this repository's
-//     set-literal-drift class arriving inside the assertions written to prevent it.
+//   * One selector distinguished the discipline's name from the product-name spellings by the
+//     presence of a marker field. That predicate matched exactly one member when it was written and
+//     matched THREE by round 5.
+//   * `COMPREHENSION_CLAIM` selected on the group ALONE, which became true of the two bare terms as
+//     well. Had a reorder put the bare term `comprehension` first, the comprehension plant would
+//     have carried no marker, produced NO finding — and its case would still have PASSED, because
+//     the gate's own banner line contains the word "comprehension" and the case asserts `toContain`.
+//     A RED case going green while proving nothing, which is this repository's set-literal-drift
+//     class arriving inside the assertions written to prevent it.
 //
-// So each predicate below names a property that DISTINGUISHES its member from every sibling, and
-// every selection is pinned by an explicit expectation naming what it selected (see "the plant
-// selection itself" below). A declaration reorder now reds AT THE SELECTION, where the failure names
-// the right cause, instead of at some distant case whose message names the wrong one.
+// (ROUND 6) AND THE PROPERTY THOSE SELECTORS USED IS GONE, SO THEY WERE RE-DERIVED RATHER THAN
+// PATCHED. The marker field was removed from the member type, so "carries a marker list" is no
+// longer a property anything can select on. Each selector below now names a property intrinsic to
+// the LITERAL ITSELF — a digit for the published product-name spellings, a space for the enumerated
+// comprehension phrasings — so it distinguishes its member from every sibling without depending on
+// a matching mechanism that a later round may delete again. Every selection is pinned by an explicit
+// expectation naming what it selected (see "the plant selection itself" below).
 const UNCONDITIONAL_NAME = BANNED_CLAIM_LITERALS.find(
-  (l) => l.group === "standard-name" && l.requiresOnSameLine === undefined,
+  (l) => l.group === "standard-name" && /\d/.test(l.literal),
 );
-/** The discipline's NAME: the standard-name group's conditional member, on the CONFORMANCE list. */
-const CONDITIONAL_NAME = BANNED_CLAIM_LITERALS.find(
-  (l) => l.group === "standard-name" && l.requiresOnSameLine !== undefined,
+/** The DISCIPLINE'S NAME: the one standard-name literal that carries no digit. */
+const DISCIPLINE_NAME = BANNED_CLAIM_LITERALS.find(
+  (l) => l.group === "standard-name" && !/\d/.test(l.literal),
 );
 const TOKEN_CLAIM = BANNED_CLAIM_LITERALS.find(
   (l) => l.group === "token-economy",
 );
-/** The ENUMERATED comprehension literal — unconditional, and the pre-fix grammar's whole subject. */
+/** The ENUMERATED comprehension literal — a PHRASE, and the pre-fix grammar's whole subject. */
 const COMPREHENSION_CLAIM = BANNED_CLAIM_LITERALS.find(
-  (l) => l.group === "comprehension" && l.requiresOnSameLine === undefined,
+  (l) => l.group === "comprehension" && l.literal.includes(" "),
 );
 
 /**
- * (Plan 29-42) The comprehension group's CONDITIONAL bare terms — the rule plan 29-41 landed in place
- * of the open enumeration. Two of them, because one member of the measured family carries no
- * occurrence of the first term at all and is outside that rule by construction.
+ * The comprehension group's BARE TERMS — single words, as against the six enumerated phrasings.
  *
- * Held as a list rather than as two `find`s so the count is a property of the authority and not of
- * this file, and indexed only after the identity case below has pinned what each index selected.
+ * Two of them, because one member of the measured family carries no occurrence of the first term at
+ * all and no predicate over that term can reach it. Held as a list rather than as two `find`s so the
+ * count is a property of the authority and not of this file, and indexed only after the identity
+ * case below has pinned what each index selected.
  */
 const COMPREHENSION_TERMS = BANNED_CLAIM_LITERALS.filter(
-  (l) => l.group === "comprehension" && l.requiresOnSameLine !== undefined,
+  (l) => l.group === "comprehension" && !l.literal.includes(" "),
 );
 const BARE_COMPREHENSION = COMPREHENSION_TERMS[0];
 const BARE_UNDERSTAND = COMPREHENSION_TERMS[1];
@@ -159,7 +157,7 @@ const BARE_UNDERSTAND = COMPREHENSION_TERMS[1];
 // below the string "undefined", which no gate matches — and every RED case would pass as a GREEN.
 if (
   UNCONDITIONAL_NAME === undefined ||
-  CONDITIONAL_NAME === undefined ||
+  DISCIPLINE_NAME === undefined ||
   TOKEN_CLAIM === undefined ||
   COMPREHENSION_CLAIM === undefined ||
   BARE_COMPREHENSION === undefined ||
@@ -172,14 +170,43 @@ if (
   );
 }
 
-const CONFORMANCE_VERB = CONFORMANCE_VERB_MARKERS[0];
+/**
+ * A conformance verb, as ORDINARY ENGLISH. It is no longer drawn from anything the gate declares.
+ *
+ * Round 6 deleted the conformance-verb list, so this word pins nothing and gates nothing: it is
+ * prose in a plant sentence, exactly like `the grugops kit`. It is typed here rather than composed
+ * because there is no longer an authority to compose it from — and that absence is the change.
+ */
+const CONFORMANCE_VERB = "conform";
 
-// The three benefit markers the measured family actually needs, selected by index and pinned by
-// identity in the selection case below — a marker list has no property to select on but its own
-// value, so the index is the selection and the pin is what makes a reorder loud.
-const MARKER_IMPROVE = BENEFIT_VERB_MARKERS[0];
-const MARKER_EASIER = BENEFIT_VERB_MARKERS[2];
-const MARKER_BOOST = BENEFIT_VERB_MARKERS[3];
+/**
+ * THE SEVEN BENEFIT VERBS ROUND 5 ADMITTED AS A MARKER LIST — KEPT HERE AS A HISTORICAL FIXTURE.
+ *
+ * NOT AN AUTHORITY, NOT A PREDICATE, AND NOT IMPORTED FROM ONE. Round 6 deleted the list from the
+ * gate (D-48/D-53): every axis a bare term can be paired against is an open class, so the gate now
+ * enumerates only WHAT IS BANNED. This array survives for exactly one reason — the per-marker
+ * discrimination cases below were written against it, and deleting a case without a record is
+ * indistinguishable from a case that was never written. Those cases are now VACUOUS in the precise
+ * sense that they pass because the bare term alone reds; they are listed by name in 29-44-SUMMARY.md
+ * and plan 29-45 owns their repurposing.
+ *
+ * A LATER READER MUST NOT PROMOTE THIS BACK INTO THE GATE. Reintroducing a marker list is a visible
+ * TYPE CHANGE now, and it is refused by name at `BannedClaimLiteral`.
+ */
+const HISTORICAL_BENEFIT_WORDS: readonly string[] = [
+  "improve",
+  "better",
+  "easier",
+  "boost",
+  "help",
+  "benefit",
+  "enhance",
+];
+
+// The three the measured family's plants interpose, by index, pinned by identity below.
+const MARKER_IMPROVE = HISTORICAL_BENEFIT_WORDS[0];
+const MARKER_EASIER = HISTORICAL_BENEFIT_WORDS[2];
+const MARKER_BOOST = HISTORICAL_BENEFIT_WORDS[3];
 
 /**
  * THE PRE-FIX GRAMMAR, RECONSTRUCTED AS A FIXTURE-ONLY SHAPE. NOT A LIVE PREDICATE, EVER.
@@ -191,10 +218,11 @@ const MARKER_BOOST = BENEFIT_VERB_MARKERS[3];
  * asserted per family member rather than only the shipped one.
  *
  * WHAT THE PRE-FIX SHAPE WAS: the comprehension group's enumerated substrings, matched
- * case-insensitively, with NO co-occurrence condition. That is exactly the set of comprehension
- * members that carry no `requiresOnSameLine` today, so it is DERIVED from the authority rather than
- * retyped — six strings retyped here would be the second copy of the list this whole file exists to
- * refuse. The derivation has a second, better property: if a later editor takes the rejected
+ * case-insensitively, with no co-occurrence condition. That is exactly the set of MULTI-WORD
+ * comprehension members, so it is DERIVED from the authority rather than retyped — six strings
+ * retyped here would be the second copy of the list this whole file exists to refuse. (Round 6: the
+ * selection used to key on the absence of a marker field, which no longer exists; the phrase-vs-bare
+ * distinction is intrinsic to the literals and survives the deletion.) The derivation has a second, better property: if a later editor takes the rejected
  * option (b) and APPENDS a phrasing to the group, that phrasing enters this historical shape too, the
  * historical verdict on the family row it closes flips, and the recorded-verdict case below reds by
  * name. The refusal in `BANNED_CLAIM_EXCLUDED` is therefore held by an assertion and not only by a
@@ -202,7 +230,7 @@ const MARKER_BOOST = BENEFIT_VERB_MARKERS[3];
  */
 const HISTORICAL_ENUMERATED_COMPREHENSION: readonly string[] =
   BANNED_CLAIM_LITERALS.filter(
-    (l) => l.group === "comprehension" && l.requiresOnSameLine === undefined,
+    (l) => l.group === "comprehension" && l.literal.includes(" "),
   ).map((l) => l.literal);
 
 /** The PRE-FIX verdict on one line. Substring, case-insensitive, no co-occurrence — the old grammar. */
@@ -216,9 +244,16 @@ function historicallyNamed(line: string): boolean {
 /** The exact shape of the D-44 draft claim: the name, with a conformance verb beside it. */
 const NAME_PLANT = `The grugops kit ${CONFORMANCE_VERB}s to ${UNCONDITIONAL_NAME.literal}.`;
 /** Two banned literals adjacent on ONE line — the adjacency case. */
-const ADJACENT_PLANT = `The kit ${CONFORMANCE_VERB}s to ${UNCONDITIONAL_NAME.literal} ${CONDITIONAL_NAME.literal}.`;
-/** The discipline's bare name with NO conformance verb — legal, and the conditional arm's control. */
-const BARE_NAME_PLANT = `Writers of ${CONDITIONAL_NAME.literal} choose one word per meaning.`;
+const ADJACENT_PLANT = `The kit ${CONFORMANCE_VERB}s to ${UNCONDITIONAL_NAME.literal} ${DISCIPLINE_NAME.literal}.`;
+/**
+ * The discipline's bare name with NO conformance verb.
+ *
+ * This used to be the conditional arm's GREEN control — the sentence that proved the gate had not
+ * banned the topic. Round 6 made the member unconditional, so the same sentence is now a FINDING,
+ * and the case below asserts that instead. The carve-out moved from lexical to POSITIONAL: what
+ * proves the topic is still writable is the inside-the-region control, not this line.
+ */
+const BARE_NAME_PLANT = `Writers of ${DISCIPLINE_NAME.literal} choose one word per meaning.`;
 const TOKEN_PLANT = `The voice is a ${TOKEN_CLAIM.literal} applied to memory.`;
 const COMPREHENSION_PLANT = `The profile ${COMPREHENSION_CLAIM.literal} for the model.`;
 
@@ -297,32 +332,15 @@ function markerPlant(marker: string): string {
   return `The profile is a ${marker} to the ${BARE_COMPREHENSION.literal} of the model.`;
 }
 
-/**
- * How many conditional members the SOURCE declares, counted from the source text.
- *
- * DERIVED INDEPENDENTLY OF THE ARRAY WALK ON PURPOSE (the standing lesson: a vacuity floor catches an
- * EMPTY denominator but never a SILENTLY SHORT one, so the element count must not come from the loop
- * that consumes it). This reads the `.ts` and counts the member declarations that name a marker list.
- * A member written on ONE line, which this pattern would not see, makes the two numbers DISAGREE and
- * reds — the safe direction — rather than shortening both together.
- */
-function declaredConditionalMembers(): number {
-  return (
-    readFileSync(GATE_TS, "utf8").match(
-      /^ +requiresOnSameLine: [A-Z_]+,$/gm,
-    ) ?? []
-  ).length;
-}
-
-/** How many benefit markers the SOURCE declares, by the same independent route. */
-function declaredBenefitMarkers(): number {
-  const src = readFileSync(GATE_TS, "utf8");
-  const block = src.slice(
-    src.indexOf("export const BENEFIT_VERB_MARKERS"),
-    src.indexOf("export const BANNED_CLAIM_LITERALS"),
-  );
-  return (block.match(/^ {2}"[a-z]+",$/gm) ?? []).length;
-}
+// ── TWO SOURCE-DERIVED DENOMINATORS RETIRED HERE (round 6) ────────────────────────────────────
+//
+// Both counted a construct the gate no longer declares — the member declarations that named a marker
+// list, and the members of the benefit-verb list — by matching the source text independently of the
+// array the cases walked. Re-measuring either to ZERO would leave a helper that can never disagree
+// with anything while reading in CI as a live derivation, which is the vacuity shape at helper
+// granularity. Deleted, with the property each held and its new home recorded in 29-44-SUMMARY.md.
+// The independent-denominator DISCIPLINE they existed for is unaffected and is still applied by
+// every other derived-count case in this file.
 
 // ── The mirror ────────────────────────────────────────────────────────────────────────────────
 
@@ -555,21 +573,27 @@ describe("check-banned-claims — the plant selection itself", () => {
     // what was selected, never as a needle handed to the gate. A reorder of BANNED_CLAIM_LITERALS now
     // fails this case by name instead of defanging a plant three hundred lines away.
     expect(UNCONDITIONAL_NAME.literal).toBe("ASD-STE100");
-    expect(CONDITIONAL_NAME.literal).toBe("Simplified Technical English");
-    expect(CONDITIONAL_NAME.requiresOnSameLine).toBe(CONFORMANCE_VERB_MARKERS);
+    expect(DISCIPLINE_NAME.literal).toBe("Simplified Technical English");
     expect(TOKEN_CLAIM.literal).toBe("token economy");
     expect(COMPREHENSION_CLAIM.literal).toBe("improves comprehension");
-    // The two conditional bare terms, in declaration order, with their marker list identified by
-    // REFERENCE rather than by length: two lists of equal size would satisfy a count and a plant
-    // composed from the wrong one would still red, for the wrong reason.
+    // The two bare terms, in declaration order.
     expect(COMPREHENSION_TERMS.map((t) => t.literal)).toEqual([
       "comprehension",
       "understand",
     ]);
-    for (const t of COMPREHENSION_TERMS) {
-      expect(t.requiresOnSameLine).toBe(BENEFIT_VERB_MARKERS);
+    // ── (ROUND 6) EVERY MEMBER IS UNCONDITIONAL, ASSERTED OVER THE WHOLE LIST ──────────────────
+    //
+    // THE PREDICATE IS THE TYPE'S OWN KEY SET, NOT A NAMED FIELD. Asserting `member.someField ===
+    // undefined` would be a check on a field that does not exist — always true, in TypeScript and at
+    // run time both, and therefore a pin over nothing. Asserting the key set instead reds the day a
+    // member carries ANY third property, whatever it is called, which is the shape a marker list
+    // would come back as. It is the run-time half of the guarantee `tsc` already gives statically.
+    for (const m of BANNED_CLAIM_LITERALS) {
+      expect(Object.keys(m).sort()).toEqual(["group", "literal"]);
     }
-    // The markers the family plants are composed from.
+    // The words the family plants interpose. They pin nothing in the gate any more — see the
+    // historical fixture's docblock — but a reorder of that fixture would still silently recompose
+    // the plants, so the identities stay asserted.
     expect(CONFORMANCE_VERB).toBe("conform");
     expect(MARKER_IMPROVE).toBe("improve");
     expect(MARKER_EASIER).toBe("easier");
@@ -580,7 +604,7 @@ describe("check-banned-claims — the plant selection itself", () => {
     // A template carrying a marker of its own would credit every per-marker red to the template, and
     // all seven cases below would pass against a gate that only ever matched that one marker.
     const skeleton = markerPlant("");
-    for (const m of BENEFIT_VERB_MARKERS) {
+    for (const m of HISTORICAL_BENEFIT_WORDS) {
       expect(skeleton.toLowerCase().includes(m.toLowerCase())).toBe(false);
     }
     expect(historicallyNamed(skeleton)).toBe(false);
@@ -624,11 +648,11 @@ describe("check-banned-claims — the plant selection itself", () => {
     // false green: three of the six carry no occurrence of either bare term, so the rule does not
     // subsume them, and they carry part of the exemption's suppressed arithmetic besides.
     expect(HISTORICAL_ENUMERATED_COMPREHENSION.length).toBe(6);
-    // ...and it is a HISTORICAL shape, not a live predicate: it must not be conditional on anything.
+    // ...and it is exactly the multi-word members of the group, so a phrasing appended tomorrow
+    // enters this historical shape too and the recorded-verdict rows below red by name.
     for (const l of BANNED_CLAIM_LITERALS.filter(
-      (m) => m.group === "comprehension" && m.requiresOnSameLine === undefined,
+      (m) => m.group === "comprehension" && m.literal.includes(" "),
     )) {
-      expect(l.requiresOnSameLine).toBeUndefined();
       expect(HISTORICAL_ENUMERATED_COMPREHENSION).toContain(l.literal);
     }
   });
@@ -747,7 +771,7 @@ describe("check-banned-claims — adjacency", () => {
     expect(status).toBe(1);
     expect(findingCount(stdout)).toBe(2);
     expect(stdout).toContain(UNCONDITIONAL_NAME.literal);
-    expect(stdout).toContain(CONDITIONAL_NAME.literal);
+    expect(stdout).toContain(DISCIPLINE_NAME.literal);
     // Two DIFFERENT columns on the same line — the second finding is not a duplicate report.
     const cols = [...stdout.matchAll(/004-filler\.md:(\d+):(\d+)/g)].map((m) => [
       m[1],
@@ -770,40 +794,61 @@ describe("check-banned-claims — adjacency", () => {
   });
 });
 
-// ── The conditional arm ───────────────────────────────────────────────────────────────────────
+// ── The discipline's name, now unconditional (round 6, D-53) ─────────────────────────────────
 
-// (Plan 29-42) Titled for the ARM, not for a count. This block's old title asserted a COUNT of one
-// conditional literal while three members were conditional — a case NAME is what a reporter prints
-// and what the next reader greps, so a stale singular there is the same defect as a stale singular in
-// a PASS line. The old title is DESCRIBED and not quoted, for the reason the gate's own source gives
-// at its PASS-line rewrite: this repository's guards scan source text without stripping comments, so
-// quoting a deleted singular verbatim re-registers it as a live site of the very thing deleted.
-describe("check-banned-claims — the conditional arm, on the conformance list", () => {
-  it("does NOT fire on the discipline's bare name with no conformance verb on the line", () => {
-    // THE ADMISSION TEST, ASSERTED. Banning the bare name would make it impossible to write a
-    // correct sentence that names the discipline, and going green would then require deleting
-    // correct text. This case is what keeps the conditional arm conditional.
+// WHAT THIS BLOCK USED TO ASSERT, AND WHY THE VERDICT INVERTED RATHER THAN THE CASE BEING DELETED.
+// The discipline's name used to fire only beside a verb from a six-stem hand-authored list, and the
+// case below asserted the GREEN half of that: the bare name alone was legal, so the topic stayed
+// writable. Measured against the pre-change committed build, four ordinary English conformance verbs
+// outside that list — follows, meets, adheres to, is written in — each produced ZERO findings, so
+// what the green half actually protected was every unlisted verb. Round 6 deleted the list.
+//
+// THE CARVE-OUT MOVED FROM LEXICAL TO POSITIONAL, AND SO DID THIS BLOCK. The sentence that proves
+// the topic is still writable is no longer "the name without a verb" — it is "the name INSIDE the
+// one named exemption region", which is bounded, named and pinned two-sided. Both directions are
+// asserted below, so neither is a claim without a control.
+describe("check-banned-claims — the discipline's name, matched unconditionally", () => {
+  it("FIRES on the discipline's bare name with no conformance verb anywhere on the line", () => {
+    // The inversion, asserted at the finding line rather than at the exit code. Under the deleted
+    // mechanism this exact plant exited 0 with the planted file never named.
     const planted = "agent-factory/workflows/006-filler.md";
     const { status, stdout } = runGate(
       makeMirror("gops-banned-bare-", { plant: { [planted]: BARE_NAME_PLANT } }),
     );
-    expect(status).toBe(0);
-    expect(stdout).toContain("ALL CHECKS PASSED");
+    expect(stdout).toMatch(/006-filler\.md:\d+:\d+ — banned standard-name literal /);
+    expect(stdout).toContain(DISCIPLINE_NAME.literal);
+    expect(status).toBe(1);
   });
 
-  it("DOES fire on the same name once a conformance verb joins it on that line", () => {
-    // The discriminating half. Without it the case above would pass against a gate whose
-    // conditional arm never matches anything at all.
-    const planted = "agent-factory/workflows/006-filler.md";
+  it("FIRES on FOUR conformance verbs no marker list contained — the D-53 discrimination", () => {
+    // THE FOUR SENTENCES THAT MEASURED ZERO AGAINST THE PRE-CHANGE BUILD, CARRIED AS PERMANENT CASES.
+    // A closure proven only on a transcript stops being proven the moment somebody reintroduces the
+    // mechanism; these are the assertions that keep the measurement true. The verbs are ordinary
+    // English and pin nothing — that is the point of the change.
+    for (const verb of ["follows", "meets", "adheres to", "is written in"]) {
+      const planted = "agent-factory/workflows/006-filler.md";
+      const { status, stdout } = runGate(
+        makeMirror("gops-banned-conformance-", {
+          plant: { [planted]: `The grugops kit ${verb} ${DISCIPLINE_NAME.literal}.` },
+        }),
+      );
+      expect(stdout).toMatch(/006-filler\.md:\d+:\d+ — banned standard-name literal /);
+      expect(stdout).toContain(DISCIPLINE_NAME.literal);
+      expect(status).toBe(1);
+    }
+  });
+
+  it("CONTROL: the same name INSIDE the exemption region is still suppressed", () => {
+    // THE CARVE-OUT, ASSERTED POSITIONALLY. Without this the cases above would pass against a gate
+    // that had become a keyword ban on a topic — which would make the non-affiliation disclaimer
+    // unwritable, and going green would then mean deleting correct text.
     const { status, stdout } = runGate(
-      makeMirror("gops-banned-bare-verb-", {
-        plant: {
-          [planted]: `${BARE_NAME_PLANT.slice(0, -1)}, and the kit ${CONFORMANCE_VERB}s to it.`,
-        },
+      makeMirror("gops-banned-region-name-", {
+        profile: { regionBody: BARE_NAME_PLANT },
       }),
     );
-    expect(status).toBe(1);
-    expect(stdout).toContain(CONDITIONAL_NAME.literal);
+    expect(status).toBe(0);
+    expect(stdout).toContain("ALL CHECKS PASSED");
   });
 });
 
@@ -859,17 +904,22 @@ describe("check-banned-claims — the measured comprehension family", () => {
 
 // ── Per-marker discrimination (plan 29-42, task 1) ─────────────────────────────────────────────
 
-describe("check-banned-claims — every benefit marker, alone on its line", () => {
-  // A marker admitted by a measurement and held by no assertion is a member of the list that nothing
-  // proved does anything. Plan 29-41 admitted seven on measured counts; these are the assertions that
-  // keep the measurement true.
-  for (const marker of BENEFIT_VERB_MARKERS) {
+// ── (ROUND 6) THESE SEVEN CASES ARE NOW VACUOUS, AND THAT IS RECORDED RATHER THAN CONCEALED ────
+//
+// Each case below plants ONE historical benefit word beside the bare term and asserts a red. They
+// all still pass — but they pass because the BARE TERM ALONE reds now, not because the word did
+// anything. Each therefore asserts something its own name does not describe, which is the shape this
+// repository refuses everywhere else. They are NOT deleted here: a case removed without a record is
+// indistinguishable from a case that was never written. Every one is listed by name in
+// 29-44-SUMMARY.md and plan 29-45 owns their repurposing.
+describe("check-banned-claims — every historical benefit word, alone on its line", () => {
+  for (const marker of HISTORICAL_BENEFIT_WORDS) {
     it(`marker "${marker}" ALONE on the line turns the bare term into a finding`, () => {
       const plant = markerPlant(marker);
       // The marker under test is the ONLY one present, asserted before the plant is used, so a red
       // cannot be credited to a marker that was not the one under test.
       expect(
-        BENEFIT_VERB_MARKERS.filter((m) =>
+        HISTORICAL_BENEFIT_WORDS.filter((m) =>
           plant.toLowerCase().includes(m.toLowerCase()),
         ),
       ).toEqual([marker]);
@@ -892,33 +942,85 @@ describe("check-banned-claims — every benefit marker, alone on its line", () =
     });
   }
 
-  it("CONTROL: the same line with NO marker at all is GREEN, so the rule stayed conditional", () => {
-    // The discrimination that proves the rule did not quietly become unconditional. Without it every
-    // case above would pass against a gate that banned the bare word outright — which would make the
-    // honest denial unsayable, and going green would then mean deleting correct text.
+  // ── WHAT REPLACED THE OLD no-marker GREEN CONTROL, AND WHY THE REPLACEMENT IS POSITIONAL ──────
+  //
+  // A case used to sit here planting the bare term with no benefit word on the line and asserting
+  // GREEN — the discrimination that proved the guard had not become a keyword ban on a topic. Round
+  // 6 removed its SUBJECT: the bare term is unconditional, so that sentence is now a finding, and a
+  // re-measured version of it would assert the OPPOSITE of what its name says. The property it held
+  // — the topic stays writable, so the honest denial can be written and no correct text has to be
+  // deleted to reach green — is held now by the INSIDE-THE-REGION control below, positionally. Both
+  // directions of it are asserted, so the carve-out is discriminating rather than merely claimed.
+
+  it("FIRES on the bare term with no benefit word anywhere on the line — the round-6 inversion", () => {
     const plant = `The profile makes no claim about ${BARE_COMPREHENSION.literal} in either direction.`;
     expect(
-      BENEFIT_VERB_MARKERS.filter((m) =>
+      HISTORICAL_BENEFIT_WORDS.filter((m) =>
         plant.toLowerCase().includes(m.toLowerCase()),
       ),
     ).toEqual([]);
-    expect(plant).toContain(BARE_COMPREHENSION.literal);
+    expect(historicallyNamed(plant)).toBe(false);
     const { status, stdout } = runGate(
       makeMirror("gops-banned-nomarker-", {
         plant: { "agent-factory/workflows/012-filler.md": plant },
       }),
     );
+    expect(stdout).toMatch(/012-filler\.md:\d+:\d+ — banned comprehension literal /);
+    expect(stdout).toContain(
+      `banned comprehension literal "${BARE_COMPREHENSION.literal}"`,
+    );
+    expect(status).toBe(1);
+  });
+
+  it("CONTROL: the SAME markerless line INSIDE the exemption region is still suppressed", () => {
+    // The carve-out, asserted positionally. Without it every case in this block would pass against a
+    // gate that had banned the topic outright, and the honest denial would be unwritable.
+    const plant = `The profile makes no claim about ${BARE_COMPREHENSION.literal} in either direction.`;
+    const { status, stdout } = runGate(
+      makeMirror("gops-banned-region-term-", { profile: { regionBody: plant } }),
+    );
     expect(status).toBe(0);
     expect(stdout).toContain("ALL CHECKS PASSED");
   });
 
-  it("the marker list the cases walked is the one the SOURCE declares — derived independently", () => {
-    // The element count comes from the source text, not from the loop above. A loop that walked a
-    // silently short list would satisfy every case it ran and report nothing about the ones it did not.
-    expect(BENEFIT_VERB_MARKERS.length).toBe(declaredBenefitMarkers());
-    expect(BENEFIT_VERB_MARKERS.length).toBe(7);
-    expect(new Set(BENEFIT_VERB_MARKERS).size).toBe(BENEFIT_VERB_MARKERS.length);
-    for (const m of BENEFIT_VERB_MARKERS) expect(m.trim().length).toBeGreaterThan(2);
+  it("the five ROUND-5 comprehension bypasses all red by name — the D-48 discrimination", () => {
+    // THE FIVE SENTENCES THAT DEFEATED THE ROUND-5 RULE AT EXIT 0 WITH THE PLANTED FILE NEVER NAMED,
+    // carried as permanent cases so the closure survives the transcript that proved it. Not one of
+    // these verbs was on the deleted list, and no list contains all the verbs English has for "makes
+    // better" — which is why the axis was deleted rather than extended.
+    for (const verb of [
+      "increases",
+      "raises",
+      "gives models sharper",
+      "aids",
+    ]) {
+      const plant = `Controlled language ${verb} ${BARE_COMPREHENSION.literal}.`;
+      expect(historicallyNamed(plant)).toBe(false);
+      const { status, stdout } = runGate(
+        makeMirror("gops-banned-r5-", {
+          plant: { "agent-factory/workflows/013-filler.md": plant },
+        }),
+      );
+      expect(stdout).toMatch(/013-filler\.md:\d+:\d+ — banned comprehension literal /);
+      expect(stdout).toContain(
+        `banned comprehension literal "${BARE_COMPREHENSION.literal}"`,
+      );
+      expect(status).toBe(1);
+    }
+    // The fifth carries no occurrence of the first bare term at all, and is reached by the second.
+    const fifth = `Controlled language makes models ${BARE_UNDERSTAND.literal} prose faster.`;
+    expect(fifth).not.toContain(BARE_COMPREHENSION.literal);
+    expect(historicallyNamed(fifth)).toBe(false);
+    const { status, stdout } = runGate(
+      makeMirror("gops-banned-r5-fifth-", {
+        plant: { "agent-factory/workflows/013-filler.md": fifth },
+      }),
+    );
+    expect(stdout).toMatch(/013-filler\.md:\d+:\d+ — banned comprehension literal /);
+    expect(stdout).toContain(
+      `banned comprehension literal "${BARE_UNDERSTAND.literal}"`,
+    );
+    expect(status).toBe(1);
   });
 });
 
@@ -2258,27 +2360,18 @@ describe("check-banned-claims — the one list, frozen", () => {
     expect(new Set(BANNED_CLAIM_LITERALS.map((m) => m.literal)).size).toBe(
       BANNED_CLAIM_LITERALS.length,
     );
-    // ── THE CONDITIONAL-MEMBER CARDINALITY, RE-MEASURED RATHER THAN REMOVED (plan 29-42) ────────
+    // ── THE CONDITIONAL-MEMBER CARDINALITY PIN IS RETIRED, NOT RE-MEASURED (round 6) ────────────
     //
-    // THIS PIN WAS 1, IT FIRED, AND FIRING IS WHAT IT IS FOR. It is relaxed to the measured 3 with the
-    // reason recorded HERE, at the assertion, because a pin deleted because it fired is the failure
-    // mode this repository has closed three times at eight rounds each.
+    // ITS SUBJECT WAS REMOVED, WHICH IS A DIFFERENT THING FROM ITS VALUE MOVING. The pin was 1, fired,
+    // and was re-measured to 3 by plan 29-42 with its reason at the assertion — that is what a pin
+    // whose VALUE moves gets. Round 6 removed the member shape it counted from the TYPE, so the only
+    // value it could ever report again is zero. A permanently-zero equality reads in CI as a live
+    // check and can never fail, which is the vacuity shape at assertion granularity.
     //
-    // WHAT CHANGED AND WHO CHANGED IT. Plan 29-41 (G-29-2, user decision (c)) replaced the
-    // comprehension group's open enumeration with a RULE and admitted two conditional bare terms:
-    // `comprehension` and `understand`, both on BENEFIT_VERB_MARKERS. Each was admitted on its own
-    // measured hit count over the derived scan set, and the second exists because one member of the
-    // measured family carries no occurrence of the first term at all. That is a recorded decision with
-    // a number beside it — not a conditional member arriving silently, which is what this pin watches
-    // for and still watches for.
-    //
-    // IT STAYS AN EQUALITY, NOT A LOWER BOUND. A FOURTH conditional member reds this line on the day
-    // it lands and has to bring its own recorded reason, exactly as the second and third did. A
-    // `toBeGreaterThanOrEqual` here would retire the assertion while leaving it looking alive.
-    expect(
-      BANNED_CLAIM_LITERALS.filter((m) => m.requiresOnSameLine !== undefined)
-        .length,
-    ).toBe(3);
+    // WHERE THE PROPERTY LIVES NOW: with the type, and it is stronger there. A member carrying a
+    // marker field does not COMPILE, so the arrival this pin watched for is a build error rather than
+    // an assertion failure; and the key-set assertion in "the plant selection itself" above is the
+    // run-time half, reddening on ANY third property whatever it is called.
     // All three groups are populated. A group that emptied out would leave a prohibition LANG-04
     // names with no literal behind it, while the PASS line still counted three groups.
     for (const g of ["standard-name", "token-economy", "comprehension"]) {
@@ -2286,33 +2379,17 @@ describe("check-banned-claims — the one list, frozen", () => {
     }
   });
 
-  it("REFUSES a conditional member declared with an EMPTY marker array", () => {
-    // THE VACUITY SHAPE AT MEMBER GRANULARITY. A conditional member whose marker list is empty passes
-    // straight through `lineHits`'s existing arm — `[].some(...)` is false, so the member `continue`s
-    // on every line — and ships as a prohibition that matches NOTHING, forever, silently. The gate
-    // would go on counting it in the PASS line as a pinned literal.
-    const conditional = BANNED_CLAIM_LITERALS.filter(
-      (m) => m.requiresOnSameLine !== undefined,
-    );
-    // THE DENOMINATOR IS DERIVED FROM THE SOURCE, NOT FROM THE ARRAY THE LOOP WALKS. A vacuity floor
-    // catches an EMPTY list and never a SILENTLY SHORT one, and "assert the count you derived
-    // independently" is the standing remedy in this repository.
-    const declared = declaredConditionalMembers();
-    expect(declared).toBe(3);
-    expect(conditional.length).toBe(declared);
-    let walked = 0;
-    for (const m of conditional) {
-      walked += 1;
-      expect(m.requiresOnSameLine).toBeDefined();
-      expect(m.requiresOnSameLine?.length ?? 0).toBeGreaterThan(0);
-      // And every marker in it is usable: a blank marker would make `includes` true on every line and
-      // turn the conditional member into an unconditional one without moving any count.
-      for (const marker of m.requiresOnSameLine ?? []) {
-        expect(marker.trim().length).toBeGreaterThan(2);
-      }
-    }
-    expect(walked).toBe(declared);
-  });
+  // ── THE EMPTY-MARKER REFUSAL IS DISCHARGED BY DELETION (round 6, WR-06 / D-53) ────────────────
+  //
+  // A case used to sit here refusing a member whose marker list was empty — the vacuity shape at
+  // MEMBER granularity, a member that would have matched nothing forever while still being counted
+  // as a pinned literal. The round-5 review asked for that refusal to be moved into the gate itself.
+  // It is MOOT: the member shape it refused is not a shape the type admits, so an in-gate guard for
+  // it could never run and a case for it has nothing to construct. Discharged by DELETING THE
+  // MECHANISM rather than by hardening it, recorded here and in 29-44-SUMMARY.md, and carried to
+  // plan 29-47's reconciliation with that verdict so it is not a silent drop.
+  //
+  // Its two source-derived denominators went with it and are recorded above where they were declared.
 
   it("the admission log records every refused candidate with a reason", () => {
     expect(BANNED_CLAIM_EXCLUDED.length).toBeGreaterThan(0);

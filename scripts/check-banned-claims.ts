@@ -195,160 +195,87 @@ export type BannedClaimGroup =
   | "token-economy"
   | "comprehension";
 
+/**
+ * A member of the one list. A literal and the group it belongs to — and NOTHING ELSE.
+ *
+ * ------------------------------------------------------------------------------------------------
+ * THIS TYPE USED TO CARRY AN OPTIONAL MARKER FIELD, AND ITS REMOVAL IS THE WHOLE OF ROUND 6'S FIX
+ * (D-48 extended by D-53). THE HISTORY IS RECORDED HERE BECAUSE A TYPE WITH A FIELD DELETED LOOKS
+ * LIKE A TYPE THAT NEVER HAD ONE.
+ *
+ * A member could declare a list of co-occurrence words, and the matcher then reported the literal
+ * ONLY on a line that also carried one of them. The argument was that the discipline's name and the
+ * bare comprehension terms are TOPICS a document must be able to discuss in order to deny a claim
+ * about them, so what should be pinned is the PAIR — the topic plus a verb that turns it into a
+ * claim.
+ *
+ * THE ARGUMENT IS SOUND AND THE MECHANISM IS NOT, AND THIS REPOSITORY PAID FOR THE DIFFERENCE THREE
+ * TIMES. Whatever list of verbs is written down, it is a hand-authored list over an open class:
+ *
+ *   1. The comprehension group was six fixed substrings. Matching here is plain case-insensitive
+ *      substring, so ANY interposed word defeated all six at once. Five of six measured phrasings
+ *      exited 0 with the planted file never named.
+ *   2. Round 5 replaced the six substrings with a rule conditional on a hand-authored SEVEN-STEM
+ *      verb list — the enumeration moved one slot to the left, not away. Five plants defeated it at
+ *      exit 0 with the planted file never named: `increases comprehension`, `raises comprehension`,
+ *      `gives models sharper comprehension`, `aids comprehension`, and `makes models understand
+ *      prose faster`. Not one of those verbs was on the list, and there is no list that contains
+ *      all the verbs English has for "makes better".
+ *   3. The reviewer's proposed remedy was to pin the SUBJECT side instead — the topic paired with
+ *      `controlled language`, `this profile`, `the kit`, `the voice`. REFUSED by D-48, because
+ *      subject is an equally open class: `grugops`, `the factory`, `these roles`, a pronoun. It
+ *      buys exactly one round.
+ *   4. Authoring the round-6 plans then found the identical defect surviving on the group that
+ *      gives this gate its name. The discipline's name was gated by a six-stem conformance list, so
+ *      `conforms to` yielded one finding while `follows`, `meets`, `adheres to` and `is written in`
+ *      each yielded ZERO. Measured against the pre-change committed build, one plant per reset
+ *      `git archive HEAD` mirror, 2026-08-17.
+ *
+ * THE CONCLUSION IS STRUCTURAL, AND IT IS WHY THE FIELD IS GONE FROM THE TYPE RATHER THAN LEFT
+ * EMPTY. Every axis a bare term can be paired against is an open class. The only bounded thing in
+ * this design is the one named exemption region, and a region is POSITIONAL. So the carve-out
+ * became positional and the lexical half was deleted: the terms are unconditional literals, and the
+ * honest denial stays writable because it lives inside the region. An emptied marker list would
+ * leave the mechanism standing for the next member to reach for, one line at a time; a removed
+ * field makes reintroducing one a visible TYPE CHANGE in a diff — and a member that declares one
+ * does not compile.
+ *
+ * WHAT THE GATE'S PREDICATE NOW IS, STATED SO NOTHING HAS TO BE INFERRED: a pinned literal list
+ * plus one named exemption region. It enumerates WHAT IS BANNED and nothing about HOW IT IS SAID.
+ * The surviving enumeration is the literal list itself, and it is named with its direction at its
+ * own declaration below rather than implied away by the shape of a deletion.
+ * ------------------------------------------------------------------------------------------------
+ */
 export interface BannedClaimLiteral {
   readonly literal: string;
   readonly group: BannedClaimGroup;
-  /**
-   * When present, the literal is a finding ONLY on a line that also carries one of these markers.
-   *
-   * WHY SOME MEMBERS ARE CONDITIONAL, AND WHY THAT IS NOT A SECOND GRAMMAR. `Simplified Technical
-   * English` is the name of an entire discipline, not a claim. Banning it outright would make it
-   * impossible to write a correct sentence that NAMES the discipline in order to say grugops does
-   * not conform to it — and going green on such a sentence would mean deleting correct text, which
-   * is precisely what the admission test above forbids. The claim is the name PLUS a conformance
-   * verb, so the pair is what is pinned. The hyphenated and spaced product names below stay
-   * unconditional: those spellings identify one specific published standard, and the kit has no
-   * reason to name it outside the disclaimer that denies affiliation with it.
-   *
-   * THE SAME ARGUMENT, REACHED A SECOND TIME FROM THE OPPOSITE DIRECTION (plan 29-41, G-29-2). The
-   * `comprehension` group's conditional members are conditional because the concept — comprehension,
-   * understanding — is one a document must be able to DISCUSS in order to deny a claim about it,
-   * while the CLAIM is the concept plus a benefit verb. Both groups therefore pin a PAIR, and they
-   * pin it through this one field and the one arm in `lineHits` that reads it. Different marker
-   * lists, one mechanism: `CONFORMANCE_VERB_MARKERS` for the discipline's name and
-   * `BENEFIT_VERB_MARKERS` for the comprehension terms. A member declaring its own matching
-   * behaviour instead of naming a marker list would be the second grammar this field exists to
-   * avoid.
-   */
-  readonly requiresOnSameLine?: readonly string[];
 }
 
-/**
- * The conformance / certification verb stems that turn the discipline's bare name into a claim.
- *
- * These are STEMS on purpose and each covers its whole family by substring: `conform` covers
- * conforms/conformant/conformance, `complian` covers compliant/compliance, `certif` covers
- * certified/certification, `endors` covers endorsed/endorsement, `approv` covers approved/approval.
- * They are NOT banned literals in their own right and must never become any: measured over the scan
- * set they hit 60, 18, 2 and 70 lines of entirely correct text about compliance regimes, release
- * approvals and ASVS certification requirements.
- */
-export const CONFORMANCE_VERB_MARKERS: readonly string[] = [
-  "conform",
-  "complian",
-  "certif",
-  "endors",
-  "approv",
-  "accredit",
-];
-
-/**
- * The benefit-verb markers that turn a bare comprehension term into a comprehension-benefit CLAIM.
- *
- * ------------------------------------------------------------------------------------------------
- * WHY THIS LIST EXISTS, AND WHY IT IS NOT SIX MORE LITERALS (plan 29-41, G-29-2, user decision (c)).
- *
- * The `comprehension` group below used to be SIX fixed substrings and nothing else. Matching here is
- * plain case-insensitive substring, so any INTERPOSED WORD defeated every one of the six at once.
- * Measured against the committed `.js` on a `git archive HEAD` mirror, one plant at a time on a reset
- * mirror, 2026-08-17 — the first line reds naming the file, the rest exit 0 with the planted file
- * never mentioned in the output at all:
- *
- *   "...improves comprehension."                            exit 1  named at :55:27
- *   "...improves LLM comprehension."                        exit 0  not named
- *   "...improves model comprehension."                      exit 0  not named
- *   "...improves agent comprehension."                      exit 0  not named
- *   "...makes prose easier for LLMs to understand."          exit 0  not named
- *   "...boosts comprehension for language models."           exit 0  not named
- *
- * Appending those five phrasings was measured and REJECTED as the remedy: it closes the five
- * spellings somebody happened to write down and leaves the next interposed word green. So the guard
- * DECIDES the prohibition instead — a bare comprehension term plus a benefit verb on the same line —
- * which is exactly the shape `CONFORMANCE_VERB_MARKERS` above already proved for the discipline's
- * name. One mechanism, two marker lists, no second matcher.
- *
- * ------------------------------------------------------------------------------------------------
- * MEASURED BEFORE ADMISSION, PER MARKER, AND THE NUMBERS ARE WHAT ADMITTED IT.
- *
- * Taken 2026-08-17 over the set `bannedClaimScan()` derives — 82 documents, 5898 lines — as the
- * number of LINES carrying the marker. Every count was then re-taken independently with
- * `grep -a -i -c` over the same 82 paths; the two agree on all seven. (`-a`, because a single NUL
- * byte makes BSD grep report zero matches silently; no file in the set is binary-classified.)
- *
- *   marker     lines   what admitted it
- *   -------    -----   --------------------------------------------------------------------------
- *   improve       17   the measured family: "improves LLM/model/agent comprehension"
- *   better         0   warrant plant: "Controlled language gives better comprehension."
- *   easier         0   the measured family: "...easier for LLMs to understand" (via `understand`)
- *   boost          0   the measured family: "boosts comprehension for language models"
- *   help           3   warrant plant: "Controlled language helps comprehension."
- *   benefit        3   warrant plant: "Controlled language delivers a real benefit in comprehension."
- *   enhance        1   warrant plant: "Controlled language enhances comprehension."
- *
- * Every marker above was watched reddening the gate BY NAME on a plant where it is the ONLY marker
- * present, so no marker is admitted that nothing proved does anything — each plant was first asserted
- * to carry exactly one member of this list before it was planted. NO CANDIDATE WAS DROPPED: all seven
- * earned a family member or a warrant. A marker with neither belongs in `BANNED_CLAIM_EXCLUDED`, not
- * here.
- *
- * ------------------------------------------------------------------------------------------------
- * THE COVERAGE MAP — EVERY MEMBER OF THE MEASURED FAMILY HAS A VERDICT, NONE IS LEFT UNADDRESSED.
- *
- * The family is the six phrasings enumerated in `29-UAT.md` § G-29-2 root_cause. Each was planted
- * alone on a reset `git archive HEAD` mirror both BEFORE and AFTER the rule, and the verdict is the
- * finding line read from the output — never the exit code, which the un-re-pinned constant made
- * non-zero for an unrelated reason:
- *
- *   phrasing                                        before      after   covered by
- *   ---------------------------------------------   ---------   -----   -----------------------------
- *   "improves comprehension."                       named       named   enumerated literal + the rule
- *   "improves LLM comprehension."                   NOT named   named   the rule, marker `improve`
- *   "improves model comprehension."                 NOT named   named   the rule, marker `improve`
- *   "improves agent comprehension."                 NOT named   named   the rule, marker `improve`
- *   "makes prose easier for LLMs to understand."    NOT named   named   the SECOND bare term,
- *                                                                       marker `easier`
- *   "boosts comprehension for language models."     NOT named   named   the rule, marker `boost`
- *
- * THE FIFTH ROW IS A FINDING AGAINST THE PROTOTYPE, NOT A SUCCESS OF IT. `29-UAT.md`'s
- * `measured_probe` claims all five bypasses red under a bare `comprehension` member. That does not
- * reproduce: the fifth carries no occurrence of `comprehension` and is outside that rule BY
- * CONSTRUCTION, whatever markers are admitted. It is covered by the second conditional member
- * `understand` below, admitted with its own measurement.
- * ------------------------------------------------------------------------------------------------
- *
- * A ZERO IS NOT A REASON TO DELETE A MARKER, AND THE ASYMMETRY WITH THE LIST ABOVE IS THE POINT.
- * `CONFORMANCE_VERB_MARKERS` records its numbers because they are LARGE — 60, 18, 2, 70 — which is
- * why those stems may never become literals in their own right. This list records its numbers for
- * the OPPOSITE reason: a zero means the marker over-matches nothing in the corpus, which is the
- * safest reading a marker can have. A later reader who deletes `better`, `easier` or `boost` as
- * "unused" would be reopening the family this list exists to close.
- *
- * THESE ARE MARKERS AND MUST NEVER BECOME LITERALS. `improve` alone hits 17 lines of entirely
- * correct text about improving the board, the trace and the workflows; `help` and `benefit` hit 3
- * each. Promoting any of them to a literal is the shape the admission test at the top of this file
- * refuses by name.
- *
- * THIS LIST IS A MEASUREMENT BASELINE, NOT A DISCOVERY SET, and it is hand-authored on purpose — the
- * same justification `roleCeiling()` carries under D-25. There is no corpus from which "the verbs
- * that express a benefit" can be derived, and deriving it would mean inventing a rule nobody
- * measured. What IS derived is every number beside it, and the derivation is re-runnable.
- *
- * THE COUPLING TO THE EXEMPTION PIN, STATED BECAUSE IT IS NOT OBVIOUS.
- * `BANNED_CLAIM_EXEMPT_SUPPRESSED` below is a FUNCTION of which markers are admitted: a denial line
- * inside the exemption region matches a conditional member only if one of that line's own words is
- * an admitted marker. Adding or dropping a marker here can therefore move that pin. The two are
- * settled by ONE measurement or neither of them is honest.
- * ------------------------------------------------------------------------------------------------
- */
-export const BENEFIT_VERB_MARKERS: readonly string[] = [
-  "improve",
-  "better",
-  "easier",
-  "boost",
-  "help",
-  "benefit",
-  "enhance",
-];
+// ---------------------------------------------------------------------------
+// WHERE TWO HAND-AUTHORED VERB LISTS USED TO SIT, AND THE MEASUREMENTS THAT OUTLIVE THEM.
+//
+// Round 6 deleted both (D-48, extended to the second by D-53). The reasoning is at the type above;
+// what is kept here is the ARITHMETIC, because both lists were measured over corpora that no longer
+// exist and nothing downstream can re-derive them. The full verbatim transcription, with the corpus
+// size each was taken over, is in `.planning/.../29-44-SUMMARY.md`.
+//
+// THE CONFORMANCE-STEM LIST (six substring stems, gating the discipline's name). Measured over the
+// then-current derived scan set, the stems hit 60, 18, 2 and 70 lines of entirely correct text
+// about compliance regimes, release approvals and ASVS certification requirements. That is 150
+// lines, and it is why those stems may never be promoted to banned literals in their own right —
+// the refusal survives in `BANNED_CLAIM_EXCLUDED` below with the breakdown intact. What does NOT
+// survive is the claim that they are retained as co-occurrence markers: there is no co-occurrence
+// mechanism to retain them for.
+//
+// THE BENEFIT-VERB LIST (seven substring markers, gating the two bare comprehension terms).
+// Measured 2026-08-17 over an 82-document / 5898-line derived scan set as the number of LINES
+// carrying each marker: 17, 0, 0, 0, 3, 3 and 1 respectively, in declaration order. The zeros were
+// recorded as SAFE (a marker that over-matches nothing) and the 17 as the reason its stem could
+// never be a literal. Both readings were true and neither was the problem: the problem was that a
+// verb the list did not contain defeated the whole rule, which five plants proved at exit 0.
+//
+// NEITHER LIST IS REPLACED. A third list on a third axis was proposed and refused; see the type.
+// ---------------------------------------------------------------------------
 
 export const BANNED_CLAIM_LITERALS: readonly BannedClaimLiteral[] = [
   // ── Group 1: the standard's name and its spelling variants ──────────────────────────────────
@@ -360,11 +287,32 @@ export const BANNED_CLAIM_LITERALS: readonly BannedClaimLiteral[] = [
   { literal: "ASD STE 100", group: "standard-name" },
   { literal: "ASDSTE100", group: "standard-name" },
   { literal: "STE-100", group: "standard-name" },
-  {
-    literal: "Simplified Technical English",
-    group: "standard-name",
-    requiresOnSameLine: CONFORMANCE_VERB_MARKERS,
-  },
+  // ── THE DISCIPLINE'S NAME, NOW UNCONDITIONAL (round 6, D-53) ────────────────────────────────
+  //
+  // WHAT THIS MEMBER USED TO BE, AND WHY IT STOPPED BEING IT. The name of an entire discipline is
+  // not a claim, so this member used to fire only beside a conformance verb drawn from a six-stem
+  // hand-authored list. Measured against the pre-change committed build on a `git archive HEAD`
+  // mirror, one plant per reset mirror, 2026-08-17, planting the name into a governed workflow
+  // document: `conforms to` produced ONE finding named at file:line:column, while `follows`,
+  // `meets`, `adheres to` and `is written in` each produced ZERO with the planted file never
+  // mentioned in the output at all. Four ordinary English conformance verbs defeated the member
+  // that gives this gate its name.
+  //
+  // AND THE FIX WAS FREE ON THIS REPOSITORY'S OWN ARITHMETIC, WHICH IS WHY IT LANDED IN THE SAME
+  // ROUND RATHER THAN THE NEXT ONE. Re-derived through this module's own counter over the
+  // 115-document corpus and independently re-taken with `grep -a -i` over the same derived path
+  // list, the two agreeing: the name occurs on exactly TWO lines, `agent-factory/writing-profile.md`
+  // :239 and :241, and BOTH are inside the one named exemption region — the non-affiliation
+  // disclaimer, which names the standard in order to deny it. Making the member unconditional
+  // therefore costs ZERO findings on correct kit text. It does MOVE the exemption's suppressed
+  // count, because those two lines begin matching; that movement is derived from the gate's own
+  // refusal text at the pin below, never predicted into it.
+  //
+  // THE HONEST DENIAL IS STILL WRITABLE, AND THE CARVE-OUT IS NOW POSITIONAL RATHER THAN LEXICAL.
+  // A document that needs to name this discipline in order to deny conforming to it writes that
+  // sentence inside the exemption region, which is bounded, named and pinned two-sided. It no
+  // longer depends on somebody having thought of the verb.
+  { literal: "Simplified Technical English", group: "standard-name" },
 
   // ── Group 2: the token-economy win claim ────────────────────────────────────────────────────
   // `token-economy` hit ONCE at admission time, in agent-factory/workflows/18-context-compaction.md,
@@ -390,106 +338,82 @@ export const BANNED_CLAIM_LITERALS: readonly BannedClaimLiteral[] = [
   { literal: "easier for the model to understand", group: "comprehension" },
   { literal: "easier for a language model to understand", group: "comprehension" },
   { literal: "better understood by the model", group: "comprehension" },
-  // ── THE RULE THAT REPLACED THE OPEN ENUMERATION (plan 29-41, G-29-2, user decision (c)) ──────
+  // ── THE BARE TERM, NOW UNCONDITIONAL: THE ENUMERATION DELETED RATHER THAN MOVED AGAIN ────────
   //
-  // WHAT THIS MEMBER DECIDES, AS A RULE RATHER THAN A LIST. The bare word `comprehension` is a
-  // finding on any line that also carries a benefit verb from BENEFIT_VERB_MARKERS. So `improves
-  // LLM comprehension`, `improves model comprehension`, `improves agent comprehension` and `boosts
-  // comprehension for language models` are all findings WITHOUT ANY OF THEM BEING ENUMERATED, and
-  // an interposed word no longer defeats the whole group at once. That is the difference between a
-  // guard that holds a prohibition and a guard that holds the spellings somebody thought of.
+  // FOUR STAGES, IN ORDER, BECAUSE THE THIRD ONE LOOKED LIKE THE FIX.
   //
-  // THE BARE TERM ALONE IS LEGAL, AND THAT IS THE DESIGN RATHER THAN A GAP. A document must be able
-  // to DISCUSS comprehension — to say the kit makes no comprehension claim, or that no evidence
-  // about comprehension was located in either direction — without being read as making the claim.
-  // Banning the word outright would make the honest denial unsayable, and going green would then
-  // require deleting correct text, which is exactly what the admission test at the top of this file
-  // forbids. Measured over the 82-document scan set: the word occurs on precisely TWO lines and BOTH
-  // are honest denials, inside the one named exemption region.
+  //   1. This group was SIX FIXED SUBSTRINGS and nothing else. Matching here is plain
+  //      case-insensitive substring, so any INTERPOSED WORD defeated all six at once: five of the
+  //      six phrasings the UAT enumerated exited 0 with the planted file never named.
+  //   2. Appending those five phrasings was measured and REFUSED — it closes the spellings somebody
+  //      happened to write down and leaves the next interposed word green. That refusal stands and
+  //      is recorded in the admission log below with the number that made it.
+  //   3. Round 5 replaced the enumeration with a RULE conditional on a hand-authored seven-stem
+  //      benefit-verb list. That relocated the enumeration from the PHRASE slot to the VERB slot;
+  //      it did not delete it. Five plants defeated it at exit 0 with the planted file never named
+  //      anywhere in the output: `increases comprehension`, `raises comprehension`, `gives models
+  //      sharper comprehension`, `aids comprehension`, and `makes models understand prose faster`.
+  //   4. Round 6 DELETED the conditional half instead of moving it a third time. The reviewer's
+  //      proposal — pin the SUBJECT side — was considered and refused: subject is an equally open
+  //      class, so it buys one round. Every axis a bare term can be paired against is open. The only
+  //      bounded thing in this design is the one named exemption region, and a region is POSITIONAL.
+  //
+  // THE ADMISSION COST, DERIVED BEFORE THE CHANGE AND THROUGH THIS MODULE'S OWN COUNTER. Over the
+  // 115-document corpus, independently re-taken with `grep -a -i` over the same derived path list
+  // and the two agreeing: this term occurs on exactly TWO lines,
+  // `agent-factory/writing-profile.md:256` and `:288`, and BOTH are inside the one named exemption
+  // region. Making it unconditional therefore produces ZERO new findings. The honest denial is still
+  // writable — it is written where the carve-out is.
   //
   // THE SIX ENUMERATED LITERALS ABOVE STAY, AND DELETING THEM WOULD BE A FALSE GREEN. Two reasons,
   // both arithmetic rather than editorial. (1) They carry part of the exemption's suppressed
-  // arithmetic: each denial line matches an enumerated literal AS WELL AS this rule, so deleting
+  // arithmetic: each denial line matches an enumerated literal AS WELL AS this term, so deleting
   // them would move `BANNED_CLAIM_EXEMPT_SUPPRESSED` by deleting what that pin measures — moving a
   // pin by removing its subject, which is the one route to green this file exists to refuse. (2)
-  // This rule does not subsume them: `easier for the model to understand`, `easier for a language
-  // model to understand` and `better understood by the model` carry no occurrence of this member's
-  // literal at all.
+  // This term does not subsume them: `easier for the model to understand`, `easier for a language
+  // model to understand` and `better understood by the model` carry no occurrence of it at all.
   //
-  // THE ACCEPTED COST, NAMED HERE RATHER THAN LEFT FOR A REVIEW TO DISCOVER. The co-occurrence
-  // window is a LINE: `lineHits` is asked once per element of `text.split("\n")`, so a claim whose
-  // bare term and whose benefit verb are separated by a HARD WRAP is outside this rule. That is the
-  // line-oriented residual this module's header already records for every literal, reaching the
-  // conditional arm by a second route rather than being a new bound — and it is deliberately NOT
-  // closed by normalising whitespace before comparing, which would make the comparison inexact for
-  // every literal in order to reach one wrapping. Written down BEFORE the measurement rather than
-  // after it: plan 29-42 measures this window, and a cost paragraph composed after the result would
-  // be a rationalisation instead of a design note.
+  // THREE RESIDUALS HAD THEIR SUBJECT REMOVED BY THIS DELETION, AND THAT IS RECORDED RATHER THAN
+  // LEFT AS A SILENT DISAPPEARANCE. `V-29-42-01`, `V-29-42-02` and `V-29-42-04` in
+  // docs/audit/29-round5-residuals.md all describe the CO-OCCURRENCE WINDOW: a claim whose bare term
+  // and whose verb are separated by a hard wrap, by a table-cell boundary, or by an HTML comment,
+  // each measured at 0 live. There is no co-occurrence window any more, so all three are moot by
+  // construction rather than closed by an argument. The line-oriented residual this module's header
+  // records for EVERY literal is unaffected and still stands.
+  { literal: "comprehension", group: "comprehension" },
+  // ── THE SECOND BARE TERM, NOW UNCONDITIONAL, AND THE ONE REAL COST OF THE DELETION ───────────
   //
-  // MEASURED, AND IT CARRIES AN ID NOW: `V-29-42-01`, in docs/audit/29-round5-residuals.md §3.1.
-  // Plan 29-42 attacked the window in both directions on a `git archive HEAD` mirror and both are
-  // GREEN, so this paragraph's prediction held. The live numbers, so the cost is a figure rather than
-  // a shrug: 1983 of 5898 lines in the derived scan set end MID-SENTENCE (33.6%), which is how
-  // reachable the bound is — and ZERO of them are a live instance of the shape (adjacent lines, one
-  // carrying a marker and the other a bare term, neither carrying both). Reachable, unreached, open by
-  // decision. Two further FAIL-CLOSED adjacencies on the same window are recorded there as
-  // `V-29-42-02` (a markdown table row puts two cells on one physical line) and `V-29-42-04` (a marker
-  // whose only occurrence on the line is inside an HTML comment or a link target), each at 0 live.
-  {
-    literal: "comprehension",
-    group: "comprehension",
-    requiresOnSameLine: BENEFIT_VERB_MARKERS,
-  },
-  // ── THE SECOND BARE TERM, AND THE COVERAGE FINDING THAT REQUIRED IT (plan 29-41 task 2) ──────
+  // WHY A SECOND TERM EXISTS AT ALL, STATED AS A FINDING AGAINST THE ROUND-5 PROTOTYPE RATHER THAN
+  // AS A DESIGN CHOICE. `29-UAT.md` § G-29-2's `measured_probe` records that under a bare
+  // `comprehension` member "ALL FIVE bypass sentences red". Reproduced against the committed `.js`
+  // on a `git archive HEAD` mirror, one plant at a time, that claim is FALSE for one member of the
+  // family: `...makes prose easier for LLMs to understand.` carries NO OCCURRENCE of the first term
+  // at all, so no predicate over it can reach that sentence whatever it is conditioned on. A member
+  // outside a predicate BY CONSTRUCTION cannot be closed by tuning that predicate.
   //
-  // WHY ONE RULE WAS NOT ENOUGH, STATED AS A FINDING AGAINST THE PROTOTYPE RATHER THAN AS A DESIGN
-  // CHOICE. `29-UAT.md` § G-29-2's `measured_probe` records that under a bare `comprehension` member
-  // "ALL FIVE bypass sentences red". REPRODUCED against the committed `.js` on a `git archive HEAD`
-  // mirror, one plant at a time, that claim is FALSE for one member of the family: `...makes prose
-  // easier for LLMs to understand.` carries NO OCCURRENCE OF THE WORD `comprehension` AT ALL, so the
-  // rule above is structurally incapable of reaching it whatever markers are admitted. Measured
-  // after the rule landed, it still exits 0 with the planted file never named. A member outside a
-  // predicate BY CONSTRUCTION cannot be closed by tuning that predicate's marker list.
+  // AND THE REMEDY IS A SECOND TERM, NOT A PHRASING. Appending `easier for LLMs to understand` would
+  // close that spelling and leave `easier for agents to understand` open — option (b), refused in the
+  // admission log below. This term is the CONCEPT the claim is about.
   //
-  // AND THE REMEDY IS A SECOND RULE, NOT THE PHRASING. Appending `easier for LLMs to understand`
-  // would close that spelling and leave `easier for agents to understand` open — option (b), which
-  // the user rejected. `understand` is the CONCEPT the claim is about, so the same pair rule closes
-  // the family: the bare term plus a benefit verb on the same line.
+  // THE ADMISSION COST, RE-DERIVED THROUGH THIS MODULE'S OWN COUNTER OVER THE 115-DOCUMENT CORPUS,
+  // AND IT IS THE ONE PLACE THE DELETION ACTUALLY COSTS SOMETHING:
   //
-  // MEASURED BEFORE ADMISSION, over the set `bannedClaimScan()` derives, 2026-08-17:
+  //   occurrences of the term across the derived scan set   : 1
+  //   of those, inside the one named exemption region       : 0
+  //   therefore new findings when made unconditional        : 1
   //
-  //   bare line-hit count over the 82-document scan set          : 1
-  //   of those, ALSO carrying an admitted benefit marker          : 0   <- the number that admits it
-  //   of those, inside the one named exemption region             : 0
+  // Independently re-taken with `grep -a -i` over the same derived path list; the two agree. The
+  // single occurrence was `agent-factory/roles/incident-responder.md:29`, correct operational text
+  // making no claim of any kind. Under the round-5 rule it carried no admitted verb and so produced
+  // nothing; unconditional, it reds. THAT RED WAS CAPTURED FROM THE LIVE TREE AS A TRANSCRIPT BEFORE
+  // ANYTHING WAS REPHRASED, and it is this change's acceptance evidence: the widened prohibition has
+  // teeth against text nobody planted.
   //
-  // The single bare occurrence is agent-factory/roles/incident-responder.md:29 — "…before you
-  // understand the cause" — which carries no benefit marker and therefore produces NO finding. So
-  // admitting this term costs ZERO reds on correct kit text today, which is the admission test this
-  // file opens with. Because it adds no occurrence inside the exemption region, it moves
-  // BANNED_CLAIM_EXEMPT_SUPPRESSED by zero, and that was confirmed by running the gate rather than
-  // reasoned about.
-  //
-  // THE ACCEPTED COST, NAMED WITH ITS REMEDY BECAUSE IT IS A REAL FALSE-RED SURFACE AND NOT A
-  // THEORETICAL ONE. `understand` also covers `understands`, `understanding` and `misunderstand` by
-  // substring, so a FUTURE sentence pairing a benefit verb with a HUMAN reader's understanding —
-  // "the board helps a new joiner understand the state" — would red even though it makes no claim
-  // about a language model. Live instances: 0. When the first one is written the remedy is to
-  // REPHRASE the sentence, or to admit a narrower term with its own measurement — NEVER to weaken
-  // the matcher. The three weakenings that would each make this line pass are named and forbidden in
-  // the exemption region's forbidden-alternative paragraph below: no fenced-block skip, no
-  // whole-word-only match, no below-a-marker skip.
-  //
-  // THE NARROWER ALTERNATIVE WAS MEASURED AND REFUSED, and the refusal is recorded in
-  // `BANNED_CLAIM_EXCLUDED` rather than left as a silent absence: `to understand` hits 0 lines and
-  // would also close the measured family member, but it pins the INFINITIVE GRAMMAR of the one
-  // sentence somebody happened to write rather than the concept, so `the model understands it
-  // better` would stay green. Choosing the narrower term to minimise today's count is how a guard
-  // comes to need one more spelling every round.
-  {
-    literal: "understand",
-    group: "comprehension",
-    requiresOnSameLine: BENEFIT_VERB_MARKERS,
-  },
+  // AND IT WAS PAID IN PROSE, NEVER IN THE MATCHER. The sentence was rephrased so the operational
+  // instruction survives intact and no narrower. The three weakenings that would each have made the
+  // original line pass are named and forbidden in the exemption region's forbidden-alternative
+  // paragraph below: no fenced-block skip, no whole-word-only match, no below-a-marker skip.
+  { literal: "understand", group: "comprehension" },
 ];
 
 /**
@@ -527,9 +451,9 @@ export const BANNED_CLAIM_EXCLUDED: readonly {
       "60 + 18 + 2 + 70 hits across compliance-regime documentation, ASVS certification rows, " +
       "release-approval steps and the README's own non-affiliation disclaimer. They survive only as " +
       "co-occurrence markers, and for exactly ONE of the three conditional members — the " +
-      "discipline's name. The other two are on BENEFIT_VERB_MARKERS and this list has no bearing on " +
-      "them (plan 29-42: this reason asserted a count of one conditional literal, which plan 29-41 " +
-      "made false)",
+      "discipline's name. The other two are on the benefit-verb list and this list has no bearing " +
+      "on them (plan 29-42: this reason asserted a count of one conditional literal, which plan " +
+      "29-41 made false)",
   },
   {
     candidate: "comprehension, as an UNCONDITIONAL literal",
@@ -539,8 +463,8 @@ export const BANNED_CLAIM_EXCLUDED: readonly {
       'comprehension benefit is claimed" and "There is no evidence that controlled language improves ' +
       'comprehension for a language model". Banning the bare word would make the denial unsayable ' +
       "anywhere outside the exemption region, and a document must be able to DISCUSS comprehension " +
-      "in order to disclaim a benefit. Admitted instead as a CONDITIONAL member on " +
-      "BENEFIT_VERB_MARKERS (plan 29-41), so the claim is the pair and the topic stays writable",
+      "in order to disclaim a benefit. Admitted instead as a CONDITIONAL member on the " +
+      "benefit-verb list (plan 29-41), so the claim is the pair and the topic stays writable",
   },
   {
     candidate: "understand, as an UNCONDITIONAL literal",
@@ -549,7 +473,8 @@ export const BANNED_CLAIM_EXCLUDED: readonly {
       "hits agent-factory/roles/incident-responder.md:29 — \"apply the immediate mitigation that " +
       'limits harm, before you understand the cause" — which is correct operational text making no ' +
       "claim of any kind, so going green would mean deleting it. Admitted instead as a CONDITIONAL " +
-      "member on BENEFIT_VERB_MARKERS: that line carries no benefit marker, so the conditional form " +
+      "member on the benefit-verb list: that line carries no benefit marker, so the conditional " +
+      "form " +
       "costs zero findings on it while still closing the measured family member the bare " +
       "`comprehension` rule cannot reach",
   },
@@ -1175,7 +1100,7 @@ export function locateExemptRegion(
  * two halves of a pair each.
  *
  * AND THE NUMBER IS A FUNCTION OF THE ADMITTED MARKER SET, NOT ONLY OF THE DOCUMENT. Line 256
- * matches only because `benefit` is in `BENEFIT_VERB_MARKERS` and line 288 only because `improve`
+ * matches only because `benefit` was an admitted marker and line 288 only because `improve`
  * is. Dropping either marker would move this pin back down while the disclaimer stayed byte-for-byte
  * identical. The marker list and this constant are therefore settled by ONE measurement, and a
  * future edit to either must re-run the other — a pin describing a prohibition nobody is applying is
@@ -1282,20 +1207,20 @@ interface LineHit {
  * Every banned-claim occurrence on ONE line, in literal declaration order then column order.
  *
  * ONE MATCHER, TWO CALLERS. The scan renders these as findings and the exemption's REACH counts
- * them. Written as two loops they would disagree the first time the conditional arm moved, and the
- * number published for the exemption would then describe a prohibition nobody was applying — the
- * same two-grammar defect this file's locator was just rewired to delete, one level down.
+ * them. Written as two loops they would disagree the first time either moved, and the number
+ * published for the exemption would then describe a prohibition nobody was applying — the same
+ * two-grammar defect this file's locator was rewired to delete, one level down.
+ *
+ * A CO-OCCURRENCE ARM USED TO SIT HERE AND SKIP A MEMBER ON A LINE THAT CARRIED NO WORD FROM THAT
+ * MEMBER'S OWN MARKER LIST. It went with the lists and with the field (round 6, D-48 / D-53; the
+ * reasoning is at `BannedClaimLiteral`). Its removal makes this matcher report STRICTLY MORE and
+ * never less: every line that produced a hit before produces the same hit now, and lines that were
+ * skipped are now read. There is no direction in which deleting the arm can hide a finding.
  */
 function lineHits(line: string): LineHit[] {
   const lower = line.toLowerCase();
   const out: LineHit[] = [];
   for (const member of BANNED_CLAIM_LITERALS) {
-    if (
-      member.requiresOnSameLine !== undefined &&
-      !member.requiresOnSameLine.some((v) => lower.includes(v.toLowerCase()))
-    ) {
-      continue; // the name without a conformance verb is the discipline, not a claim
-    }
     for (const at of occurrences(lower, member.literal.toLowerCase())) {
       out.push({ member, at });
     }
@@ -1553,41 +1478,25 @@ function runAll(): void {
   );
 
   if (FAILS === 0) {
-    // ── THE CONDITIONAL CLAUSE IS RENDERED PER MEMBER (plan 29-41 task 3, AP-1) ────────────────
+    // ── THE CLAUSE THAT REPORTED CONDITIONAL MEMBERS IS DELETED, NOT EMPTIED (round 6, AP-1) ────
     //
-    // WHAT THIS CLAUSE USED TO SAY, AND WHY IT BECAME A PASS LINE STATING A CHECK THE GATE DID NOT
-    // PERFORM. It counted the conditional members and then attributed all of them to a conformance
-    // verb drawn from the size of the conformance marker list — ONE marker list, presented as THE
-    // marker list. (The removed expression is described rather than QUOTED here: this repository's
-    // gates scan source text without stripping comments, so a verbatim quotation of a deleted
-    // expression re-registers as a live site of the very thing that was deleted.) That reading was
-    // true while exactly one member was conditional. Plan 29-41 made
-    // conditional members PLURAL with DIFFERENT marker lists (`CONFORMANCE_VERB_MARKERS` for the
-    // discipline's name, `BENEFIT_VERB_MARKERS` for the comprehension terms), so the sentence became
-    // false in two ways at once: its verb, and its denominator. A gate publishing a PASS line for a
-    // check it did not perform is AP-1, which this phase carries as blocking.
+    // A PASS line must never state a check the gate did not perform. A clause counting and
+    // rendering members of a shape the TYPE no longer admits has no subject: it could only ever
+    // print zero, and a permanently-zero clause on a green run reads as a live check. So it went
+    // with the mechanism it described. (What was removed is described rather than quoted, per this
+    // repository's retired-construct convention: these gates scan source text without stripping
+    // comments, so a verbatim quotation of a deleted construct re-registers as a live site of it.)
     //
-    // THE COUNT AND THE RENDERING COME FROM ONE EXPRESSION, so they cannot disagree — a member added
-    // or removed later changes this line without anybody editing it, which is the property a
-    // hand-maintained denominator does not have. `flatMap` rather than `filter` so the marker array
-    // is narrowed by the same step that selects the member, with no non-null assertion standing in
-    // for the check.
-    const conditional = BANNED_CLAIM_LITERALS.flatMap((l) =>
-      l.requiresOnSameLine === undefined
-        ? []
-        : [{ literal: l.literal, markers: l.requiresOnSameLine.length }],
-    );
-    // A PASS line must never state a check that was not performed: every number below is read from
-    // the run that just happened, and the exemption is reported inline with its reason so a reader
-    // meets it here rather than inferring it from a file's silence.
+    // WHAT THE PASS LINE NOW CLAIMS, AND IT IS THE WHOLE OF WHAT THE GATE DID: a count of documents
+    // read with the per-part breakdown, the size of the pinned literal list and how many groups it
+    // spans, the one named exemption region with its reason and its two pinned numbers, and the
+    // size of the admission log. Every number is read from the run that just happened.
     pass(
       `LANG-04: ${scan.length} document(s) carry zero banned claim literal outside the one named ` +
         `exemption region — ${BANNED_CLAIM_SCAN_PARTS.map((p) => `${p.name} ${p.members.length}`).join(", ")}, ` +
         `overlap ${overlap}; ${BANNED_CLAIM_LITERALS.length} pinned literal(s) across ` +
-        `${new Set(BANNED_CLAIM_LITERALS.map((l) => l.group)).size} group(s), of which ` +
-        `${conditional.length} ${conditional.length === 1 ? "is" : "are"} conditional on a ` +
-        `co-occurring marker from ${conditional.length === 1 ? "its" : "their"} OWN pinned list ` +
-        `(${conditional.map((c) => `"${c.literal}" on ${c.markers} marker(s)`).join(", ")}); ` +
+        `${new Set(BANNED_CLAIM_LITERALS.map((l) => l.group)).size} group(s), matched ` +
+        `UNCONDITIONALLY — the gate enumerates what is banned and nothing about how it is said; ` +
         `1 exemption region (${BANNED_CLAIM_EXEMPT_REGION.file} § ${BANNED_CLAIM_EXEMPT_REGION.heading} ` +
         `— ${BANNED_CLAIM_EXEMPT_REGION.reason}), which suppresses ${suppressed} banned-claim ` +
         `occurrence(s), pinned at ${BANNED_CLAIM_EXEMPT_SUPPRESSED}, and reaches ` +
