@@ -1,10 +1,10 @@
 ---
 schema_version: 1
-open_count: 34
+open_count: 38
 waived_count: 0
 fixed_count: 1
-total_count: 35
-last_updated: 2026-08-17T11:45:44.304Z
+total_count: 39
+last_updated: 2026-08-17T12:22:09.918Z
 ---
 
 # Broken Windows Ledger
@@ -50,6 +50,10 @@ last_updated: 2026-08-17T11:45:44.304Z
 | 33 | 29 | deviation | scripts/frontmatter.test.ts |  | D-40-2: the D-50 IN-05 local-grammar classifier reads comments as code; structural answer (codeLinesOfSource) declined in-plan because it is fail-open and wants its own decision | open |  | 2026-08-17T11:25:31.490Z |  |
 | 34 | 29 | unrun-verify | scripts/check-banned-claims.ts |  | LANG-04 hard-wrap residual: the co-occurrence window is a LINE, so a claim whose bare term and benefit verb are split across a hard wrap is not matched (measured in 29-41, both directions GREEN); 29-42 owns recording it | open |  | 2026-08-17T11:45:44.240Z |  |
 | 35 | 29 | skipped-test | scripts/check-banned-claims.test.ts | 387 | findingCount .toBe(2) now 3 after the bare-term rule; deferred to 29-42 and NOT named by 29-41's gap contract map | open |  | 2026-08-17T11:45:44.304Z |  |
+| 36 | 29 | unrun-verify | scripts/check-banned-claims.ts |  | V-29-42-01 fail-OPEN: a claim split across a hard wrap is outside the same-line co-occurrence window; 1983 of 5898 corpus lines end mid-sentence, 0 live instances | open |  | 2026-08-17T12:22:09.740Z |  |
+| 37 | 29 | deviation | scripts/check-banned-claims.ts |  | V-29-42-02 fail-closed: a markdown table row puts marker and bare term on one physical line, 0 live | open |  | 2026-08-17T12:22:09.799Z |  |
+| 38 | 29 | deviation | agent-factory/writing-profile.md |  | V-29-42-03 fail-closed: the exempt document states the gate proves no pinned literal appears outside the section; live-false at 1 (incident-responder.md:29:103). Not edited - an edit moves BANNED_CLAIM_EXEMPT_EXTENT and needs a D-04 row | open |  | 2026-08-17T12:22:09.858Z |  |
+| 39 | 29 | deviation | scripts/check-banned-claims.ts |  | V-29-42-04 fail-closed: a benefit marker whose only occurrence on the line is inside an HTML comment or a link target satisfies co-occurrence, 0 live | open |  | 2026-08-17T12:22:09.918Z |  |
 
 ````json
 [
@@ -471,6 +475,54 @@ last_updated: 2026-08-17T11:45:44.304Z
     "status": "open",
     "reason": "",
     "recorded_at": "2026-08-17T11:45:44.304Z",
+    "resolved_at": null
+  },
+  {
+    "id": 36,
+    "kind": "unrun-verify",
+    "phase": "29",
+    "file": "scripts/check-banned-claims.ts",
+    "line": null,
+    "description": "V-29-42-01 fail-OPEN: a claim split across a hard wrap is outside the same-line co-occurrence window; 1983 of 5898 corpus lines end mid-sentence, 0 live instances",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-08-17T12:22:09.740Z",
+    "resolved_at": null
+  },
+  {
+    "id": 37,
+    "kind": "deviation",
+    "phase": "29",
+    "file": "scripts/check-banned-claims.ts",
+    "line": null,
+    "description": "V-29-42-02 fail-closed: a markdown table row puts marker and bare term on one physical line, 0 live",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-08-17T12:22:09.799Z",
+    "resolved_at": null
+  },
+  {
+    "id": 38,
+    "kind": "deviation",
+    "phase": "29",
+    "file": "agent-factory/writing-profile.md",
+    "line": null,
+    "description": "V-29-42-03 fail-closed: the exempt document states the gate proves no pinned literal appears outside the section; live-false at 1 (incident-responder.md:29:103). Not edited - an edit moves BANNED_CLAIM_EXEMPT_EXTENT and needs a D-04 row",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-08-17T12:22:09.858Z",
+    "resolved_at": null
+  },
+  {
+    "id": 39,
+    "kind": "deviation",
+    "phase": "29",
+    "file": "scripts/check-banned-claims.ts",
+    "line": null,
+    "description": "V-29-42-04 fail-closed: a benefit marker whose only occurrence on the line is inside an HTML comment or a link target satisfies co-occurrence, 0 live",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-08-17T12:22:09.918Z",
     "resolved_at": null
   }
 ]
