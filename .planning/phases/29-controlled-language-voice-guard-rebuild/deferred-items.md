@@ -95,3 +95,33 @@ change to a safety classifier's input, in the fail-open direction: a commented-o
 be uncommented would stop being seen. That trade wants its own plan, its own planted discrimination
 (a commented-out grammar vs a live one), and a deliberate decision, not a ride-along in a gap-closure
 plan whose contract was behaviour preservation.
+
+---
+
+## Plan 29-41 — a SECOND test assertion moved, and the plan predicted one
+
+**Severity:** minor — planned work whose scope was under-counted, not a defect in the shipped gate.
+**Where:** `scripts/check-banned-claims.test.ts:387`, the case
+"catches a token-economy claim and a comprehension claim in two different kit files".
+
+Plan 29-41's gap contract map assigns exactly ONE test assertion to plan 29-42: the
+`.toBe(1)` conditional-member cardinality pin at `:1673`. Measured after the rule landed, **two**
+assertions fail, not one. The second is `expect(findingCount(stdout)).toBe(2)`.
+
+**Why it moved, and why the movement is correct.** `COMPREHENSION_PLANT` is built from
+`COMPREHENSION_CLAIM.literal`, and `COMPREHENSION_CLAIM` is selected with `find(l => l.group ===
+"comprehension")` — the FIRST member, `improves comprehension`. So the plant is "The profile improves
+comprehension for the model.", a line that now yields **two** occurrences rather than one: the
+enumerated literal, plus the new bare-term rule matching on the co-occurring marker `improve`. That is
+the same correct doubling that took `agent-factory/writing-profile.md:256` and `:288` from 1 to 2 each
+and moved `BANNED_CLAIM_EXEMPT_SUPPRESSED` 10 -> 12. The gate is right; the hard-coded `2` is stale.
+
+**Not fixed in 29-41** because `scripts/check-banned-claims.test.ts` is not in this plan's
+`files_modified` and plan 29-42 owns the test surface. Editing it here is how a red gets cleared twice.
+
+**Recommendation for 29-42, stronger than a re-pin.** Do NOT retype `2` as `3`. That number is a
+function of how many literals happen to match one planted line, so it will go stale again the next time
+a member is admitted — the set-literal drift class this repository has now paid for repeatedly. DERIVE
+it: the module already exports `countBannedClaimOccurrences`, so the expected value can be computed
+from `COMPREHENSION_PLANT` and `TOKEN_PLANT` through the gate's own matcher, exactly as `profileDoc`'s
+`already` arithmetic already does for the reach fill.

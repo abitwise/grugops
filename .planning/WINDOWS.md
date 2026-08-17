@@ -1,10 +1,10 @@
 ---
 schema_version: 1
-open_count: 32
+open_count: 34
 waived_count: 0
 fixed_count: 1
-total_count: 33
-last_updated: 2026-08-17T11:25:31.490Z
+total_count: 35
+last_updated: 2026-08-17T11:45:44.304Z
 ---
 
 # Broken Windows Ledger
@@ -48,6 +48,8 @@ last_updated: 2026-08-17T11:25:31.490Z
 | 31 | 29 | stub | scripts/generate-role-adapters.ts | 127 | sectionBody bounds a '## ' section by fence-blind new RegExp lookahead — a third section-extent grammar (V-29-29-01, LANG-07) | open |  | 2026-08-16T01:28:22.998Z |  |
 | 32 | 29 | deviation | scripts/generate-catalog.ts |  | D-40-1: an empty-valued order: key reaches Number('')===0 and publishes workflow row 0 rather than refusing; behaviour preserved from the deleted grammar and disclosed, live reachability 0/19 | open |  | 2026-08-17T11:25:31.417Z |  |
 | 33 | 29 | deviation | scripts/frontmatter.test.ts |  | D-40-2: the D-50 IN-05 local-grammar classifier reads comments as code; structural answer (codeLinesOfSource) declined in-plan because it is fail-open and wants its own decision | open |  | 2026-08-17T11:25:31.490Z |  |
+| 34 | 29 | unrun-verify | scripts/check-banned-claims.ts |  | LANG-04 hard-wrap residual: the co-occurrence window is a LINE, so a claim whose bare term and benefit verb are split across a hard wrap is not matched (measured in 29-41, both directions GREEN); 29-42 owns recording it | open |  | 2026-08-17T11:45:44.240Z |  |
+| 35 | 29 | skipped-test | scripts/check-banned-claims.test.ts | 387 | findingCount .toBe(2) now 3 after the bare-term rule; deferred to 29-42 and NOT named by 29-41's gap contract map | open |  | 2026-08-17T11:45:44.304Z |  |
 
 ````json
 [
@@ -445,6 +447,30 @@ last_updated: 2026-08-17T11:25:31.490Z
     "status": "open",
     "reason": "",
     "recorded_at": "2026-08-17T11:25:31.490Z",
+    "resolved_at": null
+  },
+  {
+    "id": 34,
+    "kind": "unrun-verify",
+    "phase": "29",
+    "file": "scripts/check-banned-claims.ts",
+    "line": null,
+    "description": "LANG-04 hard-wrap residual: the co-occurrence window is a LINE, so a claim whose bare term and benefit verb are split across a hard wrap is not matched (measured in 29-41, both directions GREEN); 29-42 owns recording it",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-08-17T11:45:44.240Z",
+    "resolved_at": null
+  },
+  {
+    "id": 35,
+    "kind": "skipped-test",
+    "phase": "29",
+    "file": "scripts/check-banned-claims.test.ts",
+    "line": 387,
+    "description": "findingCount .toBe(2) now 3 after the bare-term rule; deferred to 29-42 and NOT named by 29-41's gap contract map",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-08-17T11:45:44.304Z",
     "resolved_at": null
   }
 ]
