@@ -12,8 +12,20 @@ import { spawnSync } from "node:child_process";
 import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, readdirSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, dirname } from "node:path";
-import { REGISTRY_PATH } from "./audit-model.js";
+import {
+  REGISTRY_PATH,
+  readRegistry,
+  scanAnchoredDocument,
+  anchoredBlockAt,
+} from "./audit-model.js";
 import { spawnGrantScan } from "./kit-model.js";
+// (Plan 29-51) The exemption region's OWN declaration and OWN locator, asked rather than restated.
+// A second spelling of "which lines are the disclaimer" in this file would be the duplicate-authority
+// defect arriving inside the plan whose whole subject is removing one.
+import {
+  BANNED_CLAIM_EXEMPT_REGION,
+  locateExemptRegion,
+} from "./check-banned-claims.js";
 
 const REPO = join(import.meta.dirname, "..");
 const GATE = join(REPO, "scripts", "check-claim-anchors.js");
@@ -682,6 +694,90 @@ describe("check-claim-anchors: the gate declares none of the moved constructs (p
         new RegExp(`^\\s*(export\\s+)?(const|function)\\s+${sym}\\b`, "m").test(src),
         `${sym} is not re-declared in the gate`,
       ).toBe(false);
+    }
+  });
+});
+
+// ── (PLAN 29-51) THE EXEMPTION DOCUMENT'S ANCHORED-LINE SET, MEASURED HERE SO 29-52 INHERITS IT. ─
+//
+// Round-6 CR-01's stronger fix is to require every suppressed banned-claim occurrence to sit on a
+// line inside a registry-anchored, byte-frozen block. That is an INTERSECTION of two index sets
+// derived by two different modules over one document, and this repository's most expensive recurring
+// defect is exactly that shape: two expressions assembling one document and then trading indices
+// computed in different coordinate systems.
+//
+// So the intersection's PREMISE is asserted here, before the plan that spends it is written. The
+// numbers themselves are published in 29-51-SUMMARY.md rather than pinned as literals — a line
+// number in an assertion is the set-literal drift this repository has diagnosed twice.
+describe("check-claim-anchors: the anchored-line set of the exemption document (plan 29-51)", () => {
+  const DOC = BANNED_CLAIM_EXEMPT_REGION.file;
+  const text = readFileSync(join(REPO, DOC), "utf8");
+  const claims = readRegistry(REPO).claims.filter((c) => c.file === DOC);
+  const scan = scanAnchoredDocument(text);
+
+  it("the exemption document is registered, anchored, and every one of its blocks is frozen", () => {
+    expect(claims.length, "the exemption document carries registry rows").toBeGreaterThan(0);
+    expect(scan.anchors.length, "…and anchors").toBeGreaterThan(0);
+    expect(scan.attempts, "…and no near-anchor attempt").toEqual([]);
+    const byId = new Map(scan.anchors.map((a) => [a.id, a]));
+    for (const c of claims) {
+      const anchor = byId.get(c.id);
+      expect(anchor, `${c.id} is anchored in ${DOC}`).toBeDefined();
+      const block = anchoredBlockAt(scan, anchor!, c.verbatim);
+      expect(block.overruns, `${c.id} does not overrun`).toBe(false);
+      expect(block.matches, `${c.id}'s bytes are frozen`).toBe(true);
+      expect(block.end, `${c.id}'s extent lies inside the assembly`).toBeLessThanOrEqual(
+        scan.contentLineCount,
+      );
+    }
+  });
+
+  it("THE INTERSECTION PREMISE: the two consumers' arrays are the SAME coordinate system", () => {
+    // `locateExemptRegion` measures the region over the array its CALLER hands in — a raw
+    // `text.split("\n")`. `scanAnchoredDocument` drops the single empty element a TERMINATING
+    // newline produces. The two therefore differ in LENGTH by at most that one element, and they
+    // must be ELEMENTWISE IDENTICAL everywhere the authority has a line, or an index produced by one
+    // and spent against the other addresses a different line. Asserted, never assumed.
+    const raw = text.split("\n");
+    expect(raw.length - scan.contentLineCount).toBeLessThanOrEqual(1);
+    expect(raw.length).toBeGreaterThanOrEqual(scan.contentLineCount);
+    for (let i = 0; i < scan.contentLineCount; i += 1) {
+      expect(raw[i], `the two arrays agree at index ${i}`).toBe(scan.lines[i]);
+    }
+    // …and the only element the authority dropped is the terminator's empty one.
+    if (raw.length > scan.contentLineCount) expect(raw[scan.contentLineCount]).toBe("");
+  });
+
+  it("the region carries anchored blocks, and every one of them lies INSIDE the region", () => {
+    const raw = text.split("\n");
+    const region = locateExemptRegion(raw);
+    expect(region, "the one named exemption region resolves").not.toBeNull();
+    const body = { start: region!.headingAt + 1, end: region!.endBefore };
+    expect(body.end - body.start, "the region body is non-empty").toBeGreaterThan(0);
+
+    // THE SELECTION IS BY ANCHOR POSITION AND THE ASSERTION IS ABOUT THE BLOCK'S EXTENT, and those
+    // must be two different things. A first draft selected on the extent and then asserted the
+    // extent, which is unfalsifiable by construction — every member satisfies the assertion because
+    // the filter is the assertion. Found by mutating `end` and watching the case stay green.
+    const byId = new Map(scan.anchors.map((a) => [a.id, a]));
+    const inside = claims
+      .map((c) => anchoredBlockAt(scan, byId.get(c.id)!, c.verbatim))
+      .filter((b) => b.anchorIndex >= region!.headingAt && b.anchorIndex < body.end);
+    expect(inside.length, "the region carries at least one anchored block").toBeGreaterThan(0);
+    for (const b of inside) {
+      expect(b.matches, `${b.id} inside the region is frozen`).toBe(true);
+      expect(b.start, `${b.id}'s block starts inside the region`).toBeGreaterThanOrEqual(body.start);
+      expect(b.end, `${b.id}'s block ends inside the region`).toBeLessThanOrEqual(body.end);
+    }
+    // The anchored coverage is a SUBSET of the region — the containment plan 29-52 intersects
+    // against. Its SIZE is a measurement published in the SUMMARY, deliberately not pinned here.
+    const covered = new Set<number>();
+    for (const b of inside) for (let i = b.start; i < b.end; i += 1) covered.add(i);
+    expect(covered.size).toBeGreaterThan(0);
+    expect(covered.size).toBeLessThanOrEqual(body.end - body.start);
+    for (const i of covered) {
+      expect(i, "every covered index is inside the region body").toBeGreaterThanOrEqual(body.start);
+      expect(i).toBeLessThan(body.end);
     }
   });
 });
