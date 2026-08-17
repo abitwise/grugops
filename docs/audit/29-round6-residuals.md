@@ -26,6 +26,145 @@ happened, not an assurance that nothing remains.
 
 ---
 
+## 1. The round-6 disposition table
+
+Two failed truths from `29-VERIFICATION-round5.md`, both on `LANG-04`, both with a locked decision.
+
+| id | subject | locked decision | disposition | plan | evidence |
+|---|---|---|---|---|---|
+| **truth 1 / CR-02** | `guard_banned_claims` was to DECIDE the comprehension prohibition rather than enumerate a phrase list. What shipped in round 5 was `BENEFIT_VERB_MARKERS`, a seven-stem hand-authored list gating the bare term — the same enumeration one slot to the left, defeated by `increases`, `raises`, `gives…sharper`, `aids` and `makes…understand`, all five reproduced at exit 0 with the planted file never named. | **D-48** — the carve-out is POSITIONAL, not lexical; `BENEFIT_VERB_MARKERS` is DELETED, not replaced. The reviewer's subject-side pin (`controlled language` / `this profile` / `the kit` / `the voice`) is refused **by name**: it is a third hand-authored list over an equally open class and buys one round. **D-49** — the admission cost measured BEFORE the change, not after. **D-53** — the deletion EXTENDS to the standard-name group and `requiresOnSameLine` comes off the TYPE, not out of the lists. | **closed** | `29-44` | Both marker constants deleted; the field removed from `BannedClaimLiteral` (a member declaring one fails to compile — TS2353, demonstrated then reverted); `lineHits`'s conditional arm and the PASS line's conditional clause deleted with them; conditional members **3 → 0**. Nine sentences that exited 0 with the planted file never named now red by name at `file:line:column`, re-proven on the FINAL tree at §2.3 and §2.4. `BANNED_CLAIM_EXEMPT_SUPPRESSED` re-derived **12 → 14** off the gate's own refusal text. The one real false red paid in PROSE (`incident-responder.md:29`, 4 bytes), never by weakening the matcher. `29-44-SUMMARY.md`; §2.4, §3.1 below |
+| **truth 2 / CR-01** | `guard_banned_claims`'s own PASS line claims the shipped kit and the public documents carry no conformance, token-economy or comprehension claim. `CHANGELOG.md` was silently outside the scan set — the module consumed `publicDocsScan()`, the public-document set AFTER another gate's own `CHANGELOG.md` exemption had been subtracted — and carried **two live** `token-economy` occurrences, the disproven claim this gate's founding transcript calls "the drift this gate exists for". | **D-50** — export `publicDocsCorpus()` beside `publicDocsScan()` so **each consumer names which question it is asking**; `check-banned-claims.ts` consumes the corpus; move the pin with the entrant named; rewrite the two sentences so the changelog records the MECHANISM without restating the disproven claim; correct the bound paragraph the import graph falsified. Plus **WR-02**'s four further unscanned classes, each admitted or named with a reason. | **closed** | `29-43` | `BANNED_CLAIM_SCAN_COUNT` **82 → 83 → 115**, every value read off the gate's own refusal text rather than computed by hand. `CHANGELOG.md:30` and `:68` rewritten with no entry falsified and no heading touched. **The `.claude/` transitive-coverage argument was TESTED and REFUTED**, turning an intended exclusion into an admission across 17 shipped adapters; `skills/` (7 files) was found only by deriving the remainder and appears in no round-5 finding. **Zero markdown classes uncovered.** Re-proven on the FINAL tree at §2.3 (C1–C6). `29-43-SUMMARY.md` |
+
+### 1.1 The verb-axis defect, as a finding of record — disposition **CLOSED BY DELETION**
+
+Round 5's residual register carried **no `V-` id** for the defect that failed its own must-have. This
+section is where it lives, because a finding with no surviving id still belongs in the trail — and
+after a deletion there is no id left to carry it.
+
+**The mechanism.** `BANNED_CLAIM_LITERALS`'s bare comprehension term was declared with
+`requiresOnSameLine: BENEFIT_VERB_MARKERS`, a seven-stem hand-authored list
+(`improve`, `better`, `easier`, `boost`, `help`, `benefit`, `enhance`). `lineHits` reported the term
+ONLY on a line that also carried one of the seven. The rule was `bare term AND some member of a
+hand-authored list, on one line` — which closes the seven verbs somebody happened to write down and
+leaves the next synonym green, with the pinned term present on the line.
+
+**The five plants that defeated it, verbatim**, reproduced by the round-5 reviewer against the
+committed `.js` on a hermetic mirror, one plant at a time, mirror reset between attempts:
+
+```
+exit=0  named=0   Controlled language increases comprehension for language models.
+exit=0  named=0   Controlled language raises comprehension for LLMs.
+exit=0  named=0   Controlled language gives models sharper comprehension.
+exit=0  named=0   Controlled language aids comprehension for agents.
+exit=0  named=0   Controlled language makes models understand prose faster.
+```
+
+Row 1 is family member **F6** (`boosts comprehension for language models`) with **one word changed**.
+F6 is a permanent case asserted to red by name at `file:line:column`; its one-word neighbour was green
+and unnamed. That is the definition of holding a spelling rather than a prohibition.
+
+**All five red by name on the final tree** — c1 through c5 in §2.3, and the two-direction table in
+§2.4.
+
+**Disposition: CLOSED BY DELETION, not by an id.** Deleting the axis means there is nothing left to
+carry: no marker list, no conditional arm, no field on the type. A `V-` id opened against a mechanism
+that no longer exists would read in the next round as a live residual with a permanently zero count —
+the AP-1 shape this round closed twice elsewhere.
+
+#### The two source passages that asserted the spelling problem was closed while round 5 was shipping it
+
+This is the part a tidy record omits and the part a later round needs. **Round 5's own prose denied the
+defect it was shipping**, in two places.
+
+**Passage 1 — the rule member's docblock, `scripts/check-banned-claims.ts:380-383` at the round's base
+`f718069`:**
+
+> `improves LLM comprehension`, `improves model comprehension`, `improves agent comprehension` and
+> `boosts comprehension for language models` are all findings WITHOUT ANY OF THEM BEING ENUMERATED,
+> and an interposed word no longer defeats the whole group at once. **That is the difference between
+> a guard that holds a prohibition and a guard that holds the spellings somebody thought of.**
+
+The guard still held spellings; only the slot had moved. **What stands there now:**
+
+> AND HERE IS WHAT IS STILL NOT PROVED, STATED WITHOUT HEDGING, BECAUSE THE SENTENCE ABOVE ABOUT
+> "a guard that holds a prohibition rather than the spellings somebody thought of" IS FINALLY TRUE
+> OF THIS CODE AND WAS NOT TRUE WHEN IT WAS FIRST WRITTEN. It became true by DELETION of the axis
+> it had been moved to, in round 6 — not by having been right all along in round 5, which shipped
+> that sentence about the very list it was shipping. A comprehension, conformance or
+> token-economy claim written WITHOUT ANY PINNED LITERAL still passes this gate. What the gate
+> proves is exactly what the module header claims and no more: no pinned literal appears outside
+> the one named exemption region. The surviving enumeration is named with its member count and its
+> direction at the list's own declaration above.
+
+**Passage 2 — the `BANNED_CLAIM_EXCLUDED` option-(b) rejection entry, at the same base:**
+
+> User decision (c) replaced the enumeration with a RULE instead (the two conditional bare terms
+> above). **This refusal is held by an ASSERTION as well as by this paragraph:
+> `check-banned-claims.test.ts` pins the enumerated-comprehension count two-sided at 6, so appending
+> a phrasing reds by name.**
+
+That assertion holds the *phrase* list's cardinality at 6 and says nothing whatever about the marker
+list's completeness — a coverage claim wider than its mechanism, which is this round's recurring
+subject. **What stands there now:**
+
+> User decision (c) replaced the enumeration with a RULE, and round 6 then deleted the rule's
+> conditional half rather than move its enumeration a third time; the two bare terms above are
+> unconditional literals now. WHAT AN ASSERTION ACTUALLY HOLDS, STATED NARROWLY BECAUSE THIS SENTENCE
+> USED TO CLAIM MORE: check-banned-claims.test.ts pins the enumerated-comprehension count two-sided
+> at 6, so APPENDING A PHRASING to that group reds by name. That pin holds the PHRASE list's
+> cardinality and says nothing about any other axis — it never did. What closes the axis an appended
+> phrasing would have exploited is not an assertion at all: the conditional half of this group is
+> DELETED, so there is no verb, phrase or subject list left to append to.
+
+Both are corrected in place rather than deleted. A corrected paragraph with no record of its
+correction teaches nothing.
+
+### 1.2 The part round 6 nearly repeated — measured, escalated, and then extended by the user as D-53
+
+This is the more useful half of the story, and it is written down because **the axis was found by
+PLANNING rather than by review**, which is the transferable part.
+
+**The measurement.** While authoring plans `29-43`..`29-47`, the identical defect was found surviving
+one member over — on the group that gives the gate its name. `Simplified Technical English` was gated
+by `CONFORMANCE_VERB_MARKERS` (`conform`, `complian`, `certif`, `endors`, `approv`, `accredit`), so
+every conformance verb outside that list passed. Reproduced through the gate's own
+`countBannedClaimOccurrences` on 2026-08-17: `conforms to Simplified Technical English` yields **1**
+finding, while `follows` / `meets` / `adheres to` / `is written in` each yield **0**.
+
+**The escalation.** The planner ESCALATED it rather than acting on it, on the correct reading that
+D-48 named two bare terms and that D-51's reasoning rested explicitly on that third member staying
+conditional — D-51 says in terms: *"WR-06 survives D-48: `Simplified Technical English` still carries
+`CONFORMANCE_VERB_MARKERS`, so a conditional member with an empty marker list is still a reachable
+shape."* Acting on the measurement without the decision would have been a plan quietly widening its
+own scope on the strength of its own finding.
+
+**The extension.** The user read the measurement and **extended the decision** rather than accepting
+the escalation, as **D-53**: the apparatus is deleted outright on both groups, `requiresOnSameLine`
+comes off the type, and conditional members go 3 → 0. D-48's own arithmetic admitted it for free — the
+discipline's name occurs on exactly **two** lines, `writing-profile.md:239` and `:241`, and **both are
+inside the named exemption region**, so unconditional costs **0** new findings outside it.
+
+**The four plants, before and after, on the same harness:**
+
+| plant | PRE-change (base `50e966e`, gate `c59b783d…`) | FINAL TREE (base `223df86`, gate `6f0722fa…`) |
+|---|---|---|
+| `conforms to Simplified Technical English` **(control)** | exit 1, named at `:45:29` | exit 1, named at `:45:29` |
+| `follows Simplified Technical English` | **exit 0, NOT named** | **exit 1, named at `:45:25`** |
+| `meets Simplified Technical English` | **exit 0, NOT named** | **exit 1, named at `:45:23`** |
+| `adheres to Simplified Technical English` | **exit 0, NOT named** | **exit 1, named at `:45:28`** |
+| `is written in Simplified Technical English` | **exit 0, NOT named** | **exit 1, named at `:45:31`** |
+
+**The conformance-verb axis is recorded as CLOSED by D-53, not as an open escalation.** The
+before-and-after transcripts above are its evidence, and the control row is what keeps the other four
+honest: the harness did not simply start reddening everything.
+
+**What a record showing only the final state would have lost:** that the second instance of this
+defect was found by someone writing a plan, by re-running the review's own reproduction against a
+member the review never mentioned — and that the correct response to finding it was to escalate, not
+to fix it inside the plan that found it.
+
+---
+
 ## 2. The adversarial attempt log
 
 ### 2.0 The premise, asserted before any transcript below was believed
@@ -641,3 +780,255 @@ side closed it matters.
   `V-29-47-01`, §3.5.** A residual whose subject closed while its written record went on asserting the
   open state is the shape this whole file exists to catch, and it is recorded rather than smoothed
   over.
+
+### 3.9 **WR-06** — discharged, remedy superseded; the guard clause deliberately NOT shipped
+
+WR-06 gets a verdict in the residual sections and not only in the reconciliation table, because a
+finding whose remedy silently evaporates is indistinguishable from one that was dropped.
+
+- **The finding was CORRECT when raised.** A case named `REFUSES a conditional member declared with an
+  EMPTY marker array` asserted a refusal that only the *harness* performed; the gate refused nothing.
+  A member with an empty marker list would have been a prohibition matching nothing, forever,
+  silently — and the invariant lived in the wrong artifact. The remedy was to move the refusal into
+  `runAll()`.
+- **Its remedy was overtaken by a decision that removed the invariant's SUBJECT.** D-53 removed
+  `requiresOnSameLine` from `BannedClaimLiteral` entirely, so an empty-marker member is **not a shape
+  the type admits**. A loop in `runAll()` guarding it has no subject and could never fire — and a gate
+  that counts an unrunnable check in its PASS line is **AP-1**, the exact defect WR-06 was raised
+  about, re-created by its own remedy.
+- **Verdict: DISCHARGED BY DELETING THE MECHANISM. Remedy SUPERSEDED. The guard clause is deliberately
+  NOT shipped.** Measured, not asserted: across the round's full commit range the diff of
+  `scripts/check-banned-claims.ts` adds **zero** lines looping over a member marker list, and plan
+  29-45's task 1 — the task that owned WR-06 — did not touch that module at all.
+- **The successor property, named, so "superseded" is not a silent drop with better vocabulary.** The
+  property WR-06 protected is *a marker mechanism cannot exist unnoticed*, and it is held now by two
+  things rather than none:
+  1. **The TYPE.** A member declaring an EXCESS property does not compile (TS2353, demonstrated in
+     29-44 then reverted), and `noEmitOnError` is on, so that route cannot even build.
+  2. **A NAMED CASE, justified by the route the compiler does NOT cover** —
+     `scripts/check-banned-claims.test.ts:598`, `TRIPWIRE: every pinned member's key set is exactly
+     the two declared fields, and no value is a list`. `tsc` does not refuse an editor who ADDS the
+     field back to the `BannedClaimLiteral` **interface** and then declares it on a member; that is
+     type-correct and every compiler check stays green. The tripwire reds on that route, because it
+     reads the members' OWN KEYS rather than a spelling, and it was mutation-proven in exactly that
+     direction (`npx tsc --noEmit` at exit **0** while the case reddened by name), with an
+     independently derived denominator and a list-shape arm beside it.
+
+  Measured on the final tree: union of member keys over all 22 members is `["group","literal"]`;
+  members carrying any third property, **0**; members carrying a list-valued field, **0**.
+
+---
+
+## 4. Carried residuals — the full roll-up, in BOTH directions
+
+A roll-up listing only what survived cannot be reconciled against the previous round's list, so **every
+`V-` marker in the tree** is listed with its status after round 6 — closures, narrowings and deletions
+included. **Every count in this table was produced by this round's own measurement (§3), not
+transcribed from round 5.**
+
+| id | residual | status after round 6 | live count (re-measured) | where |
+|---|---|---|---|---|
+| `V-29-26-01` | setext headings are invisible to the one section-extent authority | **carried, unchanged** — fail-open | 0 | `docs/audit/29-locator-unification.md` §6 |
+| `V-29-26-02` | non-recursive directory reads narrow the derived scans below what their names claim | **carried, unchanged** — still live for the `-1` contract scan and `nonTestScripts()` | live, unquantified this round (subject untouched by round 6) | §6 |
+| `V-29-26-03` | `FENCE_DELIMITER_LINE` is a prefix test, not an equality | **carried, unchanged** — fail-open | 0 | §6 |
+| `V-29-26-04` | indented fence delimiters are classified as governed prose | **carried, unchanged** — fail-closed only by the accident that the indented delimiters pair up | **4** live lines in `README.md`, re-measured this round (`grep -a -c -E '^[[:space:]]+\`\`\`' README.md` → 4) | §6, §8 |
+| `V-29-32-01` | a closed-fence, count-preserving swallow of the banned-claim exemption region | **carried, unchanged** — and it costs MORE now that D-53 makes the region the sole carve-out. Its sibling shape was re-measured this round and opened as `V-29-47-03` | 0 | plan 29-32; `BANNED_CLAIM_EXEMPT_EXTENT`'s declaration; §3.3 |
+| `V-29-29-01` | the duplicated `sectionBody` — a third section-extent grammar | **closed in round 4** by plan 29-35 | — | `29-locator-unification.md` §9.3b |
+| `V-29-35-01` | a private `parseFrontmatter` beside the exported authority | **closed in round 5** by plan 29-40 | — | §9.3c |
+| `V-29-42-01` | a claim split across a hard wrap escapes the co-occurrence window | **CLOSED BY CONSTRUCTION by plan 29-44** (D-48/D-53) — the window it described does not exist. Construct absence SHOWN (§3.7); reproductions A1 and A2 re-run and both now RED by name | 0 — and the shape has no subject | §3.7 |
+| `V-29-42-02` | a markdown table row puts two cells on one physical line | **CLOSED BY CONSTRUCTION by plan 29-44** — as described. **The false-positive SURFACE it pointed at MIGRATED into `V-29-44-01`** and is measured there; recording only the closure would be a silent drop | 0 | §3.7, §3.1 |
+| `V-29-42-03` | the exempt document's own description of this gate is behind the source's | **CLOSED by plan 29-44** — and **TRUE, not vacuously true**: the gap closed by the SOURCE coming down to the document (D-53 deleted the pinned pair), not by the document being edited. `agent-factory/writing-profile.md` is byte-unchanged for the whole round | **1 → 0** (`incident-responder.md:29` rephrased; `grep -a -c -i understand` → 0) | §3.8 |
+| `V-29-42-04` | a marker inside an HTML comment or a link target satisfies co-occurrence | **CLOSED BY CONSTRUCTION by plan 29-44** — as described. Same migration caveat as `-02`, and the surface got **wider**: a filename merely containing the term now reds (N3) | 0 | §3.7, §3.1 |
+| `V-29-44-01` | the widened bare terms are a false-red surface over the whole of ordinary English | **OPENED IN 29-44, and its REACH MEASURED FOR THE FIRST TIME THIS ROUND** — fail-closed. Six plants: plural, gerund, negated, compounded, and two inside-a-longer-word forms, all RED by name | **0** live over 115 documents / 7380 lines | §3.1; source `scripts/check-banned-claims.ts:459`, `:578` |
+| `V-29-47-01` | the in-source record of `V-29-42-03` is false on five counts and byte-unchanged all round | **OPENED THIS ROUND** — informational; not fixed here | **5** false statements at 1 address, in 2 files | §3.5 |
+| `V-29-47-02` | the sole carve-out is unbounded at the bottom; `endBefore === lines.length` | **OPENED THIS ROUND** — fail-OPEN through the re-pin protocol | 0 | §3.2 |
+| `V-29-47-03` | the region's POSITION is pinned by nothing; a rigid translation moves it silently | **OPENED THIS ROUND** — fail-open in principle, benign by arithmetic today | 0 | §3.3 |
+| `V-29-47-04` | the surviving enumeration: a claim in words the list does not contain PASSES | **OPENED THIS ROUND as a numbered residual** (the property itself is not new) — fail-OPEN, demonstrated by five plants | 0 by construction; reachability demonstrated | §3.4 |
+| `V-29-47-05` | `LANG-04` is marked **Complete** on the tree against the round-5 verifier's explicit verdict | **OPENED THIS ROUND** — process, fail-open; not fixed here | **2** (one wrongly Complete, one wrongly Gaps Found) | §3.6 |
+
+### 4.1 Residuals carried from the round-6 SUMMARYs, not `V-`-numbered
+
+| id | residual | status after round 6 | live count |
+|---|---|---|---|
+| 29-44 **R1** | 30 disposition rows can never match, because their `file` cell is a code span — `rowMatches()` compares `row.file !== c.file` with no backtick stripping | **carried, open** — fail-CLOSED. This plan authored no disposition row and could not have tripped it | **30**, re-measured this round: 1534 rows read under `## Dispositions` across the directory, 30 code-span `file` cells, all in `docs/audit/29-style-dispositions/29-12.md` |
+| 29-43 **R2** | `CHANGELOG.md:67` still reads `sharper-per-token` — outside `BANNED_CLAIM_LITERALS`, so the gate does not flag it | **carried, unmoved** — fail-open. Re-confirmed live at HEAD (`grep -a -n` → line 67) | **1** |
+| 29-45 **R4** | nothing in this repository catches an unmeasured assertion about an EXTERNAL tool's behaviour. `check-nul-bytes.ts`'s header asserted git's binary heuristic is NUL-based; it is a ratio heuristic counting BACKSPACE and ESCAPE as printable, and the claim was believed for two phases | **carried, class OPEN** — informational. The one instance is corrected; **no mechanism exists** | 0 instances in that module; the class is unbounded |
+| 29-46 **R1** | the acceptance grep `0*15` is a substring pattern, not a cardinality predicate — it over-matches document identifiers and byte offsets | **carried** — fail-CLOSED (an over-matcher cannot let a stale range through), but it forces edits a plan elsewhere forbids | **0** after 29-46 |
+| 29-46 **R2** | nothing reds if two workflows declare the same `order`; the catalog would silently publish them in `readdirSync` order | **carried, open** — fail-open | **0**, re-measured this round: 19 workflows declare `order`, **0 duplicate values** |
+
+### 4.2 The net movement, stated plainly rather than as progress
+
+**Closed this round: six** — `V-29-42-01`, `-02`, `-04` (by construction), `V-29-42-03` (by
+mechanism), plus round-5's two blockers CR-01 and CR-02 and the conformance-verb axis D-53 extended
+into. **Opened this round: five** — `V-29-47-01` through `-05`.
+
+Round 5's own movement was net **+3** and its record asked the next round to read that as *the output
+of having looked*. Round 6's is net **−1** on the `V-` register, and the honest reading is narrower
+than it sounds: **three of the six closures are one deletion**, and two of those three closed *as
+described* while the false-positive surface they pointed at migrated into `V-29-44-01` rather than
+vanishing. What genuinely closed is the **fail-OPEN** half — the axis on which a real claim could be
+written and the gate stayed green. Every residual left open on the prohibition axis except
+`V-29-47-04` is fail-CLOSED.
+
+The five newly opened items are also the output of having looked, and **two of them
+(`V-29-47-02`, `-03`) exist only because D-53 made the exemption region the sole carve-out** — this
+round's own change created the surface this round's own pass then found. That is what naming the
+degrees of freedom before attacking is for.
+
+---
+
+## 5. The LANG-08 override, repeated rather than paraphrased
+
+Repeated **verbatim** from `29-VERIFICATION.md`'s `overrides:` frontmatter, byte-identical to the
+quotation in `docs/audit/29-round5-residuals.md` §5 (both blocks extracted and hashed:
+`7cc139860131a159f99869f532c65c9e069b06d03d5551260e33476431666624`), because a paraphrased override is
+a second version of a decision.
+
+> **must_have:** "LANG-08 — byte ceilings re-baselined exactly once at end of phase, every file <=
+> previous, delta recorded, never raised mid-phase"
+>
+> **reason:** "Deliberate human decision at plan 29-13's blocking checkpoint (hold-rebaseline):
+> re-deriving the margin from today's smaller corpus would convert Phases 13-27's absorbed headroom
+> into permanent new headroom. The prohibition half (never raised) holds absolutely; the delta is
+> recorded; only the re-baseline action itself was deferred, by choice, not by omission. Carried
+> unchanged through rounds 1, 2, 3 and 4 — not new work this round."
+>
+> **accepted_by:** "Olger Oeselg"
+> **accepted_at:** "2026-08-15T09:57:04Z"
+
+**The prohibition half held through every plan of round 6, and that is a MEASUREMENT rather than an
+assurance.** Range `f718069..HEAD` (16 commits).
+
+| check | method | result |
+|---|---|---|
+| the ceiling table itself | `roleCeiling()`'s function body extracted from `scripts/check-foundation-guards.ts` at `f718069` and at `HEAD` and hashed | **byte-identical**, sha256 `c4d66b0e224299f9c797714886e4bbc5953d9c6138c18f035b77a8d9750f30e7`, 1967 B at both ends — and the **same hash rounds 4 and 5 recorded**, so the table has not moved across three rounds |
+| files under a ceiling | `git diff --name-only f718069..HEAD -- agent-factory/` | **exactly one**: `agent-factory/roles/incident-responder.md`, edited by plan 29-44 |
+| that one file against its ceiling | `roleCeiling("incident-responder.md")` = `"3802 3598"` (FAIL / WARN) | **3481 B → 3485 B.** +4 B, consuming 4 of 113 B of headroom to WARN and 317 B to FAIL. **Neither ceiling approached; neither moved.** |
+| the exempt document | `git diff --exit-code f718069..HEAD -- agent-factory/writing-profile.md` | **exit 0** — unedited for the whole round, which is also `V-29-42-03`'s and `V-29-47-02`'s disposition |
+
+Round 5's record could say "**0** files under a ceiling". **Round 6 cannot and does not** — one role
+file was edited, so the byte count is stated against the ceiling instead. No ceiling was raised,
+lowered or re-baselined by any plan of round 6. Plans checked: `29-43`, `29-44`, `29-45`, `29-46`,
+`29-47`.
+
+**Supply chain, at round scope, as asserted absence.** `git diff --exit-code f718069..HEAD --
+package.json package-lock.json` exits **0**: byte-unchanged across the round's full commit range. No
+package was installed by any plan of round 6, and `RESEARCH.md` carries no new package row for this
+round, so no legitimacy checkpoint was required.
+
+---
+
+## 6. Probe coverage — the arithmetic, its equality, and a disagreement recorded
+
+**Total probe items surfaced: 22** — LANG-01 4, LANG-02 1, LANG-03 4, LANG-04 2, LANG-05 3, LANG-06 3,
+LANG-07 1, LANG-08 4. The spec-less edge-probe fallback applies (Phase 29 has no SPEC file;
+`EDGE_ABSENT=1`, `PROHIB_ABSENT=1`).
+
+| disposition | count | items |
+|---|---|---|
+| **authored** into `must_haves.truths` | **2** | LANG-04 `empty` and LANG-04 `encoding`, both `verification: explicit`, authored in plan `29-41`, discharged in `29-42`. **Both were subsequently RETIRED with their properties recorded** — the `empty` edge's subject (an empty marker array) is a shape D-53 removed from the type, which is WR-06's disposition at §3.9; the `encoding` edge survives as the CRLF and case arms and is re-covered this round by DOF-1/DOF-2 |
+| **flagged** assumption — in scope, unclassified | **1** | LANG-07 `unclassified`. **Never auto-dismissed** — an `unclassified` row stays `unresolved` by rule. Plan `29-40` read it as the byte-equality question and answered that question WITHOUT claiming the row resolved. **Still unresolved entering round 7**, and `LANG-07` is `Gaps Found` on the tree despite the round-5 verifier recommending `Complete` — see `V-29-47-05` |
+| **flagged** assumption — out of scope this round | **19** | LANG-01 4, LANG-02 1, LANG-03 4, LANG-05 3, LANG-06 3, LANG-08 4. These belong to work executed across plans `29-01`..`29-39`; round 6's scope is exactly the two failed truths and the twelve findings of round 5. Naming each dropped requirement id with its item count is what keeps this from being a silent drop |
+
+**No-silent-drop equality: 2 authored + 20 flagged = 22 surfaced.** ✓
+
+### 6.1 The derivation source, and why this round could not re-derive from a live file
+
+The plan directs the arithmetic to be **derived rather than transcribed**, on the strength of round 5's
+own §6 catch where the orchestrator's predicted row count disagreed with the file and **the file won**.
+Applying the same discipline to this round produces a finding rather than a fresh derivation:
+
+- **No round-6 plan carries a `probe_coverage` block.** Measured: `grep -c probe_coverage` over
+  `29-43-PLAN.md` … `29-47-PLAN.md` returns **0** for all five.
+- **The only committed derivation is plan `29-40`'s block**, and that block names its own source as
+  `/tmp/coverage29.json`, read directly rather than from an orchestrator excerpt.
+- **`.planning/phases/29-.../COVERAGE.md` is not the probe register.** It is the API-integration
+  coverage file and its entire content is one sentence: *"No external API integration: Phase 29
+  rewrites markdown kit prose and adds four build-time guards using Node stdlib only; nothing in scope
+  calls a network service, SDK, or external endpoint."* It carries no probe rows and cannot produce
+  this arithmetic.
+
+**So the total above is carried from plan `29-40`'s committed block and is labelled as carried, not as
+re-derived.** What IS independently derivable was derived: the eight `LANG-` requirement ids all exist
+in `.planning/REQUIREMENTS.md`'s Phase 29 mapping (`| 29 | Controlled Language & Voice Guard Rebuild |
+LANG-01..08 | 8 |`), with no orphan and no missing id. **The one disagreement this derivation found is
+recorded as `V-29-47-05` (§3.6): the traceability rows for `LANG-04` and `LANG-07` are the exact
+inverse of the round-5 verifier's stated verdict.**
+
+---
+
+## 7. The honest close
+
+**A green suite is not proof for a safety invariant in this repository.** That is not modesty; it is
+this phase's measured record. Nine false harness results now — six across four consecutive rounds, a
+seventh inside round 5's own acceptance checks, an eighth inside plan 29-43, and a ninth **inside this
+round's own adversarial pass** (§2.1), which would have published a fail-open bypass of the sole
+carve-out that does not exist.
+
+### What round 6 CAN honestly claim
+
+- **The corpus the PASS line describes is the corpus it reads.** 82 → 115 documents, every entrant
+  named, each pin value read off the gate's own refusal text rather than computed by hand. Four
+  entrants planted on the final tree and all four RED by name; two excluded classes planted and both
+  correctly silent. Zero markdown classes sit outside the gate without a written decision.
+- **NEITHER prohibition enumerates anything about HOW a claim is phrased, on either group.** Both
+  marker lists are deleted, `lineHits`'s conditional arm and the PASS line's conditional clause with
+  them, and the field is gone from the TYPE — so restoring a marker list is a compile error, not a
+  one-line addition. Conditional members **3 → 0**.
+- **The gate's whole predicate is a pinned literal list plus one named exemption region.**
+- **Nine sentences that passed at exit 0 with the planted file never named now red by name at
+  `file:line:column`**, and the movement is measured on the same harness in both directions with an
+  unmoved control (§2.4).
+- **The one real false red the widening created was paid in PROSE, not by weakening the matcher** —
+  4 bytes in `agent-factory/roles/incident-responder.md`, with the three forbidden weakenings still
+  forbidden and the forbidden-alternative paragraph hashed byte-identical.
+- **The exemption region survived eleven attempts.** Its top edge discriminates at one line's
+  resolution (R3 vs R1); it cannot be destroyed silently (R5) or duplicated silently (R9); a section
+  appended inside it moves both pins (R4, R7); and text after a new level-2 heading is correctly
+  outside it (R8).
+- **A legal denial inside the region is still writable and still silent** — `0 findings over 115/115
+  elements` on a line naming the standard, the discipline and the comprehension topic in order to deny
+  claims about all three.
+- **Every finding of round 5 is accounted for by name**, including the one whose remedy was superseded
+  and the one that never had an id.
+
+### What round 6 does **NOT** claim
+
+**Term membership first, because a round that closed a defect by DELETION on two groups at once is the
+round most likely to be read as having closed the CLASS.**
+
+1. **The surviving enumeration is `BANNED_CLAIM_LITERALS` itself — 22 members across 3 groups,
+   direction FAIL-OPEN — and a claim written in words it does not contain PASSES THIS GATE.** This is
+   demonstrated, not asserted: five real claims were planted on the final tree and all five exited 0
+   with the planted file never named (§2.3, DOF-4), and two of them are claims on groups this round
+   widened — a conformance claim (`is written to a controlled-English standard and meets it in full`)
+   and a token-economy claim (`cuts the number of tokens a model must read`). The list of WHAT IS
+   BANNED is the prohibition's own subject and cannot be derived away; a prohibition with nothing
+   enumerated forbids nothing. **What changed is which KIND of list is load-bearing, not that the
+   gate stopped having one.** Carried as `V-29-47-04`.
+2. **The region attacks established the boundary's LOCATION, not its STABILITY.** Ten of eleven
+   attempts behaved correctly and loudly. The eleventh did not: **the region can be moved by a rigid
+   translation with neither pin noticing** (`V-29-47-03`), and **the region has no bottom boundary at
+   all** — `endBefore === lines.length`, so anything appended to `agent-factory/writing-profile.md`
+   lands inside the sole carve-out, backstopped only by two pins whose own refusal text instructs the
+   author to move them (`V-29-47-02`). Before D-53 a claim in that position would also have needed a
+   marker; now the region is the only thing standing there.
+3. **That the false-positive surface shrank.** It did not. `V-29-42-02` and `V-29-42-04` closed *as
+   described*, and the surface they pointed at MIGRATED into `V-29-44-01`, where this round measured
+   it for the first time: the plural, the gerund, the **negated** form, the **compounded** form, two
+   **inside-a-longer-word** forms, an HTML comment, a table cell and — newly — a **filename in a link
+   target** all red on ordinary English making no claim whatever.
+4. **That the module's own prose is true.** `V-29-47-01`: the in-source record of `V-29-42-03` is false
+   on five counts, byte-unchanged across all sixteen commits of this round, and every stale-prose grep
+   the round ran passed over it because it is the one such block written in the live present tense
+   with no date and no marker.
+5. **That the five items in §3.1–§3.6 are closed.** They are **open, named, counted, and
+   directional**. This file lists what was decided; it does not claim nothing remains.
+
+### Requirements
+
+**No requirement is re-marked complete by this record**, and plan `29-47` asserts
+`.planning/REQUIREMENTS.md` byte-unchanged. `LANG-04`'s verdict belongs to the verifier, not to the
+plans that did the work — which is precisely why `V-29-47-05` records that the tree already carries
+`LANG-04` as **Complete** and `LANG-07` as **Gaps Found**, the exact inverse of the round-5 verifier's
+stated recommendation, set by plan 29-45's docs commit `d5360dc` and not by any verification.
