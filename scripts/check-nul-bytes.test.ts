@@ -14,7 +14,7 @@
 
 import { describe, it, expect, afterAll } from "vitest";
 import { spawnSync } from "node:child_process";
-import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from "node:fs";
+import { mkdtempSync, mkdirSync, writeFileSync, rmSync, existsSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
@@ -398,6 +398,88 @@ describe("check-nul-bytes — the REFUSAL half, watched failing against a real t
     expect(mod.controlByteOffsets(withNul).bytes.includes(mod.NUL)).toBe(true);
   });
 
+  // ── ONE READ PER PATH, AND A THIRD ARM THAT NAMES THE GITLINK (round 7, plan 29-50 — WR-06) ─────
+
+  it("a DIRECTORY in the scanned set lands in the gitlink arm, and the other two arms stay empty", () => {
+    // RED AGAINST THE PRE-CHANGE BUILD, measured rather than asserted: the same call against a
+    // mirror of 3bc0f18 returns `{hits:[],missing:[],unreadable:["scripts"]}` — three arms, and the
+    // directory reported as "permissions, or an I/O error", a cause that is not there.
+    //
+    // The fixture is a REAL directory that already exists inside the repository root, so nothing is
+    // constructed, nothing is chmod-ed, and the case is deterministic under any user including root
+    // (a permissions fixture is not, which is why the sibling chmod case has to probe and skip).
+    // `readFileSync` on a directory raises EISDIR, which is exactly what a tracked gitlink for an
+    // INITIALISED submodule raises — this repository has no submodules, so the arm is a contract
+    // guard reached through the same errno rather than through a submodule fixture.
+    const r = mod.scanTracked(["scripts"]);
+    expect(Object.keys(r).sort()).toEqual(["gitlinks", "hits", "missing", "unreadable"]);
+    expect(r.gitlinks).toEqual(["scripts"]);
+    expect(r.missing, "a directory is not ENOENT and must not be reported as absent").toEqual([]);
+    expect(
+      r.unreadable,
+      "a directory must not be reported as a permissions or I/O error — that names a cause that is not there",
+    ).toEqual([]);
+    expect(r.hits).toEqual([]);
+  });
+
+  it("a hit carries its OWN line and column, so a path that VANISHES after the scan still renders", () => {
+    // THE SINGLE-READ PROPERTY, ASSERTED BEHAVIOURALLY RATHER THAN AS SOURCE SHAPE. The reporting
+    // loop used to go back to disk for the line and column. This plants a hit-bearing file, scans
+    // it, DELETES IT, and then asserts the numbers the report renders are still available — which
+    // they can only be if they were derived where the buffer was in hand. Against the pre-change
+    // build the hit carries no `line`/`column` at all, so this reads `undefined` and reds.
+    //
+    // The plant is UNTRACKED and lives inside the repository root because `scanTracked` resolves
+    // against the module-level ROOT, fixed at import. Untracked is deliberate: the gate's own scan
+    // set is `git ls-files`, so this file is invisible to every other case in this file and to every
+    // sibling gate, and it is removed inside the scan/assert window rather than at the end.
+    const rel = ".tmp-nul-vanish-probe.bin";
+    const abs = join(ROOT, rel);
+    try {
+      // line 1 is "ab\n"; line 2 is "cd" with the NUL as its 3rd byte -> line 2, column 3.
+      writeFileSync(abs, Buffer.concat([Buffer.from("ab\ncd"), Buffer.from([0x00])]));
+      expect(existsSync(abs), "PREMISE: the plant must be on disk before the scan").toBe(true);
+      const { hits } = mod.scanTracked([rel]);
+      rmSync(abs, { force: true });
+      expect(existsSync(abs), "PREMISE: the path must be GONE before the assertions").toBe(false);
+
+      expect(hits).toHaveLength(1);
+      expect(hits[0].offsets).toEqual([5]);
+      expect(hits[0].bytes).toEqual([0x00]);
+      // The numbers survive the file. This is the whole property.
+      expect(hits[0].line).toBe(2);
+      expect(hits[0].column).toBe(3);
+      // ...and they are the SAME numbers `locate` would have produced from the buffer, so moving the
+      // derivation did not move the value.
+      expect(mod.locate(Buffer.concat([Buffer.from("ab\ncd"), Buffer.from([0x00])]), 5)).toEqual({
+        line: 2,
+        column: 3,
+      });
+    } finally {
+      rmSync(abs, { force: true });
+    }
+  });
+
+  it("the module performs exactly ONE filesystem read, and it is in the scan", () => {
+    // The source-shape half of the same property, over the COMMITTED artifact rather than the
+    // source, because the committed .js is what ships and what every other case here drives.
+    // Comment lines are stripped first: this repository has counted a doc comment as a call site
+    // before (plan 29-49, harness defect H1), and the strip's own premise is asserted below.
+    const raw = readFileSync(GATE_JS, "utf8");
+    const stripped = raw
+      .split("\n")
+      .filter((l) => !/^\s*(\/\/|\*|\/\*)/.test(l))
+      .join("\n");
+    // PREMISE OF THE STRIP: the import binding and the one call site must survive it, and at least
+    // one prose mention must not. A strip that removed everything would make the count trivially 1.
+    expect(stripped).toContain("import { readFileSync }");
+    expect(raw.split("readFileSync").length - 1).toBeGreaterThan(
+      stripped.split("readFileSync").length - 1,
+    );
+    const callSites = (stripped.match(/readFileSync\(/g) ?? []).length;
+    expect(callSites, "one read per path: the reporting loop must not go back to disk").toBe(1);
+  });
+
   it("REFUSES an empty tracked set rather than reporting a vacuous green", () => {
     // A gate whose scan set is empty passes every check it makes. That is the failure mode a
     // '0 problems found' report hides best, so it is a named refusal rather than a silent pass.
@@ -428,9 +510,13 @@ describe("check-nul-bytes — the NON-VACUITY half, against the REAL tree", () =
     // Two-sided: every tracked path is either NUL-free or a hit, with no path in both and none in
     // neither. A hand-listed scan set could not make this assertion at all.
     const tracked = mod.trackedPaths();
-    const { hits, unreadable } = mod.scanTracked(tracked);
+    const { hits, missing, gitlinks, unreadable } = mod.scanTracked(tracked);
     const free = mod.nulFreeTrackedFiles();
     expect(tracked.length).toBeGreaterThan(0);
+    // ALL THREE not-scanned arms must be empty on the real tree, or the partition below is being
+    // asserted over a set the scan did not actually read.
+    expect(missing).toEqual([]);
+    expect(gitlinks).toEqual([]);
     expect(unreadable).toEqual([]);
     expect(free.length + hits.length).toBe(tracked.length);
     const freeSet = new Set(free);

@@ -377,6 +377,22 @@ export interface NulHit {
    * measurement, which can only rot — and this declaration is precisely where one already did.
    */
   readonly bytes: number[];
+  /**
+   * The 1-based line and column of the FIRST offset, derived WHERE THE BUFFER WAS ALREADY IN HAND.
+   *
+   * (Round 7, plan 29-50 — WR-06.) These used to be computed by the reporting loop, which re-read
+   * the file from disk with a bare `readFileSync` to do it. That was a SECOND read of a document
+   * this run had already read — the shape plan 29-49 closed one module over — and here it was also
+   * the only path by which this gate could die WITHOUT A VERDICT: a tracked path removed between the
+   * scan and the report (a concurrent checkout, a build step in the same CI job) threw an unhandled
+   * ENOENT out of `runAll()` and the gate exited with a `node:internal` frame, against this module's
+   * own stated floor that a stack trace is not a verdict.
+   *
+   * Carrying the numbers on the hit is what makes the second read unnecessary rather than merely
+   * guarded. There is now exactly one `readFileSync` call site in this module and it is in the scan.
+   */
+  readonly line: number;
+  readonly column: number;
 }
 
 /**
@@ -426,34 +442,57 @@ export function controlByteOffsets(buf: Buffer): { offsets: number[]; bytes: num
  * rather than swallowed: a scan that silently skipped a file it could not open would under-report
  * and still print a green.
  *
- * THE TWO NOT-SCANNED CASES ARE SEPARATED (28-REVIEW WR-11). A tracked file DELETED from the working
- * tree and a tracked file that is present but unopenable are different situations with different
- * fixes, and both used to land in one `unreadable` list under a message a developer could read as a
- * NUL finding. `missing` is ENOENT — the path is tracked and not on disk (a deletion not yet staged,
- * or an uninitialised submodule gitlink); `unreadable` is everything else (permissions, an I/O
- * error). Both still FAIL: fail-closed is right, and only the naming was wrong.
+ * THE THREE NOT-SCANNED CASES ARE SEPARATED (28-REVIEW WR-11; third arm added round 7, plan 29-50 —
+ * WR-06). A tracked file DELETED from the working tree, a tracked path that is a DIRECTORY on disk,
+ * and a tracked file that is present but unopenable are three different situations with three
+ * different fixes, and they used to collapse into two lists under a message a developer could read
+ * as a NUL finding.
+ *
+ *   `missing`    — ENOENT. The path is tracked and not on disk: a deletion not yet staged, or an
+ *                  UNINITIALISED submodule gitlink (git records the gitlink; nothing is checked out).
+ *   `gitlinks`   — EISDIR. The path is tracked and IS a directory: an INITIALISED submodule gitlink,
+ *                  whose submodule is checked out, so `readFileSync` raises EISDIR rather than
+ *                  ENOENT. Until round 7 this landed in `unreadable` and was reported as
+ *                  "permissions, or an I/O error" — a cause that is not there, under a header that
+ *                  named only the uninitialised case. THIS REPOSITORY HAS NO SUBMODULES TODAY, which
+ *                  is why nothing had noticed; the arm is a CONTRACT GUARD, not a live-path fix, and
+ *                  it is exercised by calling the scan with an ordinary directory.
+ *   `unreadable` — everything else: permissions, an I/O error.
+ *
+ * ALL THREE STILL FAIL. Fail-closed is right — a skipped file is an unchecked file — and only the
+ * naming was ever wrong. The verdict direction is unchanged by the split.
+ *
+ * The first hit's LINE AND COLUMN are derived here, where the buffer is already in hand, and carried
+ * on the hit. See `NulHit.line`: the reporting loop performs no filesystem read at all.
  */
 export function scanTracked(paths: string[]): {
   hits: NulHit[];
   missing: string[];
+  gitlinks: string[];
   unreadable: string[];
 } {
   const hits: NulHit[] = [];
   const missing: string[] = [];
+  const gitlinks: string[] = [];
   const unreadable: string[] = [];
   for (const rel of paths) {
     let buf: Buffer;
     try {
       buf = readFileSync(join(ROOT, rel));
     } catch (e) {
-      if ((e as NodeJS.ErrnoException).code === "ENOENT") missing.push(rel);
+      const code = (e as NodeJS.ErrnoException).code;
+      if (code === "ENOENT") missing.push(rel);
+      else if (code === "EISDIR") gitlinks.push(rel);
       else unreadable.push(rel);
       continue;
     }
     const { offsets, bytes } = controlByteOffsets(buf);
-    if (offsets.length > 0) hits.push({ path: rel, offsets, bytes });
+    if (offsets.length > 0) {
+      const { line, column } = locate(buf, offsets[0]);
+      hits.push({ path: rel, offsets, bytes, line, column });
+    }
   }
-  return { hits, missing, unreadable };
+  return { hits, missing, gitlinks, unreadable };
 }
 
 /** The tracked paths carrying no forbidden control byte — so the test can assert the partition two-sided. */
@@ -493,7 +532,7 @@ export function runAll(): void {
     return;
   }
 
-  const { hits, missing, unreadable } = scanTracked(paths);
+  const { hits, missing, gitlinks, unreadable } = scanTracked(paths);
 
   // Named as the situation it IS, so a developer meeting it in CI does not read it as a NUL finding.
   if (missing.length > 0) {
@@ -502,6 +541,18 @@ export function runAll(): void {
         `scanned: ${missing.slice(0, 10).join(", ")}. This is not a NUL finding — the path is ` +
         "tracked by git and absent on disk (a deletion not yet staged, or an uninitialised " +
         "submodule). A skipped file is an unchecked file, so it fails closed rather than passing.",
+    );
+  }
+  if (gitlinks.length > 0) {
+    fail(
+      `${gitlinks.length} tracked path(s) are A DIRECTORY ON DISK and were therefore NOT scanned: ` +
+        `${gitlinks.slice(0, 10).join(", ")}. This is not a NUL finding and it is not a ` +
+        "permissions problem — the read raised EISDIR, which is what a tracked gitlink for an " +
+        "INITIALISED submodule looks like (the submodule is checked out, so the path git records " +
+        "as a file is a directory here). The remedy is to scan the submodule inside its own " +
+        "repository, where its own tracked set is derivable; this gate deliberately reports only " +
+        "the set `git ls-files` gives it at this root. A skipped path is an unchecked path, so it " +
+        "fails closed rather than passing.",
     );
   }
   if (unreadable.length > 0) {
@@ -513,16 +564,24 @@ export function runAll(): void {
     );
   }
 
+  // THE REPORTING LOOP PERFORMS NO FILESYSTEM READ (round 7, plan 29-50 — WR-06). It used to
+  // re-read `hit.path` here, with a bare `readFileSync` and no guard, purely to compute the line and
+  // column. Two things were wrong with that, and the second is the one that could stop this gate
+  // producing a verdict at all. It was a SECOND read of a document this run had already read — the
+  // shape plan 29-49 closed one module over — and a path removed between the scan and the report
+  // threw an unhandled ENOENT straight out of `runAll()`, so the gate died with a `node:internal`
+  // frame instead of reporting, which is exactly what a sibling gate's test asserts never happens.
+  // The numbers are now derived inside `scanTracked` where the buffer is in hand and carried on the
+  // hit, so the second read is unnecessary rather than merely guarded, and a path that vanishes
+  // mid-run cannot make this loop throw because this loop no longer touches the disk.
   let totalControl = 0;
   for (const hit of hits) {
     totalControl += hit.offsets.length;
-    const buf = readFileSync(join(ROOT, hit.path));
-    const first = locate(buf, hit.offsets[0]);
     const kinds = [...new Set(hit.bytes)].sort((a, b) => a - b).map(hex).join(", ");
     fail(
       `${hit.path} carries ${hit.offsets.length} forbidden control byte(s) — ${kinds}. First is ` +
-        `${hex(hit.bytes[0])} at byte offset ${hit.offsets[0]}, line ${first.line}, column ` +
-        `${first.column}. A control byte other than TAB or LINE FEED in a tracked source is never ` +
+        `${hex(hit.bytes[0])} at byte offset ${hit.offsets[0]}, line ${hit.line}, column ` +
+        `${hit.column}. A control byte other than TAB or LINE FEED in a tracked source is never ` +
         "intentional here: it renders as nothing or as a space in every editor and in `git show`, " +
         "and a NUL additionally makes `git diff` report `Binary files differ` and makes plain " +
         "`grep` return ZERO matches for strings that ARE present — silently, with an exit status " +
