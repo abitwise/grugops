@@ -175,6 +175,11 @@ export const bannedClaimFails = (): number => FAILS;
 
 const MARKDOWN_EXT = ".md";
 const KIT_DIR = "agent-factory";
+// (Round 6, WR-02) The three classes admitted in this round. Declared as path constants beside
+// KIT_DIR so a reader meets the whole reach of this gate in one place.
+const INSTALL_README = "install/README.md";
+const SKILLS_DIR = "skills";
+const CLAUDE_DIR = ".claude";
 
 // ---------------------------------------------------------------------------
 // THE ONE LIST. Three groups, every member a separately pinned literal.
@@ -648,14 +653,55 @@ export const BANNED_CLAIM_EXEMPT_REGION = {
 // text it exists to hold. The same argument covers .planning/, which is the planning record and is
 // archived at milestone close.
 //
-// This is recorded as a decision because the two parts below simply never reach docs/: the kit part
+// This is recorded as a decision because the parts below simply never reach docs/: the kit part
 // walks agent-factory/ and the public-docs part is root markdown + examples/ + the kit README. The
 // exclusion is structural; the reason is here so a reader meets it rather than inferring it.
+//
+// scripts/ IS EXCLUDED FOR A DIFFERENT AND STRONGER REASON: this module declares every banned
+// literal, so scanning scripts/ would report the authority for holding the text it exists to hold.
+// The cost is named rather than left implicit — a claim typed into a GENERATOR's own source is not
+// read here. That cost is why .claude/ was ADMITTED in round 6 rather than excluded as
+// "transitively covered": the generated output is where a generator-authored claim becomes
+// readable, and the two freshness gates make the output a faithful build of its source.
+//
+// ── THE REMAINING CLASSES, DISPOSITIONED BY NAME (round 6, WR-02) ────────────────────────────
+//
+// DERIVED, NOT ADOPTED. The round-5 review enumerated four classes; the remainder was re-derived
+// with `git ls-files '*.md'` minus `bannedClaimScan()` and disagreed with it twice, so both numbers
+// below are this repository's rather than the review's:
+//
+//   memory-bank/  9 files  — the review said 9, a session measurement said 8. Derived: 9.
+//   plans/        4 files  — the review said `plans/board.md`, 1 file. Derived: 4. board.md,
+//                            metrics.md, nfr-catalog.md and traceability.md.
+//   skills/       7 files  — named in NO round-5 finding. Found only by deriving the remainder,
+//                            and ADMITTED above rather than listed here.
+//
+// memory-bank/ and plans/ are grugops's own RUNTIME DOGFOOD STATE, and D-16's build-time/runtime
+// surface split places them outside a build-time gate over kit files. The kit tells a host repo to
+// create both directories and then writes into them: plans/board.md is the visible board,
+// plans/metrics.md, plans/nfr-catalog.md and plans/traceability.md are the trail the roles emit, and
+// memory-bank/ is the project brief, product, architecture, contributing, progress, runbook and
+// glossary prose a factory run maintains. They are the OUTPUT of using grugops, not part of what
+// grugops ships — the same distinction that keeps .planning/ out. Measured with this gate's own
+// matcher before the exclusion was written: 0 live occurrences across all 13 files.
+//
+// THE REMEDY IF THAT ARGUMENT EVER STOPS HOLDING, so the next reader is not left to invent one:
+// they enter as a DERIVED PART with their own disk walk, their own vacuity floor and
+// BANNED_CLAIM_SCAN_COUNT moved in the same commit — exactly as install/README.md, skills/ and
+// .claude/ did in this round. Never as an ad hoc filename appended to somebody else's part.
+//
+// AND THE ENUMERATION IS HELD BY AN ASSERTION RATHER THAN BY THIS PARAGRAPH. A case in
+// scripts/check-banned-claims.test.ts derives tracked markdown, subtracts the scan, and requires
+// every remaining path to be covered by a prefix in this array. A class added tomorrow reds on the
+// day it lands instead of surfacing as a finding four rounds later — which is how this block came
+// to need rewriting.
 // ---------------------------------------------------------------------------
 export const BANNED_CLAIM_EXCLUDED_LOCATIONS: readonly string[] = [
   "docs/",
   ".planning/",
   "scripts/",
+  "memory-bank/",
+  "plans/",
 ];
 
 // Refusals raised while DERIVING the scan set. Collected rather than thrown: this is a GATE, and a
@@ -713,12 +759,103 @@ function publicDocsMembers(): string[] {
   return publicDocsCorpus().slice().sort();
 }
 
+// Part `installReadme`: the hand-authored, user-facing install guide. ONE named literal, and still
+// DERIVED AGAINST THE DISK — `kitReadmeMembers()`'s precedent in check-public-docs-vocabulary.ts,
+// for its two reasons. A literal part can never reach the per-part vacuity floor (a one-element
+// array is always length 1), so returning [] on an absent file is the only way this gate notices
+// the document vanished; and readText() is called unguarded downstream, so an absent file would
+// otherwise kill the gate with a node:internal stack trace instead of a verdict.
+//
+// ADMITTED IN ROUND 6 (WR-02). The reviewer's objection was specific: this "is exactly the kind of
+// document a conformance claim gets written into, and its absence currently reads as an oversight".
+// Measured before admission over the whole banned-literal set: 0 live occurrences. So admitting it
+// costs zero reds on correct text today, which is this file's own admission test — and an exclusion
+// entry would have had to argue that a hand-authored, user-facing, shipped document belongs outside
+// a gate over hand-authored, user-facing, shipped documents. There is no such argument.
+function installReadmeMembers(): string[] {
+  if (!existsSync(abs(INSTALL_README))) {
+    DERIVATION_REFUSALS.push(
+      `${INSTALL_README} is a NAMED member of the banned-claim scan set and does not exist at ` +
+        `${abs(INSTALL_README)} — refusing to report a verdict over a part whose one member could ` +
+        `not be read. A missing document is not a clean one`,
+    );
+    return [];
+  }
+  return [INSTALL_README];
+}
+
+// Part `skillSources`: the hand-authored skill documents under skills/, walked.
+//
+// ADMITTED IN ROUND 6, AND THIS CLASS APPEARS IN NO ROUND-5 FINDING AT ALL. The review enumerated
+// four unscanned classes; deriving the remainder rather than adopting the enumeration found this
+// fifth one. These are hand-authored, they ship, and scripts/generate-skill-twins.ts reads them with
+// readFileSync to render .claude/skills/*/SKILL.md — so they are also the upstream the twins'
+// transitive-coverage argument would have to rest on, and that argument cannot rest on a document
+// nothing scans. Measured before admission: 0 live occurrences.
+function skillSourceMarkdown(): string[] {
+  const acc: string[] = [];
+  const refusal = walkFiles(SKILLS_DIR, { examined: 0 }, acc);
+  if (refusal !== null) DERIVATION_REFUSALS.push(refusal);
+  return acc.filter((f) => f.endsWith(MARKDOWN_EXT)).sort();
+}
+
+// Part `claudeAdapters`: the generated Claude Code adapter surface under .claude/, walked.
+//
+// ── THE TRANSITIVE-COVERAGE ARGUMENT WAS TESTED AND IS REFUTED (round 6, WR-02) ──────────────
+//
+// The round-5 review offered these as "the generated adapters and skill twins (derived from role
+// text, so covered transitively — but that transitivity is nowhere stated)". It is not merely
+// unstated; it is FALSE, and the way to find that out was to read the two generators rather than to
+// assert it.
+//
+// scripts/generate-role-adapters.ts composes an adapter body in `specialistBody()` and
+// `coordinatorBody()` from STRING LITERALS IN ITS OWN TYPESCRIPT SOURCE. The file's header says the
+// body is "single-sourced from agent-factory/packaging/subagent.frontmatter.md", and that is a
+// documentation convention, not a data flow: the only runtime readFileSync in that generator reads
+// agent-factory/roles/*.md for the DESCRIPTION and the capability line. Every shipped sentence of
+// the adapter body — "Read `agent-factory/roles/<role>.md` now and act as that role", the Workflow
+// 16 sentence, the hard-limit sentence, the whole three-tier Full/Reduced/Degraded block on the
+// coordinator — is typed in scripts/generate-role-adapters.ts. And scripts/ is excluded from this
+// gate by name, because this module declares the literals and would fail its own check. So a
+// conformance, token-economy or comprehension claim typed into a body composer would ship into all
+// seventeen adapters, and NOTHING in this repository would read it.
+//
+// scripts/generate-skill-twins.ts is a weaker version of the same. It DOES readFileSync its bodies,
+// from skills/<dir>/SKILL.md — which was itself unscanned until this same commit admitted it — and
+// it then INSERTS a kit-root resolver block of its own. So even the honest half of the argument
+// pointed at a document outside the gate.
+//
+// The freshness gates `npm run freshness:adapters` and `npm run freshness:skill-twins` hold the
+// derivation byte-for-byte, and they are why admitting the OUTPUT is sufficient rather than
+// second-best: a claim typed into a generator cannot reach a host machine without appearing here
+// first, and it now reds here when it does. Measured before admission: 0 live occurrences across
+// all 24 files.
+//
+// .claude/settings.local.json IS NOT MARKDOWN and is outside this and every other markdown scan by
+// construction. It carries `asd-ste100.org` inside a WebFetch tool permission — a research
+// permission, not a claim. Recorded here so a later reader who greps for the standard's name and
+// finds it does not mistake it for drift the gate missed.
+function claudeAdapterMarkdown(): string[] {
+  const acc: string[] = [];
+  const refusal = walkFiles(CLAUDE_DIR, { examined: 0 }, acc);
+  if (refusal !== null) DERIVATION_REFUSALS.push(refusal);
+  return acc.filter((f) => f.endsWith(MARKDOWN_EXT)).sort();
+}
+
 export const BANNED_CLAIM_SCAN_PARTS: readonly {
-  name: "kit" | "publicDocs";
+  name:
+    | "kit"
+    | "publicDocs"
+    | "installReadme"
+    | "skillSources"
+    | "claudeAdapters";
   members: readonly string[];
 }[] = [
   { name: "kit", members: kitMarkdown() },
   { name: "publicDocs", members: publicDocsMembers() },
+  { name: "installReadme", members: installReadmeMembers() },
+  { name: "skillSources", members: skillSourceMarkdown() },
+  { name: "claudeAdapters", members: claudeAdapterMarkdown() },
 ];
 
 /**
@@ -738,15 +875,33 @@ export function bannedClaimScan(): string[] {
   return [...seen].sort();
 }
 
-/** The number of members in both parts at once — reported, never subtracted silently. */
+/**
+ * The number of DUPLICATE memberships across the parts — reported, never subtracted silently. It is
+ * exactly the quantity that makes `sum(parts) − overlap = total` hold, so a reader can check the
+ * PASS line's arithmetic rather than take it.
+ *
+ * GENERALISED FROM A TWO-PART SUBTRACTION IN ROUND 6, AND THE OLD SHAPE WAS A LATENT SET-LITERAL
+ * DEFECT. It read `BANNED_CLAIM_SCAN_PARTS[0]` against `[1]` by index, so the day a third part
+ * landed the reported arithmetic would have stopped adding up while every pin stayed green — the
+ * hand-maintained-index version of the drift this repository has already been bitten by. This
+ * counts duplicates over ALL parts, whatever their number.
+ */
 export function bannedClaimScanOverlap(): number {
-  const kit = new Set(BANNED_CLAIM_SCAN_PARTS[0].members);
-  return BANNED_CLAIM_SCAN_PARTS[1].members.filter((m) => kit.has(m)).length;
+  const seen = new Set<string>();
+  let duplicates = 0;
+  for (const part of BANNED_CLAIM_SCAN_PARTS) {
+    for (const m of part.members) {
+      if (seen.has(m)) duplicates += 1;
+      else seen.add(m);
+    }
+  }
+  return duplicates;
 }
 
 /**
- * The pinned cardinality of the deduped union. 83 today: 73 kit markdown files + 11 public
- * documents − 1 overlap (agent-factory/README.md).
+ * The pinned cardinality of the deduped union. 115 today: 73 kit markdown files + 11 public
+ * documents + 1 install README + 7 skill sources + 24 Claude Code adapters − 1 overlap
+ * (agent-factory/README.md, a member of both the kit part and the public-document part).
  *
  * TWO-SIDED. A set that silently SHRANK reports a clean pass over the documents it stopped reading;
  * a set that silently GREW is a scan nobody reviewed.
@@ -764,8 +919,20 @@ export function bannedClaimScanOverlap(): number {
  * INHERITANCE and appeared in no exclusion list, in no reason, and in nobody's review. It is now a
  * member because this gate asks for the corpus, and the two live `token-economy` occurrences it was
  * hiding (`CHANGELOG.md:30:49` and `:68:20`) were rewritten in the same commit.
+ *
+ * MOVED AGAIN 83 → 115 IN THE SAME ROUND (WR-02), WITH ALL THREE ENTRANT CLASSES NAMED:
+ * `install/README.md` (1), `skills/` (7) and `.claude/` (24). Read off this gate's own refusal on
+ * the intermediate build rather than computed by hand, verbatim:
+ *
+ *   FAIL  the banned-claim scan set derived 115 document(s), expected exactly 83
+ *         (kit 73, publicDocs 11, installReadme 1, skillSources 7, claudeAdapters 24, overlap 1)
+ *
+ * That run reported ZERO banned-claim findings, which is the admission test: all 32 entrants cost
+ * zero reds on correct text. Each class's reason sits at its derivation function above;
+ * `.claude/` in particular is admitted because its transitive-coverage argument was tested against
+ * scripts/generate-role-adapters.ts and REFUTED.
  */
-export const BANNED_CLAIM_SCAN_COUNT = 83;
+export const BANNED_CLAIM_SCAN_COUNT = 115;
 
 // ---------------------------------------------------------------------------
 // The exemption region, located by EXACT heading line.
@@ -1182,7 +1349,7 @@ function runAll(): void {
       fail(
         `the "${part.name}" part of the banned-claim scan set derived ZERO members — refusing to ` +
           `report a verdict over a part that contributes nothing, because a vacuous scan set ` +
-          `passes every guard. This floor is per-part on purpose: either part could empty out ` +
+          `passes every guard. This floor is per-part on purpose: any one part could empty out ` +
           `while the total still cleared a floor written over the concatenation`,
       );
     }
@@ -1196,7 +1363,7 @@ function runAll(): void {
     fail(
       `the banned-claim scan set derived ${scan.length} document(s), expected exactly ` +
         `${BANNED_CLAIM_SCAN_COUNT} (${BANNED_CLAIM_SCAN_PARTS.map((p) => `${p.name} ${p.members.length}`).join(", ")}, ` +
-        `overlap ${overlap}) — walk both parts' derivations and the BANNED_CLAIM_EXCLUDED_LOCATIONS ` +
+        `overlap ${overlap}) — walk every part's derivation and the BANNED_CLAIM_EXCLUDED_LOCATIONS ` +
         `reasons BEFORE updating BANNED_CLAIM_SCAN_COUNT in scripts/check-banned-claims.ts. A new ` +
         `kit document is supposed to enter this scan by existing; moving the pin is how you ` +
         `acknowledge that it did, not how you make the failure go away`,

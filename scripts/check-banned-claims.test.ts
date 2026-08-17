@@ -38,7 +38,10 @@
 // Vitest globals:false → import explicitly.
 
 import { describe, it, expect, afterAll } from "vitest";
-import { spawnSync } from "node:child_process";
+// `execFileSync` (round 6, WR-02) enumerates TRACKED markdown for the exclusion-completeness case.
+// execFile and not exec: no shell is involved, so the glob is passed to git as one argv element and
+// there is no shell expansion to reason about.
+import { spawnSync, execFileSync } from "node:child_process";
 import {
   mkdtempSync,
   mkdirSync,
@@ -348,6 +351,19 @@ const CHANGELOG = "CHANGELOG.md";
 const KIT_README = "agent-factory/README.md";
 const PROFILE = BANNED_CLAIM_EXEMPT_REGION.file;
 
+// (Round 6, WR-02) The three classes admitted this round. Each is a SEPARATE derived part in the
+// gate, so each needs members in the mirror or its per-part vacuity floor fires and every case in
+// this file reds for a reason that has nothing to do with the case.
+const INSTALL_README = "install/README.md";
+const DEFAULT_SKILL_SOURCES = [
+  "skills/alpha/SKILL.md",
+  "skills/beta/SKILL.md",
+];
+const DEFAULT_CLAUDE_ADAPTERS = [
+  ".claude/agents/grugops-alpha.md",
+  ".claude/skills/grugops-alpha/SKILL.md",
+];
+
 /**
  * (Plan 29-23) One sentence carrying EXACTLY ONE banned-claim occurrence, used to fill a mirror's
  * exemption region up to the reach the gate pins. Deliberately NOT one of the plant constants above:
@@ -441,6 +457,12 @@ type MirrorSpec = {
   profile?: Parameters<typeof profileDoc>[0];
   /** Omit the profile document entirely — the vanished-exemption-file case. */
   omitProfile?: boolean;
+  /** (Round 6) Omit install/README.md — the named-literal part's vanished-file case. */
+  omitInstallReadme?: boolean;
+  /** (Round 6) Override the skills/ part's members. `[]` empties the part. */
+  skillSources?: string[];
+  /** (Round 6) Override the .claude/ part's members. `[]` empties the part. */
+  claudeAdapters?: string[];
   /** Per-path content overrides, keyed by the same repo-relative path the gate reports. */
   plant?: Record<string, string>;
 };
@@ -460,8 +482,18 @@ const PUBLIC_DOCS =
   1 + // CHANGELOG.md — in the corpus, exempt only from the VOCABULARY gate
   DEFAULT_EXAMPLES.length +
   1; // agent-factory/README.md, the kit README part
+const INSTALL_README_COUNT = 1;
+const SKILL_SOURCES = DEFAULT_SKILL_SOURCES.length;
+const CLAUDE_ADAPTERS = DEFAULT_CLAUDE_ADAPTERS.length;
 const OVERLAP = 1; // agent-factory/README.md is in both parts
-const FILLER_COUNT = BANNED_CLAIM_SCAN_COUNT - (KIT_NAMED + PUBLIC_DOCS - OVERLAP);
+const FILLER_COUNT =
+  BANNED_CLAIM_SCAN_COUNT -
+  (KIT_NAMED +
+    PUBLIC_DOCS +
+    INSTALL_README_COUNT +
+    SKILL_SOURCES +
+    CLAUDE_ADAPTERS -
+    OVERLAP);
 
 function defaultFillers(): string[] {
   return Array.from(
@@ -493,6 +525,11 @@ function makeMirror(prefix: string, spec: MirrorSpec = {}): string {
   write(KIT_README);
   if (spec.omitProfile !== true) write(PROFILE, profileDoc(spec.profile));
   for (const f of fillers) write(f);
+  // (Round 6, WR-02) The three parts admitted this round. Each is written unless the caller is the
+  // vacuity case that empties exactly that one, so every part's floor is reachable from here.
+  if (spec.omitInstallReadme !== true) write(INSTALL_README);
+  for (const f of spec.skillSources ?? DEFAULT_SKILL_SOURCES) write(f);
+  for (const f of spec.claudeAdapters ?? DEFAULT_CLAUDE_ADAPTERS) write(f);
   return mirror;
 }
 
@@ -2016,6 +2053,70 @@ describe("check-banned-claims — CHANGELOG.md is INSIDE the scan set (round 6, 
   });
 });
 
+// ── WR-02: no tracked markdown sits outside the gate without a written decision ────────────────
+
+describe("check-banned-claims — every tracked markdown path is scanned or excluded BY NAME", () => {
+  it("the remainder of tracked markdown minus the scan is covered by an excluded prefix", () => {
+    // WHAT THIS CASE REPLACES, AND WHY A PARAGRAPH WAS NOT ENOUGH.
+    //
+    // BANNED_CLAIM_EXCLUDED_LOCATIONS's block header has always said an exclusion must "read as a
+    // decision rather than … a silent omission". Nothing enforced it, so five classes accumulated
+    // outside the scan set and outside the block — install/README.md, .claude/, memory-bank/,
+    // plans/ and skills/ — and four rounds of review found four of them. The fifth, skills/, was
+    // found only by deriving the remainder. This case derives it every run, so the sixth class reds
+    // on the day it lands.
+    //
+    // TRACKED markdown, not a filesystem walk: the question is what this repository SHIPS AND
+    // VERSIONS. A scratch file in someone's working tree is not a class anyone must disposition.
+    const tracked = execFileSync("git", ["ls-files", "*.md"], {
+      encoding: "utf8",
+      cwd: ROOT,
+    })
+      .trim()
+      .split("\n")
+      .filter((p) => p.length > 0);
+
+    // THE CARDINALITY, DERIVED INDEPENDENTLY OF THE LOOP THAT CONSUMES IT. A floor catches an EMPTY
+    // remainder; only a count taken by a different route catches a SILENTLY SHORT one — which is
+    // this repository's standing remedy, and the reason the numbers below are two derivations and
+    // not one.
+    const scanned = new Set(bannedClaimScan());
+    const remainder = tracked.filter((p) => !scanned.has(p));
+    const remainderSize = tracked.length - tracked.filter((p) => scanned.has(p)).length;
+    expect(remainder.length).toBe(remainderSize);
+
+    // FLOORS. An empty `tracked` (a `git ls-files` that failed and returned nothing) and an empty
+    // remainder would each satisfy the loop below vacuously, and for opposite reasons.
+    expect(tracked.length).toBeGreaterThan(BANNED_CLAIM_SCAN_COUNT);
+    expect(remainder.length).toBeGreaterThan(0);
+    expect(BANNED_CLAIM_EXCLUDED_LOCATIONS.length).toBeGreaterThan(0);
+
+    // Assert on the UNCOVERED LIST rather than on a boolean, so a failure names the paths.
+    const uncovered = remainder.filter(
+      (p) => !BANNED_CLAIM_EXCLUDED_LOCATIONS.some((pre) => p.startsWith(pre)),
+    );
+    expect(uncovered).toEqual([]);
+  });
+
+  it("every excluded prefix still covers something, so a stale prefix cannot hide a live class", () => {
+    // The other direction. A prefix left behind after its directory was admitted or deleted looks
+    // like a decision and covers nothing — and the case above would go on passing while the array
+    // drifted into fiction. Both directions, because one says nothing about the other.
+    const tracked = execFileSync("git", ["ls-files", "*.md"], {
+      encoding: "utf8",
+      cwd: ROOT,
+    })
+      .trim()
+      .split("\n")
+      .filter((p) => p.length > 0);
+    expect(tracked.length).toBeGreaterThan(0);
+    const dead = BANNED_CLAIM_EXCLUDED_LOCATIONS.filter(
+      (pre) => !tracked.some((p) => p.startsWith(pre)),
+    );
+    expect(dead).toEqual([]);
+  });
+});
+
 // ── Vacuity and the two-sided pin ─────────────────────────────────────────────────────────────
 
 describe("check-banned-claims — vacuity is refused by name, per part, before the pin", () => {
@@ -2098,10 +2199,16 @@ describe("check-banned-claims — the derived pin against the live tree", () => 
     expect(live.length).not.toBe(BANNED_CLAIM_SCAN_COUNT + 1);
   });
 
-  it("both parts are non-empty and the overlap arithmetic is the one the PASS line reports", () => {
+  it("every part is non-empty and the overlap arithmetic is the one the PASS line reports", () => {
+    // (Round 6, WR-02) Two parts became five. The names are pinned as an ARRAY IN ORDER rather than
+    // counted, because the PASS line prints this breakdown in this order and a reader checking the
+    // arithmetic is checking these labels. A part renamed, reordered or dropped reds here.
     expect(BANNED_CLAIM_SCAN_PARTS.map((p) => p.name)).toEqual([
       "kit",
       "publicDocs",
+      "installReadme",
+      "skillSources",
+      "claudeAdapters",
     ]);
     for (const part of BANNED_CLAIM_SCAN_PARTS) {
       expect(part.members.length).toBeGreaterThan(0);
