@@ -1232,7 +1232,401 @@ addresses, arriving for the third time in one round through a different door.
 
 ---
 
-*§1 was written by `29-56`, §4 by `29-57` and §5.1–§5.3 by `29-59` (`D-57`); §2 by `29-58` (`D-55`); and
-§3, §5.4, §6, §7, §8 and §9 by `29-60` (`D-58`). An earlier version of this line assigned §5 to `29-60`
-and §2 to `29-60`; both were corrected by the plan that turned out to own them, and the correction is
-left visible rather than made silently.*
+## 7. The phase close — what Phase 29 claims, and what it does not
+
+Written by plan `29-60` under `D-58`. **This is the last thing written about Phase 29 inside Phase 29,
+and it is the load-bearing half of this record.** The phase ships a set of guards. The honest question at
+the end is not which requirement ids are ticked, but **which sentences about this kit are true** — so
+this section is written at the granularity of a mechanism: which gate decides which predicate over which
+derived set, with every number read off that gate's own output on the final tree.
+
+Two rules bind it. **It is written against the roadmap's five success criteria, not against the plan
+list** — sixty plans executed is a measurement of effort, and the criteria are the measurement of the
+thing. And **it may not exceed the kit's own honesty floor**; §7.4 puts the profile's statement and this
+section's beside each other and shows which is narrower.
+
+### 7.1 The five success criteria of `.planning/ROADMAP.md` § *Phase 29*, each against its mechanism
+
+Every number below is quoted from a live run on the final tree, not from a plan.
+
+---
+
+**Criterion 1 (LANG-01) — *"The kit ships a grugops-authored, ASD-STE100-derived writing profile —
+enumerated rules plus a project Technical Names/Verbs set — with a non-affiliation and not-certified
+disclaimer, vendoring no part of the ASD dictionary."***
+
+**Mechanically true, by three separate gates, and one clause of it is a human fact no gate can hold.**
+
+- The Technical Names set is **derived, never listed**: `guard_imperative_lexicon` publishes
+  *"`LANG-01`: 76 Technical Name(s) DERIVED from the kit, never listed — roleDisplayNames 17,
+  workflowDisplayNames 19, configKeys 21, noteKinds 6, boardColumns 13"*. **17 + 19 + 21 + 6 + 13 = 76**,
+  checked by hand here. The approved-verb set is a closed list of **43** members, published on the same
+  run. That the set is derived rather than typed is what makes *"never listed"* a mechanism rather than
+  an intention.
+- The disclaimer is **frozen byte-for-byte**. `check-claim-anchors.js` and `check-banned-claims.js` both
+  hold `agent-factory/writing-profile.md` § *Disclaimer and honesty floor* against
+  `docs/audit/28-claim-registry.md`: **6 registry-anchored blocks** — `C-28-039`, `C-28-043`, `C-28-044`,
+  `C-28-042`, `C-28-045`, `C-28-046` — *"frozen byte-for-byte … pinned at 6"*, on the gate's own PASS
+  line. An edit to the non-affiliation sentence that does not move its registry row in the same commit
+  reds by name.
+- **What no gate holds: that no part of the ASD dictionary is vendored.** That is a negative about bytes
+  nobody put in the repository, and the evidence for it is a first-hand negative record in `C-28-043`'s
+  `mechanism:` field — `pdftotext` against the official distribution returning
+  *"Permission Error: Copying of text from this document is not allowed"*, with no attempt made to defeat
+  it. **It is true and it is not mechanical, and this close says which.**
+
+---
+
+**Criterion 2 (LANG-02, LANG-03) — *"The profile governs workflow steps, checklists, memory-bank,
+shared-context notes, board, and traceability; it leaves the fenced caveman identity blocks alone; and a
+named safety-surface exclusion list keeps load-bearing security, compliance, and admission text from
+being reworded by a style pass."***
+
+**The first two halves are mechanical. The third is a derived LIST honoured by review, and the difference
+is worth the sentence.**
+
+- `guard_sentence_form` publishes the corpus as **derived in four parts**: *"`LANG-02`: 47 governed
+  document(s) in 4 derived part(s) — workflows 19, checklists 13, seedTemplates 13, contracts 2; 1
+  excluded by the derived `GENERATED` marker; 3 location(s) excluded by name … 47 of 47 opened."*
+  **19 + 13 + 13 + 2 = 47**, checked by hand. Each excluded location carries its reason in the gate's own
+  output, so an exclusion is a sentence somebody wrote rather than an absence.
+- The caveman blocks are left alone **by construction, in both directions**: `agent-factory/roles/` is one
+  of the three named exclusions from the sentence-form corpus, on the stated ground that a second
+  predicate over the same bytes from a second module is how two gates come to disagree; and the blocks
+  have their own guard, `guard_caveman_voice`, reporting *"0 findings over 17/17 elements"*.
+- **The safety-surface list is generated and honoured by REVIEW, not by a gate.**
+  `docs/audit/28-safety-surface-exclusions.md` is machine-generated (**41 entries**, derived from the
+  disposition register's `safety_surface: yes` rows ∪ the claim registry's `kind: safety` rows) and its
+  own text says what honouring it means. **Nothing in this repository reds if a listed file's prose is
+  reworded.** The list is a mechanism for KNOWING which files those are; the honouring is human.
+
+---
+
+**Criterion 3 (LANG-04) — *"The guards are named for the decidable subsets they check …, and nowhere in
+the kit is ASD-STE100 conformance claimed, nor a token-economy win, nor an LLM-comprehension benefit
+(that one stays `UNKNOWN - verify`); `guard_banned_claims` holds that prohibition mechanically rather
+than by discipline."***
+
+**The naming half is true and was never in doubt. The prohibition half is where seven rounds went, and
+what is true of it is now narrower than this criterion's own wording — deliberately, by `D-55`.**
+
+- **Naming:** the two guards are `guard_imperative_lexicon` (*"every `## Steps` bullet begins with a verb
+  from the closed approved set, in bare imperative form, at position zero"*) and `guard_sentence_form`
+  (*"sentence length by section anchor — 20 words procedural, 25 descriptive — plus four banned
+  constructions over closed token sets"*). Each header states its own predicate. **Neither claims
+  conformance**, and `guard_sentence_form` publishes the predicate it deliberately does NOT check:
+  *"passive voice is deliberately NOT checked (D-15)"*.
+- **The prohibition, stated at the mechanism.** `guard_banned_claims`'s header on the final tree:
+
+  > *"no single physical line of the 117 derived document(s) this gate scans carries any of the 22 pinned
+  > claim literal(s), outside the registry-anchored blocks of one named exemption region"*
+
+  **That sentence is what the phase claims**, and every number in it is interpolated from the run:
+  **117** documents in six derived parts (kit 73, publicDocs 11, installReadme 1, skillSources 7,
+  claudeAdapters 24, pluginManifests 2, minus 1 overlap), **22** pinned literals across **3** groups
+  matched unconditionally, **1** exemption region suppressing **14** occurrences (standard-name 8,
+  token-economy 2, comprehension 4) over **75** lines, of which **23** sit in **6** registry-anchored
+  frozen blocks and **52** are freely editable and **scanned**.
+- **Read the criterion's own wording beside it.** The criterion says *"nowhere in the kit is … claimed"*.
+  **The gate does not decide that and this close does not claim it.** What is mechanical is the sentence
+  quoted above. The distance between the two is named, counted and directed at §7.3 items 1 and 2, and
+  the criterion's wider wording is exactly the defect `D-55` was taken to remove — *"a prohibition that
+  publishes a wider scope than its mechanism is the exact defect `LANG-04` exists to prevent"*.
+
+---
+
+**Criterion 4 (LANG-06) — *"The rebuilt voice guard fails RED on all 17 current caveman blocks as
+acceptance evidence before the rewrite lands, measures against a committed lexicon rather than sentence
+shape, and publishes a number with a denominator."***
+
+**All three halves are mechanically true, and the first is a historical measurement rather than a live
+one — which is what acceptance evidence is.**
+
+- `guard_caveman_voice` publishes *"every role's caveman block carries >= 2 of the 16 committed lexicon
+  terms AND zero banned constructions — both arms required (D-06, D-07, D-08)"* and reports
+  **"0 findings over 17/17 elements"** — a number with its denominator, in the gate's own line.
+- The lexicon is **committed** (`scripts/voice-model.ts`, 16 terms) rather than inferred from shape,
+  which is the half `LANG-06` exists to fix.
+- **The RED-on-17 acceptance evidence is durable**: recorded in `docs/audit/28-claim-registry.md`'s
+  **`C-28-003`** `mechanism:` field (`:100`) — *"The guard was watched failing RED on all 17 blocks in
+  plan 29-01 before it was allowed to pass, so a green run from it is a measurement and not a
+  construction"* — and the same row carries the derived-set caveat that the set is **17, not the 18
+  markdown files on disk**, because `kit-model.listRoles()` drops underscore-prefixed entries. **A green
+  run today is credible because that transition is on the record**, not because the run is green. *(The
+  row id was checked rather than remembered: `grep -na '^### C-28-0' docs/audit/28-claim-registry.md`
+  puts `:100` inside `C-28-003`, which begins at `:93`.)*
+- The companion guard, `guard_voice`, holds the reverse direction — clear-voice surfaces free of caveman
+  markers — at **"0 findings over 19/19 elements"**.
+
+---
+
+**Criterion 5 (LANG-05, LANG-07, LANG-08) — *"`## One job`, the caveman block, and `## Responsibilities`
+each say a thing once; `guard_imperative_lexicon` … and the rebuilt voice guard read the fence through
+ONE parser, never two grammars over the same bytes; and byte ceilings are re-baselined exactly once at
+end of phase with every file ≤ its previous value and the delta recorded — never raised mid-phase."***
+
+**Two of the three are mechanical. The third is met under a standing human override, and that is stated
+rather than folded in.**
+
+- **Say each thing once:** `guard_role_clause_uniqueness` — *"no normalized clause repeats within a single
+  role file — intra-file only"* — reports **"0 findings over 17/17 elements"**.
+- **One fence parser:** `readCavemanFence` (voice guard) and `stripFencedBlocks` (lexicon guards) both
+  compose `scripts/frontmatter.ts`'s `FENCE_DELIMITER_LINE` / `sectionEndIndex`. `LANG-07` is the one
+  `LANG` row that reads `[x]` / `Complete` on the final tree, applied in round 7 under the round-6
+  verifier's named authority. **`scripts/frontmatter.ts` is byte-unchanged across round 8**
+  (`git diff --numstat e848052..HEAD -- scripts/frontmatter.ts` → no output), so the round introduced no
+  second grammar and removed none.
+- **Byte ceilings: NOT re-baselined. Met by a human override, quoted verbatim at §7.2.**
+  `guard_role_size` on the final tree: **16 roles PASS within ceiling, 1 WARN approaching ceiling
+  (`agent-factory/roles/security-nfr.md` 4931B ≥ 4830B), 0 FAIL.** The ceiling function was never raised.
+
+### 7.2 The `LANG-08` override, repeated verbatim with its acceptor and its date
+
+`29-VERIFICATION.md` frontmatter `overrides:`, quoted rather than paraphrased:
+
+> **must_have:** "LANG-08 — byte ceilings re-baselined exactly once at end of phase, every file <=
+> previous, delta recorded, never raised mid-phase"
+>
+> **reason:** "Deliberate human decision at plan 29-13's blocking checkpoint (hold-rebaseline), accepted
+> 2026-08-15 and carried unchanged through rounds 1-7. Re-checked this round: `roleCeiling()` untouched
+> since the override; the one role-file edit since the round-4 (8/8) verification (`022a4ea`,
+> incident-responder.md 3481B -> 3485B) is a normal within-ceiling edit, not a rebaseline, and its own
+> commit message records the ceiling function's sha256 as unchanged. `guard_role_size` runs live at HEAD:
+> 16 roles PASS within ceiling, 1 WARN approaching ceiling (security-nfr.md), 0 FAIL."
+>
+> **accepted_by:** "Olger Oeselg"
+> **accepted_at:** "2026-08-15T09:57:04Z"
+
+**Re-checked live on round 8's final tree, and the override's own numbers are re-taken rather than
+carried:** `node scripts/check-foundation-guards.js` → `guard_role_size` reports **16** *"within
+ceiling"* lines, **1** `WARN` (*"agent-factory/roles/security-nfr.md 4931B >= 4830B — approaching
+ceiling"*), **0** `FAIL`. **16 + 1 = 17**, the derived role set. Identical to the override's recorded
+state. **No role file was edited by any round-8 plan** (`agent-factory/roles/` appears in **0** of the 19
+changed paths, §8.4), so the override is carried by measurement rather than by assumption.
+
+### 7.3 What Phase 29 does NOT claim — every open axis, with its direction and its live count
+
+**This list is longer than §7.1's and that is the honest shape of it.** A green run from any gate named
+above is a measurement of what that gate measured; each item below says what that leaves.
+
+1. **The enumeration limit is `BANNED_CLAIM_LITERALS` itself, and a conformance, token-cost or
+   comprehension claim written in words the list does not contain PASSES.**
+   **Id: `V-29-58-01`. Direction: FAIL-OPEN. Live count: `UNKNOWN - verify` BY CONSTRUCTION, deliberately
+   not `0`** — the unlisted phrasings are not an enumerable set, so no command counts them and none is
+   invented (§2.4). The list has **22** members across **3** groups; the reach is the complement of a
+   22-member enumeration, which is not a finite set, so **no reach figure is published**. The axis has
+   been disclosed since plan `29-02` and carried an id only from plan `29-58`.
+2. **A pinned multi-word literal split across an ordinary hard wrap is not matched.**
+   **Id: `V-29-57-01`. Direction: FAIL-OPEN. Live count: 0**, over the gate's own derived corpus —
+   **117 documents, 4126 adjacent non-blank line pairs, 11 wrap-reachable members** (§4.3). **Reach: 11
+   of 22**, derived, not the 16 the round-7 review published (§4.2a). Its remedy is named in full and
+   **declined by `D-56`**, with the reason on the record. Mid-phrase wrapping is this kit's own house
+   style — **757 mid-sentence wraps over 2612 adjacent pairs in 73 files, roughly three in ten** — so the
+   bypass shape is ordinary rather than exotic.
+3. **The gate's SECOND published line still states a per-DOCUMENT quantifier over a per-LINE mechanism.**
+   **Id: `V-29-60-05`. Direction: the published claim is wider than the mechanism. Live count: 1 address**
+   (`scripts/check-banned-claims.ts:2607` and its twin), **1 demonstrated falsifying tree** (§9.3.3).
+   `D-55`'s narrowing reached the header, the module docblock, the profile's prose and the registry row;
+   it did not reach this one, because §1's site set was derived at the FILE level and enumerated by hand
+   at the ADDRESS level.
+4. **The safety-surface exclusion list is honoured by review, not by a gate.** **Direction:
+   informational. Live count: 41 entries**, generated. Nothing reds if a listed file's prose is reworded.
+5. **Four round-7 findings are open under `D-58`'s fence, each with an owner.** `V-29-60-01` (a false
+   in-source claim about a cardinality; **1** statement, **0** live subjects), `V-29-60-02` (an overrun
+   reported as a byte divergence; **0** live), `V-29-60-03` (a second anchor grammar in a test harness;
+   **2** declarations in the tree), `V-29-60-04` (a coverage arithmetic that can over-report; **0** live).
+   **None is fail-open.** §5.4.
+6. **Three gates run in continuous integration only because their own tests spawn them.**
+   **Id: `V-29-60-06`. Direction: FAIL-OPEN under one `--exclude` edit. Live count: 3 of 17**, and two of
+   the three have never run against this repository's own tree at all. §5.4.
+7. **The three subsumed carve-out residuals were SUBSUMED, not pinned, and each keeps its remainder.**
+   `V-29-47-02`, `V-29-47-03`, `V-29-32-01`: an append, a translation or a swallow carrying **no** banned
+   claim is still invisible, and **the region's start index is still pinned by nothing**. **Live count: 0
+   live each; the region's extent is 75, pinned two-sided.**
+8. **The build-parity repair moved two pieces of coverage rather than adding them.** `V-29-59-01` — a
+   hand-edited, **uncommitted** working `.js` is no longer this gate's finding; **direction fail-open
+   inside that window only, live count 0** on this tree, and the window cannot exist on a runner.
+   `V-29-59-02` — the working-tree parity assertion has no Windows leg; **live count 1 of 2 matrix legs**.
+9. **Eight `V-` markers in this tree have never been rolled up by any round.** `V-29-29-02` .. `-05`,
+   `V-29-30-01` .. `-04`. Round 7 named them and did not adopt them; round 8 does not either, by `D-58`.
+   **Live count: 8 residuals, statuses unknown to every register including this one.** §6.2b.
+10. **Six of the eight `LANG` requirement rows do not reflect their verified state**, by a bookkeeping
+    trail the round-7 verifier traced to a round-3 blanket revert. **No round-8 plan moves one** (§8.3),
+    and the recommendation at §8.2 applies nothing.
+11. **A green run from every gate in §7.1 is a measurement of the corpus each derives, at the moment it
+    ran.** The banned-claim corpus is **117** documents; `scripts/` is outside it **by construction**, and
+    §1 row 13 records a live restatement of a disproven claim sitting there, invisible to the gate.
+    **Live count: 1 occurrence plus its committed twin.**
+12. **This phase's record is that a green suite is not proof for a safety invariant in this repository.**
+    Eight rounds, and **every one produced at least one false harness result**; round 8 produced **4**
+    (§6.5) against **5** premises asserted. That is a property of the measurement discipline, not a mood.
+
+### 7.4 The close does not exceed the kit's own honesty floor — the two sentences, side by side
+
+`agent-factory/writing-profile.md` § *Disclaimer and honesty floor*, as plan `29-58` leaves it:
+
+> "The gate proves that no pinned literal appears on any single scanned line outside this section; it
+> does not prove that no such claim exists."
+
+This section's claim sentence, §7.1 criterion 3:
+
+> "No single physical line of the 117 derived documents this gate scans carries any of the 22 pinned
+> claim literals, outside the registry-anchored blocks of one named exemption region."
+
+**The two assert the same thing, and this one asserts less in one respect and no more in any.** Both
+quantify over **single lines**, both over **pinned literals**, both **outside the one region**. This
+section adds two derived numbers — 117 and 22 — which narrow the sentence by naming the sets rather than
+widening it, and it adds *"the registry-anchored blocks of"*, which is **narrower** than the profile's
+*"this section"*: 23 of the region's 75 lines are frozen and the other 52 are scanned. **Neither sentence
+claims that no such claim exists.** The profile says so in those words; §7.3 items 1, 2 and 3 say it with
+three ids, three directions and three live counts.
+
+---
+
+## 8. The requirement rows this round RECOMMENDS and does not move, and the scope fence, shown to have held
+
+Written by plan `29-60` under `D-58`. **This section applies nothing.** It reads
+`.planning/REQUIREMENTS.md`, prints what is there, records what this round's evidence supports moving and
+under whose authority, and then proves by command that no plan of this round touched the file.
+
+**Why the assertion is worth its space.** This is the phase whose requirement rows were once **inverted by
+an automated marker acting on a plan's own `requirements-completed:` field before any verification
+existed** (`V-29-47-05`). The assertion is cheap and the history is not.
+
+### 8.1 Every `LANG` row's current value, read from the file
+
+**Checkbox rows, `.planning/REQUIREMENTS.md:79-86`:**
+
+| line | row | current value |
+|---|---|---|
+| `:79` | LANG-01 | `[ ]` |
+| `:80` | LANG-02 | `[ ]` |
+| `:81` | LANG-03 | `[ ]` |
+| `:82` | LANG-04 | `[ ]` |
+| `:83` | LANG-05 | `[ ]` |
+| `:84` | LANG-06 | `[ ]` |
+| `:85` | LANG-07 | **`[x]`** |
+| `:86` | LANG-08 | `[ ]` |
+
+**Traceability rows, `.planning/REQUIREMENTS.md:180-187`:**
+
+| line | row | current value |
+|---|---|---|
+| `:180` | LANG-01 \| Phase 29 | `Gaps Found` |
+| `:181` | LANG-02 \| Phase 29 | `Pending` |
+| `:182` | LANG-03 \| Phase 29 | `Gaps Found` |
+| `:183` | LANG-04 \| Phase 29 | `Gaps Found` |
+| `:184` | LANG-05 \| Phase 29 | `Gaps Found` |
+| `:185` | LANG-06 \| Phase 29 | `Gaps Found` |
+| `:186` | LANG-07 \| Phase 29 | **`Complete`** |
+| `:187` | LANG-08 \| Phase 29 | `Pending` |
+
+**8 checkbox rows and 8 traceability rows, both read from the file at HEAD. One row of each pair reads
+complete, and it is the same requirement: `LANG-07`.**
+
+### 8.2 What this round's evidence supports moving, and the authority for each
+
+**Applied by nothing here. Every row below still reads exactly as §8.1 prints it.**
+
+| rows | recommended movement | authority that may apply it | why it is not applied here |
+|---|---|---|---|
+| LANG-01, LANG-02, LANG-03, LANG-05, LANG-06 | `[ ]` / `Gaps Found` or `Pending` → `[x]` / `Complete` | **`29-VERIFICATION.md` § *REQUIREMENTS.md correction recommended*, `:119-134`** — the round-7 verifier's own table, which states the reason the rows are stale (a round-3 blanket revert at `12c77ef` that predates the round-4 8/8 verification) and re-ran the live gate for each of the six against the current tree | House rule 9: no requirement is marked by a plan. The verifier's own report says applying it *"is a follow-up step, not part of this verifier's own action"* |
+| LANG-08 | `[ ]` / `Pending` → `[x]` / `Complete` **via the standing override** | the same table, plus the standing human override quoted verbatim at §7.2 (`accepted_by: Olger Oeselg`, `accepted_at: 2026-08-15T09:57:04Z`) | same, and the override is a human's to carry |
+| LANG-07 | **no change** — already `[x]` / `Complete` | applied in round 7 by plan `29-48` under `29-VERIFICATION-round6.md`'s named authority; confirmed legitimate by the round-7 verifier | nothing to do |
+| **LANG-04** | **no change here.** Its movement is **conditional on the narrowed claim verifying, and on nothing else** | **a future verifier**, reading `D-55`'s narrowing, §3.2 rows `G1` and `G1-c`, and `V-29-60-05` | **`29-VERIFICATION.md` gap 1's third `missing:` bullet makes re-running the reproduction against a fix a precondition of recommending `LANG-04 → Complete`. `D-56` declines the fix, so that precondition is NOT met on its own terms** (§3.2 `G1-c`). This register records the evidence — the narrowing, the two open axes, and the one address the narrowing did not reach — and makes no determination |
+
+**The `LANG-04` row is the one this round is about, and this is the plainest statement of it:** round 8
+narrowed the published claim to the predicate the gate decides, demonstrated that narrowed claim TRUE on
+a tree carrying the round-7 bypass, and found one further address where the wider wording survives.
+**Whether that closes `LANG-04` is the verifier's call and it is not taken here.**
+
+### 8.3 No requirement row moved — five checks, run individually, all five quoted
+
+```
+$ git diff --numstat <each commit>^ <each commit> -- .planning/REQUIREMENTS.md
+
+  plan 29-56  (3 commits: c119115, a1c7938, b90712b)   -> no output   byte-unchanged
+  plan 29-57  (3 commits: cc758fd, 59b0ed5, 6a83b31)   -> no output   byte-unchanged
+  plan 29-58  (4 commits: bf1b94e, 638ff39, 2c40344, 020905f) -> no output   byte-unchanged
+  plan 29-59  (4 commits: 7cebe32, 7e42b3d, 0ad875a, 0b6e1f6) -> no output   byte-unchanged
+  plan 29-60  (this plan, task commits + working tree)  -> no output   byte-unchanged
+
+$ git diff --numstat e848052..HEAD -- .planning/REQUIREMENTS.md
+  (no output — byte-unchanged across the round's entire commit range)
+```
+
+**Five individual results, five reporting no change, plus the range check.** `29-VERIFICATION.md`'s six
+stale rows are therefore exactly as stale as the round-7 verifier found them, which is the state a
+follow-up authority needs in order to act on its own report.
+
+### 8.4 The scope fence — every changed path matched to the decision that authorised it
+
+`D-58` states the fence: **in scope** are `D-55`'s narrowing, `D-56`'s disclosure and comment correction,
+`D-57`'s parity repair, and the round-8 disposition record. **Out of scope** are (a) a wrap-joined matcher
+input assembly, (b) any new matcher-completeness axis at 0 live, and (c) anything outside
+`LANG-01..08`'s text.
+
+**All 19 paths changed in `e848052..HEAD`, each matched to the decision id that authorised it.** The
+authoring plan of each is derived from `git log --format='%s' -- <path>`, not assigned by hand:
+
+| # | path | authoring plan(s) | decision |
+|---|---|---|---|
+| 1 | `scripts/check-banned-claims.ts` | 29-56, 29-57, 29-58 | `D-55` (the narrowing) + `D-56` (the residual-comment correction) |
+| 2 | `scripts/check-banned-claims.js` | same, rebuilt in the same commits | `D-55`, `D-56` — a derived artifact; `npm run freshness` holds it |
+| 3 | `scripts/check-banned-claims.test.ts` | 29-56, 29-57 | `D-55`, `D-56` — the permanent cases holding both |
+| 4 | `agent-factory/writing-profile.md` | 29-58 | `D-55` — the honesty floor stating the predicate the gate decides |
+| 5 | `docs/audit/28-claim-registry.md` | 29-58 | `D-55` — `C-28-042`'s row, moved in the SAME commit as its verbatim |
+| 6 | `scripts/freshness.ts` | 29-59 | `D-57` |
+| 7 | `scripts/freshness.js` | 29-59 | `D-57` — derived artifact |
+| 8 | `scripts/freshness.test.ts` | 29-59 | `D-57` — the discrimination pair |
+| 9 | `.github/workflows/ci.yml` | 29-59 | `D-57` — the reorder and the parity step |
+| 10 | `package.json` | 29-59 | `D-57` — **one line**, the `check:build-parity` script |
+| 11 | `.gitignore` | 29-59 | `D-57` — `.temp/`, the hermetic clone root the repaired gate's own tests build |
+| 12 | `docs/audit/29-round8-residuals.md` | 29-56, 29-57, 29-59, 29-60 | `D-58` — the round-8 disposition record |
+| 13 | `.planning/WINDOWS.md` | 29-56, 29-57, 29-58 | `D-58` — the ledger entries for the ids the round opened |
+| 14 | `.planning/STATE.md` | 29-56 .. 29-59 | `D-58` — the round's own execution state |
+| 15 | `.planning/ROADMAP.md` | 29-56 .. 29-59 | `D-58` — per-plan progress |
+| 16 | `.planning/…/29-56-SUMMARY.md` | 29-56 | `D-58` |
+| 17 | `.planning/…/29-57-SUMMARY.md` | 29-57 | `D-58` |
+| 18 | `.planning/…/29-58-SUMMARY.md` | 29-58 | `D-58` |
+| 19 | `.planning/…/29-59-SUMMARY.md` | 29-59 | `D-58` |
+
+**Changed paths matched to no decision: 0.**
+
+**One row needs its authority stated rather than assumed, because reading it carelessly makes the fence
+look broken.** Rows 6–11 are outside `LANG-01..08`'s text, which fence clause (c) forbids. They are in
+scope because **`D-58`'s in-scope list names `D-57`'s parity repair explicitly**, and `D-57` states its
+own reason: the CI build-parity gate is *"load-bearing for every other mechanical claim"* and is
+*"named by no LANG requirement"*. Clause (c) governs everything the in-scope list does not name.
+
+**The three out-of-scope items, each confirmed absent from the diff:**
+
+| out-of-scope item | check | result |
+|---|---|---|
+| (a) a wrap-joined matcher input assembly | `grep -ac 'wrapJoined' scripts/check-banned-claims.{ts,js}`; and `diff` of the two files' function sets across `e848052..HEAD` | **0** identifiers in both twins; **0** functions added, **0** removed. The one `wrap-joined` hit is prose at `:89` disclosing the declined remedy |
+| (b) a new matcher-completeness axis opened as a MECHANISM | `lineHits` sha256 at `e848052` vs HEAD; `BANNED_CLAIM_LITERALS` member list `diff`ed member by member | **identical** (`a85820d3…0fe453` both sides); **22 members, byte-identical**. Two axes were **disclosed** as ids (`V-29-57-01`, `V-29-58-01`); neither is a mechanism and neither widens the matcher |
+| (c) anything outside `LANG-01..08`'s text, other than what `D-57` names | the 19-row table above | **0** unmatched paths; rows 6–11 authorised by `D-57` by name, rows 12–19 by `D-58`'s own record clause |
+| supply chain (`T-29-60-SC`) | `git diff --exit-code e848052..HEAD -- package-lock.json` | **exit 0 — byte-unchanged.** No package installed by any plan of round 8; `package.json` moved by exactly one script line |
+
+### 8.5 What the follow-up inherits — the recommendation, in one place
+
+`D-58` says a finding after this round becomes a **backlog item or a follow-up phase**, never a round 9.
+This is that list, ordered by how close each item sits to `LANG-04`'s own subject, so whoever picks it up
+starts where the phase's own claim is.
+
+| # | item | id | live count | why it is here |
+|---|---|---|---|---|
+| 1 | the gate's second PASS line still states a per-DOCUMENT quantifier | `V-29-60-05` | 1 address, 1 demonstrated falsifying tree | **the only item inside `LANG-04`'s own text**; `D-55`'s narrowing reached three of four addresses |
+| 2 | three gates borrowed rather than wired in continuous integration | `V-29-60-06` | 3 of 17 | fail-open under one edit; two have never run against this tree |
+| 3 | a false in-source claim about a cardinality, and a half-derived anchor count | `V-29-60-01` | 1 statement, 0 live | round-7 WR-01 |
+| 4 | an overrun reported as a byte divergence | `V-29-60-02` | 0 live | round-7 WR-02 |
+| 5 | a second anchor grammar in the `D-54` harness | `V-29-60-03` | 2 declarations | round-7 WR-03 |
+| 6 | a coverage arithmetic that can over-report | `V-29-60-04` | 0 live | round-7 IN-01 |
+| 7 | the `ci.yml` banned-claim comment's object-side wording still overshoots | — (§1 row 8) | 1 address | recorded by `29-56`; a CI comment, not shipped text |
+| 8 | `scripts/compactor.ts:7` restates a claim this project disproved by measurement | — (§1 row 13, finding 1) | 1 occurrence + its twin | `scripts/` is outside the gate's corpus by construction |
+| 9 | eight `V-` markers no register has ever rolled up | `V-29-29-02`..`-05`, `V-29-30-01`..`-04` | 8 | named by round 7, adopted by nobody (§6.2b) |
+| 10 | `.planning/WINDOWS.md` carries 23 of the 40 markers | — (§6.3) | 17 absent, incl. `V-29-49-01`, `V-29-59-01`, `V-29-59-02` | the ledger and the register disagree about the set |
+| 11 | the six stale `LANG` rows | — | 6 rows | authority named at §8.2; **applied by nothing here** |
+| 12 | `actuals.commits` is unmeasurable at the moment it is written | — (§9.4) | 4 short-by-one values this round, 6 in round 7 | a self-reference, not a clerical error; the remedy is to name the range |
+
+---
