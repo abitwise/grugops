@@ -564,3 +564,10 @@ trust boundary. Every new construct is a refusal that narrows what the generator
 **No `requirements-completed:` entry is declared for LANG-04.** LANG-04's verdict belongs to round 7's
 verifier, and `requirements mark-complete` was deliberately not run — the automated marker acting on
 that field before verification is the process artifact plan 29-48 corrected.
+
+## Self-Check: PASSED
+
+All 8 modified source files and the SUMMARY exist on disk. All 5 commits (`11a647d`, `44d7ef7`,
+`bf60c0c`, `d41bc8a`, `70584b9`) are present in `git log`. No tracked file was deleted across this
+plan's commits. The two untracked paths (`.gsd/`, `.planning/phases/29.1-per-role-model-assignment/`)
+pre-date this plan and were not touched.
