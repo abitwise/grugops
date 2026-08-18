@@ -262,11 +262,19 @@ failing on a real claim in a real file before it was allowed to pass. A green ru
 it measured, and says nothing about the standard.
 
 **What a green `guard_banned_claims` run does not prove — `UNKNOWN - verify`.** The gate matches
-pinned literals. A brand-new conformance claim written without any of them is not mechanically
-detectable, because no grep recognizes an assertive sentence written in new words. The gate proves
-that no pinned literal appears outside this section; it does not prove that no such claim exists.
-That residual is recorded in the gate's own source as well, so neither a green build nor this
-paragraph can quietly stand in for the other.
+pinned literals, and it decides one physical line at a time. Two axes survive that, and both are
+**fail-open**. `V-29-58-01`, the enumeration axis: a brand-new conformance claim written without
+any pinned literal is not mechanically detectable, because no grep recognizes an assertive sentence
+written in new words, and its live count is `UNKNOWN - verify` by construction — the unlisted
+phrasings are not an enumerable set, so no command counts them. `V-29-57-01`, the hard-wrap axis:
+because matching is decided one physical line at a time, a listed multi-word claim split across a
+line boundary is not matched, even though the two lines join back into one legible sentence for a
+reader; its reach and its live count are derived rather than asserted, and its named remedy is
+deliberately NOT applied in this phase — `D-56` declines it, with the reason on the record. The
+gate proves that no pinned literal appears on any single scanned line outside this section; it does
+not prove that no such claim exists. Both axes are recorded in the gate's own source and in
+`docs/audit/29-round8-residuals.md` as well, so neither a green build nor this paragraph can
+quietly stand in for the other.
 
 ### The honesty floor
 

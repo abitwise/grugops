@@ -1999,9 +1999,26 @@ export const BANNED_CLAIM_EXEMPT_COMPOSITION: readonly {
  * `BANNED_CLAIM_EXEMPT_SUPPRESSED` and `BANNED_CLAIM_EXEMPT_COMPOSITION` did NOT fire, which is the
  * independent confirmation that the replacement sentence introduces no pinned literal: a longer
  * block that carried one would have moved the total and its per-group breakdown as well.
+ *
+ * -- 67 -> 75 (plan 29-58, D-56). EIGHT UNFROZEN LINES ENTERED, AND WHY. --------------------------
+ *
+ * THE ENTRANTS ARE UNFROZEN LINES OF THE REGION'S RESIDUAL PARAGRAPH, NOT A NEW BLOCK. The
+ * paragraph that states what a green run does not prove named ONE surviving axis. It now names
+ * BOTH, each with its direction and its id -- `V-29-58-01` for the enumeration axis and
+ * `V-29-57-01` for the hard-wrap one -- and says that matching is decided one physical line at a
+ * time, which is what makes the second a consequence of this mechanism rather than a surprise. The
+ * paragraph grew from 6 lines to 14. It sits INSIDE the region and OUTSIDE every anchored block, so
+ * it is SCANNED: it was written to carry no pinned literal, and the gate is the thing that says so.
+ *
+ * THE NUMBER IS THE GATE'S. The expectation was 67 + 8; the run said `reaches 75 line(s), and
+ * BANNED_CLAIM_EXEMPT_EXTENT in scripts/check-banned-claims.ts declares 67`, and 75 is that
+ * measured number. `BANNED_CLAIM_EXEMPT_SUPPRESSED` and `BANNED_CLAIM_EXEMPT_COMPOSITION` did NOT
+ * fire in the same run, which is the independent confirmation that eight scanned lines were added
+ * to the carve-out without adding a single occurrence for it to suppress. `BANNED_CLAIM_EXEMPT_ANCHORS`
+ * did not fire either: no block entered or left.
  * ---------------------------------------------------------------------------------------------
  */
-export const BANNED_CLAIM_EXEMPT_EXTENT = 67;
+export const BANNED_CLAIM_EXEMPT_EXTENT = 75;
 
 // ---------------------------------------------------------------------------
 // The scan.

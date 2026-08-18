@@ -205,6 +205,94 @@ requirement row.
 
 ---
 
+### 2.4 A premise this plan was handed, asserted, and found FALSE — `V-29-58-01` is opened here
+
+Plan `29-58` instructed the honesty-floor paragraph to name each surviving axis "with its direction
+and its `V-` id — the enumeration axis by **the id round 7 gave it**, the hard-wrap axis by
+`V-29-57-01`." **Round 7 gave the enumeration axis no id. Neither did rounds 4, 5 or 6.** The
+premise was asserted before it was used, which is the discipline this phase arrived at the hard way:
+six times across four rounds a verification harness produced a false result because a premise
+failed silently before the assertion under test ever ran.
+
+The derivation, over every register in the tree — for each `V-` id, read a 600-character window
+around it and ask whether that window is about a claim written in words the pinned list does not
+contain:
+
+```
+$ python3 -c "…" over docs/audit/*.md   (full form in 29-58-SUMMARY.md)
+V- ids whose context mentions the enumeration axis:
+  docs/audit/29-round5-residuals.md  V-29-42-01
+  docs/audit/28-claim-registry.md    V-29-57-01
+```
+
+Both are **proximity, not assignment**, and each was read to confirm it:
+
+- `V-29-42-01` is *"a claim split across a hard wrap escapes the co-occurrence window"*
+  (`29-round5-residuals.md` §3.1), **closed by construction in round 6** when D-48/D-53 deleted the
+  window. Round 5 states the enumeration residual in the paragraph BELOW that id, in prose, with no
+  id of its own: *"A brand-new claim in words this list does not contain still passes, and that
+  residual is recorded in the gate's own source as well as here."*
+- `V-29-57-01` is the hard-wrap axis, opened by plan `29-57` in §4 of this file. The window hit is
+  this round's own `C-28-042` `mechanism:` field, where the two residuals sit adjacent.
+
+So the enumeration axis has been **disclosed since plan `29-02`** — in the gate's source, in the
+profile's prose and in round 5's close — and has **never carried an id**. A prose disclosure with no
+id is exactly the shape this register exists to refuse: it cannot be rolled up, it cannot be counted
+in either direction, and a later reader cannot tell a decision from a drop.
+
+**`V-29-58-01` is therefore OPENED here rather than invented in prose.** The axis is not new; the id
+is. Inventing an id inside `agent-factory/writing-profile.md` with no register entry behind it would
+have produced a dangling reference in the one document whose job is to be checkable.
+
+| field | value |
+|---|---|
+| **id** | `V-29-58-01` |
+| **statement** | A conformance claim written without any member of `BANNED_CLAIM_LITERALS` is not matched. No grep recognizes an assertive sentence written in new words. |
+| **direction** | **FAIL-OPEN.** The claim passes green. |
+| **reach** | The complement of a 22-member enumeration — **not a finite set**, so no reach figure is derivable and none is published. This is the axis's whole content and it is why the axis cannot be closed by extending the list. |
+| **live count** | **`UNKNOWN - verify` BY CONSTRUCTION.** Deliberately NOT `0`. `V-29-57-01` has a derived live count of 0 because its shape is mechanically searchable; this one is not, and writing `0` here would publish an unmeasured number as a measurement. |
+| **remedy** | **None mechanical**, and none is proposed. The compensating control is human and it is exercised: §1 of this round derived all 13 claim sites in the tracked tree over a 780-file denominator and dispositioned every one by hand. That is a review, not a gate, and it is recorded as a review. |
+| **disclosed since** | plan `29-02` — `scripts/check-banned-claims.ts` leading docblock, `agent-factory/writing-profile.md` § *Disclaimer and honesty floor*, `docs/audit/29-round5-residuals.md` close |
+| **id assigned** | plan `29-58` (this round). Collision checked: `git grep -c 'V-29-58-01' -- '*.md' '*.ts' '*.js'` returned **0 files** before assignment. |
+
+**This opens no new residual.** It gives a name to one that has been carried, in three places, for
+the whole phase. §6's roll-up derives the marker set by command, so this id is picked up there
+without a hand edit.
+
+### 2.5 The obligation rows, closed
+
+| row | gate | obligation | satisfied by |
+|---|---|---|---|
+| 1 | `check-diff-disposition.js` | nothing owed (derived) | — nothing to satisfy; re-run green in both task commits |
+| 2 | `guard_role_size` | nothing owed (derived) | — nothing to satisfy; re-run green in both task commits |
+| 3 | `check-audit-register.js` | add/remove no registry row | `638ff39` — row count re-derived at **46**, kinds **32/8/6**, both unmoved |
+| 4 | `check-claim-anchors.js` | the registry row moves in the SAME commit as the prose | `638ff39` — one commit, both paths; commits touching exactly one of them across `e848052..HEAD`: **0** |
+| 5 | `check-banned-claims.js` | the full exemption arithmetic | `638ff39` (extent 66 → 67) and this commit (extent 67 → 75); every value re-derived off the gate's refusal text |
+| 6 | `check-kit-refs.js` | nothing owed (derived) | — nothing to satisfy; re-run green in both task commits |
+| 7 | `check-public-docs-vocabulary.js` | nothing owed (derived) | — nothing to satisfy; re-run green in both task commits |
+| 8 | `check-imperative-lexicon.js` | nothing owed (derived) | — nothing to satisfy; the new prose is under no sentence-form obligation |
+| 9 | `check-nul-bytes.js` | introduce no forbidden control byte | this commit — gate re-run on the final tree, exit 0 |
+
+**Unsatisfied rows: 0.**
+
+Every pin this plan moved, with the sentence that produced its value:
+
+| pin | before | after | the gate's own refusal | cause |
+|---|---|---|---|---|
+| `BANNED_CLAIM_EXEMPT_EXTENT` | 66 | 67 | *"reaches 67 line(s), and `BANNED_CLAIM_EXEMPT_EXTENT` in scripts/check-banned-claims.ts declares 66"* | the narrowed `C-28-042` sentence wraps to 6 lines where it wrapped to 5 (task 2) |
+| `BANNED_CLAIM_EXEMPT_EXTENT` | 67 | 75 | *"reaches 75 line(s), and `BANNED_CLAIM_EXEMPT_EXTENT` in scripts/check-banned-claims.ts declares 67"* | the residual paragraph grew from 6 lines to 14 to carry both axes with their ids (task 3) |
+
+Pins that did **not** move, shown unmoved rather than assumed: `BANNED_CLAIM_EXEMPT_SUPPRESSED`
+**14**, `BANNED_CLAIM_EXEMPT_COMPOSITION` **standard-name 8 / token-economy 2 / comprehension 4**,
+`BANNED_CLAIM_EXEMPT_ANCHORS` **6**, `BANNED_CLAIM_SCAN_COUNT` **117**, `BANNED_CLAIM_LITERALS`
+**22** — each quoted from the gate's second PASS line on the final tree and equal to its §2.2
+baseline. Neither the total nor the per-group breakdown fired in either run, which is the
+independent confirmation that **twelve** lines of new prose entered the carve-out carrying no
+occurrence for it to suppress. The derived-and-printed frozen-line coverage moved 22/66 → 23/75; it
+is not pinned, so it is reported here rather than left to move in silence.
+
+---
+
 ## 4. `V-29-57-01` — the hard-wrap axis: measured three ways, directed, and LEFT OPEN
 
 Written by plan `29-57` under `D-56`. **Nothing in this section is fixed by this plan.** That is the
