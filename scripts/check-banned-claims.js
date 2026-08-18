@@ -1830,8 +1830,37 @@ const UNFROZEN_IN_REGION_REMEDY = `this line is INSIDE the one named exemption r
     `its row in the SAME commit (D-01(a) / D-04), or delete the claim. Do NOT widen the region and do ` +
     `NOT relax the freeze — a carve-out bounded only by POSITION is the defect this conjunction closes`;
 function runAll() {
-    process.stdout.write("\n[guard_banned_claims] the shipped kit and the public documents carry no conformance, " +
-        "token-economy or comprehension claim, outside one named exemption region (LANG-04 / D-29, D-44)\n");
+    // ── THE PUBLISHED SENTENCE IS THE ONE THIS GATE DECIDES (round 8, D-55) ────────────────────────
+    //
+    // This line used to open with a quantifier over the whole shipped artifact and over the whole
+    // user-facing document set, and to assert the ABSENCE OF A CLASS OF CLAIM. The mechanism below
+    // decides something much smaller: whether a member of a pinned literal list occurs on ONE
+    // physical line of a derived document set, outside the registry-anchored blocks of one named
+    // region. The distance between those two statements is not a defect with a fix; it is an
+    // unbounded class. Seven verification rounds each closed one axis of it — an unlisted benefit
+    // verb, then an unlisted conformance verb, then a hard-wrapped multi-word literal — and each
+    // closure exposed the next, because no matcher over free prose can satisfy a totality claim about
+    // meaning.
+    //
+    // D-55 therefore moves the SENTENCE to the mechanism rather than the mechanism to the sentence. A
+    // prohibition that publishes a wider scope than its mechanism is the exact defect LANG-04 exists
+    // to prevent, and until this round LANG-04's own guard was committing it. Nothing about the
+    // matcher changes here; what changes is what a green run is allowed to be read as.
+    //
+    // BOTH NUMBERS ARE INTERPOLATED, NEVER TYPED. A count typed into published prose has gone stale
+    // at three addresses in this phase already. `bannedClaimScan()` is called here rather than the
+    // derivation's pinned cardinality constant read (it is declared below, and this comment does not
+    // spell it, so the count of that identifier's occurrences stays a count of its USE sites): the
+    // constant is the PIN the derivation is asserted against below, and publishing the pin would
+    // print the expectation in place of the measurement.
+    //
+    // The superseded sentence is deliberately not quoted here — these gates scan source text without
+    // stripping comments, and this repository's retired-construct convention is to describe a removed
+    // construct rather than re-register a live copy of it.
+    process.stdout.write(`\n[guard_banned_claims] no single physical line of the ${bannedClaimScan().length} derived ` +
+        `document(s) this gate scans carries any of the ${BANNED_CLAIM_LITERALS.length} pinned claim ` +
+        `literal(s), outside the registry-anchored blocks of one named exemption region ` +
+        `(LANG-04 / D-29, D-44)\n`);
     for (const refusal of DERIVATION_REFUSALS) {
         fail(`banned-claim scan derivation refused: ${refusal}`);
     }
