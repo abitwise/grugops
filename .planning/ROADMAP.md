@@ -93,7 +93,7 @@ Full phase details + milestone summary: `milestones/v2.0-ROADMAP.md` · requirem
 
 - [x] **Phase 27: Spawn Correctness & Kit-Set Authority** — derive every guard/validator scan set from the filesystem, then generate all 17 role adapters and wire the coordinator where the runtime honors its allowlist (completed 2026-08-11)
 - [x] **Phase 28: Kit Consistency Audit** — a real correctness-and-strangeness pass over 17 roles + 19 workflows (17, not 18: `kit-model.listRoles()` drops the `_`-prefixed `_role-switch-protocol.md` by derivation — it is read once and recorded as an explicitly uncounted 37th register row), the `CLAUDE.md` v2.0 drift reconciled, and every public safety claim given an id (completed 2026-08-12)
-- [ ] **Phase 29: Controlled Language & Voice Guard Rebuild** — an ASD-STE100-derived writing profile for procedural/agent-written surfaces, a de-duplicated role skeleton, and a voice guard that measures voice instead of sentence shape
+- [x] **Phase 29: Controlled Language & Voice Guard Rebuild** — an ASD-STE100-derived writing profile for procedural/agent-written surfaces, a de-duplicated role skeleton, and a voice guard that measures voice instead of sentence shape
 - [ ] **Phase 29.1: Per-Role Model Assignment** *(INSERTED)* — a stronger model where judgment lives and a cheaper one for execution, set on the config dial and emitted into every generated adapter, with zero-config byte-identical to today's
 - [ ] **Phase 30: Per-Checkpoint Autonomy Matrix** — every human stop enumerated and dialable, the four safety floors lowerable only behind two keys, with mechanical claim-dropping
 - [ ] **Phase 31: Autonomous Manual Testing** — browser-driven UAT where the committed Playwright spec is the evidence and the agent's narration never is

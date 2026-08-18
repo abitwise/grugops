@@ -2119,3 +2119,33 @@ corrections are left visible rather than made silently.*
 *Round 8 closes here, and with it Phase 29's gap-closure rounds. `D-58`: a finding after this becomes a
 backlog item or a follow-up phase, never a round 9 — §8.5 is that list. **The verdict on `LANG-04`
 belongs to the verifier**, and §8.2 states the one precondition this round did not meet on its own terms.*
+
+
+---
+
+## §10 — Phase close (2026-08-18, USER DECISION `D-59`)
+
+The round-8 code review returned 5 Critical and the round-8 verifier returned `gaps_found` on
+`LANG-04`, on two defects inside round 8's own remedies. Both are dispositioned here, and the phase
+closes. `D-59` reverses `D-29`: `LANG-04`'s conformance prohibition is held as **content** — the
+claim registry and the honesty floor — with `guard_banned_claims` as a disclosed **drift backstop**
+underneath it, rather than as the mechanism that makes a totality true. The requirement text was the
+last address in the tree still asserting a mechanism decided more than it decides.
+
+| id | finding | disposition | direction | evidence |
+|----|---------|-------------|-----------|----------|
+| **CR-02** | `guard_banned_claims` published its narrowed no-claim sentence on RED runs, above the findings that contradicted it | **FIXED**, commit `4c6a76a` | was FAIL-OPEN in *output honesty*; now withheld unless `FAILS === 0` | watched failing first against the pre-fix committed `.js` — the sentence printed above two findings naming `agent-factory/README.md:6:21` — and green against the rebuilt `.js`. New case asserts BOTH directions; an absence-only case would pass against a gate that stopped printing the sentence entirely |
+| **CR-01** | `scripts/freshness.ts`'s working-tree arm never reads `HEAD`'s blob yet counts those paths in the verdict line, so a committed-stale `.js` whose `.ts` was edited and rebuilt reads green | **OPEN — carried as `V-29-59-03`**, owner: the tooling/build-parity surface, not this phase | **FAIL-OPEN**, live count 0 on this tree | reproduced by the round-8 review and independently by the round-8 verifier on a fresh `git clone --local`: plant + commit a stale `hooks/guard.js`, edit `hooks/guard.ts`, run `npx tsc` → `All build outputs fresh: 48…`, exit 0, `HEAD`'s `guard.js` never read |
+| **CR-03** | `V-29-60-05`'s address count is short by two (`:62-63`, `:351-352` carry the same unqualified phrasing that §1 row 3 cleared) | **OPEN — folded into `V-29-60-05`**, count corrected to **3 addresses** | not fail-open: an understated residual count, in a residual that is itself disclosed | the review's derivation; §1's site set was derived over FILES by command and its addresses then enumerated BY HAND — this phase's set-literal class, one address to the left |
+| **CR-04** | `freshness.test.ts:176`'s "independent" denominator hardcodes `"install", "scripts", "hooks"`, a byte copy of `OUTPUT_DIRS` | **OPEN — carried as `V-29-59-04`** | cannot detect the silently-short denominator its own docblock says it exists to detect | the review's reading; same surface and owner as `V-29-59-03` |
+| **CR-05** | §1's `13 rows = 13 derived sites` is arithmetic coincidence (rows 1–3 are one file, `+2`; rows 12–13 each cover a twin pair, `−2`) | **RECORDED** — no site was dropped; what fails is the *proof*, not the count | neutral | the review's derivation, accepted |
+
+**Why `CR-01` does not hold `LANG-04` open.** Plan 29-59 stated it when it opened the work: this
+gate "is pre-existing since Phase 20 and is named by no LANG requirement." It was repaired inside
+this phase only because round 7's own sweep had leaned on it for build-parity evidence. It is a real
+fail-open on the tooling surface and it is carried with its direction and its reproduction — it is
+not a controlled-language defect, and a controlled-language phase is the wrong place to hold open
+for it. `V-29-59-03` and `V-29-59-04` inherit to whoever next owns build parity.
+
+*`D-58` said a finding after round 8 becomes a backlog item or a follow-up phase, never a round 9.
+This section is that list, and the phase closes on it.*

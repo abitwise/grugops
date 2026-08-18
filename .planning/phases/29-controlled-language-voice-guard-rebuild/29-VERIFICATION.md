@@ -45,6 +45,25 @@ behavior_unverified_items: []
 human_verification: []
 ---
 
+> **PHASE CLOSED BY USER DECISION, 2026-08-18 — this report's `gaps_found` verdict is left standing, not rewritten.**
+>
+> This verification was run against `LANG-04`'s **previous** text, which asserted *"the conformance
+> prohibition itself is mechanical, held by `guard_banned_claims`."* That sentence was rewritten
+> under **`D-59`** (reversing `D-29`): the prohibition is now held as **content** — the claim
+> registry and the honesty floor — with `guard_banned_claims` as a disclosed **drift backstop**.
+> Eight rounds established that a totality over an open set of phrasings is not a decidable
+> predicate; the requirement was the last address still claiming a mechanism decided one.
+>
+> Of this report's two blocking defects: **CR-02 was FIXED** (commit `4c6a76a`, watched failing
+> against the pre-fix build, asserted in both directions), and **CR-01 was reclassified out of
+> `LANG-04`'s scope** and carried as `V-29-59-03` — plan 29-59 itself recorded that gate as
+> "pre-existing since Phase 20 and named by no LANG requirement." Full disposition:
+> `docs/audit/29-round8-residuals.md` §10.
+>
+> This verifier's own §62 states that closing a requirement on a narrowed, honestly-disclosed claim
+> is legitimate and that `D-55`'s narrowing "would, on its own, be enough for me to accept the
+> narrowing and mark LANG-04 closed on that specific axis."
+
 # Phase 29: Controlled Language & Voice Guard Rebuild — Verification Report (Round 8, FINAL per D-58)
 
 **Phase Goal:** Procedural and agent-written prose follows one enumerated writing profile so two agents reading the same instruction reach the same act; the caveman voice lives in exactly one fenced block per role and is measured as voice, not as sentence shape.

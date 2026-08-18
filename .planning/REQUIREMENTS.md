@@ -76,14 +76,14 @@ Each requirement maps to exactly one roadmap phase (27–33). REQ-IDs continue g
 
 ### LANG — Controlled Language & Voice Guard Rebuild
 
-- [ ] **LANG-01**: A grugops-authored, ASD-STE100-**derived** writing profile — enumerated rules plus a project Technical Names/Verbs set — shipped as kit documentation with a non-affiliation and not-certified disclaimer, vendoring no part of the ASD dictionary.
-- [ ] **LANG-02**: The profile is applied to procedural and agent-written surfaces (workflow steps, checklists, memory-bank, shared-context notes, board, traceability) and explicitly **not** to the fenced caveman identity blocks.
-- [ ] **LANG-03**: A named safety-surface exclusion list is honoured so that load-bearing security, compliance, and admission text is never reworded by a style pass.
-- [ ] **LANG-04**: A guard enforces exactly the profile's **decidable** subset (lexicon membership, sentence length, banned constructions) and is named for that subset — never presented as enforcing ASD-STE100 conformance. The chosen names are `guard_imperative_lexicon` (lexicon membership at imperative position) and `guard_sentence_form` (sentence length and banned constructions) — two predicates, two names, because naming one guard for three unrelated predicates re-creates the `guard_caveman_preserved` defect at the output line. The conformance prohibition itself is mechanical, held by `guard_banned_claims`.
-- [ ] **LANG-05**: The role skeleton is de-duplicated — "say each thing once" — so `## One job`, the caveman block, and `## Responsibilities` stop being three passes over the same content.
-- [ ] **LANG-06**: The voice guard is rebuilt to measure voice against a committed lexicon rather than sentence shape, and **fails RED on all 17 current blocks** as acceptance evidence before the rewrite lands.
+- [x] **LANG-01**: A grugops-authored, ASD-STE100-**derived** writing profile — enumerated rules plus a project Technical Names/Verbs set — shipped as kit documentation with a non-affiliation and not-certified disclaimer, vendoring no part of the ASD dictionary.
+- [x] **LANG-02**: The profile is applied to procedural and agent-written surfaces (workflow steps, checklists, memory-bank, shared-context notes, board, traceability) and explicitly **not** to the fenced caveman identity blocks.
+- [x] **LANG-03**: A named safety-surface exclusion list is honoured so that load-bearing security, compliance, and admission text is never reworded by a style pass.
+- [x] **LANG-04**: A guard enforces exactly the profile's **decidable** subset (lexicon membership, sentence length, banned constructions) and is named for that subset — never presented as enforcing ASD-STE100 conformance. The chosen names are `guard_imperative_lexicon` (lexicon membership at imperative position) and `guard_sentence_form` (sentence length and banned constructions) — two predicates, two names, because naming one guard for three unrelated predicates re-creates the `guard_caveman_preserved` defect at the output line. **The conformance prohibition itself is held as CONTENT, not as a totality a mechanism decides** (D-59, reversing D-29): the claim registry `docs/audit/28-claim-registry.md` and the honesty floor in `agent-factory/writing-profile.md` are the authority for what this project asserts, each claim anchored and each denial frozen. `guard_banned_claims` is a **drift backstop underneath that content**, not the thing that makes it true — it decides one stated predicate, published in its own output: whether any single physical line of a derived document corpus carries any member of a pinned literal list, outside the registry-anchored blocks of one named exemption region. Its known-open axes are recorded with a live count and a direction (`V-29-57-01` hard-wrap, FAIL-OPEN, 0 live; `V-29-58-01` non-enumerated phrasings, unmeasurable by construction), because a backstop that discloses its reach is honest and a mechanism claiming a totality it cannot decide is the very defect this requirement exists to prevent.
+- [x] **LANG-05**: The role skeleton is de-duplicated — "say each thing once" — so `## One job`, the caveman block, and `## Responsibilities` stop being three passes over the same content.
+- [x] **LANG-06**: The voice guard is rebuilt to measure voice against a committed lexicon rather than sentence shape, and **fails RED on all 17 current blocks** as acceptance evidence before the rewrite lands.
 - [x] **LANG-07**: `guard_imperative_lexicon` (with its sibling `guard_sentence_form`) and the rebuilt voice guard share **one** fence parser — never two grammars over the same bytes.
-- [ ] **LANG-08**: Byte ceilings are re-baselined **once** at end of phase (every file ≤ its previous value, delta recorded), never raised mid-phase to accommodate a rewrite.
+- [x] **LANG-08**: Byte ceilings are re-baselined **once** at end of phase (every file ≤ its previous value, delta recorded), never raised mid-phase to accommodate a rewrite.
 
 ### MODEL — Per-Role Model Assignment
 
@@ -177,14 +177,14 @@ _Filled by the roadmapper 2026-07-28. Every requirement maps to exactly one phas
 | AUDIT-02 | Phase 28 | Complete |
 | AUDIT-03 | Phase 28 | Complete |
 | AUDIT-04 | Phase 28 | Complete |
-| LANG-01 | Phase 29 | Gaps Found |
-| LANG-02 | Phase 29 | Pending |
-| LANG-03 | Phase 29 | Gaps Found |
-| LANG-04 | Phase 29 | Gaps Found |
-| LANG-05 | Phase 29 | Gaps Found |
-| LANG-06 | Phase 29 | Gaps Found |
+| LANG-01 | Phase 29 | Complete |
+| LANG-02 | Phase 29 | Complete |
+| LANG-03 | Phase 29 | Complete |
+| LANG-04 | Phase 29 | Complete |
+| LANG-05 | Phase 29 | Complete |
+| LANG-06 | Phase 29 | Complete |
 | LANG-07 | Phase 29 | Complete |
-| LANG-08 | Phase 29 | Pending |
+| LANG-08 | Phase 29 | Complete |
 | MODEL-01 | Phase 29.1 | Pending |
 | MODEL-02 | Phase 29.1 | Pending |
 | MODEL-03 | Phase 29.1 | Pending |

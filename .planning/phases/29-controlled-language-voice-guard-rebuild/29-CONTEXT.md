@@ -815,5 +815,44 @@ wave ordering rather than the corpus size.
 
 ---
 
+### Phase close (USER DECISION, 2026-08-18) — LANG-04 is content-held
+
+- **D-59 — LANG-04's conformance prohibition is held as CONTENT, reversing D-29.** D-29 made
+  "nowhere in the kit is conformance claimed" **mechanical**, on the stated rationale that "as
+  written the requirement is enforced by discipline alone, and the voice guard is the proof of what
+  discipline-without-mechanism does over a full milestone." That rationale was reasonable and the
+  eight rounds since are the evidence against it. **A totality over an open set of phrasings is not
+  a decidable predicate**, so every round narrowed the mechanism, published a claim wider than the
+  narrowing, and exposed the next axis: an unlisted benefit verb, an unlisted conformance verb, a
+  hard-wrapped multi-word literal, then a per-document quantifier the narrowing did not reach. D-55
+  had already ended at the honest position — the gate now publishes a per-line predicate over a
+  derived corpus — which means the totality was **already** content-held on the tree, by the claim
+  registry and the honesty floor, while LANG-04's own text still said a mechanism held it. The
+  requirement was the last place carrying the overstatement it exists to forbid.
+
+  What changes: LANG-04's text. What does not change: any guard, any scan set, any pin.
+  `guard_banned_claims` keeps its full mechanism and its narrowed published sentence — it is a
+  **drift backstop** underneath the content, and it earns its place (it caught the live
+  `incident-responder.md` claim in round 6). What it stops being is the thing the requirement
+  claims makes the prohibition true.
+
+  **This is a requirement rewrite, recorded as one rather than performed quietly.** The user's
+  direction was explicit: LANG-04 was to be rewritten, the prohibition made content, and no further
+  verification round spent. A reader who disagrees should reopen this decision, not the eight
+  rounds underneath it.
+
+- **The round-8 verifier's two blocking defects are dispositioned, not dropped:**
+  - **CR-02** (the narrowed sentence printed on red runs) was **fixed** — commit `4c6a76a`, watched
+    failing first against the pre-fix build, asserted in both directions. It was a real honesty
+    defect in gate output and cheap to close; closing LANG-04 on honesty grounds while leaving it
+    would have been self-undermining.
+  - **CR-01** (`scripts/freshness.ts`'s working-tree arm fail-opens) is **out of LANG-04's scope
+    and carried as `V-29-59-03`.** Plan 29-59 said it plainly: this gate "is pre-existing since
+    Phase 20 and is named by no LANG requirement." It is a build-parity defect on the tooling
+    surface, it is real, and it is recorded with its direction rather than closed. It does not
+    belong to a controlled-language phase and must not hold one open.
+
+---
+
 *Phase: 29-controlled-language-voice-guard-rebuild*
 *Context gathered: 2026-08-13*
