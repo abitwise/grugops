@@ -293,6 +293,128 @@ is not pinned, so it is reported here rather than left to move in silence.
 
 ---
 
+## 3. The round-7 findings, disposed — every review finding and every verification bullet
+
+Written by plan `29-60` under `D-58`. **This table is built from the review and the verification, not
+from the plans of this round.** Each row's id and statement are taken from
+`.planning/phases/29-controlled-language-voice-guard-rebuild/29-REVIEW.md` and from
+`29-VERIFICATION.md`; the artifact that discharges each one was then located in the tree and cited by
+file and by commit. A table assembled from the plans would establish that the plans were followed. A
+table assembled from the findings establishes that the findings were answered.
+
+**Every live count below was re-measured on the tree at `0b6e1f673e9b024bc48748a36840fb0c8eedc178`
+(*"docs(29-59): complete the build-parity gate repair plan"*) by the command written in its own cell.**
+Statuses carried from a plan SUMMARY: **0**, asserted at §6.4 rather than asserted about.
+
+### 3.0 The two denominators, taken from the source documents before any row was written
+
+A disposition table whose row count is decided by the person writing it can drop a finding without
+anybody being able to see the drop. Both denominators are therefore read out of the source documents
+mechanically, and printed here, before the rows exist.
+
+```
+$ python3 - <<'EOF'   (frontmatter and gap structure of the two round-7 source documents)
+review findings frontmatter:   critical: 2 · warning: 3 · info: 1 · total: 6
+failed-truth entries under `gaps:`                        2
+`missing:` bullets across those two entries               6   (gap 1: 3, gap 2: 3)
+EOF
+```
+
+**Review findings: 6. Verification failed truths: 2. Verification `missing:` bullets: 6.**
+Rows in §3.1: **6**. Rows in §3.2: **2 + 6 = 8**. Total rows: **14**. Each count equals the count in
+the source document, which is the property §3.3 states as an equality with both sides shown.
+
+### 3.1 The six findings of `29-REVIEW.md` (round 7 — 2 critical, 3 warnings, 1 info)
+
+| id | statement as recorded | disposition | mechanism or reason | live count, re-measured on the final tree | decision | where the measurement lives |
+|---|---|---|---|---|---|---|
+| **CR-01** | The CI job's own step ordering makes the build-parity gate unable to fail: `tsconfig.json` sets `outDir`/`rootDir` to `./` so `npm run build` rewrites the tracked `.js` in place, `freshness.ts` read its committed side from the WORKING TREE, and `.github/workflows/ci.yml` built at `:59` before every freshness step at `:87+` with zero dirty-tree assertions. Round 7's own sweep reproduced that ordering as its build-parity evidence. | **CLOSED by mechanism, and the repair is proven not vacuous.** | The gate's SUBJECT moved rather than the step order alone: `scripts/freshness.ts` reads its committed side with `git show HEAD:<path>` and derives its compared set from `git ls-tree -r -l HEAD`, so no build step that ran earlier can repair it. The CI reorder (freshness at `:78`, **before** any build) plus `npm run check:build-parity` is the belt-and-braces half. The repair is held by a **discrimination pair**: the same planted drift is green on a clone of the pre-fix tree and red by name on a clone of the post-fix tree, with `tsc` run on both. | **0** stale committed outputs: `npm run freshness` → *"All build outputs fresh: 48 committed .js file(s) match a rebuild of their sources"*, plus *"Set equality with the filesystem walk: 0 committed at HEAD and absent on disk, 0 on disk and absent from HEAD."* CI ordering re-derived from the file: freshness `:78` < build-parity `:102` < build `:106`. **A caveat a later reader needs: `grep -c 'git diff\|git status\|git ls-files --modified' .github/workflows/ci.yml` still returns `0`** — the assertion lives one indirection away, inside `package.json`'s `check:build-parity`, so the round-7 verifier's own grep is still literally true and no longer means what it meant. | **`D-57`** | §5, `29-59-SUMMARY.md`; re-verified at §9.3 |
+| **CR-02** | A banned literal hard-wrapped across a line boundary passes at exit 0 — on literals the list DOES contain — while `docs/audit/29-round7-residuals.md:561` records that axis as *closed by construction, 0, no subject*. The in-source justification argues the bypass needs a wrap falling inside a word; the reproduction wraps between words into legible prose. | **SPLIT, and both halves answered: the FRAMING is CLOSED, the MATCHER FIX is DECLINED with a written reason.** Not partially closed — two different things, disposed differently. | **Framing:** `V-29-57-01` is opened with a derived reach, a live count, a direction, a reproduction and a named remedy (§4), and the false in-source premise at the residual paragraph was rewritten to describe the bypass that exists (`59b0ed5`). **Matcher:** the second, wrap-joined input assembly is **not built**. `D-56` declines it — new matcher surface, on a phase whose recorded history is that each round's fix produced the next round's finding, to close an axis with **no live instance**, against a threat model that is drift rather than an adversary. | **0** live wrap-only occurrences over the gate's own derived corpus — **117 documents, 4126 adjacent non-blank line pairs, 11 reachable members asked** (§4.3). **11 of 22** members are wrap-reachable, not the review's 16, which is the multi-word count under another name (§4.2a); the review's *"6 of the 7 token-economy members"* is independently re-derived and confirmed. The bypass **still passes**, demonstrated rather than argued at §9.3.3 on a fresh archive mirror with sha256 provenance: exit 0, planted file never named. | **`D-56`** | §4; §9.3.3; `29-57-SUMMARY.md` |
+| **WR-01** | In `deriveExemptBlocks`, an anchor found inside the region whose id has no registry row is silently skipped; `ids` is not pushed to, so `BANNED_CLAIM_EXEMPT_ANCHORS` does not move. The in-source comment says *"the cardinality assertion below reports the shortfall"*, which is false for that branch — the assertion detects a **row** removed, never an **anchor** added. The compensating check lives entirely in a different gate. | **OUT OF SCOPE (`D-58`), NOT DROPPED — carried as `V-29-60-01`** with a direction, a live count and an inheriting owner. | Not fail-open: an unregistered anchor freezes nothing, so no line becomes newly exempt and the direction is fail-CLOSED. What survives is a **false in-source claim about a mechanism** plus a half-derived cardinality. `D-58` fences round 8 to `D-55`'s narrowing, `D-56`'s disclosure, `D-57`'s repair and this record; this is none of them, and it is not in `LANG-04`'s text. | **1** false in-source statement at **1** address (`scripts/check-banned-claims.ts:1723-1726`), **byte-unchanged this round** (`git diff e848052..HEAD -- scripts/check-banned-claims.ts \| grep -c 'cardinality assertion below reports the shortfall'` → **0**). **0** unregistered anchors on this tree: 6 anchors inside the region, 6 rows, `BANNED_CLAIM_EXEMPT_ANCHORS` pinned at 6, `deriveExemptBlocks` returns 6 ids and **0** refusals. | **`D-58`** | §5.4 (`V-29-60-01`) |
+| **WR-02** | `anchoredBlockAt` returns `overruns: true` when a block needs a line the document does not have; `deriveExemptBlocks` reads only `block.matches`, so an overrun lands in `diverged` and is reported as *"no longer matches its registry row … byte for byte"* — a cause that is not there, sending an editor to compare bytes when the document is short. | **OUT OF SCOPE (`D-58`), NOT DROPPED — carried as `V-29-60-02`.** | A **misattributed cause on a red**, not a wrong verdict: the gate still reds, and it still reds for a real defect. It is a message-quality finding on a fail-CLOSED path, outside the fence for the same three reasons as `WR-01`. | **0** live overruns: `deriveExemptBlocks(".", …)` on the final tree returns `diverged 0`, `refusals 0` over all **6** blocks, whose derived line indices run **238..302** (1-based) inside a region of **235..309**. | **`D-58`** | §5.4 (`V-29-60-02`) |
+| **WR-03** | A second anchor grammar lives in the `D-54` harness — `const MIRROR_ANCHOR_RE = /^<!-- claim: (C-28-\d{3}) -->$/;` at `scripts/check-banned-claims.test.ts:481`, a byte-copy of the exported `CLAIM_ANCHOR_RE` — in the round whose own stated principle is one grammar per concept, and a third block-extent rule beside it. | **OUT OF SCOPE (`D-58`), NOT DROPPED — carried as `V-29-60-03`.** | The duplicate is in a **test harness**, not in a shipped predicate, so a divergence between the two produces a wrong test rather than a wrong verdict. It is nonetheless the exact `LANG-07` defect class this milestone has closed three times, one level down inside its own remedy, which is why it carries an id rather than a shrug. | **2** declarations of the anchor grammar in the tracked tree: **1** authority (`scripts/audit-model.ts:1579`, exported) and **1** hand-copied mirror (`scripts/check-banned-claims.test.ts:481`, **3** references). Both re-derived by `grep -na 'CLAIM_ANCHOR_RE *=' scripts/*.ts` and `grep -na 'MIRROR_ANCHOR_RE' scripts/check-banned-claims.test.ts`. | **`D-58`** | §5.4 (`V-29-60-03`) |
+| **IN-01** | `exemptLineSet` holds `[block.start, block.end)` for every block whose ANCHOR sits inside the region, so a block whose verbatim runs past `endBefore` contributes indices outside it. The PASS line then reports `exemptLineSet.size` as *"covering N of the region's M line(s)"* and renders `M - N` as the free remainder, which can over-state coverage and can go negative. | **OUT OF SCOPE (`D-58`), NOT DROPPED — carried as `V-29-60-04`.** | The review's own status line reads *"CONFIRMED by trace; **0 live subjects** on this tree"*, and the `inRegion` conjunct rejects those lines from suppression, so there is no fail-open. The defect is that a **published number is computed from a set that is not the quantity its sentence names** — which is this phase's own subject, at one address, in a clause nothing pins. | **0** derived block indices outside `[headingAt, endBefore)` = `[234, 309)` 0-based, measured through the module's own `deriveExemptBlocks`: min 237, max 301. The PASS line's arithmetic is consistent today — `covering 23 of the region's 75 line(s) — the other 52` — and **23 + 52 = 75** by hand. | **`D-58`** | §5.4 (`V-29-60-04`) |
+
+### 3.2 The two failed truths of `29-VERIFICATION.md` and their six `missing:` bullets
+
+The bullets are the verifier's own remedies. **Three of the six are answered by an artifact; two are
+answered by a written REJECTION; one is left to the verifier by construction.** A bullet answered by a
+rejection is still answered — what would not be an answer is silence.
+
+| # | source | statement as recorded | disposition | mechanism or reason | live count, re-measured | decision |
+|---|---|---|---|---|---|---|
+| **G1** | gap 1, truth | *"`guard_banned_claims`'s own PASS-line claim … holds mechanically, with no fail-open route"* — **failed**, on a listed multi-word literal split by an ordinary hard wrap. | **CLOSED BY NARROWING THE CLAIM, not by completing the matcher.** The **verdict is the verifier's** and is not taken here. | The truth as written is stronger than `LANG-04`'s own text, and the input-assembly axis it quantifies over is unbounded — a hard wrap, then inline emphasis, then a table cell. `D-55` moves the published sentence to the predicate the gate decides. The gate's header now reads: *"no single physical line of the 117 derived document(s) this gate scans carries any of the 22 pinned claim literal(s), outside the registry-anchored blocks of one named exemption region"* — every number interpolated from the run. | The narrowed header is **TRUE on a tree carrying the round-7 bypass**, demonstrated at §9.3.3 rather than argued: the plant lands, the gate exits 0, and no single physical line carries a pinned literal. **The narrowing holds at the header. It does NOT hold at one further address** — see `V-29-60-05`, §5.4, which this plan's own sweep found and reproduced. | **`D-55`** |
+| **G1-a** | gap 1, `missing:` 1 | *"Give the matcher a second, explicitly named input assembly for the multi-word members only …"* | **REJECTED, with the reason written down and the id that carries the remainder.** | `D-56`, quoted at §4.1. The remedy is named in full — a wrap-joined projection carrying a per-line index, asked only of the multi-word members, never a global whitespace normalization — so the next reader inherits a specification rather than a gap. | **0** identifiers named `wrapJoined` in either twin; **1** prose mention of `wrap-joined`, at `scripts/check-banned-claims.ts:89`, which is the disclosure of the declined remedy. The function set of `check-banned-claims.ts` is **byte-identical** across `e848052..HEAD` (0 added, 0 removed). | **`D-56`** |
+| **G1-b** | gap 1, `missing:` 2 | *"Open a new `V-` id … naming this axis with its live count …, its direction (FAIL-OPEN), and correct the false 'mid-token' framing in the in-source comment."* | **CLOSED — both halves.** | `V-29-57-01` opened at §4 with three independent measurements; the in-source premise rewritten at `59b0ed5`. | The id exists in **14** tracked files (§6.1). The false premise: `grep -ac 'mid-token' scripts/check-banned-claims.ts` → **0**. **The verifier's own figure is corrected rather than transcribed:** it asks for *"16 multi-word/reachable"*; **16 and reachable are different quantities** and the derived reach is **11** (§4.2a). | **`D-56`** |
+| **G1-c** | gap 1, `missing:` 3 | *"Re-run this verification's reproduction against the fix and confirm it now reds by name before recommending LANG-04 → Complete."* | **NOT SATISFIABLE BY THIS ROUND, and that is stated rather than finessed.** | There is no fix to re-run the reproduction against: `D-56` declines it. The reproduction is instead re-run **unchanged**, and it still passes — which is the honest evidence for a round that narrowed a claim rather than widening a mechanism. **The precondition this bullet attaches to `LANG-04 → Complete` therefore is not met on its own terms**, and the verdict is left to the verifier with that said plainly. | The round-7 plant re-run on a fresh archive mirror of the final tree: `PLANT_LANDED=1`, gate **exit 0**, planted file named **0** times in the output (§9.3.3). | **`D-56`** |
+| **G2** | gap 2, truth | *"The CI build-parity gate mechanically prevents a stale committed `.js` from shipping on `main`"* — **failed**. | **CLOSED by mechanism (see CR-01), with two pieces of coverage that MOVED recorded as ids rather than absorbed.** | The gate's subject moved to `HEAD`. What the old comparison covered and the new one does not is `V-29-59-01`; the platform scope of the working-tree assertion is `V-29-59-02`. Both are in §5. | `npm run freshness` exit **0**, 48 outputs; discrimination pair green-then-red on hermetic clones; `V-29-59-01` live **0** on this tree, `V-29-59-02` live **1 of 2** matrix legs unasserted. | **`D-57`** |
+| **G2-a** | gap 2, `missing:` 1 | *"Reorder CI to run freshness before build, and add a `git diff --exit-code -- '*.js'` assertion after build."* | **CLOSED, both halves.** | Freshness moved to `:78`, ahead of every build step; the assertion ships as `npm run check:build-parity` in `package.json` and is invoked at `:102`. | Re-derived from the file: `npm run freshness` `:78` → `npm run check:build-parity` `:102` (ubuntu) → `npm run build` `:106` (every other leg). `package.json` moved by exactly **1 line**; `package-lock.json` **byte-unchanged** across the round. | **`D-57`** |
+| **G2-b** | gap 2, `missing:` 2 | *"Make the gate ordering-independent: have `freshness.ts` read the committed side via `git show HEAD:<path>` rather than the working tree."* | **CLOSED, and EXCEEDED.** | Both the committed BYTES and the compared SET moved to git — `git show HEAD:<path>` and `git ls-tree -r -l HEAD` — so a file committed at `HEAD` and absent from disk is a finding too, which the bullet did not ask for. | The gate's own output carries the second direction as a printed line: *"Set equality with the filesystem walk: 0 committed at HEAD and absent on disk, 0 on disk and absent from HEAD."* | **`D-57`** |
+| **G2-c** | gap 2, `missing:` 3 | *"This is recommended as a follow-up item …, not as a block on LANG-01..08, since none of the eight requirement's texts name the CI build pipeline."* | **OVERTAKEN — the round did MORE than the bullet asked.** | The verifier offered to defer it; `D-57` took it inside the round instead, on the ground that it is load-bearing for every other mechanical claim this phase makes. Recorded so a later reader does not read the closure as scope creep: it is a decision, by id. | Not a countable bullet. Its subject is discharged by `G2`, `G2-a` and `G2-b` above. | **`D-57`** |
+
+### 3.3 The finding equality, stated as an equality with both sides shown
+
+```
+six review findings   ==  closed by mechanism + split + out of scope with an id + rejected + dropped
+
+LEFT  = 6   (CR-01, CR-02, WR-01, WR-02, WR-03, IN-01)
+RIGHT = 1 + 1 + 4 + 0 + 0 = 6
+  closed by mechanism        (1): CR-01
+  split, both halves answered(1): CR-02  (framing CLOSED, matcher DECLINED — one finding, two dispositions)
+  out of scope, carried by id(4): WR-01 -> V-29-60-01, WR-02 -> V-29-60-02,
+                                  WR-03 -> V-29-60-03, IN-01 -> V-29-60-04
+  rejected outright          (0): —
+  DROPPED                    (0): —
+
+two failed truths + six `missing:` bullets  ==  closed + rejected-with-reason + not-satisfiable + overtaken
+
+LEFT  = 8   (G1, G1-a, G1-b, G1-c, G2, G2-a, G2-b, G2-c)
+RIGHT = 5 + 1 + 1 + 1 = 8
+  closed                 (5): G1 (by narrowing), G1-b, G2, G2-a, G2-b
+  rejected, reason given (1): G1-a  (the wrap-joined assembly, declined by D-56)
+  not satisfiable        (1): G1-c  (no fix exists to re-run the reproduction against)
+  overtaken by more work (1): G2-c  (the verifier offered a deferral; D-57 declined it)
+```
+
+**The first draft of this second block put `G1-b` in two buckets at once** — counted as CLOSED and again
+under a "rejected" bucket that was really about the review's 16-of-22 reach figure, which is a
+*correction* inside `G1-b` and not a disposition of its own. It needed a clause to explain itself, and a
+bucket that needs a clause is a bucket that is wrong. Corrected before publication and recorded here
+rather than silently, because a disposition table that quietly repairs its own arithmetic is asking to be
+trusted about everything else it counted. **This is one of this plan's own false results; the full list is
+at §6.5.**
+
+**No partials.** Two rows record work beyond the finding — `G2-b` (the set direction the bullet did not
+ask for) and `G2-c` (a deferral the round declined to take) — and one row records the round doing
+**less** than a bullet asked, `G1-c`, with the consequence for `LANG-04`'s verdict stated in the row
+rather than left for a reader to infer.
+
+### 3.4 What building this table found that neither source document contained
+
+Recorded separately so they are not lost inside a cell. Both are findings **of the derivation**, which is
+the reason the table was built from the source documents rather than from the round's own plans.
+
+1. **`V-29-60-05` — the narrowing is complete at the gate's header and incomplete at its second PASS
+   line.** `D-55` moved the published claim to the predicate the gate decides, and §1's disposition table
+   named the addresses it moved: the `runAll()` header write and the module docblock. **The gate's second
+   PASS line was not among them**, and it still opens with a per-DOCUMENT quantifier —
+   *"117 document(s) carry zero banned claim literal outside the one named exemption region"* — over a
+   per-LINE decision. Reproduced, not argued: §9.3.3. Full entry at §5.4.
+2. **`V-29-60-06` — three gates run in continuous integration only as a side effect of their own test
+   files.** Deriving §9's sweep command list from `.github/workflows/ci.yml` and `package.json`, rather
+   than typing one, showed that `check-uat-oracles.js`, `now-running-freshness.js` (`freshness:queue`) and
+   `trace-freshness.js` (`freshness:traceability`) are invoked by no workflow step — they run because
+   their `.test.ts` files spawn them inside the vitest step. **That is the "borrowed, not wired" pattern
+   this same workflow's own comments name as a defect and fix by hand for two other gates**, surviving for
+   three more. Full entry at §5.4.
+
+**Neither was in `29-REVIEW.md` and neither was in `29-VERIFICATION.md`.** §1 of this register found two
+sites its plan's floor list did not contain; §4.2a corrected a published reach figure; this section adds
+two more. The count of round-8 findings produced by **deriving a set that a plan supplied as a list** is
+now **five**, and every one of them was invisible to the document that would otherwise have been copied.
+
+---
+
 ## 4. `V-29-57-01` — the hard-wrap axis: measured three ways, directed, and LEFT OPEN
 
 Written by plan `29-57` under `D-56`. **Nothing in this section is fixed by this plan.** That is the
@@ -759,9 +881,358 @@ produced.** Numbers carried from a review's prose or from a prior register: **0*
 - It does **not** re-open, re-word or re-count anything in §1, §2 or §4. `git diff --numstat` over
   this file across this plan's commits shows additions in §5 only.
 
+### 5.4 The six ids plan `29-60` opens — four for the findings `D-58`'s fence leaves open, two the sweep found
+
+§5.1 and §5.2 are the build-parity repair's own pair. This subsection extends §5 to the rest of the
+round's newly opened ids, so there is **one place in this file where a round-8 id is defined** and §6's
+roll-up has one target to point at.
+
+**Why an out-of-scope finding gets an id rather than a sentence.** A fence decides who does the work
+next; it does not decide whether the work exists. A finding disposed as *out of scope* with no id cannot
+be rolled up, cannot be counted in either direction, and is indistinguishable from a finding nobody
+looked at when the next reader arrives. Each of the four below therefore carries a statement, a
+direction, a live count re-measured on the final tree, a named remedy and **an owner that inherits it**.
+
+| field | `V-29-60-01` | `V-29-60-02` | `V-29-60-03` | `V-29-60-04` |
+|---|---|---|---|---|
+| **source** | `29-REVIEW.md` WR-01 | WR-02 | WR-03 | IN-01 |
+| **statement** | An anchor inside the exemption region whose id names no registry row is skipped without a refusal, and the in-source comment claims a cardinality assertion reports the shortfall when that assertion detects only a removed ROW | An overrun — a block needing a line the document does not have — is reported as a byte divergence, sending an editor to compare bytes that are not the cause | A second declaration of the anchor grammar lives in the `D-54` test harness beside the exported authority, plus a third block-extent rule | The PASS line reports `exemptLineSet.size` as coverage *of the region*, though the set can hold indices outside it; the rendered remainder can go negative |
+| **direction** | **fail-CLOSED**; the defect is a false in-source claim | **fail-CLOSED**; the defect is a misattributed cause on a red | **not a verdict path**; a divergence yields a wrong test | **not a fail-open**; the `inRegion` conjunct still rejects those lines |
+| **live count** | **1** false statement at 1 address, `scripts/check-banned-claims.ts:1723-1726`; **0** unregistered anchors (6 anchors, 6 rows, pin 6) | **0** live overruns (`deriveExemptBlocks` → `diverged 0`, `refusals 0` over 6 blocks) | **2** declarations of the anchor grammar in the tracked tree (1 authority + 1 mirror at `check-banned-claims.test.ts:481`, 3 references) | **0** derived indices outside `[234, 309)`; min 237, max 301; `23 + 52 = 75` checked by hand |
+| **remedy, named** | Count anchors inside the region as the denominator and rows-with-anchors as the numerator, so both directions have an owner **in this gate**; and correct the comment | Read `block.overruns` and give it its own refusal wording naming the short document | Consume the exported `CLAIM_ANCHOR_RE` in the harness, as `check-claim-anchors.ts:64-73` argues for the shipped side | Project `exemptLineSet` through the region before publishing it, and report the projection in both clauses |
+| **why not here** | `D-58` — none of the fence's four in-scope items, and not in `LANG-04`'s text | same | same | same |
+| **owner that inherits it** | a follow-up phase or backlog item, per `D-58` — recommended in §8.4 | same | same | same |
+
 ---
 
-*§1 was written by `29-56`, §4 by `29-57` and §5 by `29-59` (`D-57`). The line above previously
-assigned §5 to `29-60`; the build-parity repair is what §5 records, so it is written by the plan that
-made it. The remaining sections are written by the remaining plans of this round: the profile and
-registry evidence by `29-58` (`D-55`), and §2, §3, §6, §7 and §8 by `29-60` (`D-58`).*
+**`V-29-60-05` — the narrowed claim holds at the gate's header and NOT at its second PASS line.**
+
+- **OPENED THIS ROUND** by plan `29-60`'s own closing sweep. **Direction: the published claim is WIDER
+  THAN THE MECHANISM — the exact class `D-55` exists to remove, surviving at one address inside the gate
+  `D-55` narrowed.**
+- **Statement.** `D-55` moved `guard_banned_claims`'s published sentence to the predicate it decides, and
+  §1 of this register dispositioned the addresses that state the prohibition's scope. The gate's header
+  now reads *"no single physical line of the 117 derived document(s) … carries any of the 22 pinned claim
+  literal(s) …"* — a per-LINE sentence over a per-LINE mechanism. **The gate's second PASS line
+  (`scripts/check-banned-claims.ts:2607`) was not among the addresses §1 named**, and it still opens
+  *"117 document(s) carry zero banned claim literal outside the one named exemption region"* — a
+  per-DOCUMENT quantifier the per-LINE matcher does not decide.
+- **REPRODUCED, NOT ARGUED.** On a fresh `git archive HEAD` mirror with the gate binary's sha256 shown
+  equal to the repository's, the round-7 bypass paragraph was appended to
+  `agent-factory/workflows/13-incident.md`. Full transcript at §9.3.3. In one run, on one tree:
+  - the **header** is TRUE — no single physical line of that document carries a pinned literal;
+  - the **second PASS line** is FALSE — the document demonstrably carries three separately pinned
+    members of the `token-economy` group, and the line says 117 documents carry zero.
+- **LIVE COUNT: 1 address** (`scripts/check-banned-claims.ts:2607`, and its committed twin), **1
+  demonstrated falsifying tree**. `grep -ac 'carry zero banned claim literal' scripts/check-banned-claims.ts`
+  → **1**.
+- **WHY THE ROOT CAUSE IS WORTH MORE THAN THE FIX.** §1 derived its site set over FILES — 13 of them,
+  from a 780-file denominator, by command. **Inside each file the addresses were then enumerated by
+  hand**, and `:2607` is what a hand enumeration misses. That is this repository's second diagnosed
+  systemic failure class (set-literal drift) reappearing one level *inside* the remedy for the first
+  one, which is the same shape `IN-01` had in round 6 and `WR-03` has in round 7. **A derivation that is
+  derived at the file level and hand-written at the address level is a hand-written set wearing a
+  derivation's name.**
+- **REMEDY, named.** Rewrite `:2607`'s leading clause to the unit the mechanism decides — the header's
+  own sentence is the specification — and derive the claim-site enumeration at the ADDRESS level, e.g. by
+  asking the gate's own output rather than the source: every line the gate PRINTS is a published claim
+  site, and there are few enough of them to enumerate mechanically.
+- **NOT FIXED HERE, and the reason is a decision rather than a shrug.** `D-58` fences round 8 and states
+  that a finding after this round becomes a backlog item or a follow-up phase, never a round 9. This plan
+  writes records and moves no source file; a one-line edit to a shipped gate's published output at the
+  close of a round, with its committed twin, its two permanent PASS-line cases and its extent pins, is a
+  source change under a fence that this plan's own contract forbids. **Recommended as the FIRST item of
+  the follow-up named in §8.4**, ahead of the four fence items above, because it is the only one of the
+  six that is inside `LANG-04`'s own subject.
+- **WHAT THIS DOES NOT CLAIM.** It does **not** claim `D-55` failed. The narrowing is real, it is
+  demonstrated true at the header on a tree that carries the bypass, and it moved the module docblock,
+  the profile's prose and the registry row with it. It claims the narrowing reached three of four
+  addresses and that the fourth is named rather than left for round 9 to find.
+
+---
+
+**`V-29-60-06` — three gates run in continuous integration only as a side effect of their own test files.**
+
+- **OPENED THIS ROUND** by plan `29-60`, from deriving §9's sweep command list rather than typing one.
+  **Direction: FAIL-OPEN under one edit** — a `--exclude` pattern on the vitest step un-gates all three
+  at once, silently.
+- **Statement.** `.github/workflows/ci.yml` invokes **19 distinct commands, 18 of them once `npm ci` is
+  set aside** (§9.1). Three gates that exist, ship and pass are in none of them:
+  `scripts/check-uat-oracles.js`, and the two package scripts
+  `freshness:queue` (`scripts/now-running-freshness.js`) and `freshness:traceability`
+  (`scripts/trace-freshness.js`). Each runs in CI **only** because its own `.test.ts` spawns the
+  committed `.js` inside the vitest step.
+- **This is the workflow's own named defect, surviving three files past its own fix.** `ci.yml:154-158`
+  states it in the first person about `check-kit-refs` and `check-public-docs-vocabulary`: *"A gate that
+  runs only because some other step happens to run it is not wired; it is borrowed."* Those two were
+  wired by hand, in plan 27-23. **The set of gates needing that treatment was never derived**, so three
+  were left — which is the set-literal drift class again, at the wiring layer.
+- **LIVE COUNT: 3 gates borrowed, of 17 that exist — and the denominator is derived, not counted by
+  eye.** `ls scripts/check-*.js` → **10**; the freshness scripts → **7**; total **17**. Continuous
+  integration names **14** of them (9 of the 10 `check-*`, and 5 of the 7 freshness gates).
+  **14 + 3 = 17.** The three: `grep -ac 'check-uat-oracles' .github/workflows/ci.yml` → **0** and the
+  same in `package.json` → **0**;
+  `grep -ac 'freshness:queue\|freshness:traceability' .github/workflows/ci.yml` → **0**.
+  Each gate's `.test.ts` spawns its committed `.js` (`scripts/check-uat-oracles.test.ts:10`,
+  `now-running-freshness.test.ts:38`, `trace-freshness.test.ts:31`).
+- **AND THE TWO FRESHNESS GATES ARE WORSE THAN BORROWED, WHICH IS THE PART A COUNT HIDES.** Their tests
+  spawn the gate against `mkdtemp` fixture roots. **Nothing in continuous integration runs either gate
+  against this repository's own tree at all.** Round 7's sweep ran them by hand and correctly recorded
+  both as *vacuous passes* — no `.grugops/context/` tree exists yet — so the standing state is: a gate
+  whose subject does not exist, exercised only against fixtures, invoked by no pipeline step.
+- **REMEDY, named.** Wire all three into the ubuntu gate block beside the other eleven, and **derive the
+  wired set** rather than extending the list again: enumerate `scripts/check-*.js` plus the freshness
+  scripts, assert every member is named by a workflow step, and pin the count two-sided. A hand-added
+  three would leave the fourth for the next reader.
+- **NOT FIXED HERE.** `D-58`'s fence, and this plan changes no workflow file. **Recommended in §8.4.**
+
+---
+
+## 6. The `V-` roll-up, in BOTH directions — every marker in the tree, reconciled against round 7
+
+Written by plan `29-60` under `D-58`. A roll-up that lists only what survived cannot be reconciled
+against the previous round's list, so **every `V-` marker present in this tree** appears below with its
+status after round 8 — closures, subsumptions, narrowings and untouched items included.
+
+### 6.1 The set was DERIVED with round 7's own command, and BOTH counts were re-taken
+
+Round 7 published **35**. That number is not carried: it is re-derived here **at round 7's own final
+tree**, so that a disagreement between the two rounds would be attributable to the tree rather than to
+the command.
+
+```
+$ grep -rhoaE 'V-29-[0-9]{2}-[0-9]{2}' --include='*.md' --include='*.ts' --include='*.js' \
+       --include='*.json' --include='*.yml' . | sort -u | wc -l
+
+  on a fresh `git archive d460a87` extract (round 7's final tree)   35
+  on this tree (HEAD = 0b6e1f6)                                     40
+```
+
+**Round 7's published 35 is CONFIRMED, at its own tree, by its own command.** The entrants and the
+departures are then a `diff` of the two sorted sets rather than a subtraction:
+
+```
+$ diff <(round-7 set) <(round-8 set)
+> V-29-55-01
+> V-29-57-01
+> V-29-58-01
+> V-29-59-01
+> V-29-59-02
+
+entrants: 5     departures: 0
+```
+
+**The three-way arithmetic, as an equality with both sides shown:**
+
+```
+40 markers in this tree  ==  35 confirmed present at round 7's final tree  +  5 entrants  -  0 departures
+
+LEFT  = 40
+RIGHT = 35 + 5 - 0 = 40   ✓
+```
+
+**Every entrant is named individually, with what it is and where it lives**, because "five new" is a
+subtraction wearing a sentence:
+
+| entrant | what it is | tracked files carrying it | opened by |
+|---|---|---|---|
+| `V-29-55-01` | **NOT A RESIDUAL — an id that was never opened.** `29-REVIEW.md`'s CR-02 fix proposes *"open `V-29-55-01` in `docs/audit/29-round7-residuals.md` §4"*. Round 8 opened the axis as `V-29-57-01` instead, in this file, because round 7's register is history and is never rewritten. The citation is carried here so a later reader does not mistake it for a live residual — **the same treatment `V-29-42-05` received in round 7** | **1** (`29-REVIEW.md` only) | nobody — a proposal |
+| `V-29-57-01` | the hard-wrap axis, §4 | **14** | plan `29-57`, `D-56` |
+| `V-29-58-01` | the enumeration axis, given an id for the first time in the phase, §2.4 | **7** | plan `29-58`, `D-55` |
+| `V-29-59-01` | the uncommitted-working-`.js` window the build-parity repair moved, §5.1 | **4** | plan `29-59`, `D-57` |
+| `V-29-59-02` | the working-tree parity assertion's missing Windows leg, §5.2 | **3** | plan `29-59`, `D-57` |
+
+**Departures: 0, and that is a property of this trail rather than an accident.** A marker leaves this set
+only if every citation of it leaves the tree, and prior rounds' registers are never rewritten — so a
+closed residual keeps its id and changes its status, which is why §6.2 lists closures rather than
+omitting them.
+
+### 6.2 Every marker in the tree, with its status after round 8
+
+**Live counts in this table were re-measured on the final tree by the command in the cell.** Where a
+marker's subject was not touched by round 8, the re-measurement recorded is the one that establishes
+exactly that: `git diff --numstat e848052..HEAD -- <subject>` reporting no change. *"Untouched"* is a
+measurement here, not an assumption.
+
+#### 6.2a The 19 markers round 7 listed at its §4.7a — status after round 8
+
+| id | residual | status after round 8 | live count, re-measured | command |
+|---|---|---|---|---|
+| `V-29-26-01` | setext headings invisible to the section-extent authority | **carried, unchanged** — fail-open | 0 | `scripts/frontmatter.ts` byte-unchanged this round |
+| `V-29-26-02` | non-recursive directory reads narrow the derived scans | **carried, unchanged** | live, unquantified — no command exists, and none was invented | subject untouched |
+| `V-29-26-03` | `FENCE_DELIMITER_LINE` is a prefix test, not an equality | **carried, unchanged** — fail-open | 0 | `scripts/frontmatter.ts` byte-unchanged this round |
+| `V-29-26-04` | indented fence delimiters classified as governed prose | **carried, unchanged** | **4** | `grep -a -c -E '^[[:space:]]+```' README.md` → 4; `README.md` byte-unchanged this round |
+| `V-29-29-01` | the duplicated `sectionBody` — a third section-extent grammar | **closed in round 4** (plan 29-35) | — | — |
+| `V-29-32-01` | a closed-fence, count-preserving swallow of the exemption region | **carried as SUBSUMED by `D-54`**, unchanged by round 8; its narrowed remainder survives | 0 live | `check-banned-claims.js` exit 0, `0 findings over 117/117` |
+| `V-29-35-01` | a private `parseFrontmatter` beside the exported authority | **closed in round 5** (plan 29-40) | 0 | `scripts/generate-catalog.ts` byte-unchanged this round |
+| `V-29-42-01` | a claim split across a hard wrap escapes the co-occurrence window | **closed by construction in round 6 — and its READING is superseded by `V-29-57-01`** (§4.6). The row itself is accurate and is not corrected | 0, no subject | §4.6 |
+| `V-29-42-02` | a markdown table row puts two cells on one physical line | **closed by construction in round 6** | 0 | — |
+| `V-29-42-03` | the exempt document's description of this gate is behind the source's | **closed in round 6**; in-source record deleted in round 7 | 0 | `grep -a -c 'V-29-42-03' scripts/check-banned-claims.ts` → 0 |
+| `V-29-42-04` | a marker inside an HTML comment or link target satisfies co-occurrence | **closed by construction in round 6** | 0 | — |
+| `V-29-42-05` | an id that was never opened; a citation only | **not a residual**, unchanged | n/a | — |
+| `V-29-44-01` | the widened bare terms are a false-red surface over ordinary English | **carried, unchanged** — fail-CLOSED. The matcher is byte-identical across round 8 | **0** live over the corpus | `0 findings over 117/117 elements`; `lineHits` sha256 identical at `e848052` and HEAD |
+| `V-29-47-01` | the in-source record of `V-29-42-03`, false on six counts | **closed by deletion in round 7** | 0 | `grep -a -c 'pinned pair' scripts/check-banned-claims.ts` → 0 |
+| `V-29-47-02` | the region unbounded at the bottom | **carried as SUBSUMED**, remainder intact; **the region's EXTENT moved 66 → 75 this round** and the pin moved with it, twice, each value read off the gate's own refusal | 0 live; extent **75**, pinned at 75 | gate PASS line |
+| `V-29-47-03` | the region's position pinned by nothing | **carried as SUBSUMED**, remainder intact | 0 live | gate PASS line |
+| `V-29-47-04` | the surviving enumeration: a claim in words the list does not contain PASSES | **CARRIED, and it now has an id of its own — `V-29-58-01`, opened by plan `29-58` (§2.4) after asserting and falsifying the premise that round 7 had given it one.** The axis is unchanged; what changed is that it can be rolled up | **22** pinned literals, **0** live occurrences in the corpus; reach **not a finite set**, so no reach figure is published | `BANNED_CLAIM_LITERALS.length` = 22 via the PASS line; §2.4 |
+| `V-29-47-05` | `LANG-04` marked Complete against a verifier's explicit verdict | **closed in round 7; re-measured here rather than carried** | **0** — `LANG-04` reads `[ ]` at `:82` and `Gaps Found` at `:183`; `LANG-07` reads `[x]` at `:85` and `Complete` at `:186` | `grep -na 'LANG-0' .planning/REQUIREMENTS.md` |
+| `V-29-47-06` | the CI workflow describes both widened gates at their pre-widening scope | **closed in round 7** | 0 | — |
+
+#### 6.2b The nine markers round 7 named as never rolled up — still not adopted, and now named twice
+
+`V-29-29-02`, `V-29-29-03`, `V-29-29-04`, `V-29-29-05`, `V-29-30-01`, `V-29-30-02`, `V-29-30-03`,
+`V-29-30-04`, and `V-29-42-05` (a citation, listed at §6.2a).
+
+**Round 8 does not adopt, close or re-measure them either.** Round 7 named them and recorded that
+adopting them would be a plan widening its own scope on the strength of its own finding; `D-58` puts them
+outside this round's fence for the same reason plus one more — this is the final round, so adopting eight
+residuals here would be opening work with nobody left to do it. **Their status is therefore unchanged and
+their count is 8 residuals plus 1 citation, exactly as round 7 recorded, re-derived here from the same
+`grep`.** They are carried into §8.4's recommendation with the other inherited items, so the next reader
+meets them in a list of work rather than in a footnote.
+
+#### 6.2c The eight markers round 7 opened — status after round 8
+
+| id | status after round 8 | live count, re-measured | note |
+|---|---|---|---|
+| `V-29-49-01` | **carried, unchanged** | 2 filesystem reads per run, source-shape-pinned; behavioural witnesses **0** | **and it is NOT in `.planning/WINDOWS.md`** — see §6.3 |
+| `V-29-50-01` | **carried, class OPEN** | 0 instances; class unbounded | — |
+| `V-29-50-02` | **carried, unchanged** | EISDIR arm witnessed by an ordinary directory, not a submodule | `scripts/check-nul-bytes.ts` byte-unchanged this round |
+| `V-29-51-01` | **carried — worked around, not fixed** | classifier unchanged | `scripts/audit-model.ts` byte-unchanged this round |
+| `V-29-51-02` | **CARRIED, AND IT MOVED — 19 → 20 of 45**, and a round-8 plan moved it | **20 of 45** disagreeing `line:` fields | §6.3 — the numerator, the denominator AND the membership are all published |
+| `V-29-53-01` | **carried** | declared remainder, unchanged | — |
+| `V-29-53-02` | **carried** | **1** budget object per module; effective bound still 2 × | `grep -a -c '{ examined: 0 }' scripts/check-banned-claims.ts` → 1 |
+| `V-29-53-03` | **carried** | declared remainder, unchanged | — |
+
+#### 6.2d Markers opened by round 8 — eight
+
+`V-29-57-01` (§4), `V-29-58-01` (§2.4), `V-29-59-01` and `V-29-59-02` (§5.1, §5.2), and
+`V-29-60-01`, `V-29-60-02`, `V-29-60-03`, `V-29-60-04`, `V-29-60-05`, `V-29-60-06` (§5.4).
+
+**That is ten ids and the heading says eight, and the difference is the point.** `V-29-57-01`,
+`V-29-58-01`, `V-29-59-01` and `V-29-59-02` are in the derived marker set of §6.1 because they were
+committed before this plan ran. **The six `V-29-60-*` ids are opened by this plan and are therefore NOT
+in the 40** — they enter the tree in the same commit as this sentence. Stated rather than left to the
+next round to discover:
+
+```
+markers in the tree BEFORE this plan's commit : 40
+opened by this plan                           :  6   (V-29-60-01 .. V-29-60-06)
+markers in the tree AFTER this plan's commit  : 46   (predicted; re-derived and confirmed at §9.5)
+```
+
+A roll-up that counted its own additions inside its own derivation would be measuring itself. The
+prediction is written down here and the derivation is re-run in the sweep, so the two can disagree.
+
+#### 6.2e Residuals carried from SUMMARYs, not `V-`-numbered
+
+| id | residual | status after round 8 | live count, re-measured |
+|---|---|---|---|
+| 29-44 **R1** | 30 disposition rows can never match, because their `file` cell is a code span | **carried, open** — fail-CLOSED | **30** code-span `file` cells over **1534** rows read under `## Dispositions` across `docs/audit/29-style-dispositions/`, all in `29-12.md` — re-derived, identical to round 7 |
+| 29-43 **R2** | `CHANGELOG.md:67` still reads a retired token-cost phrase outside `BANNED_CLAIM_LITERALS` | **carried, unmoved** — fail-open. **This is `V-29-58-01` with a live instance**, and it is the one place in this tree where the enumeration axis is occupied rather than merely reachable | **1**, at `CHANGELOG.md:67`; the file is byte-unchanged this round |
+| 29-45 **R4** | unmeasured assertions about an external tool's behaviour | **carried** — numbered `V-29-50-01` | 0 instances; class unbounded |
+| 29-46 **R1** | the acceptance grep `0*15` is a substring pattern, not a cardinality predicate | **carried** — fail-CLOSED | **0** |
+| 29-46 **R2** | nothing reds if two workflows declare the same `order` | **closed in round 7** | **19** workflow files, re-derived: `git ls-files 'agent-factory/workflows/*.md'` → 19 |
+| 29-53 R1–R3 | see `V-29-53-01`/`-02`/`-03` | numbered and carried | §6.2c |
+
+### 6.3 The net movement, stated plainly rather than as progress
+
+**Closed this round: 0.** No `V-` marker moved from open to closed. Round 8 was not a closing round: it
+narrowed a published claim, disclosed an axis, repaired a gate and wrote this record.
+
+**Opened this round: 10** — four in the round's code plans (`V-29-57-01`, `V-29-58-01`, `V-29-59-01`,
+`V-29-59-02`) and six in this one (`V-29-60-01` .. `-06`).
+
+**Net on the `V-` register: +10, the largest of any round in this phase.** Three readings, and the second
+and third are the ones that matter:
+
+- **`V-29-58-01` is not a new residual and counting it as one over-states the movement.** It names an
+  axis this repository has disclosed since plan `29-02`, in the gate's source, in the profile's prose and
+  in round 5's close, which never carried an id. Plan `29-58` was handed the premise that round 7 had
+  given it one, **asserted the premise, and found it false** (§2.4). The axis did not grow; the register
+  finally caught up with it.
+- **Of the ten, ZERO are fail-open on a verdict path.** `V-29-58-01` and `V-29-57-01` are fail-open and
+  both are matcher-completeness axes at **0 live** occurrences. `V-29-59-01` is fail-open only inside an
+  uncommitted local window that cannot exist on a runner. `V-29-59-02` is a platform scope. `V-29-60-01`
+  through `-04` are fail-closed or not verdict paths. `V-29-60-05` is a **claim**, not a matcher — the
+  gate's verdict is correct and its published sentence is wider than the verdict. `V-29-60-06` is
+  fail-open under an edit nobody has made. **A round that opens ten residuals and none of them changes a
+  verdict has spent its looking on accuracy, which is a different thing from having found nothing.**
+- **Six of the ten were found by DERIVING a set that a plan or a review supplied as a list.** §1's
+  13-file claim-site derivation over a 780-file denominator (2 findings), §4.2a's reach derivation
+  (1 correction), §2.4's premise assertion (1 finding), and §9.1's command-list derivation plus §3's
+  address-level reading (2 findings). **That ratio is the round's actual result** — not the ten, and not
+  the zero closures.
+
+**One carried marker MOVED without any plan intending it, and it is published rather than absorbed.**
+`V-29-51-02` — the registry's advisory `line` fields — was **19 of 45** at round 7 and is **20 of 45**
+here. The harness's own premise was asserted first, because a re-derivation that disagrees with a
+published number is worthless until it can reproduce that number:
+
+```
+predicate (reconstructed from round 7's own detail: START disagreement OR LENGTH disagreement)
+
+  on a fresh extract of round 7's final tree   : 18 START + 2 LENGTH -> 19 of 45   <- round 7 published 19
+  on this tree (HEAD)                          : 19 START + 2 LENGTH -> 20 of 45
+
+  membership diff: C-28-042 LEFT the set;  C-28-045 and C-28-046 ENTERED it
+```
+
+**Round 7's 19 is reproduced exactly before the new value is believed.** The cause is identified and it
+is inside this round: plan `29-58` inserted twelve lines into the exemption region, moved `C-28-042`'s own
+`line:` field correctly with its block, and left the two rows *below* it — `C-28-045` and `C-28-046` —
+declaring positions eight lines above where their anchors now sit. **The field is advisory and no gate
+consults it, so nothing failed; it is recorded because a number that stays still while its membership
+turns over is a number a later reader would mis-read as untouched.**
+
+**A second discrepancy with round 7, on a different subject.** Round 7's §4.7c states that its eight
+opened ids are *"each in `.planning/WINDOWS.md`"*. Re-measured: `V-29-49-01` is **not** there
+(`grep -ac 'V-29-49-01' .planning/WINDOWS.md` → 0), and neither are round 8's `V-29-59-01` or
+`V-29-59-02`. The ledger carries **23** of the 40 markers in the tree. Recorded, not corrected —
+appending to the ledger from inside the register that measures it destroys the measurement, and `D-58`
+fences this plan to one file. **Recommended in §8.4.**
+
+### 6.4 The carried-count assertion
+
+**Statuses in this register re-measured on the final tree: every one. Statuses carried from a plan
+SUMMARY without re-measurement: 0.**
+
+That is asserted by construction rather than by claim. §9.4 compares **every** number this round
+published — in a plan SUMMARY or in this file — against a measurement taken in §9, and where the two
+disagree the published value is the **re-taken** one, with both printed. The two comparisons whose
+subject is a historical tree (round 7's marker count, and round 7's `line:`-drift ratio) were re-measured
+**at that tree**, on a fresh `git archive d460a87` extract, not accepted from the document that wrote
+them — which is what turned the second one from an agreement into a reproduction of a predicate.
+
+### 6.5 The false results this round's own harnesses produced — four, and three are this plan's
+
+Every round of this phase has produced at least one. **"None" and "nobody looked" are the same sentence
+unless the count of premises asserted is given**, so both numbers are here.
+
+**Premises asserted before use in this plan: 5.** (1) that plans `29-56`..`29-59` are committed with
+their SUMMARYs present, before any disposition was written; (2) that round 7's published marker count is
+reproducible by its own command at its own tree, before the entrant/departure diff was believed; (3) that
+round 7's `line:`-drift predicate is reconstructable, before the 20 was published; (4) that each mirror's
+gate binary hashes equal to the repository's, before any reproduction verdict was read; (5) that each
+clean mirror is green, before any planted mirror's red or green was read.
+
+| # | the false result | how it was caught | recorded where |
+|---|---|---|---|
+| 1 | **`29-58`'s handed premise** — *"the enumeration axis carries the id round 7 gave it"*. Round 7 gave it none, and neither did rounds 4, 5 or 6. | The premise was asserted before use, by deriving every `V-` id's context window across every register | §2.4, by plan `29-58` |
+| 2 | **This plan's first attempt at the matcher-unchanged assertion.** `grep -c 'literal:' scripts/check-banned-claims.ts` moved **23 → 24** across the round, which reads as a literal added to `BANNED_CLAIM_LITERALS`. **It is a prose comment line containing the word `literal:`.** The list itself is byte-identical: 22 members, unchanged. | The count was not believed; the two lists were `diff`ed member by member instead | here |
+| 3 | **This plan's first attempt at the wrap-joined-assembly assertion.** An alternation grep returned **1** hit in each twin, which reads as the declined remedy having been built. The hit is `wrap-joined`, the **prose** naming the remedy at `:89`; the identifier `wrapJoined` is **0** in both. | Re-run per pattern instead of as an alternation, then confirmed by `diff`ing the two files' function sets (0 added, 0 removed) | here, and §3.2 `G1-a` |
+| 4 | **This plan's first draft of §3.3's second equality**, which put `G1-b` in two buckets and needed a clause to reconcile itself. | The buckets were re-derived from the eight rows rather than from the narrative | §3.3 |
+
+**Findings 2 and 3 are the same defect and it is worth naming: a grep whose PATTERN is broader than the
+thing it is asserting about.** Both would have published a false "the matcher is unchanged" or a false
+"the remedy was built" with a command printed beside them, which is the shape this register treats as
+evidence. **The correction in both cases was to derive the ELEMENT SET and compare it, rather than to
+compare a count over a pattern** — the same lesson §1 records about site lists and §3.4 records about
+addresses, arriving for the third time in one round through a different door.
+
+---
+
+*§1 was written by `29-56`, §4 by `29-57` and §5.1–§5.3 by `29-59` (`D-57`); §2 by `29-58` (`D-55`); and
+§3, §5.4, §6, §7, §8 and §9 by `29-60` (`D-58`). An earlier version of this line assigned §5 to `29-60`
+and §2 to `29-60`; both were corrected by the plan that turned out to own them, and the correction is
+left visible rather than made silently.*
