@@ -2746,8 +2746,8 @@ describe("check-banned-claims — CHANGELOG.md is INSIDE the scan set (round 6, 
 
 // ── WR-02: no tracked markdown sits outside the gate without a written decision ────────────────
 
-describe("check-banned-claims — every tracked markdown path is scanned or excluded BY NAME", () => {
-  it("the remainder of tracked markdown minus the scan is covered by an excluded prefix", () => {
+describe("check-banned-claims — every tracked text path is scanned or excluded BY NAME", () => {
+  it("the remainder of the tracked TEXT SURFACE minus the scan is covered by an entry of the list", () => {
     // WHAT THIS CASE REPLACES, AND WHY A PARAGRAPH WAS NOT ENOUGH.
     //
     // BANNED_CLAIM_EXCLUDED_LOCATIONS's block header has always said an exclusion must "read as a
@@ -2757,9 +2757,21 @@ describe("check-banned-claims — every tracked markdown path is scanned or excl
     // found only by deriving the remainder. This case derives it every run, so the sixth class reds
     // on the day it lands.
     //
-    // TRACKED markdown, not a filesystem walk: the question is what this repository SHIPS AND
-    // VERSIONS. A scratch file in someone's working tree is not a class anyone must disposition.
-    const tracked = execFileSync("git", ["ls-files", "*.md"], {
+    // ── AND THE DENOMINATOR WAS ITSELF THE NEXT FINDING (round 7, CR-02) ────────────────────
+    //
+    // Round 6 dispositioned every unscanned class BY NAME against a denominator of `*.md`. So every
+    // class it COULD surface was a markdown class, and the markdown boundary was never a decision
+    // anybody made — it was the shape of this line. The two shipped JSON manifests that carry the
+    // kit's public-facing description sat outside the scan AND outside the exclusion list AND
+    // outside this case, all at once, and no amount of naming markdown classes could ever have
+    // reached them. A DENOMINATOR DECIDES WHAT CAN BE FOUND MISSING.
+    //
+    // The denominator is now the tracked TEXT SURFACE — markdown and JSON together — so the next
+    // non-markdown claim surface reds on the day it lands rather than four rounds later.
+    //
+    // TRACKED, not a filesystem walk: the question is what this repository SHIPS AND VERSIONS. A
+    // scratch file in someone's working tree is not a class anyone must disposition.
+    const tracked = execFileSync("git", ["ls-files", "*.md", "*.json"], {
       encoding: "utf8",
       cwd: ROOT,
     })
@@ -2787,6 +2799,66 @@ describe("check-banned-claims — every tracked markdown path is scanned or excl
     expect(uncovered).toEqual([]);
   });
 
+  it("THE MISSING DIRECTION: every scan member is a TRACKED path, and an intruder is NAMED", () => {
+    // WHAT THIS ANSWERS THAT THE OTHER CANNOT. The case above says NOTHING THIS REPOSITORY VERSIONS
+    // IS UNACCOUNTED FOR. It says nothing at all about the opposite: a member the repository does
+    // NOT version, entering the scan unnoticed. That is the direction WR-01's nested plant walked
+    // through — an untracked worktree checkout contributed two members and this file's guards were
+    // silent, because one asserted a prefix relationship that is TRUE for a nested path and the
+    // other only ever subtracted the scan FROM the tracked set.
+    const tracked = execFileSync("git", ["ls-files", "*.md", "*.json"], {
+      encoding: "utf8",
+      cwd: ROOT,
+    })
+      .trim()
+      .split("\n")
+      .filter((p) => p.length > 0);
+    // THE FLOOR COMES FIRST. A `git ls-files` that returned nothing would satisfy BOTH directions
+    // vacuously — the remainder would be everything and this difference would be everything, and
+    // an empty tracked set makes each of those the wrong shape of true.
+    expect(tracked.length).toBeGreaterThan(BANNED_CLAIM_SCAN_COUNT);
+    const trackedSet = new Set(tracked);
+    const scan = bannedClaimScan();
+    expect(scan.length).toBe(BANNED_CLAIM_SCAN_COUNT);
+    // Reported as a LIST so a failure names the intruder rather than saying `false`.
+    const intruders = scan.filter((p) => !trackedSet.has(p));
+    expect(intruders).toEqual([]);
+  });
+
+  it("THE EQUALITY, so nothing is dropped in silence: surfaced == admitted + excluded-by-name", () => {
+    // A round that closes a DENOMINATOR finding by widening a denominator must publish the new
+    // denominator's own arithmetic. Every path the widened denominator surfaces is either a scan
+    // member or covered by a named entry — and the two counts are derived separately and summed
+    // against the whole, so a path falling through both would break the equality rather than
+    // disappear from a filter.
+    const tracked = execFileSync("git", ["ls-files", "*.md", "*.json"], {
+      encoding: "utf8",
+      cwd: ROOT,
+    })
+      .trim()
+      .split("\n")
+      .filter((p) => p.length > 0);
+    const scanned = new Set(bannedClaimScan());
+    const admitted = tracked.filter((p) => scanned.has(p));
+    const excludedByName = tracked.filter(
+      (p) => !scanned.has(p) && bannedClaimExcluded(p),
+    );
+    expect(admitted.length + excludedByName.length).toBe(tracked.length);
+    // Both sides non-vacuous, so the equality cannot hold because one of them is everything.
+    expect(admitted.length).toBeGreaterThan(0);
+    expect(excludedByName.length).toBeGreaterThan(0);
+    // AND THE NON-MARKDOWN HALF IS THE POINT: the widened denominator surfaced JSON, and every
+    // JSON path it surfaced is dispositioned — two admitted, the rest excluded by name.
+    const json = tracked.filter((p) => p.endsWith(".json"));
+    expect(json.filter((p) => scanned.has(p)).sort()).toEqual([
+      ".claude-plugin/marketplace.json",
+      ".claude-plugin/plugin.json",
+    ]);
+    expect(
+      json.filter((p) => !scanned.has(p) && !bannedClaimExcluded(p)),
+    ).toEqual([]);
+  });
+
   it("every excluded prefix still covers something, so a stale prefix cannot hide a live class", () => {
     // The other direction. An entry left behind after its directory was admitted or deleted looks
     // like a decision and covers nothing — and the case above would go on passing while the array
@@ -2808,6 +2880,196 @@ describe("check-banned-claims — every tracked markdown path is scanned or excl
       (entry) => !tracked.some((p) => bannedClaimExcludedBy(p, entry)),
     );
     expect(dead).toEqual([]);
+  });
+
+  it("THE DEAD-ENTRY CASE COVERS ALL THREE KINDS: a fiction of each kind reds by name", () => {
+    // An entry that covers nothing looks like a decision and IS fiction. That is true of a segment
+    // class, of a root directory and of an exact path — so the case must ask the RIGHT QUESTION OF
+    // EACH KIND rather than one question of all three. `bannedClaimExcludedBy` is the gate's own
+    // per-entry grammar, so this asks the same question the coverage answer and the walk do.
+    const tracked = execFileSync("git", ["ls-files", "*.md", "*.json"], {
+      encoding: "utf8",
+      cwd: ROOT,
+    })
+      .trim()
+      .split("\n")
+      .filter((p) => p.length > 0);
+    expect(tracked.length).toBeGreaterThan(0);
+    for (const fiction of [
+      "**/no-such-segment/",
+      "no-such-root-dir/",
+      "no/such/exact-path.json",
+    ]) {
+      const covers = tracked.filter((p) => bannedClaimExcludedBy(p, fiction));
+      expect(covers, fiction).toEqual([]);
+    }
+    // AND THE CONTROL, one per kind, so "covers nothing" is not satisfied by a predicate that
+    // covers nothing for everything. Each live entry of each kind covers at least one tracked path.
+    for (const live of [
+      bannedClaimExcludedSegments()[0] !== undefined
+        ? `**/${bannedClaimExcludedSegments()[0]}/`
+        : "",
+      bannedClaimExcludedRootDirs()[0],
+      bannedClaimExcludedExactPaths()[0],
+    ]) {
+      expect(
+        tracked.some((p) => bannedClaimExcludedBy(p, live as string)),
+        live as string,
+      ).toBe(true);
+    }
+  });
+});
+
+// ── CR-02: the kit's SHIPPED JSON MANIFESTS are inside the gate that claims to hold them ──────
+//
+// `.claude-plugin/marketplace.json`'s `description` is the exact string a user meets running
+// `/plugin marketplace add`; `.claude-plugin/plugin.json`'s is shown in the plugin manager. Both
+// ship. Until round 7 no gate in this repository read either, and the round-6 code review and the
+// round-6 verification INDEPENDENTLY planted a claim into the marketplace description and watched
+// all seven gates exit 0 with the planted string never named.
+//
+// The plants below are the VERIFIER'S OWN, byte for byte, not a paraphrase of it.
+const CR02_PLANT =
+  "grugops marketplace — controlled language that improves comprehension for " +
+  "language models and saves tokens.";
+
+/** A manifest carrying `body` as its description, written the way the shipped ones are. */
+function manifestWith(body: string): string {
+  return `${JSON.stringify({ name: "grugops", description: body }, null, 2)}\n`;
+}
+
+describe("check-banned-claims — a banned claim in a SHIPPED manifest reds by name", () => {
+  it("the marketplace description: the verifier's exact plant, named at file:line:column", () => {
+    // THE PREMISE IS ASSERTED BEFORE THE PLANT. A mirror that was already red would make "exit 1"
+    // mean nothing, and this is the case whose entire subject is a gate that used to exit 0.
+    const clean = makeMirror("gops-banned-cr02-premise-");
+    const before = runGate(clean);
+    expect(before.stdout).toContain(
+      `0 findings over ${BANNED_CLAIM_SCAN_COUNT}/${BANNED_CLAIM_SCAN_COUNT} elements`,
+    );
+    expect(before.stdout).toContain("ALL CHECKS PASSED");
+    expect(before.status).toBe(0);
+
+    const doc = manifestWith(CR02_PLANT);
+    const mirror = makeMirror("gops-banned-cr02-market-", {
+      plant: { ".claude-plugin/marketplace.json": doc },
+    });
+    // THE PLANT IS CONFIRMED ON DISK, in the bytes the gate will read.
+    expect(
+      readFileSync(join(mirror, ".claude-plugin/marketplace.json"), "utf8"),
+    ).toContain("improves comprehension");
+
+    const { status, stdout } = runGate(mirror);
+    expect(status).toBe(1);
+    // NAMED AT file:line:column, which is what the raw-byte line scan buys and what a
+    // decoded-value scan could not have reported.
+    expect(stdout).toMatch(
+      /\.claude-plugin\/marketplace\.json:3:\d+ — banned comprehension literal "improves comprehension"/,
+    );
+    expect(stdout).toMatch(
+      /\.claude-plugin\/marketplace\.json:3:\d+ — banned token-economy literal "saves tokens"/,
+    );
+    // Three findings, exactly as the review predicted for any .md of the corpus.
+    expect(findingCount(stdout)).toBe(3);
+    expect(stdout).not.toContain("ALL CHECKS PASSED");
+  });
+
+  it("the plugin manifest's description reds from THIS gate, not from a sibling's presence check", () => {
+    // plugin.json was only ACCIDENTALLY half-covered: a registry row happens to quote its
+    // description, so mutating it tripped check-claim-anchors on PRESENCE — not on content, and
+    // only for that one field. This assertion is scoped to THIS gate's own finding line.
+    const mirror = makeMirror("gops-banned-cr02-plugin-", {
+      plant: { ".claude-plugin/plugin.json": manifestWith(CR02_PLANT) },
+    });
+    expect(
+      readFileSync(join(mirror, ".claude-plugin/plugin.json"), "utf8"),
+    ).toContain("saves tokens");
+    const { status, stdout } = runGate(mirror);
+    expect(status).toBe(1);
+    expect(stdout).toMatch(
+      /\.claude-plugin\/plugin\.json:3:\d+ — banned comprehension literal "improves comprehension"/,
+    );
+    expect(findingCount(stdout)).toBe(3);
+  });
+
+  it("an ESCAPED banned literal is REFUSED BY NAME — the branch the encoding decision did not take", () => {
+    // THE PERMANENT CASE FOR THE ROAD NOT TAKEN. The scan reads raw bytes, so a claim written as a
+    // unicode escape is invisible to it and fully visible to a reader. The canonical-form assertion
+    // is what closes that hole with a REFUSAL rather than leaving it as a silent branch.
+    const escaped =
+      '{\n  "name": "grugops",\n  "description": "grugops \\u0073aves tokens for readers."\n}\n';
+    const mirror = makeMirror("gops-banned-escape-", {
+      plant: { ".claude-plugin/marketplace.json": escaped },
+    });
+    const raw = readFileSync(
+      join(mirror, ".claude-plugin/marketplace.json"),
+      "utf8",
+    );
+    // THE FIXTURE'S OWN PREMISE: the banned literal is NOT byte-present, and IS present once
+    // decoded. Without both halves this case could pass while testing something else entirely.
+    expect(raw).not.toContain("saves tokens");
+    expect(String(JSON.parse(raw).description)).toContain("saves tokens");
+
+    const { status, stdout } = runGate(mirror);
+    expect(status).toBe(1);
+    expect(stdout).toContain("decoded value is NOT byte-present in the file");
+    expect(stdout).toContain("write the string LITERALLY");
+    // And the line scan found NOTHING, which is exactly why the refusal has to exist.
+    expect(findingCount(stdout)).toBe(0);
+  });
+
+  it("an UNPARSEABLE manifest is refused by name AND still scanned", () => {
+    // A parse failure removes the canonical-form GUARANTEE. It must not remove the scan — the line
+    // scan needs no parse, and a manifest somebody broke is the likeliest place for a claim to hide.
+    const broken =
+      '{\n  "description": "grugops improves comprehension for models",\n';
+    const mirror = makeMirror("gops-banned-unparseable-", {
+      plant: { ".claude-plugin/marketplace.json": broken },
+    });
+    const { status, stdout } = runGate(mirror);
+    expect(status).toBe(1);
+    expect(stdout).toContain("does not parse as JSON");
+    expect(stdout).toContain(
+      "The line scan over its raw bytes STILL RAN",
+    );
+    // THE HALF THAT MATTERS: the finding is reported anyway, at file:line:column.
+    expect(stdout).toMatch(
+      /\.claude-plugin\/marketplace\.json:2:\d+ — banned comprehension literal "improves comprehension"/,
+    );
+  });
+
+  it("an ABSENT manifest directory is a named refusal AND reds through the per-part vacuity floor", () => {
+    // The `empty` probe row's answer. Both halves are required: the refusal says WHAT is missing,
+    // and the empty member list is what the floor NOTICES. A literal member list could never reach
+    // the floor, which is why the part is derived against disk despite naming two files today.
+    const mirror = makeMirror("gops-banned-nomanifest-", { pluginManifests: [] });
+    expect(existsSync(join(mirror, ".claude-plugin"))).toBe(false);
+    const { status, stdout } = runGate(mirror);
+    expect(status).toBe(1);
+    expect(stdout).toContain("A missing manifest is not a clean one");
+    expect(stdout).toContain(
+      'the "pluginManifests" part of the banned-claim scan set derived ZERO members',
+    );
+    expect(stdout).toContain(
+      `derived ${BANNED_CLAIM_SCAN_COUNT - 2} document(s), expected exactly ${BANNED_CLAIM_SCAN_COUNT}`,
+    );
+  });
+
+  it("A THIRD MANIFEST ENTERS BY EXISTING, so the pair is derived and not a set literal", () => {
+    // The set-literal-drift prohibition, made behavioural. A hardcoded two-path list would ignore a
+    // third file; the walk moves the count and reds by name.
+    const mirror = makeMirror("gops-banned-thirdmanifest-", {
+      pluginManifests: [
+        ...PLUGIN_MANIFESTS,
+        ".claude-plugin/extra.json",
+      ],
+    });
+    const { status, stdout } = runGate(mirror);
+    expect(status).toBe(1);
+    expect(stdout).toContain(
+      `derived ${BANNED_CLAIM_SCAN_COUNT + 1} document(s), expected exactly ${BANNED_CLAIM_SCAN_COUNT}`,
+    );
+    expect(stdout).toContain("pluginManifests 3");
   });
 });
 
