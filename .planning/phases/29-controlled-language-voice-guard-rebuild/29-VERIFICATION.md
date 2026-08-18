@@ -1,491 +1,222 @@
 ---
 phase: 29-controlled-language-voice-guard-rebuild
-verified: 2026-08-16T14:04:14Z
-status: human_needed
-score: 8/8 must-haves verified
+round: 7
+verified: 2026-08-18T10:15:45Z
+status: gaps_found
+score: 7/8 must-haves verified (LANG-01, LANG-02, LANG-03, LANG-05, LANG-06, LANG-07 independently re-confirmed live; LANG-08 PASSED via standing override; LANG-04 FAILED on a live, independently reproduced fail-open bypass this round did not close)
 behavior_unverified: 0
 overrides_applied: 1
 overrides:
   - must_have: "LANG-08 — byte ceilings re-baselined exactly once at end of phase, every file <= previous, delta recorded, never raised mid-phase"
-    reason: "Deliberate human decision at plan 29-13's blocking checkpoint (hold-rebaseline): re-deriving the margin from today's smaller corpus would convert Phases 13-27's absorbed headroom into permanent new headroom. The prohibition half (never raised) holds absolutely; the delta is recorded; only the re-baseline action itself was deferred, by choice, not by omission. Carried unchanged through rounds 1, 2, 3 and 4 — not new work this round."
+    reason: "Deliberate human decision at plan 29-13's blocking checkpoint (hold-rebaseline), accepted 2026-08-15 and carried unchanged through rounds 1-7. Re-checked this round: `roleCeiling()` untouched since the override; the one role-file edit since the round-4 (8/8) verification (`022a4ea`, incident-responder.md 3481B -> 3485B) is a normal within-ceiling edit, not a rebaseline, and its own commit message records the ceiling function's sha256 as unchanged. `guard_role_size` runs live at HEAD: 16 roles PASS within ceiling, 1 WARN approaching ceiling (security-nfr.md), 0 FAIL."
     accepted_by: "Olger Oeselg"
     accepted_at: "2026-08-15T09:57:04Z"
-re_verification:
-  previous_status: gaps_found
-  previous_score: 6/8
+re_verification: true
+re_verification_scope:
+  round: 7 (gap-closure round, plans 29-48 through 29-55)
+  previous_status: gaps_found (29-VERIFICATION-round6.md, 2026-08-17) -> LANG-04 failed on CR-01 (exemption region bounded only by position, not content) and CR-02 (shipped JSON manifests unscanned); requirements traceability inverted (LANG-04 wrongly Complete, LANG-07 wrongly Gaps Found) -> gap-closure plans 29-48..29-55 executed -> this verification
   gaps_closed:
-    - "LANG-06 — round-4's CR-01 (SEC_VOICE_FILES pinned by CARDINALITY where MEMBERSHIP is meant) is CLOSED, confirmed independently here by running round-4's own successful bypass on both routes. SOURCE route: substituting `agent-factory/workflows/15-security-audit.md` for `agent-factory/checklists/definition-of-ready.md` in `SEC_VOICE_FILES` on a hermetic clone reds two named cases — `the SEC_VOICE roster is pinned two-sided against the guard source` (naming the member that LEFT and the member that ARRIVED as separate lists) and `the SEC_VOICE probe REDS on a SUBSTITUTED member`. COMMITTED-`.js` route: the same substitution applied to `scripts/check-foundation-guards.js` leaves the gate at exit 0 (as round 4 measured) but reds `npm run freshness` at exit 1, naming `scripts/check-foundation-guards.js` as STALE. Both halves reproduced from a clean baseline in this session."
-    - "LANG-07 — round-4's V-29-29-01 / WR-08 (a THIRD section-extent grammar, fence-blind AND level-blind, duplicated verbatim in generate-catalog.ts and generate-role-adapters.ts, feeding the generated Claude Code adapter `description` text) is CLOSED. Both private grammars are DELETED and each generator now composes `unfencedHeadingIndex` + `sectionEndIndex(text, at + 1, 2)`, confirmed by direct read at both sites. The closure is proven MECHANICALLY HELD, not merely done: re-planting the historical `new RegExp` lookahead into generate-catalog.ts reds `floor item 1 is a MEASUREMENT` by file:line (`scripts/generate-catalog.ts:115`), and re-planting a DIFFERENTLY-SPELLED private grammar (a regex-literal `/^#{1,2} /` loop with no `new RegExp` at all — an evasion neither the round-4 review nor any round-4 plan named) reds FOUR separate assertions by module name: the owner set, the sixth-locator member probe, the consumer set, and the evasion case."
-  gaps_remaining: []
+    - "Round-6 CR-01 (the sole exemption region bounded only by position) — CLOSED. D-54's content bind is implemented: a line inside the exemption region is exempt only if it also sits inside a registry-anchored, byte-frozen block. Independently reproduced on a fresh `git archive HEAD` mirror: substituting the honest denial at `writing-profile.md:292` (inside registry-anchored block `C-28-046`) with a live disproven token-economy claim, same line count, now produces 4 named FAIL lines (byte-divergence refusal naming `C-28-046`, both cardinality pins moving from their declared values, and 2 findings at file:line:column) — exit 1, `4 CHECK(S) FAILED`. Round 6's identical plant left the gate at exit 0 with both pins unmoved; this round's fix genuinely reverses that."
+    - "Round-6 CR-02 (shipped JSON manifests unscanned) — CLOSED. `.claude-plugin/marketplace.json` and `.claude-plugin/plugin.json` are now a sixth derived scan part (`pluginManifests 2`, visible in the gate's own PASS line, `BANNED_CLAIM_SCAN_COUNT` moved 115 -> 117). Independently reproduced: planting the round-6 review's exact claim (`\"grugops marketplace — controlled language that improves comprehension for language models and saves tokens.\"`) into `marketplace.json`'s `description` field now produces 3 named findings at `.claude-plugin/marketplace.json:3:*` — exit 1, `3 CHECK(S) FAILED`. Round 6's identical plant exited 0 on this tree's predecessor."
+    - "Requirements traceability inversion (V-29-47-05) — CLOSED. `.planning/REQUIREMENTS.md` at HEAD reads `LANG-04 | Phase 29 | Gaps Found` (`:82`/`:183`) and `LANG-07 | Phase 29 | Complete` (`:85`/`:186`) — matching round 6's verified recommendation. Applied by commits `79c3457` and `c8ae870`, both auditable and correctly scoped (each commit's own diff touches only the rows it claims to)."
+  gaps_remaining:
+    - "LANG-04's overall truth ('guard_banned_claims's own PASS-line claim holds mechanically, with no fail-open route') is STILL FAILED — on a new axis this round's own code review found (CR-02 in `29-REVIEW.md`) and this verification independently reproduced from scratch: a pinned, LISTED multi-word literal (6 of the 7 `token-economy` group members) hard-wrapped across an ordinary markdown line boundary is invisible to the line-oriented matcher. This is distinct from the round's disclosed residual `V-29-47-04` (a claim in words the list does NOT contain) — here the words ARE in the list; what defeats the gate is what the predicate's input is assembled from (one physical line)."
   regressions: []
-gaps: []
+gaps:
+  - truth: "LANG-04 — `guard_banned_claims`'s own PASS-line claim ('the shipped kit and the public documents carry no conformance, token-economy or comprehension claim, outside one named exemption region') holds mechanically, with no fail-open route"
+    status: failed
+    reason: "A live, independently reproduced fail-open bypass exists on the tree at HEAD, on a literal the banned-claim list DOES contain. `lineHits()` (`scripts/check-banned-claims.ts:2018`) matches each pinned literal against one physical line only. 6 of the 7 `token-economy` group's members are multi-word (only the hyphenated `token-economy` is single-token). Appending an ordinary hard-wrapped paragraph to a governed workflow file — 'The caveman blocks are a token / economy: they mean the model reads fewer / tokens on every run, and this profile saves / tokens too.' — reproduces three separately-pinned `token-economy` claims split across four lines. Result on a fresh `git archive HEAD` mirror: exit 0, `PASS banned claims: 0 findings over 117/117 elements`, `ALL CHECKS PASSED`; the planted file is never named and both exemption-region pins (`suppresses 14`, `reaches 66`) are untouched (the plant is outside the exemption region entirely, so this is not even that mechanism's concern). The kit's own house style hard-wraps mid-sentence routinely, so this is not an exotic authoring shape. The in-source residual comment at `scripts/check-banned-claims.ts:60-65` argues the bypass requires wrapping 'mid-token', which a reader would not parse as a claim — the reproduction wraps mid-PHRASE, which markdown soft-joins into a fully legible restatement of the banned claim. The round's own disposition record (`docs/audit/29-round7-residuals.md:561`) files the adjacent, narrower `V-29-42-01` ('a claim split across a hard wrap escapes the co-occurrence window') as 'closed by construction in round 6', live count '0, no subject' — confirmed by direct read — which is accurate about the co-occurrence window D-48/D-53 deleted but does not disclose this wider, still-live axis anywhere as its own `V-` id with a live count and direction, contrary to this round's own stated WR-05/D-49 standard."
+    artifacts:
+      - path: "scripts/check-banned-claims.ts"
+        issue: "`lineHits()` (around line 2018) matches each `BANNED_CLAIM_LITERALS` member against one physical line; no second, wrap-joined assembly exists for the multi-word members. The in-source justification at lines 60-65 asserts the bypass needs a mid-token wrap; the reproduction shows a mid-phrase wrap (the kit's actual house style, measured by the reviewer at 822 instances over 2458 adjacent line pairs in the tracked corpus) defeats the matcher while remaining fully legible prose."
+    missing:
+      - "Give the matcher a second, explicitly named input assembly for the multi-word members only (a wrap-joined projection carrying a per-line index so a finding still reports the originating line), per the code review's suggested fix — without normalizing whitespace globally, which the source is right to refuse for the single-token members."
+      - "Open a new `V-` id in `docs/audit/29-round7-residuals.md` (or its round-8 successor) naming this axis with its live count (22 pinned literals, 16 multi-word/reachable, 6 of 7 `token-economy` members affected, 0 live occurrences, 3 demonstrated plants), its direction (FAIL-OPEN), and correct the false 'mid-token' framing in the in-source comment."
+      - "Re-run this verification's reproduction against the fix and confirm it now reds by name before recommending LANG-04 -> Complete."
+  - truth: "The CI build-parity gate mechanically prevents a stale committed `.js` from shipping on `main` (the guarantee `CLAUDE.md`'s Tech Stack section names as the reason the tooling layer is compiled to committed `.js` at all)"
+    status: failed
+    reason: "Not one of LANG-01..08's literal text, but material to trusting every mechanical-guard claim this phase makes about its shipped artifact, so it is recorded here rather than silently dropped. `tsconfig.json:6-7` sets `outDir`/`rootDir` to `./`, so `npm run build` (`tsc`) rewrites the tracked, committed `.js` files IN PLACE. `scripts/freshness.ts:93-100` reads the 'committed' side from the WORKING TREE (`join(ROOT, rel)`), not from git. `.github/workflows/ci.yml` runs `npm run build` at line 59 and `npm run freshness` at line 87 — after it — with zero `git diff`/`git status`/`git ls-files --modified` calls anywhere in the file (grepped: 0 hits). So CI always compares a fresh build against a fresh build; the gate cannot detect a committed `.js` that was hand-edited or simply never rebuilt before commit. Independently confirmed: sha256 of the working-tree `check-banned-claims.js` matches a fresh `git archive HEAD` extraction (the tree is not currently drifted), and no `git diff`/`status` guard exists in the workflow. This is pre-existing since `539573d` (phase 20), not introduced by round 7 — but round 7's own verification sweep (`docs/audit/29-round7-residuals.md:961-962`) reproduces exactly this build-then-freshness order as its own build-parity evidence, so that evidence, and the identical `<automated>` command in every phase-29 plan, proves nothing about the artifact actually on `main`."
+    artifacts:
+      - path: "tsconfig.json"
+        issue: "`outDir`/`rootDir` both `./` — `npm run build` overwrites tracked `.js` in place rather than building to a separate directory"
+      - path: ".github/workflows/ci.yml"
+        issue: "Build step (line 59) runs before every freshness step (lines 87-101); no `git diff --exit-code` or equivalent dirty-tree assertion exists anywhere in the file"
+      - path: "scripts/freshness.ts"
+        issue: "Reads the 'committed' comparison side from the working tree (`readFileSync(join(ROOT, rel))`), not from `git show HEAD:<path>`, so it cannot distinguish a working tree a prior build step just repaired from one that was never rebuilt"
+    missing:
+      - "Reorder CI to run freshness before build, and add a `git diff --exit-code -- '*.js'` assertion after build, per the code review's suggested fix."
+      - "Make the gate ordering-independent: have `freshness.ts` read the committed side via `git show HEAD:<path>` rather than the working tree."
+      - "This is recommended as a follow-up item (new residual or a small dedicated plan), not as a block on LANG-01..08, since none of the eight requirement's texts name the CI build pipeline."
 deferred: []
 behavior_unverified_items: []
-human_verification:
-  - test: "Decide whether phase 29 may close with V-29-35-01 open, or whether it must be closed first. Read `docs/audit/29-locator-unification.md` §9.3c and `docs/audit/29-round4-residuals.md` §3, then confirm the disposition: `scripts/generate-catalog.ts:51` declares a private `parseFrontmatter` (`/^---\\n([\\s\\S]*?)\\n---\\n/`, key charset `[A-Za-z_]+`) beside the exported authority at `scripts/frontmatter.ts:3862`, while its sibling generator `generate-role-adapters.ts` imports the authority. Two grammars, one class of bytes."
-    expected: "An explicit decision recorded in ROADMAP/REQUIREMENTS: either (a) accept it as a milestone-level residual carried past phase 29, with the reason, or (b) schedule its closure. This verification judges it does NOT falsify success criterion 5 — see the Scope Judgement section below — but the criterion's second clause and the project's D-24 principle read wider than the requirement text, and the round-4 record itself notes the residual set's net movement across round 4 was ZERO (one closed, one opened) and asks the next round to 'read that as the finding it is'. This report is that round."
-    why_human: "A scope decision the user already made for round 4, whose stated horizon was the ROUND and not the PHASE. Verification can measure the divergence (round 4 measured 0 key-set differences over 36 governed documents; re-confirmed present in source here) but cannot decide whether the phase is permitted to close with a known duplicated authority still in the tree."
-  - test: "Decide whether `guard_banned_claims`'s pinned literal set should grow. Measured empirically in this session on a hermetic clone: appending `This kit conforms to ASD-STE100.` to a governed workflow reds by name (`banned standard-name literal \"ASD-STE100\"`), appending `The writing profile reduces token count.` reds by name (`banned token-economy literal \"reduces token count\"`), but appending `The writing profile improves LLM comprehension.` PASSES — the pinned `comprehension` group holds `improves comprehension` / `improve comprehension` / `comprehension benefit` and four longer phrasings, none of which the interposed `LLM` matches."
-    expected: "Either add the phrasing family to `BANNED_CLAIM_LITERALS`'s `comprehension` group with a same-commit count re-pin, or record acceptance of the disclosed bound. Note this is NOT a false claim today: `agent-factory/writing-profile.md`'s honesty floor already states verbatim that 'A brand-new conformance claim written without any of them is not mechanically detectable... it does not prove that no such claim exists', the four refused candidate literals are recorded with their hit counts and reasons, and an independent grep in this session found no such claim anywhere in the kit or public docs."
-    why_human: "Where a decidable-subset guard's enumerated set should stop is an editorial judgement, not a verification result. The phase's own governing principle — guards are NAMED for the decidable subsets they check — makes an incomplete literal list legitimate when disclosed, which it is. The ROADMAP success criterion's wording is nonetheless stronger than the profile's disclosure, and the human owns that gap."
+human_verification: []
 ---
 
-# Phase 29: Controlled Language & Voice Guard Rebuild — Verification Report (round 5)
+# Phase 29: Controlled Language & Voice Guard Rebuild — Verification Report (Round 7)
 
-**Phase Goal:** Procedural and agent-written prose follows one enumerated writing profile so two
-agents reading the same instruction reach the same act; the caveman voice lives in exactly one fenced
-block per role and is measured as voice, not as sentence shape.
+**Phase Goal:** Procedural and agent-written prose follows one enumerated writing profile so two agents reading the same instruction reach the same act; the caveman voice lives in exactly one fenced block per role and is measured as voice, not as sentence shape.
 
-**Verified:** 2026-08-16T14:04:14Z
-**Status:** human_needed (0 gaps — the phase goal IS achieved; 2 scope decisions await the human)
-**Re-verification:** Yes — fifth verification, after gap-closure round 4 (plans 29-33 … 29-39,
-commits `57affa1..10cb212`) executed against round 4's two failed truths (LANG-06, LANG-07) and the
-round-4 code review's 13 findings.
+**This round's scope (per the orchestrator):** Close round 6's two blocking findings on LANG-04 — CR-01 (the sole exemption region bounded only by position) and CR-02 (the kit's shipped JSON manifests unscanned) — via plans 29-48 through 29-55, and confirm plan 29-48's LANG-07 correction was legitimate. LANG-04's overall verdict was explicitly reserved for this verification.
 
----
+**This report's scope:** Full-phase must-have check against all eight LANG-01..08 requirement IDs, per the standard verification brief (every requirement ID must be accounted for against `.planning/REQUIREMENTS.md`), not only round 7's narrow focus.
 
-## Method Note — the premise of every check below, asserted before the check
+**Verified:** 2026-08-18T10:15:45Z
+**Status:** gaps_found
+**Re-verification:** Yes — round 7, following round 6's verdict (`29-VERIFICATION-round6.md`, `gaps_found`, 3/5).
 
-This phase's recorded failure mode is a **verification harness that produces a false result** — seven
-instances across five rounds by the phase's own count, four of them pointing toward the comfortable
-conclusion. No premise is assumed here.
+## Method
 
-1. **No SUMMARY claim, no review claim and no residual-document claim is accepted as evidence.**
-   Every load-bearing statement below was re-derived: by direct source read at the cited construct,
-   by execution against the committed `.js`, or by planted-input reproduction.
-2. **Two independent hermetic environments were used, and their difference mattered.** A
-   `git archive HEAD | tar -x` mirror carries no `.git`, so five git-dependent cases in
-   `check-foundation-guards.test.ts` fail there for reasons unrelated to any mutation — which would
-   have produced a false RED had it been read as a detection. Every mutation experiment below was
-   therefore re-run on a `git clone --local` at `10cb212`, where `git ls-tree`/`git show` resolve.
-   *This is the first harness premise this round falsified, and it was falsified before it was used.*
-3. **Every mutation experiment was baselined first.** A red after a plant is evidence only if the
-   same command was green before it. Every plant below carries its own clean baseline.
-4. **The live repository was never modified.** Final `git status --porcelain` shows only the
-   pre-existing, out-of-scope `human-notes.txt` (M), `.gsd/` (??) and `.planning/phases/29.1-…/` (??).
-5. **Freshness asserted before any `.js` reproduction was believed.** `npm run freshness` on a clean
-   clone: `All build outputs fresh: 48 committed .js file(s) match a fresh tsc rebuild`, exit 0. Only
-   then is a result from the committed `.js` treated as evidence about the `.ts` beside it.
-6. **The regression baseline was independently reproduced, not inherited.** `npx vitest run --exclude
-   '**/scripts/e2e/**'` on the clean clone: **52 files passed, 2029 passed / 2 skipped**, 125 s. The
-   live e2e lane was not run.
+I did not take `29-REVIEW.md`'s (round 7's own code review, `status: issues-found`, 2 critical / 3 warning / 1 info) findings on its word. I re-derived its two critical findings myself, independently:
 
-**A green suite proves nothing here and is not offered as proof.** It is a floor. Four of the last
-four rounds returned `gaps_found` against a green tree. What follows is reproduction, not tallies.
+1. **CR-01 (round 7 review) — the CI build-parity gate cannot fail.** Traced `tsconfig.json` (`outDir`/`rootDir: "./"`), `scripts/freshness.ts` (reads the working tree, not git), and `.github/workflows/ci.yml` (build runs before every freshness step; grepped for `git diff`/`git status` — zero hits) myself, directly. Confirmed the working-tree `check-banned-claims.js` sha256-matches a fresh `git archive HEAD` extraction (no live drift today; the defect is that nothing could detect it if there were).
+2. **CR-02 (round 7 review) — a hard-wrapped banned literal on the list bypasses the matcher.** Built my own fresh `git archive HEAD` mirror (`/tmp/gm7`), appended the reviewer's exact plant to `agent-factory/workflows/13-incident.md`, and reran the gate myself: `PASS banned claims: 0 findings over 117/117 elements`, `ALL CHECKS PASSED`.
 
----
+I also independently re-tested round 6's two blockers against the fix, from scratch, on separate fresh mirrors (`/tmp/gm8`, `/tmp/gm9`) — not by reading the round's own SUMMARYs — and confirmed both now red by name (details below). I read `docs/audit/29-round7-residuals.md` in full (its §7.2 "What round 7 does NOT claim" and its `V-29-42-01`/`V-29-47-04` rows) and cross-checked its framing of the hard-wrap axis against my own reproduction. I re-ran `npx tsc --noEmit` myself (exit 0) and rely on the orchestrator's independently-run full non-e2e suite (52 files, 2127 passed, 2 skipped, 0 failed) and seven-gate sweep rather than re-running the whole suite a second time in this same verification pass (per this workflow's "run the full suite at most once" constraint). I re-ran the live gates most relevant to each requirement myself: `check-imperative-lexicon.js`, `check-foundation-guards.js`, `check-audit-register.js`, `check-banned-claims.js` (three times, on three different trees).
 
-## Goal Achievement
+I also traced why REQUIREMENTS.md currently reads LANG-01, LANG-02, LANG-03, LANG-05, LANG-06, LANG-08 as `Gaps Found`/`Pending` despite a full-phase verification (`29-VERIFICATION.md`, dated 2026-08-16, score 8/8 with 1 accepted override) having independently reproduced each of them as VERIFIED with named adversarial plants. The trail (`git log`) shows a blanket revert (`12c77ef`, round-3 gaps_found 6/8) that predates the 8/8 verification, and every commit since that revert touching `.planning/REQUIREMENTS.md` (`d5360dc`, `79c3457`, `c8ae870`) surgically flips only LANG-04 and LANG-07 — no commit ever re-applied the round-4 verification's clean bill for the other six. This is a bookkeeping gap, not evidence of regression, so I independently re-ran the live gates myself rather than trusting either the stale rows or the old report.
 
-### Observable Truths
+## Goal Achievement — Full-Phase Truths
 
-| # | Truth (LANG-NN) | Status | Evidence — reproduced in this session |
+| # | Requirement | Status | Evidence |
 |---|---|---|---|
-| 1 | **LANG-01** — grugops-authored, ASD-STE100-**derived** writing profile ships with a non-affiliation / not-certified disclaimer and vendors no ASD dictionary text | ✓ VERIFIED | Direct read of `agent-factory/writing-profile.md`: seven sections, `## The rules` enumerated, `## Technical Names and Technical Verbs`, and `## Disclaimer and honesty floor` stating independent authorship, **derived from** rather than *is*, non-affiliation with ASD and STEMG, and **"No part of the ASD-STE100 specification text is reproduced here, in whole or in part, and no part of its controlled dictionary is included, vendored or redistributed."** Live gate re-run: `LANG-01: 76 Technical Name(s) DERIVED from the kit, never listed — roleDisplayNames 17, workflowDisplayNames 19, configKeys 21, noteKinds 6, boardColumns 13` — a derivation, not a maintained list. |
-| 2 | **LANG-02** — the profile governs workflow steps, checklists, memory-bank, shared-context notes, board and traceability, and explicitly NOT the fenced caveman blocks | ✓ VERIFIED | Live gate re-run: `LANG-02: 47 governed document(s) in 4 derived part(s) — workflows 19, checklists 13, seedTemplates 13, contracts 2 … 47 of 47 opened`. **The four parts were expanded to files rather than accepted as labels:** `seedTemplates` = `agent-factory/seed/memory-bank/*` (9, incl. the ADR template) + `agent-factory/seed/plans/{board,traceability,metrics,nfr-catalog}.md` (4); `contracts` = `context-note.md` + `task-notes.template.md`. Every surface the criterion names is present by derivation. `agent-factory/roles/` is excluded **by name with its reason emitted in the pass line** ("governed by guard_voice, guard_caveman_voice and guard_role_clause_uniqueness … A second predicate over the same bytes from a second module is how two gates come to disagree about one corpus"). |
-| 3 | **LANG-03** — a named safety-surface exclusion list is honoured so load-bearing security/compliance/admission text is never reworded by a style pass | ✓ VERIFIED — no regression under round 4's edits | Round 3's own successful bypass was re-run on a clean clone as a **regression probe**, because round 4 rewrote `audit-model.ts` heavily. Flipping `C-28-001`'s `kind: safety` → `kind: architecture` in `docs/audit/28-claim-registry.md` now reds **three independent ways**: `check-audit-register.js` exit 1 with *equality four (safety arm roster)* naming `[C-28-001 -> README.md]` as declared-but-absent, *equality four (kind cardinality)* naming `architecture 28→29, safety 6→5`, and `docs/audit/28-safety-surface-exclusions.md is STALE`; plus `check-diff-disposition.js` exit 1 — *"the registry arm's contribution to the watched corpus is 2 markdown file(s), expected exactly 3"*. Baseline before the plant: both gates exit 0. |
-| 4 | **LANG-04** — guards NAMED for exactly the decidable subsets they check; `guard_banned_claims` holds the conformance prohibition mechanically | ✓ VERIFIED — with a disclosed literal-set bound (see human item 2) | Live gate output carries the two names verbatim with their own denominators: `[guard_imperative_lexicon] every '## Steps' bullet begins with a verb from the closed approved set, in bare imperative form, at position zero` → `0 findings over 19/19 elements`; `[guard_sentence_form] sentence length by section anchor — 20 words procedural, 25 descriptive — plus four banned constructions over closed token sets` → `0 findings over 47/47 elements`. `guard_banned_claims`: `82 document(s) … 20 pinned literal(s) across 3 group(s) … 1 exemption region … which suppresses 10 banned-claim occurrence(s), pinned at 10, and reaches 62 line(s), pinned at 62 … 4 candidate literal(s) refused at admission and recorded with their hit counts`. **Discrimination proven by plant, not by pass line:** an ASD-STE100 conformance sentence and a `reduces token count` sentence each red by name and by `file:line:col`. **The exemption region is two-sided:** the same sentence appended INSIDE the disclaimer section reds on BOTH the suppression count (11 vs 10) and the extent (65 vs 62 lines) — the swallow detector fires. WP-04's two-artifact pin re-tested: reverting the profile row to the level-agnostic spelling reds 2 of 62 cases, naming *which half* moved (`profile/wp04`). |
-| 5 | **LANG-05** — `## One job`, the caveman block and `## Responsibilities` each say a thing once | ✓ VERIFIED | Live gate: `role clause uniqueness: 0 findings over 17/17 elements`. **Discrimination proven:** appending a 5th `## Responsibilities` bullet to `qe-e2e.md` restating its `## One job` sentence verbatim → `FAIL role clause uniqueness: 1 finding(s) over 17 elements`, gate exit 1. Baseline before the plant: 0/17, exit 0. |
-| 6 | **LANG-06** — the rebuilt voice guard fails RED on all 17 blocks as acceptance evidence, measures against a committed lexicon rather than sentence shape, and publishes a number with a denominator | ✓ VERIFIED — all four halves reproduced | See the dedicated section below. Round-4's failed defect (CR-01) is closed on **both** routes; the RED-on-17 acceptance evidence was **re-executed from git history** rather than accepted from `29-01-SUMMARY.md`. |
-| 7 | **LANG-07** — the lexicon guards and the rebuilt voice guard read the fence through ONE parser, never two grammars over the same bytes | ✓ VERIFIED — see the Scope Judgement for V-29-35-01 | See the dedicated section below. Exactly **one production fence state machine** in the tree; the third section-extent grammar is DELETED from both generators; and the deletion is proven mechanically held against **two** spellings, one of which no round-4 artifact anticipated. |
-| 8 | **LANG-08** — byte ceilings re-baselined exactly once at end of phase, every file ≤ previous, delta recorded, never raised mid-phase | ⚠️ PASSED (override) | Carried unchanged from rounds 1–4. **The prohibition half was re-measured here, not accepted:** `roleCeiling()`'s function body extracted from `scripts/check-foundation-guards.ts` at `57affa1^` and at `HEAD` hashes byte-identical, sha256 `c4d66b0e224299f9c797714886e4bbc5953d9c6138c18f035b77a8d9750f30e7` at both ends; `git diff --name-only 57affa1^..HEAD -- agent-factory/roles/` returns **0 files**. No ceiling was raised, lowered or re-baselined by any plan of round 4. The delta is recorded in `docs/audit/29-ceiling-rebaseline.md`. |
+| 1 | **LANG-01** — grugops-authored, ASD-STE100-derived writing profile ships with a non-affiliation/not-certified disclaimer, vendors no ASD text | ✓ VERIFIED | Direct read of `agent-factory/writing-profile.md`'s "Disclaimer and honesty floor" section (independently confirmed present at HEAD). Live gate re-run (`node scripts/check-imperative-lexicon.js`): `[LANG-01] 76 Technical Name(s) DERIVED from the kit, never listed`. Unchanged since the round-4 (2026-08-16) 8/8 verification's named adversarial reproduction; no round 5-7 plan touched this file's disclaimer section. |
+| 2 | **LANG-02** — profile applies to procedural/agent-written surfaces, explicitly not the fenced caveman blocks | ✓ VERIFIED | Live gate re-run: `PASS LANG-02: 47 governed document(s) in 4 derived part(s) — workflows 19, checklists 13, seedTemplates 13, contracts 2 … 47 of 47 opened`; `agent-factory/roles/` explicitly excluded by name in the gate's own PASS line, with its reason stated (governed by the separate voice guards instead). |
+| 3 | **LANG-03** — a named safety-surface exclusion list is honoured; load-bearing security/compliance/admission text is never reworded | ✓ VERIFIED | Live gate re-run (`node scripts/check-audit-register.js`): `PASS AUDIT-01 completeness … equality three holds — the 36 counted register row(s) flagged safety_surface: yes are set-equal in both directions to those same 36 derived file(s), so no kit file has been de-scoped out of the LANG-03 watched corpus`. Round 7 touched `check-audit-register.ts`/`audit-model.ts` significantly (plan 29-51's authority unification); this live re-run over the CURRENT tree confirms no regression, not a stale claim. |
+| 4 | **LANG-04** — guards named for exactly their decidable subset; `guard_banned_claims` holds the conformance prohibition mechanically, with no fail-open route | ✗ FAILED | See "LANG-04 — explicit disposition" below. Round 6's two blockers (CR-01, CR-02) are genuinely closed this round (independently reproduced), but a live, independently reproduced hard-wrap bypass on a LISTED literal (this round's own review CR-02, distinct from `V-29-47-04`) reopens the mechanical guarantee. |
+| 5 | **LANG-05** — `## One job` / caveman block / `## Responsibilities` each say a thing once | ✓ VERIFIED | Live gate re-run (`node scripts/check-foundation-guards.js`): `PASS role clause uniqueness: 0 findings over 17/17 elements`. No round 5-7 plan touched `agent-factory/roles/` clause structure. |
+| 6 | **LANG-06** — voice guard measures against a committed lexicon, not sentence shape; fails RED on all 17 blocks as acceptance evidence before the rewrite lands | ✓ VERIFIED | Live gate re-run: `PASS caveman voice: 0 findings over 17/17 elements`, guard description read verbatim: "every role's caveman block carries >= 2 of the 16 committed lexicon terms AND zero banned constructions". RED-on-17 acceptance evidence is durably recorded in `docs/audit/28-claim-registry.md` (not only in a verification report): "The guard was watched failing RED on all 17 blocks in plan 29-01 before it was allowed to pass, so a green run from it is a measurement and not a construction." No round 5-7 plan touched `voice-model.ts` or `agent-factory/roles/`'s caveman blocks. |
+| 7 | **LANG-07** — the lexicon guards and the rebuilt voice guard share ONE fence parser, never two grammars over the same bytes | ✓ VERIFIED | Confirmed the shared-authority claim by source read: `check-foundation-guards.ts` imports `readCavemanFence` from `voice-model.ts`; `voice-model.ts`'s own header states `readCavemanFence` composes `frontmatter.ts`'s `FENCE_DELIMITER_LINE`/`sectionEndIndex` (the same primitive `stripFencedBlocks`, consumed by `check-imperative-lexicon.ts`, is built on) rather than declaring a second state machine. Plan 29-48's REQUIREMENTS.md correction (`c8ae870`) applied round 6's verified recommendation with a clean, isolated 2-line diff — legitimate. Round 7 touched `check-claim-anchors.ts`/`audit-model.ts` (a DIFFERENT grammar, over claim-registry anchors, not the caveman fence), and did not touch `voice-model.ts`, `frontmatter.ts`, or `check-foundation-guards.ts` — no regression risk to this specific claim. |
+| 8 | **LANG-08** — byte ceilings re-baselined once at end of phase, every file ≤ previous, delta recorded, never raised mid-phase | ⚠️ PASSED (override) | Carried from the accepted 2026-08-15 human override (deferral, not omission — see frontmatter). Re-checked this round: `roleCeiling()` untouched since the override; `guard_role_size` live re-run: 16 PASS within ceiling, 1 WARN approaching ceiling (`security-nfr.md`), 0 FAIL. |
 
-**Score:** **8/8 truths verified** — 7 ✓ VERIFIED + 1 ⚠️ PASSED (override). 0 FAILED.
-0 present-but-behaviour-unverified.
+**Score:** 7/8 verified (6 live-reconfirmed VERIFIED + 1 override) / 1 FAILED (LANG-04).
 
-**This is the first round of five in which no truth fails.** Rounds 1–4 returned 4/8, 4/8, 6/8, 6/8.
+## LANG-04 — explicit disposition
 
----
+**LANG-04 cannot be called met.** Round 7 genuinely closed both of round 6's blockers, and this verification independently reproduced both closures from scratch on fresh mirrors — but this round's own code review found, and this verification independently reproduced, a live third bypass that round 7 did not address.
 
-## LANG-06, in full — the truth round 4 failed, re-derived from zero
+**What round 7 closed (independently reproduced by me):**
 
-Four separate claims live inside this criterion. Each was reproduced independently.
+- **Round-6 CR-01 (positional-only exemption region).** On a fresh `git archive HEAD` mirror, I replaced the honest denial at `agent-factory/writing-profile.md:292` — inside registry-anchored block `C-28-046` — with a live, disproven token-economy claim, preserving line count. Result: `4 CHECK(S) FAILED` — a byte-divergence refusal naming `C-28-046` by id, both cardinality pins (`suppressed 14→12`, `comprehension 4→2`) reported as MOVED against their declared values, and 2 findings named at `writing-profile.md:292:14` and `:292:33`. Round 6's identical plant left this at exit 0 with both pins unmoved; D-54's content bind (position AND content) genuinely reverses that.
+- **Round-6 CR-02 (shipped JSON manifests unscanned).** On a second fresh mirror, I planted the review's exact claim into `.claude-plugin/marketplace.json`'s `description` field. Result: `3 CHECK(S) FAILED`, naming `.claude-plugin/marketplace.json:3:*` three times. The gate's own PASS line at HEAD now reports `pluginManifests 2` as a sixth scan part (`BANNED_CLAIM_SCAN_COUNT` moved 115 → 117).
 
-### 6a. The round-4 defect (CR-01) is closed — SOURCE route
+**What round 7 left open (this round's own review's CR-02, independently reproduced by me):**
 
-`SEC_VOICE_FILES` is the one hand-maintained half of the voice corpus. Round 4 proved a member could
-be **substituted** for any other valid-shaped path with every published number holding still.
-
-```
-BASELINE (clean clone @10cb212)
-  $ npx vitest run scripts/check-foundation-guards.test.ts -t "SEC_VOICE"
-    6 passed | 214 skipped
-
-MUTATION — one token, in the .ts SOURCE
-  "agent-factory/workflows/15-security-audit.md"  ->  "agent-factory/checklists/definition-of-ready.md"
-  (SEC_VOICE_FILE_COUNT left at 2; path shape still agent-factory/**.md)
-
-  FAIL  the SEC_VOICE roster is pinned two-sided against the guard source
-        expected [ …(2) ] to deeply equal [ …(2) ]
-        +   "agent-factory/checklists/definition-of-ready.md"
-        -   "agent-factory/workflows/15-security-audit.md"
-  FAIL  the SEC_VOICE probe REDS on a SUBSTITUTED member — the direction a cardinality is blind to
-    2 failed | 4 passed
-```
-
-The pin names the member that **left** and the member that **arrived** as two separate lists — the
-failure describes the defect rather than merely reporting inequality.
-
-### 6b. The round-4 defect is closed — COMMITTED-`.js` route
-
-Round 4's reproduction edited the committed `.js`, which no source-level assertion can see. Plan
-29-33 disclosed this and named `npm run freshness` as the covering half. **Re-measured here, on a
-mirror, from a clean baseline:**
+`lineHits()` matches each of the 22 pinned literals against ONE physical line. The `token-economy` group has 7 members; only the hyphenated `token-economy` is a single token — the other 6 (`token economy`, `fewer tokens`, `token savings`, `saves tokens`, `reduces token count`, `lowers token count`) are all defeated by an ordinary hard wrap falling between their words. On a fresh mirror I appended to `agent-factory/workflows/13-incident.md`:
 
 ```
-$ npm run freshness                                  # clean mirror
-  All build outputs fresh: 48 committed .js file(s) match a fresh tsc rebuild      exit=0
-
-$ sed -i '' 's|…/15-security-audit.md|…/definition-of-ready.md|' scripts/check-foundation-guards.js
-$ node scripts/check-foundation-guards.js                                          exit=0   (as round 4 measured)
-$ npm run freshness
-  STALE: scripts/check-foundation-guards.js — committed build output differs from a fresh tsc rebuild.
-  Freshness check FAILED: 1 stale build output(s) detected.                        exit=1
+The caveman blocks are a token
+economy: they mean the model reads fewer
+tokens on every run, and this profile saves
+tokens too.
 ```
 
-Both routes are covered. Neither closure was accepted from a SUMMARY.
+three separately-pinned `token-economy` claims, hard-wrapped exactly as the kit's own house style wraps prose. Result: `PASS banned claims: 0 findings over 117/117 elements`, `ALL CHECKS PASSED`. The planted file is never named.
 
-### 6c. "Measures against a committed lexicon rather than sentence shape"
+This is **not** the round's disclosed residual `V-29-47-04` ("a claim in words the list does not contain still passes") — every word used here IS on the pinned list. What defeats the gate is a choice the matcher makes about what its input is assembled from (one physical line at a time), which is a mechanism defect distinct from an open-enumeration limitation. `docs/audit/29-round7-residuals.md:561` files the narrower, mechanism-deleted `V-29-42-01` ("a claim split across a hard wrap escapes the co-occurrence window") as "closed by construction in round 6, live count 0, no subject" — which is accurate about the co-occurrence window D-48/D-53 deleted, but a reader of that register would reasonably conclude the whole hard-wrap axis is closed, when the wider version — on literals the list demonstrably contains — still stands with 3 reproducible instances and no `V-` id, live count, or direction recorded anywhere.
 
-`CAVEMAN_LEXICON` (16 terms) and `CAVEMAN_LEXICON_MIN = 2` are committed in `scripts/voice-model.ts`.
-**Discrimination proven by plant:** replacing `qe-e2e.md`'s caveman interior with three grammatically
-clean, lexicon-free sentences —
+**Recommendation:** LANG-04 stays `Gaps Found`. A round-8 gap-closure plan should give the multi-word literal members a second, explicitly named wrap-joined input assembly (not a global whitespace normalization), per the code review's suggested fix, and open a `V-` id for the axis with its live count and direction before it is folded into any future "honest close."
 
-```
-  qe-e2e.md: tokens 0 / content words 22, banned 10
-  FAIL  caveman voice: 1 finding(s) over 17 elements                gate exit=1
-```
+## REQUIREMENTS.md correction recommended (LANG-01, LANG-02, LANG-03, LANG-05, LANG-06, LANG-08)
 
-The measurement is *lexicon membership and banned-construction count*, not sentence length. Baseline
-for the same file before the plant: `tokens 3 / content words 19, banned 0`.
+`.planning/REQUIREMENTS.md` currently reads all six of these as `Gaps Found` or `Pending` (lines 79-86, 180-187). That state is **stale bookkeeping**, not a current finding: it originates from a round-3 blanket revert (`12c77ef`) that predates the round-4 full-phase verification (`29-VERIFICATION.md`, 2026-08-16, score 8/8 with 1 accepted override), and no commit since has re-applied that verification's clean bill for anything but LANG-04/LANG-07 (which each got their own dedicated, later revert/correction commits). This verification independently re-ran the live gate for each of the six (Steps above) against the CURRENT tree — not against the 2026-08-16 report — and found no regression. **Recommend:**
 
-**Fail-closed on a malformed fence, re-confirmed:** deleting the closing fence delimiter and planting
-a caveman marker into a later section (round 3's bypass class) produces
-`## Caveman prompt fence refused — reason unterminated; the clear-voice remainder was not determined,
-so this file was NOT scanned` on **both** voice guards, gate exit 1. It does not fail open.
+| Requirement | Current REQUIREMENTS.md state | Recommended state | Reason |
+|---|---|---|---|
+| LANG-01 | `[ ]` / `Gaps Found` | `[x]` / `Complete` | Live-reconfirmed this round; unchanged since round-4's named adversarial reproduction |
+| LANG-02 | `[ ]` / `Pending` | `[x]` / `Complete` | Live-reconfirmed this round |
+| LANG-03 | `[ ]` / `Gaps Found` | `[x]` / `Complete` | Live-reconfirmed this round, including against round 7's own significant edits to the module it depends on |
+| LANG-05 | `[ ]` / `Gaps Found` | `[x]` / `Complete` | Live-reconfirmed this round |
+| LANG-06 | `[ ]` / `Gaps Found` | `[x]` / `Complete` | Live-reconfirmed this round; RED-on-17 acceptance evidence durably recorded in `docs/audit/28-claim-registry.md` |
+| LANG-08 | `[ ]` / `Pending` | `[x]` / `Complete` (via standing override) | Override accepted 2026-08-15, re-checked clean this round |
+| LANG-04 | `[ ]` / `Gaps Found` | **No change** — stays `[ ]` / `Gaps Found` | See explicit disposition above |
+| LANG-07 | `[x]` / `Complete` | **No change** | Correctly applied by plan 29-48 under round-6's named authority; confirmed legitimate |
 
-### 6d. "Fails RED on all 17 current caveman blocks as acceptance evidence before the rewrite lands"
+This correction is a recommendation in this report, per this phase's own established pattern (round 6's verifier made the equivalent LANG-04/LANG-07 correction in its own report rather than editing the file itself) — applying it is a follow-up step, not part of this verifier's own action.
 
-This is a historical ordering claim, and it was **re-executed rather than read**. The guard first
-appears in `73f67c6` (plan 29-01); `3cea7ce` is the accompanying record. The voice rewrite lands
-later, in plans 29-05…07. Extracting the tree at `3cea7ce` and running **that tree's own guard
-against that tree's own role corpus**:
-
-```
-$ git archive 3cea7ce | tar -x -C $MIR && cd $MIR && node scripts/check-foundation-guards.js
-  PASS  voice: clear-voice surfaces free of caveman markers
-  FAIL  caveman voice: 17 finding(s) over 17 elements                exit=1
-```
-
-**17 findings over 17 elements, before the rewrite, reproduced from git.** The acceptance evidence is
-a fact about the repository, not a transcript in a SUMMARY.
-
-### 6e. "Publishes a number with a denominator"
-
-Live: `voice: 0 findings over 19/19 elements` and `caveman voice: 0 findings over 17/17 elements`,
-plus round 4's WR-05 addition — a per-file four-number accounting reconciled by three named refusals:
-`qe-e2e.md: scanned 45 clear-voice line(s), 0 marker line(s), caveman region 6 line(s), document 51
-line(s)`, with `outsideLines + removedLines !== documentLines` an explicit refusal in the guard.
-
----
-
-## LANG-07, in full — one parser, and how hard that was pushed
-
-### 7a. Exactly one production fence state machine
-
-`FENCE_MACHINES` in `scripts/frontmatter.test.ts` is **derived** over tracked `.ts` files, sorted, and
-pinned two-sided at 3 with a cardinality floor: `scripts/frontmatter.ts`,
-`scripts/check-foundation-guards.test.ts`, `scripts/generate-role-adapters.test.ts`. **Two of the
-three are TEST files carrying deliberate plants** — the single *production* fence machine is
-`scripts/frontmatter.ts`. `voice-model.ts` matches neither classifier arm: it *composes*
-`FENCE_DELIMITER_LINE` rather than forking the machine.
-
-Consumers confirmed by direct read: `check-imperative-lexicon.ts` (which hosts **both**
-`guard_imperative_lexicon` and `guard_sentence_form`) imports `fencedLineFlags` +
-`unfencedHeadingIndex` from `frontmatter.ts` and `BANNED_CONSTRUCTIONS` from `voice-model.ts`;
-`check-foundation-guards.ts` (which hosts `guard_voice` and `guard_caveman_voice`) imports
-`readCavemanFence` from `voice-model.ts`, which itself consumes `frontmatter.ts`. **The three guards
-the criterion names read the fence through one parser.**
-
-### 7b. The third section-extent grammar is deleted — and the deletion is mechanically held
-
-Direct read at both former sites confirms the private `new RegExp` lookahead is gone and each
-generator now composes the authority:
-
-```ts
-// scripts/generate-catalog.ts:114   AND   scripts/generate-role-adapters.ts:159 — identical, deliberately
-function sectionBody(text: string, heading: string): string | null {
-  const at = unfencedHeadingIndex(text, `## ${heading}`);
-  if (at === -1) return null;
-  const end = sectionEndIndex(text, at + 1, 2);
-  return text.split("\n").slice(at + 1, end).join("\n");
-}
-```
-
-**Deletion is not the finding — enforcement is.** Two plants, both from a clean 13-passing baseline:
-
-| plant | result |
-|---|---|
-| the **historical** grammar re-introduced verbatim (`new RegExp(\`^## ${heading}\\n([\\s\\S]*?)(?=\\n## \|$(?![\\s\\S]))\`, "m")`) | **RED** — `floor item 1 is a MEASUREMENT: every \`new RegExp\`-built section bound in the tree is derived and named` → `expected [ 'scripts/generate-catalog.ts:115' ] to deeply equal []`. Caught **by file and line**. |
-| a **differently-spelled** private grammar — a regex-**literal** `/^#{1,2} /` loop with **no `new RegExp` anywhere** (an evasion no round-4 review finding, plan or SUMMARY names) | **RED, four ways** — `the OWNER set is derived tree-wide … expected [ 'scripts/frontmatter.ts', …(1) ]`; `a SIXTH section locator makes the owner set fail, BY NAME`; `the CONSUMER set … no module may both declare a section-extent predicate and import the shared one`; `the six evasions … must not have made a new module an owner`. Every message names `scripts/generate-catalog.ts`. |
-
-The second plant is the load-bearing one. This phase's recurring lesson is that a predicate's **set**
-is the degree of freedom nobody derives. The owner classifier was attacked on the axis the round's own
-artifacts did not cover, and it held.
-
-### 7c. Scope Judgement — V-29-35-01, stated plainly as requested
-
-**The finding is real and present.** `scripts/generate-catalog.ts:51` declares a private
-`parseFrontmatter` (`/^---\n([\s\S]*?)\n---\n/`, key charset `[A-Za-z_]+`) beside the exported
-authority at `scripts/frontmatter.ts:3862`. Confirmed by direct read here. Its sibling generator
-`generate-role-adapters.ts` imports the authority (line 78). Two grammars parse one class of bytes.
-Round 4 measured 0 key-set differences over 36 governed documents; it was recorded, not fixed, out of
-scope by explicit user decision.
-
-**My judgement: the scope decision does NOT leave success criterion 5 unmet, and here is why —
-stated so it can be challenged rather than deferred to.**
-
-Criterion 5's clause reads: *"`guard_imperative_lexicon` (with its sibling `guard_sentence_form`) and
-the rebuilt voice guard read the fence through **one** parser, never two grammars over the same
-bytes."* `REQUIREMENTS.md` LANG-07 is narrower still: *"…share **one** fence parser."* Both sentences
-take the same subject — **those three guards**, and **the fence**. `generate-catalog.ts` is not one of
-those guards, and `parseFrontmatter` is not the fence or the section extent. The criterion as written
-is met, and §7a/§7b are its evidence.
-
-**And here is what that judgement does not cover, said plainly.** The project's own D-24 principle —
-one authority per predicate, tree-wide — reads wider than this criterion, and the tree violates it at
-exactly one measured site. The round-4 record makes the point better than I can: *"a round that closes
-a duplicated grammar and opens a duplicated parser has not reduced the number of duplicated
-authorities in the tree — it has moved the duplication one level down. The next round should read that
-as the finding it is."* This is that round, and I read it as the finding it is: **not a phase-29
-blocker, but an open D-24 violation that must be carried forward by an explicit decision rather than
-absorbed by the phase closing.** That is human verification item 1, and it is the reason this report is
-`human_needed` rather than `passed`.
-
----
-
-## Required Artifacts
+### Required Artifacts (this round's changed files)
 
 | Artifact | Expected | Status | Details |
-|---|---|---|---|
-| `agent-factory/writing-profile.md` | Enumerated rules, derived Technical Names, non-affiliation + not-certified disclaimer, no vendored dictionary | ✓ VERIFIED | 7 sections; disclaimer explicit on all four points; honesty floor discloses the guard's own bound |
-| `scripts/frontmatter.ts` | The ONE section-locator + fence-machine authority | ✓ VERIFIED | Sole production fence machine (derived, pinned at 3 with two test-file plants); `unfencedHeadingIndex` / `sectionEndIndex` consumed by 8 modules |
-| `scripts/voice-model.ts` | Single section-bounded caveman-fence reader + committed lexicon | ✓ VERIFIED | `readCavemanFence` fails closed on `unterminated` at both heading levels; `CAVEMAN_LEXICON` 16 terms, `CAVEMAN_LEXICON_MIN` 2; publishes `outsideLines`/`removedLines` |
-| `scripts/check-foundation-guards.ts` | `guard_voice`, `guard_caveman_voice`, `guard_role_clause_uniqueness`, `roleCeiling()` | ✓ VERIFIED | All three publish findings-over-denominator; all three proven to discriminate by plant; `roleCeiling()` byte-identical across round 4 |
-| `scripts/check-foundation-guards.test.ts` | `SEC_VOICE_MEMBERS` roster + per-member derived-property floor + substitution arm; section-extent owner scan; tripwire census | ✓ VERIFIED | Roster reds on substitution; owner scan reds on two independent grammar spellings; census relationships each have a named witness |
-| `scripts/check-imperative-lexicon.ts` | `guard_imperative_lexicon` + `guard_sentence_form`, named for their decidable subsets | ✓ VERIFIED | Both names emitted with their own denominators (19/19, 47/47); no private fence or section grammar |
-| `scripts/check-banned-claims.ts` | Mechanical conformance / token-economy / comprehension prohibition | ✓ VERIFIED (bound disclosed) | 20 literals, 3 groups, 82 docs; exemption region pinned two-sided on count AND extent; 4 refused candidates recorded with hit counts |
-| `scripts/generate-catalog.ts` | No private section-extent grammar | ✓ VERIFIED / ⚠️ private `parseFrontmatter` remains | `sectionBody` composes the authority; `parseFrontmatter` at `:51` is V-29-35-01 (human item 1) |
-| `scripts/generate-role-adapters.ts` | No private section-extent grammar; imports the authority | ✓ VERIFIED | `sectionBody` composes the authority; `parseFrontmatter` imported from `frontmatter.js` |
-| `docs/audit/29-round4-residuals.md` | Round-4 disposition record, 13 rows, no silent drops | ✓ VERIFIED | 9 closed with re-run reproduction, IN-01..IN-04 deferred by named user decision; residual roll-up carries BOTH directions |
-| `docs/audit/29-locator-unification.md` | §9.3a/b/c amendment + closure + escalation | ✓ VERIFIED | §9.3b records both deletions and the byte-identical artifact proof; §9.3c records V-29-35-01 with its measurement |
-| `docs/audit/29-ceiling-rebaseline.md` | The LANG-08 delta record | ✓ VERIFIED | Present; prohibition half re-measured here by hash |
+|----------|----------|--------|---------|
+| `scripts/check-banned-claims.ts` | exemption region bounded by content AND position (D-54); JSON manifests as a sixth scan part; false in-source residual record deleted | ✓ VERIFIED (both round-6 closures) / ✗ STILL FAILS (new hard-wrap axis) | Content bind and JSON scan independently reproduced closed; hard-wrap bypass independently reproduced open |
+| `scripts/audit-model.ts` | one authority for registry-anchored block extent + byte identity, consumed by both `check-claim-anchors.ts` and `check-banned-claims.ts` | ✓ VERIFIED (mechanically) | Live gates for both consumers pass; not independently mutation-tested by this verification beyond the review's traced findings (WR-01/WR-02, see below) |
+| `scripts/check-claim-anchors.ts` | local anchor grammar/line assembly/byte comparison deleted, replaced by calls into the authority | ✓ VERIFIED (mechanically) | `check-claim-anchors.js` runs clean as part of the seven-gate sweep (orchestrator-measured, relied on) |
+| `scripts/check-nul-bytes.ts` | NUL-only offset function deleted; EISDIR arm named; single filesystem read | ✓ VERIFIED (mechanically) | Part of the clean seven-gate sweep; not independently re-derived beyond the review's traced findings |
+| `docs/audit/28-claim-registry.md` | new rows freezing every banned-claim-bearing line inside the exemption region | ✓ VERIFIED | `check-audit-register.js` live re-run reports 46 total claims, matching row/kind cardinalities, no de-scoped safety-surface file |
+| `docs/audit/29-round7-residuals.md` | round's disposition record | ✓ VERIFIED as a record, ⚠️ one framing gap | 1173+ line record read in relevant sections; its §7.2 "what round 7 does NOT claim" correctly discloses the SURVIVING enumeration limit (`V-29-47-04`) but does not disclose the DIFFERENT hard-wrap-on-a-listed-literal axis this verification found — see LANG-04 disposition |
+| `.planning/REQUIREMENTS.md` | reflects verified state for all 8 LANG requirements | ⚠️ PARTIAL | LANG-04/LANG-07 correctly applied this round; LANG-01/02/03/05/06/08 remain stale from an earlier round's blanket revert — see correction table above |
 
----
-
-## Key Link Verification
+### Key Link Verification
 
 | From | To | Via | Status | Details |
-|---|---|---|---|---|
-| `check-imperative-lexicon.ts` | `frontmatter.ts` | `fencedLineFlags`, `unfencedHeadingIndex`, `sectionEndIndex` | ✓ WIRED | Both lexicon guards read the one fence machine; no private grammar |
-| `check-foundation-guards.ts` | `voice-model.ts` → `frontmatter.ts` | `readCavemanFence`, `CAVEMAN_LEXICON` | ✓ WIRED | Fence reader composes the authority's delimiter class |
-| `generate-catalog.ts` | `frontmatter.ts` | `unfencedHeadingIndex` + `sectionEndIndex` | ✓ WIRED | Verified by re-plant: bypassing this link reds 4 named assertions |
-| `generate-role-adapters.ts` | `frontmatter.ts` | `unfencedHeadingIndex`, `sectionEndIndex`, `parseFrontmatter` | ✓ WIRED | Adapter `description` (which drives auto-routing) derives through the authority |
-| `check-foundation-guards.ts` (`SEC_VOICE_FILES`) | `check-foundation-guards.test.ts` (`SEC_VOICE_MEMBERS`) | source-byte parse, two-sided roster | ✓ WIRED | Substitution reds; `npm run freshness` covers the `.js` route |
-| `check-audit-register.ts` / `check-diff-disposition.ts` | `docs/audit/28-claim-registry.md` | `kind: safety` → D-18 union | ✓ WIRED | Registry-arm flip reds both gates, three findings |
-| `check-imperative-lexicon.ts` | `agent-factory/writing-profile.md` | WP-11 / WP-04 two-artifact anchor pin (6 members) | ✓ WIRED | Reverting the profile row reds 2 cases naming which half moved |
+|------|----|----|--------|---------|
+| D-54 exemption-region content bind | `BANNED_CLAIM_EXEMPT_SUPPRESSED`/`_EXTENT` pins | registry-anchored block membership, derived and two-sided counted | ✓ WIRED | Independently reproduced: a content substitution inside a frozen block now moves the pins and reds by name |
+| `pluginManifests` scan part | `.claude-plugin/*.json` | raw-byte, line-oriented scan over both manifests | ✓ WIRED | Independently reproduced: a planted claim in `marketplace.json`'s `description` reds by name |
+| `lineHits()` | multi-word `token-economy` literals | one physical line per call, no wrap-joined assembly | ✗ NOT WIRED (the gap) | Independently reproduced: a hard-wrapped, listed literal is invisible to the matcher |
+| `readCavemanFence` (voice guard) / `stripFencedBlocks` (lexicon guards) | `frontmatter.ts`'s `FENCE_DELIMITER_LINE`/`sectionEndIndex` | both compose the same shared primitive rather than declaring independent state machines | ✓ WIRED | Confirmed by source read; LANG-07 regression-clean |
+| `npm run build` (tsc, `outDir: "./"`) | `npm run freshness` | CI step order, no `git diff` assertion between them | ✗ NOT WIRED (repo-wide finding, not LANG-0X-scoped) | Confirmed by trace: the build-parity guarantee `CLAUDE.md` names cannot fail in CI as currently ordered |
 
----
+### Behavioral Spot-Checks
 
-## Data-Flow Trace (Level 4)
+| Behavior | Command | Result | Status |
+|----------|---------|--------|--------|
+| Typecheck | `npx tsc --noEmit` | exit 0 (independently run) | ✓ PASS |
+| LANG-01/LANG-02/LANG-04-decidable-subset, live | `node scripts/check-imperative-lexicon.js` | `ALL CHECKS PASSED`, both guard names + LANG-01/LANG-02 PASS lines printed | ✓ PASS |
+| LANG-03, live, over round-7's own edited module | `node scripts/check-audit-register.js` | `ALL CHECKS PASSED`, equality one/two/three/four all hold | ✓ PASS |
+| LANG-05/LANG-06, live | `node scripts/check-foundation-guards.js` | `ALL CHECKS PASSED`, `role clause uniqueness: 0/17`, `caveman voice: 0/17` | ✓ PASS |
+| Round-6 CR-01 reproduction (mine, fresh mirror `/tmp/gm8`) | content substitution inside a frozen block, same line count | `4 CHECK(S) FAILED`, `C-28-046` named, both pins moved | ✓ REPRODUCES the closure — CR-01 genuinely closed |
+| Round-6 CR-02 reproduction (mine, fresh mirror `/tmp/gm9`) | planted claim in `marketplace.json`'s `description` | `3 CHECK(S) FAILED`, `marketplace.json:3:*` named 3 times | ✓ REPRODUCES the closure — CR-02 genuinely closed |
+| Round-7 review CR-02 reproduction (mine, fresh mirror `/tmp/gm7`) | hard-wrapped `token-economy` phrase, 3 listed literals, planted into a governed workflow file | `PASS banned claims: 0 findings over 117/117 elements`, `ALL CHECKS PASSED`, planted file never named | ✗ FAIL — live bypass confirmed open |
+| Round-7 review CR-01 reproduction (mine, traced not planted — a CI-ordering defect, not a plantable content bypass) | grep `.github/workflows/ci.yml` for `git diff`/`git status`; compare `tsconfig.json` `outDir`; compare `scripts/freshness.ts`'s read source | Zero `git diff`/`status` hits; `outDir: "./"`; freshness reads the working tree, not git | ✗ FAIL — CI's build-parity gate structurally cannot detect a stale committed `.js` |
 
-| Artifact | Value | Source | Produces real data | Status |
-|---|---|---|---|---|
-| `guard_voice` pass line | `19/19 elements` | `ROLE_COUNT` (derived from `kit-model.ts`) + `SEC_VOICE_FILE_COUNT` | Yes — reds at 18/19 and 20/19 | ✓ FLOWING |
-| `guard_caveman_voice` per-block line | `tokens N / content words M, banned K` | `countLexiconTokens` over `CAVEMAN_LEXICON` | Yes — plant produced `tokens 0 … banned 10` | ✓ FLOWING |
-| `guard_voice` per-file accounting | `scanned / marker / region / document` line counts | `readCavemanFence`'s `outsideLines`/`removedLines` | Yes — reconciled by an explicit refusal | ✓ FLOWING |
-| `LANG-01` Technical Names | `76` | 5 derived kit lists, never a literal roster | Yes — enumerated at run time | ✓ FLOWING |
-| `LANG-02` governed corpus | `47 in 4 derived parts` | `readdir`-derived, expanded to files here | Yes — all 47 opened; membership matches the criterion's named surfaces | ✓ FLOWING |
-| tripwire census | `modules/occurrences/classified/…` | real scan over `testModules()` | Yes — real counter mutations move it (below) | ✓ FLOWING |
-| `SECTION_EXTENT_OWNERS` | `["scripts/frontmatter.ts"]` | tree-wide recursive derivation + vacuity floor | Yes — a plant adds a member | ✓ FLOWING |
+### Probe Execution
 
----
+Not applicable — no `scripts/*/tests/probe-*.sh` convention exists in this repository; the phase's verification mechanism is its own live gate binaries (`check-*.js`), exercised directly above.
 
-## Behavioural Spot-Checks — every one a plant, from a clean baseline
+### Requirements Coverage
 
-| # | Behaviour under test | Plant | Result | Status |
-|---|---|---|---|---|
-| 1 | `SEC_VOICE` membership (round-4 CR-01) | substitute one member in the `.ts` | 2 named cases RED, member-in / member-out reported separately | ✓ PASS |
-| 2 | `SEC_VOICE` `.js`-only route | substitute one member in the committed `.js` | gate exit 0, **`npm run freshness` exit 1**, file named STALE | ✓ PASS |
-| 3 | section-extent authority, historical spelling | re-plant the deleted `new RegExp` grammar | RED at `scripts/generate-catalog.ts:115` | ✓ PASS |
-| 4 | section-extent authority, **unanticipated** spelling | plant a regex-literal `/^#{1,2} /` loop, no `new RegExp` | RED in 4 assertions, module named | ✓ PASS |
-| 5 | committed-lexicon voice measurement | lexicon-free clean prose inside a caveman fence | `tokens 0 / content words 22, banned 10`, exit 1 | ✓ PASS |
-| 6 | fence fail-closed | delete the closing delimiter + plant a marker downstream | both voice guards refuse `unterminated`, exit 1 | ✓ PASS |
-| 7 | clause uniqueness | duplicate `## One job` into `## Responsibilities` | `1 finding(s) over 17 elements`, exit 1 | ✓ PASS |
-| 8 | conformance prohibition | `This kit conforms to ASD-STE100.` in a governed workflow | RED, literal + `file:line:col` named | ✓ PASS |
-| 9 | token-economy prohibition | `The writing profile reduces token count.` | RED, literal named | ✓ PASS |
-| 10 | comprehension prohibition | `The writing profile improves LLM comprehension.` | **PASS (not caught)** — unpinned phrasing; bound disclosed in the profile | ⚠️ see human item 2 |
-| 11 | exemption-region swallow detector | banned sentence appended inside the disclaimer section | RED on **both** the suppression count and the extent | ✓ PASS |
-| 12 | LANG-03 registry arm (regression probe) | flip `C-28-001` `kind: safety`→`architecture` | 3 findings across 2 gates, both exit 1 | ✓ PASS |
-| 13 | WP-04 two-artifact pin (WR-06) | revert the profile row to level-agnostic | 2 cases RED, `profile/wp04` named | ✓ PASS |
-| 14 | **tripwire census premise** — B5 | actually break `subjectOpenPastLine` to return `false` | `R6 the continuing-SUBJECT share fell below 2% (0 of 5533)` — **the exact id the transcribed row predicts** | ✓ PASS |
-| 15 | **tripwire census premise** — B3 | actually break `parenBalanceNaive` to return `0` | `R4` fires (plus R5, R7) — matches the transcribed row's `toContain("R4")` | ✓ PASS |
-| 16 | **tripwire census premise** — B4 | actually break `parenBalanceQuoteAware` to return `0` | `R7` fires — matches the transcribed row | ✓ PASS |
-| 17 | LANG-06 acceptance evidence | run the 29-01-era guard on the 29-01-era corpus | `FAIL caveman voice: 17 finding(s) over 17 elements`, exit 1 | ✓ PASS |
-| 18 | LANG-08 prohibition half | hash `roleCeiling()` body at `57affa1^` and `HEAD` | byte-identical; 0 role files touched | ✓ PASS |
+| Requirement | Source Plan(s) | Description (abridged) | Status | Evidence |
+|--------------|-------------|--------------------------|--------|----------|
+| LANG-01 | 29-01, 29-02 (this round: none) | ASD-STE100-derived profile, disclaimer, no vendored text | ✓ SATISFIED | Live re-run this round; see truth #1 |
+| LANG-02 | 29-02, 29-03 (this round: none) | Profile governs procedural surfaces, not caveman blocks | ✓ SATISFIED | Live re-run this round; see truth #2 |
+| LANG-03 | 29-01, 29-18, 29-23 (this round: 29-51 touched the shared authority) | Safety-surface exclusion list honoured | ✓ SATISFIED | Live re-run this round over the currently-edited module; see truth #3 |
+| LANG-04 | 29-03, 29-40..29-47, this round 29-49..29-55 | Decidable-subset guards named; conformance prohibition mechanical | ✗ BLOCKED | See explicit disposition — round-7 review's own new hard-wrap bypass, independently reproduced |
+| LANG-05 | 29-05, 29-06, 29-07 (this round: none) | Role skeleton de-duplicated | ✓ SATISFIED | Live re-run this round; see truth #5 |
+| LANG-06 | 29-01, 29-07 (this round: none) | Voice guard measures against committed lexicon, RED-on-17 acceptance evidence | ✓ SATISFIED | Live re-run this round + durable evidence in `28-claim-registry.md`; see truth #6 |
+| LANG-07 | 29-20, 29-27, 29-35, 29-40, this round 29-48, 29-54 | One fence parser shared, never two grammars | ✓ SATISFIED | Confirmed legitimate correction + regression-clean; see truth #7 |
+| LANG-08 | 29-13 (override, this round: none) | Byte ceilings re-baselined once, never raised mid-phase | ⚠️ SATISFIED (override) | Re-checked clean this round; see truth #8 |
 
-**On checks 14–16.** Round 4's largest new surface is WR-07's conversion of six exact-equality census
-pins to corpus-derived rate floors — precisely the kind of change that can trade discrimination for
-quiet. Its discrimination case proves seven breakages against **transcribed** census numbers, which is
-a harness premise nobody had asserted. I asserted it: three counters were **actually mutated in
-source** and each produced the exact rule id its transcribed row claims. The case's own
-`"the live tree must be clean before either population means anything"` guard is what caught them —
-the premise assertion works. The conversion did not cost discrimination.
+No requirement ID declared across any Phase 29 plan (`LANG-01`..`LANG-08`, each cited at least once) is missing from `.planning/REQUIREMENTS.md`'s Phase 29 mapping — no orphans. All eight ids are present with no gaps in the enumeration (`grep -c "LANG-0[1-8]" .planning/REQUIREMENTS.md` over the traceability table returns 8).
 
----
-
-## Probe Execution
-
-No `scripts/*/tests/probe-*.sh` files exist in this repository and no PLAN or SUMMARY of this phase
-declares one; this project's equivalent mechanism is the seven repo gates plus the vitest harness,
-all executed above. **Step 7c: SKIPPED (no probe scripts in this repository).** The round-4
-`probe_coverage` arithmetic (22 surfaced = 9 authored + 11 attributed + 2 flagged planner
-assumptions) is a planning artifact recorded in `docs/audit/29-round4-residuals.md` §5, including the
-LANG-07 assumption the round itself records as **partly falsified**. That honesty is noted, and it is
-the reason human item 1 exists.
-
----
-
-## Requirements Coverage
-
-| Requirement | Source plans | Description | Status | Evidence |
-|---|---|---|---|---|
-| LANG-01 | 29-02, 29-03, 29-31 | ASD-STE100-derived profile + disclaimer, no vendored dictionary | ✓ SATISFIED | Truth 1 |
-| LANG-02 | 29-08..29-12, 29-24 | Profile applied to procedural surfaces, not to caveman blocks | ✓ SATISFIED | Truth 2 (all 4 derived parts expanded to files) |
-| LANG-03 | 29-04, 29-28, 29-30, 29-37 | Named safety-surface exclusion list honoured | ✓ SATISFIED | Truth 3 (round-3 bypass now reds 3 ways) |
-| LANG-04 | 29-02, 29-14..29-18, 29-31, 29-38 | Guards named for the decidable subset; conformance prohibition mechanical | ✓ SATISFIED | Truth 4; literal-set bound disclosed → human item 2 |
-| LANG-05 | 29-05, 29-06, 29-07 | Role skeleton de-duplicated | ✓ SATISFIED | Truth 5 |
-| LANG-06 | 29-01, 29-20, 29-27, 29-33, 29-34 | Voice guard measures lexicon, RED on 17 first | ✓ SATISFIED | Truth 6, all four halves reproduced |
-| LANG-07 | 29-21..29-26, 29-29, 29-35, 29-36 | One fence parser, never two grammars | ✓ SATISFIED | Truth 7; V-29-35-01 → human item 1 |
-| LANG-08 | 29-13, 29-19 | Ceilings re-baselined once, never raised mid-phase | ⚠️ SATISFIED via override | Truth 8; prohibition half re-measured by hash |
-
-**No orphaned requirements.** `.planning/REQUIREMENTS.md` maps exactly LANG-01..LANG-08 to Phase 29
-and every one is claimed by at least one executed plan.
-
-**Traceability bookkeeping lag — for the human, not a gap.** `.planning/REQUIREMENTS.md`'s status
-table still reads `Gaps Found` for LANG-01/03/04/05/06/07 and `Pending` for LANG-02/08, and the
-checklist at lines 79–86 is entirely `[ ]`. All seven round-4 executors **deliberately declined** to
-mark their requirement complete, leaving the decision to this verification. Per this report all eight
-now resolve; the table and checklist should be updated once the two human items are dispositioned.
-
----
-
-## Anti-Patterns Found
-
-Scanned all 35 files changed in `57affa1^..HEAD` (22 non-`.planning/`).
+### Anti-Patterns Found
 
 | File | Line | Pattern | Severity | Impact |
-|---|---|---|---|---|
-| `scripts/audit-model.test.ts` | 476, 478 | literal `TBD` | ℹ️ Info | **Not a debt marker.** Test fixture data: `rowA(…, "TBD")` is an invalid cell value planted to prove `readRegister` throws, and `/TBD/` is the assertion that it does. The debt-marker gate does not apply to a fixture whose subject is the rejected string. |
+|------|------|---------|----------|--------|
+| `scripts/check-banned-claims.ts` | 2018 (`lineHits`), 60-65 (justification) | line-oriented matcher misses a hard-wrapped, LISTED multi-word literal; in-source justification names the wrong wrap shape | 🛑 BLOCKER (round-7 review CR-02, independently reproduced) | A live, disproven token-economy or comprehension claim written as ordinary hard-wrapped prose ships undetected |
+| `.github/workflows/ci.yml` / `tsconfig.json` / `scripts/freshness.ts` | ci.yml:58-59,87; tsconfig.json:6-7; freshness.ts:93-100 | build step runs before every freshness step with no dirty-tree assertion; `tsc` writes over the committed `.js` in place; freshness reads the working tree, not git | 🛑 BLOCKER (repo-wide, pre-existing since phase 20, not LANG-0X-scoped) | CI structurally cannot detect a committed `.js` that does not match its `.ts` source — the build-parity guarantee `CLAUDE.md` names is currently unenforced by construction, even though the tree is not drifted today |
+| `scripts/check-banned-claims.ts` | 1693-1699 (`deriveExemptBlocks`) | comment claims an unrostered-anchor shortfall is reported by "the cardinality assertion below"; the code `continue`s without ever pushing to the counted set | ⚠️ WARNING (round-7 review WR-01, confirmed by source read; fail-closed direction, not a live widening) | False in-source claim about a compensating mechanism; the actual compensating check lives entirely in a sibling gate (`check-claim-anchors.js`) |
+| `scripts/check-banned-claims.ts` | 1751-1763 | an "overrun" (block needs a line the document does not have) is reported with the "byte for byte" wording meant for an actual byte divergence | ⚠️ WARNING (round-7 review WR-02, not independently re-reproduced by this verification) | Misdiagnoses the cause for an author reading the message; the sibling gate (`check-claim-anchors.ts`) reports the true cause for the identical condition |
+| `scripts/check-banned-claims.test.ts` | 481, 492-529 | a second, hand-copied anchor grammar and a third block-extent rule live in the D-54 test harness, importable instead from the authority | ⚠️ WARNING (round-7 review WR-03, not independently re-reproduced by this verification) | If the authority's anchor grammar is ever widened, this harness's fixtures would not notice, since they construct under the old grammar |
+| `scripts/check-banned-claims.ts` | 2542-2544 | PASS-line coverage arithmetic can over-report (and theoretically go negative) if a frozen block ever extends past the exemption region's end | ℹ️ INFO (round-7 review IN-01; 0 live subjects on this tree) | Cosmetic today — all six frozen blocks fit inside the region |
 
-**No `FIXME`, no `XXX`, no unreferenced `TBD` in any file changed by this phase.** No stub returns, no
-hardcoded empty data reaching output, no console-log-only implementation.
+No unreferenced `TBD`/`FIXME`/`XXX` markers found in this round's changed files (independently re-grepped: 0 hits across `check-banned-claims.ts`, `check-nul-bytes.ts`, `check-claim-anchors.ts`, `audit-model.ts`, `generate-catalog.ts`, `kit-model.ts`, `check-public-docs-vocabulary.ts`, `catalog-freshness.ts`, `check-audit-register.ts`).
 
-**Two pre-existing executor-level deferrals are recorded, not dropped**, in
-`.planning/phases/…/deferred-items.md`: **D-38-1** (`FORM_REMEDY` spells the procedural bound as a
-literal `20` beside `PROCEDURAL_SENTENCE_MAX_WORDS` — the set-literal-drift class one string over) and
-**D-38-2** (`docs/audit/29-locator-unification.md:34` cites three stale line numbers, all three
-re-measured as wrong on today's tree). **D-38-3** is a workflow finding (a SUMMARY's frontmatter is
-written after the run that would catch it; it bit this round twice, at `84b0f4b` and `dd16917`). All
-three are minor, disclosed, and none touches a truth.
+### Human Verification Required
 
----
+None. Every finding in this report (both round-6 closures and the new round-7 bypass) is independently, mechanically reproduced with a named command and a named result — no judgment call is required to resolve LANG-04's status.
 
-## Deferred Items
+### Gaps Summary
 
-Round 4's four user-deferred findings (**IN-01** the scan-scope shortfall asserts an identity;
-**IN-02** the claim-heading recogniser matches every single-token level-three heading; **IN-03** the
-pass line computes the registry residue a third way; **IN-04** `headingShapedFenced` is published but
-never asserted) are recorded in `docs/audit/29-round4-residuals.md` §2 with, for each, its location
-re-measured on today's tree, its risk if never closed, and whether it is live or latent. Each is
-fail-closed or latent with 0 live occurrences. **None is deferred to a later milestone phase** —
-Phase 29.1 (per-role model assignment) touches `generate-role-adapters.ts`'s frontmatter emitter and
-addresses none of them — so they are not listed in the `deferred` frontmatter block. They are
-**decisions already taken by the user**, not gaps this round found, and they do not affect any truth.
+**Round 7 genuinely closed both of round 6's blockers.** D-54's content bind on the sole exemption region and the new `pluginManifests` scan part are both independently reproduced closed on fresh mirrors, not merely accepted from the round's own SUMMARYs. The requirements-traceability inversion round 6 flagged is also correctly closed.
+
+**LANG-04 is still not met.** This round's own code review found a third bypass — distinct from both round-6 findings and from the round's disclosed enumeration residual (`V-29-47-04`) — where a pinned, listed multi-word literal is invisible to the matcher when it is hard-wrapped across an ordinary line boundary, which is this kit's own house style. Independently reproduced from scratch on a fresh mirror: exit 0, `ALL CHECKS PASSED`, planted file never named.
+
+**A second, repo-wide finding is recorded but not treated as blocking any of LANG-01..08's literal text:** the CI build-parity gate (the mechanism `CLAUDE.md` names as the reason committed `.js` cannot drift from its `.ts` source) cannot fail as currently ordered. This predates phase 29 (introduced with `ci.yml` in phase 20) but undermines confidence in every "mechanical, no fail-open route" claim this phase makes about its shipped artifact, since nothing currently proves the committed `.js` a host machine runs matches the `.ts` a reviewer read. Recommended as a follow-up item, not a phase-29 requirement gate.
+
+**Separately, six of the eight LANG requirements (LANG-01, 02, 03, 05, 06, 08) are stale in `.planning/REQUIREMENTS.md`** — marked `Gaps Found`/`Pending` from a round-3 blanket revert that predates a full-phase 8/8 verification, never corrected for anything but LANG-04/LANG-07. This verification independently re-ran the live gate for each of the six against the CURRENT tree and found all six genuinely met, with no regression from round 5-7's edits. Recommend correcting `.planning/REQUIREMENTS.md` per the table above.
+
+**Recommendation:** LANG-04 stays `Gaps Found`; route to a round-8 gap-closure plan addressing the hard-wrap-on-a-listed-literal bypass (give the multi-word members a second, named wrap-joined input assembly) and open a `V-` id for it with its live count and direction. Separately, correct `.planning/REQUIREMENTS.md`'s LANG-01/02/03/05/06/08 rows to `Complete` per this report's independent live re-verification, and consider opening a follow-up item for the CI build-parity ordering defect (not phase-29-scoped, but material to every guard this phase ships).
 
 ---
 
-## Human Verification Required
-
-### 1. Decide whether phase 29 may close with `V-29-35-01` open
-
-**Test:** Read `docs/audit/29-locator-unification.md` §9.3c and `docs/audit/29-round4-residuals.md`
-§3, then confirm by direct read: `scripts/generate-catalog.ts:51` declares a private
-`parseFrontmatter` beside the exported authority at `scripts/frontmatter.ts:3862`, while the sibling
-generator imports the authority.
-
-**Expected:** An explicit recorded decision — accept it as a milestone-level residual carried past
-phase 29 with the reason, or schedule its closure. This report judges it does **not** falsify success
-criterion 5 (§7c), and says equally plainly that it **does** violate the project's wider D-24
-principle, that round 4's net residual movement was zero, and that the round-4 record itself asks the
-next round to read that as a finding.
-
-**Why human:** The user scoped this out for **round 4**. The phase is now closing. Whether a
-round-scoped deferral survives phase closure is a decision, not a measurement.
-
-### 2. Decide whether `guard_banned_claims`'s pinned literal set should grow
-
-**Test:** Append `The writing profile improves LLM comprehension.` to any governed workflow file and
-run `npm run check:banned-claims`. It passes. Compare against `This kit conforms to ASD-STE100.` and
-`The writing profile reduces token count.`, which both red by name.
-
-**Expected:** Either add the phrasing family to `BANNED_CLAIM_LITERALS`'s `comprehension` group with
-a same-commit re-pin of the affected counts, or record acceptance of the disclosed bound. **This is
-not a live false claim:** an independent grep across `agent-factory/`, `README.md`, `docs/catalog/`,
-`install/` and `AGENTS.md` found no comprehension claim in any spelling, and the only near-hit
-(`Maximum token win` in `18-context-compaction.md`) is one of the four candidate literals **refused at
-admission with a recorded reason** — it describes a dial that genuinely sends less text, not a claim
-about the writing profile.
-
-**Why human:** Where a decidable-subset guard's enumerated set should stop is editorial. The profile's
-honesty floor already discloses this exact bound verbatim; the ROADMAP criterion's wording is stronger
-than that disclosure, and the human owns the difference.
-
----
-
-## Gaps Summary
-
-**There are none.** For the first time in five verification rounds, no truth fails.
-
-Round 4 was asked to close two failed truths and 13 review findings. Both truths close, and both
-closures were re-derived here from a clean baseline rather than accepted:
-
-- **LANG-06** closes on **both** routes its own defect had — the source-level membership roster reds
-  on a substitution and names which member left and which arrived, and `npm run freshness` reds on the
-  `.js`-only route the source pin cannot see. Its three other halves were verified independently,
-  including re-executing the RED-on-17 acceptance evidence **from git history** at `3cea7ce` rather
-  than reading it out of a SUMMARY.
-- **LANG-07** closes and is **held**. The third section-extent grammar is deleted from both
-  generators, and the enforcement was attacked on an axis no round-4 artifact covers — a private
-  grammar written as a regex *literal* rather than through `new RegExp` — where it red four ways by
-  module name. That is the difference between "the fix landed" and "the prohibition holds."
-
-**One thing this round did that the previous four did not: it asserted the premise of the round's own
-newest harness.** WR-07's rate-floor conversion proves its discrimination against transcribed census
-numbers. Three of those counters were actually mutated in source here, and each produced exactly the
-rule id its transcribed row claims. Given that this phase has now had seven harness-produced false
-results across five rounds — four of them agreeing with the comfortable answer — that check was the
-one most worth running, and it held.
-
-**What remains is not a gap; it is a decision.** `V-29-35-01` is a duplicated *frontmatter* parser,
-one level below the *section-extent* duplication that round 4 deleted. It is measured at zero live
-divergence, disclosed by name in two audit documents, and out of scope by the user's own round-4
-decision. It does not falsify the criterion as written. It does mean the tree still carries one
-duplicated authority, and the phase should not close by pretending otherwise — which is why this
-report is `human_needed` and not `passed`.
-
----
-
-_Verified: 2026-08-16T14:04:14Z_
-_Verifier: Claude (gsd-verifier), round 5 — adversarial re-verification after gap-closure round 4_
-_All reproductions run on `git clone --local` / `git archive` mirrors at `10cb212`; live repository unmodified_
+_Verified: 2026-08-18T10:15:45Z_
+_Verifier: Claude (gsd-verifier)_
